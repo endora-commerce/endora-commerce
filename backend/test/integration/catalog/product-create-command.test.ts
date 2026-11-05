@@ -53,8 +53,8 @@ describe('CatalogAdminService.createProduct — audited via Command Bus [real DB
     return {
       sku,
       type: 'simple',
-      name: { 'en-US': name },
-      description: { 'en-US': 'desc' },
+      name: name,
+      description: 'desc',
       categoryIds: [],
       attributeValues: {},
       visibility: 'public',

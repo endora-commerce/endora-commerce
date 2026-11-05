@@ -30,8 +30,8 @@ describe('Admin permission gating', () => {
       payload: {
         sku: 'PERMISSION-TEST-001',
         type: 'simple',
-        name: { 'en-US': 'X' },
-        description: { 'en-US': 'X' },
+        name: 'X',
+        description: 'X',
         categoryIds: [],
         attributeValues: {},
         visibility: 'public',

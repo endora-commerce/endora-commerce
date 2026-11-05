@@ -19,13 +19,20 @@ switched off by a special case.
 
 **Storefront (self-service)**
 
-- Standalone registration, gated by the
-  `customers.allow_registration_without_organization` setting. On success the
+- Standalone registration, gated per sales channel by the
+  `customers.allow_registration_without_organization` setting: the value set
+  for the channel the request resolves to applies, then the all-channels value.
+  On success the
   account and its personal organization are written in one transaction and the
   new account is logged in automatically. While the setting is off, the
   storefront's `/register-customer` page shows a notice with a link to the
   organization registration instead of the form, so a visitor does not fill
   it in only to be refused.
+- A first sign-in through an external identity provider (for example Google)
+  creates an account under the same setting, read for the sales channel the
+  sign-in was started on. Where the setting is off for that channel, no
+  account is created and the visitor is sent back to the sign-in page with a
+  prompt to create an account first.
 - One address book for every customer: their Organization's. An individual sees
   it as *My addresses* (`/addresses`), a company member as *Organization
   addresses* (`/organization/addresses`). Checkout offers and saves to the same
@@ -134,7 +141,7 @@ Admin routes are gated by `customers:read` (reads), `customers:manage`
 
 | Code | Type | Default | Purpose |
 | --- | --- | --- | --- |
-| `customers.allow_registration_without_organization` | boolean | `false` | Gate standalone registration |
+| `customers.allow_registration_without_organization` | boolean | `false` | Gate standalone registration, per sales channel |
 | `customers.deletion_retention_days` | number | `365` | Restore window before permanent anonymization |
 | `customers.presence_freshness_minutes` | number | `10` | "Online" threshold |
 

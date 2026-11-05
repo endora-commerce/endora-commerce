@@ -48,8 +48,8 @@ describe('Public bundle-configuration validation contract (T118)', () => {
       payload: {
         sku: `BV-${type.toUpperCase()}-${suffix}`,
         type,
-        name: { 'en-US': `BV ${type} ${suffix}` },
-        description: { 'en-US': '' },
+        name: `BV ${type} ${suffix}`,
+        description: '',
         categoryIds: [],
         attributeValues: {},
         visibility: 'public',

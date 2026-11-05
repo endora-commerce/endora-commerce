@@ -23,8 +23,8 @@ const C = '00000000-0000-4000-8000-0000000000c1';
 const CREATE_BASE = {
   sku: 'SKU-1',
   type: 'simple',
-  name: { 'en-US': 'One' },
-  description: { 'en-US': 'One' },
+  name: 'One',
+  description: 'One',
   categoryIds: [],
   attributeValues: {},
   visibility: 'public',

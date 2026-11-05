@@ -110,8 +110,8 @@ describe('Attribute delete for every type (feature 172, US6)', () => {
       payload: {
         sku: `AD-172-${run}-${serial}`,
         type: 'simple',
-        name: { 'en-US': `Delete probe ${serial}` },
-        description: { 'en-US': 'Probe' },
+        name: `Delete probe ${serial}`,
+        description: 'Probe',
         categoryIds: [],
         ...(attributeSetId ? { attributeSetId } : {}),
         attributeValues: {},

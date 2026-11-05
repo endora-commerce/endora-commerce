@@ -98,8 +98,8 @@ describe('POST /api/v1/admin/catalog/products/resolve-ids', () => {
         payload: {
           sku,
           type: 'simple',
-          name: { 'en-US': sku },
-          description: { 'en-US': 'desc' },
+          name: sku,
+          description: 'desc',
           categoryIds: [],
           attributeValues: {},
           visibility: 'public',

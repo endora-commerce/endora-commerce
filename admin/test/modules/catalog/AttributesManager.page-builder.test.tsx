@@ -61,8 +61,7 @@ function attribute(overrides: Record<string, unknown>): Record<string, unknown> 
     isVisibleOnProductPage: false,
     massEditable: false,
     quickSearchable: false,
-    channelScoped: false,
-    languageScoped: false,
+    scopable: false,
     ...overrides,
   };
 }
@@ -73,7 +72,6 @@ const GUIDE = attribute({
   label: { 'en-US': 'Buying guide' },
   labelDefault: 'Buying guide',
   valueType: 'page_builder',
-  languageScoped: true,
 });
 
 function wrap(ui: ReactElement): ReactElement {
@@ -104,8 +102,8 @@ const CAPABILITY_LABELS = [
   'attributes.column.quickSearchable',
   'attributes.flag.promoRule',
   'attributes.flag.priceRule',
-  'attributes.scope.channelScoped',
-  'attributes.scope.languageScoped',
+  // Feature 174 — the one scope flag, `scopable`, replaced the channel and language pair.
+  'attributes.scope.scopable',
 ].map((key) => EN[key]!);
 
 describe('AttributesManager — Page Builder content type (feature 172)', () => {
@@ -141,8 +139,7 @@ describe('AttributesManager — Page Builder content type (feature 172)', () => 
       isPromoRule: false,
       isPriceRule: false,
     });
-    expect(body).not.toHaveProperty('channelScoped', true);
-    expect(body).not.toHaveProperty('languageScoped', false);
+    expect(body).not.toHaveProperty('scopable', true);
     expect(body).not.toHaveProperty('enumValues');
   });
 

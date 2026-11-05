@@ -53,8 +53,8 @@ describe('an availability notification carries the organisation of the account t
       slug: `attrib-notify-${stamp}`,
       type: 'simple',
       status: 'active',
-      name: { 'en-US': 'Attribution probe product' },
-      description: { 'en-US': 'Out of stock, so the notify-me path is reachable.' },
+      name: 'Attribution probe product',
+      description: 'Out of stock, so the notify-me path is reachable.',
       visibility: 'public',
       attributeValues: { defaultPrice: 10 },
     });

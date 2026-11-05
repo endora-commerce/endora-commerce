@@ -30,8 +30,8 @@ describe('Feature 032 — delete guards', () => {
       payload: {
         sku,
         type: 'simple',
-        name: { 'en-US': sku },
-        description: { 'en-US': 'desc' },
+        name: sku,
+        description: 'desc',
         categoryIds: [],
         attributeValues: {},
         visibility: 'public',

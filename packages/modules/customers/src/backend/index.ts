@@ -41,8 +41,9 @@ import {
   searchCustomersForAdmin,
   type CustomerAdminSearchProviderDeps,
 } from './admin-search-provider.js';
+import { readChannelSetting as readSetting, type ChannelSettingScope } from './channel-setting.js';
 import type { ModuleContext } from '@endora-commerce/platform/kernel';
-import { lazyPort } from '@endora-commerce/platform/kernel';
+import { currentSalesChannel, lazyPort } from '@endora-commerce/platform/kernel';
 import type { RequireAdminFactory } from '@endora-commerce/platform/kernel';
 import type { SalesChannelResolutionPort } from '@endora-commerce/platform/kernel';
 import type { SettingsReadPort } from '@endora-commerce/platform/kernel';
@@ -227,27 +228,30 @@ export function registerModule(ctx: ModuleContext): void {
   const cradle = (): CustomersCradle => ctx.cradle<CustomersCradle>();
   registerModerationActor(ctx);
 
-  /**
-   * This module's own settings, read against the system-default channel. Each
-   * degrades to the manifest default rather than failing the request — the
-   * identical try/catch stood in the production root, three times over.
-   *
-   * D-48 removed an `if (!channel) return fallback;` from between the two: on
-   * the impossible no-channel branch it returned the compiled-in constant
-   * without reading the setting at all, which is worse than switching tier.
-   */
-  const readChannelSetting = async <T>(
+  /** See `readChannelSetting` in `./channel-setting.ts` (issue #773). */
+  const readChannelSetting = <T>(
     code: string,
     schema: Parameters<SettingsReadPort['get']>[2],
     fallback: T,
-  ): Promise<T> => {
-    try {
-      const channel = await cradle().salesChannelResolutionPort.getSystemDefault();
-      return (await cradle().settingsReadPort.get(code, channel.id, schema)) as T;
-    } catch {
-      return fallback;
-    }
-  };
+    scope?: ChannelSettingScope,
+  ): Promise<T> =>
+    readSetting(
+      {
+        // Getters, so a cradle that cannot resolve degrades inside the reader's
+        // try/catch exactly as the inline closure did.
+        get settingsReadPort() {
+          return cradle().settingsReadPort;
+        },
+        get salesChannelResolutionPort() {
+          return cradle().salesChannelResolutionPort;
+        },
+        currentChannelId: () => currentSalesChannel()?.id,
+      },
+      code,
+      schema,
+      fallback,
+      scope,
+    );
 
   // `specs/173-b2c-address-book-merge/` release 1 removed
   // `customerAddressReadPort`: the personal address book is retired, and its
@@ -381,6 +385,7 @@ export function registerModule(ctx: ModuleContext): void {
                 CUSTOMERS_SETTING_CODES.ALLOW_REGISTRATION_WITHOUT_ORGANIZATION,
                 z.boolean(),
                 false,
+                'request',
               ),
             resolveDeletionRetentionDays: () =>
               readChannelSetting(CUSTOMERS_SETTING_CODES.DELETION_RETENTION_DAYS, z.number(), 365),

@@ -20,7 +20,16 @@
 
 import { Migration20260425T154404SeoInit } from './20260425T154404_seo_init.js';
 import { Migration20261025T215911SeoMetaOverrideChannelScope } from './20261025T215911_seo_meta_override_channel_scope.js';
+import { Migration20261103T171312SeoProductMetaThreeLevels } from './20261103T171312_seo_product_meta_three_levels.js';
 
-export const migrations = [Migration20260425T154404SeoInit, Migration20261025T215911SeoMetaOverrideChannelScope];
+export const migrations = [
+  Migration20260425T154404SeoInit,
+  Migration20261025T215911SeoMetaOverrideChannelScope,
+  Migration20261103T171312SeoProductMetaThreeLevels,
+];
 
-export { Migration20260425T154404SeoInit, Migration20261025T215911SeoMetaOverrideChannelScope };
+export {
+  Migration20260425T154404SeoInit,
+  Migration20261025T215911SeoMetaOverrideChannelScope,
+  Migration20261103T171312SeoProductMetaThreeLevels,
+};

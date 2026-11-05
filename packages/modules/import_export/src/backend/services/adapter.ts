@@ -1,16 +1,20 @@
 import type {
   BulkImportReport,
+  CatalogAttributeReadPort,
   CatalogBulkImportPort,
   CatalogCategoryReadPort,
+  CatalogProductAvailabilityPort,
   CatalogProductReadPort,
   CustomerAccountReadPort,
   ErrorCode,
+  ImportProfile,
   InventoryStockImportPort,
   InventoryStockReadPort,
   OrderReadPort,
   OrganizationDetailsPort,
   OrganizationRoleReadPort,
 } from '@endora-commerce/contracts';
+import type { SalesChannelResolutionPort } from '@endora-commerce/platform/kernel';
 
 /**
  * What an adapter is allowed to reach (feature 075, D-74).
@@ -33,8 +37,32 @@ export interface ImportExportPorts {
   readonly orders: OrderReadPort;
   readonly customerAccounts: CustomerAccountReadPort;
   readonly organizations: OrganizationDetailsPort;
+  /** Feature 174 — the attribute definitions a products header names (their value type and scope set). */
+  readonly catalogAttributes: CatalogAttributeReadPort;
+  /** Feature 174 (FR-042) — which channels each imported product belongs to, for the profile's targets. */
+  readonly catalogAvailability: CatalogProductAvailabilityPort;
+  /** Feature 174 — the channel codes and languages a products header names (a kernel registration). */
+  readonly salesChannels: SalesChannelResolutionPort;
   /** The role each account holds, named on the customers sheet (`specs/170-organization-roles/`). */
   readonly organizationRoles: Pick<OrganizationRoleReadPort, 'roleRef'>;
+}
+
+/** Feature 174 — what a run hands an adapter besides its records. */
+/**
+ * What an adapter's import answers: the owner's report, plus — when the report would list more
+ * refusals than it may — how many there were (`truncated`; products only, C2/C3 security review).
+ */
+export interface AdapterImportReport extends BulkImportReport {
+  truncated?: { errors: number; fieldErrors: number };
+}
+
+export interface ImportRowsOptions {
+  /** The run's import profile, snapshotted at run start (products only). */
+  readonly profile?: ImportProfile;
+  /** Parse, plan and validate; write nothing (`import-profiles-and-csv.md` §2). */
+  readonly dryRun?: boolean;
+  /** The header row as the file spells it, duplicates included. */
+  readonly header?: readonly string[];
 }
 
 export interface ImportExportAdapter {
@@ -73,6 +101,11 @@ export interface ImportExportAdapter {
    * {@link exportRows}; `exportHeader` stays the fixed part the screen lists.
    */
   exportTable?(): Promise<{ header: string[]; rows: string[][] }>;
+  /**
+   * Feature 174 (FR-048) — an import of this entity needs an import profile
+   * (`422 IMPORT_PROFILE_REQUIRED` without one).
+   */
+  requiresProfile?: boolean;
   /** Header columns the import expects. Undefined when import is unsupported. */
   importHeader?: readonly string[];
   /**
@@ -96,5 +129,5 @@ export interface ImportExportAdapter {
    * A local failure short-circuits the run before any port is called, which is what
    * keeps all-or-nothing true across the two halves.
    */
-  importRows?(records: ReadonlyArray<Record<string, string>>): Promise<BulkImportReport>;
+  importRows?(records: ReadonlyArray<Record<string, string>>, options?: ImportRowsOptions): Promise<AdapterImportReport>;
 }

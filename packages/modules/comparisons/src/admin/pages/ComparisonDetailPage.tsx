@@ -130,7 +130,7 @@ export default function ComparisonDetailPage(): ReactNode {
                 <TableHead>{t('detail.attribute')}</TableHead>
                 {detail.products.map((p) => (
                   <TableHead key={p.id}>
-                    <div>{localised(p.name)}</div>
+                    <div>{p.name}</div>
                     <div className="text-xs text-muted-foreground">
                       {p.price ? `${unitPriceDisplayText(p.price.amount)} ${p.price.currency}` : '—'}
                     </div>

@@ -50,8 +50,8 @@ describe('Archive / Restore one product (spec 163, T156c)', () => {
     return {
       sku,
       type: 'simple' as const,
-      name: { 'en-US': `Archive ${sku}` },
-      description: { 'en-US': 'desc' },
+      name: `Archive ${sku}`,
+      description: 'desc',
       categoryIds: [],
       attributeValues: {},
       visibility: 'public' as const,

@@ -42,8 +42,8 @@ describe('US3 cross-cutting flows (T057 + T061)', () => {
       payload: {
         sku: `US3-FLOW-${suffix}`,
         type: 'simple',
-        name: { 'en-US': `US3 flow ${suffix}` },
-        description: { 'en-US': '' },
+        name: `US3 flow ${suffix}`,
+        description: '',
         categoryIds: [],
         attributeValues: {},
         visibility: 'public',

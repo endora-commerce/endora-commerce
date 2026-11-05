@@ -95,14 +95,14 @@ describe('163 — scoped availability on every catalogue read [contract]', () =>
     await sql(
       `insert into products (id, sku, slug, type, status, name, description, attribute_values, visibility,
                              allowed_organization_ids, archived_at, created_at, updated_at)
-       values (?, ?, ?, ?, ?, ?::jsonb, '{}'::jsonb, ?::jsonb, 'public', '[]'::jsonb, ?, now(), now())`,
+       values (?, ?, ?, ?, ?, ?, '', ?::jsonb, 'public', '[]'::jsonb, ?, now(), now())`,
       [
         id,
         sku,
         sku.toLowerCase(),
         fields.type ?? 'simple',
         fields.status ?? 'active',
-        JSON.stringify({ 'pl-PL': `Matrix ${key} PL`, 'en-US': `Matrix ${key} EN` }),
+        `Matrix ${key}`,
         JSON.stringify(attributeValues),
         fields.archived ? new Date() : null,
       ],

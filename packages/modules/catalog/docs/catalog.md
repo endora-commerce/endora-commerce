@@ -131,10 +131,10 @@ reports any product changed since.
 
 When an operator's **status change** switches a product on for a sales channel and
 language — the global status, a channel or channel × language status, single or in
-bulk — the product must have, in that language: a **name** (its own name in that
-language, or a name overridden for that channel; a name in another language does not
-count), a **URL key** (the global key counts) and every **required** language-dependent
-attribute of its attribute set. The setting **Completeness check when switching a
+bulk — the product must have, at that channel and language: a non-empty effective
+**name** (Channel × language → Channel → Global; a deliberately empty override counts
+as missing), a **URL key** (the Global key counts) and an effective value for every
+**required** attribute of its attribute set. The setting **Completeness check when switching a
 product on** (`catalog.scope_completeness_gate`, one value for the whole platform)
 decides what happens when something is missing:
 
@@ -147,7 +147,7 @@ decides what happens when something is missing:
 
 Only a status change is checked. A product that goes live because it joins a channel,
 a channel gains a language, its publication window opens, its audience changes, or it
-is restored is not checked; the **scope overview** of the product editor shows what is
+is restored is not checked; the **scope map** of the product editor shows what is
 missing at every channel and language instead. Setting an archived product `active` is
 checked like any status change, although the product stays archived. Imports, PIM
 synchronisation and the API-key upsert are never checked.
@@ -460,8 +460,10 @@ value is on its own page.
 ### Per sales channel
 
 Both rules can be overridden for one sales channel — **Order rules** per channel in the
-product's scopes (`PATCH /api/v1/admin/catalog/products/:id/scopes`, `minOrderQuantity` and
-`returnable` on a channel entry; `null` uses the global value again). The channel's value
+product's scopes — in the product editor at a channel, or through
+`PUT /api/v1/admin/catalog/products/:id/scoped-values` (`minOrderQuantity`, `returnable`) or
+`PATCH /api/v1/admin/catalog/products/:id/scopes` for API clients. `{ "inherit": true }` uses
+the Global value again; `null` on the minimum stores "no minimum" for that channel. The channel's value
 applies wherever a basket, an order or a quote request belongs to that channel: adding to
 the basket, the basket view, submitting for approval, the checkout preview, placement, the
 admin order preview, quote requests and the buyer's quick-order import. A channel minimum
@@ -648,7 +650,7 @@ and ownership model is different:
   catalog behaviour flags (`isSearchable`, `isFilterable`,
   `isVariantAxis`, `displayAsSlider`, `isComparable`,
   `quickSearchable`, `isPromoRule`, `isPriceRule`, `filterPosition`,
-  `isVisibleOnProductPage`, `channelScoped`, `languageScoped`,
+  `isVisibleOnProductPage`, `scopable`,
   `massEditable`) plus two presentation refinements (`selectDisplay`,
   `numericKind`) that keep the legacy `enum`/`select` and
   `number`/`price` distinctions lossless. **Flags stay catalog-owned**

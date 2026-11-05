@@ -184,8 +184,8 @@ describe('blog storefront related-* filters (T077)', () => {
       productIds.push(id);
       await conn.execute(
         `insert into products (id, sku, name, description, slug, type, status, created_at, updated_at)
-         values (?, ?, ?::jsonb, '{}'::jsonb, ?, 'simple', 'active', now(), now())`,
-        [id, `ids-sku-${i}-${Date.now()}`, JSON.stringify({ 'en-US': `Ids ${i}` }), `ids-prod-${i}-${Date.now()}`],
+         values (?, ?, ?, '', ?, 'simple', 'active', now(), now())`,
+        [id, `ids-sku-${i}-${Date.now()}`, `Ids ${i}`, `ids-prod-${i}-${Date.now()}`],
       );
     }
     // Not the creation order: the payload keeps the order the editor saved.
@@ -219,11 +219,11 @@ describe('blog storefront related-* filters (T077)', () => {
     productIds.push(productId);
     await conn.execute(
       `insert into products (id, sku, name, description, slug, type, status, created_at, updated_at)
-       values (?, ?, ?::jsonb, '{}'::jsonb, ?, 'simple', 'active', now(), now())`,
+       values (?, ?, ?, '', ?, 'simple', 'active', now(), now())`,
       [
         productId,
         `filter-sku-${Date.now()}`,
-        JSON.stringify({ 'en-US': 'Test Product' }),
+        'Test Product',
         `filter-prod-${Date.now()}`,
       ],
     );
@@ -247,13 +247,13 @@ describe('blog storefront related-* filters (T077)', () => {
       const rows = (await conn.execute(
         `select id::text as id, slug, name from products where id = ? and deleted_at is null limit 1`,
         [pid],
-      )) as Array<{ id: string; slug: string; name: Record<string, string> }>;
+      )) as Array<{ id: string; slug: string; name: string | null }>;
       const row = rows[0];
       if (!row) return null;
       return {
         id: row.id,
         slug: row.slug,
-        name: row.name?.['en-US'] ?? row.slug,
+        name: row.name ?? row.slug,
         mainImageUrl: null,
         price: null,
       };

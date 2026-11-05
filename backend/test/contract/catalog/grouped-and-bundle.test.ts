@@ -45,8 +45,8 @@ describe('Admin Composite (Grouped + Bundle) contract (T117)', () => {
     const payload: Record<string, unknown> = {
       sku: `COMP-${type.toUpperCase()}-${suffix}`,
       type,
-      name: { 'en-US': `Composite ${type} ${suffix}` },
-      description: { 'en-US': '' },
+      name: `Composite ${type} ${suffix}`,
+      description: '',
       categoryIds: [],
       attributeValues: {},
       visibility: 'public',

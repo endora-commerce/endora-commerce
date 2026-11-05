@@ -49,8 +49,8 @@ describe('Admin Attachments contract (T059)', () => {
       payload: {
         sku: `ATT-PARENT-${suffix}`,
         type: 'simple',
-        name: { 'en-US': `Attachment parent ${suffix}` },
-        description: { 'en-US': '' },
+        name: `Attachment parent ${suffix}`,
+        description: '',
         categoryIds: [],
         attributeValues: {},
         visibility: 'public',

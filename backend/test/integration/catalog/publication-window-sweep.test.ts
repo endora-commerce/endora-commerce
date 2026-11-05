@@ -42,7 +42,7 @@ async function insertProduct(em: EntityManager, window: { from?: Date; until?: D
   const stamp = `${id.slice(0, 8)}`;
   await em.execute(
     `insert into products (id, sku, slug, type, status, name, description, publish_from, publish_until, created_at, updated_at)
-     values (?, ?, ?, 'simple', 'active', '{"en-US":"Sweep"}', '{}', ?, ?, now(), now())`,
+     values (?, ?, ?, 'simple', 'active', 'Sweep', '', ?, ?, now(), now())`,
     [id, `S163-SWEEP-${stamp}`, `s163-sweep-${stamp}`, window.from ?? null, window.until ?? null],
   );
   return id;

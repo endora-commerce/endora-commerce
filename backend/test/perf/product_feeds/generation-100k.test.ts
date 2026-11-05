@@ -176,8 +176,8 @@ describe.skipIf(!shouldRun)('product feed generation — 100k perf', () => {
          'PERF-' || i,
          'perf-product-' || i,
          'simple', 'active', 'public',
-         jsonb_build_object('en-US', 'Perf product ' || i),
-         jsonb_build_object('en-US', 'Description of perf product ' || i),
+         'Perf product ' || i,
+         'Description of perf product ' || i,
          '{}'::jsonb, '[]'::jsonb, now(), now()
        from generate_series(1, ?) as i`,
       [itemCount],

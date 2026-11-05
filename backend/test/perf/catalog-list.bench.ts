@@ -77,8 +77,8 @@ describe.skipIf(!shouldRun)('catalog list — p95 latency', () => {
         slug: `perf-${idx}`,
         type: 'simple',
         status: 'active',
-        name: { 'en-US': `Perf product ${idx}` },
-        description: { 'en-US': `Synthetic product ${idx} for perf bench.` },
+        name: `Perf product ${idx}`,
+        description: `Synthetic product ${idx} for perf bench.`,
         visibility: 'public',
         attributeValues: { defaultPrice: 10 + (i % 100) },
       });

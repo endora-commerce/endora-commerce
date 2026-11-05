@@ -22,7 +22,6 @@ export class ProductPackagingUnit {
     | 'position'
     | 'isDefault'
     | 'minOrderUnits'
-    | 'nameTranslations'
     | 'createdAt'
     | 'updatedAt';
 
@@ -35,14 +34,6 @@ export class ProductPackagingUnit {
 
   @Property({ type: 'string', length: 160 })
   name!: string;
-
-  /**
-   * Feature 163 (FR-079, R16) — the name per language, `{ "<lang>": "<text>" }`; a
-   * language absent here shows `name`. The basket and quote-request snapshots take it in
-   * the line's language (`effectivePackagingUnitName`) and never re-resolve it.
-   */
-  @Property({ type: 'json' })
-  nameTranslations: Record<string, string> = {};
 
   /** Number of base pieces this unit contains. Always >= 1. */
   @Property({ type: 'integer' })

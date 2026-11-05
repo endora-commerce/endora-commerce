@@ -31,8 +31,8 @@ describe('PATCH /admin/catalog/products/:id — audited via Command Bus [real DB
       payload: {
         sku,
         type: 'simple',
-        name: { 'en-US': 'Original name' },
-        description: { 'en-US': 'desc' },
+        name: 'Original name',
+        description: 'desc',
         categoryIds: [],
         attributeValues: {},
         visibility: 'public',
@@ -49,7 +49,7 @@ describe('PATCH /admin/catalog/products/:id — audited via Command Bus [real DB
     const res = await h.app.inject({
       method: 'PATCH',
       url: `/api/v1/admin/catalog/products/${id}`,
-      payload: { name: { 'en-US': 'Renamed via command' } },
+      payload: { name: 'Renamed via command' },
       cookies: adminCookie,
     });
     expect(res.statusCode).toBe(200);
@@ -57,13 +57,11 @@ describe('PATCH /admin/catalog/products/:id — audited via Command Bus [real DB
     const rows = await h.em().find(AuditLogEntry, { action: 'product.update', objectId: id });
     expect(rows).toHaveLength(1); // exactly one — no double-audit (FR-010)
     expect(rows[0]?.actorAdminUserId).toBeTruthy(); // server-derived admin actor
-    const before = (rows[0]?.stateBefore ?? {}) as { name?: Record<string, string> };
-    const after = (rows[0]?.stateAfter ?? {}) as {
-      name?: Record<string, string>;
-      changedFields?: string[];
-    };
-    expect(before.name?.['en-US']).toBe('Original name');
-    expect(after.name?.['en-US']).toBe('Renamed via command');
+    // Feature 174 (FR-014) — the Global name is one string.
+    const before = (rows[0]?.stateBefore ?? {}) as { name?: string };
+    const after = (rows[0]?.stateAfter ?? {}) as { name?: string; changedFields?: string[] };
+    expect(before.name).toBe('Original name');
+    expect(after.name).toBe('Renamed via command');
     expect(after.changedFields).toContain('name');
   });
 });

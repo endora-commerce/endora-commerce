@@ -283,8 +283,8 @@ describe('retention sweep — soft-deleted assets (feature 156)', () => {
       payload: {
         sku: `${runName()}-SKU`,
         type: 'simple',
-        name: { 'en-US': 'Retention fixture' },
-        description: { 'en-US': '' },
+        name: 'Retention fixture',
+        description: '',
         categoryIds: [],
         attributeValues: {},
         visibility: 'public',

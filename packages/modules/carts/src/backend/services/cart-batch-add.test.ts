@@ -83,9 +83,9 @@ function product(
 }
 
 const PRODUCTS = new Map<string, CatalogProductRecord>([
-  [A, product(A, { type: 'configurable', minOrderQuantity: 10, name: { en: 'Anchor', pl: 'Kotwa' } })],
+  [A, product(A, { type: 'configurable', minOrderQuantity: 10, name: 'Anchor' })],
   [B, product(B)],
-  [C, product(C, { minOrderQuantity: 10, name: { en: 'Cement', pl: 'Cement PL' } })],
+  [C, product(C, { minOrderQuantity: 10, name: 'Cement' })],
   [H, product(H, { minOrderQuantity: 10, allowedOrganizationIds: ['org-other'] })],
   [Q, product(Q)],
   [D, product(D, { status: 'inactive' })],
@@ -97,7 +97,6 @@ const UNITS: CatalogPackagingUnitRecord[] = [
     productId: C,
     name: 'Pallet',
     // Feature 163 (FR-079) — the name per language; the line snapshots it in the basket language.
-    nameTranslations: { 'pl-PL': 'Paleta' },
     baseQuantity: 64,
     minOrderUnits: 2,
     position: 0,
@@ -251,7 +250,11 @@ function rig(
       ),
     ),
     // No override in this rig: the caller's baseline pick names the product.
-    effectiveNames: vi.fn(async () => new Map<string, string>()),
+    effectiveTexts: vi.fn(async () => new Map<string, { name: string; description: string | null }>()),
+    // Feature 174 — the unit's name at (C, L): the pallet has a Polish C×L name.
+    effectivePackagingUnitNames: vi.fn(async (ids: readonly string[], scope: { languageCode: string | null }) =>
+      new Map(ids.map((id) => [id, id === PALLET && scope.languageCode?.toLowerCase().startsWith('pl') ? 'Paleta' : null])),
+    ),
     // Feature 163 (FR-100) — the channel's minimum where a case names one, else the record's.
     effectiveOrderRules: vi.fn(async (ids: readonly string[], channelId: string) => {
       const byProduct = options.channelMinimums?.[channelId] ?? {};
@@ -510,8 +513,9 @@ describe('addItems — two passes with the cart (D1, FR-006a)', () => {
       { onLineError: 'report', language: 'pl' },
     );
     expect(result.outcomes).toEqual([
-      { index: 0, status: 'below_minimum', productId: A, productName: 'Kotwa', kind: 'pieces', minimum: 10 },
-      { index: 1, status: 'below_minimum', productId: A, productName: 'Kotwa', kind: 'pieces', minimum: 10 },
+      // Feature 174: the Global name, or the effective one at the basket's (C, L) where it has one.
+      { index: 0, status: 'below_minimum', productId: A, productName: 'Anchor', kind: 'pieces', minimum: 10 },
+      { index: 1, status: 'below_minimum', productId: A, productName: 'Anchor', kind: 'pieces', minimum: 10 },
     ]);
     expect(r.items).toHaveLength(0);
   });
@@ -735,12 +739,12 @@ describe("addItems — onBelowMinimum: 'throw' writes nothing (D1)", () => {
       code: ERROR_CODES.PRODUCT_BELOW_MINIMUM_QUANTITY,
       details: {
         productId: A,
-        productName: 'Kotwa',
+        productName: 'Anchor',
         minimum: 10,
         total: 7,
         lines: [
-          { index: 1, productId: A, productName: 'Kotwa', kind: 'pieces', minimum: 10 },
-          { index: 2, productId: A, productName: 'Kotwa', kind: 'pieces', minimum: 10 },
+          { index: 1, productId: A, productName: 'Anchor', kind: 'pieces', minimum: 10 },
+          { index: 2, productId: A, productName: 'Anchor', kind: 'pieces', minimum: 10 },
         ],
       },
     });

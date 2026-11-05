@@ -94,7 +94,7 @@ function serve(path: string): unknown {
       type: 'simple',
       status: r.status,
       archivedAt: r.archivedAt,
-      name: { 'en-US': r.name },
+      name: r.name,
       visibility: 'public',
       attributeValues: {},
       updatedAt: '2026-10-22T10:00:00.000Z',

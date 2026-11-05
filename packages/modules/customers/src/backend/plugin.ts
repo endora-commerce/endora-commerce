@@ -162,7 +162,7 @@ export interface CustomersModuleOptions {
   salesRepVisibility: SalesRepVisibility;
   requireCustomer: RequireCustomerGuard;
   resolveCustomerActor: ResolveCustomerActor;
-  /** Reads `customers.allow_registration_without_organization`. */
+  /** Reads `customers.allow_registration_without_organization` for the request's channel. */
   resolveAllowRegistrationWithoutOrganization: () => Promise<boolean>;
   /**
    * `orders`' published list, which the self-service history panel and the

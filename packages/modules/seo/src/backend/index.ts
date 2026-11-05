@@ -5,8 +5,8 @@ import type {
   CatalogProductReadPort,
   CatalogProductUrlKeyReadPort,
   CmsPageReadPort,
-  SeoMetaWritePort,
   SeoProductMetaPort,
+  SeoProductMetaWritePort,
   SettingWriteValidatorRegistryPort,
 } from '@endora-commerce/contracts';
 import type { CommandBus } from '@endora-commerce/platform/commands';
@@ -33,6 +33,7 @@ import { createCrawlerTextValidator } from './services/crawler-text-validator.js
 import { SeoMetaOverride } from './entities/seo-meta-override.entity.js';
 import { SitemapCache } from './entities/sitemap-cache.entity.js';
 import { marksSitemapStale } from './services/sitemap-staleness.js';
+import { createSeoProductMetaWritePort } from './services/product-meta-write.js';
 
 /**
  * `seo` — the sitemap that only read its setting in production (feature 072,
@@ -95,6 +96,8 @@ export function registerModule(ctx: ModuleContext): void {
             lazyPort<CmsPageReadPort>(ctx, 'cmsPageReadPort'),
             // Feature 163 — a channel-scoped override needs the product in the channel (FR-014).
             lazyPort<SalesChannelMembershipPort>(ctx, 'salesChannelMembershipPort'),
+            // Feature 174 — the derived metadata at (C, L) from the product's effective texts.
+            lazyPort<CatalogProductAvailabilityPort>(ctx, 'catalogProductAvailabilityPort'),
           ),
       )
       .singleton(),
@@ -159,26 +162,22 @@ export function registerModule(ctx: ModuleContext): void {
     ctx
       .asFunction(({ seoMetaResolver }: SeoCradle): SeoProductMetaPort => ({
         resolveForProduct: (input) => seoMetaResolver.resolveForProduct(input),
+        readScoped: (productId, scope) => seoMetaResolver.readScoped(productId, scope),
         listScopesForProduct: (productId) => seoMetaResolver.listScopesForProduct(productId),
       }))
       .singleton(),
   );
 
-  ctx.di.providePort<SeoMetaWritePort>(
-    'seoMetaWritePort',
-    ctx
-      .asFunction(({ seoMetaResolver }: SeoCradle): SeoMetaWritePort => ({
-        async upsertProductMeta(input) {
-          await seoMetaResolver.upsertOverride({
-            entityType: 'product',
-            entityId: input.productId,
-            locale: input.locale,
-            ...(input.title !== undefined ? { title: input.title } : {}),
-            ...(input.description !== undefined ? { description: input.description } : {}),
-          });
-        },
-      }))
-      .singleton(),
+  /**
+   * Feature 174 (FR-091, `contracts/seo-ports.md` §2) — product metadata written on the caller's
+   * EntityManager, for `catalog`'s save Command and its duplicate: no audit entry of its own, the
+   * Command that called it records the save (one audit path, Constitution XIII). `catalog`
+   * declares the edge `refuses-without` and resolves it inside the Command only when the save
+   * changes SEO.
+   */
+  ctx.di.providePort<SeoProductMetaWritePort<EntityManager>>(
+    'seoProductMetaWritePort',
+    ctx.asFunction((): SeoProductMetaWritePort<EntityManager> => createSeoProductMetaWritePort()).singleton(),
   );
 
   /**

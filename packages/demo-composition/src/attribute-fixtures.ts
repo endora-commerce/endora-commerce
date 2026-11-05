@@ -85,8 +85,8 @@ export interface ProductAttributeRow {
   isPriceRule: Opt<boolean>;
   filterPosition: Opt<number>;
   isVisibleOnProductPage: Opt<boolean>;
-  channelScoped: Opt<boolean>;
-  languageScoped: Opt<boolean>;
+  /** Feature 174 (R15) — one scope flag. */
+  scopable: Opt<boolean>;
   massEditable: Opt<boolean>;
   createdAt: Opt<Date>;
   updatedAt: Opt<Date>;
@@ -112,8 +112,7 @@ export interface AttributeFixtureInput {
   isPriceRule?: boolean;
   filterPosition?: number;
   isVisibleOnProductPage?: boolean;
-  channelScoped?: boolean;
-  languageScoped?: boolean;
+  scopable?: boolean;
   massEditable?: boolean;
   options?: Array<{
     value: string;
@@ -213,8 +212,7 @@ export async function createAttributeFixture(
     isPriceRule: input.isPriceRule ?? false,
     filterPosition: input.filterPosition ?? 0,
     isVisibleOnProductPage: input.isVisibleOnProductPage ?? false,
-    channelScoped: input.channelScoped ?? false,
-    languageScoped: input.languageScoped ?? false,
+    scopable: input.scopable ?? false,
     massEditable: input.massEditable ?? false,
   });
   await em.persistAndFlush(extension);

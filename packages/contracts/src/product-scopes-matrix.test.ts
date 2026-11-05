@@ -43,6 +43,7 @@ const cRow = (over: Partial<ProductChannelScopeRecord> = {}): ProductChannelScop
   status: null,
   window: null,
   audience: null,
+  minOrderQuantityOverridden: false,
   minOrderQuantity: null,
   returnable: null,
   ...over,

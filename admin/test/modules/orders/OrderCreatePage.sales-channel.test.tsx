@@ -64,7 +64,7 @@ const ORG_ADDRESS = {
   country: 'PL',
   isDefault: true,
 };
-const PRODUCT = { id: 'prod-1', sku: 'SKU-1', slug: 'p1', status: 'active', name: { 'en-US': 'Widget' } };
+const PRODUCT = { id: 'prod-1', sku: 'SKU-1', slug: 'p1', status: 'active', name: 'Widget' };
 const PREVIEW = {
   lines: [{ productId: 'prod-1', quantity: 1, unitPrice: '10.00', currency: 'PLN', lineTotal: 10 }],
   summary: { subtotal: 10, taxTotal: 0, deliveryTotal: 0, paymentSurcharge: 0, discountTotal: 0, total: 10, currency: 'PLN' },

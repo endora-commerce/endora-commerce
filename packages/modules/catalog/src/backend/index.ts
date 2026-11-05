@@ -35,14 +35,15 @@ import type {
   CatalogProductLinkPort,
   CatalogProductReadPort,
   CatalogProductWritePort,
-  CatalogProductValueOverrideUpsert,
-  CatalogProductValueOverrideWritePort,
   CatalogPromoAttributePort,
   CatalogQuickSearchPort,
   CatalogProductAvailabilityPort,
   CatalogProductUrlKeyReadPort,
   CatalogProductScopeWritePort,
   SeoProductMetaPort,
+  SeoProductMetaWritePort,
+  ScopeRef,
+  ScopedWriteOp,
   InventoryProductThresholdWritePort,
   SearchQueryPort,
   SearchReindexPort,
@@ -71,9 +72,10 @@ import { BulkOperation } from './entities/bulk-operation.entity.js';
 import { BundleSlotOption } from './entities/bundle-slot-option.entity.js';
 import { BundleSlot } from './entities/bundle-slot.entity.js';
 import { Category } from './entities/category.entity.js';
-import { GalleryItemChannelHidden } from './entities/gallery-item-channel-hidden.entity.js';
-import { ProductAttachmentChannelHidden } from './entities/product-attachment-channel-hidden.entity.js';
-import { GalleryItemChannelLabel } from './entities/gallery-item-channel-label.entity.js';
+import { GalleryItemScopeOverride } from './entities/gallery-item-scope-override.entity.js';
+import { GalleryRoleScopeOverride } from './entities/gallery-role-scope-override.entity.js';
+import { ProductAttachmentScopeOverride } from './entities/product-attachment-scope-override.entity.js';
+import { ProductPackagingUnitScopeOverride } from './entities/product-packaging-unit-scope-override.entity.js';
 import { GalleryItemLabel } from './entities/gallery-item-label.entity.js';
 import { GalleryItem } from './entities/gallery-item.entity.js';
 import { GroupedItem } from './entities/grouped-item.entity.js';
@@ -104,7 +106,6 @@ import {
   ProductPageRevalidation,
   productPageChangeHandler,
 } from './services/product-page-revalidation.js';
-import { ProductScopesService } from './services/product-scopes.service.js';
 import { UrlKeyService } from './services/url-key.service.js';
 import {
   PublicationWindowSweep,
@@ -124,7 +125,6 @@ import { CatalogProductFilterService } from './services/catalog-product-filter.s
 import { CatalogProductReadService } from './services/catalog-product-read.service.js';
 import { CatalogQueryService, type CatalogCursorSeal } from './services/catalog-query.service.js';
 import { CatalogQuickSearchService } from './services/catalog-quick-search.service.js';
-import { ProductOverridesService } from './services/product-overrides.service.js';
 import { AttributeValueKeyService } from './services/attribute-value-key.service.js';
 import type { CatalogAttributeValueKeyApi } from '../ports/index.js';
 import {
@@ -135,6 +135,7 @@ import {
 } from './services/catalog-write-ports.js';
 import type {
   CatalogEventBus,
+  CatalogSeoProductMetaCopy,
   CatalogWarehouseThresholdCopy,
 } from './services/catalog-admin.service.js';
 import { registerCatalogAssetReferences } from './services/asset-references.js';
@@ -292,6 +293,8 @@ export interface CatalogCradle {
   readonly catalogSeoProductMeta: NonNullable<CatalogModuleOptions['resolveSeoProductMeta']>;
   /** Feature 163 (T118c) — `seo`'s scopes of a product, `[]` while `seo` is off. */
   readonly catalogSeoProductScopes: NonNullable<CatalogModuleOptions['listSeoProductScopes']>;
+  /** Feature 174 (T123) — `seo`'s view of a product at one scope, `null` while `seo` is off. */
+  readonly catalogSeoProductScoped: NonNullable<CatalogModuleOptions['readSeoProductScoped']>;
   /**
    * Owned by `assets_library`: the registry that refuses to delete an asset a
    * product gallery, attachment, virtual download or category image points at.
@@ -448,6 +451,41 @@ export function registerModule(ctx: ModuleContext): void {
   };
 
   /**
+   * Feature 174 (FR-119, T151) — a duplicate's SEO values at every scope its source holds, read
+   * and written through `seo`'s write port on the duplicate Command's em, so they commit or roll
+   * back with the copy and its one audit entry. The same D-44 shape as the threshold copy: presence
+   * is decided here, in front of both ports — with `seo` off a duplicate copies no metadata and is
+   * not refused for it — and the write port is resolved only when the source holds SEO rows.
+   */
+  const seoProductMetaRead = lazyPort<SeoProductMetaPort>(ctx, 'seoProductMetaPort');
+  const seoProductMetaWrite = lazyPort<SeoProductMetaWritePort<EntityManager>>(ctx, 'seoProductMetaWritePort');
+  const copySeoProductMeta: CatalogSeoProductMetaCopy = async (em, { sourceProductId, targetProductId }) => {
+    if (!effectiveState.isPresent('seo')) return 'not-present';
+    let copied = 0;
+    for (const held of await seoProductMetaRead.listScopesForProduct(sourceProductId)) {
+      // A locale-only row has no product scope any more (FR-010): nothing to copy it to.
+      if (held.channelId === null && held.languageCode !== null) continue;
+      if (held.fields.length === 0) continue;
+      const scope: ScopeRef =
+        held.channelId === null
+          ? { level: 'global' }
+          : held.languageCode === null
+            ? { level: 'channel', channelId: held.channelId }
+            : { level: 'channel_language', channelId: held.channelId, languageCode: held.languageCode };
+      const own = await seoProductMetaWrite.readWithin(em, { productId: sourceProductId, scope, fields: held.fields });
+      const changes: Partial<Record<keyof typeof own, ScopedWriteOp<string>>> = {};
+      for (const [field, value] of Object.entries(own) as Array<[keyof typeof own, (typeof own)[keyof typeof own]]>) {
+        if (value === undefined || !('own' in value)) continue;
+        changes[field] = typeof value.own === 'string' ? { op: 'set', value: value.own } : { op: 'empty' };
+      }
+      if (Object.keys(changes).length === 0) continue;
+      await seoProductMetaWrite.applyWithin(em, { productId: targetProductId, scope, changes });
+      copied += 1;
+    }
+    return { copied };
+  };
+
+  /**
    * The three names a composition root supplied on this module's behalf until
    * `specs/117-instance-bring-up/` Phase 6 (FR-033).
    *
@@ -532,6 +570,19 @@ export function registerModule(ctx: ModuleContext): void {
      * overview lists no SEO field and answers no error, and there is no `catch` to
      * hide a genuine `seo` failure behind that absence.
      */
+    /**
+     * Feature 174 (T123, FR-092) — `seo`'s view of the product at the editor's scope, by the same
+     * probe-before-resolve: with `seo` off the read answers `seo: null` and no SEO section shows.
+     */
+    catalogSeoProductScoped: ctx
+      .asFunction((): CatalogCradle['catalogSeoProductScoped'] => {
+        const seoMeta = lazyPort<SeoProductMetaPort>(ctx, 'seoProductMetaPort');
+        return async (productId, scope) => {
+          if (!effectiveState.isPresent('seo')) return null;
+          return seoMeta.readScoped(productId, scope);
+        };
+      })
+      .singleton(),
     catalogSeoProductScopes: ctx
       .asFunction((): CatalogCradle['catalogSeoProductScopes'] => {
         const seoMeta = lazyPort<SeoProductMetaPort>(ctx, 'seoProductMetaPort');
@@ -751,6 +802,9 @@ export function registerModule(ctx: ModuleContext): void {
             reindexSearchIndexes: () => cradle().catalogSearchReindex(),
             resolveSeoProductMeta: (input) => cradle().catalogSeoProductMeta(input),
             listSeoProductScopes: (productId) => cradle().catalogSeoProductScopes(productId),
+            readSeoProductScoped: (productId, scope) => cradle().catalogSeoProductScoped(productId, scope),
+            // Feature 174 (T123) — the save's SEO cells, written on its Command's em (refuses-without).
+            seoProductMetaWrite: () => seoProductMetaWrite,
             // Feature 172 (FR-051, research R-13) — the product page carries its
             // Page Builder content only while `cms` is effectively present.
             //
@@ -769,6 +823,7 @@ export function registerModule(ctx: ModuleContext): void {
             isPageBuilderPresent: () => effectiveState.isPresent('cms'),
             categoryRevalidator: cradle().catalogCategoryRevalidator,
             copyWarehouseThresholds,
+            copySeoProductMeta,
           }),
       )
       .singleton(),
@@ -843,32 +898,8 @@ export function registerModule(ctx: ModuleContext): void {
       .singleton(),
   );
 
-  /**
-   * Feature 089 — channel/locale-scoped product value writes for PIM importers.
-   * Narrows `ProductOverridesService.applyBulk` so a foreign module never holds
-   * the class (and never reaches `product_value_overrides` by SQL).
-   */
-  ctx.di.providePort<CatalogProductValueOverrideWritePort>(
-    'catalogProductValueOverrideWritePort',
-    ctx
-      .asFunction(({ emFactory, commandBus }: CatalogCradle) => {
-        const service = new ProductOverridesService(
-          emFactory,
-          lazyPort<SalesChannelMembershipPort>(ctx, 'salesChannelMembershipPort'),
-          commandBus,
-          lazyPort<CatalogAttributeReadService>(ctx, 'catalogAttributeReadPort'),
-        );
-        return {
-          async applyBulk(
-            productId: string,
-            input: { upserts: readonly CatalogProductValueOverrideUpsert[] },
-          ) {
-            await service.applyBulk(productId, { upserts: [...input.upserts], deletes: [] });
-          },
-        };
-      })
-      .singleton(),
-  );
+  // Feature 174 (T083) — `catalogProductValueOverrideWritePort` (feature 089) is retired: a
+  // connector's Channel and Channel × language values go through `catalogProductScopeWritePort` v2.
 
   /**
    * The value-key rename seam (`specs/134-paid-module-extraction/research.md`
@@ -901,15 +932,23 @@ export function registerModule(ctx: ModuleContext): void {
     'catalogBulkImportPort',
     ctx
       .asFunction(
-        ({ commandBus, emFactory, eventBus }: CatalogCradle) =>
-          new CatalogBulkImportService(
+        ({ commandBus, emFactory, eventBus }: CatalogCradle) => {
+          const membership = lazyPort<SalesChannelMembershipPort>(ctx, 'salesChannelMembershipPort');
+          const attributes = lazyPort<CatalogAttributeReadService>(ctx, 'catalogAttributeReadPort');
+          const urlKeys = new UrlKeyService(emFactory, membership, commandBus);
+          return new CatalogBulkImportService(
             commandBus,
-            lazyPort<SalesChannelMembershipPort>(ctx, 'salesChannelMembershipPort'),
-            // Feature 163 (FR-092) — the scoped-status columns of the products file.
-            { emFactory, eventBus },
+            membership,
+            {
+              emFactory,
+              eventBus,
+              // Feature 174 (T084) — each product row through the scoped import's planner and writers.
+              importDeps: { membership, listAttributes: () => attributes.listAll(), urlKeys: () => urlKeys },
+            },
             // Feature 172 (FR-041) — which keys are Page Builder content attributes.
-            lazyPort<CatalogAttributeReadService>(ctx, 'catalogAttributeReadPort'),
-          ),
+            attributes,
+          );
+        },
       )
       .singleton(),
   );
@@ -982,22 +1021,27 @@ export function registerModule(ctx: ModuleContext): void {
   );
 
   /**
-   * Feature 163 (R17) — the scoped write of connectors and importers: only the
-   * scopes named are written (FR-091); a URL key another product holds is
-   * reported, never taken over (FR-093). Through the operator's own services and
-   * Commands, so validation, audit and events are theirs.
+   * Feature 174 (T083; `contracts/pim-locale-mapping.md` §4) — the scoped write of connectors, v2:
+   * one Command `product.scoped_values.import` per call on the save's planner and writers, per-cell
+   * refusals, the integration allowlist (R13a); a URL key another product holds is reported, never
+   * taken over (FR-093). `source` must be a module of the registry (R21).
    */
   ctx.di.providePort<CatalogProductScopeWritePort>(
     'catalogProductScopeWritePort',
     ctx
       .asFunction(({ emFactory, commandBus }: CatalogCradle) => {
         const membership = lazyPort<SalesChannelMembershipPort>(ctx, 'salesChannelMembershipPort');
-        const scopes = new ProductScopesService(emFactory, membership, commandBus);
         const urlKeys = new UrlKeyService(emFactory, membership, commandBus);
-        return createCatalogProductScopeWritePort(
-          () => scopes,
-          () => urlKeys,
-        );
+        const attributes = lazyPort<CatalogAttributeReadService>(ctx, 'catalogAttributeReadPort');
+        return createCatalogProductScopeWritePort({
+          commandBus: () => commandBus,
+          importDeps: () => ({
+            membership,
+            listAttributes: () => attributes.listAll(),
+            urlKeys: () => urlKeys,
+          }),
+          isRegisteredModule: (moduleId) => effectiveState.presence(moduleId) !== undefined,
+        });
       })
       .singleton(),
   );
@@ -1092,6 +1136,8 @@ export function registerModule(ctx: ModuleContext): void {
             undefined,
             // Feature 166 (FR-006) — a download file the caller may not see is not linked.
             lazyPort<AssetReadPort>(ctx, 'assetReadPort'),
+            // Feature 174 (FR-119) — a duplicate made through the port copies SEO as well.
+            copySeoProductMeta,
           ),
       )
       .singleton(),
@@ -1438,13 +1484,13 @@ export const entities = [
   BundleSlotOption,
   BundleSlot,
   Category,
-  GalleryItemChannelHidden,
-  GalleryItemChannelLabel,
   GalleryItemLabel,
+  GalleryItemScopeOverride,
   GalleryItem,
+  GalleryRoleScopeOverride,
   GroupedItem,
   ProductAttachment,
-  ProductAttachmentChannelHidden,
+  ProductAttachmentScopeOverride,
   ProductAttribute,
   ProductChannelLanguageScope,
   ProductChannelScope,
@@ -1453,6 +1499,7 @@ export const entities = [
   ProductLink,
   ProductListSavedView,
   ProductPackagingUnit,
+  ProductPackagingUnitScopeOverride,
   ProductUrlKey,
   ProductUrlRedirect,
   ProductValueOverride,

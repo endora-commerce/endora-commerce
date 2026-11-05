@@ -63,8 +63,8 @@ describe('GET /api/v1/quick-order/search — sales-channel scoping', () => {
       slug: 'qo-vip-only-0001',
       type: 'simple',
       status: 'active',
-      name: { 'en-US': 'VIP-only quick-order probe' },
-      description: { 'en-US': 'Bound to pl_b2b_vip only.' },
+      name: 'VIP-only quick-order probe',
+      description: 'Bound to pl_b2b_vip only.',
       visibility: 'public',
       attributeValues: { defaultPrice: 10 },
     });
