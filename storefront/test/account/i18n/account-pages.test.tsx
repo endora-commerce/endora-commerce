@@ -73,8 +73,14 @@ vi.mock('../../../lib/server-context', () => ({
     modules: { isPresent: () => true, presentIds: [], absentIds: [] },
   }),
 }));
+/** `specs/173-b2c-address-book-merge/` — `/addresses` is the B2C customer's page; a company member is sent on. */
+let personal = false;
+const personalMe: MeResult = {
+  ...me,
+  organization: { ...me.organization!, name: 'Anna Nowak', isPersonal: true },
+};
 vi.mock('../../../lib/api/account', () => ({
-  getMe: async () => me,
+  getMe: async () => (personal ? personalMe : me),
   changePassword: async () => undefined,
 }));
 // The country picker reads the dictionary provider the root layout mounts; its own copy is not this area's.
@@ -86,15 +92,10 @@ vi.mock('../../../lib/api/pwa-server', () => ({
   getPushPreferences: async () => null,
   updatePushPreferences: async () => undefined,
 }));
-vi.mock('../../../lib/api/customers', () => ({
-  listMyAddresses: async () => ({ personal: [address], organization: [{ ...address, kind: 'delivery' }] }),
-  createMyAddress: async () => undefined,
-  deleteMyAddress: async () => undefined,
-  setMyDefaultAddress: async () => undefined,
-}));
 vi.mock('../../../lib/api/organization', () => ({
-  listAddresses: async () => [address],
+  listAddresses: async () => [address, { ...address, id: 'a2', kind: 'delivery', isDefault: false }],
   createAddress: async () => undefined,
+  updateAddress: async () => undefined,
   deleteAddress: async () => undefined,
   listMembers: async () => [
     {
@@ -181,10 +182,11 @@ describe('account shell — the shop language (issue #85)', () => {
     const { default: Layout } = await import('../../../app/(account)/layout');
     const { en, pl } = await both(() => Layout({ children: null }));
     // The links sit side by side with no text between them.
-    expect(en).toContain('ProfileMy addressesChange passwordOrdersReturnsQuote requestsShopping lists');
-    expect(en).toContain('OrganizationOrg addressesMembersRolesCarts to approve (1)');
+    // A company member's one address entry is the Organization's (spec 173, OD-11).
+    expect(en).toContain('ProfileChange passwordOrdersReturnsQuote requestsShopping lists');
+    expect(en).toContain('OrganizationOrganization addressesMembersRolesCarts to approve (1)');
     expect(en).not.toMatch(POLISH_DIACRITIC);
-    expect(pl).toContain('ProfilMoje adresyZmień hasłoZamówieniaZwrotyZapytania ofertoweListy zakupów');
+    expect(pl).toContain('ProfilZmień hasłoZamówieniaZwrotyZapytania ofertoweListy zakupów');
     expect(pl).toContain('OrganizacjaAdresy organizacjiCzłonkowieRoleKoszyki do akceptacji (1)');
     expect(en).toContain('Sign out');
     expect(pl).toContain('Wyloguj się');
@@ -274,22 +276,30 @@ describe('account shell — the shop language (issue #85)', () => {
 });
 
 describe('address books — the shop language (issue #85)', () => {
-  it('renders my addresses, with the address type as a word', async () => {
-    const { default: Page } = await import('../../../app/(account)/addresses/page');
-    const { en, pl } = await both(() => Page({ searchParams: Promise.resolve({ status: 'default' }) }));
-    expect(en).toContain('My addresses');
-    expect(en).toContain('Default address updated.');
-    expect(en).toContain('Type Recipient Address Default');
-    expect(en).toContain('Billing Acme');
-    expect(en).toContain('Organization addresses');
-    expect(en).toContain('Make this the default address of its type');
-    expect(en).not.toMatch(POLISH_DIACRITIC);
-    expect(pl).toContain('Moje adresy');
-    expect(pl).toContain('Zmieniono adres domyślny.');
-    expect(pl).toContain('Rodzaj Odbiorca Adres Domyślny');
-    expect(pl).toContain('Do faktury Acme');
-    expect(pl).toContain('Do dostawy Acme');
-    expect(pl).toContain('Telefon (opcjonalnie)');
+  it('renders my addresses — the personal Organization’s one book — with the address type as a word', async () => {
+    personal = true;
+    try {
+      const { default: Page } = await import('../../../app/(account)/addresses/page');
+      const { en, pl } = await both(() => Page({ searchParams: Promise.resolve({ status: 'default' }) }));
+      expect(en).toContain('My addresses');
+      expect(en).toContain('Default address updated.');
+      expect(en).toContain('Type Recipient Address Default');
+      expect(en).toContain('Billing Acme');
+      expect(en).toContain('Delivery Acme');
+      // One list: no shared "Organization addresses" section (spec 173, FR-001).
+      expect(en).not.toContain('Organization addresses');
+      expect(en).toContain('Make this the default address of its type');
+      expect(en).not.toMatch(POLISH_DIACRITIC);
+      expect(pl).toContain('Moje adresy');
+      expect(pl).toContain('Zmieniono adres domyślny.');
+      expect(pl).toContain('Rodzaj Odbiorca Adres Domyślny');
+      expect(pl).toContain('Do faktury Acme');
+      expect(pl).toContain('Do dostawy Acme');
+      expect(pl).not.toContain('Adresy organizacji');
+      expect(pl).toContain('Telefon (opcjonalnie)');
+    } finally {
+      personal = false;
+    }
   });
 
   it('renders the organization addresses in both languages', async () => {
@@ -297,10 +307,10 @@ describe('address books — the shop language (issue #85)', () => {
     const { en, pl } = await both(() => Page({ searchParams: Promise.resolve({ status: 'created' }) }));
     expect(en).toContain('Address added.');
     expect(en).toContain('Billing Acme');
-    expect(en).toContain('Yes');
+    expect(en).toContain('Make default');
     expect(en).toContain('Add address');
     expect(pl).toContain('Adres został dodany.');
-    expect(pl).toContain('Tak');
+    expect(pl).toContain('Ustaw jako domyślny');
     expect(pl).toContain('Dodaj adres');
   });
 });

@@ -6,17 +6,25 @@ import { CountryPicker } from '../../lib/dictionary/pickers/CountryPicker';
 import {
   ADDRESS_ERRORS,
   IDLE_ADDRESS_FORM,
+  fieldErrorKey,
   type AddressField,
   type AddressFormState,
+  type FieldError,
 } from '../../lib/account/address-errors';
+import type { AddressBookPath } from '../../lib/account/address-book';
 import { CartSubmitButton } from '../CartSubmitButton';
 
 /**
- * The add form of `/organization/addresses` (issue #745). A refused create
- * answers as `useActionState` state ({@link AddressFormState}) — the refusal's
- * code and the fields at fault — instead of a redirect with the API's sentence
- * in `?error=`, which anyone could have put on the page with a crafted link.
- * The form keeps what was typed, and no form state travels in a URL.
+ * The add form of the one address book (`AddressBook`), on `/addresses` and on
+ * `/organization/addresses` (`specs/173-b2c-address-book-merge/`; issues #745,
+ * #792).
+ *
+ * A refused create answers as `useActionState` state ({@link AddressFormState})
+ * — the refusal's code and, for each field at fault, why — instead of a
+ * redirect with the API's sentence in `?error=`. The form keeps what was typed,
+ * and nothing of it travels in a URL. Each field at fault says what is wrong
+ * with it and what to do, in the store's language; the validator's own text is
+ * never shown (`lib/account/address-errors.ts`).
  *
  * As in `RoleEditorForm`, the submit is dispatched from `onSubmit` inside a
  * transition: React resets a form's uncontrolled fields after an `action`-prop
@@ -28,13 +36,16 @@ import { CartSubmitButton } from '../CartSubmitButton';
  * Each field at fault carries `aria-invalid` and is described by its own
  * message; after a refusal focus moves to the first of them, or to the region.
  */
-export function OrganizationAddressForm({
+export function AddressForm({
   action,
   locale,
+  returnTo,
   initialState = IDLE_ADDRESS_FORM,
 }: {
   action: (state: AddressFormState, formData: FormData) => Promise<AddressFormState>;
   locale: string;
+  /** The page the book is on, where a successful create lands. */
+  returnTo: AddressBookPath;
   /** `useActionState`'s starting state — no refusal. */
   initialState?: AddressFormState;
 }): ReactNode {
@@ -45,7 +56,7 @@ export function OrganizationAddressForm({
   const answered = useRef(false);
 
   const errorKey = ADDRESS_ERRORS.errorKey(state.error ?? undefined);
-  const invalid = new Set<AddressField>(state.fields);
+  const invalid = new Map<AddressField, FieldError>(state.fields.map((error) => [error.field, error]));
 
   useEffect(() => {
     // The initial state is not an answer; every state after it is one.
@@ -54,7 +65,7 @@ export function OrganizationAddressForm({
       return;
     }
     if (!state.error) return;
-    const first = state.fields[0];
+    const first = state.fields[0]?.field;
     const target = first ? formRef.current?.querySelector<HTMLElement>(`[name="${first}"]`) : null;
     (target ?? regionRef.current)?.focus();
   }, [state]);
@@ -66,17 +77,19 @@ export function OrganizationAddressForm({
   };
 
   /** The `aria-*` a field carries, and the message under it when it is at fault. */
-  const fieldState = (field: AddressField, id: string): { aria: Record<string, string | boolean>; note: ReactNode } =>
-    invalid.has(field)
+  const fieldState = (field: AddressField, id: string): { aria: Record<string, string | boolean>; note: ReactNode } => {
+    const error = invalid.get(field);
+    return error
       ? {
           aria: { 'aria-invalid': true, 'aria-describedby': `${id}-error` },
           note: (
             <p id={`${id}-error`} className="b2b-auth__error m-0">
-              {t('account.addresses.error.field')}
+              {t(fieldErrorKey(error))}
             </p>
           ),
         }
       : { aria: {}, note: null };
+  };
 
   const kind = fieldState('kind', 'addr-kind');
   const recipient = fieldState('recipientName', 'addr-recipient');
@@ -88,6 +101,7 @@ export function OrganizationAddressForm({
 
   return (
     <form ref={formRef} action={formAction} onSubmit={onSubmit} className="b2b-auth__form">
+      <input type="hidden" name="returnTo" value={returnTo} />
       <div
         id="address-form-error"
         ref={regionRef}
@@ -108,24 +122,56 @@ export function OrganizationAddressForm({
         </div>
         <div className="b2b-auth__field">
           <label htmlFor="addr-recipient">{t('account.addresses.col.recipient')}</label>
-          <input id="addr-recipient" name="recipientName" required maxLength={160} placeholder=" " {...recipient.aria} />
+          <input
+            id="addr-recipient"
+            name="recipientName"
+            required
+            maxLength={160}
+            autoComplete="name"
+            placeholder=" "
+            {...recipient.aria}
+          />
           {recipient.note}
         </div>
       </div>
       <div className="b2b-auth__field">
         <label htmlFor="addr-street">{t('account.addresses.add.street')}</label>
-        <input id="addr-street" name="street" required maxLength={255} placeholder=" " {...street.aria} />
+        <input
+          id="addr-street"
+          name="street"
+          required
+          maxLength={255}
+          autoComplete="street-address"
+          placeholder=" "
+          {...street.aria}
+        />
         {street.note}
       </div>
       <div className="b2b-auth__row">
         <div className="b2b-auth__field">
           <label htmlFor="addr-city">{t('checkout.address.city')}</label>
-          <input id="addr-city" name="city" required maxLength={120} placeholder=" " {...city.aria} />
+          <input
+            id="addr-city"
+            name="city"
+            required
+            maxLength={120}
+            autoComplete="address-level2"
+            placeholder=" "
+            {...city.aria}
+          />
           {city.note}
         </div>
         <div className="b2b-auth__field">
           <label htmlFor="addr-postal">{t('checkout.address.postalCode')}</label>
-          <input id="addr-postal" name="postalCode" required maxLength={20} placeholder=" " {...postal.aria} />
+          <input
+            id="addr-postal"
+            name="postalCode"
+            required
+            maxLength={20}
+            autoComplete="postal-code"
+            placeholder=" "
+            {...postal.aria}
+          />
           {postal.note}
         </div>
       </div>
@@ -137,7 +183,15 @@ export function OrganizationAddressForm({
         </div>
         <div className="b2b-auth__field">
           <label htmlFor="addr-phone">{t('checkout.address.phone')}</label>
-          <input id="addr-phone" name="phone" maxLength={32} placeholder=" " {...phone.aria} />
+          <input
+            id="addr-phone"
+            name="phone"
+            type="tel"
+            maxLength={32}
+            autoComplete="tel"
+            placeholder=" "
+            {...phone.aria}
+          />
           {phone.note}
         </div>
       </div>

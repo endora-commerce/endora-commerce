@@ -3806,6 +3806,95 @@ przez pull requesty, które wprowadziły każdą zmianę. W chwili jej pisania �
 zaktualizowana poleceniem `pnpm run upgrade 0.109.0`; kolejność kroków i zmiany w storefroncie nie
 zostały wypróbowane.
 
+### Wycofanie osobistej książki adresowej (wydanie 1 z 2) {#personal-address-book-retired-1}
+
+Wydanie, które wprowadza `CUSTOMER_ADDRESS_BOOK_RETIRED`, daje każdemu klientowi **jedną** książkę
+adresową — książkę jego organizacji (`specs/173-b2c-address-book-merge/`). Osobista książka adresowa
+modułu `customers` (`customer_addresses`) zostaje wycofana dla wszystkich. Na żaden jej adres nie
+dało się nigdy złożyć zamówienia, więc nie znika żadna działająca funkcja. Tabelę usuwa późniejsze
+wydanie, drugie z dwóch, a jego migracja odmawia, dopóki zostaje w niej choćby jeden wiersz.
+Dlatego najpierw przejdź przez to wydanie, tak jak opisano tutaj.
+
+**Co się zmienia:**
+
+- W sklepie *Moje adresy* (`/addresses`) klienta indywidualnego pokazują książkę jego organizacji
+  osobistej — tę samą, którą proponuje i do której zapisuje kasa. Członek firmy ma jedną pozycję,
+  *Adresy organizacji*, a `/addresses` przekierowuje go tam. Z `lib/api/customers.ts` sklepu znikają
+  `listMyAddresses`, `createMyAddress`, `deleteMyAddress` i `setMyDefaultAddress`. Sklep, który z
+  nich korzystał, czyta i zapisuje `/api/v1/organizations/mine/addresses`
+  (`lib/api/organization.ts`).
+- Każdy dawny punkt końcowy osobistej książki odpowiada `410 Gone` z kodem
+  `CUSTOMER_ADDRESS_BOOK_RETIRED`, po polsku lub po angielsku, każdemu wywołującemu: `GET` i
+  `POST /api/v1/me/customer/addresses`, `PATCH` i `DELETE /api/v1/me/customer/addresses/:addressId`,
+  `PUT /api/v1/me/customer/addresses/:addressId/default`,
+  `POST /api/v1/admin/customers/:id/addresses` oraz `PUT /api/v1/me/customer/defaults`, którego
+  treść podaje `billingAddressId` lub `shippingAddressId`. `GET /api/v1/me/customer/defaults` zwraca
+  adresy domyślne z książki organizacji.
+- Karta *Adresy* klienta w panelu administracyjnym jest tylko do odczytu. Pokazuje książkę
+  organizacji, a pod nią wiersze osobistej książki, których poniższe zadanie nie przeniosło, wraz z
+  powodem.
+- Gdy proces anonimizacji anonimizuje klienta indywidualnego, adresy jego organizacji osobistej też
+  zostają wyczyszczone i miękko usunięte. Złożone zamówienia zachowują swoje kopie adresów.
+
+**Zadanie.** Jednorazowe zadanie w tle w module `customers` przetwarza pozostałe wiersze osobistej
+książki. Jest kolejkowane przy każdym starcie procesu, który uruchamia workery, i działa tylko
+wtedy, gdy moduł `customers` jest włączony:
+
+- wiersze klienta indywidualnego są **przenoszone** do książki jego organizacji osobistej. Adres,
+  który już w niej jest, nie jest kopiowany drugi raz, a istniejący adres domyślny pozostaje
+  domyślny;
+- każdy inny wiersz — członka firmy, klienta indywidualnego, którego organizacja prywatna została
+  już zanonimizowana, albo konta, którego organizacji nie da się znaleźć — jest **usuwany**: czyszczony i miękko usuwany;
+- wiersz, którego książka adresowa nie przyjmuje, na przykład z krajem, który nie jest już aktywny,
+  zostaje, oznaczony powodem, i jest widoczny tylko na karcie w panelu administracyjnym.
+
+Każdy wiersz zostawia wpis w dzienniku audytu (`customer_address.merge`, `customer_address.erased`
+lub `customer_address.merge_refused`). Worker zapisuje podsumowanie na poziomie `info`, zaczynające
+się od `customers: personal address book retirement finished`. Przy kolejnym starcie zadanie nie ma
+już nic do zrobienia.
+
+**Co zrobić:**
+
+1. **Nie wyłączaj modułu `customers` i uruchom proces, który uruchamia workery**, dopóki zadanie
+   się nie zakończy. Jest to każdy proces z `BACKEND_ROLE` nieustawionym albo równym `all` (wartość
+   domyślna — wystarczy samo `pnpm run start`) lub `worker` (`pnpm run worker`). Proces z
+   `BACKEND_ROLE=api` ani nie kolejkuje zadania, ani go nie uruchamia, więc wdrożenie, które
+   rozdziela warstwy, potrzebuje działającej warstwy workerów. Gdy `customers` jest wyłączony,
+   zadanie nie działa, a strony adresów i kasa działają mimo to.
+2. **Spodziewaj się krótkiego okna po aktualizacji.** Od startu do pierwszego przebiegu zadania
+   dawne adresy osobiste klienta indywidualnego nie są jeszcze na jego jedynej liście.
+3. **Policz, co zostało.** Uruchom to zapytanie tylko do odczytu przed aktualizacją, żeby wiedzieć,
+   co zrobi zadanie, i po niej, żeby potwierdzić, że się zakończyło:
+
+   ```sql
+   select
+     count(*) filter (where ca.deleted_at is null)                           as live,
+     count(*) filter (where ca.deleted_at is null and o.is_personal and o.deleted_at is null)       as live_b2c,    -- moved by the job
+     count(*) filter (where ca.deleted_at is null
+                        and (o.is_personal = false or o.deleted_at is not null))                     as live_erased, -- company members and anonymized personal orgs: erased by the job
+     count(*) filter (where ca.deleted_at is null and o.id is null)          as live_no_org    -- erased by the job
+   from customer_addresses ca
+   join customer_accounts acc on acc.id = ca.customer_account_id
+   left join organizations o on o.id = acc.organization_id;
+   ```
+
+   Po zakończeniu zadania `live` równa się liczbie wierszy nieprzeniesionych
+   (`select count(*) from customer_addresses where deleted_at is null and merge_refusal is not null`).
+   Wydanie, które usuwa tabelę, wymaga, żeby `live` wynosiło `0`.
+4. **Zdecyduj o każdym nieprzeniesionym wierszu.** Usuń przyczynę — na przykład ponownie aktywuj
+   kraj — a potem zdejmij oznaczenie
+   (`update customer_addresses set merge_refusal = null where id = '…'`), a zadanie spróbuje ponownie
+   przy następnym starcie. Albo przyjmij, że adres przepada
+   (`delete from customer_addresses where merge_refusal is not null`): klient może wpisać go ponownie
+   w kasie.
+5. **Klienci API**, którzy wywoływali punkty końcowe osobistej książki, przechodzą na
+   `/api/v1/organizations/mine/addresses`. Zapis wymaga uprawnienia organizacji `addresses.manage`,
+   które klient indywidualny, jako administrator swojej organizacji osobistej, zawsze ma.
+   **Autorzy modułów:** `@endora-commerce/contracts` nie eksportuje już `CustomerAddressReadPort`,
+   `CustomerAddressRecord`, `customerAddressInputSchema` ani `ERROR_CODES.CUSTOMER_ADDRESS_NOT_FOUND`,
+   portu `customerAddressReadPort` już nie ma, a `AddressServicePort` zyskuje
+   `anonymizeForOrganization`.
+
 ## Instancja niespójna od początku
 
 Instalator `0.101.x` lub starszy zapisywał każdy pakiet wydania z `^` poza

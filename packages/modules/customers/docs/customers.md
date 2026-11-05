@@ -11,8 +11,8 @@ Organization** — a company for B2B, a single-member *personal* organization fo
 an individual, and `customer_accounts.organization_id` is
 `NOT NULL`. "Standalone" throughout this page means *outside a company
 organization*, never *without one*: such a customer is their own tenant, and the
-organization-scoped features a company offers (shared addresses, invitations,
-credit limit, a sales-rep assignment) are simply absent for them rather than
+organization-scoped features a company offers (invitations, credit limit, a
+sales-rep assignment) are simply absent for them rather than
 switched off by a special case.
 
 ## Capabilities
@@ -33,9 +33,13 @@ switched off by a special case.
   sign-in was started on. Where the setting is off for that channel, no
   account is created and the visitor is sent back to the sign-in page with a
   prompt to create an account first.
-- A personal address book (billing/delivery), one default per kind, plus the
-  ability to select the Organization's shared addresses (org-bound customers).
-- Default payment method, delivery method, and default addresses.
+- One address book for every customer: their Organization's. An individual sees
+  it as *My addresses* (`/addresses`), a company member as *Organization
+  addresses* (`/organization/addresses`). Checkout offers and saves to the same
+  book. It is served by `organizations` over `addresses`, not by this module,
+  so it keeps working while this module is switched off.
+- Default payment method and delivery method. The default addresses are read
+  from the Organization book, where they are set.
 - Change password; read-only history of own orders and quote requests.
 
 **Admin (oversight)**
@@ -72,7 +76,36 @@ are revoked, while orders, quote requests, and audit history are retained.
 Within a configurable retention window (`customers.deletion_retention_days`,
 default 365) an authorized actor can restore the account. After the window the
 anonymization sweep (`AnonymizationSweepWorker`) irreversibly scrubs personal
-data, and restore is no longer possible.
+data, and restore is no longer possible. For an individual, the sweep also
+scrubs their personal organization: its saved addresses are blanked (`-`, no
+phone, country kept) and soft-deleted, one `address.anonymized` audit entry
+each. Placed orders keep their address snapshots.
+
+## The personal address book is retired
+
+Until release 1 of this change, this module kept a second, *personal* address
+book (`customer_addresses`). No order could be placed to one of its addresses.
+It is retired for everyone, in two releases:
+
+- **Release 1 (this one).** Every former personal-book endpoint answers
+  `410 Gone` with `CUSTOMER_ADDRESS_BOOK_RETIRED`, in Polish or English. A
+  one-time background job, run by the worker process while this module is on,
+  processes the remaining rows:
+  - an individual's rows are **moved** into their personal organization's book.
+    An address the book already holds is not copied twice, and an existing
+    default stays the default. Each row is audited `customer_address.merge`;
+  - every other row (a company member's, an individual's whose personal
+    organization was already anonymized, or an account whose organization cannot
+    be found) is **erased**: blanked, soft-deleted and audited
+    `customer_address.erased`;
+  - a row the address book refuses — for example a country that is no longer
+    active — stays, marked with the reason (`customer_address.merge_refused`).
+    Only the operator sees it, on the customer's *Addresses* card.
+- **Release 2.** The table and the remaining code are removed. The upgrade
+  refuses while any row is left.
+
+The upgrade note *Personal address book retired (release 1 of 2)* covers the
+operator's side.
 
 ## Public surface
 
@@ -85,10 +118,9 @@ Admin routes are gated by `customers:read` (reads), `customers:manage`
 | `GET /api/v1/storefront/settings/customer-registration` | anon | Whether standalone registration is offered (`allowRegistrationWithoutOrganization`) |
 | `GET /api/v1/me/customer` | customer | Own profile, with `organizationRole` and the effective `permissions` |
 | `POST /api/v1/me/customer/change-password` | customer | Change password. A successful change signs the account out of every other session (the one the request was made from is kept), retires its outstanding reset tokens and withdraws any sign-in it had begun and not finished. |
-| `GET /api/v1/me/customer/addresses` | customer | Personal + org-shared addresses |
-| `POST/PATCH/DELETE /api/v1/me/customer/addresses[/:id]` | customer | Manage personal addresses |
-| `PUT /api/v1/me/customer/addresses/:id/default` | customer | Set a default address |
-| `GET/PUT /api/v1/me/customer/defaults` | customer | Default payment/delivery method + addresses |
+| `GET/POST /api/v1/me/customer/addresses` · `PATCH/DELETE .../:id` · `PUT .../:id/default` | customer | Retired: `410 CUSTOMER_ADDRESS_BOOK_RETIRED`. Use `/api/v1/organizations/mine/addresses` |
+| `GET /api/v1/me/customer/defaults` | customer | Default payment/delivery method, and the Organization book's default addresses |
+| `PUT /api/v1/me/customer/defaults` | customer | Set the default payment/delivery method. A body naming `billingAddressId` or `shippingAddressId` answers `410 CUSTOMER_ADDRESS_BOOK_RETIRED` |
 | `GET /api/v1/me/customer/orders` | customer | Own order history |
 | `GET /api/v1/me/customer/quote-requests` | customer | Own RFQ history |
 | `GET /api/v1/admin/customers` | admin | List (authority-scoped) |
@@ -99,7 +131,8 @@ Admin routes are gated by `customers:read` (reads), `customers:manage`
 | `POST /api/v1/admin/customers/:id/password-reset` | admin | Email a set-password link |
 | `POST/DELETE /api/v1/admin/customers/:id/organization` | admin | Assign / unassign organization |
 | `PUT /api/v1/admin/customers/:id/customer-group` | admin | Set / clear customer group |
-| `GET/POST/PATCH/DELETE /api/v1/admin/customers/:id/addresses[/:addressId]` | admin | Manage addresses |
+| `GET /api/v1/admin/customers/:id/addresses` | admin | Read-only: `{ organization, personal }` — the Organization book, and the personal-book rows the retirement job refused, each with `mergeRefusal` |
+| `POST /api/v1/admin/customers/:id/addresses` | admin | Retired: `410 CUSTOMER_ADDRESS_BOOK_RETIRED` |
 | `POST /api/v1/admin/customers/:id/vat-validate` | admin | Validate a NIP/VAT number |
 | `GET /api/v1/admin/customers/:id/orders` · `/quote-requests` · `/carts` | admin | Read-only history panels |
 | `GET /api/v1/admin/customers/online` | admin | Currently-online customers |
@@ -119,7 +152,10 @@ Admin routes are gated by `customers:read` (reads), `customers:manage`
   deletion/anonymization state (`deletion_requested_by_admin_user_id`,
   `anonymized_at`) to `customer_accounts`.
 - `20260611T140404_customers_customer_addresses_init.ts` — the `customer_addresses` table (one default
-  per `(customer, kind)`).
+  per `(customer, kind)`), the retired personal address book.
+- `20261105T180317_customers_address_book_retirement.ts` — the retirement job's provenance columns
+  (`merged_into_address_id`, `merged_at`, `merge_refusal`) and an index over the rows it has yet to
+  process. Release 2 drops the table.
 
 Default payment/delivery preferences reuse the `quick_order_default_preferences`
 table; no new table is introduced for them.
