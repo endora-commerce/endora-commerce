@@ -57,3 +57,67 @@ describe('AddressSection', () => {
     expect(html).not.toContain('name="deliveryAddressId"');
   });
 });
+
+/**
+ * Issue #759 (owner ruling of 2026-11-05) — a personal (B2C) Organization is
+ * not a company. Its buyer sees an "I need a company invoice" checkbox,
+ * unchecked by default, instead of the always-visible company block; checked,
+ * it reveals empty company fields validated as at company registration. A
+ * company Organization keeps the pre-filled, overridable block.
+ */
+describe('AddressSection — billing company data (#759)', () => {
+  const base = {
+    deliveryAddresses: [saved('d1', 'delivery')],
+    billingAddresses: [saved('b1', 'billing')],
+    locale: 'en-US',
+    countries: [{ code: 'PL', label: 'Poland' }],
+  };
+
+  it('offers a personal Organization an unchecked company-invoice checkbox and no company fields', () => {
+    const html = renderToString(
+      <AddressSection
+        {...base}
+        personalOrganization
+        organizationName="Jan Kowalski"
+        organizationTaxId="79963f233e3843bd84e144a8fcdd37f8"
+      />,
+    );
+    expect(html).toContain('I need a company invoice');
+    expect(html).toMatch(/<input[^>]*name="companyInvoice"[^>]*>/);
+    expect(html).not.toMatch(/<input[^>]*name="companyInvoice"[^>]*checked/);
+    expect(html).not.toContain('name="billingCompanyName"');
+    expect(html).not.toContain('name="billingTaxId"');
+    expect(html).not.toContain('79963f233e3843bd84e144a8fcdd37f8');
+    expect(html).not.toContain('Jan Kowalski');
+  });
+
+  it('reveals empty, required company fields once a personal buyer asks for a company invoice', () => {
+    const html = renderToString(
+      <AddressSection
+        {...base}
+        personalOrganization
+        initialCompanyInvoice
+        organizationName="Jan Kowalski"
+        organizationTaxId="79963f233e3843bd84e144a8fcdd37f8"
+      />,
+    );
+    const company = html.match(/<input[^>]*name="billingCompanyName"[^>]*>/)?.[0] ?? '';
+    const taxId = html.match(/<input[^>]*name="billingTaxId"[^>]*>/)?.[0] ?? '';
+    expect(company).toContain('required');
+    expect(company).not.toMatch(/value="[^"]+"/);
+    expect(taxId).toContain('required');
+    expect(taxId).toContain('minLength="8"');
+    expect(taxId).not.toMatch(/value="[^"]+"/);
+    expect(html).not.toContain('79963f233e3843bd84e144a8fcdd37f8');
+  });
+
+  it('keeps the pre-filled company block, without the checkbox, for a company Organization', () => {
+    const html = renderToString(
+      <AddressSection {...base} organizationName="Acme Sp. z o.o." organizationTaxId="5260250274" />,
+    );
+    expect(html).not.toContain('name="companyInvoice"');
+    expect(html).toContain('Billing company details');
+    expect(html).toMatch(/<input[^>]*name="billingCompanyName"[^>]*value="Acme Sp. z o.o."/);
+    expect(html).toMatch(/<input[^>]*name="billingTaxId"[^>]*value="5260250274"/);
+  });
+});
