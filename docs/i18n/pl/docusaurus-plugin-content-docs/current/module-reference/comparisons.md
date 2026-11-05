@@ -16,7 +16,7 @@ Strona wygenerowana z manifestu modułu, bez żadnych ręcznych zmian. Co moduł
 | | |
 | --- | --- |
 | Identyfikator modułu | `comparisons` |
-| Nazwa | Compare Products |
+| Nazwa | Compare products |
 | Wersja | `1.0.0` |
 | Pakiet | `@endora-commerce/mod-comparisons` |
 | Licencja | `MIT` |

@@ -12,7 +12,7 @@ import { defineModuleManifest } from '@endora-commerce/contracts';
  */
 export const manifest = defineModuleManifest({
   id: 'admin_notifications',
-  name: 'Admin Notifications',
+  name: 'Admin notifications',
   description:
     'In-app notification feed surfaced in the admin top-nav bell. Generic so any module can write entries.',
   version: '1.0.0',

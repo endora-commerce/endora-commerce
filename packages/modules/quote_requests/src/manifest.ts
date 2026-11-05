@@ -92,7 +92,7 @@ const settings = defineModuleSettingsManifest({
 /** Module-lifecycle manifest (feature 018). */
 export const manifest = defineModuleManifest({
   id: 'quote_requests',
-  name: 'Quote Requests',
+  name: 'Quote requests',
   description:
     'Customer-initiated RFQ workflow with admin pricing, approvals, and expiry.',
   version: '1.0.0',

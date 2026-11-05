@@ -31,7 +31,7 @@ const demo: ModuleDemoManifest<ModuleContext> = {
  */
 export const manifest = defineModuleManifest({
   id: 'payment_methods',
-  name: 'Payment Methods',
+  name: 'Payment methods',
   description:
     'Payment method definitions and per-channel availability.',
   version: '1.0.0',

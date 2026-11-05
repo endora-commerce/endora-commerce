@@ -10,7 +10,7 @@ import { defineModuleManifest } from '@endora-commerce/contracts';
  */
 export const manifest = defineModuleManifest({
   id: 'credit_limits',
-  name: 'Credit Limits',
+  name: 'Credit limits',
   description:
     'Per-organization credit limits and credit-check enforcement at checkout.',
   version: '1.0.0',

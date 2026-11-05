@@ -16,7 +16,7 @@ Rendered from the module's own manifest, and from nothing written by hand. What 
 | | |
 | --- | --- |
 | Module id | `audit_logs` |
-| Name | Audit Logs |
+| Name | Audit logs |
 | Version | `1.0.0` |
 | Ships from | `@endora-commerce/mod-audit-logs` |
 | Licence | `MIT` |

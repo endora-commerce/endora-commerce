@@ -16,7 +16,7 @@ Strona wygenerowana z manifestu modułu, bez żadnych ręcznych zmian. Co moduł
 | | |
 | --- | --- |
 | Identyfikator modułu | `shopping_lists` |
-| Nazwa | Shopping Lists |
+| Nazwa | Shopping lists |
 | Wersja | `1.0.0` |
 | Pakiet | `@endora-commerce/mod-shopping-lists` |
 | Licencja | `MIT` |

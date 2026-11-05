@@ -16,7 +16,7 @@ Rendered from the module's own manifest, and from nothing written by hand. What 
 | | |
 | --- | --- |
 | Module id | `assets_library` |
-| Name | Assets Library |
+| Name | Assets library |
 | Version | `1.0.0` |
 | Ships from | `@endora-commerce/mod-assets-library` |
 | Licence | `MIT` |

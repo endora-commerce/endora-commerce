@@ -20,7 +20,7 @@
   "customFields.audience.help": "Internal values are shown to administrators only. Customer-visible values are also returned to the customer in the storefront and to integrations that use the external API. New fields are internal unless you choose otherwise.",
   "actions.openCustomFields.label": "Custom fields",
   "actions.openCustomFields.description": "Define runtime fields on core entities.",
-  "nav.customFields.label": "Custom Fields",
+  "nav.customFields.label": "Custom fields",
   "errors.CUSTOM_FIELD_FILTER_UNAVAILABLE": "The filter on the custom field \"{key}\" is not available on this list. Remove it and try again.",
   "customFields.form.entity": "Record type",
   "customFields.form.key": "Key",

@@ -16,7 +16,7 @@ Strona wygenerowana z manifestu modułu, bez żadnych ręcznych zmian. Co moduł
 | | |
 | --- | --- |
 | Identyfikator modułu | `price_lists` |
-| Nazwa | Price Lists |
+| Nazwa | Price lists |
 | Wersja | `1.0.0` |
 | Pakiet | `@endora-commerce/mod-price-lists` |
 | Licencja | `MIT` |

@@ -1,11 +1,16 @@
-import { dirname } from 'node:path';
+import { readdirSync } from 'node:fs';
+import { dirname, join } from 'node:path';
+import { fileURLToPath } from 'node:url';
 import { describe, expect, it } from 'vitest';
 import { parseBundleKeywords, SUPPORTED_LANGUAGES } from '@endora-commerce/contracts';
 import {
   BundleLoadError,
   loadModuleBundles,
 } from '@endora-commerce/mod-i18n/backend';
-import { REGISTERED_MANIFESTS } from '../../../src/lifecycle/registered-manifests.js';
+import {
+  REGISTERED_MANIFESTS,
+  resolvedManifestEntries,
+} from '../../../src/lifecycle/registered-manifests.js';
 
 /**
  * Regression guard — every on-disk bundle shipped by a registered module
@@ -360,6 +365,72 @@ describe('registered module i18n bundles — real filesystem shape', () => {
     // An empty population would make the case vacuous — feature 170's own
     // modules declare permissions, so zero means the filter broke.
     expect(declaring.length).toBeGreaterThan(0);
+  });
+
+  /**
+   * Issue #746 — English module display names and sidebar labels are sentence
+   * case, like the rest of the UI ("Quote requests", not "Quote Requests").
+   * `module.name` heads the permission groups on the role form, the module
+   * screen and the command palette; the manifest `name` is its English fallback
+   * wherever a bundle has no `module.name`. Polish was sentence case already.
+   *
+   * The population is every core manifest, plus every deployment's overlay
+   * modules, plus every module's English `module.name` and `nav.*` labels. A
+   * word after the first may not start with a capital followed by a lowercase
+   * letter; acronyms (`API`, `CRM`) are all capitals and pass. Product names
+   * are the allowlist, which is two-way: an entry nothing uses fails too.
+   */
+  it('every English module display name and nav label is sentence case', async () => {
+    const PROPER_NOUNS = ['Google Analytics', 'Google Tag Manager', 'LinkedIn Ads', 'Meta Ads'];
+    const used = new Set<string>();
+    const problems: string[] = [];
+    let checked = 0;
+    const judge = (where: string, text: string): void => {
+      checked += 1;
+      let rest = text;
+      for (const noun of PROPER_NOUNS) {
+        if (rest.includes(noun)) {
+          used.add(noun);
+          rest = rest.split(noun).join('X');
+        }
+      }
+      const [first = '', ...others] = rest.trim().split(/\s+/);
+      const offending = others.filter((word) => /^[A-Z][a-z]/.test(word));
+      if (/^\p{Ll}/u.test(first)) offending.unshift(first);
+      if (offending.length > 0) {
+        problems.push(`${where}: ${JSON.stringify(text)} (${offending.join(', ')})`);
+      }
+    };
+
+    const appsDir = join(dirname(fileURLToPath(import.meta.url)), '../../../src/apps');
+    const manifests = new Map(REGISTERED_MANIFESTS.map((e) => [e.manifest.id, e] as const));
+    for (const deployment of readdirSync(appsDir)) {
+      for (const entry of await resolvedManifestEntries({ DEPLOYMENT: deployment } as NodeJS.ProcessEnv)) {
+        manifests.set(entry.manifest.id, entry);
+      }
+    }
+    const NAV_LABEL = /(^|\.)nav\.[A-Za-z]+(\.label)?$/;
+    for (const entry of manifests.values()) {
+      judge(`${entry.manifest.id} manifest name`, entry.manifest.name);
+      if (!entry.manifest.i18n) continue;
+      const en = loadModuleBundles(
+        entry.manifest.id,
+        dirname(entry.filePath),
+        entry.manifest.i18n.bundlesDir,
+      ).byLanguage.get('en');
+      for (const [key, value] of Object.entries(en ?? {})) {
+        if (key === 'module.name' || (NAV_LABEL.test(key) && !/[dD]escription$/.test(key))) {
+          judge(`${entry.manifest.id}/en.json → ${key}`, value);
+        }
+      }
+    }
+    for (const noun of PROPER_NOUNS) {
+      if (!used.has(noun)) problems.push(`allowlist: "${noun}" is in no name or nav label — delete the entry`);
+    }
+    expect(problems).toEqual([]);
+    // Overlay modules joined the core set: more than the core alone was judged.
+    expect(manifests.size).toBeGreaterThan(REGISTERED_MANIFESTS.length);
+    expect(checked).toBeGreaterThan(manifests.size);
   });
 
   /**

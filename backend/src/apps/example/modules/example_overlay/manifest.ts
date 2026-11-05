@@ -38,7 +38,7 @@ const settings = defineModuleSettingsManifest({
 
 export const manifest = defineModuleManifest({
   id: 'example_overlay',
-  name: 'Example Overlay',
+  name: 'Example overlay',
   description: 'Reference client-only overlay module for the example deployment.',
   version: '1.0.0',
   // `backend.ts` resolves `requireAdmin`, which `auth` owns. An overlay module

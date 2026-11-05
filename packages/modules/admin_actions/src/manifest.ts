@@ -17,7 +17,7 @@ import { defineModuleManifest, type ModuleLifecycleParticipant } from '@endora-c
  */
 export const manifest = defineModuleManifest({
   id: 'admin_actions',
-  name: 'Admin Command Palette Actions',
+  name: 'Admin command palette actions',
   description:
     'Module-contributed action registry that surfaces declared actions in the admin command palette.',
   version: '1.0.0',

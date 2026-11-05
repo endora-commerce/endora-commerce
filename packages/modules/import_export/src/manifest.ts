@@ -10,7 +10,7 @@ import { defineModuleManifest } from '@endora-commerce/contracts';
  */
 export const manifest = defineModuleManifest({
   id: 'import_export',
-  name: 'Import / Export',
+  name: 'Import / export',
   description: 'Bulk product import and export wizard.',
   version: '1.0.0',
   // `auth` owns the `requireAdmin` port the routes are gated by; feature 072

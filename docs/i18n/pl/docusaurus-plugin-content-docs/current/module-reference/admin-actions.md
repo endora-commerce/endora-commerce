@@ -16,7 +16,7 @@ Strona wygenerowana z manifestu modułu, bez żadnych ręcznych zmian. Co moduł
 | | |
 | --- | --- |
 | Identyfikator modułu | `admin_actions` |
-| Nazwa | Admin Command Palette Actions |
+| Nazwa | Admin command palette actions |
 | Wersja | `1.0.0` |
 | Pakiet | `@endora-commerce/mod-admin-actions` |
 | Licencja | `MIT` |

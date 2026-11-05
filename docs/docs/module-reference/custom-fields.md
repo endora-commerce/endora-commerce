@@ -16,7 +16,7 @@ Rendered from the module's own manifest, and from nothing written by hand. What 
 | | |
 | --- | --- |
 | Module id | `custom_fields` |
-| Name | Custom Fields |
+| Name | Custom fields |
 | Version | `1.0.0` |
 | Ships from | `@endora-commerce/mod-custom-fields` |
 | Licence | `MIT` |

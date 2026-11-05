@@ -16,7 +16,7 @@ Rendered from the module's own manifest, and from nothing written by hand. What 
 | | |
 | --- | --- |
 | Module id | `shopping_lists` |
-| Name | Shopping Lists |
+| Name | Shopping lists |
 | Version | `1.0.0` |
 | Ships from | `@endora-commerce/mod-shopping-lists` |
 | Licence | `MIT` |

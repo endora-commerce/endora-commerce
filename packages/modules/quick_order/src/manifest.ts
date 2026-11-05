@@ -60,7 +60,7 @@ const settings = defineModuleSettingsManifest({
 
 export const manifest = defineModuleManifest({
   id: 'quick_order',
-  name: 'Quick Order',
+  name: 'Quick order',
   description:
     'Bulk Cart / Quote Request import (CSV + Excel, with variants), quick product search, reorder, default ordering preferences, and one-click buy.',
   version: '2.0.0',

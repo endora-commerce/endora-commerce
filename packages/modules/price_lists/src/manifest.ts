@@ -72,7 +72,7 @@ const settings = defineModuleSettingsManifest({
 /** Module-lifecycle manifest (feature 018). */
 export const manifest = defineModuleManifest({
   id: 'price_lists',
-  name: 'Price Lists',
+  name: 'Price lists',
   description:
     'Price books — base, catalogue, buyer and sale prices per currency, sales channel and audience — and price display modes.',
   version: '1.0.0',
