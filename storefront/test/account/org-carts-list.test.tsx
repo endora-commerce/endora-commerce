@@ -10,6 +10,7 @@ import type { OrgCartSummary } from '../../lib/api/cart';
 let locale = 'en-US';
 let isPersonal = false;
 let permissions: string[] = ['carts.approve'];
+let roleKind = 'custom';
 let carts: OrgCartSummary[] = [];
 const filters: unknown[] = [];
 
@@ -29,7 +30,7 @@ vi.mock('../../lib/api/account', () => ({
   getMe: async () => ({
     customerAccount: {
       id: 'buyer-1',
-      organizationRole: { id: 'role-1', kind: 'custom', name: 'Purchasing' },
+      organizationRole: { id: 'role-1', kind: roleKind, name: 'Purchasing' },
       permissions,
     },
     organization: { id: 'org-1', name: 'Acme', isPersonal },
@@ -50,6 +51,7 @@ function summary(id: string, approvalStatus: OrgCartSummary['approvalStatus']): 
     ownerCustomerAccountId: `owner-${id}`,
     ownerDisplayName: `${id}@acme.example`,
     ownerEmail: `${id}@acme.example`,
+    orderId: null,
     status: 'active',
     approvalStatus,
     itemCount: 1,
@@ -70,6 +72,7 @@ beforeEach(() => {
   filters.length = 0;
   isPersonal = false;
   permissions = ['carts.approve'];
+  roleKind = 'custom';
 });
 
 /**
@@ -174,5 +177,60 @@ describe('organization carts list — issue #751', () => {
     carts = [summary('c1', 'pending')];
     const html = await render();
     expect(html).toMatch(new RegExp(`10,00\\s*zł<span[^>]*>${net}</span>`));
+  });
+});
+
+/**
+ * Owner ruling on PR #760 (issue #751): a completed cart links to the order it
+ * produced — only for a viewer the order page would answer: the Administrator,
+ * a role holding `orders.view_organization`, or the order's own buyer. Anyone
+ * else keeps the empty cells; the order page would say "not found".
+ */
+describe('organization carts list — a completed cart links to its order (issue #751)', () => {
+  const completed = (owner = 'owner-c3'): OrgCartSummary => ({
+    ...summary('c3', 'not_required'),
+    ownerCustomerAccountId: owner,
+    status: 'completed',
+    itemCount: 0,
+    total: { amount: 0, currency: 'PLN' },
+    orderId: '00000000-0000-4000-8000-000000000751',
+  });
+  const link = (text: string): RegExp =>
+    new RegExp(`<td colSpan="2"><a[^>]*href="/orders/00000000-0000-4000-8000-000000000751"[^>]*>${text}</a></td>`, 'i');
+
+  it.each([
+    ['en-US', 'View order'],
+    ['pl-PL', 'Zobacz zamówienie'],
+  ])('links it for a role holding orders.view_organization (%s)', async (l, text) => {
+    locale = l;
+    permissions = ['carts.approve', 'orders.view_organization'];
+    carts = [completed()];
+    expect(await render()).toMatch(link(text));
+  });
+
+  it('links it for the Administrator', async () => {
+    roleKind = 'administrator';
+    carts = [completed()];
+    expect(await render()).toMatch(link('View order'));
+  });
+
+  it('links it for the buyer who placed the order', async () => {
+    carts = [completed('buyer-1')];
+    expect(await render()).toMatch(link('View order'));
+  });
+
+  it('keeps the empty cells for a viewer the order page would not answer', async () => {
+    carts = [completed()];
+    const html = await render();
+    expect(html).not.toContain('/orders/');
+    expect(html).toMatch(/<\/span><\/td><td>—<\/td><td>—<\/td>/);
+  });
+
+  it('keeps the empty cells for a completed cart that names no order', async () => {
+    permissions = ['carts.approve', 'orders.view_organization'];
+    carts = [{ ...completed(), orderId: null }];
+    const html = await render();
+    expect(html).not.toContain('/orders/');
+    expect(html).toMatch(/<\/span><\/td><td>—<\/td><td>—<\/td>/);
   });
 });

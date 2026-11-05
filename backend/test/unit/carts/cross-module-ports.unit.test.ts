@@ -167,6 +167,26 @@ describe('carts — the org-admin cart list names its owners through customer_ac
     });
   });
 
+  // Issue #751 (owner ruling on PR #760) — a completed cart names the order it produced.
+  it('answers the order a completed cart produced, and null for an open one', async () => {
+    const accounts = {
+      findByIds: async (ids: readonly string[]) => ids.map((id) => ({ id, email: `${id}@example.test` })),
+    } as unknown as CustomerAccountReadPort;
+    const orderId = '00000000-0000-4000-8000-000000000751';
+
+    const completed = await new CartOrganizationVisibilityService(
+      ownTablesOnly({ carts: [cartRow({ status: 'completed', completedOrderId: orderId })], items: [] }),
+      accounts,
+    ).list('org-1');
+    const open = await new CartOrganizationVisibilityService(
+      ownTablesOnly({ carts: [cartRow()], items: [itemRow()] }),
+      accounts,
+    ).list('org-1');
+
+    expect(completed.data[0]?.orderId).toBe(orderId);
+    expect(open.data[0]?.orderId).toBeNull();
+  });
+
   it('falls back to the e-mail for an owner with a blank name, and to the id for one that is gone', async () => {
     const blank = {
       findByIds: async (ids: readonly string[]) =>

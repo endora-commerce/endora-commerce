@@ -183,6 +183,7 @@ describe('cart approval, end to end (issue #619)', () => {
       // Issue #751 — named as the members page names a member, the e-mail beside it.
       ownerDisplayName: 'Wp04 MEMBER',
       ownerEmail: MEMBER.email,
+      orderId: null,
       approvalStatus: 'pending',
       itemCount: 1,
     });
