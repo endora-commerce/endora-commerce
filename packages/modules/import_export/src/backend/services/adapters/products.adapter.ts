@@ -50,30 +50,6 @@ import {
  * `catalog` owns the write (feature 075 / D-74). Each product row is its own call of the port —
  * one transaction per product (`import-profiles-and-csv.md` §2) — and a dry run calls nothing.
  */
-const IMPORT_HEADER = ['sku', 'status', 'visibility', 'name_en', 'description_en'] as const;
-
-/**
- * Feature 172 (FR-041 import) — the keys of the Page Builder content attributes
- * among a file's columns. Asked of `catalog` once per import, and only when the
- * file carries a column this adapter does not read itself: a document is never
- * an importable cell, whatever its column is called.
- */
-async function contentColumnsOf(
-  ports: ImportExportPorts,
-  records: ReadonlyArray<Record<string, string>>,
-): Promise<string[]> {
-  const known = new Set<string>(IMPORT_HEADER);
-  const foreign = new Set<string>();
-  for (const record of records) {
-    for (const column of Object.keys(record)) {
-      if (!known.has(column) && parseScopedStatusColumn(column) === null) foreign.add(column);
-    }
-  }
-  if (foreign.size === 0) return [];
-  const contentKeys = await ports.catalogBulkImport.contentAttributeKeys();
-  return contentKeys.filter((key) => foreign.has(key));
-}
-
 const EXPORT_HEADER = [
   'id',
   'sku',
@@ -129,6 +105,16 @@ function exportCell(own: ScopedExportValue | undefined, textColumn: boolean): st
     own.kind === 'text' ? own.text : Array.isArray(own.value) ? own.value.join('|') : String(own.value);
   return textColumn ? text(raw) : value(raw);
 }
+
+/**
+ * Feature 172 (`specs/172-product-content-attributes/`, FR-041 import) — a Page Builder content
+ * attribute is authored on the product content screen only, so a cell under its
+ * `attribute:<key>` column is refused, whatever it holds, as a field error naming the column; the
+ * row's other cells still apply. Its value type comes with the attribute read the header grammar
+ * already makes, so the check costs no call of its own.
+ */
+const CONTENT_ATTRIBUTE_REFUSAL = 'content_attribute';
+const isContentColumn = (info: FieldInfo): boolean => info.valueType === 'page_builder';
 
 type CellRead = { kind: 'no_change' } | { kind: 'op'; op: ScopedWriteOp<unknown> } | { kind: 'error'; code: string };
 
@@ -332,6 +318,10 @@ export function productsAdapter(ports: ImportExportPorts): ImportExportAdapter {
             continue;
           }
           if (column.kind !== 'scoped') continue;
+          if (isContentColumn(column.info)) {
+            if (raw.trim() !== '') fieldError(column.header, CONTENT_ATTRIBUTE_REFUSAL);
+            continue;
+          }
           const read = readProductsCell(column.info, raw);
           if (read.kind === 'no_change') continue;
           if (read.kind === 'error') {
@@ -351,6 +341,10 @@ export function productsAdapter(ports: ImportExportPorts): ImportExportAdapter {
         // Locale columns, through the profile (`pim-locale-mapping.md` §2).
         const groups = new Map<string, PimSourceValues['perLocale'][number]>();
         for (const column of localeColumns) {
+          if (isContentColumn(column.info)) {
+            if ((record[column.header] ?? '').trim() !== '') fieldError(column.header, CONTENT_ATTRIBUTE_REFUSAL);
+            continue;
+          }
           const read = readProductsCell(column.info, record[column.header] ?? '');
           if (read.kind === 'no_change') continue;
           if (read.kind === 'error') {

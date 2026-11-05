@@ -108,6 +108,10 @@ jest bezpieczne: zapisuje te same wartości jeszcze raz.
 `minOrderQuantity` to liczba, `returnable` to `true` albo `false`, a atrybut wielokrotnego wyboru
 podaje wartości opcji rozdzielone znakiem `|`.
 
+Atrybut z treścią Page Builder edytuje się wyłącznie na ekranie treści produktu, dlatego nigdy nie
+jest eksportowany, a niepusta komórka w jego kolumnie `attribute:<key>` jest odrzucana dla tej komórki
+(`content_attribute`); reszta wiersza jest importowana.
+
 Nagłówek niepasujący do żadnej z tych reguł, dwa nagłówki wskazujące tę samą kolumnę, nieznany kod
 kanału albo język, którego kanał nie oferuje, powodują odrzucenie **całego pliku**
 (`400 VALIDATION_FAILED`, nic nie zostaje zaimportowane). Plik jest odrzucany także powyżej

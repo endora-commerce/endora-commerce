@@ -113,5 +113,6 @@
   "fieldError.subject_not_found": "The product was not found.",
   "fieldError.FIELD_NOT_AT_SCOPE": "This field cannot be set at this scope.",
   "fieldError.SCOPE_INVALID": "The scope is not valid for this product.",
-  "fieldError.URL_KEY_TAKEN": "The URL key is already used by another product; it was not written."
+  "fieldError.URL_KEY_TAKEN": "The URL key is already used by another product; it was not written.",
+  "fieldError.content_attribute": "Page Builder content is edited on the product content screen; it cannot be imported."
 }

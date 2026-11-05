@@ -105,6 +105,10 @@ writes the same values again.
 `minOrderQuantity` is a number, `returnable` is `true` or `false`, and a multiselect attribute
 lists its option values separated by `|`.
 
+A Page Builder content attribute is edited on the product content screen only, so it is never
+exported, and a non-empty cell under its `attribute:<key>` column is refused for that cell
+(`content_attribute`); the rest of the row is imported.
+
 A header that matches none of these rules, two headers naming the same column, an unknown
 channel code or a language the channel does not offer refuses the **whole file**
 (`400 VALIDATION_FAILED`, nothing imported). A file is also refused above 50 000 rows or

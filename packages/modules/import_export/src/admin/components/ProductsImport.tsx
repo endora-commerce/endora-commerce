@@ -54,6 +54,8 @@ const LABELLED_FIELD_ERRORS = new Set([
   'FIELD_NOT_AT_SCOPE',
   'SCOPE_INVALID',
   'URL_KEY_TAKEN',
+  // Feature 172 (FR-041) — a cell under a Page Builder content attribute's column.
+  'content_attribute',
 ]);
 
 /**

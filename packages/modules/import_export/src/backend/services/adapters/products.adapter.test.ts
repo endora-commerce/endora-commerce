@@ -567,51 +567,60 @@ describe('products file — the bounded report', () => {
 /**
  * Feature 172 (`specs/172-product-content-attributes/`, FR-041 import, research
  * R-15, R-20 (3)) — a Page Builder content attribute is authored on the product
- * content screen only. A products file carrying a value under a content
- * attribute's column gets a per-row error naming the attribute; the row's
- * other cells are still validated, so the operator sees every problem at once,
- * and — the import being all-or-nothing — nothing is imported.
+ * content screen only. In feature 173's grammar its column is `attribute:<key>`,
+ * Global only (the attribute is not scopable): a non-empty cell there is refused
+ * as a field error naming the column, and the row's other cells still apply —
+ * each product row being its own write (`import-profiles-and-csv.md` §2).
  */
-describe('products adapter — content attribute columns (172)', () => {
-  function contentPorts(imported: ProductImportRow[][], contentAttributeKeys = vi.fn(async () => ['buying_guide'])) {
-    const base = ports(imported) as unknown as { catalogBulkImport: Record<string, unknown> };
-    base.catalogBulkImport['contentAttributeKeys'] = contentAttributeKeys;
-    return { ports: base as unknown as ImportExportPorts, contentAttributeKeys };
+describe('products file — content attribute columns (172 FR-041)', () => {
+  function contentRig(): Rig {
+    const r = rig();
+    const attributes = r.ports.catalogAttributes as unknown as { listAll: () => Promise<unknown[]> };
+    const base = attributes.listAll;
+    attributes.listAll = async () => [
+      ...(await base()),
+      { key: 'buying_guide', valueType: 'page_builder', scopable: false, isRequired: false },
+    ];
+    return r;
   }
 
-  it('refuses a non-empty content cell per row, naming the attribute, and imports nothing', async () => {
-    const imported: ProductImportRow[][] = [];
-    const { ports: p } = contentPorts(imported);
-    const report = await productsAdapter(p).importRows!([
-      { sku: 'A', buying_guide: '<p>Guide</p>' },
-      { sku: 'B', buying_guide: '' },
+  it('refuses a non-empty content cell, naming its column, and applies the rest of the row', async () => {
+    const r = contentRig();
+    const report = await run(r, [
+      { sku: 'A', 'attribute:buying_guide': '<p>Guide</p>', 'name@pl_b2b_vip': 'Kept' },
+      { sku: 'B', 'attribute:buying_guide': '', 'name@pl_b2b_vip': 'Also kept' },
     ]);
-    expect(report).toEqual({
-      imported: 0,
-      errors: [{ index: 0, reason: 'content attribute "buying_guide" cannot be imported' }],
-    });
-    expect(imported).toEqual([]);
-  });
-
-  it('still validates the row’s other cells', async () => {
-    const imported: ProductImportRow[][] = [];
-    const { ports: p } = contentPorts(imported);
-    const report = await productsAdapter(p).importRows!([{ sku: 'A', buying_guide: 'x', status: 'sideways' }]);
-    expect(report.imported).toBe(0);
-    expect(report.errors).toEqual([
-      { index: 0, reason: 'content attribute "buying_guide" cannot be imported' },
-      { index: 0, reason: 'invalid status: sideways' },
+    expect(report.errors).toEqual([]);
+    expect(report.fieldErrors).toEqual([{ index: 0, column: 'attribute:buying_guide', code: 'content_attribute' }]);
+    // One call per product (`import-profiles-and-csv.md` §2).
+    expect(r.calls).toEqual([
+      [{ sku: 'A', cells: [{ scope: { level: 'channel', channelId: VIP }, field: 'name', op: { op: 'set', value: 'Kept' } }] }],
+      [
+        {
+          sku: 'B',
+          cells: [{ scope: { level: 'channel', channelId: VIP }, field: 'name', op: { op: 'set', value: 'Also kept' } }],
+        },
+      ],
     ]);
   });
 
-  it('imports a file whose content column is empty, and asks for the keys once', async () => {
-    const imported: ProductImportRow[][] = [];
-    const { ports: p, contentAttributeKeys } = contentPorts(imported);
-    const report = await productsAdapter(p).importRows!([
-      { sku: 'A', buying_guide: '' },
-      { sku: 'B', buying_guide: '  ' },
+  it('refuses a token or a mapped locale cell under a content column too, and writes nothing for it', async () => {
+    const r = contentRig();
+    const report = await run(r, [
+      { sku: 'A', 'attribute:buying_guide': 'NULL' },
+      { sku: 'B', 'attribute:buying_guide[pl_PL]': 'Poradnik' },
     ]);
-    expect(report).toEqual({ imported: 2, errors: [] });
-    expect(contentAttributeKeys).toHaveBeenCalledTimes(1);
+    expect(report.fieldErrors).toEqual([
+      { index: 0, column: 'attribute:buying_guide', code: 'content_attribute' },
+      { index: 1, column: 'attribute:buying_guide[pl_PL]', code: 'content_attribute' },
+    ]);
+    expect(r.calls).toEqual([]);
+  });
+
+  it('refuses a content column at a channel scope as a file error: the attribute is Global only', async () => {
+    const r = contentRig();
+    await expect(run(r, [{ sku: 'A', 'attribute:buying_guide@pl_b2b_vip': 'x' }])).rejects.toBeInstanceOf(
+      ProductsFileError,
+    );
   });
 });

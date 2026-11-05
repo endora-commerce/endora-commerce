@@ -113,5 +113,6 @@
   "fieldError.subject_not_found": "Nie znaleziono produktu.",
   "fieldError.FIELD_NOT_AT_SCOPE": "Tego pola nie można ustawić w tym zakresie.",
   "fieldError.SCOPE_INVALID": "Zakres jest nieprawidłowy dla tego produktu.",
-  "fieldError.URL_KEY_TAKEN": "Klucz URL jest już używany przez inny produkt; nie został zapisany."
+  "fieldError.URL_KEY_TAKEN": "Klucz URL jest już używany przez inny produkt; nie został zapisany.",
+  "fieldError.content_attribute": "Treść Page Builder edytuje się na ekranie treści produktu; nie można jej zaimportować."
 }
