@@ -114,7 +114,7 @@ channel code or a language the channel does not offer refuses the **whole file**
 (`400 VALIDATION_FAILED`, nothing imported). A file is also refused above 50 000 rows or
 500 columns. A price column is refused: prices are set in price books.
 
-**Upgrading from a file with per-language columns.** Before feature 173 the products file carried
+**Upgrading from a file with per-language columns.** Before feature 174 the products file carried
 one column per language, such as `name_en` or `description_pl`. Those headers now refuse the
 whole file. Rename each to the scope it should write: `name_en` becomes `name@<channel>/en-US` for
 each channel that sells in English, or `name[en_US]` with a profile that maps `en_US`.

@@ -3,7 +3,7 @@ import { GlobalEntity } from '@endora-commerce/platform/tenancy';
 import { randomUUID } from 'crypto';
 
 /**
- * ProductPackagingUnitScopeOverride — feature 173 (`specs/173-product-editor-scope-switcher/data-model.md` §7).
+ * ProductPackagingUnitScopeOverride — feature 174 (`specs/174-product-editor-scope-switcher/data-model.md` §7).
  *
  * One override of one field of a packaging unit at a Channel (`languageCode` `null`) or Channel × language
  * scope. The row's **presence** is the override; `value` is `{ "v": <value> }`, and `{ "v": null }`

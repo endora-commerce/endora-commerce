@@ -190,7 +190,7 @@ describe('POST /products/bulk-update — fields.scopedStatus (spec 163, T073)', 
           channels: [{ channelId: b2c, languageStatuses: [{ languageCode: 'de-DE', status: 'inactive' }] }],
         });
         expect(audits[0]!.state_before).toMatchObject({
-          // Feature 173 (FR-074, FR-116) — no own value before: `{ inherit: true }`.
+          // Feature 174 (FR-074, FR-116) — no own value before: `{ inherit: true }`.
           channels: [{ channelId: b2c, languageStatuses: [{ languageCode: 'de-DE', status: { inherit: true } }] }],
         });
         expect(events.seen.filter((e) => e.productId === id)).toEqual([{ productId: id, changedFields: ['scopedStatus'] }]);

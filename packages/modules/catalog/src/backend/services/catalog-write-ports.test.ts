@@ -12,7 +12,7 @@ import { CatalogAdminService, type CatalogEventBus } from './catalog-admin.servi
 import type { CatalogAttributeReadService, CatalogAttributeView } from './catalog-attribute-read.service.js';
 
 /**
- * Feature 173 (T083; `contracts/pim-locale-mapping.md` §4, R13a, R21) — the pieces of the connector
+ * Feature 174 (T083; `contracts/pim-locale-mapping.md` §4, R13a, R21) — the pieces of the connector
  * port v2 that need no database: the allowlist, the call-level refusals (source, cap, duplicates)
  * raised before any Command runs. The writes themselves are `[PG]`:
  * `backend/test/contract/catalog/scope-write-port-v2.test.ts`.

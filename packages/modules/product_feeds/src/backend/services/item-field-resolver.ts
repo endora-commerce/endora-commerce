@@ -168,7 +168,7 @@ function resolveSource(
       return { value: item.productType, issues: [] };
     case 'name':
     case 'description': {
-      // Feature 173 — one string per item, already at the feed's (channel, language).
+      // Feature 174 — one string per item, already at the feed's (channel, language).
       const text = field.sourceKind === 'name' ? item.name : item.description;
       return { value: text ?? '', issues: [] };
     }
@@ -343,7 +343,7 @@ export function resolveFeedItem(input: ResolveFeedItemInput): ResolvedFeedItem {
     if (value === '' && field.fallbackValue != null && field.fallbackValue !== '') {
       value = field.fallbackValue;
       // The fallback did its job, so a diagnostic about the empty source would
-      // be noise. Feature 173 retired the one reason that used to survive a
+      // be noise. Feature 174 retired the one reason that used to survive a
       // fallback (`missing_translation`: a product's text has a value at every
       // language through Global), so none is carried.
       carryIssues = [];

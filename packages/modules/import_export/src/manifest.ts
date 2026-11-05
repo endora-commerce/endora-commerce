@@ -72,7 +72,7 @@ export const manifest = defineModuleManifest({
       whenAbsent:
         'The import/export centre stops offering the Products import; every other entity is unaffected.',
       reason:
-        'Feature 173 — a products header names attributes (`attribute:<key>`); their value type and scope set decide how a cell reads and where it may be written.',
+        'Feature 174 — a products header names attributes (`attribute:<key>`); their value type and scope set decide how a cell reads and where it may be written.',
     },
     {
       moduleId: 'catalog',
@@ -81,7 +81,7 @@ export const manifest = defineModuleManifest({
       whenAbsent:
         'The import/export centre stops offering the Products import; every other entity is unaffected.',
       reason:
-        'Feature 173 (FR-042) — a mapped locale column writes only the channels a product belongs to; membership is `catalog`\'s answer, so a target the product is not in is reported for that row.',
+        'Feature 174 (FR-042) — a mapped locale column writes only the channels a product belongs to; membership is `catalog`\'s answer, so a target the product is not in is reported for that row.',
     },
     {
       moduleId: 'inventory',
@@ -156,7 +156,7 @@ export const manifest = defineModuleManifest({
   },
   i18n: { bundlesDir: 'i18n' },
   docs: { dir: 'docs' },
-  /** Feature 173 (`contracts/error-codes.md`) — the import profile refusals this module mints. */
+  /** Feature 174 (`contracts/error-codes.md`) — the import profile refusals this module mints. */
   errorCodes: [
     { code: 'IMPORT_PROFILE_NAME_TAKEN' },
     { code: 'IMPORT_PROFILE_NOT_FOUND' },
@@ -181,7 +181,7 @@ export const manifest = defineModuleManifest({
       icon: 'FileUp',
       targetRoute: '/import-export',
       requiredPermission: 'catalog:write',
-      // Feature 173 — the Import profiles section lives on this screen (no route of its own).
+      // Feature 174 — the Import profiles section lives on this screen (no route of its own).
       keywords: ['import', 'export', 'center', 'profile', 'mapping'],
       keywordsKey: 'actions.openCenter.keywords',
       weight: 220,

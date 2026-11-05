@@ -152,7 +152,7 @@ describe('restoring a rejected basket (issue #755)', () => {
     });
   });
 
-  // Feature 173 (FR-030) — a skipped line whose product still exists is named
+  // Feature 174 (FR-030) — a skipped line whose product still exists is named
   // as the channel names it (C → Global, the channel's default language), not
   // by a per-language map the catalogue no longer stores.
   it("names a skipped line by the product's effective name on the basket's channel", async () => {

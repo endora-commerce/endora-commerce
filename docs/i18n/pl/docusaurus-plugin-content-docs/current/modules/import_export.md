@@ -117,7 +117,7 @@ kanału albo język, którego kanał nie oferuje, powodują odrzucenie **całego
 (`400 VALIDATION_FAILED`, nic nie zostaje zaimportowane). Plik jest odrzucany także powyżej
 50 000 wierszy lub 500 kolumn. Kolumna ceny jest odrzucana: ceny ustawia się w cennikach.
 
-**Aktualizacja pliku z kolumnami dla języków.** Przed funkcją 173 plik produktów miał osobną
+**Aktualizacja pliku z kolumnami dla języków.** Przed funkcją 174 plik produktów miał osobną
 kolumnę dla każdego języka, na przykład `name_en` albo `description_pl`. Takie nagłówki powodują
 teraz odrzucenie całego pliku. Zmień nazwę każdego z nich na zakres, który ma zapisywać: `name_en`
 staje się `name@<channel>/en-US` dla każdego kanału sprzedającego po angielsku albo `name[en_US]`

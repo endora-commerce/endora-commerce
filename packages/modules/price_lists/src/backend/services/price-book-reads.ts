@@ -649,7 +649,7 @@ export class PriceBookReads {
         (row.variantId !== null && !variant) ||
         (row.categoryId !== null && (!category || category.deletedAt !== null));
       const labels: PriceBookRowLabels = {
-        // Feature 173 (FR-031) — an operator list: the Global name.
+        // Feature 174 (FR-031) — an operator list: the Global name.
         productName: product ? product.name : null,
         productSku: product?.sku ?? null,
         variantLabel: variant ? variantLabel(variant.variantAttributeValues) : null,

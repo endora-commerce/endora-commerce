@@ -265,8 +265,8 @@ describe('isProductEffectivelyAvailable — data-model §4', () => {
   });
 });
 
-describe('effectiveOrderRules — c ?? global (FR-100; 173 data-model §4)', () => {
-  it('173: an overridden channel minimum of null is "no minimum in this channel"', () => {
+describe('effectiveOrderRules — c ?? global (FR-100; 174 data-model §4)', () => {
+  it('174: an overridden channel minimum of null is "no minimum in this channel"', () => {
     expect(
       effectiveOrderRules(
         global({ minOrderQuantity: 5, returnable: false }),
@@ -275,7 +275,7 @@ describe('effectiveOrderRules — c ?? global (FR-100; 173 data-model §4)', () 
     ).toEqual({ minOrderQuantity: null, returnable: false });
   });
 
-  it('173: a channel value without the flag does not override', () => {
+  it('174: a channel value without the flag does not override', () => {
     expect(
       effectiveOrderRules(global({ minOrderQuantity: 5, returnable: false }), channelRow({ minOrderQuantity: 9 })),
     ).toEqual({ minOrderQuantity: 5, returnable: false });

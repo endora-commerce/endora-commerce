@@ -25,7 +25,7 @@ export async function createTieredProduct(h: BackendServerHandle, suffix: string
     payload: {
       sku: `TIER-${suffix}`,
       type: 'simple',
-      // Feature 173 (`contracts/readers.md` §2) — the Global texts are one string each.
+      // Feature 174 (`contracts/readers.md` §2) — the Global texts are one string each.
       name: `Tiered product ${suffix}`,
       description: '',
       categoryIds: [],

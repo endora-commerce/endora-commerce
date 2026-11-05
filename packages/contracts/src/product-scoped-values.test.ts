@@ -11,7 +11,7 @@ import { scopedWrite } from './scoped-write-encoding.js';
 import { z } from 'zod';
 
 /**
- * Feature 173 (R21; C1 review) — the bounds of the save body are refused **while parsing**, not
+ * Feature 174 (R21; C1 review) — the bounds of the save body are refused **while parsing**, not
  * only by a refine after it: a record with more keys than the cell cap, a reserved record key
  * (`__proto__`, `constructor`, `prototype` — an own key once `JSON.parse` has run), an over-long
  * URL key before it is normalised, a malformed inherit marker, and a field path whose subject is
@@ -21,7 +21,7 @@ import { z } from 'zod';
 const UUID = (n: number) => `00000000-0000-4000-8000-${n.toString(16).padStart(12, '0')}`;
 const save = (changes: unknown) => ({ scope: {}, version: '0', changes });
 
-describe('173 — scopedValueChangesSchema bounds', () => {
+describe('174 — scopedValueChangesSchema bounds', () => {
   it.each(['attributes', 'attachments', 'packagingUnits'] as const)('refuses more %s keys than the cell cap', (family) => {
     const entries = Array.from({ length: SCOPED_SAVE_CELLS_MAX + 1 }, (_, i) =>
       family === 'attributes' ? [`attr_${i}`, 'x'] : [UUID(i), { name: 'x' }],
@@ -60,7 +60,7 @@ describe('173 — scopedValueChangesSchema bounds', () => {
   });
 });
 
-describe('173 — scopedWrite inherit marker', () => {
+describe('174 — scopedWrite inherit marker', () => {
   it('refuses a marker carrying anything else, even under a permissive value schema', () => {
     const permissive = z.object({ value: scopedWrite(z.unknown().refine((v) => v !== undefined)) });
     expect(permissive.safeParse({ value: { inherit: true, extra: 1 } }).success).toBe(false);
@@ -77,7 +77,7 @@ describe('173 — scopedWrite inherit marker', () => {
   });
 });
 
-describe('173 — fieldPathSchema subjects are strict uuids', () => {
+describe('174 — fieldPathSchema subjects are strict uuids', () => {
   it.each([
     `gallery:${UUID(1)}:altText`,
     `attachment:${UUID(2)}:hidden`,
@@ -96,7 +96,7 @@ describe('173 — fieldPathSchema subjects are strict uuids', () => {
   });
 });
 
-describe('173 — copy response currentValue', () => {
+describe('174 — copy response currentValue', () => {
   it('is an own value or the empty marker, and nothing undefined', () => {
     const ok = (currentValue: unknown) =>
       copyScopedValueResponseSchema.safeParse({
@@ -108,7 +108,7 @@ describe('173 — copy response currentValue', () => {
   });
 });
 
-/** Feature 173, C2/C3 security review — userinfo in an image URL, and a version beyond bigint. */
+/** Feature 174, C2/C3 security review — userinfo in an image URL, and a version beyond bigint. */
 describe('httpUrlSchema and the version token (C2/C3 review)', () => {
   it.each(['https://user:pass@evil.example/a.png', 'https://user@cdn.example.com/a.png', 'http://a@b/c'])(
     'refuses userinfo in %s',

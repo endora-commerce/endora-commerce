@@ -91,7 +91,7 @@ export default function ImportExportPage(): ReactNode {
     void load();
   }, [load]);
 
-  // Feature 173 (`contracts/import-profiles-and-csv.md` §4) — the profiles the products import
+  // Feature 174 (`contracts/import-profiles-and-csv.md` §4) — the profiles the products import
   // requires. Every profile route is gated `catalog:write`, so an operator without it neither
   // sees the section nor asks for the list.
   const canManageProfiles = useAuth().hasPermission('catalog:write');
@@ -252,7 +252,7 @@ function EntityCard({
           ) : null}
         </div>
 
-        {/* Feature 173 — products import through a required profile and a dry run first. */}
+        {/* Feature 174 — products import through a required profile and a dry run first. */}
         {entity.name === 'products' && entity.importHeader && entity.canImport ? (
           <ProductsImport profiles={profiles} profilesLoading={profilesLoading} />
         ) : null}

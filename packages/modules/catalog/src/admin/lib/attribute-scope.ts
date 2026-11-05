@@ -2,7 +2,7 @@ import type { AttributeScopeChangePreviewResponse } from '@endora-commerce/contr
 import { apiClient } from '@endora-commerce/admin-kit/lib';
 
 /**
- * Feature 173 (FR-012, R15) — an attribute's one `scopable` flag and the preview of narrowing
+ * Feature 174 (FR-012, R15) — an attribute's one `scopable` flag and the preview of narrowing
  * it (`contracts/admin-scopes-api.md` §6). A scopable attribute takes Channel overrides and,
  * when its type is text (`string`), Channel × language overrides too.
  */

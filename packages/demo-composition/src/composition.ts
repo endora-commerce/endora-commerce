@@ -291,7 +291,7 @@ const DEMO_RETAIL_CHANNEL_CODE = 'pl_retail';
 const PLATFORM_FALLBACK_CHANNEL_CODE = 'default';
 const DEMO_VIP_CHANNEL_CODE = 'pl_b2b_vip';
 /**
- * Feature 173's scope product (`specs/173-product-editor-scope-switcher/` T024),
+ * Feature 174's scope product (`specs/174-product-editor-scope-switcher/` T024),
  * by the SKU `catalog`'s demo data assigns it, and the texts it carries above
  * Global — which name a channel, so they are this file's (§5.1).
  *
@@ -983,7 +983,7 @@ const STEPS: readonly CompositionStep[] = [
     },
   },
   {
-    // ── 2b. the scope product's texts above Global (feature 173) ──────────
+    // ── 2b. the scope product's texts above Global (feature 174) ──────────
     // `product_value_overrides` is `catalog`'s table, but every row names a
     // sales channel — the kernel's — so the step is the composition's, as the
     // bridges above are. The scope product is sold on the VIP channel as well,

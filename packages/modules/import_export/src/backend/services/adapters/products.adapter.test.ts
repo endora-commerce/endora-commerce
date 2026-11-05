@@ -17,7 +17,7 @@ import {
 } from './products-csv-grammar.js';
 
 /**
- * Feature 173 (`specs/173-product-editor-scope-switcher/` T087; `contracts/import-profiles-and-csv.md`
+ * Feature 174 (`specs/174-product-editor-scope-switcher/` T087; `contracts/import-profiles-and-csv.md`
  * §2–§3, `write-encoding.md` §3, §3a; FR-040…FR-043, FR-110…FR-118) — the products file over fake
  * ports: the header grammar, the write encoding of every cell, the profile mapping, the report,
  * one port call per product and the dry run. The `[PG]` halves are
@@ -567,7 +567,7 @@ describe('products file — the bounded report', () => {
 /**
  * Feature 172 (`specs/172-product-content-attributes/`, FR-041 import, research
  * R-15, R-20 (3)) — a Page Builder content attribute is authored on the product
- * content screen only. In feature 173's grammar its column is `attribute:<key>`,
+ * content screen only. In feature 174's grammar its column is `attribute:<key>`,
  * Global only (the attribute is not scopable): a non-empty cell there is refused
  * as a field error naming the column, and the row's other cells still apply —
  * each product row being its own write (`import-profiles-and-csv.md` §2).

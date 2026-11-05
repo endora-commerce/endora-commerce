@@ -43,7 +43,7 @@ export interface TemplatePreviewControllerProps {
 interface AdminProductSummary {
   id: string;
   sku: string;
-  /** Feature 173 (FR-031) — the Global name; the admin list answers no per-language map. */
+  /** Feature 174 (FR-031) — the Global name; the admin list answers no per-language map. */
   name: string;
 }
 

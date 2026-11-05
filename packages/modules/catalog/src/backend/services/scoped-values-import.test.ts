@@ -4,10 +4,10 @@ import { ERROR_CODES, type ProductScopedWriteCell } from '@endora-commerce/contr
 import { assertIntegrationCall } from './scoped-values-import.js';
 
 /**
- * Feature 173 (C2/C3 security review warn 2) — the connector port takes `ScopedWriteOp`s from
+ * Feature 174 (C2/C3 security review warn 2) — the connector port takes `ScopedWriteOp`s from
  * untyped callers (a JS or PHP bridge), so the op's shape is checked at runtime: anything but
  * exactly `{ op: 'set', value }`, `{ op: 'empty' }` or `{ op: 'inherit' }` refuses the call,
- * and a bare value (the pre-173 shape) never becomes an inherit that deletes an override.
+ * and a bare value (the pre-174 shape) never becomes an inherit that deletes an override.
  */
 describe('assertIntegrationCall — the op shape at runtime', () => {
   const registered = () => true;

@@ -10,7 +10,7 @@ import { PRODUCT_CONTENT_LANGUAGES, ProductContentCard, type ProductContentCardB
 import { BooleanControl, NumberControl, SelectControl, TextControl, type SelectOption } from './editor/scoped-controls.js';
 
 /**
- * The product's Attributes tab at the editor scope (feature 173, T027 / T100;
+ * The product's Attributes tab at the editor scope (feature 174, T027 / T100;
  * `contracts/editor-ui.md` §4).
  *
  * Every attribute of the product's set is one `attribute:<key>` field of the read, with its

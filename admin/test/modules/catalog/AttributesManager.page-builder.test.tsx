@@ -102,7 +102,7 @@ const CAPABILITY_LABELS = [
   'attributes.column.quickSearchable',
   'attributes.flag.promoRule',
   'attributes.flag.priceRule',
-  // Feature 173 — the one scope flag, `scopable`, replaced the channel and language pair.
+  // Feature 174 — the one scope flag, `scopable`, replaced the channel and language pair.
   'attributes.scope.scopable',
 ].map((key) => EN[key]!);
 

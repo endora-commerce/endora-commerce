@@ -89,7 +89,7 @@ export class ProductValueResolverService {
     channelId: string | null,
     languageCode: string | null,
   ): Promise<ResolverContext> {
-    // Feature 173 — no primary language any more: the Global value is one value (FR-014).
+    // Feature 174 — no primary language any more: the Global value is one value (FR-014).
     return { channelId, languageCode };
   }
 

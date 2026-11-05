@@ -37,7 +37,7 @@ export async function seedBulkProductsSql(
             ? || '-' || lpad(g::text, ?, '0'),
             lower(? || '-' || lpad(g::text, ?, '0')),
             'simple', 'active',
-            -- Feature 173 — the Global name and description are text columns: a jsonb map here
+            -- Feature 174 — the Global name and description are text columns: a jsonb map here
             -- would be stored as its JSON string, silently.
             coalesce((?::text[])[1 + (g - 1) % greatest(coalesce(array_length(?::text[], 1), 1), 1)] || ' ', '')
               || ? || ' ' || lpad(g::text, ?, '0'),

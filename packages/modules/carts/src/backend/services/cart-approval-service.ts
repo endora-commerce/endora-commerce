@@ -221,7 +221,7 @@ export class CartApprovalService {
           }),
           cart.salesChannelId,
         ),
-      // Feature 173 (FR-030) — a refusal names the product as the basket shows it.
+      // Feature 174 (FR-030) — a refusal names the product as the basket shows it.
       namesAt: (productIds) =>
         basketNamesAt(
           this.availability,

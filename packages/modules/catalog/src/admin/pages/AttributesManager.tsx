@@ -60,7 +60,7 @@ interface AdminAttribute {
   /** Feature 061 — backing product-host custom-field definition (read-only, additive). */
   customFieldDefinitionId?: string;
   /**
-   * Feature 173 (FR-012, R15) — may the value differ per sales channel (and, for text, per
+   * Feature 174 (FR-012, R15) — may the value differ per sales channel (and, for text, per
    * channel and language). Optional: the form shows it only when the answer carries it.
    */
   scopable?: boolean;
@@ -631,7 +631,7 @@ interface AttributeFormValues {
   quickSearchable: boolean;
   isPromoRule: boolean;
   isPriceRule: boolean;
-  /** Feature 173 (R15) — `null` when the form does not show the flag. */
+  /** Feature 174 (R15) — `null` when the form does not show the flag. */
   scopable: boolean | null;
 }
 
@@ -672,7 +672,7 @@ function AttributeForm({ mode, attribute, onSubmit, onCancel }: AttributeFormPro
   const isNumeric = valueType === 'number' || valueType === 'price';
   const { hasPermission } = useAuth();
   const canWrite = hasPermission('catalog:write');
-  // Feature 173 (FR-012, R15) — one flag, shown on create and on edit when the answer
+  // Feature 174 (FR-012, R15) — one flag, shown on create and on edit when the answer
   // carries it; a system attribute's is fixed (`getAttributeScope`) and read-only.
   const systemAttribute = attribute ? isSystemAttributeKey(attribute.key) : false;
   const initialScopable: boolean | null = attribute
@@ -688,7 +688,7 @@ function AttributeForm({ mode, attribute, onSubmit, onCancel }: AttributeFormPro
   const isContent = isContentType(valueType);
   // A capability ticked before Page Builder content was chosen is hidden, so it
   // is not sent either; nor is `scopable` — a content attribute is never
-  // scopable (feature 173), its languages being its document's.
+  // scopable (feature 174), its languages being its document's.
   const collect = (): AttributeFormValues => ({
     key,
     labelEn,

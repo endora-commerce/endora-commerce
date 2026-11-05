@@ -293,7 +293,7 @@ export interface CatalogCradle {
   readonly catalogSeoProductMeta: NonNullable<CatalogModuleOptions['resolveSeoProductMeta']>;
   /** Feature 163 (T118c) — `seo`'s scopes of a product, `[]` while `seo` is off. */
   readonly catalogSeoProductScopes: NonNullable<CatalogModuleOptions['listSeoProductScopes']>;
-  /** Feature 173 (T123) — `seo`'s view of a product at one scope, `null` while `seo` is off. */
+  /** Feature 174 (T123) — `seo`'s view of a product at one scope, `null` while `seo` is off. */
   readonly catalogSeoProductScoped: NonNullable<CatalogModuleOptions['readSeoProductScoped']>;
   /**
    * Owned by `assets_library`: the registry that refuses to delete an asset a
@@ -451,7 +451,7 @@ export function registerModule(ctx: ModuleContext): void {
   };
 
   /**
-   * Feature 173 (FR-119, T151) — a duplicate's SEO values at every scope its source holds, read
+   * Feature 174 (FR-119, T151) — a duplicate's SEO values at every scope its source holds, read
    * and written through `seo`'s write port on the duplicate Command's em, so they commit or roll
    * back with the copy and its one audit entry. The same D-44 shape as the threshold copy: presence
    * is decided here, in front of both ports — with `seo` off a duplicate copies no metadata and is
@@ -571,7 +571,7 @@ export function registerModule(ctx: ModuleContext): void {
      * hide a genuine `seo` failure behind that absence.
      */
     /**
-     * Feature 173 (T123, FR-092) — `seo`'s view of the product at the editor's scope, by the same
+     * Feature 174 (T123, FR-092) — `seo`'s view of the product at the editor's scope, by the same
      * probe-before-resolve: with `seo` off the read answers `seo: null` and no SEO section shows.
      */
     catalogSeoProductScoped: ctx
@@ -803,7 +803,7 @@ export function registerModule(ctx: ModuleContext): void {
             resolveSeoProductMeta: (input) => cradle().catalogSeoProductMeta(input),
             listSeoProductScopes: (productId) => cradle().catalogSeoProductScopes(productId),
             readSeoProductScoped: (productId, scope) => cradle().catalogSeoProductScoped(productId, scope),
-            // Feature 173 (T123) — the save's SEO cells, written on its Command's em (refuses-without).
+            // Feature 174 (T123) — the save's SEO cells, written on its Command's em (refuses-without).
             seoProductMetaWrite: () => seoProductMetaWrite,
             // Feature 172 (FR-051, research R-13) — the product page carries its
             // Page Builder content only while `cms` is effectively present.
@@ -898,7 +898,7 @@ export function registerModule(ctx: ModuleContext): void {
       .singleton(),
   );
 
-  // Feature 173 (T083) — `catalogProductValueOverrideWritePort` (feature 089) is retired: a
+  // Feature 174 (T083) — `catalogProductValueOverrideWritePort` (feature 089) is retired: a
   // connector's Channel and Channel × language values go through `catalogProductScopeWritePort` v2.
 
   /**
@@ -942,7 +942,7 @@ export function registerModule(ctx: ModuleContext): void {
             {
               emFactory,
               eventBus,
-              // Feature 173 (T084) — each product row through the scoped import's planner and writers.
+              // Feature 174 (T084) — each product row through the scoped import's planner and writers.
               importDeps: { membership, listAttributes: () => attributes.listAll(), urlKeys: () => urlKeys },
             },
             // Feature 172 (FR-041) — which keys are Page Builder content attributes.
@@ -1021,7 +1021,7 @@ export function registerModule(ctx: ModuleContext): void {
   );
 
   /**
-   * Feature 173 (T083; `contracts/pim-locale-mapping.md` §4) — the scoped write of connectors, v2:
+   * Feature 174 (T083; `contracts/pim-locale-mapping.md` §4) — the scoped write of connectors, v2:
    * one Command `product.scoped_values.import` per call on the save's planner and writers, per-cell
    * refusals, the integration allowlist (R13a); a URL key another product holds is reported, never
    * taken over (FR-093). `source` must be a module of the registry (R21).
@@ -1136,7 +1136,7 @@ export function registerModule(ctx: ModuleContext): void {
             undefined,
             // Feature 166 (FR-006) — a download file the caller may not see is not linked.
             lazyPort<AssetReadPort>(ctx, 'assetReadPort'),
-            // Feature 173 (FR-119) — a duplicate made through the port copies SEO as well.
+            // Feature 174 (FR-119) — a duplicate made through the port copies SEO as well.
             copySeoProductMeta,
           ),
       )

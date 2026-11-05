@@ -6,14 +6,14 @@ import { setupBackendServer, teardownBackendServer, type BackendServerHandle } f
 import { scopedValuesFixture, type ScopedValuesFixture } from '../../helpers/scoped-values-fixture.js';
 
 /**
- * Feature 173 × `specs/172-product-content-attributes/` (FR-011, FR-014, FR-040, FR-042) — a Page
+ * Feature 174 × `specs/172-product-content-attributes/` (FR-011, FR-014, FR-040, FR-042) — a Page
  * Builder content attribute is no scoped value. Its document per language lives in
  * `product_content_values` and is edited on the product content screen, so the scoped read does
  * not list it as an `attribute:<key>` field, and every scoped write path refuses one: the editor's
  * save at Global and at a channel, and the connector's scope write port. Nothing reaches
  * `attribute_values` or `product_value_overrides`.
  */
-describe('173 — a content attribute is not a scoped value (172 FR-011, FR-040, FR-042)', () => {
+describe('174 — a content attribute is not a scoped value (172 FR-011, FR-040, FR-042)', () => {
   let h: BackendServerHandle;
   let fx: ScopedValuesFixture;
   let channel: string;
@@ -97,7 +97,7 @@ describe('173 — a content attribute is not a scoped value (172 FR-011, FR-040,
   });
 
   it('the connector port refuses a content cell and applies the rest of the call', async () => {
-    const result = await withSystemScope('173 content attribute port test', () =>
+    const result = await withSystemScope('174 content attribute port test', () =>
       port().applyScopes(
         productId,
         {

@@ -60,8 +60,8 @@ const COMPOSITE_BASE_PRICES: Readonly<Record<string, string>> = {
 };
 
 /**
- * Feature 173's scope product, *Drill X* — the catalogue demo's one product whose
- * texts differ per scope (`specs/173-product-editor-scope-switcher/` T024),
+ * Feature 174's scope product, *Drill X* — the catalogue demo's one product whose
+ * texts differ per scope (`specs/174-product-editor-scope-switcher/` T024),
  * priced so it can be put in a basket on both demo channels.
  */
 const SCOPE_PRODUCT_BASE_PRICES: Readonly<Record<string, string>> = {

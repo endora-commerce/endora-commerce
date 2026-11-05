@@ -16,13 +16,13 @@ import {
 
 /**
  * Feature 172 (`specs/172-product-content-attributes/`, FR-020, FR-026, FR-050,
- * contracts/admin-surfaces.md §4) on the feature 173 editor — on the product's
+ * contracts/admin-surfaces.md §4) on the feature 174 editor — on the product's
  * Attributes tab a Page Builder content attribute is a compact card, never an
  * input and never an inline canvas: its label, a status chip per editing
  * language, a summary of what is stored, and **Edit content**, which opens the
  * product content screen.
  *
- * A content attribute holds no scoped value (feature 173): the scoped read does
+ * A content attribute holds no scoped value (feature 174): the scoped read does
  * not list it, so the cards come from the content summaries read
  * (`GET …/content`, research R-3 — never the documents), once per attribute
  * set, and they are the same at every scope — a document is per language, and
@@ -127,7 +127,7 @@ beforeEach(() => {
 });
 afterEach(() => cleanup());
 
-describe('Attributes tab — content attribute cards (feature 172 on the 173 editor)', () => {
+describe('Attributes tab — content attribute cards (feature 172 on the 174 editor)', () => {
   it('shows one card per content attribute, in set order, spanning the grid, with chips, summary and Edit content', async () => {
     renderEditor(ProductEditor, { url: AT_G, permissions: PERMISSIONS, contributions: CONTRIBUTIONS });
     await waitFor(() => expect(cards()).toHaveLength(2));

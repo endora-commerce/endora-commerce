@@ -88,7 +88,7 @@ import {
 } from '../lib/editor-scope.js';
 
 /**
- * The product editor (feature 173, US5–US7; `contracts/editor-ui.md`).
+ * The product editor (feature 174, US5–US7; `contracts/editor-ui.md`).
  *
  * One scope switcher sets the scope of the whole editor; the scope lives in the URL
  * (`?scope=global|channel|cl&channel=…&language=…&tab=…&field=…`). The editor reads the scope in
@@ -1707,7 +1707,7 @@ interface AdminProductSummary {
   slug: string;
   status: 'active' | 'inactive';
   archivedAt?: string | null;
-  /** Feature 173 — the Global name, one string (`contracts/readers.md` §2). */
+  /** Feature 174 — the Global name, one string (`contracts/readers.md` §2). */
   name: string;
 }
 

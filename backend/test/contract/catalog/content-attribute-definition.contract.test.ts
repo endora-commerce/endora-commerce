@@ -15,7 +15,7 @@ import {
  *   vocabulary.
  * - FR-003: create and PATCH refuse each locked capability by name
  *   (`details[].path`), and store nothing.
- * - FR-004 under feature 173 (`specs/173-product-editor-scope-switcher/`,
+ * - FR-004 under feature 174 (`specs/174-product-editor-scope-switcher/`,
  *   FR-012): the channel and language scope flags became one `scopable` flag.
  *   A content attribute's languages are its document envelope's, never scoped
  *   values, so `scopable` is one of the locked capabilities (it carries FR-040)
@@ -120,7 +120,7 @@ describe('Content attribute definition (feature 172, US1)', () => {
     });
   }
 
-  it('refuses the retired languageScoped flag on PATCH, storing nothing (FR-004, feature 173)', async () => {
+  it('refuses the retired languageScoped flag on PATCH, storing nothing (FR-004, feature 174)', async () => {
     expect((await create(base('pb_lang_patch'))).statusCode).toBe(201);
     const patched = await h.app.inject({
       method: 'PATCH',

@@ -16,7 +16,7 @@ import type { PlannedCell, ScopedSavePlan } from './scoped-values-save.service.j
 import { scopedAttributesOf, type ScopedProductState } from './scoped-values-state.js';
 
 /**
- * Feature 173 (C2/C3 code review 1, security review warn 1; `contracts/scoped-values-api.md` §3
+ * Feature 174 (C2/C3 code review 1, security review warn 1; `contracts/scoped-values-api.md` §3
  * step 3a) — the save's Global-only `product.*` family holds the rules `PATCH /products/:id`
  * holds (`product-global-field-rules.ts`), checked before anything is written:
  *

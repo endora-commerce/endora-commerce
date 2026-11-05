@@ -12,7 +12,7 @@ import {
  * document off, and its type never moves to or from `page_builder` (FR-003,
  * FR-005).
  *
- * Feature 173 (`specs/173-product-editor-scope-switcher/`, FR-012) replaced the
+ * Feature 174 (`specs/174-product-editor-scope-switcher/`, FR-012) replaced the
  * channel and language scope flags with one `scopable` flag. A content
  * attribute's languages are its document envelope's, never scoped values, so
  * `scopable` is a locked capability (FR-040's per-channel refusal), and FR-004's

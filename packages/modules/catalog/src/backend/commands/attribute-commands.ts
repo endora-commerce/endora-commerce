@@ -197,7 +197,7 @@ export function createAttributeCommand(
         );
       }
       // Feature 172 (research R-6) — a Page Builder content attribute holds
-      // every capability off (FR-003); feature 173 — `scopable` among them,
+      // every capability off (FR-003); feature 174 — `scopable` among them,
       // its languages being the content envelope's (FR-004, FR-040).
       if (resolved.valueType === 'page_builder') {
         assertContentAttributeShape({

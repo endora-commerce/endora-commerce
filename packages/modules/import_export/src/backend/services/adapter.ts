@@ -37,17 +37,17 @@ export interface ImportExportPorts {
   readonly orders: OrderReadPort;
   readonly customerAccounts: CustomerAccountReadPort;
   readonly organizations: OrganizationDetailsPort;
-  /** Feature 173 — the attribute definitions a products header names (their value type and scope set). */
+  /** Feature 174 — the attribute definitions a products header names (their value type and scope set). */
   readonly catalogAttributes: CatalogAttributeReadPort;
-  /** Feature 173 (FR-042) — which channels each imported product belongs to, for the profile's targets. */
+  /** Feature 174 (FR-042) — which channels each imported product belongs to, for the profile's targets. */
   readonly catalogAvailability: CatalogProductAvailabilityPort;
-  /** Feature 173 — the channel codes and languages a products header names (a kernel registration). */
+  /** Feature 174 — the channel codes and languages a products header names (a kernel registration). */
   readonly salesChannels: SalesChannelResolutionPort;
   /** The role each account holds, named on the customers sheet (`specs/170-organization-roles/`). */
   readonly organizationRoles: Pick<OrganizationRoleReadPort, 'roleRef'>;
 }
 
-/** Feature 173 — what a run hands an adapter besides its records. */
+/** Feature 174 — what a run hands an adapter besides its records. */
 /**
  * What an adapter's import answers: the owner's report, plus — when the report would list more
  * refusals than it may — how many there were (`truncated`; products only, C2/C3 security review).
@@ -102,7 +102,7 @@ export interface ImportExportAdapter {
    */
   exportTable?(): Promise<{ header: string[]; rows: string[][] }>;
   /**
-   * Feature 173 (FR-048) — an import of this entity needs an import profile
+   * Feature 174 (FR-048) — an import of this entity needs an import profile
    * (`422 IMPORT_PROFILE_REQUIRED` without one).
    */
   requiresProfile?: boolean;

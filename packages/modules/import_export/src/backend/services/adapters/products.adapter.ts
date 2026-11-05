@@ -36,7 +36,7 @@ import {
 } from './products-csv-grammar.js';
 
 /**
- * Products import/export (feature 173, `specs/173-product-editor-scope-switcher/contracts/`
+ * Products import/export (feature 174, `specs/174-product-editor-scope-switcher/contracts/`
  * `import-profiles-and-csv.md` §2–§3, `write-encoding.md`).
  *
  * The file speaks one grammar (`products-csv-grammar.ts`) and one write encoding: an empty cell

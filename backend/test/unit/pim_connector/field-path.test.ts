@@ -6,8 +6,8 @@ import {
 } from '@endora-commerce/contracts';
 
 /**
- * Paths from specs/089-unopim-pim-sync/contracts/pim-connector-shared.md, shrunk by feature 173
- * (`specs/173-product-editor-scope-switcher/contracts/pim-locale-mapping.md` §3, FR-046):
+ * Paths from specs/089-unopim-pim-sync/contracts/pim-connector-shared.md, shrunk by feature 174
+ * (`specs/174-product-editor-scope-switcher/contracts/pim-locale-mapping.md` §3, FR-046):
  * protection is whole-field, so locale and channel segments are no longer valid.
  */
 const VALID_PATHS = [

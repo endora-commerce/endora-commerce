@@ -12,7 +12,7 @@ import { HttpError } from '@endora-commerce/platform/http';
  * price lists, bulk edit, per-channel overrides and "Parametry" by
  * construction (research R-6, R-15).
  *
- * Feature 173 (`specs/173-product-editor-scope-switcher/`, FR-012) replaced the
+ * Feature 174 (`specs/174-product-editor-scope-switcher/`, FR-012) replaced the
  * channel and language scope flags with one `scopable` flag, which means
  * "has values at Channel and Channel × language". A content attribute's
  * languages are its envelope's, not scoped values, so `scopable` is one more

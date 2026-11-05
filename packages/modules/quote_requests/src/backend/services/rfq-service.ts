@@ -317,7 +317,7 @@ export class RfqService {
     ).filter((id) => productById.has(id));
     const units =
       vettedIds.length > 0 ? await this.deps.catalogProducts.listPackagingUnitsByProductIds(vettedIds) : [];
-    // Feature 173 (FR-030, FR-032) — the unit names snapshotted at the line names' scope. No
+    // Feature 174 (FR-030, FR-032) — the unit names snapshotted at the line names' scope. No
     // channel: none asked, the Global names (as `lineNames` asks nothing then).
     const unitNamesAtScope =
       channelId === null || units.length === 0
@@ -356,7 +356,7 @@ export class RfqService {
     mode: 'enforce' | 'warn',
     /** Feature 163 (FR-100) — the request's channel, whose minimums apply; none = the global ones. */
     channelId: string | null | undefined,
-    /** Feature 173 (FR-030) — the request's language tag: a refusal names products at (channel, L). */
+    /** Feature 174 (FR-030) — the request's language tag: a refusal names products at (channel, L). */
     languageTag: string | null | undefined,
   ): Promise<void> {
     const records = await this.#withChannelOrderRules(Array.from(products), channelId);
@@ -1621,7 +1621,7 @@ export class RfqService {
 // ---------------------------------------------------------------------------
 
 /**
- * Feature 155 (D3/D4), on feature 173's model — the names a refusal gives its products: the
+ * Feature 155 (D3/D4), on feature 174's model — the names a refusal gives its products: the
  * effective name at the request's (channel, language), `namesAtScope` (`lineNames`), else the
  * Global name.
  */

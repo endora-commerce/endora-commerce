@@ -1,5 +1,5 @@
 /**
- * Feature 173 (`specs/173-product-editor-scope-switcher/contracts/write-encoding.md` §4, SC-014) —
+ * Feature 174 (`specs/174-product-editor-scope-switcher/contracts/write-encoding.md` §4, SC-014) —
  * the **one** shared case table of the scoped write encoding.
  *
  * Imported, never copied, by every test of a scoped write path: the pure codec test beside

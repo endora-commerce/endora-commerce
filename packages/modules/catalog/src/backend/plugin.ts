@@ -166,12 +166,12 @@ export interface CatalogModuleOptions {
    */
   listSeoProductScopes?: ListSeoProductScopes;
   /**
-   * Feature 173 (T123) — `seo`'s view of a product's metadata at one scope for the editor's
+   * Feature 174 (T123) — `seo`'s view of a product's metadata at one scope for the editor's
    * scoped read; answers `null` while `seo` is not effectively present.
    */
   readSeoProductScoped?: ReadSeoProductScoped;
   /**
-   * Feature 173 (T123, FR-091) — `seo`'s write port for the save's SEO cells, resolved only when a
+   * Feature 174 (T123, FR-091) — `seo`'s write port for the save's SEO cells, resolved only when a
    * save changes SEO (a lazy port: with `seo` off resolving it answers `503 MODULE_DISABLED`).
    */
   seoProductMetaWrite?: () => Pick<SeoProductMetaWritePort<EntityManager>, 'readWithin' | 'applyWithin'>;
@@ -222,12 +222,12 @@ export interface CatalogModuleOptions {
    */
   copyWarehouseThresholds?: CatalogWarehouseThresholdCopy;
   /**
-   * Feature 173 (FR-119) — `seo`'s product metadata copied by a duplicate, on the duplicate
+   * Feature 174 (FR-119) — `seo`'s product metadata copied by a duplicate, on the duplicate
    * Command's em. Presence-decided by the wiring, like the threshold copy above.
    */
   copySeoProductMeta?: CatalogSeoProductMetaCopy;
   /**
-   * Feature 022 / 163 / 173 — the platform's languages: read by the value
+   * Feature 022 / 163 / 174 — the platform's languages: read by the value
    * resolver, the scope overview (the active languages of a product in no
    * channel) and the scoped-values read (each channel language's name).
    * Optional: when omitted the resolver and the scope overview are not
@@ -620,11 +620,11 @@ export function catalogModule(options: CatalogModuleOptions) {
     const attributeScopePreviewService = attributeReadService
       ? new AttributeScopePreviewService(options.emFactory, attributeReadService)
       : undefined;
-    // Feature 163 / 173 (T039) — URL keys at G, C and C×L, and their redirects: the one key writer.
+    // Feature 163 / 174 (T039) — URL keys at G, C and C×L, and their redirects: the one key writer.
     const urlKeyService = options.salesChannelMembership
       ? new UrlKeyService(options.emFactory, options.salesChannelMembership, options.commandBus)
       : undefined;
-    // Feature 173 — the editor's scoped-values read and save (one Command per save).
+    // Feature 174 — the editor's scoped-values read and save (one Command per save).
     const scopedValuesService =
       options.salesChannelMembership && attributeReadService
         ? new ScopedValuesService(

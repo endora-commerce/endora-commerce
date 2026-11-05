@@ -99,7 +99,7 @@ describe('Product content exclusions (feature 172)', () => {
           `insert into sales_channel_products (sales_channel_id, product_id) values (?, ?) on conflict do nothing`,
           [channelId, productId],
         );
-      // Feature 173 — channel values are written through the scoped save; `…/value-overrides` is gone.
+      // Feature 174 — channel values are written through the scoped save; `…/value-overrides` is gone.
       const read = await h.app.inject({
         method: 'GET',
         url: `/api/v1/admin/catalog/products/${productId}/scoped-values?channelId=${channelId}`,

@@ -58,7 +58,7 @@ import { firstDuplicateCell, planScopedImport, runScopedImport, type ScopedImpor
  * transaction is still the backstop for what validation did not anticipate: a
  * unique violation throws, the bus rolls back, and the audit row goes with it.
  *
- * **Products are per product** (feature 173, `contracts/import-profiles-and-csv.md`
+ * **Products are per product** (feature 174, `contracts/import-profiles-and-csv.md`
  * §2): each row is its own `product.scoped_values.import` Command, refused cells
  * are reported per cell, and one failing row leaves the others applied.
  */
@@ -92,7 +92,7 @@ export class CatalogBulkImportService implements CatalogBulkImportPort {
     private readonly scoped?: {
       emFactory: () => EntityManager;
       eventBus?: Pick<EventBus, 'emit'>;
-      /** Feature 173 (T084) — the scoped import's planner deps (`scoped-values-import.ts`). */
+      /** Feature 174 (T084) — the scoped import's planner deps (`scoped-values-import.ts`). */
       importDeps?: ScopedImportDeps;
     },
     /**
@@ -197,7 +197,7 @@ export class CatalogBulkImportService implements CatalogBulkImportPort {
   }
 
   /**
-   * Feature 173 (T084; `contracts/import-profiles-and-csv.md` §2) — per product: each row applies
+   * Feature 174 (T084; `contracts/import-profiles-and-csv.md` §2) — per product: each row applies
    * in its own Command `product.scoped_values.import` (the connector port's planner and writers,
    * `scoped-values-import.ts`), so a failing row leaves the others applied. An unknown SKU, a
    * (field, scope) named twice in a row, or a refusal of the whole product (`404`) is a row error;
@@ -263,7 +263,7 @@ export class CatalogBulkImportService implements CatalogBulkImportPort {
   }
 
   /**
-   * Feature 173 (T084; `contracts/import-profiles-and-csv.md` §3; FR-043, FR-114) — the scoped
+   * Feature 174 (T084; `contracts/import-profiles-and-csv.md` §3; FR-043, FR-114) — the scoped
    * columns of a products export: `name`, `description`, `status`, `urlKey` and every
    * `attribute:<key>` at C and C×L, one column per (field, scope) at which any product holds an own
    * value there, and each product's own values. Orphans (a channel the product left, a language
