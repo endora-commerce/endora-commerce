@@ -1,6 +1,6 @@
 import { randomInt } from 'node:crypto';
 import type { EntityManager } from '@mikro-orm/postgresql';
-import { ERROR_CODES, type GenerateCouponsRequest } from '@endora-commerce/contracts';
+import { ERROR_CODES, type GenerateCouponsRequest, isUuidShape } from '@endora-commerce/contracts';
 import { HttpError } from '@endora-commerce/platform/http';
 import { Promotion } from '../entities/promotion.entity.js';
 import { PromotionCoupon } from '../entities/promotion-coupon.entity.js';
@@ -66,6 +66,7 @@ export class CouponService {
   }
 
   async listForPromotion(promotionId: string): Promise<PromotionCoupon[]> {
+    if (!isUuidShape(promotionId)) return [];
     return this.emFactory().find(
       PromotionCoupon,
       { promotionId },
@@ -101,6 +102,9 @@ export class CouponService {
   /** Create a single specified coupon for a promotion. Rejects duplicates. */
   async createSingle(promotionId: string, code: string): Promise<PromotionCoupon> {
     const em = this.emFactory();
+    if (!isUuidShape(promotionId)) {
+      throw new HttpError(404, ERROR_CODES.NOT_FOUND, `Promotion ${promotionId} not found.`);
+    }
     const promotion = await em.findOne(Promotion, { id: promotionId });
     if (!promotion) {
       throw new HttpError(404, ERROR_CODES.NOT_FOUND, `Promotion ${promotionId} not found.`);
@@ -139,6 +143,9 @@ export class CouponService {
       );
     }
     const em = this.emFactory();
+    if (!isUuidShape(promotionId)) {
+      throw new HttpError(404, ERROR_CODES.NOT_FOUND, `Promotion ${promotionId} not found.`);
+    }
     const promotion = await em.findOne(Promotion, { id: promotionId });
     if (!promotion) {
       throw new HttpError(404, ERROR_CODES.NOT_FOUND, `Promotion ${promotionId} not found.`);
@@ -207,6 +214,7 @@ export class CouponService {
   }
 
   async listBatchCodes(batchId: string): Promise<string[]> {
+    if (!isUuidShape(batchId)) return [];
     const rows = await this.emFactory().find(
       PromotionCoupon,
       { batchId },

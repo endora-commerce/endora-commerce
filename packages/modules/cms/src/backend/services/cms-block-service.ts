@@ -6,6 +6,7 @@ import {
   type CmsBlockSummary,
   type CreateCmsBlockRequest,
   type PatchCmsBlockRequest,
+  isUuidShape,
 } from '@endora-commerce/contracts';
 import { HttpError } from '@endora-commerce/platform/http';
 import type { AuditState, CommandBus } from '@endora-commerce/platform/commands';
@@ -285,6 +286,8 @@ export class CmsBlockService {
   }
 
   private async findRow(id: string, em = this.emFactory()): Promise<BlockRow | null> {
+    // A malformed id names no row; PostgreSQL would answer it with a 500 (issue #781).
+    if (!isUuidShape(id)) return null;
     const rows = (await em.execute('select * from cms_blocks where id = ?', [
       id,
     ])) as BlockRow[];

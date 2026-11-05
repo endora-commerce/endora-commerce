@@ -8,6 +8,7 @@ import {
   type InvoiceAttachmentFetchPort,
   type OrderReadPort,
   type OrderRecord,
+  isUuidShape,
 } from '@endora-commerce/contracts';
 import { InvoiceExternalAttachment } from './entities/invoice-external-attachment.entity.js';
 import { Invoice } from './entities/invoice.entity.js';
@@ -159,6 +160,9 @@ export async function registerInvoicesCustomerRoutes(
     async (request, reply) => {
       const ctx = resolveCustomerContext(request);
       const em = emFactory();
+      if (!isUuidShape(request.params.invoiceId)) {
+        throw new HttpError(404, ERROR_CODES.NOT_FOUND, 'Sale document not found.');
+      }
       const invoice = await em.findOne(Invoice, {
         id: request.params.invoiceId,
         origin: 'erp_import',
@@ -167,6 +171,9 @@ export async function registerInvoicesCustomerRoutes(
       });
       if (!invoice) {
         throw new HttpError(404, ERROR_CODES.NOT_FOUND, 'Sale document not found.');
+      }
+      if (!isUuidShape(request.params.attachmentId)) {
+        throw new HttpError(404, ERROR_CODES.NOT_FOUND, 'Attachment not found.');
       }
       const attachment = await em.findOne(InvoiceExternalAttachment, {
         id: request.params.attachmentId,

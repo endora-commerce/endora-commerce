@@ -6,6 +6,7 @@ import {
   slugify,
   type FormChangedEvent,
   type FormDefinition,
+  isUuidShape,
 } from '@endora-commerce/contracts';
 import type { Command, CommandContext, CommandEvent } from '@endora-commerce/platform/commands';
 import { HttpError } from '@endora-commerce/platform/http';
@@ -71,6 +72,7 @@ function changedEvent(formId: string): CommandEvent<FormChangedEvent> {
 
 /** One form, locked for the Command's transaction; 404 when it is gone. */
 async function lockedForm(em: Em, id: string): Promise<Form> {
+  if (!isUuidShape(id)) throw formNotFound();
   const form = await em.findOne(Form, { id }, { lockMode: LockMode.PESSIMISTIC_WRITE });
   if (!form) throw formNotFound();
   return form;
@@ -315,6 +317,7 @@ export function duplicateFormCommand(sourceId: string, name: string | undefined)
     objectType: 'form',
     objectId: id,
     run: async ({ em, actor }) => {
+      if (!isUuidShape(sourceId)) throw formNotFound();
       const source = await em.findOne(Form, { id: sourceId });
       if (!source) throw formNotFound();
       const copy = em.create(Form, {

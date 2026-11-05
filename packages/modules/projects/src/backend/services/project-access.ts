@@ -9,6 +9,7 @@ import {
   type ProjectState,
   type ProjectVisibility,
   type ProjectVisibilitySetting,
+  isUuidShape,
 } from '@endora-commerce/contracts';
 import { HttpError } from '@endora-commerce/platform/http';
 import type { SettingsReadPort } from '@endora-commerce/platform/kernel';
@@ -130,10 +131,8 @@ export const PROJECTS_CONFIGURE_PERMISSION = 'projects:configure';
 
 export const PROJECTS_VISIBILITY_SETTING = 'projects.visibility';
 
-const UUID = /^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/i;
-
 export function isUuid(value: string): boolean {
-  return UUID.test(value);
+  return isUuidShape(value);
 }
 
 /** A Postgres array literal of uuids, for `?::uuid[]`. Only uuids reach it. */

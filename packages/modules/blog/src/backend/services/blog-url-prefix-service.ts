@@ -11,6 +11,7 @@ import {
   type ChannelUrlFacts,
   type SettingWriteValidationInput,
   type SettingWriteValidator,
+  isUuidShape,
 } from '@endora-commerce/contracts';
 import type { CommandBus } from '@endora-commerce/platform/commands';
 import { HttpError } from '@endora-commerce/platform/http';
@@ -166,6 +167,10 @@ export class BlogUrlPrefixService {
    * Command (`blog.url_prefix.forget`). A current prefix is not forgettable — 404.
    */
   async forget(id: string): Promise<void> {
+    // A malformed id names no prefix; PostgreSQL would answer it with a 500 (issue #781).
+    if (!isUuidShape(id)) {
+      throw new HttpError(404, ERROR_CODES.BLOG_URL_PREFIX_NOT_FOUND, 'No former blog URL prefix with that id.');
+    }
     await this.deps.commandBus.run<void>({
       action: 'blog.url_prefix.forget',
       objectType: AUDIT_OBJECT_TYPE,

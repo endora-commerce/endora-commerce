@@ -17,6 +17,7 @@ import {
   toScopeChannel,
   type ScopeWarning,
   sameLanguage,
+  isUuidShape,
 } from '@endora-commerce/contracts';
 import type { Command, CommandBus } from '@endora-commerce/platform/commands';
 import { HttpError } from '@endora-commerce/platform/http';
@@ -671,6 +672,7 @@ export class ProductScopesService {
   /** `GET /admin/catalog/products/:id/scopes` — the global values and every channel the product is in or has rows for. */
   async read(productId: string): Promise<ProductScopes> {
     const em = this.emFactory();
+    if (!isUuidShape(productId)) throw new HttpError(404, ERROR_CODES.PRODUCT_NOT_FOUND, 'Product not found.');
     const product = await em.findOne(Product, { id: productId, deletedAt: null });
     if (!product) throw new HttpError(404, ERROR_CODES.PRODUCT_NOT_FOUND, 'Product not found.');
     const [members, channelRows, languageRows] = await Promise.all([

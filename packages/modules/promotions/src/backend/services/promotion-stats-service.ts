@@ -1,5 +1,6 @@
 import type { EntityManager } from '@mikro-orm/postgresql';
 import type { PromotionStatsGroupBy, PromotionUsageStats } from '@endora-commerce/contracts';
+import { isUuidShape } from '@endora-commerce/contracts';
 
 /**
  * Feature 045 (US7) — usage statistics aggregated over `promotion_usages`.
@@ -41,6 +42,10 @@ export class PromotionStatsService {
     // would not be counted (issue #207). `column` and the breakdown column are
     // both literals from a closed map, never caller input.
     const em = this.emFactory();
+    // A malformed id names no promotion or coupon: no usage is counted, as for an unknown one (issue #781).
+    if (!isUuidShape(id)) {
+      return { totalUses: 0, totalDiscount: 0, currency: null, groupBy: q.groupBy ?? null, breakdown: [] };
+    }
     const conditions = [`"${column}" = ?`];
     const params: unknown[] = [id];
     if (q.from) {

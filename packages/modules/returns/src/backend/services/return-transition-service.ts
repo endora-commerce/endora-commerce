@@ -1,6 +1,6 @@
 import { randomUUID } from 'crypto';
 import type { EntityManager } from '@mikro-orm/postgresql';
-import { ERROR_CODES } from '@endora-commerce/contracts';
+import { ERROR_CODES, isUuidShape } from '@endora-commerce/contracts';
 import type { EventBus } from '@endora-commerce/platform/events';
 import { HttpError } from '@endora-commerce/platform/http';
 import type { AuditPort } from '@endora-commerce/platform/kernel';
@@ -72,6 +72,7 @@ export class ReturnTransitionService {
     },
   ): Promise<ReturnCase> {
     const em = this.emFactory();
+    if (!isUuidShape(returnCaseId)) throw new HttpError(404, ERROR_CODES.NOT_FOUND, 'Return case not found.');
     const rc = await em.findOne(ReturnCase, { id: returnCaseId });
     if (!rc) throw new HttpError(404, ERROR_CODES.NOT_FOUND, 'Return case not found.');
 

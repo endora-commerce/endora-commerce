@@ -1,6 +1,6 @@
 import { LockMode } from '@mikro-orm/core';
 import type { EntityManager } from '@mikro-orm/postgresql';
-import { ERROR_CODES, type OrderReadPort } from '@endora-commerce/contracts';
+import { ERROR_CODES, type OrderReadPort, isUuidShape } from '@endora-commerce/contracts';
 import { HttpError } from '@endora-commerce/platform/http';
 import { Payment } from '../entities/payment.entity.js';
 
@@ -147,6 +147,7 @@ export class PaymentService {
     // mechanics `openRetry` above is exempted for.
     const em = this.emFactory();
     await em.transactional(async (tx) => {
+      if (!isUuidShape(paymentId)) return;
       const payment = await tx.findOne(Payment, { id: paymentId });
       if (!payment || payment.status !== 'awaiting_payment') return;
       payment.status = 'failed';

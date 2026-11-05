@@ -26,8 +26,14 @@ export interface OrganizationAdminRoleRoutesDeps {
   readonly requireAdminAny: RequireAdminAnyFactory;
 }
 
-const organizationParamsSchema = z.object({ id: z.string().uuid() });
-const roleParamsSchema = z.object({ id: z.string().uuid(), roleId: z.string().uuid() });
+/**
+ * Neither id is checked for shape here: a malformed id names no Organization
+ * and no role, so the service answers it with the same `404` as an unknown one
+ * (issue #781, owner ruling of 2026-11-05), where a params schema would answer
+ * `400`.
+ */
+const organizationParamsSchema = z.object({ id: z.string() });
+const roleParamsSchema = z.object({ id: z.string(), roleId: z.string() });
 
 export async function registerOrganizationAdminRoleRoutes(
   app: FastifyInstance,

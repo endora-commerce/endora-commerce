@@ -8,6 +8,7 @@ import {
   type CredentialsPort,
   type FeedDeliveryHeader,
   type UpsertFeedDeliveryRequest,
+  isUuidShape,
 } from '@endora-commerce/contracts';
 import type { CommandBus } from '@endora-commerce/platform/commands';
 import { HttpError } from '@endora-commerce/platform/http';
@@ -65,6 +66,7 @@ export class DeliveryConfigService {
   // -------------------------------------------------------------------------
 
   async find(productFeedId: string): Promise<FeedDelivery | null> {
+    if (!isUuidShape(productFeedId)) return null;
     return this.deps.emFactory().findOne(FeedDelivery, { productFeedId });
   }
 
@@ -243,6 +245,7 @@ export class DeliveryConfigService {
   // -------------------------------------------------------------------------
 
   private async requireFeed(productFeedId: string): Promise<ProductFeed> {
+    if (!isUuidShape(productFeedId)) throw new HttpError(404, ERROR_CODES.NOT_FOUND, 'Product feed not found.');
     const feed = await this.deps.emFactory().findOne(ProductFeed, { id: productFeedId });
     if (!feed) throw new HttpError(404, ERROR_CODES.NOT_FOUND, 'Product feed not found.');
     return feed;

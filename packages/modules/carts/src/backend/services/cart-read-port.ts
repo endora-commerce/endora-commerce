@@ -12,6 +12,7 @@ import type {
 import { Cart } from '../entities/cart.entity.js';
 import { CartItem } from '../entities/cart-item.entity.js';
 import type { CartService } from './cart-service.js';
+import { isUuidShape } from '@endora-commerce/contracts';
 
 /**
  * The row-level read model `carts` publishes, and the seed operation that goes
@@ -49,6 +50,7 @@ export class CartReadService implements CartReadPort {
 
   async findById(cartId: string): Promise<CartWithItems | null> {
     const em = this.emFactory();
+    if (!isUuidShape(cartId)) return null;
     const cart = await em.findOne(Cart, { id: cartId });
     if (!cart) return null;
     return { cart: toCartRecord(cart), items: await this.#items(em, cart.id) };

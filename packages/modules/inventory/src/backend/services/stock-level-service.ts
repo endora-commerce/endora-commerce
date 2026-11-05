@@ -9,6 +9,7 @@ import { randomUUID } from 'crypto';
 import type { EventBus } from '@endora-commerce/platform/events';
 import type { AuditPort } from '@endora-commerce/platform/kernel';
 import type { InventoryAuditContext } from '../plugin.js';
+import { isUuidShape } from '@endora-commerce/contracts';
 
 export interface InventoryAdjustedEvent {
   eventId: string;
@@ -491,6 +492,7 @@ export class StockLevelService {
     const product = await this.catalogProducts.findById(input.productId);
     if (!product) throw new HttpError(404, 'PRODUCT_NOT_FOUND', 'Product not found');
 
+    if (!isUuidShape(input.warehouseId)) throw new HttpError(404, 'WAREHOUSE_NOT_FOUND', 'Warehouse not found');
     const warehouse = await em.findOne(Warehouse, { id: input.warehouseId });
     if (!warehouse) throw new HttpError(404, 'WAREHOUSE_NOT_FOUND', 'Warehouse not found');
 

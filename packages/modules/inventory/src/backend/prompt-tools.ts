@@ -7,6 +7,7 @@ import {
   type SearchWarehousesParams,
   type SetStockLevelParams,
   type ToolContext,
+  isUuidShape,
 } from '@endora-commerce/contracts';
 import type { EntityManager } from '@mikro-orm/postgresql';
 import { HttpError } from '@endora-commerce/platform/http';
@@ -88,6 +89,7 @@ export function inventoryPromptTools(deps: InventoryPromptToolsDeps): PromptActi
       const em = deps.emFactory();
       const product = await deps.catalogProducts.findById(params.productId);
       if (!product) throw new HttpError(404, 'PRODUCT_NOT_FOUND', 'Product not found.');
+      if (!isUuidShape(params.warehouseId)) throw new HttpError(404, 'WAREHOUSE_NOT_FOUND', 'Warehouse not found.');
       const warehouse = await em.findOne(Warehouse, { id: params.warehouseId });
       if (!warehouse) throw new HttpError(404, 'WAREHOUSE_NOT_FOUND', 'Warehouse not found.');
       const level = await em.findOne(StockLevel, {

@@ -1,3 +1,4 @@
+import { UUID_SHAPE_PATTERN } from './common.js';
 import { recordReferenceTypeSchema, type RecordReferenceType } from './record-references.js';
 
 /**
@@ -49,7 +50,7 @@ export type RecordRichBlock =
 const ESCAPABLE = new Set(['\\', '*', '_', '~', '[', ']']);
 const SAFE_HREF = /^(https?:\/\/[^\s()<>]+|mailto:[^\s()<>]+)$/i;
 const REFERENCE_AT = new RegExp(
-  `\\[\\[(${recordReferenceTypeSchema.options.join('|')}):([0-9a-fA-F]{8}-[0-9a-fA-F]{4}-[0-9a-fA-F]{4}-[0-9a-fA-F]{4}-[0-9a-fA-F]{12})\\]\\]`,
+  `\\[\\[(${recordReferenceTypeSchema.options.join('|')}):(${UUID_SHAPE_PATTERN})\\]\\]`,
   'y',
 );
 const BULLET_LINE = /^- (.*)$/s;

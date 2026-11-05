@@ -12,6 +12,7 @@ import {
   type UrlKeyTakenDetails,
   sameLanguage,
   toScopeChannel,
+  isUuidShape,
 } from '@endora-commerce/contracts';
 import type { Command, CommandBus, CommandEvent } from '@endora-commerce/platform/commands';
 import { HttpError } from '@endora-commerce/platform/http';
@@ -509,11 +510,9 @@ export async function isUrlKeyFree(em: EntityManager, key: string): Promise<bool
 
 // --- The service ---------------------------------------------------------------------
 
-const UUID_SHAPE = /^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/i;
-
 /** A `:id` that is not a UUID names no product: 404, before Postgres refuses the cast as a 500. */
 function assertProductIdShape(productId: string): void {
-  if (!UUID_SHAPE.test(productId)) throw new HttpError(404, ERROR_CODES.PRODUCT_NOT_FOUND, 'Product not found.');
+  if (!isUuidShape(productId)) throw new HttpError(404, ERROR_CODES.PRODUCT_NOT_FOUND, 'Product not found.');
 }
 
 function displayName(product: Pick<Product, 'name' | 'sku'>): string {
@@ -627,6 +626,7 @@ export class UrlKeyService {
   async read(productId: string): Promise<ProductUrlKeysResponse['data']> {
     assertProductIdShape(productId);
     const em = this.emFactory();
+    if (!isUuidShape(productId)) throw new HttpError(404, ERROR_CODES.PRODUCT_NOT_FOUND, 'Product not found.');
     const product = await em.findOne(Product, { id: productId, deletedAt: null });
     if (!product) throw new HttpError(404, ERROR_CODES.PRODUCT_NOT_FOUND, 'Product not found.');
     const [members, keyRows, redirects] = await Promise.all([
@@ -704,7 +704,7 @@ export class UrlKeyService {
 
   /** `DELETE /admin/catalog/products/:id/url-redirects/:redirectId` (§3). */
   async deleteRedirect(productId: string, redirectId: string): Promise<void> {
-    if (!UUID_SHAPE.test(productId) || !UUID_SHAPE.test(redirectId)) {
+    if (!isUuidShape(productId) || !isUuidShape(redirectId)) {
       throw new HttpError(404, ERROR_CODES.URL_REDIRECT_NOT_FOUND, 'Redirect not found.', { redirectId });
     }
     await this.#run(this.#deleteRedirectCommand(productId, redirectId));
@@ -892,6 +892,9 @@ export class UrlKeyService {
       objectType: 'product',
       objectId: productId,
       run: async ({ em }) => {
+        if (!isUuidShape(redirectId) || !isUuidShape(productId)) {
+          throw new HttpError(404, ERROR_CODES.URL_REDIRECT_NOT_FOUND, 'Redirect not found.', { redirectId });
+        }
         const row = await em.findOne(ProductUrlRedirect, { id: redirectId, productId });
         if (!row) {
           throw new HttpError(404, ERROR_CODES.URL_REDIRECT_NOT_FOUND, 'Redirect not found.', { redirectId });

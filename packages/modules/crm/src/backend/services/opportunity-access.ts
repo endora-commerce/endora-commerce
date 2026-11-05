@@ -1,13 +1,11 @@
 import type { LockMode } from '@mikro-orm/core';
 import type { EntityManager } from '@mikro-orm/postgresql';
-import { ERROR_CODES } from '@endora-commerce/contracts';
+import { ERROR_CODES, isUuidShape } from '@endora-commerce/contracts';
 import { HttpError } from '@endora-commerce/platform/http';
 import { CrmOpportunity } from '../entities/crm-opportunity.entity.js';
 
-const UUID = /^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/i;
-
 export function isUuid(value: string): boolean {
-  return UUID.test(value);
+  return isUuidShape(value);
 }
 
 /**

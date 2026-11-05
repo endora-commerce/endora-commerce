@@ -27,6 +27,7 @@ import {
   OrganizationSalesChannelsUpdateBodySchema,
   type DictionaryValidator,
   type OrganizationSalesChannelsResponse,
+  isUuidShape,
 } from '@endora-commerce/contracts';
 import type { CommandBus } from '@endora-commerce/platform/commands';
 import { HttpError } from '@endora-commerce/platform/http';
@@ -291,6 +292,9 @@ export async function registerOrganizationsAdminRoutes(
     { preHandler: customersRead },
     async (request) => {
       const em = emFactory();
+      if (!isUuidShape(request.params.id)) {
+        throw new HttpError(404, ERROR_CODES.NOT_FOUND, 'Organization not found.');
+      }
       const org = await em.findOne(Organization, { id: request.params.id, deletedAt: null });
       if (!org) {
         throw new HttpError(404, ERROR_CODES.NOT_FOUND, 'Organization not found.');
@@ -358,6 +362,9 @@ export async function registerOrganizationsAdminRoutes(
     async (request) => {
       const em = emFactory();
       const body = adminPatchOrganizationRequestSchema.parse(request.body);
+      if (!isUuidShape(request.params.id)) {
+        throw new HttpError(404, ERROR_CODES.NOT_FOUND, 'Organization not found.');
+      }
       const org = await em.findOne(Organization, { id: request.params.id, deletedAt: null });
       if (!org) {
         throw new HttpError(404, ERROR_CODES.NOT_FOUND, 'Organization not found.');
@@ -463,6 +470,7 @@ export async function registerOrganizationsAdminRoutes(
      */
     const requireOrganization = async (em: EntityManager, id: string): Promise<Organization> => {
       if (!isOrgInScope(id)) throw new HttpError(404, ERROR_CODES.NOT_FOUND, 'Organization not found.');
+      if (!isUuidShape(id)) throw new HttpError(404, ERROR_CODES.NOT_FOUND, 'Organization not found.');
       const org = await em.findOne(Organization, { id, deletedAt: null });
       if (!org) throw new HttpError(404, ERROR_CODES.NOT_FOUND, 'Organization not found.');
       return org;
@@ -754,6 +762,9 @@ export async function registerOrganizationsAdminRoutes(
       const em = emFactory();
       // The Organization must be one the operator can see; the invitation
       // Command then audits against it, naming the operator (FR-065).
+      if (!isUuidShape(request.params.id)) {
+        throw new HttpError(404, ERROR_CODES.NOT_FOUND, 'Organization not found.');
+      }
       const org = await em.findOne(Organization, { id: request.params.id, deletedAt: null });
       if (!org) {
         throw new HttpError(404, ERROR_CODES.NOT_FOUND, 'Organization not found.');
@@ -781,6 +792,9 @@ export async function registerOrganizationsAdminRoutes(
     async (request, reply) => {
       const em = emFactory();
       const body = adminDirectMemberToRoleRequestSchema.parse(request.body);
+      if (!isUuidShape(request.params.id)) {
+        throw new HttpError(404, ERROR_CODES.NOT_FOUND, 'Organization not found.');
+      }
       const org = await em.findOne(Organization, { id: request.params.id, deletedAt: null });
       if (!org) {
         throw new HttpError(404, ERROR_CODES.NOT_FOUND, 'Organization not found.');
@@ -1033,6 +1047,9 @@ export async function registerOrganizationsAdminRoutes(
         }
         const body = assignOrganizationParentRequestSchema.parse(request.body);
         const em = emFactory();
+        if (!isUuidShape(request.params.id)) {
+          throw new HttpError(404, ERROR_CODES.NOT_FOUND, 'Organization not found.');
+        }
         const org = await em.findOne(Organization, { id: request.params.id, deletedAt: null });
         if (!org) {
           throw new HttpError(404, ERROR_CODES.NOT_FOUND, 'Organization not found.');
@@ -1056,6 +1073,9 @@ export async function registerOrganizationsAdminRoutes(
       { preHandler: customersRead },
       async (request) => {
         const em = emFactory();
+        if (!isUuidShape(request.params.id)) {
+          throw new HttpError(404, ERROR_CODES.NOT_FOUND, 'Organization not found.');
+        }
         const org = await em.findOne(Organization, { id: request.params.id, deletedAt: null });
         if (!org) {
           throw new HttpError(404, ERROR_CODES.NOT_FOUND, 'Organization not found.');
@@ -1071,6 +1091,9 @@ export async function registerOrganizationsAdminRoutes(
       { preHandler: customersRead },
       async (request) => {
         const em = emFactory();
+        if (!isUuidShape(request.params.id)) {
+          throw new HttpError(404, ERROR_CODES.NOT_FOUND, 'Organization not found.');
+        }
         const org = await em.findOne(Organization, { id: request.params.id, deletedAt: null });
         if (!org) {
           throw new HttpError(404, ERROR_CODES.NOT_FOUND, 'Organization not found.');
@@ -1100,6 +1123,9 @@ export async function registerOrganizationsAdminRoutes(
         }
         const body = setCreditInheritanceModeRequestSchema.parse(request.body);
         const em = emFactory();
+        if (!isUuidShape(request.params.id)) {
+          throw new HttpError(404, ERROR_CODES.NOT_FOUND, 'Organization not found.');
+        }
         const org = await em.findOne(Organization, { id: request.params.id, deletedAt: null });
         if (!org) {
           throw new HttpError(404, ERROR_CODES.NOT_FOUND, 'Organization not found.');
@@ -1118,6 +1144,9 @@ export async function registerOrganizationsAdminRoutes(
       { preHandler: requireAdmin('customers:manage') },
       async (request, reply) => {
         const em = emFactory();
+        if (!isUuidShape(request.params.id)) {
+          throw new HttpError(404, ERROR_CODES.NOT_FOUND, 'Organization not found.');
+        }
         const org = await em.findOne(Organization, { id: request.params.id, deletedAt: null });
         if (!org) {
           throw new HttpError(404, ERROR_CODES.NOT_FOUND, 'Organization not found.');

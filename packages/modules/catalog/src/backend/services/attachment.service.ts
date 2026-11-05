@@ -23,6 +23,7 @@ import {
   type ProductAttachment as ProductAttachmentDto,
   type CreateAttachmentRequest,
   type UpdateAttachmentRequest,
+  isUuidShape,
 } from '@endora-commerce/contracts';
 
 import { HttpError } from '@endora-commerce/platform/http';
@@ -158,6 +159,13 @@ export class AttachmentService {
     req: UpdateAttachmentTypeRequest,
   ): Promise<AttachmentTypeDto> {
     const t = await this.#audited('attachment_type.update', 'attachment_type', id, async (em) => {
+      if (!isUuidShape(id)) {
+        throw new HttpError(
+          404,
+          ERROR_CODES.ATTACHMENT_TYPE_NOT_FOUND,
+          `AttachmentType ${id} not found.`,
+        );
+      }
       const row = await em.findOne(AttachmentType, { id });
       if (!row) {
         throw new HttpError(
@@ -198,6 +206,13 @@ export class AttachmentService {
 
   async deleteType(id: string): Promise<void> {
     await this.#audited('attachment_type.delete', 'attachment_type', id, async (em) => {
+      if (!isUuidShape(id)) {
+        throw new HttpError(
+          404,
+          ERROR_CODES.ATTACHMENT_TYPE_NOT_FOUND,
+          `AttachmentType ${id} not found.`,
+        );
+      }
       const t = await em.findOne(AttachmentType, { id });
       if (!t) {
         throw new HttpError(
@@ -252,6 +267,13 @@ export class AttachmentService {
       );
     }
 
+    if (!isUuidShape(req.attachmentTypeId)) {
+      throw new HttpError(
+        404,
+        ERROR_CODES.ATTACHMENT_TYPE_NOT_FOUND,
+        `AttachmentType ${req.attachmentTypeId} not found.`,
+      );
+    }
     const type = await em.findOne(AttachmentType, { id: req.attachmentTypeId });
     if (!type) {
       throw new HttpError(
@@ -298,6 +320,13 @@ export class AttachmentService {
     req: UpdateAttachmentRequest,
   ): Promise<ProductAttachmentDto> {
     let hiddenAfter: string[] = [];
+    if (!isUuidShape(attachmentId) || !isUuidShape(productId)) {
+      throw new HttpError(
+        404,
+        ERROR_CODES.ATTACHMENT_NOT_FOUND,
+        `Attachment ${attachmentId} not found under Product ${productId}.`,
+      );
+    }
     const a = await this.#runAttachmentCommand('product_attachment.update', attachmentId, productId, async (em) => {
       // Locked, so concurrent writes on one attachment serialise and each audit
       // `before` is its true predecessor (FR-081).
@@ -324,6 +353,13 @@ export class AttachmentService {
         hiddenAfter.filter((channelId) => !hiddenBefore.includes(channelId)),
       );
       if (req.attachmentTypeId !== undefined) {
+        if (!isUuidShape(req.attachmentTypeId)) {
+          throw new HttpError(
+            404,
+            ERROR_CODES.ATTACHMENT_TYPE_NOT_FOUND,
+            `AttachmentType ${req.attachmentTypeId} not found.`,
+          );
+        }
         const type = await em.findOne(AttachmentType, { id: req.attachmentTypeId });
         if (!type) {
           throw new HttpError(
@@ -358,6 +394,13 @@ export class AttachmentService {
 
   async deleteAttachment(productId: string, attachmentId: string): Promise<void> {
     await this.#audited('product_attachment.delete', 'product_attachment', attachmentId, async (em) => {
+      if (!isUuidShape(attachmentId) || !isUuidShape(productId)) {
+        throw new HttpError(
+          404,
+          ERROR_CODES.ATTACHMENT_NOT_FOUND,
+          `Attachment ${attachmentId} not found under Product ${productId}.`,
+        );
+      }
       const a = await em.findOne(ProductAttachment, { id: attachmentId, productId });
       if (!a) {
         throw new HttpError(
@@ -428,6 +471,13 @@ export class AttachmentService {
   }
 
   async #assertProductExists(em: EntityManager, productId: string): Promise<void> {
+    if (!isUuidShape(productId)) {
+      throw new HttpError(
+        404,
+        ERROR_CODES.PRODUCT_NOT_FOUND,
+        `Product ${productId} not found.`,
+      );
+    }
     const product = await em.findOne(Product, { id: productId });
     if (!product) {
       throw new HttpError(

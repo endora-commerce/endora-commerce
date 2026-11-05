@@ -19,6 +19,7 @@ import {
   type BulkProgressSnapshot,
   type PromptActionTool,
   type ToolContext,
+  isUuidShape,
 } from '@endora-commerce/contracts';
 import type { EntityManager } from '@mikro-orm/postgresql';
 import type { Redis } from 'ioredis';
@@ -243,6 +244,7 @@ export function catalogPromptMutationTools(deps: CatalogPromptToolsDeps): Prompt
       // work with is flushed before the interpreter runs, and nothing here
       // writes.
       const em = deps.emFactory();
+      if (!isUuidShape(params.categoryId)) throw new HttpError(404, 'NOT_FOUND', 'Category not found.');
       const category = await em.findOne(Category, { id: params.categoryId, deletedAt: null });
       if (!category) throw new HttpError(404, 'NOT_FOUND', 'Category not found.');
       // The preview runs the same membership query execution will use: the
@@ -315,6 +317,7 @@ export function catalogPromptMutationTools(deps: CatalogPromptToolsDeps): Prompt
       // work with is flushed before the interpreter runs, and nothing here
       // writes.
       const em = deps.emFactory();
+      if (!isUuidShape(params.categoryId)) throw new HttpError(404, 'NOT_FOUND', 'Category not found.');
       const category = await em.findOne(Category, { id: params.categoryId, deletedAt: null });
       if (!category) throw new HttpError(404, 'NOT_FOUND', 'Category not found.');
       const products = await em.find(

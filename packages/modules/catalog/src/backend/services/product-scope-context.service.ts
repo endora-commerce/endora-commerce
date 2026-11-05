@@ -5,7 +5,7 @@ import type {
   ProductScopeChannel,
   ProductScopeContextResponse,
 } from '@endora-commerce/contracts';
-import { ERROR_CODES, toScopeChannel } from '@endora-commerce/contracts';
+import { ERROR_CODES, toScopeChannel, isUuidShape } from '@endora-commerce/contracts';
 import { HttpError } from '@endora-commerce/platform/http';
 
 import type { SalesChannelMembershipPort } from '@endora-commerce/platform/kernel';
@@ -43,6 +43,9 @@ export class ProductScopeContextService {
     const em = this.emFactory();
 
     // 1. Ensure the product exists (or surface a clean 404).
+    if (!isUuidShape(productId)) {
+      throw new HttpError(404, ERROR_CODES.NOT_FOUND, 'Product not found.');
+    }
     const product = await em.findOne(Product, { id: productId });
     if (!product) {
       throw new HttpError(404, ERROR_CODES.NOT_FOUND, 'Product not found.');

@@ -1,5 +1,5 @@
 import type { EntityManager } from '@mikro-orm/postgresql';
-import { ERROR_CODES } from '@endora-commerce/contracts';
+import { ERROR_CODES, isUuidShape } from '@endora-commerce/contracts';
 import { HttpError } from '@endora-commerce/platform/http';
 import { Order } from '../entities/order.entity.js';
 import type {
@@ -83,6 +83,7 @@ export class OrderReorderService {
     // Issue #665 — resolved through the rule the read applies: a regular member
     // reaches only the orders they placed. The operator route passes the
     // order's placer, who is always in scope.
+    if (!isUuidShape(orderId)) throw new HttpError(404, ERROR_CODES.ORDER_NOT_FOUND, 'Order not found.');
     const where = await this.#access.scopedWhere(ctx, { id: orderId });
     const order = await em.findOne(Order, where);
     if (!order) throw new HttpError(404, ERROR_CODES.ORDER_NOT_FOUND, 'Order not found.');

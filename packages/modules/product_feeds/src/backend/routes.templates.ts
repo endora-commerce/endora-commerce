@@ -67,7 +67,12 @@ export interface ProductFeedsTemplateRoutesDeps {
  */
 const IMPORT_BODY_LIMIT_BYTES = 512 * 1024;
 
-const idParamsSchema = z.object({ id: z.string().uuid() });
+/**
+ * Ids are not checked for shape here: a malformed id names no record, so the
+ * service answers it exactly as it answers an unknown one — a `404`, before any
+ * read (issue #781) — where a params schema would answer `400`.
+ */
+const idParamsSchema = z.object({ id: z.string() });
 
 /** `W/"<id>:<version>"`, and tolerant of a bare `"<version>"` (Postel). */
 export function parseTemplateIfMatch(request: FastifyRequest): number | null {

@@ -6,6 +6,7 @@ import { Alert, AlertDescription, Button, Card, CardContent, CardHeader, CardTit
 import { CategorySelect, ProductPicker } from '@endora-commerce/admin-kit/components';
 import { useTranslation } from '@endora-commerce/admin-kit/i18n';
 import { SeoMetaScopeEditor } from './SeoMetaScopeEditor.js';
+import { isUuidShape } from '@endora-commerce/contracts';
 
 interface SitemapListEnvelope {
   data: SitemapChannelStatus[];
@@ -256,10 +257,8 @@ function isEntityType(value: string | null): value is SeoEntityType {
 }
 
 /** A product and a category are addressed by a UUID; nothing else names one. */
-const UUID_SHAPE = /^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/i;
-
 function isEntityId(value: string | null): value is string {
-  return value !== null && UUID_SHAPE.test(value);
+  return value !== null && isUuidShape(value);
 }
 
 function MetaEditorCard(): ReactNode {

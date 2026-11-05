@@ -1,5 +1,6 @@
 import type { TaskContextDescriptor } from '@endora-commerce/contracts';
 import { getTenantContext } from '@endora-commerce/platform/tenancy';
+import { isUuidShape } from '@endora-commerce/contracts';
 
 /**
  * Which Tasks the caller may see (163 FR-031, research R-9; 165 research R-3)
@@ -84,7 +85,7 @@ function draftPrivateSql(viewer: TaskViewer, alias: string): SqlFragment {
     ? `not ${alias}."is_draft"`
     : `(not ${alias}."is_draft" and not ${alias}."is_private")`;
   if (viewer.adminUserId === null) return { sql: published, params: [] };
-  if (!UUID.test(viewer.adminUserId)) throw new Error(`tasks: "${viewer.adminUserId}" is not an administrator id.`);
+  if (!isUuidShape(viewer.adminUserId)) throw new Error(`tasks: "${viewer.adminUserId}" is not an administrator id.`);
   return { sql: `(${alias}."created_by_admin_user_id" = ?::uuid or ${published})`, params: [viewer.adminUserId] };
 }
 
@@ -98,12 +99,10 @@ export function viewerMaySee(viewer: TaskViewer, task: Pick<TaskVisibilityFacts,
 /** A Postgres `uuid[]` literal. The ids come from contributors, so each is checked before it is quoted. */
 export function uuidArray(ids: readonly string[]): string {
   for (const id of ids) {
-    if (!UUID.test(id)) throw new Error(`tasks: "${id}" is not a uuid a context may be identified by.`);
+    if (!isUuidShape(id)) throw new Error(`tasks: "${id}" is not a uuid a context may be identified by.`);
   }
   return `{${ids.map((id) => `"${id}"`).join(',')}}`;
 }
-
-const UUID = /^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/i;
 
 /** Whether the ambient caller is the system — the one caller visibility does not narrow. */
 export function isSystemActor(): boolean {

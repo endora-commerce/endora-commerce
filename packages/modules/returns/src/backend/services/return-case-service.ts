@@ -339,6 +339,7 @@ export class ReturnCaseService {
    */
   async cancelByCustomer(id: string, customerAccountId: string): Promise<ReturnCaseDetail> {
     const em = this.deps.emFactory();
+    if (!isUuidShape(id)) throw new HttpError(404, ERROR_CODES.NOT_FOUND, 'Return case not found.');
     const rc = await em.findOne(ReturnCase, { id, customerAccountId });
     if (!rc) throw new HttpError(404, ERROR_CODES.NOT_FOUND, 'Return case not found.');
     await this.deps.transitions.apply(id, RETURN_STATUS_CANCELLED, { kind: 'customer', customerAccountId });
@@ -348,6 +349,7 @@ export class ReturnCaseService {
   /** Detail for the admin surface (includes internal comments). */
   async getByIdForAdmin(id: string): Promise<ReturnCaseDetail> {
     const em = this.deps.emFactory();
+    if (!isUuidShape(id)) throw new HttpError(404, ERROR_CODES.NOT_FOUND, 'Return case not found.');
     const rc = await em.findOne(ReturnCase, { id });
     if (!rc) throw new HttpError(404, ERROR_CODES.NOT_FOUND, 'Return case not found.');
     return this.mapDetail(em, rc.id, { customerView: false });

@@ -94,6 +94,7 @@ import {
   type ProductSummary,
   type ProductVariant as VariantDto,
   type SeoProductMetaValues,
+  isUuidShape,
 } from '@endora-commerce/contracts';
 import type { SalesChannelMembershipPort } from '@endora-commerce/platform/kernel';
 import { HttpError } from '@endora-commerce/platform/http';
@@ -102,12 +103,6 @@ import { attributeFilterMatches } from './attribute-filter-match.js';
 import { productSummaryText } from './product-summary-text.js';
 import { resolvePageBuilderLanguage, type PageBuilderEnvelope } from './page-builder-content.js';
 import { contentAttributeMembers, type SetMemberRow } from './product-content.service.js';
-
-/** A uuid as the database spells one — anything else is a 404 or a discarded cursor, not a query. */
-const UUID_RE = /^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/i;
-
-/** A category id as the database spells one — anything else is a 404, not a query. */
-const CATEGORY_ID_RE = UUID_RE;
 
 /** The deepest ancestor chain {@link CatalogQueryService.getCategoryPageContent} walks. */
 const MAX_CATEGORY_DEPTH = 64;
@@ -138,7 +133,7 @@ function isRecord(value: unknown): value is Record<string, unknown> {
 }
 
 function isUuidText(value: unknown): value is string {
-  return typeof value === 'string' && UUID_RE.test(value);
+  return typeof value === 'string' && isUuidShape(value);
 }
 
 /**
@@ -198,7 +193,6 @@ export interface CatalogResolvedChannel {
    */
   prefixDefaultLanguage?: boolean | undefined;
 }
-
 
 export interface CatalogQueryContext {
   /** The request's resolved sales channel (from `getResolvedChannel()`). */
@@ -2103,8 +2097,7 @@ export class CatalogQueryService {
     const em = this.emFactory();
     const channel = ctx.resolvedChannel;
 
-    const isUuid =
-      /^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/i.test(idOrSlug);
+    const isUuid = isUuidShape(idOrSlug);
     const product = isUuid
       ? await em.findOne(Product, { id: idOrSlug })
       : ((await findCurrentKeyHolder(em, idOrSlug, this.#availabilityScope(ctx).languageCode)) ??
@@ -2679,7 +2672,8 @@ export class CatalogQueryService {
   ): Promise<CategoryPageContent> {
     const notFound = (): HttpError =>
       new HttpError(404, ERROR_CODES.NOT_FOUND, 'Category not found.');
-    if (!CATEGORY_ID_RE.test(categoryId)) throw notFound();
+    // A category id as the database spells one — anything else is a 404, not a query.
+    if (!isUuidShape(categoryId)) throw notFound();
     const em = this.emFactory();
     const category = await em.findOne(
       Category,

@@ -13,6 +13,7 @@ import {
   type OrderReadPort,
   type OrderReturnRefund,
   type SupportedLanguage,
+  isUuidShape,
 } from '@endora-commerce/contracts';
 import { Invoice } from '../entities/invoice.entity.js';
 import { InvoiceLine } from '../entities/invoice-line.entity.js';
@@ -88,8 +89,6 @@ const INVOICE_LINE_NAME_KEYS = [
   'lines.paymentSurcharge',
   'lines.discount',
 ] as const;
-
-const UUID_RE = /^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/i;
 
 /**
  * Core invoice issuance + read service (feature 047, US1). Issues invoices /
@@ -307,7 +306,7 @@ export class InvoiceService {
     if (this.audit) {
       await this.audit
         .record({
-          actorAdminUserId: opts.issuedBy && UUID_RE.test(opts.issuedBy) ? opts.issuedBy : null,
+          actorAdminUserId: opts.issuedBy && isUuidShape(opts.issuedBy) ? opts.issuedBy : null,
           action: 'invoice.issued',
           objectType: 'invoice',
           objectId: invoice.id,
@@ -375,6 +374,7 @@ export class InvoiceService {
     assignment: { ksefReferenceNumber: string; ksefProcessedAt: Date },
   ): Promise<void> {
     const em = this.emFactory().fork();
+    if (!isUuidShape(invoiceId)) throw new HttpError(404, ERROR_CODES.NOT_FOUND, 'Invoice not found.');
     const inv = await em.findOne(Invoice, { id: invoiceId });
     if (!inv) throw new HttpError(404, ERROR_CODES.NOT_FOUND, 'Invoice not found.');
     if (inv.ksefReferenceNumber) {
@@ -399,6 +399,7 @@ export class InvoiceService {
    */
   async applyVendorAssignedNumber(invoiceId: string, number: string): Promise<void> {
     const em = this.emFactory().fork();
+    if (!isUuidShape(invoiceId)) throw new HttpError(404, ERROR_CODES.NOT_FOUND, 'Invoice not found.');
     const inv = await em.findOne(Invoice, { id: invoiceId });
     if (!inv) throw new HttpError(404, ERROR_CODES.NOT_FOUND, 'Invoice not found.');
     if (inv.status === 'cancelled') {
@@ -433,6 +434,7 @@ export class InvoiceService {
    */
   async recordPaidFromLedger(invoiceId: string): Promise<void> {
     const em = this.emFactory().fork();
+    if (!isUuidShape(invoiceId)) throw new HttpError(404, ERROR_CODES.NOT_FOUND, 'Invoice not found.');
     const inv = await em.findOne(Invoice, { id: invoiceId });
     if (!inv) throw new HttpError(404, ERROR_CODES.NOT_FOUND, 'Invoice not found.');
     if (compareDecimals(inv.paidTotal, inv.total) >= 0) return;
@@ -445,6 +447,7 @@ export class InvoiceService {
   /** Load an invoice as a render-ready detail (lines + derived VAT summary). */
   async buildDetail(invoiceId: string): Promise<InvoiceDetail> {
     const em = this.emFactory();
+    if (!isUuidShape(invoiceId)) throw new HttpError(404, ERROR_CODES.NOT_FOUND, 'Invoice not found.');
     const inv = await em.findOne(Invoice, { id: invoiceId });
     if (!inv) throw new HttpError(404, ERROR_CODES.NOT_FOUND, 'Invoice not found.');
     const order = inv.orderId ? await this.orders.findById(inv.orderId) : null;

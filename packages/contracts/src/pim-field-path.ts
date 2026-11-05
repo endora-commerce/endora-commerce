@@ -1,7 +1,6 @@
+import { isUuidShape } from './common.js';
 import { pimFieldPathSchema } from './pim-connector.js';
 
-const UUID_PATTERN =
-  /^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/i;
 const ATTRIBUTE_KEY_PATTERN = /^[a-z][a-z0-9_]*$/;
 const CURRENCY_PATTERN = /^[A-Za-z]{3}$/;
 
@@ -14,7 +13,7 @@ function normaliseLocaleSegment(raw: string): string | null {
 }
 
 function normaliseUuid(raw: string): string | null {
-  return UUID_PATTERN.test(raw) ? raw.toLowerCase() : null;
+  return isUuidShape(raw) ? raw.toLowerCase() : null;
 }
 
 function canonicaliseAttributeBranch(segments: string[]): string | null {

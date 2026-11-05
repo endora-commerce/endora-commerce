@@ -22,6 +22,7 @@ import {
   type ScopeWarning,
   type UpdateVariantRequest,
   uuidSchema,
+  isUuidShape,
 } from '@endora-commerce/contracts';
 import type { EventBase, EventBus } from '@endora-commerce/platform/events';
 
@@ -634,6 +635,9 @@ export class CatalogAdminService {
     changedFields: string[];
   }> {
     refusePriceFields(req.attributeValues as Record<string, unknown> | undefined, 'attributeValues.');
+    if (!isUuidShape(id)) {
+      throw new HttpError(404, ERROR_CODES.PRODUCT_NOT_FOUND, 'Product not found.');
+    }
     const product = await em.findOne(Product, { id });
     if (!product) {
       throw new HttpError(404, ERROR_CODES.PRODUCT_NOT_FOUND, 'Product not found.');
@@ -949,6 +953,9 @@ export class CatalogAdminService {
 
   async duplicateProduct(id: string): Promise<Product> {
     const em = this.emFactory();
+    if (!isUuidShape(id)) {
+      throw new HttpError(404, ERROR_CODES.PRODUCT_NOT_FOUND, 'Product not found.');
+    }
     const source = await em.findOne(Product, { id });
     if (!source) {
       throw new HttpError(404, ERROR_CODES.PRODUCT_NOT_FOUND, 'Product not found.');
@@ -1329,6 +1336,9 @@ export class CatalogAdminService {
         // Checkpoint C code review (C-W1) — the row lock serialises a single and a bulk
         // Archive of one product: the second reads the first's `archivedAt` and is the
         // no-op, so the transition is audited and announced once.
+        if (!isUuidShape(id)) {
+          throw new HttpError(404, ERROR_CODES.PRODUCT_NOT_FOUND, 'Product not found.');
+        }
         const product = await em.findOne(Product, { id, deletedAt: null }, { lockMode: LockMode.PESSIMISTIC_WRITE });
         if (!product) {
           throw new HttpError(404, ERROR_CODES.PRODUCT_NOT_FOUND, 'Product not found.');
@@ -1409,6 +1419,9 @@ export class CatalogAdminService {
       objectType: 'product',
       objectId: id,
       run: async ({ em }) => {
+        if (!isUuidShape(id)) {
+          throw new HttpError(404, ERROR_CODES.PRODUCT_NOT_FOUND, 'Product not found.');
+        }
         const product = await em.findOne(Product, { id, deletedAt: null });
         if (!product) {
           throw new HttpError(404, ERROR_CODES.PRODUCT_NOT_FOUND, 'Product not found.');
@@ -1743,6 +1756,9 @@ export class CatalogAdminService {
 
   async getProductById(id: string): Promise<Product> {
     const em = this.emFactory();
+    if (!isUuidShape(id)) {
+      throw new HttpError(404, ERROR_CODES.PRODUCT_NOT_FOUND, 'Product not found.');
+    }
     const product = await em.findOne(Product, { id, deletedAt: null });
     if (!product) {
       throw new HttpError(404, ERROR_CODES.PRODUCT_NOT_FOUND, 'Product not found.');
@@ -2055,6 +2071,13 @@ export class CatalogAdminService {
     req: CreateVariantRequest,
   ): Promise<ProductVariant> {
     const em = this.emFactory();
+    if (!isUuidShape(parentProductId)) {
+      throw new HttpError(
+        404,
+        ERROR_CODES.PRODUCT_NOT_FOUND,
+        `Product ${parentProductId} not found.`,
+      );
+    }
     const parent = await em.findOne(Product, { id: parentProductId });
     if (!parent) {
       throw new HttpError(
@@ -2117,6 +2140,13 @@ export class CatalogAdminService {
     req: UpdateVariantRequest,
   ): Promise<ProductVariant> {
     const variant = await this.#auditedWrite('product_variant.update', 'product_variant', variantId, async (em) => {
+      if (!isUuidShape(variantId) || !isUuidShape(parentProductId)) {
+        throw new HttpError(
+          404,
+          ERROR_CODES.NOT_FOUND,
+          `Variant ${variantId} not found under Product ${parentProductId}.`,
+        );
+      }
       const v = await em.findOne(ProductVariant, { id: variantId, parentProductId });
       if (!v) {
         throw new HttpError(
@@ -2153,6 +2183,13 @@ export class CatalogAdminService {
 
   async deleteVariant(parentProductId: string, variantId: string): Promise<void> {
     await this.#auditedWrite('product_variant.delete', 'product_variant', variantId, async (em) => {
+      if (!isUuidShape(variantId) || !isUuidShape(parentProductId)) {
+        throw new HttpError(
+          404,
+          ERROR_CODES.NOT_FOUND,
+          `Variant ${variantId} not found under Product ${parentProductId}.`,
+        );
+      }
       const variant = await em.findOne(ProductVariant, { id: variantId, parentProductId });
       if (!variant) {
         // DELETE is idempotent — but we still 404 here so admins notice
@@ -2298,6 +2335,9 @@ export class CatalogAdminService {
     requiredButMissing: Array<{ key: string; labelDefault: string }>;
   }> {
     const em = this.emFactory();
+    if (!isUuidShape(productId)) {
+      throw new HttpError(404, ERROR_CODES.PRODUCT_NOT_FOUND, 'Product not found.');
+    }
     const product = await em.findOne(Product, { id: productId });
     if (!product) {
       throw new HttpError(404, ERROR_CODES.PRODUCT_NOT_FOUND, 'Product not found.');

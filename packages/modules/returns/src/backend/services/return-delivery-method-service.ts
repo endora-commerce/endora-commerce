@@ -1,5 +1,5 @@
 import type { EntityManager } from '@mikro-orm/postgresql';
-import { ERROR_CODES, roundHalfUp } from '@endora-commerce/contracts';
+import { ERROR_CODES, roundHalfUp, isUuidShape } from '@endora-commerce/contracts';
 import type { ReturnDeliveryMethodDto } from '@endora-commerce/contracts';
 import { HttpError } from '@endora-commerce/platform/http';
 import { recordAuditFromContext } from '@endora-commerce/platform/commands';
@@ -78,6 +78,7 @@ export class ReturnDeliveryMethodService {
     },
   ): Promise<ReturnDeliveryMethodDto> {
     const em = this.deps.emFactory();
+    if (!isUuidShape(id)) throw new HttpError(404, ERROR_CODES.NOT_FOUND, 'Return delivery method not found.');
     const row = await em.findOne(ReturnDeliveryMethod, { id });
     if (!row) throw new HttpError(404, ERROR_CODES.NOT_FOUND, 'Return delivery method not found.');
     if (patch.returnCost !== undefined) row.returnCost = roundHalfUp(patch.returnCost);
@@ -94,6 +95,7 @@ export class ReturnDeliveryMethodService {
 
   async remove(id: string): Promise<void> {
     const em = this.deps.emFactory();
+    if (!isUuidShape(id)) throw new HttpError(404, ERROR_CODES.NOT_FOUND, 'Return delivery method not found.');
     const row = await em.findOne(ReturnDeliveryMethod, { id });
     if (!row) throw new HttpError(404, ERROR_CODES.NOT_FOUND, 'Return delivery method not found.');
     this.#audit(em, 'return_delivery_method.delete', 'return_delivery_method', row.id, {
@@ -109,11 +111,17 @@ export class ReturnDeliveryMethodService {
     returnDeliveryMethodId: string,
   ): Promise<{ appliedReturnCost: number; returnCostBearer: 'customer' | 'shop'; currency: string }> {
     const em = this.deps.emFactory();
+    if (!isUuidShape(caseId)) throw new HttpError(404, ERROR_CODES.NOT_FOUND, 'Return case not found.');
     const rc = await em.findOne(ReturnCase, { id: caseId, customerAccountId });
     if (!rc) throw new HttpError(404, ERROR_CODES.NOT_FOUND, 'Return case not found.');
     const graph = await this.deps.graphService.loadGraph();
     if (graph.isTerminal(rc.statusCode)) {
       throw new HttpError(409, ERROR_CODES.VALIDATION_FAILED, 'The case is closed.', { code: 'case_terminal' });
+    }
+    if (!isUuidShape(returnDeliveryMethodId)) {
+      throw new HttpError(422, ERROR_CODES.VALIDATION_FAILED, 'Return delivery method is not available.', {
+        code: 'method_not_allowed',
+      });
     }
     const method = await em.findOne(ReturnDeliveryMethod, { id: returnDeliveryMethodId, isActive: true });
     if (!method) {

@@ -4,6 +4,7 @@ import {
   ERROR_CODES,
   dispatchValidatorMode,
   type DictionaryValidator,
+  isUuidShape,
 } from '@endora-commerce/contracts';
 import { HttpError } from '@endora-commerce/platform/http';
 import { recordAuditFromContext } from '@endora-commerce/platform/commands';
@@ -32,6 +33,7 @@ export class AddressService {
   }
 
   async list(organizationId: string, kind?: 'delivery' | 'billing'): Promise<Address[]> {
+    if (!isUuidShape(organizationId)) return [];
     const em = this.emFactory();
     const where: Record<string, unknown> = { organizationId, deletedAt: null };
     if (kind) where['kind'] = kind;
@@ -95,6 +97,9 @@ export class AddressService {
   ): Promise<Address> {
     const em = this.emFactory();
     return em.transactional(async (txEm) => {
+      if (!isUuidShape(addressId)) {
+        throw new HttpError(404, ERROR_CODES.NOT_FOUND, 'Address not found.');
+      }
       const address = await txEm.findOne(Address, { id: addressId, organizationId, deletedAt: null });
       if (!address) {
         throw new HttpError(404, ERROR_CODES.NOT_FOUND, 'Address not found.');
@@ -127,6 +132,9 @@ export class AddressService {
 
   async deleteAddress(organizationId: string, addressId: string): Promise<void> {
     const em = this.emFactory();
+    if (!isUuidShape(addressId)) {
+      throw new HttpError(404, ERROR_CODES.NOT_FOUND, 'Address not found.');
+    }
     const address = await em.findOne(Address, { id: addressId, organizationId, deletedAt: null });
     if (!address) {
       throw new HttpError(404, ERROR_CODES.NOT_FOUND, 'Address not found.');

@@ -13,6 +13,7 @@ import {
   type EmailBlockSummary,
   type PatchEmailBlockRequest,
   type PutEmailBlockContentRequest,
+  isUuidShape,
 } from '@endora-commerce/contracts';
 import type { PuckDataTree } from '@endora-commerce/email-components/schema/envelope';
 import {
@@ -94,6 +95,7 @@ export class EmailBlockService {
   }
 
   private async loadOrThrow(em: EntityManager, id: string): Promise<EmailBlock> {
+    if (!isUuidShape(id)) throw new HttpError(404, ERROR_CODES.NOT_FOUND, `Email block ${id} not found.`);
     const b = await em.findOne(EmailBlock, { id });
     if (!b) throw new HttpError(404, ERROR_CODES.NOT_FOUND, `Email block ${id} not found.`);
     return b;

@@ -11,6 +11,7 @@ import type {
 import { rethrowIfModuleDisabled } from '@endora-commerce/platform/kernel';
 import { ProductAttribute } from '../entities/product-attribute.entity.js';
 import { cfToLegacyValueType } from './attribute-type-mapping.js';
+import { isUuidShape } from '@endora-commerce/contracts';
 
 /**
  * CatalogAttributeReadService — the composed attribute read model (feature 061,
@@ -26,8 +27,6 @@ import { cfToLegacyValueType } from './attribute-type-mapping.js';
  * committed catalog attribute command + 5 s TTL fallback); the extension half
  * is a live query, so flag reads are always fresh.
  */
-
-const UUID_REGEX = /^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/i;
 
 /**
  * The three shapes moved to `@endora-commerce/contracts` in feature 075's Phase P — four
@@ -117,7 +116,7 @@ export class CatalogAttributeReadService {
   /** By extension id, definition id, or key (the admin routes' `:idOrKey` affordance). */
   async getByIdOrKey(idOrKey: string): Promise<CatalogAttributeView | null> {
     const all = await this.listAll();
-    if (UUID_REGEX.test(idOrKey)) {
+    if (isUuidShape(idOrKey)) {
       const lowered = idOrKey.toLowerCase();
       return (
         all.find(

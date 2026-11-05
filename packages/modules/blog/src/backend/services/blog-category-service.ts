@@ -10,6 +10,7 @@ import {
   type DictionaryValidator,
   type PatchBlogCategoryRequest,
   type PutBlogCategoryDescriptionRequest,
+  isUuidShape,
 } from '@endora-commerce/contracts';
 import { HttpError } from '@endora-commerce/platform/http';
 import { assertCategoryLanguagesComplete } from './blog-language-completeness.js';
@@ -440,6 +441,7 @@ export class BlogCategoryService {
   // ────────────────────────────────────────────────────────────────────
 
   private async findRow(em: EntityManager, id: string): Promise<CategoryRow | null> {
+    if (!isUuidShape(id)) return null;
     const rows = (await em.execute(
       `select * from blog_categories where id = ? and deleted_at is null limit 1`,
       [id],

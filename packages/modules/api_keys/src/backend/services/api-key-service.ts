@@ -6,6 +6,7 @@ import {
   type ApiKeyBinding,
   type CustomerAccountReadPort,
   type OrganizationDetailsPort,
+  isUuidShape,
 } from '@endora-commerce/contracts';
 import { HttpError } from '@endora-commerce/platform/http';
 import { ApiKey } from '../entities/api-key.entity.js';
@@ -249,6 +250,9 @@ export class ApiKeyService {
 
   async revoke(apiKeyId: string): Promise<void> {
     const em = this.emFactory();
+    if (!isUuidShape(apiKeyId)) {
+      throw new HttpError(404, ERROR_CODES.NOT_FOUND, 'API key not found.');
+    }
     const apiKey = await em.findOne(ApiKey, { id: apiKeyId });
     if (!apiKey) {
       throw new HttpError(404, ERROR_CODES.NOT_FOUND, 'API key not found.');

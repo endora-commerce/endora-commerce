@@ -9,6 +9,7 @@ import {
   type PinnedPriceBookUnpublishableReason,
   type PriceListReadPort,
   type UpdateProductFeedRequest,
+  isUuidShape,
 } from '@endora-commerce/contracts';
 import type { CommandBus } from '@endora-commerce/platform/commands';
 import { HttpError } from '@endora-commerce/platform/http';
@@ -112,6 +113,7 @@ export class ProductFeedService {
   }
 
   async getOrFail(feedId: string): Promise<ProductFeed> {
+    if (!isUuidShape(feedId)) throw new HttpError(404, ERROR_CODES.NOT_FOUND, 'Product feed not found.');
     const feed = await this.deps.emFactory().findOne(ProductFeed, { id: feedId });
     if (!feed) throw new HttpError(404, ERROR_CODES.NOT_FOUND, 'Product feed not found.');
     return feed;

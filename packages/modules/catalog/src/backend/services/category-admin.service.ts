@@ -8,6 +8,7 @@ import {
   type CreateCategoryRequest,
   type CustomFieldValuePort,
   type UpdateCategoryInput,
+  isUuidShape,
 } from '@endora-commerce/contracts';
 import { HttpError } from '@endora-commerce/platform/http';
 import type { EventBase, EventBus } from '@endora-commerce/platform/events';
@@ -267,6 +268,7 @@ export class CategoryAdminService {
 
   async update(id: string, input: UpdateCategoryInput): Promise<Category> {
     return this.#audited('category.update', id, async (em) => {
+      if (!isUuidShape(id)) throw new HttpError(404, ERROR_CODES.NOT_FOUND, 'Category not found.');
       const cat = await em.findOne(Category, { id, deletedAt: null });
       if (!cat) throw new HttpError(404, ERROR_CODES.NOT_FOUND, 'Category not found.');
       const before = {
@@ -331,6 +333,7 @@ export class CategoryAdminService {
 
   async softDelete(id: string): Promise<void> {
     await this.#audited('category.delete', id, async (em) => {
+      if (!isUuidShape(id)) throw new HttpError(404, ERROR_CODES.NOT_FOUND, 'Category not found.');
       const cat = await em.findOne(Category, { id, deletedAt: null });
       if (!cat) throw new HttpError(404, ERROR_CODES.NOT_FOUND, 'Category not found.');
       const childCount = await em.count(Category, { parentCategoryId: id, deletedAt: null });
@@ -354,6 +357,7 @@ export class CategoryAdminService {
    * other read of this entity leaves the document in the database.
    */
   async getContent(id: string): Promise<CategoryContentEnvelope> {
+    if (!isUuidShape(id)) throw new HttpError(404, ERROR_CODES.NOT_FOUND, 'Category not found.');
     const cat = await this.emFactory().findOne(
       Category,
       { id, deletedAt: null },
@@ -418,6 +422,7 @@ export class CategoryAdminService {
     // by the caller as one `low_stock_threshold.update` summary — see the doc
     // comment above and `ThresholdAdminService.patch`.
     const em = this.emFactory();
+    if (!isUuidShape(id)) throw new HttpError(404, ERROR_CODES.NOT_FOUND, `Category ${id} not found`);
     const cat = await em.findOne(Category, { id, deletedAt: null });
     if (!cat) throw new HttpError(404, ERROR_CODES.NOT_FOUND, `Category ${id} not found`);
     if (patch.high !== undefined) cat.inventoryThresholdHigh = patch.high;

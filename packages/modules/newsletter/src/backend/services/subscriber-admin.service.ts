@@ -7,6 +7,7 @@ import {
   type SubscriberListResponse,
   type SubscriberStatus,
   type SubscriberSummary,
+  isUuidShape,
 } from '@endora-commerce/contracts';
 import { HttpError } from '@endora-commerce/platform/http';
 import type { AuditPort } from '@endora-commerce/platform/kernel';
@@ -85,6 +86,7 @@ export class NewsletterSubscriberAdminService {
 
   async getDetail(id: string): Promise<SubscriberDetail> {
     const em = this.emFactory();
+    if (!isUuidShape(id)) throw new HttpError(404, ERROR_CODES.NOT_FOUND, 'Subscriber not found.');
     const sub = await em.findOne(NewsletterSubscriber, { id });
     if (!sub) throw new HttpError(404, ERROR_CODES.NOT_FOUND, 'Subscriber not found.');
     const tagMap = await this.tagsFor(em, [id]);
@@ -93,6 +95,7 @@ export class NewsletterSubscriberAdminService {
 
   async deactivate(id: string, expectedVersion: number): Promise<SubscriberDetail> {
     const em = this.emFactory();
+    if (!isUuidShape(id)) throw new HttpError(404, ERROR_CODES.NOT_FOUND, 'Subscriber not found.');
     const sub = await em.findOne(NewsletterSubscriber, { id });
     if (!sub) throw new HttpError(404, ERROR_CODES.NOT_FOUND, 'Subscriber not found.');
     if (sub.version !== expectedVersion) {
@@ -114,6 +117,7 @@ export class NewsletterSubscriberAdminService {
 
   async remove(id: string): Promise<void> {
     const em = this.emFactory();
+    if (!isUuidShape(id)) throw new HttpError(404, ERROR_CODES.NOT_FOUND, 'Subscriber not found.');
     const sub = await em.findOne(NewsletterSubscriber, { id });
     if (!sub) throw new HttpError(404, ERROR_CODES.NOT_FOUND, 'Subscriber not found.');
     // Retain a suppression keyed by email so the address stays unmailable (R6).

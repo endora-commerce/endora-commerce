@@ -1,6 +1,6 @@
 import { randomBytes } from 'crypto';
 import type { EntityManager } from '@mikro-orm/postgresql';
-import { ERROR_CODES, WEBHOOK_BUILT_IN_EVENT_TYPES } from '@endora-commerce/contracts';
+import { ERROR_CODES, WEBHOOK_BUILT_IN_EVENT_TYPES, isUuidShape } from '@endora-commerce/contracts';
 import { HttpError } from '@endora-commerce/platform/http';
 import { Webhook } from '../entities/webhook.entity.js';
 import { recordAuditFromContext } from '@endora-commerce/platform/commands';
@@ -68,6 +68,7 @@ export class WebhookService {
 
   async getById(id: string): Promise<Webhook> {
     const em = this.emFactory();
+    if (!isUuidShape(id)) throw new HttpError(404, ERROR_CODES.NOT_FOUND, 'Webhook not found.');
     const webhook = await em.findOne(Webhook, { id });
     if (!webhook) throw new HttpError(404, ERROR_CODES.NOT_FOUND, 'Webhook not found.');
     return webhook;
@@ -115,6 +116,7 @@ export class WebhookService {
     },
   ): Promise<Webhook> {
     const em = this.emFactory();
+    if (!isUuidShape(id)) throw new HttpError(404, ERROR_CODES.NOT_FOUND, 'Webhook not found.');
     const webhook = await em.findOne(Webhook, { id });
     if (!webhook) throw new HttpError(404, ERROR_CODES.NOT_FOUND, 'Webhook not found.');
     if (patch.eventTypes !== undefined) this.#assertDeliverable(patch.eventTypes, webhook.eventTypes);
@@ -134,6 +136,7 @@ export class WebhookService {
 
   async remove(id: string): Promise<void> {
     const em = this.emFactory();
+    if (!isUuidShape(id)) throw new HttpError(404, ERROR_CODES.NOT_FOUND, 'Webhook not found.');
     const webhook = await em.findOne(Webhook, { id });
     if (!webhook) throw new HttpError(404, ERROR_CODES.NOT_FOUND, 'Webhook not found.');
     this.#audit(em, 'webhook.delete', webhook.id, { name: webhook.name }, null);
@@ -153,6 +156,9 @@ export class WebhookService {
     // command-coverage-ignore: delivery execution/bookkeeping — the config write
     // is audited separately; this is provider dispatch state.
     const em = this.emFactory();
+    if (!isUuidShape(deliveryId)) {
+      throw new HttpError(404, ERROR_CODES.NOT_FOUND, 'Webhook delivery not found.');
+    }
     const source = await em.findOne(WebhookDelivery, { id: deliveryId });
     if (!source) {
       throw new HttpError(404, ERROR_CODES.NOT_FOUND, 'Webhook delivery not found.');

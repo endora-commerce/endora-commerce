@@ -1,4 +1,4 @@
-import { ERROR_CODES } from '@endora-commerce/contracts';
+import { ERROR_CODES, isUuidShape } from '@endora-commerce/contracts';
 import type { Command } from '@endora-commerce/platform/commands';
 import { HttpError } from '@endora-commerce/platform/http';
 import { Organization } from '../entities/organization.entity.js';
@@ -22,6 +22,9 @@ export function makeSetCreditModeCommand(input: {
     objectType: 'organization',
     objectId: input.organizationId,
     run: async ({ em }) => {
+      if (!isUuidShape(input.organizationId)) {
+        throw new HttpError(404, ERROR_CODES.NOT_FOUND, 'Organization not found.');
+      }
       const org = await em.findOne(Organization, { id: input.organizationId, deletedAt: null });
       if (!org) {
         throw new HttpError(404, ERROR_CODES.NOT_FOUND, 'Organization not found.');

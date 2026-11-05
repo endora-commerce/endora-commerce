@@ -10,7 +10,7 @@
 
 import { LockMode } from '@mikro-orm/core';
 import type { EntityManager } from '@mikro-orm/postgresql';
-import { ERROR_CODES } from '@endora-commerce/contracts';
+import { ERROR_CODES, isUuidShape } from '@endora-commerce/contracts';
 import { HttpError } from '@endora-commerce/platform/http';
 import { assetNotFound } from './asset-visibility.js';
 import type { Command } from '@endora-commerce/platform/commands';
@@ -178,6 +178,9 @@ export async function replaceAssetFile(
   deps: AssetReplaceDeps,
   input: AssetReplaceInput,
 ): Promise<Asset> {
+  if (!isUuidShape(input.assetId)) {
+    throw assetNotFound(input.assetId);
+  }
   const current = await deps.emFactory().findOne(Asset, { id: input.assetId });
   if (!current) {
     throw assetNotFound(input.assetId);
@@ -408,6 +411,9 @@ export async function restorePreviousVersion(
   deps: AssetReplaceDeps,
   input: RestorePreviousVersionInput,
 ): Promise<Asset> {
+  if (!isUuidShape(input.assetId)) {
+    throw assetNotFound(input.assetId);
+  }
   const current = await deps.emFactory().findOne(Asset, { id: input.assetId });
   if (!current) {
     throw assetNotFound(input.assetId);

@@ -8,6 +8,7 @@ import type {
 } from '@endora-commerce/contracts';
 import { Invoice } from '../entities/invoice.entity.js';
 import { InvoiceLine as InvoiceLineEntity } from '../entities/invoice-line.entity.js';
+import { isUuidShape } from '@endora-commerce/contracts';
 
 const EMPTY_BUYER: InvoiceBuyer = {
   name: '',
@@ -27,6 +28,7 @@ export class InvoiceCopyHostService implements InvoiceCopyHostPort {
 
   async getById(invoiceId: string): Promise<InvoiceCopyRecord | null> {
     const em = this.emFactory();
+    if (!isUuidShape(invoiceId)) return null;
     const invoice = await em.findOne(Invoice, { id: invoiceId });
     if (!invoice) return null;
     const order = invoice.orderId ? await this.orders.findById(invoice.orderId) : null;

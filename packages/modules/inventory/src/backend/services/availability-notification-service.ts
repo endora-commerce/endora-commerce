@@ -10,6 +10,7 @@ import {
   type CustomerAccountReadPort,
   type EmailMailerPort,
   type ProductAudience,
+  isUuidShape,
 } from '@endora-commerce/contracts';
 import { HttpError } from '@endora-commerce/platform/http';
 import { currentSalesChannel } from '@endora-commerce/platform/kernel';
@@ -316,6 +317,13 @@ export class AvailabilityNotificationService {
     // command-coverage-ignore: customer notification opt-out — flips a
     // self-service subscription to cancelled, not an audited domain mutation.
     const em = this.emFactory();
+    if (!isUuidShape(id)) {
+      throw new HttpError(
+        404,
+        'AVAILABILITY_NOTIFICATION_NOT_FOUND',
+        'Subscription not found.',
+      );
+    }
     const row = await em.findOne(AvailabilityNotification, { id });
     if (!row) {
       throw new HttpError(

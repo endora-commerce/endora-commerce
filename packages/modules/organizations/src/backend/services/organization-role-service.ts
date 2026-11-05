@@ -14,6 +14,7 @@ import {
   type OrganizationRoleView,
   type SupportedLanguage,
   type UpdateOrganizationRoleRequest,
+  isUuidShape,
 } from '@endora-commerce/contracts';
 import type { Command } from '@endora-commerce/platform/commands';
 import { HttpError } from '@endora-commerce/platform/http';
@@ -99,6 +100,7 @@ export class OrganizationRoleService {
   async get(organizationId: string, roleId: string, language: SupportedLanguage): Promise<OrganizationRoleView> {
     const em = this.deps.emFactory();
     const organization = await this.requireCompanyOrganization(em, organizationId);
+    if (!isUuidShape(roleId)) throw roleNotFound();
     const role = await em.findOne(OrganizationRole, { id: roleId, organizationId });
     if (!role) throw roleNotFound();
     return this.view(role, await this.counts(em, organization), language);
@@ -131,6 +133,7 @@ export class OrganizationRoleService {
     language: SupportedLanguage,
   ): Promise<OrganizationRoleView> {
     await this.requireCompanyOrganization(this.deps.emFactory(), organizationId);
+    if (!isUuidShape(roleId)) throw roleNotFound();
     await runRoleCommandAndAnnounce(
       this.deps.commandBus,
       this.deps.cache,
@@ -153,6 +156,7 @@ export class OrganizationRoleService {
     body: { expectedVersion: number; replacementRoleId?: string | undefined },
   ): Promise<DeleteOrganizationRoleResponse['data']> {
     await this.requireCompanyOrganization(this.deps.emFactory(), organizationId);
+    if (!isUuidShape(roleId)) throw roleNotFound();
     return runRoleCommandAndAnnounce(
       this.deps.commandBus,
       this.deps.cache,
@@ -270,6 +274,9 @@ export class OrganizationRoleService {
   }
 
   private async requireCompanyOrganization(em: EntityManager, organizationId: string): Promise<Organization> {
+    if (!isUuidShape(organizationId)) {
+      throw new HttpError(404, ERROR_CODES.NOT_FOUND, 'Organization not found.');
+    }
     const organization = await em.findOne(Organization, { id: organizationId, deletedAt: null });
     if (!organization || organization.isPersonal) {
       throw new HttpError(404, ERROR_CODES.NOT_FOUND, 'Organization not found.');

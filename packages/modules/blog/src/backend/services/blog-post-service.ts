@@ -11,6 +11,7 @@ import {
   type DictionaryValidator,
   type PatchBlogPostRequest,
   type PutBlogPostContentRequest,
+  isUuidShape,
 } from '@endora-commerce/contracts';
 import { HttpError } from '@endora-commerce/platform/http';
 import { assertPostLanguagesComplete } from './blog-language-completeness.js';
@@ -543,6 +544,7 @@ export class BlogPostService {
   }
 
   async getInboundReferences(id: string): Promise<BlogPostInboundReferencesResponse> {
+    if (!isUuidShape(id)) return { asRelatedPostBy: [] };
     const em = this.emFactory();
     const rows = (await em.execute(
       `select p.id::text as id, p.name, p.slug
@@ -600,6 +602,7 @@ export class BlogPostService {
   }
 
   private async findRow(em: EntityManager, id: string): Promise<PostRow | null> {
+    if (!isUuidShape(id)) return null;
     const rows = (await em.execute(
       `select * from blog_posts where id = ? and deleted_at is null limit 1`,
       [id],

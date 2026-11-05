@@ -1,5 +1,5 @@
 import type { EntityManager } from '@mikro-orm/postgresql';
-import { ERROR_CODES } from '@endora-commerce/contracts';
+import { ERROR_CODES, isUuidShape } from '@endora-commerce/contracts';
 import type { ReturnCaseCommentDto } from '@endora-commerce/contracts';
 import { HttpError } from '@endora-commerce/platform/http';
 import { ReturnCase } from '../entities/return-case.entity.js';
@@ -87,6 +87,7 @@ export class ReturnCommentService {
    */
   async listForAdmin(id: string): Promise<ReturnCaseCommentDto[]> {
     const em = this.deps.emFactory();
+    if (!isUuidShape(id)) throw new HttpError(404, ERROR_CODES.NOT_FOUND, 'Return case not found.');
     const rc = await em.findOne(ReturnCase, { id });
     if (!rc) throw new HttpError(404, ERROR_CODES.NOT_FOUND, 'Return case not found.');
     const comments = await em.find(
@@ -99,6 +100,7 @@ export class ReturnCommentService {
 
   async listForCustomer(id: string, customerAccountId: string): Promise<ReturnCaseCommentDto[]> {
     const em = this.deps.emFactory();
+    if (!isUuidShape(id)) throw new HttpError(404, ERROR_CODES.NOT_FOUND, 'Return case not found.');
     const rc = await em.findOne(ReturnCase, { id, customerAccountId });
     if (!rc) throw new HttpError(404, ERROR_CODES.NOT_FOUND, 'Return case not found.');
     const comments = await em.find(
@@ -113,6 +115,7 @@ export class ReturnCommentService {
     em: EntityManager,
     where: { id: string; customerAccountId?: string },
   ): Promise<ReturnCase> {
+    if (!isUuidShape(where.id)) throw new HttpError(404, ERROR_CODES.NOT_FOUND, 'Return case not found.');
     const rc = await em.findOne(ReturnCase, where);
     if (!rc) throw new HttpError(404, ERROR_CODES.NOT_FOUND, 'Return case not found.');
     const graph = await this.deps.graphService.loadGraph();

@@ -1,5 +1,5 @@
 import type { EntityManager } from '@mikro-orm/postgresql';
-import { ERROR_CODES, toScopeChannel } from '@endora-commerce/contracts';
+import { ERROR_CODES, toScopeChannel, isUuidShape } from '@endora-commerce/contracts';
 import { HttpError } from '@endora-commerce/platform/http';
 import type { CommandBus } from '@endora-commerce/platform/commands';
 import type { SalesChannelMembershipPort } from '@endora-commerce/platform/kernel';
@@ -122,6 +122,9 @@ export class ProductOverridesService {
   async applyBulk(productId: string, input: ApplyOverridesInput): Promise<ApplyOverridesResult> {
     const em = this.emFactory();
 
+    if (!isUuidShape(productId)) {
+      throw new HttpError(404, ERROR_CODES.PRODUCT_NOT_FOUND, 'Product not found.');
+    }
     const product = await em.findOne(Product, { id: productId });
     if (!product) {
       throw new HttpError(404, ERROR_CODES.PRODUCT_NOT_FOUND, 'Product not found.');

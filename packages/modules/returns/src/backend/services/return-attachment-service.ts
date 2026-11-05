@@ -1,5 +1,5 @@
 import type { EntityManager } from '@mikro-orm/postgresql';
-import { ERROR_CODES } from '@endora-commerce/contracts';
+import { ERROR_CODES, isUuidShape } from '@endora-commerce/contracts';
 import type { ReturnAttachmentDto } from '@endora-commerce/contracts';
 import { HttpError } from '@endora-commerce/platform/http';
 import { ReturnCase } from '../entities/return-case.entity.js';
@@ -24,6 +24,7 @@ export class ReturnAttachmentService {
     // command-coverage-ignore: append-only evidence attachment on a case, not an
     // audited domain-state mutation (no before-state, no undo value).
     const em = this.emFactory();
+    if (!isUuidShape(caseId)) throw new HttpError(404, ERROR_CODES.NOT_FOUND, 'Return case not found.');
     const rc = await em.findOne(ReturnCase, { id: caseId, customerAccountId });
     if (!rc) throw new HttpError(404, ERROR_CODES.NOT_FOUND, 'Return case not found.');
     const attachment = em.create(ReturnCaseAttachment, {

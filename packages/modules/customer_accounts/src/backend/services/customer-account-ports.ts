@@ -14,6 +14,7 @@ import {
   type CustomerPasswordVerificationPort,
   type CustomerAccountRoleCommandPort,
   type CustomerRolePort,
+  isUuidShape,
 } from '@endora-commerce/contracts';
 import { recordAuditFromContext, type CommandBus } from '@endora-commerce/platform/commands';
 import { HttpError } from '@endora-commerce/platform/http';
@@ -147,6 +148,7 @@ export class CustomerAccountReadService implements CustomerAccountReadPort {
     id: string,
     options?: CustomerAccountLookupOptions,
   ): Promise<CustomerAccountRecord | null> {
+    if (!isUuidShape(id)) return null;
     const account = await this.emFactory().findOne(CustomerAccount, {
       id,
       ...activeFilter(options),
@@ -186,6 +188,7 @@ export class CustomerAccountReadService implements CustomerAccountReadPort {
     organizationId: string,
     options?: CustomerAccountLookupOptions,
   ): Promise<CustomerAccountRecord | null> {
+    if (!isUuidShape(id) || !isUuidShape(organizationId)) return null;
     const account = await this.emFactory().findOne(CustomerAccount, {
       id,
       organizationId,
@@ -482,6 +485,9 @@ export class CustomerAccountMemberWriteService implements CustomerAccountMemberW
     verifiedAt: Date,
   ): Promise<CustomerAccountRecord> {
     const em = this.emFactory();
+    if (!isUuidShape(customerAccountId)) {
+      throw new HttpError(404, ERROR_CODES.NOT_FOUND, 'Customer account not found.');
+    }
     const account = await em.findOne(CustomerAccount, { id: customerAccountId });
     if (!account) {
       throw new HttpError(404, ERROR_CODES.NOT_FOUND, 'Customer account not found.');
@@ -505,6 +511,9 @@ export class CustomerAccountMemberWriteService implements CustomerAccountMemberW
     organizationRoleId: string,
   ): Promise<CustomerAccountRecord> {
     const em = this.emFactory();
+    if (!isUuidShape(customerAccountId)) {
+      throw new HttpError(404, ERROR_CODES.NOT_FOUND, 'Customer account not found.');
+    }
     const account = await em.findOne(CustomerAccount, { id: customerAccountId });
     if (!account) {
       throw new HttpError(404, ERROR_CODES.NOT_FOUND, 'Customer account not found.');
@@ -543,6 +552,9 @@ export class CustomerAccountMemberWriteService implements CustomerAccountMemberW
   }
 
   async #loadLive(em: EntityManager, id: string): Promise<CustomerAccount> {
+    if (!isUuidShape(id)) {
+      throw new HttpError(404, ERROR_CODES.NOT_FOUND, 'Customer account not found.');
+    }
     const account = await em.findOne(CustomerAccount, { id, deletedAt: null });
     if (!account) {
       throw new HttpError(404, ERROR_CODES.NOT_FOUND, 'Customer account not found.');

@@ -4,6 +4,7 @@ import {
   roundHalfUp,
   type PaymentMethodUpsert,
   type PaymentReadPort,
+  isUuidShape,
 } from '@endora-commerce/contracts';
 import type { Command } from '@endora-commerce/platform/commands';
 import { HttpError } from '@endora-commerce/platform/http';
@@ -152,6 +153,9 @@ export function makeSetPaymentMethodStatusCommand(
     objectType: 'payment_method',
     objectId: id,
     run: async ({ em }) => {
+      if (!isUuidShape(id)) {
+        throw new HttpError(404, ERROR_CODES.NOT_FOUND, 'Payment method not found.');
+      }
       const row = await em.findOne(PaymentMethod, { id });
       if (!row) {
         throw new HttpError(404, ERROR_CODES.NOT_FOUND, 'Payment method not found.');
@@ -202,6 +206,9 @@ export function makeDeletePaymentMethodCommand(
     objectType: 'payment_method',
     objectId: id,
     run: async ({ em }) => {
+      if (!isUuidShape(id)) {
+        throw new HttpError(404, ERROR_CODES.NOT_FOUND, 'Payment method not found.');
+      }
       const row = await em.findOne(PaymentMethod, { id });
       if (!row) {
         throw new HttpError(404, ERROR_CODES.NOT_FOUND, 'Payment method not found.');
@@ -260,6 +267,7 @@ export function makeWithdrawCreatedPaymentMethodCommand(id: string): Command<voi
     objectType: 'payment_method',
     objectId: id,
     run: async ({ em }) => {
+      if (!isUuidShape(id)) return { result: undefined, skipAudit: true };
       const row = await em.findOne(PaymentMethod, { id });
       // Already gone: there is nothing left to take back, and nothing to audit.
       if (!row) return { result: undefined, skipAudit: true };
@@ -286,6 +294,7 @@ export function makeDeactivateCreatedPaymentMethodCommand(id: string): Command<v
     objectType: 'payment_method',
     objectId: id,
     run: async ({ em }) => {
+      if (!isUuidShape(id)) return { result: undefined, skipAudit: true };
       const row = await em.findOne(PaymentMethod, { id });
       if (!row || row.status === 'inactive') return { result: undefined, skipAudit: true };
       const before = paymentMethodAuditState(row);

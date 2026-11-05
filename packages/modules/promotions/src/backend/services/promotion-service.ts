@@ -11,6 +11,7 @@ import {
   type PromotionApplication,
   type PromotionCriterion,
   type PromotionRule,
+  isUuidShape,
 } from '@endora-commerce/contracts';
 import { linesSubtotal, percentOf, round2 } from '../actions/util.js';
 import { HttpError } from '@endora-commerce/platform/http';
@@ -224,6 +225,7 @@ export class PromotionService {
   }
 
   async getById(id: string): Promise<Promotion> {
+    if (!isUuidShape(id)) throw new HttpError(404, ERROR_CODES.NOT_FOUND, `Promotion ${id} not found.`);
     const row = await this.emFactory().findOne(Promotion, { id });
     if (!row) throw new HttpError(404, ERROR_CODES.NOT_FOUND, `Promotion ${id} not found.`);
     return row;
@@ -255,6 +257,7 @@ export class PromotionService {
   /** Feature 045 — update an existing promotion by id (admin edit path). */
   async updateById(id: string, input: UpsertPromotionInput): Promise<Promotion> {
     const em = this.emFactory();
+    if (!isUuidShape(id)) throw new HttpError(404, ERROR_CODES.NOT_FOUND, `Promotion ${id} not found.`);
     const existing = await em.findOne(Promotion, { id });
     if (!existing) throw new HttpError(404, ERROR_CODES.NOT_FOUND, `Promotion ${id} not found.`);
     await this.validateUpsertInput(em, input, existing);
@@ -280,6 +283,9 @@ export class PromotionService {
       );
     }
     if (input.ruleId) {
+      if (!isUuidShape(input.ruleId)) {
+        throw new HttpError(400, ERROR_CODES.VALIDATION_FAILED, `rule_not_found: ${input.ruleId}`);
+      }
       const ruleRow = await em.findOne(PromotionRuleEntity, { id: input.ruleId });
       if (!ruleRow) {
         throw new HttpError(400, ERROR_CODES.VALIDATION_FAILED, `rule_not_found: ${input.ruleId}`);
@@ -295,6 +301,7 @@ export class PromotionService {
 
   async remove(id: string): Promise<void> {
     const em = this.emFactory();
+    if (!isUuidShape(id)) return;
     const row = await em.findOne(Promotion, { id });
     if (!row) return;
     this.#audit(em, 'promotion.delete', row.id, { name: row.name, code: row.code }, null);

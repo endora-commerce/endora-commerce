@@ -6,6 +6,7 @@ import {
   INVOICE_LEDGER_WRITE_PERMISSION,
   invoiceLedgerDeliveryListQuerySchema,
   invoiceLedgerRoutingWriteBodySchema,
+  isUuidShape,
 } from '@endora-commerce/contracts';
 import { HttpError } from '@endora-commerce/platform/http';
 import type { RequireAdminFactory } from '@endora-commerce/platform/kernel';
@@ -56,7 +57,7 @@ export async function registerInvoiceLedgerAdminRoutes(
     write,
     async (request, reply) => {
       const id = request.params.id;
-      if (!/^[0-9a-f]{8}-[0-9a-f]{4}-[1-8][0-9a-f]{3}-[89ab][0-9a-f]{3}-[0-9a-f]{12}$/i.test(id)) {
+      if (!isUuidShape(id)) {
         throw new HttpError(404, ERROR_CODES.NOT_FOUND, 'Delivery not found.');
       }
       return reply.send({ data: await deps.deliveries.retry(id) });

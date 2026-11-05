@@ -6,6 +6,7 @@ import {
   type OpportunityBoardFieldKind,
   type OpportunityFieldFilter,
   type OpportunityFieldFilters,
+  uuidSchema,
 } from '@endora-commerce/contracts';
 import {
   NO_SHARED_FILTERS,
@@ -84,7 +85,8 @@ export function boardFieldOptionLabel(
 
 // --- The board's filters in its address --------------------------------------
 
-const UUID = /^[0-9a-f]{8}-[0-9a-f]{4}-[1-8][0-9a-f]{3}-[89ab][0-9a-f]{3}-[0-9a-f]{12}$/i;
+/** An RFC 9562 uuid — version and variant bits included, as the board's address has always read one. */
+const isRfcUuid = (value: string): boolean => uuidSchema.safeParse(value).success;
 /** As many fields as one request may name (§12c). */
 const MAX_FILTERED_FIELDS = 20;
 const ASSIGNEE_TOKENS: ReadonlySet<string> = new Set(['me', 'unassigned', 'person']);
@@ -122,16 +124,16 @@ const calendarDate = (value: string | null): string => (value ? (accepted('from'
  */
 export function readBoardFilters(params: URLSearchParams): BoardFilters {
   const assignee = params.get('assignee') ?? '';
-  const person = UUID.test(assignee);
+  const person = isRfcUuid(assignee);
   const date = (name: string): string => calendarDate(params.get(name));
-  const uuid = (name: string): string | null => (UUID.test(params.get(name) ?? '') ? params.get(name) : null);
+  const uuid = (name: string): string | null => (isRfcUuid(params.get(name) ?? '') ? params.get(name) : null);
   const shared: SharedOpportunityFilters = {
     q: (params.get('q') ?? '').slice(0, 200),
     organizationId: uuid('organizationId'),
     // `person` alone: "a person" was chosen and nobody yet — the picker is open, nothing is filtered.
     assignee: person ? 'person' : ASSIGNEE_TOKENS.has(assignee) ? (assignee as AssigneeFilter) : '',
     assigneeId: person ? assignee : null,
-    tagIds: params.getAll('tagId').filter((id) => UUID.test(id)),
+    tagIds: params.getAll('tagId').filter((id) => isRfcUuid(id)),
     salesChannelId: uuid('salesChannelId'),
     createdFrom: date('createdFrom'),
     createdTo: date('createdTo'),

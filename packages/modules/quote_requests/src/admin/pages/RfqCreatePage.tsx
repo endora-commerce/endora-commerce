@@ -43,6 +43,7 @@ import {
   type AdminQuoteRequestWarning,
   type OrganizationSalesChannelOption,
   type OrganizationSalesChannelsResponse,
+  isUuidShape,
 } from '@endora-commerce/contracts';
 
 /**
@@ -110,14 +111,13 @@ interface OpenedWith {
 }
 
 const ORIGIN_TYPE = /^[a-z][a-z0-9_]{0,63}$/;
-const UUID = /^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/i;
 
 function readOpenedWith(params: URLSearchParams): OpenedWith {
   const type = params.get('originType') ?? '';
   const id = params.get('originId') ?? '';
   const returnTo = params.get('returnTo') ?? '';
   return {
-    origin: ORIGIN_TYPE.test(type) && UUID.test(id) ? { type, id } : null,
+    origin: ORIGIN_TYPE.test(type) && isUuidShape(id) ? { type, id } : null,
     organizationId: params.get('organizationId') ?? '',
     customerAccountId: params.get('customerAccountId') ?? '',
     // A path of this application only: never a scheme, a host or `//`.
@@ -872,7 +872,6 @@ export function RfqCreatePage(): ReactNode {
           </div>
         </CardContent>
       </Card>
-
 
       <Card className="mb-4">
         <CardHeader>

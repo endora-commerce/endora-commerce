@@ -10,6 +10,7 @@ import { ReturnCase } from '../entities/return-case.entity.js';
 import { orgConstraintFor } from '@endora-commerce/platform/tenancy';
 import type { ReturnStatusGraphService } from './return-status-graph-service.js';
 import type { ReturnTransitionService } from './return-transition-service.js';
+import { isUuidShape } from '@endora-commerce/contracts';
 
 export interface ReturnListServiceDeps {
   emFactory: () => EntityManager;
@@ -75,6 +76,10 @@ export class ReturnListService {
     const moved: string[] = [];
     const skipped: Array<{ id: string; reason: string }> = [];
     for (const id of ids) {
+      if (!isUuidShape(id)) {
+        skipped.push({ id, reason: 'not_found' });
+        continue;
+      }
       const rc = await em.findOne(ReturnCase, { id });
       if (!rc) {
         skipped.push({ id, reason: 'not_found' });

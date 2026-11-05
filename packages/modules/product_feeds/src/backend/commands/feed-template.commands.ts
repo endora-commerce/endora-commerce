@@ -1,6 +1,6 @@
 import { randomUUID } from 'node:crypto';
 import type { EntityManager } from '@mikro-orm/postgresql';
-import { ERROR_CODES } from '@endora-commerce/contracts';
+import { ERROR_CODES, isUuidShape } from '@endora-commerce/contracts';
 import type { Command, CommandContext } from '@endora-commerce/platform/commands';
 import { HttpError } from '@endora-commerce/platform/http';
 import { FeedTemplate } from '../entities/feed-template.entity.js';
@@ -184,6 +184,7 @@ export function makeUpdateTemplateCommand(
       return template ? auditState(template, await loadFields(em, templateId)) : null;
     },
     run: async ({ em }) => {
+      if (!isUuidShape(templateId)) throw new HttpError(404, ERROR_CODES.NOT_FOUND, 'Feed template not found.');
       const template = await em.findOne(FeedTemplate, { id: templateId, deletedAt: null });
       if (!template) throw new HttpError(404, ERROR_CODES.NOT_FOUND, 'Feed template not found.');
       Object.assign(template, patch);
@@ -217,6 +218,7 @@ export function makeDuplicateTemplateCommand(
     objectType: 'feed_template',
     objectId: sourceId,
     run: async ({ em }) => {
+      if (!isUuidShape(sourceId)) throw new HttpError(404, ERROR_CODES.NOT_FOUND, 'Feed template not found.');
       const source = await em.findOne(FeedTemplate, { id: sourceId, deletedAt: null });
       if (!source) throw new HttpError(404, ERROR_CODES.NOT_FOUND, 'Feed template not found.');
       const sourceFields = await loadFields(em, sourceId);
@@ -350,6 +352,7 @@ export function makeDeleteTemplateCommand(templateId: string): Command<{ id: str
       return template ? auditState(template, await loadFields(em, templateId)) : null;
     },
     run: async ({ em }) => {
+      if (!isUuidShape(templateId)) throw new HttpError(404, ERROR_CODES.NOT_FOUND, 'Feed template not found.');
       const template = await em.findOne(FeedTemplate, { id: templateId, deletedAt: null });
       if (!template) throw new HttpError(404, ERROR_CODES.NOT_FOUND, 'Feed template not found.');
       // Soft delete: run history references the template by id, and an audit

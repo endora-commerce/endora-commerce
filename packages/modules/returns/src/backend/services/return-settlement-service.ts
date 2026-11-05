@@ -1,6 +1,6 @@
 import { randomUUID } from 'crypto';
 import type { EntityManager } from '@mikro-orm/postgresql';
-import { ERROR_CODES, compareDecimals } from '@endora-commerce/contracts';
+import { ERROR_CODES, compareDecimals, isUuidShape } from '@endora-commerce/contracts';
 import type {
   CorrectiveInvoiceInput,
   CorrectiveInvoicePort,
@@ -85,6 +85,7 @@ export class ReturnSettlementService {
 
   async getPrefill(id: string): Promise<SettlementPrefill> {
     const em = this.deps.emFactory();
+    if (!isUuidShape(id)) throw new HttpError(404, ERROR_CODES.NOT_FOUND, 'Return case not found.');
     const rc = await em.findOne(ReturnCase, { id });
     if (!rc) throw new HttpError(404, ERROR_CODES.NOT_FOUND, 'Return case not found.');
     const items = await em.find(ReturnCaseItem, { returnCaseId: id });
@@ -114,6 +115,7 @@ export class ReturnSettlementService {
    */
   async settle(id: string, adminUserId: string, input: SettlementRequest): Promise<SettlementResult> {
     const em = this.deps.emFactory();
+    if (!isUuidShape(id)) throw new HttpError(404, ERROR_CODES.NOT_FOUND, 'Return case not found.');
     const rc = await em.findOne(ReturnCase, { id });
     if (!rc) throw new HttpError(404, ERROR_CODES.NOT_FOUND, 'Return case not found.');
     return em.getKnex().transaction(async (lock) => {
@@ -137,6 +139,7 @@ export class ReturnSettlementService {
     // Read again under the lock: a settlement that waited sees what the one it
     // waited for wrote — the case it may have resolved, the correction it issued.
     const em = this.deps.emFactory();
+    if (!isUuidShape(id)) throw new HttpError(404, ERROR_CODES.NOT_FOUND, 'Return case not found.');
     const rc = await em.findOne(ReturnCase, { id });
     if (!rc) throw new HttpError(404, ERROR_CODES.NOT_FOUND, 'Return case not found.');
 

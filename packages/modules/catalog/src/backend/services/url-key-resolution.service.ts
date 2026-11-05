@@ -7,6 +7,7 @@ import {
   type CatalogProductUrlKeyReadPort,
   type ProductKeyResolution,
   sameLanguage,
+  isUuidShape,
 } from '@endora-commerce/contracts';
 import { HttpError } from '@endora-commerce/platform/http';
 import type { SalesChannelMembershipPort } from '@endora-commerce/platform/kernel';
@@ -208,6 +209,7 @@ export class ProductUrlKeyReadService implements CatalogProductUrlKeyReadPort {
     const ids = [...new Set(productIds)];
     if (ids.length === 0) return new Map();
     const em = this.emFactory();
+    if (!isUuidShape(channelId)) return new Map();
     const record = await em.findOne(SalesChannel, { id: channelId });
     if (!record) return new Map();
     const channel = toScopeChannel(record);

@@ -11,6 +11,7 @@ import {
   hashRecoveryCode,
 } from './recovery-codes.js';
 import { generateSecret, verifyTotpStep } from './totp.js';
+import { isUuidShape } from '@endora-commerce/contracts';
 
 /**
  * TOTP enrolment lifecycle (feature 042): setup → activate (issue recovery
@@ -119,6 +120,7 @@ export class MfaEnrolmentService {
    */
   async reset(subject: MfaSubjectRef): Promise<boolean> {
     const em = this.emFactory();
+    if (!isUuidShape(subject.subjectId)) return false;
     const affected = await em.nativeDelete(MfaEnrolment, {
       subjectType: subject.subjectType,
       subjectId: subject.subjectId,

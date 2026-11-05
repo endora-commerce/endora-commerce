@@ -11,6 +11,7 @@ import {
   type AssetDetail,
   type AssetPreviousVersion,
   type AssetSummary,
+  isUuidShape,
 } from '@endora-commerce/contracts';
 import { Asset } from '../entities/asset.entity.js';
 import {
@@ -164,6 +165,7 @@ export class AssetsLibraryService {
         objectType: 'asset',
         objectId: assetId,
         run: async ({ em }) => {
+          if (!isUuidShape(assetId)) throw assetNotFound(assetId);
           const a = await em.findOne(Asset, { id: assetId }, { lockMode: LockMode.PESSIMISTIC_WRITE });
           if (!a) throw assetNotFound(assetId);
           refuseSoftDeleted(a);
@@ -233,6 +235,7 @@ export class AssetsLibraryService {
       objectType: 'asset',
       objectId: assetId,
       run: async ({ em }) => {
+        if (!isUuidShape(assetId)) throw assetNotFound(assetId);
         const a = await em.findOne(Asset, { id: assetId }, { lockMode: LockMode.PESSIMISTIC_WRITE });
         if (!a) throw assetNotFound(assetId);
         refuseSoftDeleted(a);
@@ -330,6 +333,7 @@ export class AssetsLibraryService {
    */
   async resolveEmbedUrl(assetId: string): Promise<string> {
     const em = this.deps.emFactory();
+    if (!isUuidShape(assetId)) throw assetNotFound(assetId);
     const a = await em.findOne(Asset, { id: assetId });
     if (!a) throw assetNotFound(assetId);
     const resolved = await this.resolveUrl(assetId);
@@ -341,6 +345,7 @@ export class AssetsLibraryService {
     opts: { ttlSec?: number } = {},
   ): Promise<{ url: string; expiresAt: Date | null }> {
     const em = this.deps.emFactory();
+    if (!isUuidShape(assetId)) throw assetNotFound(assetId);
     const a = await em.findOne(Asset, { id: assetId });
     if (!a) throw assetNotFound(assetId);
     const adapter = await this.deps.adapters.getForBackend(
@@ -355,6 +360,7 @@ export class AssetsLibraryService {
 
   async getAsset(assetId: string): Promise<AssetDetail> {
     const em = this.deps.emFactory();
+    if (!isUuidShape(assetId)) throw assetNotFound(assetId);
     const a = await em.findOne(Asset, { id: assetId });
     if (!a) throw assetNotFound(assetId);
     return this.detail(a);
@@ -500,6 +506,7 @@ export class AssetsLibraryService {
 
   async softDelete(assetId: string): Promise<{ deletedAt: Date; purgeAfterAt: Date }> {
     const em = this.deps.emFactory();
+    if (!isUuidShape(assetId)) throw assetNotFound(assetId);
     const a = await em.findOne(Asset, { id: assetId });
     if (!a) throw assetNotFound(assetId);
     const retentionDays = this.deps.loadRetentionDays ? await this.deps.loadRetentionDays() : 30;
@@ -540,6 +547,7 @@ export class AssetsLibraryService {
 
   async restore(assetId: string): Promise<AssetDetail> {
     const em = this.deps.emFactory();
+    if (!isUuidShape(assetId)) throw assetNotFound(assetId);
     const a = await em.findOne(Asset, { id: assetId });
     if (!a) throw assetNotFound(assetId);
     a.deletedAt = null;
@@ -552,6 +560,7 @@ export class AssetsLibraryService {
 
   async move(assetId: string, folderId: string | null): Promise<AssetDetail> {
     const em = this.deps.emFactory();
+    if (!isUuidShape(assetId)) throw assetNotFound(assetId);
     const a = await em.findOne(Asset, { id: assetId });
     if (!a) throw assetNotFound(assetId);
     a.folderId = folderId;

@@ -7,6 +7,7 @@ import {
   type FeedDeliveryAttempt as FeedDeliveryAttemptDto,
   type FeedDeliveryFailureReason,
   type FeedDeliveryProtocol,
+  isUuidShape,
 } from '@endora-commerce/contracts';
 import { HttpError } from '@endora-commerce/platform/http';
 import { ModuleDisabledError, rethrowIfModuleDisabled } from '@endora-commerce/platform/kernel';
@@ -378,6 +379,7 @@ export class DeliveryService {
   // -------------------------------------------------------------------------
 
   async listAttempts(feedId: string, limit: number): Promise<FeedDeliveryAttemptDto[]> {
+    if (!isUuidShape(feedId)) return [];
     const rows = await this.deps
       .emFactory()
       .find(

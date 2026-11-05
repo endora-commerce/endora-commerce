@@ -2,7 +2,7 @@ import type { EntityManager } from '@mikro-orm/postgresql';
 import { OrganizationSalesRepAssignment } from '../entities/organization-sales-rep-assignment.entity.js';
 import { Organization } from '../entities/organization.entity.js';
 import { HttpError } from '@endora-commerce/platform/http';
-import { ERROR_CODES } from '@endora-commerce/contracts';
+import { ERROR_CODES, isUuidShape } from '@endora-commerce/contracts';
 import type { SalesRepAssignmentPort, SalesRepAssignmentRow } from '@endora-commerce/contracts';
 import { recordAuditFromContext } from '@endora-commerce/platform/commands';
 import type { AuditPort } from '@endora-commerce/platform/kernel';
@@ -109,6 +109,7 @@ export class SalesRepAssignmentService implements SalesRepAssignmentPort {
    */
   async listAssignedOrganizationIds(adminUserId: string): Promise<string[]> {
     const em = this.emFactory();
+    if (!isUuidShape(adminUserId)) return [];
     const rows = await em.find(OrganizationSalesRepAssignment, { adminUserId });
     const rawAssigned = rows.map((r) => r.organizationId);
     if (!this.subtree || rawAssigned.length === 0) return rawAssigned;
@@ -196,6 +197,7 @@ export class SalesRepAssignmentService implements SalesRepAssignmentPort {
 
   async unassign(input: { organizationId: string; adminUserId: string }): Promise<boolean> {
     const em = this.emFactory();
+    if (!isUuidShape(input.organizationId) || !isUuidShape(input.adminUserId)) return false;
     const existing = await em.findOne(OrganizationSalesRepAssignment, {
       organizationId: input.organizationId,
       adminUserId: input.adminUserId,

@@ -1,5 +1,5 @@
 import type { EntityManager } from '@mikro-orm/postgresql';
-import { ERROR_CODES } from '@endora-commerce/contracts';
+import { ERROR_CODES, isUuidShape } from '@endora-commerce/contracts';
 import { HttpError } from '@endora-commerce/platform/http';
 import { getTenantContext } from '@endora-commerce/platform/tenancy';
 import { assertMayDelete as assertContextLetsDelete } from './task-checks.js';
@@ -147,10 +147,8 @@ export const TASK_COLUMNS = `t."id", t."number", t."title", t."description", t."
   t."published_at", t."completed_at", t."created_by_admin_user_id",
   t."context_type", t."context_id", t."context_group_id", t."context_note", t."created_at", t."updated_at"`;
 
-const UUID = /^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/i;
-
 export function isUuid(value: string): boolean {
-  return UUID.test(value);
+  return isUuidShape(value);
 }
 
 /** What {@link TaskVisibility.canSee} is asked about one row. */

@@ -14,6 +14,7 @@ import {
   type PriceBookRowError,
   type PriceBookRowsDryRun,
   type PriceBookRowsWriteResult,
+  isUuidShape,
 } from '@endora-commerce/contracts';
 import type { CommandBus } from '@endora-commerce/platform/commands';
 import { HttpError } from '@endora-commerce/platform/http';
@@ -982,6 +983,7 @@ export class PriceBookService {
   // ---- Internals ------------------------------------------------------------
 
   async #book(em: EntityManager, bookId: string): Promise<PriceList> {
+    if (!isUuidShape(bookId)) notFound();
     const book = await em.findOne(PriceList, { id: bookId });
     if (!book) notFound();
     return book!;
@@ -989,7 +991,7 @@ export class PriceBookService {
 
   /** The book and its members, or the 404 of a missing one when it is out of scope (FR-034). */
   async #visibleBook(em: EntityManager, bookId: string, scope: PriceBookScope): Promise<{ book: PriceList; members: PriceListAudienceMember[] }> {
-    if (!/^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/i.test(bookId)) notFound();
+    if (!isUuidShape(bookId)) notFound();
     const book = await this.#book(em, bookId);
     const members = await em.find(PriceListAudienceMember, { priceListId: bookId });
     if (!bookVisible(scope, scopedOf(book, members))) notFound();
@@ -1019,7 +1021,7 @@ export class PriceBookService {
     const generalKeys = selections
       .filter((s) => s.productId === null && s.variantId === null)
       .map((s) => `${s.categoryId ?? ''}|${s.attributeKey ?? ''}|${s.attributeValue ?? ''}`);
-    const uuidIds = ids.filter((id) => UUID.test(id));
+    const uuidIds = ids.filter((id) => isUuidShape(id));
     if (productIds.length + variantIds.length + generalKeys.length + uuidIds.length === 0) return [];
     const rows = (await em.getConnection().execute(
       `select e."id", e."variant_id", e."product_id", e."category_id", e."attribute_key", e."attribute_value",
@@ -1162,10 +1164,6 @@ export class PriceBookService {
     if (issues.length > 0) validation(issues, 'The channel set was refused.', ERROR_CODES.PRICE_BOOK_CHANNEL_CURRENCY);
   }
 }
-
-const UUID = /^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/i;
-
-
 
 /** A refused batch: overlaps alone are a conflict (409); anything else is a bad request (400). */
 function refuseRows(errors: readonly PriceBookRowError[]): never {

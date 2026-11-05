@@ -7,6 +7,7 @@ import { NewsletterSubscriberTag } from '../entities/newsletter-subscriber-tag.e
 import { NewsletterCustomField } from '../entities/newsletter-custom-field.entity.js';
 import { NewsletterSuppression } from '../entities/newsletter-suppression.entity.js';
 import type { NewsletterOptInService } from './opt-in.service.js';
+import { isUuidShape } from '@endora-commerce/contracts';
 
 export interface NewsletterLinkBuilder {
   confirm(token: string): string;
@@ -306,6 +307,7 @@ export class NewsletterSubscriberService {
   /** Confirm a double opt-in subscriber from a signed token. Idempotent. */
   async confirm(subscriberId: string): Promise<{ ok: boolean }> {
     const em = this.deps.emFactory();
+    if (!isUuidShape(subscriberId)) return { ok: false };
     const subscriber = await em.findOne(NewsletterSubscriber, { id: subscriberId });
     if (!subscriber) return { ok: false };
     if (subscriber.status === 'pending') {
@@ -326,6 +328,7 @@ export class NewsletterSubscriberService {
   /** Unsubscribe with an optional reason; writes a suppression row. Idempotent. */
   async unsubscribe(subscriberId: string, reason?: string): Promise<{ ok: boolean }> {
     const em = this.deps.emFactory();
+    if (!isUuidShape(subscriberId)) return { ok: false };
     const subscriber = await em.findOne(NewsletterSubscriber, { id: subscriberId });
     if (!subscriber) return { ok: false };
     if (subscriber.status !== 'unsubscribed') {

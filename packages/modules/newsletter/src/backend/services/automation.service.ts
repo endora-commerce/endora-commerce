@@ -8,6 +8,7 @@ import {
   type CreateAutomationRequest,
   type NewsletterSendProvider,
   type UpdateAutomationRequest,
+  isUuidShape,
 } from '@endora-commerce/contracts';
 import { HttpError } from '@endora-commerce/platform/http';
 import { recordAuditFromContext } from '@endora-commerce/platform/commands';
@@ -175,6 +176,7 @@ export class NewsletterAutomationService {
    */
   async enrol(automationId: string, subscriberId: string): Promise<string | null> {
     const em = this.deps.emFactory();
+    if (!isUuidShape(automationId)) return null;
     const a = await em.findOne(NewsletterAutomation, { id: automationId });
     if (!a || a.status !== 'active') return null;
     const id = randomUUID();
@@ -332,6 +334,7 @@ export class NewsletterAutomationService {
   }
 
   private async load(em: EntityManager, id: string): Promise<NewsletterAutomation> {
+    if (!isUuidShape(id)) throw new HttpError(404, ERROR_CODES.NOT_FOUND, 'Automation not found.');
     const a = await em.findOne(NewsletterAutomation, { id });
     if (!a) throw new HttpError(404, ERROR_CODES.NOT_FOUND, 'Automation not found.');
     return a;

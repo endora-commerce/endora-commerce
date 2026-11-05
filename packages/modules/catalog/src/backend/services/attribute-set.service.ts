@@ -22,6 +22,7 @@ import {
   type CreateAttributeSetRequest,
   type UpdateAttributeSetRequest,
   type AssignAttributesRequest,
+  isUuidShape,
 } from '@endora-commerce/contracts';
 
 import { HttpError } from '@endora-commerce/platform/http';
@@ -154,6 +155,13 @@ export class AttributeSetService {
     options: { includeContent?: boolean } = {},
   ): Promise<AttributeSetDetailDto> {
     const em = this.emFactory();
+    if (!isUuidShape(id)) {
+      throw new HttpError(
+        404,
+        ERROR_CODES.ATTRIBUTE_SET_NOT_FOUND,
+        `Attribute Set ${id} not found.`,
+      );
+    }
     const set = await em.findOne(AttributeSet, { id });
     if (!set) {
       throw new HttpError(
@@ -252,6 +260,13 @@ export class AttributeSetService {
     input: UpdateAttributeSetRequest,
   ): Promise<AttributeSetDto> {
     const set = await this.#audited('attribute_set.update', id, async (em) => {
+      if (!isUuidShape(id)) {
+        throw new HttpError(
+          404,
+          ERROR_CODES.ATTRIBUTE_SET_NOT_FOUND,
+          `Attribute Set ${id} not found.`,
+        );
+      }
       const s = await em.findOne(AttributeSet, { id });
       if (!s) {
         throw new HttpError(
@@ -309,6 +324,13 @@ export class AttributeSetService {
 
   async deleteSet(id: string): Promise<void> {
     await this.#audited('attribute_set.delete', id, async (em) => {
+      if (!isUuidShape(id)) {
+        throw new HttpError(
+          404,
+          ERROR_CODES.ATTRIBUTE_SET_NOT_FOUND,
+          `Attribute Set ${id} not found.`,
+        );
+      }
       const set = await em.findOne(AttributeSet, { id });
       if (!set) {
         throw new HttpError(
@@ -349,6 +371,13 @@ export class AttributeSetService {
     input: AssignAttributesRequest,
   ): Promise<AttributeSetDetailDto> {
     const readEm = this.emFactory();
+    if (!isUuidShape(id)) {
+      throw new HttpError(
+        404,
+        ERROR_CODES.ATTRIBUTE_SET_NOT_FOUND,
+        `Attribute Set ${id} not found.`,
+      );
+    }
     const set = await readEm.findOne(AttributeSet, { id });
     if (!set) {
       throw new HttpError(
@@ -418,6 +447,13 @@ export class AttributeSetService {
 
   async unassignAttribute(id: string, attributeId: string): Promise<void> {
     const readEm = this.emFactory();
+    if (!isUuidShape(id)) {
+      throw new HttpError(
+        404,
+        ERROR_CODES.ATTRIBUTE_SET_NOT_FOUND,
+        `Attribute Set ${id} not found.`,
+      );
+    }
     const set = await readEm.findOne(AttributeSet, { id });
     if (!set) {
       throw new HttpError(

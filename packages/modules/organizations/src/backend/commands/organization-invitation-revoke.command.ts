@@ -1,4 +1,4 @@
-import { ERROR_CODES, type CustomerAccountReadPort } from '@endora-commerce/contracts';
+import { ERROR_CODES, type CustomerAccountReadPort, isUuidShape } from '@endora-commerce/contracts';
 import type { Command } from '@endora-commerce/platform/commands';
 import { HttpError } from '@endora-commerce/platform/http';
 import { OrganizationInvitation } from '../entities/organization-invitation.entity.js';
@@ -45,6 +45,7 @@ export function makeRevokeOrganizationInvitationCommand(
     objectType: 'organization',
     objectId: input.organizationId,
     run: async ({ em }) => {
+      if (!isUuidShape(input.invitationId)) throw new HttpError(404, ERROR_CODES.NOT_FOUND, 'Invitation not found.');
       const invitation = await em.findOne(OrganizationInvitation, {
         id: input.invitationId,
         organizationId: input.organizationId,

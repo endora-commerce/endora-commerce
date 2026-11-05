@@ -9,6 +9,7 @@ import {
   type PromptActionTool,
   type SetOrderStatusParams,
   type ToolContext,
+  isUuidShape,
 } from '@endora-commerce/contracts';
 import type { EntityManager } from '@mikro-orm/postgresql';
 import { HttpError } from '@endora-commerce/platform/http';
@@ -98,6 +99,7 @@ export function ordersPromptTools(deps: OrdersPromptToolsDeps): PromptActionTool
     orderId: string,
     toStatusCode: string,
   ): Promise<{ headline: string; current: unknown; affectedCount: number; sample: Array<{ id: string; label: string }> }> {
+    if (!isUuidShape(orderId)) throw new HttpError(404, 'ORDER_NOT_FOUND', 'Order not found.');
     const order = await em.findOne(Order, { id: orderId });
     if (!order) throw new HttpError(404, 'ORDER_NOT_FOUND', 'Order not found.');
     const graph = await graphService.loadGraph();

@@ -15,6 +15,7 @@ import {
   type OrganizationDetailsPort,
   type OrganizationRecord,
   type ProductAudience,
+  isUuidShape,
 } from '@endora-commerce/contracts';
 import { HttpError } from '@endora-commerce/platform/http';
 import { SalesChannel } from '@endora-commerce/platform/kernel';
@@ -428,6 +429,7 @@ export class OrderApiIntakeService {
     // command-coverage-ignore: idempotency bookkeeping row (queue-state class),
     // not domain state; the order write itself is audited in placeOrder.
     const em = this.deps.emFactory();
+    if (!isUuidShape(intentId)) return;
     const intent = await em.findOne(OrderPlacementIntent, { id: intentId });
     if (!intent) return;
     intent.status = patch.status;

@@ -8,7 +8,7 @@
 // See specs/013-assets-library/contracts/ for the per-surface contracts these schemas back.
 
 import { z } from 'zod';
-import { isoDateTimeSchema, uuidSchema, multilingualStringSchema } from './common.js';
+import { isoDateTimeSchema, uuidSchema, multilingualStringSchema, isUuidShape } from './common.js';
 
 // ────────────────────────────────────────────────────────────────────────────
 // (1) Domain types
@@ -258,7 +258,6 @@ export type AssetPermalinkInvalidReason =
   | 'invalid_segment'
   | 'uuid_shaped';
 
-const ASSET_ID_SHAPE = /^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/i;
 const PERMALINK_CHARACTERS = /^[A-Za-z0-9._/-]+$/;
 
 /**
@@ -266,7 +265,7 @@ const PERMALINK_CHARACTERS = /^[A-Za-z0-9._/-]+$/;
  * permalink of this shape would be unreachable, so the validator refuses it.
  */
 export function isAssetIdShaped(segment: string): boolean {
-  return ASSET_ID_SHAPE.test(segment);
+  return isUuidShape(segment);
 }
 
 /**

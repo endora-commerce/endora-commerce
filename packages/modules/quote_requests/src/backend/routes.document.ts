@@ -8,7 +8,6 @@ import {
   quoteRequestPdfQuerySchema,
   quoteRequestPdfSendRequestSchema,
   setQuoteRequestDocumentTemplateSchema,
-  uuidSchema,
   type Actor,
 } from '@endora-commerce/contracts';
 import type { RequireAdminFactory } from '@endora-commerce/platform/kernel';
@@ -43,7 +42,12 @@ export const QUOTE_REQUEST_PDF_SEND_RATE_LIMIT = {
   },
 };
 
-const params = z.object({ id: uuidSchema });
+/**
+ * The id is not checked for shape here: a malformed id names no quote request,
+ * so the service answers it with the same `404` as an unknown one (issue #781),
+ * where a params schema would answer `400`.
+ */
+const params = z.object({ id: z.string() });
 const NO_STORE = 'private, no-store';
 
 export async function registerQuoteRequestDocumentRoutes(

@@ -4,6 +4,7 @@ import {
   type AuthSessionPort,
   type CustomerAccountReadPort,
   type CustomerAccountRecord,
+  isUuidShape,
 } from '@endora-commerce/contracts';
 import { HttpError } from '@endora-commerce/platform/http';
 import { AdminUser } from '../entities/admin-user.entity.js';
@@ -65,6 +66,9 @@ export class ImpersonationService {
   }): Promise<ImpersonationStartResult> {
     const em = this.emFactory();
 
+    if (!isUuidShape(input.adminUserId)) {
+      throw new HttpError(401, ERROR_CODES.UNAUTHORIZED, 'Admin session required.');
+    }
     const admin = await em.findOne(AdminUser, { id: input.adminUserId, deletedAt: null });
     if (!admin) {
       throw new HttpError(401, ERROR_CODES.UNAUTHORIZED, 'Admin session required.');

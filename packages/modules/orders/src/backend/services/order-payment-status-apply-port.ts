@@ -5,6 +5,7 @@ import type {
   OrderPaymentStatusApplied,
   OrderPaymentStatusApplyPort,
 } from '../../ports/index.js';
+import { isUuidShape } from '@endora-commerce/contracts';
 
 /**
  * `orderPaymentStatusApplyPort` — the money axis of an order, written on the
@@ -35,6 +36,7 @@ export class OrderPaymentStatusApplyService implements OrderPaymentStatusApplyPo
     em: EntityManager,
     input: { orderId: string; paymentStatus: OrderPaymentStatus },
   ): Promise<OrderPaymentStatusApplied | null> {
+    if (!isUuidShape(input.orderId)) return null;
     const order = await em.findOne(Order, { id: input.orderId });
     if (!order) return null;
     order.paymentStatus = input.paymentStatus;

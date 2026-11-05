@@ -7,6 +7,7 @@ import {
   type AssetRecord,
   type ObjectStorageBackendCode,
   type StorageBackendCode,
+  isUuidShape,
 } from '@endora-commerce/contracts';
 import { rethrowIfModuleDisabled } from '@endora-commerce/platform/kernel';
 import { Asset } from '../entities/asset.entity.js';
@@ -210,6 +211,7 @@ export class AssetReadService implements AssetReadPort {
    * which is this module's own `EntityManager` and whose failure is a real one.
    */
   async openAssetBytes(assetId: string): Promise<AssetBytes | null> {
+    if (!isUuidShape(assetId)) return null;
     const asset = await this.emFactory().findOne(Asset, { id: assetId, deletedAt: null });
     if (!asset) return null;
     // Narrowed here rather than probed at the caller: the overload's `open` arm

@@ -3,7 +3,7 @@ import type { FastifyRequest } from 'fastify';
 import { z } from 'zod';
 import type { AuditPort } from '@endora-commerce/platform/kernel';
 import type { EventBus } from '@endora-commerce/platform/events';
-import { ERROR_CODES, QUOTE_REQUEST_PDF_LIMITS, QUOTE_REQUEST_WEBHOOK_EVENT_TYPES } from '@endora-commerce/contracts';
+import { ERROR_CODES, QUOTE_REQUEST_PDF_LIMITS, QUOTE_REQUEST_WEBHOOK_EVENT_TYPES, isUuidShape } from '@endora-commerce/contracts';
 import { HttpError } from '@endora-commerce/platform/http';
 import type {
   Actor,
@@ -190,14 +190,6 @@ export interface QuoteRequestsCradle {
       : never
     : never;
 }
-
-/**
- * `setting_values.sales_channel_id` is a `uuid` column, so a channel id that is
- * not one cannot match a row — PostgreSQL rejects the comparison outright. The
- * check is here rather than in the settings service because this is the caller
- * that has somewhere to degrade to.
- */
-const UUID_PATTERN = /^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/i;
 
 /**
  * Conditions this module has already reported. Module scope and never reset, so
@@ -407,7 +399,11 @@ export function registerModule(ctx: ModuleContext): void {
           channelId: string | null,
         ): Promise<T> => {
           const cradle = ctx.cradle<QuoteRequestsCradle>();
-          if (channelId === null || !UUID_PATTERN.test(channelId)) {
+          // `setting_values.sales_channel_id` is a `uuid` column, so a channel id that is
+          // not one cannot match a row — PostgreSQL rejects the comparison outright. The
+          // check is here rather than in the settings service because this is the caller
+          // that has somewhere to degrade to.
+          if (channelId === null || !isUuidShape(channelId)) {
             // Both roots answer this resolver with the system-default channel's
             // id, falling back to `ORGANIZATIONS_SETTINGS_CHANNEL_ID` — an env
             // knob whose own default is the string `'default'`. So "no channel"

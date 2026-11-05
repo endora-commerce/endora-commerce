@@ -1,5 +1,5 @@
 import type { z } from 'zod';
-import { isCalendarDate } from './common.js';
+import { isCalendarDate, isUuidShape } from './common.js';
 import { normalizeEmailAddress } from './email-address.js';
 import {
   FORM_CONDITION_OPERATORS_BY_TYPE,
@@ -333,7 +333,6 @@ export function visibleElements(
 // --- definitionIssues --------------------------------------------------------------------------
 
 const KEY_PATTERN = /^[a-z][a-z0-9_]{0,63}$/;
-const UUID_PATTERN = /^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/i;
 
 /**
  * An absolute `http(s)` address: a scheme, a host, then anything without whitespace. A pattern
@@ -473,7 +472,7 @@ export function definitionIssues(definition: FormDefinition, defaultLanguage: st
   if (confirmation.type === 'redirect' && !isAbsoluteHttpUrl(confirmation.url)) {
     issue('invalid_redirect_url', null, 'behaviour.confirmation.url');
   }
-  if (confirmation.type === 'page' && !UUID_PATTERN.test(confirmation.cmsPageId)) {
+  if (confirmation.type === 'page' && !isUuidShape(confirmation.cmsPageId)) {
     issue('invalid_page_reference', null, 'behaviour.confirmation.cmsPageId');
   }
 

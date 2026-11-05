@@ -1,5 +1,5 @@
 import type { EntityManager } from '@mikro-orm/postgresql';
-import { ERROR_CODES } from '@endora-commerce/contracts';
+import { ERROR_CODES, isUuidShape } from '@endora-commerce/contracts';
 import type {
   CatalogAttributeReadPort,
   CatalogCategoryReadPort,
@@ -190,6 +190,7 @@ export class PriceListService {
     scope: DisplayModeOverrideScope,
     targetId: string,
   ): Promise<PriceDisplayModeOverride | null> {
+    if (!isUuidShape(targetId)) return null;
     return this.emFactory().findOne(PriceDisplayModeOverride, { scope, targetId });
   }
 

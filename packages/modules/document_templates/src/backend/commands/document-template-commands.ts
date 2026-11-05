@@ -1,6 +1,6 @@
 import { createHash } from 'node:crypto';
 import type { EntityManager } from '@mikro-orm/postgresql';
-import { ERROR_CODES } from '@endora-commerce/contracts';
+import { ERROR_CODES, isUuidShape } from '@endora-commerce/contracts';
 import type { AuditState, Command, CommandContext } from '@endora-commerce/platform/commands';
 import { HttpError } from '@endora-commerce/platform/http';
 import { DocumentTemplate } from '../entities/document-template.entity.js';
@@ -63,6 +63,7 @@ function notFound(id: string): HttpError {
 }
 
 async function loadVersioned(ctx: CommandContext, id: string, expectedVersion: number): Promise<DocumentTemplate> {
+  if (!isUuidShape(id)) throw notFound(id);
   const row = await ctx.em.findOne(DocumentTemplate, { id });
   if (!row) throw notFound(id);
   if (row.version !== expectedVersion) {
@@ -207,6 +208,7 @@ export function setDefaultCommand(input: {
     objectType: OBJECT_TYPE,
     objectId: input.id,
     async run(ctx) {
+      if (!isUuidShape(input.id)) throw notFound(input.id);
       const probe = await ctx.em.findOne(DocumentTemplate, { id: input.id });
       if (!probe) throw notFound(input.id);
       await lockScope(ctx.em, probe.documentType, probe.salesChannelId ?? null);

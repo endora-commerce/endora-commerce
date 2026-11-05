@@ -25,8 +25,7 @@ import {
 import { customFieldIssues, NewOpportunityCustomFields } from '../components/OpportunityCustomFields.js';
 import { ReferenceField } from '../components/ReferenceField.js';
 import { errorMessage, normaliseAmount } from '../lib/labels.js';
-
-const UUID = /^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/i;
+import { isUuidShape } from '@endora-commerce/contracts';
 
 type FieldErrors = Partial<
   Record<'title' | 'organization' | 'currency' | 'value', string | undefined>
@@ -57,7 +56,7 @@ export function OpportunityCreatePage(): ReactNode {
   const [searchParams] = useSearchParams();
   const requestedOrganization = searchParams.get('organizationId');
   const preselected =
-    requestedOrganization && UUID.test(requestedOrganization) ? requestedOrganization : null;
+    requestedOrganization && isUuidShape(requestedOrganization) ? requestedOrganization : null;
 
   // --- The document this Opportunity is being created from (US17) -----------
   const requestedLinkId = searchParams.get('linkDocumentId');
@@ -65,7 +64,7 @@ export function OpportunityCreatePage(): ReactNode {
   const linkDocument =
     (requestedLinkKind === 'order' || requestedLinkKind === 'quote_request') &&
     requestedLinkId &&
-    UUID.test(requestedLinkId)
+    isUuidShape(requestedLinkId)
       ? ({ documentKind: requestedLinkKind, documentId: requestedLinkId } as const)
       : null;
   const linksAnOrder = linkDocument?.documentKind === 'order';

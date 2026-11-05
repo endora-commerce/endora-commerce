@@ -6,6 +6,7 @@ import {
   type PatchProductScopesRequest,
   type ScopeCompletenessGateMode,
   type ScopeWarning,
+  isUuidShape,
 } from '@endora-commerce/contracts';
 import { HttpError } from '@endora-commerce/platform/http';
 import { rethrowIfModuleDisabled } from '@endora-commerce/platform/kernel';
@@ -239,6 +240,9 @@ export class CatalogBulkUpdateService {
     completeness: ScopeCompletenessGateMode | undefined,
   ): Promise<BulkUpdateOutcome> {
     const em = this.emFactory();
+    if (!isUuidShape(productId)) {
+      return { productId, status: 'skipped', reason: 'product_not_found' };
+    }
     const product = await em.findOne(Product, { id: productId });
     if (!product) {
       return { productId, status: 'skipped', reason: 'product_not_found' };

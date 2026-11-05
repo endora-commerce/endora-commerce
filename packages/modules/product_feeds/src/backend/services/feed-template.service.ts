@@ -6,6 +6,7 @@ import {
   type FeedTemplateFieldWrite,
   type TaxonomyProviderCode,
   type UpdateFeedTemplateRequest,
+  isUuidShape,
 } from '@endora-commerce/contracts';
 import type { CommandBus } from '@endora-commerce/platform/commands';
 import { HttpError } from '@endora-commerce/platform/http';
@@ -110,6 +111,7 @@ export class FeedTemplateService {
   // -------------------------------------------------------------------------
 
   async getOrFail(templateId: string): Promise<FeedTemplate> {
+    if (!isUuidShape(templateId)) throw new HttpError(404, ERROR_CODES.NOT_FOUND, 'Feed template not found.');
     const template = await this.deps
       .emFactory()
       .findOne(FeedTemplate, { id: templateId, deletedAt: null });
