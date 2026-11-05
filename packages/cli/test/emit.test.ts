@@ -34,7 +34,7 @@ function codeOf(content: string): string {
 function emit(extra: Partial<ScaffoldInput> = {}): Map<string, string> {
   const spec = buildScaffoldSpec({
     id: 'demo_widgets',
-    name: 'Demo Widgets',
+    name: 'Demo widgets',
     description: 'A worked example of a module package.',
     now: NOW,
     ...extra,
@@ -206,7 +206,7 @@ describe('the checklists each flag makes applicable', () => {
   it('names the migration class mechanically from its file, scoped by the module segment', () => {
     const spec = buildScaffoldSpec({
       id: 'demo_widgets',
-      name: 'Demo Widgets',
+      name: 'Demo widgets',
       description: 'x',
       entities: true,
       now: NOW,
