@@ -102,7 +102,6 @@ export const account = defineMessages({
     // `specs/173-b2c-address-book-merge/` (#745, #792) — what the one address book says about a refusal.
     'account.addresses.error.VALIDATION_FAILED': 'Some fields need your attention. Check the messages below each one.',
     'account.addresses.error.NOT_FOUND': 'That address no longer exists. The list below is up to date.',
-    'account.addresses.error.FAILED': 'Something went wrong. Try again.',
     'account.addresses.field.kind.invalid': 'Choose whether this is a delivery or a billing address.',
     'account.addresses.field.recipientName.required': 'Enter the name of the person or company who receives deliveries here.',
     'account.addresses.field.recipientName.tooLong': 'Shorten the recipient name to 160 characters or fewer.',
@@ -526,6 +525,18 @@ export const account = defineMessages({
     'account.order.error.PAYMENT_ORDER_CLOSED': 'This order is closed and can no longer be paid.',
     'account.order.error.PAYMENT_ADAPTER_UNAVAILABLE': 'The payment method this order was placed with is no longer available.',
     'account.order.error.FAILED': 'Something went wrong with this order. Please try again.',
+    // ── issue #745: the address, shopping-list and password pages' error codes
+    // (`lib/account/address-errors.ts`, `shopping-list-errors.ts`, `password-errors.ts`).
+    'account.addresses.error.FAILED': 'Something went wrong with your addresses. Please try again.',
+    'account.shoppingLists.error.SHOPPING_LIST_CANNOT_DELETE_DEFAULT':
+      'Your default shopping list is the one new items are saved to, so it cannot be deleted. Empty it if you no longer need what is on it, or make another list the default first — then this one can go.',
+    'account.shoppingLists.error.SHOPPING_LIST_CANNOT_DELETE_LAST':
+      'This is your only shopping list, and an account always keeps at least one. Create another list first, and then this one can be deleted.',
+    'account.shoppingLists.error.NOT_FOUND': 'This shopping list or item no longer exists. Refresh the page.',
+    'account.shoppingLists.error.FAILED': 'Something went wrong with your shopping lists. Please try again.',
+    'account.password.error.CURRENT_PASSWORD_INVALID': 'The current password is incorrect.',
+    'account.password.error.VALIDATION_FAILED':
+      'The new password does not meet the requirements. Use at least 12 characters.',
   },
   'pl-PL': {
     'account.common.open': 'Otwórz',
@@ -600,7 +611,6 @@ export const account = defineMessages({
     'account.addresses.defaultFailed': 'Nie udało się ustawić adresu domyślnego.',
     'account.addresses.error.VALIDATION_FAILED': 'Niektóre pola wymagają poprawy. Sprawdź komunikaty pod nimi.',
     'account.addresses.error.NOT_FOUND': 'Ten adres już nie istnieje. Lista poniżej jest aktualna.',
-    'account.addresses.error.FAILED': 'Coś poszło nie tak. Spróbuj ponownie.',
     'account.addresses.field.kind.invalid': 'Wybierz, czy to adres do dostawy, czy do faktury.',
     'account.addresses.field.recipientName.required': 'Wpisz imię i nazwisko lub nazwę firmy odbierającej przesyłki pod tym adresem.',
     'account.addresses.field.recipientName.tooLong': 'Skróć nazwę odbiorcy do 160 znaków.',
@@ -1013,5 +1023,15 @@ export const account = defineMessages({
     'account.order.error.PAYMENT_ORDER_CLOSED': 'To zamówienie zostało zamknięte i nie można go już opłacić.',
     'account.order.error.PAYMENT_ADAPTER_UNAVAILABLE': 'Metoda płatności wybrana przy składaniu tego zamówienia nie jest już dostępna.',
     'account.order.error.FAILED': 'Coś poszło nie tak z tym zamówieniem. Spróbuj ponownie.',
+    // ── issue #745
+    'account.addresses.error.FAILED': 'Coś poszło nie tak z adresami. Spróbuj ponownie.',
+    'account.shoppingLists.error.SHOPPING_LIST_CANNOT_DELETE_DEFAULT':
+      'Domyślna lista zakupowa to ta, na której zapisują się nowe produkty, dlatego nie można jej usunąć. Opróżnij ją, jeśli nie potrzebujesz już jej zawartości, albo najpierw ustaw jako domyślną inną listę — wtedy tę będzie można usunąć.',
+    'account.shoppingLists.error.SHOPPING_LIST_CANNOT_DELETE_LAST':
+      'To Twoja jedyna lista zakupowa, a na koncie zawsze musi pozostać co najmniej jedna. Najpierw utwórz kolejną listę, a potem tę będzie można usunąć.',
+    'account.shoppingLists.error.NOT_FOUND': 'Ta lista zakupów lub pozycja już nie istnieje. Odśwież stronę.',
+    'account.shoppingLists.error.FAILED': 'Coś poszło nie tak z listami zakupów. Spróbuj ponownie.',
+    'account.password.error.CURRENT_PASSWORD_INVALID': 'Obecne hasło jest nieprawidłowe.',
+    'account.password.error.VALIDATION_FAILED': 'Nowe hasło nie spełnia wymagań. Użyj co najmniej 12 znaków.',
   },
 });

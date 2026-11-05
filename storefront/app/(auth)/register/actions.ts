@@ -94,7 +94,8 @@ export async function registerFormAction(previous: RegisterFormState, formData: 
     const t = tForLocale((await getServerContext()).locale);
     return refusedRegistration(previous, formData, { code: 'INTERNAL', message: t('auth.register.failed') });
   }
-  return await localeRedirect(`/register?status=pending&email=${encodeURIComponent(values.email)}`);
+  // Issue #745 — no address in the URL: it is personal data, and the page would print it.
+  return await localeRedirect('/register?status=pending');
 }
 
 export async function lookupCompanyAction(input: {
