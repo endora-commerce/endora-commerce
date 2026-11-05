@@ -9,3 +9,4 @@
 - **Import profiles** (`/api/v1/admin/import-export/profiles`, `catalog:write`) map a source file's locales and channels to scopes; `GET /api/v1/admin/import-export/channel-targets` lists the channels a mapping may target.
 - The import report is capped and carries `truncated: { errors, fieldErrors }`; the 10 MiB body limit applies to `POST /api/v1/admin/import/products` only.
 - The report's `imported` counts a row only when at least one of its cells applied: a row whose every cell was refused (a field error each) counts 0. A row error that refuses the whole product is shown by its label in the admin, never as a raw code.
+- A non-empty cell under a Page Builder content attribute's `attribute:<key>` column is refused as the field error `content_attribute`; the rest of the row is imported.
