@@ -142,6 +142,28 @@ export const auth = defineMessages({
     'auth.organizationSecurity.forbidden': 'Only the organization’s administrators can change this setting.',
     // The sign-out button (account sidebar; callers may pass their own label).
     'auth.signOut.button': 'Sign out',
+    // ── issue #745: the two-step verification codes the sign-in and security pages
+    // carry in `?error=` (`lib/auth/mfa-errors.ts`).
+    'auth.mfa.error.MFA_INVALID_CODE':
+      'That code was not accepted. A code from your authenticator app is only valid for about half a minute, so wait for the next one and enter it without spaces; a recovery code can be used only once.',
+    'auth.mfa.error.MFA_INVALID_CHALLENGE':
+      'This sign-in step is no longer valid — it has expired, or it was already finished. Sign in again to start a new one.',
+    'auth.mfa.error.MFA_TOO_MANY_ATTEMPTS':
+      'Too many incorrect codes were entered, so this sign-in attempt was stopped. Sign in again and use the next code straight from your authenticator app, or one of your recovery codes.',
+    'auth.mfa.error.MFA_WRONG_SURFACE':
+      'This sign-in was started somewhere else, so the code cannot be confirmed here. Go back to the page you were signing in on and enter it there.',
+    'auth.mfa.error.MFA_ALREADY_ENROLLED':
+      'Two-step verification is already set up on this account, so there is nothing left to configure. To move it to a different authenticator app, switch it off first and then set it up again.',
+    'auth.mfa.error.MFA_NO_PENDING_ENROLMENT':
+      'There is no setup waiting to be confirmed — it was either finished already, or started again somewhere else. Begin the setup again and scan the new QR code before entering a code.',
+    'auth.mfa.error.MFA_NO_ACTIVE_ENROLMENT':
+      'Two-step verification is not switched on for this account, so there are no recovery codes to reissue. Set it up first — the codes are handed to you at the end of setup.',
+    'auth.mfa.error.MFA_NOT_ENABLED':
+      'Two-step verification is not available here, so it cannot be switched on for this account. Your administrator decides where it can be used — ask them to enable it.',
+    'auth.mfa.error.MFA_REAUTH_REQUIRED':
+      'Switching two-step verification off has to be confirmed by you. Enter a current code from your authenticator app, or the password for this account.',
+    'auth.mfa.error.MFA_SOCIAL_LAST_CREDENTIAL':
+      'This is the last sign-in identity linked to the account, and the account has no password on record — removing it could lock its holder out for good. Set a password for the account first, then this link can be removed.',
   },
   'pl-PL': {
     'auth.field.email': 'Adres e-mail',
@@ -262,5 +284,26 @@ export const auth = defineMessages({
     'auth.organizationSecurity.failed': 'Nie udało się zaktualizować wymogu.',
     'auth.organizationSecurity.forbidden': 'To ustawienie mogą zmieniać tylko administratorzy organizacji.',
     'auth.signOut.button': 'Wyloguj się',
+    // ── issue #745
+    'auth.mfa.error.MFA_INVALID_CODE':
+      'Ten kod nie został przyjęty. Kod z aplikacji uwierzytelniającej jest ważny tylko przez około pół minuty, więc poczekaj na kolejny i wpisz go bez spacji; kodu odzyskiwania można użyć tylko raz.',
+    'auth.mfa.error.MFA_INVALID_CHALLENGE':
+      'Ten krok logowania nie jest już ważny — wygasł albo został już zakończony. Zaloguj się ponownie, aby rozpocząć nowy.',
+    'auth.mfa.error.MFA_TOO_MANY_ATTEMPTS':
+      'Wpisano zbyt wiele błędnych kodów, więc ta próba logowania została przerwana. Zaloguj się ponownie i użyj kolejnego kodu prosto z aplikacji uwierzytelniającej albo jednego z kodów odzyskiwania.',
+    'auth.mfa.error.MFA_WRONG_SURFACE':
+      'To logowanie zostało rozpoczęte w innym miejscu, więc tego kodu nie można tu potwierdzić. Wróć na stronę, na której rozpoczęło się logowanie, i wpisz kod tam.',
+    'auth.mfa.error.MFA_ALREADY_ENROLLED':
+      'Weryfikacja dwuetapowa jest już skonfigurowana na tym koncie i nie ma nic więcej do ustawienia. Aby przenieść ją do innej aplikacji uwierzytelniającej, najpierw ją wyłącz, a potem skonfiguruj od nowa.',
+    'auth.mfa.error.MFA_NO_PENDING_ENROLMENT':
+      'Nie ma konfiguracji czekającej na potwierdzenie — została już zakończona albo rozpoczęta na nowo w innym miejscu. Rozpocznij konfigurację jeszcze raz i zeskanuj nowy kod QR, zanim wpiszesz kod.',
+    'auth.mfa.error.MFA_NO_ACTIVE_ENROLMENT':
+      'Weryfikacja dwuetapowa nie jest włączona na tym koncie, więc nie ma kodów odzyskiwania do wygenerowania na nowo. Najpierw ją skonfiguruj — kody otrzymasz na końcu konfiguracji.',
+    'auth.mfa.error.MFA_NOT_ENABLED':
+      'Weryfikacja dwuetapowa nie jest tu dostępna, więc nie można jej włączyć na tym koncie. O tym, gdzie można z niej korzystać, decyduje administrator — poproś go o włączenie tej opcji.',
+    'auth.mfa.error.MFA_REAUTH_REQUIRED':
+      'Wyłączenie weryfikacji dwuetapowej musi zostać przez Ciebie potwierdzone. Podaj aktualny kod z aplikacji uwierzytelniającej albo hasło do tego konta.',
+    'auth.mfa.error.MFA_SOCIAL_LAST_CREDENTIAL':
+      'To ostatnia tożsamość logowania powiązana z kontem, a konto nie ma zapisanego hasła — usunięcie jej mogłoby trwale odciąć dostęp do konta. Najpierw ustaw hasło do konta, a potem to powiązanie będzie można usunąć.',
   },
 });

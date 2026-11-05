@@ -1,9 +1,9 @@
 import type { ReactNode } from 'react';
 import { getSessionCookie } from '../../../../lib/session';
 import { changePassword } from '../../../../lib/api/account';
-import { StorefrontApiError } from '../../../../lib/api/client';
 import type { Metadata } from 'next';
 import { localeRedirect } from '../../../../lib/i18n/navigation';
+import { PASSWORD_ERRORS } from '../../../../lib/account/settings-errors';
 import { getServerContext } from '../../../../lib/server-context';
 import { tForLocale } from '../../../../lib/i18n/messages';
 
@@ -36,7 +36,8 @@ export default async function ChangePasswordPage({
       {params.status === 'updated' ? (
         <p className="b2b-auth__success">{t('account.password.updated')}</p>
       ) : null}
-      {params.error ? <p className="b2b-auth__error">{params.error}</p> : null}
+      {/* Issue #745 — `?error=` is a code; one this page does not know reads as its generic failure. */}
+      {params.error ? <p className="b2b-auth__error">{t(PASSWORD_ERRORS.errorKey(params.error)!)}</p> : null}
       <form action={changePasswordAction} className="b2b-auth__form">
         <div className="b2b-auth__field">
           <label htmlFor="current-pw">{t('account.password.current')}</label>
@@ -76,13 +77,10 @@ async function changePasswordAction(formData: FormData): Promise<void> {
   if (!session) return await localeRedirect('/login');
   const currentPassword = (formData.get('currentPassword') as string) ?? '';
   const newPassword = (formData.get('newPassword') as string) ?? '';
-  const { locale } = await getServerContext();
   try {
     await changePassword(session, currentPassword, newPassword);
   } catch (err) {
-    const message =
-      err instanceof StorefrontApiError ? err.detail : tForLocale(locale)('account.password.failed');
-    return await localeRedirect(`/account/password?error=${encodeURIComponent(message)}`);
+    return await localeRedirect(`/account/password?error=${PASSWORD_ERRORS.failureCode(err, 'CHANGE_FAILED')}`);
   }
   return await localeRedirect(`/account/password?status=updated`);
 }

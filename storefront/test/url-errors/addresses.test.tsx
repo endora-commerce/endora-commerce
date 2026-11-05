@@ -58,7 +58,7 @@ const refuse = async (): Promise<never> => {
   throw failure ?? new Error('fetch failed');
 };
 vi.mock('../../lib/api/customers', () => ({
-  listMyAddresses: async () => ({ personal: [address], organization: [] }),
+  listMyAddresses: async () => ({ personal: [address, { ...address, id: 'a2', isDefault: false }], organization: [] }),
   createMyAddress: refuse,
   deleteMyAddress: refuse,
   setMyDefaultAddress: refuse,
