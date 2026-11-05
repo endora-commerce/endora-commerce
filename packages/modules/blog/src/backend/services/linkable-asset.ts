@@ -23,3 +23,22 @@ export async function assertLinkableAsset(assets: LinkableAssetReader | undefine
   if (asset && (await assets.visibleToCaller([asset.id])).has(asset.id)) return;
   throw new HttpError(404, ERROR_CODES.NOT_FOUND, `Asset ${assetId} not found.`);
 }
+
+/**
+ * How a post's or category's `main_image_asset_id`, and an author's avatar,
+ * becomes a storefront URL (feature 163). Only a stable public URL is served —
+ * a storefront visitor carries no session — and an asset without one renders
+ * the card without an image.
+ *
+ * **The batched read, not `AssetsLibraryPort.getAsset`.** `getAsset` builds the
+ * admin detail, whose "used by" list walks every registered reference
+ * descriptor — on a site with real CMS content that is seconds per image, run
+ * for every card, every related post and every author on each blog request.
+ * `resolvePublicUrls` is one keyed read and says "no URL" by leaving the id out,
+ * so there is no `catch` here: the owner being off still answers as itself.
+ */
+export function publicAssetUrlResolver(
+  assets: Pick<AssetReadPort, 'resolvePublicUrls'>,
+): (assetId: string) => Promise<string | null> {
+  return async (assetId) => (await assets.resolvePublicUrls([assetId])).get(assetId) ?? null;
+}
