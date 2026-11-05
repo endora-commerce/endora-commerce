@@ -190,7 +190,10 @@ describe('customer_accounts — passwordSetAt (issue #222)', () => {
 
   it('leaves the column null when federated sign-in auto-creates the account', async () => {
     const email = `pw-set-social-${Date.now()}@example.test`;
-    const created = await socialLogin().autoCreate(email, { salesChannelId: null });
+    // Issue #773 — the setting is read for the channel the sign-in started on,
+    // and no channel means no account; the default channel stands in for one.
+    const salesChannelId = (await h.salesChannels.resolver.getSystemDefault()).id;
+    const created = await socialLogin().autoCreate(email, { salesChannelId });
     expect(created, 'auto-create is allowed in this composition').not.toBeNull();
 
     const account = await rowFor(email);

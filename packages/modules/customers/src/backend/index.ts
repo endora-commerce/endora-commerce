@@ -41,6 +41,7 @@ import {
   type CustomerAdminSearchProviderDeps,
 } from './admin-search-provider.js';
 import { CustomerAddressReadService } from './services/customer-address-read-port.js';
+import { readChannelSetting as readSetting, type ChannelSettingScope } from './channel-setting.js';
 import type { ModuleContext } from '@endora-commerce/platform/kernel';
 import { currentSalesChannel, lazyPort } from '@endora-commerce/platform/kernel';
 import type { RequireAdminFactory } from '@endora-commerce/platform/kernel';
@@ -215,37 +216,30 @@ export function registerModule(ctx: ModuleContext): void {
   const cradle = (): CustomersCradle => ctx.cradle<CustomersCradle>();
   registerModerationActor(ctx);
 
-  /**
-   * This module's own settings, read against a channel. Each degrades to the
-   * manifest default rather than failing the request — the identical try/catch
-   * stood in the production root, three times over.
-   *
-   * `channel: 'request'` reads for the sales channel the current request
-   * resolved to (Constitution XII), falling back to the system-default channel
-   * only where no request scope carries one. `settings` then applies its own
-   * tiers — the channel's row, the all-channels value, the manifest default.
-   * Issue #773: the B2C registration gate read the system-default channel's
-   * value here, so it applied that one value to every channel.
-   *
-   * D-48 removed an `if (!channel) return fallback;` from between the two: on
-   * the impossible no-channel branch it returned the compiled-in constant
-   * without reading the setting at all, which is worse than switching tier.
-   */
-  const readChannelSetting = async <T>(
+  /** See `readChannelSetting` in `./channel-setting.ts` (issue #773). */
+  const readChannelSetting = <T>(
     code: string,
     schema: Parameters<SettingsReadPort['get']>[2],
     fallback: T,
-    channel: 'request' | 'system-default' = 'system-default',
-  ): Promise<T> => {
-    try {
-      const channelId =
-        (channel === 'request' ? currentSalesChannel()?.id : undefined) ??
-        (await cradle().salesChannelResolutionPort.getSystemDefault()).id;
-      return (await cradle().settingsReadPort.get(code, channelId, schema)) as T;
-    } catch {
-      return fallback;
-    }
-  };
+    scope?: ChannelSettingScope,
+  ): Promise<T> =>
+    readSetting(
+      {
+        // Getters, so a cradle that cannot resolve degrades inside the reader's
+        // try/catch exactly as the inline closure did.
+        get settingsReadPort() {
+          return cradle().settingsReadPort;
+        },
+        get salesChannelResolutionPort() {
+          return cradle().salesChannelResolutionPort;
+        },
+        currentChannelId: () => currentSalesChannel()?.id,
+      },
+      code,
+      schema,
+      fallback,
+      scope,
+    );
 
   /**
    * Feature 075, Phase P — the customer's own saved addresses.
