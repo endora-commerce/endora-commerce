@@ -8,7 +8,9 @@ import type {
  * Ministerstwo Finansów ("Biała lista podatników VAT") REST client.
  * Feature 026 US7.
  *
- * Hits `GET https://wl-api.mf.gov.pl/api/search/nip/{nip}?date=YYYY-MM-DD`.
+ * Hits `GET https://wykazpodatnikowvat.mf.gov.pl/api/search/nip/{nip}?date=YYYY-MM-DD`.
+ * The service moved there from `wl-api.mf.gov.pl`, which stops answering on
+ * 2026-12-01 (feature 173, research R-6).
  * Times out at 5 s; degrades to `deferred` on network errors or 5xx
  * responses. A clean "not registered" becomes `failed` / `not_found`.
  *
@@ -55,7 +57,7 @@ export class MinisterstwoFinansowClient implements VatValidator {
   private lastRequestAt = 0;
 
   constructor(options: MinisterstwoFinansowClientOptions = {}) {
-    this.baseUrl = options.baseUrl ?? 'https://wl-api.mf.gov.pl';
+    this.baseUrl = options.baseUrl ?? 'https://wykazpodatnikowvat.mf.gov.pl';
     this.timeoutMs = options.timeoutMs ?? 5000;
     this.fetchImpl = options.fetchImpl ?? globalThis.fetch.bind(globalThis);
     this.minIntervalMs = options.minIntervalMs ?? 100;

@@ -264,7 +264,7 @@ Port `VatValidator` mają dwie produkcyjne implementacje klienta HTTP:
 
 - `ViesClient` → `POST` na endpoint REST VIES (`/check-vat-number`). Limit czasu 5 s; jedno
   przerwanie przy błędzie sieci.
-- `MinisterstwoFinansowClient` → `GET` na `wl-api.mf.gov.pl/api/search/nip/{nip}`. Ograniczenie do
+- `MinisterstwoFinansowClient` → `GET` na `wykazpodatnikowvat.mf.gov.pl/api/search/nip/{nip}`. Ograniczenie do
   10 żądań na sekundę w procesie; 7-dniowa pamięć podręczna z kluczem `(nip, today)`, oparta na
   historii w usłudze `OrganizationTaxIdValidation` (jeden wiersz na próbę).
 

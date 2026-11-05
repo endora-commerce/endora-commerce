@@ -268,7 +268,7 @@ Two production HTTP clients implement the `VatValidator` port:
 - `ViesClient` → `POST` against the VIES REST endpoint
   (`/check-vat-number`). 5-second timeout; single abort on network
   error.
-- `MinisterstwoFinansowClient` → `GET` against `wl-api.mf.gov.pl/api/search/nip/{nip}`.
+- `MinisterstwoFinansowClient` → `GET` against `wykazpodatnikowvat.mf.gov.pl/api/search/nip/{nip}`.
   In-process 10-rps throttle; 7-day cache key on `(nip, today)` is
   baked into the service-side `OrganizationTaxIdValidation` history
   (one row per attempt).
