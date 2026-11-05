@@ -1,6 +1,8 @@
 import { describe, expect, it, vi } from 'vitest';
+import { getTenantContext } from '@endora-commerce/platform/tenancy';
 import {
   ADDRESS_BOOK_RETIREMENT_JOB_ID,
+  ADDRESS_BOOK_RETIREMENT_SCOPE_REASON,
   ADDRESS_BOOK_RETIREMENT_QUEUE,
   runAddressBookRetirementJob,
   startAddressBookRetirement,
@@ -112,46 +114,38 @@ describe('customers address-book retirement job', () => {
   });
 
   describe('one run', () => {
-    it('with nothing left it asks and enters no scope', async () => {
+    it('with nothing left it asks and runs nothing', async () => {
       const runInScope = vi.fn(async () => nothing);
-      const enter = vi.fn();
-      await runAddressBookRetirementJob({ retirement: { hasWork: async () => false, runInScope }, log: logger() }, enter);
+      expect(await runAddressBookRetirementJob({ retirement: { hasWork: async () => false, runInScope }, log: logger() })).toBeNull();
       expect(runInScope).not.toHaveBeenCalled();
-      expect(enter).not.toHaveBeenCalled();
     });
 
     it('with rows left it runs inside a system scope and logs the summary', async () => {
       const log = logger();
       const result = { accounts: 2, moved: 3, deduplicated: 1, erased: 1, refused: 1 };
-      const runInScope = vi.fn(async () => result);
-      const reasons: string[] = [];
-      await runAddressBookRetirementJob(
-        { retirement: { hasWork: async () => true, runInScope }, log },
-        async (reason, fn) => {
-          reasons.push(reason);
-          return fn();
-        },
-      );
+      let mode: string | undefined;
+      const runInScope = vi.fn(async () => {
+        mode = getTenantContext()?.mode;
+        return result;
+      });
+      await runAddressBookRetirementJob({ retirement: { hasWork: async () => true, runInScope }, log });
       expect(runInScope).toHaveBeenCalledTimes(1);
-      expect(reasons).toHaveLength(1);
-      expect(reasons[0]).toContain('#762');
+      expect(mode).toBe('system');
+      expect(ADDRESS_BOOK_RETIREMENT_SCOPE_REASON).toContain('#762');
       expect(log.info).toHaveBeenCalledWith(result, expect.any(String));
     });
 
     it('a failed run fails the job, so BullMQ retries it', async () => {
       await expect(
-        runAddressBookRetirementJob(
-          {
-            retirement: {
-              hasWork: async () => true,
-              runInScope: async () => {
-                throw new Error('database went away');
-              },
+        runAddressBookRetirementJob({
+          retirement: {
+            hasWork: async () => true,
+            runInScope: async () => {
+              throw new Error('database went away');
             },
-            log: logger(),
           },
-          async (_reason, fn) => fn(),
-        ),
+          log: logger(),
+        }),
       ).rejects.toThrow('database went away');
     });
   });

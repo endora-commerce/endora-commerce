@@ -45,10 +45,6 @@ export interface AddressBookRetirementJobDeps {
   readonly log: PlatformLogger;
 }
 
-type EnterScope = <T>(reason: string, fn: () => Promise<T>) => Promise<T>;
-
-const enterScope: EnterScope = (reason, fn) => enterSystemScope(reason, () => fn());
-
 /**
  * One run. It asks first, with no tenant context, whether any row is left —
  * one boolean over this module's own table — and enters the system scope only
@@ -57,10 +53,9 @@ const enterScope: EnterScope = (reason, fn) => enterSystemScope(reason, () => fn
  */
 export async function runAddressBookRetirementJob(
   deps: AddressBookRetirementJobDeps,
-  enter: EnterScope = enterScope,
 ): Promise<AddressBookRetirementResult | null> {
   if (!(await deps.retirement.hasWork())) return null;
-  const result = await enter(ADDRESS_BOOK_RETIREMENT_SCOPE_REASON, () => deps.retirement.runInScope());
+  const result = await enterSystemScope(ADDRESS_BOOK_RETIREMENT_SCOPE_REASON, () => deps.retirement.runInScope());
   deps.log.info(result, 'customers: personal address book retirement finished');
   return result;
 }
