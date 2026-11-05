@@ -1,7 +1,12 @@
 import Fastify, { type FastifyInstance } from 'fastify';
 import { serializerCompiler, validatorCompiler } from '@fastify/type-provider-zod';
 import { afterEach, beforeEach, describe, expect, it } from 'vitest';
-import type { OrganizationDetailsPort, OrganizationRecord } from '@endora-commerce/contracts';
+import type {
+  OrderReadPort,
+  OrganizationDetailsPort,
+  OrganizationPermissionPort,
+  OrganizationRecord,
+} from '@endora-commerce/contracts';
 import {
   registerCreditLimitsRoutes,
   type CreditLimitsDeps,
@@ -61,6 +66,9 @@ describe('GET /api/v1/admin/credit-limits — the organisation name', () => {
     const deps: CreditLimitsDeps = {
       creditLimitService,
       organizationDetailsPort,
+      // Unused by the admin routes; only the customer view narrows its list.
+      organizationPermissionPort: {} as OrganizationPermissionPort,
+      orderReadPort: {} as OrderReadPort,
       requireCustomer: async () => {},
       requireAdmin: () => async () => {},
       resolveCustomerContext: () => ({

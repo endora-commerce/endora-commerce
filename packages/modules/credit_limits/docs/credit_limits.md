@@ -27,6 +27,14 @@ the limit exists; `credit_limit`-kind payment methods are filtered out
 of Checkout when no limit is granted or the cart total exceeds the
 available credit.
 
+Which reservations a customer sees: the limit is shared, so the granted
+amount, the available amount and `activeReservationCount` are always the
+Organization's figures. The `activeReservations` list holds only the
+reservations of orders the customer may read: their own orders, or every
+order of the Organization when their organization role holds
+`orders.view_organization` (the Administrator role holds it implicitly).
+The admin routes always list every reservation.
+
 ## Concurrency model
 
 `CreditLimitService.reserve()` opens a `SELECT … FOR UPDATE` on the
