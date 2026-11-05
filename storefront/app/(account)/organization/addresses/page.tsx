@@ -2,11 +2,12 @@ import type { ReactNode } from 'react';
 import { getSessionCookie } from '../../../../lib/session';
 import { createAddress, deleteAddress, listAddresses } from '../../../../lib/api/organization';
 import { StorefrontApiError } from '../../../../lib/api/client';
-import { CountryPicker } from '../../../../lib/dictionary/pickers/CountryPicker';
+import { OrganizationAddressForm } from '../../../../components/account/OrganizationAddressForm';
 import type { Metadata } from 'next';
 import { localeRedirect } from '../../../../lib/i18n/navigation';
+import { ADDRESS_ERRORS, invalidAddressFields, type AddressFormState } from '../../../../lib/account/address-errors';
 import { getServerContext } from '../../../../lib/server-context';
-import { tForLocale, type MessageKey } from '../../../../lib/i18n/messages';
+import { tForLocale } from '../../../../lib/i18n/messages';
 import { codeLabel } from '../../../../lib/account/labels';
 import { getMe } from '../../../../lib/api/account';
 import { memberSession } from '../../../../lib/commerce-permissions';
@@ -60,7 +61,8 @@ export default async function AddressesPage({
       {params.status === 'removed' ? (
         <p className="b2b-auth__success">{t('account.addresses.removed')}</p>
       ) : null}
-      {params.error ? <p className="b2b-auth__error">{params.error}</p> : null}
+      {/* Issue #745 — `?error=` is a code (the remove's); one this page does not know reads as its generic failure. */}
+      {params.error ? <p className="b2b-auth__error">{t(ADDRESS_ERRORS.errorKey(params.error)!)}</p> : null}
 
       <table className="b2b-account__table">
         <thead>
@@ -97,56 +99,7 @@ export default async function AddressesPage({
       {canManage ? (
         <>
           <h3>{t('account.addresses.add.heading')}</h3>
-          <form action={createAddressAction} className="b2b-auth__form">
-            <div className="b2b-auth__row">
-              <div className="b2b-auth__field">
-                <label htmlFor="addr-kind">{t('account.addresses.col.kind')}</label>
-                <select id="addr-kind" name="kind" defaultValue="delivery">
-                  <option value="delivery">{t('account.addressKind.delivery')}</option>
-                  <option value="billing">{t('account.addressKind.billing')}</option>
-                </select>
-              </div>
-              <div className="b2b-auth__field">
-                <label htmlFor="addr-recipient">{t('account.addresses.col.recipient')}</label>
-                <input id="addr-recipient" name="recipientName" required maxLength={160} placeholder=" " />
-              </div>
-            </div>
-            <div className="b2b-auth__field">
-              <label htmlFor="addr-street">{t('account.addresses.add.street')}</label>
-              <input id="addr-street" name="street" required maxLength={255} placeholder=" " />
-            </div>
-            <div className="b2b-auth__row">
-              <div className="b2b-auth__field">
-                <label htmlFor="addr-city">{t('checkout.address.city')}</label>
-                <input id="addr-city" name="city" required maxLength={120} placeholder=" " />
-              </div>
-              <div className="b2b-auth__field">
-                <label htmlFor="addr-postal">{t('checkout.address.postalCode')}</label>
-                <input id="addr-postal" name="postalCode" required maxLength={20} placeholder=" " />
-              </div>
-            </div>
-            <div className="b2b-auth__row">
-              <div className="b2b-auth__field">
-                <label htmlFor="addr-country">{t('account.addresses.add.country')}</label>
-                <CountryPicker
-                  id="addr-country"
-                  name="country"
-                  required
-                  defaultValue="PL"
-                />
-              </div>
-              <div className="b2b-auth__field">
-                <label htmlFor="addr-phone">{t('checkout.address.phone')}</label>
-                <input id="addr-phone" name="phone" maxLength={32} placeholder=" " />
-              </div>
-            </div>
-            <label>
-              <input type="checkbox" name="isDefault" value="true" /> {t('account.addresses.add.makeDefault')}
-            </label>
-            <div className="b2b-auth__actions">
-              <button type="submit">{t('account.addresses.add.submit')}</button>
-            </div>
-          </form>
+          <OrganizationAddressForm action={createAddressAction} locale={locale} />
         </>
       ) : (
         <p className="b2b-auth__hint">{t('account.addresses.manageNotAllowed')}</p>
@@ -155,13 +108,11 @@ export default async function AddressesPage({
   );
 }
 
-/** A server action's own refusal, in the page's language. */
-async function failure(key: MessageKey): Promise<string> {
-  const { locale } = await getServerContext();
-  return tForLocale(locale)(key);
-}
-
-async function createAddressAction(formData: FormData): Promise<void> {
+/**
+ * Issue #745 — a refused create answers as action state: the refusal's code and, for
+ * `VALIDATION_FAILED`, the fields at fault. Never the API's sentence, and nothing in the URL.
+ */
+async function createAddressAction(_state: AddressFormState, formData: FormData): Promise<AddressFormState> {
   'use server';
   const session = await getSessionCookie();
   if (!session) return await localeRedirect('/login');
@@ -178,9 +129,9 @@ async function createAddressAction(formData: FormData): Promise<void> {
       ...(formData.get('isDefault') ? { isDefault: true } : {}),
     });
   } catch (err) {
-    const message =
-      err instanceof StorefrontApiError ? err.detail : await failure('account.addresses.saveFailed');
-    return await localeRedirect(`/organization/addresses?error=${encodeURIComponent(message)}`);
+    const error = ADDRESS_ERRORS.failureCode(err, 'SAVE_FAILED');
+    const fields = error === 'VALIDATION_FAILED' && err instanceof StorefrontApiError ? invalidAddressFields(err.details) : [];
+    return { error, fields };
   }
   return await localeRedirect(`/organization/addresses?status=created`);
 }
@@ -193,9 +144,7 @@ async function removeAddressAction(formData: FormData): Promise<void> {
   try {
     await deleteAddress(session, id);
   } catch (err) {
-    const message =
-      err instanceof StorefrontApiError ? err.detail : await failure('account.addresses.removeFailed');
-    return await localeRedirect(`/organization/addresses?error=${encodeURIComponent(message)}`);
+    return await localeRedirect(`/organization/addresses?error=${ADDRESS_ERRORS.failureCode(err, 'REMOVE_FAILED')}`);
   }
   return await localeRedirect(`/organization/addresses?status=removed`);
 }

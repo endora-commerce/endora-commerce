@@ -1,4 +1,5 @@
 import { tForLocale } from './i18n/messages';
+import { BELOW_MINIMUM_CODES, CART_ERRORS } from './commerce-errors';
 import { formatCount } from './orderMinimum';
 
 /**
@@ -205,18 +206,58 @@ export interface CartLineEditError {
   typed: string | null;
 }
 
-/** The cart URL that reports a refused edit of one line. */
-export function cartLineEditErrorHref(itemId: string, message: string, typed: string | null): string {
-  const qs = new URLSearchParams({ errorItem: itemId, error: message });
+/**
+ * The cart URL that reports a refused edit of one line (issue #745: a code, never a sentence).
+ * A minimum refusal also carries the minimum, a whole number, so the line can say it.
+ */
+export function cartLineEditErrorHref(
+  itemId: string,
+  code: string,
+  typed: string | null,
+  minimum: number | null = null,
+): string {
+  const qs = new URLSearchParams({ errorItem: itemId, error: code });
+  if (minimum !== null && Number.isSafeInteger(minimum) && minimum > 0) qs.set('min', String(minimum));
   if (typed !== null && typed !== '') qs.set('typed', typed);
   return `/cart?${qs.toString()}`;
 }
 
-/** The refused edit the cart URL reports for this line, or `null`. */
+/** The minimum a refusal's `details` carried, when it is a positive whole number. */
+export function refusalMinimum(details: unknown): number | null {
+  if (details === null || typeof details !== 'object') return null;
+  const minimum = (details as { minimum?: unknown }).minimum;
+  return typeof minimum === 'number' && Number.isSafeInteger(minimum) && minimum > 0 ? minimum : null;
+}
+
+/**
+ * The refused edit the cart URL reports for this line, or `null`. The sentence is the page's:
+ * a minimum refusal reads the carried minimum (digits only) against the line's own packaging
+ * unit, and any other code reads through {@link CART_ERRORS} — a code it does not know as the
+ * cart's generic failure.
+ */
 export function cartLineEditError(
-  params: { errorItem?: string | undefined; error?: string | undefined; typed?: string | undefined },
-  itemId: string,
+  params: { errorItem?: string | undefined; error?: string | undefined; typed?: string | undefined; min?: string | undefined },
+  line: { id: string; packagingUnitName?: string | null | undefined },
+  locale: string,
 ): CartLineEditError | null {
-  if (params.errorItem !== itemId || !params.error) return null;
-  return { message: params.error, typed: params.typed ?? null };
+  if (params.errorItem !== line.id || !params.error) return null;
+  const t = tForLocale(locale);
+  let message: string;
+  if (BELOW_MINIMUM_CODES.has(params.error)) {
+    const minimum = /^[1-9]\d{0,8}$/.test(params.min ?? '') ? Number(params.min) : null;
+    message =
+      minimum === null
+        ? t('order.minimum.below.bare')
+        : verdictText(
+            {
+              kind: params.error === 'PACKAGING_UNIT_BELOW_MINIMUM_QUANTITY' ? 'packaging_unit' : 'pieces',
+              minimum,
+              packagingUnitName: line.packagingUnitName ?? undefined,
+            },
+            locale,
+          );
+  } else {
+    message = t(CART_ERRORS.errorKey(params.error)!);
+  }
+  return { message, typed: params.typed ?? null };
 }
