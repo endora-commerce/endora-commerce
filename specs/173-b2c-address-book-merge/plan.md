@@ -2,408 +2,539 @@
 
 **Branch**: `spec/762-address-book-merge` (design) | **Date**: 2026-11-05 | **Spec**: [spec.md](./spec.md)
 **Input**: `specs/173-b2c-address-book-merge/spec.md`; issue #762; owner rulings of 2026-11-05 (the
-merge ruling on the issue, then two rounds on PR #768).
-**Status**: design. Every decision is ruled except OD-13, a single confirmation that also settles
-OD-2.
+merge ruling on the issue, then three rounds on PR #768).
+**Status**: ready. Every owner decision is resolved. Two releases, with two work packages each.
 
 ## Summary
 
-Every customer has **one** address book: their Organization's (`addresses`, served at
-`/api/v1/organizations/mine/addresses`). Checkout already reads and writes that book. The
-`customers` personal book is **removed in this release**: its table, entity, services, routes, read
-port, schemas, storefront client and admin form.
+Every customer has **one** address book, their Organization's. It lives in `addresses` and is
+served at `/api/v1/organizations/mine/addresses`, which checkout already uses. The `customers`
+personal book is retired across two releases.
 
-- **B2C**: "Moje adresy" (`/addresses`) renders the personal Organization's book.
-- **Company members**: one "Adresy organizacji" entry; `/addresses` redirects there.
-- **The table**: a `customers` migration drops `customer_addresses`, but **refuses to run while it
-  holds a live row**. It checks only its own table. The upgrade note says what to do if it refuses.
-- **Former endpoints**: they answer `410 CUSTOMER_ADDRESS_BOOK_RETIRED`.
-- **Anonymisation**: blanks and soft-deletes the personal Organization's addresses.
+**Release 1 — retire and empty the personal book**
 
-No job, no new column, no new module, no new dependency, no new permission.
+- B2C: "Moje adresy" (`/addresses`) shows the personal Organization's book.
+- Company members: one "Adresy organizacji" entry, and `/addresses` redirects there.
+- Every former personal-book endpoint answers `410 CUSTOMER_ADDRESS_BOOK_RETIRED`.
+- A one-time `customers` BullMQ job processes the existing rows:
+  - It **moves** live B2C rows into the personal Organization's book through `addressServicePort`.
+    It removes duplicates, keeps the Organization default, soft-deletes each source row with a link
+    to its new row, writes one audit entry per row, and marks refused rows for the operator.
+  - It **erases** every other live row: blanks the fields, soft-deletes the row, writes an audit
+    entry.
+- Anonymisation blanks and soft-deletes the personal Organization's addresses (OD-7).
+- `CustomerAddressReadPort` and `quick_order`'s wiring to it go (after #769).
+
+**Release 2 — drop**
+
+- A `customers` migration drops `customer_addresses`. It refuses while any live row exists.
+- The entity, the job, the 410 stubs, the error code and the remaining schemas go.
+
+Nothing new is added: no module, runtime dependency or permission. Release 1 adds three provenance
+columns to `customers`' own table, and release 2 drops the table.
 
 ## Technical Context
 
 **Language/Version**: TypeScript 5.x strict, Node.js ≥ 22.17; Next.js 15 / React 19; React 19 + Vite
-**Primary Dependencies**: existing only
-**Storage**: PostgreSQL. One `customers` migration that drops `customer_addresses`
-**Testing**: Vitest — backend unit, contract and integration; storefront; admin
-**Project Type**: web (backend modules + storefront + admin)
+**Primary Dependencies**: existing only (MikroORM, Zod, BullMQ, Fastify)
+**Storage**: PostgreSQL. Release 1 runs one `customers` migration that adds columns. Release 2 runs
+one `customers` migration that drops the table
+**Testing**: Vitest — backend unit, contract and integration tests; storefront; admin
 **Constraints**: Principle I (a migration touches only its own module's tables —
-`check:module-boundary` R1/R2), XI, XIII, XVII
-**Scale/Scope**: `customers` (deletion-heavy), `addresses` (one port method), `quick_order` (edge
-removal, after #769), `contracts`, two storefront pages, one admin panel, docs
+`check:module-boundary` R1/R2), X, XI, XIII, XVII
+**Scale/Scope**: `customers`, `addresses` (one port method), `quick_order` (edge removal),
+`contracts`, two storefront pages, one admin panel, docs
 
 ## Grounding (files read)
 
-- `packages/modules/customers/src/backend/`: `entities/customer-address.entity.ts`,
-  `services/customer-address-service.ts`, `services/customer-address-read-port.ts`,
-  `services/customer-defaults-service.ts`, `services/customer-deletion-service.ts`,
-  `routes.self.ts`, `routes.admin.ts`, `serializers.ts`, `index.ts`, `plugin.ts`, `../manifest.ts`,
-  `../migrations/20260611T140404_customers_customer_addresses_init.ts`,
-  `../admin/panels/ManagementPanels.tsx`
+- `packages/modules/customers/src/`:
+  - `backend/entities/customer-address.entity.ts`
+  - `backend/services/customer-address-service.ts`, `customer-address-read-port.ts`,
+    `customer-defaults-service.ts`, `customer-deletion-service.ts`
+  - `backend/workers/anonymization-sweep-worker.ts`
+  - `backend/routes.self.ts`, `routes.admin.ts`, `serializers.ts`, `index.ts`, `plugin.ts`
+  - `manifest.ts`
+  - `migrations/20260611T140404_customers_customer_addresses_init.ts`
+  - `admin/panels/ManagementPanels.tsx`
 - `packages/modules/addresses/src/manifest.ts`, `src/backend/index.ts`,
   `services/address-service.ts`, `services/address-ports.ts`
 - `packages/modules/organizations/src/backend/routes.customer.ts`,
   `services/personal-organization-service.ts` (`anonymizeIfOrphaned`)
 - `packages/modules/orders/src/backend/services/order-service.ts` (`ADDRESS_NOT_OWNED`)
-- `packages/modules/quick_order/src/manifest.ts`, `src/backend/index.ts`
-  (`customerAddressesOrAbsent`), `services/default-preference-service.ts`
+- `packages/modules/quick_order/src/manifest.ts`, `src/backend/index.ts`,
+  `services/default-preference-service.ts`
+- `packages/modules/quote_requests/src/backend/workers/rfq-expiry-sweep-worker.ts` (the Principle X
+  pattern)
 - `packages/contracts/src/customers.ts`, `errors.ts`, `addresses.ts`, `organizations.ts`
+  (`OrganizationDetailsPort`)
+- `packages/platform/src/tenancy/escape-hatch.ts` (`withOrgScope`)
 - `storefront/app/(account)/addresses/page.tsx`, `organization/addresses/page.tsx`, `layout.tsx`,
   `app/(commerce)/checkout/page.tsx`, `lib/api/customers.ts`, `lib/api/organization.ts`,
   `lib/account/organization-area.ts`
-- `specs/170-organization-roles/spec.md`, `specs/conventions/module-migrations.md` (items 4, 4a,
-  5), `module-composition.md` (item 9), `module-activation.md`, `module-i18n.md`,
-  `release-intent.md`
-- Pre-migration, cited: `specs/040-*`, `specs/051-*`, `specs/097-migration-sql-boundary/`.
+- `specs/170-organization-roles/spec.md`
+- `specs/conventions/module-migrations.md` (items 4, 4a, 5), `module-composition.md` (items 9,
+  9a), `module-activation.md`, `module-i18n.md`, `check-inventory.md`, `release-intent.md`
+- Pre-migration, cited: `specs/040-*`, `specs/051-*`, `specs/097-migration-sql-boundary/`
 
-**Everything outside `packages/modules/customers` that names the personal book** (from
-`rg "customer_addresses|CustomerAddress\b|customerAddressReadPort|CUSTOMER_ADDRESS_NOT_FOUND|me/customer/addresses|customerAddressInputSchema|customerAddressBookSchema"`).
-Every hit must be changed in the same merge request. This is the AGENTS.md trap about deleting
-files and ignoring what is derived from them:
+### Findings
 
-| Path | Change |
-| --- | --- |
-| `packages/contracts/src/customers.ts`, `errors.ts` | delete the schemas, the read-port types and `CUSTOMER_ADDRESS_NOT_FOUND`; add `CUSTOMER_ADDRESS_BOOK_RETIRED` |
-| `packages/modules/quick_order/src/manifest.ts`, `src/backend/index.ts`, `services/default-preference-service.ts` | delete the `customerAddressReadPort` edge, `customerAddressesOrAbsent` and the personal branch (whatever #769 has not removed already) |
-| `packages/modules/customer_accounts/src/manifest.ts` | comment only |
-| `packages/demo-composition/src/demo-usage.ts` | delete the `delete from customer_addresses` reset statement; demo reset would fail on a missing table |
-| `backend/scripts/check-error-translations.ts` | drop `CUSTOMER_ADDRESS_NOT_FOUND` from the untranslated list |
-| `backend/test/fixtures/error-code-routing/{reference-ledgers,chain-answers}.ts` | re-derive |
-| `backend/test/fixtures/openapi-baseline.json` | regenerate |
-| `backend/test/helpers/package-entities.ts` | drop the entity |
-| `backend/test/integration/customers/customer-address-service.test.ts` | delete |
-| `backend/test/contract/customers/{addresses-defaults,customer-response-schema}.contract.test.ts` | rewrite (T-C1, T-C2) |
-| `backend/test/integration/demo/demo-reset-after-use.test.ts` | drop the seeded row |
-| `backend/test/integration/tenancy/customer-scoped-allowed-set.test.ts` | it uses `CustomerAddress` as its `@CustomerScoped` example; re-point it to another `@CustomerScoped` entity, or delete the case if none remains |
-| `backend/test/unit/quick_order/default-preference-eligibility.test.ts` | personal cases go (#769 may already have done this) |
-| `storefront/lib/api/customers.ts` | delete the address functions |
-| `docs/docs/module-reference/quick-order.md`, `docs/docs/upgrading-an-instance.md`, `packages/modules/customers/docs/customers.md` and their Polish counterparts under `docs/i18n/pl/…` (`module-reference/quick-order.md`, `modules/customers.md`, `upgrading-an-instance.md`) | update, and add the upgrade note (EN + PL) |
-
-Also derived, so re-run and commit:
-
-- `composer:generate`, for the entity and migration registries;
-- `manifests:generate` with `pnpm install --lockfile-only`, if the manifest edge change alters a
-  rendered peer;
-- `test/unit/db/module-graph.test.ts` and `test/unit/kernel/module-removal.test.ts` (the residue
-  ledger);
-- the tenant-classification check's ledger, if it counts `customer_addresses`.
+1. The personal book is unusable for ordering by anyone. `OrderService` answers
+   `403 ADDRESS_NOT_OWNED` for any address outside the caller's Organization book.
+2. `quick_order` accepts personal-book ids that its foreign keys reject. That is #769, fixed in
+   parallel.
+3. The `/addresses` link in `storefront/app/(account)/layout.tsx` is shown unconditionally,
+   although `customers` (which serves that page today) can be switched off. Release 1 closes this
+   by no longer linking to any `customers` page.
+4. The retention sweep scrubs no saved address (OD-7).
+5. The personal book never had country validation, but `AddressService.createAddress` validates
+   the country. A row with a country that is no longer active is therefore refused during the move.
 
 ## Decisions
 
-### OD-1 — Canonical book — **resolved 2026-11-05, as recommended**
+Each decision is set out as: decision → rationale → alternatives rejected.
 
-**Ruling**: the personal Organization's book.
+### OD-1 — Canonical book — resolved 2026-11-05, as recommended
 
-**Rationale**: checkout and orders use only this book. The Organization is the tenant
-(Principle XI), and the owners are `nonDeactivatable`.
+The personal Organization's book. Checkout and orders use only this book. The Organization is the
+tenant (Principle XI), and the modules that own the book are `nonDeactivatable`.
 
-**Rejected**: making the personal book canonical, which would need `orders` → `customers`, the
-dead switch `module-composition.md` item 4a forbids. Also rejected: two books.
+Rejected: making the personal book canonical. That would need an `orders` → `customers` edge,
+which is the dead switch `module-composition.md` item 4a forbids. Also rejected: keeping two books.
 
-### OD-2 — Existing B2C rows — **ruled 2026-11-05 (automatic one-time move); superseded, pending OD-13**
+### OD-2 — The one-time move — resolved 2026-11-05; reinstated 2026-11-05 by OD-13
 
-The first ruling chose a one-time move by a `customers` BullMQ job writing through
-`addressServicePort`. The later rulings (OD-9: delete at once; OD-12: remove the table in this
-release) make that job unbuildable as specified. Migrations run before the platform composes, so a
-job cannot move rows out of a table that a migration of the same release has already dropped. The
-options:
+The release-1 job moves B2C rows (R-1, § Release 1 data). It was briefly superseded by the
+single-release plan. OD-13 restores it.
 
-| Option | Verdict |
-| --- | --- |
-| **A. Guarded drop**: the `customers` migration drops the table, but refuses while any live row exists | **Recommended.** It is one migration and no job. It cannot lose data silently. It matches the owner's facts (no company-member rows; 0 rows locally; demo seeds none). It reads only its own table, so classifying B2C against company rows is not needed: any live row stops it. |
-| B. Keep the move job and drop the table in a later release | Contradicts OD-12 (this release). It costs a job, three columns, a fingerprint, crash-safety logic and their tests, for rows that probably do not exist. |
-| C. Move job that drops the table itself when done | Rejected: it is DDL outside a migration, so the schema drifts from the migration registry, and the job would run in a process that holds no migration lock. |
-| D. Unguarded drop | Rejected: silent data loss wherever the owner's facts do not hold. |
+### OD-3 — Retired for everyone — resolved 2026-11-05, changed from the recommendation
 
-The plan is written for **A**. This is recorded as superseded, not overridden: OD-13 asks the owner
-to confirm.
+### OD-4 — Permissions — resolved 2026-11-05, as recommended
 
-### OD-3 — Personal book for company members — **resolved 2026-11-05, changed: retired for everyone**
+No new permission. A personal Organization's member holds *Administrator*
+(`specs/170-organization-roles/` FR-070a), which holds every permission and cannot be edited.
+`addresses.manage` is also a *Member* default.
 
-### OD-4 — Permissions — **resolved 2026-11-05, as recommended**
+### OD-5 / OD-8 — The refusal — resolved 2026-11-05: `410 Gone`, `CUSTOMER_ADDRESS_BOOK_RETIRED`, for everyone
 
-**Ruling**: no new permission. A personal Organization's member holds *Administrator*
-(`specs/170-organization-roles/` FR-070a), which holds everything and cannot be edited.
-`addresses.manage` is also a *Member* default. T-C4 asserts this.
-
-### OD-5 / OD-8 — Refusal — **resolved 2026-11-05: `410 Gone`, `CUSTOMER_ADDRESS_BOOK_RETIRED`, for everyone**
-
-**Decision on scope**: thin tombstone routes in `customers` answer every former endpoint with this
-code:
+In release 1, stub routes in `customers` answer every former endpoint with this refusal:
 
 - `GET` and `POST /api/v1/me/customer/addresses`
 - `PATCH` and `DELETE …/:addressId`
 - `PUT …/:addressId/default`
 - `POST /api/v1/admin/customers/:id/addresses`
+- a `PUT /api/v1/me/customer/defaults` body that carries `billingAddressId` or `shippingAddressId`
 
-The sentence goes in `customers/i18n/{en,pl}.json`. The tombstones are a few lines and are
-gated like every `customers` route. Removing them later is routine cleanup, not a decision for this
-feature.
+`GET` and `DELETE` are refused too. They serve a book that no longer exists for its customer: B2C
+rows move, the rest are erased, and no per-row removal UI remains (ruled). The sentence goes in
+`customers/i18n/{en,pl}.json`.
 
-`PUT /api/v1/me/customer/defaults` with `billingAddressId` or `shippingAddressId` answers the same
-code. Address defaults are now set in the Organization book. The method fields are unchanged.
+**Release 2 (my judgement, as asked): the stub routes go, and so does the error code.** A full
+release of `410` is the retirement signal. The owner notes that no external client probably uses
+the API. After release 2 a call gets the platform's ordinary `404`, like any unknown route. The
+address fields leave the `PUT /me/customer/defaults` schema. The `GET` keeps reporting them, read
+from the Organization book.
 
-**Rejected**: dropping the routes outright (an unexplained 404), or silently ignoring the address
-fields on `PUT`.
+Rejected: keeping the stubs forever. They would be code with no backing table, behind a module
+toggle, answering a question nobody asks.
 
-### OD-6 — Admin card — **resolved 2026-11-05, as recommended: read-only**
+### OD-6 — The admin card — resolved 2026-11-05, as recommended
 
-`GET /api/v1/admin/customers/:id/addresses` stays in `customers` (gate `customers:read`). It
-answers `{ organization: OrganizationAddressRef[] }` from `addressReadPort`; the `personal` array
-goes. The panel lists that array and has no form.
+The card is read-only. `GET /api/v1/admin/customers/:id/addresses` (gate `customers:read`)
+answers:
 
-**Rejected**: calling `organizations`' `/api/v1/admin/organizations/:id/addresses` from the
-`customers` panel, because it asks for a different admin permission than the screen it sits on.
-Admin editing of Organization addresses is a separate follow-up.
+- in release 1, `{ organization, personal }`, where `personal` holds only the refused rows, each
+  with `mergeRefusal`;
+- in release 2, `{ organization }`.
 
-### OD-7 — Anonymisation — **resolved 2026-11-05, as recommended: cleared and blanked**
+The panel lists both lists and has no form. Admin editing of Organization addresses is a separate
+follow-up.
+
+### OD-7 — Anonymisation — resolved 2026-11-05: cleared and blanked
 
 `addresses` gains `anonymizeForOrganization(organizationId): Promise<number>` on
-`AddressServicePort`. It works on every live address of the Organization:
+`AddressServicePort`. It sets `recipientName`, `street`, `city` and `postalCode` to `'-'`, sets
+`phone` to `null` and `isDefault` to `false`, keeps `country`, sets `deletedAt`, and audits
+`address.anonymized` with a null actor. `CustomerDeletionService.sweep` calls it whenever
+`anonymizeIfOrphaned` returns an Organization. `customers` already depends on `addresses`, so this
+adds no edge.
 
-- it sets `recipientName`, `street`, `city` and `postalCode` to `'-'`, `phone` to `null` and
-  `isDefault` to `false`;
-- it keeps `country`;
-- it sets `deletedAt`;
-- it audits `address.anonymized` with a null actor (the `anonymizeIfOrphaned` precedent).
+Rejected:
+- `updateAddress` followed by `deleteAddress`: two audit rows and a window between them.
+- Calling it from `organizations`, which does not declare `addresses`.
 
-`CustomerDeletionService.sweep` (`customers`) calls it when
-`personalOrganizations.anonymizeIfOrphaned(customer.id)` returns an Organization. `customers`
-already depends on `addresses`, and `organizations` decides whether the scrub applies, so no new
-edge is needed.
+### OD-9 / OD-10 — resolved 2026-11-05
 
-**Rejected**: two port calls per address (`updateAddress` then `deleteAddress`), which give two
-audit rows and a gap between them. Also rejected: calling it from `organizations`, which does not
-declare `addresses`.
+Non-B2C rows are erased at once by the job, with no notice period.
 
-### OD-9, OD-10, OD-12 — **resolved 2026-11-05**
+### OD-11 — resolved 2026-11-05, as recommended
 
-- OD-9: delete at once.
-- OD-10: not needed.
-- OD-12: removal in this release.
+A company member has one "Adresy organizacji" entry, and `/addresses` redirects there.
 
-### OD-11 — Company member navigation — **resolved 2026-11-05, as recommended**
+### OD-12 — resolved 2026-11-05; amended 2026-11-05 by OD-13
 
-One "Adresy organizacji" entry; `/addresses` redirects there.
+The table and the remaining code go in **release 2**.
 
-### OD-13 — **open**: confirm that no live B2C rows exist either, and accept the guarded drop
+### OD-13 — resolved 2026-11-05: two releases
 
-**Recommendation**: confirm, and accept option A. Before ruling, the owner can run the count query
-(§ Counting) on production.
+Release 1 retires the book and runs the job. Release 2 runs the guarded drop. This resolves the
+ordering problem: migrations run before the platform composes, so a job cannot empty a table that a
+migration of the same release has already dropped.
 
-**Contingency if an installation's migration refuses** (written into the upgrade note):
+### R-1 — The job's mechanism
 
-1. Run the count query and look at the populations.
-2. If the rows may go, run `delete from customer_addresses;` (the module's own table; the
-   upgrade note gives the statement) and re-run the migration.
-3. If they must be kept, stay on the previous release and report it. The move job from OD-2's first
-   ruling is then shipped as a patch release that runs before the drop.
+A `customers`-owned BullMQ job (Principle X), run by the worker process and registered through
+`defineModuleWorker`, so it runs only while `customers` is present. It is enqueued at every boot
+under the fixed id `customers:address-book-retirement`. BullMQ de-duplicates a waiting job by id,
+so `start` and `worker` together produce one run. The job loops in batches until no row is left to
+process. On every later boot it finds nothing and exits.
 
-Nothing is lost while the operator decides, because the refusal happens before any DDL.
+It reads `customers`' own table. It reads accounts and Organizations through ports `customers`
+already depends on: `customerAccountReadPort` and `organizationDetailsPort` (`isPersonal`). It
+writes the Organization book only through `addressServicePort`, inside
+`withOrgScope(organizationId, …)`.
 
-## Data migration
+| Rejected | Why |
+| --- | --- |
+| A `customers` migration inserting into `addresses` | R2: a write into another module's table |
+| An `addresses` migration reading `customer_addresses` | R1: would need an `addresses` → `customers` edge, which makes a cycle and a dead switch |
+| A `customers` `installHook` | It does not run on upgrade (`module-composition.md` item 9) |
+| An `onBoot` reconciler | Runs in two processes with no lock, and a failure would stop the platform from starting |
 
-A single `customers` migration, scaffolded with `pnpm --filter backend run migration:new`, then
-`composer:generate`. The applied init migration stays, because history is never edited
+### R-4 — What counts as a duplicate
+
+Two rows are equal when they have the same `kind`, and these fields match after normalisation:
+
+- `recipientName`, `street`, `city`: trimmed, inner whitespace collapsed, NFC, case-folded
+- `postalCode`: whitespace removed, upper-case
+- `country`: upper-case
+- `phone`: digits and a leading `+` only; absent equals absent
+
+This is one pure function, `addressFingerprint`. Diacritics are not folded. A false merge loses an
+address; a false non-merge shows one twice.
+
+### R-5 — Columns (release 1, `customers`' own table)
+
+- `merged_into_address_id uuid null`: provenance only, never joined, so no foreign key
+- `merged_at timestamptz null`
+- `merge_refusal varchar(64) null`
+- a partial index on `("customer_account_id")` where `"deleted_at" is null and "merge_refusal" is null`
+
+## Release 1
+
+### WP-1.1 — Backend: contracts, `customers`, `addresses`, `quick_order`
+
+**Migration** (scaffolded with `pnpm --filter backend run migration:new`, then
+`composer:generate`). It adds R-5's columns and index, and `down` drops them. It touches only
+`customer_addresses`.
+
+**Job** — `customers/src/backend/workers/address-book-retirement-worker.ts` is a thin class over
+`services/address-book-retirement-service.ts`. Each batch of up to 100 accounts is selected by
+keyset over live rows where `merge_refusal is null`. Each account is classified through the two
+ports, then handled in one transaction per account with `select … for update` on its rows:
+
+- **B2C (move)**, inside `withOrgScope(organizationId, 'customers: moving the personal address book
+  of account <id> into its personal organization (#762)', …)`:
+  1. Read `addressServicePort.list(organizationId)` and fingerprint it.
+  2. For each row, oldest first, do one of two things:
+     - If an equal address already exists, link the row to it.
+     - Otherwise call `createAddress(…, { isDefault: row.isDefault && the book has no default of
+       that kind yet })`.
+  3. Set `merged_into_address_id`, `merged_at`, `deleted_at`, and `is_default = false`.
+  4. Audit `customer_address.merge` with a null actor (the `anonymizeIfOrphaned` precedent, which
+     satisfies `check:command-coverage`).
+  5. If the owner refuses the write with an `HttpError`, store its code in `merge_refusal`, leave
+     the row live, and continue.
+
+  **Crash safety.** The process may die between the Organization write and the source update. The
+  next run then finds the address it already created and links it instead of creating a second one.
+- **Company member or org-less account (erase)**: set `recipient_name`, `street`, `city` and
+  `postal_code` to `'-'`, set `phone` to null and `is_default` to false, set `deleted_at`, and audit
+  `customer_address.erased`. This touches only `customers`' own table.
+- **Summary** logged at `info`: `{ accounts, moved, deduplicated, erased, refused }`.
+
+**Routes and services**:
+- add the 410 stubs (OD-8);
+- replace the address part of `customer-defaults-service.ts` with `addressReadPort.findDefault`;
+- admin `GET` returns `{ organization, personal: refused rows }`;
+- delete `CustomerAddressService`, which is replaced by the job service and the stubs;
+- delete the read-port provider and `serializeCustomerAddress`'s write uses;
+- `CustomerDeletionService.sweep` calls `anonymizeForOrganization`.
+
+**`addresses`**: add `anonymizeForOrganization` (OD-7). **`quick_order`**: remove what #769 left of
+`customerAddressReadPort`, namely the `nonBindingDependencies` entry, `customerAddressesOrAbsent`
+and the personal branch.
+
+**Contracts**:
+- add `CUSTOMER_ADDRESS_BOOK_RETIRED`;
+- delete `CUSTOMER_ADDRESS_NOT_FOUND`, since no code raises it any more;
+- delete `CustomerAddressReadPort`, `CustomerAddressRecord` and `customerAddressInputSchema`;
+- add an optional `mergeRefusal` to `customerAddressSchema`;
+- add `anonymizeForOrganization` to `AddressServicePort`.
+
+### WP-1.2 — Storefront, admin, docs
+
+**Storefront**:
+- `storefront/components/account/AddressBook.tsx` (new, shared; Principle IX) holds the table,
+  *Make default*, *Remove* and the add form, extracted from `organization/addresses/page.tsx`.
+- `app/(account)/addresses/page.tsx`: a personal Organization gets `AddressBook` over
+  `lib/api/organization.ts`, headed `account.addresses.heading` ("My addresses" / "Moje adresy"). A
+  company member is redirected to `/organization/addresses`. A customer with no Organization is
+  redirected to `/account`.
+- `organization/addresses/page.tsx` renders through `AddressBook`, and keeps the #757 redirect.
+- `layout.tsx`: B2C sees "Moje adresy". A company member sees only "Adresy organizacji". An
+  org-less customer sees no address entry. This closes finding 3.
+- `lib/api/customers.ts`: delete the address functions.
+- Checkout is unchanged.
+- No new storefront key is needed. Delete `account.addresses.shared.*` and any key left unused, in
+  both languages.
+
+**Admin**: `AddressesPanel` lists the Organization book read-only, then refused rows with their
+reason. It drops the form. New keys `detail.addresses.organizationBook` and
+`detail.addresses.refused` go in `customers/i18n/{en,pl}.json`, and unused keys are deleted.
+
+**Docs and release**:
+- `packages/modules/customers/docs/customers.md`, `packages/modules/addresses/docs/addresses.md`,
+  `docs/docs/module-reference/quick-order.md`, and their Polish counterparts.
+- A new upgrade note, "Personal address book retired (release 1 of 2)", in
+  `docs/docs/upgrading-an-instance.md` and the Polish file. It covers the window before the job's
+  first run, keeping `customers` on until the job finishes, the 410 answers, and the count query.
+- Changesets for contracts, customers, addresses and quick_order, and the `breaking change` label.
+
+### Release 1 — knock-on files outside `packages/modules/customers`
+
+| Path | Change |
+| --- | --- |
+| `packages/contracts/src/customers.ts`, `errors.ts`, `addresses.ts` | as in WP-1.1 |
+| `packages/modules/quick_order/src/{manifest.ts,backend/index.ts,backend/services/default-preference-service.ts}` | remove whatever #769 left |
+| `packages/modules/customer_accounts/src/manifest.ts` | comment only |
+| `backend/scripts/check-error-translations.ts` | drop `CUSTOMER_ADDRESS_NOT_FOUND` from the untranslated list |
+| `backend/test/fixtures/error-code-routing/{reference-ledgers,chain-answers}.ts` | re-derive |
+| `backend/test/fixtures/openapi-baseline.json` | regenerate |
+| `backend/test/integration/customers/customer-address-service.test.ts` | delete; replaced by T-I1 – T-I6 |
+| `backend/test/contract/customers/{addresses-defaults,customer-response-schema}.contract.test.ts` | rewrite (T-C1, T-C2) |
+| `backend/test/unit/quick_order/default-preference-eligibility.test.ts` | remove the personal cases, unless #769 did |
+| `storefront/lib/api/customers.ts` | delete the address functions |
+| `storefront/test/account/{module-presence-nav.test.tsx,i18n/account-pages.test.tsx}` | extend or rewrite |
+| docs listed in WP-1.2 | update |
+
+These stay until release 2, because the table and the entity still exist:
+`packages/demo-composition/src/demo-usage.ts` (the reset statement),
+`backend/test/helpers/package-entities.ts`,
+`backend/test/integration/demo/demo-reset-after-use.test.ts`, and
+`backend/test/integration/tenancy/customer-scoped-allowed-set.test.ts`.
+
+**Regenerate**:
+- `composer:generate`;
+- `manifests:generate` and `pnpm install --lockfile-only`, if a rendered peer changes;
+- `test/unit/db/module-graph.test.ts` and `test/unit/kernel/module-removal.test.ts`, for the
+  `quick_order` edge removal.
+
+### Release 1 — tests (failing first)
+
+- **T-U1** `addressFingerprint`; **T-U2** the default rule. Both are co-located unit tests in
+  `customers`.
+- **T-U3** `anonymizeForOrganization`, a unit test in `addresses`.
+- **T-I1** A B2C account with three rows, one of them a duplicate: two addresses are created and
+  three source rows are linked, soft-deleted and audited.
+- **T-I2** A second run changes nothing.
+- **T-I3** A crash between the Organization write and the source update leaves no duplicate.
+- **T-I4** A company-member row and an org-less row are blanked, soft-deleted and audited, and the
+  company book is untouched.
+- **T-I5** An owner refusal sets `merge_refusal` and lets the account's other rows through.
+- **T-I6** Tenancy: created rows are in the account's own personal Organization and invisible to
+  any other Organization.
+- **T-I7** The retention sweep blanks and soft-deletes the personal Organization's addresses, and
+  leaves order snapshots unchanged.
+- **T-C1** Every former endpoint answers `410 CUSTOMER_ADDRESS_BOOK_RETIRED`, in `pl` and `en`.
+- **T-C2** `GET /me/customer/defaults` returns the Organization defaults. `PUT` with an address
+  field answers 410; `PUT` with method fields still works.
+- **T-C3** Admin `GET` returns the Organization book plus the refused rows.
+- **T-C4** A personal Organization's member can `POST`/`PATCH`/`DELETE` on
+  `/organizations/mine/addresses` (201/200/204).
+- **T-K1** The ledgers, the OpenAPI baseline and the module-graph and residue tests pass, and
+  `quick_order` composes without the port.
+- **T-O1** With `customers` off, the worker is not registered and the address pages and checkout
+  work. With `customers` on again, the job runs.
+- **T-S1** B2C `/addresses`, in EN and PL, shows one list from the Organization API with no shared
+  section; add, remove and make-default all go to the Organization API.
+- **T-S2** A company member sees one navigation entry and is redirected from `/addresses`. An
+  org-less customer is redirected to `/account`.
+- **T-S3** Round trip, in EN and PL, against one shared fake of `/organizations/mine/addresses`: an
+  address typed at checkout is listed on `/addresses`, and one added there is offered at checkout.
+- **T-A1** The admin panel shows the Organization book and refused rows with no form, in EN and PL.
+- **Manual on demo**: run the round trip in both languages, check the company navigation and
+  redirect, and check the admin card.
+
+## Release 2
+
+The earliest release is the one after release 1. There is no minimum interval: the guard, not
+time, decides.
+
+### WP-2.1 — Backend: guarded drop and code removal
+
+A `customers` migration, scaffolded and registered as before. The applied migrations stay
 (`module-migrations.md` item 5).
 
 ```ts
 override async up(): Promise<void> {
-  const [{ live }] = await this.execute(
-    `select count(*)::int as live from "customer_addresses" where "deleted_at" is null`,
+  const [row] = await this.execute(
+    `select count(*) filter (where "merge_refusal" is null)::int as unprocessed,
+            count(*) filter (where "merge_refusal" is not null)::int as refused
+       from "customer_addresses" where "deleted_at" is null`,
   );
-  if (live > 0) {
+  if (row.unprocessed + row.refused > 0) {
     throw new Error(
-      `customers: refusing to drop "customer_addresses" — ${live} live personal-book address(es) ` +
-      `remain. The personal address book was retired in feature 173; see the upgrade note ` +
-      `"Personal address book removed" in docs/docs/upgrading-an-instance.md before re-running.`,
+      `customers: refusing to drop "customer_addresses" — ${row.unprocessed} row(s) not yet ` +
+      `processed by the release-1 retirement job and ${row.refused} row(s) it refused remain. ` +
+      `See "Personal address book removed (release 2 of 2)" in docs/docs/upgrading-an-instance.md.`,
     );
   }
   this.addSql('drop table "customer_addresses";');
 }
 override async down(): Promise<void> {
-  // Re-creates the empty table exactly as 20260611T140404 did; rows are not recoverable.
+  // Re-creates the table empty, with the release-1 columns; rows are not recoverable.
 }
 ```
 
-The migration touches only `customer_addresses`, so `check:module-boundary` has nothing to judge.
-Soft-deleted rows go with the table. They were already invisible, and their personal data goes
-with them.
+The migration reads only its own table.
+
+**Refused rows block the drop**, because the ruling says "refuses while any live row exists". The
+upgrade note gives the operator two ways out:
+
+- Clear `merge_refusal` on those rows, after fixing the cause (for example, reactivating the
+  country), and let the job retry on the next boot of release 1.
+- Acknowledge the loss with `delete from customer_addresses where merge_refusal is not null`. The
+  customer can type the address again at checkout.
+
+Either way, nothing is lost silently.
+
+**Code removed**:
+- the entity;
+- the job, the worker, the fingerprint and their tests;
+- the 410 stubs, and the address fields of `PUT /me/customer/defaults` (OD-8, release-2 judgement);
+- `CUSTOMER_ADDRESS_BOOK_RETIRED`, with its manifest declaration and its sentence;
+- `customerAddressSchema` and `customerAddressBookSchema`;
+- the `personal` array of the admin `GET`.
+
+### WP-2.2 — Admin, docs, derived artefacts
+
+- The admin panel drops the refused-rows list.
+- The upgrade note "Personal address book removed (release 2 of 2)", in EN and PL. Pass through
+  release 1 first, with `customers` on and the job finished (FR-018). It also gives the two ways out
+  above and the count query.
+- Changesets, with the `breaking change` label.
+
+### Release 2 — knock-on files
+
+| Path | Change |
+| --- | --- |
+| `packages/contracts/src/customers.ts`, `errors.ts` | delete the remaining schemas and the error code |
+| `packages/demo-composition/src/demo-usage.ts` | delete the `delete from customer_addresses` reset statement (demo reset would fail on the missing table) |
+| `backend/test/helpers/package-entities.ts` | drop the entity |
+| `backend/test/integration/demo/demo-reset-after-use.test.ts` | drop the seeded row |
+| `backend/test/integration/tenancy/customer-scoped-allowed-set.test.ts` | it uses `CustomerAddress` as its `@CustomerScoped` example; re-point it to another `@CustomerScoped` entity, or delete the case if none remains |
+| `backend/test/fixtures/error-code-routing/*`, `openapi-baseline.json` | re-derive |
+| `backend/test/contract/customers/*` | delete the 410 tests (T-C1) and replace them with a 404 check |
+| the tenant-classification check's ledger, if it lists `customer_addresses` | re-derive |
+| docs (EN + PL) | the release-2 upgrade note, and remove the personal book from the module pages |
+
+Regenerate `composer:generate`. Run a `rg` for every deleted path over `backend/test/**`.
+
+### Release 2 — tests
+
+- **T-M1** Migration: with an unprocessed row or a refused row, `up` throws the message with both
+  counts and the table remains. With only soft-deleted rows, the table is dropped. `down`
+  re-creates it.
+- **T-C5** The former endpoints answer `404`, and `PUT /me/customer/defaults` with an address field
+  is a validation error.
+- **T-K2** The ledgers, the OpenAPI baseline, the demo reset and the tenancy suite pass after
+  re-derivation.
 
 ## Counting
 
-**Local development database** (`localhost:5432/b2b`, 2026-11-05): `customer_addresses` holds
-**0 rows**, live or deleted. The database is nearly fresh: 1 company Organization, no personal
-Organizations. Demo seeding creates no personal-book rows. The owner states that company members
-have none on demo or production.
+**Local development database** (`localhost:5432/b2b`, measured 2026-11-05): `customer_addresses`
+holds **0 rows**. Demo seeding creates none, and the owner states that company members have none on
+demo or production.
 
-**Production / any installation**: a read-only operational query, run before upgrading. It is also
-the query the upgrade note gives:
+**Any installation** (read-only, run by an operator; also given in both upgrade notes):
 
 ```sql
 select
-  count(*) filter (where ca.deleted_at is null)                           as live,            -- the migration refuses if > 0
-  count(*) filter (where ca.deleted_at is null and o.is_personal)         as live_b2c,        -- OD-13
-  count(*) filter (where ca.deleted_at is null and o.is_personal = false) as live_company,    -- owner: 0
-  count(*) filter (where ca.deleted_at is null and o.id is null)          as live_no_org
+  count(*) filter (where ca.deleted_at is null)                           as live,
+  count(*) filter (where ca.deleted_at is null and o.is_personal)         as live_b2c,      -- moved by the job
+  count(*) filter (where ca.deleted_at is null and o.is_personal = false) as live_company,  -- erased by the job
+  count(*) filter (where ca.deleted_at is null and o.id is null)          as live_no_org    -- erased by the job
 from customer_addresses ca
 join customer_accounts acc on acc.id = ca.customer_account_id
 left join organizations o on o.id = acc.organization_id;
 ```
 
-## API and contract changes
-
-The release is labelled `breaking change`. The changesets for `@endora-commerce/contracts`,
-`customers`, `addresses` and `quick_order` carry the upgrade note (`release-intent.md`).
-
-| Surface | Change |
-| --- | --- |
-| `ERROR_CODES` | add `CUSTOMER_ADDRESS_BOOK_RETIRED`; delete `CUSTOMER_ADDRESS_NOT_FOUND` (no raise site remains); update the `customers` manifest `errorCodes` and i18n accordingly |
-| Every former `/api/v1/me/customer/addresses*` route and admin `POST …/:id/addresses` | `410 CUSTOMER_ADDRESS_BOOK_RETIRED` |
-| `GET /api/v1/me/customer/defaults` | address fields from `addressReadPort.findDefault` on the caller's Organization |
-| `PUT /api/v1/me/customer/defaults` | an address field → `410`; method fields unchanged |
-| `GET /api/v1/admin/customers/:id/addresses` | `{ organization: OrganizationAddressRef[] }` |
-| `customerAddressSchema`, `customerAddressInputSchema`, `customerAddressBookSchema`, `CustomerAddressRecord`, `CustomerAddressReadPort` | deleted |
-| `AddressServicePort` | `anonymizeForOrganization` added |
-| `/api/v1/organizations/mine/addresses` | unchanged |
-
-## Storefront changes
-
-- `storefront/components/account/AddressBook.tsx` *(new)*: the table, *Make default*, *Remove* and
-  the add form, extracted from `organization/addresses/page.tsx`. Props: the addresses, `canManage`,
-  the actions and the heading key (Principle IX).
-- `app/(account)/addresses/page.tsx`:
-  - personal Organization → `AddressBook` over `lib/api/organization.ts`, heading
-    `account.addresses.heading` ("My addresses" / "Moje adresy");
-  - company → redirect to `/organization/addresses`;
-  - no Organization → redirect to `/account`.
-- `app/(account)/organization/addresses/page.tsx`: renders through `AddressBook`. The #757 redirect
-  stays.
-- `app/(account)/layout.tsx`: B2C sees "Moje adresy" → `/addresses`. A company member sees only
-  "Adresy organizacji". An org-less customer sees no address entry. This closes the old gap where
-  the link to a `customers` page was unconditional, because no `customers` page is linked any more.
-- `lib/api/customers.ts`: delete the address functions and types.
-- Checkout and `lib/api/organization.ts`: no change.
-- i18n: no new storefront key. Delete `account.addresses.shared.*` and any `account.addresses.*`
-  key left unused, after a usage check, in both languages.
-
-## Admin changes
-
-`AddressesPanel` (`packages/modules/customers/src/admin/panels/ManagementPanels.tsx`) lists
-`organization` read-only and drops the form and its unsaved-changes guard. Keys unused afterwards
-are deleted from `customers/i18n/{en,pl}.json`. There is no permission or palette change.
+After release 1's job has run, `live` equals the number of refused rows. Release 2 needs it to be
+0.
 
 ## Off-state
 
 | Module | Can be off? | With it off |
 | --- | --- | --- |
 | `addresses`, `organizations` | no | — |
-| `customers` | yes | Address pages and checkout are unchanged (served by `organizations`). The admin card, the `410` tombstones and the anonymisation sweep are absent, as they are today for an absent module. |
-| `quick_order` | yes | unaffected; it no longer refers to `customers` for addresses |
-
-## Test plan
-
-Write the failing test first (Principle III).
-
-- **T-M1** (integration, migration): with a live row, `up` throws the message and the table still
-  exists. With only soft-deleted rows, or none, the table is dropped. `down` re-creates it empty
-  (FR-006).
-- **T-C1** (contract): every former endpoint → `410 CUSTOMER_ADDRESS_BOOK_RETIRED`, message in `pl`
-  and `en` by `Accept-Language` (FR-007, FR-013; SC-003).
-- **T-C2** (contract): `GET /me/customer/defaults` returns the Organization defaults. `PUT` with an
-  address field → `410`. `PUT` with method fields only still works (FR-008).
-- **T-C3** (contract): admin `GET /admin/customers/:id/addresses` returns the Organization book
-  (FR-010).
-- **T-C4** (contract): a personal Organization's member `POST/PATCH/DELETE
-  /organizations/mine/addresses` → 201/200/204 (FR-009).
-- **T-U1** (unit, `addresses`): `anonymizeForOrganization` blanks, soft-deletes, keeps the country
-  and audits each row.
-- **T-I1** (integration): the retention sweep for an anonymised B2C customer blanks and soft-deletes
-  the personal Organization's addresses. Order snapshots are unchanged, and company Organizations
-  are untouched (FR-011).
-- **T-K1**: `check:error-translations`, the error-code ledgers, the OpenAPI baseline, the module-graph
-  and residue-ledger tests, and `quick_order`'s composition without `customerAddressReadPort` all
-  pass after re-derivation (FR-012).
-- **T-S1** (storefront, EN and PL): B2C `/addresses` is one list from the Organization API under
-  "My addresses" / "Moje adresy", with no shared section. Add, remove and make-default hit the
-  Organization API (FR-001, FR-002).
-- **T-S2** (storefront): a company member's navigation shows one address entry, and `/addresses`
-  redirects. An org-less customer's `/addresses` redirects to `/account` (FR-004). Extend
-  `storefront/test/account/module-presence-nav.test.tsx` and
-  `storefront/test/account/i18n/account-pages.test.tsx`.
-- **T-S3** (storefront, EN and PL): round trip with one in-memory fake of
-  `/organizations/mine/addresses`. A B2C address typed at checkout is listed on `/addresses`, and
-  one added there is offered at checkout (FR-003; SC-001).
-- **T-A1** (admin): the panel lists the Organization book with no form, in EN and PL.
-- **Manual, on demo**: as a B2C customer, add on "Moje adresy" and check checkout; type at checkout
-  and check "Moje adresy"; switch language. As a company member, check the navigation and the
-  redirect. Open the customer in the admin.
+| `customers` | yes | The address pages and checkout are unchanged, because `organizations` serves them. The job, the admin card and the 410 stubs are absent. The anonymisation sweep is absent, as today. Release 2's migration refuses until the job has run with `customers` on. |
+| `quick_order` | yes | Unaffected. It no longer refers to `customers` for addresses. |
 
 ## Constitution Check
 
 | Principle | Verdict |
 | --- | --- |
-| I. Modular architecture (NN) | **Pass.** The migration touches only its own table. The edges used already exist, and one (`quick_order` → `customers`) is removed. |
-| II. API-first | **Pass.** Contracts change first; the breaking changes are released as such. |
-| III. TDD (NN) | **Pass.** Every FR is traced above. |
-| IV. YAGNI | **Pass.** A table, a port and a set of routes leave; nothing is added but one port method and one error code. |
+| I. Modular architecture (NN) | **Pass.** Both migrations touch only `customer_addresses`. Every cross-module read or write goes through ports `customers` already depends on. One edge (`quick_order` → `customers`) is removed. |
+| II. API-first | **Pass.** Contracts change first in each release. Each release is labelled `breaking change`. |
+| III. TDD (NN) | **Pass.** Every FR traces to a test above. |
+| IV. YAGNI | **Pass.** No new dependency, module or permission. The job and the columns live for one release only. |
 | V / VI / VIII | **Pass.** |
-| VII | **Pass.** Account pages stay `noindex` server components. |
-| IX. UI reuse | **Pass.** One `AddressBook` component for both pages. |
-| X | **N/A.** No job any more. |
-| XI. Tenancy (NN) | **Pass.** The Organization book is the only book; the `withSystemScope` widenings of `CustomerAddressService` disappear with it. |
+| VII | **Pass.** |
+| IX. UI reuse | **Pass.** One shared `AddressBook`. |
+| X. Queue consumers | **Pass.** A BullMQ job in the worker process. |
+| XI. Tenancy (NN) | **Pass.** Every write lands in the account's own Organization through `withOrgScope`. The `withSystemScope` widenings of `CustomerAddressService` go away. |
 | XII, XIV, XV | **N/A.** |
-| XIII. Auditing (NN) | **Pass.** The writes that remain are `AddressService`'s, which audit themselves; anonymisation audits each row. |
+| XIII. Auditing (NN) | **Pass.** Every move, erasure and anonymisation is audited. `AddressService` audits its own writes. |
 | XVI | **Pass**, unchanged. |
-| XVII (NN) | **Pass, improved.** No address surface depends on a switchable module. |
+| XVII (NN) | **Pass, improved.** No address surface depends on a switchable module. The job is gated. |
 
-**Verdict: PASS.** OD-13 changes no verdict.
+**Verdict: PASS.**
 
 ## Complexity Tracking
 
-No new runtime dependency, module, permission, table, column or job.
+No new runtime dependency, module, permission or table. The three columns and the job exist for one
+release and are removed in release 2.
 
-## Work packages and order
+## Verification before reporting done (each release)
 
-Prerequisite: **#769 merged**.
+- `build:packages`, `composer:generate`, and `manifests:generate` with
+  `pnpm install --lockfile-only`
+- `pnpm -r run typecheck` and `pnpm -r run lint`
+- `check:module-boundary`, `check:error-translations`, `check:command-coverage`
+- the targeted backend tests, **including the contract and integration trees**
+- `pnpm --filter storefront run test` and `pnpm --filter '!backend' run test`
+- a `rg` for every deleted path over `backend/test/**`
 
-1. **WP-1 contracts**: add the error code; delete the schemas, the read-port types and
-   `CUSTOMER_ADDRESS_NOT_FOUND`; add `anonymizeForOrganization` to the port type.
-2. **WP-2 `customers` backend**: the guarded drop migration; delete the entity, the services, the
-   read-port provider, the serializers and the address routes; add the tombstones; defaults from the
-   Organization book; admin `GET`; the i18n sentence; `composer:generate`.
-3. **WP-3 `addresses` + anonymisation**: the port method, and the sweep call in `customers`.
-4. **WP-4 `quick_order`**: remove whatever of the edge #769 left.
-5. **WP-5 storefront**: `AddressBook`, both pages, the navigation, and the client deletions.
-6. **WP-6 admin panel.**
-7. **WP-7 tests, derived artefacts and docs**: everything in the grounding table above, the upgrade
-   note in English and Polish, the changesets, and the `breaking change` label.
-
-One merge request. Before reporting done, run:
-
-- `build:packages`, `composer:generate` and `manifests:generate` (with
-  `pnpm install --lockfile-only`);
-- `pnpm -r run typecheck` and `lint`;
-- `check:module-boundary`, `check:error-translations` and `check:command-coverage`;
-- the targeted backend tests, **including the contract and integration trees** (`test:unit:fast`
-  does not see deleted-file breakage);
-- `pnpm --filter storefront run test` and `pnpm --filter '!backend' run test`;
-- a `rg` for every deleted path over `backend/test/**`.
-
-**Follow-ups**: admin editing of Organization addresses (OD-6); duplicate addresses created by
-checkout.
+**Follow-ups**: admin editing of Organization addresses (OD-6), and the duplicate addresses
+checkout creates.
 
 ## Handoff summary for `endora-commerce-dev`
 
-Implement after #769 is merged and OD-13 is confirmed.
+Nothing is left for the owner to rule. Start release 1 once #769 is merged.
 
-- Delete the `customers` personal address book end to end.
-- Drop `customer_addresses` through a `customers` migration that refuses while live rows exist.
-- Answer every former endpoint with `410 CUSTOMER_ADDRESS_BOOK_RETIRED` (en+pl). Serve
-  `/me/customer/defaults` address fields and the admin card from the Organization book.
-- Add `addresses`' `anonymizeForOrganization` and call it from the retention sweep.
-- Make B2C `/addresses` render the Organization book through a shared `AddressBook`. Redirect
-  company members to `/organization/addresses`, with one address entry in their navigation.
-- Re-derive every artefact in the grounding table in the same merge request.
+**Release 1** (WP-1.1 backend, WP-1.2 storefront/admin/docs):
+- B2C `/addresses` renders the Organization book through a shared `AddressBook`. Company members
+  get a single "Adresy organizacji" entry, and `/addresses` redirects them.
+- Every personal-book endpoint answers `410 CUSTOMER_ADDRESS_BOOK_RETIRED` (en+pl).
+- A `customers` BullMQ job moves B2C rows through `addressServicePort` inside `withOrgScope`. It
+  de-duplicates with `addressFingerprint`, keeps the Organization default, soft-deletes each source
+  row with provenance, audits each row, and records refusals. It erases every other row.
+- `addresses` gains `anonymizeForOrganization`, called from the retention sweep.
+- The read port and the `quick_order` wiring go.
+
+**Release 2** (WP-2.1 backend, WP-2.2 admin/docs):
+- A guarded drop of `customer_addresses`, which refuses on any live row, refused rows included.
+- The entity, the job, the 410 stubs, the error code and the remaining schemas go.
+- The upgrade note says to pass through release 1 first.
+
+Write T-U1 and T-I1 before the job service.
