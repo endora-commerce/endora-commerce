@@ -20,6 +20,7 @@ import {
   type PromotionApplication,
   type PromotionApplyPort,
   type StartPaymentResult,
+  isUuidShape,
 } from '@endora-commerce/contracts';
 import { LockMode } from '@mikro-orm/core';
 import type { EventBase, EventBus } from '@endora-commerce/platform/events';
@@ -2881,6 +2882,8 @@ export class OrderService {
   }
 
   async getById(orderId: string, ctx: CustomerContext): Promise<Order> {
+    // A malformed id names no order; PostgreSQL would answer it with a 500 (issue #753).
+    if (!isUuidShape(orderId)) throw new HttpError(404, ERROR_CODES.ORDER_NOT_FOUND, 'Order not found.');
     const em = this.emFactory();
     const where = await this.#scopedOrderWhere(em, ctx, { id: orderId });
     const order = await em.findOne(Order, where);

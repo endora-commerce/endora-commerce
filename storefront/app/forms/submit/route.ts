@@ -18,7 +18,7 @@
  */
 
 import { randomUUID } from 'node:crypto';
-import { SECTION_ANCHOR_RE, type FormSubmitBody } from '@endora-commerce/contracts';
+import { SECTION_ANCHOR_RE, isUuidShape, type FormSubmitBody } from '@endora-commerce/contracts';
 import { getModulePresence } from '../../../lib/api/module-presence';
 import { submitFormEntry, type FormSubmitOutcome } from '../../../lib/api/forms';
 import { localizePath } from '../../../lib/i18n/locale-path';
@@ -34,7 +34,6 @@ export const dynamic = 'force-dynamic';
 /** The backend's body limit (FR-036); a post over it is refused before it is read. */
 const BODY_LIMIT = 262_144;
 
-const FORM_ID_RE = /^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/i;
 /** A block id as the Page Builder writes it. */
 const BLOCK_ID_RE = /^[A-Za-z0-9_-]{1,64}$/;
 
@@ -167,7 +166,7 @@ export async function POST(request: Request): Promise<Response> {
 
   let outcome: FormSubmitOutcome;
   const { ctx, urlState } = await getServerContext();
-  if (!FORM_ID_RE.test(formId)) {
+  if (!isUuidShape(formId)) {
     outcome = { kind: 'unavailable' };
   } else {
     const hp = field(form, 'hp_extra');
