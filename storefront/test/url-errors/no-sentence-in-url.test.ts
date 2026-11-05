@@ -18,12 +18,6 @@ const APP = resolve(import.meta.dirname, '../../app');
 
 /** Pages not swept yet — the list only shrinks (issue #745 lands area by area). */
 const NOT_YET_SWEPT = new Set<string>([
-  '(account)/account/password/page.tsx',
-  '(account)/addresses/page.tsx',
-  '(account)/organization/addresses/page.tsx',
-  '(account)/preferences/page.tsx',
-  '(account)/shopping-lists/[id]/page.tsx',
-  '(account)/shopping-lists/page.tsx',
   '(auth)/login/mfa/page.tsx',
   '(auth)/login/page.tsx',
   '(auth)/login/setup/page.tsx',
@@ -31,7 +25,6 @@ const NOT_YET_SWEPT = new Set<string>([
   '(auth)/password-reset/request/page.tsx',
   '(auth)/register-customer/page.tsx',
   '(auth)/register/page.tsx',
-  'account/security/page.tsx',
 ]);
 
 /** A message parameter whose value is encoded — i.e. not a code. */
