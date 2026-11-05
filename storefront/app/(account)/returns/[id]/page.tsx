@@ -3,6 +3,7 @@ import { revalidatePath } from 'next/cache';
 import { addReturnComment, getMyReturn } from '../../../../lib/api/returns';
 import { getSessionCookie } from '../../../../lib/session';
 import { StorefrontApiError } from '../../../../lib/api/client';
+import { isRecordId } from '../../../../lib/record-id';
 import type { Metadata } from 'next';
 import { localeRedirect } from '../../../../lib/i18n/navigation';
 import { LocalizedLink } from '../../../../lib/i18n/localized-link';
@@ -37,6 +38,8 @@ export default async function ReturnDetailPage({
   const session = await getSessionCookie();
   const { id } = await params;
   if (!session) return await localeRedirect(`/login?next=/returns/${id}`);
+  // Issue #749 — an id that cannot name a case goes where an unknown one does, unasked.
+  if (!isRecordId(id)) return await localeRedirect('/returns');
 
   let detail;
   let me;
