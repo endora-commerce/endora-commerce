@@ -25,7 +25,7 @@ import { CreditLimitWidget } from '../../../components/CreditLimitWidget';
 import { PaymentMethods } from '../../../components/checkout/PaymentMethods';
 import { ShippingMethods } from '../../../components/checkout/ShippingMethods';
 import { AddressSection } from '../../../components/checkout/AddressSection';
-import { companyTaxId, isPersonalOrganization } from '../../../lib/account/organization-area';
+import { isPersonalOrganization } from '../../../lib/account/organization-area';
 import { PlaceOrderButton } from '../../../components/checkout/PlaceOrderButton';
 import { QuoteValidityNotice } from '../../../components/checkout/QuoteValidityNotice';
 import { blockTitle, placeOrderBlock } from '../../../lib/checkout/place-order-gate';
@@ -45,7 +45,7 @@ import {
   ensureShippingAdapterDataOnFormData,
 } from '../../../lib/checkout/shipping-adapter-data';
 import type { Metadata } from 'next';
-import { lineAmountHalfUp } from '@endora-commerce/contracts';
+import { lineAmountHalfUp, organizationCompanyTaxId } from '@endora-commerce/contracts';
 import { localeRedirect } from '../../../lib/i18n/navigation';
 import { LocalizedLink } from '../../../lib/i18n/localized-link';
 
@@ -262,7 +262,8 @@ export default async function CheckoutPage({
           preferredShippingAddressId={defaults?.shippingAddressId ?? null}
           preferredBillingAddressId={defaults?.billingAddressId ?? null}
           organizationName={me?.organization?.legalName || me?.organization?.name || null}
-          organizationTaxId={companyTaxId(me?.organization)}
+          // A personal Organization's tax id is a placeholder, never a default (#757, #767).
+          organizationTaxId={me?.organization ? organizationCompanyTaxId(me.organization) : null}
         />
 
         <ShippingMethods

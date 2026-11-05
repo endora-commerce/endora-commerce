@@ -207,7 +207,11 @@ describe('pwa — the Rule Builder pickers read published ports', () => {
         countByIds: async () => 0,
         searchByName: async (query, limit) => {
           asked.push([query, limit]);
-          return [organizationRecord('org-1')];
+          return [
+            organizationRecord('org-1'),
+            // Issue #767 — a personal Organization's tax id is a placeholder.
+            organizationRecord('org-2', { isPersonal: true, taxId: '79963f233e3843bd84e144a8fcdd37f8' }),
+          ];
         },
         searchIdsByName: async () => [],
       },
@@ -223,6 +227,7 @@ describe('pwa — the Rule Builder pickers read published ports', () => {
     expect(asked).toEqual([['lodz', 25]]);
     expect(response.json().data.items).toEqual([
       { id: 'org-1', name: 'Org org-1', taxId: 'PLorg-1' },
+      { id: 'org-2', name: 'Org org-2', taxId: null },
     ]);
     await app.close();
   });

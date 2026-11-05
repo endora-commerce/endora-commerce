@@ -346,7 +346,14 @@ export function OrganizationDetail(): ReactNode {
         title={org.name}
         description={
           <span>
-            {t('organizations.detail.taxIdLabel')} <code className="font-mono text-xs">{org.taxId}</code>
+            {/* A personal Organization's tax id is an internal placeholder (#767). */}
+            {org.isPersonal ? (
+              <span>{t('organizations.personalAccount')}</span>
+            ) : (
+              <>
+                {t('organizations.detail.taxIdLabel')} <code className="font-mono text-xs">{org.taxId}</code>
+              </>
+            )}
             {org.updatedAt ? (
               <>
                 {' '}

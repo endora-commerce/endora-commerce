@@ -68,6 +68,7 @@ const ORGANIZATION = {
   name: 'Acme',
   legalName: null,
   taxId: 'PL0000000099',
+  isPersonal: false,
   vatStatus: 'vat_payer',
 };
 const CUSTOMER = {
@@ -89,6 +90,12 @@ describe('orderSchema — customFieldValues', () => {
 });
 
 describe('adminOrderDetailSchema', () => {
+  it('carries a personal Organization with no tax id and its kind (#767)', () => {
+    const personal = { ...ORGANIZATION, name: 'Jan Kowalski', taxId: null, isPersonal: true, vatStatus: 'vat_exempt' };
+    const parsed = adminOrderDetailSchema.parse({ ...ORDER, organization: personal, customer: CUSTOMER });
+    expect(parsed.organization).toEqual(personal);
+  });
+
   it('keeps the organization and the customer of the admin detail', () => {
     const parsed = adminOrderDetailSchema.parse({
       ...ORDER,

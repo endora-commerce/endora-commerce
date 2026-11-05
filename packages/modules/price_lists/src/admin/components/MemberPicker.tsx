@@ -43,7 +43,7 @@ export function MemberPicker(props: {
             ? api.targets.customerGroups().then((groups) => groups.map((g) => ({ value: g.id, label: g.name, description: g.code })))
             : api.targets
                 .organizations(query.trim() ? { search: query.trim(), limit: 20 } : { limit: 20 })
-                .then((orgs) => orgs.map((o) => ({ value: o.id, label: o.name, description: o.taxId })));
+                .then((orgs) => orgs.map((o) => ({ value: o.id, label: o.name, description: o.taxId ?? undefined })));
         load
           .then((options) => {
             if (cancelled) return;

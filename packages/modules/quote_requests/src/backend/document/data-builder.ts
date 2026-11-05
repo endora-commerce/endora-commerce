@@ -9,7 +9,7 @@ import type {
   OrganizationDetailsPort,
   QuoteRequestDocumentData,
 } from '@endora-commerce/contracts';
-import { arrangeLineGroups, flattenSections } from '@endora-commerce/contracts';
+import { arrangeLineGroups, flattenSections, organizationCompanyTaxId } from '@endora-commerce/contracts';
 import type { SalesChannelResolutionPort } from '@endora-commerce/platform/kernel';
 import type { QuoteRequest } from '../entities/quote-request.entity.js';
 import type { QuoteRequestItem } from '../entities/quote-request-item.entity.js';
@@ -198,7 +198,11 @@ export class QuoteDocumentDataBuilder {
       }))
       .filter((detail) => detail.value.trim() !== '');
 
-    const address = organization?.registeredAddress;
+    // A personal (B2C) Organization is not a company (#767): the person is the
+    // buyer, so its placeholder tax id and its placeholder head office stay off
+    // the document.
+    const company = organization && !organization.isPersonal ? organization : null;
+    const address = company?.registeredAddress;
     const firstCurrency = lines[0]?.lineCurrency ?? 'PLN';
     return {
       generatedAt: this.now().toISOString(),
@@ -218,8 +222,8 @@ export class QuoteDocumentDataBuilder {
       channel: channel ? { id: channel.id, name: localized(channel.name, language, channel.code) } : null,
       buyer: {
         organizationName: organization?.name ?? '',
-        legalName: organization?.legalName ?? null,
-        taxId: organization?.taxId ? organization.taxId : null,
+        legalName: company?.legalName ?? null,
+        taxId: organization ? organizationCompanyTaxId(organization) : null,
         address:
           address && (address.street || address.city)
             ? { line1: address.street, line2: null, postalCode: address.postalCode, city: address.city, country: address.country }

@@ -5,6 +5,7 @@ import {
   compareDecimals,
   lineAmountHalfUp,
   moneySum,
+  organizationCompanyTaxId,
   pickLocalized,
   resolveScopeLanguage,
   roundHalfUp,
@@ -476,7 +477,7 @@ export function billingCompanyData(
 ): { companyName?: string; taxId?: string } {
   const companyName =
     req.billingCompanyName?.trim() || (org.isPersonal ? '' : org.legalName || org.name);
-  const taxId = req.billingTaxId?.trim() || (org.isPersonal ? '' : org.taxId);
+  const taxId = req.billingTaxId?.trim() || organizationCompanyTaxId(org);
   return {
     ...(companyName ? { companyName } : {}),
     ...(taxId ? { taxId } : {}),
