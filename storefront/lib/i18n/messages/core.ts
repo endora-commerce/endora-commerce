@@ -324,6 +324,8 @@ export const core = defineMessages({
       'Defaults to your organization. Override for this order if needed.',
     'checkout.address.companyName': 'Company name',
     'checkout.address.taxId': 'Tax ID (NIP)',
+    'checkout.address.companyInvoice': 'I need a company invoice',
+    'checkout.address.companyInvoiceHint': 'Enter the company the invoice is issued to.',
     'checkout.shipping.title': 'Delivery method',
     'checkout.shipping.empty':
       'No delivery method is available for your account on this sales channel.',
@@ -831,6 +833,8 @@ export const core = defineMessages({
       'Domyślnie dane Twojej organizacji. Możesz je nadpisać dla tego zamówienia.',
     'checkout.address.companyName': 'Nazwa firmy',
     'checkout.address.taxId': 'NIP',
+    'checkout.address.companyInvoice': 'Chcę fakturę na firmę',
+    'checkout.address.companyInvoiceHint': 'Podaj dane firmy, na którą wystawimy fakturę.',
     'checkout.shipping.title': 'Metoda dostawy',
     'checkout.shipping.empty':
       'Brak metody dostawy dostępnej dla Twojego konta w tym kanale sprzedaży.',

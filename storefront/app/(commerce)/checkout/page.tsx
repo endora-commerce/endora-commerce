@@ -25,7 +25,7 @@ import { CreditLimitWidget } from '../../../components/CreditLimitWidget';
 import { PaymentMethods } from '../../../components/checkout/PaymentMethods';
 import { ShippingMethods } from '../../../components/checkout/ShippingMethods';
 import { AddressSection } from '../../../components/checkout/AddressSection';
-import { companyTaxId } from '../../../lib/account/organization-area';
+import { companyTaxId, isPersonalOrganization } from '../../../lib/account/organization-area';
 import { PlaceOrderButton } from '../../../components/checkout/PlaceOrderButton';
 import { QuoteValidityNotice } from '../../../components/checkout/QuoteValidityNotice';
 import { blockTitle, placeOrderBlock } from '../../../lib/checkout/place-order-gate';
@@ -243,6 +243,7 @@ export default async function CheckoutPage({
           deliveryAddresses={deliveryAddrs}
           billingAddresses={billingAddrs}
           locale={locale}
+          personalOrganization={isPersonalOrganization(me?.organization ?? null)}
           countries={countries}
           preferredShippingAddressId={defaults?.shippingAddressId ?? null}
           preferredBillingAddressId={defaults?.billingAddressId ?? null}
