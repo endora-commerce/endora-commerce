@@ -27,6 +27,7 @@ import {
   type OrderMinimumLine,
   type OrganizationPermissionPort,
   withChannelOrderRules,
+  isUuidShape,
 } from '@endora-commerce/contracts';
 import type { EventBase, EventBus } from '@endora-commerce/platform/events';
 import { HttpError } from '@endora-commerce/platform/http';
@@ -1348,6 +1349,8 @@ export class RfqService {
     rfqId: string,
     ctx: CustomerContext,
   ): Promise<QuoteRequest> {
+    // A malformed id names no request; PostgreSQL would answer it with a 500 (issue #753).
+    if (!isUuidShape(rfqId)) throw new HttpError(404, ERROR_CODES.NOT_FOUND, 'Quote Request not found.');
     const rfq = await em.findOne(QuoteRequest, { id: rfqId });
     if (!rfq) throw new HttpError(404, ERROR_CODES.NOT_FOUND, 'Quote Request not found.');
     if (rfq.organizationId !== ctx.organizationId) {

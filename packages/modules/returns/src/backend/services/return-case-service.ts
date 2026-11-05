@@ -1,5 +1,5 @@
 import type { EntityManager } from '@mikro-orm/postgresql';
-import { ERROR_CODES } from '@endora-commerce/contracts';
+import { ERROR_CODES, isUuidShape } from '@endora-commerce/contracts';
 import type {
   CreateReturnCaseRequest,
   OrderReadPort,
@@ -324,6 +324,8 @@ export class ReturnCaseService {
 
   /** One case, within the same scope as {@link listForCustomer}; out of it is `404`. */
   async getForCustomer(id: string, customer: ReturnCustomerContext): Promise<ReturnCaseDetail> {
+    // A malformed id names no case; PostgreSQL would answer it with a 500 (issue #753).
+    if (!isUuidShape(id)) throw new HttpError(404, ERROR_CODES.NOT_FOUND, 'Return case not found.');
     const em = this.deps.emFactory();
     const rc = await em.findOne(ReturnCase, await this.deps.scope.where(customer, { id }));
     if (!rc) throw new HttpError(404, ERROR_CODES.NOT_FOUND, 'Return case not found.');

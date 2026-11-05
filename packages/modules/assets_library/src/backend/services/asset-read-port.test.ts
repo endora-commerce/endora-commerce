@@ -147,6 +147,51 @@ describe('AssetReadService.resolvePublicUrls', () => {
 });
 
 /**
+ * `assetReadPort.resolveUrls` — the URL `AssetsLibraryPort.getAsset` carries,
+ * for a batch, without the detail's "used by" list (issue #685). A storefront
+ * page resolving its embeds through `getAsset` ran that list — a walk of every
+ * page, block, template, post, product and menu — once per image.
+ */
+describe('AssetReadService.resolveUrls', () => {
+  it('answers a public asset with the versioned URL the detail carries', async () => {
+    const { service } = makeService([seededAsset(PUBLIC_ID)]);
+
+    const urls = await service.resolveUrls([PUBLIC_ID]);
+
+    expect(urls.get(PUBLIC_ID)).toBe(`${API_ORIGIN}/assets/file/${PUBLIC_ID}?v=a1b2c3d4e5f6`);
+  });
+
+  it('answers a private asset with a signed link, as the detail does', async () => {
+    const { service } = makeService([seededAsset(PRIVATE_ID, { visibility: 'private' })]);
+
+    const url = (await service.resolveUrls([PRIVATE_ID])).get(PRIVATE_ID);
+
+    expect(url).toMatch(new RegExp(`^${API_ORIGIN}/assets/file/${PRIVATE_ID}\\?`));
+    expect(url).toMatch(/[?&]token=[0-9a-f]{64}/);
+  });
+
+  it('reads the whole batch in one query, narrowed to live rows', async () => {
+    const { service, filters } = makeService([seededAsset(PUBLIC_ID), seededAsset(PRIVATE_ID, { visibility: 'private' })]);
+
+    const urls = await service.resolveUrls([PUBLIC_ID, PRIVATE_ID]);
+
+    expect(urls.size).toBe(2);
+    expect(filters).toHaveLength(1);
+    expect(filters[0]).toMatchObject({ id: { $in: [PUBLIC_ID, PRIVATE_ID] }, deletedAt: null });
+  });
+
+  it('reads nothing at all for an empty batch, or one with no uuid in it', async () => {
+    const { service, filters } = makeService([seededAsset(PUBLIC_ID)]);
+
+    expect((await service.resolveUrls([])).size).toBe(0);
+    // An editor's tree can hold any string under an `assetId` key; one of them
+    // must not turn the batch into a database error for every other embed.
+    expect((await service.resolveUrls(['hero.png', ''])).size).toBe(0);
+    expect(filters).toEqual([]);
+  });
+});
+
+/**
  * `assetReadPort.openAssetBytes` — the same shape of rule, one question over
  * (`specs/110-instance-repository/` T118c).
  *

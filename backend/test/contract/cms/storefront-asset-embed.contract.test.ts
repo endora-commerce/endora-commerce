@@ -171,10 +171,10 @@ describe('storefront CMS asset embed contract (T118c)', () => {
   });
 
   it('omits an asset the library no longer has, and keeps the page', async () => {
-    // The resolver's one tolerance, at the seam that matters: a page embedding a
-    // deleted asset still renders. `getAsset` throws 404 for a row that is gone
-    // and the resolver answers `null`, which the storefront resolver drops from
-    // the map rather than propagating.
+    // At the seam that matters: a page embedding a deleted asset still renders.
+    // `assetReadPort.resolveUrls` leaves a row that is gone out of its answer
+    // (issue #685 — it was a `getAsset` 404 caught per embed), so the map the
+    // storefront resolver returns simply does not name it.
     const slug = await seedPageEmbedding(randomUUID());
 
     const res = await getBySlug(slug);

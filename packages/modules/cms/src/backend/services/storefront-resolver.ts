@@ -21,7 +21,11 @@ import {
 } from './page-paths.js';
 import { CmsCache } from './cms-cache.js';
 
-export type CmsAssetResolver = (assetId: string) => Promise<CmsAssetEmbedResolution | null>;
+/**
+ * The embed details of these asset ids, in one call per tree rather than one per
+ * asset (issue #685); an id that resolves to nothing is absent from the map.
+ */
+export type CmsAssetResolver = (assetIds: readonly string[]) => Promise<Map<string, CmsAssetEmbedResolution>>;
 
 /**
  * The asset id `cms.default_share_image_asset_id` holds for one sales channel,
@@ -160,7 +164,7 @@ export class StorefrontResolver {
    */
   private async shareImageUrl(assetId: string | null): Promise<string | null> {
     if (!assetId || !this.assetResolver) return null;
-    const resolved = await this.assetResolver(assetId);
+    const resolved = (await this.assetResolver([assetId])).get(assetId);
     return resolved && resolved.visibility === 'public' ? resolved.url : null;
   }
 
@@ -204,14 +208,7 @@ export class StorefrontResolver {
     for (const tree of trees) walkAssetIds(tree, ids);
     if (ids.size === 0) return {};
 
-    const assets: Record<string, CmsAssetEmbedResolution> = {};
-    await Promise.all(
-      Array.from(ids).map(async (assetId) => {
-        const resolved = await resolver(assetId);
-        if (resolved) assets[assetId] = resolved;
-      }),
-    );
-    return assets;
+    return Object.fromEntries(await resolver([...ids]));
   }
 
   async resolvePageBySlug(input: {

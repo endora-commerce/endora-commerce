@@ -1,5 +1,5 @@
 import { describe, expect, it } from 'vitest';
-import type { AssetDetail, AssetRecord, AssetStoredKind } from '@endora-commerce/contracts';
+import type { AssetRecord, AssetStoredKind } from '@endora-commerce/contracts';
 import { HttpError } from '@endora-commerce/platform/http';
 import { ModuleDisabledError } from '@endora-commerce/platform/kernel';
 import { resolveMenuAsset, resolveMenuBlock } from './cross-module-ports.js';
@@ -31,22 +31,32 @@ import { resolveMenuAsset, resolveMenuBlock } from './cross-module-ports.js';
 const asset = (kind: AssetStoredKind, label: string | null = 'Hero'): AssetRecord =>
   ({ id: 'a1', kind, label }) as AssetRecord;
 
-const detail = (url: string): AssetDetail => ({ url }) as AssetDetail;
+/** The URL read, answering `url` for every id it is asked about and counting the asks. */
+function urls(url: string | null) {
+  const asked: string[][] = [];
+  return {
+    asked,
+    resolveUrls: async (ids: readonly string[]) => {
+      asked.push([...ids]);
+      return new Map(url === null ? [] : ids.map((id) => [id, url] as const));
+    },
+  };
+}
 
 /** The menu reads one asset by id; visibility of a list is not what these cases test. */
 const everyAssetVisible = async (ids: readonly string[]): Promise<ReadonlySet<string>> => new Set(ids);
 
 describe('resolveMenuAsset (T118c)', () => {
-  it('takes the kind and label from the record and the URL from the library', async () => {
-    // Two ports for one asset, and this is why: `AssetRecord` carries the stored
-    // kind and no resolved URL, `AssetDetail` carries the URL and no kind.
+  it('takes the kind and label from the record and the URL from the batched read', async () => {
+    // Two reads for one asset, and this is why: `AssetRecord` carries the stored
+    // kind and no resolved URL. The URL is `resolveUrls`, not `getAsset`, whose
+    // detail walks every page, block and menu for its "used by" list (issue #685).
+    const read = urls('https://cdn.example.com/hero.png');
     const resolved = await resolveMenuAsset(
-      {
-        assets: { findById: async () => asset('image', 'Hero image'), visibleToCaller: everyAssetVisible },
-        assetLibrary: { getAsset: async () => detail('https://cdn.example.com/hero.png') },
-      },
+      { assets: { findById: async () => asset('image', 'Hero image'), visibleToCaller: everyAssetVisible, ...read } },
       'a1',
     );
+    expect(read.asked).toEqual([['a1']]);
 
     expect(resolved).toEqual({
       url: 'https://cdn.example.com/hero.png',
@@ -58,41 +68,34 @@ describe('resolveMenuAsset (T118c)', () => {
   it('refuses a stored kind a menu cannot render, without asking for a URL', async () => {
     // The library holds `pdf`, `certificate` and `other` too, and
     // `MegamenuAssetKind` is the narrower pair.
-    let urlAsked = 0;
+    const read = urls('/never');
     const resolved = await resolveMenuAsset(
-      {
-        assets: { findById: async () => asset('pdf'), visibleToCaller: everyAssetVisible },
-        assetLibrary: {
-          getAsset: async () => {
-            urlAsked += 1;
-            return detail('/never');
-          },
-        },
-      },
+      { assets: { findById: async () => asset('pdf'), visibleToCaller: everyAssetVisible, ...read } },
       'a1',
     );
 
     expect(resolved).toBeNull();
-    expect(urlAsked).toBe(0);
+    expect(read.asked).toEqual([]);
   });
 
   it('answers null for an asset that is not there, without asking for a URL', async () => {
-    let urlAsked = 0;
+    const read = urls('/never');
     const resolved = await resolveMenuAsset(
-      {
-        assets: { findById: async () => null, visibleToCaller: everyAssetVisible },
-        assetLibrary: {
-          getAsset: async () => {
-            urlAsked += 1;
-            return detail('/never');
-          },
-        },
-      },
+      { assets: { findById: async () => null, visibleToCaller: everyAssetVisible, ...read } },
       'gone',
     );
 
     expect(resolved).toBeNull();
-    expect(urlAsked).toBe(0);
+    expect(read.asked).toEqual([]);
+  });
+
+  it('answers null when the library has no URL for the asset', async () => {
+    const resolved = await resolveMenuAsset(
+      { assets: { findById: async () => asset('image'), visibleToCaller: everyAssetVisible, ...urls(null) } },
+      'a1',
+    );
+
+    expect(resolved).toBeNull();
   });
 
   it('lets the library’s own refusal through rather than reading it as "no asset"', async () => {
@@ -103,9 +106,10 @@ describe('resolveMenuAsset (T118c)', () => {
     await expect(
       resolveMenuAsset(
         {
-          assets: { findById: async () => asset('image'), visibleToCaller: everyAssetVisible },
-          assetLibrary: {
-            getAsset: async () => {
+          assets: {
+            findById: async () => asset('image'),
+            visibleToCaller: everyAssetVisible,
+            resolveUrls: async () => {
               throw new ModuleDisabledError('assets_library');
             },
           },
