@@ -7,7 +7,8 @@ import type { CartSummary } from '../../lib/api/cart';
  * approval first (`specs/170-organization-roles/`, FR-031), and offered "Place order" only for
  * placement to refuse it. The page now follows the same verdict the cart page renders its
  * primary control from — the backend's `cart.primaryCta` — and sends a basket that still needs
- * approval, or is awaiting it, back to `/cart` in the request's language.
+ * approval, is awaiting it, or is blocked by the organization back to `/cart` in the request's
+ * language.
  *
  * The page is awaited with the cart, the methods and the request context mocked (as in
  * `checkout-page-locale.test.tsx`); the channel prefixes Polish, so the redirect target shows
@@ -106,6 +107,13 @@ describe('checkout page — a basket that needs approval (issue #750)', () => {
 
   it('redirects to the cart while the basket is awaiting approval', async () => {
     cart = summary('pending', 'awaiting_approval');
+    await expect(render()).rejects.toThrow('redirect /pl/cart');
+  });
+
+  it('redirects to the cart when the organization blocks the basket (rejected by its admin)', async () => {
+    // Owner ruling on PR #754: `blocked_by_organization` (`rejected_by_org_admin`, or a cart
+    // whose status is `rejected` / `completed`) cannot be placed either.
+    cart = summary('rejected_by_org_admin', 'blocked_by_organization');
     await expect(render()).rejects.toThrow('redirect /pl/cart');
   });
 
