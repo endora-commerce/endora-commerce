@@ -7,7 +7,8 @@ import { adminSession, modulePresence, withSession } from '../../helpers/render-
 /**
  * Issue #767 — the Organization panel of the admin quote-request detail. A
  * personal (B2C) Organization's tax id is an internal placeholder, so the API
- * answers `taxId: null` for it and the panel prints no tax-id line; a company
+ * answers `taxId: null` and `isPersonal: true` for it and the panel prints
+ * "Individual customer" where the tax-id line was; a company
  * Organization's tax id is shown as before.
  */
 
@@ -43,7 +44,7 @@ const { RfqDetail } = await import('../../../../packages/modules/quote_requests/
 const RFQ_ID = '00000000-0000-4000-8000-0000000000r1';
 const PRODUCT_ID = '00000000-0000-4000-8000-0000000000p1';
 
-const BUNDLE = passthroughBundle('core', ['rfq.detail.sections.organization', 'rfq.detail.org.taxId']);
+const BUNDLE = passthroughBundle('core', ['rfq.detail.sections.organization', 'rfq.detail.org.taxId', 'rfq.detail.org.individualCustomer']);
 
 function rfqPayload(organization: Record<string, unknown>): Record<string, unknown> {
   return {
@@ -123,15 +124,18 @@ beforeEach(() => {
 
 describe('RfqDetail — Organization panel tax id (#767)', () => {
   it("shows a company Organization's tax id", async () => {
-    renderDetail({ id: '00000000-0000-4000-8000-0000000000a1', name: 'Acme', legalName: null, taxId: '5260250274', vatStatus: 'vat_payer' });
+    renderDetail({ id: '00000000-0000-4000-8000-0000000000a1', name: 'Acme', legalName: null, taxId: '5260250274', isPersonal: false, vatStatus: 'vat_payer' });
     expect(await screen.findByText('Acme')).toBeInTheDocument();
     expect(screen.getByText('5260250274')).toBeInTheDocument();
     expect(screen.getByText(/rfq\.detail\.org\.taxId/)).toBeInTheDocument();
+    expect(screen.queryByText('rfq.detail.org.individualCustomer')).not.toBeInTheDocument();
   });
 
-  it('prints no tax-id line for a personal Organization', async () => {
-    renderDetail({ id: '00000000-0000-4000-8000-0000000000a1', name: 'Jan Kowalski', legalName: null, taxId: null, vatStatus: 'vat_exempt' });
+  it('labels a personal Organization "Individual customer" where the tax-id line was', async () => {
+    renderDetail({ id: '00000000-0000-4000-8000-0000000000a1', name: 'Jan Kowalski', legalName: null, taxId: null, isPersonal: true, vatStatus: 'vat_exempt' });
     expect(await screen.findByText('Jan Kowalski')).toBeInTheDocument();
     expect(screen.queryByText(/rfq\.detail\.org\.taxId/)).not.toBeInTheDocument();
+    // Owner ruling of 2026-11-05: the line says what the Organization is instead.
+    expect(screen.getByText('rfq.detail.org.individualCustomer')).toBeInTheDocument();
   });
 });

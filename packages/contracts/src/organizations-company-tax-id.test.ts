@@ -16,6 +16,10 @@ describe('organizationCompanyTaxId', () => {
     expect(organizationCompanyTaxId({ isPersonal: true, taxId: '79963f233e3843bd84e144a8fcdd37f8' })).toBeNull();
   });
 
+  it('reads an absent flag as a company, as a session payload without `isPersonal` is', () => {
+    expect(organizationCompanyTaxId({ taxId: '5260250274' })).toBe('5260250274');
+  });
+
   it('answers null, not an empty string, for a company with no tax id', () => {
     expect(organizationCompanyTaxId({ isPersonal: false, taxId: '' })).toBeNull();
     expect(organizationCompanyTaxId({ isPersonal: false, taxId: '   ' })).toBeNull();

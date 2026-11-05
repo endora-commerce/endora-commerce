@@ -3,6 +3,7 @@ import { renderToString } from 'react-dom/server';
 import type { ReactNode } from 'react';
 import type { MeResult } from '../../lib/api/account';
 import type { AddressSummary } from '../../lib/api/organization';
+import { organizationCompanyTaxId } from '@endora-commerce/contracts';
 import { visibleText } from './i18n/text';
 
 /**
@@ -237,17 +238,23 @@ describe('/organization/addresses when the session cannot be read (issue #757)',
  * pre-fills its tax-id field from the session's Organization. A personal
  * Organization's tax id is an internal placeholder derived from the account id,
  * so the field starts empty there and the buyer may still type a real one.
+ *
+ * Issue #767 (owner ruling of 2026-11-05): the rule is the platform's one
+ * `organizationCompanyTaxId` from `@endora-commerce/contracts`, not a copy of it
+ * kept here.
  */
-describe('the checkout billing tax-id default (issue #757)', () => {
-  it('is the tax id of a company Organization', async () => {
-    const { companyTaxId } = await import('../../lib/account/organization-area');
-    expect(companyTaxId(me().organization)).toBe('1234567890');
+describe('the checkout billing tax-id default (issues #757, #767)', () => {
+  it('is the tax id of a company Organization', () => {
+    expect(organizationCompanyTaxId(me().organization!)).toBe('1234567890');
   });
 
-  it('is empty for a personal Organization, and for none', async () => {
-    const { companyTaxId } = await import('../../lib/account/organization-area');
+  it('is empty for a personal Organization', () => {
     isPersonal = true;
-    expect(companyTaxId(me().organization)).toBeNull();
-    expect(companyTaxId(null)).toBeNull();
+    expect(organizationCompanyTaxId(me().organization!)).toBeNull();
+  });
+
+  it('is not a storefront copy of the rule', async () => {
+    const area = await import('../../lib/account/organization-area');
+    expect('companyTaxId' in area).toBe(false);
   });
 });

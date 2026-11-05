@@ -7,7 +7,8 @@ import { adminSession, modulePresence, withSession } from '../../helpers/render-
 /**
  * Issue #767 — the Organization panel of the admin order detail. A personal
  * (B2C) Organization's tax id is an internal placeholder, so the API answers
- * `taxId: null` for it and the panel prints no tax-id line; a company
+ * `taxId: null` and `isPersonal: true` for it and the panel prints
+ * "Individual customer" where the tax-id line was; a company
  * Organization's tax id is shown as before.
  */
 
@@ -52,7 +53,7 @@ const ORDER = {
   placedAt: '2026-05-22T12:00:00Z',
 };
 
-const BUNDLE = passthroughBundle('core', ['orderDetail.sections.organization', 'orderDetail.org.taxId']);
+const BUNDLE = passthroughBundle('core', ['orderDetail.sections.organization', 'orderDetail.org.taxId', 'orderDetail.org.individualCustomer']);
 
 function answer(organization: Record<string, unknown>): void {
   getSpy.mockReset();
@@ -83,17 +84,20 @@ describe('OrderDetail — Organization panel tax id (#767)', () => {
   beforeEach(() => getSpy.mockReset());
 
   it("shows a company Organization's tax id", async () => {
-    answer({ id: ORDER.organizationId, name: 'Acme', legalName: 'Acme Sp. z o.o.', taxId: '5260250274', vatStatus: 'vat_payer' });
+    answer({ id: ORDER.organizationId, name: 'Acme', legalName: 'Acme Sp. z o.o.', taxId: '5260250274', isPersonal: false, vatStatus: 'vat_payer' });
     renderDetail();
     await waitFor(() => expect(screen.getByText('Acme')).toBeInTheDocument());
     expect(screen.getByText('5260250274')).toBeInTheDocument();
     expect(screen.getByText(/orderDetail\.org\.taxId/)).toBeInTheDocument();
+    expect(screen.queryByText('orderDetail.org.individualCustomer')).not.toBeInTheDocument();
   });
 
-  it('prints no tax-id line for a personal Organization', async () => {
-    answer({ id: ORDER.organizationId, name: 'Jan Kowalski', legalName: null, taxId: null, vatStatus: 'vat_exempt' });
+  it('labels a personal Organization "Individual customer" where the tax-id line was', async () => {
+    answer({ id: ORDER.organizationId, name: 'Jan Kowalski', legalName: null, taxId: null, isPersonal: true, vatStatus: 'vat_exempt' });
     renderDetail();
     await waitFor(() => expect(screen.getByText('Jan Kowalski')).toBeInTheDocument());
     expect(screen.queryByText(/orderDetail\.org\.taxId/)).not.toBeInTheDocument();
+    // Owner ruling of 2026-11-05: the line says what the Organization is instead.
+    expect(screen.getByText('orderDetail.org.individualCustomer')).toBeInTheDocument();
   });
 });

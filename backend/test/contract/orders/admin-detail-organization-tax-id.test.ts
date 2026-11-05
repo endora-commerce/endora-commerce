@@ -12,7 +12,8 @@ import { TEST_ORGANIZATION_ID } from '../../helpers/test-actors.js';
  * Issue #767 — `GET /api/v1/admin/orders/:id` enriches the order with its
  * Organization for the detail page's Organization panel. A personal (B2C)
  * Organization's tax id is an internal 32-hex placeholder, so the reply carries
- * `taxId: null` for it; a company Organization's tax id is carried as before.
+ * `taxId: null` and `isPersonal: true` for it (the panel labels it an
+ * individual customer, owner ruling of 2026-11-05); a company Organization's tax id is carried as before.
  */
 const PLACEHOLDER_TAX_ID = '79963f233e3843bd84e144a8fcdd37f8';
 
@@ -46,14 +47,14 @@ describe('GET /api/v1/admin/orders/:id — Organization tax id (#767)', () => {
       cookies: { b2b_session: 'stub-admin-session' },
     });
     expect(res.statusCode, res.body).toBe(200);
-    return (res.json() as { data: { organization: { name: string; taxId: string | null } | null } }).data.organization;
+    return (res.json() as { data: { organization: { name: string; taxId: string | null; isPersonal: boolean } | null } }).data.organization;
   }
 
   it("carries a company Organization's tax id", async () => {
-    expect(await organizationOf('company')).toMatchObject({ name: 'Acme', taxId: '5260250274' });
+    expect(await organizationOf('company')).toMatchObject({ name: 'Acme', taxId: '5260250274', isPersonal: false });
   });
 
   it("never carries a personal Organization's placeholder", async () => {
-    expect(await organizationOf('personal')).toMatchObject({ name: 'Jan Kowalski', taxId: null });
+    expect(await organizationOf('personal')).toMatchObject({ name: 'Jan Kowalski', taxId: null, isPersonal: true });
   });
 });
