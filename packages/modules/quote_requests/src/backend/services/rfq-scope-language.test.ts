@@ -34,6 +34,8 @@ const B2C = '00000000-0000-4000-8000-0000000000d1';
 const PRODUCT_ID = '00000000-0000-4000-8000-0000000000a2';
 const ORG_ID = '00000000-0000-4000-8000-0000000000b1';
 const CUSTOMER_ID = '00000000-0000-4000-8000-0000000000c1';
+// A uuid: a malformed id names no request and is refused before any read (issue #753).
+const RFQ_ID = '00000000-0000-4000-8000-0000000000e1';
 
 const ctx = { customerAccountId: CUSTOMER_ID, organizationId: ORG_ID };
 
@@ -44,7 +46,7 @@ function serviceAskingAt(): { service: InstanceType<typeof RfqService>; filterAv
   // The draft a buyer edits or resubmits: theirs, Pending, untouched by an operator.
   const em = {
     findOne: async () => ({
-      id: 'rfq-1',
+      id: RFQ_ID,
       status: 'Pending',
       organizationId: ORG_ID,
       customerAccountId: CUSTOMER_ID,
@@ -122,7 +124,7 @@ describe('163 — a buyer’s quote line is asked about at the request’s scope
   it('a draft edit asks at the request tag resolved against the channel (code review m5)', async () => {
     const { service, filterAvailable } = serviceAskingAt();
     const code = await refusalOf(
-      service.patchDraft('rfq-1', ctx, { items: [{ productId: PRODUCT_ID, quantity: 2 }] } as never, null, {
+      service.patchDraft(RFQ_ID, ctx, { items: [{ productId: PRODUCT_ID, quantity: 2 }] } as never, null, {
         language: 'pl',
         languageTag: 'de-DE',
         salesChannelId: B2C,
@@ -135,7 +137,7 @@ describe('163 — a buyer’s quote line is asked about at the request’s scope
   it('a resubmit asks at the request tag resolved against the channel (code review m5)', async () => {
     const { service, filterAvailable } = serviceAskingAt();
     const code = await refusalOf(
-      service.resubmit('rfq-1', ctx, {} as never, { language: 'pl', languageTag: 'de-DE', salesChannelId: B2C }),
+      service.resubmit(RFQ_ID, ctx, {} as never, { language: 'pl', languageTag: 'de-DE', salesChannelId: B2C }),
     );
     expect(code).toBe(ERROR_CODES.PRODUCT_NOT_FOUND);
     expect(filterAvailable).toHaveBeenCalledWith([PRODUCT_ID], expect.objectContaining({ channelId: B2C, languageCode: 'de-DE' }));

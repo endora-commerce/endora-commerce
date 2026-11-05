@@ -455,6 +455,25 @@ export interface AssetReadPort {
   resolvePublicUrls(assetIds: readonly string[]): Promise<Map<string, string>>;
 
   /**
+   * The URL {@link AssetsLibraryPort.getAsset} carries for each of these live
+   * assets, keyed by asset id — the versioned stable URL of a `public` one, a
+   * signed, expiring link to a `private` one — and nothing for an id that names
+   * no live row.
+   *
+   * **For a consumer that renders what an editor embedded**: a storefront page,
+   * block or menu shows a private asset too, as long as the link is fresh, and
+   * caches the answer no longer than it would cache `getAsset`'s. A consumer
+   * that publishes a link someone fetches later wants
+   * {@link resolvePublicUrls}.
+   *
+   * Batched, and without the detail's `references` list, for the reason
+   * `resolvePublicUrls` gives (issue #685): a page resolving each of ~150 embeds
+   * through `getAsset` walked the content of every page, block, template, post,
+   * product and menu once per embed, on every cache miss.
+   */
+  resolveUrls(assetIds: readonly string[]): Promise<Map<string, string>>;
+
+  /**
    * Which of these assets the **ambient caller** may see in the asset library
    * (`specs/166-asset-reference-visibility/`): an asset no reader-restricted
    * record uses, or one at least one of whose records the caller may see. The

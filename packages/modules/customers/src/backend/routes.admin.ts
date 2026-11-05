@@ -30,6 +30,7 @@ import {
   type OrganizationRoleReadPort,
   type RfqCustomerPort,
   type VatValidator,
+  isUuidShape,
 } from '@endora-commerce/contracts';
 import { HttpError } from '@endora-commerce/platform/http';
 import { rethrowIfModuleDisabled } from '@endora-commerce/platform/kernel';
@@ -46,7 +47,6 @@ import {
   serializeCustomerAddress,
   serializeOrganizationAddress,
 } from './serializers.js';
-import { isUuid } from './uuid-param.js';
 
 const ADMIN_SHADOW_COOKIE = 'admin_shadow_session';
 
@@ -153,7 +153,7 @@ export async function registerCustomersAdminRoutes(
    */
   const requireCustomerId = async (request: FastifyRequest): Promise<void> => {
     const { id } = request.params as { id: string };
-    if (!isUuid(id)) {
+    if (!isUuidShape(id)) {
       throw new HttpError(404, ERROR_CODES.CUSTOMER_NOT_FOUND, 'Customer not found.');
     }
   };

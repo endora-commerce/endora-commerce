@@ -124,7 +124,9 @@ const refusingRfq = new Proxy(
   },
 ) as RfqCustomerPort;
 
-const LIST = { id: 'list-1', isDefault: false, updatedAt: new Date('2026-01-01T00:00:00.000Z') };
+// A uuid: a malformed id names no list and is refused before any read (issue #753).
+const LIST_ID = '00000000-0000-4000-8000-0000000000e3';
+const LIST = { id: LIST_ID, isDefault: false, updatedAt: new Date('2026-01-01T00:00:00.000Z') };
 
 describe('shopping_lists — product rows arrive over catalogProductReadPort', () => {
   it('checks a new item against the port, and never the catalog table', async () => {
@@ -144,7 +146,7 @@ describe('shopping_lists — product rows arrive over catalogProductReadPort', (
       refusingChannelMembership,
     );
 
-    const item = await service.addItem(CTX, 'list-1', { productId: 'prod-9', quantity: 3 });
+    const item = await service.addItem(CTX, LIST_ID, { productId: 'prod-9', quantity: 3 });
 
     expect(asked).toEqual(['prod-9']);
     expect(item.productId).toBe('prod-9');
@@ -164,7 +166,7 @@ describe('shopping_lists — product rows arrive over catalogProductReadPort', (
     );
 
     await expect(
-      service.addItem(CTX, 'list-1', { productId: 'prod-9', quantity: 1 }),
+      service.addItem(CTX, LIST_ID, { productId: 'prod-9', quantity: 1 }),
     ).rejects.toMatchObject({ statusCode: 404 });
   });
 });
@@ -209,7 +211,7 @@ describe('shopping_lists — conversion partitions by the port, and writes throu
       refusingChannelMembership,
     );
 
-    const result = await service.convertToCart(CTX, 'list-1', undefined, 'channel-b');
+    const result = await service.convertToCart(CTX, LIST_ID, undefined, 'channel-b');
 
     expect(added).toEqual(['prod-live']);
     // The basket of the caller's channel (`specs/154-sales-channel-access/`).
@@ -242,7 +244,7 @@ describe('shopping_lists — conversion partitions by the port, and writes throu
       refusingChannelMembership,
     );
 
-    const result = await service.convertToCart(CTX, 'list-1', undefined, 'channel-b');
+    const result = await service.convertToCart(CTX, LIST_ID, undefined, 'channel-b');
 
     // Outside a request channel nothing here judges availability; the cart does.
     expect(result.skipped.map((s) => s.reason)).not.toContain('product_archived');
@@ -275,7 +277,7 @@ describe('shopping_lists — conversion partitions by the port, and writes throu
       catalogProducts,
       refusingChannelMembership,
     );
-    await expect(service.convertToCart(CTX, 'list-1', undefined, 'channel-b')).rejects.toMatchObject({
+    await expect(service.convertToCart(CTX, LIST_ID, undefined, 'channel-b')).rejects.toMatchObject({
       statusCode: 400,
       code: 'CART_PRODUCT_QUOTE_ONLY',
       message: 'This product is sold on request only and cannot be added to the cart.',
@@ -300,7 +302,7 @@ describe('shopping_lists — conversion partitions by the port, and writes throu
       refusingChannelMembership,
     );
 
-    const result = await service.convertToRfq(CTX, 'list-1', undefined);
+    const result = await service.convertToRfq(CTX, LIST_ID, undefined);
 
     expect(quoted).toEqual(['prod-live']);
     expect(result.rfqId).toBe('rfq-1');

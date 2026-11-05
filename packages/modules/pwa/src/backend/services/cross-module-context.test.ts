@@ -1,5 +1,4 @@
 import { describe, expect, it } from 'vitest';
-import type { AssetDetail } from '@endora-commerce/contracts';
 import { ModuleDisabledError } from '@endora-commerce/platform/kernel';
 import type { SalesChannelResolutionPort } from '@endora-commerce/platform/kernel';
 import {
@@ -26,34 +25,6 @@ type CachedChannel = NonNullable<Awaited<ReturnType<SalesChannelResolutionPort['
  * three has something to be wrong against.
  */
 
-function assetDetail(overrides: Partial<AssetDetail> = {}): AssetDetail {
-  return {
-    id: 'asset-1',
-    folderId: null,
-    filename: 'pwa-icon-512-any.png',
-    label: 'PWA icon 512 any',
-    mimeType: 'image/png',
-    sizeBytes: 1024,
-    visibility: 'public',
-    storageBackend: 'local',
-    url: 'https://shop.example.test/assets/file/asset-1',
-    createdAt: '2026-01-01T00:00:00.000Z',
-    updatedAt: '2026-01-01T00:00:00.000Z',
-    deletedAt: null,
-    pendingCleanup: false,
-    fileUrl: 'https://shop.example.test/assets/file/asset-1',
-    permalink: null,
-    permalinkUrl: null,
-    contentVersion: 'a1b2c3d4e5f6',
-    altText: null,
-    references: [],
-    previousVersion: null,
-    retentionDays: 30,
-    replaceable: true,
-    ...overrides,
-  };
-}
-
 function cachedChannel(overrides: Partial<CachedChannel> = {}): CachedChannel {
   return {
     id: 'chan-1',
@@ -74,40 +45,37 @@ function cachedChannel(overrides: Partial<CachedChannel> = {}): CachedChannel {
   };
 }
 
-describe('pwa — an asset id becomes a URL over assetsLibraryPort', () => {
-  it('answers the detail’s own url, absolute and untouched (D-223)', async () => {
-    const asked: string[] = [];
+describe('pwa — an asset id becomes a URL over assetReadPort', () => {
+  it('answers the library’s own url, absolute and untouched (D-223)', async () => {
+    const asked: string[][] = [];
     const resolve = createAssetUrlResolver({
-      getAsset: async (assetId) => {
-        asked.push(assetId);
-        return assetDetail({ url: 'https://cdn.example.test/pwa/512.png' });
+      resolveUrls: async (assetIds) => {
+        asked.push([...assetIds]);
+        return new Map([['asset-1', 'https://cdn.example.test/pwa/512.png']]);
       },
     });
 
     // Not rebased, not prefixed, not joined onto an origin this module reads
     // from the environment: `assets_library` decides the origin and the URL
     // arrives absolute. Both roots used to disagree about that, one of them
-    // wrapping this in `absolutizePublicUrl` and the other not.
+    // wrapping this in `absolutizePublicUrl` and the other not. `resolveUrls`
+    // rather than `getAsset`, whose detail walks every page, block and menu for
+    // its "used by" list (issue #685).
     expect(await resolve('asset-1')).toBe('https://cdn.example.test/pwa/512.png');
-    expect(asked).toEqual(['asset-1']);
+    expect(asked).toEqual([['asset-1']]);
   });
 
   it('answers null for an asset that is gone, so one icon size 404s rather than 500s', async () => {
-    const resolve = createAssetUrlResolver({
-      getAsset: async () => {
-        throw new Error('Asset asset-1 not found.');
-      },
-    });
+    const resolve = createAssetUrlResolver({ resolveUrls: async () => new Map() });
 
     expect(await resolve('asset-1')).toBeNull();
   });
 
   it('does not absorb the owner’s refusal', async () => {
-    // The line that keeps the tolerance above from turning fail-closed into
-    // fail-open. Unreachable while `assets_library` is `nonDeactivatable`, and
-    // asserted so that it stays true on the day that changes.
+    // Unreachable while `assets_library` is `nonDeactivatable`, and asserted so
+    // that it stays true on the day that changes.
     const resolve = createAssetUrlResolver({
-      getAsset: async () => {
+      resolveUrls: async () => {
         throw new ModuleDisabledError('assets_library');
       },
     });

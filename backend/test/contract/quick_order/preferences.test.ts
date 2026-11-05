@@ -5,8 +5,14 @@ import {
   type BackendServerHandle,
 } from '../../helpers/test-server.js';
 import { TEST_CUSTOMER_ID, TEST_ORGANIZATION_ID } from '../../helpers/test-actors.js';
+import { ERROR_CODES } from '@endora-commerce/contracts';
 import { AuditLogEntry } from '@endora-commerce/platform/kernel';
-import { Address, PaymentMethod } from '../../helpers/package-entities.js';
+import {
+  Address,
+  CustomerAddress,
+  Organization,
+  PaymentMethod,
+} from '../../helpers/package-entities.js';
 
 /**
  * Feature 039 (US2) — default ordering preferences: role-scoped upsert,
@@ -19,7 +25,8 @@ describe('Quick-order default preferences', () => {
   let h: BackendServerHandle;
   let paymentId: string;
   let ownAddressId: string;
-  let foreignAddressId: string | null = null;
+  let foreignAddressId: string;
+  let personalAddressId: string;
 
   beforeAll(async () => {
     h = await setupBackendServer();
@@ -28,8 +35,47 @@ describe('Quick-order default preferences', () => {
     paymentId = payment!.id;
     const ownAddress = await em.findOne(Address, { organizationId: TEST_ORGANIZATION_ID });
     ownAddressId = ownAddress!.id;
-    const foreign = await em.findOne(Address, { organizationId: { $ne: TEST_ORGANIZATION_ID } });
-    foreignAddressId = foreign?.id ?? null;
+    // Another organisation's address: a row the foreign keys accept and the
+    // caller does not own. The organisation is flushed first — `organizationId`
+    // is a plain uuid column, so MikroORM cannot order the inserts by FK.
+    const foreignOrg = em.create(Organization, {
+      name: 'Quick Order Foreign Co',
+      taxId: 'PL0000000769',
+      status: 'active',
+      vatStatus: 'vat_payer',
+      registeredAddress: {
+        street: 'ul. Obca 769',
+        city: 'Krakow',
+        postalCode: '30-769',
+        country: 'PL',
+      },
+    });
+    await em.persistAndFlush(foreignOrg);
+    const foreign = em.create(Address, {
+      organizationId: foreignOrg.id,
+      kind: 'delivery',
+      recipientName: 'Quick order foreign address',
+      street: 'ul. Obca 769',
+      city: 'Krakow',
+      postalCode: '30-769',
+      country: 'PL',
+    });
+    await em.persistAndFlush(foreign);
+    foreignAddressId = foreign.id;
+    // Issue #769 — an address from the caller's **personal** book (`customers`).
+    // The preference table's address columns reference the organisation book
+    // (`addresses`) only, so this id can never be stored there.
+    const personal = em.create(CustomerAddress, {
+      customerAccountId: TEST_CUSTOMER_ID,
+      kind: 'delivery',
+      recipientName: 'Quick order personal address',
+      street: 'ul. Prywatna 769',
+      city: 'Warszawa',
+      postalCode: '00-769',
+      country: 'PL',
+    });
+    await em.persistAndFlush(personal);
+    personalAddressId = personal.id;
   });
 
   afterAll(async () => {
@@ -76,9 +122,8 @@ describe('Quick-order default preferences', () => {
     expect(body.data.billingAddressId).toBe(ownAddressId);
   });
 
-  it('drops an address belonging to another organization from the resolved view', async () => {
-    if (!foreignAddressId) return; // no cross-org address in the seed → nothing to assert
-    await h.app.inject({
+  it('refuses an address belonging to another organization with 403 ADDRESS_NOT_OWNED', async () => {
+    const put = await h.app.inject({
       method: 'PUT',
       url: '/api/v1/quick-order/preferences',
       cookies: COOKIE,
@@ -88,12 +133,40 @@ describe('Quick-order default preferences', () => {
         defaultShippingAddressId: foreignAddressId,
       },
     });
+    expect(put.statusCode).toBe(403);
+    expect((put.json() as { error: { code: string } }).error.code).toBe(
+      ERROR_CODES.ADDRESS_NOT_OWNED,
+    );
     const res = await h.app.inject({
       method: 'GET',
       url: '/api/v1/quick-order/preferences/resolved',
       cookies: COOKIE,
     });
     expect((res.json() as { data: { shippingAddressId: string | null } }).data.shippingAddressId).toBeNull();
+  });
+
+  it('refuses a personal-book address as a default with 403 ADDRESS_NOT_OWNED, not a database error (issue #769)', async () => {
+    for (const field of ['defaultBillingAddressId', 'defaultShippingAddressId'] as const) {
+      const put = await h.app.inject({
+        method: 'PUT',
+        url: '/api/v1/quick-order/preferences',
+        cookies: COOKIE,
+        payload: { scope: 'customer', scopeId: TEST_CUSTOMER_ID, [field]: personalAddressId },
+      });
+      expect(put.statusCode).toBe(403);
+      expect((put.json() as { error: { code: string } }).error.code).toBe(
+        ERROR_CODES.ADDRESS_NOT_OWNED,
+      );
+    }
+    // Nothing was written: the earlier organisation-book default still stands.
+    const raw = await h.app.inject({
+      method: 'GET',
+      url: `/api/v1/quick-order/preferences?scope=customer&scopeId=${TEST_CUSTOMER_ID}`,
+      cookies: COOKIE,
+    });
+    expect((raw.json() as { data: { defaultBillingAddressId: string } }).data.defaultBillingAddressId).toBe(
+      ownAddressId,
+    );
   });
 
   it('writes an audit entry for each preference change', async () => {
