@@ -462,6 +462,27 @@ function cartApprovalRequired(cart: { id: string; approvalStatus: CartApprovalSt
   );
 }
 
+/**
+ * Issue #759 — the company data an order's billing snapshot carries. What the
+ * buyer typed wins; otherwise a company Organization contributes its legal (or
+ * display) name and tax id. A personal (B2C) Organization contributes nothing:
+ * its tax id is an internal 32-hex placeholder and its name is the person's,
+ * so the order is billed to the person. An absent key, not an empty string, is
+ * what every renderer (invoice, PDF, e-mail, admin) reads as "no company".
+ */
+export function billingCompanyData(
+  org: Pick<OrganizationRecord, 'isPersonal' | 'legalName' | 'name' | 'taxId'>,
+  req: Pick<PlaceOrderRequest, 'billingCompanyName' | 'billingTaxId'>,
+): { companyName?: string; taxId?: string } {
+  const companyName =
+    req.billingCompanyName?.trim() || (org.isPersonal ? '' : org.legalName || org.name);
+  const taxId = req.billingTaxId?.trim() || (org.isPersonal ? '' : org.taxId);
+  return {
+    ...(companyName ? { companyName } : {}),
+    ...(taxId ? { taxId } : {}),
+  };
+}
+
 /** A basket with no claim, or a claim nothing can vouch for: no source, no exemption. */
 const NO_QUOTE_REQUEST_SOURCE: QuoteRequestSourceAssessment = Object.freeze({
   sourceQuoteRequestId: null,
@@ -2320,9 +2341,9 @@ export class OrderService {
           country: billing.country,
           phone: billing.phone ?? null,
           // Default the billing company + tax-id from the Organization; the
-          // buyer may override either at checkout for this order only.
-          companyName: req.billingCompanyName?.trim() || org.legalName || org.name,
-          taxId: req.billingTaxId?.trim() || org.taxId,
+          // buyer may override either at checkout for this order only. A
+          // personal Organization contributes no default (issue #759).
+          ...billingCompanyData(org, req),
         },
         ...(req.deliveryPoint
           ? {

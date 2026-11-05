@@ -844,6 +844,21 @@ Wiersz płatności jest generowany przez rejestr szablonów e-mail płatności
 (`payments/services/payment-email-renderer.ts`) — klucz `renderers.email` adaptera zastępuje domyślny
 szablon platformy.
 
+## Dane firmy do rozliczenia
+
+Migawka danych rozliczeniowych zamówienia zawiera nazwę firmy i NIP tylko
+wtedy, gdy jest firma, której można wystawić fakturę. Dla Organizacji firmowej
+`placeOrder` przyjmuje domyślnie jej nazwę prawną (lub nazwę) i NIP, a kupujący
+może nadpisać każde z nich przy finalizacji tego jednego zamówienia. Organizacja
+osobista (B2C) nie jest firmą, więc nie dostarcza wartości domyślnych: jej NIP
+to wewnętrzny symbol zastępczy, a jej nazwa to imię i nazwisko osoby. Jej
+zamówienie jest rozliczane na osobę — bez nazwy firmy i bez NIP — chyba że
+kupujący zaznaczy przy finalizacji *Chcę fakturę na firmę* i wpisze nazwę firmy
+oraz NIP, które są wtedy sprawdzane tak jak przy rejestracji firmy. Faktura, jej
+PDF, e-mail z potwierdzeniem i ekran zamówienia pokazują wiersz z NIP tylko
+wtedy, gdy zamówienie go zawiera. Zamówienie zachowuje migawkę, z którą zostało
+złożone.
+
 ## Punkty rozszerzenia
 
 - **Adaptery płatności** — zobacz moduł `payment_methods`. `placeOrder` rozpoczyna płatność przez

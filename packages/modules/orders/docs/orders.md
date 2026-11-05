@@ -904,6 +904,20 @@ shipping and billing addresses. The payment line is rendered through the
 payment e-mail renderer registry (`payments/services/payment-email-renderer.ts`)
 — an adapter's `renderers.email` key overrides the platform default.
 
+## Billing company data
+
+An order's billing snapshot carries a company name and a tax ID only when there
+is a company to bill. For a company Organization, `placeOrder` defaults them to
+the Organization's legal name (or its name) and tax ID, and the buyer may
+override either at checkout for that one order. A personal (B2C) Organization
+is not a company, so it contributes no default: its tax ID is an internal
+placeholder and its name is the person's. Its order is billed to the person —
+no company name, no tax ID — unless the buyer ticks *I need a company invoice*
+at checkout and types the company's name and NIP, which are then validated as
+at company registration. The invoice, its PDF, the confirmation e-mail and the
+order screen print a tax-ID line only when the order carries one. An order
+keeps the snapshot it was placed with.
+
 ## Extension points
 
 - **Payment adapters** — see the `payment_methods` module. `placeOrder`
