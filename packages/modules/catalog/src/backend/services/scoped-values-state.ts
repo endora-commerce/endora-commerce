@@ -55,7 +55,12 @@ export interface ScopedProductState {
   packagingUnits: ProductPackagingUnit[];
   packagingOverrides: ProductPackagingUnitScopeOverride[];
   urlKeys: ProductUrlKey[];
-  /** The user attributes of the product's attribute set, by key. */
+  /**
+   * The user attributes of the product's attribute set that hold scoped values, by key. A Page
+   * Builder content attribute (`specs/172-product-content-attributes/`) is left out: its document
+   * per language lives in `product_content_values` and is edited on the product content screen,
+   * so to the read, the save and the import it is no field at all (172 FR-011, FR-014, FR-042).
+   */
   attributes: Map<string, CatalogAttributeView>;
 }
 
@@ -147,7 +152,9 @@ export async function loadScopedState(
     packagingOverrides,
     urlKeys,
     attributes: new Map(
-      views.filter((view) => setDefinitions.has(view.customFieldDefinitionId)).map((view) => [view.key, view]),
+      views
+        .filter((view) => setDefinitions.has(view.customFieldDefinitionId) && view.valueType !== 'page_builder')
+        .map((view) => [view.key, view]),
     ),
   };
 }
