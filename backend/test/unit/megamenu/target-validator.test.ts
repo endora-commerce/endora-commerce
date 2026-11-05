@@ -1,7 +1,6 @@
 import { describe, expect, it } from 'vitest';
 import {
   ERROR_CODES,
-  type AssetDetail,
   type AssetRecord,
   type AssetStoredKind,
   type CatalogCategoryRecord,
@@ -28,6 +27,8 @@ const assetOf = (kind: AssetStoredKind, id = '22222222-2222-4222-8222-2222222222
   ({ id, kind }) as AssetRecord;
 /** A record whose only property the validator reads is that it is not `null`. */
 const present = <T>(): T => ({}) as T;
+/** The URL read the validator never makes: only the storefront resolver asks it. */
+const noUrls = async () => new Map<string, string>();
 
 const stubPorts = (overrides: Partial<MegamenuCrossModulePorts> = {}): MegamenuCrossModulePorts => ({
   categories: { findById: async () => present<CatalogCategoryRecord>(), listAll: async () => [] },
@@ -39,8 +40,8 @@ const stubPorts = (overrides: Partial<MegamenuCrossModulePorts> = {}): MegamenuC
   assets: {
     findById: async () => assetOf('image'),
     visibleToCaller: async (ids: readonly string[]) => new Set(ids),
+    resolveUrls: noUrls,
   },
-  assetLibrary: { getAsset: async () => present<AssetDetail>() },
   customerGroups: { findByIds: async () => [] },
   customerAccounts: { findById: async () => null },
   organizations: { findById: async () => null },
@@ -101,7 +102,9 @@ describe('target-validator (T011)', () => {
         // The target declares `image` and the library holds a video: the
         // comparison is against the record's stored kind, which is what the
         // root's `where id = ? and kind = ?` asked in SQL.
-        stubPorts({ assets: { findById: async () => assetOf('video'), visibleToCaller: async (ids) => new Set(ids) } }),
+        stubPorts({
+          assets: { findById: async () => assetOf('video'), visibleToCaller: async (ids) => new Set(ids), resolveUrls: noUrls },
+        }),
       ),
     ).rejects.toMatchObject({ code: ERROR_CODES.MEGAMENU_ASSET_KIND_MISMATCH });
   });
@@ -129,6 +132,7 @@ describe('target-validator (T011)', () => {
               return assetOf('video');
             },
             visibleToCaller: async (ids) => new Set(ids),
+            resolveUrls: noUrls,
           },
         }),
       ),
@@ -201,10 +205,11 @@ describe('target-validator (T011)', () => {
             asked.push([...ids]);
             return new Set();
           },
+          resolveUrls: noUrls,
         },
       });
     const missingPorts = stubPorts({
-      assets: { findById: async () => null, visibleToCaller: async () => new Set() },
+      assets: { findById: async () => null, visibleToCaller: async () => new Set(), resolveUrls: noUrls },
     });
     const refusal = async (item: MegamenuItem, ports: MegamenuCrossModulePorts) => {
       const err = (await validateTarget(item, ['ch-1'], ports).then(

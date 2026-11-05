@@ -4,11 +4,11 @@ import {
   type AddressReadPort,
   type AddressRecord,
   type CustomerAccountReadPort,
+  isUuidShape,
 } from '@endora-commerce/contracts';
 import { HttpError } from '@endora-commerce/platform/http';
 import { withSystemScope } from '@endora-commerce/platform/tenancy';
 import { CustomerAddress } from '../entities/customer-address.entity.js';
-import { isUuid } from '../uuid-param.js';
 import { recordAuditFromContext } from '@endora-commerce/platform/commands';
 import type { AuditPort } from '@endora-commerce/platform/kernel';
 
@@ -236,7 +236,7 @@ export class CustomerAddressService {
   ): Promise<CustomerAddress> {
     // An id that is not a UUID names no address; asking PostgreSQL about it
     // raises `invalid input syntax for type uuid`, which is a 500.
-    const address = isUuid(addressId)
+    const address = isUuidShape(addressId)
       ? await this.#forAuthorisedCustomer(customerAccountId, () =>
           em.findOne(CustomerAddress, {
             id: addressId,

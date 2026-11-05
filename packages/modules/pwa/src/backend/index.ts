@@ -3,6 +3,7 @@ import type { FastifyRequest } from 'fastify';
 import type { Redis } from 'ioredis';
 import type {
   AdminI18nTranslatePort,
+  AssetReadPort,
   AssetsLibraryPort,
   CustomerAccountReadPort,
   CustomerGroupReadPort,
@@ -44,11 +45,11 @@ import { PwaIconRendition } from './entities/pwa-icon-rendition.entity.js';
  * give:
  *
  *  - `assetUpload` and `resolveAssetUrl` are `assets_library`' published
- *    `assetsLibraryPort`. The first was a *structural subset* of
+ *    ports. The first is `assetsLibraryPort`, a *structural subset* of
  *    `AssetsLibraryPort.upload` all along — a Node `Readable` satisfies
  *    `AssetUploadStream`, `AssetDetail` satisfies `{ id: string }` — and the
- *    second is `getAsset(id).url` under D-223, which is why `resolveUrl` is
- *    published on no port.
+ *    second is `assetReadPort.resolveUrls` (D-223; it was `getAsset(id).url`
+ *    until issue #685, a detail that walks every page for its "used by" list).
  *  - `defaultChannelId` and `channelCodeForId` are the kernel's own
  *    `salesChannelResolutionPort`, a **platform** name (Constitution XII), so
  *    they add nothing to this module's manifest. The second replaces a root's
@@ -128,6 +129,7 @@ export function registerModule(ctx: ModuleContext): void {
         // than through a gate frozen when this singleton was built.
         const ports: PwaCrossModulePorts = {
           assets: lazyPort<AssetsLibraryPort>(ctx, 'assetsLibraryPort'),
+          assetReads: lazyPort<AssetReadPort>(ctx, 'assetReadPort'),
           channels: lazyPort<SalesChannelResolutionPort>(ctx, 'salesChannelResolutionPort'),
         };
         return pwaModule({
@@ -158,7 +160,7 @@ export function registerModule(ctx: ModuleContext): void {
           // satisfies it. That was true before T118c too, which is why draining
           // this member cost nothing but the deletion of two closures.
           assetUpload: ports.assets,
-          resolveAssetUrl: createAssetUrlResolver(ports.assets),
+          resolveAssetUrl: createAssetUrlResolver(ports.assetReads),
           defaultChannelId: createDefaultChannelIdResolver(ports.channels),
           channelCodeForId: createChannelCodeResolver(ports.channels),
           // The platform's contribution, read through the cradle per request so

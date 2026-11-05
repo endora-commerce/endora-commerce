@@ -1,5 +1,5 @@
 import type { EntityManager } from '@mikro-orm/postgresql';
-import { ERROR_CODES } from '@endora-commerce/contracts';
+import { ERROR_CODES, isUuidShape } from '@endora-commerce/contracts';
 import type {
   CartStatus,
   CartApprovalStatus,
@@ -107,6 +107,8 @@ export class CartOrganizationVisibilityService {
    * symmetry with the ordinary-member ownership check).
    */
   async getInOrganization(cartId: string, organizationId: string): Promise<Cart> {
+    // A malformed id names no cart; PostgreSQL would answer it with a 500 (issue #753).
+    if (!isUuidShape(cartId)) throw new HttpError(404, ERROR_CODES.NOT_FOUND, 'cart_not_found');
     const em = this.emFactory();
     // Issue #619 — read across the administrator's own customer filter, inside
     // the Organization; a working basket is not an Organization cart (#169).

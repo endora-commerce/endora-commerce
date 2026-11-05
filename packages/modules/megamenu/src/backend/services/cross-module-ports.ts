@@ -1,7 +1,6 @@
 import {
   effectiveCustomerGroupId,
   type AssetReadPort,
-  type AssetsLibraryPort,
   type CatalogCategoryReadPort,
   type CmsBlockReadPort,
   type CmsPageReadPort,
@@ -58,20 +57,12 @@ export interface MegamenuCrossModulePorts {
   readonly blocks: Pick<CmsBlockReadPort, 'findById' | 'findLocalizedById'>;
   /**
    * `assets_library` — the stored kind, which is what an item's target declares,
-   * and whether the caller may see the asset at all (feature 166, FR-006).
+   * whether the caller may see the asset at all (feature 166, FR-006), and its
+   * URL. `AssetRecord` carries no resolved URL, so the URL is a second read:
+   * `resolveUrls`, the URL `getAsset` would carry without the detail's "used by"
+   * walk over every page, block and menu (issue #685).
    */
-  readonly assets: Pick<AssetReadPort, 'findById' | 'visibleToCaller'>;
-  /**
-   * `assets_library` again, for the URL alone.
-   *
-   * Two ports for one asset because neither answers the whole question:
-   * `AssetRecord` carries the stored `kind` and no resolved URL, and
-   * `AssetDetail` carries the URL and no `kind`. `resolveUrl`, which is what
-   * both roots called, **is published on no port** — D-223, in as many words —
-   * so `getAsset` is the sanctioned way to turn an asset id into a URL and this
-   * is the same two reads the roots issued.
-   */
-  readonly assetLibrary: Pick<AssetsLibraryPort, 'getAsset'>;
+  readonly assets: Pick<AssetReadPort, 'findById' | 'visibleToCaller' | 'resolveUrls'>;
   /** `customer_accounts` (feature 168) — the groups an audience names, checked on save. */
   readonly customerGroups: Pick<CustomerGroupReadPort, 'findByIds'>;
   /** `customer_accounts` (feature 168) — a signed-in buyer's own customer group. */
@@ -123,14 +114,13 @@ export interface MegamenuAssetTarget {
  * (`if (row.kind !== 'image' && row.kind !== 'video') return null`) and it is what
  * keeps the wire shape's union honest.
  *
- * **No `catch` around `getAsset`, deliberately.** It throws 404 for a row that is
- * gone, which the read above has already answered `null` for, so the only way to
- * reach it is an asset deleted between the two reads — and swallowing it would
- * also swallow `ModuleDisabledError`, which is the fail-open composition
- * checklist item 7 refuses. Neither root caught here either.
+ * **No `catch` around the URL read, deliberately.** An asset deleted between the
+ * two reads is simply absent from its answer, and a `catch` would also swallow
+ * `ModuleDisabledError`, which is the fail-open composition checklist item 7
+ * refuses. Neither root caught here either.
  */
 export async function resolveMenuAsset(
-  ports: Pick<MegamenuCrossModulePorts, 'assets' | 'assetLibrary'>,
+  ports: Pick<MegamenuCrossModulePorts, 'assets'>,
   assetId: string,
 ): Promise<MegamenuAssetTarget | null> {
   const record = await ports.assets.findById(assetId);
@@ -139,8 +129,8 @@ export async function resolveMenuAsset(
 
   // D-223 — the URL arrives absolute; the module that built it is the only party
   // that knows which adapter produced it and whether it is signed.
-  const detail = await ports.assetLibrary.getAsset(assetId);
-  return { url: detail.url, label: record.label, kind: record.kind };
+  const url = (await ports.assets.resolveUrls([assetId])).get(assetId);
+  return url ? { url, label: record.label, kind: record.kind } : null;
 }
 
 /**
