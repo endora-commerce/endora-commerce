@@ -25,7 +25,8 @@ import { CustomerAccountReadService } from '../../../../packages/modules/custome
 import { twoFactorEnrolmentsFor } from '../../helpers/two-factor-enrolments.js';
 import { predefinedRoleIdOf } from '../../helpers/seed-organization-roles.js';
 import { OrganizationDepletionGuard } from '../../../../packages/modules/customers/src/backend/services/organization-depletion-guard.js';
-import { Address } from '../../helpers/package-entities.js';
+import { Address, Order } from '../../helpers/package-entities.js';
+import { SEED_DELIVERY_METHOD_ID, SEED_PAYMENT_METHOD_ID } from '../../helpers/seed-commerce.js';
 import { AddressService } from '../../../../packages/modules/addresses/src/backend/services/address-service.js';
 import { createAddressServicePort } from '../../../../packages/modules/addresses/src/backend/services/address-ports.js';
 
@@ -229,6 +230,36 @@ describe('CustomerDeletionService', () => {
     };
     const delivery = await addresses.createAddress(c.organizationId, { ...input, kind: 'delivery', isDefault: true });
     const billing = await addresses.createAddress(c.organizationId, { ...input, kind: 'billing' });
+    // An order placed to both, whose snapshots are copies of the saved addresses.
+    const snapshot = (a: typeof delivery) => ({
+      recipientName: a.recipientName,
+      street: a.street,
+      city: a.city,
+      postalCode: a.postalCode,
+      country: a.country,
+      phone: a.phone,
+    });
+    const order = em.create(Order, {
+      organizationId: c.organizationId,
+      placedByCustomerAccountId: c.id,
+      salesChannelId: '00000000-0000-4000-8000-0000000000c1',
+      status: 'new',
+      paymentStatus: 'awaiting_payment',
+      deliveryAddress: snapshot(delivery),
+      billingAddress: snapshot(billing),
+      deliveryMethodId: SEED_DELIVERY_METHOD_ID,
+      deliveryMethodSnapshot: { code: 'in_person_pickup', name: 'Pickup', cost: 0 },
+      paymentMethodId: SEED_PAYMENT_METHOD_ID,
+      paymentMethodSnapshot: { code: 'bank_transfer', name: 'BT', kind: 'bank_transfer' },
+      subtotal: '10.00',
+      taxTotal: '2.30',
+      deliveryTotal: '0.00',
+      total: '12.30',
+      currency: 'PLN',
+      placedAt: new Date(),
+    });
+    await em.persistAndFlush(order);
+    const before = { delivery: structuredClone(order.deliveryAddress), billing: structuredClone(order.billingAddress) };
 
     await svc.softDelete(c.id, actor);
     expect(await svc.sweep(0, new Date(Date.now() + 60_000))).toBe(1);
@@ -250,8 +281,11 @@ describe('CustomerDeletionService', () => {
       expect(entries).toHaveLength(1);
       expect(entries[0]!.actorAdminUserId ?? null).toBeNull();
     }
-    // Order snapshots are copies on `orders`' own rows; the scrub writes the
-    // `addresses` table and nothing else (T-U3 pins the statement).
+    // The order's snapshots are copies on `orders`' own row and stay as they were.
+    const reloaded = await em.findOneOrFail(Order, { id: order.id });
+    expect(reloaded.deliveryAddress).toEqual(before.delivery);
+    expect(reloaded.billingAddress).toEqual(before.billing);
+    expect(reloaded.deliveryAddress).toMatchObject({ street: 'ul. Prywatna 7', recipientName: 'Solo Buyer' });
   });
 
   it('a second sweep leaves an already-scrubbed personal organization’s addresses alone', async () => {

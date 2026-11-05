@@ -57,6 +57,14 @@ export async function runAddressBookRetirementJob(
   if (!(await deps.retirement.hasWork())) return null;
   const result = await enterSystemScope(ADDRESS_BOOK_RETIREMENT_SCOPE_REASON, () => deps.retirement.runInScope());
   deps.log.info(result, 'customers: personal address book retirement finished');
+  if (result.erasedWithoutOrganization > 0) {
+    // Principle XI says every account has an Organization; these did not, and
+    // their rows were erased rather than moved. Worth an operator's look.
+    deps.log.warn(
+      { erasedWithoutOrganization: result.erasedWithoutOrganization },
+      'customers: personal address book rows of accounts with no Organization were erased',
+    );
+  }
   return result;
 }
 
