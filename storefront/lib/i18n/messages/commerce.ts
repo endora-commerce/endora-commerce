@@ -263,6 +263,74 @@ export const commerce = defineMessages({
     // ── minimal checkout header
     'commerce.checkoutHeader.homeLabel': '{brand} — home page',
     'commerce.checkoutHeader.tagline': 'B2B · Industrial components',
+    // ── issue #745: what a commerce page's `?error=` / `?reason=` code says
+    // (`lib/commerce-errors.ts`). The API's sentences carry figures and names;
+    // a code cannot, so these say what went wrong without them.
+    'commerce.error.CART_EMPTY': 'Your cart is empty.',
+    'commerce.error.CART_LINE_CAP_EXCEEDED': 'You have reached the maximum number of lines on this cart.',
+    'commerce.error.CART_PRODUCT_QUOTE_ONLY':
+      'This product is sold on request only, so it cannot be added to the cart. Ask for a quote instead.',
+    'commerce.error.CART_PRODUCT_UNPRICED': 'This product has no price, so it cannot be added to the cart.',
+    'commerce.error.CART_QUANTITY_INVALID': 'This quantity cannot be ordered. Change it and try again.',
+    'commerce.error.CART_PRICE_CHANGED': 'The prices in your cart have changed. Review your cart and place the order again.',
+    'commerce.error.CART_APPROVAL_NOT_REQUIRED':
+      'Your role lets you place orders without approval, so this cart does not need to be sent for approval. Place the order directly.',
+    'commerce.error.CART_APPROVAL_ALREADY_SUBMITTED': 'This cart has already been sent for approval.',
+    'commerce.error.PRODUCT_NOT_FOUND': 'This product is no longer available.',
+    'commerce.error.PRODUCT_BELOW_MINIMUM_QUANTITY':
+      'A product is below its minimum order quantity. Increase the quantity and try again.',
+    'commerce.error.PACKAGING_UNIT_BELOW_MINIMUM_QUANTITY':
+      'A product must be ordered in more packaging units. Increase the quantity and try again.',
+    'commerce.error.STOCK_UNAVAILABLE':
+      'A product is not available in the quantity ordered. Reduce the quantity or remove the product from the order.',
+    'commerce.error.ORDER_CART_APPROVAL_REQUIRED':
+      'This cart must be approved in your organization before the order can be placed.',
+    'commerce.error.ORDER_CART_APPROVAL_REQUIRED.cart_approval_not_submitted':
+      'Your role requires approval of this cart before it can be ordered. Send it for approval first.',
+    'commerce.error.ORDER_CART_APPROVAL_REQUIRED.cart_approval_pending':
+      'This cart is awaiting approval by an approver in your organization. You can place the order once it is approved.',
+    'commerce.error.ORDER_CART_APPROVAL_REQUIRED.cart_approval_rejected':
+      'This cart was rejected by an approver in your organization, so it cannot be ordered.',
+    'commerce.error.ORDER_DELIVERY_METHOD_UNAVAILABLE':
+      'The selected delivery method is not available for this order. Choose another delivery method.',
+    'commerce.error.ORDER_DELIVERY_METHOD_UNAVAILABLE.delivery_method_not_allowed_for_organization':
+      'The selected delivery method is not available to this organization. Choose another delivery method.',
+    'commerce.error.ORDER_DELIVERY_METHOD_UNAVAILABLE.delivery_method_not_in_sales_channel':
+      'The selected delivery method is not offered in this store. Choose another delivery method.',
+    'commerce.error.ORDER_PAYMENT_METHOD_UNAVAILABLE':
+      'The selected payment method is not available for this order. Choose another payment method.',
+    'commerce.error.ORDER_PAYMENT_METHOD_UNAVAILABLE.payment_method_not_allowed_for_organization':
+      'The selected payment method is not available to this organization. Choose another payment method.',
+    'commerce.error.ORDER_PAYMENT_METHOD_UNAVAILABLE.payment_method_not_in_sales_channel':
+      'The selected payment method is not offered in this store. Choose another payment method.',
+    'commerce.error.ORDER_SALES_CHANNEL_MISMATCH':
+      'Your cart belongs to a different store. Open the cart in this store and place the order again.',
+    'commerce.error.ORDER_SALES_CHANNEL_NOT_ALLOWED':
+      'Your organization cannot order in this store. Shop in one of your organization’s stores.',
+    'commerce.error.ORDER_BELOW_MINIMUM_VALUE': 'The value of the order is below the minimum order value of this store.',
+    'commerce.error.LIMIT_INSUFFICIENT':
+      'The available credit limit does not cover this order. Reduce the order or choose a different payment method.',
+    'commerce.error.CREDIT_LIMIT_NOT_GRANTED':
+      'Your organization has no credit limit. Choose a different payment method.',
+    'commerce.error.CURRENCY_MISMATCH':
+      'The credit limit is held in a different currency than this order. Pay with another method, or ask your account manager for a credit limit in this currency.',
+    'commerce.error.ADDRESS_NOT_OWNED':
+      'That address does not belong to your organization. Choose one of your organization’s saved addresses, or add a new one.',
+    'commerce.error.ORGANIZATION_SUSPENDED':
+      'This organization is not active, so orders cannot be placed. Contact your sales representative to have it reactivated.',
+    'commerce.error.QUOTE_VALIDITY_ENDED':
+      'The accepted quote is no longer valid — its validity period has ended. Ask your sales representative for a new quote before ordering.',
+    'commerce.error.QUOTE_VALIDITY_ENDED.lapsed':
+      'The quote these prices were agreed on has expired, so the cart cannot be ordered at them. Ask your sales representative for a new quote, or remove the quoted items from your cart.',
+    'commerce.error.QUOTE_VALIDITY_ENDED.withdrawn':
+      'The quote these prices were agreed on is no longer in force, so the cart cannot be ordered at them. Ask your sales representative for a new quote, or remove the quoted items from your cart.',
+    'commerce.error.QUOTE_VALIDITY_ENDED.unavailable':
+      'Prices agreed on a quote cannot be confirmed at the moment, so the cart cannot be ordered at them. Remove the quoted items from your cart to order at current prices.',
+    'commerce.error.ORGANIZATION_PERMISSION_REQUIRED':
+      'Your role does not allow this. Ask an administrator of your organization for this permission.',
+    'commerce.error.VALIDATION_FAILED.one_click_unavailable': 'One-click buy is not available for this product right now.',
+    'commerce.error.VALIDATION_FAILED.too_many_items': 'Too many lines to build at once. Split the list and build it in parts.',
+    'commerce.cart.error.FAILED': 'Something went wrong with your cart. Please try again.',
   },
   'pl-PL': {
     // ── shared by the commerce screens
@@ -507,5 +575,71 @@ export const commerce = defineMessages({
     // ── minimal checkout header
     'commerce.checkoutHeader.homeLabel': '{brand} — strona główna',
     'commerce.checkoutHeader.tagline': 'B2B · Komponenty przemysłowe',
+    // ── issue #745
+    'commerce.error.CART_EMPTY': 'Twój koszyk jest pusty.',
+    'commerce.error.CART_LINE_CAP_EXCEEDED': 'Osiągnięto maksymalną liczbę pozycji w koszyku.',
+    'commerce.error.CART_PRODUCT_QUOTE_ONLY':
+      'Ten produkt jest sprzedawany wyłącznie na zapytanie, dlatego nie można dodać go do koszyka. Wyślij zapytanie ofertowe.',
+    'commerce.error.CART_PRODUCT_UNPRICED': 'Ten produkt nie ma ceny, dlatego nie można dodać go do koszyka.',
+    'commerce.error.CART_QUANTITY_INVALID': 'Tej ilości nie można zamówić. Zmień ją i spróbuj ponownie.',
+    'commerce.error.CART_PRICE_CHANGED': 'Ceny w Twoim koszyku uległy zmianie. Sprawdź koszyk i złóż zamówienie ponownie.',
+    'commerce.error.CART_APPROVAL_NOT_REQUIRED':
+      'Twoja rola pozwala składać zamówienia bez akceptacji, więc tego koszyka nie trzeba wysyłać do akceptacji. Złóż zamówienie bezpośrednio.',
+    'commerce.error.CART_APPROVAL_ALREADY_SUBMITTED': 'Ten koszyk został już wysłany do akceptacji.',
+    'commerce.error.PRODUCT_NOT_FOUND': 'Ten produkt nie jest już dostępny.',
+    'commerce.error.PRODUCT_BELOW_MINIMUM_QUANTITY':
+      'Ilość produktu jest poniżej minimalnej ilości zamówienia. Zwiększ ilość i spróbuj ponownie.',
+    'commerce.error.PACKAGING_UNIT_BELOW_MINIMUM_QUANTITY':
+      'Produkt trzeba zamówić w większej liczbie jednostek opakowania. Zwiększ ilość i spróbuj ponownie.',
+    'commerce.error.STOCK_UNAVAILABLE':
+      'Produkt nie jest dostępny w zamówionej ilości. Zmniejsz ilość albo usuń produkt z zamówienia.',
+    'commerce.error.ORDER_CART_APPROVAL_REQUIRED':
+      'Ten koszyk musi zostać zaakceptowany w Twojej organizacji, zanim złożysz zamówienie.',
+    'commerce.error.ORDER_CART_APPROVAL_REQUIRED.cart_approval_not_submitted':
+      'Twoja rola wymaga akceptacji tego koszyka przed zamówieniem. Najpierw wyślij go do akceptacji.',
+    'commerce.error.ORDER_CART_APPROVAL_REQUIRED.cart_approval_pending':
+      'Ten koszyk czeka na akceptację osoby zatwierdzającej w Twojej organizacji. Zamówienie złożysz, gdy koszyk zostanie zaakceptowany.',
+    'commerce.error.ORDER_CART_APPROVAL_REQUIRED.cart_approval_rejected':
+      'Ten koszyk został odrzucony przez osobę zatwierdzającą w Twojej organizacji, więc nie można go zamówić.',
+    'commerce.error.ORDER_DELIVERY_METHOD_UNAVAILABLE':
+      'Wybrana metoda dostawy nie jest dostępna dla tego zamówienia. Wybierz inną metodę dostawy.',
+    'commerce.error.ORDER_DELIVERY_METHOD_UNAVAILABLE.delivery_method_not_allowed_for_organization':
+      'Wybrana metoda dostawy nie jest dostępna dla tej organizacji. Wybierz inną metodę dostawy.',
+    'commerce.error.ORDER_DELIVERY_METHOD_UNAVAILABLE.delivery_method_not_in_sales_channel':
+      'Wybrana metoda dostawy nie jest oferowana w tym sklepie. Wybierz inną metodę dostawy.',
+    'commerce.error.ORDER_PAYMENT_METHOD_UNAVAILABLE':
+      'Wybrana metoda płatności nie jest dostępna dla tego zamówienia. Wybierz inną metodę płatności.',
+    'commerce.error.ORDER_PAYMENT_METHOD_UNAVAILABLE.payment_method_not_allowed_for_organization':
+      'Wybrana metoda płatności nie jest dostępna dla tej organizacji. Wybierz inną metodę płatności.',
+    'commerce.error.ORDER_PAYMENT_METHOD_UNAVAILABLE.payment_method_not_in_sales_channel':
+      'Wybrana metoda płatności nie jest oferowana w tym sklepie. Wybierz inną metodę płatności.',
+    'commerce.error.ORDER_SALES_CHANNEL_MISMATCH':
+      'Twój koszyk należy do innego sklepu. Otwórz koszyk w tym sklepie i złóż zamówienie ponownie.',
+    'commerce.error.ORDER_SALES_CHANNEL_NOT_ALLOWED':
+      'Twoja organizacja nie może zamawiać w tym sklepie. Zrób zakupy w jednym ze sklepów swojej organizacji.',
+    'commerce.error.ORDER_BELOW_MINIMUM_VALUE': 'Wartość zamówienia jest niższa od minimalnej wartości zamówienia w tym sklepie.',
+    'commerce.error.LIMIT_INSUFFICIENT':
+      'Dostępny limit kredytowy nie pokrywa wartości tego zamówienia. Zmniejsz zamówienie albo wybierz inną metodę płatności.',
+    'commerce.error.CREDIT_LIMIT_NOT_GRANTED':
+      'Twoja organizacja nie ma limitu kredytowego. Wybierz inną metodę płatności.',
+    'commerce.error.CURRENCY_MISMATCH':
+      'Limit kupiecki jest prowadzony w innej walucie niż to zamówienie. Wybierz inną metodę płatności albo poproś swojego opiekuna handlowego o limit kupiecki w tej walucie.',
+    'commerce.error.ADDRESS_NOT_OWNED':
+      'Ten adres nie należy do Twojej organizacji. Wybierz jeden z zapisanych adresów organizacji albo dodaj nowy.',
+    'commerce.error.ORGANIZATION_SUSPENDED':
+      'Ta organizacja nie jest aktywna, więc nie można składać zamówień. Skontaktuj się ze swoim opiekunem handlowym, aby ją ponownie aktywować.',
+    'commerce.error.QUOTE_VALIDITY_ENDED':
+      'Zaakceptowana oferta straciła ważność — termin jej ważności upłynął. Przed złożeniem zamówienia poproś opiekuna handlowego o nową ofertę.',
+    'commerce.error.QUOTE_VALIDITY_ENDED.lapsed':
+      'Oferta, w której uzgodniono te ceny, straciła ważność, więc nie można złożyć zamówienia z koszyka po tych cenach. Poproś opiekuna handlowego o nową ofertę albo usuń z koszyka pozycje z oferty.',
+    'commerce.error.QUOTE_VALIDITY_ENDED.withdrawn':
+      'Oferta, w której uzgodniono te ceny, już nie obowiązuje, więc nie można złożyć zamówienia z koszyka po tych cenach. Poproś opiekuna handlowego o nową ofertę albo usuń z koszyka pozycje z oferty.',
+    'commerce.error.QUOTE_VALIDITY_ENDED.unavailable':
+      'Nie można teraz potwierdzić cen uzgodnionych w ofercie, więc nie można złożyć zamówienia z koszyka po tych cenach. Usuń z koszyka pozycje z oferty, aby zamówić po aktualnych cenach.',
+    'commerce.error.ORGANIZATION_PERMISSION_REQUIRED':
+      'Twoja rola na to nie pozwala. Poproś administratora swojej organizacji o to uprawnienie.',
+    'commerce.error.VALIDATION_FAILED.one_click_unavailable': 'Zakup jednym kliknięciem nie jest teraz dostępny dla tego produktu.',
+    'commerce.error.VALIDATION_FAILED.too_many_items': 'Za dużo pozycji naraz. Podziel listę i utwórz ją w częściach.',
+    'commerce.cart.error.FAILED': 'Coś poszło nie tak z koszykiem. Spróbuj ponownie.',
   },
 });

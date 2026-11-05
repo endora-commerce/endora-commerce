@@ -56,6 +56,7 @@ import { productTabPlan } from '../../../../lib/catalog/product-tabs';
 import { ProductDescriptionPanel } from '../../../../components/catalog/ProductDescriptionPanel';
 import { tForLocale } from '../../../../lib/i18n/messages';
 import { cartActionFailure } from '../../../../lib/cart-action-failure';
+import { CART_ERRORS } from '../../../../lib/commerce-errors';
 import { withoutViewer } from '../../../../lib/api/client';
 import { publicApiBaseUrl } from '../../../../lib/env.mjs';
 import { localeRedirect } from '../../../../lib/i18n/navigation';
@@ -608,7 +609,7 @@ async function oneClickAction(formData: FormData): Promise<void> {
   if (!session) return await localeRedirect('/login');
   const productId = ((formData.get('productId') as string) ?? '').trim();
   const variantId = ((formData.get('variantId') as string) ?? '').trim();
-  if (!productId) return await localeRedirect('/cart?error=missing-product');
+  if (!productId) return await localeRedirect('/cart?error=MISSING_PRODUCT');
 
   let result;
   try {
@@ -622,8 +623,8 @@ async function oneClickAction(formData: FormData): Promise<void> {
       ctx,
     );
   } catch (err) {
-    const message = cartActionFailure(err, await failureLocale(), 'product.oneClickFailed');
-    return await localeRedirect(`/cart?error=${encodeURIComponent(message)}`);
+    // Issue #745 — `/cart?error=` carries a code, never a sentence; the cart page words it.
+    return await localeRedirect(`/cart?error=${CART_ERRORS.failureCode(err, 'ONE_CLICK_FAILED')}`);
   }
   if (result!.nextAction?.kind === 'redirect_to_gateway' && result!.nextAction.url) {
     return await localeRedirect(result!.nextAction.url);
@@ -639,7 +640,7 @@ async function addGroupedToCartAction(formData: FormData): Promise<void> {
   const entries = (formData.getAll('item') as string[])
     .map((e) => e.trim())
     .filter(Boolean);
-  if (entries.length === 0) return await localeRedirect('/cart?error=missing-product');
+  if (entries.length === 0) return await localeRedirect('/cart?error=MISSING_PRODUCT');
   const jar = await readCartJar();
   let anon: string | null = jar.anon ?? null;
   // `ctx` carries the storefront's language and channel, so a refusal reads in the page's language.
@@ -661,8 +662,7 @@ async function addGroupedToCartAction(formData: FormData): Promise<void> {
     }
     if (anon && anon !== (jar.anon ?? null)) await setAnonCartCookie(anon);
   } catch (err) {
-    const message = cartActionFailure(err, await failureLocale(), 'product.addToCartFailed');
-    return await localeRedirect(`/cart?error=${encodeURIComponent(message)}`);
+    return await localeRedirect(`/cart?error=${CART_ERRORS.failureCode(err, 'ADD_TO_CART_FAILED')}`);
   }
   return await localeRedirect('/cart');
 }
@@ -684,7 +684,7 @@ async function addBundleToCartAction(formData: FormData): Promise<void> {
     const qty = Number.isFinite(quantity) && quantity >= 1 ? Math.floor(quantity) : 1;
     selections.push({ productId, quantity: qty });
   }
-  if (selections.length === 0) return await localeRedirect('/cart?error=missing-product');
+  if (selections.length === 0) return await localeRedirect('/cart?error=MISSING_PRODUCT');
   const jar = await readCartJar();
   let anon: string | null = jar.anon ?? null;
   const { ctx } = await getServerContext();
@@ -701,8 +701,7 @@ async function addBundleToCartAction(formData: FormData): Promise<void> {
     }
     if (anon && anon !== (jar.anon ?? null)) await setAnonCartCookie(anon);
   } catch (err) {
-    const message = cartActionFailure(err, await failureLocale(), 'product.addToCartFailed');
-    return await localeRedirect(`/cart?error=${encodeURIComponent(message)}`);
+    return await localeRedirect(`/cart?error=${CART_ERRORS.failureCode(err, 'ADD_TO_CART_FAILED')}`);
   }
   return await localeRedirect('/cart');
 }
