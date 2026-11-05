@@ -108,7 +108,7 @@ const SUBJECTS: readonly Subject[] = [
   },
   {
     module: 'organizations',
-    actions: ['new-organization', 'open-organizations'],
+    actions: ['new-organization', 'open-organizations', 'open-registration-registry-lookup-settings'],
     axis: 'platform-unavailable',
     admin: organizationsAdmin,
   },
@@ -119,6 +119,32 @@ const SUBJECTS: readonly Subject[] = [
     admin: salesChannelsAdmin,
   },
 ];
+
+/**
+ * Actions that deliberately open a screen another module owns, and the owner —
+ * the `cms` shape `batch-sixteen-palette-off-state.test.ts` records.
+ *
+ * Feature 173 added `organizations`' entry to its registration-lookup settings.
+ * The generic Settings screen has no per-group address, so the entry opens it.
+ * It is still `organizations`' own action and goes when the module does, and
+ * the screen's owner is a **binding** dependency of `organizations`, so it
+ * cannot be withdrawn underneath the row. Both halves are asserted where the
+ * exemption is taken.
+ */
+const FOREIGN_TARGETS: Readonly<Record<string, Readonly<Record<string, string>>>> = {
+  organizations: { 'open-registration-registry-lookup-settings': 'settings' },
+};
+
+/** Whether `action` of `moduleId` is an exempt foreign target, asserting why. */
+function exemptForeignTarget(moduleId: string, actionId: string): boolean {
+  const owner = FOREIGN_TARGETS[moduleId]?.[actionId];
+  if (owner === undefined) return false;
+  const manifest = REGISTERED_MANIFESTS.find((entry) => entry.manifest.id === moduleId)?.manifest;
+  expect(manifest?.dependencies ?? [], `${moduleId} must depend on ${owner} to advertise its screen`).toContain(
+    owner,
+  );
+  return true;
+}
 
 describe('batch 14 contributes no palette action while off (Constitution XVII item 5)', () => {
   let h: BackendServerHandle;
@@ -174,6 +200,7 @@ describe('batch 14 contributes no palette action while off (Constitution XVII it
       const actions = manifest?.actions ?? [];
       expect(actions.map((action) => action.id).sort()).toEqual([...subject.actions]);
       for (const action of actions) {
+        if (exemptForeignTarget(subject.module, action.id)) continue;
         const target = (subject.admin.routes ?? []).find(
           (route) => route.path === action.targetRoute,
         );
@@ -211,6 +238,7 @@ describe('batch 14 contributes no palette action while off (Constitution XVII it
       )?.manifest;
       for (const action of manifest?.actions ?? []) {
         if (`${subject.module}:${action.id}` in ACTION_PERMISSION_DISAGREEMENTS) continue;
+        if (exemptForeignTarget(subject.module, action.id)) continue;
         const target = (subject.admin.routes ?? []).find(
           (route) => route.path === action.targetRoute,
         );
@@ -320,6 +348,7 @@ describe('batch 14 contributes no palette action while off (Constitution XVII it
       )?.manifest;
       const routes = new Set((subject.admin.routes ?? []).map((route) => route.path));
       for (const action of manifest?.actions ?? []) {
+        if (exemptForeignTarget(subject.module, action.id)) continue;
         expect(routes.has(action.targetRoute), `${subject.module}: ${action.targetRoute}`).toBe(
           true,
         );

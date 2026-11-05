@@ -1,0 +1,8 @@
+
+--uuid:00000000-0000-4000-8000-000000000173+id=1
+Content-ID: <http://tempuri.org/0>
+Content-Transfer-Encoding: 8bit
+Content-Type: application/xop+xml;charset=utf-8;type="application/soap+xml"
+
+<s:Envelope xmlns:s="http://www.w3.org/2003/05/soap-envelope" xmlns:a="http://www.w3.org/2005/08/addressing"><s:Header><a:Action s:mustUnderstand="1">http://CIS/BIR/2014/07/IUslugaBIR/GetValueResponse</a:Action></s:Header><s:Body><GetValueResponse xmlns="http://CIS/BIR/2014/07"><GetValueResult>7</GetValueResult></GetValueResponse></s:Body></s:Envelope>
+--uuid:00000000-0000-4000-8000-000000000173+id=1--

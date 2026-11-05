@@ -8,6 +8,7 @@ import { fulfilmentStrategySchema, type FulfilmentStrategy } from './inventory.j
 import { organizationRoleRefSchema } from './organization-roles.js';
 import { SalesChannelOptionSchema } from './sales-channels.js';
 import { foldDiacritics } from './text-normalization.js';
+import { registryLookupIdSchema } from './organization-registry-lookup.js';
 
 /**
  * Organizations, customer accounts, addresses, invitations — Source of truth
@@ -202,6 +203,14 @@ export const registerOrganizationRequestSchema = z.object({
     lastName: z.string().min(1).max(120),
   }),
   acceptedTermsVersion: z.string(),
+  /**
+   * Feature 173 — the reference a registry lookup answered
+   * (`organization-registry-lookup.ts`). Top-level, not inside `organization`:
+   * `AdminOrganizationCreateBodySchema` is derived from that member and the
+   * admin create must not accept it. The snapshot is read from the platform's
+   * own store by this id, never from the client (FR-019).
+   */
+  registryLookupId: registryLookupIdSchema.optional(),
 });
 export type RegisterOrganizationRequest = z.infer<typeof registerOrganizationRequestSchema>;
 
@@ -435,7 +444,8 @@ export type SalesRepOrganization = z.infer<typeof salesRepOrganizationSchema>;
 // in-process calls, not an API boundary.
 // ---------------------------------------------------------------------------
 
-export type VatValidationProvider = 'vies' | 'mf_pl' | 'format_only';
+/** `gus_pl` — feature 173: the GUS REGON registry, written by a registration-time lookup. */
+export type VatValidationProvider = 'vies' | 'mf_pl' | 'format_only' | 'gus_pl';
 
 export type VatValidationOutcome = 'validated' | 'failed' | 'deferred' | 'unverified';
 

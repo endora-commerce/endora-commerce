@@ -1,0 +1,13 @@
+---
+'@endora-commerce/mod-organizations': minor
+---
+
+Company registry lookup at storefront registration (`specs/173-registration-registry-lookup/`). A business registering on the storefront can fetch its legal name, address and VAT status from the public registry by tax ID, and the registration persists what the registry answered for moderation. **Off by default.**
+
+- New anonymous endpoints `GET /api/v1/organizations/registration-options` and `POST /api/v1/organizations/registry-lookup` (10 lookups per 10 minutes per client address; answers as an unknown route while the switch is off). Polish NIPs go to GUS REGON (BIR1.1) and/or the Ministry of Finance VAT White List, other EU VAT numbers to VIES; answers are cached in Redis and every registry has a platform-wide budget.
+- Three settings: `organizations.registration.registry_lookup_enabled` (default `false`), `organizations.registration.registry_lookup_pl_sources` (`gus_mf` — default — `gus` or `mf`) and `organizations.registration.gus_credentials`; a palette action opens them, and the Settings screen warns while `gus` is chosen with no GUS credential.
+- A new credential type, `organizations_gus_bir` (user key, secret; environment `production` / `test`), contributed to `credentials`' registry. `credentials` stays switchable: without it Polish lookups use the White List alone.
+- `POST /api/v1/organizations/register` accepts an optional top-level `registryLookupId`; with the switch on and a matching reference it writes one `organization_tax_id_validations` row with `origin: 'registration'` and stamps the organization's last-validation summary. Registration never fails or waits on the lookup.
+- Migration `Migration20261105T121034OrganizationsRegistryLookupProvenance` adds `origin` (default `'admin'`), `registry_details` and `submitted_values` to `organization_tax_id_validations` and admits the `gus_pl` provider.
+- The admin VAT validation history answers the new fields and a computed `divergence`; the panel shows the registry data at registration beside what was submitted, and a pending organization's moderation actions show how many fields differ.
+- `MinisterstwoFinansowClient` gains `search(nip)` and `ViesClient` gains `check(country, number)`, which their `validate()` now runs over. Two answers change for "Validate now": the White List's daily-limit (`WL-1919`) and maintenance (`WL-1188`) refusals are `deferred` (`rate_limited`, `provider_maintenance`) rather than `failed`, and a VIES answer naming a member-state outage (`userError` `MS_UNAVAILABLE`, `TIMEOUT`, …) is `deferred` rather than `failed` / `not_found`.

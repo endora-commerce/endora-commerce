@@ -23,6 +23,7 @@ import type { OrganizationTaxIdValidationService } from './services/organization
 import {
   RegistrationService,
   type OrganizationEventBus,
+  type RegistrationRegistryLookup,
 } from './services/registration-service.js';
 import { EmailVerificationService } from './services/email-verification-service.js';
 import { InvitationService } from './services/invitation-service.js';
@@ -193,6 +194,11 @@ export interface OrganizationsModuleOptions {
     SalesChannelMembershipPort,
     'bindToDefaultIfEmpty' | 'replaceChannelsForEntity' | 'listChannelsForEntity'
   >;
+  /**
+   * Feature 173 — the switch and the ticket store, so a registration carrying a
+   * lookup reference persists the registry snapshot (research R-13).
+   */
+  registryLookup?: RegistrationRegistryLookup;
 }
 
 export function organizationsModule(options: OrganizationsModuleOptions) {
@@ -216,6 +222,7 @@ export function organizationsModule(options: OrganizationsModuleOptions) {
       options.dictionaryValidator,
       options.auditLogService,
       options.salesChannelMembership,
+      options.registryLookup,
     );
     const verificationService = new EmailVerificationService(
       options.emFactory,
