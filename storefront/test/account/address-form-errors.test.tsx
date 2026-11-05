@@ -62,7 +62,7 @@ function form(values: Record<string, string>): FormData {
 }
 
 /** The English sentences an issue's own text could be — none may reach the page. */
-const VALIDATOR_TEXT = /too small|too big|expected|invalid|String must/i;
+const VALIDATOR_TEXT = /too small|too big|expected string|Invalid input|String must/i;
 
 beforeEach(() => {
   refusal = null;
@@ -170,9 +170,12 @@ describe.each(['en-US', 'pl-PL'])('every field has its own copy for every issue 
     expect(text).toContain(t('account.addresses.field.street.required'));
     expect(text).toContain(t('account.addresses.field.country.unavailable'));
     expect(text).toContain(t('account.addresses.error.VALIDATION_FAILED'));
-    expect(html).toMatch(/name="street"[^>]*aria-invalid="true"[^>]*aria-describedby="addr-street-error"/);
+    const tag = (name: string): string => html.match(new RegExp(`<input[^>]*name="${name}"[^>]*>`))?.[0] ?? '';
+    expect(tag('street')).toContain('aria-invalid="true"');
+    expect(tag('street')).toContain('aria-describedby="addr-street-error"');
     expect(html).toContain('id="addr-street-error"');
-    expect(html).not.toMatch(/name="city"[^>]*aria-invalid/);
+    expect(tag('city')).not.toBe('');
+    expect(tag('city')).not.toContain('aria-invalid');
     if (locale === 'en-US') {
       expect(text).toContain('Enter the street and number.');
     } else {

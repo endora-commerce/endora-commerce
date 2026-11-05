@@ -9,8 +9,8 @@ Logika biznesowa cyklu życia klienta, zbudowana na module danych `customer_acco
 należy do organizacji** — firmowej w przypadku B2B albo jednoosobowej *organizacji prywatnej* w
 przypadku osoby fizycznej — a `customer_accounts.organization_id` ma ograniczenie `NOT NULL`.
 „Samodzielny” oznacza w tym dokumencie *poza organizacją firmową*, a nigdy *bez organizacji*: taki
-klient jest osobnym tenantem, a funkcje związane z organizacją, które oferuje firma (wspólne adresy,
-zaproszenia, limit kredytowy, przypisanie handlowca), po prostu w jego przypadku nie występują,
+klient jest osobnym tenantem, a funkcje związane z organizacją, które oferuje firma (zaproszenia,
+limit kredytowy, przypisanie handlowca), po prostu w jego przypadku nie występują,
 zamiast być wyłączane jako przypadek szczególny.
 
 ## Możliwości
@@ -23,9 +23,13 @@ zamiast być wyłączane jako przypadek szczególny.
   ustawienie jest wyłączone, strona `/register-customer` w sklepie zamiast formularza pokazuje
   komunikat z linkiem do rejestracji organizacji, więc odwiedzający nie wypełnia formularza, który
   zostałby odrzucony.
-- Prywatna książka adresowa (adresy do faktury i dostawy), jeden adres domyślny każdego rodzaju, oraz
-  możliwość wyboru wspólnych adresów organizacji (dla klientów należących do organizacji firmowej).
-- Domyślna metoda płatności, metoda dostawy i domyślne adresy.
+- Jedna książka adresowa dla każdego klienta: książka jego organizacji. Klient indywidualny widzi ją
+  jako *Moje adresy* (`/addresses`), członek firmy jako *Adresy organizacji*
+  (`/organization/addresses`). Kasa proponuje adresy z tej samej książki i do niej zapisuje nowe.
+  Obsługuje ją moduł `organizations` na bazie `addresses`, nie ten moduł, więc działa także wtedy,
+  gdy ten moduł jest wyłączony.
+- Domyślna metoda płatności i metoda dostawy. Adresy domyślne są odczytywane z książki organizacji,
+  w której się je ustawia.
 - Zmiana hasła; historia własnych zamówień i zapytań ofertowych tylko do odczytu.
 
 **Panel administracyjny (nadzór)**
@@ -58,7 +62,33 @@ Usunięcie to miękkie wyłączenie konta: logowanie jest odrzucane, konto ukryt
 zamówienia, zapytania ofertowe i historia audytu zachowane. W konfigurowalnym okresie
 (`customers.deletion_retention_days`, domyślnie 365 dni) uprawniona osoba może przywrócić konto. Po
 jego upływie zadanie anonimizacji (`AnonymizationSweepWorker`) nieodwracalnie usuwa dane osobowe i
-przywrócenie nie jest już możliwe.
+przywrócenie nie jest już możliwe. W przypadku klienta indywidualnego zadanie anonimizuje też jego
+organizację prywatną: jej zapisane adresy są czyszczone (`-`, bez telefonu, kraj zostaje) i miękko
+usuwane, każdy z wpisem audytu `address.anonymized`. Złożone zamówienia zachowują swoje kopie
+adresów.
+
+## Wycofanie osobistej książki adresowej
+
+Do pierwszego wydania tej zmiany moduł prowadził drugą, *osobistą* książkę adresową
+(`customer_addresses`). Na żaden jej adres nie dało się złożyć zamówienia. Zostaje wycofana dla
+wszystkich, w dwóch wydaniach:
+
+- **Wydanie 1 (to).** Każdy dawny punkt końcowy osobistej książki odpowiada `410 Gone` z kodem
+  `CUSTOMER_ADDRESS_BOOK_RETIRED`, po polsku lub po angielsku. Jednorazowe zadanie w tle,
+  uruchamiane przez proces workera, gdy ten moduł jest włączony, przetwarza pozostałe wiersze:
+  - wiersze klienta indywidualnego są **przenoszone** do książki jego organizacji prywatnej. Adres,
+    który już w niej jest, nie jest kopiowany drugi raz, a istniejący adres domyślny pozostaje
+    domyślny. Każdy wiersz ma wpis audytu `customer_address.merge`;
+  - każdy inny wiersz (członka firmy albo konta, którego organizacji nie da się znaleźć) jest
+    **usuwany**: czyszczony, miękko usuwany i audytowany jako `customer_address.erased`;
+  - wiersz, którego książka adresowa nie przyjmuje — na przykład z krajem, który nie jest już
+    aktywny — zostaje, oznaczony powodem (`customer_address.merge_refused`). Widzi go tylko
+    operator, na karcie *Adresy* klienta.
+- **Wydanie 2.** Tabela i pozostały kod są usuwane. Aktualizacja odmawia, dopóki zostaje choćby
+  jeden wiersz.
+
+Stronę operatora opisuje uwaga do aktualizacji *Wycofanie osobistej książki adresowej (wydanie 1 z
+2)*.
 
 ## API publiczne
 
@@ -71,10 +101,9 @@ Trasy administracyjne są chronione przez `customers:read` (odczyt), `customers:
 | `GET /api/v1/storefront/settings/customer-registration` | anonimowy | Czy samodzielna rejestracja jest dostępna (`allowRegistrationWithoutOrganization`) |
 | `GET /api/v1/me/customer` | klient | Własny profil z `organizationRole` i faktycznymi uprawnieniami `permissions` |
 | `POST /api/v1/me/customer/change-password` | klient | Zmiana hasła. Udana zmiana wylogowuje konto ze wszystkich pozostałych sesji (sesja, z której wysłano żądanie, zostaje), unieważnia niewykorzystane tokeny resetu hasła i wycofuje każde rozpoczęte, a niedokończone logowanie. |
-| `GET /api/v1/me/customer/addresses` | klient | Adresy prywatne i wspólne adresy organizacji |
-| `POST/PATCH/DELETE /api/v1/me/customer/addresses[/:id]` | klient | Zarządzanie adresami prywatnymi |
-| `PUT /api/v1/me/customer/addresses/:id/default` | klient | Ustawienie adresu domyślnego |
-| `GET/PUT /api/v1/me/customer/defaults` | klient | Domyślna metoda płatności i dostawy oraz adresy |
+| `GET/POST /api/v1/me/customer/addresses` · `PATCH/DELETE .../:id` · `PUT .../:id/default` | klient | Wycofane: `410 CUSTOMER_ADDRESS_BOOK_RETIRED`. Używaj `/api/v1/organizations/mine/addresses` |
+| `GET /api/v1/me/customer/defaults` | klient | Domyślna metoda płatności i dostawy oraz adresy domyślne z książki organizacji |
+| `PUT /api/v1/me/customer/defaults` | klient | Ustawienie domyślnej metody płatności i dostawy. Treść podająca `billingAddressId` lub `shippingAddressId` dostaje odpowiedź `410 CUSTOMER_ADDRESS_BOOK_RETIRED` |
 | `GET /api/v1/me/customer/orders` | klient | Własna historia zamówień |
 | `GET /api/v1/me/customer/quote-requests` | klient | Własna historia zapytań ofertowych |
 | `GET /api/v1/admin/customers` | administrator | Lista (ograniczona uprawnieniami) |
@@ -85,7 +114,8 @@ Trasy administracyjne są chronione przez `customers:read` (odczyt), `customers:
 | `POST /api/v1/admin/customers/:id/password-reset` | administrator | E-mail z linkiem do ustawienia hasła |
 | `POST/DELETE /api/v1/admin/customers/:id/organization` | administrator | Przypisanie do organizacji / odłączenie |
 | `PUT /api/v1/admin/customers/:id/customer-group` | administrator | Ustawienie / usunięcie grupy klientów |
-| `GET/POST/PATCH/DELETE /api/v1/admin/customers/:id/addresses[/:addressId]` | administrator | Zarządzanie adresami |
+| `GET /api/v1/admin/customers/:id/addresses` | administrator | Tylko do odczytu: `{ organization, personal }` — książka organizacji oraz wiersze osobistej książki, których zadanie nie przeniosło, każdy z `mergeRefusal` |
+| `POST /api/v1/admin/customers/:id/addresses` | administrator | Wycofane: `410 CUSTOMER_ADDRESS_BOOK_RETIRED` |
 | `POST /api/v1/admin/customers/:id/vat-validate` | administrator | Walidacja numeru NIP/VAT |
 | `GET /api/v1/admin/customers/:id/orders` · `/quote-requests` · `/carts` | administrator | Panele historii tylko do odczytu |
 | `GET /api/v1/admin/customers/online` | administrator | Klienci obecnie online |
@@ -104,7 +134,10 @@ Trasy administracyjne są chronione przez `customers:read` (odczyt), `customers:
   stan blokady (`blocked_at`, `block_reason`, `block_source`, `blocked_by_*`) oraz stan usunięcia i
   anonimizacji (`deletion_requested_by_admin_user_id`, `anonymized_at`).
 - `20260611T140404_customers_customer_addresses_init.ts` — tabela `customer_addresses` (jeden adres domyślny dla każdej pary
-  `(customer, kind)`).
+  `(customer, kind)`), czyli wycofana osobista książka adresowa.
+- `20261105T180317_customers_address_book_retirement.ts` — kolumny pochodzenia, które zapisuje zadanie wycofania
+  (`merged_into_address_id`, `merged_at`, `merge_refusal`), oraz indeks wierszy, które zadanie ma jeszcze przetworzyć.
+  Wydanie 2 usuwa tabelę.
 
 Domyślne preferencje płatności i dostawy korzystają z istniejącej tabeli
 `quick_order_default_preferences`; nowa tabela nie jest tworzona.

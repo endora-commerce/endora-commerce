@@ -1,6 +1,6 @@
 import { useCallback, useEffect, useState, type ReactNode } from 'react';
-import { ApiError, apiClient, useUnsavedChangesPrompt } from '@endora-commerce/admin-kit/lib';
-import { Alert, AlertDescription, Button, Card, CardContent, CardHeader, CardTitle, Input, Label, Select } from '@endora-commerce/admin-kit/ui';
+import { ApiError, apiClient } from '@endora-commerce/admin-kit/lib';
+import { Alert, AlertDescription, Button, Card, CardContent, CardHeader, CardTitle, Label } from '@endora-commerce/admin-kit/ui';
 import { OrganizationPicker, CustomerGroupPicker } from '@endora-commerce/admin-kit/components';
 import { useTranslation } from '@endora-commerce/admin-kit/i18n';
 
@@ -143,7 +143,8 @@ export function CustomerGroupPanel({
   );
 }
 
-interface AdminCustomerAddress {
+/** One line of the addresses card — an Organization address or a refused personal-book row. */
+interface AdminAddressLine {
   id: string;
   kind: 'delivery' | 'billing';
   recipientName: string;
@@ -154,35 +155,31 @@ interface AdminCustomerAddress {
   isDefault: boolean;
 }
 
-export function AddressesPanel({ customerId, onChanged }: CommonProps): ReactNode {
+/** `GET /api/v1/admin/customers/:id/addresses` (`customerAddressBookSchema`). */
+interface AdminCustomerAddressBook {
+  organization: AdminAddressLine[];
+  personal: Array<AdminAddressLine & { mergeRefusal?: string | null }>;
+}
+
+export function AddressesPanel({ customerId }: CommonProps): ReactNode {
   const t = useTranslation('customers');
-  const { busy, error, run } = useAction(onChanged);
-  const [personal, setPersonal] = useState<AdminCustomerAddress[]>([]);
-  const [form, setForm] = useState({
-    kind: 'delivery' as 'delivery' | 'billing',
-    recipientName: '',
-    street: '',
-    city: '',
-    postalCode: '',
-    country: 'PL',
-  });
+  const [book, setBook] = useState<AdminCustomerAddressBook | null>(null);
+  const [failed, setFailed] = useState(false);
 
-  // Warn before leaving with a partially-filled new-address form.
-  useUnsavedChangesPrompt(
-    form.recipientName !== '' ||
-      form.street !== '' ||
-      form.city !== '' ||
-      form.postalCode !== '',
-  );
-
+  // `specs/173-b2c-address-book-merge/` (OD-6) — read-only. The card lists the
+  // book the customer orders from, their Organization's, and then any
+  // personal-book row the release-1 retirement job refused, with its reason.
+  // There is no form: the personal book is retired, and admin editing of
+  // Organization addresses is a separate follow-up.
   const load = useCallback(async (): Promise<void> => {
     try {
-      const res = await apiClient.get<{ data: { personal: AdminCustomerAddress[] } }>(
+      const res = await apiClient.get<{ data: AdminCustomerAddressBook }>(
         `/api/v1/admin/customers/${customerId}/addresses`,
       );
-      setPersonal(res.data.personal);
+      setBook(res.data);
+      setFailed(false);
     } catch {
-      /* surfaced by useAction on mutations */
+      setFailed(true);
     }
   }, [customerId]);
 
@@ -190,10 +187,13 @@ export function AddressesPanel({ customerId, onChanged }: CommonProps): ReactNod
     void load();
   }, [load]);
 
-  const reload = (): void => {
-    void load();
-    onChanged();
-  };
+  const line = (a: AdminAddressLine): ReactNode => (
+    <>
+      <span className="text-muted-foreground">{a.kind}</span> · {a.recipientName} — {a.street}, {a.postalCode}{' '}
+      {a.city}, {a.country}
+      {a.isDefault ? ` (${t('detail.addresses.default')})` : ''}
+    </>
+  );
 
   return (
     <Card className="mb-4">
@@ -201,54 +201,51 @@ export function AddressesPanel({ customerId, onChanged }: CommonProps): ReactNod
         <CardTitle>{t('detail.addresses.title')}</CardTitle>
       </CardHeader>
       <CardContent className="space-y-3">
-        {error ? (
+        {failed ? (
           <Alert variant="destructive">
-            <AlertDescription>{error}</AlertDescription>
+            <AlertDescription>{t('detail.panel.error')}</AlertDescription>
           </Alert>
         ) : null}
-        {personal.length === 0 ? (
-          <p className="text-sm text-muted-foreground">{t('detail.addresses.empty')}</p>
-        ) : (
-          <ul className="divide-y text-sm">
-            {personal.map((a) => (
-              <li key={a.id} className="py-2">
-                <span className="text-muted-foreground">{a.kind}</span> · {a.recipientName} — {a.street},{' '}
-                {a.postalCode} {a.city}, {a.country}
-                {a.isDefault ? ` (${t('detail.addresses.default')})` : ''}
-              </li>
-            ))}
-          </ul>
-        )}
-        <div className="grid gap-2 sm:grid-cols-2">
-          <Select value={form.kind} onChange={(e): void => setForm({ ...form, kind: e.target.value as 'delivery' | 'billing' })}>
-            <option value="delivery">delivery</option>
-            <option value="billing">billing</option>
-          </Select>
-          <Input placeholder={t('detail.addresses.recipient')} value={form.recipientName} onChange={(e): void => setForm({ ...form, recipientName: e.target.value })} />
-          <Input placeholder={t('detail.addresses.street')} value={form.street} onChange={(e): void => setForm({ ...form, street: e.target.value })} />
-          <Input placeholder={t('detail.addresses.city')} value={form.city} onChange={(e): void => setForm({ ...form, city: e.target.value })} />
-          <Input placeholder={t('detail.addresses.postal')} value={form.postalCode} onChange={(e): void => setForm({ ...form, postalCode: e.target.value })} />
-          <Input placeholder={t('detail.addresses.country')} value={form.country} maxLength={2} onChange={(e): void => setForm({ ...form, country: e.target.value.toUpperCase() })} />
-        </div>
-        <Button
-          disabled={busy || !form.recipientName || !form.street}
-          onClick={(): void =>
-            void run(async () => {
-              await apiClient.post(`/api/v1/admin/customers/${customerId}/addresses`, form);
-              setForm({
-                kind: 'delivery',
-                recipientName: '',
-                street: '',
-                city: '',
-                postalCode: '',
-                country: 'PL',
-              });
-              reload();
-            })
-          }
-        >
-          {t('detail.addresses.add')}
-        </Button>
+        {book ? (
+          <>
+            <section aria-labelledby="customer-addresses-organization" className="space-y-1">
+              <h3 id="customer-addresses-organization" className="text-sm font-medium">
+                {t('detail.addresses.organizationBook')}
+              </h3>
+              {book.organization.length === 0 ? (
+                <p className="text-sm text-muted-foreground">{t('detail.addresses.empty')}</p>
+              ) : (
+                <ul className="divide-y text-sm">
+                  {book.organization.map((a) => (
+                    <li key={a.id} className="py-2">
+                      {line(a)}
+                    </li>
+                  ))}
+                </ul>
+              )}
+            </section>
+            {book.personal.length > 0 ? (
+              <section aria-labelledby="customer-addresses-refused" className="space-y-1">
+                <h3 id="customer-addresses-refused" className="text-sm font-medium">
+                  {t('detail.addresses.refused')}
+                </h3>
+                <p className="text-sm text-muted-foreground">{t('detail.addresses.refusedHint')}</p>
+                <ul className="divide-y text-sm">
+                  {book.personal.map((a) => (
+                    <li key={a.id} className="py-2">
+                      {line(a)}
+                      {a.mergeRefusal ? (
+                        <span className="block text-xs text-muted-foreground">
+                          {t('detail.addresses.refusalReason')}: <code>{a.mergeRefusal}</code>
+                        </span>
+                      ) : null}
+                    </li>
+                  ))}
+                </ul>
+              </section>
+            ) : null}
+          </>
+        ) : null}
       </CardContent>
     </Card>
   );

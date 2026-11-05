@@ -8,6 +8,12 @@ description: Customer postal addresses with default-per-kind invariant
 Customer postal addresses scoped to an Organization. Each address has a
 `kind` (`shipping`, `billing`, `delivery`) and a per-kind default flag.
 
+This is **every customer's one address book**: a company's, and an
+individual's personal organization's. Checkout offers and saves to it, and the
+storefront shows it as *My addresses* (`/addresses`) to an individual and as
+*Organization addresses* (`/organization/addresses`) to a company member. The
+separate personal address book `customers` used to keep is retired.
+
 ## Public surface
 
 | Verb + Path | Purpose |
@@ -24,11 +30,23 @@ the **`addresses.manage`** organization permission, which this module declares
 permission is held by the Member role by default and by Administrator always;
 an organization withdraws it by editing a role.
 
-On the storefront the organization's address page (`/organization/addresses`)
-shows the address list to every member, and the add form and the *Remove*
-buttons only to a member whose role holds the permission. Anyone else reads one
-line instead of the form: *Your role does not allow adding or removing
-addresses. You can still view them and use them at checkout.*
+On the storefront both address pages are the same address book. They show the
+address list to every member, and the add form and the *Make default* and
+*Remove* buttons only to a member whose role holds the permission. An
+individual is their personal organization's Administrator and always holds it.
+Anyone else reads one line instead of the form: *Your role does not allow adding
+or removing addresses. You can still view them and use them at checkout.* A
+refused field is named with its own sentence, for example *Enter the street and
+number.*
+
+## Anonymization
+
+`addressServicePort.anonymizeForOrganization(organizationId)` blanks every live
+address of the organization (`-` for the recipient, street, city and postal
+code; no phone; not default; the country kept), soft-deletes it and writes one
+`address.anonymized` audit entry per address, with no actor. `customers`'
+retention sweep calls it when it scrubs an individual's personal organization.
+Orders keep their own address snapshots.
 
 ## Entities
 

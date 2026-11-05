@@ -3633,6 +3633,86 @@ storefront's history; the entries from *Product feeds* to *the message catalogue
 earlier, by the pull requests that made each change. No instance had been upgraded with `pnpm run upgrade 0.109.0` when it was written; the
 order of the steps and the storefront edits are untried.
 
+### Personal address book retired (release 1 of 2) {#personal-address-book-retired-1}
+
+The release that ships `CUSTOMER_ADDRESS_BOOK_RETIRED` gives every customer **one** address book,
+their Organization's (`specs/173-b2c-address-book-merge/`). The `customers` module's personal
+address book (`customer_addresses`) is retired for everyone. No order could ever be placed to one of
+its addresses, so no capability that worked is removed. The table is dropped by a later release, the
+second of two, and that release refuses to migrate while any row is left. So pass through this one
+first, as described here.
+
+**What changes:**
+
+- On the storefront, an individual's *My addresses* (`/addresses`) shows their personal
+  Organization's book, the one checkout offers and saves to. A company member has one entry,
+  *Organization addresses*, and `/addresses` redirects them there. The storefront's
+  `lib/api/customers.ts` loses `listMyAddresses`, `createMyAddress`, `deleteMyAddress` and
+  `setMyDefaultAddress`. A storefront built on them reads and writes
+  `/api/v1/organizations/mine/addresses` instead (`lib/api/organization.ts`).
+- Every former personal-book endpoint answers `410 Gone` with `CUSTOMER_ADDRESS_BOOK_RETIRED`, in
+  Polish or English, for every caller: `GET` and `POST /api/v1/me/customer/addresses`, `PATCH` and
+  `DELETE /api/v1/me/customer/addresses/:addressId`,
+  `PUT /api/v1/me/customer/addresses/:addressId/default`,
+  `POST /api/v1/admin/customers/:id/addresses`, and a `PUT /api/v1/me/customer/defaults` whose body
+  names `billingAddressId` or `shippingAddressId`. `GET /api/v1/me/customer/defaults` reports the
+  Organization book's default addresses.
+- The customer's *Addresses* card in the Admin UI is read-only. It lists the Organization book, then
+  any personal-book row the job below refused, with its reason.
+- When the retention sweep anonymizes an individual, their personal Organization's addresses are
+  blanked and soft-deleted too. Placed orders keep their address snapshots.
+
+**The job.** A one-time background job in `customers` processes the remaining personal-book rows.
+It is enqueued at every boot of a process that runs workers, and runs only while `customers` is on:
+
+- an individual's rows are **moved** into their personal Organization's book. An address already
+  there is not copied twice, and an existing default stays the default;
+- every other row — a company member's, or an account whose Organization cannot be found — is
+  **erased**: blanked and soft-deleted;
+- a row the address book refuses, for example one whose country is no longer active, stays, marked
+  with the reason, and is shown only on the Admin UI card.
+
+Each row leaves an audit entry (`customer_address.merge`, `customer_address.erased` or
+`customer_address.merge_refused`). The worker logs a summary at `info`, starting with
+`customers: personal address book retirement finished`. A later boot finds nothing to do.
+
+**What to do:**
+
+1. **Keep `customers` switched on, and run the worker process** (`pnpm run worker`, or your
+   deployment's `BACKEND_ROLE=worker` process), until the job has finished. While `customers` is off
+   the job does not run, and the address pages and checkout keep working regardless.
+2. **Expect a short window after the upgrade.** From the boot until the job's first run, an
+   individual's pre-upgrade personal addresses are not yet in their one list.
+3. **Count what is left.** Run this read-only query before the upgrade, to know what the job will
+   do, and again after it, to confirm it has finished:
+
+   ```sql
+   select
+     count(*) filter (where ca.deleted_at is null)                           as live,
+     count(*) filter (where ca.deleted_at is null and o.is_personal)         as live_b2c,      -- moved by the job
+     count(*) filter (where ca.deleted_at is null and o.is_personal = false) as live_company,  -- erased by the job
+     count(*) filter (where ca.deleted_at is null and o.id is null)          as live_no_org    -- erased by the job
+   from customer_addresses ca
+   join customer_accounts acc on acc.id = ca.customer_account_id
+   left join organizations o on o.id = acc.organization_id;
+   ```
+
+   After the job, `live` equals the number of refused rows
+   (`select count(*) from customer_addresses where deleted_at is null and merge_refusal is not null`).
+   The release that drops the table needs `live` to be `0`.
+4. **Decide about each refused row.** Fix the cause — for example, reactivate the country — then
+   clear the mark (`update customer_addresses set merge_refusal = null where id = '…'`) and the job
+   retries it on the next boot. Or accept that the address is lost
+   (`delete from customer_addresses where merge_refusal is not null`): the customer can type it
+   again at checkout.
+5. **API clients** that called the personal-book endpoints switch to
+   `/api/v1/organizations/mine/addresses`. Those routes need the `addresses.manage` organization
+   permission to write, and an individual, the Administrator of their personal Organization, always
+   holds it. **Module authors:** `@endora-commerce/contracts` no longer exports
+   `CustomerAddressReadPort`, `CustomerAddressRecord`, `customerAddressInputSchema` or
+   `ERROR_CODES.CUSTOMER_ADDRESS_NOT_FOUND`, the `customerAddressReadPort` port is gone, and
+   `AddressServicePort` gains `anonymizeForOrganization`.
+
 ## An instance that is mixed from the start
 
 The installer of `0.101.x` or earlier wrote every package of the release with a `^` except
