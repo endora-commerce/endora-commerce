@@ -399,14 +399,16 @@ describe('registered module i18n bundles — real filesystem shape', () => {
    * titles), the literal `<PageHeader title="…">` of the module admin pages,
    * the English label of every palette action, every settings group `name`,
    * the storefront's English `nav.*` labels and the `title` / `sidebar_label`
-   * of every hand-written documentation page.
+   * of every hand-written documentation page, then the English admin search
+   * group labels (`adminSearch.*group.label`) and the demo composition's
+   * megamenu labels.
    *
    * The rule and the allowlist are `@endora-commerce/cli`'s
    * (`lib/sentence-case.ts`) — the one copy, which `endora new module` refuses
    * a title-case `--name` with. The allowlist is two-way here: an entry nothing
    * in this population uses fails too.
    */
-  it('every English module name, nav label, page title, palette label, settings group and docs title is sentence case', async () => {
+  it('every English module name, nav label, page title, palette label, settings group, admin search group, demo menu label and docs title is sentence case', async () => {
     const used = new Set<string>();
     const problems: string[] = [];
     const judged = new Map<string, number>();
@@ -427,6 +429,7 @@ describe('registered module i18n bundles — real filesystem shape', () => {
       }
     }
     const NAV_LABEL = /(^|\.)nav\.[A-Za-z]+(\.label)?$/;
+    const ADMIN_SEARCH_GROUP = /^adminSearch\.([A-Za-z]+\.)?group\.label$/;
     for (const entry of manifests.values()) {
       const id = entry.manifest.id;
       judge('manifest name', `${id} manifest name`, entry.manifest.name);
@@ -444,6 +447,8 @@ describe('registered module i18n bundles — real filesystem shape', () => {
           judge('module name and nav label', `${id}/en.json → ${key}`, value);
         } else if (/(^|\.)title$/.test(key)) {
           judge('title', `${id}/en.json → ${key}`, value);
+        } else if (ADMIN_SEARCH_GROUP.test(key)) {
+          judge('admin search group', `${id}/en.json → ${key}`, value);
         }
       }
       for (const action of entry.manifest.actions ?? []) {
@@ -461,6 +466,14 @@ describe('registered module i18n bundles — real filesystem shape', () => {
 
     for (const [key, value] of Object.entries(MESSAGES['en-US']!)) {
       if (NAV_LABEL.test(key)) judge('storefront nav label', `storefront en-US → ${key}`, value);
+    }
+
+    // The demo composition seeds a megamenu whose English labels the
+    // storefront shows as they are written: no bundle stands between them.
+    const demoComposition = join(REPO_ROOT, 'packages/demo-composition/src/composition.ts');
+    const MENU_LABEL = /\blabels: \{[^}]*'en-US': '([^']+)'/g;
+    for (const match of readFileSync(demoComposition, 'utf8').matchAll(MENU_LABEL)) {
+      judge('demo menu label', `${relative(REPO_ROOT, demoComposition)} menu label`, match[1]!);
     }
 
     // Hand-written pages only: `module-reference/` and `*.generated.md` are
@@ -495,6 +508,8 @@ describe('registered module i18n bundles — real filesystem shape', () => {
     expect(manifests.size).toBeGreaterThan(REGISTERED_MANIFESTS.length);
     // Every population reached something: an empty one means its filter broke.
     expect([...judged.keys()].sort()).toEqual([
+      'admin search group',
+      'demo menu label',
       'docs title',
       'manifest name',
       'module name and nav label',
