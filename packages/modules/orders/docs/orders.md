@@ -917,8 +917,9 @@ at checkout and types the company's name and NIP, which are then validated as
 at company registration. The invoice, its PDF, the confirmation e-mail and the
 order screen print a tax-ID line only when the order carries one. An order
 keeps the snapshot it was placed with. The admin order screen's *Organization*
-panel likewise prints no tax ID for a personal Organization: the admin order
-reply carries `organization.taxId: null` for it.
+panel likewise prints no tax ID for a personal Organization and labels it
+*Individual customer* instead: the admin order reply carries
+`organization.taxId: null` and `organization.isPersonal: true` for it.
 
 ## Extension points
 

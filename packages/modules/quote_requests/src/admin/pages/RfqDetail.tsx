@@ -130,6 +130,7 @@ interface RfqOrganization {
   legalName: string | null;
   /** `null` for a personal Organization, whose tax id is a placeholder (#767). */
   taxId: string | null;
+  isPersonal?: boolean;
   vatStatus: string;
 }
 interface RfqCustomer {
@@ -615,7 +616,9 @@ export function RfqDetail(): ReactNode {
                       rfq.organization.legalName !== rfq.organization.name ? (
                         <p className="text-muted-foreground">{rfq.organization.legalName}</p>
                       ) : null}
-                      {rfq.organization.taxId ? (
+                      {rfq.organization.isPersonal ? (
+                        <p className="text-muted-foreground">{t('rfq.detail.org.individualCustomer')}</p>
+                      ) : rfq.organization.taxId ? (
                         <p className="text-muted-foreground">
                           {t('rfq.detail.org.taxId')}: <strong>{rfq.organization.taxId}</strong>
                         </p>

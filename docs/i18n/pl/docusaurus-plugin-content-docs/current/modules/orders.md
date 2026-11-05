@@ -858,8 +858,9 @@ oraz NIP, które są wtedy sprawdzane tak jak przy rejestracji firmy. Faktura, j
 PDF, e-mail z potwierdzeniem i ekran zamówienia pokazują wiersz z NIP tylko
 wtedy, gdy zamówienie go zawiera. Zamówienie zachowuje migawkę, z którą zostało
 złożone. Panel *Organizacja* na ekranie zamówienia w panelu administracyjnym
-również nie pokazuje NIP Organizacji osobistej: odpowiedź administracyjna
-zamówienia zawiera dla niej `organization.taxId: null`.
+również nie pokazuje NIP Organizacji osobistej, tylko etykietę *Klient
+indywidualny*: odpowiedź administracyjna zamówienia zawiera dla niej
+`organization.taxId: null` i `organization.isPersonal: true`.
 
 ## Punkty rozszerzenia
 

@@ -492,6 +492,8 @@ export const quoteRequestSchema = z.object({
       legalName: z.string().nullable(),
       /** `null` for a personal (B2C) Organization, whose tax id is an internal placeholder (#767). */
       taxId: z.string().nullable(),
+      /** A personal (B2C) Organization: the panel labels it an individual customer (#767). */
+      isPersonal: z.boolean(),
       vatStatus: z.string(),
     })
     .nullable()

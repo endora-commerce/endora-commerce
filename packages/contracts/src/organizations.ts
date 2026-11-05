@@ -538,11 +538,14 @@ export interface OrganizationDetailsPort {
  * {@link normalizeOrganizationName} is: it is pure over its argument. Every
  * module that prints an {@link OrganizationRecord}'s tax id asks it — the quote
  * request document, the admin order and quote request panels, the price-book
- * and push audience pickers — so the rule has one home.
+ * and push audience pickers, and the storefront's checkout — so the rule has
+ * one home.
  */
-export function organizationCompanyTaxId(
-  organization: Pick<OrganizationRecord, 'isPersonal' | 'taxId'>,
-): string | null {
+export function organizationCompanyTaxId(organization: {
+  /** Absent reads as a company, as a session payload without the flag does. */
+  readonly isPersonal?: boolean | undefined;
+  readonly taxId: string;
+}): string | null {
   if (organization.isPersonal) return null;
   const taxId = organization.taxId.trim();
   return taxId === '' ? null : taxId;

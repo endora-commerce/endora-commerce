@@ -1206,6 +1206,7 @@ export async function registerOrderRoutes(
               name: organization.name,
               legalName: organization.legalName ?? null,
               taxId: organizationCompanyTaxId(organization),
+              isPersonal: organization.isPersonal,
               vatStatus: organization.vatStatus,
             }
           : null,

@@ -417,6 +417,7 @@ export class RfqAdminService {
             name: org.name,
             legalName: org.legalName ?? null,
             taxId: organizationCompanyTaxId(org),
+            isPersonal: org.isPersonal,
             vatStatus: org.vatStatus,
           }
         : null,
