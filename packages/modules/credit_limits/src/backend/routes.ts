@@ -4,7 +4,9 @@ import {
   adjustCreditLimitRequestSchema,
   grantCreditLimitRequestSchema,
   moneySum,
+  type OrderReadPort,
   type OrganizationDetailsPort,
+  type OrganizationPermissionPort,
 } from '@endora-commerce/contracts';
 import { HttpError } from '@endora-commerce/platform/http';
 import { isOrgInScope } from '@endora-commerce/platform/tenancy';
@@ -44,6 +46,13 @@ export interface CreditLimitsDeps {
    * switched off. The port fails the request closed instead.
    */
   organizationDetailsPort: OrganizationDetailsPort;
+  /**
+   * `organizations`' permission port and `orders`' read model — together they
+   * decide which reservations a buyer's `GET /api/v1/me/credit-limit` lists
+   * (issue #748). Both owners are already in this module's `dependencies`.
+   */
+  organizationPermissionPort: OrganizationPermissionPort;
+  orderReadPort: OrderReadPort;
   requireCustomer: (req: FastifyRequest, reply: unknown) => Promise<void>;
   requireAdmin: RequireAdminFactory;
   resolveCustomerContext: (req: FastifyRequest) => {
@@ -76,6 +85,8 @@ export async function registerCreditLimitsRoutes(
   const {
     creditLimitService,
     organizationDetailsPort,
+    organizationPermissionPort,
+    orderReadPort,
     requireCustomer,
     requireAdmin,
     resolveCustomerContext,
@@ -88,6 +99,38 @@ export async function registerCreditLimitsRoutes(
     if (unique.length === 0) return new Map();
     const orgs = await organizationDetailsPort.findByIds(unique);
     return new Map(orgs.map((o) => [o.id, o.name]));
+  };
+
+  /**
+   * The reservations of `reservations` whose order this buyer may read
+   * (issue #748), under the rule `GET /api/v1/orders/:id` applies
+   * (`specs/170-organization-roles/` FR-049): a member whose organization role
+   * holds `orders.view_organization` — the *Administrator* implicitly — reads
+   * every order of the Organization, anyone else only the orders they placed.
+   *
+   * The reservation does not record who placed its order, so the placer is
+   * asked of `orders` in one batched read, and only when the permission is
+   * missing. The totals are computed from the full set by the caller: the
+   * limit is shared, and a member needs them to know what they can spend.
+   */
+  const readableReservations = async (
+    ctx: { customerAccountId: string; organizationId: string },
+    reservations: CreditLimitReservation[],
+  ): Promise<CreditLimitReservation[]> => {
+    if (reservations.length === 0) return reservations;
+    const subject = { customerAccountId: ctx.customerAccountId, organizationId: ctx.organizationId };
+    if (await organizationPermissionPort.can(subject, ORDERS_VIEW_ORGANIZATION)) return reservations;
+    const orders = await orderReadPort.findByIds(reservations.map((r) => r.orderId));
+    const own = new Set(
+      orders
+        .filter(
+          (o) =>
+            o.placedByCustomerAccountId === ctx.customerAccountId &&
+            o.organizationId === ctx.organizationId,
+        )
+        .map((o) => o.id),
+    );
+    return reservations.filter((r) => own.has(r.orderId));
   };
 
   app.get(
@@ -104,7 +147,8 @@ export async function registerCreditLimitsRoutes(
         );
       }
       const reservations = await creditLimitService.listActiveReservations(limit.id);
-      return { data: serializeView(limit, reservations) };
+      const listed = await readableReservations(ctx, reservations);
+      return { data: serializeView(limit, reservations, null, listed) };
     },
   );
 
@@ -227,10 +271,23 @@ export async function registerCreditLimitsRoutes(
   );
 }
 
+/**
+ * The organization permission that lets a buyer read a colleague's order —
+ * declared by `orders` (`specs/170-organization-roles/` FR-049). Here it
+ * decides which reservations the customer view lists (issue #748).
+ */
+const ORDERS_VIEW_ORGANIZATION = 'orders.view_organization';
+
+/**
+ * `reservations` is every active reservation of the limit and drives the
+ * totals; `listed` is the subset the caller may read, defaulting to all of
+ * them (the admin views).
+ */
 function serializeView(
   limit: CreditLimit,
   reservations: CreditLimitReservation[],
   organizationName?: string | null,
+  listed: CreditLimitReservation[] = reservations,
 ): Record<string, unknown> {
   // Exact decimal arithmetic (issue #417); each figure a two-place decimal read as a number.
   const reservedSum = moneySum(reservations.map((r) => r.amount));
@@ -240,7 +297,8 @@ function serializeView(
     grantedAmount: Number(limit.grantedAmount),
     availableAmount: Number(availableCredit(limit.grantedAmount, reservedSum)),
     currency: limit.currency,
-    activeReservations: reservations.map((r) => ({
+    activeReservationCount: reservations.length,
+    activeReservations: listed.map((r) => ({
       orderId: r.orderId,
       amount: Number(r.amount),
       createdAt: r.createdAt.toISOString(),

@@ -355,6 +355,7 @@ describe('credit-limit widget — the shop language (issue #85)', () => {
     availableAmount: 400,
     currency: 'EUR',
     grantedAt: '2026-01-01T00:00:00.000Z',
+    activeReservationCount: reservations,
     activeReservations: Array.from({ length: reservations }, (_, i) => ({
       orderId: `order-${i}-0000`,
       amount: 600 / reservations,
@@ -371,6 +372,22 @@ describe('credit-limit widget — the shop language (issue #85)', () => {
     const three = visibleText(renderToString(<CreditLimitWidget limit={limit(3)} locale="en-US" showReservations />));
     expect(three).toContain('€600.00 reserved across 3 orders');
     expect(three).toContain('Order Reserved Since');
+  });
+
+  it('lists only the reservations the API returned, and counts the Organization’s (issue #748)', () => {
+    const own: CreditLimitView = {
+      ...limit(3),
+      activeReservations: [
+        { orderId: 'aaaaaaaa-0000-4000-8000-000000000001', amount: 200, createdAt: '2026-10-01T00:00:00.000Z' },
+      ],
+    };
+    const text = visibleText(renderToString(<CreditLimitWidget limit={own} locale="en-US" showReservations />));
+    expect(text).toContain('€600.00 reserved across 3 orders');
+    expect(text).toContain('aaaaaaaa');
+    expect(text).toContain('€200.00');
+    expect(text).not.toContain('order-0');
+    expect(text).not.toContain('order-1');
+    expect(text).not.toContain('order-2');
   });
 
   it('counts the reserving orders in Polish, in its plural forms', () => {

@@ -7,7 +7,9 @@ import { lazyPort } from '@endora-commerce/platform/kernel';
 import {
   CREDIT_LIMIT_WEBHOOK_EVENT_TYPES,
   type CreditLimitReadPort,
+  type OrderReadPort,
   type OrganizationDetailsPort,
+  type OrganizationPermissionPort,
   type OrganizationInheritancePort,
   type WebhookEventRegistryPort,
 } from '@endora-commerce/contracts';
@@ -164,6 +166,12 @@ export function registerModule(ctx: ModuleContext): void {
       // another module's gate, so a captured reference would keep answering
       // after an operator switched that module off.
       organizationDetailsPort: lazyPort<OrganizationDetailsPort>(ctx, 'organizationDetailsPort'),
+      // Issue #748 — which reservations the buyer's view lists. Both owners
+      // are this module's `dependencies` already (`organizations` is
+      // non-deactivatable; `orders` is bound for the reservation foreign key),
+      // so neither adds an edge or an off-state consequence.
+      organizationPermissionPort: lazyPort<OrganizationPermissionPort>(ctx, 'organizationPermissionPort'),
+      orderReadPort: lazyPort<OrderReadPort>(ctx, 'orderReadPort'),
       requireCustomer,
       requireAdmin,
       resolveCustomerContext: customerContextResolver,

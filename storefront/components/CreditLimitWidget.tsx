@@ -24,7 +24,9 @@ export function CreditLimitWidget(props: CreditLimitWidgetProps): ReactNode {
   const { limit, locale } = props;
   const t = tForLocale(locale);
   const money = (amount: number): string => formatMoney(amount, limit.currency, locale);
-  const reservationCount = limit.activeReservations.length;
+  // The Organization's count, not the list's length: the list holds only the
+  // reservations this buyer may read (issue #748).
+  const reservationCount = limit.activeReservationCount;
   const reservedSum = limit.grantedAmount - limit.availableAmount;
   const fillPct =
     limit.grantedAmount > 0

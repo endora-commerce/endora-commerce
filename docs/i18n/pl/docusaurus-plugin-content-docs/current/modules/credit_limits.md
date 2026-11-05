@@ -25,6 +25,12 @@ W storefroncie profil konta i strona checkoutu wyświetlają `CreditLimitWidget`
 dostępny i rozbicie rezerwacji), gdy limit istnieje; metody płatności typu `credit_limit` są
 ukrywane w checkoucie, gdy limit nie został przyznany albo suma koszyka przekracza dostępny kredyt.
 
+Które rezerwacje widzi klient: limit jest wspólny, więc kwota przyznana, kwota dostępna
+i `activeReservationCount` to zawsze wartości dla całej organizacji. Lista `activeReservations`
+zawiera tylko rezerwacje zamówień, które klient może odczytać: jego własnych albo wszystkich
+zamówień organizacji, gdy jego rola w organizacji ma uprawnienie `orders.view_organization`
+(rola Administrator ma je domyślnie). Trasy administracyjne zawsze pokazują wszystkie rezerwacje.
+
 ## Współbieżność
 
 `CreditLimitService.reserve()` wykonuje `SELECT … FOR UPDATE` na wierszu `credit_limits`, a

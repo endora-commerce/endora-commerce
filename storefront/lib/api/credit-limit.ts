@@ -19,6 +19,15 @@ export interface CreditLimitView {
   grantedAmount: number;
   availableAmount: number;
   currency: string;
+  /**
+   * Every active reservation of the shared limit, whoever placed the order
+   * (issue #748) — the count the widget states.
+   */
+  activeReservationCount: number;
+  /**
+   * The reservations the buyer may read: only their own orders' unless their
+   * organization role holds `orders.view_organization`.
+   */
   activeReservations: CreditLimitReservationView[];
   grantedAt: string;
 }
