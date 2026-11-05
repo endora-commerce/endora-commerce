@@ -528,6 +528,27 @@ export interface OrganizationDetailsPort {
 }
 
 /**
+ * The tax id a reader may print or hand out for an Organization: a company's,
+ * never a personal (B2C) Organization's, whose `taxId` is an internal 32-hex
+ * placeholder derived from the account id (issue #767). `null` — not an empty
+ * string — when there is nothing to show, so every renderer drops its tax-id
+ * line rather than printing a label with no value.
+ *
+ * Published as a **function, not a port**, for the reason
+ * {@link normalizeOrganizationName} is: it is pure over its argument. Every
+ * module that prints an {@link OrganizationRecord}'s tax id asks it — the quote
+ * request document, the admin order and quote request panels, the price-book
+ * and push audience pickers — so the rule has one home.
+ */
+export function organizationCompanyTaxId(
+  organization: Pick<OrganizationRecord, 'isPersonal' | 'taxId'>,
+): string | null {
+  if (organization.isPersonal) return null;
+  const taxId = organization.taxId.trim();
+  return taxId === '' ? null : taxId;
+}
+
+/**
  * Diacritic-insensitive normalisation for the organisation's `name_search`
  * column and for any query string matched against it.
  *

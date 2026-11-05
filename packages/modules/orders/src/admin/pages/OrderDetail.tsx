@@ -65,7 +65,8 @@ interface OrderOrganization {
   id: string;
   name: string;
   legalName: string | null;
-  taxId: string;
+  /** `null` for a personal Organization, whose tax id is a placeholder (#767). */
+  taxId: string | null;
   vatStatus: string;
 }
 interface OrderCustomer {
@@ -622,9 +623,11 @@ export function OrderDetail(): ReactNode {
                       order.organization.legalName !== order.organization.name ? (
                         <p className="text-muted-foreground">{order.organization.legalName}</p>
                       ) : null}
-                      <p className="text-muted-foreground">
-                        {t('orderDetail.org.taxId')}: <strong>{order.organization.taxId}</strong>
-                      </p>
+                      {order.organization.taxId ? (
+                        <p className="text-muted-foreground">
+                          {t('orderDetail.org.taxId')}: <strong>{order.organization.taxId}</strong>
+                        </p>
+                      ) : null}
                       <p className="text-muted-foreground">
                         {t('orderDetail.org.vat')}:{' '}
                         {t(`orderDetail.vatStatus.${order.organization.vatStatus}`)}

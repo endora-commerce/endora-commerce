@@ -916,7 +916,9 @@ no company name, no tax ID — unless the buyer ticks *I need a company invoice*
 at checkout and types the company's name and NIP, which are then validated as
 at company registration. The invoice, its PDF, the confirmation e-mail and the
 order screen print a tax-ID line only when the order carries one. An order
-keeps the snapshot it was placed with.
+keeps the snapshot it was placed with. The admin order screen's *Organization*
+panel likewise prints no tax ID for a personal Organization: the admin order
+reply carries `organization.taxId: null` for it.
 
 ## Extension points
 

@@ -738,8 +738,9 @@ sprzedaży oferty (dla oferty bez kanału — językiem domyślnego kanału syst
 drukowane są wszystkie teksty, liczby, kwoty i daty; w nim powstaje też e-mail.
 
 **Co drukuje PDF.** **Bieżące** pozycje i ceny oferty, przygotowane dla handlowca, który o PDF prosi:
-nagłówek (numer, data, data ważności, wersja), organizację nabywcy z NIP i adresem, klienta
-składającego zapytanie i przypisanego opiekuna handlowego, uwagi do oferty, tabelę pozycji, pola
+nagłówek (numer, data, data ważności, wersja), organizację nabywcy z NIP i adresem (dla
+Organizacji osobistej (B2C) tylko imię i nazwisko osoby: jej NIP to wewnętrzny symbol zastępczy, a
+siedziby nie ma), klienta składającego zapytanie i przypisanego opiekuna handlowego, uwagi do oferty, tabelę pozycji, pola
 dodatkowe oferty widoczne dla klientów oraz teksty i logo dodane w szablonie. Pozycje bez
 uzgodnionej ceny drukują pustą cenę, a sumy wymagające wszystkich cen są pomijane — według tej samej
 zasady co ekrany oferty.
