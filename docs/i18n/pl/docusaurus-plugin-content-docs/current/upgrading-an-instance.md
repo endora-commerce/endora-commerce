@@ -3843,8 +3843,8 @@ wtedy, gdy moduł `customers` jest włączony:
 - wiersze klienta indywidualnego są **przenoszone** do książki jego organizacji osobistej. Adres,
   który już w niej jest, nie jest kopiowany drugi raz, a istniejący adres domyślny pozostaje
   domyślny;
-- każdy inny wiersz — członka firmy albo konta, którego organizacji nie da się znaleźć — jest
-  **usuwany**: czyszczony i miękko usuwany;
+- każdy inny wiersz — członka firmy, klienta indywidualnego, którego organizacja prywatna została
+  już zanonimizowana, albo konta, którego organizacji nie da się znaleźć — jest **usuwany**: czyszczony i miękko usuwany;
 - wiersz, którego książka adresowa nie przyjmuje, na przykład z krajem, który nie jest już aktywny,
   zostaje, oznaczony powodem, i jest widoczny tylko na karcie w panelu administracyjnym.
 
@@ -3855,9 +3855,12 @@ już nic do zrobienia.
 
 **Co zrobić:**
 
-1. **Nie wyłączaj modułu `customers` i uruchom proces workera** (`pnpm run worker` albo proces
-   `BACKEND_ROLE=worker` Twojego wdrożenia), dopóki zadanie się nie zakończy. Gdy `customers` jest
-   wyłączony, zadanie nie działa, a strony adresów i kasa działają mimo to.
+1. **Nie wyłączaj modułu `customers` i uruchom proces, który uruchamia workery**, dopóki zadanie
+   się nie zakończy. Jest to każdy proces z `BACKEND_ROLE` nieustawionym albo równym `all` (wartość
+   domyślna — wystarczy samo `pnpm run start`) lub `worker` (`pnpm run worker`). Proces z
+   `BACKEND_ROLE=api` ani nie kolejkuje zadania, ani go nie uruchamia, więc wdrożenie, które
+   rozdziela warstwy, potrzebuje działającej warstwy workerów. Gdy `customers` jest wyłączony,
+   zadanie nie działa, a strony adresów i kasa działają mimo to.
 2. **Spodziewaj się krótkiego okna po aktualizacji.** Od startu do pierwszego przebiegu zadania
    dawne adresy osobiste klienta indywidualnego nie są jeszcze na jego jedynej liście.
 3. **Policz, co zostało.** Uruchom to zapytanie tylko do odczytu przed aktualizacją, żeby wiedzieć,
@@ -3866,8 +3869,9 @@ już nic do zrobienia.
    ```sql
    select
      count(*) filter (where ca.deleted_at is null)                           as live,
-     count(*) filter (where ca.deleted_at is null and o.is_personal)         as live_b2c,      -- moved by the job
-     count(*) filter (where ca.deleted_at is null and o.is_personal = false) as live_company,  -- erased by the job
+     count(*) filter (where ca.deleted_at is null and o.is_personal and o.deleted_at is null)       as live_b2c,    -- moved by the job
+     count(*) filter (where ca.deleted_at is null
+                        and (o.is_personal = false or o.deleted_at is not null))                     as live_erased, -- company members and anonymized personal orgs: erased by the job
      count(*) filter (where ca.deleted_at is null and o.id is null)          as live_no_org    -- erased by the job
    from customer_addresses ca
    join customer_accounts acc on acc.id = ca.customer_account_id

@@ -87,8 +87,9 @@ It is retired for everyone, in two releases:
   - an individual's rows are **moved** into their personal organization's book.
     An address the book already holds is not copied twice, and an existing
     default stays the default. Each row is audited `customer_address.merge`;
-  - every other row (a company member's, or an account whose organization
-    cannot be found) is **erased**: blanked, soft-deleted and audited
+  - every other row (a company member's, an individual's whose personal
+    organization was already anonymized, or an account whose organization cannot
+    be found) is **erased**: blanked, soft-deleted and audited
     `customer_address.erased`;
   - a row the address book refuses — for example a country that is no longer
     active — stays, marked with the reason (`customer_address.merge_refused`).

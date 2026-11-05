@@ -79,8 +79,8 @@ wszystkich, w dwóch wydaniach:
   - wiersze klienta indywidualnego są **przenoszone** do książki jego organizacji prywatnej. Adres,
     który już w niej jest, nie jest kopiowany drugi raz, a istniejący adres domyślny pozostaje
     domyślny. Każdy wiersz ma wpis audytu `customer_address.merge`;
-  - każdy inny wiersz (członka firmy albo konta, którego organizacji nie da się znaleźć) jest
-    **usuwany**: czyszczony, miękko usuwany i audytowany jako `customer_address.erased`;
+  - każdy inny wiersz (członka firmy, klienta indywidualnego, którego organizacja prywatna została już
+    zanonimizowana, albo konta, którego organizacji nie da się znaleźć) jest **usuwany**: czyszczony, miękko usuwany i audytowany jako `customer_address.erased`;
   - wiersz, którego książka adresowa nie przyjmuje — na przykład z krajem, który nie jest już
     aktywny — zostaje, oznaczony powodem (`customer_address.merge_refused`). Widzi go tylko
     operator, na karcie *Adresy* klienta.

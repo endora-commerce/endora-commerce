@@ -3667,8 +3667,8 @@ It is enqueued at every boot of a process that runs workers, and runs only while
 
 - an individual's rows are **moved** into their personal Organization's book. An address already
   there is not copied twice, and an existing default stays the default;
-- every other row — a company member's, or an account whose Organization cannot be found — is
-  **erased**: blanked and soft-deleted;
+- every other row — a company member's, an individual's whose personal Organization was already
+  anonymized, or an account's whose Organization cannot be found — is **erased**: blanked and soft-deleted;
 - a row the address book refuses, for example one whose country is no longer active, stays, marked
   with the reason, and is shown only on the Admin UI card.
 
@@ -3678,9 +3678,12 @@ Each row leaves an audit entry (`customer_address.merge`, `customer_address.eras
 
 **What to do:**
 
-1. **Keep `customers` switched on, and run the worker process** (`pnpm run worker`, or your
-   deployment's `BACKEND_ROLE=worker` process), until the job has finished. While `customers` is off
-   the job does not run, and the address pages and checkout keep working regardless.
+1. **Keep `customers` switched on, and run a process that runs workers**, until the job has
+   finished. That is any process with `BACKEND_ROLE` unset or `all` (the default — `pnpm run start`
+   alone qualifies) or `worker` (`pnpm run worker`). A process with `BACKEND_ROLE=api` neither
+   enqueues the job nor runs it, so a deployment that splits the tiers needs its worker tier up.
+   While `customers` is off the job does not run, and the address pages and checkout keep working
+   regardless.
 2. **Expect a short window after the upgrade.** From the boot until the job's first run, an
    individual's pre-upgrade personal addresses are not yet in their one list.
 3. **Count what is left.** Run this read-only query before the upgrade, to know what the job will
@@ -3689,8 +3692,9 @@ Each row leaves an audit entry (`customer_address.merge`, `customer_address.eras
    ```sql
    select
      count(*) filter (where ca.deleted_at is null)                           as live,
-     count(*) filter (where ca.deleted_at is null and o.is_personal)         as live_b2c,      -- moved by the job
-     count(*) filter (where ca.deleted_at is null and o.is_personal = false) as live_company,  -- erased by the job
+     count(*) filter (where ca.deleted_at is null and o.is_personal and o.deleted_at is null)       as live_b2c,    -- moved by the job
+     count(*) filter (where ca.deleted_at is null
+                        and (o.is_personal = false or o.deleted_at is not null))                     as live_erased, -- company members and anonymized personal orgs: erased by the job
      count(*) filter (where ca.deleted_at is null and o.id is null)          as live_no_org    -- erased by the job
    from customer_addresses ca
    join customer_accounts acc on acc.id = ca.customer_account_id
