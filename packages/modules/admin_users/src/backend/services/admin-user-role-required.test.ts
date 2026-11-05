@@ -64,10 +64,10 @@ describe('AdminUserService — a role is required', () => {
   });
 
   it('refuses to clear the role of an administrator', async () => {
-    const existing = Object.assign(new AdminUser(), { id: 'a1', adminRoleId: ROLE_ID });
+    const existing = Object.assign(new AdminUser(), { id: '00000000-0000-4000-8000-781000000004', adminRoleId: ROLE_ID });
     const { service } = serviceOver(existing);
 
-    await expect(service.update('a1', { adminRoleId: null }, FULL_ACCESS)).rejects.toMatchObject({
+    await expect(service.update('00000000-0000-4000-8000-781000000004', { adminRoleId: null }, FULL_ACCESS)).rejects.toMatchObject({
       statusCode: 400,
       code: 'ADMIN_USER_ROLE_REQUIRED',
     });
@@ -75,13 +75,13 @@ describe('AdminUserService — a role is required', () => {
   });
 
   it('still changes one role for another, and edits that leave the role alone', async () => {
-    const existing = Object.assign(new AdminUser(), { id: 'a1', adminRoleId: ROLE_ID });
+    const existing = Object.assign(new AdminUser(), { id: '00000000-0000-4000-8000-781000000004', adminRoleId: ROLE_ID });
     const { service } = serviceOver(existing);
     const other = '00000000-0000-4000-8000-0000000000c2';
 
-    await service.update('a1', { firstName: 'Grace' }, FULL_ACCESS);
+    await service.update('00000000-0000-4000-8000-781000000004', { firstName: 'Grace' }, FULL_ACCESS);
     expect(existing.adminRoleId).toBe(ROLE_ID);
-    await service.update('a1', { adminRoleId: other }, FULL_ACCESS);
+    await service.update('00000000-0000-4000-8000-781000000004', { adminRoleId: other }, FULL_ACCESS);
     expect(existing.adminRoleId).toBe(other);
   });
 });

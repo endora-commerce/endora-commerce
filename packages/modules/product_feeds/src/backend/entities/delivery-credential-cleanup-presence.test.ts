@@ -27,7 +27,7 @@ describe('DeliveryConfigService.remove', () => {
       emFactory: () =>
         ({
           findOne: (entity: unknown) =>
-            Promise.resolve(entity === ProductFeed ? ({ id: 'feed-1' } as never) : null),
+            Promise.resolve(entity === ProductFeed ? ({ id: '00000000-0000-4000-8000-781000000014' } as never) : null),
         }) as unknown as EntityManager,
       commandBus: {
         run: () => Promise.resolve({ credentialCode: 'feed-delivery-feed-1' }),
@@ -37,14 +37,14 @@ describe('DeliveryConfigService.remove', () => {
 
   it('lets a ModuleDisabledError through instead of reporting a clean removal', async () => {
     await expect(
-      service(() => Promise.reject(new ModuleDisabledError('credentials'))).remove('feed-1'),
+      service(() => Promise.reject(new ModuleDisabledError('credentials'))).remove('00000000-0000-4000-8000-781000000014'),
     ).rejects.toBeInstanceOf(ModuleDisabledError);
   });
 
   it('still tolerates a credential that is already gone', async () => {
     await expect(
       service(() => Promise.reject(new Error('credential configuration not found'))).remove(
-        'feed-1',
+        '00000000-0000-4000-8000-781000000014',
       ),
     ).resolves.toBeUndefined();
   });

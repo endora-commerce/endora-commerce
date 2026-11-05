@@ -20,7 +20,7 @@ const CTX = { customerAccountId: 'cust-1', organizationId: 'org-1' };
 function rig() {
   const createForCustomer = vi.fn(async (_ctx: unknown, _request: unknown, _options: unknown) => ({ id: 'rfq-1' }));
   const service = new OrderCloneToQuoteService(
-    () => ({ findOne: async () => ({ id: 'order-1' }) }) as never,
+    () => ({ findOne: async () => ({ id: '00000000-0000-4000-8000-781000000012' }) }) as never,
     () => ({ createForCustomer }) as never,
     // `specs/170-organization-roles/` WP-07 — the read scope asks the
     // permission port; a member without `orders.view_organization` is pinned to
@@ -33,13 +33,13 @@ function rig() {
 describe('163 — order clone to a quote request', () => {
   it('threads the buyer’s message language, language tag and channel', async () => {
     const { service, createForCustomer } = rig();
-    await service.clone('order-1', CTX, { language: 'pl', languageTag: 'de-DE', salesChannelId: B2C });
+    await service.clone('00000000-0000-4000-8000-781000000012', CTX, { language: 'pl', languageTag: 'de-DE', salesChannelId: B2C });
     expect(createForCustomer.mock.calls[0]?.[2]).toEqual({ language: 'pl', languageTag: 'de-DE', salesChannelId: B2C });
   });
 
   it('keeps the operator’s clone at minimums warn, with no tag', async () => {
     const { service, createForCustomer } = rig();
-    await service.clone('order-1', CTX, { actor: 'operator' });
+    await service.clone('00000000-0000-4000-8000-781000000012', CTX, { actor: 'operator' });
     expect(createForCustomer.mock.calls[0]?.[2]).toEqual({ minimums: 'warn' });
   });
 });

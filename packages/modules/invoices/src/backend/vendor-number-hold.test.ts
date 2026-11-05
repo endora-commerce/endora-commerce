@@ -30,7 +30,7 @@ function ownEntitiesOnly(): () => EntityManager {
   const create = (entity: unknown, data: Record<string, unknown>): Record<string, unknown> => {
     guard(entity);
     if (entity === Invoice) {
-      invoice = { id: 'inv-1', ...data };
+      invoice = { id: '00000000-0000-4000-8000-781000000010', ...data };
       return invoice;
     }
     const line = { id: `line-${lines.length + 1}`, ...data };

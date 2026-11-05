@@ -18,7 +18,7 @@ import { OrderReorderService } from './order-reorder-service.js';
  */
 
 const ORDER = {
-  id: 'order-1',
+  id: '00000000-0000-4000-8000-781000000013',
   organizationId: 'org-1',
   salesChannelId: 'channel-1',
   currency: 'PLN',

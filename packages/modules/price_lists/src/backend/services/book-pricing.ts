@@ -10,7 +10,7 @@ import type {
   ListingPriceDetail,
   PinnedPriceBookPublishability,
 } from '@endora-commerce/contracts';
-import { displayModeWithholdsAmounts, isUuidShape } from '@endora-commerce/contracts';
+import { displayModeWithholdsAmounts } from '@endora-commerce/contracts';
 import { SalesChannel } from '@endora-commerce/platform/kernel';
 import { buildEligibleAttributes, type EligibleAttribute } from './attribute-eligibility.js';
 import {
@@ -226,7 +226,6 @@ export interface ViewerModeKey {
  * default). A channel that does not exist offers nothing.
  */
 export async function channelOffers(em: EntityManager, channelId: string, currencyCode: string): Promise<boolean> {
-  if (!isUuidShape(channelId)) return false;
   const channel = await em.findOne(SalesChannel, { id: channelId }, { fields: ['currencies', 'defaultCurrency'] });
   if (!channel) return false;
   const offered = [...(channel.currencies ?? []), channel.defaultCurrency]

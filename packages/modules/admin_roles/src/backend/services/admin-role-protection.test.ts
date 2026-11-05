@@ -31,9 +31,9 @@ function serviceOver(role: { id: string; code: string }): { service: AdminRoleSe
 describe('AdminRoleService.remove', () => {
   it('refuses the platform-administrator role even when nobody holds it', async () => {
     _resetSystemRoleCodesForTests();
-    const { service, removed } = serviceOver({ id: 'r1', code: 'platform_admin' });
+    const { service, removed } = serviceOver({ id: '00000000-0000-4000-8000-781000000001', code: 'platform_admin' });
 
-    await expect(service.remove('r1')).rejects.toMatchObject({
+    await expect(service.remove('00000000-0000-4000-8000-781000000001')).rejects.toMatchObject({
       statusCode: 409,
       code: 'ADMIN_ROLE_PROTECTED',
       details: { role: 'platform_admin' },
@@ -43,9 +43,9 @@ describe('AdminRoleService.remove', () => {
 
   it('still deletes an unassigned role of the operator\'s own', async () => {
     _resetSystemRoleCodesForTests();
-    const { service, removed } = serviceOver({ id: 'r2', code: 'order_desk' });
+    const { service, removed } = serviceOver({ id: '00000000-0000-4000-8000-781000000002', code: 'order_desk' });
 
-    await service.remove('r2');
-    expect(removed).toEqual(['r2']);
+    await service.remove('00000000-0000-4000-8000-781000000002');
+    expect(removed).toEqual(['00000000-0000-4000-8000-781000000002']);
   });
 });

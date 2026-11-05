@@ -61,9 +61,9 @@ interface Harness {
 
 /** The cookie values the stub session port resolves, and to what. */
 const COOKIES: Record<string, { kind: string; adminUserId: string; id: string }> = {
-  'own-cookie': { kind: 'admin', adminUserId: 'a1', id: 's-own' },
+  'own-cookie': { kind: 'admin', adminUserId: '00000000-0000-4000-8000-781000000005', id: 's-own' },
   'someone-elses-cookie': { kind: 'admin', adminUserId: 'a2', id: 's-other-admin' },
-  'impersonation-cookie': { kind: 'impersonation', adminUserId: 'a1', id: 's-impersonation' },
+  'impersonation-cookie': { kind: 'impersonation', adminUserId: '00000000-0000-4000-8000-781000000005', id: 's-impersonation' },
 };
 
 function serviceOver(existing: AdminUser): Harness {
@@ -110,7 +110,7 @@ function serviceOver(existing: AdminUser): Harness {
 
 function account(): AdminUser {
   return Object.assign(new AdminUser(), {
-    id: 'a1',
+    id: '00000000-0000-4000-8000-781000000005',
     email: 'ada@example.com',
     firstName: 'Ada',
     lastName: 'Lovelace',
@@ -127,7 +127,7 @@ describe('AdminUserService.updateSelf', () => {
   it('edits the name without any password', async () => {
     const existing = account();
     const { service, flushes, steps, audit } = serviceOver(existing);
-    await service.updateSelf('a1', { firstName: 'Augusta' }, ctx({ sessionCookieValue: 'own-cookie' }));
+    await service.updateSelf('00000000-0000-4000-8000-781000000005', { firstName: 'Augusta' }, ctx({ sessionCookieValue: 'own-cookie' }));
     expect(existing.firstName).toBe('Augusta');
     expect(existing.passwordHash).toBe(currentHash);
     expect(flushes()).toBe(1);
@@ -145,7 +145,7 @@ describe('AdminUserService.updateSelf', () => {
     const { service, flushes, steps, audit } = serviceOver(existing);
     await expect(
       service.updateSelf(
-        'a1',
+        '00000000-0000-4000-8000-781000000005',
         { firstName: 'Augusta', lastName: 'King', password: NEXT, currentPassword },
         ctx({ sessionCookieValue: 'own-cookie' }),
       ),
@@ -165,7 +165,7 @@ describe('AdminUserService.updateSelf', () => {
     const existing = account();
     const { service, flushes } = serviceOver(existing);
     await service.updateSelf(
-      'a1',
+      '00000000-0000-4000-8000-781000000005',
       { lastName: 'King', password: NEXT, currentPassword: CURRENT },
       ctx(),
     );
@@ -178,7 +178,7 @@ describe('AdminUserService.updateSelf', () => {
   it('ignores a current password sent without a new one', async () => {
     const existing = account();
     const { service } = serviceOver(existing);
-    await service.updateSelf('a1', { firstName: 'Augusta', currentPassword: 'anything' }, ctx());
+    await service.updateSelf('00000000-0000-4000-8000-781000000005', { firstName: 'Augusta', currentPassword: 'anything' }, ctx());
     expect(existing.firstName).toBe('Augusta');
     expect(existing.passwordHash).toBe(currentHash);
   });
@@ -187,11 +187,11 @@ describe('AdminUserService.updateSelf', () => {
     const existing = account();
     const { service, steps } = serviceOver(existing);
     await service.updateSelf(
-      'a1',
+      '00000000-0000-4000-8000-781000000005',
       { password: NEXT, currentPassword: CURRENT },
       ctx({ sessionCookieValue: 'own-cookie' }),
     );
-    expect(steps).toEqual(['flush', 'revoke:a1:except=s-own', 'mfa:admin:a1']);
+    expect(steps).toEqual(['flush', 'revoke:00000000-0000-4000-8000-781000000005:except=s-own', 'mfa:admin:00000000-0000-4000-8000-781000000005']);
   });
 
   it.each([
@@ -203,11 +203,11 @@ describe('AdminUserService.updateSelf', () => {
     const existing = account();
     const { service, steps } = serviceOver(existing);
     await service.updateSelf(
-      'a1',
+      '00000000-0000-4000-8000-781000000005',
       { password: NEXT, currentPassword: CURRENT },
       ctx({ sessionCookieValue }),
     );
-    expect(steps).toEqual(['flush', 'revoke:a1:except=none', 'mfa:admin:a1']);
+    expect(steps).toEqual(['flush', 'revoke:00000000-0000-4000-8000-781000000005:except=none', 'mfa:admin:00000000-0000-4000-8000-781000000005']);
   });
 
   it('reports a refusal from the revocation instead of a success', async () => {
@@ -222,7 +222,7 @@ describe('AdminUserService.updateSelf', () => {
     const failing = new AdminUserService(() => em, {} as AdminRolePort, refusing);
     await expect(
       failing.updateSelf(
-        'a1',
+        '00000000-0000-4000-8000-781000000005',
         { lastName: 'King', password: NEXT, currentPassword: CURRENT },
         ctx(),
       ),
@@ -238,7 +238,7 @@ describe('AdminUserService.updateSelf', () => {
     const em = { findOne: async () => existing, flush: async () => {} } as unknown as EntityManager;
     // `mfa` absent: the accessor answers nothing, and nothing is asked.
     const service = new AdminUserService(() => em, {} as AdminRolePort, sessions, undefined, () => undefined);
-    await service.updateSelf('a1', { password: NEXT, currentPassword: CURRENT }, ctx());
+    await service.updateSelf('00000000-0000-4000-8000-781000000005', { password: NEXT, currentPassword: CURRENT }, ctx());
     expect(await verifyPassword(existing.passwordHash, NEXT)).toBe(true);
   });
 
@@ -246,14 +246,14 @@ describe('AdminUserService.updateSelf', () => {
     const existing = account();
     const { service, audit } = serviceOver(existing);
     await service.updateSelf(
-      'a1',
+      '00000000-0000-4000-8000-781000000005',
       { password: NEXT, currentPassword: CURRENT },
       ctx({ sessionCookieValue: 'own-cookie' }),
     );
     expect(audit).toHaveLength(1);
     expect(audit[0]).toMatchObject({
       action: 'admin_user.change_password',
-      objectId: 'a1',
+      objectId: '00000000-0000-4000-8000-781000000005',
       stateAfter: { via: 'self_service' },
     });
     const serialised = JSON.stringify(audit);
@@ -266,7 +266,7 @@ describe('AdminUserService.updateSelf', () => {
     const existing = account();
     const { service, audit } = serviceOver(existing);
     await service.updateSelf(
-      'a1',
+      '00000000-0000-4000-8000-781000000005',
       { lastName: 'King', password: NEXT, currentPassword: CURRENT },
       ctx(),
     );
@@ -287,7 +287,7 @@ describe('AdminUserService.updateSelf — a new password equal to the current on
     const { service, flushes, steps, audit } = serviceOver(existing);
     await expect(
       service.updateSelf(
-        'a1',
+        '00000000-0000-4000-8000-781000000005',
         { lastName: 'King', password: CURRENT, currentPassword: CURRENT },
         ctx({ sessionCookieValue: 'own-cookie' }),
       ),
@@ -304,7 +304,7 @@ describe('AdminUserService.updateSelf — a new password equal to the current on
     const existing = account();
     const { service } = serviceOver(existing);
     await expect(
-      service.updateSelf('a1', { password: NEXT, currentPassword: NEXT }, ctx()),
+      service.updateSelf('00000000-0000-4000-8000-781000000005', { password: NEXT, currentPassword: NEXT }, ctx()),
     ).rejects.toMatchObject({ statusCode: 403, code: 'CURRENT_PASSWORD_INVALID' });
   });
 });
@@ -317,7 +317,7 @@ describe('AdminUserService.update — the generic edit sets no password', () => 
   it('ignores a password handed to it past the type', async () => {
     const existing = account();
     const { service, steps } = serviceOver(existing);
-    await service.update('a1', {
+    await service.update('00000000-0000-4000-8000-781000000005', {
       firstName: 'Augusta',
       password: NEXT,
     } as unknown as Parameters<AdminUserService['update']>[1], ACTOR);
@@ -335,24 +335,24 @@ describe('AdminUserService — withdrawing an account', () => {
   it('withdraws every session and pending login when the account is deactivated, after the write', async () => {
     const existing = account();
     const { service, steps } = serviceOver(existing);
-    await service.update('a1', { status: 'inactive' }, ACTOR);
+    await service.update('00000000-0000-4000-8000-781000000005', { status: 'inactive' }, ACTOR);
     expect(existing.status).toBe('inactive');
-    expect(steps).toEqual(['flush', 'revoke:a1:except=none', 'mfa:admin:a1']);
+    expect(steps).toEqual(['flush', 'revoke:00000000-0000-4000-8000-781000000005:except=none', 'mfa:admin:00000000-0000-4000-8000-781000000005']);
   });
 
   it('revokes nothing on an edit that leaves the account active', async () => {
     const existing = account();
     const { service, steps } = serviceOver(existing);
-    await service.update('a1', { firstName: 'Augusta', status: 'active' }, ACTOR);
+    await service.update('00000000-0000-4000-8000-781000000005', { firstName: 'Augusta', status: 'active' }, ACTOR);
     expect(steps).toEqual(['flush']);
   });
 
   it('withdraws every session and pending login when the account is deleted, after the write', async () => {
     const existing = account();
     const { service, steps } = serviceOver(existing);
-    await service.softDelete('a1', ACTOR);
+    await service.softDelete('00000000-0000-4000-8000-781000000005', ACTOR);
     expect(existing.deletedAt).toBeInstanceOf(Date);
-    expect(steps).toEqual(['flush', 'revoke:a1:except=none', 'mfa:admin:a1']);
+    expect(steps).toEqual(['flush', 'revoke:00000000-0000-4000-8000-781000000005:except=none', 'mfa:admin:00000000-0000-4000-8000-781000000005']);
   });
 });
 
@@ -369,7 +369,7 @@ describe('AdminUserService.updateSelf — the current password is checked inside
 
     await expect(
       service.updateSelf(
-        'a1',
+        '00000000-0000-4000-8000-781000000005',
         { password: NEXT, currentPassword: 'not-the-current-password' },
         {
           throttle: {
@@ -393,7 +393,7 @@ describe('AdminUserService.updateSelf — the current password is checked inside
         knownDevice: 'v1.a1.device.stamp',
       },
     ]);
-    expect(results).toEqual([{ ok: false, adminUserId: 'a1' }]);
+    expect(results).toEqual([{ ok: false, adminUserId: '00000000-0000-4000-8000-781000000005' }]);
   });
 
   it('passes the throttle refusal on and changes, revokes and audits nothing, even for the correct password', async () => {
@@ -403,7 +403,7 @@ describe('AdminUserService.updateSelf — the current password is checked inside
 
     await expect(
       service.updateSelf(
-        'a1',
+        '00000000-0000-4000-8000-781000000005',
         { firstName: 'Augusta', password: NEXT, currentPassword: CURRENT },
         {
           sessionCookieValue: 'own-cookie',
@@ -430,7 +430,7 @@ describe('AdminUserService.updateSelf — the current password is checked inside
 
     await expect(
       service.updateSelf(
-        'a1',
+        '00000000-0000-4000-8000-781000000005',
         { password: NEXT },
         {
           throttle: {

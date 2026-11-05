@@ -67,7 +67,7 @@ const NEW_ADMIN = {
 
 function account(adminRoleId: string | null): AdminUser {
   return Object.assign(new AdminUser(), {
-    id: 'a1',
+    id: '00000000-0000-4000-8000-781000000003',
     email: 'held@example.com',
     passwordHash: 'unchanged',
     firstName: 'Held',
@@ -100,7 +100,7 @@ describe('AdminUserService — assigning a role', () => {
     const { service, flushes } = serviceOver(existing);
 
     await expect(
-      service.update('a1', { adminRoleId: 'role-full' }, USER_MANAGER),
+      service.update('00000000-0000-4000-8000-781000000003', { adminRoleId: 'role-full' }, USER_MANAGER),
     ).rejects.toMatchObject({
       statusCode: 403,
       code: 'ADMIN_ROLE_GRANT_EXCEEDED',
@@ -113,7 +113,7 @@ describe('AdminUserService — assigning a role', () => {
   it('lets a full-access administrator assign any role, full access included', async () => {
     const existing = account('role-orders');
     const { service } = serviceOver(existing);
-    await service.update('a1', { adminRoleId: 'role-full' }, FULL_ACCESS);
+    await service.update('00000000-0000-4000-8000-781000000003', { adminRoleId: 'role-full' }, FULL_ACCESS);
     expect(existing.adminRoleId).toBe('role-full');
   });
 });
@@ -127,7 +127,7 @@ describe('AdminUserService — an account whose role holds more than the adminis
     ]) {
       const existing = account('role-full');
       const { service, flushes, revoked } = serviceOver(existing);
-      await expect(service.update('a1', edit, USER_MANAGER)).rejects.toMatchObject({
+      await expect(service.update('00000000-0000-4000-8000-781000000003', edit, USER_MANAGER)).rejects.toMatchObject({
         statusCode: 403,
         code: 'ADMIN_USER_OUTRANKS_ACTOR',
         details: { permissions: '*' },
@@ -144,7 +144,7 @@ describe('AdminUserService — an account whose role holds more than the adminis
     const existing = account('role-catalog');
     const { service, flushes, revoked } = serviceOver(existing);
     await expect(
-      service.resetPassword('a1', 'a-new-password-for-them', USER_MANAGER),
+      service.resetPassword('00000000-0000-4000-8000-781000000003', 'a-new-password-for-them', USER_MANAGER),
     ).rejects.toMatchObject({ statusCode: 403, code: 'ADMIN_USER_OUTRANKS_ACTOR' });
     expect(existing.passwordHash).toBe('unchanged');
     expect(flushes()).toBe(0);
@@ -154,7 +154,7 @@ describe('AdminUserService — an account whose role holds more than the adminis
   it('is not deleted', async () => {
     const existing = account('role-full');
     const { service, flushes } = serviceOver(existing);
-    await expect(service.softDelete('a1', USER_MANAGER)).rejects.toMatchObject({
+    await expect(service.softDelete('00000000-0000-4000-8000-781000000003', USER_MANAGER)).rejects.toMatchObject({
       statusCode: 403,
       code: 'ADMIN_USER_OUTRANKS_ACTOR',
     });
@@ -165,17 +165,17 @@ describe('AdminUserService — an account whose role holds more than the adminis
   it('is still managed by a full-access administrator', async () => {
     const existing = account('role-full');
     const { service, revoked } = serviceOver(existing);
-    await service.update('a1', { status: 'inactive' }, FULL_ACCESS);
+    await service.update('00000000-0000-4000-8000-781000000003', { status: 'inactive' }, FULL_ACCESS);
     expect(existing.status).toBe('inactive');
-    expect(revoked).toEqual(['a1']);
+    expect(revoked).toEqual(['00000000-0000-4000-8000-781000000003']);
   });
 
   it('within the administrator\'s permissions is managed as before', async () => {
     const existing = account('role-orders');
     const { service } = serviceOver(existing);
-    await service.resetPassword('a1', 'a-new-password-for-them', USER_MANAGER);
+    await service.resetPassword('00000000-0000-4000-8000-781000000003', 'a-new-password-for-them', USER_MANAGER);
     expect(existing.passwordHash).not.toBe('unchanged');
-    await service.softDelete('a1', USER_MANAGER);
+    await service.softDelete('00000000-0000-4000-8000-781000000003', USER_MANAGER);
     expect(existing.deletedAt).not.toBeNull();
   });
 });
