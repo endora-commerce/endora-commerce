@@ -178,22 +178,20 @@ const NAMED: readonly NamedRoute[] = [
 ];
 
 /**
- * Routes the sweep reports and this change leaves as they are, each with why.
+ * Routes the sweep reports and this change does not fix, each with the issue that will.
  * Two-way: an entry the sweep no longer reports fails as loudly as a new
  * report, so the list cannot outlive what it describes.
  */
 const CUSTOMER_GUARD =
   '`customers` checks the id ahead of every customer sub-resource and answers its own ' +
   '`CUSTOMER_NOT_FOUND` (issue #753); the sub-resource answers an unknown customer with its own ' +
-  'code or an empty list. A 404 before any read either way; the two codes are left as they are.';
+  'code or an empty list. Not accepted behaviour: the guard is to check that the customer exists ' +
+  'and answer both alike, issue #794.';
 const UNKNOWN_FAILS =
   'A well-formed id that names nothing answers 500 here too, so this is not a malformed-id ' +
-  'answer: a separate defect, reported with issue #781 and left for its own change.';
+  'answer: a separate defect, issue #793.';
 
 const KNOWN: Readonly<Record<string, string>> = {
-  'GET /api/v1/storefront/forms/{formId}':
-    'The public form read answers 200 for every well-formed id and 400 for a malformed one, by ' +
-    'contract (`specs/170-forms-module/contracts/public-api.md` §1).',
   'PATCH /api/v1/admin/customers/{id}/custom-fields': CUSTOMER_GUARD,
   'POST /api/v1/admin/customers/{id}/impersonate': CUSTOMER_GUARD,
   'GET /api/v1/admin/customers/{id}/addresses': CUSTOMER_GUARD,

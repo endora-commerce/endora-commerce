@@ -312,6 +312,10 @@ describe('publicFormDefinitionSchema (contracts/public-api.md §1)', () => {
     ).toBe(false);
   });
 
+  it('accepts the unavailable arm for a malformed id, which names no form (owner ruling of 2026-11-05)', () => {
+    expect(accepts(publicFormDefinitionSchema, { formId: 'not-a-uuid', availability: 'unavailable' })).toBe(true);
+  });
+
   it('accepts an open form with resolved texts and refuses a share flag on a public field', () => {
     const open = {
       formId: FORM_ID,
