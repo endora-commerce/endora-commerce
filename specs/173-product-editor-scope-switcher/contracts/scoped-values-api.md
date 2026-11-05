@@ -46,6 +46,7 @@ type ScopedValuesResponse = { data: {
     urlKey: ScopedFieldView<string>;
   };
   attributes: Array<{ key; label; valueType; isRequired; view: ScopedFieldView<unknown> }>;
+              // every member of the set but a Page Builder content attribute (172 port, 2026-11-05)
   gallery: { items: Array<{ id; assetId; url; position;
                             altText: ScopedFieldView<string>; hidden: ScopedFieldView<boolean>;
                             assetAltText: string | null /* derived fallback in the scope's language */ }>;

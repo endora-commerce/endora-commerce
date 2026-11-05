@@ -67,6 +67,23 @@ a failing test (marked **RED**) in the same phase, and every FR is traced to a t
     publication window is **Publication window** / **Okres publikacji**; the inherit action is
     **Use value from {scope}** / **Użyj wartości z zakresu: {scope}**.
 
+## Port of `172-product-content-attributes` (2026-11-05, rebase onto `efaee6163`)
+
+Master's feature 172 (PR #732) changed the same code. Both behaviours are kept; where master's code assumed the
+retired attribute flags or the pre-173 products file, it was ported:
+
+- A Page Builder content attribute is never `scopable` (a locked capability with 172's others, carrying its
+  FR-040); 172's FR-004 needs no flag, the languages being the content document's. The `scope_model_texts`
+  migration keeps an existing content attribute not scopable, and its `down` gives `language_scoped` back.
+- A content attribute is no field of the scoped read, save or import (`scopedAttributesOf`): the read does not
+  list it, and the save (also one that switches the attribute set) and the connector port refuse its key.
+- The products CSV refuses a non-empty cell under a content attribute's `attribute:<key>` column as the field
+  error `content_attribute`, the rest of the row applying (172 FR-041).
+- The Attributes tab renders master's content cards from `GET …/content`, below the fields and the same at every
+  scope; *save set first* follows the staged attribute set.
+- Content keeps master's per-language document and its storefront language walk (not C×L → C → G); whether it
+  should join the scope model is an owner question (rebase report), not part of 173.
+
 ## Format
 
 `- [ ] T### [P?] [US#?] (S#) Description with file path`

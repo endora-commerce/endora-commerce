@@ -80,12 +80,14 @@ regardless of admin UI language (FR-031) — noted for the owner in `plan.md`.
 | Column | Change |
 | --- | --- |
 | `channel_scoped`, `language_scoped` | **dropped** |
-| `scopable` | `boolean not null default false` (FR-012, R15). Conversion: `scopable = channel_scoped or language_scoped` |
+| `scopable` | `boolean not null default false` (FR-012, R15). Conversion: `scopable = channel_scoped or language_scoped`, except a Page Builder content attribute (`specs/172-product-content-attributes/`), which stays `false` |
 
 Derived scope set (`attributeScopeSet(def)` in contracts): not scopable → `{G}`; scopable and value type
 `string` (the only text type of `attributeValueTypeSchema`, `packages/contracts/src/catalog.ts:73`) →
 `{G,C,CL}`; scopable and any other type (`number`, `price`, `boolean`, `date`, `enum`, `select`, `multiselect`) →
-`{G,C}`. The required flag is the custom-field definition's (`custom_field_definitions`, feature 061) — read
+`{G,C}`. A Page Builder content attribute (`page_builder`, `specs/172-product-content-attributes/`) is never
+scopable and holds no scoped value at all: its document per language lives in `product_content_values`, so the
+scoped read, save and import leave it out (port of 2026-11-05). The required flag is the custom-field definition's (`custom_field_definitions`, feature 061) — read
 through `CatalogAttributeReadService`, never from `custom_fields`' table.
 
 ## 3. `product_value_overrides` (catalog) — `scope_model_texts`
