@@ -61,6 +61,7 @@ describe('restoring a rejected basket (issue #755)', () => {
         MEMBER: 'member',
         HOLDER: 'member',
         ADDER: 'member',
+        NAMED: 'member',
         LOSER: { permissions: ['carts.create'] },
         NOBODY: { permissions: [] },
         ADMIN: 'administrator',
@@ -149,6 +150,43 @@ describe('restoring a rejected basket (issue #755)', () => {
       restoredLineCount: 1,
       skippedLines: [{ productId: GONE_PRODUCT_ID, reason: 'not_purchasable' }],
     });
+  });
+
+  // Feature 173 (FR-030) — a skipped line whose product still exists is named
+  // as the channel names it (C → Global, the channel's default language), not
+  // by a per-language map the catalogue no longer stores.
+  it("names a skipped line by the product's effective name on the basket's channel", async () => {
+    const productId = randomUUID();
+    await sql(
+      `insert into "products" ("id","sku","slug","type","status","name","created_at","updated_at")
+       values (?, ?, ?, 'simple', 'active', 'Global 755 name', now(), now())`,
+      [productId, `R755-${productId.slice(0, 8)}`, `r755-${productId.slice(0, 8)}`],
+    );
+    const [{ id: channelId }] = (await sql<{ id: string }>(
+      `select "id" from "sales_channels" where "code" = 'pl_retail'`,
+      [],
+    )) as [{ id: string }];
+    await sql(
+      `insert into "product_value_overrides" ("id","product_id","attribute_key","channel_id","language_code","value","created_at","updated_at")
+       values (?, ?, 'name', ?, null, ?::jsonb, now(), now())`,
+      [randomUUID(), productId, channelId, JSON.stringify({ v: 'Channel 755 name' })],
+    );
+    const rejected = await submittedBasket('NAMED', 1);
+    // A line of a product that exists but that the member can no longer add.
+    await sql(
+      `insert into "cart_items" ("id","cart_id","product_id","quantity","unit_price","currency","created_at","updated_at")
+       values (?, ?, ?, 1, 10, 'PLN', now() + interval '1 second', now())`,
+      [randomUUID(), rejected, productId],
+    );
+    await reject(rejected);
+
+    const cart = await readCart('NAMED');
+    expect(cart.previousRejection).toMatchObject({ cartId: rejected, restoredLineCount: 1 });
+    expect(cart.previousRejection!.skippedLines).toEqual([
+      expect.objectContaining({ productId, productName: 'Channel 755 name' }),
+    ]);
+    await sql(`delete from "product_value_overrides" where "product_id" = ?`, [productId]);
+    await sql(`delete from "products" where "id" = ?`, [productId]);
   });
 
   it('leaves the rejected basket as it was, and audits the restore on the new one', async () => {

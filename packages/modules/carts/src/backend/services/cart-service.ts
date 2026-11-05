@@ -328,7 +328,15 @@ export class CartService {
       { onLineError: 'report' },
     );
     const skipped = outcomes.filter((outcome) => outcome.status !== 'added');
-    const names = await this.#catalogNamesOf(skipped.map((outcome) => lines[outcome.index]!.productId));
+    // Feature 173 (FR-030) — named as the basket's channel names them, in its
+    // default language (`languageCode` null, N2): the restore runs before any
+    // request language is at hand. A product that is gone has no name.
+    const names = await basketNamesAt(
+      this.availability,
+      skipped.map((outcome) => lines[outcome.index]!.productId),
+      basket.salesChannelId ?? ctx.salesChannelId,
+      null,
+    );
     const skippedLines: CartDroppedLine[] = skipped.map((outcome) => {
       const productId = lines[outcome.index]!.productId;
       const productName = names.get(productId) ?? productId;
@@ -355,13 +363,6 @@ export class CartService {
       metadata: { ...restored },
     });
     return true;
-  }
-
-  /** Product names by id, in the catalogue's default language; a product that is gone has none. */
-  async #catalogNamesOf(productIds: readonly string[]): Promise<Map<string, string>> {
-    if (productIds.length === 0) return new Map();
-    const records = await this.catalogProducts.findByIds([...new Set(productIds)]);
-    return new Map(records.map((record) => [record.id, pickLocalized(record.name, undefined)]));
   }
 
   /**
