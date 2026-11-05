@@ -158,7 +158,7 @@ export const pwaSettingsManifest = settings;
 
 export const manifest = defineModuleManifest({
   id: 'pwa',
-  name: 'Progressive Web App',
+  name: 'Progressive web app',
   description:
     'Installability, static-asset caching, controlled service-worker updates, and provider-agnostic push notifications for the storefront and admin.',
   version: '1.0.0',

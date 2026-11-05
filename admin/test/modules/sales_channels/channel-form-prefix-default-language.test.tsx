@@ -2,7 +2,7 @@ import { readFileSync } from 'node:fs';
 import { resolve } from 'node:path';
 import { StrictMode } from 'react';
 import { beforeEach, describe, expect, it, vi } from 'vitest';
-import { fireEvent, screen, waitFor } from '@testing-library/react';
+import { act, fireEvent, screen, waitFor } from '@testing-library/react';
 import { MemoryRouter, Route, Routes } from 'react-router-dom';
 import type { SalesChannelDetail } from '@endora-commerce/contracts';
 import { renderWithI18n } from '../../helpers/render-with-i18n';
@@ -214,6 +214,41 @@ describe('SalesChannelEditPage', () => {
     renderPage(['*']);
     await waitFor(() => expect(prefixSwitch().checked).toBe(true));
     fireEvent.click(prefixSwitch());
+    fireEvent.submit(prefixSwitch().closest('form')!);
+    await waitFor(() => expect(updateSpy).toHaveBeenCalled());
+    expect(updateSpy.mock.calls[0]![1]).toMatchObject({ prefixDefaultLanguage: false });
+  });
+
+  /**
+   * Issue #764. Resolve on the very commit that first shows the switch, from a
+   * MutationObserver callback, so the test resumes in a microtask — before
+   * React's scheduler has run that commit's passive effects. That is the window
+   * `waitFor` lands in under CI load, where its trailing `setTimeout(0)` beats
+   * the scheduler's `setImmediate`.
+   */
+  function switchCommitted(): Promise<void> {
+    const name = en['identity.prefixDefaultLanguage.label']!;
+    return new Promise((resolveCommitted) => {
+      const observer = new MutationObserver(() => {
+        if (screen.queryByRole('checkbox', { name })) {
+          observer.disconnect();
+          resolveCommitted();
+        }
+      });
+      observer.observe(document.body, { childList: true, subtree: true });
+    });
+  }
+
+  it("keeps the operator's change when the loaded channel's re-seed lands after it (#764)", async () => {
+    renderPage(['*']);
+    await switchCommitted();
+    expect(prefixSwitch().checked).toBe(true);
+    fireEvent.click(prefixSwitch());
+    // Let every pending render and effect of the load run out.
+    await act(async () => {
+      await new Promise((settled) => setTimeout(settled, 50));
+    });
+    expect(prefixSwitch().checked).toBe(false);
     fireEvent.submit(prefixSwitch().closest('form')!);
     await waitFor(() => expect(updateSpy).toHaveBeenCalled());
     expect(updateSpy.mock.calls[0]![1]).toMatchObject({ prefixDefaultLanguage: false });

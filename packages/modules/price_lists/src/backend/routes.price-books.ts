@@ -21,6 +21,7 @@ import {
   type CatalogCategoryReadPort,
   type CustomerAccountReadPort,
   type CustomerGroupReadPort,
+  organizationCompanyTaxId,
   type OrganizationDetailsPort,
   type PriceBookResolvedLine,
   type PriceBookRowLabels,
@@ -256,7 +257,7 @@ export async function registerPriceBookRoutes(app: FastifyInstance, deps: PriceB
             .filter((id) => found.has(id) && organizationInScope(scope, id))
             .map((id) => {
               const r = found.get(id)!;
-              return { id: r.id, name: r.name, taxId: r.taxId };
+              return { id: r.id, name: r.name, taxId: organizationCompanyTaxId(r) };
             }),
         },
       };
@@ -268,7 +269,7 @@ export async function registerPriceBookRoutes(app: FastifyInstance, deps: PriceB
         items: rows
           .filter((r) => organizationInScope(scope, r.id))
           .slice(0, query.limit)
-          .map((r) => ({ id: r.id, name: r.name, taxId: r.taxId })),
+          .map((r) => ({ id: r.id, name: r.name, taxId: organizationCompanyTaxId(r) })),
       },
     };
   });

@@ -1,5 +1,5 @@
 {
-  "module.name": "Quick Order",
+  "module.name": "Quick order",
   "settings.oneClickBuyEnabled.label": "One-click buy enabled",
   "settings.importMaxRows.label": "Import row limit",
   "actions.openQuickOrder.label": "Quick order on behalf",

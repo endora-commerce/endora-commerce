@@ -150,20 +150,28 @@ export function ChannelIdentityForm({
   const [dictionaryStatus, setDictionaryStatus] = useState<DictionaryStatus>('loading');
   const [dictionaryAttempt, setDictionaryAttempt] = useState(0);
 
-  // Re-seed when the underlying entity changes (typical on first GET response after mount).
-  useEffect(() => {
-    if (!initial) return;
-    setCode(initial.code);
-    setName(pickEnglishName(initial.name));
-    setThemeCode(initial.themeCode ?? '');
-    setLanguages(initial.languages);
-    setDefaultLanguage(initial.defaultLanguage);
-    setCurrencies(initial.currencies);
-    setDefaultCurrency(initial.defaultCurrency);
-    setActive(initial.active);
-    setAnonymousAccess(initial.anonymousAccess);
-    setPrefixDefaultLanguage(initial.prefixDefaultLanguage);
-  }, [initial]);
+  // Re-seed when the underlying entity changes (a save, an activation), during
+  // render rather than from an effect. A passive effect runs after the commit
+  // that first shows the form, and an operator's change made in that window was
+  // overwritten by it once it ran (issue #764). The state above is already
+  // seeded from the `initial` the form mounted with, so only a later entity
+  // re-seeds.
+  const [seededFrom, setSeededFrom] = useState(initial);
+  if (initial !== seededFrom) {
+    setSeededFrom(initial);
+    if (initial) {
+      setCode(initial.code);
+      setName(pickEnglishName(initial.name));
+      setThemeCode(initial.themeCode ?? '');
+      setLanguages(initial.languages);
+      setDefaultLanguage(initial.defaultLanguage);
+      setCurrencies(initial.currencies);
+      setDefaultCurrency(initial.defaultCurrency);
+      setActive(initial.active);
+      setAnonymousAccess(initial.anonymousAccess);
+      setPrefixDefaultLanguage(initial.prefixDefaultLanguage);
+    }
+  }
 
   useEffect(() => {
     let cancelled = false;

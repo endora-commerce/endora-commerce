@@ -79,7 +79,7 @@ function deps(over: Partial<QuoteDocumentDataBuilderDeps> = {}) {
     },
     organizations: {
       findById: vi.fn(async () => ({
-        id: 'org-1', name: 'Acme', legalName: 'Acme Sp. z o.o.', taxId: 'PL123',
+        id: 'org-1', name: 'Acme', legalName: 'Acme Sp. z o.o.', taxId: 'PL123', isPersonal: false,
         registeredAddress: { street: 'Main 1', city: 'Kraków', postalCode: '30-001', country: 'PL' },
       })),
     },
@@ -190,6 +190,38 @@ describe('QuoteDocumentDataBuilder', () => {
     expect(data.lines.map((l) => l.id)).toEqual(['b', 'a']);
     expect(data.groups).toEqual([]);
     expect(data.lines.map((l) => l.groupId)).toEqual([null, null]);
+  });
+
+  describe('issue #767 — the buyer of a personal and of a company Organization', () => {
+    it('prints a company Organization with its legal name, tax id and registered address', async () => {
+      const data = await new QuoteDocumentDataBuilder(deps()).build({ quote: quote(), lines: [line()], language: 'en-US' });
+      expect(data.buyer).toMatchObject({
+        organizationName: 'Acme',
+        legalName: 'Acme Sp. z o.o.',
+        taxId: 'PL123',
+        address: { line1: 'Main 1', city: 'Kraków' },
+      });
+    });
+
+    it('prints the person for a personal Organization: no placeholder tax id, no placeholder head office', async () => {
+      const d = deps({
+        organizations: {
+          findById: vi.fn(async () => ({
+            id: 'org-1', name: 'Ola Buyer', legalName: null, taxId: '79963f233e3843bd84e144a8fcdd37f8', isPersonal: true,
+            registeredAddress: { street: '-', city: '-', postalCode: '-', country: 'PL' },
+          })),
+        } as never,
+      });
+      const data = await new QuoteDocumentDataBuilder(d).build({ quote: quote(), lines: [line()], language: 'en-US' });
+      expect(data.buyer).toEqual({
+        organizationName: 'Ola Buyer',
+        legalName: null,
+        taxId: null,
+        address: null,
+        customerName: 'Ola Buyer',
+        customerEmail: 'ola@example.com',
+      });
+    });
   });
 
   it('suggests the channel’s default language, or the system default channel’s for a quote with none', async () => {

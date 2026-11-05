@@ -498,7 +498,7 @@ function OrganizationMemberFilter(props: {
         void api.targets
           .organizations(query.trim() ? { search: query.trim(), limit: 20 } : { limit: 20 })
           .then((orgs) => {
-            if (!cancelled) setOptions(orgs.map((o) => ({ value: o.id, label: o.name, description: o.taxId })));
+            if (!cancelled) setOptions(orgs.map((o) => ({ value: o.id, label: o.name, description: o.taxId ?? undefined })));
           })
           .catch(() => undefined);
       },

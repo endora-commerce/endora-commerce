@@ -7,7 +7,7 @@ import { defineModuleManifest } from '@endora-commerce/contracts';
  */
 export const manifest = defineModuleManifest({
   id: '_lifecycle',
-  name: 'Module Lifecycle',
+  name: 'Module lifecycle',
   description:
     'Platform-internal subsystem that orchestrates install / uninstall / ' +
     'enable / disable / status across every domain module.',

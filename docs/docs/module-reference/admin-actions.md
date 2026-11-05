@@ -16,7 +16,7 @@ Rendered from the module's own manifest, and from nothing written by hand. What 
 | | |
 | --- | --- |
 | Module id | `admin_actions` |
-| Name | Admin Command Palette Actions |
+| Name | Admin command palette actions |
 | Version | `1.0.0` |
 | Ships from | `@endora-commerce/mod-admin-actions` |
 | Licence | `MIT` |

@@ -43,6 +43,10 @@ vi.mock('../../lib/session', () => ({
   readAndClearMfaRecoveryFlash: vi.fn(async () => mfa.recoveryFlash),
   setSessionCookie: vi.fn(),
 }));
+// Issue #756 — individual registration offered, so the form renders.
+vi.mock('../../lib/api/customer-registration', () => ({
+  getCustomerRegistrationOptions: vi.fn(async () => ({ allowRegistrationWithoutOrganization: true })),
+}));
 vi.mock('../../lib/api/mfa', () => ({
   getMfaStatus: vi.fn(async () => mfa.status),
 }));

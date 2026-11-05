@@ -1,5 +1,5 @@
 {
-  "module.name": "Quote Requests",
+  "module.name": "Quote requests",
   "actions.openInbox.label": "Open RFQ inbox",
   "actions.openInbox.description": "Review pending quote requests",
   "errors.RFQ_NOT_DRAFT": "This quote request can no longer be edited.",

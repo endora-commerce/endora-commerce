@@ -16,7 +16,7 @@ Strona wygenerowana z manifestu modułu, bez żadnych ręcznych zmian. Co moduł
 | | |
 | --- | --- |
 | Identyfikator modułu | `customer_accounts` |
-| Nazwa | Customer Accounts |
+| Nazwa | Customer accounts |
 | Wersja | `1.0.0` |
 | Pakiet | `@endora-commerce/mod-customer-accounts` |
 | Licencja | `MIT` |

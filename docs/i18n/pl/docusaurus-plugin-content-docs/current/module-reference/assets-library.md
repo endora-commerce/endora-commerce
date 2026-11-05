@@ -16,7 +16,7 @@ Strona wygenerowana z manifestu modułu, bez żadnych ręcznych zmian. Co moduł
 | | |
 | --- | --- |
 | Identyfikator modułu | `assets_library` |
-| Nazwa | Assets Library |
+| Nazwa | Assets library |
 | Wersja | `1.0.0` |
 | Pakiet | `@endora-commerce/mod-assets-library` |
 | Licencja | `MIT` |

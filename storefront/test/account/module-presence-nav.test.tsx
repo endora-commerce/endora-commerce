@@ -283,6 +283,7 @@ describe('module pages — not found while their module is off (issue #666)', ()
     { moduleId: 'quote_requests', layout: () => import('../../app/(commerce)/quote-request/layout') },
     { moduleId: 'quote_requests', layout: () => import('../../app/(commerce)/quote-requests/layout') },
     { moduleId: 'comparisons', layout: () => import('../../app/compare/layout') },
+    { moduleId: 'customers', layout: () => import('../../app/(auth)/register-customer/layout') },
   ] as const;
 
   for (const [index, { moduleId, layout }] of GATED_SEGMENTS.entries()) {

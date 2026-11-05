@@ -546,10 +546,15 @@ async function loadPicker(type: PushAudienceCriterionType): Promise<PickerOption
       return res.data.items.map((i) => ({ value: i.id, label: flattenName(i.name, i.code), hint: i.code }));
     }
     case 'organization': {
-      const res = await apiClient.get<{ data: { items: { id: string; name: LocalisedName; taxId: string }[] } }>(
+      // `taxId` is `null` for a personal Organization, whose tax id is a placeholder (#767).
+      const res = await apiClient.get<{ data: { items: { id: string; name: LocalisedName; taxId: string | null }[] } }>(
         '/api/v1/admin/pwa/rule-targets/organizations?limit=200',
       );
-      return res.data.items.map((i) => ({ value: i.id, label: flattenName(i.name, i.taxId), hint: i.taxId }));
+      return res.data.items.map((i) => ({
+        value: i.id,
+        label: flattenName(i.name, i.taxId ?? i.id),
+        ...(i.taxId ? { hint: i.taxId } : {}),
+      }));
     }
     case 'customer': {
       const res = await apiClient.get<{ data: { items: { id: string; email: string }[] } }>(

@@ -16,7 +16,7 @@ Rendered from the module's own manifest, and from nothing written by hand. What 
 | | |
 | --- | --- |
 | Module id | `quick_order` |
-| Name | Quick Order |
+| Name | Quick order |
 | Version | `2.0.0` |
 | Ships from | `@endora-commerce/mod-quick-order` |
 | Licence | `MIT` |

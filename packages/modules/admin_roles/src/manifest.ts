@@ -41,7 +41,7 @@ const demo: ModuleDemoManifest<ModuleContext> = {
  */
 export const manifest = defineModuleManifest({
   id: 'admin_roles',
-  name: 'Admin Roles',
+  name: 'Admin roles',
   description:
     'Admin RBAC — roles, permissions, and policy enforcement for admin sessions.',
   version: '1.0.0',

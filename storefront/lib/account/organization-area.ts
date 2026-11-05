@@ -49,15 +49,6 @@ export function isPersonalOrganization(organization: OrganizationKind): boolean 
   return organization?.isPersonal === true;
 }
 
-/**
- * The tax id the storefront may show or pre-fill for the customer's
- * Organization: a company's, never a personal Organization's, whose tax id is
- * an internal placeholder derived from the account id (issue #757).
- */
-export function companyTaxId(organization: { readonly isPersonal?: boolean; readonly taxId: string } | null | undefined): string | null {
-  return organization && isCompanyOrganization(organization) ? organization.taxId : null;
-}
-
 export function organizationAreaAccess(me: OrganizationAreaSession, area: OrganizationArea): OrganizationAreaAccess {
   if (!isCompanyOrganization(me.organization)) return 'absent';
   if (area === 'summary' || area === 'addresses') return 'allowed';

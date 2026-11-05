@@ -42,7 +42,7 @@ const demo: ModuleDemoManifest<ModuleContext> = {
  */
 export const manifest = defineModuleManifest({
   id: 'admin_users',
-  name: 'Admin Users',
+  name: 'Admin users',
   description:
     'Admin user accounts, sessions, and impersonation flows.',
   version: '1.0.0',
