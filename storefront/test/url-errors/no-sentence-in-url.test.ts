@@ -16,22 +16,8 @@ import { describe, expect, it } from 'vitest';
 
 const APP = resolve(import.meta.dirname, '../../app');
 
-/** Pages not swept yet — the list only shrinks (issue #745 lands area by area). */
-const NOT_YET_SWEPT = new Set<string>([
-  '(account)/account/password/page.tsx',
-  '(account)/addresses/page.tsx',
-  '(account)/organization/addresses/page.tsx',
-  '(account)/preferences/page.tsx',
-  '(account)/shopping-lists/[id]/page.tsx',
-  '(account)/shopping-lists/page.tsx',
-  '(auth)/login/mfa/page.tsx',
-  '(auth)/login/page.tsx',
-  '(auth)/login/setup/page.tsx',
-  '(auth)/password-reset/confirm/page.tsx',
-  '(auth)/password-reset/request/page.tsx',
-  '(auth)/register-customer/page.tsx',
-  'account/security/page.tsx',
-]);
+/** Pages not swept yet — the list only shrinks; issue #745 emptied it. */
+const NOT_YET_SWEPT = new Set<string>([]);
 
 /** A message parameter whose value is encoded — i.e. not a code. */
 const SENTENCE_IN_URL = /\b(?:error|reason|couponError)=(?:\$\{\s*encodeURIComponent\(|'\s*\+\s*encodeURIComponent\()/;
@@ -44,8 +30,12 @@ function sources(dir: string): string[] {
   });
 }
 
-const offenders = sources(APP)
-  .map((path) => relative(APP, path).split('\\').join('/'))
+/** An e-mail address in a query string (issue #745: no personal data in a URL). */
+const EMAIL_IN_URL = /[?&]email=\$\{/;
+
+const files = sources(APP).map((path) => relative(APP, path).split('\\').join('/'));
+
+const offenders = files
   .filter((file) => SENTENCE_IN_URL.test(readFileSync(join(APP, file), 'utf8')));
 
 describe('no page redirects with a sentence in ?error= / ?reason= (issue #745)', () => {
@@ -55,5 +45,9 @@ describe('no page redirects with a sentence in ?error= / ?reason= (issue #745)',
 
   it('the not-yet-swept list names only pages that still need it', () => {
     expect([...NOT_YET_SWEPT].filter((file) => !offenders.includes(file))).toEqual([]);
+  });
+
+  it('no page puts an e-mail address into a URL', () => {
+    expect(files.filter((file) => EMAIL_IN_URL.test(readFileSync(join(APP, file), 'utf8')))).toEqual([]);
   });
 });

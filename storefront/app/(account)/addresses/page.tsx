@@ -6,12 +6,12 @@ import {
   listMyAddresses,
   setMyDefaultAddress,
 } from '../../../lib/api/customers';
-import { StorefrontApiError } from '../../../lib/api/client';
 import { CountryPicker } from '../../../lib/dictionary/pickers/CountryPicker';
 import type { Metadata } from 'next';
 import { localeRedirect } from '../../../lib/i18n/navigation';
+import { ADDRESS_ERRORS } from '../../../lib/account/address-errors';
 import { getServerContext } from '../../../lib/server-context';
-import { tForLocale, type MessageKey } from '../../../lib/i18n/messages';
+import { tForLocale } from '../../../lib/i18n/messages';
 import { codeLabel } from '../../../lib/account/labels';
 
 /**
@@ -44,7 +44,8 @@ export default async function MyAddressesPage({
       {params.status === 'created' ? <p className="b2b-auth__success">{t('account.addresses.created')}</p> : null}
       {params.status === 'removed' ? <p className="b2b-auth__success">{t('account.addresses.removed')}</p> : null}
       {params.status === 'default' ? <p className="b2b-auth__success">{t('account.addresses.defaultUpdated')}</p> : null}
-      {params.error ? <p className="b2b-auth__error">{params.error}</p> : null}
+      {/* Issue #745 — `?error=` is a code; one this page does not know reads as its generic failure. */}
+      {params.error ? <p className="b2b-auth__error">{t(ADDRESS_ERRORS.errorKey(params.error)!)}</p> : null}
 
       <table className="b2b-account__table">
         <thead>
@@ -161,12 +162,6 @@ export default async function MyAddressesPage({
   );
 }
 
-/** A server action's own refusal, in the page's language. */
-async function failure(key: MessageKey): Promise<string> {
-  const { locale } = await getServerContext();
-  return tForLocale(locale)(key);
-}
-
 async function createAction(formData: FormData): Promise<void> {
   'use server';
   const session = await getSessionCookie();
@@ -184,8 +179,7 @@ async function createAction(formData: FormData): Promise<void> {
       ...(formData.get('isDefault') ? { isDefault: true } : {}),
     });
   } catch (err) {
-    const message = err instanceof StorefrontApiError ? err.detail : await failure('account.addresses.saveFailed');
-    return await localeRedirect(`/addresses?error=${encodeURIComponent(message)}`);
+    return await localeRedirect(`/addresses?error=${ADDRESS_ERRORS.failureCode(err, 'SAVE_FAILED')}`);
   }
   return await localeRedirect('/addresses?status=created');
 }
@@ -197,8 +191,7 @@ async function removeAction(formData: FormData): Promise<void> {
   try {
     await deleteMyAddress(session, (formData.get('addressId') as string) ?? '');
   } catch (err) {
-    const message = err instanceof StorefrontApiError ? err.detail : await failure('account.addresses.removeFailed');
-    return await localeRedirect(`/addresses?error=${encodeURIComponent(message)}`);
+    return await localeRedirect(`/addresses?error=${ADDRESS_ERRORS.failureCode(err, 'REMOVE_FAILED')}`);
   }
   return await localeRedirect('/addresses?status=removed');
 }
@@ -210,8 +203,7 @@ async function setDefaultAction(formData: FormData): Promise<void> {
   try {
     await setMyDefaultAddress(session, (formData.get('addressId') as string) ?? '');
   } catch (err) {
-    const message = err instanceof StorefrontApiError ? err.detail : await failure('account.addresses.defaultFailed');
-    return await localeRedirect(`/addresses?error=${encodeURIComponent(message)}`);
+    return await localeRedirect(`/addresses?error=${ADDRESS_ERRORS.failureCode(err, 'DEFAULT_FAILED')}`);
   }
   return await localeRedirect('/addresses?status=default');
 }
