@@ -56,7 +56,7 @@ const ROWS = ['a01', 'a02'].map((id, i) => ({
   id,
   sku: `SKU-${id.toUpperCase()}`,
   slug: id,
-  name: { 'en-US': `Widget 0${i + 1}` },
+  name: `Widget 0${i + 1}`,
   status: 'active',
   type: 'simple',
 }));

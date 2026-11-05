@@ -29,7 +29,7 @@ const VIEW: ComparisonOwnerView = {
     {
       id: 'p1',
       sku: 'SKU-1',
-      name: { en: 'Widget' },
+      name: 'Widget',
       slug: 'widget',
       type: 'simple',
       primaryAssetUrl: null,
@@ -40,7 +40,7 @@ const VIEW: ComparisonOwnerView = {
     {
       id: 'p2',
       sku: 'SKU-2',
-      name: { en: 'Other Widget' },
+      name: 'Other Widget',
       slug: 'other-widget',
       type: 'simple',
       primaryAssetUrl: null,

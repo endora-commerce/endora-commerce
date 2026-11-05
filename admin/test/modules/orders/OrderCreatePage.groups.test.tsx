@@ -64,8 +64,8 @@ const ORG_ADDRESS = {
   isDefault: true,
 };
 const PRODUCTS = [
-  { id: 'prod-1', sku: 'SKU-1', slug: 'p1', status: 'active', type: 'simple', name: { 'en-US': 'Widget' } },
-  { id: 'prod-2', sku: 'SKU-2', slug: 'p2', status: 'active', type: 'simple', name: { 'en-US': 'Gadget' } },
+  { id: 'prod-1', sku: 'SKU-1', slug: 'p1', status: 'active', type: 'simple', name: 'Widget' },
+  { id: 'prod-2', sku: 'SKU-2', slug: 'p2', status: 'active', type: 'simple', name: 'Gadget' },
 ];
 const PRICES: Record<string, number> = { 'prod-1': 10, 'prod-2': 20 };
 
@@ -98,7 +98,7 @@ beforeEach(() => {
     if (path.startsWith('/api/v1/admin/customers')) return Promise.resolve({ data: [CUSTOMER] });
     if (path.startsWith('/api/v1/admin/catalog/products')) {
       const q = new URLSearchParams(path.split('?')[1] ?? '').get('q') ?? '';
-      return Promise.resolve({ data: PRODUCTS.filter((p) => p.name['en-US'].toLowerCase().startsWith(q.toLowerCase())) });
+      return Promise.resolve({ data: PRODUCTS.filter((p) => p.name.toLowerCase().startsWith(q.toLowerCase())) });
     }
     if (path.endsWith('/sales-channels')) {
       return Promise.resolve(orgSalesChannels([{ id: 'chan-1', code: 'CH', name: { 'en-US': 'Channel 1' }, active: true }]));

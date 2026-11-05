@@ -1,6 +1,7 @@
 import { useCallback, useEffect, useState, type ChangeEvent, type ReactNode } from 'react';
 import { Download, Upload } from 'lucide-react';
-import { ApiError, apiBaseUrl, apiClient } from '@endora-commerce/admin-kit/lib';
+import type { ImportProfile } from '@endora-commerce/contracts';
+import { ApiError, apiBaseUrl, apiClient, useAuth } from '@endora-commerce/admin-kit/lib';
 import {
   Alert,
   AlertDescription,
@@ -18,6 +19,9 @@ import {
   TableRow,
 } from '@endora-commerce/admin-kit/ui';
 import { useTranslation } from '@endora-commerce/admin-kit/i18n';
+import { listProductProfiles } from '../components/import-profiles-api.js';
+import { ImportProfilesSection } from '../components/ImportProfilesSection.js';
+import { ProductsImport } from '../components/ProductsImport.js';
 
 /**
  * The import/export centre — the first admin screen that lives in the module
@@ -87,6 +91,30 @@ export default function ImportExportPage(): ReactNode {
     void load();
   }, [load]);
 
+  // Feature 174 (`contracts/import-profiles-and-csv.md` §4) — the profiles the products import
+  // requires. Every profile route is gated `catalog:write`, so an operator without it neither
+  // sees the section nor asks for the list.
+  const canManageProfiles = useAuth().hasPermission('catalog:write');
+  const [profiles, setProfiles] = useState<ImportProfile[]>([]);
+  const [profilesLoading, setProfilesLoading] = useState(canManageProfiles);
+  const [profilesError, setProfilesError] = useState(false);
+
+  const loadProfiles = useCallback(async (): Promise<void> => {
+    setProfilesLoading(true);
+    setProfilesError(false);
+    try {
+      setProfiles(await listProductProfiles());
+    } catch {
+      setProfilesError(true);
+    } finally {
+      setProfilesLoading(false);
+    }
+  }, []);
+
+  useEffect(() => {
+    if (canManageProfiles) void loadProfiles();
+  }, [canManageProfiles, loadProfiles]);
+
   return (
     <>
       <PageHeader
@@ -106,14 +134,37 @@ export default function ImportExportPage(): ReactNode {
       ) : null}
       <div className="space-y-4">
         {entities.map((entity) => (
-          <EntityCard key={entity.name} entity={entity} />
+          <EntityCard
+            key={entity.name}
+            entity={entity}
+            profiles={profiles}
+            profilesLoading={profilesLoading}
+          />
         ))}
+        {canManageProfiles ? (
+          <ImportProfilesSection
+            profiles={profiles}
+            loading={profilesLoading}
+            loadError={profilesError}
+            onChanged={(): void => {
+              void loadProfiles();
+            }}
+          />
+        ) : null}
       </div>
     </>
   );
 }
 
-function EntityCard({ entity }: { entity: EntityConfig }): ReactNode {
+function EntityCard({
+  entity,
+  profiles,
+  profilesLoading,
+}: {
+  entity: EntityConfig;
+  profiles: ImportProfile[];
+  profilesLoading: boolean;
+}): ReactNode {
   const t = useTranslation('import_export');
   const [importing, setImporting] = useState(false);
   const [importMessage, setImportMessage] = useState<string | null>(null);
@@ -157,7 +208,7 @@ function EntityCard({ entity }: { entity: EntityConfig }): ReactNode {
   const exportHref = `${apiBaseUrl}/api/v1/admin/export/${entity.name}.csv`;
 
   return (
-    <Card>
+    <Card data-entity={entity.name}>
       <CardHeader>
         {/* The label is a translation of the slug the server named; an entity
             with no key of its own renders the raw key rather than disappearing. */}
@@ -177,7 +228,7 @@ function EntityCard({ entity }: { entity: EntityConfig }): ReactNode {
             <span className="text-xs text-muted-foreground">
               {t('importNotSupported')}
             </span>
-          ) : entity.canImport ? (
+          ) : entity.canImport && entity.name !== 'products' ? (
             <Button
               asChild
               size="sm"
@@ -200,6 +251,11 @@ function EntityCard({ entity }: { entity: EntityConfig }): ReactNode {
             </Button>
           ) : null}
         </div>
+
+        {/* Feature 174 — products import through a required profile and a dry run first. */}
+        {entity.name === 'products' && entity.importHeader && entity.canImport ? (
+          <ProductsImport profiles={profiles} profilesLoading={profilesLoading} />
+        ) : null}
 
         {entity.importHeader && entity.canImport ? (
           <p className="text-xs text-muted-foreground">

@@ -49,8 +49,8 @@ describe('Feature 022 — POST /products/bulk-update (attribute values)', () => 
       payload: {
         sku,
         type: 'simple',
-        name: { 'en-US': sku },
-        description: { 'en-US': 'desc' },
+        name: sku,
+        description: 'desc',
         categoryIds: [],
         attributeValues: {},
         visibility: 'public',

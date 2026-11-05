@@ -38,8 +38,8 @@ describe('Admin Products contract — feature 012 editable SKU (T027)', () => {
       payload: {
         sku,
         type: 'simple',
-        name: { 'en-US': sku },
-        description: { 'en-US': 'desc' },
+        name: sku,
+        description: 'desc',
         categoryIds: [],
         attributeValues: {},
         visibility: 'public',
@@ -125,8 +125,8 @@ describe('Admin Products contract — feature 012 editable SKU (T027)', () => {
       payload: {
         sku: 'SKU-EDIT-PRICE',
         type: 'simple',
-        name: { 'en-US': 'priced' },
-        description: { 'en-US': 'desc' },
+        name: 'priced',
+        description: 'desc',
         categoryIds: [],
         // `internal_sku_notes` is a real Default-set attribute (seed).
         attributeValues: { internal_sku_notes: 'note' },

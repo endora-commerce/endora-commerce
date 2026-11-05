@@ -50,8 +50,8 @@ describe('Customer-group pricing override (US6)', () => {
       sku: `cg-prod-${Math.floor(performance.now())}`,
       slug: `cg-prod-${Math.floor(performance.now())}`,
       type: 'simple',
-      name: { 'en-US': 'CG Product' },
-      description: { 'en-US': '' },
+      name: 'CG Product',
+      description: '',
       attributeValues: {},
       visibility: 'public',
     });

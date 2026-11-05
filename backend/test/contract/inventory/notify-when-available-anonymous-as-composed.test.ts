@@ -42,8 +42,8 @@ describe('the notify-when-available guest path, with the anonymous actor resolve
       slug: `anon-notify-${stamp}`,
       type: 'simple',
       status: 'active',
-      name: { 'en-US': 'Anonymous notify probe product' },
-      description: { 'en-US': 'Out of stock, so the notify-me path is reachable.' },
+      name: 'Anonymous notify probe product',
+      description: 'Out of stock, so the notify-me path is reachable.',
       visibility: 'public',
       attributeValues: { defaultPrice: 10 },
     });

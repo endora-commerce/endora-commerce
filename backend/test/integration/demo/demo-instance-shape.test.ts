@@ -244,7 +244,7 @@ describe('`demo seed` on a CLI-scaffolded instance', () => {
     it('seeds the modules’ own rows and leaves the shop unwired, with its administrators able to sign in', () => {
       // The defect's exact state, reproduced: this is what every CLI-scaffolded
       // instance got, because none of them had a composition.
-      expect(without.demoProducts).toBe(203);
+      expect(without.demoProducts).toBe(204);
       expect(without.soldOnDefaultChannel).toBe(0);
       // The administrators are the exception, and no longer part of that
       // state: an account is created already holding its role, by its own
@@ -267,8 +267,8 @@ describe('`demo seed` on a CLI-scaffolded instance', () => {
     });
 
     it('sells every demo product on the system-default channel', () => {
-      expect(withComposition.demoProducts).toBe(203);
-      expect(withComposition.soldOnDefaultChannel).toBe(203);
+      expect(withComposition.demoProducts).toBe(204);
+      expect(withComposition.soldOnDefaultChannel).toBe(204);
     });
 
     it('keeps the default channel code the operator configured', () => {
@@ -281,7 +281,7 @@ describe('`demo seed` on a CLI-scaffolded instance', () => {
 
     it('builds the menu and prices the catalogue, as the host’s demo always did', () => {
       expect(withComposition.menus).toBe(1);
-      expect(withComposition.pricedDemoProducts).toBe(203);
+      expect(withComposition.pricedDemoProducts).toBe(204);
     });
 
     it('prints no "no composition" notice, and the buyer the composition creates', () => {

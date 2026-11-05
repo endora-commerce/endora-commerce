@@ -1,5 +1,5 @@
 import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest';
-import { screen, waitFor } from '@testing-library/react';
+import { screen, waitFor, within } from '@testing-library/react';
 import userEvent from '@testing-library/user-event';
 import { MemoryRouter, Route, Routes } from 'react-router-dom';
 import { ApiError } from '@endora-commerce/admin-kit/lib';
@@ -10,6 +10,7 @@ import {
   modulePresence,
   renderWithSession,
 } from '../../helpers/render-with-session';
+import { scopedValuesResponse } from '../../helpers/scoped-values-fixtures';
 
 const getSpy = vi.fn();
 const deleteSpy = vi.fn();
@@ -46,10 +47,6 @@ vi.mock('react-router-dom', async () => {
   };
 });
 
-vi.mock('../../../../packages/modules/catalog/src/admin/components/ProductScopeEditor', () => ({
-  ProductScopeEditor: vi.fn(() => null),
-}));
-
 const { ProductEditor } = await import('../../../../packages/modules/catalog/src/admin/pages/ProductEditor');
 
 const PRODUCT_ID = '11111111-1111-4111-8111-111111111101';
@@ -58,6 +55,10 @@ const BUNDLE_KEYS = [
   'productEditor.loading',
   'productEditor.action.delete',
   'productEditor.deleteConfirm',
+  'productEditor.deleteTitle',
+  'productEditor.deleteAction',
+  'productEditor.error.delete',
+  'productEditor.wholeProduct.menu',
   'productEditor.section.identity',
   'productEditor.field.sku',
   'productEditor.field.status',
@@ -96,8 +97,8 @@ const MOCK_PRODUCT = {
   slug: 'del-sku',
   type: 'simple' as const,
   status: 'active' as const,
-  name: { 'en-US': 'Delete me', 'pl-PL': '' },
-  description: { 'en-US': 'Desc', 'pl-PL': '' },
+  name: 'Delete me',
+  description: 'Desc',
   visibility: 'public' as const,
   attributeValues: { defaultPrice: 10 },
   attributeSetId: '22222222-2222-4222-8222-222222222202',
@@ -105,6 +106,8 @@ const MOCK_PRODUCT = {
 
 function primeGets(): void {
   getSpy.mockImplementation((path: string) => {
+    if (path.includes('/scoped-values')) return Promise.resolve(scopedValuesResponse({ product: { ...scopedValuesResponse().data.product, sku: MOCK_PRODUCT.sku, attributeSetId: MOCK_PRODUCT.attributeSetId } }));
+    if (path.endsWith('/editor-preference')) return Promise.resolve({ data: null });
     if (path.includes('/catalog/categories')) return Promise.resolve({ data: [] });
     if (path.includes('/attribute-sets')) {
       return Promise.resolve({
@@ -118,6 +121,15 @@ function primeGets(): void {
   });
 }
 
+/** Delete lives in the "Product" menu and asks in a dialog, not `window.confirm` (feature 174, §11). */
+async function deleteThroughMenu(user: ReturnType<typeof userEvent.setup>): Promise<void> {
+  await user.click(await screen.findByRole('button', { name: /productEditor\.wholeProduct\.menu/ }));
+  await user.click(await screen.findByRole('menuitem', { name: /productEditor\.action\.delete/ }));
+  const dialog = await screen.findByRole('dialog');
+  expect(dialog).toHaveAccessibleDescription(/productEditor\.deleteConfirm/);
+  await user.click(within(dialog).getByRole('button', { name: /productEditor\.deleteAction/ }));
+}
+
 describe('ProductEditor — delete product (feature 032)', () => {
   beforeEach(() => {
     getSpy.mockReset();
@@ -125,7 +137,6 @@ describe('ProductEditor — delete product (feature 032)', () => {
     navigateSpy.mockReset();
     primeGets();
     deleteSpy.mockResolvedValue(undefined);
-    vi.spyOn(window, 'confirm').mockReturnValue(true);
   });
 
   afterEach(() => {
@@ -142,8 +153,7 @@ describe('ProductEditor — delete product (feature 032)', () => {
       </MemoryRouter>,
     );
 
-    const deleteBtn = await screen.findByRole('button', { name: /productEditor\.action\.delete/i });
-    await user.click(deleteBtn);
+    await deleteThroughMenu(user);
 
     await waitFor(() => {
       expect(deleteSpy).toHaveBeenCalledWith(`/api/v1/admin/catalog/products/${PRODUCT_ID}`);
@@ -170,8 +180,9 @@ describe('ProductEditor — delete product (feature 032)', () => {
       </MemoryRouter>,
     );
 
-    await user.click(await screen.findByRole('button', { name: /productEditor\.action\.delete/i }));
+    await deleteThroughMenu(user);
 
-    expect(await screen.findByText(/blocked by orders/)).toBeInTheDocument();
+    // A translated lead first, the server's sentence as detail (final design review).
+    expect(await screen.findByText(/blocked by orders/)).toHaveTextContent(/^productEditor\.error\.delete blocked by orders$/);
   });
 });

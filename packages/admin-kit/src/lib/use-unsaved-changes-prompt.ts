@@ -60,6 +60,9 @@ export function useUnsavedChangesPrompt(when: boolean, message?: string, options
       const anchor = (e.target as HTMLElement | null)?.closest('a');
       if (!anchor) return;
       if (anchor.target === '_blank' || anchor.hasAttribute('download')) return;
+      // A link whose screen runs its own unsaved-changes guard (the product editor's scope
+      // links: Save / Discard / Stay) opts out, so the operator is not asked twice.
+      if (anchor.closest('[data-own-unsaved-guard]')) return;
 
       const href = anchor.getAttribute('href');
       if (!href) return;

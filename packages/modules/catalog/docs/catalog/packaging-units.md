@@ -14,8 +14,8 @@ request.
 Manage packaging units in the **Inventory** section of the product card
 (simple and configurable products only). Each unit has:
 
-- a **name** (operator text, e.g. `Paleta`, `Karton`) — unique within the product,
-  optionally translated per language (see *Name per language* below),
+- a **name** (operator text, e.g. `Paleta`, `Karton`) — the Global name is unique within
+  the product; a channel or a channel and language can override it (see *Name per scope* below),
 - a **base quantity** (whole number ≥ 1) — how many base pieces the unit holds,
 - a **default** flag — the unit pre-selected on the storefront,
 - a **position** — the order units appear in,
@@ -48,38 +48,44 @@ match one of the product's units. Anything else is refused with
 product's unit all give the same reason.
 
 **For API clients:** a name sent without an id is matched against the unit's
-**global** name only, never against its translations (see *Name per language*).
-A line that sends the name a buyer saw in a translated storefront — `Pallet`
-where the global name is `Paleta` — is refused with
+**Global** name only, never against a channel's or a language's name (see *Name per
+scope*). A line that sends the name a buyer saw in a translated storefront — `Pallet`
+where the Global name is `Paleta` — is refused with
 `422 PACKAGING_UNIT_MISMATCH` (reason `name_unknown`). Send the
-`packagingUnitId`, or the global name.
+`packagingUnitId`, or the Global name.
 
-## Name per language
+## Name per scope
 
-A unit's name can be translated: `nameTranslations` maps a language to a name, e.g.
-`{ "en-GB": "Pallet", "de-DE": "" }`. A named language is set, an empty string
-removes it, and a language left out is unchanged; each name is at most 160
-characters. The unit's own `name` stays the global name: it is the one that must be
-unique within the product, the one a quote line sent without an id is matched
-against, and the one minimum refusals name.
+A unit's name is a scoped field: it has a Global value and can be overridden at a sales
+channel or at a channel and language. It is saved with the rest of the scope by
+`PUT …/products/:id/scoped-values`, e.g.
+`{ "changes": { "packagingUnits": { "<unitId>": { "name": "Pallet" } } } }` at
+`{ "channelId": "…", "languageCode": "en-US" }`. Each name is at most 160 characters;
+`{ "inherit": true }` removes the scope's own name, and `null` stores a deliberately
+empty name at a channel or a channel and language. The Global name cannot be empty. It
+is the one that must be unique within the product, the one a quote line sent without
+an id is matched against, and the one minimum refusals name.
 
-Where a buyer sees the unit, its name is the translation in the request's language,
-else the global name:
+Where a buyer sees the unit, its name is the effective name at the request's channel and
+language — Channel × language → Channel → Global:
 
 - the product page's `packagingUnits[].name`;
-- the name a basket line snapshots — in the basket's language on its channel. When
+- the name a basket line snapshots — at the basket's channel and language. When
   an administrator names the channel on a customer's behalf, the name is taken in
   that channel's default language, like the product name beside it;
-- the name a buyer's quote-request line snapshots — in the request's language on the
-  channel it is raised on.
+- the name a buyer's quote-request line snapshots — at the channel and language the
+  request is raised in.
+
+A deliberately empty name at the scope does not produce an unnamed line: the basket,
+quote and order snapshots then keep the Global name.
 
 Creating or updating a unit is recorded once in the audit log, as
 `packaging_unit.create` or `packaging_unit.update`, with the unit's state before and
-after (its product, name, `nameTranslations`, base quantity, default flag and
-minimum). Sending the recorded before-state back through the same route (without
-`productId`) restores it. The write announces `product.updated.v1` with
-`changedFields: ["packagingUnits"]`. A request that changes nothing writes nothing
-and announces nothing.
+after (its product, Global name, base quantity, default flag and minimum). Sending the
+recorded before-state back through the same route (without `productId`) restores it.
+A scoped save is recorded as `product.scoped_values.save`. Both announce
+`product.updated.v1`. A request that changes nothing writes nothing and announces
+nothing. Deleting a unit removes its overrides at every scope.
 
 ## For buyers
 
@@ -92,7 +98,7 @@ line of the same product stay separate.
 ## How the label travels
 
 The unit name and base quantity are **snapshotted** on the line when it is
-created — the name in the line's language, as above — so later edits to (or deletion of) a product's packaging units never
+created — the effective name at the line's channel and language, as above — so later edits to (or deletion of) a product's packaging units never
 change historical carts, orders, or quote requests.
 
 - **Cart** — `cart_items` snapshot the unit; the cart serializer composes a
@@ -115,15 +121,16 @@ count.
 
 - Admin CRUD: `GET/POST /api/v1/admin/catalog/products/:id/packaging-units`,
   `PATCH/DELETE …/:unitId`, `PATCH …/packaging-units/reorder`
-  (gated by `catalog:read` / `catalog:write`). Create and update accept an
-  optional `nameTranslations` and an optional `minOrderUnits` (`1…1000000`, or `null` to clear); the response
-  always carries it. The in-process `CatalogPackagingPort`, used by PIM
+  (gated by `catalog:read` / `catalog:write`). Create takes the Global name; update
+  takes the base quantity, default flag, position and an optional `minOrderUnits`
+  (`1…1000000`, or `null` to clear) — the name at any scope is written through
+  `PUT …/scoped-values`. The response always carries `minOrderUnits`. The in-process `CatalogPackagingPort`, used by PIM
   connectors, accepts the same optional field and refuses an out-of-range
   value with `422 VALIDATION_FAILED`; a writer that never sends it keeps
   working.
 - Public: the product detail (`GET /api/v1/catalog/products/:idOrSlug`)
-  includes an optional `packagingUnits` array; each unit carries its name in
-  the request's language and `minOrderUnits` (`null` when none).
+  includes an optional `packagingUnits` array; each unit carries its effective
+  name at the request's channel and language and `minOrderUnits` (`null` when none).
 - Cart: `POST /api/v1/cart/items` accepts an optional `packagingUnitId`; the
   resulting line quantity is `baseQuantity × quantity`.
 
@@ -134,9 +141,11 @@ Table `product_packaging_units` (migration
 (FK → `products`, cascade delete), `name`, `base_quantity`
 (`CHECK >= 1`), `position`, `is_default`, timestamps; `UNIQUE (product_id,
 name)`. Migration `20261016T082008_catalog_order_rules.ts` adds
-`min_order_units` (nullable, `CHECK` 1–1 000 000), and
-`20261026T084533_catalog_attachment_packaging_translations.ts` adds
-`name_translations` (jsonb, `{}` by default). Additive snapshot columns, each added by its owning module:
+`min_order_units` (nullable, `CHECK` 1–1 000 000).
+`20261030T113908_catalog_scope_model_media.ts` replaces the per-language
+`name_translations` with `product_packaging_unit_scope_overrides`: a name at a
+channel or a channel and language, referencing the unit together with its product
+and cascading on the unit's, the product's and the channel's delete. Additive snapshot columns, each added by its owning module:
 `cart_items` (`20260611T140413_carts_cart_item_packaging.ts`), `order_items`
 (`20260611T140414_orders_order_item_packaging.ts`), `quote_request_items`
 (`20260611T140415_quote_requests_qr_item_packaging.ts`; its

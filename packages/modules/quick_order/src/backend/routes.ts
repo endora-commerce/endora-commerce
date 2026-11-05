@@ -191,7 +191,8 @@ export async function registerQuickOrderRoutes(
         productId: hit.productId,
         sku: hit.sku,
         // Feature 163 (FR-017 a) — the Name the storefront shows here.
-        name: hit.effectiveName || hit.name['en-US'] || Object.values(hit.name)[0] || hit.sku,
+        // Feature 174 — `hit.name` is the effective string at the search's (C, L).
+        name: hit.name || hit.sku,
         slug: hit.slug,
         status: hit.status,
         matchedOn: hit.matchedOn,

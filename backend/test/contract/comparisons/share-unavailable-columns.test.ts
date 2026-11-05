@@ -36,7 +36,7 @@ const UUID = /^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/i;
 const ADMIN = { b2b_session: 'stub-admin-session' };
 const REMOVED = {
   sku: '',
-  name: { en: '(removed product)' },
+  name: '(removed product)',
   slug: '',
   primaryAssetUrl: null,
   price: null,
@@ -49,7 +49,7 @@ const CHANNEL = { 'x-sales-channel': 'pl_retail' };
 interface Column {
   id: string;
   sku: string;
-  name: Record<string, string>;
+  name: string;
   slug: string;
   primaryAssetUrl: string | null;
   price: unknown;
@@ -125,7 +125,7 @@ describe('163 CMP-1 — an unavailable column is shown only to the owner [contra
     expect(res.statusCode, res.body).toBe(200);
     const column = (res.json() as { data: View }).data.products.find((p) => p.id === off.id);
     expect(column).toMatchObject({ sku: off.sku, available: false });
-    expect(Object.values(column!.name)).not.toContain('(removed product)');
+    expect(column!.name).not.toBe('(removed product)');
 
     const own = await share(BUYER);
     const body = own.json() as { data: View; meta: { viewerIsOwner: boolean } };

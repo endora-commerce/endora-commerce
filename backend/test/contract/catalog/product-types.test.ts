@@ -36,8 +36,8 @@ describe('Admin Products contract — feature 002 type enum (T039)', () => {
   // would trigger a slug-uniqueness conflict on the second insert.
   const productPayload = (suffix: string) => ({
     sku: `TYPETEST-${suffix}`,
-    name: { 'en-US': `Type test ${suffix}`, 'pl-PL': `Test typu ${suffix}` },
-    description: { 'en-US': 'For T039', 'pl-PL': 'Dla T039' },
+    name: `Type test ${suffix}`,
+    description: 'For T039',
     categoryIds: [] as string[],
     attributeValues: {},
     visibility: 'public',

@@ -66,10 +66,11 @@ A `page_builder` attribute holds a Page Builder document per language for each
 product, authored on its own screen and shown in the product page's description
 tab ([Product content](./product-content.md)). Its settings are fixed:
 
-- `languageScoped` is always `true`; `false` is refused;
+- its languages are those of its documents, so it is never `scopable`: it has
+  no value per sales channel or per channel language;
 - `isSearchable`, `isFilterable`, `isVariantAxis`, `displayAsSlider`,
   `isComparable`, `quickSearchable`, `isPromoRule`, `isPriceRule`,
-  `massEditable`, `isRequired`, `isVisibleOnProductPage` and `channelScoped`
+  `massEditable`, `isRequired`, `isVisibleOnProductPage` and `scopable`
   stay `false`. Setting any of them on create or update is refused with
   `400 VALIDATION_FAILED`, one detail per setting, and nothing is stored;
 - it has no options;
@@ -249,7 +250,7 @@ admin surface composes the two back into the legacy form.
 - Boolean flags: `is_searchable`, `is_filterable`, `is_variant_axis`,
   `is_comparable`, `quick_searchable`, `is_promo_rule`,
   `is_price_rule`, `is_visible_on_product_page`, `display_as_slider`,
-  `channel_scoped`, `language_scoped`, `mass_editable`.
+  `scopable`, `mass_editable`.
 - `filter_position int NOT NULL DEFAULT 0`.
 - Presentation refinements: `select_display varchar(16) NULL`
   (`pill` = legacy `enum`, `dropdown` = legacy `select`) and

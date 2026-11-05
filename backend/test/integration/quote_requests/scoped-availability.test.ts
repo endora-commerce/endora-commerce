@@ -149,16 +149,16 @@ describe('163 — a quote line honours a language switched off at (channel, lang
     await sql(
       `insert into products (id, sku, slug, type, status, name, description, attribute_values, visibility,
                              allowed_organization_ids, created_at, updated_at)
-       values (?, ?, ?, 'simple', 'active', ?::jsonb, '{}'::jsonb, '{}'::jsonb, 'public', '[]'::jsonb, now(), now())`,
-      [productId, sku, sku.toLowerCase(), JSON.stringify({ 'pl-PL': 'Niemiecki wył', 'en-US': 'German off' })],
+       values (?, ?, ?, 'simple', 'active', ?, '', '{}'::jsonb, 'public', '[]'::jsonb, now(), now())`,
+      [productId, sku, sku.toLowerCase(), 'German off'],
     );
     await sql(`insert into sales_channel_products (sales_channel_id, product_id) values (?, ?)`, [channelId, productId]);
     await setLanguageStatus(h.em(), productId, channelId, 'de-DE', 'inactive');
     await sql(
       `insert into products (id, sku, slug, type, status, name, description, attribute_values, visibility,
                              allowed_organization_ids, created_at, updated_at)
-       values (?, ?, ?, 'simple', 'active', ?::jsonb, '{}'::jsonb, '{}'::jsonb, 'public', '[]'::jsonb, now(), now())`,
-      [channelOffId, `${sku}-C`, `${sku.toLowerCase()}-c`, JSON.stringify({ 'pl-PL': 'Kanał wył', 'en-US': 'Channel off' })],
+       values (?, ?, ?, 'simple', 'active', ?, '', '{}'::jsonb, 'public', '[]'::jsonb, now(), now())`,
+      [channelOffId, `${sku}-C`, `${sku.toLowerCase()}-c`, 'Channel off'],
     );
     await sql(`insert into sales_channel_products (sales_channel_id, product_id) values (?, ?)`, [channelId, channelOffId]);
     await setChannelStatus(h.em(), channelOffId, [channelId], 'inactive');

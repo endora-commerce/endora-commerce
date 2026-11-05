@@ -32,7 +32,7 @@ describe('catalogProductReadPort — the pricing projection', () => {
       ids.push(id);
       await sql(
         `insert into "products" ("id", "sku", "slug", "type", "status", "name", "description", "visibility", "attribute_values", "deleted_at", "created_at", "updated_at")
-         values (?, ?, ?, 'simple', ?, '{"en-US":"x"}'::jsonb, '{"en-US":"x"}'::jsonb, 'public', ?::jsonb, ?, now(), now())`,
+         values (?, ?, ?, 'simple', ?, 'x', 'x', 'public', ?::jsonb, ?, now(), now())`,
         [id, `PREF-${stamp}-${n}`, `pref-${stamp}-${n}`, status, JSON.stringify(values), deleted ? new Date() : null],
       );
     }

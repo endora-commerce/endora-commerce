@@ -32,8 +32,8 @@ describe('catalog — the old price fields are refused (FR-043)', () => {
   const productPayload = (sku: string, attributeValues: Record<string, unknown> = {}, type = 'simple') => ({
     sku,
     type,
-    name: { 'en-US': sku },
-    description: { 'en-US': '' },
+    name: sku,
+    description: '',
     categoryIds: [],
     attributeValues,
     visibility: 'public',
@@ -89,18 +89,18 @@ describe('catalog — the old price fields are refused (FR-043)', () => {
     const res = await h.app.inject({
       method: 'PATCH',
       url: `/api/v1/admin/catalog/products/${id}`,
-      payload: { name: { 'en-US': 'Renamed' }, attributeValues: { [key]: 12 } },
+      payload: { name: 'Renamed', attributeValues: { [key]: 12 } },
       cookies,
     });
     expectRefused(res);
     const [row] = await h
       .em()
       .getConnection()
-      .execute<Array<{ name: Record<string, string>; attribute_values: Record<string, unknown> }>>(
+      .execute<Array<{ name: string; attribute_values: Record<string, unknown> }>>(
         `select name, attribute_values from products where id = ?`,
         [id],
       );
-    expect(row!.name['en-US']).toBe(sku);
+    expect(row!.name).toBe(sku);
     expect(row!.attribute_values).not.toHaveProperty(key);
   });
 
@@ -109,7 +109,7 @@ describe('catalog — the old price fields are refused (FR-043)', () => {
     const res = await h.app.inject({
       method: 'PATCH',
       url: `/api/v1/admin/catalog/products/${id}`,
-      payload: { name: { 'en-US': 'Renamed' } },
+      payload: { name: 'Renamed' },
       cookies,
     });
     expect(res.statusCode, res.body).toBe(200);
@@ -174,8 +174,8 @@ describe('catalog — the old price fields are refused (FR-043)', () => {
       const [row] = await h
         .em()
         .getConnection()
-        .execute<Array<{ name: Record<string, string> }>>(`select name from products where sku = 'EXAMPLE-SIMPLE-001'`);
-      expect(row!.name['en-US']).not.toBe('Price import');
+        .execute<Array<{ name: string }>>(`select name from products where sku = 'EXAMPLE-SIMPLE-001'`);
+      expect(row!.name).not.toBe('Price import');
     },
   );
 });

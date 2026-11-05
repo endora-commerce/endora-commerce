@@ -54,8 +54,8 @@ describe('Admin Variants CRUD (T054 backend)', () => {
       payload: {
         sku: `CONF-PARENT-${suffix}`,
         type: 'configurable',
-        name: { 'en-US': `Configurable parent ${suffix}` },
-        description: { 'en-US': '' },
+        name: `Configurable parent ${suffix}`,
+        description: '',
         categoryIds: [],
         attributeValues: {},
         visibility: 'public',
@@ -94,8 +94,8 @@ describe('Admin Variants CRUD (T054 backend)', () => {
       payload: {
         sku: 'SIMPLE-FOR-VAR',
         type: 'simple',
-        name: { 'en-US': 'Simple parent for variant test' },
-        description: { 'en-US': '' },
+        name: 'Simple parent for variant test',
+        description: '',
         categoryIds: [],
         attributeValues: {},
         visibility: 'public',

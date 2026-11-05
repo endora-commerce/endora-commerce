@@ -20,7 +20,7 @@ const CHANNEL = '00000000-0000-4000-8000-0000000000c1';
 const product = (id: string, sku: string) => ({
   id,
   sku,
-  name: { 'en-US': sku },
+  name: sku,
   slug: sku.toLowerCase(),
   type: 'simple',
   visibility: 'public',
@@ -102,7 +102,7 @@ describe('ComparisonService.buildOwnerView — an unavailable column per reader 
     const index = 1;
     expect(view.products[index]).toMatchObject({
       sku: '',
-      name: { en: '(removed product)' },
+      name: '(removed product)',
       slug: '',
       primaryAssetUrl: null,
       price: null,
@@ -115,7 +115,7 @@ describe('ComparisonService.buildOwnerView — an unavailable column per reader 
 
   it('a caller that does not say who is reading is answered as a recipient', async () => {
     const view = await service().buildOwnerView(comparison, CHANNEL);
-    expect(view.products[1]).toMatchObject({ sku: '', name: { en: '(removed product)' } });
+    expect(view.products[1]).toMatchObject({ sku: '', name: '(removed product)' });
   });
 
   // Final security review S-L1a — the removed-product column named the product's id,
@@ -151,7 +151,7 @@ describe('ComparisonService.buildOwnerView — the owner and an audience refusal
     const { id: _ownerId, ...ownerColumn } = owner.products[1]!;
     const { id: _recipientId, ...recipientColumn } = recipient.products[1]!;
     expect(ownerColumn).toEqual(recipientColumn);
-    expect(ownerColumn).toMatchObject({ sku: '', name: { en: '(removed product)' }, price: null, available: false });
+    expect(ownerColumn).toMatchObject({ sku: '', name: '(removed product)', price: null, available: false });
     for (const row of owner.comparableAttributes) expect(row.values[1]).toBeNull();
     expect(owner.hiddenProductCount).toBe(recipient.hiddenProductCount);
     expect(owner.hiddenProductCount).toBe(0);

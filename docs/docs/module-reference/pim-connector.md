@@ -11,7 +11,7 @@ description: "Everything the `pim_connector` module's manifest declares: permiss
 
 # `pim_connector` — module reference
 
-Rendered from the module's own manifest, and from nothing written by hand. Nobody has written a page about what this module *does* yet; the [module map](../modules/module-map.generated.md) lists every module the platform composes.
+Rendered from the module's own manifest, and from nothing written by hand. What the module *does* is [its own page](../modules/pim_connector.md).
 
 | | |
 | --- | --- |

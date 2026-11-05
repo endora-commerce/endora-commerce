@@ -101,7 +101,7 @@ beforeEach(() => {
     }
     if (path.startsWith('/api/v1/admin/catalog/products?')) {
       return Promise.resolve({
-        data: [{ id: PRODUCT_ID, sku: 'VAN-L2', slug: 'cargo-van-l2', status: 'active', name: { en: 'Cargo van L2' } }],
+        data: [{ id: PRODUCT_ID, sku: 'VAN-L2', slug: 'cargo-van-l2', status: 'active', name: 'Cargo van L2' }],
         pagination: { page: 0, pageSize: 20, total: 1 },
       });
     }

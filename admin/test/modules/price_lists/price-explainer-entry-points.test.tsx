@@ -34,7 +34,7 @@ beforeEach(() => {
     const [path] = url.split('?');
     if (path === `${B}/targets/currencies`) return { data: { items: [{ code: 'PLN', exposedByChannels: ['b2b_pl'] }] } };
     if (path === `/api/v1/admin/catalog/products/${PRODUCTS.P1.id}`) {
-      return { data: { id: PRODUCTS.P1.id, sku: 'P1', slug: 'p1', name: { 'en-US': 'Screws 0200' }, status: 'active', type: 'simple' } };
+      return { data: { id: PRODUCTS.P1.id, sku: 'P1', slug: 'p1', name: 'Screws 0200', status: 'active', type: 'simple' } };
     }
     if (path === `/api/v1/admin/catalog/products/${PRODUCTS.P1.id}/variants`) return { data: [] };
     if (path === '/api/v1/admin/catalog/products') return { data: [], pagination: { page: 0, pageSize: 20, total: 0 } };

@@ -12,6 +12,7 @@ import {
 import { installOffsetParentShim } from '../../helpers/layout-shim';
 import core from '../../../../packages/modules/_i18n/i18n/en.json';
 import catalog from '../../../../packages/modules/catalog/i18n/en.json';
+import { scopedField, scopedValuesResponse } from '../../helpers/scoped-values-fixtures';
 
 /**
  * Feature 163, Phase 15a (T156u; FR-010, FR-019, FR-053; spec Session 2026-10-25,
@@ -30,6 +31,7 @@ import catalog from '../../../../packages/modules/catalog/i18n/en.json';
 const getSpy = vi.fn();
 const postSpy = vi.fn();
 const patchSpy = vi.fn();
+const putSpy = vi.fn();
 
 vi.mock('@endora-commerce/admin-kit/lib', async () => {
   const actual = await vi.importActual<typeof import('@endora-commerce/admin-kit/lib')>(
@@ -40,16 +42,12 @@ vi.mock('@endora-commerce/admin-kit/lib', async () => {
     apiClient: {
       get: (...args: unknown[]) => getSpy(...args),
       post: (...args: unknown[]) => postSpy(...args),
-      put: vi.fn(),
+      put: (...args: unknown[]) => putSpy(...args),
       patch: (...args: unknown[]) => patchSpy(...args),
       delete: vi.fn(),
     },
   };
 });
-
-vi.mock('../../../../packages/modules/catalog/src/admin/components/ProductScopeEditor', () => ({
-  ProductScopeEditor: vi.fn(() => null),
-}));
 
 // The focus assertions measure the dialog's focus trap, not jsdom's layout.
 installOffsetParentShim();
@@ -79,8 +77,8 @@ function product(overrides: { status?: 'active' | 'inactive'; archivedAt?: strin
     type: 'simple',
     status: overrides.status ?? 'active',
     archivedAt: overrides.archivedAt ?? null,
-    name: { 'en-US': 'Oak chair', 'pl-PL': '' },
-    description: { 'en-US': '', 'pl-PL': '' },
+    name: 'Oak chair',
+    description: '',
     visibility: 'public',
     attributeValues: {},
     attributeSetId: SET_ID,
@@ -89,6 +87,16 @@ function product(overrides: { status?: 'active' | 'inactive'; archivedAt?: strin
 
 let current: unknown = product();
 
+/** Feature 174 — the editor reads the product through `GET …/scoped-values` (T023 fixture). */
+function scopedRead(p: unknown) {
+  const row = p as { sku: string; status: 'active' | 'inactive'; archivedAt: string | null };
+  const base = scopedValuesResponse();
+  return scopedValuesResponse({
+    product: { ...base.data.product, sku: row.sku, attributeSetId: SET_ID, archivedAt: row.archivedAt },
+    fields: { name: scopedField('Oak chair', { required: true }), status: scopedField<'active' | 'inactive'>(row.status) },
+  });
+}
+
 function primeGets(): void {
   getSpy.mockImplementation((path: string) => {
     if (path.includes('/catalog/categories')) return Promise.resolve({ data: [] });
@@ -96,6 +104,8 @@ function primeGets(): void {
       return Promise.resolve({ data: [{ id: SET_ID, code: 'default', name: { 'en-US': 'Default' }, isSystem: true }] });
     }
     if (path === `/api/v1/admin/catalog/products/${PRODUCT_ID}`) return Promise.resolve({ data: current });
+    if (path.startsWith(`/api/v1/admin/catalog/products/${PRODUCT_ID}/scoped-values`)) return Promise.resolve(scopedRead(current));
+    if (path.endsWith('/editor-preference')) return Promise.resolve({ data: null });
     return Promise.resolve({ data: [] });
   });
 }
@@ -115,6 +125,27 @@ function renderEditor(options: { permissions?: readonly string[]; id?: string } 
   );
 }
 
+type User = ReturnType<typeof userEvent.setup>;
+
+/** Feature 174 (§11): Duplicate, Archive and Delete live in the captioned "Product" menu. */
+async function openProductMenu(user: User): Promise<void> {
+  await user.click(await screen.findByRole('button', { name: tr('productEditor.wholeProduct.menu') }));
+  await screen.findByRole('menu');
+}
+
+async function openArchive(user: User): Promise<void> {
+  await openProductMenu(user);
+  await user.click(screen.getByRole('menuitem', { name: tr('productEditor.action.archive') }));
+  await screen.findByRole('dialog');
+}
+
+/** The menu offers no Archive (archived product); closes the menu again. */
+async function expectNoArchiveInMenu(user: User): Promise<void> {
+  await openProductMenu(user);
+  expect(screen.queryByRole('menuitem', { name: tr('productEditor.action.archive') })).toBeNull();
+  await user.keyboard('{Escape}');
+}
+
 async function statusSelect(): Promise<HTMLSelectElement> {
   return (await screen.findByLabelText(tr('productEditor.field.status'))) as HTMLSelectElement;
 }
@@ -123,6 +154,7 @@ beforeEach(() => {
   getSpy.mockReset();
   postSpy.mockReset();
   patchSpy.mockReset();
+  putSpy.mockReset();
   current = product();
   primeGets();
 });
@@ -145,16 +177,20 @@ describe('ProductEditor — two status values (FR-010)', () => {
   it('a new product starts Inactive (Q1-d)', async () => {
     renderEditor({ id: 'new' });
     expect((await statusSelect()).value).toBe('inactive');
-    expect(screen.queryByRole('button', { name: tr('productEditor.action.archive') })).toBeNull();
+    expect(screen.queryByRole('button', { name: tr('productEditor.wholeProduct.menu') })).toBeNull();
   });
 
-  it('the duplicate confirmation no longer speaks of a draft', async () => {
-    const confirmSpy = vi.spyOn(window, 'confirm').mockReturnValue(false);
+  it('the duplicate confirmation says what is copied (FR-119) and no longer speaks of a draft', async () => {
     const user = userEvent.setup();
     renderEditor();
-    await user.click(await screen.findByRole('button', { name: /Duplicate/ }));
-    expect(confirmSpy).toHaveBeenCalledWith(tr('productEditor.duplicateConfirm'));
+    await openProductMenu(user);
+    await user.click(screen.getByRole('menuitem', { name: tr('productEditor.action.duplicate') }));
+    const dialog = await screen.findByRole('dialog', { name: tr('productEditor.duplicateTitle', { product: 'Oak chair' }) });
+    expect(dialog).toHaveAccessibleDescription(tr('productEditor.duplicateConfirm'));
+    expect(tr('productEditor.duplicateConfirm')).toMatch(/every scope .* except status and URL keys/);
     expect(tr('productEditor.duplicateConfirm')).not.toMatch(/draft/i);
+    await user.click(within(dialog).getByRole('button', { name: tr('productEditor.archive.cancel') }));
+    expect(screen.queryByRole('dialog')).toBeNull();
     expect(postSpy).not.toHaveBeenCalled();
   });
 });
@@ -165,10 +201,10 @@ describe('ProductEditor — Archive (FR-019)', () => {
     const user = userEvent.setup();
     renderEditor();
 
-    const archive = await screen.findByRole('button', { name: tr('productEditor.action.archive') });
+    await screen.findByRole('button', { name: tr('productEditor.wholeProduct.menu') });
     expect(screen.queryByRole('button', { name: tr('productEditor.action.restore') })).toBeNull();
     expect(screen.queryByTestId('product-archived-notice')).toBeNull();
-    await user.click(archive);
+    await openArchive(user);
 
     const dialog = screen.getByRole('dialog', { name: tr('productEditor.archive.confirmTitle') });
     // The dialog is described by the sentence that says what Archive does.
@@ -188,7 +224,7 @@ describe('ProductEditor — Archive (FR-019)', () => {
     expect(await screen.findByTestId('product-archived-notice')).toHaveTextContent(tr('productEditor.archived.title'));
     expect(screen.getByText(tr('productEditor.archive.done'))).toBeInTheDocument();
     expect(screen.getByRole('button', { name: tr('productEditor.action.restore') })).toBeInTheDocument();
-    expect(screen.queryByRole('button', { name: tr('productEditor.action.archive') })).toBeNull();
+    await expectNoArchiveInMenu(user);
     // The status is kept, drawn as a neutral outline beside the one coloured
     // Archived pill.
     expect((await statusSelect()).value).toBe('active');
@@ -201,13 +237,11 @@ describe('ProductEditor — Archive (FR-019)', () => {
   it('Cancel and Escape close the confirmation and send nothing', async () => {
     const user = userEvent.setup();
     renderEditor();
-    const archive = await screen.findByRole('button', { name: tr('productEditor.action.archive') });
-
-    await user.click(archive);
+    await openArchive(user);
     await user.click(screen.getByRole('button', { name: tr('productEditor.archive.cancel') }));
     expect(screen.queryByRole('dialog')).toBeNull();
 
-    await user.click(archive);
+    await openArchive(user);
     // Focus moves into the dialog (keyboard path), and Escape leaves it.
     await waitFor(() => expect(screen.getByRole('dialog').contains(document.activeElement)).toBe(true));
     await user.keyboard('{Escape}');
@@ -219,7 +253,7 @@ describe('ProductEditor — Archive (FR-019)', () => {
     postSpy.mockRejectedValue(new ApiError(404, { error: { code: 'PRODUCT_NOT_FOUND', message: 'Product not found.' } }));
     const user = userEvent.setup();
     renderEditor();
-    await user.click(await screen.findByRole('button', { name: tr('productEditor.action.archive') }));
+    await openArchive(user);
     const dialog = screen.getByRole('dialog');
     await user.click(within(dialog).getByRole('button', { name: tr('productEditor.archive.confirm') }));
     expect(await within(dialog).findByRole('alert')).toHaveTextContent('Product not found.');
@@ -233,13 +267,14 @@ describe('ProductEditor — an archived product and Restore (FR-019, O-5)', () =
   });
 
   it('says it is archived once, with Restore inside the notice, and the O-5 note at the selector', async () => {
+    const user = userEvent.setup();
     renderEditor();
     const notice = await screen.findByTestId('product-archived-notice');
     expect(notice).toHaveTextContent(`${tr('productEditor.archived.title')} ${tr('productEditor.archived.body')}`);
     expect(within(notice).getByRole('button', { name: tr('productEditor.action.restore') })).toBeInTheDocument();
     // Restore is offered once, in the notice; the header offers no Archive.
     expect(screen.getAllByRole('button', { name: tr('productEditor.action.restore') })).toHaveLength(1);
-    expect(screen.queryByRole('button', { name: tr('productEditor.action.archive') })).toBeNull();
+    await expectNoArchiveInMenu(user);
     // "Setting Active does not restore" is said once, at the selector.
     const said = document.body.textContent!.split(tr('productEditor.field.status.archivedNote')).length - 1;
     expect(said).toBe(1);
@@ -265,20 +300,24 @@ describe('ProductEditor — an archived product and Restore (FR-019, O-5)', () =
     );
     await waitFor(() => expect(screen.queryByTestId('product-archived-notice')).toBeNull());
     expect(screen.getByText(tr('productEditor.restore.done'))).toBeInTheDocument();
-    expect(screen.getByRole('button', { name: tr('productEditor.action.archive') })).toBeInTheDocument();
+    await openProductMenu(user);
+    expect(screen.getByRole('menuitem', { name: tr('productEditor.action.archive') })).toBeInTheDocument();
   });
 
-  it('saving with status Active sends the status only and leaves the product archived', async () => {
-    patchSpy.mockResolvedValue({ data: current });
+  it('saving a status sends the status only and leaves the product archived', async () => {
+    // Feature 174 — the one Save is `PUT …/scoped-values` with the staged cells only.
+    putSpy.mockImplementation(async (path: string) =>
+      path.endsWith('/scoped-values') ? { ...scopedRead(current), warnings: [] } : { data: null },
+    );
     const user = userEvent.setup();
     renderEditor();
     await screen.findByTestId('product-archived-notice');
-    await user.click(screen.getByRole('button', { name: /Save/ }));
-    await waitFor(() => expect(patchSpy).toHaveBeenCalledTimes(1));
-    const [, body] = patchSpy.mock.calls[0] as [string, Record<string, unknown>];
-    expect(body['status']).toBe('active');
-    expect(body).not.toHaveProperty('archived');
-    expect(body).not.toHaveProperty('archivedAt');
+    await user.selectOptions(await statusSelect(), 'inactive');
+    await user.click(screen.getByRole('button', { name: /^Save/ }));
+    await waitFor(() => expect(putSpy).toHaveBeenCalledWith(expect.stringMatching(/\/scoped-values$/), expect.anything()));
+    const [, body] = putSpy.mock.calls.find(([path]) => String(path).endsWith('/scoped-values')) as [string, { changes: Record<string, unknown> }];
+    expect(body.changes).toEqual({ status: 'inactive' });
+    expect(patchSpy).not.toHaveBeenCalled();
     expect(postSpy).not.toHaveBeenCalled();
     expect(await screen.findByTestId('product-archived-notice')).toBeInTheDocument();
   });
@@ -289,7 +328,9 @@ describe('ProductEditor — catalog:read only', () => {
     current = product({ archivedAt: '2026-10-20T00:00:00.000Z' });
     renderEditor({ permissions: ['catalog:read'] });
     expect(await screen.findByTestId('product-archived-notice')).toBeInTheDocument();
-    expect(screen.queryByRole('button', { name: tr('productEditor.action.archive') })).toBeNull();
+    // T110: no "Product" menu (Duplicate, Archive, Delete) and no Save without catalog:write.
+    expect(screen.queryByRole('button', { name: tr('productEditor.wholeProduct.menu') })).toBeNull();
+    expect(screen.queryByRole('button', { name: /^Save/ })).toBeNull();
     expect(screen.queryByRole('button', { name: tr('productEditor.action.restore') })).toBeNull();
   });
 });

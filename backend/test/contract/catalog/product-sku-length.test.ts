@@ -56,8 +56,8 @@ describe('Admin catalog contract — feature 068 SKU length (T011)', () => {
       payload: {
         sku,
         type,
-        name: { 'en-US': `Long SKU ${sku.slice(0, 16)}` },
-        description: { 'en-US': '' },
+        name: `Long SKU ${sku.slice(0, 16)}`,
+        description: '',
         categoryIds: [],
         attributeValues: {},
         visibility: 'public',

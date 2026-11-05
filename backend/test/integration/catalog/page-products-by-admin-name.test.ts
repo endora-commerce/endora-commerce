@@ -9,9 +9,10 @@ import { seedBulkProductsSql } from '../../helpers/price-book-bulk.js';
  * Feature 161, G15 redesign (`research.md` R14) — `catalogProductReadPort.pageProductsByAdminName`:
  * one page of the products a caller's **membership seam** names (a subquery the
  * caller owns, embedded by the catalogue as a hashed probe), ordered by the
- * stored admin name key of the admin language, then SKU, then id, with the
+ * stored admin name key (feature 174: one key over the Global name, whatever the admin
+ * language), then SKU, then id, with the
  * total; narrowed by a search over the stored search key (name and SKU) or a
- * variant's SKU. `en` and `pl` have keys; any other language reads `en`.
+ * variant's SKU.
  *
  * Two strategies answer a search — the trigram hits sorted (few matches) or
  * the ordered index walk (many) — and they must answer identical pages, which
@@ -32,14 +33,14 @@ describe('CatalogProductReadService.pageProductsByAdminName (161 G15)', () => {
     dense = new CatalogProductReadService(h.em, { sparseSearchLimit: 0 });
     sparse = new CatalogProductReadService(h.em, { sparseSearchLimit: Number.MAX_SAFE_INTEGER });
     const em = h.em();
-    const make = (key: string, sku: string, name: Record<string, string>, extra: Record<string, unknown> = {}) => {
+    const make = (key: string, sku: string, name: string, extra: Record<string, unknown> = {}) => {
       const p = em.create(Product, {
         sku: `${sku}-${stamp}`,
         slug: `g15n-${key.toLowerCase()}-${stamp.toLowerCase()}`,
         type: 'simple',
         status: 'active',
         name,
-        description: { 'en-US': '' },
+        description: '',
         visibility: 'public',
         attributeValues: {},
         ...extra,
@@ -48,14 +49,14 @@ describe('CatalogProductReadService.pageProductsByAdminName (161 G15)', () => {
       return p;
     };
     await em.persistAndFlush([
-      make('anchor', 'G15N-A', { 'en-US': 'Anchor' }),
-      make('bolt2', 'G15N-B2', { 'en-US': 'Bolt' }),
-      make('bolt1', 'G15N-B1', { 'en-US': 'Bolt' }),
-      make('brick', 'G15N-C', { 'pl-PL': 'Wkręt', 'en-US': 'Brick' }),
-      make('lacznik', 'G15N-L', { 'pl-PL': 'Łącznik' }),
-      make('empty', 'G15N-E', {}),
-      make('gone', 'G15N-F', { 'en-US': 'Fastener' }, { deletedAt: new Date(), status: 'inactive' }),
-      make('outside', 'G15N-O', { 'en-US': 'Aardvark' }),
+      make('anchor', 'G15N-A', 'Anchor'),
+      make('bolt2', 'G15N-B2', 'Bolt'),
+      make('bolt1', 'G15N-B1', 'Bolt'),
+      make('brick', 'G15N-C', 'Brick'),
+      make('lacznik', 'G15N-L', 'Łącznik'),
+      make('empty', 'G15N-E', ''),
+      make('gone', 'G15N-F', 'Fastener', { deletedAt: new Date(), status: 'inactive' }),
+      make('outside', 'G15N-O', 'Aardvark'),
     ]);
     await em.persistAndFlush(em.create(ProductVariant, { parentProductId: ids['anchor']!, sku: `G15N-AV-${stamp}`, variantAttributeValues: {} }));
     const members = Object.entries(ids).filter(([k]) => k !== 'outside').map(([, id]) => id);
@@ -66,29 +67,22 @@ describe('CatalogProductReadService.pageProductsByAdminName (161 G15)', () => {
     await teardownBackendServer(h);
   });
 
-  const page = (svc: CatalogProductReadService, query: { language: string | null; search?: string; offset?: number; limit?: number }) =>
-    svc.pageProductsByAdminName({ membership, language: query.language, ...(query.search ? { search: query.search } : {}), offset: query.offset ?? 0, limit: query.limit ?? 50 });
+  const page = (svc: CatalogProductReadService, query: { language?: string | null; search?: string; offset?: number; limit?: number }) =>
+    svc.pageProductsByAdminName({ membership, ...(query.search ? { search: query.search } : {}), offset: query.offset ?? 0, limit: query.limit ?? 50 });
 
   it('orders the members by the English key, then SKU, with the total; non-members absent', async () => {
     const answer = await page(port, { language: 'en' });
     expect(answer.total).toBe(7);
     // anchor, bolt (B1), bolt (B2), brick, fastener (soft-deleted, listed), g15n-e-… (no name: its SKU),
-    // then the Polish-only product (`lacznik` above), whose name falls back to Polish and folds to "lacznik"
+    // then `Łącznik`, which folds to "lacznik"
     expect(answer.ids).toEqual([ids['anchor'], ids['bolt1'], ids['bolt2'], ids['brick'], ids['gone'], ids['empty'], ids['lacznik']]);
   });
 
-  it('orders by the Polish key for pl, and an unknown language reads en', async () => {
-    expect((await page(port, { language: 'pl' })).ids).toEqual([
-      ids['anchor'],
-      ids['bolt1'],
-      ids['bolt2'],
-      ids['gone'],
-      ids['empty'],
-      ids['lacznik'],
-      ids['brick'],
-    ]);
-    expect((await page(port, { language: 'de' })).ids).toEqual((await page(port, { language: 'en' })).ids);
-    expect((await page(port, { language: null })).ids).toEqual((await page(port, { language: 'en' })).ids);
+  it('answers one order whatever the admin language (174, FR-031)', async () => {
+    const en = (await page(port, { language: 'en' })).ids;
+    expect((await page(port, { language: 'pl' })).ids).toEqual(en);
+    expect((await page(port, { language: 'de' })).ids).toEqual(en);
+    expect((await page(port, { language: null })).ids).toEqual(en);
   });
 
   it('pages by offset and limit, the total unchanged', async () => {
@@ -115,7 +109,7 @@ describe('CatalogProductReadService.pageProductsByAdminName (161 G15)', () => {
         [1, 2],
         [5, 50],
       ] as const) {
-        const query = { language: 'en', search, offset, limit };
+        const query = { search, offset, limit };
         expect(await page(dense, query), `${search} ${offset}`).toEqual(await page(sparse, query));
       }
     }
@@ -132,7 +126,7 @@ describe('CatalogProductReadService.pageProductsByAdminName (161 G15)', () => {
     const bulk = await seedBulkProductsSql(h.em(), { count: 3000, namePrefix: `Deep ${stamp}`, skuPrefix: `G15W-${stamp}`, words: ['Screw', 'Bolt', 'Nut'] });
     const deep = { sql: 'select m.id from unnest(?::uuid[]) as m(id)', params: [`{${bulk.join(',')}}`] };
     const at = (svc: CatalogProductReadService, search: string | undefined, offset: number) =>
-      svc.pageProductsByAdminName({ membership: deep, language: 'en', ...(search ? { search } : {}), offset, limit: 100 });
+      svc.pageProductsByAdminName({ membership: deep, ...(search ? { search } : {}), offset, limit: 100 });
     for (const [search, offset] of [
       [undefined, 2900],
       [undefined, 1500],
@@ -155,12 +149,12 @@ describe('CatalogProductReadService.pageProductsByAdminName (161 G15)', () => {
       return original(...args);
     };
     try {
-      await dense.pageProductsByAdminName({ membership, language: 'en', search: 'g15n', offset: 1, limit: 2 });
-      await port.pageProductsByAdminName({ membership, language: 'en', offset: 1, limit: 2 });
+      await dense.pageProductsByAdminName({ membership, search: 'g15n', offset: 1, limit: 2 });
+      await port.pageProductsByAdminName({ membership, offset: 1, limit: 2 });
     } finally {
       conn.execute = original;
     }
-    const pages = seen.map((sql, i) => ({ sql, i })).filter(({ sql }) => /order by (p\."admin_name_key_en"|h\."k")/.test(sql));
+    const pages = seen.map((sql, i) => ({ sql, i })).filter(({ sql }) => /order by (p\."admin_name_key"|h\."k")/.test(sql));
     expect(pages).toHaveLength(2);
     expect(pages.map(({ i }) => seen[i - 1])).toEqual(['set local enable_sort = off', 'set local enable_sort = off']);
   });
