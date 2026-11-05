@@ -479,7 +479,12 @@ export async function saveCartItemToShoppingList(
 export interface OrgCartSummary {
   id: string;
   ownerCustomerAccountId: string;
+  /** The owner's name — the e-mail when the account has none (issue #751). */
   ownerDisplayName: string;
+  /** Shown beside the name; `null` when the account is gone (issue #751). */
+  ownerEmail: string | null;
+  /** The order a completed cart produced; `null` otherwise (issue #751). */
+  orderId: string | null;
   status: 'active' | 'abandoned' | 'completed' | 'rejected';
   approvalStatus: 'not_required' | 'pending' | 'approved' | 'rejected_by_org_admin';
   itemCount: number;

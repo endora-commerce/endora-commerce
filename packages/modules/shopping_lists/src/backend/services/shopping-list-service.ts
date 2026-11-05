@@ -1,5 +1,5 @@
 import type { EntityManager } from '@mikro-orm/postgresql';
-import { ERROR_CODES, isProductVisibleTo, scopeLanguageOf } from '@endora-commerce/contracts';
+import { ERROR_CODES, SHOPPING_LIST_AUTO_DEFAULT_NAME, isProductVisibleTo, scopeLanguageOf } from '@endora-commerce/contracts';
 import type {
   CartWritePort,
   CatalogProductAvailabilityPort,
@@ -157,7 +157,7 @@ export class ShoppingListService {
       return earliest;
     }
 
-    const created = em.create(ShoppingList, { ...where, name: 'Default', isDefault: true });
+    const created = em.create(ShoppingList, { ...where, name: SHOPPING_LIST_AUTO_DEFAULT_NAME, isDefault: true });
     await em.persistAndFlush(created);
     return created;
   }

@@ -5,7 +5,6 @@ import {
 } from '../../../../lib/api/cart';
 import { getSessionCookie, getAnonCartCookie } from '../../../../lib/session';
 import { getMe } from '../../../../lib/api/account';
-import { formatMoney } from '../../../../lib/i18n/money';
 import type { Metadata } from 'next';
 import { localeRedirect } from '../../../../lib/i18n/navigation';
 import { getServerContext } from '../../../../lib/server-context';
@@ -14,6 +13,8 @@ import { codeLabel } from '../../../../lib/account/labels';
 import { format } from '../../../../lib/i18n/format';
 import { LocalizedLink } from '../../../../lib/i18n/localized-link';
 import { organizationAreaAccess } from '../../../../lib/account/organization-area';
+import { NetMoney, OrgCartOwner } from '../../../../components/account/OrgCartParts';
+import { orgCartOrderHref } from '../../../../lib/account/org-cart-order';
 
 /**
  * Not indexed (`specs/098-storefront-ssr-seo-a11y-suite/`, FR-010): an
@@ -118,40 +119,61 @@ export default async function OrganizationCartsPage({
             </tr>
           </thead>
           <tbody>
-            {carts.map((cart) => (
-              <tr key={cart.id}>
-                <td>{cart.ownerDisplayName}</td>
-                <td>
-                  <span className={`b2b-cart-status b2b-cart-status--${cart.status}`}>
-                    {codeLabel(t, 'account.cartStatus', cart.status)}
-                  </span>
-                </td>
-                <td>
-                  <span
-                    className={`b2b-cart-approval b2b-cart-approval--${cart.approvalStatus}`}
-                  >
-                    {codeLabel(t, 'account.cartApprovalStatus', cart.approvalStatus)}
-                  </span>
-                </td>
-                <td>{cart.itemCount}</td>
-                <td>
-                  {formatMoney(cart.total.amount, cart.total.currency)}
-                </td>
-                <td>{new Date(cart.lastActivityAt).toLocaleString(locale)}</td>
-                <td>
-                  {cart.submittedForApprovalAt
-                    ? new Date(cart.submittedForApprovalAt).toLocaleString(locale)
-                    : '—'}
-                </td>
-                <td>
-                  <LocalizedLink href={`/organization/carts/${encodeURIComponent(cart.id)}`}>
-                    {cart.approvalStatus === 'pending'
-                      ? t('account.orgCarts.review')
-                      : t('account.common.open')}
-                  </LocalizedLink>
-                </td>
-              </tr>
-            ))}
+            {carts.map((cart) => {
+              const orderHref = orgCartOrderHref(cart, me.customerAccount);
+              return (
+                <tr key={cart.id}>
+                  <td>
+                    <OrgCartOwner name={cart.ownerDisplayName} email={cart.ownerEmail} />
+                  </td>
+                  <td>
+                    <span className={`b2b-cart-status b2b-cart-status--${cart.status}`}>
+                      {codeLabel(t, 'account.cartStatus', cart.status)}
+                    </span>
+                  </td>
+                  <td>
+                    <span
+                      className={`b2b-cart-approval b2b-cart-approval--${cart.approvalStatus}`}
+                    >
+                      {codeLabel(t, 'account.cartApprovalStatus', cart.approvalStatus)}
+                    </span>
+                  </td>
+                  {/* Issue #751 — an order empties the cart it was placed from, so a
+                      completed cart's count and total are not zero: they are the
+                      order's, linked for a viewer the order page answers, and
+                      otherwise not here. */}
+                  {orderHref ? (
+                    <td colSpan={2}>
+                      <LocalizedLink href={orderHref}>{t('account.orgCart.viewOrder')}</LocalizedLink>
+                    </td>
+                  ) : (
+                    <>
+                      <td>{cart.status === 'completed' ? '—' : cart.itemCount}</td>
+                      <td>
+                        {cart.status === 'completed' ? (
+                          '—'
+                        ) : (
+                          <NetMoney money={cart.total} netLabel={t('commerce.common.net')} />
+                        )}
+                      </td>
+                    </>
+                  )}
+                  <td>{new Date(cart.lastActivityAt).toLocaleString(locale)}</td>
+                  <td>
+                    {cart.submittedForApprovalAt
+                      ? new Date(cart.submittedForApprovalAt).toLocaleString(locale)
+                      : '—'}
+                  </td>
+                  <td>
+                    <LocalizedLink href={`/organization/carts/${encodeURIComponent(cart.id)}`}>
+                      {cart.approvalStatus === 'pending'
+                        ? t('account.orgCarts.review')
+                        : t('account.common.open')}
+                    </LocalizedLink>
+                  </td>
+                </tr>
+              );
+            })}
           </tbody>
         </table>
       )}

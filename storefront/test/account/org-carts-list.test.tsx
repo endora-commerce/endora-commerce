@@ -10,6 +10,7 @@ import type { OrgCartSummary } from '../../lib/api/cart';
 let locale = 'en-US';
 let isPersonal = false;
 let permissions: string[] = ['carts.approve'];
+let roleKind = 'custom';
 let carts: OrgCartSummary[] = [];
 const filters: unknown[] = [];
 
@@ -29,7 +30,7 @@ vi.mock('../../lib/api/account', () => ({
   getMe: async () => ({
     customerAccount: {
       id: 'buyer-1',
-      organizationRole: { id: 'role-1', kind: 'custom', name: 'Purchasing' },
+      organizationRole: { id: 'role-1', kind: roleKind, name: 'Purchasing' },
       permissions,
     },
     organization: { id: 'org-1', name: 'Acme', isPersonal },
@@ -49,6 +50,8 @@ function summary(id: string, approvalStatus: OrgCartSummary['approvalStatus']): 
     id,
     ownerCustomerAccountId: `owner-${id}`,
     ownerDisplayName: `${id}@acme.example`,
+    ownerEmail: `${id}@acme.example`,
+    orderId: null,
     status: 'active',
     approvalStatus,
     itemCount: 1,
@@ -69,6 +72,7 @@ beforeEach(() => {
   filters.length = 0;
   isPersonal = false;
   permissions = ['carts.approve'];
+  roleKind = 'custom';
 });
 
 /**
@@ -127,5 +131,106 @@ describe('organization carts list — issue #650', () => {
     expect(html).toContain(empty);
     expect(html).toContain(pendingTab);
     expect(html).toContain(allTab);
+  });
+});
+
+/**
+ * Issue #751 — presentation fixes from the feature 170 demo review: the owner
+ * is named as on the members page, a completed cart does not read as an empty
+ * one, and the total says it is net.
+ */
+describe('organization carts list — issue #751', () => {
+  it.each(['en-US', 'pl-PL'])('names the owner by full name, the e-mail beside it (%s)', async (l) => {
+    locale = l;
+    carts = [{ ...summary('c1', 'pending'), ownerDisplayName: 'Jan Kowalski', ownerEmail: 'jan@acme.example' }];
+    const html = await render();
+    expect(html).toMatch(/<td>Jan Kowalski<small[^>]*>jan@acme\.example<\/small><\/td>/);
+  });
+
+  it('does not repeat the e-mail when the owner has no name to show', async () => {
+    carts = [summary('c1', 'pending')];
+    const html = await render();
+    expect(html.split('c1@acme.example')).toHaveLength(2);
+  });
+
+  it.each(['en-US', 'pl-PL'])('leaves the items and total of a completed cart empty, not zero (%s)', async (l) => {
+    locale = l;
+    carts = [
+      {
+        ...summary('c3', 'not_required'),
+        status: 'completed',
+        itemCount: 0,
+        total: { amount: 0, currency: 'PLN' },
+      },
+    ];
+    const html = await render();
+    expect(html).not.toMatch(/<td>0<\/td>/);
+    expect(html).not.toContain('0,00');
+    expect(html).toMatch(/<\/span><\/td><td>—<\/td><td>—<\/td>/);
+  });
+
+  it.each([
+    ['en-US', 'net'],
+    ['pl-PL', 'netto'],
+  ])('labels the total as net, as the cart page does (%s)', async (l, net) => {
+    locale = l;
+    carts = [summary('c1', 'pending')];
+    const html = await render();
+    expect(html).toMatch(new RegExp(`10,00\\s*zł<span[^>]*>${net}</span>`));
+  });
+});
+
+/**
+ * Owner ruling on PR #760 (issue #751): a completed cart links to the order it
+ * produced — only for a viewer the order page would answer: the Administrator,
+ * a role holding `orders.view_organization`, or the order's own buyer. Anyone
+ * else keeps the empty cells; the order page would say "not found".
+ */
+describe('organization carts list — a completed cart links to its order (issue #751)', () => {
+  const completed = (owner = 'owner-c3'): OrgCartSummary => ({
+    ...summary('c3', 'not_required'),
+    ownerCustomerAccountId: owner,
+    status: 'completed',
+    itemCount: 0,
+    total: { amount: 0, currency: 'PLN' },
+    orderId: '00000000-0000-4000-8000-000000000751',
+  });
+  const link = (text: string): RegExp =>
+    new RegExp(`<td colSpan="2"><a[^>]*href="/orders/00000000-0000-4000-8000-000000000751"[^>]*>${text}</a></td>`, 'i');
+
+  it.each([
+    ['en-US', 'View order'],
+    ['pl-PL', 'Zobacz zamówienie'],
+  ])('links it for a role holding orders.view_organization (%s)', async (l, text) => {
+    locale = l;
+    permissions = ['carts.approve', 'orders.view_organization'];
+    carts = [completed()];
+    expect(await render()).toMatch(link(text));
+  });
+
+  it('links it for the Administrator', async () => {
+    roleKind = 'administrator';
+    carts = [completed()];
+    expect(await render()).toMatch(link('View order'));
+  });
+
+  it('links it for the buyer who placed the order', async () => {
+    carts = [completed('buyer-1')];
+    expect(await render()).toMatch(link('View order'));
+  });
+
+  it('keeps the empty cells for a viewer the order page would not answer', async () => {
+    carts = [completed()];
+    const html = await render();
+    expect(html).not.toContain('/orders/');
+    expect(html).toMatch(/<\/span><\/td><td>—<\/td><td>—<\/td>/);
+  });
+
+  it('keeps the empty cells for a completed cart that names no order', async () => {
+    permissions = ['carts.approve', 'orders.view_organization'];
+    carts = [{ ...completed(), orderId: null }];
+    const html = await render();
+    expect(html).not.toContain('/orders/');
+    expect(html).toMatch(/<\/span><\/td><td>—<\/td><td>—<\/td>/);
   });
 });

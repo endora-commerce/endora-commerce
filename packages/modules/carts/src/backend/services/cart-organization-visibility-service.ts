@@ -11,6 +11,7 @@ import { Cart } from '../entities/cart.entity.js';
 import { CartItem } from '../entities/cart-item.entity.js';
 import { cartTotalsByCart } from './cart-money.js';
 import { readOrganizationCarts } from './organization-cart-reach.js';
+import { cartOwnerIdentity } from './cart-owner-identity.js';
 
 /**
  * Organization-Administrator visibility surface (feature 027 US4).
@@ -34,8 +35,9 @@ export class CartOrganizationVisibilityService {
     private readonly emFactory: () => EntityManager,
     /**
      * `customer_accounts`' read model (feature 075, Phase C). The org-admin
-     * cart list renders each cart's owner by e-mail, and it read the account
-     * row itself — out of a table deactivation leaves in place.
+     * cart list names each cart's owner (issue #751: by name, the e-mail
+     * beside it), and it read the account row itself — out of a table
+     * deactivation leaves in place.
      */
     private readonly customerAccounts: CustomerAccountReadPort,
   ) {}
@@ -85,7 +87,8 @@ export class CartOrganizationVisibilityService {
           return {
             id: cart.id,
             ownerCustomerAccountId: cart.customerAccountId!,
-            ownerDisplayName: owner?.email ?? cart.customerAccountId!,
+            ...cartOwnerIdentity(owner, cart.customerAccountId!),
+            orderId: cart.completedOrderId ?? null,
             status: cart.status,
             approvalStatus: cart.approvalStatus,
             itemCount: ic.count,

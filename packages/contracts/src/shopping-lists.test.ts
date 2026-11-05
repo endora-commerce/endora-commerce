@@ -1,5 +1,5 @@
 import { describe, expect, it } from 'vitest';
-import { toCartDroppedLines } from './shopping-lists.js';
+import { SHOPPING_LIST_AUTO_DEFAULT_NAME, isAutoDefaultShoppingList, toCartDroppedLines } from './shopping-lists.js';
 
 /**
  * Feature 155 (FR-011, US4 #3) — a list's skipped items as the carts bridge's
@@ -31,5 +31,23 @@ describe('toCartDroppedLines', () => {
       { productId: 'p-2', productName: 'p-2', reason: 'not_purchasable' },
       { productId: 'p-3', productName: 'p-3', reason: 'not_purchasable' },
     ]);
+  });
+});
+
+/**
+ * Issue #751 (owner ruling on PR #760) — the list the platform creates for
+ * every customer, while it is still the untouched default: the default flag
+ * and the stored name together.
+ */
+describe('isAutoDefaultShoppingList', () => {
+  it('is the default list still carrying the name the platform gave it', () => {
+    expect(SHOPPING_LIST_AUTO_DEFAULT_NAME).toBe('Default');
+    expect(isAutoDefaultShoppingList({ name: 'Default', isDefault: true })).toBe(true);
+  });
+
+  it('is not a renamed default, nor a list of that name that is not the default', () => {
+    expect(isAutoDefaultShoppingList({ name: 'Biuro', isDefault: true })).toBe(false);
+    expect(isAutoDefaultShoppingList({ name: 'default', isDefault: true })).toBe(false);
+    expect(isAutoDefaultShoppingList({ name: 'Default', isDefault: false })).toBe(false);
   });
 });

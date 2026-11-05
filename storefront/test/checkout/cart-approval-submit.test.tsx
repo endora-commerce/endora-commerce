@@ -189,3 +189,26 @@ describe('cart page — actions per the member’s role', () => {
     expect(await render()).not.toContain(saveToList);
   });
 });
+
+/**
+ * Issue #751 — the subtitle under the heading follows the approval state: a
+ * basket that must be sent, or is waiting for an answer, is not "ready for
+ * checkout".
+ */
+describe('cart page — the subtitle follows the approval state (issue #751)', () => {
+  it.each([
+    ['en-US', 'not_required', 'checkout', '1 item ready for checkout.'],
+    ['en-US', 'not_required', 'submit_for_approval', '1 item needs approval before checkout.'],
+    ['en-US', 'pending', 'awaiting_approval', '1 item awaiting approval.'],
+    ['en-US', 'not_required', 'blocked_by_organization', '1 item in your cart.'],
+    ['pl-PL', 'approved', 'checkout', '1 pozycja gotowa do kasy.'],
+    ['pl-PL', 'not_required', 'submit_for_approval', '1 pozycja wymaga akceptacji przed przejściem do kasy.'],
+    ['pl-PL', 'pending', 'awaiting_approval', '1 pozycja oczekuje na akceptację.'],
+    ['pl-PL', 'not_required', 'blocked_by_organization', '1 pozycja w koszyku.'],
+  ] as const)('%s, %s / %s', async (l, approvalStatus, primaryCta, subtitle) => {
+    locale = l;
+    cart = basket({ approvalStatus, primaryCta });
+    const html = await render();
+    expect(html).toContain(`<p class="mt-1 text-[13px] text-muted">${subtitle}</p>`);
+  });
+});

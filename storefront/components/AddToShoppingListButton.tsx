@@ -15,6 +15,7 @@ import {
 } from '../lib/actions/shoppingList';
 import { useLocalizedPath, useUrlLanguageState } from '../lib/i18n/localized-link';
 import { tForLocale } from '../lib/i18n/messages';
+import { shoppingListDisplayName } from '../lib/shopping-list-name';
 import { format } from '../lib/i18n/format';
 
 /**
@@ -185,7 +186,7 @@ export function AddToShoppingListButton(props: {
       setInList(fresh.byProduct.has(props.productId));
       emitActionEvents('add_to_shopping_list', { sku: props.productId, quantity: props.quantity ?? 1 });
       window.dispatchEvent(new CustomEvent('b2b:shopping-list:changed'));
-      setAddedTo(option.name);
+      setAddedTo(shoppingListDisplayName(option, t));
       window.setTimeout(() => setAddedTo(null), 2200);
       setState('idle');
     } catch {
@@ -243,7 +244,7 @@ export function AddToShoppingListButton(props: {
                   disabled={state === 'busy'}
                   className="flex w-full items-center justify-between gap-3 px-3 py-2 text-left text-[13px] text-fg hover:bg-surface-alt"
                 >
-                  <span className="truncate">{l.name}</span>
+                  <span className="truncate">{shoppingListDisplayName(l, t)}</span>
                   {l.isDefault ? (
                     <span className="shrink-0 text-[11px] text-muted">{t('account.shoppingListButton.default')}</span>
                   ) : null}

@@ -49,6 +49,7 @@ const list: ShoppingList = {
 };
 
 let lists: ShoppingList[] = [];
+let detailList: ShoppingList = list;
 
 // Offline (170 WP-10): the page reads the member's role through `/api/v1/me`; answered here
 // for a member whose role allows every commerce action, so the page renders as it always did.
@@ -76,7 +77,7 @@ vi.mock('../../../lib/api/shopping-lists', () => ({
   createShoppingList: async () => list,
   deleteShoppingList: async () => undefined,
   setDefaultShoppingList: async () => undefined,
-  getShoppingList: async () => list,
+  getShoppingList: async () => detailList,
   clearShoppingListItems: async () => undefined,
   convertShoppingListToCart: async () => ({ added: 0, skipped: [] }),
   convertShoppingListToRfq: async () => ({ rfqId: 'r', added: 0, skipped: [] }),
@@ -106,6 +107,7 @@ async function renderDetail(sp: Record<string, string> = {}): Promise<string> {
 beforeEach(() => {
   seeded = [];
   lists = [];
+  detailList = list;
 });
 
 describe('shopping-list overview — the shop language (issue #85)', () => {
@@ -123,6 +125,9 @@ describe('shopping-list overview — the shop language (issue #85)', () => {
     locale = 'pl-PL';
     const pl = visibleText(renderToString(<>{await Page({ searchParams: Promise.resolve({}) })}</>));
     expect(pl).toContain('Listy zakupów');
+    // Issue #751 — the column holds the list's name, not a person's.
+    expect(pl).toContain('Nazwa Pozycje Zaktualizowano Domyślna');
+    expect(pl).not.toContain('Imię i nazwisko');
     expect(pl).toContain('Utwórz nową listę');
     expect(pl).toContain('Domyślna');
     expect(pl).toContain('Ustaw jako domyślną');
@@ -273,5 +278,56 @@ describe('shopping-list heart — the shop language (issue #85)', () => {
     expect(
       visibleText(renderToString(<AddToShoppingListButton apiBase="" productId="p1" label="Dodaj" locale="pl-PL" />)),
     ).toContain('Nie udało się zmienić listy');
+  });
+});
+
+/**
+ * Owner ruling on PR #760 (issue #751, 2026-11-05): the list the platform
+ * creates for every customer is stored as `Default`; while it is still that
+ * untouched default it is named in the shop language on screen. A list the
+ * customer renamed keeps their name, and nothing stored changes.
+ */
+describe('shopping lists — the auto-created default list is named in the shop language (issue #751)', () => {
+  // A record id: the detail page answers "not found" for anything else (#752).
+  const LD = '00000000-0000-4000-8000-0000000007d1';
+  const autoDefault: ShoppingList = { ...list, id: LD, name: 'Default', isDefault: true };
+
+  it.each([
+    ['en-US', 'Default'],
+    ['pl-PL', 'Domyślna'],
+  ])('names it in the overview and on its page (%s)', async (l, name) => {
+    const { default: Page } = await import('../../../app/(account)/shopping-lists/page');
+    locale = l;
+    lists = [autoDefault];
+    const html = renderToString(<>{await Page({ searchParams: Promise.resolve({}) })}</>);
+    expect(html).toContain(`href="/shopping-lists/${LD}">${name}</a>`);
+    detailList = autoDefault;
+    const detail = renderToString(
+      <>{await (await import('../../../app/(account)/shopping-lists/[id]/page')).default({
+        params: Promise.resolve({ id: LD }),
+        searchParams: Promise.resolve({}),
+      })}</>,
+    );
+    expect(detail).toContain(`<h2>${name}</h2>`);
+  });
+
+  it('keeps the name of a default list the customer renamed, in Polish too', async () => {
+    const { default: Page } = await import('../../../app/(account)/shopping-lists/page');
+    locale = 'pl-PL';
+    lists = [{ ...autoDefault, name: 'Biuro' }];
+    const html = renderToString(<>{await Page({ searchParams: Promise.resolve({}) })}</>);
+    expect(html).toContain(`href="/shopping-lists/${LD}">Biuro</a>`);
+    expect(html).not.toContain('>Domyślna</a>');
+  });
+
+  // The marker is the default flag plus the stored name (no column records
+  // "never renamed"): a list named `Default` that is not the default is a
+  // name like any other.
+  it('does not translate a list named "Default" that is not the default one', async () => {
+    const { default: Page } = await import('../../../app/(account)/shopping-lists/page');
+    locale = 'pl-PL';
+    lists = [{ ...autoDefault, isDefault: false }];
+    const html = renderToString(<>{await Page({ searchParams: Promise.resolve({}) })}</>);
+    expect(html).toContain(`href="/shopping-lists/${LD}">Default</a>`);
   });
 });

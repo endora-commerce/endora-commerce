@@ -23,6 +23,7 @@ import {
   shoppingListSkipLabel,
 } from '../../../../lib/batchReport';
 import { tForLocale, type MessageKey } from '../../../../lib/i18n/messages';
+import { shoppingListDisplayName } from '../../../../lib/shopping-list-name';
 import { format } from '../../../../lib/i18n/format';
 import { formatCount } from '../../../../lib/orderMinimum';
 import { pluralKey, richText } from '../../../../lib/account/labels';
@@ -130,7 +131,7 @@ export default async function ShoppingListDetailPage({
 
   return (
     <>
-      <h2>{list.name}</h2>
+      <h2>{shoppingListDisplayName(list, t)}</h2>
       <p>
         <LocalizedLink href="/shopping-lists">{t('account.shoppingList.backToLists')}</LocalizedLink>
       </p>
@@ -189,7 +190,7 @@ export default async function ShoppingListDetailPage({
             <input
               id="rename"
               name="name"
-              defaultValue={list.name}
+              defaultValue={shoppingListDisplayName(list, t)}
               required
               maxLength={160}
               className="w-full rounded-md border border-line px-3 py-2 text-sm"

@@ -120,7 +120,9 @@ describe('orgCartDetailViewSchema (issue #650)', () => {
   const DETAIL = {
     id: '00000000-0000-4000-8000-000000000030',
     ownerCustomerAccountId: '00000000-0000-4000-8000-000000000031',
-    ownerDisplayName: 'buyer@example.com',
+    ownerDisplayName: 'Jan Kowalski',
+    ownerEmail: 'buyer@example.com',
+    orderId: null,
     status: 'active',
     approvalStatus: 'pending',
     itemCount: 1,
@@ -146,6 +148,23 @@ describe('orgCartDetailViewSchema (issue #650)', () => {
 
   it('accepts the detail with its lines', () => {
     expect(orgCartDetailViewSchema.safeParse(DETAIL).success).toBe(true);
+  });
+
+  // Issue #751 — the owner is named, the e-mail travelling beside the name.
+  it("carries the owner's e-mail beside the name, null for an account that is gone", () => {
+    expect(orgCartDetailViewSchema.parse(DETAIL).ownerEmail).toBe('buyer@example.com');
+    expect(orgCartDetailViewSchema.safeParse({ ...DETAIL, ownerEmail: null }).success).toBe(true);
+    const { ownerEmail: _ownerEmail, ...withoutEmail } = DETAIL;
+    expect(orgCartDetailViewSchema.safeParse(withoutEmail).success).toBe(false);
+  });
+
+  // Issue #751 (owner ruling on PR #760) — a completed cart names the order it produced.
+  it('carries the order a completed cart produced, null for any other', () => {
+    const orderId = '00000000-0000-4000-8000-000000000751';
+    expect(orgCartDetailViewSchema.parse({ ...DETAIL, status: 'completed', orderId }).orderId).toBe(orderId);
+    expect(orgCartDetailViewSchema.parse(DETAIL).orderId).toBeNull();
+    const { orderId: _orderId, ...withoutOrder } = DETAIL;
+    expect(orgCartDetailViewSchema.safeParse(withoutOrder).success).toBe(false);
   });
 
   it('requires the lines', () => {

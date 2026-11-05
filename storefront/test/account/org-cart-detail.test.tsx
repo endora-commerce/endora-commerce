@@ -14,6 +14,7 @@ import type { OrgCartDetail } from '../../lib/api/cart';
  */
 let locale = 'en-US';
 let permissions: string[] = ['carts.approve'];
+let roleKind = 'custom';
 let isPersonal = false;
 let detail: OrgCartDetail | null = null;
 let loadError: Error | null = null;
@@ -34,7 +35,7 @@ vi.mock('../../lib/api/account', () => ({
   getMe: async () => ({
     customerAccount: {
       id: 'approver-1',
-      organizationRole: { id: 'role-1', kind: 'custom', name: 'Purchasing' },
+      organizationRole: { id: 'role-1', kind: roleKind, name: 'Purchasing' },
       permissions,
     },
     organization: { id: 'org-1', name: 'Acme', isPersonal },
@@ -58,6 +59,8 @@ function pendingCart(overrides: Partial<OrgCartDetail> = {}): OrgCartDetail {
     id: CART_ID,
     ownerCustomerAccountId: 'member-1',
     ownerDisplayName: 'buyer@acme.example',
+    ownerEmail: 'buyer@acme.example',
+    orderId: null,
     status: 'active',
     approvalStatus: 'pending',
     itemCount: 1,
@@ -94,6 +97,7 @@ async function render(searchParams: Record<string, string> = {}): Promise<string
 beforeEach(() => {
   locale = 'en-US';
   permissions = ['carts.approve'];
+  roleKind = 'custom';
   isPersonal = false;
   detail = pendingCart();
   loadError = null;
@@ -238,5 +242,85 @@ describe('organization cart detail — issue #650', () => {
       expect(html).toContain(text);
     }
     expect(html).not.toContain('Approve cart');
+  });
+});
+
+/** Issue #751 — the owner as on the members page, and amounts that say they are net. */
+describe('organization cart detail — issue #751', () => {
+  it.each(['en-US', 'pl-PL'])('names the owner by full name, the e-mail beside it (%s)', async (l) => {
+    locale = l;
+    detail = pendingCart({ ownerDisplayName: 'Jan Kowalski', ownerEmail: 'jan@acme.example' });
+    const html = await render();
+    expect(html).toMatch(/<h2>[^<]*Jan Kowalski[^<]*<\/h2>/);
+    expect(html).toMatch(/<dd[^>]*>Jan Kowalski<small[^>]*>jan@acme\.example<\/small><\/dd>/);
+  });
+
+  it.each([
+    ['en-US', 'net'],
+    ['pl-PL', 'netto'],
+  ])('labels the total and the line prices as net (%s)', async (l, net) => {
+    locale = l;
+    const html = await render();
+    const labelled = html.match(new RegExp(`zł<span[^>]*>${net}</span>`, 'g')) ?? [];
+    // The total, the line's unit price and its line total.
+    expect(labelled).toHaveLength(3);
+  });
+
+  it.each(['en-US', 'pl-PL'])('leaves the total of a completed cart empty, not zero (%s)', async (l) => {
+    locale = l;
+    detail = pendingCart({
+      status: 'completed',
+      approvalStatus: 'approved',
+      itemCount: 0,
+      total: { amount: 0, currency: 'PLN' },
+      items: [],
+    });
+    const html = await render();
+    expect(html).not.toContain('0,00');
+    expect(html).toMatch(/<dd class="m-0 font-semibold">—<\/dd>/);
+  });
+});
+
+/**
+ * Owner ruling on PR #760 (issue #751): a completed cart links to the order it
+ * produced, for a viewer the order page would answer — the Administrator, a
+ * role holding `orders.view_organization`, or the order's own buyer.
+ */
+describe('organization cart detail — a completed cart links to its order (issue #751)', () => {
+  const completed = (owner = 'member-1'): OrgCartDetail =>
+    pendingCart({
+      ownerCustomerAccountId: owner,
+      status: 'completed',
+      approvalStatus: 'approved',
+      itemCount: 0,
+      total: { amount: 0, currency: 'PLN' },
+      items: [],
+      orderId: '00000000-0000-4000-8000-000000000751',
+    });
+  const link = (label: string, text: string): RegExp =>
+    new RegExp(`<dt[^>]*>${label}</dt><dd[^>]*><a[^>]*href="/orders/00000000-0000-4000-8000-000000000751"[^>]*>${text}</a></dd>`);
+
+  it.each([
+    ['en-US', 'Order', 'View order'],
+    ['pl-PL', 'Zamówienie', 'Zobacz zamówienie'],
+  ])('links it for a role holding orders.view_organization (%s)', async (l, label, text) => {
+    locale = l;
+    permissions = ['carts.approve', 'orders.view_organization'];
+    detail = completed();
+    expect(await render()).toMatch(link(label, text));
+  });
+
+  it('links it for the Administrator, and for the buyer who placed it', async () => {
+    roleKind = 'administrator';
+    detail = completed();
+    expect(await render()).toMatch(link('Order', 'View order'));
+    roleKind = 'custom';
+    detail = completed('approver-1');
+    expect(await render()).toMatch(link('Order', 'View order'));
+  });
+
+  it('offers no link to a viewer the order page would not answer', async () => {
+    detail = completed();
+    expect(await render()).not.toContain('/orders/');
   });
 });

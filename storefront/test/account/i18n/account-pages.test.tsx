@@ -136,6 +136,8 @@ vi.mock('../../../lib/api/cart', () => ({
         id: 'c1',
         ownerCustomerAccountId: 'acc-2',
         ownerDisplayName: 'Jan Kowalski',
+        ownerEmail: 'jan@acme.example',
+        orderId: null,
         status: 'active',
         approvalStatus: 'pending',
         itemCount: 3,
