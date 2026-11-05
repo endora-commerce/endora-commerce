@@ -788,8 +788,12 @@ export const publicFormConfirmationSchema = z.discriminatedUnion('type', [
   z.object({ type: z.literal('page'), path: z.string().max(FORMS_LIMITS.pageUrlChars) }).strict(),
 ]);
 
+/**
+ * `formId` echoes the requested id, which need not be a UUID: a malformed id names no form and gets
+ * this body too (owner ruling of 2026-11-05, contracts/public-api.md §1).
+ */
 const publicFormUnavailableSchema = z
-  .object({ formId: z.string().uuid(), availability: z.literal('unavailable') })
+  .object({ formId: z.string().min(1), availability: z.literal('unavailable') })
   .strict();
 
 const publicFormAvailableSchema = z
@@ -822,7 +826,7 @@ const publicFormAvailableSchema = z
   })
   .strict();
 
-/** Always a `200` for a valid id: draft, deleted and never-existing forms are all `unavailable` (R-11). */
+/** Always a `200`: draft, deleted, never-existing and malformed ids are all `unavailable` (R-11). */
 export const publicFormDefinitionSchema = z.union([publicFormUnavailableSchema, publicFormAvailableSchema]);
 export type PublicFormDefinition = z.infer<typeof publicFormDefinitionSchema>;
 export type AvailablePublicFormDefinition = z.infer<typeof publicFormAvailableSchema>;

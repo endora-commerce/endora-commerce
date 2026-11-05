@@ -83,7 +83,7 @@ export interface PublicFormServiceDeps {
   readonly now?: () => Date;
 }
 
-/** Whether `id` is a well-formed form id (the routes answer `400` otherwise). */
+/** Whether `id` is a well-formed form id (the submission route answers `400` otherwise). */
 export function isFormId(id: string): boolean {
   return isUuidShape(id);
 }
