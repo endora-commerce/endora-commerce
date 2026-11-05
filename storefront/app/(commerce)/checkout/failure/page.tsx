@@ -15,6 +15,8 @@ import {
   resolvePostPaymentLanding,
 } from '../../../../lib/payments/post-payment-landing';
 import { localeRedirect } from '../../../../lib/i18n/navigation';
+import { CHECKOUT_ERRORS } from '../../../../lib/commerce-errors';
+import { ORDER_ERRORS, paymentRetryRefusedHref } from '../../../../lib/orders/order-errors';
 
 /**
  * Checkout Failure Page — **two readers**, told different things (issue #287).
@@ -47,8 +49,12 @@ export default async function CheckoutFailurePage({
   const { locale } = await getServerContext();
 
   // The placement failure: no order was ever created, so there is nothing to
-  // read and nothing to pay.
-  if (!id) return <FailurePanel reason={reason ?? null} locale={locale} />;
+  // read and nothing to pay. Issue #745 — `reason` is a code, worded here; one
+  // this page does not know reads as the generic failure, never as given.
+  if (!id) {
+    const key = CHECKOUT_ERRORS.errorKey(reason);
+    return <FailurePanel reason={key ? tForLocale(locale)(key) : null} locale={locale} />;
+  }
 
   const outcome = parseReturnOutcome(rawOutcome);
   const session = await getSessionCookie();
@@ -97,29 +103,21 @@ export default async function CheckoutFailurePage({
  * it: `redirect()` works by throwing, so calling it in the `try` would be
  * caught by the handler meant for API failures.
  *
- * A refusal goes to the order page's own `?error=` channel, which is the
- * platform's sentence about the order rather than about this page.
+ * A refusal goes to the order page's own `?error=` channel, as a code the
+ * order page words (issue #745).
  */
 async function payAgainAction(formData: FormData): Promise<void> {
   'use server';
   const session = await getSessionCookie();
   if (!session) return await localeRedirect('/login');
   const id = (formData.get('id') as string) ?? '';
-  const { locale } = await getServerContext();
-  const t = tForLocale(locale);
 
   let target: string;
   try {
     const result = await retryOrderPayment(session, id);
-    target =
-      paymentRetryDestination(result) ??
-      `/orders/${id}?error=${encodeURIComponent(
-        result.opened ? t('order.payment.retry.failed') : t('order.payment.retry.inProgress'),
-      )}`;
+    target = paymentRetryDestination(result) ?? paymentRetryRefusedHref(id, result.opened);
   } catch (err) {
-    const message =
-      err instanceof StorefrontApiError ? err.detail : t('order.payment.retry.failed');
-    target = `/orders/${id}?error=${encodeURIComponent(message)}`;
+    target = `/orders/${id}?error=${ORDER_ERRORS.failureCode(err, 'PAYMENT_RETRY_FAILED')}`;
   }
   return await localeRedirect(target);
 }

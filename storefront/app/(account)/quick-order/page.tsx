@@ -15,16 +15,16 @@ import {
   quickOrderBuildRejectionText,
   quickOrderRejectionLabel,
 } from '../../../lib/batchReport';
-import { tForLocale, type MessageKey } from '../../../lib/i18n/messages';
+import { tForLocale } from '../../../lib/i18n/messages';
 import { getSessionCookie } from '../../../lib/session';
 import { getCommerceAbilitiesAction } from '../../../lib/actions/cart';
 import type { CommerceAbilities } from '../../../lib/commerce-permissions';
 import { getServerContext } from '../../../lib/server-context';
-import { StorefrontApiError } from '../../../lib/api/client';
 import { FileDropzone } from '../../../components/FileDropzone';
 import { summarizeQuickOrderPreview } from '../../../lib/quick-order-preview';
 import type { Metadata } from 'next';
 import { localeRedirect } from '../../../lib/i18n/navigation';
+import { QUICK_ORDER_ERRORS } from '../../../lib/commerce-errors';
 import { LocalizedLink, LocalizedAnchor } from '../../../lib/i18n/localized-link';
 
 /**
@@ -76,9 +76,10 @@ export default async function QuickOrderPage({
 }: {
   searchParams: Promise<{
     preview?: string;
-    /** A refusal the backend worded (its `detail`), shown as given. */
-    error?: string;
-    /** A refusal of this page's own actions, as a code the page words in its language. */
+    /**
+     * A refusal — the page's own or the API's — as a code the page words in its language
+     * (issue #745: never a sentence; an `?error=` is no longer read at all).
+     */
     problem?: string;
     built?: string;
     rfq?: string;
@@ -101,7 +102,8 @@ export default async function QuickOrderPage({
   // every other storefront page resolves it.
   const { ctx, locale } = await getServerContext();
   const t = tForLocale(locale);
-  const problemKey = quickOrderProblemKey(sp.problem);
+  // A code this page does not know shows nothing: the address is the buyer's to edit.
+  const problemKey = sp.problem && QUICK_ORDER_ERRORS.isCode(sp.problem) ? QUICK_ORDER_ERRORS.errorKey(sp.problem) : null;
   // Feature 155 (FR-011 (b)) — the lines the cart build left out, below a minimum.
   // Carried capped (the first lines plus a count), so the URL stays bounded.
   const notAddedReport = sp.built === 'cart' ? decodeBuildRejections(sp.notAdded) : { lines: [], more: 0 };
@@ -135,7 +137,6 @@ export default async function QuickOrderPage({
         .
       </p>
 
-      {sp.error ? <p className="b2b-auth__error">{sp.error}</p> : null}
       {problemKey ? <p className="b2b-auth__error">{t(problemKey)}</p> : null}
       {sp.built === 'cart' && notAdded.length === 0 ? (
         <p className="b2b-auth__success">
@@ -507,11 +508,7 @@ async function importAction(formData: FormData): Promise<void> {
       ? await importQuickOrderFile(session, filename || 'upload.csv', fileContent)
       : await importQuickOrderCsv(session, csv);
   } catch (err) {
-    return await localeRedirect(
-      err instanceof StorefrontApiError
-        ? `/quick-order?error=${encodeURIComponent(err.detail)}`
-        : '/quick-order?problem=import_failed',
-    );
+    return await localeRedirect(`/quick-order?problem=${QUICK_ORDER_ERRORS.failureCode(err, 'import_failed')}`);
   }
   return await localeRedirect(`/quick-order?preview=${encodePreview(preview!)}`);
 }
@@ -543,11 +540,7 @@ async function confirmAction(formData: FormData): Promise<void> {
     rfqRef = result.quoteRequestBusinessId ?? result.quoteRequestId;
     rejected = result.rejected ?? [];
   } catch (err) {
-    return await localeRedirect(
-      err instanceof StorefrontApiError
-        ? `/quick-order?error=${encodeURIComponent(err.detail)}`
-        : '/quick-order?problem=build_failed',
-    );
+    return await localeRedirect(`/quick-order?problem=${QUICK_ORDER_ERRORS.failureCode(err, 'build_failed')}`);
   }
   if (target === 'quote_request') {
     return await localeRedirect(`/quick-order?built=quote${rfqRef ? `&rfq=${encodeURIComponent(rfqRef)}` : ''}`);
@@ -563,24 +556,6 @@ async function confirmAction(formData: FormData): Promise<void> {
     return await localeRedirect(`/quick-order?${params.toString()}`);
   }
   return await localeRedirect('/quick-order?built=cart');
-}
-
-/**
- * The page's own refusals travel as a code and are worded here, in the page's language — a
- * sentence carried in the address would be in whatever language the action wrote it in. An
- * unknown code shows nothing: the address is the buyer's to edit.
- */
-const PROBLEM_KEYS: Readonly<Record<string, MessageKey>> = {
-  no_input: 'quickOrder.problem.no_input',
-  nothing_to_update: 'quickOrder.problem.nothing_to_update',
-  nothing_to_remove: 'quickOrder.problem.nothing_to_remove',
-  nothing_to_build: 'quickOrder.problem.nothing_to_build',
-  import_failed: 'quickOrder.problem.import_failed',
-  build_failed: 'quickOrder.problem.build_failed',
-};
-
-function quickOrderProblemKey(code: string | undefined): MessageKey | null {
-  return code && Object.hasOwn(PROBLEM_KEYS, code) ? PROBLEM_KEYS[code]! : null;
 }
 
 function encodePreview(preview: PreviewState): string {

@@ -1,15 +1,12 @@
-import { describe, expect, it, beforeEach, afterEach } from 'vitest';
+import { describe, expect, it } from 'vitest';
 import type {
   AddressReadPort,
   CustomerAccountReadPort,
-  CustomerAddressReadPort,
   DeliveryMethodReadPort,
   OrganizationRestrictionPort,
   PaymentMethodReadPort,
 } from '@endora-commerce/contracts';
 import { ModuleDisabledError } from '../../../src/kernel/lifecycle/plugin-helpers.js';
-import { registryCache } from '../../../src/kernel/lifecycle/registry-cache.js';
-import { customerAddressesOrAbsent } from '../../../../packages/modules/quick_order/src/backend/index.js';
 import {
   DefaultPreferenceService,
   type DefaultPreferenceCollaborators,
@@ -28,10 +25,11 @@ import {
  *   - `payment_methods` / `delivery_methods` / `addresses` / `customer_accounts`
  *     / `organizations` are **binding** dependencies, so their gates fail closed
  *     and the whole resolution refuses.
- *   - `customers` is a **`degrades-without`** dependency, so a personal address
- *     simply stops being eligible — which is what an ineligible default has
- *     always done (FR-020) and what a platform that never installed `customers`
- *     would answer.
+ *
+ * Issue #769 — `customers` is not consulted at all: a default address comes
+ * from the organisation book (`addresses`) only, because the preference table's
+ * address columns are foreign keys to that table. A personal-book id is never
+ * eligible, whether `customers` is on or off.
  */
 
 const ACCOUNT_ID = '11111111-1111-4111-8111-111111111111';
@@ -62,10 +60,6 @@ function collaborators(
     addresses: {
       findById: async () => null,
     } as unknown as AddressReadPort,
-    customerAddresses: {
-      findById: async (_accountId: string, addressId: string) => ({ id: addressId }),
-      listForCustomer: async () => [],
-    } as unknown as CustomerAddressReadPort,
     restriction: {
       allowedIdsFor: async () => null,
     } as unknown as OrganizationRestrictionPort,
@@ -86,14 +80,6 @@ function emFactoryReturning(row: Record<string, unknown> | null): () => never {
 }
 
 describe('DefaultPreferenceService eligibility, with an owner switched off', () => {
-  beforeEach(() => {
-    registryCache.__setEnabledForTesting(['quick_order', 'customers']);
-  });
-
-  afterEach(() => {
-    registryCache.__setEnabledForTesting(['quick_order', 'customers']);
-  });
-
   it('resolves a stored default while every owner is present', async () => {
     const service = new DefaultPreferenceService(
       emFactoryReturning({
@@ -104,11 +90,9 @@ describe('DefaultPreferenceService eligibility, with an owner switched off', () 
       }),
       { record: async () => undefined } as never,
       collaborators({
-        customerAddresses: customerAddressesOrAbsent({
-          findById: async (_accountId: string, addressId: string) =>
-            ({ id: addressId }) as never,
-          listForCustomer: async () => [],
-        }),
+        addresses: {
+          findById: async (_orgId: string, addressId: string) => ({ id: addressId }),
+        } as unknown as AddressReadPort,
       }),
     );
 
@@ -204,43 +188,7 @@ describe('DefaultPreferenceService eligibility, with an owner switched off', () 
     await expect(service.resolveForCustomer(ACCOUNT_ID)).rejects.toThrow(ModuleDisabledError);
   });
 
-  it('degrades — not 503 — when `customers` is off: a personal address stops being eligible', async () => {
-    registryCache.__setEnabledForTesting(['quick_order', 'customers'], {
-      deactivated: ['customers'],
-    });
-
-    const service = new DefaultPreferenceService(
-      emFactoryReturning({
-        defaultPaymentMethodId: 'pay-1',
-        defaultDeliveryMethodId: null,
-        defaultBillingAddressId: null,
-        defaultShippingAddressId: 'personal-1',
-      }),
-      { record: async () => undefined } as never,
-      collaborators({
-        // The gate a closed `customers` really puts up: resolving the port
-        // throws. The wrapper must decide presence *before* it resolves.
-        customerAddresses: customerAddressesOrAbsent({
-          findById: () => gateClosed('customers'),
-          listForCustomer: () => gateClosed('customers'),
-        }),
-      }),
-    );
-
-    const resolved = await service.resolveForCustomer(ACCOUNT_ID);
-
-    expect(resolved.shippingAddressId).toBeNull();
-    expect(resolved.source.shipping).toBeNull();
-    // The rest of the resolution is untouched: switching a CRM surface off must
-    // not take one-click buy down for buyers whose defaults are org addresses.
-    expect(resolved.paymentMethodId).toBe('pay-1');
-  });
-
-  it('keeps an org-shared address eligible while `customers` is off', async () => {
-    registryCache.__setEnabledForTesting(['quick_order', 'customers'], {
-      deactivated: ['customers'],
-    });
-
+  it('fails closed when `addresses` is off — it does not answer "no such address"', async () => {
     const service = new DefaultPreferenceService(
       emFactoryReturning({
         defaultPaymentMethodId: null,
@@ -251,48 +199,36 @@ describe('DefaultPreferenceService eligibility, with an owner switched off', () 
       { record: async () => undefined } as never,
       collaborators({
         addresses: {
-          findById: async (_orgId: string, addressId: string) => ({ id: addressId }),
+          findById: () => gateClosed('addresses'),
         } as unknown as AddressReadPort,
-        customerAddresses: customerAddressesOrAbsent({
-          findById: () => gateClosed('customers'),
-          listForCustomer: () => gateClosed('customers'),
-        }),
+      }),
+    );
+
+    await expect(service.resolveForCustomer(ACCOUNT_ID)).rejects.toThrow(ModuleDisabledError);
+  });
+
+  it('drops a stored address the organisation book does not hold — a personal-book id included (issue #769)', async () => {
+    const service = new DefaultPreferenceService(
+      emFactoryReturning({
+        defaultPaymentMethodId: 'pay-1',
+        defaultDeliveryMethodId: null,
+        defaultBillingAddressId: 'org-1',
+        defaultShippingAddressId: 'personal-1',
+      }),
+      { record: async () => undefined } as never,
+      collaborators({
+        addresses: {
+          findById: async (_orgId: string, addressId: string) =>
+            addressId === 'org-1' ? { id: addressId } : null,
+        } as unknown as AddressReadPort,
       }),
     );
 
     const resolved = await service.resolveForCustomer(ACCOUNT_ID);
 
     expect(resolved.billingAddressId).toBe('org-1');
-  });
-
-  it('resolves the personal address again the moment `customers` is switched back on', async () => {
-    const build = (): DefaultPreferenceService =>
-      new DefaultPreferenceService(
-        emFactoryReturning({
-          defaultPaymentMethodId: null,
-          defaultDeliveryMethodId: null,
-          defaultBillingAddressId: null,
-          defaultShippingAddressId: 'personal-1',
-        }),
-        { record: async () => undefined } as never,
-        collaborators({
-          customerAddresses: customerAddressesOrAbsent({
-            findById: async (_accountId: string, addressId: string) =>
-              ({ id: addressId }) as never,
-            listForCustomer: async () => [],
-          }),
-        }),
-      );
-
-    registryCache.__setEnabledForTesting(['quick_order', 'customers'], {
-      deactivated: ['customers'],
-    });
-    // The same instance across the flip: the probe is per call, so an operator
-    // switching the module back on must not need a restart.
-    const service = build();
-    expect((await service.resolveForCustomer(ACCOUNT_ID)).shippingAddressId).toBeNull();
-
-    registryCache.__setEnabledForTesting(['quick_order', 'customers']);
-    expect((await service.resolveForCustomer(ACCOUNT_ID)).shippingAddressId).toBe('personal-1');
+    expect(resolved.shippingAddressId).toBeNull();
+    expect(resolved.source.shipping).toBeNull();
+    expect(resolved.paymentMethodId).toBe('pay-1');
   });
 });

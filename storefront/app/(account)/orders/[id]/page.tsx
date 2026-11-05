@@ -23,13 +23,14 @@ import { getServerContext } from '../../../../lib/server-context';
 import { StorefrontApiError } from '../../../../lib/api/client';
 import { isRecordId } from '../../../../lib/record-id';
 import { formatMoney } from '../../../../lib/i18n/money';
-import { tForLocale, type MessageKey } from '../../../../lib/i18n/messages';
+import { tForLocale } from '../../../../lib/i18n/messages';
 import { resolvePaymentReturnNotice } from '../../../../lib/orders/payment-return-notice';
 import { OrderItemRows } from '../../../../components/orders/OrderItemRows';
 import { PurchaseTracker } from '../../../../components/analytics/EcommerceTrackers';
 import { purchaseTrackingPayload } from '../../../../lib/analytics/purchase-eligibility';
 import type { Metadata } from 'next';
 import { localeRedirect } from '../../../../lib/i18n/navigation';
+import { ORDER_ERRORS, paymentRetryRefusedHref } from '../../../../lib/orders/order-errors';
 import { LocalizedLink } from '../../../../lib/i18n/localized-link';
 import { format } from '../../../../lib/i18n/format';
 import { codeLabel, richText } from '../../../../lib/account/labels';
@@ -74,6 +75,7 @@ export default async function OrderConfirmationPage({
 
   const { locale } = await getServerContext();
   const t = tForLocale(locale);
+  const actionErrorKey = ORDER_ERRORS.errorKey(actionError?.trim());
 
   const notFound = (
     <div className="b2b-auth">
@@ -180,9 +182,10 @@ export default async function OrderConfirmationPage({
         {richText(t('account.order.received'), { number: <strong>{order.businessId}</strong> })}
       </p>
 
-      {actionError && actionError.trim().length > 0 ? (
+      {/* Issue #745 — `?error=` is a code; one this page does not know reads as its generic failure. */}
+      {actionErrorKey ? (
         <p role="alert" className="b2b-auth__error">
-          {actionError}
+          {t(actionErrorKey)}
         </p>
       ) : null}
 
@@ -379,12 +382,6 @@ export default async function OrderConfirmationPage({
   );
 }
 
-/** A server action's own refusal, in the page's language. */
-async function failure(key: MessageKey): Promise<string> {
-  const { locale } = await getServerContext();
-  return tForLocale(locale)(key);
-}
-
 async function addCommentAction(formData: FormData): Promise<void> {
   'use server';
   const session = await getSessionCookie();
@@ -395,8 +392,7 @@ async function addCommentAction(formData: FormData): Promise<void> {
     try {
       await addOrderComment(session, id, body);
     } catch (err) {
-      const message = err instanceof StorefrontApiError ? err.detail : await failure('account.order.comments.failed');
-      return await localeRedirect(`/orders/${id}?error=${encodeURIComponent(message)}`);
+      return await localeRedirect(`/orders/${id}?error=${ORDER_ERRORS.failureCode(err, 'COMMENT_FAILED')}`);
     }
   }
   return await localeRedirect(`/orders/${id}`);
@@ -412,8 +408,7 @@ async function reorderAction(formData: FormData): Promise<void> {
     const result = await reorderOrder(session, id);
     target = result.checkoutUrl || '/cart';
   } catch (err) {
-    const message = err instanceof StorefrontApiError ? err.detail : await failure('account.order.reorderFailed');
-    return await localeRedirect(`/orders/${id}?error=${encodeURIComponent(message)}`);
+    return await localeRedirect(`/orders/${id}?error=${ORDER_ERRORS.failureCode(err, 'REORDER_FAILED')}`);
   }
   return await localeRedirect(target);
 }
@@ -430,21 +425,13 @@ async function retryPaymentAction(formData: FormData): Promise<void> {
   const session = await getSessionCookie();
   if (!session) return await localeRedirect('/login');
   const id = (formData.get('id') as string) ?? '';
-  const { locale } = await getServerContext();
-  const t = tForLocale(locale);
 
   let target: string;
   try {
     const result = await retryOrderPayment(session, id);
-    target =
-      paymentRetryDestination(result) ??
-      `/orders/${id}?error=${encodeURIComponent(
-        result.opened ? t('order.payment.retry.failed') : t('order.payment.retry.inProgress'),
-      )}`;
+    target = paymentRetryDestination(result) ?? paymentRetryRefusedHref(id, result.opened);
   } catch (err) {
-    const message =
-      err instanceof StorefrontApiError ? err.detail : t('order.payment.retry.failed');
-    target = `/orders/${id}?error=${encodeURIComponent(message)}`;
+    target = `/orders/${id}?error=${ORDER_ERRORS.failureCode(err, 'PAYMENT_RETRY_FAILED')}`;
   }
   return await localeRedirect(target);
 }
@@ -455,21 +442,18 @@ async function retryPaymentAction(formData: FormData): Promise<void> {
  * The buyer **cancels** — the owner's ruling is that there is no approval step
  * and no pending state — so this is one call and a reload of the same page,
  * which then shows the order cancelled and no longer offers the control. A
- * refusal comes back through the page's own `?error=` channel; the server owns
- * the sentence, because the server owns the rule.
+ * refusal comes back through the page's own `?error=` channel, as a code the
+ * page words (issue #745).
  */
 async function cancelOrderAction(formData: FormData): Promise<void> {
   'use server';
   const session = await getSessionCookie();
   if (!session) return await localeRedirect('/login');
   const id = (formData.get('id') as string) ?? '';
-  const { locale } = await getServerContext();
-  const t = tForLocale(locale);
   try {
     await cancelMyOrder(session, id);
   } catch (err) {
-    const message = err instanceof StorefrontApiError ? err.detail : t('order.cancel.failed');
-    return await localeRedirect(`/orders/${id}?error=${encodeURIComponent(message)}`);
+    return await localeRedirect(`/orders/${id}?error=${ORDER_ERRORS.failureCode(err, 'CANCEL_FAILED')}`);
   }
   return await localeRedirect(`/orders/${id}`);
 }
@@ -483,8 +467,7 @@ async function reorderToQuoteAction(formData: FormData): Promise<void> {
     const { ctx } = await getServerContext();
     await cloneOrderToQuote(session, id, ctx);
   } catch (err) {
-    const message = err instanceof StorefrontApiError ? err.detail : await failure('account.order.reorderToQuoteFailed');
-    return await localeRedirect(`/orders/${id}?error=${encodeURIComponent(message)}`);
+    return await localeRedirect(`/orders/${id}?error=${ORDER_ERRORS.failureCode(err, 'REORDER_TO_QUOTE_FAILED')}`);
   }
   return await localeRedirect('/quote-requests');
 }

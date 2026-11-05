@@ -43,7 +43,9 @@ import {
   cartLineEditError,
   cartLineEditErrorHref,
   parseCartQuantityEdit,
+  refusalMinimum,
 } from '../../../lib/cartMinimum';
+import { CART_ERRORS } from '../../../lib/commerce-errors';
 import { droppedBelowMinimumReason } from '../../../lib/batchReport';
 import { tForLocale } from '../../../lib/i18n/messages';
 import { format } from '../../../lib/i18n/format';
@@ -51,7 +53,6 @@ import { pluralKey } from '../../../lib/i18n/plural';
 import { shoppingListDisplayName } from '../../../lib/shopping-list-name';
 import { formatMoney } from '../../../lib/i18n/money';
 import { formatCount } from '../../../lib/orderMinimum';
-import { cartActionFailure } from '../../../lib/cart-action-failure';
 import { localeRedirect } from '../../../lib/i18n/navigation';
 import { LocalizedLink } from '../../../lib/i18n/localized-link';
 
@@ -84,6 +85,8 @@ export default async function CartPage({
     errorItem?: string;
     /** U4 — what the buyer typed into that line, kept in its field. */
     typed?: string;
+    /** Issue #745 — the minimum a refused edit of that line was below (a whole number). */
+    min?: string;
     couponError?: string;
     couponShortfall?: string;
     couponShortfallCurrency?: string;
@@ -269,9 +272,10 @@ export default async function CartPage({
         </div>
       ) : null}
 
-      {params.error && !cart.items.some((it) => cartLineEditError(params, it.id) !== null) ? (
+      {/* Issue #745 — `?error=` is a code; one this page does not know reads as its generic failure. */}
+      {params.error && !cart.items.some((it) => cartLineEditError(params, it, locale) !== null) ? (
         <div className="mb-3 rounded-md border border-[#fecaca] bg-[#fef2f2] px-[14px] py-[10px] text-[13px] text-[#b91c1c]" role="alert">
-          {params.error}
+          {tForLocale(locale)(CART_ERRORS.errorKey(params.error)!)}
         </div>
       ) : null}
 
@@ -294,7 +298,7 @@ export default async function CartPage({
                 saveToListAction={saveToListAction}
                 locale={locale}
                 displayMode={displayMode}
-                editError={cartLineEditError(params, it.id)}
+                editError={cartLineEditError(params, it, locale)}
                 editable={abilities.editCart}
                 canSaveToList={abilities.editShoppingLists}
                 strings={strings.line}
@@ -466,17 +470,19 @@ async function updateAction(formData: FormData): Promise<void> {
   });
   const typedValue = step === null && typeof typed === 'string' ? typed : null;
   // The backend words its refusal (the minimum sentence) in the language it is asked in.
-  const { locale, ctx } = await getServerContext();
-  const t = tForLocale(locale);
-  if (edit.kind === 'invalid') return await localeRedirect(cartLineEditErrorHref(itemId, t('cart.line.quantityInvalid'), typedValue));
+  const { ctx } = await getServerContext();
+  if (edit.kind === 'invalid') return await localeRedirect(cartLineEditErrorHref(itemId, 'QUANTITY_INVALID', typedValue));
   try {
     // `quantity: 0` removes the line (FR-007, contract §2), whatever its minimum.
     const quantity = edit.kind === 'remove' ? 0 : edit.quantity;
     const result = await updateCartItem(await readJar(), itemId, quantity, ctx);
     if (result.newAnonCookie) await setAnonCartCookie(result.newAnonCookie);
   } catch (err) {
-    const message = err instanceof StorefrontApiError ? err.detail : t('cart.line.updateFailed');
-    return await localeRedirect(cartLineEditErrorHref(itemId, message, typedValue));
+    // Issue #745 — a code travels, never the API's sentence; a minimum refusal also carries
+    // the minimum, so the line can say it in the page's language.
+    const code = CART_ERRORS.failureCode(err, 'UPDATE_FAILED');
+    const minimum = err instanceof StorefrontApiError ? refusalMinimum(err.details) : null;
+    return await localeRedirect(cartLineEditErrorHref(itemId, code, typedValue, minimum));
   }
   return await localeRedirect('/cart');
 }
@@ -484,14 +490,12 @@ async function updateAction(formData: FormData): Promise<void> {
 async function removeAction(formData: FormData): Promise<void> {
   'use server';
   const itemId = (formData.get('itemId') as string) ?? '';
-  const { locale, ctx } = await getServerContext();
+  const { ctx } = await getServerContext();
   try {
     const result = await removeCartItem(await readJar(), itemId, ctx);
     if (result.newAnonCookie) await setAnonCartCookie(result.newAnonCookie);
   } catch (err) {
-    const message =
-      err instanceof StorefrontApiError ? err.detail : tForLocale(locale)('cart.line.removeFailed');
-    return await localeRedirect(`/cart?error=${encodeURIComponent(message)}`);
+    return await localeRedirect(`/cart?error=${CART_ERRORS.failureCode(err, 'REMOVE_FAILED')}`);
   }
   return await localeRedirect('/cart');
 }
@@ -502,45 +506,41 @@ async function saveToListAction(formData: FormData): Promise<void> {
   const jar = await readJar();
   const t = tForLocale((await getServerContext()).locale);
   if (!jar.session) {
-    return await localeRedirect('/cart?error=' + encodeURIComponent(t('commerce.cart.error.signInToSave')));
+    return await localeRedirect('/cart?error=SIGN_IN_TO_SAVE');
   }
+  const lists = await listShoppingLists(jar.session ?? '').catch(() => []);
+  if (lists.length === 0) {
+    return await localeRedirect('/cart?error=NO_SHOPPING_LIST');
+  }
+  const target = lists[0]!;
+  // The redirects are taken outside the `try`: `redirect()` works by throwing, so one inside it
+  // would be caught as the save's failure.
   try {
-    const lists = await listShoppingLists(jar.session ?? '').catch(() => []);
-    if (lists.length === 0) {
-      return await localeRedirect(
-        '/cart?error=' +
-          encodeURIComponent(t('commerce.cart.error.noShoppingList')),
-      );
-    }
-    const target = lists[0]!;
     await saveCartItemToShoppingList(jar, itemId, target.id);
-    return await localeRedirect(`/cart?listAdded=${encodeURIComponent(shoppingListDisplayName(target, t))}`);
   } catch (err) {
-    const message =
-      err instanceof StorefrontApiError ? err.detail : t('commerce.cart.error.saveToListFailed');
-    return await localeRedirect(`/cart?error=${encodeURIComponent(message)}`);
+    return await localeRedirect(`/cart?error=${CART_ERRORS.failureCode(err, 'SAVE_TO_LIST_FAILED')}`);
   }
+  return await localeRedirect(`/cart?listAdded=${encodeURIComponent(shoppingListDisplayName(target, t))}`);
 }
 
 async function applyCouponAction(formData: FormData): Promise<void> {
   'use server';
   const code = ((formData.get('code') as string) ?? '').trim().toUpperCase();
-  const t = tForLocale((await getServerContext()).locale);
   if (!code) return await localeRedirect('/cart?couponError=coupon_format_invalid');
+  let result: Awaited<ReturnType<typeof applyCartCoupon>>;
   try {
-    const result = await applyCartCoupon(await readJar(), code);
-    if (result.outcome === 'rejected') {
-      const qs = new URLSearchParams({ couponError: result.reason });
-      if (result.shortfall) {
-        qs.set('couponShortfall', String(result.shortfall.amount));
-        qs.set('couponShortfallCurrency', result.shortfall.currency);
-      }
-      return await localeRedirect(`/cart?${qs.toString()}`);
-    }
+    result = await applyCartCoupon(await readJar(), code);
   } catch (err) {
-    const message =
-      err instanceof StorefrontApiError ? err.detail : t('commerce.cart.error.applyCouponFailed');
-    return await localeRedirect(`/cart?error=${encodeURIComponent(message)}`);
+    return await localeRedirect(`/cart?error=${CART_ERRORS.failureCode(err, 'APPLY_COUPON_FAILED')}`);
+  }
+  // Outside the `try`: `redirect()` throws, and the handler above would read it as a failure.
+  if (result.outcome === 'rejected') {
+    const qs = new URLSearchParams({ couponError: result.reason });
+    if (result.shortfall) {
+      qs.set('couponShortfall', String(result.shortfall.amount));
+      qs.set('couponShortfallCurrency', result.shortfall.currency);
+    }
+    return await localeRedirect(`/cart?${qs.toString()}`);
   }
   return await localeRedirect('/cart');
 }
@@ -558,29 +558,26 @@ async function clearCouponAction(): Promise<void> {
 async function convertToQrAction(formData: FormData): Promise<void> {
   'use server';
   const note = ((formData.get('note') as string) ?? '').trim() || null;
-  const t = tForLocale((await getServerContext()).locale);
+  let slug: string;
   try {
-    const result = await convertCartToQuoteRequest(await readJar(), note);
-    return await localeRedirect(`/quote-requests/${result.quoteRequestSlug}?from=cart`);
+    slug = (await convertCartToQuoteRequest(await readJar(), note)).quoteRequestSlug;
   } catch (err) {
-    const message =
-      err instanceof StorefrontApiError ? err.detail : t('commerce.cart.error.convertFailed');
-    return await localeRedirect(`/cart?error=${encodeURIComponent(message)}`);
+    return await localeRedirect(`/cart?error=${CART_ERRORS.failureCode(err, 'CONVERT_FAILED')}`);
   }
+  return await localeRedirect(`/quote-requests/${slug}?from=cart`);
 }
 
 async function submitForApprovalAction(): Promise<void> {
   'use server';
   // `ctx` carries the storefront's language: without it the backend worded its refusal
   // in its own default, whatever language the page was in (U4).
-  const { locale, ctx } = await getServerContext();
+  const { ctx } = await getServerContext();
   try {
     await submitCartForApproval(await readJar(), ctx);
   } catch (err) {
-    // A refusal the backend worded (FR-039's minimum refusal, in the request's
-    // language) passes through; anything else is the catalogue's sentence.
-    const message = cartActionFailure(err, locale, 'cart.submitForApprovalFailed');
-    return await localeRedirect(`/cart?error=${encodeURIComponent(message)}`);
+    // Issue #745 — the refusal travels as its code (FR-039's minimum refusal among them) and
+    // the page words it; anything it cannot name is this action's own sentence.
+    return await localeRedirect(`/cart?error=${CART_ERRORS.failureCode(err, 'SUBMIT_FOR_APPROVAL_FAILED')}`);
   }
   return await localeRedirect('/cart');
 }
@@ -694,7 +691,8 @@ function STRINGS(locale: string): {
           wrong_organization: t('commerce.cart.coupon.rejected.wrongOrganization'),
           coupon_format_invalid: t('commerce.cart.coupon.rejected.formatInvalid'),
         };
-        return labels[reason] ?? t('commerce.cart.coupon.rejected.generic');
+        // `?couponError=` is the buyer's to edit: only a reason this page names is read (issue #745).
+        return Object.hasOwn(labels, reason) ? labels[reason]! : t('commerce.cart.coupon.rejected.generic');
       },
     },
     convertButtons: {
