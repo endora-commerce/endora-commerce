@@ -8,6 +8,7 @@ import { getCustomerRegistrationOptions } from '../../../lib/api/customer-regist
 import { NewsletterConsent } from '../../../components/newsletter/NewsletterConsent';
 import type { Metadata } from 'next';
 import { localeRedirect } from '../../../lib/i18n/navigation';
+import { REGISTER_CUSTOMER_ERRORS } from '../../../lib/auth/auth-errors';
 import { LocalizedLink } from '../../../lib/i18n/localized-link';
 import { tForLocale } from '../../../lib/i18n/messages';
 
@@ -85,7 +86,8 @@ export default async function RegisterCustomerPage({
     <div className="b2b-auth">
       <h1>{t('auth.registerCustomer.heading')}</h1>
       <p>{t('auth.registerCustomer.intro')}</p>
-      {params.error ? <div className="b2b-auth__error">{params.error}</div> : null}
+      {/* Issue #745 — `?error=` is a code; one this page does not know reads as its own failure. */}
+      {params.error ? <div className="b2b-auth__error">{t(REGISTER_CUSTOMER_ERRORS.errorKey(params.error)!)}</div> : null}
       <form action={registerCustomerAction} className="b2b-auth__form">
         <div className="b2b-auth__row">
           <div className="b2b-auth__field">
@@ -141,11 +143,7 @@ async function registerCustomerAction(formData: FormData): Promise<void> {
     if (err instanceof StorefrontApiError && err.code === 'REGISTRATION_REQUIRES_ORGANIZATION') {
       return await localeRedirect('/register-customer?orgRequired=1');
     }
-    const message =
-      err instanceof StorefrontApiError
-        ? err.detail
-        : tForLocale((await getServerContext()).locale)('auth.register.failed');
-    return await localeRedirect(`/register-customer?error=${encodeURIComponent(message)}`);
+    return await localeRedirect(`/register-customer?error=${REGISTER_CUSTOMER_ERRORS.failureCode(err, 'REGISTER_FAILED')}`);
   }
   // Newsletter consent (feature 048): subscribe the new account's email when the
   // consent checkbox was ticked. Never block registration on a subscribe failure.

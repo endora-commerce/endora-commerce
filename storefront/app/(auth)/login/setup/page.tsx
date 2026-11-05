@@ -1,6 +1,6 @@
 import type { ReactNode } from 'react';
 import { completeMfaSetupTicket } from '../../../../lib/api/mfa';
-import { StorefrontApiError } from '../../../../lib/api/client';
+import { MFA_SETUP_ERRORS } from '../../../../lib/auth/sign-in-errors';
 import {
   clearMfaSetupTicketCookie,
   getMfaSetupTicketCookie,
@@ -46,7 +46,8 @@ export default async function ForcedSetupPage({
       <div className="b2b-auth">
         <h1>{t('auth.mfaSetup.heading')}</h1>
         <p>{t('auth.mfaSetup.intro')}</p>
-        {params.error ? <div className="b2b-auth__error">{params.error}</div> : null}
+        {/* Issue #745 — `?error=` is a code; one this page does not know reads as its own failure. */}
+        {params.error ? <div className="b2b-auth__error">{t(MFA_SETUP_ERRORS.errorKey(params.error)!)}</div> : null}
         <p>
           <code>{ticket.otpauthUri}</code>
         </p>
@@ -86,18 +87,16 @@ async function completeAction(formData: FormData): Promise<void> {
     return await localeRedirect(`/login?next=${encodeURIComponent(next)}`);
   }
 
-  const t = tForLocale((await getServerContext()).locale);
-
   let result;
   try {
     result = await completeMfaSetupTicket(ticket.setupTicket, code);
   } catch (err) {
-    const message =
-      err instanceof StorefrontApiError ? err.detail : t('auth.mfaSetup.failed');
-    return await localeRedirect(`/login/setup?error=${encodeURIComponent(message)}&next=${encodeURIComponent(next)}`);
+    return await localeRedirect(
+      `/login/setup?error=${MFA_SETUP_ERRORS.failureCode(err, 'MFA_SETUP_FAILED')}&next=${encodeURIComponent(next)}`,
+    );
   }
   if (!result.sessionCookieValue) {
-    return await localeRedirect(`/login/setup?error=${encodeURIComponent(t('auth.mfaSetup.failed'))}&next=${encodeURIComponent(next)}`);
+    return await localeRedirect(`/login/setup?error=MFA_SETUP_FAILED&next=${encodeURIComponent(next)}`);
   }
   await setSessionCookie(result.sessionCookieValue);
   await clearMfaSetupTicketCookie();

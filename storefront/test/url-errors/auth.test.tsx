@@ -64,13 +64,13 @@ vi.mock('../../lib/api/auth', async () => {
     },
     confirmPasswordReset: refuse,
     registerStandaloneCustomer: refuse,
+    verifyCustomerMfa: refuse,
   };
 });
 vi.mock('../../lib/api/mfa', async () => {
   const actual = await vi.importActual<typeof import('../../lib/api/mfa')>('../../lib/api/mfa');
   return {
     ...actual,
-    verifyCustomerMfa: refuse,
     completeMfaSetupTicket: refuse,
     beginMfaSetupTicket: refuse,
   };
