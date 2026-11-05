@@ -455,6 +455,13 @@ member is offered follows their role, and the Organization's kind:
   reject colleagues' carts* (`carts.approve`), with the number of carts waiting.
   A personal (B2C) Organization's member is offered none of the three, although
   they hold *Administrator*, and those pages send them back to `/account`.
+  A personal Organization is not a company, so that member is not offered
+  *Organization* or *Org addresses* either: `/organization` sends them to
+  `/account` and `/organization/addresses` to their own address book,
+  `/addresses`, which still lists the Organization's addresses beside theirs.
+  The profile has no *Organization* row for them, and the checkout's billing
+  tax-id field starts empty rather than with the personal Organization's
+  synthetic tax id.
   Anyone else who opens one is told who may use it — for example *"Only the
   organization's administrators can manage roles."*
 - **Roles** (`/organization/roles`) lists every role with its type (*Built-in*
