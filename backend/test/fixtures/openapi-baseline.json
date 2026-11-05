@@ -9521,6 +9521,24 @@
         }
       }
     },
+    "/api/v1/organizations/registration-options": {
+      "get": {
+        "responses": {
+          "200": {
+            "description": "OK"
+          }
+        }
+      }
+    },
+    "/api/v1/organizations/registry-lookup": {
+      "post": {
+        "responses": {
+          "200": {
+            "description": "OK"
+          }
+        }
+      }
+    },
     "/api/v1/payment-methods": {
       "get": {
         "responses": {
