@@ -78,7 +78,7 @@ export function buildRecentActivityResponseSchema(catalog: RecentActivityCatalog
     icon: KnownIconNameSchema,
     labelKey: z.string().min(1),
     actorDisplayName: z.string().min(1),
-    actorKind: z.enum(['admin', 'system']),
+    actorKind: z.enum(['admin', 'customer', 'system']),
     targetType: z.string().min(1),
     targetId: z.string().min(1),
     targetDisplayName: z.string().min(1),

@@ -46,6 +46,13 @@ interface AuditLogRow {
   /** Enriched by the backend — actor's email, when resolvable. */
   actorEmail: string | null;
   impersonatedCustomerAccountId: string | null;
+  /**
+   * A customer who acted for themselves on the storefront (issue #741). Absent
+   * from a server that predates it.
+   */
+  actorCustomerAccountId?: string | null;
+  /** Enriched by the backend — the customer's audit label, when resolvable. */
+  actorCustomerLabel?: string | null;
   actedAt: string;
   action: string;
   actionModuleId?: string;
@@ -333,12 +340,17 @@ function ObjectIdCell({
 
 /**
  * Renders the actor column: an admin user's name + email (linked to the
- * users admin page) when resolvable, the bare id as a fallback, or the
- * "system" label when there is no actor.
+ * users admin page) when resolvable, the bare id as a fallback, a customer who
+ * acted for themselves as "Customer: <label>" (issue #741), or the "system"
+ * label when there is no actor.
  */
 function ActorCell({ row }: { row: AuditLogRow }): ReactNode {
   const t = useTranslation('core');
   if (!row.actorAdminUserId) {
+    if (row.actorCustomerAccountId) {
+      const name = row.actorCustomerLabel?.trim() || row.actorCustomerAccountId.slice(0, 8);
+      return <span title={row.actorCustomerAccountId}>{t('auditLog.actor.customer', { name })}</span>;
+    }
     return <span className="text-muted-foreground">{t('auditLog.actor.system')}</span>;
   }
   const name = row.actorName?.trim();
