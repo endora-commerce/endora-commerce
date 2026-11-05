@@ -1,4 +1,5 @@
 {
+  "module.name": "Zamówienia",
   "actions.openOrders.label": "Otwórz zamówienia",
   "actions.openOrders.description": "Przeglądaj i zarządzaj zamówieniami klientów",
   "actions.newOrder.label": "Nowe zamówienie",

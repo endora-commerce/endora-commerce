@@ -1,4 +1,5 @@
 {
+  "module.name": "Koszyki",
   "errors.CART_EMPTY": "Twój koszyk jest pusty.",
   "errors.CART_LINE_CAP_EXCEEDED": "Osiągnięto maksymalną liczbę pozycji w koszyku.",
   "errors.CART_PRODUCT_QUOTE_ONLY": "Ten produkt jest sprzedawany wyłącznie na zapytanie, dlatego nie można dodać go do koszyka. Wyślij zapytanie ofertowe.",

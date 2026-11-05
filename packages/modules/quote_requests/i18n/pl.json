@@ -1,4 +1,5 @@
 {
+  "module.name": "Zapytania ofertowe",
   "actions.openInbox.label": "Otwórz skrzynkę zapytań",
   "actions.openInbox.description": "Przejrzyj oczekujące zapytania ofertowe",
   "errors.RFQ_NOT_DRAFT": "Tego zapytania ofertowego nie można już edytować.",
