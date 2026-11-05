@@ -34,8 +34,9 @@ const ITEM: FeedItemSource = {
   sku: 'SKU-1',
   slug: 'blue-widget',
   productType: 'simple',
-  name: { 'pl-PL': 'Niebieski widget', 'en-US': 'Blue widget' },
-  description: { 'pl-PL': 'Opis', 'en-US': 'Description' },
+  // Feature 174: the effective texts at the feed's (C, L), one string each.
+  name: 'Niebieski widget',
+  description: 'Opis',
   attributes: { brand: 'Acme', colour: 'blue', weight: 2.5 },
   customFields: { warranty_months: 24 },
   price: { net: '100.0000', gross: '123.00', taxResolved: true, taxRatePercent: 23 },
@@ -426,49 +427,31 @@ describe('resolveFeedItem — fallbacks and required fields (FR-002, FR-037)', (
   });
 });
 
-describe('resolveFeedItem — language chain (FR-040)', () => {
-  it('uses the feed language when present, with no warning', () => {
-    const out = resolveFeedItem({
-      fields: [field({ outputName: 'title', sourceKind: 'name' })],
-      item: ITEM,
-      context: CONTEXT,
-    });
-    expect(valueOf(out.fields, 'title')).toBe('Niebieski widget');
-    expect(out.issues).toHaveLength(0);
-  });
-
-  it('walks the configured fallback chain and counts the substitution as a warning', () => {
-    const out = resolveFeedItem({
-      fields: [field({ outputName: 'title', sourceKind: 'name' })],
-      item: { ...ITEM, name: { pl: 'Zapasowy', 'en-US': 'English' } },
-      context: CONTEXT,
-    });
-    expect(valueOf(out.fields, 'title')).toBe('Zapasowy');
-    expect(out.issues).toContainEqual(
-      expect.objectContaining({ severity: 'warning', reason: 'missing_translation' }),
-    );
-  });
-
-  it('falls through to the platform default at the end of the chain', () => {
-    const out = resolveFeedItem({
-      fields: [field({ outputName: 'title', sourceKind: 'name' })],
-      item: { ...ITEM, name: { 'en-US': 'English only' } },
-      context: CONTEXT,
-    });
-    expect(valueOf(out.fields, 'title')).toBe('English only');
-    expect(out.issues.some((i) => i.reason === 'missing_translation')).toBe(true);
-  });
-
-  it('records at most one missing_translation warning per field', () => {
+// Feature 174 (FR-014, `contracts/readers.md` §1): a product's name and description reach the
+// feed as the effective strings at the feed's (C, L), so the 067 language chain (and its
+// `missing_translation` warning) no longer applies to them.
+describe('resolveFeedItem — product texts are one string (174)', () => {
+  it('takes the name and description verbatim, with no warning', () => {
     const out = resolveFeedItem({
       fields: [
         field({ outputName: 'title', sourceKind: 'name' }),
         field({ outputName: 'description', sourceKind: 'description' }),
       ],
-      item: { ...ITEM, name: { 'en-US': 'x' }, description: { 'en-US': 'y' } },
+      item: ITEM,
       context: CONTEXT,
     });
-    expect(out.issues.filter((i) => i.reason === 'missing_translation')).toHaveLength(2);
+    expect(valueOf(out.fields, 'title')).toBe('Niebieski widget');
+    expect(valueOf(out.fields, 'description')).toBe('Opis');
+    expect(out.issues).toHaveLength(0);
+  });
+
+  it('a product with no description leaves the optional field out', () => {
+    const out = resolveFeedItem({
+      fields: [field({ outputName: 'description', sourceKind: 'description' })],
+      item: { ...ITEM, description: null },
+      context: CONTEXT,
+    });
+    expect(valueOf(out.fields, 'description')).toBeUndefined();
   });
 });
 
@@ -492,7 +475,7 @@ describe('resolveFeedItem — transforms (FR-067)', () => {
   it('strips HTML and collapses the leftover whitespace', () => {
     const out = resolveFeedItem({
       fields: [field({ outputName: 'd', sourceKind: 'description', transform: 'strip_html' })],
-      item: { ...ITEM, description: { 'pl-PL': '<p>Opis <b>x</b></p>' } },
+      item: { ...ITEM, description: '<p>Opis <b>x</b></p>' },
       context: CONTEXT,
     });
     expect(valueOf(out.fields, 'd')).toBe('Opis x');

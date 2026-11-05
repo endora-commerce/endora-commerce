@@ -1346,6 +1346,50 @@ export const MINTED_ERROR_CODES: MintedErrorCodes = {
       '`quote_requests`\' own column, and the one raise site is its admin create. ' +
       '`SALES_CHANNEL_NOT_PERMITTED` is not reused: its sentence speaks to a signed-in buyer.',
   },
+  FIELD_NOT_AT_SCOPE: {
+    to: 'catalog',
+    reason:
+      'Minted by feature 174 (`specs/174-product-editor-scope-switcher/`, FR-012) for a scoped write ' +
+      'naming a field at a scope outside its scope set — a Channel × language value of the audience, ' +
+      'the window, the minimum order quantity, returnable or a non-text attribute. The noun is a ' +
+      'product field\'s scope set, `catalog`\'s rule; the raise sites are its save, copy, scopes PATCH ' +
+      'and scope write port. `VALIDATION_FAILED` is not reused: the body is well formed, and the ' +
+      'sentence has to name the levels the field accepts.',
+  },
+  SCOPED_VALUE_INVALID: {
+    to: 'catalog',
+    reason:
+      'Minted by feature 174 (FR-062, FR-113) for a scoped write the one write encoding refuses for ' +
+      'what it means: an empty value on a required field, a single select or a boolean, `inherit` at ' +
+      'Global, a subject that is not the product\'s, a source with no own value to copy. The noun is a ' +
+      'product\'s scoped value, a `catalog` row; every raise site is a `catalog` write.',
+  },
+  GLOBAL_ONLY_FIELD: {
+    to: 'catalog',
+    reason:
+      'Minted by feature 174 (FR-081) for a save that writes a global-only product field (SKU, ' +
+      'attribute set, categories, stock flags, download) at a Channel or Channel × language scope. ' +
+      'The noun is the product row, `catalog`\'s; the raise site is its scoped-values save.',
+  },
+  IMPORT_PROFILE_REQUIRED: {
+    to: 'import_export',
+    reason:
+      'Minted by feature 174 (FR-048) for a products import that names no import profile. The noun is ' +
+      'an import profile, an `import_export` row; the raise site is its products import route.',
+  },
+  IMPORT_PROFILE_NOT_FOUND: {
+    to: 'import_export',
+    reason:
+      'Minted by feature 174 (FR-048) for a profile id that names no import profile, on the profile ' +
+      'routes and the products import. The noun is an `import_export` row.',
+  },
+  IMPORT_PROFILE_NAME_TAKEN: {
+    to: 'import_export',
+    reason:
+      'Minted by feature 174 (R14) for a profile created or renamed to a name another profile holds, ' +
+      'compared case-insensitively. The noun is an `import_export` row; `CONFLICT` is not reused because ' +
+      'the sentence has to say the name is taken.',
+  },
   SCOPE_INVALID: {
     to: 'catalog',
     reason:
@@ -1367,8 +1411,9 @@ export const MINTED_ERROR_CODES: MintedErrorCodes = {
   URL_KEY_TAKEN: {
     to: 'catalog',
     reason:
-      'Minted by feature 163 (FR-070) for a URL-key write meeting another product\'s current key ' +
-      'in the same language. The noun is a product URL key, a `catalog` row; the one raise site ' +
+      'Minted by feature 163 (FR-070) for a URL-key write meeting another product\'s current key; ' +
+      'since feature 174 a key text belongs to at most one product per channel, across all the ' +
+      'channel\'s languages. The noun is a product URL key, a `catalog` row; the one raise site ' +
       'is its URL-key write. `VALIDATION_FAILED` is not reused: the key is well formed, and the ' +
       'operator has to choose another one.',
   },

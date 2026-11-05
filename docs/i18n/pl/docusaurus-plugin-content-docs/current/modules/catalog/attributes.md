@@ -64,10 +64,11 @@ Atrybut `page_builder` przechowuje dla każdego produktu jeden dokument Page Bui
 edytuje się na osobnym ekranie, a sklep pokazuje ją w zakładce opisu na stronie produktu
 ([Treść produktu](./product-content.md)). Ustawienia tego typu są stałe:
 
-- `languageScoped` jest zawsze `true`; wartość `false` jest odrzucana;
+- jego języki to języki jego dokumentów, dlatego nigdy nie jest `scopable`: nie ma wartości dla
+  kanału sprzedaży ani dla języka kanału;
 - `isSearchable`, `isFilterable`, `isVariantAxis`, `displayAsSlider`, `isComparable`,
   `quickSearchable`, `isPromoRule`, `isPriceRule`, `massEditable`, `isRequired`,
-  `isVisibleOnProductPage` i `channelScoped` pozostają `false`. Ustawienie którejkolwiek z nich przy
+  `isVisibleOnProductPage` i `scopable` pozostają `false`. Ustawienie którejkolwiek z nich przy
   tworzeniu lub zmianie jest odrzucane z `400 VALIDATION_FAILED`, z osobną pozycją dla każdego
   ustawienia, i nic nie zostaje zapisane;
 - atrybut nie ma opcji;
@@ -233,7 +234,7 @@ zmieniła — panel składa obie części z powrotem w dawną postać.
 - Flagi logiczne: `is_searchable`, `is_filterable`, `is_variant_axis`, `is_comparable`,
   `quick_searchable`, `is_promo_rule`, `is_price_rule`, `is_visible_on_product_page`,
   `display_as_slider`,
-  `channel_scoped`, `language_scoped`, `mass_editable`.
+  `scopable`, `mass_editable`.
 - `filter_position int NOT NULL DEFAULT 0`.
 - Ustawienia prezentacji: `select_display varchar(16) NULL` (`pill` = dawne `enum`, `dropdown` =
   dawne `select`) i `numeric_kind varchar(8) NULL` (`number` | `price`).

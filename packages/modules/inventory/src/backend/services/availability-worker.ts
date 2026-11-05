@@ -79,7 +79,9 @@ export class AvailabilityWorker {
       customerIds.length > 0 ? await this.customerAccounts.findByIds(customerIds) : [];
     const emailById = new Map(customers.map((c) => [c.id, c.email]));
 
-    const productName = product.name['en-US'] ?? Object.values(product.name)[0] ?? product.sku;
+    // Feature 174 (owner decision after C1, 2026-11-03) — the Global name: a subscription stores no
+    // channel and no language. Storing them is the named follow-up of spec 174 (*Out of scope*).
+    const productName = product.name || product.sku;
     const now = new Date();
 
     for (const sub of subscriptions) {

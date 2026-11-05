@@ -5,6 +5,13 @@ import { Badge, Button } from '@endora-commerce/admin-kit/ui';
 import { useTranslation } from '@endora-commerce/admin-kit/i18n';
 
 /**
+ * The languages a content value is edited in: always offered, then any other
+ * language the stored content carries (FR-021). The card and the product
+ * content screen read the same list, so they cannot disagree about a language.
+ */
+export const PRODUCT_CONTENT_LANGUAGES = ['en-US', 'pl-PL'] as const;
+
+/**
  * Why a content card offers no **Edit content** link, or `null` when it does
  * (contracts/admin-surfaces.md §4).
  *

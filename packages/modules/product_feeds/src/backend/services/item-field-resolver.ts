@@ -57,35 +57,6 @@ function issue(
   return { severity, reason, outputName, detail };
 }
 
-/**
- * Walks the language chain: the feed's language, then its configured
- * fallbacks, then the platform default (which is the last entry the caller puts
- * in `languageFallbacks`). Any substitution is a run warning (FR-040).
- */
-function pickLocalized(
-  map: Readonly<Record<string, string>>,
-  context: FeedResolutionContext,
-): { value: string; substituted: boolean } {
-  const direct = map[context.languageCode];
-  if (typeof direct === 'string' && direct.trim() !== '') {
-    return { value: direct, substituted: false };
-  }
-  for (const code of context.languageFallbacks) {
-    const candidate = map[code];
-    if (typeof candidate === 'string' && candidate.trim() !== '') {
-      return { value: candidate, substituted: true };
-    }
-  }
-  // Last resort: any populated translation is better than skipping the item on
-  // a field the operator did not mark required.
-  for (const candidate of Object.values(map)) {
-    if (typeof candidate === 'string' && candidate.trim() !== '') {
-      return { value: candidate, substituted: true };
-    }
-  }
-  return { value: '', substituted: false };
-}
-
 /** Renders an arbitrary attribute / custom-field value as a feed string. */
 function stringifyValue(value: unknown): string {
   if (value === null || value === undefined) return '';
@@ -197,21 +168,9 @@ function resolveSource(
       return { value: item.productType, issues: [] };
     case 'name':
     case 'description': {
-      const map = field.sourceKind === 'name' ? item.name : item.description;
-      const picked = pickLocalized(map, context);
-      return {
-        value: picked.value,
-        issues: picked.substituted
-          ? [
-              issue(
-                'warning',
-                'missing_translation',
-                field.outputName,
-                `No ${context.languageCode} value; used a fallback language.`,
-              ),
-            ]
-          : [],
-      };
+      // Feature 174 — one string per item, already at the feed's (channel, language).
+      const text = field.sourceKind === 'name' ? item.name : item.description;
+      return { value: text ?? '', issues: [] };
     }
     case 'brand': {
       const key = field.sourceKey ?? DEFAULT_BRAND_KEY;
@@ -384,9 +343,10 @@ export function resolveFeedItem(input: ResolveFeedItemInput): ResolvedFeedItem {
     if (value === '' && field.fallbackValue != null && field.fallbackValue !== '') {
       value = field.fallbackValue;
       // The fallback did its job, so a diagnostic about the empty source would
-      // be noise — except a language substitution, which the operator asked to
-      // be counted (FR-040). Keep only the reasons that survive a fallback.
-      carryIssues = carryIssues.filter((i) => i.reason === 'missing_translation');
+      // be noise. Feature 174 retired the one reason that used to survive a
+      // fallback (`missing_translation`: a product's text has a value at every
+      // language through Global), so none is carried.
+      carryIssues = [];
     }
 
     value = applyTransform(value, field, input.context);

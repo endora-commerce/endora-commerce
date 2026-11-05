@@ -115,8 +115,8 @@ describe('price-book grid — a picked product already in the book (Checkpoint 5
       book,
       lines: linesOf(ROWS),
       products: [
-        { id: product(60).id, sku: product(60).sku, slug: 's-060', name: { 'en-US': product(60).name }, status: 'active', type: 'simple' },
-        { id: '00000000-0000-4000-8000-000000164fff', sku: 'NEW-1', slug: 'new-1', name: { 'en-US': 'Brand new' }, status: 'active', type: 'simple' },
+        { id: product(60).id, sku: product(60).sku, slug: 's-060', name: product(60).name, status: 'active', type: 'simple' },
+        { id: '00000000-0000-4000-8000-000000164fff', sku: 'NEW-1', slug: 'new-1', name: 'Brand new', status: 'active', type: 'simple' },
       ],
     });
     await open();

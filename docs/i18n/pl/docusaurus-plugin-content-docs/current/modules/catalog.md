@@ -97,7 +97,7 @@ niczego nie zmienia — bez wpisu audytu i bez zdarzenia.
 - **Strona produktu.** Strona zarchiwizowanego produktu odpowiada `410 PRODUCT_ARCHIVED`
   („usunięty”), ale tylko kupującemu, który w przeciwnym razie mógłby go tam zobaczyć:
   sprawdzenie pomija archiwizację i czyta status globalny jako `active`, a wszystkie statusy
-  kanału i pary kanał × język, przynależność do kanału, języki kanału, okno publikacji i
+  kanału i pary kanał × język, przynależność do kanału, języki kanału, okres publikacji i
   odbiorcy nadal obowiązują. Wszędzie indziej, a także dla każdego produktu wyłączonego bez
   archiwizacji, strona odpowiada `404` dokładnie tak jak dla produktu, który nie istnieje.
 - **Lista w panelu.** Zarchiwizowane produkty są domyślnie ukryte niezależnie od statusu;
@@ -135,10 +135,10 @@ zakres i raportuje produkty zmienione w międzyczasie.
 
 Gdy **zmiana statusu** dokonana przez operatora włącza produkt w kanale sprzedaży i
 języku — status globalny, status kanału albo pary kanał × język, pojedynczo lub
-zbiorczo — produkt musi mieć w tym języku: **nazwę** (własną nazwę w tym języku albo
-nazwę nadpisaną dla tego kanału; nazwa w innym języku się nie liczy), **klucz URL**
-(liczy się klucz globalny) oraz każdy **wymagany** atrybut zależny od języka ze swojego
-zestawu atrybutów. Ustawienie **Completeness check when switching a product on**
+zbiorczo — produkt musi mieć w tym kanale i języku: niepustą obowiązującą **nazwę**
+(kanał × język → kanał → globalna; celowo puste nadpisanie liczy się jako brak),
+**klucz URL** (liczy się klucz globalny) oraz obowiązującą wartość każdego **wymaganego**
+atrybutu ze swojego zestawu atrybutów. Ustawienie **Completeness check when switching a product on**
 (`catalog.scope_completeness_gate`, jedna wartość dla całej platformy) decyduje, co się
 dzieje, gdy czegoś brakuje:
 
@@ -151,9 +151,9 @@ dzieje, gdy czegoś brakuje:
   `completeness_gate`.
 
 Sprawdzana jest wyłącznie zmiana statusu. Produkt, który staje się dostępny, bo
-dołącza do kanału, kanał zyskuje język, otwiera się jego okno publikacji, zmienia się
+dołącza do kanału, kanał zyskuje język, zaczyna się jego okres publikacji, zmienia się
 jego grupa odbiorców albo zostaje przywrócony z archiwum, nie jest sprawdzany — braki w
-każdym kanale i języku pokazuje wtedy **przegląd zakresów** w edytorze produktu.
+każdym kanale i języku pokazuje wtedy **mapa zakresów** w edytorze produktu.
 Ustawienie `active` dla zarchiwizowanego produktu jest sprawdzane jak każda zmiana
 statusu, choć produkt pozostaje zarchiwizowany. Importy, synchronizacja z PIM i upsert
 przez klucz API nigdy nie są sprawdzane.
@@ -437,8 +437,10 @@ jego własna strona.
 ### Dla kanału sprzedaży
 
 Obie zasady można nadpisać dla jednego kanału sprzedaży — **Zasady zamawiania** kanału w
-zakresach produktu (`PATCH /api/v1/admin/catalog/products/:id/scopes`, pola
-`minOrderQuantity` i `returnable` wpisu kanału; `null` przywraca wartość globalną).
+zakresach produktu — w edytorze produktu w zakresie kanału albo, dla klientów API, przez
+`PUT /api/v1/admin/catalog/products/:id/scoped-values` (`minOrderQuantity`, `returnable`) lub
+`PATCH /api/v1/admin/catalog/products/:id/scopes`. `{ "inherit": true }` przywraca wartość
+globalną; `null` w minimum zapisuje dla tego kanału „brak minimum”.
 Wartość kanału obowiązuje wszędzie, gdzie koszyk, zamówienie albo zapytanie ofertowe należy
 do tego kanału: przy dodawaniu do koszyka, w widoku koszyka, przy przekazaniu do akceptacji,
 w podglądzie zamówienia, przy składaniu zamówienia, w podglądzie zamówienia tworzonego przez
@@ -605,8 +607,7 @@ powyższy endpoint zachowuje swoją postać — ale model przechowywania i włas
   `custom_field_definition_id` z UNIQUE), zawierający tylko flagi zachowania katalogu
   (`isSearchable`, `isFilterable`, `isVariantAxis`, `displayAsSlider`, `isComparable`,
   `quickSearchable`, `isPromoRule`, `isPriceRule`, `filterPosition`, `isVisibleOnProductPage`,
-  `channelScoped`,
-  `languageScoped`, `massEditable`) oraz dwa ustawienia prezentacji (`selectDisplay`, `numericKind`),
+  `scopable`, `massEditable`) oraz dwa ustawienia prezentacji (`selectDisplay`, `numericKind`),
   które bez strat zachowują dawne rozróżnienia `enum`/`select` i `number`/`price`. **Flagi pozostają
   własnością katalogu** — ogólny rdzeń nigdy ich nie interpretuje.
 - **Opcje są w `custom_field_options`.** Tabeli katalogu `attribute_options` już nie ma; listy opcji

@@ -1,6 +1,10 @@
 import { z } from 'zod';
 import { isoDateTimeSchema, uuidSchema } from './common.js';
 import { SalesChannelCodeSchema } from './sales-channels.js';
+import type { ScopeRef, ScopedSource, SeoProductMetaField } from './product-scope-model.js';
+import type { ScopedFieldView } from './product-scoped-values.js';
+import type { ScopedWriteOp } from './scoped-write-encoding.js';
+import { scopeRequestSchema } from './product-scopes.js';
 
 /**
  * SEO meta + sitemap contracts (T235 / FR-101, FR-102).
@@ -66,7 +70,7 @@ export const ogImageUrlSchema = z
   .string()
   .max(2048)
   .refine(
-    (value) => /^https?:\/\/[^\s/?#\\]+[^\s\\]*$/i.test(value) || /^\/(?![/\\])[^\s\\]*$/.test(value),
+    (value) => /^https?:\/\/[^\s/?#\\@]+(?:[/?#][^\s\\]*)?$/i.test(value) || /^\/(?![/\\])[^\s\\]*$/.test(value),
     { message: 'an http(s) URL or a path starting with a single /' },
   );
 
@@ -435,29 +439,14 @@ export const adminCrawlerFilePreviewResponseSchema = z.object({
 export type AdminCrawlerFilePreviewResponse = z.infer<typeof adminCrawlerFilePreviewResponseSchema>;
 
 /**
- * Container name: `seoMetaWritePort`. Owner: `seo`.
- *
- * Narrow write surface for PIM importers (feature 089 / FR-029): upsert product
- * meta overrides by locale — the language rows. Feature 163 added channel and
- * channel × language rows; this port writes none of them, so an import never
- * touches an operator's channel override (FR-091).
- *
- * **Owner off:** resolving this port throws `ModuleDisabledError` (503).
+ * Feature 174 (`specs/174-product-editor-scope-switcher/contracts/seo-ports.md`; research R9,
+ * R21) — product metadata at the three product scopes: Global (no channel, no locale),
+ * Channel (channel, no locale) and Channel × language. There is no locale-only product row any
+ * more (FR-010). `SeoProductMetaField` is declared once, in `product-scope-model.ts`.
  */
-export interface SeoMetaWritePort {
-  upsertProductMeta(input: {
-    productId: string;
-    locale: string;
-    title?: string | null;
-    description?: string | null;
-  }): Promise<void>;
-}
-
-/** The product-page metadata fields an SEO override can set (feature 163, FR-075). */
-export type SeoProductMetaField = 'title' | 'description' | 'ogTitle' | 'ogDescription' | 'ogImageUrl';
 
 /** Where an effective metadata value came from; `derived` = the product page's own fallback. */
-export type SeoProductMetaSource = 'channel_language' | 'channel' | 'language' | 'derived';
+export type SeoProductMetaSource = ScopedSource | 'derived';
 
 export interface SeoProductMetaValues {
   title: string;
@@ -468,24 +457,81 @@ export interface SeoProductMetaValues {
 }
 
 /**
- * Container name: `seoProductMetaPort`. Owner: `seo` (feature 163, R13).
+ * `GET /api/v1/admin/seo/meta/product/:entityId` query — `catalog:read` (FR-093). The scope
+ * request every scoped read takes (`scopeRequestSchema`, resolved with `scopeFromRequest`): no
+ * locale-only scope.
+ */
+export const seoProductMetaQuerySchema = scopeRequestSchema;
+export type SeoProductMetaQuery = z.infer<typeof seoProductMetaQuerySchema>;
+
+/**
+ * Container name: `seoProductMetaPort`. Owner: `seo` (feature 163 R13, rewritten by 174).
  *
- * Product metadata per sales channel × language. Each field resolves channel ×
- * language → channel → language → the caller's derived fallback (FR-075).
- * `catalog` declares the edge as degrades-without and probes `seo`'s presence before
- * resolving it.
+ * `catalog` declares the edge as degrades-without and probes `seo`'s presence before resolving
+ * it; with `seo` off the product editor shows no SEO section (FR-092).
  *
  * **Owner off:** resolving this port throws `ModuleDisabledError` (503).
  */
 export interface SeoProductMetaPort {
+  /**
+   * Storefront: effective values at (C, L) along C×L → C → G, then the caller's derived
+   * fallback. A field whose effective source is an empty override (`set_empty`) also takes the
+   * derived value (owner round 6).
+   */
   resolveForProduct(input: {
     productId: string;
     channelId: string;
     languageCode: string;
     fallback: SeoProductMetaValues;
   }): Promise<SeoProductMetaValues & { sources: Record<SeoProductMetaField, SeoProductMetaSource> }>;
-  /** Every scope holding an override for the product, for the scope overview. */
+  /** Admin: each field's view at one scope; an invalid scope → `422 SCOPE_INVALID`, never an empty view. */
+  readScoped(productId: string, scope: ScopeRef): Promise<Record<SeoProductMetaField, ScopedFieldView<string>>>;
+  /** Overview: every scope holding a product row. */
   listScopesForProduct(
     productId: string,
-  ): Promise<Array<{ channelId: string | null; locale: string | null; fields: SeoProductMetaField[] }>>;
+  ): Promise<Array<{ channelId: string | null; languageCode: string | null; fields: SeoProductMetaField[] }>>;
+}
+
+/** A field's own value at a scope for an audit before-state: a text, an empty override, or none. */
+export type SeoProductMetaOwnValue = { own: string | { empty: true } } | { inherited: true };
+
+/**
+ * Container name: `seoProductMetaWritePort`. Owner: `seo` (feature 174, FR-091), registered by T121.
+ *
+ * Writes product metadata **on the caller's EntityManager**: no fork, no flush, no audit entry,
+ * no event — `catalog`'s save Command commits or rolls the rows back with its own. `catalog`
+ * resolves it with `lazyPort` inside the Command only when the save changes SEO, and declares the
+ * edge `refuses-without`.
+ *
+ * Row mapping: G = (no channel, no locale); C = (channel, no locale); C×L = (channel, locale).
+ * `set` → the column holds the value; `empty` → `''`; `inherit` → `NULL`, and a row whose every
+ * column is `NULL` is deleted. Refuses (`422 SCOPED_VALUE_INVALID`) `inherit` at Global, an
+ * over-long value (title 160, description 400, OG title 160, OG description 400, image URL 2048)
+ * and an image URL that is not `http:` / `https:` or carries credentials (`unsafe_url`).
+ *
+ * **No scope check:** it writes any scope it is given — membership and the channel's languages are
+ * the caller's to check (`catalog`'s save resolves the scope first; a duplicate writes the copy's
+ * scopes in the same transaction).
+ *
+ * **Owner off:** resolving this port throws `ModuleDisabledError` (503).
+ */
+export interface SeoProductMetaWritePort<EM = unknown> {
+  /**
+   * The current own values of the named fields at `scope`, for the caller's audit before-state:
+   * one entry per named field — `{ own: text }`, `{ own: { empty: true } }` for an empty override,
+   * `{ inherited: true }` for no own value there; `own` is never `null`
+   * (`contracts/seo-ports.md` §2).
+   */
+  readWithin(
+    em: EM,
+    input: { productId: string; scope: ScopeRef; fields: SeoProductMetaField[] },
+  ): Promise<Partial<Record<SeoProductMetaField, SeoProductMetaOwnValue>>>;
+  applyWithin(
+    em: EM,
+    input: {
+      productId: string;
+      scope: ScopeRef;
+      changes: Partial<Record<SeoProductMetaField, ScopedWriteOp<string>>>;
+    },
+  ): Promise<{ before: Record<string, unknown>; after: Record<string, unknown> }>;
 }

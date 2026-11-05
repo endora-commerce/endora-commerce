@@ -59,7 +59,7 @@ const CUSTOMER = {
   organizationId: ORGANIZATION_ID,
   organizationName: 'Acme',
 };
-const PRODUCT = { id: 'prod-1', sku: 'SKU-1', slug: 'p1', status: 'active', type: 'simple', name: { 'en-US': 'Widget' } };
+const PRODUCT = { id: 'prod-1', sku: 'SKU-1', slug: 'p1', status: 'active', type: 'simple', name: 'Widget' };
 
 const BUNDLE = passthroughBundle('core', [
   'rfqCreate.submit',

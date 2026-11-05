@@ -160,7 +160,9 @@ describe('a personal Organization is administered by its member', () => {
   it("the federated sign-in's account creation", async () => {
     const created = await cradle.customerSocialLoginPort.autoCreate(
       `fed-${randomUUID().slice(0, 8)}@personal-admin.example`,
-      { salesChannelId: null },
+      // Issue #773 — the setting is read for the sign-in's channel, and no
+      // channel means no account.
+      { salesChannelId: (await h.salesChannels.resolver.getSystemDefault()).id },
     );
     expect(created).not.toBeNull();
     await expectPersonalAdministrator(created!.id);

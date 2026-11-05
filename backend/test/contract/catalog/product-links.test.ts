@@ -47,8 +47,8 @@ describe('Admin Product Links contract (T098)', () => {
       payload: {
         sku: `LINK-${suffix}`,
         type: 'simple',
-        name: { 'en-US': `Link product ${suffix}` },
-        description: { 'en-US': '' },
+        name: `Link product ${suffix}`,
+        description: '',
         categoryIds: [],
         attributeValues: {},
         visibility: 'public',

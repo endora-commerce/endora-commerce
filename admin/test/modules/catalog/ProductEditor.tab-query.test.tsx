@@ -5,6 +5,7 @@ import { MemoryRouter, Route, Routes } from 'react-router-dom';
 import { TranslationProvider } from '@endora-commerce/admin-kit/i18n';
 import catalogEn from '../../../../packages/modules/catalog/i18n/en.json';
 import { adminSession, everyDeclaredModule, modulePresence, withSession } from '../../helpers/render-with-session';
+import { scopedValuesResponse } from '../../helpers/scoped-values-fixtures';
 
 /**
  * Feature 163 (review D3) — the product editor opens on the tab its address names
@@ -37,7 +38,7 @@ const PRODUCT = {
   slug: 'tab-sku',
   type: 'simple',
   status: 'inactive',
-  name: { 'en-US': 'Drill' },
+  name: 'Drill',
   description: {},
   visibility: 'public',
   attributeValues: {},
@@ -47,9 +48,11 @@ const PRODUCT = {
 
 beforeEach(() => {
   getSpy.mockReset();
-  getSpy.mockImplementation((path: string) =>
-    path === `/api/v1/admin/catalog/products/${PRODUCT_ID}` ? Promise.resolve({ data: PRODUCT }) : Promise.resolve({ data: [] }),
-  );
+  getSpy.mockImplementation((path: string) => {
+    if (path.includes('/scoped-values')) return Promise.resolve(scopedValuesResponse());
+    if (path.endsWith('/editor-preference')) return Promise.resolve({ data: null });
+    return path === `/api/v1/admin/catalog/products/${PRODUCT_ID}` ? Promise.resolve({ data: PRODUCT }) : Promise.resolve({ data: [] });
+  });
 });
 afterEach(() => cleanup());
 

@@ -162,14 +162,14 @@ export function SharedComparisonTable(props: {
                   <div className="industria-cmp-card">
                     <div className="industria-cmp-card__media">
                       {p.primaryAssetUrl ? (
-                        <img src={p.primaryAssetUrl} alt={localised(p.name)} loading="lazy" />
+                        <img src={p.primaryAssetUrl} alt={p.name} loading="lazy" />
                       ) : (
                         <PlaceholderGlyph />
                       )}
                     </div>
                     <div className="industria-cmp-card__sku">{p.sku}</div>
                     <LocalizedAnchor href={`/p/${p.slug}`} className="industria-cmp-card__name">
-                      {localised(p.name)}
+                      {p.name}
                     </LocalizedAnchor>
                     <div className="industria-cmp-card__price">
                       {p.price ? `${p.price.amount} ${p.price.currency}` : '—'}

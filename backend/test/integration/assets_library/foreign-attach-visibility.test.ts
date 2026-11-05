@@ -64,8 +64,8 @@ describe('assets library — linking a hidden file from a module without reader 
     const suffix = randomUUID().slice(0, 8);
     return inject('POST', '/api/v1/admin/catalog/products', cookies, {
       sku: `FAV-${run}-${suffix}`,
-      name: { 'en-US': `FAV ${run} ${suffix}` },
-      description: { 'en-US': 'Feature 166 T055' },
+      name: `FAV ${run} ${suffix}`,
+      description: 'Feature 166 T055',
       categoryIds: [],
       attributeValues: {},
       visibility: 'public',

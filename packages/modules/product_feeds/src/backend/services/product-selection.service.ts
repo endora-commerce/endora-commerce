@@ -253,7 +253,7 @@ export class ProductSelectionService {
   async sampleProducts(
     scope: SelectionScope,
     limit: number,
-  ): Promise<Array<{ id: string; sku: string; name: Record<string, string> }>> {
+  ): Promise<Array<{ id: string; sku: string; name: string }>> {
     if (limit <= 0) return [];
     const ids: string[] = [];
     for await (const page of this.iterateProductIds(scope)) {

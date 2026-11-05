@@ -1,5 +1,9 @@
 {
   "registry.alreadyActive": "Another PIM connector is already active: {{moduleId}}",
   "registry.alreadyActive.detail": "Deactivate the other connector before activating this one.",
-  "errors.PIM_CONNECTOR_ALREADY_ACTIVE": "Another PIM connector is already active ({activeModuleId}). Switch it off first."
+  "errors.PIM_CONNECTOR_ALREADY_ACTIVE": "Another PIM connector is already active ({activeModuleId}). Switch it off first.",
+  "localeMapping.unmapped": "Source locale {locale} (source channel: {sourceChannel}) is not mapped; its values were not written for {products} product(s).",
+  "localeMapping.skipped.not_a_member": "The product is not sold in the target sales channel, so this target was skipped.",
+  "localeMapping.skipped.language_not_offered": "The target sales channel does not offer this language, so this target was skipped.",
+  "fieldPath.wholeFieldOnly": "Protection applies to a whole field. A language or channel part in the path is not valid."
 }

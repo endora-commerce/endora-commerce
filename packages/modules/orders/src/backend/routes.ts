@@ -163,7 +163,10 @@ export interface OrdersDeps {
    */
   catalogProductRead: CatalogProductReadPort;
   /** Feature 163 — the admin preview reports a line no longer available in the channel. */
-  catalogProductAvailability: Pick<CatalogProductAvailabilityPort, 'filterAvailable' | 'effectiveOrderRules'>;
+  catalogProductAvailability: Pick<
+    CatalogProductAvailabilityPort,
+    'filterAvailable' | 'effectiveOrderRules' | 'effectiveTexts'
+  >;
   customerAccountRead: CustomerAccountReadPort;
   organizationDetails: OrganizationDetailsPort;
   /**

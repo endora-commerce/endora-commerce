@@ -12,7 +12,9 @@ import type { BulkImportReport } from './import-export.js';
 import type { AttributeScope } from './product-value-resolver.js';
 import { ORDER_MINIMUM_MAX } from './order-minimums.js';
 import { productPagePathsSchema } from './product-url-keys.js';
-import { translationMapPatchSchema } from './scoped-translations.js';
+import type { FieldPath, ScopeLevel } from './product-scope-model.js';
+import type { ProductScopedWriteCell } from './product-scopes.js';
+import { scopeVersionTokenSchema } from './scoped-write-encoding.js';
 
 /**
  * Catalog module contracts — Source of truth per Principle V.
@@ -438,9 +440,11 @@ export const productDetailSchema = productSummarySchema.extend({
           url: z.string(),
         }),
         /**
-         * Feature 163 (FR-077) — the image's alt text at the request's scope language:
-         * the product's own, else the asset's; `null` = none. Optional so other
-         * builders of the DTO keep compiling; `catalog` always emits it.
+         * Feature 163 (FR-077), feature 174 (`data-model.md` §6, T035) — the image's alt text
+         * at the request's (channel, language): its override there, else its Global alt text,
+         * else the asset's. `''` = an empty override — a decorative image, rendered `alt=""`;
+         * `null` = none at all. Optional so other builders of the DTO keep compiling;
+         * `catalog` always emits it.
          */
         altText: z.string().nullable().optional(),
       }),
@@ -705,14 +709,24 @@ export type FilterDefinition = z.infer<typeof filterDefinitionSchema>;
 
 // --- Admin write-surface requests -------------------------------------------
 
+/** Feature 174 (R21) — the longest product name at any scope. */
+export const PRODUCT_NAME_MAX = 255;
+/** Feature 174 (R21) — the longest product description at any scope. */
+export const PRODUCT_DESCRIPTION_MAX = 20_000;
+
 // Base shape (no cross-field refine) so updateProductRequestSchema can
 // `.partial()` it. The cross-field rule for virtual download fields is
 // applied as a separate refine on the create variant below.
 const baseProductRequestObject = z.object({
   sku: z.string().min(1).max(255),
   type: productTypeSchema,
-  name: multilingualStringSchema,
-  description: multilingualStringSchema,
+  /**
+   * Feature 174 (FR-014) — the Global name, one string. Channel and Channel × language
+   * values are written through `PUT …/products/:id/scoped-values`.
+   */
+  name: z.string().min(1).max(PRODUCT_NAME_MAX),
+  /** Feature 174 (FR-014) — the Global description; `null` = none. */
+  description: z.string().max(PRODUCT_DESCRIPTION_MAX).nullable(),
   categoryIds: z.array(uuidSchema),
   attributeValues: z.record(z.string(), z.unknown()),
   stockMode: stockModeSchema.optional(),
@@ -803,6 +817,11 @@ export const updateProductRequestSchema = baseProductRequestObject
      */
     publishFrom: isoDateTimeSchema.nullable().optional(),
     publishUntil: isoDateTimeSchema.nullable().optional(),
+    /**
+     * Feature 174 (R7) — optional precondition: the `products.scope_version` the caller read
+     * (`GET …/scoped-values`, opaque). When sent and stale → `409 VERSION_CONFLICT`.
+     */
+    version: scopeVersionTokenSchema.optional(),
   });
 export type UpdateProductRequest = z.infer<typeof updateProductRequestSchema>;
 
@@ -1197,20 +1216,11 @@ const baseCreateAttributeObject = z.object({
   /** Feature 012 — gates inclusion in the storefront PDP "Parametry produktu" tab. */
   isVisibleOnProductPage: z.boolean().optional(),
   /**
-   * Feature 023 — when `true` the attribute may carry per-Sales-Channel
-   * overrides. Default `false` (global-only). Independent of
-   * `languageScoped`; the two flags compose into one of four effective
-   * scopes (`global` / `language` / `channel` / `channel+language`).
+   * Feature 174 (FR-012, R15) — the attribute may carry Channel overrides and, for a text
+   * (`string`) attribute, Channel × language overrides. Default `false` (Global only). The
+   * Global value is always one value, never a language map.
    */
-  channelScoped: z.boolean().optional(),
-  /**
-   * Feature 023 — when `true` the attribute's value is keyed by
-   * language at every slot. For user-defined attributes the baseline
-   * is stored as `Record<lang, value>` in `products.attribute_values`;
-   * for the system Name / Description attributes this flag is pinned
-   * `true` by SYSTEM_ATTRIBUTE_SCOPES.
-   */
-  languageScoped: z.boolean().optional(),
+  scopable: z.boolean().optional(),
   /**
    * Feature 022 (products bulk edit) — makes the attribute available in
    * the Products Bulk Edit dialog's attribute field list. Default false;
@@ -1289,10 +1299,8 @@ export const updateAttributeRequestSchema = z
     filterPosition: z.number().int().min(0).max(10000).optional(),
     /** Feature 012 — gates inclusion in the storefront PDP "Parametry produktu" tab. */
     isVisibleOnProductPage: z.boolean().optional(),
-    /** Feature 023 — see `baseCreateAttributeObject.channelScoped`. */
-    channelScoped: z.boolean().optional(),
-    /** Feature 023 — see `baseCreateAttributeObject.languageScoped`. */
-    languageScoped: z.boolean().optional(),
+    /** Feature 174 — see `baseCreateAttributeObject.scopable`. */
+    scopable: z.boolean().optional(),
     /** Feature 022 (products bulk edit) — toggles bulk-editability. */
     massEditable: z.boolean().optional(),
     /** Feature 039 — values participate in Quick Order search. */
@@ -1343,12 +1351,12 @@ export const adminAttributeResponseSchema = z.object({
   /** Feature 061 (additive) — id of the backing product-host Custom Field definition. */
   customFieldDefinitionId: uuidSchema,
   /**
-   * Feature 023 / 163 (T095b) — whether the attribute's value is set per sales channel
-   * and per language. Optional so other builders of the DTO keep compiling; `catalog`
+   * Feature 174 (R15) — the scope flag and the levels it derives with the value type
+   * (`attributeScopeSet`). Optional so other builders of the DTO keep compiling; `catalog`
    * always emits both.
    */
-  channelScoped: z.boolean().optional(),
-  languageScoped: z.boolean().optional(),
+  scopable: z.boolean().optional(),
+  scopeLevels: z.array(z.enum(['G', 'C', 'CL'])).optional(),
   createdAt: isoDateTimeSchema,
   updatedAt: isoDateTimeSchema,
 });
@@ -1732,12 +1740,9 @@ export const attributeSetAssignedAttributeSchema = z.object({
   label: multilingualStringSchema,
   valueType: attributeValueTypeSchema,
   position: z.number().int().nonnegative(),
-  /**
-   * Feature 023 — the attribute's value is keyed by language, so the product
-   * editor renders it (and anything scoped to it, such as feature 068's
-   * overwrite protection) per language rather than once for the attribute.
-   */
-  languageScoped: z.boolean(),
+  /** Feature 174 (R15) — the attribute's scope flag and the levels it derives. */
+  scopable: z.boolean(),
+  scopeLevels: z.array(z.enum(['G', 'C', 'CL'])),
 });
 export type AttributeSetAssignedAttribute = z.infer<typeof attributeSetAssignedAttributeSchema>;
 
@@ -1784,10 +1789,8 @@ export type AssignAttributesRequest = z.infer<typeof assignAttributesRequestSche
 export const galleryLabelSchema = z.enum(['base_image', 'small_image', 'thumbnail']);
 export type GalleryLabel = z.infer<typeof galleryLabelSchema>;
 
-/** Feature 163 (FR-077) — the longest alt text of one image in one language. */
+/** Feature 163 / 174 — the longest alt text of one image at one scope. */
 export const GALLERY_ALT_TEXT_MAX = 255;
-/** Feature 163 — the most channels one write names. */
-export const SCOPED_CHANNELS_MAX = 256;
 
 export const galleryItemSchema = z.object({
   id: uuidSchema,
@@ -1796,13 +1799,13 @@ export const galleryItemSchema = z.object({
   position: z.number().int().nonnegative(),
   labels: z.array(galleryLabelSchema),
   /**
-   * Feature 163 (FR-077, R15) — the product's own alt text of the image per language;
-   * a language absent here shows the asset's alt text. Optional so other builders of
-   * the DTO keep compiling; `catalog` always emits it.
+   * Feature 174 (data-model §6) — the Global alt text (`null` = none: the asset's own alt text
+   * is the derived fallback) and the Global hidden flag. Read-only here: every scope of both is
+   * written through `PUT …/products/:id/scoped-values`. Optional so other builders of the DTO
+   * keep compiling; `catalog` always emits both.
    */
-  altText: z.record(z.string(), z.string()).optional(),
-  /** Feature 163 (FR-076, R14) — the channels the image is hidden in, sorted. Always emitted by `catalog`. */
-  hiddenInChannels: z.array(uuidSchema).optional(),
+  altText: z.string().nullable().optional(),
+  hidden: z.boolean().optional(),
   createdAt: isoDateTimeSchema,
   updatedAt: isoDateTimeSchema,
 });
@@ -1817,57 +1820,23 @@ export const createGalleryItemRequestSchema = z
   .strict();
 export type CreateGalleryItemRequest = z.infer<typeof createGalleryItemRequestSchema>;
 
+/**
+ * Feature 174 (`contracts/scoped-values-api.md` §6) — a collection operation only: the item's
+ * position. Its roles (`galleryRole:<label>`), alt text and hidden flag are scoped fields, written
+ * at every scope, Global included, through `PUT …/products/:id/scoped-values`.
+ */
 export const updateGalleryItemRequestSchema = z
   .object({
     position: z.number().int().nonnegative().optional(),
-    labels: z.array(galleryLabelSchema).optional(),
-    /**
-     * Feature 163 (FR-077) — per-language alt text: the named languages are set, an
-     * empty string removes one, an unnamed one is left as it is.
-     */
-    altText: translationMapPatchSchema(GALLERY_ALT_TEXT_MAX).optional(),
-    /** Feature 163 (FR-076) — the channels the image is hidden in; replaces the set. */
-    hiddenInChannels: z.array(uuidSchema).max(SCOPED_CHANNELS_MAX).optional(),
   })
   .strict();
 export type UpdateGalleryItemRequest = z.infer<typeof updateGalleryItemRequestSchema>;
 
-/**
- * Feature 163 (FR-076, R14) — a channel's own holders of the gallery roles. `null` =
- * the global holder applies there. Read with `GET …/gallery/channel-roles`.
- *
- * The keys are the camelCase names of the gallery labels (`baseImage` = the
- * `base_image` label, `smallImage` = `small_image`, `thumbnail` = `thumbnail`); the
- * label spelling stays a value (`galleryLabelSchema`), never an API key.
+/*
+ * Feature 174 (`contracts/scoped-values-api.md` §6) — 163's `GET` / `PUT …/gallery/channel-roles`
+ * are retired: a gallery role at G, C or C×L is the scoped field `galleryRole:<label>`, written
+ * through `PUT …/products/:id/scoped-values` (`null` = no image holds the role at the scope).
  */
-export const galleryChannelRolesSchema = z.object({
-  channelId: uuidSchema,
-  roles: z.object({
-    baseImage: uuidSchema.nullable(),
-    smallImage: uuidSchema.nullable(),
-    thumbnail: uuidSchema.nullable(),
-  }),
-});
-export type GalleryChannelRoles = z.infer<typeof galleryChannelRolesSchema>;
-
-/**
- * `PUT …/gallery/channel-roles` — a role named with an item id moves to that item in
- * the channel, `null` = use inherited (the global holder), an absent role is left as
- * it is.
- */
-export const putGalleryChannelRolesRequestSchema = z
-  .object({
-    channelId: uuidSchema,
-    roles: z
-      .object({
-        baseImage: uuidSchema.nullable().optional(),
-        smallImage: uuidSchema.nullable().optional(),
-        thumbnail: uuidSchema.nullable().optional(),
-      })
-      .strict(),
-  })
-  .strict();
-export type PutGalleryChannelRolesRequest = z.infer<typeof putGalleryChannelRolesRequestSchema>;
 
 export const reorderGalleryRequestSchema = z
   .object({
@@ -1920,10 +1889,10 @@ export const updateAttachmentTypeRequestSchema = z
   .strict();
 export type UpdateAttachmentTypeRequest = z.infer<typeof updateAttachmentTypeRequestSchema>;
 
-/** Feature 163 (FR-078) — the longest attachment description one language may carry. */
+/** Feature 163 / 174 — the longest attachment description at a Channel or Channel × language scope. */
 export const ATTACHMENT_DESCRIPTION_TRANSLATION_MAX = 4000;
 
-/** Feature 163 (FR-078) — an attachment name per language, as long as the global one. */
+/** Feature 163 / 174 — an attachment name at any scope, as long as the Global one. */
 export const ATTACHMENT_NAME_MAX = 160;
 
 export const productAttachmentSchema = z.object({
@@ -1935,14 +1904,11 @@ export const productAttachmentSchema = z.object({
   description: z.string().nullable(),
   position: z.number().int().nonnegative(),
   /**
-   * Feature 163 (FR-078, R16) — the name and description per language; a language
-   * absent here shows the global `name` / `description`. Optional so other builders of
-   * the DTO keep compiling; `catalog` always emits them.
+   * Feature 174 (data-model §7) — hidden at Global. Channel and Channel × language values of the
+   * name, description and hidden flag are written through `PUT …/products/:id/scoped-values`.
+   * Optional so other builders of the DTO keep compiling; `catalog` always emits it.
    */
-  nameTranslations: z.record(z.string(), z.string()).optional(),
-  descriptionTranslations: z.record(z.string(), z.string()).optional(),
-  /** Feature 163 (FR-078) — the channels the attachment is hidden in, sorted. Always emitted by `catalog`. */
-  hiddenInChannels: z.array(uuidSchema).optional(),
+  hidden: z.boolean().optional(),
   createdAt: isoDateTimeSchema,
   updatedAt: isoDateTimeSchema,
 });
@@ -1955,39 +1921,26 @@ export const createAttachmentRequestSchema = z
     name: z.string().min(1).max(160),
     description: z.string().nullable().optional(),
     position: z.number().int().nonnegative().optional(),
-    /**
-     * Feature 163 (FR-078) — the name and description per language: the named
-     * languages are set, an empty string removes one, an unnamed one is left as it is.
-     */
-    nameTranslations: translationMapPatchSchema(ATTACHMENT_NAME_MAX).optional(),
-    descriptionTranslations: translationMapPatchSchema(ATTACHMENT_DESCRIPTION_TRANSLATION_MAX).optional(),
-    /** Feature 163 (FR-078) — the channels the attachment is hidden in; replaces the set. */
-    hiddenInChannels: z.array(uuidSchema).max(SCOPED_CHANNELS_MAX).optional(),
   })
   .strict();
 export type CreateAttachmentRequest = z.infer<typeof createAttachmentRequestSchema>;
 
+/**
+ * Feature 174 (`contracts/scoped-values-api.md` §6) — the attachment's type and position. Its
+ * name, description and hidden flag are scoped fields, written at every scope, Global included,
+ * through `PUT …/products/:id/scoped-values`.
+ */
 export const updateAttachmentRequestSchema = z
   .object({
     attachmentTypeId: uuidSchema.optional(),
-    name: z.string().min(1).max(160).optional(),
-    description: z.string().nullable().optional(),
     position: z.number().int().nonnegative().optional(),
-    /**
-     * Feature 163 (FR-078) — the name and description per language: the named
-     * languages are set, an empty string removes one, an unnamed one is left as it is.
-     */
-    nameTranslations: translationMapPatchSchema(ATTACHMENT_NAME_MAX).optional(),
-    descriptionTranslations: translationMapPatchSchema(ATTACHMENT_DESCRIPTION_TRANSLATION_MAX).optional(),
-    /** Feature 163 (FR-078) — the channels the attachment is hidden in; replaces the set. */
-    hiddenInChannels: z.array(uuidSchema).max(SCOPED_CHANNELS_MAX).optional(),
   })
   .strict();
 export type UpdateAttachmentRequest = z.infer<typeof updateAttachmentRequestSchema>;
 
 // --- Packaging Units (Feature 043) ------------------------------------------
 
-/** The longest packaging-unit name, global or (feature 163, FR-079) per language. */
+/** The longest packaging-unit name at any scope. */
 export const PACKAGING_UNIT_NAME_MAX = 160;
 
 /**
@@ -1998,13 +1951,8 @@ export const PACKAGING_UNIT_NAME_MAX = 160;
 export const packagingUnitSchema = z.object({
   id: uuidSchema,
   productId: uuidSchema,
+  /** The Global name; Channel and Channel × language names go through `…/scoped-values` (feature 174). */
   name: z.string().min(1).max(160),
-  /**
-   * Feature 163 (FR-079, R16) — the name per language; a language absent here shows
-   * `name`. Optional so other builders of the DTO keep compiling; `catalog` always
-   * emits it.
-   */
-  nameTranslations: z.record(z.string(), z.string()).optional(),
   baseQuantity: z.number().int().positive(),
   position: z.number().int().nonnegative(),
   isDefault: z.boolean(),
@@ -2026,28 +1974,22 @@ export const createPackagingUnitRequestSchema = z
     position: z.number().int().nonnegative().optional(),
     /** Feature 155 — minimum number of this unit per order of the product; `null` clears. */
     minOrderUnits: z.number().int().min(1).max(ORDER_MINIMUM_MAX).nullable().optional(),
-    /**
-     * Feature 163 (FR-079) — the name per language: the named languages are set, an
-     * empty string removes one, an unnamed one is left as it is.
-     */
-    nameTranslations: translationMapPatchSchema(PACKAGING_UNIT_NAME_MAX).optional(),
   })
   .strict();
 export type CreatePackagingUnitRequest = z.infer<typeof createPackagingUnitRequestSchema>;
 
+/**
+ * Feature 174 (`contracts/scoped-values-api.md` §6) — base quantity, default flag, position and
+ * minimum. The unit's name is a scoped field, written at every scope, Global included, through
+ * `PUT …/products/:id/scoped-values`.
+ */
 export const updatePackagingUnitRequestSchema = z
   .object({
-    name: z.string().trim().min(1).max(160).optional(),
     baseQuantity: z.number().int().positive().optional(),
     isDefault: z.boolean().optional(),
     position: z.number().int().nonnegative().optional(),
     /** Feature 155 — minimum number of this unit per order of the product; `null` clears. */
     minOrderUnits: z.number().int().min(1).max(ORDER_MINIMUM_MAX).nullable().optional(),
-    /**
-     * Feature 163 (FR-079) — the name per language: the named languages are set, an
-     * empty string removes one, an unnamed one is left as it is.
-     */
-    nameTranslations: translationMapPatchSchema(PACKAGING_UNIT_NAME_MAX).optional(),
   })
   .strict();
 export type UpdatePackagingUnitRequest = z.infer<typeof updatePackagingUnitRequestSchema>;
@@ -2278,9 +2220,13 @@ export interface CatalogProductRecord {
   slug: string;
   type: ProductType;
   status: ProductStatus;
-  /** Per-locale JSONB. Resolve with the caller's language chain. */
-  name: Record<string, string>;
-  description: Record<string, string>;
+  /**
+   * Feature 174 (FR-014, FR-031) — the Global name and description, one string each. A reader
+   * with a channel resolves the effective texts at (C, L) through
+   * `catalogProductAvailabilityPort.effectiveTexts`; one without a channel shows these.
+   */
+  name: string;
+  description: string | null;
   /** Per-product override of the global stock mode; `null` ⇒ inherit. */
   stockMode: StockMode | null;
   visibility: ProductVisibility;
@@ -2562,12 +2508,6 @@ export interface CatalogPackagingUnitRecord {
   updatedAt: Date;
   /** Feature 155 — minimum units of this packaging unit per order of the product; `null` = none. */
   minOrderUnits: number | null;
-  /**
-   * Feature 163 (FR-079) — the name per language; the snapshot of a basket or quote
-   * line takes `effectivePackagingUnitName(record, L)`. Optional so other builders of
-   * the record keep compiling; `catalog` always sets it.
-   */
-  nameTranslations?: Record<string, string>;
 }
 
 /** A directed product↔product relation (cross-sell, up-sell, related). */
@@ -2728,7 +2668,7 @@ export interface CatalogProductReadPort {
   /**
    * Feature 161 (G15, `specs/161-price-book-editor/research.md` R14) — one page
    * of the products a caller's **membership seam** names, ordered by the stored
-   * admin name key of the admin language (`en`, `pl`; any other reads `en`),
+   * admin name key (feature 174: one key over the Global name, for every admin language),
    * then SKU, then id, and how many there are. `search` narrows to the products
    * whose stored search key (folded shown name and SKU) or one of whose
    * variants' SKU contains it — case- and accent-folded, taken literally. How
@@ -2761,8 +2701,6 @@ export interface CatalogProductMembership {
 export interface CatalogAdminNamePageQuery {
   readonly membership: CatalogProductMembership;
   readonly search?: string | null;
-  /** A language tag (`pl`, `pl-PL`); its primary subtag picks the key, `en` when it has none. */
-  readonly language: string | null;
   readonly offset: number;
   readonly limit: number;
   /** Default `true`. Without a search, `false` skips the count. */
@@ -2947,47 +2885,46 @@ export interface ProductImportRow {
   sku: string;
   status?: ProductStatus;
   visibility?: ProductVisibility;
-  /** Per-locale, merged into the stored JSONB rather than replacing it. */
-  name?: Record<string, string>;
-  description?: Record<string, string>;
   /**
-   * Feature 163 (FR-092) — the status at a sales channel (`languageCode: null`) or
-   * a sales channel × language scope, one entry per `status@…` column the file
-   * carries. `status: null` = use inherited. A scope the file has no column for is
-   * untouched.
+   * Feature 174 (`contracts/import-profiles-and-csv.md` §2; FR-043, FR-110) — every scoped cell
+   * of the row, Global included, already decoded with `decodeCsvScopedCell` and mapped through
+   * the run's profile, channels by id. A (field, scope) the file has no column for is untouched;
+   * refusals are per cell (the row's other cells apply) and reported in
+   * `BulkImportReport.fieldErrors` under the cell's `column`.
    */
-  scopedStatus?: ScopedStatusCell[];
+  cells?: ProductImportCell[];
 }
 
-/** One `status@<channel code>[/<language>]` cell of a products file (feature 163, FR-092). */
-export interface ScopedStatusCell {
-  channelCode: string;
-  /** `null` = the channel scope. */
-  languageCode: string | null;
-  /** `null` = use inherited (an empty cell). */
-  status: ProductStatus | null;
+/** One cell of a {@link ProductImportRow}: a scoped write and the file column it came from. */
+export interface ProductImportCell extends ProductScopedWriteCell {
+  /** Echoed in `BulkImportReport.fieldErrors[].column`; absent → `<field>@<scope>`. */
+  column?: string;
 }
 
-/** The scoped-status columns a products export carries, and each product's overrides in them. */
-export interface ScopedStatusExport {
-  /** Every channel scope, then its channel × language scopes, in a stable order. */
-  columns: Array<{ channelCode: string; languageCode: string | null }>;
-  /** Product id → column name ({@link scopedStatusColumn}) → the override there. An inherited scope is absent. */
-  values: Record<string, Record<string, ProductStatus>>;
+/** One own value of a {@link ScopedValuesExport} cell: deliberately empty, a text, or a non-text value. */
+export type ScopedExportValue =
+  | { kind: 'empty' }
+  | { kind: 'text'; text: string }
+  /** A minimum order quantity, a returnable flag, a number, date-less non-text or multiselect attribute value. */
+  | { kind: 'value'; value: number | boolean | string[] };
+
+/**
+ * Feature 174 (`contracts/import-profiles-and-csv.md` §3; FR-043, FR-114) — the scoped columns of
+ * a products export: one per (field, scope) at which any product holds an own value, and each
+ * product's own values there. Fields: `name`, `description`, `status`, `urlKey`, every
+ * `attribute:<key>`, and at C `minOrderQuantity` and `returnable`; scopes C and C×L (the Global
+ * values are the products' own records). Orphans are not exported.
+ */
+export interface ScopedValuesExport {
+  /** In a stable order: field, then channel code, then the channel scope before its languages. */
+  columns: Array<{ field: FieldPath; channelId: string; channelCode: string; languageCode: string | null }>;
+  /** Product id → column key ({@link scopedColumn}) → the own value there. A scope that inherits is absent (`INHERIT`). */
+  values: Record<string, Record<string, ScopedExportValue>>;
 }
 
-const SCOPED_STATUS_COLUMN = /^status@([^/]+)(?:\/(.+))?$/;
-
-/** The products-file column of a scope: `status@<channel code>` or `status@<channel code>/<language>`. */
-export function scopedStatusColumn(channelCode: string, languageCode: string | null): string {
-  return languageCode === null ? `status@${channelCode}` : `status@${channelCode}/${languageCode}`;
-}
-
-/** The scope a products-file column names, or `null` when it is not a scoped-status column. */
-export function parseScopedStatusColumn(column: string): { channelCode: string; languageCode: string | null } | null {
-  const match = SCOPED_STATUS_COLUMN.exec(column.trim());
-  if (!match) return null;
-  return { channelCode: match[1]!, languageCode: match[2] ?? null };
+/** The products-file column of a scope: `<field>@<channel code>` or `<field>@<channel code>/<language>`. */
+export function scopedColumn(field: string, channelCode: string, languageCode: string | null): string {
+  return languageCode === null ? `${field}@${channelCode}` : `${field}@${channelCode}/${languageCode}`;
 }
 
 /**
@@ -3005,9 +2942,22 @@ export function parseScopedStatusColumn(column: string): { channelCode: string; 
  */
 export interface CatalogBulkImportPort {
   importCategories(rows: readonly CategoryImportRow[]): Promise<BulkImportReport>;
-  importProducts(rows: readonly ProductImportRow[]): Promise<BulkImportReport>;
-  /** Feature 163 (FR-092) — the scoped-status columns of a products export, and their values. */
-  exportScopedStatuses(): Promise<ScopedStatusExport>;
+  /**
+   * Feature 174 (`contracts/import-profiles-and-csv.md` §2) — **per product**: each row applies in
+   * its own Command `product.scoped_values.import` (one audit entry, `source: 'import_export'`), so
+   * one row's failure leaves the others applied. An unknown SKU is a row error; each refused cell
+   * a field error (the codes of `ProductScopedWriteRefusalCode`, or `URL_KEY_TAKEN` for a key
+   * another product holds), the row's other cells applying. The integration allowlist of
+   * `integrationWritableField` applies to the cells, widened for the products file by
+   * `minOrderQuantity` and `returnable` at G and C (the CSV grammar covers every scoped product
+   * value; multiselect attributes are `attribute:<key>` cells). `status` / `visibility` write
+   * Global. A stored `''` Global description counts as none: an empty cell there writes nothing.
+   * `dryRun` validates every row and cell the same way and writes nothing (URL keys are checked
+   * for grammar only).
+   */
+  importProducts(rows: readonly ProductImportRow[], options?: { dryRun?: boolean }): Promise<BulkImportReport>;
+  /** Feature 174 (FR-043, FR-114) — the scoped columns of a products export, and their own values. */
+  exportScopedValues(): Promise<ScopedValuesExport>;
   /**
    * Feature 172 (FR-041) — the keys of the Page Builder content attributes. A
    * products file may not carry a value under one: content is authored on the
@@ -3061,8 +3011,9 @@ export interface CatalogAttributeView {
   isPriceRule: boolean;
   filterPosition: number;
   isVisibleOnProductPage: boolean;
-  channelScoped: boolean;
-  languageScoped: boolean;
+  /** Feature 174 (R15) — the scope flag; {@link scopeLevels} is what it derives with the value type. */
+  scopable: boolean;
+  scopeLevels: readonly ScopeLevel[];
   massEditable: boolean;
 
   createdAt: Date;
@@ -3149,14 +3100,11 @@ export interface CatalogQuickSearchHit {
   productId: string;
   sku: string;
   slug: string;
-  /** Per-locale JSONB as stored — the caller picks its own language. */
-  name: Record<string, string>;
   /**
-   * Feature 163 (FR-017 a) — the Name the storefront shows at the request's
-   * (channel, language): the channel's override where one applies, else the
-   * baseline pick. What a type-ahead should display.
+   * Feature 174 (`contracts/readers.md` §2) — the name effective at the search's (channel,
+   * language) along C×L → C → G; the Global name when the search names no channel.
    */
-  effectiveName?: string;
+  name: string;
   status: ProductStatus;
   matchedOn: CatalogQuickSearchField[];
 }
@@ -3235,8 +3183,8 @@ export interface CatalogQuickSearchPort {
  * — enforced at write time by the override-service validator.
  */
 export const SYSTEM_ATTRIBUTE_SCOPES: Readonly<Record<string, AttributeScope>> = {
-  name: { channelScoped: true, languageScoped: true },
-  description: { channelScoped: true, languageScoped: true },
+  name: { scopable: true },
+  description: { scopable: true },
 };
 
 export type SystemAttributeKey = keyof typeof SYSTEM_ATTRIBUTE_SCOPES;
@@ -3254,20 +3202,14 @@ export function isSystemAttributeKey(key: string): key is SystemAttributeKey {
  */
 export function getAttributeScope(
   attributeKey: string,
-  productAttributeRow?: { channelScoped: boolean; languageScoped: boolean } | null,
+  productAttributeRow?: { scopable: boolean } | null,
 ): AttributeScope {
   if (isSystemAttributeKey(attributeKey)) {
     // Keyed by `SystemAttributeKey`, so the lookup is non-undefined here; TS'
     // index signature still widens under `noUncheckedIndexedAccess`.
     return SYSTEM_ATTRIBUTE_SCOPES[attributeKey]!;
   }
-  if (productAttributeRow) {
-    return {
-      channelScoped: productAttributeRow.channelScoped,
-      languageScoped: productAttributeRow.languageScoped,
-    };
-  }
-  return { channelScoped: false, languageScoped: false };
+  return { scopable: productAttributeRow?.scopable ?? false };
 }
 
 // --- the write surface -------------------------------------------------------
@@ -3376,34 +3318,11 @@ export interface CatalogProductWritePort {
   deleteVariant(parentProductId: string, variantId: string): Promise<void>;
 }
 
-/**
- * One channel/language override upsert — feature 022 / product-scope-overrides.
- * Used by PIM importers (feature 089) to land channel-locale-scoped names and
- * descriptions without reaching `product_value_overrides` directly (Principle XII).
+/*
+ * Feature 174 (T083) — `catalogProductValueOverrideWritePort` (feature 089) is retired: a connector's
+ * Channel and Channel × language values are cells of `catalogProductScopeWritePort` v2
+ * (`ProductScopedWriteInput`, `contracts/pim-locale-mapping.md` §4).
  */
-export interface CatalogProductValueOverrideUpsert {
-  attributeKey: string;
-  channelId: string;
-  languageCode: string | null;
-  value: { v: unknown };
-}
-
-/**
- * Container name: `catalogProductValueOverrideWritePort`. Owner: `catalog`.
- *
- * Bulk upsert of per-channel / per-language product attribute overrides. The
- * only consumer today is `pim_unopim` (feature 089 / FR-023); the admin SPA
- * still goes through `ProductOverridesService` inside catalog's own routes.
- *
- * **Owner off:** resolving this port throws `ModuleDisabledError` (503).
- */
-export interface CatalogProductValueOverrideWritePort {
-  applyBulk(
-    productId: string,
-    input: { upserts: readonly CatalogProductValueOverrideUpsert[] },
-  ): Promise<void>;
-}
-
 
 /** The patch `updateCategory` accepts. Absent keys are left alone. */
 export interface UpdateCategoryInput {
@@ -3561,8 +3480,16 @@ export interface CatalogGalleryPort {
    * Feature 163 (FR-076, owner decision MED-1 = A) — `channelId` is the channel the
    * caller serves (a feed's channel): an item hidden there is left out. `null` names no
    * channel and answers the global gallery.
+   *
+   * Feature 174 (`data-model.md` §6) — `hidden` resolves C×L → C → Global: an item hidden
+   * at Global is left out of the global gallery too. `languageCode` (optional, additive) is
+   * the caller's language in the channel; omitted or `null` = the Channel level.
    */
-  listForProducts(productIds: readonly string[], channelId: string | null): Promise<CatalogGalleryBatchItem[]>;
+  listForProducts(
+    productIds: readonly string[],
+    channelId: string | null,
+    languageCode?: string | null,
+  ): Promise<CatalogGalleryBatchItem[]>;
   /**
    * The `base_image` url of each of a batch of products — `base_image` only,
    * with no fallback to `thumbnail` or to the first item by position.
@@ -3583,8 +3510,16 @@ export interface CatalogGalleryPort {
    * (the request's resolved channel): the channel's own holder of the role when it has
    * one, else the global holder; `null` when that holder is hidden there. `null` names
    * no channel and answers the global holder.
+   *
+   * Feature 174 (`data-model.md` §6b) — the holder resolves C×L → C → Global; an override
+   * naming no item means no image holds the role there. `languageCode` as
+   * {@link listForProducts}.
    */
-  baseImageUrls(productIds: readonly string[], channelId: string | null): Promise<Map<string, string | null>>;
+  baseImageUrls(
+    productIds: readonly string[],
+    channelId: string | null,
+    languageCode?: string | null,
+  ): Promise<Map<string, string | null>>;
   create(
     productId: string,
     req: CreateGalleryItemRequest,

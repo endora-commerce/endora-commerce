@@ -31,8 +31,9 @@ oferują.
 ## Edycja
 
 Na karcie **Atrybuty** produktu każdy atrybut treści z zapisanego zestawu atrybutów produktu jest
-kartą, a nie polem. Karta pokazuje dla każdego języka edycji, czy treść jest wypełniona, oraz krótkie
-podsumowanie tego, co zapisano. **Edytuj treść** otwiera ekran treści produktu
+kartą, a nie polem, pod wartościami atrybutów. Karta pokazuje dla każdego języka edycji, czy treść
+jest wypełniona, oraz krótkie podsumowanie tego, co zapisano. Karty są takie same w każdym zakresie
+przełącznika zakresów edytora: treść nie ma wartości dla kanału sprzedaży. **Edytuj treść** otwiera ekran treści produktu
 (`/catalog/products/:id/content/:attributeKey`). Zawiera on:
 
 - przełącznik **języka** — angielski, polski i każdy inny język, który ma już zapisana treść;
@@ -107,9 +108,11 @@ wyłączonym module CMS jest nadal wyświetlana.
 
 Atrybuty treści są celowo pomijane w:
 
-- nadpisaniach dla kanału sprzedaży;
-- eksporcie i imporcie produktów — eksport je pomija, a wiersz importu, który wypełnia kolumnę
-  treści, jest odrzucany z błędem wskazującym atrybut;
+- wartościach dla kanału sprzedaży lub języka kanału (zakresy Kanał i Kanał × język w edytorze):
+  zapis w edytorze i zapis zakresów przez konektory odrzucają klucz atrybutu treści;
+- eksporcie i imporcie produktów — eksport je pomija, a niepusta komórka w kolumnie
+  `attribute:<key>` atrybutu treści jest odrzucana dla tej komórki (`content_attribute`), a reszta
+  wiersza jest importowana;
 - zewnętrznym (integracyjnym) API i konektorach PIM/ERP oraz w odczycie zestawu atrybutów kluczem
   API;
 - masowej edycji produktów;

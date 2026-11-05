@@ -59,8 +59,8 @@ describe.skipIf(!shouldRun)('priced catalogue listing — p95 latency', () => {
         slug: `priced-${idx}`,
         type: 'simple',
         status: 'active',
-        name: { 'en-US': `Priced product ${idx}` },
-        description: { 'en-US': `Synthetic product ${idx}.` },
+        name: `Priced product ${idx}`,
+        description: `Synthetic product ${idx}.`,
         visibility: 'public',
         attributeValues: {},
       });

@@ -8,6 +8,7 @@ import {
 } from '@endora-commerce/contracts';
 import { SearchQueryService } from '../../../../packages/modules/search/dist/backend/services/search-query.service.js';
 
+import { seedScopedValues } from '../../helpers/scoped-values.js';
 import {
   setupBackendServer,
   teardownBackendServer,
@@ -60,8 +61,7 @@ describe('Issue #384 — public product reads honour channel value overrides', (
         isFilterable: false,
         isVariantAxis: false,
         isVisibleOnProductPage: true,
-        channelScoped: true,
-        languageScoped: false,
+        scopable: true,
       },
       cookies: { b2b_session: 'stub-admin-session' },
     });
@@ -73,8 +73,8 @@ describe('Issue #384 — public product reads honour channel value overrides', (
       payload: {
         sku: `OVR-384-${Date.now()}`,
         type: 'simple',
-        name: { 'pl-PL': 'Zestaw bazowy', 'en-US': 'Baseline kit' },
-        description: { 'pl-PL': 'Opis bazowy', 'en-US': 'Baseline description' },
+        name: 'Zestaw bazowy',
+        description: 'Opis bazowy',
         categoryIds: [],
         attributeValues: {},
         visibility: 'public',
@@ -93,8 +93,8 @@ describe('Issue #384 — public product reads honour channel value overrides', (
       payload: {
         sku: `OVR-384-GRP-${Date.now()}`,
         type: 'grouped',
-        name: { 'pl-PL': 'Grupa', 'en-US': 'Group' },
-        description: { 'pl-PL': 'Grupa', 'en-US': 'Group' },
+        name: 'Grupa',
+        description: 'Grupa',
         categoryIds: [],
         attributeValues: {},
         visibility: 'public',
@@ -112,8 +112,8 @@ describe('Issue #384 — public product reads honour channel value overrides', (
       payload: {
         sku: `OVR-384-BDL-${Date.now()}`,
         type: 'bundle',
-        name: { 'pl-PL': 'Pakiet', 'en-US': 'Bundle' },
-        description: { 'pl-PL': 'Pakiet', 'en-US': 'Bundle' },
+        name: 'Pakiet',
+        description: 'Pakiet',
         categoryIds: [],
         attributeValues: {},
         visibility: 'public',
@@ -198,20 +198,12 @@ describe('Issue #384 — public product reads honour channel value overrides', (
       [slotId, productId],
     );
 
-    const patch = await h.app.inject({
-      method: 'PATCH',
-      url: `/api/v1/admin/catalog/products/${productId}/value-overrides`,
-      payload: {
-        upserts: [
-          { attributeKey: 'name', channelId: vipChannelId, languageCode: 'pl-PL', value: { v: 'Zestaw hurtowy' } },
-          { attributeKey: 'description', channelId: vipChannelId, languageCode: 'pl-PL', value: { v: 'Opis hurtowy' } },
-          { attributeKey, channelId: vipChannelId, languageCode: null, value: { v: 'Matte' } },
-        ],
-        deletes: [],
-      },
-      cookies: { b2b_session: 'stub-admin-session' },
-    });
-    expect(patch.statusCode, patch.body).toBe(200);
+    // Feature 174 (T043) — seeded as stored (the 163 value-overrides PATCH is retired).
+    await seedScopedValues(h.em().fork(), productId, [
+      { field: 'name', scope: { level: 'channel_language', channelId: vipChannelId, languageCode: 'pl-PL' }, value: 'Zestaw hurtowy' },
+      { field: 'description', scope: { level: 'channel_language', channelId: vipChannelId, languageCode: 'pl-PL' }, value: 'Opis hurtowy' },
+      { field: `attribute:${attributeKey}`, scope: { level: 'channel', channelId: vipChannelId }, value: 'Matte' },
+    ]);
   });
 
   afterAll(async () => {
@@ -275,10 +267,12 @@ describe('Issue #384 — public product reads honour channel value overrides', (
     );
   });
 
-  it('the product page in another language of the same channel shows that language baseline, and the channel-only attribute override', async () => {
+  // Feature 174 (FR-013, FR-014): one Global text; a language of the channel without its own
+  // override shows it (C×L → C → G), and the channel-only attribute override.
+  it('the product page in another language of the same channel shows the Global text, and the channel-only attribute override', async () => {
     const detail = await readDetail('pl_b2b_vip', 'en-US');
-    expect(detail.name).toBe('Baseline kit');
-    expect(detail.description).toBe('Baseline description');
+    expect(detail.name).toBe('Zestaw bazowy');
+    expect(detail.description).toBe('Opis bazowy');
     expect(detail.attributeValues[attributeKey]).toBe('Matte');
   });
 
@@ -290,15 +284,13 @@ describe('Issue #384 — public product reads honour channel value overrides', (
     expect((await readDetail('pl_retail', null)).name).toBe('Zestaw bazowy');
   });
 
-  it('a request language with no text falls back to the channel default for the override too, not only for the baseline', async () => {
-    // `de-DE` has no baseline text, so the page shows the `pl-PL` baseline;
-    // the (channel, pl-PL) override must win over it exactly as it does for a
-    // `pl-PL` request — and as the search index, built for the channel
-    // default, already shows.
+  it('an offered language with no override of its own shows the Global text, never another language\'s override (feature 174)', async () => {
+    // `de-DE` is a language of the channel: its scope is (channel, de-DE), which holds no row, so
+    // the chain reaches the Global value — the (channel, pl-PL) override is another scope's.
     const detail = await readDetail('pl_b2b_vip', 'de-DE');
-    expect(detail.name).toBe('Zestaw hurtowy');
-    expect(detail.description).toBe('Opis hurtowy');
-    expect(await readCardName('pl_b2b_vip', 'de-DE')).toBe('Zestaw hurtowy');
+    expect(detail.name).toBe('Zestaw bazowy');
+    expect(detail.description).toBe('Opis bazowy');
+    expect(await readCardName('pl_b2b_vip', 'de-DE')).toBe('Zestaw bazowy');
     expect((await readDetail('pl_retail', 'de-DE')).name).toBe('Zestaw bazowy');
   });
 
@@ -326,7 +318,7 @@ describe('Issue #384 — public product reads honour channel value overrides', (
   it('the listing card follows the same resolution', async () => {
     expect(await readCardName('pl_b2b_vip', 'pl-PL')).toBe('Zestaw hurtowy');
     expect(await readCardName('pl_retail', 'pl-PL')).toBe('Zestaw bazowy');
-    expect(await readCardName('pl_b2b_vip', 'en-US')).toBe('Baseline kit');
+    expect(await readCardName('pl_b2b_vip', 'en-US')).toBe('Zestaw bazowy');
   });
 
   it('a grouped parent lists its child, and its related link, under the child effective name', async () => {
@@ -354,13 +346,9 @@ describe('Issue #384 — public product reads honour channel value overrides', (
     expect(await read('pl_retail')).toEqual({ child: 'Zestaw bazowy', related: 'Zestaw bazowy' });
   });
 
-  it('a related tile keeps its own language pick, which has no channel-default leg', async () => {
-    // A known, owner-accepted divergence from the catalogue card, older than
-    // #384: the tile picks request language → en-US → en → first key and never
-    // the channel default, so on this pl-PL-default channel a request with no
-    // `pl-PL` in it shows the en-US baseline, and the (channel, pl-PL)
-    // override — walked over that same pick — does not answer. The catalogue
-    // card shows 'Zestaw hurtowy' for both requests (cases above).
+  it('a related tile shows the name the catalogue card shows at the same (channel, language)', async () => {
+    // Feature 174: the tile resolves at the request's (C, L) — no request language is the channel
+    // default's — like the card (163's own language pick, with no channel-default leg, is gone).
     const relatedName = async (language: string | null): Promise<string | undefined> => {
       const res = await h.app.inject({
         method: 'GET',
@@ -375,8 +363,9 @@ describe('Issue #384 — public product reads honour channel value overrides', (
         .data;
       return rows.find((l) => l.product.id === productId)?.product.name;
     };
-    expect(await relatedName(null)).toBe('Baseline kit');
-    expect(await relatedName('de-DE')).toBe('Baseline kit');
+    for (const language of [null, 'pl-PL', 'de-DE']) {
+      expect(await relatedName(language), String(language)).toBe(await readCardName('pl_b2b_vip', language));
+    }
   });
 
   it('a search result card shows the name the listing card shows, for every channel and language', async () => {
@@ -405,7 +394,6 @@ describe('Issue #384 — public product reads honour channel value overrides', (
             sku: 'unused',
             slug,
             type: 'simple',
-            name: 'Indexed name',
             categorySlugs: [],
             primaryAssetUrl: null,
           },
@@ -416,6 +404,8 @@ describe('Issue #384 — public product reads honour channel value overrides', (
             code,
             defaultCurrency: 'PLN',
             defaultLanguage: 'pl-PL',
+            // The channels' languages, as the request's resolved channel carries them.
+            languages: ['pl-PL', 'en-US', 'de-DE'],
           },
           audience: ANONYMOUS_PRODUCT_AUDIENCE,
           preferredLanguage: language ?? undefined,

@@ -350,7 +350,6 @@ describe('check:module-docs', () => {
         'admin_notifications',
         'email',
         'mfa',
-        'pim_connector',
       ]);
       for (const reason of Object.values(MODULES_WITHOUT_DOCUMENTATION)) {
         expect(reason.length).toBeGreaterThan(40);

@@ -33,11 +33,11 @@ const CATALOGUE = [
     id: `00000000-0000-4000-8000-0000001630${(i + 1).toString(16).padStart(2, '0')}`,
     sku: `N-${String(i + 1).padStart(2, '0')}`,
     slug: `n-${i + 1}`,
-    name: { 'en-US': `New product ${String(i + 1).padStart(2, '0')}` },
+    name: `New product ${String(i + 1).padStart(2, '0')}`,
     status: 'active' as const,
     type: 'simple' as const,
   })),
-  { id: PRODUCTS.P1.id, sku: 'P1', slug: 'p1', name: { 'en-US': 'Screws 0200' }, status: 'active' as const, type: 'simple' as const },
+  { id: PRODUCTS.P1.id, sku: 'P1', slug: 'p1', name: 'Screws 0200', status: 'active' as const, type: 'simple' as const },
 ];
 
 let book: PriceBook;

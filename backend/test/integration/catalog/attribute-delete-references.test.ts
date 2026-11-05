@@ -65,7 +65,6 @@ describe('Attribute delete leaves foreign rules inert (feature 172, FR-009)', ()
         isVariantAxis: false,
         isPromoRule: true,
         isPriceRule: true,
-        languageScoped: false,
         options: [
           { value: 'x', labelDefault: 'X', isDefault: true },
           { value: 'y', labelDefault: 'Y' },
@@ -83,8 +82,8 @@ describe('Attribute delete leaves foreign rules inert (feature 172, FR-009)', ()
         sku: `ADR-172-${run}`,
         type: 'simple',
         status: 'active',
-        name: { 'en-US': `Inert probe ${run}` },
-        description: { 'en-US': 'Probe' },
+        name: `Inert probe ${run}`,
+        description: 'Probe',
         categoryIds: [],
         attributeValues: {},
         visibility: 'public',

@@ -30,8 +30,8 @@ describe('Admin Products contract — feature 025 SKU vs variant collision', () 
       payload: {
         sku,
         type: 'simple',
-        name: { 'en-US': sku },
-        description: { 'en-US': 'desc' },
+        name: sku,
+        description: 'desc',
         categoryIds: [],
         attributeValues: {},
         visibility: 'public',
@@ -49,8 +49,8 @@ describe('Admin Products contract — feature 025 SKU vs variant collision', () 
       payload: {
         sku: 'VAR-COLLIDE-PARENT',
         type: 'configurable',
-        name: { 'en-US': 'Parent' },
-        description: { 'en-US': '' },
+        name: 'Parent',
+        description: '',
         categoryIds: [],
         attributeValues: {},
         visibility: 'public',

@@ -50,6 +50,7 @@ Rendered from the module's own manifest, and from nothing written by hand. What 
 | `search` | no | degrades-without `searchQueryPort` — the storefront product listing is served from PostgreSQL instead of the search index |
 | `search` | no | degrades-without `searchReindexPort` — an attribute’s `searchable` flip rebuilds no search index |
 | `seo` | no | degrades-without `seoProductMetaPort` — product pages show metadata derived from the name and description, and old URL keys answer not-found |
+| `seo` | no | refuses-without `seoProductMetaWritePort` — a product save that changes SEO fields is refused while SEO is off; saves without SEO changes, and duplicates, are unaffected |
 | `webhooks` | no | contributes-to `webhookEventRegistry` |
 
 ## Permissions

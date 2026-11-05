@@ -66,6 +66,24 @@ export const manifest = defineModuleManifest({
         'A catalogue import is `catalog`\'s transaction and `catalog`\'s audit row (D-74). With the module off the entity is not offered, so the operator never reaches the gate.',
     },
     {
+      moduleId: 'catalog',
+      name: 'catalogAttributeReadPort',
+      kind: 'degrades-without',
+      whenAbsent:
+        'The import/export centre stops offering the Products import; every other entity is unaffected.',
+      reason:
+        'Feature 174 — a products header names attributes (`attribute:<key>`); their value type and scope set decide how a cell reads and where it may be written.',
+    },
+    {
+      moduleId: 'catalog',
+      name: 'catalogProductAvailabilityPort',
+      kind: 'degrades-without',
+      whenAbsent:
+        'The import/export centre stops offering the Products import; every other entity is unaffected.',
+      reason:
+        'Feature 174 (FR-042) — a mapped locale column writes only the channels a product belongs to; membership is `catalog`\'s answer, so a target the product is not in is reported for that row.',
+    },
+    {
       moduleId: 'inventory',
       name: 'inventoryStockReadPort',
       kind: 'degrades-without',
@@ -129,7 +147,7 @@ export const manifest = defineModuleManifest({
         code: 'import_export.enabled',
         name: 'Import / export enabled',
         description:
-          'Switches the CSV import and export endpoints on or off. The module holds no data of its own, so nothing is dropped — the catalog it reads and writes is untouched either way.',
+          'Switches the CSV import and export endpoints on or off. Nothing is dropped: the import profiles are kept while it is off and come back when it is switched on again, and the catalog it reads and writes is untouched either way.',
         groupCode: 'import_export',
         valueType: 'boolean',
         defaultValue: true,
@@ -138,6 +156,12 @@ export const manifest = defineModuleManifest({
   },
   i18n: { bundlesDir: 'i18n' },
   docs: { dir: 'docs' },
+  /** Feature 174 (`contracts/error-codes.md`) — the import profile refusals this module mints. */
+  errorCodes: [
+    { code: 'IMPORT_PROFILE_NAME_TAKEN' },
+    { code: 'IMPORT_PROFILE_NOT_FOUND' },
+    { code: 'IMPORT_PROFILE_REQUIRED' },
+  ],
   actions: [
     {
       id: 'import-products',
@@ -157,7 +181,8 @@ export const manifest = defineModuleManifest({
       icon: 'FileUp',
       targetRoute: '/import-export',
       requiredPermission: 'catalog:write',
-      keywords: ['import', 'export', 'center'],
+      // Feature 174 — the Import profiles section lives on this screen (no route of its own).
+      keywords: ['import', 'export', 'center', 'profile', 'mapping'],
       keywordsKey: 'actions.openCenter.keywords',
       weight: 220,
     },

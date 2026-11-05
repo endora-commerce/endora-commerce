@@ -4,7 +4,6 @@ import {
   type CustomFieldValuePort,
   ERROR_CODES,
   isProductVisibleTo,
-  pickLocalized,
   type ProductAudience,
   type QuoteRequest as RfqDto,
   type QuoteRequestSummary,
@@ -167,7 +166,10 @@ export interface RfqServiceDeps {
    * product here, now" (FR-004, FR-018): membership, effective status at
    * (channel, L), window and effective audience.
    */
-  catalogAvailability: Pick<CatalogProductAvailabilityPort, 'filterAvailable' | 'effectiveNames' | 'effectiveOrderRules'>;
+  catalogAvailability: Pick<
+    CatalogProductAvailabilityPort,
+    'filterAvailable' | 'effectiveTexts' | 'effectivePackagingUnitNames' | 'effectiveOrderRules'
+  >;
   customerAccounts: CustomerAccountReadPort;
   adminUsers: AdminUserReadPort;
   carts: CartWritePort;
@@ -282,10 +284,11 @@ export class RfqService {
     languageTag: string | null | undefined,
   ): Promise<Map<string, string>> {
     if (channelId === null || products.length === 0) return new Map();
-    return this.deps.catalogAvailability.effectiveNames(
+    const texts = await this.deps.catalogAvailability.effectiveTexts(
       products.map((p) => p.id),
       { channelId, languageCode: languageTag === null ? null : raisedInScopeLanguage(languageTag, channelId) },
     );
+    return new Map([...texts].map(([id, text]) => [id, text.name]));
   }
 
   /**
@@ -301,9 +304,7 @@ export class RfqService {
   async #resolvePackaging(
     lines: readonly CreateQuoteRequestLine[],
     productById: ReadonlyMap<string, CatalogProductRecord>,
-    /** The language a refusal names a product in (feature 155, D3/D4). */
-    language: string | undefined,
-    /** Feature 163 — the request's language tag, the unit name's scope language is resolved from. */
+    /** Feature 163 — the request's language tag, the unit and product names' scope language is resolved from. */
     languageTag: string | undefined,
     /**
      * Feature 163 (FR-079, T138) — the channel the line names are asked at
@@ -317,12 +318,16 @@ export class RfqService {
     ).filter((id) => productById.has(id));
     const units =
       vettedIds.length > 0 ? await this.deps.catalogProducts.listPackagingUnitsByProductIds(vettedIds) : [];
-    const { lines: packaging, mismatches } = resolveLinePackaging(
-      lines,
-      units,
-      // No channel: no scope language, the global name (as `lineNames` asks nothing then).
-      channelId === null ? null : raisedInScopeLanguage(languageTag, channelId),
-    );
+    // Feature 174 (FR-030, FR-032) — the unit names snapshotted at the line names' scope. No
+    // channel: none asked, the Global names (as `lineNames` asks nothing then).
+    const unitNamesAtScope =
+      channelId === null || units.length === 0
+        ? new Map<string, string | null>()
+        : await this.deps.catalogAvailability.effectivePackagingUnitNames(
+            units.map((unit) => unit.id),
+            { channelId, languageCode: raisedInScopeLanguage(languageTag, channelId) },
+          );
+    const { lines: packaging, mismatches } = resolveLinePackaging(lines, units, unitNamesAtScope);
     if (mismatches.length > 0) {
       const causes = mismatches.filter((m) => m.cause !== undefined);
       if (causes.length > 0) {
@@ -331,7 +336,10 @@ export class RfqService {
           'quote_requests: a packaging unit id did not resolve on a buyer write',
         );
       }
-      throw packagingMismatchError(mismatches, productNames(productById.values(), language));
+      throw packagingMismatchError(
+        mismatches,
+        productNames(productById.values(), await this.lineNames([...productById.values()], channelId, languageTag)),
+      );
     }
     return { packaging, units };
   }
@@ -347,12 +355,14 @@ export class RfqService {
     products: Iterable<CatalogProductRecord>,
     packagingUnits: readonly CatalogPackagingUnitRecord[],
     mode: 'enforce' | 'warn',
-    language: string | undefined,
     /** Feature 163 (FR-100) — the request's channel, whose minimums apply; none = the global ones. */
     channelId: string | null | undefined,
+    /** Feature 174 (FR-030) — the request's language tag: a refusal names products at (channel, L). */
+    languageTag: string | null | undefined,
   ): Promise<void> {
     const records = await this.#withChannelOrderRules(Array.from(products), channelId);
-    assertQuoteMeetsMinimums(lines, { products: records, packagingUnits }, productNames(records, language), mode);
+    const names = productNames(records, await this.lineNames(records, channelId ?? null, languageTag));
+    assertQuoteMeetsMinimums(lines, { products: records, packagingUnits }, names, mode);
   }
 
   /** Feature 163 (FR-100, research R26) — the records with the request channel's minimum and returnable flag. */
@@ -545,7 +555,6 @@ export class RfqService {
     const { packaging, units } = await this.#resolvePackaging(
       input.items,
       productById,
-      options.language,
       options.languageTag,
       salesChannelId,
     );
@@ -555,8 +564,8 @@ export class RfqService {
       productById.values(),
       units,
       options.minimums ?? 'enforce',
-      options.language,
       options.salesChannelId,
+      options.languageTag,
     );
 
     // FR-001 / FR-008 — each line's reference, for the request's owner on the
@@ -596,7 +605,7 @@ export class RfqService {
       // unit's, beside its id; a line naming no unit stores plain pieces.
       // Feature 163 (FR-017 d, N2) — the name is the one the buyer saw: the
       // effective name at the request's (channel, language).
-      const baseName = lineNames.get(product.id) ?? anyLocaleValue(product.name);
+      const baseName = lineNames.get(product.id) || product.name;
       const productName = unit.packagingUnitName ? `${baseName} (${unit.packagingUnitName})` : baseName;
       const item = em.create(QuoteRequestItem, {
         quoteRequestId: rfq.id,
@@ -727,7 +736,6 @@ export class RfqService {
       const { packaging, units } = await this.#resolvePackaging(
         body.items,
         productById,
-        options.language,
         options.languageTag,
         rfq.salesChannelId ?? null,
       );
@@ -751,8 +759,8 @@ export class RfqService {
         productById.values(),
         units,
         'enforce',
-        options.language,
         rfq.salesChannelId,
+        options.languageTag,
       );
       const toResolve = resolvedLines.filter((_, index) => !keeps[index]);
       const resolved = await resolveReferencePrices(this.deps.buyerLinePrices, {
@@ -785,7 +793,7 @@ export class RfqService {
         // FR-035 — packaging stored with the name suffix `createForCustomer`
         // writes; feature 155 (FR-026) — the catalogue unit's, beside its id;
         // feature 163 — the effective name at the request's (channel, language).
-        const baseName = lineNames.get(product.id) ?? anyLocaleValue(product.name);
+        const baseName = lineNames.get(product.id) || product.name;
         return {
           quoteRequestId: rfq.id,
           productId: product.id,
@@ -940,8 +948,8 @@ export class RfqService {
       sourceProducts,
       [],
       'enforce',
-      options.language,
       options.salesChannelId,
+      options.languageTag,
     );
 
     // The resubmit is its own request, so it is raised on the channel *this*
@@ -1615,18 +1623,17 @@ export class RfqService {
 // Helpers
 // ---------------------------------------------------------------------------
 
-function anyLocaleValue(blob: Record<string, string>): string {
-  const k = Object.keys(blob)[0];
-  return k ? (blob[k] ?? '') : '';
-}
-
 /**
- * Feature 155 (D3/D4) — the names a refusal gives its products: in `language`,
- * the language the envelope translates the refusal's sentence into.
+ * Feature 155 (D3/D4), on feature 174's model — the names a refusal gives its products: the
+ * effective name at the request's (channel, language), `namesAtScope` (`lineNames`), else the
+ * Global name.
  */
-function productNames(products: Iterable<CatalogProductRecord>, language: string | undefined): Map<string, string> {
+function productNames(
+  products: Iterable<CatalogProductRecord>,
+  namesAtScope: ReadonlyMap<string, string>,
+): Map<string, string> {
   const out = new Map<string, string>();
-  for (const product of products) out.set(product.id, pickLocalized(product.name, language));
+  for (const product of products) out.set(product.id, namesAtScope.get(product.id) || product.name);
   return out;
 }
 
