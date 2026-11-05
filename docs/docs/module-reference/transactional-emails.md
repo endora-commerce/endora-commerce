@@ -16,7 +16,7 @@ Rendered from the module's own manifest, and from nothing written by hand. What 
 | | |
 | --- | --- |
 | Module id | `transactional_emails` |
-| Name | Transactional Emails |
+| Name | Transactional emails |
 | Version | `1.0.0` |
 | Ships from | `@endora-commerce/mod-transactional-emails` |
 | Licence | `MIT` |

@@ -16,7 +16,7 @@ Rendered from the module's own manifest, and from nothing written by hand. What 
 | | |
 | --- | --- |
 | Module id | `price_lists` |
-| Name | Price Lists |
+| Name | Price lists |
 | Version | `1.0.0` |
 | Ships from | `@endora-commerce/mod-price-lists` |
 | Licence | `MIT` |

@@ -16,7 +16,7 @@ Strona wygenerowana z manifestu modułu, bez żadnych ręcznych zmian. Co moduł
 | | |
 | --- | --- |
 | Identyfikator modułu | `audit_logs` |
-| Nazwa | Audit Logs |
+| Nazwa | Audit logs |
 | Wersja | `1.0.0` |
 | Pakiet | `@endora-commerce/mod-audit-logs` |
 | Licencja | `MIT` |

@@ -16,7 +16,7 @@ Strona wygenerowana z manifestu modułu, bez żadnych ręcznych zmian. Co moduł
 | | |
 | --- | --- |
 | Identyfikator modułu | `pwa` |
-| Nazwa | Progressive Web App |
+| Nazwa | Progressive web app |
 | Wersja | `1.0.0` |
 | Pakiet | `@endora-commerce/mod-pwa` |
 | Licencja | `MIT` |

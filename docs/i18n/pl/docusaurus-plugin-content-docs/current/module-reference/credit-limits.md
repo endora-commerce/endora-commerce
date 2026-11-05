@@ -16,7 +16,7 @@ Strona wygenerowana z manifestu modułu, bez żadnych ręcznych zmian. Co moduł
 | | |
 | --- | --- |
 | Identyfikator modułu | `credit_limits` |
-| Nazwa | Credit Limits |
+| Nazwa | Credit limits |
 | Wersja | `1.0.0` |
 | Pakiet | `@endora-commerce/mod-credit-limits` |
 | Licencja | `MIT` |

@@ -55,7 +55,7 @@ const demo: ModuleDemoManifest<ModuleContext> = {
  */
 export const manifest = defineModuleManifest({
   id: 'delivery_methods',
-  name: 'Delivery Methods',
+  name: 'Delivery methods',
   description:
     'Shipping/delivery method definitions and per-channel availability.',
   version: '1.0.0',

@@ -27,7 +27,7 @@
   "nav.subscribers.label": "Subscribers",
   "nav.campaigns.label": "Campaigns",
   "nav.automations.label": "Automations",
-  "nav.tags.label": "Tags & Fields",
+  "nav.tags.label": "Tags & fields",
   "nav.blocks.label": "Blocks",
   "nav.provider.label": "Provider",
   "pageBuilder.blockPreview.unavailable": "This block has no preview in the editor. Its fields can be edited in the side panel.",

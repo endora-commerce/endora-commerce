@@ -16,7 +16,7 @@ Rendered from the module's own manifest, and from nothing written by hand. What 
 | | |
 | --- | --- |
 | Module id | `delivery_methods` |
-| Name | Delivery Methods |
+| Name | Delivery methods |
 | Version | `1.0.0` |
 | Ships from | `@endora-commerce/mod-delivery-methods` |
 | Licence | `MIT` |

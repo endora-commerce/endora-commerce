@@ -16,7 +16,7 @@ Strona wygenerowana z manifestu modułu, bez żadnych ręcznych zmian. Co moduł
 | | |
 | --- | --- |
 | Identyfikator modułu | `api_keys` |
-| Nazwa | API Keys |
+| Nazwa | API keys |
 | Wersja | `1.0.0` |
 | Pakiet | `@endora-commerce/mod-api-keys` |
 | Licencja | `MIT` |

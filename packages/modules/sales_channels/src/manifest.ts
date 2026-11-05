@@ -33,7 +33,7 @@ const settings = defineModuleSettingsManifest({
 /** Module-lifecycle manifest (feature 018). */
 export const manifest = defineModuleManifest({
   id: 'sales_channels',
-  name: 'Sales Channels',
+  name: 'Sales channels',
   description: 'Multi-channel storefront resolver and channel registry.',
   version: '1.0.0',
   // Rule 2 (bridge owner) — specs/065-manifest-aware-migrations/research.md §R9.

@@ -16,7 +16,7 @@ Rendered from the module's own manifest, and from nothing written by hand. What 
 | | |
 | --- | --- |
 | Module id | `comparisons` |
-| Name | Compare Products |
+| Name | Compare products |
 | Version | `1.0.0` |
 | Ships from | `@endora-commerce/mod-comparisons` |
 | Licence | `MIT` |

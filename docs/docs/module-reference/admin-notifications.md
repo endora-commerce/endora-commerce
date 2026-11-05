@@ -16,7 +16,7 @@ Rendered from the module's own manifest, and from nothing written by hand. Nobod
 | | |
 | --- | --- |
 | Module id | `admin_notifications` |
-| Name | Admin Notifications |
+| Name | Admin notifications |
 | Version | `1.0.0` |
 | Ships from | `@endora-commerce/mod-admin-notifications` |
 | Licence | `MIT` |

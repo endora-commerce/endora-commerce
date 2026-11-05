@@ -18,7 +18,7 @@
   "importNotSupported": "Import not supported — see the docs site for the rationale.",
   "imported": "Imported {count} row(s).",
   "loading": "Loading available entities…",
-  "nav.importExport.label": "Import / Export",
+  "nav.importExport.label": "Import / export",
   "page.description": "CSV-only round-trips for the bulk-edit cases. Per-row errors roll the entire upload back, so re-uploads are deterministic.",
   "page.title": "Import / Export",
   "requiredHeader": "Required header:",

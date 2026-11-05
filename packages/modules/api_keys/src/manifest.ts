@@ -10,7 +10,7 @@ import { defineModuleManifest } from '@endora-commerce/contracts';
  */
 export const manifest = defineModuleManifest({
   id: 'api_keys',
-  name: 'API Keys',
+  name: 'API keys',
   description:
     'Programmatic API keys (Bearer tokens) used by integrations and webhooks.',
   version: '1.0.0',

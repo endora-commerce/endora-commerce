@@ -16,7 +16,7 @@ Strona wygenerowana z manifestu modułu, bez żadnych ręcznych zmian. Co moduł
 | | |
 | --- | --- |
 | Identyfikator modułu | `import_export` |
-| Nazwa | Import / Export |
+| Nazwa | Import / export |
 | Wersja | `1.0.0` |
 | Pakiet | `@endora-commerce/mod-import-export` |
 | Licencja | `MIT` |

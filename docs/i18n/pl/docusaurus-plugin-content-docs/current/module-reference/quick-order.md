@@ -16,7 +16,7 @@ Strona wygenerowana z manifestu modułu, bez żadnych ręcznych zmian. Co moduł
 | | |
 | --- | --- |
 | Identyfikator modułu | `quick_order` |
-| Nazwa | Quick Order |
+| Nazwa | Quick order |
 | Wersja | `2.0.0` |
 | Pakiet | `@endora-commerce/mod-quick-order` |
 | Licencja | `MIT` |

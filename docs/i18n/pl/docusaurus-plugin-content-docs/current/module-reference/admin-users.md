@@ -16,7 +16,7 @@ Strona wygenerowana z manifestu modułu, bez żadnych ręcznych zmian. Co moduł
 | | |
 | --- | --- |
 | Identyfikator modułu | `admin_users` |
-| Nazwa | Admin Users |
+| Nazwa | Admin users |
 | Wersja | `1.0.0` |
 | Pakiet | `@endora-commerce/mod-admin-users` |
 | Licencja | `MIT` |
