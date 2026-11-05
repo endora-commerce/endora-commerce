@@ -18,8 +18,10 @@ zamiast być wyłączane jako przypadek szczególny.
 **Storefront (samoobsługa)**
 
 - Samodzielna rejestracja, dostępna zależnie od ustawienia
-  `customers.allow_registration_without_organization`. Po udanej rejestracji konto i jego organizacja
-  prywatna są zapisywane w jednej transakcji, a nowe konto jest automatycznie logowane. Gdy
+  `customers.allow_registration_without_organization` w danym kanale sprzedaży: obowiązuje wartość
+  ustawiona dla kanału, do którego należy żądanie, a w jej braku wartość dla wszystkich kanałów. Po
+  udanej rejestracji konto i jego organizacja prywatna są zapisywane w jednej transakcji, a nowe
+  konto jest automatycznie logowane. Gdy
   ustawienie jest wyłączone, strona `/register-customer` w sklepie zamiast formularza pokazuje
   komunikat z linkiem do rejestracji organizacji, więc odwiedzający nie wypełnia formularza, który
   zostałby odrzucony.
@@ -94,7 +96,7 @@ Trasy administracyjne są chronione przez `customers:read` (odczyt), `customers:
 
 | Kod | Typ | Wartość domyślna | Przeznaczenie |
 | --- | --- | --- | --- |
-| `customers.allow_registration_without_organization` | boolean | `false` | Włącza samodzielną rejestrację |
+| `customers.allow_registration_without_organization` | boolean | `false` | Włącza samodzielną rejestrację w danym kanale sprzedaży |
 | `customers.deletion_retention_days` | number | `365` | Okres, w którym można przywrócić konto przed trwałą anonimizacją |
 | `customers.presence_freshness_minutes` | number | `10` | Próg uznania klienta za „online” |
 

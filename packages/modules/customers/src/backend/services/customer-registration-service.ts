@@ -39,7 +39,10 @@ export interface CustomerRegistrationDeps {
    * publishes.
    */
   sessionService: AuthSessionPort;
-  /** Reads `customers.allow_registration_without_organization` (the per-channel B2C gate). */
+  /**
+   * Reads `customers.allow_registration_without_organization` (the per-channel
+   * B2C gate) for the request's resolved sales channel (issue #773).
+   */
   resolveAllowRegistrationWithoutOrganization: () => Promise<boolean>;
 }
 

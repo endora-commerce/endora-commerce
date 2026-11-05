@@ -42,7 +42,7 @@ import {
 } from './admin-search-provider.js';
 import { CustomerAddressReadService } from './services/customer-address-read-port.js';
 import type { ModuleContext } from '@endora-commerce/platform/kernel';
-import { lazyPort } from '@endora-commerce/platform/kernel';
+import { currentSalesChannel, lazyPort } from '@endora-commerce/platform/kernel';
 import type { RequireAdminFactory } from '@endora-commerce/platform/kernel';
 import type { SalesChannelResolutionPort } from '@endora-commerce/platform/kernel';
 import type { SettingsReadPort } from '@endora-commerce/platform/kernel';
@@ -216,9 +216,16 @@ export function registerModule(ctx: ModuleContext): void {
   registerModerationActor(ctx);
 
   /**
-   * This module's own settings, read against the system-default channel. Each
-   * degrades to the manifest default rather than failing the request — the
-   * identical try/catch stood in the production root, three times over.
+   * This module's own settings, read against a channel. Each degrades to the
+   * manifest default rather than failing the request — the identical try/catch
+   * stood in the production root, three times over.
+   *
+   * `channel: 'request'` reads for the sales channel the current request
+   * resolved to (Constitution XII), falling back to the system-default channel
+   * only where no request scope carries one. `settings` then applies its own
+   * tiers — the channel's row, the all-channels value, the manifest default.
+   * Issue #773: the B2C registration gate read the system-default channel's
+   * value here, so it applied that one value to every channel.
    *
    * D-48 removed an `if (!channel) return fallback;` from between the two: on
    * the impossible no-channel branch it returned the compiled-in constant
@@ -228,10 +235,13 @@ export function registerModule(ctx: ModuleContext): void {
     code: string,
     schema: Parameters<SettingsReadPort['get']>[2],
     fallback: T,
+    channel: 'request' | 'system-default' = 'system-default',
   ): Promise<T> => {
     try {
-      const channel = await cradle().salesChannelResolutionPort.getSystemDefault();
-      return (await cradle().settingsReadPort.get(code, channel.id, schema)) as T;
+      const channelId =
+        (channel === 'request' ? currentSalesChannel()?.id : undefined) ??
+        (await cradle().salesChannelResolutionPort.getSystemDefault()).id;
+      return (await cradle().settingsReadPort.get(code, channelId, schema)) as T;
     } catch {
       return fallback;
     }
@@ -378,6 +388,7 @@ export function registerModule(ctx: ModuleContext): void {
                 CUSTOMERS_SETTING_CODES.ALLOW_REGISTRATION_WITHOUT_ORGANIZATION,
                 z.boolean(),
                 false,
+                'request',
               ),
             resolveDeletionRetentionDays: () =>
               readChannelSetting(CUSTOMERS_SETTING_CODES.DELETION_RETENTION_DAYS, z.number(), 365),
