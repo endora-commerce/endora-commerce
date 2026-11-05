@@ -183,6 +183,20 @@ export default async function CheckoutPage({
     );
   }
 
+  // Issue #750 (`specs/170-organization-roles/`, FR-031) — a basket the member's role must send
+  // for approval first, one already awaiting it, or one the organization blocks (rejected by its
+  // admin, or a rejected/completed cart — owner ruling on PR #754) cannot be placed: placement
+  // refuses it. The verdict is the one the cart page renders its primary control from, the
+  // backend's `primaryCta` derived from the role and the cart's state, so this page does not
+  // judge it a second time. The cart page carries the notice and the control that applies.
+  if (
+    cart.primaryCta === 'submit_for_approval' ||
+    cart.primaryCta === 'awaiting_approval' ||
+    cart.primaryCta === 'blocked_by_organization'
+  ) {
+    return await localeRedirect('/cart');
+  }
+
   // Feature 155 (FR-013, FR-036, FR-037) — the basket lines placement will refuse. The
   // checkout preview is the authority here: it confirms a quote source is still valid before
   // honouring a quote line's exemption, which the cart view takes at face value. It needs a
