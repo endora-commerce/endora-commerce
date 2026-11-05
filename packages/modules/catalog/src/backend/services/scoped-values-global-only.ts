@@ -13,7 +13,7 @@ import {
 import { assertVirtualDownloadFields, ProductTypeValidationError } from './product-type-validations.js';
 import { attributeSetDefinitionIds } from './scope-completeness.js';
 import type { PlannedCell, ScopedSavePlan } from './scoped-values-save.service.js';
-import type { ScopedProductState } from './scoped-values-state.js';
+import { scopedAttributesOf, type ScopedProductState } from './scoped-values-state.js';
 
 /**
  * Feature 173 (C2/C3 code review 1, security review warn 1; `contracts/scoped-values-api.md` §3
@@ -62,7 +62,7 @@ export async function useTargetAttributeSet(
     throw invalid([{ field: 'product.attributeSetId', scope: GLOBAL, reason: 'subject_not_found' }]);
   }
   const [views, definitions] = await Promise.all([deps.listAttributes(), attributeSetDefinitionIds(em, attributeSetId)]);
-  state.attributes = new Map(views.filter((view) => definitions.has(view.customFieldDefinitionId)).map((view) => [view.key, view]));
+  state.attributes = scopedAttributesOf(views, definitions);
 }
 
 /** Step 3a for the `product.*` family; a no-op for a save at Channel or Channel × language. */

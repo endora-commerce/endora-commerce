@@ -67,6 +67,22 @@ export interface ScopedProductState {
 const UUID = /^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/i;
 
 /** A `:id` that is not a uuid names no product — 404, never a 500 from the cast. */
+/**
+ * The attributes of a set that hold scoped values, by key: every member but a Page Builder content
+ * attribute (`ScopedProductState.attributes`). The one filter for the product's set and for the
+ * set a save switches to, so the two cannot disagree.
+ */
+export function scopedAttributesOf(
+  views: readonly CatalogAttributeView[],
+  setDefinitions: ReadonlySet<string>,
+): Map<string, CatalogAttributeView> {
+  return new Map(
+    views
+      .filter((view) => setDefinitions.has(view.customFieldDefinitionId) && view.valueType !== 'page_builder')
+      .map((view) => [view.key, view]),
+  );
+}
+
 export function assertProductId(productId: string): void {
   if (!UUID.test(productId)) throw new HttpError(404, ERROR_CODES.PRODUCT_NOT_FOUND, 'Product not found.');
 }
@@ -151,11 +167,7 @@ export async function loadScopedState(
     packagingUnits,
     packagingOverrides,
     urlKeys,
-    attributes: new Map(
-      views
-        .filter((view) => setDefinitions.has(view.customFieldDefinitionId) && view.valueType !== 'page_builder')
-        .map((view) => [view.key, view]),
-    ),
+    attributes: scopedAttributesOf(views, setDefinitions),
   };
 }
 

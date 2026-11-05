@@ -1,3 +1,4 @@
+import { randomUUID } from 'node:crypto';
 import { afterAll, beforeAll, describe, expect, it } from 'vitest';
 import { ERROR_CODES, type CatalogProductScopeWritePort } from '@endora-commerce/contracts';
 import { withSystemScope } from '@endora-commerce/platform/tenancy';
@@ -67,6 +68,32 @@ describe('173 — a content attribute is not a scoped value (172 FR-011, FR-040,
       });
     }
     expect(await stored()).toEqual({ global: undefined, overrides: 0 });
+  });
+
+  it('the save refuses the content key also when it switches to a set holding it', async () => {
+    const other = randomUUID();
+    const [{ set } = { set: null }] = await fx.sql<{ set: string | null }>(`select attribute_set_id as set from products where id = ?`, [productId]);
+    await fx.sql(
+      `insert into attribute_sets (id, code, name, is_system, created_at, updated_at)
+       values (?, ?, '{"en-US":"SV173 other"}'::jsonb, false, now(), now())`,
+      [other, `sv173_other_${fx.run}`],
+    );
+    try {
+      await fx.sql(
+        `insert into attribute_set_attributes (attribute_set_id, custom_field_definition_id, position)
+         select ?, d.id, 0 from custom_field_definitions d where d.entity_type = 'product' and d.key = ?`,
+        [other, guide],
+      );
+      const res = await fx.put(productId, {}, { product: { attributeSetId: other }, attributes: { [guide]: 'x' } });
+      expect(res.statusCode, res.body).toBe(422);
+      expect(res.json()).toMatchObject({
+        error: { code: ERROR_CODES.SCOPED_VALUE_INVALID, details: { fields: [expect.objectContaining({ field: `attribute:${guide}` })] } },
+      });
+      expect(await stored()).toEqual({ global: undefined, overrides: 0 });
+    } finally {
+      await fx.sql(`update products set attribute_set_id = ? where id = ?`, [set, productId]);
+      await fx.sql(`delete from attribute_sets where id = ?`, [other]);
+    }
   });
 
   it('the connector port refuses a content cell and applies the rest of the call', async () => {
