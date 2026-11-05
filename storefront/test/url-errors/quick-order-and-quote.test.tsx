@@ -19,7 +19,7 @@ const rfq: RfqDetail = {
   businessId: 'RFQ-0001',
   organizationId: 'org-1',
   customerAccountId: 'acc-1',
-  status: 'Quoted',
+  status: 'Approved',
   awaitingCustomerRevisionAcceptance: true,
   currentRevisionNumber: 2,
   lastCustomerSeenRevisionNumber: 1,
@@ -117,10 +117,11 @@ describe('quick order — a crafted parameter never reaches the page', () => {
     expect(out).not.toContain(crafted);
   });
 
-  it.each(['Zadzwoń pod 555 000 111', 'constructor'])('?problem=%s reads as the generic failure', async (crafted) => {
+  // The page's standing rule (`quick-order-locale.test.tsx`): a code it does not know shows nothing.
+  it.each(['Zadzwoń pod 555 000 111', 'constructor'])('?problem=%s shows nothing', async (crafted) => {
     const out = await quickText({ problem: crafted });
     expect(out).not.toContain(crafted);
-    expect(out).toContain('Something went wrong. Please try again.');
+    expect(out).not.toContain('b2b-auth__error');
   });
 });
 

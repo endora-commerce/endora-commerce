@@ -22,8 +22,9 @@ import { GroupedLineRows, quoteSectionTotals } from '../../../../components/line
 import { describeRfqDiff } from '../../../../lib/quote-requests/describe-diff';
 import type { Metadata } from 'next';
 import { localeRedirect } from '../../../../lib/i18n/navigation';
+import { QUOTE_REQUEST_ERRORS } from '../../../../lib/quote-requests/quote-request-errors';
 import { LocalizedLink } from '../../../../lib/i18n/localized-link';
-import { tForLocale, type MessageKey } from '../../../../lib/i18n/messages';
+import { tForLocale } from '../../../../lib/i18n/messages';
 import { format } from '../../../../lib/i18n/format';
 import { quoteRequestEventLabel, quoteRequestStatusLabel } from '../../../../lib/account/labels';
 
@@ -158,7 +159,7 @@ export default async function QuoteRequestDetailPage({
             marginBottom: 18,
           }}
         >
-          {sp.error}
+          {t(QUOTE_REQUEST_ERRORS.errorKey(sp.error)!)}
         </p>
       ) : null}
 
@@ -393,12 +394,6 @@ function RfqStatusBadge({
   return <span className={`industria-status ${cls}`}>{quoteRequestStatusLabel(t, status)}</span>;
 }
 
-/** A server action's own refusal, in the page's language. */
-async function failure(key: MessageKey): Promise<string> {
-  const { locale } = await getServerContext();
-  return tForLocale(locale)(key);
-}
-
 async function acceptAction(formData: FormData): Promise<void> {
   'use server';
   const rfqId = formData.get('rfqId') as string;
@@ -408,8 +403,7 @@ async function acceptAction(formData: FormData): Promise<void> {
   try {
     await acceptRevision(session, rfqId, expectedRevisionNumber);
   } catch (err) {
-    const msg = err instanceof StorefrontApiError ? err.detail : await failure('account.quoteRequest.acceptFailed');
-    return await localeRedirect(`/quote-requests/${rfqId}?error=${encodeURIComponent(msg)}`);
+    return await localeRedirect(`/quote-requests/${rfqId}?error=${QUOTE_REQUEST_ERRORS.failureCode(err, 'ACCEPT_FAILED')}`);
   }
   return await localeRedirect(`/quote-requests/${rfqId}`);
 }
@@ -424,8 +418,7 @@ async function rejectAction(formData: FormData): Promise<void> {
   try {
     await rejectRevision(session, rfqId, expectedRevisionNumber, reason || undefined);
   } catch (err) {
-    const msg = err instanceof StorefrontApiError ? err.detail : await failure('account.quoteRequest.rejectFailed');
-    return await localeRedirect(`/quote-requests/${rfqId}?error=${encodeURIComponent(msg)}`);
+    return await localeRedirect(`/quote-requests/${rfqId}?error=${QUOTE_REQUEST_ERRORS.failureCode(err, 'REJECT_FAILED')}`);
   }
   return await localeRedirect(`/quote-requests/${rfqId}`);
 }
@@ -435,15 +428,14 @@ async function convertAction(formData: FormData): Promise<void> {
   const rfqId = formData.get('rfqId') as string;
   const session = await getSessionCookie();
   if (!session) return await localeRedirect('/login');
+  let checkoutUrl: string;
   try {
-    const { checkoutUrl } = await convertRfqToOrder(session, rfqId);
-    return await localeRedirect(checkoutUrl);
+    ({ checkoutUrl } = await convertRfqToOrder(session, rfqId));
   } catch (err) {
-    if (err instanceof StorefrontApiError) {
-      return await localeRedirect(`/quote-requests/${rfqId}?error=${encodeURIComponent(err.detail)}`);
-    }
-    throw err;
+    // Issue #745 — a code travels, never the API's sentence.
+    return await localeRedirect(`/quote-requests/${rfqId}?error=${QUOTE_REQUEST_ERRORS.failureCode(err, 'CONVERT_FAILED')}`);
   }
+  return await localeRedirect(checkoutUrl);
 }
 
 async function resubmitAction(formData: FormData): Promise<void> {
@@ -451,11 +443,11 @@ async function resubmitAction(formData: FormData): Promise<void> {
   const rfqId = formData.get('rfqId') as string;
   const session = await getSessionCookie();
   if (!session) return await localeRedirect('/login');
+  let createdId: string;
   try {
-    const created = await resubmitRfq(session, rfqId);
-    return await localeRedirect(`/quote-requests/${created.id}`);
+    createdId = (await resubmitRfq(session, rfqId)).id;
   } catch (err) {
-    const msg = err instanceof StorefrontApiError ? err.detail : await failure('account.quoteRequest.resubmitFailed');
-    return await localeRedirect(`/quote-requests/${rfqId}?error=${encodeURIComponent(msg)}`);
+    return await localeRedirect(`/quote-requests/${rfqId}?error=${QUOTE_REQUEST_ERRORS.failureCode(err, 'RESUBMIT_FAILED')}`);
   }
+  return await localeRedirect(`/quote-requests/${createdId}`);
 }

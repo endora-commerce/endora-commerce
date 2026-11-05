@@ -234,19 +234,24 @@ describe('parseCartQuantityEdit', () => {
 });
 
 describe('cartLineEditErrorHref / cartLineEditError', () => {
-  it('round-trips the line, the sentence and the typed quantity through the query', () => {
-    const href = cartLineEditErrorHref('item-1', '"Bolts 0001" has a minimum order quantity of 10 pcs.', '4');
+  // Issue #745 — the URL carries a code (and a minimum's digits), never a sentence.
+  it('round-trips the line, the code, the minimum and the typed quantity through the query', () => {
+    const href = cartLineEditErrorHref('item-1', 'PRODUCT_BELOW_MINIMUM_QUANTITY', '4', 10);
+    expect(href).not.toContain('Bolts');
     const params = Object.fromEntries(new URL(href, 'http://x').searchParams);
-    expect(cartLineEditError(params, 'item-1')).toEqual({
-      message: '"Bolts 0001" has a minimum order quantity of 10 pcs.',
+    expect(cartLineEditError(params, { id: 'item-1' }, 'en-US')).toEqual({
+      message: 'Below the minimum (10 pcs)',
       typed: '4',
     });
-    expect(cartLineEditError(params, 'item-2')).toBeNull();
+    expect(cartLineEditError(params, { id: 'item-2' }, 'en-US')).toBeNull();
   });
 
   it('carries no typed value when there was none', () => {
-    const params = Object.fromEntries(new URL(cartLineEditErrorHref('item-1', 'x', null), 'http://x').searchParams);
-    expect(cartLineEditError(params, 'item-1')).toEqual({ message: 'x', typed: null });
+    const params = Object.fromEntries(new URL(cartLineEditErrorHref('item-1', 'UPDATE_FAILED', null), 'http://x').searchParams);
+    expect(cartLineEditError(params, { id: 'item-1' }, 'en-US')).toEqual({
+      message: 'Could not update the quantity. Please try again.',
+      typed: null,
+    });
   });
 });
 

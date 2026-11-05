@@ -34,7 +34,7 @@ const order = {
   customerNote: null,
   placedAt: '2026-08-21T10:00:00.000Z',
   nextAction: null,
-  cancellable: true,
+  customerCancellable: true,
 } as unknown as OrderSummary;
 
 vi.mock('../../lib/session', () => ({ getSessionCookie: async () => 'session-cookie' }));

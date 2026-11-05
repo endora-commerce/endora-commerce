@@ -489,6 +489,24 @@ export const account = defineMessages({
     'account.creditLimit.col.order': 'Order',
     'account.creditLimit.col.reserved': 'Reserved',
     'account.creditLimit.col.since': 'Since',
+    // ── issue #745: what `/quote-requests/:id?error=` and `/orders/:id?error=` say
+    // (`lib/quote-requests/quote-request-errors.ts`, `lib/orders/order-errors.ts`).
+    'account.quoteRequest.convertFailed': 'Could not turn the quote into an order.',
+    'account.quoteRequest.error.RFQ_EXPIRED':
+      'This quote is no longer valid — its validity period has ended. Ask your sales representative for a new quote, or submit the request again.',
+    'account.quoteRequest.error.RFQ_NOT_QUOTED': 'This action is not available for the quote request in its current state.',
+    'account.quoteRequest.error.QUOTE_INCOMPLETE':
+      'This quote request has a line with no agreed price. The seller must price every line before the request can be accepted or ordered.',
+    'account.quoteRequest.error.VERSION_CONFLICT':
+      'This quote request was changed in the meantime. Refresh the page and try again.',
+    'account.quoteRequest.error.FAILED': 'Something went wrong with this quote request. Please try again.',
+    'account.order.error.ORDER_NOT_CANCELLABLE': 'This order can no longer be cancelled.',
+    'account.order.error.ORDER_COMMENTS_CLOSED': 'Comments are closed for completed or cancelled orders.',
+    'account.order.error.ORDER_CLONE_NO_LINES': 'This order has no lines to copy into a quote request.',
+    'account.order.error.PAYMENT_NOT_DUE': 'This order is not awaiting payment.',
+    'account.order.error.PAYMENT_ORDER_CLOSED': 'This order is closed and can no longer be paid.',
+    'account.order.error.PAYMENT_ADAPTER_UNAVAILABLE': 'The payment method this order was placed with is no longer available.',
+    'account.order.error.FAILED': 'Something went wrong with this order. Please try again.',
   },
   'pl-PL': {
     'account.common.open': 'Otwórz',
@@ -941,5 +959,22 @@ export const account = defineMessages({
     'account.creditLimit.col.order': 'Zamówienie',
     'account.creditLimit.col.reserved': 'Zarezerwowano',
     'account.creditLimit.col.since': 'Od',
+    // ── issue #745
+    'account.quoteRequest.convertFailed': 'Nie udało się zamienić oferty na zamówienie.',
+    'account.quoteRequest.error.RFQ_EXPIRED':
+      'Ta oferta straciła ważność — termin jej ważności upłynął. Poproś opiekuna handlowego o nową ofertę lub złóż zapytanie ponownie.',
+    'account.quoteRequest.error.RFQ_NOT_QUOTED': 'Ta czynność nie jest dostępna dla zapytania ofertowego w jego obecnym stanie.',
+    'account.quoteRequest.error.QUOTE_INCOMPLETE':
+      'To zapytanie ofertowe zawiera pozycję bez uzgodnionej ceny. Sprzedawca musi wycenić każdą pozycję, zanim zapytanie będzie można zaakceptować lub zamówić.',
+    'account.quoteRequest.error.VERSION_CONFLICT':
+      'To zapytanie ofertowe zostało w międzyczasie zmienione. Odśwież stronę i spróbuj ponownie.',
+    'account.quoteRequest.error.FAILED': 'Coś poszło nie tak z tym zapytaniem ofertowym. Spróbuj ponownie.',
+    'account.order.error.ORDER_NOT_CANCELLABLE': 'Tego zamówienia nie można już anulować.',
+    'account.order.error.ORDER_COMMENTS_CLOSED': 'Komentowanie jest zamknięte dla zamówień zakończonych lub anulowanych.',
+    'account.order.error.ORDER_CLONE_NO_LINES': 'To zamówienie nie ma pozycji, które można skopiować do zapytania ofertowego.',
+    'account.order.error.PAYMENT_NOT_DUE': 'To zamówienie nie oczekuje na płatność.',
+    'account.order.error.PAYMENT_ORDER_CLOSED': 'To zamówienie zostało zamknięte i nie można go już opłacić.',
+    'account.order.error.PAYMENT_ADAPTER_UNAVAILABLE': 'Metoda płatności wybrana przy składaniu tego zamówienia nie jest już dostępna.',
+    'account.order.error.FAILED': 'Coś poszło nie tak z tym zamówieniem. Spróbuj ponownie.',
   },
 });
