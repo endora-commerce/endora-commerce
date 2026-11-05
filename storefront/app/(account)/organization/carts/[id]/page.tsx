@@ -3,7 +3,6 @@ import type { Metadata } from 'next';
 import { getOrganizationCart, type OrgCartDetail } from '../../../../../lib/api/cart';
 import { getAnonCartCookie, getSessionCookie } from '../../../../../lib/session';
 import { getMe } from '../../../../../lib/api/account';
-import { formatMoney } from '../../../../../lib/i18n/money';
 import { localeRedirect } from '../../../../../lib/i18n/navigation';
 import { LocalizedLink } from '../../../../../lib/i18n/localized-link';
 import { getServerContext } from '../../../../../lib/server-context';
@@ -17,6 +16,7 @@ import {
 } from '../../../../../lib/account/org-cart-approval';
 import { CartSubmitButton } from '../../../../../components/CartSubmitButton';
 import { organizationAreaAccess } from '../../../../../lib/account/organization-area';
+import { NetMoney, OrgCartOwner } from '../../../../../components/account/OrgCartParts';
 import { approveCartAction, rejectCartAction } from './actions';
 
 /**
@@ -103,6 +103,7 @@ export default async function OrganizationCartPage({
   const when = (iso: string | null): string => (iso ? new Date(iso).toLocaleString(locale) : '—');
   const pending = cart.approvalStatus === 'pending';
   const ownCart = cart.ownerCustomerAccountId === me.customerAccount.id;
+  const net = t('commerce.common.net');
 
   return (
     <>
@@ -122,7 +123,9 @@ export default async function OrganizationCartPage({
 
       <dl className="my-4 grid grid-cols-[max-content_1fr] gap-x-6 gap-y-2 text-[13px]">
         <dt className="text-muted">{t('account.orgCarts.col.owner')}</dt>
-        <dd className="m-0">{cart.ownerDisplayName}</dd>
+        <dd className="m-0">
+          <OrgCartOwner name={cart.ownerDisplayName} email={cart.ownerEmail} />
+        </dd>
         <dt className="text-muted">{t('account.common.status')}</dt>
         <dd className="m-0">
           <span className={`b2b-cart-status b2b-cart-status--${cart.status}`}>
@@ -152,7 +155,10 @@ export default async function OrganizationCartPage({
           </>
         ) : null}
         <dt className="text-muted">{t('account.common.total')}</dt>
-        <dd className="m-0 font-semibold">{formatMoney(cart.total.amount, cart.total.currency)}</dd>
+        {/* Issue #751 — an order empties the cart it was placed from: its total is not zero, it is not here. */}
+        <dd className="m-0 font-semibold">
+          {cart.status === 'completed' ? '—' : <NetMoney money={cart.total} netLabel={net} />}
+        </dd>
       </dl>
 
       <h3>{t('account.orgCart.lines')}</h3>
@@ -180,8 +186,12 @@ export default async function OrganizationCartPage({
                   ) : null}
                 </td>
                 <td>{line.quantity}</td>
-                <td>{formatMoney(line.unitPrice.amount, line.unitPrice.currency)}</td>
-                <td>{formatMoney(line.lineTotal.amount, line.lineTotal.currency)}</td>
+                <td>
+                  <NetMoney money={line.unitPrice} netLabel={net} />
+                </td>
+                <td>
+                  <NetMoney money={line.lineTotal} netLabel={net} />
+                </td>
               </tr>
             ))}
           </tbody>

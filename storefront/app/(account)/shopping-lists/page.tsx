@@ -83,7 +83,8 @@ export default async function ShoppingListsPage({
         <table className="b2b-account__table">
           <thead>
             <tr>
-              <th>{t('account.common.name')}</th>
+              {/* Issue #751 — the list's name; `account.common.name` is a person's. */}
+              <th>{t('account.shoppingLists.col.name')}</th>
               <th>{t('account.common.items')}</th>
               <th>{t('account.shoppingLists.col.updated')}</th>
               <th>{t('account.shoppingLists.col.default')}</th>

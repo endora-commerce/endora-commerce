@@ -433,7 +433,13 @@ export type CartFromShoppingListResponse = z.infer<typeof cartFromShoppingListRe
 export const orgCartSummarySchema = z.object({
   id: uuidSchema,
   ownerCustomerAccountId: uuidSchema,
+  /**
+   * The owner as the members page names a member: first and last name, else
+   * the e-mail, else the account id (issue #751; it was the e-mail alone).
+   */
   ownerDisplayName: z.string(),
+  /** The owner's e-mail, shown beside the name; `null` when the account is gone (issue #751). */
+  ownerEmail: z.string().nullable(),
   status: cartStatusSchema,
   approvalStatus: cartApprovalStatusSchema,
   itemCount: z.number().int().nonnegative(),

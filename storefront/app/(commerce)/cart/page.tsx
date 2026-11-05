@@ -13,6 +13,7 @@ import {
   saveCartItemToShoppingList,
   type CartCookieJar,
   type CartItem,
+  type CartSummary,
 } from '../../../lib/api/cart';
 import { listShoppingLists } from '../../../lib/api/shopping-lists';
 import { getServerContext } from '../../../lib/server-context';
@@ -203,7 +204,7 @@ export default async function CartPage({
       <header className="mb-4 flex items-end justify-between gap-4">
         <div>
           <h1 className="m-0 text-[24px] font-semibold tracking-[-0.02em] text-fg">{strings.heading}</h1>
-          <p className="mt-1 text-[13px] text-muted">{strings.subheading(cart.items.length)}</p>
+          <p className="mt-1 text-[13px] text-muted">{strings.subheading(cart.items.length, primaryCta)}</p>
         </div>
       </header>
 
@@ -576,9 +577,19 @@ async function submitForApprovalAction(): Promise<void> {
 
 /* === Inline locale string catalogue =================================== */
 
+type CartPrimaryCtaState = NonNullable<CartSummary['primaryCta']>;
+
+/** Issue #751 — the cart subheading's plural base, per what the buyer can do next. */
+const SUBHEADING_BY_CTA = {
+  checkout: 'commerce.cart.subheading',
+  submit_for_approval: 'commerce.cart.subheadingSubmit',
+  awaiting_approval: 'commerce.cart.subheadingAwaiting',
+  blocked_by_organization: 'commerce.cart.subheadingBlocked',
+} as const satisfies Record<CartPrimaryCtaState, string>;
+
 function STRINGS(locale: string): {
   heading: string;
-  subheading: (n: number) => string;
+  subheading: (n: number, primaryCta: CartPrimaryCtaState) => string;
   empty: string;
   /** Issue #132 — the `carts` module is absent; distinct from an empty cart. */
   unavailable: { heading: string; body: string };
@@ -609,8 +620,10 @@ function STRINGS(locale: string): {
   const t = tForLocale(locale);
   return {
     heading: t('commerce.cart.heading'),
-    subheading: (n: number) =>
-      format(t(pluralKey('commerce.cart.subheading', n, locale)), { count: formatCount(n, locale) }),
+    // Issue #751 — "ready for checkout" only when it is: the subheading
+    // follows the state `primaryCta` answers.
+    subheading: (n: number, primaryCta: CartPrimaryCtaState) =>
+      format(t(pluralKey(SUBHEADING_BY_CTA[primaryCta], n, locale)), { count: formatCount(n, locale) }),
     empty: t('commerce.cart.empty'),
     unavailable: {
       heading: t('commerce.cart.unavailable.heading'),

@@ -21,6 +21,7 @@ import { HttpError } from '@endora-commerce/platform/http';
 import { getResolvedChannel, type RequireCustomerGuard } from '@endora-commerce/platform/kernel';
 import { cartLineAmount, cartSubtotal } from './services/cart-money.js';
 import { productMetaOf } from './services/cart-line-meta.js';
+import { cartOwnerIdentity } from './services/cart-owner-identity.js';
 
 /**
  * Storefront routes of the Organization's cart approval (feature 027 US4;
@@ -167,7 +168,7 @@ export async function registerCartsOrganizationRoutes(
       const data: OrgCartDetailView = {
         id: cart.id,
         ownerCustomerAccountId: cart.customerAccountId ?? null,
-        ownerDisplayName: owner?.email ?? cart.customerAccountId ?? '',
+        ...cartOwnerIdentity(owner, cart.customerAccountId ?? ''),
         status: cart.status,
         approvalStatus: cart.approvalStatus,
         itemCount: items.length,
