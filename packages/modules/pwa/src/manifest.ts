@@ -134,7 +134,7 @@ const pwaSettingEntries: SettingManifestEntry[] = [
 
 const settings = defineModuleSettingsManifest({
   moduleCode: 'pwa',
-  groups: [{ code: 'pwa', name: 'Progressive Web App' }],
+  groups: [{ code: 'pwa', name: 'Progressive web app' }],
   settings: [
     ...pwaSettingEntries.map((entry) => ({ ...entry, hidden: true })),
     {

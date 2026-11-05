@@ -1,5 +1,5 @@
 ---
-title: Product Gallery
+title: Product gallery
 ---
 
 # Product Gallery

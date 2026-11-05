@@ -1,5 +1,5 @@
 ---
-title: URL Keys and Redirects
+title: URL keys and redirects
 ---
 
 # URL Keys and Redirects

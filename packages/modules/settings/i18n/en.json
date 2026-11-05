@@ -52,7 +52,7 @@
   "groups.column.actions": "Actions",
   "groups.action.rename": "Rename",
   "groups.action.delete": "Delete",
-  "quoteRequestsTab.title": "Quote Requests",
+  "quoteRequestsTab.title": "Quote requests",
   "quoteRequestsTab.saved": "Saved.",
   "quoteRequestsTab.save": "Save",
   "quoteRequestsTab.error.load": "Failed to load settings.",

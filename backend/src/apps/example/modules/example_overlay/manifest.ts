@@ -22,7 +22,7 @@ export const EXAMPLE_OVERLAY_SETTING_CODES = {
  */
 const settings = defineModuleSettingsManifest({
   moduleCode: 'example_overlay',
-  groups: [{ code: 'example_overlay', name: 'Example Overlay' }],
+  groups: [{ code: 'example_overlay', name: 'Example overlay' }],
   settings: [
     {
       code: EXAMPLE_OVERLAY_SETTING_CODES.ACTIVATION,

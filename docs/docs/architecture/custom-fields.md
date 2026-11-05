@@ -1,5 +1,5 @@
 ---
-title: Custom Fields for Core Entities
+title: Custom fields for core entities
 ---
 
 # Custom Fields

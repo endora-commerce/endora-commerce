@@ -1,5 +1,5 @@
 ---
-title: Create your first Module
+title: Create your first module
 description: A 20-minute tutorial — add your own module to a new Endora Commerce instance, with a setting you edit in the admin, an API route, a permission and a translation, then switch it off and on.
 sidebar_position: 3
 ---

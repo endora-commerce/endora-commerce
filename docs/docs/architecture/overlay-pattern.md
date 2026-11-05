@@ -1,5 +1,5 @@
 ---
-title: Overlay Pattern (Per-Deployment Customization)
+title: Overlay pattern (per-deployment customization)
 ---
 
 # Overlay Pattern

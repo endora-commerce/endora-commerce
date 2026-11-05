@@ -1,5 +1,5 @@
 ---
-title: The Kernel — boundary, scopes and composition order
+title: The kernel — boundary, scopes and composition order
 ---
 
 # The Kernel

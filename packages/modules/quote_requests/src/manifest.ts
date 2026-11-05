@@ -29,7 +29,7 @@ const settings = defineModuleSettingsManifest({
   groups: [
     {
       code: 'quote_requests',
-      name: 'Quote Requests',
+      name: 'Quote requests',
     },
   ],
   settings: [

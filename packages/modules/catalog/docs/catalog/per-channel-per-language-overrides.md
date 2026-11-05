@@ -1,5 +1,5 @@
 ---
-title: Per-Channel + Per-Language Overrides
+title: Per-channel + per-language overrides
 ---
 
 # Per-Channel + Per-Language Overrides

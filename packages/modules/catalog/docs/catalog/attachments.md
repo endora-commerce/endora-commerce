@@ -1,5 +1,5 @@
 ---
-title: Product Attachments
+title: Product attachments
 ---
 
 # Product Attachments

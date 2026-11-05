@@ -1,5 +1,5 @@
 ---
-title: Stuck Module-Lifecycle Lock
+title: Stuck module-lifecycle lock
 ---
 
 # Stuck Module-Lifecycle Lock

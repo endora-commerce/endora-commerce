@@ -3,7 +3,7 @@
   "adminRoles.permission.pwa:write": "Configure PWA",
   "adminRoles.permission.pwa:send_push": "Send push notifications",
   "nav.pwa.label": "PWA",
-  "settings.title": "Progressive Web App",
+  "settings.title": "Progressive web app",
   "settings.description": "Configure the installable app identity, asset caching, and push notifications.",
   "settings.section.identity": "App identity",
   "settings.field.appName": "App name",

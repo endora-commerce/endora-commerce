@@ -1,5 +1,5 @@
 ---
-title: Composite Products
+title: Composite products
 ---
 
 # Composite Products: grouped, bundle, virtual

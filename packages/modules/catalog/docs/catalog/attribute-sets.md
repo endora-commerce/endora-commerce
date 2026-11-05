@@ -1,5 +1,5 @@
 ---
-title: Attribute Sets
+title: Attribute sets
 ---
 
 # Attribute Sets

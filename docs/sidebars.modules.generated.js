@@ -34,7 +34,7 @@ const modules = [
   },
   {
     type: 'category',
-    label: 'Admin Command Palette Actions', key: 'admin_actions',
+    label: 'Admin command palette actions', key: 'admin_actions',
     link: { type: 'doc', id: 'modules/admin-actions' },
     items: [
       'module-reference/admin-actions',
@@ -42,7 +42,7 @@ const modules = [
   },
   {
     type: 'category',
-    label: 'Admin UI Languages', key: '_i18n',
+    label: 'Admin UI languages', key: '_i18n',
     link: { type: 'doc', id: 'modules/i18n' },
     items: [
       'module-reference/i18n',
@@ -91,7 +91,7 @@ const modules = [
   },
   {
     type: 'category',
-    label: 'Assets Library', key: 'assets_library',
+    label: 'Assets library', key: 'assets_library',
     link: { type: 'doc', id: 'modules/assets-library/index' },
     items: [
       'module-reference/assets-library',
@@ -162,7 +162,7 @@ const modules = [
   },
   {
     type: 'category',
-    label: 'Compare Products', key: 'comparisons',
+    label: 'Compare products', key: 'comparisons',
     link: { type: 'doc', id: 'modules/comparisons' },
     items: [
       'module-reference/comparisons',
@@ -348,7 +348,7 @@ const modules = [
   { type: 'doc', id: 'module-reference/mfa', label: 'mfa', key: 'mfa' },
   {
     type: 'category',
-    label: 'Module Lifecycle', key: '_lifecycle',
+    label: 'Module lifecycle', key: '_lifecycle',
     link: { type: 'doc', id: 'modules/lifecycle' },
     items: [
       'module-reference/lifecycle',
@@ -408,7 +408,7 @@ const modules = [
   },
   {
     type: 'category',
-    label: 'Product Feeds', key: 'product_feeds',
+    label: 'Product feeds', key: 'product_feeds',
     link: { type: 'doc', id: 'modules/product_feeds' },
     items: [
       'module-reference/product-feeds',
@@ -432,7 +432,7 @@ const modules = [
   },
   {
     type: 'category',
-    label: 'Prompt Actions (AI assistant)', key: 'prompt_actions',
+    label: 'Prompt actions (AI assistant)', key: 'prompt_actions',
     link: { type: 'doc', id: 'modules/prompt-actions' },
     items: [
       'module-reference/prompt-actions',
@@ -440,7 +440,7 @@ const modules = [
   },
   {
     type: 'category',
-    label: 'PWA (Progressive Web App)', key: 'pwa',
+    label: 'PWA (progressive web app)', key: 'pwa',
     link: { type: 'doc', id: 'modules/pwa' },
     items: [
       'module-reference/pwa',

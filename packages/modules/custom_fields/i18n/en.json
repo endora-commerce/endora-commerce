@@ -1,5 +1,5 @@
 {
-  "customFields.title": "Custom Fields",
+  "customFields.title": "Custom fields",
   "customFields.description": "Define runtime typed fields on core entities without a code change or migration.",
   "customFields.entity.category": "Category",
   "customFields.entity.order": "Order",

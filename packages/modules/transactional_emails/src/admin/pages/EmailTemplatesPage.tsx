@@ -53,7 +53,7 @@ export function EmailTemplatesPage(): React.ReactElement {
 
   return (
     <div className="space-y-4">
-      <PageHeader title="Email Templates" description="Reusable email-safe templates." />
+      <PageHeader title="Email templates" description="Reusable email-safe templates." />
       {error ? (
         <Alert variant="destructive">
           <AlertDescription>{error}</AlertDescription>

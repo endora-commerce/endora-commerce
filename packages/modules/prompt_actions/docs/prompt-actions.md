@@ -1,5 +1,5 @@
 ---
-title: Prompt Actions (AI assistant)
+title: Prompt actions (AI assistant)
 description: Natural-language prompt mode for the admin command palette, with an explicit preview-and-confirm step before any change
 ---
 

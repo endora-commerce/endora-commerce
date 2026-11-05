@@ -1,5 +1,5 @@
 ---
-title: Command Bus (Uniform Write Auditing & Undo)
+title: Command Bus (uniform write auditing & undo)
 ---
 
 # Command Bus

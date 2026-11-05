@@ -18,10 +18,10 @@ of the platform, not of what happens to be written.
 
 | Module | Capability | Ships from |
 | --- | --- | --- |
-| [Admin UI Languages](./i18n.md) | Admin UI per-user language preference + module-scoped translation bundles | @endora-commerce/mod-i18n |
-| [Module Lifecycle](./lifecycle.md) | CLI-driven install / uninstall / enable / disable / status for every backend module + dependency validation + first-boot reconciliation | core |
+| [Admin UI languages](./i18n.md) | Admin UI per-user language preference + module-scoped translation bundles | @endora-commerce/mod-i18n |
+| [Module lifecycle](./lifecycle.md) | CLI-driven install / uninstall / enable / disable / status for every backend module + dependency validation + first-boot reconciliation | core |
 | [addresses](./addresses.md) | Customer postal addresses with default-per-kind invariant | @endora-commerce/mod-addresses |
-| [Admin Command Palette Actions](./admin-actions.md) | Module-contributed action registry surfaced in the Admin Command Palette (⌘K Actions group) | @endora-commerce/mod-admin-actions |
+| [Admin command palette actions](./admin-actions.md) | Module-contributed action registry surfaced in the Admin Command Palette (⌘K Actions group) | @endora-commerce/mod-admin-actions |
 | [Feedback](./admin-feedback.md) | Administrators send feedback from the admin to the makers of Endora Commerce, relayed as one e-mail and stored nowhere | @endora-commerce/mod-admin-feedback |
 | `admin_notifications` | _no page yet_ | @endora-commerce/mod-admin-notifications |
 | [admin_roles](./admin_roles.md) | Admin role definitions + per-module Permissions | @endora-commerce/mod-admin-roles |
@@ -29,14 +29,14 @@ of the platform, not of what happens to be written.
 | [admin_users](./admin_users.md) | Platform Administrator accounts + impersonation | @endora-commerce/mod-admin-users |
 | [analytics](./analytics.md) | Storefront event ingest + admin aggregation + optional GA4 forwarder | @endora-commerce/mod-analytics |
 | [api_keys](./api_keys.md) | Bearer-token integration credentials | @endora-commerce/mod-api-keys |
-| [Assets Library](./assets-library/index.md) | Central digital-asset library with pluggable storage adapters, stable file URLs and permalinks, in-place file replacement, soft-delete with a retention sweep, and reference-protection guards | @endora-commerce/mod-assets-library |
+| [Assets library](./assets-library/index.md) | Central digital-asset library with pluggable storage adapters, stable file URLs and permalinks, in-place file replacement, soft-delete with a retention sweep, and reference-protection guards | @endora-commerce/mod-assets-library |
 | [audit_logs](./audit_logs.md) | Sensitive-action audit trail | @endora-commerce/mod-audit-logs |
 | [auth](./auth.md) | Customer + admin sessions, password hashing, TOTP | @endora-commerce/mod-auth |
 | [Blog](./blog/index.md) | Editorial Posts with Page Builder bodies, taxonomy (Categories + Tags), and storefront feeds | @endora-commerce/mod-blog |
 | [carts](./carts.md) | Customer shopping cart with anonymous→logged-in merge | @endora-commerce/mod-carts |
 | [Catalog](./catalog.md) | Products, variants, categories, attributes, sales channels | @endora-commerce/mod-catalog |
 | [CMS](./cms/index.md) | Page Builder authoring surface — Pages, Blocks, Templates, Hooks — per channel + language | @endora-commerce/mod-cms |
-| [Compare Products](./comparisons.md) | Compare Products: customer-curated set with display modes, share link, and PDF export | @endora-commerce/mod-comparisons |
+| [Compare products](./comparisons.md) | Compare Products: customer-curated set with display modes, share link, and PDF export | @endora-commerce/mod-comparisons |
 | [Credentials](./credentials.md) | Reusable typed credential configurations (LLM, email adapter) referenced from settings | @endora-commerce/mod-credentials |
 | [credit_limits](./credit_limits.md) | Credit-limit grant + atomic reservation | @endora-commerce/mod-credit-limits |
 | [crm](./crm.md) | Sales opportunities with a configurable status workflow that linked orders follow | @endora-commerce/mod-crm |
@@ -68,11 +68,11 @@ of the platform, not of what happens to be written.
 | [payments](./payments.md) | Payment driver dispatch + settlement events | @endora-commerce/mod-payments |
 | `pim_connector` | _no page yet_ | @endora-commerce/mod-pim-connector |
 | [Price books](./price_lists.md) | Price books — base prices per currency, catalogue, buyer and sale prices on sales channels, and the rules that decide what each buyer pays. | @endora-commerce/mod-price-lists |
-| [Product Feeds](./product_feeds.md) | Provider-shaped product feeds per sales channel — scheduled generation, tokenised pull URLs and SFTP/FTP/HTTP push | @endora-commerce/mod-product-feeds |
+| [Product feeds](./product_feeds.md) | Provider-shaped product feeds per sales channel — scheduled generation, tokenised pull URLs and SFTP/FTP/HTTP push | @endora-commerce/mod-product-feeds |
 | [projects](./projects.md) | Projects for zero or more Organizations, run through their own Stages by Members holding Project Roles | @endora-commerce/mod-projects |
 | [promotions](./promotions.md) | Cart-level percentage / amount / free-delivery discounts with eligibility filters | @endora-commerce/mod-promotions |
-| [Prompt Actions (AI assistant)](./prompt-actions.md) | Natural-language prompt mode for the admin command palette, with an explicit preview-and-confirm step before any change | @endora-commerce/mod-prompt-actions |
-| [PWA (Progressive Web App)](./pwa.md) | Progressive-Web-App capabilities for the storefront and admin — installability, opt-in asset caching, a controlled update path and opt-in push | @endora-commerce/mod-pwa |
+| [Prompt actions (AI assistant)](./prompt-actions.md) | Natural-language prompt mode for the admin command palette, with an explicit preview-and-confirm step before any change | @endora-commerce/mod-prompt-actions |
+| [PWA (progressive web app)](./pwa.md) | Progressive-Web-App capabilities for the storefront and admin — installability, opt-in asset caching, a controlled update path and opt-in push | @endora-commerce/mod-pwa |
 | [quick_order](./quick_order.md) | CSV-import + type-ahead helpers for buyers ordering by SKU | @endora-commerce/mod-quick-order |
 | [quote_requests](./quote_requests.md) | RFQ lifecycle (draft → quote → accept/reject) | @endora-commerce/mod-quote-requests |
 | [returns](./returns.md) | Returns and complaints (RMA) — submission, verification, reverse-logistics shipments and settlement over a configurable status graph | @endora-commerce/mod-returns |

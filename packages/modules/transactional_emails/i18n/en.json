@@ -7,7 +7,7 @@
   "settings.accentColor.label": "Email accent color",
   "settings.headerBlockCode.label": "Default header block",
   "settings.footerBlockCode.label": "Default footer block",
-  "page.title": "Transactional Emails",
+  "page.title": "Transactional emails",
   "page.description": "Edit the content and look of transactional emails globally and per sales channel.",
   "list.title": "Email templates",
   "list.empty": "No transactional emails found.",
