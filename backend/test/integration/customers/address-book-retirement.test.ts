@@ -67,9 +67,9 @@ describe('AddressBookRetirementService', () => {
     invalidate: () => undefined,
   };
 
-  function service(): AddressBookRetirementService {
+  function service(emFactory: () => EntityManager = () => em): AddressBookRetirementService {
     return new AddressBookRetirementService({
-      emFactory: () => em,
+      emFactory,
       accounts: customerAccountPortsFor(() => em).read,
       organizations: {
         findByIds: async (ids) => {
@@ -247,7 +247,7 @@ describe('AddressBookRetirementService', () => {
 
     const second = await service().runInScope();
 
-    expect(second).toMatchObject({ accounts: 0, moved: 0, deduplicated: 0, erased: 0, refused: 0 });
+    expect(second).toMatchObject({ accounts: 0, moved: 0, deduplicated: 0, erased: 0, erasedWithoutOrganization: 0, refused: 0 });
     expect((await book(anna.organizationId)).map((a) => [a.id, a.isDefault])).toEqual(
       afterFirst.map((a) => [a.id, a.isDefault]),
     );
@@ -260,21 +260,27 @@ describe('AddressBookRetirementService', () => {
 
   it('T-I3 — a crash between the Organization write and the source update leaves no duplicate', async () => {
     const anna = await personalCustomer();
-    const row = await personalRow(anna);
-    // The state a crash leaves: the first run's Organization write committed
-    // (it is `addresses`' own transaction) and the process died before the
-    // source row was marked, so the row is still live and unlinked. Written
-    // here rather than provoked, because whether the owner's write joins this
-    // module's transaction is the ORM's affair — the job must be right either way.
-    await addresses.createAddress(anna.organizationId, {
-      kind: row.kind,
-      recipientName: row.recipientName,
-      street: row.street,
-      city: row.city,
-      postalCode: row.postalCode,
-      country: row.country,
-      ...(row.phone ? { phone: row.phone } : {}),
-    });
+    const row = await personalRow(anna, { isDefault: true });
+    // The service's own phase 1 runs for real — it reads the row and the
+    // Organization writes it — and the process "dies" at the first
+    // transaction this module opens, the one that would mark the source row.
+    let crashed = false;
+    const crashing = (): EntityManager =>
+      new Proxy(em, {
+        get(target, key, receiver) {
+          if (key === 'transactional' && !crashed) {
+            return async () => {
+              crashed = true;
+              throw new Error('worker process killed');
+            };
+          }
+          const value = Reflect.get(target, key, receiver) as unknown;
+          return typeof value === 'function' ? (value as (...args: unknown[]) => unknown).bind(target) : value;
+        },
+      });
+    await expect(service(crashing).runInScope()).rejects.toThrow('worker process killed');
+    expect(crashed).toBe(true);
+    expect(await book(anna.organizationId)).toHaveLength(1);
     expect((await reload(row)).deletedAt ?? null).toBeNull();
 
     const result = await service().runInScope();
@@ -282,9 +288,27 @@ describe('AddressBookRetirementService', () => {
     expect(result).toMatchObject({ moved: 0, deduplicated: 1 });
     const orgBook = await book(anna.organizationId);
     expect(orgBook).toHaveLength(1);
+    // A personal default going into an empty book became its one default, once.
+    expect(orgBook.filter((a) => a.kind === 'delivery' && a.isDefault)).toHaveLength(1);
     const fresh = await reload(row);
     expect(fresh.mergedIntoAddressId).toBe(orgBook[0]!.id);
     expect(fresh.deletedAt).toBeInstanceOf(Date);
+  });
+
+  it('Q2 — the rows of an anonymized (soft-deleted) personal Organization are erased, not moved', async () => {
+    const anna = await personalCustomer();
+    const row = await personalRow(anna);
+    const org = await em.findOneOrFail(Organization, { id: anna.organizationId });
+    org.deletedAt = new Date();
+    await em.flush();
+
+    const result = await service().runInScope();
+
+    expect(result).toMatchObject({ accounts: 1, moved: 0, deduplicated: 0, erased: 1, erasedWithoutOrganization: 0 });
+    const fresh = await reload(row);
+    expect(fresh.recipientName).toBe('-');
+    expect(fresh.deletedAt).toBeInstanceOf(Date);
+    expect(await em.find(Address, { organizationId: anna.organizationId })).toEqual([]);
   });
 
   it('T-I4 — a company-member row and an org-less row are blanked, soft-deleted and audited; the company book is untouched', async () => {
@@ -307,6 +331,8 @@ describe('AddressBookRetirementService', () => {
     const result = await service().runInScope();
 
     expect(result).toMatchObject({ accounts: 2, moved: 0, deduplicated: 0, erased: 2, refused: 0 });
+    // Q3 — of the two, only the account with no Organization counts here.
+    expect(result.erasedWithoutOrganization).toBe(1);
     for (const row of [memberRow, orglessRow]) {
       const fresh = await reload(row);
       expect(fresh).toMatchObject({

@@ -38,7 +38,9 @@
  * on every run and in both directions — so a hand edit here fails, and a
  * declaration that disagrees with it fails. A change that deliberately re-routes
  * a code (D-129's scheduled sweep is the one in prospect) is a change to this
- * file **and** an argument in its merge request, never a regeneration.
+ * file **and** an argument in its merge request, never a regeneration. A code
+ * that leaves `ERROR_CODES` leaves this capture too, with a tombstone comment
+ * where it stood, and that is the only edit besides an argued re-route.
  *
  * `core` is a routing answer and not a module directory: the platform-wide
  * bundle is `_i18n`'s own. Feature 090 FR-042 replaced the fall-through that
@@ -158,8 +160,8 @@ export const CHAIN_ROUTING_ANSWERS: Readonly<Record<string, string>> = {
   COMPARISON_NOT_FOUND: 'comparisons',
   PDF_GENERATION_FAILED: 'comparisons',
 
-  // core (100 captured; 80 since pim_ergonode's thirteen and ksef's seven left —
-  // see below)
+  // core (100 captured; 79 since pim_ergonode's thirteen and ksef's seven left
+  // and `CUSTOMER_ADDRESS_NOT_FOUND` was deleted — see below)
   ACCOUNT_BLOCKED: 'core',
   ACTIVE_RESERVATIONS_EXIST: 'core',
   ADDRESS_IN_USE: 'core',
@@ -182,6 +184,12 @@ export const CHAIN_ROUTING_ANSWERS: Readonly<Record<string, string>> = {
   CREDIT_LIMIT_NOT_GRANTED: 'core',
   CURRENCY_MISMATCH: 'core',
   CURRENT_PASSWORD_INVALID: 'core',
+  // `CUSTOMER_ADDRESS_NOT_FOUND` was here, answered `core`, and is not any more:
+  // `specs/173-b2c-address-book-merge/` release 1 deleted it from `ERROR_CODES`,
+  // since nothing raises it. The capture's own rule — one entry per member —
+  // drops it; this is the deliberate change the header asks to be argued rather
+  // than regenerated, and nothing else in the capture moves. The chain's answer
+  // for it is `git show bcb9aa902:` this file.
   CUSTOMER_ALREADY_DELETED: 'core',
   CUSTOMER_NOT_DELETED: 'core',
   CUSTOMER_NOT_FOUND: 'core',

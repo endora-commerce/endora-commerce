@@ -29,8 +29,9 @@ import { addressFingerprint, takesOverDefault } from './address-fingerprint.js';
  *   A write the owner refuses with an `HttpError` leaves the row live with the
  *   code in `mergeRefusal`, audited `customer_address.merge_refused`, and the
  *   account's other rows go on.
- * - **Everyone else** — a company member, or an account whose Organization
- *   cannot be found: each row is **erased** — its personal fields blanked, its
+ * - **Everyone else** — a company member, an individual whose personal
+ *   Organization is already soft-deleted (anonymized), or an account whose
+ *   Organization cannot be found: each row is **erased** — its personal fields blanked, its
  *   default cleared, the row soft-deleted — and audited
  *   `customer_address.erased`. Nothing is copied: those rows are private.
  *
@@ -60,8 +61,13 @@ export interface AddressBookRetirementResult {
   moved: number;
   /** Rows linked to an equal address the book already held. */
   deduplicated: number;
-  /** Non-B2C rows blanked and soft-deleted. */
+  /** Rows blanked and soft-deleted rather than moved — every erasure, whatever the reason. */
   erased: number;
+  /**
+   * Of {@link erased}, the rows of accounts whose Organization could not be
+   * found at all — data Principle XI says cannot exist, so the worker warns.
+   */
+  erasedWithoutOrganization: number;
   /** Rows `addresses` refused; they stay live for the operator. */
   refused: number;
 }
@@ -75,7 +81,14 @@ export interface AddressBookRetirementDeps {
   readonly batchSize?: number;
 }
 
-const ZERO: AddressBookRetirementResult = { accounts: 0, moved: 0, deduplicated: 0, erased: 0, refused: 0 };
+const ZERO: AddressBookRetirementResult = {
+  accounts: 0,
+  moved: 0,
+  deduplicated: 0,
+  erased: 0,
+  erasedWithoutOrganization: 0,
+  refused: 0,
+};
 
 /** Live rows the job has not processed. Shared by every statement that selects them. */
 const PENDING = `"deleted_at" is null and "merge_refusal" is null`;
@@ -112,11 +125,12 @@ export class AddressBookRetirementService {
     for (;;) {
       const accountIds = await this.#nextAccounts(after, batchSize);
       if (accountIds.length === 0) break;
-      const personalOrganizationOf = await this.#personalOrganizations(accountIds);
+      const { personalOrganizationOf, withoutOrganization } = await this.#classify(accountIds);
       for (const accountId of accountIds) {
         const organizationId = personalOrganizationOf.get(accountId);
         const outcome =
           organizationId !== undefined ? await this.#move(accountId, organizationId) : await this.#erase(accountId);
+        if (withoutOrganization.has(accountId)) total.erasedWithoutOrganization += outcome.erased;
         if (outcome.moved + outcome.deduplicated + outcome.erased + outcome.refused === 0) continue;
         total.accounts += 1;
         total.moved += outcome.moved;
@@ -167,16 +181,29 @@ export class AddressBookRetirementService {
   }
 
   /**
-   * Account id → its personal Organization's id, for the accounts of the batch
-   * whose Organization is personal and live (`OrganizationRecord.isPersonal`,
-   * the one test of B2C). An account absent from the map is erased.
+   * `personalOrganizationOf`: account id → its personal Organization's id, for
+   * the accounts of the batch whose Organization is personal and live
+   * (`OrganizationRecord.isPersonal`, the one test of B2C; a soft-deleted one
+   * has been anonymized, and its rows are erased — architect ruling Q2). An
+   * account absent from the map is erased. `withoutOrganization`: the accounts
+   * whose Organization, or whose account record, could not be found at all.
    */
-  async #personalOrganizations(accountIds: readonly string[]): Promise<Map<string, string>> {
+  async #classify(accountIds: readonly string[]): Promise<{
+    personalOrganizationOf: Map<string, string>;
+    withoutOrganization: Set<string>;
+  }> {
     const accounts = await this.deps.accounts.findByIds(accountIds);
     const organizationIds = [...new Set(accounts.map((a) => a.organizationId))];
     const organizations = organizationIds.length > 0 ? await this.deps.organizations.findByIds(organizationIds) : [];
+    const found = new Set(organizations.map((o) => o.id));
     const personal = new Set(organizations.filter((o) => o.isPersonal && o.deletedAt === null).map((o) => o.id));
-    return new Map(accounts.filter((a) => personal.has(a.organizationId)).map((a) => [a.id, a.organizationId]));
+    const withOrganization = new Set(accounts.filter((a) => found.has(a.organizationId)).map((a) => a.id));
+    return {
+      personalOrganizationOf: new Map(
+        accounts.filter((a) => personal.has(a.organizationId)).map((a) => [a.id, a.organizationId]),
+      ),
+      withoutOrganization: new Set(accountIds.filter((id) => !withOrganization.has(id))),
+    };
   }
 
   /** This account's pending rows, oldest first, locked for this transaction. */

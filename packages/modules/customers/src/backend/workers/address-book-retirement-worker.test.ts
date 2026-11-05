@@ -52,7 +52,7 @@ vi.mock('bullmq', () => ({
 }));
 
 const logger = () => ({ info: vi.fn(), warn: vi.fn(), error: vi.fn(), debug: vi.fn() });
-const nothing = { accounts: 0, moved: 0, deduplicated: 0, erased: 0, refused: 0 };
+const nothing = { accounts: 0, moved: 0, deduplicated: 0, erased: 0, erasedWithoutOrganization: 0, refused: 0 };
 
 describe('customers address-book retirement job', () => {
   it('names a queue and a fixed job id BullMQ accepts', () => {
@@ -122,7 +122,7 @@ describe('customers address-book retirement job', () => {
 
     it('with rows left it runs inside a system scope and logs the summary', async () => {
       const log = logger();
-      const result = { accounts: 2, moved: 3, deduplicated: 1, erased: 1, refused: 1 };
+      const result = { accounts: 2, moved: 3, deduplicated: 1, erased: 1, erasedWithoutOrganization: 0, refused: 1 };
       let mode: string | undefined;
       const runInScope = vi.fn(async () => {
         mode = getTenantContext()?.mode;
@@ -133,6 +133,15 @@ describe('customers address-book retirement job', () => {
       expect(mode).toBe('system');
       expect(ADDRESS_BOOK_RETIREMENT_SCOPE_REASON).toContain('#762');
       expect(log.info).toHaveBeenCalledWith(result, expect.any(String));
+      expect(log.warn).not.toHaveBeenCalled();
+    });
+
+    it('warns when rows of accounts with no Organization were erased (Q3)', async () => {
+      const log = logger();
+      const result = { accounts: 1, moved: 0, deduplicated: 0, erased: 2, erasedWithoutOrganization: 2, refused: 0 };
+      await runAddressBookRetirementJob({ retirement: { hasWork: async () => true, runInScope: async () => result }, log });
+      expect(log.info).toHaveBeenCalledWith(result, expect.any(String));
+      expect(log.warn).toHaveBeenCalledWith({ erasedWithoutOrganization: 2 }, expect.any(String));
     });
 
     it('a failed run fails the job, so BullMQ retries it', async () => {
