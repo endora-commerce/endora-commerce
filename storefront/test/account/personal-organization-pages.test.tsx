@@ -112,6 +112,7 @@ vi.mock('../../lib/api/pwa-server', () => ({
 vi.mock('../../lib/api/organization', () => ({
   listAddresses: async () => [address],
   createAddress: async () => undefined,
+  updateAddress: async () => undefined,
   deleteAddress: async () => undefined,
   getMyRole: async () => ({
     role: { id: '00000000-0000-4000-8000-0000000000a1', kind: 'administrator', name: 'Administrator' },
@@ -143,7 +144,7 @@ const summary = () => OrganizationPage();
 const orgAddresses = () => OrganizationAddressesPage({ searchParams: Promise.resolve({}) });
 
 const LOCALES = [
-  { code: 'en-US', organization: 'Organization', orgAddresses: 'Org addresses', profileRow: 'Organization Acme' },
+  { code: 'en-US', organization: 'Organization', orgAddresses: 'Organization addresses', profileRow: 'Organization Acme' },
   { code: 'pl-PL', organization: 'Organizacja', orgAddresses: 'Adresy organizacji', profileRow: 'Organizacja Acme' },
 ] as const;
 
