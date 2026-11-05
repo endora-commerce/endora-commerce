@@ -83,11 +83,34 @@ describe('cartFullPayloadSchema', () => {
       rejectedAt: '2026-11-03T09:00:00.000Z',
       reason: 'Over the quarterly budget',
     };
+    expect(cartFullPayloadSchema.parse({ ...EMPTY_BASKET, previousRejection }).previousRejection).toEqual({
+      ...previousRejection,
+      restoredLineCount: 0,
+      skippedLines: [],
+    });
+    expect(
+      cartFullPayloadSchema.safeParse({ ...EMPTY_BASKET, previousRejection: { ...previousRejection, cartId: 'x' } })
+        .success,
+    ).toBe(false);
+  });
+
+  // Issue #755 — the rejected basket's lines restored into this one, and the
+  // ones that could not be. Additive: a reply without them reads nothing restored.
+  it('carries what was restored from the rejected basket and what was skipped', () => {
+    const previousRejection = {
+      cartId: '00000000-0000-4000-8000-000000000020',
+      rejectedAt: '2026-11-03T09:00:00.000Z',
+      reason: null,
+      restoredLineCount: 2,
+      skippedLines: [
+        { productId: '00000000-0000-4000-8000-000000000021', productName: 'Bolt', reason: 'not_purchasable' },
+      ],
+    };
     expect(cartFullPayloadSchema.parse({ ...EMPTY_BASKET, previousRejection }).previousRejection).toEqual(
       previousRejection,
     );
     expect(
-      cartFullPayloadSchema.safeParse({ ...EMPTY_BASKET, previousRejection: { ...previousRejection, cartId: 'x' } })
+      cartFullPayloadSchema.safeParse({ ...EMPTY_BASKET, previousRejection: { ...previousRejection, restoredLineCount: -1 } })
         .success,
     ).toBe(false);
   });

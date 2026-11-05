@@ -160,8 +160,21 @@ most recent rejected basket on that sales channel — and the storefront's cart
 page shows it, with the reason. It is answered while the current basket has not
 been sent for approval and no basket of the buyer's on the channel has been
 ordered (or converted to a quote request) since the rejection; otherwise, and
-for an anonymous basket, it is `null`. The rejected basket's lines are not
-copied into the new one.
+for an anonymous basket, it is `null`.
+
+The new basket starts with the rejected basket's lines (issue #755): product,
+variant, packaging unit and quantity, each added as the member would add it now
+— checked for availability on the channel and priced afresh. A line that can no
+longer be bought is skipped. `previousRejection` says what happened:
+`restoredLineCount` lines were restored, and `skippedLines` names the skipped
+ones with their reason; the storefront's notice says the items were restored and
+lists the skipped ones. The restore happens once, into the basket opened after
+the rejection, and is audited on it (`lines_restored_from_rejection`, beside the
+usual `line_added` rows). It never touches a basket that already exists, it does
+not re-run after the member empties the restored basket, and it does not carry
+the coupon over — the member applies it again. A member whose role no longer
+holds *Create and edit carts* (`carts.create`) gets nothing restored, and is
+still told about the rejection. The rejected basket itself is left as it was.
 
 Placement enforces the approval: a member's basket that is not `approved` —
 never sent, awaiting an approver, or rejected — is refused when the order is

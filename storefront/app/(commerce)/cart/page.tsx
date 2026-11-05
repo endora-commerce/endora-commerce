@@ -169,14 +169,23 @@ export default async function CartPage({
   // Issue #650 — the rejection of the buyer's previous basket. The rejection
   // closed that basket, so this one — empty or refilled since — cannot say it
   // itself; the answer carries it until the buyer sends a basket again.
+  // Issue #755 — the rejected basket's lines are restored into this one: the
+  // notice says so, and names the lines that could not be.
+  const restored = (cart.previousRejection?.restoredLineCount ?? 0) > 0;
   const previousRejection = cart.previousRejection ? (
-    <CartApprovalBanner
-      approvalStatus="rejected_by_org_admin"
-      primaryCta={cart.primaryCta}
-      rejectedReason={cart.previousRejection.reason}
-      submitForApprovalAction={submitForApprovalAction}
-      strings={{ ...strings.approvalBanner, rejected: strings.previousRejection }}
-    />
+    <>
+      <CartApprovalBanner
+        approvalStatus="rejected_by_org_admin"
+        primaryCta={cart.primaryCta}
+        rejectedReason={cart.previousRejection.reason}
+        submitForApprovalAction={submitForApprovalAction}
+        strings={{
+          ...strings.approvalBanner,
+          rejected: (reason) => strings.previousRejection(reason, restored),
+        }}
+      />
+      <CartDroppedLinesBanner droppedLines={cart.previousRejection.skippedLines ?? []} strings={strings.dropped} />
+    </>
   ) : null;
 
   if (cart.items.length === 0) {
@@ -595,7 +604,7 @@ function STRINGS(locale: string): {
   convertButtons: Parameters<typeof CartConvertButtons>[0]['strings'];
   dropped: Parameters<typeof CartDroppedLinesBanner>[0]['strings'];
   approvalBanner: Parameters<typeof CartApprovalBanner>[0]['strings'];
-  previousRejection: (reason: string | null) => string;
+  previousRejection: (reason: string | null, restored: boolean) => string;
   readOnlyNote: string;
   upsells: Parameters<typeof UpsellStrip>[0]['strings'];
   banner: { qrCreated: string; listAdded: (listName: string) => string };
@@ -697,10 +706,13 @@ function STRINGS(locale: string): {
       submissionRequired: t('commerce.cart.approval.submissionRequired'),
       submitButton: t('commerce.common.submitForApproval'),
     },
-    previousRejection: (reason: string | null) =>
-      reason
-        ? format(t('commerce.cart.approval.previousRejectedWithReason'), { reason })
-        : t('commerce.cart.approval.previousRejected'),
+    previousRejection: (reason: string | null, restored: boolean) =>
+      [
+        reason
+          ? format(t('commerce.cart.approval.previousRejectedWithReason'), { reason })
+          : t('commerce.cart.approval.previousRejected'),
+        ...(restored ? [t('commerce.cart.approval.previousRejectedRestored')] : []),
+      ].join(' '),
     readOnlyNote: t('commerce.cart.readOnlyNote'),
     upsells: {
       heading: t('commerce.cart.upsells.heading'),

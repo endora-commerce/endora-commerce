@@ -89,7 +89,8 @@ export type CartAuditAction =
   | 'line_added'
   | 'line_removed'
   | 'line_qty_changed'
-  | 'cart_merged_from_anon';
+  | 'cart_merged_from_anon'
+  | 'lines_restored_from_rejection';
 
 export const CART_AUDIT_ACTIONS: readonly CartAuditAction[] = [
   'status_changed',
@@ -110,4 +111,5 @@ export const CART_AUDIT_ACTIONS: readonly CartAuditAction[] = [
   'line_removed',
   'line_qty_changed',
   'cart_merged_from_anon',
+  'lines_restored_from_rejection',
 ] as const;

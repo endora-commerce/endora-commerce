@@ -130,6 +130,10 @@ export interface CartPreviousRejection {
   cartId: string;
   rejectedAt: string;
   reason: string | null;
+  /** Issue #755 — the rejected basket's lines restored into this one; absent or `0` when none. */
+  restoredLineCount?: number;
+  /** Issue #755 — the rejected basket's lines the restore could not add, with the reason. */
+  skippedLines?: NonNullable<CartSummary['droppedLines']>;
 }
 
 export interface CartCookieJar {

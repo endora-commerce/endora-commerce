@@ -94,6 +94,9 @@ export const commerce = defineMessages({
       'Your previous cart was rejected by an approver in your organization.',
     'commerce.cart.approval.previousRejectedWithReason':
       'Your previous cart was rejected by an approver in your organization. Reason: {reason}',
+    // Issue #755 — appended when the rejected cart's lines were restored into this one.
+    'commerce.cart.approval.previousRejectedRestored':
+      'Its items have been restored to this cart so you can change it and submit it again.',
     'commerce.cart.readOnlyNote': 'Your role does not allow changing the cart. You can still view it and order it.',
     'commerce.cart.upsells.heading': 'You might also need',
     'commerce.cart.banner.qrCreated': "We've sent your cart to sales as a new quote request.",
@@ -323,6 +326,8 @@ export const commerce = defineMessages({
       'Twój poprzedni koszyk został odrzucony przez osobę zatwierdzającą w Twojej organizacji.',
     'commerce.cart.approval.previousRejectedWithReason':
       'Twój poprzedni koszyk został odrzucony przez osobę zatwierdzającą w Twojej organizacji. Powód: {reason}',
+    'commerce.cart.approval.previousRejectedRestored':
+      'Jego pozycje zostały przywrócone do tego koszyka, więc możesz go poprawić i wysłać ponownie.',
     'commerce.cart.readOnlyNote': 'Twoja rola nie pozwala zmieniać koszyka. Możesz go przeglądać i zamówić.',
     'commerce.cart.upsells.heading': 'Możesz też potrzebować',
     'commerce.cart.banner.qrCreated': 'Twój koszyk został wysłany do działu sprzedaży jako nowe zapytanie ofertowe.',

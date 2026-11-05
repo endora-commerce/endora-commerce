@@ -24,6 +24,8 @@ import { predefinedRoleIdOf } from '../../helpers/seed-organization-roles.js';
  *     its own `approvalStatus` can never say `rejected_by_org_admin`. The cart
  *     answer carries `previousRejection` — the rejection of the buyer's last
  *     closed basket on the channel — until the buyer sends a basket again.
+ *     Since issue #755 that new basket starts with the rejected one's lines
+ *     (`cart-rejection-restore.test.ts`).
  *
  * Both replies are parsed with strict copies of the published schemas, so a
  * key the route answers and the contract does not declare reds this file.
@@ -179,7 +181,8 @@ describe('cart approval reads for the storefront (issue #650)', () => {
 
     const cart = await readCart(MEMBER);
     expect(cart.id).not.toBe(rejectedCartId);
-    expect(cart).toMatchObject({ status: 'active', approvalStatus: 'not_required', itemCount: 0 });
+    // Issue #755 — the new basket starts with the rejected one's line.
+    expect(cart).toMatchObject({ status: 'active', approvalStatus: 'not_required', itemCount: 1 });
     expect(cart.previousRejection).toMatchObject({ cartId: rejectedCartId, reason: REASON });
     expect(Number.isNaN(Date.parse(cart.previousRejection!.rejectedAt))).toBe(false);
   });

@@ -159,8 +159,20 @@ powiedzieć, że został odrzucony. Dlatego odpowiedź koszyka zawiera `previous
 — a strona koszyka w sklepie pokazuje tę informację wraz z powodem. Pole jest wypełnione, dopóki
 bieżący koszyk nie zostanie przesłany do akceptacji i dopóki od odrzucenia żaden koszyk kupującego
 w tym kanale nie zostanie zamówiony (ani zamieniony na zapytanie ofertowe); w przeciwnym razie, a
-także dla koszyka anonimowego, ma wartość `null`. Pozycje odrzuconego koszyka nie są kopiowane do
-nowego.
+także dla koszyka anonimowego, ma wartość `null`.
+
+Nowy koszyk zaczyna się od pozycji odrzuconego koszyka (zgłoszenie #755): produktu, wariantu,
+jednostki opakowania i ilości — każda pozycja jest dodawana tak, jak członek dodałby ją teraz, czyli
+ze sprawdzeniem dostępności w kanale i z ceną ustaloną na nowo. Pozycja, której nie można już kupić,
+jest pomijana. `previousRejection` mówi, co się stało: `restoredLineCount` to liczba przywróconych
+pozycji, a `skippedLines` wymienia pominięte wraz z powodem; komunikat w sklepie informuje, że
+pozycje zostały przywrócone, i wylicza pominięte. Przywrócenie następuje raz, do koszyka otwartego
+po odrzuceniu, i jest zapisywane w jego audycie (`lines_restored_from_rejection`, obok zwykłych
+wpisów `line_added`). Nigdy nie zmienia koszyka, który już istnieje, nie powtarza się, gdy członek
+opróżni przywrócony koszyk, i nie przenosi kodu rabatowego — członek stosuje go ponownie. Członek,
+którego rola nie ma już uprawnienia *Tworzenie i edycja koszyków* (`carts.create`), nie dostaje
+przywróconych pozycji, ale nadal widzi informację o odrzuceniu. Sam odrzucony koszyk pozostaje bez
+zmian.
 
 Składanie zamówienia egzekwuje akceptację: koszyk członka, który nie jest `approved` — nigdy
 nieprzekazany, czekający na akceptującego albo odrzucony — zostaje odrzucony przy składaniu
