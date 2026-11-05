@@ -4,6 +4,7 @@ import { StorefrontApiError } from '../../../lib/api/client';
 import { setSessionCookie } from '../../../lib/session';
 import { getServerContext } from '../../../lib/server-context';
 import { subscribeNewsletter } from '../../../lib/api/newsletter';
+import { getCustomerRegistrationOptions } from '../../../lib/api/customer-registration';
 import { NewsletterConsent } from '../../../components/newsletter/NewsletterConsent';
 import type { Metadata } from 'next';
 import { localeRedirect } from '../../../lib/i18n/navigation';
@@ -20,10 +21,14 @@ export const metadata: Metadata = { robots: { index: false, follow: false } };
 /**
  * Feature 040, US1 — standalone (org-less) customer registration. On success
  * the backend logs the new account straight in, so the server action persists
- * the session cookie and redirects to the account area. When the platform has
- * disabled org-less registration, the backend returns
- * REGISTRATION_REQUIRES_ORGANIZATION and the page surfaces a clear message with
- * a link to the organization-registration flow.
+ * the session cookie and redirects to the account area.
+ *
+ * Issue #756 — when `customers.allow_registration_without_organization` is
+ * off, the page says so before anything is typed: the notice and the link to
+ * the organization registration, and no form. The backend's
+ * REGISTRATION_REQUIRES_ORGANIZATION refusal stays the fallback, for a setting
+ * switched off between render and submit (`?orgRequired=1`), and it is also
+ * what answers when the setting could not be read and the form was shown.
  */
 export default async function RegisterCustomerPage({
   searchParams,
@@ -41,20 +46,46 @@ export default async function RegisterCustomerPage({
   // the sign-in page; this catches a signed-in visitor arriving by link.
   if (!anonymousAccess) return await localeRedirect('/login');
   const channelCode = ctx.salesChannelCode ?? 'default';
+  // Unreadable counts as offered: the form is what this page rendered before
+  // the read existed, and the backend still refuses on submit.
+  const offered =
+    (await getCustomerRegistrationOptions(ctx))?.allowRegistrationWithoutOrganization !== false;
+
+  const orgRequiredMessage = (
+    <>
+      {t('auth.registerCustomer.orgRequiredBefore')}{' '}
+      <LocalizedLink href="/register">{t('auth.registerCustomer.orgRequiredLink')}</LocalizedLink>
+      {t('auth.registerCustomer.orgRequiredAfter')}
+    </>
+  );
+  const signInHint = (
+    <p className="b2b-auth__hint">
+      {t('auth.common.haveAccountPrompt')}{' '}
+      <LocalizedLink href="/login">{t('nav.login')}</LocalizedLink>.
+    </p>
+  );
+
+  if (!offered || orgRequired) {
+    return (
+      <div className="b2b-auth">
+        <h1>{t('auth.registerCustomer.heading')}</h1>
+        {orgRequired ? (
+          <div className="b2b-auth__error">{orgRequiredMessage}</div>
+        ) : (
+          <p className="b2b-auth__notice" role="status">
+            {orgRequiredMessage}
+          </p>
+        )}
+        {signInHint}
+      </div>
+    );
+  }
 
   return (
     <div className="b2b-auth">
       <h1>{t('auth.registerCustomer.heading')}</h1>
       <p>{t('auth.registerCustomer.intro')}</p>
-      {orgRequired ? (
-        <div className="b2b-auth__error">
-          {t('auth.registerCustomer.orgRequiredBefore')}{' '}
-          <LocalizedLink href="/register">{t('auth.registerCustomer.orgRequiredLink')}</LocalizedLink>
-          {t('auth.registerCustomer.orgRequiredAfter')}
-        </div>
-      ) : params.error ? (
-        <div className="b2b-auth__error">{params.error}</div>
-      ) : null}
+      {params.error ? <div className="b2b-auth__error">{params.error}</div> : null}
       <form action={registerCustomerAction} className="b2b-auth__form">
         <div className="b2b-auth__row">
           <div className="b2b-auth__field">
@@ -90,10 +121,7 @@ export default async function RegisterCustomerPage({
           <button type="submit">{t('auth.common.createAccount')}</button>
         </div>
       </form>
-      <p className="b2b-auth__hint">
-        {t('auth.common.haveAccountPrompt')}{' '}
-        <LocalizedLink href="/login">{t('nav.login')}</LocalizedLink>.
-      </p>
+      {signInHint}
     </div>
   );
 }
