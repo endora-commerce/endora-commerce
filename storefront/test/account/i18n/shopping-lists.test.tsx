@@ -288,7 +288,9 @@ describe('shopping-list heart — the shop language (issue #85)', () => {
  * customer renamed keeps their name, and nothing stored changes.
  */
 describe('shopping lists — the auto-created default list is named in the shop language (issue #751)', () => {
-  const autoDefault: ShoppingList = { ...list, id: 'ld', name: 'Default', isDefault: true };
+  // A record id: the detail page answers "not found" for anything else (#752).
+  const LD = '00000000-0000-4000-8000-0000000007d1';
+  const autoDefault: ShoppingList = { ...list, id: LD, name: 'Default', isDefault: true };
 
   it.each([
     ['en-US', 'Default'],
@@ -298,11 +300,11 @@ describe('shopping lists — the auto-created default list is named in the shop 
     locale = l;
     lists = [autoDefault];
     const html = renderToString(<>{await Page({ searchParams: Promise.resolve({}) })}</>);
-    expect(html).toContain(`href="/shopping-lists/ld">${name}</a>`);
+    expect(html).toContain(`href="/shopping-lists/${LD}">${name}</a>`);
     detailList = autoDefault;
     const detail = renderToString(
       <>{await (await import('../../../app/(account)/shopping-lists/[id]/page')).default({
-        params: Promise.resolve({ id: 'ld' }),
+        params: Promise.resolve({ id: LD }),
         searchParams: Promise.resolve({}),
       })}</>,
     );
@@ -314,7 +316,7 @@ describe('shopping lists — the auto-created default list is named in the shop 
     locale = 'pl-PL';
     lists = [{ ...autoDefault, name: 'Biuro' }];
     const html = renderToString(<>{await Page({ searchParams: Promise.resolve({}) })}</>);
-    expect(html).toContain('href="/shopping-lists/ld">Biuro</a>');
+    expect(html).toContain(`href="/shopping-lists/${LD}">Biuro</a>`);
     expect(html).not.toContain('>Domyślna</a>');
   });
 
@@ -326,6 +328,6 @@ describe('shopping lists — the auto-created default list is named in the shop 
     locale = 'pl-PL';
     lists = [{ ...autoDefault, isDefault: false }];
     const html = renderToString(<>{await Page({ searchParams: Promise.resolve({}) })}</>);
-    expect(html).toContain('href="/shopping-lists/ld">Default</a>');
+    expect(html).toContain(`href="/shopping-lists/${LD}">Default</a>`);
   });
 });
