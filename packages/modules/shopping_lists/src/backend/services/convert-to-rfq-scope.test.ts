@@ -31,7 +31,9 @@ const { ShoppingListService } = await import(
 
 const B2C = '00000000-0000-4000-8000-0000000000d1';
 const CTX = { customerAccountId: 'cust-1', organizationId: 'org-1' };
-const LIST = { id: 'list-1', isDefault: false, updatedAt: new Date('2026-01-01T00:00:00.000Z') };
+// A uuid: a malformed id names no list and is refused before any read (issue #753).
+const LIST_ID = '00000000-0000-4000-8000-0000000000e2';
+const LIST = { id: LIST_ID, isDefault: false, updatedAt: new Date('2026-01-01T00:00:00.000Z') };
 const ITEMS = [{ id: 'item-1', productId: 'prod-1', quantity: 1, variantId: null, note: null }];
 
 function fakeEm(): () => EntityManager {
@@ -66,13 +68,13 @@ beforeEach(() => {
 describe('163 — shopping list → quote request at the request’s scope language', () => {
   it('partitions the lines at the scope language the request tag resolves to', async () => {
     const { service, filterAvailable } = rig();
-    await service.convertToRfq(CTX, 'list-1', undefined, { language: 'pl', languageTag: 'de-DE', salesChannelId: B2C });
+    await service.convertToRfq(CTX, LIST_ID, undefined, { language: 'pl', languageTag: 'de-DE', salesChannelId: B2C });
     expect(filterAvailable).toHaveBeenCalledWith(['prod-1'], expect.objectContaining({ channelId: B2C, languageCode: 'de-DE' }));
   });
 
   it('creates the quote request with the request’s tag and channel beside the message language', async () => {
     const { service, createForCustomer } = rig();
-    await service.convertToRfq(CTX, 'list-1', undefined, { language: 'pl', languageTag: 'de-DE', salesChannelId: B2C });
+    await service.convertToRfq(CTX, LIST_ID, undefined, { language: 'pl', languageTag: 'de-DE', salesChannelId: B2C });
     expect(createForCustomer).toHaveBeenCalledWith(expect.anything(), expect.anything(), {
       language: 'pl',
       languageTag: 'de-DE',

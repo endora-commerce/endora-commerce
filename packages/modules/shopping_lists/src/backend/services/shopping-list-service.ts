@@ -1,5 +1,11 @@
 import type { EntityManager } from '@mikro-orm/postgresql';
-import { ERROR_CODES, SHOPPING_LIST_AUTO_DEFAULT_NAME, isProductVisibleTo, scopeLanguageOf } from '@endora-commerce/contracts';
+import {
+  ERROR_CODES,
+  SHOPPING_LIST_AUTO_DEFAULT_NAME,
+  isProductVisibleTo,
+  isUuidShape,
+  scopeLanguageOf,
+} from '@endora-commerce/contracts';
 import type {
   CartWritePort,
   CatalogProductAvailabilityPort,
@@ -449,6 +455,8 @@ export class ShoppingListService {
   // ------------------------------------------------------------------
 
   async #owned(em: EntityManager, ctx: CustomerContext, listId: string): Promise<ShoppingList> {
+    // A malformed id names no list; PostgreSQL would answer it with a 500 (issue #753).
+    if (!isUuidShape(listId)) throw new HttpError(404, ERROR_CODES.NOT_FOUND, 'Shopping list not found.');
     const list = await em.findOne(ShoppingList, {
       id: listId,
       organizationId: ctx.organizationId,

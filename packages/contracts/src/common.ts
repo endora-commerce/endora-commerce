@@ -15,6 +15,27 @@ export type IsoDateTime = z.infer<typeof isoDateTimeSchema>;
 export const uuidSchema = z.string().uuid();
 export type Uuid = z.infer<typeof uuidSchema>;
 
+/**
+ * A value with the shape of a PostgreSQL `uuid`: 8-4-4-4-12 hexadecimal digits,
+ * either case. Shape only — deliberately looser than `uuidSchema`, which checks
+ * RFC 9562's version and variant bits that PostgreSQL does not, and that
+ * hand-written seed ids do not always honour.
+ *
+ * A route keyed by a `uuid` column checks its path parameter against this
+ * before the database sees it (issue #753): PostgreSQL answers any other value
+ * with `invalid input syntax for type uuid`, a 500. A value of another shape
+ * names no record, so the route answers its own not-found, as it does for a
+ * well-formed id that names nothing.
+ */
+export const uuidShapeSchema = z
+  .string()
+  .regex(/^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/i, 'Not a UUID');
+
+/** Whether `value` has the shape of a PostgreSQL `uuid` — see `uuidShapeSchema`. */
+export function isUuidShape(value: string): boolean {
+  return uuidShapeSchema.safeParse(value).success;
+}
+
 /** Whether `YYYY-MM-DD` names a day the calendar has: `2026-02-31` and `2026-13-01` do not. */
 export function isCalendarDate(value: string): boolean {
   const [year = 0, month = 0, day = 0] = value.split('-').map(Number);
