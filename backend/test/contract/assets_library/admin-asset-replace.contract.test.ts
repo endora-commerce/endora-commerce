@@ -84,8 +84,8 @@ describe('POST /api/v1/admin/assets/:id/replace (feature 156)', () => {
       payload: {
         sku: `${runName()}-SKU`,
         type: 'simple',
-        name: { 'en-US': 'Replace fixture' },
-        description: { 'en-US': '' },
+        name: 'Replace fixture',
+        description: '',
         categoryIds: [],
         attributeValues: {},
         visibility: 'public',

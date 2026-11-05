@@ -3,10 +3,8 @@ import type { EntityManager } from '@mikro-orm/postgresql';
 import {
   ANONYMOUS_PRODUCT_AUDIENCE,
   ERROR_CODES,
-  effectivePackagingUnitName,
   isOrderMinimumEligibleType,
   minimumRefusal,
-  pickLocalized,
   type CartBatchLineInput,
   type CartBatchLineOutcome,
   type CartMergeOutcome,
@@ -27,7 +25,7 @@ import type {
 } from '@endora-commerce/contracts';
 import { rethrowIfModuleDisabled } from '@endora-commerce/platform/kernel';
 import type { SalesChannelResolutionPort } from '@endora-commerce/platform/kernel';
-import { basketScopeLanguage, withBasketOrderRules } from './cart-availability.js';
+import { basketNamesAt, basketScopeLanguage, withBasketOrderRules } from './cart-availability.js';
 import type { CartApprovalService } from './cart-approval-service.js';
 import type { CartAuditService } from './cart-audit-service.js';
 import type { CartRecomputeCache } from './cart-recompute-cache.js';
@@ -330,7 +328,15 @@ export class CartService {
       { onLineError: 'report' },
     );
     const skipped = outcomes.filter((outcome) => outcome.status !== 'added');
-    const names = await this.#catalogNamesOf(skipped.map((outcome) => lines[outcome.index]!.productId));
+    // Feature 174 (FR-030) — named as the basket's channel names them, in its
+    // default language (`languageCode` null, N2): the restore runs before any
+    // request language is at hand. A product that is gone has no name.
+    const names = await basketNamesAt(
+      this.availability,
+      skipped.map((outcome) => lines[outcome.index]!.productId),
+      basket.salesChannelId ?? ctx.salesChannelId,
+      null,
+    );
     const skippedLines: CartDroppedLine[] = skipped.map((outcome) => {
       const productId = lines[outcome.index]!.productId;
       const productName = names.get(productId) ?? productId;
@@ -357,13 +363,6 @@ export class CartService {
       metadata: { ...restored },
     });
     return true;
-  }
-
-  /** Product names by id, in the catalogue's default language; a product that is gone has none. */
-  async #catalogNamesOf(productIds: readonly string[]): Promise<Map<string, string>> {
-    if (productIds.length === 0) return new Map();
-    const records = await this.catalogProducts.findByIds([...new Set(productIds)]);
-    return new Map(records.map((record) => [record.id, pickLocalized(record.name, undefined)]));
   }
 
   /**
@@ -454,6 +453,26 @@ export class CartService {
     return (await withBasketOrderRules(this.availability, [product], channelId))[0]!;
   }
 
+  /**
+   * Feature 174 (FR-030) — one product's effective name at the basket's (channel, language), the
+   * name a minimum refusal gives it; `undefined` (the Global name) for a basket with no channel.
+   */
+  async #basketNameOf(
+    productId: string,
+    channelId: string | null | undefined,
+    actor: CartActor,
+    language: string | undefined,
+  ): Promise<string | undefined> {
+    if (!channelId) return undefined;
+    const names = await basketNamesAt(
+      this.availability,
+      [productId],
+      channelId,
+      basketScopeLanguage(channelId, actor.languageTag ?? language),
+    );
+    return names.get(productId);
+  }
+
   #basketChannelOf(actor: CartActor): string {
     const channel = actor.customer?.salesChannelId ?? actor.anonymousSalesChannelId;
     if (!channel) {
@@ -508,6 +527,7 @@ export class CartService {
       // Feature 163 (FR-100) — judged on the basket channel's minimum.
       product: (await withBasketOrderRules(this.availability, [product], cart.salesChannelId))[0]!,
       language: options.language,
+      productName: await this.#basketNameOf(product.id, cart.salesChannelId, actor, options.language),
     });
 
     await this.#writeLine(em, cart, actor, input, resolved);
@@ -647,7 +667,7 @@ export class CartService {
     // Feature 163 (FR-017 d) — a below-minimum outcome names the product as the
     // storefront shows it in this basket's (channel, language).
     const outcomeNames =
-      rejections.size > 0 ? await this.#effectiveNamesFor(actor, resolvedLines) : new Map<string, string>();
+      rejections.size > 0 ? await this.#lineNamesAt(actor, resolvedLines) : new Map<string, string>();
     let added = 0;
     let failure: unknown = null;
     for (const { index, input, resolved } of resolvedLines) {
@@ -658,7 +678,7 @@ export class CartService {
           belowMinimumOutcome(
             index,
             rejection,
-            outcomeNames.get(resolved.product.id) ?? pickLocalized(resolved.product.name, options.language),
+            outcomeNames.get(resolved.product.id) ?? resolved.product.name,
           ),
         );
         continue;
@@ -811,11 +831,11 @@ export class CartService {
       .sort(([a], [b]) => a - b)
       .map(([index, rejection]) => ({ ...rejection, key: String(index) }));
     // Feature 163 (FR-017 d) — the names the storefront shows in this basket.
-    const effective = await this.#effectiveNamesFor(actor, resolvedLines);
+    const effective = await this.#lineNamesAt(actor, resolvedLines);
     const names = new Map(
       resolvedLines.map(({ resolved }) => [
         resolved.product.id,
-        effective.get(resolved.product.id) ?? pickLocalized(resolved.product.name, options.language),
+        effective.get(resolved.product.id) ?? resolved.product.name,
       ]),
     );
     const refusal = minimumRefusal(violations, names, 'index');
@@ -828,17 +848,18 @@ export class CartService {
    * basket's (channel, language): `catalog`'s answer, the walk a storefront card
    * shows. An operator naming the channel is answered in its default language (N2).
    */
-  async #effectiveNamesFor(
+  async #lineNamesAt(
     actor: CartActor,
     resolvedLines: ReadonlyArray<{ resolved: ResolvedCartLine; input: CartBatchLineInput }>,
   ): Promise<Map<string, string>> {
     const named = resolvedLines.find(({ input }) => input.salesChannelId)?.input.salesChannelId;
     if (resolvedLines.length === 0) return new Map();
     const channelId = named ?? this.#basketChannelOf(actor);
-    return this.availability.effectiveNames(
+    const texts = await this.availability.effectiveTexts(
       [...new Set(resolvedLines.map(({ resolved }) => resolved.product.id))],
       { channelId, languageCode: named ? null : basketScopeLanguage(channelId, actor.languageTag) },
     );
+    return new Map([...texts].map(([id, text]) => [id, text.name]));
   }
 
   /**
@@ -1051,7 +1072,13 @@ export class CartService {
       packagingUnit && input.salesChannelId
         ? await this.#channelDefaultLanguage(input.salesChannelId)
         : scopeLanguage;
-    const packagingUnitName = packagingUnit ? effectivePackagingUnitName(packagingUnit, unitLanguage) : null;
+    // Feature 174 (`contracts/readers.md` §1) — the unit's effective name at the line's (C, L):
+    // C×L → C → Global. An empty override (nothing shown) keeps the Global name on the snapshot,
+    // so a placed line always names its unit.
+    const unitNames = packagingUnit
+      ? await this.availability.effectivePackagingUnitNames([packagingUnit.id], { channelId, languageCode: unitLanguage })
+      : new Map<string, string | null>();
+    const packagingUnitName = packagingUnit ? (unitNames.get(packagingUnit.id) ?? packagingUnit.name) : null;
     return { product, packagingUnit, packagingUnitName, effectiveQuantity };
   }
 
@@ -1129,6 +1156,7 @@ export class CartService {
         // Feature 163 (FR-100) — judged on the basket channel's minimum.
         product: await this.#withChannelRules(await this.catalogProducts.findById(item.productId), cart.salesChannelId),
         language: options.language,
+        productName: await this.#basketNameOf(item.productId, cart.salesChannelId, actor, options.language),
       });
     }
 

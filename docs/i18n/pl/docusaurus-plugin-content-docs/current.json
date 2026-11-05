@@ -164,6 +164,9 @@
   "sidebar.main.category.payments": {
     "message": "payments"
   },
+  "sidebar.main.category.pim_connector": {
+    "message": "Wspólna warstwa konektorów PIM"
+  },
   "sidebar.main.category.price_lists": {
     "message": "Cenniki"
   },

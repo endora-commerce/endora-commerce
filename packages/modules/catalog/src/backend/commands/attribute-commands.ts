@@ -197,27 +197,26 @@ export function createAttributeCommand(
         );
       }
       // Feature 172 (research R-6) — a Page Builder content attribute holds
-      // every capability off and is always language-scoped (FR-003, FR-004).
-      const languageScoped =
-        resolved.valueType === 'page_builder'
-          ? assertContentAttributeShape({
-              isSearchable: req.isSearchable,
-              isFilterable: req.isFilterable,
-              isVariantAxis: req.isVariantAxis,
-              // The type resolver drops the flag for a non-numeric type; the
-              // request is judged on what it asked for.
-              displayAsSlider: req.displayAsSlider ?? resolved.displayAsSlider,
-              isComparable: req.isComparable,
-              quickSearchable: req.quickSearchable,
-              isPromoRule: req.isPromoRule,
-              isPriceRule: req.isPriceRule,
-              massEditable: req.massEditable,
-              isRequired: req.isRequired,
-              isVisibleOnProductPage: req.isVisibleOnProductPage,
-              channelScoped: req.channelScoped,
-              languageScoped: req.languageScoped,
-            }).languageScoped
-          : (req.languageScoped ?? false);
+      // every capability off (FR-003); feature 174 — `scopable` among them,
+      // its languages being the content envelope's (FR-004, FR-040).
+      if (resolved.valueType === 'page_builder') {
+        assertContentAttributeShape({
+          isSearchable: req.isSearchable,
+          isFilterable: req.isFilterable,
+          isVariantAxis: req.isVariantAxis,
+          // The type resolver drops the flag for a non-numeric type; the
+          // request is judged on what it asked for.
+          displayAsSlider: req.displayAsSlider ?? resolved.displayAsSlider,
+          isComparable: req.isComparable,
+          quickSearchable: req.quickSearchable,
+          isPromoRule: req.isPromoRule,
+          isPriceRule: req.isPriceRule,
+          massEditable: req.massEditable,
+          isRequired: req.isRequired,
+          isVisibleOnProductPage: req.isVisibleOnProductPage,
+          scopable: req.scopable,
+        });
+      }
       const labelDefault =
         req.labelDefault ??
         req.label['en-US'] ??
@@ -281,8 +280,7 @@ export function createAttributeCommand(
         isPriceRule: req.isPriceRule ?? false,
         filterPosition: req.filterPosition ?? 0,
         isVisibleOnProductPage: req.isVisibleOnProductPage ?? false,
-        channelScoped: req.channelScoped ?? false,
-        languageScoped,
+        scopable: req.scopable ?? false,
         massEditable: req.massEditable ?? false,
         quickSearchable: req.quickSearchable ?? false,
       });
@@ -351,8 +349,7 @@ export function updateAttributeCommand(
       if (req.isVisibleOnProductPage !== undefined) {
         ext.isVisibleOnProductPage = req.isVisibleOnProductPage;
       }
-      if (req.channelScoped !== undefined) ext.channelScoped = req.channelScoped;
-      if (req.languageScoped !== undefined) ext.languageScoped = req.languageScoped;
+      if (req.scopable !== undefined) ext.scopable = req.scopable;
       if (req.massEditable !== undefined) ext.massEditable = req.massEditable;
       if (req.quickSearchable !== undefined) ext.quickSearchable = req.quickSearchable;
 
@@ -402,8 +399,7 @@ export function updateAttributeCommand(
           massEditable: ext.massEditable,
           isRequired: req.isRequired ?? def.required,
           isVisibleOnProductPage: ext.isVisibleOnProductPage,
-          channelScoped: ext.channelScoped,
-          languageScoped: ext.languageScoped,
+          scopable: ext.scopable,
         });
       }
       const triple = legacyToCfType(newLegacyType);

@@ -42,8 +42,8 @@ describe('CatalogAdminService — audit emissions for create / archive', () => {
       payload: {
         sku,
         type: 'simple',
-        name: { 'en-US': `Audit ${sku}` },
-        description: { 'en-US': 'desc' },
+        name: `Audit ${sku}`,
+        description: 'desc',
         categoryIds: [],
         attributeValues: {},
         visibility: 'public',

@@ -52,8 +52,7 @@ interface StubExt {
   isPriceRule?: boolean;
   filterPosition?: number;
   isVisibleOnProductPage?: boolean;
-  channelScoped?: boolean;
-  languageScoped?: boolean;
+  scopable?: boolean;
   massEditable?: boolean;
 }
 
@@ -105,8 +104,7 @@ function makeExtension(ext: StubExt): ProductAttributeRow {
     isPriceRule: ext.isPriceRule ?? false,
     filterPosition: ext.filterPosition ?? 0,
     isVisibleOnProductPage: ext.isVisibleOnProductPage ?? false,
-    channelScoped: ext.channelScoped ?? false,
-    languageScoped: ext.languageScoped ?? false,
+    scopable: ext.scopable ?? false,
     massEditable: ext.massEditable ?? false,
     createdAt: NOW,
     updatedAt: NOW,

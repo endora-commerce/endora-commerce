@@ -8,18 +8,20 @@ import { parsePositiveInt, productDisplayName } from '@endora-commerce/admin-kit
  */
 
 describe('productDisplayName', () => {
-  it('prefers en-US over any other locale', () => {
-    expect(productDisplayName({ name: { 'pl-PL': 'Widżet', 'en-US': 'Widget' }, slug: 'w' })).toBe('Widget');
+  // Feature 174 (FR-031, `contracts/readers.md` §1): the admin list answers the
+  // product's Global name as one string; a host shows it as it is.
+  it('shows the Global name string as it is', () => {
+    expect(productDisplayName({ name: 'Drill X', slug: 'w' })).toBe('Drill X');
   });
 
-  it('falls back to the first locale present when there is no en-US', () => {
-    expect(productDisplayName({ name: { 'de-DE': 'Ding', 'pl-PL': 'Rzecz' }, slug: 'w' })).toBe('Ding');
+  it('never splits a string name into characters', () => {
+    expect(productDisplayName({ name: 'Wiertarka X', slug: 'w', sku: 'S' })).not.toBe('W');
   });
 
   it('falls back to the slug, then the SKU, then an empty string', () => {
-    expect(productDisplayName({ name: {}, slug: 'the-slug', sku: 'SKU-1' })).toBe('the-slug');
-    expect(productDisplayName({ name: {}, sku: 'SKU-1' })).toBe('SKU-1');
-    expect(productDisplayName({ name: {} })).toBe('');
+    expect(productDisplayName({ name: '', slug: 'the-slug', sku: 'SKU-1' })).toBe('the-slug');
+    expect(productDisplayName({ name: '', sku: 'SKU-1' })).toBe('SKU-1');
+    expect(productDisplayName({ name: '' })).toBe('');
   });
 });
 

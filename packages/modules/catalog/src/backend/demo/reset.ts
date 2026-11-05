@@ -70,7 +70,8 @@ export async function resetDemo(
     skus,
   );
 
-  // Both the 200 simple products and the three composites carry the prefix.
+  // The 200 simple products, the three composites and the scope product all
+  // carry the prefix.
   const products = await em.nativeDelete(Product, {
     slug: { $like: `${DEMO_PRODUCT_SLUG_PREFIX}%` },
   });

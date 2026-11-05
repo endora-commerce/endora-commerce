@@ -1407,6 +1407,13 @@
       }
     },
     "/api/v1/admin/catalog/products/{id}/editor-preference": {
+      "get": {
+        "responses": {
+          "200": {
+            "description": "OK"
+          }
+        }
+      },
       "put": {
         "responses": {
           "200": {
@@ -1490,7 +1497,7 @@
         }
       }
     },
-    "/api/v1/admin/catalog/products/{id}/scope-context": {
+    "/api/v1/admin/catalog/products/{id}/scope-overview": {
       "get": {
         "responses": {
           "200": {
@@ -1499,8 +1506,24 @@
         }
       }
     },
-    "/api/v1/admin/catalog/products/{id}/scope-overview": {
+    "/api/v1/admin/catalog/products/{id}/scoped-values": {
       "get": {
+        "responses": {
+          "200": {
+            "description": "OK"
+          }
+        }
+      },
+      "put": {
+        "responses": {
+          "200": {
+            "description": "OK"
+          }
+        }
+      }
+    },
+    "/api/v1/admin/catalog/products/{id}/scoped-values/copy": {
+      "post": {
         "responses": {
           "200": {
             "description": "OK"
@@ -1549,22 +1572,6 @@
         }
       }
     },
-    "/api/v1/admin/catalog/products/{id}/value-overrides": {
-      "get": {
-        "responses": {
-          "200": {
-            "description": "OK"
-          }
-        }
-      },
-      "patch": {
-        "responses": {
-          "200": {
-            "description": "OK"
-          }
-        }
-      }
-    },
     "/api/v1/admin/catalog/products/{productId}/attachments": {
       "get": {
         "responses": {
@@ -1606,22 +1613,6 @@
         }
       },
       "post": {
-        "responses": {
-          "200": {
-            "description": "OK"
-          }
-        }
-      }
-    },
-    "/api/v1/admin/catalog/products/{productId}/gallery/channel-roles": {
-      "get": {
-        "responses": {
-          "200": {
-            "description": "OK"
-          }
-        }
-      },
-      "put": {
         "responses": {
           "200": {
             "description": "OK"
@@ -3777,8 +3768,65 @@
         }
       }
     },
+    "/api/v1/admin/import-export/channel-targets": {
+      "get": {
+        "responses": {
+          "200": {
+            "description": "OK"
+          }
+        }
+      }
+    },
     "/api/v1/admin/import-export/entities": {
       "get": {
+        "responses": {
+          "200": {
+            "description": "OK"
+          }
+        }
+      }
+    },
+    "/api/v1/admin/import-export/profiles": {
+      "get": {
+        "responses": {
+          "200": {
+            "description": "OK"
+          }
+        }
+      },
+      "post": {
+        "responses": {
+          "200": {
+            "description": "OK"
+          }
+        }
+      }
+    },
+    "/api/v1/admin/import-export/profiles/{id}": {
+      "delete": {
+        "responses": {
+          "200": {
+            "description": "OK"
+          }
+        }
+      },
+      "get": {
+        "responses": {
+          "200": {
+            "description": "OK"
+          }
+        }
+      },
+      "patch": {
+        "responses": {
+          "200": {
+            "description": "OK"
+          }
+        }
+      }
+    },
+    "/api/v1/admin/import/products": {
+      "post": {
         "responses": {
           "200": {
             "description": "OK"
@@ -7374,6 +7422,15 @@
         }
       }
     },
+    "/api/v1/admin/seo/meta/product/{entityId}": {
+      "get": {
+        "responses": {
+          "200": {
+            "description": "OK"
+          }
+        }
+      }
+    },
     "/api/v1/admin/seo/meta/{entityType}/{entityId}": {
       "delete": {
         "responses": {
@@ -9456,6 +9513,24 @@
       }
     },
     "/api/v1/organizations/register": {
+      "post": {
+        "responses": {
+          "200": {
+            "description": "OK"
+          }
+        }
+      }
+    },
+    "/api/v1/organizations/registration-options": {
+      "get": {
+        "responses": {
+          "200": {
+            "description": "OK"
+          }
+        }
+      }
+    },
+    "/api/v1/organizations/registry-lookup": {
       "post": {
         "responses": {
           "200": {

@@ -31,8 +31,8 @@ describe('POST /api/v1/admin/catalog/products — duplicate SKU', () => {
   const productPayload = {
     sku: 'TEST-DUPE-001',
     type: 'simple' as const,
-    name: { 'en-US': 'Duplicate probe' },
-    description: { 'en-US': 'Duplicate probe' },
+    name: 'Duplicate probe',
+    description: 'Duplicate probe',
     categoryIds: [],
     attributeValues: {},
     visibility: 'public' as const,

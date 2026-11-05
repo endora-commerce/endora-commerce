@@ -81,7 +81,7 @@ describe('External catalog reads (062 / T013)', () => {
     await h.salesChannels.cache.invalidate('ext-read');
 
     const category = em.create(Category, {
-      name: { 'en-US': 'External widgets' },
+      name: 'External widgets',
       slug: 'external-widgets',
     });
     await em.persistAndFlush(category);
@@ -91,8 +91,8 @@ describe('External catalog reads (062 / T013)', () => {
       slug: 'ext-priced-product',
       type: 'simple',
       status: 'active',
-      name: { 'en-US': 'Externally priced product' },
-      description: { 'en-US': '' },
+      name: 'Externally priced product',
+      description: '',
       visibility: 'public',
       manageStock: false,
       attributeValues: {},
@@ -102,8 +102,8 @@ describe('External catalog reads (062 / T013)', () => {
       slug: 'ext-unpriced-product',
       type: 'simple',
       status: 'active',
-      name: { 'en-US': 'Externally unpriced product' },
-      description: { 'en-US': '' },
+      name: 'Externally unpriced product',
+      description: '',
       visibility: 'public',
       manageStock: false,
       attributeValues: {},

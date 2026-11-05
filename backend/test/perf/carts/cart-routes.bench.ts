@@ -147,8 +147,8 @@ describe.skipIf(!shouldRun)('cart routes — storefront perf', () => {
         slug: `perf-upsell-${idx}`,
         type: 'simple',
         status: 'active',
-        name: { 'en-US': `Perf up-sell target ${idx}` },
-        description: { 'en-US': 'Up-sell strip fixture.' },
+        name: `Perf up-sell target ${idx}`,
+        description: 'Up-sell strip fixture.',
         visibility: 'public',
         attributeValues: { defaultPrice: 9.99 },
       });

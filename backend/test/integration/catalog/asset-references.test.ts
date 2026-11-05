@@ -64,8 +64,8 @@ describe('catalog asset references — attribution and batching (feature 166, R-
       payload: {
         sku: `R6-REFS-${suffix}-${randomUUID().slice(0, 6)}`,
         type: 'simple',
-        name: { 'en-US': `R6 refs ${suffix}` },
-        description: { 'en-US': 'desc' },
+        name: `R6 refs ${suffix}`,
+        description: 'desc',
         categoryIds: [],
         attributeValues: {},
         visibility: 'public',

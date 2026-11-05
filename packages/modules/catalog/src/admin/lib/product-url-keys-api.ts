@@ -1,15 +1,14 @@
 import type {
   ProductUrlKeysResponse,
-  PutProductUrlKeysRequest,
   UrlKeyRedirectTakeoverRequiredDetails,
   UrlKeyTakenDetails,
 } from '@endora-commerce/contracts';
 import { ApiError, apiClient } from '@endora-commerce/admin-kit/lib';
 
 /**
- * Feature 163 (US7; `contracts/url-keys-and-redirects.md` §1–§3) — the product editor's
- * calls to `…/url-keys` and `…/url-redirects/:id`, and the refusals in the operator's
- * words. Effective URLs are the response's `url`: the admin never composes one.
+ * Feature 163 (US7; `contracts/url-keys-and-redirects.md` §1–§3) — the product's redirects
+ * (`…/url-keys`, `…/url-redirects/:id`) and the URL-key refusals in the operator's words.
+ * Feature 174: the key itself is written by the editor's one Save (`PUT …/scoped-values`).
  */
 
 export type ProductUrlKeys = ProductUrlKeysResponse['data'];
@@ -19,12 +18,6 @@ const productPath = (productId: string): string =>
 
 export async function getProductUrlKeys(productId: string): Promise<ProductUrlKeys> {
   const res = await apiClient.get<ProductUrlKeysResponse>(`${productPath(productId)}/url-keys`);
-  return res.data;
-}
-
-/** One Command, one audit entry; absent lists are untouched, `key: null` inherits. */
-export async function putProductUrlKeys(productId: string, body: PutProductUrlKeysRequest): Promise<ProductUrlKeys> {
-  const res = await apiClient.put<ProductUrlKeysResponse>(`${productPath(productId)}/url-keys`, body);
   return res.data;
 }
 
@@ -86,57 +79,4 @@ export function urlKeyErrorMessage(err: unknown, t: Translate): string | null {
     return t('productEditor.urlKeys.error.languageNotOffered');
   }
   return null;
-}
-
-/**
- * What the panel holds while the operator edits: an empty string is "use inherited".
- * A channel × language row absent from `channelKeys` was removed.
- */
-export interface UrlKeysDraft {
-  globalKey: string;
-  languageKeys: Record<string, string>;
-  channelKeys: Array<{ channelId: string; languageCode: string; key: string }>;
-}
-
-/** Postel: a pasted key is trimmed and lower-cased before it is compared or sent. */
-export function normalizeUrlKey(value: string): string {
-  return value.trim().toLowerCase();
-}
-
-/**
- * The PUT body for what changed between the saved keys and the draft, or `null` when
- * nothing did. Saved entries come first in their saved order, new ones after them; a
- * key emptied or a row removed is sent as `key: null` (use inherited).
- */
-export function urlKeysChanges(saved: ProductUrlKeys, draft: UrlKeysDraft): PutProductUrlKeysRequest | null {
-  const body: PutProductUrlKeysRequest = {};
-
-  const globalKey = normalizeUrlKey(draft.globalKey);
-  if (globalKey !== '' && globalKey !== saved.globalKey) body.globalKey = globalKey;
-
-  const savedLanguage = new Map(saved.languageKeys.map((k) => [k.languageCode, k.key]));
-  const languages = [...savedLanguage.keys(), ...Object.keys(draft.languageKeys).filter((l) => !savedLanguage.has(l))];
-  const languageKeys: NonNullable<PutProductUrlKeysRequest['languageKeys']> = [];
-  for (const languageCode of languages) {
-    const next = normalizeUrlKey(draft.languageKeys[languageCode] ?? '') || null;
-    if (next !== (savedLanguage.get(languageCode) ?? null)) languageKeys.push({ languageCode, key: next });
-  }
-  if (languageKeys.length > 0) body.languageKeys = languageKeys;
-
-  const scopeOf = (k: { channelId: string; languageCode: string }): string => `${k.channelId}|${k.languageCode}`;
-  const savedChannel = new Map(saved.channelKeys.map((k) => [scopeOf(k), k]));
-  const draftChannel = new Map(draft.channelKeys.map((k) => [scopeOf(k), k]));
-  const channelKeys: NonNullable<PutProductUrlKeysRequest['channelKeys']> = [];
-  for (const [scope, row] of savedChannel) {
-    const next = normalizeUrlKey(draftChannel.get(scope)?.key ?? '') || null;
-    if (next !== row.key) channelKeys.push({ channelId: row.channelId, languageCode: row.languageCode, key: next });
-  }
-  for (const [scope, row] of draftChannel) {
-    if (savedChannel.has(scope)) continue;
-    const next = normalizeUrlKey(row.key);
-    if (next !== '') channelKeys.push({ channelId: row.channelId, languageCode: row.languageCode, key: next });
-  }
-  if (channelKeys.length > 0) body.channelKeys = channelKeys;
-
-  return Object.keys(body).length > 0 ? body : null;
 }

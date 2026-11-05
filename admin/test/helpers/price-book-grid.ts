@@ -69,7 +69,7 @@ export interface ServedBook {
   /** Variants the catalogue knows per product id (the public product read). */
   variants?: Record<string, Array<{ id: string; sku: string }>>;
   /** Products the product browser lists. */
-  products?: Array<{ id: string; sku: string; slug: string; name: Record<string, string>; status: 'active'; type: 'simple' | 'configurable' }>;
+  products?: Array<{ id: string; sku: string; slug: string; name: string; status: 'active'; type: 'simple' | 'configurable' }>;
 }
 
 /** The kit transport a test mocks (`vi.hoisted`, handed to `vi.mock`), as the grid sees it. */

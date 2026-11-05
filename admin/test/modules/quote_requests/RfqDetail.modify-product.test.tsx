@@ -34,7 +34,7 @@ const PRODUCT = {
   id: PRODUCT_ID,
   sku: 'WID-1',
   slug: 'widget',
-  name: { 'en-US': 'Widget' },
+  name: 'Widget',
   status: 'active',
   type: 'simple',
 };

@@ -38,8 +38,8 @@ describe('updateProduct.status never touches archivedAt (spec 163)', () => {
       payload: {
         sku,
         type: 'simple',
-        name: { 'en-US': sku },
-        description: { 'en-US': 'desc' },
+        name: sku,
+        description: 'desc',
         categoryIds: [],
         attributeValues: {},
         visibility: 'public',

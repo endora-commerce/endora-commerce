@@ -198,7 +198,7 @@ describe('the demo sales pipeline while CRM is switched off', () => {
       expect(shopAfterOffSeed).toEqual({
         organizations: 1,
         admin_users: 3,
-        products: 203,
+        products: 204,
         customer_accounts: 1,
       });
     });

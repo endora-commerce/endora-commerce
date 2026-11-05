@@ -19,15 +19,14 @@ import { ProductPackagingUnit } from '../entities/product-packaging-unit.entity.
 import { BundleSlot } from '../entities/bundle-slot.entity.js';
 import { BundleSlotOption } from '../entities/bundle-slot-option.entity.js';
 import { resolvePrimaryAssetUrls } from './primary-asset-url.js';
-import { effectiveGallery, loadGalleryChannelOverrides } from './gallery-scopes.js';
-import { loadAttachmentsHiddenInChannel } from './attachment-packaging-scopes.js';
+import { effectiveGallery, loadGalleryScopes } from './gallery-scopes.js';
+import { loadAttachmentsAtScope, loadPackagingUnitNamesAtScope } from './attachment-packaging-scopes.js';
 import { viewerOrganizationFor } from './viewer-organization.js';
 import { channelUrlFactsOf } from './channel-url-facts.js';
 import {
   effectiveAttributeValues,
   effectiveSystemText,
   loadChannelOverridesByProduct,
-  overrideLanguages,
   type StorefrontOverrideContext,
 } from './storefront-value-overrides.js';
 import {
@@ -69,8 +68,7 @@ import {
   listingPriceChannelContext,
   resolveScopeLanguage,
   listingPriceMoney,
-  translationAt,
-  effectivePackagingUnitName,
+  scopeLanguageOf,
   type AssetReadPort,
   type AssetRecord,
   type CategoryNode,
@@ -94,6 +92,7 @@ import {
   type ProductSummary,
   type ProductVariant as VariantDto,
   type SeoProductMetaValues,
+  type ScopeLevel,
 } from '@endora-commerce/contracts';
 import type { SalesChannelMembershipPort } from '@endora-commerce/platform/kernel';
 import { HttpError } from '@endora-commerce/platform/http';
@@ -985,8 +984,14 @@ export class CatalogQueryService {
     // Primary asset — for listings prefer the gallery's Thumbnail (US3),
     // then Base Image, then any first gallery item, finally the legacy
     // product_assets row. Resolution chain pinned by T096; run over the gallery as
-    // the request's channel shows it (feature 163, FR-076).
-    const assetUrlByProduct = await resolvePrimaryAssetUrls(em, this.#requireAssets(), productIds, channelId);
+    // the request's (channel, language) shows it (feature 163 FR-076, feature 174).
+    const assetUrlByProduct = await resolvePrimaryAssetUrls(
+      em,
+      this.#requireAssets(),
+      productIds,
+      channelId,
+      this.#availabilityScope(ctx).languageCode,
+    );
 
     const ids = [...productIds];
     const catRows = await em.execute<{ product_id: string; slug: string }[]>(
@@ -1317,10 +1322,8 @@ export class CatalogQueryService {
       });
     }
     if (params.q) conditions.push(await this.#textSearchCondition(params.q, ctx, effective));
-    const scopeOf = new Map(
-      attributeViews.map((a) => [a.key, { channelScoped: a.channelScoped, languageScoped: a.languageScoped }]),
-    );
-    const notScoped = { channelScoped: false, languageScoped: false };
+    const scopeOf = new Map(attributeViews.map((a) => [a.key, a.scopeLevels]));
+    const notScoped: readonly ScopeLevel[] = ['G'];
     const attributeFilters = Object.entries(params.attributeFilters ?? {});
     for (const [key, values] of attributeFilters) {
       conditions.push(
@@ -1369,7 +1372,7 @@ export class CatalogQueryService {
     const like = `%${q}%`;
     const name = this.#effectiveNameExpr(ctx);
     const attributes = searchable.map((a) =>
-      effectiveAttributeSql(a.key, { channelScoped: a.channelScoped, languageScoped: a.languageScoped }, effective),
+      effectiveAttributeSql(a.key, a.scopeLevels, effective),
     );
     return {
       sql: (alias) =>
@@ -2094,8 +2097,8 @@ export class CatalogQueryService {
   }
 
   /**
-   * The product page's read (R28): an id; else a **current** key of the request's
-   * language L (any channel's key of L counts — `findCurrentKeyHolder`); else a
+   * The product page's read (R28): an id; else the product whose effective key at the
+   * request's (C, L) it is (`findCurrentKeyHolder`, feature 174); else a
    * product's global key, the stable handle CMS product blocks store. Never a
    * redirect: the storefront resolves a URL through `resolve` and reads by id.
    */
@@ -2107,7 +2110,7 @@ export class CatalogQueryService {
       /^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/i.test(idOrSlug);
     const product = isUuid
       ? await em.findOne(Product, { id: idOrSlug })
-      : ((await findCurrentKeyHolder(em, idOrSlug, this.#availabilityScope(ctx).languageCode)) ??
+      : ((await findCurrentKeyHolder(em, idOrSlug, channel.id, this.#availabilityScope(ctx).languageCode)) ??
         (await em.findOne(Product, { slug: idOrSlug })));
     if (!product || product.deletedAt) {
       throw new HttpError(404, ERROR_CODES.PRODUCT_NOT_FOUND, 'Product not found.');
@@ -2166,8 +2169,11 @@ export class CatalogQueryService {
     // Feature 002 US3 — eager-load gallery + attachments for the PDP.
     // Gallery: items + label bridge zipped per item; Asset urls
     // resolved into a flat shape the storefront can render directly.
-    // Feature 163 (FR-076, R14) — the gallery as the request's channel shows it:
-    // hidden items dropped, each role at its channel holder (`effectiveGallery`).
+    // Feature 163 (FR-076, R14), feature 174 (data-model §6) — the gallery as the request's
+    // (channel, language) shows it: hidden items dropped, each role at its scope holder
+    // (`effectiveGallery`), each alt text at the scope.
+    const scopeLanguage = this.#availabilityScope(ctx).languageCode;
+    const readScope = { channelId: channel.id, languageCode: scopeLanguage };
     const storedGalleryItems = await em.find(
       GalleryItem,
       { productId: product.id },
@@ -2184,7 +2190,7 @@ export class CatalogQueryService {
     }
     const galleryOverrides =
       storedGalleryItems.length > 0
-        ? (await loadGalleryChannelOverrides(em, [product.id], channel.id)).get(product.id)
+        ? (await loadGalleryScopes(em, [product.id], readScope)).get(product.id)
         : undefined;
     const galleryItems = effectiveGallery(
       storedGalleryItems.map((item) => ({ id: item.id, item, labels: globalLabelsByItem.get(item.id) ?? [] })),
@@ -2203,26 +2209,35 @@ export class CatalogQueryService {
       storedGalleryItems.filter((item) => galleryOverrides?.hidden.has(item.id)).map((item) => item.assetId),
     );
     const assets = allAssets.filter((asset) => !hiddenAssetIds.has(asset.id));
-    // FR-077 (R15) — the product's own alt text at the scope language, else the
-    // asset's alt text through the existing pick.
-    const scopeLanguage = this.#availabilityScope(ctx).languageCode;
+    // FR-077 (R15), feature 174 (T035) — the image's alt text at (C, L): its override there
+    // (`''` for an empty one: a decorative image, rendered `alt=""`), else its Global alt
+    // text, else the asset's alt text through the existing pick; `null` = none.
     const altTextOf = (item: GalleryItem, asset: AssetRecord): string | null =>
-      translationAt(item.altText, scopeLanguage) ??
+      galleryOverrides?.altText.get(item.id) ??
+      item.altText ??
       (asset.altText ? this.pickLang(asset.altText, ctx.preferredLanguage, channel) : null);
 
     // Attachments + their types, eager-loaded in two queries.
-    // Feature 163 (FR-078, R16) — an attachment hidden in the request's channel is
-    // neither listed nor named here (its asset is not even read).
+    // Feature 163 (FR-078, R16), feature 174 (data-model §7) — each attachment's name,
+    // description and hidden flag at (C, L); a hidden one is neither listed nor named
+    // here (its asset is not even read).
     const storedAttachmentRows = await em.find(
       ProductAttachment,
       { productId: product.id },
       { orderBy: { position: 'asc', id: 'asc' } },
     );
-    const hiddenAttachments =
-      storedAttachmentRows.length > 0
-        ? await loadAttachmentsHiddenInChannel(em, product.id, channel.id)
-        : new Set<string>();
-    const attachmentRows = storedAttachmentRows.filter((row) => !hiddenAttachments.has(row.id));
+    const attachmentsAtScope = await loadAttachmentsAtScope(
+      em,
+      product.id,
+      storedAttachmentRows.map((row) => ({
+        id: row.id,
+        name: row.name,
+        description: row.description ?? null,
+        hidden: row.hidden === true,
+      })),
+      readScope,
+    );
+    const attachmentRows = storedAttachmentRows.filter((row) => attachmentsAtScope.get(row.id)?.hidden !== true);
     const attachmentTypeIds = [...new Set(attachmentRows.map((a) => a.attachmentTypeId))];
     const attachmentTypesById = new Map<string, AttachmentType>();
     if (attachmentTypeIds.length > 0) {
@@ -2241,8 +2256,7 @@ export class CatalogQueryService {
       'description',
       overrideCtx,
       product.description,
-      this.pickLang(product.description, ctx.preferredLanguage, channel),
-    );
+    ) ?? '';
     // The summary's name went through the same resolution.
     const nameText = summary.name;
 
@@ -2257,13 +2271,7 @@ export class CatalogQueryService {
       product.attributeValues ?? {},
       overrides,
       overrideCtx,
-      async () =>
-        new Map(
-          (await listAttributeViews()).map((a) => [
-            a.key,
-            { channelScoped: a.channelScoped, languageScoped: a.languageScoped },
-          ]),
-        ),
+      async () => new Map((await listAttributeViews()).map((a) => [a.key, a.scopeLevels])),
     );
 
     // Feature 012 / FR-030 — "Parametry produktu" tab projection.
@@ -2387,9 +2395,10 @@ export class CatalogQueryService {
           {
             id: row.id,
             position: row.position,
-            // Feature 163 (FR-078) — the text at the scope language, else the global one.
-            name: translationAt(row.nameTranslations, scopeLanguage) ?? row.name,
-            description: translationAt(row.descriptionTranslations, scopeLanguage) ?? row.description ?? null,
+            name: attachmentsAtScope.get(row.id)?.name ?? row.name,
+            description: attachmentsAtScope.has(row.id)
+              ? attachmentsAtScope.get(row.id)!.description
+              : (row.description ?? null),
             type: { id: t.id, code: t.code, name: t.name },
             asset: {
               id: a.id,
@@ -2511,10 +2520,11 @@ export class CatalogQueryService {
         { orderBy: { position: 'asc', name: 'asc' } },
       );
       if (packagingUnits.length > 0) {
+        // Feature 174 (data-model §7) — each unit's name at (C, L); `''` for an empty override.
+        const unitNames = await loadPackagingUnitNamesAtScope(em, product.id, packagingUnits, readScope);
         detail.packagingUnits = packagingUnits.map((u) => ({
           id: u.id,
-          // Feature 163 (FR-079) — the name at the scope language, else the global name.
-          name: effectivePackagingUnitName(u, scopeLanguage),
+          name: unitNames.get(u.id) ?? u.name,
           baseQuantity: u.baseQuantity,
           position: u.position,
           isDefault: u.isDefault,
@@ -2571,7 +2581,13 @@ export class CatalogQueryService {
     // Primary asset url via gallery thumb chain -> base_image -> first item
     // -> legacy product_assets first row. One helper, shared with `toSummary`
     // and `ProductLinkService`, so the chain and the port call have one home.
-    const assetUrlByProduct = await resolvePrimaryAssetUrls(em, this.#requireAssets(), ids, channel.id);
+    const assetUrlByProduct = await resolvePrimaryAssetUrls(
+      em,
+      this.#requireAssets(),
+      ids,
+      channel.id,
+      this.#availabilityScope(ctx).languageCode,
+    );
 
     const resolvedPrices = await this.#listingPricesFor(products, ctx);
     // Issue #384 — one statement for every child's override rows on this channel.
@@ -2590,8 +2606,7 @@ export class CatalogQueryService {
           'name',
           overrideCtx,
           p.name,
-          this.pickLang(p.name, ctx.preferredLanguage, channel),
-        ),
+        ) ?? '',
         primaryAssetUrl: assetUrlByProduct.get(p.id) ?? null,
         price,
       });
@@ -2792,9 +2807,7 @@ export class CatalogQueryService {
     // Feature 163 (FR-017 b) — counts over the effective values a card shows at
     // (channel, language): #384's walk over this channel's override rows.
     const effective = this.#overrideContext(channel, ctx.preferredLanguage);
-    const scopeOf = new Map(
-      attrs.map((a) => [a.key, { channelScoped: a.channelScoped, languageScoped: a.languageScoped }]),
-    );
+    const scopeOf = new Map(attrs.map((a) => [a.key, a.scopeLevels]));
     const overrides = await loadChannelOverridesByProduct(em, visible.map((p) => p.id), channel.id);
     const valuesOf = new Map<string, Record<string, unknown>>();
     for (const p of visible) {
@@ -3170,13 +3183,7 @@ export class CatalogQueryService {
    */
   #effectiveNameExpr(ctx: CatalogQueryContext): SqlExpression {
     const channel = ctx.resolvedChannel;
-    return effectiveTextSql(
-      'name',
-      this.#overrideContext(channel, ctx.preferredLanguage),
-      [ctx.preferredLanguage, channel.defaultLanguage, 'en-US', 'en'].filter(
-        (v): v is string => typeof v === 'string',
-      ),
-    );
+    return effectiveTextSql('name', this.#overrideContext(channel, ctx.preferredLanguage));
   }
 
   /**
@@ -3343,8 +3350,7 @@ export class CatalogQueryService {
       'name',
       this.#overrideContext(channel, preferredLanguage),
       product.name,
-      this.pickLang(product.name, preferredLanguage, channel),
-    );
+    ) ?? '';
 
     // Feature 163 (R-16) — the card's summary, from the description this row
     // already holds, through the same override and language pick as the PDP's.
@@ -3353,8 +3359,7 @@ export class CatalogQueryService {
       'description',
       this.#overrideContext(channel, preferredLanguage),
       product.description,
-      this.pickLang(product.description, preferredLanguage, channel),
-    );
+    ) ?? '';
 
     return {
       id: product.id,
@@ -3412,10 +3417,8 @@ export class CatalogQueryService {
     channel: CatalogResolvedChannel,
     preferredLanguage: string | undefined,
   ): StorefrontOverrideContext {
-    return {
-      channelId: channel.id,
-      languages: overrideLanguages(preferredLanguage, channel.defaultLanguage),
-    };
+    // Feature 174 — the chain runs at the request's resolved (C, L): C×L → C → Global.
+    return { channelId: channel.id, languageCode: scopeLanguageOf(channel, preferredLanguage) };
   }
 
   private pickLang(

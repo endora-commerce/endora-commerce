@@ -109,7 +109,7 @@ export function catalogPromptResolverTools(deps: CatalogPromptToolsDeps): Prompt
       return result.items.map((p) => ({
         id: p.id,
         sku: p.sku,
-        label: localizedLabel(p.name),
+        label: p.name || p.sku,
         status: p.status,
         archived: (p.archivedAt ?? null) !== null,
       }));
@@ -221,7 +221,7 @@ async function previewProducts(
   return {
     headline,
     affectedCount: products.length,
-    sample: products.slice(0, 10).map((p) => ({ id: p.id, label: localizedLabel(p.name) })),
+    sample: products.slice(0, 10).map((p) => ({ id: p.id, label: p.name || p.sku })),
   };
 }
 
@@ -261,7 +261,7 @@ export function catalogPromptMutationTools(deps: CatalogPromptToolsDeps): Prompt
         affectedCount: products.length,
         sample: products.slice(0, 10).map((p) => ({
           id: p.id,
-          label: p.name['en'] ?? Object.values(p.name)[0] ?? p.sku,
+          label: p.name || p.sku,
         })),
       };
     },
@@ -331,7 +331,7 @@ export function catalogPromptMutationTools(deps: CatalogPromptToolsDeps): Prompt
         affectedCount: products.length,
         sample: products.slice(0, 10).map((p) => ({
           id: p.id,
-          label: p.name['en'] ?? Object.values(p.name)[0] ?? p.sku,
+          label: p.name || p.sku,
         })),
       };
     },

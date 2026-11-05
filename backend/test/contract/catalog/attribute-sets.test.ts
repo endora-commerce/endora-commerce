@@ -266,7 +266,7 @@ describe('Admin Attribute Sets contract (feature 002 / T009)', () => {
         label: { 'en-US': 'Language-scoped note' },
         labelDefault: 'Language-scoped note',
         type: 'input',
-        languageScoped: true,
+        scopable: true,
         isSearchable: false,
         isFilterable: false,
         isVariantAxis: false,
@@ -284,11 +284,11 @@ describe('Admin Attribute Sets contract (feature 002 / T009)', () => {
     expect(assign.statusCode, assign.body).toBe(200);
     const detail = (assign.json() as { data: AttributeSetDetail }).data;
     expect(() => attributeSetDetailSchema.parse(detail)).not.toThrow();
-    expect(detail.attributes.find((a) => a.id === scopedId)?.languageScoped).toBe(true);
+    expect(detail.attributes.find((a) => a.id === scopedId)?.scopable).toBe(true);
     // Every other assigned attribute answers the same question, and most answer
     // it with `false` — the flag is a fact about each row, not a marker on one.
     for (const attribute of detail.attributes) {
-      expect(typeof attribute.languageScoped).toBe('boolean');
+      expect(typeof attribute.scopable).toBe('boolean');
     }
 
     const unassign = await h.app.inject({

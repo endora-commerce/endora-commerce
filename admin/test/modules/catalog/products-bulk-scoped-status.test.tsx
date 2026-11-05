@@ -221,7 +221,7 @@ describe('bulk status in one channel (US5)', () => {
       if (path === '/api/v1/admin/catalog/products/batch-by-id') {
         // Only what the selection did not already name is looked up.
         expect(body.ids).toEqual([P2]);
-        return Promise.resolve({ data: [{ id: P2, sku: 'SKU-2', name: { 'en-US': 'Hammer' } }] });
+        return Promise.resolve({ data: [{ id: P2, sku: 'SKU-2', name: 'Hammer' }] });
       }
       return Promise.resolve({
         data: {

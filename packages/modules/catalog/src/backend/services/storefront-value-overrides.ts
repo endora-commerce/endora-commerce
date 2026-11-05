@@ -1,9 +1,9 @@
 import type { EntityManager } from '@mikro-orm/postgresql';
 import {
   SYSTEM_ATTRIBUTE_SCOPES,
-  channelOverrideFor,
-  type AttributeScope,
+  effectiveScopedValue,
   type OverrideRow,
+  type ScopeLevel,
   type StorefrontOverrideContext,
 } from '@endora-commerce/contracts';
 
@@ -21,9 +21,8 @@ import { loadOverridesByProduct } from './product-value-resolver.service.js';
  * product's user attributes through their scopes.
  */
 export {
-  channelOverrideFor,
+  effectiveScopedValue,
   effectiveSystemText,
-  overrideLanguages,
   type StorefrontOverrideContext,
 } from '@endora-commerce/contracts';
 
@@ -43,29 +42,27 @@ export function loadChannelOverridesByProduct(
 }
 
 /**
- * The product's `attributeValues` with every channel-scoped user attribute
- * replaced by its override for this context — walked over the attribute's own
- * baseline value, so a per-language value stops the walk where it answers. Returns the input record itself
- * when no user-attribute override row exists, so a product without overrides
- * costs no attribute-metadata read and no copy.
+ * The product's `attributeValues` with every scopable user attribute replaced by its effective
+ * value at `ctx` (C×L → C → Global, restricted to the attribute's scope set; an empty override
+ * answers `null`). Returns the input record itself when no user-attribute override row exists, so
+ * a product without overrides costs no attribute-metadata read and no copy.
  */
 export async function effectiveAttributeValues(
   values: Record<string, unknown>,
   overrides: readonly OverrideRow[] | undefined,
   ctx: StorefrontOverrideContext,
-  scopeOf: () => Promise<Map<string, AttributeScope>>,
+  levelsOf: () => Promise<Map<string, readonly ScopeLevel[]>>,
 ): Promise<Record<string, unknown>> {
   const userRows = (overrides ?? []).filter(
     (o) => !Object.prototype.hasOwnProperty.call(SYSTEM_ATTRIBUTE_SCOPES, o.attributeKey),
   );
   if (userRows.length === 0) return values;
-  const scopes = await scopeOf();
+  const levels = await levelsOf();
   const out: Record<string, unknown> = { ...values };
   for (const key of new Set(userRows.map((o) => o.attributeKey))) {
-    const scope = scopes.get(key);
-    if (!scope) continue;
-    const v = channelOverrideFor(userRows, key, scope, ctx, values[key]);
-    if (v !== undefined) out[key] = v;
+    const scopeLevels = levels.get(key);
+    if (!scopeLevels) continue;
+    out[key] = effectiveScopedValue(userRows, key, scopeLevels, ctx, values[key]);
   }
   return out;
 }

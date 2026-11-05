@@ -364,7 +364,7 @@ export class AvailabilityNotificationService {
       items: rows.map((r) => {
         const p = productById.get(r.productId);
         const productName = p
-          ? p.name['en-US'] ?? Object.values(p.name)[0] ?? p.sku
+          ? p.name || p.sku /* the operator list: Global (FR-031) */
           : '—';
         const email =
           r.email ??
@@ -414,9 +414,10 @@ export class AvailabilityNotificationService {
     if (rows.length === 0) return { notified: 0 };
 
     const product = await this.catalogProducts.findById(input.productId);
-    const productName = product
-      ? product.name['en-US'] ?? Object.values(product.name)[0] ?? product.sku
-      : 'product';
+    // Feature 174 (owner decision after C1, 2026-11-03) — the Global name. A subscription stores
+    // no channel and no language, so there is no (C, L) to resolve; storing them on
+    // `availability_notifications` is the named follow-up of spec 174 (*Out of scope*).
+    const productName = product ? product.name || product.sku : 'product';
     const customerIds = Array.from(
       new Set(rows.map((r) => r.customerAccountId).filter((id): id is string => typeof id === 'string')),
     );

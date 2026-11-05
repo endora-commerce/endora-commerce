@@ -47,8 +47,8 @@ describe('US2 — bulk category assignment (T041/T042)', () => {
         slug: `helmet-043-${i}`,
         type: 'simple',
         status: 'active',
-        name: { 'en-US': `Helmets pro ${i}`, 'pl-PL': `Kask pro ${i}` },
-        description: { 'en-US': 'US2 fixture' },
+        name: `Helmets pro ${i}`,
+        description: 'US2 fixture',
         visibility: 'public',
       });
       helmetIds.push(p.id);
@@ -59,8 +59,8 @@ describe('US2 — bulk category assignment (T041/T042)', () => {
       slug: 'gloves-043-1',
       type: 'simple',
       status: 'active',
-      name: { 'en-US': 'Gloves basic', 'pl-PL': 'Rękawice' },
-      description: { 'en-US': 'US2 fixture' },
+      name: 'Gloves basic',
+      description: 'US2 fixture',
       visibility: 'public',
     });
     await em.flush();
@@ -273,8 +273,8 @@ describe('US2 — bulk category assignment (T041/T042)', () => {
         slug: `helmet-043-x${i}`,
         type: 'simple',
         status: 'active',
-        name: { 'en-US': `Helmets extra ${i}` },
-        description: { 'en-US': 'US2 fixture' },
+        name: `Helmets extra ${i}`,
+        description: 'US2 fixture',
         visibility: 'public',
       });
       extraIds.push(p.id);

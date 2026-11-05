@@ -30,6 +30,8 @@ import { cartWritePortOf } from '../../helpers/orders-neighbour-ports.js';
 import { acceptedQuoteRequest, whenOrderCreatedSettled } from '../../helpers/quote-conversion.js';
 import { withModulesDeactivated } from '../../helpers/modules-deactivated.js';
 import { ensureSalesChannelId } from '../../helpers/sales-channel-fixtures.js';
+import { seedScopedValues } from '../../helpers/scoped-values.js';
+import { SalesChannel } from '@endora-commerce/platform/kernel';
 
 /**
  * Feature 155, owner ruling 2026-10-18 — a basket that cannot be ordered cannot be
@@ -68,6 +70,11 @@ describe('155 — submit-for-approval refuses a basket below a minimum [contract
       namePl: `Śruba akceptacji ${RUN}`,
       channelIds: channels,
     });
+    // Feature 174 (FR-030) — the Polish name is the pl_retail × pl-PL translation the basket reads.
+    const retail = await em.findOneOrFail(SalesChannel, { code: 'pl_retail' });
+    await seedScopedValues(em, product.id, [
+      { field: 'name', scope: { level: 'channel_language', channelId: retail.id, languageCode: 'pl-PL' }, value: product.namePl },
+    ]);
     // An ordinary member: an Org Admin's own cart is exempt from approval.
     const member = em.create(CustomerAccount, {
       id: MEMBER_ID,

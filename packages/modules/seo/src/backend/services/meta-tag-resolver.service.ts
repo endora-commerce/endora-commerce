@@ -1,6 +1,8 @@
 import type { EntityManager } from '@mikro-orm/postgresql';
-import { ERROR_CODES, toScopeChannel } from '@endora-commerce/contracts';
+import { ERROR_CODES, resolveScoped, toScopeChannel } from '@endora-commerce/contracts';
+import type { ScopeRef, ScopedFieldView, ScopedRow } from '@endora-commerce/contracts';
 import type {
+  CatalogProductAvailabilityPort,
   CatalogCategoryReadPort,
   CatalogCategoryRecord,
   CatalogProductReadPort,
@@ -58,6 +60,8 @@ const FIELDS: readonly SeoProductMetaField[] = ['title', 'description', 'ogTitle
 
 export interface RuleBuilderInput {
   product?: CatalogProductRecord;
+  /** The product's effective texts at the request's scope; absent = its Global texts. */
+  texts?: { name: string; description: string | null };
   category?: CatalogCategoryRecord;
   cmsPage?: CmsPageRecord;
 }
@@ -75,8 +79,12 @@ function sameLanguage(a: string | null, b: string): boolean {
 }
 
 /**
- * The address a request names. Neither half keeps today's meaning, the `en-US`
- * language row; a channel is a product's alone (`422 VALIDATION_FAILED`).
+ * The address a request names (feature 174, `data-model.md` §8). A **product** sits at three
+ * levels: Global (neither half), Channel (a channel) and Channel × language (both); a
+ * Language-only product address does not exist any more (FR-010) and is refused
+ * `422 SCOPE_INVALID`. A category or CMS page keeps its language rows, and naming neither half
+ * keeps their old meaning, the `en-US` language row; a channel is a product's alone
+ * (`422 VALIDATION_FAILED`).
  */
 export function seoMetaAddress(request: SeoMetaScopeRequest): SeoMetaOverrideAddress {
   const channelId = request.channelId ?? null;
@@ -86,11 +94,20 @@ export function seoMetaAddress(request: SeoMetaScopeRequest): SeoMetaOverrideAdd
       field: 'channelId',
     });
   }
+  if (request.entityType === 'product') {
+    if (channelId === null && locale !== null) {
+      throw new HttpError(422, ERROR_CODES.SCOPE_INVALID, 'A product has no language-only scope; name a sales channel.', {
+        languageCode: locale,
+        reason: 'language_without_channel',
+      });
+    }
+    return { entityType: 'product', entityId: request.entityId, channelId, locale };
+  }
   return {
     entityType: request.entityType,
     entityId: request.entityId,
     channelId,
-    locale: channelId === null && locale === null ? FALLBACK_LOCALE : locale,
+    locale: locale === null ? FALLBACK_LOCALE : locale,
   };
 }
 
@@ -98,25 +115,33 @@ export function seoMetaAddress(request: SeoMetaScopeRequest): SeoMetaOverrideAdd
 function scopeChain(
   rows: readonly SeoMetaOverride[],
   channelId: string | null,
-  languageCode: string,
+  languageCode: string | null,
 ): Array<{ row: SeoMetaOverride; source: Exclude<SeoProductMetaSource, 'derived'> }> {
   const chain: Array<{ row: SeoMetaOverride; source: Exclude<SeoProductMetaSource, 'derived'> }> = [];
   if (channelId !== null) {
-    const cxl = rows.find((r) => r.salesChannelId === channelId && sameLanguage(r.locale ?? null, languageCode));
-    if (cxl) chain.push({ row: cxl, source: 'channel_language' });
+    if (languageCode !== null) {
+      const cxl = rows.find((r) => r.salesChannelId === channelId && sameLanguage(r.locale ?? null, languageCode));
+      if (cxl) chain.push({ row: cxl, source: 'set' });
+    }
     const c = rows.find((r) => r.salesChannelId === channelId && (r.locale ?? null) === null);
-    if (c) chain.push({ row: c, source: 'channel' });
+    if (c) chain.push({ row: c, source: languageCode === null ? 'set' : 'inherited_channel' });
   }
-  const l = rows.find((r) => (r.salesChannelId ?? null) === null && sameLanguage(r.locale ?? null, languageCode));
-  if (l) chain.push({ row: l, source: 'language' });
+  // Feature 174 (FR-010) — the Global row, never a Language-only one.
+  const g = rows.find((r) => (r.salesChannelId ?? null) === null && (r.locale ?? null) === null);
+  if (g) chain.push({ row: g, source: channelId === null ? 'set' : 'inherited_global' });
   return chain;
 }
 
-/** Each field from the most specific row that sets it, else the fallback (FR-075). */
+/**
+ * Each field from the most specific row that holds it, else the fallback (FR-075). A row holding
+ * `''` — a deliberately empty override — stops the walk like any own value, and the field takes the
+ * derived fallback, its source `set_empty` (feature 174, owner round 6): an operator who empties
+ * the SEO title gets the product-name title, never a blank `<title>`.
+ */
 export function walkSeoScopes(
   rows: readonly SeoMetaOverride[],
   channelId: string | null,
-  languageCode: string,
+  languageCode: string | null,
   fallback: SeoProductMetaValues,
 ): SeoProductMetaValues & { sources: Record<SeoProductMetaField, SeoProductMetaSource> } {
   const chain = scopeChain(rows, channelId, languageCode);
@@ -124,8 +149,14 @@ export function walkSeoScopes(
   const sources = {} as Record<SeoProductMetaField, SeoProductMetaSource>;
   for (const field of FIELDS) {
     const hit = chain.find(({ row }) => row[field] != null);
-    sources[field] = hit ? hit.source : 'derived';
-    if (hit) (values as Record<SeoProductMetaField, string | null>)[field] = hit.row[field] ?? null;
+    if (hit === undefined) {
+      sources[field] = 'derived';
+    } else if (hit.row[field] === '') {
+      sources[field] = 'set_empty';
+    } else {
+      sources[field] = hit.source;
+      (values as Record<SeoProductMetaField, string | null>)[field] = hit.row[field] ?? null;
+    }
   }
   return { ...values, sources };
 }
@@ -141,6 +172,11 @@ export class MetaTagResolverService implements SeoProductMetaPort {
     private readonly cmsPages: CmsPageReadPort,
     /** A product's channels and their languages, for the FR-014 check of a scoped write. */
     private readonly membership: Pick<SalesChannelMembershipPort, 'listChannelsForEntity'>,
+    /**
+     * Feature 174 (`contracts/readers.md` §1) — the product's effective name and description at
+     * (C, L), which the derived metadata there is built from.
+     */
+    private readonly productTexts: Pick<CatalogProductAvailabilityPort, 'effectiveTexts'>,
   ) {}
 
   async resolve(input: SeoMetaScopeRequest): Promise<ResolvedMeta> {
@@ -157,12 +193,24 @@ export class MetaTagResolverService implements SeoProductMetaPort {
     const address = seoMetaAddress(input);
     const locale = address.locale ?? FALLBACK_LOCALE;
     const ruleSource = await this.loadRuleSource(input.entityType, input.entityId);
+    if (ruleSource.product && address.channelId !== null) {
+      // Feature 174 — the derived values at a Channel or Channel × language scope come from the
+      // product's effective texts there (C×L → C → G), not from its Global texts.
+      const texts = await this.productTexts.effectiveTexts([ruleSource.product.id], {
+        channelId: address.channelId,
+        languageCode: address.locale,
+      });
+      const effective = texts.get(ruleSource.product.id);
+      if (effective) ruleSource.texts = effective;
+    }
     const rule = buildRuleMeta(input.entityType, ruleSource, locale);
     const rows = await this.emFactory().find(SeoMetaOverride, {
       entityType: input.entityType,
       entityId: input.entityId,
     });
-    const walked = walkSeoScopes(rows, address.channelId, locale, {
+    // A product walks from its own address (G, C or C×L); a category or CMS page has no channel.
+    const walkLanguage = input.entityType === 'product' ? address.locale : locale;
+    const walked = walkSeoScopes(rows, address.channelId, walkLanguage, {
       title: rule.title,
       description: rule.description,
       ogTitle: rule.openGraph.title,
@@ -235,9 +283,49 @@ export class MetaTagResolverService implements SeoProductMetaPort {
     return walkSeoScopes(rows, input.channelId, input.languageCode, input.fallback);
   }
 
+  /**
+   * Feature 174 (`contracts/seo-ports.md` §1) — each field's view at one scope. A channel the
+   * product is not sold in, or a language the channel does not offer, is `422 SCOPE_INVALID`,
+   * never an empty view.
+   */
+  async readScoped(productId: string, scope: ScopeRef): Promise<Record<SeoProductMetaField, ScopedFieldView<string>>> {
+    if (scope.level !== 'global') {
+      await this.#checkScope({
+        entityType: 'product',
+        entityId: productId,
+        channelId: scope.channelId,
+        locale: scope.level === 'channel_language' ? scope.languageCode : null,
+      });
+    }
+    const rows = await this.emFactory().find(SeoMetaOverride, { entityType: 'product', entityId: productId });
+    const global = rows.find((r) => (r.salesChannelId ?? null) === null && (r.locale ?? null) === null);
+    const out = {} as Record<SeoProductMetaField, ScopedFieldView<string>>;
+    for (const field of FIELDS) {
+      const scoped: ScopedRow<string>[] = rows.flatMap((r) => {
+        const value = r[field];
+        if (r.salesChannelId == null || value == null) return [];
+        return [
+          {
+            channelId: r.salesChannelId,
+            languageCode: r.locale ?? null,
+            value: value === '' ? { kind: 'empty' as const } : { kind: 'value' as const, value },
+          },
+        ];
+      });
+      const resolved = resolveScoped<string>({
+        global: global?.[field] || null,
+        rows: scoped,
+        scope,
+        levels: ['G', 'C', 'CL'],
+      });
+      out[field] = { ...resolved, levels: ['G', 'C', 'CL'], supportedHere: true, required: false };
+    }
+    return out;
+  }
+
   async listScopesForProduct(
     productId: string,
-  ): Promise<Array<{ channelId: string | null; locale: string | null; fields: SeoProductMetaField[] }>> {
+  ): Promise<Array<{ channelId: string | null; languageCode: string | null; fields: SeoProductMetaField[] }>> {
     const rows = await this.emFactory().find(
       SeoMetaOverride,
       { entityType: 'product', entityId: productId },
@@ -245,7 +333,7 @@ export class MetaTagResolverService implements SeoProductMetaPort {
     );
     return rows.map((row) => ({
       channelId: row.salesChannelId ?? null,
-      locale: row.locale ?? null,
+      languageCode: row.locale ?? null,
       fields: FIELDS.filter((field) => row[field] != null),
     }));
   }
@@ -317,8 +405,9 @@ export function buildRuleMeta(
   locale: string,
 ): { title: string; description: string; openGraph: ResolvedMeta['openGraph'] } {
   if (entityType === 'product' && source.product) {
-    const name = pickLocale(source.product.name, locale);
-    const description = pickLocale(source.product.description, locale);
+    // Feature 174 — the texts at the request's scope (`effectiveTexts`), else the Global ones.
+    const name = source.texts?.name ?? source.product.name;
+    const description = (source.texts ? source.texts.description : source.product.description) ?? '';
     return {
       title: trim(name, TITLE_MAX),
       description: trim(description, DESCRIPTION_MAX),

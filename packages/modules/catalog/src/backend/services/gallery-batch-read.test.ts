@@ -220,7 +220,7 @@ describe('catalog — baseImageUrls', () => {
 });
 
 describe('catalog — the round-trip cost the batch read exists to remove', () => {
-  it('costs one round-trip for 500 products where `list` costs 2000', async () => {
+  it('costs one round-trip for 500 products where `list` costs 1500', async () => {
     const ids = Array.from({ length: 500 }, (_, i) => `product-${i}`);
 
     const batch: Recorded = { statements: [], entityReads: [] };
@@ -234,9 +234,9 @@ describe('catalog — the round-trip cost the batch read exists to remove', () =
     for (const id of ids) await oneByOne.list(id);
 
     expect(roundTrips(batch)).toBe(1);
-    // `#assertProductExists` + `find(GalleryItem)` + `find(GalleryItemLabel)` + the
-    // item's hidden channels (feature 163, FR-076).
-    expect(roundTrips(perProduct)).toBe(2000);
+    // `#assertProductExists` + `find(GalleryItem)` + `find(GalleryItemLabel)` (feature 174: the
+    // item's hidden flag is a column of the item now, no per-item channel read).
+    expect(roundTrips(perProduct)).toBe(1500);
   });
 });
 
@@ -251,23 +251,26 @@ describe('catalog — the batch reads in a channel', () => {
     const recorded: Recorded = { statements: [], entityReads: [], params: [] };
     const service = new GalleryService(fakeEm(recorded, () => []), undefined, assetPort({}));
 
-    await service.listForProducts([PRODUCT_A], CHANNEL);
+    await service.listForProducts([PRODUCT_A], CHANNEL, 'pl-PL');
 
     expect(roundTrips(recorded)).toBe(1);
-    expect(recorded.statements[0]).toMatch(/not exists[\s\S]*gallery_item_channel_hidden/i);
+    // Feature 174 — the C×L → C → Global chain of `hidden` (`data-model.md` §6a).
+    expect(recorded.statements[0]).toMatch(/gallery_item_scope_overrides[\s\S]*'hidden'[\s\S]*gi\.hidden/i);
     expect(recorded.params?.[0]).toContain(CHANNEL);
+    expect(recorded.params?.[0]).toContain('pl-PL');
   });
 
-  it('listForProducts naming no channel reads no hidden set (the global gallery)', async () => {
+  it('listForProducts naming no channel reads only the Global hidden flag (the global gallery)', async () => {
     const recorded: Recorded = { statements: [], entityReads: [], params: [] };
     const service = new GalleryService(fakeEm(recorded, () => []), undefined, assetPort({}));
 
     await service.listForProducts([PRODUCT_A], null);
 
-    expect(recorded.statements[0]).not.toMatch(/gallery_item_channel_hidden/i);
+    expect(recorded.statements[0]).not.toMatch(/gallery_item_scope_overrides/i);
+    expect(recorded.statements[0]).toMatch(/gi\.hidden/i);
   });
 
-  it('baseImageUrls takes the channel holder of the role, else the global one, and none when it is hidden', async () => {
+  it('baseImageUrls takes the scoped holder of the role (C×L → C → Global), and none when it is hidden', async () => {
     const recorded: Recorded = { statements: [], entityReads: [], params: [] };
     const service = new GalleryService(
       fakeEm(recorded, () => [{ product_id: PRODUCT_A, asset_id: ASSET_B }]),
@@ -279,10 +282,9 @@ describe('catalog — the batch reads in a channel', () => {
 
     expect(recorded.statements).toHaveLength(1);
     const sql = recorded.statements[0]!;
-    expect(sql).toMatch(/gallery_item_channel_labels/i);
+    expect(sql).toMatch(/gallery_role_scope_overrides/i);
     expect(sql).toMatch(/gallery_item_labels/i);
-    expect(sql).toMatch(/coalesce/i);
-    expect(sql).toMatch(/not exists[\s\S]*gallery_item_channel_hidden/i);
+    expect(sql).toMatch(/gallery_item_scope_overrides[\s\S]*'hidden'/i);
     expect(sql).not.toMatch(/thumbnail/i);
     expect(recorded.params?.[0]).toContain(CHANNEL);
     expect([...urls]).toEqual([

@@ -40,8 +40,8 @@ describe('API_KEY_OUT_OF_SCOPE names the missing scope (issue #86)', () => {
       payload: {
         sku: 'I86-SCOPE-001',
         type: 'simple',
-        name: { 'en-US': 'Scope sentence' },
-        description: { 'en-US': 'Scope sentence' },
+        name: 'Scope sentence',
+        description: 'Scope sentence',
         categoryIds: [],
         attributeValues: {},
         visibility: 'public',

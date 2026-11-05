@@ -66,7 +66,7 @@ beforeEach(() => {
     }
     if (path === `${B}/${IDS.books.L4}`) return { data: BOOKS.L4 };
     if (path === `/api/v1/admin/catalog/products/${P1}`) {
-      return { data: { id: P1, sku: 'P1', slug: 'p1', name: { 'en-US': 'Screws 0200' }, status: 'active', type: 'simple' } };
+      return { data: { id: P1, sku: 'P1', slug: 'p1', name: 'Screws 0200', status: 'active', type: 'simple' } };
     }
     if (path === `/api/v1/admin/catalog/products/${P1}/variants`) return { data: [] };
     if (path === '/api/v1/admin/catalog/products') return { data: [], pagination: { page: 0, pageSize: 20, total: 0 } };
