@@ -27,7 +27,8 @@ export const metadata: Metadata = { robots: { index: false, follow: false } };
 export default async function RegisterPage({
   searchParams,
 }: {
-  searchParams: Promise<{ status?: string; error?: string; email?: string }>;
+  /** Issue #745 — no `email`: the acknowledgement names no address, so none travels in the URL. */
+  searchParams: Promise<{ status?: string; error?: string }>;
 }): Promise<ReactNode> {
   const params = await searchParams;
   const { locale } = await getServerContext();
@@ -40,8 +41,7 @@ export default async function RegisterPage({
         <div className="b2b-auth">
           <h1>{t('auth.register.pending.heading')}</h1>
           <p className="b2b-auth__success">
-            {t('auth.register.pending.sentBefore')} <strong>{params.email}</strong>
-            {t('auth.register.pending.sentAfter')}
+            {t('auth.register.pending.sent')}
           </p>
           <p className="b2b-auth__hint">
             {t('auth.register.pending.verifiedPrompt')}{' '}

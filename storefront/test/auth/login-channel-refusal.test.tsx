@@ -64,17 +64,18 @@ describe('the sign-in action’s error parameter', () => {
       'SALES_CHANNEL_NOT_PERMITTED',
       'Dieses Konto hat keinen Zugang zu diesem Shop.',
     );
-    expect(signInErrorParam(refusal, 'Sign-in failed.')).toBe(CHANNEL_NOT_PERMITTED_ERROR);
+    expect(signInErrorParam(refusal, 'LOGIN_FAILED')).toBe(CHANNEL_NOT_PERMITTED_ERROR);
     expect(CHANNEL_NOT_PERMITTED_ERROR).toBe('sales_channel_not_permitted');
   });
 
-  it('keeps every other refusal as it was', () => {
+  // Issue #745 — every other refusal travels as a code too, never as the backend's sentence.
+  it('carries every other refusal as a code', () => {
     const wrong = new StorefrontApiError(401, 'INVALID_CREDENTIALS', 'Invalid email or password.');
-    expect(signInErrorParam(wrong, 'Sign-in failed.')).toBe('Invalid email or password.');
-    expect(signInErrorParam(new TypeError('fetch failed'), 'Sign-in failed.')).toBe('Sign-in failed.');
+    expect(signInErrorParam(wrong, 'LOGIN_FAILED')).toBe('INVALID_CREDENTIALS');
+    expect(signInErrorParam(new TypeError('fetch failed'), 'LOGIN_FAILED')).toBe('LOGIN_FAILED');
   });
 
-  it('translates the code and leaves anything else untouched', () => {
+  it('translates the code and reads anything else as the sign-in failure', () => {
     expect(signInErrorMessage(CHANNEL_NOT_PERMITTED_ERROR, 'en-US')).toBe(
       'This account does not have access to this store.',
     );
@@ -87,7 +88,7 @@ describe('the sign-in action’s error parameter', () => {
     expect(signInErrorMessage('sales_channel_sign_in_required', 'pl-PL')).toBe(
       'Ten sklep jest dostępny dla zalogowanych klientów biznesowych. Zaloguj się lub złóż wniosek o konto firmowe.',
     );
-    expect(signInErrorMessage('Invalid email or password.', 'pl-PL')).toBe('Invalid email or password.');
+    expect(signInErrorMessage('Invalid email or password.', 'pl-PL')).toBe('Logowanie nie powiodło się. Spróbuj ponownie.');
     expect(signInErrorMessage(undefined, 'en-US')).toBeUndefined();
   });
 });
