@@ -22,7 +22,7 @@ Gated by the `audit_log:read` permission.
 
 | Verb + Path | Purpose |
 | --- | --- |
-| `GET /api/v1/admin/audit-log` | Query the append-only log. Filters: `filter[actor]`, `filter[customer]`, `filter[action]`, `filter[objectType]`, `filter[objectId]`. Default `limit=100`, capped at 500. Each row carries `stateBefore` / `stateAfter` JSON inline so the admin viewer can render side-by-side diffs without a second roundtrip. A row also carries `actorCustomerAccountId` and `actorCustomerLabel`, the customer's audit label (the Organization's name, otherwise the e-mail). |
+| `GET /api/v1/admin/audit-log` | Query the append-only log. Filters: `filter[actor]`, `filter[customer]`, `filter[action]`, `filter[objectType]`, `filter[objectId]`. Default `limit=100`, capped at 500. Each row carries `stateBefore` / `stateAfter` JSON inline so the admin viewer can render side-by-side diffs without a second roundtrip. A row also carries `actorCustomerAccountId` and `actorCustomerLabel`, the customer's audit label: the person as *First Last (e-mail)*, or the e-mail alone when the account has no name. An impersonated customer is named the same way. |
 
 ## Recording
 

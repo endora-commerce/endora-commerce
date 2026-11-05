@@ -21,7 +21,7 @@ Wymaga uprawnienia `audit_log:read`.
 
 | Metoda i ścieżka | Przeznaczenie |
 | --- | --- |
-| `GET /api/v1/admin/audit-log` | Zapytanie do dziennika. Filtry: `filter[actor]`, `filter[customer]`, `filter[action]`, `filter[objectType]`, `filter[objectId]`. Domyślnie `limit=100`, najwyżej 500. Każdy wiersz zawiera od razu JSON `stateBefore` / `stateAfter`, aby przeglądarka w panelu mogła pokazać różnice obok siebie bez drugiego zapytania. Wiersz zawiera też `actorCustomerAccountId` i `actorCustomerLabel` — etykietę klienta w dzienniku audytu (nazwę organizacji, a gdy jej brak — adres e-mail). |
+| `GET /api/v1/admin/audit-log` | Zapytanie do dziennika. Filtry: `filter[actor]`, `filter[customer]`, `filter[action]`, `filter[objectType]`, `filter[objectId]`. Domyślnie `limit=100`, najwyżej 500. Każdy wiersz zawiera od razu JSON `stateBefore` / `stateAfter`, aby przeglądarka w panelu mogła pokazać różnice obok siebie bez drugiego zapytania. Wiersz zawiera też `actorCustomerAccountId` i `actorCustomerLabel` — etykietę klienta w dzienniku audytu: osobę w postaci *Imię Nazwisko (e-mail)*, a gdy konto nie ma imienia ani nazwiska — sam adres e-mail. Klient, pod którego podszywa się administrator, jest opisywany tak samo. |
 
 ## Zapisywanie
 
