@@ -19,7 +19,10 @@ zamiast być wyłączane jako przypadek szczególny.
 
 - Samodzielna rejestracja, dostępna zależnie od ustawienia
   `customers.allow_registration_without_organization`. Po udanej rejestracji konto i jego organizacja
-  prywatna są zapisywane w jednej transakcji, a nowe konto jest automatycznie logowane.
+  prywatna są zapisywane w jednej transakcji, a nowe konto jest automatycznie logowane. Gdy
+  ustawienie jest wyłączone, strona `/register-customer` w sklepie zamiast formularza pokazuje
+  komunikat z linkiem do rejestracji organizacji, więc odwiedzający nie wypełnia formularza, który
+  zostałby odrzucony.
 - Prywatna książka adresowa (adresy do faktury i dostawy), jeden adres domyślny każdego rodzaju, oraz
   możliwość wyboru wspólnych adresów organizacji (dla klientów należących do organizacji firmowej).
 - Domyślna metoda płatności, metoda dostawy i domyślne adresy.
@@ -65,6 +68,7 @@ Trasy administracyjne są chronione przez `customers:read` (odczyt), `customers:
 | Metoda i ścieżka | Kto | Przeznaczenie |
 | --- | --- | --- |
 | `POST /api/v1/customers/register` | anonimowy | Samodzielna rejestracja (zależna od ustawienia) |
+| `GET /api/v1/storefront/settings/customer-registration` | anonimowy | Czy samodzielna rejestracja jest dostępna (`allowRegistrationWithoutOrganization`) |
 | `GET /api/v1/me/customer` | klient | Własny profil z `organizationRole` i faktycznymi uprawnieniami `permissions` |
 | `POST /api/v1/me/customer/change-password` | klient | Zmiana hasła. Udana zmiana wylogowuje konto ze wszystkich pozostałych sesji (sesja, z której wysłano żądanie, zostaje), unieważnia niewykorzystane tokeny resetu hasła i wycofuje każde rozpoczęte, a niedokończone logowanie. |
 | `GET /api/v1/me/customer/addresses` | klient | Adresy prywatne i wspólne adresy organizacji |

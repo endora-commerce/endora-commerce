@@ -61,12 +61,20 @@ export interface RegisterStandaloneResult {
 export class CustomerRegistrationService {
   constructor(private readonly deps: CustomerRegistrationDeps) {}
 
+  /**
+   * Whether standalone registration is offered at all (issue #756). The
+   * storefront asks this before it renders the form, and `registerStandalone`
+   * asks it again before it writes, so the page and the refusal share one
+   * answer.
+   */
+  async allowsStandalone(): Promise<boolean> {
+    return this.deps.resolveAllowRegistrationWithoutOrganization();
+  }
+
   async registerStandalone(
     input: RegisterStandaloneInput,
   ): Promise<RegisterStandaloneResult> {
-    const allowed =
-      await this.deps.resolveAllowRegistrationWithoutOrganization();
-    if (!allowed) {
+    if (!(await this.allowsStandalone())) {
       throw new HttpError(
         403,
         ERROR_CODES.REGISTRATION_REQUIRES_ORGANIZATION,

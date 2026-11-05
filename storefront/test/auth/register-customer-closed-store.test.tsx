@@ -22,6 +22,9 @@ vi.mock('../../lib/server-context', () => ({
 }));
 vi.mock('../../lib/session', () => ({ setSessionCookie: vi.fn() }));
 vi.mock('../../components/newsletter/NewsletterConsent', () => ({ NewsletterConsent: () => null }));
+vi.mock('../../lib/api/customer-registration', () => ({
+  getCustomerRegistrationOptions: async () => ({ allowRegistrationWithoutOrganization: true }),
+}));
 
 const { default: RegisterCustomerPage } = await import('../../app/(auth)/register-customer/page');
 
