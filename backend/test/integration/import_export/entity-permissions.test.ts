@@ -37,7 +37,7 @@ describe('import_export — per-entity permissions [integration]', () => {
     scopedRep: `stub-ie-scoped-rep-${suffix}`,
   };
   let salesRepRole: AdminRole;
-  // Feature 172 — a products import runs with a profile.
+  // Feature 173 — a products import runs with a profile.
   let profileId = '';
   let salesRepOriginalPermissions: string[] = [];
 

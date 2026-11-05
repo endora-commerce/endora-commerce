@@ -194,7 +194,7 @@ export interface CatalogAdminDeps {
    */
   productScopesService?: ProductScopesService;
   /**
-   * Feature 172 — the editor's one read and one save of a scope
+   * Feature 173 — the editor's one read and one save of a scope
    * (`GET|PUT /admin/catalog/products/:id/scoped-values`). When omitted, the two
    * routes are NOT registered.
    */
@@ -747,7 +747,7 @@ export async function registerCatalogAdminRoutes(
   // Feature 022 — Product Scope Editor: per Sales Channel + per Language.
   // -------------------------------------------------------------------------
 
-  // Feature 172 (T043) — `GET …/scope-context` and `GET|PATCH …/value-overrides` are retired:
+  // Feature 173 (T043) — `GET …/scope-context` and `GET|PATCH …/value-overrides` are retired:
   // the editor reads one scope through `GET …/scoped-values` and saves it through `PUT …/scoped-values`.
 
   // -------------------------------------------------------------------------
@@ -829,7 +829,7 @@ export async function registerCatalogAdminRoutes(
       },
     );
   }
-  // Feature 172 (`contracts/scoped-values-api.md` §2–§3) — one read per scope switch and one
+  // Feature 173 (`contracts/scoped-values-api.md` §2–§3) — one read per scope switch and one
   // atomic save of a scope. The body is parsed after the gate; a reserved record key
   // (`constructor`, `prototype`; `__proto__` is already refused by the body parser) is
   // `422 SCOPED_VALUE_INVALID`, never silently dropped (R21).
@@ -860,7 +860,7 @@ export async function registerCatalogAdminRoutes(
         return scopedSvc.save(request.params.id, parsed.data);
       },
     );
-    // Feature 172 (T115; §4, FR-086) — "Copy to other channels": one Command, one audit entry.
+    // Feature 173 (T115; §4, FR-086) — "Copy to other channels": one Command, one audit entry.
     app.post<{ Params: { id: string } }>(
       '/api/v1/admin/catalog/products/:id/scoped-values/copy',
       { preHandler: requireAdmin('catalog:write'), bodyLimit: SCOPED_VALUES_COPY_BODY_LIMIT },
@@ -939,7 +939,7 @@ export async function registerCatalogAdminRoutes(
     );
   }
 
-  // Feature 172 (T044; `contracts/scoped-values-api.md` §5, R8) — the editor's last scope per
+  // Feature 173 (T044; `contracts/scoped-values-api.md` §5, R8) — the editor's last scope per
   // (admin, product). UI state, not a Command (Constitution XIII does not apply). A language
   // without a channel is 422 VALIDATION_FAILED; a non-member channel or an unoffered language is
   // 422 SCOPE_INVALID (the same resolution as the read).
@@ -1424,14 +1424,14 @@ export async function registerCatalogAdminRoutes(
       async (request) => {
         const body = updateGalleryItemRequestSchema.parse(request.body);
         // One audit entry per request (FR-080): the service's `gallery_item.update` Command
-        // writes it. Feature 172 (§6) — the position only; roles, alt text and the hidden
+        // writes it. Feature 173 (§6) — the position only; roles, alt text and the hidden
         // flag are scoped fields of `PUT …/scoped-values`.
         const item = await gallery.update(request.params.productId, request.params.itemId, body);
         return { data: item };
       },
     );
 
-    // Feature 172 (`contracts/scoped-values-api.md` §6) — 163's `GET` / `PUT …/gallery/channel-roles`
+    // Feature 173 (`contracts/scoped-values-api.md` §6) — 163's `GET` / `PUT …/gallery/channel-roles`
     // are retired; gallery roles at C and C×L are scoped fields of `PUT …/scoped-values`.
 
     app.delete<{ Params: { productId: string; itemId: string } }>(
@@ -2089,7 +2089,7 @@ function serializeAdminAttribute(
     // Feature 061 (additive) — id of the backing product-host Custom Field
     // definition (adminAttributeResponseSchema.customFieldDefinitionId).
     customFieldDefinitionId: a.customFieldDefinitionId,
-    // Feature 172 (R15) — the scope flag the attribute editor edits and the levels it derives.
+    // Feature 173 (R15) — the scope flag the attribute editor edits and the levels it derives.
     scopable: a.scopable,
     scopeLevels: [...a.scopeLevels],
     createdAt: a.createdAt.toISOString(),

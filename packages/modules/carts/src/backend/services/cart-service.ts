@@ -453,7 +453,7 @@ export class CartService {
   }
 
   /**
-   * Feature 172 (FR-030) — one product's effective name at the basket's (channel, language), the
+   * Feature 173 (FR-030) — one product's effective name at the basket's (channel, language), the
    * name a minimum refusal gives it; `undefined` (the Global name) for a basket with no channel.
    */
   async #basketNameOf(
@@ -1071,7 +1071,7 @@ export class CartService {
       packagingUnit && input.salesChannelId
         ? await this.#channelDefaultLanguage(input.salesChannelId)
         : scopeLanguage;
-    // Feature 172 (`contracts/readers.md` §1) — the unit's effective name at the line's (C, L):
+    // Feature 173 (`contracts/readers.md` §1) — the unit's effective name at the line's (C, L):
     // C×L → C → Global. An empty override (nothing shown) keeps the Global name on the snapshot,
     // so a placed line always names its unit.
     const unitNames = packagingUnit

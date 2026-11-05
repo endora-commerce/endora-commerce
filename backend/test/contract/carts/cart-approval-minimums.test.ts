@@ -70,7 +70,7 @@ describe('155 — submit-for-approval refuses a basket below a minimum [contract
       namePl: `Śruba akceptacji ${RUN}`,
       channelIds: channels,
     });
-    // Feature 172 (FR-030) — the Polish name is the pl_retail × pl-PL translation the basket reads.
+    // Feature 173 (FR-030) — the Polish name is the pl_retail × pl-PL translation the basket reads.
     const retail = await em.findOneOrFail(SalesChannel, { code: 'pl_retail' });
     await seedScopedValues(em, product.id, [
       { field: 'name', scope: { level: 'channel_language', channelId: retail.id, languageCode: 'pl-PL' }, value: product.namePl },

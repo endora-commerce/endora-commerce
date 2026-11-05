@@ -984,7 +984,7 @@ export class CatalogQueryService {
     // Primary asset — for listings prefer the gallery's Thumbnail (US3),
     // then Base Image, then any first gallery item, finally the legacy
     // product_assets row. Resolution chain pinned by T096; run over the gallery as
-    // the request's (channel, language) shows it (feature 163 FR-076, feature 172).
+    // the request's (channel, language) shows it (feature 163 FR-076, feature 173).
     const assetUrlByProduct = await resolvePrimaryAssetUrls(
       em,
       this.#requireAssets(),
@@ -2098,7 +2098,7 @@ export class CatalogQueryService {
 
   /**
    * The product page's read (R28): an id; else the product whose effective key at the
-   * request's (C, L) it is (`findCurrentKeyHolder`, feature 172); else a
+   * request's (C, L) it is (`findCurrentKeyHolder`, feature 173); else a
    * product's global key, the stable handle CMS product blocks store. Never a
    * redirect: the storefront resolves a URL through `resolve` and reads by id.
    */
@@ -2169,7 +2169,7 @@ export class CatalogQueryService {
     // Feature 002 US3 — eager-load gallery + attachments for the PDP.
     // Gallery: items + label bridge zipped per item; Asset urls
     // resolved into a flat shape the storefront can render directly.
-    // Feature 163 (FR-076, R14), feature 172 (data-model §6) — the gallery as the request's
+    // Feature 163 (FR-076, R14), feature 173 (data-model §6) — the gallery as the request's
     // (channel, language) shows it: hidden items dropped, each role at its scope holder
     // (`effectiveGallery`), each alt text at the scope.
     const scopeLanguage = this.#availabilityScope(ctx).languageCode;
@@ -2209,7 +2209,7 @@ export class CatalogQueryService {
       storedGalleryItems.filter((item) => galleryOverrides?.hidden.has(item.id)).map((item) => item.assetId),
     );
     const assets = allAssets.filter((asset) => !hiddenAssetIds.has(asset.id));
-    // FR-077 (R15), feature 172 (T035) — the image's alt text at (C, L): its override there
+    // FR-077 (R15), feature 173 (T035) — the image's alt text at (C, L): its override there
     // (`''` for an empty one: a decorative image, rendered `alt=""`), else its Global alt
     // text, else the asset's alt text through the existing pick; `null` = none.
     const altTextOf = (item: GalleryItem, asset: AssetRecord): string | null =>
@@ -2218,7 +2218,7 @@ export class CatalogQueryService {
       (asset.altText ? this.pickLang(asset.altText, ctx.preferredLanguage, channel) : null);
 
     // Attachments + their types, eager-loaded in two queries.
-    // Feature 163 (FR-078, R16), feature 172 (data-model §7) — each attachment's name,
+    // Feature 163 (FR-078, R16), feature 173 (data-model §7) — each attachment's name,
     // description and hidden flag at (C, L); a hidden one is neither listed nor named
     // here (its asset is not even read).
     const storedAttachmentRows = await em.find(
@@ -2520,7 +2520,7 @@ export class CatalogQueryService {
         { orderBy: { position: 'asc', name: 'asc' } },
       );
       if (packagingUnits.length > 0) {
-        // Feature 172 (data-model §7) — each unit's name at (C, L); `''` for an empty override.
+        // Feature 173 (data-model §7) — each unit's name at (C, L); `''` for an empty override.
         const unitNames = await loadPackagingUnitNamesAtScope(em, product.id, packagingUnits, readScope);
         detail.packagingUnits = packagingUnits.map((u) => ({
           id: u.id,
@@ -3417,7 +3417,7 @@ export class CatalogQueryService {
     channel: CatalogResolvedChannel,
     preferredLanguage: string | undefined,
   ): StorefrontOverrideContext {
-    // Feature 172 — the chain runs at the request's resolved (C, L): C×L → C → Global.
+    // Feature 173 — the chain runs at the request's resolved (C, L): C×L → C → Global.
     return { channelId: channel.id, languageCode: scopeLanguageOf(channel, preferredLanguage) };
   }
 

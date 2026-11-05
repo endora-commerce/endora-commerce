@@ -102,7 +102,7 @@ export const DEMO_COMPOSITE_SKUS = [
 ] as const;
 
 /**
- * Feature 172's scope product (`specs/172-product-editor-scope-switcher/` T024):
+ * Feature 173's scope product (`specs/173-product-editor-scope-switcher/` T024):
  * one product whose texts differ per scope, which `quickstart.md` §1 and §3 and
  * the search language rule (FR-033) are demonstrated on.
  *

@@ -65,7 +65,7 @@ export class ProductChannelScope {
   allowedOrganizationIds?: string[] | null;
 
   /**
-   * Feature 172 (data-model §4) — whether this channel overrides the Global minimum order
+   * Feature 173 (data-model §4) — whether this channel overrides the Global minimum order
    * quantity. CHECK `min_order_quantity_overridden or min_order_quantity is null`.
    */
   @Property({ type: 'boolean' })

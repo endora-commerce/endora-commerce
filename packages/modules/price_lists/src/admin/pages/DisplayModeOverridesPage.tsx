@@ -37,7 +37,7 @@ interface CategoryRow {
 }
 /**
  * A product as `/api/v1/admin/catalog/products` answers it: the Global `name`, one string
- * (feature 172, FR-031 — an admin list has no channel).
+ * (feature 173, FR-031 — an admin list has no channel).
  */
 interface ProductRow {
   id: string;

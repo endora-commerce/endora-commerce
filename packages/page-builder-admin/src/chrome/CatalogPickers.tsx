@@ -36,7 +36,7 @@ function slugsKey(slugs: string[]): string {
 interface AdminProduct {
   id: string;
   slug: string;
-  /** Feature 172 (FR-031) — the Global name; the admin list answers no per-language map. */
+  /** Feature 173 (FR-031) — the Global name; the admin list answers no per-language map. */
   name: string;
   sku: string;
   status?: string;
@@ -51,7 +51,7 @@ interface AdminCategory {
 }
 
 /**
- * A category's name in the editor's language: categories keep their per-language map (feature 172,
+ * A category's name in the editor's language: categories keep their per-language map (feature 173,
  * `contracts/readers.md` "Not readers"); a product's name is one Global string, read as it is.
  */
 function pickCategoryName(name: Record<string, string> | string, fallback: string): string {
@@ -59,7 +59,7 @@ function pickCategoryName(name: Record<string, string> | string, fallback: strin
   return name['pl-PL'] ?? name['en-US'] ?? Object.values(name)[0] ?? fallback;
 }
 
-/** Feature 172 (FR-031) — the product's Global name, else the fallback. */
+/** Feature 173 (FR-031) — the product's Global name, else the fallback. */
 function productTitle(name: string, fallback: string): string {
   return name || fallback;
 }

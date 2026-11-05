@@ -13,7 +13,7 @@ import {
 } from './product-editor-harness';
 
 /**
- * Feature 172 (US6 #1, US9 #1, FR-061) — an operator who unticks "Use value from <parent>" while
+ * Feature 173 (US6 #1, US9 #1, FR-061) — an operator who unticks "Use value from <parent>" while
  * the editor is still reading keeps the untick when the late reads land.
  *
  * The untick is `ScopedField`'s own state until something is typed, and a new read of the field
@@ -96,7 +96,7 @@ async function releaseAll(held: Held[]): Promise<void> {
 
 afterEach(() => cleanup());
 
-describe('an untick during the editor’s late reads survives them (feature 172, FR-061)', () => {
+describe('an untick during the editor’s late reads survives them (feature 173, FR-061)', () => {
   it('Details: the category and attribute-set lists land after the untick of the name', async () => {
     const held = holdReads((path) =>
       path === '/api/v1/admin/catalog/categories' || path === '/api/v1/admin/catalog/attribute-sets'

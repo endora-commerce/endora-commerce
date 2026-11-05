@@ -9,7 +9,7 @@ import {
 } from '@endora-commerce/contracts';
 
 /**
- * Feature 172 (`specs/172-product-editor-scope-switcher/contracts/import-profiles-and-csv.md`
+ * Feature 173 (`specs/173-product-editor-scope-switcher/contracts/import-profiles-and-csv.md`
  * §2.1, research R14) — the one anchored header grammar of the products file.
  *
  * | Column | Meaning |

@@ -1,7 +1,7 @@
 import { Migration } from '@mikro-orm/migrations';
 
 /**
- * Feature 172 (`specs/172-product-editor-scope-switcher/data-model.md` §4; research R22) — the
+ * Feature 173 (`specs/173-product-editor-scope-switcher/data-model.md` §4; research R22) — the
  * Channel minimum order quantity gets its own override flag.
  *
  * `product_channel_scopes.min_order_quantity_overridden` says the channel overrides the Global
