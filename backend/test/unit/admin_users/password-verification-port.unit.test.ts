@@ -76,7 +76,7 @@ const { throttle } = recordingThrottle();
 
 async function makeAdmin(password: string): Promise<AdminUser> {
   return {
-    id: 'a-1',
+    id: '00000000-0000-4000-8000-781000000104',
     email: 'operator@example.test',
     passwordHash: await hashPassword(password),
     status: 'active',
@@ -89,14 +89,14 @@ describe('T052 — adminPasswordVerificationPort', () => {
     const { em } = oneAdmin(await makeAdmin('correct horse battery staple'));
     const port = createAdminPasswordVerificationPort(em, throttle);
 
-    await expect(port.verifyPassword('a-1', 'correct horse battery staple')).resolves.toBe(true);
+    await expect(port.verifyPassword('00000000-0000-4000-8000-781000000104', 'correct horse battery staple')).resolves.toBe(true);
   });
 
   it('answers false for a wrong password', async () => {
     const { em } = oneAdmin(await makeAdmin('correct horse battery staple'));
     const port = createAdminPasswordVerificationPort(em, throttle);
 
-    await expect(port.verifyPassword('a-1', 'Correct Horse Battery Staple')).resolves.toBe(false);
+    await expect(port.verifyPassword('00000000-0000-4000-8000-781000000104', 'Correct Horse Battery Staple')).resolves.toBe(false);
   });
 
   it('answers false for an unknown id rather than throwing', async () => {
@@ -113,9 +113,9 @@ describe('T052 — adminPasswordVerificationPort', () => {
     const { em, reads } = oneAdmin(await makeAdmin('a-long-enough-password'));
     const port = createAdminPasswordVerificationPort(em, throttle);
 
-    await port.verifyPassword('a-1', 'a-long-enough-password');
+    await port.verifyPassword('00000000-0000-4000-8000-781000000104', 'a-long-enough-password');
 
-    expect(reads()).toEqual([{ id: 'a-1' }]);
+    expect(reads()).toEqual([{ id: '00000000-0000-4000-8000-781000000104' }]);
   });
 
   it('takes the attempt under the account e-mail address, the key sign-in counts under', async () => {
@@ -125,7 +125,7 @@ describe('T052 — adminPasswordVerificationPort', () => {
     const recording = recordingThrottle();
     const port = createAdminPasswordVerificationPort(em, recording.throttle);
 
-    await port.verifyPassword('a-1', 'not-the-password', {
+    await port.verifyPassword('00000000-0000-4000-8000-781000000104', 'not-the-password', {
       ip: '203.0.113.9',
       knownDevice: 'v1.a-1.device.stamp',
     });
@@ -150,6 +150,6 @@ describe('T052 — adminPasswordVerificationPort', () => {
       issueKnownDevice: async () => null,
     });
 
-    await expect(port.verifyPassword('a-1', 'a-long-enough-password')).rejects.toBe(refusal);
+    await expect(port.verifyPassword('00000000-0000-4000-8000-781000000104', 'a-long-enough-password')).rejects.toBe(refusal);
   });
 });
