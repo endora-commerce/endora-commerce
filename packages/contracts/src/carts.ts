@@ -267,6 +267,19 @@ export const cartPreviousRejectionSchema = z.object({
   rejectedAt: isoDateTimeSchema,
   /** The reason the administrator gave; `null` only for a row stored without one. */
   reason: z.string().nullable(),
+  /**
+   * Issue #755 — how many of the rejected basket's lines were restored into
+   * the basket answered. The basket opened after a rejection starts with them,
+   * once; `0` when nothing was restored into this basket (it already existed,
+   * the buyer may not create baskets, or nothing could be added).
+   */
+  restoredLineCount: z.number().int().nonnegative().default(0),
+  /**
+   * Issue #755 — the rejected basket's lines the restore skipped, because they
+   * can no longer be bought here, with the reason. `[]` when none was skipped
+   * or nothing was restored.
+   */
+  skippedLines: z.array(cartDroppedLineSchema).default([]),
 });
 export type CartPreviousRejection = z.infer<typeof cartPreviousRejectionSchema>;
 

@@ -60,6 +60,7 @@ describe('restoring a rejected basket (issue #755)', () => {
       members: {
         MEMBER: 'member',
         HOLDER: 'member',
+        ADDER: 'member',
         LOSER: { permissions: ['carts.create'] },
         NOBODY: { permissions: [] },
         ADMIN: 'administrator',
@@ -182,6 +183,22 @@ describe('restoring a rejected basket (issue #755)', () => {
     expect(cart.id).not.toBe(restoredCartId);
     expect(cart.itemCount).toBe(0);
     expect(await restoreAudits(cart.id)).toHaveLength(0);
+  });
+
+  it('restores before the first add when that add opens the basket', async () => {
+    const rejected = await submittedBasket('ADDER', 2);
+    await reject(rejected);
+
+    // No read in between: the add itself opens the basket, which starts with
+    // the restored line, and the add lands on it.
+    const add = await call('ADDER', 'POST', '/api/v1/cart/items', { productId: SEED_PRODUCT_101_ID, quantity: 1 });
+    expect(add.statusCode, add.body).toBe(200);
+    const cart = (add.json() as { data: CartRead }).data;
+    expect(cart.id).not.toBe(rejected);
+    expect(cart.items.map((it) => ({ productId: it.productId, quantity: it.quantity }))).toEqual([
+      { productId: SEED_PRODUCT_101_ID, quantity: 3 },
+    ]);
+    expect(cart.previousRejection).toMatchObject({ cartId: rejected, restoredLineCount: 1, skippedLines: [] });
   });
 
   it('leaves an active basket that already exists untouched', async () => {

@@ -33,6 +33,12 @@ import type { CartAuditService } from './cart-audit-service.js';
 import type { CartRecomputeCache } from './cart-recompute-cache.js';
 import { discardWorkingBasketOn } from './working-basket.js';
 import {
+  LINES_RESTORED_FROM_REJECTION,
+  rejectedBasketToRestore,
+  type RestoredFromRejection,
+} from './cart-previous-rejection.js';
+import type { CartDroppedLine } from './cart-conversion-service.js';
+import {
   CartLinePricing,
   agreementOf,
   type CartLinePriceAnswer,
@@ -281,8 +287,83 @@ export class CartService {
         salesChannelId: ctx.salesChannelId,
       });
       await em.persistAndFlush(cart);
+      // Issue #755 — only a basket opened here, never one that exists (#169).
+      // The restore writes the basket through its own manager, so the row this
+      // one holds is re-read: a later flush of a stale version would fail its
+      // optimistic lock.
+      if (await this.#restoreRejectedLinesInto(em, cart, ctx)) await em.refresh(cart);
     }
     return cart;
+  }
+
+  /**
+   * Issue #755 (owner ruling 2026-11-05) — a basket just opened for `ctx`
+   * starts with the lines of the basket an approver rejected, when that
+   * rejection is the one `rejectedBasketToRestore` finds: still in force, and
+   * the member's most recent basket on the channel. Called only where a basket
+   * is created, never on one that exists (the #169 rule), so it happens once.
+   *
+   * Each line goes through {@link addItems} as a line the member adds now:
+   * resolved, judged and priced afresh, with its `line_added` audit row. A line
+   * that cannot be added is skipped and named on the restore's own audit row,
+   * which is what the rejection notice reads (`previousRejectionOf`). Variant
+   * and packaging unit are kept; an agreed price and the coupon are not — the
+   * member re-applies a coupon.
+   *
+   * A member whose role no longer holds `carts.create` gets nothing restored.
+   * Answers whether anything was written to the basket.
+   */
+  async #restoreRejectedLinesInto(em: EntityManager, basket: Cart, ctx: CustomerContext): Promise<boolean> {
+    const rejected = await rejectedBasketToRestore(em, {
+      id: basket.id,
+      customerAccountId: ctx.customerAccountId,
+      salesChannelId: ctx.salesChannelId,
+    });
+    if (!rejected) return false;
+    const lines = await em.find(CartItem, { cartId: rejected.id }, { orderBy: { createdAt: 'asc', id: 'asc' } });
+    if (lines.length === 0) return false;
+    if (!(await this.#mayCreateCarts(ctx))) return false;
+
+    const { outcomes } = await this.addItems(
+      { customer: ctx },
+      lines.map((line) => restoredLineInput(line)),
+      { onLineError: 'report' },
+    );
+    const skipped = outcomes.filter((outcome) => outcome.status !== 'added');
+    const names = await this.#catalogNamesOf(skipped.map((outcome) => lines[outcome.index]!.productId));
+    const skippedLines: CartDroppedLine[] = skipped.map((outcome) => {
+      const productId = lines[outcome.index]!.productId;
+      const productName = names.get(productId) ?? productId;
+      if (outcome.status === 'below_minimum') {
+        return { productId, productName: outcome.productName, reason: 'below_minimum', minimum: outcome.minimum };
+      }
+      return {
+        productId,
+        productName,
+        reason: outcome.status === 'failed' && outcome.error.status === 404 ? 'not_purchasable' : 'no_price_in_customer_list',
+      };
+    });
+    const restored: RestoredFromRejection = {
+      fromCartId: rejected.id,
+      restoredLineCount: outcomes.length - skipped.length,
+      skippedLines,
+    };
+    if (!this.auditService) return true;
+    await this.auditService.record({
+      cartId: basket.id,
+      actorType: 'customer',
+      actorId: ctx.customerAccountId,
+      action: LINES_RESTORED_FROM_REJECTION,
+      metadata: { ...restored },
+    });
+    return true;
+  }
+
+  /** Product names by id, in the catalogue's default language; a product that is gone has none. */
+  async #catalogNamesOf(productIds: readonly string[]): Promise<Map<string, string>> {
+    if (productIds.length === 0) return new Map();
+    const records = await this.catalogProducts.findByIds([...new Set(productIds)]);
+    return new Map(records.map((record) => [record.id, pickLocalized(record.name, undefined)]));
   }
 
   /**
@@ -1469,5 +1550,20 @@ function belowMinimumOutcome(
     kind: rejection.kind,
     minimum: rejection.minimum,
     ...(rejection.kind === 'packaging_unit' ? { packagingUnitName: rejection.packagingUnitName } : {}),
+  };
+}
+
+/**
+ * Issue #755 — a rejected basket's line as the line a member adds now: the
+ * product, its variant and packaging unit, and the quantity in the unit it was
+ * added in. Nothing else carries over: the price is resolved afresh, and an
+ * agreed price belongs to the quote that seeded the line, not to this basket.
+ */
+function restoredLineInput(line: CartItem): CartBatchLineInput {
+  const unit = line.packagingUnitId && line.packagingUnitBaseQuantity ? line.packagingUnitBaseQuantity : null;
+  return {
+    productId: line.productId,
+    ...(line.variantId ? { variantId: line.variantId } : {}),
+    ...(unit !== null ? { packagingUnitId: line.packagingUnitId!, quantity: Math.max(1, Math.round(line.quantity / unit)) } : { quantity: line.quantity }),
   };
 }
