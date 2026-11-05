@@ -5,7 +5,6 @@ import type {
   AssetReferenceRegistryPort,
   AssetReadPort,
   AdminUserReadPort,
-  AssetsLibraryPort,
   CmsPageReadPort,
   CmsReservedSegmentRegistryPort,
   DictionaryValidator,
@@ -22,7 +21,6 @@ import type {
 import {
   effectiveState,
   lazyPort,
-  rethrowIfModuleDisabled,
 } from '@endora-commerce/platform/kernel';
 
 import { BlogCacheService } from './services/blog-cache.js';
@@ -41,6 +39,7 @@ import { registerBlogAssetReferences } from './services/blog-asset-references.js
 import { BlogUrlPrefixService } from './services/blog-url-prefix-service.js';
 import { BlogUrlKeyService } from './services/blog-url-keys.js';
 import { BlogAuthors } from './services/blog-authors.js';
+import { publicAssetUrlResolver } from './services/linkable-asset.js';
 import { prefixFor } from './services/blog-storefront-resolver.js';
 import { BLOG_SETTING_CODES } from '../manifest.js';
 import { seedDefaultCategory } from './services/seed-default-category.js';
@@ -122,29 +121,6 @@ export interface BlogCradle {
   readonly blogAuthors: BlogAuthors;
 }
 
-/**
- * How a post's or category's `main_image_asset_id` becomes a storefront URL
- * (feature 163). No composition ever passed `blogStorefrontDeps`, so until
- * this default every card's `mainImageUrl` was `null`. The port is resolved
- * per call through the `lazyPort` proxy; `assets_library` is a declared
- * dependency. Only a public asset is served — a storefront visitor carries no
- * session — and a missing asset renders the card without an image, while an
- * owner's refusal still propagates (`rethrowIfModuleDisabled`).
- */
-function publicAssetUrlResolver(
-  assets: Pick<AssetsLibraryPort, 'getAsset'>,
-): (assetId: string) => Promise<string | null> {
-  return async (assetId) => {
-    try {
-      const detail = await assets.getAsset(assetId);
-      return detail.visibility === 'public' ? detail.url : null;
-    } catch (err) {
-      rethrowIfModuleDisabled(err);
-      return null;
-    }
-  };
-}
-
 export function registerModule(ctx: ModuleContext): void {
   ctx.di.register({
     // Singletons, matching what the composition root constructed once at boot.
@@ -169,7 +145,7 @@ export function registerModule(ctx: ModuleContext): void {
         () =>
           new BlogAuthors(
             lazyPort<AdminUserReadPort>(ctx, 'adminUserReadPort'),
-            publicAssetUrlResolver(lazyPort<AssetsLibraryPort>(ctx, 'assetsLibraryPort')),
+            publicAssetUrlResolver(lazyPort<AssetReadPort>(ctx, 'assetReadPort')),
           ),
       )
       .singleton(),
@@ -215,9 +191,7 @@ export function registerModule(ctx: ModuleContext): void {
             emFactory,
             blogSettingsResolver,
             {
-              resolveAssetUrl: publicAssetUrlResolver(
-                lazyPort<AssetsLibraryPort>(ctx, 'assetsLibraryPort'),
-              ),
+              resolveAssetUrl: publicAssetUrlResolver(lazyPort<AssetReadPort>(ctx, 'assetReadPort')),
               // Feature 171 — a former URL key redirects only while `seo` is present.
               seoPresent: () => effectiveState.isPresent('seo'),
               authors: blogAuthors,
