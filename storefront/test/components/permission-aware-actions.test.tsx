@@ -455,7 +455,7 @@ describe('shopping-list pages — editing and conversions per the member’s rol
   const renderIndex = async (): Promise<string> =>
     html(await ShoppingListsPage({ searchParams: Promise.resolve({}) }));
   const renderDetail = async (): Promise<string> =>
-    html(await ShoppingListDetailPage({ params: Promise.resolve({ id: 'l1' }), searchParams: Promise.resolve({}) }));
+    html(await ShoppingListDetailPage({ params: Promise.resolve({ id: '00000000-0000-4000-8000-0000000000f1' }), searchParams: Promise.resolve({}) }));
   const createList = `>${en('account.shoppingLists.create.submit')}</button>`;
   const rename = `>${en('account.shoppingList.rename.submit')}</button>`;
   const toCart = en('account.shoppingList.toCart.all');

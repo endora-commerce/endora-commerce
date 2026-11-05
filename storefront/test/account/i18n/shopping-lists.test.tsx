@@ -99,7 +99,7 @@ const noop = async (): Promise<void> => undefined;
 
 async function renderDetail(sp: Record<string, string> = {}): Promise<string> {
   const { default: Page } = await import('../../../app/(account)/shopping-lists/[id]/page');
-  const tree = await Page({ params: Promise.resolve({ id: 'l1' }), searchParams: Promise.resolve(sp) });
+  const tree = await Page({ params: Promise.resolve({ id: '00000000-0000-4000-8000-0000000000f1' }), searchParams: Promise.resolve(sp) });
   return visibleText(renderToString(<>{tree}</>));
 }
 
