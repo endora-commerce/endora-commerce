@@ -29,12 +29,12 @@ describe('scopedStatusPatch', () => {
     });
   });
 
-  it('inherit removes the override at that scope (FR-012)', () => {
+  it('inherit removes the override at that scope, in the write encoding (FR-012, FR-116)', () => {
     expect(scopedStatusPatch({ channelId: C, languageCode: null, value: 'inherit' })).toEqual({
-      channels: [{ channelId: C, status: null }],
+      channels: [{ channelId: C, status: { inherit: true } }],
     });
     expect(scopedStatusPatch({ channelId: C, languageCode: 'pl-PL', value: 'inherit' })).toEqual({
-      channels: [{ channelId: C, languageStatuses: [{ languageCode: 'pl-PL', status: null }] }],
+      channels: [{ channelId: C, languageStatuses: [{ languageCode: 'pl-PL', status: { inherit: true } }] }],
     });
   });
 });

@@ -13,7 +13,7 @@ import type {
   CatalogProductVariantRecord,
   ProductLinkKind,
 } from '@endora-commerce/contracts';
-import { adminNameLanguage, isUuidShape } from '@endora-commerce/contracts';
+import { isUuidShape } from '@endora-commerce/contracts';
 import { Product } from '../entities/product.entity.js';
 import { ProductLink } from '../entities/product-link.entity.js';
 import { ProductPackagingUnit } from '../entities/product-packaging-unit.entity.js';
@@ -266,9 +266,9 @@ export class CatalogProductReadService implements CatalogProductReadPort {
    *   literally (`%`, `_` and `\\` escaped); a variant's SKU finds its product.
    */
   async pageProductsByAdminName(query: CatalogAdminNamePageQuery): Promise<{ ids: string[]; total: number | null }> {
-    const lang = adminNameLanguage(query.language);
-    const key = `p."admin_name_key_${lang}"`;
-    const searchKey = `p."admin_search_key_${lang}"`;
+    // Feature 174 (data-model §1, FR-031): one key over the Global name for every admin language.
+    const key = `p."admin_name_key"`;
+    const searchKey = `p."admin_search_key"`;
     const order = `${key}, p."sku", p."id"`;
     const member = `(p."id" in (${query.membership.sql})) is true`;
     const offset = Math.max(0, Math.floor(query.offset));
@@ -437,8 +437,6 @@ export function toCatalogPackagingUnitRecord(
     createdAt: unit.createdAt,
     updatedAt: unit.updatedAt,
     minOrderUnits: unit.minOrderUnits ?? null,
-    // Feature 163 (FR-079) — the basket and quote-request snapshots take the name in the line's language.
-    nameTranslations: { ...(unit.nameTranslations ?? {}) },
   };
 }
 

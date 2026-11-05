@@ -318,6 +318,21 @@ export const manifest = defineModuleManifest({
         'the edge back would close a cycle, and this module is non-deactivatable.',
     },
     {
+      // Feature 174 (T123, FR-091, SC-007; `contracts/scoped-values-api.md` §3 steps 4 and 8).
+      moduleId: 'seo',
+      name: 'seoProductMetaWritePort',
+      kind: 'refuses-without',
+      whenAbsent:
+        'a product save that changes SEO fields is refused while SEO is off; saves without SEO changes, and duplicates, are unaffected',
+      reason:
+        'Feature 174. The editor saves the product and its SEO fields as one Command: the SEO rows ' +
+        'are written on that Command\'s EntityManager, so an SEO refusal rolls the catalog rows back ' +
+        'and no audit entry is written. The port is resolved only when a save names an SEO cell, ' +
+        'and a duplicate probes `effectiveState.isPresent(\'seo\')` first and copies no metadata ' +
+        'while `seo` is off. Not `dependencies`: `seo` declares this module, and this module is ' +
+        'non-deactivatable.',
+    },
+    {
       moduleId: 'admin_search',
       name: 'adminSearchProviderRegistry',
       kind: 'contributes-to',
@@ -535,10 +550,12 @@ export const manifest = defineModuleManifest({
     { code: 'BUNDLE_SLOT_NOT_FOUND' },
     { code: 'BUNDLE_SLOT_OPTION_NOT_FOUND' },
     { code: 'FIELD_IMMUTABLE' },
+    { code: 'FIELD_NOT_AT_SCOPE' },
     { code: 'FILTER_NOT_ALLOWED' },
     { code: 'GALLERY_ITEM_NOT_FOUND' },
     { code: 'GALLERY_LABEL_ALREADY_TAKEN' },
     { code: 'GALLERY_LABEL_LIMIT_EXCEEDED' },
+    { code: 'GLOBAL_ONLY_FIELD' },
     { code: 'GROUPED_ITEM_NOT_FOUND' },
     { code: 'INVALID_QUANTITY_RANGE' },
     { code: 'LINK_ALREADY_EXISTS' },
@@ -572,6 +589,7 @@ export const manifest = defineModuleManifest({
     { code: 'PRODUCT_UNMANAGED_STOCK' },
     { code: 'SCOPE_INCOMPLETE' },
     { code: 'SCOPE_INVALID' },
+    { code: 'SCOPED_VALUE_INVALID' },
     { code: 'SELECTION_TOO_LARGE' },
     { code: 'SELF_LINK_NOT_ALLOWED' },
     { code: 'SKU_ALREADY_EXISTS' },
@@ -676,6 +694,9 @@ export const manifest = defineModuleManifest({
         // product list and editor: "archive", "archived" and "restore" find
         // them, and the Polish words are under `keywordsKey` (issue #573).
         'archived restore',
+        // Feature 174 (FR-108) — the one scope switcher sets the editor's channel and language:
+        // "language" and "translation" find it; the Polish words are under `keywordsKey`.
+        'language translation',
       ],
       keywordsKey: 'actions.openProducts.keywords',
       weight: 200,

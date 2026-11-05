@@ -46,8 +46,8 @@ describe('product create routes persist categoryIds', () => {
     return {
       sku,
       type: 'simple' as const,
-      name: { 'en-US': `Product ${sku}` },
-      description: { 'en-US': 'desc' },
+      name: `Product ${sku}`,
+      description: 'desc',
       categoryIds,
       attributeValues: {},
       visibility: 'public' as const,

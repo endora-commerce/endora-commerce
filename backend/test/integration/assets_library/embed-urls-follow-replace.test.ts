@@ -71,8 +71,8 @@ describe('embedded URLs follow a replace (feature 156)', () => {
       payload: {
         sku: `${runName()}-SKU`,
         type: 'simple',
-        name: { 'en-US': 'Embed fixture' },
-        description: { 'en-US': 'desc' },
+        name: 'Embed fixture',
+        description: 'desc',
         categoryIds: [],
         attributeValues: {},
         visibility: 'public',

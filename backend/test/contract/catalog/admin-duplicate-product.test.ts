@@ -30,8 +30,8 @@ describe('POST /api/v1/admin/catalog/products/:id/duplicate', () => {
       payload: {
         sku: 'DUP-SRC-001',
         type: 'simple' as const,
-        name: { 'en-US': 'Dup source' },
-        description: { 'en-US': 'Source for duplicate' },
+        name: 'Dup source',
+        description: 'Source for duplicate',
         categoryIds: [],
         attributeValues: {},
         visibility: 'public' as const,
@@ -71,7 +71,7 @@ describe('POST /api/v1/admin/catalog/products/:id/duplicate', () => {
     expect(dupBody.data.sku.startsWith('DUP-SRC-001-copy')).toBe(true);
     expect(dupBody.data.slug.includes('copy')).toBe(true);
     expect(dupBody.data.status).toBe('inactive');
-    expect(dupBody.data.name['en-US']).toContain('(copy)');
+    expect(dupBody.data.name).toContain('(copy)');
     expect(dupBody.data.lowStockThreshold).toBe(5);
 
     // Duplicating the duplicate must allocate a non-colliding SKU.

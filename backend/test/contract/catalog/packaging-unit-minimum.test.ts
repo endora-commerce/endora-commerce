@@ -39,8 +39,8 @@ describe('155 — packaging-unit minOrderUnits [contract]', () => {
       payload: {
         sku: `PKG-MOU-${RUN}-${suffix}`,
         type: 'simple',
-        name: { 'en-US': `Packaging minimum ${RUN} ${suffix}` },
-        description: { 'en-US': '' },
+        name: `Packaging minimum ${RUN} ${suffix}`,
+        description: '',
         categoryIds: [],
         attributeValues: {},
         visibility: 'public',

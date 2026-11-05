@@ -308,7 +308,7 @@ export class CartAdminService {
           return {
             id: it.id,
             productId: it.productId,
-            productName: product ? anyLocaleName(product) : it.productId,
+            productName: product ? globalName(product) : it.productId,
             variantId: it.variantId ?? null,
             quantity: it.quantity,
             unitPrice: { amount: Number(it.unitPrice), currency: it.currency },
@@ -454,10 +454,7 @@ export class CartAdminService {
   }
 }
 
-function anyLocaleName(product: CatalogProductRecord): string {
-  if (!product.name || typeof product.name !== 'object') return product.id;
-  const en = product.name['en-US'] ?? product.name['en'];
-  if (typeof en === 'string' && en.length > 0) return en;
-  const first = Object.values(product.name).find((v) => typeof v === 'string' && v.length > 0);
-  return (first as string) ?? product.id;
+/** Feature 174 (FR-031, `contracts/readers.md` §1) — the operator's view shows the Global name. */
+function globalName(product: CatalogProductRecord): string {
+  return product.name || product.id;
 }

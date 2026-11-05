@@ -1,0 +1,101 @@
+# Contract: import profiles and the products CSV (FR-043, FR-048, FR-110…FR-114)
+
+Owner: `import_export` (profiles, CSV codec use, adapter); `catalog` (`catalogBulkImportPort`). Decision: research
+R14. Data: `data-model.md` §11.
+
+## 1. Profile routes — all `catalog:write` (no new permission code)
+
+| Route | Command | Body / answer |
+| --- | --- | --- |
+| `GET /api/v1/admin/import-export/profiles?entity=products` | — | `{ data: ImportProfile[] }` |
+| `GET /api/v1/admin/import-export/profiles/:id` | — | `{ data: ImportProfile }` |
+| `POST /api/v1/admin/import-export/profiles` | `import_profile.create` | `{ name, entity: 'products', sourceLanguageForGlobal, localeMapping }` → `201 { data }` |
+| `PATCH /api/v1/admin/import-export/profiles/:id` | `import_profile.update` | partial of the above |
+| `DELETE /api/v1/admin/import-export/profiles/:id` | `import_profile.delete` | `204` |
+| `GET /api/v1/admin/import-export/channel-targets` | — | `{ data: Array<{ id, code, languages: string[] }> }` — every channel, ordered by code, languages as `toScopeChannel` gives them (owner decision 2026-11-03) |
+
+`ImportProfile = { id, name, entity, sourceLanguageForGlobal: string | null, localeMapping:
+PimLocaleMappingEntry[], createdAt, updatedAt }` (`packages/contracts/src/import-export.ts`, new section).
+Name unique case-insensitively → `409 IMPORT_PROFILE_NAME_TAKEN`. Unknown id → `404 IMPORT_PROFILE_NOT_FOUND`.
+Target channel ids are not validated against current channels at save (a deleted channel is reported per row at
+import, FR-042); the admin warns on a target whose channel no longer exists. Routes are gated by the any-of gate
+**and** `requireAdmin('catalog:write')` (literal, inventory-visible). The profile editor picks targets from
+`channel-targets`, never from the sales-channel administration, so `catalog:write` alone is enough to edit a
+profile (the delivery-methods precedent, `SalesChannelOptionSchema`); the read carries no name, currency or address.
+
+## 2. Import
+
+`POST /api/v1/admin/import/products?profileId=<uuid>[&dryRun=true]` — gated `catalog:write`; `profileId` required for
+products (`422 IMPORT_PROFILE_REQUIRED`); a profile whose `entity` is not `products` → `422 VALIDATION_FAILED`;
+the profile is **snapshotted** at run start. `dryRun=true` parses, plans and validates, writes nothing, and
+returns the report. Caps: 10 MiB file, 50 000 rows, 500 columns. Each product row applies in its own transaction
+(per-product atomicity); retries are idempotent. Other entities unchanged. Profiles are platform-global; any
+`catalog:write` admin may edit any profile.
+
+### 2.1 Column grammar (header row)
+
+| Column | Meaning |
+| --- | --- |
+| `sku` | key (unchanged) |
+| `name`, `description`, `urlKey`, `status`, `minOrderQuantity`, `returnable`, `attribute:<key>`, and the other Global fields of today's file | Global value |
+| `<field>@<channel code>` | the Channel scope |
+| `<field>@<channel code>/<language>` | the C×L scope (only for fields whose set has CL) |
+| `<field>[<locale>]`, `<field>[<locale>\|<source channel>]` | a source-locale value, mapped by the profile (`pim-locale-mapping.md` §2); the profile's `sourceLanguageForGlobal` locale writes Global |
+
+`minOrderQuantity` and `returnable` (levels G, C) and multiselect attributes (`attribute:<key>`, levels per the
+attribute) follow the write standard (FR-110…FR-115; coordinator ruling 2026-11-03): they are **value** columns —
+no formula guard, typed on import (`minOrderQuantity` a number, `returnable` `true` / `false`, a multiselect its
+option values joined with `|`); `NULL` on `minOrderQuantity` = no minimum, `NULL` on a multiselect = none selected,
+`NULL` on `returnable` is refused `not_emptyable`; a `@<channel>/<language>` column of either Global field is a file
+error. The PIM connector exclusion list (`pim-locale-mapping.md` §4) applies to the connector port only, not to the
+CSV.
+
+One anchored header grammar (R14) — channel and source-channel codes `^[A-Za-z0-9_.-]{1,100}$`; a header
+matching nothing, two headers equal after normalisation, an unknown channel code or a language the channel does
+not offer → file error (no row imported).
+
+### 2.2 Cells
+
+Decoded with `decodeCsvScopedCell` (`write-encoding.md`, including the §3a formula guard on text columns): empty = no change, `NULL` = empty, `INHERIT` = inherit,
+`\`-escaped text. Refusals (`required_empty`, `not_emptyable`, `inherit_at_global`) are field errors in the report;
+the row's other fields apply. A scope column and a mapped locale column landing on the same (field, scope) in one
+row → row error `IMPORT_CELL_CONFLICT`. A mapped target the product is not valid for → reported for that row
+(FR-042). Unmapped locale columns → one run warning per locale naming the count of affected products (FR-041,
+SC-005). Protection does not exist for CSV (it is a PIM-connector concept, FR-046).
+
+### 2.3 Report additions
+
+`BulkImportReport` gains `cellCounts: Array<{ column; null: number; inherit: number }>` (shown before "Apply"
+after a dry run — spec round 7, softening FR-116), `warnings: Array<{ kind: 'unmapped_locale'; locale; sourceChannel; products: number }>`
+and per-row `fieldErrors: Array<{ column; code }>`.
+
+`imported` counts the rows of which **at least one cell applied** — any cell that is not refused, one that writes
+what the scope already holds included (so an unchanged re-import still counts its rows); a URL key another
+product holds is a refusal (`URL_KEY_TAKEN`). A row whose every cell was refused (a field error each, e.g. `SCOPE_INVALID` for a product outside the channel) counts 0, the
+same as a row this module's grammar refused before catalog saw it (final fix round, coordinator decision). A row
+error's `reason` is a sentence; a refusal of the whole product reads `<CODE>: <message>` and the admin shows it by
+its code's label (`rowError.<CODE>`), never the raw code.
+
+## 3. Export
+
+`GET /api/v1/admin/export/products.csv` writes `sku`, every Global column, and one `<field>@<channel>` /
+`<field>@<channel>/<language>` column per (field, scope) where **any** exported product holds an own value; a
+product without an own value there gets `INHERIT` in that column; a deliberately empty value `NULL`; text that
+equals a token is escaped; text cells get the formula guard (FR-118); numeric columns are untouched. Export uses no profile (FR-043, owner round 6). Export → re-import of the unchanged file (with any profile)
+writes nothing (FR-114; test `backend/test/integration/import_export/products-csv-roundtrip.test.ts`).
+
+## 4. Admin
+
+The `/import-export` page gains an **Import profiles** section (list, create / edit dialog with the mapping table
+— source locale, source channel, target channel × language multi-select from the channels API — and the source
+language for Global; delete with confirmation) and a profile `Select` in the products import step, required.
+Shown only with `catalog:write`. The import step runs the dry run first and shows the per-column `NULL` /
+`INHERIT` counts and the warnings before "Apply". i18n keys under `importProfiles.*` in `import_export/i18n/{en,pl}.json`. The
+`open-import-export-center` action gains keywords `profile`, `profil`, `mapping`, `mapowanie`; no new route, so
+`palette-coverage.test.ts` needs no new action or exemption.
+
+## 5. Off state (XVII)
+
+`import_export` off: profile routes answer the module-disabled refusal like every other route of the module; the
+section and the palette action are absent; profiles are kept and come back on re-activation. Test:
+`backend/test/contract/import_export/import-profiles-off-state.test.ts`.

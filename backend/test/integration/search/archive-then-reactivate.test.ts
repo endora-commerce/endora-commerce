@@ -57,8 +57,8 @@ describe('search — archiving then restoring a product leaves it indexed', () =
         sku,
         type: 'simple',
         status: 'active',
-        name: { 'en-US': `Archive probe ${sku}` },
-        description: { 'en-US': 'desc' },
+        name: `Archive probe ${sku}`,
+        description: 'desc',
         categoryIds: [],
         attributeValues: {},
         visibility: 'public',
@@ -75,7 +75,7 @@ describe('search — archiving then restoring a product leaves it indexed', () =
       method: 'PATCH',
       url: `/api/v1/admin/catalog/products/${id}`,
       cookies: ADMIN,
-      payload: { name: { 'en-US': `Archive probe ${sku}, indexed` } },
+      payload: { name: `Archive probe ${sku}, indexed` },
     });
     expect(touched.statusCode, touched.body).toBe(200);
     expect(await inIndex(id), 'an active product on the default channel is indexed').toBe(true);

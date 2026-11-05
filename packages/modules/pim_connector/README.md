@@ -37,6 +37,7 @@ Everything below is a **peer** dependency, so the application resolves exactly o
 
 - `dist/` — the compiled JavaScript and its type declarations
 - `i18n/` — the translation bundles this package ships (`en`, `pl`), loaded by the platform
+- `docs/` — the package’s own pages in the Endora Commerce documentation site
 
 ## Install
 

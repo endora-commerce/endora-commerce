@@ -1,55 +1,36 @@
-import { useEffect, useState, type ReactNode } from 'react';
+import { useContext, useEffect, useState, type ReactNode } from 'react';
 import type { AdminProductContentList } from '@endora-commerce/contracts';
-import { ApiError, apiClient } from '@endora-commerce/admin-kit/lib';
-import { Alert, AlertDescription, Input, Label, Select, Checkbox, MultiSelect } from '@endora-commerce/admin-kit/ui';
-import { useTranslation } from '@endora-commerce/admin-kit/i18n';
+import { apiClient } from '@endora-commerce/admin-kit/lib';
+import { MultiSelect } from '@endora-commerce/admin-kit/ui';
+import { ScopedFieldGrid, type ScopedFieldControlProps } from '@endora-commerce/admin-kit/components';
+import { AppLanguageContext, useTranslation } from '@endora-commerce/admin-kit/i18n';
 import { AdminZone, useAdminZone } from '@endora-commerce/admin-kit/zones';
-import { ProductContentCard, type ProductContentCardBlocker } from './ProductContentCard.js';
+import { EditorField, useProductEditor } from './editor/editor-context.js';
+import { PRODUCT_CONTENT_LANGUAGES, ProductContentCard, type ProductContentCardBlocker } from './ProductContentCard.js';
+import { BooleanControl, NumberControl, SelectControl, TextControl, type SelectOption } from './editor/scoped-controls.js';
 
 /**
- * The locales this screen edits product copy in — the same list
- * `ProductEditor.tsx` renders its per-language name and description controls
- * from.
+ * The product's Attributes tab at the editor scope (feature 174, T027 / T100;
+ * `contracts/editor-ui.md` §4).
  *
- * It is stated here because the zone below carries it: a contributor beside a
- * language-scoped attribute renders one control per locale, and *which* locales
- * a field is edited in is the host's fact, not the contributor's. Before
- * feature 091's P4b the list lived in `pim_ergonode`'s control, restated there
- * so a catalogue screen needed no language wiring — which put the catalogue's
- * own vocabulary inside an integration.
- */
-const LOCALES = ['en-US', 'pl-PL'] as const;
-
-/**
- * Feature: product Attributes tab.
+ * Every attribute of the product's set is one `attribute:<key>` field of the read, with its
+ * scope set derived from the definition: a text attribute is set at Global, per channel or per
+ * channel and language; any other type at Global or per channel; a non-scopable attribute at
+ * Global only. The value at the scope is a plain value — never a per-language map — so a text
+ * attribute renders as text at every scope (US1 #2, the F2 regression).
  *
- * Renders editable value inputs for every attribute assigned to the product's
- * currently-selected Attribute Set. The attribute list is fetched from the
- * Attribute Set detail endpoint and re-fetched whenever `attributeSetId`
- * changes, so swapping the set in the Details tab immediately re-renders the
- * matching attribute fields (no save round-trip required).
+ * The option lists of select attributes come from the attribute definitions, read once per set.
+ *
+ * A Page Builder content attribute (`specs/172-product-content-attributes/`, FR-020) is no scoped
+ * value — the read does not list it — but a card below the fields: its label, a chip per editing
+ * language, a summary and **Edit content**, which opens the product content screen. The cards come
+ * from the content summaries (`GET …/content`, research R-3), read once per saved attribute set,
+ * and are the same at every scope: a document is per language, and its own screen edits every one.
  */
-
-type ValueType =
-  | 'string'
-  | 'number'
-  | 'boolean'
-  | 'enum'
-  | 'date'
-  | 'multiselect'
-  | 'price'
-  | 'select'
-  // Feature 172 — a Page Builder content attribute: a card, never an input.
-  | 'page_builder';
 
 interface SetAttribute {
   id: string;
   key: string;
-  label: Record<string, string>;
-  valueType: ValueType;
-  position: number;
-  /** Feature 023 — the value is stored per language, one slot per active locale. */
-  languageScoped: boolean;
 }
 
 interface AttributeOption {
@@ -60,336 +41,210 @@ interface AttributeOption {
   sortOrder: number;
 }
 
-/** Attribute value types whose values come from a fixed option list. */
-const OPTION_TYPES = new Set<ValueType>(['enum', 'select', 'multiselect']);
+const OPTION_TYPES = new Set(['enum', 'select', 'multiselect']);
 
-function pickLabel(label: Record<string, string>, fallback: string): string {
-  return label['en-US'] ?? Object.values(label)[0] ?? fallback;
+/** A label in the admin's language (`pl` reads `pl-PL`), then English, then any. */
+function pickLabel(label: Record<string, string>, fallback: string, language = 'en'): string {
+  const entries = Object.entries(label);
+  const own = entries.find(([code]) => code === language || code.split('-')[0] === language)?.[1];
+  return own ?? label['en-US'] ?? entries[0]?.[1] ?? fallback;
 }
 
-export interface ProductAttributesTabProps {
-  /**
-   * Only for the per-value zone mount below; absent while the product is still
-   * being created, which is also when there is nothing to contribute about.
-   */
-  productId?: string | null | undefined;
-  attributeSetId: string;
-  /**
-   * Feature 172 — the attribute set the product is saved with. A content
-   * attribute is edited on its own screen against the saved set, so while the
-   * Details tab has chosen another one the card offers no editing.
-   */
-  savedAttributeSetId?: string | undefined;
-  values: Record<string, unknown>;
-  onChange: (key: string, value: unknown) => void;
-}
+type ContentAttribute = AdminProductContentList['attributes'][number];
 
 /** Never called: the card only counts the editor's contributors (Z15). */
 const NO_EDIT = (): void => undefined;
 
-export function ProductAttributesTab({
-  productId,
-  attributeSetId,
-  savedAttributeSetId,
-  values,
-  onChange,
-}: ProductAttributesTabProps): ReactNode {
-  const t = useTranslation('catalog');
-  const [attributes, setAttributes] = useState<SetAttribute[]>([]);
-  // Feature 172 — the stored languages of each content attribute, by key.
-  const [contentByKey, setContentByKey] = useState<Record<string, AdminProductContentList['attributes'][number]>>({});
-  const [optionsByAttr, setOptionsByAttr] = useState<Record<string, AttributeOption[]>>({});
-  const [loading, setLoading] = useState(false);
-  const [error, setError] = useState<string | null>(null);
+/** Why a content card offers no editing, or `null` (172 contracts/admin-surfaces.md §4). */
+function contentCardBlocker(input: { savedSetId: string; stagedSetId: string | undefined; editors: number }): ProductContentCardBlocker {
+  // The content screen judges membership against the saved set, so an unsaved choice blocks it.
+  if (input.stagedSetId !== undefined && input.stagedSetId !== input.savedSetId) return 'saveSetFirst';
+  if (input.editors === 0) return 'noEditor';
+  return null;
+}
 
-  // Re-load whenever the selected Attribute Set changes — this is what makes
-  // the tab track the Details-tab selector live.
+/** A value read as text, whatever it is; an object is never stringified into the field. */
+function asText(value: unknown): string | null {
+  if (value === null || value === undefined) return null;
+  if (typeof value === 'string') return value;
+  if (typeof value === 'number' || typeof value === 'boolean') return String(value);
+  return null;
+}
+
+export function ProductAttributesTab(): ReactNode {
+  const t = useTranslation('catalog');
+  const adminLanguage = useContext(AppLanguageContext)?.language ?? 'en';
+  const ctx = useProductEditor();
+  const data = ctx.state.data;
+  const setId = data?.product.attributeSetId ?? '';
+  const [options, setOptions] = useState<Record<string, SelectOption[]>>({});
+  const [content, setContent] = useState<ContentAttribute[]>([]);
+  const staged = ctx.state.staged.get('product:attributeSetId');
+  const stagedSetId = staged?.op === 'set' && typeof staged.value === 'string' ? staged.value : undefined;
+
+  // Feature 172 — the content summaries of the saved set's content attributes, once per set.
   useEffect(() => {
-    if (!attributeSetId) {
-      setAttributes([]);
-      setOptionsByAttr({});
-      return;
+    if (!setId) {
+      setContent([]);
+      return undefined;
     }
     let cancelled = false;
-    setLoading(true);
-    setError(null);
     void (async (): Promise<void> => {
       try {
-        const res = await apiClient.get<{ data: { attributes: SetAttribute[] } }>(
-          `/api/v1/admin/catalog/attribute-sets/${attributeSetId}`,
+        const res = await apiClient.get<{ data: AdminProductContentList }>(
+          `/api/v1/admin/catalog/products/${encodeURIComponent(ctx.productId)}/content`,
         );
-        if (cancelled) return;
-        const attrs = [...res.data.attributes].sort((a, b) => a.position - b.position);
-        setAttributes(attrs);
-
-        const optionAttrs = attrs.filter((a) => OPTION_TYPES.has(a.valueType));
-        const entries = await Promise.all(
-          optionAttrs.map(async (a) => {
-            const optRes = await apiClient.get<{ data: { items: AttributeOption[] } }>(
-              `/api/v1/admin/catalog/attributes/${a.id}/options`,
-            );
-            const opts = [...optRes.data.items].sort((x, y) => x.sortOrder - y.sortOrder);
-            return [a.id, opts] as const;
-          }),
-        );
-        if (cancelled) return;
-        setOptionsByAttr(Object.fromEntries(entries));
-
-        // Feature 172 — one read of the content summaries, only for a saved
-        // product whose set has a content attribute (research R-3).
-        if (productId && attrs.some((a) => a.valueType === 'page_builder')) {
-          const content = await apiClient.get<{ data: AdminProductContentList }>(
-            `/api/v1/admin/catalog/products/${productId}/content`,
-          );
-          if (cancelled) return;
-          setContentByKey(Object.fromEntries(content.data.attributes.map((a) => [a.key, a])));
-        } else {
-          setContentByKey({});
-        }
-      } catch (err) {
-        if (cancelled) return;
-        setError(
-          err instanceof ApiError
-            ? err.envelope.error.message
-            : t('productEditor.attributes.loadFailed'),
-        );
-      } finally {
-        if (!cancelled) setLoading(false);
+        if (!cancelled) setContent([...(res.data?.attributes ?? [])].sort((a, b) => a.position - b.position || a.key.localeCompare(b.key)));
+      } catch {
+        // No cards rather than a broken tab: the ordinary values do not depend on this read.
+        if (!cancelled) setContent([]);
       }
     })();
     return (): void => {
       cancelled = true;
     };
-  }, [attributeSetId, productId, t]);
+  }, [ctx.productId, setId]);
 
-  // Z15 — whether anyone contributes the content editor, counted with the same
-  // zone the content screen mounts, so the card and the screen cannot disagree.
+  // Z15 — whether anyone contributes the content editor, counted with the same zone the content
+  // screen mounts, so the card and the screen cannot disagree.
   const contentEditors = useAdminZone('product.content.editor', {
-    productId: productId ?? '',
+    productId: ctx.productId,
     attributeKey: '',
-    language: LOCALES[0],
+    language: PRODUCT_CONTENT_LANGUAGES[0],
     data: null,
     onChange: NO_EDIT,
   });
 
-  if (!attributeSetId) {
-    return <div className="b2b-help">{t('productEditor.attributes.noSet')}</div>;
-  }
-  if (loading) {
-    return <div className="b2b-help">{t('productEditor.attributes.loading')}</div>;
-  }
-  if (error) {
-    return (
-      <Alert variant="destructive">
-        <AlertDescription>{error}</AlertDescription>
-      </Alert>
-    );
-  }
-  if (attributes.length === 0) {
+  useEffect(() => {
+    if (!setId || !data) return undefined;
+    const optionKeys = new Set(data.attributes.filter((a) => OPTION_TYPES.has(a.valueType)).map((a) => a.key));
+    if (optionKeys.size === 0) return undefined;
+    let cancelled = false;
+    void (async (): Promise<void> => {
+      try {
+        const set = await apiClient.get<{ data: { attributes: SetAttribute[] } }>(
+          `/api/v1/admin/catalog/attribute-sets/${encodeURIComponent(setId)}`,
+        );
+        const entries = await Promise.all(
+          (set.data.attributes ?? [])
+            .filter((a) => optionKeys.has(a.key))
+            .map(async (a) => {
+              const res = await apiClient.get<{ data: { items: AttributeOption[] } }>(
+                `/api/v1/admin/catalog/attributes/${encodeURIComponent(a.id)}/options`,
+              );
+              const list = [...(res.data.items ?? [])]
+                .sort((x, y) => x.sortOrder - y.sortOrder)
+                .map((o) => ({ value: o.value, label: pickLabel(o.label, o.labelDefault, adminLanguage) }));
+              return [a.key, list] as const;
+            }),
+        );
+        if (!cancelled) setOptions(Object.fromEntries(entries));
+      } catch {
+        // The values still render; a select without its options shows the stored value.
+      }
+    })();
+    return (): void => {
+      cancelled = true;
+    };
+    // The option lists depend on the set only, not on the scope.
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [setId]);
+
+  if (!data) return null;
+  if (data.attributes.length === 0 && content.length === 0) {
     return <div className="b2b-help">{t('productEditor.attributes.empty')}</div>;
   }
+  const blocker = contentCardBlocker({ savedSetId: setId, stagedSetId, editors: contentEditors.length });
 
   return (
     <div className="b2b-col" style={{ gap: 16 }}>
-      <div className="b2b-help" style={{ marginTop: 0 }}>
-        {t('productEditor.attributes.help')}
-      </div>
-      <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: 16 }}>
-        {attributes.map((attr) =>
-          attr.valueType === 'page_builder' ? (
-            <ProductContentCard
-              key={attr.id}
-              productId={productId}
-              attributeKey={attr.key}
-              label={pickLabel(attr.label, attr.key)}
-              languages={[
-                ...new Set<string>([
-                  ...LOCALES,
-                  ...(contentByKey[attr.key]?.languages ?? []).map((status) => status.language),
-                ]),
-              ]}
-              stored={contentByKey[attr.key]?.languages ?? []}
-              preferredLanguage={LOCALES[0]}
-              blocker={contentCardBlocker({
-                productId,
-                attributeSetId,
-                savedAttributeSetId,
-                editors: contentEditors.length,
-              })}
-            />
-          ) : (
-            <AttributeField
-              key={attr.id}
-              attr={attr}
-              options={optionsByAttr[attr.id] ?? []}
-              value={values[attr.key]}
-              onChange={(v): void => onChange(attr.key, v)}
-              noneLabel={t('productEditor.attributes.selectNone')}
-              productId={productId}
-            />
-          ),
-        )}
-      </div>
-    </div>
-  );
-}
-
-/** Why a content card offers no editing, or `null` (contracts/admin-surfaces.md §4). */
-function contentCardBlocker(input: {
-  productId: string | null | undefined;
-  attributeSetId: string;
-  savedAttributeSetId: string | undefined;
-  editors: number;
-}): ProductContentCardBlocker {
-  if (!input.productId) return 'saveFirst';
-  if (input.savedAttributeSetId !== undefined && input.savedAttributeSetId !== input.attributeSetId) {
-    return 'saveSetFirst';
-  }
-  if (input.editors === 0) return 'noEditor';
-  return null;
-}
-
-function AttributeField({
-  attr,
-  options,
-  value,
-  onChange,
-  noneLabel,
-  productId,
-}: {
-  attr: SetAttribute;
-  options: AttributeOption[];
-  value: unknown;
-  onChange: (value: unknown) => void;
-  noneLabel: string;
-  productId: string | null | undefined;
-}): ReactNode {
-  const label = pickLabel(attr.label, attr.key);
-  const inputId = `attr-${attr.id}`;
-
-  let control: ReactNode;
-  switch (attr.valueType) {
-    case 'boolean':
-      control = (
-        <label htmlFor={inputId} className="b2b-row" style={{ gap: 8, alignItems: 'center' }}>
-          <Checkbox
-            id={inputId}
-            checked={value === true}
-            onChange={(e): void => onChange(e.target.checked)}
-          />
-          <span>{label}</span>
-        </label>
-      );
-      break;
-
-    case 'number':
-    case 'price':
-      control = (
-        <Input
-          id={inputId}
-          type="number"
-          step="any"
-          value={value == null ? '' : String(value)}
-          onChange={(e): void => {
-            const raw = e.target.value;
-            if (raw === '') {
-              onChange(undefined);
-              return;
+      <p className="b2b-help" style={{ marginTop: 0 }}>
+        {t('productEditor.attributes.scopedHelp')}
+      </p>
+      <ScopedFieldGrid>
+        {data.attributes.map((attr) => {
+          const label = pickLabel(attr.label, attr.key, adminLanguage);
+          const opts = options[attr.key] ?? [];
+          const render = (p: ScopedFieldControlProps<unknown>): ReactNode => {
+            switch (attr.valueType) {
+              case 'boolean':
+                return (
+                  <BooleanControl
+                    {...(p as unknown as ScopedFieldControlProps<boolean>)}
+                    value={typeof p.value === 'boolean' ? p.value : null}
+                    trueLabel={t('productEditor.attributes.yes')}
+                    falseLabel={t('productEditor.attributes.no')}
+                  />
+                );
+              case 'number':
+              case 'price':
+                return (
+                  <NumberControl
+                    {...(p as unknown as ScopedFieldControlProps<number>)}
+                    value={typeof p.value === 'number' ? p.value : null}
+                    integer={false}
+                  />
+                );
+              case 'enum':
+              case 'select':
+                return <SelectControl {...(p as ScopedFieldControlProps<string>)} value={asText(p.value)} options={opts} />;
+              case 'multiselect': {
+                const selected = Array.isArray(p.value) ? (p.value as string[]) : [];
+                if (p.readOnly) {
+                  const text = selected.map((v) => opts.find((o) => o.value === v)?.label ?? v).join(', ');
+                  return <TextControl {...(p as ScopedFieldControlProps<string>)} value={text || null} onChange={(): void => undefined} />;
+                }
+                return (
+                  <MultiSelect
+                    options={opts}
+                    selected={selected}
+                    onChange={(next): void => p.onChange(next.length === 0 ? null : next)}
+                    placeholder={t('productEditor.attributes.selectNone')}
+                    ariaLabel={label}
+                  />
+                );
+              }
+              case 'date':
+                return (
+                  <TextControl
+                    {...(p as ScopedFieldControlProps<string>)}
+                    value={asText(p.value)?.slice(0, 10) ?? null}
+                  />
+                );
+              default:
+                return <TextControl {...(p as ScopedFieldControlProps<string>)} value={asText(p.value)} />;
             }
-            const n = Number(raw);
-            onChange(Number.isFinite(n) ? n : undefined);
-          }}
-        />
-      );
-      break;
-
-    case 'date':
-      control = (
-        <Input
-          id={inputId}
-          type="date"
-          value={typeof value === 'string' ? value.slice(0, 10) : ''}
-          onChange={(e): void => onChange(e.target.value || undefined)}
-        />
-      );
-      break;
-
-    case 'enum':
-    case 'select':
-      control = (
-        <Select
-          id={inputId}
-          value={typeof value === 'string' ? value : ''}
-          onChange={(e): void => onChange(e.target.value || undefined)}
-        >
-          <option value="">{noneLabel}</option>
-          {options.map((o) => (
-            <option key={o.id} value={o.value}>
-              {pickLabel(o.label, o.labelDefault)}
-            </option>
-          ))}
-        </Select>
-      );
-      break;
-
-    case 'multiselect':
-      control = (
-        <MultiSelect
-          options={options.map((o) => ({ value: o.value, label: pickLabel(o.label, o.labelDefault) }))}
-          selected={Array.isArray(value) ? (value as string[]) : []}
-          onChange={(next): void => onChange(next)}
-          placeholder={noneLabel}
-          ariaLabel={label}
-        />
-      );
-      break;
-
-    case 'string':
-    default:
-      control = (
-        <Input
-          id={inputId}
-          type="text"
-          value={typeof value === 'string' ? value : value == null ? '' : String(value)}
-          onChange={(e): void => onChange(e.target.value)}
-        />
-      );
-      break;
-  }
-
-  // Feature 091 / P4b — the eighth mount of `product.editor.field.after`, one
-  // per attribute value, because that is the granularity a per-value protection
-  // asks for: an operator curates *this* value, not "the attributes". The host
-  // says which locales the value is edited in and a contributor fans out over
-  // them; the screen names no integration and knows about none.
-  const protection = productId ? (
-    <AdminZone
-      name="product.editor.field.after"
-      props={{
-        productId,
-        fieldPath: `attributeValues.${attr.key}`,
-        languageCodes: attr.languageScoped === true ? LOCALES : null,
-      }}
-    />
-  ) : null;
-
-  // The boolean control renders its own inline label.
-  if (attr.valueType === 'boolean') {
-    return (
-      <div>
-        {control}
-        {protection}
-      </div>
-    );
-  }
-
-  return (
-    <div>
-      <Label htmlFor={inputId}>
-        {label} <span className="b2b-mono" style={{ opacity: 0.6 }}>({attr.key})</span>
-      </Label>
-      {control}
-      {protection}
+          };
+          return (
+              <EditorField<unknown>
+                key={attr.key}
+                fieldPath={`attribute:${attr.key}`}
+                label={label}
+                textField={attr.valueType === 'string'}
+                emptyMeaning={t('productEditor.emptyMeaning.noValue')}
+                note={
+                  <AdminZone
+                    name="product.editor.field.after"
+                    props={{ productId: ctx.productId, fieldPath: `attributeValues.${attr.key}`, scope: ctx.state.scope, languageCodes: null }}
+                  />
+                }
+                render={render}
+              />
+          );
+        })}
+        {content.map((attr) => (
+          <ProductContentCard
+            key={attr.attributeId}
+            productId={ctx.productId}
+            attributeKey={attr.key}
+            label={pickLabel(attr.label, attr.labelDefault || attr.key, adminLanguage)}
+            languages={[...new Set<string>([...PRODUCT_CONTENT_LANGUAGES, ...attr.languages.map((status) => status.language)])]}
+            stored={attr.languages}
+            preferredLanguage={PRODUCT_CONTENT_LANGUAGES[0]}
+            blocker={blocker}
+          />
+        ))}
+      </ScopedFieldGrid>
     </div>
   );
 }

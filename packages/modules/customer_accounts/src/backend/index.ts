@@ -147,12 +147,6 @@ export interface CustomerAccountsCradle {
   readonly requireAdmin: RequireAdminFactory;
   readonly settingsReadPort: SettingsReadPort;
   /**
-   * Which channel a global-scope settings read resolves against — the
-   * deployment's system-default channel. A property of the deployment, so a
-   * root supplies it; `inventory` reads the same name.
-   */
-  readonly settingsChannelResolver: () => Promise<string | null>;
-  /**
    * The two customer-side halves of `mfa`'s `SocialIdentityDeps` (T143a): match
    * a verified provider e-mail to an account, and create one when nothing
    * matches and the platform allows an org-less registration.
@@ -600,15 +594,18 @@ export function registerModule(ctx: ModuleContext): void {
           context: { salesChannelId: string | null },
         ): Promise<{ id: string; organizationId: string | null } | null> {
           const cradle = ctx.cradle<CustomerAccountsCradle>();
-          // The channel a global-scope read resolves against. Both roots used
-          // to pass the literal `'default'` here, which is **not** a channel
-          // id: `sales_channel_id` is a uuid column, so the query threw
-          // `invalid input syntax for type uuid` on every call, the closure's
-          // `catch` read that as "not allowed", and federated sign-in could
-          // therefore never create an account in production however the
-          // operator had configured it. The harness had no gate at all and
-          // always created one. Neither was the behaviour anybody wanted.
-          const salesChannelId = await cradle.settingsChannelResolver();
+          // Issue #773 — the setting is read for the channel the sign-in was
+          // started on, which `SocialIdentityService` carries out of the OAuth
+          // transaction, exactly as `POST /api/v1/customers/register` reads it
+          // for the request's channel. This read used the deployment's
+          // system-default channel instead, so the default channel's value
+          // opened (or closed) federated sign-up on every store. No channel
+          // means no account: a gate with no channel to ask fails closed.
+          //
+          // Before that, both roots passed the literal `'default'`, which is
+          // not a channel id: the uuid column threw on every call and the
+          // `catch` below read it as "not allowed".
+          const salesChannelId = context.salesChannelId;
           if (salesChannelId === null) return null;
 
           let allowed = false;
@@ -667,9 +664,9 @@ export function registerModule(ctx: ModuleContext): void {
                 // sign-in was started on, which `mfa` carries in the OAuth
                 // transaction because the provider's redirect names none, so
                 // the session issued next is accepted there. `mfa` creates an
-                // account only on a store open to anonymous visitors. Without a
-                // channel (a caller outside a sign-in) the default applies.
-                salesChannelId: context.salesChannelId,
+                // account only on a store open to anonymous visitors. A caller
+                // with no channel never gets here (issue #773).
+                salesChannelId,
               });
               const account = em.create(CustomerAccount, {
                 id: customerAccountId,

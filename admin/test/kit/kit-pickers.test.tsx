@@ -256,20 +256,20 @@ describe('ProductPicker — rules, alreadyAddedIds, onPickProduct', () => {
   };
 
   const ROWS = [
-    { id: 'p-group', sku: 'GRP-1', slug: 'grp', name: { 'en-US': 'Grouped set' }, status: 'active', type: 'grouped' },
-    { id: 'p-off', sku: 'OFF-1', slug: 'off', name: { 'en-US': 'Paused widget' }, status: 'inactive', type: 'simple' },
+    { id: 'p-group', sku: 'GRP-1', slug: 'grp', name: 'Grouped set', status: 'active', type: 'grouped' },
+    { id: 'p-off', sku: 'OFF-1', slug: 'off', name: 'Paused widget', status: 'inactive', type: 'simple' },
     // Feature 163 (FR-019) — archived whatever its status: refused for being archived.
     {
       id: 'p-archived',
       sku: 'ARC-1',
       slug: 'arc',
-      name: { 'en-US': 'Retired widget' },
+      name: 'Retired widget',
       status: 'active',
       type: 'simple',
       archivedAt: '2026-10-20T00:00:00.000Z',
     },
-    { id: 'p-added', sku: 'ADD-1', slug: 'add', name: { 'en-US': 'Added widget' }, status: 'active', type: 'simple' },
-    { id: 'p-ok', sku: 'OK-1', slug: 'ok', name: { 'en-US': 'Plain widget', 'pl-PL': 'Zwykły widżet' }, status: 'active', type: 'simple' },
+    { id: 'p-added', sku: 'ADD-1', slug: 'add', name: 'Added widget', status: 'active', type: 'simple' },
+    { id: 'p-ok', sku: 'OK-1', slug: 'ok', name: 'Plain widget', status: 'active', type: 'simple' },
   ];
 
   const ORDER_RULES = {
@@ -330,7 +330,7 @@ describe('ProductPicker — rules, alreadyAddedIds, onPickProduct', () => {
       id: 'p-ok',
       sku: 'OK-1',
       slug: 'ok',
-      name: { 'en-US': 'Plain widget', 'pl-PL': 'Zwykły widżet' },
+      name: 'Plain widget',
       status: 'active',
       type: 'simple',
     });
@@ -409,7 +409,7 @@ describe('ProductPicker — preselected value under StrictMode', () => {
     id: 'p-kept',
     sku: 'KEPT-1',
     slug: 'kept',
-    name: { 'en-US': 'Kept widget' },
+    name: 'Kept widget',
     status: 'active',
     type: 'simple',
   };

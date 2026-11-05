@@ -1,5 +1,9 @@
 {
   "registry.alreadyActive": "Inny konektor PIM jest już aktywny: {{moduleId}}",
   "registry.alreadyActive.detail": "Dezaktywuj drugi konektor przed włączeniem tego.",
-  "errors.PIM_CONNECTOR_ALREADY_ACTIVE": "Inny connector PIM jest już aktywny ({activeModuleId}). Najpierw go wyłącz."
+  "errors.PIM_CONNECTOR_ALREADY_ACTIVE": "Inny connector PIM jest już aktywny ({activeModuleId}). Najpierw go wyłącz.",
+  "localeMapping.unmapped": "Język źródłowy {locale} (kanał źródłowy: {sourceChannel}) nie jest zmapowany; jego wartości nie zostały zapisane dla {products} produktów.",
+  "localeMapping.skipped.not_a_member": "Produkt nie jest sprzedawany w docelowym kanale sprzedaży, więc ten cel pominięto.",
+  "localeMapping.skipped.language_not_offered": "Docelowy kanał sprzedaży nie oferuje tego języka, więc ten cel pominięto.",
+  "fieldPath.wholeFieldOnly": "Ochrona dotyczy całego pola. Część ścieżki wskazująca język lub kanał jest niedozwolona."
 }

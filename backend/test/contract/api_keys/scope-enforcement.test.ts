@@ -42,8 +42,8 @@ describe('API key scope enforcement', () => {
       payload: {
         sku: 'SCOPE-TEST-001',
         type: 'simple',
-        name: { 'en-US': 'Scope test' },
-        description: { 'en-US': 'Scope test' },
+        name: 'Scope test',
+        description: 'Scope test',
         categoryIds: [],
         attributeValues: {},
         visibility: 'public',
@@ -74,8 +74,8 @@ describe('API key scope enforcement', () => {
       payload: {
         sku: 'SCOPE-TEST-002',
         type: 'simple',
-        name: { 'en-US': 'Scope test ok' },
-        description: { 'en-US': 'Scope test ok' },
+        name: 'Scope test ok',
+        description: 'Scope test ok',
         categoryIds: [],
         attributeValues: {},
         visibility: 'public',
@@ -101,8 +101,8 @@ describe('API key scope enforcement', () => {
       payload: {
         sku: 'SCOPE-TEST-003',
         type: 'simple',
-        name: { 'en-US': 'Unbound system-scope test' },
-        description: { 'en-US': 'Unbound system-scope test' },
+        name: 'Unbound system-scope test',
+        description: 'Unbound system-scope test',
         categoryIds: [],
         attributeValues: {},
         visibility: 'public',

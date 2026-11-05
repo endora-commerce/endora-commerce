@@ -62,8 +62,6 @@ export const UNDEFINED_CLASS_RENDERS: UndefinedClassRenderLedger = {
     'no `b2b-input` block exists; the kit publishes `ui/input`',
   'packages/admin-shell/src/components/prompt-actions/PromptModePanel.tsx::b2b-input':
     'the same missing block, in the host application',
-  'packages/modules/catalog/src/admin/components/ProductScopeEditor.tsx::b2b-chip':
-    'no `b2b-chip` block exists; `b2b-filterchip` is the defined one',
   'packages/admin-shell/src/modules/profile/ProfilePage.tsx::b2b-grid':
     'no `b2b-grid` block exists; the tree lays out with Tailwind utilities',
   'packages/modules/inventory/src/admin/pages/WarehouseEditor.tsx::b2b-grid':

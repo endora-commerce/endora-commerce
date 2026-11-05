@@ -48,9 +48,9 @@ vi.mock('react-router-dom', async () => {
 });
 
 const PRODUCTS = [
-  { id: 'prod-1', sku: 'SKU-1', slug: 'p1', status: 'active', type: 'simple', name: { 'en-US': 'Widget' } },
-  { id: 'prod-2', sku: 'SKU-2', slug: 'p2', status: 'active', type: 'simple', name: { 'en-US': 'Gadget' } },
-  { id: 'prod-3', sku: 'SKU-3', slug: 'p3', status: 'active', type: 'simple', name: { 'en-US': 'Sprocket' } },
+  { id: 'prod-1', sku: 'SKU-1', slug: 'p1', status: 'active', type: 'simple', name: 'Widget' },
+  { id: 'prod-2', sku: 'SKU-2', slug: 'p2', status: 'active', type: 'simple', name: 'Gadget' },
+  { id: 'prod-3', sku: 'SKU-3', slug: 'p3', status: 'active', type: 'simple', name: 'Sprocket' },
 ];
 
 vi.mock('@endora-commerce/admin-kit/components', async () => {
@@ -111,7 +111,7 @@ beforeEach(() => {
     if (path.startsWith('/api/v1/admin/catalog/products')) {
       const q = new URLSearchParams(path.split('?')[1] ?? '').get('q') ?? '';
       return Promise.resolve({
-        data: PRODUCTS.filter((p) => p.name['en-US'].toLowerCase().startsWith(q.toLowerCase())),
+        data: PRODUCTS.filter((p) => p.name.toLowerCase().startsWith(q.toLowerCase())),
       });
     }
     return Promise.resolve({ data: [] });

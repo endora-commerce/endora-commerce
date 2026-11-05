@@ -577,8 +577,8 @@ describe('assets library — reference visibility (feature 166)', () => {
     const response = await inject('POST', '/api/v1/admin/catalog/products', W, {
       sku: `RV-${run}-${label}-${randomUUID().slice(0, 6)}`,
       type: 'simple',
-      name: { 'en-US': `RV ${run} ${label}` },
-      description: { 'en-US': 'desc' },
+      name: `RV ${run} ${label}`,
+      description: 'desc',
       categoryIds: [],
       attributeValues: {},
       visibility: 'public',

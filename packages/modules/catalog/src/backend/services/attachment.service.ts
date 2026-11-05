@@ -15,7 +15,6 @@ import { LockMode, UniqueConstraintViolationException } from '@mikro-orm/core';
 
 import {
   ERROR_CODES,
-  applyTranslationPatch,
   type AssetReadPort,
   type AttachmentType as AttachmentTypeDto,
   type CreateAttachmentTypeRequest,
@@ -29,13 +28,6 @@ import {
 import { HttpError } from '@endora-commerce/platform/http';
 import type { Command, CommandBus } from '@endora-commerce/platform/commands';
 import type { SalesChannelMembershipPort } from '@endora-commerce/platform/kernel';
-import {
-  assertProductChannelMembers,
-  loadHiddenChannelsByAttachment,
-  mirrorTranslationRemovals,
-  sortedTranslations,
-  writeAttachmentHiddenChannels,
-} from './attachment-packaging-scopes.js';
 import { Product } from '../entities/product.entity.js';
 import { AttachmentType } from '../entities/attachment-type.entity.js';
 import { ProductAttachment } from '../entities/product-attachment.entity.js';
@@ -56,10 +48,11 @@ export class AttachmentService {
      */
     private readonly assets?: AssetReadPort,
     /**
-     * Feature 163 (FR-014) — which channels the product is a member of: an attachment
-     * may be hidden only in one of them. Removing a hidden channel never asks.
+     * Feature 163 (FR-014) — which channels the product is a member of. Unused since feature 174
+     * retired the per-channel attachment writes on this route; kept so the composition root's
+     * signature does not move before T041 rewrites the service.
      */
-    private readonly membership?: Pick<SalesChannelMembershipPort, 'listChannelsForEntity'>,
+    _membership?: Pick<SalesChannelMembershipPort, 'listChannelsForEntity'>,
   ) {}
 
   #requireAssets(): AssetReadPort {
@@ -246,8 +239,7 @@ export class AttachmentService {
       { productId },
       { orderBy: { position: 'asc', id: 'asc' } },
     );
-    const hidden = await loadHiddenChannelsByAttachment(em, items.map((i) => i.id));
-    return items.map((i) => this.#attachmentDto(i, hidden.get(i.id) ?? []));
+    return items.map((i) => this.#attachmentDto(i));
   }
 
   async createAttachment(
@@ -284,8 +276,6 @@ export class AttachmentService {
     }
 
     const position = req.position ?? (await this.#nextPosition(em, productId));
-    const hiddenInChannels = [...new Set(req.hiddenInChannels ?? [])].sort();
-    await assertProductChannelMembers(this.membership, productId, hiddenInChannels);
     const id = randomUUID();
     // Feature 163 (FR-080) — one audit entry per request, the Command's; the route
     // writes none of its own. `product.updated.v1` `['attachments']` after commit.
@@ -298,20 +288,15 @@ export class AttachmentService {
         name: req.name,
         description: req.description ?? null,
         position,
-        nameTranslations: applyTranslationPatch({}, req.nameTranslations ?? {}),
-        descriptionTranslations: applyTranslationPatch({}, req.descriptionTranslations ?? {}),
       });
       await cem.flush();
-      if (hiddenInChannels.length > 0) {
-        await writeAttachmentHiddenChannels(cem, productId, id, hiddenInChannels);
-      }
       return {
         result: created,
         before: null,
-        after: { ...attachmentProjection(created, hiddenInChannels), assetId: req.assetId },
+        after: { ...attachmentProjection(created), assetId: req.assetId },
       };
     });
-    return this.#attachmentDto(attachment, hiddenInChannels);
+    return this.#attachmentDto(attachment);
   }
 
   async updateAttachment(
@@ -319,7 +304,6 @@ export class AttachmentService {
     attachmentId: string,
     req: UpdateAttachmentRequest,
   ): Promise<ProductAttachmentDto> {
-    let hiddenAfter: string[] = [];
     if (!isUuidShape(attachmentId) || !isUuidShape(productId)) {
       throw new HttpError(
         404,
@@ -342,16 +326,7 @@ export class AttachmentService {
           `Attachment ${attachmentId} not found under Product ${productId}.`,
         );
       }
-      const hiddenBefore = (await loadHiddenChannelsByAttachment(em, [attachmentId])).get(attachmentId) ?? [];
-      const before = attachmentProjection(row, hiddenBefore);
-      hiddenAfter =
-        req.hiddenInChannels === undefined ? hiddenBefore : [...new Set(req.hiddenInChannels)].sort();
-      // FR-014 / FR-015 — only a channel the write adds must be a member one.
-      await assertProductChannelMembers(
-        this.membership,
-        productId,
-        hiddenAfter.filter((channelId) => !hiddenBefore.includes(channelId)),
-      );
+      const before = attachmentProjection(row);
       if (req.attachmentTypeId !== undefined) {
         if (!isUuidShape(req.attachmentTypeId)) {
           throw new HttpError(
@@ -370,26 +345,14 @@ export class AttachmentService {
         }
         row.attachmentTypeId = req.attachmentTypeId;
       }
-      if (req.name !== undefined) row.name = req.name;
-      if (req.description !== undefined) row.description = req.description;
       if (req.position !== undefined) row.position = req.position;
-      if (req.nameTranslations !== undefined) {
-        row.nameTranslations = applyTranslationPatch(row.nameTranslations, req.nameTranslations);
-      }
-      if (req.descriptionTranslations !== undefined) {
-        row.descriptionTranslations = applyTranslationPatch(row.descriptionTranslations, req.descriptionTranslations);
-      }
-      const after = attachmentProjection(row, hiddenAfter);
+      const after = attachmentProjection(row);
       // A request that changes nothing writes and announces nothing.
       if (JSON.stringify(before) === JSON.stringify(after)) return { result: row, unchanged: true };
-      mirrorTranslationRemovals(before, after, ['nameTranslations', 'descriptionTranslations']);
-      if (req.hiddenInChannels !== undefined) {
-        await writeAttachmentHiddenChannels(em, productId, attachmentId, hiddenAfter);
-      }
       await em.flush();
       return { result: row, before, after };
     });
-    return this.#attachmentDto(a, hiddenAfter);
+    return this.#attachmentDto(a);
   }
 
   async deleteAttachment(productId: string, attachmentId: string): Promise<void> {
@@ -510,7 +473,7 @@ export class AttachmentService {
     return rows[0]?.next_position ?? 0;
   }
 
-  #attachmentDto(a: ProductAttachment, hiddenInChannels: readonly string[]): ProductAttachmentDto {
+  #attachmentDto(a: ProductAttachment): ProductAttachmentDto {
     return {
       id: a.id,
       productId: a.productId,
@@ -519,9 +482,7 @@ export class AttachmentService {
       name: a.name,
       description: a.description ?? null,
       position: a.position,
-      nameTranslations: { ...(a.nameTranslations ?? {}) },
-      descriptionTranslations: { ...(a.descriptionTranslations ?? {}) },
-      hiddenInChannels: [...hiddenInChannels],
+      hidden: a.hidden,
       createdAt: a.createdAt.toISOString(),
       updatedAt: a.updatedAt.toISOString(),
     };
@@ -532,15 +493,12 @@ export class AttachmentService {
  * The audit projection of one attachment write (FR-080): every field the PATCH accepts
  * plus the product, so re-sending it (minus `productId`) restores the row (FR-081).
  */
-function attachmentProjection(row: ProductAttachment, hiddenInChannels: readonly string[]): Record<string, unknown> {
+function attachmentProjection(row: ProductAttachment): Record<string, unknown> {
   return {
     productId: row.productId,
     attachmentTypeId: row.attachmentTypeId,
     name: row.name,
     description: row.description ?? null,
     position: row.position,
-    nameTranslations: sortedTranslations(row.nameTranslations),
-    descriptionTranslations: sortedTranslations(row.descriptionTranslations),
-    hiddenInChannels: [...hiddenInChannels].sort(),
   };
 }

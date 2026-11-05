@@ -10,12 +10,16 @@ import {
  * Feature 172 (`specs/172-product-content-attributes/`, US1, research R-6) —
  * defining a Page Builder content attribute through the admin API.
  *
- * - FR-001 / FR-004: `type: 'page_builder'` is created language-scoped with
- *   every capability off, and reads back as `page_builder` in both the API and
- *   the legacy vocabulary.
+ * - FR-001 / FR-004: `type: 'page_builder'` is created with every capability
+ *   off, and reads back as `page_builder` in both the API and the legacy
+ *   vocabulary.
  * - FR-003: create and PATCH refuse each locked capability by name
  *   (`details[].path`), and store nothing.
- * - FR-004: `languageScoped: false` is refused.
+ * - FR-004 under feature 174 (`specs/174-product-editor-scope-switcher/`,
+ *   FR-012): the channel and language scope flags became one `scopable` flag.
+ *   A content attribute's languages are its document envelope's, never scoped
+ *   values, so `scopable` is one of the locked capabilities (it carries FR-040)
+ *   and there is no language flag left to switch off.
  * - FR-005: the type never changes to or from `page_builder` (409).
  * - FR-006: the attribute joins a set and keeps its position like any member.
  */
@@ -32,7 +36,7 @@ const LOCKED_FLAGS = [
   'massEditable',
   'isRequired',
   'isVisibleOnProductPage',
-  'channelScoped',
+  'scopable',
 ] as const;
 
 const adminCookie = { b2b_session: 'stub-admin-session' };
@@ -81,13 +85,14 @@ describe('Content attribute definition (feature 172, US1)', () => {
     });
   }
 
-  it('creates a page_builder attribute language-scoped with every capability off (FR-001, FR-004)', async () => {
+  it('creates a page_builder attribute with every capability off, scopable among them (FR-001, FR-004)', async () => {
     const res = await create(base('pb_guide_172'));
     expect(res.statusCode, res.body).toBe(201);
     const back = await read('pb_guide_172');
     expect(back.statusCode).toBe(200);
     const data = (back.json() as { data: Record<string, unknown> }).data;
-    expect(data).toMatchObject({ type: 'page_builder', valueType: 'page_builder', languageScoped: true });
+    expect(data).toMatchObject({ type: 'page_builder', valueType: 'page_builder', scopable: false });
+    expect(data).not.toHaveProperty('languageScoped');
     for (const flag of LOCKED_FLAGS) expect(data[flag], flag).toBe(false);
   });
 
@@ -115,11 +120,7 @@ describe('Content attribute definition (feature 172, US1)', () => {
     });
   }
 
-  it('refuses languageScoped: false on create and on PATCH (FR-004)', async () => {
-    const refused = await create({ ...base('pb_lang_off'), languageScoped: false });
-    expect(refused.statusCode).toBe(400);
-    expect((refused.json() as ErrorBody).error.details?.map((detail) => detail.path)).toEqual(['languageScoped']);
-
+  it('refuses the retired languageScoped flag on PATCH, storing nothing (FR-004, feature 174)', async () => {
     expect((await create(base('pb_lang_patch'))).statusCode).toBe(201);
     const patched = await h.app.inject({
       method: 'PATCH',
@@ -127,10 +128,8 @@ describe('Content attribute definition (feature 172, US1)', () => {
       payload: { languageScoped: false },
       cookies: adminCookie,
     });
-    expect(patched.statusCode).toBe(400);
-    expect(((await read('pb_lang_patch')).json() as { data: { languageScoped: boolean } }).data.languageScoped).toBe(
-      true,
-    );
+    expect(patched.statusCode, patched.body).toBe(400);
+    expect(((await read('pb_lang_patch')).json() as { data: { scopable: boolean } }).data.scopable).toBe(false);
   });
 
   it('refuses options on a page_builder attribute', async () => {

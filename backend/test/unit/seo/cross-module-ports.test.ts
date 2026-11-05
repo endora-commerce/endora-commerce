@@ -53,8 +53,8 @@ function productRecord(
     slug: `slug-${id}`,
     type: 'simple',
     status: 'active',
-    name: { 'en-US': `Product ${id}` },
-    description: { 'en-US': `About ${id}` },
+    name: `Product ${id}`,
+    description: `About ${id}`,
     stockMode: null,
     visibility: 'public',
     attributeValues: {},
@@ -182,12 +182,13 @@ describe('seo — the meta-tag rule sources arrive over published read ports', (
       refusing('catalog categories'),
       refusing('cms'),
       refusing('sales channel membership'),
+      refusing('catalog product texts'),
     );
 
+    // Feature 174 (FR-010) — a product has no language-only scope; naming neither half is Global.
     const meta = await service.resolve({
       entityType: 'product',
       entityId: 'prod-1',
-      locale: 'en-US',
     });
 
     expect(asked).toEqual(['prod-1']);
@@ -212,6 +213,7 @@ describe('seo — the meta-tag rule sources arrive over published read ports', (
       catalogCategories,
       refusing('cms'),
       refusing('sales channel membership'),
+      refusing('catalog product texts'),
     );
 
     await expect(
@@ -233,6 +235,7 @@ describe('seo — the meta-tag rule sources arrive over published read ports', (
       refusing('catalog categories'),
       cmsPages,
       refusing('sales channel membership'),
+      refusing('catalog product texts'),
     );
 
     const meta = await service.resolve({

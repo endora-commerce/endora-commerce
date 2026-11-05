@@ -16,7 +16,8 @@ import { seedProductScopesAdmins } from '../../helpers/product-scopes-admins.js'
  * `GET /api/v1/admin/catalog/attributes/:idOrKey/scope-change-preview`
  * (`specs/163-product-data-scopes/contracts/admin-scopes-api.md` §6, research R27).
  *
- * - a narrowing counts, per channel, the overrides it would orphan;
+ * - a narrowing counts, per channel, the overrides it would orphan — feature 174 (R15): the one
+ *   `scopable` flag and the value type (`?valueType=`, text → non-text orphans the C×L rows);
  * - a widening reports 0;
  * - the attribute update that follows still retains every row (FR-015).
  *
@@ -51,7 +52,7 @@ describe('Attribute scope-change preview (spec 163, FR-090)', () => {
     return id;
   }
 
-  async function createAttribute(key: string, channelScoped: boolean, languageScoped: boolean): Promise<void> {
+  async function createAttribute(key: string, scopable: boolean, type: 'input' | 'number' = 'input'): Promise<void> {
     const res = await h.app.inject({
       method: 'POST',
       url: '/api/v1/admin/catalog/attributes',
@@ -60,12 +61,11 @@ describe('Attribute scope-change preview (spec 163, FR-090)', () => {
         key,
         label: { 'en-US': key },
         labelDefault: key,
-        type: 'input',
+        type,
         isSearchable: false,
         isFilterable: false,
         isVariantAxis: false,
-        channelScoped,
-        languageScoped,
+        scopable,
       },
     });
     expect(res.statusCode).toBe(201);
@@ -79,8 +79,8 @@ describe('Attribute scope-change preview (spec 163, FR-090)', () => {
       payload: {
         sku: `SAP-${run}-${randomUUID().slice(0, 6)}`,
         type: 'simple',
-        name: { 'en-US': 'Preview probe' },
-        description: { 'en-US': 'Preview probe' },
+        name: 'Preview probe',
+        description: 'Preview probe',
         categoryIds: [],
         attributeValues: {},
         visibility: 'public',
@@ -141,7 +141,7 @@ describe('Attribute scope-change preview (spec 163, FR-090)', () => {
 
   it('answers 401 without an admin and 403 without catalog:read', async () => {
     const key = `sap_gate_${run}`;
-    await createAttribute(key, true, true);
+    await createAttribute(key, true);
     expect((await h.app.inject({ method: 'GET', url: url(key) })).statusCode).toBe(401);
     expect((await h.app.inject({ method: 'GET', url: url(key), ...noCatalog })).statusCode).toBe(403);
   });
@@ -150,55 +150,56 @@ describe('Attribute scope-change preview (spec 163, FR-090)', () => {
     expect((await h.app.inject({ method: 'GET', url: url(`sap_none_${run}`), ...admin })).statusCode).toBe(404);
     expect((await h.app.inject({ method: 'GET', url: url('name'), ...admin })).statusCode).toBe(404);
     const key = `sap_bad_${run}`;
-    await createAttribute(key, true, true);
-    const bad = await h.app.inject({ method: 'GET', url: url(key, '?channelScoped=maybe'), ...admin });
+    await createAttribute(key, true);
+    const bad = await h.app.inject({ method: 'GET', url: url(key, '?scopable=maybe'), ...admin });
     expect(bad.statusCode).toBe(400);
     expect((bad.json() as { error: { code: string } }).error.code).toBe('VALIDATION_FAILED');
   });
 
-  it('channel + language → channel only counts the channel × language rows per channel', async () => {
-    const key = `sap_lang_${run}`;
-    await createAttribute(key, true, true);
-    await seed(key);
-    const data = await preview(key, '?languageScoped=false');
-    expect(data.orphanedOverrides).toBe(4);
-    expect(data.byChannel).toHaveLength(2);
-    expect(data.byChannel).toEqual(
-      expect.arrayContaining([
-        { channelId: c1, count: 3 },
-        { channelId: c2, count: 1 },
-      ]),
-    );
-  });
-
-  it('channel-scoped → global counts every row the resolver reads now', async () => {
+  // Feature 174 (R15): scopable text → not scopable orphans every C and C×L row.
+  it('scopable → not scopable counts every row the resolver reads now', async () => {
     const key = `sap_glob_${run}`;
-    await createAttribute(key, true, true);
+    await createAttribute(key, true);
     await seed(key);
-    const data = await preview(key, '?channelScoped=false&languageScoped=false');
+    const data = await preview(key, '?scopable=false');
     expect(data.orphanedOverrides).toBe(5);
     expect(data.byChannel.find((r) => r.channelId === c1)?.count).toBe(4);
     expect(data.byChannel.find((r) => r.channelId === c2)?.count).toBe(1);
   });
 
+  // Feature 174 (T042, R15): a scopable text attribute turning non-text keeps {G, C}, so the
+  // C×L rows are what it orphans.
+  it('text \u2192 non-text counts the C\u00d7L rows only; an unknown value type is 400', async () => {
+    const key = `sap_type_${run}`;
+    await createAttribute(key, true);
+    await seed(key);
+    const data = await preview(key, '?valueType=number');
+    expect(data.orphanedOverrides).toBe(4);
+    expect(data.byChannel.find((r) => r.channelId === c1)?.count).toBe(3);
+    expect(data.byChannel.find((r) => r.channelId === c2)?.count).toBe(1);
+    expect(await preview(key, '?valueType=string')).toEqual({ orphanedOverrides: 0, byChannel: [] });
+    const bad = await h.app.inject({ method: 'GET', url: url(key, '?valueType=colour'), ...admin });
+    expect(bad.statusCode).toBe(400);
+  });
+
   it('a widening reports 0', async () => {
     const key = `sap_wide_${run}`;
-    await createAttribute(key, true, false);
+    await createAttribute(key, false);
     await seed(key);
-    expect(await preview(key, '?languageScoped=true')).toEqual({ orphanedOverrides: 0, byChannel: [] });
+    expect(await preview(key, '?scopable=true')).toEqual({ orphanedOverrides: 0, byChannel: [] });
     expect(await preview(key, '')).toEqual({ orphanedOverrides: 0, byChannel: [] });
   });
 
   it('the attribute update still retains every row after a narrowing (FR-015)', async () => {
     const key = `sap_keep_${run}`;
-    await createAttribute(key, true, true);
+    await createAttribute(key, true);
     await seed(key);
     expect(await overrideCount(key)).toBe(5);
     const res = await h.app.inject({
       method: 'PATCH',
       url: `/api/v1/admin/catalog/attributes/${key}`,
       ...admin,
-      payload: { channelScoped: false, languageScoped: false },
+      payload: { scopable: false },
     });
     expect(res.statusCode).toBe(200);
     expect(await overrideCount(key)).toBe(5);

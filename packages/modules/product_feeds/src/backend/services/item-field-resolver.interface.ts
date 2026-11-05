@@ -77,8 +77,12 @@ export interface FeedItemSource {
   readonly slug: string;
   /** `products.type` — simple / configurable / grouped / bundle / virtual (FR-003). */
   readonly productType: string;
-  readonly name: Readonly<Record<string, string>>;
-  readonly description: Readonly<Record<string, string>>;
+  /**
+   * Feature 174 (FR-030) — the effective texts at the feed's (channel, language), as
+   * `catalogProductAvailabilityPort.effectiveTexts` answers them; `null` = no description there.
+   */
+  readonly name: string;
+  readonly description: string | null;
   readonly attributes: Readonly<Record<string, unknown>>;
   readonly customFields: Readonly<Record<string, unknown>>;
   readonly price: FeedItemPrice | null;

@@ -42,8 +42,8 @@ describe('productDetail composite eager-load (T132)', () => {
       payload: {
         sku: `CD-${type.toUpperCase()}-${suffix}`,
         type,
-        name: { 'en-US': `CD ${type} ${suffix}` },
-        description: { 'en-US': '' },
+        name: `CD ${type} ${suffix}`,
+        description: '',
         categoryIds: [],
         attributeValues: {},
         visibility: 'public',

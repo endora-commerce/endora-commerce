@@ -77,7 +77,7 @@ interface Row {
   id: string;
   sku: string;
   slug: string;
-  name: Record<string, string>;
+  name: string;
   status: Status;
   type: Type;
   /** Feature 163 (FR-019) — archived is its own axis, independent of status. */
@@ -91,7 +91,7 @@ function product(
   type: Type = 'simple',
   archivedAt: string | null = null,
 ): Row {
-  return { id, sku: `SKU-${id.toUpperCase()}`, slug: id, name: { 'en-US': name }, status, type, archivedAt };
+  return { id, sku: `SKU-${id.toUpperCase()}`, slug: id, name: name, status, type, archivedAt };
 }
 
 const pad = (n: number): string => String(n).padStart(2, '0');
@@ -128,7 +128,7 @@ function serveCatalog(url: string): unknown {
       (q === '' ||
         p.sku.toLowerCase().includes(q) ||
         p.slug.includes(q) ||
-        Object.values(p.name).some((n) => n.toLowerCase().includes(q))),
+        p.name.toLowerCase().includes(q)),
   );
   const live = matches.filter((p) => p.archivedAt === null);
   const archived = matches.filter((p) => p.archivedAt !== null);

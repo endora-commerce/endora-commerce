@@ -6,13 +6,14 @@ import { Alert, AlertDescription, Button, Card, CardContent, CardHeader, CardTit
 import { ContentLanguageTabs, adminLanguageToLocale } from '@endora-commerce/admin-kit/components';
 import { useTranslation, useTranslationContext } from '@endora-commerce/admin-kit/i18n';
 import { AdminZone, useAdminZone } from '@endora-commerce/admin-kit/zones';
+import { PRODUCT_CONTENT_LANGUAGES } from '../components/ProductContentCard.js';
 
 /**
- * The languages the product editor edits product copy in. A content value is
- * keyed by language like the product's name, so these are always offered; a
- * language only the stored content carries is offered after them (FR-021).
+ * The languages a content value is edited in, shared with the Attributes tab's
+ * card; a language only the stored content carries is offered after them
+ * (FR-021).
  */
-const CATALOG_LOCALES = ['en-US', 'pl-PL'] as const;
+const CATALOG_LOCALES = PRODUCT_CONTENT_LANGUAGES;
 
 type EditorZoneProps = AdminZoneProps<'product.content.editor'>;
 

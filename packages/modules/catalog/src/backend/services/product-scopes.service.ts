@@ -16,8 +16,10 @@ import {
   type ScopeSnapshot,
   toScopeChannel,
   type ScopeWarning,
+  type ScopedWriteOp,
   sameLanguage,
   isUuidShape,
+  toScopedWriteOp,
 } from '@endora-commerce/contracts';
 import type { Command, CommandBus } from '@endora-commerce/platform/commands';
 import { HttpError } from '@endora-commerce/platform/http';
@@ -28,6 +30,7 @@ import { ProductChannelLanguageScope } from '../entities/product-channel-languag
 import { ProductChannelScope } from '../entities/product-channel-scope.entity.js';
 import { globalScopeFields } from './product-availability.service.js';
 import type { ScopeCompletenessGate } from './scope-completeness.js';
+import { bumpScopeVersion } from './scoped-values-state.js';
 
 /**
  * Feature 163 (`specs/163-product-data-scopes/`) — a product's scoped values per
@@ -62,14 +65,23 @@ export interface ProductScopeWriteState {
   memberChannels: ReadonlyMap<string, readonly string[]>;
 }
 
+/** `{ inherit: true }` — the write encoding's "no own value here" (`contracts/write-encoding.md`). */
+type Inherit = { inherit: true };
+const INHERIT: Inherit = { inherit: true };
+
+/**
+ * One channel of the audit before / after, **in the request shape of the write encoding**
+ * (feature 174, FR-074, FR-116): re-sending it through the PATCH restores the rows. An inheriting
+ * field is `{ inherit: true }`; an overridden minimum with no value is `null` (no minimum here).
+ */
 interface ChannelAuditEntry {
   channelId: string;
-  status?: ProductScopeStatus | null;
-  window?: { from: string | null; until: string | null } | null;
-  audience?: AudienceRule | null;
-  minOrderQuantity?: number | null;
-  returnable?: boolean | null;
-  languageStatuses: Array<{ languageCode: string; status: ProductScopeStatus | null }>;
+  status?: ProductScopeStatus | Inherit;
+  window?: { from: string | null; until: string | null } | Inherit;
+  audience?: AudienceRule | Inherit;
+  minOrderQuantity?: number | null | Inherit;
+  returnable?: boolean | Inherit;
+  languageStatuses: Array<{ languageCode: string; status: ProductScopeStatus | Inherit }>;
 }
 
 /** The audit projection — the PATCH body's shape with every touched value explicit. */
@@ -167,10 +179,13 @@ export function planProductScopeWrite(
       const current =
         state.languageRows.find((row) => row.channelId === entry.channelId && row.languageCode === languageCode)
           ?.status ?? null;
-      beforeEntry.languageStatuses.push({ languageCode, status: current });
-      afterEntry.languageStatuses.push({ languageCode, status: language.status });
-      if (current !== language.status) changed.add('scopedStatus');
-      plan.languageRows.push({ channelId: entry.channelId, languageCode, next: language.status });
+      const op = toScopedWriteOp(language.status);
+      if (op === undefined) continue;
+      const nextStatus = refuseEmpty(op, 'status', { level: 'channel_language', channelId: entry.channelId, languageCode });
+      beforeEntry.languageStatuses.push({ languageCode, status: current ?? INHERIT });
+      afterEntry.languageStatuses.push({ languageCode, status: nextStatus ?? INHERIT });
+      if (current !== nextStatus) changed.add('scopedStatus');
+      plan.languageRows.push({ channelId: entry.channelId, languageCode, next: nextStatus });
     }
 
     plan.before.channels.push(beforeEntry);
@@ -197,10 +212,31 @@ export function planProductScopeWrite(
   return plan;
 }
 
+/** Whether a decoded write puts a value (or an empty override) at the scope, rather than removing one. */
+function writesAt(raw: unknown): boolean {
+  const op = toScopedWriteOp(raw);
+  return op !== undefined && op.op !== 'inherit';
+}
+
+/**
+ * Feature 174 (`contracts/write-encoding.md` §5, FR-116) — `inherit` → `null` (the override goes),
+ * `set` → the value; `empty` is refused for a field that takes no empty override
+ * (`422 SCOPED_VALUE_INVALID`, `not_emptyable`).
+ */
+function refuseEmpty<T>(op: ScopedWriteOp<T>, field: string, scope: Record<string, unknown>): T | null {
+  if (op.op === 'inherit') return null;
+  if (op.op === 'empty') {
+    throw new HttpError(422, ERROR_CODES.SCOPED_VALUE_INVALID, `"${field}" takes no empty value.`, {
+      fields: [{ field, scope, reason: 'not_emptyable' }],
+    });
+  }
+  return op.value;
+}
+
 function assertScopeValid(entry: ChannelPatch, languages: readonly string[] | undefined): void {
   const writesValue =
-    CHANNEL_ROW_KEYS.some((key) => entry[key] !== undefined && entry[key] !== null) ||
-    (entry.languageStatuses ?? []).some((language) => language.status !== null);
+    CHANNEL_ROW_KEYS.some((key) => writesAt(entry[key])) ||
+    (entry.languageStatuses ?? []).some((language) => writesAt(language.status));
   if (languages === undefined) {
     if (!writesValue) return;
     throw new HttpError(422, ERROR_CODES.SCOPE_INVALID, 'The product is not a member of this sales channel.', {
@@ -209,7 +245,7 @@ function assertScopeValid(entry: ChannelPatch, languages: readonly string[] | un
     });
   }
   for (const language of entry.languageStatuses ?? []) {
-    if (language.status === null) continue;
+    if (!writesAt(language.status)) continue;
     if (!languages.some((code) => sameLanguage(code, language.languageCode))) {
       throw new HttpError(422, ERROR_CODES.SCOPE_INVALID, 'The sales channel does not offer this language.', {
         channelId: entry.channelId,
@@ -239,27 +275,33 @@ function applyChannelPatch(
   entry: ChannelPatch,
 ): ProductChannelScopeRecord {
   const next: ProductChannelScopeRecord = { ...current };
-  if (entry.status !== undefined) next.status = entry.status;
-  if (entry.window !== undefined) {
-    if (entry.window === null) {
+  const scope = { level: 'channel', channelId: entry.channelId };
+  const status = toScopedWriteOp(entry.status);
+  if (status !== undefined) next.status = refuseEmpty(status, 'status', scope);
+  const windowOp = toScopedWriteOp(entry.window);
+  if (windowOp !== undefined) {
+    if (windowOp.op === 'inherit') {
       next.window = null;
+    } else if (windowOp.op === 'empty') {
+      // An empty window override = no limit on either side in this channel (data-model §9).
+      next.window = { from: null, until: null };
     } else {
-      const window = { from: toDate(entry.window.from), until: toDate(entry.window.until) };
+      const window = { from: toDate(windowOp.value.from), until: toDate(windowOp.value.until) };
       assertWindowOrdered(window, { channelId: entry.channelId });
       next.window = window;
     }
   }
-  if (entry.audience !== undefined) {
+  const audience = toScopedWriteOp(entry.audience);
+  if (audience !== undefined) {
+    const value = refuseEmpty(audience, 'audience', scope);
     next.audience =
-      entry.audience === null
+      value === null
         ? null
-        : {
-            visibility: entry.audience.visibility,
-            allowedOrganizationIds: [...new Set(entry.audience.allowedOrganizationIds)],
-          };
+        : { visibility: value.visibility, allowedOrganizationIds: [...new Set(value.allowedOrganizationIds)] };
   }
-  if (entry.minOrderQuantity !== undefined) {
-    if (entry.minOrderQuantity !== null && !isOrderMinimumEligibleType(state.productType)) {
+  const moq = toScopedWriteOp(entry.minOrderQuantity);
+  if (moq !== undefined) {
+    if (moq.op === 'set' && !isOrderMinimumEligibleType(state.productType)) {
       throw new HttpError(
         422,
         ERROR_CODES.VALIDATION_FAILED,
@@ -267,9 +309,12 @@ function applyChannelPatch(
         { field: 'minOrderQuantity', channelId: entry.channelId },
       );
     }
-    next.minOrderQuantity = entry.minOrderQuantity;
+    // `inherit` → not overridden; `empty` → overridden with no minimum here; `set` → the value.
+    next.minOrderQuantityOverridden = moq.op !== 'inherit';
+    next.minOrderQuantity = moq.op === 'set' ? moq.value : null;
   }
-  if (entry.returnable !== undefined) next.returnable = entry.returnable;
+  const returnable = toScopedWriteOp(entry.returnable);
+  if (returnable !== undefined) next.returnable = refuseEmpty(returnable, 'returnable', scope);
   return next;
 }
 
@@ -287,7 +332,11 @@ function channelChanges(before: ProductChannelScopeRecord, after: ProductChannel
   if (before.status !== after.status) fields.push('scopedStatus');
   if (!sameWindow(before.window, after.window)) fields.push('publicationWindow');
   if (JSON.stringify(before.audience) !== JSON.stringify(after.audience)) fields.push('audience');
-  if (before.minOrderQuantity !== after.minOrderQuantity || before.returnable !== after.returnable) {
+  if (
+    before.minOrderQuantity !== after.minOrderQuantity ||
+    before.minOrderQuantityOverridden !== after.minOrderQuantityOverridden ||
+    before.returnable !== after.returnable
+  ) {
     fields.push('orderRules');
   }
   return fields;
@@ -299,22 +348,32 @@ export function inheritsEverything(row: ProductChannelScopeRecord): boolean {
     row.status === null &&
     row.window === null &&
     row.audience === null &&
-    row.minOrderQuantity === null &&
+    !row.minOrderQuantityOverridden &&
     row.returnable === null
   );
 }
 
 function emptyRow(productId: string, channelId: string): ProductChannelScopeRecord {
-  return { productId, channelId, status: null, window: null, audience: null, minOrderQuantity: null, returnable: null };
+  return {
+    productId,
+    channelId,
+    status: null,
+    window: null,
+    audience: null,
+    minOrderQuantityOverridden: false,
+    minOrderQuantity: null,
+    returnable: null,
+  };
 }
 
 function channelProjection(row: ProductChannelScopeRecord): Omit<ChannelAuditEntry, 'channelId' | 'languageStatuses'> {
   return {
-    status: row.status,
-    window: row.window === null ? null : windowProjection(row.window, 'plain'),
-    audience: row.audience === null ? null : { ...row.audience, allowedOrganizationIds: [...row.audience.allowedOrganizationIds] },
-    minOrderQuantity: row.minOrderQuantity,
-    returnable: row.returnable,
+    status: row.status ?? INHERIT,
+    window: row.window === null ? INHERIT : windowProjection(row.window, 'plain'),
+    audience:
+      row.audience === null ? INHERIT : { ...row.audience, allowedOrganizationIds: [...row.audience.allowedOrganizationIds] },
+    minOrderQuantity: row.minOrderQuantityOverridden ? row.minOrderQuantity : INHERIT,
+    returnable: row.returnable ?? INHERIT,
   };
 }
 
@@ -372,6 +431,7 @@ export function toChannelRecord(row: ProductChannelScope): ProductChannelScopeRe
       row.visibility === null || row.visibility === undefined
         ? null
         : { visibility: row.visibility, allowedOrganizationIds: [...(row.allowedOrganizationIds ?? [])] },
+    minOrderQuantityOverridden: row.minOrderQuantityOverridden,
     minOrderQuantity: row.minOrderQuantity ?? null,
     returnable: row.returnable ?? null,
   };
@@ -393,7 +453,8 @@ function writeChannelRow(row: ProductChannelScope, record: ProductChannelScopeRe
   row.publishUntil = record.window?.until ?? null;
   row.visibility = record.audience?.visibility ?? null;
   row.allowedOrganizationIds = record.audience ? [...record.audience.allowedOrganizationIds] : null;
-  row.minOrderQuantity = record.minOrderQuantity;
+  row.minOrderQuantityOverridden = record.minOrderQuantityOverridden;
+  row.minOrderQuantity = record.minOrderQuantityOverridden ? record.minOrderQuantity : null;
   row.returnable = record.returnable;
 }
 
@@ -721,6 +782,7 @@ export class ProductScopesService {
                   record.audience.allowedOrganizationIds,
                 ),
               },
+        minOrderQuantityOverridden: record.minOrderQuantityOverridden,
         minOrderQuantity: record.minOrderQuantity,
         returnable: record.returnable,
         languageStatuses: languageRows
@@ -800,6 +862,8 @@ export class ProductScopesService {
       objectType: 'product',
       objectId: productId,
       run: async ({ em }) => {
+        // Feature 174 (R7) — a scope write is Save-overwritable: it moves the editor's version.
+        await bumpScopeVersion(em, productId);
         // The write lock serialises concurrent scope writes on one product, so the
         // rows read below — and the audit `before` built from them — are the true
         // predecessor of this write, and two first writes cannot race to one PK.

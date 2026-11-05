@@ -101,7 +101,7 @@ describe('carts — the up-sell strip reads catalog through its port', () => {
         {
           id: 'p-2',
           slug: 'target',
-          name: { 'en-US': 'Target product' },
+          name: 'Target product',
           attributeValues: { primaryAssetUrl: 'https://cdn.example/p2.png' },
           createdAt: new Date('2026-01-01'),
         },

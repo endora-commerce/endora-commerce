@@ -6,11 +6,6 @@ export interface ProductLabel {
   sku: string;
 }
 
-/** Pick a display name from the multilingual product `name` record. */
-export function resolveProductName(name: Record<string, string>): string {
-  return name['en-US'] ?? name['en'] ?? Object.values(name)[0] ?? '';
-}
-
 const LOOKUP_CHUNK = 500;
 
 /**
@@ -23,11 +18,11 @@ export async function lookupProductLabels(ids: readonly string[]): Promise<Recor
   for (let i = 0; i < ids.length; i += LOOKUP_CHUNK) {
     const chunk = ids.slice(i, i + LOOKUP_CHUNK);
     try {
-      const res = await apiClient.post<{ data: Array<{ id: string; sku: string; name: Record<string, string> }> }>(
+      const res = await apiClient.post<{ data: Array<{ id: string; sku: string; name: string }> }>(
         '/api/v1/admin/catalog/products/batch-by-id',
         { ids: chunk, pageSize: LOOKUP_CHUNK },
       );
-      for (const p of res.data ?? []) map[p.id] = { name: resolveProductName(p.name), sku: p.sku };
+      for (const p of res.data ?? []) map[p.id] = { name: p.name, sku: p.sku };
     } catch {
       /* fall back to the raw id for this chunk */
     }
