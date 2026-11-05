@@ -10,6 +10,10 @@ import { AuditLogService } from '@endora-commerce/platform/composition';
 import { AuditLogEntry } from '@endora-commerce/platform/kernel';
 import { setupTestDb, type TestDb } from '../../helpers/test-db.js';
 import { Address, CustomerAccount, CustomerAddress, Organization } from '../../helpers/package-entities.js';
+// The row types, read from the entity sources the way `helpers/package-entities.ts` does: the
+// helper's `CustomerAddress` and `Address` are values only.
+import type { CustomerAddress as CustomerAddressRow } from '../../../../packages/modules/customers/src/backend/entities/customer-address.entity.js';
+import type { Address as AddressRow } from '../../../../packages/modules/addresses/src/backend/entities/address.entity.js';
 import { seedAdHocOrganization } from '../../helpers/seed-organizations.js';
 import { customerAccountPortsFor } from '../../helpers/customer-account-ports.js';
 import { AddressService } from '../../../../packages/modules/addresses/src/backend/services/address-service.js';
@@ -133,8 +137,8 @@ describe('AddressBookRetirementService', () => {
   let clock = Date.parse('2026-01-01T00:00:00.000Z');
   async function personalRow(
     account: CustomerAccount,
-    over: Partial<CustomerAddress> = {},
-  ): Promise<CustomerAddress> {
+    over: Partial<CustomerAddressRow> = {},
+  ): Promise<CustomerAddressRow> {
     clock += 60_000;
     const row = em.create(CustomerAddress, {
       customerAccountId: account.id,
@@ -153,14 +157,14 @@ describe('AddressBookRetirementService', () => {
     return row;
   }
 
-  async function reload(row: CustomerAddress): Promise<CustomerAddress> {
+  async function reload(row: CustomerAddressRow): Promise<CustomerAddressRow> {
     em.clear();
     const fresh = await em.findOne(CustomerAddress, { id: row.id });
     if (!fresh) throw new Error(`row ${row.id} vanished`);
     return fresh;
   }
 
-  async function book(organizationId: string): Promise<Address[]> {
+  async function book(organizationId: string): Promise<AddressRow[]> {
     em.clear();
     return em.find(Address, { organizationId, deletedAt: null }, { orderBy: { createdAt: 'asc' } });
   }

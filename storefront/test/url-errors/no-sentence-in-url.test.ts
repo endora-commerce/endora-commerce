@@ -30,7 +30,6 @@ const NOT_YET_SWEPT = new Set<string>([
   '(auth)/password-reset/confirm/page.tsx',
   '(auth)/password-reset/request/page.tsx',
   '(auth)/register-customer/page.tsx',
-  '(auth)/register/page.tsx',
   'account/security/page.tsx',
 ]);
 
