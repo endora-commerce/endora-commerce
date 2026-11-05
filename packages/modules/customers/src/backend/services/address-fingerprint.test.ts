@@ -42,7 +42,8 @@ describe('addressFingerprint (T-U1)', () => {
 
   it('normalises to NFC, so a decomposed letter equals its composed form', () => {
     const composed = { ...base, city: 'Łódź' };
-    const decomposed = { ...base, city: 'Łódź'.normalize('NFD') };
+    // `Łódź` with each accent as a combining mark after its letter (o + U+0301, z + U+0301).
+    const decomposed = { ...base, city: '\u0141o\u0301dz\u0301' };
     expect(addressFingerprint(decomposed)).toBe(addressFingerprint(composed));
   });
 
