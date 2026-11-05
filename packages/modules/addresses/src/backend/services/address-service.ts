@@ -10,6 +10,9 @@ import { recordAuditFromContext } from '@endora-commerce/platform/commands';
 import type { AuditPort } from '@endora-commerce/platform/kernel';
 import { Address } from '../entities/address.entity.js';
 
+/** What an anonymized address's personal fields read (OD-7). */
+const ANONYMIZED = '-';
+
 /**
  * AddressService (T120).
  *
@@ -137,6 +140,45 @@ export class AddressService {
     address.deletedAt = new Date();
     this.#audit(em, 'address.delete', address.id, { organizationId, kind: address.kind }, null);
     await em.flush();
+  }
+
+  /**
+   * Clear **and** blank every live address of the Organization
+   * (`specs/173-b2c-address-book-merge/` OD-7) — the retention sweep's call
+   * for a personal Organization it has just anonymized. The personal fields
+   * become `'-'`, the phone `null`, the default flag `false`; the country stays
+   * (as it does on the Organization's registered address) and the row is
+   * soft-deleted. One `address.anonymized` entry per row, with a null actor and
+   * no personal data, in the same transaction as the scrub. Order snapshots are
+   * copies on `orders`' rows and are not touched. Answers the number of rows.
+   */
+  async anonymizeForOrganization(organizationId: string): Promise<number> {
+    const em = this.emFactory();
+    return em.transactional(async (txEm) => {
+      const rows = await txEm.find(Address, { organizationId, deletedAt: null });
+      const now = new Date();
+      for (const address of rows) {
+        // command-coverage-ignore: the retention sweep's system-initiated scrub,
+        // audited below with the null actor that fact deserves.
+        address.recipientName = ANONYMIZED;
+        address.street = ANONYMIZED;
+        address.city = ANONYMIZED;
+        address.postalCode = ANONYMIZED;
+        address.phone = null;
+        address.isDefault = false;
+        address.deletedAt = now;
+        this.auditLog?.recordWithin(txEm, {
+          actorAdminUserId: null,
+          action: 'address.anonymized',
+          objectType: 'address',
+          objectId: address.id,
+          stateBefore: { organizationId, kind: address.kind },
+          stateAfter: { anonymizedAt: now.toISOString() },
+        });
+      }
+      await txEm.flush();
+      return rows.length;
+    });
   }
 
   private async validateCountry(

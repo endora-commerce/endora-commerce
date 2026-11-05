@@ -5,7 +5,11 @@ import type {
 } from '@endora-commerce/contracts';
 import type { CustomerAddress } from './entities/customer-address.entity.js';
 
-/** Maps a persisted CustomerAddress to its API contract shape. */
+/**
+ * Maps a persisted CustomerAddress to its API contract shape — since
+ * `specs/173-b2c-address-book-merge/` release 1 only the admin card's refused
+ * rows, each with the reason the retirement job recorded.
+ */
 export function serializeCustomerAddress(a: CustomerAddress): CustomerAddressDTO {
   return {
     id: a.id,
@@ -20,6 +24,7 @@ export function serializeCustomerAddress(a: CustomerAddress): CustomerAddressDTO
     isDefault: a.isDefault,
     createdAt: a.createdAt.toISOString(),
     updatedAt: a.updatedAt.toISOString(),
+    mergeRefusal: a.mergeRefusal ?? null,
   };
 }
 

@@ -99,7 +99,7 @@ export class CustomerAdminQueryService {
     // the deduplication is what makes the ordering mean anything.
     const salesChannelIds = await this.ports.orders.salesChannelIdsForCustomer(customer.id);
 
-    const defaults = await this.defaults.getForCustomer(customer.id);
+    const defaults = await this.defaults.getForCustomer(customer.id, customer.organizationId);
 
     return {
       ...base,

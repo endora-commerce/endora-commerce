@@ -30,18 +30,13 @@ export type CustomerLifecycleStatus = z.infer<
 >;
 
 // ── Addresses ─────────────────────────────────────────────────────────────
-
-export const customerAddressInputSchema = z.object({
-  kind: customerAddressKindSchema,
-  recipientName: z.string().min(1).max(160),
-  street: z.string().min(1).max(255),
-  city: z.string().min(1).max(120),
-  postalCode: z.string().min(1).max(20),
-  country: z.string().length(2),
-  phone: z.string().max(32).optional(),
-  isDefault: z.boolean().optional(),
-});
-export type CustomerAddressInput = z.infer<typeof customerAddressInputSchema>;
+//
+// `specs/173-b2c-address-book-merge/` release 1 retired the personal address
+// book for everyone: its routes answer `410 CUSTOMER_ADDRESS_BOOK_RETIRED`, and
+// every customer's one book is their Organization's (`organizations.ts` owns
+// those shapes). What is left here is the admin card's read, which lists the
+// rows the release-1 retirement job refused. Release 2 removes it with the
+// table.
 
 export const customerAddressSchema = z.object({
   id: uuidSchema,
@@ -56,6 +51,12 @@ export const customerAddressSchema = z.object({
   isDefault: z.boolean(),
   createdAt: isoDateTimeSchema,
   updatedAt: isoDateTimeSchema,
+  /**
+   * Why the release-1 retirement job could not move this row into the
+   * Organization book — the owner's error code, for example
+   * `DICTIONARY_ENTRY_INACTIVE`. Present on the admin card's refused rows.
+   */
+  mergeRefusal: z.string().nullable().optional(),
 });
 export type CustomerAddress = z.infer<typeof customerAddressSchema>;
 
@@ -79,6 +80,11 @@ export type OrganizationAddressRef = z.infer<
   typeof organizationAddressRefSchema
 >;
 
+/**
+ * `GET /api/v1/admin/customers/:id/addresses` — the admin card (OD-6): the
+ * customer's Organization book, read-only, and under `personal` only the
+ * personal-book rows the retirement job refused, each with its `mergeRefusal`.
+ */
 export const customerAddressBookSchema = z.object({
   personal: z.array(customerAddressSchema),
   organization: z.array(organizationAddressRefSchema),
@@ -247,76 +253,3 @@ export const onlineCustomerSchema = z.object({
   lastSeenAt: isoDateTimeSchema,
 });
 export type OnlineCustomer = z.infer<typeof onlineCustomerSchema>;
-
-// ---------------------------------------------------------------------------
-// --- ports -----------------------------------------------------------------
-//
-// The in-process surface `customers` publishes (feature 075, Phase P). One
-// cross-module consumer: `quick_order` resolves a buyer's saved personal
-// address when it fills in their one-click defaults.
-// ---------------------------------------------------------------------------
-
-/**
- * A customer's own saved address — never the ORM entity (FR-011).
- *
- * Distinct from `AddressRecord` in `addresses.ts`, and the difference is the
- * key: this one hangs off a **customer account**, that one off an
- * **organisation**. Both tables exist because a B2C buyer keeps addresses that
- * are theirs rather than their personal organisation's, and merging the two
- * shapes here would hide which of the two a caller is holding.
- */
-export interface CustomerAddressRecord {
-  id: string;
-  customerAccountId: string;
-  kind: 'delivery' | 'billing';
-  recipientName: string;
-  street: string;
-  city: string;
-  postalCode: string;
-  country: string;
-  phone: string | null;
-  isDefault: boolean;
-  createdAt: Date;
-  updatedAt: Date;
-  deletedAt: Date | null;
-}
-
-/**
- * Container name: `customerAddressReadPort`. Owner: `customers`.
- *
- * `findById` is scoped by customer account for the reason its organisation
- * twin gives: every caller already knows whose address it is asking for, and
- * one query is what stops the ownership check being forgotten.
- *
- * **`liveOnly` defaults to `false`: `findById` returns a soft-deleted address.**
- * Same split as {@link AddressReadPort} — the by-id lookup resolves an id
- * something else already stored, so it answers with the row it finds;
- * `listForCustomer` is choosing an address to use *now*, so it filters
- * `deletedAt: null` unconditionally and takes no flag.
- *
- * The intended consumer is `quick_order`'s one-click default eligibility check,
- * which today spells the rule itself:
- * `personal != null && !personal.deletedAt && personal.customerAccountId === customerAccountId`
- * (`quick_order/services/default-preference-service.ts`). Two of those three
- * conjuncts do become redundant against this port; **`!personal.deletedAt` does
- * not**. Dropping it with the others makes deleted addresses eligible one-click
- * shipping defaults, so a cut passes `{ liveOnly: true }` (Phase-P
- * unreached-port audit, A8).
- *
- * **Owner off:** the seam fails closed — resolving this port throws
- * `ModuleDisabledError` and the call answers 503 `MODULE_DISABLED`, so nothing
- * half-executes. Whether `customers` has an off state at all is its manifest's
- * `activation` to say, not this line's: a module declaring
- * `nonDeactivatable` never enters one.
- */
-export interface CustomerAddressReadPort {
-  findById(
-    customerAccountId: string,
-    addressId: string,
-    options?: { liveOnly?: boolean },
-  ): Promise<CustomerAddressRecord | null>;
-  listForCustomer(
-    customerAccountId: string,
-    kind?: 'delivery' | 'billing',
-  ): Promise<CustomerAddressRecord[]>;
-}

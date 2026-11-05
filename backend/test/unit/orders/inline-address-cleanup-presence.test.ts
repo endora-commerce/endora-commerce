@@ -60,6 +60,9 @@ function addressServiceFailingCleanupWith(error: unknown): AddressServicePort {
     deleteAddress: async () => {
       throw error;
     },
+    anonymizeForOrganization: async () => {
+      throw new Error('not used');
+    },
   };
 }
 

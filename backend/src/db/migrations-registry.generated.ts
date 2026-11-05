@@ -197,6 +197,7 @@ import { Migration20261104T094540CustomerAccountsDropLegacyRoleColumn } from '@e
 
 // ── customers ───────────────────────────────────────────────────────────────
 import { Migration20260611T140404CustomersCustomerAddressesInit } from '@endora-commerce/mod-customers/migrations';
+import { Migration20261105T180317CustomersAddressBookRetirement } from '@endora-commerce/mod-customers/migrations';
 
 // ── delivery_methods ────────────────────────────────────────────────────────
 import { Migration20260611T140354DeliveryMethodsShippingMethodsAdapterAndShipments } from '@endora-commerce/mod-delivery-methods/migrations';
@@ -594,6 +595,7 @@ export const MIGRATION_REGISTRY: readonly MigrationRegistryEntry[] = [
 
   // ── customers ───────────────────────────────────────────────────────────────
   migration('customers', Migration20260611T140404CustomersCustomerAddressesInit),
+  migration('customers', Migration20261105T180317CustomersAddressBookRetirement),
 
   // ── delivery_methods ────────────────────────────────────────────────────────
   migration('delivery_methods', Migration20260611T140354DeliveryMethodsShippingMethodsAdapterAndShipments),

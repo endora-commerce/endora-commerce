@@ -90,6 +90,16 @@ import type {
  * author of one claim is two answers waiting to disagree.
  */
 export const MINTED_ERROR_CODES: MintedErrorCodes = {
+  CUSTOMER_ADDRESS_BOOK_RETIRED: {
+    to: 'customers',
+    reason:
+      'Minted by `specs/173-b2c-address-book-merge/` release 1 (OD-8): every former ' +
+      'personal-address-book endpoint answers `410 Gone` with it, for every caller. The noun is ' +
+      'the personal address book, which `customers` owns and retires; release 2 removes the ' +
+      'code with the stub routes. It replaced `CUSTOMER_ADDRESS_NOT_FOUND`, which left the ' +
+      'enumeration — and so the frozen capture, whose key set is the enumeration\'s — when ' +
+      'nothing raised it any more.',
+  },
   ADMIN_USER_AVATAR_NOT_FOUND: {
     to: 'admin_users',
     reason:
@@ -1727,16 +1737,6 @@ export const REHOMED_ERROR_CODES: RehomedErrorCodes = {
       "host row's values to this module's validation seam and re-answers the failures it gets " +
       'back. The judgement, the rules and the definitions the rules come from are all here ' +
       '(D-121 T1; `d129-sweep.md` §2.3 flags it by name).',
-  },
-  CUSTOMER_ADDRESS_NOT_FOUND: {
-    from: '_i18n',
-    to: 'customers',
-    tier: 'T1',
-    reason:
-      'The prefix is `CUSTOMER_` and the noun is not the customer: it is a `CustomerAddress`, ' +
-      'whose entity this module owns. D-186 §1 settles the split — `customer_accounts` owns ' +
-      'the customer record, `customers` owns the address — so the four `CUSTOMER_*` record ' +
-      'codes go elsewhere and this one comes here, on the same rule that separates them.',
   },
   REGISTRATION_REQUIRES_ORGANIZATION: {
     from: '_i18n',

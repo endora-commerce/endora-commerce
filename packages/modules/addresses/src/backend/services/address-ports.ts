@@ -95,6 +95,7 @@ export function createAddressServicePort(getService: () => AddressService): Addr
     },
     deleteAddress: (organizationId, addressId) =>
       getService().deleteAddress(organizationId, addressId),
+    anonymizeForOrganization: (organizationId) => getService().anonymizeForOrganization(organizationId),
   };
 }
 

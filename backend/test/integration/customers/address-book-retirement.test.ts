@@ -175,7 +175,7 @@ describe('AddressBookRetirementService', () => {
     const homeAgain = await personalRow(anna, {
       recipientName: '  anna   NOWAK ',
       street: 'UL. DŁUGA 5',
-      postalCode: '80 001',
+      postalCode: ' 80-001 ',
       phone: '+48 (500) 600-700',
     });
     const billing = await personalRow(anna, { kind: 'billing', street: 'ul. Krótka 2', phone: null });

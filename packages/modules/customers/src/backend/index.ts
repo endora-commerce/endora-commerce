@@ -1,5 +1,6 @@
 import type { EntityManager } from '@mikro-orm/postgresql';
 import type { FastifyRequest } from 'fastify';
+import type { Redis } from 'ioredis';
 import { z } from 'zod';
 import type { AuditPort } from '@endora-commerce/platform/kernel';
 import { ERROR_CODES } from '@endora-commerce/contracts';
@@ -7,6 +8,7 @@ import { HttpError } from '@endora-commerce/platform/http';
 import type {
   Actor,
   AddressReadPort,
+  AddressServicePort,
   AdminI18nTranslatePort,
   AdminSearchProviderRegistryPort,
   AdminRolePort,
@@ -18,7 +20,6 @@ import type {
   CustomerAccountAdminSearchPort,
   CustomerAccountLifecycleWritePort,
   CustomerAccountReadPort,
-  CustomerAddressReadPort,
   CustomerAuthPort,
   CustomerGroupReadPort,
   CustomerPasswordResetPort,
@@ -40,7 +41,6 @@ import {
   searchCustomersForAdmin,
   type CustomerAdminSearchProviderDeps,
 } from './admin-search-provider.js';
-import { CustomerAddressReadService } from './services/customer-address-read-port.js';
 import type { ModuleContext } from '@endora-commerce/platform/kernel';
 import { lazyPort } from '@endora-commerce/platform/kernel';
 import type { RequireAdminFactory } from '@endora-commerce/platform/kernel';
@@ -48,6 +48,7 @@ import type { SalesChannelResolutionPort } from '@endora-commerce/platform/kerne
 import type { SettingsReadPort } from '@endora-commerce/platform/kernel';
 import { CUSTOMERS_SETTING_CODES } from '../manifest.js';
 import { customersModule, type CustomersModuleOptions } from './plugin.js';
+import { startAddressBookRetirement } from './workers/address-book-retirement-worker.js';
 import { CustomerAddress } from './entities/customer-address.entity.js';
 
 /**
@@ -117,6 +118,17 @@ export interface CustomersCradle {
    * harness does.
    */
   readonly customerModerationActorResolver: CustomersModuleOptions['resolveModerationActor'];
+  /**
+   * Whether this process runs queue consumers (Principle X) — the platform's
+   * one module-agnostic answer, `false` in the test kit.
+   */
+  readonly processRunsWorkers: boolean;
+  /**
+   * The connection a module may build a BullMQ queue on; `undefined` is a
+   * composition that wants no queues, and the address-book retirement job's
+   * consumer is then not built.
+   */
+  readonly moduleQueueRedis: Redis | undefined;
   readonly customers: ReturnType<typeof customersModule>;
 }
 
@@ -237,21 +249,9 @@ export function registerModule(ctx: ModuleContext): void {
     }
   };
 
-  /**
-   * Feature 075, Phase P — the customer's own saved addresses.
-   *
-   * `quick_order` reads one when it fills in a buyer's one-click defaults. The
-   * table is distinct from `addresses`' on purpose and the port keeps them
-   * distinct: this one hangs off a customer account, that one off an
-   * organisation, and a B2C buyer keeps addresses that are theirs rather than
-   * their personal organisation's.
-   */
-  ctx.di.providePort<CustomerAddressReadPort>(
-    'customerAddressReadPort',
-    ctx
-      .asFunction(({ emFactory }: CustomersCradle) => new CustomerAddressReadService(emFactory))
-      .singleton(),
-  );
+  // `specs/173-b2c-address-book-merge/` release 1 removed
+  // `customerAddressReadPort`: the personal address book is retired, and its
+  // one consumer, `quick_order`, reads the Organization book only (#769).
 
   ctx.di.register({
     customers: ctx
@@ -313,9 +313,12 @@ export function registerModule(ctx: ModuleContext): void {
             organizationRoleReadPort: lazyPort<OrganizationRoleReadPort>(ctx, 'organizationRoleReadPort'),
             // `specs/170-organization-roles/` WP-03 — the self-service profile's permissions (FR-056).
             organizationPermissionPort: lazyPort<OrganizationPermissionPort>(ctx, 'organizationPermissionPort'),
-            // `addresses`' read: the org-shared book a customer may pick a
-            // delivery address from, which this module used to query directly.
+            // `addresses`' read: the customer's Organization book, every
+            // customer's one address book (`specs/173-b2c-address-book-merge/`).
             addressReadPort: lazyPort<AddressReadPort>(ctx, 'addressReadPort'),
+            // …and its write: the release-1 retirement job moves B2C rows
+            // through it, and the retention sweep anonymizes with it (OD-7).
+            addressServicePort: lazyPort<AddressServicePort>(ctx, 'addressServicePort'),
             customFieldValues: lazyPort<CustomFieldValuePort>(ctx, 'customFieldValueService'),
             rfqService: lazyPort<RfqCustomerPort>(ctx, 'rfqService'),
             // Issue #108 — `organizations`' scope, not a private copy of its
@@ -394,6 +397,24 @@ export function registerModule(ctx: ModuleContext): void {
 
   ctx.routes(async (app) => {
     await cradle().customers.plugin(app);
+
+    // `specs/173-b2c-address-book-merge/` release 1 — the one-time job that
+    // retires the personal address book (plan R-1). Attached here, where
+    // `app.log` exists and a `BACKEND_ROLE=worker` process reaches it, and
+    // through `ctx.worker` — `defineModuleWorker('customers', …)` — so it runs
+    // only while this module is present. Built only where the host says this
+    // process consumes queues and offers a connection; the shared test server
+    // says neither and drives the service directly.
+    await startAddressBookRetirement({
+      processRunsWorkers: cradle().processRunsWorkers,
+      moduleQueueRedis: cradle().moduleQueueRedis,
+      retirement: cradle().customers.handle().addressBookRetirement,
+      log: ctx.log,
+      attach: (worker) => ctx.worker(worker, { logger: app.log }),
+      onClose: (close) => {
+        app.addHook('onClose', close);
+      },
+    });
   });
 
   /**

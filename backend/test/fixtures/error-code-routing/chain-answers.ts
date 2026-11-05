@@ -182,7 +182,6 @@ export const CHAIN_ROUTING_ANSWERS: Readonly<Record<string, string>> = {
   CREDIT_LIMIT_NOT_GRANTED: 'core',
   CURRENCY_MISMATCH: 'core',
   CURRENT_PASSWORD_INVALID: 'core',
-  CUSTOMER_ADDRESS_NOT_FOUND: 'core',
   CUSTOMER_ALREADY_DELETED: 'core',
   CUSTOMER_NOT_DELETED: 'core',
   CUSTOMER_NOT_FOUND: 'core',

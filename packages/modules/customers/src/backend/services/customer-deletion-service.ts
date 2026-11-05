@@ -1,5 +1,6 @@
 import {
   ERROR_CODES,
+  type AddressServicePort,
   type CustomerAccountLifecycleWritePort,
   type CustomerAccountReadPort,
   type CustomerAccountRecord,
@@ -42,6 +43,11 @@ export class CustomerDeletionService {
      * by role and for company Organizations only (owner ruling PR-3).
      */
     private readonly depletion: OrganizationDepletionGuard,
+    /**
+     * `addresses`' write port (`specs/173-b2c-address-book-merge/` OD-7): the
+     * scrubbed personal Organization's saved addresses go with it.
+     */
+    private readonly addresses: Pick<AddressServicePort, 'anonymizeForOrganization'>,
   ) {}
 
   async softDelete(
@@ -96,7 +102,11 @@ export class CustomerDeletionService {
       // cascades: the owner renames it, blanks its address and soft-deletes it.
       // Company (multi-member) orgs are never touched, and the owner decides
       // that — this sweep only says which customer it just scrubbed.
-      await this.personalOrganizations.anonymizeIfOrphaned(customer.id);
+      const organization = await this.personalOrganizations.anonymizeIfOrphaned(customer.id);
+      // `specs/173-b2c-address-book-merge/` OD-7 — and its saved addresses,
+      // which are the customer's one address book, are cleared and blanked.
+      // Order snapshots are copies on `orders`' rows and stay as they are.
+      if (organization) await this.addresses.anonymizeForOrganization(organization.id);
     }
     return due.length;
   }

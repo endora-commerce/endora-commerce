@@ -132,7 +132,8 @@ export const manifest = defineModuleManifest({
    * lifecycle logic and the admin and storefront surfaces on top of it — and the
    * ruling splits the family by noun: the customer **record** is this module's,
    * `CustomerAddress` is `customers`', which is why `CUSTOMER_ADDRESS_NOT_FOUND`
-   * went there in MR 3 and these four come here.
+   * went there in MR 3 and these four come here. (That code has since gone with
+   * the personal address book, `specs/173-b2c-address-book-merge/` release 1.)
    *
    * **Two of the four are codes `customers` raises and this module owns**, and
    * that is the shape a reviewer will stop on. `CUSTOMER_NOT_FOUND` is raised

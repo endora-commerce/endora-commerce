@@ -3,7 +3,7 @@ import type { FastifyInstance } from 'fastify';
 import type { EntityManager } from '@mikro-orm/postgresql';
 import type { AuditPort } from '@endora-commerce/platform/kernel';
 import { CustomerRegistrationService } from './services/customer-registration-service.js';
-import { CustomerAddressService } from './services/customer-address-service.js';
+import { AddressBookRetirementService } from './services/address-book-retirement-service.js';
 import { CustomerDefaultsService } from './services/customer-defaults-service.js';
 import {
   CustomerAuthorityService,
@@ -18,6 +18,7 @@ import { OrganizationDepletionGuard } from './services/organization-depletion-gu
 import { AnonymizationSweepWorker } from './workers/anonymization-sweep-worker.js';
 import type {
   AddressReadPort,
+  AddressServicePort,
   AuthSessionPort,
   AuthSessionReadPort,
   CartQueryPort,
@@ -135,8 +136,17 @@ export interface CustomersModuleOptions {
   organizationRoleReadPort: Pick<OrganizationRoleReadPort, 'predefinedRoleId' | 'roleRef'>;
   /** `organizations`' answer to "what may this member do" — the self-service profile's permissions (FR-056). */
   organizationPermissionPort: Pick<OrganizationPermissionPort, 'effective'>;
-  /** `addresses`' published read: the org-shared book a customer may pick from. */
+  /**
+   * `addresses`' published read: the customer's Organization book — every
+   * customer's one address book since `specs/173-b2c-address-book-merge/`.
+   */
   addressReadPort: AddressReadPort;
+  /**
+   * `addresses`' published write (`specs/173-b2c-address-book-merge/`): the
+   * retirement job moves B2C personal-book rows through it, and the retention
+   * sweep anonymizes a scrubbed personal Organization's addresses with it.
+   */
+  addressServicePort: AddressServicePort;
   /**
    * Which organizations the acting staff member may see —
    * `organizations`' `organizationSalesRepScopePort` (issue #108).
@@ -212,6 +222,8 @@ export interface CustomersModuleOptions {
 export interface CustomersModuleHandle {
   registrationService: CustomerRegistrationService;
   anonymizationSweepWorker: AnonymizationSweepWorker;
+  /** The release-1 personal-address-book retirement (`specs/173-b2c-address-book-merge/`). */
+  addressBookRetirement: AddressBookRetirementService;
   /**
    * Exposed so the sales-rep scope this module *uses* can be asserted (issue
    * #108). The defect it closes was invisible to `tsc` and to every route test,
@@ -231,16 +243,16 @@ export function customersModule(options: CustomersModuleOptions): {
     resolveAllowRegistrationWithoutOrganization:
       options.resolveAllowRegistrationWithoutOrganization,
   });
-  const customerAddressService = new CustomerAddressService(
-    options.emFactory,
-    options.addressReadPort,
-    options.customerAccountReadPort,
-    options.auditLogService,
-  );
+  const addressBookRetirement = new AddressBookRetirementService({
+    emFactory: options.emFactory,
+    accounts: options.customerAccountReadPort,
+    organizations: options.organizationDetailsPort,
+    addresses: options.addressServicePort,
+    auditLog: options.auditLogService,
+  });
   const customerDefaultsService = new CustomerDefaultsService(
-    options.emFactory,
     options.defaultPreferencePort,
-    customerAddressService,
+    options.addressReadPort,
   );
   const authorityService = new CustomerAuthorityService(options.salesRepVisibility);
   // `specs/170-organization-roles/` WP-03 — the last-administrator question the
@@ -285,6 +297,7 @@ export function customersModule(options: CustomersModuleOptions): {
         options.sessionService.destroyAllForCustomer(customerAccountId),
     },
     depletionGuard,
+    options.addressServicePort,
   );
   const presenceService = new CustomerPresenceService(
     {
@@ -312,7 +325,6 @@ export function customersModule(options: CustomersModuleOptions): {
       customerAuthService,
       orderList: options.orderList,
       rfqService: options.rfqService,
-      customerAddressService,
       customerDefaultsService,
     });
     await registerCustomersAdminRoutes(app, {
@@ -324,7 +336,8 @@ export function customersModule(options: CustomersModuleOptions): {
       moderationService,
       queryService,
       orgAssignmentService,
-      addressService: customerAddressService,
+      organizationAddresses: options.addressReadPort,
+      addressBookRetirement,
       cartQueryService: options.cartQueryPort,
       orderList: options.orderList,
       rfqService: options.rfqService,
@@ -343,6 +356,6 @@ export function customersModule(options: CustomersModuleOptions): {
 
   return {
     plugin,
-    handle: () => ({ registrationService, anonymizationSweepWorker, authorityService }),
+    handle: () => ({ registrationService, anonymizationSweepWorker, addressBookRetirement, authorityService }),
   };
 }
