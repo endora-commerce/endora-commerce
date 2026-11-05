@@ -3,7 +3,6 @@ import type {
   DeleteOrganizationRoleRequest,
   UpdateOrganizationRoleRequest,
 } from '@endora-commerce/contracts';
-import { StorefrontApiError } from '../api/client';
 import type { MessageKey } from '../i18n/messages';
 
 /**
@@ -42,7 +41,8 @@ const ERROR_KEYS = {
 
 export type RoleErrorCode = keyof typeof ERROR_KEYS;
 
-function isKnown(code: string): code is RoleErrorCode {
+/** Whether `code` is one the role pages can name. */
+export function isRoleErrorCode(code: string): code is RoleErrorCode {
   return Object.prototype.hasOwnProperty.call(ERROR_KEYS, code);
 }
 
@@ -55,15 +55,10 @@ export interface RoleFormState {
   readonly error: RoleErrorCode | null;
 }
 
-/** The code a failed role write reports: the API's own when the page can name it. */
-export function roleFailureCode(err: unknown): RoleErrorCode {
-  return err instanceof StorefrontApiError && isKnown(err.code) ? err.code : FAILED;
-}
-
 /** The sentence for `?error=<code>`, or `null` when there is no error parameter. */
 export function roleErrorKey(code: string | undefined): MessageKey | null {
   if (code === undefined || code === '') return null;
-  return ERROR_KEYS[isKnown(code) ? code : FAILED];
+  return ERROR_KEYS[isRoleErrorCode(code) ? code : FAILED];
 }
 
 /** Whether `?error=<code>` is about the name field, which then carries it (`aria-describedby`). */

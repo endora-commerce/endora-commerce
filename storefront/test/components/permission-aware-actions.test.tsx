@@ -52,7 +52,7 @@ vi.mock('../../lib/api/account', () => ({
   }),
 }));
 vi.mock('../../lib/server-context', () => ({
-  getServerContext: async () => ({ locale: 'en-US', ctx: { salesChannelCode: 'web' }, modules: [] }),
+  getServerContext: async () => ({ locale: 'en-US', ctx: { salesChannelCode: 'web' }, modules: { isPresent: () => true, presentIds: [], absentIds: [] } }),
 }));
 vi.mock('next/navigation', () => ({
   redirect: (to: string) => {
