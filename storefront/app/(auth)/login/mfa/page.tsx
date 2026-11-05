@@ -10,7 +10,7 @@ import { MfaCodeForm } from '../../../../components/MfaCodeForm';
 import { getServerContext } from '../../../../lib/server-context';
 import {
   CHANNEL_NOT_PERMITTED_ERROR,
-  signInErrorMessage,
+  MFA_STEP_ERRORS,
   signInErrorParam,
 } from '../../../../lib/auth/sign-in-errors';
 import type { Metadata } from 'next';
@@ -43,7 +43,8 @@ export default async function MfaPage({
   }
 
   const { locale } = await getServerContext();
-  const error = signInErrorMessage(params.error, locale);
+  // Issue #745 — `?error=` is a code; one this step does not know reads as its own failure.
+  const error = params.error ? tForLocale(locale)(MFA_STEP_ERRORS.errorKey(params.error)!) : undefined;
 
   return (
     <>
@@ -63,13 +64,11 @@ async function verifyAction(formData: FormData): Promise<void> {
     return await localeRedirect(`/login?next=${encodeURIComponent(next)}`);
   }
 
-  const t = tForLocale((await getServerContext()).locale);
-
   let result;
   try {
     result = await verifyCustomerMfa({ challengeId, code });
   } catch (err) {
-    const message = signInErrorParam(err, t('auth.mfa.verifyFailed'));
+    const message = signInErrorParam(err, 'MFA_VERIFY_FAILED');
     if (message === CHANNEL_NOT_PERMITTED_ERROR) {
       // `specs/154-sales-channel-access/` — the account may not use this store.
       // Another code would not change that, so the challenge is dropped and the
@@ -77,11 +76,11 @@ async function verifyAction(formData: FormData): Promise<void> {
       await clearMfaChallengeCookie();
       return await localeRedirect(`/login?error=${message}&next=${encodeURIComponent(next)}`);
     }
-    return await localeRedirect(`/login/mfa?error=${encodeURIComponent(message)}&next=${encodeURIComponent(next)}`);
+    return await localeRedirect(`/login/mfa?error=${message}&next=${encodeURIComponent(next)}`);
   }
   if (!result.sessionCookieValue) {
     return await localeRedirect(
-      `/login/mfa?error=${encodeURIComponent(t('auth.mfa.verifyFailed'))}&next=${encodeURIComponent(next)}`,
+      `/login/mfa?error=MFA_VERIFY_FAILED&next=${encodeURIComponent(next)}`,
     );
   }
   await setSessionCookie(result.sessionCookieValue);

@@ -38,6 +38,7 @@ import { getServerContext } from '../../../lib/server-context';
 import { formatMoney } from '../../../lib/i18n/money';
 import { OrganizationModerationBanner } from '../../../components/OrganizationModerationBanner';
 import { StorefrontApiError } from '../../../lib/api/client';
+import { CHECKOUT_ERRORS } from '../../../lib/commerce-errors';
 import { getMe } from '../../../lib/api/account';
 import { BeginCheckoutTracker } from '../../../components/analytics/EcommerceTrackers';
 import {
@@ -70,7 +71,12 @@ export const metadata: Metadata = { robots: { index: false, follow: false } };
 export default async function CheckoutPage({
   searchParams,
 }: {
-  searchParams: Promise<{ error?: string; couponError?: string }>;
+  /**
+   * Issue #745 — `couponError` is the refusal's reason code, worded here. No `error`: no
+   * checkout action redirects here with one (placement refusals go to `/checkout/failure`), so
+   * whatever a link puts there is not read.
+   */
+  searchParams: Promise<{ couponError?: string }>;
 }): Promise<ReactNode> {
   const session = await getSessionCookie();
   if (!session) return await localeRedirect('/login?next=/checkout');
@@ -248,7 +254,6 @@ export default async function CheckoutPage({
         message={me?.organization?.moderationMessage ?? null}
         locale={locale}
       />
-      {params.error ? <p className="b2b-auth__error">{params.error}</p> : null}
       <QuoteValidityNotice id={QUOTE_ENDED_NOTICE_ID} refusal={quoteCommitmentRefusal} locale={locale} />
       <BelowMinimumSummary id={BELOW_MINIMUM_SUMMARY_ID} rows={belowMinimumRows} locale={locale} />
 
@@ -281,7 +286,7 @@ export default async function CheckoutPage({
 
         <CouponField
           applied={cart.discount ?? null}
-          error={params.couponError ?? null}
+          error={params.couponError ? couponRejectionMessage(params.couponError, locale) : null}
           applyAction={applyCouponAction}
           clearAction={clearCouponAction}
           locale={locale}
@@ -528,7 +533,7 @@ async function submitAction(formData: FormData): Promise<void> {
   const session = await getSessionCookie();
   if (!session) return await localeRedirect('/login?next=/checkout');
 
-  const { ctx, locale } = await getServerContext();
+  const { ctx } = await getServerContext();
   let order;
   try {
     // The action's own request carries the channel the buyer is shopping, and
@@ -538,13 +543,12 @@ async function submitAction(formData: FormData): Promise<void> {
     // Feature 036 (US4) — placement failed: the transaction rolled back, so the
     // cart is intact. Send the buyer to the Failure Page with a reason-specific
     // message and a "Try again" button (rather than re-rendering checkout).
-    // `detail` is the backend's sentence in the buyer's language; `message`
-    // carries the error code in front of it for logs. A refusal for changed
-    // cart prices (`CART_PRICE_CHANGED`) reads as that sentence, and the cart
-    // the buyer goes back to already holds the current prices.
-    const message =
-      err instanceof StorefrontApiError ? err.detail : tForLocale(locale)('commerce.checkout.placeFailed');
-    return await localeRedirect(`/checkout/failure?reason=${encodeURIComponent(message)}`);
+    // Issue #745 — the reason travels as a code, never the backend's sentence:
+    // the failure page words it, and reads a code it does not know as its
+    // generic failure. A refusal for changed cart prices (`CART_PRICE_CHANGED`)
+    // says so, and the cart the buyer goes back to already holds the current
+    // prices.
+    return await localeRedirect(`/checkout/failure?reason=${CHECKOUT_ERRORS.failureCode(err, 'PLACE_FAILED')}`);
   }
   // Feature 036 — a gateway method returns a redirect next-action; send the
   // buyer to the gateway. Otherwise land on the Success Page, which shows the
@@ -576,10 +580,9 @@ async function applyCouponAction(formData: FormData): Promise<void> {
   if (!code) return await localeRedirect('/checkout');
   const result = await applyCartCoupon(jar, code);
   if (result.outcome === 'rejected') {
-    const { locale } = await getServerContext();
-    return await localeRedirect(
-      `/checkout?couponError=${encodeURIComponent(couponRejectionMessage(result.reason, locale))}`,
-    );
+    // Issue #745 — the reason code travels; the page words it (`couponRejectionMessage`).
+    const reason = /^[a-z_]{1,64}$/.test(result.reason) ? result.reason : 'generic';
+    return await localeRedirect(`/checkout?couponError=${reason}`);
   }
   return await localeRedirect('/checkout');
 }

@@ -7,13 +7,13 @@ import {
 } from '../../../lib/api/shopping-lists';
 import { getSessionCookie } from '../../../lib/session';
 import { getCommerceAbilitiesAction } from '../../../lib/actions/cart';
-import { StorefrontApiError } from '../../../lib/api/client';
 import { DeleteShoppingListButton } from '../../../components/shopping-lists/DeleteShoppingListButton';
 import type { Metadata } from 'next';
 import { localeRedirect } from '../../../lib/i18n/navigation';
+import { SHOPPING_LIST_ERRORS } from '../../../lib/account/shopping-list-errors';
 import { LocalizedLink } from '../../../lib/i18n/localized-link';
 import { getServerContext } from '../../../lib/server-context';
-import { tForLocale, type MessageKey } from '../../../lib/i18n/messages';
+import { tForLocale } from '../../../lib/i18n/messages';
 import { shoppingListDisplayName } from '../../../lib/shopping-list-name';
 
 /**
@@ -50,7 +50,8 @@ export default async function ShoppingListsPage({
     <>
       <h2>{t('account.shoppingLists.heading')}</h2>
       <p className="b2b-auth__hint">{t('account.shoppingLists.intro')}</p>
-      {params.error ? <p className="b2b-auth__error">{params.error}</p> : null}
+      {/* Issue #745 — `?error=` is a code; one this page does not know reads as its generic failure. */}
+      {params.error ? <p className="b2b-auth__error">{t(SHOPPING_LIST_ERRORS.errorKey(params.error)!)}</p> : null}
       {!canEdit ? (
         <p className="b2b-auth__hint" role="note">
           {t('commerce.shoppingLists.readOnlyNote')}
@@ -137,28 +138,20 @@ export default async function ShoppingListsPage({
   );
 }
 
-/** A server action's own refusal, in the page's language. */
-async function failure(key: MessageKey): Promise<string> {
-  const { locale } = await getServerContext();
-  return tForLocale(locale)(key);
-}
-
 async function createAction(formData: FormData): Promise<void> {
   'use server';
   const session = await getSessionCookie();
   if (!session) return await localeRedirect('/login');
   const name = ((formData.get('name') as string) ?? '').trim();
   if (!name) {
-    const message = await failure('account.shoppingLists.nameRequired');
-    return await localeRedirect(`/shopping-lists?error=${encodeURIComponent(message)}`);
+    return await localeRedirect('/shopping-lists?error=NAME_REQUIRED');
   }
   let id: string;
   try {
     const created = await createShoppingList(session, name);
     id = created.id;
   } catch (err) {
-    const message = err instanceof StorefrontApiError ? err.detail : await failure('account.shoppingLists.createFailed');
-    return await localeRedirect(`/shopping-lists?error=${encodeURIComponent(message)}`);
+    return await localeRedirect(`/shopping-lists?error=${SHOPPING_LIST_ERRORS.failureCode(err, 'CREATE_FAILED')}`);
   }
   return await localeRedirect(`/shopping-lists/${id}`);
 }
@@ -171,8 +164,7 @@ async function deleteAction(formData: FormData): Promise<void> {
   try {
     await deleteShoppingList(session, id);
   } catch (err) {
-    const message = err instanceof StorefrontApiError ? err.detail : await failure('account.shoppingLists.deleteFailed');
-    return await localeRedirect(`/shopping-lists?error=${encodeURIComponent(message)}`);
+    return await localeRedirect(`/shopping-lists?error=${SHOPPING_LIST_ERRORS.failureCode(err, 'DELETE_FAILED')}`);
   }
   return await localeRedirect(`/shopping-lists`);
 }
@@ -185,9 +177,7 @@ async function setDefaultAction(formData: FormData): Promise<void> {
   try {
     await setDefaultShoppingList(session, id);
   } catch (err) {
-    const message =
-      err instanceof StorefrontApiError ? err.detail : await failure('account.shoppingLists.setDefaultFailed');
-    return await localeRedirect(`/shopping-lists?error=${encodeURIComponent(message)}`);
+    return await localeRedirect(`/shopping-lists?error=${SHOPPING_LIST_ERRORS.failureCode(err, 'SET_DEFAULT_FAILED')}`);
   }
   return await localeRedirect('/shopping-lists');
 }

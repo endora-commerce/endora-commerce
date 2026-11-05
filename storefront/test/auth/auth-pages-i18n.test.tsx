@@ -156,15 +156,16 @@ inBoth('the business registration form', () => render(RegisterPage), {
 
 inBoth(
   'the registration acknowledgement',
+  // Issue #745 — no address: none travels in the URL, so the page has none to print.
   () => render(RegisterPage, { status: 'pending', email: 'buyer@example.com' }),
   {
     'en-US': [
       'Almost there',
-      'We sent a verification email to <strong>buyer@example.com</strong>. Click the link',
+      'We sent a verification email to the address you entered. Click the link',
     ],
     'pl-PL': [
       'Jeszcze tylko jeden krok',
-      'Wysłaliśmy wiadomość weryfikacyjną na adres <strong>buyer@example.com</strong>. Kliknij link',
+      'Wysłaliśmy wiadomość weryfikacyjną na podany adres. Kliknij link',
     ],
   },
 );
@@ -201,10 +202,10 @@ inBoth(
   'the password-reset acknowledgement',
   () => render(ResetRequestPage, { status: 'sent', email: 'buyer@example.com' }),
   {
-    'en-US': ['Check your inbox', 'If <strong>buyer@example.com</strong> matches an account', 'The link expires in 24 hours.'],
+    'en-US': ['Check your inbox', 'If the address you entered matches an account', 'The link expires in 24 hours.'],
     'pl-PL': [
       'Sprawdź skrzynkę odbiorczą',
-      'Jeśli adres <strong>buyer@example.com</strong> należy do konta',
+      'Jeśli podany adres należy do konta',
       'Link wygasa po 24 godzinach.',
     ],
   },

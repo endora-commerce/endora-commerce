@@ -22,7 +22,7 @@ import {
   reportMoreText,
   shoppingListSkipLabel,
 } from '../../../../lib/batchReport';
-import { tForLocale, type MessageKey } from '../../../../lib/i18n/messages';
+import { tForLocale } from '../../../../lib/i18n/messages';
 import { shoppingListDisplayName } from '../../../../lib/shopping-list-name';
 import { format } from '../../../../lib/i18n/format';
 import { formatCount } from '../../../../lib/orderMinimum';
@@ -30,6 +30,7 @@ import { pluralKey, richText } from '../../../../lib/account/labels';
 import { LIST_QUANTITY_MAX, parseListQuantity } from '../../../../lib/shoppingListQuantity';
 import type { Metadata } from 'next';
 import { localeRedirect } from '../../../../lib/i18n/navigation';
+import { SHOPPING_LIST_ERRORS } from '../../../../lib/account/shopping-list-errors';
 import { LocalizedLink } from '../../../../lib/i18n/localized-link';
 
 /**
@@ -135,7 +136,8 @@ export default async function ShoppingListDetailPage({
       <p>
         <LocalizedLink href="/shopping-lists">{t('account.shoppingList.backToLists')}</LocalizedLink>
       </p>
-      {sp.error ? <p className="b2b-auth__error">{sp.error}</p> : null}
+      {/* Issue #745 — `?error=` is a code; one this page does not know reads as its generic failure. */}
+      {sp.error ? <p className="b2b-auth__error">{t(SHOPPING_LIST_ERRORS.errorKey(sp.error)!)}</p> : null}
       {sp.cartAdded ? (
         <p className="b2b-auth__success">
           {counted('account.shoppingList.cartAdded', sp.cartAdded)}
@@ -401,12 +403,6 @@ function RemoveItemForm({ itemId, label }: { itemId: string; label: string }): R
   );
 }
 
-/** A server action's own refusal, in the page's language. */
-async function failure(key: MessageKey): Promise<string> {
-  const { locale } = await getServerContext();
-  return tForLocale(locale)(key);
-}
-
 async function renameAction(formData: FormData): Promise<void> {
   'use server';
   const session = await getSessionCookie();
@@ -416,8 +412,7 @@ async function renameAction(formData: FormData): Promise<void> {
   try {
     await renameShoppingList(session, listId, name);
   } catch (err) {
-    const message = err instanceof StorefrontApiError ? err.detail : await failure('account.shoppingList.renameFailed');
-    return await localeRedirect(`/shopping-lists/${listId}?error=${encodeURIComponent(message)}`);
+    return await localeRedirect(`/shopping-lists/${listId}?error=${SHOPPING_LIST_ERRORS.failureCode(err, 'RENAME_FAILED')}`);
   }
   return await localeRedirect(`/shopping-lists/${listId}`);
 }
@@ -435,8 +430,7 @@ async function updateQtyAction(formData: FormData): Promise<void> {
   try {
     await updateShoppingListItem(session, listId, itemId, { quantity });
   } catch (err) {
-    const message = err instanceof StorefrontApiError ? err.detail : await failure('account.shoppingList.updateFailed');
-    return await localeRedirect(`/shopping-lists/${listId}?error=${encodeURIComponent(message)}`);
+    return await localeRedirect(`/shopping-lists/${listId}?error=${SHOPPING_LIST_ERRORS.failureCode(err, 'UPDATE_FAILED')}`);
   }
   return await localeRedirect(`/shopping-lists/${listId}`);
 }
@@ -450,8 +444,7 @@ async function removeAction(formData: FormData): Promise<void> {
   try {
     await removeShoppingListItem(session, listId, itemId);
   } catch (err) {
-    const message = err instanceof StorefrontApiError ? err.detail : await failure('account.shoppingList.removeFailed');
-    return await localeRedirect(`/shopping-lists/${listId}?error=${encodeURIComponent(message)}`);
+    return await localeRedirect(`/shopping-lists/${listId}?error=${SHOPPING_LIST_ERRORS.failureCode(err, 'REMOVE_FAILED')}`);
   }
   return await localeRedirect(`/shopping-lists/${listId}`);
 }
@@ -464,8 +457,7 @@ async function clearListAction(formData: FormData): Promise<void> {
   try {
     await clearShoppingListItems(session, listId);
   } catch (err) {
-    const message = err instanceof StorefrontApiError ? err.detail : await failure('account.shoppingList.clearFailed');
-    return await localeRedirect(`/shopping-lists/${listId}?error=${encodeURIComponent(message)}`);
+    return await localeRedirect(`/shopping-lists/${listId}?error=${SHOPPING_LIST_ERRORS.failureCode(err, 'CLEAR_FAILED')}`);
   }
   return await localeRedirect(`/shopping-lists/${listId}`);
 }
@@ -483,8 +475,7 @@ async function convertAllToCartAction(formData: FormData): Promise<void> {
   try {
     result = await convertShoppingListToCart(session, listId);
   } catch (err) {
-    const message = err instanceof StorefrontApiError ? err.detail : await failure('account.shoppingList.convertFailed');
-    return await localeRedirect(`/shopping-lists/${listId}?error=${encodeURIComponent(message)}`);
+    return await localeRedirect(`/shopping-lists/${listId}?error=${SHOPPING_LIST_ERRORS.failureCode(err, 'CONVERT_FAILED')}`);
   }
   // Flush the cart route's Router Cache so the newly added lines show on the
   // next visit instead of a stale (empty) cached page.
@@ -499,15 +490,13 @@ async function convertSelectedToCartAction(formData: FormData): Promise<void> {
   const listId = (formData.get('listId') as string) ?? '';
   const itemIds = (formData.getAll('itemIds') as string[]).filter(Boolean);
   if (itemIds.length === 0) {
-    const message = await failure('account.shoppingList.selectAtLeastOne');
-    return await localeRedirect(`/shopping-lists/${listId}?error=${encodeURIComponent(message)}`);
+    return await localeRedirect(`/shopping-lists/${listId}?error=SELECT_AT_LEAST_ONE`);
   }
   let result: Awaited<ReturnType<typeof convertShoppingListToCart>>;
   try {
     result = await convertShoppingListToCart(session, listId, itemIds);
   } catch (err) {
-    const message = err instanceof StorefrontApiError ? err.detail : await failure('account.shoppingList.convertFailed');
-    return await localeRedirect(`/shopping-lists/${listId}?error=${encodeURIComponent(message)}`);
+    return await localeRedirect(`/shopping-lists/${listId}?error=${SHOPPING_LIST_ERRORS.failureCode(err, 'CONVERT_FAILED')}`);
   }
   revalidatePath('/cart');
   return await localeRedirect(cartConversionRedirect(listId, result));
@@ -522,8 +511,7 @@ async function convertAllToRfqAction(formData: FormData): Promise<void> {
   try {
     result = await convertShoppingListToRfq(session, listId);
   } catch (err) {
-    const message = err instanceof StorefrontApiError ? err.detail : await failure('account.shoppingList.convertFailed');
-    return await localeRedirect(`/shopping-lists/${listId}?error=${encodeURIComponent(message)}`);
+    return await localeRedirect(`/shopping-lists/${listId}?error=${SHOPPING_LIST_ERRORS.failureCode(err, 'CONVERT_FAILED')}`);
   }
   // Without this, Next's Router Cache keeps serving the previously cached
   // (often empty) quote-requests list, so the freshly created RFQ looks like
@@ -541,15 +529,13 @@ async function convertSelectedToRfqAction(formData: FormData): Promise<void> {
   const listId = (formData.get('listId') as string) ?? '';
   const itemIds = (formData.getAll('itemIds') as string[]).filter(Boolean);
   if (itemIds.length === 0) {
-    const message = await failure('account.shoppingList.selectAtLeastOne');
-    return await localeRedirect(`/shopping-lists/${listId}?error=${encodeURIComponent(message)}`);
+    return await localeRedirect(`/shopping-lists/${listId}?error=SELECT_AT_LEAST_ONE`);
   }
   let result: Awaited<ReturnType<typeof convertShoppingListToRfq>>;
   try {
     result = await convertShoppingListToRfq(session, listId, itemIds);
   } catch (err) {
-    const message = err instanceof StorefrontApiError ? err.detail : await failure('account.shoppingList.convertFailed');
-    return await localeRedirect(`/shopping-lists/${listId}?error=${encodeURIComponent(message)}`);
+    return await localeRedirect(`/shopping-lists/${listId}?error=${SHOPPING_LIST_ERRORS.failureCode(err, 'CONVERT_FAILED')}`);
   }
   revalidatePath('/quote-requests');
   return await localeRedirect(
