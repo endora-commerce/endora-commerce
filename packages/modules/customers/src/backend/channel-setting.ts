@@ -39,9 +39,14 @@ export async function readChannelSetting<T>(
   scope: ChannelSettingScope = 'system-default',
 ): Promise<T> {
   try {
-    const channelId =
-      (scope === 'request' ? deps.currentChannelId() : undefined) ??
-      (await deps.salesChannelResolutionPort.getSystemDefault()).id;
+    let channelId: string;
+    if (scope === 'request') {
+      const current = deps.currentChannelId();
+      if (!current) return fallback;
+      channelId = current;
+    } else {
+      channelId = (await deps.salesChannelResolutionPort.getSystemDefault()).id;
+    }
     return (await deps.settingsReadPort.get(code, channelId, schema)) as T;
   } catch {
     return fallback;

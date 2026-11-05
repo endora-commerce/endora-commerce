@@ -28,6 +28,11 @@ switched off by a special case.
   storefront's `/register-customer` page shows a notice with a link to the
   organization registration instead of the form, so a visitor does not fill
   it in only to be refused.
+- A first sign-in through an external identity provider (for example Google)
+  creates an account under the same setting, read for the sales channel the
+  sign-in was started on. Where the setting is off for that channel, no
+  account is created and the visitor is sent back to the sign-in page with a
+  prompt to create an account first.
 - A personal address book (billing/delivery), one default per kind, plus the
   ability to select the Organization's shared addresses (org-bound customers).
 - Default payment method, delivery method, and default addresses.

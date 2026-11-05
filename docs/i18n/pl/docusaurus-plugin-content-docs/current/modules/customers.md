@@ -25,6 +25,10 @@ zamiast być wyłączane jako przypadek szczególny.
   ustawienie jest wyłączone, strona `/register-customer` w sklepie zamiast formularza pokazuje
   komunikat z linkiem do rejestracji organizacji, więc odwiedzający nie wypełnia formularza, który
   zostałby odrzucony.
+- Pierwsze logowanie przez zewnętrznego dostawcę tożsamości (np. Google) zakłada konto według tego
+  samego ustawienia, odczytanego dla kanału sprzedaży, w którym logowanie rozpoczęto. Gdy w tym
+  kanale ustawienie jest wyłączone, konto nie powstaje, a odwiedzający wraca na stronę logowania z
+  prośbą o wcześniejsze założenie konta.
 - Prywatna książka adresowa (adresy do faktury i dostawy), jeden adres domyślny każdego rodzaju, oraz
   możliwość wyboru wspólnych adresów organizacji (dla klientów należących do organizacji firmowej).
 - Domyślna metoda płatności, metoda dostawy i domyślne adresy.
