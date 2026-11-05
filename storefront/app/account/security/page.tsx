@@ -9,7 +9,6 @@ import {
   unlinkMfaSocialIdentity,
 } from '../../../lib/api/mfa';
 import { SocialLinksPanel } from '../../../components/account/SocialLinksPanel';
-import { StorefrontApiError } from '../../../lib/api/client';
 import { getServerContext } from '../../../lib/server-context';
 import {
   clearMfaSetupCookie,
@@ -21,6 +20,7 @@ import {
 } from '../../../lib/session';
 import type { Metadata } from 'next';
 import { localeRedirect } from '../../../lib/i18n/navigation';
+import { SECURITY_ERRORS } from '../../../lib/auth/mfa-errors';
 import { tForLocale } from '../../../lib/i18n/messages';
 import { format } from '../../../lib/i18n/format';
 import { formatCount } from '../../../lib/orderMinimum';
@@ -65,7 +65,8 @@ export default async function SecurityPage({
   return (
     <div className="b2b-auth">
       <h1>{t('auth.security.heading')}</h1>
-      {params.error ? <div className="b2b-auth__error">{params.error}</div> : null}
+      {/* Issue #745 — `?error=` is a code; one this page does not know reads as its generic failure. */}
+      {params.error ? <div className="b2b-auth__error">{t(SECURITY_ERRORS.errorKey(params.error)!)}</div> : null}
 
       {recoveryFlash ? <RecoveryCodes codes={recoveryFlash} t={t} /> : null}
 
@@ -186,7 +187,7 @@ async function startAction(): Promise<void> {
     const { secret, otpauthUri } = await startMfaSetup(session);
     await setMfaSetupCookie({ secret, otpauthUri });
   } catch (err) {
-    return await localeRedirect(`/account/security?error=${encodeURIComponent(await errMsg(err))}`);
+    return await localeRedirect(`/account/security?error=${SECURITY_ERRORS.failureCode(err, 'FAILED')}`);
   }
   return await localeRedirect('/account/security?step=confirm');
 }
@@ -201,7 +202,7 @@ async function confirmAction(formData: FormData): Promise<void> {
     await clearMfaSetupCookie();
     await setMfaRecoveryFlash(recoveryCodes);
   } catch (err) {
-    return await localeRedirect(`/account/security?step=confirm&error=${encodeURIComponent(await errMsg(err))}`);
+    return await localeRedirect(`/account/security?step=confirm&error=${SECURITY_ERRORS.failureCode(err, 'FAILED')}`);
   }
   return await localeRedirect('/account/security');
 }
@@ -214,7 +215,7 @@ async function disableAction(formData: FormData): Promise<void> {
   try {
     await disableMfa(session, code);
   } catch (err) {
-    return await localeRedirect(`/account/security?error=${encodeURIComponent(await errMsg(err))}`);
+    return await localeRedirect(`/account/security?error=${SECURITY_ERRORS.failureCode(err, 'FAILED')}`);
   }
   return await localeRedirect('/account/security');
 }
@@ -228,7 +229,7 @@ async function regenerateAction(formData: FormData): Promise<void> {
     const { recoveryCodes } = await regenerateMfaRecoveryCodes(session, code);
     await setMfaRecoveryFlash(recoveryCodes);
   } catch (err) {
-    return await localeRedirect(`/account/security?error=${encodeURIComponent(await errMsg(err))}`);
+    return await localeRedirect(`/account/security?error=${SECURITY_ERRORS.failureCode(err, 'FAILED')}`);
   }
   return await localeRedirect('/account/security');
 }
@@ -243,13 +244,8 @@ async function unlinkSocialAction(formData: FormData): Promise<void> {
     await unlinkMfaSocialIdentity(session, provider);
   } catch (err) {
     // The refusal lands here too — the backend has the last word on whether an
-    // account may lose a link, and its sentence is already localized.
-    return await localeRedirect(`/account/security?error=${encodeURIComponent(await errMsg(err))}`);
+    // account may lose a link; its code travels and this page words it (issue #745).
+    return await localeRedirect(`/account/security?error=${SECURITY_ERRORS.failureCode(err, 'FAILED')}`);
   }
   return await localeRedirect('/account/security');
-}
-
-async function errMsg(err: unknown): Promise<string> {
-  if (err instanceof StorefrontApiError) return err.detail;
-  return tForLocale((await getServerContext()).locale)('auth.security.failed');
 }
