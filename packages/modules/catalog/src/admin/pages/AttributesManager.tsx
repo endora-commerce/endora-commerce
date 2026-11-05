@@ -687,7 +687,8 @@ function AttributeForm({ mode, attribute, onSubmit, onCancel }: AttributeFormPro
 
   const isContent = isContentType(valueType);
   // A capability ticked before Page Builder content was chosen is hidden, so it
-  // is not sent either; the server keeps the scope (language-scoped) itself.
+  // is not sent either; nor is `scopable` — a content attribute is never
+  // scopable (feature 173), its languages being its document's.
   const collect = (): AttributeFormValues => ({
     key,
     labelEn,

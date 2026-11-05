@@ -10,7 +10,14 @@ import { HttpError } from '@endora-commerce/platform/http';
  * value to a consumer of short scalar values is held off. Holding them off is
  * what keeps the attribute out of search, filters, comparison, promotions,
  * price lists, bulk edit, per-channel overrides and "Parametry" by
- * construction (research R-6, R-15). Both attribute Commands call this with the
+ * construction (research R-6, R-15).
+ *
+ * Feature 173 (`specs/173-product-editor-scope-switcher/`, FR-012) replaced the
+ * channel and language scope flags with one `scopable` flag, which means
+ * "has values at Channel and Channel × language". A content attribute's
+ * languages are its envelope's, not scoped values, so `scopable` is one more
+ * locked capability: it carries FR-040's per-channel refusal, and FR-004's
+ * "always language-scoped" is the envelope itself. Both attribute Commands call this with the
  * **effective** flags — on update, the stored flags with the patch applied — so
  * a PATCH that switches one flag on is judged against the stored type.
  *
@@ -31,28 +38,23 @@ export const CONTENT_ATTRIBUTE_LOCKED_FLAGS = [
   'massEditable',
   'isRequired',
   'isVisibleOnProductPage',
-  'channelScoped',
+  'scopable',
 ] as const;
 export type ContentAttributeLockedFlag = (typeof CONTENT_ATTRIBUTE_LOCKED_FLAGS)[number];
 
-export type ContentAttributeFlags = Partial<Record<ContentAttributeLockedFlag, boolean | undefined>> & {
-  languageScoped?: boolean | undefined;
-};
+export type ContentAttributeFlags = Partial<Record<ContentAttributeLockedFlag, boolean | undefined>>;
 
 const ISSUE = 'not available for Page Builder content';
 
 /**
- * Refuse every locked capability switched on and language scoping switched
- * off (FR-003, FR-004), one `details` entry per offending field. Answers the
- * language scoping to store: always `true`, which is also what an omitted
- * value resolves to on create.
+ * Refuse every locked capability switched on (FR-003, FR-040), one `details`
+ * entry per offending field.
  */
-export function assertContentAttributeShape(flags: ContentAttributeFlags): { languageScoped: true } {
+export function assertContentAttributeShape(flags: ContentAttributeFlags): void {
   const details: Array<{ path: string; issue: string }> = [];
   for (const flag of CONTENT_ATTRIBUTE_LOCKED_FLAGS) {
     if (flags[flag] === true) details.push({ path: flag, issue: ISSUE });
   }
-  if (flags.languageScoped === false) details.push({ path: 'languageScoped', issue: ISSUE });
   if (details.length > 0) {
     throw new HttpError(
       400,
@@ -61,7 +63,6 @@ export function assertContentAttributeShape(flags: ContentAttributeFlags): { lan
       details,
     );
   }
-  return { languageScoped: true };
 }
 
 /**

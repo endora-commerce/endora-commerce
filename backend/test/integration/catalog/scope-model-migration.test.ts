@@ -123,12 +123,16 @@ describe('catalog scope model migrations (173 T015)', () => {
     );
     return id;
   }
-  async function attribute(key: string, flags: { channel: boolean; language: boolean }): Promise<void> {
+  async function attribute(
+    key: string,
+    flags: { channel: boolean; language: boolean },
+    valueType = 'text',
+  ): Promise<void> {
     const definitionId = randomUUID();
     await em.execute(
       `insert into "custom_field_definitions" ("id", "entity_type", "key", "label_default", "value_type", "created_at", "updated_at")
-       values (?, 'product', ?, ?, 'text', now(), now())`,
-      [definitionId, key, key],
+       values (?, 'product', ?, ?, ?, now(), now())`,
+      [definitionId, key, key, valueType],
     );
     await em.execute(
       `insert into "product_attributes" ("id", "custom_field_definition_id", "channel_scoped", "language_scoped", "created_at", "updated_at")
@@ -297,6 +301,30 @@ describe('catalog scope model migrations (173 T015)', () => {
       /check constraint/,
     );
     expect(await indexExists('product_value_overrides_product_attr_idx')).toBe(true);
+  });
+
+  it('leaves a Page Builder content attribute, language-scoped by its own rule, not scopable (172 content attributes)', async () => {
+    // `specs/172-product-content-attributes/` stores a content attribute with
+    // `language_scoped = true` (its FR-004). Its languages are the content envelope's, never
+    // scoped values, so the one flag that replaces the pair is off for it (FR-040), and `down`
+    // gives the 172 flag back.
+    await downAll();
+    const key = `t015_guide_${randomUUID().slice(0, 6)}`;
+    await attribute(key, { channel: false, language: true }, 'page_builder');
+    await upAll();
+    const [after] = await rows<{ scopable: boolean }>(
+      `select pa."scopable" from "product_attributes" pa join "custom_field_definitions" d on d."id" = pa."custom_field_definition_id"
+        where d."key" = ?`,
+      [key],
+    );
+    expect(after).toEqual({ scopable: false });
+    await downAll();
+    const [restored] = await rows<{ channel_scoped: boolean; language_scoped: boolean }>(
+      `select pa."channel_scoped", pa."language_scoped" from "product_attributes" pa
+         join "custom_field_definitions" d on d."id" = pa."custom_field_definition_id" where d."key" = ?`,
+      [key],
+    );
+    expect(restored).toEqual({ channel_scoped: false, language_scoped: true });
   });
 
   it('empties the editor preferences and refuses a language without a channel (§10)', async () => {

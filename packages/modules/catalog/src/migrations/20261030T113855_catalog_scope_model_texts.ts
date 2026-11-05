@@ -16,7 +16,7 @@ import { Migration } from '@mikro-orm/migrations';
  *  3. convert `name` / `description` by add / update / not null / drop / rename — `ALTER … TYPE
  *     … USING` cannot hold the subquery — guarded by `data_type = 'jsonb'`;
  *  4. recreate `catalog_admin_name_key(text, text)`, the two generated columns and their indexes;
- *  5. `scopable` from the old flags, then drop them;
+ *  5. `scopable` from the old flags (never for a Page Builder content attribute), then drop them;
  *  6. wrap unwrapped override rows, then the CHECK;
  *  7. `scope_version`;
  *  8. empty the editor preferences, then their CHECK.
@@ -119,14 +119,18 @@ export class Migration20261030T113855CatalogScopeModelTexts extends Migration {
     this.addSql(`create index if not exists "products_admin_search_trgm"
       on "products" using gin ("admin_search_key" gin_trgm_ops);`);
 
-    // 5. One scope flag (R15).
+    // 5. One scope flag (R15). A Page Builder content attribute
+    // (`specs/172-product-content-attributes/`) is stored `language_scoped` by its own rule, its
+    // languages being its content envelope's and never scoped values: it is not scopable.
     this.addSql(`alter table "product_attributes" add column if not exists "scopable" boolean not null default false;`);
     this.addSql(`do $$
       begin
         if exists (select 1 from information_schema.columns
                     where table_schema = current_schema() and table_name = 'product_attributes'
                       and column_name = 'language_scoped') then
-          update product_attributes set scopable = channel_scoped or language_scoped;
+          update product_attributes pa set scopable = (pa.channel_scoped or pa.language_scoped)
+            and not exists (select 1 from custom_field_definitions d
+                             where d.id = pa.custom_field_definition_id and d.value_type = 'page_builder');
           alter table product_attributes drop column channel_scoped;
           alter table product_attributes drop column language_scoped;
         end if;
@@ -166,7 +170,9 @@ export class Migration20261030T113855CatalogScopeModelTexts extends Migration {
       begin
         if exists (select 1 from information_schema.columns
                     where table_schema = current_schema() and table_name = 'product_attributes' and column_name = 'scopable') then
-          update product_attributes set channel_scoped = scopable, language_scoped = scopable;
+          update product_attributes pa set channel_scoped = pa.scopable,
+            language_scoped = pa.scopable or exists (select 1 from custom_field_definitions d
+                                where d.id = pa.custom_field_definition_id and d.value_type = 'page_builder');
           alter table product_attributes drop column scopable;
         end if;
       end $$;`);

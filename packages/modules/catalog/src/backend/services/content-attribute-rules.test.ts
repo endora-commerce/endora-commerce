@@ -9,8 +9,14 @@ import {
 /**
  * Feature 172 (`specs/172-product-content-attributes/`, research R-6): a Page
  * Builder content attribute holds every capability that makes no sense for a
- * document off, is always language-scoped, and its type never moves to or from
- * `page_builder` (FR-003, FR-004, FR-005).
+ * document off, and its type never moves to or from `page_builder` (FR-003,
+ * FR-005).
+ *
+ * Feature 173 (`specs/173-product-editor-scope-switcher/`, FR-012) replaced the
+ * channel and language scope flags with one `scopable` flag. A content
+ * attribute's languages are its document envelope's, never scoped values, so
+ * `scopable` is a locked capability (FR-040's per-channel refusal), and FR-004's
+ * "always language-scoped" is the envelope itself — there is no flag left to hold.
  */
 
 const FLAGS = [
@@ -25,7 +31,7 @@ const FLAGS = [
   'massEditable',
   'isRequired',
   'isVisibleOnProductPage',
-  'channelScoped',
+  'scopable',
 ] as const;
 
 function thrown(run: () => unknown): HttpError {
@@ -54,7 +60,7 @@ describe('assertContentAttributeShape', () => {
 
   it('gives one detail per offending flag', () => {
     const error = thrown(() =>
-      assertContentAttributeShape({ isSearchable: true, massEditable: true, channelScoped: false }),
+      assertContentAttributeShape({ isSearchable: true, massEditable: true, scopable: false }),
     );
     expect((error.details as Array<{ path: string }>).map((detail) => detail.path)).toEqual([
       'isSearchable',
@@ -62,16 +68,10 @@ describe('assertContentAttributeShape', () => {
     ]);
   });
 
-  it('refuses languageScoped: false', () => {
-    const error = thrown(() => assertContentAttributeShape({ languageScoped: false }));
-    expect(error.statusCode).toBe(400);
-    expect(error.details).toEqual([{ path: 'languageScoped', issue: 'not available for Page Builder content' }]);
-  });
-
-  it('accepts every flag off and resolves an omitted languageScoped to true', () => {
-    expect(assertContentAttributeShape({})).toEqual({ languageScoped: true });
+  it('accepts every flag off or omitted', () => {
+    expect(() => assertContentAttributeShape({})).not.toThrow();
     const allOff = Object.fromEntries(FLAGS.map((flag) => [flag, false]));
-    expect(assertContentAttributeShape({ ...allOff, languageScoped: true })).toEqual({ languageScoped: true });
+    expect(() => assertContentAttributeShape(allOff)).not.toThrow();
   });
 });
 
