@@ -34,8 +34,16 @@ import { FederatedSignIn } from './FederatedSignIn.js';
  * three.
  */
 export function LoginPage(): ReactNode {
-  const { login, verifyMfa, cancelMfa, lastLoginError, federatedSignInError, status, mfaChallengeId } =
-    useAuth();
+  const {
+    login,
+    verifyMfa,
+    cancelMfa,
+    lastLoginError,
+    lastLoginReason,
+    federatedSignInError,
+    status,
+    mfaChallengeId,
+  } = useAuth();
   const [email, setEmail] = useState('');
   const [password, setPassword] = useState('');
   const [code, setCode] = useState('');
@@ -120,7 +128,8 @@ export function LoginPage(): ReactNode {
         <CardContent className="space-y-4">
           {/* Issue #813 — a federated refusal arrives as a code and is worded
               from the screen's own copy; the `?error=` value is never printed.
-              `lastLoginError` is the backend's answer to a password attempt. */}
+              `lastLoginError` is the backend's answer to a password attempt,
+              or the session-expired notice (`lastLoginReason`). */}
           {federatedSignInError ? (
             <Alert variant="destructive">
               <ShieldAlert className="size-4" />
@@ -132,7 +141,9 @@ export function LoginPage(): ReactNode {
           ) : lastLoginError ? (
             <Alert variant="destructive">
               <ShieldAlert className="size-4" />
-              <AlertTitle>{loginCopy.failed}</AlertTitle>
+              <AlertTitle>
+                {lastLoginReason === 'session_expired' ? loginCopy.sessionExpired : loginCopy.failed}
+              </AlertTitle>
               <AlertDescription>{lastLoginError}</AlertDescription>
             </Alert>
           ) : null}

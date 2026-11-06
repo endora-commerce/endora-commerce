@@ -170,7 +170,9 @@ language. The question here is what a *consumer* may put into a URL once it hold
   shipped languages. It renders a code it does not know as the page's generic failure, never as
   the raw value. A page whose status line may stay empty can show nothing instead. Quick order
   does this, and that holds only while every one of its actions falls back to a code the page
-  knows.
+  knows. The Admin UI's pre-auth sign-in screen follows the same rule (#813): `admin-shell`'s
+  `preauth-login-copy.ts` words each federated sign-in code in English only, because that screen
+  has no language source before a session exists.
 - **One named exception: the buyer's own search text.** Quick order's `q=` carries what the buyer
   typed into its search box (#790). It may, on three conditions: the page caps it where it reads
   it (120 characters, the search's own limit), it is the buyer's input and nothing else's, and it

@@ -98,6 +98,13 @@ interface AuthState {
   /** Last error from a login attempt, surfaced by LoginPage. */
   lastLoginError: string | null;
   /**
+   * Why `lastLoginError` is set, where the screen words it differently from a
+   * refused attempt: `'session_expired'` for the notice set when a signed-in
+   * session answers 401. `null` for every other message. Set and cleared with
+   * `lastLoginError`, so the title never has to be guessed from the text.
+   */
+  lastLoginReason: LoginErrorReason | null;
+  /**
    * Issue #813 — the code a refused federated sign-in came back with
    * (`/login?error=<code>`), for LoginPage to word from its own copy. Never the
    * raw `?error=` value: a value that is not a `federatedSignInErrorCodeSchema`
@@ -119,6 +126,9 @@ interface AuthContextValue extends AuthState {
   hasPermission(code: string): boolean;
   refresh(): Promise<void>;
 }
+
+/** See {@link AuthState.lastLoginReason}. */
+export type LoginErrorReason = 'session_expired';
 
 const AuthContext = createContext<AuthContextValue | null>(null);
 
@@ -185,6 +195,7 @@ export function AuthProvider({ initial, children }: AuthProviderProps): ReactNod
           status: 'loading',
           me: null,
           lastLoginError: null,
+          lastLoginReason: null,
           federatedSignInError: handover.error,
           mfaChallengeId: handover.challengeId,
         }
@@ -192,6 +203,7 @@ export function AuthProvider({ initial, children }: AuthProviderProps): ReactNod
           status: 'authenticated',
           me: initial,
           lastLoginError: null,
+          lastLoginReason: null,
           federatedSignInError: null,
           mfaChallengeId: null,
         },
@@ -207,6 +219,7 @@ export function AuthProvider({ initial, children }: AuthProviderProps): ReactNod
         status: 'authenticated',
         me: res.data,
         lastLoginError: null,
+        lastLoginReason: null,
         federatedSignInError: null,
         mfaChallengeId: null,
       });
@@ -218,6 +231,7 @@ export function AuthProvider({ initial, children }: AuthProviderProps): ReactNod
           status: 'unauthenticated',
           me: null,
           lastLoginError: prev.lastLoginError,
+          lastLoginReason: prev.lastLoginReason,
           federatedSignInError: prev.federatedSignInError,
           mfaChallengeId: challengeRef.current,
         }));
@@ -232,6 +246,7 @@ export function AuthProvider({ initial, children }: AuthProviderProps): ReactNod
         status: 'unauthenticated',
         me: null,
         lastLoginError: null,
+        lastLoginReason: null,
         federatedSignInError: null,
         mfaChallengeId: null,
       });
@@ -258,6 +273,7 @@ export function AuthProvider({ initial, children }: AuthProviderProps): ReactNod
                 status: 'unauthenticated',
                 me: null,
                 lastLoginError: 'Your session expired. Please sign in again.',
+                lastLoginReason: 'session_expired',
                 federatedSignInError: null,
                 mfaChallengeId: null,
               }
@@ -279,6 +295,7 @@ export function AuthProvider({ initial, children }: AuthProviderProps): ReactNod
           setState((prev) => ({
             ...prev,
             lastLoginError: null,
+            lastLoginReason: null,
             federatedSignInError: null,
             mfaChallengeId: data.challengeId ?? null,
           }));
@@ -289,6 +306,7 @@ export function AuthProvider({ initial, children }: AuthProviderProps): ReactNod
             ...prev,
             lastLoginError:
               'Two-step verification is required for your account. Please contact a platform administrator to finish setup.',
+            lastLoginReason: null,
             federatedSignInError: null,
           }));
           return;
@@ -297,7 +315,12 @@ export function AuthProvider({ initial, children }: AuthProviderProps): ReactNod
       } catch (err) {
         const message =
           err instanceof ApiError ? err.envelope.error.message : 'Sign-in failed.';
-        setState((prev) => ({ ...prev, lastLoginError: message, federatedSignInError: null }));
+        setState((prev) => ({
+          ...prev,
+          lastLoginError: message,
+          lastLoginReason: null,
+          federatedSignInError: null,
+        }));
       }
     },
     [refresh],
@@ -317,13 +340,19 @@ export function AuthProvider({ initial, children }: AuthProviderProps): ReactNod
           ...prev,
           mfaChallengeId: null,
           lastLoginError: null,
+          lastLoginReason: null,
           federatedSignInError: null,
         }));
         await refresh();
       } catch (err) {
         const message =
           err instanceof ApiError ? err.envelope.error.message : 'Verification failed.';
-        setState((prev) => ({ ...prev, lastLoginError: message, federatedSignInError: null }));
+        setState((prev) => ({
+          ...prev,
+          lastLoginError: message,
+          lastLoginReason: null,
+          federatedSignInError: null,
+        }));
       }
     },
     [refresh],
@@ -335,6 +364,7 @@ export function AuthProvider({ initial, children }: AuthProviderProps): ReactNod
       ...prev,
       mfaChallengeId: null,
       lastLoginError: null,
+      lastLoginReason: null,
       federatedSignInError: null,
     }));
   }, []);
@@ -350,6 +380,7 @@ export function AuthProvider({ initial, children }: AuthProviderProps): ReactNod
       status: 'unauthenticated',
       me: null,
       lastLoginError: null,
+      lastLoginReason: null,
       federatedSignInError: null,
       mfaChallengeId: null,
     });
