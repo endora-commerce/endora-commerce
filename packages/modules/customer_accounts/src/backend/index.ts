@@ -543,7 +543,7 @@ export function registerModule(ctx: ModuleContext): void {
    * resolution precedes tenancy, exactly as `customerOrgResolver` above.
    *
    * The refusal is the return type rather than a throw: `null` is what
-   * `SocialIdentityService` reads as `registration_required`, so the policy
+   * `SocialIdentityService` reads as `registration_disabled_in_channel`, so the policy
    * lands on the caller as a redirect to the login screen and not as a 500.
    *
    * Both answers carry the account's organisation, which the second-factor

@@ -14,6 +14,7 @@
  * The provider, the account resolvers and the second-factor decision are
  * stand-ins; the transaction store is the real one over an in-memory Redis.
  */
+import { readFileSync } from 'node:fs';
 import Fastify, { type FastifyInstance, type LightMyRequestResponse } from 'fastify';
 import fastifyCookie from '@fastify/cookie';
 import type { Redis } from 'ioredis';
@@ -526,6 +527,16 @@ describe('federated sign-in — the storefront gets a code, never a sentence (is
     ]) {
       expect(federatedSignInErrorCodeSchema.safeParse(code).success).toBe(true);
     }
+  });
+
+  // The static net beside the behaviour above, as `storefront/test/url-errors/no-sentence-in-url.test.ts`
+  // is for the storefront's own pages: every refusal `routes.oauth.ts` sends names a contract code.
+  it('every loginRedirect call in routes.oauth.ts names a contract code', () => {
+    const source = readFileSync(new URL('./routes.oauth.ts', import.meta.url), 'utf8');
+    const literals = [...source.matchAll(/loginRedirect\(\s*deps,\s*surface,\s*'([^']*)'/g)].map((m) => m[1]!);
+    expect(literals.length).toBeGreaterThan(0);
+    expect(literals.filter((code) => !federatedSignInErrorCodeSchema.safeParse(code).success)).toEqual([]);
+    expect(source).not.toMatch(/\?error=\$\{encodeURIComponent\((?!ADMIN_LOGIN_ERROR_SENTENCE)/);
   });
 
   it('the Admin UI still gets its sentence', async () => {

@@ -48,6 +48,44 @@ export type FederatedSignInOptionsResponse = z.infer<
   typeof federatedSignInOptionsResponseSchema
 >;
 
+/**
+ * The `error` a refused customer federated sign-in carries back to the storefront:
+ * `/login?error=<code>` (issue #789). A code, never a sentence — the storefront words each
+ * one in its own languages and reads any other value as its generic sign-in failure
+ * (`specs/conventions/module-i18n.md`, URL-borne errors). The Admin UI surface is not
+ * covered: it still receives a sentence.
+ *
+ * - `unknown_provider` — the provider in the path is not one the platform supports.
+ * - `provider_unavailable` — the provider is not configured or not enabled for the channel.
+ * - `sign_in_cancelled` — the provider answered with an error, or the callback is incomplete.
+ * - `sign_in_expired` — the transaction is gone or belongs to another browser.
+ * - `sign_in_failed` — the code exchange with the provider failed.
+ * - `email_unverified` — the provider's e-mail address is not verified.
+ * - `no_matching_account` — no account matches the provider identity.
+ * - `account_blocked` — the matched account is blocked.
+ * - `registration_disabled_in_channel` — no account exists and the channel the sign-in
+ *   started on does not allow registration, so none was created.
+ * - `mfa_setup_required` — a second factor is enforced and not set up yet.
+ * - `sales_channel_sign_in_required` — no account exists and the store is closed to
+ *   anonymous visitors, so none was created.
+ * - `sales_channel_not_permitted` — the account's Organization may not use this store.
+ */
+export const federatedSignInErrorCodeSchema = z.enum([
+  'unknown_provider',
+  'provider_unavailable',
+  'sign_in_cancelled',
+  'sign_in_expired',
+  'sign_in_failed',
+  'email_unverified',
+  'no_matching_account',
+  'account_blocked',
+  'registration_disabled_in_channel',
+  'mfa_setup_required',
+  'sales_channel_sign_in_required',
+  'sales_channel_not_permitted',
+]);
+export type FederatedSignInErrorCode = z.infer<typeof federatedSignInErrorCodeSchema>;
+
 // ---------------------------------------------------------------------------
 // Two-step login result (replaces the inline `twoFactorCode` shape)
 // ---------------------------------------------------------------------------
