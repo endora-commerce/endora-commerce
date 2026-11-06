@@ -14,7 +14,11 @@ import {
   Label,
 } from '@endora-commerce/admin-kit/ui';
 import { useAuth } from '@endora-commerce/admin-kit/lib';
-import { ADMIN_ACCOUNT_HELP_URL, loginCopy } from '../i18n/preauth-login-copy.js';
+import {
+  ADMIN_ACCOUNT_HELP_URL,
+  federatedSignInErrorLine,
+  loginCopy,
+} from '../i18n/preauth-login-copy.js';
 import { FederatedSignIn } from './FederatedSignIn.js';
 
 /**
@@ -30,7 +34,8 @@ import { FederatedSignIn } from './FederatedSignIn.js';
  * three.
  */
 export function LoginPage(): ReactNode {
-  const { login, verifyMfa, cancelMfa, lastLoginError, status, mfaChallengeId } = useAuth();
+  const { login, verifyMfa, cancelMfa, lastLoginError, federatedSignInError, status, mfaChallengeId } =
+    useAuth();
   const [email, setEmail] = useState('');
   const [password, setPassword] = useState('');
   const [code, setCode] = useState('');
@@ -113,12 +118,21 @@ export function LoginPage(): ReactNode {
           </CardDescription>
         </CardHeader>
         <CardContent className="space-y-4">
-          {lastLoginError ? (
+          {/* Issue #813 — a federated refusal arrives as a code and is worded
+              from the screen's own copy; the `?error=` value is never printed.
+              `lastLoginError` is the backend's answer to a password attempt. */}
+          {federatedSignInError ? (
             <Alert variant="destructive">
               <ShieldAlert className="size-4" />
               <AlertTitle>
-                {/expired/i.test(lastLoginError) ? loginCopy.sessionExpired : loginCopy.failed}
+                {federatedSignInError === 'sign_in_expired' ? loginCopy.sessionExpired : loginCopy.failed}
               </AlertTitle>
+              <AlertDescription>{federatedSignInErrorLine(federatedSignInError)}</AlertDescription>
+            </Alert>
+          ) : lastLoginError ? (
+            <Alert variant="destructive">
+              <ShieldAlert className="size-4" />
+              <AlertTitle>{loginCopy.failed}</AlertTitle>
               <AlertDescription>{lastLoginError}</AlertDescription>
             </Alert>
           ) : null}
