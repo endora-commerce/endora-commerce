@@ -32,6 +32,21 @@ export interface PersonalOrganizationAccountPorts {
  */
 export const ANONYMIZED_ORGANIZATION_NAME = 'Deleted customer';
 
+/** What each blanked line of a scrubbed registered address reads. */
+const ANONYMIZED_ADDRESS_FIELD = '-';
+
+/** Whether every part of the personal-organisation scrub is already written. */
+function isFullyScrubbed(org: Organization): boolean {
+  const address = org.registeredAddress;
+  return (
+    org.name === ANONYMIZED_ORGANIZATION_NAME &&
+    address.street === ANONYMIZED_ADDRESS_FIELD &&
+    address.city === ANONYMIZED_ADDRESS_FIELD &&
+    address.postalCode === ANONYMIZED_ADDRESS_FIELD &&
+    org.deletedAt != null
+  );
+}
+
 /**
  * Feature 051 — provisions and guards single-member Personal Organizations for
  * B2C (individual) customers. One provisioning rule, reused by live registration
@@ -215,11 +230,21 @@ export class PersonalOrganizationService {
    * That module ran it by loading this module's `Organization`, renaming it,
    * blanking its registered address and stamping `deletedAt` — three writes on
    * a row it does not own, plus the audit entry describing them. The decision
-   * is this module's: a personal organisation whose single member has been
-   * anonymised has nobody in it and carries that person's name.
+   * is this module's: a personal organisation with no live member has nobody in
+   * it and carries that person's name.
    *
-   * Writes nothing and answers `null` whenever the cascade does not apply, so a
-   * caller cannot get it wrong by asking too often.
+   * **Convergent (issue #800).** The sweep writes the account's own scrub
+   * *last*, so this may run before it, and again after a crash. It writes
+   * whatever part of the scrub is still missing — the name, the registered
+   * address, `deletedAt` — and answers the organisation whether or not it wrote
+   * anything, so a re-run still reaches the saved addresses. An existing
+   * `deletedAt` (an operator's soft-delete through the admin screen) is kept.
+   * The scrub and its one `organization.anonymized` row commit in one
+   * transaction, and that row is written only when something changed.
+   *
+   * Answers `null`, and writes nothing, only where the cascade does not apply:
+   * an org-less account, an organisation that is not personal, and one that
+   * still has a live member.
    */
   async anonymizeIfOrphaned(customerAccountId: string): Promise<Organization | null> {
     const account = await this.#accounts().read.findById(customerAccountId);
@@ -227,36 +252,45 @@ export class PersonalOrganizationService {
 
     const em = this.emFactory();
     const org = await em.findOne(Organization, { id: account.organizationId });
-    if (!org || !org.isPersonal || org.deletedAt) return null;
+    if (!org || !org.isPersonal) return null;
 
     // Any surviving (non-deleted) member keeps the organisation alive. For a
-    // personal one this is empty once its single member has been soft-deleted.
+    // personal one this is empty once its single member has been soft-deleted
+    // — which is all the sweep needs, so this does not wait on the account's
+    // own scrub.
     const members = await this.#accounts().read.listByOrganization(org.id, { activeOnly: true });
     if (members.length > 0) return null;
+
+    if (isFullyScrubbed(org)) return org;
 
     // command-coverage-ignore: the retention sweep's cascade over a
     // member-less personal organization — a system-initiated scrub on a timer,
     // audited below with the null actor that fact deserves, not an
     // operator-initiated write with an actor to attribute it to.
-    const before = { name: org.name };
-    org.name = ANONYMIZED_ORGANIZATION_NAME;
-    org.registeredAddress = {
-      street: '-',
-      city: '-',
-      postalCode: '-',
-      country: org.registeredAddress.country,
-    };
-    org.deletedAt = new Date();
-    await em.flush();
-    await this.auditLog?.record({
-      actorAdminUserId: null,
-      action: 'organization.anonymized',
-      objectType: 'organization',
-      objectId: org.id,
-      stateBefore: before,
-      stateAfter: { anonymizedAt: org.deletedAt.toISOString(), isPersonal: true },
+    return em.transactional(async (txEm) => {
+      const row = await txEm.findOneOrFail(Organization, { id: org.id });
+      if (isFullyScrubbed(row)) return row;
+      const now = new Date();
+      const before = { name: row.name, wasDeleted: row.deletedAt != null };
+      row.name = ANONYMIZED_ORGANIZATION_NAME;
+      row.registeredAddress = {
+        street: ANONYMIZED_ADDRESS_FIELD,
+        city: ANONYMIZED_ADDRESS_FIELD,
+        postalCode: ANONYMIZED_ADDRESS_FIELD,
+        country: row.registeredAddress.country,
+      };
+      row.deletedAt ??= now;
+      this.auditLog?.recordWithin(txEm, {
+        actorAdminUserId: null,
+        action: 'organization.anonymized',
+        objectType: 'organization',
+        objectId: row.id,
+        stateBefore: before,
+        stateAfter: { anonymizedAt: now.toISOString(), isPersonal: true },
+      });
+      await txEm.flush();
+      return row;
     });
-    return org;
   }
 
   /**

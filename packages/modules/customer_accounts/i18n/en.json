@@ -3,6 +3,7 @@
   "errors.CANNOT_REMOVE_LAST_ADMIN": "This is the only administrator in the organization, and an organization always keeps at least one — removing them would leave nobody able to manage members, addresses or approvals. Promote another member to administrator first, and then this one can be removed.",
   "errors.CUSTOMER_AUTHENTICATION_THROTTLED": "Too many attempts were made for this account, so further attempts are paused for a few minutes. Wait a moment and try again.",
   "errors.CUSTOMER_AUTHENTICATION_UNAVAILABLE": "Signing in is temporarily unavailable. Please try again in a moment.",
+  "errors.CUSTOMER_RESTORE_WINDOW_ELAPSED": "The restore window for this account has elapsed, so it can no longer be restored. Its personal data has been, or will shortly be, permanently anonymized.",
   "actions.openCustomerGroups.label": "Customer groups",
   "actions.openCustomerGroups.description": "Manage the segmentation groups customers and organizations are assigned to",
   "groups.page.title": "Customer groups",

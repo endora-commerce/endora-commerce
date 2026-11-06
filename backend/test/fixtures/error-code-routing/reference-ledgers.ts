@@ -1983,8 +1983,10 @@ export const REHOMED_ERROR_CODES: RehomedErrorCodes = {
     tier: 'T1',
     reason:
       'The noun is the record again and the window is a property of it: after the retention ' +
-      'period the row is anonymized and there is nothing left to restore. Raised only in ' +
-      'this module\'s `customer-account-lifecycle-ports.ts`.',
+      'period the row is anonymized and there is nothing left to restore. Raised in this ' +
+      'module\'s `customer-account-lifecycle-ports.ts` and, since issue #800, by ' +
+      '`customers`\' `customer-deletion-service.ts` once the window has elapsed but before ' +
+      'the sweep reached the row: D-95.2\'s caller shape, as for `CUSTOMER_ALREADY_DELETED`.',
   },
   CURRENCY_MISMATCH: {
     from: '_i18n',
