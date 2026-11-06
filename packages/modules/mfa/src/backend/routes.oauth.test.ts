@@ -4,8 +4,9 @@
  *  - The transaction is bound to the browser that started it: `start` leaves a
  *    short-lived, httpOnly cookie scoped to the surface's OAuth path, and the
  *    `callback` completes only when the same browser presents it again.
- *  - A blocked customer account is refused with the sentence the password
- *    sign-in uses.
+ *  - A refused customer sign-in comes back to the storefront with a code from
+ *    `federatedSignInErrorCodeSchema`, never a sentence (issue #789); the
+ *    Admin UI, which prints what it is given, still gets its sentence.
  *  - A subject with a second factor (or under an enforced policy) is handed to
  *    the second-step flow the password sign-in uses; no session is issued by
  *    the callback itself.
@@ -17,7 +18,12 @@ import Fastify, { type FastifyInstance, type LightMyRequestResponse } from 'fast
 import fastifyCookie from '@fastify/cookie';
 import type { Redis } from 'ioredis';
 import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest';
-import type { AuthSessionPort, MfaLoginDecision, MfaLoginPort } from '@endora-commerce/contracts';
+import {
+  federatedSignInErrorCodeSchema,
+  type AuthSessionPort,
+  type MfaLoginDecision,
+  type MfaLoginPort,
+} from '@endora-commerce/contracts';
 import { ChallengeStore } from './services/challenge-store.js';
 import type { MfaPolicyResolver } from './services/mfa-policy-resolver.js';
 import type { OAuthProviderPort } from './services/oauth-provider-service.js';
@@ -57,7 +63,9 @@ interface Harness {
   setPermitted: (permitted: boolean) => void;
 }
 
-async function build(): Promise<Harness> {
+async function build(
+  options: { providerEnabled?: boolean; exchangeFails?: boolean } = {},
+): Promise<Harness> {
   const app = Fastify();
   await app.register(fastifyCookie, { secret: 'test-cookie-secret-test-cookie-secret' });
 
@@ -76,15 +84,13 @@ async function build(): Promise<Harness> {
   }));
 
   const oauthProvider: OAuthProviderPort = {
-    isEnabled: () => true,
+    isEnabled: () => options.providerEnabled ?? true,
     buildAuthorizationUrl: async (provider, { state }) =>
       `https://idp.test/${provider}/authorize?state=${encodeURIComponent(state)}`,
-    exchangeCode: async (provider, { code }) => ({
-      provider,
-      sub: `sub-${code}`,
-      email: code,
-      emailVerified: true,
-    }),
+    exchangeCode: async (provider, { code }) => {
+      if (options.exchangeFails) throw new Error('invalid_grant');
+      return { provider, sub: `sub-${code}`, email: code, emailVerified: true };
+    },
   };
 
   await registerMfaOAuthRoutes(app, {
@@ -197,9 +203,7 @@ describe('federated sign-in — the transaction belongs to the browser that star
     const { state } = await start(h);
     const res = await callback(h, state, {});
     expect(res.statusCode).toBe(302);
-    expect(res.headers['location']).toBe(
-      `${STOREFRONT}/login?error=${encodeURIComponent('This sign-in attempt has expired.')}`,
-    );
+    expect(res.headers['location']).toBe(`${STOREFRONT}/login?error=sign_in_expired`);
     expect(h.createSession).not.toHaveBeenCalled();
     expect(sessionCookie(res, 'b2b_session')).toBeUndefined();
   });
@@ -249,14 +253,12 @@ describe('federated sign-in — a blocked customer account', () => {
     await h.app.close();
   });
 
-  it('is refused with the sentence the password sign-in uses, and gets no session', async () => {
+  it('is refused with the account_blocked code, and gets no session', async () => {
     h.setCustomerResult({ ok: false, reason: 'blocked' });
     const { state, binding } = await start(h);
     const res = await callback(h, state, { [OAUTH_BINDING_COOKIE_NAME]: binding! });
     expect(res.statusCode).toBe(302);
-    expect(res.headers['location']).toBe(
-      `${STOREFRONT}/pl/login?error=${encodeURIComponent('This account has been blocked. Please contact support.')}`,
-    );
+    expect(res.headers['location']).toBe(`${STOREFRONT}/pl/login?error=account_blocked`);
     expect(h.beginLogin).not.toHaveBeenCalled();
     expect(h.createSession).not.toHaveBeenCalled();
   });
@@ -316,20 +318,26 @@ describe('federated sign-in — the second factor', () => {
     expect(sessionCookie(res, 'b2b_admin_session')).toBeUndefined();
   });
 
-  it.each(['customer', 'admin'] as const)(
-    'issues no %s session while two-factor setup is still required',
-    async (surface) => {
-      h.setDecision({ kind: 'setup', setupTicket: 'ticket-1' });
-      const { state, binding } = await start(h, surface);
-      const res = await callback(h, state, { [OAUTH_BINDING_COOKIE_NAME]: binding! }, surface);
-      expect(res.statusCode).toBe(302);
-      expect(res.headers['location']).toContain('/login?error=');
-      expect(decodeURIComponent(res.headers['location'] as string)).toContain(
-        'Two-step verification is required for your account.',
-      );
-      expect(h.createSession).not.toHaveBeenCalled();
-    },
-  );
+  it('issues no customer session while two-factor setup is still required', async () => {
+    h.setDecision({ kind: 'setup', setupTicket: 'ticket-1' });
+    const { state, binding } = await start(h);
+    const res = await callback(h, state, { [OAUTH_BINDING_COOKIE_NAME]: binding! });
+    expect(res.statusCode).toBe(302);
+    expect(res.headers['location']).toBe(`${STOREFRONT}/pl/login?error=mfa_setup_required`);
+    expect(h.createSession).not.toHaveBeenCalled();
+  });
+
+  it('issues no admin session while two-factor setup is still required', async () => {
+    h.setDecision({ kind: 'setup', setupTicket: 'ticket-1' });
+    const { state, binding } = await start(h, 'admin');
+    const res = await callback(h, state, { [OAUTH_BINDING_COOKIE_NAME]: binding! }, 'admin');
+    expect(res.statusCode).toBe(302);
+    expect(res.headers['location']).toContain('/login?error=');
+    expect(decodeURIComponent(res.headers['location'] as string)).toContain(
+      'Two-step verification is required for your account.',
+    );
+    expect(h.createSession).not.toHaveBeenCalled();
+  });
 
   it('signs in directly when the subject has no second factor and none is enforced', async () => {
     const { state, binding } = await start(h, 'admin');
@@ -427,5 +435,105 @@ describe('federated sign-in — the language of the starting page', () => {
     const { state, binding } = await start(h, 'customer', '/en/account');
     const res = await callback(h, state, { [OAUTH_BINDING_COOKIE_NAME]: binding! });
     expect(res.headers['location']).toBe(`${STOREFRONT}/en/account`);
+  });
+});
+
+/**
+ * Issue #789 — every refusal the callback sends a browser back to the storefront with
+ * carries a code from `federatedSignInErrorCodeSchema`, which the storefront words in its
+ * own languages. A sentence there was a lookup key the storefront had to match verbatim,
+ * and anything else — a reworded sentence included — read as the generic failure.
+ */
+describe('federated sign-in — the storefront gets a code, never a sentence (issue #789)', () => {
+  let h: Harness;
+  beforeEach(async () => {
+    h = await build();
+  });
+  afterEach(async () => {
+    await h.app.close();
+  });
+
+  const errorOf = (res: LightMyRequestResponse): string | null =>
+    new URL(res.headers['location'] as string).searchParams.get('error');
+
+  it('an unknown provider', async () => {
+    const res = await h.app.inject({ method: 'GET', url: '/api/v1/auth/customer/oauth/yahoo/start' });
+    expect(res.headers['location']).toBe(`${STOREFRONT}/login?error=unknown_provider`);
+  });
+
+  it('a provider that is not available', async () => {
+    const unavailable = await build({ providerEnabled: false });
+    try {
+      const res = await unavailable.app.inject({ method: 'GET', url: '/api/v1/auth/customer/oauth/google/start' });
+      expect(res.headers['location']).toBe(`${STOREFRONT}/login?error=provider_unavailable`);
+    } finally {
+      await unavailable.app.close();
+    }
+  });
+
+  it('a callback for an unknown provider', async () => {
+    const res = await h.app.inject({ method: 'GET', url: '/api/v1/auth/customer/oauth/yahoo/callback' });
+    expect(errorOf(res)).toBe('sign_in_cancelled');
+  });
+
+  it('a provider that answers with an error', async () => {
+    const { state, binding } = await start(h);
+    const res = await h.app.inject({
+      method: 'GET',
+      url: `/api/v1/auth/customer/oauth/google/callback?error=access_denied&state=${encodeURIComponent(state)}`,
+      cookies: { [OAUTH_BINDING_COOKIE_NAME]: binding! },
+    });
+    expect(res.headers['location']).toBe(`${STOREFRONT}/login?error=sign_in_cancelled`);
+  });
+
+  it.each([
+    [{ ok: false, reason: 'unverified' }, 'email_unverified'],
+    [{ ok: false, reason: 'blocked' }, 'account_blocked'],
+    [{ ok: false, reason: 'registration_disabled_in_channel' }, 'registration_disabled_in_channel'],
+    [{ ok: false, reason: 'sales_channel_sign_in_required' }, 'sales_channel_sign_in_required'],
+  ] as const)('a refused account resolution (%o) reads %s', async (result, code) => {
+    h.setCustomerResult(result);
+    const { state, binding } = await start(h);
+    const res = await callback(h, state, { [OAUTH_BINDING_COOKIE_NAME]: binding! });
+    expect(res.headers['location']).toBe(`${STOREFRONT}/pl/login?error=${code}`);
+  });
+
+  it('a code exchange the provider refuses', async () => {
+    const failing = await build({ exchangeFails: true });
+    try {
+      const { state, binding } = await start(failing);
+      const res = await callback(failing, state, { [OAUTH_BINDING_COOKIE_NAME]: binding! });
+      expect(res.headers['location']).toBe(`${STOREFRONT}/pl/login?error=sign_in_failed`);
+    } finally {
+      await failing.app.close();
+    }
+  });
+
+  it('every code the storefront can receive is one the contract names', () => {
+    for (const code of [
+      'unknown_provider',
+      'provider_unavailable',
+      'sign_in_cancelled',
+      'sign_in_expired',
+      'sign_in_failed',
+      'email_unverified',
+      'no_matching_account',
+      'account_blocked',
+      'registration_disabled_in_channel',
+      'mfa_setup_required',
+      'sales_channel_sign_in_required',
+      'sales_channel_not_permitted',
+    ]) {
+      expect(federatedSignInErrorCodeSchema.safeParse(code).success).toBe(true);
+    }
+  });
+
+  it('the Admin UI still gets its sentence', async () => {
+    h.setAdminResult({ ok: false, reason: 'no_account' });
+    const { state, binding } = await start(h, 'admin');
+    const res = await callback(h, state, { [OAUTH_BINDING_COOKIE_NAME]: binding! }, 'admin');
+    expect(res.headers['location']).toBe(
+      `${ADMIN}/login?error=${encodeURIComponent('No account matches this provider. Please contact an administrator.')}`,
+    );
   });
 });

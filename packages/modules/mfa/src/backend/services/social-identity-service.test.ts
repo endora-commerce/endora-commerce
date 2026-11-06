@@ -125,6 +125,19 @@ describe('SocialIdentityService.signInCustomer — the started-on channel (featu
     expect(audited).toEqual([]);
   });
 
+  // Issue #789 (from #785) — `autoCreate` answers null only when the started-on channel does
+  // not allow registration, so the refusal names that, not a missing account.
+  it('names a channel that does not allow registration when no account may be created', async () => {
+    const { service, persisted, audited } = harness({ autoCreateCustomer: async () => null });
+
+    expect(await service.signInCustomer(IDENTITY, ON_B)).toEqual({
+      ok: false,
+      reason: 'registration_disabled_in_channel',
+    });
+    expect(persisted).toEqual([]);
+    expect(audited).toEqual([]);
+  });
+
   it('refuses to create an account when the sign-in was started on no channel', async () => {
     const autoCreateCustomer = vi.fn(async () => ({ id: 'c2', organizationId: 'o2' }));
     const admits = vi.fn(async () => true);
