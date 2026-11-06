@@ -234,9 +234,10 @@ describe('@CustomerScoped surfaces honour the sales-rep assignment scope', () =>
       url: `/api/v1/admin/customers/${customers['foreign']}/addresses`,
       cookies: { b2b_session: repCookie },
     });
-    // The status is the guard's to choose (an empty card, or `404` once the
-    // guard checks existence — #794); what the scope owes is no foreign row.
-    expect(refused.statusCode).toBeLessThan(500);
+    // The existence guard (#794) reads the customer through its `@OrgScoped`
+    // account, so a customer outside the scope answers as an absent one does.
+    expect(refused.statusCode).toBe(404);
+    expect((refused.json() as { error: { code: string } }).error.code).toBe('CUSTOMER_NOT_FOUND');
     expect(refused.body).not.toContain(`Recipient foreign ${stamp}`);
     expect(refused.body).not.toContain(addresses['foreign']!);
 

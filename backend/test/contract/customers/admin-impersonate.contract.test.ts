@@ -8,6 +8,7 @@ import { ManifestReconciler } from '../../../src/kernel/settings/manifest-reconc
 import { manifest as customersManifest } from '../../../../packages/modules/customers/src/manifest.js';
 import { CustomerAccount } from '../../helpers/package-entities.js';
 import { AuditLogEntry } from '@endora-commerce/platform/kernel';
+import { ERROR_CODES } from '@endora-commerce/contracts';
 
 /**
  * Feature 040, US4 — admin impersonation of an org-less customer: mints a
@@ -98,7 +99,7 @@ describe('Admin customer impersonation (US4)', () => {
     expect(res.statusCode).toBe(401);
   });
 
-  it('returns 404 for an unknown customer', async () => {
+  it('returns 404 CUSTOMER_NOT_FOUND for an unknown customer', async () => {
     const res = await h.app.inject({
       method: 'POST',
       url: '/api/v1/admin/customers/00000000-0000-4000-8000-0000000000fd/impersonate',
@@ -106,5 +107,55 @@ describe('Admin customer impersonation (US4)', () => {
       payload: {},
     });
     expect(res.statusCode).toBe(404);
+    expect((res.json() as { error: { code: string } }).error.code).toBe(ERROR_CODES.CUSTOMER_NOT_FOUND);
+  });
+
+  async function softDeletedCustomer(): Promise<string> {
+    const customerId = await registerOrgLessCustomer();
+    const em = h.em();
+    const account = await em.findOneOrFail(CustomerAccount, { id: customerId });
+    account.deletedAt = new Date();
+    await em.flush();
+    return customerId;
+  }
+
+  // Issue #814 — a soft-deleted customer is refused with the record's own code,
+  // not the generic `NOT_FOUND`, and the refusal mints and audits nothing.
+  it('refuses a soft-deleted customer with 409 CUSTOMER_ALREADY_DELETED, minting no session', async () => {
+    const customerId = await softDeletedCustomer();
+    const res = await h.app.inject({
+      method: 'POST',
+      url: `/api/v1/admin/customers/${customerId}/impersonate`,
+      cookies: { b2b_session: 'stub-admin-session' },
+      payload: {},
+    });
+    expect(res.statusCode).toBe(409);
+    expect((res.json() as { error: { code: string } }).error.code).toBe(
+      ERROR_CODES.CUSTOMER_ALREADY_DELETED,
+    );
+    expect(String(res.headers['set-cookie'] ?? '')).not.toContain('admin_shadow_session=');
+    expect(
+      await h.em().count(AuditLogEntry, {
+        action: 'impersonation.start',
+        impersonatedCustomerAccountId: customerId,
+      }),
+    ).toBe(0);
+  });
+
+  it('answers a caller without the permission the same 403 whatever the target', async () => {
+    const deleted = await softDeletedCustomer();
+    const active = await registerOrgLessCustomer();
+    const answers: Array<[number, string]> = [];
+    for (const id of [active, deleted, '00000000-0000-4000-8000-0000000000fd']) {
+      const res = await h.app.inject({
+        method: 'POST',
+        url: `/api/v1/admin/customers/${id}/impersonate`,
+        cookies: { b2b_session: 'stub-restricted-admin-session' },
+        payload: {},
+      });
+      answers.push([res.statusCode, (res.json() as { error: { code: string } }).error.code]);
+    }
+    expect(answers[0]![0]).toBe(403);
+    expect(answers).toEqual([answers[0], answers[0], answers[0]]);
   });
 });
