@@ -32,3 +32,20 @@ export const RESET_CONFIRM_ERRORS = defineUrlErrors({
   own: { RESET_FAILED: 'auth.passwordReset.confirm.failed' },
   generic: 'RESET_FAILED',
 });
+
+/**
+ * `/invitations/:token/accept?error=<code>` (issue #808). The API codes are the
+ * accept endpoint's refusals and the sign-in's that follow it, once the account
+ * exists; `SIGN_IN_TO_CONTINUE` is that sign-in asking for a second step.
+ */
+export const INVITATION_ACCEPT_ERRORS = defineUrlErrors({
+  api: ACCOUNT_API_ERROR_KEYS,
+  own: {
+    INVITATION_FAILED: 'auth.invitation.failed',
+    SIGN_IN_TO_CONTINUE: 'auth.invitation.signInToContinue',
+  },
+  generic: 'INVITATION_FAILED',
+});
+
+/** A code {@link INVITATION_ACCEPT_ERRORS} words — the only thing its `?error=` carries. */
+export type InvitationAcceptCode = ReturnType<typeof INVITATION_ACCEPT_ERRORS.failureCode>;

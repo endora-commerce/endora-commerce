@@ -64,6 +64,8 @@ const SIGN_IN_OWN_ERROR_KEYS = {
   SETUP_START_FAILED: 'auth.login.setupStartFailed',
   MFA_VERIFY_FAILED: 'auth.mfa.verifyFailed',
   MFA_SETUP_FAILED: 'auth.mfaSetup.failed',
+  // The invitation page's redirect when its form arrives without a token (issue #808).
+  INVITATION_INVALID: 'auth.invitation.invalidLink',
 } as const satisfies Record<string, MessageKey>;
 
 /** `/login?error=` — the password step's and the federated callback's codes. */
