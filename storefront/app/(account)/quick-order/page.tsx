@@ -30,6 +30,7 @@ import {
 import type { Metadata } from 'next';
 import { localeRedirect } from '../../../lib/i18n/navigation';
 import { QUICK_ORDER_ERRORS } from '../../../lib/commerce-errors';
+import { errorFiguresQuery, urlErrorText } from '../../../lib/url-error-figures';
 import { LocalizedLink, LocalizedAnchor } from '../../../lib/i18n/localized-link';
 
 /**
@@ -83,6 +84,11 @@ export default async function QuickOrderPage({
      * (issue #745: never a sentence; an `?error=` is no longer read at all).
      */
     problem?: string;
+    /** Issue #791 — the figures beside `problem`, typed values read through `lib/url-typed-values.ts`. */
+    min?: string;
+    available?: string;
+    total?: string;
+    currency?: string;
     built?: string;
     /** Issue #790 — the quote request a build created; the page reads its reference. */
     rfqId?: string;
@@ -109,7 +115,9 @@ export default async function QuickOrderPage({
   const { ctx, locale } = await getServerContext();
   const t = tForLocale(locale);
   // A code this page does not know shows nothing: the address is the buyer's to edit.
-  const problemKey = sp.problem && QUICK_ORDER_ERRORS.isCode(sp.problem) ? QUICK_ORDER_ERRORS.errorKey(sp.problem) : null;
+  // Issue #791 — a minimum or credit-limit refusal names the figures beside it when they are in shape.
+  const problemText =
+    sp.problem && QUICK_ORDER_ERRORS.isCode(sp.problem) ? urlErrorText(QUICK_ORDER_ERRORS, sp.problem, sp, locale) : null;
   // Issue #790 — the quote reference is read from the request the id names, never carried; a
   // lookup that fails leaves the confirmation without one.
   const rfqRef =
@@ -151,7 +159,7 @@ export default async function QuickOrderPage({
         .
       </p>
 
-      {problemKey ? <p className="b2b-auth__error">{t(problemKey)}</p> : null}
+      {problemText ? <p className="b2b-auth__error">{problemText}</p> : null}
       {sp.built === 'cart' && notAddedCount === 0 ? (
         <p className="b2b-auth__success">
           {t('quickOrder.built.cart')} <LocalizedLink href="/cart">{t('quickOrder.build.openCart')}</LocalizedLink> ·{' '}
@@ -544,7 +552,7 @@ async function importAction(formData: FormData): Promise<void> {
       ? await importQuickOrderFile(session, filename || 'upload.csv', fileContent)
       : await importQuickOrderCsv(session, csv);
   } catch (err) {
-    return await localeRedirect(`/quick-order?problem=${QUICK_ORDER_ERRORS.failureCode(err, 'import_failed')}`);
+    return await localeRedirect(`/quick-order?problem=${QUICK_ORDER_ERRORS.failureCode(err, 'import_failed')}${errorFiguresQuery(err)}`);
   }
   return await returnWithPreview(session, preview!, 'preview_too_large');
 }
@@ -575,7 +583,8 @@ async function confirmAction(formData: FormData): Promise<void> {
     rfqId = result.quoteRequestId;
     rejected = result.rejected ?? [];
   } catch (err) {
-    return await localeRedirect(`/quick-order?problem=${QUICK_ORDER_ERRORS.failureCode(err, 'build_failed')}`);
+    // Issue #791 — a minimum refusal also carries the minimum, as a typed value.
+    return await localeRedirect(`/quick-order?problem=${QUICK_ORDER_ERRORS.failureCode(err, 'build_failed')}${errorFiguresQuery(err)}`);
   }
   if (target === 'quote_request') {
     // Built: the preview has done its work, so it does not wait in its cookie for the next visit.

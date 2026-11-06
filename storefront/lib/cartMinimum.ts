@@ -1,6 +1,7 @@
 import { tForLocale } from './i18n/messages';
 import { BELOW_MINIMUM_CODES, CART_ERRORS } from './commerce-errors';
 import { formatCount } from './orderMinimum';
+import { readCount } from './url-typed-values';
 
 /**
  * Feature 155 — the cart's and checkout's reading of the server's order-minimum verdicts
@@ -244,7 +245,7 @@ export function cartLineEditError(
   const t = tForLocale(locale);
   let message: string;
   if (BELOW_MINIMUM_CODES.has(params.error)) {
-    const minimum = /^[1-9]\d{0,8}$/.test(params.min ?? '') ? Number(params.min) : null;
+    const minimum = readCount(params.min);
     message =
       minimum === null
         ? t('order.minimum.below.bare')
@@ -261,5 +262,5 @@ export function cartLineEditError(
   }
   // Issue #790 — what the buyer typed is read only as a whole quantity, the `min=` rule from #783;
   // anything else in the address is ignored and the field shows the line's quantity.
-  return { message, typed: /^[1-9]\d{0,8}$/.test(params.typed ?? '') ? params.typed! : null };
+  return { message, typed: readCount(params.typed) !== null ? params.typed! : null };
 }

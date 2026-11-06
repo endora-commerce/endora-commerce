@@ -7,7 +7,6 @@ import { offersPaymentRetry, paymentRetryDestination } from '../../../../lib/pay
 import { getSessionCookie } from '../../../../lib/session';
 import { getServerContext } from '../../../../lib/server-context';
 import { StorefrontApiError } from '../../../../lib/api/client';
-import { tForLocale } from '../../../../lib/i18n/messages';
 import {
   checkoutSuccessUrl,
   parseReturnOutcome,
@@ -16,6 +15,7 @@ import {
 } from '../../../../lib/payments/post-payment-landing';
 import { localeRedirect } from '../../../../lib/i18n/navigation';
 import { CHECKOUT_ERRORS } from '../../../../lib/commerce-errors';
+import { urlErrorText } from '../../../../lib/url-error-figures';
 import { ORDER_ERRORS, paymentRetryRefusedHref } from '../../../../lib/orders/order-errors';
 
 /**
@@ -43,17 +43,27 @@ export const metadata = { robots: { index: false, follow: false } };
 export default async function CheckoutFailurePage({
   searchParams,
 }: {
-  searchParams: Promise<{ reason?: string; id?: string; outcome?: string }>;
+  searchParams: Promise<{
+    reason?: string;
+    id?: string;
+    outcome?: string;
+    /** Issue #791 — the figures beside `reason`, typed values read through `lib/url-typed-values.ts`. */
+    min?: string;
+    available?: string;
+    total?: string;
+    currency?: string;
+  }>;
 }): Promise<ReactNode> {
-  const { reason, id, outcome: rawOutcome } = await searchParams;
+  const { reason, id, outcome: rawOutcome, ...figures } = await searchParams;
   const { locale } = await getServerContext();
 
   // The placement failure: no order was ever created, so there is nothing to
   // read and nothing to pay. Issue #745 — `reason` is a code, worded here; one
   // this page does not know reads as the generic failure, never as given.
+  // Issue #791 — a minimum or credit-limit refusal names its figures when they
+  // are in shape, and reads as its bare sentence when they are not.
   if (!id) {
-    const key = CHECKOUT_ERRORS.errorKey(reason);
-    return <FailurePanel reason={key ? tForLocale(locale)(key) : null} locale={locale} />;
+    return <FailurePanel reason={urlErrorText(CHECKOUT_ERRORS, reason, figures, locale)} locale={locale} />;
   }
 
   const outcome = parseReturnOutcome(rawOutcome);
