@@ -33,14 +33,14 @@ interface SubResource {
   readonly payload?: Record<string, unknown>;
 }
 
-/** Issue #794's six, and the retired address write beside them. */
+/**
+ * Issue #794's six. The retired address write is not one of them: spec 173
+ * FR-005 answers it `410` whatever the id (below).
+ */
 const SUB_RESOURCES: readonly SubResource[] = [
   { method: 'PATCH', suffix: 'custom-fields', payload: {} },
   { method: 'POST', suffix: 'impersonate', payload: {} },
   { method: 'GET', suffix: 'addresses' },
-  // Retired (`specs/173-b2c-address-book-merge/` OD-5): `410` for a customer
-  // that exists, and for one that does not the same `404` as every sibling.
-  { method: 'POST', suffix: 'addresses', payload: {} },
   { method: 'GET', suffix: 'orders' },
   { method: 'GET', suffix: 'quote-requests' },
   { method: 'GET', suffix: 'carts' },
@@ -102,11 +102,29 @@ describe('admin sub-resources of an unknown customer (issue #794)', () => {
     expect(Array.isArray(body.data.personal)).toBe(true);
   });
 
-  it('still tells an admin adding an address to a customer that exists that the book is retired', async () => {
-    const res = await call({ method: 'POST', suffix: 'addresses', payload: {} }, TEST_CUSTOMER_ID, ADMIN);
+  /**
+   * `specs/173-b2c-address-book-merge/` FR-005 (architect ruling on #812,
+   * 2026-11-06) — the retired write answers `410 CUSTOMER_ADDRESS_BOOK_RETIRED`
+   * to every caller who holds `customers:manage`, whatever the id names: a
+   * customer, nothing, or nothing a UUID could name.
+   */
+  it.each([
+    ['an existing customer', TEST_CUSTOMER_ID],
+    ['an unknown customer', UNKNOWN_CUSTOMER_ID],
+    ['a malformed id', '1c0785cf'],
+  ])('answers the retired address write 410 for %s', async (_name, customerId) => {
+    const res = await call({ method: 'POST', suffix: 'addresses', payload: {} }, customerId, ADMIN);
     expect({ status: res.statusCode, code: (res.json() as { error?: { code?: string } }).error?.code }).toEqual({
       status: 410,
       code: ERROR_CODES.CUSTOMER_ADDRESS_BOOK_RETIRED,
+    });
+  });
+
+  it('refuses the retired address write 403 to a caller without `customers:manage`', async () => {
+    const res = await call({ method: 'POST', suffix: 'addresses', payload: {} }, UNKNOWN_CUSTOMER_ID, READER);
+    expect({ status: res.statusCode, code: (res.json() as { error?: { code?: string } }).error?.code }).toEqual({
+      status: 403,
+      code: ERROR_CODES.FORBIDDEN,
     });
   });
 

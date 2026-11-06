@@ -187,7 +187,6 @@ const NAMED: readonly NamedRoute[] = [
   { method: 'PATCH', path: '/api/v1/admin/customers/:id/custom-fields', cookies: ADMIN, payload: {}, code: ERROR_CODES.CUSTOMER_NOT_FOUND },
   { method: 'POST', path: '/api/v1/admin/customers/:id/impersonate', cookies: ADMIN, payload: {}, code: ERROR_CODES.CUSTOMER_NOT_FOUND },
   { method: 'GET', path: '/api/v1/admin/customers/:id/addresses', cookies: ADMIN, code: ERROR_CODES.CUSTOMER_NOT_FOUND },
-  { method: 'POST', path: '/api/v1/admin/customers/:id/addresses', cookies: ADMIN, payload: {}, code: ERROR_CODES.CUSTOMER_NOT_FOUND },
   { method: 'GET', path: '/api/v1/admin/customers/:id/orders', cookies: ADMIN, code: ERROR_CODES.CUSTOMER_NOT_FOUND },
   { method: 'GET', path: '/api/v1/admin/customers/:id/quote-requests', cookies: ADMIN, code: ERROR_CODES.CUSTOMER_NOT_FOUND },
   { method: 'GET', path: '/api/v1/admin/customers/:id/carts', cookies: ADMIN, code: ERROR_CODES.CUSTOMER_NOT_FOUND },
