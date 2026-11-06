@@ -401,14 +401,17 @@ describe('registered module i18n bundles — real filesystem shape', () => {
    * the storefront's English `nav.*` labels and the `title` / `sidebar_label`
    * of every hand-written documentation page, then the English admin search
    * group labels (`adminSearch.*group.label`) and the demo composition's
-   * megamenu labels.
+   * megamenu labels. #807 added the English label of every declared block
+   * (`blocks.*.label`, what the Page Builder drawer shows), the English admin
+   * search field labels (`adminSearch.*field.*`) and the Polish `nav.*`
+   * labels, which are sentence case too ("Import / eksport").
    *
    * The rule and the allowlist are `@endora-commerce/cli`'s
    * (`lib/sentence-case.ts`) — the one copy, which `endora new module` refuses
    * a title-case `--name` with. The allowlist is two-way here: an entry nothing
    * in this population uses fails too.
    */
-  it('every English module name, nav label, page title, palette label, settings group, admin search group, demo menu label and docs title is sentence case', async () => {
+  it('every English module name, nav label, page title, palette label, block label, settings group, admin search group and field, demo menu label and docs title, and every Polish nav label, is sentence case', async () => {
     const used = new Set<string>();
     const problems: string[] = [];
     const judged = new Map<string, number>();
@@ -430,6 +433,7 @@ describe('registered module i18n bundles — real filesystem shape', () => {
     }
     const NAV_LABEL = /(^|\.)nav\.[A-Za-z]+(\.label)?$/;
     const ADMIN_SEARCH_GROUP = /^adminSearch\.([A-Za-z]+\.)?group\.label$/;
+    const ADMIN_SEARCH_FIELD = /^adminSearch\.([A-Za-z]+\.)?field\.[A-Za-z]+$/;
     for (const entry of manifests.values()) {
       const id = entry.manifest.id;
       judge('manifest name', `${id} manifest name`, entry.manifest.name);
@@ -437,11 +441,12 @@ describe('registered module i18n bundles — real filesystem shape', () => {
         judge('settings group', `${id} settings group "${group.code}"`, group.name);
       }
       if (!entry.manifest.i18n) continue;
-      const en = loadModuleBundles(
+      const bundles = loadModuleBundles(
         id,
         dirname(entry.filePath),
         entry.manifest.i18n.bundlesDir,
-      ).byLanguage.get('en') ?? {};
+      ).byLanguage;
+      const en = bundles.get('en') ?? {};
       for (const [key, value] of Object.entries(en)) {
         if (key === 'module.name' || (NAV_LABEL.test(key) && !/[dD]escription$/.test(key))) {
           judge('module name and nav label', `${id}/en.json → ${key}`, value);
@@ -449,11 +454,22 @@ describe('registered module i18n bundles — real filesystem shape', () => {
           judge('title', `${id}/en.json → ${key}`, value);
         } else if (ADMIN_SEARCH_GROUP.test(key)) {
           judge('admin search group', `${id}/en.json → ${key}`, value);
+        } else if (ADMIN_SEARCH_FIELD.test(key)) {
+          judge('admin search field', `${id}/en.json → ${key}`, value);
         }
       }
       for (const action of entry.manifest.actions ?? []) {
         const label = en[action.labelKey];
         if (label !== undefined) judge('palette label', `${id}/en.json → ${action.labelKey}`, label);
+      }
+      for (const block of entry.manifest.blocks ?? []) {
+        const label = en[block.labelKey];
+        if (label !== undefined) judge('block label', `${id}/en.json → ${block.labelKey}`, label);
+      }
+      for (const [key, value] of Object.entries(bundles.get('pl') ?? {})) {
+        if (NAV_LABEL.test(key) && !/[dD]escription$/.test(key)) {
+          judge('Polish nav label', `${id}/pl.json → ${key}`, value);
+        }
       }
     }
 
@@ -508,7 +524,10 @@ describe('registered module i18n bundles — real filesystem shape', () => {
     expect(manifests.size).toBeGreaterThan(REGISTERED_MANIFESTS.length);
     // Every population reached something: an empty one means its filter broke.
     expect([...judged.keys()].sort()).toEqual([
+      'Polish nav label',
+      'admin search field',
       'admin search group',
+      'block label',
       'demo menu label',
       'docs title',
       'manifest name',
