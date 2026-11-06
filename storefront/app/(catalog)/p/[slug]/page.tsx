@@ -389,6 +389,7 @@ export default async function ProductPage({
                         success: t('product.notify.success'),
                         errorGeneric: t('product.notify.errorGeneric'),
                         cancel: t('product.notify.cancel'),
+                        close: t('product.notify.close'),
                       }}
                     />
                   ) : null}

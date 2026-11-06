@@ -1,19 +1,18 @@
 'use client';
 
-import { useState, useTransition, type ReactNode } from 'react';
-import { createPortal } from 'react-dom';
+import { useTransition, type ReactNode } from 'react';
 import { tForLocale } from '../../lib/i18n/messages';
 import { richText } from '../../lib/account/labels';
+import { ModalDialog, ModalDialogClose } from '../ModalDialog';
 
 /**
  * "Delete list" control for the shopping-lists overview. Renders a button that
  * opens a confirmation dialog before deleting a whole shopping list — deleting
  * a list is destructive and irreversible, so it must be confirmed.
  *
- * Mirrors `ClearListButton`: the dialog is portalled to `document.body` so its
- * fixed backdrop covers the viewport rather than being trapped inside the
- * account panel, and the `deleteAction` server action runs inside a transition
- * so dismissing the dialog can't unmount the form and abort the mutation.
+ * Mirrors `ClearListButton`: a `ModalDialog` alertdialog (issue #804) opening
+ * on Cancel, and the `deleteAction` server action runs inside a transition
+ * this component holds, so closing the dialog can't abort the mutation.
  */
 export function DeleteShoppingListButton({
   listId,
@@ -28,7 +27,6 @@ export function DeleteShoppingListButton({
   deleteAction: (formData: FormData) => void | Promise<void>;
 }): ReactNode {
   const t = tForLocale(locale);
-  const [open, setOpen] = useState(false);
   const [pending, startTransition] = useTransition();
 
   const confirmDelete = (): void => {
@@ -37,78 +35,30 @@ export function DeleteShoppingListButton({
       formData.set('id', listId);
       await deleteAction(formData);
     });
-    setOpen(false);
   };
 
   return (
-    <>
-      <button
-        type="button"
-        className="btn btn--outline btn--sm"
-        onClick={(): void => setOpen(true)}
-      >
-        {t('account.shoppingList.delete.button')}
-      </button>
-
-      {open && typeof document !== 'undefined'
-        ? createPortal(
-            <div
-              role="dialog"
-              aria-modal="true"
-              aria-labelledby="delete-list-title"
-              style={{
-                position: 'fixed',
-                inset: 0,
-                display: 'grid',
-                placeItems: 'center',
-                background: 'rgba(0,0,0,0.55)',
-                zIndex: 1000,
-              }}
-              onClick={(e): void => {
-                if (e.target === e.currentTarget && !pending) setOpen(false);
-              }}
-            >
-              <div
-                style={{
-                  background: 'var(--surface, #fff)',
-                  color: 'var(--fg, #111)',
-                  maxWidth: 460,
-                  width: '90%',
-                  padding: 24,
-                  borderRadius: 8,
-                  boxShadow: '0 10px 30px rgba(0,0,0,0.25)',
-                }}
-              >
-                <h2 id="delete-list-title" style={{ marginTop: 0, fontSize: 18 }}>
-                  {t('account.shoppingList.delete.title')}
-                </h2>
-                <p style={{ marginTop: 8, fontSize: 14 }}>
-                  {richText(t('account.shoppingList.delete.body'), { name: <strong>{listName}</strong> })}
-                </p>
-                <div style={{ display: 'flex', gap: 8, justifyContent: 'flex-end', marginTop: 20 }}>
-                  <button
-                    type="button"
-                    className="btn btn--outline"
-                    disabled={pending}
-                    onClick={(): void => setOpen(false)}
-                  >
-                    {t('account.common.cancel')}
-                  </button>
-                  <button
-                    type="button"
-                    className="btn"
-                    disabled={pending}
-                    style={{ background: '#b91c1c', borderColor: '#b91c1c', color: '#fff' }}
-                    onClick={confirmDelete}
-                  >
-                    {pending ? t('account.shoppingList.delete.pending') : t('account.shoppingList.delete.confirm')}
-                  </button>
-                </div>
-              </div>
-            </div>,
-            document.body,
-          )
-        : null}
-    </>
+    <ModalDialog
+      triggerLabel={t('account.shoppingList.delete.button')}
+      triggerClassName="btn btn--outline btn--sm"
+      title={t('account.shoppingList.delete.title')}
+      closeLabel={t('account.common.close')}
+      role="alertdialog"
+      dismissible={!pending}
+      footer={
+        <>
+          <ModalDialogClose className="btn btn--outline" disabled={pending} initialFocus>
+            {t('account.common.cancel')}
+          </ModalDialogClose>
+          <ModalDialogClose className="btn btn--danger" disabled={pending} onClick={confirmDelete}>
+            {pending ? t('account.shoppingList.delete.pending') : t('account.shoppingList.delete.confirm')}
+          </ModalDialogClose>
+        </>
+      }
+    >
+      <p className="m-0">
+        {richText(t('account.shoppingList.delete.body'), { name: <strong>{listName}</strong> })}
+      </p>
+    </ModalDialog>
   );
 }

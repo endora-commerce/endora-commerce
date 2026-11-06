@@ -410,6 +410,13 @@
   .btn--ghost { @apply border-transparent bg-transparent text-[color:var(--ink-700)]; }
   .btn--ghost:hover { @apply bg-surface-alt; }
 
+  /* The confirm of a destructive, irreversible action (issue #804 — clearing
+     or deleting a shopping list). White on `--bad-700` is 6.5:1 and neither
+     token is re-pointed by `:root.is-dark`. The label still names the action,
+     so the colour is never the only signal. `.btn:disabled` outranks it. */
+  .btn--danger { @apply border-bad bg-bad text-white; }
+  .btn--danger:hover { @apply border-bad bg-bad/90; }
+
   /* A refused `.btn` had no visual state at all: it kept its filled background,
      its hover lift and a normal cursor, so a control the platform will not
      accept looked exactly like one it would. Introduced with the quote-request
@@ -900,6 +907,11 @@
   .b2b-dialog__head { @apply flex items-center justify-between gap-3 border-b border-line py-[6px] pl-[16px] pr-[6px]; }
   .b2b-dialog__title { @apply m-0 text-[15px] font-semibold text-fg; }
   .b2b-dialog__body { @apply min-h-0 flex-1 overflow-y-auto p-[16px]; }
+  /* Issue #804 — the action row of a confirmation or a form: pinned under the
+     scrolling body, primary action last (rightmost), each target at the 44px
+     touch floor (Fitts). Wraps rather than overflows on a narrow phone. */
+  .b2b-dialog__foot { @apply flex flex-wrap items-center justify-end gap-2 border-t border-line px-[16px] py-[12px]; }
+  .b2b-dialog__foot > .btn { @apply min-h-11 justify-center; }
   /* The default trigger reads as an inline link; its hit area is the 44px
      touch floor, pulled into the table cell's own padding so the row does not
      grow (Fitts). */
@@ -909,6 +921,10 @@
 }
 /* The dim behind the dialog: the bottom sheet's (`.m-sheet-dim`) value. */
 .b2b-dialog::backdrop { background: rgba(10, 13, 18, 0.45); }
+/* Issue #804 — the page behind an open modal dialog does not scroll. A
+   selector rather than a script: closing the dialog, or unmounting it while
+   open, releases the lock with nothing left to restore. */
+html:has(.b2b-dialog[open]) { overflow: hidden; }
 /* Issue #193 — the federated divider's flanking rules (::before/::after
    residual, same convention as the floating-label rules below). */
 .b2b-auth__social-divider::before,

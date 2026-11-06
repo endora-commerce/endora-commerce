@@ -1,8 +1,9 @@
 'use client';
 
-import { useId, useState, type FormEvent, type ReactNode } from 'react';
+import { useEffect, useId, useRef, useState, type FormEvent, type ReactNode } from 'react';
 import { publicApiBaseUrl } from '../../lib/env.mjs';
 import { channelHeaders } from '../../lib/channel/channel-header';
+import { ModalDialog, ModalDialogClose } from '../ModalDialog';
 
 /**
  * NotifyWhenAvailableDialog — feature 010 / US6.
@@ -24,6 +25,13 @@ import { channelHeaders } from '../../lib/channel/channel-header';
  * buyer is shopping. This component posts from the browser, so nothing on the
  * server side can stamp the header for it — the page that renders it knows the
  * channel and hands it down.
+ *
+ * The dialog is `ModalDialog` (issue #804): focus trap, Escape, focus back on
+ * the trigger, and focus opening on the e-mail field. The actions sit in the
+ * dialog's footer and submit the form through its `form` attribute; while the
+ * post is in flight the dialog cannot be dismissed. The outcome — the
+ * backend's refusal or the confirmation — is announced through a status region
+ * mounted with the dialog, and on success focus moves to the one control left.
  */
 
 const apiBase = publicApiBaseUrl();
@@ -37,6 +45,8 @@ interface Labels {
   success: string;
   errorGeneric: string;
   cancel: string;
+  /** The dialog's close button's accessible name. */
+  close: string;
 }
 
 export function NotifyWhenAvailableDialog(props: {
@@ -47,12 +57,20 @@ export function NotifyWhenAvailableDialog(props: {
   salesChannelCode: string | undefined;
   labels: Labels;
 }): ReactNode {
-  const [open, setOpen] = useState(false);
   const [email, setEmail] = useState(props.defaultEmail ?? '');
   const [submitting, setSubmitting] = useState(false);
   const [success, setSuccess] = useState(false);
   const [error, setError] = useState<string | null>(null);
-  const dialogId = useId();
+  const doneRef = useRef<HTMLButtonElement>(null);
+  const id = useId();
+  const formId = `${id}-form`;
+  const emailId = `${id}-email`;
+  const errorId = `${id}-error`;
+
+  useEffect(() => {
+    // The submit button the buyer pressed is gone with the form; keep focus inside the dialog.
+    if (success) doneRef.current?.focus();
+  }, [success]);
 
   const handleSubmit = async (e: FormEvent): Promise<void> => {
     e.preventDefault();
@@ -87,107 +105,63 @@ export function NotifyWhenAvailableDialog(props: {
     }
   };
 
-  if (!open) {
-    return (
-      <button
-        type="button"
-        className="b2b-cta b2b-cta--secondary"
-        onClick={(): void => setOpen(true)}
-      >
-        {props.labels.cta}
-      </button>
-    );
-  }
-
   return (
-    <div
-      role="dialog"
-      aria-modal="true"
-      aria-labelledby={`${dialogId}-title`}
-      className="industria-notify-dialog"
-      style={{
-        position: 'fixed',
-        inset: 0,
-        display: 'grid',
-        placeItems: 'center',
-        background: 'rgba(0,0,0,0.55)',
-        zIndex: 60,
-      }}
-    >
-      <div
-        style={{
-          background: 'var(--surface, #fff)',
-          color: 'var(--fg, #111)',
-          maxWidth: 460,
-          width: '90%',
-          padding: 24,
-          borderRadius: 8,
-          boxShadow: '0 10px 30px rgba(0,0,0,0.25)',
-        }}
-      >
-        <h2 id={`${dialogId}-title`} style={{ marginTop: 0, fontSize: 18 }}>
-          {props.labels.dialogTitle}
-        </h2>
-        {success ? (
-          <p style={{ marginTop: 16 }}>{props.labels.success}</p>
+    <ModalDialog
+      triggerLabel={props.labels.cta}
+      triggerClassName="b2b-cta b2b-cta--secondary"
+      title={props.labels.dialogTitle}
+      closeLabel={props.labels.close}
+      dismissible={!submitting}
+      footer={
+        success ? (
+          <ModalDialogClose ref={doneRef} className="btn btn--outline">
+            {props.labels.cancel}
+          </ModalDialogClose>
         ) : (
-          <form onSubmit={(e): void => { void handleSubmit(e); }}>
-            <div className="b2b-auth__field">
-              <label htmlFor={`${dialogId}-email`}>
-                {props.labels.emailLabel}
-              </label>
-              <input
-                id={`${dialogId}-email`}
-                type="email"
-                required
-                autoFocus
-                placeholder=" "
-                value={email}
-                onChange={(e): void => setEmail(e.target.value)}
-              />
-            </div>
-            {error ? (
-              <p
-                style={{
-                  marginTop: 8,
-                  fontSize: 13,
-                  color: 'var(--danger, #b00020)',
-                }}
-              >
-                {error}
-              </p>
-            ) : null}
-            <div style={{ display: 'flex', gap: 8, justifyContent: 'flex-end', marginTop: 16 }}>
-              <button
-                type="button"
-                className="b2b-btn b2b-btn--ghost"
-                onClick={(): void => setOpen(false)}
-                disabled={submitting}
-              >
-                {props.labels.cancel}
-              </button>
-              <button
-                type="submit"
-                className="b2b-cta"
-                disabled={submitting || !email}
-              >
-                {submitting ? props.labels.submitting : props.labels.submit}
-              </button>
-            </div>
-          </form>
-        )}
-        {success ? (
-          <div style={{ display: 'flex', justifyContent: 'flex-end', marginTop: 16 }}>
-            <button
-              type="button"
-              className="b2b-btn b2b-btn--ghost"
-              onClick={(): void => setOpen(false)}
-            >
+          <>
+            <ModalDialogClose className="btn btn--outline" disabled={submitting}>
               {props.labels.cancel}
+            </ModalDialogClose>
+            <button
+              type="submit"
+              className="btn btn--primary"
+              form={formId}
+              disabled={submitting || !email}
+              aria-busy={submitting || undefined}
+            >
+              {submitting ? props.labels.submitting : props.labels.submit}
             </button>
+          </>
+        )
+      }
+    >
+      {success ? null : (
+        <form id={formId} onSubmit={(e): void => { void handleSubmit(e); }}>
+          <div className="b2b-auth__field">
+            <label htmlFor={emailId}>{props.labels.emailLabel}</label>
+            <input
+              id={emailId}
+              type="email"
+              required
+              data-autofocus=""
+              placeholder=" "
+              value={email}
+              aria-invalid={error ? true : undefined}
+              aria-describedby={error ? errorId : undefined}
+              onChange={(e): void => setEmail(e.target.value)}
+            />
           </div>
+        </form>
+      )}
+      <div role="status">
+        {success ? (
+          <p className="m-0">{props.labels.success}</p>
+        ) : error ? (
+          <p id={errorId} className="mt-2 mb-0 text-[13px] text-bad">
+            {error}
+          </p>
         ) : null}
       </div>
-    </div>
+    </ModalDialog>
   );
 }

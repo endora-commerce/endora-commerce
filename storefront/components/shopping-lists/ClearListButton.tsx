@@ -1,24 +1,25 @@
 'use client';
 
-import { useState, useTransition, type ReactNode } from 'react';
-import { createPortal } from 'react-dom';
+import { useTransition, type ReactNode } from 'react';
 import { tForLocale } from '../../lib/i18n/messages';
+import { ModalDialog, ModalDialogClose } from '../ModalDialog';
 
 /**
  * "Clear list" control for the shopping-list detail page. Renders a button
  * that opens a confirmation dialog before emptying the whole list — clearing
  * every item is destructive and irreversible, so it must be confirmed.
  *
- * The dialog is rendered through a portal to `document.body` so its
- * `position: fixed` backdrop covers the whole viewport: rendered inline it was
- * trapped inside the account-panel container (an ancestor establishes a
- * containing block), so the overlay only dimmed the panel.
+ * The dialog is `ModalDialog` (issue #804): a native modal `<dialog>` in the
+ * top layer, so no account-panel ancestor can trap its backdrop, with the
+ * focus trap, Escape and focus return that come with it. It is an
+ * `alertdialog`, and focus opens on Cancel — the least destructive choice.
  *
  * Confirming invokes the `clearAction` server action inside a transition
- * (rather than a plain `<form>` submit) so dismissing the dialog can't unmount
- * the form mid-flight and abort the mutation — the previous version closed the
- * dialog in the submit button's onClick, which cancelled the clear before it
- * ran.
+ * (rather than a plain `<form>` submit) held by this component, then closes
+ * the dialog. Closing only hides the dialog, so it cannot abort the in-flight
+ * action — the version before the portal fix closed it in the submit button's
+ * onClick, which cancelled the clear before it ran. The server action's
+ * redirect refreshes the page with the now-empty list.
  */
 export function ClearListButton({
   listId,
@@ -31,90 +32,36 @@ export function ClearListButton({
   clearAction: (formData: FormData) => void | Promise<void>;
 }): ReactNode {
   const t = tForLocale(locale);
-  const [open, setOpen] = useState(false);
   const [pending, startTransition] = useTransition();
 
   const confirmClear = (): void => {
-    // Dispatch inside the transition (held by this still-mounted component),
-    // then close the dialog. Closing the portal can't abort the in-flight
-    // action; the server action's redirect refreshes the page with the
-    // now-empty list.
     startTransition(async () => {
       const formData = new FormData();
       formData.set('listId', listId);
       await clearAction(formData);
     });
-    setOpen(false);
   };
 
   return (
-    <>
-      <button type="button" className="btn btn--outline" onClick={(): void => setOpen(true)}>
-        {t('account.shoppingList.clear.button')}
-      </button>
-
-      {open && typeof document !== 'undefined'
-        ? createPortal(
-            <div
-              role="dialog"
-              aria-modal="true"
-              aria-labelledby="clear-list-title"
-              style={{
-                position: 'fixed',
-                inset: 0,
-                display: 'grid',
-                placeItems: 'center',
-                background: 'rgba(0,0,0,0.55)',
-                zIndex: 1000,
-              }}
-              onClick={(e): void => {
-                // Click on the backdrop (not the card) dismisses the dialog.
-                if (e.target === e.currentTarget && !pending) setOpen(false);
-              }}
-            >
-              <div
-                style={{
-                  background: 'var(--surface, #fff)',
-                  color: 'var(--fg, #111)',
-                  maxWidth: 460,
-                  width: '90%',
-                  padding: 24,
-                  borderRadius: 8,
-                  boxShadow: '0 10px 30px rgba(0,0,0,0.25)',
-                }}
-              >
-                <h2 id="clear-list-title" style={{ marginTop: 0, fontSize: 18 }}>
-                  {t('account.shoppingList.clear.title')}
-                </h2>
-                <p style={{ marginTop: 8, fontSize: 14 }}>
-                  {t('account.shoppingList.clear.body')}
-                </p>
-                <div
-                  style={{ display: 'flex', gap: 8, justifyContent: 'flex-end', marginTop: 20 }}
-                >
-                  <button
-                    type="button"
-                    className="btn btn--outline"
-                    disabled={pending}
-                    onClick={(): void => setOpen(false)}
-                  >
-                    {t('account.common.cancel')}
-                  </button>
-                  <button
-                    type="button"
-                    className="btn"
-                    disabled={pending}
-                    style={{ background: '#b91c1c', borderColor: '#b91c1c', color: '#fff' }}
-                    onClick={confirmClear}
-                  >
-                    {pending ? t('account.shoppingList.clear.pending') : t('account.shoppingList.clear.button')}
-                  </button>
-                </div>
-              </div>
-            </div>,
-            document.body,
-          )
-        : null}
-    </>
+    <ModalDialog
+      triggerLabel={t('account.shoppingList.clear.button')}
+      triggerClassName="btn btn--outline"
+      title={t('account.shoppingList.clear.title')}
+      closeLabel={t('account.common.close')}
+      role="alertdialog"
+      dismissible={!pending}
+      footer={
+        <>
+          <ModalDialogClose className="btn btn--outline" disabled={pending} initialFocus>
+            {t('account.common.cancel')}
+          </ModalDialogClose>
+          <ModalDialogClose className="btn btn--danger" disabled={pending} onClick={confirmClear}>
+            {pending ? t('account.shoppingList.clear.pending') : t('account.shoppingList.clear.button')}
+          </ModalDialogClose>
+        </>
+      }
+    >
+      <p className="m-0">{t('account.shoppingList.clear.body')}</p>
+    </ModalDialog>
   );
 }
