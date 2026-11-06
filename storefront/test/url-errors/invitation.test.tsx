@@ -1,7 +1,7 @@
 import { beforeEach, describe, expect, it, vi } from 'vitest';
 import { renderToString } from 'react-dom/server';
 import { StorefrontApiError } from '../../lib/api/client';
-import { SIGN_IN_ERRORS } from '../../lib/auth/sign-in-errors';
+import { SIGN_IN_ERRORS, signInErrorMessage } from '../../lib/auth/sign-in-errors';
 import { visibleText } from '../account/i18n/text';
 import { actionsOf, form, redirectOf } from './actions';
 
@@ -11,6 +11,11 @@ import { actionsOf, form, redirectOf } from './actions';
  * sent one to `/login?error=` when the token was empty. A code travels now:
  * the page words the codes of its own vocabulary and reads anything else as
  * its generic failure; `/login` gets a code from the sign-in vocabulary.
+ *
+ * The failure is split by stage (architect ruling on #822, 2026-11-06): an
+ * accept refusal stays on the invitation page; once the account exists, a
+ * sign-in refusal or a required second step goes to `/login`, whose
+ * `SIGN_IN_TO_CONTINUE` says the account was created.
  */
 
 let locale = 'en-US';
@@ -102,22 +107,33 @@ describe('each invitation code reads in English and Polish', () => {
       'Check the details you entered. The password needs at least 12 characters.',
       'Sprawdź wpisane dane. Hasło musi mieć co najmniej 12 znaków.',
     ],
+    ['INVITATION_FAILED', 'Could not accept invitation. Try again.', 'Nie udało się przyjąć zaproszenia. Spróbuj ponownie.'],
+  ] as const)('%s', async (code, en, pl) => {
+    expect(await text({ error: code })).toContain(en);
+    locale = 'pl-PL';
+    expect(await text({ error: code })).toContain(pl);
+  });
+
+  it.each(['SIGN_IN_TO_CONTINUE', 'SALES_CHANNEL_NOT_PERMITTED', 'CUSTOMER_AUTHENTICATION_THROTTLED'])(
+    'a sign-in code %s is not the invitation page’s',
+    async (code) => {
+      expect(await text({ error: code })).toContain('Could not accept invitation. Try again.');
+    },
+  );
+});
+
+describe('what /login says once the account exists, in English and Polish', () => {
+  it.each([
+    ['SIGN_IN_TO_CONTINUE', 'Account created. Please sign in to continue.', 'Konto zostało utworzone. Zaloguj się, aby kontynuować.'],
+    ['sales_channel_not_permitted', 'This account does not have access to this store.', 'To konto nie ma dostępu do tego sklepu.'],
     [
       'CUSTOMER_AUTHENTICATION_THROTTLED',
       'Too many attempts were made for this account',
       'Dla tego konta podjęto zbyt wiele prób',
     ],
-    ['SALES_CHANNEL_NOT_PERMITTED', 'This account does not have access to this store.', 'To konto nie ma dostępu do tego sklepu.'],
-    ['INVITATION_FAILED', 'Could not accept invitation. Try again.', 'Nie udało się przyjąć zaproszenia. Spróbuj ponownie.'],
-    [
-      'SIGN_IN_TO_CONTINUE',
-      'Account created. Please sign in to continue.',
-      'Konto zostało utworzone. Zaloguj się, aby kontynuować.',
-    ],
-  ] as const)('%s', async (code, en, pl) => {
-    expect(await text({ error: code })).toContain(en);
-    locale = 'pl-PL';
-    expect(await text({ error: code })).toContain(pl);
+  ] as const)('%s', (code, en, pl) => {
+    expect(signInErrorMessage(code, 'en-US')).toContain(en);
+    expect(signInErrorMessage(code, 'pl-PL')).toContain(pl);
   });
 });
 
@@ -136,14 +152,29 @@ describe('the action redirects with a code, never a sentence', () => {
     expect(await submit(FIELDS)).toBe('/invitations/tok/accept?error=INVITATION_FAILED');
   });
 
-  it('carries the sign-in refusal it names, after the account was created', async () => {
-    loginFailure = new StorefrontApiError(403, 'SALES_CHANNEL_NOT_PERMITTED', 'Kein Zugang.');
-    expect(await submit(FIELDS)).toBe('/invitations/tok/accept?error=SALES_CHANNEL_NOT_PERMITTED');
+  it('an accept refusal stays on the invitation page, even one the sign-in also names', async () => {
+    acceptFailure = new StorefrontApiError(403, 'SALES_CHANNEL_NOT_PERMITTED', 'Kein Zugang.');
+    expect(await submit(FIELDS)).toBe('/invitations/tok/accept?error=INVITATION_FAILED');
   });
 
-  it('carries SIGN_IN_TO_CONTINUE when the sign-in needs a second step', async () => {
+  it('a sign-in refusal after the account was created goes to /login with the sign-in code', async () => {
+    loginFailure = new StorefrontApiError(403, 'SALES_CHANNEL_NOT_PERMITTED', 'Kein Zugang.');
+    expect(await submit(FIELDS)).toBe('/login?error=sales_channel_not_permitted');
+    loginFailure = new StorefrontApiError(429, 'CUSTOMER_AUTHENTICATION_THROTTLED', 'Zbyt wiele prób.');
+    expect(await submit(FIELDS)).toBe('/login?error=CUSTOMER_AUTHENTICATION_THROTTLED');
+  });
+
+  it('a sign-in that fails without a code it names goes to /login with SIGN_IN_TO_CONTINUE', async () => {
+    loginFailure = new StorefrontApiError(500, 'INTERNAL', 'Database exploded.');
+    expect(await submit(FIELDS)).toBe('/login?error=SIGN_IN_TO_CONTINUE');
+    loginFailure = new Error('fetch failed');
+    expect(await submit(FIELDS)).toBe('/login?error=SIGN_IN_TO_CONTINUE');
+  });
+
+  it('a sign-in that needs a second step goes to /login with SIGN_IN_TO_CONTINUE', async () => {
     loginAnswer = { status: 'mfa_required' };
-    expect(await submit(FIELDS)).toBe('/invitations/tok/accept?error=SIGN_IN_TO_CONTINUE');
+    expect(await submit(FIELDS)).toBe('/login?error=SIGN_IN_TO_CONTINUE');
+    expect(SIGN_IN_ERRORS.errorKey('SIGN_IN_TO_CONTINUE')).toBe('auth.invitation.signInToContinue');
   });
 
   it('sends an empty token to /login with a sign-in code', async () => {
