@@ -210,6 +210,22 @@ describe('the failure page reads a refusal’s figures as typed values (issue #7
     );
   });
 
+  // Architect ruling on #831 (Q2): a limit lowered below what is already used has a negative
+  // available amount; the figure written is clamped at 0, and the reader stays strict.
+  it('a negative available amount is written as 0', async () => {
+    failure = new StorefrontApiError(409, 'LIMIT_INSUFFICIENT', 'Dostępny limit kredytowy…', undefined, {
+      availableAmount: '-50.00',
+      orderTotal: '1250.50',
+      currency: 'PLN',
+    });
+    const tree = await CheckoutPage({ searchParams: Promise.resolve({}) });
+    const action = actionsOf(tree).get('submitAction')!;
+    const to = await redirectOf(() => action(form({ deliveryAddressId: 'a1', billingSameAsShipping: 'on' }) as never));
+    expect(to).toBe('/checkout/failure?reason=LIMIT_INSUFFICIENT&available=0&total=1250.50&currency=PLN');
+    const out = await failureText(Object.fromEntries(new URL(to, 'http://x').searchParams));
+    expect(out).toContain('The available credit limit (PLN 0.00) does not cover this order (PLN 1,250.50).');
+  });
+
   it('the placement carries the minimum beside the code', async () => {
     failure = new StorefrontApiError(422, 'PRODUCT_BELOW_MINIMUM_QUANTITY', '"Bolt" has a minimum…', undefined, {
       productName: 'Bolt',

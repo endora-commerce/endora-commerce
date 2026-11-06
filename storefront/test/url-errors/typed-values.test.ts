@@ -104,6 +104,21 @@ describe('the writers put into a URL only what the readers accept', () => {
 });
 
 describe('errorFiguresQuery — the figures a refusal carries beside its code', () => {
+  it('a negative available amount is clamped at 0 (architect ruling on #831, Q2)', () => {
+    for (const availableAmount of ['-50.00', -50]) {
+      const err = new StorefrontApiError(409, 'LIMIT_INSUFFICIENT', 'x', undefined, {
+        availableAmount,
+        orderTotal: '1250.50',
+        currency: 'PLN',
+      });
+      expect(errorFiguresQuery(err)).toBe('&available=0&total=1250.50&currency=PLN');
+    }
+  });
+
+  it('the reader stays strict: a negative amount in the URL is dropped', () => {
+    expect(readAmount('-50.00')).toBeNull();
+  });
+
   it('a credit-limit refusal carries both amounts and the currency', () => {
     const err = new StorefrontApiError(409, 'LIMIT_INSUFFICIENT', 'Dostępny limit kredytowy…', undefined, {
       availableAmount: '1000.00',
@@ -115,7 +130,7 @@ describe('errorFiguresQuery — the figures a refusal carries beside its code', 
 
   it('a credit-limit refusal with any figure out of shape carries none', () => {
     const err = new StorefrontApiError(409, 'LIMIT_INSUFFICIENT', 'x', undefined, {
-      availableAmount: '-50.00',
+      availableAmount: '50 zł',
       orderTotal: '1250.50',
       currency: 'PLN',
     });
