@@ -45,7 +45,7 @@ interface Labels {
   success: string;
   errorGeneric: string;
   cancel: string;
-  /** The dialog's close button's accessible name. */
+  /** The close button's accessible name, and the one button left after a sign-up. */
   close: string;
 }
 
@@ -115,7 +115,7 @@ export function NotifyWhenAvailableDialog(props: {
       footer={
         success ? (
           <ModalDialogClose ref={doneRef} className="btn btn--outline">
-            {props.labels.cancel}
+            {props.labels.close}
           </ModalDialogClose>
         ) : (
           <>

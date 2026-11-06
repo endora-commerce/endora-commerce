@@ -1,9 +1,9 @@
 'use client';
 
-import { useTransition, type ReactNode } from 'react';
+import { useState, type ReactNode } from 'react';
 import { tForLocale } from '../../lib/i18n/messages';
 import { richText } from '../../lib/account/labels';
-import { ModalDialog, ModalDialogClose } from '../ModalDialog';
+import { ModalDialog, ModalDialogAction, ModalDialogClose } from '../ModalDialog';
 
 /**
  * "Delete list" control for the shopping-lists overview. Renders a button that
@@ -11,8 +11,9 @@ import { ModalDialog, ModalDialogClose } from '../ModalDialog';
  * a list is destructive and irreversible, so it must be confirmed.
  *
  * Mirrors `ClearListButton`: a `ModalDialog` alertdialog (issue #804) opening
- * on Cancel, and the `deleteAction` server action runs inside a transition
- * this component holds, so closing the dialog can't abort the mutation.
+ * on Cancel, whose confirm runs the `deleteAction` server action through
+ * `ModalDialogAction` — "Deleting…" until it finishes, nothing able to dismiss
+ * it meanwhile, and a retry with a message if the request itself fails.
  */
 export function DeleteShoppingListButton({
   listId,
@@ -27,14 +28,13 @@ export function DeleteShoppingListButton({
   deleteAction: (formData: FormData) => void | Promise<void>;
 }): ReactNode {
   const t = tForLocale(locale);
-  const [pending, startTransition] = useTransition();
+  const [failed, setFailed] = useState(false);
 
-  const confirmDelete = (): void => {
-    startTransition(async () => {
-      const formData = new FormData();
-      formData.set('id', listId);
-      await deleteAction(formData);
-    });
+  const confirmDelete = async (): Promise<void> => {
+    setFailed(false);
+    const formData = new FormData();
+    formData.set('id', listId);
+    await deleteAction(formData);
   };
 
   return (
@@ -44,21 +44,28 @@ export function DeleteShoppingListButton({
       title={t('account.shoppingList.delete.title')}
       closeLabel={t('account.common.close')}
       role="alertdialog"
-      dismissible={!pending}
       footer={
         <>
-          <ModalDialogClose className="btn btn--outline" disabled={pending} initialFocus>
+          <ModalDialogClose className="btn btn--outline" initialFocus>
             {t('account.common.cancel')}
           </ModalDialogClose>
-          <ModalDialogClose className="btn btn--danger" disabled={pending} onClick={confirmDelete}>
-            {pending ? t('account.shoppingList.delete.pending') : t('account.shoppingList.delete.confirm')}
-          </ModalDialogClose>
+          <ModalDialogAction
+            className="btn btn--danger"
+            pendingLabel={t('account.shoppingList.delete.pending')}
+            action={confirmDelete}
+            onError={(): void => setFailed(true)}
+          >
+            {t('account.shoppingList.delete.confirm')}
+          </ModalDialogAction>
         </>
       }
     >
       <p className="m-0">
         {richText(t('account.shoppingList.delete.body'), { name: <strong>{listName}</strong> })}
       </p>
+      <div role="status">
+        {failed ? <p className="mt-2 mb-0 text-[13px] text-bad">{t('account.shoppingLists.deleteFailed')}</p> : null}
+      </div>
     </ModalDialog>
   );
 }

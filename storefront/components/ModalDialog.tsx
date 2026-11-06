@@ -1,6 +1,17 @@
 'use client';
 
-import { createContext, useContext, useId, useRef, type ReactNode, type Ref } from 'react';
+import { unstable_rethrow } from 'next/navigation';
+import {
+  createContext,
+  useContext,
+  useEffect,
+  useId,
+  useRef,
+  useState,
+  useTransition,
+  type ReactNode,
+  type Ref,
+} from 'react';
 
 /**
  * A button that opens its server-rendered content in a modal dialog (issue #801).
@@ -20,8 +31,10 @@ import { createContext, useContext, useId, useRef, type ReactNode, type Ref } fr
  * rather than navigating, styled as a link where the caller asks for one.
  *
  * Confirmations and forms (issue #804) add a `footer` of actions built from
- * `ModalDialogClose`, mark a destructive confirmation `role="alertdialog"`,
- * and turn `dismissible` off while a submit is in flight. The element that
+ * `ModalDialogClose` and `ModalDialogAction`, mark a destructive confirmation
+ * `role="alertdialog"`, and turn `dismissible` off while a submit is in
+ * flight. A `ModalDialogAction` running marks the dialog busy, which does the
+ * same and also disables every `ModalDialogClose`. The element that
  * should take focus on open carries `data-autofocus` — the least destructive
  * action of a confirmation, the first field of a form; without one the browser
  * focuses the first focusable element, the close button.
@@ -29,6 +42,9 @@ import { createContext, useContext, useId, useRef, type ReactNode, type Ref } fr
 
 interface ModalDialogApi {
   close: () => void;
+  /** An action in the dialog is in flight: nothing may dismiss it. */
+  busy: boolean;
+  setBusy: (busy: boolean) => void;
 }
 
 const ModalDialogContext = createContext<ModalDialogApi | null>(null);
@@ -60,9 +76,10 @@ export function ModalDialog(props: {
   const dialogId = useId();
   const titleId = `${dialogId}-title`;
   const bodyId = `${dialogId}-body`;
-  const dismissible = props.dismissible ?? true;
+  const [busy, setBusy] = useState(false);
+  const dismissible = (props.dismissible ?? true) && !busy;
   const isAlert = props.role === 'alertdialog';
-  const api: ModalDialogApi = { close: (): void => dialogRef.current?.close() };
+  const api: ModalDialogApi = { close: (): void => dialogRef.current?.close(), busy, setBusy };
 
   const open = (): void => {
     const dialog = dialogRef.current;
@@ -164,7 +181,7 @@ export function ModalDialogClose(props: {
       ref={props.ref}
       type="button"
       className={props.className}
-      disabled={props.disabled}
+      disabled={Boolean(props.disabled) || Boolean(dialog?.busy)}
       data-autofocus={props.initialFocus ? '' : undefined}
       onClick={(): void => {
         props.onClick?.();
@@ -172,6 +189,77 @@ export function ModalDialogClose(props: {
       }}
     >
       {props.children}
+    </button>
+  );
+}
+
+/** A Next.js redirect / not-found signal rather than a failure: it must reach the router. */
+function isNavigationSignal(err: unknown): boolean {
+  try {
+    unstable_rethrow(err);
+  } catch {
+    return true;
+  }
+  return false;
+}
+
+/**
+ * The confirm of a `ModalDialog` whose action takes a round trip — a server
+ * action that clears or deletes, then redirects (rulings on PR #837).
+ *
+ * While the action is in flight the dialog stays open and says so: this
+ * button shows `pendingLabel`, disabled and `aria-busy`, and the dialog is
+ * busy — Escape, the backdrop, the close button and every `ModalDialogClose`
+ * are held (Doherty Threshold: no plain-looking control during a request, and
+ * no double submit). When the action finishes the dialog closes. A redirect
+ * the action ends in is rethrown for the router — the transition is what
+ * carries it there — after closing the dialog, which may outlive a redirect
+ * to the page it is on. Any other failure is handed to `onError` and the
+ * dialog stays open with its buttons enabled again, for a retry.
+ *
+ * The transition is held by this component, which stays mounted while the
+ * dialog is closed, so closing can never abort the action.
+ */
+export function ModalDialogAction(props: {
+  children: ReactNode;
+  /** The label while the action is in flight ("Clearing…"). */
+  pendingLabel: ReactNode;
+  className?: string;
+  action: () => unknown;
+  /** A failure that is not a redirect; the dialog stays open. */
+  onError?: (err: unknown) => void;
+}): ReactNode {
+  const dialog = useContext(ModalDialogContext);
+  const [pending, startTransition] = useTransition();
+  const setBusy = dialog?.setBusy;
+
+  useEffect(() => {
+    setBusy?.(pending);
+  }, [pending, setBusy]);
+
+  return (
+    <button
+      type="button"
+      className={props.className}
+      disabled={pending}
+      aria-busy={pending || undefined}
+      onClick={(): void => {
+        startTransition(async () => {
+          try {
+            await props.action();
+          } catch (err) {
+            if (isNavigationSignal(err)) {
+              dialog?.close();
+              throw err;
+            }
+            props.onError?.(err);
+            return;
+          }
+          dialog?.close();
+        });
+      }}
+    >
+      {pending ? props.pendingLabel : props.children}
     </button>
   );
 }
