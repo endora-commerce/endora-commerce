@@ -252,6 +252,11 @@ describe('the cart reads a refusal’s figures as typed values (issue #791)', ()
     expect(await text(sp)).toContain('The available credit limit (€99.50) does not cover this order (€120.00).');
   });
 
+  it('an order-minimum-value refusal (one-click buy) names the subtotal and the minimum (issue #832)', async () => {
+    const sp = { error: 'ORDER_BELOW_MINIMUM_VALUE', minValue: '100.00', subtotal: '80.00', currency: 'EUR' };
+    expect(await text(sp)).toContain('The value of the order (€80.00) is below the minimum order value of this store (€100.00).');
+  });
+
   it('a minimum out of shape reads as the bare sentence in the banner', async () => {
     const out = await text({ error: 'PRODUCT_BELOW_MINIMUM_QUANTITY', min: '0' });
     expect(out).toContain('A product is below its minimum order quantity. Increase the quantity and try again.');

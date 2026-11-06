@@ -239,6 +239,48 @@ describe('the failure page reads a refusal’s figures as typed values (issue #7
   });
 });
 
+/** Issue #832 — the order-minimum-value refusal's figures, as typed values validated on read. */
+describe('the failure page names an order-minimum-value refusal’s figures (issue #832)', () => {
+  const below = { reason: 'ORDER_BELOW_MINIMUM_VALUE', minValue: '100.00', subtotal: '80.00', currency: 'PLN' };
+
+  it('names the subtotal and the minimum, in English and Polish', async () => {
+    expect(await failureText(below)).toContain(
+      'The value of the order (PLN 80.00) is below the minimum order value of this store (PLN 100.00).',
+    );
+    locale = 'pl-PL';
+    expect(await failureText(below)).toContain(
+      'Wartość zamówienia (80,00 zł) jest niższa od minimalnej wartości zamówienia w tym sklepie (100,00 zł).',
+    );
+  });
+
+  it.each([
+    { minValue: 'abc' },
+    { minValue: '1e3' },
+    { subtotal: 'NaN' },
+    { subtotal: '-5' },
+    { subtotal: '80.005' },
+    { currency: 'pln' },
+    { currency: 'PLN<b>' },
+  ])('a figure out of shape (%o) reads as the bare sentence', async (crafted) => {
+    const out = await failureText({ ...below, ...crafted });
+    expect(out).toContain('The value of the order is below the minimum order value of this store.');
+    expect(out).not.toContain('NaN');
+  });
+
+  it('the placement carries the figures beside the code', async () => {
+    failure = new StorefrontApiError(422, 'ORDER_BELOW_MINIMUM_VALUE', 'Order total 80.00 is below the minimum 100.00…', undefined, {
+      minimum: '100.00',
+      subtotal: '80.00',
+      currency: 'PLN',
+    });
+    const tree = await CheckoutPage({ searchParams: Promise.resolve({}) });
+    const action = actionsOf(tree).get('submitAction')!;
+    expect(await redirectOf(() => action(form({ deliveryAddressId: 'a1', billingSameAsShipping: 'on' }) as never))).toBe(
+      '/checkout/failure?reason=ORDER_BELOW_MINIMUM_VALUE&minValue=100.00&subtotal=80.00&currency=PLN',
+    );
+  });
+});
+
 describe('checkout’s placement redirects with a code, never a sentence', () => {
   async function submit(): Promise<string> {
     const tree = await CheckoutPage({ searchParams: Promise.resolve({}) });

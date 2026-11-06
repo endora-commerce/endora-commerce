@@ -49,6 +49,8 @@ export default async function CheckoutFailurePage({
     outcome?: string;
     /** Issue #791 — the figures beside `reason`, typed values read through `lib/url-typed-values.ts`. */
     min?: string;
+    minValue?: string;
+    subtotal?: string;
     available?: string;
     total?: string;
     currency?: string;

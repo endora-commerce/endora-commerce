@@ -150,6 +150,27 @@ describe('errorFiguresQuery — the figures a refusal carries beside its code', 
     expect(errorFiguresQuery(units)).toBe('&min=2');
   });
 
+  // Issue #832 — the order-minimum-value refusal's display figures, two places, formatted only.
+  it('an order-minimum-value refusal carries the minimum, the subtotal and the currency', () => {
+    const err = new StorefrontApiError(422, 'ORDER_BELOW_MINIMUM_VALUE', 'Order total 80.00 is below…', undefined, {
+      minimum: '100.00',
+      subtotal: '80.00',
+      currency: 'PLN',
+    });
+    expect(errorFiguresQuery(err)).toBe('&minValue=100.00&subtotal=80.00&currency=PLN');
+  });
+
+  it('an order-minimum-value refusal with any figure out of shape carries none', () => {
+    for (const details of [
+      { minimum: '100.005', subtotal: '80.00', currency: 'PLN' },
+      { minimum: '100.00', subtotal: '-1.00', currency: 'PLN' },
+      { minimum: '100.00', subtotal: '80.00', currency: 'zł' },
+      { minimum: '100.00', currency: 'PLN' },
+    ]) {
+      expect(errorFiguresQuery(new StorefrontApiError(422, 'ORDER_BELOW_MINIMUM_VALUE', 'x', undefined, details))).toBe('');
+    }
+  });
+
   it('any other refusal, or no API answer, carries nothing', () => {
     expect(errorFiguresQuery(new StorefrontApiError(409, 'CART_EMPTY', 'x', undefined, { minimum: 10 }))).toBe('');
     expect(errorFiguresQuery(new Error('fetch failed'))).toBe('');

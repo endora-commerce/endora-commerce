@@ -313,6 +313,8 @@ export const commerce = defineMessages({
     // Issue #791 — the same refusals with the figures a URL carries beside the code, validated on read.
     'commerce.errorFigures.LIMIT_INSUFFICIENT':
       'The available credit limit ({available}) does not cover this order ({total}). Reduce the order or choose a different payment method.',
+    'commerce.errorFigures.ORDER_BELOW_MINIMUM_VALUE':
+      'The value of the order ({subtotal}) is below the minimum order value of this store ({minimum}).',
     'commerce.errorFigures.PRODUCT_BELOW_MINIMUM_QUANTITY':
       'A product is below its minimum order quantity ({count} pcs). Increase the quantity and try again.',
     'commerce.errorFigures.PACKAGING_UNIT_BELOW_MINIMUM_QUANTITY':
@@ -629,6 +631,8 @@ export const commerce = defineMessages({
       'Dostępny limit kredytowy nie pokrywa wartości tego zamówienia. Zmniejsz zamówienie albo wybierz inną metodę płatności.',
     'commerce.errorFigures.LIMIT_INSUFFICIENT':
       'Dostępny limit kredytowy ({available}) nie pokrywa wartości tego zamówienia ({total}). Zmniejsz zamówienie albo wybierz inną metodę płatności.',
+    'commerce.errorFigures.ORDER_BELOW_MINIMUM_VALUE':
+      'Wartość zamówienia ({subtotal}) jest niższa od minimalnej wartości zamówienia w tym sklepie ({minimum}).',
     'commerce.errorFigures.PRODUCT_BELOW_MINIMUM_QUANTITY':
       'Ilość produktu jest poniżej minimalnej ilości zamówienia ({count} szt.). Zwiększ ilość i spróbuj ponownie.',
     'commerce.errorFigures.PACKAGING_UNIT_BELOW_MINIMUM_QUANTITY':

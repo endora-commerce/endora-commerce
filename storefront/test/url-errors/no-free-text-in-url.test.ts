@@ -102,9 +102,18 @@ const SAFE: Record<string, { kind: Kind; why: string }> = {
     why: 'the credit limit still available, a decimal amount written and read only through `lib/url-typed-values.ts`',
   },
   total: { kind: 'number', why: 'the refused order’s total, a decimal amount written and read only through `lib/url-typed-values.ts`' },
+  // Issue #832 — the figures of an `ORDER_BELOW_MINIMUM_VALUE` refusal, beside its code; `currency` is shared.
+  minValue: {
+    kind: 'number',
+    why: 'the store’s minimum order value, a two-place display amount written and read only through `lib/url-typed-values.ts`',
+  },
+  subtotal: {
+    kind: 'number',
+    why: 'the refused order’s subtotal, a two-place display amount written and read only through `lib/url-typed-values.ts`',
+  },
   currency: {
     kind: 'code',
-    why: 'the ISO 4217 code of those two amounts, written and read only as `^[A-Z]{3}$` (`lib/url-typed-values.ts`)',
+    why: 'the ISO 4217 code of the amounts beside it, written and read only as `^[A-Z]{3}$` (`lib/url-typed-values.ts`)',
   },
   // A path and a query.
   next: { kind: 'path', why: 'an in-site return path; the login flow refuses anything else' },
@@ -229,7 +238,7 @@ describe('no page builds free text into a URL (issue #790)', () => {
 
   it('finds the figures of a URL-borne error (issue #791)', () => {
     const names = new Set(sites.map((site) => site.name));
-    for (const name of ['min', 'available', 'total', 'currency', 'couponShortfall', 'couponShortfallCurrency']) {
+    for (const name of ['min', 'available', 'total', 'currency', 'minValue', 'subtotal', 'couponShortfall', 'couponShortfallCurrency']) {
       expect(names).toContain(name);
     }
   });
