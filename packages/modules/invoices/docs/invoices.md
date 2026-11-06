@@ -1,9 +1,9 @@
 ---
-title: invoices
+title: Invoices
 description: PDF invoice / proforma generation + asset linkage
 ---
 
-# `invoices`
+# Invoices (`invoices`)
 
 Generates proforma and final invoice PDFs, registers them under the
 `assets` module, and links them from the originating Order.

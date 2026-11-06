@@ -1,9 +1,9 @@
 ---
-title: analytics
+title: Analityka
 description: Zbieranie zdarzeń ze storefrontu, zestawienia w panelu administracyjnym i opcjonalne przekazywanie do GA4
 ---
 
-# `analytics`
+# Analityka (`analytics`)
 
 Dziennik zdarzeń, do którego można wyłącznie dopisywać, zasilany przez storefront i panel
 administracyjny, oraz niewielka ścieżka odczytu zestawień dla pulpitu w panelu. Jeśli jest

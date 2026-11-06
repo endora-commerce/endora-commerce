@@ -123,6 +123,10 @@ export { runInstanceOperatorCommand } from './commands/operator-entry.js';
 // `runInstanceOperatorCommand`, which attaches it itself. `composeApp` attaches
 // its own; this is for the processes that never compose.
 export { attachEscapeHatchAuditWriter } from '../kernel/audit/escape-hatch-audit-writer.js';
+// The same entry points' platform log lines, onto their error channel (issue
+// #819): a command builds no server, so without this they reach the logger's
+// stdout fallback and land in front of a `--json` answer.
+export { attachOperatorDiagnostics } from './commands/operator-diagnostics.js';
 
 // --- the module itself, as the generated artefacts name it ----------------
 // Phase 6 made this comment literally true: `composition.generated.ts` and

@@ -1,3 +1,5 @@
+import type { FederatedSignInErrorCode } from '@endora-commerce/contracts';
+
 /**
  * Copy for the screens that render **before** a session exists.
  *
@@ -39,6 +41,42 @@ export const loginCopy = {
   federatedGoogle: 'Continue with Google',
   federatedMicrosoft: 'Continue with Microsoft',
 } as const;
+
+/**
+ * Issue #813 — the line the sign-in screen shows for each code a refused
+ * federated sign-in comes back with (`/login?error=<code>`). The backend sends
+ * the code, never a sentence, because `?error=` is text anyone can put there
+ * with a crafted link; the screen words it here and reads any other value as
+ * {@link loginCopy}`.failed` (`federatedSignInErrorLine`). The contract's type
+ * makes a code added to `federatedSignInErrorCodeSchema` a compile error here
+ * until it has a line. The last three are customer-only refusals the admin
+ * surface never produces; they still have a line, so no code goes unworded.
+ */
+export const federatedSignInErrorCopy = {
+  unknown_provider: 'Unknown sign-in provider.',
+  provider_unavailable: 'Sign-in with this provider is not available.',
+  sign_in_cancelled: 'Sign-in was cancelled or failed.',
+  sign_in_expired: 'This sign-in attempt has expired.',
+  sign_in_failed: 'Sign-in failed. Please try again.',
+  email_unverified: 'Your provider email is not verified.',
+  no_matching_account: 'No account matches this provider. Please contact an administrator.',
+  account_blocked: 'This account has been blocked. Please contact support.',
+  mfa_setup_required:
+    'Two-step verification is required for your account. Please contact a platform administrator to finish setup.',
+  registration_disabled_in_channel: 'Sign-in failed. Please try again.',
+  sales_channel_sign_in_required: 'Sign-in failed. Please try again.',
+  sales_channel_not_permitted: 'Sign-in failed. Please try again.',
+} as const satisfies Record<FederatedSignInErrorCode, string>;
+
+/**
+ * The line for a federated sign-in refusal: the wording of a code the screen
+ * knows, or `loginCopy.failed` for anything else — never the value itself.
+ */
+export function federatedSignInErrorLine(code: string): string {
+  return Object.hasOwn(federatedSignInErrorCopy, code)
+    ? federatedSignInErrorCopy[code as FederatedSignInErrorCode]
+    : loginCopy.failed;
+}
 
 /**
  * Where `noAccountLink` points: the published guide's section on creating an

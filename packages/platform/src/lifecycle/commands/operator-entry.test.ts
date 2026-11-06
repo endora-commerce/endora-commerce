@@ -4,6 +4,7 @@ import { join } from 'node:path';
 
 import { afterAll, describe, expect, it, vi } from 'vitest';
 
+import { currentPlatformLogger, platformLogger } from '../../kernel/logging.js';
 import { instanceOperatorRuntime, runInstanceOperatorCommand } from './operator-entry.js';
 
 /**
@@ -85,6 +86,28 @@ describe('instanceOperatorRuntime', () => {
     runtime.err('two\n');
     expect(out).toEqual(['one\n']);
     expect(err).toEqual(['two\n']);
+  });
+
+  it('issue #819 — the platform\'s diagnostics go to `err` until `dispose`, never to stdout', async () => {
+    const err: string[] = [];
+    const info = vi.spyOn(console, 'info').mockImplementation(() => undefined);
+    try {
+      const { dispose } = await instanceOperatorRuntime({
+        deploymentRoot: emptyDeploymentRoot(),
+        ormConfig: refusingConfig,
+        env: {},
+        err: (line) => err.push(line),
+      });
+      platformLogger().info({ chain: 'A -> B' }, 'a notice');
+      expect(info).not.toHaveBeenCalled();
+      expect(err.map((line) => JSON.parse(line) as unknown)).toEqual([
+        { level: 'info', msg: 'a notice', chain: 'A -> B' },
+      ]);
+      await dispose();
+      expect(currentPlatformLogger()).toBeUndefined();
+    } finally {
+      info.mockRestore();
+    }
   });
 
   it('R2.1 — there is no container on it, and no composition seam either', async () => {

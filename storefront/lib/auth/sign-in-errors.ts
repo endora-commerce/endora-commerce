@@ -64,6 +64,11 @@ const SIGN_IN_OWN_ERROR_KEYS = {
   SETUP_START_FAILED: 'auth.login.setupStartFailed',
   MFA_VERIFY_FAILED: 'auth.mfa.verifyFailed',
   MFA_SETUP_FAILED: 'auth.mfaSetup.failed',
+  // The invitation page's redirect when its form arrives without a token (issue #808).
+  INVITATION_INVALID: 'auth.invitation.invalidLink',
+  // The invitation's account exists, but its sign-in did not finish there: refused, or a second
+  // step is required (issue #808, architect ruling on #822).
+  SIGN_IN_TO_CONTINUE: 'auth.invitation.signInToContinue',
 } as const satisfies Record<string, MessageKey>;
 
 /** `/login?error=` — the password step's and the federated callback's codes. */

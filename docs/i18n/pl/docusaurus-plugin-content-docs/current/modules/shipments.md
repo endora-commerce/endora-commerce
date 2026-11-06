@@ -1,9 +1,9 @@
 ---
-title: shipments
+title: Przesyłki
 description: Rekord przesyłki z możliwością ponowienia i jego cykl życia — odpowiednik modułu payments po stronie dostawy
 ---
 
-# `shipments`
+# Przesyłki (`shipments`)
 
 Rekord przesyłki (`Shipment`) i jego cykl życia. To odpowiednik modułu `payments` po stronie
 dostawy: *katalog* metod dostawy i rejestr adapterów należą do

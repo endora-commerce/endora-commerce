@@ -1,9 +1,9 @@
 ---
-title: carts
+title: Koszyki
 description: Koszyk klienta z łączeniem koszyka anonimowego z koszykiem po zalogowaniu
 ---
 
-# `carts`
+# Koszyki (`carts`)
 
 Koszyki anonimowe i przypisane do klienta. Koszyk anonimowy jest identyfikowany długo ważnym tokenem
 w ciasteczku; po zalogowaniu jest w przewidywalny sposób łączony z koszykiem klienta.

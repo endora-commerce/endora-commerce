@@ -389,7 +389,7 @@ describe('admin_users — sessions, roles and the impersonation target over port
         customerAccountId: '00000000-0000-4000-8000-781000000102',
         organizationId: 'org-2',
       }),
-    ).rejects.toThrow('Target customer not found.');
+    ).rejects.toMatchObject({ statusCode: 404, code: 'CUSTOMER_NOT_FOUND' });
     expect(actions()).toEqual([]);
   });
 });

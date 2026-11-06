@@ -1,9 +1,9 @@
 ---
-title: shipments
+title: Shipments
 description: The retryable Shipment record and its lifecycle — the delivery-side twin of payments
 ---
 
-# `shipments`
+# Shipments (`shipments`)
 
 The `Shipment` record and its lifecycle. The
 delivery-side twin of `payments`: the shipping-method *catalog* and adapter

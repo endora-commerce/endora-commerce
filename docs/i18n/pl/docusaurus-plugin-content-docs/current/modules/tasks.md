@@ -1,9 +1,9 @@
 ---
-title: tasks
+title: Zadania
 description: Zadania dla administratorów — wiele osób przypisanych, terminy, priorytety, etykiety, przebieg określony przez operatora, lista i tablica, komentarze, podzadania, powiązania, przypomnienia i dzienne podsumowanie — które inne moduły mogą przejmować przez kontekst zadania
 ---
 
-# `tasks`
+# Zadania (`tasks`)
 
 Moduł Zadania przechowuje **zadania**: pracę do wykonania przez osoby
 korzystające z panelu administracyjnego. Zadanie ma tytuł, sformatowany opis,

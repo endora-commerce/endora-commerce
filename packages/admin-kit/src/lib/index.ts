@@ -32,7 +32,7 @@ export {
   useListViewModePreference,
 } from './admin-preferences/use-admin-preference.js';
 export type { AdminPreferencesStatus, SidebarPreferenceKey } from './admin-preferences/use-admin-preference.js';
-export type { AdminMe, AuthProviderProps } from './auth.js';
+export type { AdminMe, AuthProviderProps, LoginErrorReason } from './auth.js';
 export { formatDateTime } from './format.js';
 export { formatMoney, localeForCurrency, type FormatMoneyOptions } from './money.js';
 export { invoiceEmailNotSentReason, issueInvoiceNotice, sendInvoiceEmailMessage } from './invoice-email-outcome.js';

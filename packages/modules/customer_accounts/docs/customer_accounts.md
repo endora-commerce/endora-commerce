@@ -1,9 +1,9 @@
 ---
-title: customer_accounts
+title: Customer accounts
 description: Customer login, password reset, two-step verification, role assignment
 ---
 
-# `customer_accounts`
+# Customer accounts (`customer_accounts`)
 
 Per-user state for Customers: login, password management, optional two-step verification,
 role within their Organization. Backed by the shared `auth` session

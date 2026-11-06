@@ -75,18 +75,22 @@ export class ImpersonationService {
     }
     // `findInOrganization` is the two-argument form of the same lookup: the
     // membership check and the identity read in one query, which is what stops
-    // the check being forgotten. `activeOnly` carries the `deletedAt: null`
-    // half of the read this replaced.
+    // the check being forgotten. The read includes soft-deleted accounts so a
+    // deleted target in scope can be refused with its own code (issue #814);
+    // the scope is decided first, so a deleted account outside it still reads
+    // as absent. Both refusals come before the audit and the session: fail closed.
     const target =
       input.organizationId != null
         ? await this.customerAccounts.findInOrganization(
             input.customerAccountId,
             input.organizationId,
-            { activeOnly: true },
           )
-        : await this.customerAccounts.findById(input.customerAccountId, { activeOnly: true });
+        : await this.customerAccounts.findById(input.customerAccountId);
     if (!target) {
-      throw new HttpError(404, ERROR_CODES.NOT_FOUND, 'Target customer not found.');
+      throw new HttpError(404, ERROR_CODES.CUSTOMER_NOT_FOUND, 'Customer not found.');
+    }
+    if (target.deletedAt !== null) {
+      throw new HttpError(409, ERROR_CODES.CUSTOMER_ALREADY_DELETED, 'Customer is deleted.');
     }
 
     // Audit FIRST — partial failure leaves no dangling cookie.

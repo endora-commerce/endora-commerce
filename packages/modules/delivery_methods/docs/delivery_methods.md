@@ -1,9 +1,9 @@
 ---
-title: delivery_methods
+title: Delivery methods
 description: Configured delivery options
 ---
 
-# `delivery_methods`
+# Delivery methods (`delivery_methods`)
 
 The platform's **shipping-method framework** (_Metoda Dostawy_).
 The module hosts a pluggable adapter registry over the delivery-method catalog,

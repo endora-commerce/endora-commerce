@@ -46,6 +46,8 @@ import {
   refusalMinimum,
 } from '../../../lib/cartMinimum';
 import { CART_ERRORS } from '../../../lib/commerce-errors';
+import { urlErrorText } from '../../../lib/url-error-figures';
+import { readMoney, writeAmount, writeCurrency } from '../../../lib/url-typed-values';
 import { droppedBelowMinimumReason } from '../../../lib/batchReport';
 import { tForLocale } from '../../../lib/i18n/messages';
 import { format } from '../../../lib/i18n/format';
@@ -88,8 +90,18 @@ export default async function CartPage({
     /** Issue #745 — the minimum a refused edit of that line was below (a whole number). */
     min?: string;
     couponError?: string;
+    /** Issue #791 — a decimal amount and an ISO 4217 code, read through `lib/url-typed-values.ts`. */
     couponShortfall?: string;
     couponShortfallCurrency?: string;
+    /**
+     * Issues #791, #832 — a credit-limit or order-minimum-value refusal's figures beside `error`
+     * (`lib/url-error-figures.ts`).
+     */
+    available?: string;
+    minValue?: string;
+    subtotal?: string;
+    total?: string;
+    currency?: string;
     qrCreated?: string;
     /**
      * Issue #790 — the id of the list a line was saved to, never its name: the page reads the
@@ -100,6 +112,8 @@ export default async function CartPage({
   }>;
 }): Promise<ReactNode> {
   const params = await searchParams;
+  // Issue #791 — the coupon refusal's shortfall, read only when the amount and the code are in shape.
+  const couponShortfall = readMoney(params.couponShortfall, params.couponShortfallCurrency);
   const jar = await readJar();
 
   // Activity bookkeeping — reactivates an abandoned cart. Never blocks
@@ -286,10 +300,11 @@ export default async function CartPage({
         </div>
       ) : null}
 
-      {/* Issue #745 — `?error=` is a code; one this page does not know reads as its generic failure. */}
+      {/* Issue #745 — `?error=` is a code; one this page does not know reads as its generic failure.
+          Issue #791 — a minimum or credit-limit refusal names the figures beside it when they are in shape. */}
       {params.error && !cart.items.some((it) => cartLineEditError(params, it, locale) !== null) ? (
         <div className="mb-3 rounded-md border border-[#fecaca] bg-[#fef2f2] px-[14px] py-[10px] text-[13px] text-[#b91c1c]" role="alert">
-          {tForLocale(locale)(CART_ERRORS.errorKey(params.error)!)}
+          {urlErrorText(CART_ERRORS, params.error, params, locale)}
         </div>
       ) : null}
 
@@ -365,14 +380,8 @@ export default async function CartPage({
                         | 'wrong_customer_group'
                         | 'wrong_organization'
                         | 'coupon_format_invalid',
-                      ...(params.couponShortfall && params.couponShortfallCurrency
-                        ? {
-                            shortfall: {
-                              amount: Number(params.couponShortfall),
-                              currency: params.couponShortfallCurrency,
-                            },
-                          }
-                        : {}),
+                      // Issue #791 — read only when both are in shape; otherwise the bare refusal.
+                      ...(couponShortfall ? { shortfall: couponShortfall } : {}),
                     }
                   : null
               }
@@ -549,9 +558,12 @@ async function applyCouponAction(formData: FormData): Promise<void> {
   // Outside the `try`: `redirect()` throws, and the handler above would read it as a failure.
   if (result.outcome === 'rejected') {
     const qs = new URLSearchParams({ couponError: result.reason });
-    if (result.shortfall) {
-      qs.set('couponShortfall', String(result.shortfall.amount));
-      qs.set('couponShortfallCurrency', result.shortfall.currency);
+    // Issue #791 — only a shortfall the page's reader accepts travels, both halves or neither.
+    const amount = writeAmount(result.shortfall?.amount);
+    const currency = writeCurrency(result.shortfall?.currency);
+    if (amount !== null && currency !== null) {
+      qs.set('couponShortfall', amount);
+      qs.set('couponShortfallCurrency', currency);
     }
     return await localeRedirect(`/cart?${qs.toString()}`);
   }

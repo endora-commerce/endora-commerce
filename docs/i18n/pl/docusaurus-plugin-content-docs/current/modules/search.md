@@ -1,9 +1,9 @@
 ---
-title: search
+title: Wyszukiwanie w sklepie
 description: Indeksator Meilisearch i warstwa zapytań
 ---
 
-# `search`
+# Wyszukiwanie w sklepie (`search`)
 
 Wyszukiwanie w katalogu oparte na Meilisearch. Moduł odpowiada za indeksator, który odwzorowuje
 zdarzenia katalogu w osobnych indeksach dla każdego kanału sprzedaży, typowaną warstwę zapytań, dane

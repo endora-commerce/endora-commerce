@@ -1,9 +1,9 @@
 ---
-title: custom_fields
+title: Pola niestandardowe
 description: Typowane pola, które operator dodaje do zamówień, zapytań ofertowych, szans sprzedażowych i innych rekordów bez zmiany kodu, edytowane na jednym ekranie, dostępne jako filtry list w panelu i przenoszone z jednego rekordu do rekordu z niego utworzonego.
 ---
 
-# `custom_fields`
+# Pola niestandardowe (`custom_fields`)
 
 Pola niestandardowe pozwalają operatorowi dodać własne, typowane pola do rekordów platformy —
 numer zamówienia zakupu klienta przy zamówieniu, region przy zapytaniu ofertowym, źródło leada
