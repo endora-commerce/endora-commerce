@@ -1055,6 +1055,12 @@ export interface CustomerAccountLifecycleWritePort {
    * `anonymizedAt` it stamps is what takes the account off
    * {@link listDueForAnonymization}, so it is the commit marker for the
    * organisation and address scrubs that run before it.
+   *
+   * The scrub clears the e-mail, both names, the credentials and **every**
+   * custom field value, and commits in one transaction with its
+   * `customer_account.anonymized` audit row, which records none of the erased
+   * data (issue #802). `customer_account.anonymized.v1` is announced after
+   * that commit, only on the transition.
    */
   anonymize(customerAccountId: string): Promise<CustomerAccountRecord>;
 }

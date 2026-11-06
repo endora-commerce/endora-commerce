@@ -711,6 +711,9 @@ describe('CustomerDeletionService', () => {
 
   it('I-13 — the account scrub and its audit row commit together, and nothing is announced (#802)', async () => {
     const customer = await makeFullyPopulatedPersonalCustomer();
+    // Captured now: the test's one EntityManager shares its instances with the
+    // service's transaction, so the rolled-back scrub is still visible on them.
+    const email = customer.email;
     await svc.softDelete(customer.id, actor);
     const failingAudit = {
       record: async () => {
@@ -737,7 +740,7 @@ describe('CustomerDeletionService', () => {
     em.clear();
     const account = await em.findOneOrFail(CustomerAccount, { id: customer.id });
     expect(account.anonymizedAt ?? null).toBeNull();
-    expect(account.email).toBe(customer.email);
+    expect(account.email).toBe(email);
     expect(account.firstName).toBe('Solo');
     expect(account.customFieldValues).toEqual({ birthday: '1990-01-01', shoe_size: 44 });
     expect(emitted).toEqual([]);

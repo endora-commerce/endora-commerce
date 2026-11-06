@@ -69,11 +69,14 @@ zamówienia, zapytania ofertowe i historia audytu zachowane. W konfigurowalnym o
 (`customers.deletion_retention_days`, domyślnie 365 dni) uprawniona osoba może przywrócić konto. Po
 jego upływie zadanie anonimizacji (`AnonymizationSweepWorker`) nieodwracalnie usuwa dane osobowe i
 przywrócenie nie jest już możliwe: od chwili upływu okresu przywrócenie kończy się odpowiedzią
-`409 CUSTOMER_RESTORE_WINDOW_ELAPSED`, nawet jeśli zadanie nie dotarło jeszcze do tego konta. W
-przypadku klienta indywidualnego zadanie anonimizuje też jego organizację prywatną: jej zapisane
-adresy są czyszczone (`-`, bez telefonu, kraj zostaje) i miękko usuwane, każdy z wpisem audytu
-`address.anonymized`. Dzieje się tak również wtedy, gdy operator usunął już tę organizację. Złożone
-zamówienia zachowują swoje kopie adresów.
+`409 CUSTOMER_RESTORE_WINDOW_ELAPSED`, nawet jeśli zadanie nie dotarło jeszcze do tego konta. Konto
+traci adres e-mail, imię i nazwisko, hasło oraz wszystkie wartości pól niestandardowych. W
+przypadku klienta indywidualnego zadanie anonimizuje też jego organizację prywatną: czyści jej
+nazwę, adres rejestrowy, nazwę prawną, adresy e-mail do potwierdzeń zamówień i wszystkie wartości
+pól niestandardowych, a jej zapisane adresy są czyszczone (`-`, bez telefonu, kraj zostaje) i
+miękko usuwane, każdy z wpisem audytu `address.anonymized`. Dzieje się tak również wtedy, gdy
+operator usunął już tę organizację. Złożone zamówienia zachowują swoje kopie adresów. Wpisy audytu
+anonimizacji odnotowują, że dane usunięto, ale nie przechowują samych danych.
 
 Zadanie najpierw anonimizuje organizację prywatną i jej adresy, a konto na końcu. Jeśli przebieg
 zostanie przerwany, konto zostanie podjęte ponownie w następnym przebiegu, który dokończy brakujące
