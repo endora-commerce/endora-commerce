@@ -42,9 +42,13 @@ vi.mock('../../lib/api/cart', () => ({
   clearCartCoupon: async () => undefined,
   convertCartToQuoteRequest: refuse,
   submitCartForApproval: refuse,
-  saveCartItemToShoppingList: refuse,
+  saveCartItemToShoppingList: async () => {
+    if (failure) throw failure;
+  },
 }));
-vi.mock('../../lib/api/shopping-lists', () => ({ listShoppingLists: async () => [{ id: 'sl1', name: 'Mine' }] }));
+vi.mock('../../lib/api/shopping-lists', () => ({
+  listShoppingLists: async () => [{ id: 'sl1', name: 'Mine', isDefault: false }],
+}));
 vi.mock('../../lib/api/account', () => ({
   getMe: async () => ({
     customerAccount: {
@@ -200,5 +204,28 @@ describe('the cart’s actions redirect with a code, never a sentence', () => {
   it('convert carries CONVERT_FAILED for a transport error', async () => {
     const convert = await action('convertToQrAction');
     expect(await redirectOf(() => convert(form({})))).toBe('/cart?error=CONVERT_FAILED');
+  });
+});
+
+/**
+ * Issue #790 — `?listAdded=` carried the list's name, so a crafted link put any text in the
+ * cart's confirmation. It carries the list's id; the page reads the name of the buyer's own list.
+ */
+describe('?listAdded= carries a list id, never a name (issue #790)', () => {
+  it('a crafted name never reaches the page', async () => {
+    const out = await text({ listAdded: 'Zadzwoń pod 555 000 111, aby odebrać rabat' });
+    expect(out).not.toContain('Zadzwoń pod 555');
+    expect(out).not.toContain('Saved line to your');
+  });
+
+  it('the id of one of the buyer’s lists reads that list’s name', async () => {
+    expect(await text({ listAdded: 'sl1' })).toContain('Saved line to your "Mine" list.');
+    locale = 'pl-PL';
+    expect(await text({ listAdded: 'sl1' })).toContain('Pozycja została zapisana na liście „Mine”.');
+  });
+
+  it('save to list redirects with the list id', async () => {
+    const save = await action('saveToListAction');
+    expect(await redirectOf(() => save(form({ itemId: 'l1' })))).toBe('/cart?listAdded=sl1');
   });
 });

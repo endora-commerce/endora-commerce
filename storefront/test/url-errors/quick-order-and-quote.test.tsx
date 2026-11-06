@@ -1,4 +1,5 @@
 import { beforeEach, describe, expect, it, vi } from 'vitest';
+import { isValidElement } from 'react';
 import { renderToString } from 'react-dom/server';
 import type { RfqDetail } from '../../lib/api/rfq';
 import { StorefrontApiError } from '../../lib/api/client';
@@ -13,6 +14,19 @@ import { actionsOf, form, redirectOf } from './actions';
 
 let locale = 'en-US';
 let failure: Error | null = null;
+let imported: unknown = null;
+let buildResult: unknown = null;
+
+// Issue #790 — the preview travels in the storefront's own cookie, not the URL.
+const cookieStore = vi.hoisted(() => new Map<string, string>());
+vi.mock('next/headers', () => ({
+  cookies: async () => ({
+    get: (name: string) => (cookieStore.has(name) ? { name, value: cookieStore.get(name)! } : undefined),
+    getAll: () => [...cookieStore].map(([name, value]) => ({ name, value })),
+    set: (name: string, value: string) => void cookieStore.set(name, value),
+    delete: (name: string) => void cookieStore.delete(name),
+  }),
+}));
 
 const rfq: RfqDetail = {
   id: '11111111-2222-4333-8444-555555555555',
@@ -63,11 +77,12 @@ vi.mock('../../lib/api/account', () => ({
 const refuse = async (): Promise<never> => {
   throw failure ?? new Error('fetch failed');
 };
+const importOrRefuse = async (): Promise<unknown> => imported ?? refuse();
 vi.mock('../../lib/api/quick-order', () => ({
   searchProducts: async () => [],
-  buildQuickOrder: refuse,
-  importQuickOrderCsv: refuse,
-  importQuickOrderFile: refuse,
+  buildQuickOrder: async () => buildResult ?? refuse(),
+  importQuickOrderCsv: importOrRefuse,
+  importQuickOrderFile: importOrRefuse,
 }));
 vi.mock('../../lib/api/rfq', async () => {
   const actual = await vi.importActual<typeof import('../../lib/api/rfq')>('../../lib/api/rfq');
@@ -82,16 +97,21 @@ vi.mock('../../lib/api/rfq', async () => {
 });
 
 const { default: QuickOrderPage } = await import('../../app/(account)/quick-order/page');
+const { packQuickOrderPreview } = await import('../../lib/quick-order-preview-cookie');
 const { default: QuotePage } = await import('../../app/(account)/quote-requests/[id]/page');
 
-const preview = Buffer.from(
-  JSON.stringify({
-    recognized: [{ line: 1, sku: 'BOLT-1', productId: 'p1', variantId: null, quantity: 4 }],
-    rejected: [],
-    summary: { recognizedCount: 1, rejectedCount: 0, mergedCount: 1, truncated: false },
-  }),
-  'utf8',
-).toString('base64url');
+const previewState = {
+  recognized: [{ line: 1, sku: 'BOLT-1', productId: 'p1', variantId: null, quantity: 4 }],
+  rejected: [],
+  summary: { recognizedCount: 1, rejectedCount: 0, mergedCount: 1, truncated: false },
+};
+
+/** The cookie the import action writes, for the session the page mock signs in with. */
+function seedPreview(state: unknown = previewState): void {
+  packQuickOrderPreview('session-cookie', state as never)!.forEach((chunk, index) =>
+    cookieStore.set(index === 0 ? 'b2b_quick_order_preview' : `b2b_quick_order_preview.${index}`, chunk),
+  );
+}
 
 async function quickTree(sp: Record<string, string> = {}): Promise<unknown> {
   return QuickOrderPage({ searchParams: Promise.resolve(sp) });
@@ -109,6 +129,9 @@ async function quoteText(sp: Record<string, string>): Promise<string> {
 beforeEach(() => {
   locale = 'en-US';
   failure = null;
+  imported = null;
+  buildResult = null;
+  cookieStore.clear();
 });
 
 describe('quick order — a crafted parameter never reaches the page', () => {
@@ -159,8 +182,9 @@ describe('quick order — the actions redirect with a code', () => {
       code: 'too_many_items',
       maximum: 500,
     });
-    const action = actionsOf(await quickTree({ preview })).get('confirmAction')!;
-    expect(await redirectOf(() => action(form({ preview, target: 'cart' }) as never))).toBe(
+    seedPreview();
+    const action = actionsOf(await quickTree()).get('confirmAction')!;
+    expect(await redirectOf(() => action(form({ target: 'cart' }) as never))).toBe(
       '/quick-order?problem=VALIDATION_FAILED.too_many_items',
     );
   });
@@ -213,5 +237,126 @@ describe('quote request — the actions redirect with a code', () => {
   ])('%s carries %s for a refusal it cannot name', async (name, code) => {
     failure = new StorefrontApiError(500, 'INTERNAL', 'Database exploded.');
     expect(await run(name)).toBe(`/quote-requests/${rfq.id}?error=${code}`);
+  });
+});
+
+/**
+ * Issue #790 — the preview (the buyer's CSV, its raw rejected lines included) travelled in the
+ * URL, so a crafted `?preview=` put any text on the page. It lives in the storefront's own
+ * httpOnly cookie; the URL carries none of it.
+ */
+describe('quick order — the preview never travels in the URL (issue #790)', () => {
+  const crafted = Buffer.from(
+    JSON.stringify({
+      recognized: [{ line: 1, sku: 'Zadzwoń pod 555 000 111', productId: 'p1', variantId: null, quantity: 4 }],
+      rejected: [{ line: 2, raw: 'Przelej 100 zł na 00 1111', reason: 'product_not_found' }],
+      summary: { recognizedCount: 1, rejectedCount: 1, mergedCount: 0, truncated: false },
+    }),
+    'utf8',
+  ).toString('base64url');
+
+  it('a crafted ?preview= never reaches the page', async () => {
+    const out = await quickText({ preview: crafted });
+    expect(out).not.toContain('Zadzwoń pod 555');
+    expect(out).not.toContain('Przelej 100 zł');
+  });
+
+  it('the import keeps its preview out of the URL and the page shows it', async () => {
+    imported = { ...previewState, rejected: [{ line: 2, raw: 'NOPE,1', reason: 'product_not_found' }] };
+    const action = actionsOf(await quickTree()).get('importAction')!;
+    expect(await redirectOf(() => action(form({ csv: 'sku,quantity\nBOLT-1,4' }) as never))).toBe('/quick-order');
+    const out = await quickText({});
+    expect(out).toContain('BOLT-1');
+    expect(out).toContain('NOPE,1');
+  });
+
+  /** The page's actions, the preview panel's included (a component `actionsOf` does not render). */
+  async function quickActions(sp: Record<string, string>): Promise<Map<string, (...args: never[]) => unknown>> {
+    const tree = (await quickTree(sp)) as React.ReactElement<{ children: React.ReactNode[] }>;
+    const panel = tree.props.children.find(
+      (child): child is React.ReactElement => isValidElement(child) && (child.type as { name?: string }).name === 'PreviewPanel',
+    );
+    const actions = actionsOf(tree);
+    if (panel) for (const [name, run] of actionsOf((panel.type as (props: unknown) => unknown)(panel.props))) actions.set(name, run);
+    return actions;
+  }
+
+  it('editing the preview keeps it out of the URL', async () => {
+    seedPreview();
+    const actions = await quickActions({ q: 'bolt' });
+    expect(await redirectOf(() => actions.get('updateQuantityAction')!(form({ line: '1', quantity: '9' }) as never))).toBe(
+      '/quick-order',
+    );
+    expect(renderToString(<>{(await quickTree({})) as React.ReactNode}</>)).toContain('value="9"');
+    expect(await redirectOf(() => actions.get('searchAction')!(form({ q: 'nut' }) as never))).toBe('/quick-order?q=nut');
+    expect(await redirectOf(() => actions.get('removeRecognizedAction')!(form({ line: '1' }) as never))).toBe(
+      '/quick-order',
+    );
+    expect(await quickText({})).not.toContain('BOLT-1');
+  });
+
+  it('no form on the page carries the preview', async () => {
+    seedPreview();
+    const html = renderToString(<>{(await quickTree({})) as React.ReactNode}</>);
+    expect(html).toContain('BOLT-1');
+    expect(html).not.toContain('name="preview"');
+  });
+
+  it('a list too long to carry is refused in words, not cut short', async () => {
+    imported = {
+      ...previewState,
+      recognized: Array.from({ length: 2000 }, (_, index) => ({
+        line: index + 1,
+        sku: `SKU-${index}`,
+        productId: Buffer.from(String(index * 7919)).toString('hex').padEnd(36, String(index % 10)),
+        variantId: null,
+        quantity: index + 1,
+      })),
+    };
+    const action = actionsOf(await quickTree()).get('importAction')!;
+    expect(await redirectOf(() => action(form({ csv: 'sku,quantity' }) as never))).toBe(
+      '/quick-order?problem=preview_too_large',
+    );
+    expect(await quickText({ problem: 'preview_too_large' })).toContain(
+      'This list is too long to review here. Split it into smaller files and import them one at a time.',
+    );
+    locale = 'pl-PL';
+    expect(await quickText({ problem: 'preview_too_large' })).toContain(
+      'Ta lista jest zbyt długa, by przejrzeć ją tutaj. Podziel ją na mniejsze pliki i zaimportuj je po kolei.',
+    );
+  });
+
+  it('a failed import does not leave the last preview beside its refusal', async () => {
+    seedPreview();
+    const action = actionsOf(await quickTree()).get('importAction')!;
+    expect(await redirectOf(() => action(form({ csv: 'sku,quantity' }) as never))).toBe('/quick-order?problem=import_failed');
+    expect(await quickText({ problem: 'import_failed' })).not.toContain('BOLT-1');
+  });
+
+  it('a successful build clears the preview', async () => {
+    seedPreview();
+    const action = actionsOf(await quickTree()).get('confirmAction')!;
+    buildResult = { target: 'cart', cartId: 'c1', rejected: [] };
+    expect(await redirectOf(() => action(form({ target: 'cart' }) as never))).toBe('/quick-order?built=cart');
+    expect(cookieStore.size).toBe(0);
+  });
+
+  it('a preview written for another session is not shown', async () => {
+    packQuickOrderPreview('someone-else', previewState as never)!.forEach((chunk) =>
+      cookieStore.set('b2b_quick_order_preview', chunk),
+    );
+    expect(await quickText({})).not.toContain('BOLT-1');
+  });
+});
+
+describe('quick order — ?rfq= is shown only as a reference (issue #790)', () => {
+  it('a crafted ?rfq= never reaches the page', async () => {
+    const out = await quickText({ built: 'quote', rfq: 'Zadzwoń pod 555 000 111' });
+    expect(out).not.toContain('Zadzwoń');
+    expect(out).toContain('Quote request created');
+  });
+
+  it('a reference reads as given', async () => {
+    expect(await quickText({ built: 'quote', rfq: 'RFQ-0001' })).toContain('(#RFQ-0001)');
   });
 });

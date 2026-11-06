@@ -42,6 +42,12 @@ vi.mock('../../lib/api/quick-order', () => ({
   importQuickOrderCsv: async () => ({}),
   importQuickOrderFile: async () => ({}),
 }));
+let shownPreview: unknown = null;
+vi.mock('../../lib/quick-order-preview-cookie', () => ({
+  readQuickOrderPreview: async () => shownPreview,
+  writeQuickOrderPreview: async () => true,
+  clearQuickOrderPreview: async () => undefined,
+}));
 vi.mock('next/navigation', () => ({
   redirect: (to: string) => {
     throw new Error(`redirect ${to}`);
@@ -50,16 +56,15 @@ vi.mock('next/navigation', () => ({
 
 const { default: QuickOrderPage } = await import('../../app/(account)/quick-order/page');
 
-const preview = Buffer.from(
-  JSON.stringify({
-    recognized: [{ line: 1, sku: 'BOLT-1', productId: 'p1', variantId: null, quantity: 4 }],
-    rejected: [{ line: 2, raw: 'NOPE,1', reason: 'product_not_found' }],
-    summary: { recognizedCount: 1, rejectedCount: 1, mergedCount: 2, truncated: true },
-  }),
-  'utf8',
-).toString('base64url');
+// Issue #790 — the preview is read from the storefront's own cookie, never from the URL.
+const preview = {
+  recognized: [{ line: 1, sku: 'BOLT-1', productId: 'p1', variantId: null, quantity: 4 }],
+  rejected: [{ line: 2, raw: 'NOPE,1', reason: 'product_not_found' }],
+  summary: { recognizedCount: 1, rejectedCount: 1, mergedCount: 2, truncated: true },
+};
 
-async function render(sp: Record<string, string>): Promise<string> {
+async function render(sp: Record<string, string>, withPreview: typeof preview | null = null): Promise<string> {
+  shownPreview = withPreview;
   const tree = await QuickOrderPage({ searchParams: Promise.resolve(sp) });
   return renderToString(<>{tree}</>).replaceAll('<!-- -->', '');
 }
@@ -175,7 +180,7 @@ describe.each(Object.entries(COPY))('quick order — %s', (tag, copy) => {
   });
 
   it('words the preview, its rows, its actions and the mobile bar', async () => {
-    const html = await render({ preview });
+    const html = await render({}, preview);
     for (const text of [
       copy.previewHeading,
       ...copy.pills,
@@ -214,7 +219,7 @@ describe('quick order — Polish page carries no English chrome', () => {
   it('renders none of the old literals', async () => {
     locale = 'pl-PL';
     results = [{ productId: 'p1', sku: 'BOLT-1', name: 'Bolt' }];
-    const html = await render({ q: 'bolt', preview });
+    const html = await render({ q: 'bolt' }, preview);
     for (const literal of [
       'Quick order',
       'Find products',
