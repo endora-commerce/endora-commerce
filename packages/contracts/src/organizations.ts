@@ -742,7 +742,8 @@ export interface PersonalOrganizationPort {
    * the registered address, the legal name, the order-confirmation e-mails,
    * every custom field value, `deletedAt` — an existing `deletedAt` is kept),
    * in one transaction with its audit row, and records nothing when nothing
-   * was missing. The audit row names none of the erased data (issue #802). It answers the organisation **whether or not it wrote anything**,
+   * was missing. The audit row names none of the erased data (issue #802).
+   * It answers the organisation **whether or not it wrote anything**,
    * so a repeat call still tells the caller which saved addresses to clear.
    *
    * Answers `null`, and writes nothing, only where the cascade does not apply:

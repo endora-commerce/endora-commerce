@@ -138,7 +138,7 @@ describe('CustomerAccountLifecycleWriteService.anonymize — the scrub (#802)', 
     await service.anonymize(ACCOUNT_ID);
 
     expect(audited).toHaveLength(1);
-    expect(audited[0]!.stateBefore).not.toHaveProperty('email');
+    expect(audited[0]!.stateBefore).toEqual({ anonymizedAt: null, customFieldKeys: ['birthday', 'nickname'] });
     const serialized = JSON.stringify([audited[0]!.stateBefore, audited[0]!.stateAfter]);
     for (const personal of ['ada@example.com', 'Ada', 'Lovelace', '1990-01-01']) {
       expect(serialized).not.toContain(personal);

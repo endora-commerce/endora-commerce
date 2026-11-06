@@ -677,7 +677,7 @@ describe('CustomerDeletionService', () => {
     expect(serialized).not.toContain(email);
     expect(serialized).not.toContain('Solo');
     expect(serialized).not.toContain('1990-01-01');
-    expect(row.stateBefore).not.toHaveProperty('email');
+    expect(row.stateBefore).toEqual({ anonymizedAt: null, customFieldKeys: ['birthday', 'shoe_size'] });
   });
 
   it('I-12 — an organization scrubbed before #802 is finished by the next run, keeping its deletedAt', async () => {

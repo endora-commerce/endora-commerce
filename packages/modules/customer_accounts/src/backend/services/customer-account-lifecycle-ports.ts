@@ -464,11 +464,15 @@ export class CustomerAccountLifecycleWriteService implements CustomerAccountLife
    * The scrub and its `customer_account.anonymized` row commit in one
    * transaction (issue #802): a crash between them used to leave an
    * anonymisation with no audit row. The event follows the commit, so a
-   * subscriber never sees a scrub that could still roll back; a subscriber that
-   * fails does not undo it, and `forms` reconciles on `anonymizedAt` anyway.
+   * subscriber never sees a scrub that could still roll back. The bus isolates
+   * subscriber failures (`EventBus.dispatch` catches and logs each handler's
+   * error), so an error raised here after the commit can only come from the
+   * emit path itself — resolving or wiring the bus — and it propagates; the
+   * committed scrub stands either way.
    *
    * Every custom field value goes with the name and the e-mail (owner ruling
-   * Q1, 2026-11-06), and the audit row stores none of what it erased (Q2).
+   * Q1, 2026-11-06), and the audit row stores none of what it erased (Q2):
+   * only which custom field keys held a value.
    */
   async anonymize(customerAccountId: string): Promise<CustomerAccountRecord> {
     // command-coverage-ignore: the retention sweep's last step — a
@@ -486,6 +490,7 @@ export class CustomerAccountLifecycleWriteService implements CustomerAccountLife
       // would say the opposite of what the scrub just did.
       row.passwordSetAt = null;
       row.twoFactorConfirmedAt = null;
+      const customFieldKeys = Object.keys(row.customFieldValues ?? {}).sort();
       row.customFieldValues = {};
       row.anonymizedAt = new Date();
       // The sweep runs on a timer, so there is no operator to attribute it to.
@@ -494,7 +499,7 @@ export class CustomerAccountLifecycleWriteService implements CustomerAccountLife
         action: 'customer_account.anonymized',
         objectType: 'customer_account',
         objectId: row.id,
-        stateBefore: { anonymizedAt: null },
+        stateBefore: { anonymizedAt: null, customFieldKeys },
         stateAfter: { anonymizedAt: row.anonymizedAt.toISOString() },
       });
       await tem.flush();
