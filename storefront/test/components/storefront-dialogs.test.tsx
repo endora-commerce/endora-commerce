@@ -111,6 +111,10 @@ describe.each([
     expect(foot).toMatch(new RegExp(`<button type="button" class="btn btn--danger"[^>]*>${confirm}</button>`));
     expect(foot.indexOf('Cancel')).toBeLessThan(foot.indexOf(confirm));
   });
+
+  it('mounts a status region for a failed attempt before it has anything to say (PR #837)', () => {
+    expect(dialogOf(render())).toMatch(/<div role="status"[^>]*><\/div>/);
+  });
 });
 
 describe('NotifyWhenAvailableDialog — the form (issue #804)', () => {

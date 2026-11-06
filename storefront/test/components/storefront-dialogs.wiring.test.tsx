@@ -3,7 +3,7 @@ import type { ReactElement } from 'react';
 import { ClearListButton } from '../../components/shopping-lists/ClearListButton';
 import { DeleteShoppingListButton } from '../../components/shopping-lists/DeleteShoppingListButton';
 import { NotifyWhenAvailableDialog } from '../../components/inventory/NotifyWhenAvailableDialog';
-import { ModalDialog, ModalDialogClose } from '../../components/ModalDialog';
+import { ModalDialog, ModalDialogAction, ModalDialogClose } from '../../components/ModalDialog';
 import { findElement, findElements } from './element-tree';
 
 /**
@@ -18,6 +18,8 @@ import { findElement, findElements } from './element-tree';
  */
 
 const setters: Array<ReturnType<typeof vi.fn>> = [];
+/** Values the next `useState` calls take instead of their initial ones, in call order. */
+let seeded: unknown[] = [];
 
 vi.mock('react', async () => {
   const actual = await vi.importActual<typeof import('react')>('react');
@@ -26,6 +28,7 @@ vi.mock('react', async () => {
     useState: <S,>(initial: S | (() => S)) => {
       const setter = vi.fn();
       setters.push(setter);
+      if (seeded.length > 0) return [seeded.shift(), setter];
       return [typeof initial === 'function' ? (initial as () => S)() : initial, setter];
     },
     useTransition: () => [false, (fn: () => unknown): void => void fn()],
@@ -51,8 +54,15 @@ function byClass(buttons: El[], cls: string): El {
   return found;
 }
 
+/** The dialog's confirm: the `ModalDialogAction` in its footer. */
+function confirmOf(tree: unknown): El {
+  const dialog = findElement(tree, (el) => el.type === ModalDialog);
+  return findElement(dialog.props.footer, (el) => el.type === ModalDialogAction);
+}
+
 afterEach(() => {
   setters.length = 0;
+  seeded = [];
   vi.unstubAllGlobals();
 });
 
@@ -60,10 +70,22 @@ describe('ClearListButton — the action still runs (issue #804)', () => {
   it('confirming dispatches clearAction with the list id', async () => {
     const clearAction = vi.fn(async (_fd: FormData): Promise<void> => undefined);
     const tree = ClearListButton({ listId: 'l1', locale: 'en-US', clearAction });
-    (byClass(footerCloses(tree), 'btn--danger').props.onClick as () => void)();
-    await flush();
+    const confirm = confirmOf(tree);
+    expect(confirm.props.pendingLabel).toBe('Clearing…');
+    await (confirm.props.action as () => Promise<void>)();
     expect(clearAction).toHaveBeenCalledOnce();
     expect(clearAction.mock.calls[0]![0].get('listId')).toBe('l1');
+  });
+
+  it('says so in the dialog when the clear fails, so it can be retried', () => {
+    // A transport failure: the action's own failures redirect with `?error=`.
+    const tree = ClearListButton({ listId: 'l1', locale: 'en-US', clearAction: vi.fn() });
+    (confirmOf(tree).props.onError as (e: unknown) => void)(new Error('network down'));
+    expect(setters.some((s) => s.mock.calls.some((c) => c[0] === true))).toBe(true);
+    seeded = [true];
+    const failed = ClearListButton({ listId: 'l1', locale: 'en-US', clearAction: vi.fn() });
+    const status = findElement(failed, (el) => el.props.role === 'status');
+    expect(JSON.stringify(status.props.children)).toContain('Could not clear the list.');
   });
 
   it('cancelling only closes', () => {
@@ -78,10 +100,18 @@ describe('DeleteShoppingListButton — the action still runs (issue #804)', () =
   it('confirming dispatches deleteAction with the list id', async () => {
     const deleteAction = vi.fn(async (_fd: FormData): Promise<void> => undefined);
     const tree = DeleteShoppingListButton({ listId: 'l9', listName: 'Site A', locale: 'en-US', deleteAction });
-    (byClass(footerCloses(tree), 'btn--danger').props.onClick as () => void)();
-    await flush();
+    const confirm = confirmOf(tree);
+    expect(confirm.props.pendingLabel).toBe('Deleting…');
+    await (confirm.props.action as () => Promise<void>)();
     expect(deleteAction).toHaveBeenCalledOnce();
     expect(deleteAction.mock.calls[0]![0].get('id')).toBe('l9');
+  });
+
+  it('says so in the dialog when the delete fails, so it can be retried', () => {
+    seeded = [true];
+    const failed = DeleteShoppingListButton({ listId: 'l9', listName: 'Site A', locale: 'en-US', deleteAction: vi.fn() });
+    const status = findElement(failed, (el) => el.props.role === 'status');
+    expect(JSON.stringify(status.props.children)).toContain('Could not delete the list.');
   });
 
   it('cancelling only closes', () => {
@@ -140,4 +170,14 @@ describe('NotifyWhenAvailableDialog — the form still submits (issue #804)', ()
     await flush();
     expect(setters.some((s) => s.mock.calls.some((c) => c[0] === 'Too many requests'))).toBe(true);
   });
+
+  it('labels the one button left after a sign-up "Close" (PR #837)', () => {
+    // email, submitting, success
+    seeded = ['buyer@example.com', false, true];
+    const tree = NotifyWhenAvailableDialog({ productId: 'p1', salesChannelCode: 'b2b-pl', labels });
+    const closes = footerCloses(tree);
+    expect(closes).toHaveLength(1);
+    expect(closes[0]!.props.children).toBe('Close');
+  });
 });
+

@@ -1,6 +1,7 @@
 import { describe, expect, it, vi } from 'vitest';
 import type { ReactElement } from 'react';
-import { ModalDialog, ModalDialogClose } from '../../components/ModalDialog';
+import { redirect } from 'next/navigation';
+import { ModalDialog, ModalDialogAction, ModalDialogClose } from '../../components/ModalDialog';
 import { findElement } from './element-tree';
 
 /**
@@ -17,7 +18,12 @@ import { findElement } from './element-tree';
  * and it hands focus back to the trigger on every close.
  */
 
-let context: { close: () => void } | null = null;
+type Ctx = { close: () => void; busy?: boolean; setBusy?: (busy: boolean) => void };
+let context: Ctx | null = null;
+/** What `ModalDialog`'s busy flag reads (its one `useState`), and `ModalDialogAction`'s transition. */
+let busyState = false;
+let transitionPending = false;
+let transitionRun: Promise<unknown> | undefined;
 
 vi.mock('react', async () => {
   const actual = await vi.importActual<typeof import('react')>('react');
@@ -26,6 +32,14 @@ vi.mock('react', async () => {
     useRef: <T,>(initial: T) => ({ current: initial }),
     useId: () => ':d:',
     useContext: () => context,
+    useState: () => [busyState, vi.fn()],
+    useEffect: (effect: () => void) => effect(),
+    useTransition: () => [
+      transitionPending,
+      (fn: () => Promise<unknown>): void => {
+        transitionRun = fn();
+      },
+    ],
   };
 });
 
@@ -148,3 +162,97 @@ describe('ModalDialogClose', () => {
     context = null;
   });
 });
+
+/**
+ * The rulings on PR #837 (issue #804): a destructive confirm stays open in its
+ * pending state until the action finishes — confirm disabled with its pending
+ * label, Cancel disabled, the dialog not dismissible — then closes, or lets the
+ * redirect replace it; on a failure it re-enables and says so.
+ */
+describe('ModalDialog — busy while an action runs (PR #837)', () => {
+  it('is not dismissible while busy: Escape is held back and the close button is disabled', () => {
+    busyState = true;
+    const m = mount();
+    const event = { preventDefault: vi.fn() };
+    call(m.dialog, 'onCancel', event);
+    expect(event.preventDefault).toHaveBeenCalledOnce();
+    expect(m.closeButton.props.disabled).toBe(true);
+    busyState = false;
+  });
+
+  it('disables a close control while the dialog is busy', () => {
+    context = { close: vi.fn(), busy: true };
+    expect((ModalDialogClose({ children: 'Cancel' }) as El).props.disabled).toBe(true);
+    context = null;
+  });
+});
+
+describe('ModalDialogAction (PR #837)', () => {
+  function action(run: () => Promise<void>, onError = vi.fn()) {
+    const ctx = { close: vi.fn(), busy: false, setBusy: vi.fn() };
+    context = ctx;
+    const button = ModalDialogAction({
+      children: 'Clear list',
+      pendingLabel: 'Clearing…',
+      className: 'btn btn--danger',
+      action: run,
+      onError,
+    }) as El;
+    return { button, ctx, onError };
+  }
+
+  it('runs the action and closes the dialog once it has finished, not before', async () => {
+    let finish: () => void = () => undefined;
+    const run = vi.fn(() => new Promise<void>((resolve) => (finish = resolve)));
+    const { button, ctx } = action(run);
+    call(button, 'onClick');
+    expect(run).toHaveBeenCalledOnce();
+    expect(ctx.close).not.toHaveBeenCalled();
+    finish();
+    await transitionRun;
+    expect(ctx.close).toHaveBeenCalledOnce();
+    context = null;
+  });
+
+  it('shows its pending label, disabled and busy, and marks the dialog busy while pending', () => {
+    transitionPending = true;
+    const { button, ctx } = action(async () => undefined);
+    expect(button.props.children).toBe('Clearing…');
+    expect(button.props.disabled).toBe(true);
+    expect(button.props['aria-busy']).toBe(true);
+    expect(ctx.setBusy).toHaveBeenCalledWith(true);
+    transitionPending = false;
+    context = null;
+  });
+
+  it('is idle, enabled and named by its label otherwise', () => {
+    const { button, ctx } = action(async () => undefined);
+    expect(button.props.type).toBe('button');
+    expect(button.props.children).toBe('Clear list');
+    expect(button.props.disabled).toBe(false);
+    expect(ctx.setBusy).toHaveBeenCalledWith(false);
+    context = null;
+  });
+
+  it('lets a redirect through to the router, closing the dialog it leaves behind', async () => {
+    const { button, ctx, onError } = action(async () => redirect('/shopping-lists/l1'));
+    call(button, 'onClick');
+    await expect(transitionRun).rejects.toMatchObject({ digest: expect.stringContaining('NEXT_REDIRECT') });
+    expect(ctx.close).toHaveBeenCalledOnce();
+    expect(onError).not.toHaveBeenCalled();
+    context = null;
+  });
+
+  it('stays open and reports a failure, so the buttons re-enable for a retry', async () => {
+    const failure = new Error('network down');
+    const { button, ctx, onError } = action(async () => {
+      throw failure;
+    });
+    call(button, 'onClick');
+    await expect(transitionRun).resolves.toBeUndefined();
+    expect(ctx.close).not.toHaveBeenCalled();
+    expect(onError).toHaveBeenCalledWith(failure);
+    context = null;
+  });
+});
+
