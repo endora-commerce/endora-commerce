@@ -14,6 +14,7 @@ import { actionsOf, form, redirectOf } from './actions';
 
 let locale = 'en-US';
 let failure: Error | null = null;
+let couponResult: unknown = null;
 
 vi.mock('../../lib/session', () => ({
   getSessionCookie: async () => 'session',
@@ -38,7 +39,7 @@ vi.mock('../../lib/api/cart', () => ({
   touchCart: async () => undefined,
   removeCartItem: refuse,
   updateCartItem: refuse,
-  applyCartCoupon: refuse,
+  applyCartCoupon: async () => couponResult ?? refuse(),
   clearCartCoupon: async () => undefined,
   convertCartToQuoteRequest: refuse,
   submitCartForApproval: refuse,
@@ -117,6 +118,7 @@ async function action(name: string): Promise<(data: FormData) => unknown> {
 beforeEach(() => {
   locale = 'en-US';
   failure = null;
+  couponResult = null;
 });
 
 describe('a crafted ?error= never reaches the cart page', () => {
@@ -227,6 +229,65 @@ describe('?listAdded= carries a list id, never a name (issue #790)', () => {
   it('save to list redirects with the list id', async () => {
     const save = await action('saveToListAction');
     expect(await redirectOf(() => save(form({ itemId: 'l1' })))).toBe('/cart?listAdded=sl1');
+  });
+});
+
+/**
+ * Issue #791 — the cart's banner and its coupon refusal read their figures as
+ * typed values, validated when read; a value out of shape is dropped, never
+ * rendered as `NaN` or handed to `Intl`.
+ */
+describe('the cart reads a refusal’s figures as typed values (issue #791)', () => {
+  it('a minimum refusal from outside the line (the product page) names the minimum in the banner', async () => {
+    const sp = { error: 'PRODUCT_BELOW_MINIMUM_QUANTITY', min: '10' };
+    expect(await text(sp)).toContain('A product is below its minimum order quantity (10 pcs). Increase the quantity and try again.');
+    locale = 'pl-PL';
+    expect(await text(sp)).toContain(
+      'Ilość produktu jest poniżej minimalnej ilości zamówienia (10 szt.). Zwiększ ilość i spróbuj ponownie.',
+    );
+  });
+
+  it('a credit-limit refusal (one-click buy) names both amounts in the banner', async () => {
+    const sp = { error: 'LIMIT_INSUFFICIENT', available: '99.50', total: '120.00', currency: 'EUR' };
+    expect(await text(sp)).toContain('The available credit limit (€99.50) does not cover this order (€120.00).');
+  });
+
+  it('a minimum out of shape reads as the bare sentence in the banner', async () => {
+    const out = await text({ error: 'PRODUCT_BELOW_MINIMUM_QUANTITY', min: '0' });
+    expect(out).toContain('A product is below its minimum order quantity. Increase the quantity and try again.');
+  });
+
+  it('a valid coupon shortfall reads as an amount', async () => {
+    const sp = { couponError: 'below_min_spend', couponShortfall: '25.50', couponShortfallCurrency: 'PLN' };
+    expect(await text(sp)).toContain('Add PLN 25.50 more to unlock this coupon.');
+  });
+
+  it.each([
+    ['abc', 'PLN'],
+    ['NaN', 'PLN'],
+    ['Infinity', 'PLN'],
+    ['-5', 'PLN'],
+    ['1e3', 'PLN'],
+    ['25.50', 'pln'],
+    ['25.50', 'ZZZZ'],
+    ['25.50', '$$$'],
+    ['25.50', 'Zadzwoń'],
+  ])('a shortfall of %s %s is dropped, never rendered', async (amount, currency) => {
+    const out = await text({ couponError: 'below_min_spend', couponShortfall: amount, couponShortfallCurrency: currency });
+    expect(out).not.toContain('NaN');
+    expect(out).not.toContain('Zadzwoń');
+    expect(out).not.toContain('Add PLN');
+    expect(out).toContain('Add more to your cart to unlock this coupon.');
+  });
+
+  it('the coupon action carries the shortfall only when it is in shape', async () => {
+    const apply = await action('applyCouponAction');
+    couponResult = { outcome: 'rejected', reason: 'below_min_spend', shortfall: { amount: 25.5, currency: 'PLN' } };
+    expect(await redirectOf(() => apply(form({ code: 'SPRING' })))).toBe(
+      '/cart?couponError=below_min_spend&couponShortfall=25.5&couponShortfallCurrency=PLN',
+    );
+    couponResult = { outcome: 'rejected', reason: 'below_min_spend', shortfall: { amount: 25.5, currency: 'zł' } };
+    expect(await redirectOf(() => apply(form({ code: 'SPRING' })))).toBe('/cart?couponError=below_min_spend');
   });
 });
 

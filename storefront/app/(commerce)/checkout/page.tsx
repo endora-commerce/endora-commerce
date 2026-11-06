@@ -39,6 +39,7 @@ import { formatMoney } from '../../../lib/i18n/money';
 import { OrganizationModerationBanner } from '../../../components/OrganizationModerationBanner';
 import { StorefrontApiError } from '../../../lib/api/client';
 import { CHECKOUT_ERRORS } from '../../../lib/commerce-errors';
+import { errorFiguresQuery } from '../../../lib/url-error-figures';
 import { getMe } from '../../../lib/api/account';
 import { BeginCheckoutTracker } from '../../../components/analytics/EcommerceTrackers';
 import {
@@ -548,7 +549,10 @@ async function submitAction(formData: FormData): Promise<void> {
     // generic failure. A refusal for changed cart prices (`CART_PRICE_CHANGED`)
     // says so, and the cart the buyer goes back to already holds the current
     // prices.
-    return await localeRedirect(`/checkout/failure?reason=${CHECKOUT_ERRORS.failureCode(err, 'PLACE_FAILED')}`);
+    // Issue #791 — a minimum or credit-limit refusal also carries its figures, as typed values.
+    return await localeRedirect(
+      `/checkout/failure?reason=${CHECKOUT_ERRORS.failureCode(err, 'PLACE_FAILED')}${errorFiguresQuery(err)}`,
+    );
   }
   // Feature 036 — a gateway method returns a redirect next-action; send the
   // buyer to the gateway. Otherwise land on the Success Page, which shows the

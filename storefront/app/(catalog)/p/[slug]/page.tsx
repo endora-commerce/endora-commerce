@@ -57,6 +57,7 @@ import { ProductDescriptionPanel } from '../../../../components/catalog/ProductD
 import { tForLocale } from '../../../../lib/i18n/messages';
 import { cartActionFailure } from '../../../../lib/cart-action-failure';
 import { CART_ERRORS } from '../../../../lib/commerce-errors';
+import { errorFiguresQuery } from '../../../../lib/url-error-figures';
 import { withoutViewer } from '../../../../lib/api/client';
 import { publicApiBaseUrl } from '../../../../lib/env.mjs';
 import { localeRedirect } from '../../../../lib/i18n/navigation';
@@ -624,7 +625,8 @@ async function oneClickAction(formData: FormData): Promise<void> {
     );
   } catch (err) {
     // Issue #745 — `/cart?error=` carries a code, never a sentence; the cart page words it.
-    return await localeRedirect(`/cart?error=${CART_ERRORS.failureCode(err, 'ONE_CLICK_FAILED')}`);
+    // Issue #791 — a minimum or credit-limit refusal also carries its figures, as typed values.
+    return await localeRedirect(`/cart?error=${CART_ERRORS.failureCode(err, 'ONE_CLICK_FAILED')}${errorFiguresQuery(err)}`);
   }
   if (result!.nextAction?.kind === 'redirect_to_gateway' && result!.nextAction.url) {
     return await localeRedirect(result!.nextAction.url);
@@ -662,7 +664,7 @@ async function addGroupedToCartAction(formData: FormData): Promise<void> {
     }
     if (anon && anon !== (jar.anon ?? null)) await setAnonCartCookie(anon);
   } catch (err) {
-    return await localeRedirect(`/cart?error=${CART_ERRORS.failureCode(err, 'ADD_TO_CART_FAILED')}`);
+    return await localeRedirect(`/cart?error=${CART_ERRORS.failureCode(err, 'ADD_TO_CART_FAILED')}${errorFiguresQuery(err)}`);
   }
   return await localeRedirect('/cart');
 }
@@ -701,7 +703,7 @@ async function addBundleToCartAction(formData: FormData): Promise<void> {
     }
     if (anon && anon !== (jar.anon ?? null)) await setAnonCartCookie(anon);
   } catch (err) {
-    return await localeRedirect(`/cart?error=${CART_ERRORS.failureCode(err, 'ADD_TO_CART_FAILED')}`);
+    return await localeRedirect(`/cart?error=${CART_ERRORS.failureCode(err, 'ADD_TO_CART_FAILED')}${errorFiguresQuery(err)}`);
   }
   return await localeRedirect('/cart');
 }

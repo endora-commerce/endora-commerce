@@ -72,7 +72,10 @@ const SAFE: Record<string, { kind: Kind; why: string }> = {
   // Numbers.
   page: { kind: 'number', why: 'a page number' },
   attempt: { kind: 'number', why: 'a payment-status poll attempt, parsed as a number' },
-  min: { kind: 'number', why: 'a cart minimum, written only when it is a whole number' },
+  min: {
+    kind: 'number',
+    why: 'a minimum quantity, written and read only as `^[1-9]\\d{0,8}$` (`lib/url-typed-values.ts`; #783, #791)',
+  },
   typed: {
     kind: 'number',
     why: 'the quantity the buyer typed, read only when it matches `^[1-9]\\d{0,8}$` (the `min=` rule from #783)',
@@ -85,8 +88,24 @@ const SAFE: Record<string, { kind: Kind; why: string }> = {
   rfqSkipped: { kind: 'number', why: 'a line count' },
   members: { kind: 'number', why: 'a member count' },
   invitations: { kind: 'number', why: 'an invitation count' },
-  couponShortfall: { kind: 'number', why: 'an amount, formatted by the page' },
-  couponShortfallCurrency: { kind: 'code', why: 'an ISO 4217 currency code' },
+  couponShortfall: {
+    kind: 'number',
+    why: 'a decimal amount, written and read only through `lib/url-typed-values.ts` (#791)',
+  },
+  couponShortfallCurrency: {
+    kind: 'code',
+    why: 'an ISO 4217 currency code, written and read only as `^[A-Z]{3}$` (`lib/url-typed-values.ts`; #791)',
+  },
+  // Issue #791 — the figures of a `LIMIT_INSUFFICIENT` refusal, beside its code (`lib/url-error-figures.ts`).
+  available: {
+    kind: 'number',
+    why: 'the credit limit still available, a decimal amount written and read only through `lib/url-typed-values.ts`',
+  },
+  total: { kind: 'number', why: 'the refused order’s total, a decimal amount written and read only through `lib/url-typed-values.ts`' },
+  currency: {
+    kind: 'code',
+    why: 'the ISO 4217 code of those two amounts, written and read only as `^[A-Z]{3}$` (`lib/url-typed-values.ts`)',
+  },
   // A path and a query.
   next: { kind: 'path', why: 'an in-site return path; the login flow refuses anything else' },
   q: {
@@ -149,7 +168,8 @@ function sitesOf(file: string, source: string): Site[] {
 const CODE_THROUGH_SEARCH_PARAMS = new Set<string>([
   'app/(commerce)/cart/page.tsx:couponError', // `result.reason`, the coupon refusal code
   'app/forms/contact/route.ts:reason', // `outcome.error`, a contact outcome code
-  'app/(commerce)/cart/page.tsx:couponShortfallCurrency', // the API's ISO 4217 code, which `Intl` refuses unless it is one
+  'app/(commerce)/cart/page.tsx:couponShortfallCurrency', // `writeCurrency(…)`, an ISO 4217 code or nothing (#791)
+  'lib/url-error-figures.ts:currency', // `writeCurrency(…)`, an ISO 4217 code or nothing (#791)
   'app/newsletter/subscribe/route.ts:reason', // `outcome.error`, a newsletter outcome code
   'app/newsletter/subscribe/route.ts:newsletter', // `outcome.status`, a newsletter outcome code
   'app/forms/submit/route.ts:formsReason', // `outcome.reason`, a submission outcome code
@@ -195,6 +215,23 @@ describe('no page builds free text into a URL (issue #790)', () => {
 
   it('the known list names only sites that still need it', () => {
     expect([...KNOWN_FREE_TEXT].filter((site) => !offenders.includes(site))).toEqual([]);
+  });
+
+  it('the typed values a URL-borne error carries have one reader (issue #791)', () => {
+    // A page that validates a figure with its own pattern drifts from the rest; every one reads
+    // through `lib/url-typed-values.ts`, so the pattern appears nowhere else in what this net scans.
+    const PATTERNS = [/\[1-9\]\\d\{0,8\}/, /\[A-Z\]\{3\}/];
+    const own = files.filter(
+      (file) => file !== 'lib/url-typed-values.ts' && PATTERNS.some((p) => p.test(readFileSync(join(ROOT, file), 'utf8'))),
+    );
+    expect(own).toEqual([]);
+  });
+
+  it('finds the figures of a URL-borne error (issue #791)', () => {
+    const names = new Set(sites.map((site) => site.name));
+    for (const name of ['min', 'available', 'total', 'currency', 'couponShortfall', 'couponShortfallCurrency']) {
+      expect(names).toContain(name);
+    }
   });
 
   it('the quick-order preview is not a URL parameter', () => {

@@ -159,9 +159,13 @@ language. The question here is what a *consumer* may put into a URL once it hold
 
 - **What travels.** A redirect, or any other URL, carries the API's `error.code`, or the
   consumer's own code for a refusal it cannot name. It may also carry **typed values**, each one
-  validated when it is read: an integer, or an ISO 4217 currency code. The cart's `min=` from
-  #783 is explicitly allowed. It is a positive integer, it is checked against `^[1-9]\d{0,8}$`
-  when read, and it is dropped when it fails that check.
+  validated when it is read and dropped when it fails: a positive integer (`^[1-9]\d{0,8}$`, the
+  cart's `min=` from #783), a non-negative decimal amount with at most two places (#791), or an
+  ISO 4217 currency code (`^[A-Z]{3}$`). A decimal amount is a **display figure** rounded to two
+  places: the page only formats it and never does arithmetic with it, and it is not a lossless
+  copy of a four-place unit price. A page reads them through the one storefront reader,
+  `storefront/lib/url-typed-values.ts`, never a pattern of its own, so a dropped value leaves the
+  sentence without its figure instead of rendering `NaN` or handing `Intl` a code it throws on.
 - **What never travels.** No free text: no product name, no sentence (the backend's `message` or
   `detail` included), no e-mail address. A sentence in a query string is text anyone can put on
   the page as a system message with a crafted link. A name or an address there is personal data
@@ -195,8 +199,8 @@ language. The question here is what a *consumer* may put into a URL once it hold
   a message for one redirect.
 
 There are two instruments. `storefront/test/url-errors/no-sentence-in-url.test.ts` (from #783)
-refuses an `encodeURIComponent`-wrapped value after `error=`, `reason=` or `couponError=` in any
-source under `storefront/app/`; its list of pages not yet swept is two-way and only shrinks.
+refuses an `encodeURIComponent`-wrapped value after `error=`, `reason=`, `couponError=`,
+`problem=` or one of the typed figures beside them (#791) in any source under `storefront/app/`; its list of pages not yet swept is two-way and only shrinks.
 `storefront/test/url-errors/no-free-text-in-url.test.ts` (from #790) collects every query
 parameter the storefront builds from a value — a template, `encodeURIComponent`, a
 `URLSearchParams` key or a `.set()` — in `app/`, `components/` and `lib/` (not `lib/api/` or
@@ -205,10 +209,10 @@ of known free-text sites is two-way and only shrinks. Both bounds are declared, 
 The allow-list is **by name**: it is a promise about a parameter's value, not a proof. And a code
 built into a template (`?error=${code}`) is trusted by its name, because the source cannot show
 the value is a code (#810). The per-page tests beside them are the evidence that a crafted value
-never reaches the screen. Open follow-ups: #791 (bringing back, as typed values, the figures the
-backend's sentences carried), #808 (the invitation page's `?error=` sentence), #809 (keeping the
-quick-order preview on the backend instead of in a cookie) and #810 (the free-text net checking,
-not trusting, that a template-built code parameter carries a code).
+never reaches the screen; the free-text net also holds that no scanned source but the reader
+carries a typed value's pattern. Open follow-ups: #808 (the invitation page's `?error=` sentence),
+#809 (keeping the quick-order preview on the backend instead of in a cookie) and #810 (the
+free-text net checking, not trusting, that a template-built code parameter carries a code).
 
 **Four kinds of string leave the backend and only the first is in scope**, which is the
 distinction that makes the question answerable: *platform prose* a developer wrote (a bundle,
