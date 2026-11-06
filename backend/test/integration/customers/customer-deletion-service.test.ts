@@ -4,6 +4,13 @@ import { afterAll, afterEach, beforeAll, beforeEach, describe, expect, it } from
 import { Redis } from 'ioredis';
 import type { EntityManager } from '@mikro-orm/postgresql';
 import { setupTestDb, type TestDb } from '../../helpers/test-db.js';
+import {
+  setupBackendServer,
+  teardownBackendServer,
+  type BackendServerHandle,
+} from '../../helpers/test-server.js';
+import { TEST_ADMIN_ID } from '../../helpers/test-actors.js';
+import { AdminUser } from '../../helpers/package-entities.js';
 import { SessionService } from '@endora-commerce/mod-auth/backend';
 import { AuditLogService } from '@endora-commerce/platform/composition';
 import { AuditLogEntry } from '@endora-commerce/platform/kernel';
@@ -584,5 +591,91 @@ describe('CustomerDeletionService', () => {
 
     await expectFullyAnonymized(healthy.customer, healthy.addressIds);
     expect((await em.findOneOrFail(CustomerAccount, { id: poison.id })).anonymizedAt ?? null).toBeNull();
+  });
+});
+
+/**
+ * I-5 over the wire — the refusal is a sentence in the reader's language.
+ *
+ * The code is `customer_accounts`' (D-186 §1) and is raised by `customers` as
+ * well since issue #800, so it has to carry a bundle sentence rather than the
+ * raiser's English. Only the error envelope translates, over the bundles the
+ * server reconciled at boot, so this case goes through the admin route. The
+ * admin arm reads the stored preference and ignores `Accept-Language` (D-132).
+ *
+ * Written out rather than read from the bundle: a test that loads the file it
+ * is checking asserts only that JSON parses.
+ */
+describe('I-5 over HTTP — CUSTOMER_RESTORE_WINDOW_ELAPSED in the admin language', () => {
+  let h: BackendServerHandle;
+  let previousLanguage: string | null;
+  const PL_WINDOW_ELAPSED =
+    'Okres, w którym można było przywrócić to konto, minął, więc nie można go już przywrócić. ' +
+    'Jego dane osobowe zostały lub wkrótce zostaną trwale zanonimizowane.';
+  const EN_WINDOW_ELAPSED =
+    'The restore window for this account has elapsed, so it can no longer be restored. ' +
+    'Its personal data has been, or will shortly be, permanently anonymized.';
+
+  beforeAll(async () => {
+    h = await setupBackendServer();
+    const admin = await h.em().findOneOrFail(AdminUser, { id: TEST_ADMIN_ID });
+    previousLanguage = admin.preferredLanguage ?? null;
+  }, 120_000);
+
+  afterAll(async () => {
+    const admin = await h.em().findOneOrFail(AdminUser, { id: TEST_ADMIN_ID });
+    admin.preferredLanguage = previousLanguage;
+    await h.em().flush();
+    await teardownBackendServer(h);
+  });
+
+  /** A customer soft-deleted through the route, then moved past the 365-day window. */
+  async function customerPastTheWindow(): Promise<string> {
+    const em = h.em();
+    const org = await seedAdHocOrganization(em, 'Window Org');
+    const c = em.create(CustomerAccount, {
+      organizationId: org.id,
+      email: `window-${randomUUID()}@example.test`,
+      passwordHash: await hashPassword('a-very-strong-pass'),
+      firstName: 'Window',
+      lastName: 'Elapsed',
+    });
+    await em.persistAndFlush(c);
+    const deleted = await h.app.inject({
+      method: 'DELETE',
+      url: `/api/v1/admin/customers/${c.id}`,
+      cookies: { b2b_session: 'stub-admin-session' },
+    });
+    expect(deleted.statusCode, deleted.body).toBeLessThan(300);
+    em.clear();
+    const row = await em.findOneOrFail(CustomerAccount, { id: c.id });
+    row.deletedAt = new Date(Date.now() - 366 * 24 * 60 * 60 * 1000);
+    await em.flush();
+    return c.id;
+  }
+
+  async function refusalIn(language: 'pl' | 'en'): Promise<string> {
+    const em = h.em();
+    const admin = await em.findOneOrFail(AdminUser, { id: TEST_ADMIN_ID });
+    admin.preferredLanguage = language;
+    await em.flush();
+    const id = await customerPastTheWindow();
+    const res = await h.app.inject({
+      method: 'POST',
+      url: `/api/v1/admin/customers/${id}/restore`,
+      cookies: { b2b_session: 'stub-admin-session' },
+    });
+    expect(res.statusCode, res.body).toBe(409);
+    const body = res.json() as { error: { code: string; message: string } };
+    expect(body.error.code).toBe('CUSTOMER_RESTORE_WINDOW_ELAPSED');
+    return body.error.message;
+  }
+
+  it('answers the Polish sentence to an admin who reads Polish', async () => {
+    expect(await refusalIn('pl')).toBe(PL_WINDOW_ELAPSED);
+  });
+
+  it('and the English sentence, not the raiser\'s fallback, to one who reads English', async () => {
+    expect(await refusalIn('en')).toBe(EN_WINDOW_ELAPSED);
   });
 });
