@@ -26,7 +26,7 @@ const NOT_YET_SWEPT = new Set<string>([]);
  * none of which needs encoding.
  */
 const SENTENCE_IN_URL =
-  /\b(?:error|reason|couponError|problem|min|available|total|currency|couponShortfall|couponShortfallCurrency)=(?:\$\{\s*encodeURIComponent\(|'\s*\+\s*encodeURIComponent\()/;
+  /\b(?:error|reason|couponError|problem|min|minValue|subtotal|available|total|currency|couponShortfall|couponShortfallCurrency)=(?:\$\{\s*encodeURIComponent\(|'\s*\+\s*encodeURIComponent\()/;
 
 function sources(dir: string): string[] {
   return readdirSync(dir).flatMap((name) => {
@@ -52,6 +52,7 @@ describe('no page redirects with a sentence in ?error= / ?reason= (issue #745)',
       '`/checkout/failure?reason=LIMIT_INSUFFICIENT&available=${encodeURIComponent(d.availableAmount)}`',
       "'/x?currency=' + encodeURIComponent(c)",
       '`/quick-order?problem=PRODUCT_BELOW_MINIMUM_QUANTITY&min=${encodeURIComponent(m)}`',
+      '`/checkout/failure?reason=ORDER_BELOW_MINIMUM_VALUE&subtotal=${encodeURIComponent(d.subtotal)}`',
     ]) {
       expect(SENTENCE_IN_URL.test(offending)).toBe(true);
     }
