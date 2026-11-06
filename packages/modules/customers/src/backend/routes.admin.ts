@@ -152,7 +152,8 @@ export async function registerCustomersAdminRoutes(
   const customFieldValues = deps.customFieldValues;
 
   /**
-   * The guard chain of every `/api/v1/admin/customers/:id…` route: the
+   * The guard chain of every `/api/v1/admin/customers/:id…` route but the
+   * retired address write, which answers `410` whatever the id (below): the
    * permission first, so an anonymous caller still gets 401 and a caller
    * without the code still gets 403 whether or not the customer exists, then
    * the shape of the id. An id that is not a UUID names no customer and answers
@@ -166,7 +167,7 @@ export async function registerCustomersAdminRoutes(
     }
   };
   /**
-   * The sub-resources (`custom-fields`, `impersonate`, both `addresses` verbs,
+   * The sub-resources (`custom-fields`, `impersonate`, the `addresses` read,
    * `orders`, `quote-requests`, `carts`) also check that the customer exists, after the
    * permission and the shape, so an unknown customer answers
    * `404 CUSTOMER_NOT_FOUND` as the customer itself does — not a sub-resource's
@@ -481,10 +482,11 @@ export async function registerCustomersAdminRoutes(
 
   app.post<{ Params: { id: string } }>(
     '/api/v1/admin/customers/:id/addresses',
-    // The existence check too: an unknown customer is `404 CUSTOMER_NOT_FOUND`,
-    // as a malformed id is, and only a customer that exists is told the
-    // personal book is retired (issue #794).
-    { preHandler: forCustomerSubResource('customers:manage') },
+    // Retired (`specs/173-b2c-address-book-merge/` FR-005): `410
+    // CUSTOMER_ADDRESS_BOOK_RETIRED` to every caller holding the permission,
+    // whatever the id — an existing customer, an unknown one or a malformed
+    // id alike — so neither the id-shape guard nor the existence check runs.
+    { preHandler: requireAdmin('customers:manage') },
     async (request) => {
       await resolveModerationActor(request);
       return addressBookRetired();
