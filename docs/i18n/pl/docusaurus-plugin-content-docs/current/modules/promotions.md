@@ -1,9 +1,9 @@
 ---
-title: promotions
+title: Promocje
 description: Rabaty na poziomie koszyka — procentowe, kwotowe i darmowa dostawa — z warunkami, które muszą być spełnione
 ---
 
-# `promotions`
+# Promocje (`promotions`)
 
 Moduł promocji to konfigurowalny silnik rabatów oparty na regułach, zbudowany na pierwotnym
 mechanizmie rabatów w koszyku. **Promocja** łączy **regułę**, która określa, kiedy promocja

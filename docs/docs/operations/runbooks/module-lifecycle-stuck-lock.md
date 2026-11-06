@@ -2,7 +2,7 @@
 title: Stuck module-lifecycle lock
 ---
 
-# Stuck Module-Lifecycle Lock
+# Stuck module-lifecycle lock
 
 The module-lifecycle CLI (`pnpm module:install`, `pnpm module:uninstall`, `pnpm module:enable`, `pnpm module:disable`) serialises every state-changing operation through a single Redis key. A crashed process can leave that key (or the underlying registry row) in a state that blocks subsequent commands. This runbook covers detection and recovery.
 

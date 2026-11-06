@@ -3,7 +3,7 @@ title: Compare products
 description: 'Compare Products: customer-curated set with display modes, share link, and PDF export'
 ---
 
-# Compare Products
+# Compare products
 
 Customer-facing product-comparison module. Owns a first-class
 `Comparison` resource (a customer-curated set of products with a chosen

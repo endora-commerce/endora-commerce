@@ -3,7 +3,7 @@ title: Prompt actions (AI assistant)
 description: Natural-language prompt mode for the admin command palette, with an explicit preview-and-confirm step before any change
 ---
 
-# Prompt Actions (AI assistant)
+# Prompt actions (AI assistant)
 
 The `prompt_actions` module adds a natural-language prompt mode to the admin
 command palette (`⌘K` / `Ctrl+K`). An operator describes what they want in
@@ -52,7 +52,7 @@ missing permissions are reported plainly, and nothing changes.
   (with the original prompt, provider and model) plus the underlying
   modules' own audit rows (e.g. `stock_level.adjust`). Permission refusals
   are audited as `prompt_action.refused`. Executions also appear on the
-  dashboard's Recent Activity card.
+  dashboard's Recent activity card.
 
 ## Configuration (platform administrator)
 

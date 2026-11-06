@@ -35,7 +35,7 @@ describe('admin_notifications — recordWithin on the record port', () => {
     targetAdminUserId: TEST_ADMIN_ID,
     kind,
     subjectType: 'task',
-    title: 'Reminder: Task TSK-000001',
+    title: 'Reminder: task TSK-000001',
     titleMessage: { scope: 'tasks', key: 'notifications.reminder.title', params: { number: 'TSK-000001' } },
     linkPath: '/tasks/x',
     ...overrides,
@@ -66,7 +66,7 @@ describe('admin_notifications — recordWithin on the record port', () => {
       targetAdminUserId: TEST_ADMIN_ID,
       kind,
       subjectType: 'task',
-      title: 'Reminder: Task TSK-000001',
+      title: 'Reminder: task TSK-000001',
       linkPath: '/tasks/x',
       titleMessage: { scope: 'tasks', key: 'notifications.reminder.title', params: { number: 'TSK-000001' } },
     });

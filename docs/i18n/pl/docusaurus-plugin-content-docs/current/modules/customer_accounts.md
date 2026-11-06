@@ -1,9 +1,9 @@
 ---
-title: customer_accounts
+title: Konta klientów
 description: Logowanie klientów, reset hasła, weryfikacja dwuetapowa, przypisanie roli
 ---
 
-# `customer_accounts`
+# Konta klientów (`customer_accounts`)
 
 Dane każdego użytkownika po stronie klienta: logowanie, zarządzanie hasłem, opcjonalna weryfikacja dwuetapowa i rola
 w organizacji. Moduł korzysta ze wspólnej usługi sesji z `auth`; odpowiada za tożsamość użytkowników

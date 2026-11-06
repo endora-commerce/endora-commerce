@@ -1,9 +1,9 @@
 ---
-title: shopping_lists
+title: Shopping lists
 description: Per-customer named bundles convertible to Cart or RFQ
 ---
 
-# `shopping_lists`
+# Shopping lists (`shopping_lists`)
 
 Per-customer named bundles of (product, variant?, quantity, note?) rows.
 Buyers save recurring orders, then convert all or a selected subset of

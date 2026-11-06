@@ -1,9 +1,9 @@
 ---
-title: inventory
+title: Magazyn
 description: Stany magazynowe, rezerwacje, powiadomienia o dostępności
 ---
 
-# `inventory`
+# Magazyn (`inventory`)
 
 Moduł stanów magazynowych w wielu magazynach: dane magazynów, liczniki stanu fizycznego (on-hand) i
 zarezerwowanego (reserved) dla każdej pary `(product, warehouse)`, przypisanie magazynów do kanałów

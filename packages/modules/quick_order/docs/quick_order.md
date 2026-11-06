@@ -1,9 +1,9 @@
 ---
-title: quick_order
+title: Quick order
 description: CSV-import + type-ahead helpers for buyers ordering by SKU
 ---
 
-# `quick_order`
+# Quick order (`quick_order`)
 
 The platform's **quick-ordering toolkit**.
 It bundles several conveniences that let B2B buyers place repeat and

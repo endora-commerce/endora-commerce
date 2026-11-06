@@ -1,9 +1,9 @@
 ---
-title: newsletter
+title: Newsletter
 description: Own-infrastructure newsletter — subscriber list, tags, segments, one-off campaigns and multi-step automations with per-channel opt-in
 ---
 
-# `newsletter`
+# Newsletter (`newsletter`)
 
 Own-infrastructure newsletter sending. Lets operators grow a subscriber list,
 segment it with **tags** and **custom fields**, and reach it through one-off

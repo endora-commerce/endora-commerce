@@ -1,9 +1,9 @@
 ---
-title: quote_requests
+title: Quote requests
 description: RFQ lifecycle (draft → quote → accept/reject)
 ---
 
-# `quote_requests`
+# Quote requests (`quote_requests`)
 
 The Quote Requests module implements the B2B negotiation loop.
 A customer (or sales representative on the
@@ -594,7 +594,7 @@ request only with `carts.create`.
 
 ## Custom fields
 
-Quote requests take custom fields, defined on **Custom Fields**. They follow this module: while
+Quote requests take custom fields, defined on **Custom fields**. They follow this module: while
 `quote_requests` is switched off its fields are not listed there, cannot be created or edited and
 are not offered by the definitions API; the fields, their options and the stored values are kept
 and come back unchanged when the module is switched on again.
@@ -602,7 +602,7 @@ and come back unchanged when the module is switched on again.
 ### Values carried into and out of a request
 
 A quote request field can carry its value on, and an opportunity field can carry its value into a
-quote request — set per field with **Carry value to …** on **Custom Fields**, whose page has the
+quote request — set per field with **Carry value to …** on **Custom fields**, whose page has the
 rules (same key, compatible type and options, the audience rule). Only an empty field is filled,
 and only once:
 

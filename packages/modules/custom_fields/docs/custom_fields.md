@@ -1,13 +1,13 @@
 ---
-title: custom_fields
+title: Custom fields
 description: Typed fields an operator adds to orders, quote requests, opportunities and other records without a code change, edited on one screen, offered as filters on the admin lists and carried from one record to the record created from it.
 ---
 
-# `custom_fields`
+# Custom fields (`custom_fields`)
 
 Custom fields let an operator add their own typed fields to the platform's records — a purchase
 order reference on an order, a region on a quote request, a lead source on a sales opportunity —
-as data, with no code change and no migration. A field is defined once, on **Custom Fields**
+as data, with no code change and no migration. A field is defined once, on **Custom fields**
 (`/custom-fields`), and from then on it is filled in, shown and, where the list offers it,
 filtered on wherever records of that kind are handled.
 
@@ -16,7 +16,7 @@ filtered on wherever records of that kind are handled.
 | Records | Offered | Can be a list filter |
 | --- | --- | --- |
 | Orders | always | yes — the Orders list |
-| Quote requests | while the `quote_requests` module is on | yes — the Quote Requests list |
+| Quote requests | while the `quote_requests` module is on | yes — the Quote requests list |
 | Sales opportunities | while the `crm` module is on | yes — the Opportunities list |
 | Organizations | always | no |
 | Customers | always | no |
@@ -30,7 +30,7 @@ options and every stored value come back unchanged when the module is switched o
 
 ## Creating a field
 
-Choose the record type on **Custom Fields**, then press **New field** above the table (or **Add a
+Choose the record type on **Custom fields**, then press **New field** above the table (or **Add a
 field** when the type has none yet). The field is defined completely in one dialog — the same form
 that later edits it, with the same sections in the same order:
 
@@ -110,8 +110,8 @@ record already holds.
 ## List filters
 
 **Use as list filter** offers the field as a filter on the admin list of its records: the Orders
-list for an order field, the Quote Requests list for a quote request field, the Opportunities list
-for an opportunity field. The table on **Custom Fields** shows which fields are list filters in its
+list for an order field, the Quote requests list for a quote request field, the Opportunities list
+for an opportunity field. The table on **Custom fields** shows which fields are list filters in its
 *List filter* column. Turning the option on or off changes no stored value.
 
 The filter is labelled with the field's label in the administrator's language, falling back to the

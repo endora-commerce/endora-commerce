@@ -1,9 +1,9 @@
 ---
-title: payments
+title: Płatności
 description: Obsługa sterowników płatności i zdarzenia rozliczeń
 ---
 
-# `payments`
+# Płatności (`payments`)
 
 Obsługa sterowników płatności i zdarzenia rozliczeń. Moduł jest właścicielem portu sterownika
 (`gateway-adapter-port.ts`) i wbudowanych sterowników; adaptery poszczególnych dostawców znajdują

@@ -1,9 +1,9 @@
 ---
-title: credit_limits
+title: Limity kredytowe
 description: Przyznawanie limitów kredytowych i atomowa rezerwacja
 ---
 
-# `credit_limits`
+# Limity kredytowe (`credit_limits`)
 
 Metoda płatności „limit kredytowy”. Administratorzy przyznają limit organizacji, a klienci
 korzystają z niego przy składaniu zamówienia. Rezerwacje są atomowe i zwalniane idempotentnie po

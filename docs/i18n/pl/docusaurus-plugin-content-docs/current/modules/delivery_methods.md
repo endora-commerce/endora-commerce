@@ -1,9 +1,9 @@
 ---
-title: delivery_methods
+title: Metody dostawy
 description: Skonfigurowane metody dostawy
 ---
 
-# `delivery_methods`
+# Metody dostawy (`delivery_methods`)
 
 **Mechanizm metod dostawy** w platformie (_Metoda dostawy_). Moduł zawiera rejestr podłączanych
 adapterów, zbudowany na katalogu metod dostawy — odpowiednik modułu `payment_methods` po stronie

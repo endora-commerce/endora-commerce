@@ -1,9 +1,9 @@
 ---
-title: audit_logs
+title: Audit log
 description: Sensitive-action audit trail
 ---
 
-# `audit_logs`
+# Audit log (`audit_logs`)
 
 Append-only audit trail of every sensitive action. Each row records who did
 what, when, and (during impersonation) on whose behalf.

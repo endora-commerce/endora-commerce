@@ -1,9 +1,9 @@
 ---
-title: inventory
+title: Inventory
 description: Stock levels, reservations, availability notifications
 ---
 
-# `inventory`
+# Inventory (`inventory`)
 
 Multi-warehouse stock module: warehouse identity, per-`(product, warehouse)`
 on-hand and reserved counters, sales-channel binding, low-stock alerts,

@@ -1,9 +1,9 @@
 ---
-title: invoices
+title: Faktury
 description: Generowanie faktur i faktur proforma w PDF oraz powiązanie z plikami
 ---
 
-# `invoices`
+# Faktury (`invoices`)
 
 Generuje faktury proforma i faktury końcowe w PDF, rejestruje je w module `assets` i wiąże z
 zamówieniem, z którego pochodzą.

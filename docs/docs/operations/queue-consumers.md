@@ -2,7 +2,7 @@
 title: Queue consumers & background processing
 ---
 
-# Queue Consumers & Background Processing
+# Queue consumers & background processing
 
 Asynchronous work on the B2B Platform — bulk edits, search re-indexing,
 webhook delivery — runs through durable, Redis-backed queues consumed by
