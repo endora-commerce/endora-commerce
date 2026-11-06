@@ -102,6 +102,7 @@ export const QUICK_ORDER_ERRORS = defineUrlErrors({
     nothing_to_remove: 'quickOrder.problem.nothing_to_remove',
     nothing_to_build: 'quickOrder.problem.nothing_to_build',
     preview_too_large: 'quickOrder.problem.preview_too_large',
+    preview_full: 'quickOrder.problem.preview_full',
     import_failed: 'quickOrder.problem.import_failed',
     build_failed: 'quickOrder.problem.build_failed',
   },

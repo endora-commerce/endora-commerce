@@ -171,18 +171,40 @@ language. The question here is what a *consumer* may put into a URL once it hold
   the raw value. A page whose status line may stay empty can show nothing instead. Quick order
   does this, and that holds only while every one of its actions falls back to a code the page
   knows.
+- **One named exception: the buyer's own search text.** Quick order's `q=` carries what the buyer
+  typed into its search box (#790). It may, on three conditions: the page caps it where it reads
+  it (120 characters, the search's own limit), it is the buyer's input and nothing else's, and it
+  is shown only as the quoted query or as an input's value — never as a system message.
+- **Data the buyer uploaded goes in a session-bound cookie, not the URL** (#790, architect ruling
+  on PR #805). The quick-order preview — the buyer's CSV, rejected raw lines included — sits in
+  one httpOnly cookie the server writes itself, bound to the session that wrote it, cleared on a
+  successful build and on sign-out or session expiry. **Its budget is the reverse proxy's**: the
+  deployment's nginx runs on default buffers, so a Cookie line over 8 KB
+  (`large_client_header_buffers 4 8k`) is a 400 and upstream response headers over ~4 KB
+  (`proxy_buffer_size 4k`) are a 502, which would lock the buyer out of the whole storefront until
+  the cookie expired. One cookie, its value at most ~3 000 characters; data that does not fit is
+  refused in words, never written and never cut short.
 - **Rejected: a short-lived error cookie.** It is per-request state. It puts a `Set-Cookie` on
   server-rendered redirects, which hurts caching (Principle VII). And it would still ship the
-  backend's sentence, so it adds a mechanism without solving the problem (Principle IV).
+  backend's sentence, so it adds a mechanism without solving the problem (Principle IV). The
+  preview cookie above is not this: it holds the buyer's own data across a multi-step flow, not
+  a message for one redirect.
 
-The instrument is `storefront/test/url-errors/no-sentence-in-url.test.ts` (from #783).
-It refuses an `encodeURIComponent`-wrapped value after `error=`, `reason=` or `couponError=` in
-any source under `storefront/app/`. Its list of pages not yet swept is two-way and only shrinks.
-Its bound is declared, not discovered: it reads that one shape, so a sentence passed through
-`URLSearchParams` or under another parameter name is outside it. The per-page tests beside it are
-the evidence that a crafted value never reaches the screen. Open follow-ups: #790 (free text
-other than errors that still reaches a page from its URL) and #791 (bringing back, as typed
-values, the figures the backend's sentences carried).
+There are two instruments. `storefront/test/url-errors/no-sentence-in-url.test.ts` (from #783)
+refuses an `encodeURIComponent`-wrapped value after `error=`, `reason=` or `couponError=` in any
+source under `storefront/app/`; its list of pages not yet swept is two-way and only shrinks.
+`storefront/test/url-errors/no-free-text-in-url.test.ts` (from #790) collects every query
+parameter the storefront builds from a value — a template, `encodeURIComponent`, a
+`URLSearchParams` key or a `.set()` — in `app/`, `components/` and `lib/` (not `lib/api/` or
+`lib/dictionary/`, which address the backend), and refuses a name not on its allow-list; its list
+of known free-text sites is two-way and only shrinks. Both bounds are declared, not discovered.
+The allow-list is **by name**: it is a promise about a parameter's value, not a proof. And a code
+built into a template (`?error=${code}`) is trusted by its name, because the source cannot show
+the value is a code (#810). The per-page tests beside them are the evidence that a crafted value
+never reaches the screen. Open follow-ups: #791 (bringing back, as typed values, the figures the
+backend's sentences carried), #808 (the invitation page's `?error=` sentence), #809 (keeping the
+quick-order preview on the backend instead of in a cookie) and #810 (the free-text net checking,
+not trusting, that a template-built code parameter carries a code).
 
 **Four kinds of string leave the backend and only the first is in scope**, which is the
 distinction that makes the question answerable: *platform prose* a developer wrote (a bundle,

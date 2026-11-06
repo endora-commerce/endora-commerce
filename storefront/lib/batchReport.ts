@@ -26,32 +26,30 @@ export function quickOrderRejectionLabel(
   return t(`quickOrder.reason.${row.reason}` as MessageKey);
 }
 
-/** One line a quick-order build left out of the cart — "Anchor bolt × 5 — Below the minimum (10 pcs)". */
+/**
+ * One line a quick-order build left out of the cart — "BOLT-1 × 5 — Below the minimum (10 pcs)".
+ *
+ * Issue #790 — the line is named by the SKU the buyer imported and the minimum is stated without
+ * the unit's name: the report is read back from the preview cookie, which keeps no product or
+ * unit names (the URL that carried them once put any text on the page).
+ */
 export function quickOrderBuildRejectionText(
-  line: Pick<QuickOrderBuildRejectedLine, 'productName' | 'quantity' | 'kind' | 'minimum' | 'packagingUnitName'>,
+  line: { sku: string } & Pick<QuickOrderBuildRejectedLine, 'quantity' | 'kind' | 'minimum'>,
   locale: string,
 ): string {
   const reason =
-    belowMinimumText(
-      {
-        belowMinimum: {
-          kind: line.kind,
-          minimum: line.minimum,
-          ...(line.packagingUnitName !== undefined ? { packagingUnitName: line.packagingUnitName } : {}),
-        },
-      },
-      locale,
-    ) ?? tForLocale(locale)('order.minimum.below.bare');
+    belowMinimumText({ belowMinimum: { kind: line.kind, minimum: line.minimum } }, locale) ??
+    tForLocale(locale)('order.minimum.below.bare');
   return fill(tForLocale(locale)('quickOrder.build.rejectedLine'), {
-    product: line.productName,
+    product: line.sku,
     quantity: formatCount(line.quantity, locale),
     reason,
   });
 }
 
 /**
- * Fills `{name}` placeholders in one pass, so a brace inside an operator-authored value (a
- * product or unit name) is never read as a placeholder.
+ * Fills `{name}` placeholders in one pass, so a brace inside a buyer-supplied value (a SKU) is
+ * never read as a placeholder.
  */
 function fill(template: string, values: Record<string, string>): string {
   return template.replace(/\{(\w+)\}/g, (match, name: string) => values[name] ?? match);
@@ -94,19 +92,17 @@ export function droppedBelowMinimumReason(minimum: number | undefined, locale: s
 }
 
 /**
- * A report carried across a server action's redirect, as the quick-order preview already is:
- * JSON in base64url (round B UI review). Bounded by a URL budget (round C): only the first
- * {@link REPORT_CAP} lines travel, each projected to the fields the page words and with its names
- * cut to {@link REPORT_NAME_MAX} characters, and if the encoded report is still longer than
+ * A report carried across a server action's redirect: JSON in base64url (round B UI review),
+ * holding ids, codes and numbers only — never a name (issue #790). Bounded by a URL budget
+ * (round C): only the first {@link REPORT_CAP} lines travel, each projected to the fields the
+ * page words, and if the encoded report is still longer than
  * {@link REPORT_ENCODED_MAX} its last lines are dropped until it fits. Every line left out travels
  * as a count (`more`). The query is the buyer's to edit, so the reader is defensive and holds the
  * same bounds the writer does: an oversized, malformed or hand-made value decodes to an empty
- * report — never an error page — every line is checked before it is rendered, names are cut and
- * `more` is clamped.
+ * report — never an error page — every line is checked before it is rendered and `more` is
+ * clamped.
  */
 export const REPORT_CAP = 20;
-/** A name's longest carried form, in UTF-16 units, the ellipsis included. */
-export const REPORT_NAME_MAX = 80;
 /**
  * The URL budget: the longest value {@link encodeCarried} writes and the longest
  * {@link decodeCarried} reads. ~6 KB keeps the redirect's whole URL well inside what browsers,
@@ -170,37 +166,6 @@ function decodeCarried<T>(
   }
 }
 
-const cut = (name: string): string => (name.length > REPORT_NAME_MAX ? `${name.slice(0, REPORT_NAME_MAX - 1)}…` : name);
-
-/** The quick-order build's `rejected[]` line, as it travels: what the page words, nothing else. */
-export type CarriedBuildRejection = Pick<
-  QuickOrderBuildRejectedLine,
-  'productName' | 'quantity' | 'kind' | 'minimum' | 'packagingUnitName'
->;
-
-export function encodeBuildRejections(lines: readonly unknown[]): string {
-  return encodeCarried<CarriedBuildRejection>(lines, (line) => {
-    if (!isBuildRejectedLine(line)) return null;
-    return {
-      productName: cut(line.productName),
-      quantity: line.quantity,
-      kind: line.kind,
-      minimum: line.minimum,
-      ...(line.packagingUnitName !== undefined ? { packagingUnitName: cut(line.packagingUnitName) } : {}),
-    };
-  });
-}
-
-export function decodeBuildRejections(value: string | undefined | null): CarriedReport<CarriedBuildRejection> {
-  return decodeCarried(value, isBuildRejectedLine, (line) => ({
-    productName: cut(line.productName),
-    quantity: line.quantity,
-    kind: line.kind,
-    minimum: line.minimum,
-    ...(line.packagingUnitName !== undefined ? { packagingUnitName: cut(line.packagingUnitName) } : {}),
-  }));
-}
-
 /** A shopping list → cart skip, as it travels. */
 export type CarriedConversionSkip = Pick<ConversionSkip, 'itemId' | 'productId' | 'reason' | 'minimum'>;
 
@@ -231,24 +196,10 @@ export function reportMoreText(more: number, locale: string): string {
 }
 
 /**
- * Whether a value read back from the redirect URL is a build refusal the page can word. The
- * URL is the buyer's to edit; a hand-made entry is dropped rather than rendered half-filled.
+ * Whether a value read back from the redirect URL is a shopping list → cart skip the page can
+ * word. The URL is the buyer's to edit; a hand-made entry is dropped rather than rendered
+ * half-filled.
  */
-export function isBuildRejectedLine(value: unknown): value is CarriedBuildRejection {
-  if (typeof value !== 'object' || value === null) return false;
-  const line = value as Record<string, unknown>;
-  return (
-    typeof line.productName === 'string' &&
-    Number.isInteger(line.quantity) &&
-    (line.quantity as number) > 0 &&
-    Number.isInteger(line.minimum) &&
-    (line.minimum as number) > 0 &&
-    (line.kind === 'pieces' || line.kind === 'packaging_unit') &&
-    (line.packagingUnitName === undefined || typeof line.packagingUnitName === 'string')
-  );
-}
-
-/** As {@link isBuildRejectedLine}, for a shopping list → cart skip. */
 export function isConversionSkip(value: unknown): value is CarriedConversionSkip {
   if (typeof value !== 'object' || value === null) return false;
   const skip = value as Record<string, unknown>;

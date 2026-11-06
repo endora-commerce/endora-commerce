@@ -372,9 +372,11 @@ describe('quick order — the preview never travels in the URL (issue #790)', ()
   it('adding from search to a full preview is refused with its own advice, and the preview kept', async () => {
     const full = fullPreview();
     seedPreview(full);
-    found = [{ productId: 'f'.repeat(36), sku: 'NUT-9', name: 'Nut' }];
+    // The line that would make it one longer than the cookie holds.
+    const next = previewOf(full.recognized.length + 1).recognized.at(-1)!;
+    found = [{ productId: next.productId, sku: next.sku, name: 'Nut' }];
     const add = (await quickActions({ q: 'nut' })).get('addSearchResultAction')!;
-    const data = form({ q: 'nut', productId: 'f'.repeat(36), sku: 'NUT-9', quantity: '999999' });
+    const data = form({ q: 'nut', productId: next.productId, sku: next.sku, quantity: String(next.quantity) });
     expect(await redirectOf(() => add(data as never))).toBe('/quick-order?problem=preview_full');
     const out = await quickText({ problem: 'preview_full' });
     expect(out).toContain('The list is full, so no more lines fit here. Build what you have, then add the rest.');

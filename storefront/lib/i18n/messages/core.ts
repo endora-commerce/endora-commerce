@@ -127,6 +127,7 @@ export const core = defineMessages({
     'quickOrder.problem.nothing_to_build': 'Nothing to build.',
     'quickOrder.problem.preview_too_large':
       'This list is too long to review here. Split it into smaller files and import them one at a time.',
+    'quickOrder.problem.preview_full': 'The list is full, so no more lines fit here. Build what you have, then add the rest.',
     'quickOrder.problem.import_failed': 'Import failed.',
     'quickOrder.problem.build_failed': 'Could not build the cart or quote request.',
     'shoppingList.qty.invalid': 'Enter a whole number from 1 to 9999.',
@@ -661,6 +662,8 @@ export const core = defineMessages({
     'quickOrder.problem.nothing_to_build': 'Nie ma z czego utworzyć koszyka ani zapytania.',
     'quickOrder.problem.preview_too_large':
       'Ta lista jest zbyt długa, by przejrzeć ją tutaj. Podziel ją na mniejsze pliki i zaimportuj je po kolei.',
+    'quickOrder.problem.preview_full':
+      'Lista jest pełna i nie zmieści więcej pozycji. Utwórz koszyk lub zapytanie z tego, co już jest, a potem dodaj resztę.',
     'quickOrder.problem.import_failed': 'Import nie powiódł się.',
     'quickOrder.problem.build_failed': 'Nie udało się utworzyć koszyka ani zapytania ofertowego.',
     'shoppingList.qty.invalid': 'Wpisz liczbę całkowitą od 1 do 9999.',

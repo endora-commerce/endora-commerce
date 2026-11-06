@@ -43,6 +43,7 @@ vi.mock('../../lib/api/quick-order', () => ({
   importQuickOrderFile: async () => ({}),
 }));
 let shownPreview: unknown = null;
+vi.mock('../../lib/api/rfq', () => ({ getRfqById: async () => ({ businessId: 'RFQ-7' }) }));
 vi.mock('../../lib/quick-order-preview-cookie', () => ({
   readQuickOrderPreview: async () => shownPreview,
   writeQuickOrderPreview: async () => true,
@@ -205,7 +206,8 @@ describe.each(Object.entries(COPY))('quick order — %s', (tag, copy) => {
   it('words the build confirmations', async () => {
     const cart = await render({ built: 'cart' });
     for (const text of [copy.builtCart, copy.openCart, copy.checkout]) expect(cart).toContain(text);
-    const quote = await render({ built: 'quote', rfq: 'RFQ-7' });
+    // Issue #790 — the reference is read from the request `?rfqId=` names.
+    const quote = await render({ built: 'quote', rfqId: '11111111-2222-4333-8444-555555555555' });
     for (const text of [copy.builtQuote, copy.viewQuotes]) expect(quote).toContain(text);
   });
 
