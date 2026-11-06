@@ -8,6 +8,7 @@ import {
 } from '../../../lib/api/quick-order';
 import { getRfqById } from '../../../lib/api/rfq';
 import {
+  cutReportName,
   reportMoreText,
   quickOrderBuildOutcome,
   quickOrderBuildRejectionText,
@@ -601,18 +602,26 @@ async function confirmAction(formData: FormData): Promise<void> {
 
 /**
  * The preview of the lines a cart build did not take: each preview row the build's `rejected[]`
- * names (by product and variant), with the kind and minimum it missed. Nothing else is kept —
+ * names (by product and variant), with the kind and minimum it missed and the build's product
+ * and unit names, cut to `REPORT_NAME_MAX`. Nothing else is kept —
  * not the lines the cart took, not the rows the import had already refused.
  */
 function linesNotTaken(preview: PreviewState, rejected: readonly unknown[]): PreviewState {
   const verdicts = new Map<string, NonNullable<PreviewState['recognized'][number]['notAdded']>>();
   for (const line of rejected) {
     if (typeof line !== 'object' || line === null) continue;
-    const { productId, variantId, kind, minimum } = line as Record<string, unknown>;
+    const { productId, variantId, kind, minimum, productName, packagingUnitName } = line as Record<string, unknown>;
     if (typeof productId !== 'string') continue;
     if (kind !== 'pieces' && kind !== 'packaging_unit') continue;
     if (!Number.isSafeInteger(minimum) || (minimum as number) <= 0) continue;
-    verdicts.set(`${productId}:${typeof variantId === 'string' ? variantId : ''}`, { kind, minimum: minimum as number });
+    verdicts.set(`${productId}:${typeof variantId === 'string' ? variantId : ''}`, {
+      kind,
+      minimum: minimum as number,
+      productName: typeof productName === 'string' ? cutReportName(productName) : '',
+      ...(typeof packagingUnitName === 'string' && packagingUnitName !== ''
+        ? { packagingUnitName: cutReportName(packagingUnitName) }
+        : {}),
+    });
   }
   const recognized = preview.recognized.flatMap((row) => {
     const verdict = verdicts.get(`${row.productId}:${row.variantId ?? ''}`);

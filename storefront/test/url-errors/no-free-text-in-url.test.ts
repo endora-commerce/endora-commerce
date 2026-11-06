@@ -75,7 +75,7 @@ const SAFE: Record<string, { kind: Kind; why: string }> = {
   min: { kind: 'number', why: 'a cart minimum, written only when it is a whole number' },
   typed: {
     kind: 'number',
-    why: 'the quantity the buyer typed, rendered only into a `type="number"` input, which the browser empties of anything not a number',
+    why: 'the quantity the buyer typed, read only when it matches `^[1-9]\\d{0,8}$` (the `min=` rule from #783)',
   },
   sent: { kind: 'number', why: 'a line count' },
   rejected: { kind: 'number', why: 'a line count' },

@@ -21,7 +21,9 @@ import type { RejectedQuickOrderItem } from './api/quick-order';
  * preview over either would lock the buyer out of the whole storefront until the cookie expired.
  * So it is **one** cookie whose value is at most {@link QUICK_ORDER_PREVIEW_VALUE_MAX} characters;
  * a preview that does not fit is refused (`packQuickOrderPreview` returns `null`) and the page
- * says so, rather than writing it or showing it cut short.
+ * says so, rather than writing it or showing it cut short. The defaults stay the contract: the
+ * example config adds larger proxy buffers as a safety margin only (round 2 of the ruling), and
+ * that margin does not raise this cap.
  */
 
 export interface QuickOrderPreview {
@@ -34,10 +36,16 @@ export interface QuickOrderPreview {
     quantity: number;
     mergedFromLines?: number[];
     /**
-     * After a partial cart build: why the cart did not take this line (feature 155, FR-011 (b)).
-     * Only the kind and the minimum — the line is named by its SKU, never by a carried name.
+     * After a partial cart build: why the cart did not take this line (feature 155, FR-011 (b)),
+     * with the build's product and unit names cut to `REPORT_NAME_MAX`. The server writes them
+     * here; they never travel in a URL (issue #790).
      */
-    notAdded?: { kind: 'pieces' | 'packaging_unit'; minimum: number };
+    notAdded?: {
+      kind: 'pieces' | 'packaging_unit';
+      minimum: number;
+      productName: string;
+      packagingUnitName?: string;
+    };
   }>;
   rejected: RejectedQuickOrderItem[];
   summary: { recognizedCount: number; rejectedCount: number; mergedCount: number; truncated: boolean };

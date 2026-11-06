@@ -183,7 +183,9 @@ language. The question here is what a *consumer* may put into a URL once it hold
   (`large_client_header_buffers 4 8k`) is a 400 and upstream response headers over ~4 KB
   (`proxy_buffer_size 4k`) are a 502, which would lock the buyer out of the whole storefront until
   the cookie expired. One cookie, its value at most ~3 000 characters; data that does not fit is
-  refused in words, never written and never cut short.
+  refused in words, never written and never cut short. The defaults are the contract: the cap was
+  measured safe on them, and the larger buffers in `deploy/nginx.example.conf` are a margin that
+  does not raise it.
 - **Rejected: a short-lived error cookie.** It is per-request state. It puts a `Set-Cookie` on
   server-rendered redirects, which hurts caching (Principle VII). And it would still ship the
   backend's sentence, so it adds a mechanism without solving the problem (Principle IV). The

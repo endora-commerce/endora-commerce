@@ -27,29 +27,50 @@ export function quickOrderRejectionLabel(
 }
 
 /**
- * One line a quick-order build left out of the cart — "BOLT-1 × 5 — Below the minimum (10 pcs)".
+ * One line a quick-order build left out of the cart — "Anchor bolt (BOLT-1) × 5 — Below the
+ * minimum (10 pcs)".
  *
- * Issue #790 — the line is named by the SKU the buyer imported and the minimum is stated without
- * the unit's name: the report is read back from the preview cookie, which keeps no product or
- * unit names (the URL that carried them once put any text on the page).
+ * Issue #790 — the report is read back from the server-written preview cookie, never from the
+ * URL, so it carries the build's product and unit names (architect ruling on PR #805, round 2),
+ * cut by {@link cutReportName} when the cookie is written, beside the SKU the buyer imported.
  */
 export function quickOrderBuildRejectionText(
-  line: { sku: string } & Pick<QuickOrderBuildRejectedLine, 'quantity' | 'kind' | 'minimum'>,
+  line: { sku: string } & Pick<QuickOrderBuildRejectedLine, 'productName' | 'quantity' | 'kind' | 'minimum' | 'packagingUnitName'>,
   locale: string,
 ): string {
   const reason =
-    belowMinimumText({ belowMinimum: { kind: line.kind, minimum: line.minimum } }, locale) ??
-    tForLocale(locale)('order.minimum.below.bare');
+    belowMinimumText(
+      {
+        belowMinimum: {
+          kind: line.kind,
+          minimum: line.minimum,
+          ...(line.packagingUnitName !== undefined ? { packagingUnitName: line.packagingUnitName } : {}),
+        },
+      },
+      locale,
+    ) ?? tForLocale(locale)('order.minimum.below.bare');
   return fill(tForLocale(locale)('quickOrder.build.rejectedLine'), {
-    product: line.sku,
+    product: line.productName ? `${line.productName} (${line.sku})` : line.sku,
     quantity: formatCount(line.quantity, locale),
     reason,
   });
 }
 
 /**
- * Fills `{name}` placeholders in one pass, so a brace inside a buyer-supplied value (a SKU) is
- * never read as a placeholder.
+ * A name's longest kept form in the quick-order preview cookie's build report, in UTF-16 units,
+ * the ellipsis included. It bounds a name the server writes into the cookie — it is not a URL
+ * budget: no report carries a name in a URL (issue #790).
+ */
+export const REPORT_NAME_MAX = 80;
+
+/** A product or unit name cut to {@link REPORT_NAME_MAX}. */
+export function cutReportName(name: string): string {
+  return name.length > REPORT_NAME_MAX ? `${name.slice(0, REPORT_NAME_MAX - 1)}…` : name;
+}
+
+/**
+ * Fills `{name}` placeholders in one pass, so a brace inside an operator-authored or
+ * buyer-supplied value (a product name, a unit name, a SKU) is never read as a placeholder.
  */
 function fill(template: string, values: Record<string, string>): string {
   return template.replace(/\{(\w+)\}/g, (match, name: string) => values[name] ?? match);
