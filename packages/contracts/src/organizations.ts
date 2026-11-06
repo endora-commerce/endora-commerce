@@ -733,18 +733,23 @@ export interface PersonalOrganizationPort {
   /**
    * Feature 051, the other end of the same rule — the retention sweep's
    * cascade. Once the single member of a personal organisation has been
-   * anonymised, the organisation is left with nobody in it and its name is
+   * soft-deleted, the organisation is left with no live member and its name is
    * derived from that person's name, so it is scrubbed and soft-deleted too.
    *
-   * Answers `null`, and writes nothing, in every case where the cascade does
-   * not apply: an org-less account, an organisation that is not personal, one
-   * already soft-deleted, and one that still has a live member. That is why it
-   * takes the **account** id rather than the organisation's — the caller
-   * (`customers`' anonymisation sweep) knows which customer it just scrubbed
-   * and must not be the one deciding whether the organisation qualifies.
+   * **Convergent** (issue #800). The sweep calls this *before* it anonymises
+   * the account, and calls it again on the next tick if anything after it
+   * failed. It writes only what part of the scrub is still missing (the name,
+   * the registered address, `deletedAt` — an existing `deletedAt` is kept), in
+   * one transaction with its audit row, and records nothing when nothing was
+   * missing. It answers the organisation **whether or not it wrote anything**,
+   * so a repeat call still tells the caller which saved addresses to clear.
    *
-   * Idempotent: a second call over the same account finds the organisation
-   * already soft-deleted and answers `null`.
+   * Answers `null`, and writes nothing, only where the cascade does not apply:
+   * an org-less account, an organisation that is not personal, and one that
+   * still has a live member. That is why it takes the **account** id rather
+   * than the organisation's — the caller (`customers`' anonymisation sweep)
+   * knows which customer it is scrubbing and must not be the one deciding
+   * whether the organisation qualifies.
    */
   anonymizeIfOrphaned(customerAccountId: string): Promise<OrganizationRecord | null>;
 }

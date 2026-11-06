@@ -1050,6 +1050,11 @@ export interface CustomerAccountLifecycleWritePort {
    * Irreversibly scrubs the account's personal data. Returns the account
    * unchanged when it was already anonymised, and throws HTTP 404
    * `CUSTOMER_NOT_FOUND` for an id nothing matches.
+   *
+   * It is the anonymisation cascade's **last** write (issue #800): the
+   * `anonymizedAt` it stamps is what takes the account off
+   * {@link listDueForAnonymization}, so it is the commit marker for the
+   * organisation and address scrubs that run before it.
    */
   anonymize(customerAccountId: string): Promise<CustomerAccountRecord>;
 }

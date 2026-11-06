@@ -76,10 +76,20 @@ are revoked, while orders, quote requests, and audit history are retained.
 Within a configurable retention window (`customers.deletion_retention_days`,
 default 365) an authorized actor can restore the account. After the window the
 anonymization sweep (`AnonymizationSweepWorker`) irreversibly scrubs personal
-data, and restore is no longer possible. For an individual, the sweep also
+data, and restore is no longer possible: from the moment the window elapses,
+restore answers `409 CUSTOMER_RESTORE_WINDOW_ELAPSED`, even if the sweep has
+not reached the account yet. For an individual, the sweep also
 scrubs their personal organization: its saved addresses are blanked (`-`, no
 phone, country kept) and soft-deleted, one `address.anonymized` audit entry
-each. Placed orders keep their address snapshots.
+each. This happens even if an operator has already deleted that organization.
+Placed orders keep their address snapshots.
+
+The sweep scrubs the personal organization and its addresses first and the
+account last. If a run is interrupted, the account is picked up again on the
+next run, which completes the remaining steps without repeating the audit
+entries of the steps already done. An account that cannot be anonymized does
+not hold up the others: the run anonymizes the rest and then reports the failed
+account ids.
 
 ## The personal address book is retired
 

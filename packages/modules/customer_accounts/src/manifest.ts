@@ -149,9 +149,14 @@ export const manifest = defineModuleManifest({
    * consequence in terms.
    *
    * `CUSTOMER_NOT_DELETED` and `CUSTOMER_RESTORE_WINDOW_ELAPSED` are the same
-   * noun read the other way round, and both are raised only here, from
-   * `customer-account-lifecycle-ports.ts` — the soft-delete window is a property
-   * of the account row and of nothing on top of it.
+   * noun read the other way round — the soft-delete window is a property of the
+   * account row and of nothing on top of it. `CUSTOMER_NOT_DELETED` is raised
+   * only here, from `customer-account-lifecycle-ports.ts`.
+   * `CUSTOMER_RESTORE_WINDOW_ELAPSED` is raised there for an anonymised row and,
+   * since issue #800, also by `customers`' `customer-deletion-service.ts`, which
+   * refuses a restore once `customers.deletion_retention_days` has elapsed even
+   * before the sweep has anonymised the row. That is the same caller shape as
+   * the two codes above, and D-95.2 / D-186 §1 cover it in the same terms.
    *
    * **`ACCOUNT_BLOCKED`** names the account itself: `customer-auth-service.ts`
    * refuses a sign-in for a `CustomerAccount` whose status is blocked, which is

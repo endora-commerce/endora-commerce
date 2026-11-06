@@ -553,9 +553,11 @@ describe('CustomerDeletionService', () => {
 
     em.clear();
     const org = await em.findOneOrFail(Organization, { id: customer.organizationId });
+    // A personal organisation is provisioned with a `-` registered address, so
+    // the name and `deletedAt` are what the rolled-back scrub would have moved.
     expect(org.name).toBe('Solo Buyer');
-    expect(org.registeredAddress.street).not.toBe('-');
     expect(org.deletedAt ?? null).toBeNull();
+    expect(await em.find(AuditLogEntry, { action: 'organization.anonymized', objectId: org.id })).toEqual([]);
   });
 
   it('I-7 — an account that keeps failing does not starve the rest of the sweep', async () => {
