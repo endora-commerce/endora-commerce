@@ -38,6 +38,12 @@ function refusal(err: unknown): { code: string; details: Record<string, unknown>
   return { code, details: details as Record<string, unknown> };
 }
 
+/** A negative amount — a number or the backend's decimal string — as 0; anything else unchanged. */
+function clampedAtZero(value: unknown): unknown {
+  const amount = typeof value === 'number' ? value : typeof value === 'string' && /^-\d+(?:\.\d+)?$/.test(value) ? Number(value) : null;
+  return amount !== null && Number.isFinite(amount) && amount < 0 ? 0 : value;
+}
+
 /**
  * The figures `err` carries, as a query-string tail (`&min=10`) to append after its code, or `''`.
  * Only a figure the page's reader accepts is written; a credit-limit refusal carries all three
@@ -51,7 +57,10 @@ export function errorFiguresQuery(err: unknown): string {
     const minimum = writeCount(found.details['minimum']);
     if (minimum !== null) qs.set('min', minimum);
   } else if (found.code === 'LIMIT_INSUFFICIENT') {
-    const available = writeAmount(found.details['availableAmount']);
+    // Architect ruling on #831 (Q2): a limit lowered below what is already used leaves a negative
+    // available amount; the buyer reads it as none left, so it is written as 0. The reader stays
+    // strict and never accepts a negative amount from the URL.
+    const available = writeAmount(clampedAtZero(found.details['availableAmount']));
     const total = writeAmount(found.details['orderTotal']);
     const currency = writeCurrency(found.details['currency']);
     if (available !== null && total !== null && currency !== null) {

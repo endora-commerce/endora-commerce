@@ -161,7 +161,9 @@ language. The question here is what a *consumer* may put into a URL once it hold
   consumer's own code for a refusal it cannot name. It may also carry **typed values**, each one
   validated when it is read and dropped when it fails: a positive integer (`^[1-9]\d{0,8}$`, the
   cart's `min=` from #783), a non-negative decimal amount with at most two places (#791), or an
-  ISO 4217 currency code (`^[A-Z]{3}$`). A page reads them through the one storefront reader,
+  ISO 4217 currency code (`^[A-Z]{3}$`). A decimal amount is a **display figure** rounded to two
+  places: the page only formats it and never does arithmetic with it, and it is not a lossless
+  copy of a four-place unit price. A page reads them through the one storefront reader,
   `storefront/lib/url-typed-values.ts`, never a pattern of its own, so a dropped value leaves the
   sentence without its figure instead of rendering `NaN` or handing `Intl` a code it throws on.
 - **What never travels.** No free text: no product name, no sentence (the backend's `message` or
