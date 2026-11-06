@@ -1,3 +1,4 @@
+import { ERROR_CODES } from '@endora-commerce/contracts';
 import { afterAll, beforeAll, describe, expect, it } from 'vitest';
 import {
   setupBackendServer,
@@ -86,7 +87,14 @@ describe('Admin customer detail actions (US5)', () => {
     expect(reloaded!.organizationId).toBe(personalOrganizationId);
   });
 
-  it('adds and lists addresses for the customer', async () => {
+  /**
+   * `specs/173-b2c-address-book-merge/` release 1 (OD-5, OD-6) — the personal
+   * book is retired: an admin cannot add to it, and the card reads the
+   * Organization book with only the rows the retirement job refused under
+   * `personal`. This test asserted a `201` and one personal row until #798
+   * retired the write.
+   */
+  it('refuses adding a personal address, and lists the customer’s books', async () => {
     const id = await newCustomer();
     const create = await h.app.inject({
       method: 'POST',
@@ -94,14 +102,19 @@ describe('Admin customer detail actions (US5)', () => {
       cookies: admin,
       payload: { kind: 'delivery', recipientName: 'Jan', street: 'ul. 1', city: 'Wwa', postalCode: '00-001', country: 'PL' },
     });
-    expect(create.statusCode).toBe(201);
+    expect(create.statusCode).toBe(410);
+    expect((create.json() as { error: { code: string } }).error.code).toBe(ERROR_CODES.CUSTOMER_ADDRESS_BOOK_RETIRED);
+
     const list = await h.app.inject({
       method: 'GET',
       url: `/api/v1/admin/customers/${id}/addresses`,
       cookies: admin,
     });
     expect(list.statusCode).toBe(200);
-    expect((list.json() as { data: { personal: unknown[] } }).data.personal).toHaveLength(1);
+    const book = (list.json() as { data: { organization: unknown[]; personal: unknown[] } }).data;
+    expect(Array.isArray(book.organization)).toBe(true);
+    // Nothing was written, and a fresh account has no refused rows.
+    expect(book.personal).toEqual([]);
   });
 
   it('validates a NIP/VAT number', async () => {
