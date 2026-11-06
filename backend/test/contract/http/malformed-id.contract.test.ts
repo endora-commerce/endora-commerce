@@ -17,10 +17,10 @@ import {
  *
  * Two tables, both asked of the composed application:
  *
- *  1. **The named routes** — the mutations the issue lists and the
- *     Organization role routes — each with a body its schema accepts, so the
- *     id is what the route is answering about, and the not-found code the
- *     route owns.
+ *  1. **The named routes** — the mutations the issue lists, the
+ *     Organization role routes and the routes issues #793 and #794 fixed —
+ *     each with a body its schema accepts, so the id is what the route is
+ *     answering about, and the not-found code the route owns.
  *  2. **Every mounted route with a path parameter**, read from the route table
  *     Fastify built (the OpenAPI document), called twice: once with a
  *     malformed value in every parameter and once with a well-formed UUID that
@@ -175,35 +175,30 @@ const NAMED: readonly NamedRoute[] = [
     code: ERROR_CODES.NOT_FOUND,
   },
   { method: 'GET', path: '/api/v1/admin/organizations/:id/roles', cookies: ADMIN, code: ERROR_CODES.NOT_FOUND },
+  // Issue #793 — an unknown id answered 500 on these, so the sweep could not
+  // tell its answer to a malformed one apart from a crash.
+  { method: 'GET', path: '/api/v1/admin/modules/:id/deactivation-impact', cookies: ADMIN, code: ERROR_CODES.MODULE_NOT_FOUND },
+  { method: 'POST', path: '/api/v1/admin/seo/sitemap/:id/regenerate', cookies: ADMIN, code: ERROR_CODES.NOT_FOUND },
+  { method: 'GET', path: '/api/v1/admin/seo/sitemap/:id/xml', cookies: ADMIN, code: ERROR_CODES.NOT_FOUND },
+  { method: 'GET', path: '/api/v1/admin/organizations/:id/restrictions', cookies: ADMIN, code: ERROR_CODES.NOT_FOUND },
+  { method: 'POST', path: '/api/v1/admin/organizations/:id/vat-validations', cookies: ADMIN, payload: {}, code: ERROR_CODES.NOT_FOUND },
+  // Issue #794 — the customer sub-resources answer an unknown customer as the
+  // customer itself does, so the existence check is the guard's, not each one's.
+  { method: 'PATCH', path: '/api/v1/admin/customers/:id/custom-fields', cookies: ADMIN, payload: {}, code: ERROR_CODES.CUSTOMER_NOT_FOUND },
+  { method: 'POST', path: '/api/v1/admin/customers/:id/impersonate', cookies: ADMIN, payload: {}, code: ERROR_CODES.CUSTOMER_NOT_FOUND },
+  { method: 'GET', path: '/api/v1/admin/customers/:id/addresses', cookies: ADMIN, code: ERROR_CODES.CUSTOMER_NOT_FOUND },
+  { method: 'GET', path: '/api/v1/admin/customers/:id/orders', cookies: ADMIN, code: ERROR_CODES.CUSTOMER_NOT_FOUND },
+  { method: 'GET', path: '/api/v1/admin/customers/:id/quote-requests', cookies: ADMIN, code: ERROR_CODES.CUSTOMER_NOT_FOUND },
+  { method: 'GET', path: '/api/v1/admin/customers/:id/carts', cookies: ADMIN, code: ERROR_CODES.CUSTOMER_NOT_FOUND },
 ];
 
 /**
  * Routes the sweep reports and this change does not fix, each with the issue that will.
  * Two-way: an entry the sweep no longer reports fails as loudly as a new
- * report, so the list cannot outlive what it describes.
+ * report, so the list cannot outlive what it describes. Empty since issues
+ * #793 and #794; a new entry names its issue, as theirs did.
  */
-const CUSTOMER_GUARD =
-  '`customers` checks the id ahead of every customer sub-resource and answers its own ' +
-  '`CUSTOMER_NOT_FOUND` (issue #753); the sub-resource answers an unknown customer with its own ' +
-  'code or an empty list. Not accepted behaviour: the guard is to check that the customer exists ' +
-  'and answer both alike, issue #794.';
-const UNKNOWN_FAILS =
-  'A well-formed id that names nothing answers 500 here too, so this is not a malformed-id ' +
-  'answer: a separate defect, issue #793.';
-
-const KNOWN: Readonly<Record<string, string>> = {
-  'PATCH /api/v1/admin/customers/{id}/custom-fields': CUSTOMER_GUARD,
-  'POST /api/v1/admin/customers/{id}/impersonate': CUSTOMER_GUARD,
-  'GET /api/v1/admin/customers/{id}/addresses': CUSTOMER_GUARD,
-  'GET /api/v1/admin/customers/{id}/orders': CUSTOMER_GUARD,
-  'GET /api/v1/admin/customers/{id}/quote-requests': CUSTOMER_GUARD,
-  'GET /api/v1/admin/customers/{id}/carts': CUSTOMER_GUARD,
-  'GET /api/v1/admin/modules/{id}/deactivation-impact': UNKNOWN_FAILS,
-  'POST /api/v1/admin/seo/sitemap/{channelCode}/regenerate': UNKNOWN_FAILS,
-  'GET /api/v1/admin/seo/sitemap/{channelCode}/xml': UNKNOWN_FAILS,
-  'GET /api/v1/admin/organizations/{id}/restrictions': UNKNOWN_FAILS,
-  'POST /api/v1/admin/organizations/{id}/vat-validations': UNKNOWN_FAILS,
-};
+const KNOWN: Readonly<Record<string, string>> = {};
 
 describe('a malformed :id answers the route’s own 404 (issue #781)', () => {
   let h: BackendServerHandle;

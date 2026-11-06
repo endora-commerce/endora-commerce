@@ -417,6 +417,13 @@ export const ADMIN_COOKIES: Record<string, { adminUserId: string }> = {
   'stub-admin-preferences-persistence-session': {
     adminUserId: '00000000-0000-4000-8000-0000000164b1',
   },
+  // Issue #794 — an admin who may read customers and may not impersonate them,
+  // so the impersonation refusal is shown to come before the existence check.
+  // The user and its role are created by
+  // `test/contract/customers/admin-unknown-customer.contract.test.ts`.
+  'stub-customers-reader-session': {
+    adminUserId: '00000000-0000-4000-8000-0000000794a1',
+  },
 };
 
 declare module 'fastify' {
