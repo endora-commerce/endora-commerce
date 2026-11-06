@@ -200,6 +200,24 @@ describe('no page builds free text into a URL (issue #790)', () => {
     expect([...KNOWN_FREE_TEXT].filter((site) => !offenders.includes(site))).toEqual([]);
   });
 
+  it('a code built into a template from an arbitrary string is flagged (issue #810)', () => {
+    const fixture = [
+      'const message = err instanceof Error ? err.message : String(err);',
+      'redirect(`/login?error=${message}`);',
+      'redirect(`/cart?error=${CART_ERRORS.failureCode(err, \'REMOVE_FAILED\')}`);',
+      'redirect(`/login?error=${signInErrorParam(err, \'LOGIN_FAILED\')}`);',
+      'redirect(`/orders/1?error=${opened ? \'A\' : \'B\'}`);',
+    ].join('\n');
+    const flagged = sitesOf('fixture.ts', fixture).filter(offends);
+    expect(flagged.map((site) => site.name)).toEqual(['error']);
+    expect(flagged[0]!.value).toBe('message');
+  });
+
+  it('the proven-code list names only sites that still need it', () => {
+    const used = new Set(sites.map((site) => `${site.file}:${site.name}=${site.value ?? ''}`));
+    expect([...CODE_IN_TEMPLATE.keys()].filter((key) => !used.has(key))).toEqual([]);
+  });
+
   it('the quick-order preview is not a URL parameter', () => {
     expect(sites.filter((site) => site.name === 'preview')).toEqual([]);
   });
