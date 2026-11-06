@@ -153,14 +153,11 @@ export async function registerCustomersAdminRoutes(
 
   /**
    * The guard chain of every `/api/v1/admin/customers/:id…` route: the
-   * permission first, so an anonymous caller still gets 401, then the shape of
-   * the id. An id that is not a UUID names no customer and answers
+   * permission first, so an anonymous caller still gets 401 and a caller
+   * without the code still gets 403 whether or not the customer exists, then
+   * the shape of the id. An id that is not a UUID names no customer and answers
    * `404 CUSTOMER_NOT_FOUND` before any read — unchecked, it reached PostgreSQL
-   * and came back as a 500 (`invalid input syntax for type uuid`). That is the
-   * answer an unknown id gets on the customer itself, but not on the six
-   * sub-resources (`custom-fields`, `impersonate`, `addresses`, `orders`,
-   * `quote-requests`, `carts`), which answer an unknown customer with their own
-   * code or an empty list; issue #794 makes the guard check existence too.
+   * and came back as a 500 (`invalid input syntax for type uuid`).
    */
   const requireCustomerId = async (request: FastifyRequest): Promise<void> => {
     const { id } = request.params as { id: string };
@@ -168,7 +165,28 @@ export async function registerCustomersAdminRoutes(
       throw new HttpError(404, ERROR_CODES.CUSTOMER_NOT_FOUND, 'Customer not found.');
     }
   };
+  /**
+   * The sub-resources (`custom-fields`, `impersonate`, both `addresses` verbs,
+   * `orders`, `quote-requests`, `carts`) also check that the customer exists, after the
+   * permission and the shape, so an unknown customer answers
+   * `404 CUSTOMER_NOT_FOUND` as the customer itself does — not a sub-resource's
+   * own code, nor an empty list that reads as "this customer has nothing"
+   * (issue #794). Through `customer_accounts`' `@OrgScoped` read: a customer an
+   * operator may not see reads as absent. A soft-deleted one exists here; what
+   * each sub-resource does with it is its own answer.
+   */
+  const requireCustomerExists = async (request: FastifyRequest): Promise<void> => {
+    const { id } = request.params as { id: string };
+    if ((await accounts.findById(id)) === null) {
+      throw new HttpError(404, ERROR_CODES.CUSTOMER_NOT_FOUND, 'Customer not found.');
+    }
+  };
   const forCustomer = (permission: string) => [requireAdmin(permission), requireCustomerId];
+  const forCustomerSubResource = (permission: string) => [
+    requireAdmin(permission),
+    requireCustomerId,
+    requireCustomerExists,
+  ];
 
   // PATCH /api/v1/admin/customers/:id/custom-fields (feature 055).
   //
@@ -180,7 +198,7 @@ export async function registerCustomersAdminRoutes(
   if (customFieldValues) {
     app.patch<{ Params: { id: string } }>(
       '/api/v1/admin/customers/:id/custom-fields',
-      { preHandler: forCustomer('customers:manage'), schema: { body: customFieldValuesSchema } },
+      { preHandler: forCustomerSubResource('customers:manage'), schema: { body: customFieldValuesSchema } },
       async (request) => {
         const patch = customFieldValuesSchema.parse(request.body);
         const id = request.params.id;
@@ -189,7 +207,7 @@ export async function registerCustomersAdminRoutes(
             customFieldValues.validateAndMerge('customer', current, patch),
           );
           const detail = await queryService.getDetail(id);
-          if (!detail) throw new HttpError(404, ERROR_CODES.NOT_FOUND, 'Customer not found.');
+          if (!detail) throw new HttpError(404, ERROR_CODES.CUSTOMER_NOT_FOUND, 'Customer not found.');
           return { data: detail };
         } catch (err) {
           // The tolerance is narrow and one-shot: a rejected custom-field patch
@@ -309,7 +327,7 @@ export async function registerCustomersAdminRoutes(
   app.post<{ Params: { id: string } }>(
     '/api/v1/admin/customers/:id/impersonate',
     {
-      preHandler: forCustomer('customers:impersonate'),
+      preHandler: forCustomerSubResource('customers:impersonate'),
       schema: { body: startImpersonationRequestSchema },
     },
     async (request, reply) => {
@@ -437,14 +455,17 @@ export async function registerCustomersAdminRoutes(
 
   app.get<{ Params: { id: string } }>(
     '/api/v1/admin/customers/:id/addresses',
-    { preHandler: forCustomer('customers:read') },
+    { preHandler: forCustomerSubResource('customers:read') },
     async (request) => {
       await resolveModerationActor(request);
       // `@OrgScoped` through `customer_accounts`' read: an out-of-scope
-      // customer reads as absent, and both halves are then empty — the
-      // missing-customer arm is unchanged by D-178.
+      // customer reads as absent, which the guard has already answered
+      // `404 CUSTOMER_NOT_FOUND` (issue #794); this arm is a customer deleted
+      // between the guard and the read.
       const customer = await accounts.findById(request.params.id);
-      if (customer === null) return { data: { personal: [], organization: [] } };
+      if (customer === null) {
+        throw new HttpError(404, ERROR_CODES.CUSTOMER_NOT_FOUND, 'Customer not found.');
+      }
       const [organization, refused] = await Promise.all([
         deps.organizationAddresses.listForOrganization(customer.organizationId),
         deps.addressBookRetirement.listRefused(customer.id),
@@ -460,7 +481,10 @@ export async function registerCustomersAdminRoutes(
 
   app.post<{ Params: { id: string } }>(
     '/api/v1/admin/customers/:id/addresses',
-    { preHandler: forCustomer('customers:manage') },
+    // The existence check too: an unknown customer is `404 CUSTOMER_NOT_FOUND`,
+    // as a malformed id is, and only a customer that exists is told the
+    // personal book is retired (issue #794).
+    { preHandler: forCustomerSubResource('customers:manage') },
     async (request) => {
       await resolveModerationActor(request);
       return addressBookRetired();
@@ -493,7 +517,7 @@ export async function registerCustomersAdminRoutes(
 
   app.get<{ Params: { id: string }; Querystring: { page?: string; pageSize?: string } }>(
     '/api/v1/admin/customers/:id/orders',
-    { preHandler: forCustomer('customers:read') },
+    { preHandler: forCustomerSubResource('customers:read') },
     async (request) => {
       await resolveModerationActor(request);
       const page = Math.max(1, Number.parseInt(request.query.page ?? '1', 10) || 1);
@@ -509,14 +533,17 @@ export async function registerCustomersAdminRoutes(
 
   app.get<{ Params: { id: string } }>(
     '/api/v1/admin/customers/:id/quote-requests',
-    { preHandler: forCustomer('customers:read') },
+    { preHandler: forCustomerSubResource('customers:read') },
     async (request) => {
       await resolveModerationActor(request);
       const customer = await accounts.findById(request.params.id);
+      if (customer === null) {
+        throw new HttpError(404, ERROR_CODES.CUSTOMER_NOT_FOUND, 'Customer not found.');
+      }
       // The customer's own quote requests only — never their Organization's.
       const data = await deps.rfqService.listForCustomer({
         customerAccountId: request.params.id,
-        organizationId: customer?.organizationId ?? '',
+        organizationId: customer.organizationId,
       });
       return { data };
     },
@@ -524,7 +551,7 @@ export async function registerCustomersAdminRoutes(
 
   app.get<{ Params: { id: string } }>(
     '/api/v1/admin/customers/:id/carts',
-    { preHandler: forCustomer('customers:read') },
+    { preHandler: forCustomerSubResource('customers:read') },
     async (request) => {
       await resolveModerationActor(request);
       return { data: await deps.cartQueryService.listForCustomer(request.params.id) };
