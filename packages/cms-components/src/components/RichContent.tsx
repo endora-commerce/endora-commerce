@@ -83,7 +83,7 @@ const RICH_CONTENT_FIELDS = {
 } as RichContentFields;
 
 export const RichContent: ComponentConfig<RichContentProps> = {
-  label: 'Rich Content',
+  label: 'Rich content',
   fields: RICH_CONTENT_FIELDS,
   // The Custom px is offered once a tier of the measure is on Custom.
   resolveFields: (data, params) => {

@@ -1291,7 +1291,7 @@ The admin's global search (the command palette, ⌘K / Ctrl+K) finds quote reque
 
 | Field | Searched by default |
 | --- | --- |
-| Quote Request number | yes |
+| Quote request number | yes |
 | Organization name | yes |
 | Customer name or e-mail | yes |
 | Customer's note | no |

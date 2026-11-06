@@ -125,7 +125,7 @@ const TEXT_FIELDS: NonNullable<ComponentConfig<{ props: TextProps }>['fields']> 
 };
 
 const textConfig: ComponentConfig<{ props: TextProps }> = {
-  label: 'Simple Text',
+  label: 'Simple text',
   fields: TEXT_FIELDS,
   defaultProps: {
     text: 'Body copy',

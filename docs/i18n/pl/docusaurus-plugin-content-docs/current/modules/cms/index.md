@@ -801,7 +801,7 @@ tekstem po lewej, obrazem pośrodku i tekstem z przyciskiem po prawej:
    i 4 z 12 na komputerze i po 12 na telefonie, gdzie kolumny ułożą się jedna pod
    drugą.
 3. Wypełnij kolumny: Nagłówek i Obraz z podpisem (linia z dowodem społecznym) w
-   pierwszej, Obraz w drugiej, tekst Rich Content i Przycisk w trzeciej.
+   pierwszej, Obraz w drugiej, tekst Rich content i Przycisk w trzeciej.
 
 Panel przyjmuje każdy blok z wyjątkiem samej Kolumny (kolumny są w Wierszu),
 kolejnego bloku Zakładki lub Akordeon oraz Sekcji. Każdy panel, razem z

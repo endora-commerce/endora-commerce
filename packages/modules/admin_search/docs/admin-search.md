@@ -25,15 +25,15 @@ record types, in the order their groups appear:
 | Record type | Fields offered (searched by default in **bold**) | Opens |
 | --- | --- | --- |
 | Orders | **Order number**, **Organization name**, **Customer name or e-mail**, Billing company name, Billing tax ID | the order |
-| Quote Requests | **Quote Request number**, **Organization name**, **Customer name or e-mail**, Customer's note | the quote request |
-| Sales Opportunities | **Opportunity number**, **Title**, **Organization name**, Description | the opportunity |
+| Quote requests | **Quote request number**, **Organization name**, **Customer name or e-mail**, Customer's note | the quote request |
+| Sales opportunities | **Opportunity number**, **Title**, **Organization name**, Description | the opportunity |
 | Organizations | **Name**, **Tax ID**, Legal name | the organization |
 | Customers | **E-mail**, **Name** | the customer |
 | Products | **SKU**, **Name**, URL key (slug), Quick-search attributes | the product |
 | Categories | **Name**, **URL key (slug)** | the category tree, with the category highlighted |
 
 A record type takes part only while its module is switched on: switch the CRM
-off on **/platform/modules** and Sales Opportunities disappear from the results
+off on **/platform/modules** and Sales opportunities disappear from the results
 and from the configuration screen; switch it back on and they return with the
 configuration they had.
 

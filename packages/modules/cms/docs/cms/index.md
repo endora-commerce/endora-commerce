@@ -65,11 +65,11 @@ added, reshaped and removed blocks; the last column says what changed.
 | `cms.Row` | Row | Columns layout container. Unchanged. |
 | `cms.Column` | Column | A column inside a Row. **Extended** with **Distribute blocks vertically** (from the top, which is the default, center, to the bottom, space between, or the last block to the bottom); a block placed in a column can take another **Order in the column** per breakpoint, and the column itself another **Order in the row**: see [Columns: distribution and order](#columns-distribution-and-order). A column can also span rows of its Row and start at a given column or row per breakpoint: see [Columns: placement in the row's grid](#columns-placement-in-the-rows-grid). |
 | `cms.Heading` | Heading | **Reshaped.** The text is inline rich text (bold, italic, link, three highlight styles, an icon from the icon catalog: see [Icons in headings and captions](#icons-in-headings-and-captions)). The semantic level (`h1`–`h6` or a paragraph) is chosen apart from the visual size, which is a type-scale token. Font, size, weight, style and line height stay available as **Custom** overrides in an "Advanced" group. |
-| `cms.Text` | Simple Text | Body text with typography controls; it reads the brand tokens as defaults. **Extended** with a maximum text width per breakpoint (narrow, medium, wide or Custom px; none by default), which follows the text's alignment. |
-| `cms.RichContent` | Rich Content | TipTap rich text. **Extended** with collapsible "read more" text, a check-mark list, links shown as buttons, heading anchors, visually hidden headings, the three highlight styles and a maximum text width per breakpoint. Its headings follow the brand's type scale once one is set (see [Rich-text headings and the type scale](#rich-text-headings-and-the-type-scale)). An image in the text takes a **Width** in px or %, an **Alignment** (left, center, right) and **In the line of text**, which sets it inside a sentence (a logo, a small avatar group); the same applies to every rich body of the other blocks. In the admin, **Image source** picks the image from the **Asset library** (its alternative text is filled in when the asset has one and the field is still empty) or takes a **URL**. |
+| `cms.Text` | Simple text | Body text with typography controls; it reads the brand tokens as defaults. **Extended** with a maximum text width per breakpoint (narrow, medium, wide or Custom px; none by default), which follows the text's alignment. |
+| `cms.RichContent` | Rich content | TipTap rich text. **Extended** with collapsible "read more" text, a check-mark list, links shown as buttons, heading anchors, visually hidden headings, the three highlight styles and a maximum text width per breakpoint. Its headings follow the brand's type scale once one is set (see [Rich-text headings and the type scale](#rich-text-headings-and-the-type-scale)). An image in the text takes a **Width** in px or %, an **Alignment** (left, center, right) and **In the line of text**, which sets it inside a sentence (a logo, a small avatar group); the same applies to every rich body of the other blocks. In the admin, **Image source** picks the image from the **Asset library** (its alternative text is filled in when the asset has one and the field is still empty) or takes a **URL**. |
 | `cms.Button` | Button | **Reshaped.** One button described by a style (`primary`, `secondary`, `light`, `dark`), a fill (`solid`, `outline`, `text`), a size, an optional icon (before, after, or icon only), colour overrides and a link. Today's `ghost` variant is the `text` fill. |
 | `cms.Image` | Image | **Extended.** A **Mobile image** shown below the tablet width, an **Aspect ratio** per breakpoint (Responsive tab; a preset or a custom `w:h`, the image's own ratio by default), an **Overlay** (solid or gradient, with direction and strength) and an optional **Caption** below or beside the image — an image with a sentence next to it, such as a small avatar group. **Full width** is the existing Width option; inside a Section with the **Bleed** width the image reaches the window's edges. The image is loaded lazily; with a ratio its space is reserved before it loads. With none of these set it looks as before. |
-| `cms.Icons`, `cms.Social`, `cms.Spacer` | Icons, Social, Spacer / Divider | Unchanged. |
+| `cms.Icons`, `cms.Social`, `cms.Spacer` | Icons, Social, Spacer / divider | Unchanged. |
 | `cms.Hero` | Hero / CTA banner | **Reshaped.** Media (solid colour, gradient, image with a mobile alternative, or self-hosted video with a poster and a **Video aspect ratio** per breakpoint for a video above the text, 16:9 by default) behind or above the text; eyebrow, title, subheading and statement, each with its own level and size; rich body text; up to six buttons; social proof (image and caption); **Overlay (darkens the background media)**, minimum height, alignment and an optional entrance reveal; the overlay's **Type** is none, solid or gradient, and only the settings that type uses are shown (the strength for solid and gradient, the direction for a gradient). **Elements: order and spacing** puts the eyebrow, title, subheading, statement, text, buttons and social proof in any order (unlisted ones follow in the default order), and each listed element can take a **Space after** it (a spacing size or a **Custom** px value); left on **Default**, an element keeps **Space between items**, or the default spacing when that is not set. **Media width: Full window width** lets an image or video reach the window's edges while the text stays in the hero. A video's mobile alternative is a library video, or a **Mobile video URL** with the URL source. **Poster source** sets where both stills come from: the **Asset library** (**Poster image**, **Mobile poster image**) or **URL** (**Poster URL**, **Mobile poster URL**); the mobile poster is the still shown before the mobile video plays, so a video of another shape is not shown cropped. The title takes a **Title weight** and a **Title max width** per breakpoint: see [Headings: weight and width](#headings-weight-and-width). |
 | `cms.MediaText` | Media and text | **New.** Image or video (from the Assets Library or, with **Video source: URL**, by address, each with an optional mobile video shown below the tablet width, and with a **Video aspect ratio** per breakpoint, 16:9 by default) beside text, with side, mobile order, column split, vertical alignment, feature items with icons, buttons, a footnote, and repeated rows that can alternate sides. A video takes an optional **Mobile poster image** or **Mobile poster URL** for the mobile video. **Item title size** (a type-scale size or **Custom (px)**, per breakpoint) and **Item title weight** (300–800) restyle every feature item's title; left on **Default**, the titles stay 16 px semibold. |
 | `cms.BackgroundPanel` | Background image panel | **New.** An image with a text panel on one side. To take it edge to edge, put it in a Section with the **Bleed** or **Full** width. **Transparent text box** (off by default) leaves the text panel without its scheme background, so the image shows through behind the text; choose the scheme so the text reads on the image. |
@@ -86,8 +86,8 @@ added, reshaped and removed blocks; the last column says what changed.
 | `cms.CarouselImage`, `cms.CarouselSplit`, `cms.LinkTile`, `cms.DownloadTile` | Carousel image, Carousel split slide, Link tile, Download tile | **New** carousel items, offered only inside a carousel. Each item, and a free-content slide, carries optional tags for the carousel's filter. A carousel image's caption over the image can sit on a scrim (a gradient from its edge or an even tint). A link tile's image ratio can differ per breakpoint. A carousel image takes **Image – rounded corners** (and its caption **Caption – rounded corners**), a link tile **Rounded corners** (none, small, medium, large; medium, 8 px, by default). A carousel image's caption, and a link tile's title and label, take a size per breakpoint and a font; a link tile's label is a text link with an arrow, a button or hidden. A download tile is a single download link to an Assets Library file; when the file is gone, customers see nothing and the preview shows a warning. |
 | `cms.Tabs`, `cms.Accordion` | Tabs, Accordion | **Reshaped.** Each panel holds blocks instead of one HTML text, every panel is in the server-rendered HTML, and keyboard navigation follows the WAI-ARIA patterns. Tabs gain an animated panel change (fade or slide) and a tab bar look: the bar's background and border (a capsule around pills), the active and other tabs' colours, a hover colour for the other tabs, a **Tab size** per breakpoint (small, medium or large; medium when not set), and the **Space below the tab bar** (a spacing size or a **Custom** px value, per breakpoint; 12 px when not set). A panel in columns is a Row inside it: see [Tabs: a panel in columns](#tabs-a-panel-in-columns). **Tabs that do not fit** either wrap onto more lines (the default) or stay in one line that scrolls sideways inside the block, snapping to a tab; the page itself never scrolls sideways, and the keyboard works the same in both. Accordion item titles can be headings (H2–H6, the trigger inside the heading) with a size from the type scale; by default they are not headings and keep their look. |
 | `cms.NewsletterSignup` | External newsletter form | Kept as the form that posts to **any external endpoint** (`actionUrl`). Gained an optional consent checkbox. The platform's own newsletter sign-up is the `newsletter.Signup` block below. |
-| `cms.ContactFormEmbed`, `cms.RawHtml`, `cms.RawJs`, `cms.InsertBlock` | Contact / form embed, Raw HTML, Raw JS, Insert Block | Unchanged. `InsertBlock` embeds a Block by `code`; a Section in an embed placed at the top level of a page renders as a section. |
-| `cms.InsertTemplate` | Insert Template | Legacy: kept for existing trees and **not** in the drawer palette. Prefer Save as / Apply template. |
+| `cms.ContactFormEmbed`, `cms.RawHtml`, `cms.RawJs`, `cms.InsertBlock` | Contact / form embed, Raw HTML, Raw JS, Insert block | Unchanged. `InsertBlock` embeds a Block by `code`; a Section in an embed placed at the top level of a page renders as a section. |
+| `cms.InsertTemplate` | Insert template | Legacy: kept for existing trees and **not** in the drawer palette. Prefer Save as / Apply template. |
 | ~~`cms.ImageSlider`~~ | — | **Removed.** Use the Carousel with **Carousel image** items, which carry every caption option the image slider had. |
 
 Blocks owned by other modules appear in the same palette while their module is
@@ -117,7 +117,7 @@ is not migrated in the database, and it does not need to be:
   that runs when it renders. When an editor opens the page, the editor converts
   the block to the new shape, and the next save stores it. A stored tab or
   accordion panel written as HTML keeps rendering as that HTML until the page is
-  opened, when it moves into the panel as a **Rich Content** block.
+  opened, when it moves into the panel as a **Rich content** block.
 - **A hero's spacing list moves into its element list.** A hero saved with
   **Space after an element** keeps its spaces on the storefront. When the page is
   opened, each space moves to its element in **Elements: order and spacing**,
@@ -231,7 +231,7 @@ they did before.
 
 ### Anchors
 
-A Section's anchor and a heading anchor in Rich Content become element ids,
+A Section's anchor and a heading anchor in Rich content become element ids,
 and a button, a rich-text link or a link field of the **In-page anchor** kind
 can target them. The editor normalises what is typed — lower case, ASCII,
 hyphens, a leading letter, at most 64 characters — so `Contact Us!` becomes
@@ -455,7 +455,7 @@ heading keeps it where the translation puts it.
 
 ### Rich-text headings and the type scale
 
-Headings written inside rich text — a Rich Content block and the text of the
+Headings written inside rich text — a Rich content block and the text of the
 media-and-text block, the call-to-action card, the hero, the feature list and
 the other blocks with a rich body — follow the **type scale** of the
 [brand settings](./brand.md): a Heading 4 in the text takes the Heading 4 size
@@ -530,7 +530,7 @@ drawn in the brand's primary colour and a chevron in the text's colour; a
 block's **List marker color** (Rich content, Media and text) gives both
 markers a colour of their own, for example white ticks on a dark Section.
 
-A **Simple Text** block takes bold, italic, links and highlights: its text is
+A **Simple text** block takes bold, italic, links and highlights: its text is
 edited like a heading's. A text saved before keeps its plain text until it is
 edited.
 
@@ -761,7 +761,7 @@ left, an image in the middle and a text with a button on the right:
 2. Set each **Column**'s width on the Responsive tab, for example 3, 5 and 4 of
    12 on desktop and 12 each on a phone, where the columns then stack.
 3. Fill the columns: a Heading and an Image with a caption (the social-proof
-   line) in the first, an Image in the second, a Rich Content text and a Button
+   line) in the first, an Image in the second, a Rich content text and a Button
    in the third.
 
 A panel accepts any block except a Column on its own (columns live in a Row),
@@ -1000,7 +1000,7 @@ desktop; below it the image sits above the figures.
 **Heading**: **Max text width**, *per breakpoint* — a named measure or a
 Custom (px) width; a centred or right-aligned heading keeps its alignment.
 
-**Rich Content**: **List line height**, *per breakpoint*, with a Custom text
+**Rich content**: **List line height**, *per breakpoint*, with a Custom text
 size.
 
 **Accordion**: **Title line height**, *per breakpoint*, with a Custom title
@@ -1061,7 +1061,7 @@ breakpoint below the first Custom one keeps the value size's own line height.
 breakpoint*) and **Item text weight** for every feature item's text (15 px and
 muted by default).
 
-**Rich Content**: **Text weight**; its lists follow it.
+**Rich content**: **Text weight**; its lists follow it.
 
 **Feature list**:
 
