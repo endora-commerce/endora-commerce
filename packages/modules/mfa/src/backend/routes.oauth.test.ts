@@ -536,15 +536,14 @@ describe('federated sign-in — the storefront gets a code, never a sentence (is
     const literals = [...source.matchAll(/loginRedirect\(\s*deps,\s*surface,\s*'([^']*)'/g)].map((m) => m[1]!);
     expect(literals.length).toBeGreaterThan(0);
     expect(literals.filter((code) => !federatedSignInErrorCodeSchema.safeParse(code).success)).toEqual([]);
-    expect(source).not.toMatch(/\?error=\$\{encodeURIComponent\((?!ADMIN_LOGIN_ERROR_SENTENCE)/);
+    expect(source).not.toMatch(/\?error=\$\{encodeURIComponent\(/);
+    expect(source).not.toMatch(/ADMIN_LOGIN_ERROR_SENTENCE/);
   });
 
-  it('the Admin UI still gets its sentence', async () => {
+  it('the Admin UI gets the code too, never a sentence (issue #813)', async () => {
     h.setAdminResult({ ok: false, reason: 'no_account' });
     const { state, binding } = await start(h, 'admin');
     const res = await callback(h, state, { [OAUTH_BINDING_COOKIE_NAME]: binding! }, 'admin');
-    expect(res.headers['location']).toBe(
-      `${ADMIN}/login?error=${encodeURIComponent('No account matches this provider. Please contact an administrator.')}`,
-    );
+    expect(res.headers['location']).toBe(`${ADMIN}/login?error=no_matching_account`);
   });
 });

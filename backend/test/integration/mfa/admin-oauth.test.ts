@@ -79,7 +79,7 @@ describe('MFA US5 — admin social login', () => {
     const state = await startAndGetState(h);
     const res = await callback(h, email, state);
     expect(res.statusCode).toBe(302);
-    expect(res.headers['location']).toContain('/login?error=');
+    expect(res.headers['location']).toBe('http://localhost:3002/login?error=no_matching_account');
     expect(res.cookies.find((c) => c.name === 'b2b_admin_session')).toBeUndefined();
     // And no customer was created either (admin surface never auto-creates).
     const stray = await h.em().findOne(CustomerAccount, { email });
@@ -91,7 +91,7 @@ describe('MFA US5 — admin social login', () => {
     const state = await startAndGetState(h);
     const res = await callback(h, 'stub-customer@example.com', state);
     expect(res.statusCode).toBe(302);
-    expect(res.headers['location']).toContain('/login?error=');
+    expect(res.headers['location']).toBe('http://localhost:3002/login?error=no_matching_account');
     expect(res.cookies.find((c) => c.name === 'b2b_admin_session')).toBeUndefined();
   });
 });
