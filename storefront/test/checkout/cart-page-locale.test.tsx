@@ -14,8 +14,10 @@ import type { CartSummary } from '../../lib/api/cart';
 let locale = 'en-US';
 let cart: CartSummary | 'cart-unavailable' = 'cart-unavailable';
 
+let session: string | null = null;
+
 vi.mock('../../lib/session', () => ({
-  getSessionCookie: async () => null,
+  getSessionCookie: async () => session,
   getAnonCartCookie: async () => 'anon',
   setAnonCartCookie: async () => undefined,
 }));
@@ -35,7 +37,10 @@ vi.mock('../../lib/api/cart', () => ({
   submitCartForApproval: async () => undefined,
   saveCartItemToShoppingList: async () => undefined,
 }));
-vi.mock('../../lib/api/shopping-lists', () => ({ listShoppingLists: async () => [] }));
+// Issue #790 — `?listAdded=` carries the list's id; the page reads the name of the buyer's list.
+vi.mock('../../lib/api/shopping-lists', () => ({
+  listShoppingLists: async () => [{ id: 'sl-1', name: locale === 'pl-PL' ? 'Warsztat' : 'Workshop', isDefault: false }],
+}));
 vi.mock('../../lib/api/account', () => ({ getMe: async () => null }));
 vi.mock('../../lib/api/pricing', () => ({
   PRICING_UNAVAILABLE: 'pricing-unavailable',
@@ -81,6 +86,7 @@ async function render(searchParams: Record<string, string> = {}): Promise<string
 beforeEach(() => {
   locale = 'en-US';
   cart = 'cart-unavailable';
+  session = null;
 });
 
 describe('cart page — issue #85', () => {
@@ -106,7 +112,8 @@ describe('cart page — issue #85', () => {
 
   it('renders a filled cart in English, with no Polish in it', async () => {
     cart = summary([line('1', 1), line('2', 2), line('3', 3)]);
-    const html = await render({ qrCreated: '1', listAdded: 'Workshop' });
+    session = 'session';
+    const html = await render({ qrCreated: '1', listAdded: 'sl-1' });
     for (const text of [
       '<h1 class="m-0 text-[24px] font-semibold tracking-[-0.02em] text-fg">Your cart</h1>',
       '3 items ready for checkout.',
@@ -127,7 +134,8 @@ describe('cart page — issue #85', () => {
   it('renders a filled cart in Polish, with the plural forms Polish needs', async () => {
     locale = 'pl-PL';
     cart = summary([line('1', 1), line('2', 2), line('3', 3)]);
-    const html = await render({ qrCreated: '1', listAdded: 'Warsztat' });
+    session = 'session';
+    const html = await render({ qrCreated: '1', listAdded: 'sl-1' });
     for (const text of [
       'Twój koszyk',
       '3 pozycje gotowe do kasy.',

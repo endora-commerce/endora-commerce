@@ -3,6 +3,7 @@
 import { logoutCustomer } from '../api/auth';
 import { clearSessionCookie, getSessionCookie } from '../session';
 import { localeRedirect } from '../i18n/navigation';
+import { clearQuickOrderPreview } from '../quick-order-preview-cookie';
 
 /**
  * Ends the buyer's session and sends them to the sign-in page.
@@ -15,5 +16,7 @@ export async function signOutAction(): Promise<void> {
   const session = await getSessionCookie();
   await logoutCustomer(session);
   await clearSessionCookie();
+  // Issue #790 — the quick-order preview is the buyer's uploaded data; it ends with the session.
+  await clearQuickOrderPreview();
   return await localeRedirect('/login');
 }

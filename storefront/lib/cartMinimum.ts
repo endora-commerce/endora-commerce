@@ -259,5 +259,7 @@ export function cartLineEditError(
   } else {
     message = t(CART_ERRORS.errorKey(params.error)!);
   }
-  return { message, typed: params.typed ?? null };
+  // Issue #790 — what the buyer typed is read only as a whole quantity, the `min=` rule from #783;
+  // anything else in the address is ignored and the field shows the line's quantity.
+  return { message, typed: /^[1-9]\d{0,8}$/.test(params.typed ?? '') ? params.typed! : null };
 }
