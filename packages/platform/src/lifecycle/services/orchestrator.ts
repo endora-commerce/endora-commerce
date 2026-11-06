@@ -11,6 +11,7 @@ import type {
   ModuleListItem,
   ModuleListItemFlag,
 } from '@endora-commerce/contracts';
+import { currentPlatformLogger, platformLogger } from '../../kernel/logging.js';
 import { ManifestReconciler } from '../../kernel/settings/manifest-reconciler.js';
 import { Setting } from '../../kernel/settings/setting.entity.js';
 import { SettingGroup } from '../../kernel/settings/setting-group.entity.js';
@@ -89,7 +90,9 @@ export interface OrchestratorDeps {
    */
   migratorFor?: (orm: MikroORM) => Promise<IMigrator>;
   /**
-   * Optional logger (Fastify request-logger compatible). Defaults to console.
+   * Optional logger (Fastify request-logger compatible). Defaults to the
+   * platform's attached log destination, and to the console when nothing is
+   * attached (issue #825).
    * The contracts' `ModuleLifecycleLogger`, the same logger the orchestrator
    * hands to install/uninstall hooks — never a structural copy of it (#84).
    */
@@ -1264,10 +1267,30 @@ function taggedLogger(
   };
 }
 
+/**
+ * The logger an orchestrator built without one uses — and therefore the one
+ * every install and uninstall hook is handed on the `module:*` path, where
+ * `orchestratorFor` supplies none.
+ *
+ * A line goes to the platform's attached destination when there is one, and
+ * to the console only when there is not (issue #825). An operator command
+ * attaches `attachOperatorDiagnostics(err)` before it opens anything, so a
+ * hook's `log.info(...)` reaches the command's error channel beside the
+ * platform's own lines; written straight to `console.log`, it landed on stdout
+ * in front of `module:install --json`'s document and made it unparseable —
+ * the defect #819 closed for the platform's lines one logger over. A built
+ * server attaches its pino instance, so there the line joins the collected log
+ * instead of being an unstructured stdout write.
+ *
+ * The slot is read **per line**, not when the orchestrator is constructed: the
+ * same reason `platformLogger()` gives — whatever is captured at construction
+ * is whatever was attached then, forever.
+ */
 function consoleLogger(): NonNullable<OrchestratorDeps['log']> {
+  const attached = platformLogger();
   return {
-    info: (m) => console.log(m),
-    warn: (m) => console.warn(m),
-    error: (m) => console.error(m),
+    info: (m) => (currentPlatformLogger() ? attached.info({}, m) : console.log(m)),
+    warn: (m) => (currentPlatformLogger() ? attached.warn({}, m) : console.warn(m)),
+    error: (m) => (currentPlatformLogger() ? attached.error({}, m) : console.error(m)),
   };
 }
