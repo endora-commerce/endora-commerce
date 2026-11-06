@@ -205,7 +205,7 @@ export const auth = defineMessages({
     'auth.federated.error.emailUnverified': 'Your provider email is not verified.',
     'auth.federated.error.noMatchingAccount': 'No account matches this provider. Please contact an administrator.',
     'auth.federated.error.registrationDisabledInChannel':
-      'This store does not accept new account registrations, so no account was created. Sign in with an existing account, or contact the store.',
+      'This store does not offer personal accounts, so no account was created. Sign in with an existing account, or register your organization.',
     'auth.federated.error.setupRequired':
       'Two-step verification is required for your account. Sign in with your email and password to set it up.',
     'auth.passwordReset.request.failed': 'Could not send the reset link. Please try again.',
@@ -390,7 +390,7 @@ export const auth = defineMessages({
     'auth.federated.error.emailUnverified': 'Adres e-mail u dostawcy nie jest potwierdzony.',
     'auth.federated.error.noMatchingAccount': 'Żadne konto nie odpowiada temu dostawcy. Skontaktuj się z administratorem.',
     'auth.federated.error.registrationDisabledInChannel':
-      'Ten sklep nie przyjmuje rejestracji nowych kont, więc konto nie zostało utworzone. Zaloguj się na istniejące konto albo skontaktuj się ze sklepem.',
+      'Ten sklep nie oferuje kont osobistych, więc konto nie zostało utworzone. Zaloguj się na istniejące konto albo zarejestruj swoją organizację.',
     'auth.federated.error.setupRequired':
       'Twoje konto wymaga weryfikacji dwuetapowej. Zaloguj się e-mailem i hasłem, aby ją skonfigurować.',
     'auth.passwordReset.request.failed': 'Nie udało się wysłać linku do zresetowania hasła. Spróbuj ponownie.',

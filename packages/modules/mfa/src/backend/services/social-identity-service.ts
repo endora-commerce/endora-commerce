@@ -39,8 +39,8 @@ export interface SocialAccountMatch {
 export interface SocialIdentityDeps {
   resolveCustomerByEmail: (email: string) => Promise<SocialAccountMatch | null>;
   /**
-   * Returns the new account id, or null when the channel does not allow
-   * registration (`customers.allow_registration_without_organization` off for it):
+   * Returns the new account id, or null when personal (org-less) registration is
+   * off on the channel (`customers.allow_registration_without_organization`):
    * the only refusal it has, which `signInCustomer` answers as
    * `registration_disabled_in_channel` (issue #789).
    * The new personal Organization gets exactly `salesChannelId` — the channel

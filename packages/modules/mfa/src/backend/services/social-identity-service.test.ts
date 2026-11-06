@@ -125,9 +125,9 @@ describe('SocialIdentityService.signInCustomer — the started-on channel (featu
     expect(audited).toEqual([]);
   });
 
-  // Issue #789 (from #785) — `autoCreate` answers null only when the started-on channel does
-  // not allow registration, so the refusal names that, not a missing account.
-  it('names a channel that does not allow registration when no account may be created', async () => {
+  // Issue #789 (from #785) — `autoCreate` answers null only when personal (org-less)
+  // registration is off on the started-on channel, so the refusal names that, not a missing account.
+  it('names a channel with personal registration off when no account may be created', async () => {
     const { service, persisted, audited } = harness({ autoCreateCustomer: async () => null });
 
     expect(await service.signInCustomer(IDENTITY, ON_B)).toEqual({

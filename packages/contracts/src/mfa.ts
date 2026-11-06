@@ -53,7 +53,8 @@ export type FederatedSignInOptionsResponse = z.infer<
  * `/login?error=<code>` (issue #789). A code, never a sentence — the storefront words each
  * one in its own languages and reads any other value as its generic sign-in failure
  * (`specs/conventions/module-i18n.md`, URL-borne errors). The Admin UI surface is not
- * covered: it still receives a sentence.
+ * covered: it still receives a sentence. These are redirect codes, not API `error.code`
+ * values, which is why they are lower-case and fall outside `errorCodeRe`.
  *
  * - `unknown_provider` — the provider in the path is not one the platform supports.
  * - `provider_unavailable` — the provider is not configured or not enabled for the channel.
@@ -63,8 +64,10 @@ export type FederatedSignInOptionsResponse = z.infer<
  * - `email_unverified` — the provider's e-mail address is not verified.
  * - `no_matching_account` — no account matches the provider identity.
  * - `account_blocked` — the matched account is blocked.
- * - `registration_disabled_in_channel` — no account exists and the channel the sign-in
- *   started on does not allow registration, so none was created.
+ * - `registration_disabled_in_channel` — no account exists and personal (org-less)
+ *   registration is off on the channel the sign-in started on
+ *   (`customers.allow_registration_without_organization`), so none was created. Business
+ *   registration is not affected.
  * - `mfa_setup_required` — a second factor is enforced and not set up yet.
  * - `sales_channel_sign_in_required` — no account exists and the store is closed to
  *   anonymous visitors, so none was created.
