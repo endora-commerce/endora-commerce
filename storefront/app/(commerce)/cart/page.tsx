@@ -93,8 +93,13 @@ export default async function CartPage({
     /** Issue #791 — a decimal amount and an ISO 4217 code, read through `lib/url-typed-values.ts`. */
     couponShortfall?: string;
     couponShortfallCurrency?: string;
-    /** Issue #791 — a credit-limit refusal's figures beside `error` (`lib/url-error-figures.ts`). */
+    /**
+     * Issues #791, #832 — a credit-limit or order-minimum-value refusal's figures beside `error`
+     * (`lib/url-error-figures.ts`).
+     */
     available?: string;
+    minValue?: string;
+    subtotal?: string;
     total?: string;
     currency?: string;
     qrCreated?: string;

@@ -13,7 +13,12 @@ import { readAmount, readCount, readCurrency, writeAmount, writeCount, writeCurr
  *   available and the refused order's total, both the placing organization's own figures
  *   (`order-service.ts` puts them in the refusal's `details`);
  * - `PRODUCT_BELOW_MINIMUM_QUANTITY` / `PACKAGING_UNIT_BELOW_MINIMUM_QUANTITY` — `min`, the
- *   minimum. Never the product's or the packaging unit's name: a name is free text.
+ *   minimum. Never the product's or the packaging unit's name: a name is free text;
+ * - `ORDER_BELOW_MINIMUM_VALUE` — `minValue`, `subtotal` and `currency` (#832): the store's
+ *   minimum order value and the basket's subtotal, as the backend rounds them.
+ *
+ * Every amount is a display figure rounded to two places: the page formats it and never does
+ * arithmetic with it.
  *
  * The cart line's own refused edit keeps its line-scoped reading (`lib/cartMinimum.ts`), which
  * also names the line's packaging unit; this is the reading of every other place a minimum or a
@@ -23,6 +28,8 @@ import { readAmount, readCount, readCurrency, writeAmount, writeCount, writeCurr
 /** The figures a page may read beside its error code — each still unvalidated, as the URL has it. */
 export interface UrlErrorFigures {
   min?: string | undefined;
+  minValue?: string | undefined;
+  subtotal?: string | undefined;
   available?: string | undefined;
   total?: string | undefined;
   currency?: string | undefined;
@@ -68,6 +75,15 @@ export function errorFiguresQuery(err: unknown): string {
       qs.set('total', total);
       qs.set('currency', currency);
     }
+  } else if (found.code === 'ORDER_BELOW_MINIMUM_VALUE') {
+    const minimum = writeAmount(found.details['minimum']);
+    const subtotal = writeAmount(found.details['subtotal']);
+    const currency = writeCurrency(found.details['currency']);
+    if (minimum !== null && subtotal !== null && currency !== null) {
+      qs.set('minValue', minimum);
+      qs.set('subtotal', subtotal);
+      qs.set('currency', currency);
+    }
   }
   const tail = qs.toString();
   return tail === '' ? '' : `&${tail}`;
@@ -96,6 +112,16 @@ export function urlErrorText(
       return format(t('commerce.errorFigures.LIMIT_INSUFFICIENT'), {
         available: formatMoney(available, currency, locale),
         total: formatMoney(total, currency, locale),
+      });
+    }
+  } else if (key === 'commerce.error.ORDER_BELOW_MINIMUM_VALUE') {
+    const minimum = readAmount(figures.minValue);
+    const subtotal = readAmount(figures.subtotal);
+    const currency = readCurrency(figures.currency);
+    if (minimum !== null && subtotal !== null && currency !== null) {
+      return format(t('commerce.errorFigures.ORDER_BELOW_MINIMUM_VALUE'), {
+        minimum: formatMoney(minimum, currency, locale),
+        subtotal: formatMoney(subtotal, currency, locale),
       });
     }
   } else if (key === 'commerce.error.PRODUCT_BELOW_MINIMUM_QUANTITY' || key === 'commerce.error.PACKAGING_UNIT_BELOW_MINIMUM_QUANTITY') {

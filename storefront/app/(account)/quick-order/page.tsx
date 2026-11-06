@@ -86,6 +86,8 @@ export default async function QuickOrderPage({
     problem?: string;
     /** Issue #791 — the figures beside `problem`, typed values read through `lib/url-typed-values.ts`. */
     min?: string;
+    minValue?: string;
+    subtotal?: string;
     available?: string;
     total?: string;
     currency?: string;
