@@ -17,9 +17,11 @@ import { describe, expect, it } from 'vitest';
  * Its declared limits: the allow-list is **by name**, so it is a promise about
  * a parameter's value, not a proof — the per-page tests in this directory are
  * the evidence that a crafted value never reaches the screen; and a code built
- * into a template (`?error=${code}`) is trusted by its name, since the source
- * cannot show that the value is a code (follow-up #810). A new parameter must
- * justify itself here.
+ * into a template (`?error=${code}`) is not trusted by its name: the source
+ * must prove it is one — a vocabulary call, a literal, or an entry on the short
+ * `CODE_IN_TEMPLATE` list (issue #810). That proof is textual, so a listed
+ * identifier is only as good as the type it was read to have. A new parameter
+ * must justify itself here.
  */
 
 const ROOT = resolve(import.meta.dirname, '../..');
@@ -112,6 +114,8 @@ interface Site {
   encoded: boolean;
   /** The value is a string literal, so it is fixed text the source chose. */
   literal: boolean;
+  /** The expression inside a `?name=${…}` template, when the site is one. */
+  value?: string | undefined;
 }
 
 function sources(dir: string): string[] {
@@ -125,10 +129,24 @@ function sources(dir: string): string[] {
 
 const LITERAL = /^\s*(?:'[^']*'|"[^"]*"|`[^`$]*`)\s*$/;
 
+/** `cond ? 'A' : 'B'` — a choice between literals is as fixed as one literal. */
+const LITERAL_CHOICE = /^\s*(?:'[^']*'|"[^"]*"|[^?'"`]+\?\s*(?:'[^']*'|"[^"]*")\s*:\s*(?:'[^']*'|"[^"]*"))\s*$/;
+
+/** The expression of the `${…}` opened just before `start`, read to its balanced `}`. */
+function templateValue(source: string, start: number): string | undefined {
+  let depth = 1;
+  for (let i = start; i < source.length; i++) {
+    if (source[i] === '{') depth++;
+    else if (source[i] === '}' && --depth === 0) return source.slice(start, i).trim();
+  }
+  return undefined;
+}
+
 function sitesOf(file: string, source: string): Site[] {
   const sites: Site[] = [];
   for (const m of source.matchAll(/[?&]([A-Za-z_]\w*)=(?:\$\{|'\s*\+)/g)) {
-    sites.push({ file, name: m[1]!, encoded: false, literal: false });
+    const value = m[0].endsWith('${') ? templateValue(source, m.index + m[0].length) : undefined;
+    sites.push({ file, name: m[1]!, encoded: false, literal: value !== undefined && LITERAL_CHOICE.test(value), value });
   }
   for (const m of source.matchAll(/new URLSearchParams\(\s*\{([^}]*)\}/g)) {
     // `key: value` or the shorthand `{ key }`, whose value is the variable of that name.
@@ -159,6 +177,33 @@ const CODE_THROUGH_SEARCH_PARAMS = new Set<string>([
   'lib/cartMinimum.ts:error', // `code`, a `CART_ERRORS` code (`cartLineEditErrorHref`)
 ]);
 
+/**
+ * Issue #810 — the calls that prove a template-built code value is a code: a
+ * `defineUrlErrors` vocabulary's `failureCode` (`lib/url-errors.ts`), the
+ * sign-in vocabulary's `signInErrorParam` (`lib/auth/sign-in-errors.ts`), and
+ * the per-page code mappers that answer a closed union.
+ */
+const CODE_CALL = /^(?:\w+\.failureCode|signInErrorParam|orgCartFailureCode|roleFailureCode)\(/;
+
+/**
+ * Template-built code values that are not a vocabulary call, each read and
+ * confirmed to be typed as a closed code union — keyed `file:name=expression`.
+ * The list stays short: a new entry is a reason to call a vocabulary instead.
+ */
+const CODE_IN_TEMPLATE = new Map<string, string>([
+  ['app/(auth)/login/mfa/page.tsx:error=message', '`signInErrorParam(err, …)`, held to compare against `CHANNEL_NOT_PERMITTED_ERROR`'],
+  ['app/account/organization-security/actions.ts:error=code', "`'FORBIDDEN' | 'FAILED'`"],
+  ['app/(account)/organization/members/actions.ts:error=code', '`memberFailureCode(…)`, a `MemberActionFailure`'],
+  ['app/(account)/organization/carts/[id]/actions.ts:error=parsed.code', '`parseRejectReason`, a closed refusal code'],
+  ['app/(commerce)/checkout/page.tsx:couponError=reason', '`result.reason` held to `^[a-z_]{1,64}$`, else `generic`'],
+  ['app/(account)/quick-order/page.tsx:problem=overflow', "`'preview_too_large' | 'preview_full'`"],
+  ['components/newsletter/NewsletterSignup.tsx:status=status', "`'pending' | 'active'`"],
+  ['lib/payments/post-payment-landing.ts:outcome=reason', 'a `PaymentFailureReason`'],
+  ['lib/payments/post-payment-landing.ts:outcome=outcome', 'a `PaymentReturnOutcome`'],
+  ['lib/channel/closed-store.ts:reason=SIGN_IN_REQUIRED_REASON', "the constant `'sign-in-required'`"],
+  ['components/SocialLoginButtons.tsx:salesChannel=encodeURIComponent(salesChannelCode)', 'the channel code the backend resolves'],
+]);
+
 const files = SCANNED.flatMap((dir) => sources(join(ROOT, dir))).map((path) => relative(ROOT, path).split('\\').join('/'));
 const sites = files.flatMap((file) => sitesOf(file, readFileSync(join(ROOT, file), 'utf8')));
 
@@ -168,6 +213,11 @@ function offends(site: Site): boolean {
   const safe = SAFE[site.name];
   if (!safe) return true;
   if (safe.kind === 'code' && site.encoded) return !CODE_THROUGH_SEARCH_PARAMS.has(`${site.file}:${site.name}`);
+  if (safe.kind === 'code') {
+    // A template-built code needs proof, not a name (issue #810).
+    if (site.value === undefined) return true;
+    return !CODE_CALL.test(site.value) && !CODE_IN_TEMPLATE.has(`${site.file}:${site.name}=${site.value}`);
+  }
   return false;
 }
 

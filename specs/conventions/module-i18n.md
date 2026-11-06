@@ -201,12 +201,15 @@ parameter the storefront builds from a value — a template, `encodeURIComponent
 `lib/dictionary/`, which address the backend), and refuses a name not on its allow-list; its list
 of known free-text sites is two-way and only shrinks. Both bounds are declared, not discovered.
 The allow-list is **by name**: it is a promise about a parameter's value, not a proof. And a code
-built into a template (`?error=${code}`) is trusted by its name, because the source cannot show
-the value is a code (#810). The per-page tests beside them are the evidence that a crafted value
-never reaches the screen. Open follow-ups: #791 (bringing back, as typed values, the figures the
-backend's sentences carried), #808 (the invitation page's `?error=` sentence), #809 (keeping the
-quick-order preview on the backend instead of in a cookie) and #810 (the free-text net checking,
-not trusting, that a template-built code parameter carries a code).
+built into a template (`?error=${code}`) is **not** trusted by its name (#810): the net reads the
+expression and accepts a vocabulary call (`failureCode(`, `signInErrorParam(` and the per-page
+code mappers), a literal or a choice between literals, or an identifier on its short
+`CODE_IN_TEMPLATE` list, each entry read and confirmed to be typed as a closed code union. That
+proof is textual — a listed identifier is only as good as the type it was read to have, and a
+code built with `' +` concatenation is refused outright. The per-page tests beside them are the
+evidence that a crafted value never reaches the screen. Open follow-ups: #791 (bringing back, as typed values, the figures the
+backend's sentences carried), #808 (the invitation page's `?error=` sentence) and #809 (keeping the
+quick-order preview on the backend instead of in a cookie).
 
 **Four kinds of string leave the backend and only the first is in scope**, which is the
 distinction that makes the question answerable: *platform prose* a developer wrote (a bundle,
