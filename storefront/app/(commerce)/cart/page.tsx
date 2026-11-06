@@ -91,6 +91,10 @@ export default async function CartPage({
     couponShortfall?: string;
     couponShortfallCurrency?: string;
     qrCreated?: string;
+    /**
+     * Issue #790 — the id of the list a line was saved to, never its name: the page reads the
+     * name of the buyer's own list, and shows nothing for an id that is not one.
+     */
     listAdded?: string;
     conversionDropped?: string;
   }>;
@@ -171,6 +175,16 @@ export default async function CartPage({
 
   const strings = STRINGS(locale);
 
+  // Issue #790 — `?listAdded=` names a list by id; the banner reads the name of the buyer's own
+  // list, so a crafted link cannot put text on the page. An id that is not one shows nothing.
+  const listAddedName =
+    params.listAdded && session
+      ? await listShoppingLists(session)
+          .then((lists) => lists.find((list) => list.id === params.listAdded))
+          .then((list) => (list ? shoppingListDisplayName(list, tForLocale(locale)) : null))
+          .catch(() => null)
+      : null;
+
   // Issue #650 — the rejection of the buyer's previous basket. The rejection
   // closed that basket, so this one — empty or refilled since — cannot say it
   // itself; the answer carries it until the buyer sends a basket again.
@@ -247,9 +261,9 @@ export default async function CartPage({
           {strings.banner.qrCreated}
         </div>
       ) : null}
-      {params.listAdded ? (
+      {listAddedName ? (
         <div className="mb-3 rounded-md border border-[#bbf7d0] bg-[#ecfdf3] px-[14px] py-[10px] text-[13px] text-ok" role="status">
-          {strings.banner.listAdded(params.listAdded)}
+          {strings.banner.listAdded(listAddedName)}
         </div>
       ) : null}
       {params.conversionDropped === '1' && (cart.droppedLines?.length ?? 0) > 0 ? (
@@ -504,7 +518,6 @@ async function saveToListAction(formData: FormData): Promise<void> {
   'use server';
   const itemId = (formData.get('itemId') as string) ?? '';
   const jar = await readJar();
-  const t = tForLocale((await getServerContext()).locale);
   if (!jar.session) {
     return await localeRedirect('/cart?error=SIGN_IN_TO_SAVE');
   }
@@ -520,7 +533,7 @@ async function saveToListAction(formData: FormData): Promise<void> {
   } catch (err) {
     return await localeRedirect(`/cart?error=${CART_ERRORS.failureCode(err, 'SAVE_TO_LIST_FAILED')}`);
   }
-  return await localeRedirect(`/cart?listAdded=${encodeURIComponent(shoppingListDisplayName(target, t))}`);
+  return await localeRedirect(`/cart?listAdded=${encodeURIComponent(target.id)}`);
 }
 
 async function applyCouponAction(formData: FormData): Promise<void> {

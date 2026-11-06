@@ -5,7 +5,6 @@ import {
   importQuickOrderFile,
   searchProducts,
   type QuickOrderImportResponse,
-  type RejectedQuickOrderItem,
 } from '../../../lib/api/quick-order';
 import {
   decodeBuildRejections,
@@ -22,6 +21,12 @@ import type { CommerceAbilities } from '../../../lib/commerce-permissions';
 import { getServerContext } from '../../../lib/server-context';
 import { FileDropzone } from '../../../components/FileDropzone';
 import { summarizeQuickOrderPreview } from '../../../lib/quick-order-preview';
+import {
+  clearQuickOrderPreview,
+  readQuickOrderPreview,
+  writeQuickOrderPreview,
+  type QuickOrderPreview as PreviewState,
+} from '../../../lib/quick-order-preview-cookie';
 import type { Metadata } from 'next';
 import { localeRedirect } from '../../../lib/i18n/navigation';
 import { QUICK_ORDER_ERRORS } from '../../../lib/commerce-errors';
@@ -41,6 +46,12 @@ export const metadata: Metadata = { robots: { index: false, follow: false } };
 const CSV_SAMPLE = ['sku,quantity', 'EXAMPLE-SIMPLE-001,10', 'EXAMPLE-BLUE-002,5'].join('\n');
 
 /**
+ * The quote reference the confirmation names (issue #790): the business id the build returned,
+ * or the request's uuid. Anything else in `?rfq=` is not shown — the address is the buyer's to edit.
+ */
+const RFQ_REFERENCE = /^[A-Za-z0-9][A-Za-z0-9._/-]{0,63}$/;
+
+/**
  * Quick order (feature 039 / US1). Two-step flow:
  *   1. Paste a CSV with `sku,quantity` headers (plus optional variant
  *      attribute columns) OR drag-drop a CSV / Excel file; the importer
@@ -48,8 +59,10 @@ const CSV_SAMPLE = ['sku,quantity', 'EXAMPLE-SIMPLE-001,10', 'EXAMPLE-BLUE-002,5
  *   2. The page server-renders the partition; the buyer reviews, then
  *      chooses to build a Cart or a Quote Request from the recognized rows.
  *
- * The preview lives in the URL (base64) on the second step so the page is
- * fully server-rendered; only the dropzone is a small client component.
+ * The preview lives in the storefront's own httpOnly cookie between the steps
+ * (`lib/quick-order-preview-cookie.ts`, issue #790 — never in the URL, where a
+ * crafted link could put any text on the page), so the page is fully
+ * server-rendered; only the dropzone is a small client component.
  *
  * `specs/170-organization-roles/` (owner ruling Q2(b), 2026-11-04): the page is
  * open to a member holding `carts.create` **or** `quote_requests.create`; each
@@ -57,25 +70,10 @@ const CSV_SAMPLE = ['sku,quantity', 'EXAMPLE-SIMPLE-001,10', 'EXAMPLE-BLUE-002,5
  * is told why instead of being handed an import that would be refused.
  */
 
-interface PreviewState {
-  recognized: Array<{
-    line: number;
-    sku: string;
-    productId: string;
-    variantId: string | null;
-    resolvedVariantSku?: string | null;
-    quantity: number;
-    mergedFromLines?: number[];
-  }>;
-  rejected: RejectedQuickOrderItem[];
-  summary: { recognizedCount: number; rejectedCount: number; mergedCount: number; truncated: boolean };
-}
-
 export default async function QuickOrderPage({
   searchParams,
 }: {
   searchParams: Promise<{
-    preview?: string;
     /**
      * A refusal — the page's own or the API's — as a code the page words in its language
      * (issue #745: never a sentence; an `?error=` is no longer read at all).
@@ -95,7 +93,7 @@ export default async function QuickOrderPage({
   const sp = await searchParams;
   const abilities = await getCommerceAbilitiesAction();
 
-  const preview = sp.preview ? decodePreview(sp.preview) : null;
+  const preview = await readQuickOrderPreview(session);
   const searchQuery = sp.q?.trim() ?? '';
   // Issue #174 — the type-ahead is channel-scoped on the backend now, so the
   // page has to say which channel the buyer is shopping. Resolved the same way
@@ -103,6 +101,8 @@ export default async function QuickOrderPage({
   const { ctx, locale } = await getServerContext();
   const t = tForLocale(locale);
   // A code this page does not know shows nothing: the address is the buyer's to edit.
+  // The same holds for the quote reference (issue #790): shown only when it is reference-shaped.
+  const rfqRef = sp.rfq && RFQ_REFERENCE.test(sp.rfq) ? sp.rfq : null;
   const problemKey = sp.problem && QUICK_ORDER_ERRORS.isCode(sp.problem) ? QUICK_ORDER_ERRORS.errorKey(sp.problem) : null;
   // Feature 155 (FR-011 (b)) — the lines the cart build left out, below a minimum.
   // Carried capped (the first lines plus a count), so the URL stays bounded.
@@ -169,7 +169,7 @@ export default async function QuickOrderPage({
       {sp.built === 'quote' ? (
         <p className="b2b-auth__success">
           {t('quickOrder.built.quote')}
-          {sp.rfq ? ` (#${sp.rfq})` : ''}.{' '}
+          {rfqRef ? ` (#${rfqRef})` : ''}.{' '}
           <LocalizedLink href="/quote-requests">{t('quickOrder.built.viewQuotes')}</LocalizedLink>.
         </p>
       ) : null}
@@ -202,7 +202,6 @@ export default async function QuickOrderPage({
       <h3>{t('quickOrder.search.heading')}</h3>
       <p className="b2b-auth__hint">{t('quickOrder.search.hint')}</p>
       <form action={searchAction} className="b2b-auth__form">
-        {preview ? <input type="hidden" name="preview" value={encodePreview(preview)} /> : null}
         <div className="b2b-auth__field">
           <input type="search" name="q" defaultValue={searchQuery} placeholder={t('quickOrder.search.placeholder')} />
         </div>
@@ -235,9 +234,6 @@ export default async function QuickOrderPage({
                   <td>{r.name}</td>
                   <td>
                     <form action={addSearchResultAction} id={`add-${r.productId}`} noValidate>
-                      {preview ? (
-                        <input type="hidden" name="preview" value={encodePreview(preview)} />
-                      ) : null}
                       <input type="hidden" name="q" value={searchQuery} />
                       <input type="hidden" name="productId" value={r.productId} />
                       <input type="hidden" name="sku" value={r.sku} />
@@ -271,7 +267,6 @@ export default async function QuickOrderPage({
         <>
           <div className="h-[84px] md:hidden" aria-hidden="true" />
           <form action={confirmAction} className="m-actionbar">
-            <input type="hidden" name="preview" value={encodePreview(preview)} />
             <div className="mr-auto flex flex-col leading-tight">
               <span className="text-[11px] text-muted">{t('quickOrder.bar.recognised')}</span>
               <span className="font-mono text-[15px] font-semibold text-fg">
@@ -353,7 +348,6 @@ function PreviewPanel({
                   <td>{r.resolvedVariantSku ?? '—'}</td>
                   <td>
                     <form action={updateQuantityAction} id={`qty-${r.line}`} noValidate>
-                      <input type="hidden" name="preview" value={encodePreview(preview)} />
                       <input type="hidden" name="line" value={r.line} />
                       <input
                         type="number"
@@ -368,7 +362,6 @@ function PreviewPanel({
                   </td>
                   <td>
                     <form action={removeRecognizedAction}>
-                      <input type="hidden" name="preview" value={encodePreview(preview)} />
                       <input type="hidden" name="line" value={r.line} />
                       <button type="submit">{t('quickOrder.preview.remove')}</button>
                     </form>
@@ -378,7 +371,6 @@ function PreviewPanel({
             </tbody>
           </table>
           <form action={confirmAction}>
-            <input type="hidden" name="preview" value={encodePreview(preview)} />
             <div className="b2b-auth__actions">
               {abilities.editCart ? (
                 <button type="submit" name="target" value="cart">
@@ -429,11 +421,21 @@ function PreviewPanel({
 async function searchAction(formData: FormData): Promise<void> {
   'use server';
   const q = ((formData.get('q') as string) ?? '').trim();
-  const previewBlob = (formData.get('preview') as string) ?? '';
-  const params = new URLSearchParams();
-  if (q) params.set('q', q);
-  if (previewBlob) params.set('preview', previewBlob);
-  return await localeRedirect(`/quick-order?${params.toString()}`);
+  // The preview stays where it is — in its cookie — so the search carries only the query.
+  return await localeRedirect(quickOrderHref(q));
+}
+
+/** The page, with the search text the buyer typed when there is one — and nothing else. */
+function quickOrderHref(q: string): string {
+  return q ? `/quick-order?${new URLSearchParams({ q }).toString()}` : '/quick-order';
+}
+
+/** Writes the edited preview to its cookie and returns to the page (issue #790). */
+async function returnWithPreview(session: string, preview: PreviewState, q = ''): Promise<void> {
+  if (!(await writeQuickOrderPreview(session, preview))) {
+    return await localeRedirect('/quick-order?problem=preview_too_large');
+  }
+  return await localeRedirect(quickOrderHref(q));
 }
 
 async function addSearchResultAction(formData: FormData): Promise<void> {
@@ -446,7 +448,7 @@ async function addSearchResultAction(formData: FormData): Promise<void> {
   const q = ((formData.get('q') as string) ?? '').trim();
   const quantity = Math.max(1, Number.parseInt((formData.get('quantity') as string) ?? '1', 10) || 1);
 
-  const preview: PreviewState = decodePreview((formData.get('preview') as string) ?? '') ?? {
+  const preview: PreviewState = (await readQuickOrderPreview(session)) ?? {
     recognized: [],
     rejected: [],
     summary: { recognizedCount: 0, rejectedCount: 0, mergedCount: 0, truncated: false },
@@ -462,33 +464,34 @@ async function addSearchResultAction(formData: FormData): Promise<void> {
   }
   preview.summary = { ...preview.summary, recognizedCount: preview.recognized.length };
 
-  const params = new URLSearchParams();
-  params.set('preview', encodePreview(preview));
-  if (q) params.set('q', q);
-  return await localeRedirect(`/quick-order?${params.toString()}`);
+  return await returnWithPreview(session, preview, q);
 }
 
 async function updateQuantityAction(formData: FormData): Promise<void> {
   'use server';
-  const preview = decodePreview((formData.get('preview') as string) ?? '');
+  const session = await getSessionCookie();
+  if (!session) return await localeRedirect('/login');
+  const preview = await readQuickOrderPreview(session);
   const line = Number.parseInt((formData.get('line') as string) ?? '', 10);
   const quantity = Math.max(1, Number.parseInt((formData.get('quantity') as string) ?? '1', 10) || 1);
   if (!preview) return await localeRedirect('/quick-order?problem=nothing_to_update');
 
   const row = preview!.recognized.find((r) => r.line === line);
   if (row) row.quantity = quantity;
-  return await localeRedirect(`/quick-order?preview=${encodePreview(preview!)}`);
+  return await returnWithPreview(session, preview!);
 }
 
 async function removeRecognizedAction(formData: FormData): Promise<void> {
   'use server';
-  const preview = decodePreview((formData.get('preview') as string) ?? '');
+  const session = await getSessionCookie();
+  if (!session) return await localeRedirect('/login');
+  const preview = await readQuickOrderPreview(session);
   const line = Number.parseInt((formData.get('line') as string) ?? '', 10);
   if (!preview) return await localeRedirect('/quick-order?problem=nothing_to_remove');
 
   preview!.recognized = preview!.recognized.filter((r) => r.line !== line);
   preview!.summary = { ...preview!.summary, recognizedCount: preview!.recognized.length };
-  return await localeRedirect(`/quick-order?preview=${encodePreview(preview!)}`);
+  return await returnWithPreview(session, preview!);
 }
 
 async function importAction(formData: FormData): Promise<void> {
@@ -500,6 +503,9 @@ async function importAction(formData: FormData): Promise<void> {
   const filename = ((formData.get('quickOrderFilename') as string) ?? '').trim();
   const fileContent = ((formData.get('quickOrderFileContent') as string) ?? '').trim();
 
+  // A new import replaces the last preview, whether or not it succeeds: a refusal is never shown
+  // beside a preview of a different list.
+  await clearQuickOrderPreview();
   if (!csv && !fileContent) return await localeRedirect('/quick-order?problem=no_input');
 
   let preview: QuickOrderImportResponse;
@@ -510,7 +516,7 @@ async function importAction(formData: FormData): Promise<void> {
   } catch (err) {
     return await localeRedirect(`/quick-order?problem=${QUICK_ORDER_ERRORS.failureCode(err, 'import_failed')}`);
   }
-  return await localeRedirect(`/quick-order?preview=${encodePreview(preview!)}`);
+  return await returnWithPreview(session, preview!);
 }
 
 async function confirmAction(formData: FormData): Promise<void> {
@@ -519,7 +525,7 @@ async function confirmAction(formData: FormData): Promise<void> {
   if (!session) return await localeRedirect('/login');
 
   const target = (formData.get('target') as string) === 'quote_request' ? 'quote_request' : 'cart';
-  const preview = decodePreview((formData.get('preview') as string) ?? '');
+  const preview = await readQuickOrderPreview(session);
   if (!preview || preview.recognized.length === 0) {
     return await localeRedirect('/quick-order?problem=nothing_to_build');
   }
@@ -542,6 +548,8 @@ async function confirmAction(formData: FormData): Promise<void> {
   } catch (err) {
     return await localeRedirect(`/quick-order?problem=${QUICK_ORDER_ERRORS.failureCode(err, 'build_failed')}`);
   }
+  // Built: the preview has done its work, so it does not wait in its cookie for the next visit.
+  await clearQuickOrderPreview();
   if (target === 'quote_request') {
     return await localeRedirect(`/quick-order?built=quote${rfqRef ? `&rfq=${encodeURIComponent(rfqRef)}` : ''}`);
   }
@@ -556,16 +564,4 @@ async function confirmAction(formData: FormData): Promise<void> {
     return await localeRedirect(`/quick-order?${params.toString()}`);
   }
   return await localeRedirect('/quick-order?built=cart');
-}
-
-function encodePreview(preview: PreviewState): string {
-  return Buffer.from(JSON.stringify(preview), 'utf8').toString('base64url');
-}
-
-function decodePreview(value: string): PreviewState | null {
-  try {
-    return JSON.parse(Buffer.from(value, 'base64url').toString('utf8')) as PreviewState;
-  } catch {
-    return null;
-  }
 }
