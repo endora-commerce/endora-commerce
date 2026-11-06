@@ -25,7 +25,8 @@ export const metadata: Metadata = { robots: { index: false, follow: false } };
  * **A code travels, never a sentence** (issue #808, `lib/url-errors.ts`): the
  * action carries a code of {@link INVITATION_ACCEPT_ERRORS} in `?error=`, and
  * the page words it, reading any other value as its generic failure. An empty
- * token goes to `/login` with a sign-in code.
+ * token, and any failure once the account exists, goes to `/login` with a
+ * sign-in code.
  */
 
 export default async function AcceptInvitationPage({
@@ -96,24 +97,30 @@ async function acceptInvitationAction(formData: FormData): Promise<void> {
   const redirectWithError = async (code: InvitationAcceptCode): Promise<never> =>
     await localeRedirect(`/invitations/${encodeURIComponent(token)}/accept?error=${code}`);
 
-  let login: Awaited<ReturnType<typeof loginCustomer>>;
+  let email: string;
   try {
     const { customerAccount } = await acceptInvitation(token, {
       password,
       firstName,
       lastName,
     });
-    login = await loginCustomer({
-      email: customerAccount.email,
-      password,
-    });
+    email = customerAccount.email;
   } catch (err) {
     return await redirectWithError(INVITATION_ACCEPT_ERRORS.failureCode(err, 'INVITATION_FAILED'));
   }
+
+  // The account exists from here on: a failure is the sign-in's, and `/login` words it
+  // (architect ruling on #822). Each redirect sits outside a `try`, since a redirect is thrown.
+  let login: Awaited<ReturnType<typeof loginCustomer>>;
+  try {
+    login = await loginCustomer({ email, password });
+  } catch (err) {
+    return await localeRedirect(`/login?error=${signInErrorParam(err, 'SIGN_IN_TO_CONTINUE')}`);
+  }
   // Feature 042 — a 2FA-protected/enforced account must finish the second
-  // step via the normal login flow. Outside the `try`: a redirect is thrown.
+  // step via the normal login flow.
   if (login.status !== 'authenticated' || !login.sessionCookieValue) {
-    return await redirectWithError('SIGN_IN_TO_CONTINUE');
+    return await localeRedirect(`/login?error=${signInErrorParam(null, 'SIGN_IN_TO_CONTINUE')}`);
   }
   await setSessionCookie(login.sessionCookieValue);
 
