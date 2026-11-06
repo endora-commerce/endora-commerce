@@ -679,3 +679,75 @@ describe('I-5 over HTTP — CUSTOMER_RESTORE_WINDOW_ELAPSED in the admin languag
     expect(await refusalIn('en')).toBe(EN_WINDOW_ELAPSED);
   });
 });
+
+/**
+ * Issue #828 — `CUSTOMER_ALREADY_DELETED` carries a bundle sentence too.
+ *
+ * Raised by `customers`' `customer-deletion-service.ts` and by
+ * `customer_accounts`' lifecycle port when an account is deleted twice, and by
+ * `admin_users` when an operator tries to impersonate a deleted customer
+ * (issue #814), so the one sentence has to read right for each of them. The
+ * HTTP case here is the second delete, which is the raise site every tree has.
+ * As above: the admin arm reads the stored preference, and the expected
+ * sentences are written out rather than read from the bundle.
+ */
+describe('CUSTOMER_ALREADY_DELETED over HTTP — in the admin language', () => {
+  let h: BackendServerHandle;
+  let previousLanguage: string | null;
+  const PL_ALREADY_DELETED =
+    'To konto klienta zostało już usunięte, więc ta operacja nie jest dla niego dostępna. ' +
+    'Usunięte konto można przywrócić, dopóki nie minie okres na jego przywrócenie.';
+  const EN_ALREADY_DELETED =
+    'This customer account has already been deleted, so this action is not available for it. ' +
+    'A deleted account can be restored until its restore window elapses.';
+
+  beforeAll(async () => {
+    h = await setupBackendServer();
+    const admin = await h.em().findOneOrFail(AdminUser, { id: TEST_ADMIN_ID });
+    previousLanguage = admin.preferredLanguage ?? null;
+  }, 120_000);
+
+  afterAll(async () => {
+    const admin = await h.em().findOneOrFail(AdminUser, { id: TEST_ADMIN_ID });
+    admin.preferredLanguage = previousLanguage;
+    await h.em().flush();
+    await teardownBackendServer(h);
+  });
+
+  async function refusalIn(language: 'pl' | 'en'): Promise<string> {
+    const em = h.em();
+    const admin = await em.findOneOrFail(AdminUser, { id: TEST_ADMIN_ID });
+    admin.preferredLanguage = language;
+    await em.flush();
+    const org = await seedAdHocOrganization(em, 'Already Deleted Org');
+    const c = em.create(CustomerAccount, {
+      organizationId: org.id,
+      email: `already-deleted-${randomUUID()}@example.test`,
+      passwordHash: await hashPassword('a-very-strong-pass'),
+      firstName: 'Already',
+      lastName: 'Deleted',
+    });
+    await em.persistAndFlush(c);
+    const del = () =>
+      h.app.inject({
+        method: 'DELETE',
+        url: `/api/v1/admin/customers/${c.id}`,
+        cookies: { b2b_session: 'stub-admin-session' },
+      });
+    const first = await del();
+    expect(first.statusCode, first.body).toBeLessThan(300);
+    const second = await del();
+    expect(second.statusCode, second.body).toBe(409);
+    const body = second.json() as { error: { code: string; message: string } };
+    expect(body.error.code).toBe('CUSTOMER_ALREADY_DELETED');
+    return body.error.message;
+  }
+
+  it('answers the Polish sentence to an admin who reads Polish', async () => {
+    expect(await refusalIn('pl')).toBe(PL_ALREADY_DELETED);
+  });
+
+  it('and the English sentence, not the raiser\'s fallback, to one who reads English', async () => {
+    expect(await refusalIn('en')).toBe(EN_ALREADY_DELETED);
+  });
+});
