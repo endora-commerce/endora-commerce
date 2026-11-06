@@ -1,4 +1,6 @@
 import { createHash } from 'node:crypto';
+import { readFileSync } from 'node:fs';
+import { resolve } from 'node:path';
 import { describe, expect, it } from 'vitest';
 import {
   QUICK_ORDER_PREVIEW_COOKIE,
@@ -83,5 +85,24 @@ describe('the quick-order preview cookie (issue #790)', () => {
   it('a list too long to carry is refused, not cut', () => {
     expect(packQuickOrderPreview('session-a', preview(rowsAtTheCap() + 1))).toBeNull();
     expect(packQuickOrderPreview('session-a', preview(2000))).toBeNull();
+  });
+});
+
+/**
+ * Architect ruling on PR #805, round 2 (Q1) — the 3 000-character cap was measured safe on
+ * nginx's default buffers, which stay the contract; the deployment example adds headroom on top
+ * in the storefront's `location`, so a deployment's own extra headers do not eat the margin.
+ */
+describe('the deployment nginx example gives the storefront header headroom', () => {
+  const conf = readFileSync(resolve(import.meta.dirname, '../../../deploy/nginx.example.conf'), 'utf8');
+  const storefront = conf.slice(conf.indexOf('# --- Storefront'), conf.indexOf('# --- Admin SPA'));
+
+  it.each(['proxy_buffer_size 16k;', 'proxy_buffers 8 16k;', 'proxy_busy_buffers_size 32k;'])('%s', (directive) => {
+    expect(storefront).toContain(directive);
+  });
+
+  it('names the preview cookie’s budget beside them', () => {
+    expect(storefront).toContain('b2b_quick_order_preview');
+    expect(storefront).toContain('3 000');
   });
 });

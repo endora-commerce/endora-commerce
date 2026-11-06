@@ -4,6 +4,8 @@ import { CartDroppedLinesBanner } from '../../components/CartDroppedLinesBanner'
 import {
   REPORT_CAP,
   REPORT_MORE_MAX,
+  REPORT_NAME_MAX,
+  cutReportName,
   decodeConversionSkips,
   droppedBelowMinimumReason,
   encodeConversionSkips,
@@ -38,20 +40,28 @@ describe('quick-order preview row (FR-011 (a))', () => {
 });
 
 describe('quick-order build rejected[] (FR-011 (b))', () => {
-  // Issue #790 — the line is named by the SKU the buyer imported, from the preview cookie; the
-  // build's product and unit names are not carried (a URL once carried them, and a crafted one
-  // put any text on the page).
-  const pieces = { sku: 'BOLT-1', quantity: 5, kind: 'pieces' as const, minimum: 10 };
+  // Issue #790 — the report is read back from the server-written preview cookie, never the URL,
+  // so it carries the build's product and unit names (architect ruling on PR #805, round 2, Q3),
+  // cut to a bounded length, beside the SKU the buyer imported.
+  const pieces = { sku: 'BOLT-1', productName: 'Anchor bolt', quantity: 5, kind: 'pieces' as const, minimum: 10 };
 
-  it('names the line, the quantity and the minimum', () => {
-    expect(quickOrderBuildRejectionText(pieces, 'en-US')).toBe('BOLT-1 × 5 — Below the minimum (10 pcs)');
-    expect(quickOrderBuildRejectionText(pieces, 'pl-PL')).toBe('BOLT-1 × 5 — Poniżej minimum (10 szt.)');
+  it('names the product, its SKU, the quantity and the minimum', () => {
+    expect(quickOrderBuildRejectionText(pieces, 'en-US')).toBe('Anchor bolt (BOLT-1) × 5 — Below the minimum (10 pcs)');
+    expect(quickOrderBuildRejectionText(pieces, 'pl-PL')).toBe('Anchor bolt (BOLT-1) × 5 — Poniżej minimum (10 szt.)');
   });
 
-  it('states a packaging-unit minimum without the unit’s name', () => {
-    const unit = { ...pieces, quantity: 64, kind: 'packaging_unit' as const, minimum: 2 };
-    expect(quickOrderBuildRejectionText(unit, 'en-US')).toBe('BOLT-1 × 64 — Below the minimum (2 packaging units)');
-    expect(quickOrderBuildRejectionText(unit, 'pl-PL')).toBe('BOLT-1 × 64 — Poniżej minimum (jednostki opakowania: 2)');
+  it('names the packaging unit of a unit refusal', () => {
+    const unit = { ...pieces, quantity: 64, kind: 'packaging_unit' as const, minimum: 2, packagingUnitName: 'Pallet' };
+    expect(quickOrderBuildRejectionText(unit, 'en-US')).toBe('Anchor bolt (BOLT-1) × 64 — Below the minimum (2 × Pallet)');
+    expect(quickOrderBuildRejectionText({ ...unit, packagingUnitName: 'Paleta' }, 'pl-PL')).toBe(
+      'Anchor bolt (BOLT-1) × 64 — Poniżej minimum (2 × Paleta)',
+    );
+  });
+
+  it('cuts a long name to its bounded form', () => {
+    expect(cutReportName('x'.repeat(5000))).toHaveLength(REPORT_NAME_MAX);
+    expect(cutReportName('x'.repeat(5000)).endsWith('…')).toBe(true);
+    expect(cutReportName('Anchor bolt')).toBe('Anchor bolt');
   });
 
   it('summarises a partial build and a build that added nothing', () => {

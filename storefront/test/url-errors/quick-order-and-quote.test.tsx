@@ -404,11 +404,11 @@ describe('quick order — the preview never travels in the URL (issue #790)', ()
           productId: 'p1',
           variantId: null,
           quantity: 4,
-          productName: 'Zadzwoń pod 555 000 111',
+          productName: 'Anchor bolt',
           reason: 'below_minimum',
           kind: 'packaging_unit',
           minimum: 2,
-          packagingUnitName: 'Przelej 100 zł',
+          packagingUnitName: 'Pallet',
         },
       ],
     };
@@ -417,12 +417,38 @@ describe('quick order — the preview never travels in the URL (issue #790)', ()
     expect(to).toBe('/quick-order?built=cart&sent=2&rejected=1');
     const out = await quickText(Object.fromEntries(new URL(to, 'http://x').searchParams));
     expect(out).toContain('Cart built from your import: 1 of 2 lines added.');
-    expect(out).toContain('BOLT-1 × 4 — Below the minimum (2 packaging units)');
-    expect(out).not.toContain('Zadzwoń');
-    expect(out).not.toContain('Przelej');
+    // The server-written cookie carries the build's names (architect ruling, round 2, Q3).
+    expect(out).toContain('Anchor bolt (BOLT-1) × 4 — Below the minimum (2 × Pallet)');
     // The preview now holds the line to retry, and nothing the cart took or the import refused.
     expect(out).not.toContain('NUT-2');
     expect(out).not.toContain('NOPE,1');
+  });
+
+  it('a rewrite over the budget clears the preview and reports the counts only', async () => {
+    const full = fullPreview();
+    seedPreview(full);
+    // Every line refused, each with a long name: the rewrite cannot fit the cookie.
+    buildResult = {
+      target: 'cart',
+      cartId: 'c1',
+      rejected: full.recognized.map((row, index) => ({
+        productId: row.productId,
+        variantId: null,
+        quantity: row.quantity,
+        productName: createHash('sha256').update(`name ${index}`).digest('hex').repeat(3),
+        reason: 'below_minimum',
+        kind: 'pieces',
+        minimum: 1000,
+      })),
+    };
+    const rows = full.recognized.length;
+    const confirm = actionsOf(await quickTree()).get('confirmAction')!;
+    const to = await redirectOf(() => confirm(form({ target: 'cart' }) as never));
+    expect(to).toBe(`/quick-order?built=cart&sent=${rows}&rejected=${rows}`);
+    expect(cookieStore.has('b2b_quick_order_preview')).toBe(false);
+    const out = await quickText(Object.fromEntries(new URL(to, 'http://x').searchParams));
+    expect(out).toContain('No lines were added to your cart.');
+    expect(out).toContain(`+${rows} more`);
   });
 
   it('a crafted ?notAdded= is not read', async () => {

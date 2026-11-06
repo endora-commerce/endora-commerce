@@ -229,3 +229,27 @@ describe('?listAdded= carries a list id, never a name (issue #790)', () => {
     expect(await redirectOf(() => save(form({ itemId: 'l1' })))).toBe('/cart?listAdded=sl1');
   });
 });
+
+/**
+ * Architect ruling on PR #805, round 2 (Q4) — `?typed=` is read only when it is a whole
+ * quantity (`^[1-9]\d{0,8}$`, the `min=` rule from #783); anything else is ignored.
+ */
+describe('?typed= is read only as a whole quantity (issue #790)', () => {
+  async function html(sp: Record<string, string>): Promise<string> {
+    return renderToString(<>{(await tree(sp)) as React.ReactNode}</>);
+  }
+
+  it('a crafted value never reaches the quantity field', async () => {
+    const out = await html({ errorItem: 'l1', error: 'QUANTITY_INVALID', typed: '"><b>Zadzwoń pod 555</b>' });
+    expect(out).not.toContain('Zadzwoń');
+    expect(out).toContain('value="12"');
+  });
+
+  it.each(['0', '-3', '1.5', '1e3', '0012', '1234567890'])('%s is ignored', async (typed) => {
+    expect(await html({ errorItem: 'l1', error: 'QUANTITY_INVALID', typed })).not.toContain(`value="${typed}"`);
+  });
+
+  it('a whole quantity is kept in its field', async () => {
+    expect(await html({ errorItem: 'l1', error: 'QUANTITY_INVALID', typed: '7' })).toContain('value="7"');
+  });
+});
