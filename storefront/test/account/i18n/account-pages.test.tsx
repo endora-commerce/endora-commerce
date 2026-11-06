@@ -22,6 +22,7 @@ import { POLISH_DIACRITIC, visibleText } from './text';
 let locale = 'en-US';
 let ownPermissions: Array<{ code: string; label: string; description: string }> = [];
 let ownRoleReads = 0;
+let ownRoleFails = false;
 
 const me: MeResult = {
   customerAccount: {
@@ -110,10 +111,14 @@ vi.mock('../../../lib/api/organization', () => ({
     { id: '00000000-0000-4000-8000-0000000000a1', kind: 'administrator', name: 'Administrator', permissions: [] },
     { id: '00000000-0000-4000-8000-0000000000b1', kind: 'member', name: locale === 'pl-PL' ? 'Członek' : 'Member', permissions: [] },
   ],
-  getMyRole: async () => (ownRoleReads++, {
-    role: { id: '00000000-0000-4000-8000-0000000000a1', kind: 'administrator', name: 'Administrator' },
-    permissions: ownPermissions,
-  }),
+  getMyRole: async () => {
+    ownRoleReads++;
+    if (ownRoleFails) throw new Error('own role read failed');
+    return {
+      role: { id: '00000000-0000-4000-8000-0000000000a1', kind: 'administrator', name: 'Administrator' },
+      permissions: ownPermissions,
+    };
+  },
   listPendingInvitations: async () => [
     {
       id: 'inv-1',
@@ -238,6 +243,114 @@ describe('account shell — the shop language (issue #85)', () => {
     } finally {
       me.organization!.isPersonal = false;
     }
+  });
+
+  describe('the role row opens what the role allows in a dialog (issue #801)', () => {
+    async function rawProfile(lang: string): Promise<string> {
+      locale = lang;
+      const { default: Page } = await import('../../../app/(account)/account/page');
+      return renderToString(<>{(await Page({ searchParams: Promise.resolve({}) })) as React.ReactNode}</>);
+    }
+    /** The markup of the one `<dialog>` the page renders, or null. */
+    function dialogOf(html: string): string | null {
+      return /<dialog\b[\s\S]*?<\/dialog>/.exec(html)?.[0] ?? null;
+    }
+    /** The page's markup with its dialog cut out: what the body shows unopened. */
+    function bodyOf(html: string): string {
+      return html.replace(/<dialog\b[\s\S]*?<\/dialog>/, '');
+    }
+    /** The profile summary's role row. */
+    function roleRowOf(html: string): string | null {
+      return /<tr><th scope="row">(?:Role|Rola)<\/th>[\s\S]*?<\/tr>/.exec(bodyOf(html))?.[0] ?? null;
+    }
+
+    it('names the role in the summary, with a "What your role allows" trigger beside it', async () => {
+      ownPermissions = [{ code: 'carts.create', label: 'Create and edit carts', description: 'Add products to a cart.' }];
+      const en = await rawProfile('en-US');
+      const row = roleRowOf(en);
+      expect(row).not.toBeNull();
+      expect(visibleText(row!)).toBe('Role Administrator What your role allows');
+      expect(row).toMatch(/<button type="button"[^>]*aria-haspopup="dialog"/);
+      const pl = await rawProfile('pl-PL');
+      expect(visibleText(roleRowOf(pl)!)).toBe('Rola Administrator Na co pozwala Twoja rola');
+    });
+
+    it('renders the permissions on the server inside the dialog, and no longer in the page body', async () => {
+      ownPermissions = [
+        { code: 'carts.create', label: 'Create and edit carts', description: 'Add products to a cart.' },
+        { code: 'carts.approve', label: "Approve and reject colleagues' carts", description: 'Answer carts sent for approval.' },
+      ];
+      const html = await rawProfile('en-US');
+      const dialog = dialogOf(html);
+      expect(dialog).not.toBeNull();
+      expect(visibleText(dialog!)).toContain('Create and edit carts — Add products to a cart.');
+      expect(visibleText(dialog!)).toContain("Approve and reject colleagues' carts — Answer carts sent for approval.");
+      // Closed on first paint: the list is in the HTML, not on screen.
+      expect(dialog).not.toMatch(/<dialog\b[^>]*\sopen/);
+      const body = bodyOf(html);
+      expect(body).not.toContain('role-allows-heading');
+      expect(body).not.toContain('<section');
+      expect(body).not.toContain('Create and edit carts');
+    });
+
+    it('says so inside the dialog when the role allows nothing', async () => {
+      ownPermissions = [];
+      const html = await rawProfile('pl-PL');
+      expect(visibleText(dialogOf(html)!)).toContain(
+        'Twoja rola nie pozwala na żadne z działań, które organizacja może przyznać.',
+      );
+    });
+
+    it('gives the dialog a labelled title, a named close button and a trigger that controls it', async () => {
+      ownPermissions = [{ code: 'carts.create', label: 'Create and edit carts', description: 'Add products to a cart.' }];
+      for (const [lang, title, close] of [
+        ['en-US', 'What your role allows', 'Close'],
+        ['pl-PL', 'Na co pozwala Twoja rola', 'Zamknij'],
+      ] as const) {
+        const html = await rawProfile(lang);
+        const dialog = dialogOf(html)!;
+        const dialogId = /<dialog\b[^>]*\sid="([^"]+)"/.exec(dialog)?.[1];
+        const labelledBy = /<dialog\b[^>]*\saria-labelledby="([^"]+)"/.exec(dialog)?.[1];
+        expect(dialogId).toBeTruthy();
+        expect(labelledBy).toBeTruthy();
+        const titleMatch = new RegExp(`<h2[^>]*\\sid="${labelledBy}"[^>]*>([\\s\\S]*?)</h2>`).exec(dialog);
+        expect(visibleText(titleMatch?.[1] ?? '')).toBe(title);
+        expect(dialog).toMatch(new RegExp(`<button type="button"[^>]*aria-label="${close}"`));
+        const trigger = /<button type="button"[^>]*aria-haspopup="dialog"[^>]*>/.exec(bodyOf(html))?.[0] ?? '';
+        expect(trigger).toContain(`aria-controls="${dialogId}"`);
+      }
+    });
+
+    it('keeps the role row but offers no dialog when the role’s permissions cannot be read', async () => {
+      ownPermissions = [{ code: 'carts.create', label: 'Create and edit carts', description: 'Add products to a cart.' }];
+      ownRoleFails = true;
+      try {
+        const html = await rawProfile('en-US');
+        expect(visibleText(roleRowOf(html)!)).toBe('Role Administrator');
+        expect(dialogOf(html)).toBeNull();
+        expect(html).not.toContain('aria-haspopup');
+      } finally {
+        ownRoleFails = false;
+      }
+    });
+
+    it('shows a personal Organization’s member neither the role row, the trigger nor the dialog', async () => {
+      ownPermissions = [{ code: 'carts.create', label: 'Create and edit carts', description: 'Add products to a cart.' }];
+      me.organization!.isPersonal = true;
+      ownRoleReads = 0;
+      try {
+        for (const lang of ['en-US', 'pl-PL']) {
+          const html = await rawProfile(lang);
+          expect(roleRowOf(html)).toBeNull();
+          expect(dialogOf(html)).toBeNull();
+          expect(html).not.toContain('aria-haspopup');
+          expect(html).not.toContain('Administrator');
+        }
+        expect(ownRoleReads).toBe(0);
+      } finally {
+        me.organization!.isPersonal = false;
+      }
+    });
   });
 
   it('renders the password page in both languages', async () => {

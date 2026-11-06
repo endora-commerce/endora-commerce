@@ -566,9 +566,10 @@ od jego roli i od rodzaju organizacji:
 - **Członkowie** (`/organization/members`) pokazuje rolę każdego członka jako listę wyboru ról
   organizacji, a formularz zaproszenia wskazuje rolę nowego członka, z domyślnie wybraną rolą
   *Członek*.
-- **Strona konta** pokazuje członkowi jego rolę i zrozumiałą listę tego, na co ona pozwala (*Na
-  co pozwala Twoja rola*), przetłumaczoną przez API; rola, która na nic nie pozwala, mówi o tym
-  wprost. Członek organizacji prywatnej nie widzi ani roli, ani listy.
+- **Strona konta** pokazuje członkowi jego rolę w podsumowaniu profilu. Obok niej odnośnik *Na
+  co pozwala Twoja rola* otwiera okno dialogowe ze zrozumiałą listą tego, na co rola pozwala,
+  przetłumaczoną przez API; rola, która na nic nie pozwala, mówi o tym wprost. Członek
+  organizacji prywatnej nie widzi ani roli, ani listy.
 
 ### Role w panelu administracyjnym
 

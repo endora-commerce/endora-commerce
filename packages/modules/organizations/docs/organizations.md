@@ -599,9 +599,10 @@ member is offered follows their role, and the Organization's kind:
 - **Members** (`/organization/members`) shows each member's role as a select of
   the Organization's roles, and the invite form names the role of the new
   member, *Member* preselected.
-- **The account page** shows the member their role and a plain-language list of
-  what it allows (*What your role allows*), translated by the API; a role that
-  allows nothing says so. A personal Organization's member sees neither.
+- **The account page** shows the member their role in the profile summary.
+  Beside it, *What your role allows* opens a dialog with a plain-language list
+  of what the role allows, translated by the API; a role that allows nothing
+  says so. A personal Organization's member sees neither.
 
 ### Roles in the Admin UI
 
