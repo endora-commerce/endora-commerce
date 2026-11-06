@@ -5,29 +5,39 @@ import { describe, expect, it } from 'vitest';
 /**
  * Issue #790 — a URL carries a code and validated typed values, never free text
  * (`specs/conventions/module-i18n.md`). `no-sentence-in-url.test.ts` watches the
- * three message parameters by name; this net watches every query parameter a
- * page or route **builds** from a value — a `?name=${…}` template, an
+ * three message parameters by name; this net watches every query parameter the
+ * storefront **builds** from a value — in `app/`, `components/` and `lib/`
+ * (not `lib/api/` or `lib/dictionary/`, which build requests to the backend,
+ * not addresses a buyer lands on) — whether as a `?name=${…}` template, an
  * `encodeURIComponent`, a `new URLSearchParams({ … })` key, a `.set('name', …)`
  * on a `URLSearchParams` or a `URL`'s `searchParams` — and refuses any name not
  * on the allow-list below. `?listAdded=` (a shopping list's name) and
  * `?preview=` (the quick-order CSV) are the two this net was written against.
  *
- * A name on the allow-list is a promise about its value, not a proof: the
- * per-page tests in this directory are the evidence that a crafted value never
- * reaches the screen. A new parameter must justify itself here.
+ * Its declared limits: the allow-list is **by name**, so it is a promise about
+ * a parameter's value, not a proof — the per-page tests in this directory are
+ * the evidence that a crafted value never reaches the screen; and a code built
+ * into a template (`?error=${code}`) is trusted by its name, since the source
+ * cannot show that the value is a code (follow-up #810). A new parameter must
+ * justify itself here.
  */
 
-const APP = resolve(import.meta.dirname, '../../app');
+const ROOT = resolve(import.meta.dirname, '../..');
+const SCANNED = ['app', 'components', 'lib'];
+const NOT_SCANNED = new Set(['lib/api', 'lib/dictionary']);
 
-type Kind = 'code' | 'id' | 'number' | 'path' | 'query';
+type Kind = 'code' | 'id' | 'number' | 'structured' | 'path' | 'query';
 
 /**
  * The parameters known to be safe, and why. `code` values are fixed ASCII
  * tokens a page words from its own vocabulary and drops when it does not know
- * them (`lib/url-errors.ts`); `id` values are looked up, or shown only after a
- * shape check; `number` values are parsed as numbers; `path` is an in-site
- * return path the login flow validates; `query` is the text the buyer typed
- * into a search box themselves.
+ * them (`lib/url-errors.ts`); `id` values are looked up or never printed;
+ * `number` values are parsed as numbers; `structured` values are ids, codes and
+ * numbers in a fixed shape, re-validated field by field on read; `path` is an
+ * in-site return path the login flow validates. `query` is the **one named
+ * exception** to "no free text": the search text the buyer typed themselves,
+ * capped where the page reads it and shown only as the quoted query or an
+ * input's value.
  */
 const SAFE: Record<string, { kind: Kind; why: string }> = {
   // Codes — the page words them; an unknown one shows nothing or the generic failure.
@@ -37,21 +47,38 @@ const SAFE: Record<string, { kind: Kind; why: string }> = {
   couponError: { kind: 'code', why: 'a coupon refusal code' },
   formsReason: { kind: 'code', why: 'a form-submission outcome code' },
   newsletter: { kind: 'code', why: 'a newsletter sign-up outcome code' },
+  status: { kind: 'code', why: 'an outcome code (`pending` / `active` / `error`, `created` / `removed` / `default`)' },
+  outcome: { kind: 'code', why: 'a payment-return outcome code, read through `parseReturnOutcome`' },
   // Ids and tokens — looked up server-side, or never printed.
   id: { kind: 'id', why: 'an order id the page looks up' },
   orderId: { kind: 'id', why: 'an order id the page looks up' },
   rfqId: { kind: 'id', why: 'a quote-request id the page looks up' },
-  rfq: { kind: 'id', why: 'a quote-request reference, shown only when it is reference-shaped' },
   listAdded: { kind: 'id', why: 'a shopping-list id; the page reads the name of the buyer’s own list (issue #790)' },
   qtyError: { kind: 'id', why: 'the shopping-list line id the refusal sits beside' },
+  errorItem: { kind: 'id', why: 'the cart line id the refusal sits beside' },
+  variant: { kind: 'id', why: 'a variant SKU the product page matches against its own variants' },
+  cursor: { kind: 'id', why: 'an opaque pagination cursor the API reads' },
+  salesChannel: { kind: 'code', why: 'the sales-channel code on the OAuth start link, which the backend resolves' },
+  v: { kind: 'id', why: 'the build version the service-worker URL is keyed by, never printed' },
+  l: { kind: 'id', why: 'the GTM snippet’s own dataLayer name (`dataLayer`)' },
   token: { kind: 'id', why: 'an opaque verification or reset token, never printed' },
   form: { kind: 'id', why: 'a contact-form block id' },
   formsBlock: { kind: 'id', why: 'a form block id' },
   formsAttempt: { kind: 'id', why: 'a form-submission attempt id' },
-  cartSkips: { kind: 'id', why: 'item/product ids, reason codes and minimums, each re-validated on read (`lib/batchReport.ts`)' },
+  cartSkips: {
+    kind: 'structured',
+    why: 'item/product ids, reason codes and minimums — no names — re-validated field by field on read (`lib/batchReport.ts`)',
+  },
   // Numbers.
   page: { kind: 'number', why: 'a page number' },
+  attempt: { kind: 'number', why: 'a payment-status poll attempt, parsed as a number' },
+  min: { kind: 'number', why: 'a cart minimum, written only when it is a whole number' },
+  typed: {
+    kind: 'number',
+    why: 'the quantity the buyer typed, rendered only into a `type="number"` input, which the browser empties of anything not a number',
+  },
   sent: { kind: 'number', why: 'a line count' },
+  rejected: { kind: 'number', why: 'a line count' },
   cartAdded: { kind: 'number', why: 'a line count' },
   cartSkipped: { kind: 'number', why: 'a line count' },
   rfqAdded: { kind: 'number', why: 'a line count' },
@@ -62,7 +89,10 @@ const SAFE: Record<string, { kind: Kind; why: string }> = {
   couponShortfallCurrency: { kind: 'code', why: 'an ISO 4217 currency code' },
   // A path and a query.
   next: { kind: 'path', why: 'an in-site return path; the login flow refuses anything else' },
-  q: { kind: 'query', why: 'the search text the buyer typed themselves' },
+  q: {
+    kind: 'query',
+    why: 'the named exception: the buyer’s own search text, capped where the page reads it, shown only as the quoted query or an input value',
+  },
 };
 
 /**
@@ -71,10 +101,8 @@ const SAFE: Record<string, { kind: Kind; why: string }> = {
  * cover; see the pull request for the follow-up.
  */
 const KNOWN_FREE_TEXT = new Set<string>([
-  // An API `detail` sentence through `new URLSearchParams({ error })`, rendered as given.
-  '(auth)/invitations/[token]/accept/page.tsx:error',
-  // The build's `rejected[]`, carrying each product's name, rendered from the URL.
-  '(account)/quick-order/page.tsx:notAdded',
+  // An API `detail` sentence through `new URLSearchParams({ error })`, rendered as given (#808).
+  'app/(auth)/invitations/[token]/accept/page.tsx:error',
 ]);
 
 interface Site {
@@ -89,6 +117,7 @@ interface Site {
 function sources(dir: string): string[] {
   return readdirSync(dir).flatMap((name) => {
     const path = join(dir, name);
+    if (NOT_SCANNED.has(relative(ROOT, path).split('\\').join('/'))) return [];
     if (statSync(path).isDirectory()) return sources(path);
     return /\.tsx?$/.test(name) ? [path] : [];
   });
@@ -121,16 +150,17 @@ function sitesOf(file: string, source: string): Site[] {
  * and confirmed to carry a code — the net cannot tell that from the source.
  */
 const CODE_THROUGH_SEARCH_PARAMS = new Set<string>([
-  '(commerce)/cart/page.tsx:couponError', // `result.reason`, the coupon refusal code
-  'forms/contact/route.ts:reason', // `outcome.error`, a contact outcome code
-  '(commerce)/cart/page.tsx:couponShortfallCurrency', // the API's ISO 4217 code, which `Intl` refuses unless it is one
-  'newsletter/subscribe/route.ts:reason', // `outcome.error`, a newsletter outcome code
-  'newsletter/subscribe/route.ts:newsletter', // `outcome.status`, a newsletter outcome code
-  'forms/submit/route.ts:formsReason', // `outcome.reason`, a submission outcome code
+  'app/(commerce)/cart/page.tsx:couponError', // `result.reason`, the coupon refusal code
+  'app/forms/contact/route.ts:reason', // `outcome.error`, a contact outcome code
+  'app/(commerce)/cart/page.tsx:couponShortfallCurrency', // the API's ISO 4217 code, which `Intl` refuses unless it is one
+  'app/newsletter/subscribe/route.ts:reason', // `outcome.error`, a newsletter outcome code
+  'app/newsletter/subscribe/route.ts:newsletter', // `outcome.status`, a newsletter outcome code
+  'app/forms/submit/route.ts:formsReason', // `outcome.reason`, a submission outcome code
+  'lib/cartMinimum.ts:error', // `code`, a `CART_ERRORS` code (`cartLineEditErrorHref`)
 ]);
 
-const files = sources(APP).map((path) => relative(APP, path).split('\\').join('/'));
-const sites = files.flatMap((file) => sitesOf(file, readFileSync(join(APP, file), 'utf8')));
+const files = SCANNED.flatMap((dir) => sources(join(ROOT, dir))).map((path) => relative(ROOT, path).split('\\').join('/'));
+const sites = files.flatMap((file) => sitesOf(file, readFileSync(join(ROOT, file), 'utf8')));
 
 /** A literal value is fixed text the source chose — `?built=cart`, `formsOutcome=accepted`. */
 function offends(site: Site): boolean {
@@ -148,6 +178,18 @@ describe('no page builds free text into a URL (issue #790)', () => {
     // A net that matches nothing passes everything: these are built in more than one way.
     const names = new Set(sites.map((site) => site.name));
     for (const name of ['error', 'next', 'listAdded', 'q', 'couponError', 'formsReason']) expect(names).toContain(name);
+  });
+
+  it('reaches components/ and lib/, and not lib/api/', () => {
+    const scanned = new Set(sites.map((site) => site.file));
+    for (const file of ['components/newsletter/NewsletterSignup.tsx', 'lib/cartMinimum.ts', 'lib/payments/post-payment-landing.ts']) {
+      expect(scanned).toContain(file);
+    }
+    expect(files.some((file) => file.startsWith('lib/api/') || file.startsWith('lib/dictionary/'))).toBe(false);
+  });
+
+  it('no quick-order build report travels in the URL', () => {
+    expect(sites.filter((site) => site.name === 'notAdded' || site.name === 'rfq')).toEqual([]);
   });
 
   it('every parameter built from a value is on the allow-list', () => {

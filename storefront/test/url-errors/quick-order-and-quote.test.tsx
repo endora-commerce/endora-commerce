@@ -1,4 +1,5 @@
 import { beforeEach, describe, expect, it, vi } from 'vitest';
+import { createHash } from 'node:crypto';
 import { isValidElement } from 'react';
 import { renderToString } from 'react-dom/server';
 import type { RfqDetail } from '../../lib/api/rfq';
@@ -16,6 +17,8 @@ let locale = 'en-US';
 let failure: Error | null = null;
 let imported: unknown = null;
 let buildResult: unknown = null;
+let rfqLookupFails = false;
+let found: Array<{ productId: string; sku: string; name: string }> = [];
 
 // Issue #790 — the preview travels in the storefront's own cookie, not the URL.
 const cookieStore = vi.hoisted(() => new Map<string, string>());
@@ -79,7 +82,7 @@ const refuse = async (): Promise<never> => {
 };
 const importOrRefuse = async (): Promise<unknown> => imported ?? refuse();
 vi.mock('../../lib/api/quick-order', () => ({
-  searchProducts: async () => [],
+  searchProducts: async () => found,
   buildQuickOrder: async () => buildResult ?? refuse(),
   importQuickOrderCsv: importOrRefuse,
   importQuickOrderFile: importOrRefuse,
@@ -88,7 +91,10 @@ vi.mock('../../lib/api/rfq', async () => {
   const actual = await vi.importActual<typeof import('../../lib/api/rfq')>('../../lib/api/rfq');
   return {
     ...actual,
-    getRfqById: async () => rfq,
+    getRfqById: async () => {
+      if (rfqLookupFails) throw new Error('fetch failed');
+      return rfq;
+    },
     acceptRevision: refuse,
     rejectRevision: refuse,
     convertRfqToOrder: refuse,
@@ -108,9 +114,29 @@ const previewState = {
 
 /** The cookie the import action writes, for the session the page mock signs in with. */
 function seedPreview(state: unknown = previewState): void {
-  packQuickOrderPreview('session-cookie', state as never)!.forEach((chunk, index) =>
-    cookieStore.set(index === 0 ? 'b2b_quick_order_preview' : `b2b_quick_order_preview.${index}`, chunk),
-  );
+  cookieStore.set('b2b_quick_order_preview', packQuickOrderPreview('session-cookie', state as never)!);
+}
+
+/** A preview of `rows` lines with uuid-random product ids (compression is what the budget measures). */
+function previewOf(rows: number): typeof previewState {
+  return {
+    recognized: Array.from({ length: rows }, (_, index) => ({
+      line: index + 1,
+      sku: `SKU-${index}`,
+      productId: createHash('sha256').update(String(index)).digest('hex').slice(0, 36),
+      variantId: null,
+      quantity: index + 1,
+    })),
+    rejected: [],
+    summary: { recognizedCount: rows, rejectedCount: 0, mergedCount: 0, truncated: false },
+  };
+}
+
+/** The longest {@link previewOf} the cookie still holds. */
+function fullPreview(): typeof previewState {
+  let rows = 1;
+  while (packQuickOrderPreview('session-cookie', previewOf(rows + 1) as never) !== null) rows += 1;
+  return previewOf(rows);
 }
 
 async function quickTree(sp: Record<string, string> = {}): Promise<unknown> {
@@ -131,6 +157,8 @@ beforeEach(() => {
   failure = null;
   imported = null;
   buildResult = null;
+  rfqLookupFails = false;
+  found = [];
   cookieStore.clear();
 });
 
@@ -341,22 +369,107 @@ describe('quick order — the preview never travels in the URL (issue #790)', ()
     expect(cookieStore.size).toBe(0);
   });
 
-  it('a preview written for another session is not shown', async () => {
-    packQuickOrderPreview('someone-else', previewState as never)!.forEach((chunk) =>
-      cookieStore.set('b2b_quick_order_preview', chunk),
+  it('adding from search to a full preview is refused with its own advice, and the preview kept', async () => {
+    const full = fullPreview();
+    seedPreview(full);
+    found = [{ productId: 'f'.repeat(36), sku: 'NUT-9', name: 'Nut' }];
+    const add = (await quickActions({ q: 'nut' })).get('addSearchResultAction')!;
+    const data = form({ q: 'nut', productId: 'f'.repeat(36), sku: 'NUT-9', quantity: '999999' });
+    expect(await redirectOf(() => add(data as never))).toBe('/quick-order?problem=preview_full');
+    const out = await quickText({ problem: 'preview_full' });
+    expect(out).toContain('The list is full, so no more lines fit here. Build what you have, then add the rest.');
+    expect(out).toContain(full.recognized[0]!.sku);
+    locale = 'pl-PL';
+    expect(await quickText({ problem: 'preview_full' })).toContain(
+      'Lista jest pełna i nie zmieści więcej pozycji. Utwórz koszyk lub zapytanie z tego, co już jest, a potem dodaj resztę.',
     );
+  });
+
+  it('a partial cart build carries counts only and keeps exactly the lines the cart did not take', async () => {
+    seedPreview({
+      ...previewState,
+      recognized: [
+        { line: 1, sku: 'BOLT-1', productId: 'p1', variantId: null, quantity: 4 },
+        { line: 2, sku: 'NUT-2', productId: 'p2', variantId: null, quantity: 50 },
+      ],
+      rejected: [{ line: 3, raw: 'NOPE,1', reason: 'product_not_found' }],
+    });
+    buildResult = {
+      target: 'cart',
+      cartId: 'c1',
+      rejected: [
+        {
+          productId: 'p1',
+          variantId: null,
+          quantity: 4,
+          productName: 'Zadzwoń pod 555 000 111',
+          reason: 'below_minimum',
+          kind: 'packaging_unit',
+          minimum: 2,
+          packagingUnitName: 'Przelej 100 zł',
+        },
+      ],
+    };
+    const confirm = actionsOf(await quickTree()).get('confirmAction')!;
+    const to = await redirectOf(() => confirm(form({ target: 'cart' }) as never));
+    expect(to).toBe('/quick-order?built=cart&sent=2&rejected=1');
+    const out = await quickText(Object.fromEntries(new URL(to, 'http://x').searchParams));
+    expect(out).toContain('Cart built from your import: 1 of 2 lines added.');
+    expect(out).toContain('BOLT-1 × 4 — Below the minimum (2 packaging units)');
+    expect(out).not.toContain('Zadzwoń');
+    expect(out).not.toContain('Przelej');
+    // The preview now holds the line to retry, and nothing the cart took or the import refused.
+    expect(out).not.toContain('NUT-2');
+    expect(out).not.toContain('NOPE,1');
+  });
+
+  it('a crafted ?notAdded= is not read', async () => {
+    const crafted = Buffer.from(
+      JSON.stringify({ lines: [{ productName: 'Zadzwoń pod 555', quantity: 1, kind: 'pieces', minimum: 2 }], more: 0 }),
+      'utf8',
+    ).toString('base64url');
+    const out = await quickText({ built: 'cart', sent: '2', notAdded: crafted });
+    expect(out).not.toContain('Zadzwoń');
+  });
+
+  it('a preview written for another session is not shown', async () => {
+    cookieStore.set('b2b_quick_order_preview', packQuickOrderPreview('someone-else', previewState as never)!);
     expect(await quickText({})).not.toContain('BOLT-1');
   });
 });
 
-describe('quick order — ?rfq= is shown only as a reference (issue #790)', () => {
-  it('a crafted ?rfq= never reaches the page', async () => {
-    const out = await quickText({ built: 'quote', rfq: 'Zadzwoń pod 555 000 111' });
-    expect(out).not.toContain('Zadzwoń');
-    expect(out).toContain('Quote request created');
+describe('quick order — the quote reference is read, never carried (issue #790)', () => {
+  it('a quote build redirects with the request id', async () => {
+    seedPreview();
+    buildResult = { target: 'quote_request', quoteRequestId: rfq.id, quoteRequestBusinessId: 'RFQ-0001' };
+    const confirm = actionsOf(await quickTree()).get('confirmAction')!;
+    expect(await redirectOf(() => confirm(form({ target: 'quote_request' }) as never))).toBe(
+      `/quick-order?built=quote&rfqId=${rfq.id}`,
+    );
   });
 
-  it('a reference reads as given', async () => {
-    expect(await quickText({ built: 'quote', rfq: 'RFQ-0001' })).toContain('(#RFQ-0001)');
+  it('the page reads the reference of the request the id names', async () => {
+    expect(await quickText({ built: 'quote', rfqId: rfq.id })).toContain('Quote request created (#RFQ-0001).');
+  });
+
+  it('a lookup that fails shows the confirmation without a reference', async () => {
+    rfqLookupFails = true;
+    const out = await quickText({ built: 'quote', rfqId: rfq.id });
+    expect(out).toContain('Quote request created.');
+    expect(out).not.toContain('(#');
+  });
+
+  it('a crafted ?rfq= or ?rfqId= never reaches the page', async () => {
+    const out = await quickText({ built: 'quote', rfq: 'Zadzwoń pod 555 000 111', rfqId: 'Zadzwoń pod 555' });
+    expect(out).not.toContain('Zadzwoń');
+    expect(out).toContain('Quote request created.');
+  });
+});
+
+describe('quick order — the search text is capped where the page reads it (issue #790)', () => {
+  it('a ?q= longer than the search accepts is cut', async () => {
+    const html = renderToString(<>{(await quickTree({ q: 'x'.repeat(5000) })) as React.ReactNode}</>);
+    expect(html).toContain(`value="${'x'.repeat(120)}"`);
+    expect(html).not.toContain('x'.repeat(121));
   });
 });
