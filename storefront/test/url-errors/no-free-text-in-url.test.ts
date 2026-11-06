@@ -100,10 +100,7 @@ const SAFE: Record<string, { kind: Kind; why: string }> = {
  * `file:parameter` pair this net found and the fix for issue #790 did not
  * cover; see the pull request for the follow-up.
  */
-const KNOWN_FREE_TEXT = new Set<string>([
-  // An API `detail` sentence through `new URLSearchParams({ error })`, rendered as given (#808).
-  'app/(auth)/invitations/[token]/accept/page.tsx:error',
-]);
+const KNOWN_FREE_TEXT = new Set<string>([]);
 
 interface Site {
   file: string;

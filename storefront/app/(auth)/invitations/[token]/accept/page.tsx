@@ -1,7 +1,8 @@
 import type { ReactNode } from 'react';
 import { loginCustomer } from '../../../../../lib/api/auth';
 import { acceptInvitation } from '../../../../../lib/api/organization';
-import { StorefrontApiError } from '../../../../../lib/api/client';
+import { INVITATION_ACCEPT_ERRORS, type InvitationAcceptCode } from '../../../../../lib/auth/auth-errors';
+import { signInErrorParam } from '../../../../../lib/auth/sign-in-errors';
 import { setSessionCookie } from '../../../../../lib/session';
 import type { Metadata } from 'next';
 import { localeRedirect } from '../../../../../lib/i18n/navigation';
@@ -20,6 +21,12 @@ export const metadata: Metadata = { robots: { index: false, follow: false } };
  * Invitation redemption (email link → `/invitations/:token/accept`).
  * Matches `buildInvitationEmail` in the backend; submits to
  * `POST /api/v1/organizations/invitations/:token/accept`, then signs in.
+ *
+ * **A code travels, never a sentence** (issue #808, `lib/url-errors.ts`): the
+ * action carries a code of {@link INVITATION_ACCEPT_ERRORS} in `?error=`, and
+ * the page words it, reading any other value as its generic failure. An empty
+ * token, and any failure once the account exists, goes to `/login` with a
+ * sign-in code.
  */
 
 export default async function AcceptInvitationPage({
@@ -33,12 +40,13 @@ export default async function AcceptInvitationPage({
   const { error } = await searchParams;
   const { locale } = await getServerContext();
   const t = tForLocale(locale);
+  const errorKey = INVITATION_ACCEPT_ERRORS.errorKey(error);
 
   return (
     <div className="b2b-auth">
       <h1>{t('auth.invitation.heading')}</h1>
       <p>{t('auth.invitation.intro')}</p>
-      {error ? <div className="b2b-auth__error">{error}</div> : null}
+      {errorKey ? <div className="b2b-auth__error">{t(errorKey)}</div> : null}
       <form action={acceptInvitationAction} className="b2b-auth__form">
         <input type="hidden" name="token" value={token} />
         <div className="b2b-auth__field">
@@ -82,41 +90,39 @@ async function acceptInvitationAction(formData: FormData): Promise<void> {
   const firstName = ((formData.get('firstName') as string) ?? '').trim();
   const lastName = ((formData.get('lastName') as string) ?? '').trim();
   const password = (formData.get('password') as string) ?? '';
-  const t = tForLocale((await getServerContext()).locale);
-
-  const redirectWithError = async (message: string): Promise<never> => {
-    const q = new URLSearchParams({ error: message });
-    if (!token.trim()) {
-      return await localeRedirect(`/login?${q.toString()}`);
-    }
-    return await localeRedirect(`/invitations/${encodeURIComponent(token)}/accept?${q.toString()}`);
-  };
 
   if (!token.trim()) {
-    return await redirectWithError(t('auth.invitation.invalidLink'));
+    return await localeRedirect(`/login?error=${signInErrorParam(null, 'INVITATION_INVALID')}`);
   }
+  const redirectWithError = async (code: InvitationAcceptCode): Promise<never> =>
+    await localeRedirect(`/invitations/${encodeURIComponent(token)}/accept?error=${code}`);
 
+  let email: string;
   try {
     const { customerAccount } = await acceptInvitation(token, {
       password,
       firstName,
       lastName,
     });
-    const login = await loginCustomer({
-      email: customerAccount.email,
-      password,
-    });
-    // Feature 042 — a 2FA-protected/enforced account must finish the second
-    // step via the normal login flow.
-    if (login.status !== 'authenticated' || !login.sessionCookieValue) {
-      return await redirectWithError(t('auth.invitation.signInToContinue'));
-    }
-    await setSessionCookie(login.sessionCookieValue);
+    email = customerAccount.email;
   } catch (err) {
-    const message =
-      err instanceof StorefrontApiError ? err.detail : t('auth.invitation.failed');
-    return await redirectWithError(message);
+    return await redirectWithError(INVITATION_ACCEPT_ERRORS.failureCode(err, 'INVITATION_FAILED'));
   }
+
+  // The account exists from here on: a failure is the sign-in's, and `/login` words it
+  // (architect ruling on #822). Each redirect sits outside a `try`, since a redirect is thrown.
+  let login: Awaited<ReturnType<typeof loginCustomer>>;
+  try {
+    login = await loginCustomer({ email, password });
+  } catch (err) {
+    return await localeRedirect(`/login?error=${signInErrorParam(err, 'SIGN_IN_TO_CONTINUE')}`);
+  }
+  // Feature 042 — a 2FA-protected/enforced account must finish the second
+  // step via the normal login flow.
+  if (login.status !== 'authenticated' || !login.sessionCookieValue) {
+    return await localeRedirect(`/login?error=${signInErrorParam(null, 'SIGN_IN_TO_CONTINUE')}`);
+  }
+  await setSessionCookie(login.sessionCookieValue);
 
   return await localeRedirect('/account');
 }
