@@ -1,9 +1,9 @@
 ---
-title: shopping_lists
+title: Listy zakupowe
 description: Nazwane listy zakupów klienta, które można zamienić w koszyk lub zapytanie ofertowe
 ---
 
-# `shopping_lists`
+# Listy zakupowe (`shopping_lists`)
 
 Nazwane listy pozycji (produkt, opcjonalnie wariant, ilość, opcjonalna notatka) należące do klienta.
 Kupujący zapisują powtarzające się zamówienia, a potem jednym kliknięciem przenoszą wszystkie albo

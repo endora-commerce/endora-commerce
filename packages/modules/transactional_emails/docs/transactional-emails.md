@@ -1,9 +1,9 @@
 ---
-title: transactional_emails
+title: Transactional emails
 description: Admin-editable transactional emails — subject, content and look, globally and per sales channel
 ---
 
-# `transactional_emails`
+# Transactional emails (`transactional_emails`)
 
 Admin-editable transactional emails. Lets operators change the **subject**,
 **content**, and **look** of every transactional email the platform sends —

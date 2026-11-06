@@ -1207,6 +1207,25 @@ function wrapComment(text: string, prefix = '# '): readonly string[] {
 
 // ── the nginx example ──────────────────────────────────────────────────────
 
+/**
+ * The storefront's proxy buffer margin, line for line as
+ * `deploy/nginx.example.conf` carries it (#805, #817).
+ */
+const STOREFRONT_PROXY_BUFFERS: readonly string[] = [
+  '',
+  "        # Headroom for the storefront's response headers. The quick-order preview",
+  '        # rides in one cookie, b2b_quick_order_preview, whose value the storefront',
+  '        # caps at 3 000 characters (storefront/lib/quick-order-preview-cookie.ts) —',
+  "        # a budget measured safe on nginx's DEFAULTS (proxy_buffer_size 4k, a 502",
+  '        # past it; large_client_header_buffers 4 8k, a 400 past it), which stay the',
+  '        # contract. These lines are a safety margin on top, so headers you add',
+  '        # yourself (a CSP, HSTS, more cookies) cannot eat it; they do not raise',
+  '        # what the storefront may write.',
+  '        proxy_buffer_size 16k;',
+  '        proxy_buffers 8 16k;',
+  '        proxy_busy_buffers_size 32k;',
+];
+
 /** One `server` block, per public origin this instance actually has. */
 function nginxBlock(
   title: string,
@@ -1214,6 +1233,7 @@ function nginxBlock(
   variable: string,
   port: string,
   extra: readonly string[],
+  locationExtra: readonly string[] = [],
 ): readonly string[] {
   return [
     `# --- ${title} ${'-'.repeat(Math.max(0, 60 - title.length))}`,
@@ -1234,6 +1254,7 @@ function nginxBlock(
     '        proxy_set_header Upgrade           $http_upgrade;',
     '        proxy_set_header Connection        $connection_upgrade;',
     '        proxy_read_timeout 120s;',
+    ...locationExtra,
     '    }',
     '}',
     '',
@@ -1268,11 +1289,18 @@ function nginxExample(input: DeployInput): string {
     "    ''      close;",
     '}',
     '',
-    ...nginxBlock('Storefront', 'example.com', 'STOREFRONT_DOMAIN', '127.0.0.1:3000', [
-      '    # Room for the SSR responses of a large catalogue page.',
-      '    client_max_body_size 25m;',
-      '',
-    ]),
+    ...nginxBlock(
+      'Storefront',
+      'example.com',
+      'STOREFRONT_DOMAIN',
+      '127.0.0.1:3000',
+      [
+        '    # Room for the SSR responses of a large catalogue page.',
+        '    client_max_body_size 25m;',
+        '',
+      ],
+      STOREFRONT_PROXY_BUFFERS,
+    ),
     ...(input.admin
       ? nginxBlock('Admin', 'admin.example.com', 'ADMIN_DOMAIN', '127.0.0.1:8080', [])
       : [
@@ -1392,6 +1420,7 @@ function nginxPathsExample(input: DeployInput): string {
     '    # Everything else is the storefront.',
     '    location / {',
     ...proxy('127.0.0.1:3000'),
+    ...STOREFRONT_PROXY_BUFFERS,
     '    }',
     '}',
   ].join('\n')}\n`;

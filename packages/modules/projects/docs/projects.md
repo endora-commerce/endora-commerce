@@ -1,9 +1,9 @@
 ---
-title: projects
+title: Projects
 description: Projects for zero or more Organizations, run through their own Stages by Members holding Project Roles
 ---
 
-# `projects`
+# Projects (`projects`)
 
 The Projects module keeps **projects**: a piece of work for one or more
 Organizations — or for none, an internal project — run through **stages** of
@@ -435,7 +435,7 @@ A project role is not one of these: holding one grants no permission (see
 
 ## Linking records
 
-A project's **Linked records** tab lists the Orders, Quote Requests and
+A project's **Linked records** tab lists the Orders, Quote requests and
 Opportunities linked to it, a group each: every record with its number — a
 link to it — its status and its amount.
 
@@ -448,7 +448,7 @@ link to it — its status and its amount.
   may see that project; otherwise only that it belongs to one.
 - **What a linked record shows is its own module's to show.** Its number,
   status and amount are shown only to somebody who may view records of its
-  kind — Orders, Quote Requests (handling quote requests) or Opportunities
+  kind — Orders, Quote requests (handling quote requests) or Opportunities
   (viewing CRM); anybody else sees it listed as *Unavailable*. The same
   permission is needed to link a record of that kind.
 - **While CRM or Quote Requests is switched off**, their links are kept and
@@ -485,7 +485,7 @@ The description, notes and messages can **refer to things** as they are typed:
 | Type | To refer to | Offered to |
 | --- | --- | --- |
 | `@` | a person | administrators who may create and run projects; the list offers only the people who may see the project |
-| `@@` | a document — one list, grouped: Orders, Quote Requests, Tasks, Opportunities, Projects | Orders with the permission to view Orders, Quote Requests with the permission to handle them, Tasks with the permission to view tasks, Opportunities with the permission to view CRM; Projects — any other project you may see — always; Orders and Quote Requests are those of the project's Organizations — none for an internal project; on the **New project** form, those of the Organizations chosen on it |
+| `@@` | a document — one list, grouped: Orders, Quote requests, Tasks, Opportunities, Projects | Orders with the permission to view Orders, Quote Requests with the permission to handle them, Tasks with the permission to view tasks, Opportunities with the permission to view CRM; Projects — any other project you may see — always; Orders and Quote Requests are those of the project's Organizations — none for an internal project; on the **New project** form, those of the Organizations chosen on it |
 | `@@@` | a Product | administrators who may view the catalog |
 
 The buttons above the field do the same — *Mention a person*, *Insert

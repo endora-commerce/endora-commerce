@@ -125,7 +125,10 @@ touches these screens (per-channel delivery and payment methods, 0.105.0) is ref
   soft delete (`deletedAt`), and both the preview and order creation read products with the port's
   default (wider) lookup, which returns soft-deleted rows: a soft-deleted product is priced like a
   live one on the preview and accepted on create (`CatalogProductReadPort.findById`,
-  `catalog-product-read.service.ts`; `CartService.addItem`).
+  `catalog-product-read.service.ts`; `CartService.addItem`). *Amended 2026-11-06, issue #820,
+  feature 163 FR-001:* no longer the current state — order creation refuses a soft-deleted product
+  with `404 PRODUCT_NOT_FOUND`, and the preview reads with `liveOnly` and reports it as
+  `PRODUCT_NOT_FOUND`.
 - Submit needs customer, channel, delivery method, payment method, both addresses, at least one line
   and no preview message; lines with quantity ≤ 0 are silently dropped. Items `{productId,
   variantId?, quantity}` (`adminCreateOrderRequestSchema`); the page never sends `variantId`.
@@ -521,7 +524,9 @@ present products changed their brackets.
   **No price**. A line shows exactly one reason; a product failing both new checks shows the
   visibility reason (FR-027). "Product not found" means an id with no catalogue row; a product
   soft-deleted from the catalogue is not "not found" — it is priced like a live product, as today
-  and as order creation accepts it. A
+  and as order creation accepts it. *(Amended 2026-11-06, issue #820, feature 163 FR-001: a
+  soft-deleted product is `PRODUCT_NOT_FOUND` on the preview, on every channel, as order creation
+  refuses it with `404 PRODUCT_NOT_FOUND`.)* A
   product without an applicable price list keeps today's catalogue-default pricing, possibly 0.00,
   and is not unavailable.
 - **FR-025**: Hiding the sections because a gating field is cleared MUST NOT discard the lines
@@ -743,7 +748,9 @@ present products changed their brackets.
 - Treating a product **soft-deleted** from the catalogue as unavailable on the order. Today both
   the preview and order creation accept it; a future change would cover the preview and the create
   path together, never the preview alone. (The price-list bulk add already refuses it per product,
-  `failed: product_not_found`.)
+  `failed: product_not_found`.) *Amended 2026-11-06, issue #820, feature 163 FR-001: delivered by
+  feature 163 for both paths — create refuses it with `404 PRODUCT_NOT_FOUND`, and the preview
+  reports it as `PRODUCT_NOT_FOUND`.*
 
 ## Clarifications
 
@@ -813,4 +820,6 @@ Answers given by the product owner.
   consistent with order creation, which accepts it. Only an id with no catalogue row is
   `PRODUCT_NOT_FOUND`. A future change for soft-deleted products would cover the preview and create
   together (*Out of Scope*). The price-list bulk add keeps `failed: product_not_found` for
-  soft-deleted products (FR-024, FR-043, Edge Cases).
+  soft-deleted products (FR-024, FR-043, Edge Cases). *Amended 2026-11-06, issue #820, feature 163
+  FR-001:* the answer becomes **Yes, `PRODUCT_NOT_FOUND`, together with create**, which refuses it
+  with `404 PRODUCT_NOT_FOUND`.

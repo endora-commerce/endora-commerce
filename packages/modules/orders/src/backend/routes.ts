@@ -967,11 +967,16 @@ export async function registerOrderRoutes(
       const messages: Array<{ productId: string; code: string; minimum?: number }> = [];
 
       // One product read and one channel-membership read per preview (feature
-      // 145). Default lookup options, not `liveOnly`: a soft-deleted product is
-      // priced as it always was, consistent with the create path.
+      // 145). `liveOnly`: a soft-deleted product is unavailable everywhere
+      // (feature 163 FR-001) and admin order create refuses it with `404
+      // PRODUCT_NOT_FOUND`, so it has no row here and takes step 1,
+      // `PRODUCT_NOT_FOUND`, never the assortment code (issue #820; spec 145
+      // R-7 as amended).
       const uniqueIds = [...new Set(body.items.map((it) => it.productId))];
       const productsById = new Map(
-        (await deps.catalogProductRead.findByIds(uniqueIds)).map((p) => [p.id, p] as const),
+        (await deps.catalogProductRead.findByIds(uniqueIds, { liveOnly: true })).map(
+          (p) => [p.id, p] as const,
+        ),
       );
       const organizationId = customer.organizationId;
       // Assortment is only asked about the ids that exist and the customer may

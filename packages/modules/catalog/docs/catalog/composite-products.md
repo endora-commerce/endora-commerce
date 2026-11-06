@@ -2,7 +2,7 @@
 title: Composite products
 ---
 
-# Composite Products: grouped, bundle, virtual
+# Composite products: grouped, bundle, virtual
 
 The Catalog supports three product types beyond `simple` /
 `configurable`. Each carries a type-discriminated payload on the PDP

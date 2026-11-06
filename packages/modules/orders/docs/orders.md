@@ -1,9 +1,9 @@
 ---
-title: orders
+title: Orders
 description: Order placement, status machine, payment + delivery linkage
 ---
 
-# `orders`
+# Orders (`orders`)
 
 Order placement, lifecycle, and access control. Composes the cart price
 resolution, stock reservation, payment driver dispatch, invoice generation,
@@ -556,7 +556,7 @@ original. This is how one product goes into two groups: for example 5 pieces in
 ## Custom-field values carried into an order
 
 An order can receive custom-field values from the record it came from, for every field whose
-**Carry value to Order** option is on (set on **Custom Fields**; the rules — same key, compatible
+**Carry value to Order** option is on (set on **Custom fields**; the rules — same key, compatible
 type and options, the audience rule — are on that module's page). Only an empty order field is
 filled, and only once.
 
@@ -598,7 +598,7 @@ translate it. Every other comment answers `systemNote: null`.
 
 ## Custom-field filters
 
-An order custom field whose **Use as list filter** option is on (set on **Custom Fields**) is
+An order custom field whose **Use as list filter** option is on (set on **Custom fields**) is
 offered as a filter in the order list's advanced filters, labelled in your language: the text it
 contains, a number or date range, yes or no, or one or more options. An order without a value for
 the field never matches. Each custom-field filter is shown as a removable chip beside the other

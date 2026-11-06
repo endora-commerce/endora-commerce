@@ -2,7 +2,7 @@
 title: Attribute sets
 ---
 
-# Attribute Sets
+# Attribute sets
 
 Attribute Sets group `ProductAttribute` definitions into reusable
 schemas. Every Product is wired to exactly one Attribute Set; the system

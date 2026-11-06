@@ -1,9 +1,9 @@
 ---
-title: payment_methods
+title: Metody płatności
 description: Skonfigurowane metody płatności
 ---
 
-# `payment_methods`
+# Metody płatności (`payment_methods`)
 
 Zarządzanie skonfigurowanymi metodami płatności, które klienci wybierają w checkoucie. Za każdym
 wierszem `PaymentMethod` stoi zarejestrowany **adapter** (zobacz *Mechanizm adapterów* niżej) oraz

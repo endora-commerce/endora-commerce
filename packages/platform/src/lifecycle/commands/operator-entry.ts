@@ -57,6 +57,7 @@ import {
 import { nodeModulesRootsFor } from '../../packages/installed-packages.js';
 import { resolveManifestEntries, type RegisteredManifestEntry } from '../manifest-registry.js';
 import type { MigrationOwnership } from '../services/migration-ownership.js';
+import { attachOperatorDiagnostics } from './operator-diagnostics.js';
 import type { OperatorResources, OperatorRuntime } from './operator-runtime.js';
 
 /**
@@ -173,7 +174,18 @@ export async function instanceOperatorRuntime(
   const env = options.env ?? process.env;
   const out = options.out ?? ((line: string) => void process.stdout.write(line));
   const err = options.err ?? ((line: string) => void process.stderr.write(line));
-  const entries = await instanceManifestEntries(options.deploymentRoot, env);
+  // Issue #819 — the platform's own log lines (the ORM bootstrap's
+  // tenancy-chain notice among them) go to `err`, never in front of a
+  // `--json` answer on stdout. Attached before the manifest set is resolved,
+  // which may itself have something to say, and detached if that refuses.
+  const detachDiagnostics = attachOperatorDiagnostics(err);
+  let entries: readonly RegisteredManifestEntry[];
+  try {
+    entries = await instanceManifestEntries(options.deploymentRoot, env);
+  } catch (error: unknown) {
+    detachDiagnostics();
+    throw error;
+  }
   let opened: OperatorResources | undefined;
   // Cross-organisation access is audited in the database (owner decision of
   // 2026-10-03). These commands never compose, so `composeApp`'s writer is not
@@ -199,10 +211,14 @@ export async function instanceOperatorRuntime(
       err,
     },
     dispose: async (): Promise<void> => {
-      await escapeHatchAudit.detach();
-      if (!opened) return;
-      opened.redis.disconnect();
-      await opened.orm.close(true);
+      try {
+        await escapeHatchAudit.detach();
+        if (!opened) return;
+        opened.redis.disconnect();
+        await opened.orm.close(true);
+      } finally {
+        detachDiagnostics();
+      }
     },
   };
 }

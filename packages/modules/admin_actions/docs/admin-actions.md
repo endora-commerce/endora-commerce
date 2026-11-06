@@ -3,7 +3,7 @@ title: Admin command palette actions
 description: Module-contributed action registry surfaced in the Admin Command Palette (⌘K Actions group)
 ---
 
-# Admin Command Palette Actions
+# Admin command palette actions
 
 A registry-backed contribution point that lets every backend module add action buttons to
 the Admin UI's command palette (the `⌘K` / `Ctrl+K` modal — what the operator sees as the

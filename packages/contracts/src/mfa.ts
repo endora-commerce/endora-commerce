@@ -49,12 +49,11 @@ export type FederatedSignInOptionsResponse = z.infer<
 >;
 
 /**
- * The `error` a refused customer federated sign-in carries back to the storefront:
- * `/login?error=<code>` (issue #789). A code, never a sentence — the storefront words each
- * one in its own languages and reads any other value as its generic sign-in failure
- * (`specs/conventions/module-i18n.md`, URL-borne errors). The Admin UI surface is not
- * covered: it still receives a sentence. These are redirect codes, not API `error.code`
- * values, which is why they are lower-case and fall outside `errorCodeRe`.
+ * The `error` a refused federated sign-in carries back to the storefront or the Admin UI:
+ * `/login?error=<code>` (issues #789, #813). A code, never a sentence — each frontend words
+ * it in its own copy and reads any other value as its generic sign-in failure
+ * (`specs/conventions/module-i18n.md`, URL-borne errors). These are redirect codes, not API
+ * `error.code` values, which is why they are lower-case and fall outside `errorCodeRe`.
  *
  * - `unknown_provider` — the provider in the path is not one the platform supports.
  * - `provider_unavailable` — the provider is not configured or not enabled for the channel.

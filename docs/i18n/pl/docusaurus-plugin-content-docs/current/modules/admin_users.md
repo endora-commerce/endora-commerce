@@ -1,9 +1,9 @@
 ---
-title: admin_users
+title: Administratorzy
 description: Konta administratorów platformy i logowanie jako klient
 ---
 
-# `admin_users`
+# Administratorzy (`admin_users`)
 
 Konta administratorów platformy (oddzielne od kont klientów) oraz logowanie jako klient
 (impersonacja).

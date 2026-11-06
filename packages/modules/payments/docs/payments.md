@@ -1,9 +1,9 @@
 ---
-title: payments
+title: Payments
 description: Payment driver dispatch + settlement events
 ---
 
-# `payments`
+# Payments (`payments`)
 
 Payment driver dispatch + settlement events. The module owns the driver
 port (`gateway-adapter-port.ts`) and concrete in-tree drivers; per-vendor

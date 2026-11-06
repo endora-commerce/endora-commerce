@@ -1,9 +1,9 @@
 ---
-title: webhooks
+title: Webhooks
 description: Outbound HMAC-signed event subscriptions
 ---
 
-# `webhooks`
+# Webhooks (`webhooks`)
 
 Outbound HMAC-signed event subscriptions. Domain events on the in-process
 event bus are bridged to a BullMQ queue; the worker signs and POSTs each

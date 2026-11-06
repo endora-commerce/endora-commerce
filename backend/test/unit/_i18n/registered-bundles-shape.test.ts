@@ -401,10 +401,11 @@ describe('registered module i18n bundles — real filesystem shape', () => {
    * the storefront's English `nav.*` labels and the `title` / `sidebar_label`
    * of every hand-written documentation page, then the English admin search
    * group labels (`adminSearch.*group.label`) and the demo composition's
-   * megamenu labels. #807 added the English label of every declared block
-   * (`blocks.*.label`, what the Page Builder drawer shows), the English admin
-   * search field labels (`adminSearch.*field.*`) and the Polish `nav.*`
-   * labels, which are sentence case too ("Import / eksport").
+   * megamenu labels. #795 refused a docs title that is a bare module id.
+   * #807 added the English label of every declared block (`blocks.*.label`,
+   * what the Page Builder drawer shows), the English admin search field labels
+   * (`adminSearch.*field.*`) and the Polish `nav.*` labels, which are sentence
+   * case too ("Import / eksport").
    *
    * The rule and the allowlist are `@endora-commerce/cli`'s
    * (`lib/sentence-case.ts`) — the one copy, which `endora new module` refuses
@@ -509,9 +510,13 @@ describe('registered module i18n bundles — real filesystem shape', () => {
       const frontMatter = /^---\n([\s\S]*?)\n---/.exec(readFileSync(file, 'utf8'))?.[1] ?? '';
       for (const [, field, raw] of frontMatter.matchAll(/^(title|sidebar_label):[ \t]*(.+)$/gm)) {
         const value = raw!.trim().replace(/^(['"])(.*)\1$/, '$2');
-        // A page titled with its module's id (`title: carts`) names a code
-        // identifier, not an English label, and is not case-judged.
-        if (manifests.has(value)) continue;
+        // A page titled with its module's id (`title: carts`) shows a code
+        // identifier in the sidebar, the module map and the browser tab, where
+        // a reader looks for a name (#795). The id belongs in the body.
+        if (manifests.has(value)) {
+          problems.push(`${relative(REPO_ROOT, file)} ${field}: ${JSON.stringify(value)} is a module id, not a readable title`);
+          continue;
+        }
         judge('docs title', `${relative(REPO_ROOT, file)} ${field}`, value);
       }
     }

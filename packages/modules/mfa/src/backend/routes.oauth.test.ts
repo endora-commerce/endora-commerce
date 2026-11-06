@@ -4,9 +4,8 @@
  *  - The transaction is bound to the browser that started it: `start` leaves a
  *    short-lived, httpOnly cookie scoped to the surface's OAuth path, and the
  *    `callback` completes only when the same browser presents it again.
- *  - A refused customer sign-in comes back to the storefront with a code from
- *    `federatedSignInErrorCodeSchema`, never a sentence (issue #789); the
- *    Admin UI, which prints what it is given, still gets its sentence.
+ *  - A refused sign-in comes back to the storefront or the Admin UI with a code
+ *    from `federatedSignInErrorCodeSchema`, never a sentence (issues #789, #813).
  *  - A subject with a second factor (or under an enforced policy) is handed to
  *    the second-step flow the password sign-in uses; no session is issued by
  *    the callback itself.
@@ -333,10 +332,7 @@ describe('federated sign-in — the second factor', () => {
     const { state, binding } = await start(h, 'admin');
     const res = await callback(h, state, { [OAUTH_BINDING_COOKIE_NAME]: binding! }, 'admin');
     expect(res.statusCode).toBe(302);
-    expect(res.headers['location']).toContain('/login?error=');
-    expect(decodeURIComponent(res.headers['location'] as string)).toContain(
-      'Two-step verification is required for your account.',
-    );
+    expect(res.headers['location']).toBe(`${ADMIN}/login?error=mfa_setup_required`);
     expect(h.createSession).not.toHaveBeenCalled();
   });
 
@@ -536,15 +532,14 @@ describe('federated sign-in — the storefront gets a code, never a sentence (is
     const literals = [...source.matchAll(/loginRedirect\(\s*deps,\s*surface,\s*'([^']*)'/g)].map((m) => m[1]!);
     expect(literals.length).toBeGreaterThan(0);
     expect(literals.filter((code) => !federatedSignInErrorCodeSchema.safeParse(code).success)).toEqual([]);
-    expect(source).not.toMatch(/\?error=\$\{encodeURIComponent\((?!ADMIN_LOGIN_ERROR_SENTENCE)/);
+    expect(source).not.toMatch(/\?error=\$\{encodeURIComponent\(/);
+    expect(source).not.toMatch(/ADMIN_LOGIN_ERROR_SENTENCE/);
   });
 
-  it('the Admin UI still gets its sentence', async () => {
+  it('the Admin UI gets the code too, never a sentence (issue #813)', async () => {
     h.setAdminResult({ ok: false, reason: 'no_account' });
     const { state, binding } = await start(h, 'admin');
     const res = await callback(h, state, { [OAUTH_BINDING_COOKIE_NAME]: binding! }, 'admin');
-    expect(res.headers['location']).toBe(
-      `${ADMIN}/login?error=${encodeURIComponent('No account matches this provider. Please contact an administrator.')}`,
-    );
+    expect(res.headers['location']).toBe(`${ADMIN}/login?error=no_matching_account`);
   });
 });

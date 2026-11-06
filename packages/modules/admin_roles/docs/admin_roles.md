@@ -1,9 +1,9 @@
 ---
-title: admin_roles
+title: Admin roles
 description: Admin role definitions + per-module Permissions
 ---
 
-# `admin_roles`
+# Admin roles (`admin_roles`)
 
 Admin role definitions and the per-module Permission matrix the role grants.
 

@@ -218,6 +218,34 @@ describe('quick order — the actions redirect with a code', () => {
   });
 });
 
+/** Issue #791 — a minimum refusal carries the minimum as a typed value, validated when read. */
+describe('quick order — a minimum refusal names the minimum (issue #791)', () => {
+  it('the build carries the minimum beside the code', async () => {
+    failure = new StorefrontApiError(422, 'PRODUCT_BELOW_MINIMUM_QUANTITY', '"Bolt" has a minimum…', undefined, {
+      productName: 'Bolt',
+      minimum: 10,
+    });
+    seedPreview();
+    const action = actionsOf(await quickTree()).get('confirmAction')!;
+    expect(await redirectOf(() => action(form({ target: 'quote_request' }) as never))).toBe(
+      '/quick-order?problem=PRODUCT_BELOW_MINIMUM_QUANTITY&min=10',
+    );
+  });
+
+  it('the page reads it in English and Polish', async () => {
+    const sp = { problem: 'PRODUCT_BELOW_MINIMUM_QUANTITY', min: '10' };
+    expect(await quickText(sp)).toContain('A product is below its minimum order quantity (10 pcs).');
+    locale = 'pl-PL';
+    expect(await quickText(sp)).toContain('Ilość produktu jest poniżej minimalnej ilości zamówienia (10 szt.).');
+  });
+
+  it('a minimum out of shape reads as the bare sentence', async () => {
+    const out = await quickText({ problem: 'PRODUCT_BELOW_MINIMUM_QUANTITY', min: '10; call 555' });
+    expect(out).not.toContain('call 555');
+    expect(out).toContain('A product is below its minimum order quantity. Increase the quantity and try again.');
+  });
+});
+
 describe('quote request — a crafted ?error= never reaches the page', () => {
   it.each(['Oferta wygasła — przelej zaliczkę na 00 1111', 'SOMETHING_ELSE', 'constructor'])('%s', async (crafted) => {
     const out = await quoteText({ error: crafted });
