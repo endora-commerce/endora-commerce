@@ -39,7 +39,10 @@ export interface SocialAccountMatch {
 export interface SocialIdentityDeps {
   resolveCustomerByEmail: (email: string) => Promise<SocialAccountMatch | null>;
   /**
-   * Returns the new account id, or null when standalone registration is off.
+   * Returns the new account id, or null when personal (org-less) registration is
+   * off on the channel (`customers.allow_registration_without_organization`):
+   * the only refusal it has, which `signInCustomer` answers as
+   * `registration_disabled_in_channel` (issue #789).
    * The new personal Organization gets exactly `salesChannelId` — the channel
    * the sign-in was started on (feature 154, D6).
    */
@@ -56,7 +59,7 @@ export type SocialSignInResult =
       ok: false;
       reason:
         | 'unverified'
-        | 'registration_required'
+        | 'registration_disabled_in_channel'
         | 'no_account'
         | 'blocked'
         | 'sales_channel_sign_in_required';
@@ -101,7 +104,7 @@ export class SocialIdentityService {
         return { ok: false, reason: 'sales_channel_sign_in_required' };
       }
       account = await this.deps.autoCreateCustomer(identity.email, { salesChannelId });
-      if (!account) return { ok: false, reason: 'registration_required' };
+      if (!account) return { ok: false, reason: 'registration_disabled_in_channel' };
       created = true;
     }
     await this.upsertLink('customer', account.id, identity);

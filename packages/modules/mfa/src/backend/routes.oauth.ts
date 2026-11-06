@@ -20,13 +20,14 @@ import {
 import type {
   AuthSessionPort,
   ChannelUrlFacts,
+  FederatedSignInErrorCode,
   FederatedSignInOptionsResponse,
   MfaLoginPort,
 } from '@endora-commerce/contracts';
 import { currentSalesChannel } from '@endora-commerce/platform/kernel';
 import type { ChallengeStore } from './services/challenge-store.js';
 import type { MfaPolicyResolver } from './services/mfa-policy-resolver.js';
-import type { SocialIdentityService } from './services/social-identity-service.js';
+import type { SocialIdentityService, SocialSignInResult } from './services/social-identity-service.js';
 import type { CustomerChannelAccess } from './services/customer-channel-access.js';
 import type {
   OAuthProviderName,
@@ -91,10 +92,9 @@ function languageOfPath(next: string, channel: ChannelUrlFacts | null): string |
 
 /**
  * The `error` the storefront's sign-in page maps to its "no access to this
- * store" message (`contracts/storefront-ux.md` §3). A code, not a sentence: the
- * storefront owns the wording in both of its languages.
+ * store" message (`contracts/storefront-ux.md` §3).
  */
-export const SALES_CHANNEL_NOT_PERMITTED_LOGIN_ERROR = 'sales_channel_not_permitted';
+export const SALES_CHANNEL_NOT_PERMITTED_LOGIN_ERROR = 'sales_channel_not_permitted' satisfies FederatedSignInErrorCode;
 
 /**
  * The `error` for a federated sign-in that would have **created** an account on
@@ -102,9 +102,42 @@ export const SALES_CHANNEL_NOT_PERMITTED_LOGIN_ERROR = 'sales_channel_not_permit
  * individual self-registration is refused there, with nothing created. The
  * storefront maps it to its "signed-in business customers only" sign-in notice.
  */
-export const SALES_CHANNEL_SIGN_IN_REQUIRED_LOGIN_ERROR = 'sales_channel_sign_in_required';
+export const SALES_CHANNEL_SIGN_IN_REQUIRED_LOGIN_ERROR = 'sales_channel_sign_in_required' satisfies FederatedSignInErrorCode;
 
 type Surface = 'customer' | 'admin';
+
+/**
+ * What the Admin UI is sent for each refusal. The Admin UI prints the `error` it
+ * is given, so it still receives a sentence; the storefront receives the code
+ * itself (`federatedSignInErrorCodeSchema`, issue #789) and words it in its own
+ * languages. Codes the admin surface never produces still have a sentence, so a
+ * refusal is never sent without one.
+ */
+const ADMIN_LOGIN_ERROR_SENTENCE: Record<FederatedSignInErrorCode, string> = {
+  unknown_provider: 'Unknown sign-in provider.',
+  provider_unavailable: 'Sign-in with this provider is not available.',
+  sign_in_cancelled: 'Sign-in was cancelled or failed.',
+  sign_in_expired: 'This sign-in attempt has expired.',
+  sign_in_failed: 'Sign-in failed. Please try again.',
+  email_unverified: 'Your provider email is not verified.',
+  no_matching_account: 'No account matches this provider. Please contact an administrator.',
+  account_blocked: 'This account has been blocked. Please contact support.',
+  mfa_setup_required:
+    'Two-step verification is required for your account. Please contact a platform administrator to finish setup.',
+  // Customer-only refusals: the admin surface never produces them.
+  registration_disabled_in_channel: 'Sign-in failed. Please try again.',
+  sales_channel_sign_in_required: 'Sign-in failed. Please try again.',
+  sales_channel_not_permitted: 'Sign-in failed. Please try again.',
+};
+
+/** The code a refused account resolution is sent back with. */
+const SIGN_IN_REFUSAL_CODE: Record<Extract<SocialSignInResult, { ok: false }>['reason'], FederatedSignInErrorCode> = {
+  unverified: 'email_unverified',
+  no_account: 'no_matching_account',
+  blocked: 'account_blocked',
+  registration_disabled_in_channel: 'registration_disabled_in_channel',
+  sales_channel_sign_in_required: SALES_CHANNEL_SIGN_IN_REQUIRED_LOGIN_ERROR,
+};
 
 /**
  * The cookie binding an OAuth transaction to the browser that started it. One
@@ -116,22 +149,6 @@ export const OAUTH_BINDING_COOKIE_NAME = 'b2b_oauth_binding';
 const OAUTH_BINDING_MAX_AGE_SECONDS = 10 * 60;
 /** Seconds; the pending second-step challenge lives exactly as long. */
 const MFA_CHALLENGE_MAX_AGE_SECONDS = 5 * 60;
-
-/** The sentence the password sign-in answers a blocked customer account with. */
-const ACCOUNT_BLOCKED_MESSAGE = 'This account has been blocked. Please contact support.';
-
-/**
- * An enforced second factor that is not set up yet. The administrator's
- * sentence is the one the Admin UI shows after a password step; a customer is
- * pointed at the password sign-in, which is where the storefront's forced setup
- * begins.
- */
-const SETUP_REQUIRED_MESSAGE: Record<Surface, string> = {
-  customer:
-    'Two-step verification is required for your account. Sign in with your email and password to set it up.',
-  admin:
-    'Two-step verification is required for your account. Please contact a platform administrator to finish setup.',
-};
 
 function oauthCookiePath(surface: Surface): string {
   return `/api/v1/auth/${surface}/oauth`;
@@ -177,15 +194,20 @@ function sanitiseNext(input: string | undefined): string {
   return input;
 }
 
+/**
+ * The sign-in page a refused attempt is sent back to. The storefront gets the code
+ * itself — a fixed ASCII token, so it needs no encoding — and the Admin UI the
+ * sentence for it (`ADMIN_LOGIN_ERROR_SENTENCE`).
+ */
 function loginRedirect(
   deps: MfaOAuthDeps,
   surface: Surface,
-  message: string,
+  code: FederatedSignInErrorCode,
   pagePath: (path: string) => string = (path) => path,
 ): string {
   const base = frontendBase(deps, surface);
-  const path = `/login?error=${encodeURIComponent(message)}`;
-  return `${base}${surface === 'customer' ? pagePath(path) : path}`;
+  if (surface === 'customer') return `${base}${pagePath(`/login?error=${code}`)}`;
+  return `${base}/login?error=${encodeURIComponent(ADMIN_LOGIN_ERROR_SENTENCE[code])}`;
 }
 
 /**
@@ -236,7 +258,7 @@ function registerStart(app: FastifyInstance, deps: MfaOAuthDeps, surface: Surfac
     { config: { salesChannelAccess: 'open' } },
     async (request, reply) => {
       const provider = parseProvider(request.params.provider);
-      if (!provider) return reply.redirect(loginRedirect(deps, surface, 'Unknown sign-in provider.'));
+      if (!provider) return reply.redirect(loginRedirect(deps, surface, 'unknown_provider'));
 
       const salesChannelId = surface === 'customer' ? (currentSalesChannel()?.id ?? null) : null;
 
@@ -246,9 +268,7 @@ function registerStart(app: FastifyInstance, deps: MfaOAuthDeps, surface: Surfac
       );
       const settingEnabled = provider === 'google' ? policy.googleEnabled : policy.microsoftEnabled;
       if (!settingEnabled || !deps.oauthProvider.isEnabled(provider)) {
-        return reply.redirect(
-          loginRedirect(deps, surface, 'Sign-in with this provider is not available.'),
-        );
+        return reply.redirect(loginRedirect(deps, surface, 'provider_unavailable'));
       }
 
       const next = sanitiseNext(request.query.next);
@@ -306,7 +326,7 @@ function registerCallback(app: FastifyInstance, deps: MfaOAuthDeps, surface: Sur
     // again and gets a cookie of its own.
     reply.clearCookie(OAUTH_BINDING_COOKIE_NAME, { path: oauthCookiePath(surface) });
     if (!provider || error || !code || !state) {
-      return reply.redirect(loginRedirect(deps, surface, 'Sign-in was cancelled or failed.'));
+      return reply.redirect(loginRedirect(deps, surface, 'sign_in_cancelled'));
     }
     const tx = await deps.challengeStore.getOAuthTransaction(state);
     // A callback from a browser that did not start this transaction is refused
@@ -317,7 +337,7 @@ function registerCallback(app: FastifyInstance, deps: MfaOAuthDeps, surface: Sur
       tx.provider !== provider ||
       !presentsBinding(request, tx.browserBinding)
     ) {
-      return reply.redirect(loginRedirect(deps, surface, 'This sign-in attempt has expired.'));
+      return reply.redirect(loginRedirect(deps, surface, 'sign_in_expired'));
     }
     await deps.challengeStore.consumeOAuthTransaction(state);
     // Feature 167 — from here on the transaction is this browser's: the pages it
@@ -338,7 +358,7 @@ function registerCallback(app: FastifyInstance, deps: MfaOAuthDeps, surface: Sur
         redirectUri,
       });
     } catch {
-      return reply.redirect(loginRedirect(deps, surface, 'Sign-in failed. Please try again.', pagePath));
+      return reply.redirect(loginRedirect(deps, surface, 'sign_in_failed', pagePath));
     }
 
     const result =
@@ -349,20 +369,7 @@ function registerCallback(app: FastifyInstance, deps: MfaOAuthDeps, surface: Sur
         : await deps.socialIdentityService.signInAdmin(identity);
 
     if (!result.ok) {
-      if (result.reason === 'sales_channel_sign_in_required') {
-        return reply.redirect(
-          loginRedirect(deps, surface, SALES_CHANNEL_SIGN_IN_REQUIRED_LOGIN_ERROR, pagePath),
-        );
-      }
-      const message =
-        result.reason === 'unverified'
-          ? 'Your provider email is not verified.'
-          : result.reason === 'no_account'
-            ? 'No account matches this provider. Please contact an administrator.'
-            : result.reason === 'blocked'
-              ? ACCOUNT_BLOCKED_MESSAGE
-              : 'No account found. Please create an account first.';
-      return reply.redirect(loginRedirect(deps, surface, message, pagePath));
+      return reply.redirect(loginRedirect(deps, surface, SIGN_IN_REFUSAL_CODE[result.reason], pagePath));
     }
 
     // Feature 154 — a customer signs in only on a sales channel its
@@ -414,7 +421,7 @@ function registerCallback(app: FastifyInstance, deps: MfaOAuthDeps, surface: Sur
       );
     }
     if (decision.kind === 'setup') {
-      return reply.redirect(loginRedirect(deps, surface, SETUP_REQUIRED_MESSAGE[surface], pagePath));
+      return reply.redirect(loginRedirect(deps, surface, 'mfa_setup_required', pagePath));
     }
 
     const session = await deps.sessionService.createSession(

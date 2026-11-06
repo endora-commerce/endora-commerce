@@ -1,6 +1,8 @@
 import { beforeEach, describe, expect, it, vi } from 'vitest';
 import { renderToString } from 'react-dom/server';
+import { federatedSignInErrorCodeSchema } from '@endora-commerce/contracts';
 import { StorefrontApiError } from '../../lib/api/client';
+import { SIGN_IN_ERRORS } from '../../lib/auth/sign-in-errors';
 import { visibleText } from '../account/i18n/text';
 import { actionsOf, form, redirectOf } from './actions';
 
@@ -151,14 +153,57 @@ describe('each known code reads in English and Polish', () => {
     locale = 'pl-PL';
     expect(await text(name, { ...extra, error: code })).toContain(pl);
   });
+});
 
-  // The federated callback (`mfa`'s `routes.oauth.ts`) still redirects with its own English
-  // sentences; the sign-in page names the ones it knows, in the page's language.
-  it('a federated callback refusal reads in the page’s language', async () => {
-    const sp = { error: 'No account found. Please create an account first.' };
-    expect(await text('login', sp)).toContain('No account found. Please create an account first.');
+/**
+ * Issue #789 — `mfa`'s federated callback (`routes.oauth.ts`, `loginRedirect`) redirects with a
+ * code from `federatedSignInErrorCodeSchema`, and the sign-in page words each one in its own
+ * language. The ten English sentences it used to send are not lookup keys any more.
+ */
+describe('the federated callback’s codes read in English and Polish', () => {
+  it.each([
+    ['unknown_provider', 'This sign-in provider is not known.', 'Ten dostawca logowania jest nieznany.'],
+    ['provider_unavailable', 'Sign-in with this provider is not available.', 'Logowanie przez tego dostawcę jest niedostępne.'],
+    ['sign_in_cancelled', 'Sign-in was cancelled or failed.', 'Logowanie zostało anulowane albo się nie powiodło.'],
+    ['sign_in_expired', 'This sign-in attempt has expired.', 'Ta próba logowania wygasła.'],
+    ['sign_in_failed', 'Sign-in failed. Please try again.', 'Logowanie nie powiodło się. Spróbuj ponownie.'],
+    ['email_unverified', 'Your provider email is not verified.', 'Adres e-mail u dostawcy nie jest potwierdzony.'],
+    [
+      'no_matching_account',
+      'No account matches this provider. Please contact an administrator.',
+      'Żadne konto nie odpowiada temu dostawcy. Skontaktuj się z administratorem.',
+    ],
+    ['account_blocked', 'This account has been blocked. Please contact support.', 'To konto zostało zablokowane. Skontaktuj się z obsługą.'],
+    [
+      'registration_disabled_in_channel',
+      'This store does not offer personal accounts, so no account was created. Sign in with an existing account, or register your organization.',
+      'Ten sklep nie oferuje kont osobistych, więc konto nie zostało utworzone. Zaloguj się na istniejące konto albo zarejestruj swoją organizację.',
+    ],
+    [
+      'mfa_setup_required',
+      'Two-step verification is required for your account. Sign in with your email and password to set it up.',
+      'Twoje konto wymaga weryfikacji dwuetapowej. Zaloguj się e-mailem i hasłem, aby ją skonfigurować.',
+    ],
+    [
+      'sales_channel_sign_in_required',
+      'This store is available to signed-in business customers. Sign in, or apply for a business account.',
+      'Ten sklep jest dostępny dla zalogowanych klientów biznesowych. Zaloguj się lub złóż wniosek o konto firmowe.',
+    ],
+    ['sales_channel_not_permitted', 'This account does not have access to this store.', 'To konto nie ma dostępu do tego sklepu.'],
+  ] as const)('%s', async (code, en, pl) => {
+    expect(await text('login', { error: code })).toContain(en);
     locale = 'pl-PL';
-    expect(await text('login', sp)).toContain('Nie znaleziono konta. Najpierw załóż konto.');
+    expect(await text('login', { error: code })).toContain(pl);
+  });
+
+  it('names every code the contract lists', () => {
+    for (const code of federatedSignInErrorCodeSchema.options) expect(SIGN_IN_ERRORS.isCode(code)).toBe(true);
+  });
+
+  it('a sentence the callback used to send reads as the generic failure', async () => {
+    const out = await text('login', { error: 'No account found. Please create an account first.' });
+    expect(out).not.toContain('No account found');
+    expect(out).toContain('Sign-in failed. Please try again.');
   });
 });
 

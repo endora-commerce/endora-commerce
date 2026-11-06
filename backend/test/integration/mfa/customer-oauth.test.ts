@@ -174,9 +174,9 @@ describe('MFA US4 — customer social login', () => {
     const state = await startAndGetState(h);
     const res = await callback(h, email, state);
 
-    // `registration_required` — no session, and no account behind it.
+    // `registration_disabled_in_channel` (issue #789) — no session, and no account behind it.
     expect(res.statusCode).toBe(302);
-    expect(res.headers['location']).toContain('/login?error=');
+    expect(res.headers['location']).toContain('/login?error=registration_disabled_in_channel');
     expect(res.cookies.find((c) => c.name === 'b2b_session')).toBeUndefined();
     expect(await h.em().findOne(CustomerAccount, { email })).toBeNull();
 
@@ -187,7 +187,7 @@ describe('MFA US4 — customer social login', () => {
     const state = await startAndGetState(h);
     const res = await callback(h, 'unverified@example.com', state);
     expect(res.statusCode).toBe(302);
-    expect(res.headers['location']).toContain('/login?error=');
+    expect(res.headers['location']).toContain('/login?error=email_unverified');
     expect(res.cookies.find((c) => c.name === 'b2b_session')).toBeUndefined();
   });
 
@@ -198,7 +198,7 @@ describe('MFA US4 — customer social login', () => {
       url: '/api/v1/auth/customer/oauth/google/start',
     });
     expect(res.statusCode).toBe(302);
-    expect(res.headers['location']).toContain('/login?error=');
+    expect(res.headers['location']).toContain('/login?error=provider_unavailable');
     await setGoogleEnabled(h, true);
   });
 
@@ -206,7 +206,7 @@ describe('MFA US4 — customer social login', () => {
     const { state } = await startAndGetState(h);
     const res = await callback(h, EXISTING_EMAIL, { state, cookies: {} });
     expect(res.statusCode).toBe(302);
-    expect(res.headers['location']).toContain('/login?error=');
+    expect(res.headers['location']).toContain('/login?error=sign_in_expired');
     expect(res.cookies.find((c) => c.name === 'b2b_session' && c.value)).toBeUndefined();
 
     // Nor does a binding cookie from another sign-in attempt open this one.
@@ -216,7 +216,7 @@ describe('MFA US4 — customer social login', () => {
     expect(mismatched.cookies.find((c) => c.name === 'b2b_session' && c.value)).toBeUndefined();
   });
 
-  it('refuses a blocked customer with the sentence the password sign-in answers', async () => {
+  it('refuses a blocked customer as the password sign-in refuses it', async () => {
     const em = h.em();
     const account = await em.findOneOrFail(CustomerAccount, { email: EXISTING_EMAIL });
     account.blockedAt = new Date();
@@ -228,14 +228,14 @@ describe('MFA US4 — customer social login', () => {
         payload: { email: EXISTING_EMAIL, password: STUB_CUSTOMER_PASSWORD },
       });
       expect(password.statusCode).toBe(403);
-      const sentence = (password.json() as { error: { message: string } }).error.message;
 
       const started = await startAndGetState(h);
       const res = await callback(h, EXISTING_EMAIL, started);
       expect(res.statusCode).toBe(302);
-      expect(withoutLanguagePrefix(res.headers['location'])).toBe(
-        `http://localhost:3000/login?error=${encodeURIComponent(sentence)}`,
-      );
+      // The password sign-in's refusal and the callback's are the same refusal: the
+      // storefront words `account_blocked` as the API's ACCOUNT_BLOCKED (issue #789).
+      expect(password.json()).toMatchObject({ error: { code: 'ACCOUNT_BLOCKED' } });
+      expect(withoutLanguagePrefix(res.headers['location'])).toBe('http://localhost:3000/login?error=account_blocked');
       expect(res.cookies.find((c) => c.name === 'b2b_session' && c.value)).toBeUndefined();
     } finally {
       const restore = h.em();

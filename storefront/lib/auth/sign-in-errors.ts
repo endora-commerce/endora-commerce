@@ -1,3 +1,4 @@
+import type { FederatedSignInErrorCode } from '@endora-commerce/contracts';
 import type { MessageKey } from '../i18n/messages';
 import { tForLocale } from '../i18n/messages';
 import { defineUrlErrors } from '../url-errors';
@@ -16,6 +17,10 @@ import { MFA_API_ERROR_KEYS } from './mfa-errors';
  * from three places — the password step, the second factor and the federated
  * callback, which the backend redirects with `?error=sales_channel_not_permitted`
  * — so it travels as that stable lower-case code, which the callback shares.
+ *
+ * The federated callback sends only codes (`federatedSignInErrorCodeSchema`, issue #789);
+ * {@link FEDERATED_CALLBACK_ERROR_KEYS} words every one of them, and the contract's type
+ * makes a code added there a compile error here until it has a wording.
  */
 
 /** The `?error=` value of a sign-in the store refused. The federated callback uses it too. */
@@ -37,9 +42,24 @@ const SIGN_IN_API_ERROR_KEYS = {
   SALES_CHANNEL_NOT_PERMITTED: 'auth.login.channelNotPermitted',
 } as const satisfies Record<string, MessageKey>;
 
-const SIGN_IN_OWN_ERROR_KEYS = {
-  [CHANNEL_NOT_PERMITTED_ERROR]: 'auth.login.channelNotPermitted',
+/** `/login?error=` from `mfa`'s federated callback (`routes.oauth.ts`, `loginRedirect`). */
+const FEDERATED_CALLBACK_ERROR_KEYS = {
+  unknown_provider: 'auth.federated.error.unknownProvider',
+  provider_unavailable: 'auth.federated.error.providerUnavailable',
+  sign_in_cancelled: 'auth.federated.error.cancelled',
+  sign_in_expired: 'auth.federated.error.expired',
+  sign_in_failed: 'auth.login.failed',
+  email_unverified: 'auth.federated.error.emailUnverified',
+  no_matching_account: 'auth.federated.error.noMatchingAccount',
+  account_blocked: 'auth.error.ACCOUNT_BLOCKED',
+  registration_disabled_in_channel: 'auth.federated.error.registrationDisabledInChannel',
+  mfa_setup_required: 'auth.federated.error.setupRequired',
   [CHANNEL_SIGN_IN_REQUIRED_ERROR]: 'auth.login.signInRequired',
+  [CHANNEL_NOT_PERMITTED_ERROR]: 'auth.login.channelNotPermitted',
+} as const satisfies Record<FederatedSignInErrorCode, MessageKey>;
+
+const SIGN_IN_OWN_ERROR_KEYS = {
+  ...FEDERATED_CALLBACK_ERROR_KEYS,
   LOGIN_FAILED: 'auth.login.failed',
   SETUP_START_FAILED: 'auth.login.setupStartFailed',
   MFA_VERIFY_FAILED: 'auth.mfa.verifyFailed',
@@ -69,36 +89,14 @@ export const MFA_SETUP_ERRORS = defineUrlErrors({
 
 export type SignInOwnCode = keyof typeof SIGN_IN_OWN_ERROR_KEYS;
 
-/**
- * The sentences `mfa`'s federated callback (`routes.oauth.ts`, `loginRedirect`) still puts in
- * `/login?error=`, each mapped to this page's own wording. A sentence is only ever a lookup key
- * here — never printed — so a link carrying any other text shows the generic failure. Until the
- * callback sends codes, a sentence it changes reads as the generic failure too.
- */
-const FEDERATED_CALLBACK_ERRORS: Readonly<Record<string, MessageKey>> = {
-  'Unknown sign-in provider.': 'auth.federated.error.unknownProvider',
-  'Sign-in with this provider is not available.': 'auth.federated.error.providerUnavailable',
-  'Sign-in was cancelled or failed.': 'auth.federated.error.cancelled',
-  'This sign-in attempt has expired.': 'auth.federated.error.expired',
-  'Sign-in failed. Please try again.': 'auth.login.failed',
-  'Your provider email is not verified.': 'auth.federated.error.emailUnverified',
-  'No account matches this provider. Please contact an administrator.': 'auth.federated.error.noMatchingAccount',
-  'This account has been blocked. Please contact support.': 'auth.error.ACCOUNT_BLOCKED',
-  'No account found. Please create an account first.': 'auth.federated.error.noAccount',
-  'Two-step verification is required for your account. Sign in with your email and password to set it up.':
-    'auth.federated.error.setupRequired',
-};
-
 /** The `?error=` value for a failed sign-in step: always a code. */
 export function signInErrorParam(err: unknown, fallback: SignInOwnCode): string {
   const code = SIGN_IN_ERRORS.failureCode(err, fallback);
   return code === 'SALES_CHANNEL_NOT_PERMITTED' ? CHANNEL_NOT_PERMITTED_ERROR : code;
 }
 
-/** What `/login` shows for `?error=`: a code it knows, a federated callback's sentence it knows, or its failure. */
+/** What `/login` shows for `?error=`: the wording of a code it knows, or its failure. */
 export function signInErrorMessage(error: string | undefined, locale: string): string | undefined {
   if (error === undefined || error === '') return undefined;
-  const t = tForLocale(locale);
-  if (Object.hasOwn(FEDERATED_CALLBACK_ERRORS, error)) return t(FEDERATED_CALLBACK_ERRORS[error]!);
-  return t(SIGN_IN_ERRORS.errorKey(error)!);
+  return tForLocale(locale)(SIGN_IN_ERRORS.errorKey(error)!);
 }
