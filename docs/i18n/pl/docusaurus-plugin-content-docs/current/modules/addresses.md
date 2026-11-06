@@ -1,9 +1,9 @@
 ---
-title: addresses
+title: Adresy
 description: Adresy pocztowe klientów, z najwyżej jednym adresem domyślnym każdego rodzaju
 ---
 
-# `addresses`
+# Adresy (`addresses`)
 
 Adresy pocztowe klientów, przypisane do organizacji. Każdy adres ma rodzaj `kind` (`shipping`,
 `billing`, `delivery`) oraz flagę adresu domyślnego dla tego rodzaju.

@@ -3,7 +3,7 @@ title: Developer guide
 sidebar_position: 3
 ---
 
-# Developer guide — Sales Channels
+# Developer guide — Sales channels
 
 How a backend module integrates with the Sales Channels module: scoping queries by the resolved channel, managing memberships, and reading channel context from request handlers.
 

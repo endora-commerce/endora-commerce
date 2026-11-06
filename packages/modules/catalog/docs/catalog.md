@@ -1,10 +1,10 @@
 ---
-title: catalog
+title: Catalog
 sidebar_label: Catalog
 description: Products, variants, categories, attributes, sales channels
 ---
 
-# `catalog`
+# Catalog (`catalog`)
 
 The product catalog: Products, ProductVariants, Categories,
 ProductAttributes, and SalesChannels. Owns all read paths the storefront

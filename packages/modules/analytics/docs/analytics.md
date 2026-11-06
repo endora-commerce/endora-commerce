@@ -1,9 +1,9 @@
 ---
-title: analytics
+title: Analytics
 description: Storefront event ingest + admin aggregation + optional GA4 forwarder
 ---
 
-# `analytics`
+# Analytics (`analytics`)
 
 Append-only event log fed by the storefront and admin, plus a small
 aggregation read path for the admin dashboard. An optional GA4 forwarder

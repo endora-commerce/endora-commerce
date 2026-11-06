@@ -2,7 +2,7 @@
 title: First production deployment checklist
 ---
 
-# First Production Deployment Checklist
+# First production deployment checklist
 
 **Status: open. No item on this list has been executed.** Endora Commerce has no production
 deployment yet.

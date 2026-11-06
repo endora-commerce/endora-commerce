@@ -2,7 +2,7 @@
 title: Product gallery
 ---
 
-# Product Gallery
+# Product gallery
 
 Each Product can carry a curated gallery of image and video Assets, with
 three labels that pin the storefront's resolution chain:

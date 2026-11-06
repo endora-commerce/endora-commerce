@@ -1,9 +1,9 @@
 ---
-title: search
+title: Storefront search
 description: Meilisearch indexer + query bridge
 ---
 
-# `search`
+# Storefront search (`search`)
 
 Meilisearch-backed catalog search. Owns the indexer that mirrors Catalog
 events into per-Sales-Channel indexes, the typed query bridge, the

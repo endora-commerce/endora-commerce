@@ -1,9 +1,9 @@
 ---
-title: addresses
+title: Addresses
 description: Customer postal addresses with default-per-kind invariant
 ---
 
-# `addresses`
+# Addresses (`addresses`)
 
 Customer postal addresses scoped to an Organization. Each address has a
 `kind` (`shipping`, `billing`, `delivery`) and a per-kind default flag.

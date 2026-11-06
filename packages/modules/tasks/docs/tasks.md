@@ -1,9 +1,9 @@
 ---
-title: tasks
+title: Tasks
 description: Tasks for administrators — several assignees, due dates, priorities, tags, an operator-defined workflow, a list and a board, comments, sub-tasks, links, reminders and a daily digest — which other modules can own through a Task context
 ---
 
-# `tasks`
+# Tasks (`tasks`)
 
 The Tasks module keeps **tasks**: a piece of work for the people who use the
 Admin UI. A task has a title, a formatted description, any number of

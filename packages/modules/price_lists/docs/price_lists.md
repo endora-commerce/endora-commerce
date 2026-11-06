@@ -1,5 +1,5 @@
 ---
-title: price_lists
+title: Price books
 sidebar_label: Price books
 description: Price books — base prices per currency, catalogue, buyer and sale prices on sales channels, and the rules that decide what each buyer pays.
 ---

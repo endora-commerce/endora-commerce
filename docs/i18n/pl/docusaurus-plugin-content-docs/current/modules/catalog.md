@@ -1,10 +1,10 @@
 ---
-title: catalog
+title: Katalog
 sidebar_label: Katalog
 description: Produkty, warianty, kategorie, atrybuty, kanały sprzedaży
 ---
 
-# `catalog`
+# Katalog (`catalog`)
 
 Katalog produktów: produkty (Products), warianty (ProductVariants), kategorie (Categories), atrybuty
 (ProductAttributes) i kanały sprzedaży (SalesChannels). Odpowiada za wszystkie ścieżki odczytu, z

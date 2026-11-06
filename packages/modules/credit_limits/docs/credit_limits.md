@@ -1,9 +1,9 @@
 ---
-title: credit_limits
+title: Credit limits
 description: Credit-limit grant + atomic reservation
 ---
 
-# `credit_limits`
+# Credit limits (`credit_limits`)
 
 The Credit Limit payment method. Admins grant a per-Organization limit;
 Customers consume it at checkout. Reservations are atomic and idempotently

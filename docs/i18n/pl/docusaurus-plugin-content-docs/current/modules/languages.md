@@ -1,9 +1,9 @@
 ---
-title: languages
+title: Języki
 description: Lista obsługiwanych znaczników języków BCP-47 i reguła wartości zastępczej dla tłumaczeń
 ---
 
-# `languages`
+# Języki (`languages`)
 
 Lista znaczników języków BCP-47 obsługiwanych w danej instalacji. Moduł udostępnia publiczny odczyt
 `i18n/config`, na podstawie którego storefront i panel administracyjny budują wybór języka, oraz

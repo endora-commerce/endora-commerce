@@ -1,9 +1,9 @@
 ---
-title: languages
+title: Languages
 description: Pool of supported BCP-47 language tags + translation-fallback helper
 ---
 
-# `languages`
+# Languages (`languages`)
 
 The installation-wide pool of supported BCP-47 language tags. Owns the
 public `i18n/config` read path that storefront + admin consume to render

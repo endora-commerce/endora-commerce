@@ -106,30 +106,6 @@ export const SALES_CHANNEL_SIGN_IN_REQUIRED_LOGIN_ERROR = 'sales_channel_sign_in
 
 type Surface = 'customer' | 'admin';
 
-/**
- * What the Admin UI is sent for each refusal. The Admin UI prints the `error` it
- * is given, so it still receives a sentence; the storefront receives the code
- * itself (`federatedSignInErrorCodeSchema`, issue #789) and words it in its own
- * languages. Codes the admin surface never produces still have a sentence, so a
- * refusal is never sent without one.
- */
-const ADMIN_LOGIN_ERROR_SENTENCE: Record<FederatedSignInErrorCode, string> = {
-  unknown_provider: 'Unknown sign-in provider.',
-  provider_unavailable: 'Sign-in with this provider is not available.',
-  sign_in_cancelled: 'Sign-in was cancelled or failed.',
-  sign_in_expired: 'This sign-in attempt has expired.',
-  sign_in_failed: 'Sign-in failed. Please try again.',
-  email_unverified: 'Your provider email is not verified.',
-  no_matching_account: 'No account matches this provider. Please contact an administrator.',
-  account_blocked: 'This account has been blocked. Please contact support.',
-  mfa_setup_required:
-    'Two-step verification is required for your account. Please contact a platform administrator to finish setup.',
-  // Customer-only refusals: the admin surface never produces them.
-  registration_disabled_in_channel: 'Sign-in failed. Please try again.',
-  sales_channel_sign_in_required: 'Sign-in failed. Please try again.',
-  sales_channel_not_permitted: 'Sign-in failed. Please try again.',
-};
-
 /** The code a refused account resolution is sent back with. */
 const SIGN_IN_REFUSAL_CODE: Record<Extract<SocialSignInResult, { ok: false }>['reason'], FederatedSignInErrorCode> = {
   unverified: 'email_unverified',
@@ -195,9 +171,10 @@ function sanitiseNext(input: string | undefined): string {
 }
 
 /**
- * The sign-in page a refused attempt is sent back to. The storefront gets the code
- * itself — a fixed ASCII token, so it needs no encoding — and the Admin UI the
- * sentence for it (`ADMIN_LOGIN_ERROR_SENTENCE`).
+ * The sign-in page a refused attempt is sent back to, carrying the code itself
+ * (`federatedSignInErrorCodeSchema`) on both surfaces — a fixed ASCII token, so it
+ * needs no encoding. Each frontend words the code in its own copy and reads any
+ * other `?error=` value as its generic sign-in failure (issues #789, #813).
  */
 function loginRedirect(
   deps: MfaOAuthDeps,
@@ -207,7 +184,7 @@ function loginRedirect(
 ): string {
   const base = frontendBase(deps, surface);
   if (surface === 'customer') return `${base}${pagePath(`/login?error=${code}`)}`;
-  return `${base}/login?error=${encodeURIComponent(ADMIN_LOGIN_ERROR_SENTENCE[code])}`;
+  return `${base}/login?error=${code}`;
 }
 
 /**

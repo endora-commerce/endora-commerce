@@ -159,9 +159,13 @@ language. The question here is what a *consumer* may put into a URL once it hold
 
 - **What travels.** A redirect, or any other URL, carries the API's `error.code`, or the
   consumer's own code for a refusal it cannot name. It may also carry **typed values**, each one
-  validated when it is read: an integer, or an ISO 4217 currency code. The cart's `min=` from
-  #783 is explicitly allowed. It is a positive integer, it is checked against `^[1-9]\d{0,8}$`
-  when read, and it is dropped when it fails that check.
+  validated when it is read and dropped when it fails: a positive integer (`^[1-9]\d{0,8}$`, the
+  cart's `min=` from #783), a non-negative decimal amount with at most two places (#791), or an
+  ISO 4217 currency code (`^[A-Z]{3}$`). A decimal amount is a **display figure** rounded to two
+  places: the page only formats it and never does arithmetic with it, and it is not a lossless
+  copy of a four-place unit price. A page reads them through the one storefront reader,
+  `storefront/lib/url-typed-values.ts`, never a pattern of its own, so a dropped value leaves the
+  sentence without its figure instead of rendering `NaN` or handing `Intl` a code it throws on.
 - **What never travels.** No free text: no product name, no sentence (the backend's `message` or
   `detail` included), no e-mail address. A sentence in a query string is text anyone can put on
   the page as a system message with a crafted link. A name or an address there is personal data
@@ -170,7 +174,9 @@ language. The question here is what a *consumer* may put into a URL once it hold
   shipped languages. It renders a code it does not know as the page's generic failure, never as
   the raw value. A page whose status line may stay empty can show nothing instead. Quick order
   does this, and that holds only while every one of its actions falls back to a code the page
-  knows.
+  knows. The Admin UI's pre-auth sign-in screen follows the same rule (#813): `admin-shell`'s
+  `preauth-login-copy.ts` words each federated sign-in code in English only, because that screen
+  has no language source before a session exists.
 - **One named exception: the buyer's own search text.** Quick order's `q=` carries what the buyer
   typed into its search box (#790). It may, on three conditions: the page caps it where it reads
   it (120 characters, the search's own limit), it is the buyer's input and nothing else's, and it
@@ -193,8 +199,8 @@ language. The question here is what a *consumer* may put into a URL once it hold
   a message for one redirect.
 
 There are two instruments. `storefront/test/url-errors/no-sentence-in-url.test.ts` (from #783)
-refuses an `encodeURIComponent`-wrapped value after `error=`, `reason=` or `couponError=` in any
-source under `storefront/app/`; its list of pages not yet swept is two-way and only shrinks.
+refuses an `encodeURIComponent`-wrapped value after `error=`, `reason=`, `couponError=`,
+`problem=` or one of the typed figures beside them (#791) in any source under `storefront/app/`; its list of pages not yet swept is two-way and only shrinks.
 `storefront/test/url-errors/no-free-text-in-url.test.ts` (from #790) collects every query
 parameter the storefront builds from a value — a template, `encodeURIComponent`, a
 `URLSearchParams` key or a `.set()` — in `app/`, `components/` and `lib/` (not `lib/api/` or
@@ -207,8 +213,8 @@ code mappers), a literal or a choice between literals, or an identifier on its s
 `CODE_IN_TEMPLATE` list, each entry read and confirmed to be typed as a closed code union. That
 proof is textual — a listed identifier is only as good as the type it was read to have, and a
 code built with `' +` concatenation is refused outright. The per-page tests beside them are the
-evidence that a crafted value never reaches the screen. Open follow-ups: #791 (bringing back, as typed values, the figures the
-backend's sentences carried), #808 (the invitation page's `?error=` sentence) and #809 (keeping the
+evidence that a crafted value never reaches the screen; the free-text net also holds that no
+scanned source but the reader carries a typed value's pattern. Open follow-up: #809 (keeping the
 quick-order preview on the backend instead of in a cookie).
 
 **Four kinds of string leave the backend and only the first is in scope**, which is the

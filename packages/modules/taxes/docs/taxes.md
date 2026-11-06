@@ -1,9 +1,9 @@
 ---
-title: taxes
+title: Taxes
 description: Tax-rate resolver narrowed by country / product type / VAT status
 ---
 
-# `taxes`
+# Taxes (`taxes`)
 
 Tax-rate resolution. Each `Tax` row is a rule
 narrowed by zero or more of `country`, `productType`, `appliesToVatStatuses`.

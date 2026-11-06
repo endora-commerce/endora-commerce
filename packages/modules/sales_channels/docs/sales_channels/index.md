@@ -5,7 +5,7 @@ sidebar_position: 1
 description: Channel registry, request resolver, bidirectional membership for every channel-scoped entity
 ---
 
-# Sales Channels
+# Sales channels
 
 The Sales Channels module is the platform's stable handle for "where the sale happens". Every channel-scoped piece of platform data — products, categories, customers, orders, quotes, prices, promotions, CMS pages — is bound to one or more Sales Channels and is filtered through the channel context of the incoming request. The module owns the channel registry, the bidirectional membership service, the resolver middleware that maps every HTTP request onto exactly one channel, and the lifecycle guards that keep the platform from ending up with channel-less data.
 

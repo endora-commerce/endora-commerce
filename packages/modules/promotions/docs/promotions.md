@@ -1,9 +1,9 @@
 ---
-title: promotions
+title: Promotions
 description: Cart-level percentage / amount / free-delivery discounts with eligibility filters
 ---
 
-# `promotions`
+# Promotions (`promotions`)
 
 The promotions module is a configurable, rule-driven discount engine
 built on the original cart-discount slice. A **Promotion**

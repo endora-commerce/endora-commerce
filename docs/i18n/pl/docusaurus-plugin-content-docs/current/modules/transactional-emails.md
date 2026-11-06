@@ -1,9 +1,9 @@
 ---
-title: transactional_emails
+title: Maile transakcyjne
 description: E-maile transakcyjne edytowane w panelu administracyjnym — temat, treść i wygląd, globalnie i dla poszczególnych kanałów sprzedaży
 ---
 
-# `transactional_emails`
+# Maile transakcyjne (`transactional_emails`)
 
 E-maile transakcyjne edytowane w panelu administracyjnym. Moduł pozwala operatorom zmieniać
 **temat**, **treść** i **wygląd** każdego e-maila transakcyjnego wysyłanego przez platformę —

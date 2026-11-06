@@ -1,9 +1,9 @@
 ---
-title: webhooks
+title: Webhooki
 description: Subskrypcje zdarzeń wychodzących podpisywanych HMAC
 ---
 
-# `webhooks`
+# Webhooki (`webhooks`)
 
 Subskrypcje zdarzeń wychodzących podpisywanych HMAC. Zdarzenia domenowe z działającej w procesie
 szyny zdarzeń są przekazywane do kolejki BullMQ; worker podpisuje każdą wysyłkę i wysyła ją
