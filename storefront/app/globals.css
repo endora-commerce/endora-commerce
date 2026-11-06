@@ -889,7 +889,26 @@
   .b2b-account__comments li { @apply rounded-md border border-line bg-surface-alt px-[14px] py-[10px]; }
   .b2b-account__comments li small { @apply block text-[11px] text-subtle; }
   .b2b-account__comments li p { @apply mb-0 mt-[4px] text-[13px] leading-[1.5] text-fg; }
+  /* Modal dialog primitive (`components/ModalDialog.tsx`, issue #801) — a
+     native <dialog> in the top layer. Never set `display` on `.b2b-dialog`
+     itself: it would override the closed dialog's UA `display: none`. A 16px
+     gutter each side and a viewport-bound height keep it whole on a phone; the
+     body scrolls, the head with its close button stays put. The font is reset
+     because the trigger may sit in a monospaced table cell. */
+  .b2b-dialog { @apply m-auto w-[calc(100%-32px)] max-w-[520px] max-h-[min(85dvh,640px)] overflow-hidden rounded-lg border border-line bg-surface p-0 font-sans text-[14px] text-fg shadow-lg; }
+  .b2b-dialog__inner { @apply flex max-h-[min(85dvh,640px)] flex-col; }
+  .b2b-dialog__head { @apply flex items-center justify-between gap-3 border-b border-line py-[6px] pl-[16px] pr-[6px]; }
+  .b2b-dialog__title { @apply m-0 text-[15px] font-semibold text-fg; }
+  .b2b-dialog__body { @apply min-h-0 flex-1 overflow-y-auto p-[16px]; }
+  /* The default trigger reads as an inline link; its hit area is the 44px
+     touch floor, pulled into the table cell's own padding so the row does not
+     grow (Fitts). */
+  .b2b-dialog__trigger { @apply -my-[10px] inline-flex min-h-11 cursor-pointer items-center border-0 bg-transparent p-0 font-sans text-[13px] text-accent underline underline-offset-2; }
+  .b2b-dialog__trigger:hover { @apply text-accent-hover; }
+  .b2b-dialog__trigger:focus-visible { @apply rounded-sm outline-2 outline-offset-2 outline-[color:var(--brand-600)]; }
 }
+/* The dim behind the dialog: the bottom sheet's (`.m-sheet-dim`) value. */
+.b2b-dialog::backdrop { background: rgba(10, 13, 18, 0.45); }
 /* Issue #193 — the federated divider's flanking rules (::before/::after
    residual, same convention as the floating-label rules below). */
 .b2b-auth__social-divider::before,
