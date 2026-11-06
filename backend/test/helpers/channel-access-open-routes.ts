@@ -75,6 +75,18 @@ export const CHANNEL_ACCESS_OPEN_ROUTES: Readonly<Record<string, OpenRouteEntry>
     reason:
       'A business may apply on a store closed to anonymous visitors; moderation decides (FR-016, Q2).',
   },
+  // Feature 173 (`specs/173-registration-registry-lookup/contracts/public-api.md`):
+  // the business registration form's two reads, open for the reason registration is.
+  'GET /api/v1/organizations/registration-options': {
+    owner: 'organizations',
+    reason:
+      'The business registration form reads whether the registry lookup is offered, also on a closed store (feature 173).',
+  },
+  'POST /api/v1/organizations/registry-lookup': {
+    owner: 'organizations',
+    reason:
+      'The business registration form prefills from public registries before anybody can sign in; per-IP rate-limited, no channel-scoped data (feature 173, OD-2).',
+  },
   'POST /api/v1/organizations/invitations/:token/accept': {
     owner: 'organizations',
     reason: 'An invited person joins an Organization before they can sign in.',
