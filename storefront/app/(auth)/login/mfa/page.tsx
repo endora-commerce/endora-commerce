@@ -68,15 +68,15 @@ async function verifyAction(formData: FormData): Promise<void> {
   try {
     result = await verifyCustomerMfa({ challengeId, code });
   } catch (err) {
-    const message = signInErrorParam(err, 'MFA_VERIFY_FAILED');
-    if (message === CHANNEL_NOT_PERMITTED_ERROR) {
+    const errorCode = signInErrorParam(err, 'MFA_VERIFY_FAILED');
+    if (errorCode === CHANNEL_NOT_PERMITTED_ERROR) {
       // `specs/154-sales-channel-access/` — the account may not use this store.
       // Another code would not change that, so the challenge is dropped and the
       // buyer is shown the refusal on the sign-in page, as the password step does.
       await clearMfaChallengeCookie();
-      return await localeRedirect(`/login?error=${message}&next=${encodeURIComponent(next)}`);
+      return await localeRedirect(`/login?error=${errorCode}&next=${encodeURIComponent(next)}`);
     }
-    return await localeRedirect(`/login/mfa?error=${message}&next=${encodeURIComponent(next)}`);
+    return await localeRedirect(`/login/mfa?error=${errorCode}&next=${encodeURIComponent(next)}`);
   }
   if (!result.sessionCookieValue) {
     return await localeRedirect(

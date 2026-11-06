@@ -181,9 +181,13 @@ const CODE_THROUGH_SEARCH_PARAMS = new Set<string>([
  * Issue #810 — the calls that prove a template-built code value is a code: a
  * `defineUrlErrors` vocabulary's `failureCode` (`lib/url-errors.ts`), the
  * sign-in vocabulary's `signInErrorParam` (`lib/auth/sign-in-errors.ts`), and
- * the per-page code mappers that answer a closed union.
+ * the per-page code mappers, each read and confirmed to return a closed union
+ * (`memberFailureCode` a `MemberErrorCode`, `parseRejectReason` a
+ * `'REASON_REQUIRED' | 'REASON_TOO_LONG'` refusal) — plus the one code constant,
+ * `SIGN_IN_REQUIRED_REASON` (`'sign-in-required'`, `lib/channel/closed-store.ts`).
  */
-const CODE_CALL = /^(?:\w+\.failureCode|signInErrorParam|orgCartFailureCode|roleFailureCode)\(/;
+const CODE_CALL =
+  /^(?:(?:\w+\.failureCode|signInErrorParam|orgCartFailureCode|roleFailureCode|memberFailureCode|parseRejectReason)\(|SIGN_IN_REQUIRED_REASON$)/;
 
 /**
  * Template-built code values that are not a vocabulary call, each read and
@@ -191,16 +195,14 @@ const CODE_CALL = /^(?:\w+\.failureCode|signInErrorParam|orgCartFailureCode|role
  * The list stays short: a new entry is a reason to call a vocabulary instead.
  */
 const CODE_IN_TEMPLATE = new Map<string, string>([
-  ['app/(auth)/login/mfa/page.tsx:error=message', '`signInErrorParam(err, …)`, held to compare against `CHANNEL_NOT_PERMITTED_ERROR`'],
+  ['app/(auth)/login/mfa/page.tsx:error=errorCode', '`signInErrorParam(err, …)`, held to compare against `CHANNEL_NOT_PERMITTED_ERROR`'],
   ['app/account/organization-security/actions.ts:error=code', "`'FORBIDDEN' | 'FAILED'`"],
-  ['app/(account)/organization/members/actions.ts:error=code', '`memberFailureCode(…)`, a `MemberActionFailure`'],
-  ['app/(account)/organization/carts/[id]/actions.ts:error=parsed.code', '`parseRejectReason`, a closed refusal code'],
+  ['app/(account)/organization/carts/[id]/actions.ts:error=parsed.code', 'the refusal half of `parseRejectReason`, `\'REASON_REQUIRED\' | \'REASON_TOO_LONG\'` — read off a variable, so no call is visible'],
   ['app/(commerce)/checkout/page.tsx:couponError=reason', '`result.reason` held to `^[a-z_]{1,64}$`, else `generic`'],
   ['app/(account)/quick-order/page.tsx:problem=overflow', "`'preview_too_large' | 'preview_full'`"],
   ['components/newsletter/NewsletterSignup.tsx:status=status', "`'pending' | 'active'`"],
   ['lib/payments/post-payment-landing.ts:outcome=reason', 'a `PaymentFailureReason`'],
   ['lib/payments/post-payment-landing.ts:outcome=outcome', 'a `PaymentReturnOutcome`'],
-  ['lib/channel/closed-store.ts:reason=SIGN_IN_REQUIRED_REASON', "the constant `'sign-in-required'`"],
   ['components/SocialLoginButtons.tsx:salesChannel=encodeURIComponent(salesChannelCode)', 'the channel code the backend resolves'],
 ]);
 
