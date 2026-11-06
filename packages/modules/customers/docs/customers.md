@@ -1,9 +1,9 @@
 ---
-title: customers
+title: Customers
 description: Customer lifecycle over `customer_accounts` — company and personal Organizations, sales-rep assignment and the admin customer surface
 ---
 
-# `customers`
+# Customers (`customers`)
 
 Customer (Klienci) lifecycle business logic layered on top of the
 `customer_accounts` data module. **Every customer belongs to an

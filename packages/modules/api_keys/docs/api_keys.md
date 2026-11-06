@@ -1,9 +1,9 @@
 ---
-title: api_keys
+title: API keys
 description: Bearer-token integration credentials
 ---
 
-# `api_keys`
+# API keys (`api_keys`)
 
 Scoped bearer-token credentials for machine-to-machine integrations. The
 plaintext token is shown once at creation; only its SHA-256 hash is stored.

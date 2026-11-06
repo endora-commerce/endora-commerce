@@ -1,9 +1,9 @@
 ---
-title: crm
+title: CRM — sales opportunities
 description: Sales opportunities with a configurable status workflow that linked orders follow
 ---
 
-# `crm`
+# CRM — sales opportunities (`crm`)
 
 The CRM module keeps track of **sales opportunities**: a deal a sales
 representative is working with one customer organization, from the first
@@ -388,7 +388,7 @@ opens: a filter on a field that is no longer on the card is ignored.
 ### The list's custom-field filters
 
 The **Opportunities list** does not follow the card. It offers a filter for every opportunity
-custom field whose **Use as list filter** option is on (set on **Custom Fields**), whether or not a
+custom field whose **Use as list filter** option is on (set on **Custom fields**), whether or not a
 card shows the field, beside its other filters. The filters work as the board's do for the same
 kind of field, except that an opportunity without a value never matches — *No* included. They are
 in the page address, and a change returns the list to its first page. The panel shows the first
@@ -983,7 +983,7 @@ links to it. Neither the bell entry nor the e-mail ever carries the event's
 description or the opportunity's title.
 
 An operator edits the e-mail's subject and body, per language, on the
-**Transactional Emails** screen (`/transactional-emails`), and can switch it
+**Transactional emails** screen (`/transactional-emails`), and can switch it
 off there. The variables it offers are `event.name`, `event.when` and
 `opportunity.number`. **An e-mail that does not go out never costs the bell
 entry** — switched off by the operator, no address on the recipient's account,
@@ -2336,7 +2336,7 @@ there are in English only.
 | `crm.board_card_fields` | number, organization, value, sales rep, tags | The fields a board card shows, in order, as a list of field references. Change it in the **Board card** section of **CRM → Workflow**, which offers the fields that exist, rather than here. |
 
 Events, reminders and the calendar add no setting. The reminder e-mail is
-edited and switched off on the **Transactional Emails** screen, as *Event
+edited and switched off on the **Transactional emails** screen, as *Event
 reminder*; how often reminders are looked for, the five minutes that make a
 person online and the 24 hours after which a late reminder is skipped are
 fixed.

@@ -1,9 +1,9 @@
 ---
-title: admin_users
+title: Admin users
 description: Platform Administrator accounts + impersonation
 ---
 
-# `admin_users`
+# Admin users (`admin_users`)
 
 Platform Administrator accounts (separate from Customer Accounts), plus
 the impersonation flow.

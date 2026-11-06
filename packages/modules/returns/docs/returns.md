@@ -1,9 +1,9 @@
 ---
-title: returns
+title: Returns
 description: Returns and complaints (RMA) — submission, verification, reverse-logistics shipments and settlement over a configurable status graph
 ---
 
-# `returns`
+# Returns (`returns`)
 
 Returns & complaints (Refunds, RMA). Manages the lifecycle of a return or
 complaint case raised against a completed order — submission, verification and

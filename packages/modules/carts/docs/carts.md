@@ -1,9 +1,9 @@
 ---
-title: carts
+title: Carts
 description: Customer shopping cart with anonymous→logged-in merge
 ---
 
-# `carts`
+# Carts (`carts`)
 
 Anonymous and customer-bound shopping carts. An anonymous cart is identified
 by a long-lived cookie token; on login it merges into the Customer's cart

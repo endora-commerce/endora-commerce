@@ -1,5 +1,5 @@
 ---
-title: price_lists
+title: Cenniki
 sidebar_label: Cenniki
 description: Cenniki — ceny bazowe w każdej walucie, ceny katalogowe, ceny dla kupujących i ceny promocyjne w kanałach sprzedaży oraz reguły, które decydują, ile płaci każdy kupujący.
 ---

@@ -4,7 +4,7 @@ description: A 20-minute tutorial — add your own module to a new Endora Commer
 sidebar_position: 3
 ---
 
-# Create your first Module
+# Create your first module
 
 This tutorial takes a new instance and adds one small module of your own to it: a **store notice**.
 The shop owner types a short message in the admin ("We are closed 24-26 December"), and the

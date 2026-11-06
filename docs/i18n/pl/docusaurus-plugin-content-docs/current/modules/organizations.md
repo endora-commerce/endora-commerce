@@ -1,9 +1,9 @@
 ---
-title: organizations
+title: Organizacje
 description: Organizacje klientów, rejestracja, zaproszenia
 ---
 
-# `organizations`
+# Organizacje (`organizations`)
 
 Organizacje klientów — rejestracja, weryfikacja e-mailem, zarządzanie członkami, zaproszenia i
 zawieszanie. Pierwszy użytkownik rejestrujący organizację otrzymuje jej rolę Administrator

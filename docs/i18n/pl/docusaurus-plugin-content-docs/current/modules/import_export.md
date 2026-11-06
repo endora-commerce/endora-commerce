@@ -1,9 +1,9 @@
 ---
-title: import_export
+title: Import / eksport
 description: Import i eksport CSV do masowej edycji encji
 ---
 
-# `import_export`
+# Import / eksport (`import_export`)
 
 Import i eksport CSV do masowej edycji danych. Moduł ma własny, niewielki koder i dekoder RFC 4180
 (bez nowej zależności), rejestr adapterów dla poszczególnych encji oraz **profile importu**, według

@@ -278,7 +278,7 @@ In a checkout of the Endora Commerce repository the same two commands are
 `--remove-settings` and `--preserve-settings` are still accepted by
 `module:uninstall` for backward compatibility: the first means `--hard --force`,
 the second does nothing. The argument grammar and exit codes belong to
-`@endora-commerce/platform`'s lifecycle commands; the Module Lifecycle page
+`@endora-commerce/platform`'s lifecycle commands; the Module lifecycle page
 lists the exit codes. Both commands write `audit_log_entries` rows.
 
 ## Database

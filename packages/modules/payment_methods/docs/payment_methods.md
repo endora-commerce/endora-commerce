@@ -1,9 +1,9 @@
 ---
-title: payment_methods
+title: Payment methods
 description: Configured payment methods
 ---
 
-# `payment_methods`
+# Payment methods (`payment_methods`)
 
 CRUD over the configured payment methods that Customers can pick at
 checkout. Each `PaymentMethod` row is backed by a registered **adapter**
@@ -95,7 +95,7 @@ condition. The bundled `bank_transfer`, `pickup`, `credit_limit`, and
 
 `Payment.status` (the payment-process status: `awaiting_payment → paid |
 failed`, plus `deferred` for credit limit) is **separate** from the
-order-status mapping. `statusOn*` reference *Order Statuses* resolved through
+order-status mapping. `statusOn*` reference *Order statuses* resolved through
 the `OrderStatusRegistry` port — enum-backed today, swappable for the Orders
 module's configurable registry later with no change here.
 

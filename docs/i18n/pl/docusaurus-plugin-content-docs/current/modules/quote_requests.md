@@ -1,9 +1,9 @@
 ---
-title: quote_requests
+title: Zapytania ofertowe
 description: Cykl życia zapytania ofertowego (RFQ) — szkic → oferta → akceptacja lub odrzucenie
 ---
 
-# `quote_requests`
+# Zapytania ofertowe (`quote_requests`)
 
 Moduł zapytań ofertowych (Quote Requests) realizuje pętlę negocjacji B2B. Klient (albo opiekun
 handlowy w jego imieniu) tworzy szkic zapytania ofertowego, druga strona je przegląda, każda ze

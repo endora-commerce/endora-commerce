@@ -1,9 +1,9 @@
 ---
-title: currencies
+title: Currencies
 description: Pool of accepted ISO 4217 currencies + default
 ---
 
-# `currencies`
+# Currencies (`currencies`)
 
 The installation-wide pool of accepted ISO 4217 currency codes. Mirrors the
 `languages` module.

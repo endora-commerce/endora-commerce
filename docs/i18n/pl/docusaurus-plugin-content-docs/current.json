@@ -6,7 +6,7 @@
     "message": "Cykl życia modułu"
   },
   "sidebar.main.category.addresses": {
-    "message": "addresses"
+    "message": "Adresy"
   },
   "sidebar.main.category.admin-ui": {
     "message": "Panel administracyjny"
@@ -18,25 +18,25 @@
     "message": "Opinie"
   },
   "sidebar.main.category.admin_roles": {
-    "message": "admin_roles"
+    "message": "Role administratorów"
   },
   "sidebar.main.category.admin_search": {
-    "message": "admin_search"
+    "message": "Wyszukiwanie globalne"
   },
   "sidebar.main.category.document_templates": {
-    "message": "document_templates"
+    "message": "Szablony dokumentów"
   },
   "sidebar.main.category.admin_users": {
-    "message": "admin_users"
+    "message": "Administratorzy"
   },
   "sidebar.main.category.analytics": {
-    "message": "analytics"
+    "message": "Analityka"
   },
   "sidebar.main.category.api-contracts": {
     "message": "Kontrakty API"
   },
   "sidebar.main.category.api_keys": {
-    "message": "api_keys"
+    "message": "Klucze API"
   },
   "sidebar.main.category.architecture": {
     "message": "Architektura"
@@ -48,16 +48,16 @@
     "message": "Biblioteka zasobów"
   },
   "sidebar.main.category.audit_logs": {
-    "message": "audit_logs"
+    "message": "Dziennik audytu"
   },
   "sidebar.main.category.auth": {
-    "message": "auth"
+    "message": "Uwierzytelnianie"
   },
   "sidebar.main.category.blog": {
     "message": "Blog"
   },
   "sidebar.main.category.carts": {
-    "message": "carts"
+    "message": "Koszyki"
   },
   "sidebar.main.category.catalog": {
     "message": "Katalog"
@@ -72,25 +72,25 @@
     "message": "Dane uwierzytelniające"
   },
   "sidebar.main.category.credit_limits": {
-    "message": "credit_limits"
+    "message": "Limity kredytowe"
   },
   "sidebar.main.category.crm": {
-    "message": "crm"
+    "message": "CRM (szanse sprzedażowe)"
   },
   "sidebar.main.category.currencies": {
-    "message": "currencies"
+    "message": "Waluty"
   },
   "sidebar.main.category.custom_fields": {
-    "message": "custom_fields"
+    "message": "Pola niestandardowe"
   },
   "sidebar.main.category.customer_accounts": {
-    "message": "customer_accounts"
+    "message": "Konta klientów"
   },
   "sidebar.main.category.customers": {
-    "message": "customers"
+    "message": "Klienci"
   },
   "sidebar.main.category.delivery_methods": {
-    "message": "delivery_methods"
+    "message": "Metody dostawy"
   },
   "sidebar.main.category.deployment": {
     "message": "Wdrożenie"
@@ -111,7 +111,7 @@
     "message": "Google Tag Manager"
   },
   "sidebar.main.category.import_export": {
-    "message": "import_export"
+    "message": "Import / eksport"
   },
   "sidebar.main.category.integrations": {
     "message": "Integracje"
@@ -120,16 +120,16 @@
     "message": "Integracje"
   },
   "sidebar.main.category.inventory": {
-    "message": "inventory"
+    "message": "Magazyn"
   },
   "sidebar.main.category.invoice_ledger": {
     "message": "Księga faktur"
   },
   "sidebar.main.category.invoices": {
-    "message": "invoices"
+    "message": "Faktury"
   },
   "sidebar.main.category.languages": {
-    "message": "languages"
+    "message": "Języki"
   },
   "sidebar.main.category.linkedin_ads": {
     "message": "LinkedIn Ads"
@@ -144,7 +144,7 @@
     "message": "Moduły"
   },
   "sidebar.main.category.newsletter": {
-    "message": "newsletter"
+    "message": "Newsletter"
   },
   "sidebar.main.category.operations": {
     "message": "Operacje"
@@ -153,16 +153,16 @@
     "message": "Operacje"
   },
   "sidebar.main.category.orders": {
-    "message": "orders"
+    "message": "Zamówienia"
   },
   "sidebar.main.category.organizations": {
-    "message": "organizations"
+    "message": "Organizacje"
   },
   "sidebar.main.category.payment_methods": {
-    "message": "payment_methods"
+    "message": "Metody płatności"
   },
   "sidebar.main.category.payments": {
-    "message": "payments"
+    "message": "Płatności"
   },
   "sidebar.main.category.pim_connector": {
     "message": "Wspólna warstwa konektorów PIM"
@@ -174,10 +174,10 @@
     "message": "Feedy produktowe"
   },
   "sidebar.main.category.projects": {
-    "message": "projects"
+    "message": "Projekty"
   },
   "sidebar.main.category.promotions": {
-    "message": "promotions"
+    "message": "Promocje"
   },
   "sidebar.main.category.prompt_actions": {
     "message": "Asystent AI (Prompt Actions)"
@@ -186,13 +186,13 @@
     "message": "PWA (Progressive Web App)"
   },
   "sidebar.main.category.quick_order": {
-    "message": "quick_order"
+    "message": "Szybkie zamówienia"
   },
   "sidebar.main.category.quote_requests": {
-    "message": "quote_requests"
+    "message": "Zapytania ofertowe"
   },
   "sidebar.main.category.returns": {
-    "message": "returns"
+    "message": "Zwroty"
   },
   "sidebar.main.category.runbooks": {
     "message": "Runbooki"
@@ -204,30 +204,30 @@
     "message": "Kanały sprzedaży"
   },
   "sidebar.main.category.search": {
-    "message": "search"
+    "message": "Wyszukiwanie w sklepie"
   },
   "sidebar.main.category.seo": {
-    "message": "seo"
+    "message": "SEO"
   },
   "sidebar.main.category.settings": {
     "message": "Ustawienia"
   },
   "sidebar.main.category.shipments": {
-    "message": "shipments"
+    "message": "Przesyłki"
   },
   "sidebar.main.category.shopping_lists": {
-    "message": "shopping_lists"
+    "message": "Listy zakupowe"
   },
   "sidebar.main.category.tasks": {
-    "message": "tasks"
+    "message": "Zadania"
   },
   "sidebar.main.category.taxes": {
-    "message": "taxes"
+    "message": "Podatki"
   },
   "sidebar.main.category.transactional_emails": {
-    "message": "transactional_emails"
+    "message": "Maile transakcyjne"
   },
   "sidebar.main.category.webhooks": {
-    "message": "webhooks"
+    "message": "Webhooki"
   }
 }

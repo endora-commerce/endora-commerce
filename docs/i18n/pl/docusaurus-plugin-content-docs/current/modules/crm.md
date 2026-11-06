@@ -1,9 +1,9 @@
 ---
-title: crm
+title: CRM — szanse sprzedażowe
 description: Szanse sprzedażowe z konfigurowalnym przepływem statusów, za którym podążają powiązane zamówienia
 ---
 
-# `crm`
+# CRM — szanse sprzedażowe (`crm`)
 
 Moduł CRM prowadzi **szanse sprzedażowe**: transakcje, nad którymi
 handlowiec pracuje z jedną organizacją klienta — od pierwszego kontaktu do chwili, gdy szansa zostaje wygrana albo przegrana.

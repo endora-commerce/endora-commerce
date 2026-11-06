@@ -1,9 +1,9 @@
 ---
-title: organizations
+title: Organizations
 description: Customer Organizations, registration, invitations
 ---
 
-# `organizations`
+# Organizations (`organizations`)
 
 Customer Organizations — registration, email verification, member management,
 invitations, and the suspension state. The first user of a registering

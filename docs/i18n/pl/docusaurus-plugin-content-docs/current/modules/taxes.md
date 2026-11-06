@@ -1,9 +1,9 @@
 ---
-title: taxes
+title: Podatki
 description: Wyznaczanie stawek podatkowych według kraju, typu produktu i statusu VAT
 ---
 
-# `taxes`
+# Podatki (`taxes`)
 
 Wyznaczanie stawek podatkowych. Każdy wiersz `Tax` to reguła zawężona przez dowolną liczbę (także
 zero) z pól `country`, `productType`, `appliesToVatStatuses`.

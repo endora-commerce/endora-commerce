@@ -1,9 +1,9 @@
 ---
-title: seo
+title: SEO
 description: Meta-tag resolver, cached XML sitemap, the search engine robots settings and llms.txt
 ---
 
-# `seo`
+# SEO (`seo`)
 
 Per-page meta-tag resolution, the public XML sitemap, and what search engines are told about
 a sales channel's storefront as a whole.
@@ -246,7 +246,7 @@ still shown, on its own, and saving works as usual:
 | The preview says | What it means | What to do |
 | --- | --- | --- |
 | *The storefront could not be reached* | The storefront did not answer within three seconds, refused the connection, answered with an error or a redirect, or answered something that is not a plain-text `robots.txt` | Check that the storefront is running and that the channel's **Storefront URL** is its real address — the address the storefront itself answers at, not one that redirects to it. **Check again** asks once more. The server log names the reason |
-| *This sales channel has no storefront address configured* | Neither the channel's **Storefront URL** setting nor `STOREFRONT_BASE_URL` is set, so there is no address to ask | Set **Settings → Sales Channels → Storefront URL** for the channel |
+| *This sales channel has no storefront address configured* | Neither the channel's **Storefront URL** setting nor `STOREFRONT_BASE_URL` is set, so there is no address to ask | Set **Settings → Sales channels → Storefront URL** for the channel |
 | *This storefront did not confirm that it supports custom instructions* | The storefront answered with a `robots.txt`, but without the header by which a current storefront identifies itself. Most often it runs a version from before this feature, which serves only its generated rules — shown as the file — and ignores your text and *Default robots*. A proxy that removes the header, or a storefront that was updated only in part, looks the same | Update the storefront — see [a storefront scaffolded before this feature](#a-storefront-scaffolded-before-this-feature) — and check with `curl -sI <storefront>/robots.txt` that `X-Endora-Crawler-Files` arrives. A matching message appears on the *Default robots* row |
 | *This address is shared by every sales channel* | The address comes from `STOREFRONT_BASE_URL`, one address for all channels, so the preview is of that shared storefront | Nothing, on an instance with one storefront. With a storefront per channel, set each channel's **Storefront URL** |
 

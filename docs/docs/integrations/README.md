@@ -27,7 +27,7 @@ contracts in `@endora-commerce/contracts`.
 
 ## Authenticating with an API key
 
-Issue a key from **Admin Panel → API Keys → New Key**, choosing the scopes the
+Issue a key from **Admin Panel → API keys → Create new key**, choosing the scopes the
 key is allowed to use and, optionally, an **Organization binding** (see
 below). The full bearer token (`sk_live_…`) is shown **once**; only the last
 four characters are stored after that. The platform stores the SHA-256 hash
@@ -98,7 +98,7 @@ in support tickets to make logs traceable.
 
 ## Subscribing to webhooks
 
-Create a webhook subscription from **Admin Panel → Webhooks → New Webhook**
+Create a webhook subscription from **Admin Panel → Webhooks → Subscribe to events**
 (or `POST /api/v1/admin/webhooks` with `integrations:manage` admin
 permission). The platform generates a 64-character hex `secret` per
 subscription; you receive it in the create response and **only then** — store

@@ -2,7 +2,7 @@
 title: URL keys and redirects
 ---
 
-# URL Keys and Redirects
+# URL keys and redirects
 
 A product's storefront address is `/p/<key>`. The key follows the product scopes — Global, Channel
 and Channel × language:

@@ -1,9 +1,9 @@
 ---
-title: projects
+title: Projekty
 description: Projekty dla zera lub wielu organizacji, prowadzone przez własne etapy przez członków pełniących role projektowe
 ---
 
-# `projects`
+# Projekty (`projects`)
 
 Moduł Projekty przechowuje **projekty**: pracę dla jednej lub wielu organizacji
 — albo dla żadnej, czyli projekt wewnętrzny — prowadzoną przez własne
