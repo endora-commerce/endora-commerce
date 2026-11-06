@@ -1,4 +1,5 @@
 import type { BrandFontSource, BrandTypeStyle, CmsBrandTokens } from '@endora-commerce/page-builder-core';
+import { isUuidShape } from '@endora-commerce/contracts';
 
 /**
  * Brand tokens as CSS — `specs/163-page-builder-marketing-pages/` data-model §2,
@@ -81,8 +82,6 @@ const FAMILY_RE = /^[\p{L}\p{N}][\p{L}\p{N} ._-]{0,99}$/u;
 const STYLESHEET_URL_RE = /^https:\/\/[^\s"'<>()\\]+$/i;
 /** The contracts' `BRAND_MEDIA_URL_RE`, restated; `brand-css.test.ts` holds the two equal. */
 const MEDIA_URL_RE = /^(?:https:\/\/[^\s"'<>()\\]+|\/(?!\/)[^\s"'<>()\\]+)$/i;
-
-const ASSET_ID_RE = /^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/i;
 
 const DEFAULT_ASSET_URL = (fileAssetId: string): string => `/assets/file/${encodeURIComponent(fileAssetId)}`;
 
@@ -207,7 +206,7 @@ function decorativeLayer(
   mediaUrl: (url: string) => string,
 ): string | null {
   const assetId = colors?.decorativeAssetId;
-  if (typeof assetId === 'string' && ASSET_ID_RE.test(assetId)) return `url(${cssString(assetUrl(assetId))})`;
+  if (typeof assetId === 'string' && isUuidShape(assetId)) return `url(${cssString(assetUrl(assetId))})`;
   const url = colors?.decorativeUrl;
   if (typeof url !== 'string' || url.length > 2048 || !MEDIA_URL_RE.test(url)) return null;
   const absolute = url.startsWith('/') ? mediaUrl(url) : url;

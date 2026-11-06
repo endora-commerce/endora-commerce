@@ -1,6 +1,6 @@
 import type { EntityManager } from '@mikro-orm/postgresql';
 import type { FastifyRequest } from 'fastify';
-import { supportedLanguageOf, type ChannelMemberEntityType } from '@endora-commerce/contracts';
+import { supportedLanguageOf, type ChannelMemberEntityType, isUuidShape } from '@endora-commerce/contracts';
 import type {
   AddressServicePort,
   AdminI18nTranslatePort,
@@ -1009,6 +1009,7 @@ export function registerModule(ctx: ModuleContext): void {
       .asFunction(
         ({ emFactory }: OrganizationsCradle): OrganizationTaxProfilePort => ({
           taxProfileOf: async (organizationId: string) => {
+            if (!isUuidShape(organizationId)) return null;
             const org = await emFactory().findOne(Organization, { id: organizationId });
             if (!org) return null;
             return { vatStatus: org.vatStatus, country: org.registeredAddress?.country ?? null };

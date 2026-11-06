@@ -1,4 +1,4 @@
-import { unitPriceHalfUp } from '@endora-commerce/contracts';
+import { unitPriceHalfUp, isUuidShape } from '@endora-commerce/contracts';
 import type { EntityManager } from '@mikro-orm/postgresql';
 import type {
   CartCustomerContext,
@@ -120,6 +120,7 @@ export class CartPlacementApplyService implements CartPlacementApplyPort {
     // came from would record the same decision twice, and the cart is not an
     // auditable domain object in its own right — the same reasoning
     // `cartWritePort.replaceItemsForCustomer` carries.
+    if (!isUuidShape(input.cartId)) return;
     const cart = await em.findOne(Cart, { id: input.cartId });
     if (!cart) return;
     await em.nativeDelete(CartItem, { cartId: cart.id });

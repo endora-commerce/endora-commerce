@@ -1,5 +1,5 @@
 import type { EntityManager } from '@mikro-orm/postgresql';
-import { ERROR_CODES } from '@endora-commerce/contracts';
+import { ERROR_CODES, isUuidShape } from '@endora-commerce/contracts';
 import { HttpError } from '@endora-commerce/platform/http';
 import type { Command, CommandBus } from '@endora-commerce/platform/commands';
 import { CustomerGroup } from '../entities/customer-group.entity.js';
@@ -16,6 +16,7 @@ export class CustomerGroupService {
   }
 
   async getById(id: string): Promise<CustomerGroup> {
+    if (!isUuidShape(id)) throw new HttpError(404, ERROR_CODES.NOT_FOUND, `Customer group ${id} not found.`);
     const row = await this.emFactory().findOne(CustomerGroup, { id });
     if (!row) throw new HttpError(404, ERROR_CODES.NOT_FOUND, `Customer group ${id} not found.`);
     return row;
@@ -91,6 +92,7 @@ export class CustomerGroupService {
       return;
     }
     const em = this.emFactory();
+    if (!isUuidShape(id)) return;
     const row = await em.findOne(CustomerGroup, { id });
     if (!row) return;
     await em.removeAndFlush(row);
@@ -102,6 +104,7 @@ export class CustomerGroupService {
       objectType: 'customer_group',
       objectId: id,
       run: async ({ em }) => {
+        if (!isUuidShape(id)) return { result: undefined, skipAudit: true };
         const row = await em.findOne(CustomerGroup, { id });
         if (!row) return { result: undefined, skipAudit: true };
         const before = { code: row.code, name: row.name };

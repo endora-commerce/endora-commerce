@@ -7,6 +7,7 @@ import {
   type LinkedInStorefrontMapping,
   type LinkedInTriggerAction,
   type UpdateLinkedInConversionMapping,
+  isUuidShape,
 } from '@endora-commerce/contracts';
 import { HttpError } from '@endora-commerce/platform/http';
 import { LinkedInConversionMapping } from '../entities/linkedin-conversion-mapping.entity.js';
@@ -48,6 +49,7 @@ export class LinkedInConversionMappingsService {
 
   async get(id: string): Promise<LinkedInConversionMappingDto> {
     const em = this.emFactory();
+    if (!isUuidShape(id)) throw this.notFound(id);
     const row = await em.findOne(LinkedInConversionMapping, { id });
     if (!row) throw this.notFound(id);
     return this.toDto(row);
@@ -83,6 +85,7 @@ export class LinkedInConversionMappingsService {
     ctx: LinkedInAuditContext,
   ): Promise<LinkedInConversionMappingDto> {
     const em = this.emFactory();
+    if (!isUuidShape(id)) throw this.notFound(id);
     const row = await em.findOne(LinkedInConversionMapping, { id });
     if (!row) throw this.notFound(id);
     if (row.version !== input.version) {
@@ -124,6 +127,7 @@ export class LinkedInConversionMappingsService {
 
   async remove(id: string, ctx: LinkedInAuditContext): Promise<void> {
     const em = this.emFactory();
+    if (!isUuidShape(id)) throw this.notFound(id);
     const row = await em.findOne(LinkedInConversionMapping, { id });
     if (!row) throw this.notFound(id);
     const before = { triggerAction: row.triggerAction, conversionId: row.conversionId };

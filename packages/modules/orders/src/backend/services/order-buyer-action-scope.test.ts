@@ -63,7 +63,7 @@ function emRecording(order: unknown) {
 }
 
 describe('#665 — OrderCloneToQuoteService resolves the order through the read scope', () => {
-  function rig(holding: Holding, order: unknown = { id: 'order-1' }) {
+  function rig(holding: Holding, order: unknown = { id: '00000000-0000-4000-8000-781000000011' }) {
     const createForCustomer = vi.fn(async (_ctx: unknown, _request: unknown, _options: unknown) => ({ id: 'rfq-1' }));
     const { em, wheres } = emRecording(order);
     const { port, asked } = permissions(holding);
@@ -77,19 +77,19 @@ describe('#665 — OrderCloneToQuoteService resolves the order through the read 
 
   it('pins a member without orders.view_organization to the orders they placed', async () => {
     const { service, wheres } = rig('without');
-    await service.clone('order-1', CTX);
-    expect(wheres[0]).toEqual({ id: 'order-1', organizationId: 'org-1', placedByCustomerAccountId: 'member-b' });
+    await service.clone('00000000-0000-4000-8000-781000000011', CTX);
+    expect(wheres[0]).toEqual({ id: '00000000-0000-4000-8000-781000000011', organizationId: 'org-1', placedByCustomerAccountId: 'member-b' });
   });
 
   it('asks the permission port for orders.view_organization, for the buyer', async () => {
     const { service, asked } = rig('without');
-    await service.clone('order-1', CTX);
+    await service.clone('00000000-0000-4000-8000-781000000011', CTX);
     expect(asked).toEqual([[{ customerAccountId: 'member-b', organizationId: 'org-1' }, 'orders.view_organization']]);
   });
 
   it('answers 404 ORDER_NOT_FOUND for an order outside that scope, and creates nothing', async () => {
     const { service, createForCustomer } = rig('without', null);
-    await expect(service.clone('order-1', CTX)).rejects.toMatchObject({
+    await expect(service.clone('00000000-0000-4000-8000-781000000011', CTX)).rejects.toMatchObject({
       statusCode: 404,
       code: ERROR_CODES.ORDER_NOT_FOUND,
     });
@@ -98,13 +98,13 @@ describe('#665 — OrderCloneToQuoteService resolves the order through the read 
 
   it('lets a holder of orders.view_organization reach any order of the Organization', async () => {
     const { service, wheres } = rig('with');
-    await service.clone('order-1', CTX);
-    expect(wheres[0]).toEqual({ id: 'order-1' });
+    await service.clone('00000000-0000-4000-8000-781000000011', CTX);
+    expect(wheres[0]).toEqual({ id: '00000000-0000-4000-8000-781000000011' });
   });
 
   it('never tells the quote module the caller is an organization admin', async () => {
     const { service, createForCustomer } = rig('with');
-    await service.clone('order-1', CTX);
+    await service.clone('00000000-0000-4000-8000-781000000011', CTX);
     expect(createForCustomer.mock.calls[0]?.[0]).toEqual({
       customerAccountId: 'member-b',
       organizationId: 'org-1',
@@ -125,18 +125,18 @@ describe('#665 — OrderReorderService resolves the order through the read scope
     );
     return { service, replaceItemsForCustomer, wheres };
   }
-  const ORDER = { id: 'order-1', organizationId: 'org-1', salesChannelId: 'ch-1', currency: 'PLN' };
+  const ORDER = { id: '00000000-0000-4000-8000-781000000011', organizationId: 'org-1', salesChannelId: 'ch-1', currency: 'PLN' };
   const REORDER_CTX = { ...CTX, salesChannelId: 'ch-1' };
 
   it('pins a member without orders.view_organization to the orders they placed, whatever the legacy role', async () => {
     const { service, wheres } = rig('without', ORDER);
-    await service.reorder('order-1', REORDER_CTX);
-    expect(wheres[0]).toEqual({ id: 'order-1', organizationId: 'org-1', placedByCustomerAccountId: 'member-b' });
+    await service.reorder('00000000-0000-4000-8000-781000000011', REORDER_CTX);
+    expect(wheres[0]).toEqual({ id: '00000000-0000-4000-8000-781000000011', organizationId: 'org-1', placedByCustomerAccountId: 'member-b' });
   });
 
   it('answers 404 ORDER_NOT_FOUND for an order outside that scope, and seeds no cart', async () => {
     const { service, replaceItemsForCustomer } = rig('without', null);
-    await expect(service.reorder('order-1', REORDER_CTX)).rejects.toMatchObject({
+    await expect(service.reorder('00000000-0000-4000-8000-781000000011', REORDER_CTX)).rejects.toMatchObject({
       statusCode: 404,
       code: ERROR_CODES.ORDER_NOT_FOUND,
     });
@@ -145,7 +145,7 @@ describe('#665 — OrderReorderService resolves the order through the read scope
 
   it('lets a holder of orders.view_organization reach any order of the Organization', async () => {
     const { service, wheres } = rig('with', ORDER);
-    await service.reorder('order-1', REORDER_CTX);
-    expect(wheres[0]).toEqual({ id: 'order-1' });
+    await service.reorder('00000000-0000-4000-8000-781000000011', REORDER_CTX);
+    expect(wheres[0]).toEqual({ id: '00000000-0000-4000-8000-781000000011' });
   });
 });

@@ -1,5 +1,5 @@
 import type { EntityManager } from '@mikro-orm/postgresql';
-import type { CampaignStats } from '@endora-commerce/contracts';
+import { isUuidShape, type CampaignStats } from '@endora-commerce/contracts';
 import { NewsletterSendRecord } from '../entities/newsletter-send-record.entity.js';
 import { NewsletterEngagementEvent } from '../entities/newsletter-engagement-event.entity.js';
 
@@ -13,7 +13,8 @@ export class NewsletterStatsService {
 
   async campaignStats(campaignId: string): Promise<CampaignStats> {
     const em = this.emFactory();
-    const records = await em.find(NewsletterSendRecord, { campaignId });
+    // A malformed id names no campaign: nothing was sent, as for an unknown one (issue #781).
+    const records = isUuidShape(campaignId) ? await em.find(NewsletterSendRecord, { campaignId }) : [];
     const sent = records.filter((r) => r.status === 'sent').length;
     const failed = records.filter((r) => r.status === 'failed' || r.status === 'bounced' || r.status === 'complained').length;
     const opened = records.filter((r) => r.openedAt !== null).length;

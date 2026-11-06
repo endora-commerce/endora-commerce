@@ -4,6 +4,7 @@ import {
   type AnswerValue,
   type FormConsentRecord,
   type FormEntrySubmittedEventV1,
+  isUuidShape,
 } from '@endora-commerce/contracts';
 import type { Command, CommandEvent } from '@endora-commerce/platform/commands';
 import { randomUUID } from 'crypto';
@@ -64,6 +65,7 @@ export function submitEntryCommand(input: SubmitEntryInput): Command<SubmittedEn
     objectId: entryId,
     run: async ({ em }) => {
       if (input.maxEntries !== null) {
+        if (!isUuidShape(input.formId)) throw formNotAccepting('unavailable');
         const form = await em.findOne(Form, { id: input.formId }, { lockMode: LockMode.PESSIMISTIC_WRITE });
         if (!form || form.publishedVersionId === null) throw formNotAccepting('unavailable');
         if (form.status === 'closed') throw formNotAccepting('closed');

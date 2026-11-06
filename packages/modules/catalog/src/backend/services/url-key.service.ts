@@ -8,6 +8,7 @@ import {
   productSlugSchema,
   sameLanguage,
   toScopeChannel,
+  isUuidShape,
   type ProductUrlKeysResponse,
   type PutProductUrlKeysRequest,
   type ScopeChannel,
@@ -45,7 +46,6 @@ import { bumpScopeVersion } from './scoped-values-state.js';
  */
 
 const LOCK_PREFIX = 'catalog.url-key:';
-const UUID_SHAPE = /^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/i;
 
 /** One key write at one scope. */
 export interface UrlKeyWrite {
@@ -499,7 +499,7 @@ export class UrlKeyService {
 
   /** `GET /admin/catalog/products/:id/url-keys` (§5). */
   async read(productId: string): Promise<ProductUrlKeysResponse['data']> {
-    if (!UUID_SHAPE.test(productId)) throw new HttpError(404, ERROR_CODES.PRODUCT_NOT_FOUND, 'Product not found.');
+    if (!isUuidShape(productId)) throw new HttpError(404, ERROR_CODES.PRODUCT_NOT_FOUND, 'Product not found.');
     const em = this.emFactory();
     const product = await em.findOne(Product, { id: productId, deletedAt: null });
     if (!product) throw new HttpError(404, ERROR_CODES.PRODUCT_NOT_FOUND, 'Product not found.');
@@ -556,7 +556,7 @@ export class UrlKeyService {
 
   /** `PUT /admin/catalog/products/:id/url-keys` (API; §3) — interactive, takeover by confirmation. */
   async update(productId: string, request: PutProductUrlKeysRequest): Promise<ProductUrlKeysResponse['data']> {
-    if (!UUID_SHAPE.test(productId)) throw new HttpError(404, ERROR_CODES.PRODUCT_NOT_FOUND, 'Product not found.');
+    if (!isUuidShape(productId)) throw new HttpError(404, ERROR_CODES.PRODUCT_NOT_FOUND, 'Product not found.');
     const writes: UrlKeyWrite[] = [];
     if (request.globalKey !== undefined) writes.push({ scope: { level: 'global' }, op: { op: 'set', key: request.globalKey } });
     for (const entry of request.channelKeys ?? []) {
@@ -574,7 +574,7 @@ export class UrlKeyService {
    * issue naming the holder; a redirect is never taken over. One Command per call.
    */
   async importKeys(productId: string, writes: readonly ProductUrlKeyWrite[], source: string): Promise<UrlKeyWriteOutcome[]> {
-    if (!UUID_SHAPE.test(productId)) throw new HttpError(404, ERROR_CODES.PRODUCT_NOT_FOUND, 'Product not found.');
+    if (!isUuidShape(productId)) throw new HttpError(404, ERROR_CODES.PRODUCT_NOT_FOUND, 'Product not found.');
     if (writes.length === 0) return [];
     const keyWrites: UrlKeyWrite[] = writes.map((write) => {
       const scope: ScopeRef =
@@ -594,7 +594,7 @@ export class UrlKeyService {
 
   /** `DELETE /admin/catalog/products/:id/url-redirects/:redirectId` (Command `product.url_redirect.delete`). */
   async deleteRedirect(productId: string, redirectId: string): Promise<void> {
-    if (!UUID_SHAPE.test(productId) || !UUID_SHAPE.test(redirectId)) {
+    if (!isUuidShape(productId) || !isUuidShape(redirectId)) {
       throw new HttpError(404, ERROR_CODES.URL_REDIRECT_NOT_FOUND, 'Redirect not found.', { redirectId });
     }
     await this.#run<{ id: string }>({
@@ -602,6 +602,9 @@ export class UrlKeyService {
       objectType: 'product',
       objectId: productId,
       run: async ({ em }) => {
+        if (!isUuidShape(redirectId) || !isUuidShape(productId)) {
+          throw new HttpError(404, ERROR_CODES.URL_REDIRECT_NOT_FOUND, 'Redirect not found.', { redirectId });
+        }
         const row = await em.findOne(ProductUrlRedirect, { id: redirectId, productId });
         if (!row) throw new HttpError(404, ERROR_CODES.URL_REDIRECT_NOT_FOUND, 'Redirect not found.', { redirectId });
         const before = {

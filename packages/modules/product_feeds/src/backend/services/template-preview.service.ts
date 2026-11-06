@@ -7,6 +7,7 @@ import {
   type FeedTemplatePreviewRequest,
   type CatalogProductReadPort,
   type TaxonomyProviderCode,
+  isUuidShape,
 } from '@endora-commerce/contracts';
 import { HttpError } from '@endora-commerce/platform/http';
 import { SalesChannel } from '@endora-commerce/platform/kernel';
@@ -203,6 +204,7 @@ export class TemplatePreviewService {
     }
     const explicitId = request.context.salesChannelId ?? feed?.salesChannelId ?? null;
     if (explicitId) {
+      if (!isUuidShape(explicitId)) throw new HttpError(404, ERROR_CODES.NOT_FOUND, 'Sales channel not found.');
       const channel = await em.findOne(SalesChannel, { id: explicitId });
       if (!channel) throw new HttpError(404, ERROR_CODES.NOT_FOUND, 'Sales channel not found.');
       return channel;
@@ -270,6 +272,7 @@ export class TemplatePreviewService {
   ): Promise<Map<string, string>> {
     if (!baseTemplateId) return new Map();
     const em = this.deps.emFactory();
+    if (!isUuidShape(baseTemplateId)) throw new HttpError(404, ERROR_CODES.NOT_FOUND, 'Feed template not found.');
     const template = await em.findOne(FeedTemplate, { id: baseTemplateId, deletedAt: null });
     if (!template) throw new HttpError(404, ERROR_CODES.NOT_FOUND, 'Feed template not found.');
     const fields = await em.find(FeedTemplateField, { feedTemplateId: baseTemplateId });

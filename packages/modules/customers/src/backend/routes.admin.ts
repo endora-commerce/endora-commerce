@@ -154,9 +154,13 @@ export async function registerCustomersAdminRoutes(
   /**
    * The guard chain of every `/api/v1/admin/customers/:id…` route: the
    * permission first, so an anonymous caller still gets 401, then the shape of
-   * the id. An id that is not a UUID names no customer and answers the same
-   * 404 an unknown one does — unchecked, it reached PostgreSQL and came back as
-   * a 500 (`invalid input syntax for type uuid`).
+   * the id. An id that is not a UUID names no customer and answers
+   * `404 CUSTOMER_NOT_FOUND` before any read — unchecked, it reached PostgreSQL
+   * and came back as a 500 (`invalid input syntax for type uuid`). That is the
+   * answer an unknown id gets on the customer itself, but not on the six
+   * sub-resources (`custom-fields`, `impersonate`, `addresses`, `orders`,
+   * `quote-requests`, `carts`), which answer an unknown customer with their own
+   * code or an empty list; issue #794 makes the guard check existence too.
    */
   const requireCustomerId = async (request: FastifyRequest): Promise<void> => {
     const { id } = request.params as { id: string };

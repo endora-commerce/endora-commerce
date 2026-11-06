@@ -1,6 +1,7 @@
 import type { EntityManager } from '@mikro-orm/postgresql';
 import {
   ERROR_CODES,
+  isUuidShape,
   scopeFromRequest,
   sameLanguage,
   toScopeChannel,
@@ -64,7 +65,6 @@ export interface ScopedProductState {
   attributes: Map<string, CatalogAttributeView>;
 }
 
-const UUID = /^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/i;
 
 /** A `:id` that is not a uuid names no product — 404, never a 500 from the cast. */
 /**
@@ -84,7 +84,7 @@ export function scopedAttributesOf(
 }
 
 export function assertProductId(productId: string): void {
-  if (!UUID.test(productId)) throw new HttpError(404, ERROR_CODES.PRODUCT_NOT_FOUND, 'Product not found.');
+  if (!isUuidShape(productId)) throw new HttpError(404, ERROR_CODES.PRODUCT_NOT_FOUND, 'Product not found.');
 }
 
 /** The product's current `scope_version` (R7), as the opaque string the API carries. */

@@ -3,6 +3,7 @@ import {
   type DocumentTemplateChoices,
   type SalesRepAssignmentPort,
   type TransactionalEmailSender,
+  isUuidShape,
 } from '@endora-commerce/contracts';
 import type { Command, CommandActor } from '@endora-commerce/platform/commands';
 import { HttpError } from '@endora-commerce/platform/http';
@@ -48,6 +49,7 @@ async function findVisible(
   deps: DocumentCommandDeps,
   quoteRequestId: string,
 ): Promise<QuoteRequest> {
+  if (!isUuidShape(quoteRequestId)) throw notFound();
   const quote = await em.findOne(QuoteRequest, { id: quoteRequestId });
   if (!quote) throw notFound();
   const reach = await adminCanSeeOrganization(

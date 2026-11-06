@@ -10,6 +10,7 @@ import {
   type AdminRolePort,
   type AuthSessionPort,
   type MfaLoginPort,
+  isUuidShape,
 } from '@endora-commerce/contracts';
 import { HttpError } from '@endora-commerce/platform/http';
 import { hashPassword, verifyPassword } from '@endora-commerce/platform/kernel';
@@ -388,6 +389,7 @@ export class AdminUserService {
 
   async getById(id: string): Promise<AdminUser> {
     const em = this.emFactory();
+    if (!isUuidShape(id)) throw new HttpError(404, ERROR_CODES.NOT_FOUND, 'Admin user not found.');
     const row = await em.findOne(AdminUser, { id, deletedAt: null });
     if (!row) throw new HttpError(404, ERROR_CODES.NOT_FOUND, 'Admin user not found.');
     return row;
@@ -638,6 +640,7 @@ export class AdminUserService {
     input: { password: string; firstName: string; lastName: string; adminRoleId: string },
   ): Promise<AdminUser> {
     const em = this.emFactory();
+    if (!isUuidShape(id)) throw new HttpError(404, ERROR_CODES.NOT_FOUND, 'Admin user not found.');
     const user = await em.findOne(AdminUser, { id });
     if (!user) throw new HttpError(404, ERROR_CODES.NOT_FOUND, 'Admin user not found.');
     user.passwordHash = await hashPassword(input.password);
@@ -693,6 +696,7 @@ export class AdminUserService {
   }
 
   async #getByIdOn(em: EntityManager, id: string): Promise<AdminUser> {
+    if (!isUuidShape(id)) throw new HttpError(404, ERROR_CODES.NOT_FOUND, 'Admin user not found.');
     const row = await em.findOne(AdminUser, { id, deletedAt: null });
     if (!row) throw new HttpError(404, ERROR_CODES.NOT_FOUND, 'Admin user not found.');
     return row;

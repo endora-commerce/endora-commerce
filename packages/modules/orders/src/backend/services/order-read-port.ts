@@ -11,6 +11,7 @@ import { Order } from '../entities/order.entity.js';
 import { OrderStatus } from '../entities/order-status.entity.js';
 import { OrderItem } from '../entities/order-item.entity.js';
 import { OrderAccessService } from './order-access-service.js';
+import { isUuidShape } from '@endora-commerce/contracts';
 
 /**
  * The row-level read model `orders` publishes (feature 075, Phase P).
@@ -42,6 +43,7 @@ export class OrderReadService implements OrderReadPort {
   }
 
   async findById(id: string): Promise<OrderRecord | null> {
+    if (!isUuidShape(id)) return null;
     const order = await this.emFactory().findOne(Order, { id });
     return order ? toOrderRecord(order) : null;
   }
@@ -57,6 +59,7 @@ export class OrderReadService implements OrderReadPort {
     id: string,
     customer: Pick<OrderCustomerContext, 'customerAccountId' | 'organizationId'>,
   ): Promise<OrderRecord | null> {
+    if (!isUuidShape(id)) return null;
     const where = await this.#access.scopedWhere(customer, { id });
     const order = await this.emFactory().findOne(Order, where);
     return order ? toOrderRecord(order) : null;

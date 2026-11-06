@@ -1,5 +1,5 @@
 import type { EntityManager } from '@mikro-orm/postgresql';
-import { ERROR_CODES, type CreateNewsletterTagRequest, type NewsletterTag as NewsletterTagDto, type UpdateNewsletterTagRequest } from '@endora-commerce/contracts';
+import { ERROR_CODES, type CreateNewsletterTagRequest, type NewsletterTag as NewsletterTagDto, type UpdateNewsletterTagRequest, isUuidShape } from '@endora-commerce/contracts';
 import { HttpError } from '@endora-commerce/platform/http';
 import { NewsletterTag } from '../entities/newsletter-tag.entity.js';
 import { recordAuditFromContext } from '@endora-commerce/platform/commands';
@@ -47,6 +47,7 @@ export class NewsletterTagService {
 
   async update(id: string, input: UpdateNewsletterTagRequest): Promise<NewsletterTagDto> {
     const em = this.emFactory();
+    if (!isUuidShape(id)) throw new HttpError(404, ERROR_CODES.NOT_FOUND, 'Tag not found.');
     const tag = await em.findOne(NewsletterTag, { id });
     if (!tag) throw new HttpError(404, ERROR_CODES.NOT_FOUND, 'Tag not found.');
     if (input.name !== undefined) tag.name = input.name;
@@ -58,6 +59,7 @@ export class NewsletterTagService {
 
   async remove(id: string): Promise<void> {
     const em = this.emFactory();
+    if (!isUuidShape(id)) throw new HttpError(404, ERROR_CODES.NOT_FOUND, 'Tag not found.');
     const tag = await em.findOne(NewsletterTag, { id });
     if (!tag) throw new HttpError(404, ERROR_CODES.NOT_FOUND, 'Tag not found.');
     // Guard: block delete if referenced by a campaign target or automation trigger.

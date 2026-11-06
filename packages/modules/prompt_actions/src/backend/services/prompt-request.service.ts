@@ -5,6 +5,7 @@ import {
   type BulkProgressSnapshot,
   type ToolAuditContext,
   type ToolContext,
+  isUuidShape,
 } from '@endora-commerce/contracts';
 import { HttpError } from '@endora-commerce/platform/http';
 import type { AuditPort } from '@endora-commerce/platform/kernel';
@@ -420,6 +421,9 @@ export class PromptRequestService {
     id: string,
     adminUserId: string,
   ): Promise<PromptActionRequest> {
+    if (!isUuidShape(id)) {
+      throw new HttpError(404, ERROR_CODES.NOT_FOUND, 'Prompt request not found.');
+    }
     const row = await em.findOne(PromptActionRequest, { id });
     // Foreign requests 404 (not 403) to avoid existence leaks (contract §1).
     if (!row || row.adminUserId !== adminUserId) {

@@ -4,6 +4,7 @@ import {
   ERROR_CODES,
   type OrganizationRoleReadPort,
   type OrganizationRoleSummary,
+  isUuidShape,
 } from '@endora-commerce/contracts';
 import type { AuditState } from '@endora-commerce/platform/commands';
 import { HttpError } from '@endora-commerce/platform/http';
@@ -114,6 +115,8 @@ export function entityManagerAccountRoleStore(em: EntityManager): CustomerAccoun
   // Command's one audit entry; this factory is their persistence.
   return {
     async findMember(organizationId, customerAccountId, options = {}) {
+      // A malformed id names no member; PostgreSQL would answer it with a 500 (issue #781).
+      if (!isUuidShape(customerAccountId)) return null;
       return em.findOne(CustomerAccount, {
         id: customerAccountId,
         organizationId,

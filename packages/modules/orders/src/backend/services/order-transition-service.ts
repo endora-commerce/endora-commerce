@@ -1,7 +1,7 @@
 import { randomUUID } from 'crypto';
 import { LockMode } from '@mikro-orm/core';
 import type { EntityManager } from '@mikro-orm/postgresql';
-import { ERROR_CODES } from '@endora-commerce/contracts';
+import { ERROR_CODES, isUuidShape } from '@endora-commerce/contracts';
 import type { EventBus } from '@endora-commerce/platform/events';
 import { HttpError } from '@endora-commerce/platform/http';
 import {
@@ -136,6 +136,7 @@ export class OrderTransitionService {
   ): Promise<Order> {
     for (let evaluation = 0; ; evaluation += 1) {
       const em = this.emFactory();
+      if (!isUuidShape(orderId)) throw new HttpError(404, ERROR_CODES.ORDER_NOT_FOUND, 'Order not found.');
       const order = await em.findOne(Order, { id: orderId });
       if (!order) throw new HttpError(404, ERROR_CODES.ORDER_NOT_FOUND, 'Order not found.');
 

@@ -67,7 +67,12 @@ export interface MembersDeps {
   latestInvitationToken?: { value: string | null };
 }
 
-const memberRoleParamSchema = z.object({ id: z.string().uuid() });
+/**
+ * The member id is not checked for shape here: a malformed id names no member,
+ * so the member Commands answer it with the same `404` as an unknown one (issue
+ * #781), where a params schema would answer `400`.
+ */
+const memberRoleParamSchema = z.object({ id: z.string() });
 
 export async function registerMembersRoutes(app: FastifyInstance, deps: MembersDeps): Promise<void> {
   const { invitationService, roleService, requireCustomer, resolveCustomerContext } = deps;

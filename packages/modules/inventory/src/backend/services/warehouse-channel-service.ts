@@ -5,6 +5,7 @@ import { actorFromContext } from '@endora-commerce/platform/commands';
 import { getTenantContext } from '@endora-commerce/platform/tenancy';
 import { Warehouse } from '../entities/warehouse.entity.js';
 import { WarehouseChannelAssignment } from '../entities/warehouse-channel-assignment.entity.js';
+import { isUuidShape } from '@endora-commerce/contracts';
 
 export interface ChannelWarehouseAssignmentDTO {
   id: string;
@@ -73,6 +74,7 @@ export class WarehouseChannelService {
 
   async listForChannel(channelId: string): Promise<ChannelWarehouseAssignmentDTO[]> {
     const em = this.emFactory();
+    if (!isUuidShape(channelId)) return [];
     const rows = await em.find(WarehouseChannelAssignment, { salesChannelId: channelId }, {
       orderBy: { sortOrder: 'asc', createdAt: 'asc' },
     });
@@ -109,6 +111,9 @@ export class WarehouseChannelService {
     input: AssignToChannelInput,
   ): Promise<ChannelWarehouseAssignmentDTO> {
     const em = this.emFactory();
+    if (!isUuidShape(input.warehouseId)) {
+      throw new HttpError(404, 'WAREHOUSE_NOT_FOUND', 'Warehouse not found');
+    }
     const warehouse = await em.findOne(Warehouse, { id: input.warehouseId });
     if (!warehouse) {
       throw new HttpError(404, 'WAREHOUSE_NOT_FOUND', 'Warehouse not found');
@@ -162,6 +167,9 @@ export class WarehouseChannelService {
     input: PatchAssignmentInput,
   ): Promise<ChannelWarehouseAssignmentDTO> {
     const em = this.emFactory();
+    if (!isUuidShape(assignmentId) || !isUuidShape(channelId)) {
+      throw new HttpError(404, 'CHANNEL_WAREHOUSE_NOT_FOUND', 'Assignment not found');
+    }
     const row = await em.findOne(WarehouseChannelAssignment, {
       id: assignmentId,
       salesChannelId: channelId,
@@ -193,6 +201,9 @@ export class WarehouseChannelService {
 
   async unassign(channelId: string, assignmentId: string): Promise<void> {
     const em = this.emFactory();
+    if (!isUuidShape(assignmentId) || !isUuidShape(channelId)) {
+      throw new HttpError(404, 'CHANNEL_WAREHOUSE_NOT_FOUND', 'Assignment not found');
+    }
     const row = await em.findOne(WarehouseChannelAssignment, {
       id: assignmentId,
       salesChannelId: channelId,

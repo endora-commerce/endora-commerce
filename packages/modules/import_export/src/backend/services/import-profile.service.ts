@@ -8,7 +8,7 @@ import type {
 } from '@endora-commerce/contracts';
 import type { CommandBus } from '@endora-commerce/platform/commands';
 import { SalesChannel } from '@endora-commerce/platform/kernel';
-import { toScopeChannel } from '@endora-commerce/contracts';
+import { isUuidShape, toScopeChannel } from '@endora-commerce/contracts';
 import { ImportProfile } from '../entities/import-profile.entity.js';
 import {
   createImportProfileCommand,
@@ -68,6 +68,8 @@ export class ImportProfileService {
   }
 
   async get(id: string): Promise<ImportProfileView> {
+    // A malformed id names no profile: the unknown id's 404, before PostgreSQL sees it (issue #781).
+    if (!isUuidShape(id)) throw profileNotFound(id);
     const row = await this.deps.emFactory().findOne(ImportProfile, { id });
     if (!row) throw profileNotFound(id);
     return toImportProfileView(row);
@@ -95,11 +97,13 @@ export class ImportProfileService {
   }
 
   async update(id: string, body: UpdateImportProfileRequest): Promise<ImportProfileView> {
+    if (!isUuidShape(id)) throw profileNotFound(id);
     const { row } = await this.deps.commandBus.run(updateImportProfileCommand({ id, patch: body }));
     return toImportProfileView(row);
   }
 
   async delete(id: string): Promise<void> {
+    if (!isUuidShape(id)) throw profileNotFound(id);
     await this.deps.commandBus.run(deleteImportProfileCommand({ id }));
   }
 }

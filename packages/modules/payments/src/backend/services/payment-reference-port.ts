@@ -1,6 +1,7 @@
 import type { EntityManager } from '@mikro-orm/postgresql';
 import type { PaymentReferencePort } from '@endora-commerce/contracts';
 import { Payment } from '../entities/payment.entity.js';
+import { isUuidShape } from '@endora-commerce/contracts';
 
 /**
  * The one write the four payment gateways make into this module's table
@@ -48,6 +49,7 @@ export class PaymentReferenceService implements PaymentReferencePort {
     // so a later provider event can act on it; provider-integration
     // bookkeeping, exactly as the reference stamp above.
     const em = this.emFactory();
+    if (!isUuidShape(paymentId)) return false;
     const payment = await em.findOne(Payment, { id: paymentId });
     if (!payment) return false;
     payment.providerDetails = { ...(payment.providerDetails ?? {}), ...patch };
@@ -68,6 +70,7 @@ export class PaymentReferenceService implements PaymentReferencePort {
     // markers guarding nothing, which is what D-89(c) taught the staleness half
     // to report.
     const em = this.emFactory();
+    if (!isUuidShape(paymentId)) return false;
     const payment = await em.findOne(Payment, { id: paymentId });
     if (!payment) return false;
     if (onlyIfAbsent && payment.externalReference) return false;

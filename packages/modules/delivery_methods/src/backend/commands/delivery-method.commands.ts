@@ -1,5 +1,5 @@
 import { randomUUID } from 'node:crypto';
-import { ERROR_CODES, roundHalfUp, type DeliveryMethodUpsert } from '@endora-commerce/contracts';
+import { ERROR_CODES, roundHalfUp, type DeliveryMethodUpsert, isUuidShape } from '@endora-commerce/contracts';
 import type { Command } from '@endora-commerce/platform/commands';
 import { HttpError } from '@endora-commerce/platform/http';
 import { DeliveryMethod } from '../entities/delivery-method.entity.js';
@@ -176,6 +176,9 @@ export function makeDeleteDeliveryMethodCommand(
     objectType: 'delivery_method',
     objectId: id,
     run: async ({ em }) => {
+      if (!isUuidShape(id)) {
+        throw new HttpError(404, ERROR_CODES.NOT_FOUND, 'Delivery method not found.');
+      }
       const row = await em.findOne(DeliveryMethod, { id });
       if (!row) {
         throw new HttpError(404, ERROR_CODES.NOT_FOUND, 'Delivery method not found.');
@@ -219,6 +222,7 @@ export function makeWithdrawCreatedDeliveryMethodCommand(id: string): Command<vo
     objectType: 'delivery_method',
     objectId: id,
     run: async ({ em }) => {
+      if (!isUuidShape(id)) return { result: undefined, skipAudit: true };
       const row = await em.findOne(DeliveryMethod, { id });
       // Already gone: there is nothing left to take back, and nothing to audit.
       if (!row) return { result: undefined, skipAudit: true };
@@ -245,6 +249,7 @@ export function makeDeactivateCreatedDeliveryMethodCommand(id: string): Command<
     objectType: 'delivery_method',
     objectId: id,
     run: async ({ em }) => {
+      if (!isUuidShape(id)) return { result: undefined, skipAudit: true };
       const row = await em.findOne(DeliveryMethod, { id });
       if (!row || row.status === 'inactive') return { result: undefined, skipAudit: true };
       const before = deliveryMethodAuditState(row);

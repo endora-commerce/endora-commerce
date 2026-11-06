@@ -5,6 +5,7 @@ import {
   type StoredNotificationMessage,
 } from '../entities/admin-notification.entity.js';
 import { AdminNotificationRead } from '../entities/admin-notification-read.entity.js';
+import { isUuidShape } from '@endora-commerce/contracts';
 
 export interface RecordNotificationInput {
   audience: AdminNotificationAudience;
@@ -271,6 +272,9 @@ export class AdminNotificationService {
     // command-coverage-ignore: admin notification bookkeeping — system-generated
     // alert record / read-state, not an audited domain-state mutation.
     const em = this.emFactory();
+    if (!isUuidShape(notificationId)) {
+      throw new NotificationNotFoundError(notificationId);
+    }
     const entry = await em.findOne(AdminNotification, { id: notificationId });
     if (!entry) {
       throw new NotificationNotFoundError(notificationId);

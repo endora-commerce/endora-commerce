@@ -7,6 +7,7 @@ import {
   type GaCustomEventListQuery,
   type GaStorefrontCustomEvent,
   type GaTriggerAction,
+  isUuidShape,
 } from '@endora-commerce/contracts';
 import { HttpError } from '@endora-commerce/platform/http';
 import { GaCustomEvent } from '../entities/ga-custom-event.entity.js';
@@ -67,6 +68,7 @@ export class GaCustomEventsService {
 
   async get(id: string): Promise<GaCustomEventResponse> {
     const em = this.emFactory();
+    if (!isUuidShape(id)) throw this.notFound(id);
     const row = await em.findOne(GaCustomEvent, { id });
     if (!row) throw this.notFound(id);
     return this.toDto(row);
@@ -101,6 +103,7 @@ export class GaCustomEventsService {
     ctx: GaAuditContext,
   ): Promise<GaCustomEventResponse> {
     const em = this.emFactory();
+    if (!isUuidShape(id)) throw this.notFound(id);
     const row = await em.findOne(GaCustomEvent, { id });
     if (!row) throw this.notFound(id);
     if (row.version !== input.version) {
@@ -134,6 +137,7 @@ export class GaCustomEventsService {
 
   async remove(id: string, ctx: GaAuditContext): Promise<void> {
     const em = this.emFactory();
+    if (!isUuidShape(id)) throw this.notFound(id);
     const row = await em.findOne(GaCustomEvent, { id });
     if (!row) throw this.notFound(id);
     await em.removeAndFlush(row);

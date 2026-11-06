@@ -6,6 +6,7 @@ import {
   type CmsHookSummary,
   type CreateCmsHookRequest,
   type PatchCmsHookRequest,
+  isUuidShape,
 } from '@endora-commerce/contracts';
 import { HttpError } from '@endora-commerce/platform/http';
 import type { AuditState, CommandBus } from '@endora-commerce/platform/commands';
@@ -92,6 +93,7 @@ export class CmsHookService {
     hookId: string,
     blockId: string,
   ): Promise<number | null> {
+    if (!isUuidShape(hookId) || !isUuidShape(blockId)) return null;
     const rows = (await em.execute(
       'select position from cms_hook_block_attachments where hook_id = ? and block_id = ? limit 1',
       [hookId, blockId],
@@ -330,6 +332,8 @@ export class CmsHookService {
   }
 
   private async findRow(id: string, em = this.emFactory()): Promise<HookRow | null> {
+    // A malformed id names no row; PostgreSQL would answer it with a 500 (issue #781).
+    if (!isUuidShape(id)) return null;
     const rows = (await em.execute(
       `select h.*,
               (select count(*) from cms_hook_block_attachments a where a.hook_id = h.id) as attachment_count

@@ -5,6 +5,7 @@ import {
   type NewsletterEmailBlockDetail,
   type NewsletterEmailBlockSummary,
   type UpdateNewsletterEmailBlockRequest,
+  isUuidShape,
 } from '@endora-commerce/contracts';
 import { HttpError } from '@endora-commerce/platform/http';
 import { NewsletterEmailBlock } from '../entities/newsletter-email-block.entity.js';
@@ -114,6 +115,7 @@ export class NewsletterEmailBlockService {
   }
 
   private async load(em: EntityManager, id: string): Promise<NewsletterEmailBlock> {
+    if (!isUuidShape(id)) throw new HttpError(404, ERROR_CODES.NOT_FOUND, 'Block not found.');
     const block = await em.findOne(NewsletterEmailBlock, { id });
     if (!block) throw new HttpError(404, ERROR_CODES.NOT_FOUND, 'Block not found.');
     return block;

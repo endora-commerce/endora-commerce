@@ -4,6 +4,7 @@ import {
   PRODUCT_FEED_ERROR_CODES,
   type FeedTaxonomyCheckTrigger,
   type TaxonomyProviderCode,
+  isUuidShape,
 } from '@endora-commerce/contracts';
 import type { Command } from '@endora-commerce/platform/commands';
 import { HttpError } from '@endora-commerce/platform/http';
@@ -89,6 +90,7 @@ export function makePromoteTaxonomyRevisionCommand(args: {
     objectId: args.taxonomyId,
 
     capture: async ({ em }) => {
+      if (!isUuidShape(args.taxonomyId)) return null;
       const candidate = await em.findOne(FeedTaxonomy, { id: args.taxonomyId });
       if (!candidate) return null;
       const current = await em.findOne(FeedTaxonomy, {
@@ -104,6 +106,9 @@ export function makePromoteTaxonomyRevisionCommand(args: {
     },
 
     run: async ({ em }) => {
+      if (!isUuidShape(args.taxonomyId)) {
+        throw new HttpError(404, ERROR_CODES.NOT_FOUND, 'Taxonomy revision not found.');
+      }
       const candidate = await em.findOne(FeedTaxonomy, { id: args.taxonomyId });
       if (!candidate) {
         throw new HttpError(404, ERROR_CODES.NOT_FOUND, 'Taxonomy revision not found.');

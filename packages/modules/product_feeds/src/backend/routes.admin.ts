@@ -10,6 +10,7 @@ import {
   listQuerySchema,
   productSelectionPreviewRequestSchema,
   updateProductFeedRequestSchema,
+  isUuidShape,
 } from '@endora-commerce/contracts';
 import { HttpError } from '@endora-commerce/platform/http';
 import { SalesChannel } from '@endora-commerce/platform/kernel';
@@ -75,8 +76,13 @@ export interface ProductFeedsAdminRoutesDeps {
 /** The contract caps the sample at ten; the criteria panel shows exactly that. */
 const PREVIEW_SAMPLE_SIZE = 10;
 
-const idParamsSchema = z.object({ id: z.string().uuid() });
-const runParamsSchema = z.object({ id: z.string().uuid(), runId: z.string().uuid() });
+/**
+ * Ids are not checked for shape here: a malformed id names no record, so the
+ * service answers it exactly as it answers an unknown one — a `404`, before any
+ * read (issue #781) — where a params schema would answer `400`.
+ */
+const idParamsSchema = z.object({ id: z.string() });
+const runParamsSchema = z.object({ id: z.string(), runId: z.string() });
 
 /**
  * The issue filters (FR-054). Both are the contract's own enums, so an unknown
@@ -327,6 +333,7 @@ export async function registerProductFeedsAdminRoutes(
   app.get('/api/v1/admin/product-feeds/:id/runs/:runId', read, async (request, reply) => {
     const { id, runId } = parse(runParamsSchema, request.params);
     const em = deps.emFactory();
+    if (!isUuidShape(runId) || !isUuidShape(id)) throw new HttpError(404, ERROR_CODES.NOT_FOUND, 'Feed run not found.');
     const run = await em.findOne(FeedRun, { id: runId, productFeedId: id });
     if (!run) throw new HttpError(404, ERROR_CODES.NOT_FOUND, 'Feed run not found.');
     const artefact = run.artefactId
@@ -446,6 +453,7 @@ export async function registerProductFeedsAdminRoutes(
 
 /** 404s a run id that is not this feed's, rather than leaking its existence. */
 async function requireRun(em: EntityManager, feedId: string, runId: string): Promise<FeedRun> {
+  if (!isUuidShape(runId) || !isUuidShape(feedId)) throw new HttpError(404, ERROR_CODES.NOT_FOUND, 'Feed run not found.');
   const run = await em.findOne(FeedRun, { id: runId, productFeedId: feedId });
   if (!run) throw new HttpError(404, ERROR_CODES.NOT_FOUND, 'Feed run not found.');
   return run;

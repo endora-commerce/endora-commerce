@@ -19,6 +19,7 @@ import {
   type RenameDocumentTemplateBody,
   type SaveDocumentTemplateContentBody,
   type VersionedBody,
+  isUuidShape,
 } from '@endora-commerce/contracts';
 import type { CommandBus } from '@endora-commerce/platform/commands';
 import { HttpError } from '@endora-commerce/platform/http';
@@ -61,8 +62,6 @@ export interface DocumentTemplateServiceDeps {
   readonly salesChannels: SalesChannelResolutionPort;
   readonly renderer: DocumentRenderer;
 }
-
-const UUID_RE = /^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/i;
 
 function channelName(name: Record<string, string> | undefined): string | null {
   if (!name) return null;
@@ -199,6 +198,9 @@ export class DocumentTemplateService {
 
   /** A row whose type is available, or `DOCUMENT_TEMPLATE_NOT_FOUND` — indistinguishable (FR-051). */
   private async requireRow(id: string): Promise<DocumentTemplate> {
+    if (!isUuidShape(id)) {
+      throw new HttpError(404, ERROR_CODES.DOCUMENT_TEMPLATE_NOT_FOUND, 'Document template not found.', { id });
+    }
     const row = await this.deps.emFactory().findOne(DocumentTemplate, { id });
     if (!row || !this.deps.registry.get(row.documentType)) {
       throw new HttpError(404, ERROR_CODES.DOCUMENT_TEMPLATE_NOT_FOUND, 'Document template not found.', { id });
@@ -235,6 +237,11 @@ export class DocumentTemplateService {
       const builtIn = registration.defaultContent();
       content = { schemaVersion: 1, languages: { ...builtIn.languages } };
     } else {
+      if (!isUuidShape(body.source.templateId)) {
+        throw this.invalid('The source template is not a template of this document type.', {
+          templateId: body.source.templateId,
+        });
+      }
       const source = await this.deps.emFactory().findOne(DocumentTemplate, { id: body.source.templateId });
       if (!source || source.documentType !== body.documentType) {
         throw this.invalid('The source template is not a template of this document type.', {
@@ -363,7 +370,7 @@ export function templateReaderOver(emFactory: () => EntityManager): TemplateRead
       return rows.map(toRow);
     },
     async findById(id) {
-      if (!UUID_RE.test(id)) return null;
+      if (!isUuidShape(id)) return null;
       const row = await emFactory().findOne(DocumentTemplate, { id });
       return row ? toRow(row) : null;
     },

@@ -9,6 +9,7 @@ import {
   type ListingPricePort,
   type OrganizationDetailsPort,
   type ProductAudience,
+  isUuidShape,
 } from '@endora-commerce/contracts';
 import { HttpError } from '@endora-commerce/platform/http';
 import type { SalesChannelMembershipPort } from '@endora-commerce/platform/kernel';
@@ -212,6 +213,7 @@ export class ProductLinkService {
     kind?: ProductLinkKind,
   ): Promise<ProductLinkRow[]> {
     const em = this.emFactory();
+    if (!isUuidShape(sourceProductId)) return [];
     const where: Record<string, unknown> = { sourceProductId };
     if (kind) where['kind'] = kind;
     const rows = await em.find(ProductLink, where, {
@@ -232,6 +234,13 @@ export class ProductLinkService {
   ): Promise<ProductLinkRow[]> {
     const em = this.emFactory();
     // 1) Source must exist and not be archived/deleted (404 PRODUCT_NOT_FOUND).
+    if (!isUuidShape(sourceProductId)) {
+      throw new HttpError(
+        404,
+        ERROR_CODES.PRODUCT_NOT_FOUND,
+        `Product "${sourceProductId}" not found.`,
+      );
+    }
     const source = await em.findOne(Product, { id: sourceProductId });
     if (!source || source.deletedAt) {
       throw new HttpError(
@@ -324,6 +333,13 @@ export class ProductLinkService {
 
   async removeLink(sourceProductId: string, linkId: string): Promise<void> {
     await this.#audited('product_link.delete', linkId, async (em) => {
+      if (!isUuidShape(linkId) || !isUuidShape(sourceProductId)) {
+        throw new HttpError(
+          404,
+          ERROR_CODES.PRODUCT_LINK_NOT_FOUND,
+          `Link "${linkId}" not found on source ${sourceProductId}.`,
+        );
+      }
       const link = await em.findOne(ProductLink, { id: linkId, sourceProductId });
       if (!link) {
         throw new HttpError(

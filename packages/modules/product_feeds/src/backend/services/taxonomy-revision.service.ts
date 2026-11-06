@@ -8,6 +8,7 @@ import {
   type FeedTaxonomyRevision as FeedTaxonomyRevisionDto,
   type CatalogCategoryReadPort,
   type TaxonomyProviderCode,
+  isUuidShape,
 } from '@endora-commerce/contracts';
 import type { CommandBus } from '@endora-commerce/platform/commands';
 import { HttpError } from '@endora-commerce/platform/http';
@@ -106,6 +107,9 @@ export class TaxonomyRevisionService {
   /** Read-only. Zero writes, no transaction held open beyond its own reads. */
   async impact(taxonomyId: string, language: string): Promise<TaxonomyRevisionImpactView> {
     const em = this.deps.emFactory();
+    if (!isUuidShape(taxonomyId)) {
+      throw new HttpError(404, ERROR_CODES.NOT_FOUND, 'Taxonomy revision not found.');
+    }
     const candidate = await em.findOne(FeedTaxonomy, { id: taxonomyId });
     if (!candidate) {
       throw new HttpError(404, ERROR_CODES.NOT_FOUND, 'Taxonomy revision not found.');
@@ -145,6 +149,7 @@ export class TaxonomyRevisionService {
         reconciler: this.deps.reconciler,
         countStaleAfter: async ({ candidateTaxonomyId }) => {
           const em = this.deps.emFactory();
+          if (!isUuidShape(candidateTaxonomyId)) return 0;
           const candidate = await em.findOne(FeedTaxonomy, { id: candidateTaxonomyId });
           if (!candidate) return 0;
           const current = await em.findOne(FeedTaxonomy, {

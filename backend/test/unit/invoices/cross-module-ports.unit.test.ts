@@ -46,7 +46,7 @@ function ownEntitiesOnly(): () => EntityManager {
   const create = (entity: unknown, data: Record<string, unknown>): Record<string, unknown> => {
     guard(entity);
     if (entity === Invoice) {
-      invoice = { id: 'inv-1', ...data };
+      invoice = { id: '00000000-0000-4000-8000-781000000108', ...data };
       return invoice;
     }
     const line = { id: `line-${lines.length + 1}`, ...data };
@@ -81,7 +81,7 @@ function ownEntitiesOnly(): () => EntityManager {
 
 function orderRecord(over: Partial<OrderRecord> = {}): OrderRecord {
   return {
-    id: 'ord-1',
+    id: '00000000-0000-4000-8000-781000000109',
     businessId: 'ORD-1',
     organizationId: 'org-1',
     placedByCustomerAccountId: 'cust-1',
@@ -123,7 +123,7 @@ function orderRecord(over: Partial<OrderRecord> = {}): OrderRecord {
 function orderItem(over: Partial<OrderItemRecord> = {}): OrderItemRecord {
   return {
     id: 'oi-1',
-    orderId: 'ord-1',
+    orderId: '00000000-0000-4000-8000-781000000109',
     productId: 'p-1',
     productSnapshot: { sku: 'SKU-1', name: 'Widget' },
     variantId: null,
@@ -200,12 +200,12 @@ describe('invoices — the order and its lines come from orders, over its port',
       } as unknown as ConstructorParameters<typeof InvoiceService>[3],
     );
 
-    const detail = await service.issue('ord-1', 'invoice');
+    const detail = await service.issue('00000000-0000-4000-8000-781000000109', 'invoice');
 
     // Three reads, every one of them over the port: the order, its lines, and
     // the order again for the transitive tenant scope `buildDetail` re-checks
     // before it hands the detail back.
-    expect(calls()).toEqual(['findById:ord-1', 'listItems:ord-1', 'findById:ord-1']);
+    expect(calls()).toEqual(['findById:00000000-0000-4000-8000-781000000109', 'listItems:00000000-0000-4000-8000-781000000109', 'findById:00000000-0000-4000-8000-781000000109']);
     expect(detail.number).toBe('FV 1/2026');
     expect(detail.currency).toBe('PLN');
   });
@@ -237,7 +237,7 @@ describe('invoices — the order and its lines come from orders, over its port',
       } as unknown as ConstructorParameters<typeof InvoiceService>[3],
     );
 
-    const detail = await service.issue('ord-1', 'invoice');
+    const detail = await service.issue('00000000-0000-4000-8000-781000000109', 'invoice');
     expect(detail.lines[0]?.taxRate).toBe(0.08);
     expect(detail.lines[0]?.unit).toBe('paleta');
   });
@@ -250,7 +250,7 @@ describe('invoices — the order and its lines come from orders, over its port',
       {} as unknown as ConstructorParameters<typeof InvoiceService>[2],
       {} as unknown as ConstructorParameters<typeof InvoiceService>[3],
     );
-    await expect(service.issue('ord-1', 'invoice')).rejects.toMatchObject({
+    await expect(service.issue('00000000-0000-4000-8000-781000000109', 'invoice')).rejects.toMatchObject({
       code: 'ORDER_NOT_FOUND',
     });
   });
@@ -269,8 +269,8 @@ describe('invoices — the order and its lines come from orders, over its port',
       } as unknown as InvoiceEmailDispatchDeps['orderReadPort'],
       invoiceService: {
         buildDetail: async () => ({
-          id: 'inv-1',
-          orderId: 'ord-1',
+          id: '00000000-0000-4000-8000-781000000108',
+          orderId: '00000000-0000-4000-8000-781000000109',
           number: 'FV 1/2026',
           grossTotal: 123,
           currency: 'PLN',
@@ -287,7 +287,7 @@ describe('invoices — the order and its lines come from orders, over its port',
       log: () => {},
     };
 
-    await expect(new InvoiceEmailDispatcher(deps).dispatch('inv-1')).rejects.toBeInstanceOf(
+    await expect(new InvoiceEmailDispatcher(deps).dispatch('00000000-0000-4000-8000-781000000108')).rejects.toBeInstanceOf(
       ModuleDisabledError,
     );
   });
@@ -300,8 +300,8 @@ describe('invoices — the order and its lines come from orders, over its port',
       } as unknown as InvoiceEmailDispatchDeps['orderReadPort'],
       invoiceService: {
         buildDetail: async () => ({
-          id: 'inv-1',
-          orderId: 'ord-1',
+          id: '00000000-0000-4000-8000-781000000108',
+          orderId: '00000000-0000-4000-8000-781000000109',
           number: 'FV 1/2026',
           grossTotal: 123,
           currency: 'PLN',
@@ -322,7 +322,7 @@ describe('invoices — the order and its lines come from orders, over its port',
       log: (_message, context) => logged.push({ reason: context['reason'] }),
     };
 
-    await expect(new InvoiceEmailDispatcher(deps).dispatch('inv-1')).resolves.toEqual({
+    await expect(new InvoiceEmailDispatcher(deps).dispatch('00000000-0000-4000-8000-781000000108')).resolves.toEqual({
       sent: false,
       reason: 'failed',
     });

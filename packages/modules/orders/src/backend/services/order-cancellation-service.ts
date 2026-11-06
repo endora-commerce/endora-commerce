@@ -4,6 +4,7 @@ import {
   ORDER_STATUS_CANCELLED,
   type OrderTransitionPort,
   type PaymentMethodReadPort,
+  isUuidShape,
 } from '@endora-commerce/contracts';
 import { HttpError } from '@endora-commerce/platform/http';
 import { Order } from '../entities/order.entity.js';
@@ -106,6 +107,7 @@ export class CustomerOrderCancellationService {
    */
   async cancelByCustomer(orderId: string, customerAccountId: string): Promise<Order> {
     const em = this.deps.emFactory();
+    if (!isUuidShape(orderId)) throw new HttpError(404, ERROR_CODES.ORDER_NOT_FOUND, 'Order not found.');
     const order = await em.findOne(Order, { id: orderId, placedByCustomerAccountId: customerAccountId });
     if (!order) throw new HttpError(404, ERROR_CODES.ORDER_NOT_FOUND, 'Order not found.');
 

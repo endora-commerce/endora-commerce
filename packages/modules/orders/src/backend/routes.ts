@@ -27,6 +27,7 @@ import {
   updateOrderStatusRequestSchema,
   unitPriceHalfUp,
   withChannelOrderRules,
+  isUuidShape,
 } from '@endora-commerce/contracts';
 import type {
   AdminOrderDetail,
@@ -262,6 +263,7 @@ export async function registerOrderRoutes(
       async (request) => {
         const patch = customFieldValuesSchema.parse(request.body);
         const orderId = request.params.id;
+        if (!isUuidShape(orderId)) throw new HttpError(404, ERROR_CODES.NOT_FOUND, 'Order not found.');
         const command: Command<Order> = {
           action: 'order.custom_fields.update',
           objectType: 'order',
@@ -271,6 +273,7 @@ export async function registerOrderRoutes(
             return o ? { customFieldValues: o.customFieldValues ?? {} } : null;
           },
           run: async ({ em }) => {
+            if (!isUuidShape(orderId)) throw new HttpError(404, ERROR_CODES.NOT_FOUND, 'Order not found.');
             const order = await em.findOne(Order, { id: orderId });
             if (!order) throw new HttpError(404, ERROR_CODES.NOT_FOUND, 'Order not found.');
             order.customFieldValues = await customFieldValues.validateAndMerge(
@@ -576,6 +579,7 @@ export async function registerOrderRoutes(
    * filter and do not call this.
    */
   const loadScopedAdminOrder = async (orderId: string): Promise<Order> => {
+    if (!isUuidShape(orderId)) throw new HttpError(404, ERROR_CODES.ORDER_NOT_FOUND, 'Order not found.');
     const order = await emFactory().findOne(Order, { id: orderId });
     if (!order) throw new HttpError(404, ERROR_CODES.ORDER_NOT_FOUND, 'Order not found.');
     return order;
@@ -841,6 +845,7 @@ export async function registerOrderRoutes(
     // switched off under a follow-up that had already found it present.
     rethrowIfModuleDisabled(err);
     if (err instanceof HttpError && err.code === ERROR_CODES.ORDER_NOT_FOUND) return 'not_found';
+    if (!isUuidShape(orderId)) return 'not_found';
     const order = await emFactory().findOne(Order, { id: orderId });
     if (!order) return 'not_found';
     const graph = await deps.orderStatusGraphService.loadGraph();
@@ -910,6 +915,7 @@ export async function registerOrderRoutes(
       // preview priced on one channel and checked against another answers
       // neither question. Past the gate above the row exists; the 404 is the
       // answer to a channel deleted between the two reads.
+      if (!isUuidShape(body.salesChannelId)) throw new HttpError(404, ERROR_CODES.NOT_FOUND, 'Sales channel not found.');
       const salesChannel = await em.findOne(SalesChannel, { id: body.salesChannelId });
       if (!salesChannel) throw new HttpError(404, ERROR_CODES.NOT_FOUND, 'Sales channel not found.');
       const organization = await deps.organizationDetails.findById(customer.organizationId);
@@ -1191,6 +1197,9 @@ export async function registerOrderRoutes(
     { preHandler: requireAdmin('orders:read') },
     async (request) => {
       const em = emFactory();
+      if (!isUuidShape(request.params.id)) {
+        throw new HttpError(404, ERROR_CODES.ORDER_NOT_FOUND, 'Order not found.');
+      }
       const order = await em.findOne(Order, { id: request.params.id });
       if (!order) {
         throw new HttpError(404, ERROR_CODES.ORDER_NOT_FOUND, 'Order not found.');
@@ -1466,6 +1475,7 @@ export async function registerOrderRoutes(
     '/api/v1/admin/orders/:id/reorder',
     { preHandler: requireAdmin('orders:write') },
     async (request) => {
+      if (!isUuidShape(request.params.id)) throw new HttpError(404, ERROR_CODES.ORDER_NOT_FOUND, 'Order not found.');
       const order = await emFactory().findOne(Order, { id: request.params.id });
       if (!order) throw new HttpError(404, ERROR_CODES.ORDER_NOT_FOUND, 'Order not found.');
       const result = await deps.orderReorderService.reorder(
@@ -1489,6 +1499,7 @@ export async function registerOrderRoutes(
     '/api/v1/admin/orders/:id/clone-to-quote',
     { preHandler: requireAdmin('orders:write') },
     async (request) => {
+      if (!isUuidShape(request.params.id)) throw new HttpError(404, ERROR_CODES.ORDER_NOT_FOUND, 'Order not found.');
       const order = await emFactory().findOne(Order, { id: request.params.id });
       if (!order) throw new HttpError(404, ERROR_CODES.ORDER_NOT_FOUND, 'Order not found.');
       // Feature 155 (FR-012, threat F10) — the actor is this route's literal.

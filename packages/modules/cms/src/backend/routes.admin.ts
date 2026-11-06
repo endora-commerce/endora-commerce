@@ -398,10 +398,9 @@ export async function registerCmsAdminRoutes(
     '/api/v1/admin/cms/hooks/:id/attachments/:blockId',
     { preHandler: requireWrite },
     async (request) => {
-      const body = cmsHookAttachmentRequestSchema.parse({
-        ...(request.body as Record<string, unknown> | null | undefined),
-        blockId: request.params.blockId,
-      });
+      // The block id is the path's, and a malformed one names no attachment: the
+      // service answers it as an unknown one rather than the schema's `400` (#781).
+      const body = cmsHookAttachmentRequestSchema.pick({ position: true }).parse(request.body ?? {});
       return {
         data: await deps.hookService.reorderAttachment(
           request.params.id,

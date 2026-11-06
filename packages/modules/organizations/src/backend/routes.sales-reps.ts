@@ -3,6 +3,7 @@ import {
   ERROR_CODES,
   assignSalesRepRequestSchema,
   type AdminUserReadPort,
+  isUuidShape,
 } from '@endora-commerce/contracts';
 import type { EntityManager } from '@mikro-orm/postgresql';
 import { HttpError } from '@endora-commerce/platform/http';
@@ -101,6 +102,7 @@ export async function registerOrganizationsSalesRepRoutes(
     { preHandler: guard },
     async (request) => {
       const em = emFactory();
+      if (!isUuidShape(request.params.organizationId)) throw new HttpError(404, ERROR_CODES.NOT_FOUND, 'Organization not found.');
       const org = await em.findOne(Organization, { id: request.params.organizationId });
       if (!org) throw new HttpError(404, ERROR_CODES.NOT_FOUND, 'Organization not found.');
       const assignments = await salesRepAssignment.listForOrganization(org.id);
@@ -132,6 +134,7 @@ export async function registerOrganizationsSalesRepRoutes(
       requireUnscopedActor(); // D-260 — the graph is the boundary.
       const body = assignSalesRepRequestSchema.parse(request.body);
       const em = emFactory();
+      if (!isUuidShape(request.params.organizationId)) throw new HttpError(404, ERROR_CODES.NOT_FOUND, 'Organization not found.');
       const org = await em.findOne(Organization, { id: request.params.organizationId });
       if (!org) throw new HttpError(404, ERROR_CODES.NOT_FOUND, 'Organization not found.');
       const adminUser = await adminUsers.findById(body.adminUserId);

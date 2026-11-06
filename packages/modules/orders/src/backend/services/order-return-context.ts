@@ -2,7 +2,7 @@ import type { EntityManager } from '@mikro-orm/postgresql';
 import { Order } from '../entities/order.entity.js';
 import type { OrderReturnContext, OrderReturnContextPort } from '@endora-commerce/contracts';
 import { loadArrangedOrderLines } from './order-line-order.js';
-import { decimalDifference, decimalSum, quotientHalfUp, roundHalfUp } from '@endora-commerce/contracts';
+import { decimalDifference, decimalSum, quotientHalfUp, roundHalfUp, isUuidShape } from '@endora-commerce/contracts';
 
 /**
  * Orders-side implementation of `OrderReturnContextPort` (feature 046, R4).
@@ -26,6 +26,7 @@ export class OrderReturnContextProvider implements OrderReturnContextPort {
 
   async getReturnContext(orderId: string): Promise<OrderReturnContext | null> {
     const em = this.emFactory();
+    if (!isUuidShape(orderId)) return null;
     const order = await em.findOne(Order, { id: orderId });
     if (!order) return null;
     // Feature 159 — the lines in the order's display order.

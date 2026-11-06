@@ -1,5 +1,5 @@
 import type { EntityManager } from '@mikro-orm/postgresql';
-import { ERROR_CODES } from '@endora-commerce/contracts';
+import { ERROR_CODES, isUuidShape } from '@endora-commerce/contracts';
 import { HttpError } from '@endora-commerce/platform/http';
 import type { QuoteRequestItem } from '../entities/quote-request-item.entity.js';
 import { QuoteRequestEvent } from '../entities/quote-request-event.entity.js';
@@ -82,6 +82,7 @@ export async function submissionRecordProposals(
   }
   if (!adminRevised || recordId === null) return out;
 
+  if (!isUuidShape(recordId)) return out;
   const record = await em.findOne(QuoteRequestRevision, { id: recordId });
   if (!record || record.createdByCustomerAccountId == null) return out;
 

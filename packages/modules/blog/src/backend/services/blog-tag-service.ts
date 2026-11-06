@@ -7,6 +7,7 @@ import {
   type BlogTagInboundReferencesResponse,
   type CreateBlogTagRequest,
   type PatchBlogTagRequest,
+  isUuidShape,
 } from '@endora-commerce/contracts';
 import { HttpError } from '@endora-commerce/platform/http';
 import type { BlogCacheService } from './blog-cache.js';
@@ -208,6 +209,7 @@ export class BlogTagService {
   }
 
   async getInboundReferences(id: string): Promise<BlogTagInboundReferencesResponse> {
+    if (!isUuidShape(id)) return { posts: [], totalPosts: 0 };
     const em = this.emFactory();
     const totalRows = (await em.execute(
       `select count(*)::int as n from blog_post_tags where blog_tag_id = ?`,
@@ -237,6 +239,7 @@ export class BlogTagService {
   // ────────────────────────────────────────────────────────────────────
 
   private async findRow(em: EntityManager, id: string): Promise<TagRow | null> {
+    if (!isUuidShape(id)) return null;
     const rows = (await em.execute(
       `select * from blog_tags where id = ? and deleted_at is null limit 1`,
       [id],

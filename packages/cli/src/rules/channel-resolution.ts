@@ -100,6 +100,7 @@ import { readdirSync, statSync } from 'node:fs';
 import { join } from 'node:path';
 
 import ts from 'typescript';
+import { isUuidShape } from '@endora-commerce/contracts';
 
 /**
  * The whole of `src/` is scanned, not `modules/` plus `kernel/`.
@@ -144,8 +145,6 @@ function isStorefrontSurface(relPath: string): boolean {
 
 const RAW_CHANNEL_SQL = /\bfrom\s+sales_channels\b/i;
 
-/** The shape `sales_channels.id` has. */
-const CHANNEL_UUID = /^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/i;
 const NIL_UUID = '00000000-0000-0000-0000-000000000000';
 
 /**
@@ -170,7 +169,7 @@ function isSettingsReceiver(receiver: string): boolean {
  * here", and that ambiguity is what let `'default'` survive beside it.
  */
 function isNotAChannelId(literal: string): boolean {
-  return !CHANNEL_UUID.test(literal) || literal.toLowerCase() === NIL_UUID;
+  return !isUuidShape(literal) || literal.toLowerCase() === NIL_UUID;
 }
 
 /**
@@ -308,7 +307,6 @@ function isChannelIdExpression(text: string): boolean {
   if (/(^|[^a-z0-9_])(sales)?channelid$/i.test(trimmed)) return true;
   return /\??\.id$/.test(trimmed) && /channel|getSystemDefault/i.test(trimmed);
 }
-
 
 export interface Violation {
   file: string; // relative to src/

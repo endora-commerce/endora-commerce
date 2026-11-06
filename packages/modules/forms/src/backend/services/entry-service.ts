@@ -7,6 +7,7 @@ import {
   type FormEntryStatus,
   type FormEntrySummary,
   type FormFieldType,
+  isUuidShape,
 } from '@endora-commerce/contracts';
 import type { Command, CommandBus, CommandContext } from '@endora-commerce/platform/commands';
 import { HttpError } from '@endora-commerce/platform/http';
@@ -66,11 +67,9 @@ export interface EntryFilter {
   readonly q?: string | undefined;
 }
 
-const UUID = /^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/i;
-
 /** A malformed id names no entry: the same 404 as a missing one. */
 function entryId(id: string): string {
-  if (!UUID.test(id)) throw formEntryNotFound();
+  if (!isUuidShape(id)) throw formEntryNotFound();
   return id;
 }
 
@@ -107,7 +106,7 @@ function decodeCursor(raw: string): ExportCursor {
   try {
     const [at, id] = JSON.parse(Buffer.from(raw, 'base64url').toString('utf8')) as [unknown, unknown];
     const submittedAt = typeof at === 'string' ? new Date(at) : new Date(Number.NaN);
-    if (typeof id === 'string' && UUID.test(id) && !Number.isNaN(submittedAt.getTime())) return { submittedAt, id };
+    if (typeof id === 'string' && isUuidShape(id) && !Number.isNaN(submittedAt.getTime())) return { submittedAt, id };
   } catch {
     // Fall through to the refusal.
   }
@@ -193,6 +192,7 @@ export class EntryService {
    */
   async export(filter: EntryFilter & { formId: string }): Promise<{ filename: string; chunks: AsyncIterable<string> }> {
     const em = this.deps.emFactory();
+    if (!isUuidShape(filter.formId)) throw formNotFound();
     const form = await em.findOne(Form, { id: filter.formId });
     if (!form) throw formNotFound();
     const versions = await em.find(FormVersion, { formId: form.id }, { orderBy: { number: 'asc' } });

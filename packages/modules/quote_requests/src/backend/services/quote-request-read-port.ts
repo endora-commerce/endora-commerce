@@ -4,7 +4,7 @@ import type {
   QuoteRequestReadPort,
   QuoteRequestRecord,
 } from '@endora-commerce/contracts';
-import { OPEN_QUOTE_REQUEST_STATUSES } from '@endora-commerce/contracts';
+import { OPEN_QUOTE_REQUEST_STATUSES, isUuidShape } from '@endora-commerce/contracts';
 import { QuoteRequest } from '../entities/quote-request.entity.js';
 import { loadArrangedQuoteLines, toLineGroup } from './line-order.js';
 
@@ -23,6 +23,7 @@ export class QuoteRequestReadService implements QuoteRequestReadPort {
   constructor(private readonly emFactory: () => EntityManager) {}
 
   async findById(id: string): Promise<QuoteRequestRecord | null> {
+    if (!isUuidShape(id)) return null;
     const quote = await this.emFactory().findOne(QuoteRequest, { id });
     return quote ? toQuoteRequestRecord(quote) : null;
   }

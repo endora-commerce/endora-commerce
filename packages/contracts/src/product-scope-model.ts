@@ -14,6 +14,7 @@
  */
 
 import type { AttributeValueType } from './catalog.js';
+import { isUuidShape } from './common.js';
 
 // --- 1. Vocabulary ----------------------------------------------------------------------------
 
@@ -217,8 +218,6 @@ export type FieldPath =
   | `attachment:${string}:${'name' | 'description' | 'hidden'}`
   | `packagingUnit:${string}:name`;
 
-const UUID = /^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/i;
-
 /**
  * The family row of a concrete field path, or `null` for an attribute path (use
  * {@link attributeFieldSpec}), a global-only or unknown field, or a malformed sub-field.
@@ -231,7 +230,7 @@ export function fieldScopeSpec(path: string): FieldScopeSpec | null {
   if (family === 'galleryRole' && parts.length === 2) {
     return (GALLERY_ROLE_LABELS as readonly string[]).includes(a!) ? sets['galleryRole']! : null;
   }
-  if (parts.length !== 3 || !UUID.test(a!)) return null;
+  if (parts.length !== 3 || !isUuidShape(a!)) return null;
   const key = `${family}:${b}`;
   if (family !== 'gallery' && family !== 'attachment' && family !== 'packagingUnit') return null;
   return Object.hasOwn(sets, key) ? sets[key]! : null;

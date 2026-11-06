@@ -6,6 +6,7 @@ import {
   type MetaStorefrontMapping,
   type MetaTriggerAction,
   type UpdateMetaCustomEventMapping,
+  isUuidShape,
 } from '@endora-commerce/contracts';
 import { HttpError } from '@endora-commerce/platform/http';
 import { MetaCustomEventMapping } from '../entities/meta-custom-event-mapping.entity.js';
@@ -45,6 +46,7 @@ export class MetaCustomEventMappingsService {
 
   async get(id: string): Promise<MetaCustomEventMappingDto> {
     const em = this.emFactory();
+    if (!isUuidShape(id)) throw this.notFound(id);
     const row = await em.findOne(MetaCustomEventMapping, { id });
     if (!row) throw this.notFound(id);
     return this.toDto(row);
@@ -79,6 +81,7 @@ export class MetaCustomEventMappingsService {
     ctx: MetaAuditContext,
   ): Promise<MetaCustomEventMappingDto> {
     const em = this.emFactory();
+    if (!isUuidShape(id)) throw this.notFound(id);
     const row = await em.findOne(MetaCustomEventMapping, { id });
     if (!row) throw this.notFound(id);
     if (row.version !== input.version) {
@@ -119,6 +122,7 @@ export class MetaCustomEventMappingsService {
 
   async remove(id: string, ctx: MetaAuditContext): Promise<void> {
     const em = this.emFactory();
+    if (!isUuidShape(id)) throw this.notFound(id);
     const row = await em.findOne(MetaCustomEventMapping, { id });
     if (!row) throw this.notFound(id);
     const before = { triggerAction: row.triggerAction, eventName: row.eventName };

@@ -16,6 +16,7 @@ import {
   type ScopeLevel,
   type ScopeOverviewResponse,
   toScopeChannel,
+  isUuidShape,
 } from '@endora-commerce/contracts';
 import { HttpError } from '@endora-commerce/platform/http';
 import type { SalesChannelMembershipPort } from '@endora-commerce/platform/kernel';
@@ -366,6 +367,7 @@ export class ScopeOverviewService {
   /** `GET /admin/catalog/products/:id/scope-overview`. */
   async read(productId: string, now: Date = new Date()): Promise<ScopeOverview> {
     const em = this.emFactory();
+    if (!isUuidShape(productId)) throw new HttpError(404, ERROR_CODES.PRODUCT_NOT_FOUND, 'Product not found.');
     const product = await em.findOne(Product, { id: productId, deletedAt: null });
     if (!product) throw new HttpError(404, ERROR_CODES.PRODUCT_NOT_FOUND, 'Product not found.');
     const [

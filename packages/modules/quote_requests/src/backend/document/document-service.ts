@@ -15,6 +15,7 @@ import {
   type QuoteRequestPdfSendResult,
   type SalesRepAssignmentPort,
   type TransactionalEmailSender,
+  isUuidShape,
 } from '@endora-commerce/contracts';
 import type { CommandBus } from '@endora-commerce/platform/commands';
 import { HttpError } from '@endora-commerce/platform/http';
@@ -75,6 +76,7 @@ export class QuoteRequestDocumentService {
 
   private async findVisible(em: EntityManager, ctx: AdminContext, id: string): Promise<QuoteRequest> {
     const notFound = () => new HttpError(404, ERROR_CODES.NOT_FOUND, 'Quote Request not found.');
+    if (!isUuidShape(id)) throw notFound();
     const quote = await em.findOne(QuoteRequest, { id });
     if (!quote) throw notFound();
     if (!ctx.isPlatformAdmin && !(await this.deps.salesRepScope.canSeeOrganization(ctx.adminUserId, quote.organizationId))) {

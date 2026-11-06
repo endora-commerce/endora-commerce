@@ -37,7 +37,12 @@ export interface OrganizationRoleRoutesDeps {
   };
 }
 
-const roleParamsSchema = z.object({ id: z.string().uuid() });
+/**
+ * The role id is not checked for shape here: a malformed id names no role, so
+ * the service answers it with the same `404` as an unknown one (issue #781,
+ * owner ruling of 2026-11-05), where a params schema would answer `400`.
+ */
+const roleParamsSchema = z.object({ id: z.string() });
 
 /** The member being judged: the request's customer, with the role id its actor carries. */
 export function subjectOf(

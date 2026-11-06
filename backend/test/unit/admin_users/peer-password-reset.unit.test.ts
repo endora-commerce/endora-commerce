@@ -41,7 +41,7 @@ interface AuditRecord {
 
 async function makeAdmin(): Promise<AdminUser> {
   return {
-    id: 'a-1',
+    id: '00000000-0000-4000-8000-781000000105',
     email: 'operator@example.test',
     firstName: 'Ada',
     lastName: 'Operator',
@@ -100,9 +100,9 @@ describe('admin_users — peer password reset', () => {
       recordingAuditLog(entries),
     );
 
-    const updated = await service.resetPassword('a-1', NEW_PASSWORD, FULL_ACCESS);
+    const updated = await service.resetPassword('00000000-0000-4000-8000-781000000105', NEW_PASSWORD, FULL_ACCESS);
 
-    expect(steps).toEqual(['flush', 'revoke:a-1']);
+    expect(steps).toEqual(['flush', 'revoke:00000000-0000-4000-8000-781000000105']);
     expect(await verifyPassword(updated.passwordHash, NEW_PASSWORD)).toBe(true);
     expect(await verifyPassword(updated.passwordHash, OLD_PASSWORD)).toBe(false);
   });
@@ -121,13 +121,13 @@ describe('admin_users — peer password reset', () => {
       sessions,
       recordingAuditLog(entries),
     );
-    const updated = await service.resetPassword('a-1', NEW_PASSWORD, FULL_ACCESS);
+    const updated = await service.resetPassword('00000000-0000-4000-8000-781000000105', NEW_PASSWORD, FULL_ACCESS);
 
     expect(entries).toHaveLength(1);
     const entry = entries[0]!;
     expect(entry.action).toBe('admin_user.change_password');
     expect(entry.objectType).toBe('admin_user');
-    expect(entry.objectId).toBe('a-1');
+    expect(entry.objectId).toBe('00000000-0000-4000-8000-781000000105');
     expect(entry.stateAfter).toMatchObject({ via: 'peer_reset' });
 
     const serialised = JSON.stringify(entry);
@@ -155,7 +155,7 @@ describe('admin_users — peer password reset', () => {
       recordingAuditLog(entries),
     );
 
-    await expect(service.resetPassword('a-1', NEW_PASSWORD, FULL_ACCESS)).rejects.toThrow('MODULE_DISABLED');
+    await expect(service.resetPassword('00000000-0000-4000-8000-781000000105', NEW_PASSWORD, FULL_ACCESS)).rejects.toThrow('MODULE_DISABLED');
     // The new password is in force by then: the write precedes the revocation
     // on purpose, and the caller is told the reset did not complete.
     expect(admin.passwordHash).not.toBe(originalHash);

@@ -1,3 +1,5 @@
+import { UUID_SHAPE_PATTERN } from '@endora-commerce/contracts';
+
 /**
  * Pre-resolve InvoiceLogo images to data URIs before pdfmake runs.
  *
@@ -25,7 +27,7 @@ export type LoadedAssetImage = { bytes: Uint8Array; mimeType: string };
 
 export type LoadAssetImage = (assetId: string) => Promise<LoadedAssetImage | null>;
 
-const ASSET_FILE_RE = /\/assets\/file\/([0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12})/i;
+const ASSET_FILE_RE = new RegExp(`/assets/file/(${UUID_SHAPE_PATTERN})`);
 
 /** pdfmake reliably embeds JPEG/PNG; other types are skipped. */
 const PDFMAKE_IMAGE_MIME = new Set(['image/jpeg', 'image/jpg', 'image/png']);

@@ -325,7 +325,8 @@ declares none — and adding one is an environment input for data the user alrea
 
 **Decision.** `GET /api/v1/storefront/forms/:formId?language=` always answers `200` with
 `availability: 'open' | 'closed' | 'not_yet_open' | 'full' | 'unavailable'` (draft, deleted and
-never-existing ids are all `unavailable`, with no definition); `POST /api/v1/storefront/forms/
+never-existing ids are all `unavailable`, with no definition — and so is a malformed id, by owner
+ruling of 2026-11-05, issue #781); `POST /api/v1/storefront/forms/
 :formId/entries` accepts. Hidden-field page context (`page_url`, `page_title`, `query_param`,
 `referrer`) is computed **by the storefront on the server** at render (path + query from the render
 location, title from the page data, referrer from the request's `Referer`) and posted as hidden

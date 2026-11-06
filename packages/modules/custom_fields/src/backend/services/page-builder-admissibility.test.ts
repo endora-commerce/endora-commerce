@@ -107,7 +107,7 @@ describe('page_builder admissibility — applyCreateDefinition', () => {
 
 describe('page_builder admissibility — applyUpdateDefinition', () => {
   const stored = (valueType: string) => ({
-    id: 'def-1',
+    id: '00000000-0000-4000-8000-781000000007',
     entityType: 'product',
     key: 'guide',
     valueType,
@@ -116,21 +116,21 @@ describe('page_builder admissibility — applyUpdateDefinition', () => {
 
   it('refuses a change to page_builder with value_type_locked, whatever the stored values', async () => {
     const definition = stored('text');
-    const error = await refusal(applyUpdateDefinition(emWith(definition), 'def-1', { valueType: 'page_builder' }));
+    const error = await refusal(applyUpdateDefinition(emWith(definition), '00000000-0000-4000-8000-781000000007', { valueType: 'page_builder' }));
     expect(error.code).toBe('value_type_locked');
     expect(definition.valueType).toBe('text');
   });
 
   it('refuses a change away from page_builder with value_type_locked', async () => {
     const definition = stored('page_builder');
-    const error = await refusal(applyUpdateDefinition(emWith(definition), 'def-1', { valueType: 'text' }));
+    const error = await refusal(applyUpdateDefinition(emWith(definition), '00000000-0000-4000-8000-781000000007', { valueType: 'text' }));
     expect(error.code).toBe('value_type_locked');
     expect(definition.valueType).toBe('page_builder');
   });
 
   it('allows a page_builder definition to be patched without a type change', async () => {
     const definition = stored('page_builder');
-    await applyUpdateDefinition(emWith(definition), 'def-1', {
+    await applyUpdateDefinition(emWith(definition), '00000000-0000-4000-8000-781000000007', {
       valueType: 'page_builder',
       labelDefault: 'Guide',
     });
@@ -148,7 +148,7 @@ describe('page_builder — the generic value path and list filters', () => {
   it('builds no list-filter predicate for a page_builder field', async () => {
     const definition = {
       definition: {
-        id: 'def-guide',
+        id: '00000000-0000-4000-8000-781000000008',
         entityType: 'order',
         key: 'guide',
         label: {},

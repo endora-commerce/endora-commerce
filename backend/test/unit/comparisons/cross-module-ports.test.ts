@@ -55,7 +55,7 @@ const availableEverywhere = {
  * fake that would notice the old query is what makes the test able to fail.
  */
 
-const OWNER: ComparisonOwner = { kind: 'customer', customerAccountId: 'cust-1' };
+const OWNER: ComparisonOwner = { kind: 'customer', customerAccountId: '00000000-0000-4000-8000-781000000106' };
 
 function productRecord(id: string): CatalogProductRecord {
   return {
@@ -246,7 +246,7 @@ describe('comparisons — catalog rows arrive over catalogProductReadPort', () =
 
     const view = await service.buildOwnerView(
       {
-        id: 'cmp-1',
+        id: '00000000-0000-4000-8000-781000000107',
         shareToken: 'tok',
         displayMode: 'all',
         createdAt: new Date('2026-01-01T00:00:00.000Z'),
@@ -274,9 +274,9 @@ describe('comparisons — owner e-mail arrives over customerAccountReadPort', ()
     const admin = new ComparisonAdminService(
       fakeEm({
         Comparison: {
-          id: 'cmp-1',
+          id: '00000000-0000-4000-8000-781000000107',
           shareToken: 'tok',
-          customerAccountId: 'cust-1',
+          customerAccountId: '00000000-0000-4000-8000-781000000106',
           anonymousToken: null,
           salesChannelId: 'channel-1',
           displayMode: 'all',
@@ -287,7 +287,7 @@ describe('comparisons — owner e-mail arrives over customerAccountReadPort', ()
       }),
       {
         buildOwnerView: async () => ({
-          id: 'cmp-1',
+          id: '00000000-0000-4000-8000-781000000107',
           shareToken: 'tok',
           displayMode: 'all' as const,
           maxProducts: 4,
@@ -300,12 +300,12 @@ describe('comparisons — owner e-mail arrives over customerAccountReadPort', ()
       customerAccounts,
     );
 
-    const detail = await admin.detail('cmp-1');
+    const detail = await admin.detail('00000000-0000-4000-8000-781000000107');
 
-    expect(asked).toEqual(['cust-1']);
+    expect(asked).toEqual(['00000000-0000-4000-8000-781000000106']);
     expect(detail.owner).toEqual({
       kind: 'customer',
-      customerAccountId: 'cust-1',
+      customerAccountId: '00000000-0000-4000-8000-781000000106',
       email: 'buyer@example.test',
       anonymousToken: null,
     });
@@ -350,7 +350,7 @@ describe('comparisons — a column carries the product’s values in the reader�
     );
     const view = await service.buildOwnerView(
       {
-        id: 'cmp-1',
+        id: '00000000-0000-4000-8000-781000000107',
         shareToken: 'tok',
         displayMode: 'all',
         createdAt: new Date('2026-01-01T00:00:00.000Z'),

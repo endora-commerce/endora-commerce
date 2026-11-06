@@ -6,6 +6,7 @@ import {
   type ProductScopeStatus,
   type BulkUpdateProductsRequest,
   type EmailMailerPort,
+  isUuidShape,
 } from '@endora-commerce/contracts';
 
 import { effectiveState } from '@endora-commerce/platform/kernel';
@@ -316,6 +317,7 @@ export class BulkOperationService {
 
   async get(id: string): Promise<SerializedBulkOperation | null> {
     const em = this.emFactory();
+    if (!isUuidShape(id)) return null;
     const op = await em.findOne(BulkOperation, { id });
     return op ? serialize(op) : null;
   }
@@ -376,6 +378,7 @@ export class BulkOperationService {
     // updateProduct, or by the Archive / Restore Commands for `fields.archived`.
     // The operation record itself is not a domain-audit target.
     const em = this.emFactory();
+    if (!isUuidShape(id)) return;
     const op = await em.findOne(BulkOperation, { id });
     if (!op) return;
 
@@ -665,6 +668,7 @@ export class BulkOperationService {
    */
   async undo(operationId: string): Promise<UndoOutcome> {
     const em = this.emFactory();
+    if (!isUuidShape(operationId)) return { ok: false, code: 'NOT_FOUND' };
     const op = await em.findOne(BulkOperation, { id: operationId });
     if (!op) return { ok: false, code: 'NOT_FOUND' };
     if (op.status !== 'completed' || !op.reversible || !op.revertState || op.revertState.length === 0) {

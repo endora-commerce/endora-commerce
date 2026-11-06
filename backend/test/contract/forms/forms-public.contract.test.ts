@@ -224,9 +224,13 @@ describe('forms public API (contract) — §1 definition, §2 submit', () => {
       expect((response.json() as { data: { availability: string } }).data.availability).toBe('closed');
     });
 
-    it('refuses a malformed id with 400', async () => {
+    it('answers a malformed id with the same unavailable body an unknown id gets (owner ruling of 2026-11-05)', async () => {
       const response = await read('not-a-uuid');
-      expect(response.statusCode, response.body).toBe(400);
+      expect(response.statusCode, response.body).toBe(200);
+      expect(response.headers['cache-control']).toBe('public, max-age=0, s-maxage=60');
+      const body = response.json() as { data: unknown };
+      expect(body).toEqual({ data: { formId: 'not-a-uuid', availability: 'unavailable' } });
+      expect(publicFormDefinitionSchema.safeParse(body.data).success).toBe(true);
     });
 
     it('carries no recipient, retention, count, share flag, submitter marker or CAPTCHA secret', async () => {

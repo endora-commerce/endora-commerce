@@ -7,6 +7,7 @@ import {
   type BlogUrlKeysResponse,
   type ChannelUrlFacts,
   type PutBlogUrlKeysRequest,
+  isUuidShape,
 } from '@endora-commerce/contracts';
 import type { CommandBus } from '@endora-commerce/platform/commands';
 import { HttpError } from '@endora-commerce/platform/http';
@@ -248,6 +249,10 @@ export class BlogUrlKeyService {
   }
 
   async deleteRedirect(kind: BlogUrlKeyEntityKind, id: string, redirectId: string): Promise<void> {
+    // A malformed id names no redirect; PostgreSQL would answer it with a 500 (issue #781).
+    if (!isUuidShape(id) || !isUuidShape(redirectId)) {
+      throw new HttpError(404, ERROR_CODES.BLOG_URL_REDIRECT_NOT_FOUND, 'No such redirect of this blog entry.');
+    }
     await this.deps.commandBus.run<void>({
       action: 'blog.url_redirect.delete',
       objectType: KIND[kind].auditObjectType,
@@ -376,6 +381,13 @@ export class BlogUrlKeyService {
   }
 
   async #entity(em: EntityManager, kind: BlogUrlKeyEntityKind, id: string, lock = false): Promise<EntityRow> {
+    if (!isUuidShape(id)) {
+      throw new HttpError(
+        404,
+        kind === 'post' ? ERROR_CODES.BLOG_POST_NOT_FOUND : ERROR_CODES.BLOG_CATEGORY_NOT_FOUND,
+        `Blog ${kind} not found.`,
+      );
+    }
     const rows = (await em.execute(
       `select id::text as id, slug, version from ${KIND[kind].table}
         where id = ? and deleted_at is null${lock ? ' for update' : ''}`,

@@ -2,7 +2,7 @@ import { useEffect, useId, useState, type FormEvent, type ReactNode } from 'reac
 import { useNavigate, useSearchParams } from 'react-router-dom';
 import { CornerLeftUp, Link2, UserCheck } from 'lucide-react';
 import type { CreateTaskBody, TaskContext, TaskDetail, TaskLinkTarget } from '@endora-commerce/contracts';
-import { TASK_LINK_KINDS, TASK_TITLE_MAX } from '@endora-commerce/contracts';
+import { TASK_LINK_KINDS, TASK_TITLE_MAX, UUID_SHAPE_PATTERN } from '@endora-commerce/contracts';
 import { CustomFieldValuesPanel } from '@endora-commerce/admin-kit/components';
 import { useAuth } from '@endora-commerce/admin-kit/lib';
 import {
@@ -23,7 +23,7 @@ import { dueOf, TaskFieldInputs, taskFieldValuesOf, type TaskFieldValues } from 
 import { useCurrentAdmin } from '../lib/current-admin.js';
 import { errorMessage } from '../lib/labels.js';
 
-const UUID = '[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}';
+const UUID = UUID_SHAPE_PATTERN;
 const LINK_PARAM = new RegExp(`^(${TASK_LINK_KINDS.join('|')}):(${UUID})$`, 'i');
 const CONTEXT_PARAM = new RegExp(`^([a-z][a-z0-9_]*):(${UUID})(?::(${UUID}))?$`, 'i');
 

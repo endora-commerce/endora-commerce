@@ -26,6 +26,7 @@ import {
   type OrganizationDetailsPort,
   type RfqCreatedByAdminEventPayload,
   type SalesRepAssignmentPort,
+  isUuidShape,
 } from '@endora-commerce/contracts';
 import type { EventBase, EventBus } from '@endora-commerce/platform/events';
 import { HttpError } from '@endora-commerce/platform/http';
@@ -1154,6 +1155,7 @@ export class RfqAdminService {
     // organizations answers exactly as an unknown id does, so its existence
     // does not leak.
     const notFound = () => new HttpError(404, ERROR_CODES.NOT_FOUND, 'Quote Request not found.');
+    if (!isUuidShape(rfqId)) throw notFound();
     const rfq = await em.findOne(QuoteRequest, { id: rfqId });
     if (!rfq) throw notFound();
     if (

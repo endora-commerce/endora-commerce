@@ -8,6 +8,7 @@ import {
   type FormStatus,
   type FormSummary,
   type FormUpdateBody,
+  isUuidShape,
 } from '@endora-commerce/contracts';
 import type { CommandBus, CommandContext } from '@endora-commerce/platform/commands';
 import { HttpError } from '@endora-commerce/platform/http';
@@ -54,11 +55,9 @@ export interface FormPreviewQuery {
   readonly source: 'working' | 'published';
 }
 
-const UUID = /^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/i;
-
 /** A malformed id is answered as a missing form: 404 `FORM_NOT_FOUND`, the same body. */
 function assertUuid(id: string): void {
-  if (!UUID.test(id)) throw formNotFound();
+  if (!isUuidShape(id)) throw formNotFound();
 }
 
 function escapeLike(value: string): string {
@@ -120,6 +119,7 @@ export class FormService {
   async get(id: string): Promise<FormDetail> {
     assertUuid(id);
     const em = this.deps.emFactory();
+    if (!isUuidShape(id)) throw formNotFound();
     const form = await em.findOne(Form, { id });
     if (!form) throw formNotFound();
     const version = form.publishedVersionId ? await em.findOne(FormVersion, { id: form.publishedVersionId }) : null;
@@ -236,6 +236,7 @@ export class FormService {
   async preview(id: string, query: FormPreviewQuery) {
     assertUuid(id);
     const em = this.deps.emFactory();
+    if (!isUuidShape(id)) throw formNotFound();
     const form = await em.findOne(Form, { id });
     if (!form) throw formNotFound();
     const environment = await this.deps.environment();

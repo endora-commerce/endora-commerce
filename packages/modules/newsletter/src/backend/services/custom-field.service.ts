@@ -4,6 +4,7 @@ import {
   type CreateNewsletterCustomFieldRequest,
   type NewsletterCustomField as NewsletterCustomFieldDto,
   type UpdateNewsletterCustomFieldRequest,
+  isUuidShape,
 } from '@endora-commerce/contracts';
 import { HttpError } from '@endora-commerce/platform/http';
 import { NewsletterCustomField } from '../entities/newsletter-custom-field.entity.js';
@@ -52,6 +53,7 @@ export class NewsletterCustomFieldService {
 
   async update(id: string, input: UpdateNewsletterCustomFieldRequest): Promise<NewsletterCustomFieldDto> {
     const em = this.emFactory();
+    if (!isUuidShape(id)) throw new HttpError(404, ERROR_CODES.NOT_FOUND, 'Field not found.');
     const field = await em.findOne(NewsletterCustomField, { id });
     if (!field) throw new HttpError(404, ERROR_CODES.NOT_FOUND, 'Field not found.');
     if (input.label !== undefined) field.label = input.label;
@@ -62,6 +64,7 @@ export class NewsletterCustomFieldService {
 
   async remove(id: string): Promise<void> {
     const em = this.emFactory();
+    if (!isUuidShape(id)) throw new HttpError(404, ERROR_CODES.NOT_FOUND, 'Field not found.');
     const field = await em.findOne(NewsletterCustomField, { id });
     if (!field) throw new HttpError(404, ERROR_CODES.NOT_FOUND, 'Field not found.');
     this.#audit(em, 'newsletter_custom_field.delete', field.id, null);

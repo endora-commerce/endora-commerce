@@ -3000,6 +3000,7 @@ export class OrderService {
     const em = this.emFactory();
     // Through the tenant filter first: a caller outside the order's scope gets
     // the same 404 a missing order does, before any lock is taken.
+    if (!isUuidShape(orderId)) throw new HttpError(404, ERROR_CODES.ORDER_NOT_FOUND, 'Order not found.');
     const visible = await em.findOne(Order, { id: orderId });
     if (!visible) throw new HttpError(404, ERROR_CODES.ORDER_NOT_FOUND, 'Order not found.');
 

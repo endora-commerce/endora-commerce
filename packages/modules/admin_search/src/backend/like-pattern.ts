@@ -1,3 +1,4 @@
+import { isUuidShape } from '@endora-commerce/contracts';
 /**
  * Literal matching for `ILIKE … ESCAPE '\'` (spec FR-012, research R-9).
  *
@@ -11,9 +12,7 @@ export function escapeLikePattern(text: string): string {
   return text.replace(/[\\%_]/g, (ch) => `\\${ch}`);
 }
 
-const UUID_RE = /^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/i;
-
 /** Whether `text` is a UUID — every provider then also matches its record's `id` (FR-010). */
 export function isUuid(text: string): boolean {
-  return UUID_RE.test(text);
+  return isUuidShape(text);
 }

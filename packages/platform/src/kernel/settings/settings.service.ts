@@ -5,6 +5,7 @@ import { SettingValue } from './setting-value.entity.js';
 import type { SalesChannel } from '../sales-channels/sales-channel.entity.js';
 import type { SettingsCache } from './settings-cache.js';
 import { decryptSecretValue, isSecretEnvelope } from './secret-value-codec.js';
+import { isUuidShape } from '@endora-commerce/contracts';
 
 /**
  * SettingsService — the universal getter (US3 / T049).
@@ -98,7 +99,6 @@ export class SettingsChannelIdInvalid extends Error {
  * rejected as a *spelling of platform-wide*, not as a malformed id, and it is
  * `check-channel-resolution.ts` — which can see the literal — that says so.
  */
-const CHANNEL_ID_PATTERN = /^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/i;
 
 export class SettingValueShapeMismatch extends Error {
   override readonly name = 'SettingValueShapeMismatch';
@@ -261,7 +261,7 @@ export class SettingsService {
    */
   private assertChannelId(code: string, salesChannelId: string | null): void {
     if (salesChannelId === null) return;
-    if (!CHANNEL_ID_PATTERN.test(salesChannelId)) {
+    if (!isUuidShape(salesChannelId)) {
       throw new SettingsChannelIdInvalid(code, salesChannelId);
     }
   }

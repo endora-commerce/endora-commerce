@@ -10,6 +10,7 @@ import {
   type CartMergeOutcome,
   type OrganizationPermissionPort,
   type ProductAudience,
+  isUuidShape,
 } from '@endora-commerce/contracts';
 import { HttpError } from '@endora-commerce/platform/http';
 import { Cart } from '../entities/cart.entity.js';
@@ -1137,6 +1138,7 @@ export class CartService {
     options: { language?: string } = {},
   ): Promise<{ cart: Cart; items: CartItem[] }> {
     const em = this.emFactory();
+    if (!isUuidShape(itemId)) throw new HttpError(404, ERROR_CODES.NOT_FOUND, 'Cart item not found.');
     const item = await em.findOne(CartItem, { id: itemId });
     if (!item) throw new HttpError(404, ERROR_CODES.NOT_FOUND, 'Cart item not found.');
     const cart = await em.findOne(Cart, { id: item.cartId });
@@ -1217,6 +1219,7 @@ export class CartService {
     itemId: string,
   ): Promise<{ cart: Cart; items: CartItem[] }> {
     const em = this.emFactory();
+    if (!isUuidShape(itemId)) throw new HttpError(404, ERROR_CODES.NOT_FOUND, 'Cart item not found.');
     const item = await em.findOne(CartItem, { id: itemId });
     if (!item) throw new HttpError(404, ERROR_CODES.NOT_FOUND, 'Cart item not found.');
     const cart = await em.findOne(Cart, { id: item.cartId });

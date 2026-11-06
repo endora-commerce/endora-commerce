@@ -6,6 +6,7 @@ import {
   type CmsTemplateSummary,
   type CreateCmsTemplateRequest,
   type PatchCmsTemplateRequest,
+  isUuidShape,
 } from '@endora-commerce/contracts';
 import { HttpError } from '@endora-commerce/platform/http';
 import type { AuditState, CommandBus } from '@endora-commerce/platform/commands';
@@ -282,6 +283,8 @@ export class CmsTemplateService {
   }
 
   private async findRow(id: string, em = this.emFactory()): Promise<TemplateRow | null> {
+    // A malformed id names no row; PostgreSQL would answer it with a 500 (issue #781).
+    if (!isUuidShape(id)) return null;
     const rows = (await em.execute('select * from cms_templates where id = ?', [
       id,
     ])) as TemplateRow[];

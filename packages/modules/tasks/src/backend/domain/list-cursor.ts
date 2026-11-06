@@ -1,4 +1,4 @@
-import { ERROR_CODES, type TaskListSort, type TaskSortDirection } from '@endora-commerce/contracts';
+import { ERROR_CODES, type TaskListSort, type TaskSortDirection, isUuidShape } from '@endora-commerce/contracts';
 import { HttpError } from '@endora-commerce/platform/http';
 
 /**
@@ -25,8 +25,6 @@ interface SortKey {
   /** The direction a list without `dir` takes. */
   defaultDir: TaskSortDirection;
 }
-
-const UUID = /^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/i;
 
 const SORT_KEYS: Record<TaskListSort, SortKey> = {
   created: { key: (a) => `${a}."created_at"`, type: 'timestamptz', defaultDir: 'desc' },
@@ -104,7 +102,7 @@ export function decodeListCursor(
     parsed.s !== sort ||
     parsed.d !== dir ||
     typeof parsed.i !== 'string' ||
-    !UUID.test(parsed.i) ||
+    !isUuidShape(parsed.i) ||
     !(parsed.k === null || typeof parsed.k === 'string')
   ) {
     throw tampered();

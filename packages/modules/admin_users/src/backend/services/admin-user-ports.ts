@@ -1,5 +1,5 @@
 import type { EntityManager } from '@mikro-orm/postgresql';
-import { normalizeEmailAddress } from '@endora-commerce/contracts';
+import { normalizeEmailAddress, isUuidShape } from '@endora-commerce/contracts';
 import type {
   AdminAuthenticationThrottlePort,
   AdminPasswordVerificationPort,
@@ -116,6 +116,7 @@ export function createAdminPasswordVerificationPort(
 ): AdminPasswordVerificationPort {
   return {
     async verifyPassword(adminUserId, password, context) {
+      if (!isUuidShape(adminUserId)) return false;
       const admin = await emFactory().findOne(AdminUser, { id: adminUserId });
       if (!admin) return false;
       // Counted under the account's e-mail address, the key sign-in uses, so a

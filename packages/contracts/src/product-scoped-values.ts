@@ -12,7 +12,7 @@
 
 import { z } from 'zod';
 import { ERROR_CODES } from './errors.js';
-import { isoDateTimeSchema, productVisibilitySchema, uuidSchema } from './common.js';
+import { isoDateTimeSchema, productVisibilitySchema, UUID_SHAPE_PATTERN, uuidSchema } from './common.js';
 import { PRODUCT_DESCRIPTION_MAX, PRODUCT_NAME_MAX, productStatusSchema, productTypeSchema } from './catalog.js';
 import { ORDER_MINIMUM_MAX } from './order-minimums.js';
 import { SCOPED_SOURCES, type ScopeRef, type ScopedSource } from './product-scope-model.js';
@@ -47,7 +47,8 @@ export const SEO_PRODUCT_META_MAX = {
 
 const FORBIDDEN_RECORD_KEYS = new Set(['__proto__', 'constructor', 'prototype']);
 
-const uuidKeySchema = z.string().regex(/^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/, 'uuid key');
+/** A gallery, attachment or packaging-unit key: the shared uuid shape, lowercase only, as the rows store it. */
+const uuidKeySchema = z.string().regex(new RegExp(`^${UUID_SHAPE_PATTERN.replaceAll('a-fA-F', 'a-f')}$`), 'uuid key');
 const attributeKeySchema = z
   .string()
   .regex(/^[a-z0-9_]{1,64}$/, 'attribute key')

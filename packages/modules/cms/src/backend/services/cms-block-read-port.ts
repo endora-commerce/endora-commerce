@@ -5,6 +5,7 @@ import type {
   CmsLocalizedBlockRecord,
 } from '@endora-commerce/contracts';
 import { CmsBlock } from '../entities/cms-block.entity.js';
+import { isUuidShape } from '@endora-commerce/contracts';
 
 /**
  * The block read model `cms` publishes (`specs/110-instance-repository/` T118c).
@@ -42,6 +43,7 @@ export class CmsBlockReadService implements CmsBlockReadPort {
      * deactivated block is content an operator has withdrawn, and loading its
      * tree to throw it away is a read nobody asked for.
      */
+    if (!isUuidShape(id)) return null;
     const block = await this.emFactory().findOne(CmsBlock, { id, active: true });
     if (!block) return null;
 

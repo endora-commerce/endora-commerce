@@ -41,7 +41,10 @@ function header(value: string | string[] | undefined): string | undefined {
   return Array.isArray(value) ? value[0] : value;
 }
 
-/** A malformed form id: the public read answers `200` for every well-formed id, so this is a `400`. */
+/**
+ * A malformed form id on a submission: `400`. The public read does not call this — it answers a
+ * malformed id with the `unavailable` body an unknown one gets (owner ruling of 2026-11-05).
+ */
 function assertFormId(formId: string): void {
   if (!isFormId(formId)) {
     throw new HttpError(400, ERROR_CODES.VALIDATION_FAILED, 'A form id is a UUID.', { field: 'formId' });
@@ -57,15 +60,15 @@ export async function registerPublicFormRoutes(app: FastifyInstance, deps: Publi
   const { publicFormService } = deps;
 
   /**
-   * §1 — always `200` for a well-formed id: a draft, a deleted form and one that never existed are
-   * one `unavailable` body (research R-11), so the storefront's cached `200` heals by itself and no
-   * answer says which forms exist. Briefly shareable; the storefront's Data Cache is the cache.
+   * §1 — always `200`: a draft, a deleted form, one that never existed and an id that is not a
+   * UUID are one `unavailable` body (research R-11; the malformed id by owner ruling of 2026-11-05),
+   * so the storefront's cached `200` heals by itself and no answer says which forms exist. Briefly
+   * shareable; the storefront's Data Cache is the cache.
    */
   app.get<{ Params: { formId: string } }>(
     `${API}/:formId`,
     { schema: { querystring: publicFormQuerySchema } },
     async (request, reply) => {
-      assertFormId(request.params.formId);
       const query = publicFormQuerySchema.parse(request.query);
       const definition = await publicFormService.read(request.params.formId, {
         channel: channelOf(request),

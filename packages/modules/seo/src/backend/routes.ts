@@ -7,6 +7,7 @@ import {
   seoEntityTypeSchema,
   seoMetaScopeQuerySchema,
   upsertSeoMetaOverrideRequestSchema,
+  isUuidShape,
 } from '@endora-commerce/contracts';
 import { HttpError } from '@endora-commerce/platform/http';
 import type { MetaTagResolverService } from './services/meta-tag-resolver.service.js';
@@ -479,15 +480,13 @@ function refuseProductWrite(entityType: string): void {
   }
 }
 
-const UUID_SHAPE = /^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/i;
-
 /**
  * Feature 163, checkpoint F (S-5) — `seo_meta_overrides.entity_id` is a `uuid` column,
  * so an id that is not one would reach PostgreSQL as a 500. It names no entity: `404`.
  * Shape only, as PostgreSQL checks it (no version or variant bits).
  */
 function assertEntityId(entityId: string): void {
-  if (!UUID_SHAPE.test(entityId)) {
+  if (!isUuidShape(entityId)) {
     throw new HttpError(404, ERROR_CODES.NOT_FOUND, 'SEO target not found.');
   }
 }

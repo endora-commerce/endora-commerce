@@ -12,6 +12,7 @@ import {
   type FormSubmitBody,
   type FormSubmitResponse,
   type PublicFormDefinition,
+  isUuidShape,
 } from '@endora-commerce/contracts';
 import type { CommandBus, CommandContext } from '@endora-commerce/platform/commands';
 import { Form } from '../../entities/form.entity.js';
@@ -82,11 +83,9 @@ export interface PublicFormServiceDeps {
   readonly now?: () => Date;
 }
 
-const UUID = /^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/i;
-
-/** Whether `id` is a well-formed form id (the routes answer `400` otherwise). */
+/** Whether `id` is a well-formed form id (the submission route answers `400` otherwise). */
 export function isFormId(id: string): boolean {
-  return UUID.test(id);
+  return isUuidShape(id);
 }
 
 /**
@@ -125,6 +124,7 @@ export class PublicFormService {
 
   async #served(formId: string): Promise<Served | null> {
     const em = this.deps.emFactory();
+    if (!isUuidShape(formId)) return null;
     const form = await em.findOne(Form, { id: formId });
     if (!form) return null;
     const version = form.publishedVersionId ? await em.findOne(FormVersion, { id: form.publishedVersionId }) : null;

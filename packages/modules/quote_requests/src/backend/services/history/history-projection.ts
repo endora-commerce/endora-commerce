@@ -25,6 +25,7 @@ import {
   type QuoteRequestHistoryChange,
   type QuoteRequestHistoryEntry,
   type QuoteRequestHistoryEntryKind,
+  isUuidShape,
 } from '@endora-commerce/contracts';
 import type { QuoteRequestEventType } from '../../entities/quote-request-event.entity.js';
 import type { QuoteRequestRevisionLine } from '../../entities/quote-request-revision.entity.js';
@@ -406,11 +407,9 @@ function firstString(group: HistoryEventInput[], key: string): string | null {
   return null;
 }
 
-const UUID = /^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/i;
-
 function firstUuid(group: HistoryEventInput[], key: string): string | null {
   const value = firstString(group, key);
-  return value !== null && UUID.test(value) ? value : null;
+  return value !== null && isUuidShape(value) ? value : null;
 }
 
 function fullName(firstName: string | null | undefined, lastName: string | null | undefined): string | null {

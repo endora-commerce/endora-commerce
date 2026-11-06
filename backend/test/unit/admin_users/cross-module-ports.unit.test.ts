@@ -88,7 +88,7 @@ function ownTablesOnly(admin: AdminUser | null): {
 
 async function makeAdmin(password: string): Promise<AdminUser> {
   return {
-    id: 'a-1',
+    id: '00000000-0000-4000-8000-781000000101',
     email: 'operator@example.test',
     firstName: 'Ada',
     lastName: 'Operator',
@@ -173,8 +173,8 @@ function sessionPort(record: { cookieValue: string; expiresAt: Date }): {
 }
 
 const TARGET: CustomerAccountRecord = {
-  id: 'c-1',
-  organizationId: 'org-1',
+  id: '00000000-0000-4000-8000-781000000102',
+  organizationId: '00000000-0000-4000-8000-781000000103',
   email: 'buyer@example.test',
   firstName: 'Bo',
   lastName: 'Buyer',
@@ -359,13 +359,13 @@ describe('admin_users — sessions, roles and the impersonation target over port
     const { log, actions } = recordingAuditLog();
 
     const started = await new ImpersonationService(em, sessions, accounts, log).start({
-      adminUserId: 'a-1',
+      adminUserId: '00000000-0000-4000-8000-781000000101',
       adminSessionCookieValue: 'admin-cookie',
-      customerAccountId: 'c-1',
-      organizationId: 'org-1',
+      customerAccountId: '00000000-0000-4000-8000-781000000102',
+      organizationId: '00000000-0000-4000-8000-781000000103',
     });
 
-    expect(scopedLookups()).toEqual([{ id: 'c-1', organizationId: 'org-1' }]);
+    expect(scopedLookups()).toEqual([{ id: '00000000-0000-4000-8000-781000000102', organizationId: '00000000-0000-4000-8000-781000000103' }]);
     expect(started.impersonatedCustomerAccount.email).toBe('buyer@example.test');
     expect(started.adminShadowSessionCookieValue).toBe('admin-cookie');
     // Audit before the cookie is minted (T179) survives the cut.
@@ -384,9 +384,9 @@ describe('admin_users — sessions, roles and the impersonation target over port
 
     await expect(
       new ImpersonationService(em, sessions, accounts, log).start({
-        adminUserId: 'a-1',
+        adminUserId: '00000000-0000-4000-8000-781000000101',
         adminSessionCookieValue: 'admin-cookie',
-        customerAccountId: 'c-1',
+        customerAccountId: '00000000-0000-4000-8000-781000000102',
         organizationId: 'org-2',
       }),
     ).rejects.toThrow('Target customer not found.');

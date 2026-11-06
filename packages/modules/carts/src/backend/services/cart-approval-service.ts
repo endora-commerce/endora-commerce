@@ -1,5 +1,5 @@
 import type { EntityManager } from '@mikro-orm/postgresql';
-import { ERROR_CODES } from '@endora-commerce/contracts';
+import { ERROR_CODES, isUuidShape } from '@endora-commerce/contracts';
 import { HttpError } from '@endora-commerce/platform/http';
 import { Cart } from '../entities/cart.entity.js';
 import type { CartApprovalStatus } from '../entities/cart.entity.js';
@@ -334,6 +334,7 @@ export class CartApprovalService {
    * working basket and an unknown id are all the same 404.
    */
   async #organizationCart(em: EntityManager, cartId: string, actor: ApproveActor): Promise<Cart> {
+    if (!isUuidShape(cartId)) throw new HttpError(404, ERROR_CODES.NOT_FOUND, 'cart_not_found');
     const cart = await readOrganizationCarts(actor.organizationId, () =>
       em.findOne(Cart, { id: cartId, organizationId: actor.organizationId, status: { $ne: 'working' } }),
     );

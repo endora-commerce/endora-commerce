@@ -13,6 +13,7 @@ import {
   type CustomerAccountRecord,
   type CustomerAccountStandaloneCreateInput,
   type CustomerAccountWriteRequestMeta,
+  isUuidShape,
 } from '@endora-commerce/contracts';
 import type { Command, CommandBus } from '@endora-commerce/platform/commands';
 import { recordAuditFromContext } from '@endora-commerce/platform/commands';
@@ -434,6 +435,9 @@ export class CustomerAccountLifecycleWriteService implements CustomerAccountLife
         return account ? { customFieldValues: account.customFieldValues ?? {} } : null;
       },
       run: async ({ em }) => {
+        if (!isUuidShape(customerAccountId)) {
+          throw new HttpError(404, ERROR_CODES.NOT_FOUND, 'Customer not found.');
+        }
         const account = await em.findOne(CustomerAccount, { id: customerAccountId });
         if (!account) {
           throw new HttpError(404, ERROR_CODES.NOT_FOUND, 'Customer not found.');
@@ -511,6 +515,9 @@ export class CustomerAccountLifecycleWriteService implements CustomerAccountLife
   }
 
   async #load(em: EntityManager, id: string): Promise<CustomerAccount> {
+    if (!isUuidShape(id)) {
+      throw new HttpError(404, ERROR_CODES.CUSTOMER_NOT_FOUND, 'Customer not found.');
+    }
     const account = await em.findOne(CustomerAccount, { id });
     if (!account) {
       throw new HttpError(404, ERROR_CODES.CUSTOMER_NOT_FOUND, 'Customer not found.');
@@ -519,6 +526,9 @@ export class CustomerAccountLifecycleWriteService implements CustomerAccountLife
   }
 
   async #loadLive(em: EntityManager, id: string): Promise<CustomerAccount> {
+    if (!isUuidShape(id)) {
+      throw new HttpError(404, ERROR_CODES.CUSTOMER_NOT_FOUND, 'Customer not found.');
+    }
     const account = await em.findOne(CustomerAccount, { id, deletedAt: null });
     if (!account) {
       throw new HttpError(404, ERROR_CODES.CUSTOMER_NOT_FOUND, 'Customer not found.');

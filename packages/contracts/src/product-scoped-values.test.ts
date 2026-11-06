@@ -128,3 +128,32 @@ describe('httpUrlSchema and the version token (C2/C3 review)', () => {
     expect(saveScopedValuesRequestSchema.safeParse(body('9999999999999999999')).success).toBe(false);
   });
 });
+
+/**
+ * Issue #781 — the uuid in a gallery, attachment or packaging-unit key and in a field path is
+ * spelled with the shared `UUID_SHAPE_PATTERN`, and still accepts lowercase only, as it did.
+ */
+describe('781 — the uuid keys and field-path subjects keep their case rule', () => {
+  const lower = '0e8f3c1e-6c5c-4b39-9f55-6f7f1c2d9a10';
+  const upper = lower.toUpperCase();
+
+  it.each(['attachments', 'packagingUnits'] as const)('accepts a lowercase %s key and refuses an uppercase one', (family) => {
+    expect(scopedValueChangesSchema.safeParse({ [family]: { [lower]: { name: 'x' } } }).success).toBe(true);
+    expect(scopedValueChangesSchema.safeParse({ [family]: { [upper]: { name: 'x' } } }).success).toBe(false);
+  });
+
+  it('accepts a lowercase gallery item key and refuses an uppercase one', () => {
+    expect(scopedValueChangesSchema.safeParse({ gallery: { items: { [lower]: { hidden: true } } } }).success).toBe(true);
+    expect(scopedValueChangesSchema.safeParse({ gallery: { items: { [upper]: { hidden: true } } } }).success).toBe(false);
+  });
+
+  it.each([`gallery:${lower}:altText`, `attachment:${lower}:name`, `packagingUnit:${lower}:name`])(
+    'accepts the field path %s',
+    (path) => expect(fieldPathSchema.safeParse(path).success).toBe(true),
+  );
+
+  it.each([`gallery:${upper}:altText`, `attachment:${upper}:name`, `packagingUnit:${upper}:name`, 'gallery:1c0785cf:hidden'])(
+    'refuses the field path %s',
+    (path) => expect(fieldPathSchema.safeParse(path).success).toBe(false),
+  );
+});

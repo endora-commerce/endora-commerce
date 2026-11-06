@@ -16,6 +16,7 @@ import {
   organizationPermissionPreHandler,
   type Actor,
   type OrganizationPermissionPort,
+  isUuidShape,
 } from '@endora-commerce/contracts';
 import type { RfqService, CustomerContext } from './services/rfq-service.js';
 import { HttpError } from '@endora-commerce/platform/http';
@@ -42,8 +43,6 @@ const DRAFT_EDIT_RATE_LIMIT = {
   keyGenerator: (request: FastifyRequest): string => draftEditRateLimitKey(request),
 };
 
-const UUID = /^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/i;
-
 /**
  * The draft-edit bucket a request counts against (security review W3).
  *
@@ -66,7 +65,7 @@ export function draftEditRateLimitKey(request: FastifyRequest): string {
   const actor = request.actor as Actor | undefined;
   const caller = actor?.kind === 'customer' ? actor.customerAccountId : request.ip;
   const id = (request.params as { id?: unknown } | undefined)?.id;
-  return typeof id === 'string' && UUID.test(id)
+  return typeof id === 'string' && isUuidShape(id)
     ? `quote-request-draft-edit:${caller}:${id}`
     : `quote-request-draft-edit:${caller}`;
 }

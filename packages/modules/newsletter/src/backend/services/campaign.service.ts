@@ -6,6 +6,7 @@ import {
   type CreateCampaignRequest,
   type UpdateCampaignRequest,
   type RenderedEmail,
+  isUuidShape,
 } from '@endora-commerce/contracts';
 import { HttpError } from '@endora-commerce/platform/http';
 import { NewsletterCampaign } from '../entities/newsletter-campaign.entity.js';
@@ -194,6 +195,7 @@ export class NewsletterCampaignService {
   }
 
   private async load(em: EntityManager, id: string): Promise<NewsletterCampaign> {
+    if (!isUuidShape(id)) throw new HttpError(404, ERROR_CODES.NOT_FOUND, 'Campaign not found.');
     const campaign = await em.findOne(NewsletterCampaign, { id });
     if (!campaign) throw new HttpError(404, ERROR_CODES.NOT_FOUND, 'Campaign not found.');
     return campaign;

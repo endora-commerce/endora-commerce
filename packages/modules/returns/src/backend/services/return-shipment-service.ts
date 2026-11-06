@@ -1,5 +1,5 @@
 import type { EntityManager } from '@mikro-orm/postgresql';
-import { ERROR_CODES } from '@endora-commerce/contracts';
+import { ERROR_CODES, isUuidShape } from '@endora-commerce/contracts';
 import type { ReturnShipmentDto } from '@endora-commerce/contracts';
 import { HttpError } from '@endora-commerce/platform/http';
 import { recordAuditFromContext } from '@endora-commerce/platform/commands';
@@ -39,6 +39,7 @@ export class ReturnShipmentService {
    * exactly how they came to have none.
    */
   async #loadCase(em: EntityManager, caseId: string): Promise<ReturnCase> {
+    if (!isUuidShape(caseId)) throw new HttpError(404, ERROR_CODES.NOT_FOUND, 'Return case not found.');
     const rc = await em.findOne(ReturnCase, { id: caseId });
     if (!rc) throw new HttpError(404, ERROR_CODES.NOT_FOUND, 'Return case not found.');
     return rc;
@@ -95,6 +96,7 @@ export class ReturnShipmentService {
   async receive(caseId: string, shipmentId: string, adminUserId: string): Promise<ReturnShipmentDto> {
     const em = this.deps.emFactory();
     await this.#loadCase(em, caseId);
+    if (!isUuidShape(shipmentId) || !isUuidShape(caseId)) throw new HttpError(404, ERROR_CODES.NOT_FOUND, 'Return shipment not found.');
     const shipment = await em.findOne(ReturnShipment, { id: shipmentId, returnCaseId: caseId });
     if (!shipment) throw new HttpError(404, ERROR_CODES.NOT_FOUND, 'Return shipment not found.');
     shipment.status = 'received';

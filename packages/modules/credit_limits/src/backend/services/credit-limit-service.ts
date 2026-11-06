@@ -7,7 +7,7 @@ import { CreditLimit } from '../entities/credit-limit.entity.js';
 import { CreditLimitReservation } from '../entities/credit-limit-reservation.entity.js';
 import { CreditLimitReturnTopup } from '../entities/credit-limit-return-topup.entity.js';
 import type { CreditTopupResult, OrganizationInheritancePort } from '@endora-commerce/contracts';
-import { compareDecimals, moneySum } from '@endora-commerce/contracts';
+import { compareDecimals, moneySum, isUuidShape } from '@endora-commerce/contracts';
 import { availableCredit, coversAmount, creditAmount } from './credit-money.js';
 
 /**
@@ -92,6 +92,7 @@ export class CreditLimitService {
 
   async getForOrganization(organizationId: string): Promise<CreditLimit | null> {
     const em = this.emFactory();
+    if (!isUuidShape(organizationId)) return null;
     const own = await em.findOne(CreditLimit, { organizationId });
     if (own || !this.inheritance) return own;
     // Feature 056 — fall back to the nearest ancestor holding a limit. The owner

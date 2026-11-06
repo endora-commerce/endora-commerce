@@ -20,6 +20,7 @@ import {
   type PackagingUnitDto,
   type ReorderPackagingUnitsRequest,
   type UpdatePackagingUnitRequest,
+  isUuidShape,
 } from '@endora-commerce/contracts';
 
 import { HttpError } from '@endora-commerce/platform/http';
@@ -200,6 +201,13 @@ export class PackagingUnitService {
   // -- INTERNALS ------------------------------------------------------------
 
   async #assertProductExists(em: EntityManager, productId: string): Promise<Product> {
+    if (!isUuidShape(productId)) {
+      throw new HttpError(
+        404,
+        ERROR_CODES.PRODUCT_NOT_FOUND,
+        `Product ${productId} not found.`,
+      );
+    }
     const product = await em.findOne(Product, { id: productId });
     if (!product) {
       throw new HttpError(
@@ -227,6 +235,13 @@ export class PackagingUnitService {
     productId: string,
     unitId: string,
   ): Promise<ProductPackagingUnit> {
+    if (!isUuidShape(unitId) || !isUuidShape(productId)) {
+      throw new HttpError(
+        404,
+        ERROR_CODES.PACKAGING_UNIT_NOT_FOUND,
+        `Packaging unit ${unitId} not found under Product ${productId}.`,
+      );
+    }
     const unit = await em.findOne(ProductPackagingUnit, { id: unitId, productId });
     if (!unit) {
       throw new HttpError(

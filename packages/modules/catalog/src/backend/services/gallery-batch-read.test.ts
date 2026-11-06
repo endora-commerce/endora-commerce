@@ -221,7 +221,7 @@ describe('catalog — baseImageUrls', () => {
 
 describe('catalog — the round-trip cost the batch read exists to remove', () => {
   it('costs one round-trip for 500 products where `list` costs 1500', async () => {
-    const ids = Array.from({ length: 500 }, (_, i) => `product-${i}`);
+    const ids = Array.from({ length: 500 }, (_, i) => `00000000-0000-4000-8000-${String(i).padStart(12, '0')}`);
 
     const batch: Recorded = { statements: [], entityReads: [] };
     await new GalleryService(fakeEm(batch, () => []), undefined, assetPort({})).listForProducts(

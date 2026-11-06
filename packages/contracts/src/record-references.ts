@@ -1,4 +1,5 @@
 import { z } from 'zod';
+import { UUID_SHAPE_PATTERN } from './common.js';
 import { collectionEnvelope } from './envelopes.js';
 
 /**
@@ -37,15 +38,12 @@ export const RECORD_REFERENCE_TYPES = [
 export const recordReferenceTypeSchema = z.enum(RECORD_REFERENCE_TYPES);
 export type RecordReferenceType = z.infer<typeof recordReferenceTypeSchema>;
 
-/** The uuid of a token, as its regular-expression source. */
-const UUID_SOURCE = '[0-9a-fA-F]{8}-[0-9a-fA-F]{4}-[0-9a-fA-F]{4}-[0-9a-fA-F]{4}-[0-9a-fA-F]{12}';
-
 /**
  * The source of the token expression — group 1 the type, group 2 the id. A
  * source and not a shared `RegExp`, because a global expression carries
  * `lastIndex` from one caller to the next: build a fresh one per use.
  */
-export const REFERENCE_TOKEN_SOURCE = `\\[\\[(${RECORD_REFERENCE_TYPES.join('|')}):(${UUID_SOURCE})\\]\\]`;
+export const REFERENCE_TOKEN_SOURCE = `\\[\\[(${RECORD_REFERENCE_TYPES.join('|')}):(${UUID_SHAPE_PATTERN})\\]\\]`;
 
 export interface RecordReferenceToken {
   type: RecordReferenceType;

@@ -16,6 +16,16 @@ export const uuidSchema = z.string().uuid();
 export type Uuid = z.infer<typeof uuidSchema>;
 
 /**
+ * The one spelling of a `uuid`'s shape as a regular-expression source,
+ * unanchored and matching either case without a flag, for a pattern that has
+ * to find a uuid *inside* a longer value — an asset address, a `kind:id` token
+ * (issue #781). A value that is a uuid on its own is checked with
+ * {@link isUuidShape}, not with this.
+ */
+export const UUID_SHAPE_PATTERN =
+  '[0-9a-fA-F]{8}-[0-9a-fA-F]{4}-[0-9a-fA-F]{4}-[0-9a-fA-F]{4}-[0-9a-fA-F]{12}';
+
+/**
  * A value with the shape of a PostgreSQL `uuid`: 8-4-4-4-12 hexadecimal digits,
  * either case. Shape only — deliberately looser than `uuidSchema`, which checks
  * RFC 9562's version and variant bits that PostgreSQL does not, and that
@@ -27,9 +37,7 @@ export type Uuid = z.infer<typeof uuidSchema>;
  * names no record, so the route answers its own not-found, as it does for a
  * well-formed id that names nothing.
  */
-export const uuidShapeSchema = z
-  .string()
-  .regex(/^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/i, 'Not a UUID');
+export const uuidShapeSchema = z.string().regex(new RegExp(`^${UUID_SHAPE_PATTERN}$`), 'Not a UUID');
 
 /** Whether `value` has the shape of a PostgreSQL `uuid` — see `uuidShapeSchema`. */
 export function isUuidShape(value: string): boolean {

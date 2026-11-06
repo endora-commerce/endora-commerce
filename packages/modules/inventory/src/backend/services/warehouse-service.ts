@@ -4,6 +4,7 @@ import {
   DictionaryReferenceError,
   dispatchValidatorMode,
   type DictionaryValidator,
+  isUuidShape,
 } from '@endora-commerce/contracts';
 import { HttpError } from '@endora-commerce/platform/http';
 import {
@@ -112,6 +113,7 @@ export class WarehouseService {
 
   async getById(id: string, options: { withTotals?: boolean } = {}): Promise<WarehouseDTO | null> {
     const em = this.emFactory();
+    if (!isUuidShape(id)) return null;
     const row = await em.findOne(Warehouse, { id });
     if (!row) return null;
     if (!options.withTotals) return this.toDTO(row);
@@ -156,6 +158,7 @@ export class WarehouseService {
     auditCtx?: InventoryAuditContext,
   ): Promise<WarehouseDTO> {
     const em = this.emFactory();
+    if (!isUuidShape(id)) throw new HttpError(404, 'WAREHOUSE_NOT_FOUND', 'Warehouse not found');
     const row = await em.findOne(Warehouse, { id });
     if (!row) throw new HttpError(404, 'WAREHOUSE_NOT_FOUND', 'Warehouse not found');
 
@@ -256,6 +259,7 @@ export class WarehouseService {
 
   async delete(id: string, auditCtx?: InventoryAuditContext): Promise<void> {
     const em = this.emFactory();
+    if (!isUuidShape(id)) throw new HttpError(404, 'WAREHOUSE_NOT_FOUND', 'Warehouse not found');
     const row = await em.findOne(Warehouse, { id });
     if (!row) throw new HttpError(404, 'WAREHOUSE_NOT_FOUND', 'Warehouse not found');
 

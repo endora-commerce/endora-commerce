@@ -1,5 +1,5 @@
 import type { EntityManager } from '@mikro-orm/postgresql';
-import { ERROR_CODES } from '@endora-commerce/contracts';
+import { ERROR_CODES, isUuidShape } from '@endora-commerce/contracts';
 import type {
   AdminCartsListQuery,
   AdminCartsListResponse,
@@ -229,6 +229,9 @@ export class CartAdminService {
 
   async getById(cartId: string): Promise<AdminCartDetailResponse> {
     const em = this.emFactory();
+    if (!isUuidShape(cartId)) {
+      throw new HttpError(404, ERROR_CODES.NOT_FOUND, 'cart_not_found');
+    }
     const cart = await em.findOne(Cart, { id: cartId });
     if (!cart) {
       throw new HttpError(404, ERROR_CODES.NOT_FOUND, 'cart_not_found');
@@ -335,6 +338,9 @@ export class CartAdminService {
     pageSize = 50,
   ): Promise<AdminCartAuditResponse> {
     const em = this.emFactory();
+    if (!isUuidShape(cartId)) {
+      throw new HttpError(404, ERROR_CODES.NOT_FOUND, 'cart_not_found');
+    }
     const cart = await em.findOne(Cart, { id: cartId });
     if (!cart) {
       throw new HttpError(404, ERROR_CODES.NOT_FOUND, 'cart_not_found');
@@ -378,6 +384,9 @@ export class CartAdminService {
     reason: string,
   ): Promise<AdminCartDetailResponse> {
     const em = this.emFactory();
+    if (!isUuidShape(cartId)) {
+      throw new HttpError(404, ERROR_CODES.NOT_FOUND, 'cart_not_found');
+    }
     const cart = await em.findOne(Cart, { id: cartId });
     if (!cart) {
       throw new HttpError(404, ERROR_CODES.NOT_FOUND, 'cart_not_found');

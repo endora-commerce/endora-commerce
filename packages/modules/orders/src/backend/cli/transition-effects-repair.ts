@@ -45,6 +45,7 @@ import type {
   OrderTransitionEffectRepairService,
   RepairReport,
 } from '../services/order-transition-effect-repair-service.js';
+import { isUuidShape } from '@endora-commerce/contracts';
 
 /** The one registration this command reads — this module's own. */
 interface TransitionEffectsRepairCradle {
@@ -93,8 +94,6 @@ export function describeRepairReport(report: RepairReport): string[] {
   return lines;
 }
 
-const UUID = /^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/i;
-
 export interface RepairArguments {
   readonly apply: boolean;
   readonly only: readonly string[];
@@ -114,7 +113,7 @@ export function parseRepairArguments(argv: readonly string[]): RepairArguments |
     }
     const match = /^--(order|except)=(.+)$/.exec(arg);
     if (!match) return { error: `Unknown argument: ${arg}` };
-    if (!UUID.test(match[2]!)) {
+    if (!isUuidShape(match[2]!)) {
       return { error: `--${match[1]} takes an order id (a UUID), got: ${match[2]}` };
     }
     (match[1] === 'order' ? only : except).push(match[2]!.toLowerCase());

@@ -1,5 +1,5 @@
 import { randomUUID } from 'node:crypto';
-import { ERROR_CODES } from '@endora-commerce/contracts';
+import { ERROR_CODES, isUuidShape } from '@endora-commerce/contracts';
 import type { Command } from '@endora-commerce/platform/commands';
 import { HttpError } from '@endora-commerce/platform/http';
 import { FeedRun } from '../entities/feed-run.entity.js';
@@ -121,6 +121,7 @@ export function makeUpdateFeedCommand(
       return feed ? auditState(feed) : null;
     },
     run: async ({ em }) => {
+      if (!isUuidShape(feedId)) throw new HttpError(404, ERROR_CODES.NOT_FOUND, 'Product feed not found.');
       const feed = await em.findOne(ProductFeed, { id: feedId });
       if (!feed) throw new HttpError(404, ERROR_CODES.NOT_FOUND, 'Product feed not found.');
       Object.assign(feed, patch);
@@ -145,6 +146,7 @@ export function makeDeleteFeedCommand(feedId: string): Command<{ tokenHash: stri
       return feed ? auditState(feed) : null;
     },
     run: async ({ em }) => {
+      if (!isUuidShape(feedId)) throw new HttpError(404, ERROR_CODES.NOT_FOUND, 'Product feed not found.');
       const feed = await em.findOne(ProductFeed, { id: feedId });
       if (!feed) throw new HttpError(404, ERROR_CODES.NOT_FOUND, 'Product feed not found.');
       const tokenHash = feed.tokenHash ?? null;
@@ -177,6 +179,7 @@ export function makeDuplicateFeedCommand(
     objectType: 'product_feed',
     objectId: sourceId,
     run: async ({ em }) => {
+      if (!isUuidShape(sourceId)) throw new HttpError(404, ERROR_CODES.NOT_FOUND, 'Product feed not found.');
       const source = await em.findOne(ProductFeed, { id: sourceId });
       if (!source) throw new HttpError(404, ERROR_CODES.NOT_FOUND, 'Product feed not found.');
       const copy = em.create(ProductFeed, {
@@ -239,6 +242,7 @@ export function makeRotateTokenCommand(
         : null;
     },
     run: async ({ em }) => {
+      if (!isUuidShape(feedId)) throw new HttpError(404, ERROR_CODES.NOT_FOUND, 'Product feed not found.');
       const feed = await em.findOne(ProductFeed, { id: feedId });
       if (!feed) throw new HttpError(404, ERROR_CODES.NOT_FOUND, 'Product feed not found.');
       const previousTokenHash = feed.tokenHash ?? null;
@@ -273,6 +277,7 @@ export function makeRevokeTokenCommand(
       return feed ? { id: feed.id, tokenPrefix: feed.tokenPrefix ?? null } : null;
     },
     run: async ({ em }) => {
+      if (!isUuidShape(feedId)) throw new HttpError(404, ERROR_CODES.NOT_FOUND, 'Product feed not found.');
       const feed = await em.findOne(ProductFeed, { id: feedId });
       if (!feed) throw new HttpError(404, ERROR_CODES.NOT_FOUND, 'Product feed not found.');
       const previousTokenHash = feed.tokenHash ?? null;

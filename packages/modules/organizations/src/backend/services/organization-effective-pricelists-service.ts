@@ -1,6 +1,7 @@
 import type { EntityManager } from '@mikro-orm/postgresql';
 import type { PriceListReadPort } from '@endora-commerce/contracts';
 import { Organization } from '../entities/organization.entity.js';
+import { isUuidShape } from '@endora-commerce/contracts';
 
 /**
  * The reason chips the Organization detail panel renders, one per way a price
@@ -50,6 +51,7 @@ export class OrganizationEffectivePriceListsService {
 
   async listApplicable(organizationId: string): Promise<ApplicablePriceListEntry[]> {
     const em = this.deps.emFactory();
+    if (!isUuidShape(organizationId)) return [];
     const org = await em.findOne(Organization, { id: organizationId, deletedAt: null });
     if (!org) return [];
     const organizationChain = await this.deps.resolveOrgChain(org.id);

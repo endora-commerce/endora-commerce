@@ -12,6 +12,7 @@ import {
   type OpportunityBoardFieldKind,
   type OpportunityFieldFilter,
   type OpportunityFieldFilters,
+  uuidSchema,
 } from '@endora-commerce/contracts';
 import type { CrmOpportunity } from '../entities/crm-opportunity.entity.js';
 import { effectiveOpportunityValueSql } from './effective-value.js';
@@ -142,7 +143,8 @@ export function salesChannelName(
 
 // --- Field filters -----------------------------------------------------------
 
-const UUID = /^[0-9a-f]{8}-[0-9a-f]{4}-[1-8][0-9a-f]{3}-[89ab][0-9a-f]{3}-[0-9a-f]{12}$/i;
+/** An RFC 9562 uuid — version and variant bits included, as this filter has always read one. */
+const isRfcUuid = (value: string): boolean => uuidSchema.safeParse(value).success;
 
 /** A predicate over `crm_opportunities f`, with its bound values in order. */
 type Predicate = readonly [sql: string, params: readonly unknown[]];
@@ -198,7 +200,7 @@ function builtinPredicates(key: string, filter: OpportunityFieldFilter): Predica
     case 'contact': {
       if (filter.in === undefined) return [];
       // An id that is not one names nobody: the filter then matches nothing.
-      const ids = filter.in.filter((id) => UUID.test(id));
+      const ids = filter.in.filter((id) => isRfcUuid(id));
       return ids.length === 0
         ? [['false', []]]
         : [[`f."customer_account_id" in (${placeholders(ids)})`, ids]];

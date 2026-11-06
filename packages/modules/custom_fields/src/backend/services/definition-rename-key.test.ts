@@ -99,12 +99,12 @@ async function codeOf(promise: Promise<unknown>): Promise<string> {
 describe('applyRenameKey', () => {
   it('renames on the caller EM, flushes, and neither dispatches nor publishes', async () => {
     const em = new FakeEm();
-    const row = seed(em, 'd1', 'ergonode_kod__cznika');
+    const row = seed(em, '00000000-0000-4000-8000-781000000006', 'ergonode_kod__cznika');
     const { svc, publishes } = makeService();
 
     const record = await svc.applyRenameKey(
       em.asEm(),
-      'd1',
+      '00000000-0000-4000-8000-781000000006',
       'ergonode_kod__cznika',
       'ergonode_kod_lacznika',
     );
@@ -119,31 +119,31 @@ describe('applyRenameKey', () => {
 
   it('refuses when the key is no longer the one the caller planned from', async () => {
     const em = new FakeEm();
-    seed(em, 'd1', 'something_else');
+    seed(em, '00000000-0000-4000-8000-781000000006', 'something_else');
     const { svc } = makeService();
 
-    expect(await codeOf(svc.applyRenameKey(em.asEm(), 'd1', 'expected', 'target'))).toBe(
+    expect(await codeOf(svc.applyRenameKey(em.asEm(), '00000000-0000-4000-8000-781000000006', 'expected', 'target'))).toBe(
       'key_changed',
     );
   });
 
   it('refuses a key another definition of the same entity type holds', async () => {
     const em = new FakeEm();
-    seed(em, 'd1', 'old_key');
+    seed(em, '00000000-0000-4000-8000-781000000006', 'old_key');
     seed(em, 'd2', 'taken');
     const { svc } = makeService();
 
-    expect(await codeOf(svc.applyRenameKey(em.asEm(), 'd1', 'old_key', 'taken'))).toBe(
+    expect(await codeOf(svc.applyRenameKey(em.asEm(), '00000000-0000-4000-8000-781000000006', 'old_key', 'taken'))).toBe(
       'duplicate_key',
     );
   });
 
   it('refuses a key outside the grammar every definition key satisfies', async () => {
     const em = new FakeEm();
-    seed(em, 'd1', 'old_key');
+    seed(em, '00000000-0000-4000-8000-781000000006', 'old_key');
     const { svc } = makeService();
 
-    expect(await codeOf(svc.applyRenameKey(em.asEm(), 'd1', 'old_key', 'Not A Key'))).toBe(
+    expect(await codeOf(svc.applyRenameKey(em.asEm(), '00000000-0000-4000-8000-781000000006', 'old_key', 'Not A Key'))).toBe(
       'invalid_key',
     );
   });

@@ -8,7 +8,9 @@ storefront's no-JS handler. Shapes are Zod schemas in `packages/contracts/src/fo
 - Owner `forms`, `ctx.routes` (`503 MODULE_DISABLED` while off). No auth. Ordinary sales-channel
   access rule. Query `language?`; else `Accept-Language`; constrained to the resolved channel's
   languages, else its default (R-12 step 2).
-- **Always `200`** for a syntactically valid uuid (research R-11); `400` for a malformed id.
+- **Always `200`** (research R-11). A malformed id names no form and gets the same
+  `{ formId, availability: 'unavailable' }` body an unknown one does, `formId` echoing the requested
+  value (owner ruling of 2026-11-05, issue #781; it was `400` before).
 - `Cache-Control: public, max-age=0, s-maxage=60` (the storefront's Data Cache is the cache).
 
 ```ts

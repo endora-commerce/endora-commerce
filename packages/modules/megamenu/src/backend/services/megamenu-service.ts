@@ -12,6 +12,7 @@ import {
   type MegamenuSummary,
   type PatchMegamenuRequest,
   type ResolvedMenuItem,
+  isUuidShape,
 } from '@endora-commerce/contracts';
 import type { CommandBus } from '@endora-commerce/platform/commands';
 import { HttpError } from '@endora-commerce/platform/http';
@@ -159,6 +160,8 @@ export class MegamenuService {
   }
 
   async delete(id: string): Promise<void> {
+    // A malformed id names no menu: deleting it deletes nothing, as for an unknown one (issue #781).
+    if (!isUuidShape(id)) return;
     await this.commandBus.run<void>({
       action: 'megamenu.delete',
       objectType: MEGAMENU_OBJECT_TYPE,
@@ -442,6 +445,7 @@ export class MegamenuService {
 
   async findRow(id: string, em?: EntityManager): Promise<MegamenuRow | null> {
     const targetEm = (em ?? this.emFactory());
+    if (!isUuidShape(id)) return null;
     const rows = (await targetEm.execute('select * from megamenus where id = ?', [id])) as MegamenuRow[];
     return rows[0] ?? null;
   }

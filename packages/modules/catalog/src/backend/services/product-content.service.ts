@@ -7,6 +7,7 @@ import {
   type AdminProductContentList,
   type ProductContentEnvelope,
   uuidSchema,
+  isUuidShape,
 } from '@endora-commerce/contracts';
 import type { CommandBus } from '@endora-commerce/platform/commands';
 import { HttpError } from '@endora-commerce/platform/http';
@@ -188,6 +189,7 @@ export class ProductContentService {
     if (!uuidSchema.safeParse(productId).success) {
       throw new HttpError(404, ERROR_CODES.PRODUCT_NOT_FOUND, 'Product not found.');
     }
+    if (!isUuidShape(productId)) throw new HttpError(404, ERROR_CODES.PRODUCT_NOT_FOUND, 'Product not found.');
     const product = await em.findOne(Product, { id: productId, deletedAt: null }, { fields: ['id', 'attributeSetId'] });
     if (!product) throw new HttpError(404, ERROR_CODES.PRODUCT_NOT_FOUND, 'Product not found.');
     return product;

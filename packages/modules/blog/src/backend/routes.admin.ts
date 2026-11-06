@@ -335,7 +335,7 @@ export async function registerBlogAdminRoutes(
   const deleteRedirect =
     (kind: 'post' | 'category') =>
     async (request: FastifyRequest<{ Params: { id: string; redirectId: string } }>, reply: FastifyReply) => {
-      await deps.urlKeyService.deleteRedirect(kind, request.params.id, z.string().uuid().parse(request.params.redirectId));
+      await deps.urlKeyService.deleteRedirect(kind, request.params.id, request.params.redirectId);
       return reply.code(204).send();
     };
 
@@ -375,7 +375,7 @@ export async function registerBlogAdminRoutes(
     '/api/v1/admin/blog/addresses/:id',
     { preHandler: requireWrite },
     async (request, reply) => {
-      await deps.urlPrefixService.forget(z.string().uuid().parse(request.params.id));
+      await deps.urlPrefixService.forget(request.params.id);
       return reply.code(204).send();
     },
   );

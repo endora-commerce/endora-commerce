@@ -12,6 +12,7 @@ import {
   ComparisonNotFoundError,
   type ComparisonService,
 } from './comparison-service.js';
+import { isUuidShape } from '@endora-commerce/contracts';
 
 /**
  * Read-only admin service for the comparisons module — feature 007 /
@@ -150,6 +151,7 @@ export class ComparisonAdminService {
 
   async detail(id: string): Promise<ComparisonAdminDetail> {
     const em = this.emFactory();
+    if (!isUuidShape(id)) throw new ComparisonNotFoundError();
     const comparison = await em.findOne(Comparison, { id });
     if (!comparison) throw new ComparisonNotFoundError();
     // The detail view renders prices in the comparison's recorded

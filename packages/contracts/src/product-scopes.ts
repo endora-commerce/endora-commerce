@@ -3,6 +3,7 @@ import {
   isoDateTimeSchema,
   multilingualStringSchema,
   productVisibilitySchema,
+  UUID_SHAPE_PATTERN,
   uuidSchema,
   type ProductVisibility,
 } from './common.js';
@@ -426,6 +427,9 @@ export interface ProductScopedWriteInput {
 /** The most cells one call of the scope write port carries (R13a). */
 export const PRODUCT_SCOPED_WRITE_CELLS_MAX = 2000;
 
+/** The subject uuid of a field path: the shared shape, lowercase only (issue #781). */
+const LOWERCASE_UUID = UUID_SHAPE_PATTERN.replaceAll('a-fA-F', 'a-f');
+
 /**
  * The field paths of data-model §9, as a grammar: a family, a subject uuid where the family has
  * one, an attribute key. Global-only fields are not paths.
@@ -434,7 +438,9 @@ export const fieldPathSchema = z
   .string()
   .max(128)
   .regex(
-    /^(name|description|status|window|audience|minOrderQuantity|returnable|urlKey|seo:(title|description|ogTitle|ogDescription|ogImageUrl)|attribute:[a-z0-9_]{1,64}|gallery:[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}:(altText|hidden)|galleryRole:(base_image|small_image|thumbnail)|attachment:[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}:(name|description|hidden)|packagingUnit:[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}:name)$/,
+    new RegExp(
+      `^(name|description|status|window|audience|minOrderQuantity|returnable|urlKey|seo:(title|description|ogTitle|ogDescription|ogImageUrl)|attribute:[a-z0-9_]{1,64}|gallery:${LOWERCASE_UUID}:(altText|hidden)|galleryRole:(base_image|small_image|thumbnail)|attachment:${LOWERCASE_UUID}:(name|description|hidden)|packagingUnit:${LOWERCASE_UUID}:name)$`,
+    ),
     'field path',
   )
   .transform((path) => path as FieldPath);

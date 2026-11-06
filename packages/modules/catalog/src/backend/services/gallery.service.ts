@@ -23,6 +23,7 @@ import {
   type GalleryLabel,
   type CreateGalleryItemRequest,
   type UpdateGalleryItemRequest,
+  isUuidShape,
 } from '@endora-commerce/contracts';
 
 import { HttpError } from '@endora-commerce/platform/http';
@@ -297,6 +298,13 @@ export class GalleryService {
 
   async #updatePosition(productId: string, itemId: string, req: UpdateGalleryItemRequest): Promise<void> {
     await this.#audited('gallery_item.update', itemId, async (em) => {
+      if (!isUuidShape(itemId) || !isUuidShape(productId)) {
+        throw new HttpError(
+          404,
+          ERROR_CODES.GALLERY_ITEM_NOT_FOUND,
+          `Gallery item ${itemId} not found under Product ${productId}.`,
+        );
+      }
       const item = await em.findOne(GalleryItem, { id: itemId, productId });
       if (!item) {
         throw new HttpError(
@@ -313,6 +321,13 @@ export class GalleryService {
 
   async delete(productId: string, itemId: string): Promise<void> {
     await this.#audited('gallery_item.delete', itemId, async (em) => {
+      if (!isUuidShape(itemId) || !isUuidShape(productId)) {
+        throw new HttpError(
+          404,
+          ERROR_CODES.GALLERY_ITEM_NOT_FOUND,
+          `Gallery item ${itemId} not found under Product ${productId}.`,
+        );
+      }
       const item = await em.findOne(GalleryItem, { id: itemId, productId });
       if (!item) {
         throw new HttpError(
@@ -376,6 +391,9 @@ export class GalleryService {
       objectType: 'product',
       objectId: productId,
       run: async ({ em }) => {
+        if (!isUuidShape(productId)) {
+          throw new HttpError(404, ERROR_CODES.PRODUCT_NOT_FOUND, `Product ${productId} not found.`);
+        }
         const product = await em.findOne(Product, { id: productId }, { lockMode: LockMode.PESSIMISTIC_WRITE });
         if (!product) {
           throw new HttpError(404, ERROR_CODES.PRODUCT_NOT_FOUND, `Product ${productId} not found.`);
@@ -414,6 +432,13 @@ export class GalleryService {
   }
 
   async #assertProductExists(em: EntityManager, productId: string): Promise<void> {
+    if (!isUuidShape(productId)) {
+      throw new HttpError(
+        404,
+        ERROR_CODES.PRODUCT_NOT_FOUND,
+        `Product ${productId} not found.`,
+      );
+    }
     const product = await em.findOne(Product, { id: productId });
     if (!product) {
       throw new HttpError(
@@ -535,6 +560,7 @@ export class GalleryService {
   }
 
   async #fetchOne(em: EntityManager, itemId: string): Promise<GalleryItemDto | null> {
+    if (!isUuidShape(itemId)) return null;
     const item = await em.findOne(GalleryItem, { id: itemId });
     if (!item) return null;
     const labels = await em.find(GalleryItemLabel, { galleryItemId: itemId });

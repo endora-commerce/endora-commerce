@@ -37,7 +37,7 @@ function recordingEm(): { emFactory: () => EntityManager; lines: Array<Record<st
       lines.push(line);
       return line;
     }
-    invoice = { id: 'inv-1', ...data };
+    invoice = { id: '00000000-0000-4000-8000-781000000009', ...data };
     return invoice;
   };
   const tx = { create, persistAndFlush: async () => {}, flush: async () => {} };

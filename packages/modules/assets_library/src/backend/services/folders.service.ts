@@ -4,7 +4,7 @@
 // never a physical file move.
 
 import type { EntityManager } from '@mikro-orm/postgresql';
-import { ERROR_CODES, type AssetFolder as AssetFolderDto } from '@endora-commerce/contracts';
+import { ERROR_CODES, type AssetFolder as AssetFolderDto, isUuidShape } from '@endora-commerce/contracts';
 
 import { HttpError } from '@endora-commerce/platform/http';
 import { AssetFolder } from '../entities/asset-folder.entity.js';
@@ -73,6 +73,20 @@ export class FoldersService {
   async createFolder(input: { parentId: string | null; name: string }): Promise<AssetFolderDto> {
     const em = this.emFactory();
     if (input.parentId) {
+      if (!isUuidShape(input.parentId)) {
+        throw new HttpError(
+          404,
+          ERROR_CODES.ASSET_FOLDER_NOT_FOUND,
+          `Parent folder ${input.parentId} not found.`,
+        );
+      }
+      if (!isUuidShape(input.parentId)) {
+        throw new HttpError(
+          404,
+          ERROR_CODES.ASSET_FOLDER_NOT_FOUND,
+          `Parent folder ${input.parentId} not found.`,
+        );
+      }
       const parent = await em.findOne(AssetFolder, { id: input.parentId });
       if (!parent) {
         throw new HttpError(
@@ -114,6 +128,7 @@ export class FoldersService {
     patch: { name?: string; parentId?: string | null; position?: number },
   ): Promise<AssetFolderDto> {
     const em = this.emFactory();
+    if (!isUuidShape(id)) throw new HttpError(404, ERROR_CODES.ASSET_FOLDER_NOT_FOUND, `Folder ${id} not found.`);
     const f = await em.findOne(AssetFolder, { id });
     if (!f) throw new HttpError(404, ERROR_CODES.ASSET_FOLDER_NOT_FOUND, `Folder ${id} not found.`);
 
@@ -182,6 +197,7 @@ export class FoldersService {
     strategy: 'cancel' | 'moveContentsToParent' | 'deleteRecursively',
   ): Promise<{ deletedFolderId: string; softDeletedAssetIds?: string[] }> {
     const em = this.emFactory();
+    if (!isUuidShape(id)) throw new HttpError(404, ERROR_CODES.ASSET_FOLDER_NOT_FOUND, `Folder ${id} not found.`);
     const f = await em.findOne(AssetFolder, { id });
     if (!f) throw new HttpError(404, ERROR_CODES.ASSET_FOLDER_NOT_FOUND, `Folder ${id} not found.`);
     const parentId = f.parentId ?? null;
@@ -274,6 +290,7 @@ export class FoldersService {
    */
   async countPermalinkedAssets(id: string): Promise<number> {
     const em = this.emFactory();
+    if (!isUuidShape(id)) throw new HttpError(404, ERROR_CODES.ASSET_FOLDER_NOT_FOUND, `Folder ${id} not found.`);
     const f = await em.findOne(AssetFolder, { id });
     if (!f) throw new HttpError(404, ERROR_CODES.ASSET_FOLDER_NOT_FOUND, `Folder ${id} not found.`);
     const folderIds = await this.collectSubtreeFolderIds(em, id);

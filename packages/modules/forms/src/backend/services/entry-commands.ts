@@ -5,6 +5,7 @@ import { randomUUID } from 'crypto';
 import { FormEntry } from '../entities/form-entry.entity.js';
 import { FormEntryNote } from '../entities/form-entry-note.entity.js';
 import { formEntryNotFound, formEntryStatusConflict } from './forms-errors.js';
+import { isUuidShape } from '@endora-commerce/contracts';
 
 /**
  * The Commands an employee's work on entries runs (`specs/170-forms-module/` data-model §8, research
@@ -32,6 +33,7 @@ type Em = CommandContext['em'];
 
 /** One entry of the caller's scope, locked for the Command; 404 otherwise. */
 async function lockedEntry(em: Em, id: string): Promise<FormEntry> {
+  if (!isUuidShape(id)) throw formEntryNotFound();
   const entry = await em.findOne(FormEntry, { id }, { lockMode: LockMode.PESSIMISTIC_WRITE });
   if (!entry) throw formEntryNotFound();
   return entry;

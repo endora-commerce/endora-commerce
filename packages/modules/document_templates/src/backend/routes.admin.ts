@@ -9,7 +9,6 @@ import {
   previewDocumentBodySchema,
   renameDocumentTemplateBodySchema,
   saveDocumentTemplateContentBodySchema,
-  uuidSchema,
   versionedBodySchema,
 } from '@endora-commerce/contracts';
 import type { RequireAdminFactory } from '@endora-commerce/platform/kernel';
@@ -38,9 +37,14 @@ const READ = 'document_templates:read';
 const WRITE = 'document_templates:write';
 const NO_STORE = 'private, no-store';
 
-const idParams = z.object({ id: uuidSchema });
+/**
+ * The id is not checked for shape here: a malformed id names no template, so
+ * the service answers it with the same `404` as an unknown one (issue #781),
+ * where a params schema would answer `400`.
+ */
+const idParams = z.object({ id: z.string() });
 const typeParams = z.object({ code: documentTypeCodeSchema });
-const contentParams = z.object({ id: uuidSchema, language: z.string().regex(documentLanguageRe) });
+const contentParams = z.object({ id: z.string(), language: z.string().regex(documentLanguageRe) });
 const typeQuery = z.object({ language: z.string().regex(documentLanguageRe).optional() });
 
 export async function registerDocumentTemplatesAdminRoutes(

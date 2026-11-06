@@ -7,6 +7,7 @@ import {
   type CustomFieldValueType,
   type SupportedEntityType,
   type UpdateCustomFieldDefinitionRequest,
+  isUuidShape,
 } from '@endora-commerce/contracts';
 import { CustomFieldDefinition } from '../entities/custom-field-definition.entity.js';
 import { CustomFieldOption } from '../entities/custom-field-option.entity.js';
@@ -317,6 +318,7 @@ export async function applyUpdateDefinition(
   patch: UpdateCustomFieldDefinitionRequest,
   probes?: DefinitionChangeProbes,
 ): Promise<CustomFieldDefinition> {
+  if (!isUuidShape(id)) throw new CustomFieldDefinitionError('not_found', `Custom field ${id} not found.`);
   const def = await em.findOne(CustomFieldDefinition, { id });
   if (!def) throw new CustomFieldDefinitionError('not_found', `Custom field ${id} not found.`);
   assertValueTypeChangeAllowed(def.key, def.valueType, patch.valueType);
@@ -377,6 +379,7 @@ export async function applyRenameDefinitionKey(
   // committed atomically with the host's value rename and the connector's own
   // repair checkpoint); an audit entry for it would have nobody to attribute.
   // Contract: specs/134-paid-module-extraction/research.md D12.
+  if (!isUuidShape(id)) throw new CustomFieldDefinitionError('not_found', `Custom field ${id} not found.`);
   const def = await em.findOne(CustomFieldDefinition, { id });
   if (!def) throw new CustomFieldDefinitionError('not_found', `Custom field ${id} not found.`);
   if (def.key !== expectedKey) {
@@ -407,6 +410,7 @@ export async function applyDeleteDefinition(em: EntityManager, id: string): Prom
   // transactional EM; the caller (custom_fields definition command or a host command,
   // e.g. catalog.attribute.*) records the single audit row co-transactionally.
   // Contract: specs/061-attributes-on-custom-fields/contracts/custom-fields-product-host.md.
+  if (!isUuidShape(id)) throw new CustomFieldDefinitionError('not_found', `Custom field ${id} not found.`);
   const def = await em.findOne(CustomFieldDefinition, { id });
   if (!def) throw new CustomFieldDefinitionError('not_found', `Custom field ${id} not found.`);
   const options = await em.find(CustomFieldOption, { definitionId: id });
@@ -421,6 +425,7 @@ export async function applyCreateOption(
   definitionId: string,
   input: CustomFieldOptionDto,
 ): Promise<CustomFieldOption> {
+  if (!isUuidShape(definitionId)) throw new CustomFieldDefinitionError('not_found', `Custom field ${definitionId} not found.`);
   const def = await em.findOne(CustomFieldDefinition, { id: definitionId });
   if (!def) throw new CustomFieldDefinitionError('not_found', `Custom field ${definitionId} not found.`);
   if (!SELECT_TYPES.has(def.valueType)) {
@@ -436,6 +441,9 @@ export async function applyUpdateOption(
   optionId: string,
   patch: Partial<Pick<CustomFieldOptionDto, 'label' | 'labelDefault' | 'isDefault' | 'sortOrder'>>,
 ): Promise<CustomFieldOption> {
+  if (!isUuidShape(optionId)) {
+    throw new CustomFieldDefinitionError('not_found', `Option ${optionId} not found.`);
+  }
   const option = await em.findOne(CustomFieldOption, { id: optionId });
   if (!option || option.definitionId !== definitionId) {
     throw new CustomFieldDefinitionError('not_found', `Option ${optionId} not found.`);
@@ -458,8 +466,12 @@ export async function applyDeleteOption(
   // transactional EM; the caller (custom_fields definition command or a host command,
   // e.g. catalog.attribute.*) records the single audit row co-transactionally.
   // Contract: specs/061-attributes-on-custom-fields/contracts/custom-fields-product-host.md.
+  if (!isUuidShape(definitionId)) throw new CustomFieldDefinitionError('not_found', `Custom field ${definitionId} not found.`);
   const def = await em.findOne(CustomFieldDefinition, { id: definitionId });
   if (!def) throw new CustomFieldDefinitionError('not_found', `Custom field ${definitionId} not found.`);
+  if (!isUuidShape(optionId)) {
+    throw new CustomFieldDefinitionError('not_found', `Option ${optionId} not found.`);
+  }
   const option = await em.findOne(CustomFieldOption, { id: optionId });
   if (!option || option.definitionId !== definitionId) {
     throw new CustomFieldDefinitionError('not_found', `Option ${optionId} not found.`);

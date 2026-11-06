@@ -6,6 +6,7 @@ import {
   type CatalogProductReadPort,
   type CustomerAccountReadPort,
   type OrganizationDetailsPort,
+  isUuidShape,
 } from '@endora-commerce/contracts';
 import { HttpError } from '@endora-commerce/platform/http';
 import type { PriceSource } from '@endora-commerce/contracts';
@@ -59,8 +60,6 @@ export interface BuyerLinePriceDetailedAnswer extends BuyerLinePriceAnswer {
   compareAt?: string | null | undefined;
   explanation?: BookExplanation | undefined;
 }
-
-const UUID = /^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/i;
 
 /**
  * One message for a malformed and an unknown channel id alike, and neither
@@ -201,7 +200,7 @@ export class BuyerLinePriceService implements BuyerLinePricePort {
       return fallback;
     }
     // Shape first: a malformed id would reach Postgres as a failed `uuid` cast.
-    if (!UUID.test(salesChannelId)) throw unknownChannel();
+    if (!isUuidShape(salesChannelId)) throw unknownChannel();
     const channel = await this.deps.salesChannels.findById(salesChannelId);
     if (!channel) throw unknownChannel();
     return channel;

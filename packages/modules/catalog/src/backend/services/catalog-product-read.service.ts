@@ -13,6 +13,7 @@ import type {
   CatalogProductVariantRecord,
   ProductLinkKind,
 } from '@endora-commerce/contracts';
+import { isUuidShape } from '@endora-commerce/contracts';
 import { Product } from '../entities/product.entity.js';
 import { ProductLink } from '../entities/product-link.entity.js';
 import { ProductPackagingUnit } from '../entities/product-packaging-unit.entity.js';
@@ -58,6 +59,7 @@ export class CatalogProductReadService implements CatalogProductReadPort {
     id: string,
     options?: CatalogProductLookupOptions,
   ): Promise<CatalogProductRecord | null> {
+    if (!isUuidShape(id)) return null;
     const product = await this.emFactory().findOne(Product, {
       id,
       ...productFilter(options),

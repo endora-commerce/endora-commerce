@@ -4,6 +4,7 @@ import {
   type CreateQuoteRequest,
   type OrganizationPermissionPort,
   type RfqCustomerPort,
+  isUuidShape,
 } from '@endora-commerce/contracts';
 import { HttpError } from '@endora-commerce/platform/http';
 import { ModuleDisabledError } from '@endora-commerce/platform/kernel';
@@ -71,6 +72,7 @@ export class OrderCloneToQuoteService {
     // FR-049). Anything else is answered as an order that does not exist, as
     // `GET /orders/:id` answers it. The operator route passes the order's placer, who is always
     // in scope, so its behaviour is unchanged.
+    if (!isUuidShape(orderId)) throw new HttpError(404, ERROR_CODES.ORDER_NOT_FOUND, 'Order not found.');
     const order = await em.findOne(Order, await this.#access.scopedWhere(ctx, { id: orderId }));
     if (!order) throw new HttpError(404, ERROR_CODES.ORDER_NOT_FOUND, 'Order not found.');
 

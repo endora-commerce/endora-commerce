@@ -1,5 +1,5 @@
 import type { EntityManager } from '@mikro-orm/postgresql';
-import { ERROR_CODES } from '@endora-commerce/contracts';
+import { ERROR_CODES, isUuidShape } from '@endora-commerce/contracts';
 import type { ReturnReasonDto } from '@endora-commerce/contracts';
 import { HttpError } from '@endora-commerce/platform/http';
 import { recordAuditFromContext } from '@endora-commerce/platform/commands';
@@ -82,6 +82,7 @@ export class ReturnReasonService {
     },
   ): Promise<ReturnReasonDto> {
     const em = this.emFactory();
+    if (!isUuidShape(id)) throw new HttpError(404, ERROR_CODES.NOT_FOUND, 'Return reason not found.');
     const row = await em.findOne(ReturnReason, { id });
     if (!row) throw new HttpError(404, ERROR_CODES.NOT_FOUND, 'Return reason not found.');
     if (patch.label !== undefined) row.label = patch.label;
@@ -99,6 +100,7 @@ export class ReturnReasonService {
 
   async remove(id: string): Promise<void> {
     const em = this.emFactory();
+    if (!isUuidShape(id)) throw new HttpError(404, ERROR_CODES.NOT_FOUND, 'Return reason not found.');
     const row = await em.findOne(ReturnReason, { id });
     if (!row) throw new HttpError(404, ERROR_CODES.NOT_FOUND, 'Return reason not found.');
     this.#audit(em, 'return_reason.delete', row.id, { appliesTo: row.appliesTo }, null);

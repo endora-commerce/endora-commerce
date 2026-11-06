@@ -52,6 +52,7 @@ import type {
   CustomFieldDefinitionApplyApi,
   CustomFieldDefinitionApplyCreateInput,
 } from '../../ports/index.js';
+import { isUuidShape } from '@endora-commerce/contracts';
 
 // Feature 061 — the error class moved next to the shared apply functions;
 // re-exported here so existing imports keep working.
@@ -174,6 +175,7 @@ export class CustomFieldDefinitionService implements DefinitionSource, CustomFie
 
   async getById(id: string): Promise<CachedDefinition | null> {
     const em = this.emFactory();
+    if (!isUuidShape(id)) return null;
     const definition = await em.findOne(CustomFieldDefinition, { id });
     if (!definition) return null;
     const options = await em.find(
@@ -206,6 +208,7 @@ export class CustomFieldDefinitionService implements DefinitionSource, CustomFie
   }
 
   async update(id: string, patch: UpdateCustomFieldDefinitionRequest): Promise<CustomFieldDefinition> {
+    if (!isUuidShape(id)) throw new CustomFieldDefinitionError('not_found', `Custom field ${id} not found.`);
     const current = await this.emFactory().findOne(CustomFieldDefinition, { id });
     if (!current) throw new CustomFieldDefinitionError('not_found', `Custom field ${id} not found.`);
     assertListFilterSupported(current.entityType, patch.listFilter);
@@ -229,6 +232,7 @@ export class CustomFieldDefinitionService implements DefinitionSource, CustomFie
   }
 
   async delete(id: string): Promise<void> {
+    if (!isUuidShape(id)) throw new CustomFieldDefinitionError('not_found', `Custom field ${id} not found.`);
     const current = await this.emFactory().findOne(CustomFieldDefinition, { id });
     if (!current) throw new CustomFieldDefinitionError('not_found', `Custom field ${id} not found.`);
     await this.commandBus.run(deleteDefinitionCommand(id));
@@ -236,6 +240,7 @@ export class CustomFieldDefinitionService implements DefinitionSource, CustomFie
   }
 
   async createOption(definitionId: string, input: CustomFieldOptionDto): Promise<CustomFieldOption> {
+    if (!isUuidShape(definitionId)) throw new CustomFieldDefinitionError('not_found', `Custom field ${definitionId} not found.`);
     const def = await this.emFactory().findOne(CustomFieldDefinition, { id: definitionId });
     if (!def) throw new CustomFieldDefinitionError('not_found', `Custom field ${definitionId} not found.`);
     if (!SELECT_TYPES.has(def.valueType)) {
@@ -251,6 +256,7 @@ export class CustomFieldDefinitionService implements DefinitionSource, CustomFie
     optionId: string,
     patch: Partial<Pick<CustomFieldOptionDto, 'label' | 'labelDefault' | 'isDefault' | 'sortOrder'>>,
   ): Promise<CustomFieldOption> {
+    if (!isUuidShape(definitionId)) throw new CustomFieldDefinitionError('not_found', `Custom field ${definitionId} not found.`);
     const def = await this.emFactory().findOne(CustomFieldDefinition, { id: definitionId });
     if (!def) throw new CustomFieldDefinitionError('not_found', `Custom field ${definitionId} not found.`);
     const opt = await this.commandBus.run(updateOptionCommand(definitionId, optionId, patch));
@@ -259,8 +265,10 @@ export class CustomFieldDefinitionService implements DefinitionSource, CustomFie
   }
 
   async deleteOption(definitionId: string, optionId: string): Promise<void> {
+    if (!isUuidShape(definitionId)) throw new CustomFieldDefinitionError('not_found', `Custom field ${definitionId} not found.`);
     const def = await this.emFactory().findOne(CustomFieldDefinition, { id: definitionId });
     if (!def) throw new CustomFieldDefinitionError('not_found', `Custom field ${definitionId} not found.`);
+    if (!isUuidShape(optionId)) throw new CustomFieldDefinitionError('not_found', `Option ${optionId} not found.`);
     const option = await this.emFactory().findOne(CustomFieldOption, { id: optionId });
     if (!option) throw new CustomFieldDefinitionError('not_found', `Option ${optionId} not found.`);
     // FR-010: an in-use option cannot be removed while records reference it.

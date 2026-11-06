@@ -4,6 +4,7 @@ import {
   type CustomerAccountMemberWritePort,
   type CustomerAccountReadPort,
   type CustomerAccountRecord,
+  isUuidShape,
 } from '@endora-commerce/contracts';
 import { HttpError } from '@endora-commerce/platform/http';
 import type { AuditPort, SalesChannelMembershipPort } from '@endora-commerce/platform/kernel';
@@ -263,6 +264,7 @@ export class PersonalOrganizationService {
    * customer. Call before attaching a customer to an organization.
    */
   async assertMembershipAllowed(organizationId: string, em = this.emFactory()): Promise<void> {
+    if (!isUuidShape(organizationId)) return; // company orgs are multi-member
     const org = await em.findOne(Organization, { id: organizationId });
     if (!org?.isPersonal) return; // company orgs are multi-member
     const members = await this.#accounts().read.listByOrganization(organizationId, {

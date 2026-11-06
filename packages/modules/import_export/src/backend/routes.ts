@@ -7,7 +7,6 @@ import {
   importProfileListQuerySchema,
   productsImportQuerySchema,
   updateImportProfileRequestSchema,
-  uuidSchema,
 } from '@endora-commerce/contracts';
 import { HttpError } from '@endora-commerce/platform/http';
 import type { ImportExportService } from './services/import-export-service.js';
@@ -22,7 +21,8 @@ export interface ImportExportRoutesDeps {
 }
 
 const FILENAME_RE = /^[a-z][a-z0-9_]*$/;
-const profileParams = z.object({ id: uuidSchema });
+/** A plain string: an id that is not a UUID names no profile and gets the unknown id's `404` (issue #781). */
+const profileParams = z.object({ id: z.string() });
 /** The largest CSV an import accepts (`import-profiles-and-csv.md` §2: 10 MiB). */
 const IMPORT_BODY_LIMIT = 10 * 1024 * 1024;
 /** A profile body: at most 100 entries x 16 targets of short strings fit well under this. */

@@ -7,6 +7,7 @@ import {
   type ReturnedAddress,
 } from '../entities/organization-tax-id-validation.entity.js';
 import type { VatValidator, VatValidationResult } from './vat-validator-port.js';
+import { isUuidShape } from '@endora-commerce/contracts';
 
 /**
  * Owns the tax-ID validation flow (feature 026 US7).
@@ -61,6 +62,7 @@ export class OrganizationTaxIdValidationService {
     organizationId: string,
     options: { limit?: number } = {},
   ): Promise<OrganizationTaxIdValidation[]> {
+    if (!isUuidShape(organizationId)) return [];
     const em = this.deps.emFactory();
     return em.find(
       OrganizationTaxIdValidation,

@@ -4,6 +4,7 @@ import {
   type OrderStatusActor,
   type OrderTransitionOutcome,
   type OrderTransitionPort,
+  isUuidShape,
 } from '@endora-commerce/contracts';
 import { HttpError } from '@endora-commerce/platform/http';
 import { rethrowIfModuleDisabled } from '@endora-commerce/platform/kernel';
@@ -58,6 +59,14 @@ export class OrderTransitionPortService implements OrderTransitionPort {
     const { orderId, to, actor } = input;
     const reason = input.reason ?? null;
 
+    if (!isUuidShape(orderId)) {
+      return {
+        applied: false,
+        reason: 'not_found',
+        from: null,
+        detail: `No order ${orderId}.`,
+      };
+    }
     const order = await this.emFactory().findOne(Order, { id: orderId });
     if (!order) {
       return {
@@ -114,6 +123,7 @@ export class OrderTransitionPortService implements OrderTransitionPort {
   }
 
   async isTerminal(orderId: string): Promise<boolean | null> {
+    if (!isUuidShape(orderId)) return null;
     const order = await this.emFactory().findOne(Order, { id: orderId });
     if (!order) return null;
     // Asked of the graph, never of a status code this file recognises: the set

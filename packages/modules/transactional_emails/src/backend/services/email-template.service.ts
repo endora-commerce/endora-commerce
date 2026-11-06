@@ -11,6 +11,7 @@ import {
   type EmailTemplateSummary,
   type PatchEmailTemplateRequest,
   type PutEmailBlockContentRequest,
+  isUuidShape,
 } from '@endora-commerce/contracts';
 import type { PuckDataTree } from '@endora-commerce/email-components/schema/envelope';
 import {
@@ -91,6 +92,7 @@ export class EmailTemplateService {
   }
 
   private async loadOrThrow(em: EntityManager, id: string): Promise<EmailTemplate> {
+    if (!isUuidShape(id)) throw new HttpError(404, ERROR_CODES.NOT_FOUND, `Email template ${id} not found.`);
     const t = await em.findOne(EmailTemplate, { id });
     if (!t) throw new HttpError(404, ERROR_CODES.NOT_FOUND, `Email template ${id} not found.`);
     return t;

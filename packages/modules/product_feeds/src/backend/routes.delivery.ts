@@ -41,7 +41,12 @@ export interface ProductFeedsDeliveryRoutesDeps {
   delivery: DeliveryService;
 }
 
-const idParamsSchema = z.object({ id: z.string().uuid() });
+/**
+ * Ids are not checked for shape here: a malformed id names no record, so the
+ * service answers it exactly as it answers an unknown one — a `404`, before any
+ * read (issue #781) — where a params schema would answer `400`.
+ */
+const idParamsSchema = z.object({ id: z.string() });
 
 export async function registerProductFeedsDeliveryRoutes(
   app: FastifyInstance,

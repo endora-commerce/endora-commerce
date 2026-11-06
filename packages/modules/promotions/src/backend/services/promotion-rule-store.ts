@@ -1,5 +1,5 @@
 import type { EntityManager } from '@mikro-orm/postgresql';
-import { ERROR_CODES, type PromotionRule } from '@endora-commerce/contracts';
+import { ERROR_CODES, type PromotionRule, isUuidShape } from '@endora-commerce/contracts';
 import { HttpError } from '@endora-commerce/platform/http';
 import { PromotionRuleEntity } from '../entities/promotion-rule.entity.js';
 import { Promotion } from '../entities/promotion.entity.js';
@@ -39,6 +39,7 @@ export class PromotionRuleStore {
   }
 
   async getById(id: string): Promise<PromotionRuleEntity> {
+    if (!isUuidShape(id)) throw new HttpError(404, ERROR_CODES.NOT_FOUND, `Rule ${id} not found.`);
     const row = await this.emFactory().findOne(PromotionRuleEntity, { id });
     if (!row) throw new HttpError(404, ERROR_CODES.NOT_FOUND, `Rule ${id} not found.`);
     return row;
@@ -72,6 +73,7 @@ export class PromotionRuleStore {
     input: { name: string; description?: string | null; definition: PromotionRule },
   ): Promise<PromotionRuleEntity> {
     const em = this.emFactory();
+    if (!isUuidShape(id)) throw new HttpError(404, ERROR_CODES.NOT_FOUND, `Rule ${id} not found.`);
     const row = await em.findOne(PromotionRuleEntity, { id });
     if (!row) throw new HttpError(404, ERROR_CODES.NOT_FOUND, `Rule ${id} not found.`);
     if (input.name !== row.name) {
@@ -88,6 +90,7 @@ export class PromotionRuleStore {
 
   async remove(id: string): Promise<void> {
     const em = this.emFactory();
+    if (!isUuidShape(id)) return;
     const row = await em.findOne(PromotionRuleEntity, { id });
     if (!row) return;
     const inUse = await this.usedBy(id);

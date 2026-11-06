@@ -7,6 +7,7 @@ import { withSystemScope } from '@endora-commerce/platform/tenancy';
 import type { OrganizationEventBus } from './registration-service.js';
 import { noopOrgTemplateEmail, type OrgTemplateEmail } from './org-template-email.js';
 import { predefinedRoleIdOn } from './organization-role-store.js';
+import { isUuidShape } from '@endora-commerce/contracts';
 
 /**
  * OrganizationModerationService — owns every status transition on the
@@ -103,6 +104,7 @@ export class OrganizationModerationService {
     if (mode !== 'auto') return;
 
     const em = this.emFactory();
+    if (!isUuidShape(organizationId)) return;
     const org = await em.findOne(Organization, { id: organizationId, deletedAt: null });
     if (!org) return;
     if (org.status !== 'pending_verification') return;
@@ -216,6 +218,9 @@ export class OrganizationModerationService {
 
     try {
       await em.transactional(async (tem) => {
+        if (!isUuidShape(input.organizationId)) {
+          throw new OrganizationNotFoundError(input.organizationId);
+        }
         const org = await tem.findOne(Organization, { id: input.organizationId, deletedAt: null });
         if (!org) {
           throw new OrganizationNotFoundError(input.organizationId);
