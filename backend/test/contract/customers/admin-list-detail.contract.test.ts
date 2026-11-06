@@ -85,18 +85,10 @@ describe('Admin customer list + detail (US5)', () => {
   /**
    * Issue #144 — the path parameter reached PostgreSQL unvalidated, so an id
    * that is not a UUID answered 500 (`invalid input syntax for type uuid`).
-   * A malformed id names no customer: every `:id` route answers the same 404
-   * it gives an unknown one.
+   * A malformed id names no customer: every `:id` route but the retired
+   * address write answers the same 404 it gives an unknown one.
    */
   const organizationId = '00000000-0000-4000-8000-0000000000a1';
-  const address = {
-    kind: 'delivery',
-    recipientName: 'List Me',
-    street: 'Main 1',
-    city: 'Warsaw',
-    postalCode: '00-001',
-    country: 'PL',
-  };
   it.each<[method: 'GET' | 'POST' | 'PUT' | 'PATCH' | 'DELETE', suffix: string, payload?: Record<string, unknown>]>([
     ['GET', ''],
     ['DELETE', ''],
@@ -108,7 +100,8 @@ describe('Admin customer list + detail (US5)', () => {
     ['DELETE', '/organization'],
     ['PUT', '/customer-group', { customerGroupId: null }],
     ['GET', '/addresses'],
-    ['POST', '/addresses', address],
+    // Not `POST /addresses`: retired, it answers `410` whatever the id
+    // (spec 173 FR-005), which `admin-unknown-customer.contract.test.ts` pins.
     ['GET', '/orders'],
     ['GET', '/quote-requests'],
     ['GET', '/carts'],
