@@ -15,14 +15,18 @@ import { CustomerAccountLifecycleWriteService } from './customer-account-lifecyc
  * research R-17): `anonymize` announces the irreversible step once, after its write and its audit
  * row, so a module holding data attributed to the account can erase it in the same sweep step. An
  * account that was already anonymised announces nothing.
+ *
+ * Issue #802: the write and its audit row commit in one transaction, and the announcement follows
+ * the commit, so a failed audit write leaves the account unscrubbed, still due and unannounced.
  */
 
 const ACCOUNT_ID = '00000000-0000-4000-8000-0000000c0a01';
 const ORGANIZATION_ID = '00000000-0000-4000-8000-0000000c0a02';
 
-function harness() {
+function harness(options: { failCommit?: boolean } = {}) {
   const steps: string[] = [];
   const emitted: CustomerAccountAnonymizedEventV1[] = [];
+  const audited: Array<{ action: string; stateBefore: unknown; stateAfter: unknown }> = [];
   const account = Object.assign(Object.create(CustomerAccount.prototype) as CustomerAccount, {
     id: ACCOUNT_ID,
     organizationId: ORGANIZATION_ID,
@@ -33,8 +37,9 @@ function harness() {
     passwordHash: 'hash',
     anonymizedAt: null,
     deletedAt: new Date('2026-01-01T00:00:00Z'),
+    customFieldValues: { birthday: '1990-01-01', nickname: 'Ada' },
   });
-  const em = {
+  const em: EntityManager = {
     findOne: async (entity: unknown, where: Record<string, unknown>) => {
       if (entity !== CustomerAccount) throw new Error('unexpected entity');
       return where['id'] === ACCOUNT_ID ? account : null;
@@ -42,10 +47,24 @@ function harness() {
     flush: async () => {
       steps.push('flush');
     },
+    transactional: async <T>(work: (tem: EntityManager) => Promise<T>): Promise<T> => {
+      steps.push('begin');
+      const result = await work(em);
+      if (options.failCommit) {
+        steps.push('rollback');
+        throw new Error('commit failed');
+      }
+      steps.push('commit');
+      return result;
+    },
   } as unknown as EntityManager;
   const audit = {
     record: async (entry: { action: string }) => {
-      steps.push(`audit:${entry.action}`);
+      steps.push(`audit-outside-transaction:${entry.action}`);
+    },
+    recordWithin: (tem: EntityManager, entry: { action: string; stateBefore: unknown; stateAfter: unknown }) => {
+      steps.push(`audit:${entry.action}${tem === em ? '' : ':foreign-em'}`);
+      audited.push(entry);
     },
   } as unknown as AuditPort;
   const service = new CustomerAccountLifecycleWriteService(
@@ -59,7 +78,7 @@ function harness() {
       emitted.push(payload);
     },
   );
-  return { service, steps, emitted, account };
+  return { service, steps, emitted, account, audited };
 }
 
 describe('CustomerAccountLifecycleWriteService.anonymize — the anonymisation event', () => {
@@ -67,12 +86,12 @@ describe('CustomerAccountLifecycleWriteService.anonymize — the anonymisation e
     expect(CUSTOMER_ACCOUNT_ANONYMIZED_EVENT).toBe('customer_account.anonymized.v1');
   });
 
-  it('emits once on the transition, after the flush and the audit row, with the account and its organisation', async () => {
+  it('emits once on the transition, after the scrub and its audit row commit, with the account and its organisation', async () => {
     const { service, steps, emitted } = harness();
 
     await service.anonymize(ACCOUNT_ID);
 
-    expect(steps).toEqual(['flush', 'audit:customer_account.anonymized', 'emit']);
+    expect(steps).toEqual(['begin', 'audit:customer_account.anonymized', 'flush', 'commit', 'emit']);
     expect(emitted).toHaveLength(1);
     const event = CustomerAccountAnonymizedEventV1Schema.parse(emitted[0]);
     expect(event).toMatchObject({ customerAccountId: ACCOUNT_ID, organizationId: ORGANIZATION_ID });
@@ -92,5 +111,37 @@ describe('CustomerAccountLifecycleWriteService.anonymize — the anonymisation e
     const { service, emitted } = harness();
     await service.anonymize(ACCOUNT_ID);
     expect(Object.keys(emitted[0]!).sort()).toEqual(['customerAccountId', 'eventId', 'occurredAt', 'organizationId']);
+  });
+
+  it('announces nothing when the transaction does not commit (#802)', async () => {
+    const { service, steps, emitted } = harness({ failCommit: true });
+
+    await expect(service.anonymize(ACCOUNT_ID)).rejects.toThrow('commit failed');
+
+    expect(emitted).toEqual([]);
+    expect(steps).not.toContain('emit');
+  });
+});
+
+describe('CustomerAccountLifecycleWriteService.anonymize — the scrub (#802)', () => {
+  it('clears every custom field value (owner ruling Q1)', async () => {
+    const { service, account } = harness();
+
+    await service.anonymize(ACCOUNT_ID);
+
+    expect(account.customFieldValues).toEqual({});
+  });
+
+  it('records no e-mail, name or custom field value in its audit row (owner ruling Q2)', async () => {
+    const { service, audited } = harness();
+
+    await service.anonymize(ACCOUNT_ID);
+
+    expect(audited).toHaveLength(1);
+    expect(audited[0]!.stateBefore).not.toHaveProperty('email');
+    const serialized = JSON.stringify([audited[0]!.stateBefore, audited[0]!.stateAfter]);
+    for (const personal of ['ada@example.com', 'Ada', 'Lovelace', '1990-01-01']) {
+      expect(serialized).not.toContain(personal);
+    }
   });
 });

@@ -592,6 +592,197 @@ describe('CustomerDeletionService', () => {
     await expectFullyAnonymized(healthy.customer, healthy.addressIds);
     expect((await em.findOneOrFail(CustomerAccount, { id: poison.id })).anonymizedAt ?? null).toBeNull();
   });
+
+  // --- issue #802: the scrub reaches every field that can hold the person ----
+  //
+  // A personal organisation has one person behind it, so its legal name, its
+  // order-confirmation recipients and every custom field value are that
+  // person's data (owner ruling Q1, 2026-11-06), as are the account's own
+  // custom field values. The two audit rows describing the scrub keep only
+  // non-personal facts about what it erased (owner ruling Q2).
+
+  /** A personal customer whose organisation and account carry every field the scrub must reach. */
+  async function makeFullyPopulatedPersonalCustomer(): Promise<CustomerAccount> {
+    const customer = await makePersonalCustomer();
+    const org = await em.findOneOrFail(Organization, { id: customer.organizationId });
+    org.legalName = 'Solo Buyer Handel';
+    org.orderConfirmationEmails = ['solo.buyer@example.test', 'solo.private@example.test'];
+    org.customFieldValues = { nickname: 'Solo', loyalty_card: 'LC-777' };
+    customer.customFieldValues = { birthday: '1990-01-01', shoe_size: 44 };
+    await em.flush();
+    return customer;
+  }
+
+  async function auditRow(action: string, objectId: string): Promise<AuditLogEntry> {
+    const rows = await em.find(AuditLogEntry, { action, objectId });
+    expect(rows).toHaveLength(1);
+    return rows[0]!;
+  }
+
+  it('I-8 — the sweep clears the personal organization’s legal name, confirmation e-mails and custom fields (#802)', async () => {
+    const customer = await makeFullyPopulatedPersonalCustomer();
+    await svc.softDelete(customer.id, actor);
+
+    expect(await svc.sweep(0, after(60_000))).toBe(1);
+
+    em.clear();
+    const org = await em.findOneOrFail(Organization, { id: customer.organizationId });
+    expect(org.legalName ?? null).toBeNull();
+    expect(org.orderConfirmationEmails).toEqual([]);
+    expect(org.customFieldValues).toEqual({});
+    expect(org.name).toBe('Deleted customer');
+    expect(org.nameSearch).toBe('deleted customer');
+  });
+
+  it('I-9 — the sweep clears every custom field value on the anonymised account (#802, Q1)', async () => {
+    const customer = await makeFullyPopulatedPersonalCustomer();
+    await svc.softDelete(customer.id, actor);
+
+    expect(await svc.sweep(0, after(60_000))).toBe(1);
+
+    em.clear();
+    const account = await em.findOneOrFail(CustomerAccount, { id: customer.id });
+    expect(account.anonymizedAt).toBeInstanceOf(Date);
+    expect(account.customFieldValues).toEqual({});
+  });
+
+  it('I-10 — organization.anonymized records non-personal facts only (#802, Q2)', async () => {
+    const customer = await makeFullyPopulatedPersonalCustomer();
+    await svc.softDelete(customer.id, actor);
+
+    await svc.sweep(0, after(60_000));
+
+    const row = await auditRow('organization.anonymized', customer.organizationId);
+    expect(row.stateBefore).toEqual({
+      wasDeleted: false,
+      hadLegalName: true,
+      orderConfirmationEmailCount: 2,
+      customFieldKeys: ['loyalty_card', 'nickname'],
+    });
+    const serialized = JSON.stringify([row.stateBefore, row.stateAfter]);
+    for (const personal of ['Solo Buyer', 'solo.buyer@example.test', 'LC-777']) {
+      expect(serialized).not.toContain(personal);
+    }
+  });
+
+  it('I-11 — customer_account.anonymized does not store the e-mail it erased (#802, Q2)', async () => {
+    const customer = await makeFullyPopulatedPersonalCustomer();
+    const email = customer.email;
+    await svc.softDelete(customer.id, actor);
+
+    await svc.sweep(0, after(60_000));
+
+    const row = await auditRow('customer_account.anonymized', customer.id);
+    const serialized = JSON.stringify([row.stateBefore, row.stateAfter]);
+    expect(serialized).not.toContain(email);
+    expect(serialized).not.toContain('Solo');
+    expect(serialized).not.toContain('1990-01-01');
+    expect(row.stateBefore).not.toHaveProperty('email');
+  });
+
+  it('I-12 — an organization scrubbed before #802 is finished by the next run, keeping its deletedAt', async () => {
+    const customer = await makeFullyPopulatedPersonalCustomer();
+    // What the scrub wrote before this change: the name, the address and
+    // `deletedAt`, with the three new fields left as they were.
+    const scrubbedAt = new Date('2026-02-03T04:05:06.000Z');
+    const org = await em.findOneOrFail(Organization, { id: customer.organizationId });
+    org.name = 'Deleted customer';
+    org.registeredAddress = { ...org.registeredAddress, street: '-', city: '-', postalCode: '-' };
+    org.deletedAt = scrubbedAt;
+    await em.flush();
+    await svc.softDelete(customer.id, actor);
+
+    const answered = await personalOrgs.anonymizeIfOrphaned(customer.id);
+    expect(answered?.id).toBe(org.id);
+
+    em.clear();
+    const reloaded = await em.findOneOrFail(Organization, { id: org.id });
+    expect(reloaded.legalName ?? null).toBeNull();
+    expect(reloaded.orderConfirmationEmails).toEqual([]);
+    expect(reloaded.customFieldValues).toEqual({});
+    expect(reloaded.deletedAt!.toISOString()).toBe(scrubbedAt.toISOString());
+    const row = await auditRow('organization.anonymized', org.id);
+    expect(row.stateBefore).toMatchObject({ wasDeleted: true, hadLegalName: true });
+
+    // And converged: a second call writes nothing and records nothing more.
+    await personalOrgs.anonymizeIfOrphaned(customer.id);
+    expect(await em.find(AuditLogEntry, { action: 'organization.anonymized', objectId: org.id })).toHaveLength(1);
+  });
+
+  it('I-13 — the account scrub and its audit row commit together, and nothing is announced (#802)', async () => {
+    const customer = await makeFullyPopulatedPersonalCustomer();
+    await svc.softDelete(customer.id, actor);
+    const failingAudit = {
+      record: async () => {
+        throw new Error('audit unavailable');
+      },
+      recordWithin: () => {
+        throw new Error('audit unavailable');
+      },
+    } as unknown as AuditLogService;
+    const emitted: string[] = [];
+    const writes = new CustomerAccountLifecycleWriteService(
+      () => em,
+      failingAudit,
+      twoFactorEnrolmentsFor(() => em, 'customer'),
+      personalOrganizationProvisionFor(() => em),
+      undefined,
+      async (event) => {
+        emitted.push(event.customerAccountId);
+      },
+    );
+
+    await expect(writes.anonymize(customer.id)).rejects.toThrow('audit unavailable');
+
+    em.clear();
+    const account = await em.findOneOrFail(CustomerAccount, { id: customer.id });
+    expect(account.anonymizedAt ?? null).toBeNull();
+    expect(account.email).toBe(customer.email);
+    expect(account.firstName).toBe('Solo');
+    expect(account.customFieldValues).toEqual({ birthday: '1990-01-01', shoe_size: 44 });
+    expect(emitted).toEqual([]);
+    // Still due, so the next tick retries it.
+    const due = await accountWrites.listDueForAnonymization(after(60_000));
+    expect(due.map((d) => d.id)).toContain(customer.id);
+  });
+
+  it('I-14 — the anonymisation event is announced after the scrub and its audit row are written (#802)', async () => {
+    const customer = await makeFullyPopulatedPersonalCustomer();
+    await svc.softDelete(customer.id, actor);
+    const seenAtEmit: Array<{ anonymized: boolean; auditRows: number }> = [];
+    const writes = new CustomerAccountLifecycleWriteService(
+      () => em,
+      audit,
+      twoFactorEnrolmentsFor(() => em, 'customer'),
+      personalOrganizationProvisionFor(() => em),
+      undefined,
+      async (event) => {
+        // Read from the database, not from the instance the service holds.
+        const [row] = await em.execute<Array<{ anonymized_at: Date | string | null }>>(
+          'select anonymized_at from customer_accounts where id = ?',
+          [event.customerAccountId],
+        );
+        seenAtEmit.push({
+          anonymized: row?.anonymized_at != null,
+          auditRows: await em.count(AuditLogEntry, {
+            action: 'customer_account.anonymized',
+            objectId: event.customerAccountId,
+          }),
+        });
+        throw new Error('subscriber failed');
+      },
+    );
+
+    // A failing subscriber is reported, but cannot undo a committed scrub.
+    await expect(writes.anonymize(customer.id)).rejects.toThrow('subscriber failed');
+    expect(seenAtEmit).toEqual([{ anonymized: true, auditRows: 1 }]);
+
+    em.clear();
+    expect((await em.findOneOrFail(CustomerAccount, { id: customer.id })).anonymizedAt).toBeInstanceOf(Date);
+    expect(
+      await em.find(AuditLogEntry, { action: 'customer_account.anonymized', objectId: customer.id }),
+    ).toHaveLength(1);
+  });
 });
 
 /**
