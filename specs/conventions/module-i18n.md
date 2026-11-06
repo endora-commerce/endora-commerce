@@ -152,6 +152,38 @@ either — it turns on one derived fact:
 - **There is no reader with a language** — a webhook payload, an integration document. Ship a code
   and **no prose at all**. `webhooks`' `eventType` already does.
 
+**A URL-borne error carries a code, never a sentence** (owner ruling, issues #650 and #745; first
+applied in #742). This paragraph is the one home of that rule. It does not move the boundary
+above: the backend still translates its own responses, because it can resolve the reader's
+language. The question here is what a *consumer* may put into a URL once it holds that response.
+
+- **What travels.** A redirect, or any other URL, carries the API's `error.code`, or the
+  consumer's own code for a refusal it cannot name. It may also carry **typed values**, each one
+  validated when it is read: an integer, or an ISO 4217 currency code. The cart's `min=` from
+  #783 is explicitly allowed. It is a positive integer, it is checked against `^[1-9]\d{0,8}$`
+  when read, and it is dropped when it fails that check.
+- **What never travels.** No free text: no product name, no sentence (the backend's `message` or
+  `detail` included), no e-mail address. A sentence in a query string is text anyone can put on
+  the page as a system message with a crafted link. A name or an address there is personal data
+  in logs and browser history.
+- **Who words it.** The storefront maps a code it knows to a key in its own catalogue, in both
+  shipped languages. It renders a code it does not know as the page's generic failure, never as
+  the raw value. A page whose status line may stay empty can show nothing instead. Quick order
+  does this, and that holds only while every one of its actions falls back to a code the page
+  knows.
+- **Rejected: a short-lived error cookie.** It is per-request state. It puts a `Set-Cookie` on
+  server-rendered redirects, which hurts caching (Principle VII). And it would still ship the
+  backend's sentence, so it adds a mechanism without solving the problem (Principle IV).
+
+The instrument is `storefront/test/url-errors/no-sentence-in-url.test.ts` (from #783).
+It refuses an `encodeURIComponent`-wrapped value after `error=`, `reason=` or `couponError=` in
+any source under `storefront/app/`. Its list of pages not yet swept is two-way and only shrinks.
+Its bound is declared, not discovered: it reads that one shape, so a sentence passed through
+`URLSearchParams` or under another parameter name is outside it. The per-page tests beside it are
+the evidence that a crafted value never reaches the screen. Open follow-ups: #790 (free text
+other than errors that still reaches a page from its URL) and #791 (bringing back, as typed
+values, the figures the backend's sentences carried).
+
 **Four kinds of string leave the backend and only the first is in scope**, which is the
 distinction that makes the question answerable: *platform prose* a developer wrote (a bundle,
 `en` + `pl`); *operator content* the shop wrote (per-language columns — a category name, a
