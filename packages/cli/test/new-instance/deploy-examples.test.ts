@@ -35,6 +35,7 @@
  * edge added across a boundary moves it, and a correctness edge crossing one
  * would move it too.
  */
+import { readFileSync } from 'node:fs';
 import { join } from 'node:path';
 import { fileURLToPath, pathToFileURL } from 'node:url';
 
@@ -989,6 +990,52 @@ describe('issue #152 — the storefront service restarts a hung server', () => {
       const service = storefrontService(topology);
       expect(service['restart']).toBe('unless-stopped');
       expect(service['init']).toBe('true');
+    });
+  }
+});
+
+/**
+ * Issue #817 — the storefront proxy buffer margin `deploy/nginx.example.conf`
+ * carries since #805 reaches the nginx examples an instance is scaffolded with,
+ * with the same comment, in the storefront's `location` and nowhere else.
+ */
+describe('#817 — the generated storefront location carries the proxy buffer margin', () => {
+  const repositoryExample = readFileSync(
+    fileURLToPath(new URL('../../../../deploy/nginx.example.conf', import.meta.url)),
+    'utf8',
+  );
+  const margin = (() => {
+    const start = repositoryExample.indexOf("        # Headroom for the storefront's response headers.");
+    const endNeedle = '        proxy_busy_buffers_size 32k;';
+    const end = repositoryExample.indexOf(endNeedle, start);
+    expect(start, 'the repository example lost its margin').toBeGreaterThan(-1);
+    expect(end).toBeGreaterThan(start);
+    return repositoryExample.slice(start, end + endNeedle.length);
+  })();
+
+  /** The body of the `location <path> {` block that proxies to `target`. */
+  const locationsTo = (text: string, target: string): string[] =>
+    [...text.matchAll(/^ {4}location [^\n]*\{\n([\s\S]*?)^ {4}\}$/gm)]
+      .map((match) => match[1]!)
+      .filter((body) => body.includes(`proxy_pass http://${target};`));
+
+  for (const path of ['deploy/nginx.example.conf', 'deploy/nginx.paths.example.conf']) {
+    it(`${path}: the storefront's catch-all location has it, verbatim`, () => {
+      const text = fileAt(withAdmin(), path);
+      const storefront = [...text.matchAll(/^ {4}location \/ \{\n([\s\S]*?)^ {4}\}$/gm)]
+        .map((match) => match[1]!)
+        .filter((body) => body.includes('proxy_pass http://127.0.0.1:3000;'));
+      expect(storefront).toHaveLength(1);
+      expect(storefront[0]).toContain(margin);
+    });
+
+    it(`${path}: the API and admin locations do not`, () => {
+      const text = fileAt(withAdmin(), path);
+      for (const target of ['127.0.0.1:3001', '127.0.0.1:8080', '127.0.0.1:8080/']) {
+        for (const body of locationsTo(text, target)) {
+          expect(body).not.toContain('proxy_buffer_size');
+        }
+      }
     });
   }
 });
