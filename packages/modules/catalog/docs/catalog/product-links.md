@@ -2,7 +2,7 @@
 title: Product links
 ---
 
-# Product Links
+# Product links
 
 Directed links between Products that drive cross-merchandising on the
 PDP and cart. Three kinds:

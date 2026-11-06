@@ -3,7 +3,7 @@ title: Admin usage
 sidebar_position: 2
 ---
 
-# Admin usage — Sales Channels
+# Admin usage — Sales channels
 
 How a platform administrator drives the Sales Channels module from the Admin UI day to day. Every action below is also reachable through the module's admin HTTP API.
 

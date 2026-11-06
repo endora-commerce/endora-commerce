@@ -19,8 +19,14 @@ const APP = resolve(import.meta.dirname, '../../app');
 /** Pages not swept yet — the list only shrinks; issue #745 emptied it. */
 const NOT_YET_SWEPT = new Set<string>([]);
 
-/** A message parameter whose value is encoded — i.e. not a code. */
-const SENTENCE_IN_URL = /\b(?:error|reason|couponError)=(?:\$\{\s*encodeURIComponent\(|'\s*\+\s*encodeURIComponent\()/;
+/**
+ * A message parameter — or one of the typed figures beside it (issue #791) —
+ * whose value is encoded, i.e. neither a code nor a typed value. A figure is a
+ * whole number, a decimal amount or an ISO 4217 code (`lib/url-typed-values.ts`),
+ * none of which needs encoding.
+ */
+const SENTENCE_IN_URL =
+  /\b(?:error|reason|couponError|problem|min|minValue|subtotal|available|total|currency|couponShortfall|couponShortfallCurrency)=(?:\$\{\s*encodeURIComponent\(|'\s*\+\s*encodeURIComponent\()/;
 
 function sources(dir: string): string[] {
   return readdirSync(dir).flatMap((name) => {
@@ -39,6 +45,22 @@ const offenders = files
   .filter((file) => SENTENCE_IN_URL.test(readFileSync(join(APP, file), 'utf8')));
 
 describe('no page redirects with a sentence in ?error= / ?reason= (issue #745)', () => {
+  it('the net refuses an encoded message or figure, and lets a code or a typed value through', () => {
+    // A net that matches nothing passes everything.
+    for (const offending of [
+      '`/cart?error=${encodeURIComponent(err.detail)}`',
+      '`/checkout/failure?reason=LIMIT_INSUFFICIENT&available=${encodeURIComponent(d.availableAmount)}`',
+      "'/x?currency=' + encodeURIComponent(c)",
+      '`/quick-order?problem=PRODUCT_BELOW_MINIMUM_QUANTITY&min=${encodeURIComponent(m)}`',
+      '`/checkout/failure?reason=ORDER_BELOW_MINIMUM_VALUE&subtotal=${encodeURIComponent(d.subtotal)}`',
+    ]) {
+      expect(SENTENCE_IN_URL.test(offending)).toBe(true);
+    }
+    for (const fine of ['`/cart?error=${code}${errorFiguresQuery(err)}`', '`/checkout/failure?reason=${code}`']) {
+      expect(SENTENCE_IN_URL.test(fine)).toBe(false);
+    }
+  });
+
   it('every swept page carries a code', () => {
     expect(offenders.filter((file) => !NOT_YET_SWEPT.has(file))).toEqual([]);
   });

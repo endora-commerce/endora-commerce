@@ -117,7 +117,7 @@ The entity registry (`custom-field-registry.ts`) supports a **generic**
 set, that host's definitions are authored by the named module through its own
 surface, and the generic admin surface becomes **read-only** for that entity
 type: `POST` / `PATCH` / `DELETE` on `/api/v1/admin/custom-fields/definitions*`
-are refused with `409 host_managed`, and the admin Custom Fields page renders
+are refused with `409 host_managed`, and the admin Custom fields page renders
 the entity read-only with a notice linking to the managing surface. The refusal
 is registry-driven — the generic core checks only for the marker's presence,
 never which module manages (no host identifier in core logic).

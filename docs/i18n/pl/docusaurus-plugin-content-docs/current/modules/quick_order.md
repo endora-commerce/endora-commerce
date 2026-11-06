@@ -1,9 +1,9 @@
 ---
-title: quick_order
+title: Szybkie zamówienia
 description: Import CSV i podpowiedzi dla kupujących zamawiających według SKU
 ---
 
-# `quick_order`
+# Szybkie zamówienia (`quick_order`)
 
 **Zestaw narzędzi do szybkiego zamawiania** w platformie. Łączy kilka udogodnień, dzięki którym
 kupujący B2B składają powtarzalne i hurtowe zamówienia w jak najmniejszej liczbie kroków —

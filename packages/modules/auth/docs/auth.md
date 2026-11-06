@@ -1,9 +1,9 @@
 ---
-title: auth
+title: Authentication
 description: Customer + admin sessions, password hashing, TOTP
 ---
 
-# `auth`
+# Authentication (`auth`)
 
 Shared session, password-hashing, and TOTP primitives consumed by both
 `customer_accounts` and `admin_users`. One of the two singular module

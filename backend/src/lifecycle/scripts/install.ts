@@ -2,6 +2,7 @@ import { Redis } from 'ioredis';
 import type { EntityManager } from '@mikro-orm/postgresql';
 import {
   attachEscapeHatchAuditWriter,
+  attachOperatorDiagnostics,
   runInstallCommand,
   type OperatorResources,
   type OperatorRuntime,
@@ -56,6 +57,11 @@ import { enterSystemScope } from '../../kernel/scope.js';
  */
 let auditEm: (() => EntityManager) | undefined;
 const escapeHatchAudit = attachEscapeHatchAuditWriter({ em: () => auditEm?.() });
+
+// Issue #819 — the platform's own log lines (the ORM bootstrap's tenancy-chain
+// notice among them) go to stderr: stdout is this command's answer, and with
+// `--json` a machine parses it. The process exits, so nothing detaches.
+attachOperatorDiagnostics((line) => void process.stderr.write(line));
 
 async function main(): Promise<number> {
   let entries;

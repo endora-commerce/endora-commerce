@@ -1,9 +1,9 @@
 ---
-title: audit_logs
+title: Dziennik audytu
 description: Dziennik audytu wrażliwych operacji
 ---
 
-# `audit_logs`
+# Dziennik audytu (`audit_logs`)
 
 Dziennik audytu każdej wrażliwej operacji, do którego można wyłącznie dopisywać. Każdy wpis
 zapisuje, kto, co i kiedy zrobił — a podczas logowania jako klient także w czyim imieniu.

@@ -1,9 +1,9 @@
 ---
-title: api_keys
+title: Klucze API
 description: Dane uwierzytelniające integracji w postaci tokenu bearer
 ---
 
-# `api_keys`
+# Klucze API (`api_keys`)
 
 Klucze API z tokenem bearer o określonym zakresie, przeznaczone do integracji między systemami.
 Token w postaci jawnej jest pokazywany tylko raz, przy utworzeniu; przechowywany jest wyłącznie jego

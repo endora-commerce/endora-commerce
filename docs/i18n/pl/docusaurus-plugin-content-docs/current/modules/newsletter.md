@@ -1,9 +1,9 @@
 ---
-title: newsletter
+title: Newsletter
 description: Newsletter na własnej infrastrukturze — lista subskrybentów, tagi, segmenty, jednorazowe kampanie i wieloetapowe automatyzacje ze zgodą zbieraną osobno w każdym kanale
 ---
 
-# `newsletter`
+# Newsletter (`newsletter`)
 
 Wysyłka newslettera na własnej infrastrukturze. Pozwala operatorom budować listę subskrybentów,
 dzielić ją na segmenty według **tagów** i **pól niestandardowych** oraz docierać do odbiorców przez

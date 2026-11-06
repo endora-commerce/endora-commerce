@@ -9,11 +9,12 @@ import { POLISH_DIACRITIC, visibleText } from './text';
  * (Polish has three forms: 1 / 2–4 / 5+), the clear and delete dialogs and the
  * PDP's list heart, in `en-US` and `pl-PL`.
  *
- * The dialogs and the heart's menu only open after a click, and the storefront
- * harness is server-render only, so `useState` is seeded for those renders
- * (`seedState`): each `useState` call takes the next seeded value instead of its
- * initial one. `createPortal` renders in place, so the dialog's markup is in the
- * string.
+ * The clear and delete dialogs are `ModalDialog`s (issue #804), whose content
+ * is in the markup on first paint, closed. The heart's menu only opens after a
+ * click, and the storefront harness is server-render only, so `useState` is
+ * seeded for those renders (`seedState`): each `useState` call takes the next
+ * seeded value instead of its initial one. `createPortal` renders in place, so
+ * a portalled menu's markup is in the string.
  */
 
 let locale = 'en-US';
@@ -206,12 +207,10 @@ describe('shopping-list dialogs — the shop language (issue #85)', () => {
 
   it('words the clear dialog in both languages', async () => {
     const { ClearListButton } = await import('../../../components/shopping-lists/ClearListButton');
-    seedState(true);
     const en = visibleText(renderToString(<ClearListButton listId="l1" locale="en-US" clearAction={noop} />));
     expect(en).toContain('Clear this list?');
     expect(en).toContain('This removes all items from the list. This action cannot be undone.');
     expect(en).toContain('Cancel');
-    seedState(true);
     const pl = visibleText(renderToString(<ClearListButton listId="l1" locale="pl-PL" clearAction={noop} />));
     expect(pl).toContain('Wyczyścić tę listę?');
     expect(pl).toContain('Tej operacji nie można cofnąć.');
@@ -222,14 +221,12 @@ describe('shopping-list dialogs — the shop language (issue #85)', () => {
     const { DeleteShoppingListButton } = await import(
       '../../../components/shopping-lists/DeleteShoppingListButton'
     );
-    seedState(true);
     const en = visibleText(
       renderToString(<DeleteShoppingListButton listId="l1" listName="Site A" locale="en-US" deleteAction={noop} />),
     );
     expect(en).toContain('Delete this list?');
     expect(en).toContain('Deleting Site A removes the list and all its items.');
     expect(en).toContain('Delete list');
-    seedState(true);
     const pl = visibleText(
       renderToString(<DeleteShoppingListButton listId="l1" listName="Site A" locale="pl-PL" deleteAction={noop} />),
     );

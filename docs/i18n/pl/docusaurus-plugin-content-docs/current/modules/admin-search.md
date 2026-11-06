@@ -1,9 +1,9 @@
 ---
-title: admin_search
+title: Wyszukiwanie globalne
 description: Wyszukiwanie globalne w panelu administracyjnym — znajdowanie organizacji, klientów, zamówień, zapytań ofertowych, szans sprzedażowych, produktów i kategorii z palety poleceń, z konfigurowalnymi polami wyszukiwania
 ---
 
-# `admin_search`
+# Wyszukiwanie globalne (`admin_search`)
 
 Wyszukiwanie globalne pozwala administratorowi znaleźć rekord bez wcześniejszego
 ustalania, na której liście się on znajduje. Naciśnij **⌘K** (macOS) lub

@@ -3,7 +3,7 @@ title: Module lifecycle
 description: CLI-driven install / uninstall / enable / disable / status for every backend module + dependency validation + first-boot reconciliation
 ---
 
-# Module Lifecycle
+# Module lifecycle
 
 Platform-internal subsystem that turns every backend module into a first-class lifecycle citizen: declarative manifest, dependency graph, install / uninstall / enable / disable / status, persisted registry, transactional install with migration rollback, and a per-process enabled-set cache — refreshed over Redis pub/sub — that gates HTTP routes, BullMQ workers, and event subscribers without restarting the process.
 

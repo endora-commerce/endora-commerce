@@ -1,9 +1,9 @@
 ---
-title: auth
+title: Uwierzytelnianie
 description: Sesje klientów i administratorów, hashowanie haseł, TOTP
 ---
 
-# `auth`
+# Uwierzytelnianie (`auth`)
 
 Wspólne mechanizmy sesji, hashowania haseł i TOTP, z których korzystają zarówno
 `customer_accounts`, jak i `admin_users`. Według konwencji nazewnictwa to jeden z dwóch katalogów

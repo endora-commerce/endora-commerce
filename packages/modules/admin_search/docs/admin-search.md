@@ -1,9 +1,9 @@
 ---
-title: admin_search
+title: Global search
 description: Global search in the admin — find organizations, customers, orders, quote requests, sales opportunities, products and categories from the command palette, with configurable searchable fields
 ---
 
-# `admin_search`
+# Global search (`admin_search`)
 
 Global search lets an administrator find a record without first deciding which
 list holds it. Press **⌘K** (macOS) or **Ctrl+K**, or click the search field at
@@ -25,15 +25,15 @@ record types, in the order their groups appear:
 | Record type | Fields offered (searched by default in **bold**) | Opens |
 | --- | --- | --- |
 | Orders | **Order number**, **Organization name**, **Customer name or e-mail**, Billing company name, Billing tax ID | the order |
-| Quote Requests | **Quote Request number**, **Organization name**, **Customer name or e-mail**, Customer's note | the quote request |
-| Sales Opportunities | **Opportunity number**, **Title**, **Organization name**, Description | the opportunity |
+| Quote requests | **Quote Request number**, **Organization name**, **Customer name or e-mail**, Customer's note | the quote request |
+| Sales opportunities | **Opportunity number**, **Title**, **Organization name**, Description | the opportunity |
 | Organizations | **Name**, **Tax ID**, Legal name | the organization |
 | Customers | **E-mail**, **Name** | the customer |
 | Products | **SKU**, **Name**, URL key (slug), Quick-search attributes | the product |
 | Categories | **Name**, **URL key (slug)** | the category tree, with the category highlighted |
 
 A record type takes part only while its module is switched on: switch the CRM
-off on **/platform/modules** and Sales Opportunities disappear from the results
+off on **/platform/modules** and sales opportunities disappear from the results
 and from the configuration screen; switch it back on and they return with the
 configuration they had.
 
@@ -64,8 +64,8 @@ Global search never shows a record its type's own admin list would hide from the
 same administrator:
 
 - A record type appears only for a role holding the permission its own list
-  requires — `orders:read` for Orders, `rfqs:handle` for Quote Requests,
-  `crm:read` for Sales Opportunities, `customers:read` (or `customers:manage`)
+  requires — `orders:read` for Orders, `rfqs:handle` for quote requests,
+  `crm:read` for sales opportunities, `customers:read` (or `customers:manage`)
   for Organizations, `customers:read` for Customers, and `catalog:read` for
   Products and Categories.
 - A sales representative sees only the orders, quote requests, opportunities

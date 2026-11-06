@@ -1,9 +1,9 @@
 ---
-title: admin_roles
+title: Role administratorów
 description: Role administratorów i uprawnienia poszczególnych modułów
 ---
 
-# `admin_roles`
+# Role administratorów (`admin_roles`)
 
 Definicje ról administratorów oraz macierz uprawnień modułów, które rola przyznaje.
 

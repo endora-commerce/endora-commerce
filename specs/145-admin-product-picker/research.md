@@ -252,11 +252,22 @@ match it today: `POST /api/v1/admin/orders` with a `salesChannelId` naming no ch
 `PRODUCT_NOT_IN_SALES_CHANNEL` (the earlier proposal — priced on one channel, checked against
 another, and a per-line message for what is a whole-request problem; the PO chose the refusal).
 
-**Product loading**: the loop's per-line `catalogProductRead.findById` becomes one
-`findByIds(uniqueIds)` with **default lookup options, deliberately not `liveOnly`** — a
-soft-deleted product still resolves and is priced like a live one, as today and as on the create
-path (product-owner ruling, 2026-10-13: keep today's behaviour; the PO amends spec.md's edge case
-separately). The price-list bulk add (R-8) is a different seam and keeps `liveOnly` and
+**Product loading** *(amended 2026-11-06, issue #820; supersedes the PO ruling of 2026-10-13)*:
+the loop's per-line `catalogProductRead.findById` becomes one `findByIds(uniqueIds, { liveOnly:
+true })`. A soft-deleted product has no live row, so it is step 1, `PRODUCT_NOT_FOUND`, on every
+channel, and no membership or availability read is made for it. Since feature 163
+(`specs/163-product-data-scopes/` FR-001, FR-002, FR-004) a deleted product is unavailable
+everywhere, and `POST /api/v1/admin/orders` refuses it with `404 PRODUCT_NOT_FOUND`; the preview
+follows create. An archived or draft product still resolves here and is judged by steps 2–3 and the
+feature-163 availability filter.
+
+*Provenance, superseded 2026-11-06 (issue #820) by feature 163 FR-001:* the read was first
+written with **default lookup options, deliberately not `liveOnly`** — a soft-deleted product still
+resolved and was priced like a live one, as then on the create path (product-owner ruling,
+2026-10-13: keep today's behaviour). That ruling assumed the create path accepted a soft-deleted
+product, which it no longer does.
+
+R-8 and the preview now read the same way: the price-list bulk add keeps `liveOnly` and
 `failed: product_not_found` for soft-deleted products. So
 a 200-line preview issues one product read and one membership read instead of 200 + 0. Pricing
 stays per line (`pricingService.resolveLinePrice`), unchanged.
@@ -525,6 +536,9 @@ pure `methodsOfferedInChannel` export only and must keep passing unchanged (the 
    active-channel fallback is removed (R-7). Also resolved: a **soft-deleted** product on the
    order preview keeps today's behaviour — priced like a live product, no `liveOnly` on the
    preview read (R-7 § Product loading); spec.md's edge case is amended by the PO.
+   *Superseded 2026-11-06 (issue #820) by feature 163 FR-001:* the preview reads with `liveOnly`
+   and reports a soft-deleted product as `PRODUCT_NOT_FOUND` on every channel, together with
+   create's `404 PRODUCT_NOT_FOUND` (R-7 § Product loading, as amended).
 2. ~~**"Deleted from the catalog"**~~ (R-8) — **resolved** (default accepted at analyze,
    2026-10-13; spec.md *Assumptions*): *soft-deleted* (`deletedAt` set) → `failed /
    product_not_found`; an archived (inactive) or draft product is live and is added.

@@ -1,9 +1,9 @@
 ---
-title: seo
+title: SEO
 description: Wyznaczanie meta tagów, mapa witryny XML z pamięcią podręczną, ustawienia robots dla wyszukiwarek i llms.txt
 ---
 
-# `seo`
+# SEO (`seo`)
 
 Wyznaczanie meta tagów dla każdej strony, publiczna mapa witryny XML oraz to, co wyszukiwarki
 dowiadują się o całym sklepie danego kanału sprzedaży.

@@ -1,9 +1,9 @@
 ---
-title: orders
+title: Zamówienia
 description: Składanie zamówień, statusy i ich przejścia, powiązanie z płatnością i dostawą
 ---
 
-# `orders`
+# Zamówienia (`orders`)
 
 Składanie zamówień, ich cykl życia i kontrola dostępu. Łączy wyznaczanie cen w koszyku, rezerwację
 stanów magazynowych, uruchomienie sterownika płatności, generowanie faktur i zapis do dziennika

@@ -2,7 +2,7 @@
 title: Packaging units
 ---
 
-# Packaging Units
+# Packaging units
 
 Named ordering units attached to a product — for example a **Paleta** worth
 480 pieces. They let B2B buyers order in bulk units without typing the exact

@@ -3,7 +3,7 @@ title: Product feeds
 description: Provider-shaped product feeds per sales channel — scheduled generation, tokenised pull URLs and SFTP/FTP/HTTP push
 ---
 
-# Product Feeds
+# Product feeds
 
 The `product_feeds` module turns the catalogue of one sales channel into a
 **provider-shaped feed file** — a Google Merchant Center XML document, a Meta catalogue, a

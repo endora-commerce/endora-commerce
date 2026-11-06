@@ -1,9 +1,9 @@
 ---
-title: customers
+title: Klienci
 description: Cykl życia klienta na bazie `customer_accounts` — organizacje firmowe i prywatne, przypisanie handlowca i obsługa klientów w panelu administracyjnym
 ---
 
-# `customers`
+# Klienci (`customers`)
 
 Logika biznesowa cyklu życia klienta, zbudowana na module danych `customer_accounts`. **Każdy klient
 należy do organizacji** — firmowej w przypadku B2B albo jednoosobowej *organizacji prywatnej* w

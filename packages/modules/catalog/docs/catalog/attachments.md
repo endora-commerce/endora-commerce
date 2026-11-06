@@ -2,7 +2,7 @@
 title: Product attachments
 ---
 
-# Product Attachments
+# Product attachments
 
 Product Attachments are downloadable files (certificates, technical
 specifications, product cards, generic PDFs) attached to a Product.
@@ -10,7 +10,7 @@ They wrap an underlying `Asset` row, so the same file can be linked to
 multiple Products without duplication — the `assets` row survives even
 when an attachment is deleted.
 
-## Attachment Types
+## Attachment types
 
 The `attachment_types` dictionary categorizes attachments. Migration
 `20260429T112543_catalog_product_attachments.ts` seeds four standard rows with deterministic UUIDs so seeds and
@@ -21,7 +21,7 @@ tests can reference them stably:
 - `product_card` — Product card / Karta produktu
 - `pdf` — generic PDF
 
-Admins can add custom types via the **Attachment Types** page in the
+Admins can add custom types via the **Attachment types** page in the
 admin panel. Deleting a type that any product still references returns
 `409 ATTACHMENT_TYPE_IN_USE`.
 

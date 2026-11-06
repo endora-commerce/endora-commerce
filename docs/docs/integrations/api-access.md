@@ -28,7 +28,7 @@ Authorization: Bearer sk_live_REDACTED
 - A key missing the required scope receives `403 API_KEY_OUT_OF_SCOPE`
   (audited).
 
-Keys are issued in **Admin Panel → API Keys**. The token is shown once at
+Keys are issued in **Admin Panel → API keys**. The token is shown once at
 creation; only its SHA-256 hash is stored.
 
 ## The two key modes

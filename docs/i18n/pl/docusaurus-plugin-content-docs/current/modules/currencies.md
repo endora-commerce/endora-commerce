@@ -1,9 +1,9 @@
 ---
-title: currencies
+title: Waluty
 description: Lista akceptowanych kodów walut ISO 4217 i waluta domyślna
 ---
 
-# `currencies`
+# Waluty (`currencies`)
 
 Lista kodów walut ISO 4217 akceptowanych w danej instalacji. Odpowiednik modułu `languages`.
 

@@ -273,12 +273,25 @@ describe('Admin order preview — visibility and assortment codes (feature 145)'
     expect(body.data).toBeUndefined();
   });
 
-  it('a soft-deleted product on a valid channel is priced, as today', async () => {
+  it('a soft-deleted product is PRODUCT_NOT_FOUND only, on any channel (feature 163 FR-001, issue #820)', async () => {
+    // Admin order create refuses a soft-deleted product with 404
+    // PRODUCT_NOT_FOUND, so the preview reports the same step, never the
+    // assortment code.
     await h.em().nativeUpdate(Product, { id: PRICED }, { deletedAt: new Date() });
     try {
-      const data = await previewOk(channelA, [PRICED]);
-      expectPriced(data, PRICED);
-      expect(data.messages).toHaveLength(0);
+      for (const channel of [channelA, channelB]) {
+        const data = await previewOk(channel, [PRICED]);
+        expectUnavailable(data, PRICED, NOT_FOUND);
+        expect(data.messages).toHaveLength(1);
+        expect(data.summary.subtotal).toBe(0);
+      }
+
+      // A live line beside it is still priced.
+      await allowSubjectTo([]);
+      const mixed = await previewOk(channelA, [PRICED, SUBJECT]);
+      expectUnavailable(mixed, PRICED, NOT_FOUND);
+      expectPriced(mixed, SUBJECT);
+      expectOneMessagePerUnavailableLine(mixed);
     } finally {
       await h.em().nativeUpdate(Product, { id: PRICED }, { deletedAt: null });
     }

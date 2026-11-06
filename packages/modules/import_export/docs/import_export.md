@@ -1,9 +1,9 @@
 ---
-title: import_export
+title: Import / export
 description: CSV import / export for bulk-edit entities
 ---
 
-# `import_export`
+# Import / export (`import_export`)
 
 CSV import and export for the bulk-edit cases. Owns a small RFC-4180 codec
 (no new dependency), a per-entity adapter registry and the **import profiles**

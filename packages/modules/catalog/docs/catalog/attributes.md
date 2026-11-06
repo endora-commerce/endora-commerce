@@ -14,7 +14,7 @@ and the configurable-product variant picker.
 Attributes are grouped into [Attribute Sets](./attribute-sets.md) which
 are then pinned to a Product so the admin editor renders just the
 fields that family actually needs. This page covers the attribute
-itself; the set ↔ product wiring lives on the Attribute Sets page.
+itself; the set ↔ product wiring lives on the Attribute sets page.
 
 ## Anatomy
 
