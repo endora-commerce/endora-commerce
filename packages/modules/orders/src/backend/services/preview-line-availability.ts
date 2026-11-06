@@ -16,8 +16,9 @@ export type PreviewLineAvailability =
 
 /**
  * Steps 1–3 of the admin order preview's per-line decision (feature 145,
- * FR-027), first match wins: the product does not exist, the customer's
- * Organization may not see it, or it is outside the order's sales channel.
+ * FR-027), first match wins: the catalogue holds no live product (absent or
+ * soft-deleted), the customer's Organization may not see it, or it is outside
+ * the order's sales channel.
  * Step 4 (`QUOTE_ONLY`) needs the resolved price and stays in the route.
  *
  * `inChannel` is ignored for a product that fails visibility: one message per
