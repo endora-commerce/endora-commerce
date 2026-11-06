@@ -68,10 +68,18 @@ Usunięcie to miękkie wyłączenie konta: logowanie jest odrzucane, konto ukryt
 zamówienia, zapytania ofertowe i historia audytu zachowane. W konfigurowalnym okresie
 (`customers.deletion_retention_days`, domyślnie 365 dni) uprawniona osoba może przywrócić konto. Po
 jego upływie zadanie anonimizacji (`AnonymizationSweepWorker`) nieodwracalnie usuwa dane osobowe i
-przywrócenie nie jest już możliwe. W przypadku klienta indywidualnego zadanie anonimizuje też jego
-organizację prywatną: jej zapisane adresy są czyszczone (`-`, bez telefonu, kraj zostaje) i miękko
-usuwane, każdy z wpisem audytu `address.anonymized`. Złożone zamówienia zachowują swoje kopie
-adresów.
+przywrócenie nie jest już możliwe: od chwili upływu okresu przywrócenie kończy się odpowiedzią
+`409 CUSTOMER_RESTORE_WINDOW_ELAPSED`, nawet jeśli zadanie nie dotarło jeszcze do tego konta. W
+przypadku klienta indywidualnego zadanie anonimizuje też jego organizację prywatną: jej zapisane
+adresy są czyszczone (`-`, bez telefonu, kraj zostaje) i miękko usuwane, każdy z wpisem audytu
+`address.anonymized`. Dzieje się tak również wtedy, gdy operator usunął już tę organizację. Złożone
+zamówienia zachowują swoje kopie adresów.
+
+Zadanie najpierw anonimizuje organizację prywatną i jej adresy, a konto na końcu. Jeśli przebieg
+zostanie przerwany, konto zostanie podjęte ponownie w następnym przebiegu, który dokończy brakujące
+kroki bez powtarzania wpisów audytu kroków już wykonanych. Konto, którego nie da się
+zanonimizować, nie wstrzymuje pozostałych: przebieg anonimizuje resztę, a następnie zgłasza
+identyfikatory kont, których nie udało się przetworzyć.
 
 ## Wycofanie osobistej książki adresowej
 

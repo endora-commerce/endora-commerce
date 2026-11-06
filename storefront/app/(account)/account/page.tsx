@@ -10,6 +10,7 @@ import {
   updatePushPreferences,
 } from '../../../lib/api/pwa-server';
 import { CreditLimitWidget } from '../../../components/CreditLimitWidget';
+import { ModalDialog } from '../../../components/ModalDialog';
 import {
   PushNotificationsSection,
   pushPreferencesPatch,
@@ -33,10 +34,12 @@ export const metadata: Metadata = { robots: { index: false, follow: false } };
  * MVP — buyers update their name via support to keep audit trails simple.
  *
  * Feature 170 (FR-058): the role is the member's organization role, and the
- * page lists what it allows in plain language — `GET …/mine/role`, translated
- * by the API. When that read fails the role still shows from the session and
- * only the list is left out. A personal Organization's member sees neither,
- * and the list is not read (owner ruling on PR #715).
+ * page says what it allows in plain language — `GET …/mine/role`, translated
+ * by the API. That list is rendered here, on the server, but sits in a dialog
+ * opened from the role row rather than in the page body: it is reference, not
+ * day-to-day content (issue #801). When the read fails the role still shows
+ * from the session and only the dialog is left out. A personal Organization's
+ * member sees neither, and the list is not read (owner ruling on PR #715).
  */
 export default async function AccountProfilePage({
   searchParams,
@@ -95,7 +98,20 @@ export default async function AccountProfilePage({
           {role ? (
             <tr>
               <th scope="row">{t('account.common.role')}</th>
-              <td>{role.name}</td>
+              <td>
+                <span className="flex flex-wrap items-center gap-x-3">
+                  {role.name}
+                  {ownRole ? (
+                    <ModalDialog
+                      triggerLabel={t('account.profile.allows.heading')}
+                      title={t('account.profile.allows.heading')}
+                      closeLabel={t('account.common.close')}
+                    >
+                      <RoleAllowsList permissions={ownRole.permissions} t={t} />
+                    </ModalDialog>
+                  ) : null}
+                </span>
+              </td>
             </tr>
           ) : null}
           <tr>
@@ -113,25 +129,6 @@ export default async function AccountProfilePage({
           )}
         </tbody>
       </table>
-      {role && ownRole ? (
-        <section aria-labelledby="role-allows-heading" className="mt-6">
-          <h3 id="role-allows-heading">{t('account.profile.allows.heading')}</h3>
-          {ownRole.permissions.length === 0 ? (
-            <p className="text-[13px] text-muted">{t('account.profile.allows.none')}</p>
-          ) : (
-            <ul className="m-0 grid list-disc gap-1 pl-5 text-[13px]">
-              {ownRole.permissions.map((p) => (
-                <li key={p.code}>
-                  {richText(t('account.profile.allows.item'), {
-                    label: <strong className="font-medium">{p.label}</strong>,
-                    description: p.description,
-                  })}
-                </li>
-              ))}
-            </ul>
-          )}
-        </section>
-      ) : null}
       <PushNotificationsSection
         config={pwaConfig}
         preferences={pushPreferences}
@@ -141,6 +138,31 @@ export default async function AccountProfilePage({
         failed={sp.pushError === '1'}
       />
     </>
+  );
+}
+
+/** What the member's role allows, one plain-language line per permission (FR-058). */
+function RoleAllowsList({
+  permissions,
+  t,
+}: {
+  permissions: OwnRole['permissions'];
+  t: ReturnType<typeof tForLocale>;
+}): ReactNode {
+  if (permissions.length === 0) {
+    return <p className="m-0 text-[13px] text-muted">{t('account.profile.allows.none')}</p>;
+  }
+  return (
+    <ul className="m-0 grid list-disc gap-1 pl-5 text-[13px]">
+      {permissions.map((p) => (
+        <li key={p.code}>
+          {richText(t('account.profile.allows.item'), {
+            label: <strong className="font-medium">{p.label}</strong>,
+            description: p.description,
+          })}
+        </li>
+      ))}
+    </ul>
   );
 }
 

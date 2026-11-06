@@ -207,6 +207,16 @@ export function registerModulePresenceRoutes(
     },
     async (request): Promise<ModuleDeactivationImpact> => {
       const moduleId = request.params.id;
+      // An id neither the registry nor a manifest knows has no deactivation to
+      // describe — the activation write's answer for it (issue #793). Unchecked,
+      // it reached the response schema, whose module-id pattern turned it into a 500.
+      if (!effectiveState.presence(moduleId)) {
+        throw new HttpError(
+          404,
+          ERROR_CODES.MODULE_NOT_FOUND,
+          `No module "${moduleId}" is registered on this deployment.`,
+        );
+      }
       if (moduleId !== 'mfa' || !effectiveState.isPresent('mfa')) {
         return { moduleId, activeSecondFactorUsers: null };
       }

@@ -3,6 +3,7 @@
   "errors.CANNOT_REMOVE_LAST_ADMIN": "To jedyny administrator w tej organizacji, a organizacja zawsze musi mieć co najmniej jednego — po jego usunięciu nikt nie mógłby zarządzać użytkownikami, adresami ani akceptacjami. Najpierw nadaj rolę administratora innemu użytkownikowi, a potem tego będzie można usunąć.",
   "errors.CUSTOMER_AUTHENTICATION_THROTTLED": "Dla tego konta podjęto zbyt wiele prób, dlatego kolejne są wstrzymane na kilka minut. Odczekaj chwilę i spróbuj ponownie.",
   "errors.CUSTOMER_AUTHENTICATION_UNAVAILABLE": "Logowanie jest chwilowo niedostępne. Spróbuj ponownie za chwilę.",
+  "errors.CUSTOMER_RESTORE_WINDOW_ELAPSED": "Okres, w którym można było przywrócić to konto, minął, więc nie można go już przywrócić. Jego dane osobowe zostały lub wkrótce zostaną trwale zanonimizowane.",
   "actions.openCustomerGroups.label": "Grupy klientów",
   "actions.openCustomerGroups.description": "Zarządzaj grupami segmentacji przypisywanymi klientom i organizacjom",
   "groups.page.title": "Grupy klientów",

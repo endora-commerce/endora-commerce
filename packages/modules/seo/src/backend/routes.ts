@@ -272,7 +272,9 @@ export async function registerSeoRoutes(
     { preHandler: requireAdmin('catalog:write') },
     async (request) => {
       const { channelCode } = request.params;
-      const { generatedAt } = await sitemap.regenerateForChannel(channelCode);
+      const { generatedAt } = await sitemap
+        .regenerateForChannel(channelCode)
+        .catch(rethrowUnknownChannelAsNotFound);
       const status = await sitemap.getStatusForChannel(channelCode);
       return {
         data: {
@@ -316,7 +318,9 @@ export async function registerSeoRoutes(
     { preHandler: requireAdmin('catalog:write'), config: { streamingResponse: true } },
     async (request, reply) => {
       const { channelCode } = request.params;
-      const { payload } = await sitemap.getOrGenerateForChannel(channelCode);
+      const { payload } = await sitemap
+        .getOrGenerateForChannel(channelCode)
+        .catch(rethrowUnknownChannelAsNotFound);
       reply
         .header('Content-Type', 'application/xml; charset=utf-8')
         .header('Cache-Control', 'no-store');
@@ -489,4 +493,16 @@ function assertEntityId(entityId: string): void {
   if (!isUuidShape(entityId)) {
     throw new HttpError(404, ERROR_CODES.NOT_FOUND, 'SEO target not found.');
   }
+}
+
+/**
+ * Issue #793 — the sitemap of a channel code no sales channel has is not a
+ * failure of the generator: it names nothing, so `404`, as the crawler-file
+ * preview answers the same code. Anything else is rethrown as it was.
+ */
+function rethrowUnknownChannelAsNotFound(error: unknown): never {
+  if (error instanceof UnknownSalesChannelError) {
+    throw new HttpError(404, ERROR_CODES.NOT_FOUND, 'Sales channel not found.');
+  }
+  throw error;
 }

@@ -34,6 +34,12 @@ vi.mock('../../lib/session', () => ({
   getAnonCartCookie: async () => null,
   setAnonCartCookie: async () => undefined,
 }));
+let shownPreview: unknown = null;
+vi.mock('../../lib/quick-order-preview-cookie', () => ({
+  readQuickOrderPreview: async () => shownPreview,
+  writeQuickOrderPreview: async () => true,
+  clearQuickOrderPreview: async () => undefined,
+}));
 vi.mock('next/headers', () => ({
   cookies: async () => ({
     get: (name: string) => (name === 'b2b_session' && sessionCookie ? { value: sessionCookie } : undefined),
@@ -399,23 +405,23 @@ describe('product page — actions per the member’s role (FR-057)', () => {
 // ── quick order ───────────────────────────────────────────────────────────
 
 describe('quick-order page — open to `carts.create` OR `quote_requests.create` (Q2(b))', () => {
-  const preview = Buffer.from(
-    JSON.stringify({
-      recognized: [{ line: 1, sku: 'BOLT-1', productId: 'p1', variantId: null, quantity: 4 }],
-      rejected: [],
-      summary: { recognizedCount: 1, rejectedCount: 0, mergedCount: 0, truncated: false },
-    }),
-    'utf8',
-  ).toString('base64url');
-  const render = async (sp: Record<string, string> = {}): Promise<string> =>
-    html(await QuickOrderPage({ searchParams: Promise.resolve(sp) }));
+  // Issue #790 — the preview is read from the storefront's own cookie, never from the URL.
+  const preview = {
+    recognized: [{ line: 1, sku: 'BOLT-1', productId: 'p1', variantId: null, quantity: 4 }],
+    rejected: [],
+    summary: { recognizedCount: 1, rejectedCount: 0, mergedCount: 0, truncated: false },
+  };
+  const render = async (sp: Record<string, string> = {}, withPreview: typeof preview | null = null): Promise<string> => {
+    shownPreview = withPreview;
+    return html(await QuickOrderPage({ searchParams: Promise.resolve(sp) }));
+  };
   const addAll = `>${en('quickOrder.preview.addAll')}</button>`;
   const sendQuote = `>${en('quickOrder.preview.sendAsQuote')}</button>`;
   const importButton = `>${en('quickOrder.page.preview')}</button>`;
   const barAdd = en('quickOrder.bar.addToCart').replace('{count}', '1');
 
   it('a member with both codes gets the import and both targets', async () => {
-    const out = await render({ preview });
+    const out = await render({}, preview);
     expect(out).toContain(importButton);
     expect(out).toContain(addAll);
     expect(out).toContain(sendQuote);
@@ -424,7 +430,7 @@ describe('quick-order page — open to `carts.create` OR `quote_requests.create`
 
   it('a quote-only member keeps the import and loses the cart target', async () => {
     permissions = without('carts.create');
-    const out = await render({ preview });
+    const out = await render({}, preview);
     expect(out).toContain(importButton);
     expect(out).not.toContain(addAll);
     expect(out).not.toContain(barAdd);
@@ -433,7 +439,7 @@ describe('quick-order page — open to `carts.create` OR `quote_requests.create`
 
   it('a cart-only member keeps the import and loses the quote target', async () => {
     permissions = without('quote_requests.create');
-    const out = await render({ preview });
+    const out = await render({}, preview);
     expect(out).toContain(importButton);
     expect(out).toContain(addAll);
     expect(out).not.toContain(sendQuote);
@@ -441,7 +447,7 @@ describe('quick-order page — open to `carts.create` OR `quote_requests.create`
 
   it('a member with neither code is told why, and offered no import', async () => {
     permissions = without('carts.create', 'quote_requests.create');
-    const out = await render({ preview });
+    const out = await render({}, preview);
     expect(out).toContain(en('commerce.quickOrder.notAllowed'));
     expect(out).not.toContain(importButton);
     expect(out).not.toContain(addAll);

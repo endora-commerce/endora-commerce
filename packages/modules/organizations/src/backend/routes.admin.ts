@@ -1,5 +1,6 @@
 import type { FastifyInstance, FastifyRequest } from 'fastify';
 import { z } from 'zod';
+import { NotFoundError } from '@mikro-orm/core';
 import type { EntityManager } from '@mikro-orm/postgresql';
 import {
   ERROR_CODES,
@@ -650,7 +651,10 @@ export async function registerOrganizationsAdminRoutes(
       '/api/v1/admin/organizations/:id/restrictions',
       { preHandler: requireAdmin('customers:manage') },
       async (request) => {
-        const data = await restrictionService.readAllowLists(request.params.id);
+        assertOrganizationIdShape(request.params.id);
+        const data = await restrictionService
+          .readAllowLists(request.params.id)
+          .catch(rethrowOrganizationNotFound);
         return { data };
       },
     );
@@ -738,11 +742,14 @@ export async function registerOrganizationsAdminRoutes(
       },
       async (request) => {
         const body = triggerVatValidationSchema.parse(request.body ?? {});
-        const result = await taxIdValidationService.trigger(request.params.id, {
-          providerHint: body.providerHint,
-          applyAutoFill: body.applyAutoFill,
-          actorAdminUserId: resolveAdminUserId(request),
-        });
+        assertOrganizationIdShape(request.params.id);
+        const result = await taxIdValidationService
+          .trigger(request.params.id, {
+            providerHint: body.providerHint,
+            applyAutoFill: body.applyAutoFill,
+            actorAdminUserId: resolveAdminUserId(request),
+          })
+          .catch(rethrowOrganizationNotFound);
         return {
           ...serializeTaxIdValidation(result.record),
           organization: result.organization,
@@ -1257,6 +1264,29 @@ function resolveAdminUserId(request: FastifyRequest): string | null {
  * Maps OrganizationRestrictionService errors to HTTP. Same 409 contract as
  * the moderation endpoints (the body carries `currentVersion`).
  */
+/**
+ * Issue #793 — an id that is not a UUID names no Organization: `404`, before
+ * PostgreSQL turns it into a 500 (`invalid input syntax for type uuid`).
+ */
+function assertOrganizationIdShape(id: string): void {
+  if (!isUuidShape(id)) {
+    throw new HttpError(404, ERROR_CODES.NOT_FOUND, 'Organization not found.');
+  }
+}
+
+/**
+ * Issue #793 — the services read the Organization with `findOneOrFail`, whose
+ * `NotFoundError` reached the error handler unmapped and answered 500. An
+ * unknown or soft-deleted Organization is the route's `404`, as on every other
+ * Organization route; anything else is rethrown as it was.
+ */
+function rethrowOrganizationNotFound(err: unknown): never {
+  if (err instanceof NotFoundError) {
+    throw new HttpError(404, ERROR_CODES.NOT_FOUND, 'Organization not found.');
+  }
+  throw err;
+}
+
 function mapRestrictionError(err: unknown): HttpError {
   if (err instanceof RestrictionVersionMismatchError) {
     return new HttpError(

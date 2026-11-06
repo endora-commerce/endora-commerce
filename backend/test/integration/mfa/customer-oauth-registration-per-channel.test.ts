@@ -94,16 +94,13 @@ describe('federated sign-up follows the B2C registration setting per channel (is
     expect(await h.em().findOne(CustomerAccount, { email })).not.toBeNull();
   });
 
-  it('answers registration_required on the channel that does not, creating no account', async () => {
+  it('answers registration_disabled_in_channel on the channel that does not, creating no account', async () => {
     const email = `orpc-off-${Date.now()}@example.test`;
     const res = await signIn(OFF, email);
     expect(res.statusCode).toBe(302);
-    // The sentence `routes.oauth.ts` answers `registration_required` with, so a
-    // refusal for any other reason (a closed store, an unverified address) does
-    // not pass for this one.
-    expect(res.headers['location']).toContain(
-      `/login?error=${encodeURIComponent('No account found. Please create an account first.')}`,
-    );
+    // The code of this refusal (issue #789), so a refusal for any other reason
+    // (a closed store, an unverified address) does not pass for this one.
+    expect(res.headers['location']).toContain('/login?error=registration_disabled_in_channel');
     expect(res.cookies.find((c) => c.name === 'b2b_session' && c.value)).toBeUndefined();
     expect(await h.em().findOne(CustomerAccount, { email })).toBeNull();
   });

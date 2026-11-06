@@ -387,15 +387,17 @@ export const UNTRANSLATED_ERROR_CODES: ReadonlySet<string> = new Set([
   // which module owes it.
   'CUSTOM_FIELD_DEFINITION_INVALID', 'CUSTOM_FIELD_HOST_MANAGED', 'CUSTOM_FIELD_KEY_CONFLICT',
   'CUSTOM_FIELD_NOT_FOUND', 'CUSTOM_FIELD_VALUE_INVALID',
-  // customer_accounts (5) — MR 4, same terms. The batch's other two
+  // customer_accounts (4) — MR 4, same terms. The batch's other two
   // `customer_accounts` codes, `CANNOT_DEMOTE_LAST_ADMIN` and
   // `CANNOT_REMOVE_LAST_ADMIN`, carried placeholders and arrive with prose, so
-  // they are not here. Two of the five — `CUSTOMER_ALREADY_DELETED` and
+  // they are not here. Two of the four — `CUSTOMER_ALREADY_DELETED` and
   // `CUSTOMER_NOT_FOUND` — are raised by `customers` and owned here, which is
-  // D-186 §1's split of the `CUSTOMER_*` family and D-95.2's shape.
+  // D-186 §1's split of the `CUSTOMER_*` family and D-95.2's shape. The fifth,
+  // `CUSTOMER_RESTORE_WINDOW_ELAPSED`, left with issue #800, which made
+  // `customers` a second raiser of it: it now ships its sentence in both
+  // languages.
   'ACCOUNT_BLOCKED',
   'CUSTOMER_ALREADY_DELETED', 'CUSTOMER_NOT_DELETED', 'CUSTOMER_NOT_FOUND',
-  'CUSTOMER_RESTORE_WINDOW_ELAPSED',
   // customers (1) — same move, same merge request. The four `CUSTOMER_*` record
   // codes went to `customer_accounts` in MR 4, which is D-186 §1's split. Its
   // address code, `CUSTOMER_ADDRESS_NOT_FOUND`, left the enumeration with the

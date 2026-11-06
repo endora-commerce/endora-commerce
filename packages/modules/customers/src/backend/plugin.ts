@@ -298,6 +298,7 @@ export function customersModule(options: CustomersModuleOptions): {
     },
     depletionGuard,
     options.addressServicePort,
+    options.resolveDeletionRetentionDays,
   );
   const presenceService = new CustomerPresenceService(
     {

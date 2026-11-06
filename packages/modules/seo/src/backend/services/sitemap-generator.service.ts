@@ -18,6 +18,7 @@ import { SalesChannel } from '@endora-commerce/platform/kernel';
 import type { SalesChannelMembershipPort } from '@endora-commerce/platform/kernel';
 import { SitemapCache } from '../entities/sitemap-cache.entity.js';
 import type { StorefrontAddressService } from './storefront-address.service.js';
+import { UnknownSalesChannelError } from './crawler-file-preview.service.js';
 
 /**
  * SitemapGeneratorService — per-channel sitemap.
@@ -130,7 +131,8 @@ export class SitemapGeneratorService {
     const em = this.emFactory();
     const channel = await em.findOne(SalesChannel, { code: salesChannelCode });
     if (channel === null) {
-      throw new Error(`Unknown sales channel code "${salesChannelCode}".`);
+      // Typed, so the admin routes answer it `404` rather than `500` (issue #793).
+      throw new UnknownSalesChannelError(salesChannelCode);
     }
 
     const baseUrl = await this.resolveStorefrontUrl(channel);

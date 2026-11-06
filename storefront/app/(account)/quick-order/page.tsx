@@ -5,11 +5,10 @@ import {
   importQuickOrderFile,
   searchProducts,
   type QuickOrderImportResponse,
-  type RejectedQuickOrderItem,
 } from '../../../lib/api/quick-order';
+import { getRfqById } from '../../../lib/api/rfq';
 import {
-  decodeBuildRejections,
-  encodeBuildRejections,
+  cutReportName,
   reportMoreText,
   quickOrderBuildOutcome,
   quickOrderBuildRejectionText,
@@ -22,6 +21,12 @@ import type { CommerceAbilities } from '../../../lib/commerce-permissions';
 import { getServerContext } from '../../../lib/server-context';
 import { FileDropzone } from '../../../components/FileDropzone';
 import { summarizeQuickOrderPreview } from '../../../lib/quick-order-preview';
+import {
+  clearQuickOrderPreview,
+  readQuickOrderPreview,
+  writeQuickOrderPreview,
+  type QuickOrderPreview as PreviewState,
+} from '../../../lib/quick-order-preview-cookie';
 import type { Metadata } from 'next';
 import { localeRedirect } from '../../../lib/i18n/navigation';
 import { QUICK_ORDER_ERRORS } from '../../../lib/commerce-errors';
@@ -41,6 +46,16 @@ export const metadata: Metadata = { robots: { index: false, follow: false } };
 const CSV_SAMPLE = ['sku,quantity', 'EXAMPLE-SIMPLE-001,10', 'EXAMPLE-BLUE-002,5'].join('\n');
 
 /**
+ * The longest search text the page reads from `?q=` — the type-ahead's own limit
+ * (`quickOrderSearchQuerySchema`, 120). Issue #790: the query is the buyer's own input, the one
+ * free-text value a URL may carry, and the page shows it only quoted or in the search field.
+ */
+const QUERY_MAX = 120;
+
+/** A quote request's id — the only shape `?rfqId=` is looked up in. */
+const UUID = /^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/i;
+
+/**
  * Quick order (feature 039 / US1). Two-step flow:
  *   1. Paste a CSV with `sku,quantity` headers (plus optional variant
  *      attribute columns) OR drag-drop a CSV / Excel file; the importer
@@ -48,8 +63,10 @@ const CSV_SAMPLE = ['sku,quantity', 'EXAMPLE-SIMPLE-001,10', 'EXAMPLE-BLUE-002,5
  *   2. The page server-renders the partition; the buyer reviews, then
  *      chooses to build a Cart or a Quote Request from the recognized rows.
  *
- * The preview lives in the URL (base64) on the second step so the page is
- * fully server-rendered; only the dropzone is a small client component.
+ * The preview lives in the storefront's own httpOnly cookie between the steps
+ * (`lib/quick-order-preview-cookie.ts`, issue #790 — never in the URL, where a
+ * crafted link could put any text on the page), so the page is fully
+ * server-rendered; only the dropzone is a small client component.
  *
  * `specs/170-organization-roles/` (owner ruling Q2(b), 2026-11-04): the page is
  * open to a member holding `carts.create` **or** `quote_requests.create`; each
@@ -57,37 +74,26 @@ const CSV_SAMPLE = ['sku,quantity', 'EXAMPLE-SIMPLE-001,10', 'EXAMPLE-BLUE-002,5
  * is told why instead of being handed an import that would be refused.
  */
 
-interface PreviewState {
-  recognized: Array<{
-    line: number;
-    sku: string;
-    productId: string;
-    variantId: string | null;
-    resolvedVariantSku?: string | null;
-    quantity: number;
-    mergedFromLines?: number[];
-  }>;
-  rejected: RejectedQuickOrderItem[];
-  summary: { recognizedCount: number; rejectedCount: number; mergedCount: number; truncated: boolean };
-}
-
 export default async function QuickOrderPage({
   searchParams,
 }: {
   searchParams: Promise<{
-    preview?: string;
     /**
      * A refusal — the page's own or the API's — as a code the page words in its language
      * (issue #745: never a sentence; an `?error=` is no longer read at all).
      */
     problem?: string;
     built?: string;
-    rfq?: string;
+    /** Issue #790 — the quote request a build created; the page reads its reference. */
+    rfqId?: string;
     q?: string;
     /** Feature 155 — how many lines the cart build sent. */
     sent?: string;
-    /** Feature 155 — the build's `rejected[]`, carried across the redirect (base64url JSON). */
-    notAdded?: string;
+    /**
+     * Feature 155 — how many of them the cart did not take. Issue #790: a count only; the
+     * lines themselves are the preview cookie's, each with its reason.
+     */
+    rejected?: string;
   }>;
 }): Promise<ReactNode> {
   const session = await getSessionCookie();
@@ -95,8 +101,8 @@ export default async function QuickOrderPage({
   const sp = await searchParams;
   const abilities = await getCommerceAbilitiesAction();
 
-  const preview = sp.preview ? decodePreview(sp.preview) : null;
-  const searchQuery = sp.q?.trim() ?? '';
+  const preview = await readQuickOrderPreview(session);
+  const searchQuery = (sp.q ?? '').trim().slice(0, QUERY_MAX).trim();
   // Issue #174 — the type-ahead is channel-scoped on the backend now, so the
   // page has to say which channel the buyer is shopping. Resolved the same way
   // every other storefront page resolves it.
@@ -104,12 +110,20 @@ export default async function QuickOrderPage({
   const t = tForLocale(locale);
   // A code this page does not know shows nothing: the address is the buyer's to edit.
   const problemKey = sp.problem && QUICK_ORDER_ERRORS.isCode(sp.problem) ? QUICK_ORDER_ERRORS.errorKey(sp.problem) : null;
-  // Feature 155 (FR-011 (b)) — the lines the cart build left out, below a minimum.
-  // Carried capped (the first lines plus a count), so the URL stays bounded.
-  const notAddedReport = sp.built === 'cart' ? decodeBuildRejections(sp.notAdded) : { lines: [], more: 0 };
-  const notAdded = notAddedReport.lines;
-  const notAddedCount = notAdded.length + (notAdded.length > 0 ? notAddedReport.more : 0);
-  const sentCount = Math.max(Number.parseInt(sp.sent ?? '', 10) || 0, notAddedCount);
+  // Issue #790 — the quote reference is read from the request the id names, never carried; a
+  // lookup that fails leaves the confirmation without one.
+  const rfqRef =
+    sp.built === 'quote' && sp.rfqId && UUID.test(sp.rfqId)
+      ? await getRfqById(session, sp.rfqId)
+          .then((rfq) => rfq.businessId ?? null)
+          .catch(() => null)
+      : null;
+  // Feature 155 (FR-011 (b)) — the lines the cart build left out, below a minimum. Issue #790:
+  // the URL carries the counts; the lines are the preview cookie's, each with why it was left out.
+  const sentCount = sp.built === 'cart' ? Math.max(0, Number.parseInt(sp.sent ?? '', 10) || 0) : 0;
+  const notAddedCount = Math.min(sentCount, Math.max(0, Number.parseInt(sp.rejected ?? '', 10) || 0));
+  const notAdded = notAddedCount > 0 ? (preview?.recognized ?? []).filter((row) => row.notAdded).slice(0, notAddedCount) : [];
+  const notAddedMore = notAddedCount - notAdded.length;
   if (!abilities.useQuickOrder) {
     return (
       <>
@@ -138,16 +152,17 @@ export default async function QuickOrderPage({
       </p>
 
       {problemKey ? <p className="b2b-auth__error">{t(problemKey)}</p> : null}
-      {sp.built === 'cart' && notAdded.length === 0 ? (
+      {sp.built === 'cart' && notAddedCount === 0 ? (
         <p className="b2b-auth__success">
           {t('quickOrder.built.cart')} <LocalizedLink href="/cart">{t('quickOrder.build.openCart')}</LocalizedLink> ·{' '}
           <LocalizedLink href="/checkout">{t('quickOrder.built.goToCheckout')}</LocalizedLink>.
         </p>
       ) : null}
-      {notAdded.length > 0 ? (
+      {notAddedCount > 0 ? (
         // Feature 155 — a partial build is reported as one: what was added, and each line
         // that was not, with the minimum it missed. Checkout is not offered from here — the
-        // cart is where the quantities are fixed.
+        // cart is where the quantities are fixed; the lines left out stay in the preview below,
+        // to correct and build again (issue #790).
         <section
           role="status"
           aria-labelledby="quick-order-not-added"
@@ -158,10 +173,12 @@ export default async function QuickOrderPage({
             {t('quickOrder.build.rejectedHeading')}
           </h3>
           <ul className="m-0 mb-2 pl-5 text-[13px]">
-            {notAdded.map((line, index) => (
-              <li key={index}>{quickOrderBuildRejectionText(line, locale)}</li>
+            {notAdded.map((row) => (
+              <li key={row.line}>
+                {quickOrderBuildRejectionText({ sku: row.sku, quantity: row.quantity, ...row.notAdded! }, locale)}
+              </li>
             ))}
-            {notAddedReport.more > 0 ? <li>{reportMoreText(notAddedReport.more, locale)}</li> : null}
+            {notAddedMore > 0 ? <li>{reportMoreText(notAddedMore, locale)}</li> : null}
           </ul>
           {sentCount > notAddedCount ? <LocalizedLink href="/cart">{t('quickOrder.build.openCart')}</LocalizedLink> : null}
         </section>
@@ -169,7 +186,7 @@ export default async function QuickOrderPage({
       {sp.built === 'quote' ? (
         <p className="b2b-auth__success">
           {t('quickOrder.built.quote')}
-          {sp.rfq ? ` (#${sp.rfq})` : ''}.{' '}
+          {rfqRef ? ` (#${rfqRef})` : ''}.{' '}
           <LocalizedLink href="/quote-requests">{t('quickOrder.built.viewQuotes')}</LocalizedLink>.
         </p>
       ) : null}
@@ -202,7 +219,6 @@ export default async function QuickOrderPage({
       <h3>{t('quickOrder.search.heading')}</h3>
       <p className="b2b-auth__hint">{t('quickOrder.search.hint')}</p>
       <form action={searchAction} className="b2b-auth__form">
-        {preview ? <input type="hidden" name="preview" value={encodePreview(preview)} /> : null}
         <div className="b2b-auth__field">
           <input type="search" name="q" defaultValue={searchQuery} placeholder={t('quickOrder.search.placeholder')} />
         </div>
@@ -235,9 +251,6 @@ export default async function QuickOrderPage({
                   <td>{r.name}</td>
                   <td>
                     <form action={addSearchResultAction} id={`add-${r.productId}`} noValidate>
-                      {preview ? (
-                        <input type="hidden" name="preview" value={encodePreview(preview)} />
-                      ) : null}
                       <input type="hidden" name="q" value={searchQuery} />
                       <input type="hidden" name="productId" value={r.productId} />
                       <input type="hidden" name="sku" value={r.sku} />
@@ -271,7 +284,6 @@ export default async function QuickOrderPage({
         <>
           <div className="h-[84px] md:hidden" aria-hidden="true" />
           <form action={confirmAction} className="m-actionbar">
-            <input type="hidden" name="preview" value={encodePreview(preview)} />
             <div className="mr-auto flex flex-col leading-tight">
               <span className="text-[11px] text-muted">{t('quickOrder.bar.recognised')}</span>
               <span className="font-mono text-[15px] font-semibold text-fg">
@@ -353,7 +365,6 @@ function PreviewPanel({
                   <td>{r.resolvedVariantSku ?? '—'}</td>
                   <td>
                     <form action={updateQuantityAction} id={`qty-${r.line}`} noValidate>
-                      <input type="hidden" name="preview" value={encodePreview(preview)} />
                       <input type="hidden" name="line" value={r.line} />
                       <input
                         type="number"
@@ -368,7 +379,6 @@ function PreviewPanel({
                   </td>
                   <td>
                     <form action={removeRecognizedAction}>
-                      <input type="hidden" name="preview" value={encodePreview(preview)} />
                       <input type="hidden" name="line" value={r.line} />
                       <button type="submit">{t('quickOrder.preview.remove')}</button>
                     </form>
@@ -378,7 +388,6 @@ function PreviewPanel({
             </tbody>
           </table>
           <form action={confirmAction}>
-            <input type="hidden" name="preview" value={encodePreview(preview)} />
             <div className="b2b-auth__actions">
               {abilities.editCart ? (
                 <button type="submit" name="target" value="cart">
@@ -429,11 +438,30 @@ function PreviewPanel({
 async function searchAction(formData: FormData): Promise<void> {
   'use server';
   const q = ((formData.get('q') as string) ?? '').trim();
-  const previewBlob = (formData.get('preview') as string) ?? '';
-  const params = new URLSearchParams();
-  if (q) params.set('q', q);
-  if (previewBlob) params.set('preview', previewBlob);
-  return await localeRedirect(`/quick-order?${params.toString()}`);
+  // The preview stays where it is — in its cookie — so the search carries only the query.
+  return await localeRedirect(quickOrderHref(q));
+}
+
+/** The page, with the search text the buyer typed when there is one — and nothing else. */
+function quickOrderHref(q: string): string {
+  return q ? `/quick-order?${new URLSearchParams({ q }).toString()}` : '/quick-order';
+}
+
+/**
+ * Writes the preview to its cookie and returns to the page (issue #790). A preview over the
+ * cookie's budget is not written: an import is told to split the file (`preview_too_large`); an
+ * add or an edit, whose preview stays as it was, to build what it has first (`preview_full`).
+ */
+async function returnWithPreview(
+  session: string,
+  preview: PreviewState,
+  overflow: 'preview_too_large' | 'preview_full',
+  q = '',
+): Promise<void> {
+  if (!(await writeQuickOrderPreview(session, preview))) {
+    return await localeRedirect(`/quick-order?problem=${overflow}`);
+  }
+  return await localeRedirect(quickOrderHref(q));
 }
 
 async function addSearchResultAction(formData: FormData): Promise<void> {
@@ -446,7 +474,7 @@ async function addSearchResultAction(formData: FormData): Promise<void> {
   const q = ((formData.get('q') as string) ?? '').trim();
   const quantity = Math.max(1, Number.parseInt((formData.get('quantity') as string) ?? '1', 10) || 1);
 
-  const preview: PreviewState = decodePreview((formData.get('preview') as string) ?? '') ?? {
+  const preview: PreviewState = (await readQuickOrderPreview(session)) ?? {
     recognized: [],
     rejected: [],
     summary: { recognizedCount: 0, rejectedCount: 0, mergedCount: 0, truncated: false },
@@ -462,33 +490,38 @@ async function addSearchResultAction(formData: FormData): Promise<void> {
   }
   preview.summary = { ...preview.summary, recognizedCount: preview.recognized.length };
 
-  const params = new URLSearchParams();
-  params.set('preview', encodePreview(preview));
-  if (q) params.set('q', q);
-  return await localeRedirect(`/quick-order?${params.toString()}`);
+  return await returnWithPreview(session, preview, 'preview_full', q);
 }
 
 async function updateQuantityAction(formData: FormData): Promise<void> {
   'use server';
-  const preview = decodePreview((formData.get('preview') as string) ?? '');
+  const session = await getSessionCookie();
+  if (!session) return await localeRedirect('/login');
+  const preview = await readQuickOrderPreview(session);
   const line = Number.parseInt((formData.get('line') as string) ?? '', 10);
   const quantity = Math.max(1, Number.parseInt((formData.get('quantity') as string) ?? '1', 10) || 1);
   if (!preview) return await localeRedirect('/quick-order?problem=nothing_to_update');
 
   const row = preview!.recognized.find((r) => r.line === line);
-  if (row) row.quantity = quantity;
-  return await localeRedirect(`/quick-order?preview=${encodePreview(preview!)}`);
+  if (row) {
+    row.quantity = quantity;
+    // The build's verdict was about the old quantity.
+    delete row.notAdded;
+  }
+  return await returnWithPreview(session, preview!, 'preview_full');
 }
 
 async function removeRecognizedAction(formData: FormData): Promise<void> {
   'use server';
-  const preview = decodePreview((formData.get('preview') as string) ?? '');
+  const session = await getSessionCookie();
+  if (!session) return await localeRedirect('/login');
+  const preview = await readQuickOrderPreview(session);
   const line = Number.parseInt((formData.get('line') as string) ?? '', 10);
   if (!preview) return await localeRedirect('/quick-order?problem=nothing_to_remove');
 
   preview!.recognized = preview!.recognized.filter((r) => r.line !== line);
   preview!.summary = { ...preview!.summary, recognizedCount: preview!.recognized.length };
-  return await localeRedirect(`/quick-order?preview=${encodePreview(preview!)}`);
+  return await returnWithPreview(session, preview!, 'preview_full');
 }
 
 async function importAction(formData: FormData): Promise<void> {
@@ -500,6 +533,9 @@ async function importAction(formData: FormData): Promise<void> {
   const filename = ((formData.get('quickOrderFilename') as string) ?? '').trim();
   const fileContent = ((formData.get('quickOrderFileContent') as string) ?? '').trim();
 
+  // A new import replaces the last preview, whether or not it succeeds: a refusal is never shown
+  // beside a preview of a different list.
+  await clearQuickOrderPreview();
   if (!csv && !fileContent) return await localeRedirect('/quick-order?problem=no_input');
 
   let preview: QuickOrderImportResponse;
@@ -510,7 +546,7 @@ async function importAction(formData: FormData): Promise<void> {
   } catch (err) {
     return await localeRedirect(`/quick-order?problem=${QUICK_ORDER_ERRORS.failureCode(err, 'import_failed')}`);
   }
-  return await localeRedirect(`/quick-order?preview=${encodePreview(preview!)}`);
+  return await returnWithPreview(session, preview!, 'preview_too_large');
 }
 
 async function confirmAction(formData: FormData): Promise<void> {
@@ -519,12 +555,12 @@ async function confirmAction(formData: FormData): Promise<void> {
   if (!session) return await localeRedirect('/login');
 
   const target = (formData.get('target') as string) === 'quote_request' ? 'quote_request' : 'cart';
-  const preview = decodePreview((formData.get('preview') as string) ?? '');
+  const preview = await readQuickOrderPreview(session);
   if (!preview || preview.recognized.length === 0) {
     return await localeRedirect('/quick-order?problem=nothing_to_build');
   }
 
-  let rfqRef: string | undefined;
+  let rfqId: string | undefined;
   let rejected: unknown[] = [];
   try {
     const result = await buildQuickOrder(
@@ -536,36 +572,64 @@ async function confirmAction(formData: FormData): Promise<void> {
         quantity: r.quantity,
       })),
     );
-    // Show the customer-facing business ID in the confirmation banner.
-    rfqRef = result.quoteRequestBusinessId ?? result.quoteRequestId;
+    rfqId = result.quoteRequestId;
     rejected = result.rejected ?? [];
   } catch (err) {
     return await localeRedirect(`/quick-order?problem=${QUICK_ORDER_ERRORS.failureCode(err, 'build_failed')}`);
   }
   if (target === 'quote_request') {
-    return await localeRedirect(`/quick-order?built=quote${rfqRef ? `&rfq=${encodeURIComponent(rfqRef)}` : ''}`);
+    // Built: the preview has done its work, so it does not wait in its cookie for the next visit.
+    // Issue #790 — the request travels by id; the page reads its reference.
+    await clearQuickOrderPreview();
+    return await localeRedirect(rfqId ? `/quick-order?built=quote&rfqId=${encodeURIComponent(rfqId)}` : '/quick-order?built=quote');
   }
-  if (rejected.length > 0) {
-    // Feature 155 (FR-011 (b)) — the build added the valid lines; the rest travel to the page
-    // so it can say which and why.
-    const params = new URLSearchParams({
-      built: 'cart',
-      sent: String(preview!.recognized.length),
-      notAdded: encodeBuildRejections(rejected),
+  const notTaken = linesNotTaken(preview!, rejected);
+  if (notTaken.recognized.length === 0) {
+    await clearQuickOrderPreview();
+    return await localeRedirect('/quick-order?built=cart');
+  }
+  // Feature 155 (FR-011 (b)) — the build added the valid lines. Issue #790: the URL carries the
+  // counts only; the preview keeps exactly the lines the cart did not take, each with why, so the
+  // buyer can correct them and build again. Should even that not fit, the counts still report.
+  if (!(await writeQuickOrderPreview(session, notTaken))) await clearQuickOrderPreview();
+  const params = new URLSearchParams({
+    built: 'cart',
+    sent: String(preview!.recognized.length),
+    rejected: String(Math.min(rejected.length, preview!.recognized.length)),
+  });
+  return await localeRedirect(`/quick-order?${params.toString()}`);
+}
+
+/**
+ * The preview of the lines a cart build did not take: each preview row the build's `rejected[]`
+ * names (by product and variant), with the kind and minimum it missed and the build's product
+ * and unit names, cut to `REPORT_NAME_MAX`. Nothing else is kept —
+ * not the lines the cart took, not the rows the import had already refused.
+ */
+function linesNotTaken(preview: PreviewState, rejected: readonly unknown[]): PreviewState {
+  const verdicts = new Map<string, NonNullable<PreviewState['recognized'][number]['notAdded']>>();
+  for (const line of rejected) {
+    if (typeof line !== 'object' || line === null) continue;
+    const { productId, variantId, kind, minimum, productName, packagingUnitName } = line as Record<string, unknown>;
+    if (typeof productId !== 'string') continue;
+    if (kind !== 'pieces' && kind !== 'packaging_unit') continue;
+    if (!Number.isSafeInteger(minimum) || (minimum as number) <= 0) continue;
+    verdicts.set(`${productId}:${typeof variantId === 'string' ? variantId : ''}`, {
+      kind,
+      minimum: minimum as number,
+      productName: typeof productName === 'string' ? cutReportName(productName) : '',
+      ...(typeof packagingUnitName === 'string' && packagingUnitName !== ''
+        ? { packagingUnitName: cutReportName(packagingUnitName) }
+        : {}),
     });
-    return await localeRedirect(`/quick-order?${params.toString()}`);
   }
-  return await localeRedirect('/quick-order?built=cart');
-}
-
-function encodePreview(preview: PreviewState): string {
-  return Buffer.from(JSON.stringify(preview), 'utf8').toString('base64url');
-}
-
-function decodePreview(value: string): PreviewState | null {
-  try {
-    return JSON.parse(Buffer.from(value, 'base64url').toString('utf8')) as PreviewState;
-  } catch {
-    return null;
-  }
+  const recognized = preview.recognized.flatMap((row) => {
+    const verdict = verdicts.get(`${row.productId}:${row.variantId ?? ''}`);
+    return verdict ? [{ ...row, notAdded: verdict }] : [];
+  });
+  return {
+    recognized,
+    rejected: [],
+    summary: { recognizedCount: recognized.length, rejectedCount: 0, mergedCount: 0, truncated: false },
+  };
 }
