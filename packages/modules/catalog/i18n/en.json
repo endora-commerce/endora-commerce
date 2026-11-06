@@ -289,7 +289,7 @@
   "attributes.flag.filterable": "Filterable (shown as a facet on the storefront)",
   "attributes.flag.variantAxis": "Variant axis (configurable products discriminate by this attribute)",
   "attributes.flag.comparable": "Comparable (shown as a row on the Compare page)",
-  "attributeSets.page.title": "Attribute Sets",
+  "attributeSets.page.title": "Attribute sets",
   "attributeSets.page.description": "Named groups of Product Attributes. The system Default set ships with every install and cannot be deleted; custom sets can be assigned to Products via the Product editor.",
   "attributeSets.loading": "Loading…",
   "attributeSets.empty": "No sets yet.",

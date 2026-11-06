@@ -1,5 +1,5 @@
 ---
-title: Product scopes — Global, Channel and Channel × language
+title: Product scopes — Global, channel and channel × language
 description: How a product value is set once for every channel and overridden per sales channel or per sales channel and language.
 ---
 

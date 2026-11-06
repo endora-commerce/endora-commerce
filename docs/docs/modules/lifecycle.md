@@ -1,5 +1,5 @@
 ---
-title: Module Lifecycle
+title: Module lifecycle
 description: CLI-driven install / uninstall / enable / disable / status for every backend module + dependency validation + first-boot reconciliation
 ---
 

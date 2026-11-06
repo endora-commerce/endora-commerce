@@ -1,5 +1,5 @@
 ---
-title: First Production Deployment Checklist
+title: First production deployment checklist
 ---
 
 # First Production Deployment Checklist

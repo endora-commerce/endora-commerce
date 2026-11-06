@@ -20,7 +20,7 @@ export const core = defineMessages({
     'nav.search': 'Search',
     'nav.account': 'Account',
     'nav.login': 'Sign in',
-    'nav.quickOrder': 'Quick Order',
+    'nav.quickOrder': 'Quick order',
     'nav.cart': 'Cart',
     'nav.quoteRequest': 'Quote',
     'nav.megamenu.label': 'Main navigation',

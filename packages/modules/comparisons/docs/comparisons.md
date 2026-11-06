@@ -1,5 +1,5 @@
 ---
-title: Compare Products
+title: Compare products
 description: 'Compare Products: customer-curated set with display modes, share link, and PDF export'
 ---
 

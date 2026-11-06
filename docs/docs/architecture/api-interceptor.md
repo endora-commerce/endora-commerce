@@ -1,5 +1,5 @@
 ---
-title: API Interceptor (Cross-Module Endpoint Extension)
+title: API interceptor (cross-module endpoint extension)
 ---
 
 # API Interceptor

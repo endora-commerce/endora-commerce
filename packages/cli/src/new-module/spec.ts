@@ -27,6 +27,8 @@ import {
   type KnownIconName,
 } from '@endora-commerce/contracts';
 
+import { judgeSentenceCase, toSentenceCase } from '../lib/sentence-case.js';
+
 /** A refusal the author can act on: exit 1, and nothing is written. */
 export class ScaffoldInputError extends Error {
   override readonly name = 'ScaffoldInputError';
@@ -280,6 +282,18 @@ export function buildScaffoldSpec(input: ScaffoldInput): ModuleScaffoldSpec {
     throw new ScaffoldInputError(
       '--name is required. A module\'s human-readable name is a human judgement and this ' +
         'command does not invent one.',
+    );
+  }
+  // Issue #776 — the name becomes the manifest `name` and the English
+  // `module.name`, both held to sentence case. Refused rather than rewritten:
+  // a product name the allowlist does not know would be lowered silently.
+  const casing = judgeSentenceCase(name);
+  if (casing.offending.length > 0) {
+    throw new ScaffoldInputError(
+      `--name "${name}" is not sentence case (${casing.offending.join(', ')}). Write ` +
+        `"${toSentenceCase(name)}": English labels capitalise the first word only, and keep ` +
+        'acronyms in capitals. A product name that keeps its capitals belongs in ' +
+        "the allowlist in @endora-commerce/cli's lib/sentence-case.ts.",
     );
   }
   const description = (input.description ?? '').trim();

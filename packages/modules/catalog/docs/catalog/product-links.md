@@ -1,5 +1,5 @@
 ---
-title: Product Links
+title: Product links
 ---
 
 # Product Links

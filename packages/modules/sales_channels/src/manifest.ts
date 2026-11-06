@@ -14,7 +14,7 @@ const settings = defineModuleSettingsManifest({
   groups: [
     {
       code: 'sales_channels',
-      name: 'Sales Channels',
+      name: 'Sales channels',
     },
   ],
   settings: [

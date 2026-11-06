@@ -35,7 +35,7 @@ export const DEFAULT_ONE_CLICK_BUY_ENABLED = false;
 
 const settings = defineModuleSettingsManifest({
   moduleCode: 'quick_order',
-  groups: [{ code: 'quick_order', name: 'Quick Order' }],
+  groups: [{ code: 'quick_order', name: 'Quick order' }],
   settings: [
     {
       code: QUICK_ORDER_SETTING_CODES.ONE_CLICK_BUY_ENABLED,

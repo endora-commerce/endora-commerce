@@ -801,7 +801,7 @@
   "events.error.not_whole_day": "An all-day event covers exactly one whole day.",
   "events.error.unknown_time_zone": "The time zone of this browser was not recognised. Check the date and time settings of the device.",
   "events.error.reminder_in_past": "The reminder time must be in the future.",
-  "adminSearch.group.label": "Sales Opportunities",
+  "adminSearch.group.label": "Sales opportunities",
   "adminSearch.field.number": "Opportunity number",
   "adminSearch.field.title": "Title",
   "adminSearch.field.organizationName": "Organization name",

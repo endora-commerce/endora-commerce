@@ -1,5 +1,5 @@
 ---
-title: Tenant Scoping (Multi-Tenant Isolation)
+title: Tenant scoping (multi-tenant isolation)
 ---
 
 # Tenant Scoping

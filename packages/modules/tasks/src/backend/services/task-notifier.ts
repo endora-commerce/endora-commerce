@@ -21,15 +21,15 @@ export const taskNotificationText = {
     titleMessage: { scope: 'tasks', key: 'notifications.assigned.title', params: { number } },
   }),
   mentioned: (number: string): { title: string; titleMessage: AdminNotificationMessage } => ({
-    title: `You were mentioned in Task ${number}`,
+    title: `You were mentioned in task ${number}`,
     titleMessage: { scope: 'tasks', key: 'notifications.mention.title', params: { number } },
   }),
   commented: (number: string): { title: string; titleMessage: AdminNotificationMessage } => ({
-    title: `New comment on Task ${number}`,
+    title: `New comment on task ${number}`,
     titleMessage: { scope: 'tasks', key: 'notifications.comment.title', params: { number } },
   }),
   reminder: (number: string): { title: string; titleMessage: AdminNotificationMessage } => ({
-    title: `Reminder: Task ${number}`,
+    title: `Reminder: task ${number}`,
     titleMessage: { scope: 'tasks', key: 'notifications.reminder.title', params: { number } },
   }),
   /** The daily digest names no Task at all: how many, and a link to *My Tasks*. */

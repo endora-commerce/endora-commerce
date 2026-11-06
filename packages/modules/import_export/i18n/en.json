@@ -23,7 +23,7 @@
   "loading": "Loading available entities…",
   "nav.importExport.label": "Import / export",
   "page.description": "CSV round-trips for bulk edits. Products apply row by row after a dry run; for every other entity a row error rolls the whole upload back, so re-uploads are deterministic.",
-  "page.title": "Import / Export",
+  "page.title": "Import / export",
   "requiredHeader": "Required header:",
   "rolledBack": "Rolled back: {count} row(s) failed. No changes applied.",
   "uploading": "Uploading…",

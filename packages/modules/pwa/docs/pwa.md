@@ -1,5 +1,5 @@
 ---
-title: PWA (Progressive Web App)
+title: PWA (progressive web app)
 description: Progressive-Web-App capabilities for the storefront and admin — installability, opt-in asset caching, a controlled update path and opt-in push
 ---
 

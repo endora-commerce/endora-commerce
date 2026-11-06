@@ -17,7 +17,7 @@ export const TRANSACTIONAL_EMAILS_SETTING_CODES = {
 
 export const transactionalEmailsSettingsManifest = defineModuleSettingsManifest({
   moduleCode: 'transactional_emails',
-  groups: [{ code: 'transactional_emails', name: 'Transactional Emails' }],
+  groups: [{ code: 'transactional_emails', name: 'Transactional emails' }],
   settings: [
     {
       code: TRANSACTIONAL_EMAILS_SETTING_CODES.LOGO_ASSET_ID,

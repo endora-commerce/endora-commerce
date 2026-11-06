@@ -1,5 +1,5 @@
-import { readdirSync } from 'node:fs';
-import { dirname, join } from 'node:path';
+import { readdirSync, readFileSync } from 'node:fs';
+import { dirname, join, relative } from 'node:path';
 import { fileURLToPath } from 'node:url';
 import { describe, expect, it } from 'vitest';
 import { parseBundleKeywords, SUPPORTED_LANGUAGES } from '@endora-commerce/contracts';
@@ -8,9 +8,28 @@ import {
   loadModuleBundles,
 } from '@endora-commerce/mod-i18n/backend';
 import {
+  judgeSentenceCase,
+  SENTENCE_CASE_PROPER_NOUNS,
+} from '@endora-commerce/cli/lib/sentence-case.js';
+import { MESSAGES } from '../../../../storefront/lib/i18n/messages.js';
+import {
   REGISTERED_MANIFESTS,
   resolvedManifestEntries,
 } from '../../../src/lifecycle/registered-manifests.js';
+
+const REPO_ROOT = fileURLToPath(new URL('../../../../', import.meta.url));
+
+/** Every file below `dir` whose path matches `pattern`, `node_modules` and `dist` excluded. */
+function filesUnder(dir: string, pattern: RegExp): string[] {
+  const out: string[] = [];
+  for (const entry of readdirSync(dir, { withFileTypes: true })) {
+    if (entry.name === 'node_modules' || entry.name === 'dist') continue;
+    const path = join(dir, entry.name);
+    if (entry.isDirectory()) out.push(...filesUnder(path, pattern));
+    else if (pattern.test(path)) out.push(path);
+  }
+  return out;
+}
 
 /**
  * Regression guard — every on-disk bundle shipped by a registered module
@@ -368,41 +387,41 @@ describe('registered module i18n bundles — real filesystem shape', () => {
   });
 
   /**
-   * Issue #746 — English module display names and sidebar labels are sentence
-   * case, like the rest of the UI ("Quote requests", not "Quote Requests").
-   * `module.name` heads the permission groups on the role form, the module
-   * screen and the command palette; the manifest `name` is its English fallback
-   * wherever a bundle has no `module.name`. Polish was sentence case already.
+   * Issues #746 and #776 — English labels are sentence case, like the rest of
+   * the UI ("Quote requests", not "Quote Requests"). `module.name` heads the
+   * permission groups on the role form, the module screen and the command
+   * palette; the manifest `name` is its English fallback wherever a bundle has
+   * no `module.name`. Polish was sentence case already.
    *
-   * The population is every core manifest, plus every deployment's overlay
-   * modules, plus every module's English `module.name` and `nav.*` labels. A
-   * word after the first may not start with a capital followed by a lowercase
-   * letter; acronyms (`API`, `CRM`) are all capitals and pass. Product names
-   * are the allowlist, which is two-way: an entry nothing uses fails too.
+   * The population (#746): every core manifest `name`, plus every deployment's
+   * overlay modules, plus every module's English `module.name` and `nav.*`
+   * labels. #776 added the module bundles' `*.title` keys (page and dialog
+   * titles), the literal `<PageHeader title="…">` of the module admin pages,
+   * the English label of every palette action, every settings group `name`,
+   * the storefront's English `nav.*` labels and the `title` / `sidebar_label`
+   * of every hand-written documentation page, then the English admin search
+   * group labels (`adminSearch.*group.label`) and the demo composition's
+   * megamenu labels.
+   *
+   * The rule and the allowlist are `@endora-commerce/cli`'s
+   * (`lib/sentence-case.ts`) — the one copy, which `endora new module` refuses
+   * a title-case `--name` with. The allowlist is two-way here: an entry nothing
+   * in this population uses fails too.
    */
-  it('every English module display name and nav label is sentence case', async () => {
-    const PROPER_NOUNS = ['Google Analytics', 'Google Tag Manager', 'LinkedIn Ads', 'Meta Ads'];
+  it('every English module name, nav label, page title, palette label, settings group, admin search group, demo menu label and docs title is sentence case', async () => {
     const used = new Set<string>();
     const problems: string[] = [];
-    let checked = 0;
-    const judge = (where: string, text: string): void => {
-      checked += 1;
-      let rest = text;
-      for (const noun of PROPER_NOUNS) {
-        if (rest.includes(noun)) {
-          used.add(noun);
-          rest = rest.split(noun).join('X');
-        }
-      }
-      const [first = '', ...others] = rest.trim().split(/\s+/);
-      const offending = others.filter((word) => /^[A-Z][a-z]/.test(word));
-      if (/^\p{Ll}/u.test(first)) offending.unshift(first);
-      if (offending.length > 0) {
-        problems.push(`${where}: ${JSON.stringify(text)} (${offending.join(', ')})`);
+    const judged = new Map<string, number>();
+    const judge = (population: string, where: string, text: string): void => {
+      judged.set(population, (judged.get(population) ?? 0) + 1);
+      const verdict = judgeSentenceCase(text);
+      for (const noun of verdict.nouns) used.add(noun);
+      if (verdict.offending.length > 0) {
+        problems.push(`${where}: ${JSON.stringify(text)} (${verdict.offending.join(', ')})`);
       }
     };
 
-    const appsDir = join(dirname(fileURLToPath(import.meta.url)), '../../../src/apps');
+    const appsDir = join(REPO_ROOT, 'backend/src/apps');
     const manifests = new Map(REGISTERED_MANIFESTS.map((e) => [e.manifest.id, e] as const));
     for (const deployment of readdirSync(appsDir)) {
       for (const entry of await resolvedManifestEntries({ DEPLOYMENT: deployment } as NodeJS.ProcessEnv)) {
@@ -410,27 +429,96 @@ describe('registered module i18n bundles — real filesystem shape', () => {
       }
     }
     const NAV_LABEL = /(^|\.)nav\.[A-Za-z]+(\.label)?$/;
+    const ADMIN_SEARCH_GROUP = /^adminSearch\.([A-Za-z]+\.)?group\.label$/;
     for (const entry of manifests.values()) {
-      judge(`${entry.manifest.id} manifest name`, entry.manifest.name);
+      const id = entry.manifest.id;
+      judge('manifest name', `${id} manifest name`, entry.manifest.name);
+      for (const group of entry.manifest.settings?.groups ?? []) {
+        judge('settings group', `${id} settings group "${group.code}"`, group.name);
+      }
       if (!entry.manifest.i18n) continue;
       const en = loadModuleBundles(
-        entry.manifest.id,
+        id,
         dirname(entry.filePath),
         entry.manifest.i18n.bundlesDir,
-      ).byLanguage.get('en');
-      for (const [key, value] of Object.entries(en ?? {})) {
+      ).byLanguage.get('en') ?? {};
+      for (const [key, value] of Object.entries(en)) {
         if (key === 'module.name' || (NAV_LABEL.test(key) && !/[dD]escription$/.test(key))) {
-          judge(`${entry.manifest.id}/en.json → ${key}`, value);
+          judge('module name and nav label', `${id}/en.json → ${key}`, value);
+        } else if (/(^|\.)title$/.test(key)) {
+          judge('title', `${id}/en.json → ${key}`, value);
+        } else if (ADMIN_SEARCH_GROUP.test(key)) {
+          judge('admin search group', `${id}/en.json → ${key}`, value);
         }
       }
+      for (const action of entry.manifest.actions ?? []) {
+        const label = en[action.labelKey];
+        if (label !== undefined) judge('palette label', `${id}/en.json → ${action.labelKey}`, label);
+      }
     }
-    for (const noun of PROPER_NOUNS) {
-      if (!used.has(noun)) problems.push(`allowlist: "${noun}" is in no name or nav label — delete the entry`);
+
+    const PAGE_HEADER_TITLE = /<PageHeader\b[^>]*?\btitle="([^"]+)"/g;
+    for (const file of filesUnder(join(REPO_ROOT, 'packages/modules'), /\/src\/admin\/.*\.tsx$/)) {
+      for (const match of readFileSync(file, 'utf8').matchAll(PAGE_HEADER_TITLE)) {
+        judge('page header', `${relative(REPO_ROOT, file)} <PageHeader title>`, match[1]!.replace(/&amp;/g, '&'));
+      }
+    }
+
+    for (const [key, value] of Object.entries(MESSAGES['en-US']!)) {
+      if (NAV_LABEL.test(key)) judge('storefront nav label', `storefront en-US → ${key}`, value);
+    }
+
+    // The demo composition seeds a megamenu whose English labels the
+    // storefront shows as they are written: no bundle stands between them.
+    const demoComposition = join(REPO_ROOT, 'packages/demo-composition/src/composition.ts');
+    const MENU_LABEL = /\blabels: \{[^}]*'en-US': '([^']+)'/g;
+    for (const match of readFileSync(demoComposition, 'utf8').matchAll(MENU_LABEL)) {
+      judge('demo menu label', `${relative(REPO_ROOT, demoComposition)} menu label`, match[1]!);
+    }
+
+    // Hand-written pages only: `module-reference/` and `*.generated.md` are
+    // `composer:generate`'s, and judged at their source, the manifest. So are
+    // the untracked copies it places under `docs/docs/modules/`, judged at the
+    // module's own `docs/` page they copy.
+    const MODULE_DOC = /\/packages\/modules\/[^/]+\/docs\/(.+\.mdx?)$/;
+    const moduleDocs = filesUnder(join(REPO_ROOT, 'packages/modules'), MODULE_DOC);
+    const copied = new Set(moduleDocs.map((file) => MODULE_DOC.exec(file)![1]!));
+    const siteDocs = filesUnder(join(REPO_ROOT, 'docs/docs'), /\.mdx?$/).filter((file) => {
+      const path = relative(join(REPO_ROOT, 'docs/docs'), file);
+      if (path.startsWith('module-reference/') || path.endsWith('.generated.md')) return false;
+      return !(path.startsWith('modules/') && copied.has(path.slice('modules/'.length)));
+    });
+    const docs = [...siteDocs, ...moduleDocs];
+    for (const file of docs) {
+      const frontMatter = /^---\n([\s\S]*?)\n---/.exec(readFileSync(file, 'utf8'))?.[1] ?? '';
+      for (const [, field, raw] of frontMatter.matchAll(/^(title|sidebar_label):[ \t]*(.+)$/gm)) {
+        const value = raw!.trim().replace(/^(['"])(.*)\1$/, '$2');
+        // A page titled with its module's id (`title: carts`) names a code
+        // identifier, not an English label, and is not case-judged.
+        if (manifests.has(value)) continue;
+        judge('docs title', `${relative(REPO_ROOT, file)} ${field}`, value);
+      }
+    }
+
+    for (const noun of SENTENCE_CASE_PROPER_NOUNS) {
+      if (!used.has(noun)) problems.push(`allowlist: "${noun}" is in no label or title — delete the entry`);
     }
     expect(problems).toEqual([]);
     // Overlay modules joined the core set: more than the core alone was judged.
     expect(manifests.size).toBeGreaterThan(REGISTERED_MANIFESTS.length);
-    expect(checked).toBeGreaterThan(manifests.size);
+    // Every population reached something: an empty one means its filter broke.
+    expect([...judged.keys()].sort()).toEqual([
+      'admin search group',
+      'demo menu label',
+      'docs title',
+      'manifest name',
+      'module name and nav label',
+      'page header',
+      'palette label',
+      'settings group',
+      'storefront nav label',
+      'title',
+    ]);
   });
 
   /**

@@ -1,5 +1,5 @@
 ---
-title: Queue Consumers & Background Processing
+title: Queue consumers & background processing
 ---
 
 # Queue Consumers & Background Processing

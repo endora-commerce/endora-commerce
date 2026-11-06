@@ -1,5 +1,5 @@
 ---
-title: Product Feeds
+title: Product feeds
 description: Provider-shaped product feeds per sales channel — scheduled generation, tokenised pull URLs and SFTP/FTP/HTTP push
 ---
 

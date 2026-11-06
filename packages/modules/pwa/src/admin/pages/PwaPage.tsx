@@ -213,7 +213,7 @@ export function PwaPage(): ReactNode {
   return (
     <div className="space-y-6">
       <PageHeader
-        title="Progressive Web App"
+        title="Progressive web app"
         description="Installable-app identity, asset caching, and push notifications."
       />
 

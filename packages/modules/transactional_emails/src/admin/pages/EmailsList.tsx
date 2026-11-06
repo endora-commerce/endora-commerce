@@ -130,7 +130,7 @@ export function EmailsList(): React.ReactElement {
 
   return (
     <div className="space-y-4">
-      <PageHeader title="Transactional Emails" description="Edit the content and look of transactional emails." />
+      <PageHeader title="Transactional emails" description="Edit the content and look of transactional emails." />
       {error ? (
         <Alert variant="destructive">
           <AlertDescription>{error}</AlertDescription>

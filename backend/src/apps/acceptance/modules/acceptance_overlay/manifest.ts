@@ -39,7 +39,7 @@ export const ACCEPTANCE_OVERLAY_SETTING_CODES = {
  */
 const settings = defineModuleSettingsManifest({
   moduleCode: 'acceptance_overlay',
-  groups: [{ code: 'acceptance_overlay', name: 'Acceptance Overlay' }],
+  groups: [{ code: 'acceptance_overlay', name: 'Acceptance overlay' }],
   settings: [
     {
       code: ACCEPTANCE_OVERLAY_SETTING_CODES.ACTIVATION,

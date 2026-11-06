@@ -1,5 +1,5 @@
 ---
-title: Database Migrations (Naming, Registry & Ordering)
+title: Database migrations (naming, registry & ordering)
 ---
 
 # Database Migrations

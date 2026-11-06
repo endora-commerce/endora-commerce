@@ -80,7 +80,7 @@ describe('the program', () => {
       'module',
       'scaffold_fixtures',
       '--name',
-      'Scaffold Fixtures',
+      'Scaffold fixtures',
       '--description',
       'A worked example.',
       '--permission',
@@ -164,7 +164,7 @@ describe('a refusal writes nothing', () => {
         'module',
         'scaffold_fixtures',
         '--name',
-        'Scaffold Fixtures',
+        'Scaffold fixtures',
         '--description',
         'x',
         '--dir',
@@ -187,7 +187,7 @@ describe('a refusal writes nothing', () => {
       await expect(
         runNewModule({
           id: 'scaffold_fixtures',
-          name: 'Scaffold Fixtures',
+          name: 'Scaffold fixtures',
           description: 'x',
           dir: scratch,
           cwd: REPO_ROOT,
@@ -216,7 +216,7 @@ describe('a refusal writes nothing', () => {
     await expect(
       runNewModule({
         id: 'scaffold_fixtures',
-        name: 'Scaffold Fixtures',
+        name: 'Scaffold fixtures',
         description: 'x',
         scope: '@someone-else',
         cwd: REPO_ROOT,
@@ -232,7 +232,7 @@ describe('--dry-run', () => {
     try {
       const result = await runNewModule({
         id: 'scaffold_fixtures',
-        name: 'Scaffold Fixtures',
+        name: 'Scaffold fixtures',
         description: 'A worked example.',
         dir: target,
         dryRun: true,
