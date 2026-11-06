@@ -176,8 +176,8 @@ describe('the federated callback’s codes read in English and Polish', () => {
     ['account_blocked', 'This account has been blocked. Please contact support.', 'To konto zostało zablokowane. Skontaktuj się z obsługą.'],
     [
       'registration_disabled_in_channel',
-      'This store does not accept new account registrations, so no account was created. Sign in with an existing account, or contact the store.',
-      'Ten sklep nie przyjmuje rejestracji nowych kont, więc konto nie zostało utworzone. Zaloguj się na istniejące konto albo skontaktuj się ze sklepem.',
+      'This store does not offer personal accounts, so no account was created. Sign in with an existing account, or register your organization.',
+      'Ten sklep nie oferuje kont osobistych, więc konto nie zostało utworzone. Zaloguj się na istniejące konto albo zarejestruj swoją organizację.',
     ],
     [
       'mfa_setup_required',
