@@ -396,11 +396,12 @@ export const UNTRANSLATED_ERROR_CODES: ReadonlySet<string> = new Set([
   'ACCOUNT_BLOCKED',
   'CUSTOMER_ALREADY_DELETED', 'CUSTOMER_NOT_DELETED', 'CUSTOMER_NOT_FOUND',
   'CUSTOMER_RESTORE_WINDOW_ELAPSED',
-  // customers (2) — same move, same merge request. The four `CUSTOMER_*` record
-  // codes went to `customer_accounts` in MR 4, which is D-186 §1's split: the
-  // record is that module's and only the address one is this module's — even
-  // though this module raises two of the four.
-  'CUSTOMER_ADDRESS_NOT_FOUND', 'REGISTRATION_REQUIRES_ORGANIZATION',
+  // customers (1) — same move, same merge request. The four `CUSTOMER_*` record
+  // codes went to `customer_accounts` in MR 4, which is D-186 §1's split. Its
+  // address code, `CUSTOMER_ADDRESS_NOT_FOUND`, left the enumeration with the
+  // personal address book (`specs/173-b2c-address-book-merge/` release 1); the
+  // code that replaced it ships its sentence in both languages.
+  'REGISTRATION_REQUIRES_ORGANIZATION',
   // ksef's seven, re-homed from `_i18n` by D-129's sweep (MR 2, Tier A), left the
   // repository with the module (feature 134, T069).
   // mfa (2) — MR 4, and the two entries whose reason is not "nobody has written

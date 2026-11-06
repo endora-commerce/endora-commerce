@@ -11,7 +11,11 @@ import { LocalizedLink } from '../../lib/i18n/localized-link';
 import { getServerContext } from '../../lib/server-context';
 import { tForLocale } from '../../lib/i18n/messages';
 import { format } from '../../lib/i18n/format';
-import { isCompanyOrganization, organizationAreaAccess } from '../../lib/account/organization-area';
+import {
+  isCompanyOrganization,
+  isPersonalOrganization,
+  organizationAreaAccess,
+} from '../../lib/account/organization-area';
 
 /**
  * Authenticated route-group layout (T154 + T155). Loads `/me` once for the
@@ -26,6 +30,12 @@ import { isCompanyOrganization, organizationAreaAccess } from '../../lib/account
  * (`lib/account/organization-area.ts`). Nor, since issue #757, the
  * *Organization* and *Org addresses* links or the Organization's name under the
  * customer's: a personal Organization is not a company.
+ *
+ * `specs/173-b2c-address-book-merge/` (OD-11) — every customer has one address
+ * book, their Organization's, and one entry for it: *My addresses*
+ * (`/addresses`) for a B2C customer, *Organization addresses* for a company
+ * member, none for a customer with no Organization. Neither page depends on
+ * `customers`, which can be switched off.
  */
 export default async function AccountLayout({
   children,
@@ -67,7 +77,9 @@ export default async function AccountLayout({
           <span className="muted">{me.organization.name}</span>
         ) : null}
         <LocalizedLink href="/account">{t('account.nav.profile')}</LocalizedLink>
-        <LocalizedLink href="/addresses">{t('account.nav.addresses')}</LocalizedLink>
+        {isPersonalOrganization(me.organization) ? (
+          <LocalizedLink href="/addresses">{t('account.nav.addresses')}</LocalizedLink>
+        ) : null}
         <LocalizedLink href="/account/password">{t('account.nav.password')}</LocalizedLink>
         {/*
           Order placement, RFQ submission, shopping lists, and quick order all

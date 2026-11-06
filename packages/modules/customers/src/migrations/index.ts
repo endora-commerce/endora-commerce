@@ -23,11 +23,14 @@
  */
 
 import { Migration20260611T140404CustomersCustomerAddressesInit } from './20260611T140404_customers_customer_addresses_init.js';
+import { Migration20261105T180317CustomersAddressBookRetirement } from './20261105T180317_customers_address_book_retirement.js';
 
 export const migrations = [
   Migration20260611T140404CustomersCustomerAddressesInit,
+  Migration20261105T180317CustomersAddressBookRetirement,
 ];
 
 export {
   Migration20260611T140404CustomersCustomerAddressesInit,
+  Migration20261105T180317CustomersAddressBookRetirement,
 };

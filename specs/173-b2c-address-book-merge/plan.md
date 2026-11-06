@@ -183,15 +183,20 @@ migration of the same release has already dropped.
 ### R-1 — The job's mechanism
 
 A `customers`-owned BullMQ job (Principle X), run by the worker process and registered through
-`defineModuleWorker`, so it runs only while `customers` is present. It is enqueued at every boot
-under the fixed id `customers:address-book-retirement`. BullMQ de-duplicates a waiting job by id,
-so `start` and `worker` together produce one run. The job loops in batches until no row is left to
+`defineModuleWorker`, so it runs only while `customers` is present. It is enqueued at every boot of
+a process that runs workers (`BACKEND_ROLE` unset, `all` or `worker`) under the fixed id
+`customers.address-book-retirement` — not `customers:…`, which BullMQ refuses ("Custom Id cannot
+contain :"). BullMQ keeps one job per id, so several processes booting together produce one run,
+and the consumer runs with `concurrency: 1`, so no two runners process rows at once. The job loops in batches until no row is left to
 process. On every later boot it finds nothing and exits.
 
 It reads `customers`' own table. It reads accounts and Organizations through ports `customers`
 already depends on: `customerAccountReadPort` and `organizationDetailsPort` (`isPersonal`). It
-writes the Organization book only through `addressServicePort`, inside
-`withOrgScope(organizationId, …)`.
+writes the Organization book only through `addressServicePort`. A module may not call
+`withOrgScope` (D-285, `module-composition.md` item 10a), so the job runs under the system scope its
+worker enters (`enterSystemScope`), and every Organization write names the account's own
+`organizationId` explicitly, which `AddressService` constrains every statement by (amended
+2026-11-05, architect ruling D1).
 
 | Rejected | Why |
 | --- | --- |
@@ -230,10 +235,15 @@ address; a false non-merge shows one twice.
 **Job** — `customers/src/backend/workers/address-book-retirement-worker.ts` is a thin class over
 `services/address-book-retirement-service.ts`. Each batch of up to 100 accounts is selected by
 keyset over live rows where `merge_refusal is null`. Each account is classified through the two
-ports, then handled in one transaction per account with `select … for update` on its rows:
+ports, then handled in two phases (amended 2026-11-05, architect ruling D3): phase 1 decides each
+row's target and makes the Organization writes, holding no lock of this module's; phase 2 is one
+transaction per account that locks its rows (`select … for update`), re-checks that each is still
+pending, and records the outcome and the audit entries. The Organization write is `addresses`' own
+transaction, and opening it inside this module's waited on itself.
 
-- **B2C (move)**, inside `withOrgScope(organizationId, 'customers: moving the personal address book
-  of account <id> into its personal organization (#762)', …)`:
+- **B2C (move)**, under the system scope, every write naming the account's personal
+  `organizationId` (D-285); a personal Organization that is already soft-deleted (anonymized) is
+  not B2C here and its rows are erased (ruling Q2):
   1. Read `addressServicePort.list(organizationId)` and fingerprint it.
   2. For each row, oldest first, do one of two things:
      - If an equal address already exists, link the row to it.
@@ -245,12 +255,16 @@ ports, then handled in one transaction per account with `select … for update` 
   5. If the owner refuses the write with an `HttpError`, store its code in `merge_refusal`, leave
      the row live, and continue.
 
-  **Crash safety.** The process may die between the Organization write and the source update. The
-  next run then finds the address it already created and links it instead of creating a second one.
+  **Crash safety.** The process may die between phase 1's Organization write and phase 2's source
+  update. The next run then fingerprints the book, finds the address it already created and links it
+  instead of creating a second one; a personal default it created stays the one default of its kind.
+  `concurrency: 1` and the fixed job id keep two runners from racing over the same rows.
 - **Company member or org-less account (erase)**: set `recipient_name`, `street`, `city` and
   `postal_code` to `'-'`, set `phone` to null and `is_default` to false, set `deleted_at`, and audit
   `customer_address.erased`. This touches only `customers`' own table.
-- **Summary** logged at `info`: `{ accounts, moved, deduplicated, erased, refused }`.
+- **Summary** logged at `info`: `{ accounts, moved, deduplicated, erased, erasedWithoutOrganization,
+  refused }`. `erasedWithoutOrganization` is the part of `erased` whose account had no Organization
+  at all; when it is above 0 the worker also logs a `warn` (ruling Q3).
 
 **Routes and services**:
 - add the 410 stubs (OD-8);
@@ -285,8 +299,10 @@ and the personal branch.
   org-less customer sees no address entry. This closes finding 3.
 - `lib/api/customers.ts`: delete the address functions.
 - Checkout is unchanged.
-- No new storefront key is needed. Delete `account.addresses.shared.*` and any key left unused, in
-  both languages.
+- Delete `account.addresses.shared.*` and any key left unused, in both languages. New keys were
+  added after all, in both languages: the field-error copy of issue #792 (`account.addresses.field.*`
+  and `account.addresses.error.*`). The English nav label `account.nav.organizationAddresses` became
+  "Organization addresses" (it read "Org addresses"), as US4 names it (amended 2026-11-05).
 
 **Admin**: `AddressesPanel` lists the Organization book read-only, then refused rows with their
 reason. It drops the form. New keys `detail.addresses.organizationBook` and
@@ -461,8 +477,9 @@ demo or production.
 ```sql
 select
   count(*) filter (where ca.deleted_at is null)                           as live,
-  count(*) filter (where ca.deleted_at is null and o.is_personal)         as live_b2c,      -- moved by the job
-  count(*) filter (where ca.deleted_at is null and o.is_personal = false) as live_company,  -- erased by the job
+  count(*) filter (where ca.deleted_at is null and o.is_personal and o.deleted_at is null)       as live_b2c,    -- moved by the job
+  count(*) filter (where ca.deleted_at is null
+                     and (o.is_personal = false or o.deleted_at is not null))                     as live_erased, -- company members and anonymized personal orgs: erased by the job
   count(*) filter (where ca.deleted_at is null and o.id is null)          as live_no_org    -- erased by the job
 from customer_addresses ca
 join customer_accounts acc on acc.id = ca.customer_account_id
@@ -492,7 +509,7 @@ After release 1's job has run, `live` equals the number of refused rows. Release
 | VII | **Pass.** |
 | IX. UI reuse | **Pass.** One shared `AddressBook`. |
 | X. Queue consumers | **Pass.** A BullMQ job in the worker process. |
-| XI. Tenancy (NN) | **Pass.** Every write lands in the account's own Organization through `withOrgScope`. The `withSystemScope` widenings of `CustomerAddressService` go away. |
+| XI. Tenancy (NN) | **Pass.** Every write lands in the account's own Organization: the job runs under the system scope its worker enters and names the `organizationId` in every write (D-285 keeps `withOrgScope` host-only). The `withSystemScope` widenings of `CustomerAddressService` go away; one remains, narrow, for the admin card's refused rows. |
 | XII, XIV, XV | **N/A.** |
 | XIII. Auditing (NN) | **Pass.** Every move, erasure and anonymisation is audited. `AddressService` audits its own writes. |
 | XVI | **Pass**, unchanged. |
@@ -526,7 +543,8 @@ Nothing is left for the owner to rule. Start release 1 once #769 is merged.
 - B2C `/addresses` renders the Organization book through a shared `AddressBook`. Company members
   get a single "Adresy organizacji" entry, and `/addresses` redirects them.
 - Every personal-book endpoint answers `410 CUSTOMER_ADDRESS_BOOK_RETIRED` (en+pl).
-- A `customers` BullMQ job moves B2C rows through `addressServicePort` inside `withOrgScope`. It
+- A `customers` BullMQ job (`customers.address-book-retirement`) moves B2C rows through
+  `addressServicePort` under the system scope, naming the `organizationId` in every write. It
   de-duplicates with `addressFingerprint`, keeps the Organization default, soft-deletes each source
   row with provenance, audits each row, and records refusals. It erases every other row.
 - `addresses` gains `anonymizeForOrganization`, called from the retention sweep.

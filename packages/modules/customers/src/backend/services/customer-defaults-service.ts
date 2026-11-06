@@ -1,65 +1,61 @@
-import type { EntityManager } from '@mikro-orm/postgresql';
 import type {
+  AddressReadPort,
   CustomerDefaults,
   DefaultPreferencePort,
   PreferenceAuditContext,
 } from '@endora-commerce/contracts';
-import { withSystemScope } from '@endora-commerce/platform/tenancy';
-import type { CustomerAddressService } from './customer-address-service.js';
-import { CustomerAddress } from '../entities/customer-address.entity.js';
 
 /**
  * CustomerDefaultsService — the customer's checkout defaults (feature 040, US2).
  *
- * Split source of truth (research §R5, reconciled with the existing schema):
+ * Two owners, read side by side:
  *   - default **payment / delivery method** → the quick_order
  *     `QuickOrderDefaultPreference` (scope `customer`), which checkout already
- *     consumes. Reached through `defaultPreferencePort` (issue #216). This
- *     module used to build a **second instance** of `quick_order`'s
- *     `DefaultPreferenceService` out of an import of that module's directory,
- *     which is what kept the port — published for exactly this consumer —
- *     unreached, and what blocked converting that service's own entity reads
- *     to ports.
- *   - default **billing / shipping address** → the `isDefault` flag on the
- *     customer's personal `customer_addresses` rows. (The preference table's
- *     address columns FK to the org `addresses` table, so personal addresses
- *     cannot be stored there.)
+ *     consumes. Reached through `defaultPreferencePort` (issue #216).
+ *   - default **billing / shipping address** → the default of each kind in the
+ *     customer's **Organization** book, through `addresses`' read port. Since
+ *     `specs/173-b2c-address-book-merge/` release 1 that is every customer's one
+ *     address book (OD-1); the personal book is retired, so setting an address
+ *     default here is refused by the route (FR-010) and is done on the
+ *     Organization book instead.
  */
 export interface CustomerDefaultsPatch {
   paymentMethodId?: string | null | undefined;
   deliveryMethodId?: string | null | undefined;
-  billingAddressId?: string | null | undefined;
-  shippingAddressId?: string | null | undefined;
 }
 
 export class CustomerDefaultsService {
   constructor(
-    private readonly emFactory: () => EntityManager,
     private readonly preferences: DefaultPreferencePort,
-    private readonly addresses: CustomerAddressService,
+    private readonly addresses: Pick<AddressReadPort, 'findDefault'>,
   ) {}
 
-  async getForCustomer(customerAccountId: string): Promise<CustomerDefaults> {
-    const methods = await this.preferences.resolveForCustomer(customerAccountId);
-    const [billingAddressId, shippingAddressId] = await Promise.all([
-      this.defaultAddressId(customerAccountId, 'billing'),
-      this.defaultAddressId(customerAccountId, 'delivery'),
+  /**
+   * `organizationId` is the account's own Organization: both callers have
+   * resolved it already — the self route from the session, the admin detail
+   * screen from `customer_accounts`' `@OrgScoped` read of the account.
+   */
+  async getForCustomer(customerAccountId: string, organizationId: string): Promise<CustomerDefaults> {
+    const [methods, billing, shipping] = await Promise.all([
+      this.preferences.resolveForCustomer(customerAccountId),
+      this.addresses.findDefault(organizationId, 'billing'),
+      this.addresses.findDefault(organizationId, 'delivery'),
     ]);
     return {
       paymentMethodId: methods.paymentMethodId,
       deliveryMethodId: methods.deliveryMethodId,
-      billingAddressId,
-      shippingAddressId,
+      billingAddressId: billing?.id ?? null,
+      shippingAddressId: shipping?.id ?? null,
     };
   }
 
-  /** Self-service update — the customer manages their own customer-scoped defaults. */
+  /** Self-service update of the customer-scoped default payment / delivery method. */
   async setForCustomer(
     customerAccountId: string,
+    organizationId: string,
     patch: CustomerDefaultsPatch,
     audit: PreferenceAuditContext,
   ): Promise<CustomerDefaults> {
-    // Default payment / delivery method → preference store.
     if (patch.paymentMethodId !== undefined || patch.deliveryMethodId !== undefined) {
       await this.preferences.upsert(
         { kind: 'customer', customerAccountId },
@@ -76,42 +72,6 @@ export class CustomerDefaultsService {
         audit,
       );
     }
-    // Default billing / shipping address → the personal address book.
-    if (patch.billingAddressId != null) {
-      await this.addresses.setDefault(customerAccountId, patch.billingAddressId);
-    }
-    if (patch.shippingAddressId != null) {
-      await this.addresses.setDefault(customerAccountId, patch.shippingAddressId);
-    }
-    return this.getForCustomer(customerAccountId);
-  }
-
-  /**
-   * The widening is `CustomerAddressService`'s, for the same reason and on the
-   * same terms — see `#forAuthorisedCustomer` there. This method has two
-   * callers and both establish the authority before reaching it: the self route
-   * passes the caller's **own** account id, and the admin detail screen
-   * (`CustomerAdminQueryService.getDetail`) has already resolved the account
-   * through `customer_accounts`' `@OrgScoped` read model and returned `null` if
-   * it was out of scope. The statement pins `customerAccountId`, so widening
-   * the filter widens the authority by nothing. It goes when feature 087 gives
-   * `customer_addresses` an `organization_id` of its own.
-   */
-  private async defaultAddressId(
-    customerAccountId: string,
-    kind: 'delivery' | 'billing',
-  ): Promise<string | null> {
-    const em = this.emFactory();
-    const row = await withSystemScope(
-      `customers: default ${kind} address of customer account ${customerAccountId}, authorised by its own @OrgScoped account read`,
-      () =>
-        em.findOne(CustomerAddress, {
-          customerAccountId,
-          kind,
-          isDefault: true,
-          deletedAt: null,
-        }),
-    );
-    return row?.id ?? null;
+    return this.getForCustomer(customerAccountId, organizationId);
   }
 }

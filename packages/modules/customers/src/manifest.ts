@@ -8,7 +8,7 @@ import {
  *
  * Owns the customer-lifecycle business logic and the admin + storefront
  * surfaces on top of the `customer_accounts` data module: standalone
- * registration, self-service (addresses, defaults, history), and admin
+ * registration, self-service (defaults, history), and admin
  * oversight (block/unblock, impersonation, detail view, customer groups,
  * password reset, soft-delete + restore, online presence).
  *
@@ -87,12 +87,14 @@ export const manifest = defineModuleManifest({
   // off, and because a half-written set of ordering defaults is worse than a
   // refusal.
   //
-  // Feature 075's Phase-C cut adds `addresses`: the self-service and admin
-  // address panels list the buyer's **organisation's** shared addresses beside
-  // their personal ones, and this module used to query that module's table
-  // itself. It reads `addressReadPort` now. Binding, and unremarkably so —
-  // `addresses` is non-deactivatable, so the edge has no absent state to
-  // declare a degrade for.
+  // Feature 075's Phase-C cut adds `addresses`: the admin address card lists
+  // the buyer's **organisation's** addresses, and this module used to query
+  // that module's table itself. It reads `addressReadPort` now — and, since
+  // `specs/173-b2c-address-book-merge/`, writes through `addressServicePort`:
+  // the release-1 job moves B2C personal-book rows into the personal
+  // Organization's book, and the retention sweep anonymizes that book. Binding,
+  // and unremarkably so — `addresses` is non-deactivatable, so the edge has no
+  // absent state to declare a degrade for.
   //
   // Feature 075's cut adds three more, each replacing a second instance this
   // module built from an import of the owner's directory or a query against its
@@ -150,49 +152,31 @@ export const manifest = defineModuleManifest({
   i18n: { bundlesDir: 'i18n' },
   docs: { dir: 'docs' },
   /**
-   * Two codes from the platform block — D-129's remaining sweep, Tier A
-   * (`specs/090-module-owned-error-codes/d129-sweep.md` §5.2, Appendix A;
-   * MR 3).
+   * Two codes this module raises.
    *
-   * Both were declared by `_i18n` until this merge request, not because
-   * anybody judged them the platform's but because the deleted prefix chain
-   * had no rule for them and its last line was `return 'core'`.
+   * **`CUSTOMER_ADDRESS_BOOK_RETIRED`** (`specs/173-b2c-address-book-merge/`
+   * release 1, OD-8) — every former personal-address-book endpoint answers
+   * `410 Gone` with it, for every caller. Its sentence is in this module's
+   * bundle, in both languages (`errors.CUSTOMER_ADDRESS_BOOK_RETIRED`). It
+   * replaced `CUSTOMER_ADDRESS_NOT_FOUND`, which nothing raises any more, and
+   * goes itself in release 2, with the stub routes.
    *
-   * **`CUSTOMER_ADDRESS_NOT_FOUND` is here and the four `CUSTOMER_*` record
-   * codes are not, and that split is a ruling rather than a reading.** D-186
-   * §1 (`specs/080-f4-real-scope/rulings.md`) settles the noun "customer":
-   * `customer_accounts` owns the **record**, this module owns
-   * **`CustomerAddress`**. So `CUSTOMER_NOT_FOUND`,
-   * `CUSTOMER_ALREADY_DELETED`, `CUSTOMER_NOT_DELETED` and
-   * `CUSTOMER_RESTORE_WINDOW_ELAPSED` go to `customer_accounts` in a later
-   * batch — two of them raised from *this* module, which is the consequence
-   * the ruling accepts in terms and the shape D-95.2 already ruled for
-   * `INVOICE_NOT_READY`: the owner of a noun is not required to be the module
-   * that throws about it. The prefix is the same in all five; the noun is not,
-   * and the noun is what decides.
-   *
-   * **`REGISTRATION_REQUIRES_ORGANIZATION` is T2, not T1.** Its noun is a
+   * **`REGISTRATION_REQUIRES_ORGANIZATION` is T2, not T1** (D-129's sweep,
+   * `specs/090-module-owned-error-codes/d129-sweep.md`). Its noun is a
    * registration and an Organization, and `organizations` owns the second — so
    * T1 has two claimants and does not decide it. T2 does: the code names a
    * *mechanism*, the storefront's standalone self-registration path, which
    * this module implements in `customer-registration-service.ts` and is the
-   * only thing in the tree that raises. What it refuses is this module's own
-   * setting being off, not a judgement `organizations` makes.
-   *
-   * **No sentence moves with them.** Neither has a sentence in either language
-   * anywhere in the tree; both were already on `UNTRANSLATED_ERROR_CODES`
-   * under `_i18n` and move to this module's group there, so the bundle this
-   * module already ships gains no key. The storefront's registration page
-   * carries its own copy for the refusal
-   * (`storefront/app/(auth)/register-customer/page.tsx`), which is a surface
-   * string and not the envelope's sentence.
+   * only thing in the tree that raises. It has no sentence in either language
+   * and stays on `UNTRANSLATED_ERROR_CODES`; the storefront's registration page
+   * carries its own copy for the refusal.
    *
    * **`tokens` is derived from the raise sites, not from the bundle**
    * (runbook §5), and there are none: both raises are a bare
    * `HttpError(status, code, message)` with no `details`.
    */
   errorCodes: [
-    { code: 'CUSTOMER_ADDRESS_NOT_FOUND' },
+    { code: 'CUSTOMER_ADDRESS_BOOK_RETIRED' },
     { code: 'REGISTRATION_REQUIRES_ORGANIZATION' },
   ],
   actions: [

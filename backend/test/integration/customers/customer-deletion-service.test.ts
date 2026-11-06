@@ -25,6 +25,10 @@ import { CustomerAccountReadService } from '../../../../packages/modules/custome
 import { twoFactorEnrolmentsFor } from '../../helpers/two-factor-enrolments.js';
 import { predefinedRoleIdOf } from '../../helpers/seed-organization-roles.js';
 import { OrganizationDepletionGuard } from '../../../../packages/modules/customers/src/backend/services/organization-depletion-guard.js';
+import { Address, Order } from '../../helpers/package-entities.js';
+import { SEED_DELIVERY_METHOD_ID, SEED_PAYMENT_METHOD_ID } from '../../helpers/seed-commerce.js';
+import { AddressService } from '../../../../packages/modules/addresses/src/backend/services/address-service.js';
+import { createAddressServicePort } from '../../../../packages/modules/addresses/src/backend/services/address-ports.js';
 
 /**
  * Feature 040, US7 — soft-delete, restore within window, and the permanent
@@ -36,6 +40,7 @@ describe('CustomerDeletionService', () => {
   let redis: Redis;
   let svc: CustomerDeletionService;
   let personalOrgs: PersonalOrganizationService;
+  let addresses: ReturnType<typeof createAddressServicePort>;
   const actor = { adminUserId: '00000000-0000-4000-8000-00000000b001', isPlatformAdmin: true };
 
   beforeAll(async () => {
@@ -48,6 +53,7 @@ describe('CustomerDeletionService', () => {
     em = await db.beginTx();
     const sessions = new SessionService(() => em, redis);
     const audit = new AuditLogService(() => em);
+    addresses = createAddressServicePort(() => new AddressService(() => em, undefined, audit));
     personalOrgs = new PersonalOrganizationService(
       () => em,
       customerAccountPortsFor(() => em),
@@ -84,6 +90,9 @@ describe('CustomerDeletionService', () => {
         },
         organizationRoles,
       }),
+      // `specs/173-b2c-address-book-merge/` OD-7 — the scrubbed personal
+      // Organization's saved addresses go with it.
+      addresses,
     );
   });
 
@@ -209,6 +218,92 @@ describe('CustomerDeletionService', () => {
     ).toHaveLength(1);
   });
 
+  it('T-I7 — blanks and soft-deletes the scrubbed personal organization’s addresses (spec 173, OD-7)', async () => {
+    const c = await makePersonalCustomer();
+    const input = {
+      recipientName: 'Solo Buyer',
+      street: 'ul. Prywatna 7',
+      city: 'Kraków',
+      postalCode: '30-001',
+      country: 'PL',
+      phone: '+48 700 800 900',
+    };
+    const delivery = await addresses.createAddress(c.organizationId, { ...input, kind: 'delivery', isDefault: true });
+    const billing = await addresses.createAddress(c.organizationId, { ...input, kind: 'billing' });
+    // An order placed to both, whose snapshots are copies of the saved addresses.
+    const snapshot = (a: typeof delivery) => ({
+      recipientName: a.recipientName,
+      street: a.street,
+      city: a.city,
+      postalCode: a.postalCode,
+      country: a.country,
+      phone: a.phone,
+    });
+    const order = em.create(Order, {
+      organizationId: c.organizationId,
+      placedByCustomerAccountId: c.id,
+      salesChannelId: '00000000-0000-4000-8000-0000000000c1',
+      status: 'new',
+      paymentStatus: 'awaiting_payment',
+      deliveryAddress: snapshot(delivery),
+      billingAddress: snapshot(billing),
+      deliveryMethodId: SEED_DELIVERY_METHOD_ID,
+      deliveryMethodSnapshot: { code: 'in_person_pickup', name: 'Pickup', cost: 0 },
+      paymentMethodId: SEED_PAYMENT_METHOD_ID,
+      paymentMethodSnapshot: { code: 'bank_transfer', name: 'BT', kind: 'bank_transfer' },
+      subtotal: '10.00',
+      taxTotal: '2.30',
+      deliveryTotal: '0.00',
+      total: '12.30',
+      currency: 'PLN',
+      placedAt: new Date(),
+    });
+    await em.persistAndFlush(order);
+    const before = { delivery: structuredClone(order.deliveryAddress), billing: structuredClone(order.billingAddress) };
+
+    await svc.softDelete(c.id, actor);
+    expect(await svc.sweep(0, new Date(Date.now() + 60_000))).toBe(1);
+
+    em.clear();
+    for (const id of [delivery.id, billing.id]) {
+      const row = await em.findOneOrFail(Address, { id });
+      expect(row).toMatchObject({
+        recipientName: '-',
+        street: '-',
+        city: '-',
+        postalCode: '-',
+        country: 'PL',
+        isDefault: false,
+      });
+      expect(row.phone ?? null).toBeNull();
+      expect(row.deletedAt).toBeInstanceOf(Date);
+      const entries = await em.find(AuditLogEntry, { action: 'address.anonymized', objectId: id });
+      expect(entries).toHaveLength(1);
+      expect(entries[0]!.actorAdminUserId ?? null).toBeNull();
+    }
+    // The order's snapshots are copies on `orders`' own row and stay as they were.
+    const reloaded = await em.findOneOrFail(Order, { id: order.id });
+    expect(reloaded.deliveryAddress).toEqual(before.delivery);
+    expect(reloaded.billingAddress).toEqual(before.billing);
+    expect(reloaded.deliveryAddress).toMatchObject({ street: 'ul. Prywatna 7', recipientName: 'Solo Buyer' });
+  });
+
+  it('a second sweep leaves an already-scrubbed personal organization’s addresses alone', async () => {
+    const c = await makePersonalCustomer();
+    const created = await addresses.createAddress(c.organizationId, {
+      kind: 'delivery',
+      recipientName: 'Solo Buyer',
+      street: 'ul. Prywatna 7',
+      city: 'Kraków',
+      postalCode: '30-001',
+      country: 'PL',
+    });
+    await svc.softDelete(c.id, actor);
+    await svc.sweep(0, new Date(Date.now() + 60_000));
+    await svc.sweep(0, new Date(Date.now() + 120_000));
+    expect(await em.find(AuditLogEntry, { action: 'address.anonymized', objectId: created.id })).toHaveLength(1);
+  });
+
   it('does NOT cascade to a company org when a member is anonymized', async () => {
     const company = em.create(Organization, {
       name: 'ACME Sp. z o.o.',
@@ -237,5 +332,6 @@ describe('CustomerDeletionService', () => {
     const reloadedCompany = await em.findOne(Organization, { id: company.id });
     expect(reloadedCompany!.deletedAt ?? null).toBeNull();
     expect(reloadedCompany!.name).toBe('ACME Sp. z o.o.');
+    expect(await em.find(AuditLogEntry, { action: 'address.anonymized' })).toEqual([]);
   });
 });

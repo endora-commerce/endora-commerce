@@ -197,9 +197,13 @@ describe('account navigation — module presence (issue #666)', () => {
   it('keeps the links of the non-deactivatable modules whatever else is off', async () => {
     modules = presenceWithout(...ACCOUNT_LINKS.map((l) => l.moduleId));
     const html = await accountNav();
-    for (const href of ['/account', '/addresses', '/orders', '/organization', '/organization/addresses']) {
+    for (const href of ['/account', '/orders', '/organization', '/organization/addresses']) {
       expect(html).toContain(`href="${href}"`);
     }
+    // A company member's one address entry is the Organization's
+    // (`specs/173-b2c-address-book-merge/`, OD-11), and it no longer depends
+    // on `customers`, which can be switched off (plan finding 3).
+    expect(html).not.toContain('href="/addresses"');
   });
 
   it('keeps the whole navigation when the presence projection cannot be read', async () => {

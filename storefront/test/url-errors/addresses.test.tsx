@@ -2,26 +2,32 @@ import { beforeEach, describe, expect, it, vi } from 'vitest';
 import { renderToString } from 'react-dom/server';
 import { StorefrontApiError } from '../../lib/api/client';
 import { visibleText } from '../account/i18n/text';
-import { actionsOf, form, redirectOf } from './actions';
 
 /**
  * Issue #745 — `/addresses` and `/organization/addresses` carried the API's
  * sentence in `?error=` and rendered it as given.
  *
- * `/addresses` carries a code now. `/organization/addresses` — whose create
- * refusals are mostly `VALIDATION_FAILED` with field-level detail — answers a
- * refused create as action state instead (`useActionState`, as the role form
- * does): the refusal's code and the names of the fields at fault, never the
- * API's sentence, and the form keeps what was typed. Its remove still
- * redirects, with a code.
+ * Since `specs/173-b2c-address-book-merge/` both pages are the one address book
+ * (`components/account/AddressBook.tsx`), and its actions are one
+ * implementation (`lib/actions/addresses.ts`). *Remove* and *Make default*
+ * redirect with a code; a refused *add* answers as action state — the refusal's
+ * code and the fields at fault with why (#792), never the API's sentence — and
+ * the form (`components/account/AddressForm.tsx`) keeps what was typed.
+ *
+ * The two guarantees of #745 hold on both pages: a crafted `?error=` never
+ * reaches the screen, and every code the book knows reads in English and
+ * Polish.
  */
 
 let locale = 'en-US';
 let failure: Error | null = null;
+/** A B2C customer reads `/addresses`; a company member `/organization/addresses`. */
+let personal = true;
 
 const address = {
   id: 'a1',
-  kind: 'delivery',
+  organizationId: 'org-1',
+  kind: 'delivery' as const,
   recipientName: 'Acme',
   street: 'Main 1',
   city: 'Warsaw',
@@ -41,7 +47,13 @@ vi.mock('../../lib/i18n/navigation', () => ({
   },
 }));
 vi.mock('../../lib/dictionary/pickers/CountryPicker', () => ({
-  CountryPicker: (props: Record<string, unknown>) => <select id={String(props.id)} name={String(props.name)} {...(props['aria-invalid'] ? { 'aria-invalid': true } : {})} />,
+  CountryPicker: (props: Record<string, unknown>) => (
+    <select
+      id={String(props.id)}
+      name={String(props.name)}
+      {...(props['aria-invalid'] ? { 'aria-invalid': true } : {})}
+    />
+  ),
 }));
 vi.mock('../../lib/api/account', () => ({
   getMe: async () => ({
@@ -50,41 +62,58 @@ vi.mock('../../lib/api/account', () => ({
       organizationRole: { id: 'r1', kind: 'administrator', name: 'Administrator' },
       permissions: ['addresses.manage'],
     },
-    organization: { id: 'org-1', name: 'Acme', isPersonal: false },
+    organization: { id: 'org-1', name: 'Acme', isPersonal: personal },
     impersonation: null,
   }),
 }));
 const refuse = async (): Promise<never> => {
   throw failure ?? new Error('fetch failed');
 };
-vi.mock('../../lib/api/customers', () => ({
-  listMyAddresses: async () => ({ personal: [address, { ...address, id: 'a2', isDefault: false }], organization: [] }),
-  createMyAddress: refuse,
-  deleteMyAddress: refuse,
-  setMyDefaultAddress: refuse,
-}));
 vi.mock('../../lib/api/organization', () => ({
-  listAddresses: async () => [address],
+  listAddresses: async () => [address, { ...address, id: 'a2', isDefault: false }],
   // A create succeeds unless a refusal is set, so the success path is reachable too.
   createAddress: async () => {
     if (failure) throw failure;
     return address;
   },
+  updateAddress: refuse,
   deleteAddress: refuse,
 }));
 
 const { default: MyAddressesPage } = await import('../../app/(account)/addresses/page');
 const { default: OrganizationAddressesPage } = await import('../../app/(account)/organization/addresses/page');
-const { OrganizationAddressForm } = await import('../../components/account/OrganizationAddressForm');
+const { AddressForm } = await import('../../components/account/AddressForm');
+const { createAddressAction, removeAddressAction, setDefaultAddressAction } = await import(
+  '../../lib/actions/addresses'
+);
 
 async function mine(sp: Record<string, string> = {}): Promise<unknown> {
+  personal = true;
   return MyAddressesPage({ searchParams: Promise.resolve(sp) });
 }
 async function org(sp: Record<string, string> = {}): Promise<unknown> {
+  personal = false;
   return OrganizationAddressesPage({ searchParams: Promise.resolve(sp) });
 }
 async function text(tree: unknown): Promise<string> {
   return visibleText(renderToString(<>{(await tree) as React.ReactNode}</>));
+}
+
+function form(values: Record<string, string>): FormData {
+  const data = new FormData();
+  for (const [key, value] of Object.entries(values)) data.set(key, value);
+  return data;
+}
+
+async function redirectOf(run: () => Promise<unknown>): Promise<string> {
+  try {
+    await run();
+  } catch (err) {
+    const message = (err as Error).message;
+    if (message.startsWith('redirect ')) return message.slice('redirect '.length);
+    throw err;
+  }
+  throw new Error('the action did not redirect');
 }
 
 const CREATE = {
@@ -92,13 +121,14 @@ const CREATE = {
   recipientName: 'Acme',
   street: 'Main 1',
   city: 'Warsaw',
-  postalCode: 'not-a-code',
+  postalCode: '00-001',
   country: 'PL',
 };
 
 beforeEach(() => {
   locale = 'en-US';
   failure = null;
+  personal = true;
 });
 
 describe('a crafted ?error= never reaches either address page', () => {
@@ -111,53 +141,62 @@ describe('a crafted ?error= never reaches either address page', () => {
   });
 });
 
-describe('each known code reads in English and Polish', () => {
+describe('each known code reads in English and Polish, on both pages', () => {
   it.each([
     ['REMOVE_FAILED', 'Could not remove the address.', 'Nie udało się usunąć adresu.'],
+    ['DEFAULT_FAILED', 'Could not set the default address.', 'Nie udało się ustawić adresu domyślnego.'],
+    ['SAVE_FAILED', 'Could not save the address.', 'Nie udało się zapisać adresu.'],
     [
       'VALIDATION_FAILED',
-      'Some of the address details are not valid. Check them and try again.',
-      'Część danych adresu jest nieprawidłowa. Sprawdź je i spróbuj ponownie.',
+      'Some fields need your attention. Check the messages below each one.',
+      'Niektóre pola wymagają poprawy. Sprawdź komunikaty pod nimi.',
+    ],
+    [
+      'NOT_FOUND',
+      'That address no longer exists. The list below is up to date.',
+      'Ten adres już nie istnieje. Lista poniżej jest aktualna.',
     ],
     [
       'ORGANIZATION_PERMISSION_REQUIRED',
       'Your role does not allow this. Ask an administrator of your organization for this permission.',
       'Twoja rola na to nie pozwala. Poproś administratora swojej organizacji o to uprawnienie.',
     ],
+    [
+      'FAILED',
+      'Something went wrong with your addresses. Please try again.',
+      'Coś poszło nie tak z adresami. Spróbuj ponownie.',
+    ],
   ])('%s', async (code, en, pl) => {
     expect(await text(mine({ error: code }))).toContain(en);
     expect(await text(org({ error: code }))).toContain(en);
     locale = 'pl-PL';
     expect(await text(mine({ error: code }))).toContain(pl);
+    expect(await text(org({ error: code }))).toContain(pl);
   });
 });
 
-describe('/addresses — the actions redirect with a code, never a sentence', () => {
+describe('remove and make-default redirect with a code, never a sentence', () => {
   it.each([
-    ['createAction', 'SAVE_FAILED'],
-    ['removeAction', 'REMOVE_FAILED'],
-    ['setDefaultAction', 'DEFAULT_FAILED'],
-  ])('%s carries %s for a refusal it cannot name', async (name, code) => {
+    ['removeAddressAction', removeAddressAction, 'REMOVE_FAILED'],
+    ['setDefaultAddressAction', setDefaultAddressAction, 'DEFAULT_FAILED'],
+  ] as const)('%s carries its fallback code for a refusal it cannot name', async (_name, action, code) => {
     failure = new StorefrontApiError(500, 'INTERNAL', 'Database exploded.');
-    const action = actionsOf(await mine()).get(name)!;
-    expect(await redirectOf(() => action(form({ ...CREATE, addressId: 'a1' }) as never))).toBe(`/addresses?error=${code}`);
+    for (const page of ['/addresses', '/organization/addresses'] as const) {
+      expect(await redirectOf(() => action(form({ id: 'a1', returnTo: page })))).toBe(`${page}?error=${code}`);
+    }
   });
 
-  it('a validation refusal carries VALIDATION_FAILED', async () => {
-    failure = new StorefrontApiError(400, 'VALIDATION_FAILED', 'Request failed validation.', undefined, [
-      { path: 'postalCode', issue: 'Invalid string' },
-    ]);
-    const action = actionsOf(await mine()).get('createAction')!;
-    expect(await redirectOf(() => action(form(CREATE) as never))).toBe('/addresses?error=VALIDATION_FAILED');
+  it('a refusal it can name carries its own code', async () => {
+    failure = new StorefrontApiError(404, 'NOT_FOUND', 'Address a1 of Anna Nowak not found.');
+    expect(await redirectOf(() => removeAddressAction(form({ id: 'a1', returnTo: '/organization/addresses' })))).toBe(
+      '/organization/addresses?error=NOT_FOUND',
+    );
   });
 });
 
-describe('/organization/addresses — a refused create answers as action state', () => {
-  async function create(): Promise<unknown> {
-    const action = actionsOf(await org()).get('createAddressAction');
-    if (!action) throw new Error('the page hands no createAddressAction');
-    return (action as (state: unknown, data: FormData) => Promise<unknown>)({ error: null, fields: [] }, form(CREATE));
-  }
+describe('a refused create answers as action state', () => {
+  const create = (values: Record<string, string> = {}) =>
+    createAddressAction({ error: null, fields: [] }, form({ ...CREATE, returnTo: '/organization/addresses', ...values }));
 
   it('names the code and the fields at fault, never the API’s sentence', async () => {
     failure = new StorefrontApiError(400, 'VALIDATION_FAILED', 'body/postalCode must match pattern', undefined, [
@@ -166,7 +205,13 @@ describe('/organization/addresses — a refused create answers as action state',
       { path: 'body.__proto__', issue: 'x' },
     ]);
     const state = await create();
-    expect(state).toEqual({ error: 'VALIDATION_FAILED', fields: ['postalCode', 'country'] });
+    expect(state).toEqual({
+      error: 'VALIDATION_FAILED',
+      fields: [
+        { field: 'postalCode', issue: 'invalid' },
+        { field: 'country', issue: 'invalid' },
+      ],
+    });
     expect(JSON.stringify(state)).not.toContain('must match');
   });
 
@@ -175,40 +220,35 @@ describe('/organization/addresses — a refused create answers as action state',
     expect(await create()).toEqual({ error: 'SAVE_FAILED', fields: [] });
   });
 
-  it('a successful create redirects with ?status=created', async () => {
+  it('a successful create redirects with ?status=created to the page it came from', async () => {
     expect(await redirectOf(() => create())).toBe('/organization/addresses?status=created');
-  });
-
-  it('remove redirects with a code', async () => {
-    failure = new StorefrontApiError(404, 'NOT_FOUND', 'Address not found.');
-    const action = actionsOf(await org()).get('removeAddressAction')!;
-    expect(await redirectOf(() => action(form({ id: 'a1' }) as never))).toBe('/organization/addresses?error=NOT_FOUND');
+    expect(await redirectOf(() => create({ returnTo: '/addresses' }))).toBe('/addresses?status=created');
   });
 });
 
-describe('the organization address form words the state in the page’s language', () => {
+describe('the address form words the state in the page’s language', () => {
   const noop = async (): Promise<never> => {
     throw new Error('not submitted');
   };
 
-  function render(state: { error: string | null; fields: string[] }): string {
+  function render(state: { error: string | null; fields: Array<{ field: string; issue: string }> }): string {
     return renderToString(
-      <OrganizationAddressForm action={noop as never} locale={locale} initialState={state as never} />,
+      <AddressForm action={noop as never} locale={locale} returnTo="/addresses" initialState={state as never} />,
     );
   }
 
   it('marks each field at fault and says why, in English and Polish', () => {
-    const state = { error: 'VALIDATION_FAILED', fields: ['postalCode'] };
+    const state = { error: 'VALIDATION_FAILED', fields: [{ field: 'postalCode', issue: 'required' }] };
     const en = render(state);
-    expect(visibleText(en)).toContain('Some of the address details are not valid. Check them and try again.');
+    expect(visibleText(en)).toContain('Some fields need your attention. Check the messages below each one.');
     expect(en).toMatch(/id="addr-postal"[^>]*aria-invalid="true"/);
     expect(en).toMatch(/aria-describedby="addr-postal-error"/);
-    expect(visibleText(en)).toContain('Check this field.');
+    expect(visibleText(en)).toContain('Enter the postal code.');
     expect(en).not.toMatch(/id="addr-city"[^>]*aria-invalid/);
     locale = 'pl-PL';
     const pl = visibleText(render(state));
-    expect(pl).toContain('Część danych adresu jest nieprawidłowa. Sprawdź je i spróbuj ponownie.');
-    expect(pl).toContain('Sprawdź to pole.');
+    expect(pl).toContain('Niektóre pola wymagają poprawy. Sprawdź komunikaty pod nimi.');
+    expect(pl).toContain('Wpisz kod pocztowy.');
   });
 
   it('mounts the announcement region empty before any refusal', () => {

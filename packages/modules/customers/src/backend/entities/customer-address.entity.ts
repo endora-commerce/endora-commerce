@@ -4,10 +4,15 @@ import { randomUUID } from 'crypto';
 
 /**
  * CustomerAddress — a delivery or billing address in a Customer's personal
- * address book (feature 040, US2 / FR-008/FR-038). Works for both org-bound
- * and standalone customers. The partial unique index
+ * address book (feature 040, US2 / FR-008/FR-038). The partial unique index
  * "one default per (customer, kind)" is enforced in the migration, mirroring
  * the org-level `addresses` table.
+ *
+ * **Retired** (`specs/173-b2c-address-book-merge/` release 1): nothing writes a
+ * new row. The retirement job moves every live B2C row into the personal
+ * Organization's book — recording where it went in `mergedIntoAddressId` and
+ * `mergedAt` — and erases every other live row; a row `addresses` refused stays
+ * live with the reason in `mergeRefusal`. Release 2 drops the table.
  */
 @CustomerScoped()
 @Entity({ tableName: 'customer_addresses' })
@@ -18,7 +23,10 @@ export class CustomerAddress {
     | 'updatedAt'
     | 'isDefault'
     | 'phone'
-    | 'deletedAt';
+    | 'deletedAt'
+    | 'mergedIntoAddressId'
+    | 'mergedAt'
+    | 'mergeRefusal';
 
   @PrimaryKey({ type: 'uuid' })
   id: string = randomUUID();
@@ -60,4 +68,15 @@ export class CustomerAddress {
 
   @Property({ type: 'datetime', nullable: true })
   deletedAt?: Date | null;
+
+  /** The Organization address this row was moved into (provenance; never joined). */
+  @Property({ type: 'uuid', nullable: true })
+  mergedIntoAddressId?: string | null;
+
+  @Property({ type: 'datetime', nullable: true })
+  mergedAt?: Date | null;
+
+  /** The owner's error code when `addresses` refused the move; the row then stays live. */
+  @Property({ type: 'string', length: 64, nullable: true })
+  mergeRefusal?: string | null;
 }

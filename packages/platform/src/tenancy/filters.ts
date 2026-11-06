@@ -112,10 +112,11 @@ export function orgFilterCond(): Record<string, unknown> {
  *
  * **A surface that has already established the caller's authority may still
  * read across this**, through the one sanctioned crossing (`withSystemScope`,
- * feature 050 FR-005) and never through a bare `catch`. `customers`'
- * `CustomerAddressService` is the worked example: it proves the caller may
- * reach the account through `customer_accounts`' `@OrgScoped` read model first,
- * and the widening covers only the rows of the account it just authorised.
+ * feature 050 FR-005) and never through a bare `catch`. `customers`' admin
+ * address card is the worked example (`AddressBookRetirementService.listRefused`):
+ * it proves the caller may reach the account through `customer_accounts`'
+ * `@OrgScoped` read model first, and the widening covers only the rows of the
+ * account it just authorised.
  */
 export function customerFilterCond(
   organizationColumn: CustomerOrganizationColumn,

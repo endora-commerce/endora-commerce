@@ -1,11 +1,11 @@
-import { afterAll, beforeAll, describe, it } from 'vitest';
+import { afterAll, beforeAll, describe, expect, it } from 'vitest';
 import { CUSTOMERS_SETTING_CODES } from '@endora-commerce/mod-customers';
 import {
   setupBackendServer,
   teardownBackendServer,
   type BackendServerHandle,
 } from '../../helpers/test-server.js';
-import { expectModuleAbsent } from '../../helpers/off-state.js';
+import { expectModuleAbsent, withModuleOff } from '../../helpers/off-state.js';
 
 /**
  * `customers` off-state — Constitution XVII item 6.
@@ -74,6 +74,9 @@ describe('customers off-state (Constitution XVII)', () => {
         { url: '/api/v1/me/customer', headers: channel },
         // Issue #756 — the read the registration page renders from.
         { url: '/api/v1/storefront/settings/customer-registration', headers: channel },
+        // `specs/173-b2c-address-book-merge/` — the retired book's 410 stub is
+        // this module's too, and goes with it.
+        { url: '/api/v1/me/customer/addresses', headers: channel },
       ],
       adminPresence: { cookies: admin },
       settingWrite: {
@@ -81,6 +84,38 @@ describe('customers off-state (Constitution XVII)', () => {
         value: 45,
         cookies: admin,
       },
+    });
+  });
+
+  /**
+   * `specs/173-b2c-address-book-merge/` T-O1 — no address surface depends on
+   * this module any more. The one book every customer has is the
+   * Organization's, served by `organizations` over `addresses`, and both are
+   * `nonDeactivatable`: switching `customers` off leaves the address pages and
+   * checkout reading and writing it. (The retirement job's consumer goes through
+   * `ctx.worker`, the seam that stops it with the module — its unit test holds
+   * that it is attached nowhere else.)
+   */
+  it('leaves the Organization address book readable and writable while off', async () => {
+    const customer = { b2b_session: 'stub-customer-session' };
+    await withModuleOff('customers', 'deactivated', async () => {
+      const list = await h.app.inject({ url: '/api/v1/organizations/mine/addresses', cookies: customer, headers: channel });
+      expect(list.statusCode, list.body).toBe(200);
+      const created = await h.app.inject({
+        method: 'POST',
+        url: '/api/v1/organizations/mine/addresses',
+        cookies: customer,
+        headers: channel,
+        payload: {
+          kind: 'delivery',
+          recipientName: 'Off State',
+          street: 'ul. Testowa 1',
+          city: 'Warszawa',
+          postalCode: '00-001',
+          country: 'PL',
+        },
+      });
+      expect(created.statusCode, created.body).toBe(201);
     });
   });
 });

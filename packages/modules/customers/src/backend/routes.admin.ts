@@ -13,13 +13,13 @@ import {
   startImpersonationRequestSchema,
   assignOrganizationRequestSchema,
   assignCustomerGroupRequestSchema,
-  customerAddressInputSchema,
   customFieldValuesSchema,
   validateCustomerVatRequestSchema,
   ERROR_CODES,
   isCustomFieldValidationFailure,
   SESSION_COOKIE_NAME,
   ADMIN_SESSION_COOKIE_NAME,
+  type AddressReadPort,
   type CartQueryPort,
   type CustomerAccountLifecycleWritePort,
   type CustomerAccountReadPort,
@@ -39,7 +39,7 @@ import type { CustomerAdminQueryService } from './services/customer-admin-query-
 import type { CustomerOrgAssignmentService } from './services/customer-org-assignment-service.js';
 import type { CustomerDeletionService } from './services/customer-deletion-service.js';
 import type { CustomerPresenceService } from './services/customer-presence-service.js';
-import type { CustomerAddressService } from './services/customer-address-service.js';
+import type { AddressBookRetirementService } from './services/address-book-retirement-service.js';
 import type { ChannelUrlFacts, CustomerPasswordResetPort } from '@endora-commerce/contracts';
 import { storefrontPagePathFor } from '@endora-commerce/contracts';
 import type { AuditPort } from '@endora-commerce/platform/kernel';
@@ -47,6 +47,7 @@ import {
   serializeCustomerAddress,
   serializeOrganizationAddress,
 } from './serializers.js';
+import { addressBookRetired } from './address-book-retired.js';
 
 const ADMIN_SHADOW_COOKIE = 'admin_shadow_session';
 
@@ -100,7 +101,13 @@ export interface CustomersAdminDeps {
   moderationService: CustomerModerationService;
   queryService: CustomerAdminQueryService;
   orgAssignmentService: CustomerOrgAssignmentService;
-  addressService: CustomerAddressService;
+  /**
+   * `addresses`' read — the customer's Organization book, which is every
+   * customer's one book (`specs/173-b2c-address-book-merge/` OD-1).
+   */
+  organizationAddresses: Pick<AddressReadPort, 'listForOrganization'>;
+  /** The personal-book rows the release-1 retirement job refused (OD-6). */
+  addressBookRetirement: Pick<AddressBookRetirementService, 'listRefused'>;
   cartQueryService: CartQueryPort;
   /**
    * `orders`' published list (feature 075), where this surface used to hold
@@ -416,26 +423,31 @@ export async function registerCustomersAdminRoutes(
   );
 
   // ── Addresses (US5) ─────────────────────────────────────────────────────
+  //
+  // `specs/173-b2c-address-book-merge/` release 1 (OD-6): the card is
+  // read-only. It lists the customer's Organization book — the one book they
+  // order from — and, under `personal`, only the personal-book rows the
+  // retirement job refused, each with its reason. Adding a personal address is
+  // retired (OD-5, OD-8). Admin editing of Organization addresses is a separate
+  // follow-up.
 
   app.get<{ Params: { id: string } }>(
     '/api/v1/admin/customers/:id/addresses',
     { preHandler: forCustomer('customers:read') },
     async (request) => {
       await resolveModerationActor(request);
+      // `@OrgScoped` through `customer_accounts`' read: an out-of-scope
+      // customer reads as absent, and both halves are then empty — the
+      // missing-customer arm is unchanged by D-178.
       const customer = await accounts.findById(request.params.id);
-      const personal = await deps.addressService.listPersonal(request.params.id);
-      // `customer` is `null` when no such account exists; the organisation half
-      // is then empty rather than 404. D-178 narrowed what this condition
-      // covers — it used to fold "the customer has no organisation" in with it,
-      // and that state is gone — but the missing-customer arm is unchanged and
-      // is not this ruling's to settle.
-      const organization =
-        customer === null
-          ? []
-          : await deps.addressService.listOrganizationAddresses(customer.organizationId);
+      if (customer === null) return { data: { personal: [], organization: [] } };
+      const [organization, refused] = await Promise.all([
+        deps.organizationAddresses.listForOrganization(customer.organizationId),
+        deps.addressBookRetirement.listRefused(customer.id),
+      ]);
       return {
         data: {
-          personal: personal.map(serializeCustomerAddress),
+          personal: refused.map(serializeCustomerAddress),
           organization: organization.map(serializeOrganizationAddress),
         },
       };
@@ -444,22 +456,10 @@ export async function registerCustomersAdminRoutes(
 
   app.post<{ Params: { id: string } }>(
     '/api/v1/admin/customers/:id/addresses',
-    { preHandler: forCustomer('customers:manage'), schema: { body: customerAddressInputSchema } },
-    async (request, reply) => {
+    { preHandler: forCustomer('customers:manage') },
+    async (request) => {
       await resolveModerationActor(request);
-      const body = customerAddressInputSchema.parse(request.body);
-      const created = await deps.addressService.create(request.params.id, {
-        kind: body.kind,
-        recipientName: body.recipientName,
-        street: body.street,
-        city: body.city,
-        postalCode: body.postalCode,
-        country: body.country,
-        phone: body.phone,
-        isDefault: body.isDefault,
-      });
-      reply.code(201);
-      return { data: serializeCustomerAddress(created) };
+      return addressBookRetired();
     },
   );
 
