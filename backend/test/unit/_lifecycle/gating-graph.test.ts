@@ -31,7 +31,7 @@ const onlyPresent =
     ids.includes(id);
 
 describe('acknowledgedPortEdgesFrom — the withheld edges, from the manifests', () => {
-  it('reads the twenty-two real edges the manifests deliberately keep out of `dependencies`', () => {
+  it('reads the twenty-three real edges the manifests deliberately keep out of `dependencies`', () => {
     // Two arrived with issue #90, when `check-port-dependencies` learned to
     // follow a module-local cradle alias and two edges that had always been
     // resolved through one became visible: the lifecycle admin surfaces
@@ -119,6 +119,7 @@ describe('acknowledgedPortEdgesFrom — the withheld edges, from the manifests',
       'carts:promotionCodePort',
       'carts:promotionService',
       'catalog:organizationDetailsPort',
+      'catalog:organizationTaxProfilePort',
       'catalog:pricingService',
       'orders:cartPlacementApplyPort',
       'orders:cartReadPort',

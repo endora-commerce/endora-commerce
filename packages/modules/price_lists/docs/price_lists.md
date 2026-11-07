@@ -258,6 +258,13 @@ whose anonymous mode is *None*, which makes it the one way to show a guest a pri
 organization override applies to that organization's signed-in buyers only. Display modes are set on
 *Pricing settings* and in the organization and category editors.
 
+A gross price on a product card, a list row or the product page is the net price at **that
+product's own VAT rate** for the viewer — the rate the cart and the order apply, from the tax rules
+for the product's type and the viewer's organization: 8 % for a product taxed at 8 %, and no VAT at
+all for a VAT-exempt or reverse-charge organization. An anonymous visitor sees the rate a VAT payer in
+Poland pays. If the storefront cannot learn the rate, it shows the net price, marked net, rather
+than a gross figure it cannot vouch for.
+
 Sales channels have no price-visibility switch of their own. They used to (`isPublic`), and with it
 off a channel hid prices from everyone, signed-in buyers included. The switch was retired: every
 channel that had it off was given *None* for anonymous visitors, so guests there still see no

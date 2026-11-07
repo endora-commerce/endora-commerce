@@ -1,5 +1,8 @@
 import { describe, expect, it } from 'vitest';
-import { formatMoney, moneyByMode, moneyByModeWithGross, DEFAULT_VAT_RATE } from '../../lib/i18n/money';
+import { formatMoney, moneyByMode, moneyByModeWithGross } from '../../lib/i18n/money';
+
+/** The rate the cases below derive at — a resolved rate, never a default (issue #852). */
+const VAT_23 = 0.23;
 
 /**
  * Unit contract for `moneyByMode` — the single place that turns a net `Money`
@@ -12,7 +15,7 @@ const NET = { amount: 100, currency: 'PLN' };
 
 describe('moneyByMode', () => {
   it('net_only → net amount tagged net, no secondary', () => {
-    const r = moneyByMode(NET, 'net_only', 'pl-PL');
+    const r = moneyByMode(NET, 'net_only', 'pl-PL', VAT_23);
     expect(r.primary).toMatch(/100,00\s*zł/);
     expect(r.primaryKind).toBe('net');
     expect(r.secondary).toBeNull();
@@ -20,14 +23,14 @@ describe('moneyByMode', () => {
   });
 
   it('gross_only → gross amount (net × 1+vat) tagged gross, no secondary', () => {
-    const r = moneyByMode(NET, 'gross_only', 'pl-PL');
+    const r = moneyByMode(NET, 'gross_only', 'pl-PL', VAT_23);
     expect(r.primary).toMatch(/123,00\s*zł/);
     expect(r.primaryKind).toBe('gross');
     expect(r.secondary).toBeNull();
   });
 
   it('both → net primary + gross secondary', () => {
-    const r = moneyByMode(NET, 'both', 'pl-PL');
+    const r = moneyByMode(NET, 'both', 'pl-PL', VAT_23);
     expect(r.primary).toMatch(/100,00\s*zł/);
     expect(r.primaryKind).toBe('net');
     expect(r.secondary).toMatch(/123,00\s*zł/);
@@ -35,7 +38,7 @@ describe('moneyByMode', () => {
   });
 
   it('none → net amount, untagged (no suffix emphasis)', () => {
-    const r = moneyByMode(NET, 'none', 'pl-PL');
+    const r = moneyByMode(NET, 'none', 'pl-PL', VAT_23);
     expect(r.primary).toMatch(/100,00\s*zł/);
     expect(r.primaryKind).toBeNull();
     expect(r.secondary).toBeNull();
@@ -46,8 +49,13 @@ describe('moneyByMode', () => {
     expect(r.primary).toMatch(/108,00\s*zł/);
   });
 
-  it('exposes the Polish VAT default', () => {
-    expect(DEFAULT_VAT_RATE).toBe(0.23);
+  it('derives no gross without a rate: every mode shows the net, tagged net (issue #852)', () => {
+    for (const mode of ['gross_only', 'both'] as const) {
+      const r = moneyByMode(NET, mode, 'pl-PL', null);
+      expect(r.primary).toMatch(/100,00\s*zł/);
+      expect(r.primaryKind).toBe('net');
+      expect(r.secondary).toBeNull();
+    }
   });
 });
 
@@ -89,13 +97,13 @@ describe('formatMoney — the unit-price display rule', () => {
 
 describe('moneyByMode — a unit price and its gross', () => {
   it('a sub-cent net unit price shows four places, and its gross is carried to four (0.015375 → 0,0154)', () => {
-    const r = moneyByMode({ amount: 0.0125, currency: 'PLN' }, 'both', 'pl-PL', DEFAULT_VAT_RATE, { unitPrice: true });
+    const r = moneyByMode({ amount: 0.0125, currency: 'PLN' }, 'both', 'pl-PL', VAT_23, { unitPrice: true });
     expect(r.primary).toMatch(/^0,0125\s*zł$/);
     expect(r.secondary).toMatch(/^0,0154\s*zł$/);
   });
 
   it('a two-place net unit price keeps its gross at two places (§10.16 G1)', () => {
-    const r = moneyByMode({ amount: 29.5, currency: 'PLN' }, 'gross_only', 'pl-PL', DEFAULT_VAT_RATE, { unitPrice: true });
+    const r = moneyByMode({ amount: 29.5, currency: 'PLN' }, 'gross_only', 'pl-PL', VAT_23, { unitPrice: true });
     expect(r.primary).toMatch(/^36,29\s*zł$/);
   });
 });

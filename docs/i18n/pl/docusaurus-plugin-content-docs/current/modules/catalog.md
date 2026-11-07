@@ -197,6 +197,16 @@ Na stronie modułu `price_lists` opisano, jak wybierana jest cena, którą płac
   odwiedzającego w kanale, który ukrywa ceny do czasu zalogowania — lista i szczegóły produktu nie
   zawierają kwoty, a sortowanie i zakres cen są dla tej strony odrzucane. Kanały sprzedaży nie mają
   już własnej flagi widoczności cen: o tym, co widzi każdy oglądający, decyduje tryb wyświetlania.
+- **Ceny brutto liczone są według stawki VAT danego produktu.** Każdy produkt na liście i w
+  szczegółach produktu zawiera `vatRate` — stawkę VAT, którą oglądający płaci za ten produkt, jako
+  ułamek (`0.08` = 8 %). To ta sama stawka, którą stosują koszyk i zamówienie: klasa podatkowa
+  produktu (jego typ) zestawiona z organizacją oglądającego — jej statusem VAT i krajem siedziby.
+  Organizacja zwolniona z VAT lub rozliczająca odwrotne obciążenie otrzymuje `0`; niezalogowany
+  odwiedzający albo kupujący bez organizacji jest traktowany jak czynny podatnik VAT w Polsce.
+  Sklep wylicza z tej stawki każdą cenę brutto produktu — na kartach, w wierszach listy i na stronie
+  produktu. Gdy odpowiedź nie zawiera stawki (`null`, gdy nie udało się jej odczytać, albo brak pola
+  w starszym backendzie), sklep pokazuje cenę netto z oznaczeniem „netto” i nigdy nie wylicza
+  brutto według przyjętej z góry stawki.
 
 Dla programistów: ścieżki list wyceniają całą stronę jednym zbiorczym wywołaniem —
 `resolveListingPrices` albo `resolveListingPriceDetails` tam, gdzie strona pokazuje podział
@@ -209,6 +219,14 @@ a końcówkę bez cen składa sam (`catalog-query.service.ts`). Zewnętrzne API 
 produktów, kategorii i atrybutów publikują zdarzenia, które subskrybuje `price_lists`; czyszczą one
 pamięć podręczną cen i oznaczają na powierzchni cen produkty, których dotyczy każde zdarzenie, do
 odświeżenia przez workera powierzchni.
+
+`vatRate` jest ustalana dla każdej odpowiedzi przez `createProductTaxRateResolver`
+(`@endora-commerce/contracts`) — tę samą regułę, której używa koszyk — na podstawie
+`organizationTaxProfilePort` modułu `organizations` i `taxService` modułu `taxes`. Zależy wyłącznie
+od organizacji oglądającego, więc podlega tej samej regule pamięci podręcznej co cena: odpowiedź dla
+oglądającego wskazującego organizację ma `Cache-Control: private, no-store`, a odpowiedzią, którą
+można współdzielić, jest odpowiedź anonimowa, zawierająca stawkę gościa. Nieudane ustalenie stawki
+daje `vatRate: null` przy każdym produkcie, zamiast odrzucać listę.
 
 ### Usunięte pola cen (uwaga migracyjna)
 
