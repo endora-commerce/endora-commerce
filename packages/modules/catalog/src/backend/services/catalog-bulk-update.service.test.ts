@@ -258,3 +258,35 @@ describe('CatalogBulkUpdateService — the completeness gate (FR-061, US6 #4)', 
     expect(reads).toBe(0);
   });
 });
+
+describe('CatalogBulkUpdateService — every product write is the audited Command (issue #241)', () => {
+  const em = { findOne: async (_entity: unknown, where: { id: string }) => ({ id: where.id, attributeSetId: 'set' }) };
+
+  it('runs updateProductAudited per product with the gate, never the unaudited updateProduct', async () => {
+    const audited: Array<{ id: string; req: unknown; gate: unknown }> = [];
+    const unaudited: string[] = [];
+    const svc = new CatalogBulkUpdateService(
+      () => em as unknown as EntityManager,
+      {
+        completenessMode: async () => 'warn',
+        updateProductAudited: async (id: string, req: unknown, gate: unknown) => {
+          audited.push({ id, req, gate });
+          return {};
+        },
+        updateProduct: async (id: string) => {
+          unaudited.push(id);
+          return {};
+        },
+      } as unknown as CatalogAdminService,
+    );
+    const result = await svc.bulkUpdate(
+      { productIds: [P1, P2], fields: { status: 'inactive', visibility: 'logged_in_only' } },
+      { actorAdminUserId: 'admin-1' },
+    );
+    expect(unaudited).toEqual([]);
+    expect(audited.map((call) => call.id)).toEqual([P1, P2]);
+    expect(audited[0]!.req).toEqual({ status: 'inactive', visibility: 'logged_in_only' });
+    expect(audited[0]!.gate).toMatchObject({ completeness: 'warn' });
+    expect(result.summary).toEqual({ succeeded: 2, skipped: 0, failed: 0, total: 2 });
+  });
+});
