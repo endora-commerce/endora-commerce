@@ -1156,12 +1156,25 @@ export const PRICE_FIELDS_REFUSED_ON_VARIANTS = ['priceOverride', 'defaultPrice'
 export const numericKindSchema = z.enum(['number', 'price']);
 export type NumericKind = z.infer<typeof numericKindSchema>;
 
+/**
+ * The shape of an attribute key — the one rule an attribute is created with,
+ * and the one a listing's `filter[attr.<key>]` is held to (issue #687): the
+ * key is interpolated into the Meilisearch filter expression, so a key no
+ * attribute could have is refused before either listing backend sees it.
+ */
+export const attributeKeyShapeSchema = z
+  .string()
+  .min(1)
+  .max(64)
+  .regex(/^[a-z][a-z0-9_]*$/, 'must be snake_case, start with a letter');
+
+/** Whether `key` has the shape of an attribute key ({@link attributeKeyShapeSchema}). */
+export function isAttributeKey(key: string): boolean {
+  return attributeKeyShapeSchema.safeParse(key).success;
+}
+
 const baseCreateAttributeObject = z.object({
-  key: z
-    .string()
-    .min(1)
-    .max(64)
-    .regex(/^[a-z][a-z0-9_]*$/, 'must be snake_case, start with a letter'),
+  key: attributeKeyShapeSchema,
   label: multilingualStringSchema,
   /**
    * Feature 002 — preferred API form. When `type` is present it wins over
