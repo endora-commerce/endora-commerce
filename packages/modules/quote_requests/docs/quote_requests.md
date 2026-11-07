@@ -116,7 +116,10 @@ What this means in practice:
   request is created — by the customer or by an operator on their behalf — and
   every later write of its lines (a draft edit, a seller revision, a
   resubmission) keeps it, so one request never mixes currencies. Each line
-  stores it as `lineCurrency`. A request with no channel, raised before
+  stores it as `lineCurrency`. A resubmission copies the source request's
+  lines, prices included, so it keeps their currency even when it is raised on
+  a channel whose default currency differs: relabelling the currency would
+  change what those prices mean. A request with no channel, raised before
   requests recorded one, is in PLN. Requests created before this rule stay in
   the currency they were stored with (PLN), whatever their channel's currency.
 - `reject-revision` is not affected: a customer can still withdraw a request

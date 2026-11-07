@@ -106,7 +106,9 @@ W praktyce oznacza to, że:
   zapytanie złożono.** Jest ustalana raz, przy tworzeniu zapytania — przez klienta albo przez
   operatora w jego imieniu — a każdy późniejszy zapis pozycji (edycja szkicu, wersja sprzedawcy,
   ponowne złożenie) ją zachowuje, więc jedno zapytanie nigdy nie łączy walut. Każda pozycja
-  zapisuje ją jako `lineCurrency`. Zapytanie bez kanału, złożone zanim zapytania go zapisywały,
+  zapisuje ją jako `lineCurrency`. Ponowne złożenie kopiuje pozycje zapytania źródłowego wraz
+  z cenami, więc zachowuje ich walutę także wtedy, gdy składa się je w kanale o innej domyślnej
+  walucie: zmiana waluty zmieniłaby znaczenie tych cen. Zapytanie bez kanału, złożone zanim zapytania go zapisywały,
   jest w PLN. Zapytania utworzone przed tą regułą pozostają w walucie, w której je zapisano (PLN),
   niezależnie od waluty ich kanału.
 - `reject-revision` pozostaje bez zmian: klient nadal może wycofać zapytanie, na które sprzedawca
