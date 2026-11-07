@@ -116,3 +116,80 @@ describe('invoice PDF — labels in the document language', () => {
     expect(JSON.stringify(await render('en-US'))).toContain('Invoice No. INV-2026-0042');
   });
 });
+
+/**
+ * Issue #437 — the built-in layout stored English literals in its label props
+ * (`labelPaid: 'Paid'`, the footer's "Thank you for your business."), and a
+ * template prop wins over the translation, so a Polish invoice printed them.
+ * The layout leaves every label empty now, and an empty label is drawn in the
+ * document's language.
+ */
+describe('invoice PDF — the built-in layout in Polish (issue #437)', () => {
+  const type = createInvoiceDocumentType({
+    contributed: { present: () => [] } as never,
+    loadAssetImage: async () => null,
+    translate: bundleTranslate,
+  });
+
+  async function renderLayout(
+    language: string,
+    over: (node: SeedNode) => Record<string, unknown> = (node) => node.props,
+  ): Promise<string> {
+    const layout = type.defaultContent().languages[language] as unknown as { content: SeedNode[] };
+    const data: InvoiceDocumentData = { invoice: { ...invoice, kind: 'invoice' }, amountLocale: 'pl' };
+    const out: unknown[] = [];
+    for (const node of layout.content) {
+      const block = type.blocks().find((candidate) => candidate.name === node.type)!;
+      out.push(
+        await block.render({
+          props: over(node),
+          data,
+          prepared: { resolved: new Map(), suppressKsefNumber: false },
+          language,
+          context: {} as never,
+          interpolate: (text) => text,
+        }),
+      );
+    }
+    return JSON.stringify(out);
+  }
+
+  /** Every PDF text the English bundle has and the Polish one words differently. */
+  const english = (): string[] => {
+    const en = bundle('en');
+    const pl = bundle('pl');
+    return Object.keys(en)
+      .filter((key) => key.startsWith('pdf.') && key !== 'pdf.title.numbered' && en[key] !== pl[key])
+      .map((key) => en[key]!.split('\n')[0]!);
+  };
+
+  it('prints no English label on a Polish invoice', async () => {
+    const text = await renderLayout('pl-PL');
+    for (const label of english()) expect(text, label).not.toContain(`"${label}`);
+    expect(text).toContain('"Zapłacono: ');
+    expect(text).toContain('"Do zapłaty: ');
+    expect(text).toContain('"Sprzedawca"');
+    expect(text).toContain('Dziękujemy za współpracę.\\nAcme Supplies Ltd. · NIP 12-3456789');
+  });
+
+  it('keeps a label the operator typed, in whatever language they typed it', async () => {
+    const text = await renderLayout('pl-PL', (node) =>
+      node.type === 'invoices.InvoiceTotals' ? { ...node.props, labelPaid: 'Paid' } : node.props,
+    );
+    expect(text).toContain('"Paid: ');
+    expect(text).toContain('"Do zapłaty: ');
+  });
+
+  it('leaves every label prop of the layout empty, in every language', () => {
+    for (const [language, tree] of Object.entries(
+      GENERIC_INVOICE_TEMPLATE_CONTENT.languages as Record<string, { content: SeedNode[] }>,
+    )) {
+      for (const node of tree.content) {
+        for (const [key, value] of Object.entries(node.props)) {
+          if (/label/i.test(key) && !/fontsize/i.test(key)) expect(value, `${language} ${node.type}.${key}`).toBe('');
+        }
+        if (node.type === 'invoices.InvoiceFooter') expect(node.props['text'], language).toBe('');
+      }
+    }
+  });
+});
