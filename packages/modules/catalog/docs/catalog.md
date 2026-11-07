@@ -181,6 +181,11 @@ buyer pays is chosen.
   the position it continues from can be a product the viewer may not see. A cursor that does not
   open — altered, issued by a release before the seal, or before the instance's session key was
   changed — starts the listing again at its first page.
+- **Paging and creation time** — the default ordering, and the order of the unpriced products that
+  follow a price ordering, is the product's creation time, newest first. It is stored to the
+  millisecond: a value written by SQL, such as an import's or a bulk insert's `now()`, is rounded
+  to the millisecond as it is stored. So a walk through the listing by its cursor meets every
+  product once, including products created within the same millisecond.
 - **Reading named products** — `?ids=<id>,<id>,…` on `GET /api/v1/catalog/products` restricts the
   listing to those products: at most 24 distinct ids, each a uuid, or `400 VALIDATION_FAILED`. The
   answer is the subset the viewer may see, priced exactly as any listing card for that viewer, in
