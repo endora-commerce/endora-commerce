@@ -3,6 +3,7 @@ import { renderToString } from 'react-dom/server';
 import type { ReactNode } from 'react';
 import type { ProductSummary } from '@endora-commerce/contracts';
 import type { ModulePresenceSet } from '../../lib/api/module-presence';
+import type { ModuleActionPresence } from '../../lib/module-action-presence';
 import { tForLocale } from '../../lib/i18n/messages';
 
 /**
@@ -251,7 +252,7 @@ function summary(overrides: Partial<ProductSummary> = {}): ProductSummary {
   } as unknown as ProductSummary;
 }
 
-const ALL_PRESENT = { shoppingLists: true, comparisons: true, quoteRequests: true } as const;
+const ALL_PRESENT: ModuleActionPresence = { shoppingLists: true, comparisons: true, quoteRequests: true };
 
 function card(presence = ALL_PRESENT, overrides: Partial<ProductSummary> = {}, resolved?: unknown): string {
   return html(
@@ -295,7 +296,7 @@ describe('product card — module presence of its actions (issue #672)', () => {
 
 describe('product row and grid — module presence (issue #672)', () => {
   it('the row invites a quote for an unpriced product only while quote_requests is present', () => {
-    const row = (presence: typeof ALL_PRESENT | { shoppingLists: boolean; comparisons: boolean; quoteRequests: boolean }): string =>
+    const row = (presence: ModuleActionPresence): string =>
       html(<ProductRow product={summary({ price: null })} locale="en-US" presence={presence} />);
     expect(row(ALL_PRESENT)).toContain(en('product.requestQuote'));
     const absent = row({ ...ALL_PRESENT, quoteRequests: false });

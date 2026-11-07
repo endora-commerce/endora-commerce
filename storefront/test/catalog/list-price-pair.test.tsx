@@ -8,6 +8,10 @@ import { PriceTag } from '../../components/PriceTag';
 import { PdpPriceToggle } from '../../components/pricing/PdpPriceToggle';
 import { renderSuggestionPrice } from '../../components/SearchAutocomplete';
 import { tForLocale } from '../../lib/i18n/messages';
+import { moduleActionPresence } from '../../lib/module-action-presence';
+
+/** Every action module present: what these cases render is not about presence (issue #672). */
+const ALL_PRESENT = moduleActionPresence({ isPresent: () => true });
 
 /**
  * Feature 161 (US7, FR-026, SC-007) — "list price / your price".
@@ -106,11 +110,11 @@ function text(html: string): string {
 
 const surfaces: Record<string, (v: Vector, locale: string) => string> = {
   'the listing card': (v, locale) =>
-    renderToString(<ProductCard product={summary(v)} locale={locale} salesChannelCode={undefined} />),
+    renderToString(<ProductCard presence={ALL_PRESENT} product={summary(v)} locale={locale} salesChannelCode={undefined} />),
   'the home page card (resolved price)': (v, locale) => {
     const p = summary(v);
     return renderToString(
-      <ProductCard product={p} resolved={p.resolvedPrice ?? null} locale={locale} salesChannelCode={undefined} />,
+      <ProductCard presence={ALL_PRESENT} product={p} resolved={p.resolvedPrice ?? null} locale={locale} salesChannelCode={undefined} />,
     );
   },
   'the product page': (v, locale) =>

@@ -2,6 +2,7 @@ import type { ReactNode } from 'react';
 import type { ProductSummary } from '@endora-commerce/contracts';
 import { ProductCard } from '../../../components/ProductCard';
 import { tForLocale } from '../../../lib/i18n/messages';
+import type { ModuleActionPresence } from '../../../lib/module-action-presence';
 
 /**
  * A blog post's related products — issue #590.
@@ -17,6 +18,7 @@ export function RelatedProductsStrip({
   products,
   locale,
   salesChannelCode,
+  presence,
 }: {
   /** In the post's order; the products this viewer may see. */
   products: ProductSummary[];
@@ -24,6 +26,8 @@ export function RelatedProductsStrip({
   locale: string;
   /** The active sales channel, handed to each card's browser-side calls. */
   salesChannelCode: string | undefined;
+  /** Which action modules are present, handed to each card (issue #672). */
+  presence: ModuleActionPresence;
 }): ReactNode {
   if (products.length === 0) return null;
   const t = tForLocale(locale);
@@ -38,6 +42,7 @@ export function RelatedProductsStrip({
               locale={locale}
               resolved={product.resolvedPrice ?? null}
               salesChannelCode={salesChannelCode}
+              presence={presence}
             />
           </li>
         ))}

@@ -4,6 +4,10 @@ import type { ProductSummary } from '@endora-commerce/contracts';
 import { ProductCard } from '../../components/ProductCard';
 import { VariantPicker } from '../../components/VariantPicker';
 import { tForLocale } from '../../lib/i18n/messages';
+import { moduleActionPresence } from '../../lib/module-action-presence';
+
+/** Every action module present: what these cases render is not about presence (issue #672). */
+const ALL_PRESENT = moduleActionPresence({ isPresent: () => true });
 
 /**
  * Feature 160 (FR-024, FR-025, FR-031) — what a card and the variant picker
@@ -35,21 +39,21 @@ function summary(overrides: Partial<ProductSummary> = {}): ProductSummary {
 describe('ProductCard — price-book fields', () => {
   it('strikes the compare-at price through when a sale is charged (FR-025)', () => {
     const html = renderToString(
-      <ProductCard product={summary({ price: { amount: 90, currency: 'PLN' }, compareAtPrice: { amount: 95, currency: 'PLN' } })} locale="pl-PL" salesChannelCode={undefined} />,
+      <ProductCard presence={ALL_PRESENT} product={summary({ price: { amount: 90, currency: 'PLN' }, compareAtPrice: { amount: 95, currency: 'PLN' } })} locale="pl-PL" salesChannelCode={undefined} />,
     );
     expect(html).toContain('data-testid="card-compare-at"');
     expect(html).toMatch(/<s[^>]*data-testid="card-compare-at"[^>]*>[^<]*95,00/);
   });
 
   it('shows no compare-at without a charged sale', () => {
-    const html = renderToString(<ProductCard product={summary()} locale="pl-PL" salesChannelCode={undefined} />);
+    const html = renderToString(<ProductCard presence={ALL_PRESENT} product={summary()} locale="pl-PL" salesChannelCode={undefined} />);
     expect(html).not.toContain('card-compare-at');
   });
 
   it('labels a product whose variants differ as "from" its lowest price (FR-024), EN and PL', () => {
-    const pl = renderToString(<ProductCard product={summary({ priceVariesByVariant: true })} locale="pl-PL" salesChannelCode={undefined} />);
+    const pl = renderToString(<ProductCard presence={ALL_PRESENT} product={summary({ priceVariesByVariant: true })} locale="pl-PL" salesChannelCode={undefined} />);
     expect(pl).toContain(tForLocale('pl-PL')('product.priceFromVariants'));
-    const en = renderToString(<ProductCard product={summary({ priceVariesByVariant: true })} locale="en-US" salesChannelCode={undefined} />);
+    const en = renderToString(<ProductCard presence={ALL_PRESENT} product={summary({ priceVariesByVariant: true })} locale="en-US" salesChannelCode={undefined} />);
     expect(en).toContain(tForLocale('en-US')('product.priceFromVariants'));
     expect(tForLocale('en-US')('product.priceFromVariants')).not.toBe(tForLocale('pl-PL')('product.priceFromVariants'));
   });

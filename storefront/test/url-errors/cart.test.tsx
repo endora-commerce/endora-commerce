@@ -22,7 +22,7 @@ vi.mock('../../lib/session', () => ({
   setAnonCartCookie: async () => undefined,
 }));
 vi.mock('../../lib/server-context', () => ({
-  getServerContext: async () => ({ locale, ctx: { locale } }),
+  getServerContext: async () => ({ locale, ctx: { locale }, modules: { isPresent: () => true, presentIds: [], absentIds: [] } }),
 }));
 vi.mock('../../lib/i18n/navigation', () => ({
   localeRedirect: async (to: string) => {

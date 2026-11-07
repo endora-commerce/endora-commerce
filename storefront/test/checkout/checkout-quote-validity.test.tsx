@@ -38,7 +38,7 @@ describe('placeOrderBlock — a quote that no longer binds', () => {
 
 describe('QuoteValidityNotice', () => {
   const render = (refusal: 'lapsed' | 'withdrawn' | 'unavailable' | null, locale = 'en-US') =>
-    renderToString(<QuoteValidityNotice id="checkout-quote-ended" refusal={refusal} locale={locale} />);
+    renderToString(<QuoteValidityNotice id="checkout-quote-ended" refusal={refusal} locale={locale} quoteRequestsPresent />);
 
   it('renders nothing when the quote prices still bind', () => {
     expect(render(null)).toBe('');

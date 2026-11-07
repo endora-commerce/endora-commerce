@@ -5,6 +5,10 @@ import { ProductCard } from '../../components/ProductCard';
 import { ProductGallery } from '../../components/ProductGallery';
 import { StockBadge } from '../../components/StockBadge';
 import type { ProductSummary, ProductAsset } from '@endora-commerce/contracts';
+import { moduleActionPresence } from '../../lib/module-action-presence';
+
+/** Every action module present: what these cases render is not about presence (issue #672). */
+const ALL_PRESENT = moduleActionPresence({ isPresent: () => true });
 
 /**
  * T243 — assert that the reference-theme primitives expose the markup
@@ -56,7 +60,7 @@ describe('ProductCard — semantic markup with name + price + SKU', () => {
       stockIndicator: 'available',
       stockLevel: 12,
     };
-    const html = renderToString(<ProductCard product={product} locale="en-US" salesChannelCode="retail" />);
+    const html = renderToString(<ProductCard presence={ALL_PRESENT} product={product} locale="en-US" salesChannelCode="retail" />);
     expect(html).toContain('<h3');
     expect(html).toContain('Widget 1000');
     expect(html).toContain('href="/p/widget-1000"');

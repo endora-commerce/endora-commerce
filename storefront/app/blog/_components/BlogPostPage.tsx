@@ -8,6 +8,7 @@ import { RelatedPostsStrip } from './RelatedPostsStrip';
 import { RelatedProductsStrip } from './RelatedProductsStrip';
 import { TagChipStrip } from './TagChipStrip';
 import { AuthorBox } from './AuthorBox';
+import type { ModuleActionPresence } from '../../../lib/module-action-presence';
 
 function formatDate(iso: string | null, locale: string): string | null {
   if (!iso) return null;
@@ -24,6 +25,7 @@ export function BlogPostPage({
   locale,
   relatedProducts,
   salesChannelCode,
+  presence,
 }: {
   payload: BlogBySlugPostResponse;
   language: string;
@@ -37,6 +39,8 @@ export function BlogPostPage({
   relatedProducts: ProductSummary[];
   /** The active sales channel, for the product cards' browser-side calls. */
   salesChannelCode: string | undefined;
+  /** Which action modules are present, for the product cards (issue #672). */
+  presence: ModuleActionPresence;
 }): ReactNode {
   const { post } = payload;
   const date = formatDate(post.publishedAt, locale);
@@ -90,7 +94,12 @@ export function BlogPostPage({
       {post.author ? <AuthorBox author={post.author} locale={locale} /> : null}
       <TagChipStrip tags={post.tags} />
       <RelatedPostsStrip posts={post.relatedPosts} locale={locale} />
-      <RelatedProductsStrip products={relatedProducts} locale={locale} salesChannelCode={salesChannelCode} />
+      <RelatedProductsStrip
+        products={relatedProducts}
+        locale={locale}
+        salesChannelCode={salesChannelCode}
+        presence={presence}
+      />
     </article>
   );
 }

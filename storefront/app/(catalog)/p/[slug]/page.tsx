@@ -39,6 +39,7 @@ import { getResolvedPrice, PRICING_UNAVAILABLE } from '../../../../lib/api/prici
 import { getStorefrontProductStock } from '../../../../lib/api/inventory';
 import { getMe, type MeResult } from '../../../../lib/api/account';
 import { commerceAbilities, memberSession } from '../../../../lib/commerce-permissions';
+import { moduleActionPresence, withModulePresence } from '../../../../lib/module-action-presence';
 import { addCartItem, type CartCookieJar } from '../../../../lib/api/cart';
 import {
   getAnonCartCookie,
@@ -159,7 +160,10 @@ export default async function ProductPage({
   // R-12) — each action the member's role does not allow is hidden: on a
   // product page its absence explains itself. A signed-out visitor keeps
   // add-to-cart and the rest exactly as before (owner ruling PR-4).
-  const abilities = commerceAbilities(memberSession(member));
+  // Issue #672 (Principle XVII item 5) — and each action of a module that is
+  // off is absent too, whatever the role allows: both gates must allow.
+  const presence = moduleActionPresence(modules);
+  const abilities = withModulePresence(commerceAbilities(memberSession(member)), presence);
   /**
    * D-287 P0 — **one** resolution prices this page. The product detail carries
    * the base / sale / display-mode split (`resolvedPrice`) from the resolution
@@ -179,7 +183,8 @@ export default async function ProductPage({
   const isQuoteOnly = resolved?.displayMode === 'none';
   // Feature 039 (US5) — one-click buy is offered only to a logged-in buyer who
   // is eligible (setting enabled for the channel + all four valid defaults).
-  const oneClickSession = await getSessionCookie();
+  // One-click buying is `quick_order`'s: while it is off it is not asked (issue #672).
+  const oneClickSession = modules.isPresent('quick_order') ? await getSessionCookie() : null;
   const oneClickEnabled = oneClickSession
     ? await getOneClickEligibility(oneClickSession, product.id, ctx)
         .then((e) => e.enabled)
@@ -427,12 +432,14 @@ export default async function ProductPage({
                       }
                       // Secondary actions row, alongside the shopping-list + quote.
                       compareAction={
-                        <CompareToggle
-                          productId={product.id}
-                          variant="inline"
-                          salesChannelCode={ctx.salesChannelCode}
-                          locale={locale}
-                        />
+                        presence.comparisons ? (
+                          <CompareToggle
+                            productId={product.id}
+                            variant="inline"
+                            salesChannelCode={ctx.salesChannelCode}
+                            locale={locale}
+                          />
+                        ) : null
                       }
                     />
                   ) : abilities.editShoppingLists ? (
@@ -476,7 +483,7 @@ export default async function ProductPage({
               />
             ) : null}
           </div>
-          {!buyActionsRendered ? (
+          {!buyActionsRendered && presence.comparisons ? (
             <div className="mt-3">
               <CompareToggle
                 productId={product.id}
