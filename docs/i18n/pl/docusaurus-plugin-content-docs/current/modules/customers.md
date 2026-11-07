@@ -82,12 +82,9 @@ Usuwane są też uzasadnienia, które operatorzy zapisali o kliencie: powód zab
 przypadku klienta indywidualnego także powody zablokowania i odrzucenia jego organizacji
 prywatnej. Organizacja firmowa zachowuje swoje powody. Sama blokada lub odrzucenie zostaje, więc
 ekrany klienta nadal pokazują status i jego datę, ale bez powodu. Wpisy audytu anonimizacji
-odnotowują jedynie, że powód istniał. Jeśli konto zanonimizowane, zanim powody były usuwane,
-nadal ma powód zablokowania, następny przebieg go usuwa razem z powodami pozostawionymi w jego
-organizacji prywatnej i zapisuje po jednym dodatkowym wpisie audytu. Wpisy audytu zapisane
-wcześniej, takie jak wpis samej blokady, zachowują zapisane wartości, w tym powód, dopóki
-wcześniejsze wpisy nie będą redagowane przy anonimizacji
-([#844](https://github.com/endora-commerce/endora-commerce/issues/844)).
+odnotowują jedynie, że powód istniał. Wpisy audytu zapisane wcześniej, takie jak wpis samej
+blokady, zachowują zapisane wartości, w tym powód, dopóki wcześniejsze wpisy nie będą redagowane
+przy anonimizacji ([#844](https://github.com/endora-commerce/endora-commerce/issues/844)).
 
 Zadanie uruchamia się raz dziennie w procesie workera i tylko wtedy, gdy moduł jest włączony, więc
 konto zostaje zanonimizowane najpóźniej dzień po upływie okresu. Gdy moduł jest wyłączony, zadanie
@@ -99,6 +96,15 @@ zostanie przerwany, konto zostanie podjęte ponownie w następnym przebiegu, kt�
 kroki bez powtarzania wpisów audytu kroków już wykonanych. Konto, którego nie da się
 zanonimizować, nie wstrzymuje pozostałych: przebieg anonimizuje resztę, a następnie zgłasza
 identyfikatory kont, których nie udało się przetworzyć.
+
+Tak samo jest, gdy zakres usuwanych danych się poszerza. Wszystko, co przebieg z wcześniejszej
+wersji pozostawił na zanonimizowanym koncie lub w jego organizacji prywatnej, na przykład wartości
+pól niestandardowych, nazwę prawną, adresy e-mail do potwierdzeń zamówień albo powód zablokowania
+lub odrzucenia, usuwa następny przebieg, niezależnie od obecnego ustawienia okresu przechowywania.
+Ten przebieg zapisuje po jednym dodatkowym wpisie audytu dla każdego zmienionego rekordu, zachowuje
+pierwotną datę anonimizacji i nie ogłasza anonimizacji ponownie, więc to, co inne moduły robią przy
+anonimizacji, na przykład usuwanie zgłoszeń klienta przez moduł Formularze, nie jest wykonywane
+drugi raz.
 
 ## Wycofanie osobistej książki adresowej
 

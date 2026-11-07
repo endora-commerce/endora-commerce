@@ -756,6 +756,27 @@ export interface PersonalOrganizationPort {
    * whether the organisation qualifies.
    */
   anonymizeIfOrphaned(customerAccountId: string): Promise<OrganizationRecord | null>;
+
+  /**
+   * Issue #923 — the ids of the personal organisations a scrub has reached
+   * (they carry its name) that do not yet hold all of the **current** scrub:
+   * one an earlier release scrubbed before the rule grew, or one a crash left
+   * half-written. The retention sweep runs each one's anonymised member
+   * through the cascade again, and {@link anonymizeIfOrphaned} writes what is
+   * missing, so a field added to the scrub reaches every earlier subject on
+   * the next run with no backfill.
+   *
+   * The selection is free of any retention cutoff: a subject already
+   * anonymised is finished whatever the window reads today. It agrees field by
+   * field with the owner's own "fully scrubbed" test, which stays the
+   * in-transaction re-check; a live organisation that merely carries the name
+   * may be listed, and is left alone because it still has a live member.
+   *
+   * Reads only the owner's rows; writes nothing. Unbounded, like
+   * `CustomerAccountLifecycleWritePort.listDueForAnonymization`: in steady
+   * state it answers an empty list.
+   */
+  listIncompletelyScrubbed(): Promise<string[]>;
 }
 
 /** One sales-rep ↔ organisation assignment row. */

@@ -918,6 +918,8 @@ export function registerModule(ctx: ModuleContext): void {
               const org = await service.anonymizeIfOrphaned(customerAccountId);
               return org ? toOrganizationRecord(org) : null;
             },
+            // Issue #923 — what the retention sweep finishes besides the due accounts.
+            listIncompletelyScrubbed: () => service.listIncompletelyScrubbed(),
           };
         },
       )
