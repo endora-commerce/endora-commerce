@@ -2596,10 +2596,16 @@ export interface CatalogProductReadPort {
     ids: readonly string[],
     options?: CatalogProductLookupOptions,
   ): Promise<CatalogProductRecord[]>;
+  /**
+   * A SKU is unique among live products only (issue #693): a deleted product keeps its SKU and
+   * frees it for reuse. Without `liveOnly`, the lookup therefore answers the live product when
+   * there is one, else the most recently deleted one holding the SKU.
+   */
   findBySku(
     sku: string,
     options?: CatalogProductLookupOptions,
   ): Promise<CatalogProductRecord | null>;
+  /** At most one product per SKU, chosen as {@link findBySku} chooses it. */
   findBySkus(
     skus: readonly string[],
     options?: CatalogProductLookupOptions,
@@ -2621,6 +2627,10 @@ export interface CatalogProductReadPort {
 
   /** Variants of the given parent products, ordered by sku. */
   listVariantsByProductIds(productIds: readonly string[]): Promise<CatalogProductVariantRecord[]>;
+  /**
+   * At most one variant per SKU: the live one, else the most recently deleted. A variant is
+   * deleted with its product and its SKU may then be reused (issue #693).
+   */
   findVariantsBySkus(skus: readonly string[]): Promise<CatalogProductVariantRecord[]>;
   /** A variant, but only if it belongs to that parent. */
   findVariantInProduct(

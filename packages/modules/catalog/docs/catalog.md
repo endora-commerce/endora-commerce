@@ -33,7 +33,7 @@ otherwise; every price names its currency either way. A malformed code is refuse
 | `GET /api/v1/admin/catalog/products/:id` | admin | Product detail |
 | `POST /api/v1/admin/catalog/products` | admin | Create product (`type` immutable post-create; `sku` is editable) |
 | `PATCH /api/v1/admin/catalog/products/:id` | admin | Update (incl. `sku`); writes an audit row with stateBefore / stateAfter; refuses with `409 sku_in_use` if the new SKU already belongs to another product |
-| `DELETE /api/v1/admin/catalog/products/:id` | admin | Delete (soft) — not the Archive action |
+| `DELETE /api/v1/admin/catalog/products/:id` | admin | Delete (soft) — not the Archive action; frees the SKUs of the product and its variants ([below](#a-deleted-product-frees-its-sku)) |
 | `POST /api/v1/admin/catalog/products/:id/archive` | admin (`catalog:write`) | Archive one product — see *Product status and archiving* |
 | `POST /api/v1/admin/catalog/products/:id/restore` | admin (`catalog:write`) | Restore one archived product |
 | `GET`, `POST /api/v1/admin/catalog/products/list-views`; `PATCH`, `DELETE …/list-views/:id` | admin | Saved views on the product list — see *Saved views* below |
@@ -612,6 +612,29 @@ cross-module link (assets, links, RFQ items, ...) is the `Product.id`
 UUID, which never changes. Updating the SKU writes an audit row and
 refuses with `409 sku_in_use` if the new value already belongs to
 another product.
+
+### A deleted product frees its SKU
+
+Deleting a product (`DELETE /api/v1/admin/catalog/products/:id`) frees its
+SKU and the SKUs of its variants: a new product or variant can take them at
+once — in the Admin UI, through `PUT /api/v1/catalog/products/by-sku/:sku`
+(which then creates a new product rather than updating the deleted one), or
+from an import or a PIM synchronisation. Products and variants share one SKU
+namespace, so a deleted variant's SKU can be reused by a product and the
+other way round. This also applies to products deleted before the change.
+
+The deleted product keeps its real SKU, so the audit log and a reconciliation
+with an ERP or PIM still show it, and orders, invoices and quotes keep the SKU
+they recorded at the time. A deletion cannot be undone, and a deleted product
+cannot be restored.
+
+Every lookup by SKU addresses the live product. A product import and the CSV
+stock import write the live product; on the catalogue's read port
+(`catalogProductReadPort`), `findBySku`, `findBySkus` and `findVariantsBySkus`
+answer the live product or variant when there is one, and otherwise the most
+recently deleted one holding that SKU — at most one per SKU. Pass
+`{ liveOnly: true }` to `findBySku` and `findBySkus` to ignore deleted
+products altogether.
 
 ### Attribute Set swap
 
