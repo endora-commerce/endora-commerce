@@ -5,6 +5,7 @@ import type {
   AssetsLibraryPort,
   ObjectStoragePort,
   PermissionReadPort,
+  SettingWriteValidatorRegistryPort,
 } from '@endora-commerce/contracts';
 import type { AuditPort } from '@endora-commerce/platform/kernel';
 import type { CommandBus } from '@endora-commerce/platform/commands';
@@ -19,6 +20,7 @@ import { Asset } from './entities/asset.entity.js';
 import { AssetObjectCleanup } from './entities/asset-object-cleanup.entity.js';
 import { AssetPermalinkRelease } from './entities/asset-permalink-release.entity.js';
 import { startAssetRetentionSweep } from './workers/retention-sweep-worker.js';
+import { createRetentionDaysValidator } from './services/storage/retention-days-validator.js';
 import type { Redis } from 'ioredis';
 
 /**
@@ -157,6 +159,18 @@ export function registerModule(ctx: ModuleContext): void {
         }));
       },
     });
+  });
+
+  /**
+   * Issue #332 — `assets.soft_delete_retention_days` is held to 1–3650 whole
+   * days at every write path, through `settings`' validator registry. A
+   * **contribution** hook and unprobed, in the `admin_search` / `cms` shape:
+   * the registry itself skips a validator whose contributor is absent.
+   */
+  ctx.onBoot(() => {
+    lazyPort<SettingWriteValidatorRegistryPort>(ctx, 'settingWriteValidatorRegistry').register(
+      createRetentionDaysValidator(),
+    );
   });
 
   // ---------------------------------------------------------------------------

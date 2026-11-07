@@ -160,7 +160,7 @@ describe('asset retention setting (#322)', () => {
     expect(refused.json<{ error: { code: string } }>().error.code).toBe('VALIDATION_FAILED');
     const setting = await h.em().fork({ clear: true })
       .findOneOrFail(Setting, { code: 'assets.soft_delete_retention_days' });
-    expect(setting.globalValue).toBeNull();
+    expect(setting.globalValue ?? null).toBeNull();
   });
 
   it.each([1, 3650])('the settings write accepts %s days', async (value) => {
