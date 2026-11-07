@@ -40,8 +40,8 @@ platformy (`/api/v1/admin/*`) są chronione przez `customers:manage`.
 | `GET /api/v1/admin/organizations` | administrator | Lista z `filter[status]` / `filter[vatStatus]` / `q` |
 | `POST /api/v1/admin/organizations` | administrator (`customers:manage`) | Utworzenie organizacji z jej kanałami sprzedaży (zob. *Kanały sprzedaży* niżej) |
 | `GET /api/v1/admin/organizations/sales-channel-options` | administrator (`customers:manage`) | Kanały oferowane w formularzu tworzenia |
-| `GET /api/v1/admin/organizations/:id/sales-channels` | administrator (`customers:read` lub `customers:manage`) | Kanały przypisane do organizacji i kanały, które można jej przypisać. Przedstawiciel handlowy widzi tylko przypisane mu organizacje; każda inna odpowiada `404 NOT_FOUND`, jak organizacja, która nie istnieje |
-| `PUT /api/v1/admin/organizations/:id/sales-channels` | administrator (`customers:manage`) | Zastąpienie przypisanych kanałów (`{ salesChannelIds }`, co najmniej jeden); `404 NOT_FOUND` poza organizacjami przedstawiciela handlowego, jak przy odczycie |
+| `GET /api/v1/admin/organizations/:id/sales-channels` | administrator (`customers:read` lub `customers:manage`) | Kanały przypisane do organizacji i kanały, które można jej przypisać. `404 NOT_FOUND` dla organizacji spoza zasięgu przedstawiciela handlowego (zob. pod tabelą), jak dla organizacji, która nie istnieje |
+| `PUT /api/v1/admin/organizations/:id/sales-channels` | administrator (`customers:manage`) | Zastąpienie przypisanych kanałów (`{ salesChannelIds }`, co najmniej jeden); `404 NOT_FOUND` poza zasięgiem przedstawiciela handlowego, jak przy odczycie |
 | `GET /api/v1/admin/organizations/:id` | administrator | Organizacja z listą członków (`updatedAt`, członkowie z `lastLoginAt` i `organizationRole`; `predefinedRoles` podaje role Administrator i Członek) |
 | `PATCH /api/v1/admin/organizations/:id` | administrator | Zmiana nazwy, `status` lub `vatStatus`; opcjonalne `expectedUpdatedAt` → `409 VERSION_CONFLICT`, gdy dane są nieaktualne |
 | `POST /api/v1/admin/organizations/:id/members/invite` | administrator | Zaproszenie e-mailem (`{ email, roleId? }`, domyślnie rola Członek; z poziomu platformy) |
@@ -49,6 +49,8 @@ platformy (`/api/v1/admin/*`) są chronione przez `customers:manage`.
 | `PATCH /api/v1/admin/organizations/:id/members/:customerAccountId/role` | administrator | Przypisanie roli (`{ roleId, expectedUpdatedAt? }`) |
 | `DELETE /api/v1/admin/organizations/:id/members/:customerAccountId` | administrator | Usunięcie miękkie członka (z ochroną ostatniego administratora) |
 | `POST /api/v1/admin/organizations/:id/recover-admin-access` | administrator | Procedura awaryjna — nadanie istniejącemu członkowi roli Administrator |
+
+**Do których organizacji sięga przedstawiciel handlowy.** Każda trasa `/api/v1/admin/organizations/:id` — odczyty i zapisy, także zagnieżdżone — odpowiada przedstawicielowi handlowemu tylko dla organizacji przypisanej do niego (z `organizations:rollup` także takiej, której najbliższy przypisany przodek jest jego) albo takiej, do której nie przypisano żadnego przedstawiciela, na przykład rejestracji oczekującej na zatwierdzenie. Każda inna organizacja — przypisana do innego przedstawiciela — odpowiada `404 NOT_FOUND`, dokładnie tak jak organizacja, która nie istnieje; tak samo nieznany identyfikator, dla każdego administratora. Lista nie jest zawężana: pokazuje każdą organizację każdemu administratorowi, który może ją czytać. Każda inna rola administratora sięga do wszystkich organizacji.
 
 Ustaw **`SMTP_URL`** w środowisku backendu, aby poczta była wysyłana przez SMTP, a nie wypisywana do
 konsoli.
