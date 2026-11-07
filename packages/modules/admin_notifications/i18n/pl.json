@@ -1,0 +1,5 @@
+{
+  "settingGroups.admin_notifications.name": "Powiadomienia administratorów",
+  "settingLabels.admin_notifications.enabled.name": "Powiadomienia administratorów włączone",
+  "settingLabels.admin_notifications.enabled.description": "Włącza lub wyłącza centrum powiadomień administratorów. Gdy jest wyłączone, nic nie jest zapisywane, a ekrany powiadomień i ich API znikają. Nic nie jest usuwane — zapisane już powiadomienia pozostają i wracają po ponownym włączeniu."
+}
