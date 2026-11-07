@@ -56,7 +56,36 @@ describe('CartLine — SSR rendering', () => {
     expect(html).toMatch(/37,50\s*zł/);
   });
 
-  it('renders gross unit and line prices (net × 1.23) in gross_only mode', () => {
+  // Issue #436 — the line's own rate from the cart read, never a flat 23 %.
+  it("renders gross unit and line prices at the line's own rate in gross_only mode", () => {
+    const html = renderToString(
+      <CartLine
+        line={{
+          ...LINE,
+          unitPrice: { amount: 8.25, currency: 'PLN' },
+          quantity: 2,
+          lineTotal: { amount: 16.5, currency: 'PLN' },
+          taxRate: 0.08,
+          lineGross: { amount: 17.82, currency: 'PLN' },
+        }}
+        updateAction={noopAction}
+        removeAction={noopAction}
+        saveToListAction={noopAction}
+        locale="pl-PL"
+        displayMode="gross_only"
+        strings={STRINGS}
+      />,
+    );
+    // 8,25 net at 8 % → `8,91 zł`; the line's gross is the backend's `17,82 zł`.
+    expect(html).toMatch(/8,91\s*zł/);
+    expect(html).toMatch(/17,82\s*zł/);
+    expect(html).toContain('gross');
+    // The flat 23 % would read 10,15 and 20,30.
+    expect(html).not.toMatch(/10,15\s*zł/);
+    expect(html).not.toMatch(/20,30\s*zł/);
+  });
+
+  it('renders the net, tagged net, when the line carries no rate — no invented gross', () => {
     const html = renderToString(
       <CartLine
         line={LINE}
@@ -68,10 +97,11 @@ describe('CartLine — SSR rendering', () => {
         strings={STRINGS}
       />,
     );
-    // 12,50 net → `15,38 zł` gross; 37,50 net → `46,13 zł` gross (rounded).
-    expect(html).toMatch(/15,38\s*zł/);
-    expect(html).toMatch(/46,13\s*zł/);
-    expect(html).toContain('gross');
+    expect(html).toMatch(/12,50\s*zł/);
+    expect(html).toMatch(/37,50\s*zł/);
+    expect(html).not.toMatch(/15,38\s*zł/);
+    expect(html).not.toMatch(/46,13\s*zł/);
+    expect(html).not.toContain('gross');
   });
 
   it('renders three forms (qty / remove / save-to-list) so SSR/no-JS still works', () => {

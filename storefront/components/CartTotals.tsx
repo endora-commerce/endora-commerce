@@ -1,6 +1,6 @@
 import type { ReactNode } from 'react';
-import type { DisplayMode } from '@endora-commerce/contracts';
-import { moneyByMode } from '../lib/i18n/money';
+import type { CartVat, DisplayMode } from '@endora-commerce/contracts';
+import { moneyByModeWithGross } from '../lib/i18n/money';
 
 /**
  * CartTotals — Industria-themed summary block (feature 027 US1).
@@ -19,6 +19,11 @@ interface CartTotalsProps {
   // Feature 045 — `code` is null for automatic (couponless) promotions.
   discount: { code: string | null; amount: number; currency: string } | null;
   grandTotal: { amount: number; currency: string };
+  /**
+   * Issue #436 — the cart read's VAT per rate. The gross figures come from
+   * here and nowhere else; without it the summary shows the net, tagged net.
+   */
+  vat?: CartVat | null;
   itemCount: number;
   /** Active Sales Channel display locale (e.g. `pl-PL`). */
   locale?: string;
@@ -41,6 +46,7 @@ export function CartTotals({
   subtotal,
   discount,
   grandTotal,
+  vat = null,
   itemCount,
   locale,
   displayMode = 'net_only',
@@ -48,10 +54,15 @@ export function CartTotals({
 }: CartTotalsProps): ReactNode {
   const suffixFor = (kind: 'net' | 'gross' | null): string =>
     kind === 'net' ? strings.netSuffix : kind === 'gross' ? strings.grossSuffix : '';
-  // Gross is a linear scale of net, so applying the mode to subtotal, discount,
-  // and grandTotal alike keeps `subtotal − discount = grandTotal` visually true.
-  const renderAmount = (m: { amount: number; currency: string }, prefix = ''): ReactNode => {
-    const priced = moneyByMode(m, displayMode, locale);
+  // Issue #436 — the gross is the backend's VAT per rate, the order's figure;
+  // the discount comes off the gross untaxed, so it reads the same on both
+  // sides and `subtotal − discount = total` holds in either column.
+  const renderAmount = (
+    m: { amount: number; currency: string },
+    gross: number | null,
+    prefix = '',
+  ): ReactNode => {
+    const priced = moneyByModeWithGross(m, gross, displayMode, locale);
     return (
       <>
         {prefix}
@@ -72,7 +83,7 @@ export function CartTotals({
     <>
       <div className="flex justify-between py-[6px] text-[13px] text-[color:var(--ink-600)]">
         <span>{strings.subtotalLabel(itemCount)}</span>
-        <span className="font-mono font-medium text-fg">{renderAmount(subtotal)}</span>
+        <span className="font-mono font-medium text-fg">{renderAmount(subtotal, vat?.subtotalGross ?? null)}</span>
       </div>
       <div className="flex justify-between py-[6px] text-[13px] text-[color:var(--ink-600)]">
         <span>{strings.deliveryLabel}</span>
@@ -82,14 +93,18 @@ export function CartTotals({
         <div className="flex justify-between py-[6px] text-[13px] text-[color:var(--ink-600)]">
           <span>{strings.discountLabel(discount.code)}</span>
           <span className="font-mono font-medium text-ok">
-            {renderAmount({ amount: discount.amount, currency: discount.currency }, '−')}
+            {renderAmount(
+              { amount: discount.amount, currency: discount.currency },
+              vat ? discount.amount : null,
+              '−',
+            )}
           </span>
         </div>
       ) : null}
       <div className="mt-2 flex items-baseline justify-between border-t border-line pt-[14px]">
         <span className="text-[13px] font-semibold text-fg">{strings.grandTotalLabel}</span>
         <span className="font-mono text-[22px] font-semibold tracking-[-0.01em] text-fg">
-          {renderAmount(grandTotal)}
+          {renderAmount(grandTotal, vat?.grandTotalGross ?? null)}
         </span>
       </div>
     </>

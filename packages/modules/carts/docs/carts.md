@@ -215,7 +215,7 @@ Each approval step sends an e-mail, after the step has been saved:
 
 | Verb + Path | Purpose |
 | --- | --- |
-| `GET /api/v1/cart` | The active cart of the request's sales channel (lazy-create); the payload includes `status`, `approvalStatus`, `salesChannelId`, `grandTotal`, `discount`, `primaryCta`, `droppedLines`, `couponDroppedThisRead`, `lastActivityAt`, `previousRejection`. Not gated by any permission |
+| `GET /api/v1/cart` | The active cart of the request's sales channel (lazy-create); the payload includes `status`, `approvalStatus`, `salesChannelId`, `grandTotal`, `discount`, `primaryCta`, `droppedLines`, `couponDroppedThisRead`, `lastActivityAt`, `previousRejection`, `vat` (see *Line prices*). Not gated by any permission |
 | `POST /api/v1/cart/items` | Add line item (200-line cap enforced) — `carts.create` for a signed-in member; a guest is not judged |
 | `PATCH /api/v1/cart/items/:itemId` | Update quantity (accepts `0` to delete) — as above |
 | `DELETE /api/v1/cart/items/:itemId` | Remove line — as above |
@@ -302,6 +302,25 @@ price for the line's **current** quantity:
 - `GET /api/v1/cart` shows every line at the price placement would charge now,
   through the same chain, and shows a line placement would refuse as
   unavailable.
+- `GET /api/v1/cart` also answers the cart's **VAT**, computed the way the
+  order computes it: each line's rate is resolved from the tax rules (the
+  `taxes` module) for the product's tax class, the organization's VAT status
+  and its registered country — 0 % for a VAT-exempt or reverse-charge
+  organization — and the VAT is worked out **per rate, on the sum of the line
+  nets at that rate, rounded half-up once**; gross = net + VAT. The discount
+  comes off the gross. `vat` carries one row per rate (`taxRate`, `net`, `vat`,
+  `gross`), `vatTotal`, `subtotalGross` and `grandTotalGross`; each line
+  carries its `taxRate` and `lineGross`, its own rounding of its gross, which
+  is informational — the line grosses can add up to a cent more or less than
+  the total. The storefront shows these figures and computes no VAT of its own;
+  where the read carries none (`vat: null`), it shows net amounts.
+- **The cart's VAT is an estimate until checkout; placement is the authority.**
+  The cart resolves its rates for the organization's **registered country**,
+  because no billing address has been chosen yet. Placement resolves them for
+  the **billing address** chosen at checkout, so a billing address in another
+  country can change the rate — and with it the VAT and the gross — at
+  checkout. The order also adds delivery and the payment surcharge, which the
+  cart does not carry.
 - At order placement the Orders module asks this module whether every stored
   price is still current. If one is not — typically a price book changed after
   the line was added — the placement is refused with
@@ -318,6 +337,12 @@ price at the agreed quantity, else the price books through one batched
 cart (`CartPricingRecompute`) and the placement check all call it, so the price
 a buyer sees in the basket is the price placement charges —
 `backend/test/integration/carts/cart-read-equals-placement.test.ts` holds that.
+The VAT is `cartVatMoney` (`src/backend/services/cart-money.ts`), which calls
+the contracts' `vatByRate` — the function the order's totals call — with the
+rates `createCartTaxRateResolver` resolves (`cart-tax-rates.ts`);
+`backend/test/unit/carts/cart-vat-equals-order.test.ts` and
+`backend/test/integration/carts/cart-vat-equals-placement.test.ts` hold the
+cart's figures to the order's.
 
 ## Settings
 

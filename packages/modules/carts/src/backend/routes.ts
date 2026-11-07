@@ -61,7 +61,8 @@ import {
   rethrowIfModuleDisabled,
   type RequireCustomerGuard,
 } from '@endora-commerce/platform/kernel';
-import { cartLineAmount, cartSubtotal, cartTotalAfterDiscount } from './services/cart-money.js';
+import { cartLineAmount, cartSubtotal, cartTotalAfterDiscount, cartVatMoney } from './services/cart-money.js';
+import type { CartTaxRateResolver } from './services/cart-tax-rates.js';
 
 const ANON_COOKIE = 'b2b_cart_anon';
 
@@ -129,6 +130,12 @@ export interface CartsDeps {
    * kept for audit / diff.
    */
   cartPricingRecompute?: CartPricingRecompute;
+  /**
+   * Issue #436 — each product tax class's VAT rate for this basket, resolved
+   * as placement resolves the order's. The full view answers the cart's VAT
+   * per rate from it, so a client never derives a gross itself.
+   */
+  cartTaxRates: CartTaxRateResolver;
   /**
    * Feature 027 US3 — ShoppingListService.convertToCart bridge for the
    * `POST /api/v1/cart/from-shopping-list/:listId` endpoint. Returns the
@@ -522,6 +529,27 @@ export async function registerCartRoutes(app: FastifyInstance, deps: CartsDeps):
         application = null;
       }
     }
+    // Issue #436 — each line's VAT rate, by its product's tax class, as
+    // placement resolves it; a line whose product record is gone is priced as
+    // `simple`, as placement prices it. The breakdown is the order's figure or
+    // none: a failed resolution answers `vat: null` and the storefront shows
+    // the net, never a rate it invented.
+    let taxRates: Map<string, number> | null = null;
+    if (items.length > 0) {
+      try {
+        const typeOf = new Map(records.map((p) => [p.id, p.type]));
+        const lineTypes = new Map(items.map((it) => [it.id, typeOf.get(it.productId) ?? ('simple' as const)]));
+        const byType = await deps.cartTaxRates({
+          organizationId: cart.organizationId ?? null,
+          productTypes: [...lineTypes.values()],
+        });
+        taxRates = new Map([...lineTypes].map(([itemId, type]) => [itemId, byType.get(type) ?? 0]));
+      } catch (err) {
+        rethrowIfModuleDisabled(err);
+        request.log.warn({ err, cartId: cart.id }, 'cart VAT resolution failed; answering no VAT');
+        taxRates = null;
+      }
+    }
     return answer(
       actor,
       serializeCart(
@@ -533,6 +561,7 @@ export async function registerCartRoutes(app: FastifyInstance, deps: CartsDeps):
         application,
         minimumViews,
         pricingRefusals,
+        taxRates,
       ),
     );
   });
@@ -890,6 +919,7 @@ function emptyCart(): CartFullPayload {
     updatedAt: null,
     lastActivityAt: null,
     previousRejection: null,
+    vat: null,
   };
 }
 
@@ -961,11 +991,31 @@ function serializeCart(
    * as unavailable, because placement refuses them.
    */
   pricingRefusals: Map<string, RecomputeRefusal> | null = null,
+  /**
+   * Issue #436 — each line's VAT rate (a fraction) by cart item id; absent on
+   * the mutation answers, which carry no VAT.
+   */
+  taxRates: Map<string, number> | null = null,
 ): CartFullPayload {
   let currency = items[0]?.currency ?? 'PLN';
   // Each line at the price it is shown at, for the subtotal (issue #417: exact).
   const priced: Array<{ unitPrice: number | string; quantity: number }> = [];
-  const serializedItems = items.map((it) => {
+  // Issue #436 — the VAT of the lines the subtotal sums, by the order's method.
+  const vat =
+    taxRates && items.length > 0
+      ? cartVatMoney(
+          items.map((it) => {
+            const recomputed = recomputedPrices?.get(it.id);
+            return {
+              unitPrice: recomputed ? recomputed.amount : it.unitPrice,
+              quantity: it.quantity,
+              taxRate: taxRates.get(it.id) ?? 0,
+            };
+          }),
+          application?.discountTotal ?? 0,
+        )
+      : null;
+  const serializedItems = items.map((it, index) => {
     const recomputed = recomputedPrices?.get(it.id);
     const unitPriceAmount = recomputed ? recomputed.amount : Number(it.unitPrice);
     const lineCurrency = recomputed ? recomputed.currency : it.currency;
@@ -1009,6 +1059,12 @@ function serializeCart(
       packagingUnitName,
       packagingUnitBaseQuantity: it.packagingUnitBaseQuantity ?? null,
       displayName,
+      ...(vat
+        ? {
+            taxRate: taxRates?.get(it.id) ?? 0,
+            lineGross: { amount: vat.lines[index]!.gross, currency: lineCurrency },
+          }
+        : {}),
     };
   });
   const subtotal = cartSubtotal(priced);
@@ -1049,6 +1105,15 @@ function serializeCart(
     lastActivityAt: cart.lastActivityAt.toISOString(),
     // Issue #650 — a read of other baskets, made by `answer()`.
     previousRejection: null,
+    vat: vat
+      ? {
+          currency,
+          rows: vat.rows,
+          vatTotal: vat.vatTotal,
+          subtotalGross: vat.subtotalGross,
+          grandTotalGross: vat.grandTotalGross,
+        }
+      : null,
   };
 }
 

@@ -21,10 +21,12 @@ import type {
   OrderQuoteSourcePort,
   ProductDisplayModePort,
   OrganizationDetailsPort,
+  OrganizationTaxProfilePort,
   PromotionApplyPort,
   PromotionCodePort,
   QuoteRequestReadPort,
   RfqCustomerPort,
+  TaxServicePort,
   TransactionalEmailSender,
 } from '@endora-commerce/contracts';
 import type { CartPlacementApplyPort } from '../ports/index.js';
@@ -60,6 +62,7 @@ import {
 import { CartOrganizationVisibilityService } from './services/cart-organization-visibility-service.js';
 import { CartRecomputeCache } from './services/cart-recompute-cache.js';
 import { CartPricingRecompute } from './services/cart-pricing-recompute.js';
+import { createCartTaxRateResolver } from './services/cart-tax-rates.js';
 import { CartAbandonmentWorker } from './services/cart-abandonment-worker.js';
 import { registerCartRoutes, type CartsDeps } from './routes.js';
 import { registerCartsAdminRoutes } from './routes.admin.js';
@@ -442,6 +445,12 @@ export function registerModule(ctx: ModuleContext): void {
         cradle.cartRecomputeCache,
         lazyPort<CatalogProductReadPort>(ctx, 'catalogProductReadPort'),
       ),
+      // Issue #436 — the read answers the cart's VAT per rate, from the rates
+      // placement resolves: `organizations`' tax profile and `taxes`' rules.
+      cartTaxRates: createCartTaxRateResolver({
+        taxProfiles: lazyPort<OrganizationTaxProfilePort>(ctx, 'organizationTaxProfilePort'),
+        taxes: lazyPort<TaxServicePort>(ctx, 'taxService'),
+      }),
       assertOrganizationCanTransact: async (organizationId) => {
         await ctx.cradle<CartsCradle>().organizationReadPort.assertCanTransact(organizationId);
       },

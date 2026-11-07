@@ -1,6 +1,6 @@
 import type { ReactNode } from 'react';
 import type { DisplayMode } from '@endora-commerce/contracts';
-import { moneyByMode } from '../lib/i18n/money';
+import { grossUnitPriceFromNet, moneyByModeWithGross } from '../lib/i18n/money';
 import { tForLocale } from '../lib/i18n/messages';
 import {
   belowMinimumText,
@@ -32,6 +32,12 @@ export interface CartLineViewModel {
   quantity: number;
   unitPrice: { amount: number; currency: string };
   lineTotal: { amount: number; currency: string };
+  /**
+   * Issue #436 — the line's VAT rate (a fraction) and its own gross, as the
+   * cart read answers them. Without them the line shows its net, tagged net.
+   */
+  taxRate?: number | null;
+  lineGross?: { amount: number; currency: string } | null;
   unavailable?: boolean;
   unavailableReason?: 'out_of_stock' | 'not_purchasable' | 'no_price_in_customer_list' | null;
   /** Resolved + display-ready name; the parent looked it up. */
@@ -104,8 +110,14 @@ export function CartLine({
     kind === 'net' ? strings.netSuffix : kind === 'gross' ? strings.grossSuffix : '';
   // `unitPrice`: the line's unit price, shown with its significant places, up to
   // four; the line total is an amount and shows two (owner ruling of 2026-10-25).
+  // Issue #436 — the gross at the line's own rate: the unit price's derived from
+  // it, the line's the backend's own rounding of it; never a flat rate.
+  const taxRate = line.taxRate ?? null;
   const renderPrice = (m: { amount: number; currency: string }, unitPrice = false): ReactNode => {
-    const priced = moneyByMode(m, displayMode, locale, undefined, { unitPrice });
+    const gross = unitPrice
+      ? grossUnitPriceFromNet(m.amount, taxRate)
+      : (line.lineGross?.amount ?? null);
+    const priced = moneyByModeWithGross(m, gross, displayMode, locale, { unitPrice });
     return (
       <>
         <span>

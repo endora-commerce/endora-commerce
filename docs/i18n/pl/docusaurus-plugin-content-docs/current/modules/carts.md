@@ -211,7 +211,7 @@ Każdy krok akceptacji wysyła e-mail, gdy krok zostanie już zapisany:
 
 | Metoda i ścieżka | Przeznaczenie |
 | --- | --- |
-| `GET /api/v1/cart` | Aktywny koszyk kanału sprzedaży żądania (tworzony przy pierwszym odczycie); odpowiedź zawiera `status`, `approvalStatus`, `salesChannelId`, `grandTotal`, `discount`, `primaryCta`, `droppedLines`, `couponDroppedThisRead`, `lastActivityAt`, `previousRejection`. Nie wymaga żadnego uprawnienia |
+| `GET /api/v1/cart` | Aktywny koszyk kanału sprzedaży żądania (tworzony przy pierwszym odczycie); odpowiedź zawiera `status`, `approvalStatus`, `salesChannelId`, `grandTotal`, `discount`, `primaryCta`, `droppedLines`, `couponDroppedThisRead`, `lastActivityAt`, `previousRejection`, `vat` (zobacz *Ceny pozycji*). Nie wymaga żadnego uprawnienia |
 | `POST /api/v1/cart/items` | Dodanie pozycji (limit 200 pozycji) — `carts.create` dla zalogowanego członka; gość nie jest sprawdzany |
 | `PATCH /api/v1/cart/items/:itemId` | Zmiana ilości (`0` usuwa pozycję) — jak wyżej |
 | `DELETE /api/v1/cart/items/:itemId` | Usunięcie pozycji — jak wyżej |
@@ -293,6 +293,22 @@ Pozycja koszyka jest zamawiana po zapisanej cenie `unit_price`, dlatego ta cena 
   kopiuje je na pozycję zamówienia.
 - `GET /api/v1/cart` pokazuje każdą pozycję w cenie, którą teraz naliczyłoby złożenie zamówienia,
   tym samym łańcuchem, a pozycję, którą złożenie zamówienia by odrzuciło, pokazuje jako niedostępną.
+- `GET /api/v1/cart` podaje też **VAT** koszyka, wyliczony tak, jak wylicza go zamówienie: stawkę
+  każdej pozycji ustalają reguły podatkowe (moduł `taxes`) dla klasy podatkowej produktu, statusu
+  VAT organizacji i kraju jej siedziby — 0 % dla organizacji zwolnionej z VAT albo rozliczającej
+  odwrotne obciążenie — a VAT liczony jest **od sumy wartości netto pozycji w danej stawce,
+  zaokrąglany raz, w górę od połowy**; brutto = netto + VAT. Rabat odejmowany jest od kwoty brutto.
+  `vat` zawiera jeden wiersz na stawkę (`taxRate`, `net`, `vat`, `gross`), `vatTotal`,
+  `subtotalGross` i `grandTotalGross`; każda pozycja podaje swoją `taxRate` i `lineGross` — własne
+  zaokrąglenie swojej kwoty brutto, które ma charakter informacyjny: kwoty brutto pozycji mogą
+  w sumie różnić się od łącznej o grosz. Sklep pokazuje te kwoty i sam nie liczy VAT; gdy odczyt ich
+  nie zawiera (`vat: null`), pokazuje kwoty netto.
+- **VAT koszyka jest szacunkiem do chwili złożenia zamówienia; wiążące są kwoty złożonego
+  zamówienia.** Koszyk ustala stawki dla **kraju siedziby** organizacji, bo adres rozliczeniowy nie
+  jest jeszcze wybrany. Złożenie zamówienia ustala je dla **adresu rozliczeniowego** wybranego przy
+  składaniu zamówienia, więc adres rozliczeniowy w innym kraju może przy składaniu zamówienia zmienić
+  stawkę — a wraz z nią VAT i kwotę brutto. Zamówienie dolicza też koszt dostawy i dopłatę za
+  płatność, których koszyk nie zawiera.
 - Przy składaniu zamówienia moduł zamówień pyta ten moduł, czy każda zapisana cena jest nadal
   aktualna. Jeśli któraś nie jest — zwykle dlatego, że cennik zmienił się po dodaniu pozycji —
   złożenie zamówienia jest odrzucane z kodem
@@ -307,6 +323,11 @@ wszystkich pozycji koszyka (z `variantId` każdej pozycji) — a w przeciwnym ra
 dodawanie, łączenie, zmiana ilości, odczyt koszyka (`CartPricingRecompute`) i kontrola przy
 składaniu zamówienia, więc cena, którą kupujący widzi w koszyku, jest ceną, którą nalicza złożenie
 zamówienia — pilnuje tego `backend/test/integration/carts/cart-read-equals-placement.test.ts`.
+VAT liczy `cartVatMoney` (`src/backend/services/cart-money.ts`), wywołując `vatByRate` z kontraktów
+— tę samą funkcję, której używają sumy zamówienia — ze stawkami ustalonymi przez
+`createCartTaxRateResolver` (`cart-tax-rates.ts`); zgodność kwot koszyka z kwotami zamówienia
+utrzymują `backend/test/unit/carts/cart-vat-equals-order.test.ts` i
+`backend/test/integration/carts/cart-vat-equals-placement.test.ts`.
 
 ## Ustawienia
 

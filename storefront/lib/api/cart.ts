@@ -3,6 +3,7 @@ import { StorefrontApiError, type RequestContext } from './client';
 import { withModuleAbsence } from './module-absence';
 import { backendBaseUrl } from '../env.mjs';
 import { activeChannelHeaders } from './channel-headers';
+import type { CartVat } from '@endora-commerce/contracts';
 
 /**
  * The backend's origin, read per call.
@@ -38,6 +39,12 @@ export interface CartItem {
   unitPrice: { amount: number; currency: string };
   /** Feature 027 — qty × unitPrice, surfaced by the backend serializer. */
   lineTotal?: { amount: number; currency: string };
+  /**
+   * Issue #436 — the line's VAT rate (a fraction) and its own gross, answered
+   * by the full cart read; absent on the line-mutation replies.
+   */
+  taxRate?: number | null;
+  lineGross?: { amount: number; currency: string } | null;
   /** Feature 027 — true when the line should be dimmed on the page. */
   unavailable?: boolean;
   /** Feature 027 — populated when `unavailable` is true. */
@@ -123,6 +130,12 @@ export interface CartSummary {
    * again or ordered since.
    */
   previousRejection?: CartPreviousRejection | null;
+  /**
+   * Issue #436 — the cart's VAT per rate and its gross totals, computed by the
+   * backend the way the order computes them. The storefront renders these and
+   * never derives a gross for the cart itself; `null` when the read had none.
+   */
+  vat?: CartVat | null;
 }
 
 /** Issue #650 — `CartSummary.previousRejection`. */
