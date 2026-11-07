@@ -909,6 +909,72 @@ describe('CustomerDeletionService', () => {
     expect(await em.find(AuditLogEntry, { action: 'customer_account.anonymized', objectId: customer.id })).toHaveLength(1);
   });
 
+  /** An account scrubbed by an earlier release: anonymised, with `residue` still on the row. */
+  async function makeEarlierAnonymizedCustomer(
+    deletedAt: Date,
+    residue: Partial<Pick<CustomerAccount, 'blockReason' | 'customFieldValues'>>,
+  ): Promise<CustomerAccount> {
+    const customer = await makePersonalCustomer();
+    const org = await em.findOneOrFail(Organization, { id: customer.organizationId });
+    org.name = 'Deleted customer';
+    org.registeredAddress = { ...org.registeredAddress, street: '-', city: '-', postalCode: '-' };
+    org.deletedAt = deletedAt;
+    customer.deletedAt = deletedAt;
+    customer.email = `deleted+${customer.id}@anonymized.invalid`;
+    customer.firstName = 'Deleted customer';
+    customer.lastName = 'Deleted customer';
+    customer.anonymizedAt = deletedAt;
+    Object.assign(customer, residue);
+    await em.flush();
+    return customer;
+  }
+
+  it('I-17b — an account anonymised before #802, with custom field values and no block reason, is finished by the next run', async () => {
+    const scrubbedAt = new Date('2026-04-05T06:07:08.000Z');
+    const customer = await makeEarlierAnonymizedCustomer(scrubbedAt, {
+      blockReason: null,
+      customFieldValues: { birthday: '1990-01-01', shoe_size: 44 },
+    });
+
+    expect(await svc.sweep(0, after(60_000))).toBe(1);
+
+    em.clear();
+    const account = await em.findOneOrFail(CustomerAccount, { id: customer.id });
+    expect(account.customFieldValues).toEqual({});
+    expect(account.anonymizedAt!.toISOString()).toBe(scrubbedAt.toISOString());
+    const row = await auditRow('customer_account.anonymized', customer.id);
+    expect(row.stateBefore).toEqual({
+      anonymizedAt: scrubbedAt.toISOString(),
+      customFieldKeys: ['birthday', 'shoe_size'],
+      hadBlockReason: false,
+    });
+    expect(JSON.stringify([row.stateBefore, row.stateAfter])).not.toContain('1990-01-01');
+    expect(anonymizedEvents).toEqual([]);
+
+    expect(await svc.sweep(0, after(60_000))).toBe(0);
+    expect(await em.find(AuditLogEntry, { action: 'customer_account.anonymized', objectId: customer.id })).toHaveLength(1);
+  });
+
+  it('I-23a — an anonymised account with residue is finished even after the retention window is raised past its deletion', async () => {
+    // Deleted (and anonymised) a day ago; the operator has since raised the
+    // window to a year, so the cutoff now lies long before `deletedAt`.
+    const deletedAt = new Date(Date.now() - 24 * 60 * 60 * 1000);
+    const customer = await makeEarlierAnonymizedCustomer(deletedAt, {
+      blockReason: ACCOUNT_BLOCK_REASON,
+      customFieldValues: { nickname: 'Solo' },
+    });
+
+    expect(await svc.sweep(365, new Date())).toBe(1);
+
+    em.clear();
+    const account = await em.findOneOrFail(CustomerAccount, { id: customer.id });
+    expect(account.blockReason ?? null).toBeNull();
+    expect(account.customFieldValues).toEqual({});
+    const row = await auditRow('customer_account.anonymized', customer.id);
+    expect(row.stateBefore).toMatchObject({ hadBlockReason: true, customFieldKeys: ['nickname'] });
+    expectNoReasonText(row);
+  });
+
   it('I-18 — a company organization keeps its reasons when a member is anonymized (#843)', async () => {
     const company = em.create(Organization, {
       name: 'Reasoned Sp. z o.o.',

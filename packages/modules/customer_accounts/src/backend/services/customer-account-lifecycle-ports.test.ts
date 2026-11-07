@@ -187,3 +187,36 @@ describe('CustomerAccountLifecycleWriteService.anonymize — the block reason (#
     expect(emitted).toEqual([]);
   });
 });
+
+describe('CustomerAccountLifecycleWriteService.anonymize — finishing an earlier scrub (#843, design #923 §2.3)', () => {
+  it('U-5 — finishes an account anonymised before #802 that has custom field values and no block reason', async () => {
+    const { service, account, audited, emitted, steps } = harness();
+    const anonymizedAt = new Date('2026-01-02T03:04:05Z');
+    Object.assign(account, { anonymizedAt, blockReason: null });
+
+    await service.anonymize(ACCOUNT_ID);
+
+    expect(account.customFieldValues).toEqual({});
+    expect(account.anonymizedAt).toBe(anonymizedAt);
+    expect(audited).toHaveLength(1);
+    expect(audited[0]!.stateBefore).toEqual({
+      anonymizedAt: anonymizedAt.toISOString(),
+      customFieldKeys: ['birthday', 'nickname'],
+      hadBlockReason: false,
+    });
+    expect(steps).toContain('flush');
+    expect(emitted).toEqual([]);
+  });
+
+  it('U-6 — a fully scrubbed account gives no write, no row and no announcement', async () => {
+    const { service, account, audited, emitted, steps } = harness();
+    Object.assign(account, { anonymizedAt: new Date('2026-01-02T03:04:05Z'), customFieldValues: {}, blockReason: null });
+
+    await service.anonymize(ACCOUNT_ID);
+
+    expect(audited).toEqual([]);
+    expect(emitted).toEqual([]);
+    expect(steps).not.toContain('flush');
+  });
+});
+
