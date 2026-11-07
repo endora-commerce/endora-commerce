@@ -65,6 +65,9 @@ export class AvailabilityWorker {
 
     const where: Record<string, unknown> = {
       productId: input.productId,
+      // A row the customer or an admin cancelled keeps `notifiedAt` null, so the status is what
+      // keeps it from being mailed (issue #468).
+      status: 'queued',
       notifiedAt: null,
     };
     if (input.variantId === undefined || input.variantId === null) {
