@@ -1,6 +1,6 @@
-import { useState, type ReactElement, type ReactNode } from 'react';
+import { useEffect, useState, type ReactElement, type ReactNode } from 'react';
 import { afterEach, describe, expect, it, vi } from 'vitest';
-import { cleanup, fireEvent, render, screen } from '@testing-library/react';
+import { act, cleanup, fireEvent, render, screen } from '@testing-library/react';
 import { TranslationProvider } from '@endora-commerce/admin-kit/i18n';
 import { ScopedField, type ScopedFieldProps } from '@endora-commerce/admin-kit/components';
 import type { ScopeRef, ScopedFieldView, ScopedWriteOp } from '@endora-commerce/contracts';
@@ -102,6 +102,48 @@ describe('ScopedField (feature 174, FR-060…FR-065)', () => {
     expect(control).toHaveFocus();
     fireEvent.change(control, { target: { value: 'Wiertarka' } });
     expect(spy).toHaveBeenLastCalledWith({ op: 'set', value: 'Wiertarka' });
+  });
+
+  it('a new read starts the field over: an untick does not outlive the view it was made on (FR-061)', () => {
+    const { rerender } = renderEn(<Harness />);
+    fireEvent.click(screen.getByRole('checkbox'));
+    expect(screen.getByLabelText('Name')).not.toHaveAttribute('readonly');
+    rerender(
+      <TranslationProvider language="en" initialBundle={shippedCoreBundle('en')}>
+        <Harness view={view({ value: 'Drill 2' })} />
+      </TranslationProvider>,
+    );
+    expect(screen.getByRole('checkbox')).toBeChecked();
+    expect(screen.getByLabelText('Name')).toHaveAttribute('readonly');
+    expect(screen.getByLabelText('Name')).toHaveValue('Drill 2');
+  });
+
+  it('an untick made as soon as the field is on screen is kept (issue #841)', async () => {
+    // The field mounts from a late answer, as in the editor, and the box is clicked in the first
+    // microtask after that commit — before React has run the commit's effects.
+    function Late(): ReactElement | null {
+      const [shown, setShown] = useState(false);
+      useEffect(() => {
+        void Promise.resolve().then(() => setShown(true));
+      }, []);
+      return shown ? <Harness /> : null;
+    }
+    const clicked = new Promise<void>((resolve) => {
+      const observer = new MutationObserver(() => {
+        const box = document.querySelector<HTMLInputElement>('input[type="checkbox"]');
+        if (!box) return;
+        observer.disconnect();
+        fireEvent.click(box);
+        resolve();
+      });
+      observer.observe(document.body, { childList: true, subtree: true });
+    });
+    renderEn(<Late />);
+    await clicked;
+    // Let every effect and update still pending land before reading the end state.
+    await act(async () => undefined);
+    expect(screen.getByRole('checkbox')).not.toBeChecked();
+    expect(screen.getByLabelText('Name')).not.toHaveAttribute('readonly');
   });
 
   it('own value: unchecked box, "Set at this scope", "Overridden"; tick stages inherit and untick restores (FR-062)', () => {
