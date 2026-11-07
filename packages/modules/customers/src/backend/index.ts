@@ -50,6 +50,7 @@ import type { SettingsReadPort } from '@endora-commerce/platform/kernel';
 import { CUSTOMERS_SETTING_CODES } from '../manifest.js';
 import { customersModule, type CustomersModuleOptions } from './plugin.js';
 import { startAddressBookRetirement } from './workers/address-book-retirement-worker.js';
+import { startAnonymizationSweep } from './workers/anonymization-sweep-worker.js';
 import { CustomerAddress } from './entities/customer-address.entity.js';
 
 /**
@@ -126,8 +127,8 @@ export interface CustomersCradle {
   readonly processRunsWorkers: boolean;
   /**
    * The connection a module may build a BullMQ queue on; `undefined` is a
-   * composition that wants no queues, and the address-book retirement job's
-   * consumer is then not built.
+   * composition that wants no queues, and neither the address-book retirement
+   * job's consumer nor the anonymization sweep's is then built.
    */
   readonly moduleQueueRedis: Redis | undefined;
   readonly customers: ReturnType<typeof customersModule>;
@@ -414,6 +415,24 @@ export function registerModule(ctx: ModuleContext): void {
       processRunsWorkers: cradle().processRunsWorkers,
       moduleQueueRedis: cradle().moduleQueueRedis,
       retirement: cradle().customers.handle().addressBookRetirement,
+      log: ctx.log,
+      attach: (worker) => ctx.worker(worker, { logger: app.log }),
+      onClose: (close) => {
+        app.addHook('onClose', close);
+      },
+    });
+
+    // The clock of the retention sweep (issue #677): a daily Job Scheduler and
+    // its consumer. Until this call existed nothing ran
+    // `AnonymizationSweepWorker.sweep()` at all, so a deleted account kept its
+    // personal data past `customers.deletion_retention_days` indefinitely.
+    // Attached and gated exactly as the job above: through `ctx.worker`, so no
+    // tick runs while this module is off, and only where this process consumes
+    // queues.
+    await startAnonymizationSweep({
+      processRunsWorkers: cradle().processRunsWorkers,
+      moduleQueueRedis: cradle().moduleQueueRedis,
+      sweeper: cradle().customers.handle().anonymizationSweepWorker,
       log: ctx.log,
       attach: (worker) => ctx.worker(worker, { logger: app.log }),
       onClose: (close) => {

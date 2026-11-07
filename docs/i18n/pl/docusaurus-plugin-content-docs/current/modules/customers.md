@@ -78,6 +78,11 @@ miękko usuwane, każdy z wpisem audytu `address.anonymized`. Dzieje się tak r�
 operator usunął już tę organizację. Złożone zamówienia zachowują swoje kopie adresów. Wpisy audytu
 anonimizacji odnotowują, że dane usunięto, ale nie przechowują samych danych.
 
+Zadanie uruchamia się raz dziennie w procesie workera i tylko wtedy, gdy moduł jest włączony, więc
+konto zostaje zanonimizowane najpóźniej dzień po upływie okresu. Gdy moduł jest wyłączony, zadanie
+się nie uruchamia; konta, którym okres upłynął w tym czasie, anonimizuje pierwszy przebieg po
+ponownym włączeniu modułu.
+
 Zadanie najpierw anonimizuje organizację prywatną i jej adresy, a konto na końcu. Jeśli przebieg
 zostanie przerwany, konto zostanie podjęte ponownie w następnym przebiegu, który dokończy brakujące
 kroki bez powtarzania wpisów audytu kroków już wykonanych. Konto, którego nie da się
