@@ -1,4 +1,4 @@
-import { UniqueConstraintViolationException } from '@mikro-orm/core';
+import { LockMode, UniqueConstraintViolationException } from '@mikro-orm/core';
 import type { EntityManager } from '@mikro-orm/postgresql';
 import {
   CRM_EVENTS,
@@ -230,7 +230,10 @@ export class OpportunityLinkService {
         objectType: 'crm_opportunity',
         objectId: link.opportunityId,
         run: async ({ em }) => {
-          const parent = await loadOpportunity(em, link.opportunityId);
+          // Locked, as an edit locks it (#404): a carry plans over the
+          // Opportunity's bag and writes the whole of it back, so an edit
+          // committing in between would otherwise be overwritten.
+          const parent = await loadOpportunity(em, link.opportunityId, { lockMode: LockMode.PESSIMISTIC_WRITE });
           const created = em.create(CrmOpportunityLink, {
             opportunityId: parent.id,
             documentKind: link.documentKind,
@@ -245,7 +248,12 @@ export class OpportunityLinkService {
           const carry = link.carry
             ? await carryIntoOpportunity(this.deps.customFieldCarry, link.carry, { ...(parent.customFieldValues ?? {}) })
             : null;
-          if (carry && carry.carried.length > 0) parent.customFieldValues = { ...carry.values };
+          if (carry && carry.carried.length > 0) {
+            parent.customFieldValues = { ...carry.values };
+            // A write to the Opportunity, as an edit is: a client holding the
+            // previous version must learn that it is stale.
+            parent.version += 1;
+          }
           return {
             result: { organizationId: parent.organizationId },
             before: null,
