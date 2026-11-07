@@ -11,6 +11,10 @@ import { BlogIndexPage } from '../../app/blog/_components/BlogIndexPage';
 import { BlogCategoryPage } from '../../app/blog/_components/BlogCategoryPage';
 import { BlogTagPage } from '../../app/blog/_components/BlogTagPage';
 import { BlogPostPage } from '../../app/blog/_components/BlogPostPage';
+import { moduleActionPresence } from '../../lib/module-action-presence';
+
+/** Every action module present: what these cases render is not about presence (issue #672). */
+const ALL_PRESENT = moduleActionPresence({ isPresent: () => true });
 
 /**
  * Feature 171 (FR-002, T016) — every blog link the storefront renders is a URL the
@@ -129,7 +133,7 @@ describe('blog links come from the payload (feature 171)', () => {
       },
     };
     const html = renderToString(
-      <BlogPostPage payload={post} language="pl-PL" locale="pl-PL" relatedProducts={[]} salesChannelCode="b2b" />,
+      <BlogPostPage presence={ALL_PRESENT} payload={post} language="pl-PL" locale="pl-PL" relatedProducts={[]} salesChannelCode="b2b" />,
     );
     expect(hrefs(html)).toEqual(expect.arrayContaining([BASE, `${BASE}/tag/diy`, `${BASE}/porady`]));
     expect(html).toContain(`${BASE}/jak-wybrac`);

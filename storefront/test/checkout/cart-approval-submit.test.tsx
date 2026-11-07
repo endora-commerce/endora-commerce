@@ -27,7 +27,7 @@ vi.mock('../../lib/session', () => ({
   setAnonCartCookie: async () => undefined,
 }));
 vi.mock('../../lib/server-context', () => ({
-  getServerContext: async () => ({ locale, ctx: {} }),
+  getServerContext: async () => ({ locale, ctx: {}, modules: { isPresent: () => true, presentIds: [], absentIds: [] } }),
 }));
 vi.mock('../../lib/api/cart', () => ({
   CART_UNAVAILABLE: 'cart-unavailable',

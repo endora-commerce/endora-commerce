@@ -13,6 +13,7 @@ import {
   getBlogTagByCode,
 } from '../../../lib/api/blog';
 import { getServerContext } from '../../../lib/server-context';
+import { moduleActionPresence } from '../../../lib/module-action-presence';
 import { canonicalPath } from '../../../lib/seo/route-seo';
 import { seo } from './seo';
 import { localizedAlternates } from '../../../lib/i18n/navigation';
@@ -183,6 +184,7 @@ export default async function BlogCatchAllPage({
         locale={locale}
         relatedProducts={relatedProducts}
         salesChannelCode={ctx.salesChannelCode}
+        presence={moduleActionPresence(modules)}
       />
     );
   }

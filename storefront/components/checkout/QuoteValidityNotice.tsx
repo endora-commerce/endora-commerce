@@ -16,16 +16,22 @@ const LINK_CLASS =
  * quote leads to the buyer's quote requests, where a new one is asked for; while quote prices
  * cannot be confirmed at all (the quote desk is switched off) that page is not there to lead to,
  * so only the basket is offered. Renders nothing without a refusal.
+ *
+ * Nor is it while `quote_requests` is switched off (issue #672, Principle XVII item 5): the page
+ * answers not-found, so the notice offers the basket alone whatever the refusal says.
  */
 export function QuoteValidityNotice({
   id,
   refusal,
   locale,
+  quoteRequestsPresent,
 }: {
   /** The id the blocked Place Order button points at with `aria-describedby`. */
   id: string;
   refusal: QuoteCommitmentRefusal | null;
   locale: string;
+  /** `quote_requests` is present for this request (`getServerContext().modules`). */
+  quoteRequestsPresent: boolean;
 }): ReactNode {
   if (refusal === null) return null;
   const t = tForLocale(locale);
@@ -58,7 +64,7 @@ export function QuoteValidityNotice({
       </h3>
       <p className="m-0 mb-3 text-[13px] text-fg-soft">{t(`checkout.quoteEnded.body.${refusal}`)}</p>
       <div className="flex flex-wrap gap-2">
-        {refusal !== 'unavailable' ? (
+        {refusal !== 'unavailable' && quoteRequestsPresent ? (
           <LocalizedLink href="/quote-requests" className={LINK_CLASS}>
             {t('checkout.quoteEnded.toQuotes')}
           </LocalizedLink>

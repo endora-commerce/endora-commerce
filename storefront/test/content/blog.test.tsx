@@ -12,6 +12,10 @@ import { BlogCategoryPage } from '../../app/blog/_components/BlogCategoryPage';
 import { BlogTagPage } from '../../app/blog/_components/BlogTagPage';
 import { RelatedPostsStrip } from '../../app/blog/_components/RelatedPostsStrip';
 import { RelatedProductsStrip } from '../../app/blog/_components/RelatedProductsStrip';
+import { moduleActionPresence } from '../../lib/module-action-presence';
+
+/** Every action module present: what these cases render is not about presence (issue #672). */
+const ALL_PRESENT = moduleActionPresence({ isPresent: () => true });
 
 /**
  * Issue #85 — the blog's own words (headings, empty states, pagination,
@@ -135,10 +139,10 @@ describe('related strips', () => {
       stockLevel: null,
     };
     expect(
-      renderToString(<RelatedProductsStrip products={[product]} locale="en-US" salesChannelCode={undefined} />),
+      renderToString(<RelatedProductsStrip presence={ALL_PRESENT} products={[product]} locale="en-US" salesChannelCode={undefined} />),
     ).toContain('>Related products</h2>');
     expect(
-      renderToString(<RelatedProductsStrip products={[product]} locale="pl-PL" salesChannelCode={undefined} />),
+      renderToString(<RelatedProductsStrip presence={ALL_PRESENT} products={[product]} locale="pl-PL" salesChannelCode={undefined} />),
     ).toContain('>Powiązane produkty</h2>');
   });
 });

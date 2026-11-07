@@ -86,7 +86,7 @@ export default async function CheckoutPage({
   const jar: CartCookieJar = await readJar();
   // Feature 036 (T039) — resolve the active locale so checkout components
   // can render their copy in PL/EN.
-  const { locale, ctx } = await getServerContext();
+  const { locale, ctx, modules } = await getServerContext();
 
   let loaded: [
     Awaited<ReturnType<typeof getCart>>,
@@ -255,7 +255,12 @@ export default async function CheckoutPage({
         message={me?.organization?.moderationMessage ?? null}
         locale={locale}
       />
-      <QuoteValidityNotice id={QUOTE_ENDED_NOTICE_ID} refusal={quoteCommitmentRefusal} locale={locale} />
+      <QuoteValidityNotice
+        id={QUOTE_ENDED_NOTICE_ID}
+        refusal={quoteCommitmentRefusal}
+        locale={locale}
+        quoteRequestsPresent={modules.isPresent('quote_requests')}
+      />
       <BelowMinimumSummary id={BELOW_MINIMUM_SUMMARY_ID} rows={belowMinimumRows} locale={locale} />
 
       <CheckoutForm action={submitAction} className="b2b-auth__form">
