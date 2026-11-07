@@ -1,6 +1,7 @@
 {
   "errors.CANNOT_DEMOTE_LAST_ADMIN": "To jedyny administrator w tej organizacji, a organizacja zawsze musi mieć co najmniej jednego — po odebraniu mu tej roli nikt nie mógłby zarządzać użytkownikami, adresami ani akceptacjami. Najpierw nadaj rolę administratora innemu użytkownikowi, a potem tę rolę będzie można zmienić.",
   "errors.CANNOT_REMOVE_LAST_ADMIN": "To jedyny administrator w tej organizacji, a organizacja zawsze musi mieć co najmniej jednego — po jego usunięciu nikt nie mógłby zarządzać użytkownikami, adresami ani akceptacjami. Najpierw nadaj rolę administratora innemu użytkownikowi, a potem tego będzie można usunąć.",
+  "errors.CUSTOMER_ALREADY_DELETED": "To konto klienta zostało już usunięte, więc ta operacja nie jest dla niego dostępna. Usunięte konto można przywrócić, dopóki nie minie okres na jego przywrócenie.",
   "errors.CUSTOMER_AUTHENTICATION_THROTTLED": "Dla tego konta podjęto zbyt wiele prób, dlatego kolejne są wstrzymane na kilka minut. Odczekaj chwilę i spróbuj ponownie.",
   "errors.CUSTOMER_AUTHENTICATION_UNAVAILABLE": "Logowanie jest chwilowo niedostępne. Spróbuj ponownie za chwilę.",
   "errors.CUSTOMER_RESTORE_WINDOW_ELAPSED": "Okres, w którym można było przywrócić to konto, minął, więc nie można go już przywrócić. Jego dane osobowe zostały lub wkrótce zostaną trwale zanonimizowane.",

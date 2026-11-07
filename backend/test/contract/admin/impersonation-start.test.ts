@@ -6,7 +6,9 @@ import {
 } from '../../helpers/test-server.js';
 import { AuditLogEntry } from '@endora-commerce/platform/kernel';
 import { ERROR_CODES } from '@endora-commerce/contracts';
-import { CustomerAccount, Organization } from '../../helpers/package-entities.js';
+import { AdminUser, CustomerAccount, Organization } from '../../helpers/package-entities.js';
+import { TEST_ADMIN_ID } from '../../helpers/test-actors.js';
+import { seedCrmAdmin } from '../../helpers/seed-crm.js';
 
 /**
  * T179 — `POST /admin/organizations/:id/impersonate` writes an
@@ -146,5 +148,100 @@ describe('POST /api/v1/admin/organizations/:id/impersonate — audit-before-cook
     it('answers 409 CUSTOMER_ALREADY_DELETED for a soft-deleted member of the organization', async () => {
       await expectRefused(await impersonate(ids.deleted), ids.deleted, 409, ERROR_CODES.CUSTOMER_ALREADY_DELETED);
     });
+
+    /**
+     * Issue #828 gave `CUSTOMER_ALREADY_DELETED` a bundle sentence worded for
+     * every raise site; this is the impersonation one (issue #814). The admin
+     * arm reads the stored preference, and the expected sentences are written
+     * out rather than read from the bundle.
+     */
+    it.each([
+      [
+        'pl',
+        'To konto klienta zostało już usunięte, więc ta operacja nie jest dla niego dostępna. ' +
+          'Usunięte konto można przywrócić, dopóki nie minie okres na jego przywrócenie.',
+      ],
+      [
+        'en',
+        'This customer account has already been deleted, so this action is not available for it. ' +
+          'A deleted account can be restored until its restore window elapses.',
+      ],
+    ] as const)('answers the %s sentence for a soft-deleted member', async (language, sentence) => {
+      const em = h.em();
+      const admin = await em.findOneOrFail(AdminUser, { id: TEST_ADMIN_ID });
+      const previousLanguage = admin.preferredLanguage ?? null;
+      admin.preferredLanguage = language;
+      await em.flush();
+      try {
+        const res = await impersonate(ids.deleted);
+        expect(res.statusCode, res.body).toBe(409);
+        const body = res.json() as { error: { code: string; message: string } };
+        expect(body.error.code).toBe(ERROR_CODES.CUSTOMER_ALREADY_DELETED);
+        expect(body.error.message).toBe(sentence);
+      } finally {
+        const restore = h.em();
+        const row = await restore.findOneOrFail(AdminUser, { id: TEST_ADMIN_ID });
+        row.preferredLanguage = previousLanguage;
+        await restore.flush();
+      }
+    });
+  });
+});
+
+/**
+ * Issue #828 — the `customers:impersonate` gate answers before the body schema,
+ * as it does on `POST /admin/customers/:id/impersonate`. A caller the route
+ * refuses learns nothing about its request shape: a malformed
+ * `customerAccountId` and a well-formed one get the same 403, and nothing is
+ * audited for either.
+ */
+describe('POST /api/v1/admin/organizations/:id/impersonate — the gate before the schema', () => {
+  let h: BackendServerHandle;
+  let nobody: { cookies: { b2b_session: string }; undo: () => void };
+  const orgId = '00000000-0000-4000-8000-0000000000aa';
+  const customerId = '00000000-0000-4000-8000-0000000000a1';
+
+  beforeAll(async () => {
+    h = await setupBackendServer();
+    nobody = await seedCrmAdmin(h.em(), 'impersonate-nobody', ['orders:read']);
+  });
+
+  afterAll(async () => {
+    nobody?.undo();
+    await teardownBackendServer(h);
+  });
+
+  function impersonate(payload: Record<string, unknown>, cookies?: Record<string, string>) {
+    return h.app.inject({
+      method: 'POST',
+      url: `/api/v1/admin/organizations/${orgId}/impersonate`,
+      payload,
+      ...(cookies ? { cookies } : {}),
+    });
+  }
+
+  it.each([
+    ['a well-formed customerAccountId', { customerAccountId: customerId }],
+    ['a malformed customerAccountId', { customerAccountId: 'not-a-uuid' }],
+    ['no customerAccountId at all', {}],
+  ])('answers 403 without customers:impersonate for %s', async (_label, payload) => {
+    const before = await h.em().count(AuditLogEntry, { action: 'impersonation.start' });
+    const res = await impersonate(payload, nobody.cookies);
+    expect(res.statusCode, res.body).toBe(403);
+    expect((res.json() as { error: { code: string } }).error.code).toBe('FORBIDDEN');
+    expect(await h.em().count(AuditLogEntry, { action: 'impersonation.start' })).toBe(before);
+  });
+
+  it('answers 401 without a session, whatever the body', async () => {
+    const res = await impersonate({ customerAccountId: 'not-a-uuid' });
+    expect(res.statusCode, res.body).toBe(401);
+  });
+
+  it('still validates the body for a caller who holds the permission', async () => {
+    const res = await impersonate(
+      { customerAccountId: 'not-a-uuid' },
+      { b2b_session: 'stub-admin-session' },
+    );
+    expect(res.statusCode, res.body).toBe(400);
   });
 });
