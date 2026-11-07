@@ -139,7 +139,8 @@ export function Header(props: {
               searchActionLabel={t('common.searchAction')}
               seeAllResultsLabel={t('search.seeAllResults')}
               unavailableLabel={t('search.unavailable')}
-              requestQuoteLabel={t('product.requestQuote')}
+              // Issue #672 — an unpriced result invites a quote only while `quote_requests` is present.
+              requestQuoteLabel={t(showQuoteRequest ? 'product.requestQuote' : 'commerce.common.priceOnRequest')}
               listPriceLabel={t('product.listPrice')}
               yourPriceLabel={t('product.yourPrice')}
               showKeyboardHint

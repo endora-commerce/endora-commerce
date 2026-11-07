@@ -1,6 +1,7 @@
 import type { Metadata } from 'next';
 import type { ReactNode } from 'react';
 import { ProductGrid } from '../../../components/ProductGrid';
+import { moduleActionPresence } from '../../../lib/module-action-presence';
 import { FilterPanel } from '../../../components/FilterPanel';
 import { Pagination } from '../../../components/Pagination';
 import { Breadcrumbs } from '../../../components/Breadcrumbs';
@@ -48,7 +49,7 @@ interface PageProps {
  */
 export default async function CatalogPage({ searchParams }: PageProps): Promise<ReactNode> {
   const params = await searchParams;
-  const { ctx, locale } = await getServerContext();
+  const { ctx, locale, modules } = await getServerContext();
   const t = tForLocale(locale);
   const query = parseQuery(params);
   const priceQuery = parseCatalogPriceQuery(params);
@@ -143,6 +144,7 @@ export default async function CatalogPage({ searchParams }: PageProps): Promise<
             view={query.view}
             salesChannelCode={ctx.salesChannelCode}
             more={products.pagination.hasMore}
+            presence={moduleActionPresence(modules)}
           />
           <Pagination
             basePath="/catalog"

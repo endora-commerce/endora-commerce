@@ -5,6 +5,7 @@ import { format } from '../lib/i18n/format';
 import { formatCount } from '../lib/orderMinimum';
 import { DEFAULT_VAT_RATE, formatMoney, grossUnitPriceFromNet } from '../lib/i18n/money';
 import { LocalizedLink } from '../lib/i18n/localized-link';
+import type { ModuleActionPresence } from '../lib/module-action-presence';
 
 /**
  * List-view row for the catalog. Same data surface as `<ProductCard>`,
@@ -24,8 +25,10 @@ export function ProductRow(props: {
    * consulted about and no caller could correct.
    */
   vatRate?: number;
+  /** Which action modules are present (issue #672): an unpriced row invites a quote only while `quote_requests` is. */
+  presence: ModuleActionPresence;
 }): ReactNode {
-  const { product, locale, vatRate = DEFAULT_VAT_RATE } = props;
+  const { product, locale, presence, vatRate = DEFAULT_VAT_RATE } = props;
   const t = tForLocale(locale);
 
   // A unit price: its significant places, up to four (owner ruling of 2026-10-25).
@@ -83,7 +86,7 @@ export function ProductRow(props: {
           </>
         ) : (
           <div className="font-mono text-[13px] font-semibold tracking-[-0.01em] text-fg">
-            {t('product.requestQuote')}
+            {t(presence.quoteRequests ? 'product.requestQuote' : 'commerce.common.priceOnRequest')}
           </div>
         )}
       </div>

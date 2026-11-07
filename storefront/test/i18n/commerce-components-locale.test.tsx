@@ -1,6 +1,10 @@
 import { describe, expect, it, vi } from 'vitest';
 import { renderToString } from 'react-dom/server';
 import type { FilterDefinition, ProductSummary } from '@endora-commerce/contracts';
+import { moduleActionPresence } from '../../lib/module-action-presence';
+
+/** Every action module present: what these cases render is not about presence (issue #672). */
+const ALL_PRESENT = moduleActionPresence({ isPresent: () => true });
 
 /**
  * Issue #85 — the commerce area's components render the page's language. Each
@@ -107,7 +111,7 @@ describe('product card and row', () => {
     ['en-US', ['from / pc.', 'gross ', 'Low: 5']],
     ['pl-PL', ['od / szt.', 'brutto ', 'Mało: 5']],
   ])('card in %s', (locale, texts) => {
-    const out = html(<ProductCard product={summary({ stockLevel: 5 })} locale={locale} salesChannelCode={undefined} />);
+    const out = html(<ProductCard presence={ALL_PRESENT} product={summary({ stockLevel: 5 })} locale={locale} salesChannelCode={undefined} />);
     for (const text of texts) expect(out).toContain(text);
   });
 
@@ -117,7 +121,7 @@ describe('product card and row', () => {
     ['en-US', summary({ stockIndicator: 'to_order' }), 'Available to order'],
     ['pl-PL', summary({ stockIndicator: 'to_order' }), 'Na zamówienie'],
   ])('row stock in %s', (locale, product, text) => {
-    const out = html(<ProductRow product={product} locale={locale} />);
+    const out = html(<ProductRow presence={ALL_PRESENT} product={product} locale={locale} />);
     expect(out.replace(/ /g, '')).toContain(text);
   });
 
@@ -127,8 +131,8 @@ describe('product card and row', () => {
       basePrice: { amount: '100.00', currency: 'USD' },
       salePrice: { amount: '80.00', currency: 'USD' },
     };
-    const en = html(<ProductCard product={summary()} resolved={resolved as never} locale="en-US" salesChannelCode={undefined} />);
-    const pl = html(<ProductCard product={summary()} resolved={resolved as never} locale="pl-PL" salesChannelCode={undefined} />);
+    const en = html(<ProductCard presence={ALL_PRESENT} product={summary()} resolved={resolved as never} locale="en-US" salesChannelCode={undefined} />);
+    const pl = html(<ProductCard presence={ALL_PRESENT} product={summary()} resolved={resolved as never} locale="pl-PL" salesChannelCode={undefined} />);
     expect(en).toContain('>Sale<');
     expect(en).toContain('Special price');
     expect(pl).toContain('>Promocja<');

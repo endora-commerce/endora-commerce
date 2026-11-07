@@ -13,7 +13,7 @@ let locale = 'en-US';
 let products: ProductSummary[] = [];
 
 vi.mock('../../lib/server-context', () => ({
-  getServerContext: async () => ({ locale, ctx: {} }),
+  getServerContext: async () => ({ locale, ctx: {}, modules: { isPresent: () => true, presentIds: [], absentIds: [] } }),
 }));
 vi.mock('../../lib/session', () => ({ getSessionCookie: async () => 'sess' }));
 vi.mock('../../lib/api/catalog', () => ({
