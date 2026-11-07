@@ -573,6 +573,12 @@ export async function composeApp(options: ComposeAppOptions): Promise<ComposeApp
   // The writer keeps the stderr line, aggregates per flush window and writes on
   // a fork of its own; the reasoning is at the top of its file.
   const escapeHatchAudit = attachEscapeHatchAuditWriter({ em });
+  // Issue #120 — the boot is one access, not one per step: every `boot: …`
+  // widening from here to the end of `runBootHooks()` folds into a single
+  // `boot: process start` row that keeps the per-(module, reason) counts.
+  // Anything else recorded meanwhile is written as before; the writer's header
+  // carries the rule.
+  escapeHatchAudit.beginBoot();
 
   // Feature 090 Phase 2 — which bundle holds which error code's sentence,
   // derived from the manifests this deployment resolved rather than from a table
@@ -1361,6 +1367,9 @@ export async function composeApp(options: ComposeAppOptions): Promise<ComposeApp
   // below it throws `ContributionWindowClosedError` naming the rule, rather
   // than landing somewhere no hook will read.
   await composedModules.runBootHooks();
+  // The bracket opened beside the writer closes here: what a plugin body,
+  // a worker or a request widens from now on is not the process start.
+  escapeHatchAudit.endBoot();
 
   return {
     orm,

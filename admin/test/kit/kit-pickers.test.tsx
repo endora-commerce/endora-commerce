@@ -181,11 +181,73 @@ describe('SalesChannelPicker', () => {
     });
   });
 
-  it('narrows to the active channels when asked', async () => {
-    getSpy.mockResolvedValue({ items: [], page: 1, pageSize: 200, total: 0 });
-    renderWithI18n(withLanguage(<SalesChannelPicker value={null} onChange={vi.fn()} activeOnly />));
-    await waitFor(() => {
-      expect(getSpy).toHaveBeenCalledWith('/api/v1/admin/sales-channels?pageSize=200&activeOnly=true');
+  describe('with activeOnly (#912)', () => {
+    // The CRM's `SalesChannelSelect` rule: the list is read whole and narrowed
+    // here, so a value already stored stays selectable, active or not, while
+    // every other inactive channel stays out of the choices.
+    const CHANNELS = {
+      items: [
+        { id: 'ch-1', code: 'web', name: { 'en-US': 'Web store' }, active: true },
+        { id: 'ch-3', code: 'old', name: { 'en-US': 'Old store' }, active: false },
+        { id: 'ch-4', code: 'gone', name: { 'en-US': 'Gone store' }, active: false },
+      ],
+      page: 1,
+      pageSize: 200,
+      total: 3,
+    };
+    // Answers as the endpoint does: `activeOnly=true` leaves inactive rows out.
+    const serveChannels = (path: string): Promise<typeof CHANNELS> => {
+      const items = path.includes('activeOnly=true')
+        ? CHANNELS.items.filter((ch) => ch.active)
+        : CHANNELS.items;
+      return Promise.resolve({ ...CHANNELS, items, total: items.length });
+    };
+
+    it('offers only the active channels as new choices', async () => {
+      getSpy.mockImplementation(serveChannels);
+      renderWithI18n(
+        withLanguage(<SalesChannelPicker value={null} onChange={vi.fn()} activeOnly />),
+        shippedCoreBundle('en'),
+      );
+      await userEvent.setup().click(screen.getByRole('combobox', { name: 'Select sales channel' }));
+      const options = await screen.findAllByRole('option');
+      expect(options.map((o) => o.textContent)).toEqual(['Web storeweb']);
+    });
+
+    it('keeps a stored inactive channel visible, marked inactive, and clearable', async () => {
+      getSpy.mockImplementation(serveChannels);
+      const onChange = vi.fn();
+      const user = userEvent.setup();
+      renderWithI18n(
+        withLanguage(<SalesChannelPicker value="ch-3" onChange={onChange} activeOnly />),
+        shippedCoreBundle('en'),
+      );
+
+      const input = screen.getByRole('combobox', { name: 'Select sales channel' });
+      await waitFor(() => {
+        expect((input as HTMLInputElement).value).toBe('Old store');
+      });
+
+      await user.click(input);
+      const options = await screen.findAllByRole('option');
+      expect(options.map((o) => o.textContent)).toEqual(['Web storeweb', 'Old storeold · inactive']);
+
+      await user.click(screen.getByRole('button', { name: 'Clear selection' }));
+      expect(onChange).toHaveBeenCalledWith(null);
+    });
+
+    it('lets a stored inactive channel be replaced by an active one', async () => {
+      getSpy.mockImplementation(serveChannels);
+      const onChange = vi.fn();
+      const user = userEvent.setup();
+      renderWithI18n(
+        withLanguage(<SalesChannelPicker value="ch-3" onChange={onChange} activeOnly />),
+        shippedCoreBundle('en'),
+      );
+
+      await user.click(screen.getByRole('combobox', { name: 'Select sales channel' }));
+      await user.click(await screen.findByRole('option', { name: /Web store/ }));
+      expect(onChange).toHaveBeenCalledWith('ch-1');
     });
   });
 });

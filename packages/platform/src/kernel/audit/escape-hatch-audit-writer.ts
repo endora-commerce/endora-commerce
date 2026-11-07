@@ -58,6 +58,25 @@ import { AuditLogEntry } from './audit-log-entry.entity.js';
  * not be written is printed as `tenant.escape_hatch.unpersisted`, one line per
  * aggregate, so the record ends in the log rather than nowhere.
  *
+ * ## A process start is one row (issue #120)
+ *
+ * Every composing process enters a system scope once per boot step and once
+ * per module boot hook — about fifty entries across some twenty-five reasons —
+ * and aggregation per reason left one row each, before the process did any
+ * work. A boot is one access by the platform to itself, so `composeApp`
+ * brackets it with {@link EscapeHatchAuditWriter.beginBoot} and
+ * {@link EscapeHatchAuditWriter.endBoot}, and every record whose reason starts
+ * `boot: ` inside the bracket folds into **one** aggregate: scope `system`,
+ * entry point `boot`, reason {@link BOOT_AGGREGATE_REASON}, with the
+ * per-(module, reason) counts in the row's `breakdown`. The rule that nothing
+ * is sampled away still holds — the row's `occurrences` is the sum of its
+ * breakdown. The aggregate is held apart from the flush queue until the bracket
+ * closes, so a flush that lands mid-boot cannot write half of it; `detach()`
+ * closes a bracket still open. Anything else inside the bracket — a worker tick
+ * that started during boot, a widening a boot hook makes under a reason of its
+ * own — and every `boot: ` record outside it is written exactly as before
+ * (architect ruling of 2026-11-07).
+ *
  * ## No recursion
  *
  * The write runs under `runWithTenantContext(systemTenantContext(...))`
@@ -80,6 +99,12 @@ export const DEFAULT_MAX_PENDING_KEYS = 5_000;
 export const MAX_REQUEST_IDS = 20;
 
 const OVERFLOW_REASON = '(overflow: distinct records beyond the pending limit)';
+
+/** The reason of the one row a bracketed process start becomes. */
+export const BOOT_AGGREGATE_REASON = 'boot: process start';
+/** What a record's reason starts with when it is a boot step that folds into it. */
+const BOOT_REASON_PREFIX = 'boot: ';
+const BOOT_AGGREGATE_KEY = JSON.stringify(['system', BOOT_AGGREGATE_REASON, '(process start)']);
 
 export interface EscapeHatchAuditWriterOptions {
   /**
@@ -104,6 +129,22 @@ export interface EscapeHatchAuditWriter {
   detach(): Promise<void>;
   /** Distinct aggregates not yet written. */
   readonly pendingCount: number;
+  /**
+   * Open the process-start bracket: from here until {@link endBoot}, every
+   * record whose reason starts `boot: ` folds into one aggregate row. Called by
+   * `composeApp` right after it attaches the writer; a second call while the
+   * bracket is open does nothing.
+   */
+  beginBoot(): void;
+  /** Close the bracket and queue its one aggregate, if it saw any record. Idempotent. */
+  endBoot(): void;
+}
+
+/** One (module, reason) a process start folded, and how many times it entered. */
+export interface BootBreakdownEntry {
+  readonly module: string;
+  readonly reason: string;
+  occurrences: number;
 }
 
 interface Aggregate {
@@ -132,6 +173,16 @@ interface Aggregate {
   withoutRequestId: number;
   ipAddress: string | null;
   userAgent: string | null;
+  /** A process start's per-(module, reason) counts; absent on every other row. */
+  breakdown?: BootBreakdownEntry[];
+}
+
+/** A process start being folded, before its bracket closes. */
+interface OpenBoot {
+  occurrences: number;
+  firstAt: Date | null;
+  lastAt: Date | null;
+  readonly breakdown: Map<string, BootBreakdownEntry>;
 }
 
 /** One record and what was ambient when it was made. */
@@ -161,6 +212,7 @@ const stderr = (line: string): void => {
 
 class Writer implements EscapeHatchAuditWriter {
   private pending = new Map<string, Aggregate>();
+  private boot: OpenBoot | null = null;
   private inFlight: Promise<void> | null = null;
   private timer: NodeJS.Timeout | null = null;
   private detached = false;
@@ -184,8 +236,51 @@ class Writer implements EscapeHatchAuditWriter {
     return this.pending.size;
   }
 
+  beginBoot(): void {
+    if (this.boot !== null || this.detached) return;
+    this.boot = { occurrences: 0, firstAt: null, lastAt: null, breakdown: new Map() };
+  }
+
+  endBoot(): void {
+    const boot = this.boot;
+    if (boot === null) return;
+    this.boot = null;
+    if (boot.occurrences === 0 || boot.firstAt === null || boot.lastAt === null) return;
+    const aggregate: Aggregate = {
+      scope: 'system',
+      reason: BOOT_AGGREGATE_REASON,
+      organizationId: null,
+      module: 'platform',
+      entryPoint: 'boot',
+      actorKind: null,
+      actorId: null,
+      actorContext: null,
+      actorAdminUserId: null,
+      impersonatedCustomerAccountId: null,
+      overflow: false,
+      occurrences: boot.occurrences,
+      firstAt: boot.firstAt,
+      lastAt: boot.lastAt,
+      requestIds: [],
+      requestIdsTruncated: false,
+      withoutRequestId: boot.occurrences,
+      ipAddress: null,
+      userAgent: null,
+      breakdown: [...boot.breakdown.values()],
+    };
+    const existing = this.pending.get(BOOT_AGGREGATE_KEY);
+    this.pending.set(
+      BOOT_AGGREGATE_KEY,
+      existing ? mergeAggregates(existing, aggregate) : aggregate,
+    );
+  }
+
   enqueue(captured: CapturedRecord): void {
     const { record } = captured;
+    if (this.boot !== null && record.reason.startsWith(BOOT_REASON_PREFIX)) {
+      foldIntoBoot(this.boot, captured);
+      return;
+    }
     let overflow = false;
     let key = aggregateKey(captured);
     if (!this.pending.has(key) && this.pending.size >= this.maxPendingKeys) {
@@ -241,6 +336,8 @@ class Writer implements EscapeHatchAuditWriter {
     if (this.timer) clearInterval(this.timer);
     this.timer = null;
     removeWriter(this);
+    // A composition disposed before its boot finished still owes its row.
+    this.endBoot();
     await this.flush();
     if (this.pending.size === 0) return;
     const em = this.options.em();
@@ -342,6 +439,31 @@ function addOccurrence(aggregate: Aggregate, c: CapturedRecord): void {
   }
 }
 
+function foldIntoBoot(boot: OpenBoot, c: CapturedRecord): void {
+  boot.occurrences += 1;
+  if (boot.firstAt === null || c.at < boot.firstAt) boot.firstAt = c.at;
+  if (boot.lastAt === null || c.at > boot.lastAt) boot.lastAt = c.at;
+  const key = JSON.stringify([c.module, c.record.reason]);
+  const entry = boot.breakdown.get(key);
+  if (entry) entry.occurrences += 1;
+  else boot.breakdown.set(key, { module: c.module, reason: c.record.reason, occurrences: 1 });
+}
+
+function mergeBreakdowns(
+  older: readonly BootBreakdownEntry[] | undefined,
+  newer: readonly BootBreakdownEntry[] | undefined,
+): BootBreakdownEntry[] | undefined {
+  if (older === undefined && newer === undefined) return undefined;
+  const merged = new Map<string, BootBreakdownEntry>();
+  for (const entry of [...(older ?? []), ...(newer ?? [])]) {
+    const key = JSON.stringify([entry.module, entry.reason]);
+    const existing = merged.get(key);
+    if (existing) existing.occurrences += entry.occurrences;
+    else merged.set(key, { ...entry });
+  }
+  return [...merged.values()];
+}
+
 function mergeAggregates(older: Aggregate, newer: Aggregate): Aggregate {
   const requestIds = [...older.requestIds];
   let truncated = older.requestIdsTruncated || newer.requestIdsTruncated;
@@ -350,8 +472,10 @@ function mergeAggregates(older: Aggregate, newer: Aggregate): Aggregate {
     if (requestIds.length < MAX_REQUEST_IDS) requestIds.push(id);
     else truncated = true;
   }
+  const breakdown = mergeBreakdowns(older.breakdown, newer.breakdown);
   return {
     ...older,
+    ...(breakdown === undefined ? {} : { breakdown }),
     occurrences: older.occurrences + newer.occurrences,
     firstAt: older.firstAt < newer.firstAt ? older.firstAt : newer.firstAt,
     lastAt: older.lastAt > newer.lastAt ? older.lastAt : newer.lastAt,
@@ -382,6 +506,9 @@ function stateOf(a: Aggregate): Record<string, unknown> {
     requestIds: a.requestIds,
     requestIdsTruncated: a.requestIdsTruncated,
     ...(a.overflow ? { overflow: true } : {}),
+    ...(a.breakdown === undefined
+      ? {}
+      : { breakdown: a.breakdown.map((entry) => ({ ...entry })) }),
   };
 }
 

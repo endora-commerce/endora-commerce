@@ -62,7 +62,9 @@
  *     they are kept out of the table counts and asserted as what a run owes:
  *     one entry into the system scope of its own, the rest the boot's, and the
  *     same on every re-run. Measured on 2026-10-04: 27 rows per run, 26 of them
- *     the boot's (55 entries across 26 reasons) and one the command's.
+ *     the boot's (55 entries across 26 reasons) and one the command's. Since
+ *     issue #120 the boot's entries fold into one `boot: process start` row whose
+ *     payload keeps the per-(module, reason) breakdown, so a run writes two.
  *
  * ## Why the baseline is a `demo reset` and not a migrated database
  *
@@ -595,6 +597,8 @@ describe('T226 — `endora demo seed` builds this shop', () => {
         expect(boot.length, `run ${run + 1} recorded no boot entry at all`).toBeGreaterThan(0);
         expect(boot.filter((entry) => !entry.reason.startsWith('boot: '))).toEqual([]);
         expect(boot.filter((entry) => entry.scope !== 'system')).toEqual([]);
+        // Issue #120 — one aggregate per process start, not one per boot step.
+        expect(boot.map((entry) => entry.reason)).toEqual(['boot: process start']);
       }
     });
 

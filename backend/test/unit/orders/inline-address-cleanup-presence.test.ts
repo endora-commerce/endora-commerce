@@ -171,7 +171,7 @@ describe('OrderApiIntakeService — inline-address cleanup', () => {
         findById: async () => null,
       } as never,
       salesChannelMembership: {
-        listChannelsForEntity: async () => [{ id: CHANNEL_ID }],
+        listChannelsForEntity: async () => [{ id: CHANNEL_ID, active: true }],
       } as never,
       catalogAvailability: {
         filterAvailable: async (ids: readonly string[]) => new Set(ids),

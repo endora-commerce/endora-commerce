@@ -38,6 +38,7 @@ import {
   StockAllocation,
 } from '../../helpers/package-entities.js';
 import { predefinedRoleIdOf } from '../../helpers/seed-organization-roles.js';
+import { addOrganizationChannels } from '../../helpers/sales-channel-access.js';
 
 /**
  * An Organization's payment- and delivery-method allow-lists bind order
@@ -383,6 +384,10 @@ describe('order placement honours the Organization method allow-lists', () => {
     });
     await em.persistAndFlush(channel);
     await h.salesChannels.cache.invalidate('allow-list-intake');
+    // Issue #699 — the intake places only on one of the bound Organization's
+    // active assigned channels.
+    await addOrganizationChannels(h, TEST_ORGANIZATION_ID, ['allow-list-intake']);
+    await addOrganizationChannels(h, OTHER_TEST_ORGANIZATION_ID, ['allow-list-intake']);
     await em
       .getConnection()
       .execute('insert into sales_channel_products (sales_channel_id, product_id) values (?,?)', [

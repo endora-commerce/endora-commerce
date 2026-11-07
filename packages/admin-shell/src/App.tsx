@@ -1,10 +1,11 @@
 import { Suspense, lazy, useEffect, useMemo, useState, type ComponentType, type ReactNode } from 'react';
 import type { AdminModulePresenceResponse } from '@endora-commerce/contracts';
-import { Route, Routes } from 'react-router-dom';
+import { Navigate, Route, Routes, useSearchParams } from 'react-router-dom';
 import { AppShell } from './components/AppShell.js';
 import { LoginPage } from './components/LoginPage.js';
 import { IdleLogout } from './components/IdleLogout.js';
 import {
+  readReturnTo,
   useAuth,
   ModulePresenceProvider,
   useSurfaceVisibility,
@@ -37,6 +38,19 @@ function NotFoundPage(): ReactNode {
       {t('app.notFound')}
     </div>
   );
+}
+
+/**
+ * `/login` for an admin who is already signed in (issue #859) — a bookmark, or
+ * a link in an e-mail. The sign-in screen is rendered only while
+ * unauthenticated, so this address had no route here and showed
+ * "Page not found". It leads to `?next=` when that is a path of this
+ * application, read by `readReturnTo`'s rule, and to the dashboard otherwise.
+ * Nothing else in the query is carried over, so `?error=` is never shown.
+ */
+function SignedInLoginRedirect(): ReactNode {
+  const [params] = useSearchParams();
+  return <Navigate to={readReturnTo(params, 'next') ?? '/'} replace />;
 }
 
 /**
@@ -183,6 +197,7 @@ export function App({ contributions, modulePresence }: AppProps): ReactNode {
         {/* Auto sign-out after the configured inactivity window (default 60 min). */}
         <IdleLogout />
         <Routes>
+          <Route path="/login" element={<SignedInLoginRedirect />} />
           <Route element={<AppShell />}>
         <Route index element={<HomePage />} />
         {/* The eight `/catalog*` routes were declared here until feature 091's

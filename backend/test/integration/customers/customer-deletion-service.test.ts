@@ -1013,6 +1013,61 @@ describe('CustomerDeletionService', () => {
     expect(account.blockReason ?? null).toBeNull();
     expect(account.blockSource).toBe('org_owner');
   });
+
+  /**
+   * Issue #857 — the sweep tick's question outside the scope. It is the work
+   * list's own predicate, one statement for both, so the probe says yes exactly
+   * when the list holds something: at a cutoff before an account's deletion,
+   * past it, and once the account is anonymised. Other files' committed rows
+   * share the table, so each cutoff is checked as an agreement between the two
+   * rather than as an absolute answer.
+   */
+  it('I-24 — hasDueForAnonymization agrees with listDueForAnonymization (#857)', async () => {
+    const agrees = async (cutoff: Date): Promise<string[]> => {
+      const due = (await accountWrites.listDueForAnonymization(cutoff)).map((d) => d.id);
+      expect(await accountWrites.hasDueForAnonymization(cutoff)).toBe(due.length > 0);
+      return due;
+    };
+
+    // Nothing was deleted before the epoch, so the list there holds only
+    // anonymised accounts an earlier scrub left residue on (#843), whatever
+    // other files committed.
+    for (const id of await agrees(new Date(0))) {
+      expect((await em.findOneOrFail(CustomerAccount, { id })).anonymizedAt).toBeInstanceOf(Date);
+    }
+
+    const c = await makeCustomer();
+    await svc.softDelete(c.id, actor);
+    const deletedAt = (await em.findOneOrFail(CustomerAccount, { id: c.id })).deletedAt!;
+
+    expect(await agrees(new Date(deletedAt.getTime() - 1))).not.toContain(c.id);
+    expect(await agrees(after(60_000))).toContain(c.id);
+    expect(await accountWrites.hasDueForAnonymization(after(60_000))).toBe(true);
+
+    await accountWrites.anonymize(c.id);
+    expect(await agrees(after(60_000))).not.toContain(c.id);
+  });
+
+  /**
+   * Issues #843 and #857 together — the probe shares the work list's
+   * predicate, residue branch included. An anonymised account with residue
+   * whose deletion lies after the cutoff (the window was raised since) is on
+   * the list, so the probe must say yes too, or the tick would skip the run
+   * that finishes it.
+   */
+  it('I-24b — hasDueForAnonymization says yes for an anonymised account with residue past the cutoff (#843, #857)', async () => {
+    const deletedAt = new Date(Date.now() - 24 * 60 * 60 * 1000);
+    const customer = await makeEarlierAnonymizedCustomer(deletedAt, { blockReason: ACCOUNT_BLOCK_REASON });
+    // A cutoff a year back: before the deletion, so only the residue branch
+    // can put the account on the list.
+    const cutoff = new Date(deletedAt.getTime() - 365 * 24 * 60 * 60 * 1000);
+
+    expect((await accountWrites.listDueForAnonymization(cutoff)).map((d) => d.id)).toContain(customer.id);
+    expect(await accountWrites.hasDueForAnonymization(cutoff)).toBe(true);
+
+    await accountWrites.anonymize(customer.id);
+    expect((await accountWrites.listDueForAnonymization(cutoff)).map((d) => d.id)).not.toContain(customer.id);
+  });
 });
 
 /**

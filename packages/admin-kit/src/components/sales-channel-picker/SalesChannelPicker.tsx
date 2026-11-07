@@ -38,16 +38,27 @@ import { Combobox, type ComboboxOption } from '../../ui/combobox.js';
 
 const PICKER_PAGE_SIZE = 200;
 
-function listSalesChannels(activeOnly: boolean): Promise<SalesChannelListResponse> {
+/**
+ * Always the whole list, never `activeOnly=true` (#912): a narrowed read would
+ * leave a stored inactive channel out of the response, and the field would then
+ * show nothing and offer no Clear. `activeOnly` narrows the options instead —
+ * the rule the CRM's `SalesChannelSelect` follows.
+ */
+function listSalesChannels(): Promise<SalesChannelListResponse> {
   const qs = new URLSearchParams();
   qs.set('pageSize', String(PICKER_PAGE_SIZE));
-  qs.set('activeOnly', String(activeOnly));
+  qs.set('activeOnly', 'false');
   return apiClient.get<SalesChannelListResponse>(`/api/v1/admin/sales-channels?${qs.toString()}`);
 }
 
 export interface SalesChannelPickerProps {
   value: string | null;
   onChange: (salesChannelId: string | null) => void;
+  /**
+   * Offer only channels that are switched on as new choices. A stored value
+   * stays among the options, active or not, so it can be seen, cleared or
+   * replaced; it is marked inactive like any other inactive channel.
+   */
   activeOnly?: boolean;
   placeholder?: string;
   emptyMessage?: string;
@@ -68,12 +79,13 @@ export function SalesChannelPicker(props: SalesChannelPickerProps): ReactNode {
   const [error, setError] = useState<{ message: string | null } | null>(null);
 
   const activeOnly = props.activeOnly ?? false;
+  const value = props.value;
 
   useEffect(() => {
     let alive = true;
     setLoading(true);
     setError(null);
-    listSalesChannels(activeOnly)
+    listSalesChannels()
       .then((res) => {
         if (!alive) return;
         // Checked here, inside the load: a body with no list fails into the
@@ -92,19 +104,24 @@ export function SalesChannelPicker(props: SalesChannelPickerProps): ReactNode {
     return (): void => {
       alive = false;
     };
-  }, [activeOnly]);
+  }, []);
 
   const options = useMemo<ComboboxOption<string>[]>(() => {
     // Names are keyed by locale (`pl-PL`), the admin language by its short
     // code (`pl`): map one to the other rather than index by the wrong key
     // (#562 — the same miss `CategorySelect` had).
     const locale = adminLanguageToLocale(language);
-    return channels.map((ch) => ({
-      value: ch.id,
-      label: ch.name[locale] ?? ch.name['en-US'] ?? Object.values(ch.name)[0] ?? ch.code,
-      description: ch.active ? ch.code : t('salesChannelPicker.inactive', { code: ch.code }),
-    }));
-  }, [channels, language, t]);
+    return (
+      channels
+        // A value already stored stays selectable, active or not.
+        .filter((ch) => !activeOnly || ch.active || ch.id === value)
+        .map((ch) => ({
+          value: ch.id,
+          label: ch.name[locale] ?? ch.name['en-US'] ?? Object.values(ch.name)[0] ?? ch.code,
+          description: ch.active ? ch.code : t('salesChannelPicker.inactive', { code: ch.code }),
+        }))
+    );
+  }, [activeOnly, channels, language, t, value]);
 
   // A failure outranks the caller's empty message: otherwise it reads as
   // "there are no channels".

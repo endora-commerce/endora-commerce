@@ -23,6 +23,7 @@ import { InvoiceNumberGenerator, createSettingsPatternResolver } from './service
 import { SellerSettingsResolver, type SettingsReader } from './services/seller-settings.js';
 import { InvoiceEmailDispatcher } from './services/invoice-email-dispatch.js';
 import { createAutoIssueReactor } from './services/auto-issue-reactor.js';
+import { createOrderReturnsLock } from './services/order-returns-lock.js';
 import { registerInvoicesAdminRoutes } from './routes.admin.js';
 import { registerInvoicesCustomerRoutes } from './routes.customer.js';
 import type { RequireAdminFactory } from '@endora-commerce/platform/kernel';
@@ -169,6 +170,7 @@ export function invoicesModule(options: InvoicesModuleOptions): {
     options.capturedPayments,
     options.returnRefunds,
     { translate: options.translate },
+    createOrderReturnsLock(options.emFactory),
   );
   // T118c — built unconditionally. The three inputs used to be optional bridge
   // members, so a composition that supplied two of the three got no dispatcher

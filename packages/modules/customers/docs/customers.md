@@ -103,7 +103,9 @@ on anonymization ([#844](https://github.com/endora-commerce/endora-commerce/issu
 The sweep runs once a day, in the worker process and only while this module is
 on, so an account is anonymized up to a day after its window elapses. While the
 module is off no run happens; the accounts that came due meanwhile are
-anonymized by the first run after it is switched back on.
+anonymized by the first run after it is switched back on. A run first checks
+whether any account is due, and when none is it does nothing and writes no
+audit entry. Two runs that overlap anonymize an account once.
 
 The sweep scrubs the personal organization and its addresses first and the
 account last. If a run is interrupted, the account is picked up again on the

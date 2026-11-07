@@ -16,6 +16,7 @@ import {
 import { SEED_PRODUCT_101_ID } from '../../helpers/seed-catalog.js';
 import { SalesChannel } from '@endora-commerce/platform/kernel';
 import { Order, OrderPlacementIntent } from '../../helpers/package-entities.js';
+import { addOrganizationChannels } from '../../helpers/sales-channel-access.js';
 
 /**
  * Feature 062 / T021 — durable order-intake idempotency (SC-003, FR-012):
@@ -66,6 +67,9 @@ describe('external order intake — idempotency (062 / T021)', () => {
     });
     await em.persistAndFlush(channel);
     await h.salesChannels.cache.invalidate('ext-idem');
+    // Issue #699 — the intake places only on one of the bound Organization's
+    // active assigned channels.
+    await addOrganizationChannels(h, TEST_ORGANIZATION_ID, ['ext-idem']);
     await em.getConnection().execute(
       `insert into sales_channel_products (sales_channel_id, product_id) values (?,?)`,
       [channel.id, SEED_PRODUCT_101_ID],

@@ -20,6 +20,16 @@ import type { AdapterSettingsView } from './adapter-registry.js';
 
 const ADAPTER_CODES = ['local', 's3', 'gcs'] as const;
 
+/**
+ * The range `assets.soft_delete_retention_days` is held to (issue #332). The
+ * floor is owner ruling P3 (specs/156-asset-stable-url/); the ceiling keeps
+ * `deletedAt + days` a valid `Date`, which a value such as `1e15` is not — and
+ * an invalid purge date fails every asset and recursive folder delete. The
+ * settings write validator refuses a value outside it; the reader holds a value
+ * stored before that validator existed to it.
+ */
+export const SOFT_DELETE_RETENTION_DAYS_BOUNDS = { min: 1, max: 3650 } as const;
+
 /** What an upload is checked against: `['*']` is any type, `0` is no limit. */
 export interface UploadPolicy {
   allowedTypes: string[];
@@ -27,7 +37,7 @@ export interface UploadPolicy {
 }
 
 export interface AssetsSettingsView extends AdapterSettingsView {
-  /** `assets.soft_delete_retention_days` as read now (at least one day). */
+  /** `assets.soft_delete_retention_days` as read now (1 to 3650 days). */
   softDeleteRetentionDays(): Promise<number>;
   /** `assets.allowed_file_types` and `assets.max_file_size_mb` as read now. */
   uploadPolicy(): Promise<UploadPolicy>;
@@ -96,9 +106,11 @@ export function createSettingsView(
   return {
     async softDeleteRetentionDays() {
       // At least one day (owner ruling P3, specs/156-asset-stable-url/): a zero
-      // setting must not make a deletion or a replaced file due at once.
+      // setting must not make a deletion or a replaced file due at once. At
+      // most 3650 (issue #332): a larger stored value is held to the ceiling.
+      const { min, max } = SOFT_DELETE_RETENTION_DAYS_BOUNDS;
       const days = await readNumber('assets.soft_delete_retention_days', 30);
-      return days >= 0 ? Math.max(1, days) : 30;
+      return days >= 0 ? Math.min(max, Math.max(min, days)) : 30;
     },
     async uploadPolicy() {
       const values = await read(['assets.allowed_file_types', 'assets.max_file_size_mb']);

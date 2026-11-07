@@ -32,6 +32,7 @@ Strona wygenerowana z manifestu modułu, bez żadnych ręcznych zmian. Co moduł
 | `admin_roles` | tak | ten moduł instaluje się i migruje po nim, a operator nie może go wyłączyć, dopóki ten moduł działa |
 | `admin_users` | tak | ten moduł instaluje się i migruje po nim, a operator nie może go wyłączyć, dopóki ten moduł działa |
 | `auth` | tak | ten moduł instaluje się i migruje po nim, a operator nie może go wyłączyć, dopóki ten moduł działa |
+| `settings` | tylko bramkowanie | rozwiązuje `settingWriteValidatorRegistry`; pominięty w `dependencies`, bo kolejność instalacji nie może nieść tej krawędzi |
 
 ## Uprawnienia
 
