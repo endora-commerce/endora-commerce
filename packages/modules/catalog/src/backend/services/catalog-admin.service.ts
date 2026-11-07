@@ -2170,7 +2170,8 @@ export class CatalogAdminService {
         `Product ${parentProductId} not found.`,
       );
     }
-    const parent = await em.findOne(Product, { id: parentProductId });
+    // A deleted parent answers as an unknown one (#869).
+    const parent = await em.findOne(Product, { id: parentProductId, deletedAt: null });
     if (!parent) {
       throw new HttpError(
         404,
