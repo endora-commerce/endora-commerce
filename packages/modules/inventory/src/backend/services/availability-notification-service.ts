@@ -17,6 +17,7 @@ import { currentSalesChannel } from '@endora-commerce/platform/kernel';
 import { AvailabilityNotification } from '../entities/availability-notification.entity.js';
 import { StockLevel } from '../entities/stock-level.entity.js';
 import type { InventoryTemplateEmailPort } from './low-stock-alert-service.js';
+import { restockDisposition } from './restock-product-state.js';
 
 export interface SubscribeInput {
   productId: string;
@@ -421,7 +422,22 @@ export class AvailabilityNotificationService {
     const rows = await em.find(AvailabilityNotification, where);
     if (rows.length === 0) return { notified: 0 };
 
+    // The wider read (no `liveOnly`), so a deleted product resolves and is told apart from an
+    // archived or switched-off one.
     const product = await this.catalogProducts.findById(input.productId);
+    const now = new Date();
+    // Issue #468 — asked once, before any subscriber is mailed.
+    const disposition = restockDisposition(product, now);
+    if (disposition === 'hold') return { notified: 0 };
+    if (disposition === 'cancel') {
+      // The same treatment as a subscriber with no e-mail address below.
+      for (const row of rows) {
+        row.status = 'cancelled';
+        row.notifiedAt = now;
+      }
+      await em.flush();
+      return { notified: 0 };
+    }
     // Feature 174 (owner decision after C1, 2026-11-03) — the Global name. A subscription stores
     // no channel and no language, so there is no (C, L) to resolve; storing them on
     // `availability_notifications` is the named follow-up of spec 174 (*Out of scope*).
@@ -434,7 +450,6 @@ export class AvailabilityNotificationService {
       : [];
     const emailById = new Map(customers.map((c) => [c.id, c.email]));
 
-    const now = new Date();
     let notified = 0;
     for (const row of rows) {
       const to = row.email ?? (row.customerAccountId ? emailById.get(row.customerAccountId) : null);

@@ -171,6 +171,16 @@ The customer subscribes through either `POST /api/v1/catalog/products/:id/notify
 
 `AvailabilityWorker.attach(eventBus)` listens for `inventory.adjusted.v1` events. Fan-out fires only when *cumulative across warehouses* crosses 0 → > 0 — single-warehouse top-ups that don't bring the cumulative above zero never trigger emails.
 
+Before anything is sent, the fan-out reads the product once and checks its global state:
+
+- **Deleted, or no longer found** — nothing is sent and every queued subscription for it is cancelled. A delete cannot be undone, so the product will not come back.
+- **Archived, switched off (`inactive`), or outside its publication window** — nothing is sent and the subscriptions stay queued. Each of these can be reversed (a restore, switching the product back on, the window opening), and the subscriber asked to be told when they can buy the product.
+- **Otherwise** — every queued subscriber is e-mailed and the subscription is marked notified.
+
+The check reads the product's global state only. Status, window or audience overrides for a sales channel or a language are not consulted, because a subscription does not record the channel or the language it was made in. The e-mail names the product by its global name for the same reason.
+
+**Known limitation.** The fan-out runs only when stock rises from zero. If a product is restored or switched back on while it already has stock, its queued subscribers are not notified until the next time its stock rises from zero.
+
 ## Low-stock alerts
 
 `LowStockAlertService.attach(eventBus)` listens for the same event. When cumulative on-hand crosses from above the product's `lowStockThreshold` to at-or-below it, one email goes to the recipient configured by `inventory.low_stock_alert_recipient_email`. The detector is platform-wide, not per-channel.

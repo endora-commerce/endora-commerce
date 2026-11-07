@@ -201,6 +201,24 @@ idempotentny i zwraca istniejący wiersz.
 rozsyłane tylko wtedy, gdy stan *łączny we wszystkich magazynach* zmienia się z 0 na > 0 — uzupełnienie
 jednego magazynu, które nie podnosi stanu łącznego powyżej zera, nigdy nie wywołuje e-maili.
 
+Zanim cokolwiek zostanie wysłane, rozsyłka raz odczytuje produkt i sprawdza jego stan globalny:
+
+- **Usunięty albo nieodnaleziony** — nic nie jest wysyłane, a każdy oczekujący zapis na ten produkt
+  zostaje anulowany. Usunięcia nie da się cofnąć, więc produkt nie wróci.
+- **Zarchiwizowany, wyłączony (`inactive`) albo poza oknem publikacji** — nic nie jest wysyłane, a
+  zapisy pozostają w kolejce. Każdy z tych stanów da się odwrócić (przywrócenie, ponowne włączenie
+  produktu, otwarcie okna), a subskrybent prosił o wiadomość, gdy będzie mógł kupić produkt.
+- **W pozostałych przypadkach** — każdy oczekujący subskrybent dostaje e-mail, a zapis zostaje
+  oznaczony jako powiadomiony.
+
+Sprawdzany jest wyłącznie stan globalny produktu. Nadpisania statusu, okna publikacji czy grupy
+odbiorców dla kanału sprzedaży albo języka nie są brane pod uwagę, bo zapis nie przechowuje kanału
+ani języka, w którym powstał. Z tego samego powodu e-mail podaje globalną nazwę produktu.
+
+**Znane ograniczenie.** Rozsyłka uruchamia się tylko wtedy, gdy stan rośnie od zera. Jeśli produkt
+zostanie przywrócony albo ponownie włączony, gdy ma już stan, oczekujący subskrybenci dostaną
+powiadomienie dopiero przy następnym wzroście stanu od zera.
+
 ## Alerty o niskim stanie
 
 `LowStockAlertService.attach(eventBus)` nasłuchuje tego samego zdarzenia. Gdy łączny stan spada
