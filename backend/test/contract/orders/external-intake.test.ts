@@ -25,6 +25,7 @@ import { StockLevel } from '../../helpers/package-entities.js';
 import { seedPriceBookSql } from '../../helpers/price-book-sql.js';
 import { ApiKey } from '../../helpers/package-entities.js';
 import { Order } from '../../helpers/package-entities.js';
+import { addOrganizationChannels } from '../../helpers/sales-channel-access.js';
 
 /**
  * Feature 062 / T020 — `POST /api/v1/external/orders` + the orders half of the
@@ -127,6 +128,10 @@ describe('POST /api/v1/external/orders — contract (062 / T020)', () => {
     await em.persistAndFlush(channel);
     channelId = channel.id;
     await h.salesChannels.cache.invalidate('ext-orders');
+    // Issue #699 — the intake places only on one of the bound Organization's
+    // active assigned channels.
+    await addOrganizationChannels(h, TEST_ORGANIZATION_ID, ['ext-orders']);
+    await addOrganizationChannels(h, TEST_SUSPENDED_ORGANIZATION_ID, ['ext-orders']);
 
     // A product with no resolvable price anywhere (no bracket, no default).
     const unpriced = em.create(Product, {
