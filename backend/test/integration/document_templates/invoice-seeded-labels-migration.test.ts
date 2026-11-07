@@ -18,6 +18,7 @@ import { setupTestDb, type TestDb } from '../../helpers/test-db.js';
 const FOOTER = 'Thank you for your business.\n{{var seller.legalName}} · Tax ID {{var seller.taxId}}';
 
 type Node = { type: string; props: Record<string, unknown> };
+type Stored = { schemaVersion: number; languages: Record<string, { root: unknown; content: Node[] }> };
 
 function seededTree(): { root: { props: object }; content: Node[]; zones: object } {
   return {
@@ -83,16 +84,16 @@ describe('document_templates — invoice seeded-label migration (issue #437)', (
     return rows[0]!.id;
   }
 
-  async function read(em: EntityManager, id: string): Promise<{ version: number; content: any }> {
-    const rows = await em.execute<Array<{ version: number; content: any }>>(
+  async function read(em: EntityManager, id: string): Promise<{ version: number; content: Stored }> {
+    const rows = await em.execute<Array<{ version: number; content: Stored }>>(
       `select "version", "content" from "document_templates" where "id" = ?`,
       [id],
     );
     return rows[0]!;
   }
 
-  const propsOf = (content: any, language: string, type: string): Record<string, unknown> =>
-    (content.languages[language].content as Node[]).find((node) => node.type === type)!.props;
+  const propsOf = (content: Stored, language: string, type: string): Record<string, unknown> =>
+    content.languages[language]!.content.find((node) => node.type === type)!.props;
 
   it('empties every seeded English literal in both language trees and bumps the version', async () => {
     try {
