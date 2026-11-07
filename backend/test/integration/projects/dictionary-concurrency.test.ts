@@ -1,7 +1,7 @@
 import { randomUUID } from 'node:crypto';
 import type { LightMyRequestResponse } from 'fastify';
 import { afterAll, beforeAll, describe, expect, it } from 'vitest';
-import { ERROR_CODES } from '@endora-commerce/contracts';
+import { ERROR_CODES, slugify } from '@endora-commerce/contracts';
 import {
   setupBackendServer,
   teardownBackendServer,
@@ -116,7 +116,8 @@ describe('projects dictionaries — concurrent writes (#453)', () => {
 
     it.each(DICTIONARIES)('on $path, a create waits behind another create of the dictionary, then sees its name', async (dictionary) => {
       const name = `Waits ${randomUUID().slice(0, 8)}`;
-      const code = name.toLowerCase().replace(/[^a-z0-9]+/g, '_');
+      // The code the service derives (`dictionary-service.ts` `#freeCode`).
+      const code = slugify(name, { separator: '_', maxLength: 60, fallback: 'code' });
       // The other create, played by hand: it holds the dictionary's turn and has
       // written its row, uncommitted. A create that did not wait would find the
       // name free and collide with the row's code at commit.
