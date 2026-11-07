@@ -59,7 +59,7 @@ vi.mock('../../lib/session', () => ({
   getSessionCookie: async () => 'session-cookie',
 }));
 vi.mock('../../lib/server-context', () => ({
-  getServerContext: async () => ({ locale: 'en' }),
+  getServerContext: async () => ({ locale: 'en', modules: { isPresent: () => true, presentIds: [], absentIds: [] } }),
 }));
 vi.mock('../../lib/api/orders', async () => {
   const actual = await vi.importActual<typeof import('../../lib/api/orders')>(

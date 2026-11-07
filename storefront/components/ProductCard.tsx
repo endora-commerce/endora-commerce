@@ -12,6 +12,7 @@ import type { PriceDisplay } from '../lib/api/pricing';
 import { toAbsoluteAssetUrl } from '../lib/asset-url';
 import { publicApiBaseUrl } from '../lib/env.mjs';
 import { LocalizedLink } from '../lib/i18n/localized-link';
+import type { ModuleActionPresence } from '../lib/module-action-presence';
 
 // Handed to the client `<ProductCardActions>` (shopping-list heart + add to
 // cart), which fetches from the browser — so it must be the public,
@@ -61,8 +62,14 @@ export function ProductCard(props: {
    * the backend from the browser, where no request header carries it.
    */
   salesChannelCode: string | undefined;
+  /**
+   * Which action modules are present (issue #672): the compare toggle, the
+   * shopping-list heart and every quote action render only while their module
+   * does. Resolved by the server page from `getServerContext().modules`.
+   */
+  presence: ModuleActionPresence;
 }): ReactNode {
-  const { product, locale, stock, resolved, vatRate = DEFAULT_VAT_RATE } = props;
+  const { product, locale, stock, resolved, presence, vatRate = DEFAULT_VAT_RATE } = props;
   const t = tForLocale(locale);
 
   const stockNode = stock ? renderFromStorefrontStock(stock, locale, t) : stockFor(product, t, locale);
@@ -103,7 +110,9 @@ export function ProductCard(props: {
           />
         )}
       </LocalizedLink>
-      <CompareToggle productId={product.id} salesChannelCode={props.salesChannelCode} locale={locale} />
+      {presence.comparisons ? (
+        <CompareToggle productId={product.id} salesChannelCode={props.salesChannelCode} locale={locale} />
+      ) : null}
       {resolved && resolved.salePrice ? (
         <span className="industria-badge industria-badge--sale">{t('commerce.productCard.sale')}</span>
       ) : null}
@@ -118,7 +127,7 @@ export function ProductCard(props: {
           </h3>
         </LocalizedLink>
         <div className="mt-auto flex items-end justify-between gap-2 border-t border-line pt-[10px]">
-          <div>{renderPriceSlot({ product, locale, resolved, t, vatRate })}</div>
+          <div>{renderPriceSlot({ product, locale, resolved, t, vatRate, quoteRequests: presence.quoteRequests })}</div>
           {stockNode}
         </div>
         <ProductCardActions
@@ -132,6 +141,7 @@ export function ProductCard(props: {
           minOrderQuantity={product.minOrderQuantity ?? null}
           addToCartMinimumLabel={cardAddToCartLabel(product.minOrderQuantity, locale)}
           locale={locale}
+          presence={presence}
         />
       </div>
     </article>
@@ -144,11 +154,18 @@ function renderPriceSlot(args: {
   resolved: PriceDisplay | null | undefined;
   t: ReturnType<typeof tForLocale>;
   vatRate: number;
+  /** `quote_requests` is present: a withheld price leads to a quote; otherwise it is only stated. */
+  quoteRequests: boolean;
 }): ReactNode {
-  const { product, locale, resolved, t, vatRate } = args;
+  const { product, locale, resolved, t, vatRate, quoteRequests } = args;
 
   if (resolved) {
     if (resolved.displayMode === 'none') {
+      if (!quoteRequests) {
+        return (
+          <div className="font-mono text-[12px] text-muted">{t('commerce.common.priceOnRequest')}</div>
+        );
+      }
       return (
         <QuoteRequestCta
           productId={product.id}
@@ -199,7 +216,7 @@ function renderPriceSlot(args: {
   if (!priceFmt) {
     return (
       <div className="font-mono text-[13px] font-semibold tracking-[-0.01em] text-fg">
-        {t('product.requestQuote')}
+        {t(quoteRequests ? 'product.requestQuote' : 'commerce.common.priceOnRequest')}
       </div>
     );
   }

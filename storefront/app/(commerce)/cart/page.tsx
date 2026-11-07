@@ -34,6 +34,7 @@ import { CartApprovalBanner } from '../../../components/CartApprovalBanner';
 import { CartPrimaryCta } from '../../../components/CartPrimaryCta';
 import { getMe } from '../../../lib/api/account';
 import { commerceAbilities, memberSession } from '../../../lib/commerce-permissions';
+import { moduleActionPresence, withModulePresence } from '../../../lib/module-action-presence';
 import { getProductDisplayMode, PRICING_UNAVAILABLE } from '../../../lib/api/pricing';
 import { lineAmountHalfUp, type DisplayMode } from '@endora-commerce/contracts';
 import type { Metadata } from 'next';
@@ -156,9 +157,10 @@ export default async function CartPage({
   // keeps editing the guest basket (owner ruling PR-4). Whether the basket
   // must be sent for approval is not judged here at all: the backend answers
   // it in `primaryCta` from the role (issue #619, FR-031).
-  const abilities = commerceAbilities(memberSession(me));
-
-  const { locale, ctx } = await getServerContext();
+  const { locale, ctx, modules } = await getServerContext();
+  // Issue #672 (Principle XVII item 5) — the conversion into a quote request and
+  // save-to-list are offered only while their modules are present, too.
+  const abilities = withModulePresence(commerceAbilities(memberSession(me)), moduleActionPresence(modules));
 
   // Resolve ONE price display mode for the whole cart so the net/gross
   // presentation matches the PDP and product cards. It is resolved for the

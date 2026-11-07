@@ -4,6 +4,7 @@ import { notFound } from 'next/navigation';
 import { Breadcrumbs } from '../../../../components/Breadcrumbs';
 import { FilterPanel } from '../../../../components/FilterPanel';
 import { ProductGrid } from '../../../../components/ProductGrid';
+import { moduleActionPresence } from '../../../../lib/module-action-presence';
 import { Pagination } from '../../../../components/Pagination';
 import { CatalogToolbar } from '../../../../components/CatalogToolbar';
 import { CategoryContent } from '../../../../components/CategoryContent';
@@ -70,7 +71,7 @@ export async function generateMetadata({ params }: PageProps): Promise<Metadata>
  */
 export default async function CategoryPage({ params, searchParams }: PageProps): Promise<ReactNode> {
   const { slug } = await params;
-  const { ctx, locale } = await getServerContext();
+  const { ctx, locale, modules } = await getServerContext();
   const t = tForLocale(locale);
   const sp = await searchParams;
 
@@ -214,6 +215,7 @@ export default async function CategoryPage({ params, searchParams }: PageProps):
             view={parsed.view}
             salesChannelCode={ctx.salesChannelCode}
             more={products.pagination.hasMore}
+            presence={moduleActionPresence(modules)}
           />
           <Pagination
             basePath={`/c/${node.slug}`}

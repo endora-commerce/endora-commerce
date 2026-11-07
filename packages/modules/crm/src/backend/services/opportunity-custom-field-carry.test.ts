@@ -1,6 +1,7 @@
 import { describe, expect, it, vi } from 'vitest';
 import type { CustomFieldCarryPlan, CustomFieldCarryPort } from '@endora-commerce/contracts';
-import { carryIntoOpportunity } from './opportunity-custom-field-carry.js';
+import { ModuleDisabledError } from '@endora-commerce/platform/kernel';
+import { carryIntoOpportunity, carryIntoOpportunityBestEffort } from './opportunity-custom-field-carry.js';
 
 /**
  * Order / Quote Request → Opportunity custom-field carry
@@ -104,3 +105,43 @@ describe('carryIntoOpportunity', () => {
   });
 });
 
+
+describe('carryIntoOpportunityBestEffort', () => {
+  it('answers the plan when it succeeds, telling nobody', async () => {
+    const onFailure = vi.fn();
+    const result = await carryIntoOpportunityBestEffort(
+      port({ values: { k: 'v' }, carried: ['k'], skipped: [] }),
+      { sourceType: 'order', recordId: ORDER_ID, sourceValues: { k: 'v' } },
+      {},
+      onFailure,
+    );
+    expect(result?.carried).toEqual(['k']);
+    expect(onFailure).not.toHaveBeenCalled();
+  });
+
+  it('answers null and hands on the error when the plan throws (#405)', async () => {
+    const failure = new Error('custom-field definitions could not be read');
+    const onFailure = vi.fn();
+    const result = await carryIntoOpportunityBestEffort(
+      { plan: vi.fn(async () => Promise.reject(failure)) },
+      { sourceType: 'order', recordId: ORDER_ID, sourceValues: { k: 'v' } },
+      {},
+      onFailure,
+    );
+    expect(result).toBeNull();
+    expect(onFailure).toHaveBeenCalledWith(failure);
+  });
+
+  it('does not absorb a presence answer', async () => {
+    const onFailure = vi.fn();
+    await expect(
+      carryIntoOpportunityBestEffort(
+        { plan: vi.fn(async () => Promise.reject(new ModuleDisabledError('custom_fields'))) },
+        { sourceType: 'order', recordId: ORDER_ID, sourceValues: { k: 'v' } },
+        {},
+        onFailure,
+      ),
+    ).rejects.toBeInstanceOf(ModuleDisabledError);
+    expect(onFailure).not.toHaveBeenCalled();
+  });
+});

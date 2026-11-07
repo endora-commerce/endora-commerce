@@ -5,6 +5,10 @@ import { ProductCard } from '../../components/ProductCard';
 import { PriceTag } from '../../components/PriceTag';
 import { renderSuggestionPrice } from '../../components/SearchAutocomplete';
 import { tForLocale } from '../../lib/i18n/messages';
+import { moduleActionPresence } from '../../lib/module-action-presence';
+
+/** Every action module present: what these cases render is not about presence (issue #672). */
+const ALL_PRESENT = moduleActionPresence({ isPresent: () => true });
 
 /**
  * Issue #491 — display mode `none` withholds every amount on the server, so the
@@ -52,14 +56,14 @@ const AMOUNT = /\d+[.,]\d{2}/;
 
 describe('a withheld price renders "price on request" and no figure (#491)', () => {
   it('the listing card, rendered without `resolved`', () => {
-    const out = text(renderToString(<ProductCard product={WITHHELD} locale="en-US" salesChannelCode={undefined} />));
+    const out = text(renderToString(<ProductCard presence={ALL_PRESENT} product={WITHHELD} locale="en-US" salesChannelCode={undefined} />));
     expect(out).toContain(en('product.requestQuote'));
     expect(out).not.toMatch(AMOUNT);
   });
 
   it('the home-page card, rendered from `resolvedPrice`', () => {
     const html = renderToString(
-      <ProductCard product={WITHHELD} resolved={WITHHELD.resolvedPrice ?? null} locale="en-US" salesChannelCode={undefined} />,
+      <ProductCard presence={ALL_PRESENT} product={WITHHELD} resolved={WITHHELD.resolvedPrice ?? null} locale="en-US" salesChannelCode={undefined} />,
     );
     expect(text(html)).not.toMatch(AMOUNT);
     expect(html).not.toContain('data-display-mode');
@@ -67,7 +71,7 @@ describe('a withheld price renders "price on request" and no figure (#491)', () 
 
   it('the product page price renders nothing for its caller to replace with the quote CTA', () => {
     const html = renderToString(
-      <PriceTag price={WITHHELD.price} resolved={WITHHELD.resolvedPrice ?? null} locale="en-US" variant="pdp" />,
+      <PriceTag quoteRequests price={WITHHELD.price} resolved={WITHHELD.resolvedPrice ?? null} locale="en-US" variant="pdp" />,
     );
     expect(text(html)).not.toMatch(AMOUNT);
   });

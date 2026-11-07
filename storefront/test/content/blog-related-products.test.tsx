@@ -6,6 +6,10 @@ import { getBlogRelatedProducts } from '../../lib/api/blog';
 import type { RequestContext } from '../../lib/api/client';
 import type { ModulePresenceSet } from '../../lib/api/module-presence';
 import { tForLocale } from '../../lib/i18n/messages';
+import { moduleActionPresence } from '../../lib/module-action-presence';
+
+/** Every action module present: what these cases render is not about presence (issue #672). */
+const ALL_PRESENT = moduleActionPresence({ isPresent: () => true });
 
 /**
  * Issue #590 — a blog post's related products are read and shown the way a
@@ -64,7 +68,7 @@ function text(html: string): string {
 }
 
 function strip(products: ProductSummary[], locale: string): string {
-  return renderToString(<RelatedProductsStrip products={products} locale={locale} salesChannelCode="pl_retail" />);
+  return renderToString(<RelatedProductsStrip presence={ALL_PRESENT} products={products} locale={locale} salesChannelCode="pl_retail" />);
 }
 
 /** A money figure in either locale's spelling. */

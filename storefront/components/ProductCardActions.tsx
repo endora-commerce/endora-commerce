@@ -21,6 +21,7 @@ import { channelHeaders } from '../lib/channel/channel-header';
 import { cardAddToCartPayload, quoteAddQuantity } from '../lib/orderMinimum';
 import { productCardActionLabels, type CardActionState } from '../lib/buyActionLabels';
 import { useLocalizedPath } from '../lib/i18n/localized-link';
+import { withModulePresence, type ModuleActionPresence } from '../lib/module-action-presence';
 
 /**
  * Product-card action buttons (add to cart / add to shopping list / add to
@@ -37,6 +38,11 @@ import { useLocalizedPath } from '../lib/i18n/localized-link';
  * role to allow it (`cardActionVisibility`); what the role allows is read once
  * per page load through a server action, beside the settings, so a list-only
  * member's cards offer no cart button. A visitor keeps every button (PR-4).
+ *
+ * Issue #672 (Principle XVII item 5): a button also needs its module to be
+ * present. What is present is the server card's `presence` prop — never asked
+ * from the browser — and while `shopping_lists` is off the default list's
+ * membership is not read either.
  */
 
 type ButtonsConfig = ProductCardButtonsConfig;
@@ -103,6 +109,8 @@ export function ProductCardActions(props: {
    * they were Polish literals whatever the page's language). Polish when absent, as before.
    */
   locale?: string | undefined;
+  /** Which action modules are present, resolved by the server page (issue #672). */
+  presence: ModuleActionPresence;
 }): ReactNode {
   const [cfg, setCfg] = useState<CardState | null>(null);
   const [cartState, setCartState] = useState<ActionState>('idle');
@@ -126,7 +134,9 @@ export function ProductCardActions(props: {
 
   // Reflect default-list membership on the heart, and keep it in sync when any
   // other card (or the header) changes the list via `b2b:shopping-list:changed`.
+  const listsPresent = props.presence.shoppingLists;
   useEffect(() => {
+    if (!listsPresent) return;
     let cancelled = false;
     const sync = (): void => {
       void loadShoppingListMembership().then((m) => {
@@ -139,7 +149,7 @@ export function ProductCardActions(props: {
       cancelled = true;
       window.removeEventListener('b2b:shopping-list:changed', sync);
     };
-  }, [props.apiBase, props.productId]);
+  }, [props.apiBase, props.productId, listsPresent]);
 
   if (!cfg) return null;
 
@@ -218,7 +228,11 @@ export function ProductCardActions(props: {
     window.setTimeout(() => setQuoteState('idle'), 1500);
   };
 
-  const visible = cardActionVisibility(cfg.config, cfg.abilities, props.buyable);
+  const visible = cardActionVisibility(
+    cfg.config,
+    withModulePresence(cfg.abilities, props.presence),
+    props.buyable,
+  );
   if (!visible.cart && !visible.list && !visible.quote) return null;
 
   // Order: shopping list → quote → cart. Each action is an icon button (icons

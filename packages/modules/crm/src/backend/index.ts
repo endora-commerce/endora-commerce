@@ -234,6 +234,7 @@ export function registerModule(ctx: ModuleContext): void {
             // Feature 162 — an Order joining from its Quote Request carries its
             // values into the Opportunity's empty fields.
             customFieldCarry: lazyPort<CustomFieldCarryPort>(ctx, 'customFieldCarryPort'),
+            warn: (fields, message) => ctx.log.warn(fields, message),
           }),
       )
       .singleton(),
@@ -508,6 +509,7 @@ export function registerModule(ctx: ModuleContext): void {
             customFieldListFilter: lazyPort<CustomFieldListFilterPort>(ctx, 'customFieldListFilterPort'),
             // Feature 162 — a document's values carried into the Opportunity created for it.
             customFieldCarry: lazyPort<CustomFieldCarryPort>(ctx, 'customFieldCarryPort'),
+            warn: (fields, message) => ctx.log.warn(fields, message),
             // --- end of Custom fields ----------------------------------------
             recalculateValue: (opportunityId) => crmOpportunityValueService.recalculate(opportunityId),
             liveFigure: (opportunity) => crmOpportunityValueService.liveFigure(opportunity),

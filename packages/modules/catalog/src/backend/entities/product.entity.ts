@@ -42,8 +42,13 @@ export class Product {
   @PrimaryKey({ type: 'uuid' })
   id: string = randomUUID();
 
+  /**
+   * Issue #693 — unique among live rows only (`products_sku_live_unique`, a partial unique index
+   * `where deleted_at is null`, raw SQL in the migration): a deleted product keeps its real SKU
+   * and frees it for reuse.
+   */
   @Property({ type: 'string', length: 255 })
-  @Unique()
+  @Index()
   sku!: string;
 
   @Property({ type: 'string', length: 160 })

@@ -5,6 +5,7 @@ import { getCmsPageBySlug } from '../lib/api/cms';
 import { getHomepageConfig } from '../lib/api/homepage';
 import { getServerContext } from '../lib/server-context';
 import { ProductCard } from '../components/ProductCard';
+import { moduleActionPresence } from '../lib/module-action-presence';
 import { CmsPageRenderer } from '../components/CmsPageRenderer';
 import { HomeMobileStrip } from '../components/mobile/HomeMobileStrip';
 import { Hook } from '../components/Hook';
@@ -349,6 +350,7 @@ export default async function HomePage({
                   locale={locale}
                   resolved={p.resolvedPrice ?? null}
                   salesChannelCode={ctx.salesChannelCode}
+                  presence={moduleActionPresence(modules)}
                 />
               </li>
             ))}

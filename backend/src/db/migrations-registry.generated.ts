@@ -124,6 +124,7 @@ import { Migration20261030T113859CatalogScopeModelOrderRules } from '@endora-com
 import { Migration20261030T113904CatalogScopeModelUrlKeys } from '@endora-commerce/mod-catalog/migrations';
 import { Migration20261030T113908CatalogScopeModelMedia } from '@endora-commerce/mod-catalog/migrations';
 import { Migration20261104T121504CatalogProductContentValues } from '@endora-commerce/mod-catalog/migrations';
+import { Migration20261107T093126CatalogSkuUniqueAmongLive } from '@endora-commerce/mod-catalog/migrations';
 import { Migration20261107T120008CatalogProductCreatedAtMilliseconds } from '@endora-commerce/mod-catalog/migrations';
 
 // ── cms ─────────────────────────────────────────────────────────────────────
@@ -531,6 +532,7 @@ export const MIGRATION_REGISTRY: readonly MigrationRegistryEntry[] = [
   migration('catalog', Migration20261030T113904CatalogScopeModelUrlKeys),
   migration('catalog', Migration20261030T113908CatalogScopeModelMedia),
   migration('catalog', Migration20261104T121504CatalogProductContentValues),
+  migration('catalog', Migration20261107T093126CatalogSkuUniqueAmongLive),
   migration('catalog', Migration20261107T120008CatalogProductCreatedAtMilliseconds),
 
   // ── cms ─────────────────────────────────────────────────────────────────────
