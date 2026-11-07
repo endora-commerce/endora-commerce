@@ -325,6 +325,56 @@ describe('crm — custom-field values carried into Sales Opportunities', () => {
     expect((await opportunityValues(holder.id))[key]).toBe('fair');
   });
 
+  it('a join waits for a write that holds the Opportunity and plans over what it committed — no lost update (#404)', async () => {
+    // An administrator's edit holds the Opportunity's row and sets another key
+    // of the bag. The join must not plan over the bag it read before that edit
+    // committed: it takes the row `for update` and plans over what it re-reads.
+    // Without the lock it plans over the old bag, waits only at its own write
+    // and overwrites the edit. What tells the two apart is the final bag and
+    // the version, not the timing.
+    const { key } = await carryPair('order', 'join_locked');
+    const otherKey = fixtureKey('join_locked_other');
+    const opportunity = await createCrmOpportunity(h);
+    const rfq = await submitCrmQuoteRequest(h);
+    expect((await linkCrmQuoteRequest(h, opportunity.id, rfq.id)).statusCode).toBe(201);
+    const order = await seedCrmOrder(h.em(), { sourceQuoteRequestId: rfq.id });
+    await setValues('orders', order.id, { [key]: 'fair' });
+
+    const editor = await h.em().getKnex().transaction();
+    let join: Promise<unknown> | null = null;
+    let editedVersion: number;
+    try {
+      const locked = (await editor.raw(`select version from "crm_opportunities" where id = ? for update`, [
+        opportunity.id,
+      ])) as { rows: Array<{ version: number }> };
+      editedVersion = locked.rows[0]!.version + 1;
+      await editor.raw(`update "crm_opportunities" set custom_field_values = ?::jsonb, version = ? where id = ?`, [
+        JSON.stringify({ [otherKey]: 'set by the administrator' }),
+        editedVersion,
+        opportunity.id,
+      ]);
+      join = announceOrder(order.id);
+      const pending = Symbol('pending');
+      const early = await Promise.race([join, new Promise((resolve) => setTimeout(() => resolve(pending), 300))]);
+      expect(early, 'the join finished while an edit held the Opportunity').toBe(pending);
+      await editor.commit();
+    } catch (error) {
+      await editor.rollback().catch(() => undefined);
+      throw error;
+    }
+    await join;
+
+    expect(await opportunityOf(order.id)).toBe(opportunity.id);
+    expect(await opportunityValues(opportunity.id)).toEqual({ [otherKey]: 'set by the administrator', [key]: 'fair' });
+    // The carry is a write to the Opportunity, so a client holding the edited
+    // version learns that it is stale.
+    const versions = (await h
+      .em()
+      .getConnection()
+      .execute(`select version from "crm_opportunities" where id = ?`, [opportunity.id])) as Array<{ version: number }>;
+    expect(versions[0]?.version).toBe(editedVersion + 1);
+  });
+
   it('an operator’s manual link of an Order and a Quote Request carries nothing (US3-5, FR-008)', async () => {
     const orderKey = (await carryPair('order', 'manual_order')).key;
     const quoteKey = (await carryPair('quote_request', 'manual_quote')).key;
