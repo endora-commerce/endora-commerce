@@ -1,6 +1,7 @@
 import { randomUUID } from 'crypto';
 import { afterAll, beforeAll, describe, expect, it } from 'vitest';
-import { CreditLimit, Order, OrderItem, Refund, ReturnCase, ReturnCaseItem } from '../../helpers/package-entities.js';
+import { ERROR_CODES } from '@endora-commerce/contracts';
+import { CreditLimit, Invoice, Order, OrderItem, Payment, Refund, ReturnCase, ReturnCaseItem } from '../../helpers/package-entities.js';
 import { TEST_CUSTOMER_ID, TEST_ORGANIZATION_ID } from '../../helpers/test-actors.js';
 import { ensureSalesChannelId } from '../../helpers/sales-channel-fixtures.js';
 import {
@@ -66,8 +67,11 @@ describe('invoices — an invoice issued after a return lists the kept lines (#4
    * `OrderService.placeOrder` writes one. Two lines at 23 %: 3 × 10.00 (gross
    * 36.90) and 1 × 20.00 (gross 24.60); 50.00 net, 11.50 VAT, 61.50 total.
    */
-  async function seedOrder(): Promise<{ orderId: string; widget: string; gadget: string }> {
+  async function seedOrder(
+    opts: { deliveryTotal?: string; kind?: 'bank_transfer' | 'gateway' } = {},
+  ): Promise<{ orderId: string; widget: string; gadget: string }> {
     const em = h.em().fork();
+    const delivery = opts.deliveryTotal ?? '0.00';
     const order = em.create(Order, {
       organizationId: TEST_ORGANIZATION_ID,
       placedByCustomerAccountId: TEST_CUSTOMER_ID,
@@ -88,12 +92,12 @@ describe('invoices — an invoice issued after a return lists the kept lines (#4
       deliveryMethodId: randomUUID(),
       deliveryMethodSnapshot: { code: 'dm', name: 'DM', cost: 0 },
       paymentMethodId: randomUUID(),
-      paymentMethodSnapshot: { code: 'pm', name: 'Przelew', kind: 'bank_transfer' },
+      paymentMethodSnapshot: { code: 'pm', name: 'Przelew', kind: opts.kind ?? 'bank_transfer' },
       subtotal: '50.00',
       taxTotal: '11.50',
-      deliveryTotal: '0.00',
+      deliveryTotal: delivery,
       discountTotal: '0.00',
-      total: '61.50',
+      total: ((6150 + Math.round(Number(delivery) * 100)) / 100).toFixed(2),
       currency: 'PLN',
       placedAt: new Date(),
     });
@@ -219,6 +223,56 @@ describe('invoices — an invoice issued after a return lists the kept lines (#4
     });
     expect(settled.statusCode, settled.body).toBe(200);
     return detail.id;
+  }
+
+  async function issueRaw(orderId: string, kind: 'invoice' | 'proforma' = 'invoice') {
+    return h.app.inject({
+      method: 'POST',
+      url: `/api/v1/admin/orders/${orderId}/invoices`,
+      cookies: ADMIN_COOKIE,
+      payload: { kind },
+    });
+  }
+
+  /** Every unit of both lines back, settled with a refund in the given state, seeded as a settlement writes it. */
+  async function seedFullReturn(
+    orderId: string,
+    lines: Array<{ orderItemId: string; quantity: number; amount: string }>,
+    settlementState: 'issued' | 'pending_manual',
+  ): Promise<void> {
+    await withSystemScope('test: seed a full return', async () => {
+      const em = h.em().fork();
+      for (const line of lines) {
+        const rc = em.create(ReturnCase, {
+          kind: 'return',
+          orderId,
+          salesChannelId: CH,
+          customerAccountId: TEST_CUSTOMER_ID,
+          organizationId: TEST_ORGANIZATION_ID,
+          statusCode: 'resolved',
+          currency: 'PLN',
+          resolutionType: 'refund',
+          submittedAt: new Date(),
+        });
+        em.create(ReturnCaseItem, {
+          returnCaseId: rc.id,
+          orderItemId: line.orderItemId,
+          productId: randomUUID(),
+          productName: 'Returned',
+          quantity: line.quantity,
+          defaultRefundAmount: line.amount,
+          approvedRefundAmount: line.amount,
+        });
+        em.create(Refund, {
+          returnCaseId: rc.id,
+          resolutionType: 'refund',
+          amount: line.amount,
+          currency: 'PLN',
+          settlementState,
+        });
+      }
+      await em.flush();
+    });
   }
 
   async function issueInvoice(orderId: string): Promise<IssuedInvoice> {
@@ -446,6 +500,86 @@ describe('invoices — an invoice issued after a return lists the kept lines (#4
       ['Widget', 2, 20, 24.6],
     ]);
     expect([invoice.grossTotal, invoice.paidTotal, invoice.amountDue]).toEqual([49.2, 49.2, 0]);
+  });
+
+  // Product-owner ruling on F4 (review of PR #865) — an order returned in full
+  // before it is invoiced has no sale left to document, whether or not the
+  // refund has been paid out: the invoice is refused as for an order refunded
+  // in full, before a number is drawn.
+  async function expectReturnedInFullRefused(orderId: string): Promise<void> {
+    const res = await issueRaw(orderId);
+    expect(res.statusCode, res.body).toBe(422);
+    expect((res.json() as { error: { code: string } }).error.code).toBe(ERROR_CODES.INVOICE_ORDER_REFUNDED);
+    const issued = await h.em().fork().find(Invoice, { orderId, kind: 'invoice' });
+    expect(issued, 'nothing issued, no number drawn').toHaveLength(0);
+  }
+
+  it('refuses to invoice an order returned in full whose refund waits for a person', async () => {
+    const { orderId, widget, gadget } = await seedOrder();
+    await seedFullReturn(
+      orderId,
+      [
+        { orderItemId: widget, quantity: 3, amount: '36.90' },
+        { orderItemId: gadget, quantity: 1, amount: '24.60' },
+      ],
+      'pending_manual',
+    );
+    await expectReturnedInFullRefused(orderId);
+  });
+
+  it('refuses it as well for a gateway order whose refund waits for the gateway’s webhook', async () => {
+    const { orderId, widget, gadget } = await seedOrder({ kind: 'gateway' });
+    // Captured, and nothing refunded on the payment yet: the webhook has not arrived.
+    const em = h.em().fork();
+    em.create(Payment, {
+      orderId,
+      paymentMethodId: randomUUID(),
+      status: 'paid',
+      amount: '61.50',
+      currency: 'PLN',
+      paidAt: new Date(),
+    });
+    await em.flush();
+    await seedFullReturn(
+      orderId,
+      [
+        { orderItemId: widget, quantity: 3, amount: '36.90' },
+        { orderItemId: gadget, quantity: 1, amount: '24.60' },
+      ],
+      'issued',
+    );
+    await expectReturnedInFullRefused(orderId);
+  });
+
+  it('invoices only the delivery an order returned in full keeps', async () => {
+    const { orderId, widget, gadget } = await seedOrder({ deliveryTotal: '10.00' });
+    await seedFullReturn(
+      orderId,
+      [
+        { orderItemId: widget, quantity: 3, amount: '36.90' },
+        { orderItemId: gadget, quantity: 1, amount: '24.60' },
+      ],
+      'pending_manual',
+    );
+    const res = await issueRaw(orderId);
+    expect(res.statusCode, res.body).toBe(201);
+    const invoice = (res.json() as { data: IssuedInvoice }).data;
+    expect(invoice.lines.map((l) => [l.quantity, l.netValue, l.grossValue])).toEqual([[1, 10, 10]]);
+    expect(invoice.grossTotal).toBe(10);
+  });
+
+  it('still issues a proforma for an order returned in full', async () => {
+    const { orderId, widget, gadget } = await seedOrder();
+    await seedFullReturn(
+      orderId,
+      [
+        { orderItemId: widget, quantity: 3, amount: '36.90' },
+        { orderItemId: gadget, quantity: 1, amount: '24.60' },
+      ],
+      'pending_manual',
+    );
+    const res = await issueRaw(orderId, 'proforma');
+    expect(res.statusCode, res.body).toBe(201);
   });
 
   it('degrades without returns: every line is invoiced, as before', async () => {
