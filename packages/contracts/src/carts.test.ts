@@ -116,6 +116,46 @@ describe('cartFullPayloadSchema', () => {
   });
 });
 
+// Issue #436 — the cart's VAT, per rate, computed by the backend the way the
+// order computes it. Additive: a reply without it reads `null`, and a line
+// without a rate reads as absent.
+describe('cartFullPayloadSchema — VAT per rate (issue #436)', () => {
+  const VAT = {
+    currency: 'PLN',
+    rows: [
+      { taxRate: 0.05, net: 10, vat: 0.5, gross: 10.5 },
+      { taxRate: 0.08, net: 16.5, vat: 1.32, gross: 17.82 },
+      { taxRate: 0.23, net: 46, vat: 10.58, gross: 56.58 },
+    ],
+    vatTotal: 12.4,
+    subtotalGross: 84.9,
+    grandTotalGross: 84.9,
+  };
+
+  it('reads a reply without the breakdown as null', () => {
+    expect(cartFullPayloadSchema.parse(EMPTY_BASKET).vat).toBeNull();
+  });
+
+  it('carries one row per rate and the gross totals', () => {
+    expect(cartFullPayloadSchema.parse({ ...EMPTY_BASKET, vat: VAT }).vat).toEqual(VAT);
+  });
+
+  it('refuses a negative rate', () => {
+    const rows = [{ ...VAT.rows[0]!, taxRate: -0.05 }];
+    expect(cartFullPayloadSchema.safeParse({ ...EMPTY_BASKET, vat: { ...VAT, rows } }).success).toBe(false);
+  });
+
+  it("carries a line's rate and its own gross, and reads a line without them as absent", () => {
+    const line = { ...LINE, productName: null, taxRate: 0.23, lineGross: { amount: 24.6, currency: 'PLN' } };
+    const parsed = cartViewLineSchema.parse(line);
+    expect(parsed.taxRate).toBe(0.23);
+    expect(parsed.lineGross).toEqual({ amount: 24.6, currency: 'PLN' });
+    const bare = cartViewLineSchema.parse({ ...LINE, productName: null });
+    expect(bare.taxRate).toBeUndefined();
+    expect(bare.lineGross).toBeUndefined();
+  });
+});
+
 describe('orgCartDetailViewSchema (issue #650)', () => {
   const DETAIL = {
     id: '00000000-0000-4000-8000-000000000030',
