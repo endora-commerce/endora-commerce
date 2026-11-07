@@ -35,6 +35,7 @@
  * in a comment or in a string literal is not a finding.
  */
 import ts from 'typescript';
+import { parseSource, rememberRead } from './parsed-source.js';
 
 /** The shape a specifier was written in. See the header for why each is listed. */
 export type SpecifierKind =
@@ -106,7 +107,14 @@ function importDeclarationKind(node: ts.ImportDeclaration): SpecifierKind {
  * not exist — which is what lets both checks' fixtures enter at the top.
  */
 export function namedSpecifiers(source: string, file: string): NamedSpecifier[] {
-  const sf = ts.createSourceFile(file, source, ts.ScriptTarget.Latest, true);
+  // Remembered inside a `withSharedParses` scope (issue #910), and copied out so
+  // a caller that sorts or filters its list in place cannot edit the next
+  // caller's answer.
+  return [...rememberRead('specifiers:named', file, source, () => readSpecifiers(source, file))];
+}
+
+function readSpecifiers(source: string, file: string): NamedSpecifier[] {
+  const sf = parseSource(file, source);
   const found: NamedSpecifier[] = [];
 
   const record = (
