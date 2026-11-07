@@ -102,6 +102,13 @@ W praktyce oznacza to, że:
   trafia do koszyka i zamówienia bez zaokrąglenia, a zaokrąglana jest tylko wartość pozycji — cena
   jednostkowa × ilość — raz, do dwóch miejsc: 0,0125 za 10 000 sztuk to 125,00. Ekrany i PDF
   pokazują cenę jednostkową z jej znaczącymi miejscami, do czterech.
+- **Wszystkie ceny zapytania są w jednej walucie: domyślnej walucie kanału sprzedaży, w którym
+  zapytanie złożono.** Jest ustalana raz, przy tworzeniu zapytania — przez klienta albo przez
+  operatora w jego imieniu — a każdy późniejszy zapis pozycji (edycja szkicu, wersja sprzedawcy,
+  ponowne złożenie) ją zachowuje, więc jedno zapytanie nigdy nie łączy walut. Każda pozycja
+  zapisuje ją jako `lineCurrency`. Zapytanie bez kanału, złożone zanim zapytania go zapisywały,
+  jest w PLN. Zapytania utworzone przed tą regułą pozostają w walucie, w której je zapisano (PLN),
+  niezależnie od waluty ich kanału.
 - `reject-revision` pozostaje bez zmian: klient nadal może wycofać zapytanie, na które sprzedawca
   jeszcze nie odpowiedział.
 - Zapytania, które otrzymało status `Approved` z niewycenioną pozycją, zanim te reguły zaczęły

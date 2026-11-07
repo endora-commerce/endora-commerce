@@ -111,6 +111,14 @@ What this means in practice:
   line's value — the unit price × the quantity — is rounded to two places,
   once: 0.0125 for 10 000 pieces is 125.00. The screens and the PDF show a
   unit price with its significant places, up to four.
+- **Every price on a request is in one currency: the default currency of the
+  sales channel the request was raised on.** It is decided once, when the
+  request is created — by the customer or by an operator on their behalf — and
+  every later write of its lines (a draft edit, a seller revision, a
+  resubmission) keeps it, so one request never mixes currencies. Each line
+  stores it as `lineCurrency`. A request with no channel, raised before
+  requests recorded one, is in PLN. Requests created before this rule stay in
+  the currency they were stored with (PLN), whatever their channel's currency.
 - `reject-revision` is not affected: a customer can still withdraw a request
   the seller has not answered yet.
 - A request that reached `Approved` with an unpriced line before these rules
