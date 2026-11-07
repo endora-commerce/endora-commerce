@@ -1,5 +1,5 @@
 import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest';
-import { cleanup, fireEvent, screen, waitFor, within } from '@testing-library/react';
+import { act, cleanup, fireEvent, screen, waitFor, within } from '@testing-library/react';
 import type { ScopeRef, ScopedValuesResponse } from '@endora-commerce/contracts';
 import { PRODUCT_ID, VALID_SCOPES, api, en, renderEditor, scopedField, scopedValuesResponse, setUpEditorApi } from './product-editor-harness';
 
@@ -92,6 +92,28 @@ describe('focus after a gallery move or removal', () => {
     await waitFor(() => expect(within(row(IMG[1]!)).getByText(/^Image 3/)).toBeInTheDocument());
     await waitFor(() => expect(moveButton(IMG[1]!, 'up')).toHaveFocus());
     expect(moveButton(IMG[1]!, 'down')).toHaveAttribute('aria-disabled', 'true');
+  });
+
+  it('a move pressed as soon as the gallery is on screen still puts focus where the move ends (issue #841)', async () => {
+    // The press lands in the first microtask after the gallery's commit, before React has run that
+    // commit's effects: the focus target of the move must not be taken by them.
+    const pressed = new Promise<void>((resolve) => {
+      const observer = new MutationObserver(() => {
+        const down = row(IMG[1]!)?.querySelector<HTMLElement>('[data-move="down"]');
+        if (!down) return;
+        observer.disconnect();
+        down.focus();
+        fireEvent.click(down);
+        resolve();
+      });
+      observer.observe(document.body, { childList: true, subtree: true });
+    });
+    renderEditor(ProductEditor, { url: MEDIA });
+    await pressed;
+    await act(async () => undefined);
+    releaseMove();
+    await waitFor(() => expect(within(row(IMG[1]!)).getByText(/^Image 3/)).toBeInTheDocument());
+    await waitFor(() => expect(moveButton(IMG[1]!, 'up')).toHaveFocus());
   });
 
   it('the first image\'s Move up is aria-disabled and does nothing', async () => {

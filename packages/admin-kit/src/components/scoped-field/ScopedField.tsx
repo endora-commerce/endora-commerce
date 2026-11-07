@@ -127,10 +127,14 @@ export function ScopedField<T>(props: ScopedFieldProps<T>): ReactNode {
   const atGlobal = scope.level === 'global';
   const ownSaved = view.source === 'set' || view.source === 'set_empty';
 
-  // A new read (a save, a scope switch) starts every field over.
-  useEffect(() => {
+  // A new read (a save, a scope switch) starts every field over. Reset while rendering, not in
+  // an effect: an effect's reset is queued behind an untick dispatched between the commit and the
+  // effect's flush, and silently undoes it (issue #841).
+  const [readView, setReadView] = useState(view);
+  if (readView !== view) {
+    setReadView(view);
     setUnticked(false);
-  }, [view]);
+  }
 
   useEffect(() => {
     if (!focusAfterUntick.current) return;

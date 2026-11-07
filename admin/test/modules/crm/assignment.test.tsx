@@ -273,8 +273,10 @@ describe('the assignee on the opportunity', () => {
   it('unassigns when the choice is cleared', async () => {
     postSpy.mockResolvedValue({ data: detail({ assignee: null, version: 2 }) });
     const section = await renderDetail();
+    // The picker offers Clear once its own read of the assignees has landed, which can be after
+    // the Opportunity is on screen (issue #841).
     await userEvent.click(
-      within(section).getByRole('button', { name: core('common.combobox.clearSelection') }),
+      await within(section).findByRole('button', { name: core('common.combobox.clearSelection') }),
     );
     await waitFor(() =>
       expect(postSpy).toHaveBeenCalledWith(`${DETAIL_PATH}/assign`, { adminUserId: null }),
