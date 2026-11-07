@@ -33,5 +33,6 @@
   "error.versionConflict": "Ktoś inny zmienił to zdarzenie. Odśwież stronę i ponów zmianę.",
   "error.validationFailed": "Niektóre pola są nieprawidłowe.",
   "actions.openMetaAds.keywords": "reklamy",
-  "actions.newCustomEvent.keywords": "zdarzenie"
+  "actions.newCustomEvent.keywords": "zdarzenie",
+  "settingGroups.meta_ads.name": "Meta Ads"
 }

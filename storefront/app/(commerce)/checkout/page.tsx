@@ -86,7 +86,7 @@ export default async function CheckoutPage({
   const jar: CartCookieJar = await readJar();
   // Feature 036 (T039) — resolve the active locale so checkout components
   // can render their copy in PL/EN.
-  const { locale, ctx } = await getServerContext();
+  const { locale, ctx, modules } = await getServerContext();
 
   let loaded: [
     Awaited<ReturnType<typeof getCart>>,
@@ -255,7 +255,12 @@ export default async function CheckoutPage({
         message={me?.organization?.moderationMessage ?? null}
         locale={locale}
       />
-      <QuoteValidityNotice id={QUOTE_ENDED_NOTICE_ID} refusal={quoteCommitmentRefusal} locale={locale} />
+      <QuoteValidityNotice
+        id={QUOTE_ENDED_NOTICE_ID}
+        refusal={quoteCommitmentRefusal}
+        locale={locale}
+        quoteRequestsPresent={modules.isPresent('quote_requests')}
+      />
       <BelowMinimumSummary id={BELOW_MINIMUM_SUMMARY_ID} rows={belowMinimumRows} locale={locale} />
 
       <CheckoutForm action={submitAction} className="b2b-auth__form">
@@ -355,10 +360,12 @@ export default async function CheckoutPage({
                 </th>
               </tr>
             ) : null}
+            {/* Issue #853: the review sums net amounts, so its last row is the
+                net total, not what the buyer pays. VAT and gross are a design task. */}
             {cart.grandTotal ? (
               <tr>
                 <th colSpan={2} scope="row" className="text-right">
-                  <strong>{tr('commerce.common.total')}</strong>
+                  <strong>{tr('commerce.checkout.netTotal')}</strong>
                 </th>
                 <th className="text-right">
                   <strong>

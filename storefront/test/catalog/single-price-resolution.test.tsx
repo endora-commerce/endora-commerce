@@ -39,7 +39,7 @@ describe('one price resolution per catalogue surface', () => {
 
   it('a summary’s resolvedPrice renders the sale with the base struck through', () => {
     const html = renderToString(
-      <PriceTag
+      <PriceTag quoteRequests
         price={{ amount: 7, currency: 'PLN' }}
         resolved={{
           basePrice: { amount: '10.0000', currency: 'PLN' },

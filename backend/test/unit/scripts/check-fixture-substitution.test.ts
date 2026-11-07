@@ -1,13 +1,13 @@
 import { readdirSync, readFileSync, statSync } from 'node:fs';
 import { join } from 'node:path';
 import { fileURLToPath } from 'node:url';
-import { describe, expect, it } from 'vitest';
+import { beforeAll, describe, expect, it } from 'vitest';
 
 import {
   checkFixtureSubstitution,
-  filesReadingTheDatabase,
   findDefaultedReads,
   keyOf,
+  scanFixtureSubstitution,
   DEFAULTED_FIXTURE_READS,
 } from '../../../scripts/check-fixture-substitution.js';
 
@@ -288,6 +288,14 @@ describe('the shipped ledger', () => {
 
 describe('over the real tree', () => {
   const sources = readTree(join(BACKEND_ROOT, 'test'));
+  // One scan, the one the CLI runs: inside a shared-parse scope it reads each
+  // test file once for every assertion below, where calling each walk on its
+  // own parsed the whole of `test/` per assertion and timed out under load in
+  // `test:unit:fast` (issue #910).
+  let scan: ReturnType<typeof scanFixtureSubstitution>;
+  beforeAll(() => {
+    scan = scanFixtureSubstitution({ sources });
+  });
 
   it('reads a tree big enough for a green to mean something', () => {
     expect(sources.size, 'no sources found under test/ — a vacuous pass').toBeGreaterThan(500);
@@ -295,13 +303,14 @@ describe('over the real tree', () => {
     // which the read detection matches nothing is the quiet way to report
     // nothing (issue #113).
     expect(
-      filesReadingTheDatabase({ sources }),
+      scan.reading,
       'no test file reads the database — the read detection has gone blind',
     ).toBeGreaterThan(100);
   });
 
   it('finds no unledgered defaulted read, and no stale entry', () => {
-    const result = checkFixtureSubstitution({ sources }, DEFAULTED_FIXTURE_READS);
+    // The scan judges against the shipped ledger, `DEFAULTED_FIXTURE_READS`.
+    const result = scan.result;
     expect(
       result.violations.map((v) => `${v.file}:${v.line} ${v.holder} ${v.operator} ${v.fallback}`),
     ).toEqual([]);

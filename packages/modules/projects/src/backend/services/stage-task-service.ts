@@ -22,6 +22,7 @@ import { TASKS_READ_PERMISSION } from './owner-read-permissions.js';
 import { uuidArray, type ProjectAccess } from './project-access.js';
 import { personName, type ProjectReadService } from './project-read-service.js';
 import { assertRolesExist, lockProject, lockProjectRow } from './project-service.js';
+import { lockRolesForWrite } from './role-locks.js';
 import { PROJECT_TASK_CONTEXT_TYPE, type ProjectTasks } from './project-tasks.js';
 import { stageNotFound } from './stage-service.js';
 import { responsibleRoleNote } from './task-context-descriptor.js';
@@ -114,16 +115,16 @@ export class StageTaskService {
   /** `PUT /projects/:id/stages/:stageId/tasks` — the Stage's definitions, replaced whole. */
   async setDefinitions(projectId: string, stageId: string, tasks: readonly StageTaskDefinition[]): Promise<ProjectStageView> {
     const visible = await this.deps.access.loadVisible(projectId);
-    await assertRolesExist(
-      this.deps.emFactory(),
-      tasks.map((task) => task.responsibleRoleId).filter((id): id is string => typeof id === 'string'),
-    );
+    const roleIds = tasks.map((task) => task.responsibleRoleId).filter((id): id is string => typeof id === 'string');
+    await assertRolesExist(this.deps.emFactory(), roleIds);
     await this.deps.commandBus.run({
       action: 'projects.project.stage_tasks_set',
       objectType: 'project',
       objectId: visible.id,
       run: async ({ em }) => {
         await lockProject(em, this.deps.access, visible.id);
+        // Issue #453 — the Roles it names, held against a delete and asked again.
+        await lockRolesForWrite(em as EntityManager, roleIds);
         const stage = await em.findOne(ProjectStage, { id: stageId, projectId: visible.id });
         if (!stage) throw stageNotFound();
         const previous = await em.find(ProjectStageTask, { stageId }, { orderBy: { position: 'asc', id: 'asc' } });

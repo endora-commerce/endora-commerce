@@ -786,6 +786,37 @@ describe('CustomerDeletionService', () => {
       await em.find(AuditLogEntry, { action: 'customer_account.anonymized', objectId: customer.id }),
     ).toHaveLength(1);
   });
+
+  /**
+   * Issue #857 — the sweep tick's question outside the scope. It is the work
+   * list's own predicate, one statement for both, so the probe says yes exactly
+   * when the list holds something: at a cutoff before an account's deletion,
+   * past it, and once the account is anonymised. Other files' committed rows
+   * share the table, so each cutoff is checked as an agreement between the two
+   * rather than as an absolute answer.
+   */
+  it('I-15 — hasDueForAnonymization agrees with listDueForAnonymization (#857)', async () => {
+    const agrees = async (cutoff: Date): Promise<string[]> => {
+      const due = (await accountWrites.listDueForAnonymization(cutoff)).map((d) => d.id);
+      expect(await accountWrites.hasDueForAnonymization(cutoff)).toBe(due.length > 0);
+      return due;
+    };
+
+    // Nothing was deleted before the epoch.
+    expect(await accountWrites.hasDueForAnonymization(new Date(0))).toBe(false);
+    expect(await agrees(new Date(0))).toEqual([]);
+
+    const c = await makeCustomer();
+    await svc.softDelete(c.id, actor);
+    const deletedAt = (await em.findOneOrFail(CustomerAccount, { id: c.id })).deletedAt!;
+
+    expect(await agrees(new Date(deletedAt.getTime() - 1))).not.toContain(c.id);
+    expect(await agrees(after(60_000))).toContain(c.id);
+    expect(await accountWrites.hasDueForAnonymization(after(60_000))).toBe(true);
+
+    await accountWrites.anonymize(c.id);
+    expect(await agrees(after(60_000))).not.toContain(c.id);
+  });
 });
 
 /**

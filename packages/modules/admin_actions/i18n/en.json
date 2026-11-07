@@ -1,5 +1,6 @@
 {
   "palette.actionsHeader": "Actions",
   "palette.empty": "No actions available",
-  "palette.searchPlaceholder": "Type to search actions…"
+  "palette.searchPlaceholder": "Type to search actions…",
+  "settingGroups.admin_actions.name": "Command palette"
 }

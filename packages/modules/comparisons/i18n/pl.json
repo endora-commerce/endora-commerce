@@ -63,5 +63,6 @@
   "blocks.comparisonShareLink.label": "Link do udostępniania",
   "blocks.comparisonShareLink.description": "Adres strony udostępniania porównania, opcjonalnie jako kod QR.",
   "list.pdfTemplate": "Szablon PDF",
-  "actions.openComparisons.keywords": "porównanie, porównania"
+  "actions.openComparisons.keywords": "porównanie, porównania",
+  "settingGroups.compare.name": "Porównania"
 }

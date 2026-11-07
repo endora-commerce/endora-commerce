@@ -73,7 +73,7 @@ export default async function OrderConfirmationPage({
   const { payment: paymentReturn, error: actionError } = (await searchParams) ?? {};
   if (!session) return await localeRedirect(`/login?next=/orders/${id}`);
 
-  const { locale } = await getServerContext();
+  const { locale, modules } = await getServerContext();
   const t = tForLocale(locale);
   const actionErrorKey = ORDER_ERRORS.errorKey(actionError?.trim());
 
@@ -148,7 +148,13 @@ export default async function OrderConfirmationPage({
   // Read once for all three; a session that cannot be read keeps today's page, the API being the
   // gate.
   const member = memberSession(await getMe(session).catch(() => null));
-  const actions = orderBuyerActions(member);
+  const roleActions = orderBuyerActions(member);
+  // Issue #672 (Principle XVII item 5) — the clone into a quote request is `quote_requests`'s, and
+  // is offered only while it is present; both gates must allow.
+  const actions = {
+    ...roleActions,
+    cloneToQuote: roleActions.cloneToQuote && modules.isPresent('quote_requests'),
+  };
 
   // Surface a return/complaint entry point directly on the order — a return when
   // any line is returnable, a complaint when none is (feature 155, FR-018/FR-021:
@@ -157,12 +163,16 @@ export default async function OrderConfirmationPage({
   //
   // Feature 170 (FR-052, FR-057): only for a member whose role holds `returns.create`. A session
   // that cannot be read keeps today's entry — `POST /api/v1/returns` is the gate.
+  //
+  // Issue #672 — and only while `returns` is present: off, it is not even asked.
   let returnAction: OrderReturnAction | null = null;
-  try {
-    const returnable = await getReturnable(session, id);
-    returnAction = orderReturnAction(returnable, order.id, locale, mayStartReturn(member));
-  } catch {
-    returnAction = null;
+  if (modules.isPresent('returns')) {
+    try {
+      const returnable = await getReturnable(session, id);
+      returnAction = orderReturnAction(returnable, order.id, locale, mayStartReturn(member));
+    } catch {
+      returnAction = null;
+    }
   }
 
   // Invoices attached to this order (feature 047). Hidden when none are ready.

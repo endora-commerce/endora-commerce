@@ -60,7 +60,8 @@ export async function registerCatalogApiKeyRoutes(
       const payload = { ...body, sku };
 
       const em = deps.emFactory();
-      const existing = await em.findOne(Product, { sku });
+      // Issue #693 — a deleted product does not hold its SKU: the call creates a new one.
+      const existing = await em.findOne(Product, { sku, deletedAt: null });
       if (existing) {
         // Feature 163 (S-W3, Constitution XIII) — the audited Command, naming the key
         // in its entry. No completeness mode is passed: an integration is never gated (A-6).

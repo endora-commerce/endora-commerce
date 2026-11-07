@@ -211,7 +211,12 @@ export class CatalogBulkImportService implements CatalogBulkImportPort {
     if (rows.length === 0) return { imported: 0, errors: [] };
     const scoped = this.#requireScoped();
     const em = scoped.emFactory();
-    const products = await em.find(Product, { sku: { $in: [...new Set(rows.map((row) => row.sku))] } }, { fields: ['id', 'sku'] });
+    // Issue #693 — live rows only: a deleted product may share its SKU with the live one.
+    const products = await em.find(
+      Product,
+      { sku: { $in: [...new Set(rows.map((row) => row.sku))] }, deletedAt: null },
+      { fields: ['id', 'sku'] },
+    );
     const idBySku = new Map(products.map((product) => [product.sku, product.id]));
 
     const errors: BulkImportRowError[] = [];

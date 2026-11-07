@@ -45,7 +45,8 @@
   "scripts": {
     "build": "node ../../../scripts/clean-package-dist.mjs --src src --out dist && tsc -p tsconfig.build.json && tsc -p tsconfig.ui.build.json",
     "typecheck": "tsc -p tsconfig.json && tsc -p tsconfig.ui.json --noEmit",
-    "lint": "eslint src"
+    "lint": "eslint src",
+    "test": "vitest run"
   },
   "peerDependencies": {
     "@endora-commerce/admin-kit": "workspace:*",
@@ -91,6 +92,7 @@
     "lucide-react": "^1.11.0",
     "react": "^19.2.5",
     "react-router-dom": "^7.18.2",
-    "typescript": "^5.9.3"
+    "typescript": "^5.9.3",
+    "vitest": "^4.1.12"
   }
 }

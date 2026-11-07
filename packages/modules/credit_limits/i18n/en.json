@@ -6,5 +6,6 @@
   "nav.creditLimits.label": "Credit limits",
   "actions.openCreditLimits.label": "Credit limits",
   "actions.openCreditLimits.description": "Customer credit limits & balances",
-  "actions.openCreditLimits.keywords": "credit limits, balance"
+  "actions.openCreditLimits.keywords": "credit limits, balance",
+  "settingGroups.credit_limits.name": "Credit limits"
 }

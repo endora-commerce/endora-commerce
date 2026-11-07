@@ -1007,6 +1007,12 @@ export const CONTRIBUTION_POLICY_STATED: Readonly<Record<string, 'skip' | 'honou
   // offered on the configuration screen; `all()` stays presence-blind for
   // diagnostics (`specs/150-admin-global-search/`).
   'admin_search:adminSearchProviderRegistry': 'skip',
+  // Skipped: `SettingWriteValidatorRegistry.forCode` enumerates only validators
+  // whose recorded contributor is effectively present, as the class states.
+  // Listed for `assets_library`'s retention validator (issue #332), the first
+  // contributor reaching the registry through `acknowledgedDependencies`
+  // rather than `dependencies`: `settings` declares `assets_library`.
+  'settings:settingWriteValidatorRegistry': 'skip',
   // Skipped: a surface. `DocumentTypeRegistry.get` / `list` / `blocks` answer a
   // document type — and each contributed block — only while its recorded module
   // is effectively present, so a switched-off host's type, blocks and templates

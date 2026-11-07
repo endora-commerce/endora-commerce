@@ -23,6 +23,8 @@ vi.mock('../../lib/session', () => ({
 }));
 vi.mock('../../lib/server-context', () => ({
   getServerContext: async () => ({
+    // Every module present: these cases are not about presence (issue #672).
+    modules: { isPresent: () => true, presentIds: [], absentIds: [] },
     locale: 'pl-PL',
     ctx: {},
     urlState: {

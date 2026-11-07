@@ -38,7 +38,7 @@ import { SalesChannel } from '@endora-commerce/platform/kernel';
 import { getTenantContext, isOrgInScope } from '@endora-commerce/platform/tenancy';
 import { randomUUID } from 'crypto';
 import { isDeepStrictEqual } from 'util';
-import { carryIntoOpportunity, type OpportunityCarrySource } from './opportunity-custom-field-carry.js';
+import { carryIntoOpportunityBestEffort, type OpportunityCarrySource } from './opportunity-custom-field-carry.js';
 import {
   OpportunityWorkflowConfigError,
   resolveOpportunityStatusName,
@@ -91,6 +91,8 @@ export interface OpportunityServiceDeps {
    * Opportunity created for it receives. Lazy, like every port here.
    */
   customFieldCarry: CustomFieldCarryPort;
+  /** A carry that failed is said to the operator's log; the Opportunity is created without it (#405). */
+  warn: (fields: Record<string, unknown>, message: string) => void;
   /**
    * The list's custom-field filters (`specs/157-custom-fields-list-filters/`):
    * `custom_fields`' `customFieldListFilterPort`, which offers the fields and
@@ -357,9 +359,20 @@ export class OpportunityService {
     // Feature 162 (US2; research R-9) — the document's carried custom-field
     // values, planned before the Command: the Opportunity is new, so every
     // carried field is empty. Not validated against the Opportunity's other
-    // fields — a required one must not stop the creation.
+    // fields — a required one must not stop the creation, and neither does a
+    // carry that fails (#405): the Opportunity is created without it.
     const carry = input.carry
-      ? await carryIntoOpportunity(this.deps.customFieldCarry, input.carry, {})
+      ? await carryIntoOpportunityBestEffort(this.deps.customFieldCarry, input.carry, {}, (error) =>
+          this.deps.warn(
+            {
+              organizationId: input.organizationId,
+              documentKind: input.document.kind,
+              documentId: input.document.id,
+              error,
+            },
+            'crm: the custom-field carry into an opportunity created for a document failed; the opportunity is created without it',
+          ),
+        )
       : null;
 
     let created: { id: string; organizationId: string; number: string } | null = null;

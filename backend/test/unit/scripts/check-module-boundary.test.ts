@@ -2252,6 +2252,22 @@ describe('the generated-file exemption is checked both ways', () => {
 });
 
 describe('the tree itself', () => {
+  // **A budget sized for the work, not for a unit case** (issue #250). This
+  // case is the CLI's whole run, once: the walk, every shard, and
+  // `checkModuleBoundary` over the real tree, which parses every module source
+  // and every migration with the TypeScript parser. Measured on 2026-11-07, on
+  // a 16-thread machine at load average ~3.5: 24 s for the case (21.5 s of it
+  // in `checkModuleBoundary`, most of that `ts.createSourceFile`), against
+  // 21 s for `check:module-boundary` itself. The 30 s default left it red in
+  // the complete suite at six workers while the check was right, and pinned to
+  // one core shared with one busy process it takes 36 s. Nothing in it repeats,
+  // so there is no repeated work to take out; what would make it cheaper is
+  // parsing each source once across the check's passes, which is the check's
+  // change and not this test's. 120 s is five times the idle measurement, the
+  // same budget `module-package-manifest.test.ts` gives its one render of the
+  // tree — it stays a bound, so a walk that stopped terminating still fails.
+  const TREE_CHECK_BUDGET_MS = 120_000;
+
   it('has every cross-module reach ledgered, in its own shard', async () => {
     const layout = await resolveModuleLayout();
     const shards = await loadLedgerShards(ledgerDirectory());
@@ -2386,7 +2402,7 @@ describe('the tree itself', () => {
     expect(result.permanentIssues).toEqual([]);
     expect(result.countIssues).toEqual([]);
     expect(result.shardShapeIssues).toEqual([]);
-  });
+  }, TREE_CHECK_BUDGET_MS);
 
   it('scans the same files the CLI scans, and the walk is the shared one', async () => {
     // Both callers agree on the scan scope by construction rather than by two

@@ -3764,6 +3764,45 @@ restored (`409 CUSTOMER_RESTORE_WINDOW_ELAPSED`), whether or not the sweep has r
    (`customers: the anonymization sweep failed; the next tick retries`) and is retried the next
    day. The query above then returns `0`.
 
+### API-key orders are placed only on the Organization's channels {#api-key-intake-organization-channels}
+
+The release that ships this change applies the admin order rule to the external order API
+(`POST /api/v1/external/orders`, issue #699). An API key is bound to an Organization and a sales
+channel, and an order placed with it now has to land on one of that Organization's **active
+assigned** channels. The check runs every time an order is placed, not when the key is issued.
+Until now the intake never checked it. A key whose Organization is not assigned to the key's
+channel, or was unassigned from it later, now gets
+`422 ORDER_SALES_CHANNEL_NOT_ALLOWED` ("This sales channel is not one of the organization's active
+sales channels."), and nothing is written: no order, no change to the service account's basket. A
+bound channel that is switched off was already refused, with `400 INACTIVE_SALES_CHANNEL`.
+
+**After upgrading:**
+
+1. **List the keys that will be refused.** Run this read-only query. Every row is an active key
+   with the `orders:write` scope whose Organization is not assigned to the key's channel:
+
+   ```sql
+   select k.id, k.name, o.name as organization, sc.code as channel, sc.active as channel_active
+   from api_keys k
+   join sales_channels sc on sc.id = k.sales_channel_id
+   left join organizations o on o.id = k.organization_id
+   where k.status = 'active'
+     and k.scopes::jsonb ? 'orders:write'
+     and k.organization_id is not null
+     and not exists (
+       select 1 from sales_channel_organizations sco
+       where sco.sales_channel_id = k.sales_channel_id
+         and sco.organization_id = k.organization_id
+     )
+   order by k.name;
+   ```
+
+2. **Fix each row in one of two ways.** Either assign the channel to the Organization (the
+   Organization's *Sales channels* in the Admin UI), if it really buys there; or re-bind the key to
+   one of the Organization's own channels, that is, issue a new key bound to that channel, hand it
+   to the integration and revoke the old one. A key's binding cannot be edited.
+3. **Run the query again.** It returns no rows when every integration can place orders.
+
 ### Quote request lines carry their channel's currency {#quote-line-currency}
 
 Until this release every quote request line was stored with the currency `PLN`, whatever the

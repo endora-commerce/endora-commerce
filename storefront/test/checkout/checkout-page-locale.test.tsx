@@ -20,7 +20,7 @@ vi.mock('../../lib/session', () => ({
   setAnonCartCookie: async () => undefined,
 }));
 vi.mock('../../lib/server-context', () => ({
-  getServerContext: async () => ({ locale, ctx: {} }),
+  getServerContext: async () => ({ locale, ctx: {}, modules: { isPresent: () => true, presentIds: [], absentIds: [] } }),
 }));
 vi.mock('../../lib/api/cart', () => ({
   CART_UNAVAILABLE: 'cart-unavailable',
@@ -110,7 +110,7 @@ describe('checkout page — issue #85', () => {
       'x 3',
       'Subtotal',
       'Discount (SPRING)',
-      '<strong>Total</strong>',
+      '<strong>Net total</strong>',
       'Back to cart',
       'Place order',
       'Payment method',
@@ -130,7 +130,7 @@ describe('checkout page — issue #85', () => {
       '<h3>Przegląd zamówienia</h3>',
       'Suma częściowa',
       'Rabat (SPRING)',
-      '<strong>Razem</strong>',
+      '<strong>Razem netto</strong>',
       'Wróć do koszyka',
       'Złóż zamówienie',
       'Metoda płatności',
@@ -140,5 +140,20 @@ describe('checkout page — issue #85', () => {
     }
     expect(html).not.toContain('Place order');
     expect(html).not.toContain('Subtotal');
+  });
+});
+
+describe('checkout review net-sum label — issue #853', () => {
+  // The review table sums net line amounts; labelling that figure "Total"
+  // reads as the amount to pay. It is the net total until the review shows
+  // VAT and gross (a separate design task).
+  it.each([
+    ['en-US', '<strong>Net total</strong>', '<strong>Total</strong>'],
+    ['pl-PL', '<strong>Razem netto</strong>', '<strong>Razem</strong>'],
+  ])('labels the net grand total as the net total in %s', async (l, label, bare) => {
+    locale = l;
+    const html = await render();
+    expect(html).toContain(label);
+    expect(html).not.toContain(bare);
   });
 });

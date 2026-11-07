@@ -33,7 +33,7 @@ const FALLBACK_CATEGORIES: ReadonlyArray<{ slug: string; nameKey: MessageKey; co
 ];
 
 export default async function NotFound(): Promise<ReactNode> {
-  const { ctx, locale } = await getServerContext();
+  const { ctx, locale, modules } = await getServerContext();
   const t = tForLocale(locale);
   const [tree, shop] = await Promise.all([
     getCategoryTree(ctx).catch(
@@ -102,9 +102,12 @@ export default async function NotFound(): Promise<ReactNode> {
             <LocalizedLink href="/catalog" className="btn btn--outline btn--lg">
               {t('chrome.shared.browseCatalog')}
             </LocalizedLink>
-            <LocalizedLink href="/quote-request" className="btn btn--ghost btn--lg">
-              {t('chrome.notFound.quoteRequest')}
-            </LocalizedLink>
+            {/* Issue #672 — the draft belongs to `quote_requests`, which answers not-found while off. */}
+            {modules.isPresent('quote_requests') ? (
+              <LocalizedLink href="/quote-request" className="btn btn--ghost btn--lg">
+                {t('chrome.notFound.quoteRequest')}
+              </LocalizedLink>
+            ) : null}
           </div>
         </div>
 

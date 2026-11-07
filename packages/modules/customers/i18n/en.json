@@ -89,5 +89,6 @@
   "adminSearch.status.blocked": "Blocked",
   "actions.openCustomers.keywords": "customers, customer",
   "actions.onlineCustomers.keywords": "active, online customers",
-  "errors.CUSTOMER_ADDRESS_BOOK_RETIRED": "The personal address book has been retired. Addresses are kept in your organization's address book."
+  "errors.CUSTOMER_ADDRESS_BOOK_RETIRED": "The personal address book has been retired. Addresses are kept in your organization's address book.",
+  "settingGroups.customers.name": "Customers"
 }

@@ -3,6 +3,10 @@ import { describe, expect, it } from 'vitest';
 import type { BlogBySlugPostResponse, BlogPostCard } from '@endora-commerce/contracts';
 import { BlogPostPage } from '../../app/blog/_components/BlogPostPage';
 import { PostCard } from '../../app/blog/_components/PostCard';
+import { moduleActionPresence } from '../../lib/module-action-presence';
+
+/** Every action module present: what these cases render is not about presence (issue #672). */
+const ALL_PRESENT = moduleActionPresence({ isPresent: () => true });
 
 /**
  * Feature 171 (US7, FR-062/FR-065, T085) — a post shows its author: name, avatar and
@@ -37,7 +41,7 @@ function post(author: BlogBySlugPostResponse['post']['author']): BlogBySlugPostR
 }
 
 const render = (payload: BlogBySlugPostResponse) =>
-  renderToString(<BlogPostPage payload={payload} language="pl-PL" locale="pl-PL" relatedProducts={[]} salesChannelCode="b2b" />);
+  renderToString(<BlogPostPage presence={ALL_PRESENT} payload={payload} language="pl-PL" locale="pl-PL" relatedProducts={[]} salesChannelCode="b2b" />);
 
 describe('the post shows its author (feature 171)', () => {
   it('shows the name, the avatar and the biography, and names a Person in the structured data', () => {

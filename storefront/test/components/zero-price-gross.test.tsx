@@ -3,6 +3,10 @@ import { renderToString } from 'react-dom/server';
 import type { ProductSummary } from '@endora-commerce/contracts';
 import { ProductRow } from '../../components/ProductRow';
 import { ProductCard } from '../../components/ProductCard';
+import { moduleActionPresence } from '../../lib/module-action-presence';
+
+/** Every action module present: what these cases render is not about presence (issue #672). */
+const ALL_PRESENT = moduleActionPresence({ isPresent: () => true });
 
 /**
  * Issue #132 — a free product renders as free, on the listing surfaces too.
@@ -30,7 +34,7 @@ function summary(price: ProductSummary['price']): ProductSummary {
 describe('ProductRow — a zero price is a price', () => {
   it('renders both the net and the derived gross figure for a price of zero', () => {
     const html = renderToString(
-      <ProductRow product={summary({ amount: 0, currency: 'PLN' })} locale="pl-PL" />,
+      <ProductRow presence={ALL_PRESENT} product={summary({ amount: 0, currency: 'PLN' })} locale="pl-PL" />,
     );
     expect(html).toContain('od / szt.');
     expect(html).toContain('brutto');
@@ -38,14 +42,14 @@ describe('ProductRow — a zero price is a price', () => {
 
   it('renders no price at all — and no gross line — when there is none', () => {
     const html = renderToString(
-      <ProductRow product={summary(null)} locale="pl-PL" />,
+      <ProductRow presence={ALL_PRESENT} product={summary(null)} locale="pl-PL" />,
     );
     expect(html).not.toContain('brutto');
   });
 
   it('derives the gross figure at a caller-supplied rate', () => {
     const html = renderToString(
-      <ProductRow
+      <ProductRow presence={ALL_PRESENT}
         product={summary({ amount: 100, currency: 'PLN' })}
         locale="pl-PL"
         vatRate={0.05}
@@ -59,14 +63,14 @@ describe('ProductRow — a zero price is a price', () => {
 describe('ProductCard — a zero price keeps its gross line', () => {
   it('renders the derived gross line for a price of zero', () => {
     const html = renderToString(
-      <ProductCard product={summary({ amount: 0, currency: 'PLN' })} locale="pl-PL" salesChannelCode="retail" />,
+      <ProductCard presence={ALL_PRESENT} product={summary({ amount: 0, currency: 'PLN' })} locale="pl-PL" salesChannelCode="retail" />,
     );
     expect(html).toContain('brutto');
   });
 
   it('derives the gross figure at a caller-supplied rate', () => {
     const html = renderToString(
-      <ProductCard
+      <ProductCard presence={ALL_PRESENT}
         product={summary({ amount: 100, currency: 'PLN' })}
         locale="pl-PL"
         vatRate={0.05}

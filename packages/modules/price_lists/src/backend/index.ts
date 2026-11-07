@@ -346,6 +346,8 @@ export function registerModule(ctx: ModuleContext): void {
       processRunsWorkers: cradle.processRunsWorkers,
       moduleQueueRedis: cradle.moduleQueueRedis,
       rebuildStale: () => cradle.priceLists.handle.pricingEngine.priceSurface.rebuildStale(),
+      hasPendingWork: () => cradle.priceLists.handle.pricingEngine.priceSurface.hasPendingWork(),
+      enqueue: () => cradle.priceListsSurfaceProducer.enqueue(),
       log: ctx.log,
       attach: (worker) => ctx.worker(worker, { logger: app.log }),
     });

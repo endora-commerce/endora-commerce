@@ -2,6 +2,10 @@ import Fastify from 'fastify';
 import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest';
 import { getCurrentPlatformScope } from '../../../src/kernel/scope.js';
 import { getTenantContext } from '../../../src/tenancy/tenant-context.js';
+import {
+  setEscapeHatchAuditSink,
+  type EscapeHatchAuditRecord,
+} from '../../../src/tenancy/escape-hatch.js';
 import { registryCache } from '../../../src/kernel/lifecycle/registry-cache.js';
 import { REGISTERED_MANIFESTS } from '../../../src/lifecycle/registered-manifests.js';
 import { searchModule, type SearchModuleOptions } from '../../../../packages/modules/search/src/backend/plugin.js';
@@ -112,6 +116,125 @@ describe('search reindex scheduler is gated on effective presence', () => {
       entryPoint: 'interval',
     });
     expect(scheduled.length, 'the scoped tick did not re-arm the loop').toBeGreaterThan(1);
+  });
+});
+
+/**
+ * Issue #120 — an idle poll is not an access.
+ *
+ * With the sweep disabled (`search.reindex_interval_minutes` <= 0) the timer
+ * still polls every minute, so a re-enable takes effect live, and each poll
+ * used to enter the system scope first: one `tenant.escape_hatch` row a minute
+ * recording nothing. The interval is a **platform-wide** setting (channel
+ * `null`, `Setting`/`SettingValue` are `@GlobalEntity`), so reading it touches
+ * no organisation's data and needs no widened scope. The tick reads it first
+ * and enters the scope only when there is work: the sweep is due, or the
+ * once-per-process index-settings check is still pending. A read that fails
+ * enters the scope as before, so an unknown answer fails toward the audit row.
+ */
+describe('search reindex poll enters the system scope only when there is work (issue #120)', () => {
+  let scheduled: ScheduledTimer[];
+  let restoreTimers: () => void;
+  let records: EscapeHatchAuditRecord[];
+  let restoreSink: () => void;
+
+  beforeEach(() => {
+    scheduled = [];
+    const spy = vi.spyOn(globalThis, 'setTimeout').mockImplementation(((
+      callback: () => void,
+      delayMs: number,
+    ): NodeJS.Timeout => {
+      scheduled.push({ callback, delayMs });
+      return { unref: () => undefined, ref: () => undefined } as unknown as NodeJS.Timeout;
+    }) as unknown as typeof setTimeout);
+    restoreTimers = () => spy.mockRestore();
+    records = [];
+    const previous = setEscapeHatchAuditSink((record) => void records.push(record));
+    restoreSink = () => void setEscapeHatchAuditSink(previous);
+    registryCache.__setEnabledForTesting(ALL_IDS);
+  });
+
+  afterEach(() => {
+    restoreTimers();
+    restoreSink();
+    registryCache.__setEnabledForTesting(ALL_IDS);
+  });
+
+  const sweepRecords = (): EscapeHatchAuditRecord[] =>
+    records.filter((record) => record.reason === 'search: periodic reindex sweep');
+
+  /** Where each read of the interval ran: inside a platform scope or not. */
+  function intervalSetting(answers: Array<number | Error>): {
+    get: () => Promise<number>;
+    readScopes: Array<'scoped' | 'unscoped'>;
+  } {
+    const readScopes: Array<'scoped' | 'unscoped'> = [];
+    let call = 0;
+    return {
+      readScopes,
+      get: async () => {
+        readScopes.push(getCurrentPlatformScope() ? 'scoped' : 'unscoped');
+        const answer = answers[Math.min(call, answers.length - 1)]!;
+        call += 1;
+        if (answer instanceof Error) throw answer;
+        return answer;
+      },
+    };
+  }
+
+  it('enters no scope on a disabled poll once the index settings have been checked', async () => {
+    const setting = intervalSetting([0]);
+    const { handle, plugin } = searchModule(searchOptions(setting.get));
+    const reindex = vi.spyOn(handle.reindexWorker, 'reindex');
+
+    await plugin(Fastify());
+    // The first present tick still owes the once-per-process index check.
+    await runLastTick(scheduled);
+    expect(sweepRecords(), 'the pending index-settings check ran outside the scope').toHaveLength(1);
+
+    await runLastTick(scheduled);
+    await runLastTick(scheduled);
+
+    expect(sweepRecords(), 'an idle poll entered the system scope').toHaveLength(1);
+    expect(setting.readScopes.slice(1), 'the interval was read inside a widened scope').toEqual([
+      'unscoped',
+      'unscoped',
+    ]);
+    expect(reindex).not.toHaveBeenCalled();
+    expect(scheduled, 'an idle poll stopped re-arming the loop').toHaveLength(4);
+    expect(scheduled.at(-1)?.delayMs).toBe(60_000);
+  });
+
+  it('enters the scope when the sweep is due, having read the interval once and before it', async () => {
+    const setting = intervalSetting([0, 5]);
+    const { handle, plugin } = searchModule(searchOptions(setting.get));
+    const reindex = vi
+      .spyOn(handle.reindexWorker, 'reindex')
+      .mockResolvedValue({ channelsReindexed: 1, documentCount: 7 });
+
+    await plugin(Fastify());
+    await runLastTick(scheduled);
+    await runLastTick(scheduled);
+
+    expect(sweepRecords()).toHaveLength(2);
+    expect(setting.readScopes).toEqual(['unscoped', 'unscoped']);
+    expect(reindex).toHaveBeenCalledTimes(1);
+    expect(scheduled.at(-1)?.delayMs).toBe(5 * 60_000);
+  });
+
+  it('enters the scope as before when the interval cannot be read', async () => {
+    const setting = intervalSetting([0, new Error('connection terminated')]);
+    const { handle, plugin } = searchModule(searchOptions(setting.get));
+    const reindex = vi.spyOn(handle.reindexWorker, 'reindex');
+
+    await plugin(Fastify());
+    await runLastTick(scheduled);
+    await runLastTick(scheduled);
+
+    expect(sweepRecords(), 'a failed read skipped the audited scope').toHaveLength(2);
+    expect(reindex).not.toHaveBeenCalled();
+    expect(scheduled, 'a failed read stopped the loop').toHaveLength(3);
+    expect(scheduled.at(-1)?.delayMs).toBe(60_000);
   });
 });
 

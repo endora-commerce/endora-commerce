@@ -22,6 +22,12 @@ import { enterSystemScope, type PlatformLogger } from '@endora-commerce/platform
  * that fails for good is logged and removed, so the next request is a new job
  * rather than a duplicate of the failed one (issue #416, review 2 of #424).
  *
+ * The fixed id also swallows a request made while a job is *finishing*: the
+ * pass read no more work, and a mark committed after that read enqueues
+ * against the still-active job. So a job that completes checks once more and,
+ * when work is pending, asks for a follow-up job — by then the completed job
+ * is removed, so the request is a new job (issue #427).
+ *
  * Attached with `ctx.worker`, so it stops with the module (Principle XVII), and
  * built only where the host says this process consumes queues.
  */
@@ -71,25 +77,43 @@ export function startPriceSurfaceWorker(input: {
   readonly processRunsWorkers: boolean;
   readonly moduleQueueRedis: Redis | undefined;
   readonly rebuildStale: () => Promise<number>;
+  /** Whether a pass would find work now; asked once each job completes (issue #427). */
+  readonly hasPendingWork: () => Promise<boolean>;
+  /** The producer's {@link PriceSurfaceProducer.enqueue}, for the follow-up job. */
+  readonly enqueue: () => Promise<boolean>;
   readonly log: PlatformLogger;
   readonly attach: (worker: Worker) => void;
 }): boolean {
   if (!input.processRunsWorkers || input.moduleQueueRedis === undefined) return false;
-  input.attach(
-    new Worker(
-      PRICE_SURFACE_QUEUE,
-      () =>
-        enterSystemScope(SCOPE_REASON, async () => {
-          const rebuilt = await input.rebuildStale();
-          if (rebuilt > 0) input.log.info({ rebuilt }, 'price_lists: price surface profiles rebuilt');
-        }),
-      { connection: input.moduleQueueRedis, concurrency: 1 },
-    ).on('failed', (job, err) => {
-      input.log.error(
-        { err, attemptsMade: job?.attemptsMade, attempts: job?.opts.attempts },
-        'price_lists: price surface rebuild failed; its marks are kept for the next attempt or request',
-      );
-    }),
+  const worker = new Worker(
+    PRICE_SURFACE_QUEUE,
+    () =>
+      enterSystemScope(SCOPE_REASON, async () => {
+        const rebuilt = await input.rebuildStale();
+        if (rebuilt > 0) input.log.info({ rebuilt }, 'price_lists: price surface profiles rebuilt');
+      }),
+    { connection: input.moduleQueueRedis, concurrency: 1 },
   );
+  worker.on('completed', () => {
+    // `removeOnComplete` has removed the job by the time this fires, so the
+    // follow-up is a new job rather than a duplicate of this one. A worker
+    // that is stopping asks for nothing: the module is going away with it.
+    if (worker.closing !== undefined) return;
+    enterSystemScope(SCOPE_REASON, async () => {
+      if (await input.hasPendingWork()) await input.enqueue();
+    }).catch((err: unknown) => {
+      input.log.error(
+        { err },
+        'price_lists: price surface follow-up check failed; pending marks wait for the next request',
+      );
+    });
+  });
+  worker.on('failed', (job, err) => {
+    input.log.error(
+      { err, attemptsMade: job?.attemptsMade, attempts: job?.opts.attempts },
+      'price_lists: price surface rebuild failed; its marks are kept for the next attempt or request',
+    );
+  });
+  input.attach(worker);
   return true;
 }

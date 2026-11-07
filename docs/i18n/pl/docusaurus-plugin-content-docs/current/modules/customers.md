@@ -81,7 +81,9 @@ anonimizacji odnotowują, że dane usunięto, ale nie przechowują samych danych
 Zadanie uruchamia się raz dziennie w procesie workera i tylko wtedy, gdy moduł jest włączony, więc
 konto zostaje zanonimizowane najpóźniej dzień po upływie okresu. Gdy moduł jest wyłączony, zadanie
 się nie uruchamia; konta, którym okres upłynął w tym czasie, anonimizuje pierwszy przebieg po
-ponownym włączeniu modułu.
+ponownym włączeniu modułu. Przebieg najpierw sprawdza, czy jakieś konto czeka na anonimizację; jeśli
+nie, nic nie robi i nie zapisuje wpisu audytu. Dwa nakładające się przebiegi anonimizują konto
+tylko raz.
 
 Zadanie najpierw anonimizuje organizację prywatną i jej adresy, a konto na końcu. Jeśli przebieg
 zostanie przerwany, konto zostanie podjęte ponownie w następnym przebiegu, który dokończy brakujące

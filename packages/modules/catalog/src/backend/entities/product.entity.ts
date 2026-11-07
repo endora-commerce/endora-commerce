@@ -42,8 +42,13 @@ export class Product {
   @PrimaryKey({ type: 'uuid' })
   id: string = randomUUID();
 
+  /**
+   * Issue #693 — unique among live rows only (`products_sku_live_unique`, a partial unique index
+   * `where deleted_at is null`, raw SQL in the migration): a deleted product keeps its real SKU
+   * and frees it for reuse.
+   */
   @Property({ type: 'string', length: 255 })
-  @Unique()
+  @Index()
   sku!: string;
 
   @Property({ type: 'string', length: 160 })
@@ -144,7 +149,12 @@ export class Product {
   @Property({ type: 'string', length: 2048, nullable: true })
   downloadUrl?: string | null;
 
-  @Property({ type: 'datetime', onCreate: () => new Date() })
+  /**
+   * Stored to the millisecond (issue #234): the listing's `(createdAt, id)`
+   * cursor carries milliseconds, so a microsecond written by SQL `now()` made
+   * the next page skip the rest of its millisecond.
+   */
+  @Property({ type: 'datetime', columnType: 'timestamptz(3)', onCreate: () => new Date() })
   @Index()
   createdAt: Date = new Date();
 
