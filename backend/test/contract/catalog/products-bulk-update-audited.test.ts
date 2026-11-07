@@ -45,6 +45,7 @@ describe('bulk edit through the product.update Command (issue #241)', () => {
         visibility: 'public',
         allowedOrganizationIds: [],
         attributeValues: {},
+        returnable: true,
       });
       em.persist(p);
       ids.push(p.id);

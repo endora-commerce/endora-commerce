@@ -228,7 +228,7 @@ describe('CatalogBulkUpdateService — the completeness gate (FR-061, US6 #4)', 
           reads += 1;
           return 'refuse';
         },
-        updateProduct: async (id: string, _req: unknown, _ctx: unknown, gate: { completeness?: string }) => {
+        updateProductAudited: async (id: string, _req: unknown, gate: { completeness?: string }) => {
           gates.push(gate?.completeness);
           if (id === P1) throw incomplete();
           return {};
@@ -251,7 +251,7 @@ describe('CatalogBulkUpdateService — the completeness gate (FR-061, US6 #4)', 
           reads += 1;
           return 'refuse';
         },
-        updateProduct: async () => ({}),
+        updateProductAudited: async () => ({}),
       } as unknown as CatalogAdminService,
     );
     await svc.bulkUpdate({ productIds: [P1], fields: { visibility: 'public' } });

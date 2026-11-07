@@ -25,9 +25,11 @@ import type { ScopeWriteOptions } from './product-scopes.service.js';
  *
  *  - Per-product atomicity (each product writes inside its own transaction).
  *  - No batch abort: a single failure does NOT roll back other products.
- *  - One summary `audit_logs` row per bulk operation; per-product audit
- *    rows are emitted by `CatalogAdminService.updateProduct` as before, and
- *    by the Archive / Restore Commands for `fields.archived` (feature 163).
+ *  - One summary `audit_logs` row per bulk operation; each product's write
+ *    is the single-product `product.update` Command
+ *    (`CatalogAdminService.updateProductAudited`, issue #241), or the Archive /
+ *    Restore Command for `fields.archived` (feature 163) — its own audit entry,
+ *    none when it changed nothing.
  */
 
 export interface BulkUpdateOutcome {
@@ -186,7 +188,7 @@ export class CatalogBulkUpdateService {
     let skipped = 0;
     let failed = 0;
     for (const productId of req.productIds) {
-      const outcome = await this.applyToOneProduct(productId, req, auditCtx, completeness);
+      const outcome = await this.applyToOneProduct(productId, req, completeness);
       results.push(outcome);
       processed += 1;
       if (outcome.status === 'succeeded') succeeded += 1;
@@ -237,7 +239,6 @@ export class CatalogBulkUpdateService {
   private async applyToOneProduct(
     productId: string,
     req: BulkUpdateProductsRequest,
-    auditCtx: AdminAuditContext | undefined,
     completeness: ScopeCompletenessGateMode | undefined,
   ): Promise<BulkUpdateOutcome> {
     const em = this.emFactory();
@@ -282,7 +283,7 @@ export class CatalogBulkUpdateService {
       touchedAny = true;
     }
     // Feature 155 (FR-003) — "Set returnable". Audited per product by the
-    // legacy `updateProduct` below, whose before/after carry the flag.
+    // `product.update` Command below, whose before/after carry the flag.
     if (fields.returnable !== undefined) {
       partial.returnable = fields.returnable;
       touchedAny = true;
@@ -349,15 +350,18 @@ export class CatalogBulkUpdateService {
       }
     }
 
-    // Apply updateProduct (status / visibility / returnable / categories / attributeValues).
+    // The `product.update` Command (status / visibility / returnable / categories /
+    // attributeValues): one transaction and one audit entry per product, as a
+    // single edit — never the unaudited `updateProduct` (issue #241, Principle XIII).
+    // Its actor is the ambient one: the admin on the inline path, the requester the
+    // worker acts for on the queued one (S-W2).
     let changedFields: string[] = [];
     const warnings: ScopeWarning[] = [];
     if (touchedAny) {
       try {
-        await this.catalogAdmin.updateProduct(
+        await this.catalogAdmin.updateProductAudited(
           productId,
-          partial as unknown as Parameters<CatalogAdminService['updateProduct']>[1],
-          auditCtx,
+          partial as unknown as Parameters<CatalogAdminService['updateProductAudited']>[1],
           { completeness, warnings },
         );
         // The service tracks changedFields internally; from the caller's
@@ -369,7 +373,7 @@ export class CatalogBulkUpdateService {
       }
     }
 
-    // Sales channels run AFTER updateProduct because they live on a
+    // Sales channels run AFTER the product update because they live on a
     // different bridge table and use a dedicated service.
     if (fields.salesChannels && this.salesChannelMembership) {
       try {

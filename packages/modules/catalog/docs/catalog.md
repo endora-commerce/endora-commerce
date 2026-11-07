@@ -350,7 +350,7 @@ modules are present. The payload is sent whole; the strict schemas are
 | Event | Sent when | Payload, beside `eventId` and `occurredAt` |
 | --- | --- | --- |
 | `product.created.v1` | A product is created — in the Admin UI, through the API-key upsert, by an import or a PIM synchronisation, or by duplicating another product. | `productId` (UUID), `sku` — the SKU it was created with; it can change later, `productId` cannot. |
-| `product.updated.v1` | A product is written, or one of its variants is created, changed or deleted. | `productId`, `changedFields` — the names of the product fields the write addressed (`name`, `status`, `categoryIds`, …; `variants` for a variant write). Names only, an open list, and it may be empty. |
+| `product.updated.v1` | A product is written, or one of its variants is created, changed or deleted. | `productId`, `changedFields` — the names of the product fields whose stored value the write changed (`name`, `status`, `categoryIds`, …; `variants` for a variant write). Names only, an open list, and it may be empty. A product update that changes nothing is not announced. |
 | `product.archived.v1` | A product is archived by the Archive action — for one product or in bulk. Once per transition: archiving an archived product sends nothing. A status change never sends it: `inactive` is plain off. | `productId` |
 
 - **Order.** Archive sends `product.updated.v1` (with `archivedAt` in
