@@ -585,6 +585,19 @@ export interface OrderReturnedQuantity {
 }
 
 /**
+ * The key of the transaction-scoped advisory lock (`pg_advisory_xact_lock(hashtext(key))`)
+ * that serialises the writes about one order's returns. Owner: `returns`.
+ *
+ * `returns` takes it to create a case and to settle one; `invoices` takes it to
+ * issue an invoice (review of PR #865, F3), so an invoice is never issued from
+ * a case a settlement has moved money for but not yet recorded as resolved —
+ * it waits, and then lists only the kept lines.
+ */
+export function returnCaseOrderLockKey(orderId: string): string {
+  return `return_cases:${orderId}`;
+}
+
+/**
  * Container name: `returnRefundReadPort`. Owner: `returns`.
  *
  * What the order's settled return cases refunded, so a reader that states what

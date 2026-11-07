@@ -26,6 +26,7 @@ import type { SellerSettingsResolver } from './seller-settings.js';
 import { buildInvoiceLines, readModelVatSummary, type RawOrderLine } from './invoice-line-builder.js';
 import { invoicePaidPosition } from './invoice-paid.js';
 import { keptDiscount, keptOrderLines } from './kept-quantities.js';
+import type { OrderReturnsLock } from './order-returns-lock.js';
 import { invoicesProseTable, type InvoicesTranslate } from '../invoices-prose.js';
 import { INVOICE_RENDER_LANGUAGE } from '../document/invoice-document-type.js';
 import {
@@ -133,6 +134,13 @@ export class InvoiceService {
       readonly translate?: InvoicesTranslate | undefined;
       readonly language?: SupportedLanguage;
     } = {},
+    /**
+     * The order's returns lock (review of PR #865, F3): issuing holds it, so an
+     * invoice never reads a case a settlement has moved money for but not yet
+     * recorded. The composition always supplies it; without it (a unit test's
+     * fake entity manager) issuance takes no lock.
+     */
+    private readonly returnsLock?: OrderReturnsLock,
   ) {}
 
   /** Issue an invoice/proforma for an order. Idempotent per (order, kind). */
@@ -140,6 +148,15 @@ export class InvoiceService {
     orderId: string,
     kind: Exclude<InvoiceKind, 'correction' | 'wz'>,
     opts: IssueInvoiceOptions = {},
+  ): Promise<InvoiceDetail> {
+    if (this.returnsLock) return this.returnsLock.run(orderId, () => this.#issue(orderId, kind, opts));
+    return this.#issue(orderId, kind, opts);
+  }
+
+  async #issue(
+    orderId: string,
+    kind: Exclude<InvoiceKind, 'correction' | 'wz'>,
+    opts: IssueInvoiceOptions,
   ): Promise<InvoiceDetail> {
     const em = this.emFactory();
     const order = await this.orders.findById(orderId);

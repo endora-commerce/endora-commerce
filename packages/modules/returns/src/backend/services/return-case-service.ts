@@ -1,5 +1,5 @@
 import type { EntityManager } from '@mikro-orm/postgresql';
-import { ERROR_CODES, isUuidShape } from '@endora-commerce/contracts';
+import { ERROR_CODES, isUuidShape, returnCaseOrderLockKey } from '@endora-commerce/contracts';
 import type {
   CreateReturnCaseRequest,
   OrderReadPort,
@@ -154,7 +154,7 @@ export class ReturnCaseService {
     // cases, so a concurrent case must wait for this one and then see it. A
     // transaction-scoped advisory lock keyed by the order, read once.
     const caseId = await this.deps.emFactory().transactional(async (em) => {
-      await em.execute('select pg_advisory_xact_lock(hashtext(?))', [`return_cases:${input.orderId}`]);
+      await em.execute('select pg_advisory_xact_lock(hashtext(?))', [returnCaseOrderLockKey(input.orderId)]);
       const live = await this.liveCaseItems(input.orderId, em);
       const consumed = consumedFrom(live);
       const reasons = new Map(
