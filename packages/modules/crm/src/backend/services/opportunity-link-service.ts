@@ -20,7 +20,7 @@ import { CrmOpportunity } from '../entities/crm-opportunity.entity.js';
 import { CrmOpportunityLink } from '../entities/crm-opportunity-link.entity.js';
 import type { CrmQuoteRequestDocument, CrmQuoteRequests } from './crm-quote-requests.js';
 import { isUuid, loadOpportunity } from './opportunity-access.js';
-import { carryIntoOpportunity, type OpportunityCarrySource } from './opportunity-custom-field-carry.js';
+import { carryIntoOpportunityBestEffort, type OpportunityCarrySource } from './opportunity-custom-field-carry.js';
 import { assertMayReadQuoteRequests, type OwnerReadChecks } from './owner-read-permissions.js';
 
 export interface OpportunityLinkServiceDeps {
@@ -46,6 +46,8 @@ export interface OpportunityLinkServiceDeps {
    * Opportunity it joins receives into its empty fields. Lazy, resolved per call.
    */
   customFieldCarry: CustomFieldCarryPort;
+  /** A carry that failed is said to the operator's log; the link stands (#405). */
+  warn: (fields: Record<string, unknown>, message: string) => void;
 }
 
 /** What a link is rendered from: the document as the reader may see it. */
@@ -244,9 +246,25 @@ export class OpportunityLinkService {
           });
           // Feature 162 (US2-2, US2-3) — the joining document's carried values
           // fill the Opportunity's **empty** fields, in this Command, and what
-          // was carried or skipped is named in this entry.
+          // was carried or skipped is named in this entry. A carry that fails
+          // leaves the link to be made without it (#405).
           const carry = link.carry
-            ? await carryIntoOpportunity(this.deps.customFieldCarry, link.carry, { ...(parent.customFieldValues ?? {}) })
+            ? await carryIntoOpportunityBestEffort(
+                this.deps.customFieldCarry,
+                link.carry,
+                { ...(parent.customFieldValues ?? {}) },
+                (error) =>
+                  this.deps.warn(
+                    {
+                      opportunityId: parent.id,
+                      organizationId: parent.organizationId,
+                      documentKind: link.documentKind,
+                      documentId: link.documentId,
+                      error,
+                    },
+                    'crm: the custom-field carry into an opportunity a document joined failed; the document is linked without it',
+                  ),
+              )
             : null;
           if (carry && carry.carried.length > 0) {
             parent.customFieldValues = { ...carry.values };

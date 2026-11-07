@@ -1,4 +1,5 @@
 import { customFieldCarrySkipRecord, type CustomFieldCarryPort } from '@endora-commerce/contracts';
+import { rethrowIfModuleDisabled } from '@endora-commerce/platform/kernel';
 
 /**
  * Order / Quote Request → Sales Opportunity custom-field carry
@@ -50,4 +51,27 @@ export async function carryIntoOpportunity(
         }
       : {},
   };
+}
+
+/**
+ * `carryIntoOpportunity`, made a passenger: **a carry never fails the creation
+ * or the link it rides on** (#405), as the origin-link path's carry does not.
+ * A plan that throws answers `null` — the caller creates or links with no
+ * carry — after `onFailure` was told, which is where the caller says which
+ * document did not carry. A presence answer is not a failure of the carry and
+ * is not absorbed (`check:port-catches`).
+ */
+export async function carryIntoOpportunityBestEffort(
+  port: CustomFieldCarryPort,
+  source: OpportunityCarrySource,
+  currentValues: Record<string, unknown>,
+  onFailure: (error: unknown) => void,
+): Promise<OpportunityCarryResult | null> {
+  try {
+    return await carryIntoOpportunity(port, source, currentValues);
+  } catch (error) {
+    rethrowIfModuleDisabled(error);
+    onFailure(error);
+    return null;
+  }
 }
