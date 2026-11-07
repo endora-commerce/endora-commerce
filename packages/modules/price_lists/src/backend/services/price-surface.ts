@@ -475,6 +475,17 @@ export class PriceSurface {
     return done;
   }
 
+  /**
+   * Whether a pass would find work now — the read {@link rebuildStale} loops
+   * on, so the two cannot disagree. The worker asks it once a job completes
+   * (issue #427): a mark committed after the job's final empty read had its
+   * enqueue deduplicated against the still-active job, and only this check
+   * asks for the job that does it.
+   */
+  async hasPendingWork(): Promise<boolean> {
+    return (await this.#due()).length > 0;
+  }
+
   async #due(): Promise<DueProfile[]> {
     const rows = await this.deps.emFactory().execute<
       Array<{
