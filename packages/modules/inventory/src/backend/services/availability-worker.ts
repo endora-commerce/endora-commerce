@@ -5,6 +5,7 @@ import type {
   EmailMailerPort,
 } from '@endora-commerce/contracts';
 import { AvailabilityNotification } from '../entities/availability-notification.entity.js';
+import { restockDisposition } from './restock-product-state.js';
 import { withSystemScope } from '@endora-commerce/platform/tenancy';
 
 export interface AdjustedPayload {
@@ -53,8 +54,14 @@ export class AvailabilityWorker {
     // scope the AvailabilityNotification reads under a system context.
     return withSystemScope('availability stock-increase', async () => {
     const em = this.emFactory();
+    // The wider read (no `liveOnly`), so a deleted product resolves and is told apart from an
+    // archived or switched-off one.
     const product = await this.catalogProducts.findById(input.productId);
-    if (!product) return { notified: 0 };
+    const now = new Date();
+    // Issue #468 — asked once, before any subscriber is mailed. `hold` leaves every row as it
+    // is, for a later restock to send once the product is for sale again.
+    const disposition = restockDisposition(product, now);
+    if (disposition === 'hold') return { notified: 0 };
 
     const where: Record<string, unknown> = {
       productId: input.productId,
@@ -67,6 +74,17 @@ export class AvailabilityWorker {
     }
     const subscriptions = await em.find(AvailabilityNotification, where);
     if (subscriptions.length === 0) return { notified: 0 };
+
+    if (disposition === 'cancel' || product === null) {
+      // A deleted or missing product is not coming back: close the subscriptions, the same
+      // treatment `AvailabilityNotificationService.processRestockedFanOut` gives them.
+      for (const sub of subscriptions) {
+        sub.status = 'cancelled';
+        sub.notifiedAt = now;
+      }
+      await em.flush();
+      return { notified: 0 };
+    }
 
     const customerIds = Array.from(
       new Set(
@@ -82,7 +100,6 @@ export class AvailabilityWorker {
     // Feature 174 (owner decision after C1, 2026-11-03) — the Global name: a subscription stores no
     // channel and no language. Storing them is the named follow-up of spec 174 (*Out of scope*).
     const productName = product.name || product.sku;
-    const now = new Date();
 
     for (const sub of subscriptions) {
       // Feature 010: subscriptions can carry an `email` directly
