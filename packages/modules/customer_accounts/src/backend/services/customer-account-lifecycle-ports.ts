@@ -453,9 +453,11 @@ export class CustomerAccountLifecycleWriteService implements CustomerAccountLife
   }
 
   async listDueForAnonymization(cutoff: Date): Promise<CustomerAccountRecord[]> {
+    // Issue #843 — an account anonymised before the block reason was part of
+    // the scrub is due again until {@link anonymize} finishes it.
     const accounts = await this.emFactory().find(CustomerAccount, {
       deletedAt: { $ne: null, $lt: cutoff },
-      anonymizedAt: null,
+      $or: [{ anonymizedAt: null }, { blockReason: { $ne: null } }],
     });
     return toCustomerAccountRecords(this.twoFactorEnrolments, accounts);
   }
@@ -473,6 +475,13 @@ export class CustomerAccountLifecycleWriteService implements CustomerAccountLife
    * Every custom field value goes with the name and the e-mail (owner ruling
    * Q1, 2026-11-06), and the audit row stores none of what it erased (Q2):
    * only which custom field keys held a value.
+   *
+   * The block reason, free text an operator wrote about the person, is set to
+   * `null` too (issue #843); the block itself — `blockedAt`, `blockSource` and
+   * who applied it — stays, and the audit row records only `hadBlockReason`.
+   * An account anonymised before that is finished here once, with its own
+   * audit row: it keeps its `anonymizedAt` and is not announced again, since
+   * the transition was announced when it happened.
    */
   async anonymize(customerAccountId: string): Promise<CustomerAccountRecord> {
     // command-coverage-ignore: the retention sweep's last step — a
@@ -480,7 +489,28 @@ export class CustomerAccountLifecycleWriteService implements CustomerAccountLife
     // that fact deserves, not an operator-initiated write.
     const { row: account, transitioned } = await this.emFactory().transactional(async (tem) => {
       const row = await this.#load(tem, customerAccountId);
-      if (row.anonymizedAt) return { row, transitioned: false };
+      if (row.anonymizedAt) {
+        if (row.blockReason == null) return { row, transitioned: false };
+        // A pre-#802 scrub left the custom field values as well; finishing
+        // the account clears whatever of them is still there.
+        const leftKeys = Object.keys(row.customFieldValues ?? {}).sort();
+        this.auditLog.recordWithin(tem, {
+          actorAdminUserId: null,
+          action: 'customer_account.anonymized',
+          objectType: 'customer_account',
+          objectId: row.id,
+          stateBefore: {
+            anonymizedAt: row.anonymizedAt.toISOString(),
+            customFieldKeys: leftKeys,
+            hadBlockReason: true,
+          },
+          stateAfter: { anonymizedAt: row.anonymizedAt.toISOString() },
+        });
+        row.blockReason = null;
+        row.customFieldValues = {};
+        await tem.flush();
+        return { row, transitioned: false };
+      }
       row.email = `deleted+${row.id}@anonymized.invalid`;
       row.firstName = ANONYMIZED_CUSTOMER_NAME;
       row.lastName = ANONYMIZED_CUSTOMER_NAME;
@@ -492,6 +522,8 @@ export class CustomerAccountLifecycleWriteService implements CustomerAccountLife
       row.twoFactorConfirmedAt = null;
       const customFieldKeys = Object.keys(row.customFieldValues ?? {}).sort();
       row.customFieldValues = {};
+      const hadBlockReason = row.blockReason != null;
+      row.blockReason = null;
       row.anonymizedAt = new Date();
       // The sweep runs on a timer, so there is no operator to attribute it to.
       this.auditLog.recordWithin(tem, {
@@ -499,7 +531,7 @@ export class CustomerAccountLifecycleWriteService implements CustomerAccountLife
         action: 'customer_account.anonymized',
         objectType: 'customer_account',
         objectId: row.id,
-        stateBefore: { anonymizedAt: null, customFieldKeys },
+        stateBefore: { anonymizedAt: null, customFieldKeys, hadBlockReason },
         stateAfter: { anonymizedAt: row.anonymizedAt.toISOString() },
       });
       await tem.flush();

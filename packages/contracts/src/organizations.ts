@@ -740,7 +740,9 @@ export interface PersonalOrganizationPort {
    * the account, and calls it again on the next tick if anything after it
    * failed. It writes only what part of the scrub is still missing (the name,
    * the registered address, the legal name, the order-confirmation e-mails,
-   * every custom field value, `deletedAt` — an existing `deletedAt` is kept),
+   * every custom field value, the block and rejection reasons (issue #843:
+   * set to `null`, while the status and its dates stay), `deletedAt` — an
+   * existing `deletedAt` is kept),
    * in one transaction with its audit row, and records nothing when nothing
    * was missing. The audit row names none of the erased data (issue #802).
    * It answers the organisation **whether or not it wrote anything**,

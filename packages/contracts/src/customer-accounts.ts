@@ -1042,13 +1042,15 @@ export interface CustomerAccountLifecycleWritePort {
 
   /**
    * Soft-deleted accounts whose retention window elapsed before `cutoff` and
-   * that have not been anonymised yet — the sweep's work list.
+   * that have not been anonymised yet — the sweep's work list. It also lists
+   * an account anonymised before its block reason was part of the scrub
+   * (issue #843) until {@link anonymize} has finished it.
    */
   listDueForAnonymization(cutoff: Date): Promise<CustomerAccountRecord[]>;
 
   /**
    * Irreversibly scrubs the account's personal data. Returns the account
-   * unchanged when it was already anonymised, and throws HTTP 404
+   * unchanged when it was already fully anonymised, and throws HTTP 404
    * `CUSTOMER_NOT_FOUND` for an id nothing matches.
    *
    * It is the anonymisation cascade's **last** write (issue #800): the
@@ -1056,11 +1058,14 @@ export interface CustomerAccountLifecycleWritePort {
    * {@link listDueForAnonymization}, so it is the commit marker for the
    * organisation and address scrubs that run before it.
    *
-   * The scrub clears the e-mail, both names, the credentials and **every**
-   * custom field value, and commits in one transaction with its
+   * The scrub clears the e-mail, both names, the credentials, **every**
+   * custom field value and the operator's block reason (issue #843; the block
+   * itself stays), and commits in one transaction with its
    * `customer_account.anonymized` audit row, which records none of the erased
    * data (issue #802). `customer_account.anonymized.v1` is announced after
-   * that commit, only on the transition.
+   * that commit, only on the transition. An account anonymised before the
+   * block reason was part of the scrub is finished once, with one more audit
+   * row and no second announcement.
    */
   anonymize(customerAccountId: string): Promise<CustomerAccountRecord>;
 }
