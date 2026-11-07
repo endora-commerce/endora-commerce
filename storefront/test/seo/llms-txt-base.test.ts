@@ -1,6 +1,7 @@
 import { afterEach, beforeEach, describe, expect, it } from 'vitest';
 
 import { SITEMAP_STATIC_ROUTES } from '../../app/sitemap';
+import { GROWTH, LINEAR_BOUND, growthRatio } from './linear-time';
 import {
   LLMS_TXT_CONDITIONAL_PAGES,
   LLMS_TXT_PAGE_TITLES,
@@ -180,12 +181,17 @@ describe('the generated llms.txt base — the shop’s name', () => {
     ).toBe('# shop.example');
   });
 
-  it('takes a name made to be slow no longer than any other', () => {
-    const shopName = `${' \n'.repeat(200_000)}x${' '.repeat(200_000)}`;
-    const start = performance.now();
-    const heading = renderLlmsTxtBase({ shopName, unservedPaths: [] }).split('\n')[0];
-    expect(performance.now() - start).toBeLessThan(250);
-    expect(heading).toBe('# x');
+  it('takes a name made to be slow no longer than any other', async () => {
+    // Runs of whitespace and line breaks around one character: what a
+    // backtracking trim or collapse re-scans from each of its positions. The
+    // cost is compared across sizes, not against a clock (issue #612).
+    const name = (length: number) => `${' \n'.repeat(length / 4)}x${' '.repeat(length / 2)}`;
+    const render = (shopName: string) => renderLlmsTxtBase({ shopName, unservedPaths: [] });
+    expect(render(name(600_000)).split('\n')[0]).toBe('# x');
+    const ratio = await growthRatio(render, name, 600_000);
+    expect(ratio, `${GROWTH}× the name took ${ratio.toFixed(2)}× the time per character`).toBeLessThan(
+      LINEAR_BOUND,
+    );
   });
 });
 

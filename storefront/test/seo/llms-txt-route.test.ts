@@ -3,7 +3,13 @@ import { existsSync, readdirSync } from 'node:fs';
 import { fileURLToPath } from 'node:url';
 import { composeCrawlerFile } from '@endora-commerce/contracts/seo';
 
-import type { CrawlerFiles, CrawlerFilesRead } from '../../lib/seo/crawler-policy';
+import {
+  READ_TIMEOUT_MS,
+  STALE_REFRESH_BUDGET_MS,
+  type CrawlerFiles,
+  type CrawlerFilesRead,
+} from '../../lib/seo/crawler-policy';
+import { GROWTH, LINEAR_BOUND, growthRatio } from './linear-time';
 import { CRAWLER_FILES_CAPABILITY_HEADER } from '../../lib/seo/crawler-file-response';
 import { llmsTxtResponse, type UnservedPages } from '../../lib/seo/llms-txt';
 import { renderLlmsTxtBase } from '../../lib/seo/llms-txt-base';
@@ -494,11 +500,14 @@ describe('llms.txt — the composed file is kept, and never the wrong one', () =
   });
 
   it('answers content made to be slow to trim as fast as any other', async () => {
-    const value = files({ llmsTxtAdditional: `${'\n'.repeat(65_535)}x` });
-    const start = performance.now();
-    const body = await serveValue(value);
-    expect(performance.now() - start).toBeLessThan(250);
-    expect(body.endsWith('\nx\n')).toBe(true);
+    // Compared across sizes, not against a clock (issue #612). Each call gets a
+    // value of its own: the composed file is kept per value.
+    const value = (length: number) => files({ llmsTxtAdditional: `${'\n'.repeat(length - 1)}x` });
+    expect((await serveValue(value(65_536))).endsWith('\nx\n')).toBe(true);
+    const ratio = await growthRatio(serveValue, value, 65_536);
+    expect(ratio, `${GROWTH}× the content took ${ratio.toFixed(2)}× the time per character`).toBeLessThan(
+      LINEAR_BOUND,
+    );
   });
 });
 
@@ -746,18 +755,25 @@ describe('app/llms.txt/route.ts', () => {
       expect(await (await GET(request())).text()).toBe(base());
 
       // The refresh never answers. The request is given the refresh's budget
-      // — a fraction of a second — and then served what was known.
+      // — a fraction of a second — and then served what was known. The clock
+      // is the fake one, so what this proves is which timer lets the request
+      // go, not how fast the host is (issue #612): still waiting just before
+      // the budget is spent, served as soon as it is, and the budget is well
+      // inside the read's own deadline.
       api.blog = () => new Promise<Response>(() => undefined);
-      const realNow = Date.now;
-      const offset = 61_000;
-      vi.spyOn(Date, 'now').mockImplementation(() => realNow() + offset);
+      expect(STALE_REFRESH_BUDGET_MS).toBeLessThan(READ_TIMEOUT_MS);
+      vi.useFakeTimers();
       try {
-        const start = performance.now();
-        const later = await GET(request());
-        expect(performance.now() - start).toBeLessThan(1_000);
-        expect(await later.text()).toBe(base());
+        vi.setSystemTime(Date.now() + 61_000);
+        let later: Response | undefined;
+        const pending = GET(request()).then((response) => (later = response));
+        await vi.advanceTimersByTimeAsync(STALE_REFRESH_BUDGET_MS - 1);
+        expect(later, 'served before the refresh budget was spent').toBeUndefined();
+        await vi.advanceTimersByTimeAsync(1);
+        expect(later, 'still waiting once the refresh budget was spent').toBeDefined();
+        expect(await (await pending).text()).toBe(base());
       } finally {
-        vi.restoreAllMocks();
+        vi.useRealTimers();
       }
     });
 

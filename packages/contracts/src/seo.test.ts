@@ -11,6 +11,39 @@ import {
   storefrontRobotsPolicySchema,
 } from './seo.js';
 
+// This package's tests are typed against no runtime, so the high-resolution
+// clock is reached through `globalThis` rather than named.
+const now = (): number => (globalThis as unknown as { performance: { now(): number } }).performance.now();
+
+/**
+ * Issue #612: the cost is compared across sizes, not against a clock — a
+ * wall-clock budget measures the host as much as the code. `run` is timed once
+ * on an input of `length` against {@link GROWTH} calls on inputs
+ * {@link GROWTH} times shorter, each side the fastest of five timings after a
+ * warm-up, every call on an input of its own built outside the timed region.
+ * Linear code does the same work on both sides, so the ratio is about 1 however
+ * busy the host is; a quadratic path makes it about {@link GROWTH}.
+ */
+const GROWTH = 16;
+/** Four times above linear, four times below what a quadratic path gives. */
+const LINEAR_BOUND = 4;
+function growthRatio<T>(run: (input: T) => unknown, input: (length: number) => T, length: number): number {
+  const fastest = (inputs: () => T[]): number => {
+    let best = Number.POSITIVE_INFINITY;
+    for (let sample = 0; sample <= 5; sample += 1) {
+      const batch = inputs();
+      const start = now();
+      for (const value of batch) run(value);
+      const elapsed = now() - start;
+      if (sample > 0) best = Math.min(best, elapsed);
+    }
+    return best;
+  };
+  const once = fastest(() => [input(length)]);
+  const many = fastest(() => Array.from({ length: GROWTH }, () => input(Math.ceil(length / GROWTH))));
+  return once / many;
+}
+
 /**
  * `specs/144-seo-search-engine-robots/contracts/crawler-policy.md` §1 — what
  * `GET /api/v1/storefront/seo/robots-policy` answers.
@@ -209,34 +242,31 @@ describe('composeCrawlerFile', () => {
    * positions takes seconds on 64 KiB of them, during which the storefront
    * process answers nobody.
    *
-   * The bound is generous on purpose — the shapes below took one to four and a
-   * half **seconds** with such a pattern and take well under a millisecond
-   * without it, so nothing near the bound is a pass.
+   * Such a pattern took one to four and a half **seconds** on the shapes below
+   * at 64 KiB. The time is compared across sizes rather than against a budget
+   * (issue #612), so a slow host is not a failure and a quadratic path is.
    */
   describe('takes time proportional to the text, whatever the text is', () => {
     const LIMIT = 65_536;
-    const BOUND_MS = 250;
-    const timed = (base: string, extra: string): { out: string; ms: number } => {
-      // `Date.now()` and not a finer clock: the bound is a quarter of a
-      // second, and this package's tests are typed against no runtime.
-      const start = Date.now();
-      const out = composeCrawlerFile(base, extra);
-      return { out, ms: Date.now() - start };
-    };
 
-    it.each([
-      ['line feeds, then a character', `${'\n'.repeat(LIMIT - 1)}x`],
-      ['a character, line feeds, a character', `x${'\n'.repeat(LIMIT - 2)}x`],
-      ['carriage returns, then a character', `${'\r'.repeat(LIMIT - 1)}x`],
-      ['CRLF pairs, then a character', `${'\r\n'.repeat(LIMIT / 2 - 1)}x`],
-      ['alternating line feeds and carriage returns, then a character', `${'\n\r'.repeat(LIMIT / 2 - 1)}x`],
-      ['nothing but line feeds after one character', `x${'\n'.repeat(LIMIT - 1)}`],
-      ['spaces and line feeds, then a character', `${' \n'.repeat(LIMIT / 2 - 1)}x`],
-      ['byte order marks, then a character', `${'\uFEFF'.repeat(LIMIT - 1)}x`],
-    ])('%s', (_label, extra) => {
+    it.each<[string, (size: number) => string]>([
+      ['line feeds, then a character', (size) => `${'\n'.repeat(size - 1)}x`],
+      ['a character, line feeds, a character', (size) => `x${'\n'.repeat(size - 2)}x`],
+      ['carriage returns, then a character', (size) => `${'\r'.repeat(size - 1)}x`],
+      ['CRLF pairs, then a character', (size) => `${'\r\n'.repeat(size / 2 - 1)}x`],
+      [
+        'alternating line feeds and carriage returns, then a character',
+        (size) => `${'\n\r'.repeat(size / 2 - 1)}x`,
+      ],
+      ['nothing but line feeds after one character', (size) => `x${'\n'.repeat(size - 1)}`],
+      ['spaces and line feeds, then a character', (size) => `${' \n'.repeat(size / 2 - 1)}x`],
+      ['byte order marks, then a character', (size) => `${'\uFEFF'.repeat(size - 1)}x`],
+    ])('%s', (_label, shape) => {
+      const extra = shape(LIMIT);
       expect(extra.length).toBeLessThanOrEqual(LIMIT);
-      const { out, ms } = timed('base\n', extra);
-      expect(ms, `composing took ${ms} ms`).toBeLessThan(BOUND_MS);
+      const out = composeCrawlerFile('base\n', extra);
+      const ratio = growthRatio((text: string) => composeCrawlerFile('base\n', text), shape, LIMIT);
+      expect(ratio, `${GROWTH}× the text, ${ratio.toFixed(2)}× the time`).toBeLessThan(LINEAR_BOUND);
       expect(out.startsWith('base\n\n')).toBe(true);
       expect(out.endsWith('\n')).toBe(true);
       expect(out.endsWith('\n\n')).toBe(false);
@@ -246,8 +276,10 @@ describe('composeCrawlerFile', () => {
     it('a base that is a long run of line feeds before its last character', () => {
       // The base is this storefront's own and never looks like this; the
       // function is exported, and its cost should not depend on who calls it.
-      const { out, ms } = timed(`${'\n'.repeat(LIMIT)}x${'\n'.repeat(LIMIT)}`, 'extra');
-      expect(ms, `composing took ${ms} ms`).toBeLessThan(BOUND_MS);
+      const shape = (size: number) => `${'\n'.repeat(size / 2)}x${'\n'.repeat(size / 2)}`;
+      const out = composeCrawlerFile(shape(2 * LIMIT), 'extra');
+      const ratio = growthRatio((base: string) => composeCrawlerFile(base, 'extra'), shape, 2 * LIMIT);
+      expect(ratio, `${GROWTH}× the base, ${ratio.toFixed(2)}× the time`).toBeLessThan(LINEAR_BOUND);
       expect(out.endsWith('x\n\nextra\n')).toBe(true);
     });
 
