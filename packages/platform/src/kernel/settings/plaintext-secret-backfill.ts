@@ -3,6 +3,7 @@ import { Setting } from './setting.entity.js';
 import { SettingValue } from './setting-value.entity.js';
 import type { SettingsCacheInvalidation } from './settings-cache.js';
 import { SecretKeyInvalid, SecretKeyMissing, encryptSecretValue } from './secret-value-codec.js';
+import { platformLogger } from '../logging.js';
 
 /**
  * Encrypting the plaintext a `secret` setting still stores (issue #700).
@@ -26,16 +27,23 @@ import { SecretKeyInvalid, SecretKeyMissing, encryptSecretValue } from './secret
  * manifest `defaultValue` is not an operator's value.
  *
  * Without a usable key the values are left as they are and a warning names each
- * code. A secret **write** without a key is refused (`SecretKeyMissing`), but a
- * boot is not a write an operator can retry, and failing it would take down a
- * deployment that runs today; the warning is the least committal answer.
+ * code and says whether the key is absent or malformed; it repeats on every boot
+ * until the key is fixed. A secret **write** without a key is refused
+ * (`SecretKeyMissing`), but a boot is not a write an operator can retry, and a
+ * keyless instance is valid (issue #700).
+ *
+ * When values are encrypted, one info line lists the codes — never the values —
+ * so the operator knows which credentials to consider rotating: a backup or a
+ * Redis snapshot taken before this boot still holds their plaintext (issue #700).
  */
 
 export interface PlaintextSecretOptions {
   /** Base64 32-byte key, `SETTINGS_SECRET_ENCRYPTION_KEY`. Absent → warn only. */
   readonly secretEncryptionKey?: string | undefined;
-  /** Where the "left as plaintext" warning goes. Defaults to the console. */
+  /** Where the "left as plaintext" warning goes. Defaults to the platform logger. */
   readonly warn?: ((message: string) => void) | undefined;
+  /** Where the "encrypted these codes" line goes. Defaults to the platform logger. */
+  readonly info?: ((message: string) => void) | undefined;
 }
 
 export interface PlaintextSecretOutcome {
@@ -50,18 +58,23 @@ function isPlaintext(value: unknown): value is string {
 }
 
 function defaultWarn(message: string): void {
-  // Boot-time logging path; the Fastify logger is not available here.
-  console.warn(message);
+  platformLogger().warn({ module: 'settings' }, message);
+}
+
+function defaultInfo(message: string): void {
+  platformLogger().info({ module: 'settings' }, message);
 }
 
 /** Why no value can be encrypted with this key, or `null` when it is usable. */
-function keyProblem(key: string | undefined): string | null {
+export function secretKeyProblem(key: string | undefined): string | null {
   try {
     encryptSecretValue('', key);
     return null;
   } catch (err) {
-    if (err instanceof SecretKeyMissing) return 'SETTINGS_SECRET_ENCRYPTION_KEY is not set';
-    if (err instanceof SecretKeyInvalid) return err.message;
+    if (err instanceof SecretKeyMissing) return 'SETTINGS_SECRET_ENCRYPTION_KEY is absent';
+    if (err instanceof SecretKeyInvalid) {
+      return `SETTINGS_SECRET_ENCRYPTION_KEY is malformed (${err.message})`;
+    }
     throw err;
   }
 }
@@ -78,8 +91,9 @@ export async function encryptPlaintextSecretValues(
 ): Promise<PlaintextSecretOutcome> {
   if (settings.length === 0) return { encryptedCodes: [], plaintextCodes: [] };
   const warn = options.warn ?? defaultWarn;
+  const info = options.info ?? defaultInfo;
   const key = options.secretEncryptionKey;
-  const problem = keyProblem(key);
+  const problem = secretKeyProblem(key);
 
   const values = await em.find(SettingValue, {
     setting: { $in: settings.map((s) => s.id) },
@@ -102,8 +116,9 @@ export async function encryptPlaintextSecretValues(
       plaintextCodes.push(setting.code);
       warn(
         `[settings] secret setting "${setting.code}" stores ${count} plaintext value(s), left ` +
-          `unencrypted because ${problem}. Set SETTINGS_SECRET_ENCRYPTION_KEY (a base64 32-byte ` +
-          'key) and restart: the values are encrypted at the next boot.',
+          `unencrypted because ${problem}. Set SETTINGS_SECRET_ENCRYPTION_KEY to a base64 ` +
+          '32-byte key (openssl rand -base64 32) and restart: the values are encrypted at the ' +
+          'next boot. This warning repeats on every boot until then.',
       );
       continue;
     }
@@ -111,6 +126,13 @@ export async function encryptPlaintextSecretValues(
     if (isPlaintext(globalValue)) setting.globalValue = encryptSecretValue(globalValue, key);
     for (const row of rows) row.value = encryptSecretValue(row.value as string, key);
     encryptedCodes.push(setting.code);
+  }
+  if (encryptedCodes.length > 0) {
+    info(
+      `[settings] encrypted the stored plaintext of ${encryptedCodes.length} secret ` +
+        `setting(s): ${encryptedCodes.join(', ')}. Backups and Redis snapshots taken before ` +
+        'now still hold those values in plaintext; see the upgrade note on rotating them.',
+    );
   }
   return { encryptedCodes, plaintextCodes };
 }

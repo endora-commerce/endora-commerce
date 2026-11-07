@@ -189,8 +189,8 @@ describe('ManifestReconciler — string → secret upgrade (issue #700)', () => 
     expect(db.settings[0]!['globalValue']).toBe('global-plaintext');
     expect(db.values[0]!['value']).toBe('channel-plaintext');
     expect(warnings).toHaveLength(1);
-    expect(warnings[0]).toContain(UPGRADED);
-    expect(warnings[0]).toContain('SETTINGS_SECRET_ENCRYPTION_KEY');
+    expect(warnings[0]).toContain(`"${UPGRADED}"`);
+    expect(warnings[0]).toContain('SETTINGS_SECRET_ENCRYPTION_KEY is absent');
     // The plaintext a process cached before the type changed still goes.
     expect(cache.dropped).toEqual([UPGRADED]);
   });
@@ -298,15 +298,66 @@ describe('backfillPlaintextSecrets — boot backfill (issue #700)', () => {
     expect(db.flushes()).toBe(0);
   });
 
-  it('with a malformed key, warns rather than failing the boot', async () => {
+  it('with a malformed key, warns rather than failing the boot, and says it is malformed', async () => {
     const db = fakeDb(alreadyUpgradedSeed(null));
     const warnings: string[] = [];
-    await backfillPlaintextSecrets(db.em, {
+    const infos: string[] = [];
+    const outcome = await backfillPlaintextSecrets(db.em, {
       secretEncryptionKey: Buffer.from('short').toString('base64'),
       warn: (m) => warnings.push(m),
+      info: (m) => infos.push(m),
     });
     expect(db.settings[0]!['globalValue']).toBe('plaintext-s3-secret');
-    expect(warnings.length).toBeGreaterThan(0);
+    expect(outcome.encryptedCodes).toEqual([]);
+    expect(warnings).toHaveLength(2);
+    for (const w of warnings) {
+      expect(w).toContain('SETTINGS_SECRET_ENCRYPTION_KEY is malformed');
+      expect(w).toContain('got 5');
+      expect(w).not.toContain('is absent');
+    }
+    expect(infos).toEqual([]);
+  });
+
+  it('without a key, says the key is absent, names each code, and repeats on every boot', async () => {
+    const db = fakeDb(alreadyUpgradedSeed(null));
+    const warnings: string[] = [];
+    await backfillPlaintextSecrets(db.em, { warn: (m) => warnings.push(m) });
+    await backfillPlaintextSecrets(db.em, { warn: (m) => warnings.push(m) });
+
+    expect(warnings).toHaveLength(4);
+    for (const w of warnings) {
+      expect(w).toContain('SETTINGS_SECRET_ENCRYPTION_KEY is absent');
+      expect(w).not.toContain('malformed');
+      expect(w).toContain('repeats on every boot');
+    }
+    const named = warnings.map((w) => /"([^"]+)"/.exec(w)?.[1]).sort();
+    expect(named).toEqual([
+      'assets.gcs.service_account_json',
+      'assets.gcs.service_account_json',
+      'assets.s3.secret_access_key',
+      'assets.s3.secret_access_key',
+    ]);
+  });
+
+  it('logs one info line naming the encrypted codes, never their values', async () => {
+    const db = fakeDb(alreadyUpgradedSeed(null));
+    const infos: string[] = [];
+    await backfillPlaintextSecrets(db.em, {
+      secretEncryptionKey: KEY,
+      info: (m) => infos.push(m),
+    });
+    expect(infos).toHaveLength(1);
+    expect(infos[0]).toContain('assets.s3.secret_access_key');
+    expect(infos[0]).toContain('assets.gcs.service_account_json');
+    expect(infos[0]).not.toContain('plaintext-s3-secret');
+    expect(infos[0]).not.toContain('{"k":1}');
+
+    // Nothing left to encrypt: the second boot says nothing.
+    await backfillPlaintextSecrets(db.em, {
+      secretEncryptionKey: KEY,
+      info: (m) => infos.push(m),
+    });
+    expect(infos).toHaveLength(1);
   });
 });
 

@@ -302,6 +302,7 @@ export class ModuleLifecycleOrchestrator {
             secretEncryptionKey: process.env['SETTINGS_SECRET_ENCRYPTION_KEY'] || undefined,
             cache: new SettingsCache(this.deps.redis),
             warn: (message) => this.log.warn(message),
+            info: (message) => this.log.info(message),
           });
           const result = await reconciler.apply([settingsManifest]);
           const r = result.perModule[0];
