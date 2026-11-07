@@ -3717,6 +3717,53 @@ Each row leaves an audit entry (`customer_address.merge`, `customer_address.eras
    `ERROR_CODES.CUSTOMER_ADDRESS_NOT_FOUND`, the `customerAddressReadPort` port is gone, and
    `AddressServicePort` gains `anonymizeForOrganization`.
 
+### Deleted customer accounts are anonymized on schedule {#customer-anonymization-sweep}
+
+The release that ships the `customers.anonymization.sweep` queue starts the retention sweep that
+earlier releases built but never ran (issue #677). Until now a soft-deleted customer account kept
+its personal data indefinitely, whatever `customers.deletion_retention_days` said. From this release
+an account whose deletion is older than the retention window (default 365 days) is anonymized for
+good: its e-mail, name, password and custom field values are erased, and for an individual their
+personal Organization and its saved addresses too. Placed orders keep their address snapshots.
+`customer_account.anonymized.v1` is sent for each account, so modules that listen for it, such as
+`forms`, erase what they hold for it.
+
+**When the first run happens.** The sweep is a BullMQ job scheduler that fires once a day. It runs
+only in a process that runs workers (`BACKEND_ROLE` unset, `all` or `worker`) and only while
+`customers` is on. The first worker boot after the upgrade installs the schedule, and **its first
+run starts immediately**. Later boots keep the existing schedule and do not trigger an extra run.
+So every account already past its window on the day you upgrade is anonymized within minutes of the
+first worker boot. **This cannot be undone**, and an account past its window can no longer be
+restored (`409 CUSTOMER_RESTORE_WINDOW_ELAPSED`), whether or not the sweep has reached it yet.
+
+**What to do:**
+
+1. **Count the accounts the first run will anonymize.** Run this read-only query before the
+   upgrade. Replace `365` with your value of `customers.deletion_retention_days`, the one set for
+   all channels or for the default channel; the sweep reads the default channel's:
+
+   ```sql
+   select count(*) as due
+   from customer_accounts
+   where deleted_at is not null
+     and anonymized_at is null
+     and deleted_at < now() - interval '365 days';
+   ```
+
+2. **To keep any of them, raise the retention window before you upgrade.** Raising
+   `customers.deletion_retention_days` (for all channels, or at least the default channel) above
+   the age of the oldest deletion you want to keep moves those accounts back inside the window, so
+   the first run leaves them alone and they can be restored. This is the only way to keep one:
+   restore is refused once the window has passed, and lowering the value later anonymizes them on
+   the next daily run.
+3. **Restore what you want to keep**, then set the window back to the value you want, if you
+   raised it.
+4. **After the first run**, the worker logs `customers: anonymization sweep finished` at `info`
+   with the number anonymized, and each account has a `customer_account.anonymized` audit entry. An
+   account that could not be anonymized is reported by id in a warning
+   (`customers: the anonymization sweep failed; the next tick retries`) and is retried the next
+   day. The query above then returns `0`.
+
 ## An instance that is mixed from the start
 
 The installer of `0.101.x` or earlier wrote every package of the release with a `^` except

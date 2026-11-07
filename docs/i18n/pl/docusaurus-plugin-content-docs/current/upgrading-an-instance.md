@@ -3895,6 +3895,56 @@ już nic do zrobienia.
    portu `customerAddressReadPort` już nie ma, a `AddressServicePort` zyskuje
    `anonymizeForOrganization`.
 
+### Usunięte konta klientów są anonimizowane według harmonogramu {#customer-anonymization-sweep}
+
+Wydanie, które wprowadza kolejkę `customers.anonymization.sweep`, uruchamia zadanie anonimizacji po
+okresie przechowywania, które wcześniejsze wydania zbudowały, ale nigdy nie uruchamiały (zgłoszenie
+#677). Do tej pory miękko usunięte konto klienta zachowywało dane osobowe bezterminowo, niezależnie
+od `customers.deletion_retention_days`. Od tego wydania konto usunięte dawniej niż okres
+przechowywania (domyślnie 365 dni) jest trwale anonimizowane: usuwane są jego adres e-mail, imię i
+nazwisko, hasło oraz wartości pól niestandardowych, a w przypadku klienta indywidualnego także jego
+organizacja prywatna i jej zapisane adresy. Złożone zamówienia zachowują swoje kopie adresów. Dla
+każdego konta wysyłane jest zdarzenie `customer_account.anonymized.v1`, więc moduły, które go
+nasłuchują, na przykład `forms`, usuwają dane, które dla niego przechowują.
+
+**Kiedy następuje pierwszy przebieg.** Zadanie to harmonogram zadań BullMQ uruchamiany raz dziennie.
+Działa tylko w procesie, który obsługuje kolejki (`BACKEND_ROLE` nieustawione, `all` albo `worker`),
+i tylko wtedy, gdy moduł `customers` jest włączony. Pierwsze uruchomienie workera po aktualizacji
+instaluje harmonogram, a **jego pierwszy przebieg startuje natychmiast**. Kolejne uruchomienia
+zachowują istniejący harmonogram i nie wywołują dodatkowego przebiegu. Każde konto, któremu okres
+przechowywania upłynął przed dniem aktualizacji, zostaje więc zanonimizowane w ciągu kilku minut od
+pierwszego uruchomienia workera. **Tego nie da się cofnąć**, a konta po upływie okresu nie można już
+przywrócić (`409 CUSTOMER_RESTORE_WINDOW_ELAPSED`), niezależnie od tego, czy zadanie już do niego
+dotarło.
+
+**Co zrobić:**
+
+1. **Policz konta, które zanonimizuje pierwszy przebieg.** Przed aktualizacją uruchom to zapytanie
+   (tylko do odczytu). Zastąp `365` swoją wartością `customers.deletion_retention_days`, ustawioną
+   dla wszystkich kanałów albo dla kanału domyślnego; zadanie odczytuje wartość kanału domyślnego:
+
+   ```sql
+   select count(*) as due
+   from customer_accounts
+   where deleted_at is not null
+     and anonymized_at is null
+     and deleted_at < now() - interval '365 days';
+   ```
+
+2. **Aby zachować któreś z nich, wydłuż okres przechowywania przed aktualizacją.** Podniesienie
+   `customers.deletion_retention_days` (dla wszystkich kanałów albo przynajmniej dla kanału
+   domyślnego) powyżej wieku najstarszego usunięcia, które chcesz zachować, przywraca te konta do
+   okresu przechowywania, więc pierwszy przebieg ich nie rusza i można je przywrócić. To jedyny
+   sposób, by zachować konto: przywrócenie jest odrzucane po upływie okresu, a późniejsze obniżenie
+   wartości anonimizuje je w najbliższym dziennym przebiegu.
+3. **Przywróć konta, które chcesz zachować**, a potem, jeśli wydłużyłeś okres, ustaw go z powrotem
+   na wybraną wartość.
+4. **Po pierwszym przebiegu** worker zapisuje w logu na poziomie `info` komunikat
+   `customers: anonymization sweep finished` z liczbą zanonimizowanych kont, a każde konto ma wpis
+   audytu `customer_account.anonymized`. Konto, którego nie udało się zanonimizować, jest zgłaszane
+   z identyfikatorem w ostrzeżeniu (`customers: the anonymization sweep failed; the next tick
+   retries`) i ponawiane następnego dnia. Powyższe zapytanie zwraca wtedy `0`.
+
 ## Instancja niespójna od początku
 
 Instalator `0.101.x` lub starszy zapisywał każdy pakiet wydania z `^` poza
