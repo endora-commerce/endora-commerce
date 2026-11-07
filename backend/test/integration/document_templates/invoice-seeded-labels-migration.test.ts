@@ -136,7 +136,7 @@ describe('document_templates — invoice seeded-label migration (issue #437)', (
         });
       }
       expect(row.content.schemaVersion).toBe(1);
-      expect(row.content.languages['pl-PL'].root).toEqual({ props: {} });
+      expect(row.content.languages['pl-PL']!.root).toEqual({ props: {} });
     } finally {
       await db.rollbackTx();
     }
