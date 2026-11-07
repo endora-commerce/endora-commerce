@@ -8,6 +8,11 @@ import {
 import { SettingGroup } from './setting-group.entity.js';
 import { Setting } from './setting.entity.js';
 import { SalesChannel } from '../sales-channels/sales-channel.entity.js';
+import type { SettingsCacheInvalidation } from './settings-cache.js';
+import {
+  encryptPlaintextSecretValues,
+  type PlaintextSecretOptions,
+} from './plaintext-secret-backfill.js';
 
 /**
  * Manifest reconciler — feature 004 / US1 (T023).
@@ -83,6 +88,16 @@ export interface ReconciliationOptions {
   dryRun?: boolean;
 }
 
+/**
+ * What the reconciler needs to carry out a `string` → `secret` upgrade in full
+ * (issue #700): the key to encrypt the code's stored values with, and the cache
+ * to drop afterwards. Without a key the upgrade still applies and a warning
+ * names the code; the boot backfill encrypts the values once a key is set.
+ */
+export interface ManifestReconcilerOptions extends PlaintextSecretOptions {
+  readonly cache?: SettingsCacheInvalidation | undefined;
+}
+
 export interface ModuleReconciliationResult {
   moduleCode: string;
   addedGroups: number;
@@ -115,7 +130,13 @@ function isJsonEqual(a: unknown, b: unknown): boolean {
 }
 
 export class ManifestReconciler {
-  constructor(private readonly em: EntityManager) {}
+  /** Settings this `apply()` moved from `string` to `secret`. */
+  private secretUpgrades: Setting[] = [];
+
+  constructor(
+    private readonly em: EntityManager,
+    private readonly options: ManifestReconcilerOptions = {},
+  ) {}
 
   /**
    * Apply the supplied manifests to the database.
@@ -155,6 +176,7 @@ export class ManifestReconciler {
 
     const channels = await loadChannelLookup(this.em);
 
+    this.secretUpgrades = [];
     const perModule: ModuleReconciliationResult[] = [];
     let totalAddedGroups = 0;
     let totalAddedSettings = 0;
@@ -167,7 +189,23 @@ export class ManifestReconciler {
     }
 
     if (!options.dryRun) {
+      // Issue #700 — the type change and the encryption of the values it
+      // reclassifies commit in the one flush, so no reader ever sees a `secret`
+      // whose stored values the upgrade has not reached.
+      const upgraded = await encryptPlaintextSecretValues(
+        this.em,
+        this.secretUpgrades,
+        this.options,
+      );
       await this.em.flush();
+      // After the commit: the cache may hold what a process resolved while the
+      // code was still a `string`, which is the plaintext, whether or not it
+      // could be encrypted just now.
+      if (this.options.cache) {
+        for (const code of [...upgraded.encryptedCodes, ...upgraded.plaintextCodes]) {
+          await this.options.cache.invalidateAfterWrite(code);
+        }
+      }
     }
 
     return { perModule, totalAddedGroups, totalAddedSettings };
@@ -257,15 +295,17 @@ export class ManifestReconciler {
         const valueType: SettingValueType = entry.valueType;
         // `string` → `secret` is the ONE sanctioned non-breaking valueType
         // upgrade (feature 043): the write schema is unchanged (plain
-        // string), stored plaintext values keep resolving through the
-        // codec's legacy passthrough and are re-encrypted on the next
-        // write. Auto-applying it here lets pre-043 rows (or test
+        // string). Auto-applying it here lets pre-043 rows (or test
         // databases reseeded out of band) self-heal at boot instead of
-        // failing the whole reconciliation.
+        // failing the whole reconciliation. The values stored as plain
+        // strings are encrypted in the same flush (issue #700) — the codec's
+        // legacy passthrough would otherwise keep them, and every cache fill
+        // of them, plaintext until an operator happened to save each one.
         const isSanctionedSecretUpgrade =
           existing.valueType === 'string' && valueType === 'secret';
         if (isSanctionedSecretUpgrade) {
           existing.valueType = valueType;
+          this.secretUpgrades.push(existing);
         } else if (existing.valueType !== valueType && !options.force) {
           throw new BreakingChangeRejected(
             entry.code,

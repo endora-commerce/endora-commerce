@@ -13,6 +13,7 @@ import type {
 } from '@endora-commerce/contracts';
 import { currentPlatformLogger, platformLogger } from '../../kernel/logging.js';
 import { ManifestReconciler } from '../../kernel/settings/manifest-reconciler.js';
+import { SettingsCache } from '../../kernel/settings/settings-cache.js';
 import { Setting } from '../../kernel/settings/setting.entity.js';
 import { SettingGroup } from '../../kernel/settings/setting-group.entity.js';
 import type { AuditPort } from '../../kernel/ports/audit.js';
@@ -294,7 +295,14 @@ export class ModuleLifecycleOrchestrator {
           entry.recentActivity,
         );
         if (settingsManifest) {
-          const reconciler = new ManifestReconciler(this.deps.em());
+          // Issue #700 — a `string` → `secret` upgrade encrypts the values it
+          // reclassifies, and drops their shared cache entries. A cache built
+          // here reaches Redis; another process's LRU ages out on its own TTL.
+          const reconciler = new ManifestReconciler(this.deps.em(), {
+            secretEncryptionKey: process.env['SETTINGS_SECRET_ENCRYPTION_KEY'] || undefined,
+            cache: new SettingsCache(this.deps.redis),
+            warn: (message) => this.log.warn(message),
+          });
           const result = await reconciler.apply([settingsManifest]);
           const r = result.perModule[0];
           if (r) {

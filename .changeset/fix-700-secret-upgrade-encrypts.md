@@ -1,0 +1,7 @@
+---
+'@endora-commerce/platform': patch
+---
+
+A setting that becomes `secret` no longer keeps its stored plaintext (issue #700). When `ManifestReconciler` applies the sanctioned `string` → `secret` upgrade, it now encrypts every non-empty value of that code, `settings.global_value` and each `setting_values` row, in the same flush as the type change, then drops the code's cache entries. `ManifestReconciler` takes an optional second argument, `{ secretEncryptionKey?, cache?, warn? }`; without a key the upgrade still applies, the values are left as they are, and a warning names the code. `composeApp` passes the key and the settings cache, and so does the module install path. `SettingsService.get` / `getMany` never cache a secret as plaintext: a legacy plain-string secret is cached as its envelope when a key is configured, and not cached at all otherwise. A new boot step, `backfillPlaintextSecrets` on `@endora-commerce/platform/composition`, runs after the settings reconcile and encrypts any non-envelope value of every `secret` setting. It is idempotent, so a value already in an envelope is never re-encrypted.
+
+Upgrade note: existing plaintext secrets, including the `assets.s3.secret_access_key` and `assets.gcs.service_account_json` values stored before #333 made them `secret`, are encrypted at the first boot once `SETTINGS_SECRET_ENCRYPTION_KEY` is set. Until the key is set, each boot logs one warning per affected code and leaves the values unchanged. Database backups taken before that boot still hold the plaintext.

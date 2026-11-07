@@ -59,7 +59,7 @@ function fakeDb(seed: { settings: Row[]; values?: Row[] }): FakeDb {
     salesChannels: collection(),
   };
   const groups: Row[] = [general];
-  const settings = seed.settings.map((s) => ({
+  const settings: Row[] = seed.settings.map((s) => ({
     group: general,
     ownerModule: 'issue_700',
     description: null,
