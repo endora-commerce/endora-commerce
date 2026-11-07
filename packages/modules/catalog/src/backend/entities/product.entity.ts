@@ -144,7 +144,12 @@ export class Product {
   @Property({ type: 'string', length: 2048, nullable: true })
   downloadUrl?: string | null;
 
-  @Property({ type: 'datetime', onCreate: () => new Date() })
+  /**
+   * Stored to the millisecond (issue #234): the listing's `(createdAt, id)`
+   * cursor carries milliseconds, so a microsecond written by SQL `now()` made
+   * the next page skip the rest of its millisecond.
+   */
+  @Property({ type: 'datetime', columnType: 'timestamptz(3)', onCreate: () => new Date() })
   @Index()
   createdAt: Date = new Date();
 
