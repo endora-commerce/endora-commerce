@@ -1047,9 +1047,23 @@ export interface CustomerAccountLifecycleWritePort {
   listDueForAnonymization(cutoff: Date): Promise<CustomerAccountRecord[]>;
 
   /**
+   * Whether {@link listDueForAnonymization} at `cutoff` would list anything —
+   * **yes or no, and nothing else** (issue #857).
+   *
+   * The sweep's scheduled tick asks this with no tenant context, before it
+   * enters the system scope, so that a tick with no account due writes no
+   * `tenant.escape_hatch` audit row. It is the work list's own predicate, so
+   * `false` means the sweep would anonymise nobody. No id, row or count of any
+   * account leaves it.
+   */
+  hasDueForAnonymization(cutoff: Date): Promise<boolean>;
+
+  /**
    * Irreversibly scrubs the account's personal data. Returns the account
    * unchanged when it was already anonymised, and throws HTTP 404
-   * `CUSTOMER_NOT_FOUND` for an id nothing matches.
+   * `CUSTOMER_NOT_FOUND` for an id nothing matches. The row is locked before
+   * `anonymizedAt` is read (issue #857), so two concurrent calls for one
+   * account scrub, audit and announce it once.
    *
    * It is the anonymisation cascade's **last** write (issue #800): the
    * `anonymizedAt` it stamps is what takes the account off
