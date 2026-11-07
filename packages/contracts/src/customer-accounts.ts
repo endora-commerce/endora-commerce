@@ -1042,9 +1042,10 @@ export interface CustomerAccountLifecycleWritePort {
 
   /**
    * Soft-deleted accounts whose retention window elapsed before `cutoff` and
-   * that have not been anonymised yet — the sweep's work list. It also lists
-   * an account anonymised before its block reason was part of the scrub
-   * (issue #843) until {@link anonymize} has finished it.
+   * that have not been anonymised yet — the sweep's work list. It also lists,
+   * whatever the cutoff, an anonymised account that an earlier scrub left a
+   * block reason (before issue #843) or custom field values (before #802) on,
+   * until {@link anonymize} has finished it.
    */
   listDueForAnonymization(cutoff: Date): Promise<CustomerAccountRecord[]>;
 
@@ -1063,9 +1064,15 @@ export interface CustomerAccountLifecycleWritePort {
    * itself stays), and commits in one transaction with its
    * `customer_account.anonymized` audit row, which records none of the erased
    * data (issue #802). `customer_account.anonymized.v1` is announced after
-   * that commit, only on the transition. An account anonymised before the
-   * block reason was part of the scrub is finished once, with one more audit
-   * row and no second announcement.
+   * that commit, only on the transition.
+   *
+   * An account an earlier scrub left a block reason or custom field values on
+   * is finished once: those are cleared, `anonymizedAt` is kept, and one more
+   * `customer_account.anonymized` row is written, with no second announcement.
+   * The rows tell the two apart by `stateBefore.anonymizedAt`: `null` on the
+   * first scrub, the original ISO timestamp on a finish. On both,
+   * `stateBefore` is `{ anonymizedAt, customFieldKeys, hadBlockReason }` and
+   * `stateAfter.anonymizedAt` is the time of the first scrub.
    */
   anonymize(customerAccountId: string): Promise<CustomerAccountRecord>;
 }

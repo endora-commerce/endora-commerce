@@ -72,6 +72,30 @@ export const ANONYMIZED_CUSTOMER_NAME = 'Deleted customer';
  */
 export const ANONYMIZED_PASSWORD_HASH = 'anonymized-no-login';
 
+/**
+ * Whether an anonymised account still holds something today's scrub erases
+ * (issue #843): a block reason, or custom field values a pre-#802 scrub left.
+ * Such an account is unfinished, and {@link CustomerAccountLifecycleWriteService.anonymize}
+ * finishes it. {@link scrubResidueWhere} is the same rule as a query.
+ */
+function hasScrubResidue(account: CustomerAccount): boolean {
+  return account.blockReason != null || Object.keys(account.customFieldValues ?? {}).length > 0;
+}
+
+/**
+ * {@link hasScrubResidue} as a query, over the `jsonb` custom field bag. A
+ * function, not a constant: a `raw()` fragment is consumed by the query that
+ * uses it, so a shared one would be gone from every query after the first.
+ */
+function scrubResidueWhere(): FilterQuery<CustomerAccount> {
+  return {
+    $or: [
+      { blockReason: { $ne: null } },
+      { [raw((alias: string) => `${alias}.custom_field_values <> '{}'::jsonb`)]: [] },
+    ],
+  };
+}
+
 function blockSnapshot(account: CustomerAccount): Record<string, unknown> {
   return {
     blockedAt: account.blockedAt ? account.blockedAt.toISOString() : null,
@@ -453,11 +477,16 @@ export class CustomerAccountLifecycleWriteService implements CustomerAccountLife
   }
 
   async listDueForAnonymization(cutoff: Date): Promise<CustomerAccountRecord[]> {
-    // Issue #843 — an account anonymised before the block reason was part of
-    // the scrub is due again until {@link anonymize} finishes it.
+    // Issue #843 — an account anonymised by an earlier scrub that left
+    // something behind is due again until {@link anonymize} finishes it. That
+    // branch is not under the cutoff: the window already elapsed once, and an
+    // operator raising `customers.deletion_retention_days` afterwards must not
+    // take the account off the list for good.
     const accounts = await this.emFactory().find(CustomerAccount, {
-      deletedAt: { $ne: null, $lt: cutoff },
-      $or: [{ anonymizedAt: null }, { blockReason: { $ne: null } }],
+      $or: [
+        { anonymizedAt: null, deletedAt: { $ne: null, $lt: cutoff } },
+        { $and: [{ anonymizedAt: { $ne: null } }, scrubResidueWhere()] },
+      ],
     });
     return toCustomerAccountRecords(this.twoFactorEnrolments, accounts);
   }
@@ -479,9 +508,10 @@ export class CustomerAccountLifecycleWriteService implements CustomerAccountLife
    * The block reason, free text an operator wrote about the person, is set to
    * `null` too (issue #843); the block itself — `blockedAt`, `blockSource` and
    * who applied it — stays, and the audit row records only `hadBlockReason`.
-   * An account anonymised before that is finished here once, with its own
-   * audit row: it keeps its `anonymizedAt` and is not announced again, since
-   * the transition was announced when it happened.
+   * An account an earlier scrub left a block reason or custom field values on
+   * is finished here once, with its own audit row: it keeps its
+   * `anonymizedAt` and is not announced again, since the transition was
+   * announced when it happened.
    */
   async anonymize(customerAccountId: string): Promise<CustomerAccountRecord> {
     // command-coverage-ignore: the retention sweep's last step — a
@@ -490,9 +520,9 @@ export class CustomerAccountLifecycleWriteService implements CustomerAccountLife
     const { row: account, transitioned } = await this.emFactory().transactional(async (tem) => {
       const row = await this.#load(tem, customerAccountId);
       if (row.anonymizedAt) {
-        if (row.blockReason == null) return { row, transitioned: false };
-        // A pre-#802 scrub left the custom field values as well; finishing
-        // the account clears whatever of them is still there.
+        if (!hasScrubResidue(row)) return { row, transitioned: false };
+        // An earlier scrub left a block reason (before #843) or custom field
+        // values (before #802); finishing the account clears what is left.
         const leftKeys = Object.keys(row.customFieldValues ?? {}).sort();
         this.auditLog.recordWithin(tem, {
           actorAdminUserId: null,
@@ -502,7 +532,7 @@ export class CustomerAccountLifecycleWriteService implements CustomerAccountLife
           stateBefore: {
             anonymizedAt: row.anonymizedAt.toISOString(),
             customFieldKeys: leftKeys,
-            hadBlockReason: true,
+            hadBlockReason: row.blockReason != null,
           },
           stateAfter: { anonymizedAt: row.anonymizedAt.toISOString() },
         });
