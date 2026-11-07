@@ -1,10 +1,18 @@
 'use server';
 
-import { changeMemberRole, inviteMember, removeMember, revokeInvitation } from '../../../../lib/api/organization';
+import {
+  changeMemberRole,
+  inviteMember,
+  removeMember,
+  revokeInvitation,
+} from '../../../../lib/api/organization';
 import { StorefrontApiError } from '../../../../lib/api/client';
 import { getSessionCookie } from '../../../../lib/session';
 import { localeRedirect } from '../../../../lib/i18n/navigation';
-import { memberFailureCode, type MemberActionFailure } from '../../../../lib/account/organization-members';
+import {
+  memberFailureCode,
+  type MemberActionFailure,
+} from '../../../../lib/account/organization-members';
 
 /**
  * The administrator's member and invitation writes on `/organization/members`
@@ -17,8 +25,9 @@ import { memberFailureCode, type MemberActionFailure } from '../../../../lib/acc
 const PAGE = '/organization/members';
 
 async function refused(err: unknown, fallback: MemberActionFailure): Promise<never> {
-  const code = memberFailureCode(err instanceof StorefrontApiError ? err.code : null, fallback);
-  return await localeRedirect(`${PAGE}?error=${code}`);
+  return await localeRedirect(
+    `${PAGE}?error=${memberFailureCode(err instanceof StorefrontApiError ? err.code : null, fallback)}`,
+  );
 }
 
 function text(formData: FormData, key: string): string {
