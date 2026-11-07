@@ -136,4 +136,14 @@ describe('catalog list — a multiselect attribute filter on the Meilisearch bac
     expect(await skusFor(['s-999'])).toEqual([]);
     expect(await skusFor(['["s-146"]'])).toEqual([]);
   });
+
+  // Issue #687 — a value is one literal on the engine too. A trailing
+  // backslash used to swallow the closing quote, Meilisearch refused the
+  // expression and the listing fell back to Postgres (`skusFor` asserts the
+  // backend header, so a fallback fails here).
+  it('treats a value holding a backslash or a quote as one literal (issue #687)', async () => {
+    expect(await skusFor(['abc\\'])).toEqual([]);
+    expect(await skusFor(['a\\"b'])).toEqual([]);
+    expect(await skusFor([`s-999" OR attributes.${KEY} = "s-146`])).toEqual([]);
+  });
 });
