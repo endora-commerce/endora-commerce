@@ -46,6 +46,7 @@ export const adminRoleSchema = z.object({
   code: z.string(),
   name: z.string(),
   permissions: z.array(z.string()),
+  /** @deprecated Stored but not enforced: nothing reads it at sign-in. Require a second factor platform-wide with the `mfa.admin.totp_enforced` setting instead. Removed in the next breaking release (#349). */
   requiresTwoFactor: z.boolean(),
   createdAt: isoDateTimeSchema,
   updatedAt: isoDateTimeSchema,
@@ -189,6 +190,7 @@ export const upsertAdminRoleRequestSchema = z.object({
   code: z.string().min(1).max(64),
   name: z.string().min(1).max(160),
   permissions: z.array(z.string().min(1).max(120)),
+  /** @deprecated Stored but not enforced: nothing reads it at sign-in. Require a second factor platform-wide with the `mfa.admin.totp_enforced` setting instead. Removed in the next breaking release (#349). */
   requiresTwoFactor: z.boolean().optional(),
 });
 export type UpsertAdminRoleRequest = z.infer<typeof upsertAdminRoleRequestSchema>;

@@ -10,8 +10,9 @@ import {
 /**
  * The published face of `admin_roles` (feature 075, Phase P).
  *
- * Fourteen inbound sites: `admin_users` reads a role beside its user and
- * enforces `requiresTwoFactor` at login, `admin_actions` filters the command
+ * Fourteen inbound sites: `admin_users` reads a role beside its user (the
+ * role's `requiresTwoFactor` is stored but enforced nowhere; administrators'
+ * second factor is `mfa.admin.totp_enforced`, see #349), `admin_actions` filters the command
  * palette by a user's permissions, `blog` protects the role it seeds, and the
  * dev seed creates one.
  *

@@ -24,6 +24,7 @@ export interface AdminRoleRecord {
   name: string;
   /** Permission codes granted by this role. */
   permissions: string[];
+  /** @deprecated Stored but not enforced: nothing reads it at sign-in. Require a second factor platform-wide with the `mfa.admin.totp_enforced` setting instead. Removed in the next breaking release (#349). */
   requiresTwoFactor: boolean;
   createdAt: Date;
   updatedAt: Date;
@@ -33,6 +34,7 @@ export interface UpsertAdminRoleInput {
   code: string;
   name: string;
   permissions: string[];
+  /** @deprecated Stored but not enforced: nothing reads it at sign-in. Require a second factor platform-wide with the `mfa.admin.totp_enforced` setting instead. Removed in the next breaking release (#349). */
   requiresTwoFactor?: boolean;
 }
 
@@ -90,8 +92,10 @@ export function permissionsNotHeld(
  * Nothing in the tree ever did — `admin_users` resolves `adminRolePort` — but the
  * comment was a standing invitation to.)
  *
- * `admin_users` reads a role to render it beside its user and to enforce the
- * role's `requiresTwoFactor` at login. `remove` refuses a role whose code was
+ * `admin_users` reads a role to render it beside its user. The role's
+ * `requiresTwoFactor` is stored but not enforced anywhere; the setting that
+ * requires administrators' second factor is `mfa.admin.totp_enforced` (#349).
+ * `remove` refuses a role whose code was
  * registered as system-protected (feature 016 FR-025), and that refusal stays
  * on this side of the port. So does the grant ceiling `upsertByCode` applies
  * when it is given a grantor — see {@link UpsertAdminRoleOptions}.
