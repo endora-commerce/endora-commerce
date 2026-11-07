@@ -134,7 +134,9 @@ before/after events and is written to the audit log.
   An order that was never invoiced has no VAT document to correct, so none is
   issued: the settlement succeeds, the refund is recorded on the return case and
   the payment record, and the result states `correctiveInvoice: { issued: false,
-  reason: "order_not_invoiced" }`.
+  reason: "order_not_invoiced" }`. The invoice issued later lists only what the
+  buyer kept: a return settled with a refund or a credit takes its quantity off
+  the order line, and a line returned in full is left off.
 - **A switched-off payment gateway refuses the settlement**.
   Money resolutions on a gateway-paid order call the PSP module that took the
   payment; when an operator has that module switched off — or the deployment

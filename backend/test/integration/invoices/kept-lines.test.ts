@@ -187,16 +187,12 @@ describe('invoices — an invoice issued after a return lists the kept lines (#4
   it('invoices the kept quantity of a line returned in part and refunded in full, equal to what was paid', async () => {
     const { orderId, widget } = await seedOrder();
     const caseId = await settleReturn(orderId, widget, 1, 'refund');
-    // A bank-transfer order's refund waits for a person to make the transfer;
-    // no route records that it was made, so the test records it, as
-    // `decimal-amounts.test.ts` seeds an issued refund.
-    await withSystemScope('test: record the manual refund as made', async () => {
-      const em = h.em().fork();
-      const refund = await em.findOneOrFail(Refund, { returnCaseId: caseId });
-      expect(refund.amount).toBe('12.30');
-      refund.settlementState = 'issued';
-      await em.flush();
-    });
+    // The whole default refund of the returned unit, issued: a bank-transfer
+    // order's refund is recorded as issued and the operator makes the transfer.
+    const refund = await withSystemScope('test: read the refund', () =>
+      h.em().fork().findOneOrFail(Refund, { returnCaseId: caseId }),
+    );
+    expect([refund.amount, refund.settlementState]).toEqual(['12.30', 'issued']);
 
     const invoice = await issueInvoice(orderId);
     expect(linesOf(invoice)).toEqual([
@@ -219,7 +215,14 @@ describe('invoices — an invoice issued after a return lists the kept lines (#4
 
   it('takes off a refund still waiting for a person, which the paid side does not yet deduct', async () => {
     const { orderId, widget } = await seedOrder();
-    await settleReturn(orderId, widget, 1, 'refund');
+    const caseId = await settleReturn(orderId, widget, 1, 'refund');
+    // A refund waiting for a person to make it (`pending_manual`, as a credit
+    // without a credit-limit grant records): the goods came back all the same.
+    await withSystemScope('test: the refund waits for a person', async () => {
+      const em = h.em().fork();
+      (await em.findOneOrFail(Refund, { returnCaseId: caseId })).settlementState = 'pending_manual';
+      await em.flush();
+    });
 
     const invoice = await issueInvoice(orderId);
     expect(linesOf(invoice)).toEqual([

@@ -121,7 +121,10 @@ trafia do dziennika audytu.
   środkami na koncie wymagana jest faktura korygująca (`invoices` rodzaju `correction`). Zamówienie,
   które nigdy nie zostało zafakturowane, nie ma dokumentu VAT do skorygowania, więc korekta nie
   powstaje: rozliczenie się udaje, zwrot jest zapisany w sprawie i w rekordzie płatności, a wynik
-  zawiera `correctiveInvoice: { issued: false, reason: "order_not_invoiced" }`.
+  zawiera `correctiveInvoice: { issued: false, reason: "order_not_invoiced" }`. Faktura wystawiona
+  później obejmuje tylko to, co kupujący zatrzymał: zwrot rozliczony zwrotem pieniędzy albo
+  środkami na koncie zmniejsza ilość w pozycji zamówienia, a pozycja zwrócona w całości jest
+  pomijana.
 - **Wyłączona bramka płatności blokuje rozliczenie.** Rozliczenia pieniężne zamówień opłaconych
   przez bramkę wywołują moduł operatora płatności, który przyjął płatność; gdy operator wyłączył ten
   moduł — albo wdrożenie go nie oferuje — rozliczenie zwraca `503 MODULE_DISABLED` z nazwą modułu i
