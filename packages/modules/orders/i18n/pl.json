@@ -150,5 +150,6 @@
   "actions.orderStatusConfig.keywords": "statusy, cykl życia",
   "emails.orderConfirmation.sample.shippingAddressText": "  Anna Nowak\n  ul. Główna 1",
   "organizationPermissions.orders.view_organization.label": "Wyświetlanie zamówień organizacji",
-  "organizationPermissions.orders.view_organization.description": "Przeglądanie wszystkich zamówień złożonych w organizacji i działanie na zamówieniu współpracownika: ponawianie go, tworzenie z niego zapytania ofertowego, zgłaszanie do niego zwrotu lub reklamacji i pobieranie jego dokumentów."
+  "organizationPermissions.orders.view_organization.description": "Przeglądanie wszystkich zamówień złożonych w organizacji i działanie na zamówieniu współpracownika: ponawianie go, tworzenie z niego zapytania ofertowego, zgłaszanie do niego zwrotu lub reklamacji i pobieranie jego dokumentów.",
+  "settingGroups.orders.name": "Zamówienia"
 }

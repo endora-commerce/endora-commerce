@@ -53,5 +53,6 @@
   "notification.quote.body.expired": "Zapytanie ofertowe {quoteNumber} wygasło.",
   "actions.openSettings.label": "Ustawienia PWA",
   "actions.openSettings.description": "Tożsamość aplikacji, cache i powiadomienia push",
-  "actions.openSettings.keywords": "powiadomienia, aplikacja"
+  "actions.openSettings.keywords": "powiadomienia, aplikacja",
+  "settingGroups.pwa.name": "Aplikacja PWA"
 }

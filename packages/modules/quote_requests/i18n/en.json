@@ -180,5 +180,6 @@
   "history.carryReasonUnknown": "the value could not be carried",
   "actions.openInbox.keywords": "request, offer",
   "organizationPermissions.quote_requests.create.label": "Create quote requests",
-  "organizationPermissions.quote_requests.create.description": "Ask for a quote from scratch or by resubmitting one, and turn a cart, a shopping list or a quick order into a quote request."
+  "organizationPermissions.quote_requests.create.description": "Ask for a quote from scratch or by resubmitting one, and turn a cart, a shopping list or a quick order into a quote request.",
+  "settingGroups.quote_requests.name": "Quote requests"
 }
