@@ -99,9 +99,21 @@ describe('admin Organization sales channels — Organization visibility (#515)',
         lastName: 'Rep',
       });
       await fork.persistAndFlush([own, foreign, rep]);
-      await fork.persistAndFlush(
+      // Issue #698 — the foreign Organization is another representative's: one
+      // nobody is assigned to is reachable by every representative (D-3W,
+      // issue #305).
+      const other = fork.create(AdminUser, {
+        email: `orgsc-515-other-rep-${stamp}@scope.local`,
+        passwordHash: 'x'.repeat(60),
+        adminRoleId: role.id,
+        firstName: '515',
+        lastName: 'Other',
+      });
+      await fork.persistAndFlush(other);
+      await fork.persistAndFlush([
         fork.create(OrganizationSalesRepAssignment, { organizationId: own.id, adminUserId: rep.id }),
-      );
+        fork.create(OrganizationSalesRepAssignment, { organizationId: foreign.id, adminUserId: other.id }),
+      ]);
       ownOrgId = own.id;
       foreignOrgId = foreign.id;
       ADMIN_COOKIES[REP] = { adminUserId: rep.id };

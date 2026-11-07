@@ -7,8 +7,9 @@ import { HttpError } from '@endora-commerce/platform/http';
  * Issue #515 — `GET` / `PUT /api/v1/admin/organizations/:id/sales-channels`
  * refuse an Organization outside the acting administrator's reach with the
  * answer a nonexistent one gets, `404 NOT_FOUND`, before the Organization is
- * read and before anything is written. The reach is the request's tenant scope
- * (`isOrgInScope`), mocked here; the contract test
+ * read and before anything is written. Since #698 the reach is the
+ * sales-representative visibility rule (`salesRepScope.canSeeOrganization`),
+ * stubbed here; the contract test
  * `backend/test/contract/organizations/admin-sales-channels-visibility.contract.test.ts`
  * drives it with a real sales representative.
  */
@@ -19,7 +20,9 @@ vi.mock('@endora-commerce/platform/tenancy', async () => {
   const actual = await vi.importActual<typeof import('@endora-commerce/platform/tenancy')>(
     '@endora-commerce/platform/tenancy',
   );
-  return { ...actual, isOrgInScope: (organizationId: string) => scope.reachable.has(organizationId) };
+  // A sales representative's scope: never platform-wide, so the
+  // `canSeeOrganization` answer below decides.
+  return { ...actual, orgConstraintFor: () => ({ kind: 'set', organizationIds: [] }) };
 });
 
 const { registerOrganizationsAdminRoutes } = await import('./routes.admin.js');
@@ -46,6 +49,9 @@ describe('admin Organization sales channels — Organization visibility (#515)',
     };
     const passThrough = () => async () => {};
     app = Fastify();
+    app.addHook('onRequest', async (request) => {
+      (request as unknown as { actor: unknown }).actor = { kind: 'admin', adminUserId: 'rep' };
+    });
     app.setValidatorCompiler(() => (data) => ({ value: data }));
     app.setSerializerCompiler(() => (data) => JSON.stringify(data));
     app.setErrorHandler((err, _req, reply) => {
@@ -61,6 +67,7 @@ describe('admin Organization sales channels — Organization visibility (#515)',
       emFactory: () => em,
       auditLogService: { record: async () => undefined },
       salesChannelMembership: { listChannelsForEntity, replaceChannelsForEntity },
+      salesRepScope: { canSeeOrganization: async (_admin: string, id: string) => scope.reachable.has(id) },
     } as never);
     await app.ready();
   });

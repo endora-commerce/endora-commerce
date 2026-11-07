@@ -1,5 +1,5 @@
 import { EmailDelivery, type EmailDeliveryRow } from '../../helpers/package-entities.js';
-import { AdminRole, AdminUser, Organization } from '../../helpers/package-entities.js';
+import { AdminRole, AdminUser, Organization, OrganizationSalesRepAssignment } from '../../helpers/package-entities.js';
 import { afterAll, beforeAll, describe, expect, it } from 'vitest';
 
 import {
@@ -139,6 +139,38 @@ describe('organizations — the moderation notification crosses tenants (feature
       'the approval mail was not addressed to the organization admin — the ' +
         'recipient lookup ran under the moderator’s tenant filter',
     ).toBeGreaterThan(0);
+  });
+
+  /**
+   * Issue #698 — the route answers only for an Organization the moderator may
+   * see: one assigned to them, or one nobody is assigned to (the case above).
+   * A pending organisation already assigned to another representative is
+   * answered as one that does not exist, and nobody is told anything.
+   */
+  it('refuses a pending organisation assigned to another representative (#698)', async () => {
+    const { organization, email } = await seedPendingOrg('foreign');
+    const em = h.em();
+    const role = await em.findOneOrFail(AdminRole, { code: 'sales_representative' });
+    const other = em.create(AdminUser, {
+      email: `moderation-scope-other-rep-${Date.now()}@d87.local`,
+      passwordHash: 'x'.repeat(60),
+      adminRoleId: role.id,
+      firstName: 'D87',
+      lastName: 'Other',
+    });
+    await em.persistAndFlush(other);
+    await em.persistAndFlush(
+      em.create(OrganizationSalesRepAssignment, { organizationId: organization.id, adminUserId: other.id }),
+    );
+
+    const res = await approveAs(salesRepCookie, organization);
+    expect(res.statusCode, res.body).toBe(404);
+    expect((await deliveriesTo(email)).length).toBe(0);
+    const [row] = await h
+      .em()
+      .getConnection()
+      .execute<Array<{ status: string }>>('select status from organizations where id = ?', [organization.id]);
+    expect(row!.status).toBe('pending_verification');
   });
 
   it('positive control — the platform admin path still tells them', async () => {

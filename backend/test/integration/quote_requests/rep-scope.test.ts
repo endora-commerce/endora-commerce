@@ -244,6 +244,8 @@ describe('146 — sales representative scope [integration]', () => {
       'neg org PUT': 200,
       'neg customer PUT': 404,
       'customer detail (pre-existing)': 404,
+      // Issue #698 gates `/organizations/:id` on `canSeeOrganization`, whose
+      // unassigned fallback keeps this 200; which rule wins is issue #305.
       'organization detail (pre-existing)': 200,
     });
   });

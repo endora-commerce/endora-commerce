@@ -1,0 +1,5 @@
+---
+'@endora-commerce/mod-organizations': patch
+---
+
+The admin Organization `/:id` routes now apply the sales-representative visibility rule (issue #698). `Organization` is a global entity, so no tenant filter narrowed these routes, and a sales representative could open, edit, block, restrict and delete an Organization assigned to another representative. Every `/api/v1/admin/organizations/:id` route — reads and writes, the nested ones included (addresses, restrictions, applicable price lists, VAT validations, subtree, ancestors, sales channels, moderation, members, recover administrator access, delete) — now answers a sales representative only for an Organization assigned to them (expanded to the subtree under `organizations:rollup`), or one no representative is assigned to, such as a registration awaiting approval. Any other Organization answers `404 NOT_FOUND`, the same answer an unknown Organization gets; every admin now gets that `404` for an unknown id on `/addresses`, `/applicable-price-lists` and `/vat-validations`, which answered `200` before. `GET /api/v1/admin/organizations` is unchanged, and a platform administrator is unaffected.

@@ -820,6 +820,8 @@ export function registerModule(ctx: ModuleContext): void {
             // Which endpoints a deployment serves is not a function of which
             // arguments a root remembered to pass.
             moderationService: cradle().organizationModerationService,
+            // Issue #698 — the one roll-up-aware instance (#108), never a second.
+            salesRepScope: lazyPort<SalesRepAssignmentPort>(ctx, 'organizationSalesRepScopePort'),
             restrictionService: lazyPort<OrganizationsCradle['organizationRestrictionPort']>(
               ctx,
               'organizationRestrictionPort',
