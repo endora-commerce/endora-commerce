@@ -574,6 +574,14 @@ export interface OrderReturnedQuantity {
   orderItemId: string;
   /** A whole number of units, greater than 0. */
   quantity: number;
+  /**
+   * The part of the order-level discount those cases carried back for the
+   * line, as recorded at settlement — each case line's default discount in
+   * proportion to its approved refund — summed, as a two-place decimal string
+   * (`'0.00'` without a discount). An invoice issued afterwards takes it off
+   * its discount line, so the line carries only the kept goods' share.
+   */
+  discount: string;
 }
 
 /**

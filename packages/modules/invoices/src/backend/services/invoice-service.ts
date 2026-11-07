@@ -25,7 +25,7 @@ import type { InvoiceNumberGenerator } from './invoice-number-generator.js';
 import type { SellerSettingsResolver } from './seller-settings.js';
 import { buildInvoiceLines, readModelVatSummary, type RawOrderLine } from './invoice-line-builder.js';
 import { invoicePaidPosition } from './invoice-paid.js';
-import { keptOrderLines } from './kept-quantities.js';
+import { keptDiscount, keptOrderLines } from './kept-quantities.js';
 import { invoicesProseTable, type InvoicesTranslate } from '../invoices-prose.js';
 import { INVOICE_RENDER_LANGUAGE } from '../document/invoice-document-type.js';
 import {
@@ -168,8 +168,9 @@ export class InvoiceService {
     // 2026-11-07): a return settled with a refund or a credit before the
     // invoice exists has no invoice to correct (#135), so the invoice lists
     // each line at its ordered quantity less what came back, and a line
-    // returned in full drops out. The delivery, surcharge and discount lines
-    // below are the order's, unchanged.
+    // returned in full drops out. The delivery and surcharge lines below are
+    // the order's; the discount line carries only the kept goods' share
+    // (ruling Q3).
     const returned = (await this.returnRefunds?.returnedQuantitiesFor(orderId)) ?? [];
     const raw: RawOrderLine[] = keptOrderLines(items, returned).map(({ item: it, quantity }) => ({
       name: it.productSnapshot?.name ?? names['lines.item'],
@@ -208,7 +209,11 @@ export class InvoiceService {
         netValue: surcharge,
       });
     }
-    const discountTotal = roundHalfUp(order.discountTotal ?? 0);
+    // The discount the settled returns did not carry back (issue #435,
+    // product-owner ruling Q3 of 2026-11-07): their refunds already gave the
+    // buyer the rest, so the invoice of the kept goods, like what was paid,
+    // takes only this much off. Without a return it is the order's discount.
+    const discountTotal = keptDiscount(order.discountTotal ?? 0, returned);
     if (Number(discountTotal) > 0) {
       const negative = `-${discountTotal}`;
       raw.push({

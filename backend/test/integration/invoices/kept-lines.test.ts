@@ -381,7 +381,8 @@ describe('invoices — an invoice issued after a return lists the kept lines (#4
     const invoice = await issueInvoice(orderId);
     expect(linesOf(invoice)).toEqual([
       ['Bolt', 2, 20.02, 24.62],
-      ['Discount', 1, -4.63, -4.63],
+      // Named in the invoice's language (owner answer N5).
+      ['Rabat', 1, -4.63, -4.63],
     ]);
     // 24.62 − 4.63 = 19.99 = 30.00 − 10.01.
     expect([invoice.grossTotal, invoice.paidTotal, invoice.amountDue, invoice.overpayment]).toEqual([19.99, 19.99, 0, 0]);

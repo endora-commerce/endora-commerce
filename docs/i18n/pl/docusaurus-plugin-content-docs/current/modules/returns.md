@@ -116,15 +116,19 @@ trafia do dziennika audytu.
 - **Zwroty częściowe i wielokrotne** — ilość w każdej pozycji jest ograniczona do pozostałej ilości
   możliwej do zwrotu, bez ilości objętych już sprawami, które nie zostały odrzucone ani anulowane.
 - **Rozliczenie** — domyślna kwota zwrotu dla pozycji to kwota zapłacona za zwracaną ilość i nigdy
-  jej nie przekracza. Sposoby rozliczenia: zwrot pieniędzy, środki na koncie (zasilają limit
+  jej nie przekracza. Dla zamówienia złożonego przy metodzie VAT liczonego dla każdej stawki ta kwota
+  to spadek wartości towarów, które kupujący zatrzymuje: to, co pozostało zapłacone, pomniejszone o
+  wartość zatrzymanych towarów po zwrocie (VAT dla każdej stawki od zatrzymanych wartości netto,
+  pomniejszony o przypadający na nie rabat), więc może różnić się o grosz od wartości samych
+  zwracanych sztuk, a wszystkie zwroty zamówienia razem nadal zwracają dokładnie to, co zapłacono. Sposoby rozliczenia: zwrot pieniędzy, środki na koncie (zasilają limit
   kredytowy organizacji w `credit_limits`), wymiana albo naprawa. Przy rozliczeniu pieniędzmi lub
   środkami na koncie wymagana jest faktura korygująca (`invoices` rodzaju `correction`). Zamówienie,
   które nigdy nie zostało zafakturowane, nie ma dokumentu VAT do skorygowania, więc korekta nie
   powstaje: rozliczenie się udaje, zwrot jest zapisany w sprawie i w rekordzie płatności, a wynik
   zawiera `correctiveInvoice: { issued: false, reason: "order_not_invoiced" }`. Faktura wystawiona
   później obejmuje tylko to, co kupujący zatrzymał: zwrot rozliczony zwrotem pieniędzy albo
-  środkami na koncie zmniejsza ilość w pozycji zamówienia, a pozycja zwrócona w całości jest
-  pomijana.
+  środkami na koncie zmniejsza ilość w pozycji zamówienia, pozycja zwrócona w całości jest
+  pomijana, a rabat, który oddał zwrot, zmniejsza pozycję rabatu na fakturze.
 - **Wyłączona bramka płatności blokuje rozliczenie.** Rozliczenia pieniężne zamówień opłaconych
   przez bramkę wywołują moduł operatora płatności, który przyjął płatność; gdy operator wyłączył ten
   moduł — albo wdrożenie go nie oferuje — rozliczenie zwraca `503 MODULE_DISABLED` z nazwą modułu i

@@ -70,9 +70,13 @@ sale that is left. Each order line is invoiced at its ordered quantity less the
 quantity of the order's settled returns (kind *return*, settled with a refund or
 a credit), whether or not the money has been paid out yet; a line returned in
 full is left off. A replacement, a repair and a complaint change no line. The
-delivery, payment-surcharge and discount lines are the order's, unchanged, and
-VAT is still calculated per rate on the sum of the nets. With the `returns`
-module switched off, every line is invoiced at its ordered quantity.
+delivery and payment-surcharge lines are the order's. The discount line carries
+only the kept goods' share: the order discount less the part the settled returns
+carried back with their refunds, and it is left off when nothing remains. VAT is
+still calculated per rate on the sum of the nets, so the invoice equals what is
+left paid to the cent. A proforma lists the same kept lines, and is not refused
+for an order refunded in full. With the `returns` module switched off, every
+line is invoiced at its ordered quantity.
 
 The **amount due** is the gross less what was paid, and never negative. When
 more was paid than the gross, the amount due is 0 and the invoice states the

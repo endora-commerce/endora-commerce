@@ -1,8 +1,9 @@
 import type { EntityManager } from '@mikro-orm/postgresql';
-import type { OrderReturnRefund, OrderReturnedQuantity, ReturnRefundReadPort } from '@endora-commerce/contracts';
+import { moneySum, type OrderReturnRefund, type OrderReturnedQuantity, type ReturnRefundReadPort } from '@endora-commerce/contracts';
 import { ReturnCase } from '../entities/return-case.entity.js';
 import { ReturnCaseItem } from '../entities/return-case-item.entity.js';
 import { Refund } from '../entities/refund.entity.js';
+import { carriedDiscount } from '../domain/refund-math.js';
 
 /**
  * `returnRefundReadPort` — what the order's settled return cases refunded
@@ -53,12 +54,18 @@ export class ReturnRefundReadService implements ReturnRefundReadPort {
       { returnCaseId: { $in: cases.map((c) => c.id) } },
       { orderBy: { orderItemId: 'asc', id: 'asc' } },
     );
-    const byLine = new Map<string, number>();
+    const byLine = new Map<string, { quantity: number; discounts: string[] }>();
     for (const item of items) {
-      byLine.set(item.orderItemId, (byLine.get(item.orderItemId) ?? 0) + item.quantity);
+      const line = byLine.get(item.orderItemId) ?? { quantity: 0, discounts: [] };
+      line.quantity += item.quantity;
+      // The discount the settled refund carried — the figure the settlement
+      // hands a correction for the invoice's discount line (product-owner
+      // ruling Q3 of 2026-11-07), from what the case line recorded.
+      line.discounts.push(carriedDiscount(item.defaultDiscountAmount, item.defaultRefundAmount, item.approvedRefundAmount));
+      byLine.set(item.orderItemId, line);
     }
     return [...byLine]
-      .filter(([, quantity]) => quantity > 0)
-      .map(([orderItemId, quantity]) => ({ orderItemId, quantity }));
+      .filter(([, line]) => line.quantity > 0)
+      .map(([orderItemId, line]) => ({ orderItemId, quantity: line.quantity, discount: moneySum(line.discounts) }));
   }
 }
