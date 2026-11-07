@@ -88,6 +88,11 @@ already deleted that organization. Placed orders keep their address snapshots.
 The anonymization audit entries record that the data was erased, not the data
 itself.
 
+The sweep runs once a day, in the worker process and only while this module is
+on, so an account is anonymized up to a day after its window elapses. While the
+module is off no run happens; the accounts that came due meanwhile are
+anonymized by the first run after it is switched back on.
+
 The sweep scrubs the personal organization and its addresses first and the
 account last. If a run is interrupted, the account is picked up again on the
 next run, which completes the remaining steps without repeating the audit
