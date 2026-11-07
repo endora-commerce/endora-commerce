@@ -580,7 +580,42 @@ function prepareFooterLegalHtml(text: string): string {
       );
     }
   }
-  return sanitizeEmailHtml(t.replace(/\r?\n/g, '<br />'));
+  return guardUnsubscribeLink(sanitizeEmailHtml(t.replace(/\r?\n/g, '<br />')));
+}
+
+/**
+ * A sanitized anchor to `{{var unsubscribeUrl}}`, with the line break in front
+ * of it. Only newsletter sends inject that variable; a transactional message
+ * has none, and there is no notification-preferences page to point it at.
+ */
+const UNSUBSCRIBE_ANCHOR =
+  /(?:<br \/>)?<a href="\s*\{\{\s*var\s+unsubscribeUrl\s*\}\}\s*"[^>]*>[\s\S]*?<\/a>/gi;
+
+/**
+ * Issue #520 — wrap the unsubscribe anchor in `{{if unsubscribeUrl}}`, so the
+ * directive pass drops it while the variable is empty or unset instead of
+ * shipping `<a href="">Unsubscribe</a>`. Done here rather than in
+ * `defaultFooterTree()`, so a seeded footer and an operator-edited one behave
+ * alike, and newsletter, which always sets the URL, keeps its link.
+ */
+function guardUnsubscribeLink(html: string): string {
+  return html.replace(UNSUBSCRIBE_ANCHOR, (anchor) => `{{if unsubscribeUrl}}${anchor}{{/if}}`);
+}
+
+/** A sanitized anchor; the sanitizer writes `href` first and double-quoted. */
+const SANITIZED_ANCHOR = /<a href="([^"]*)"[^>]*>([\s\S]*?)<\/a>/gi;
+
+/**
+ * The plain-text form of an `EmailFooterLegal` text: no tag survives, and an
+ * anchor is written as "label: url" (or the URL alone when it is its own
+ * label), keeping the unsubscribe guard of the HTML part (issue #520).
+ */
+export function footerLegalPlainText(text: string): string {
+  const html = prepareFooterLegalHtml(text).replace(SANITIZED_ANCHOR, (_, href: string, inner: string) => {
+    const label = emailHtmlToPlainText(inner);
+    return label === '' || label === href ? href : `${label}: ${href}`;
+  });
+  return emailHtmlToPlainText(html);
 }
 
 function renderCallout(p: EmailCalloutProps): string {
