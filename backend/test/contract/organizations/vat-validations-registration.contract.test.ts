@@ -129,8 +129,15 @@ describe('VAT validation history with registration rows (feature 173)', () => {
     });
     const foreign = await history(organizationId, { b2b_session: REP });
     const absent = await history('00000000-0000-4000-8000-000000000173', { b2b_session: REP });
+    // Issue #698 — both are the Organization route's `404 NOT_FOUND` now; the
+    // bodies differ only in their request ids.
+    const withoutRequestId = (body: unknown) => {
+      const { error } = body as { error: Record<string, unknown> };
+      const { requestId: _requestId, ...rest } = error;
+      return rest;
+    };
     expect(foreign.statusCode).toBe(absent.statusCode);
-    expect(foreign.json()).toEqual(absent.json());
+    expect(withoutRequestId(foreign.json())).toEqual(withoutRequestId(absent.json()));
     expect(JSON.stringify(foreign.json())).not.toContain('Poprawiona');
   });
 });

@@ -97,7 +97,12 @@ describe('admin global search — Organization provider (spec 150, owner Q2)', (
     expect(found).toEqual([...byId(ids['other1'], ids['other2']), ids['assigned']]);
   });
 
-  it("shows a sales representative exactly the Organizations list's rows — not only their scope (owner Q2)", async () => {
+  // Owner Q2 pinned "exactly the Organizations list's rows" while that list
+  // showed every Organization to everyone who could read it. Issue #698 narrows
+  // the list to the admin's reach; the search provider is unchanged and still
+  // answers beyond the scope, so the two now differ for a sales representative.
+  // Whether search follows the list into the reach is an open question on #698.
+  it('shows a sales representative Organizations beyond their scope (owner Q2), where the list now holds only their reach (#698)', async () => {
     const found = await searchIds(h, GS_COOKIES.salesRep, `Q2${T}`, 'organizations.organization');
     const list = await h.app.inject({
       method: 'GET',
@@ -106,7 +111,7 @@ describe('admin global search — Organization provider (spec 150, owner Q2)', (
     });
     expect(list.statusCode).toBe(200);
     const listed = (list.json() as { data: Array<{ id: string }> }).data.map((r) => r.id);
-    expect([...found].sort()).toEqual([...listed].sort());
+    expect(listed).toEqual([ids['assigned']]);
     expect(found).toHaveLength(3);
   });
 

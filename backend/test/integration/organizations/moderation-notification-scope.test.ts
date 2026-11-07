@@ -9,6 +9,7 @@ import {
 } from '../../helpers/test-server.js';
 
 import { ADMIN_COOKIES } from '../../helpers/test-actors.js';
+import { runWithTenantContext, type TenantContext } from '../../../src/tenancy/tenant-context.js';
 
 
 
@@ -127,11 +128,39 @@ describe('organizations — the moderation notification crosses tenants (feature
       payload: { expectedVersion: organization.version },
     });
 
-  it('tells the organization admin even when the moderator is scoped to no organizations', async () => {
-    const { organization, email } = await seedPendingOrg('scoped');
+  /**
+   * Issue #698 — the route no longer lets a moderator act on an Organization
+   * outside their reach: it answers `404 NOT_FOUND` before the service runs.
+   * The scoped context this file is about is therefore no longer reachable
+   * through `POST /approve`; the case below drives the service in it directly,
+   * which is still the test that fails if the wrapper is removed.
+   */
+  it('refuses a moderator scoped to no organizations at the route (#698)', async () => {
+    const { organization, email } = await seedPendingOrg('refused');
 
     const res = await approveAs(salesRepCookie, organization);
-    expect(res.statusCode).toBe(200);
+    expect(res.statusCode, res.body).toBe(404);
+    expect((await deliveriesTo(email)).length).toBe(0);
+  });
+
+  it('tells the organization admin even when the moderator is scoped to no organizations', async () => {
+    const { organization, email } = await seedPendingOrg('scoped');
+    const scopedToNothing: TenantContext = {
+      mode: 'allowed-set',
+      allowedOrganizationIds: [],
+      actor: { kind: 'admin', id: ADMIN_COOKIES[salesRepCookie]!.adminUserId },
+    };
+    const moderation = (
+      h.container.cradle as unknown as {
+        organizationModerationService: {
+          approve(id: string, options: { expectedVersion: number; actorAdminUserId: string | null }): Promise<unknown>;
+        };
+      }
+    ).organizationModerationService;
+
+    await runWithTenantContext(scopedToNothing, () =>
+      moderation.approve(organization.id, { expectedVersion: organization.version, actorAdminUserId: null }),
+    );
 
     const deliveries = await deliveriesTo(email);
     expect(

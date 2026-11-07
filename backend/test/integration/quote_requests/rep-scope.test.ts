@@ -244,7 +244,9 @@ describe('146 — sales representative scope [integration]', () => {
       'neg org PUT': 200,
       'neg customer PUT': 404,
       'customer detail (pre-existing)': 404,
-      'organization detail (pre-existing)': 200,
+      // Issue #698 — the Organization's own admin routes now answer outside
+      // the rep's tenant reach as for an unknown id.
+      'organization detail (pre-existing)': 404,
     });
   });
 
