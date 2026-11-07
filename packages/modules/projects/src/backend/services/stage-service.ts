@@ -18,6 +18,7 @@ import { ProjectStageMove } from '../entities/project-stage-move.entity.js';
 import type { ProjectAccess } from './project-access.js';
 import type { ProjectReadService } from './project-read-service.js';
 import { assertRolesExist, lockProject } from './project-service.js';
+import { lockRolesForWrite } from './role-locks.js';
 import { PROJECT_TASK_CONTEXT_TYPE, type ProjectTasks } from './project-tasks.js';
 
 /**
@@ -82,6 +83,8 @@ export class StageService {
       objectId: visible.id,
       run: async ({ em }) => {
         await lockProject(em, this.deps.access, visible.id);
+        // Issue #453 — the Roles it names, held against a delete and asked again.
+        await lockRolesForWrite(em as EntityManager, body.responsibleRoleIds ?? []);
         const stages = await stagesOf(em, visible.id);
         if (stages.length >= PROJECT_STAGES_MAX) {
           throw new HttpError(422, ERROR_CODES.VALIDATION_FAILED, `A project has at most ${PROJECT_STAGES_MAX} stages.`);
@@ -120,6 +123,8 @@ export class StageService {
       objectId: visible.id,
       run: async ({ em }) => {
         await lockProject(em, this.deps.access, visible.id);
+        // Issue #453 — the Roles it names, held against a delete and asked again.
+        await lockRolesForWrite(em as EntityManager, body.responsibleRoleIds ?? []);
         const stage = await em.findOne(ProjectStage, { id: stageId, projectId: visible.id });
         if (!stage) throw stageNotFound();
         const before = stageSnapshot(stage);
