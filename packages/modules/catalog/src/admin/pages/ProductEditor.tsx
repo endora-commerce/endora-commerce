@@ -1485,14 +1485,13 @@ function VariantsSection({ productId, readOnly = false }: { productId: string; r
     setLoading(true);
     setError(null);
     try {
-      // The PDP returns variants nested in productDetail; admin needs a
-      // standalone read to keep the forms quick. Foundation didn't ship
-      // a GET /admin/.../variants, but the public productDetail under
-      // /api/v1/catalog/products/<idOrSlug> includes them — use that.
-      const res = await apiClient.get<{ data: { variants: AdminVariant[] } }>(
-        `/api/v1/catalog/products/${productId}`,
+      // Issue #410 — the admin read answers every variant whatever the
+      // product's status or channels; the storefront's product read answers
+      // an inactive product 410 and an out-of-channel one 404.
+      const res = await apiClient.get<{ data: AdminVariant[] }>(
+        `/api/v1/admin/catalog/products/${productId}/variants`,
       );
-      setVariants(res.data.variants ?? []);
+      setVariants(res.data);
     } catch (err) {
       setError(err instanceof ApiError ? err.envelope.error.message : t('productEditor.variants.error.load'));
     } finally {
