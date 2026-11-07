@@ -141,6 +141,16 @@ describe('#468 — the back-in-stock e-mail is sent only for a product that is s
         expect(await rowOf(id)).toEqual({ status: 'queued', notified_at: null });
       });
 
+      it('a subscription cancelled by the customer or an admin is never mailed', async () => {
+        const id = await subscribe();
+        // What `AvailabilityNotificationService.cancel` writes: the status, and no `notifiedAt`.
+        await sql(`update availability_notifications set status = 'cancelled' where id = ?`, [id]);
+        const mailer = new InMemoryMailer();
+        expect(await restock(path, mailer)).toBe(0);
+        expect(mailer.sent).toHaveLength(0);
+        expect(await rowOf(id)).toEqual({ status: 'cancelled', notified_at: null });
+      });
+
       it('a product outside its global publication window: nothing is sent and the subscription stays queued', async () => {
         const id = await subscribe();
         await sql(`update products set publish_from = now() + interval '1 day' where id = ?`, [product.id]);
