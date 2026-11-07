@@ -418,6 +418,12 @@ through the audit log.
 `requiresTwoFactor`). The wildcard `*` is bootstrap-only and rejected by
 the upsert route.
 
+`requiresTwoFactor` is stored but has **no effect**: nothing reads it when an
+administrator signs in, and the *Roles* screen no longer offers it. To
+require two-step verification for administrators, switch on the
+`mfa.admin.totp_enforced` setting, which applies platform-wide. The field is
+deprecated and goes in the next breaking release (#349).
+
 ## Extension points
 
 - **Custom login challenges** — slot before the password verify in

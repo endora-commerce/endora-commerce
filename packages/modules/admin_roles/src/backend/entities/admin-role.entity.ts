@@ -7,8 +7,10 @@ import { randomUUID } from 'crypto';
  * are screaming-snake `module:action` strings (e.g. `catalog:write`,
  * `orders:read`, `customers:impersonate`). Stored as JSONB array.
  *
- * `requiresTwoFactor` flips the requireAdmin pre-handler into a strict mode
- * (T188 hook) — accounts mapped to such a Role MUST have 2FA confirmed.
+ * `requiresTwoFactor` is stored but NOT enforced: no sign-in path, guard or
+ * `mfa` check reads it (#349). The setting that requires a second factor for
+ * administrators is `mfa.admin.totp_enforced`, platform-wide. The column is
+ * kept until the next breaking release drops it.
  */
 @GlobalEntity()
 @Entity({ tableName: 'admin_roles' })

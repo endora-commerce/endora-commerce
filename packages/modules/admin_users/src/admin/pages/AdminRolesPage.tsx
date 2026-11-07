@@ -23,7 +23,6 @@ interface AdminRole {
   code: string;
   name: string;
   permissions: string[];
-  requiresTwoFactor: boolean;
   updatedAt: string;
 }
 
@@ -80,10 +79,7 @@ export default function AdminRolesPage(): ReactNode {
 
   const editing = useMemo(() => {
     if (editingCode === NEW_ROLE_KEY) {
-      return { id: '', code: '', name: '', permissions: [], requiresTwoFactor: false } as Omit<
-        AdminRole,
-        'updatedAt'
-      >;
+      return { id: '', code: '', name: '', permissions: [] } as Omit<AdminRole, 'updatedAt'>;
     }
     if (editingCode == null) return null;
     const found = roles.find((r) => r.code === editingCode);
@@ -96,14 +92,14 @@ export default function AdminRolesPage(): ReactNode {
       code: string;
       name: string;
       permissions: string[];
-      requiresTwoFactor: boolean;
     }): Promise<void> => {
       try {
+        // `requiresTwoFactor` is not sent (#349): it is optional on PUT, so the
+        // stored value is kept, and nothing enforces it at sign-in anyway.
         await apiClient.put<{ data: AdminRole }>(`/api/v1/admin/admin-roles/${input.code}`, {
           code: input.code,
           name: input.name,
           permissions: input.permissions,
-          requiresTwoFactor: input.requiresTwoFactor,
         });
         setInfo(t('adminRoles.info.saved', { code: input.code }));
         setEditingCode(input.code);
@@ -213,7 +209,6 @@ export default function AdminRolesPage(): ReactNode {
                   code: input.code,
                   name: input.name,
                   permissions: input.permissions,
-                  requiresTwoFactor: input.requiresTwoFactor,
                 })
               }
               onDelete={
@@ -242,7 +237,6 @@ interface RoleEditorProps {
     code: string;
     name: string;
     permissions: string[];
-    requiresTwoFactor: boolean;
   }) => void;
   onDelete: (() => void) | null;
 }
@@ -258,7 +252,6 @@ function RoleEditor(props: RoleEditorProps): ReactNode {
   const [permissions, setPermissions] = useState<Set<string>>(
     new Set(props.role.permissions.filter((p) => p !== '*')),
   );
-  const [requiresTwoFactor, setRequiresTwoFactor] = useState(props.role.requiresTwoFactor);
   // The platform_admin role is locked to full access — the toggle is forced on
   // and disabled so it can never be downgraded (mirrors the backend invariant).
   const isPlatformAdmin = props.role.code === 'platform_admin';
@@ -323,7 +316,6 @@ function RoleEditor(props: RoleEditorProps): ReactNode {
               code,
               name,
               permissions: wildcard ? ['*'] : Array.from(permissions),
-              requiresTwoFactor,
             });
           }}
         >
@@ -350,13 +342,11 @@ function RoleEditor(props: RoleEditorProps): ReactNode {
               />
             </div>
           </div>
-          <label className="inline-flex items-center gap-2 text-sm">
-            <Checkbox
-              checked={requiresTwoFactor}
-              onChange={(e): void => setRequiresTwoFactor(e.target.checked)}
-            />
-            {t('adminRoles.field.requires2fa')}
-          </label>
+          {/*
+            No per-role two-step verification control (#349): the role's
+            `requiresTwoFactor` is stored but never enforced. Administrators'
+            second factor is the platform-wide `mfa.admin.totp_enforced` setting.
+          */}
 
           <div className={cn('space-y-3', wildcard && 'pointer-events-none opacity-50')}>
             <h3 className="text-sm font-semibold">{t('adminRoles.permissionsHeading')}</h3>

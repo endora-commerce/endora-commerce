@@ -21,9 +21,9 @@ Admin role definitions and the per-module Permission matrix the role grants.
 Permissions are strings shaped `module:action` (e.g. `catalog:write`,
 `integrations:manage`, `audit:read`). `permission-service.ts` exposes
 `hasPermission(adminUser, 'module:action')`; the `requireAdmin(permission?)`
-pre-handler in `auth/plugin.ts` consults it on every gated route. A Role
-may also require two-step verification — `requireAdmin` enforces the
-second-step challenge before invoking the route handler.
+pre-handler in `auth/plugin.ts` consults it on every gated route. A role
+does not decide two-step verification: the setting that requires it for
+administrators is `mfa.admin.totp_enforced`, platform-wide.
 
 ## The platform-administrator role
 
@@ -42,8 +42,9 @@ how to repair it.
 
 ## Entities
 
-`AdminRole`, with `requires2fa: boolean` and a `permissions: string[]`
-column.
+`AdminRole`, with `requiresTwoFactor: boolean` and a `permissions: string[]`
+column. `requiresTwoFactor` is stored but has no effect at sign-in; it is
+deprecated and goes in the next breaking release (#349).
 
 ## Extension points
 

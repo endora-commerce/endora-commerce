@@ -429,6 +429,12 @@ dzienniku audytu zarówno z `actorAdminUserId`, jak i z `impersonatedCustomerAcc
 wieloznaczny `*` służy wyłącznie do inicjalizacji platformy i jest odrzucany przez trasę zapisu
 roli.
 
+Pole `requiresTwoFactor` jest zapisywane, ale **nie ma żadnego skutku**: nic go nie odczytuje
+przy logowaniu administratora, a ekran *Role* już go nie oferuje. Aby wymagać
+weryfikacji dwuetapowej od administratorów, włącz ustawienie `mfa.admin.totp_enforced`, które
+działa na całej platformie. Pole jest przestarzałe i zostanie usunięte w najbliższym wydaniu
+z niekompatybilnymi zmianami (#349).
+
 ## Punkty rozszerzenia
 
 - **Własne etapy logowania** — miejsce przed weryfikacją hasła w `admin-auth-service.ts`.

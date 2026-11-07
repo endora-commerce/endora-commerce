@@ -21,7 +21,6 @@
   "adminRoles.error.save": "Zapis nie powiódł się.",
   "adminRoles.field.code": "Kod",
   "adminRoles.field.displayName": "Nazwa wyświetlana",
-  "adminRoles.field.requires2fa": "Wymaga weryfikacji dwuetapowej od przypisanych użytkowników",
   "adminRoles.info.deleted": "Usunięto rolę {code}.",
   "adminRoles.info.saved": "Zapisano rolę {code}.",
   "adminRoles.loading": "Ładowanie…",

@@ -21,7 +21,6 @@
   "adminRoles.error.save": "Save failed.",
   "adminRoles.field.code": "Code",
   "adminRoles.field.displayName": "Display name",
-  "adminRoles.field.requires2fa": "Requires two-step verification on assigned users",
   "adminRoles.info.deleted": "Deleted role {code}.",
   "adminRoles.info.saved": "Saved role {code}.",
   "adminRoles.loading": "Loading…",
