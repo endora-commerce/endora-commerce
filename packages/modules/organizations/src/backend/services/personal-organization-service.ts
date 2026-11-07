@@ -35,7 +35,13 @@ export const ANONYMIZED_ORGANIZATION_NAME = 'Deleted customer';
 /** What each blanked line of a scrubbed registered address reads. */
 const ANONYMIZED_ADDRESS_FIELD = '-';
 
-/** Whether every part of the personal-organisation scrub is already written. */
+/**
+ * Whether every part of the personal-organisation scrub is already written.
+ *
+ * Issue #802 added the legal name, the order-confirmation recipients and the
+ * custom field values. An organisation scrubbed before that answers `false`
+ * here, so the next run finishes it; no backfill is needed.
+ */
 function isFullyScrubbed(org: Organization): boolean {
   const address = org.registeredAddress;
   return (
@@ -43,6 +49,9 @@ function isFullyScrubbed(org: Organization): boolean {
     address.street === ANONYMIZED_ADDRESS_FIELD &&
     address.city === ANONYMIZED_ADDRESS_FIELD &&
     address.postalCode === ANONYMIZED_ADDRESS_FIELD &&
+    org.legalName == null &&
+    (org.orderConfirmationEmails ?? []).length === 0 &&
+    Object.keys(org.customFieldValues ?? {}).length === 0 &&
     org.deletedAt != null
   );
 }
@@ -242,6 +251,16 @@ export class PersonalOrganizationService {
    * The scrub and its one `organization.anonymized` row commit in one
    * transaction, and that row is written only when something changed.
    *
+   * **What it clears (issue #802).** Besides the name and the address: the
+   * legal name, the order-confirmation recipients — `orders` mails that list,
+   * so a placeholder would receive mail — and **every** custom field value. A
+   * personal organisation has one person behind it, and `custom_fields` has no
+   * "personal" flag to clear by, so clearing the whole bag is the only rule
+   * that does not fail open (owner ruling Q1, 2026-11-06). The audit row
+   * describes what was erased without repeating it: no name, only whether a
+   * legal name existed, how many recipients there were and which custom field
+   * keys held a value (owner ruling Q2).
+   *
    * Answers `null`, and writes nothing, only where the cascade does not apply:
    * an org-less account, an organisation that is not personal, and one that
    * still has a live member.
@@ -271,8 +290,17 @@ export class PersonalOrganizationService {
       const row = await txEm.findOneOrFail(Organization, { id: org.id });
       if (isFullyScrubbed(row)) return row;
       const now = new Date();
-      const before = { name: row.name, wasDeleted: row.deletedAt != null };
+      // Non-personal facts only: the row outlives the data it describes.
+      const before = {
+        wasDeleted: row.deletedAt != null,
+        hadLegalName: Boolean(row.legalName),
+        orderConfirmationEmailCount: (row.orderConfirmationEmails ?? []).length,
+        customFieldKeys: Object.keys(row.customFieldValues ?? {}).sort(),
+      };
       row.name = ANONYMIZED_ORGANIZATION_NAME;
+      row.legalName = null;
+      row.orderConfirmationEmails = [];
+      row.customFieldValues = {};
       row.registeredAddress = {
         street: ANONYMIZED_ADDRESS_FIELD,
         city: ANONYMIZED_ADDRESS_FIELD,

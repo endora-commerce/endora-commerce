@@ -108,8 +108,8 @@ export class CustomerAccountLifecycleWriteService implements CustomerAccountLife
     private readonly commandBus?: CommandBus,
     /**
      * `customer_account.anonymized.v1` (`specs/170-forms-module/` research
-     * R-17) — announced by {@link anonymize} after its flush and its audit row,
-     * only on the transition. A callback rather than the bus: `index.ts` binds
+     * R-17) — announced by {@link anonymize} once its scrub and its audit row
+     * have committed, only on the transition. A callback rather than the bus: `index.ts` binds
      * it to a bus scope it reads per call and awaits, so a subscriber's work
      * (forms erasing the account's entries) runs within the sweep step. Absent,
      * nothing is announced — the hand-built test services pass none.
@@ -460,36 +460,60 @@ export class CustomerAccountLifecycleWriteService implements CustomerAccountLife
     return toCustomerAccountRecords(this.twoFactorEnrolments, accounts);
   }
 
+  /**
+   * The scrub and its `customer_account.anonymized` row commit in one
+   * transaction (issue #802): a crash between them used to leave an
+   * anonymisation with no audit row. The event follows the commit, so a
+   * subscriber never sees a scrub that could still roll back. The bus isolates
+   * subscriber failures (`EventBus.dispatch` catches and logs each handler's
+   * error), so an error raised here after the commit can only come from the
+   * emit path itself — resolving or wiring the bus — and it propagates; the
+   * committed scrub stands either way.
+   *
+   * Every custom field value goes with the name and the e-mail (owner ruling
+   * Q1, 2026-11-06), and the audit row stores none of what it erased (Q2):
+   * only which custom field keys held a value.
+   */
   async anonymize(customerAccountId: string): Promise<CustomerAccountRecord> {
-    const em = this.emFactory();
-    const account = await this.#load(em, customerAccountId);
-    if (account.anonymizedAt) {
-      return toOneCustomerAccountRecord(this.twoFactorEnrolments, account);
-    }
-
-    const before = { email: account.email };
-    account.email = `deleted+${account.id}@anonymized.invalid`;
-    account.firstName = ANONYMIZED_CUSTOMER_NAME;
-    account.lastName = ANONYMIZED_CUSTOMER_NAME;
-    account.passwordHash = ANONYMIZED_PASSWORD_HASH;
-    // Issue #222 — the scrubbed hash is a placeholder, not a credential, so the
-    // account has no password on record any more. Leaving the stamp would say
-    // the opposite of what the scrub just did.
-    account.passwordSetAt = null;
-    account.twoFactorConfirmedAt = null;
-    account.anonymizedAt = new Date();
-    await em.flush();
-    // The sweep runs on a timer, so there is no operator to attribute it to.
-    await this.#record('customer_account.anonymized', account.id, null, before, {
-      anonymizedAt: account.anonymizedAt.toISOString(),
+    // command-coverage-ignore: the retention sweep's last step — a
+    // system-initiated scrub on a timer, audited below with the null actor
+    // that fact deserves, not an operator-initiated write.
+    const { row: account, transitioned } = await this.emFactory().transactional(async (tem) => {
+      const row = await this.#load(tem, customerAccountId);
+      if (row.anonymizedAt) return { row, transitioned: false };
+      row.email = `deleted+${row.id}@anonymized.invalid`;
+      row.firstName = ANONYMIZED_CUSTOMER_NAME;
+      row.lastName = ANONYMIZED_CUSTOMER_NAME;
+      row.passwordHash = ANONYMIZED_PASSWORD_HASH;
+      // Issue #222 — the scrubbed hash is a placeholder, not a credential, so
+      // the account has no password on record any more. Leaving the stamp
+      // would say the opposite of what the scrub just did.
+      row.passwordSetAt = null;
+      row.twoFactorConfirmedAt = null;
+      const customFieldKeys = Object.keys(row.customFieldValues ?? {}).sort();
+      row.customFieldValues = {};
+      row.anonymizedAt = new Date();
+      // The sweep runs on a timer, so there is no operator to attribute it to.
+      this.auditLog.recordWithin(tem, {
+        actorAdminUserId: null,
+        action: 'customer_account.anonymized',
+        objectType: 'customer_account',
+        objectId: row.id,
+        stateBefore: { anonymizedAt: null, customFieldKeys },
+        stateAfter: { anonymizedAt: row.anonymizedAt.toISOString() },
+      });
+      await tem.flush();
+      return { row, transitioned: true };
     });
     // Ids only — never the e-mail or a name the scrub just removed.
-    await this.emitAnonymized?.({
-      eventId: randomUUID(),
-      occurredAt: account.anonymizedAt.toISOString(),
-      customerAccountId: account.id,
-      organizationId: account.organizationId,
-    });
+    if (transitioned) {
+      await this.emitAnonymized?.({
+        eventId: randomUUID(),
+        occurredAt: account.anonymizedAt!.toISOString(),
+        customerAccountId: account.id,
+        organizationId: account.organizationId,
+      });
+    }
     return toOneCustomerAccountRecord(this.twoFactorEnrolments, account);
   }
 

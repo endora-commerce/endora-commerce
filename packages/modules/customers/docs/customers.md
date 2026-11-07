@@ -78,11 +78,15 @@ default 365) an authorized actor can restore the account. After the window the
 anonymization sweep (`AnonymizationSweepWorker`) irreversibly scrubs personal
 data, and restore is no longer possible: from the moment the window elapses,
 restore answers `409 CUSTOMER_RESTORE_WINDOW_ELAPSED`, even if the sweep has
-not reached the account yet. For an individual, the sweep also
-scrubs their personal organization: its saved addresses are blanked (`-`, no
-phone, country kept) and soft-deleted, one `address.anonymized` audit entry
-each. This happens even if an operator has already deleted that organization.
-Placed orders keep their address snapshots.
+not reached the account yet. The account loses its e-mail, name, password and
+all custom field values. For an individual, the sweep also scrubs their
+personal organization: its name, registered address, legal name,
+order-confirmation e-mails and all custom field values are cleared, and its
+saved addresses are blanked (`-`, no phone, country kept) and soft-deleted, one
+`address.anonymized` audit entry each. This happens even if an operator has
+already deleted that organization. Placed orders keep their address snapshots.
+The anonymization audit entries record that the data was erased, not the data
+itself.
 
 The sweep scrubs the personal organization and its addresses first and the
 account last. If a run is interrupted, the account is picked up again on the
