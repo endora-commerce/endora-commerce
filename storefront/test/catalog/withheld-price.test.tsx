@@ -71,7 +71,7 @@ describe('a withheld price renders "price on request" and no figure (#491)', () 
 
   it('the product page price renders nothing for its caller to replace with the quote CTA', () => {
     const html = renderToString(
-      <PriceTag price={WITHHELD.price} resolved={WITHHELD.resolvedPrice ?? null} locale="en-US" variant="pdp" />,
+      <PriceTag quoteRequests price={WITHHELD.price} resolved={WITHHELD.resolvedPrice ?? null} locale="en-US" variant="pdp" />,
     );
     expect(text(html)).not.toMatch(AMOUNT);
   });

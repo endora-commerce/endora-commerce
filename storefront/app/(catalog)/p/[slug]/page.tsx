@@ -340,7 +340,7 @@ export default async function ProductPage({
                 locale={locale}
               />
               <div className="mt-3">
-                <StockBadge product={product} stock={stock} locale={locale} />
+                <StockBadge product={product} stock={stock} locale={locale} quoteRequests={presence.quoteRequests} />
               </div>
             </div>
           ) : (
@@ -350,8 +350,9 @@ export default async function ProductPage({
                 resolved={resolved}
                 locale={locale}
                 variant="pdp"
+                quoteRequests={presence.quoteRequests}
               />
-              <StockBadge product={product} stock={stock} locale={locale} />
+              <StockBadge product={product} stock={stock} locale={locale} quoteRequests={presence.quoteRequests} />
             </div>
           )}
 

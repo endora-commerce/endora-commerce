@@ -25,9 +25,15 @@ export function PriceTag(props: {
   resolved?: PriceDisplay | null;
   locale: string;
   variant?: 'card' | 'pdp';
+  /**
+   * `quote_requests` is present (issue #672): a missing price invites a quote only then;
+   * otherwise it is stated as "price on request".
+   */
+  quoteRequests: boolean;
 }): ReactNode {
   const { price, resolved, locale, variant = 'pdp' } = props;
   const t = tForLocale(locale);
+  const noPrice = t(props.quoteRequests ? 'product.requestQuote' : 'commerce.common.priceOnRequest');
 
   if (resolved !== undefined && resolved !== null) {
     if (resolved.displayMode === 'none') return null;
@@ -46,11 +52,11 @@ export function PriceTag(props: {
   }
 
   if (resolved === null) {
-    return <span className="font-mono font-normal text-muted">{t('product.requestQuote')}</span>;
+    return <span className="font-mono font-normal text-muted">{noPrice}</span>;
   }
 
   if (!price) {
-    return <span className="font-mono font-normal text-muted">{t('product.requestQuote')}</span>;
+    return <span className="font-mono font-normal text-muted">{noPrice}</span>;
   }
   // A unit price: its significant places, up to four (owner ruling of 2026-10-25).
   const formatted = formatMoney(price.amount, price.currency, locale, { unitPrice: true });

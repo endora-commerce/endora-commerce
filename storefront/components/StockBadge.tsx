@@ -20,6 +20,11 @@ export function StockBadge(props: {
   product: Pick<ProductSummary, 'stockLevel' | 'stockIndicator'>;
   stock?: StorefrontProductStock | null;
   locale: string;
+  /**
+   * `quote_requests` is present (issue #672): a to-order product invites a quote only then;
+   * otherwise it reads as the neutral "available to order".
+   */
+  quoteRequests: boolean;
 }): ReactNode {
   const t = tForLocale(props.locale);
 
@@ -43,7 +48,7 @@ export function StockBadge(props: {
     return <span className="font-mono text-[11px] px-2 py-0.5 rounded-full bg-ok-soft text-ok">{t('product.inStock')}</span>;
   }
   if (stockIndicator === 'to_order') {
-    return <span className="font-mono text-[11px] px-2 py-0.5 rounded-full bg-warn-soft text-warn">{t('product.requestQuote')}</span>;
+    return <span className="font-mono text-[11px] px-2 py-0.5 rounded-full bg-warn-soft text-warn">{t(props.quoteRequests ? 'product.requestQuote' : 'commerce.stock.toOrder')}</span>;
   }
   return null;
 }

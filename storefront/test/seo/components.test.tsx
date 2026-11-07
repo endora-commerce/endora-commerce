@@ -108,7 +108,7 @@ describe('StockBadge — surfaces stock state in plain text', () => {
     [{ stockLevel: null, stockIndicator: 'out_of_stock' as const }, 'Out of stock'],
     [{ stockLevel: null, stockIndicator: 'to_order' as const }, 'Request a quote'],
   ])('renders %j as text containing "%s"', (input, expected) => {
-    const html = renderToString(<StockBadge product={input} locale="en-US" />);
+    const html = renderToString(<StockBadge quoteRequests product={input} locale="en-US" />);
     expect(html).toContain(expected);
   });
 });

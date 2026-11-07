@@ -119,7 +119,7 @@ const surfaces: Record<string, (v: Vector, locale: string) => string> = {
   },
   'the product page': (v, locale) =>
     renderToString(
-      <PriceTag price={summary(v).price} resolved={summary(v).resolvedPrice ?? null} locale={locale} variant="pdp" />,
+      <PriceTag quoteRequests price={summary(v).price} resolved={summary(v).resolvedPrice ?? null} locale={locale} variant="pdp" />,
     ),
   'the product page net/gross switch': (v, locale) => {
     const r = summary(v).resolvedPrice!;

@@ -130,6 +130,8 @@ const { ProductCard } = await import('../../components/ProductCard');
 const { ProductRow } = await import('../../components/ProductRow');
 const { ProductGrid } = await import('../../components/ProductGrid');
 const { Header } = await import('../../components/Header');
+const { PriceTag } = await import('../../components/PriceTag');
+const { StockBadge } = await import('../../components/StockBadge');
 const { cardActionVisibility, commerceAbilities, VISITOR_ABILITIES } = await import(
   '../../lib/commerce-permissions'
 );
@@ -342,6 +344,38 @@ describe('header search — the "request a quote" result label (issue #672)', ()
     expect(header()).toContain(`data-request-quote-label="${en('product.requestQuote')}"`);
     modules = presenceWithout('quote_requests');
     expect(header()).toContain(`data-request-quote-label="${en('commerce.common.priceOnRequest')}"`);
+  });
+});
+
+describe('product page price and stock labels — no quote invitation while quote_requests is off (issue #672)', () => {
+  const REQUEST_QUOTE = `>${en('product.requestQuote')}<`;
+
+  it('the PDP of an unpriced, to-order product invites a quote only while quote_requests is present', async () => {
+    product = simpleProduct({ price: null, resolvedPrice: null, stockIndicator: 'to_order', stockLevel: null });
+    const present = await pdp();
+    expect(present).toContain(REQUEST_QUOTE);
+    modules = presenceWithout('quote_requests');
+    const absent = await pdp();
+    expect(absent).not.toContain(REQUEST_QUOTE);
+    expect(absent).toContain(`>${en('commerce.common.priceOnRequest')}<`);
+    expect(absent).toContain(`>${en('commerce.stock.toOrder')}<`);
+  });
+
+  it('PriceTag states "price on request" rather than inviting a quote while quote_requests is off', () => {
+    for (const props of [{ price: null }, { resolved: null }]) {
+      expect(html(<PriceTag {...props} locale="en-US" quoteRequests />)).toContain(REQUEST_QUOTE);
+      const absent = html(<PriceTag {...props} locale="en-US" quoteRequests={false} />);
+      expect(absent).not.toContain(REQUEST_QUOTE);
+      expect(absent).toContain(`>${en('commerce.common.priceOnRequest')}<`);
+    }
+  });
+
+  it('StockBadge says "available to order" rather than inviting a quote while quote_requests is off', () => {
+    const toOrder = { stockLevel: null, stockIndicator: 'to_order' } as const;
+    expect(html(<StockBadge product={toOrder} locale="en-US" quoteRequests />)).toContain(REQUEST_QUOTE);
+    const absent = html(<StockBadge product={toOrder} locale="en-US" quoteRequests={false} />);
+    expect(absent).not.toContain(REQUEST_QUOTE);
+    expect(absent).toContain(`>${en('commerce.stock.toOrder')}<`);
   });
 });
 
