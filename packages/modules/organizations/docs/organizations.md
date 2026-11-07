@@ -245,7 +245,7 @@ registers all three:
 
 | Verb + Path | Purpose |
 | --- | --- |
-| `GET /api/v1/admin/organizations/:id/sales-reps` | List the reps assigned to an organization. |
+| `GET /api/v1/admin/organizations/:id/sales-reps` | List the reps assigned to an organization. `404 NOT_FOUND` for an organization outside a sales representative's reach (see *Which Organizations a sales representative reaches*), as for one that does not exist. |
 | `POST /api/v1/admin/organizations/:id/sales-reps` | Assign a rep. |
 | `DELETE /api/v1/admin/organizations/:id/sales-reps/:adminUserId` | Remove an assignment. |
 
