@@ -460,5 +460,6 @@
   "author.hint": "An administrator; their name, avatar and “about me” are shown with the post.",
   "author.inactive": "Inactive",
   "author.deleted": "Author deleted",
-  "author.updated": "Author saved."
+  "author.updated": "Author saved.",
+  "settingGroups.blog.name": "Blog"
 }

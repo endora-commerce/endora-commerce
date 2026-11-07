@@ -563,5 +563,6 @@
   "actions.openTaskWorkflow.keywords": "statuses, transitions, flow",
   "actions.openTaskPriorities.keywords": "priorities, priority, urgency",
   "actions.openTaskTags.keywords": "tags, labels",
-  "actions.openTaskGeneralSettings.keywords": "settings, time zone"
+  "actions.openTaskGeneralSettings.keywords": "settings, time zone",
+  "settingGroups.tasks.name": "Tasks"
 }

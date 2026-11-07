@@ -3024,5 +3024,7 @@
   "blocks.form.note.draft": "This form is a draft and is not shown to shoppers. Publish it in Forms.",
   "blocks.form.note.closed": "This form is closed: shoppers see its closed message instead.",
   "blocks.form.note.notFound": "Form not found. It may have been deleted — choose another form in the block settings.",
-  "blocks.form.note.forbidden": "You do not have permission to view forms, so this form cannot be shown here."
+  "blocks.form.note.forbidden": "You do not have permission to view forms, so this form cannot be shown here.",
+  "settingGroups.cms.name": "CMS",
+  "settingGroups.cms_page_builder.name": "Page Builder"
 }

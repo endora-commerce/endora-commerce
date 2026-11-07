@@ -642,5 +642,7 @@
   "actions.openFeedTemplates.keywords": "szablon feedu, pola",
   "actions.importFeedTemplate.keywords": "szablon feedu, wczytaj",
   "actions.openFeedCategoryMapping.keywords": "taksonomia, mapowanie kategorii, kategorie",
-  "actions.openFeedTaxonomyRevisions.keywords": "aktualizacja taksonomii, nowa wersja, wersja taksonomii, pobieranie taksonomii"
+  "actions.openFeedTaxonomyRevisions.keywords": "aktualizacja taksonomii, nowa wersja, wersja taksonomii, pobieranie taksonomii",
+  "settingGroups.product_feeds.name": "Feedy produktowe",
+  "settingGroups.product_feeds_taxonomy.name": "Aktualizacje taksonomii"
 }
