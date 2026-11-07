@@ -1064,7 +1064,7 @@ export interface AdminBoundarySurfaces {
    * two files; that check is deleted (feature 091, Phase 5 T5) and what now
    * holds them is an assertion in the admin's own suite —
    * `admin/test/modules/host-admin-registrations.test.tsx`, which counts both
-   * registries in **totals** and names the four routes and three nav entries
+   * registries in **totals** and names the five routes and four nav entries
    * that are the admin application's own (`contracts/admin-registry.md` R13a).
    */
   readonly registryFiles: ReadonlySet<string>;
