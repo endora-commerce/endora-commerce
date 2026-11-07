@@ -658,6 +658,8 @@ describe('CustomerDeletionService', () => {
       hadLegalName: true,
       orderConfirmationEmailCount: 2,
       customFieldKeys: ['loyalty_card', 'nickname'],
+      hadBlockedReason: false,
+      hadRejectedReason: false,
     });
     const serialized = JSON.stringify([row.stateBefore, row.stateAfter]);
     for (const personal of ['Solo Buyer', 'solo.buyer@example.test', 'LC-777']) {
@@ -677,7 +679,11 @@ describe('CustomerDeletionService', () => {
     expect(serialized).not.toContain(email);
     expect(serialized).not.toContain('Solo');
     expect(serialized).not.toContain('1990-01-01');
-    expect(row.stateBefore).toEqual({ anonymizedAt: null, customFieldKeys: ['birthday', 'shoe_size'] });
+    expect(row.stateBefore).toEqual({
+      anonymizedAt: null,
+      customFieldKeys: ['birthday', 'shoe_size'],
+      hadBlockReason: false,
+    });
   });
 
   it('I-12 — an organization scrubbed before #802 is finished by the next run, keeping its deletedAt', async () => {
@@ -785,6 +791,161 @@ describe('CustomerDeletionService', () => {
     expect(
       await em.find(AuditLogEntry, { action: 'customer_account.anonymized', objectId: customer.id }),
     ).toHaveLength(1);
+  });
+
+  // --- issue #843: operator-written reasons about the customer ---------------
+  //
+  // A block or rejection reason is free text an operator wrote about the
+  // person, so the scrub erases it: `null`, which every reader already takes
+  // for "no reason given". The block or rejection itself — its status, dates
+  // and who applied it — stays, and the audit rows record only that a reason
+  // existed, never its text.
+
+  const ORG_BLOCK_REASON = 'Solo Buyer abused the returns policy';
+  const ORG_REJECT_REASON = 'Solo Buyer sent a forged VAT certificate';
+  const ACCOUNT_BLOCK_REASON = 'Solo Buyer insulted the support team';
+
+  /** Stamps a block with a reason on the account and a block and a rejection on its organisation. */
+  async function withOperatorReasons(customer: CustomerAccount): Promise<{ blockedAt: Date; rejectedAt: Date }> {
+    const blockedAt = new Date('2026-03-04T05:06:07.000Z');
+    const rejectedAt = new Date('2026-02-01T00:00:00.000Z');
+    const org = await em.findOneOrFail(Organization, { id: customer.organizationId });
+    org.status = 'blocked';
+    org.blockedAt = blockedAt;
+    org.blockedReason = ORG_BLOCK_REASON;
+    org.rejectedAt = rejectedAt;
+    org.rejectedReason = ORG_REJECT_REASON;
+    customer.blockedAt = blockedAt;
+    customer.blockSource = 'staff';
+    customer.blockReason = ACCOUNT_BLOCK_REASON;
+    await em.flush();
+    return { blockedAt, rejectedAt };
+  }
+
+  function expectNoReasonText(row: AuditLogEntry): void {
+    const serialized = JSON.stringify([row.stateBefore, row.stateAfter]);
+    for (const reason of [ORG_BLOCK_REASON, ORG_REJECT_REASON, ACCOUNT_BLOCK_REASON]) {
+      expect(serialized).not.toContain(reason);
+    }
+  }
+
+  it('I-15 — the sweep erases the personal organization’s block and rejection reasons, keeping the state (#843)', async () => {
+    const customer = await makePersonalCustomer();
+    const { blockedAt, rejectedAt } = await withOperatorReasons(customer);
+    await svc.softDelete(customer.id, actor);
+
+    expect(await svc.sweep(0, after(60_000))).toBe(1);
+
+    em.clear();
+    const org = await em.findOneOrFail(Organization, { id: customer.organizationId });
+    expect(org.blockedReason ?? null).toBeNull();
+    expect(org.rejectedReason ?? null).toBeNull();
+    expect(org.status).toBe('blocked');
+    expect(org.blockedAt!.toISOString()).toBe(blockedAt.toISOString());
+    expect(org.rejectedAt!.toISOString()).toBe(rejectedAt.toISOString());
+    const row = await auditRow('organization.anonymized', org.id);
+    expect(row.stateBefore).toMatchObject({ hadBlockedReason: true, hadRejectedReason: true });
+    expectNoReasonText(row);
+  });
+
+  it('I-16 — the sweep erases the account’s block reason, keeping the block (#843)', async () => {
+    const customer = await makePersonalCustomer();
+    const { blockedAt } = await withOperatorReasons(customer);
+    await svc.softDelete(customer.id, actor);
+
+    expect(await svc.sweep(0, after(60_000))).toBe(1);
+
+    em.clear();
+    const account = await em.findOneOrFail(CustomerAccount, { id: customer.id });
+    expect(account.blockReason ?? null).toBeNull();
+    expect(account.blockedAt!.toISOString()).toBe(blockedAt.toISOString());
+    expect(account.blockSource).toBe('staff');
+    const row = await auditRow('customer_account.anonymized', customer.id);
+    expect(row.stateBefore).toMatchObject({ hadBlockReason: true });
+    expectNoReasonText(row);
+  });
+
+  it('I-17 — a subject scrubbed before #843 is finished by the next run with one audit row each, then left alone', async () => {
+    const customer = await makePersonalCustomer();
+    await withOperatorReasons(customer);
+    // What the scrub wrote before this change, on both rows: everything but
+    // the three reasons, which it left as they were.
+    const scrubbedAt = new Date('2026-04-05T06:07:08.000Z');
+    const org = await em.findOneOrFail(Organization, { id: customer.organizationId });
+    org.name = 'Deleted customer';
+    org.registeredAddress = { ...org.registeredAddress, street: '-', city: '-', postalCode: '-' };
+    org.deletedAt = scrubbedAt;
+    customer.deletedAt = scrubbedAt;
+    customer.email = `deleted+${customer.id}@anonymized.invalid`;
+    customer.firstName = 'Deleted customer';
+    customer.lastName = 'Deleted customer';
+    customer.anonymizedAt = scrubbedAt;
+    await em.flush();
+
+    // The next run reaches the subject and finishes it.
+    expect(await svc.sweep(0, after(60_000))).toBe(1);
+
+    em.clear();
+    const reloadedOrg = await em.findOneOrFail(Organization, { id: org.id });
+    expect(reloadedOrg.blockedReason ?? null).toBeNull();
+    expect(reloadedOrg.rejectedReason ?? null).toBeNull();
+    expect(reloadedOrg.deletedAt!.toISOString()).toBe(scrubbedAt.toISOString());
+    const account = await em.findOneOrFail(CustomerAccount, { id: customer.id });
+    expect(account.blockReason ?? null).toBeNull();
+    expect(account.anonymizedAt!.toISOString()).toBe(scrubbedAt.toISOString());
+    const orgRow = await auditRow('organization.anonymized', org.id);
+    expect(orgRow.stateBefore).toMatchObject({ wasDeleted: true, hadBlockedReason: true, hadRejectedReason: true });
+    expectNoReasonText(orgRow);
+    const accountRow = await auditRow('customer_account.anonymized', customer.id);
+    expect(accountRow.stateBefore).toMatchObject({ anonymizedAt: scrubbedAt.toISOString(), hadBlockReason: true });
+    expectNoReasonText(accountRow);
+    // Finishing is not the transition: the account was announced when it was
+    // first anonymised.
+    expect(anonymizedEvents).toEqual([]);
+
+    // And converged: a third run finds nothing to do and records nothing.
+    expect(await svc.sweep(0, after(60_000))).toBe(0);
+    expect(await em.find(AuditLogEntry, { action: 'organization.anonymized', objectId: org.id })).toHaveLength(1);
+    expect(await em.find(AuditLogEntry, { action: 'customer_account.anonymized', objectId: customer.id })).toHaveLength(1);
+  });
+
+  it('I-18 — a company organization keeps its reasons when a member is anonymized (#843)', async () => {
+    const company = em.create(Organization, {
+      name: 'Reasoned Sp. z o.o.',
+      taxId: `R${Date.now()}`,
+      status: 'blocked',
+      vatStatus: 'vat_payer',
+      isPersonal: false,
+      blockedAt: new Date('2026-03-04T05:06:07.000Z'),
+      blockedReason: 'Unpaid invoices',
+      rejectedReason: 'Incomplete KRS extract',
+      registeredAddress: { street: 'Main 2', city: 'Warsaw', postalCode: '00-002', country: 'PL' },
+    });
+    await em.persistAndFlush(company);
+    const companyMember = await predefinedRoleIdOf(em, company.id, 'member');
+    const member = await makeCustomer();
+    member.organizationId = company.id;
+    member.organizationRoleId = companyMember;
+    member.blockedAt = new Date('2026-03-04T05:06:07.000Z');
+    member.blockSource = 'org_owner';
+    member.blockReason = ACCOUNT_BLOCK_REASON;
+    const other = await makeCustomer();
+    other.organizationId = company.id;
+    other.organizationRoleId = companyMember;
+    await em.flush();
+
+    await svc.softDelete(member.id, actor);
+    expect(await svc.sweep(0, after(60_000))).toBe(1);
+
+    em.clear();
+    const reloadedCompany = await em.findOneOrFail(Organization, { id: company.id });
+    expect(reloadedCompany.blockedReason).toBe('Unpaid invoices');
+    expect(reloadedCompany.rejectedReason).toBe('Incomplete KRS extract');
+    expect(await em.find(AuditLogEntry, { action: 'organization.anonymized', objectId: company.id })).toEqual([]);
+    // The member's own account is the person's, whatever organisation it stood in.
+    const account = await em.findOneOrFail(CustomerAccount, { id: member.id });
+    expect(account.blockReason ?? null).toBeNull();
+    expect(account.blockSource).toBe('org_owner');
   });
 });
 
