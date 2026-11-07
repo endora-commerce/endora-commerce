@@ -41,8 +41,15 @@ vi.mock('../../lib/i18n/navigation', () => ({
 vi.mock('../../lib/i18n/localized-link', () => ({
   LocalizedLink: ({ children }: { children: React.ReactNode }) => <a>{children}</a>,
 }));
+const sessionCalls: string[] = [];
 vi.mock('../../lib/session', () => ({
   setSessionCookie: async () => undefined,
+  clearAnonCartCookie: async () => {
+    sessionCalls.push('clearAnonCartCookie');
+  },
+  setCartMergeFlash: async (outcome: string) => {
+    sessionCalls.push(`setCartMergeFlash:${outcome}`);
+  },
 }));
 vi.mock('../../lib/api/organization', () => ({
   acceptInvitation: async () => {
@@ -81,6 +88,7 @@ beforeEach(() => {
   acceptFailure = null;
   loginFailure = null;
   loginAnswer = { status: 'authenticated', sessionCookieValue: 'cookie' };
+  sessionCalls.length = 0;
 });
 
 describe('a crafted ?error= never reaches the invitation page', () => {
@@ -186,5 +194,32 @@ describe('the action redirects with a code, never a sentence', () => {
 
   it('signs in and lands on the account', async () => {
     expect(await submit(FIELDS)).toBe('/account');
+    expect(sessionCalls).toEqual([]);
+  });
+
+  // Issue #358 — the sign-in forwards the signed-out basket, so the backend may
+  // attach it to the new account: the drained anonymous cookie is dropped and
+  // the account page shows the notice, exactly as after `/login`.
+  it.each(['adopted', 'merged'] as const)(
+    'a %s basket drops the anonymous cookie and flashes the notice',
+    async (outcome) => {
+      loginAnswer = {
+        status: 'authenticated',
+        sessionCookieValue: 'cookie',
+        cartMerge: { outcome, destinationCartId: 'cart-1' },
+      };
+      expect(await submit(FIELDS)).toBe('/account');
+      expect(sessionCalls).toEqual(['clearAnonCartCookie', `setCartMergeFlash:${outcome}`]);
+    },
+  );
+
+  it('a noop merge leaves the cookies alone', async () => {
+    loginAnswer = {
+      status: 'authenticated',
+      sessionCookieValue: 'cookie',
+      cartMerge: { outcome: 'noop', destinationCartId: 'cart-1' },
+    };
+    expect(await submit(FIELDS)).toBe('/account');
+    expect(sessionCalls).toEqual([]);
   });
 });

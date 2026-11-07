@@ -3,7 +3,7 @@ import { loginCustomer } from '../../../../../lib/api/auth';
 import { acceptInvitation } from '../../../../../lib/api/organization';
 import { INVITATION_ACCEPT_ERRORS, type InvitationAcceptCode } from '../../../../../lib/auth/auth-errors';
 import { signInErrorParam } from '../../../../../lib/auth/sign-in-errors';
-import { setSessionCookie } from '../../../../../lib/session';
+import { clearAnonCartCookie, setCartMergeFlash, setSessionCookie } from '../../../../../lib/session';
 import type { Metadata } from 'next';
 import { localeRedirect } from '../../../../../lib/i18n/navigation';
 import { LocalizedLink } from '../../../../../lib/i18n/localized-link';
@@ -123,6 +123,13 @@ async function acceptInvitationAction(formData: FormData): Promise<void> {
     return await localeRedirect(`/login?error=${signInErrorParam(null, 'SIGN_IN_TO_CONTINUE')}`);
   }
   await setSessionCookie(login.sessionCookieValue);
+  // Issue #358 — the sign-in forwards the signed-out basket, so the backend may
+  // have attached it to the new account: handled as `/login` handles it — the
+  // drained anonymous cookie is dropped and the account page shows the notice.
+  if (login.cartMerge?.outcome === 'adopted' || login.cartMerge?.outcome === 'merged') {
+    await clearAnonCartCookie();
+    await setCartMergeFlash(login.cartMerge.outcome);
+  }
 
   return await localeRedirect('/account');
 }
