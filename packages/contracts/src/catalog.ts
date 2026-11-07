@@ -1642,6 +1642,18 @@ export const productListIdsSchema = z
   ])
   .pipe(z.array(uuidSchema).min(1).max(PRODUCT_LIST_MAX_IDS));
 
+/**
+ * Issue #687 — the shape of `<key>` in a listing's `filter[attr.<key>]=<value>`.
+ *
+ * The key is interpolated into the Meilisearch filter expression
+ * (`attributes.<key> = "…"`), so a key outside this shape is refused
+ * (`400 VALIDATION_FAILED`) before either listing backend sees it. Every
+ * attribute key that can exist matches it: `createAttributeRequestSchema`
+ * admits snake_case only. A well-shaped key that names no filterable attribute
+ * is the backends' own `400 FILTER_NOT_ALLOWED`.
+ */
+export const ATTRIBUTE_FILTER_KEY_PATTERN = /^[a-z0-9_]+$/;
+
 export const productListQuerySchema = z
   .object({
     q: z.string().optional(),

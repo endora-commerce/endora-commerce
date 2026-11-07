@@ -4,6 +4,7 @@ import type { CatalogQueryService } from './services/catalog-query.service.js';
 import type { ProductLinkService } from './services/product-link.service.js';
 import type { BundleService } from './services/bundle.service.js';
 import {
+  ATTRIBUTE_FILTER_KEY_PATTERN,
   ERROR_CODES,
   isPriceSort,
   listingCurrencyQuerySchema,
@@ -518,6 +519,17 @@ function parseListQuery(request: FastifyRequest): {
     const attrMatch = /^filter\[attr\.([^\]]+)\]$/.exec(key);
     if (attrMatch && attrMatch[1]) {
       const attrKey = attrMatch[1];
+      // Issue #687 — refused rather than dropped, like `?ids=`: the key reaches
+      // the Meilisearch filter expression unquoted, so nothing but an
+      // attribute-key-shaped identifier may get past the route.
+      if (!ATTRIBUTE_FILTER_KEY_PATTERN.test(attrKey)) {
+        throw new HttpError(
+          400,
+          ERROR_CODES.VALIDATION_FAILED,
+          `filter[attr.${attrKey}]: not a valid attribute key.`,
+          [{ path: `filter[attr.${attrKey}]`, issue: 'invalid attribute key' }],
+        );
+      }
       const values = Array.isArray(value) ? value.map(String) : [String(value)];
       attributeFilters[attrKey] = values;
       continue;
