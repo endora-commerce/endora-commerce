@@ -89,7 +89,7 @@ describe('defaultFooterTree', () => {
   it('still carries the unsubscribe anchor newsletter footers are seeded from', () => {
     // Newsletter's init migration calls defaultFooterTree() at run time; the
     // transactional fix lives in the renderer, never in this tree.
-    const legal = defaultFooterTree().content.find(
+    const legal = (defaultFooterTree().content ?? []).find(
       (n) => (n as { type: string }).type === 'transactional_emails.EmailFooterLegal',
     ) as { props: { text: string } };
     expect(legal.props.text).toContain('<a href="{{var unsubscribeUrl}}">Unsubscribe</a>');
