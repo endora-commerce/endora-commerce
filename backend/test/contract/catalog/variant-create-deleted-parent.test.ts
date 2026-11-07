@@ -1,4 +1,5 @@
 import { afterAll, beforeAll, describe, expect, it } from 'vitest';
+import type { LightMyRequestResponse } from 'fastify';
 
 import { ERROR_CODES } from '@endora-commerce/contracts';
 import {
@@ -47,7 +48,7 @@ describe('POST /admin/catalog/products/:productId/variants — deleted parent (i
     return (res.json() as { data: { id: string } }).data.id;
   }
 
-  function addVariant(productId: string, sku: string): ReturnType<BackendServerHandle['app']['inject']> {
+  function addVariant(productId: string, sku: string): Promise<LightMyRequestResponse> {
     return h.app.inject({
       method: 'POST',
       url: `/api/v1/admin/catalog/products/${productId}/variants`,
