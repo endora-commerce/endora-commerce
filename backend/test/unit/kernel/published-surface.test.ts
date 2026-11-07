@@ -456,6 +456,8 @@ const NOT_PUBLISHED: Readonly<Record<string, string>> = {
 
   // --- accidental-reach -------------------------------------------------
   ManifestReconciler: 'accidental-reach — §1.3 row 46; a component does not reach itself.',
+  backfillPlaintextSecrets:
+    'composition — a boot repair the root runs once; a module writes a secret through its seam.',
   ReconciliationResult: 'accidental-reach — the return of the above.',
 
   // --- unreached --------------------------------------------------------
@@ -681,6 +683,10 @@ const HOST_COMPOSITION_SURFACE: Readonly<Record<string, readonly string[]>> = {
   'kernel/lifecycle/module-registration.entity.ts': ['ModuleRegistration'],
   'kernel/settings/compose.ts': ['composeSettingsKernel', 'SettingsKernel'],
   'kernel/settings/manifest-reconciler.ts': ['ManifestReconciler'],
+  // Issue #700 — the boot step that encrypts any plaintext a `secret` setting
+  // still stores. `composeApp` runs it; the integration test that proves no
+  // plaintext survives in either table or the cache calls it the same way.
+  'kernel/settings/plaintext-secret-backfill.ts': ['backfillPlaintextSecrets'],
   'kernel/sales-channels/compose.ts': ['composeSalesChannelsKernel', 'SalesChannelsKernel'],
   'kernel/sales-channels/default-channel-reconciler.ts': ['DefaultChannelReconciler'],
   // T118 — `createRequestLanguageResolver` was here and is not: the assembly

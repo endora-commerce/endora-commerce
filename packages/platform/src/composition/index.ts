@@ -196,6 +196,7 @@ export { ModuleRegistration } from '../kernel/lifecycle/module-registration.enti
 // --- kernel: the sub-kernels a root composes ------------------------------
 export { composeSettingsKernel, type SettingsKernel } from '../kernel/settings/compose.js';
 export { ManifestReconciler } from '../kernel/settings/manifest-reconciler.js';
+export { backfillPlaintextSecrets } from '../kernel/settings/plaintext-secret-backfill.js';
 export {
   composeSalesChannelsKernel,
   type SalesChannelsKernel,

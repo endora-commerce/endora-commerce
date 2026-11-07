@@ -116,6 +116,7 @@ import { DefaultChannelReconciler } from '../kernel/sales-channels/default-chann
 import { enterSystemScope } from '../kernel/scope.js';
 import { composeSettingsKernel, type SettingsKernel } from '../kernel/settings/compose.js';
 import { ManifestReconciler } from '../kernel/settings/manifest-reconciler.js';
+import { backfillPlaintextSecrets } from '../kernel/settings/plaintext-secret-backfill.js';
 import {
   buildStaticRegistry,
   deploymentShippedEntries,
@@ -1299,10 +1300,32 @@ export async function composeApp(options: ComposeAppOptions): Promise<ComposeApp
   // operator merely `pnpm add`ed abort this boot.
   const settingsManifests: ModuleSettingsManifest[] = reads()
     .settingsManifestCollectionPort.collect(deploymentShippedEntries(resolvedRegistry));
-  const reconciler = new ManifestReconciler(em());
+  //
+  // Issue #700 — the reconciler gets the key and the cache, so a `string` →
+  // `secret` upgrade encrypts the values it reclassifies in the same flush and
+  // drops what a process cached while they were plaintext.
+  const settingsSecretKey = process.env['SETTINGS_SECRET_ENCRYPTION_KEY'] || undefined;
+  const reconciler = new ManifestReconciler(em(), {
+    secretEncryptionKey: settingsSecretKey,
+    cache: settings.cache,
+  });
   const reconciliation = await enterSystemScope(
     'boot: reconcile module settings manifests',
     () => reconciler.apply(settingsManifests),
+    { entryPoint: 'boot' },
+  );
+  // Issue #700 — and a database that took such an upgrade *before* the
+  // reconciler encrypted anything (#333's S3/GCS credentials) still stores the
+  // plaintext. Every boot encrypts any non-envelope value of a `secret` setting,
+  // packaged modules' included; an envelope is never touched, so the step is
+  // idempotent. Without a key it only warns, naming each code.
+  await enterSystemScope(
+    'boot: encrypt plaintext secret settings',
+    () =>
+      backfillPlaintextSecrets(em(), {
+        secretEncryptionKey: settingsSecretKey,
+        cache: settings.cache,
+      }),
     { entryPoint: 'boot' },
   );
   for (const perModule of reconciliation.perModule) {

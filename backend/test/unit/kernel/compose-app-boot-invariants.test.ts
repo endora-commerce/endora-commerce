@@ -121,3 +121,25 @@ describe('composeApp establishes the invariants its own request hooks depend on'
     ).not.toContain('new DefaultChannelReconciler(');
   });
 });
+
+describe('composeApp encrypts plaintext secrets at boot (issue #700)', () => {
+  // A deployment that went through a `string` → `secret` type change before the
+  // reconciler encrypted anything (#333 moved the S3/GCS credentials) still holds
+  // their plaintext. Only a boot step reaches those rows without an operator
+  // re-saving every credential, and an instance has no other root to run it.
+  it('runs the backfill after the settings reconcile, with the key and the cache', () => {
+    const reconciled = composeApp.indexOf('reconciler.apply(settingsManifests)');
+    const backfilled = composeApp.indexOf('backfillPlaintextSecrets(');
+    expect(reconciled).toBeGreaterThan(-1);
+    expect(backfilled, 'composeApp no longer runs the plaintext-secret backfill').toBeGreaterThan(
+      -1,
+    );
+    expect(backfilled).toBeGreaterThan(reconciled);
+    expect(composeApp).toContain('boot: encrypt plaintext secret settings');
+  });
+
+  it('hands the boot reconciler the key and the cache, so an upgrade encrypts in place', () => {
+    expect(composeApp).toMatch(/new ManifestReconciler\(em\(\), \{[^}]*secretEncryptionKey/);
+    expect(composeApp).toMatch(/new ManifestReconciler\(em\(\), \{[^}]*cache: settings\.cache/);
+  });
+});

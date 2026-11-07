@@ -191,6 +191,7 @@ import type { CatalogAttributeReadService } from '../../../packages/modules/cata
 import type { PricingServiceContract } from '../../../packages/modules/price_lists/src/backend/services/pricing-service.interface.js';
 import { DefaultChannelReconciler } from '@endora-commerce/platform/composition';
 import { ManifestReconciler } from '@endora-commerce/platform/composition';
+import { backfillPlaintextSecrets } from '@endora-commerce/platform/composition';
 import type { CartService } from '../../../packages/modules/carts/src/backend/services/cart-service.js';
 import type { Mailer } from '../../../packages/modules/email/src/backend/services/mailer.js';
 import { seedUs1Catalog, seedUs1CatalogSettings } from './seed-catalog.js';
@@ -2787,6 +2788,12 @@ export async function setupBackendServer(
       await new ManifestReconciler(em()).apply(
         settingsManifestCollectionPort().collect(deploymentShippedEntries(resolvedRegistry)),
       );
+      // Issue #700 — the boot step production runs after the reconcile: encrypt
+      // any plaintext a `secret` setting still stores. Nothing is cached yet at
+      // this point, so there is no cache to drop.
+      await backfillPlaintextSecrets(em(), {
+        secretEncryptionKey: process.env['SETTINGS_SECRET_ENCRYPTION_KEY'] || undefined,
+      });
       // Issue #492 — the seeded VIP channel's guest display mode, which needs
       // the setting row the reconcile above has just written.
       if ((options.seed ?? 'us1-catalog') === 'us1-catalog') {
