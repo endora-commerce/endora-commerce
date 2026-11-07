@@ -41,7 +41,7 @@ function build() {
     placeOrder: vi.fn(async () => ({ id: 'order-1', businessId: 'ORD-1' })),
   };
   const findByIds = vi.fn(async (ids: readonly string[]) =>
-    ids.flatMap((id) =>
+    ids.flatMap((id): Array<{ id: string; archivedAt: Date | null }> =>
       id === LIVE
         ? [{ id, archivedAt: null }]
         : id === ARCHIVED
