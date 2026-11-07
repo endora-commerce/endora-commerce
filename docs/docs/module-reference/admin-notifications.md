@@ -51,7 +51,7 @@ _None._
 
 ## Translations
 
-This module declares no translation bundles.
+Bundles at `i18n` inside the module, one file per shipped language.
 
 ## Operator commands
 
