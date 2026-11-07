@@ -154,9 +154,20 @@ describe('TaskDetail — comments (US4)', () => {
     thread[0] = comment();
     const section = await renderPage();
     const [mine] = await entries(section);
-    await userEvent.click(within(mine!).getByRole('button', { name: core('comments.edit') }));
-    const editor = within(section).getByLabelText(core('comments.edit.label'));
-    await userEvent.type(editor, ' Delivered.');
+    // The edit field focuses itself with the caret after the text, and the
+    // editor applies that focus in an animation frame. A loaded runner can run
+    // that frame after the first keystroke (issue #250): hold every frame back
+    // past the typing, so this case meets that order on every run.
+    const lateFrames = vi
+      .spyOn(window, 'requestAnimationFrame')
+      .mockImplementation((callback) => window.setTimeout(() => callback(performance.now()), 200));
+    try {
+      await userEvent.click(within(mine!).getByRole('button', { name: core('comments.edit') }));
+      const editor = within(section).getByLabelText(core('comments.edit.label'));
+      await userEvent.type(editor, ' Delivered.');
+    } finally {
+      lateFrames.mockRestore();
+    }
     await userEvent.click(within(section).getByRole('button', { name: core('common.action.save') }));
     await waitFor(() =>
       expect(patchSpy).toHaveBeenCalledWith(`${COMMENTS_PATH}/${MINE}`, { body: 'Racking ordered. Delivered.' }),
