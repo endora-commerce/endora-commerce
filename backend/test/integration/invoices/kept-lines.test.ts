@@ -122,6 +122,57 @@ describe('invoices — an invoice issued after a return lists the kept lines (#4
     return { orderId: order.id, widget: widget.id, gadget: gadget.id };
   }
 
+  /**
+   * A completed, paid per-rate order of one line, 3 × 10.01 at 23 %: 30.03 net,
+   * 6.91 VAT, 36.94 gross, less `discount` taken off the gross.
+   */
+  async function seedTenOhOne(discount = '0.00'): Promise<{ orderId: string; item: string }> {
+    const em = h.em().fork();
+    const total = (Math.round(36.94 * 100) - Math.round(Number(discount) * 100)) / 100;
+    const order = em.create(Order, {
+      organizationId: TEST_ORGANIZATION_ID,
+      placedByCustomerAccountId: TEST_CUSTOMER_ID,
+      salesChannelId: CH,
+      status: 'completed',
+      paymentStatus: 'paid',
+      vatMethod: 'per_rate',
+      deliveryAddress: { recipientName: 'A', street: 'S', city: 'C', postalCode: '00-000', country: 'PL' },
+      billingAddress: {
+        recipientName: 'Jan Kowalski',
+        street: 'ul. Testowa 1',
+        city: 'Warszawa',
+        postalCode: '00-002',
+        country: 'PL',
+        companyName: 'Example Buyer Sp. z o.o.',
+        taxId: '1231231230',
+      },
+      deliveryMethodId: randomUUID(),
+      deliveryMethodSnapshot: { code: 'dm', name: 'DM', cost: 0 },
+      paymentMethodId: randomUUID(),
+      paymentMethodSnapshot: { code: 'pm', name: 'Przelew', kind: 'bank_transfer' },
+      subtotal: '30.03',
+      taxTotal: '6.91',
+      deliveryTotal: '0.00',
+      discountTotal: discount,
+      total: total.toFixed(2),
+      currency: 'PLN',
+      placedAt: new Date(),
+    });
+    await em.persistAndFlush(order);
+    const item = em.create(OrderItem, {
+      orderId: order.id,
+      productId: randomUUID(),
+      productSnapshot: { sku: 'KEPT-3', name: 'Bolt', primaryAssetUrl: null },
+      quantity: 3,
+      position: 0,
+      unitPrice: '10.01',
+      taxRate: '0.2300',
+      lineTotal: '36.94',
+    });
+    await em.persistAndFlush(item);
+    return { orderId: order.id, item: item.id };
+  }
+
   /** Submit a return of `quantity` of `orderItemId`, authorize it, receive it and settle it as `resolutionType`. */
   async function settleReturn(
     orderId: string,
@@ -286,6 +337,54 @@ describe('invoices — an invoice issued after a return lists the kept lines (#4
       ['Gadget', 1, 20, 24.6],
       ['Widget', 3, 30, 36.9],
     ]);
+  });
+
+  // Ruling Q1 (c) of 2026-11-07 — the refund is the drop in the kept goods'
+  // value, so the kept invoice and what was paid agree to the cent where the
+  // returned unit's own value would leave a cent over.
+  it('3 × 10.01 at 23 %, 1 returned: refunds 12.32 and invoices 24.62 — 20.02 net, 4.60 VAT — what was paid', async () => {
+    const { orderId, item } = await seedTenOhOne();
+    const caseId = await settleReturn(orderId, item, 1, 'refund');
+    const refund = await withSystemScope('test: read the refund', () =>
+      h.em().fork().findOneOrFail(Refund, { returnCaseId: caseId }),
+    );
+    expect(refund.amount).toBe('12.32');
+
+    const invoice = await issueInvoice(orderId);
+    expect(linesOf(invoice)).toEqual([['Bolt', 2, 20.02, 24.62]]);
+    expect(invoice.vatSummary).toEqual([{ taxRate: 0.23, netTotal: 20.02, vatAmount: 4.6, grossTotal: 24.62 }]);
+    expect([invoice.grossTotal, invoice.paidTotal, invoice.amountDue, invoice.overpayment]).toEqual([24.62, 24.62, 0, 0]);
+  });
+
+  it('two partial returns: the invoice of the one unit kept is what was paid', async () => {
+    const { orderId, item } = await seedTenOhOne();
+    await settleReturn(orderId, item, 1, 'refund');
+    await settleReturn(orderId, item, 1, 'credit');
+
+    const invoice = await issueInvoice(orderId);
+    expect(linesOf(invoice)).toEqual([['Bolt', 1, 10.01, 12.31]]);
+    // 36.94 − 12.32 − 12.31.
+    expect([invoice.grossTotal, invoice.paidTotal, invoice.amountDue, invoice.overpayment]).toEqual([12.31, 12.31, 0, 0]);
+  });
+
+  // Ruling Q3 of 2026-11-07 — the discount line carries only the kept goods'
+  // share: the order discount less what the settled returns carried back.
+  it('a discounted order: the discount line is what the refunds did not take back, and the invoice is what was paid', async () => {
+    // 36.94 less a 6.94 discount: 30.00 paid. The returned unit refunds 10.01 and carries 2.31 of the discount.
+    const { orderId, item } = await seedTenOhOne('6.94');
+    const caseId = await settleReturn(orderId, item, 1, 'refund');
+    const refund = await withSystemScope('test: read the refund', () =>
+      h.em().fork().findOneOrFail(Refund, { returnCaseId: caseId }),
+    );
+    expect(refund.amount).toBe('10.01');
+
+    const invoice = await issueInvoice(orderId);
+    expect(linesOf(invoice)).toEqual([
+      ['Bolt', 2, 20.02, 24.62],
+      ['Discount', 1, -4.63, -4.63],
+    ]);
+    // 24.62 − 4.63 = 19.99 = 30.00 − 10.01.
+    expect([invoice.grossTotal, invoice.paidTotal, invoice.amountDue, invoice.overpayment]).toEqual([19.99, 19.99, 0, 0]);
   });
 
   it('degrades without returns: every line is invoiced, as before', async () => {
