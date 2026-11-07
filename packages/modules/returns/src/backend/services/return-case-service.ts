@@ -244,6 +244,7 @@ export class ReturnCaseService {
           orderItemId: it.orderItemId,
           quantity: it.quantity,
           defaultRefundAmount: it.defaultRefundAmount,
+          defaultDiscountAmount: it.defaultDiscountAmount,
         })),
         current: input.lines.map((line) => ({ orderItemId: line.orderItemId, quantity: line.quantity })),
       });

@@ -128,13 +128,21 @@ before/after events and is written to the audit log.
   returnable amount, excluding quantities already covered by non-rejected /
   non-cancelled cases.
 - **Settlement** — per-line refund defaults to the amount paid for the returned
-  quantity and may never exceed it. Resolutions: refund (money), credit (tops up
+  quantity and may never exceed it. For an order placed under the per-rate VAT
+  method that amount is the drop in the value of the goods the buyer keeps: what
+  was left paid less what the kept goods are worth after the return (VAT per
+  rate on the kept nets, less the discount they carry), so it can differ by a
+  cent from the returned units' own value and the order's returns together still
+  refund exactly what was paid. Resolutions: refund (money), credit (tops up
   the organization's `credit_limits` grant), replacement, or repair. A corrective
   invoice (`invoices` kind `correction`) is requested for money/credit settlements.
   An order that was never invoiced has no VAT document to correct, so none is
   issued: the settlement succeeds, the refund is recorded on the return case and
   the payment record, and the result states `correctiveInvoice: { issued: false,
-  reason: "order_not_invoiced" }`.
+  reason: "order_not_invoiced" }`. The invoice issued later lists only what the
+  buyer kept: a return settled with a refund or a credit takes its quantity off
+  the order line, a line returned in full is left off, and the discount the
+  refund carried comes off the invoice's discount line.
 - **A switched-off payment gateway refuses the settlement**.
   Money resolutions on a gateway-paid order call the PSP module that took the
   payment; when an operator has that module switched off — or the deployment

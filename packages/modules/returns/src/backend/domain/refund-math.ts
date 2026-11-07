@@ -57,16 +57,21 @@ export interface RefundOrderLine {
  *
  * The order-level discount (taken off the gross without tax of its own) is
  * shared over the groups in proportion to their amounts, and a group carries
- * its share in proportion to the part of it that came back. For each group, the
- * refund of this case is
+ * its share in proportion to the part of it. For each group of an order placed
+ * per rate, the refund of this case is the drop in the kept goods' value
+ * (issue #435, product-owner ruling Q1 (c) of 2026-11-07):
  *
- *     (the group's amount for everything returned so far, this case included,
- *      less the discount that part carries)
- *   − (what earlier cases already refunded in that group),
+ *     (the group's amount, less its discount share, less what earlier cases
+ *      already refunded in it)
+ *   − (`vatByRate` over the nets kept after this case, less the discount the
+ *      kept part carries),
  *
- * where "the group's amount for a quantity" is `vatByRate` over the returned
- * nets (per rate) or the stored line gross in proportion (per line). The
- * differences telescope. On top, the case is capped at what remains of
+ * so what is left paid is exactly what an invoice of the kept goods charges,
+ * and the discount the case carries is the drop in the kept part's discount,
+ * against what earlier cases recorded. For an order placed before 0.108.0 the
+ * refund is the stored line gross of everything returned so far, this case
+ * included, in proportion and less the discount that part carries, minus what
+ * earlier cases already refunded. The differences telescope. On top, the case is capped at what remains of
  * `productsPaidTotal`, and a case that completes the order — every unit of
  * every line back — refunds exactly what remains of it: what the order charged,
  * the same target the correction credits (for an order placed before 0.108.0
@@ -85,8 +90,8 @@ export function caseDefaultRefunds(input: {
   /** The order-level discount, as stored. */
   discountTotal?: string;
   orderLines: readonly RefundOrderLine[];
-  /** Lines of the order's earlier, live cases — returns and complaints — with the default refund each recorded. */
-  earlier: ReadonlyArray<{ orderItemId: string; quantity: number; defaultRefundAmount: string }>;
+  /** Lines of the order's earlier, live cases — returns and complaints — with the default refund and discount each recorded. */
+  earlier: ReadonlyArray<{ orderItemId: string; quantity: number; defaultRefundAmount: string; defaultDiscountAmount: string }>;
   current: ReadonlyArray<{ orderItemId: string; quantity: number }>;
 }): Array<{ refund: string; discount: string }> {
   const lineById = new Map(input.orderLines.map((l) => [l.orderItemId, l]));
@@ -97,14 +102,19 @@ export function caseDefaultRefunds(input: {
   // Quantities returned before this case, and after it, per line.
   const before = new Map<string, number>();
   const refundedBefore = new Map<string, string[]>();
+  const carriedBefore = new Map<string, string[]>();
+  const push = (into: Map<string, string[]>, group: string, amount: string) => {
+    const amounts = into.get(group);
+    if (amounts) amounts.push(amount);
+    else into.set(group, [amount]);
+  };
   for (const e of input.earlier) {
     const line = lineById.get(e.orderItemId);
     if (!line) continue;
     before.set(e.orderItemId, (before.get(e.orderItemId) ?? 0) + e.quantity);
     const group = groupOf(line);
-    const amounts = refundedBefore.get(group);
-    if (amounts) amounts.push(e.defaultRefundAmount);
-    else refundedBefore.set(group, [e.defaultRefundAmount]);
+    push(refundedBefore, group, e.defaultRefundAmount);
+    push(carriedBefore, group, e.defaultDiscountAmount);
   }
   const after = new Map(before);
   for (const c of input.current) {
@@ -157,14 +167,40 @@ export function caseDefaultRefunds(input: {
   }))];
   const groupRefund = new Map<string, string>();
   const groupDiscountNow = new Map<string, string>();
+  // What is kept of each line after this case, for the per-rate rule.
+  const keptAfter = new Map(lines.map((l) => [l.orderItemId, Math.max(0, l.purchasedQty - (after.get(l.orderItemId) ?? 0))]));
   for (const group of groups) {
-    const discountAfter = groupDiscount(group, after);
-    const due = moneyDifference(
-      moneyDifference(groupAmount(group, after), discountAfter),
-      moneySum(refundedBefore.get(group) ?? []),
-    );
+    let due: string;
+    let carried: string;
+    if (perRate) {
+      // Issue #435, product-owner ruling Q1 (c): the refund is the drop in the
+      // kept goods' value. What is left paid in the group after this case is
+      // what an invoice of the kept goods charges — VAT per rate on the kept
+      // nets, less the discount the kept part carries — so the order, the
+      // kept-lines invoice and the payment agree to the cent. Taken against
+      // what earlier cases recorded, so a cent an earlier case refunded under
+      // the rule before this one is absorbed here. The discount the case
+      // carries is the drop in the kept part's discount, the same way.
+      const share = discountOf.get(group)!;
+      const keptDiscount = groupDiscount(group, keptAfter);
+      const keptValue = moneyDifference(groupAmount(group, keptAfter), keptDiscount);
+      const paidLeft = moneyDifference(
+        moneyDifference(full.get(group)!, share),
+        moneySum(refundedBefore.get(group) ?? []),
+      );
+      due = moneyDifference(paidLeft, keptValue);
+      carried = moneyDifference(moneyDifference(share, keptDiscount), moneySum(carriedBefore.get(group) ?? []));
+    } else {
+      // An order placed before 0.108.0 keeps the rule of its day: the stored
+      // line gross of everything returned so far, less what was refunded.
+      const discountAfter = groupDiscount(group, after);
+      due = moneyDifference(
+        moneyDifference(groupAmount(group, after), discountAfter),
+        moneySum(refundedBefore.get(group) ?? []),
+      );
+      carried = moneyDifference(discountAfter, groupDiscount(group, before));
+    }
     groupRefund.set(group, compareDecimals(due, 0) < 0 ? '0.00' : due);
-    const carried = moneyDifference(discountAfter, groupDiscount(group, before));
     groupDiscountNow.set(group, compareDecimals(carried, 0) < 0 ? '0.00' : carried);
   }
 
