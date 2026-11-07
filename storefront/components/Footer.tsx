@@ -116,7 +116,6 @@ export function Footer(props: {
             <h5 className={COL_HEADING}>{t('chrome.footer.account')}</h5>
             <LocalizedAnchor className={COL_LINK} href="/account">{t('chrome.footer.myAccount')}</LocalizedAnchor>
             <LocalizedAnchor className={COL_LINK} href="/orders">{t('chrome.footer.orders')}</LocalizedAnchor>
-            <LocalizedAnchor className={COL_LINK} href="/invoices">{t('chrome.footer.invoices')}</LocalizedAnchor>
             {props.modules.isPresent('quote_requests') ? (
               <LocalizedAnchor className={COL_LINK} href="/quote-requests">
                 {t('chrome.footer.quoteRequests')}
@@ -127,7 +126,6 @@ export function Footer(props: {
                 {t('chrome.footer.shoppingLists')}
               </LocalizedAnchor>
             ) : null}
-            <LocalizedAnchor className={COL_LINK} href="/credit-limit">{t('chrome.shared.creditLimit')}</LocalizedAnchor>
           </div>
 
           <div>
