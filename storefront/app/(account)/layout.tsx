@@ -105,8 +105,16 @@ export default async function AccountLayout({
             {modules.isPresent('shopping_lists') ? (
               <LocalizedLink href="/shopping-lists">{t('account.nav.shoppingLists')}</LocalizedLink>
             ) : null}
+            {/*
+              Issue #359 — the ordering preferences are `quick_order`'s defaults
+              (`/api/v1/quick-order/preferences`), so the link follows that
+              module, beside the quick order it serves.
+            */}
             {modules.isPresent('quick_order') ? (
-              <LocalizedLink href="/quick-order">{t('account.nav.quickOrder')}</LocalizedLink>
+              <>
+                <LocalizedLink href="/quick-order">{t('account.nav.quickOrder')}</LocalizedLink>
+                <LocalizedLink href="/preferences">{t('account.nav.preferences')}</LocalizedLink>
+              </>
             ) : null}
             {company ? (
               <>
