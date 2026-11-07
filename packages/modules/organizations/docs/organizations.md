@@ -38,11 +38,11 @@ organization's Administrator role, checked server-side through
 | `POST /api/v1/organizations/mine/addresses` | customer (`addresses.manage`) | Create address |
 | `PATCH /api/v1/organizations/mine/addresses/:id` | customer (`addresses.manage`) | Update |
 | `DELETE /api/v1/organizations/mine/addresses/:id` | customer (`addresses.manage`) | Remove |
-| `GET /api/v1/admin/organizations` | admin | List with `filter[status]` / `filter[vatStatus]` / `q`; a sales representative's list holds only the Organizations in their reach (see below the table) |
+| `GET /api/v1/admin/organizations` | admin | List with `filter[status]` / `filter[vatStatus]` / `q` |
 | `POST /api/v1/admin/organizations` | admin (`customers:manage`) | Create an Organization with its sales channels (see *Sales channels* below) |
 | `GET /api/v1/admin/organizations/sales-channel-options` | admin (`customers:manage`) | The channels the create form offers |
-| `GET /api/v1/admin/organizations/:id/sales-channels` | admin (`customers:read` or `customers:manage`) | The channels assigned to the Organization, and the channels it could be assigned. A sales representative reaches only the Organizations assigned to them; any other answers `404 NOT_FOUND`, as one that does not exist |
-| `PUT /api/v1/admin/organizations/:id/sales-channels` | admin (`customers:manage`) | Replace the assigned channels (`{ salesChannelIds }`, at least one); `404 NOT_FOUND` outside a sales representative's Organizations, as for the read |
+| `GET /api/v1/admin/organizations/:id/sales-channels` | admin (`customers:read` or `customers:manage`) | The channels assigned to the Organization, and the channels it could be assigned. `404 NOT_FOUND` for an Organization outside a sales representative's reach (see below the table), as for one that does not exist |
+| `PUT /api/v1/admin/organizations/:id/sales-channels` | admin (`customers:manage`) | Replace the assigned channels (`{ salesChannelIds }`, at least one); `404 NOT_FOUND` outside a sales representative's reach, as for the read |
 | `GET /api/v1/admin/organizations/:id` | admin | Org + member roster (`updatedAt`, members include `lastLoginAt` and `organizationRole`; `predefinedRoles` names the Administrator and Member roles) |
 | `PATCH /api/v1/admin/organizations/:id` | admin | Update name / `status` / `vatStatus`; optional `expectedUpdatedAt` → `409 VERSION_CONFLICT` when stale |
 | `POST /api/v1/admin/organizations/:id/members/invite` | admin | Invite by email (`{ email, roleId? }`, Member by default; platform-scope) |
@@ -51,7 +51,7 @@ organization's Administrator role, checked server-side through
 | `DELETE /api/v1/admin/organizations/:id/members/:customerAccountId` | admin | Soft-remove member (last-administrator guard) |
 | `POST /api/v1/admin/organizations/:id/recover-admin-access` | admin | Break-glass — give an existing member the Administrator role |
 
-**A sales representative reaches only their Organizations.** Their reach is the Organizations assigned to them, expanded to each one's subtree when their role holds `organizations:rollup`. The list above holds only those, and every `/api/v1/admin/organizations/:id` route — reads and writes, the nested ones included — answers any other Organization with `404 NOT_FOUND`, exactly as one that does not exist. Any other admin role reaches every Organization.
+**Which Organizations a sales representative reaches.** Every `/api/v1/admin/organizations/:id` route — reads and writes, the nested ones included — answers a sales representative only for an Organization assigned to them (with `organizations:rollup`, one whose nearest assigned ancestor is theirs), or one no representative is assigned to, such as a registration awaiting approval. Any other Organization — one assigned to another representative — answers `404 NOT_FOUND`, exactly as one that does not exist, and so does an unknown id for every admin. The list is not narrowed: it shows every Organization to any admin who may read it. Any other admin role reaches every Organization.
 
 Configure **`SMTP_URL`** in the backend environment so outbound mail uses SMTP instead of the console logger.
 

@@ -120,14 +120,16 @@ describe('Applicable price lists (feature 026 US5)', () => {
     expect(sneaked).toBeUndefined();
   });
 
-  it('returns empty items for a non-existent Organization', async () => {
+  // Issue #698 — an unknown Organization is `404 NOT_FOUND` on every
+  // `/:id` route, for a platform administrator too; it answered `200` with no
+  // items before.
+  it('answers 404 NOT_FOUND for a non-existent Organization', async () => {
     const res = await h.app.inject({
       method: 'GET',
       url: `/api/v1/admin/organizations/00000000-0000-4000-8000-0000000aaaaa/applicable-price-lists`,
       cookies: { b2b_session: 'stub-admin-session' },
     });
-    expect(res.statusCode).toBe(200);
-    const body = res.json() as { items: unknown[] };
-    expect(body.items).toEqual([]);
+    expect(res.statusCode).toBe(404);
+    expect((res.json() as { error: { code: string } }).error.code).toBe('NOT_FOUND');
   });
 });

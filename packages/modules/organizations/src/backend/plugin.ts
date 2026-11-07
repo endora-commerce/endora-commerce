@@ -41,7 +41,7 @@ import type { OrganizationRoleService } from './services/organization-role-servi
 import { OrganizationTreeService } from './services/organization-tree-service.js';
 import type { CommandBus } from '@endora-commerce/platform/commands';
 import type { RequireAdminAnyFactory } from '@endora-commerce/platform/kernel';
-import type { DictionaryValidator } from '@endora-commerce/contracts';
+import type { DictionaryValidator, SalesRepAssignmentPort } from '@endora-commerce/contracts';
 import type { RequireAdminFactory } from '@endora-commerce/platform/kernel';
 import type { OrganizationsTranslate } from './services/organizations-prose.js';
 
@@ -142,6 +142,11 @@ export interface OrganizationsModuleOptions {
   storefrontBaseUrl?: string;
   /** Required when `requireAdmin` is set — audit trail for admin org mutations. */
   auditLogService?: AuditPort;
+  /**
+   * Required when `requireAdmin` is set (issue #698) — who may reach an
+   * Organization's `/admin/organizations/:id` routes: `organizationSalesRepScopePort`.
+   */
+  salesRepScope?: Pick<SalesRepAssignmentPort, 'canSeeOrganization'>;
   dictionaryValidator?: DictionaryValidator;
   /** Resolved from the container since feature 072 (T090) — one instance, always armed. */
   addressService: AddressServicePort;
@@ -314,6 +319,9 @@ export function organizationsModule(options: OrganizationsModuleOptions) {
       if (!options.requireAdminAny) {
         throw new Error('organizationsModule: requireAdminAny is required when requireAdmin is set');
       }
+      if (!options.salesRepScope) {
+        throw new Error('organizationsModule: salesRepScope is required when requireAdmin is set');
+      }
       await registerOrganizationsAdminRoutes(app, {
         emFactory: options.emFactory,
         requireAdmin: options.requireAdmin,
@@ -326,6 +334,7 @@ export function organizationsModule(options: OrganizationsModuleOptions) {
         customerAccountRoles: options.customerAccountRoles,
         commandBus: options.commandBus,
         auditLogService: options.auditLogService,
+        salesRepScope: options.salesRepScope,
         eventBus: options.eventBus as OrganizationEventBus,
         addressService,
         ...(options.moderationService ? { moderationService: options.moderationService } : {}),

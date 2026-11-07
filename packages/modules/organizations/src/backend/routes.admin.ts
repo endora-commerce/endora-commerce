@@ -28,11 +28,12 @@ import {
   OrganizationSalesChannelsUpdateBodySchema,
   type DictionaryValidator,
   type OrganizationSalesChannelsResponse,
+  type SalesRepAssignmentPort,
   isUuidShape,
 } from '@endora-commerce/contracts';
 import type { CommandBus } from '@endora-commerce/platform/commands';
 import { HttpError } from '@endora-commerce/platform/http';
-import { getTenantContext, isOrgInScope, orgConstraintFor } from '@endora-commerce/platform/tenancy';
+import { getTenantContext, orgConstraintFor } from '@endora-commerce/platform/tenancy';
 import type { OrganizationTreeService } from './services/organization-tree-service.js';
 import { hasChildrenRefusal } from './services/organization-tree-service.js';
 import { makeSetParentCommand } from './commands/set-parent.command.js';
@@ -108,44 +109,6 @@ const listQuerySchema = z.object({
  * asserted — an absent actor answers `null`, which is the "record nothing"
  * branch this call site already had.
  */
-/**
- * Issue #698 — every `/:id` route here answers only for an Organization within
- * the acting administrator's reach. `Organization` is `@GlobalEntity`, so no
- * tenant filter narrows its reads, and the rows below it that are org-scoped
- * narrow only some of them: a sales representative confined to their assigned
- * Organizations (subtree-expanded under `organizations:rollup`) could open,
- * edit, block and delete any Organization. Outside the reach the answer is the
- * one an unknown Organization gets — `404 NOT_FOUND`, decided after the
- * permission check and before anything is read — so it is no existence probe
- * either. A platform administrator reaches every Organization.
- *
- * A preHandler rather than a line in each handler, so a route added under
- * `/:id` states its reach where it states its permission.
- */
-async function organizationInReach(request: FastifyRequest): Promise<void> {
-  const { id } = request.params as { id?: unknown };
-  if (typeof id !== 'string' || !isOrgInScope(id)) {
-    throw new HttpError(404, ERROR_CODES.NOT_FOUND, 'Organization not found.');
-  }
-}
-
-/**
- * The list's reach, as a `where` fragment on the Organization id (#698) — in
- * the query, so a page holds `limit` Organizations in reach rather than
- * `limit` Organizations of which some are then dropped.
- */
-function organizationReachWhere(): Record<string, unknown> {
-  const constraint = orgConstraintFor();
-  switch (constraint.kind) {
-    case 'all':
-      return {};
-    case 'single':
-      return { id: { $in: constraint.organizationId === null ? [] : [constraint.organizationId] } };
-    case 'set':
-      return { id: { $in: [...constraint.organizationIds] } };
-  }
-}
-
 function adminActorOf(request: FastifyRequest): { adminUserId: string } | null {
   const { actor } = request as FastifyRequest & {
     actor?: { kind?: string; adminUserId?: string };
@@ -223,6 +186,12 @@ export interface AdminOrgsDeps {
   >;
   /** Feature 154 — validates the country of an Organization an operator creates. */
   dictionaryValidator?: DictionaryValidator;
+  /**
+   * Issue #698 — the sales-representative visibility rule every `/:id` route
+   * answers by (`organizationInReach` below): this module's one
+   * `organizationSalesRepScopePort`, built with the roll-up deps (#108).
+   */
+  salesRepScope: Pick<SalesRepAssignmentPort, 'canSeeOrganization'>;
 }
 
 export async function registerOrganizationsAdminRoutes(
@@ -244,6 +213,39 @@ export async function registerOrganizationsAdminRoutes(
   const customFieldValues = deps.customFieldValues;
 
   const customersRead = requireAdminAny(['customers:read', 'customers:manage']);
+
+  /**
+   * Issue #698 — every `/:id` route here answers only for an Organization the
+   * acting administrator may see. `Organization` is `@GlobalEntity`, so no
+   * tenant filter narrows its reads, and a sales representative could open,
+   * edit, block and delete an Organization assigned to another representative.
+   *
+   * The rule is the existing sales-representative visibility rule,
+   * `SalesRepAssignmentPort.canSeeOrganization`, not the tenant reach
+   * (`isOrgInScope`): an Organization assigned to the representative (or, under
+   * `organizations:rollup`, whose nearest assigned ancestor is theirs), **or
+   * one nobody is assigned to** — the fallback a pending registration is
+   * moderated under (D-87) and that `customers` FR-037 and owner ruling D-3W
+   * apply elsewhere. Which of the two rules is the platform's is issue #305;
+   * this does not decide it (architect ruling on #847).
+   *
+   * Every caller first gets a `404 NOT_FOUND` for a malformed, unknown or
+   * deleted id; an Organization the representative may not see then answers
+   * the same, so the answer is no existence probe. A platform-wide scope sees
+   * every Organization. A preHandler, after the permission gate, so a route
+   * added under `/:id` states its reach where it states its permission.
+   */
+  const organizationInReach = async (request: FastifyRequest): Promise<void> => {
+    const notFound = (): HttpError => new HttpError(404, ERROR_CODES.NOT_FOUND, 'Organization not found.');
+    const { id } = request.params as { id?: unknown };
+    if (typeof id !== 'string' || !isUuidShape(id)) throw notFound();
+    if ((await emFactory().count(Organization, { id, deletedAt: null })) === 0) throw notFound();
+    if (orgConstraintFor().kind === 'all') return;
+    const actor = adminActorOf(request);
+    if (actor === null || !(await deps.salesRepScope.canSeeOrganization(actor.adminUserId, id))) {
+      throw notFound();
+    }
+  };
 
   /** A member as the operator's screens show it: its role, not the legacy enum (FR-008, FR-073). */
   const memberDetail = async (member: CustomerAccountRecord, language: string): Promise<Record<string, unknown>> =>
@@ -298,7 +300,7 @@ export async function registerOrganizationsAdminRoutes(
     async (request) => {
       const query = listQuerySchema.parse(request.query);
       const em = emFactory();
-      const where: Record<string, unknown> = { deletedAt: null, ...organizationReachWhere() };
+      const where: Record<string, unknown> = { deletedAt: null };
       // Feature 051 — exclude personal (B2C) orgs from the B2B admin list by default.
       if (query.includePersonal !== 'true') where['isPersonal'] = false;
       if (query['filter[status]']) where['status'] = query['filter[status]'];
@@ -499,8 +501,9 @@ export async function registerOrganizationsAdminRoutes(
     };
 
     /**
-     * The Organization, when it exists. Its reach (issue #515) is the route's
-     * `organizationInReach` preHandler, as on every `/:id` route here (#698).
+     * The Organization, when it exists. Who may reach it (issue #515) is the
+     * route's `organizationInReach` preHandler, as on every `/:id` route here
+     * (#698).
      */
     const requireOrganization = async (em: EntityManager, id: string): Promise<Organization> => {
       if (!isUuidShape(id)) throw new HttpError(404, ERROR_CODES.NOT_FOUND, 'Organization not found.');
