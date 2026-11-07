@@ -62,7 +62,6 @@ describe('Header', () => {
     expect(html).toContain('Ships today if you order by 2:00 PM');
     expect(html).toContain('VAT invoice');
     expect(html).toContain('<strong>Tax ID</strong>');
-    expect(html).toContain('B2B support');
     expect(html).toContain('Currency:');
     expect(html).toContain('B2B · Industrial components');
     expect(html).toContain('aria-label="Compare products"');
@@ -76,7 +75,6 @@ describe('Header', () => {
     expect(html).toContain('Wysyłka dziś, jeśli zamówisz do 14:00');
     expect(html).toContain('Faktura VAT');
     expect(html).toContain('<strong>NIP</strong>');
-    expect(html).toContain('Wsparcie B2B');
     expect(html).toContain('Waluta:');
     expect(html).toContain('B2B · Komponenty przemysłowe');
     expect(html).toContain('aria-label="Porównaj produkty"');
@@ -132,6 +130,39 @@ describe('Footer', () => {
     const html = renderToString(<Footer locale="en-US" modules={ALL_PRESENT} cmsLinks={[{ path: 'faq', title: 'Pytania' }]} />);
     expect(html).toContain('>Pytania</a>');
     expect(html).not.toContain('Help center');
+  });
+});
+
+/**
+ * Issue #673 — the chrome linked to `/invoices`, `/credit-limit` and `/help`,
+ * which no storefront route serves, so each one answered 404. All three are
+ * gone: invoices live on the order detail page, the credit-limit widget on
+ * `/account`, and help in the footer's CMS-driven support column.
+ */
+describe('dead chrome links (#673)', () => {
+  const DEAD = /href="[^"]*\/(invoices|credit-limit|help)(["?#/])/;
+
+  it('the top bar has no help link', () => {
+    for (const locale of ['en-US', 'pl-PL']) {
+      const html = header(locale);
+      expect(html).not.toMatch(DEAD);
+      expect(html).not.toContain('B2B support');
+      expect(html).not.toContain('Wsparcie B2B');
+    }
+  });
+
+  it('the footer has no invoices or credit-limit link, with every module present', () => {
+    for (const locale of ['en-US', 'pl-PL']) {
+      const html = clean(renderToString(<Footer locale={locale} modules={ALL_PRESENT} />));
+      expect(html).not.toMatch(DEAD);
+      expect(html).not.toContain('>Invoices</a>');
+      expect(html).not.toContain('>Faktury</a>');
+      expect(html).not.toContain('>Credit limit</a>');
+      expect(html).not.toContain('>Limit kredytowy</a>');
+      // The links that do lead somewhere stay.
+      expect(html).toMatch(/href="[^"]*\/orders"/);
+      expect(html).toMatch(/href="[^"]*\/account"/);
+    }
   });
 });
 
