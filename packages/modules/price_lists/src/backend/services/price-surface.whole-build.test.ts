@@ -600,3 +600,20 @@ describe('isVanishedProduct — what the driver answers for a product deleted un
     expect(isVanishedProduct(null)).toBe(false);
   });
 });
+
+describe('PriceSurface.hasPendingWork — what the worker checks when a job completes (issue #427)', () => {
+  it('answers whether a pass would find work: never-built, a product mark, a whole-profile mark', async () => {
+    const h = harness({ products: 2, buyers: 1 });
+    await expect(h.surface.hasPendingWork()).resolves.toBe(true);
+    await h.surface.rebuildStale();
+    await expect(h.surface.hasPendingWork()).resolves.toBe(false);
+    h.mark('b0', 'p0');
+    await expect(h.surface.hasPendingWork()).resolves.toBe(true);
+    await h.surface.rebuildStale();
+    await expect(h.surface.hasPendingWork()).resolves.toBe(false);
+    h.markWhole('e');
+    await expect(h.surface.hasPendingWork()).resolves.toBe(true);
+    await h.surface.rebuildStale();
+    await expect(h.surface.hasPendingWork()).resolves.toBe(false);
+  });
+});

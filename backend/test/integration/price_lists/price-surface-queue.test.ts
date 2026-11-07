@@ -21,6 +21,12 @@ import {
  *   fixed (one coalesced job), and BullMQ refuses an id it still holds, so a
  *   failed job kept for inspection would have swallowed every later enqueue
  *   and left the marks waiting for nobody.
+ *
+ * Issue #427 — the same fixed id swallows a request made while a job is
+ * *finishing*: `rebuildStale` has read no more work, so the job completes, and
+ * a mark committed after that last read had its enqueue deduplicated against
+ * the still-active job. On completion the worker checks once more and asks for
+ * a follow-up job when work is pending.
  */
 describe('price surface queue (real BullMQ)', () => {
   let redis: Redis;
@@ -29,12 +35,17 @@ describe('price surface queue (real BullMQ)', () => {
   let worker: Worker | undefined;
   const logged: Array<{ level: string; message: string }> = [];
 
-  const start = (rebuildStale: () => Promise<number>) => {
+  const start = (
+    rebuildStale: () => Promise<number>,
+    hasPendingWork: () => Promise<boolean> = async () => false,
+  ) => {
     let attached: Worker | undefined;
     const started = startPriceSurfaceWorker({
       processRunsWorkers: true,
       moduleQueueRedis: redis,
       rebuildStale,
+      hasPendingWork,
+      enqueue: () => producer.enqueue(),
       log: {
         info: () => undefined,
         debug: () => undefined,
@@ -100,5 +111,40 @@ describe('price surface queue (real BullMQ)', () => {
     await producer.enqueue();
     await vi.waitFor(() => expect(calls).toBeGreaterThanOrEqual(4), { timeout: 15_000, interval: 100 });
     expect(logged.some((l) => l.level === 'error' && /price surface/.test(l.message))).toBe(true);
+  }, 60_000);
+
+  it('a mark committed while the job is finishing gets a follow-up job (issue #427)', async () => {
+    let calls = 0;
+    let pending = false;
+    let swallowed = false;
+    const consumer = start(
+      async () => {
+        calls += 1;
+        // The pass read its work and did it: nothing is due any more.
+        pending = false;
+        if (calls === 1) {
+          // The injected hook — after the final empty read, before the job
+          // completes, a pricing write commits its mark and enqueues. The job
+          // is still active under the fixed id, so BullMQ deduplicates it.
+          pending = true;
+          await producer.enqueue();
+          swallowed = (await queue.getJobCountByTypes('waiting', 'delayed')) === 0;
+        }
+        return 0;
+      },
+      async () => pending,
+    );
+    await consumer.waitUntilReady();
+    await producer.enqueue();
+    await vi.waitFor(() => expect(calls).toBeGreaterThanOrEqual(1), { timeout: 10_000, interval: 50 });
+    // The premise: the write's own request was swallowed by the active job.
+    expect(swallowed).toBe(true);
+    // A follow-up job runs, and does the mark.
+    await vi.waitFor(() => expect(calls).toBe(2), { timeout: 10_000, interval: 50 });
+    expect(pending).toBe(false);
+    // With nothing pending at its completion, the follow-up asks for no third job.
+    await new Promise((resolve) => setTimeout(resolve, 1_000));
+    expect(calls).toBe(2);
+    expect(await queue.getJobCountByTypes('active', 'waiting', 'delayed')).toBe(0);
   }, 60_000);
 });
