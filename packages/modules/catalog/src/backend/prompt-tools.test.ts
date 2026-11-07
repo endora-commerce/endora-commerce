@@ -46,6 +46,8 @@ function harness(initial: Row[], options: { bus?: boolean } = {}) {
     findOne: vi.fn(async (_entity: unknown, where: { id: string }) => rows.get(where.id) ?? null),
     persist: vi.fn(),
     flush: vi.fn(async () => undefined),
+    // The editor-version bump a product update takes (`bumpScopeVersion`).
+    execute: vi.fn(async () => [{ v: '1' }]),
   };
   const commandBus = {
     run: vi.fn(async (command: Parameters<CommandBus['run']>[0]) => {
@@ -224,5 +226,29 @@ describe('163 checkpoint F (S-1) — product id lists the assistant sends are bo
     };
     expect(h.actions.map((a) => a.objectId)).toEqual([A, B]);
     expect(result.summary).toMatchObject({ total: 2, succeeded: 2 });
+  });
+});
+
+describe('issue #241 — the bulk field mutations write each product through the product.update Command', () => {
+  const editable = (id: string, visibility: string): Row =>
+    ({ ...product(id), type: 'simple', status: 'active', visibility, attributeValues: {}, allowedOrganizationIds: [] }) as Row;
+
+  it('set_products_visibility runs one audited product.update per product, through the bus', async () => {
+    const h = harness([editable(A, 'public'), editable(B, 'public')]);
+    const result = (await h.tool('catalog.set_products_visibility').execute(
+      { productIds: [A, B], visibility: 'logged_in_only' },
+      toolCtx,
+    )) as { summary: { total: number; succeeded: number } };
+    expect(h.actions).toEqual([
+      { action: 'product.update', objectId: A, audited: true },
+      { action: 'product.update', objectId: B, audited: true },
+    ]);
+    expect(result.summary).toMatchObject({ total: 2, succeeded: 2 });
+  });
+
+  it('a product already holding the value runs the Command but records no entry', async () => {
+    const h = harness([editable(A, 'logged_in_only')]);
+    await h.tool('catalog.set_products_visibility').execute({ productIds: [A], visibility: 'logged_in_only' }, toolCtx);
+    expect(h.actions).toEqual([{ action: 'product.update', objectId: A, audited: false }]);
   });
 });
