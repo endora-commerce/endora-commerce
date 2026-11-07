@@ -1,5 +1,5 @@
 import { describe, expect, it } from 'vitest';
-import { ANONYMOUS_PRODUCT_AUDIENCE, type CatalogProductReadPort } from '@endora-commerce/contracts';
+import { ANONYMOUS_PRODUCT_AUDIENCE, ERROR_CODES, type CatalogProductReadPort } from '@endora-commerce/contracts';
 import {
   buildFilterExpression,
   SearchBackendUnavailable,
@@ -43,6 +43,55 @@ describe('buildFilterExpression', () => {
     expect(
       buildFilterExpression({ attributeFilters: { name: ['a "quoted" thing'] } }),
     ).toEqual(['(attributes.name = "a \\"quoted\\" thing")']);
+  });
+
+  // Issue #687 — a value is always one literal. A trailing backslash used to
+  // escape the closing quote, so `abc\` turned the clause into a parse error.
+  it('escapes a backslash before a double quote in values (issue #687)', () => {
+    expect(
+      buildFilterExpression({ attributeFilters: { series: ['abc\\'] } }),
+    ).toEqual(['(attributes.series = "abc\\\\")']);
+    expect(
+      buildFilterExpression({ attributeFilters: { series: ['a\\"b'] } }),
+    ).toEqual(['(attributes.series = "a\\\\\\"b")']);
+    expect(
+      buildFilterExpression({ attributeFilters: { series: ['x" OR categorySlugs = "y'] } }),
+    ).toEqual(['(attributes.series = "x\\" OR categorySlugs = \\"y")']);
+  });
+
+  it('escapes a backslash in the category slug (issue #687)', () => {
+    expect(buildFilterExpression({ categorySlug: 'tools\\' })).toEqual([
+      'categorySlugs = "tools\\\\"',
+    ]);
+  });
+
+  it.each([
+    'x = 1 OR categorySlugs',
+    'color)',
+    'color"',
+    'color OR attributes.secret',
+    'Color',
+    'a.b',
+    'a-b',
+    '1abc',
+    `a${'b'.repeat(64)}`,
+    '',
+  ])('refuses the hostile attribute key %j as not filterable (issue #687)', (key) => {
+    let thrown: unknown;
+    try {
+      buildFilterExpression({ attributeFilters: { [key]: ['red'] } });
+    } catch (err) {
+      thrown = err;
+    }
+    expect(thrown).toMatchObject({ statusCode: 400, code: ERROR_CODES.FILTER_NOT_ALLOWED });
+  });
+
+  it('accepts every key the attribute creation rule admits, up to its 64 characters', () => {
+    const longest = `a${'b'.repeat(63)}`;
+    expect(buildFilterExpression({ attributeFilters: { [longest]: ['x'], a1_b: ['y'] } })).toEqual([
+      `(attributes.${longest} = "x")`,
+      '(attributes.a1_b = "y")',
+    ]);
   });
 });
 
