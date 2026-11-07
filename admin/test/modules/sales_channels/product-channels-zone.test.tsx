@@ -143,8 +143,12 @@ describe('sales_channels contributes the product editor channels zone', () => {
   it('renders the membership panel for the product it is mounted on', async () => {
     const container = renderZone({});
     await waitFor(() => expect(container.textContent).toContain('membership.title'));
-    expect(getSpy).toHaveBeenCalledWith(
-      `/api/v1/admin/sales-channels/by-entity/product/${PRODUCT_ID}`,
+    // The title is in the commit that mounts the panel, and the panel starts its
+    // read from that commit's effect: wait for it (issue #418).
+    await waitFor(() =>
+      expect(getSpy).toHaveBeenCalledWith(
+        `/api/v1/admin/sales-channels/by-entity/product/${PRODUCT_ID}`,
+      ),
     );
   });
 
