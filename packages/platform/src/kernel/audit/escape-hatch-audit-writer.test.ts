@@ -455,3 +455,152 @@ describe('module attribution', () => {
     ).toBe('host');
   });
 });
+
+/**
+ * Issue #120 — a process start is one access, not one per boot step.
+ *
+ * Every composing process entered a system scope once per boot step and per
+ * module boot hook, and each reason was its own row: 26 rows from 55 entries
+ * before a command did any work. The architect's ruling of 2026-11-07 keeps the
+ * count and drops the noise: `composeApp` brackets its boot with
+ * `beginBoot()`/`endBoot()`, and every `boot: …` record inside the bracket
+ * folds into **one** row whose payload carries the per-(module, reason)
+ * breakdown. Anything else — inside the bracket or out — is written as before.
+ */
+describe('a process start is one row', () => {
+  const bootEntry = (reason: string): Promise<number> =>
+    enterSystemScope(reason, async () => 1, { entryPoint: 'boot', container: createRootContainer() });
+
+  it('folds every boot record inside the bracket into one row whose breakdown sums to them', async () => {
+    observePreviousSink();
+    const db = fakeDb();
+    const writer = attach({ em: db.em, log: () => {} });
+
+    writer.beginBoot();
+    await bootEntry('boot: load module presence');
+    await bootEntry('boot: inventory');
+    await bootEntry('boot: inventory');
+    await withSystemScope('boot: reconcile module settings manifests', async () => 1);
+    writer.endBoot();
+    await writer.flush();
+
+    expect(db.rows).toHaveLength(1);
+    const row = db.rows[0]!;
+    expect(row['action']).toBe(ESCAPE_HATCH_AUDIT_ACTION);
+    expect(row['objectType']).toBe('tenant_scope');
+    expect(row['objectId']).toBe('system');
+    expect(row.stateAfter).toMatchObject({
+      scope: 'system',
+      reason: 'boot: process start',
+      entryPoint: 'boot',
+      module: 'platform',
+      occurrences: 4,
+    });
+    const breakdown = row.stateAfter['breakdown'] as Array<{
+      module: string;
+      reason: string;
+      occurrences: number;
+    }>;
+    expect(breakdown).toEqual([
+      { module: 'platform', reason: 'boot: load module presence', occurrences: 1 },
+      { module: 'platform', reason: 'boot: inventory', occurrences: 2 },
+      { module: 'platform', reason: 'boot: reconcile module settings manifests', occurrences: 1 },
+    ]);
+    expect(breakdown.reduce((sum, entry) => sum + entry.occurrences, 0)).toBe(
+      row.stateAfter['occurrences'],
+    );
+  });
+
+  it('writes no partial boot row when a flush lands mid-boot', async () => {
+    observePreviousSink();
+    const db = fakeDb();
+    const writer = attach({ em: db.em, log: () => {} });
+
+    writer.beginBoot();
+    await bootEntry('boot: catalog');
+    await writer.flush();
+    expect(db.rows, 'a flush inside the bracket wrote part of the boot').toHaveLength(0);
+    await bootEntry('boot: cms');
+    writer.endBoot();
+    await writer.flush();
+
+    expect(db.rows).toHaveLength(1);
+    expect(db.rows[0]?.stateAfter['occurrences']).toBe(2);
+  });
+
+  it('writes a record that is not a boot step as before, inside the bracket too', async () => {
+    observePreviousSink();
+    const db = fakeDb();
+    const writer = attach({ em: db.em, log: () => {} });
+
+    writer.beginBoot();
+    await bootEntry('boot: orders');
+    await withSystemScope('test: a worker tick during boot', async () => 1);
+    writer.endBoot();
+    await writer.flush();
+
+    expect(db.rows.map((row) => row.stateAfter['reason']).sort()).toEqual([
+      'boot: process start',
+      'test: a worker tick during boot',
+    ]);
+  });
+
+  it('writes a boot record outside the bracket as before', async () => {
+    observePreviousSink();
+    const db = fakeDb();
+    const writer = attach({ em: db.em, log: () => {} });
+
+    writer.beginBoot();
+    writer.endBoot();
+    await bootEntry('boot: late plugin body');
+    await writer.flush();
+
+    expect(db.rows).toHaveLength(1);
+    expect(db.rows[0]?.stateAfter).toMatchObject({ reason: 'boot: late plugin body', occurrences: 1 });
+    expect(db.rows[0]?.stateAfter['breakdown']).toBeUndefined();
+  });
+
+  it('writes nothing for a bracket that saw no boot record, and closes once', async () => {
+    observePreviousSink();
+    const db = fakeDb();
+    const writer = attach({ em: db.em, log: () => {} });
+
+    writer.beginBoot();
+    writer.endBoot();
+    writer.endBoot();
+    await writer.flush();
+
+    expect(db.rows).toHaveLength(0);
+  });
+
+  it('keeps the boot row when the writer is detached with the bracket still open', async () => {
+    observePreviousSink();
+    const db = fakeDb();
+    const writer = attachEscapeHatchAuditWriter({ em: db.em, log: () => {}, flushIntervalMs: 3_600_000 });
+
+    writer.beginBoot();
+    await bootEntry('boot: payments');
+    await writer.detach();
+
+    expect(db.rows).toHaveLength(1);
+    expect(db.rows[0]?.stateAfter).toMatchObject({ reason: 'boot: process start', occurrences: 1 });
+  });
+
+  it('retries a failed boot row as one row, keeping its breakdown', async () => {
+    observePreviousSink();
+    const db = fakeDb();
+    const writer = attach({ em: db.em, log: () => {} });
+
+    writer.beginBoot();
+    await bootEntry('boot: taxes');
+    writer.endBoot();
+    db.failNext = 1;
+    await writer.flush();
+    await writer.flush();
+
+    expect(db.rows).toHaveLength(1);
+    expect(db.rows[0]?.stateAfter['breakdown']).toEqual([
+      { module: 'platform', reason: 'boot: taxes', occurrences: 1 },
+    ]);
+  });
+});

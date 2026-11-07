@@ -1,6 +1,6 @@
 import { randomUUID } from 'node:crypto';
 import type { EntityManager, FilterQuery } from '@mikro-orm/postgresql';
-import { QueryOrder, raw, UniqueConstraintViolationException } from '@mikro-orm/core';
+import { LockMode, QueryOrder, raw, UniqueConstraintViolationException } from '@mikro-orm/core';
 import {
   ERROR_CODES,
   normalizeEmailAddress,
@@ -34,6 +34,7 @@ import {
   toOneCustomerAccountRecord,
 } from './customer-account-ports.js';
 import type { TwoFactorEnrolmentReader } from './two-factor-enrolments.js';
+import { anyRowExists, type WorkRows } from './scheduled-work-probe.js';
 
 /**
  * The account lifecycle `customers` runs over this module's table
@@ -71,6 +72,22 @@ export const ANONYMIZED_CUSTOMER_NAME = 'Deleted customer';
  * scrubbed account. `passwordSetAt` is cleared beside it (issue #222).
  */
 export const ANONYMIZED_PASSWORD_HASH = 'anonymized-no-login';
+
+/**
+ * The accounts the retention sweep anonymises at `cutoff`, as a row source —
+ * **the one statement of that rule** (issue #857). Soft-deleted before the
+ * cutoff and not anonymised yet. `listDueForAnonymization` lists through it and
+ * `hasDueForAnonymization` asks through it, so a condition added here is added
+ * to both by the same edit and the sweep's question cannot drift from its work
+ * list.
+ */
+function dueForAnonymization(cutoff: Date): WorkRows {
+  return {
+    from:
+      'from "customer_accounts" where "deleted_at" is not null and "deleted_at" < ? and "anonymized_at" is null',
+    params: [cutoff],
+  };
+}
 
 function blockSnapshot(account: CustomerAccount): Record<string, unknown> {
   return {
@@ -453,11 +470,24 @@ export class CustomerAccountLifecycleWriteService implements CustomerAccountLife
   }
 
   async listDueForAnonymization(cutoff: Date): Promise<CustomerAccountRecord[]> {
-    const accounts = await this.emFactory().find(CustomerAccount, {
-      deletedAt: { $ne: null, $lt: cutoff },
-      anonymizedAt: null,
-    });
+    const em = this.emFactory();
+    const due = dueForAnonymization(cutoff);
+    // The ids through the shared row source, then the entities through the ORM,
+    // so the tenant filter still applies to what is returned.
+    const rows = await em.execute<Array<{ id: string }>>(`select "id" ${due.from}`, [...due.params]);
+    if (rows.length === 0) return [];
+    const accounts = await em.find(CustomerAccount, { id: { $in: rows.map((row) => row.id) } });
     return toCustomerAccountRecords(this.twoFactorEnrolments, accounts);
+  }
+
+  /**
+   * The sweep tick's question, asked outside any tenant scope (issue #857;
+   * `docs/docs/architecture/tenant-scoping.md` § *A scheduled tick with nothing
+   * to do enters no scope*). It learns one bit, through `anyRowExists`, over the
+   * work list's own row source.
+   */
+  async hasDueForAnonymization(cutoff: Date): Promise<boolean> {
+    return anyRowExists(this.emFactory(), [dueForAnonymization(cutoff)]);
   }
 
   /**
@@ -479,7 +509,12 @@ export class CustomerAccountLifecycleWriteService implements CustomerAccountLife
     // system-initiated scrub on a timer, audited below with the null actor
     // that fact deserves, not an operator-initiated write.
     const { row: account, transitioned } = await this.emFactory().transactional(async (tem) => {
-      const row = await this.#load(tem, customerAccountId);
+      // Issue #857 — the row is locked before `anonymizedAt` is read. Two
+      // passes can reach one account at once (a tick BullMQ hands back after
+      // its lock lapsed); without the lock both read `null` and both scrub,
+      // audit and announce. With it the second waits, then reads the first's
+      // commit and returns the account unchanged.
+      const row = await this.#load(tem, customerAccountId, LockMode.PESSIMISTIC_WRITE);
       if (row.anonymizedAt) return { row, transitioned: false };
       row.email = `deleted+${row.id}@anonymized.invalid`;
       row.firstName = ANONYMIZED_CUSTOMER_NAME;
@@ -538,11 +573,11 @@ export class CustomerAccountLifecycleWriteService implements CustomerAccountLife
     });
   }
 
-  async #load(em: EntityManager, id: string): Promise<CustomerAccount> {
+  async #load(em: EntityManager, id: string, lockMode?: LockMode): Promise<CustomerAccount> {
     if (!isUuidShape(id)) {
       throw new HttpError(404, ERROR_CODES.CUSTOMER_NOT_FOUND, 'Customer not found.');
     }
-    const account = await em.findOne(CustomerAccount, { id });
+    const account = await em.findOne(CustomerAccount, { id }, lockMode !== undefined ? { lockMode } : {});
     if (!account) {
       throw new HttpError(404, ERROR_CODES.CUSTOMER_NOT_FOUND, 'Customer not found.');
     }

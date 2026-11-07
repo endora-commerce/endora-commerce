@@ -66,8 +66,9 @@ function codeOf(relativePath: string): string {
 }
 
 /**
- * The four routes `App.tsx` declares that belong to no module, in source order,
- * each with the reason it is the admin application's own.
+ * The five routes `App.tsx` declares that belong to no module, in source order,
+ * each with the reason it is the admin application's own. Issue #859 added the
+ * fifth, `/login`.
  *
  * **It was four until feature 134's wave 1**, and losing one is the interesting
  * part rather than a tidy-up. `/settings/dhl-parcel` was a `<Navigate>` to a
@@ -86,6 +87,10 @@ function codeOf(relativePath: string): string {
  * the destination, not what supplies the element.**
  */
 const HOST_ROUTES = [
+  // Issue #859: the sign-in address, for an admin who is already signed in. The
+  // sign-in screen is the shell's own, and the route leads to the dashboard or
+  // to a `?next=` path, so no module declares its destination.
+  '/login',
   // The dashboard. `admin/src/modules/home/` is claimed by no nav entry, so the
   // layout derivation leaves it host-owned rather than attributing it by name.
   'index',
@@ -120,7 +125,7 @@ const HOST_NAV = [
 ];
 
 describe('SC-007 — the admin application declares its own registrations and no module’s', () => {
-  it('declares exactly the four host routes, and those four', () => {
+  it('declares exactly the five host routes, and those five', () => {
     const app = codeOf('../packages/admin-shell/src/App.tsx');
     // Every `<Route` the host declares with a **literal** destination: `index`,
     // or a `path="…"` string. Three `<Route` elements in that file are not

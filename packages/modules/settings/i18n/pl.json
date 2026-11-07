@@ -174,5 +174,8 @@
   "editor.credentialRef.preview": "Podgląd",
   "actions.openSettings.keywords": "ustawienia",
   "actions.openSettingGroups.keywords": "ustawienia, grupy",
-  "actions.clearCache.keywords": "wyczyść, pamięć"
+  "actions.clearCache.keywords": "wyczyść, pamięć",
+  "settingGroups.general.name": "Ogólne",
+  "settingGroups.shop.name": "Informacje o sklepie",
+  "settingGroups.storefront.name": "Sklep internetowy"
 }

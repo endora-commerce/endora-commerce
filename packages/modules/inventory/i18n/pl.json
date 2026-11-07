@@ -41,5 +41,6 @@
   "actions.openWarehouses.keywords": "magazyn, magazyny",
   "actions.openLowStock.keywords": "niskie, stan, próg",
   "actions.openStockNotifications.keywords": "powiadomienia, dostępność",
-  "actions.importStock.keywords": "stany, magazyn"
+  "actions.importStock.keywords": "stany, magazyn",
+  "settingGroups.inventory.name": "Stany magazynowe"
 }

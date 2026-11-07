@@ -186,6 +186,11 @@ Na stronie modułu `price_lists` opisano, jak wybierana jest cena, którą płac
   bo miejsce, od którego prowadzi dalej, może być produktem, którego oglądający nie widzi. Kursor,
   którego nie da się otworzyć — zmieniony, wydany przez wersję sprzed pieczętowania albo przed zmianą
   klucza sesji instancji — zaczyna listę od pierwszej strony.
+- **Stronicowanie i czas utworzenia** — domyślny porządek, a także porządek produktów bez ceny, które
+  następują po porządku według ceny, to czas utworzenia produktu, od najnowszego. Jest on zapisywany
+  z dokładnością do milisekundy: wartość zapisana przez SQL, na przykład `now()` importu lub wstawiania
+  hurtowego, jest przy zapisie zaokrąglana do milisekundy. Dzięki temu przejście przez listę kursorem
+  pokazuje każdy produkt raz, także produkty utworzone w tej samej milisekundzie.
 - **Odczyt wskazanych produktów** — `?ids=<id>,<id>,…` w `GET /api/v1/catalog/products` zawęża
   listę do tych produktów: najwyżej 24 różne identyfikatory, każdy w formacie uuid, w przeciwnym
   razie `400 VALIDATION_FAILED`. Odpowiedź zawiera te z nich, które oglądający może zobaczyć,

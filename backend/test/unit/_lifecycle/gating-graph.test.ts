@@ -99,6 +99,10 @@ describe('acknowledgedPortEdgesFrom — the withheld edges, from the manifests',
     // session acts under through `organizations`' `organizationRoleReadPort`,
     // and `organizations` declares `admin_users`.
     //
+    // And one with issue #332: `assets_library` pushes its retention-days write
+    // validator into `settings`' `settingWriteValidatorRegistry`, and `settings`
+    // declares `assets_library`.
+    //
     // What makes the acknowledgement honest is that the edge is in the refusal
     // graph either way: withholding it from `dependencies` withdraws the
     // ordering claim and nothing else, so no owner becomes switchable-off
@@ -115,6 +119,7 @@ describe('acknowledgedPortEdgesFrom — the withheld edges, from the manifests',
       'admin_roles:adminUserReadPort',
       'admin_users:customerAccountReadPort',
       'admin_users:organizationRoleReadPort',
+      'assets_library:settingWriteValidatorRegistry',
       'auth:customerOrgResolver',
       'carts:promotionCodePort',
       'carts:promotionService',

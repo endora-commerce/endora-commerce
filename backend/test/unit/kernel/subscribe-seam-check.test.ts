@@ -11,6 +11,7 @@ import {
   findSeamForwarders,
   findWorkerFactories,
   keyOf,
+  scanSubscribeSeam,
 } from '../../../scripts/check-subscribe-seam.js';
 
 /**
@@ -363,6 +364,10 @@ describe('the tree itself', () => {
   // reads, so the two cannot come to disagree about what the tree is.
   let layout: ModuleTreeLayout;
   let sources: Map<string, string>;
+  // One scan, the one the CLI runs: inside a shared-parse scope it reads each
+  // source once for both halves, where calling each half on its own parsed the
+  // tree four times and timed out under load in `test:unit:fast` (issue #910).
+  let scan: ReturnType<typeof scanSubscribeSeam>;
 
   beforeAll(async () => {
     layout = await requireModuleLayout('[subscribe-seam-test]');
@@ -370,10 +375,12 @@ describe('the tree itself', () => {
     for (const root of layout.sourceRoots) {
       for (const [key, text] of readTree(root)) sources.set(key, text);
     }
+    scan = scanSubscribeSeam({ sources });
   });
 
   it('has no queue consumer outside the seam, and an empty ledger', () => {
-    const result = checkWorkerSeam({ sources }, WORKERS_OUTSIDE_THE_SEAM);
+    // The scan judges against the shipped ledger, `WORKERS_OUTSIDE_THE_SEAM`.
+    const result = scan.workers;
     // The vacuous-pass guard the check itself exits 2 on: this tree has queue
     // consumers, so reading none means the analysis stopped working.
     expect(result.sites.length, 'no worker site read — a vacuous pass').toBeGreaterThan(10);
@@ -384,7 +391,8 @@ describe('the tree itself', () => {
 
   it('has no bare subscription left, and an empty ledger', () => {
     expect(sources.size, 'no sources found — a vacuous pass').toBeGreaterThan(100);
-    const result = checkSubscribeSeam({ sources }, BARE_SUBSCRIPTIONS_TO_DRAIN);
+    // The scan judges against the shipped ledger, `BARE_SUBSCRIPTIONS_TO_DRAIN`.
+    const result = scan.result;
     expect(result.violations.map((v) => `${v.file}:${v.event}`)).toEqual([]);
     expect(result.stale).toEqual([]);
     expect(Object.keys(BARE_SUBSCRIPTIONS_TO_DRAIN)).toEqual([]);

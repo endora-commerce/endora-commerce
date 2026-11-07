@@ -38,6 +38,7 @@ Everything below is a **peer** dependency, so the application resolves exactly o
 ## What the tarball carries
 
 - `dist/` — the compiled JavaScript and its type declarations
+- `i18n/` — the translation bundles this package ships (`en`, `pl`), loaded by the platform
 
 ## Install
 

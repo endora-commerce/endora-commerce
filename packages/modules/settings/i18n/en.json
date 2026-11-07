@@ -174,5 +174,8 @@
   "editor.credentialRef.preview": "Preview",
   "actions.openSettings.keywords": "settings",
   "actions.openSettingGroups.keywords": "settings, groups",
-  "actions.clearCache.keywords": "clear, memory"
+  "actions.clearCache.keywords": "clear, memory",
+  "settingGroups.general.name": "General",
+  "settingGroups.shop.name": "Shop information",
+  "settingGroups.storefront.name": "Storefront"
 }

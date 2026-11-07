@@ -33,5 +33,6 @@
   "mappings.action.purchase": "Złożenie zamówienia",
   "mappings.action.contact_form_submitted": "Zapis formularza kontaktowego",
   "actions.openLinkedInAds.keywords": "konwersje, reklamy",
-  "actions.newConversionMapping.keywords": "konwersja, mapowanie"
+  "actions.newConversionMapping.keywords": "konwersja, mapowanie",
+  "settingGroups.linkedin_ads.name": "LinkedIn Ads"
 }

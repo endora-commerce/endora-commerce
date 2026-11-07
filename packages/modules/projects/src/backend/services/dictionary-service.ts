@@ -27,6 +27,15 @@ import { isUuid } from './project-access.js';
  * `.update`, `.archive`, `.restore`, `.delete`. Every refusal is checked
  * before the Command; the delete checks again inside it, on the locked row.
  *
+ * **Concurrency (issue #453).** A create and a rename take the dictionary's
+ * advisory lock (`projects.dictionary:<table>`) first inside their Command,
+ * and only then check the name — and, for a create, pick the code and read the
+ * next position. Two creates of one name therefore answer `201` and
+ * `409 nameTaken`, never a collision on the code's unique index and never a
+ * second row suffixed `_2`; a retry on the unique violation would have hidden exactly
+ * that. A dictionary may also lock a row against the writes that name it
+ * before its delete asks "in use?" ({@link DictionaryDefinition.lockForDelete}).
+ *
  * - The **code** is derived from the default name when the row is added
  *   (`slugify`, `_`-separated, a numeric suffix when another row holds it) and
  *   never changes — the analytics and the events name a row by it.
@@ -54,6 +63,11 @@ export interface DictionaryDefinition {
   fallbackCode: string;
   /** Whether a Project or a Template uses row `id` — read on the Command's `em`. */
   inUse: (em: EntityManager, id: string) => Promise<boolean>;
+  /**
+   * Taken inside the delete's Command before `inUse` is asked, where a write
+   * naming the row is not stopped by a foreign key (Roles: `role-locks.ts`).
+   */
+  lockForDelete?: (em: EntityManager, id: string) => Promise<void>;
 }
 
 export interface DictionaryServiceDeps {
@@ -104,8 +118,6 @@ export class DictionaryService {
 
   /** `POST` — an operator row, last in order. */
   async create(body: DictionaryBody, language: string): Promise<DictionaryEntry> {
-    const em = this.deps.emFactory();
-    await this.#assertNameFree(em, body.defaultName, null);
     const { entity, objectType, actionPrefix } = this.definition;
     const id = randomUUID();
     await this.deps.commandBus.run({
@@ -114,6 +126,10 @@ export class DictionaryService {
       objectId: id,
       run: async ({ em: tx }) => {
         const scoped = tx as EntityManager;
+        // Issue #453 — the dictionary's turn first; the name, the code and the
+        // position are all read under it.
+        await this.#lockDictionary(scoped);
+        await this.#assertNameFree(scoped, body.defaultName, null);
         const code = await this.#freeCode(scoped, body.defaultName);
         const [{ next }] = (await scoped.execute(
           `select coalesce(max("position"), 0) + 10 as "next" from "${this.definition.table}"`,
@@ -134,16 +150,21 @@ export class DictionaryService {
 
   /** `PATCH /:id` — renaming; the code never changes. `name` replaces the names per language. */
   async update(id: string, patch: DictionaryPatch, language: string): Promise<DictionaryEntry> {
-    const em = this.deps.emFactory();
-    if (!(await this.#find(em, id))) throw notFound();
-    if (patch.defaultName !== undefined) await this.#assertNameFree(em, patch.defaultName, id);
+    if (!(await this.#find(this.deps.emFactory(), id))) throw notFound();
     const { objectType, actionPrefix } = this.definition;
     await this.deps.commandBus.run({
       action: `${actionPrefix}.update`,
       objectType,
       objectId: id,
       run: async ({ em: tx }) => {
-        const row = await this.#find(tx as EntityManager, id, true);
+        const scoped = tx as EntityManager;
+        // Issue #453 — a rename checks the name under the dictionary's turn,
+        // the one a create holds while it checks and writes.
+        if (patch.defaultName !== undefined) {
+          await this.#lockDictionary(scoped);
+          await this.#assertNameFree(scoped, patch.defaultName, id);
+        }
+        const row = await this.#find(scoped, id, true);
         if (!row) throw notFound();
         const before = snapshot(row);
         if (patch.name !== undefined) row.name = patch.name;
@@ -178,6 +199,8 @@ export class DictionaryService {
       objectId: id,
       run: async ({ em: tx }) => {
         const scoped = tx as EntityManager;
+        // Issue #453 — before "in use?": a write naming the row waits, or is waited for.
+        await this.definition.lockForDelete?.(scoped, id);
         const locked = await this.#find(scoped, id, true);
         if (!locked) throw notFound();
         // Again on the locked row: a Project may have taken it since.
@@ -225,6 +248,13 @@ export class DictionaryService {
         'Projects or templates use this entry, so it cannot be deleted. Archive it instead.',
       );
     }
+  }
+
+  /** The dictionary's advisory lock, held until the Command's transaction ends. */
+  async #lockDictionary(em: EntityManager): Promise<void> {
+    await em.execute('select pg_advisory_xact_lock(hashtextextended(?, 0))', [
+      `projects.dictionary:${this.definition.table}`,
+    ]);
   }
 
   async #find(em: EntityManager, id: string, lock = false): Promise<Row | null> {
