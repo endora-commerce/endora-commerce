@@ -18,13 +18,19 @@ import type { ModuleActionPresence } from '../lib/module-action-presence';
 export function ProductRow(props: {
   product: ProductSummary;
   locale: string;
+  /**
+   * @deprecated Use `product.vatRate`, the buyer's rate the catalogue read resolves (issue #852).
+   * Kept so a caller written against the old prop contract still compiles (`THEMING.md`); when
+   * passed it overrides `product.vatRate`.
+   */
+  vatRate?: number | null;
   /** Which action modules are present (issue #672): an unpriced row invites a quote only while `quote_requests` is. */
   presence: ModuleActionPresence;
 }): ReactNode {
   const { product, locale, presence } = props;
   // Issue #852 — the product's own rate for this buyer, as the catalogue read
   // resolved it; none, and the row shows the net, labelled net.
-  const vatRate = product.vatRate ?? null;
+  const vatRate = (props.vatRate !== undefined ? props.vatRate : product.vatRate) ?? null;
   const t = tForLocale(locale);
 
   // A unit price: its significant places, up to four (owner ruling of 2026-10-25).

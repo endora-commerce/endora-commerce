@@ -52,6 +52,12 @@ export function ProductCard(props: {
    *  the price block, sale treatment, and display-mode handling. */
   resolved?: PriceDisplay | null;
   /**
+   * @deprecated Use `product.vatRate`, the buyer's rate the catalogue read resolves (issue #852).
+   * Kept so a caller written against the old prop contract still compiles (`THEMING.md`); when
+   * passed it overrides `product.vatRate`.
+   */
+  vatRate?: number | null;
+  /**
    * The active sales channel. The card's compare toggle and action buttons call
    * the backend from the browser, where no request header carries it.
    */
@@ -66,7 +72,7 @@ export function ProductCard(props: {
   const { product, locale, stock, resolved, presence } = props;
   // Issue #852 — the product's own rate for this buyer, as the catalogue read
   // resolved it; none, and the card shows the net, labelled net.
-  const vatRate = product.vatRate ?? null;
+  const vatRate = (props.vatRate !== undefined ? props.vatRate : product.vatRate) ?? null;
   const t = tForLocale(locale);
 
   const stockNode = stock ? renderFromStorefrontStock(stock, locale, t) : stockFor(product, t, locale);

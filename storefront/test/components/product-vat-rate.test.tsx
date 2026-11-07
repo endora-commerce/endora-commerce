@@ -113,6 +113,23 @@ describe('ProductRow — the product’s own rate', () => {
   });
 });
 
+describe('the deprecated `vatRate` prop (issue #852)', () => {
+  it('still overrides the product’s rate on the card', () => {
+    const html = plain(
+      renderToString(
+        <ProductCard presence={ALL_PRESENT} product={summary(0.23)} vatRate={0.05} locale="pl-PL" salesChannelCode="retail" />,
+      ),
+    );
+    expect(html).toContain('brutto 105,00 zł');
+    expect(html).not.toContain('123,00');
+  });
+
+  it('still overrides the product’s rate on the row', () => {
+    const html = plain(renderToString(<ProductRow presence={ALL_PRESENT} product={summary()} vatRate={0.05} locale="pl-PL" />));
+    expect(html).toContain('brutto 105,00 zł');
+  });
+});
+
 describe('BaseSalePriceBlock — no flat default', () => {
   it('derives the gross at the rate it is given', () => {
     const html = plain(
