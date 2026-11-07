@@ -48,7 +48,7 @@ describe('CatalogBulkUpdateService — fields.scopedStatus', () => {
     const em = { findOne: async (_entity: unknown, where: { id: string }) => ({ id: where.id, attributeSetId: 'set' }) };
     const svc = new CatalogBulkUpdateService(
       () => em as unknown as EntityManager,
-      { completenessMode: async () => 'warn' } as unknown as CatalogAdminService,
+      { hasCommandBus: () => true, completenessMode: async () => 'warn' } as unknown as CatalogAdminService,
       undefined,
       undefined,
       {
@@ -123,7 +123,7 @@ describe('CatalogBulkUpdateService — fields.scopedStatus', () => {
     const em = { findOne: async (_entity: unknown, where: { id: string }) => ({ id: where.id, attributeSetId: 'set' }) };
     const svc = new CatalogBulkUpdateService(
       () => em as unknown as EntityManager,
-      { completenessMode: async () => undefined } as unknown as CatalogAdminService,
+      { hasCommandBus: () => true, completenessMode: async () => undefined } as unknown as CatalogAdminService,
     );
     const result = await svc.bulkUpdate({
       productIds: [P1],
@@ -146,6 +146,7 @@ describe('CatalogBulkUpdateService — the completeness gate (FR-061, US6 #4)', 
     const svc = new CatalogBulkUpdateService(
       () => em as unknown as EntityManager,
       {
+        hasCommandBus: () => true,
         completenessMode: async () => {
           reads += 1;
           return 'refuse';
@@ -171,7 +172,7 @@ describe('CatalogBulkUpdateService — the completeness gate (FR-061, US6 #4)', 
   it('refuse: a failing product is skipped as completeness_gate, the passing one changes', async () => {
     const svc = new CatalogBulkUpdateService(
       () => em as unknown as EntityManager,
-      { completenessMode: async () => 'refuse' } as unknown as CatalogAdminService,
+      { hasCommandBus: () => true, completenessMode: async () => 'refuse' } as unknown as CatalogAdminService,
       undefined,
       undefined,
       {
@@ -199,7 +200,7 @@ describe('CatalogBulkUpdateService — the completeness gate (FR-061, US6 #4)', 
   it('warn: the product succeeds and its result carries details.code SCOPE_INCOMPLETE', async () => {
     const svc = new CatalogBulkUpdateService(
       () => em as unknown as EntityManager,
-      { completenessMode: async () => 'warn' } as unknown as CatalogAdminService,
+      { hasCommandBus: () => true, completenessMode: async () => 'warn' } as unknown as CatalogAdminService,
       undefined,
       undefined,
       {
@@ -224,6 +225,7 @@ describe('CatalogBulkUpdateService — the completeness gate (FR-061, US6 #4)', 
     const svc = new CatalogBulkUpdateService(
       () => em as unknown as EntityManager,
       {
+        hasCommandBus: () => true,
         completenessMode: async () => {
           reads += 1;
           return 'refuse';
@@ -247,6 +249,7 @@ describe('CatalogBulkUpdateService — the completeness gate (FR-061, US6 #4)', 
     const svc = new CatalogBulkUpdateService(
       () => em as unknown as EntityManager,
       {
+        hasCommandBus: () => true,
         completenessMode: async () => {
           reads += 1;
           return 'refuse';
@@ -268,6 +271,7 @@ describe('CatalogBulkUpdateService — every product write is the audited Comman
     const svc = new CatalogBulkUpdateService(
       () => em as unknown as EntityManager,
       {
+        hasCommandBus: () => true,
         completenessMode: async () => 'warn',
         updateProductAudited: async (id: string, req: unknown, gate: unknown) => {
           audited.push({ id, req, gate });
@@ -288,5 +292,34 @@ describe('CatalogBulkUpdateService — every product write is the audited Comman
     expect(audited[0]!.req).toEqual({ status: 'inactive', visibility: 'logged_in_only' });
     expect(audited[0]!.gate).toMatchObject({ completeness: 'warn' });
     expect(result.summary).toEqual({ succeeded: 2, skipped: 0, failed: 0, total: 2 });
+  });
+});
+
+describe('CatalogBulkUpdateService — fails closed without a Command Bus (issue #241)', () => {
+  it('refuses the whole run before any product is read or written', async () => {
+    const reads: string[] = [];
+    const writes: string[] = [];
+    const em = {
+      findOne: async (_entity: unknown, where: { id: string }) => {
+        reads.push(where.id);
+        return { id: where.id, attributeSetId: 'set' };
+      },
+    };
+    const svc = new CatalogBulkUpdateService(
+      () => em as unknown as EntityManager,
+      {
+        hasCommandBus: () => false,
+        completenessMode: async () => undefined,
+        updateProductAudited: async (id: string) => {
+          writes.push(id);
+          return {};
+        },
+      } as unknown as CatalogAdminService,
+    );
+    await expect(svc.bulkUpdate({ productIds: [P1, P2], fields: { visibility: 'public' } })).rejects.toThrow(
+      /Command Bus/,
+    );
+    expect(reads).toEqual([]);
+    expect(writes).toEqual([]);
   });
 });

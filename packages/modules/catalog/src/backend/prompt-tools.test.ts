@@ -170,7 +170,6 @@ describe('163 P-1 — assistant tools to archive and restore products', () => {
     const ids = tools.map((t) => t.id);
     expect(ids).not.toContain('catalog.archive_product');
     expect(ids).not.toContain('catalog.restore_product');
-    expect(ids).toContain('catalog.set_product_status');
   });
 
   it('S-2: a per-item failure names an HttpError\'s message, never another error\'s', async () => {
@@ -250,5 +249,31 @@ describe('issue #241 — the bulk field mutations write each product through the
     const h = harness([editable(A, 'logged_in_only')]);
     await h.tool('catalog.set_products_visibility').execute({ productIds: [A], visibility: 'logged_in_only' }, toolCtx);
     expect(h.actions).toEqual([{ action: 'product.update', objectId: A, audited: false }]);
+  });
+});
+
+describe('issue #241 — without a Command Bus the bulk field mutations are not offered', () => {
+  it('contributes none of them, since each product write would go unaudited', () => {
+    const ids = harness([], { bus: false }).tools.map((t) => t.id);
+    for (const id of [
+      'catalog.assign_products_to_category',
+      'catalog.remove_products_from_category',
+      'catalog.set_product_status',
+      'catalog.set_products_visibility',
+    ]) {
+      expect(ids).not.toContain(id);
+    }
+  });
+
+  it('contributes all of them with the bus', () => {
+    const ids = harness([]).tools.map((t) => t.id);
+    expect(ids).toEqual(
+      expect.arrayContaining([
+        'catalog.assign_products_to_category',
+        'catalog.remove_products_from_category',
+        'catalog.set_product_status',
+        'catalog.set_products_visibility',
+      ]),
+    );
   });
 });

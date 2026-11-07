@@ -1315,9 +1315,9 @@ export function registerModule(ctx: ModuleContext): void {
       auditLogService: cradle().auditLogService,
       salesChannelMembership: cradle().salesChannelMembershipPort,
       redis: cradle().redis,
-      // Feature 163 (P-1 = A) — the Archive / Restore tools' audited Commands.
-      // Read only when registered: a composition without a bus (the absent-owner
-      // harness) still boots, and the two tools are simply not offered.
+      // Feature 163 (P-1 = A), issue #241 — the bus every mutation tool's writes are
+      // audited through. Read only when registered: a composition without a bus (the
+      // absent-owner harness) still boots, and no mutation tool is offered.
       ...('commandBus' in cradle() ? { commandBus: cradle().commandBus } : {}),
     };
     const registry = cradle().promptActionToolRegistry;

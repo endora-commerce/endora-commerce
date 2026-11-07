@@ -68,7 +68,7 @@ export interface CatalogPromptToolsDeps {
    * confirming request. Without it those two tools are not contributed: the
    * service's bus-less fallback writes no audit entry. Since issue #241 the
    * four older mutations run their per-product writes through it too (the
-   * `product.update` Command); without it those writes are not audited.
+   * `product.update` Command), and without it no mutation tool is contributed.
    */
   commandBus?: CommandBus;
 }
@@ -388,12 +388,15 @@ export function catalogPromptMutationTools(deps: CatalogPromptToolsDeps): Prompt
       runBulkFieldsUpdate(services, { visibility: params.visibility }, params.productIds, ctx),
   };
 
+  // Issue #241 — without the bus no product mutation is offered: each would write
+  // unaudited (the bulk edit refuses to run, and Archive / Restore have no Command).
+  if (!deps.commandBus) return [];
   return [
     assignToCategory as PromptActionTool,
     removeFromCategory as PromptActionTool,
     setProductStatus as PromptActionTool,
     setProductsVisibility as PromptActionTool,
-    ...(deps.commandBus ? archiveRestoreTools(deps, deps.commandBus, bulkOperationService) : []),
+    ...archiveRestoreTools(deps, deps.commandBus, bulkOperationService),
   ].map(withUniqueProductIds);
 }
 

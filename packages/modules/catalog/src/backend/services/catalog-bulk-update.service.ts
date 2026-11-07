@@ -151,6 +151,13 @@ export class CatalogBulkUpdateService {
     auditCtx?: AdminAuditContext,
     opts?: BulkUpdateOptions,
   ): Promise<BulkUpdateResult> {
+    // Issue #241 — fail closed: without the Command Bus every product write below
+    // would be the unaudited fallback, so the run is refused before anything is read.
+    if (!this.catalogAdmin.hasCommandBus()) {
+      throw new Error(
+        'CatalogBulkUpdateService: no Command Bus is composed, so a bulk edit cannot audit its product writes; refusing to run.',
+      );
+    }
     // The synchronous request path caps the selection at MAX_BATCH_SIZE so a
     // single HTTP call never blocks on thousands of writes. The asynchronous
     // worker path (queued bulk operations) passes `skipBatchLimit` because it

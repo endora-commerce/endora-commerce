@@ -606,6 +606,15 @@ export class CatalogAdminService {
    * when nothing changed, issue #241). Falls back to the unaudited `updateProduct`
    * when no bus is injected (bus-less tests).
    */
+  /**
+   * Whether product writes run through the Command Bus, and so are audited. A bulk
+   * edit refuses to run when they do not (issue #241): its per-product writes would
+   * fall back to the unaudited `updateProduct`.
+   */
+  hasCommandBus(): boolean {
+    return this.commandBus !== undefined;
+  }
+
   async updateProductAudited(id: string, req: UpdateProductRequest, gate?: ProductUpdateGate): Promise<Product> {
     // Feature 172 (FR-014) — before the transaction, as on create.
     await this.#refuseContentAttributeValues(req.attributeValues as Record<string, unknown> | undefined);
