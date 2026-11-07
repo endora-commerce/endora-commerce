@@ -2,4 +2,4 @@
 '@endora-commerce/contracts': patch
 ---
 
-Adds `ATTRIBUTE_FILTER_KEY_PATTERN` (`/^[a-z0-9_]+$/`), the shape of `<key>` in a product listing's `filter[attr.<key>]=<value>` (issue #687). Every attribute key `createAttributeRequestSchema` admits matches it.
+Adds `attributeKeyShapeSchema`, the shape of an attribute key (snake_case starting with a letter, at most 64 characters), and `isAttributeKey(key)` (issue #687). `createAttributeRequestSchema` now takes its `key` rule from `attributeKeyShapeSchema`; what it accepts is unchanged.

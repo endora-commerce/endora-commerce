@@ -4,8 +4,8 @@ import type { CatalogQueryService } from './services/catalog-query.service.js';
 import type { ProductLinkService } from './services/product-link.service.js';
 import type { BundleService } from './services/bundle.service.js';
 import {
-  ATTRIBUTE_FILTER_KEY_PATTERN,
   ERROR_CODES,
+  isAttributeKey,
   isPriceSort,
   listingCurrencyQuerySchema,
   listingPriceChannelContext,
@@ -519,15 +519,16 @@ function parseListQuery(request: FastifyRequest): {
     const attrMatch = /^filter\[attr\.([^\]]+)\]$/.exec(key);
     if (attrMatch && attrMatch[1]) {
       const attrKey = attrMatch[1];
-      // Issue #687 — refused rather than dropped, like `?ids=`: the key reaches
-      // the Meilisearch filter expression unquoted, so nothing but an
-      // attribute-key-shaped identifier may get past the route.
-      if (!ATTRIBUTE_FILTER_KEY_PATTERN.test(attrKey)) {
+      // Issue #687 — the key reaches the Meilisearch filter expression
+      // unquoted, so a key no attribute could have stops here. It is one more
+      // key that is not filterable: the same refusal both backends give an
+      // undeclared one.
+      if (!isAttributeKey(attrKey)) {
         throw new HttpError(
           400,
-          ERROR_CODES.VALIDATION_FAILED,
-          `filter[attr.${attrKey}]: not a valid attribute key.`,
-          [{ path: `filter[attr.${attrKey}]`, issue: 'invalid attribute key' }],
+          ERROR_CODES.FILTER_NOT_ALLOWED,
+          `Attribute "${attrKey}" is not filterable.`,
+          [{ path: `filter[attr.${attrKey}]`, issue: 'attribute is not filterable' }],
         );
       }
       const values = Array.isArray(value) ? value.map(String) : [String(value)];

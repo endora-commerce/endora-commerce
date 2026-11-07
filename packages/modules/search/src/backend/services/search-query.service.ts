@@ -1,8 +1,8 @@
 import { Meilisearch, MeilisearchApiError, type SearchResponse } from 'meilisearch';
 import {
-  ATTRIBUTE_FILTER_KEY_PATTERN,
   ERROR_CODES,
   effectiveSystemText,
+  isAttributeKey,
   isOrderMinimumEligibleType,
   listingPriceChannelContext,
   resolveScopeLanguage,
@@ -588,14 +588,15 @@ export function buildFilterExpression(
   if (params.attributeFilters) {
     for (const [key, values] of Object.entries(params.attributeFilters)) {
       // Issue #687 — the key is interpolated unquoted, so only an
-      // attribute-key-shaped one may reach the expression. The route refuses
-      // the rest first; this holds for every other caller of the port.
-      if (!ATTRIBUTE_FILTER_KEY_PATTERN.test(key)) {
+      // attribute-key-shaped one may reach the expression: any other is one
+      // more key that is not filterable. The route refuses it first; this
+      // holds for every other caller of the port.
+      if (!isAttributeKey(key)) {
         throw new HttpError(
           400,
-          ERROR_CODES.VALIDATION_FAILED,
-          `Attribute filter key "${key}" is not a valid attribute key.`,
-          [{ path: `filter[attr.${key}]`, issue: 'invalid attribute key' }],
+          ERROR_CODES.FILTER_NOT_ALLOWED,
+          `Attribute "${key}" is not filterable.`,
+          [{ path: `filter[attr.${key}]`, issue: 'attribute is not filterable' }],
         );
       }
       if (values.length === 0) continue;

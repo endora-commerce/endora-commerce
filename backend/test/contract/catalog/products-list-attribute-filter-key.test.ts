@@ -9,11 +9,11 @@ import {
 /**
  * Issue #687 — the key half of `filter[attr.<key>]=<value>` is interpolated
  * into the Meilisearch filter expression (`attributes.<key> = "…"`), so the
- * route refuses a key that is not an attribute-key-shaped identifier before
- * either listing backend sees it. An attribute key is snake_case
- * (`createAttributeRequestSchema`), so `^[a-z0-9_]+$` admits every key that can
- * exist; a well-shaped key that is not a filterable attribute keeps its
- * `FILTER_NOT_ALLOWED`.
+ * route refuses a key that no attribute could have — one outside
+ * `attributeKeyShapeSchema`, the rule every attribute is created with — before
+ * either listing backend sees it. It is one more key that is not filterable,
+ * so the answer is the same `400 FILTER_NOT_ALLOWED` an undeclared key gets:
+ * the public error contract does not change.
  */
 describe('GET /api/v1/catalog/products — the attribute filter key (issue #687)', () => {
   let h: BackendServerHandle;
@@ -44,8 +44,10 @@ describe('GET /api/v1/catalog/products — the attribute filter key (issue #687)
     'Color',
     'a.b',
     'a-b',
-  ])('refuses the hostile key %j with a 400 VALIDATION_FAILED', async (key) => {
-    expect(await list(key)).toEqual({ status: 400, code: ERROR_CODES.VALIDATION_FAILED });
+    '1abc',
+    `a${'b'.repeat(64)}`,
+  ])('refuses the hostile key %j with a 400 FILTER_NOT_ALLOWED', async (key) => {
+    expect(await list(key)).toEqual({ status: 400, code: ERROR_CODES.FILTER_NOT_ALLOWED });
   });
 
   it('keeps FILTER_NOT_ALLOWED for a well-shaped key that is not a filterable attribute', async () => {

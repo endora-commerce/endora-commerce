@@ -1,5 +1,5 @@
 import { describe, expect, it } from 'vitest';
-import { ANONYMOUS_PRODUCT_AUDIENCE, type CatalogProductReadPort } from '@endora-commerce/contracts';
+import { ANONYMOUS_PRODUCT_AUDIENCE, ERROR_CODES, type CatalogProductReadPort } from '@endora-commerce/contracts';
 import {
   buildFilterExpression,
   SearchBackendUnavailable,
@@ -73,15 +73,25 @@ describe('buildFilterExpression', () => {
     'Color',
     'a.b',
     'a-b',
+    '1abc',
+    `a${'b'.repeat(64)}`,
     '',
-  ])('refuses the hostile attribute key %j with a 400 (issue #687)', (key) => {
+  ])('refuses the hostile attribute key %j as not filterable (issue #687)', (key) => {
     let thrown: unknown;
     try {
       buildFilterExpression({ attributeFilters: { [key]: ['red'] } });
     } catch (err) {
       thrown = err;
     }
-    expect(thrown).toMatchObject({ statusCode: 400 });
+    expect(thrown).toMatchObject({ statusCode: 400, code: ERROR_CODES.FILTER_NOT_ALLOWED });
+  });
+
+  it('accepts every key the attribute creation rule admits, up to its 64 characters', () => {
+    const longest = `a${'b'.repeat(63)}`;
+    expect(buildFilterExpression({ attributeFilters: { [longest]: ['x'], a1_b: ['y'] } })).toEqual([
+      `(attributes.${longest} = "x")`,
+      '(attributes.a1_b = "y")',
+    ]);
   });
 });
 
