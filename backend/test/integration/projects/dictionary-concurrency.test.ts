@@ -7,6 +7,7 @@ import {
   teardownBackendServer,
   type BackendServerHandle,
 } from '../../helpers/test-server.js';
+import { TEST_ADMIN_ID } from '../../helpers/test-actors.js';
 import { callProjects, createProject, deleteProjects } from './helpers.js';
 
 /**
@@ -281,6 +282,41 @@ describe('projects dictionaries — concurrent writes (#453)', () => {
         expect(response.statusCode, response.body).toBe(409);
         expect(errorCode(response)).toBe(ERROR_CODES.PROJECT_DICTIONARY_ENTRY_IN_USE);
         expect(await roleExists(roleId)).toBe(true);
+      } finally {
+        if (!committed) await other.rollback();
+      }
+    });
+
+    it('a delete while a Member save is between its check and its write: a clean refusal, never the foreign key', async () => {
+      const roleId = await freshRole();
+      const { projectId } = await freshStage();
+      const other = h.em().fork();
+      await other.begin();
+      let committed = false;
+      try {
+        await other.execute(`select 1 from "projects" where "id" = ? for update`, [projectId]);
+        const saving = tracked(
+          callProjects(h, 'PUT', `/${projectId}/members`, {
+            payload: { members: [{ adminUserId: TEST_ADMIN_ID, roleIds: [roleId] }] },
+          }),
+        );
+        await pause();
+        expect(saving.settled(), 'the Member save did not wait for the Project').toBe(false);
+
+        const deleting = tracked(deleteRole(roleId));
+        await pause();
+        await other.commit();
+        committed = true;
+        const [saved, deleted] = await Promise.all([saving.promise, deleting.promise]);
+
+        const outcome = [saved.statusCode, deleted.statusCode];
+        expect([[200, 409], [422, 204]], `save: ${saved.body} | delete: ${deleted.body}`).toContainEqual(outcome);
+        if (deleted.statusCode === 204) {
+          expect(await roleExists(roleId)).toBe(false);
+          expect(errorCode(saved)).toBe(ERROR_CODES.PROJECT_MEMBER_INVALID);
+        } else {
+          expect(errorCode(deleted)).toBe(ERROR_CODES.PROJECT_DICTIONARY_ENTRY_IN_USE);
+        }
       } finally {
         if (!committed) await other.rollback();
       }
