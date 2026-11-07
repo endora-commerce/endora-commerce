@@ -12,6 +12,7 @@ let isPersonal = false;
 let permissions: string[] = ['carts.approve'];
 let roleKind = 'custom';
 let carts: OrgCartSummary[] = [];
+let listFailure: Error | null = null;
 const filters: unknown[] = [];
 
 vi.mock('../../lib/session', () => ({
@@ -39,6 +40,7 @@ vi.mock('../../lib/api/account', () => ({
 vi.mock('../../lib/api/cart', () => ({
   listOrganizationCarts: async (_jar: unknown, filter: unknown) => {
     filters.push(filter);
+    if (listFailure) throw listFailure;
     return { data: carts, meta: { page: 1, pageSize: 20, totalCount: carts.length } };
   },
 }));
@@ -70,6 +72,7 @@ beforeEach(() => {
   locale = 'en-US';
   carts = [summary('c1', 'pending'), summary('c2', 'not_required')];
   filters.length = 0;
+  listFailure = null;
   isPersonal = false;
   permissions = ['carts.approve'];
   roleKind = 'custom';
@@ -232,5 +235,37 @@ describe('organization carts list — a completed cart links to its order (issue
     const html = await render();
     expect(html).not.toContain('/orders/');
     expect(html).toMatch(/<\/span><\/td><td>—<\/td><td>—<\/td>/);
+  });
+});
+
+/**
+ * Issue #658 — a failed list read says so in the page's language. The client
+ * throws a developer diagnostic (`organization/carts list failed with HTTP
+ * <status>`), and the page rendered it as given; like `/organization/roles`, it
+ * now shows its own sentence and a way to try again, and never an empty list.
+ */
+describe('organization carts list — a failed read (issue #658)', () => {
+  const RAW = 'organization/carts list failed with HTTP 503';
+
+  it.each([
+    ['en-US', 'Could not load the organization carts.', 'Try again'],
+    ['pl-PL', 'Nie udało się wczytać koszyków organizacji.', 'Spróbuj ponownie'],
+  ])('shows the translated failure, never the raw message (%s)', async (l, failed, retry) => {
+    locale = l;
+    listFailure = new Error(RAW);
+    const html = await render();
+    expect(html).toMatch(new RegExp(`<p[^>]*role="alert"[^>]*>${failed}`));
+    expect(html).toMatch(new RegExp(`<a[^>]*href="/organization/carts"[^>]*>${retry}</a>`));
+    expect(html).not.toContain(RAW);
+    expect(html).not.toContain('HTTP 503');
+    // Not "no carts": the list was not read, so nothing is said about it.
+    expect(html).not.toContain(l === 'en-US' ? 'No carts yet.' : 'Nie ma jeszcze żadnych koszyków.');
+  });
+
+  it('keeps the pending filter on the retry link', async () => {
+    listFailure = new Error(RAW);
+    const html = await render({ approval: 'pending' });
+    expect(html).toMatch(/<a[^>]*href="\/organization\/carts\?approval=pending"[^>]*>Try again<\/a>/);
+    expect(html).not.toContain(RAW);
   });
 });
