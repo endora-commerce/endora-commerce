@@ -1,4 +1,4 @@
-import type { EntityManager, FilterQuery } from '@mikro-orm/postgresql';
+import { QueryOrder, type EntityManager, type FilterQuery } from '@mikro-orm/postgresql';
 import type {
   CatalogProductPricingRef,
   CatalogAttributeValueQuery,
@@ -79,27 +79,35 @@ export class CatalogProductReadService implements CatalogProductReadPort {
     return products.map(toCatalogProductRecord);
   }
 
+  /**
+   * Issue #693 — a SKU is unique among live products only, so the wide read can meet a live
+   * product and deleted ones holding the same SKU. It answers the live one, else the most
+   * recently deleted, ordered so the choice is deterministic.
+   */
   async findBySku(
     sku: string,
     options?: CatalogProductLookupOptions,
   ): Promise<CatalogProductRecord | null> {
-    const product = await this.emFactory().findOne(Product, {
-      sku,
-      ...productFilter(options),
-    });
+    const product = await this.emFactory().findOne(
+      Product,
+      { sku, ...productFilter(options) },
+      { orderBy: LIVE_FIRST },
+    );
     return product ? toCatalogProductRecord(product) : null;
   }
 
+  /** One record per SKU, chosen as {@link findBySku} chooses it (issue #693). */
   async findBySkus(
     skus: readonly string[],
     options?: CatalogProductLookupOptions,
   ): Promise<CatalogProductRecord[]> {
     if (skus.length === 0) return [];
-    const products = await this.emFactory().find(Product, {
-      sku: { $in: [...skus] },
-      ...productFilter(options),
-    });
-    return products.map(toCatalogProductRecord);
+    const products = await this.emFactory().find(
+      Product,
+      { sku: { $in: [...skus] }, ...productFilter(options) },
+      { orderBy: LIVE_FIRST },
+    );
+    return firstPerSku(products).map(toCatalogProductRecord);
   }
 
   async countByIds(ids: readonly string[]): Promise<number> {
@@ -151,10 +159,18 @@ export class CatalogProductReadService implements CatalogProductReadPort {
     return variants.map(toCatalogProductVariantRecord);
   }
 
+  /**
+   * One variant per SKU: the live one, else the most recently deleted (issue #693) — a variant
+   * is deleted with its product, and its SKU may then be reused by a live variant.
+   */
   async findVariantsBySkus(skus: readonly string[]): Promise<CatalogProductVariantRecord[]> {
     if (skus.length === 0) return [];
-    const variants = await this.emFactory().find(ProductVariant, { sku: { $in: [...skus] } });
-    return variants.map(toCatalogProductVariantRecord);
+    const variants = await this.emFactory().find(
+      ProductVariant,
+      { sku: { $in: [...skus] } },
+      { orderBy: LIVE_FIRST },
+    );
+    return firstPerSku(variants).map(toCatalogProductVariantRecord);
   }
 
   async findVariantInProduct(
@@ -358,6 +374,22 @@ async function withSort<T>(em: EntityManager, sort: boolean, run: (tx: EntityMan
 
 /** Feature 161 (G15): the most matching members a searched page is cut from the trigram hits for. */
 export const SPARSE_SEARCH_LIMIT = 2000;
+
+/**
+ * Issue #693 — live rows first (`deleted_at` null sorts first under `desc nulls first`), then the
+ * most recently deleted, then by id: the order a lookup by SKU takes its one row in.
+ */
+const LIVE_FIRST = { deletedAt: QueryOrder.DESC_NULLS_FIRST, id: QueryOrder.ASC } as const;
+
+/** The first row of each SKU, in the order given. */
+function firstPerSku<T extends { sku: string }>(rows: readonly T[]): T[] {
+  const seen = new Set<string>();
+  return rows.filter((row) => {
+    if (seen.has(row.sku)) return false;
+    seen.add(row.sku);
+    return true;
+  });
+}
 
 /**
  * `{}` by default — the wider read. `liveOnly` drops soft-deleted rows,

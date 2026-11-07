@@ -19,13 +19,14 @@ export const PRODUCT_SKU_MAX = 255;
 export type SkuHolder = { productId: string } | { variantId: string };
 
 /**
- * The holder of `sku` other than `productId`, or `null` when it is free. Variants share the
- * namespace and the database does not enforce that, so both tables are read.
+ * The live holder of `sku` other than `productId`, or `null` when it is free. Variants share the
+ * namespace and the database does not enforce that, so both tables are read. A deleted product
+ * or variant holds nothing (issue #693): its row keeps the SKU, and the SKU is free for reuse.
  */
 export async function findSkuHolder(em: EntityManager, productId: string, sku: string): Promise<SkuHolder | null> {
-  const product = await em.findOne(Product, { sku }, { fields: ['id'] });
-  if (product && product.id !== productId) return { productId: product.id };
-  const variant = await em.findOne(ProductVariant, { sku }, { fields: ['id'] });
+  const product = await em.findOne(Product, { sku, id: { $ne: productId }, deletedAt: null }, { fields: ['id'] });
+  if (product) return { productId: product.id };
+  const variant = await em.findOne(ProductVariant, { sku, deletedAt: null }, { fields: ['id'] });
   if (variant) return { variantId: variant.id };
   return null;
 }

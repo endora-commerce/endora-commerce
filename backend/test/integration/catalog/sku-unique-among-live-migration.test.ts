@@ -1,7 +1,7 @@
 import { afterAll, afterEach, beforeAll, beforeEach, describe, expect, it } from 'vitest';
 import { randomUUID } from 'node:crypto';
 import type { EntityManager } from '@mikro-orm/postgresql';
-import { Migration20261107T091006CatalogSkuUniqueAmongLive } from '@endora-commerce/mod-catalog/migrations';
+import { Migration20261107T093126CatalogSkuUniqueAmongLive } from '@endora-commerce/mod-catalog/migrations';
 import { setupTestDb, type TestDb } from '../../helpers/test-db.js';
 
 /**
@@ -30,7 +30,7 @@ describe('catalog sku_unique_among_live migration (issue #693)', () => {
   afterAll(async () => db.close());
 
   async function runUp(): Promise<void> {
-    const m = new Migration20261107T091006CatalogSkuUniqueAmongLive(em.getDriver(), em.config);
+    const m = new Migration20261107T093126CatalogSkuUniqueAmongLive(em.getDriver(), em.config);
     await m.up();
     for (const query of m.getQueries()) await em.execute(query as unknown as string);
     em.clear();

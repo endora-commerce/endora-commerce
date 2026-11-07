@@ -32,7 +32,7 @@ w obu przypadkach każda cena podaje swoją walutę. Niepoprawny kod jest odrzuc
 | `GET /api/v1/admin/catalog/products/:id` | administrator | Szczegóły produktu |
 | `POST /api/v1/admin/catalog/products` | administrator | Utworzenie produktu (`type` nie można zmienić po utworzeniu; `sku` można edytować) |
 | `PATCH /api/v1/admin/catalog/products/:id` | administrator | Aktualizacja (łącznie z `sku`); zapisuje wpis audytu ze stateBefore / stateAfter; odrzuca z `409 sku_in_use`, gdy nowe SKU należy już do innego produktu |
-| `DELETE /api/v1/admin/catalog/products/:id` | administrator | Usunięcie (miękkie) — to nie jest akcja Archiwizuj |
+| `DELETE /api/v1/admin/catalog/products/:id` | administrator | Usunięcie (miękkie) — to nie jest akcja Archiwizuj; zwalnia SKU produktu i jego wariantów ([niżej](#usunięty-produkt-zwalnia-swoje-sku)) |
 | `POST /api/v1/admin/catalog/products/:id/archive` | administrator (`catalog:write`) | Archiwizacja jednego produktu — zob. *Status produktu i archiwizacja* |
 | `POST /api/v1/admin/catalog/products/:id/restore` | administrator (`catalog:write`) | Przywrócenie jednego zarchiwizowanego produktu |
 | `GET`, `POST /api/v1/admin/catalog/products/list-views`; `PATCH`, `DELETE …/list-views/:id` | administrator | Zapisane widoki listy produktów — zob. *Zapisane widoki* niżej |
@@ -576,6 +576,25 @@ odtwarzają na granicy API dawną postać listy opcji ze względu na zgodność 
 modułami (pliki, powiązania produktów, pozycje zapytań ofertowych, …) jest UUID `Product.id`, który
 nigdy się nie zmienia. Zmiana SKU zapisuje wpis audytu i jest odrzucana z `409 sku_in_use`, gdy nowa
 wartość należy już do innego produktu.
+
+### Usunięty produkt zwalnia swoje SKU
+
+Usunięcie produktu (`DELETE /api/v1/admin/catalog/products/:id`) zwalnia jego SKU i SKU jego wariantów:
+nowy produkt lub wariant może je od razu przejąć — w panelu administracyjnym, przez
+`PUT /api/v1/catalog/products/by-sku/:sku` (który tworzy wtedy nowy produkt zamiast aktualizować
+usunięty) albo z importu lub synchronizacji z PIM. Produkty i warianty mają jedną wspólną przestrzeń
+SKU, więc SKU usuniętego wariantu może przejąć produkt i odwrotnie. Dotyczy to także produktów
+usuniętych przed tą zmianą.
+
+Usunięty produkt zachowuje swoje prawdziwe SKU, więc dziennik audytu i uzgadnianie danych z ERP lub
+PIM nadal je pokazują, a zamówienia, faktury i zapytania ofertowe zachowują SKU zapisane w chwili ich
+utworzenia. Usunięcia nie można cofnąć, a usuniętego produktu nie można przywrócić.
+
+Każde wyszukiwanie po SKU dotyczy aktywnego (nieusuniętego) produktu. Import produktów i import stanów
+magazynowych z CSV zapisują aktywny produkt; w porcie odczytu katalogu (`catalogProductReadPort`)
+metody `findBySku`, `findBySkus` i `findVariantsBySkus` zwracają aktywny produkt lub wariant, jeśli
+taki istnieje, a w przeciwnym razie ostatnio usunięty z tym SKU — najwyżej jeden na SKU. Przekaż
+`{ liveOnly: true }` do `findBySku` i `findBySkus`, aby całkowicie pominąć usunięte produkty.
 
 ### Zmiana zestawu atrybutów
 

@@ -1317,9 +1317,10 @@ export class CatalogAdminService {
       const suffix = i === 0 ? '-copy' : `-copy-${i + 1}`;
       const base = baseSku.slice(0, SKU_MAX_LENGTH - suffix.length);
       const candidate = `${base}${suffix}`;
-      const productHit = await em.findOne(Product, { sku: candidate });
+      // Issue #693 — a deleted product or variant does not hold its SKU.
+      const productHit = await em.findOne(Product, { sku: candidate, deletedAt: null });
       if (productHit) continue;
-      const variantHit = await em.findOne(ProductVariant, { sku: candidate });
+      const variantHit = await em.findOne(ProductVariant, { sku: candidate, deletedAt: null });
       if (variantHit) continue;
       return candidate;
     }
@@ -1533,6 +1534,9 @@ export class CatalogAdminService {
         }));
         if (urlRedirects.length > 0) await em.nativeDelete(ProductUrlRedirect, { productId: id });
         product.deletedAt = new Date();
+        // Issue #693 — the variants are deleted with their product, at the same instant, so
+        // their SKUs are freed with the product's: uniqueness holds among live rows only.
+        await em.nativeUpdate(ProductVariant, { parentProductId: id, deletedAt: null }, { deletedAt: product.deletedAt });
         await em.flush();
         return {
           result: { id: product.id, formerUrlKeys: urlRedirects.map((row) => row.key) },
@@ -2185,8 +2189,9 @@ export class CatalogAdminService {
         `Variants can only be added to configurable Products; this Product is ${parent.type}.`,
       );
     }
-    // SKU uniqueness MUST hold across both products and variants.
-    const existingProduct = await em.findOne(Product, { sku: req.sku });
+    // SKU uniqueness MUST hold across both products and variants — among live
+    // rows: a deleted product does not hold its SKU (issue #693).
+    const existingProduct = await em.findOne(Product, { sku: req.sku, deletedAt: null });
     if (existingProduct) {
       throw new HttpError(
         409,
