@@ -1,4 +1,4 @@
-import { useEffect, useRef, useState, type ReactNode } from 'react';
+import { useEffect, useState, type ReactNode } from 'react';
 import { ArrowDown, ArrowUp, Trash2 } from 'lucide-react';
 import type { AssetDetail, AssetSummary } from '@endora-commerce/contracts';
 import { ApiError, apiClient, toAbsoluteAssetUrl } from '@endora-commerce/admin-kit/lib';
@@ -33,6 +33,8 @@ function fileOf(url: string): string {
   }
 }
 
+type FocusTarget = { id: string; dir: 'up' | 'down' } | 'heading';
+
 export function GallerySection(): ReactNode {
   const t = useTranslation('catalog');
   const ctx = useProductEditor();
@@ -41,13 +43,17 @@ export function GallerySection(): ReactNode {
   const [busy, setBusy] = useState(false);
   const [removing, setRemoving] = useState<string | null>(null);
   const [status, setStatus] = useState('');
-  /** Where focus goes once the list is re-read (WCAG 2.4.3): the moved image, or the heading after a removal. */
-  const pendingFocus = useRef<{ id: string; dir: 'up' | 'down' } | 'heading' | null>(null);
-  const itemOrder = data ? data.gallery.items.map((i) => `${i.id}:${i.position}`).join(',') : '';
+  /**
+   * Where focus goes once the list is re-read (WCAG 2.4.3): the moved image, or the heading after
+   * a removal. State set when the action has ended, not a ref set when it starts: an effect still
+   * pending from an earlier commit would otherwise take the target before the list is re-read and
+   * focus the button where it was (issue #841). A new object per action, so the same target twice
+   * is applied twice.
+   */
+  const [focusAfter, setFocusAfter] = useState<{ target: FocusTarget } | null>(null);
   useEffect(() => {
-    const target = pendingFocus.current;
-    if (busy || target === null) return;
-    pendingFocus.current = null;
+    if (focusAfter === null) return;
+    const { target } = focusAfter;
     if (target === 'heading') {
       const heading = document.getElementById('product-gallery-heading');
       heading?.setAttribute('tabindex', '-1');
@@ -58,7 +64,7 @@ export function GallerySection(): ReactNode {
     const same = row?.querySelector<HTMLElement>(`[data-move="${target.dir}"]`);
     const other = row?.querySelector<HTMLElement>(`[data-move="${target.dir === 'up' ? 'down' : 'up'}"]`);
     (same && same.getAttribute('aria-disabled') !== 'true' ? same : (other ?? same))?.focus();
-  }, [busy, itemOrder]);
+  }, [focusAfter]);
   if (!data) return null;
   const atGlobal = ctx.state.scope.level === 'global';
   const structural = atGlobal && !ctx.readOnly;
@@ -73,7 +79,7 @@ export function GallerySection(): ReactNode {
   };
   const base = `/api/v1/admin/catalog/products/${encodeURIComponent(ctx.productId)}/gallery`;
 
-  const immediate = async (run: () => Promise<unknown>, done: string, failed: string): Promise<void> => {
+  const immediate = async (run: () => Promise<unknown>, done: string, failed: string, focus: FocusTarget | null = null): Promise<void> => {
     setBusy(true);
     setError(null);
     try {
@@ -84,6 +90,7 @@ export function GallerySection(): ReactNode {
       setError(err instanceof ApiError ? err.envelope.error.message : failed);
     } finally {
       setBusy(false);
+      if (focus !== null) setFocusAfter({ target: focus });
     }
   };
 
@@ -93,11 +100,11 @@ export function GallerySection(): ReactNode {
     const [moved] = next.splice(from, 1);
     if (moved === undefined) return;
     next.splice(to, 0, moved);
-    pendingFocus.current = { id: moved, dir: to < from ? 'up' : 'down' };
     void immediate(
       () => apiClient.put(`${base}/order`, { orderedGalleryItemIds: next }),
       t('productEditor.gallery.success.moved'),
       t('productEditor.gallery.error.save'),
+      { id: moved, dir: to < from ? 'up' : 'down' },
     );
   };
 
@@ -236,11 +243,11 @@ export function GallerySection(): ReactNode {
                 onClick={(): void => {
                   const id = removing;
                   setRemoving(null);
-                  pendingFocus.current = 'heading';
                   void immediate(
                     () => apiClient.delete(`${base}/${id}`),
                     t('productEditor.gallery.success.remove'),
                     t('productEditor.gallery.error.delete'),
+                    'heading',
                   );
                 }}
               >
