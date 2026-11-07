@@ -226,6 +226,9 @@ export class InvoiceService {
         netValue: surcharge,
       });
     }
+    // Whether anything is left to sell: a kept product line, the delivery or
+    // the payment surcharge. A discount line alone is not a sale (F4).
+    const keptSale = raw.length > 0;
     // The discount the settled returns did not carry back (issue #435,
     // product-owner ruling Q3 of 2026-11-07): their refunds already gave the
     // buyer the rest, so the invoice of the kept goods, like what was paid,
@@ -265,11 +268,21 @@ export class InvoiceService {
     // nothing kept, and the refunds cover the whole order — has no sale left to
     // document, so it is not invoiced (owner ruling of 2026-10-24). One refunded
     // in part is invoiced, with what was kept as paid.
-    if (kind === 'invoice' && position.refundedInFull) {
+    //
+    // An order returned in full before it was invoiced — every product line
+    // back, and no delivery or surcharge kept — has no sale left either,
+    // whether or not the refund has been paid out yet: one waiting for a
+    // person, or for the gateway's webhook, refuses it the same way
+    // (product-owner ruling on F4, review of PR #865). Both are answered
+    // before a number is drawn; a proforma is refused for neither.
+    if (kind === 'invoice' && (position.refundedInFull || !keptSale)) {
       throw new HttpError(
         422,
         ERROR_CODES.INVOICE_ORDER_REFUNDED,
-        'The order was refunded in full before it was invoiced, so there is no sale left to invoice.',
+        position.refundedInFull
+          ? 'The order was refunded in full before it was invoiced, so there is no sale left to invoice.'
+          : 'The order was returned in full before it was invoiced, so there is no sale left to invoice.',
+        { reason: position.refundedInFull ? 'refunded_in_full' : 'returned_in_full' },
       );
     }
     const paidTotal = position.paid;

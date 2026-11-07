@@ -62,7 +62,12 @@ An order **refunded in full before it was invoiced** — the refunds equal what
 was received and cover the whole order total — is not invoiced: there is no
 sale left to document. Issuing answers `422 INVOICE_ORDER_REFUNDED` and draws
 no number; automatic issuance skips the order and logs the reason. An order
-refunded only in part is invoiced, with what was kept as paid.
+refunded only in part is invoiced, with what was kept as paid. An order
+**returned in full** before it was invoiced — every product line back through
+settled returns, and no delivery or payment surcharge kept — counts the same,
+whether or not the refund has been paid out yet (one still waiting for a person
+to make it, or for the payment gateway to confirm it). When the delivery or the
+surcharge is kept, the invoice is issued with only that line.
 
 An invoice issued **after a return was settled** lists only what the buyer
 kept: there is no invoice yet to correct, so the invoice itself documents the

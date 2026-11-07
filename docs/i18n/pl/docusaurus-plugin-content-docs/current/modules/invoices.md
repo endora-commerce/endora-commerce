@@ -60,7 +60,11 @@ Zamówienie **zwrócone w całości przed wystawieniem faktury** — zwroty są 
 i pokrywają całą kwotę zamówienia — nie jest fakturowane: nie ma już sprzedaży do udokumentowania.
 Wystawienie zwraca `422 INVOICE_ORDER_REFUNDED` i nie pobiera numeru; automatyczne wystawianie
 pomija zamówienie i zapisuje powód w logu. Zamówienie zwrócone tylko częściowo jest fakturowane,
-z zatrzymaną kwotą jako zapłaconą.
+z zatrzymaną kwotą jako zapłaconą. Zamówienie, którego **towary zwrócono w całości** przed
+wystawieniem faktury — każda pozycja produktu wróciła w rozliczonych zwrotach, a dostawa ani dopłata
+za płatność nie zostały zatrzymane — traktowane jest tak samo, niezależnie od tego, czy pieniądze
+zostały już wypłacone (zwrot wciąż czeka na wykonanie przez człowieka albo na potwierdzenie bramki
+płatności). Gdy dostawa lub dopłata zostaje zatrzymana, faktura jest wystawiana tylko z tą pozycją.
 
 Faktura wystawiona **po rozliczeniu zwrotu** obejmuje tylko to, co kupujący zatrzymał: nie ma
 jeszcze faktury do skorygowania, więc sama faktura dokumentuje sprzedaż, która pozostała. Każda
