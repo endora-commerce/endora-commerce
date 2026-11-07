@@ -96,6 +96,11 @@ export const manifest = defineModuleManifest({
     'quote_requests',
     'sales_channels',
     'settings',
+    // Issue #436 — the cart read answers its VAT per rate from the rates
+    // placement resolves, through `taxService`. `taxes` is `nonDeactivatable`
+    // and depends on neither this module nor anything that reaches it, so the
+    // edge closes no cycle.
+    'taxes',
     // Issue #651 — `transactional_emails` owns the sender the three
     // cart-approval e-mails go out through and `emailDefaultsPort`, the registry
     // their default subject and body are pushed into. It is `nonDeactivatable`

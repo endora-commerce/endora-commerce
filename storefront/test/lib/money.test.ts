@@ -1,5 +1,5 @@
 import { describe, expect, it } from 'vitest';
-import { formatMoney, moneyByMode, DEFAULT_VAT_RATE } from '../../lib/i18n/money';
+import { formatMoney, moneyByMode, moneyByModeWithGross, DEFAULT_VAT_RATE } from '../../lib/i18n/money';
 
 /**
  * Unit contract for `moneyByMode` — the single place that turns a net `Money`
@@ -97,5 +97,34 @@ describe('moneyByMode — a unit price and its gross', () => {
   it('a two-place net unit price keeps its gross at two places (§10.16 G1)', () => {
     const r = moneyByMode({ amount: 29.5, currency: 'PLN' }, 'gross_only', 'pl-PL', DEFAULT_VAT_RATE, { unitPrice: true });
     expect(r.primary).toMatch(/^36,29\s*zł$/);
+  });
+});
+
+/**
+ * Issue #436 — a gross the backend computed (the cart's VAT per rate) is shown
+ * as given; with no gross to show, the net is shown and tagged net, never a
+ * gross derived from an assumed rate.
+ */
+describe('moneyByModeWithGross', () => {
+  const NET_8450 = { amount: 84.5, currency: 'PLN' };
+
+  it('shows the given gross, not net × a rate', () => {
+    const r = moneyByModeWithGross(NET_8450, 96.9, 'gross_only', 'pl-PL');
+    expect(r.primary).toMatch(/96,90\s*zł/);
+    expect(r.primaryKind).toBe('gross');
+    const both = moneyByModeWithGross(NET_8450, 96.9, 'both', 'pl-PL');
+    expect(both.primary).toMatch(/84,50\s*zł/);
+    expect(both.secondary).toMatch(/96,90\s*zł/);
+    expect(both.secondaryKind).toBe('gross');
+  });
+
+  it('falls back to the net, tagged net, when there is no gross', () => {
+    for (const mode of ['gross_only', 'both', 'net_only'] as const) {
+      const r = moneyByModeWithGross(NET_8450, null, mode, 'pl-PL');
+      expect(r.primary).toMatch(/84,50\s*zł/);
+      expect(r.primaryKind).toBe('net');
+      expect(r.secondary).toBeNull();
+    }
+    expect(moneyByModeWithGross(NET_8450, null, 'none', 'pl-PL').primaryKind).toBeNull();
   });
 });

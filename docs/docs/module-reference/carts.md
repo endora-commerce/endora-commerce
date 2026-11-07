@@ -37,6 +37,7 @@ Rendered from the module's own manifest, and from nothing written by hand. What 
 | `quote_requests` | yes | installs and migrates after it, and an operator cannot switch it off underneath this module |
 | `sales_channels` | yes | installs and migrates after it, and an operator cannot switch it off underneath this module |
 | `settings` | yes | installs and migrates after it, and an operator cannot switch it off underneath this module |
+| `taxes` | yes | installs and migrates after it, and an operator cannot switch it off underneath this module |
 | `transactional_emails` | yes | installs and migrates after it, and an operator cannot switch it off underneath this module |
 | `promotions` | gating only | resolves `promotionCodePort`; withheld from `dependencies` because the install order cannot carry the edge |
 | `promotions` | gating only | resolves `promotionService`; withheld from `dependencies` because the install order cannot carry the edge |

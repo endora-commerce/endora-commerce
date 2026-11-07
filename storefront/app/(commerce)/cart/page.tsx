@@ -359,6 +359,7 @@ export default async function CartPage({
             subtotal={cart.subtotal}
             discount={cart.discount ?? null}
             grandTotal={cart.grandTotal ?? cart.subtotal}
+            vat={cart.vat ?? null}
             itemCount={cart.items.length}
             locale={locale}
             displayMode={displayMode}
@@ -469,6 +470,9 @@ function toViewModel(it: CartItem, locale: string): CartLineViewModel {
     packagingUnitName: it.packagingUnitName ?? null,
     minOrderQuantity: it.minOrderQuantity ?? null,
     belowMinimum: it.belowMinimum ?? null,
+    // Issue #436 — the line's own rate and gross from the cart read.
+    taxRate: it.taxRate ?? null,
+    lineGross: it.lineGross ?? null,
   };
 }
 

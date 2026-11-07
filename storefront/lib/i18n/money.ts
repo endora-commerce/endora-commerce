@@ -92,10 +92,15 @@ export function formatMoneyObject(
  *
  * It is an assumption, and saying so is the point. The `taxes` module resolves
  * a real rate per `(country, productType, vatStatus)`, but nothing the
- * storefront reads carries it: `ProductSummary`, `CartSummary` and the
- * resolved-price payload are all net-only, and the `taxes` routes are
- * admin-gated. So no code path on a listing, a card, a PDP price block or a
- * cart line can consult a tax authority today.
+ * storefront reads for a product carries it: `ProductSummary` and the
+ * resolved-price payload are net-only, and the `taxes` routes are admin-gated.
+ * So no code path on a listing, a card or a PDP price block can consult a tax
+ * authority today.
+ *
+ * The cart no longer assumes it (issue #436): `GET /api/v1/cart` answers each
+ * line's rate and the cart's VAT per rate, computed the way the order computes
+ * it, and `CartTotals` and `CartLine` render those through
+ * {@link moneyByModeWithGross} — showing the net where the read carries none.
  *
  * What changed here is that the assumption lives in one place instead of three.
  * `BaseSalePriceBlock`, `ProductCard` and `ProductRow` each carried their own
@@ -167,17 +172,32 @@ export function moneyByMode(
   vatRate: number = DEFAULT_VAT_RATE,
   options: FormatMoneyOptions = {},
 ): MoneyByMode {
-  const netStr = formatMoneyObject(net, locale, options);
   const gross = options.unitPrice ? grossUnitPriceFromNet(net.amount, vatRate) : grossFromNet(net.amount, vatRate);
-  const grossStr = formatMoney(gross ?? net.amount, net.currency, locale, options);
-  switch (mode) {
-    case 'gross_only':
-      return { primary: grossStr, primaryKind: 'gross', secondary: null, secondaryKind: null };
-    case 'both':
-      return { primary: netStr, primaryKind: 'net', secondary: grossStr, secondaryKind: 'gross' };
-    case 'net_only':
-      return { primary: netStr, primaryKind: 'net', secondary: null, secondaryKind: null };
-    case 'none':
-      return { primary: netStr, primaryKind: null, secondary: null, secondaryKind: null };
+  return moneyByModeWithGross(net, gross ?? net.amount, mode, locale, options);
+}
+
+/**
+ * {@link moneyByMode} with the gross **given** rather than derived — issue
+ * #436: the cart's totals and line grosses are the backend's, computed per
+ * rate the way the order computes them, and a client deriving them again from
+ * one rate would show a figure the order does not charge. `gross` is `null`
+ * when nobody supplied one: then every mode shows the net, tagged net (`none`
+ * untagged), because a gross nobody computed is not a figure.
+ */
+export function moneyByModeWithGross(
+  net: { amount: number; currency: string },
+  gross: number | null,
+  mode: 'net_only' | 'gross_only' | 'both' | 'none',
+  locale?: string,
+  options: FormatMoneyOptions = {},
+): MoneyByMode {
+  const netStr = formatMoneyObject(net, locale, options);
+  if (mode === 'none') return { primary: netStr, primaryKind: null, secondary: null, secondaryKind: null };
+  if (gross === null || mode === 'net_only') {
+    return { primary: netStr, primaryKind: 'net', secondary: null, secondaryKind: null };
   }
+  const grossStr = formatMoney(gross, net.currency, locale, options);
+  return mode === 'gross_only'
+    ? { primary: grossStr, primaryKind: 'gross', secondary: null, secondaryKind: null }
+    : { primary: netStr, primaryKind: 'net', secondary: grossStr, secondaryKind: 'gross' };
 }

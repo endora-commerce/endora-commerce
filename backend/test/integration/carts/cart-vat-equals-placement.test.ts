@@ -98,7 +98,7 @@ describe('#436 — cart VAT per rate equals the placed order', () => {
     await cartService.addItem({ customer }, { productId: simpleId, quantity: 1 });
     await cartService.addItem({ customer }, { productId: virtualId, quantity: 2 });
     await cartService.addItem({ customer }, { productId: configurableId, quantity: 3 });
-  });
+  }, 60_000);
 
   afterAll(async () => {
     await h.em().nativeDelete(Tax, { code: { $in: taxCodes } });

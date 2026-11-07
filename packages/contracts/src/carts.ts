@@ -196,8 +196,59 @@ export const cartViewLineSchema = z.object({
     })
     .nullable()
     .optional(),
+  /**
+   * Issue #436 — the line's VAT rate as a fraction (`0.23`), resolved the way
+   * placement resolves it: the product's tax class against the Organization's
+   * VAT status and country. Answered by `GET /api/v1/cart`; absent on the
+   * line-mutation replies, and `null` when the read could not resolve it.
+   */
+  taxRate: z.number().finite().nonnegative().nullable().optional(),
+  /**
+   * Issue #436 — the line's own gross, `round_half_up(lineTotal × (1 + taxRate))`
+   * (owner ruling of 2026-10-24). Informational: the line grosses may add up to
+   * a cent more or less than the cart's gross, which is the per-rate figure in
+   * {@link cartVatSchema}. Present and absent with `taxRate`.
+   */
+  lineGross: moneySchema.nullable().optional(),
 });
 export type CartViewLine = z.infer<typeof cartViewLineSchema>;
+
+/** Issue #436 — one rate's row of the cart's VAT: two-place amounts in the cart's currency. */
+export const cartVatRowSchema = z.object({
+  /** The rate as a fraction, `0.23`. */
+  taxRate: z.number().finite().nonnegative(),
+  /** The sum of the line nets at this rate. */
+  net: z.number().finite(),
+  /** `round_half_up(net × taxRate)`, once per rate. */
+  vat: z.number().finite(),
+  /** `net + vat`. */
+  gross: z.number().finite(),
+});
+export type CartVatRow = z.infer<typeof cartVatRowSchema>;
+
+/**
+ * Issue #436 — the cart's VAT under the one VAT method (owner ruling of
+ * 2026-10-24): per rate, on the sum of the line nets at that rate, rounded
+ * half-up once; gross = net + VAT. The same computation the order makes at
+ * placement, for the same lines and rates, so the cart's gross is the order's
+ * before the checkout's delivery and payment charges, which the order adds
+ * untaxed. A client renders these figures and does not compute VAT itself.
+ */
+export const cartVatSchema = z.object({
+  currency: z.string().length(3),
+  /** One row per rate, ascending. */
+  rows: z.array(cartVatRowSchema),
+  /** The sum of the rows' VAT. */
+  vatTotal: z.number().finite(),
+  /** `subtotal + vatTotal`. */
+  subtotalGross: z.number().finite(),
+  /**
+   * `subtotalGross − discount`, never below zero: the discount comes off the
+   * gross, untaxed, as it does on the order.
+   */
+  grandTotalGross: z.number().finite(),
+});
+export type CartVat = z.infer<typeof cartVatSchema>;
 
 export const cartMiniLineSchema = z.object({
   id: uuidSchema,
@@ -314,6 +365,12 @@ export const cartFullPayloadSchema = z.object({
    * without the key parses as `null`.
    */
   previousRejection: cartPreviousRejectionSchema.nullable().default(null),
+  /**
+   * Issue #436 — see {@link cartVatSchema}. Answered by `GET /api/v1/cart`;
+   * `null` on the empty basket, on the line-mutation replies and when the read
+   * could not resolve a rate. Additive: a reply without the key parses as `null`.
+   */
+  vat: cartVatSchema.nullable().default(null),
 });
 export type CartFullPayload = z.infer<typeof cartFullPayloadSchema>;
 
