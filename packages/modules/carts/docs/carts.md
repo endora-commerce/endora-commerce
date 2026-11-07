@@ -313,9 +313,14 @@ price for the line's **current** quantity:
   carries its `taxRate` and `lineGross`, its own rounding of its gross, which
   is informational — the line grosses can add up to a cent more or less than
   the total. The storefront shows these figures and computes no VAT of its own;
-  where the read carries none (`vat: null`), it shows net amounts. At placement
-  the order adds delivery and the payment surcharge, and taxes the lines at the
-  billing address's country if it differs from the registered one.
+  where the read carries none (`vat: null`), it shows net amounts.
+- **The cart's VAT is an estimate until checkout; placement is the authority.**
+  The cart resolves its rates for the organization's **registered country**,
+  because no billing address has been chosen yet. Placement resolves them for
+  the **billing address** chosen at checkout, so a billing address in another
+  country can change the rate — and with it the VAT and the gross — at
+  checkout. The order also adds delivery and the payment surcharge, which the
+  cart does not carry.
 - At order placement the Orders module asks this module whether every stored
   price is still current. If one is not — typically a price book changed after
   the line was added — the placement is refused with

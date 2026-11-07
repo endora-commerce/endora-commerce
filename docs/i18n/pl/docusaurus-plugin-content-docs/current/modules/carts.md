@@ -302,9 +302,13 @@ Pozycja koszyka jest zamawiana po zapisanej cenie `unit_price`, dlatego ta cena 
   `subtotalGross` i `grandTotalGross`; każda pozycja podaje swoją `taxRate` i `lineGross` — własne
   zaokrąglenie swojej kwoty brutto, które ma charakter informacyjny: kwoty brutto pozycji mogą
   w sumie różnić się od łącznej o grosz. Sklep pokazuje te kwoty i sam nie liczy VAT; gdy odczyt ich
-  nie zawiera (`vat: null`), pokazuje kwoty netto. Przy składaniu zamówienia dochodzą koszt dostawy
-  i dopłata za płatność, a pozycje są opodatkowane według kraju adresu rozliczeniowego, jeśli różni
-  się on od kraju siedziby.
+  nie zawiera (`vat: null`), pokazuje kwoty netto.
+- **VAT koszyka jest szacunkiem do chwili złożenia zamówienia; wiążące są kwoty złożonego
+  zamówienia.** Koszyk ustala stawki dla **kraju siedziby** organizacji, bo adres rozliczeniowy nie
+  jest jeszcze wybrany. Złożenie zamówienia ustala je dla **adresu rozliczeniowego** wybranego przy
+  składaniu zamówienia, więc adres rozliczeniowy w innym kraju może przy składaniu zamówienia zmienić
+  stawkę — a wraz z nią VAT i kwotę brutto. Zamówienie dolicza też koszt dostawy i dopłatę za
+  płatność, których koszyk nie zawiera.
 - Przy składaniu zamówienia moduł zamówień pyta ten moduł, czy każda zapisana cena jest nadal
   aktualna. Jeśli któraś nie jest — zwykle dlatego, że cennik zmienił się po dodaniu pozycji —
   złożenie zamówienia jest odrzucane z kodem
