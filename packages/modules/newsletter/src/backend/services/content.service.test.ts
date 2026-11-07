@@ -1,6 +1,10 @@
 import { describe, it, expect, vi } from 'vitest';
 import type { EmailBlockRenderers } from '@endora-commerce/email-components/render/block-renderers';
 import {
+  DEFAULT_FOOTER_BLOCK_CODE,
+  defaultFooterTree,
+} from '@endora-commerce/email-components/defaults/default-footer';
+import {
   NewsletterContentService,
   renderNewsletterEmail,
   withEmailBranding,
@@ -54,6 +58,28 @@ describe('renderNewsletterEmail', () => {
       context: baseContext,
     });
     expect(out.text).toContain('https://shop.example/newsletter/unsubscribe');
+  });
+
+  it('keeps the shared default footer\'s unsubscribe link, in HTML and in text (#520)', () => {
+    // The transactional fix drops this link while `unsubscribeUrl` is empty;
+    // newsletter always injects it, so its footer must keep the link.
+    const out = renderNewsletterEmail({
+      subject: 'x',
+      content: {
+        root: { props: {} },
+        content: [
+          { type: 'transactional_emails.EmailText', props: { id: 't1', text: 'Body' } },
+          { type: 'transactional_emails.EmailInsertBlock', props: { id: 'f', code: DEFAULT_FOOTER_BLOCK_CODE } },
+        ],
+        zones: {},
+      },
+      embeds: { blocks: { [DEFAULT_FOOTER_BLOCK_CODE]: defaultFooterTree() }, templates: {} },
+      context: baseContext,
+    });
+    expect(out.html).toContain('href="https://shop.example/newsletter/unsubscribe?token=abc"');
+    expect(out.html).toContain('>Unsubscribe</a>');
+    expect(out.text).toContain('Unsubscribe: https://shop.example/newsletter/unsubscribe?token=abc');
+    expect(out.text).not.toContain('<a');
   });
 
   it('always produces an HTML document and a plain-text alternative', () => {
