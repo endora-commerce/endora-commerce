@@ -326,8 +326,11 @@ const JOIN = '\n\n';
  * not flagged.
  */
 export function closesSiteToEveryCrawler(operatorText: string): boolean {
-  // Before the first `User-agent` line the rules attach to the group above.
-  let agents: string[] = ['*'];
+  // Before the first `User-agent` line the rules attach to the group above,
+  // which names `*`. Whether the current group names `*` is all that is kept:
+  // a list of its agents, copied per line and searched per rule, made a long
+  // group quadratic (issue #612).
+  let groupNamesEveryCrawler = true;
   let lastWasAgent = false;
   for (const rawLine of operatorText.split(/\r\n?|\n/)) {
     const line = stripComment(rawLine).trim();
@@ -338,13 +341,13 @@ export function closesSiteToEveryCrawler(operatorText: string): boolean {
     const value = line.slice(colon + 1).trim();
     if (field === 'user-agent') {
       // Consecutive `User-agent` lines name one group.
-      agents = lastWasAgent ? [...agents, value] : [value];
+      groupNamesEveryCrawler = (lastWasAgent && groupNamesEveryCrawler) || value === '*';
       lastWasAgent = true;
       continue;
     }
     lastWasAgent = false;
     // `/*` is the same ban spelled with a wildcard.
-    if (field === 'disallow' && (value === '/' || value === '/*') && agents.includes('*')) {
+    if (field === 'disallow' && (value === '/' || value === '/*') && groupNamesEveryCrawler) {
       return true;
     }
   }

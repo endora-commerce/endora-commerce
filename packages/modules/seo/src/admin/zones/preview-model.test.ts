@@ -12,6 +12,37 @@ import {
   type PreviewRequest,
 } from './preview-model.js';
 
+const now = () => performance.now();
+
+/**
+ * Issue #612: the cost is compared across sizes, not against a clock — a
+ * wall-clock budget measures the host as much as the code. `run` is timed once
+ * on an input of `length` against {@link GROWTH} calls on inputs
+ * {@link GROWTH} times shorter, each side the fastest of five timings after a
+ * warm-up, every call on an input of its own built outside the timed region.
+ * Linear code does the same work on both sides, so the ratio is about 1 however
+ * busy the host is; a quadratic path makes it about {@link GROWTH}.
+ */
+const GROWTH = 16;
+/** Four times above linear, four times below what a quadratic path gives. */
+const LINEAR_BOUND = 4;
+function growthRatio<T>(run: (input: T) => unknown, input: (length: number) => T, length: number): number {
+  const fastest = (inputs: () => T[]): number => {
+    let best = Number.POSITIVE_INFINITY;
+    for (let sample = 0; sample <= 5; sample += 1) {
+      const batch = inputs();
+      const start = now();
+      for (const value of batch) run(value);
+      const elapsed = now() - start;
+      if (sample > 0) best = Math.min(best, elapsed);
+    }
+    return best;
+  };
+  const once = fastest(() => [input(length)]);
+  const many = fastest(() => Array.from({ length: GROWTH }, () => input(Math.ceil(length / GROWTH))));
+  return once / many;
+}
+
 /**
  * What the `robots.txt` preview shows — one case per row of
  * `specs/144-seo-search-engine-robots/contracts/admin-surfaces.md` §4.
@@ -544,12 +575,16 @@ describe('closesSiteToEveryCrawler', () => {
     expect(closesSiteToEveryCrawler(text)).toBe(false);
   });
 
-  it('is linear in the text: 64 KiB of line breaks, or of colons, is immediate', () => {
-    const started = performance.now();
-    closesSiteToEveryCrawler('\n'.repeat(65_536));
-    closesSiteToEveryCrawler(':'.repeat(65_536));
-    closesSiteToEveryCrawler('User-agent: *\n'.repeat(4_000));
-    expect(performance.now() - started).toBeLessThan(500);
+  it('is linear in the text: 64 KiB of line breaks, of colons, or of one group’s User-agent lines', () => {
+    const shapes: ReadonlyArray<readonly [string, (size: number) => string]> = [
+      ['line breaks', (size) => '\n'.repeat(size)],
+      ['colons', (size) => ':'.repeat(size)],
+      ['User-agent lines', (size) => 'User-agent: *\n'.repeat(size / 14)],
+    ];
+    for (const [label, shape] of shapes) {
+      const ratio = growthRatio(closesSiteToEveryCrawler, shape, 65_536);
+      expect(ratio, `${label}: ${GROWTH}× the text, ${ratio.toFixed(2)}× the time`).toBeLessThan(LINEAR_BOUND);
+    }
   });
 });
 

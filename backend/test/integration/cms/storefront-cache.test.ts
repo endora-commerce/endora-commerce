@@ -23,6 +23,12 @@ describe('CMS storefront cache (T096)', () => {
   let defaultPageChannel: string;
   let defaultChannelCode: string;
   const adminCookie = { b2b_session: 'stub-admin-session' };
+  /**
+   * The rows this file creates, removed in `afterAll` (issue #678): the run's
+   * database is shared by every file of the invocation, and a block left
+   * behind is a row `seeded-content-renders.test.ts` would otherwise meet.
+   */
+  const createdRows = { pages: [] as string[], blocks: [] as string[], hooks: [] as string[] };
 
   beforeAll(async () => {
     h = await setupBackendServer({ seed: 'none' });
@@ -37,6 +43,13 @@ describe('CMS storefront cache (T096)', () => {
   });
 
   afterAll(async () => {
+    if (!h) return;
+    const connection = h.em().getConnection();
+    // Hooks first: an attachment holds its block with `on delete restrict`.
+    // The channel bindings and attachments go with their row (`on delete cascade`).
+    for (const id of createdRows.hooks) await connection.execute(`delete from cms_hooks where id = ?`, [id]);
+    for (const id of createdRows.blocks) await connection.execute(`delete from cms_blocks where id = ?`, [id]);
+    for (const id of createdRows.pages) await connection.execute(`delete from cms_pages where id = ?`, [id]);
     await teardownBackendServer(h);
   });
 
@@ -58,6 +71,7 @@ describe('CMS storefront cache (T096)', () => {
     });
     expect(created.statusCode).toBe(201);
     const page = (created.json() as { data: { id: string; version: number } }).data;
+    createdRows.pages.push(page.id);
 
     const data = {
       root: { props: {} },
@@ -153,6 +167,7 @@ describe('CMS storefront cache (T096)', () => {
     });
     expect(created.statusCode).toBe(201);
     const block = (created.json() as { data: { id: string; version: number } }).data;
+    createdRows.blocks.push(block.id);
 
     const put = await h.app.inject({
       method: 'PUT',
@@ -206,6 +221,7 @@ describe('CMS storefront cache (T096)', () => {
     expect(blockCreated.statusCode).toBe(201);
     const blockData = (blockCreated.json() as { data: { id: string; version: number } }).data;
     const blockId = blockData.id;
+    createdRows.blocks.push(blockId);
     const blockPut = await h.app.inject({
       method: 'PUT',
       url: `/api/v1/admin/cms/blocks/${blockId}/content/en-US`,
@@ -232,6 +248,7 @@ describe('CMS storefront cache (T096)', () => {
     });
     expect(hookCreated.statusCode).toBe(201);
     const hook = (hookCreated.json() as { data: { id: string; code: string } }).data;
+    createdRows.hooks.push(hook.id);
     const cacheKey = CmsCache.hookKey(hook.code, defaultChannelCode, 'en-US');
 
     const first = await h.app.inject({

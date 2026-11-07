@@ -14,14 +14,20 @@ import {
  * Feature 163, T104 — every seeded CMS row renders
  * (`specs/163-page-builder-marketing-pages/` FR-041, SC-007).
  *
- * The population is **every** row of `cms_blocks`, `cms_pages` and
- * `cms_templates` the platform writes by itself, read from the database rather
- * than listed here, so a seeder added later is judged without editing this
- * file. On the harness that is what the boot seeders write into the file's
- * fresh clone of the migrated template: the `cms` migrations seed hooks only,
- * the predefined blocks (`newsletter_consent`, `cookieconsent.message`) are
- * boot-time seeds of `newsletter` and `google_analytics` through
- * `cmsBlockSeedPort`, and the demo composition writes no CMS content. The same
+ * The population is the rows of `cms_blocks`, `cms_pages` and
+ * `cms_templates` the platform writes by itself. On the harness that is what
+ * the boot seeders write: the `cms` migrations seed hooks only, the predefined
+ * blocks (`newsletter_consent`, `cookieconsent.message`) are boot-time seeds of
+ * `newsletter` and `google_analytics` through `cmsBlockSeedPort`, and the demo
+ * composition writes no CMS content.
+ *
+ * The blocks are read **by those codes**, not as the whole table (issue #678):
+ * the database is the invocation's, not the file's, so a block another file
+ * created and left behind is in `cms_blocks` too, and judging it here made
+ * this file's verdict depend on which files ran before it. A seeder that adds
+ * a block adds its code to {@link SEEDED_BLOCK_CODES}. Pages and templates are
+ * still read whole: the harness seeds none, so there are no keys to read them
+ * by. The same
  * sequence on a real database (`db:reset`: `setup` then `cli demo seed`) is
  * T104's second half, run on a throwaway database and recorded in `tasks.md`.
  *
@@ -62,6 +68,9 @@ const CONSENT_BLOCKS: ReadonlyArray<{ code: string; text: Record<string, string>
   },
 ];
 
+/** The codes of every block the boot seeders write — the block half of the population. */
+const SEEDED_BLOCK_CODES: readonly string[] = CONSENT_BLOCKS.map((block) => block.code);
+
 /** Every page-builder node in a tree: an object carrying a string `type` and an object `props`. */
 function nodesOf(tree: unknown, acc: Array<{ type: string; props: Record<string, unknown> }> = []) {
   if (Array.isArray(tree)) {
@@ -96,7 +105,11 @@ describe('seeded CMS content renders (T104, FR-041, SC-007)', () => {
   beforeAll(async () => {
     h = await setupBackendServer({ seed: 'none' });
     const connection = h.em().getConnection();
-    blocks = await connection.execute<Row[]>(`select id, code, languages, content from cms_blocks order by code`);
+    blocks = await connection.execute<Row[]>(
+      `select id, code, languages, content from cms_blocks
+       where code in (${SEEDED_BLOCK_CODES.map(() => '?').join(', ')}) order by code`,
+      [...SEEDED_BLOCK_CODES],
+    );
     pages = await connection.execute<Row[]>(`select id, slug as code, languages, content from cms_pages order by slug`);
     templates = await connection.execute<Row[]>(`select id, code, languages, content from cms_templates order by code`);
     blockBindings = await connection.execute<Binding[]>(

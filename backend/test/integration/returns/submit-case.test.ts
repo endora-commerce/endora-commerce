@@ -7,6 +7,15 @@ import {
 import { ADMIN_COOKIE, CUSTOMER_COOKIE, anyReasonId, resetReturnGraph, seedReturnableOrder } from './helpers.js';
 
 /**
+ * The asset the attachment case names. Its own id, not one from the seed id
+ * space (issue #412): it used to be `…0000000000f1`, `SEED_PAYMENT_METHOD_ID`,
+ * so once the demo reset withdrew that payment method the attachment row read,
+ * to `demo-reset-after-use`'s reference scan, as a column naming a row the
+ * reset had deleted.
+ */
+const ATTACHED_ASSET_ID = '00000000-0000-4000-8000-0000000412a1';
+
+/**
  * Feature 046 (US1) — customer submits a return/complaint case.
  */
 describe('returns — submit case (US1)', () => {
@@ -134,11 +143,11 @@ describe('returns — submit case (US1)', () => {
       method: 'POST',
       url: `/api/v1/returns/${caseId}/attachments`,
       cookies: CUSTOMER_COOKIE,
-      payload: { assetId: '00000000-0000-4000-8000-0000000000f1' },
+      payload: { assetId: ATTACHED_ASSET_ID },
     });
     expect(res.statusCode).toBe(201);
     const data = (res.json() as { data: { assetId: string; returnCaseId: string } }).data;
-    expect(data.assetId).toBe('00000000-0000-4000-8000-0000000000f1');
+    expect(data.assetId).toBe(ATTACHED_ASSET_ID);
     expect(data.returnCaseId).toBe(caseId);
   });
 

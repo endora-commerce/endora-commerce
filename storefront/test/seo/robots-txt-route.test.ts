@@ -4,6 +4,7 @@ import { fileURLToPath } from 'node:url';
 import { composeCrawlerFile } from '@endora-commerce/contracts/seo';
 
 import type { CrawlerFiles, CrawlerFilesRead } from '../../lib/seo/crawler-policy';
+import { GROWTH, LINEAR_BOUND, growthRatio } from './linear-time';
 import {
   CRAWLER_FILES_CAPABILITY_HEADER,
   ROBOTS_TXT_RETRY_AFTER_SECONDS,
@@ -348,11 +349,14 @@ describe('robots.txt — the composed file is kept, and never the wrong one', ()
   it('answers a text made to be slow to trim as fast as any other', async () => {
     // 64 KiB of line breaks before one character: seconds, with a trailing
     // line-break pattern that backtracks. See `composeCrawlerFile`'s tests.
-    const value = files({ robotsTxtCustom: `${'\n'.repeat(65_535)}x` });
-    const start = performance.now();
-    const body = await serveValue(value);
-    expect(performance.now() - start).toBeLessThan(250);
-    expect(body.endsWith('\nx\n')).toBe(true);
+    // Compared across sizes, not against a clock (issue #612). Each call gets a
+    // value of its own: the composed file is kept per value.
+    const value = (length: number) => files({ robotsTxtCustom: `${'\n'.repeat(length - 1)}x` });
+    expect((await serveValue(value(65_536))).endsWith('\nx\n')).toBe(true);
+    const ratio = await growthRatio(serveValue, value, 65_536);
+    expect(ratio, `${GROWTH}× the text took ${ratio.toFixed(2)}× the time per character`).toBeLessThan(
+      LINEAR_BOUND,
+    );
   });
 });
 
