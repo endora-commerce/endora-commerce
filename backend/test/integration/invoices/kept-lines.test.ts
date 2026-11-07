@@ -388,6 +388,66 @@ describe('invoices — an invoice issued after a return lists the kept lines (#4
     expect([invoice.grossTotal, invoice.paidTotal, invoice.amountDue, invoice.overpayment]).toEqual([19.99, 19.99, 0, 0]);
   });
 
+  // Review of PR #865, F3 — a settlement holds the order's `return_cases` lock
+  // from before it moves money until it has recorded the resolution. An
+  // invoice issued inside that window used to read the case unsettled, list
+  // every line, and leave the settlement's correction `not_due`: no document
+  // ever took the returned goods off. Issuing takes the same lock.
+  it('waits for a settlement of the order in progress, then lists only the kept lines', async () => {
+    const { orderId, widget } = await seedOrder();
+    const other = h.em().fork();
+    await other.begin();
+    let issuing: Promise<IssuedInvoice> | null = null;
+    try {
+      await withSystemScope('test: a settlement mid-write', async () => {
+        await other.execute('select pg_advisory_xact_lock(hashtext(?))', [`return_cases:${orderId}`]);
+        const rc = other.create(ReturnCase, {
+          kind: 'return',
+          orderId,
+          salesChannelId: CH,
+          customerAccountId: TEST_CUSTOMER_ID,
+          organizationId: TEST_ORGANIZATION_ID,
+          statusCode: 'resolved',
+          currency: 'PLN',
+          resolutionType: 'refund',
+          submittedAt: new Date(),
+        });
+        other.create(ReturnCaseItem, {
+          returnCaseId: rc.id,
+          orderItemId: widget,
+          productId: randomUUID(),
+          productName: 'Widget',
+          quantity: 1,
+          defaultRefundAmount: '12.30',
+          approvedRefundAmount: '12.30',
+        });
+        other.create(Refund, {
+          returnCaseId: rc.id,
+          resolutionType: 'refund',
+          amount: '12.30',
+          currency: 'PLN',
+          settlementState: 'issued',
+        });
+        await other.flush();
+      });
+
+      let done = false;
+      issuing = issueInvoice(orderId).finally(() => {
+        done = true;
+      });
+      await new Promise((resolve) => setTimeout(resolve, 750));
+      expect(done, 'the invoice did not wait for the settlement in progress').toBe(false);
+    } finally {
+      await other.commit();
+    }
+    const invoice = await issuing!;
+    expect(linesOf(invoice)).toEqual([
+      ['Gadget', 1, 20, 24.6],
+      ['Widget', 2, 20, 24.6],
+    ]);
+    expect([invoice.grossTotal, invoice.paidTotal, invoice.amountDue]).toEqual([49.2, 49.2, 0]);
+  });
+
   it('degrades without returns: every line is invoiced, as before', async () => {
     const { orderId, widget } = await seedOrder();
     await settleReturn(orderId, widget, 1, 'credit');
