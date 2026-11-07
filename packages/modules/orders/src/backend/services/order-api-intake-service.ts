@@ -26,6 +26,7 @@ import { OrderPlacementIntent } from '../entities/order-placement-intent.entity.
 import type { OrderService } from './order-service.js';
 import { rethrowIfModuleDisabled } from '@endora-commerce/platform/kernel';
 import { assertWithinAdminOrderItemBound } from './request-minimums.js';
+import { assertChannelAllowedForOrganization } from './organization-channel-gate.js';
 
 /**
  * OrderApiIntakeService — feature 062 (research §R8, contracts/orders-api-key-intake.md §1).
@@ -59,8 +60,9 @@ export interface OrderApiIntakeDeps {
   organizationDetails: OrganizationDetailsPort;
   /**
    * Sanctioned bridge accessor (feature 052 pattern) — the bound channel's
-   * published assortment gate. Absent (legacy rigs) ⇒ fail closed: every SKU
-   * is out of assortment.
+   * published assortment gate, and the bound Organization's channel
+   * assignment (issue #699). Absent (legacy rigs) ⇒ fail closed: the channel
+   * gate refuses with `500 INTERNAL` before any line is resolved.
    */
   salesChannelMembership?: SalesChannelMembershipPort | undefined;
   /**
@@ -193,6 +195,17 @@ export class OrderApiIntakeService {
     language: string | undefined,
     audience: ProductAudience | undefined,
   ): Promise<Order> {
+    // Issue #699 — the key's channel must be one of the bound Organization's
+    // active assigned channels: the rule the admin order create (#515) and the
+    // quote request follow, with the same refusal. Asked at placement, since
+    // the assignment can change after the key is issued, and first, because
+    // the service account's basket is replaced below.
+    await assertChannelAllowedForOrganization(
+      this.deps.salesChannelMembership,
+      binding.organizationId,
+      binding.salesChannelId,
+    );
+
     const em = this.deps.emFactory();
     const channel = await em.findOne(SalesChannel, { id: binding.salesChannelId });
     const organization = await this.deps.organizationDetails.findById(binding.organizationId);

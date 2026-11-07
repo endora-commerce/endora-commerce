@@ -31,7 +31,7 @@ const onlyPresent =
     ids.includes(id);
 
 describe('acknowledgedPortEdgesFrom — the withheld edges, from the manifests', () => {
-  it('reads the twenty-two real edges the manifests deliberately keep out of `dependencies`', () => {
+  it('reads the twenty-three real edges the manifests deliberately keep out of `dependencies`', () => {
     // Two arrived with issue #90, when `check-port-dependencies` learned to
     // follow a module-local cradle alias and two edges that had always been
     // resolved through one became visible: the lifecycle admin surfaces
@@ -99,6 +99,10 @@ describe('acknowledgedPortEdgesFrom — the withheld edges, from the manifests',
     // session acts under through `organizations`' `organizationRoleReadPort`,
     // and `organizations` declares `admin_users`.
     //
+    // And one with issue #332: `assets_library` pushes its retention-days write
+    // validator into `settings`' `settingWriteValidatorRegistry`, and `settings`
+    // declares `assets_library`.
+    //
     // What makes the acknowledgement honest is that the edge is in the refusal
     // graph either way: withholding it from `dependencies` withdraws the
     // ordering claim and nothing else, so no owner becomes switchable-off
@@ -115,6 +119,7 @@ describe('acknowledgedPortEdgesFrom — the withheld edges, from the manifests',
       'admin_roles:adminUserReadPort',
       'admin_users:customerAccountReadPort',
       'admin_users:organizationRoleReadPort',
+      'assets_library:settingWriteValidatorRegistry',
       'auth:customerOrgResolver',
       'carts:promotionCodePort',
       'carts:promotionService',

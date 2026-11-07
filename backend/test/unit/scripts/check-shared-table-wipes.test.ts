@@ -1,14 +1,14 @@
 import { readdirSync, readFileSync, statSync } from 'node:fs';
 import { join } from 'node:path';
 import { fileURLToPath } from 'node:url';
-import { describe, expect, it } from 'vitest';
+import { beforeAll, describe, expect, it } from 'vitest';
 
 import {
   checkSharedTableWipes,
   compareToBaseline,
   countByFile,
-  filesDeletingRows,
   findUnscopedWipes,
+  scanSharedTableWipes,
   truncatedTables,
   unfilteredDeleteTable,
   unfilteredUpdateTable,
@@ -340,6 +340,14 @@ describe('check-shared-table-wipes ratchets in both directions', () => {
 
 describe('over the real tree', () => {
   const sources = readTree(join(BACKEND_ROOT, 'test'));
+  // One scan, the one the CLI runs: inside a shared-parse scope it reads each
+  // test file once for every assertion below, where calling each walk on its
+  // own parsed the whole of `test/` per assertion and timed out under load in
+  // `test:unit:fast` (issue #910).
+  let scan: ReturnType<typeof scanSharedTableWipes>;
+  beforeAll(() => {
+    scan = scanSharedTableWipes({ sources });
+  });
 
   it('reads a tree big enough for a green to mean something', () => {
     expect(sources.size, 'no sources found under test/ — a vacuous pass').toBeGreaterThan(500);
@@ -347,13 +355,14 @@ describe('over the real tree', () => {
     // whose delete statements the detector no longer recognises is the quiet
     // way to report nothing (issue #113).
     expect(
-      filesDeletingRows({ sources }),
+      scan.deleting,
       'no test file deletes rows — the detection has gone blind',
     ).toBeGreaterThan(50);
   });
 
   it('finds no file over its baseline and none drained below it', () => {
-    const result = checkSharedTableWipes({ sources }, UNSCOPED_WIPES_BASELINE);
+    // The scan judges against the shipped baseline, `UNSCOPED_WIPES_BASELINE`.
+    const result = scan.result;
     expect(result.regressions.map((d) => `${d.file}: ${d.actual} > ${d.baseline}`)).toEqual([]);
     expect(result.drained.map((d) => `${d.file}: ${d.actual} < ${d.baseline}`)).toEqual([]);
   });
@@ -369,7 +378,7 @@ describe('over the real tree', () => {
     // in the baseline — `comparison-price-source` rebuilds the platform's single
     // default price list — so the invariant is about the tables, not the folder.
     expect(
-      findUnscopedWipes({ sources })
+      scan.wipes
         .filter((w) => w.table.toLowerCase().startsWith('comparison'))
         .map((w) => `${w.file}:${w.line} ${w.table}`),
     ).toEqual([]);
@@ -377,7 +386,7 @@ describe('over the real tree', () => {
 
   it('holds the fix: the reconciler test no longer empties `sales_channels` (issue #115)', () => {
     expect(
-      findUnscopedWipes({ sources })
+      scan.wipes
         .filter((w) => w.file === 'integration/sales_channels/boot-time-default-reconciliation.test.ts')
         .map((w) => `${w.line} [${w.kind}] ${w.table}`),
     ).toEqual([]);

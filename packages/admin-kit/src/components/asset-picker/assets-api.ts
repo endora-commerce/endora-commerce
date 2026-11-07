@@ -1,9 +1,9 @@
 import type { AssetDetail, ListAssetsResponse } from '@endora-commerce/contracts';
-// `apiClient` and `apiBaseUrl` come through the kit's published `lib` **barrel**
+// `apiClient` and `postMultipart` come through the kit's published `lib` **barrel**
 // rather than through `../../lib/api-client.js` — see the note in
 // `../sales-channel-picker/SalesChannelPicker.tsx`: the barrel is the only
 // spelling `vi.mock` can name from outside the package.
-import { apiBaseUrl, apiClient } from '../../lib/index.js';
+import { apiClient, postMultipart } from '../../lib/index.js';
 
 /**
  * The three Assets-Library requests the kit's asset components make, and the
@@ -66,10 +66,11 @@ export interface AssetUploadFields {
 /**
  * Upload a single file via multipart/form-data.
  *
- * The typed `apiClient` is JSON-only, so multipart goes through a direct
- * `fetch` over the same published origin. Visibility / folderId / label are
- * sent as fields BEFORE the file part so the server-side pipeline picks them up
- * before finalising the asset.
+ * Through the kit's `postMultipart`, so it shares the client's 401 trap: an
+ * expired session notifies the `onUnauthorized` listeners and every failure is
+ * an `ApiError` (issue #354). Visibility / folderId / label are sent as fields
+ * BEFORE the file part so the server-side pipeline picks them up before
+ * finalising the asset.
  */
 export async function uploadAsset(
   file: File,
@@ -84,15 +85,6 @@ export async function uploadAsset(
     fd.append('label', fields.label);
   }
   fd.append('file', file, file.name);
-  const r = await fetch(`${apiBaseUrl.replace(/\/+$/, '')}/api/v1/admin/assets`, {
-    method: 'POST',
-    credentials: 'include',
-    body: fd,
-  });
-  if (!r.ok) {
-    const text = await r.text();
-    throw new Error(`Upload failed (${r.status}): ${text}`);
-  }
-  const json = (await r.json()) as { data: AssetDetail };
+  const json = await postMultipart<{ data: AssetDetail }>('/api/v1/admin/assets', fd);
   return json.data;
 }

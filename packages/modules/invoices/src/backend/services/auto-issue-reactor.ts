@@ -110,11 +110,15 @@ export function createAutoIssueReactor(deps: AutoIssueReactorDeps): {
         // is a presence answer about the whole operation and is re-thrown.
         rethrowIfModuleDisabled(error);
         // An order refunded in full before it was invoiced is not invoiced at
-        // all (owner ruling of 2026-10-24): skipped, and the log says why.
+        // all (owner ruling of 2026-10-24), nor is one returned in full
+        // (product-owner ruling on F4, review of PR #865): skipped, and the log
+        // says why, and which of the two.
         if (error instanceof HttpError && error.code === ERROR_CODES.INVOICE_ORDER_REFUNDED) {
-          log('[invoices] the order was not auto-invoiced: its payments were refunded in full', {
+          const cause = (error.details as { reason?: unknown } | undefined)?.reason;
+          log('[invoices] the order was not auto-invoiced: it was refunded or returned in full', {
             orderId: p.orderId,
             reason: ERROR_CODES.INVOICE_ORDER_REFUNDED,
+            ...(typeof cause === 'string' ? { cause } : {}),
           });
           return;
         }

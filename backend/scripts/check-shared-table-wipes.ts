@@ -107,6 +107,7 @@ import { existsSync, readdirSync, readFileSync, statSync } from 'node:fs';
 import { join, relative } from 'node:path';
 import { fileURLToPath, pathToFileURL } from 'node:url';
 import ts from 'typescript';
+import { parseSource, rememberRead, withSharedParses } from '@endora-commerce/cli/lib/parsed-source.js';
 import { reportReadSize } from './lib/read-size.js';
 
 const TEST_ROOT = join(fileURLToPath(new URL('.', import.meta.url)), '..', 'test');
@@ -678,53 +679,83 @@ function siteOf(node: ts.Node): { site: WipeSite; enclosing: string } {
   return { site: 'helper', enclosing: enclosingFunction ?? '(module scope)' };
 }
 
+/**
+ * What one test source holds, read off **one** tree (issue #910): whether it
+ * deletes or rewrites rows at all, and its unscoped wipes.
+ *
+ * The CLI parsed every test file three times — {@link filesDeletingRows} for
+ * the vacuous guard, {@link findUnscopedWipes} for `--list`, and again inside
+ * {@link checkSharedTableWipes}. Inside a `withSharedParses` scope this answer
+ * is remembered, so each file is parsed once; outside one it is derived on
+ * every call, exactly as before.
+ */
+interface SourceWipes {
+  readonly deletesRows: boolean;
+  readonly wipes: readonly UnscopedWipe[];
+}
+
+function sourceWipes(file: string, text: string): SourceWipes {
+  return rememberRead('shared-table-wipes:wipes', file, text, () => {
+    const sf = parseSource(file, text);
+    return {
+      deletesRows: deletesRows(sf),
+      wipes: SEAM_PREFIXES.some((prefix) => file.startsWith(prefix)) ? [] : wipesIn(file, sf),
+    };
+  });
+}
+
+/** One source's unscoped wipes, in source order. */
+function wipesIn(file: string, sf: ts.SourceFile): UnscopedWipe[] {
+  const found: UnscopedWipe[] = [];
+  const visit = (node: ts.Node): void => {
+    if (ts.isCallExpression(node)) {
+      const line = sf.getLineAndCharacterOfPosition(node.getStart(sf)).line + 1;
+      const { site, enclosing } = siteOf(node);
+      const entity = ormWipeTable(node, sf);
+      const updated = entity === null ? ormUpdateTable(node, sf) : null;
+      const findAll = entity === null && updated === null ? findAllEntity(node, sf) : null;
+      if (entity !== null) {
+        found.push({ file, line, table: entity, kind: 'orm', site, enclosing });
+      } else if (updated !== null) {
+        found.push({ file, line, table: updated, kind: 'orm-update', site, enclosing });
+      } else if (findAll !== null) {
+        if (rowsReachRemoval(node)) {
+          found.push({ file, line, table: findAll, kind: 'orm-remove-each', site, enclosing });
+        }
+      } else if (SQL_ENTRY.has(tailName(node.expression) ?? '')) {
+        const sql = node.arguments[0] === undefined ? null : literalText(node.arguments[0]);
+        if (sql !== null) {
+          const truncated = truncatedTables(sql);
+          if (truncated !== null) {
+            for (const table of truncated) {
+              found.push({ file, line, table, kind: 'sql-truncate', site, enclosing });
+            }
+          } else {
+            const deleted = unfilteredDeleteTable(sql);
+            const full = fullLiteralText(node.arguments[0] as ts.Expression);
+            const rewritten = full === null ? null : unfilteredUpdateTable(full);
+            if (deleted !== null) {
+              found.push({ file, line, table: deleted, kind: 'sql-delete', site, enclosing });
+            } else if (rewritten !== null) {
+              found.push({ file, line, table: rewritten, kind: 'sql-update', site, enclosing });
+            }
+          }
+        }
+      }
+    }
+    node.forEachChild(visit);
+  };
+  sf.forEachChild(visit);
+  return found;
+}
+
 /** Every unscoped whole-table wipe in the given test sources. */
 export function findUnscopedWipes(input: TableWipeInput): UnscopedWipe[] {
   const found: UnscopedWipe[] = [];
 
   for (const [file, text] of input.sources) {
     if (SEAM_PREFIXES.some((prefix) => file.startsWith(prefix))) continue;
-    const sf = ts.createSourceFile(file, text, ts.ScriptTarget.Latest, true);
-
-    const visit = (node: ts.Node): void => {
-      if (ts.isCallExpression(node)) {
-        const line = sf.getLineAndCharacterOfPosition(node.getStart(sf)).line + 1;
-        const { site, enclosing } = siteOf(node);
-        const entity = ormWipeTable(node, sf);
-        const updated = entity === null ? ormUpdateTable(node, sf) : null;
-        const findAll = entity === null && updated === null ? findAllEntity(node, sf) : null;
-        if (entity !== null) {
-          found.push({ file, line, table: entity, kind: 'orm', site, enclosing });
-        } else if (updated !== null) {
-          found.push({ file, line, table: updated, kind: 'orm-update', site, enclosing });
-        } else if (findAll !== null) {
-          if (rowsReachRemoval(node)) {
-            found.push({ file, line, table: findAll, kind: 'orm-remove-each', site, enclosing });
-          }
-        } else if (SQL_ENTRY.has(tailName(node.expression) ?? '')) {
-          const sql = node.arguments[0] === undefined ? null : literalText(node.arguments[0]);
-          if (sql !== null) {
-            const truncated = truncatedTables(sql);
-            if (truncated !== null) {
-              for (const table of truncated) {
-                found.push({ file, line, table, kind: 'sql-truncate', site, enclosing });
-              }
-            } else {
-              const deleted = unfilteredDeleteTable(sql);
-              const full = fullLiteralText(node.arguments[0] as ts.Expression);
-              const rewritten = full === null ? null : unfilteredUpdateTable(full);
-              if (deleted !== null) {
-                found.push({ file, line, table: deleted, kind: 'sql-delete', site, enclosing });
-              } else if (rewritten !== null) {
-                found.push({ file, line, table: rewritten, kind: 'sql-update', site, enclosing });
-              }
-            }
-          }
-        }
-      }
-      node.forEachChild(visit);
-    };
-    sf.forEachChild(visit);
+    found.push(...sourceWipes(file, text).wipes);
   }
 
   found.sort((a, b) =>
@@ -753,26 +784,30 @@ export function findUnscopedWipes(input: TableWipeInput): UnscopedWipe[] {
 export function filesDeletingRows(input: TableWipeInput): number {
   let count = 0;
   for (const [file, text] of input.sources) {
-    const sf = ts.createSourceFile(file, text, ts.ScriptTarget.Latest, true);
-    let deletes = false;
-    const visit = (node: ts.Node): void => {
-      if (deletes) return;
-      if (ts.isCallExpression(node)) {
-        const name = tailName(node.expression);
-        if (name === ORM_WIPE || name === ORM_UPDATE) deletes = true;
-        else if (name !== null && ORM_REMOVE.has(name) && ts.isPropertyAccessExpression(node.expression)) {
-          deletes = true;
-        } else if (name !== null && SQL_ENTRY.has(name)) {
-          const sql = node.arguments[0] === undefined ? null : literalText(node.arguments[0]);
-          if (sql !== null && /^\s*(delete|truncate|update)\b/i.test(sql)) deletes = true;
-        }
-      }
-      node.forEachChild(visit);
-    };
-    sf.forEachChild(visit);
-    if (deletes) count += 1;
+    if (sourceWipes(file, text).deletesRows) count += 1;
   }
   return count;
+}
+
+/** Does `sf` delete or rewrite rows at all, whatever its filter? */
+function deletesRows(sf: ts.SourceFile): boolean {
+  let deletes = false;
+  const visit = (node: ts.Node): void => {
+    if (deletes) return;
+    if (ts.isCallExpression(node)) {
+      const name = tailName(node.expression);
+      if (name === ORM_WIPE || name === ORM_UPDATE) deletes = true;
+      else if (name !== null && ORM_REMOVE.has(name) && ts.isPropertyAccessExpression(node.expression)) {
+        deletes = true;
+      } else if (name !== null && SQL_ENTRY.has(name)) {
+        const sql = node.arguments[0] === undefined ? null : literalText(node.arguments[0]);
+        if (sql !== null && /^\s*(delete|truncate|update)\b/i.test(sql)) deletes = true;
+      }
+    }
+    node.forEachChild(visit);
+  };
+  sf.forEachChild(visit);
+  return deletes;
 }
 
 /** One file's measured count against its baseline. */
@@ -834,6 +869,23 @@ export function checkSharedTableWipes(
   return { total: all.length, regressions, drained };
 }
 
+/**
+ * The guard's count, every unscoped wipe and the rule's verdict, in one
+ * shared-parse scope — one parse per test file between the three walks
+ * (issue #910). What the CLI runs.
+ */
+export function scanSharedTableWipes(input: TableWipeInput): {
+  readonly deleting: number;
+  readonly wipes: readonly UnscopedWipe[];
+  readonly result: CheckResult;
+} {
+  return withSharedParses(() => ({
+    deleting: filesDeletingRows(input),
+    wipes: findUnscopedWipes(input),
+    result: checkSharedTableWipes(input),
+  }));
+}
+
 function main(): void {
   const listMode = process.argv.includes('--list');
   const files = walk(TEST_ROOT);
@@ -849,7 +901,9 @@ function main(): void {
     sources.set(relative(TEST_ROOT, file).split('\\').join('/'), readFileSync(file, 'utf8'));
   }
 
-  const deleting = filesDeletingRows({ sources });
+  // Nothing in the scan prints, so computing the verdict before the guard below
+  // refuses changes nothing this check reports.
+  const { deleting, wipes, result } = scanSharedTableWipes({ sources });
   if (deleting === 0) {
     console.error(
       `[shared-table-wipes] read ${sources.size} test sources and found no delete or update statement ` +
@@ -858,8 +912,6 @@ function main(): void {
     process.exit(2);
   }
 
-  const wipes = findUnscopedWipes({ sources });
-  const result = checkSharedTableWipes({ sources });
   const over = new Set(result.regressions.map((drift) => drift.file));
 
   if (listMode) {

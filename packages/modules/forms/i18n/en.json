@@ -520,5 +520,6 @@
   "settings.retention.cancel": "Cancel",
   "settings.retention.readOnly": "Changing the retention period needs the permission to process and delete entries, and access to every organisation.",
   "errors.FORM_CAPTCHA_FAILED": "We could not verify that you are not a robot. Complete the check and send the form again.",
-  "errors.FORM_CAPTCHA_UNAVAILABLE": "The verification service is not reachable right now. Wait a moment and send the form again."
+  "errors.FORM_CAPTCHA_UNAVAILABLE": "The verification service is not reachable right now. Wait a moment and send the form again.",
+  "settingGroups.forms.name": "Forms"
 }

@@ -30,5 +30,6 @@
   "customEvents.actions.add_to_quote_request": "Dodaj do zapytania ofertowego",
   "customEvents.actions.add_to_shopping_list": "Dodaj do listy zakupowej",
   "customEvents.actions.button_click_by_id": "Kliknięcie przycisku (wg ID)",
-  "actions.newCustomEvent.keywords": "zdarzenie"
+  "actions.newCustomEvent.keywords": "zdarzenie",
+  "settingGroups.google_analytics.name": "Google Analytics"
 }

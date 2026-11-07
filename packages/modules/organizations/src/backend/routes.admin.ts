@@ -33,7 +33,7 @@ import {
 } from '@endora-commerce/contracts';
 import type { CommandBus } from '@endora-commerce/platform/commands';
 import { HttpError } from '@endora-commerce/platform/http';
-import { getTenantContext, orgConstraintFor } from '@endora-commerce/platform/tenancy';
+import { getTenantContext } from '@endora-commerce/platform/tenancy';
 import type { OrganizationTreeService } from './services/organization-tree-service.js';
 import { hasChildrenRefusal } from './services/organization-tree-service.js';
 import { makeSetParentCommand } from './commands/set-parent.command.js';
@@ -41,6 +41,7 @@ import { makeMoveCommand } from './commands/move.command.js';
 import { makeSetCreditModeCommand } from './commands/set-credit-mode.command.js';
 import { makeCreateOrganizationCommand } from './commands/create-organization.command.js';
 import { Organization } from './entities/organization.entity.js';
+import { adminActorOf, organizationInReach as organizationInReachPreHandler } from './organization-reach.js';
 import { OrganizationRole } from './entities/organization-role.entity.js';
 import { predefinedRoleIdOn } from './services/organization-role-store.js';
 import { memberRoleRef } from './services/member-role-views.js';
@@ -96,26 +97,6 @@ const listQuerySchema = z.object({
   // treat the string "false" as true).
   includePersonal: z.string().optional(),
 });
-
-/**
- * The acting admin, or `null` for any other actor.
- *
- * `request.actor` is not on `FastifyRequest`: it is a declaration-merging
- * augmentation the `auth` module contributes (`modules/auth/plugin.ts`). Inside
- * `backend/src` it arrived ambiently through the host's own `types` graph, so
- * nothing in this module ever named it; a package compiles against its own
- * manifest and `auth` publishes nothing a package can name, so the property is
- * simply not there (TS2339). Read structurally and narrowed rather than
- * asserted — an absent actor answers `null`, which is the "record nothing"
- * branch this call site already had.
- */
-function adminActorOf(request: FastifyRequest): { adminUserId: string } | null {
-  const { actor } = request as FastifyRequest & {
-    actor?: { kind?: string; adminUserId?: string };
-  };
-  if (actor?.kind !== 'admin' || typeof actor.adminUserId !== 'string') return null;
-  return { adminUserId: actor.adminUserId };
-}
 
 export interface AdminOrgsDeps {
   emFactory: () => EntityManager;
@@ -216,36 +197,15 @@ export async function registerOrganizationsAdminRoutes(
 
   /**
    * Issue #698 — every `/:id` route here answers only for an Organization the
-   * acting administrator may see. `Organization` is `@GlobalEntity`, so no
-   * tenant filter narrows its reads, and a sales representative could open,
-   * edit, block and delete an Organization assigned to another representative.
-   *
-   * The rule is the existing sales-representative visibility rule,
-   * `SalesRepAssignmentPort.canSeeOrganization`, not the tenant reach
-   * (`isOrgInScope`): an Organization assigned to the representative (or, under
-   * `organizations:rollup`, whose nearest assigned ancestor is theirs), **or
-   * one nobody is assigned to** — the fallback a pending registration is
-   * moderated under (D-87) and that `customers` FR-037 and owner ruling D-3W
-   * apply elsewhere. Which of the two rules is the platform's is issue #305;
-   * this does not decide it (architect ruling on #847).
-   *
-   * Every caller first gets a `404 NOT_FOUND` for a malformed, unknown or
-   * deleted id; an Organization the representative may not see then answers
-   * the same, so the answer is no existence probe. A platform-wide scope sees
-   * every Organization. A preHandler, after the permission gate, so a route
-   * added under `/:id` states its reach where it states its permission.
+   * acting administrator may see; the rule, and why it is not the tenant
+   * reach, are on {@link organizationInReachPreHandler}. Shared since #856 with
+   * `routes.sales-reps.ts`, so the two files cannot answer by two rules.
    */
-  const organizationInReach = async (request: FastifyRequest): Promise<void> => {
-    const notFound = (): HttpError => new HttpError(404, ERROR_CODES.NOT_FOUND, 'Organization not found.');
-    const { id } = request.params as { id?: unknown };
-    if (typeof id !== 'string' || !isUuidShape(id)) throw notFound();
-    if ((await emFactory().count(Organization, { id, deletedAt: null })) === 0) throw notFound();
-    if (orgConstraintFor().kind === 'all') return;
-    const actor = adminActorOf(request);
-    if (actor === null || !(await deps.salesRepScope.canSeeOrganization(actor.adminUserId, id))) {
-      throw notFound();
-    }
-  };
+  const organizationInReach = organizationInReachPreHandler({
+    emFactory,
+    salesRepScope: deps.salesRepScope,
+    param: 'id',
+  });
 
   /** A member as the operator's screens show it: its role, not the legacy enum (FR-008, FR-073). */
   const memberDetail = async (member: CustomerAccountRecord, language: string): Promise<Record<string, unknown>> =>

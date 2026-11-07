@@ -117,7 +117,8 @@ describe('returns — what a settlement refunds and credits', () => {
 
   it('serialises two settlements of one order, so the second reads the first correction', async () => {
     // 2 × 0.03 net at 23 %: 0.06 net, 0.01 VAT, 0.07 charged — issued per rate.
-    // The first unit refunds 0.04 (0.03 + 0.01 VAT), the second 0.03 (0.03 + 0.00).
+    // The first unit refunds the drop in the kept value, 0.07 − 0.04 = 0.03, and
+    // the second the 0.04 kept (issue #435, product-owner ruling Q1 (c)).
     // A second correction that does not see the first credits 0.03 as 0.02 net
     // and 0.01 VAT, and the two together credit 0.02 VAT of the 0.01 invoiced.
     const orderId = await withSystemScope('test: seed a cent order', async () => {
@@ -171,7 +172,7 @@ describe('returns — what a settlement refunds and credits', () => {
     const a = await receivedCase(orderId, [{ orderItemId, quantity: 1 }]);
     const b = await receivedCase(orderId, [{ orderItemId, quantity: 1 }]);
 
-    expect([a, b].map((rc) => rc.items[0]!.defaultRefundAmount)).toEqual([0.04, 0.03]);
+    expect([a, b].map((rc) => rc.items[0]!.defaultRefundAmount)).toEqual([0.03, 0.04]);
     const results = await Promise.all(
       [a, b].map((rc) =>
         settle(

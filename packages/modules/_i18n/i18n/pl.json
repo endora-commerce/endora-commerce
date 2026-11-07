@@ -754,6 +754,7 @@
   "errors.VALIDATION_FAILED": "Żądanie nie przeszło walidacji.",
   "errors.VERSION_CONFLICT": "Zasób został zmieniony przez inny proces.",
   "errors.VERSION_CONFLICT.organization_version_mismatch": "Organizacja została w międzyczasie zmieniona przez kogoś innego. Odśwież stronę i spróbuj ponownie.",
+  "errors.VERSION_CONFLICT.settlement_in_progress": "Zwrot z tego zamówienia jest właśnie rozliczany. Spróbuj ponownie za chwilę.",
   "form.unsavedChanges.confirm": "Masz niezapisane zmiany. Opuścić tę stronę bez zapisywania?",
   "fulfilment.hint": "Jak wybierane są magazyny do realizacji pozycji zamówienia. Pierwszeństwo: produkt → organizacja → kanał sprzedaży → domyślna platformy.",
   "fulfilment.inherit": "Dziedzicz (kanał / domyślna)",
