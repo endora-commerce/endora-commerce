@@ -139,7 +139,9 @@ describe('an untick during the editor’s late reads survives them (feature 174,
     const weight = await screen.findByLabelText('Weight');
     const box = screen.getByRole<HTMLInputElement>('checkbox', { name: /for Weight$/ });
     expect(box).toBeChecked();
-    expect(held.some((h) => h.path.startsWith('/api/v1/admin/catalog/attribute-sets/'))).toBe(true);
+    // The tab asks for the attribute set from an effect of the commit that shows the fields, so the
+    // read can start just after "Weight" is on screen (issue #841).
+    await waitFor(() => expect(held.some((h) => h.path.startsWith('/api/v1/admin/catalog/attribute-sets/'))).toBe(true));
 
     fireEvent.click(box);
     await waitFor(() => expect(weight).not.toHaveAttribute('readonly'));
