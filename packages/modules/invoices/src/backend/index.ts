@@ -280,6 +280,12 @@ export function registerModule(ctx: ModuleContext): void {
               if (!effectiveState.isPresent('returns')) return [];
               return lazyPort<ReturnRefundReadPort>(ctx, 'returnRefundReadPort').listForOrder(orderId);
             },
+            // Issue #435 — what of the order came back, so an invoice issued
+            // after a return lists only the kept lines.
+            returnedQuantitiesFor: async (orderId) => {
+              if (!effectiveState.isPresent('returns')) return [];
+              return lazyPort<ReturnRefundReadPort>(ctx, 'returnRefundReadPort').listReturnedQuantities(orderId);
+            },
           },
           ledgerRouting: {
             numberingModeFor: async (salesChannelId) => {
