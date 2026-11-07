@@ -38,7 +38,7 @@ organization's Administrator role, checked server-side through
 | `POST /api/v1/organizations/mine/addresses` | customer (`addresses.manage`) | Create address |
 | `PATCH /api/v1/organizations/mine/addresses/:id` | customer (`addresses.manage`) | Update |
 | `DELETE /api/v1/organizations/mine/addresses/:id` | customer (`addresses.manage`) | Remove |
-| `GET /api/v1/admin/organizations` | admin | List with `filter[status]` / `filter[vatStatus]` / `q` |
+| `GET /api/v1/admin/organizations` | admin | List with `filter[status]` / `filter[vatStatus]` / `q`; a sales representative's list holds only the Organizations in their reach (see below the table) |
 | `POST /api/v1/admin/organizations` | admin (`customers:manage`) | Create an Organization with its sales channels (see *Sales channels* below) |
 | `GET /api/v1/admin/organizations/sales-channel-options` | admin (`customers:manage`) | The channels the create form offers |
 | `GET /api/v1/admin/organizations/:id/sales-channels` | admin (`customers:read` or `customers:manage`) | The channels assigned to the Organization, and the channels it could be assigned. A sales representative reaches only the Organizations assigned to them; any other answers `404 NOT_FOUND`, as one that does not exist |
@@ -50,6 +50,8 @@ organization's Administrator role, checked server-side through
 | `PATCH /api/v1/admin/organizations/:id/members/:customerAccountId/role` | admin | Assign a role (`{ roleId, expectedUpdatedAt? }`) |
 | `DELETE /api/v1/admin/organizations/:id/members/:customerAccountId` | admin | Soft-remove member (last-administrator guard) |
 | `POST /api/v1/admin/organizations/:id/recover-admin-access` | admin | Break-glass — give an existing member the Administrator role |
+
+**A sales representative reaches only their Organizations.** Their reach is the Organizations assigned to them, expanded to each one's subtree when their role holds `organizations:rollup`. The list above holds only those, and every `/api/v1/admin/organizations/:id` route — reads and writes, the nested ones included — answers any other Organization with `404 NOT_FOUND`, exactly as one that does not exist. Any other admin role reaches every Organization.
 
 Configure **`SMTP_URL`** in the backend environment so outbound mail uses SMTP instead of the console logger.
 

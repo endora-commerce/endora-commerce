@@ -32,7 +32,7 @@ import {
 } from '@endora-commerce/contracts';
 import type { CommandBus } from '@endora-commerce/platform/commands';
 import { HttpError } from '@endora-commerce/platform/http';
-import { getTenantContext, isOrgInScope } from '@endora-commerce/platform/tenancy';
+import { getTenantContext, isOrgInScope, orgConstraintFor } from '@endora-commerce/platform/tenancy';
 import type { OrganizationTreeService } from './services/organization-tree-service.js';
 import { hasChildrenRefusal } from './services/organization-tree-service.js';
 import { makeSetParentCommand } from './commands/set-parent.command.js';
@@ -108,6 +108,44 @@ const listQuerySchema = z.object({
  * asserted — an absent actor answers `null`, which is the "record nothing"
  * branch this call site already had.
  */
+/**
+ * Issue #698 — every `/:id` route here answers only for an Organization within
+ * the acting administrator's reach. `Organization` is `@GlobalEntity`, so no
+ * tenant filter narrows its reads, and the rows below it that are org-scoped
+ * narrow only some of them: a sales representative confined to their assigned
+ * Organizations (subtree-expanded under `organizations:rollup`) could open,
+ * edit, block and delete any Organization. Outside the reach the answer is the
+ * one an unknown Organization gets — `404 NOT_FOUND`, decided after the
+ * permission check and before anything is read — so it is no existence probe
+ * either. A platform administrator reaches every Organization.
+ *
+ * A preHandler rather than a line in each handler, so a route added under
+ * `/:id` states its reach where it states its permission.
+ */
+async function organizationInReach(request: FastifyRequest): Promise<void> {
+  const { id } = request.params as { id?: unknown };
+  if (typeof id !== 'string' || !isOrgInScope(id)) {
+    throw new HttpError(404, ERROR_CODES.NOT_FOUND, 'Organization not found.');
+  }
+}
+
+/**
+ * The list's reach, as a `where` fragment on the Organization id (#698) — in
+ * the query, so a page holds `limit` Organizations in reach rather than
+ * `limit` Organizations of which some are then dropped.
+ */
+function organizationReachWhere(): Record<string, unknown> {
+  const constraint = orgConstraintFor();
+  switch (constraint.kind) {
+    case 'all':
+      return {};
+    case 'single':
+      return { id: { $in: constraint.organizationId === null ? [] : [constraint.organizationId] } };
+    case 'set':
+      return { id: { $in: [...constraint.organizationIds] } };
+  }
+}
+
 function adminActorOf(request: FastifyRequest): { adminUserId: string } | null {
   const { actor } = request as FastifyRequest & {
     actor?: { kind?: string; adminUserId?: string };
@@ -260,7 +298,7 @@ export async function registerOrganizationsAdminRoutes(
     async (request) => {
       const query = listQuerySchema.parse(request.query);
       const em = emFactory();
-      const where: Record<string, unknown> = { deletedAt: null };
+      const where: Record<string, unknown> = { deletedAt: null, ...organizationReachWhere() };
       // Feature 051 — exclude personal (B2C) orgs from the B2B admin list by default.
       if (query.includePersonal !== 'true') where['isPersonal'] = false;
       if (query['filter[status]']) where['status'] = query['filter[status]'];
@@ -290,7 +328,7 @@ export async function registerOrganizationsAdminRoutes(
 
   app.get<{ Params: { id: string } }>(
     '/api/v1/admin/organizations/:id',
-    { preHandler: customersRead },
+    { preHandler: [customersRead, organizationInReach] },
     async (request) => {
       const em = emFactory();
       if (!isUuidShape(request.params.id)) {
@@ -333,7 +371,7 @@ export async function registerOrganizationsAdminRoutes(
     const addressService = deps.addressService;
     app.get<{ Params: { id: string } }>(
       '/api/v1/admin/organizations/:id/addresses',
-      { preHandler: customersRead },
+      { preHandler: [customersRead, organizationInReach] },
       async (request) => {
         const rows = await addressService.list(request.params.id);
         return {
@@ -357,7 +395,7 @@ export async function registerOrganizationsAdminRoutes(
   app.patch<{ Params: { id: string } }>(
     '/api/v1/admin/organizations/:id',
     {
-      preHandler: requireAdmin('customers:manage'),
+      preHandler: [requireAdmin('customers:manage'), organizationInReach],
       schema: { body: adminPatchOrganizationRequestSchema },
     },
     async (request) => {
@@ -461,16 +499,10 @@ export async function registerOrganizationsAdminRoutes(
     };
 
     /**
-     * The Organization, when it exists **and the acting administrator can see
-     * it** (issue #515). `Organization` is a global entity, so no tenant filter
-     * narrows the read: a sales representative confined to their own
-     * Organizations reached every Organization's assignment here, and with
-     * `customers:manage` could replace it. Outside the request's reach the
-     * answer is the one a nonexistent Organization gets — `404 NOT_FOUND`,
-     * decided before the row is read — so it is no existence probe either.
+     * The Organization, when it exists. Its reach (issue #515) is the route's
+     * `organizationInReach` preHandler, as on every `/:id` route here (#698).
      */
     const requireOrganization = async (em: EntityManager, id: string): Promise<Organization> => {
-      if (!isOrgInScope(id)) throw new HttpError(404, ERROR_CODES.NOT_FOUND, 'Organization not found.');
       if (!isUuidShape(id)) throw new HttpError(404, ERROR_CODES.NOT_FOUND, 'Organization not found.');
       const org = await em.findOne(Organization, { id, deletedAt: null });
       if (!org) throw new HttpError(404, ERROR_CODES.NOT_FOUND, 'Organization not found.');
@@ -479,7 +511,7 @@ export async function registerOrganizationsAdminRoutes(
 
     app.get<{ Params: { id: string } }>(
       '/api/v1/admin/organizations/:id/sales-channels',
-      { preHandler: customersRead },
+      { preHandler: [customersRead, organizationInReach] },
       async (request) => {
         const em = emFactory();
         await requireOrganization(em, request.params.id);
@@ -498,7 +530,7 @@ export async function registerOrganizationsAdminRoutes(
     app.put<{ Params: { id: string } }>(
       '/api/v1/admin/organizations/:id/sales-channels',
       {
-        preHandler: requireAdmin('customers:manage'),
+        preHandler: [requireAdmin('customers:manage'), organizationInReach],
         schema: { body: OrganizationSalesChannelsUpdateBodySchema },
       },
       async (request) => {
@@ -554,7 +586,7 @@ export async function registerOrganizationsAdminRoutes(
     app.post<{ Params: { id: string } }>(
       '/api/v1/admin/organizations/:id/approve',
       {
-        preHandler: requireAdmin('customers:manage'),
+        preHandler: [requireAdmin('customers:manage'), organizationInReach],
         schema: { body: approveOrganizationSchema },
       },
       async (request) => {
@@ -576,7 +608,7 @@ export async function registerOrganizationsAdminRoutes(
     app.post<{ Params: { id: string } }>(
       '/api/v1/admin/organizations/:id/reject',
       {
-        preHandler: requireAdmin('customers:manage'),
+        preHandler: [requireAdmin('customers:manage'), organizationInReach],
         schema: { body: rejectOrganizationSchema },
       },
       async (request) => {
@@ -600,7 +632,7 @@ export async function registerOrganizationsAdminRoutes(
     app.post<{ Params: { id: string } }>(
       '/api/v1/admin/organizations/:id/block',
       {
-        preHandler: requireAdmin('customers:manage'),
+        preHandler: [requireAdmin('customers:manage'), organizationInReach],
         schema: { body: blockOrganizationSchema },
       },
       async (request) => {
@@ -623,7 +655,7 @@ export async function registerOrganizationsAdminRoutes(
     app.post<{ Params: { id: string } }>(
       '/api/v1/admin/organizations/:id/unblock',
       {
-        preHandler: requireAdmin('customers:manage'),
+        preHandler: [requireAdmin('customers:manage'), organizationInReach],
         schema: { body: unblockOrganizationSchema },
       },
       async (request) => {
@@ -649,7 +681,7 @@ export async function registerOrganizationsAdminRoutes(
   if (restrictionService) {
     app.get<{ Params: { id: string } }>(
       '/api/v1/admin/organizations/:id/restrictions',
-      { preHandler: requireAdmin('customers:manage') },
+      { preHandler: [requireAdmin('customers:manage'), organizationInReach] },
       async (request) => {
         assertOrganizationIdShape(request.params.id);
         const data = await restrictionService
@@ -662,7 +694,7 @@ export async function registerOrganizationsAdminRoutes(
     app.put<{ Params: { id: string } }>(
       '/api/v1/admin/organizations/:id/restrictions',
       {
-        preHandler: requireAdmin('customers:manage'),
+        preHandler: [requireAdmin('customers:manage'), organizationInReach],
         schema: { body: replaceOrgRestrictionsSchema },
       },
       async (request) => {
@@ -683,7 +715,7 @@ export async function registerOrganizationsAdminRoutes(
       app.patch<{ Params: { id: string } }>(
         url,
         {
-          preHandler: requireAdmin('customers:manage'),
+          preHandler: [requireAdmin('customers:manage'), organizationInReach],
           schema: { body: patchOrgRestrictionsSchema },
         },
         async (request) => {
@@ -709,7 +741,7 @@ export async function registerOrganizationsAdminRoutes(
   if (effectivePriceListsService) {
     app.get<{ Params: { id: string } }>(
       '/api/v1/admin/organizations/:id/applicable-price-lists',
-      { preHandler: requireAdmin('customers:manage') },
+      { preHandler: [requireAdmin('customers:manage'), organizationInReach] },
       async (request) => {
         const items = await effectivePriceListsService.listApplicable(request.params.id);
         return { items };
@@ -724,7 +756,7 @@ export async function registerOrganizationsAdminRoutes(
   if (taxIdValidationService) {
     app.get<{ Params: { id: string } }>(
       '/api/v1/admin/organizations/:id/vat-validations',
-      { preHandler: requireAdmin('customers:manage') },
+      { preHandler: [requireAdmin('customers:manage'), organizationInReach] },
       async (request) => {
         const items = await taxIdValidationService.listForOrganization(request.params.id);
         // Feature 173 — typed by `organizationTaxIdValidationRecordSchema`, with
@@ -737,7 +769,7 @@ export async function registerOrganizationsAdminRoutes(
     app.post<{ Params: { id: string } }>(
       '/api/v1/admin/organizations/:id/vat-validations',
       {
-        preHandler: requireAdmin('customers:manage'),
+        preHandler: [requireAdmin('customers:manage'), organizationInReach],
         schema: { body: triggerVatValidationSchema },
       },
       async (request) => {
@@ -761,7 +793,7 @@ export async function registerOrganizationsAdminRoutes(
   app.post<{ Params: { id: string } }>(
     '/api/v1/admin/organizations/:id/members/invite',
     {
-      preHandler: requireAdmin('customers:manage'),
+      preHandler: [requireAdmin('customers:manage'), organizationInReach],
       schema: { body: inviteMemberToRoleRequestSchema },
     },
     async (request, reply) => {
@@ -793,7 +825,7 @@ export async function registerOrganizationsAdminRoutes(
   app.post<{ Params: { id: string } }>(
     '/api/v1/admin/organizations/:id/members',
     {
-      preHandler: requireAdmin('customers:manage'),
+      preHandler: [requireAdmin('customers:manage'), organizationInReach],
       schema: { body: adminDirectMemberToRoleRequestSchema },
     },
     async (request, reply) => {
@@ -855,7 +887,7 @@ export async function registerOrganizationsAdminRoutes(
   app.patch<{ Params: { id: string; customerAccountId: string } }>(
     '/api/v1/admin/organizations/:id/members/:customerAccountId/role',
     {
-      preHandler: requireAdmin('customers:manage'),
+      preHandler: [requireAdmin('customers:manage'), organizationInReach],
       schema: { body: adminAssignMemberRoleRequestSchema },
     },
     async (request) => {
@@ -890,7 +922,7 @@ export async function registerOrganizationsAdminRoutes(
   app.patch<{ Params: { id: string; customerAccountId: string } }>(
     '/api/v1/admin/organizations/:id/members/:customerAccountId/rollup',
     {
-      preHandler: requireAdmin('customers:manage'),
+      preHandler: [requireAdmin('customers:manage'), organizationInReach],
       schema: { body: adminSetMemberRollupRequestSchema },
     },
     async (request) => {
@@ -924,7 +956,7 @@ export async function registerOrganizationsAdminRoutes(
   app.patch<{ Params: { id: string; customerAccountId: string } }>(
     '/api/v1/admin/organizations/:id/members/:customerAccountId',
     {
-      preHandler: requireAdmin('customers:manage'),
+      preHandler: [requireAdmin('customers:manage'), organizationInReach],
       schema: { body: adminPatchMemberProfileRequestSchema },
     },
     async (request) => {
@@ -961,7 +993,7 @@ export async function registerOrganizationsAdminRoutes(
 
   app.delete<{ Params: { id: string; customerAccountId: string } }>(
     '/api/v1/admin/organizations/:id/members/:customerAccountId',
-    { preHandler: requireAdmin('customers:manage') },
+    { preHandler: [requireAdmin('customers:manage'), organizationInReach] },
     async (request, reply) => {
       const member = await deps.customerAccountRead.findInOrganization(
         request.params.customerAccountId,
@@ -988,7 +1020,7 @@ export async function registerOrganizationsAdminRoutes(
   app.post<{ Params: { id: string } }>(
     '/api/v1/admin/organizations/:id/recover-admin-access',
     {
-      preHandler: requireAdmin('customers:manage'),
+      preHandler: [requireAdmin('customers:manage'), organizationInReach],
       schema: { body: adminRecoverOrgAccessRequestSchema },
     },
     async (request) => {
@@ -1077,7 +1109,7 @@ export async function registerOrganizationsAdminRoutes(
     // Read the subtree (descendants incl. self), pre-order.
     app.get<{ Params: { id: string } }>(
       '/api/v1/admin/organizations/:id/subtree',
-      { preHandler: customersRead },
+      { preHandler: [customersRead, organizationInReach] },
       async (request) => {
         const em = emFactory();
         if (!isUuidShape(request.params.id)) {
@@ -1095,7 +1127,7 @@ export async function registerOrganizationsAdminRoutes(
     // Read the ancestor chain, nearest-first.
     app.get<{ Params: { id: string } }>(
       '/api/v1/admin/organizations/:id/ancestors',
-      { preHandler: customersRead },
+      { preHandler: [customersRead, organizationInReach] },
       async (request) => {
         const em = emFactory();
         if (!isUuidShape(request.params.id)) {
@@ -1148,7 +1180,7 @@ export async function registerOrganizationsAdminRoutes(
     // exists (FR-010). Backed by the DB `parent_id ON DELETE RESTRICT`.
     app.delete<{ Params: { id: string } }>(
       '/api/v1/admin/organizations/:id',
-      { preHandler: requireAdmin('customers:manage') },
+      { preHandler: [requireAdmin('customers:manage'), organizationInReach] },
       async (request, reply) => {
         const em = emFactory();
         if (!isUuidShape(request.params.id)) {
