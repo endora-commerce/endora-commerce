@@ -23,7 +23,7 @@
  * structural comparison, which a second React context would pass.
  */
 export { resolveIcon } from './admin-actions/icon-map.js';
-export { ApiError, apiBaseUrl, apiClient, onUnauthorized } from './api-client.js';
+export { ApiError, apiBaseUrl, apiClient, onUnauthorized, postMultipart } from './api-client.js';
 export { toAbsoluteAssetUrl } from './asset-url.js';
 export { AuthProvider, useAuth } from './auth.js';
 export {
