@@ -82,7 +82,6 @@ export const chrome = defineMessages({
 
     'chrome.header.shipsTodayBy': 'Ships today if you order by {time}',
     'chrome.header.taxId': 'Tax ID',
-    'chrome.header.support': 'B2B support',
     'chrome.header.currency': 'Currency:',
     'chrome.header.tagline': 'B2B · Industrial components',
     'chrome.header.taglineCompact': 'B2B components',
@@ -99,7 +98,6 @@ export const chrome = defineMessages({
     'chrome.footer.account': 'B2B account',
     'chrome.footer.myAccount': 'My account',
     'chrome.footer.orders': 'Orders',
-    'chrome.footer.invoices': 'Invoices',
     'chrome.footer.quoteRequests': 'RFQ — quote requests',
     'chrome.footer.shoppingLists': 'Shopping lists',
     'chrome.footer.support': 'Support',
@@ -240,7 +238,6 @@ export const chrome = defineMessages({
 
     'chrome.header.shipsTodayBy': 'Wysyłka dziś, jeśli zamówisz do {time}',
     'chrome.header.taxId': 'NIP',
-    'chrome.header.support': 'Wsparcie B2B',
     'chrome.header.currency': 'Waluta:',
     'chrome.header.tagline': 'B2B · Komponenty przemysłowe',
     'chrome.header.taglineCompact': 'Komponenty B2B',
@@ -256,7 +253,6 @@ export const chrome = defineMessages({
     'chrome.footer.account': 'Konto B2B',
     'chrome.footer.myAccount': 'Moje konto',
     'chrome.footer.orders': 'Zamówienia',
-    'chrome.footer.invoices': 'Faktury',
     'chrome.footer.quoteRequests': 'RFQ — zapytania ofertowe',
     'chrome.footer.shoppingLists': 'Listy zakupów',
     'chrome.footer.support': 'Wsparcie',

@@ -15,12 +15,12 @@ import { ShoppingListHeartBadge } from './ShoppingListHeartBadge';
 import { SearchAutocomplete } from './SearchAutocomplete';
 import { CurrencySwitcher, LocaleSwitcher } from './HeaderPreferenceSwitchers';
 import { publicApiBaseUrl } from '../lib/env.mjs';
-import { LocalizedLink, LocalizedAnchor, LocalizedForm } from '../lib/i18n/localized-link';
+import { LocalizedLink, LocalizedForm } from '../lib/i18n/localized-link';
 
 /**
  * Industria-themed storefront header. Three rows:
  *   1) top utility strip (phone, shipping cutoff, Faktura VAT chip,
- *      NIP chip, currency/locale, B2B support),
+ *      NIP chip, currency/locale),
  *   2) main header (brand mark + search + icon buttons + user pill),
  *   3) main nav (categories + Quick Order CTA).
  *
@@ -108,10 +108,6 @@ export function Header(props: {
               <strong>{t('chrome.header.taxId')}</strong> {DEMO_TAX_ID}
             </span>
             <CurrencySwitcher currency={props.currency} label={t('chrome.header.currency')} />
-            <span className="industria-topbar__sep" aria-hidden="true" />
-            <LocalizedAnchor href="/help" className="industria-topbar__item">
-              <HelpIcon /> {t('chrome.header.support')}
-            </LocalizedAnchor>
             {/* Feature 167 — the channel's languages decide; it hides itself for one. */}
             <LocaleSwitcher label={t('header.language')} />
           </div>
@@ -364,16 +360,6 @@ function DocIcon(): ReactNode {
       <polyline points="14 2 14 8 20 8" />
       <line x1="8" y1="13" x2="16" y2="13" />
       <line x1="8" y1="17" x2="14" y2="17" />
-    </>,
-    13,
-  );
-}
-function HelpIcon(): ReactNode {
-  return svg(
-    <>
-      <circle cx="12" cy="12" r="10" />
-      <path d="M9.09 9a3 3 0 0 1 5.83 1c0 2-3 3-3 3" />
-      <line x1="12" y1="17" x2="12.01" y2="17" />
     </>,
     13,
   );
