@@ -236,6 +236,7 @@ export const account = defineMessages({
     'account.orgCarts.heading': 'Organization carts',
     'account.orgCarts.approverOnly': 'Only members allowed to approve carts can see this page.',
     'account.orgCarts.loadFailed': 'Could not load the organization carts.',
+    'account.orgCarts.retry': 'Try again',
     'account.orgCarts.intro':
       'Every cart in the {organization} organization — including members’ active carts, carts awaiting approval, and past ones.',
     'account.orgCarts.empty': 'No carts yet.',
@@ -745,6 +746,7 @@ export const account = defineMessages({
     'account.orgCarts.heading': 'Koszyki organizacji',
     'account.orgCarts.approverOnly': 'Tę stronę widzą tylko członkowie, którzy mogą akceptować koszyki.',
     'account.orgCarts.loadFailed': 'Nie udało się wczytać koszyków organizacji.',
+    'account.orgCarts.retry': 'Spróbuj ponownie',
     'account.orgCarts.intro':
       'Wszystkie koszyki organizacji {organization} — w tym aktywne koszyki członków, koszyki czekające na akceptację i koszyki archiwalne.',
     'account.orgCarts.empty': 'Nie ma jeszcze żadnych koszyków.',
