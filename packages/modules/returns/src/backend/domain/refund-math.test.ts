@@ -52,6 +52,14 @@ describe('carriedDiscount (#417)', () => {
     expect(carriedDiscount('25.00', '36.50', 18.25)).toBe('12.50');
     expect(carriedDiscount('25.00', '36.50', 0)).toBe('0.00');
     expect(carriedDiscount('0', '36.50', 36.5)).toBe('0.00');
-    expect(carriedDiscount('25.00', '0.00', 0)).toBe('0.00');
+  });
+
+  // Review of PR #865 (F2) — a line whose discount share takes its whole value
+  // refunds 0.00 by default and still carries its discount back: an invoice
+  // issued after the return takes it off the discount line.
+  it('carries the whole default discount of a 0.00 default refund approved as it is', () => {
+    expect(carriedDiscount('25.00', '0.00', 0)).toBe('25.00');
+    expect(carriedDiscount('0.01', '0.00', '0.00')).toBe('0.01');
+    expect(carriedDiscount('0.00', '0.00', 0)).toBe('0.00');
   });
 });

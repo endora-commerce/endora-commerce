@@ -1,6 +1,6 @@
 import { describe, expect, it } from 'vitest';
 import { decimalSum, grossFromNetHalfUp, lineAmountHalfUp, moneyDifference, roundHalfUp, taxAmountExact, vatByRate } from '@endora-commerce/contracts';
-import { caseDefaultRefunds, type RefundOrderLine } from './refund-math.js';
+import { carriedDiscount, caseDefaultRefunds, type RefundOrderLine } from './refund-math.js';
 
 /**
  * Review of PR #423, owner ruling of 2026-10-24 (issue #417) — the default
@@ -29,7 +29,7 @@ interface Order {
   lines: RefundOrderLine[];
 }
 
-function randomOrder(next: () => number, vatMethod: 'per_rate' | null, withDiscount = false): Order {
+function randomOrder(next: () => number, vatMethod: 'per_rate' | null, withDiscount = false, discountUpTo = 0.5): Order {
   const rates = ['0.23', '0.08', '0.05', '0'];
   const lines: RefundOrderLine[] = Array.from({ length: 1 + Math.floor(next() * 4) }, (_, i) => {
     const unitNetPrice = roundHalfUp((1 + Math.floor(next() * 5000)) / 100);
@@ -60,8 +60,8 @@ function randomOrder(next: () => number, vatMethod: 'per_rate' | null, withDisco
             roundHalfUp(decimalSum(...nets.map((n) => taxAmountExact(n.net, n.rate, 'fraction')))),
           ),
         );
-  // An order-level discount of up to half the products, taken off the gross.
-  const discountTotal = withDiscount ? roundHalfUp(Math.floor(next() * cents(productsPaidTotal) * 0.5) / 100) : '0.00';
+  // An order-level discount of up to half the products (or `discountUpTo` of them), taken off the gross.
+  const discountTotal = withDiscount ? roundHalfUp(Math.floor(next() * cents(productsPaidTotal) * discountUpTo) / 100) : '0.00';
   return { vatMethod, productsPaidTotal: moneyDifference(productsPaidTotal, discountTotal), discountTotal, lines };
 }
 
@@ -92,9 +92,12 @@ function returnAll(order: Order, next: () => number): string[][] & { discounts: 
         net: lineAmountHalfUp(l.unitNetPrice, remaining.get(l.orderItemId)!),
         rate: l.taxRate,
       }));
+      // The discount as the invoice reads it back: each case line's carried
+      // discount at its default refund, approved as it is (review of PR #865, F2).
+      const carried = earlier.map((e) => carriedDiscount(e.defaultDiscountAmount, e.defaultRefundAmount, e.defaultRefundAmount));
       const keptInvoice = moneyDifference(
         vatByRate(keptNets, 'fraction').gross,
-        moneyDifference(order.discountTotal, decimalSum('0', ...discounts)),
+        moneyDifference(order.discountTotal, decimalSum('0', ...carried)),
       );
       const paidLeft = moneyDifference(order.productsPaidTotal, decimalSum('0', ...cases.flat()));
       expect(paidLeft, `kept invoice ${keptInvoice} against ${paidLeft} left paid (${[...lineById.keys()].length} lines)`).toBe(
@@ -257,6 +260,24 @@ describe('caseDefaultRefunds — the refund is the drop in the kept goods’ val
     );
   });
 
+  it('a 0.00 default refund still carries its discount back (review of PR #865, F2)', () => {
+    // Two lines at 0 %, 0.01 and 0.05, a 0.05 discount: 0.01 paid. The 0.01 line comes back.
+    const o: Order = {
+      vatMethod: 'per_rate',
+      productsPaidTotal: '0.01',
+      discountTotal: '0.05',
+      lines: [
+        { orderItemId: 'a', unitNetPrice: '0.01', taxRate: '0', purchasedQty: 1, paidLineAmount: '0.01', returnable: true },
+        { orderItemId: 'b', unitNetPrice: '0.05', taxRate: '0', purchasedQty: 1, paidLineAmount: '0.05', returnable: true },
+      ],
+    };
+    const [r] = caseDefaultRefunds({ ...o, orderLines: o.lines, earlier: [], current: [{ orderItemId: 'a', quantity: 1 }] });
+    expect(r).toEqual({ refund: '0.00', discount: '0.01' });
+    // What the invoice reads back: the 0.05 kept, less 0.05 − 0.01 of discount, is the 0.01 paid.
+    const carried = carriedDiscount(r!.discount, r!.refund, r!.refund);
+    expect(moneyDifference('0.05', moneyDifference('0.05', carried))).toBe(moneyDifference(o.productsPaidTotal, r!.refund));
+  });
+
   it('absorbs a cent an earlier case refunded under the rule before it', () => {
     // The first case was settled before the fix: 12.31, the returned unit's own value.
     const o = single('10.01', 3);
@@ -272,16 +293,19 @@ describe('caseDefaultRefunds — the refund is the drop in the kept goods’ val
 });
 
 describe('caseDefaultRefunds — any sequence of partial returns (property)', () => {
-  for (const [vatMethod, withDiscount] of [
-    ['per_rate', false],
-    [null, false],
-    ['per_rate', true],
-    [null, true],
+  for (const [vatMethod, withDiscount, discountUpTo] of [
+    ['per_rate', false, 0.5],
+    [null, false, 0.5],
+    ['per_rate', true, 0.5],
+    [null, true, 0.5],
+    // Review of PR #865 (F2): a discount of up to the whole products, where a
+    // line's default refund can be 0.00 and still carry its discount.
+    ['per_rate', true, 1],
   ] as const) {
-    it(`never refunds more than was paid, and a complete return refunds it exactly (${vatMethod ?? 'legacy'}${withDiscount ? ', discounted' : ''}, returns and complaints)`, () => {
+    it(`never refunds more than was paid, and a complete return refunds it exactly (${vatMethod ?? 'legacy'}${withDiscount ? `, discounted up to ${discountUpTo * 100} %` : ''}, returns and complaints)`, () => {
       for (let seed = 1; seed <= 300; seed += 1) {
         const next = rng(seed);
-        const order = randomOrder(next, vatMethod, withDiscount);
+        const order = randomOrder(next, vatMethod, withDiscount, discountUpTo);
         const cases = returnAll(order, next);
         let refunded = 0;
         for (const refunds of cases) {
