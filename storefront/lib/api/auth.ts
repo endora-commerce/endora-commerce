@@ -1,7 +1,7 @@
 import type { CartMergeOutcomePublic } from '@endora-commerce/contracts';
 import { apiMutate } from './mutations';
 import type { RequestContext } from './client';
-import { knownDeviceCookieHeader, rememberKnownDevice } from '../session';
+import { knownDeviceCookieHeader, rememberKnownDevice, signInCookieHeader } from '../session';
 
 /**
  * Anonymous storefront auth flows (register / verify / login / logout /
@@ -12,7 +12,9 @@ import { knownDeviceCookieHeader, rememberKnownDevice } from '../session';
  * known-device cookie to the backend, and the first two store the one the
  * backend sets on a completed sign-in (see `knownDeviceCookieHeader` in
  * `lib/session.ts`). Without it every shopper's attempt would be counted as
- * one from a device the account has never been used on.
+ * one from a device the account has never been used on. The sign-in also
+ * carries the signed-out basket's cookie (`signInCookieHeader`), so the backend
+ * can merge it into the customer's.
  */
 
 export interface RegisterOrganizationPayload {
@@ -112,7 +114,9 @@ export async function loginCustomer(
     method: 'POST',
     path: '/api/v1/auth/customer/login',
     body: payload,
-    rawCookieHeader: await knownDeviceCookieHeader(),
+    // The known-device cookie and the signed-out basket, which the backend
+    // merges into the customer's at sign-in (issue #358).
+    rawCookieHeader: await signInCookieHeader(),
     ...(ctx ? { ctx } : {}),
   });
   await rememberKnownDevice(result.setCookie);

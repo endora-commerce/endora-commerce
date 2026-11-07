@@ -260,9 +260,30 @@ export async function readAndClearCartMergeFlash(): Promise<CartMergeFlashOutcom
 
 /** The `Cookie` header value forwarding the browser's known-device cookie, or `null`. */
 export async function knownDeviceCookieHeader(): Promise<string | null> {
+  return allowListedCookieHeader([CUSTOMER_KNOWN_DEVICE_COOKIE_NAME]);
+}
+
+/**
+ * The `Cookie` header value for the password sign-in, or `null`: the
+ * known-device cookie and the signed-out basket's `b2b_cart_anon` (issue #358).
+ * The backend's sign-in hands the anonymous basket to its merge at sign-in
+ * (`specs/154-sales-channel-access/contracts/basket-attribution.md` §3), which
+ * sees it only if it is forwarded from here. Nothing else the browser holds is
+ * sent.
+ */
+export async function signInCookieHeader(): Promise<string | null> {
+  return allowListedCookieHeader([CUSTOMER_KNOWN_DEVICE_COOKIE_NAME, ANON_CART_COOKIE]);
+}
+
+/** The named cookies of the browser's jar, in the order named, as one `Cookie` header value. */
+async function allowListedCookieHeader(names: readonly string[]): Promise<string | null> {
   const jar = await cookies();
-  const value = jar.get(CUSTOMER_KNOWN_DEVICE_COOKIE_NAME)?.value;
-  return value ? `${CUSTOMER_KNOWN_DEVICE_COOKIE_NAME}=${encodeURIComponent(value)}` : null;
+  const pairs: string[] = [];
+  for (const name of names) {
+    const value = jar.get(name)?.value;
+    if (value) pairs.push(`${name}=${encodeURIComponent(value)}`);
+  }
+  return pairs.length > 0 ? pairs.join('; ') : null;
 }
 
 /**
