@@ -572,6 +572,22 @@ describe('OrderCreatePage — Browse products and the quick search (US1)', () =>
     await waitFor(() => expect(submitButton()).toBeEnabled());
   });
 
+  it('renders PRODUCT_ARCHIVED as its own translated reason, not No price, and blocks submit (issue #829)', async () => {
+    unavailableCodes = { a01: 'PRODUCT_ARCHIVED' };
+    const user = userEvent.setup();
+    await renderPage();
+    await pickOption(user, 'paymentMethodId', 'Payment 1');
+    await pickOption(user, 'deliveryMethodId', 'Delivery 1');
+    await addThroughPicker(user, ['Widget 01', 'Widget 02']);
+
+    const reason = CORE['orderCreate.line.archived'];
+    expect(reason).toBeTypeOf('string');
+    await waitFor(() => expect(within(lineRow('Widget 01')).getByText(reason!)).toBeInTheDocument());
+    expect(within(lineRow('Widget 01')).queryByText('No price')).toBeNull();
+    expect(within(lineRow('Widget 02')).queryByText(reason!)).toBeNull();
+    expect(submitButton()).toBeDisabled();
+  });
+
   it.each(['0', 'abc'])(
     'marks a line with quantity %s, leaves it out of the preview and blocks submit',
     async (bad) => {

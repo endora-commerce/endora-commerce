@@ -26,11 +26,16 @@ import { Order, Product } from '../../helpers/package-entities.js';
  * this file pins the half it agrees with: if create ever accepts a deleted
  * product again, the two disagree and this goes red first.
  *
+ * Issue #829 — an **archived** product (FR-019, `archivedAt`) is refused with
+ * its own reason, `409 PRODUCT_ARCHIVED`, catalog's code and sentence, naming
+ * it in `details.productIds` — what the operator's quote request answers
+ * (FR-115, P-3b) and the code the preview reports for the same line.
+ *
  * The seed product is stocked by the commerce seed and sold on the system
  * default channel, so the live control places and the only difference
- * between the two cases is `deletedAt`.
+ * between the cases is `deletedAt` or `archivedAt`.
  */
-describe('POST /api/v1/admin/orders — a soft-deleted product (issue #820)', () => {
+describe('POST /api/v1/admin/orders — a soft-deleted or archived product (issues #820, #829)', () => {
   let h: BackendServerHandle;
   let channelId: string;
 
@@ -42,7 +47,7 @@ describe('POST /api/v1/admin/orders — a soft-deleted product (issue #820)', ()
   }, 60_000);
 
   afterAll(async () => {
-    await h.em().nativeUpdate(Product, { id: SEED_PRODUCT_101_ID }, { deletedAt: null });
+    await h.em().nativeUpdate(Product, { id: SEED_PRODUCT_101_ID }, { deletedAt: null, archivedAt: null });
     await teardownBackendServer(h);
   });
 
@@ -61,7 +66,10 @@ describe('POST /api/v1/admin/orders — a soft-deleted product (issue #820)', ()
         billingAddressId: SEED_ADDRESS_BILLING_ID,
       },
     });
-    const body = res.json() as { data?: { id: string }; error?: { code?: string } };
+    const body = res.json() as {
+      data?: { id: string };
+      error?: { code?: string; message?: string; details?: unknown };
+    };
     return { statusCode: res.statusCode, body, raw: res.body };
   }
 
@@ -77,6 +85,23 @@ describe('POST /api/v1/admin/orders — a soft-deleted product (issue #820)', ()
       ).toBe(ordersBefore);
     } finally {
       await h.em().nativeUpdate(Product, { id: SEED_PRODUCT_101_ID }, { deletedAt: null });
+    }
+  });
+
+  it('an archived product answers 409 PRODUCT_ARCHIVED naming it, and writes no order (issue #829)', async () => {
+    const ordersBefore = await h.em().count(Order, { placedByCustomerAccountId: TEST_CUSTOMER_ID });
+    await h.em().nativeUpdate(Product, { id: SEED_PRODUCT_101_ID }, { archivedAt: new Date() });
+    try {
+      const res = await create();
+      expect(res.statusCode, res.raw).toBe(409);
+      expect(res.body.error?.code).toBe(ERROR_CODES.PRODUCT_ARCHIVED);
+      expect(res.body.error?.message).toBe('Product is archived.');
+      expect(res.body.error?.details).toEqual({ productIds: [SEED_PRODUCT_101_ID] });
+      expect(
+        await h.em().fork().count(Order, { placedByCustomerAccountId: TEST_CUSTOMER_ID }),
+      ).toBe(ordersBefore);
+    } finally {
+      await h.em().nativeUpdate(Product, { id: SEED_PRODUCT_101_ID }, { archivedAt: null });
     }
   });
 
