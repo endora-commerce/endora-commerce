@@ -20,28 +20,41 @@ import {
 import { assignOrganizationRole, predefinedRoleIdOf } from '../../helpers/seed-organization-roles.js';
 
 /**
- * Issue #698 — the admin Organization surface answers only for the
- * Organizations within the acting administrator's reach.
+ * Issue #698 — the admin Organization `/:id` routes answer only for an
+ * Organization the acting administrator may see.
  *
  * `Organization` is a global entity, so no tenant filter narrows its reads: the
- * list and every `/:id` route checked only that the Organization existed, and a
- * sales representative confined to their assigned Organizations could list,
- * open and — holding `customers:manage` — edit any of them. The list now holds
- * only the Organizations in reach, filtered in the query so the page is full,
- * and every `/:id` route answers an Organization outside the reach exactly as
- * one that does not exist, `404 NOT_FOUND`. The reach is the representative's
- * assigned Organizations, expanded to the subtree under `organizations:rollup`.
- * A platform administrator reaches every Organization, as before.
+ * `/:id` routes checked only that the Organization existed, and a sales
+ * representative could open and — holding `customers:manage` — edit, block and
+ * delete an Organization **assigned to another representative**. Every `/:id`
+ * route now answers such an Organization exactly as one that does not exist,
+ * `404 NOT_FOUND`.
+ *
+ * The rule is the sales-representative visibility rule
+ * (`SalesRepAssignmentPort.canSeeOrganization`), per the architect's ruling on
+ * PR #847: an Organization assigned to the representative — under
+ * `organizations:rollup`, one whose nearest assigned ancestor is theirs — **or
+ * one nobody is assigned to** (owner ruling D-3W; which rule is the platform's
+ * is issue #305). A pending registration is unassigned by construction, so a
+ * representative still moderates it (D-87). The list is unchanged: it shows
+ * every Organization (spec 150 owner Q2). A platform administrator reaches
+ * every Organization, and gets the same 404 for an unknown id on every route.
  */
 describe('admin Organization routes — the administrator’s reach (#698)', () => {
   let h: BackendServerHandle;
   const stamp = Date.now().toString().slice(-9);
   const REP = `stub-org-698-rep-${stamp}`;
+  const OTHER_REP_ID = { value: '' };
   const PLATFORM = 'stub-admin-session';
   const UNKNOWN = '00000000-0000-4000-8000-00000000dead';
   let ownOrgId: string;
   let childOrgId: string;
+  /** Assigned to another representative. */
   let foreignOrgId: string;
+  /** Nobody is assigned to it. */
+  let unassignedOrgId: string;
+  /** A registration awaiting approval, nobody assigned to it. */
+  let pendingOrgId: string;
   let roleId: string;
   let rolePermissionsBefore: string[] | null = null;
   let foreignMemberRoleId: string;
@@ -87,17 +100,15 @@ describe('admin Organization routes — the administrator’s reach (#698)', () 
       }
       await fork.persistAndFlush(role);
       roleId = role.id;
-      const org = (label: string, parent?: Organization): Organization =>
+      const org = (label: string, parent?: Organization, status = 'active'): Organization =>
         fork.create(Organization, {
           name: `Reach ${stamp} ${label}`,
           taxId: `PL698${label.slice(0, 1).toUpperCase()}${stamp}`,
-          status: 'active',
+          status: status as 'active',
           vatStatus: 'vat_payer',
           registeredAddress: { street: 'ul. Testowa 1', city: 'Warszawa', postalCode: '00-698', country: 'PL' },
           ...(parent ? { parentId: parent.id } : {}),
         });
-      // Created in this order so the foreign Organization is the newest: the
-      // list sorts newest first, and a page of one must still be full.
       const own = org('own');
       await fork.persistAndFlush(own);
       own.path = `/${own.id}/`;
@@ -107,6 +118,27 @@ describe('admin Organization routes — the administrator’s reach (#698)', () 
       const foreign = org('foreign');
       await fork.persistAndFlush(foreign);
       foreign.path = `/${foreign.id}/`;
+      const unassigned = org('unassigned');
+      await fork.persistAndFlush(unassigned);
+      unassigned.path = `/${unassigned.id}/`;
+      const pending = org('pending', undefined, 'pending_verification');
+      await fork.persistAndFlush(pending);
+      pending.path = `/${pending.id}/`;
+      const otherRep = fork.create(AdminUser, {
+        email: `org-698-other-rep-${stamp}@scope.local`,
+        passwordHash: 'x'.repeat(60),
+        adminRoleId: role.id,
+        firstName: '698',
+        lastName: 'Other',
+      });
+      await fork.persistAndFlush(otherRep);
+      OTHER_REP_ID.value = otherRep.id;
+      // The seeded Organization is the member routes' foreign one: another
+      // representative's, so its real member is refused for the Organization.
+      await fork.persistAndFlush([
+        fork.create(OrganizationSalesRepAssignment, { organizationId: foreign.id, adminUserId: otherRep.id }),
+        fork.create(OrganizationSalesRepAssignment, { organizationId: TEST_ORGANIZATION_ID, adminUserId: otherRep.id }),
+      ]);
       const rep = fork.create(AdminUser, {
         email: `org-698-rep-${stamp}@scope.local`,
         passwordHash: 'x'.repeat(60),
@@ -121,12 +153,18 @@ describe('admin Organization routes — the administrator’s reach (#698)', () 
       ownOrgId = own.id;
       childOrgId = child.id;
       foreignOrgId = foreign.id;
+      unassignedOrgId = unassigned.id;
+      pendingOrgId = pending.id;
       ADMIN_COOKIES[REP] = { adminUserId: rep.id };
     });
   }, 60_000);
 
   afterAll(async () => {
     delete ADMIN_COOKIES[REP];
+    await h
+      .em()
+      .getConnection()
+      .execute('delete from organization_sales_rep_assignments where admin_user_id = ?', [OTHER_REP_ID.value]);
     if (rolePermissionsBefore !== null) {
       const before = rolePermissionsBefore;
       await withSystemScope('#698: restore the sales representative role', async () => {
@@ -141,20 +179,16 @@ describe('admin Organization routes — the administrator’s reach (#698)', () 
     await teardownBackendServer(h);
   });
 
-  describe('the list', () => {
-    it('holds only the Organizations in the representative’s reach', async () => {
-      expect((await listIds(`q=${stamp}`, REP)).sort()).toEqual([ownOrgId, childOrgId].sort());
-      const all = await listIds('includePersonal=true&limit=200', REP);
-      expect(all.every((id) => id === ownOrgId || id === childOrgId), JSON.stringify(all)).toBe(true);
-    });
-
-    it('filters in the query, so a page of one is full', async () => {
-      expect(await listIds(`q=${stamp}&limit=1`, REP)).toEqual([childOrgId]);
+  describe('the list (unchanged, spec 150 owner Q2)', () => {
+    it('holds every Organization for a sales representative', async () => {
+      expect((await listIds(`q=${stamp}`, REP)).sort()).toEqual(
+        [ownOrgId, childOrgId, foreignOrgId, unassignedOrgId, pendingOrgId].sort(),
+      );
     });
 
     it('holds every Organization for a platform administrator', async () => {
       expect((await listIds(`q=${stamp}`, PLATFORM)).sort()).toEqual(
-        [ownOrgId, childOrgId, foreignOrgId].sort(),
+        [ownOrgId, childOrgId, foreignOrgId, unassignedOrgId, pendingOrgId].sort(),
       );
     });
   });
@@ -181,7 +215,13 @@ describe('admin Organization routes — the administrator’s reach (#698)', () 
       expect(res.statusCode, res.body).toBe(200);
     });
 
-    it('answers 404 NOT_FOUND for an Organization outside the reach', async () => {
+    // D-3W, issue #305 — the unassigned fallback.
+    it('answers for an Organization nobody is assigned to', async () => {
+      const res = await get(`${base(unassignedOrgId)}${suffix}`, REP);
+      expect(res.statusCode, res.body).toBe(200);
+    });
+
+    it('answers 404 NOT_FOUND for an Organization assigned to another representative', async () => {
       const res = await get(`${base(foreignOrgId)}${suffix}`, REP);
       expectNotFound(res);
       expect(res.body).not.toContain(`Reach ${stamp} foreign`);
@@ -195,9 +235,13 @@ describe('admin Organization routes — the administrator’s reach (#698)', () 
       const res = await get(`${base(foreignOrgId)}${suffix}`, PLATFORM);
       expect(res.statusCode, res.body).toBe(200);
     });
+
+    it('answers a platform administrator 404 NOT_FOUND for an Organization that does not exist', async () => {
+      expectNotFound(await get(`${base(UNKNOWN)}${suffix}`, PLATFORM));
+    });
   });
 
-  describe('writes outside the reach answer 404 NOT_FOUND and change nothing', () => {
+  describe('writes on an Organization assigned to another representative answer 404 NOT_FOUND and change nothing', () => {
     it('PATCH /:id', async () => {
       expectNotFound(await send('PATCH', base(foreignOrgId), { name: 'Hijacked' }));
       expect((await organizationRow(foreignOrgId)).name).toBe(`Reach ${stamp} foreign`);
@@ -261,7 +305,7 @@ describe('admin Organization routes — the administrator’s reach (#698)', () 
       expectNotFound(await send('PUT', `${base(foreignOrgId)}/sales-channels`, { salesChannelIds: [UNKNOWN] }));
     });
 
-    // The seeded Organization is outside the representative's reach, and its
+    // The seeded Organization is assigned to another representative, and its
     // member is a real one: these routes are refused for the Organization, not
     // because the member is missing.
     it('PATCH /:id/members/:customerAccountId/role', async () => {
@@ -302,6 +346,20 @@ describe('admin Organization routes — the administrator’s reach (#698)', () 
       expectNotFound(await send('DELETE', base(foreignOrgId)));
       expect((await organizationRow(foreignOrgId)).deleted_at).toBeNull();
     });
+  });
+
+  // D-3W, issue #305 — the unassigned fallback reaches writes as well as reads.
+  it('an Organization nobody is assigned to is writable by the representative', async () => {
+    const res = await send('PATCH', base(unassignedOrgId), { name: `Reach ${stamp} unassigned renamed` });
+    expect(res.statusCode, res.body).toBe(200);
+  });
+
+  // D-87 — a registration awaiting approval is assigned to nobody.
+  it('a pending registration nobody is assigned to can be approved by the representative', async () => {
+    const { version } = await organizationRow(pendingOrgId);
+    const res = await send('POST', `${base(pendingOrgId)}/approve`, { expectedVersion: version });
+    expect(res.statusCode, res.body).toBe(200);
+    expect((await organizationRow(pendingOrgId)).status).toBe('active');
   });
 
   it('an Organization in reach is still writable by the representative', async () => {

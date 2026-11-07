@@ -1,5 +1,5 @@
 import { EmailDelivery, type EmailDeliveryRow } from '../../helpers/package-entities.js';
-import { AdminRole, AdminUser, Organization } from '../../helpers/package-entities.js';
+import { AdminRole, AdminUser, Organization, OrganizationSalesRepAssignment } from '../../helpers/package-entities.js';
 import { afterAll, beforeAll, describe, expect, it } from 'vitest';
 
 import {
@@ -9,7 +9,6 @@ import {
 } from '../../helpers/test-server.js';
 
 import { ADMIN_COOKIES } from '../../helpers/test-actors.js';
-import { runWithTenantContext, type TenantContext } from '../../../src/tenancy/tenant-context.js';
 
 
 
@@ -128,39 +127,11 @@ describe('organizations — the moderation notification crosses tenants (feature
       payload: { expectedVersion: organization.version },
     });
 
-  /**
-   * Issue #698 — the route no longer lets a moderator act on an Organization
-   * outside their reach: it answers `404 NOT_FOUND` before the service runs.
-   * The scoped context this file is about is therefore no longer reachable
-   * through `POST /approve`; the case below drives the service in it directly,
-   * which is still the test that fails if the wrapper is removed.
-   */
-  it('refuses a moderator scoped to no organizations at the route (#698)', async () => {
-    const { organization, email } = await seedPendingOrg('refused');
-
-    const res = await approveAs(salesRepCookie, organization);
-    expect(res.statusCode, res.body).toBe(404);
-    expect((await deliveriesTo(email)).length).toBe(0);
-  });
-
   it('tells the organization admin even when the moderator is scoped to no organizations', async () => {
     const { organization, email } = await seedPendingOrg('scoped');
-    const scopedToNothing: TenantContext = {
-      mode: 'allowed-set',
-      allowedOrganizationIds: [],
-      actor: { kind: 'admin', id: ADMIN_COOKIES[salesRepCookie]!.adminUserId },
-    };
-    const moderation = (
-      h.container.cradle as unknown as {
-        organizationModerationService: {
-          approve(id: string, options: { expectedVersion: number; actorAdminUserId: string | null }): Promise<unknown>;
-        };
-      }
-    ).organizationModerationService;
 
-    await runWithTenantContext(scopedToNothing, () =>
-      moderation.approve(organization.id, { expectedVersion: organization.version, actorAdminUserId: null }),
-    );
+    const res = await approveAs(salesRepCookie, organization);
+    expect(res.statusCode).toBe(200);
 
     const deliveries = await deliveriesTo(email);
     expect(
@@ -168,6 +139,38 @@ describe('organizations — the moderation notification crosses tenants (feature
       'the approval mail was not addressed to the organization admin — the ' +
         'recipient lookup ran under the moderator’s tenant filter',
     ).toBeGreaterThan(0);
+  });
+
+  /**
+   * Issue #698 — the route answers only for an Organization the moderator may
+   * see: one assigned to them, or one nobody is assigned to (the case above).
+   * A pending organisation already assigned to another representative is
+   * answered as one that does not exist, and nobody is told anything.
+   */
+  it('refuses a pending organisation assigned to another representative (#698)', async () => {
+    const { organization, email } = await seedPendingOrg('foreign');
+    const em = h.em();
+    const role = await em.findOneOrFail(AdminRole, { code: 'sales_representative' });
+    const other = em.create(AdminUser, {
+      email: `moderation-scope-other-rep-${Date.now()}@d87.local`,
+      passwordHash: 'x'.repeat(60),
+      adminRoleId: role.id,
+      firstName: 'D87',
+      lastName: 'Other',
+    });
+    await em.persistAndFlush(other);
+    await em.persistAndFlush(
+      em.create(OrganizationSalesRepAssignment, { organizationId: organization.id, adminUserId: other.id }),
+    );
+
+    const res = await approveAs(salesRepCookie, organization);
+    expect(res.statusCode, res.body).toBe(404);
+    expect((await deliveriesTo(email)).length).toBe(0);
+    const [row] = await h
+      .em()
+      .getConnection()
+      .execute<Array<{ status: string }>>('select status from organizations where id = ?', [organization.id]);
+    expect(row!.status).toBe('pending_verification');
   });
 
   it('positive control — the platform admin path still tells them', async () => {

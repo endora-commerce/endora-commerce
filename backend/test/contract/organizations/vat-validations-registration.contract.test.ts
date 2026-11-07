@@ -125,11 +125,25 @@ describe('VAT validation history with registration rows (feature 173)', () => {
       });
       await fork.persistAndFlush([own, rep]);
       await fork.persistAndFlush(fork.create(OrganizationSalesRepAssignment, { organizationId: own.id, adminUserId: rep.id }));
+      // Issue #698 — the registration is another representative's, so it is
+      // foreign under either visibility rule: an unassigned one is reachable by
+      // every representative (D-3W, issue #305).
+      const other = fork.create(AdminUser, {
+        email: `vat173-other-rep-${stamp}@scope.local`,
+        passwordHash: 'x'.repeat(60),
+        adminRoleId: role.id,
+        firstName: '173',
+        lastName: 'Other',
+      });
+      await fork.persistAndFlush(other);
+      await fork.persistAndFlush(
+        fork.create(OrganizationSalesRepAssignment, { organizationId, adminUserId: other.id }),
+      );
       ADMIN_COOKIES[REP] = { adminUserId: rep.id };
     });
     const foreign = await history(organizationId, { b2b_session: REP });
     const absent = await history('00000000-0000-4000-8000-000000000173', { b2b_session: REP });
-    // Issue #698 — both are the Organization route's `404 NOT_FOUND` now; the
+    // Issue #698 — both are the Organization route's `404 NOT_FOUND`; the
     // bodies differ only in their request ids.
     const withoutRequestId = (body: unknown) => {
       const { error } = body as { error: Record<string, unknown> };
