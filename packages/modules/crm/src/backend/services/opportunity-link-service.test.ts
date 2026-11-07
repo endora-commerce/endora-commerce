@@ -71,4 +71,25 @@ describe('OpportunityLinkService.linkAutomatically — the carry of a joining do
     expect(parent.customFieldValues).toEqual({ held: 1 });
     expect(parent.version).toBe(3);
   });
+
+  it('still links the document when the carry fails, and says which one did not carry in the log (#405)', async () => {
+    const { parent, link, deps, audits } = service(async () => {
+      throw new Error('custom-field definitions could not be read');
+    });
+    expect(await link()).toBe('linked');
+    expect(parent.customFieldValues).toEqual({ held: 1 });
+    expect(parent.version).toBe(3);
+    expect(audits[0]?.after).not.toHaveProperty('customFieldCarry');
+    expect(deps.linksChanged).toHaveBeenCalledWith(OPPORTUNITY_ID);
+    expect(deps.warn).toHaveBeenCalledOnce();
+    expect(deps.warn).toHaveBeenCalledWith(
+      expect.objectContaining({
+        opportunityId: OPPORTUNITY_ID,
+        documentKind: 'order',
+        documentId: ORDER_ID,
+        error: expect.any(Error),
+      }),
+      expect.stringContaining('carry'),
+    );
+  });
 });
