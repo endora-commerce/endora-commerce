@@ -46,7 +46,7 @@ const SpacerPublishedRender: PuckComponent<SpacerProps> = (props) => (
 );
 
 const spacerConfig: ComponentConfig<SpacerProps> = {
-  label: 'Spacer / Divider',
+  label: 'Spacer / divider',
   fields: {
     heightPx: {
       type: 'number',

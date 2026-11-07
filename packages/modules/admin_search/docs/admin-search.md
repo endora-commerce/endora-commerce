@@ -25,7 +25,7 @@ record types, in the order their groups appear:
 | Record type | Fields offered (searched by default in **bold**) | Opens |
 | --- | --- | --- |
 | Orders | **Order number**, **Organization name**, **Customer name or e-mail**, Billing company name, Billing tax ID | the order |
-| Quote requests | **Quote Request number**, **Organization name**, **Customer name or e-mail**, Customer's note | the quote request |
+| Quote requests | **Quote request number**, **Organization name**, **Customer name or e-mail**, Customer's note | the quote request |
 | Sales opportunities | **Opportunity number**, **Title**, **Organization name**, Description | the opportunity |
 | Organizations | **Name**, **Tax ID**, Legal name | the organization |
 | Customers | **E-mail**, **Name** | the customer |

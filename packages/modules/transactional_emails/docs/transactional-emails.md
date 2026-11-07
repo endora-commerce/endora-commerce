@@ -69,7 +69,7 @@ The transactional (and newsletter) editors share `EmailEditorPane`:
 - `EmailLogo` shows the branding logo (no URL field). `EmailImage` supports URL or
   asset library, same as CMS. Color fields use the shared CMS color palette.
   Branding logo in Settings (`*_asset_id`) uses the Assets Library picker.
-- `EmailRichText` reuses the CMS Rich Content TipTap editor (plus Variable).
+- `EmailRichText` reuses the CMS Rich content TipTap editor (plus Variable).
 - `EmailProductCard` picks a catalog product; `EmailOrderSummary` is column/totals
   toggles and appears in the palette only when the email declares `order.items`
   (today: **Order confirmation** only). Order confirmation also exposes labeled

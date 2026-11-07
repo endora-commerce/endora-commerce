@@ -9,7 +9,7 @@ const EMPTY_EMBED =
   'cmsc:font-sans cmsc:border cmsc:border-dashed cmsc:border-[#9aa7b4] cmsc:rounded-[8px] cmsc:p-[16px] cmsc:text-[#5f6b7a] cmsc:bg-[#f8fafc] cmsc:text-[14px]';
 
 export const InsertTemplate: ComponentConfig<InsertTemplateProps> = {
-  label: 'Insert Template',
+  label: 'Insert template',
   fields: {
     code: { type: 'text', label: 'Template code' },
   },

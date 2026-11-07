@@ -137,7 +137,7 @@
   "pagesList.searchPlaceholder": "Szukaj nazwy lub sluga...",
   "pagesList.title": "Strony CMS",
   "templatesList.cardTitle": "Szablony",
-  "templatesList.description": "Układy Page Buildera wielokrotnego użytku. Użyj Zapisz jako szablon / Zastosuj szablon w edytorze. Insert Template nie jest już w szufladzie komponentów (stare osadzenia nadal się renderują).",
+  "templatesList.description": "Układy Page Buildera wielokrotnego użytku. Użyj Zapisz jako szablon / Zastosuj szablon w edytorze. Wstaw szablon nie jest już w szufladzie komponentów (stare osadzenia nadal się renderują).",
   "templatesList.empty": "Nie znaleziono szablonów.",
   "templatesList.loading": "Ładowanie szablonów CMS...",
   "templatesList.new": "Nowy szablon",

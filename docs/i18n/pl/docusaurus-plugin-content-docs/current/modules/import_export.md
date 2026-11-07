@@ -73,7 +73,7 @@ Profil określa:
 Profil jest odczytywany raz na początku przebiegu, więc jego zmiana w trakcie przebiegu nie wpływa
 na ten przebieg. Nazwy profili są unikalne bez względu na wielkość liter
 (`409 IMPORT_PROFILE_NAME_TAKEN`). W panelu administracyjnym sekcja **Profile importu** na ekranie
-Import / Eksport pozwala przeglądać, tworzyć, edytować i usuwać profile; widzą ją tylko operatorzy
+Import / eksport pozwala przeglądać, tworzyć, edytować i usuwać profile; widzą ją tylko operatorzy
 z uprawnieniem `catalog:write`.
 
 ### Najpierw import próbny
