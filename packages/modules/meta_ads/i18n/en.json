@@ -33,5 +33,6 @@
   "error.versionConflict": "Someone else changed this custom event. Reload and reapply your edit.",
   "error.validationFailed": "Some fields are invalid.",
   "actions.openMetaAds.keywords": "ads",
-  "actions.newCustomEvent.keywords": "event"
+  "actions.newCustomEvent.keywords": "event",
+  "settingGroups.meta_ads.name": "Meta Ads"
 }

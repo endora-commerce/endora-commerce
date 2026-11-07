@@ -8,7 +8,7 @@ import type {
   PersonalOrganizationPort,
 } from '@endora-commerce/contracts';
 import { ModuleDisabledError } from '@endora-commerce/platform/kernel';
-import { CustomerDeletionService } from './customer-deletion-service.js';
+import { CustomerDeletionService, retentionCutoff } from './customer-deletion-service.js';
 import type { CustomerAuthorityService } from './customer-authority-service.js';
 import type { OrganizationDepletionGuard } from './organization-depletion-guard.js';
 
@@ -33,7 +33,12 @@ function harness(failAt: { step: Step; error: Error } | null = null) {
   const fail = (step: Step) => {
     if (failAt?.step === step) throw failAt.error;
   };
+  const probed: Date[] = [];
   const accountWrites = {
+    hasDueForAnonymization: async (cutoff: Date) => {
+      probed.push(cutoff);
+      return true;
+    },
     listDueForAnonymization: async () => due,
     anonymize: async (id: string) => {
       calls.push(['account', id]);
@@ -65,7 +70,7 @@ function harness(failAt: { step: Step; error: Error } | null = null) {
     addresses,
     async () => 365,
   );
-  return { service, calls };
+  return { service, calls, probed };
 }
 
 describe('CustomerDeletionService.sweep (issue #800)', () => {
@@ -101,5 +106,16 @@ describe('CustomerDeletionService.sweep (issue #800)', () => {
       ['org', 'acc-1'],
       ['addresses', 'org-acc-1'],
     ]);
+  });
+});
+
+describe('CustomerDeletionService.hasDue (issue #857)', () => {
+  it('U-4 — asks the owner of the table about the same cutoff the sweep lists by', async () => {
+    const { service, calls, probed } = harness();
+    const now = new Date('2026-11-07T12:00:00.000Z');
+    expect(await service.hasDue(30, now)).toBe(true);
+    expect(probed).toEqual([retentionCutoff(30, now)]);
+    // A question, not a pass.
+    expect(calls).toEqual([]);
   });
 });

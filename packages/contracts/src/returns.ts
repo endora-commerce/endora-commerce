@@ -565,6 +565,39 @@ export interface OrderReturnRefund {
 }
 
 /**
+ * How much of one order line came back (issue #435): the quantity, summed over
+ * the order's settled `return`-kind cases resolved with a refund or a credit —
+ * whether or not the money has been paid out. A replacement, a repair and a
+ * complaint are not counted: the goods were not given up for money.
+ */
+export interface OrderReturnedQuantity {
+  orderItemId: string;
+  /** A whole number of units, greater than 0. */
+  quantity: number;
+  /**
+   * The part of the order-level discount those cases carried back for the
+   * line, as recorded at settlement — each case line's default discount in
+   * proportion to its approved refund — summed, as a two-place decimal string
+   * (`'0.00'` without a discount). An invoice issued afterwards takes it off
+   * its discount line, so the line carries only the kept goods' share.
+   */
+  discount: string;
+}
+
+/**
+ * The key of the transaction-scoped advisory lock (`pg_advisory_xact_lock(hashtext(key))`)
+ * that serialises the writes about one order's returns. Owner: `returns`.
+ *
+ * `returns` takes it to create a case and to settle one; `invoices` takes it to
+ * issue an invoice (review of PR #865, F3), so an invoice is never issued from
+ * a case a settlement has moved money for but not yet recorded as resolved —
+ * it waits, and then lists only the kept lines.
+ */
+export function returnCaseOrderLockKey(orderId: string): string {
+  return `return_cases:${orderId}`;
+}
+
+/**
  * Container name: `returnRefundReadPort`. Owner: `returns`.
  *
  * What the order's settled return cases refunded, so a reader that states what
@@ -578,6 +611,12 @@ export interface OrderReturnRefund {
  */
 export interface ReturnRefundReadPort {
   listForOrder(orderId: string): Promise<OrderReturnRefund[]>;
+  /**
+   * The quantity of each order line that came back, one entry per line with
+   * any (issue #435), so an invoice issued after a return — when there is no
+   * invoice to correct yet — lists only what the buyer kept.
+   */
+  listReturnedQuantities(orderId: string): Promise<OrderReturnedQuantity[]>;
 }
 
 // --- the other three consumer-declared seams ---------------------------------

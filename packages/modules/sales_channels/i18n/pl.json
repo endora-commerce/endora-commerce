@@ -95,5 +95,6 @@
   "identity.prefixDefaultLanguage.urlChangeWarning": "Zmiana języków kanału lub tego przełącznika zmienia adresy URL sklepu. Stare adresy są przekierowywane; przeglądarki mogą pamiętać zapisane przekierowanie do godziny.",
   "list.badge.signInRequired": "Wymaga logowania",
   "actions.openSalesChannels.keywords": "kanał, kanały, sprzedaży",
-  "actions.newSalesChannel.keywords": "kanał, sprzedaży"
+  "actions.newSalesChannel.keywords": "kanał, sprzedaży",
+  "settingGroups.sales_channels.name": "Kanały sprzedaży"
 }

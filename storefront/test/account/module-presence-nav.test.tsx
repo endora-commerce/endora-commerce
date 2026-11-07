@@ -175,6 +175,8 @@ const ACCOUNT_LINKS = [
   { moduleId: 'quote_requests', href: '/quote-requests' },
   { moduleId: 'shopping_lists', href: '/shopping-lists' },
   { moduleId: 'quick_order', href: '/quick-order' },
+  // Issue #359 — the ordering preferences page sets `quick_order`'s defaults.
+  { moduleId: 'quick_order', href: '/preferences' },
 ] as const;
 
 describe('account navigation — module presence (issue #666)', () => {
@@ -213,6 +215,12 @@ describe('account navigation — module presence (issue #666)', () => {
     modulesFromBackend = true;
     const html = await accountNav();
     for (const { href } of ACCOUNT_LINKS) expect(html).toContain(`href="${href}"`);
+  });
+
+  it('offers the ordering preferences to the member of a personal Organization too (issue #359)', async () => {
+    // A B2C customer's defaults are as much theirs as a company member's.
+    me = session(ADMINISTRATOR, ['carts.create'], true);
+    expect(await accountNav()).toContain('href="/preferences"');
   });
 });
 

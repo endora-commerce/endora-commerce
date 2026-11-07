@@ -5,5 +5,6 @@
   "organizationPermissions.shopping_lists.create.label": "Create and edit shopping lists",
   "organizationPermissions.shopping_lists.create.description": "Create, rename and delete shopping lists, add, change and remove their items, choose the default list and save cart lines to a list.",
   "organizationPermissions.shopping_lists.convert.label": "Convert shopping lists into quote requests and carts",
-  "organizationPermissions.shopping_lists.convert.description": "Move a shopping list, or chosen lines of it, into the cart or into a quote request; also needs the permission to create that cart or quote request."
+  "organizationPermissions.shopping_lists.convert.description": "Move a shopping list, or chosen lines of it, into the cart or into a quote request; also needs the permission to create that cart or quote request.",
+  "settingGroups.shopping_lists.name": "Shopping lists"
 }

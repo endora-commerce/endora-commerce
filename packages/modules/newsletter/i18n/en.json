@@ -91,5 +91,6 @@
   "actions.openAutomations.keywords": "automations",
   "actions.openTags.keywords": "tags, fields",
   "actions.openBlocks.keywords": "blocks, header, footer",
-  "actions.openProvider.keywords": "sender, sending"
+  "actions.openProvider.keywords": "sender, sending",
+  "settingGroups.newsletter.name": "Newsletter"
 }

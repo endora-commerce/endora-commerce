@@ -86,7 +86,10 @@ the storefront is shown in, else one with the same base language, else English,
 else the first the template has; product and attribute names, dates and prices
 are printed in that language. Choosing a language the template does not hold
 offers to start it from the language being edited. Invoices are printed in
-Polish only, so the invoice editor offers no language choice.
+Polish only, so the invoice editor offers no language choice. An invoice
+block's label left empty is printed in Polish, and so is the footer when its
+text is empty; the built-in layout leaves all of them empty. A label you type is
+printed exactly as typed, in whatever language you typed it.
 
 **Saving** is refused when someone else saved the template after you opened it;
 reload to see their changes. A block whose module is switched off is kept in the

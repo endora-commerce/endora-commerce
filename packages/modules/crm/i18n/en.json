@@ -825,5 +825,6 @@
   "actions.openCrmAnalytics.keywords": "analytics, report, sales rep",
   "actions.openCrmCalendar.keywords": "calendar, events, reminder, deadlines",
   "actions.openCrmTags.keywords": "label, labels",
-  "actions.openCrmWorkflow.keywords": "workflow, statuses, funnel"
+  "actions.openCrmWorkflow.keywords": "workflow, statuses, funnel",
+  "settingGroups.crm.name": "CRM"
 }

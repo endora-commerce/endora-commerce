@@ -23,6 +23,12 @@ describe('readReturnTo', () => {
   it('is null when the address names none', () => {
     expect(readReturnTo(new URLSearchParams('tab=x'))).toBeNull();
   });
+
+  it('reads another parameter by the same rule when named (issue #859, `/login?next=`)', () => {
+    expect(readReturnTo(new URLSearchParams('next=%2Forders%3Fstatus%3Dopen'), 'next')).toBe('/orders?status=open');
+    expect(readReturnTo(new URLSearchParams({ next: '//evil.example/' }), 'next')).toBeNull();
+    expect(readReturnTo(new URLSearchParams({ returnTo: '/orders' }), 'next')).toBeNull();
+  });
 });
 
 describe('withReturnTo', () => {

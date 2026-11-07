@@ -45,7 +45,7 @@ function rig() {
     addressService: {} as never,
     catalogProductRead: { findBySkus: async () => [ON, OFF] } as never,
     organizationDetails: { findById: async () => null } as never,
-    salesChannelMembership: { listChannelsForEntity: async () => [{ id: CHANNEL_ID }] } as never,
+    salesChannelMembership: { listChannelsForEntity: async () => [{ id: CHANNEL_ID, active: true }] } as never,
     catalogAvailability: { filterAvailable },
     pricingService: {
       resolveLinePrices: async (input: { lines: Array<{ key: string }> }) =>

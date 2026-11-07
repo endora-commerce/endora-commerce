@@ -99,5 +99,6 @@
   "organizationPermissions.carts.approve.label": "Akceptowanie i odrzucanie koszyków współpracowników",
   "organizationPermissions.carts.approve.description": "Przeglądanie koszyków organizacji oraz akceptowanie lub odrzucanie koszyków przekazanych do akceptacji.",
   "organizationPermissions.carts.order_without_approval.label": "Składanie zamówień bez akceptacji",
-  "organizationPermissions.carts.order_without_approval.description": "Zamawianie koszyka bezpośrednio, bez wcześniejszego przekazywania go do akceptacji."
+  "organizationPermissions.carts.order_without_approval.description": "Zamawianie koszyka bezpośrednio, bez wcześniejszego przekazywania go do akceptacji.",
+  "settingGroups.carts.name": "Koszyki"
 }

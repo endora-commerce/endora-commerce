@@ -245,7 +245,7 @@ Tę relację obsługują trzy endpointy, należące do tego modułu i przez nieg
 
 | Metoda i ścieżka | Przeznaczenie |
 | --- | --- |
-| `GET /api/v1/admin/organizations/:id/sales-reps` | Lista handlowców przypisanych do organizacji. |
+| `GET /api/v1/admin/organizations/:id/sales-reps` | Lista handlowców przypisanych do organizacji. `404 NOT_FOUND` dla organizacji spoza zasięgu przedstawiciela handlowego (zob. *Do których organizacji sięga przedstawiciel handlowy*), jak dla organizacji, która nie istnieje. |
 | `POST /api/v1/admin/organizations/:id/sales-reps` | Przypisanie handlowca. |
 | `DELETE /api/v1/admin/organizations/:id/sales-reps/:adminUserId` | Usunięcie przypisania. |
 

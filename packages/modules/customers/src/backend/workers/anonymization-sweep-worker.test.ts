@@ -6,6 +6,7 @@ import {
   ANONYMIZATION_SWEEP_QUEUE,
   ANONYMIZATION_SWEEP_SCHEDULER_ID,
   ANONYMIZATION_SWEEP_SCOPE_REASON,
+  AnonymizationSweepWorker,
   ensureAnonymizationSweepSchedule,
   runAnonymizationSweepTick,
   startAnonymizationSweep,
@@ -63,7 +64,7 @@ describe('customers anonymization sweep schedule (#677)', () => {
     const attach = vi.fn();
     const onClose = vi.fn();
     const started = await startAnonymizationSweep({
-      sweeper: { sweep: async () => 0 },
+      sweeper: { hasDue: async () => false, sweep: async () => 0 },
       log: logger(),
       attach,
       onClose,
@@ -83,7 +84,7 @@ describe('customers anonymization sweep schedule (#677)', () => {
     const closers: Array<() => Promise<void>> = [];
 
     const started = await startAnonymizationSweep({
-      sweeper: { sweep: async () => 0 },
+      sweeper: { hasDue: async () => false, sweep: async () => 0 },
       log: logger(),
       processRunsWorkers: true,
       moduleQueueRedis: {} as never,
@@ -130,7 +131,7 @@ describe('customers anonymization sweep schedule (#677)', () => {
         mode = getTenantContext()?.mode;
         return 3;
       });
-      await runAnonymizationSweepTick({ sweeper: { sweep }, log });
+      await runAnonymizationSweepTick({ sweeper: { hasDue: async () => true, sweep }, log });
       expect(sweep).toHaveBeenCalledTimes(1);
       expect(mode).toBe('system');
       expect(ANONYMIZATION_SWEEP_SCOPE_REASON).toContain('customers');
@@ -139,7 +140,7 @@ describe('customers anonymization sweep schedule (#677)', () => {
 
     it('logs nothing when nothing was due', async () => {
       const log = logger();
-      await runAnonymizationSweepTick({ sweeper: { sweep: async () => 0 }, log });
+      await runAnonymizationSweepTick({ sweeper: { hasDue: async () => true, sweep: async () => 0 }, log });
       expect(log.info).not.toHaveBeenCalled();
       expect(log.warn).not.toHaveBeenCalled();
     });
@@ -149,6 +150,7 @@ describe('customers anonymization sweep schedule (#677)', () => {
       const tick = () =>
         runAnonymizationSweepTick({
           sweeper: {
+            hasDue: async () => true,
             sweep: async () => {
               throw new Error('Anonymization sweep failed for 1 of 2 account(s): a');
             },
@@ -165,6 +167,7 @@ describe('customers anonymization sweep schedule (#677)', () => {
       await expect(
         runAnonymizationSweepTick({
           sweeper: {
+            hasDue: async () => true,
             sweep: async () => {
               throw new ModuleDisabledError('organizations');
             },
@@ -173,6 +176,82 @@ describe('customers anonymization sweep schedule (#677)', () => {
         }),
       ).rejects.toBeInstanceOf(ModuleDisabledError);
       expect(log.warn).not.toHaveBeenCalled();
+    });
+  });
+
+  /**
+   * Issue #857 — an idle tick enters no scope. Entering the system scope is
+   * what writes the `tenant.escape_hatch` audit row, so a daily tick with no
+   * account due asks first (`docs/docs/architecture/tenant-scoping.md` §
+   * *A scheduled tick with nothing to do enters no scope*).
+   */
+  describe('the question before the scope (#857)', () => {
+    it('with nothing due it asks, outside any system scope, and runs no sweep', async () => {
+      let modeWhileAsking: string | undefined = 'unset';
+      const hasDue = vi.fn(async () => {
+        modeWhileAsking = getTenantContext()?.mode;
+        return false;
+      });
+      const sweep = vi.fn(async () => 0);
+      const log = logger();
+      await runAnonymizationSweepTick({ sweeper: { hasDue, sweep }, log });
+      expect(hasDue).toHaveBeenCalledTimes(1);
+      expect(modeWhileAsking).not.toBe('system');
+      expect(sweep).not.toHaveBeenCalled();
+      expect(log.info).not.toHaveBeenCalled();
+      expect(log.warn).not.toHaveBeenCalled();
+    });
+
+    it('with something due it runs the sweep inside the system scope', async () => {
+      let mode: string | undefined;
+      const sweep = vi.fn(async () => {
+        mode = getTenantContext()?.mode;
+        return 1;
+      });
+      await runAnonymizationSweepTick({ sweeper: { hasDue: async () => true, sweep }, log: logger() });
+      expect(sweep).toHaveBeenCalledTimes(1);
+      expect(mode).toBe('system');
+    });
+
+    it('a question that cannot be answered counts as yes: the sweep runs', async () => {
+      const sweep = vi.fn(async () => 0);
+      await runAnonymizationSweepTick({
+        sweeper: {
+          hasDue: async () => {
+            throw new Error('the probe could not read');
+          },
+          sweep,
+        },
+        log: logger(),
+      });
+      expect(sweep).toHaveBeenCalledTimes(1);
+    });
+
+    it('a module switched off under the question is not a failed question', async () => {
+      const sweep = vi.fn(async () => 0);
+      await expect(
+        runAnonymizationSweepTick({
+          sweeper: {
+            hasDue: async () => {
+              throw new ModuleDisabledError('settings');
+            },
+            sweep,
+          },
+          log: logger(),
+        }),
+      ).rejects.toBeInstanceOf(ModuleDisabledError);
+      expect(sweep).not.toHaveBeenCalled();
+    });
+  });
+
+  describe('AnonymizationSweepWorker.hasDue (#857)', () => {
+    it('asks the owner of the table with the cutoff the sweep would use', async () => {
+      const now = new Date('2026-11-07T12:00:00.000Z');
+      const deletion = { hasDue: vi.fn(async () => true), sweep: vi.fn(async () => 0) };
+      const worker = new AnonymizationSweepWorker(deletion as never, async () => 30);
+      expect(await worker.hasDue(now)).toBe(true);
+      expect(deletion.hasDue).toHaveBeenCalledWith(30, now);
+      expect(deletion.sweep).not.toHaveBeenCalled();
     });
   });
 });

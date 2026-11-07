@@ -33,5 +33,6 @@
   "organizationPermissions.returns.create.label": "Zgłaszanie zwrotów i reklamacji",
   "organizationPermissions.returns.create.description": "Zgłaszanie zwrotu lub reklamacji do zamówienia, które widzisz: własnego albo współpracownika, jeśli możesz wyświetlać zamówienia organizacji.",
   "organizationPermissions.returns.view_organization.label": "Wyświetlanie zwrotów i reklamacji organizacji",
-  "organizationPermissions.returns.view_organization.description": "Przeglądanie wszystkich zwrotów i reklamacji zgłoszonych w organizacji, nie tylko własnych. Komentowanie, dodawanie plików, wybór sposobu odesłania zwrotu i anulowanie pozostają w gestii osoby, która zgłosiła sprawę."
+  "organizationPermissions.returns.view_organization.description": "Przeglądanie wszystkich zwrotów i reklamacji zgłoszonych w organizacji, nie tylko własnych. Komentowanie, dodawanie plików, wybór sposobu odesłania zwrotu i anulowanie pozostają w gestii osoby, która zgłosiła sprawę.",
+  "settingGroups.returns.name": "Zwroty"
 }

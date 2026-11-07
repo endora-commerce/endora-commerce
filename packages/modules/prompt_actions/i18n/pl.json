@@ -36,5 +36,6 @@
   "capability.disabled": "Asystent promptów jest wyłączony na tej platformie.",
   "capability.notConfigured": "Asystent promptów nie jest jeszcze skonfigurowany — ustaw dostawcę i klucz API w Ustawieniach.",
   "palette.group.label": "Asystent",
-  "activity.verb.prompt_action.execute": "wykonał akcję asystenta"
+  "activity.verb.prompt_action.execute": "wykonał akcję asystenta",
+  "settingGroups.prompt_actions.name": "Akcje promptów (asystent AI)"
 }

@@ -12,6 +12,7 @@ import {
   type InvoiceKind,
   type OrderReadPort,
   type OrderReturnRefund,
+  type OrderReturnedQuantity,
   type SupportedLanguage,
   isUuidShape,
 } from '@endora-commerce/contracts';
@@ -24,6 +25,8 @@ import type { InvoiceNumberGenerator } from './invoice-number-generator.js';
 import type { SellerSettingsResolver } from './seller-settings.js';
 import { buildInvoiceLines, readModelVatSummary, type RawOrderLine } from './invoice-line-builder.js';
 import { invoicePaidPosition } from './invoice-paid.js';
+import { keptDiscount, keptOrderLines } from './kept-quantities.js';
+import type { OrderReturnsLock } from './order-returns-lock.js';
 import { invoicesProseTable, type InvoicesTranslate } from '../invoices-prose.js';
 import { INVOICE_RENDER_LANGUAGE } from '../document/invoice-document-type.js';
 import {
@@ -53,11 +56,13 @@ export interface CapturedPaymentsLookup {
 }
 
 /**
- * What the order's settled return cases refunded — an empty list when the
- * `returns` module is absent and nothing can say (issue #428).
+ * What the order's settled return cases refunded (issue #428), and what of the
+ * order came back with them (issue #435) — empty lists when the `returns`
+ * module is absent and nothing can say.
  */
 export interface ReturnRefundsLookup {
   refundsFor(orderId: string): Promise<OrderReturnRefund[]>;
+  returnedQuantitiesFor(orderId: string): Promise<OrderReturnedQuantity[]>;
 }
 
 /** Minimal audit-log seam (FR-035). */
@@ -129,6 +134,13 @@ export class InvoiceService {
       readonly translate?: InvoicesTranslate | undefined;
       readonly language?: SupportedLanguage;
     } = {},
+    /**
+     * The order's returns lock (review of PR #865, F3): issuing holds it, so an
+     * invoice never reads a case a settlement has moved money for but not yet
+     * recorded. The composition always supplies it; without it (a unit test's
+     * fake entity manager) issuance takes no lock.
+     */
+    private readonly returnsLock?: OrderReturnsLock,
   ) {}
 
   /** Issue an invoice/proforma for an order. Idempotent per (order, kind). */
@@ -136,6 +148,15 @@ export class InvoiceService {
     orderId: string,
     kind: Exclude<InvoiceKind, 'correction' | 'wz'>,
     opts: IssueInvoiceOptions = {},
+  ): Promise<InvoiceDetail> {
+    if (this.returnsLock) return this.returnsLock.run(orderId, () => this.#issue(orderId, kind, opts));
+    return this.#issue(orderId, kind, opts);
+  }
+
+  async #issue(
+    orderId: string,
+    kind: Exclude<InvoiceKind, 'correction' | 'wz'>,
+    opts: IssueInvoiceOptions,
   ): Promise<InvoiceDetail> {
     const em = this.emFactory();
     const order = await this.orders.findById(orderId);
@@ -160,13 +181,21 @@ export class InvoiceService {
       INVOICE_LINE_NAME_KEYS,
       this.lineProse.language ?? supportedLanguageOf(INVOICE_RENDER_LANGUAGE),
     );
-    const raw: RawOrderLine[] = items.map((it) => ({
+    // Only what the buyer kept (issue #435, product-owner ruling of
+    // 2026-11-07): a return settled with a refund or a credit before the
+    // invoice exists has no invoice to correct (#135), so the invoice lists
+    // each line at its ordered quantity less what came back, and a line
+    // returned in full drops out. The delivery and surcharge lines below are
+    // the order's; the discount line carries only the kept goods' share
+    // (ruling Q3).
+    const returned = (await this.returnRefunds?.returnedQuantitiesFor(orderId)) ?? [];
+    const raw: RawOrderLine[] = keptOrderLines(items, returned).map(({ item: it, quantity }) => ({
       name: it.productSnapshot?.name ?? names['lines.item'],
       unit: it.packagingUnitSnapshot?.name ?? names['lines.unit.piece'],
-      quantity: it.quantity,
+      quantity,
       unitNetPrice: it.unitPrice,
       taxRate: it.taxRate,
-      netValue: lineAmountHalfUp(it.unitPrice, it.quantity),
+      netValue: lineAmountHalfUp(it.unitPrice, quantity),
       orderItemId: it.id,
     }));
 
@@ -197,7 +226,14 @@ export class InvoiceService {
         netValue: surcharge,
       });
     }
-    const discountTotal = roundHalfUp(order.discountTotal ?? 0);
+    // Whether anything is left to sell: a kept product line, the delivery or
+    // the payment surcharge. A discount line alone is not a sale (F4).
+    const keptSale = raw.length > 0;
+    // The discount the settled returns did not carry back (issue #435,
+    // product-owner ruling Q3 of 2026-11-07): their refunds already gave the
+    // buyer the rest, so the invoice of the kept goods, like what was paid,
+    // takes only this much off. Without a return it is the order's discount.
+    const discountTotal = keptDiscount(order.discountTotal ?? 0, returned);
     if (Number(discountTotal) > 0) {
       const negative = `-${discountTotal}`;
       raw.push({
@@ -232,11 +268,21 @@ export class InvoiceService {
     // nothing kept, and the refunds cover the whole order — has no sale left to
     // document, so it is not invoiced (owner ruling of 2026-10-24). One refunded
     // in part is invoiced, with what was kept as paid.
-    if (kind === 'invoice' && position.refundedInFull) {
+    //
+    // An order returned in full before it was invoiced — every product line
+    // back, and no delivery or surcharge kept — has no sale left either,
+    // whether or not the refund has been paid out yet: one waiting for a
+    // person, or for the gateway's webhook, refuses it the same way
+    // (product-owner ruling on F4, review of PR #865). Both are answered
+    // before a number is drawn; a proforma is refused for neither.
+    if (kind === 'invoice' && (position.refundedInFull || !keptSale)) {
       throw new HttpError(
         422,
         ERROR_CODES.INVOICE_ORDER_REFUNDED,
-        'The order was refunded in full before it was invoiced, so there is no sale left to invoice.',
+        position.refundedInFull
+          ? 'The order was refunded in full before it was invoiced, so there is no sale left to invoice.'
+          : 'The order was returned in full before it was invoiced, so there is no sale left to invoice.',
+        { reason: position.refundedInFull ? 'refunded_in_full' : 'returned_in_full' },
       );
     }
     const paidTotal = position.paid;

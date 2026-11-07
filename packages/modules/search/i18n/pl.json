@@ -6,5 +6,6 @@
   "errors.PHRASE_REQUIRED": "Wpisz wyszukiwaną frazę.",
   "errors.PHRASE_TOO_LONG": "Wyszukiwana fraza jest za długa.",
   "errors.RESULT_COUNT_INVALID": "Liczba wyników jest nieprawidłowa.",
-  "errors.LLM_CONFIG_INCOMPLETE": "Konfiguracja wyszukiwania LLM jest niekompletna."
+  "errors.LLM_CONFIG_INCOMPLETE": "Konfiguracja wyszukiwania LLM jest niekompletna.",
+  "settingGroups.search.name": "Wyszukiwarka"
 }

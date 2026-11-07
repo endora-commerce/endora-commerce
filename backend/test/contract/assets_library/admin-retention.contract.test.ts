@@ -123,4 +123,48 @@ describe('asset retention setting (#322)', () => {
       expect(stored.purgeAfterAt!.getTime() - stored.deletedAt!.getTime()).toBe(Math.max(1, days ?? 30) * DAY_MS);
     }
   });
+  // Issue #332 — a retention far enough out made the purge date an invalid
+  // `Date`, so one stored value broke every asset and recursive folder delete.
+  it.each([1e15, 3651])('a stored %s days is held to 3650 and both deletes still succeed', async (days) => {
+    await setRetention(days);
+    const asset = await createAsset();
+    const single = await h.app.inject({
+      method: 'DELETE', url: `/api/v1/admin/assets/${asset.id}`, cookies: adminCookie,
+    });
+    expect(single.statusCode, single.body).toBe(200);
+    const { data } = single.json<{ data: { deletedAt: string; purgeAfterAt: string } }>();
+    expect(Date.parse(data.purgeAfterAt) - Date.parse(data.deletedAt)).toBe(3650 * DAY_MS);
+
+    const root = await createFolder(null);
+    const nested = await createAsset(root.id);
+    const recursive = await h.app.inject({
+      method: 'DELETE', url: `/api/v1/admin/assets/folders/${root.id}`, cookies: adminCookie,
+      payload: { ifNonEmpty: 'deleteRecursively' },
+    });
+    expect(recursive.statusCode, recursive.body).toBe(200);
+    const stored = await h.em().fork({ clear: true }).findOneOrFail(Asset, { id: nested.id });
+    expect(stored.purgeAfterAt!.getTime() - stored.deletedAt!.getTime()).toBe(3650 * DAY_MS);
+  });
+
+  const writeRetention = (value: unknown) =>
+    h.app.inject({
+      method: 'PUT',
+      url: '/api/v1/admin/settings/assets.soft_delete_retention_days/value',
+      cookies: adminCookie,
+      payload: { scope: 'all', value },
+    });
+
+  it.each([0, 3651, 1e15, 2.5])('the settings write refuses %s days with a 422', async (value) => {
+    const refused = await writeRetention(value);
+    expect(refused.statusCode, refused.body).toBe(422);
+    expect(refused.json<{ error: { code: string } }>().error.code).toBe('VALIDATION_FAILED');
+    const setting = await h.em().fork({ clear: true })
+      .findOneOrFail(Setting, { code: 'assets.soft_delete_retention_days' });
+    expect(setting.globalValue ?? null).toBeNull();
+  });
+
+  it.each([1, 3650])('the settings write accepts %s days', async (value) => {
+    const accepted = await writeRetention(value);
+    expect(accepted.statusCode, accepted.body).toBeLessThan(400);
+  });
 });

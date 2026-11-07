@@ -460,5 +460,6 @@
   "author.hint": "Administrator; jego imię i nazwisko, avatar oraz „o mnie” są wyświetlane przy wpisie.",
   "author.inactive": "Nieaktywny",
   "author.deleted": "Autor usunięty",
-  "author.updated": "Zapisano autora."
+  "author.updated": "Zapisano autora.",
+  "settingGroups.blog.name": "Blog"
 }

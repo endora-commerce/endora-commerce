@@ -185,7 +185,8 @@ const VECTORS: Vector[] = [
   },
   {
     // R2 (review of PR #423): two returns of 1 of 2 × 29.4950 at 23 %. Paid 72.56 (58.99 net);
-    // cumulatively the first refunds 36.29 (29.50 net), the second the rest, 36.27 (29.49 net).
+    // the first refunds the drop in the kept value, 72.56 − 36.29 = 36.27 (29.49 net; issue #435,
+    // ruling Q1 (c)), the second the rest, 36.29 (29.50 net).
     id: 'R2',
     lines: [{ productId: SEED_PRODUCT_101_ID, quantity: 2 }],
     rates: { simple: 0.23 },
@@ -196,8 +197,8 @@ const VECTORS: Vector[] = [
     total: '75.06',
     returns: [[1], [1]],
     credited: [
-      ['36.29', '29.50', '6.79'],
       ['36.27', '29.49', '6.78'],
+      ['36.29', '29.50', '6.79'],
     ],
   },
   {
@@ -216,8 +217,8 @@ const VECTORS: Vector[] = [
     discount: '10.00',
     returns: [[1], [1]],
     credited: [
-      ['31.29', '24.50', '6.79'],
       ['31.27', '24.49', '6.78'],
+      ['31.29', '24.50', '6.79'],
     ],
   },
   {
@@ -526,7 +527,7 @@ describe('worked examples — §10.17 and §10.18 every document an order produc
         correctiveInvoicePort: CorrectiveInvoicePort;
       };
       const context = (await cradle.orderReturnContextPort.getReturnContext(orderId))!;
-      const earlier: Array<{ orderItemId: string; quantity: number; defaultRefundAmount: string }> = [];
+      const earlier: Array<{ orderItemId: string; quantity: number; defaultRefundAmount: string; defaultDiscountAmount: string }> = [];
       const credited: Array<[string, string, string]> = [];
       for (const [caseIndex, quantities] of v.returns.entries()) {
         const current = v.lines
@@ -571,7 +572,9 @@ describe('worked examples — §10.17 and §10.18 every document an order produc
         expect(corrected.statusCode, corrected.body).toBe(200);
         const c = (corrected.json() as { data: { netTotal: number; taxTotal: number; grossTotal: number } }).data;
         credited.push([two(c.grossTotal), two(c.netTotal), two(c.taxTotal)]);
-        current.forEach((cur, i) => earlier.push({ ...cur, defaultRefundAmount: refunds[i]!.refund }));
+        current.forEach((cur, i) =>
+          earlier.push({ ...cur, defaultRefundAmount: refunds[i]!.refund, defaultDiscountAmount: refunds[i]!.discount }),
+        );
       }
       expect(credited).toEqual(v.credited);
 

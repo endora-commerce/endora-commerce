@@ -28,6 +28,11 @@ describe('softDeleteRetentionDays', () => {
     [0.25, 1],
     [7.5, 7.5],
     [14, 14],
+    // Issue #332: a stored value past ten years is held to 3650 days, so a
+    // row written before the write validator cannot break every delete.
+    [3650, 3650],
+    [3651, 3650],
+    [1e15, 3650],
     [-1, 30],
     [Infinity, 30],
     ['x', 30],

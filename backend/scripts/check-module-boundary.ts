@@ -424,6 +424,7 @@ import {
   registeredMigrations,
 } from './lib/migration-registry.js';
 import { namedSpecifiers, type SpecifierKind } from './lib/specifiers.js';
+import { withSharedParses } from '@endora-commerce/cli/lib/parsed-source.js';
 import { resolutionCandidates } from './lib/platform-surface.js';
 import {
   declaredIndexes,
@@ -1064,7 +1065,7 @@ export interface AdminBoundarySurfaces {
    * two files; that check is deleted (feature 091, Phase 5 T5) and what now
    * holds them is an assertion in the admin's own suite —
    * `admin/test/modules/host-admin-registrations.test.tsx`, which counts both
-   * registries in **totals** and names the four routes and three nav entries
+   * registries in **totals** and names the five routes and four nav entries
    * that are the admin application's own (`contracts/admin-registry.md` R13a).
    */
   readonly registryFiles: ReadonlySet<string>;
@@ -2038,6 +2039,43 @@ const NO_MIGRATION_LEDGERS: MigrationLedgers = {
 };
 
 /**
+ * Every recogniser the analysis below will ask of a file, asked file by file
+ * (issue #910).
+ *
+ * The analysis is **rule-major**: the owner map reads every schema source, then
+ * the host SQL every module source, then the import predicate every module
+ * source again, then the migration rules every migration — five recognisers,
+ * each parsing what it is handed, which made 14662 parses over 3929 files. A
+ * `withSharedParses` scope keeps one tree, not one per file, because keeping a
+ * tree per file across those passes cost +490 MB, past the per-check divisor
+ * `check-read-size.test.ts` sizes its spawn pool with. So this visit runs
+ * **file-major** first: while a file's one tree is the scope's current tree, it
+ * asks every recogniser the passes will ask, and the scope remembers their
+ * answers — which are small — for the passes to find.
+ *
+ * It decides nothing and returns nothing; the passes stay the only author of
+ * every finding, so a recogniser this visit forgets to ask costs a second
+ * parse, never a different answer. `check-module-boundary-parse-once.test.ts`
+ * is what notices the second parse.
+ */
+function readEachSourceOnce(input: ModuleBoundaryInput): void {
+  const schema = input.schema;
+  for (const [file, text] of input.sources) {
+    namedSpecifiers(text, file);
+    // The non-DDL read warms what the DDL read is built from — the literals and
+    // the query builders. The DDL read itself needs the index map, which exists
+    // only once every migration has been read, so it is left to its pass.
+    sqlTableAccesses(text, file);
+    if (isMigration(file)) declaredMigrationClasses(text, file);
+    if (schema?.get(file) === text) declaredTableNames(text, file, entityTableName);
+  }
+  if (schema === undefined) return;
+  for (const [file, text] of schema) {
+    if (input.sources.get(file) !== text) declaredTableNames(text, file, entityTableName);
+  }
+}
+
+/**
  * The two-way comparison, in both directions and over all eight failure modes,
  * for each of the three ledgers this check now carries.
  */
@@ -2046,9 +2084,15 @@ export function checkModuleBoundary(
   shards: readonly LedgerShard[],
   migrationLedgers: MigrationLedgers = NO_MIGRATION_LEDGERS,
 ): CheckResult {
-  const sql = findCrossModuleSql(input);
-  const imports = findCrossModuleImports(input);
-  const migration = findMigrationSql(input, sql.owners);
+  // One parse per file for the whole analysis (issue #910): see
+  // {@link readEachSourceOnce} for why the scope alone is not enough.
+  const { sql, imports, migration } = withSharedParses(() => {
+    readEachSourceOnce(input);
+    const sql = findCrossModuleSql(input);
+    const imports = findCrossModuleImports(input);
+    const migration = findMigrationSql(input, sql.owners);
+    return { sql, imports, migration };
+  });
   const all: ModuleBoundaryFinding[] = [...imports.found, ...sql.found];
   all.sort((a, b) => (a.file === b.file ? a.line - b.line : a.file.localeCompare(b.file)));
 
@@ -3184,7 +3228,6 @@ async function main(): Promise<void> {
   const { moduleFiles: files, adminFiles, adminHostFiles, adminSurfaces: admin, packages } = scan;
   const { sources, schema } = scan.input;
   refuseUnreadablePackages('[module-boundary]', packages);
-  const owners = buildTableOwners(schema, packages.tables, layout.hostResidentModules).report;
   let registeredModules: readonly string[];
   try {
     registeredModules = await loadRegisteredModuleIds(layout.manifestIndexPath);
@@ -3257,23 +3300,13 @@ async function main(): Promise<void> {
     ...scan.input,
     dependencyClosures: dependencyClosures(declaredDependencies),
   };
-  let result: CheckResult;
-  try {
-    result = checkModuleBoundary(analysed, shards, migrationLedgers);
-  } catch (error) {
-    if (!(error instanceof UnreadableSubpathError)) throw error;
-    console.error(`[module-boundary] ${error.message}`);
-    process.exit(2);
-    return;
-  }
-  const migrations = migrationRegistryCoverage(registered, result.migrationClasses);
   // Issue #88: the module packages' admin layers, as the generated admin
   // registry names them, against what the module walk opened. Asked only
   // where the admin layout resolved — a workspace with no frontend has no
   // registry to read, and `vacuousReason` already refuses a frontend whose
   // layout did not resolve.
   const moduleFileKeys = new Set(files.map((file) => layout.keyOf(file)));
-  const adminRegistry =
+  const adminRegistryFloor = (): AdminRegistryFloor | null =>
     admin === null
       ? null
       : adminRegistryLayersWalked({
@@ -3292,14 +3325,37 @@ async function main(): Promise<void> {
           },
           walked: moduleFileKeys,
         });
+  // One scope over the analysis and the admin-registry floor, because the floor
+  // reads the specifiers of the module packages' `src/admin/index.ts` again,
+  // and those are module sources the analysis has already read (issue #910).
+  const analysis = withSharedParses(() => {
+    let result: CheckResult;
+    try {
+      result = checkModuleBoundary(analysed, shards, migrationLedgers);
+    } catch (error) {
+      if (!(error instanceof UnreadableSubpathError)) throw error;
+      return { refusal: error.message } as const;
+    }
+    return { result, adminRegistry: adminRegistryFloor() } as const;
+  });
+  if ('refusal' in analysis) {
+    console.error(`[module-boundary] ${analysis.refusal}`);
+    process.exit(2);
+    return;
+  }
+  const { result, adminRegistry } = analysis;
+  const migrations = migrationRegistryCoverage(registered, result.migrationClasses);
 
   const vacuous = vacuousReason({
     moduleFiles: files,
     registeredModules,
     moduleIdOf: layout.moduleIdOfPath,
     ledgerDirectoryExists: existsSync(LEDGER_ROOT),
-    entityTables: owners.entityTables,
-    migrationTables: owners.migrationTables,
+    // The analysis's own owner-map report rather than a second
+    // `buildTableOwners` over the same schema with the same three arguments,
+    // which is what this read until issue #910.
+    entityTables: result.tableOwners.entityTables,
+    migrationTables: result.tableOwners.migrationTables,
     adminSurfaces: admin,
     adminApplicationPresent: adminApplicationPresent(
       workspaceMembers(layout.repoRoot, nodeWorkspaceFs()),
