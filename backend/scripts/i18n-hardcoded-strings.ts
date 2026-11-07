@@ -1104,8 +1104,9 @@ export const HARDCODED_STRINGS_BASELINE: Readonly<Record<string, number>> = {
   // untouched; nothing about the strings changed, only their address. This
   // baseline is a ledger *about* the files it names rather than one of them,
   // so the merge request that moves a file is structurally the one that
-  // cannot see the entry go stale.
-  'packages/modules/invoices/src/admin/templates/invoice-puck-config.tsx': 4,
+  // cannot see the entry go stale. Issue #888 lowered it from 4: the canvas
+  // now draws its labels from the PDF's `pdf.*` keys.
+  'packages/modules/invoices/src/admin/templates/invoice-puck-config.tsx': 2,
   // `specs/134-paid-module-extraction/` T063 re-keyed two of the six strings
   // above to the KSeF block's editor preview in the module that declares the
   // block; T069 then took that module out of this repository, and the entry
