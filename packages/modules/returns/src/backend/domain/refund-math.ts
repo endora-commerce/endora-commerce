@@ -274,6 +274,12 @@ export function carriedDiscount(
   defaultRefund: string | number,
   approved: string | number,
 ): string {
-  if (compareDecimals(defaultRefund, 0) <= 0 || compareDecimals(defaultDiscount, 0) <= 0) return '0.00';
+  if (compareDecimals(defaultDiscount, 0) <= 0) return '0.00';
+  // A line whose discount share takes its whole value refunds 0.00 by default
+  // and still gave its discount back (review of PR #865, F2): approved as it
+  // is, it carries the whole default discount. Nothing scales from a 0.00 default.
+  if (compareDecimals(defaultRefund, 0) <= 0) {
+    return compareDecimals(approvedAmount(approved), approvedAmount(defaultRefund)) === 0 ? roundHalfUp(defaultDiscount) : '0.00';
+  }
   return quotientHalfUp(decimalProduct(defaultDiscount, approved), defaultRefund);
 }
