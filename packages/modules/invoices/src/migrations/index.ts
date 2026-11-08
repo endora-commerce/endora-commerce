@@ -30,6 +30,7 @@ import { Migration20260914T133603InvoicesErpImportedSaleDocuments } from './2026
 import { Migration20260926T230239InvoicesImportIdentity } from './20260926T230239_invoices_import_identity.js';
 import { Migration20261017T075839InvoicesDropInvoiceTemplates } from './20261017T075839_invoices_drop_invoice_templates.js';
 import { Migration20261024T145631InvoicesVatSummary } from './20261024T145631_invoices_vat_summary.js';
+import { Migration20261108T073244InvoicesInvoiceLineKind } from './20261108T073244_invoices_invoice_line_kind.js';
 
 export const migrations = [
   Migration20260629T125121InvoicesModule,
@@ -40,6 +41,7 @@ export const migrations = [
   Migration20260926T230239InvoicesImportIdentity,
   Migration20261017T075839InvoicesDropInvoiceTemplates,
   Migration20261024T145631InvoicesVatSummary,
+  Migration20261108T073244InvoicesInvoiceLineKind,
 ];
 
 export {
@@ -51,4 +53,5 @@ export {
   Migration20260926T230239InvoicesImportIdentity,
   Migration20261017T075839InvoicesDropInvoiceTemplates,
   Migration20261024T145631InvoicesVatSummary,
+  Migration20261108T073244InvoicesInvoiceLineKind,
 };

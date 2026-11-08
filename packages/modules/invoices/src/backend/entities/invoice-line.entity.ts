@@ -3,6 +3,14 @@ import { GlobalEntity } from '@endora-commerce/platform/tenancy';
 import { randomUUID } from 'crypto';
 
 /**
+ * Issue #904 — what an invoice line is (`invoice_lines.line_kind`). A
+ * `price_reduction` is a correction's line; the others are an issued
+ * document's.
+ */
+export const INVOICE_LINE_KINDS = ['goods', 'delivery', 'payment_surcharge', 'discount', 'price_reduction'] as const;
+export type InvoiceLineKind = (typeof INVOICE_LINE_KINDS)[number];
+
+/**
  * Immutable snapshot of one invoice line at issuance (feature 047). Independent
  * of later order edits. For corrections, holds the corrected delta lines.
  */
@@ -10,7 +18,7 @@ import { randomUUID } from 'crypto';
 @Entity({ tableName: 'invoice_lines' })
 @Index({ properties: ['invoiceId', 'ordinal'] })
 export class InvoiceLine {
-  [OptionalProps]?: 'id' | 'orderItemId';
+  [OptionalProps]?: 'id' | 'orderItemId' | 'lineKind';
 
   @PrimaryKey({ type: 'uuid' })
   id: string = randomUUID();
@@ -45,4 +53,13 @@ export class InvoiceLine {
 
   @Property({ type: 'uuid', nullable: true })
   orderItemId?: string | null;
+
+  /**
+   * Issue #904 — the line's kind, written for every line of an invoice or a
+   * proforma issued from now on, the 0 % delivery and surcharge lines included.
+   * `null`: a line issued before, or one no writer names yet (a correction's),
+   * told apart as it always was — by its `orderItemId` and its sign.
+   */
+  @Property({ type: 'string', length: 24, nullable: true })
+  lineKind?: InvoiceLineKind | null = null;
 }

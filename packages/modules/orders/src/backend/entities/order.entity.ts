@@ -1,7 +1,7 @@
 import { Entity, Index, OptionalProps, PrimaryKey, Property, Unique } from '@mikro-orm/core';
 import { OrgScoped } from '@endora-commerce/platform/tenancy';
 import { randomUUID } from 'crypto';
-import type { NextAction } from '@endora-commerce/contracts';
+import type { NextAction, OrderChargeLine } from '@endora-commerce/contracts';
 
 /**
  * Order — data-model.md § Domain 4.
@@ -229,6 +229,17 @@ export class Order {
    */
   @Property({ type: 'string', length: 16, nullable: true })
   vatMethod?: 'per_rate' | null = null;
+
+  /**
+   * Issue #904 — delivery and the payment surcharge split over the goods' VAT
+   * rates, as `chargesByRate` answered it at placement: `[{ kind, rate, gross,
+   * net }]`, two-place decimal strings. Read by every document the order
+   * produces, never recomputed. `null` on every order whose charges carry no
+   * VAT — which is every order until placement switches to `per_rate_charges`
+   * (Phase B); nothing writes it yet.
+   */
+  @Property({ type: 'json', nullable: true })
+  chargeLines?: OrderChargeLine[] | null = null;
 
   /**
    * When the conversion was reported, if it ever was.

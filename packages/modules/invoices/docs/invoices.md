@@ -94,6 +94,14 @@ setting of the totals block, and the row can be hidden there).
 `Invoice` (number, issued/dated timestamps, asset reference,
 `type ∈ {proforma, final}`).
 
+`InvoiceLine` (an immutable snapshot of one line at issuance). Its `lineKind`
+says what the line is: `goods`, `delivery`, `payment_surcharge` or `discount`
+on an invoice or a proforma, with `price_reduction` reserved for a
+correction's line. Every line of a document issued from this release records
+it, the 0 % delivery and surcharge lines included; it changes no amount. A line
+issued before, and a correction's line, carry `null` and are told apart as
+before, by whether they name an order line and by their sign.
+
 ## Numbering
 
 Two facts about an invoice number pull in opposite directions, and both are

@@ -445,3 +445,113 @@ export function netForGrossAtRate(
   }
   return { net: nearest, vat: moneyDifference(target, nearest), exact: false };
 }
+
+/** An order-level charge that follows the goods' VAT rates (issue #904). */
+export type OrderChargeKind = 'delivery' | 'payment_surcharge';
+
+/** One part of an order-level charge at one VAT rate: {@link chargesByRate}'s answer, two-place amounts. */
+export interface ChargeByRate {
+  kind: OrderChargeKind;
+  /** The rate as a fraction, keyed as {@link vatByRate}'s rows key it (`0.23`, `0`). */
+  rate: string;
+  /** The part of the charge's gross allocated to this rate. */
+  gross: string;
+  /** The part's net, by the row-target rule. */
+  net: string;
+}
+
+/**
+ * **Allocates order-level charges — delivery and the payment surcharge — over
+ * the goods' VAT rates** (issue #904; owner ruling of 2026-11-07: a charge
+ * takes the rate of the goods it accompanies). A charge's price is a **gross**,
+ * what the buyer pays (owner ruling E-904-T3 of 2026-11-08); this decides each
+ * part's gross and net, and the VAT is then {@link vatByRate} over the goods and
+ * the parts together — no second VAT computation exists.
+ *
+ * The rules, in order:
+ * 1. **Weights.** `W_r` is the sum of the goods nets at rate `r` (each net read
+ *    at two places). The order-level discount is not taken off.
+ * 2. **Split each charge's gross `G`, in cents.** Each part is
+ *    `floor(G × W_r / ΣW)`; the cents left over go one at a time to the largest
+ *    remainders, a tie to the higher rate. The parts add up to `G` exactly; a
+ *    part of 0.00 is dropped, and so is a charge of 0.00.
+ * 3. **If `ΣW = 0`** (every goods line priced at 0.00), the whole charge goes
+ *    to the highest rate among the goods lines.
+ * 4. **The part's net, by the row target.** `T_r` is the goods' row gross at
+ *    `r` plus the parts already placed at `r` plus this part; the part's net is
+ *    `netForGrossAtRate(T_r).net` less the row's net so far. So a rate's row
+ *    gross is the goods' row gross plus the charges' gross wherever the one VAT
+ *    method can produce that gross at all; where it cannot, the row is a grosz
+ *    off and so is the total (owner ruling E-904-6 of 2026-11-08), and a
+ *    part's own gross is informational, as a line's is.
+ *
+ * Charges are taken in input order, and their parts are answered in that order,
+ * each charge's parts by ascending rate. A negative charge, or a non-zero charge
+ * with no goods line to follow, is refused.
+ */
+export function chargesByRate(input: {
+  goods: ReadonlyArray<{ net: string | number; rate: string | number }>;
+  charges: ReadonlyArray<{ kind: OrderChargeKind; gross: string | number }>;
+  unit: 'fraction' | 'percent';
+}): ChargeByRate[] {
+  const centsOf = (value: string | number) => round(exact(value), 2).digits;
+  const fromCents = (digits: bigint) => render({ digits, scale: 2 });
+  // Rule 1: the goods nets per rate, in cents, and each rate's goods row.
+  const weights = new Map<string, { rate: Exact; weight: bigint }>();
+  for (const line of input.goods) {
+    const rate = rateKey(rateFraction(line.rate, input.unit));
+    const key = render(rate);
+    const net = centsOf(line.net);
+    if (net < 0n) throw new Error(`Not a non-negative goods net: "${String(line.net)}"`);
+    const entry = weights.get(key) ?? { rate, weight: 0n };
+    entry.weight += net;
+    weights.set(key, entry);
+  }
+  // Higher rate first: the order the tie-break reads.
+  const rates = [...weights.entries()].sort((a, b) => compareDecimals(b[0], a[0]));
+  const total = rates.reduce((acc, [, e]) => acc + e.weight, 0n);
+  const goodsRows = new Map(vatByRate(input.goods, input.unit).rows.map((r) => [r.rate, r]));
+  const row = new Map(
+    rates.map(([key]) => [key, { net: centsOf(goodsRows.get(key)!.net), gross: centsOf(goodsRows.get(key)!.gross) }]),
+  );
+
+  const answer: ChargeByRate[] = [];
+  for (const charge of input.charges) {
+    const gross = centsOf(charge.gross);
+    if (gross < 0n) throw new Error(`Not a non-negative charge: "${String(charge.gross)}"`);
+    if (gross === 0n) continue;
+    if (rates.length === 0) throw new Error(`No goods line for the ${charge.kind} charge to follow`);
+    // Rule 2 (and rule 3 when no goods line carries a value).
+    let parts: Array<{ key: string; cents: bigint }>;
+    if (total === 0n) {
+      parts = [{ key: rates[0]![0], cents: gross }];
+    } else {
+      const shares = rates.map(([key, e], index) => ({
+        key,
+        index,
+        cents: (gross * e.weight) / total,
+        remainder: (gross * e.weight) % total,
+      }));
+      let left = gross - shares.reduce((acc, s) => acc + s.cents, 0n);
+      const byRemainder = [...shares].sort((a, b) =>
+        a.remainder === b.remainder ? a.index - b.index : a.remainder > b.remainder ? -1 : 1,
+      );
+      for (const share of byRemainder) {
+        if (left === 0n) break;
+        share.cents += 1n;
+        left -= 1n;
+      }
+      parts = shares;
+    }
+    // Rule 4, by ascending rate in the answer.
+    for (const part of [...parts].reverse()) {
+      if (part.cents === 0n) continue;
+      const current = row.get(part.key)!;
+      const target = current.gross + part.cents;
+      const rowNet = centsOf(netForGrossAtRate(fromCents(target), part.key, 'fraction').net);
+      answer.push({ kind: charge.kind, rate: part.key, gross: fromCents(part.cents), net: fromCents(rowNet - current.net) });
+      row.set(part.key, { net: rowNet, gross: target });
+    }
+  }
+  return answer;
+}

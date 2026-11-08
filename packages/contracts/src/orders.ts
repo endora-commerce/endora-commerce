@@ -28,6 +28,7 @@ import {
   savedListViewSortSchema,
 } from './saved-list-views.js';
 import { twoDecimalAmount } from './money-input.js';
+import { vatSummaryRowSchema } from './invoices.js';
 
 /**
  * Orders module contracts — Source of truth per Principle V.
@@ -123,6 +124,47 @@ export const orderPendingEffectSchema = z.object({
 });
 export type OrderPendingEffect = z.infer<typeof orderPendingEffectSchema>;
 
+/**
+ * Issue #904 — the VAT method an order was placed under, as `orders.vat_method`
+ * stores it (`null`: placed before 0.108.0). `per_rate`: VAT per rate on the
+ * sum of the goods nets, with delivery and the payment surcharge at 0 %.
+ * `per_rate_charges`: the same method, with delivery and the surcharge taxed
+ * at the goods' rates as {@link orderChargeLineSchema} parts. Nothing places an
+ * order `per_rate_charges` yet (Phase A); the value is published so the
+ * readers can learn it before the placement switch.
+ */
+export const orderVatMethodSchema = z.enum(['per_rate', 'per_rate_charges']);
+export type OrderVatMethod = z.infer<typeof orderVatMethodSchema>;
+
+/**
+ * Issue #904 — one part of an order-level charge at one VAT rate, as
+ * `chargesByRate` answered it at placement and `orders.charge_lines` stores
+ * it: two-place decimal strings, the rate a fraction. A charge spread over
+ * two rates is two parts. Read, never recomputed, by every document the order
+ * produces.
+ */
+export const orderChargeLineSchema = z.object({
+  kind: z.enum(['delivery', 'payment_surcharge']),
+  rate: z.string(),
+  gross: z.string(),
+  net: z.string(),
+});
+export type OrderChargeLine = z.infer<typeof orderChargeLineSchema>;
+
+/**
+ * Issue #904 — the net side of an order's charges, for a net-display summary.
+ * Optional and additive: absent wherever the charges carry no VAT, which is
+ * every order until the placement switch.
+ */
+const orderChargeNetFields = {
+  /** The delivery's net: the sum of its parts' nets. */
+  deliveryNet: z.number().finite().optional(),
+  /** The payment surcharge's net: the sum of its parts' nets. */
+  paymentSurchargeNet: z.number().finite().optional(),
+  /** The VAT per rate, goods and charges together. */
+  vatRows: z.array(vatSummaryRowSchema).optional(),
+};
+
 export const orderSchema = z.object({
   id: uuidSchema,
   /**
@@ -212,6 +254,13 @@ export const orderSchema = z.object({
     )
     .default([]),
   deliveryTotal: z.number().finite().nonnegative(),
+  /**
+   * Issue #904 — the charges' parts per VAT rate, as the order stored them.
+   * Absent or `null` on an order whose charges carry no VAT.
+   */
+  chargeLines: z.array(orderChargeLineSchema).nullable().optional(),
+  deliveryNet: orderChargeNetFields.deliveryNet,
+  paymentSurchargeNet: orderChargeNetFields.paymentSurchargeNet,
   total: z.number().finite().nonnegative(),
   currency: z.string().length(3),
   placedAt: isoDateTimeSchema,
@@ -404,6 +453,7 @@ export const orderPreviewTotalResponseSchema = z.object({
   discountTotal: z.number(),
   total: z.number(),
   currency: z.string(),
+  ...orderChargeNetFields,
   /**
    * Feature 155 — basket lines placement will refuse. Exemptions apply only when the basket's quote
    * source is confirmed valid now (FR-036); `product_unavailable` is a line whose product record is
@@ -910,6 +960,7 @@ export const adminOrderPreviewResponseSchema = z.object({
     discountTotal: z.number(),
     total: z.number(),
     currency: z.string(),
+    ...orderChargeNetFields,
   }),
   /**
    * One entry per unavailable line, never more: its `code` is the first of
@@ -1125,6 +1176,12 @@ export interface OrderRecord {
   taxTotal: string;
   discountTotal: string;
   deliveryTotal: string;
+  /**
+   * Issue #904 — the charges' parts per VAT rate, as the order stored them
+   * (`orders.charge_lines`). `null` or absent: the charges carry no VAT, as on
+   * every order placed before the placement switch.
+   */
+  chargeLines?: OrderChargeLine[] | null;
   total: string;
   currency: string;
   promotionCode: string | null;

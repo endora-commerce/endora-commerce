@@ -440,6 +440,40 @@ refunds exactly what was paid, and the discount carried adds up to the order's);
 `backend/test/integration/returns/concurrent-cases.test.ts`, `settlement-scope.test.ts` and `settlement-ordering.test.ts`;
 `backend/test/integration/invoices/decimal-amounts.test.ts` (D1, V2, the refusal to invoice an order refunded in full, the refunds of settled returns outside `payments`, the overpayment, and the on-account case); `packages/modules/invoices/src/backend/services/invoice-paid.test.ts`; `backend/test/unit/invoices/auto-issue-reactor.test.ts`.
 
+**Charges by rate — the allocation, not yet applied** (issue #904, Phase A). Delivery and the
+payment surcharge are to take the VAT rate of the goods they accompany (owner ruling of
+2026-11-07), and their prices stay **gross**, what the buyer pays (owner ruling E-904-T3 of
+2026-11-08). The allocation is `chargesByRate` (`CON/money-decimal.ts`). **Nothing calls it yet**:
+placement still writes `vat_method = 'per_rate'` with the charges at 0 %, as the table above says,
+and that row holds until the placement switch (Phase B). The columns it will fill,
+`orders.charge_lines` and `invoice_lines.line_kind`, exist. Every new invoice and proforma line
+already records its kind (`goods`, `delivery`, `payment_surcharge`, `discount`), the 0 % charge
+lines included. The rules:
+
+1. A rate's weight is the sum of the goods nets at it; the order-level discount is not taken off.
+2. Each charge's gross is split in cents, `floor(G × W_r ÷ ΣW)` per rate, and the cents left over go
+   to the largest remainders, a tie to the higher rate. The parts add up to the charge exactly; a
+   part of 0.00 is dropped.
+3. When every goods line is priced at 0.00, the whole charge goes to the highest goods rate.
+4. A part's net is set by the **row target**: the net that makes the rate's row gross equal the
+   goods' row gross plus the charges placed there so far, `netForGrossAtRate`, less the row's net so
+   far. Where no net produces that gross, the row is 1 grosz off and so is the total (owner ruling
+   E-904-6 of 2026-11-08).
+
+The VAT is then `vatByRate` over the goods and the parts together; the money rule is unchanged.
+
+| Vector | Goods (net @ rate) | Charges (gross) | Parts (gross → net) | Rows (net / VAT / gross) | Total vs goods gross + charges |
+| --- | --- | --- | --- | --- | --- |
+| M1 | 100.00 @ 23 %, 50.00 @ 5 % | delivery 15.99 | 5 %: 5.33 → 5.08; 23 %: 10.66 → 8.67 | 5 %: 55.08 / 2.75 / 57.83; 23 %: 108.67 / 24.99 / 133.66 | **191.49** = 191.49 |
+| M2 | 29.50 @ 23 % | delivery 15.99, surcharge 2.50 | 23 %: 15.99 → 13.00; 2.50 → 2.04 | 23 %: 44.54 / 10.24 / 54.78 | **54.78** = 54.78 (the surcharge's net on its own, 2.03, would give 54.77) |
+| M3 | 40.00 @ 23 %, 30.00 @ 8 %, 30.00 @ 5 % | delivery 19.99 | 5 %: 6.00 → 5.71; 8 %: 6.00 → 5.56; 23 %: 7.99 → 6.50 | 5 %: 35.71 / 1.79 / 37.50; 8 %: 35.56 / 2.84 / 38.40; 23 %: 46.50 / 10.70 / 57.20 | **133.10** vs 133.09: no net makes the 23 % row 57.19 |
+| M6 | 100.00 @ 0 % (intra-EU supply) | delivery 15.99 | 0 %: 15.99 → 15.99 | 0 %: 115.99 / 0.00 / 115.99 | **115.99** = 115.99 |
+
+Tests: `packages/contracts/test/money-decimal.unit.test.ts` (`chargesByRate`: M1–M3, M6, the
+tie-break, `ΣW = 0`, and a sweep in which every part sums to its charge and every reachable row
+lands on goods row gross + charges), `backend/test/integration/invoices/issue-invoice.test.ts`
+(the line kinds) and `backend/test/integration/orders/per-rate-charges-schema.test.ts`.
+
 ### 10.18 Four-place unit prices — the line value is the rounding point (owner ruling of 2026-10-25)
 
 A price book stores `numeric(14,4)` and takes four places, so a screw can cost 0.0125. Until this
