@@ -4,6 +4,7 @@ import { ReturnCase } from '../entities/return-case.entity.js';
 import { ReturnCaseItem } from '../entities/return-case-item.entity.js';
 import { Refund } from '../entities/refund.entity.js';
 import { carriedDiscount } from '../domain/refund-math.js';
+import { MONEY_RESOLUTIONS, entersKeptState } from '../domain/kept-state.js';
 
 /**
  * `returnRefundReadPort` — what the order's settled return cases refunded
@@ -40,14 +41,14 @@ export class ReturnRefundReadService implements ReturnRefundReadPort {
    * `resolutionType` is written only by the settlement, so a case without one
    * has not been settled. A replacement and a repair send goods back to the
    * buyer, and a complaint is not a withdrawal from the sale, so none counts.
+   * It is the kept state the default refund is computed on (`kept-state.ts`,
+   * issues #874 and #875), so the invoice and the refunds count the same cases.
    */
   async listReturnedQuantities(orderId: string): Promise<OrderReturnedQuantity[]> {
     const em = this.emFactory();
-    const cases = await em.find(ReturnCase, {
-      orderId,
-      kind: 'return',
-      resolutionType: { $in: ['refund', 'credit'] },
-    });
+    const cases = (
+      await em.find(ReturnCase, { orderId, kind: 'return', resolutionType: { $in: [...MONEY_RESOLUTIONS] } })
+    ).filter(entersKeptState);
     if (cases.length === 0) return [];
     const items = await em.find(
       ReturnCaseItem,

@@ -128,7 +128,36 @@ trafia do dziennika audytu.
   zawiera `correctiveInvoice: { issued: false, reason: "order_not_invoiced" }`. Faktura wystawiona
   później obejmuje tylko to, co kupujący zatrzymał: zwrot rozliczony zwrotem pieniędzy albo
   środkami na koncie zmniejsza ilość w pozycji zamówienia, pozycja zwrócona w całości jest
-  pomijana, a rabat, który oddał zwrot, zmniejsza pozycję rabatu na fakturze.
+  pomijana, a rabat, który oddał zwrot, zmniejsza pozycję rabatu na fakturze. Na zamówieniu, które
+  zostało zafakturowane, korekta zwrotu uznaje zwrócone towary i zostawia na fakturze VAT dla każdej
+  stawki od wartości netto, które kupujący zatrzymał.
+- **Zwrot pieniędzy z reklamacji jest obniżką ceny** — reklamacja rozliczona zwrotem pieniędzy albo
+  środkami na koncie zostawia towary u kupującego, więc na zafakturowanym zamówieniu jej korekta
+  uznaje zatwierdzoną kwotę według stawki VAT pozycji jako obniżkę ceny: ilość 0, bez części rabatu
+  zamówienia i bez wpływu na ilość, od której liczony jest późniejszy zwrot tej pozycji. Reklamacja
+  rozwiązana wymianą albo naprawą nie powoduje korekty. Reklamacja, za którą zwrócono pieniądze
+  przed wystawieniem faktury, jest obecnie widoczna na fakturze jako kwota do zapłaty.
+- **Domyślna kwota zwrotu jest przeliczana przy rozliczeniu** — kwota, którą sprawa pokazuje po
+  otwarciu, jest wstępna. Rozliczenie przelicza ją, jedno rozliczenie zamówienia naraz, na podstawie
+  spraw rozliczonych do tej chwili. Towary z tego, co kupujący zatrzymuje, zdejmuje tylko zwrot
+  rozliczony zwrotem pieniędzy albo środkami na koncie; sprawa odrzucona, rozwiązana wymianą albo
+  naprawą i każda reklamacja niczego nie zdejmują. Kwota może więc zmienić się o grosz lub dwa, gdy
+  sprawy są rozliczane w innej kolejności, niż je otwarto, albo po odrzuceniu wcześniejszej sprawy.
+  Formularz rozliczenia pokazuje przeliczoną kwotę. Zatwierdzona kwota równa kwocie domyślnej, którą
+  sprawa pokazywała, jest rozliczana według przeliczonej kwoty domyślnej, niższa kwota zostaje tak,
+  jak ją wpisano, a wyższa jest odrzucana z `422 VALIDATION_FAILED` (`code: refund_exceeds_paid`)
+  i nic nie zostaje zapisane: odśwież formularz i potwierdź. Wpis `return.settled` w dzienniku
+  audytu odnotowuje kwotę domyślną, która się zmieniła (`recomputedDefaults`).
+- **Żadna pozycja nie zwraca więcej, niż za nią zapłacono** — zwrot pieniędzy z reklamacji pomniejsza
+  to, co pozostało w pozycji, której dotyczy, a jego niewchłonięta część pomniejsza to, co pozostało
+  zapłacone za zamówienie: gdy zwrot tej pozycji został już o reklamację obniżony, ta kwota nie jest
+  liczona drugi raz. Późniejszy
+  zwrot tej pozycji nadal dostaje pełną kwotę domyślną, dopóki zwroty pozycji razem z reklamacją nie
+  osiągną tego, co za nią zapłacono; od tej chwili sprawa pokazuje, a formularz rozliczenia proponuje,
+  najwyżej to, co z niej zostało, a wpis w dzienniku audytu odnotowuje to ograniczenie (`lineCeilings`). Platforma
+  nie wie, która sztuka wróciła. Przed rozliczeniem zwrotu sprawdź inne sprawy zamówienia pod kątem
+  wcześniejszej reklamacji tej samej pozycji: jeśli wraca właśnie wadliwa sztuka, za którą
+  zrekompensowano reklamację, obniż kwotę ręcznie.
 - **Wyłączona bramka płatności blokuje rozliczenie.** Rozliczenia pieniężne zamówień opłaconych
   przez bramkę wywołują moduł operatora płatności, który przyjął płatność; gdy operator wyłączył ten
   moduł — albo wdrożenie go nie oferuje — rozliczenie zwraca `503 MODULE_DISABLED` z nazwą modułu i

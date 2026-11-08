@@ -227,11 +227,21 @@ export interface ProductUpdateGate {
   apiKeyId?: string | null | undefined;
 }
 
+/** Issue #241 — value equality for a product field the update compares before it writes. */
+function sameValue(a: unknown, b: unknown): boolean {
+  return JSON.stringify(a) === JSON.stringify(b);
+}
+
 export class CatalogAdminService {
   constructor(
     private readonly emFactory: () => EntityManager,
     private readonly events: CatalogEventBus,
-    private readonly auditLog?: AuditPort,
+    /**
+     * Unread since issue #241: the last write it recorded by hand, the bulk edit's
+     * `product.update`, now runs the Command. Kept so the positional signature the
+     * composition and the fixtures construct this service with does not move.
+     */
+    _auditLog?: AuditPort,
     /**
      * Feature 005 / T027 — when injected, every newly-created Product
      * that does not declare explicit channel membership lands in the
@@ -530,31 +540,18 @@ export class CatalogAdminService {
     };
   }
 
-  async updateProduct(
-    id: string,
-    req: UpdateProductRequest,
-    auditCtx?: AdminAuditContext,
-    gate?: ProductUpdateGate,
-  ): Promise<Product> {
+  /**
+   * The unaudited product update: the write, its flush and `product.updated.v1`,
+   * with no Command and no audit entry. Only the bus-less fallback of
+   * {@link updateProductAudited} and fixtures reach it; every operator, API-key and
+   * bulk write runs the `product.update` Command (issue #241, Principle XIII).
+   */
+  async updateProduct(id: string, req: UpdateProductRequest, gate?: ProductUpdateGate): Promise<Product> {
     const em = this.emFactory();
     const r = await this.#applyProductUpdate(em, id, req, gate);
     await em.flush();
-    if (this.auditLog && auditCtx) {
-      await this.auditLog.record({
-        actorAdminUserId: auditCtx.actorAdminUserId,
-        ...(auditCtx.impersonatedCustomerAccountId !== undefined
-          ? { impersonatedCustomerAccountId: auditCtx.impersonatedCustomerAccountId }
-          : {}),
-        action: 'product.update',
-        objectType: 'product',
-        objectId: r.product.id,
-        stateBefore: r.stateBefore,
-        stateAfter: { ...r.stateAfter, changedFields: r.changedFields },
-        ...(auditCtx.ipAddress !== undefined ? { ipAddress: auditCtx.ipAddress } : {}),
-        ...(auditCtx.userAgent !== undefined ? { userAgent: auditCtx.userAgent } : {}),
-        ...(auditCtx.requestId !== undefined ? { requestId: auditCtx.requestId } : {}),
-      });
-    }
+    // Issue #241 — a write that changed nothing announces nothing.
+    if (r.changedFields.length === 0) return r.product;
     // Feature 163 (FR-010) — a status write never archives, so this write has
     // one announcement; `product.archived.v1` belongs to the Archive action.
     this.events.emit('product.updated.v1', {
@@ -605,13 +602,23 @@ export class CatalogAdminService {
 
   /**
    * Feature 054 — admin single-update path, audited co-transactionally via the
-   * Command Bus (one audit row + the event on commit, none on rollback). Falls
-   * back to the legacy `updateProduct` when no bus is injected (bus-less tests).
+   * Command Bus (one audit row + the event on commit, none on rollback; none either
+   * when nothing changed, issue #241). Falls back to the unaudited `updateProduct`
+   * when no bus is injected (bus-less tests).
    */
+  /**
+   * Whether product writes run through the Command Bus, and so are audited. A bulk
+   * edit refuses to run when they do not (issue #241): its per-product writes would
+   * fall back to the unaudited `updateProduct`.
+   */
+  hasCommandBus(): boolean {
+    return this.commandBus !== undefined;
+  }
+
   async updateProductAudited(id: string, req: UpdateProductRequest, gate?: ProductUpdateGate): Promise<Product> {
     // Feature 172 (FR-014) — before the transaction, as on create.
     await this.#refuseContentAttributeValues(req.attributeValues as Record<string, unknown> | undefined);
-    if (!this.commandBus) return this.updateProduct(id, req, undefined, gate);
+    if (!this.commandBus) return this.updateProduct(id, req, gate);
     return this.commandBus.run(this.#updateProductCommand(id, req, gate));
   }
 
@@ -624,21 +631,27 @@ export class CatalogAdminService {
       run: async ({ em }) => {
         const r = await this.#applyProductUpdate(em, id, req, gate);
         changedFields = r.changedFields;
+        // Issue #241 — a write that changed nothing records no entry and announces
+        // nothing. The editor's version bump still commits, as on a no-op scope write.
+        if (changedFields.length === 0) return { result: r.product, skipAudit: true };
         return {
           result: r.product,
           before: r.stateBefore,
           after: { ...r.stateAfter, changedFields, ...(gate?.apiKeyId ? { apiKeyId: gate.apiKeyId } : {}) },
         };
       },
-      event: (product) => ({
-        eventName: 'product.updated.v1',
-        payload: {
-          eventId: randomUUID(),
-          occurredAt: new Date().toISOString(),
-          productId: product.id,
-          changedFields,
-        },
-      }),
+      event: (product) =>
+        changedFields.length === 0
+          ? undefined
+          : {
+              eventName: 'product.updated.v1',
+              payload: {
+                eventId: randomUUID(),
+                occurredAt: new Date().toISOString(),
+                productId: product.id,
+                changedFields,
+              },
+            },
     };
   }
 
@@ -738,10 +751,21 @@ export class CatalogAdminService {
       product.sku = trimmed;
       changedFields.push('sku');
     }
-    if (req.name) { product.name = req.name; changedFields.push('name'); }
-    if (req.description) { product.description = req.description; changedFields.push('description'); }
-    if (req.stockMode !== undefined) { product.stockMode = req.stockMode; changedFields.push('stockMode'); }
-    if (req.visibility) { product.visibility = req.visibility; changedFields.push('visibility'); }
+    // Issue #241 — a field is changed only when its value moves: a write that
+    // restates what is stored records no audit entry and announces nothing.
+    if (req.name && req.name !== product.name) { product.name = req.name; changedFields.push('name'); }
+    if (req.description && req.description !== product.description) {
+      product.description = req.description;
+      changedFields.push('description');
+    }
+    if (req.stockMode !== undefined && req.stockMode !== (product.stockMode ?? null)) {
+      product.stockMode = req.stockMode;
+      changedFields.push('stockMode');
+    }
+    if (req.visibility && req.visibility !== product.visibility) {
+      product.visibility = req.visibility;
+      changedFields.push('visibility');
+    }
     // Feature 022 — status field. Feature 163 (FR-010, FR-019, O-5): a status
     // write never sets or clears `archivedAt` — `inactive` is plain off and
     // `active` does not restore. Archiving is the Archive / Restore action.
@@ -775,8 +799,12 @@ export class CatalogAdminService {
         req.attributeValues as Record<string, unknown>,
         new Set(Object.keys(product.attributeValues ?? {})),
       );
-      product.attributeValues = { ...product.attributeValues, ...req.attributeValues };
-      changedFields.push('attributeValues');
+      const current = product.attributeValues ?? {};
+      const patch = req.attributeValues as Record<string, unknown>;
+      if (Object.keys(patch).some((key) => !sameValue(current[key], patch[key]))) {
+        product.attributeValues = { ...current, ...patch };
+        changedFields.push('attributeValues');
+      }
     }
     // Feature 012 / FR-013 — refuse the save if any required attribute
     // in the assigned set is left without a value. The merged map is
@@ -793,7 +821,7 @@ export class CatalogAdminService {
         product.attributeValues ?? {},
       );
     }
-    if (req.allowedOrganizationIds) {
+    if (req.allowedOrganizationIds && !sameValue(req.allowedOrganizationIds, product.allowedOrganizationIds)) {
       product.allowedOrganizationIds = req.allowedOrganizationIds;
       changedFields.push('allowedOrganizationIds');
     }
@@ -809,36 +837,39 @@ export class CatalogAdminService {
       }
     }
     // Feature 010 — per-product stock-management flags.
-    if (req.manageStock !== undefined) {
+    if (req.manageStock !== undefined && req.manageStock !== product.manageStock) {
       product.manageStock = req.manageStock;
       changedFields.push('manageStock');
     }
-    if (req.backorderEnabled !== undefined) {
+    if (req.backorderEnabled !== undefined && req.backorderEnabled !== product.backorderEnabled) {
       product.backorderEnabled = req.backorderEnabled;
       changedFields.push('backorderEnabled');
     }
-    if (req.lowStockThreshold !== undefined) {
+    if (req.lowStockThreshold !== undefined && req.lowStockThreshold !== (product.lowStockThreshold ?? null)) {
       product.lowStockThreshold = req.lowStockThreshold;
       changedFields.push('lowStockThreshold');
     }
-    if (req.lowStockThresholdMode !== undefined) {
+    if (req.lowStockThresholdMode !== undefined && req.lowStockThresholdMode !== product.lowStockThresholdMode) {
       product.lowStockThresholdMode = req.lowStockThresholdMode;
       changedFields.push('lowStockThresholdMode');
     }
-    if (req.fulfilmentStrategy !== undefined) {
+    if (req.fulfilmentStrategy !== undefined && req.fulfilmentStrategy !== (product.fulfilmentStrategy ?? null)) {
       product.fulfilmentStrategy = req.fulfilmentStrategy;
       changedFields.push('fulfilmentStrategy');
     }
-    if (req.fulfilmentStrategyWarehouseOrder !== undefined) {
+    if (
+      req.fulfilmentStrategyWarehouseOrder !== undefined &&
+      !sameValue(req.fulfilmentStrategyWarehouseOrder, product.fulfilmentStrategyWarehouseOrder ?? null)
+    ) {
       product.fulfilmentStrategyWarehouseOrder = req.fulfilmentStrategyWarehouseOrder;
       changedFields.push('fulfilmentStrategyWarehouseOrder');
     }
     // Feature 155 (FR-001, FR-003, D5) — the pieces minimum and the returnable flag.
-    if (req.minOrderQuantity !== undefined) {
+    if (req.minOrderQuantity !== undefined && req.minOrderQuantity !== (product.minOrderQuantity ?? null)) {
       product.minOrderQuantity = req.minOrderQuantity;
       changedFields.push('minOrderQuantity');
     }
-    if (req.returnable !== undefined) {
+    if (req.returnable !== undefined && req.returnable !== product.returnable) {
       product.returnable = req.returnable;
       changedFields.push('returnable');
     }

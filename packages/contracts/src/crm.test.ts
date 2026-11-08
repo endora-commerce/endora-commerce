@@ -1006,3 +1006,28 @@ describe('events and the calendar (§12d, US21, US22)', () => {
     rejects(crm.OpportunityUnreadMessagesResponseSchema, { data: { unreadMessageCount: -1 } });
   });
 });
+
+describe('§3 links — issue #456, how far a Quote Request is agreed', () => {
+  const link = {
+    id: UUID_A,
+    documentKind: 'quote_request',
+    documentId: UUID_B,
+    available: true,
+    number: 'QR-1',
+    status: 'Pending',
+    total: '37.50',
+    currency: 'PLN',
+    syncStatus: false,
+    linkSource: 'manual',
+    createdAt: '2026-11-08T10:00:00.000Z',
+  };
+
+  it('a Quote Request link says how far its lines are agreed', () => {
+    for (const agreement of ['agreed', 'partial', 'none'] as const) {
+      expect(crm.OpportunityLinkSchema.parse({ ...link, agreement }).agreement).toBe(agreement);
+    }
+    // An Order link, and an unavailable one, carry none.
+    expect(crm.OpportunityLinkSchema.parse(link).agreement).toBeUndefined();
+    rejects(crm.OpportunityLinkSchema, { ...link, agreement: 'some' });
+  });
+});

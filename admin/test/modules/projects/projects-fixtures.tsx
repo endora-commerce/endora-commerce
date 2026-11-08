@@ -31,6 +31,15 @@ function shippedBundle(relativePath: string): Record<string, string> {
 
 const PROJECTS_BUNDLE = shippedBundle('../packages/modules/projects/i18n/en.json');
 const CORE_BUNDLE = shippedBundle('../packages/modules/_i18n/i18n/en.json');
+const PROJECTS_BUNDLE_PL = shippedBundle('../packages/modules/projects/i18n/pl.json');
+const CORE_BUNDLE_PL = shippedBundle('../packages/modules/_i18n/i18n/pl.json');
+
+/** The Polish sentence of one of the module's own keys, for a case that reads the Polish copy. */
+export function pl(key: string): string {
+  const template = PROJECTS_BUNDLE_PL[key];
+  if (template === undefined) throw new Error(`[projects fixtures] the shipped Polish projects bundle has no key "${key}".`);
+  return template;
+}
 
 function sentence(
   bundle: Record<string, string>,
@@ -70,11 +79,14 @@ export function renderProjects(
     readonly routes?: ReactNode;
     /** Modules' admin contributions, for a screen that mounts a zone. */
     readonly contributions?: Parameters<typeof withSession>[1]['contributions'];
+    /** The operator's language; English unless a test reads the Polish copy. */
+    readonly language?: 'en' | 'pl';
   } = {},
 ): RenderResult {
+  const language = options.language ?? 'en';
   return renderWithI18n(
     withSession(
-      <AppLanguageContext.Provider value={{ language: 'en', setLanguage: (): void => {} }}>
+      <AppLanguageContext.Provider value={{ language, setLanguage: (): void => {} }}>
         <MemoryRouter initialEntries={[options.path ?? '/']}>
           <Routes>
             <Route path={options.pattern ?? '*'} element={ui} />
@@ -89,7 +101,8 @@ export function renderProjects(
         ...(options.contributions ? { contributions: options.contributions } : {}),
       },
     ),
-    { core: CORE_BUNDLE, projects: PROJECTS_BUNDLE },
+    language === 'pl' ? { core: CORE_BUNDLE_PL, projects: PROJECTS_BUNDLE_PL } : { core: CORE_BUNDLE, projects: PROJECTS_BUNDLE },
+    { language },
   );
 }
 

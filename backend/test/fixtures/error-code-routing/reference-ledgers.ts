@@ -210,6 +210,15 @@ export const MINTED_ERROR_CODES: MintedErrorCodes = {
       'organization. The noun is an admin role and the one place the refusal is built is ' +
       '`admin_roles`\' permission service, which `organizations` asks for it.',
   },
+  MFA_REQUIRED_FOR_ROLE_TWO_FACTOR: {
+    to: 'admin_users',
+    reason:
+      'Minted by issue #349 for the refusal a role write earns by turning `requiresTwoFactor` ' +
+      'on where no second factor can be enrolled: `mfa` is off, or has no encryption key. The ' +
+      'noun is the role editor\'s write, whose one raise site is `admin_users`\' ' +
+      '`PUT /admin-roles/:code`; it is raised while `mfa` may be absent, so `mfa`\'s bundle ' +
+      'could not be the one that translates it.',
+  },
   ADMIN_USER_ROLE_REQUIRED: {
     to: 'admin_users',
     reason:

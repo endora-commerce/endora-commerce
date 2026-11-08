@@ -3,7 +3,7 @@ import { afterAll, beforeAll, describe, expect, it } from 'vitest';
 import { SalesChannel } from '@endora-commerce/platform/kernel';
 import { setupBackendServer, teardownBackendServer, type BackendServerHandle } from '../../helpers/test-server.js';
 import { withModuleOff, type OffStateAxis } from '../../helpers/off-state.js';
-import { CustomerAccount } from '../../helpers/package-entities.js';
+import { CustomerAccount, Organization } from '../../helpers/package-entities.js';
 import { seedCrmOrganization } from '../../helpers/seed-crm.js';
 import {
   FORMS_ADMIN,
@@ -197,6 +197,48 @@ describe('forms — erasure of an anonymised customer account (FR-047)', () => {
       expect(await readEntryRow(h, entry)).toBeUndefined();
     },
   );
+
+  it('finishing an earlier scrub (#923) does not erase the subject again: no announcement, no second erasure', async () => {
+    // A subject an earlier release anonymised, whose entries that release's
+    // sweep already erased; its personal organisation still holds a legal name.
+    const scrubbedAt = new Date(Date.now() - 2 * YEAR);
+    const em = h.em().fork();
+    const id = randomUUID();
+    const org = em.create(Organization, {
+      name: 'Deleted customer',
+      legalName: `Erasure ${RUN} Handel`,
+      taxId: id.replace(/-/g, ''),
+      status: 'active',
+      vatStatus: 'vat_exempt',
+      isPersonal: true,
+      registeredAddress: { street: '-', city: '-', postalCode: '-', country: 'PL' },
+      deletedAt: scrubbedAt,
+    } as never);
+    await em.persistAndFlush(org);
+    const row = em.create(CustomerAccount, {
+      id,
+      organizationId: org.id,
+      email: `deleted+${id}@anonymized.invalid`,
+      passwordHash: 'x'.repeat(60),
+      firstName: 'Deleted customer',
+      lastName: 'Deleted customer',
+      deletedAt: scrubbedAt,
+      anonymizedAt: scrubbedAt,
+    } as never);
+    await em.persistAndFlush(row);
+    accounts.push(id);
+    // An entry still attributed to it: the subscriber would erase it if the
+    // finish announced the account again. (The maintenance tick reconciles it;
+    // this case does not run the tick.)
+    const entry = await entryOf(id, `residual-${RUN}@forms-erasure.test`);
+
+    expect(await sweep()).toBeGreaterThanOrEqual(1);
+
+    expect(await readEntryRow(h, entry)).toBeDefined();
+    const finished = await h.em().fork().findOneOrFail(Organization, { id: org.id }, { filters: false });
+    expect(finished.legalName ?? null).toBeNull();
+    expect(await auditRows(h, { action: 'forms.entries.erase_for_account', objectId: id })).toEqual([]);
+  });
 
   it('reconciles the entries of an account that no longer resolves', async () => {
     const vanished = randomUUID();

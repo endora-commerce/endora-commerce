@@ -632,6 +632,12 @@ export const ERROR_CODES = {
    */
   MFA_DEACTIVATION_BLOCKED: 'MFA_DEACTIVATION_BLOCKED',
   /**
+   * A role cannot start requiring a second factor that this instance cannot
+   * enrol: `mfa` is off, or has no encryption key (issue #349). Raised by
+   * `admin_users`' role write; `details.reason` says which.
+   */
+  MFA_REQUIRED_FOR_ROLE_TWO_FACTOR: 'MFA_REQUIRED_FOR_ROLE_TWO_FACTOR',
+  /**
    * Administrators cannot be required to use a second factor that this
    * instance cannot enrol: `mfa` has no encryption key (issue #930). Raised by
    * the `mfa.admin.totp_enforced` write; `details.reason` is

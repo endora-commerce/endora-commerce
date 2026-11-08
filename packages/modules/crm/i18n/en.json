@@ -536,6 +536,8 @@
   "links.quote.col.number": "Quote request",
   "links.quote.col.status": "Quote request status",
   "links.quote.col.total": "Net value",
+  "links.quote.partiallyAgreed": "Partially agreed",
+  "links.quote.notYetAgreed": "Not yet agreed",
   "links.quote.unavailable": "Quote request unavailable",
   "links.quote.unavailableHint": "It was removed, your role does not give access to it, or the Quote Requests module is switched off.",
   "links.quote.unlink.label": "Unlink quote request {number}",

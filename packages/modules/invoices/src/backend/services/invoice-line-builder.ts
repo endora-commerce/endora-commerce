@@ -7,6 +7,7 @@ import {
   type InvoiceLine,
   type VatSummaryRow,
 } from '@endora-commerce/contracts';
+import type { InvoiceLineKind } from '../entities/invoice-line.entity.js';
 
 export interface RawOrderLine {
   name: string;
@@ -19,6 +20,8 @@ export interface RawOrderLine {
   /** Net line value (quantity × unitNetPrice) at two places. */
   netValue: string | number;
   orderItemId?: string | null;
+  /** Issue #904 — what the line is; carried to `invoice_lines.line_kind`. */
+  lineKind?: InvoiceLineKind | null;
 }
 
 /** The line's amounts as the `invoice_lines` columns store them. */
@@ -31,6 +34,7 @@ export interface StoredInvoiceLineAmounts {
 
 export type BuiltInvoiceLine = InvoiceLine & {
   orderItemId?: string | null;
+  lineKind: InvoiceLineKind | null;
   stored: StoredInvoiceLineAmounts;
 };
 
@@ -157,6 +161,7 @@ export function buildInvoiceLines(raw: RawOrderLine[]): BuiltInvoiceTotals {
       netValue: Number(stored.netValue),
       grossValue: Number(stored.grossValue),
       orderItemId: r.orderItemId ?? null,
+      lineKind: r.lineKind ?? null,
       stored,
     };
   });

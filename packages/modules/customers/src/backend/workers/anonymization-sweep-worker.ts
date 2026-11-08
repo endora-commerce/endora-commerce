@@ -12,7 +12,8 @@ import type { CustomerDeletionService } from '../services/customer-deletion-serv
  * soft-deleted customer accounts once their retention window has elapsed
  * (feature 040, US7 / FR-040). Mirrors the carts abandonment-sweep pattern:
  * a thin class exposing `sweep()`, driven by the Job Scheduler below. Returns
- * the number of accounts anonymized.
+ * the number of subjects processed: accounts anonymized, and earlier scrubs
+ * finished (issue #923).
  */
 export class AnonymizationSweepWorker {
   constructor(

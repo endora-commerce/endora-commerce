@@ -83,6 +83,49 @@ left paid to the cent. A proforma lists the same kept lines, and is not refused
 for an order refunded in full. With the `returns` module switched off, every
 line is invoiced at its ordered quantity.
 
+A **complaint refunded before the order was invoiced** currently shows on the
+invoice as amount due: the invoice lists the goods in full, and the complaint
+refund is deducted from what was paid.
+
+### Corrective invoices
+
+A return or a complaint settled with a refund or a credit **after** the order
+was invoiced gets a corrective invoice (`kind: correction`), one per case. It
+credits gross amounts, at the VAT rate of the invoice line it corrects, and never
+more than is left of the invoice. A replacement or a repair moves no money and
+issues no correction.
+
+**A return** credits the goods that came back. On an invoice issued under the
+per-rate VAT method, the correction is worked out from what the invoice keeps:
+
+- When the case refunds its default amount, the invoice keeps, at each rate,
+  exactly the VAT on the sum of the nets of the kept quantities: the same
+  figures an invoice issued after the return would show. For example, returning
+  one unit of 3 × 10.01 net at 23 % (36.94 gross) refunds 12.32, and the
+  correction credits 10.01 net and 2.31 VAT, which leaves 20.02 net and 4.60 VAT.
+- When the operator approved a lower amount, the invoice keeps the rest of the
+  gross at that rate, split into net and VAT by the same rule. For a few amounts
+  no net gives that gross exactly (6.00 of 12.32 at 23 %, for example). The
+  correction itself then follows the rule, and what the invoice keeps may differ
+  from it by 0.01 at that rate until the next correction. The money is always
+  exact.
+- The share of the order discount that the returned goods carried is credited
+  back on a 0 % line. The delivery and the payment surcharge are never credited.
+
+**A complaint** settled with money is a **price reduction**: the buyer keeps the
+goods, so their price is reduced and no quantity comes back. The correction's
+line is named *Obniżka ceny (reklamacja RMA-…): product* and has quantity 0. Its
+net value is the reduction, and its unit price is the reduction spread over the
+units still on the invoice. It credits no discount, because the discount stays
+with the kept goods, and it does not lower the quantity a later return of the
+same line is credited from. For an integration that reads correction lines: a
+goods line with quantity 0 is a price reduction.
+
+A correction that would credit more goods at one VAT rate than the invoice still
+charges at that rate is refused with
+`422 VALIDATION_FAILED` (`code: correction_exceeds_rate_remaining`), before any
+money moves.
+
 The **amount due** is the gross less what was paid, and never negative. When
 more was paid than the gross, the amount due is 0 and the invoice states the
 difference as the **overpayment** (`overpayment` in the API, the
@@ -93,6 +136,14 @@ setting of the totals block, and the row can be hidden there).
 
 `Invoice` (number, issued/dated timestamps, asset reference,
 `type ∈ {proforma, final}`).
+
+`InvoiceLine` (an immutable snapshot of one line at issuance). Its `lineKind`
+says what the line is: `goods`, `delivery`, `payment_surcharge` or `discount`
+on an invoice or a proforma, with `price_reduction` reserved for a
+correction's line. Every line of a document issued from this release records
+it, the 0 % delivery and surcharge lines included; it changes no amount. A line
+issued before, and a correction's line, carry `null` and are told apart as
+before, by whether they name an order line and by their sign.
 
 ## Numbering
 

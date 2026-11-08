@@ -2,7 +2,7 @@ import { useCallback, useEffect, useMemo, useState, type FormEvent, type ReactNo
 import { Link } from 'react-router-dom';
 import { Info, Plus, ShieldAlert } from 'lucide-react';
 import { missingPermissionRequirements } from '@endora-commerce/contracts';
-import { ApiError, apiClient, cn } from '@endora-commerce/admin-kit/lib';
+import { ApiError, apiClient, cn, useModulePresence } from '@endora-commerce/admin-kit/lib';
 import {
   Alert,
   AlertDescription,
@@ -50,6 +50,10 @@ const NEW_ROLE_KEY = '__new__';
 
 export default function AdminRolesPage(): ReactNode {
   const t = useTranslation('core');
+  const tu = useTranslation('admin_users');
+  // Issue #349 — the two-factor flag is enforced by `mfa` at sign-in, so the
+  // editor offers it only while `mfa` is present.
+  const mfaPresent = useModulePresence().isPresent('mfa');
   const [roles, setRoles] = useState<AdminRole[]>([]);
   const [permissions, setPermissions] = useState<PermissionRow[]>([]);
   const [loading, setLoading] = useState(true);
@@ -99,20 +103,38 @@ export default function AdminRolesPage(): ReactNode {
       requiresTwoFactor: boolean;
     }): Promise<void> => {
       try {
-        await apiClient.put<{ data: AdminRole }>(`/api/v1/admin/admin-roles/${input.code}`, {
-          code: input.code,
-          name: input.name,
-          permissions: input.permissions,
-          requiresTwoFactor: input.requiresTwoFactor,
-        });
-        setInfo(t('adminRoles.info.saved', { code: input.code }));
+        // Issue #349 — turning the requirement on signs out the holders who
+        // have no second factor, so say how many before the save.
+        const previous = roles.find((r) => r.code === input.originalCode);
+        if (mfaPresent && input.requiresTwoFactor && previous?.requiresTwoFactor !== true) {
+          const impact = await apiClient.get<{ data: { unprotectedAdministrators: number | null } }>(
+            `/api/v1/admin/admin-roles/${input.code}/two-factor-impact`,
+          );
+          const count = impact.data.unprotectedAdministrators ?? 0;
+          if (count > 0 && !confirm(tu('roles.twoFactor.confirmSignOut', { count }))) return;
+        }
+        const saved = await apiClient.put<{ data: AdminRole & { signedOutAdministrators: number } }>(
+          `/api/v1/admin/admin-roles/${input.code}`,
+          {
+            code: input.code,
+            name: input.name,
+            permissions: input.permissions,
+            requiresTwoFactor: input.requiresTwoFactor,
+          },
+        );
+        const signedOut = saved.data.signedOutAdministrators;
+        setInfo(
+          signedOut > 0
+            ? tu('roles.twoFactor.signedOut', { code: input.code, count: signedOut })
+            : t('adminRoles.info.saved', { code: input.code }),
+        );
         setEditingCode(input.code);
         await refresh();
       } catch (err) {
         setError(err instanceof ApiError ? err.envelope.error.message : t('adminRoles.error.save'));
       }
     },
-    [refresh, t],
+    [refresh, t, tu, roles, mfaPresent],
   );
 
   const handleDelete = useCallback(
@@ -207,6 +229,7 @@ export default function AdminRolesPage(): ReactNode {
               key={editingCode}
               role={editing}
               permissions={permissions}
+              mfaPresent={mfaPresent}
               onSave={(input): void =>
                 void handleSave({
                   originalCode: editingCode === NEW_ROLE_KEY ? null : editingCode,
@@ -238,6 +261,8 @@ export default function AdminRolesPage(): ReactNode {
 interface RoleEditorProps {
   role: Omit<AdminRole, 'updatedAt'>;
   permissions: PermissionRow[];
+  /** Whether `mfa` is present — the two-factor flag is offered only then. */
+  mfaPresent: boolean;
   onSave: (input: {
     code: string;
     name: string;
@@ -249,6 +274,7 @@ interface RoleEditorProps {
 
 function RoleEditor(props: RoleEditorProps): ReactNode {
   const t = useTranslation('core');
+  const tu = useTranslation('admin_users');
   // Not `t`: a permission label may live in the owning module's own namespace
   // since feature 091's Phase 3, and `t` is bound to one scope. See
   // `permission-label.ts` for why the lookup is over the merged bundle.
@@ -350,13 +376,20 @@ function RoleEditor(props: RoleEditorProps): ReactNode {
               />
             </div>
           </div>
-          <label className="inline-flex items-center gap-2 text-sm">
-            <Checkbox
-              checked={requiresTwoFactor}
-              onChange={(e): void => setRequiresTwoFactor(e.target.checked)}
-            />
-            {t('adminRoles.field.requires2fa')}
-          </label>
+          <div className="space-y-1">
+            <label className="inline-flex items-center gap-2 text-sm">
+              <Checkbox
+                checked={requiresTwoFactor}
+                disabled={!props.mfaPresent}
+                aria-describedby="requires2fa-help"
+                onChange={(e): void => setRequiresTwoFactor(e.target.checked)}
+              />
+              {t('adminRoles.field.requires2fa')}
+            </label>
+            <p id="requires2fa-help" className="text-xs text-muted-foreground">
+              {props.mfaPresent ? tu('roles.twoFactor.help') : tu('roles.twoFactor.mfaOff')}
+            </p>
+          </div>
 
           <div className={cn('space-y-3', wildcard && 'pointer-events-none opacity-50')}>
             <h3 className="text-sm font-semibold">{t('adminRoles.permissionsHeading')}</h3>

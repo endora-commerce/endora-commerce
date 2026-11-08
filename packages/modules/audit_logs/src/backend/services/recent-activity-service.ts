@@ -1,7 +1,8 @@
-import type {
-  AuditReferenceLabel,
-  AuditReferenceRegistryPort,
-  KnownIconName,
+import {
+  AUDIT_ERASED_MARKER,
+  type AuditReferenceLabel,
+  type AuditReferenceRegistryPort,
+  type KnownIconName,
 } from '@endora-commerce/contracts';
 import type { EntityManager } from '@mikro-orm/postgresql';
 import { AuditLogEntry } from '@endora-commerce/platform/kernel';
@@ -374,27 +375,37 @@ function resolveTarget(
 function pickProductLabel(snapshot: Record<string, unknown> | null): string | null {
   if (!snapshot) return null;
   const name = snapshot['name'];
-  if (typeof name === 'string' && name.length > 0) return name;
+  if (isLabel(name)) return name;
   if (name && typeof name === 'object') {
     const byLang = name as Record<string, unknown>;
     // Try common language fallbacks before iterating.
     for (const key of ['en', 'en-US', 'pl', 'pl-PL']) {
       const v = byLang[key];
-      if (typeof v === 'string' && v.length > 0) return v;
+      if (isLabel(v)) return v;
     }
     for (const v of Object.values(byLang)) {
-      if (typeof v === 'string' && v.length > 0) return v;
+      if (isLabel(v)) return v;
     }
   }
   const sku = snapshot['sku'];
-  if (typeof sku === 'string' && sku.length > 0) return sku;
+  if (isLabel(sku)) return sku;
   return null;
 }
 
 function pickStr(snapshot: Record<string, unknown> | null, key: string): string | null {
   if (!snapshot) return null;
   const v = snapshot[key];
-  return typeof v === 'string' && v.length > 0 ? v : null;
+  return isLabel(v) ? v : null;
+}
+
+/**
+ * A snapshot value the card may print. The erased marker (issue #844) is not
+ * one: an anonymised subject's history holds it where a name used to be, and
+ * the card reads it as *absent*, so the label falls back to the owner's live
+ * one or to the id — never "[erased]" on the home screen.
+ */
+function isLabel(value: unknown): value is string {
+  return typeof value === 'string' && value.length > 0 && value !== AUDIT_ERASED_MARKER;
 }
 
 function extractSummary(r: AuditLogEntry): Record<string, unknown> | null {
@@ -425,7 +436,8 @@ function extractSummary(r: AuditLogEntry): Record<string, unknown> | null {
   ] as const;
   const out: Record<string, unknown> = {};
   for (const k of keys) {
-    if (k in after) out[k] = (after as Record<string, unknown>)[k];
+    // An erased value (issue #844) is left out, as an absent one is.
+    if (k in after && after[k] !== AUDIT_ERASED_MARKER) out[k] = after[k];
   }
   return Object.keys(out).length > 0 ? out : null;
 }

@@ -120,50 +120,93 @@ export class CustomerDeletionService {
   }
 
   /**
-   * Whether {@link sweep} with the same `retentionDays` and `now` would find an
-   * account to anonymize — yes or no (issue #857). The owner of the table
-   * answers over the work list's own predicate, at the same cutoff.
+   * Whether {@link sweep} with the same `retentionDays` and `now` would find a
+   * subject to process — yes or no (issue #857). Each owner answers over its
+   * half of the work list's own predicate: `customer_accounts` for the due
+   * accounts at the same cutoff, then `organizations` for the personal
+   * organisations an earlier rule left incompletely scrubbed (issue #923).
+   *
+   * It fails open: an organisation-side question that cannot be answered counts
+   * as yes, so a failing probe may cost an audit row and can never skip a
+   * finish. A module switched off is re-thrown — the sweep would fail closed on
+   * it too.
    */
   async hasDue(retentionDays: number, now: Date): Promise<boolean> {
-    return this.accountWrites.hasDueForAnonymization(retentionCutoff(retentionDays, now));
+    if (await this.accountWrites.hasDueForAnonymization(retentionCutoff(retentionDays, now))) return true;
+    try {
+      return await this.personalOrganizations.hasIncompletelyScrubbed();
+    } catch (error) {
+      rethrowIfModuleDisabled(error);
+      return true;
+    }
   }
 
   /**
    * Permanently anonymizes every soft-deleted account whose retention window
-   * has elapsed (`deletedAt + retentionDays < now`). Returns the number
-   * anonymized. Called by the repeatable sweep worker.
+   * has elapsed (`deletedAt + retentionDays < now`), and finishes every subject
+   * an earlier run left incomplete. Returns the number of subjects processed,
+   * anonymised or finished. Called by the repeatable sweep worker.
    *
-   * Each account is its own unit: one that fails stays due and is retried on
-   * the next tick, and does not stop the accounts behind it. When any failed,
-   * the sweep throws once at the end, naming the failed account ids (never
-   * personal data), so the tick is recorded as failed.
+   * **The work list is every subject not fully scrubbed under the current
+   * rule (issue #923)**, not only the accounts never scrubbed: the accounts
+   * `customer_accounts` reports due, then the anonymised member of each
+   * personal organisation `organizations` reports as incompletely scrubbed,
+   * each subject once. Every one runs through the same cascade, which writes
+   * only what is missing (#800), so finishing an earlier scrub records one
+   * audit row per object it changes and announces nothing again. A member not
+   * yet anonymised is left to the due list: it is either on it already (an
+   * interrupted cascade) or a live account. An organisation with no member row
+   * is not reached — the cascade is keyed on the account, and account rows
+   * are only ever soft-deleted.
+   *
+   * Each subject is its own unit: one that fails stays unfinished and is
+   * retried on the next tick, and does not stop the subjects behind it. When
+   * any failed, the sweep throws once at the end, naming the failed account
+   * ids (never personal data), so the tick is recorded as failed. A module
+   * that is off while the work list is read fails the tick closed.
    */
   async sweep(retentionDays: number, now: Date): Promise<number> {
-    const due = await this.accountWrites.listDueForAnonymization(
-      retentionCutoff(retentionDays, now),
-    );
+    const work = await this.workList(retentionCutoff(retentionDays, now));
     let completed = 0;
     const failures: Array<{ customerAccountId: string; error: unknown }> = [];
-    for (const customer of due) {
+    for (const customerAccountId of work) {
       try {
-        await this.anonymizeOne(customer.id);
+        await this.anonymizeOne(customerAccountId);
         completed += 1;
       } catch (error) {
         // A module that is off fails the whole tick closed. Anything else is
         // this one account's failure: it is still due, the next tick retries
         // it, and the accounts behind it must not wait on it (issue #800).
         rethrowIfModuleDisabled(error);
-        failures.push({ customerAccountId: customer.id, error });
+        failures.push({ customerAccountId, error });
       }
     }
     if (failures.length > 0) {
       throw new AggregateError(
         failures.map((f) => f.error),
-        `Anonymization sweep failed for ${failures.length} of ${due.length} account(s): ` +
+        `Anonymization sweep failed for ${failures.length} of ${work.length} account(s): ` +
           failures.map((f) => f.customerAccountId).join(', '),
       );
     }
     return completed;
+  }
+
+  /**
+   * The due accounts first, then the anonymised members of the personal
+   * organisations an earlier scrub left incomplete (issue #923), without
+   * duplicates. Read in full before any subject is processed.
+   */
+  private async workList(cutoff: Date): Promise<string[]> {
+    const work = new Set(
+      (await this.accountWrites.listDueForAnonymization(cutoff)).map((account) => account.id),
+    );
+    for (const organizationId of await this.personalOrganizations.listIncompletelyScrubbed()) {
+      // Every member, not only the live ones: the subject is the soft-deleted one.
+      for (const member of await this.accounts.listByOrganization(organizationId)) {
+        if (member.anonymizedAt != null) work.add(member.id);
+      }
+    }
+    return [...work];
   }
 
   /** The cascade for one account, in the order that makes it restartable. */

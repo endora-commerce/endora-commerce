@@ -330,9 +330,13 @@ export interface MfaEnrolmentCountPort {
  * platform currently **requires** of administrators. `/platform/modules` asks
  * it before an operator switches `mfa` off and refuses the switch-off while the
  * answer is `true` (`MFA_DEACTIVATION_BLOCKED`): the requirement is turned off
- * first, as its own deliberate settings change, and only then the
- * module. Off still means no second factor (D-96); what this adds is that the
- * one switch no longer silently takes the administrator requirement with it.
+ * first, as its own deliberate change, and only then the module. Off still
+ * means no second factor (D-96); what this adds is that the one switch no
+ * longer silently takes the administrator requirement with it.
+ *
+ * The requirement has **two sources** since issue #349: the platform-wide
+ * setting `mfa.admin.totp_enforced`, and any admin role whose
+ * `requiresTwoFactor` is set. Either one blocks the switch-off.
  *
  * Read while the module is still on, through an open gate, for the reason
  * {@link MfaEnrolmentCountPort} gives. Unlike that count, a read that fails is
@@ -340,8 +344,70 @@ export interface MfaEnrolmentCountPort {
  * switch-off rather than letting it through.
  */
 export interface MfaDeactivationGuardPort {
-  /** Whether `mfa.admin.totp_enforced` is in force for the admin surface. */
+  /**
+   * Whether a second factor is required of any administrator: the setting
+   * `mfa.admin.totp_enforced`, or a role with `requiresTwoFactor`.
+   */
   isAdminSecondFactorRequired(): Promise<boolean>;
+  /**
+   * The same answer, by source, so the refusal can name what to turn off:
+   * whether the setting is on, and the codes of the roles that set the flag.
+   */
+  requirement(): Promise<MfaAdminSecondFactorRequirement>;
+}
+
+/** What requires administrators to use a second factor — see {@link MfaDeactivationGuardPort}. */
+export interface MfaAdminSecondFactorRequirement {
+  /** `mfa.admin.totp_enforced` is on. */
+  readonly setting: boolean;
+  /** Codes of the roles whose `requiresTwoFactor` is set, in role-list order. */
+  readonly roleCodes: readonly string[];
+}
+
+/** Why a role's second-factor requirement started binding these administrators. */
+export type MfaAdminEnforcementTrigger = 'role_requirement_enabled' | 'role_assigned';
+
+/** What {@link MfaAdminEnforcementPort.endUnprotectedAdminSessions} is told. */
+export interface MfaEndUnprotectedAdminSessionsOptions {
+  /** The acting administrator's own current session, which is kept. */
+  readonly exceptSessionId?: string;
+  readonly trigger: MfaAdminEnforcementTrigger;
+  /** The role whose requirement now binds them, for the audit row. */
+  readonly roleCode: string;
+}
+
+/**
+ * Container name: `mfaAdminEnforcementPort`. Owner: `mfa`.
+ *
+ * Issue #349 — what `admin_users` needs from `mfa` when a role's
+ * `requiresTwoFactor` starts binding administrators, either because the flag
+ * was turned on or because an administrator was given the role.
+ *
+ * An administrator session lasts thirty days, so a requirement applied only at
+ * the next sign-in could stay unenforced for a month. An administrator with an
+ * **active** enrolment keeps their sessions: `beginLogin` challenged them for
+ * it, or they proved it by confirming the enrolment. The others were opened
+ * without a second factor, and those end.
+ *
+ * Non-binding for `admin_users`: it resolves this only while `mfa` is present,
+ * and with `mfa` absent the flag cannot be turned on at all
+ * (`MFA_REQUIRED_FOR_ROLE_TWO_FACTOR`).
+ */
+export interface MfaAdminEnforcementPort {
+  /**
+   * End every session and pending login of these administrators that is not
+   * protected by an active second factor, sparing `exceptSessionId`. Records
+   * one audit row when anybody was affected. Answers how many administrators
+   * had no active enrolment, which is how many were signed out.
+   */
+  endUnprotectedAdminSessions(
+    adminUserIds: readonly string[],
+    options: MfaEndUnprotectedAdminSessionsOptions,
+  ): Promise<number>;
+  /** How many of these administrators have no active enrolment — the preview of the call above. */
+  countUnprotected(adminUserIds: readonly string[]): Promise<number>;
+  /** Whether a requirement set now can be met: `mfa` composed with its encryption key. */
+  canEnforceAdminSecondFactor(): Promise<boolean>;
 }
 
 /**

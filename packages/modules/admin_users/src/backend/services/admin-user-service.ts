@@ -8,7 +8,9 @@ import {
   type AdminAuthenticationOrigin,
   type AdminAuthenticationThrottlePort,
   type AdminRolePort,
+  type AdminRoleRecord,
   type AuthSessionPort,
+  type MfaAdminEnforcementPort,
   type MfaLoginPort,
   isUuidShape,
 } from '@endora-commerce/contracts';
@@ -250,7 +252,66 @@ export class AdminUserService {
      * composition without the library, where an avatar cannot be set.
      */
     private readonly assetExists?: (assetId: string) => Promise<boolean>,
+    /**
+     * Issue #349 — `mfa`'s answer to a role's two-factor requirement starting
+     * to bind somebody, resolved lazily and absent while `mfa` is. Absent, no
+     * session is ended: sign-in asks for no second factor then (D-96), and the
+     * requirement cannot be turned on.
+     */
+    private readonly getMfaAdminEnforcementPort?: () => MfaAdminEnforcementPort | undefined,
   ) {}
+
+  /**
+   * The ids of the live administrators holding a role — the people a role's
+   * two-factor requirement binds. A deleted account holds no session.
+   */
+  async listLiveIdsByRoleId(adminRoleId: string): Promise<string[]> {
+    const admins = await this.emFactory().find(AdminUser, { adminRoleId, deletedAt: null });
+    return admins.map((admin) => admin.id);
+  }
+
+  /**
+   * Issue #349 — end the sessions a role's holders opened without a second
+   * factor, once the role has started requiring one. Called **after** the role
+   * write is persisted, so a refused or rolled-back write signs nobody out.
+   * Spares the session the change was made from when it is the acting
+   * administrator's own. Answers how many administrators were signed out.
+   */
+  async endUnprotectedSessionsOfRole(
+    role: Pick<AdminRoleRecord, 'id' | 'code'>,
+    context: { actingAdminUserId: string; sessionCookieValue?: string | undefined },
+  ): Promise<number> {
+    const enforcement = this.getMfaAdminEnforcementPort?.();
+    if (!enforcement) return 0;
+    const holders = await this.listLiveIdsByRoleId(role.id);
+    if (holders.length === 0) return 0;
+    const exceptSessionId = await this.#ownSessionId(context.actingAdminUserId, context.sessionCookieValue);
+    return enforcement.endUnprotectedAdminSessions(holders, {
+      trigger: 'role_requirement_enabled',
+      roleCode: role.code,
+      ...(exceptSessionId === undefined ? {} : { exceptSessionId }),
+    });
+  }
+
+  /**
+   * How many of a role's holders have no enrolled second factor — the number
+   * {@link endUnprotectedSessionsOfRole} would sign out — or `null` while `mfa`
+   * is absent, when nothing would be.
+   */
+  async countUnprotectedHoldersOfRole(adminRoleId: string | null): Promise<number | null> {
+    const enforcement = this.getMfaAdminEnforcementPort?.();
+    if (!enforcement) return null;
+    // A role that does not exist yet has no holders.
+    if (adminRoleId === null) return 0;
+    return enforcement.countUnprotected(await this.listLiveIdsByRoleId(adminRoleId));
+  }
+
+  /** Whether a role may start requiring a second factor here: `null` when it may, else why not. */
+  async roleTwoFactorUnavailableReason(): Promise<'mfa_off' | 'encryption_key_missing' | null> {
+    const enforcement = this.getMfaAdminEnforcementPort?.();
+    if (!enforcement) return 'mfa_off';
+    return (await enforcement.canEnforceAdminSecondFactor()) ? null : 'encryption_key_missing';
+  }
 
   /**
    * Feature 171 (US6) — the author profile fields of a write, onto the row. An avatar
@@ -440,15 +501,18 @@ export class AdminUserService {
     id: string,
     input: UpdateAdminUserInput,
     actor: AdminActorAuthority,
+    context: { sessionCookieValue?: string | undefined; actingAdminUserId?: string } = {},
   ): Promise<AdminUser> {
     const em = this.emFactory();
     const user = await this.#getByIdOn(em, id);
     await this.#assertWithinReach(user, actor);
+    let assignedRole: AdminRoleRecord | null = null;
     if (input.adminRoleId !== undefined) {
       // `null` used to clear the role. An account always holds one now, so the
       // only role change is one role for another.
       if (input.adminRoleId === null) throw adminUserRoleRequiredRefusal();
-      await this.#assertRoleAssignable(input.adminRoleId, actor);
+      const role = await this.#assertRoleAssignable(input.adminRoleId, actor);
+      if (role.id !== user.adminRoleId) assignedRole = role;
       user.adminRoleId = input.adminRoleId;
     }
     if (input.firstName !== undefined) user.firstName = input.firstName;
@@ -465,6 +529,23 @@ export class AdminUserService {
     // A deactivated account must not keep answering on the sessions it already
     // holds, nor finish a login it had begun.
     if (input.status === 'inactive') await this.#withdrawCredentials(user.id);
+    // Issue #349 — given a role that requires a second factor, an account with
+    // none keeps no session it opened without one. After the flush, for the
+    // reason `#withdrawCredentials` gives.
+    else if (assignedRole?.requiresTwoFactor) {
+      const enforcement = this.getMfaAdminEnforcementPort?.();
+      if (enforcement) {
+        const exceptSessionId =
+          context.actingAdminUserId === user.id
+            ? await this.#ownSessionId(user.id, context.sessionCookieValue)
+            : undefined;
+        await enforcement.endUnprotectedAdminSessions([user.id], {
+          trigger: 'role_assigned',
+          roleCode: assignedRole.code,
+          ...(exceptSessionId === undefined ? {} : { exceptSessionId }),
+        });
+      }
+    }
     return user;
   }
 
@@ -709,10 +790,11 @@ export class AdminUserService {
    * raise itself, so no `catch` is wanted and none is written: an absent
    * `admin_roles` must refuse the assignment, not let it through unvalidated.
    */
-  async #assertRoleAssignable(id: string, actor: AdminActorAuthority): Promise<void> {
+  async #assertRoleAssignable(id: string, actor: AdminActorAuthority): Promise<AdminRoleRecord> {
     const role = await this.adminRoles.getById(id);
     const missing = permissionsNotHeld(role.permissions, actor.permissions);
     if (missing.length > 0) throw roleGrantExceededRefusal(missing);
+    return role;
   }
 
   /**
