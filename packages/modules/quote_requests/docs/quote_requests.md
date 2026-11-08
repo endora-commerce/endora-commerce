@@ -230,13 +230,27 @@ read the cart price from `referenceUnitPrice`.
 
 **Totals.** The reference price is never used as a fallback for a total. The
 customer list's `totalAtCustomerPrice` is `null` — shown as `—` — unless
-**every** line carries a proposal, the rule the admin list already applied; a
-cart-converted request therefore has none until it is priced. The admin list's
+**every** line carries a proposal; a cart-converted request therefore has none
+until it is priced. The admin list carries the same two totals, and its
 customer-price total survives the seller's revisions, because a revision keeps
-each line's proposal. The CRM opportunity value of a request with no proposal
-and no agreed price is `0`; a revised line the customer left unpriced is valued
-at the proposal carried from the customer's last draft edit until the seller
-sets an agreed price.
+each line's proposal.
+
+**The amount of a quote request** is one figure, computed by this module and
+shown by the admin list, by a CRM opportunity's linked quote requests and by a
+project's linked records alike. Each line counts at its quantity × its agreed
+unit price, or — while it has none — the unit price the customer asked for.
+Each line's value is rounded half up to two places, and the line values are
+added. A line with neither price adds nothing. The amount is net of tax and in
+the first line's currency. While at least one line has no agreed price, the
+amount is shown with a **Partially agreed** marker. A request with no proposal
+and no agreed price is therefore worth `0.00`, and is partially agreed. A
+revised line the customer left unpriced counts at the proposal carried from
+the customer's last draft edit until the seller sets an agreed price.
+
+The admin list answers the amount as `amount` and the marker as
+`partiallyAgreed` on each row. Other modules read it through
+`quoteRequestReadPort.amountOf(id)`, which answers `{ amount, currency,
+partiallyAgreed }`, or `null` for a request the caller cannot see.
 
 ## History
 

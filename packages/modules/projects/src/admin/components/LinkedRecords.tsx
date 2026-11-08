@@ -195,6 +195,11 @@ function LinkGroup(props: LinkGroupProps): ReactNode {
                       </Badge>
                     ) : null}
                     {amount ? <span className="tabular-nums">{amount}</span> : null}
+                    {amount && link.partiallyAgreed ? (
+                      <Badge variant="outline" className="font-normal">
+                        {t('links.partiallyAgreed')}
+                      </Badge>
+                    ) : null}
                   </>
                 ) : (
                   <span className="text-muted-foreground" title={t('links.unavailableHint')}>

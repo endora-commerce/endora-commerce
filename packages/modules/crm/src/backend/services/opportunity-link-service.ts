@@ -88,12 +88,13 @@ function documentFields(document: LinkedDocument | undefined): Partial<Opportuni
     const { order } = document;
     return { number: order.businessId, status: order.status, total: order.total, currency: order.currency };
   }
-  const { record, amount, currency } = document.quoteRequest;
+  const { record, amount, currency, partiallyAgreed } = document.quoteRequest;
   return {
     number: record.businessId,
     status: record.status,
     total: amount,
     ...(currency ? { currency } : {}),
+    partiallyAgreed,
   };
 }
 

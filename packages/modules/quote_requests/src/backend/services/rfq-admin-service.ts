@@ -50,6 +50,7 @@ import type { RfqNotificationService } from './rfq-notification-service.js';
 import { raisedOnChannelId } from './raised-on-channel.js';
 import { hasUnpricedLine, quoteIncompleteError, unitPriceText } from './agreed-price.js';
 import { listTotal } from './summarize.js';
+import { quoteRequestAmount } from './quote-amount.js';
 import { pairLines } from './line-carry-over.js';
 import { LINE_STORAGE_ORDER, loadArrangedQuoteLines } from './line-order.js';
 import { groupingShape, planLineGrouping, type GroupingShapeEntry, type LineGroupingPlan } from './line-grouping.js';
@@ -256,7 +257,9 @@ export class RfqAdminService {
       const rfqItems = itemsByRfq.get(rfq.id) ?? [];
       const customer = customerById.get(rfq.customerAccountId);
       const org = orgById.get(rfq.organizationId);
-      // Exact sums (issue #417), the customer list's helper.
+      // Exact sums (issue #417), the customer list's helper. The list shows
+      // `amount` (issue #456); the two totals stay for API readers.
+      const { amount, partiallyAgreed } = quoteRequestAmount(rfqItems);
       const totalAtAgreedPrice = rfqItems.every((it) => it.agreedUnitPrice != null)
         ? listTotal(rfqItems.map((it) => ({ price: it.agreedUnitPrice ?? '0', quantity: it.quantity })))
         : null;
@@ -273,6 +276,8 @@ export class RfqAdminService {
         lineCount: rfqItems.length,
         totalAtCustomerPrice,
         totalAtAgreedPrice,
+        amount,
+        partiallyAgreed,
         taxRate: taxRateByOrg.get(rfq.organizationId) ?? 0,
         currency: rfqItems[0]?.lineCurrency ?? 'PLN',
         submittedAt: rfq.submittedAt?.toISOString() ?? null,

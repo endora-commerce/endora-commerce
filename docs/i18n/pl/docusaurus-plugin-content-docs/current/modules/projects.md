@@ -453,6 +453,9 @@ Rola projektowa nie jest jednym z tych uprawnień: jej pełnienie nie nadaje
 Zakładka **Powiązane dokumenty** projektu wymienia podpięte do niego
 zamówienia, zapytania ofertowe i szanse sprzedażowe, każdy rodzaj w osobnej
 grupie: każdy dokument z numerem — odnośnikiem do niego — statusem i kwotą.
+Kwota zapytania ofertowego to ta, którą wylicza moduł Zapytania ofertowe, ta
+sama, którą pokazuje jego własna lista; dopóki choć jedna jego pozycja nie ma
+uzgodnionej ceny, kwota ma oznaczenie **Częściowo uzgodnione**.
 
 - **Podpiąć można tylko dokumenty organizacji projektu.** Wybór każdego rodzaju
   przeszukuje po numerze własną listę tego rodzaju dla wybranej organizacji —

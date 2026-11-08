@@ -21,20 +21,20 @@ export interface ValueOrderDocument {
   sourceQuoteRequestId?: string | null;
 }
 
-/** One line of a linked Quote Request. */
-export interface ValueQuoteRequestLine {
-  quantity: number;
-  /** The price the line is valued at, or `null` when it carries none. */
-  unitPrice: string | null;
-  currency: string;
-}
-
+/**
+ * A linked Quote Request, at the amount `quote_requests` publishes for it
+ * (`quoteRequestReadPort.amountOf`, issue #456) — this module does not value
+ * the lines itself.
+ */
 export interface ValueQuoteRequestDocument {
   id: string;
   status: string;
   /** The Order placed from this Quote Request, once there is one. */
   convertedOrderId: string | null;
-  lines: readonly ValueQuoteRequestLine[];
+  /** Two places, net of tax. */
+  amount: string;
+  /** The amount's currency; `null` for a Quote Request without a line. */
+  currency: string | null;
 }
 
 export interface OpportunityValueInput {
@@ -56,8 +56,8 @@ export interface OpportunityValueResult {
 export const VALUE_EXCLUSION_CURRENCY_MISMATCH = 'currency_mismatch';
 
 /**
- * Fractional digits kept while multiplying. A unit price carries four places
- * (owner ruling of 2026-10-25); each line value is rounded to two once.
+ * Fractional digits kept while adding. Every figure here arrives at two
+ * places; the scale is what the parser reads, not a precision anything needs.
  */
 const SCALE_DIGITS = 6;
 const SCALE = 10n ** BigInt(SCALE_DIGITS);
@@ -82,33 +82,6 @@ function formatScaled(scaled: bigint): string {
   const whole = cents / 100n;
   const fraction = (cents % 100n).toString().padStart(2, '0');
   return `${whole}.${fraction}`;
-}
-
-/** A scaled amount rounded half up to the cent, still scaled. */
-function roundToCent(scaled: bigint): bigint {
-  return ((scaled + CENT / 2n) / CENT) * CENT;
-}
-
-function sumLines(lines: readonly ValueQuoteRequestLine[]): bigint {
-  let total = 0n;
-  for (const line of lines) {
-    if (line.unitPrice === null) continue;
-    const price = parseDecimal(line.unitPrice);
-    if (price === null || !Number.isInteger(line.quantity) || line.quantity <= 0) continue;
-    // The line value is the rounding point (owner ruling of 2026-10-25).
-    total += roundToCent(price * BigInt(line.quantity));
-  }
-  return total;
-}
-
-/**
- * What a Quote Request is worth: the sum of its line values, each
- * `quantity × unit price` rounded half up to the cent once — the quote desk's
- * own arithmetic (`summarize`), done exactly. A line without a price adds
- * nothing.
- */
-export function quoteRequestAmount(lines: readonly ValueQuoteRequestLine[]): string {
-  return formatScaled(sumLines(lines));
 }
 
 export function calculateOpportunityValue(input: OpportunityValueInput): OpportunityValueResult {
@@ -139,15 +112,17 @@ export function calculateOpportunityValue(input: OpportunityValueInput): Opportu
     // subscriber of its own, which may not have run yet when this is asked.
     if (quoteRequest.convertedOrderId !== null && countedOrderIds.has(quoteRequest.convertedOrderId)) continue;
     if (countedThroughOrder.has(quoteRequest.id)) continue;
-    const matching = quoteRequest.lines.filter((line) => line.currency === input.currency);
-    if (matching.length !== quoteRequest.lines.length) {
+    // No line, no currency: it is worth nothing, and nothing was left out.
+    if (quoteRequest.currency === null) continue;
+    if (quoteRequest.currency !== input.currency) {
       excludedDocuments.push({
         kind: 'quote_request',
         id: quoteRequest.id,
         reason: VALUE_EXCLUSION_CURRENCY_MISMATCH,
       });
+      continue;
     }
-    total += sumLines(matching);
+    total += parseDecimal(quoteRequest.amount) ?? 0n;
   }
 
   return { value: formatScaled(total), excludedDocuments };

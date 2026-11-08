@@ -5,7 +5,6 @@ import type {
   QuoteRequestReadPort,
 } from '@endora-commerce/contracts';
 import { effectiveState } from '@endora-commerce/platform/kernel';
-import { quoteRequestAmount } from '../domain/quote-amount.js';
 
 /**
  * The records a Project links to, through their owners' own read ports
@@ -36,6 +35,11 @@ export interface LinkedRecordView {
   /** Two places, or `null` when the record has none (an Opportunity without a value). */
   amount: string | null;
   currency: string | null;
+  /**
+   * A Quote Request only: `true` while not every line has an agreed price
+   * (issue #456). Absent for the other kinds.
+   */
+  partiallyAgreed?: boolean;
   /** The record's own admin screen. */
   href: string;
 }
@@ -83,7 +87,10 @@ export function createLinkedRecordOwners(ports: LinkedRecordPorts): LinkedRecord
   const quoteRequest = async (id: string): Promise<LinkedRecordView | null> => {
     const record = await ports.quoteRequests.findById(id);
     if (!record) return null;
-    const { amount, currency } = quoteRequestAmount(await ports.quoteRequests.listItems(record.id));
+    // The amount is `quote_requests`' to compute (issue #456), not this module's.
+    const worth = await ports.quoteRequests.amountOf(record.id);
+    if (!worth) return null;
+    const { amount, currency, partiallyAgreed } = worth;
     return {
       kind: 'quote_request',
       id: record.id,
@@ -92,6 +99,7 @@ export function createLinkedRecordOwners(ports: LinkedRecordPorts): LinkedRecord
       status: record.status,
       amount,
       currency,
+      partiallyAgreed,
       href: `/quote-requests/${record.id}`,
     };
   };

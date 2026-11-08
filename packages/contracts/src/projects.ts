@@ -755,6 +755,12 @@ export const ProjectLinkSchema = z.object({
   status: z.string().optional(),
   amount: z.string().optional(),
   currency: z.string().optional(),
+  /**
+   * A Quote Request's link only, while available — `true` while not every line
+   * has an agreed price, so `amount` counts asked prices for some (issue #456,
+   * `quoteRequestAmountSchema`).
+   */
+  partiallyAgreed: z.boolean().optional(),
   href: z.string().optional(),
   linkedBy: personSchema.nullable(),
   linkedAt: isoTimestampSchema,

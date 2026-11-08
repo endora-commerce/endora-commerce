@@ -1,15 +1,15 @@
 import type { QuoteRequestReadPort, QuoteRequestRecord } from '@endora-commerce/contracts';
 import { effectiveState } from '@endora-commerce/platform/kernel';
-import { quoteRequestAmount, type ValueQuoteRequestLine } from '../domain/value-calculation.js';
 
-/** A Quote Request as this module reads it: the record, its lines as money, and what it is worth. */
+/** A Quote Request as this module reads it: the record and what its owner says it is worth. */
 export interface CrmQuoteRequestDocument {
   record: QuoteRequestRecord;
-  lines: ValueQuoteRequestLine[];
-  /** `Σ quantity × unit price` over the lines, two places. */
+  /** Two places, net of tax — `quoteRequestReadPort.amountOf`'s figure (issue #456). */
   amount: string;
-  /** The currency of the first line — what the quote desk shows the total in — or `null` with no lines. */
+  /** The amount's currency — what the quote desk shows the total in — or `null` with no lines. */
   currency: string | null;
+  /** `true` while not every line has an agreed price. */
+  partiallyAgreed: boolean;
 }
 
 export interface CrmQuoteRequests {
@@ -40,11 +40,9 @@ export interface CrmQuoteRequests {
  * skip, or refuse. Nothing here, and nothing that calls this, catches a closed
  * gate as a signal.
  *
- * **What a line is valued at** is the agreed unit price, or the price the
- * customer asked for while none has been agreed — the two the quote desk shows
- * per line (`RfqDetail.tsx`), multiplied by the quantity and nothing else: the
- * desk does not multiply by the packaging unit's base quantity, so neither does
- * this. Quote prices are net of tax.
+ * **What a Quote Request is worth** is `quote_requests`' to say
+ * (`quoteRequestReadPort.amountOf`, issue #456): this module shows and counts
+ * that figure, and values no line itself.
  *
  * A function rather than an object literal at the composition site, as the
  * notifier is and for its reason: `check:port-catches` follows the port through
@@ -57,18 +55,9 @@ export function createCrmQuoteRequests(port: QuoteRequestReadPort): CrmQuoteRequ
     async load(id: string): Promise<CrmQuoteRequestDocument | null> {
       const record = await port.findById(id);
       if (!record) return null;
-      const items = await port.listItems(record.id);
-      const lines = items.map((item) => ({
-        quantity: item.quantity,
-        unitPrice: item.agreedUnitPrice ?? item.desiredUnitPrice,
-        currency: item.lineCurrency,
-      }));
-      return {
-        record,
-        lines,
-        amount: quoteRequestAmount(lines),
-        currency: lines[0]?.currency ?? null,
-      };
+      const amount = await port.amountOf(record.id);
+      if (!amount) return null;
+      return { record, ...amount };
     },
   };
 }

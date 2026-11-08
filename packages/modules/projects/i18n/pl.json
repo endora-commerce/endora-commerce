@@ -378,6 +378,7 @@
   "links.group.opportunity": "Szanse sprzedażowe",
   "links.empty": "Brak powiązanych.",
   "links.unavailable": "Niedostępny",
+  "links.partiallyAgreed": "Częściowo uzgodnione",
   "links.unavailableHint": "Nie możesz go przeglądać, jego moduł jest wyłączony albo dokument już nie istnieje.",
   "links.ownerOff.quote_request": "Zapytania ofertowe są wyłączone. Powiązane zostają i wrócą po ich włączeniu; do tego czasu nie można podpinać nowych.",
   "links.ownerOff.opportunity": "CRM jest wyłączony. Powiązane szanse sprzedażowe zostają i wrócą po jego włączeniu; do tego czasu nie można podpinać nowych.",

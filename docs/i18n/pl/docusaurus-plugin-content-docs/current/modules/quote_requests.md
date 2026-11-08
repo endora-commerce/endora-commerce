@@ -210,12 +210,24 @@ zamieniona z koszyka ma `desiredUnitPrice = null`; cenę z koszyka należy czyta
 
 **Sumy.** Cena referencyjna nigdy nie zastępuje brakującej wartości w sumie. `totalAtCustomerPrice`
 na liście klienta ma wartość `null` — wyświetlaną jako `—` — chyba że propozycję ma **każda**
-pozycja; to ta sama reguła, którą lista w panelu administracyjnym stosowała już wcześniej. Zapytanie
-zamienione z koszyka nie ma więc tej sumy, dopóki nie zostanie wycenione. Suma w cenach klienta na
-liście w panelu administracyjnym przetrwa rewizje sprzedawcy, bo rewizja zachowuje propozycję
-każdej pozycji. Wartość szansy w CRM dla zapytania bez propozycji i bez uzgodnionej ceny wynosi
-`0`; pozycja po rewizji, której klient nie wycenił, jest wyceniana według propozycji przeniesionej
-z ostatniej edycji szkicu przez klienta, dopóki sprzedawca nie ustali uzgodnionej ceny.
+pozycja; zapytanie zamienione z koszyka nie ma więc tej sumy, dopóki nie zostanie wycenione. Lista
+w panelu administracyjnym zawiera te same dwie sumy, a jej suma w cenach klienta przetrwa rewizje
+sprzedawcy, bo rewizja zachowuje propozycję każdej pozycji.
+
+**Kwota zapytania ofertowego** to jedna wartość, którą wylicza ten moduł i którą tak samo pokazują
+lista w panelu administracyjnym, zapytania ofertowe powiązane z szansą sprzedażową w CRM i powiązane
+dokumenty projektu. Każda pozycja liczy się jako ilość × jej uzgodniona cena jednostkowa, a dopóki
+jej nie ma — cena jednostkowa, o którą prosił klient. Wartość każdej pozycji jest zaokrąglana
+połówkowo w górę do dwóch miejsc, a wartości pozycji są sumowane. Pozycja bez żadnej z tych cen nic
+nie dodaje. Kwota jest netto, w walucie pierwszej pozycji. Dopóki choć jedna pozycja nie ma
+uzgodnionej ceny, kwota jest pokazywana z oznaczeniem **Częściowo uzgodnione**. Zapytanie bez
+propozycji i bez uzgodnionej ceny jest więc warte `0.00` i jest częściowo uzgodnione. Pozycja po
+rewizji, której klient nie wycenił, liczy się według propozycji przeniesionej z ostatniej edycji
+szkicu przez klienta, dopóki sprzedawca nie ustali uzgodnionej ceny.
+
+Lista w panelu administracyjnym podaje kwotę jako `amount`, a oznaczenie jako `partiallyAgreed` w
+każdym wierszu. Inne moduły odczytują ją przez `quoteRequestReadPort.amountOf(id)`, które zwraca
+`{ amount, currency, partiallyAgreed }` albo `null` dla zapytania, którego wywołujący nie widzi.
 
 ## Historia
 
