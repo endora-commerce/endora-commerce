@@ -26,7 +26,7 @@ import type {
 } from '@endora-commerce/platform/kernel';
 import type { CommandBus } from '@endora-commerce/platform/commands';
 import type { ModuleContext } from '@endora-commerce/platform/kernel';
-import { lazyPort } from '@endora-commerce/platform/kernel';
+import { effectiveState, lazyPort } from '@endora-commerce/platform/kernel';
 import type { RequireAdminFactory } from '@endora-commerce/platform/kernel';
 import type { SettingsReader } from './services/mfa-policy-resolver.js';
 import {
@@ -430,6 +430,9 @@ export function registerModule(ctx: ModuleContext): void {
    * Said at every boot until it is gone.
    */
   ctx.onBoot(async () => {
+    // Off means no second factor is asked for (D-96), so there is nothing to
+    // warn about — and a hook must not read through closed gates.
+    if (!effectiveState.isPresent('mfa')) return;
     const { emFactory, mfa } = ctx.cradle<MfaCradle>();
     const enrolmentState = new MfaEnrolmentStateService(emFactory);
     const adminUsers = lazyPort<AdminUserReadPort>(ctx, 'adminUserReadPort');
