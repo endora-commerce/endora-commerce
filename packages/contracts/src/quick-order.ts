@@ -117,6 +117,79 @@ export const quickOrderImportResponseSchema = z.object({
 });
 export type QuickOrderImportResponse = z.infer<typeof quickOrderImportResponseSchema>;
 
+// --- Preview (the buyer's import, held between the import and the build) ---
+
+/**
+ * Issue #809 — the hard maximum of a preview's line cap: the ceiling `quick_order.import_max_rows`
+ * is clamped to. The cap itself is that setting's effective value, read when the preview is
+ * written (PO ruling of 2026-11-08 on PR #942), and it counts the rows the import read —
+ * recognised and rejected — never the rows past its limit, which the preview keeps as one
+ * `summary.overflowCount`. So an import never exceeds it; it bounds what adding from search can
+ * grow, and a write that adds no line is accepted even above a cap lowered since. Enforced by
+ * `PUT /api/v1/quick-order/preview` as `422 VALIDATION_FAILED`,
+ * `details: { code: 'too_many_lines', maximum }` (`maximum` = the setting), deliberately not by a
+ * schema `.max()`, which would answer 400 — the same shape as {@link QUICK_ORDER_BUILD_MAX_ITEMS}.
+ */
+export const QUICK_ORDER_PREVIEW_MAX_LINES = 10_000;
+
+/**
+ * The largest preview body `PUT /api/v1/quick-order/preview` reads, in bytes; a larger one is
+ * refused `413 VALIDATION_FAILED` before it is parsed. A rejected line's raw CSV text is not
+ * bounded by the line cap, so the line cap alone does not bound what one buyer may store.
+ */
+export const QUICK_ORDER_PREVIEW_MAX_BYTES = 2 * 1024 * 1024;
+
+/**
+ * How long a preview is kept after it was last written, in seconds. A write (`PUT`) starts the
+ * window again; a read does not, so a page left open does not keep the buyer's file alive.
+ */
+export const QUICK_ORDER_PREVIEW_TTL_SECONDS = 60 * 60;
+
+/**
+ * After a partial cart build (feature 155, FR-011 (b)): why the cart did not take a line, with
+ * the build's product and unit names. The storefront writes it; nothing else reads it.
+ */
+export const quickOrderPreviewNotAddedSchema = z.object({
+  kind: z.enum(['pieces', 'packaging_unit']),
+  minimum: z.number().int().positive(),
+  productName: z.string().max(255),
+  packagingUnitName: z.string().max(255).optional(),
+});
+export type QuickOrderPreviewNotAdded = z.infer<typeof quickOrderPreviewNotAddedSchema>;
+
+export const quickOrderPreviewRecognizedItemSchema = recognizedQuickOrderItemSchema
+  .omit({ warning: true })
+  .extend({ notAdded: quickOrderPreviewNotAddedSchema.optional() });
+export type QuickOrderPreviewRecognizedItem = z.infer<typeof quickOrderPreviewRecognizedItemSchema>;
+
+/**
+ * Issue #809 — the buyer's quick-order preview, as `quick_order` keeps it: one per buyer session,
+ * scoped to the buyer's Organization, for {@link QUICK_ORDER_PREVIEW_TTL_SECONDS}. It is the
+ * import's response (`quickOrderImportResponseSchema`) as the buyer has since edited it.
+ *
+ * `GET /api/v1/quick-order/preview` answers `{ data: QuickOrderPreview | null }` (`null`: none,
+ * or expired), `PUT` replaces it and answers `{ data: QuickOrderPreview }`, `DELETE` drops it and
+ * answers 204. All three need a signed-in buyer, and the session that wrote a preview is the only
+ * one that reads it; no preview id travels anywhere.
+ */
+/**
+ * The import's summary, plus what the preview keeps of the rows past the import's limit: how many
+ * there were (`overflowCount`) and the limit they were past (`rowLimit`, stamped by the backend
+ * when it is absent). The rows themselves are not kept.
+ */
+export const quickOrderPreviewSummarySchema = quickOrderImportSummarySchema.extend({
+  overflowCount: z.number().int().nonnegative().optional(),
+  rowLimit: z.number().int().positive().optional(),
+});
+export type QuickOrderPreviewSummary = z.infer<typeof quickOrderPreviewSummarySchema>;
+
+export const quickOrderPreviewSchema = z.object({
+  recognized: z.array(quickOrderPreviewRecognizedItemSchema),
+  rejected: z.array(rejectedQuickOrderItemSchema),
+  summary: quickOrderPreviewSummarySchema,
+});
+export type QuickOrderPreview = z.infer<typeof quickOrderPreviewSchema>;
+
 // --- Build (confirmed import → Cart or Quote Request) ----------------------
 
 export const quickOrderTargetSchema = z.enum(['cart', 'quote_request']);

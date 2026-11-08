@@ -56,6 +56,7 @@ describe('PdpPriceToggle', () => {
         basePrice={{ amount: '100.00', currency: 'PLN' }}
         salePrice={null}
         locale="pl-PL"
+        vatRate={0.23}
         labels={{ net: 'NETTO', gross: 'BRUTTO' }}
       />,
     );

@@ -19,6 +19,7 @@ import {
   type CustomFieldDefinitionReadPort,
   type CustomFieldValuePort,
   type OrganizationDetailsPort,
+  type ProductTaxRateResolver,
   type SeoProductMetaWritePort,
 } from '@endora-commerce/contracts';
 import type { EventBus } from '@endora-commerce/platform/events';
@@ -189,6 +190,13 @@ export interface CatalogModuleOptions {
    * organizations its audience rules name, best effort.
    */
   organizations?: OrganizationDetailsPort;
+  /**
+   * Issue #852 — the buyer's VAT rate per product tax class, by the rule the
+   * cart and the order use (`createProductTaxRateResolver`). The public
+   * listing and product page answer it as `vatRate`; without it they answer
+   * none, and the storefront shows the net.
+   */
+  productTaxRates?: ProductTaxRateResolver;
   /**
    * Feature 075 — `admin_users`' read port, for the one row the bulk-operation
    * completion notice reads: the requester's e-mail address.
@@ -498,6 +506,7 @@ export function catalogModule(options: CatalogModuleOptions) {
       // Feature 086 / FR-016 — the route's own refusal reads the page's display
       // mode off the same container the ordering comes from.
       ...(options.pricingService ? { listingPriceOrder: options.pricingService } : {}),
+      ...(options.productTaxRates ? { productTaxRates: options.productTaxRates } : {}),
     });
     // Feature 163 (R12) — which product a storefront key names at (C, L). It asks
     // the product page's own reachability decision, so a key never resolves to a

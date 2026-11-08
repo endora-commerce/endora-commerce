@@ -176,6 +176,20 @@ const PUBLISHED_KERNEL_SURFACE: Readonly<Record<string, readonly string[]>> = {
   'ports/audit.js': ['AuditPort', 'RecordAuditInput', 'AuditLogFilter'],
   /** Row 37 — the return shape of every {@link AuditPort} method. */
   'audit/audit-log-entry.entity.js': ['AuditLogEntry'],
+  /**
+   * Issue #844 — the one non-append write on the audit table, a port of its own
+   * beside {@link AuditPort} so that port's contract stays append-only. The
+   * shapes are its own method's; the two constants are the action of the row it
+   * writes and the bound of one target.
+   */
+  'ports/audit-redaction.js': [
+    'AUDIT_REDACTED_ACTION',
+    'AUDIT_REDACTION_MAX_IDS_PER_TARGET',
+    'AuditRedactionPort',
+    'AuditRedactionInput',
+    'AuditRedactionResult',
+    'AuditRedactionTarget',
+  ],
   /** Row 44; `InProcessCacheLayer` is what a caller registers. */
   'cache/in-process-cache-registry.js': [
     'InProcessCacheRegistry',
@@ -481,6 +495,7 @@ const NOT_PUBLISHED: Readonly<Record<string, string>> = {
 
   // --- unreached --------------------------------------------------------
   AuditLogService: 'superseded by `AuditPort` (D-160.10) — the class is not published.',
+  AuditRedactionService: 'superseded by `AuditRedactionPort` (issue #844) — the class is not published, as `AuditLogService` is not.',
   enterPlatformScope: 'unreached — `enterSystemScope` is the module-facing entry (row 13).',
   getCurrentPlatformScope: 'unreached — no module asks which scope it is in.',
   openPlatformScopeCount: 'unreached — a harness assertion over scope balance.',
@@ -713,6 +728,10 @@ const HOST_COMPOSITION_SURFACE: Readonly<Record<string, readonly string[]>> = {
   // deliberately not recorded beside it (D-100, and see the doc block above).
   'kernel/i18n/error-envelope-options.ts': ['composeErrorEnvelopeOptions'],
   'kernel/audit/audit-log-service.ts': ['AuditLogService'],
+  // Issue #844 — the redaction port's implementation, beside the writer's, for
+  // the same reason: the composition root constructs it, and the integration
+  // test that drives it against PostgreSQL constructs it the same way.
+  'kernel/audit/audit-redaction-service.ts': ['AuditRedactionService'],
   'tenancy/scoped-em.ts': ['forkScopedEm'],
   'tenancy/resolve-tenant-context.ts': ['resolveTenantContext', 'systemTenantContext'],
 };

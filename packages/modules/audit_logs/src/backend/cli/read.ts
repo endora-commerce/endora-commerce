@@ -30,7 +30,9 @@
  *
  *   - **No writes.** Not a correction, not a retention sweep, not a backfill.
  *     The trail is append-only and the Command Bus is its one writer; a CLI that
- *     writes is a second writer with no actor.
+ *     writes is a second writer with no actor. (The one exception to
+ *     append-only is the platform's own: erasing an anonymised subject's values
+ *     in place, issue #844. It is not this tool's either.)
  *   - **No redaction, and no filtering-for-others.** The moment output is shaped
  *     for a recipient who is not at the shell, the shell has stopped being the
  *     credential.
@@ -157,7 +159,9 @@ export async function read({
 
   const em = ctx.cradle<AuditReadCradle>().emFactory();
   // A read, and only a read: no `em.create`, no `persist`, no `flush`. The
-  // trail is append-only and the Command Bus is its one writer.
+  // trail is append-only and the Command Bus is its one writer. It prints the
+  // stored values as they are: a `"[erased]"` value is one the platform erased
+  // when the subject was anonymised (issue #844).
   const rows = await em.find(
     AuditLogEntry,
     {

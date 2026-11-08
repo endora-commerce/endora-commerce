@@ -3873,6 +3873,39 @@ Nothing is migrated and nothing needs configuring; platform administrators see n
    A personal Organization cannot be assigned; keeping B2C data from representatives would be a
    different rule, and is not configurable.
 
+### Quote request lines carry their channel's currency {#quote-line-currency}
+
+Until this release every quote request line was stored with the currency `PLN`, whatever the
+default currency of the sales channel the request was raised on (issue #303). From this release a
+new request's lines carry that channel's default currency, decided once when the request is created
+— by the customer or by an operator on their behalf — and kept by every later edit, seller revision
+and resubmission. The quote request lists show a request with no lines in its channel's currency.
+
+**Existing requests are not changed.** Their prices were typed and agreed against screens that said
+PLN, so relabelling them would change what past offers mean. A request already stored keeps `PLN`
+on its lines, and so does a resubmission of it. An instance whose sales channels all use PLN has
+nothing to do.
+
+**What to do:** list the quote requests raised on a channel whose default currency is not PLN. This
+read-only query shows each of them, with the currency its channel uses and the currencies its lines
+were stored in:
+
+```sql
+select qr.id, qr.business_id, qr.status, qr.created_at,
+       sc.code as channel, sc.default_currency as channel_currency,
+       array_agg(distinct qi.line_currency) as line_currencies
+from quote_requests qr
+join sales_channels sc on sc.id = qr.sales_channel_id
+left join quote_request_items qi on qi.quote_request_id = qr.id
+where sc.default_currency <> 'PLN'
+group by qr.id, sc.code, sc.default_currency
+order by qr.created_at;
+```
+
+Review any request this returns with its seller. There is no automatic correction: changing the
+currency of a stored request is a decision about what its prices meant, so make it per request, by
+hand, and only where the seller confirms the prices were meant in the channel's currency.
+
 ## An instance that is mixed from the start
 
 The installer of `0.101.x` or earlier wrote every package of the release with a `^` except

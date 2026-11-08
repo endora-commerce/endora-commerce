@@ -113,6 +113,10 @@ export const core = defineMessages({
     'quickOrder.preview.invalid': 'invalid',
     'quickOrder.preview.units': 'units',
     'quickOrder.preview.truncated': 'The file exceeded the import row limit — extra rows were rejected.',
+    'quickOrder.preview.overflow':
+      'Only the first {max} rows of the file were read. Rows left out: {count}. Split the file and import the rest separately.',
+    'quickOrder.preview.overBuildLimit':
+      'This list has {count} lines that can be added. Up to {max} can be added to the cart or sent as a quote request at once. Remove lines, or split the file, to continue.',
     'quickOrder.preview.merged': '{count} duplicate row(s) merged (quantities summed).',
     'quickOrder.preview.recognisedRows': '{count} row(s) recognised — choose how to proceed.',
     'quickOrder.preview.update': 'Update',
@@ -122,9 +126,9 @@ export const core = defineMessages({
     'quickOrder.preview.noneMatched': 'No rows matched the catalog.',
     'quickOrder.preview.rejectedHeading': 'Rejected rows',
     'quickOrder.problem.no_input': 'Provide a file or paste CSV.',
-    'quickOrder.problem.nothing_to_update': 'Nothing to update.',
-    'quickOrder.problem.nothing_to_remove': 'Nothing to remove.',
     'quickOrder.problem.nothing_to_build': 'Nothing to build.',
+    'quickOrder.problem.preview_expired': 'Your list has expired. Paste it or upload the file again to review it.',
+    'quickOrder.problem.preview_unavailable': 'Your list could not be loaded just now. Try again in a moment.',
     'quickOrder.problem.preview_too_large':
       'This list is too long to review here. Split it into smaller files and import them one at a time.',
     'quickOrder.problem.preview_full': 'The list is full, so no more lines fit here. Build what you have, then add the rest.',
@@ -649,6 +653,10 @@ export const core = defineMessages({
     'quickOrder.preview.invalid': 'błędne',
     'quickOrder.preview.units': 'szt.',
     'quickOrder.preview.truncated': 'Plik przekroczył limit wierszy importu — nadmiarowe wiersze odrzucono.',
+    'quickOrder.preview.overflow':
+      'Wczytano tylko pierwsze {max} wierszy pliku. Pominięte wiersze: {count}. Podziel plik i zaimportuj resztę osobno.',
+    'quickOrder.preview.overBuildLimit':
+      'Ta lista zawiera pozycje do dodania: {count}. Do koszyka lub do zapytania ofertowego można dodać jednorazowo najwyżej {max}. Usuń część pozycji albo podziel plik, aby kontynuować.',
     'quickOrder.preview.merged': 'Scalone powtórzone wiersze: {count} (ilości zsumowano).',
     'quickOrder.preview.recognisedRows': 'Rozpoznane wiersze: {count} — wybierz, co dalej.',
     'quickOrder.preview.update': 'Zmień',
@@ -658,9 +666,9 @@ export const core = defineMessages({
     'quickOrder.preview.noneMatched': 'Żaden wiersz nie pasuje do katalogu.',
     'quickOrder.preview.rejectedHeading': 'Odrzucone wiersze',
     'quickOrder.problem.no_input': 'Dodaj plik albo wklej CSV.',
-    'quickOrder.problem.nothing_to_update': 'Nie ma czego zmienić.',
-    'quickOrder.problem.nothing_to_remove': 'Nie ma czego usunąć.',
     'quickOrder.problem.nothing_to_build': 'Nie ma z czego utworzyć koszyka ani zapytania.',
+    'quickOrder.problem.preview_expired': 'Twoja lista wygasła. Wklej ją lub prześlij plik ponownie, aby ją przejrzeć.',
+    'quickOrder.problem.preview_unavailable': 'Nie udało się teraz wczytać Twojej listy. Spróbuj ponownie za chwilę.',
     'quickOrder.problem.preview_too_large':
       'Ta lista jest zbyt długa, by przejrzeć ją tutaj. Podziel ją na mniejsze pliki i zaimportuj je po kolei.',
     'quickOrder.problem.preview_full':

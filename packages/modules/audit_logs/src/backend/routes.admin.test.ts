@@ -52,3 +52,21 @@ describe('the module an audited action is labelled from', () => {
     expect(moduleIdForAuditAction('crmx.something')).toBe('core');
   });
 });
+
+/**
+ * Issue #844 — the one row the platform writes when it erases an anonymised
+ * subject's audit history. Its label is this module's, beside the escape hatch's:
+ * the writer is the platform's, and the audit log is where an operator reads it.
+ */
+describe('the audit.redacted row on the audit log screen', () => {
+  it('is labelled from this module`s bundle', () => {
+    expect(moduleIdForAuditAction('audit.redacted')).toBe('audit_logs');
+  });
+
+  it.each(['en', 'pl'] as const)('has a %s label for the row and for the erased value', (locale) => {
+    const labels = bundle(locale);
+    expect(labels['auditLog.audit.redacted']).toBeTruthy();
+    expect(labels['auditLog.erased']).toBeTruthy();
+    expect(labels['auditLog.erased']).not.toBe('[erased]');
+  });
+});

@@ -79,6 +79,17 @@ miękko usuwane, każdy z wpisem audytu `address.anonymized`. Dzieje się tak r�
 operator usunął już tę organizację. Złożone zamówienia zachowują swoje kopie adresów. Wpisy audytu
 anonimizacji odnotowują, że dane usunięto, ale nie przechowują samych danych.
 
+Usuwane są też uzasadnienia, które operatorzy zapisali o kliencie: powód zablokowania konta, a w
+przypadku klienta indywidualnego także powody zablokowania i odrzucenia jego organizacji
+prywatnej. Organizacja firmowa zachowuje swoje powody. Sama blokada lub odrzucenie zostaje, więc
+ekrany klienta nadal pokazują status i jego datę, ale bez powodu. Wpisy audytu anonimizacji
+odnotowują jedynie, że powód istniał. Jeśli konto zanonimizowane, zanim powody były usuwane,
+nadal ma powód zablokowania, następny przebieg go usuwa razem z powodami pozostawionymi w jego
+organizacji prywatnej i zapisuje po jednym dodatkowym wpisie audytu. Wpisy audytu zapisane
+wcześniej, takie jak wpis samej blokady, zachowują zapisane wartości, w tym powód, dopóki
+wcześniejsze wpisy nie będą redagowane przy anonimizacji
+([#844](https://github.com/endora-commerce/endora-commerce/issues/844)).
+
 Zadanie uruchamia się raz dziennie w procesie workera i tylko wtedy, gdy moduł jest włączony, więc
 konto zostaje zanonimizowane najpóźniej dzień po upływie okresu. Gdy moduł jest wyłączony, zadanie
 się nie uruchamia; konta, którym okres upłynął w tym czasie, anonimizuje pierwszy przebieg po

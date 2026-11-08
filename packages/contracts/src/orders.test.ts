@@ -122,6 +122,10 @@ describe('adminOrderDetailSchema', () => {
 describe('admin order preview message codes', () => {
   const PRECEDENCE = [
     'PRODUCT_NOT_FOUND',
+    // Issue #829 — an archived product (feature 163 FR-019) is refused on its own
+    // reason, `PRODUCT_ARCHIVED`, the one admin order create answers; it is
+    // product-wide, so it outranks the customer's visibility and the channel.
+    'PRODUCT_ARCHIVED',
     'PRODUCT_NOT_VISIBLE_TO_CUSTOMER',
     'PRODUCT_NOT_IN_SALES_CHANNEL',
     'QUOTE_ONLY',
@@ -131,7 +135,7 @@ describe('admin order preview message codes', () => {
     'BELOW_MINIMUM_QUANTITY',
   ];
 
-  it('orders the six codes by precedence, first match wins', () => {
+  it('orders the seven codes by precedence, first match wins', () => {
     expect([...ADMIN_ORDER_PREVIEW_MESSAGE_PRECEDENCE]).toEqual(PRECEDENCE);
   });
 
