@@ -6,6 +6,7 @@ import type { ChannelMemberEntityType } from '@endora-commerce/contracts';
 import {
   CATALOG_WEBHOOK_EVENT_TYPES,
   ERROR_CODES,
+  createProductTaxRateResolver,
   type ListingPriceOrderPort,
   type ListingPricePort,
   type ListingPriceDetailPort,
@@ -49,7 +50,9 @@ import type {
   SearchReindexPort,
   LanguageReadPort,
   OrganizationDetailsPort,
+  OrganizationTaxProfilePort,
   ProductAvailability,
+  TaxServicePort,
 } from '@endora-commerce/contracts';
 import type { AdminPermissionChecker, AuditPort } from '@endora-commerce/platform/kernel';
 import type { CommandBus } from '@endora-commerce/platform/commands';
@@ -783,6 +786,13 @@ export function registerModule(ctx: ModuleContext): void {
             // the bulk-operation requester's e-mail address. Both were reads of
             // another module's entity against another module's table.
             organizations: lazyPort<OrganizationDetailsPort>(ctx, 'organizationDetailsPort'),
+            // Issue #852 — the buyer's VAT rate per product, by the rule the
+            // cart uses: `organizations`' tax profile and `taxes`' rules, both
+            // owners non-deactivatable.
+            productTaxRates: createProductTaxRateResolver({
+              taxProfiles: lazyPort<OrganizationTaxProfilePort>(ctx, 'organizationTaxProfilePort'),
+              taxes: lazyPort<TaxServicePort>(ctx, 'taxService'),
+            }),
             adminUsers: lazyPort<AdminUserReadPort>(ctx, 'adminUserReadPort'),
             // Feature 163, checkpoint F (S-3) — the queued bulk operation's requester
             // is re-checked at worker start. `admin_roles` is declared in

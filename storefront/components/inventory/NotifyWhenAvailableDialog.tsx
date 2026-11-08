@@ -108,7 +108,7 @@ export function NotifyWhenAvailableDialog(props: {
   return (
     <ModalDialog
       triggerLabel={props.labels.cta}
-      triggerClassName="b2b-cta b2b-cta--secondary"
+      triggerClassName="btn btn--outline h-[40px] w-full justify-center md:w-auto"
       title={props.labels.dialogTitle}
       closeLabel={props.labels.close}
       dismissible={!submitting}

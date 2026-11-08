@@ -3,6 +3,7 @@ import {
   ERROR_CODES,
   type AddressServicePort,
   type CartWritePort,
+  type CatalogProductReadPort,
   type CustomerAccountReadPort,
   type OriginReference,
 } from '@endora-commerce/contracts';
@@ -85,6 +86,8 @@ export class OrderCreationAdminService {
      * module is composed without the port: `create` then fails closed.
      */
     private readonly salesChannelMembership: OrganizationChannelsRead | undefined,
+    /** Issue #829 — reads the lines' products, to refuse an archived one before anything is written. */
+    private readonly catalogProductRead: Pick<CatalogProductReadPort, 'findByIds'>,
     private readonly mailer?: EmailMailerPort,
     private readonly getTransactionalEmailSender?: () => TransactionalEmailSender | undefined,
   ) {}
@@ -150,6 +153,13 @@ export class OrderCreationAdminService {
       deliveryMethodId: input.deliveryMethodId,
       paymentMethodId: input.paymentMethodId,
     });
+
+    // Issue #829 — an archived product (feature 163, FR-019) is refused with
+    // its own reason, before anything is written. See `assertNoArchivedProducts`.
+    await assertNoArchivedProducts(
+      this.catalogProductRead,
+      input.items.map((it) => it.productId),
+    );
 
     // Resolve each address side to an org address id. An inline address is
     // created in the org book (so placeOrder can look it up and snapshot it);
@@ -320,5 +330,33 @@ export class OrderCreationAdminService {
     }
 
     return order;
+  }
+}
+
+/**
+ * Issue #829 — an operator's order line naming an **archived** product
+ * (feature 163, FR-019) answers `409 PRODUCT_ARCHIVED`, catalog's code and
+ * sentence, naming the archived products in `details.productIds`: the answer an
+ * operator's quote request gives (FR-115, P-3b), and the code the admin order
+ * preview reports for the same line. The operator is told why; a buyer's paths
+ * keep the absent product's `404`.
+ *
+ * Only archiving is decided here. An id naming no product, or a soft-deleted
+ * one (`liveOnly` drops it), is left to the working basket, which answers `404
+ * PRODUCT_NOT_FOUND` as before; every other reason a line is unavailable stays
+ * the basket's too.
+ */
+async function assertNoArchivedProducts(
+  catalogProductRead: Pick<CatalogProductReadPort, 'findByIds'>,
+  productIds: readonly string[],
+): Promise<void> {
+  const uniqueIds = [...new Set(productIds)];
+  if (uniqueIds.length === 0) return;
+  const products = await catalogProductRead.findByIds(uniqueIds, { liveOnly: true });
+  const archivedIds = products.filter((p) => p.archivedAt).map((p) => p.id);
+  if (archivedIds.length > 0) {
+    throw new HttpError(409, ERROR_CODES.PRODUCT_ARCHIVED, 'Product is archived.', {
+      productIds: [...new Set(archivedIds)],
+    });
   }
 }

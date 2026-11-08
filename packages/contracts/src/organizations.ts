@@ -54,6 +54,23 @@ export type VatStatus = z.infer<typeof vatStatusSchema>;
 export const creditInheritanceModeSchema = z.enum(['shared_pool', 'independent_default']);
 export type CreditInheritanceMode = z.infer<typeof creditInheritanceModeSchema>;
 
+/**
+ * The codes a redacted `organization` audit row keeps (issue #844).
+ *
+ * Owner: `organizations`; **codes only** — see
+ * `CUSTOMER_ACCOUNT_AUDIT_KEEP_KEYS` for the rule they extend. This module's
+ * snapshots record codes under `provider` and `outcome` (a tax-id validation)
+ * and `creditInheritanceMode`; `blockSource` and `countryCode` are kept
+ * wherever a writer records them, as they are on the account and the address.
+ */
+export const ORGANIZATION_AUDIT_KEEP_KEYS: readonly string[] = [
+  'blockSource',
+  'countryCode',
+  'creditInheritanceMode',
+  'outcome',
+  'provider',
+];
+
 export const addressKindSchema = z.enum(['delivery', 'billing']);
 export type AddressKind = z.infer<typeof addressKindSchema>;
 
@@ -740,7 +757,9 @@ export interface PersonalOrganizationPort {
    * the account, and calls it again on the next tick if anything after it
    * failed. It writes only what part of the scrub is still missing (the name,
    * the registered address, the legal name, the order-confirmation e-mails,
-   * every custom field value, `deletedAt` — an existing `deletedAt` is kept),
+   * every custom field value, the block and rejection reasons (issue #843:
+   * set to `null`, while the status and its dates stay), `deletedAt` — an
+   * existing `deletedAt` is kept),
    * in one transaction with its audit row, and records nothing when nothing
    * was missing. The audit row names none of the erased data (issue #802).
    * It answers the organisation **whether or not it wrote anything**,

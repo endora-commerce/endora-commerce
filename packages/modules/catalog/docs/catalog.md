@@ -196,6 +196,15 @@ buyer pays is chosen.
   channel that hides prices until sign-in — the listing and the product detail carry no amount, and
   a price ordering or range is refused for that page. Sales channels have no price-visibility flag
   of their own any more: the display mode decides, for each viewer.
+- **Gross prices use each product's own VAT rate.** Every product on the listing and the product
+  detail carries `vatRate`, the VAT rate the viewer is charged for it, as a fraction (`0.08` = 8 %).
+  It is the rate the cart and the order apply: the product's tax class (its type) against the
+  viewer's organization — its VAT status and registered country. A VAT-exempt or reverse-charge
+  organization gets `0`; an anonymous visitor, or a buyer with no organization, is treated as a VAT
+  payer in Poland. The storefront derives every product's gross price — on the cards, the list rows
+  and the product page — from this rate. Where a reply carries no rate (`null` when the rate could
+  not be read, or no field from an older backend), the storefront shows the net price, labelled
+  net, and never a gross at an assumed rate.
 
 For developers: the listing paths price a whole page in one batched call —
 `resolveListingPrices`, or `resolveListingPriceDetails` where the page renders the split
@@ -208,6 +217,14 @@ the unpriced tail itself (`catalog-query.service.ts`). The external catalogue AP
 category and attribute writes publish the events `price_lists` subscribes to, which clear the
 pricing caches and mark on the price surface the products each event concerns, for the surface
 worker to refresh.
+
+`vatRate` is resolved per reply by `createProductTaxRateResolver` (`@endora-commerce/contracts`),
+the rule the cart uses too, over `organizations`' `organizationTaxProfilePort` and `taxes`'
+`taxService`. It depends on the viewer's organization and nothing else about the viewer, so it
+follows the same cache rule as the price: a reply for a viewer naming an organization is
+`Cache-Control: private, no-store`, and the shareable reply is the anonymous one, which carries the
+guest's rate. A failed resolution answers `vatRate: null` on every product rather than refusing the
+listing.
 
 ### Removed price fields (migration note)
 

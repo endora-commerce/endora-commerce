@@ -1,6 +1,7 @@
 import { describe, expect, it } from 'vitest';
 import {
   ADMIN_ORDER_PREVIEW_MESSAGE_PRECEDENCE,
+  ERROR_CODES,
   isProductVisibleTo,
   productVisibilitySchema,
 } from '@endora-commerce/contracts';
@@ -12,7 +13,7 @@ import { previewBelowMinimums, previewLineAvailability } from './preview-line-av
  * visibility expectation is derived from `isProductVisibleTo` itself, never a
  * hand-written table, so this test cannot drift from the buyer-facing rule.
  */
-const [NOT_FOUND, NOT_VISIBLE, NOT_IN_CHANNEL] = ADMIN_ORDER_PREVIEW_MESSAGE_PRECEDENCE;
+const [NOT_FOUND, ARCHIVED, NOT_VISIBLE, NOT_IN_CHANNEL] = ADMIN_ORDER_PREVIEW_MESSAGE_PRECEDENCE;
 
 const ORG = '00000000-0000-4000-8000-00000000a001';
 const OTHER_ORG = '00000000-0000-4000-8000-00000000a002';
@@ -33,7 +34,7 @@ describe('previewLineAvailability', () => {
 
   for (const visibility of productVisibilitySchema.options) {
     for (const allowList of allowLists) {
-      const product = { visibility, allowedOrganizationIds: allowList.ids };
+      const product = { visibility, allowedOrganizationIds: allowList.ids, archivedAt: null };
       const visible = isProductVisibleTo(product, { organizationId: ORG, authenticated: true });
 
       for (const inChannel of [true, false]) {
@@ -53,6 +54,31 @@ describe('previewLineAvailability', () => {
       }
     }
   }
+
+  // Issue #829 — an archived product (feature 163 FR-019) is unavailable
+  // everywhere, and admin order create refuses it with `409 PRODUCT_ARCHIVED`:
+  // the preview names the same reason, whatever the visibility and channel.
+  for (const visibility of productVisibilitySchema.options) {
+    for (const allowList of allowLists) {
+      for (const inChannel of [true, false]) {
+        it(`archived, ${visibility}, ${allowList.name}, inChannel ${inChannel} → ${ARCHIVED}`, () => {
+          const product = {
+            visibility,
+            allowedOrganizationIds: allowList.ids,
+            archivedAt: new Date('2026-11-01T00:00:00Z'),
+          };
+          expect(previewLineAvailability({ product, organizationId: ORG, inChannel })).toEqual({
+            available: false,
+            code: ARCHIVED,
+          });
+        });
+      }
+    }
+  }
+
+  it('names the archived code PRODUCT_ARCHIVED, the error code admin order create answers', () => {
+    expect(ARCHIVED).toBe(ERROR_CODES.PRODUCT_ARCHIVED);
+  });
 
   it('covers both outcomes of the visibility rule, so the table is not vacuous', () => {
     const outcomes = new Set<boolean>();

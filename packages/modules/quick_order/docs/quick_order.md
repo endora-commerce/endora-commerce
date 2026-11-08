@@ -95,6 +95,46 @@ before anything else, for both targets and for buyer and operator alike.
   is written with the lines flagged for the sales team (the Quote Requests
   module's page).
 
+**The preview between the import and the build.** The storefront keeps the
+buyer's preview here while the buyer reviews and edits it:
+`GET /api/v1/quick-order/preview` answers `{ data: preview | null }`, `PUT`
+replaces it, and `DELETE` drops it (`204`). The preview is the import's response
+as the buyer has edited it. The module keeps **one preview per buyer session**,
+in Redis, under a key made of the buyer's Organization, the buyer and a digest
+of the session. A buyer of another Organization, or the same buyer signed in
+from another session, reads nothing. All three need a signed-in buyer, and no
+preview id travels in a URL. Writing needs the import's permission
+(`carts.create` or `quote_requests.create`); reading and dropping one's own
+preview need only the session.
+
+- **The line cap is `quick_order.import_max_rows`** as it stands when the
+  preview is written (clamped to 1–10 000). It counts the rows the import read,
+  recognised and rejected. The rows past the import's limit are not kept one by
+  one: the preview keeps them as one `summary.overflowCount`, with the limit they
+  were past in `summary.rowLimit`. The storefront shows a single message:
+  *"Only the first 2000 rows of the file were read. Rows left out: 15. Split the
+  file and import the rest separately."*
+- So an import always fits. The cap limits only what adding from search adds:
+  a write that grows a preview past it is refused `422 VALIDATION_FAILED`,
+  `details: { code: 'too_many_lines', maximum }`, where `maximum` is the setting.
+  A write that adds no line (an edit, a removal, the lines a cart build left) is
+  accepted even when the setting has been lowered below the stored preview.
+- A body over 2 MiB is refused `413`, whatever the setting. A refused write
+  leaves the previous preview as it was.
+- **Building takes at most 200 lines.** When a preview has more than 200
+  recognised lines (rejected rows are not built and do not count), the
+  storefront says so above the actions and disables *Add all to cart* and *Send
+  as quote request* until lines are removed or the file is split. The build's
+  own `too_many_items` refusal stays as the guard.
+- It expires **one hour after its last write**. A read does not extend it. An
+  expired preview reads as `null`, and the storefront tells the buyer to paste or
+  upload the list again.
+- The storefront drops it after a successful build and on sign-out. An expired
+  session can no longer name it, so it expires on its own.
+- While the module is switched off the three endpoints answer
+  `503 MODULE_DISABLED`; stored previews are left as they are and are served
+  again once it is switched back on, if their hour has not run out.
+
 `.xlsx` parsing uses **`exceljs`** (backend-only, isolated to
 `excel-importer.ts`); only the first worksheet is read.
 
@@ -189,6 +229,8 @@ Organization that did not require cart approval.
 ## Data
 
 - New table `quick_order_default_preferences` (migration `20260611T140359_quick_order_default_preferences.ts`).
+- The buyer's preview lives in Redis only, under `b2b:quick_order:preview:*`,
+  with a one-hour TTL; no table holds it.
 - New column `product_attributes.quick_searchable` (migration `20260611T140400_catalog_attribute_quick_searchable.ts`, owned
   by `catalog`).
 
