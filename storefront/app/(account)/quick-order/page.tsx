@@ -26,7 +26,7 @@ import {
   readQuickOrderPreview,
   writeQuickOrderPreview,
   type QuickOrderPreview as PreviewState,
-} from '../../../lib/quick-order-preview-cookie';
+} from '../../../lib/api/quick-order-preview';
 import type { Metadata } from 'next';
 import { localeRedirect } from '../../../lib/i18n/navigation';
 import { QUICK_ORDER_ERRORS } from '../../../lib/commerce-errors';
@@ -64,10 +64,13 @@ const UUID = /^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/i;
  *   2. The page server-renders the partition; the buyer reviews, then
  *      chooses to build a Cart or a Quote Request from the recognized rows.
  *
- * The preview lives in the storefront's own httpOnly cookie between the steps
- * (`lib/quick-order-preview-cookie.ts`, issue #790 — never in the URL, where a
- * crafted link could put any text on the page), so the page is fully
- * server-rendered; only the dropzone is a small client component.
+ * The backend keeps the preview between the steps, one per buyer session
+ * (`lib/api/quick-order-preview.ts`, issue #809 — never in the URL, where a
+ * crafted link could put any text on the page (#790), and no longer in a cookie
+ * the proxy's header budget held to a few dozen lines), so the page is fully
+ * server-rendered; only the dropzone is a small client component. It expires an
+ * hour after it was last written; an action that finds it gone asks the buyer
+ * to paste the list again (`preview_expired`).
  *
  * `specs/170-organization-roles/` (owner ruling Q2(b), 2026-11-04): the page is
  * open to a member holding `carts.create` **or** `quote_requests.create`; each
@@ -99,7 +102,7 @@ export default async function QuickOrderPage({
     sent?: string;
     /**
      * Feature 155 — how many of them the cart did not take. Issue #790: a count only; the
-     * lines themselves are the preview cookie's, each with its reason.
+     * lines themselves are the preview's, each with its reason.
      */
     rejected?: string;
   }>;
@@ -109,7 +112,9 @@ export default async function QuickOrderPage({
   const sp = await searchParams;
   const abilities = await getCommerceAbilitiesAction();
 
-  const preview = await readQuickOrderPreview(session);
+  // A preview the backend cannot answer for just now is not shown; the import stays usable, and an
+  // action on the preview says it could not be reached (`preview_unavailable`).
+  const preview = await readQuickOrderPreview(session).catch(() => null);
   const searchQuery = (sp.q ?? '').trim().slice(0, QUERY_MAX).trim();
   // Issue #174 — the type-ahead is channel-scoped on the backend now, so the
   // page has to say which channel the buyer is shopping. Resolved the same way
@@ -129,7 +134,7 @@ export default async function QuickOrderPage({
           .catch(() => null)
       : null;
   // Feature 155 (FR-011 (b)) — the lines the cart build left out, below a minimum. Issue #790:
-  // the URL carries the counts; the lines are the preview cookie's, each with why it was left out.
+  // the URL carries the counts; the lines are the preview's, each with why it was left out.
   const sentCount = sp.built === 'cart' ? Math.max(0, Number.parseInt(sp.sent ?? '', 10) || 0) : 0;
   const notAddedCount = Math.min(sentCount, Math.max(0, Number.parseInt(sp.rejected ?? '', 10) || 0));
   const notAdded = notAddedCount > 0 ? (preview?.recognized ?? []).filter((row) => row.notAdded).slice(0, notAddedCount) : [];
@@ -448,7 +453,7 @@ function PreviewPanel({
 async function searchAction(formData: FormData): Promise<void> {
   'use server';
   const q = ((formData.get('q') as string) ?? '').trim();
-  // The preview stays where it is — in its cookie — so the search carries only the query.
+  // The preview stays where it is — on the backend — so the search carries only the query.
   return await localeRedirect(quickOrderHref(q));
 }
 
@@ -457,10 +462,34 @@ function quickOrderHref(q: string): string {
   return q ? `/quick-order?${new URLSearchParams({ q }).toString()}` : '/quick-order';
 }
 
+/** Where an action goes when the backend could not read or write the preview (issue #809). */
+async function previewUnreachable(err: unknown): Promise<never> {
+  return await localeRedirect(`/quick-order?problem=${QUICK_ORDER_ERRORS.failureCode(err, 'preview_unavailable')}`);
+}
+
+/** The buyer session's preview, `null` when there is none, or a redirect when it cannot be read. */
+async function loadPreview(session: string): Promise<PreviewState | null> {
+  let preview: PreviewState | null;
+  try {
+    preview = await readQuickOrderPreview(session);
+  } catch (err) {
+    return await previewUnreachable(err);
+  }
+  return preview;
+}
+
 /**
- * Writes the preview to its cookie and returns to the page (issue #790). A preview over the
- * cookie's budget is not written: an import is told to split the file (`preview_too_large`); an
- * add or an edit, whose preview stays as it was, to build what it has first (`preview_full`).
+ * Drops the preview once it has done its work. Best effort: the work is done and is reported as
+ * done, and a preview the backend did not drop expires on its own within the hour.
+ */
+async function dropPreview(session: string): Promise<void> {
+  await clearQuickOrderPreview(session).catch(() => undefined);
+}
+
+/**
+ * Writes the preview and returns to the page (issues #790, #809). A preview over the backend's cap
+ * (2 000 lines) is not written: an import is told to split the file (`preview_too_large`); an add,
+ * whose preview stays as it was, to build what it has first (`preview_full`).
  */
 async function returnWithPreview(
   session: string,
@@ -468,9 +497,13 @@ async function returnWithPreview(
   overflow: 'preview_too_large' | 'preview_full',
   q = '',
 ): Promise<void> {
-  if (!(await writeQuickOrderPreview(session, preview))) {
-    return await localeRedirect(`/quick-order?problem=${overflow}`);
+  let kept: boolean;
+  try {
+    kept = await writeQuickOrderPreview(session, preview);
+  } catch (err) {
+    return await previewUnreachable(err);
   }
+  if (!kept) return await localeRedirect(`/quick-order?problem=${overflow}`);
   return await localeRedirect(quickOrderHref(q));
 }
 
@@ -484,7 +517,7 @@ async function addSearchResultAction(formData: FormData): Promise<void> {
   const q = ((formData.get('q') as string) ?? '').trim();
   const quantity = Math.max(1, Number.parseInt((formData.get('quantity') as string) ?? '1', 10) || 1);
 
-  const preview: PreviewState = (await readQuickOrderPreview(session)) ?? {
+  const preview: PreviewState = (await loadPreview(session)) ?? {
     recognized: [],
     rejected: [],
     summary: { recognizedCount: 0, rejectedCount: 0, mergedCount: 0, truncated: false },
@@ -507,10 +540,11 @@ async function updateQuantityAction(formData: FormData): Promise<void> {
   'use server';
   const session = await getSessionCookie();
   if (!session) return await localeRedirect('/login');
-  const preview = await readQuickOrderPreview(session);
+  const preview = await loadPreview(session);
   const line = Number.parseInt((formData.get('line') as string) ?? '', 10);
   const quantity = Math.max(1, Number.parseInt((formData.get('quantity') as string) ?? '1', 10) || 1);
-  if (!preview) return await localeRedirect('/quick-order?problem=nothing_to_update');
+  // The form was rendered from a preview, so one that is gone has expired (issue #809).
+  if (!preview) return await localeRedirect('/quick-order?problem=preview_expired');
 
   const row = preview!.recognized.find((r) => r.line === line);
   if (row) {
@@ -525,9 +559,9 @@ async function removeRecognizedAction(formData: FormData): Promise<void> {
   'use server';
   const session = await getSessionCookie();
   if (!session) return await localeRedirect('/login');
-  const preview = await readQuickOrderPreview(session);
+  const preview = await loadPreview(session);
   const line = Number.parseInt((formData.get('line') as string) ?? '', 10);
-  if (!preview) return await localeRedirect('/quick-order?problem=nothing_to_remove');
+  if (!preview) return await localeRedirect('/quick-order?problem=preview_expired');
 
   preview!.recognized = preview!.recognized.filter((r) => r.line !== line);
   preview!.summary = { ...preview!.summary, recognizedCount: preview!.recognized.length };
@@ -545,7 +579,7 @@ async function importAction(formData: FormData): Promise<void> {
 
   // A new import replaces the last preview, whether or not it succeeds: a refusal is never shown
   // beside a preview of a different list.
-  await clearQuickOrderPreview();
+  await dropPreview(session);
   if (!csv && !fileContent) return await localeRedirect('/quick-order?problem=no_input');
 
   let preview: QuickOrderImportResponse;
@@ -565,10 +599,9 @@ async function confirmAction(formData: FormData): Promise<void> {
   if (!session) return await localeRedirect('/login');
 
   const target = (formData.get('target') as string) === 'quote_request' ? 'quote_request' : 'cart';
-  const preview = await readQuickOrderPreview(session);
-  if (!preview || preview.recognized.length === 0) {
-    return await localeRedirect('/quick-order?problem=nothing_to_build');
-  }
+  const preview = await loadPreview(session);
+  if (!preview) return await localeRedirect('/quick-order?problem=preview_expired');
+  if (preview.recognized.length === 0) return await localeRedirect('/quick-order?problem=nothing_to_build');
 
   let rfqId: string | undefined;
   let rejected: unknown[] = [];
@@ -589,20 +622,22 @@ async function confirmAction(formData: FormData): Promise<void> {
     return await localeRedirect(`/quick-order?problem=${QUICK_ORDER_ERRORS.failureCode(err, 'build_failed')}${errorFiguresQuery(err)}`);
   }
   if (target === 'quote_request') {
-    // Built: the preview has done its work, so it does not wait in its cookie for the next visit.
+    // Built: the preview has done its work, so it does not wait for the next visit.
     // Issue #790 — the request travels by id; the page reads its reference.
-    await clearQuickOrderPreview();
+    await dropPreview(session);
     return await localeRedirect(rfqId ? `/quick-order?built=quote&rfqId=${encodeURIComponent(rfqId)}` : '/quick-order?built=quote');
   }
   const notTaken = linesNotTaken(preview!, rejected);
   if (notTaken.recognized.length === 0) {
-    await clearQuickOrderPreview();
+    await dropPreview(session);
     return await localeRedirect('/quick-order?built=cart');
   }
   // Feature 155 (FR-011 (b)) — the build added the valid lines. Issue #790: the URL carries the
   // counts only; the preview keeps exactly the lines the cart did not take, each with why, so the
-  // buyer can correct them and build again. Should even that not fit, the counts still report.
-  if (!(await writeQuickOrderPreview(session, notTaken))) await clearQuickOrderPreview();
+  // buyer can correct them and build again. Should the backend not keep it, the counts still
+  // report: the cart was built, so this is not the place to say the preview failed.
+  const kept = await writeQuickOrderPreview(session, notTaken).catch(() => false);
+  if (!kept) await dropPreview(session);
   const params = new URLSearchParams({
     built: 'cart',
     sent: String(preview!.recognized.length),

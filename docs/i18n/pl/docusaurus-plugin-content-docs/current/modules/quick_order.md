@@ -85,6 +85,26 @@ innym, dla obu celów, tak samo dla kupującego i operatora.
   poniżej minimum jak każde zapytanie ofertowe klienta, a budowanie operatora jest zapisywane z
   pozycjami oznaczonymi dla działu sprzedaży (strona modułu Quote Requests).
 
+**Podgląd między importem a budowaniem.** Sklep przechowuje tu podgląd kupującego, gdy ten go
+przegląda i poprawia: `GET /api/v1/quick-order/preview` odpowiada `{ data: preview | null }`, `PUT`
+go zastępuje, a `DELETE` usuwa (`204`). Podgląd to odpowiedź importu z poprawkami kupującego. Moduł
+trzyma **jeden podgląd na sesję kupującego**, w Redisie, pod kluczem złożonym z organizacji
+kupującego, samego kupującego i skrótu sesji. Kupujący z innej organizacji ani ten sam kupujący
+zalogowany w innej sesji niczego nie odczytają. Wszystkie trzy wymagają zalogowanego kupującego, a
+żaden identyfikator podglądu nie trafia do adresu URL. Zapis wymaga uprawnienia importu
+(`carts.create` albo `quote_requests.create`); odczyt i usunięcie własnego podglądu wymagają tylko
+sesji.
+
+- Podgląd mieści najwyżej **2000** wierszy, rozpoznanych i odrzuconych łącznie. Jeden więcej jest
+  odrzucany z kodem `422 VALIDATION_FAILED`, `details: { code: 'too_many_lines', maximum: 2000 }`,
+  a treść większa niż 2 MiB — z kodem `413`. Odrzucony zapis zostawia poprzedni podgląd bez zmian.
+- Podgląd wygasa **godzinę po ostatnim zapisie**. Odczyt tego czasu nie wydłuża. Wygasły podgląd
+  odczytuje się jako `null`, a sklep prosi kupującego, by ponownie wkleił listę albo przesłał plik.
+- Sklep usuwa podgląd po udanym budowaniu i przy wylogowaniu. Wygasła sesja nie może go już
+  wskazać, więc wygasa on sam.
+- Gdy moduł jest wyłączony, trzy punkty końcowe odpowiadają `503 MODULE_DISABLED`; zapisane podglądy
+  zostają bez zmian i po ponownym włączeniu modułu są znów dostępne, o ile nie minęła ich godzina.
+
 Pliki `.xlsx` są odczytywane przez **`exceljs`** (tylko w backendzie, w osobnym pliku
 `excel-importer.ts`); czytany jest tylko pierwszy arkusz.
 
@@ -174,6 +194,8 @@ akceptacji koszyków.
 ## Dane
 
 - Nowa tabela `quick_order_default_preferences` (migracja `20260611T140359_quick_order_default_preferences.ts`).
+- Podgląd kupującego jest tylko w Redisie, pod `b2b:quick_order:preview:*`, z czasem życia jednej
+  godziny; nie trzyma go żadna tabela.
 - Nowa kolumna `product_attributes.quick_searchable` (migracja `20260611T140400_catalog_attribute_quick_searchable.ts`,
   należy do `catalog`).
 

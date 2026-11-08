@@ -19,6 +19,7 @@ import {
   TEST_ORGANIZATION_ID,
 } from '../../helpers/test-actors.js';
 import { seedMemberWithPermissions } from '../../helpers/seed-organization-roles.js';
+import { seedOtherTestCustomer } from '../../helpers/seed-organizations.js';
 
 /**
  * Issue #809 — the buyer's quick-order preview is kept by `quick_order`, in Redis, one per buyer
@@ -70,6 +71,8 @@ describe('quick-order preview (issue #809)', () => {
 
   beforeAll(async () => {
     h = await setupBackendServer();
+    // The other Organization's buyer has to exist to pass the store's access rule.
+    await seedOtherTestCustomer(h.em());
   });
 
   afterEach(async () => {

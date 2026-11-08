@@ -1,0 +1,5 @@
+---
+'@endora-commerce/mod-quick-order': minor
+---
+
+The buyer's quick-order preview is kept by the module (issue #809): `GET`, `PUT` and `DELETE /api/v1/quick-order/preview`. There is one preview per buyer session, in Redis, under a key made of the buyer's Organization, the buyer and a digest of the session. Another session or another Organization reads nothing, and no preview id is ever sent. `GET` answers `{ data: preview | null }` and is never cached. `PUT` replaces the preview and starts its one-hour TTL; a read does not extend it. It needs `carts.create` or `quote_requests.create`, like the import, and refuses more than 2 000 lines with `422 VALIDATION_FAILED` (`details: { code: 'too_many_lines', maximum: 2000 }`) and a body over 2 MiB with `413`. `DELETE` answers `204`. All three need a signed-in buyer and answer `503 MODULE_DISABLED` while the module is off; stored previews are kept. The module now resolves the platform's `redis` client, so `ioredis` (`^5`) is a new peer dependency, already present in every application that composes the platform.

@@ -1,4 +1,5 @@
 import type { EntityManager } from '@mikro-orm/postgresql';
+import type { Redis } from 'ioredis';
 import type { FastifyRequest } from 'fastify';
 import { z } from 'zod';
 import type { AuditPort } from '@endora-commerce/platform/kernel';
@@ -37,11 +38,13 @@ import {
 import { QuickOrderBuildService } from './services/quick-order-build-service.js';
 import { DefaultPreferenceService } from './services/default-preference-service.js';
 import { OneClickService } from './services/one-click-service.js';
+import { QuickOrderPreviewStore } from './services/preview-store.js';
 import { registerQuickOrderRoutes } from './routes.js';
 import { registerQuickOrderAdminRoutes } from './routes.admin.js';
 import { registerQuickOrderPreferenceRoutes } from './routes.preferences.js';
 import { registerQuickOrderPreferenceAdminRoutes } from './routes.preferences.admin.js';
 import { registerQuickOrderOneClickRoutes } from './routes.one-click.js';
+import { registerQuickOrderPreviewRoutes } from './routes.preview.js';
 import { QuickOrderDefaultPreference } from './entities/quick-order-default-preference.entity.js';
 
 /**
@@ -90,6 +93,8 @@ import { QuickOrderDefaultPreference } from './entities/quick-order-default-pref
 /** What `quick_order` resolves from the container, and the names it owns. */
 export interface QuickOrderCradle {
   readonly emFactory: () => EntityManager;
+  /** The platform's Redis client — a kernel-owned name. */
+  readonly redis: Redis;
   readonly auditLogService: AuditPort;
   readonly requireAdmin: RequireAdminFactory;
   readonly requireCustomer: (req: FastifyRequest, reply: unknown) => Promise<void>;
@@ -103,6 +108,7 @@ export interface QuickOrderCradle {
   readonly quickOrderBuildService: QuickOrderBuildService;
   readonly quickOrderPreferenceService: DefaultPreferenceService;
   readonly quickOrderOneClickService: OneClickService;
+  readonly quickOrderPreviewStore: QuickOrderPreviewStore;
 }
 
 /**
@@ -204,6 +210,12 @@ export function registerModule(ctx: ModuleContext): void {
       )
       .singleton(),
 
+    // Issue #809 — the buyer's preview between the import and the build, one per buyer session,
+    // in Redis with a TTL. It replaces the storefront cookie of #805.
+    quickOrderPreviewStore: ctx
+      .asFunction(({ redis }: QuickOrderCradle) => new QuickOrderPreviewStore(redis))
+      .singleton(),
+
     quickOrderOneClickService: ctx
       .asFunction(
         ({ quickOrderPreferenceService }: QuickOrderCradle) =>
@@ -263,6 +275,7 @@ export function registerModule(ctx: ModuleContext): void {
       quickOrderBuildService: buildService,
       quickOrderPreferenceService: preferenceService,
       quickOrderOneClickService: oneClickService,
+      quickOrderPreviewStore: previewStore,
     } = cradle();
     const requireCustomer = (req: FastifyRequest, reply: unknown): Promise<void> =>
       cradle().requireCustomer(req, reply);
@@ -335,6 +348,13 @@ export function registerModule(ctx: ModuleContext): void {
       // Issue #174 — one port where three deps used to be, and the type-ahead
       // is scoped to the request's sales channel because `catalog` scopes it.
       catalogQuickSearch: lazyPort<CatalogQuickSearchPort>(ctx, 'catalogQuickSearchPort'),
+      organizationPermissions,
+    });
+
+    await registerQuickOrderPreviewRoutes(app, {
+      store: previewStore,
+      requireCustomer,
+      resolveCustomerContext,
       organizationPermissions,
     });
 
