@@ -403,6 +403,14 @@ describe('returns — a consumer withdrawal refunds the delivery and the surchar
   it('Q1 — a replacement that completes the order refunds no charge; the kept-lines invoice still charges the delivery', async () => {
     const { orderId, item } = await seedOrder();
     const rc = await openCase(orderId, [{ orderItemId: item, quantity: 2 }]);
+    // A consumer withdrawal settles otherwise than by a refund only with consent on record (#905).
+    const consent = await h.app.inject({
+      method: 'POST',
+      url: `/api/v1/admin/returns/${rc.id}/alternative-consent`,
+      cookies: ADMIN_COOKIE,
+      payload: { resolution: 'replacement', consentGivenAt: new Date().toISOString(), note: 'Asked for a replacement' },
+    });
+    expect(consent.statusCode, consent.body).toBe(200);
     const refused = await settleRaw(rc.id, { deliveryRefundAmount: 15.99 }, 'replacement');
     expect(refused.statusCode, refused.body).toBe(422);
     expect((refused.json() as { error: { details?: { code?: string } } }).error.details?.code).toBe('refund_exceeds_paid');
