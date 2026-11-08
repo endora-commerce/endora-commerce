@@ -178,5 +178,6 @@
   "vatValidation.attempt.reason.not_found": "not found",
   "vatValidation.attempt.reason.other": "failed",
   "moderation.registryDivergence": "Fields differing from the registry: {count}. See VAT validation below.",
-  "moderation.registryDivergenceLink": "Go to VAT validation"
+  "moderation.registryDivergenceLink": "Go to VAT validation",
+  "settingGroups.organizations.name": "Organizations"
 }

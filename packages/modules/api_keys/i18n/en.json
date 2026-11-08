@@ -6,5 +6,6 @@
   "errors.API_KEY_NOT_BOUND": "This endpoint requires a distributor-bound API key.",
   "errors.API_KEY_OUT_OF_SCOPE": "API key lacks the required scope: {requiredScope}.",
   "errors.API_KEY_SCOPE_NOT_HELD": "You can only give an API key scopes your own role holds. Your role does not hold: {scopes}.",
-  "actions.openApiKeys.keywords": "api keys, integration"
+  "actions.openApiKeys.keywords": "api keys, integration",
+  "settingGroups.api_keys.name": "API keys"
 }

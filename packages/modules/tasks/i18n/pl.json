@@ -563,5 +563,6 @@
   "actions.openTaskWorkflow.keywords": "statusy, przejścia, przebieg",
   "actions.openTaskPriorities.keywords": "priorytety, priorytet, pilność",
   "actions.openTaskTags.keywords": "etykiety, etykieta",
-  "actions.openTaskGeneralSettings.keywords": "ustawienia, strefa czasowa"
+  "actions.openTaskGeneralSettings.keywords": "ustawienia, strefa czasowa",
+  "settingGroups.tasks.name": "Zadania"
 }

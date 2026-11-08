@@ -22,6 +22,8 @@ export const manifest = defineModuleManifest({
   // which admits the `all_admins` broadcasts. It depends on nothing, so the
   // edge closes no cycle.
   dependencies: ['admin_roles', 'admin_users', 'auth'],
+  // Issue #884 — the bundle carries the settings group's translated heading.
+  i18n: { bundlesDir: 'i18n' },
   settings: {
     moduleCode: 'admin_notifications',
     groups: [{ code: 'admin_notifications', name: 'Admin notifications' }],

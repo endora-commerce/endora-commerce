@@ -41,5 +41,6 @@
   "page.results.unavailable": "Tym razem nie udało się przeszukać: {label}.",
   "page.results.announce": "Znaleziono rekordów: {count}",
   "actions.openGlobalSearch.keywords": "szukaj, wyszukaj, rekordy",
-  "actions.openConfiguration.keywords": "pola, wyszukiwania, konfiguracja"
+  "actions.openConfiguration.keywords": "pola, wyszukiwania, konfiguracja",
+  "settingGroups.admin_search.name": "Wyszukiwanie globalne"
 }

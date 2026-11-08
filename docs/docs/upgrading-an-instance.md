@@ -3803,6 +3803,39 @@ bound channel that is switched off was already refused, with `400 INACTIVE_SALES
    to the integration and revoke the old one. A key's binding cannot be edited.
 3. **Run the query again.** It returns no rows when every integration can place orders.
 
+### Quote request lines carry their channel's currency {#quote-line-currency}
+
+Until this release every quote request line was stored with the currency `PLN`, whatever the
+default currency of the sales channel the request was raised on (issue #303). From this release a
+new request's lines carry that channel's default currency, decided once when the request is created
+— by the customer or by an operator on their behalf — and kept by every later edit, seller revision
+and resubmission. The quote request lists show a request with no lines in its channel's currency.
+
+**Existing requests are not changed.** Their prices were typed and agreed against screens that said
+PLN, so relabelling them would change what past offers mean. A request already stored keeps `PLN`
+on its lines, and so does a resubmission of it. An instance whose sales channels all use PLN has
+nothing to do.
+
+**What to do:** list the quote requests raised on a channel whose default currency is not PLN. This
+read-only query shows each of them, with the currency its channel uses and the currencies its lines
+were stored in:
+
+```sql
+select qr.id, qr.business_id, qr.status, qr.created_at,
+       sc.code as channel, sc.default_currency as channel_currency,
+       array_agg(distinct qi.line_currency) as line_currencies
+from quote_requests qr
+join sales_channels sc on sc.id = qr.sales_channel_id
+left join quote_request_items qi on qi.quote_request_id = qr.id
+where sc.default_currency <> 'PLN'
+group by qr.id, sc.code, sc.default_currency
+order by qr.created_at;
+```
+
+Review any request this returns with its seller. There is no automatic correction: changing the
+currency of a stored request is a decision about what its prices meant, so make it per request, by
+hand, and only where the seller confirms the prices were meant in the channel's currency.
+
 ### A role's two-step verification requirement is enforced {#role-two-factor-enforced}
 
 The release that ships `MFA_REQUIRED_FOR_ROLE_TWO_FACTOR` makes a role's **Requires two-step

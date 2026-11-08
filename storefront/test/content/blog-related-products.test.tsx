@@ -51,6 +51,8 @@ function summary(
     stockIndicator: null,
     stockLevel: null,
     resolvedPrice,
+    // The buyer's rate for the product, as the catalogue read answers it (issue #852).
+    vatRate: 0.23,
   };
 }
 

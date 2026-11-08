@@ -38,12 +38,13 @@ describe('BaseSalePriceBlock — Base only', () => {
       <BaseSalePriceBlock
         basePrice={{ amount: '100.00', currency: 'PLN' }}
         displayMode="gross_only"
+        vatRate={0.23}
         locale="pl-PL"
       />,
     );
     expect(html).toContain('b2b-pricing-block__columns--gross');
     expect(html).not.toContain('b2b-pricing-block__columns--net');
-    // 100.00 net at the default 0.23 VAT rate → 123.00 gross
+    // 100.00 net at the product's 0.23 VAT rate → 123.00 gross
     expect(html).toMatch(/123/);
   });
 
@@ -52,6 +53,7 @@ describe('BaseSalePriceBlock — Base only', () => {
       <BaseSalePriceBlock
         basePrice={{ amount: '50.00', currency: 'EUR' }}
         displayMode="both"
+        vatRate={0.23}
         locale="en-US"
       />,
     );
@@ -101,6 +103,7 @@ describe('BaseSalePriceBlock — Base + Sale', () => {
         basePrice={{ amount: '100.00', currency: 'PLN' }}
         salePrice={{ amount: '80.00', currency: 'PLN' }}
         displayMode="gross_only"
+        vatRate={0.23}
         locale="pl-PL"
       />,
     );

@@ -46,9 +46,11 @@ const QUOTE_REQUESTS_CREATE = 'quote_requests.create';
  * port's `assert` raises the standard `403 ORGANIZATION_PERMISSION_REQUIRED`
  * naming `carts.create` — the import's primary target — so the refusal keeps
  * its one shape. A code whose module is off grants nothing (FR-007), so with
- * `quote_requests` off only `carts.create` admits.
+ * `quote_requests` off only `carts.create` admits. Writing the buyer's preview
+ * (`routes.preview.ts`, issue #809) is part of the same import and takes the
+ * same guard.
  */
-function importPermissionPreHandler(
+export function importPermissionPreHandler(
   getPort: () => OrganizationPermissionPort,
 ): (request: FastifyRequest) => Promise<void> {
   return async (request) => {

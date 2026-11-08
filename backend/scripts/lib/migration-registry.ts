@@ -44,6 +44,7 @@
  * hallucinated a dozen table names off apostrophes in English prose.
  */
 import ts from 'typescript';
+import { parseSource, rememberRead } from '@endora-commerce/cli/lib/parsed-source.js';
 
 /** The registry's own spelling of "this migration belongs to no module". */
 export const CORE_MIGRATION_OWNER = 'core';
@@ -97,14 +98,18 @@ export function registeredMigrations(source: string, file: string): RegisteredMi
  * short the day that rule is relaxed rather than reporting what it read.
  */
 export function declaredMigrationClasses(source: string, file: string): string[] {
-  const sf = ts.createSourceFile(file, source, ts.ScriptTarget.Latest, true);
-  const found: string[] = [];
-  const visit = (node: ts.Node): void => {
-    if (ts.isClassDeclaration(node) && node.name !== undefined) found.push(node.name.text);
-    node.forEachChild(visit);
-  };
-  sf.forEachChild(visit);
-  return found;
+  // Remembered inside a `withSharedParses` scope (issue #910), so a check that
+  // visits a migration once for every recogniser parses it once.
+  const found = rememberRead('migration-registry:classes', file, source, () => {
+    const names: string[] = [];
+    const visit = (node: ts.Node): void => {
+      if (ts.isClassDeclaration(node) && node.name !== undefined) names.push(node.name.text);
+      node.forEachChild(visit);
+    };
+    parseSource(file, source).forEachChild(visit);
+    return names;
+  });
+  return [...found];
 }
 
 export interface MigrationRegistryCoverage {

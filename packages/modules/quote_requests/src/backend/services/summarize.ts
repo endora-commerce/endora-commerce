@@ -1,6 +1,7 @@
 import { lineAmountHalfUp, moneySum, type QuoteRequestSummary } from '@endora-commerce/contracts';
 import type { QuoteRequest } from '../entities/quote-request.entity.js';
 import type { QuoteRequestItem } from '../entities/quote-request-item.entity.js';
+import { summaryCurrency } from './line-currency.js';
 
 /** Prices × quantities summed exactly, as a two-place number (issue #417: 3 × 9.05 was 27.150000000000002). */
 export function listTotal(lines: ReadonlyArray<{ price: string; quantity: number }>): number {
@@ -20,7 +21,12 @@ export function listTotal(lines: ReadonlyArray<{ price: string; quantity: number
 export function summarize(
   rfq: QuoteRequest,
   items: QuoteRequestItem[],
-  extras: { requesterDisplayName?: string | null; taxRate?: number },
+  extras: {
+    requesterDisplayName?: string | null;
+    taxRate?: number;
+    /** Issue #303 — the default currency per channel, read for a request with no lines. */
+    currencyByChannel?: ReadonlyMap<string, string>;
+  },
 ): QuoteRequestSummary {
   const totalAtCustomerPrice =
     items.length > 0 && items.every((it) => it.desiredUnitPrice != null)
@@ -29,7 +35,7 @@ export function summarize(
   const totalAtAgreedPrice = items.every((it) => it.agreedUnitPrice != null)
     ? listTotal(items.map((it) => ({ price: it.agreedUnitPrice ?? '0', quantity: it.quantity })))
     : null;
-  const currency = items[0]?.lineCurrency ?? 'PLN';
+  const currency = summaryCurrency(rfq, items, extras.currencyByChannel ?? new Map());
   return {
     id: rfq.id,
     businessId: rfq.businessId,

@@ -98,11 +98,12 @@ export const QUICK_ORDER_ERRORS = defineUrlErrors({
   api: COMMERCE_API_ERROR_KEYS,
   own: {
     no_input: 'quickOrder.problem.no_input',
-    nothing_to_update: 'quickOrder.problem.nothing_to_update',
-    nothing_to_remove: 'quickOrder.problem.nothing_to_remove',
     nothing_to_build: 'quickOrder.problem.nothing_to_build',
     preview_too_large: 'quickOrder.problem.preview_too_large',
     preview_full: 'quickOrder.problem.preview_full',
+    // Issue #809 — the backend keeps the preview for an hour after its last write.
+    preview_expired: 'quickOrder.problem.preview_expired',
+    preview_unavailable: 'quickOrder.problem.preview_unavailable',
     import_failed: 'quickOrder.problem.import_failed',
     build_failed: 'quickOrder.problem.build_failed',
   },

@@ -14,6 +14,7 @@ import type { SalesChannelResolutionPort } from '@endora-commerce/platform/kerne
 import type { QuoteRequest } from '../entities/quote-request.entity.js';
 import type { QuoteRequestItem } from '../entities/quote-request-item.entity.js';
 import { localized } from './texts.js';
+import { LEGACY_LINE_CURRENCY } from '../services/line-currency.js';
 
 /**
  * Builds the data one quote PDF prints (`data-model.md` §4.1, research R-12).
@@ -203,7 +204,8 @@ export class QuoteDocumentDataBuilder {
     // the document.
     const company = organization && !organization.isPersonal ? organization : null;
     const address = company?.registeredAddress;
-    const firstCurrency = lines[0]?.lineCurrency ?? 'PLN';
+    // Issue #303 — the lines' currency; a document of no lines speaks its channel's.
+    const firstCurrency = lines[0]?.lineCurrency ?? channel?.defaultCurrency ?? LEGACY_LINE_CURRENCY;
     return {
       generatedAt: this.now().toISOString(),
       quote: {

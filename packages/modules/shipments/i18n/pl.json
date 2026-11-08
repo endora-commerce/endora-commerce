@@ -1,0 +1,5 @@
+{
+  "settingGroups.shipments.name": "Przesyłki",
+  "settingLabels.shipments.enabled.name": "Przesyłki włączone",
+  "settingLabels.shipments.enabled.description": "Włącza lub wyłącza obsługę przesyłek: tworzenie przesyłki dla zamówienia (w ten sam sposób ponawia się nieudaną), przyjmowanie aktualizacji od przewoźnika (receive_shipment) oraz historię przesyłek zamówienia. Nic nie jest usuwane — każda przesyłka, jej zmiany statusu i numery przewoźnika pozostają w bazie danych, a zamówienie w trakcie realizacji wraca dokładnie do miejsca, w którym było."
+}

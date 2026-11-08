@@ -11,6 +11,8 @@ import {
   findSeamForwarders,
   findWorkerFactories,
   keyOf,
+  listingOf,
+  scanSubscribeSeam,
 } from '../../../scripts/check-subscribe-seam.js';
 
 /**
@@ -350,6 +352,35 @@ describe('findWorkerFactories / findWorkerSites — the queue-consumer spellings
   });
 });
 
+describe('--list attributes the way the verdict does (issue #919)', () => {
+  // A host-resident module's directory carries no `modules/<id>/` segment, so
+  // its owner comes from `hostResidentModules` alone. The verdict always took
+  // the map; `--list` did not, and so listed a different population from the
+  // one the verdict judged. Both outputs come from one scan here, the one the
+  // CLI runs, so the two cannot be compared over different inputs.
+  const sources = new Map([
+    [
+      'lifecycle/services/reconcile-listener.ts',
+      "eventBus.on('module.activation_changed.v1', async (p) => { await reconcile(p); });",
+    ],
+  ]);
+  const hostResidentModules = new Map([['lifecycle', '_lifecycle']]);
+
+  it('names the host-resident owner in the listing that the verdict judged', () => {
+    const scan = scanSubscribeSeam({ sources, hostResidentModules });
+
+    expect(scan.result.violations.map((v) => `${v.file} ${v.moduleId}`)).toEqual([
+      'lifecycle/services/reconcile-listener.ts _lifecycle',
+    ]);
+    expect(scan.subscriptions.map((s) => `${s.file} ${s.moduleId}`)).toEqual(
+      scan.result.violations.map((v) => `${v.file} ${v.moduleId}`),
+    );
+    expect(listingOf(scan)).toEqual([
+      "BARE     lifecycle/services/reconcile-listener.ts:1  [_lifecycle] eventBus.on('module.activation_changed.v1')",
+    ]);
+  });
+});
+
 describe('the tree itself', () => {
   // The population is the **derived** module roots, not `backend/src` alone,
   // and this is the second half of a floor that shrinks with the population it
@@ -363,6 +394,10 @@ describe('the tree itself', () => {
   // reads, so the two cannot come to disagree about what the tree is.
   let layout: ModuleTreeLayout;
   let sources: Map<string, string>;
+  // One scan, the one the CLI runs: inside a shared-parse scope it reads each
+  // source once for both halves, where calling each half on its own parsed the
+  // tree four times and timed out under load in `test:unit:fast` (issue #910).
+  let scan: ReturnType<typeof scanSubscribeSeam>;
 
   beforeAll(async () => {
     layout = await requireModuleLayout('[subscribe-seam-test]');
@@ -370,10 +405,12 @@ describe('the tree itself', () => {
     for (const root of layout.sourceRoots) {
       for (const [key, text] of readTree(root)) sources.set(key, text);
     }
+    scan = scanSubscribeSeam({ sources });
   });
 
   it('has no queue consumer outside the seam, and an empty ledger', () => {
-    const result = checkWorkerSeam({ sources }, WORKERS_OUTSIDE_THE_SEAM);
+    // The scan judges against the shipped ledger, `WORKERS_OUTSIDE_THE_SEAM`.
+    const result = scan.workers;
     // The vacuous-pass guard the check itself exits 2 on: this tree has queue
     // consumers, so reading none means the analysis stopped working.
     expect(result.sites.length, 'no worker site read — a vacuous pass').toBeGreaterThan(10);
@@ -384,7 +421,8 @@ describe('the tree itself', () => {
 
   it('has no bare subscription left, and an empty ledger', () => {
     expect(sources.size, 'no sources found — a vacuous pass').toBeGreaterThan(100);
-    const result = checkSubscribeSeam({ sources }, BARE_SUBSCRIPTIONS_TO_DRAIN);
+    // The scan judges against the shipped ledger, `BARE_SUBSCRIPTIONS_TO_DRAIN`.
+    const result = scan.result;
     expect(result.violations.map((v) => `${v.file}:${v.event}`)).toEqual([]);
     expect(result.stale).toEqual([]);
     expect(Object.keys(BARE_SUBSCRIPTIONS_TO_DRAIN)).toEqual([]);

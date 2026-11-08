@@ -118,6 +118,7 @@
  * caller over every migration, since the two are usually in different files.
  */
 import ts from 'typescript';
+import { parseSource, rememberRead } from './parsed-source.js';
 
 /** Which way the statement moves rows through the table it names. */
 export type SqlAccessDirection = 'read' | 'write';
@@ -198,10 +199,23 @@ function literalText(node: ts.Node): string | null {
  * The source, parsed with parent pointers.
  *
  * The parents are what let the builder path walk a call chain outwards to decide
- * whether it writes; the statement path needs only the positions.
+ * whether it writes; the statement path needs only the positions. Shared with
+ * the other recognisers inside a `withSharedParses` scope (issue #910).
  */
 function parse(source: string, file: string): ts.SourceFile {
-  return ts.createSourceFile(file, source, ts.ScriptTarget.Latest, true);
+  return parseSource(file, source);
+}
+
+/**
+ * Every string / template literal in `source`, with its line.
+ *
+ * Remembered inside a `withSharedParses` scope (issue #910): the statement
+ * path, the DDL path, the index path and the `create table` half of the owner
+ * map all read this one list, so a check that asks all four of one file parses
+ * it once and walks it once.
+ */
+function literalsOf(source: string, file: string): ReadonlyArray<{ text: string; line: number }> {
+  return rememberRead('sql-tables:literals', file, source, () => literals(parse(source, file)));
 }
 
 /** Every string / template literal in `sf`, with its line. */
@@ -263,17 +277,22 @@ export function sqlTableAccesses(
   file: string,
   options: SqlTableAccessOptions = {},
 ): SqlTableAccess[] {
-  const sf = parse(source, file);
-  const found = [...statementAccesses(sf), ...builderAccesses(sf)];
-  if (options.ddl === true) found.push(...ddlAccesses(sf, options.indexTables ?? new Map()));
+  const all = literalsOf(source, file);
+  const builders = rememberRead('sql-tables:builders', file, source, () =>
+    builderAccesses(parse(source, file)),
+  );
+  const found = [...statementAccesses(all), ...builders];
+  if (options.ddl === true) found.push(...ddlAccesses(all, options.indexTables ?? new Map()));
   found.sort((a, b) => a.line - b.line);
   return found;
 }
 
 /** The tables named inside a SQL statement literal — D-87's original path. */
-function statementAccesses(sf: ts.SourceFile): SqlTableAccess[] {
+function statementAccesses(
+  all: ReadonlyArray<{ text: string; line: number }>,
+): SqlTableAccess[] {
   const found: SqlTableAccess[] = [];
-  for (const literal of literals(sf)) {
+  for (const literal of all) {
     const head = STATEMENT_HEAD.exec(literal.text);
     if (head === null) continue;
     const verb = (head[1] ?? '').trim().split(/\s+/)[0]?.toLowerCase() ?? '';
@@ -628,21 +647,20 @@ export function declaredIndexes(
   file: string,
 ): Array<{ index: string; table: string }> {
   const found: Array<{ index: string; table: string }> = [];
-  for (const literal of literals(parse(source, file))) found.push(...indexesIn(literal.text));
+  for (const literal of literalsOf(source, file)) found.push(...indexesIn(literal.text));
   return found;
 }
 
 /**
- * The existing tables named by DDL in `sf`'s literals — each a **write**: a
+ * The existing tables named by DDL in a source's literals — each a **write**: a
  * module that indexes, alters, comments on or drops a table changes that
  * table's schema, which is exactly what the owner decides.
  */
 function ddlAccesses(
-  sf: ts.SourceFile,
+  all: ReadonlyArray<{ text: string; line: number }>,
   indexTables: ReadonlyMap<string, string>,
 ): SqlTableAccess[] {
   const found: SqlTableAccess[] = [];
-  const all = literals(sf);
   // A table this source itself creates is not an *existing* table: indexing it
   // beside its `create table`, or dropping it in the same migration's `down()`,
   // is part of that declaration. Who may declare a table is the owner map's
@@ -735,31 +753,50 @@ export function declaredTableNames(
     found.push({ table, source: from });
   };
 
-  const sf = parse(source, file);
   if (source.includes('@Entity')) {
-    const visit = (node: ts.Node): void => {
-      if (ts.isClassDeclaration(node) && ts.canHaveDecorators(node)) {
-        for (const decorator of ts.getDecorators(node) ?? []) {
-          const call = decorator.expression;
-          if (!ts.isCallExpression(call)) continue;
-          if (!ts.isIdentifier(call.expression) || call.expression.text !== 'Entity') continue;
-          const declared = entityTableName(call);
-          if (declared !== null) add(declared, 'entity');
-          else if (node.name) add(tableNameOf(node.name.text), 'entity');
-        }
-      }
-      node.forEachChild(visit);
-    };
-    sf.forEachChild(visit);
+    for (const entity of entityDeclarationsOf(source, file)) {
+      if (entity.tableName !== null) add(entity.tableName, 'entity');
+      else if (entity.className !== null) add(tableNameOf(entity.className), 'entity');
+    }
   }
 
-  for (const literal of literals(sf)) {
+  for (const literal of literalsOf(source, file)) {
     for (const match of literal.text.matchAll(CREATE_TABLE)) {
       const table = match[1];
       if (table !== undefined) add(table.toLowerCase(), 'migration');
     }
   }
   return found;
+}
+
+/**
+ * Every `@Entity(…)` decorator in `source`, in source order: the `tableName` it
+ * sets, or else the name of the class it decorates.
+ *
+ * The class name is kept rather than turned into a table here, because the
+ * naming strategy is the caller's parameter and a remembered answer must not
+ * depend on which strategy asked first (issue #910).
+ */
+function entityDeclarationsOf(
+  source: string,
+  file: string,
+): ReadonlyArray<{ readonly tableName: string | null; readonly className: string | null }> {
+  return rememberRead('sql-tables:entities', file, source, () => {
+    const found: Array<{ tableName: string | null; className: string | null }> = [];
+    const visit = (node: ts.Node): void => {
+      if (ts.isClassDeclaration(node) && ts.canHaveDecorators(node)) {
+        for (const decorator of ts.getDecorators(node) ?? []) {
+          const call = decorator.expression;
+          if (!ts.isCallExpression(call)) continue;
+          if (!ts.isIdentifier(call.expression) || call.expression.text !== 'Entity') continue;
+          found.push({ tableName: entityTableName(call), className: node.name?.text ?? null });
+        }
+      }
+      node.forEachChild(visit);
+    };
+    parse(source, file).forEachChild(visit);
+    return found;
+  });
 }
 
 /** The `tableName` option of an `@Entity({ … })` call, when it sets one. */

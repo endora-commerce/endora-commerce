@@ -17,6 +17,7 @@ import { useBlockContributions } from '@endora-commerce/admin-kit/zones';
 import { PageBuilderHeaderActions, PageBuilderOverlayBridge } from '@endora-commerce/page-builder-admin';
 import { countComponentNames, createColorField } from '@endora-commerce/page-builder-core';
 import {
+  BlockRenderEnvironmentProvider,
   DocumentSampleProvider,
   editorConfigFromDescriptor,
   neutralBlockPreview,
@@ -241,6 +242,8 @@ export function DocumentTemplateEditor(): ReactNode {
     [translateIn],
   );
 
+  const canvasEnvironment = useMemo(() => ({ language, preview: true }), [language]);
+
   const storedNamesKey = [...countComponentNames(draft).keys()].sort().join('\n');
   const puckConfig = useMemo((): Config | null => {
     if (!descriptor || !editors) return null;
@@ -447,6 +450,9 @@ export function DocumentTemplateEditor(): ReactNode {
           <div className={cn('cms-page-builder space-y-3', fullscreen && 'fixed inset-0 z-50 flex flex-col overflow-auto bg-background p-4')}>
             <div className={cn('overflow-hidden rounded-md border', fullscreen ? 'min-h-0 flex-1' : 'min-h-[560px]')}>
               {puckConfig && template && type ? (
+                // The edited tree's language is what a block draws in, as the PDF
+                // prints it (issue #888), read through `useBlockRenderEnvironment`.
+                <BlockRenderEnvironmentProvider value={canvasEnvironment}>
                 <DocumentSampleProvider value={type.sample}>
                   <DocumentCollectionsProvider value={type.collections ?? []} language={language}>
                   <Puck
@@ -479,6 +485,7 @@ export function DocumentTemplateEditor(): ReactNode {
                   />
                   </DocumentCollectionsProvider>
                 </DocumentSampleProvider>
+                </BlockRenderEnvironmentProvider>
               ) : (
                 <div className="flex min-h-[560px] items-center justify-center text-sm text-muted-foreground">
                   {error ? null : t('editor.loading')}
