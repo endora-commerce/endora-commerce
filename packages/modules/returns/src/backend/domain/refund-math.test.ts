@@ -3,6 +3,7 @@ import {
   approvedAmount,
   carriedDiscount,
   exceedsCap,
+  settlementApproved,
   sumApproved,
 } from './refund-math.js';
 
@@ -61,5 +62,53 @@ describe('carriedDiscount (#417)', () => {
     expect(carriedDiscount('25.00', '0.00', 0)).toBe('25.00');
     expect(carriedDiscount('0.01', '0.00', '0.00')).toBe('0.01');
     expect(carriedDiscount('0.00', '0.00', 0)).toBe('0.00');
+  });
+});
+
+/**
+ * Issue #875 (and the per-line ceiling of issue #874) — the settlement
+ * recomputes the default under the order's lock, so what the operator approved
+ * is mapped onto the default as it now stands. An amount equal to a default —
+ * the one stored at creation, the one recomputed, or the effective default the
+ * ceiling leaves — is the default approved, and settles at the effective one.
+ * A lower amount is the operator's and is kept as typed. Anything else is above
+ * what may be refunded and is refused, with nothing written.
+ */
+describe('settlementApproved (#875)', () => {
+  const at = (requested: string | number, previous: string, recomputed: string, effective = recomputed, zeroIsAmount = false) =>
+    settlementApproved({ requested, previousDefault: previous, recomputedDefault: recomputed, effectiveDefault: effective, zeroIsAmount });
+
+  it('maps the default stored at creation onto the recomputed one, either way it moved', () => {
+    expect(at(12.31, '12.31', '12.32')).toEqual({ approved: '12.32' });
+    expect(at('12.32', '12.32', '12.31')).toEqual({ approved: '12.31' });
+  });
+
+  it('settles the recomputed default as it is', () => {
+    expect(at(12.32, '12.31', '12.32')).toEqual({ approved: '12.32' });
+  });
+
+  it('keeps an amount below the default as typed', () => {
+    expect(at(10, '12.31', '12.32')).toEqual({ approved: '10.00' });
+    expect(at(0, '12.31', '12.32')).toEqual({ approved: '0.00' });
+  });
+
+  it('refuses an amount between the recomputed default and the stale one', () => {
+    expect(at(12.33, '12.34', '12.32')).toEqual({ refused: 'refund_exceeds_paid' });
+  });
+
+  it('refuses an amount above every default', () => {
+    expect(at(12.33, '12.31', '12.32')).toEqual({ refused: 'refund_exceeds_paid' });
+  });
+
+  it('maps every default onto the effective one when the line ceiling binds (AC-885-7)', () => {
+    expect(at(33.07, '33.07', '33.07', '26.92')).toEqual({ approved: '26.92' });
+    expect(at(26.92, '33.07', '33.07', '26.92')).toEqual({ approved: '26.92' });
+    expect(at(20, '33.07', '33.07', '26.92')).toEqual({ approved: '20.00' });
+    expect(at(30, '33.07', '33.07', '26.92')).toEqual({ refused: 'refund_exceeds_paid' });
+  });
+
+  it('keeps 0 for a non-returnable complaint line, whose 0 is an amount and not a default', () => {
+    expect(at(0, '0.00', '4.28', '4.28', true)).toEqual({ approved: '0.00' });
+    expect(at(0, '0.00', '4.28', '4.28')).toEqual({ approved: '4.28' });
   });
 });

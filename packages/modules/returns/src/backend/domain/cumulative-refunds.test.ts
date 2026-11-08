@@ -1,6 +1,13 @@
 import { describe, expect, it } from 'vitest';
 import { decimalSum, grossFromNetHalfUp, lineAmountHalfUp, moneyDifference, roundHalfUp, taxAmountExact, vatByRate } from '@endora-commerce/contracts';
-import { carriedDiscount, caseDefaultRefunds, type RefundOrderLine } from './refund-math.js';
+import {
+  carriedDiscount,
+  caseDefaultRefunds,
+  effectiveDefaultRefunds,
+  lineValue,
+  settlementApproved,
+  type RefundOrderLine,
+} from './refund-math.js';
 
 /**
  * Review of PR #423, owner ruling of 2026-10-24 (issue #417) — the default
@@ -324,3 +331,303 @@ describe('caseDefaultRefunds — any sequence of partial returns (property)', ()
     });
   }
 });
+
+/**
+ * Issues #874 and #875, and the per-line ceiling of the #885 amendment (§4).
+ * The kept state is what settled `return` cases gave back for money; a
+ * complaint that moved money is a price reduction of goods the buyer keeps, so
+ * it leaves `earlier` and counts only against what is left paid
+ * (`refundedOutside`), and against the line it names: no line refunds more,
+ * complaints and returns together, than it was paid (`lineValue`). The first
+ * units back get their full default and the last ones absorb the cut
+ * (product-owner ruling E-C of 2026-11-07).
+ */
+describe('caseDefaultRefunds and the line ceiling — complaints outside the kept state (#874, #875)', () => {
+  type Earlier = Array<{ orderItemId: string; quantity: number; defaultRefundAmount: string; defaultDiscountAmount: string }>;
+  const line = (orderItemId: string, unitNetPrice: string, purchasedQty: number, taxRate: string, returnable = true): RefundOrderLine => ({
+    orderItemId,
+    unitNetPrice,
+    taxRate,
+    purchasedQty,
+    paidLineAmount: grossFromNetHalfUp(lineAmountHalfUp(unitNetPrice, purchasedQty), taxRate, 'fraction'),
+    returnable,
+  });
+  const order = (lines: RefundOrderLine[], discountTotal = '0.00'): Order => ({
+    vatMethod: 'per_rate',
+    productsPaidTotal: moneyDifference(
+      vatByRate(lines.map((l) => ({ net: lineAmountHalfUp(l.unitNetPrice, l.purchasedQty), rate: l.taxRate })), 'fraction').gross,
+      discountTotal,
+    ),
+    discountTotal,
+    lines,
+  });
+  const bolts = order([line('A', '10.0100', 3, '0.23')]);
+  /** A = 3 × 10.0100 at 23 %, B = 2 × 4.9950 at 8 %, a 5.00 order discount: 42.73 paid for the goods. */
+  const twoRate = order([line('A', '10.0100', 3, '0.23'), line('B', '4.9950', 2, '0.08')], '5.00');
+  const defaults = (
+    o: Order,
+    kind: 'return' | 'complaint',
+    current: Array<{ orderItemId: string; quantity: number }>,
+    earlier: Earlier = [],
+    complaints: Array<{ orderItemId: string; amount: string }> = [],
+  ) => effectiveDefaultRefunds({ ...o, orderLines: o.lines, earlier, complaints, kind, current });
+
+  it('the order cap counts complaint money: 3 × 10.01, a complaint of 6.15, then 1 and 2 units (AC-885-2, 2b)', () => {
+    expect(bolts.productsPaidTotal).toBe('36.94');
+    const complaints = [{ orderItemId: 'A', amount: '6.15' }];
+    const [first] = defaults(bolts, 'return', [{ orderItemId: 'A', quantity: 1 }], [], complaints);
+    // The complaint is not in `earlier`: the return refunds the drop in the kept value, 12.32.
+    expect(first).toMatchObject({ refund: '12.32', effective: '12.32' });
+    const [rest] = defaults(
+      bolts,
+      'return',
+      [{ orderItemId: 'A', quantity: 2 }],
+      [{ orderItemId: 'A', quantity: 1, defaultRefundAmount: '12.32', defaultDiscountAmount: '0.00' }],
+      complaints,
+    );
+    // 36.94 − 6.15 − 12.32 is what is left paid: the cap takes 24.62 down to 18.47.
+    expect(rest).toMatchObject({ refund: '18.47', effective: '18.47' });
+  });
+
+  it('a complaint settled without money changes nothing: replaced, then 1 unit returned refunds 12.32 (#874)', () => {
+    const [r] = defaults(bolts, 'return', [{ orderItemId: 'A', quantity: 1 }]);
+    expect(r).toEqual({ refund: '12.32', discount: '0.00', effective: '12.32', ceiling: null });
+  });
+
+  it('a complaint refunded 12.32, then 1 unit returned: 12.32, and the cap still holds (#874)', () => {
+    const [r] = defaults(bolts, 'return', [{ orderItemId: 'A', quantity: 1 }], [], [{ orderItemId: 'A', amount: '12.32' }]);
+    expect(r).toMatchObject({ refund: '12.32', effective: '12.32', ceiling: '24.62' });
+  });
+
+  it('the line value is what the line was paid under the kept-state rule: A 33.07, B 9.66', () => {
+    expect(twoRate.productsPaidTotal).toBe('42.73');
+    const o = { ...twoRate, orderLines: twoRate.lines };
+    expect([lineValue(o, 'A'), lineValue(o, 'B')]).toEqual(['33.07', '9.66']);
+  });
+
+  it('AC-885-7 — a complaint of 6.15 on 1A, then all of A: 26.92 carrying 3.87, then 2B 9.66, closing at 0', () => {
+    const complaints = [{ orderItemId: 'A', amount: '6.15' }];
+    const [a] = defaults(twoRate, 'return', [{ orderItemId: 'A', quantity: 3 }], [], complaints);
+    // The default is still the goods' value, and stays the stored figure; the ceiling binds.
+    expect(a).toEqual({ refund: '33.07', discount: '3.87', effective: '26.92', ceiling: '26.92' });
+    // Approved at the effective default, it carries its full default discount: the goods leave.
+    const approved = settlementApproved({
+      requested: a!.refund,
+      previousDefault: a!.refund,
+      recomputedDefault: a!.refund,
+      effectiveDefault: a!.effective,
+      zeroIsAmount: false,
+    });
+    expect(approved).toEqual({ approved: '26.92' });
+    expect(carriedDiscount(a!.discount, a!.effective, '26.92')).toBe('3.87');
+    const [b] = defaults(
+      twoRate,
+      'return',
+      [{ orderItemId: 'B', quantity: 2 }],
+      [{ orderItemId: 'A', quantity: 3, defaultRefundAmount: a!.refund, defaultDiscountAmount: a!.discount }],
+      complaints,
+    );
+    expect(b).toEqual({ refund: '9.66', discount: '1.13', effective: '9.66', ceiling: null });
+    // Line A: 6.15 + 26.92 = 33.07, what it was paid. Everything: 42.73.
+    expect(decimalSum('6.15', '26.92')).toBe('33.07');
+    expect(decimalSum('6.15', '26.92', b!.effective)).toBe(twoRate.productsPaidTotal);
+  });
+
+  it('the reachable binding: a complaint of 11.03 on 1A, then 2A: 22.04, a cent under the 22.05 default; then 2B 9.66', () => {
+    // A complaint takes up returnable quantity, so after one on 1A only 2A can come back.
+    const [complaint] = defaults(twoRate, 'complaint', [{ orderItemId: 'A', quantity: 1 }]);
+    expect(complaint).toMatchObject({ refund: '11.03', discount: '1.29', effective: '11.03' });
+    const complaints = [{ orderItemId: 'A', amount: '11.03' }];
+    const [a] = defaults(twoRate, 'return', [{ orderItemId: 'A', quantity: 2 }], [], complaints);
+    expect(a).toEqual({ refund: '22.05', discount: '2.58', effective: '22.04', ceiling: '22.04' });
+    const [b] = defaults(
+      twoRate,
+      'return',
+      [{ orderItemId: 'B', quantity: 2 }],
+      [{ orderItemId: 'A', quantity: 2, defaultRefundAmount: a!.refund, defaultDiscountAmount: a!.discount }],
+      complaints,
+    );
+    expect(b).toMatchObject({ refund: '9.66', effective: '9.66' });
+    expect(decimalSum('11.03', a!.effective, b!.effective)).toBe(twoRate.productsPaidTotal);
+  });
+
+  it('E-C — a complaint of 6.15 on 1A, then 1A returned: the full default 11.03, no automatic reduction', () => {
+    const [a] = defaults(twoRate, 'return', [{ orderItemId: 'A', quantity: 1 }], [], [{ orderItemId: 'A', amount: '6.15' }]);
+    expect(a).toEqual({ refund: '11.03', discount: '1.29', effective: '11.03', ceiling: '26.92' });
+    // The operator lowers it by hand when the defective unit itself came back.
+    expect(
+      settlementApproved({ requested: 4.88, previousDefault: '11.03', recomputedDefault: '11.03', effectiveDefault: '11.03', zeroIsAmount: false }),
+    ).toEqual({ approved: '4.88' });
+  });
+
+  it('a complaint is bounded by its line: after 2A returned, a complaint on the last A refunds at most 11.02', () => {
+    const [c] = defaults(
+      twoRate,
+      'complaint',
+      [{ orderItemId: 'A', quantity: 1 }],
+      [{ orderItemId: 'A', quantity: 2, defaultRefundAmount: '22.05', defaultDiscountAmount: '2.58' }],
+    );
+    expect(c).toMatchObject({ refund: '11.02', effective: '11.02', ceiling: '11.02' });
+  });
+
+  it('C1 is unchanged in both orders: a return of the 29.50 line refunds 36.29, a complaint on the 0.6950 × 5 line 4.28', () => {
+    const c1 = order([line('a', '29.4950', 1, '0.23'), line('b', '0.6950', 5, '0.23', false)]);
+    expect(c1.productsPaidTotal).toBe('40.57');
+    const [ret] = defaults(c1, 'return', [{ orderItemId: 'a', quantity: 1 }]);
+    const [after] = defaults(c1, 'complaint', [{ orderItemId: 'b', quantity: 5 }], [
+      { orderItemId: 'a', quantity: 1, defaultRefundAmount: ret!.refund, defaultDiscountAmount: ret!.discount },
+    ]);
+    expect([ret!.effective, after!.effective]).toEqual(['36.29', '4.28']);
+    const [first] = defaults(c1, 'complaint', [{ orderItemId: 'b', quantity: 5 }]);
+    const [then] = defaults(c1, 'return', [{ orderItemId: 'a', quantity: 1 }], [], [{ orderItemId: 'b', amount: first!.effective }]);
+    expect([first!.effective, then!.effective]).toEqual(['4.28', '36.29']);
+  });
+
+  it('cases settled out of creation order: the second settled first refunds 12.32, the first then 12.31 (#875)', () => {
+    // Created as 1 unit then 1 unit: the second was shown 12.31 on the live basis.
+    const [shown1] = defaults(bolts, 'return', [{ orderItemId: 'A', quantity: 1 }]);
+    const [shown2] = defaults(bolts, 'return', [{ orderItemId: 'A', quantity: 1 }], [
+      { orderItemId: 'A', quantity: 1, defaultRefundAmount: shown1!.refund, defaultDiscountAmount: '0.00' },
+    ]);
+    expect([shown1!.refund, shown2!.refund]).toEqual(['12.32', '12.31']);
+    // Settled the other way round, on the settled basis.
+    const [settled2] = defaults(bolts, 'return', [{ orderItemId: 'A', quantity: 1 }]);
+    const [settled1] = defaults(bolts, 'return', [{ orderItemId: 'A', quantity: 1 }], [
+      { orderItemId: 'A', quantity: 1, defaultRefundAmount: settled2!.refund, defaultDiscountAmount: '0.00' },
+    ]);
+    expect([settled2!.refund, settled1!.refund]).toEqual(['12.32', '12.31']);
+    expect(moneyDifference('36.94', decimalSum(settled2!.refund, settled1!.refund))).toBe(
+      vatByRate([{ net: '10.01', rate: '0.23' }], 'fraction').gross,
+    );
+  });
+});
+
+/**
+ * The settlement as the service runs it, over random orders and random cases:
+ * returns and complaints created in turn, then settled in a random order —
+ * some rejected, some replaced, some at their default and some reduced by the
+ * operator — each one recomputed on the settled basis under the order's lock.
+ */
+describe('settlement on the settled kept state, with complaints and the line ceiling (property, #874, #875)', () => {
+  type Kind = 'return' | 'complaint';
+  type KeptLine = { orderItemId: string; quantity: number; defaultRefundAmount: string; defaultDiscountAmount: string };
+  for (const [vatMethod, withDiscount] of [
+    ['per_rate', false],
+    ['per_rate', true],
+    [null, false],
+    [null, true],
+  ] as const) {
+    it(`money never exceeds a line's value or what was paid, and the kept state telescopes (${vatMethod ?? 'legacy'}${withDiscount ? ', discounted' : ''})`, () => {
+      let bound = 0;
+      for (let seed = 1; seed <= 300; seed += 1) {
+        const next = rng(seed * 7919 + 17);
+        const o = randomOrder(next, vatMethod, withDiscount);
+        const input = { ...o, orderLines: o.lines };
+        const values = new Map(o.lines.map((l) => [l.orderItemId, lineValue(input, l.orderItemId)]));
+
+        // Create the cases. Both kinds take up returnable quantity; a return names returnable lines only.
+        const left = new Map(o.lines.map((l) => [l.orderItemId, l.purchasedQty]));
+        const created: Array<{ kind: Kind; lines: Array<{ orderItemId: string; quantity: number }>; shown: string[] }> = [];
+        const provisional: KeptLine[] = [];
+        for (let k = 0; k < 1 + Math.floor(next() * 5); k += 1) {
+          const kind: Kind = next() < 0.35 ? 'complaint' : 'return';
+          const lines = o.lines
+            .filter((l) => left.get(l.orderItemId)! > 0 && (kind === 'complaint' || l.returnable) && next() < 0.6)
+            .map((l) => ({ orderItemId: l.orderItemId, quantity: 1 + Math.floor(next() * left.get(l.orderItemId)!) }));
+          if (lines.length === 0) continue;
+          for (const l of lines) left.set(l.orderItemId, left.get(l.orderItemId)! - l.quantity);
+          const shown = effectiveDefaultRefunds({ ...input, earlier: provisional, complaints: [], kind, current: lines });
+          if (kind === 'return') {
+            lines.forEach((l, i) => provisional.push({ ...l, defaultRefundAmount: shown[i]!.refund, defaultDiscountAmount: shown[i]!.discount }));
+          }
+          created.push({ kind, lines, shown: shown.map((s) => s.refund) });
+        }
+
+        // Settle them in a random order.
+        const order = created.map((_, i) => i).sort(() => next() - 0.5);
+        const kept: KeptLine[] = [];
+        const complaints: Array<{ orderItemId: string; amount: string }> = [];
+        const moneyByLine = new Map<string, string>();
+        let money = '0.00';
+        for (const index of order) {
+          const c = created[index]!;
+          const fate = next();
+          if (fate < 0.3) continue; // rejected, replaced or repaired: no money, outside the kept state
+          const reduced = fate > 0.8;
+          const now = effectiveDefaultRefunds({ ...input, earlier: kept, complaints, kind: c.kind, current: c.lines });
+          if (complaints.length === 0) {
+            // Complaint-free, the ceiling never applies: exactly the #875 rule.
+            const plain = caseDefaultRefunds({ ...input, earlier: kept, current: c.lines });
+            expect(now.map((r) => ({ refund: r.refund, discount: r.discount })), `seed ${seed}`).toEqual(plain);
+            expect(now.every((r) => r.effective === r.refund && r.ceiling === null), `seed ${seed}`).toBe(true);
+          }
+          c.lines.forEach((l, i) => {
+            const r = now[i]!;
+            const orderLine = o.lines.find((x) => x.orderItemId === l.orderItemId)!;
+            if (compareCents(r.effective, r.refund) < 0) bound += 1;
+            const zeroIsAmount = c.kind === 'complaint' && !orderLine.returnable;
+            // The operator approves the default the form showed, or types less.
+            const requested = reduced
+              ? roundHalfUp(Math.floor(next() * (cents(r.effective) + 1)) / 100)
+              : zeroIsAmount
+                ? r.effective
+                : c.shown[i]!;
+            const settled = settlementApproved({
+              requested,
+              previousDefault: c.shown[i]!,
+              recomputedDefault: r.refund,
+              effectiveDefault: r.effective,
+              zeroIsAmount,
+            });
+            expect('approved' in settled, `seed ${seed}: a default or a lower amount is never refused`).toBe(true);
+            const approved = (settled as { approved: string }).approved;
+            expect(cents(approved), `seed ${seed}: a negative refund`).toBeGreaterThanOrEqual(0);
+            expect(compareCents(approved, r.effective), `seed ${seed}: above the effective default`).toBeLessThanOrEqual(0);
+            if (c.kind === 'return') kept.push({ ...l, defaultRefundAmount: r.refund, defaultDiscountAmount: r.discount });
+            else complaints.push({ orderItemId: l.orderItemId, amount: approved });
+            money = decimalSum(money, approved);
+            moneyByLine.set(l.orderItemId, decimalSum(moneyByLine.get(l.orderItemId) ?? '0', approved));
+          });
+
+          expect(compareCents(money, o.productsPaidTotal), `seed ${seed}: refunded more than was paid`).toBeLessThanOrEqual(0);
+          for (const [id, m] of moneyByLine) {
+            // A line never takes back more than it was paid, up to the cent a rate's rounding
+            // hands one line of a case rather than another.
+            expect(cents(m) - cents(values.get(id)!), `seed ${seed}: line ${id} refunded ${m} of ${values.get(id)}`).toBeLessThanOrEqual(1);
+          }
+          if (vatMethod === 'per_rate' && complaints.length === 0) {
+            // What is left paid on the stored defaults is what an invoice of the kept goods charges.
+            const returned = new Map<string, number>();
+            for (const k of kept) returned.set(k.orderItemId, (returned.get(k.orderItemId) ?? 0) + k.quantity);
+            const keptNets = o.lines.map((l) => ({
+              net: lineAmountHalfUp(l.unitNetPrice, l.purchasedQty - (returned.get(l.orderItemId) ?? 0)),
+              rate: l.taxRate,
+            }));
+            const carried = kept.map((k) => carriedDiscount(k.defaultDiscountAmount, k.defaultRefundAmount, k.defaultRefundAmount));
+            expect(
+              moneyDifference(o.productsPaidTotal, decimalSum('0', ...kept.map((k) => k.defaultRefundAmount))),
+              `seed ${seed}: the kept invoice`,
+            ).toBe(moneyDifference(vatByRate(keptNets, 'fraction').gross, moneyDifference(o.discountTotal, decimalSum('0', ...carried))));
+          }
+        }
+
+        const everyUnitReturned = o.lines.every(
+          (l) => kept.filter((k) => k.orderItemId === l.orderItemId).reduce((n, k) => n + k.quantity, 0) === l.purchasedQty,
+        );
+        if (everyUnitReturned && complaints.length === 0) {
+          // Every unit came back through returns: their defaults are what was paid, and carry the whole discount.
+          expect(decimalSum('0', ...kept.map((k) => k.defaultRefundAmount)), `seed ${seed}: a complete return`).toBe(o.productsPaidTotal);
+          expect(decimalSum('0', ...kept.map((k) => k.defaultDiscountAmount)), `seed ${seed}: the discount`).toBe(
+            roundHalfUp(o.discountTotal),
+          );
+        }
+      }
+      // The generator reaches the ceiling, so the bound above is not vacuous.
+      expect(bound).toBeGreaterThan(0);
+    });
+  }
+});
+
+function compareCents(a: string, b: string): number {
+  return Math.sign(cents(a) - cents(b));
+}
