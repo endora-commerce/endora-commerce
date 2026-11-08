@@ -12,9 +12,21 @@
 import type { WorkRows } from '../services/scheduled-work-probe.js';
 import { ASSET_CLEANUP_GRACE_MS, cutoffFor } from './retention-sweep-deps.js';
 
-/** Pass 1: assets whose kept previous version was replaced at or before `cutoff`. */
+/**
+ * Pass 1: assets whose kept previous version was replaced at or before `cutoff`
+ * and that the pass can purge — a previous file locator to delete, on a backend
+ * the platform writes (issue #914). The pass never purges a legacy row or one
+ * without a locator, so it does not select one either: a batch of them would
+ * hide the rows that really are due, and the probe would answer yes forever.
+ */
 export function previousVersionsDue(cutoff: Date): WorkRows {
-  return { from: 'from "assets" where "previous_replaced_at" <= ?', params: [cutoff] };
+  return {
+    from:
+      'from "assets" where "previous_replaced_at" <= ?' +
+      ` and "previous_storage_locator" is not null and "previous_storage_locator" <> ''` +
+      ` and "storage_backend" <> 'legacy'`,
+    params: [cutoff],
+  };
 }
 
 /** Pass 2: assets soft-deleted at or before `cutoff` that no failed delete has parked. */
