@@ -137,6 +137,7 @@ const BUNDLE = {
     'consent.recordedInfo',
     'consent.revokedInfo',
     'consent.frozen',
+    'consent.closed',
     'consent.requiredHint',
     'consent.goToPanel',
     'consent.needsConsent',
@@ -156,17 +157,19 @@ const BUNDLE = {
 let currentCase: Record<string, unknown> = CASE;
 let currentPrefill: Record<string, unknown> = PREFILL;
 let paymentMethods: unknown = null;
+let statuses: unknown[] = [];
 
 beforeEach(() => {
   currentCase = CASE;
   currentPrefill = PREFILL;
   paymentMethods = null;
+  statuses = [];
   getSpy.mockReset();
   postSpy.mockReset();
   deleteSpy.mockReset();
   getSpy.mockImplementation((path: string) => {
     if (path === '/api/v1/admin/returns/r1') return Promise.resolve({ data: currentCase });
-    if (path === '/api/v1/admin/returns/statuses') return Promise.resolve({ data: { statuses: [], transitions: [] } });
+    if (path === '/api/v1/admin/returns/statuses') return Promise.resolve({ data: { statuses, transitions: [] } });
     if (path === '/api/v1/admin/returns/r1/settlement') return Promise.resolve({ data: currentPrefill });
     if (path.startsWith('/api/v1/admin/payment-methods')) {
       return paymentMethods === null ? Promise.reject(new Error('forbidden')) : Promise.resolve({ data: paymentMethods });
@@ -387,6 +390,37 @@ describe('ReturnDetail — the consumer’s consent is recorded and revoked by t
     expect(screen.queryByRole('button', { name: 'consent.revoke' })).not.toBeInTheDocument();
     expect(screen.queryByRole('button', { name: 'consent.record' })).not.toBeInTheDocument();
     expect(screen.queryByRole('button', { name: 'consent.change' })).not.toBeInTheDocument();
+  });
+
+  it('closes the consent of a case in a terminal status, showing what is on record read-only', async () => {
+    // PO ruling on #945 (Q3): terminal in the configured graph, whatever its code.
+    statuses = [
+      { code: 'received', isTerminal: false, isInitial: false },
+      { code: 'archived', isTerminal: true, isInitial: false },
+    ];
+    currentCase = { ...CASE, statusCode: 'archived', alternativeResolutionConsent: CONSENT };
+    renderDetail();
+    expect(await screen.findByText('consent.closed')).toBeInTheDocument();
+    expect(screen.getByText('Customer e-mail, ticket #123')).toBeInTheDocument();
+    expect(screen.queryByText('consent.frozen')).not.toBeInTheDocument();
+    for (const name of ['consent.revoke', 'consent.record', 'consent.change']) {
+      expect(screen.queryByRole('button', { name })).not.toBeInTheDocument();
+    }
+  });
+
+  it('keeps the actions on a case whose status is not terminal', async () => {
+    statuses = [{ code: 'received', isTerminal: false, isInitial: false }];
+    renderDetail();
+    expect(await screen.findByRole('button', { name: 'consent.record' })).toBeInTheDocument();
+    expect(screen.queryByText('consent.closed')).not.toBeInTheDocument();
+  });
+
+  it('shows the time zone beside the time the consent was given', async () => {
+    currentCase = { ...CASE, alternativeResolutionConsent: CONSENT };
+    renderDetail();
+    await screen.findByText('Customer e-mail, ticket #123');
+    const zone = Intl.DateTimeFormat().resolvedOptions().timeZone;
+    expect(screen.getByText((text) => text.includes(`(${zone})`))).toBeInTheDocument();
   });
 
   it('shows nothing of this to a case that is not a consumer withdrawal', async () => {
