@@ -167,6 +167,37 @@ describe('mfa.admin.totp_enforced switched on — existing sessions', () => {
     expect((await putEnforced(false, cookieOf(current))).statusCode).toBe(200);
   });
 
+  it('keeps the acting session id out of the setting write\'s audit rows', async () => {
+    await createAdmin('setting-audited@example.com', PLATFORM_ADMIN_ROLE_ID);
+    const cookie = await signIn('setting-audited@example.com');
+    const sessionId = cookie.slice(0, cookie.indexOf('.'));
+    expect((await putEnforced(false, cookieOf(cookie))).statusCode).toBe(200);
+    const rows = (await h
+      .em()
+      .getConnection()
+      .execute(
+        `select "state_before", "state_after" from "audit_log_entries"
+          where "action" like 'setting.%'`,
+      )) as Array<Record<string, unknown>>;
+    expect(rows.length).toBeGreaterThan(0);
+    const audited = JSON.stringify(rows);
+    expect(audited).not.toContain('actorSessionId');
+    expect(audited).not.toContain(sessionId);
+  });
+
+  it('spares nobody when the write has no session behind it, as a seed has none', async () => {
+    await createAdmin('setting-seeded@example.com', READ_ONLY_ROLE_ID);
+    const cookie = await signIn('setting-seeded@example.com');
+    // What a boot reconciler or a seed does: the service, with no actor at all.
+    await h.settings.adminService.setValueForAllChannels(ENFORCED, true, null, {
+      actorAdminUserId: null,
+    });
+    await vi.waitFor(async () => expect(await meStatus(cookie)).toBe(401), { timeout: 5000 });
+    await h.settings.adminService.setValueForAllChannels(ENFORCED, false, null, {
+      actorAdminUserId: null,
+    });
+  });
+
   it('signs out nobody when the setting is switched off', async () => {
     await createAdmin('setting-off@example.com', READ_ONLY_ROLE_ID);
     const cookie = await signIn('setting-off@example.com');

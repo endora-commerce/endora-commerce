@@ -253,4 +253,44 @@ describe('MfaLoginService.beginLogin — no encryption key (issue #948)', () => 
       expect(issued).toEqual([]);
     });
   }
+
+  // Architect ruling on #967 (#947): the keyless `proceed` is global, so a
+  // customer an organization's policy binds is not sent to a setup step either.
+  it('does not send a customer bound by organization enforcement to a setup step', async () => {
+    const issued: string[] = [];
+    const em = (() => ({
+      // No enrolment; the organization's policy enforces TOTP.
+      findOne: async (entity: { name?: string }) =>
+        entity?.name === 'MfaOrganizationPolicy' ? { enforceTotp: true } : null,
+    })) as unknown as () => EntityManager;
+    const store = new ChallengeStore(fakeRedis());
+    store.issueSetupTicket = async () => {
+      issued.push('setup');
+      return 'ticket';
+    };
+    store.issueChallenge = async () => {
+      issued.push('challenge');
+      return 'challenge';
+    };
+    const resolver = new MfaPolicyResolver(
+      { get: async () => false as never },
+      em,
+      async () => ({ refusal: new Error('not an administrator') }),
+      async () => null,
+      false,
+    );
+    const policy = await resolver.resolve(
+      { subjectType: 'customer', subjectId: 'c1' },
+      { salesChannelId: null, organizationId: 'org1' },
+    );
+    // The organization's requirement is real, and still nothing is asked.
+    expect(policy.totpEnforced).toBe(true);
+    const login = new MfaLoginService(em, store, resolver);
+    const decision = await login.beginLogin(
+      { subjectType: 'customer', subjectId: 'c1' },
+      { salesChannelId: null, organizationId: 'org1' },
+    );
+    expect(decision.kind).toBe('proceed');
+    expect(issued).toEqual([]);
+  });
 });

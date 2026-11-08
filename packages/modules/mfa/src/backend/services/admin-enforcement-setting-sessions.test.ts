@@ -49,6 +49,15 @@ describe('ending unprotected sessions when mfa.admin.totp_enforced is switched o
     expect(calls).toEqual([[['a1', 'a2'], { trigger: 'setting_enabled', settingCode: ENFORCED }]]);
   });
 
+  // Architect ruling on #967 — a write with no session behind it (a boot
+  // reconciler, a seed) has nothing to spare.
+  it('spares nobody for a write made with no actor session, as a boot reconciler or a seed makes', async () => {
+    const { handle, calls } = harness({ enforced: true });
+    await handle({ settingCode: ENFORCED, actorAdminUserId: null, actorSessionId: null });
+    expect(calls).toHaveLength(1);
+    expect(calls[0]![1]).not.toHaveProperty('exceptSessionId');
+  });
+
   it('does nothing when the setting was switched off', async () => {
     const { handle, calls } = harness({ enforced: false });
     await handle({ settingCode: ENFORCED, actorAdminUserId: 'a1', actorSessionId: 's-actor' });

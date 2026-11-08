@@ -13,6 +13,12 @@ import { renderWithI18n, passthroughBundle } from '../../helpers/render-with-i18
  * `settingLabels.<code>.confirmation.<token>` with the read's `params`, and the
  * API's sentence otherwise. The screen asks only when the draft is the value
  * the confirmation names; declining saves nothing.
+ *
+ * The count is the one in force **at save time** (architect ruling on #967):
+ * the setting is re-read just before asking, and the question is built from
+ * that read's `confirmation`; a re-read with none saves without asking. After
+ * an accepted save the screen says, without a count, what is happening, from
+ * `settingLabels.<code>.confirmed.<token>`.
  */
 
 function flag(confirmation?: SettingDto['confirmation']): SettingDto {
@@ -51,11 +57,13 @@ function listOf(setting: SettingDto): { groups: SettingGroupDto[] } {
 
 const listSpy = vi.fn<() => Promise<{ groups: SettingGroupDto[] }>>();
 const setValueSpy = vi.fn(async () => ({}) as SettingDto);
+const getByCodeSpy = vi.fn<(code: string) => Promise<SettingDto>>();
 
 vi.mock('../../../../packages/modules/settings/src/admin/api/settings-client', () => ({
   settingsClient: {
     list: () => listSpy(),
     setValue: (...args: unknown[]) => setValueSpy(...(args as [])),
+    getByCode: (code: string) => getByCodeSpy(code),
     resetValues: async () => undefined,
   },
 }));
@@ -105,6 +113,8 @@ const bundle = {
   fixture_mod: {
     'settingLabels.fixture_mod.enforced.confirmation.signs_out':
       'Wylogowani zostaną administratorzy: {count}. Kontynuować?',
+    'settingLabels.fixture_mod.enforced.confirmed.signs_out':
+      'Trwa wylogowywanie administratorów bez weryfikacji dwuetapowej.',
   },
 };
 
@@ -139,21 +149,42 @@ async function switchOnAndSave(): Promise<void> {
 afterEach(() => {
   vi.restoreAllMocks();
   listSpy.mockReset();
+  getByCodeSpy.mockReset();
   setValueSpy.mockClear();
 });
 
 describe('SettingsPage — a write the owning module asks to confirm', () => {
-  it('asks with the translated sentence and its count, then saves', async () => {
+  it('asks with the count read at save time, then saves and says sign-out is under way', async () => {
     listSpy.mockResolvedValue(listOf(flag(CONFIRMATION)));
+    // Between the screen's read and the save, two more administrators appeared.
+    getByCodeSpy.mockResolvedValue(flag({ ...CONFIRMATION, params: { count: 4 } }));
     const confirm = vi.spyOn(window, 'confirm').mockReturnValue(true);
     renderPage();
     await switchOnAndSave();
     await waitFor(() => expect(setValueSpy).toHaveBeenCalled());
-    expect(confirm).toHaveBeenCalledWith('Wylogowani zostaną administratorzy: 2. Kontynuować?');
+    expect(getByCodeSpy).toHaveBeenCalledWith('fixture_mod.enforced');
+    expect(confirm).toHaveBeenCalledWith('Wylogowani zostaną administratorzy: 4. Kontynuować?');
+    expect(
+      await screen.findByText('Trwa wylogowywanie administratorów bez weryfikacji dwuetapowej.'),
+    ).toBeTruthy();
+  });
+
+  it('saves without asking when the save-time read carries no confirmation', async () => {
+    listSpy.mockResolvedValue(listOf(flag(CONFIRMATION)));
+    getByCodeSpy.mockResolvedValue(flag());
+    const confirm = vi.spyOn(window, 'confirm').mockReturnValue(true);
+    renderPage();
+    await switchOnAndSave();
+    await waitFor(() => expect(setValueSpy).toHaveBeenCalled());
+    expect(confirm).not.toHaveBeenCalled();
+    expect(
+      screen.queryByText('Trwa wylogowywanie administratorów bez weryfikacji dwuetapowej.'),
+    ).toBeNull();
   });
 
   it('saves nothing when the operator declines', async () => {
     listSpy.mockResolvedValue(listOf(flag(CONFIRMATION)));
+    getByCodeSpy.mockResolvedValue(flag(CONFIRMATION));
     const confirm = vi.spyOn(window, 'confirm').mockReturnValue(false);
     renderPage();
     await switchOnAndSave();
@@ -161,12 +192,13 @@ describe('SettingsPage — a write the owning module asks to confirm', () => {
     expect(setValueSpy).not.toHaveBeenCalled();
   });
 
-  it('asks nothing when the read carries no confirmation', async () => {
+  it('asks nothing, and reads nothing more, when the screen read carries no confirmation', async () => {
     listSpy.mockResolvedValue(listOf(flag()));
     const confirm = vi.spyOn(window, 'confirm').mockReturnValue(true);
     renderPage();
     await switchOnAndSave();
     await waitFor(() => expect(setValueSpy).toHaveBeenCalled());
     expect(confirm).not.toHaveBeenCalled();
+    expect(getByCodeSpy).not.toHaveBeenCalled();
   });
 });
