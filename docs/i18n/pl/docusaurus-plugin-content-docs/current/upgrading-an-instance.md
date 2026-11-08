@@ -3987,6 +3987,31 @@ powiązany z kluczem był odrzucany już wcześniej, odpowiedzią `400 INACTIVE_
 3. **Uruchom zapytanie ponownie.** Gdy nie zwraca żadnego wiersza, każda integracja może składać
    zamówienia.
 
+### Wymuszona weryfikacja dwuetapowa bez klucza szyfrowania {#admin-two-step-without-key}
+
+Wydanie, które zawiera `MFA_ENFORCEMENT_UNAVAILABLE`, usuwa blokadę dostępu (zgłoszenie #930). Bez
+`MFA_SECRET_ENCRYPTION_KEY` moduł MFA nie może skonfigurować drugiego składnika: nie udostępnia ani
+kroku konfiguracji, ani kroku wpisania kodu. Mimo to przy włączonym ustawieniu **Admin UI — enforce
+two-step verification** (`mfa.admin.totp_enforced`) logowanie nadal kierowało każdego
+administratora bez drugiego składnika do kroku konfiguracji, którego nie dało się ukończyć, więc
+żaden z nich nie mógł się zalogować.
+
+**Zmiana zachowania po aktualizacji:**
+
+- Włączenie `mfa.admin.totp_enforced` jest odrzucane, dopóki klucz nie jest ustawiony:
+  `409 MFA_ENFORCEMENT_UNAVAILABLE`, z `details.reason: 'encryption_key_missing'`. Wyłączenie
+  ustawienia jest zawsze dozwolone.
+- **Na instancji, na której ustawienie jest już włączone, a klucz nie jest ustawiony**, ustawienie
+  nie jest stosowane: administratorzy bez drugiego składnika logują się hasłem, tak jak przy
+  wyłączonym ustawieniu. Samo ustawienie się nie zmienia. Backend zapisuje ostrzeżenie w logu przy
+  każdym starcie, dopóki klucz nie zostanie ustawiony albo ustawienie wyłączone. Wcześniej ci
+  administratorzy nie mogli się w ogóle zalogować.
+- Na instancji z kluczem nic się nie zmienia: wymuszanie działa jak dotąd.
+
+**Po aktualizacji,** jeśli pojawi się ostrzeżenie, ustaw `MFA_SECRET_ENCRYPTION_KEY` (zobacz
+[listę kontrolną pierwszego wdrożenia](./deployment/first-deployment-checklist.md)) i uruchom
+backend ponownie, aby wymuszanie znów działało, albo wyłącz to ustawienie w **Ustawieniach**.
+
 ## Instancja niespójna od początku
 
 Instalator `0.101.x` lub starszy zapisywał każdy pakiet wydania z `^` poza

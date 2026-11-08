@@ -16,6 +16,16 @@ import { MfaOrganizationPolicy } from '../entities/mfa-organization-policy.entit
  * Every settings read is defensive: if a setting is not yet registered (e.g. a
  * narrow test that skips manifest seeding) the resolver treats it as `false`,
  * so login degrades safely to password-only rather than erroring.
+ *
+ * **`mfa.admin.totp_enforced` is not in force where no factor can be enrolled**
+ * (issue #930). Without `MFA_SECRET_ENCRYPTION_KEY` this module serves no
+ * enrolment route, so enforcing the setting would send every administrator
+ * without a factor to a setup step nothing can complete — the whole Admin UI
+ * locked out, with no administrator left to turn the setting off. The setting's
+ * write refuses to turn it on in that state and every boot warns while it is
+ * on, so this branch is reached only by a value set before the key went. It is
+ * that one setting and nothing else: storefront and organization enforcement
+ * are untouched.
  */
 export interface MfaResolvedPolicy {
   totpEnabled: boolean;
@@ -39,6 +49,12 @@ export class MfaPolicyResolver {
      * uuid or `null`, so a literal sentinel cannot be used.
      */
     private readonly resolveDefaultChannelId: () => Promise<string | null> = async () => null,
+    /**
+     * Issue #930 — whether this composition can enrol a second factor (it was
+     * given an encryption key). Defaults to `true`, which keeps every
+     * requirement in force.
+     */
+    private readonly canEnrolSecondFactor: boolean = true,
   ) {}
 
   async resolve(
@@ -88,7 +104,9 @@ export class MfaPolicyResolver {
       orgEnforced = await this.readOrgEnforcement(ctx.organizationId);
     }
 
-    const totpEnforced = totpEnforcedRaw || orgEnforced;
+    // Issue #930 — an administrator requirement nothing can meet is not applied.
+    const settingEnforced = isAdmin && !this.canEnrolSecondFactor ? false : totpEnforcedRaw;
+    const totpEnforced = settingEnforced || orgEnforced;
     // Invariant FR-016: enforcement implies enablement.
     const totpEnabled = totpEnabledRaw || totpEnforced;
 

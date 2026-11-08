@@ -7,6 +7,8 @@ import {
 } from '../../helpers/test-server.js';
 import { PLATFORM_ADMIN_ROLE_ID } from '../../helpers/seed-admins.js';
 import { withModuleOff } from '../../helpers/off-state.js';
+import { TEST_ADMIN_ID } from '../../helpers/test-actors.js';
+import { AdminUser } from '../../helpers/package-entities.js';
 
 /**
  * Issue #930 — `mfa.admin.totp_enforced` on an instance with no
@@ -36,14 +38,22 @@ describe('mfa.admin.totp_enforced without an encryption key (issue #930)', () =>
   let h: BackendServerHandle;
   let savedKey: string | undefined;
 
-  const putEnforced = (value: boolean, headers: Record<string, string> = {}) =>
+  const putEnforced = (value: boolean) =>
     h.app.inject({
       method: 'PUT',
       url: `/api/v1/admin/settings/${ENFORCED}/value`,
       cookies: STUB_ADMIN,
-      headers,
       payload: { scope: 'all', value },
     });
+
+  // The admin arm resolves its language from the stored preference and
+  // ignores `Accept-Language` (D-132).
+  const preferLanguage = async (language: string | null) => {
+    const em = h.em();
+    const admin = await em.findOneOrFail(AdminUser, { id: TEST_ADMIN_ID });
+    admin.preferredLanguage = language;
+    await em.flush();
+  };
 
   const storedGlobalValue = async (): Promise<unknown> => {
     const rows = (await h
@@ -103,7 +113,10 @@ describe('mfa.admin.totp_enforced without an encryption key (issue #930)', () =>
     );
     expect(await storedGlobalValue()).toBeNull();
 
-    const pl = await putEnforced(true, { 'accept-language': 'pl' });
+    const before =
+      (await h.em().findOneOrFail(AdminUser, { id: TEST_ADMIN_ID })).preferredLanguage ?? null;
+    await preferLanguage('pl');
+    const pl = await putEnforced(true).finally(() => preferLanguage(before));
     expect(pl.statusCode).toBe(409);
     expect((pl.json().error as { message: string }).message).toBe(
       'Na tej instancji nie można wymagać od administratorów weryfikacji dwuetapowej, bo nie da ' +

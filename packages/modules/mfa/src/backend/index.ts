@@ -15,7 +15,10 @@ import type {
   MfaEnrolmentStatePort,
   MfaLoginPort,
   OrganizationPermissionPort,
+  SettingWriteValidatorRegistryPort,
 } from '@endora-commerce/contracts';
+import { MFA_SETTING_CODES } from '@endora-commerce/contracts';
+import { z } from 'zod';
 import type {
   AuditPort,
   SalesChannelAccessPort,
@@ -23,7 +26,7 @@ import type {
 } from '@endora-commerce/platform/kernel';
 import type { CommandBus } from '@endora-commerce/platform/commands';
 import type { ModuleContext } from '@endora-commerce/platform/kernel';
-import { lazyPort } from '@endora-commerce/platform/kernel';
+import { effectiveState, lazyPort } from '@endora-commerce/platform/kernel';
 import type { RequireAdminFactory } from '@endora-commerce/platform/kernel';
 import type { SettingsReader } from './services/mfa-policy-resolver.js';
 import {
@@ -42,6 +45,10 @@ import { MfaDeactivationGuardService } from './services/mfa-deactivation-guard.s
 import { MfaEnrolmentStateService } from './services/mfa-enrolment-state.service.js';
 import type { SocialIdentityDeps } from './services/social-identity-service.js';
 import { createCustomerChannelAccess } from './services/customer-channel-access.js';
+import {
+  createAdminEnforcementSettingValidator,
+  warnOfUnenforceableAdminSetting,
+} from './services/admin-enforcement-without-key.js';
 import { mfaModule, type MfaModuleHandle } from './plugin.js';
 import { MfaEnrolment } from './entities/mfa-enrolment.entity.js';
 import { MfaOrganizationPolicy } from './entities/mfa-organization-policy.entity.js';
@@ -380,6 +387,37 @@ export function registerModule(ctx: ModuleContext): void {
       .asFunction(({ emFactory }: MfaCradle) => new MfaEnrolmentStateService(emFactory))
       .singleton(),
   );
+
+  /**
+   * Issue #930 — `mfa.admin.totp_enforced` cannot be turned on where no second
+   * factor can be enrolled. A **contribution** hook and unprobed, in the `cms`
+   * / `seo` shape: the registry itself skips a validator whose contributor is
+   * absent, and the platform refuses an absent module's setting writes first.
+   */
+  ctx.onBoot(() => {
+    lazyPort<SettingWriteValidatorRegistryPort>(ctx, 'settingWriteValidatorRegistry').register(
+      createAdminEnforcementSettingValidator(
+        () => ctx.cradle<MfaCradle>().mfa.handle().enrolmentService !== null,
+      ),
+    );
+  });
+
+  /**
+   * Issue #930 — an instance whose `mfa.admin.totp_enforced` is on with no
+   * encryption key is told at every boot that the requirement is not applied.
+   * Work, so asked for presence first: off means no second factor at all
+   * (D-96), so there is nothing to warn about.
+   */
+  ctx.onBoot(async () => {
+    if (!effectiveState.isPresent('mfa')) return;
+    const { mfa, settingsReadPort } = ctx.cradle<MfaCradle>();
+    await warnOfUnenforceableAdminSetting({
+      hasEncryptionKey: mfa.handle().enrolmentService !== null,
+      readEnforced: () =>
+        settingsReadPort.get(MFA_SETTING_CODES.ADMIN_TOTP_ENFORCED, null, z.boolean()),
+      warn: (fields, message) => ctx.log.warn(fields, message),
+    });
+  });
 
   ctx.routes(async (app) => {
     const plugin = ctx.cradle<MfaCradle>().mfa.plugin as (a: typeof app) => Promise<void>;

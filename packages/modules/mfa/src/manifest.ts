@@ -262,6 +262,10 @@ export const manifest = defineModuleManifest({
     // second factor. Only ever raised while the module is present, so this
     // bundle is there to translate it.
     { code: 'MFA_DEACTIVATION_BLOCKED' },
+    // Issue #930 — the `mfa.admin.totp_enforced` write, refused while no
+    // second factor can be enrolled. Raised by this module's own validator,
+    // which `settings` consults only while the module is present.
+    { code: 'MFA_ENFORCEMENT_UNAVAILABLE', tokens: ['encryption_key_missing'] },
     { code: 'MFA_INVALID_CHALLENGE' },
     { code: 'MFA_INVALID_CODE' },
     { code: 'MFA_NOT_ENABLED' },

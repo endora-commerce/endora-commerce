@@ -631,6 +631,13 @@ export const ERROR_CODES = {
    * with a second factor; the requirement is turned off first.
    */
   MFA_DEACTIVATION_BLOCKED: 'MFA_DEACTIVATION_BLOCKED',
+  /**
+   * Administrators cannot be required to use a second factor that this
+   * instance cannot enrol: `mfa` has no encryption key (issue #930). Raised by
+   * the `mfa.admin.totp_enforced` write; `details.reason` is
+   * `encryption_key_missing`.
+   */
+  MFA_ENFORCEMENT_UNAVAILABLE: 'MFA_ENFORCEMENT_UNAVAILABLE',
   MFA_INVALID_CODE: 'MFA_INVALID_CODE',
   MFA_INVALID_CHALLENGE: 'MFA_INVALID_CHALLENGE',
   MFA_TOO_MANY_ATTEMPTS: 'MFA_TOO_MANY_ATTEMPTS',

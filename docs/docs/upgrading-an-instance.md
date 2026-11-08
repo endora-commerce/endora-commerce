@@ -3803,6 +3803,29 @@ bound channel that is switched off was already refused, with `400 INACTIVE_SALES
    to the integration and revoke the old one. A key's binding cannot be edited.
 3. **Run the query again.** It returns no rows when every integration can place orders.
 
+### Enforced two-step verification without an encryption key {#admin-two-step-without-key}
+
+The release that ships `MFA_ENFORCEMENT_UNAVAILABLE` closes a lockout (issue #930). Without
+`MFA_SECRET_ENCRYPTION_KEY` the MFA module cannot set up a second factor: it serves no setup or
+code-entry step. Yet with **Admin UI — enforce two-step verification** (`mfa.admin.totp_enforced`)
+on, sign-in still sent every administrator without a second factor to a setup step, which could
+not be completed, so none of them could sign in.
+
+**Behaviour change on upgrade:**
+
+- Turning `mfa.admin.totp_enforced` on is refused while the key is not set:
+  `409 MFA_ENFORCEMENT_UNAVAILABLE`, with `details.reason: 'encryption_key_missing'`. Turning it off
+  is always allowed.
+- **On an instance where the setting is already on and the key is not set**, the setting is not
+  applied: administrators without a second factor sign in with their password, as they would with
+  the setting off. The setting is not changed. The backend logs a warning at every start until the
+  key is set or the setting is turned off. Before, these administrators could not sign in at all.
+- Nothing changes on an instance that has the key: enforcement applies as before.
+
+**After upgrading,** if the warning appears, either set `MFA_SECRET_ENCRYPTION_KEY` (see the
+[first deployment checklist](./deployment/first-deployment-checklist.md)) and restart, so that
+enforcement applies again, or turn the setting off in **Settings**.
+
 ## An instance that is mixed from the start
 
 The installer of `0.101.x` or earlier wrote every package of the release with a `^` except

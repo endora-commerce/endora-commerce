@@ -12,6 +12,8 @@
   "errors.MFA_TOO_MANY_ATTEMPTS": "Wpisano zbyt wiele błędnych kodów, więc ta próba logowania została przerwana. Zaloguj się ponownie i użyj kolejnego kodu prosto z aplikacji uwierzytelniającej albo jednego z kodów odzyskiwania.",
   "errors.MFA_WRONG_SURFACE": "To logowanie zostało rozpoczęte w innym miejscu, więc tego kodu nie można tu potwierdzić. Wróć na stronę, na której rozpoczęło się logowanie, i wpisz kod tam.",
   "errors.MFA_DEACTIVATION_BLOCKED": "Nie można wyłączyć weryfikacji dwuetapowej, dopóki administratorzy muszą z niej korzystać. Najpierw wyłącz ustawienie „Admin UI — enforce two-step verification” (mfa.admin.totp_enforced), a potem wyłącz moduł.",
+  "errors.MFA_ENFORCEMENT_UNAVAILABLE": "Na tej instancji nie można wymagać od administratorów weryfikacji dwuetapowej.",
+  "errors.MFA_ENFORCEMENT_UNAVAILABLE.encryption_key_missing": "Na tej instancji nie można wymagać od administratorów weryfikacji dwuetapowej, bo nie da się skonfigurować drugiego składnika: nie ustawiono klucza szyfrowania MFA_SECRET_ENCRYPTION_KEY. Poproś osobę, która utrzymuje platformę, o jego ustawienie, a potem włącz to ustawienie ponownie.",
   "nav.security.label": "Bezpieczeństwo konta",
   "actions.openSecurity.label": "Bezpieczeństwo konta",
   "actions.openSecurity.description": "Skonfiguruj lub zmień własną weryfikację dwuetapową",

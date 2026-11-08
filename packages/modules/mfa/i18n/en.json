@@ -12,6 +12,8 @@
   "errors.MFA_TOO_MANY_ATTEMPTS": "Too many incorrect codes were entered, so this sign-in attempt was stopped. Sign in again and use the next code straight from your authenticator app, or one of your recovery codes.",
   "errors.MFA_WRONG_SURFACE": "This sign-in was started somewhere else, so the code cannot be confirmed here. Go back to the page you were signing in on and enter it there.",
   "errors.MFA_DEACTIVATION_BLOCKED": "Two-step verification cannot be switched off while administrators are required to use it. Turn off the setting \"Admin UI — enforce two-step verification\" (mfa.admin.totp_enforced) first, then switch the module off.",
+  "errors.MFA_ENFORCEMENT_UNAVAILABLE": "Administrators cannot be required to use two-step verification on this instance.",
+  "errors.MFA_ENFORCEMENT_UNAVAILABLE.encryption_key_missing": "Administrators cannot be required to use two-step verification on this instance, because no second factor can be set up: the encryption key MFA_SECRET_ENCRYPTION_KEY is not configured. Ask whoever runs this platform to set it, then turn the setting on again.",
   "nav.security.label": "Account security",
   "actions.openSecurity.label": "Account security",
   "actions.openSecurity.description": "Set up or change your own two-step verification",
