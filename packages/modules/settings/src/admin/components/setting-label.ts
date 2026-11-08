@@ -51,6 +51,11 @@ export function settingConfirmationKey(settingCode: string, confirmationCode: st
   return `settingLabels.${settingCode}.confirmation.${confirmationCode}`;
 }
 
+/** `settingLabels.<setting code>.confirmed.<confirmation code>` — said after an accepted save. */
+export function settingConfirmedKey(settingCode: string, confirmationCode: string): string {
+  return `settingLabels.${settingCode}.confirmed.${confirmationCode}`;
+}
+
 /** `settingGroups.<group code>.name` */
 export function settingGroupNameKey(groupCode: string): string {
   return `settingGroups.${groupCode}.name`;
@@ -152,6 +157,23 @@ export function resolveSettingConfirmation(
   );
 }
 
+/**
+ * After a save whose confirmation was accepted: what is now happening, in the
+ * owner's words and without a count. `null` when the owner's bundles say
+ * nothing — there is no API fallback, so a module opts in by shipping the key.
+ */
+export function resolveSettingConfirmed(
+  setting: LabelledSetting & { readonly confirmation?: { code: string } | undefined },
+  source: SettingLabelSource,
+): string | null {
+  if (!setting.confirmation) return null;
+  return fromOwnerBundle(
+    setting.ownerModule,
+    settingConfirmedKey(setting.code, setting.confirmation.code),
+    source,
+  );
+}
+
 export function resolveSettingGroupName(
   group: LabelledSettingGroup,
   source: SettingLabelSource,
@@ -172,6 +194,9 @@ export interface SettingLabels {
         | undefined;
     },
   ): string | null;
+  settingConfirmed(
+    setting: LabelledSetting & { readonly confirmation?: { code: string } | undefined },
+  ): string | null;
   groupName(group: LabelledSettingGroup): string;
 }
 
@@ -185,6 +210,7 @@ export function useSettingLabels(): SettingLabels {
       settingDescription: (setting) => resolveSettingDescription(setting, source),
       settingNotice: (setting) => resolveSettingNotice(setting, source),
       settingConfirmation: (setting) => resolveSettingConfirmation(setting, source),
+      settingConfirmed: (setting) => resolveSettingConfirmed(setting, source),
       groupName: (group) => resolveSettingGroupName(group, source),
     };
   }, [language, bundle, fallbackBundle]);

@@ -182,12 +182,21 @@ contributor whose module is off is skipped by both.
   A provider may also implement `confirmation`, which says what to ask before a
   write: `{ whenValue, code, message, params? }`, or `null`. The response then
   carries it as `confirmation`. When an operator saves exactly `whenValue`, the
-  Settings screen asks first, with the text from your bundle at
-  `settingLabels.<setting code>.confirmation.<code>` filled in from `params`,
-  else `message`; declining saves nothing. A provider whose `confirmation`
-  throws is logged and skipped, and the write is saved without asking. `mfa`
-  uses it to say how many administrators switching `mfa.admin.totp_enforced`
-  on will sign out.
+  Settings screen re-reads the setting just before saving and asks with that
+  read's `confirmation`, so a count in `params` is the one in force at save
+  time; if the re-read carries none, it saves without asking. The question is
+  the text from your bundle at `settingLabels.<setting code>.confirmation.<code>`
+  filled in from `params`, else `message`; declining saves nothing. After an
+  accepted save the screen shows `settingLabels.<setting code>.confirmed.<code>`
+  from your bundle, when you ship it, in place of the saved-count line. A
+  provider whose `confirmation` throws is logged and skipped, and the write is
+  saved without asking.
+
+  `mfa` uses it for `mfa.admin.totp_enforced`. The sign-out itself is not tied
+  to the question: `mfa` ends the sessions of administrators without a second
+  factor after any write that leaves `mfa.admin.totp_enforced` on, through
+  `settings.value_changed`. The question is asked only when a save turns it on,
+  with how many administrators that is.
 
 ```ts
 ctx.onBoot(() => {

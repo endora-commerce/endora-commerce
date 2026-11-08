@@ -18,6 +18,7 @@
   "errors.MFA_ENFORCEMENT_UNAVAILABLE.encryption_key_missing": "Na tej instancji nie można wymagać od administratorów weryfikacji dwuetapowej, bo nie da się skonfigurować drugiego składnika: nie ustawiono klucza szyfrowania MFA_SECRET_ENCRYPTION_KEY. Poproś osobę, która utrzymuje platformę, o jego ustawienie, a potem włącz to ustawienie ponownie.",
   "settingLabels.mfa.admin.totp_enforced.notice.encryption_key_missing": "Nie obowiązuje: brak klucza szyfrowania (MFA_SECRET_ENCRYPTION_KEY).",
   "settingLabels.mfa.admin.totp_enforced.confirmation.signs_out_unprotected": "Administratorzy bez skonfigurowanej weryfikacji dwuetapowej: {count}. Zostaną teraz wylogowani i przy następnym logowaniu poproszeni o jej skonfigurowanie. Kontynuować?",
+  "settingLabels.mfa.admin.totp_enforced.confirmed.signs_out_unprotected": "Trwa wylogowywanie administratorów bez skonfigurowanej weryfikacji dwuetapowej.",
   "nav.security.label": "Bezpieczeństwo konta",
   "actions.openSecurity.label": "Bezpieczeństwo konta",
   "actions.openSecurity.description": "Skonfiguruj lub zmień własną weryfikację dwuetapową",

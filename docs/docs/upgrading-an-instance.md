@@ -3924,6 +3924,8 @@ not be completed, so none of them could sign in.
     not asked for a code, because nothing can check it. Before, they could not sign in at all. The
     backend logs an error at every start with how many such enrolments there are;
   - nobody is signed out for being given a role that requires two-step verification.
+  - without the key, customers are not asked for a second factor either, whether they are
+    enrolled or bound by storefront or organization enforcement.
 
 **After upgrading,** if a notice or a logged error appears, either set `MFA_SECRET_ENCRYPTION_KEY`
 (see the [first deployment checklist](./deployment/first-deployment-checklist.md)) and restart, so

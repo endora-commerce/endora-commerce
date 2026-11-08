@@ -178,13 +178,22 @@ wyłączony.
   Dostawca może też implementować `confirmation`, czyli pytanie zadawane przed
   zapisem: `{ whenValue, code, message, params? }` albo `null`. Odpowiedź
   zawiera je wtedy jako `confirmation`. Gdy operator zapisuje dokładnie
-  `whenValue`, ekran Ustawienia najpierw pyta o potwierdzenie, tekstem z Twojego
-  pakietu tłumaczeń pod kluczem
-  `settingLabels.<kod ustawienia>.confirmation.<code>` uzupełnionym wartościami
-  z `params`, a w jego braku `message`; odmowa niczego nie zapisuje. Dostawca,
-  którego `confirmation` zgłosi błąd, jest zapisywany w logu i pomijany, a
-  zapis odbywa się bez pytania. Moduł `mfa` korzysta z tego, by podać, ilu
-  administratorów wyloguje włączenie `mfa.admin.totp_enforced`.
+  `whenValue`, ekran Ustawienia tuż przed zapisem ponownie odczytuje ustawienie
+  i pyta na podstawie `confirmation` z tego odczytu, więc liczba w `params` jest
+  aktualna w chwili zapisu; jeśli ponowny odczyt go nie zawiera, zapis odbywa
+  się bez pytania. Pytanie to tekst z Twojego pakietu tłumaczeń pod kluczem
+  `settingLabels.<kod ustawienia>.confirmation.<code>` uzupełniony wartościami
+  z `params`, a w jego braku `message`; odmowa niczego nie zapisuje. Po
+  zaakceptowanym zapisie ekran pokazuje, zamiast wiersza z liczbą zapisanych
+  zmian, tekst `settingLabels.<kod ustawienia>.confirmed.<code>` z Twojego
+  pakietu, jeśli go dostarczasz. Dostawca, którego `confirmation` zgłosi błąd,
+  jest zapisywany w logu i pomijany, a zapis odbywa się bez pytania.
+
+  Moduł `mfa` korzysta z tego dla `mfa.admin.totp_enforced`. Samo wylogowanie
+  nie zależy od pytania: `mfa` kończy sesje administratorów bez drugiego
+  składnika po każdym zapisie, który pozostawia `mfa.admin.totp_enforced`
+  włączone, przez `settings.value_changed`. Pytanie pada tylko wtedy, gdy zapis
+  je włącza, i podaje, ilu administratorów to dotyczy.
 
 ```ts
 ctx.onBoot(() => {

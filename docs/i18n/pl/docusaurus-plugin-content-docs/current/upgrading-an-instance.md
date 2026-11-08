@@ -4114,6 +4114,8 @@ administratora bez drugiego składnika do kroku konfiguracji, którego nie dało
     ustawiony, nie są proszeni o kod, bo nic nie może go sprawdzić. Wcześniej nie mogli się w ogóle
     zalogować. Backend przy każdym starcie zapisuje błąd z liczbą takich rejestracji;
   - nikt nie zostaje wylogowany z powodu otrzymania roli, która wymaga weryfikacji dwuetapowej.
+  - bez klucza klienci również nie są proszeni o drugi składnik, niezależnie od tego, czy go
+    zarejestrowali, czy obowiązuje ich wymuszanie w sklepie lub w organizacji.
 
 **Po aktualizacji,** jeśli pojawi się komunikat albo błąd w logu, ustaw `MFA_SECRET_ENCRYPTION_KEY`
 (zobacz [listę kontrolną pierwszego wdrożenia](./deployment/first-deployment-checklist.md)) i
