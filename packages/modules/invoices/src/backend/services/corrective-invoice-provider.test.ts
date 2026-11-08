@@ -100,7 +100,7 @@ function fakeStore() {
   return { invoices, lines, em: em as unknown as EntityManager };
 }
 
-function provider(store: ReturnType<typeof fakeStore>, language: 'pl-PL' | 'en' = 'pl-PL') {
+function provider(store: ReturnType<typeof fakeStore>, language: 'pl' | 'en' = 'pl') {
   const audit: Array<Record<string, unknown>> = [];
   const p = new CorrectiveInvoiceProvider(
     () => store.em,
@@ -153,7 +153,8 @@ describe('CorrectiveInvoiceProvider — a complaint refund is a price reduction 
   it('names the line in English for an English document, and without a case when none is given', async () => {
     const store = fakeStore();
     const { p } = provider(store, 'en');
-    const result = await p.createCorrection(complaint(6.15, { caseReference: undefined }));
+    const { caseReference: _omitted, ...unreferenced } = complaint(6.15);
+    const result = await p.createCorrection(unreferenced);
     expect(linesOf(store, (result as { invoiceId: string }).invoiceId).map((l) => l.name)).toEqual([
       'Price reduction (complaint): Bolt',
     ]);
@@ -194,7 +195,12 @@ describe('CorrectiveInvoiceProvider — a complaint refund is a price reduction 
     // 33.07 is within what the whole invoice keeps (42.73 − 6.15 = 36.58), but its goods,
     // 33.07 + 3.87 = 36.94 at 23 %, are more than the 30.79 the invoice still charges there.
     expect(err.statusCode).toBe(422);
-    expect(err.details).toEqual({ code: 'correction_exceeds_rate_remaining', taxRate: '0.2300', remaining: '30.79' });
+    expect(err.details).toEqual({
+      code: 'correction_exceeds_rate_remaining',
+      taxRate: '0.2300',
+      remaining: '30.79',
+      vatRatePercent: '23',
+    });
     expect(store.invoices).toHaveLength(before);
   });
 

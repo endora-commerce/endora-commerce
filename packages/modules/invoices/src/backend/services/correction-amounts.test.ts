@@ -556,6 +556,40 @@ function keptGross(g: Generated, kept: Map<string, number>, rate: string): strin
   return moneySum([moneySum(nets), roundHalfUp(decimalProduct(moneySum(nets), rate))]);
 }
 
+/**
+ * A default-amount return of `k` units of `l`, as the returns side refunds one:
+ * the drop in the kept gross at the line's rate (no more than the invoice keeps
+ * there), carrying its share of the order discount — the last return all of
+ * what is left, and always enough that the refund fits what the invoice keeps.
+ */
+function defaultReturn(
+  g: Generated,
+  ledger: Ledger,
+  kept: Map<string, number>,
+  discount: { total: string; left: string },
+  l: InvoicedLine,
+  k: number,
+): { total: string; line: Line } {
+  const remainingOfInvoice = moneyDifference(ledger.invoice.originalGross, ledger.creditedBefore);
+  const before = keptGross(g, kept, l.rate);
+  kept.set(l.id, kept.get(l.id)! - k);
+  let drop = moneyDifference(before, keptGross(g, kept, l.rate));
+  const atRate = ledger.remaining(l.rate)[2];
+  if (compareDecimals(drop, atRate) > 0) drop = atRate;
+  const goodsGross = vatByRate(g.lines.map((x) => ({ net: lineAmountHalfUp(x.unit, x.qty), rate: x.rate })), 'fraction').gross;
+  let carried = g.lines.every((x) => kept.get(x.id) === 0)
+    ? discount.left
+    : quotientHalfUp(decimalProduct(discount.total, drop), goodsGross);
+  const atLeast = moneyDifference(drop, remainingOfInvoice);
+  if (compareDecimals(carried, atLeast) < 0) carried = atLeast;
+  if (compareDecimals(carried, discount.left) > 0) carried = discount.left;
+  if (compareDecimals(carried, drop) > 0) carried = drop;
+  if (compareDecimals(carried, 0) < 0) carried = '0.00';
+  const amount = moneyDifference(drop, carried);
+  discount.left = moneyDifference(discount.left, carried);
+  return { total: amount, line: line(amount, k, l.rate, l.id, compareDecimals(carried, 0) > 0 ? { discount: carried } : {}) };
+}
+
 describe('correctionAmounts — properties (issues #873, #885)', () => {
   it('default-amount returns only: every correction takes the quantity path and the invoice keeps vatByRate of the kept nets', () => {
     for (let seed = 1; seed <= 400; seed += 1) {
@@ -563,15 +597,15 @@ describe('correctionAmounts — properties (issues #873, #885)', () => {
       const g = generateInvoice(rand);
       const ledger = new Ledger(invoiceOf(g.lines, g.extras));
       const kept = new Map(g.lines.map((l) => [l.id, l.qty]));
+      const discount = { total: g.extras.discount ?? '0.00', left: g.extras.discount ?? '0.00' };
       for (let step = 0; step < 8; step += 1) {
         const candidates = g.lines.filter((l) => kept.get(l.id)! > 0);
         if (candidates.length === 0) break;
         const l = candidates[Math.floor(rand() * candidates.length)]!;
         const k = 1 + Math.floor(rand() * kept.get(l.id)!);
-        const before = keptGross(g, kept, l.rate);
-        kept.set(l.id, kept.get(l.id)! - k);
-        const drop = moneyDifference(before, keptGross(g, kept, l.rate));
-        const r = ledger.correct(drop, [line(drop, k, l.rate, l.id)]);
+        const { total, line: returned } = defaultReturn(g, ledger, kept, discount, l, k);
+        const r = ledger.correct(total, [returned]);
+        expect(r.credited, `seed ${seed}`).toBe(total);
         expect(r.paths[roundHalfUp(l.rate, 4)], `seed ${seed}`).toBe('quantity');
         for (const rate of new Set(g.lines.map((x) => x.rate))) {
           const keptNets = g.lines
@@ -591,9 +625,7 @@ describe('correctionAmounts — properties (issues #873, #885)', () => {
       const invoice = invoiceOf(g.lines, g.extras);
       const ledger = new Ledger(invoice);
       const kept = new Map(g.lines.map((l) => [l.id, l.qty]));
-      const discountTotal = g.extras.discount ?? '0.00';
-      const goodsGross = vatByRate(g.lines.map((l) => ({ net: lineAmountHalfUp(l.unit, l.qty), rate: l.rate })), 'fraction').gross;
-      let discountLeft = discountTotal;
+      const discount = { total: g.extras.discount ?? '0.00', left: g.extras.discount ?? '0.00' };
       let amounts = '0.00';
       const events = 1 + Math.floor(rand() * 8);
       for (let step = 0; step < events; step += 1) {
@@ -621,23 +653,9 @@ describe('correctionAmounts — properties (issues #873, #885)', () => {
           const l = candidates[Math.floor(rand() * candidates.length)]!;
           rate = l.rate;
           const k = 1 + Math.floor(rand() * kept.get(l.id)!);
-          const before = keptGross(g, kept, rate);
-          kept.set(l.id, kept.get(l.id)! - k);
-          let drop = moneyDifference(before, keptGross(g, kept, rate));
-          const atRate = ledger.remaining(rate)[2];
-          if (compareDecimals(drop, atRate) > 0) drop = atRate;
-          // The discount the returned goods carry: their share, never more than is left.
-          let carried =
-            compareDecimals(goodsGross, 0) > 0 ? quotientHalfUp(decimalProduct(discountTotal, drop), goodsGross) : '0.00';
-          if (compareDecimals(carried, discountLeft) > 0) carried = discountLeft;
-          let amount = moneyDifference(drop, carried);
-          if (compareDecimals(amount, remainingOfInvoice) > 0) amount = remainingOfInvoice;
-          if (compareDecimals(amount, 0) < 0) amount = '0.00';
-          total = amount;
-          r = ledger.correct(total, [
-            line(amount, k, rate, l.id, compareDecimals(carried, 0) > 0 ? { discount: carried } : {}),
-          ]);
-          discountLeft = moneyDifference(discountLeft, moneyDifference('0', r.discountCredit));
+          const returned = defaultReturn(g, ledger, kept, discount, l, k);
+          total = returned.total;
+          r = ledger.correct(total, [returned.line]);
         }
         amounts = moneySum([amounts, total]);
         // Invariant 2: what the invoice keeps is what is left paid, to the cent.

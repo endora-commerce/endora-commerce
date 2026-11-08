@@ -78,5 +78,7 @@
   "lines.delivery": "Dostawa",
   "lines.paymentSurcharge": "Dopłata za metodę płatności",
   "lines.discount": "Rabat",
+  "lines.priceReduction": "Obniżka ceny (reklamacja {rma}): {product}",
+  "lines.priceReductionUnreferenced": "Obniżka ceny (reklamacja): {product}",
   "actions.openInvoices.keywords": "faktury"
 }

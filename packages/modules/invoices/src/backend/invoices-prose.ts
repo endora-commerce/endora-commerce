@@ -48,6 +48,8 @@ export const INVOICES_PROSE_EN = {
   'lines.delivery': 'Delivery',
   'lines.paymentSurcharge': 'Payment method surcharge',
   'lines.discount': 'Discount',
+  'lines.priceReduction': 'Price reduction (complaint {rma}): {product}',
+  'lines.priceReductionUnreferenced': 'Price reduction (complaint): {product}',
 } as const;
 
 export type InvoicesProseKey = keyof typeof INVOICES_PROSE_EN;

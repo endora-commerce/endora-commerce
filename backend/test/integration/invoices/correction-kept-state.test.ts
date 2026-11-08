@@ -2,6 +2,7 @@ import { randomUUID } from 'crypto';
 import { afterAll, beforeAll, describe, expect, it } from 'vitest';
 import { compareDecimals, moneyDifference, moneySum, roundHalfUp } from '@endora-commerce/contracts';
 import { CreditLimit, Invoice, InvoiceLine, Order, OrderItem, Refund, ReturnCase } from '../../helpers/package-entities.js';
+import type { InvoiceRow } from '../../helpers/package-entities.js';
 import { TEST_CUSTOMER_ID, TEST_ORGANIZATION_ID } from '../../helpers/test-actors.js';
 import { ensureSalesChannelId } from '../../helpers/sales-channel-fixtures.js';
 import {
@@ -97,7 +98,7 @@ describe('invoices — a correction leaves what the invoice keeps (#873, #885)',
         code: 'pm',
         name: 'Przelew',
         kind: 'bank_transfer',
-        ...(compareDecimals(surcharge, 0) > 0 ? { additionalPrice: surcharge } : {}),
+        ...(compareDecimals(surcharge, 0) > 0 ? { additionalPrice: Number(surcharge) } : {}),
       },
       subtotal: totals.subtotal,
       taxTotal: totals.taxTotal,
@@ -181,7 +182,7 @@ describe('invoices — a correction leaves what the invoice keeps (#873, #885)',
     return { caseId: detail.id, rmaNumber, correctiveInvoiceId: result.correctiveInvoiceId ?? null };
   }
 
-  async function issueInvoice(orderId: string): Promise<Invoice> {
+  async function issueInvoice(orderId: string): Promise<InvoiceRow> {
     const res = await h.app.inject({
       method: 'POST',
       url: `/api/v1/admin/orders/${orderId}/invoices`,
@@ -192,7 +193,7 @@ describe('invoices — a correction leaves what the invoice keeps (#873, #885)',
     return h.em().fork().findOneOrFail(Invoice, { orderId, kind: 'invoice' });
   }
 
-  const rowsOf = (invoice: Invoice): Rows =>
+  const rowsOf = (invoice: InvoiceRow): Rows =>
     new Map(
       (invoice.vatSummary ?? []).map((r) => [
         roundHalfUp(r.taxRate, 4),
