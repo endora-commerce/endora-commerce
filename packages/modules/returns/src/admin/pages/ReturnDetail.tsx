@@ -70,6 +70,8 @@ export function ReturnDetail(): ReactNode {
   const { id = '' } = useParams<{ id: string }>();
   const [rc, setRc] = useState<ReturnCaseDetail | null>(null);
   const [transitions, setTransitions] = useState<ReturnTransitionDto[]>([]);
+  // PO ruling on #945 (Q3): a terminal status of the configured graph closes the consent.
+  const [statusIsTerminal, setStatusIsTerminal] = useState(false);
   const [shipments, setShipments] = useState<Array<{ id: string; direction: string; status: string; externalReference: string | null }>>([]);
   const [prefill, setPrefill] = useState<SettlementPrefill | null>(null);
   const [error, setError] = useState<string | null>(null);
@@ -101,6 +103,7 @@ export function ReturnDetail(): ReactNode {
       ]);
       setRc(detail);
       setTransitions(graph.transitions.filter((t) => t.fromStatusCode === detail.statusCode));
+      setStatusIsTerminal(graph.statuses.some((s) => s.code === detail.statusCode && s.isTerminal));
       setShipments(ship);
       if (detail.statusCode === 'received') {
         const pf = await returnsClient.settlementPrefill(id);
@@ -268,6 +271,7 @@ export function ReturnDetail(): ReactNode {
 
       {rc.consumerWithdrawal === true && (
         <ConsumerWithdrawalPanel
+          closed={statusIsTerminal}
           rc={rc}
           onChanged={async (message) => {
             await refresh();

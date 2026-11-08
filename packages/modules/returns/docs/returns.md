@@ -238,7 +238,10 @@ settles it accordingly.
   the open ones in the background.
 - **A refund by default.** The settlement form starts on **Refund money**, to
   the order's own payment method (`defaultRefundPaymentMethodId` in the
-  settlement prefill). Credit, replacement and repair are disabled until the
+  settlement prefill). The method is chosen by name from the shop's payment
+  methods, with the order's own listed first and marked; when that list
+  cannot be read, the form falls back to a field for the method's id. Credit,
+  replacement and repair stay visible but cannot be chosen until the
   consumer's consent is on record, and the settlement refuses them with
   `422 RETURN_ALTERNATIVE_RESOLUTION_CONSENT_REQUIRED` (`details.resolution`
   names the one refused). The prefill names them in `consentRequiredFor` and keeps
@@ -256,11 +259,19 @@ settles it accordingly.
   case was filed), and an evidence note of up to 2000 characters, for example
   *"Customer's e-mail of 10 Nov 2026, ticket #123"*. The settlement then accepts
   that resolution, and still refuses the other two. Recording it again replaces
-  the earlier one. **Revoke consent** removes it. Both are audited
+  the earlier one. **Revoke consent** removes it after a confirmation, which
+  says what is lost: the evidence note is deleted, while the history keeps that
+  the consent was recorded and revoked. Both are audited
   (`return_case.alternative_consent.record` and `.revoke`) with the operator as
   the actor; the entry holds the resolution, the moment and the source, not the
   evidence note, which stays on the case. Once the case is settled its consent
-  is frozen: both answer `409` (`details.code: 'consent_frozen'`). A case that is
+  is frozen: both answer `409` (`details.code: 'consent_frozen'`). A case in a
+  **terminal status** of the configured workflow (`rejected`, `cancelled`, or
+  any status an operator marked terminal) can never be settled, so its consent
+  is closed too: both answer `409` (`details.code: 'case_closed'`), nothing is
+  written, and the panel shows the consent on record read-only, with no
+  actions. The time the consent was given is shown in the operator's browser
+  time zone, which is named beside it. A case that is
   not a consumer withdrawal answers `422` (`details.code:
   'not_consumer_withdrawal'`).
 - **Personal data.** The withdrawal statement this module will store keeps the

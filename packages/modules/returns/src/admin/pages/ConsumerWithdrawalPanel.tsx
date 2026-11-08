@@ -78,13 +78,17 @@ function joinIds(...ids: Array<string | false>): string | undefined {
  * that the case settles as a refund, shows the consumer's consent to another
  * resolution when one is on record, and records, changes or revokes it.
  * Rendered only for a case classified as a consumer withdrawal. A settled
- * case's consent is frozen, so the actions go.
+ * case's consent is frozen, and a case in a terminal status is closed (PO
+ * ruling on #945): either way the actions go and the consent on record stays
+ * readable.
  */
 export function ConsumerWithdrawalPanel(props: {
   rc: ReturnCaseDetail;
+  /** The case's status is terminal in the configured graph. */
+  closed: boolean;
   onChanged: (message: string) => Promise<void>;
 }): ReactNode {
-  const { rc, onChanged } = props;
+  const { rc, closed, onChanged } = props;
   const t = useTranslation('returns');
   const tc = useTranslation('core');
   const [dialog, setDialog] = useState<'record' | 'revoke' | null>(null);
@@ -104,7 +108,8 @@ export function ConsumerWithdrawalPanel(props: {
             <dt className="text-muted-foreground">{t('consent.resolution')}</dt>
             <dd>{resolutionLabel(consent.resolution)}</dd>
             <dt className="text-muted-foreground">{t('consent.givenAt')}</dt>
-            <dd>{formatDateTime(consent.at)}</dd>
+            {/* Shown in the browser's zone, which is named beside it (PO ruling on #945, Q2). */}
+            <dd>{`${formatDateTime(consent.at)} (${browserTimeZone()})`}</dd>
             {consent.note ? (
               <>
                 <dt className="text-muted-foreground">{t('consent.evidence')}</dt>
@@ -117,6 +122,8 @@ export function ConsumerWithdrawalPanel(props: {
         )}
         {settled ? (
           <p className="text-muted-foreground">{t('consent.frozen')}</p>
+        ) : closed ? (
+          <p className="text-muted-foreground">{t('consent.closed')}</p>
         ) : (
           <div className="flex flex-wrap items-center gap-2">
             <Button size="sm" variant="outline" onClick={() => setDialog('record')}>

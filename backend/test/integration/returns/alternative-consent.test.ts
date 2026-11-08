@@ -144,14 +144,25 @@ describe('returns — consumer withdrawal: classification and recorded consent (
       ...body,
     });
 
-  const adminIn = (language: 'en' | 'pl', method: 'POST' | 'DELETE', url: string, payload?: object) =>
-    h.app.inject({
-      method,
-      url,
+  // An admin's language is the stored `preferredLanguage`, not the header (D-132).
+  async function setAdminLanguage(language: 'en' | 'pl' | null): Promise<void> {
+    const res = await h.app.inject({
+      method: 'PATCH',
+      url: '/api/v1/admin/me/preferred-language',
       cookies: ADMIN_COOKIE,
-      headers: { 'accept-language': language },
-      ...(payload ? { payload } : {}),
+      payload: { preferredLanguage: language },
     });
+    expect(res.statusCode, res.body).toBe(200);
+  }
+
+  const adminIn = async (language: 'en' | 'pl', method: 'POST' | 'DELETE', url: string, payload?: object) => {
+    await setAdminLanguage(language);
+    try {
+      return await h.app.inject({ method, url, cookies: ADMIN_COOKIE, ...(payload ? { payload } : {}) });
+    } finally {
+      await setAdminLanguage(null);
+    }
+  };
 
   const auditOf = (id: string, action: string) =>
     h.em().fork().find(AuditLogEntry, { objectType: 'return_case', objectId: id, action }, { orderBy: { actedAt: 'asc' } });

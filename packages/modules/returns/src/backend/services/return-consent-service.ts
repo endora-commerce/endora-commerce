@@ -5,9 +5,12 @@ import type { CommandBus } from '@endora-commerce/platform/commands';
 import { HttpError } from '@endora-commerce/platform/http';
 import { ReturnCase } from '../entities/return-case.entity.js';
 import { consentDateRefusal } from '../domain/consumer-withdrawal.js';
+import type { ReturnStatusGraphService } from './return-status-graph-service.js';
 
 export interface ReturnConsentServiceDeps {
   commandBus: Pick<CommandBus, 'run'>;
+  /** The configured status graph: a terminal status closes the consent (PO ruling on #945). */
+  graphService: Pick<ReturnStatusGraphService, 'loadGraph'>;
   /** Injected for deterministic tests; defaults to `new Date()`. */
   now?: () => Date;
 }
@@ -29,7 +32,10 @@ export interface ReturnConsentServiceDeps {
  * data and which stays on the case.
  *
  * The consent is frozen once the case is settled: it is what the settlement
- * was judged by.
+ * was judged by. It is closed, too, once the case reaches a terminal status of
+ * the configured graph (rejected, cancelled, or one an operator added): such a
+ * case can never be settled, so a consent there would be evidence for nothing
+ * (PO ruling on #945).
  */
 export class ReturnConsentService {
   constructor(private readonly deps: ReturnConsentServiceDeps) {}
@@ -45,7 +51,7 @@ export class ReturnConsentService {
       objectType: 'return_case',
       objectId: id,
       run: async ({ em, actor }) => {
-        const rc = await loadUnsettled(em, id);
+        const rc = await this.#loadOpen(em, id);
         if (rc.consumerWithdrawal !== true) {
           throw new HttpError(
             422,
@@ -78,6 +84,25 @@ export class ReturnConsentService {
     });
   }
 
+  /** The case, refused when it is settled (`consent_frozen`) or closed (`case_closed`). */
+  async #loadOpen(em: EntityManager, id: string): Promise<ReturnCase> {
+    const rc = await loadCase(em, id);
+    if (rc.resolutionType) {
+      throw new HttpError(
+        409,
+        ERROR_CODES.INVALID_TRANSITION,
+        'The case is settled: the consent it was settled under can no longer change.',
+        { code: 'consent_frozen' },
+      );
+    }
+    if ((await this.deps.graphService.loadGraph()).isTerminal(rc.statusCode)) {
+      throw new HttpError(409, ERROR_CODES.INVALID_TRANSITION, 'This case is closed, so its consent can no longer change.', {
+        code: 'case_closed',
+      });
+    }
+    return rc;
+  }
+
   /** Revoke the consent on record. Revoking none writes nothing and records no audit row. */
   async revoke(id: string): Promise<void> {
     assertCaseId(id);
@@ -86,7 +111,7 @@ export class ReturnConsentService {
       objectType: 'return_case',
       objectId: id,
       run: async ({ em }) => {
-        const rc = await loadUnsettled(em, id);
+        const rc = await this.#loadOpen(em, id);
         if (!rc.alternativeConsentResolution) return { result: undefined, skipAudit: true };
         const before = consentSnapshot(rc);
         rc.alternativeConsentResolution = null;
@@ -101,24 +126,17 @@ export class ReturnConsentService {
   }
 }
 
+async function loadCase(em: EntityManager, id: string): Promise<ReturnCase> {
+  const rc = await em.findOne(ReturnCase, { id });
+  if (!rc) throw new HttpError(404, ERROR_CODES.NOT_FOUND, 'Return case not found.');
+  return rc;
+}
+
 function assertCaseId(id: string): void {
   // A malformed id names no case; PostgreSQL would answer it with a 500 (issue #753).
   if (!isUuidShape(id)) throw new HttpError(404, ERROR_CODES.NOT_FOUND, 'Return case not found.');
 }
 
-async function loadUnsettled(em: EntityManager, id: string): Promise<ReturnCase> {
-  const rc = await em.findOne(ReturnCase, { id });
-  if (!rc) throw new HttpError(404, ERROR_CODES.NOT_FOUND, 'Return case not found.');
-  if (rc.resolutionType) {
-    throw new HttpError(
-      409,
-      ERROR_CODES.INVALID_TRANSITION,
-      'The case is settled: the consent it was settled under can no longer change.',
-      { code: 'consent_frozen' },
-    );
-  }
-  return rc;
-}
 
 /** What the audit row records of the consent: never the evidence note. */
 function consentSnapshot(rc: ReturnCase): Record<string, unknown> {

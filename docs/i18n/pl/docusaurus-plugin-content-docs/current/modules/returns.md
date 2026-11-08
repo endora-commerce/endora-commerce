@@ -209,8 +209,10 @@ odróżnia taką sprawę od każdego innego zwrotu i rozlicza ją zgodnie z tym.
   traktowane jak zwykłe zwroty. Ich klasyfikacja wymaga danych organizacji, których migracja nie może
   odczytać, dlatego otwarte sprawy sklasyfikuje w tle jedno z kolejnych wydań.
 - **Domyślnie zwrot pieniędzy.** Formularz rozliczenia zaczyna od **Zwrot pieniędzy** na sposób
-  płatności zamówienia (`defaultRefundPaymentMethodId` w danych wstępnych rozliczenia). Środki na
-  koncie, wymiana i naprawa są niedostępne, dopóki nie zapisano zgody konsumenta, a rozliczenie je
+  płatności zamówienia (`defaultRefundPaymentMethodId` w danych wstępnych rozliczenia). Sposób
+  płatności wybiera się po nazwie z listy sposobów płatności sklepu, na której sposób zamówienia jest
+  pierwszy i oznaczony; gdy listy nie da się odczytać, formularz pokazuje pole na identyfikator
+  sposobu. Środki na koncie, wymiana i naprawa są widoczne, ale nie można ich wybrać, dopóki nie zapisano zgody konsumenta, a rozliczenie je
   odrzuca z `422 RETURN_ALTERNATIVE_RESOLUTION_CONSENT_REQUIRED` (`details.resolution` wskazuje
   odrzucony sposób). Dane wstępne wymieniają je w `consentRequiredFor` i nadal podają wszystkie sposoby
   w `resolutionOptions`. Zwroty firm i reklamacje się nie zmieniają.
@@ -224,10 +226,16 @@ odróżnia taką sprawę od każdego innego zwrotu i rozlicza ją zgodnie z tym.
   przyszłości i nie przed zgłoszeniem sprawy) oraz dowód o długości do 2000 znaków, na przykład
   *„E-mail klienta z 10 listopada 2026, zgłoszenie nr 123”*. Rozliczenie przyjmuje wtedy ten sposób,
   a dwa pozostałe nadal odrzuca. Ponowne zapisanie zastępuje wcześniejszą zgodę. **Wycofaj zgodę**
-  usuwa ją. Obie czynności trafiają do dziennika zdarzeń (`return_case.alternative_consent.record` i
+  usuwa ją po potwierdzeniu, które mówi, co zostanie utracone: notatka z dowodem jest usuwana, a
+  historia zachowuje informację, że zgodę zarejestrowano i wycofano. Obie czynności trafiają do dziennika zdarzeń (`return_case.alternative_consent.record` i
   `.revoke`) z operatorem jako wykonawcą; wpis zawiera sposób rozliczenia, chwilę i źródło, ale nie
   treść dowodu, która zostaje w sprawie. Po rozliczeniu sprawy zgoda jest zamrożona: obie czynności
-  odpowiadają `409` (`details.code: 'consent_frozen'`). Sprawa, która nie jest odstąpieniem
+  odpowiadają `409` (`details.code: 'consent_frozen'`). Sprawy w **statusie końcowym** skonfigurowanego
+  przebiegu (`rejected`, `cancelled` albo dowolny status, który operator oznaczył jako końcowy) nie da
+  się już rozliczyć, więc jej zgoda jest również zamknięta: obie czynności odpowiadają `409`
+  (`details.code: 'case_closed'`), nic nie jest zapisywane, a panel pokazuje zapisaną zgodę tylko do
+  odczytu, bez akcji. Czas wyrażenia zgody jest pokazywany w strefie czasowej przeglądarki operatora,
+  podanej obok. Sprawa, która nie jest odstąpieniem
   konsumenta, odpowiada `422` (`details.code: 'not_consumer_withdrawal'`).
 - **Dane osobowe.** Oświadczenie o odstąpieniu od umowy, które ten moduł będzie przechowywał, trzyma
   imię i nazwisko oraz adres e-mail konsumenta w dwóch osobnych kolumnach, które można wyczyścić,

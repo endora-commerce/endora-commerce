@@ -55,6 +55,7 @@
   "consent.recordedInfo": "Consent recorded.",
   "consent.revokedInfo": "Consent revoked.",
   "consent.frozen": "The case is settled, so consent can no longer be recorded, changed or revoked.",
+  "consent.closed": "This case is closed, so its consent can no longer change.",
   "consent.requiredHint": "Credit toward future orders, a replacement and a repair need the consumer's consent on record.",
   "settlement.refundMethodDiffers": "This is not the method the order was paid with. A consumer withdrawal is refunded by the same means of payment unless the consumer agreed otherwise. You can still settle; the audit log records the difference.",
   "consent.change": "Change consent",

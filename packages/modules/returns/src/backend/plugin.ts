@@ -198,7 +198,7 @@ export function returnsModule(
     orderContext,
     ...(options.auditLog ? { auditLog: options.auditLog } : {}),
   });
-  const consentService = new ReturnConsentService({ commandBus: options.commandBus });
+  const consentService = new ReturnConsentService({ commandBus: options.commandBus, graphService });
 
   await registerReturnsCustomerRoutes(app, {
     caseService,

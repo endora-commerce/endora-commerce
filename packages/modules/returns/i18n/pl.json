@@ -55,6 +55,7 @@
   "consent.recordedInfo": "Zapisano zgodę.",
   "consent.revokedInfo": "Wycofano zgodę.",
   "consent.frozen": "Sprawa jest już rozliczona, więc zgody nie można zapisać, zmienić ani wycofać.",
+  "consent.closed": "Ta sprawa jest zamknięta, więc zgody nie można już zmienić.",
   "consent.requiredHint": "Środki na przyszłe zamówienia, wymiana i naprawa wymagają zapisanej zgody konsumenta.",
   "settlement.refundMethodDiffers": "To nie jest metoda, którą opłacono zamówienie. Przy odstąpieniu od umowy pieniądze zwraca się tym samym sposobem zapłaty, chyba że konsument zgodził się na inny. Możesz mimo to rozliczyć sprawę – dziennik audytu odnotuje tę różnicę.",
   "consent.change": "Zmień zgodę",
