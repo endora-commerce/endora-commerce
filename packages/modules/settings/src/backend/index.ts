@@ -119,7 +119,7 @@ export function registerModule(ctx: ModuleContext): void {
     settingNoticeRegistry: ctx
       .asFunction(
         ({ settingsModulePresence }: SettingsCradle) =>
-          new SettingNoticeRegistry(settingsModulePresence),
+          new SettingNoticeRegistry(settingsModulePresence, ctx.log),
       )
       .singleton(),
 

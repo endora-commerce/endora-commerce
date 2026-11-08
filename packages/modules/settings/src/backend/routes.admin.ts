@@ -80,21 +80,22 @@ export async function registerSettingsAdminRoutes(
   interface SettingClassification {
     editable: boolean;
     activationControl: boolean;
-    /** Issue #930 — computed by {@link noticeOf} before serialising. */
-    notice?: SettingNotice | null;
+    /** Issue #930 — computed by {@link noticeOf}; absent means no `notice` key at all. */
+    notice?: SettingNotice | undefined;
   }
 
   /**
    * Issue #930 — asks the owning module whether the platform-wide value in
    * force is what the stored value says. A `secret` value is never handed out.
    */
-  async function noticeOf(setting: Setting): Promise<SettingNotice | null> {
-    if (!noticeFor) return null;
-    return noticeFor({
+  async function noticeOf(setting: Setting): Promise<SettingNotice | undefined> {
+    if (!noticeFor) return undefined;
+    const notice = await noticeFor({
       code: setting.code,
       ownerModuleId: setting.ownerModule,
       value: setting.valueType === 'secret' ? null : setting.globalValue ?? setting.defaultValue,
     });
+    return notice ?? undefined;
   }
 
   function serializeSetting(
@@ -155,7 +156,7 @@ export async function registerSettingsAdminRoutes(
         serializeSetting(s.setting, s.values, {
           editable: s.editable,
           activationControl: s.activationControl,
-          notice: notices[i] ?? null,
+          notice: notices[i],
         }),
       ),
     };
