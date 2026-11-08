@@ -121,6 +121,18 @@ export interface AddressReadPort {
     organizationId: string,
     kind: AddressKindValue,
   ): Promise<AddressRecord | null>;
+  /**
+   * The ids of the organisation's addresses, oldest first — live ones only
+   * unless `includeDeleted` is `true`, which adds every soft-deleted row
+   * (issue #927). Ids only: a caller that needs to name the rows an
+   * anonymised subject ever had (`customers`' retention sweep, #844) asks for
+   * the deleted ones too, and needs none of their content. Never another
+   * organisation's rows.
+   */
+  listIdsForOrganization(
+    organizationId: string,
+    options?: { includeDeleted?: boolean },
+  ): Promise<string[]>;
 }
 
 /**

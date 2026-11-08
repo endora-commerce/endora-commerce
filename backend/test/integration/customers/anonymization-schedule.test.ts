@@ -291,7 +291,12 @@ describe('customers — the anonymization sweep runs on its schedule (#677)', ()
       expect(await until(() => isFinished(residual.organizationId), 60_000)).toBe(true);
       expect(await organizationAuditRows(residual.organizationId)).toHaveLength(1);
       expect(announced).not.toContain(residual.accountId);
-      // Issue #844 — and the history of both subjects is erased, with one marker each.
+      // Issue #844 — and the history of both subjects is erased, with one marker
+      // each. Waited for: the organisation is finished at step 1 of the cascade,
+      // and the marker is written at step 3.
+      const marked = async (id: string) => (await redactionMarkers(id)).length > 0;
+      expect(await until(() => marked(due), 60_000)).toBe(true);
+      expect(await until(() => marked(residual.accountId), 60_000)).toBe(true);
       expect(await historyOf(due)).toEqual([{ email: AUDIT_ERASED_MARKER, ip: AUDIT_ERASED_MARKER }]);
       expect(await redactionMarkers(due)).toHaveLength(1);
       expect(await redactionMarkers(residual.accountId)).toHaveLength(1);

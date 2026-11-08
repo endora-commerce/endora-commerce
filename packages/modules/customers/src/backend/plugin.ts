@@ -1,7 +1,7 @@
 import type { ChannelUrlFacts } from '@endora-commerce/contracts';
 import type { FastifyInstance } from 'fastify';
 import type { EntityManager } from '@mikro-orm/postgresql';
-import type { AuditPort } from '@endora-commerce/platform/kernel';
+import type { AuditPort, AuditRedactionPort } from '@endora-commerce/platform/kernel';
 import { CustomerRegistrationService } from './services/customer-registration-service.js';
 import { AddressBookRetirementService } from './services/address-book-retirement-service.js';
 import { CustomerDefaultsService } from './services/customer-defaults-service.js';
@@ -183,6 +183,11 @@ export interface CustomersModuleOptions {
   rfqService: RfqCustomerPort;
   auditLogService: AuditPort;
   /**
+   * The platform-owned audit redaction (issue #844): the retention sweep
+   * erases the anonymised subject's audit history through it.
+   */
+  auditRedactionService: AuditRedactionPort;
+  /**
    * `quick_order`'s ordering defaults, which the customer-detail screen and
    * self-service profile render and edit (issue #216).
    *
@@ -299,6 +304,11 @@ export function customersModule(options: CustomersModuleOptions): {
     depletionGuard,
     options.addressServicePort,
     options.resolveDeletionRetentionDays,
+    {
+      redaction: options.auditRedactionService,
+      addressReads: options.addressReadPort,
+      retiredAddressBook: addressBookRetirement,
+    },
   );
   const presenceService = new CustomerPresenceService(
     {

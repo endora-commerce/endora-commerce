@@ -117,6 +117,19 @@ export class AddressBookRetirementService {
     return rows[0]?.pending === true;
   }
 
+  /**
+   * The ids of every row the account has in the retired book, soft-deleted,
+   * moved and refused ones included — the retention sweep names them when it
+   * erases the subject's audit history (issue #844). Ids only. Run under the
+   * system scope the sweep's tick enters.
+   */
+  async listIdsForAccount(customerAccountId: string): Promise<string[]> {
+    const rows = await this.deps
+      .emFactory()
+      .find(CustomerAddress, { customerAccountId }, { fields: ['id'], orderBy: { createdAt: 'asc', id: 'asc' } });
+    return rows.map((row) => row.id);
+  }
+
   /** Every pending row, in batches of accounts, for a caller already in a system scope. */
   async runInScope(): Promise<AddressBookRetirementResult> {
     const total = { ...ZERO };

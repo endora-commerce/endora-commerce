@@ -2,7 +2,7 @@ import type { EntityManager } from '@mikro-orm/postgresql';
 import type { FastifyRequest } from 'fastify';
 import type { Redis } from 'ioredis';
 import { z } from 'zod';
-import type { AuditPort } from '@endora-commerce/platform/kernel';
+import type { AuditPort, AuditRedactionPort } from '@endora-commerce/platform/kernel';
 import { ERROR_CODES } from '@endora-commerce/contracts';
 import { HttpError } from '@endora-commerce/platform/http';
 import type {
@@ -98,6 +98,8 @@ import { CustomerAddress } from './entities/customer-address.entity.js';
 export interface CustomersCradle {
   readonly emFactory: () => EntityManager;
   readonly auditLogService: AuditPort;
+  /** Platform-owned, beside the writer (issue #844); the retention sweep's. */
+  readonly auditRedactionService: AuditRedactionPort;
   readonly settingsReadPort: SettingsReadPort;
   readonly salesChannelResolutionPort: SalesChannelResolutionPort;
   readonly requireAdmin: RequireAdminFactory;
@@ -261,10 +263,11 @@ export function registerModule(ctx: ModuleContext): void {
   ctx.di.register({
     customers: ctx
       .asFunction(
-        ({ emFactory, auditLogService }: CustomersCradle) =>
+        ({ emFactory, auditLogService, auditRedactionService }: CustomersCradle) =>
           customersModule({
             emFactory,
             auditLogService,
+            auditRedactionService,
             // Every one of these is another module's gated port and is stored by
             // the constructor, so a singleton may not hold one directly.
             // Feature 075, Phase C (issue #195) — `customerAuthPort` rather
