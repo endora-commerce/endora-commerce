@@ -1910,6 +1910,8 @@
   "rfq.detail.vatStatus.vat_exempt": "VAT exempt",
   "rfq.detail.vatStatus.vat_payer": "VAT payer",
   "rfq.list.badge.awaitingCustomer": "Awaiting customer",
+  "rfq.list.badge.partiallyAgreed": "Partially agreed",
+  "rfq.list.badge.notYetAgreed": "Not yet agreed",
   "rfq.list.column.customer": "Customer",
   "rfq.list.column.lines": "Lines",
   "rfq.list.column.org": "Organization",

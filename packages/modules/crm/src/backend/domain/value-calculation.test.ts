@@ -1,9 +1,5 @@
 import { describe, expect, it } from 'vitest';
-import {
-  calculateOpportunityValue,
-  quoteRequestAmount,
-  type OpportunityValueInput,
-} from './value-calculation.js';
+import { calculateOpportunityValue, type OpportunityValueInput } from './value-calculation.js';
 
 const ORDER_A = '00000000-0000-4000-8000-0000000000a1';
 const ORDER_B = '00000000-0000-4000-8000-0000000000a2';
@@ -37,7 +33,7 @@ describe('calculateOpportunityValue', () => {
     expect(result).toEqual({ value: '123.00', excludedDocuments: [] });
   });
 
-  it('sums the Quote Requests whose status is in the counting set: quantity × unit price per line', () => {
+  it('sums the Quote Requests whose status is in the counting set, each at its published amount', () => {
     const result = calculateOpportunityValue(
       input({
         quoteRequests: [
@@ -45,16 +41,15 @@ describe('calculateOpportunityValue', () => {
             id: QUOTE_A,
             status: 'Approved',
             convertedOrderId: null,
-            lines: [
-              { quantity: 7, unitPrice: '11.25', currency: 'PLN' },
-              { quantity: 3, unitPrice: '0.10', currency: 'PLN' },
-            ],
+            amount: '79.05',
+            currency: 'PLN',
           },
           {
             id: QUOTE_B,
             status: 'Pending',
             convertedOrderId: null,
-            lines: [{ quantity: 100, unitPrice: '50.00', currency: 'PLN' }],
+            amount: '5000.00',
+            currency: 'PLN',
           },
         ],
       }),
@@ -71,7 +66,8 @@ describe('calculateOpportunityValue', () => {
             id: QUOTE_A,
             status: 'Approved',
             convertedOrderId: null,
-            lines: [{ quantity: 2, unitPrice: '10.50', currency: 'PLN' }],
+            amount: '21.00',
+            currency: 'PLN',
           },
         ],
       }),
@@ -89,7 +85,8 @@ describe('calculateOpportunityValue', () => {
             id: QUOTE_A,
             status: 'Approved',
             convertedOrderId: null,
-            lines: [{ quantity: 1, unitPrice: '5.00', currency: 'PLN' }],
+            amount: '5.00',
+            currency: 'PLN',
           },
         ],
       }),
@@ -106,7 +103,8 @@ describe('calculateOpportunityValue', () => {
             id: QUOTE_A,
             status: 'Approved',
             convertedOrderId: ORDER_A,
-            lines: [{ quantity: 7, unitPrice: '11.25', currency: 'PLN' }],
+            amount: '78.75',
+            currency: 'PLN',
           },
         ],
       }),
@@ -126,7 +124,8 @@ describe('calculateOpportunityValue', () => {
             id: QUOTE_A,
             status: 'Pending',
             convertedOrderId: null,
-            lines: [{ quantity: 7, unitPrice: '11.25', currency: 'PLN' }],
+            amount: '78.75',
+            currency: 'PLN',
           },
         ],
       }),
@@ -139,7 +138,8 @@ describe('calculateOpportunityValue', () => {
       id: QUOTE_A,
       status: 'Approved',
       convertedOrderId: ORDER_A,
-      lines: [{ quantity: 7, unitPrice: '11.25', currency: 'PLN' }],
+      amount: '78.75',
+      currency: 'PLN',
     };
     // The Order is linked but not in a counting status.
     expect(
@@ -166,7 +166,8 @@ describe('calculateOpportunityValue', () => {
             id: QUOTE_A,
             status: 'Approved',
             convertedOrderId: null,
-            lines: [{ quantity: 1, unitPrice: '10.00', currency: 'EUR' }],
+            amount: '10.00',
+            currency: 'EUR',
           },
         ],
       }),
@@ -185,26 +186,32 @@ describe('calculateOpportunityValue', () => {
     expect(result).toEqual({ value: '0.00', excludedDocuments: [] });
   });
 
-  it('counts the lines of a Quote Request in the Opportunity currency and names the request when a line is left out', () => {
+  it('takes a Quote Request at the amount its owner publishes, however far it is agreed (issue #456)', () => {
     const result = calculateOpportunityValue(
       input({
-        quoteRequests: [
-          {
-            id: QUOTE_A,
-            status: 'Approved',
-            convertedOrderId: null,
-            lines: [
-              { quantity: 2, unitPrice: '10.00', currency: 'PLN' },
-              { quantity: 1, unitPrice: '99.00', currency: 'EUR' },
-            ],
-          },
-        ],
+        quoteRequests: [{ id: QUOTE_A, status: 'Approved', convertedOrderId: null, amount: '35.00', currency: 'PLN' }],
       }),
     );
-    expect(result.value).toBe('20.00');
-    expect(result.excludedDocuments).toEqual([
-      { kind: 'quote_request', id: QUOTE_A, reason: 'currency_mismatch' },
-    ]);
+    expect(result).toEqual({ value: '35.00', excludedDocuments: [] });
+  });
+
+  it('a Quote Request without any price has no amount and adds nothing, without being named', () => {
+    const result = calculateOpportunityValue(
+      input({
+        orders: [{ id: ORDER_A, status: 'paid', total: '50.00', currency: 'PLN' }],
+        quoteRequests: [{ id: QUOTE_A, status: 'Approved', convertedOrderId: null, amount: null, currency: 'PLN' }],
+      }),
+    );
+    expect(result).toEqual({ value: '50.00', excludedDocuments: [] });
+  });
+
+  it('a Quote Request without a line has no currency and adds nothing, without being named', () => {
+    const result = calculateOpportunityValue(
+      input({
+        quoteRequests: [{ id: QUOTE_A, status: 'Approved', convertedOrderId: null, amount: null, currency: null }],
+      }),
+    );
+    expect(result).toEqual({ value: '0.00', excludedDocuments: [] });
   });
 
   it('a Quote Request in another currency does not hide behind its converted Order', () => {
@@ -218,7 +225,8 @@ describe('calculateOpportunityValue', () => {
             id: QUOTE_A,
             status: 'Approved',
             convertedOrderId: ORDER_A,
-            lines: [{ quantity: 1, unitPrice: '10.00', currency: 'EUR' }],
+            amount: '10.00',
+            currency: 'EUR',
           },
         ],
       }),
@@ -249,46 +257,5 @@ describe('calculateOpportunityValue', () => {
       }),
     );
     expect(result.value).toBe('1000000000000.00');
-  });
-});
-
-describe('quoteRequestAmount', () => {
-  it('multiplies and adds exactly', () => {
-    expect(
-      quoteRequestAmount([
-        { quantity: 3, unitPrice: '0.10', currency: 'PLN' },
-        { quantity: 1, unitPrice: '0.20', currency: 'PLN' },
-      ]),
-    ).toBe('0.50');
-  });
-
-  it('rounds each line value half up, once, and adds the rounded lines — as the quote desk does (§10.18)', () => {
-    expect(quoteRequestAmount([{ quantity: 1, unitPrice: '0.005', currency: 'PLN' }])).toBe('0.01');
-    expect(quoteRequestAmount([{ quantity: 3, unitPrice: '0.3333', currency: 'PLN' }])).toBe('1.00');
-    expect(quoteRequestAmount([{ quantity: 10_000, unitPrice: '0.0125', currency: 'PLN' }])).toBe('125.00');
-    // Two lines of 0.004 are 0.00 each; the quote's net is 0.00, so is its value.
-    expect(
-      quoteRequestAmount([
-        { quantity: 1, unitPrice: '0.004', currency: 'PLN' },
-        { quantity: 1, unitPrice: '0.004', currency: 'PLN' },
-      ]),
-    ).toBe('0.00');
-  });
-
-  it('takes a line with no price as nothing', () => {
-    expect(
-      quoteRequestAmount([
-        { quantity: 5, unitPrice: null, currency: 'PLN' },
-        { quantity: 2, unitPrice: '1.50', currency: 'PLN' },
-      ]),
-    ).toBe('3.00');
-  });
-
-  it('takes a figure that is not a decimal as nothing rather than as NaN', () => {
-    expect(quoteRequestAmount([{ quantity: 2, unitPrice: 'abc', currency: 'PLN' }])).toBe('0.00');
-  });
-
-  it('answers 0.00 for no lines', () => {
-    expect(quoteRequestAmount([])).toBe('0.00');
   });
 });

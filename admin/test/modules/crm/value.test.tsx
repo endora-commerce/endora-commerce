@@ -1,3 +1,5 @@
+import { readFileSync } from 'node:fs';
+import { resolve } from 'node:path';
 import { beforeEach, describe, expect, it, vi } from 'vitest';
 import { screen, waitFor, within } from '@testing-library/react';
 import userEvent from '@testing-library/user-event';
@@ -117,9 +119,10 @@ beforeEach(() => {
 });
 
 async function openOpportunity(
-  options: { permissions?: readonly string[]; quotes?: boolean } = {},
+  options: { permissions?: readonly string[]; quotes?: boolean; language?: 'en' | 'pl' } = {},
 ): Promise<void> {
   renderCrm(<OpportunityDetail />, {
+    ...(options.language ? { language: options.language } : {}),
     // The value is in the sidebar of every tab; the linked documents these
     // cases also read have a tab of their own (User Story 20).
     path: `/crm/opportunities/${OPPORTUNITY_ID}?tab=links`,
@@ -362,5 +365,82 @@ describe('the statuses that count towards a computed value', () => {
     await openWorkflow();
     const orphan = screen.getByText(en('value.counting.order.gone')).closest('li') as HTMLElement;
     expect(within(orphan).getByRole('checkbox')).toBeChecked();
+  });
+});
+
+/**
+ * Issue #456 (owner ruling of 2026-11-07, PO ruling of 2026-11-08) — a linked
+ * Quote Request is shown at the amount `quote_requests` publishes, with how
+ * far it is agreed: no marker, *Partially agreed*, *Not yet agreed*, and `—`
+ * with no marker when it has no price at all. In both languages, in the linked
+ * table and beside a Quote Request the value panel names.
+ */
+describe.each(['en', 'pl'] as const)('the agreement marker of a linked Quote Request (%s)', (language) => {
+  const bundle = JSON.parse(
+    readFileSync(resolve(process.cwd(), `../packages/modules/crm/i18n/${language}.json`), 'utf8'),
+  ) as Record<string, string>;
+  const partial = bundle['links.quote.partiallyAgreed']!;
+  const notYet = bundle['links.quote.notYetAgreed']!;
+  const ids = [1, 2, 3, 4].map((n) => `00000000-0000-4000-8000-0000000000e${n}`);
+  const quotes = [
+    { total: '33.50', agreement: 'agreed' as const },
+    { total: '35.00', agreement: 'partial' as const },
+    { total: '39.00', agreement: 'none' as const },
+    { agreement: 'none' as const },
+  ].map((shown, index) => {
+    const { total: _price, ...withoutTotal } = quoteLink({
+      id: `00000000-0000-4000-8000-0000000000f${index + 1}`,
+      documentId: ids[index]!,
+      number: `RFQ-000${index + 1}`,
+    });
+    // A Quote Request without any price has no `total` at all.
+    return { ...withoutTotal, ...shown };
+  });
+
+  beforeEach(() => {
+    current = detail({
+      valueMode: 'computed',
+      computedValue: '0.00',
+      links: [...detail().links, ...quotes],
+      // As the server would name them; the panel shows what it is told.
+      excludedDocuments: ids.map((id) => ({ kind: 'quote_request' as const, id, reason: 'currency_mismatch' })),
+    });
+  });
+
+  it('ships both markers', () => {
+    expect({ partial, notYet }).toEqual(
+      language === 'en'
+        ? { partial: 'Partially agreed', notYet: 'Not yet agreed' }
+        : { partial: 'Częściowo uzgodnione', notYet: 'Jeszcze nieuzgodnione' },
+    );
+  });
+
+  it('the linked table shows the four states', async () => {
+    await openOpportunity({ language });
+    const table = await section(bundle['links.quote.title']!);
+    const total = (n: number) =>
+      within(within(table).getByRole('link', { name: `RFQ-000${n}` }).closest('tr')!).getAllByRole('cell')[2]!;
+    await waitFor(() => expect(total(1)).toHaveTextContent(/33[.,]50/));
+    expect(total(1)).not.toHaveTextContent(partial);
+    expect(total(1)).not.toHaveTextContent(notYet);
+    expect(total(2)).toHaveTextContent(/35[.,]00/);
+    expect(total(2)).toHaveTextContent(partial);
+    expect(total(3)).toHaveTextContent(/39[.,]00/);
+    expect(total(3)).toHaveTextContent(notYet);
+    expect(total(4)).toHaveTextContent(/^—$/);
+  });
+
+  it('the value panel marks the Quote Requests it names', async () => {
+    await openOpportunity({ language });
+    const value = await section(bundle['value.title']!);
+    const item = (n: number) =>
+      within(value).getByRole('link', { name: `RFQ-000${n}` }).closest('li')!;
+    await waitFor(() => expect(item(1)).toHaveTextContent(/33[.,]50/));
+    expect(item(1)).not.toHaveTextContent(partial);
+    expect(item(1)).not.toHaveTextContent(notYet);
+    expect(item(2)).toHaveTextContent(partial);
+    expect(item(3)).toHaveTextContent(notYet);
+    expect(item(4)).not.toHaveTextContent(partial);
+    expect(item(4)).not.toHaveTextContent(notYet);
   });
 });

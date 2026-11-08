@@ -34,9 +34,9 @@ function service(overrides: Partial<OpportunityAutoCreateServiceDeps> = {}) {
           organizationId: ORGANIZATION_ID,
           customFieldValues: { order_source: 'web' },
         },
-        lines: [],
         amount: '10.00',
         currency: 'EUR',
+        agreement: 'agreed',
       })),
     },
     links: {

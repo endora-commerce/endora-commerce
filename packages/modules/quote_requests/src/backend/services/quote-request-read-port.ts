@@ -1,12 +1,15 @@
 import type { EntityManager } from '@mikro-orm/postgresql';
 import type {
+  QuoteRequestAmount,
   QuoteRequestLineRecord,
   QuoteRequestReadPort,
   QuoteRequestRecord,
 } from '@endora-commerce/contracts';
 import { OPEN_QUOTE_REQUEST_STATUSES, isUuidShape } from '@endora-commerce/contracts';
 import { QuoteRequest } from '../entities/quote-request.entity.js';
+import { QuoteRequestItem } from '../entities/quote-request-item.entity.js';
 import { loadArrangedQuoteLines, toLineGroup } from './line-order.js';
+import { quoteRequestAmount } from './quote-amount.js';
 
 /**
  * The row-level read model `quote_requests` publishes (feature 075, Phase P).
@@ -88,6 +91,20 @@ export class QuoteRequestReadService implements QuoteRequestReadPort {
       position: item.position,
       group: (item.groupId ? groupById.get(item.groupId) : undefined) ?? null,
     }));
+  }
+
+  /**
+   * Issue #456 — the one amount rule (`quote-amount.ts`), so that `crm` and
+   * `projects` stop valuing `listItems` themselves. The quote is looked up
+   * first, under the caller's scope, so a quote `findById` would not answer is
+   * not valued either.
+   */
+  async amountOf(quoteRequestId: string): Promise<QuoteRequestAmount | null> {
+    if (!isUuidShape(quoteRequestId)) return null;
+    const em = this.emFactory();
+    const quote = await em.findOne(QuoteRequest, { id: quoteRequestId });
+    if (!quote) return null;
+    return quoteRequestAmount(await em.find(QuoteRequestItem, { quoteRequestId: quote.id }));
   }
 }
 

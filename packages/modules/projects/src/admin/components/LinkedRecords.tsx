@@ -15,7 +15,7 @@ import {
 } from '@endora-commerce/admin-kit/ui';
 import { useTranslation } from '@endora-commerce/admin-kit/i18n';
 import { projectsApi } from '../api.js';
-import { errorMessage } from '../lib/labels.js';
+import { errorMessage, NO_VALUE } from '../lib/labels.js';
 import { useRemoteOptions } from './LookupPickers.js';
 
 /**
@@ -194,7 +194,17 @@ function LinkGroup(props: LinkGroupProps): ReactNode {
                         {link.status}
                       </Badge>
                     ) : null}
-                    {amount ? <span className="tabular-nums">{amount}</span> : null}
+                    {amount ? (
+                      <span className="tabular-nums">{amount}</span>
+                    ) : link.kind === 'quote_request' ? (
+                      // A Quote Request without any price has no amount, not 0.00 (issue #456).
+                      <span className="tabular-nums text-muted-foreground">{NO_VALUE}</span>
+                    ) : null}
+                    {amount && link.agreement && link.agreement !== 'agreed' ? (
+                      <Badge variant="outline" className="font-normal">
+                        {t(link.agreement === 'partial' ? 'links.partiallyAgreed' : 'links.notYetAgreed')}
+                      </Badge>
+                    ) : null}
                   </>
                 ) : (
                   <span className="text-muted-foreground" title={t('links.unavailableHint')}>

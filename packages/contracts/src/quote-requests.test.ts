@@ -11,7 +11,9 @@ import {
   quoteRequestItemSchema,
   quoteRequestNegotiationOverrideSchema,
   quoteRequestOrgNegotiationSchema,
+  quoteRequestAmountSchema,
   quoteRequestSchema,
+  quoteRequestSummarySchema,
   setQuoteRequestAccountNegotiationSchema,
   setQuoteRequestOrgNegotiationSchema,
   storefrontQuoteRequestNegotiationSchema,
@@ -376,6 +378,7 @@ describe('in-process ports (type level)', () => {
       listOpenForOrganizations: async () => [],
       listItems: async () => [legacy],
       findByBusinessId: async () => null,
+      amountOf: async () => ({ amount: '0.00', currency: 'PLN', agreement: 'partial' }),
     };
     expect(await port.listItems(ID(10))).toEqual([legacy]);
   });
@@ -832,5 +835,56 @@ describe('163 — the operator names the channel an on-behalf quote request is r
 
   it('refuses a channel that is not an id', () => {
     expect(adminCreateQuoteRequestSchema.safeParse({ ...base, salesChannelId: 'b2c' }).success).toBe(false);
+  });
+});
+
+describe('issue #456 — one rule for what a quote request is worth', () => {
+  it('the amount is a two-place string, with its currency and how far it is agreed', () => {
+    for (const agreement of ['agreed', 'partial', 'none'] as const) {
+      expect(quoteRequestAmountSchema.parse({ amount: '37.50', currency: 'PLN', agreement })).toEqual({
+        amount: '37.50',
+        currency: 'PLN',
+        agreement,
+      });
+    }
+  });
+
+  it('a quote without any price has no amount — not 0.00 (PO ruling of 2026-11-08)', () => {
+    expect(quoteRequestAmountSchema.parse({ amount: null, currency: null, agreement: 'none' }).amount).toBeNull();
+  });
+
+  it('refuses an amount that is not two places, an unknown agreement and the old boolean', () => {
+    for (const amount of ['37.5', '37', '37.505', '-1.00', 37.5]) {
+      expect(() => quoteRequestAmountSchema.parse({ amount, currency: 'PLN', agreement: 'agreed' })).toThrow();
+    }
+    expect(() => quoteRequestAmountSchema.parse({ amount: '1.00', currency: 'PLN', agreement: 'some' })).toThrow();
+    expect(() => quoteRequestAmountSchema.parse({ amount: '1.00', currency: 'PLN', partiallyAgreed: true })).toThrow();
+  });
+
+  it('the admin list row carries the amount and the agreement; the customer row may omit them', () => {
+    const row = {
+      id: ID(10),
+      businessId: 'QR-1',
+      organizationId: ID(1),
+      customerAccountId: ID(2),
+      status: 'Pending',
+      awaitingCustomerRevisionAcceptance: false,
+      lineCount: 2,
+      totalAtCustomerPrice: null,
+      totalAtAgreedPrice: null,
+      currency: 'PLN',
+      submittedAt: null,
+      expiresAt: null,
+      createdAt: '2026-11-08T10:00:00.000Z',
+      updatedAt: '2026-11-08T10:00:00.000Z',
+      version: 1,
+    };
+    expect(quoteRequestSummarySchema.parse({ ...row, amount: '12.34', agreement: 'partial' })).toMatchObject({
+      amount: '12.34',
+      agreement: 'partial',
+    });
+    expect(quoteRequestSummarySchema.parse({ ...row, amount: null, agreement: 'none' }).amount).toBeNull();
+    expect(quoteRequestSummarySchema.parse(row).amount).toBeUndefined();
+    expect(() => quoteRequestSummarySchema.parse({ ...row, amount: '12.3', agreement: 'partial' })).toThrow();
   });
 });

@@ -378,6 +378,8 @@
   "links.group.opportunity": "Opportunities",
   "links.empty": "None linked.",
   "links.unavailable": "Unavailable",
+  "links.partiallyAgreed": "Partially agreed",
+  "links.notYetAgreed": "Not yet agreed",
   "links.unavailableHint": "You may not view it, its module is switched off, or it no longer exists.",
   "links.ownerOff.quote_request": "Quote requests are switched off. Linked ones are kept and shown again when they are back on; none can be linked meanwhile.",
   "links.ownerOff.opportunity": "CRM is switched off. Linked opportunities are kept and shown again when it is back on; none can be linked meanwhile.",
