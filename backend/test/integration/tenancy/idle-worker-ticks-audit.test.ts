@@ -41,6 +41,12 @@ import {
   runStageAlertJob,
   stageAlertTick,
 } from '../../../../packages/modules/projects/src/backend/workers/stage-alert-worker.js';
+import {
+  PUBLICATION_WINDOW_SWEEP_SCOPE_REASON,
+  PUBLICATION_WINDOW_WATERMARK_KEY,
+  PublicationWindowSweep,
+  runPublicationWindowSweepTick,
+} from '../../../../packages/modules/catalog/src/backend/services/publication-window-sweep.js';
 import { PROJECTS_ADMIN, createProject, deleteProjects, patchStage, stageNamed } from '../projects/helpers.js';
 
 /**
@@ -748,6 +754,100 @@ describe('idle worker ticks write no escape-hatch audit row (issue #120)', () =>
       );
 
       expect(await recorded(STAGE_ALERT_SCOPE_REASON)).toBe(before + 1);
+    });
+  });
+
+  // --- catalog: publication-window crossings, every 5 min (issue #894) --------
+
+  describe('catalog — the publication-window sweep', () => {
+    const quiet = { info: () => undefined, warn: () => undefined, error: () => undefined, debug: () => undefined };
+    // 2035 is a year no other file gives a publication window in, and the
+    // watermark is this case's own, so what is crossed is what it wrote.
+    const AT = new Date('2035-04-02T10:00:00.000Z');
+    const minutes = (n: number) => new Date(AT.getTime() + n * 60_000);
+    const store = new Map<string, string>();
+    const watermark = {
+      get: async (key: string) => store.get(key) ?? null,
+      set: async (key: string, value: string) => {
+        store.set(key, value);
+        return 'OK' as const;
+      },
+    };
+    const emitted: string[] = [];
+    const created: string[] = [];
+    const sweeper = () =>
+      new PublicationWindowSweep(emFactory, watermark as never, (event) => {
+        emitted.push(event.productId);
+      });
+    /** The job BullMQ runs, with the clock handed in. */
+    const tick = (now: Date) =>
+      asWorker(() => {
+        const sweep = sweeper();
+        return runPublicationWindowSweepTick({
+          sweep: { hasDueTransitions: () => sweep.hasDueTransitions(now), sweep: () => sweep.sweep(now) },
+          log: quiet as never,
+        });
+      });
+
+    afterAll(async () => {
+      if (created.length > 0) {
+        await h.em().getConnection().execute(`delete from products where id in (${created.map(() => '?').join(', ')})`, created);
+      }
+    });
+
+    it('several ticks with no window crossed write no row, and leave the watermark alone', async () => {
+      store.set(PUBLICATION_WINDOW_WATERMARK_KEY, String(minutes(-5).getTime()));
+      const before = await recorded(PUBLICATION_WINDOW_SWEEP_SCOPE_REASON);
+      for (let i = 0; i < IDLE_TICKS; i += 1) await tick(AT);
+
+      expect(await recorded(PUBLICATION_WINDOW_SWEEP_SCOPE_REASON)).toBe(before);
+      expect(emitted).toEqual([]);
+      expect(store.get(PUBLICATION_WINDOW_WATERMARK_KEY)).toBe(String(minutes(-5).getTime()));
+    });
+
+    it('a tick with a window crossed announces it and writes its row, as before; the next one is idle', async () => {
+      const id = randomUUID();
+      created.push(id);
+      await h
+        .em()
+        .getConnection()
+        .execute(
+          `insert into products (id, sku, slug, type, status, name, description, publish_from, created_at, updated_at)
+           values (?, ?, ?, 'simple', 'active', 'Idle ticks', '', ?, now(), now())`,
+          [id, `IDLE-PW-${id.slice(0, 8)}`, `idle-pw-${id.slice(0, 8)}`, minutes(-2)],
+        );
+      store.set(PUBLICATION_WINDOW_WATERMARK_KEY, String(minutes(-5).getTime()));
+      const before = await recorded(PUBLICATION_WINDOW_SWEEP_SCOPE_REASON);
+
+      await tick(AT);
+
+      expect(emitted).toEqual([id]);
+      expect(await recorded(PUBLICATION_WINDOW_SWEEP_SCOPE_REASON)).toBe(before + 1);
+      expect(store.get(PUBLICATION_WINDOW_WATERMARK_KEY)).toBe(String(AT.getTime()));
+      await tick(minutes(+5));
+      expect(emitted).toEqual([id]);
+      expect(await recorded(PUBLICATION_WINDOW_SWEEP_SCOPE_REASON)).toBe(before + 1);
+    });
+
+    it('a question that cannot be answered counts as yes: the sweep runs, and is recorded', async () => {
+      store.set(PUBLICATION_WINDOW_WATERMARK_KEY, String(minutes(+10).getTime()));
+      const sweep = sweeper();
+      const before = await recorded(PUBLICATION_WINDOW_SWEEP_SCOPE_REASON);
+
+      await asWorker(() =>
+        runPublicationWindowSweepTick({
+          sweep: {
+            hasDueTransitions: async () => {
+              throw new Error('connection refused');
+            },
+            sweep: () => sweep.sweep(minutes(+15)),
+          },
+          log: quiet as never,
+        }),
+      );
+
+      expect(await recorded(PUBLICATION_WINDOW_SWEEP_SCOPE_REASON)).toBe(before + 1);
+      expect(store.get(PUBLICATION_WINDOW_WATERMARK_KEY)).toBe(String(minutes(+15).getTime()));
     });
   });
 });

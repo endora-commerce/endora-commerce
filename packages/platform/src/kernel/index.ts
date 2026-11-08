@@ -145,6 +145,22 @@ export { scopeRequestToActor } from './request-scope-hook.js';
 export { type AuditPort, type RecordAuditInput, type AuditLogFilter } from './ports/audit.js';
 export { AuditLogEntry } from './audit/audit-log-entry.entity.js';
 
+/**
+ * Erasing an anonymised subject's audit history in place (issue #844) — the
+ * one exception to the audit log being append-only. A separate port beside
+ * {@link AuditPort}, registered as the platform-owned `auditRedactionService`;
+ * `AuditRedactionService` is the host's implementation and, like the writer,
+ * is not published.
+ */
+export {
+  AUDIT_REDACTED_ACTION,
+  AUDIT_REDACTION_MAX_IDS_PER_TARGET,
+  type AuditRedactionPort,
+  type AuditRedactionInput,
+  type AuditRedactionResult,
+  type AuditRedactionTarget,
+} from './ports/audit-redaction.js';
+
 export {
   InProcessCacheRegistry,
   inProcessCaches,

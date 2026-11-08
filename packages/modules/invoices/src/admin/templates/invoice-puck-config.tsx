@@ -1,14 +1,17 @@
-import type { CSSProperties, ReactElement, ReactNode } from 'react';
+import { useEffect, useState, type CSSProperties, type ReactElement, type ReactNode } from 'react';
 import type { Config, ComponentConfig } from '@puckeditor/core';
 import { createColorField, definePageBuilderComponent } from '@endora-commerce/page-builder-core';
+import { useBlockRenderEnvironment } from '@endora-commerce/page-builder-core/contributions';
 import {
   createImageAssetField,
   createImageSourceField,
   createImageUrlField,
 } from '@endora-commerce/page-builder-admin';
 import { fetchAssetDetail } from '@endora-commerce/admin-kit/components';
+import { getBundles, resolve, useTranslationContext } from '@endora-commerce/admin-kit/i18n';
+import type { Bundle, SupportedAdminLanguage } from '@endora-commerce/admin-kit/i18n';
 import { toAbsoluteAssetUrl } from '@endora-commerce/admin-kit/lib';
-import { unitPriceFractionDigits } from '@endora-commerce/contracts';
+import { supportedLanguageOf, unitPriceFractionDigits } from '@endora-commerce/contracts';
 
 /**
  * Dedicated Puck config for invoice PDF templates (feature 047, US6). Kept in
@@ -85,9 +88,74 @@ const sampleInvoice = {
   },
 };
 
-const TITLES: Record<typeof sampleInvoice.kind, string> = {
-  invoice: 'Invoice',
-};
+/**
+ * Issue #888 — the canvas draws what the PDF prints: a label the template
+ * leaves empty (or blank) comes from this module's `pdf.*` keys **in the
+ * language of the tree being edited**, the fallback `sections.ts` takes with
+ * `str(props, key, labels[…])`; a label the operator typed is drawn as typed.
+ *
+ * The edited tree's language is the render environment the document-template
+ * editor provides around its canvas (`useBlockRenderEnvironment`). When it is
+ * the administrator's language the loaded bundle already holds it; otherwise
+ * that language's bundle is fetched once per session, and until it arrives the
+ * administrator's language stands in.
+ */
+const treeBundles = new Map<SupportedAdminLanguage, Promise<Bundle>>();
+
+function treeBundle(language: SupportedAdminLanguage): Promise<Bundle> {
+  let pending = treeBundles.get(language);
+  if (!pending) {
+    pending = getBundles(language).then((response) => response.bundles);
+    // A failed read is not remembered, so the next canvas tries again.
+    pending.catch(() => treeBundles.delete(language));
+    treeBundles.set(language, pending);
+  }
+  return pending;
+}
+
+type TreeLabel = (key: string, params?: Record<string, string | number>) => string;
+
+function useTreeLabels(): TreeLabel {
+  const { language: treeLanguage } = useBlockRenderEnvironment();
+  const target = supportedLanguageOf(treeLanguage);
+  const { language: admin, bundle, fallbackBundle, t } = useTranslationContext();
+  const held = target === admin ? bundle : target === 'en' ? fallbackBundle : undefined;
+  const [fetched, setFetched] = useState<{ language: SupportedAdminLanguage; bundle: Bundle } | null>(null);
+  useEffect(() => {
+    if (held) return undefined;
+    let live = true;
+    treeBundle(target).then(
+      (loaded) => {
+        if (live) setFetched({ language: target, bundle: loaded });
+      },
+      () => undefined,
+    );
+    return () => {
+      live = false;
+    };
+  }, [held, target]);
+  const own = held ?? (fetched?.language === target ? fetched.bundle : undefined);
+  const english = admin === 'en' ? bundle : fallbackBundle;
+  return (key, params) => {
+    if (own) {
+      const result = resolve({
+        scope: 'invoices',
+        key,
+        language: target,
+        bundle: own,
+        ...(english ? { fallbackBundle: english } : {}),
+        ...(params ? { params } : {}),
+      });
+      if (result.outcome !== 'placeholder') return result.value;
+    }
+    return t('invoices', key, params);
+  };
+}
+
+/** The operator's label when it has text, as `sections.ts`'s `str` reads one; else `fallback`. */
+function typed(value: unknown, fallback: string): string {
+  return typeof value === 'string' && value.trim() ? value : fallback;
+}
 
 function money(n: number): string {
   return n.toLocaleString('en-US', { minimumFractionDigits: 2, maximumFractionDigits: 2 });
@@ -266,49 +334,52 @@ const InvoiceHeader = invoiceSection({
     marginTop: 0,
     marginBottom: 12,
   },
-  render: (props) => {
-    const inv = sampleInvoice;
-    const align = asAlign(props.align, 'left');
-    const titleSize = asNum(props.titleSize, 14);
-    const titleBold = asBool(props.titleBold, true);
-    const titleColor = asColor(props.titleColor, '#0f172a');
-    return (
-      <Section marginTop={asNum(props.marginTop, 0)} marginBottom={asNum(props.marginBottom, 12)}>
-        <div
-          style={{
-            fontSize: titleSize,
-            fontWeight: titleBold ? 700 : 400,
-            color: titleColor,
-            textAlign: align,
-            marginBottom: 6,
-          }}
-        >
-          {TITLES[inv.kind]} No. {inv.number}
-        </div>
-        {asBool(props.showIssuedAt, true) ? (
-          <div style={{ textAlign: align }}>
-            {props.labelIssuedAt || 'Issue date'}: {inv.issuedAt}
-          </div>
-        ) : null}
-        {asBool(props.showSaleDate, true) ? (
-          <div style={{ textAlign: align }}>
-            {props.labelSaleDate || 'Sale date'}: {inv.saleDate}
-          </div>
-        ) : null}
-        {asBool(props.showPaymentDue, true) ? (
-          <div style={{ textAlign: align }}>
-            {props.labelPaymentDue || 'Payment due'}: {inv.paymentDueDate}
-          </div>
-        ) : null}
-        {asBool(props.showPaymentMethod, true) ? (
-          <div style={{ textAlign: align }}>
-            {props.labelPaymentMethod || 'Payment method'}: {inv.paymentMethod}
-          </div>
-        ) : null}
-      </Section>
-    );
-  },
+  render: (props) => <InvoiceHeaderCanvas {...props} />,
 }) as ComponentConfig<HeaderProps>;
+
+function InvoiceHeaderCanvas(props: HeaderProps): ReactElement {
+  const label = useTreeLabels();
+  const inv = sampleInvoice;
+  const align = asAlign(props.align, 'left');
+  const titleSize = asNum(props.titleSize, 14);
+  const titleBold = asBool(props.titleBold, true);
+  const titleColor = asColor(props.titleColor, '#0f172a');
+  return (
+    <Section marginTop={asNum(props.marginTop, 0)} marginBottom={asNum(props.marginBottom, 12)}>
+      <div
+        style={{
+          fontSize: titleSize,
+          fontWeight: titleBold ? 700 : 400,
+          color: titleColor,
+          textAlign: align,
+          marginBottom: 6,
+        }}
+      >
+        {label('pdf.title.numbered', { title: label('pdf.title.invoice'), number: inv.number })}
+      </div>
+      {asBool(props.showIssuedAt, true) ? (
+        <div style={{ textAlign: align }}>
+          {typed(props.labelIssuedAt, label('pdf.label.issuedAt'))}: {inv.issuedAt}
+        </div>
+      ) : null}
+      {asBool(props.showSaleDate, true) ? (
+        <div style={{ textAlign: align }}>
+          {typed(props.labelSaleDate, label('pdf.label.saleDate'))}: {inv.saleDate}
+        </div>
+      ) : null}
+      {asBool(props.showPaymentDue, true) ? (
+        <div style={{ textAlign: align }}>
+          {typed(props.labelPaymentDue, label('pdf.label.paymentDue'))}: {inv.paymentDueDate}
+        </div>
+      ) : null}
+      {asBool(props.showPaymentMethod, true) ? (
+        <div style={{ textAlign: align }}>
+          {typed(props.labelPaymentMethod, label('pdf.label.paymentMethod'))}: {inv.paymentMethod}
+        </div>
+      ) : null}
+    </Section>
+  );
+}
 
 /* -------------------------------------------------------------------------- */
 /* InvoiceParties                                                             */
@@ -356,51 +427,58 @@ const InvoiceParties = invoiceSection({
     marginTop: 0,
     marginBottom: 16,
   },
-  render: (props) => {
-    const { seller, buyer } = sampleInvoice;
-    const labelFs = asNum(props.labelFontSize, 10);
-    const bodyFs = asNum(props.bodyFontSize, 10);
-    const sellerPct = Math.min(70, Math.max(30, asNum(props.sellerWidthPercent, 50)));
-    const gap = asNum(props.columnGap, 16);
-    const labelStyle: CSSProperties = { fontWeight: 700, fontSize: labelFs, marginBottom: 2 };
-    const bodyStyle: CSSProperties = { fontSize: bodyFs };
-    return (
-      <Section marginTop={asNum(props.marginTop, 0)} marginBottom={asNum(props.marginBottom, 16)}>
-        <div style={{ display: 'flex', gap }}>
-          <div style={{ flex: `0 0 ${sellerPct}%` }}>
-            <div style={labelStyle}>{props.sellerLabel || 'Seller'}</div>
-            <div style={bodyStyle}>{seller.legalName}</div>
-            <div style={bodyStyle}>{seller.addressLine1}</div>
-            {seller.addressLine2 ? <div style={bodyStyle}>{seller.addressLine2}</div> : null}
-            <div style={bodyStyle}>
-              {seller.postalCode} {seller.city}
-            </div>
-            <div style={bodyStyle}>Tax ID: {seller.taxId}</div>
-            {asBool(props.showSellerBank, true) && seller.bankAccount ? (
-              <div style={bodyStyle}>
-                {seller.bankName} {seller.bankAccount}
-              </div>
-            ) : null}
-            {asBool(props.showSellerSwift, true) && seller.swift ? (
-              <div style={bodyStyle}>SWIFT: {seller.swift}</div>
-            ) : null}
-          </div>
-          <div style={{ flex: `1 1 ${100 - sellerPct}%` }}>
-            <div style={labelStyle}>{props.buyerLabel || 'Buyer'}</div>
-            <div style={bodyStyle}>{buyer.name}</div>
-            <div style={bodyStyle}>{buyer.addressLine1}</div>
-            <div style={bodyStyle}>
-              {buyer.postalCode} {buyer.city}
-            </div>
-            {asBool(props.showBuyerTaxId, true) && buyer.taxId ? (
-              <div style={bodyStyle}>Tax ID: {buyer.taxId}</div>
-            ) : null}
-          </div>
-        </div>
-      </Section>
-    );
-  },
+  render: (props) => <InvoicePartiesCanvas {...props} />,
 }) as ComponentConfig<PartiesProps>;
+
+function InvoicePartiesCanvas(props: PartiesProps): ReactElement {
+  const label = useTreeLabels();
+  const { seller, buyer } = sampleInvoice;
+  const labelFs = asNum(props.labelFontSize, 10);
+  const bodyFs = asNum(props.bodyFontSize, 10);
+  const sellerPct = Math.min(70, Math.max(30, asNum(props.sellerWidthPercent, 50)));
+  const gap = asNum(props.columnGap, 16);
+  const labelStyle: CSSProperties = { fontWeight: 700, fontSize: labelFs, marginBottom: 2 };
+  const bodyStyle: CSSProperties = { fontSize: bodyFs };
+  return (
+    <Section marginTop={asNum(props.marginTop, 0)} marginBottom={asNum(props.marginBottom, 16)}>
+      <div style={{ display: 'flex', gap }}>
+        <div style={{ flex: `0 0 ${sellerPct}%` }}>
+          <div style={labelStyle}>{typed(props.sellerLabel, label('pdf.label.seller'))}</div>
+          <div style={bodyStyle}>{seller.legalName}</div>
+          <div style={bodyStyle}>{seller.addressLine1}</div>
+          {seller.addressLine2 ? <div style={bodyStyle}>{seller.addressLine2}</div> : null}
+          <div style={bodyStyle}>
+            {seller.postalCode} {seller.city}
+          </div>
+          <div style={bodyStyle}>
+            {label('pdf.label.taxId')}: {seller.taxId}
+          </div>
+          {asBool(props.showSellerBank, true) && seller.bankAccount ? (
+            <div style={bodyStyle}>
+              {seller.bankName} {seller.bankAccount}
+            </div>
+          ) : null}
+          {asBool(props.showSellerSwift, true) && seller.swift ? (
+            <div style={bodyStyle}>SWIFT: {seller.swift}</div>
+          ) : null}
+        </div>
+        <div style={{ flex: `1 1 ${100 - sellerPct}%` }}>
+          <div style={labelStyle}>{typed(props.buyerLabel, label('pdf.label.buyer'))}</div>
+          <div style={bodyStyle}>{buyer.name}</div>
+          <div style={bodyStyle}>{buyer.addressLine1}</div>
+          <div style={bodyStyle}>
+            {buyer.postalCode} {buyer.city}
+          </div>
+          {asBool(props.showBuyerTaxId, true) && buyer.taxId ? (
+            <div style={bodyStyle}>
+              {label('pdf.label.taxId')}: {buyer.taxId}
+            </div>
+          ) : null}
+        </div>
+      </div>
+    </Section>
+  );
+}
 
 /* -------------------------------------------------------------------------- */
 /* InvoiceLineItems                                                           */
@@ -457,91 +535,94 @@ const InvoiceLineItems = invoiceSection({
     marginTop: 0,
     marginBottom: 12,
   },
-  render: (props) => {
-    const fontSize = asNum(props.fontSize, 8);
-    const headerBold = asBool(props.headerBold, true);
-    const headerBg = asColor(props.headerBackground);
-    const headerColor = asColor(props.headerColor);
-    const borderColor = asColor(props.borderColor, '#cbd5e1') ?? '#cbd5e1';
-    const zebra = asBool(props.zebra, false);
-    const showUnit = asBool(props.showUnit, true);
-    const showQty = asBool(props.showQty, true);
-    const showUnitNet = asBool(props.showUnitNet, true);
-    const showTaxRate = asBool(props.showTaxRate, true);
-    const showNet = asBool(props.showNet, true);
-    const showGross = asBool(props.showGross, true);
-
-    type Col = { key: string; label: string; right?: boolean };
-    const cols: Col[] = [
-      { key: 'lp', label: '#' },
-      { key: 'name', label: 'Description' },
-    ];
-    if (showUnit) cols.push({ key: 'unit', label: 'Unit' });
-    if (showQty) cols.push({ key: 'qty', label: 'Qty', right: true });
-    if (showUnitNet) cols.push({ key: 'unitNet', label: 'Unit net', right: true });
-    if (showTaxRate) cols.push({ key: 'tax', label: 'Tax', right: true });
-    if (showNet) cols.push({ key: 'net', label: 'Net', right: true });
-    if (showGross) cols.push({ key: 'gross', label: 'Gross', right: true });
-
-    const head: CSSProperties = {
-      ...thStyle,
-      fontSize,
-      fontWeight: headerBold ? 600 : 400,
-      color: headerColor,
-      background: headerBg,
-      borderBottom: `1px solid ${borderColor}`,
-      borderRight: `1px solid ${borderColor}`,
-    };
-    const cell = (right?: boolean, fill?: string): CSSProperties => ({
-      ...tdStyle,
-      fontSize,
-      textAlign: right ? 'right' : 'left',
-      background: fill,
-      borderBottom: `1px solid ${borderColor}`,
-      borderRight: `1px solid ${borderColor}`,
-    });
-
-    return (
-      <Section marginTop={asNum(props.marginTop, 0)} marginBottom={asNum(props.marginBottom, 12)}>
-        <table style={{ width: '100%', borderCollapse: 'collapse', border: `1px solid ${borderColor}` }}>
-          <thead>
-            <tr>
-              {cols.map((c) => (
-                <th key={c.key} style={{ ...head, textAlign: c.right ? 'right' : 'left' }}>
-                  {c.label}
-                </th>
-              ))}
-            </tr>
-          </thead>
-          <tbody>
-            {sampleInvoice.lines.map((l, i) => {
-              const fill = zebra && i % 2 === 1 ? '#f8fafc' : undefined;
-              const values: Record<string, string> = {
-                lp: String(l.ordinal),
-                name: l.name,
-                unit: l.unit,
-                qty: String(l.quantity),
-                unitNet: unitMoney(l.unitNetPrice),
-                tax: pct(l.taxRate),
-                net: money(l.netValue),
-                gross: money(l.grossValue),
-              };
-              return (
-                <tr key={l.ordinal}>
-                  {cols.map((c) => (
-                    <td key={c.key} style={cell(c.right, fill)}>
-                      {values[c.key]}
-                    </td>
-                  ))}
-                </tr>
-              );
-            })}
-          </tbody>
-        </table>
-      </Section>
-    );
-  },
+  render: (props) => <InvoiceLineItemsCanvas {...props} />,
 }) as ComponentConfig<LineItemsProps>;
+
+function InvoiceLineItemsCanvas(props: LineItemsProps): ReactElement {
+  const label = useTreeLabels();
+  const fontSize = asNum(props.fontSize, 8);
+  const headerBold = asBool(props.headerBold, true);
+  const headerBg = asColor(props.headerBackground);
+  const headerColor = asColor(props.headerColor);
+  const borderColor = asColor(props.borderColor, '#cbd5e1') ?? '#cbd5e1';
+  const zebra = asBool(props.zebra, false);
+  const showUnit = asBool(props.showUnit, true);
+  const showQty = asBool(props.showQty, true);
+  const showUnitNet = asBool(props.showUnitNet, true);
+  const showTaxRate = asBool(props.showTaxRate, true);
+  const showNet = asBool(props.showNet, true);
+  const showGross = asBool(props.showGross, true);
+
+  type Col = { key: string; label: string; right?: boolean };
+  const cols: Col[] = [
+    { key: 'lp', label: label('pdf.column.ordinal') },
+    { key: 'name', label: label('pdf.column.name') },
+  ];
+  if (showUnit) cols.push({ key: 'unit', label: label('pdf.column.unit') });
+  if (showQty) cols.push({ key: 'qty', label: label('pdf.column.quantity'), right: true });
+  if (showUnitNet) cols.push({ key: 'unitNet', label: label('pdf.column.unitNet'), right: true });
+  if (showTaxRate) cols.push({ key: 'tax', label: label('pdf.column.taxRate'), right: true });
+  if (showNet) cols.push({ key: 'net', label: label('pdf.column.net'), right: true });
+  if (showGross) cols.push({ key: 'gross', label: label('pdf.column.gross'), right: true });
+
+  const head: CSSProperties = {
+    ...thStyle,
+    fontSize,
+    fontWeight: headerBold ? 600 : 400,
+    color: headerColor,
+    background: headerBg,
+    borderBottom: `1px solid ${borderColor}`,
+    borderRight: `1px solid ${borderColor}`,
+  };
+  const cell = (right?: boolean, fill?: string): CSSProperties => ({
+    ...tdStyle,
+    fontSize,
+    textAlign: right ? 'right' : 'left',
+    background: fill,
+    borderBottom: `1px solid ${borderColor}`,
+    borderRight: `1px solid ${borderColor}`,
+  });
+
+  return (
+    <Section marginTop={asNum(props.marginTop, 0)} marginBottom={asNum(props.marginBottom, 12)}>
+      <table style={{ width: '100%', borderCollapse: 'collapse', border: `1px solid ${borderColor}` }}>
+        <thead>
+          <tr>
+            {cols.map((c) => (
+              <th key={c.key} style={{ ...head, textAlign: c.right ? 'right' : 'left' }}>
+                {c.label}
+              </th>
+            ))}
+          </tr>
+        </thead>
+        <tbody>
+          {sampleInvoice.lines.map((l, i) => {
+            const fill = zebra && i % 2 === 1 ? '#f8fafc' : undefined;
+            const values: Record<string, string> = {
+              lp: String(l.ordinal),
+              name: l.name,
+              unit: l.unit,
+              qty: String(l.quantity),
+              unitNet: unitMoney(l.unitNetPrice),
+              tax: pct(l.taxRate),
+              net: money(l.netValue),
+              gross: money(l.grossValue),
+            };
+            return (
+              <tr key={l.ordinal}>
+                {cols.map((c) => (
+                  <td key={c.key} style={cell(c.right, fill)}>
+                    {values[c.key]}
+                  </td>
+                ))}
+              </tr>
+            );
+          })}
+        </tbody>
+      </table>
+    </Section>
+  );
+}
 
 /* -------------------------------------------------------------------------- */
 /* InvoiceVatSummary                                                          */
@@ -583,67 +664,75 @@ const InvoiceVatSummary = invoiceSection({
     marginTop: 0,
     marginBottom: 12,
   },
-  render: (props) => {
-    const inv = sampleInvoice;
-    const fontSize = asNum(props.fontSize, 8);
-    const headerBold = asBool(props.headerBold, true);
-    const headerBg = asColor(props.headerBackground);
-    const headerColor = asColor(props.headerColor);
-    const borderColor = asColor(props.borderColor, '#cbd5e1') ?? '#cbd5e1';
-    const headers = ['Tax rate', 'Net', 'VAT', 'Gross'];
-    const head = (i: number): CSSProperties => ({
-      ...thStyle,
-      fontSize,
-      fontWeight: headerBold ? 600 : 400,
-      color: headerColor,
-      background: headerBg,
-      textAlign: i === 0 ? 'left' : 'right',
-      borderBottom: `1px solid ${borderColor}`,
-      borderRight: `1px solid ${borderColor}`,
-    });
-    const cell = (right?: boolean, bold?: boolean): CSSProperties => ({
-      ...tdStyle,
-      fontSize,
-      fontWeight: bold ? 700 : 400,
-      textAlign: right ? 'right' : 'left',
-      borderBottom: `1px solid ${borderColor}`,
-      borderRight: `1px solid ${borderColor}`,
-    });
-    return (
-      <Section marginTop={asNum(props.marginTop, 0)} marginBottom={asNum(props.marginBottom, 12)}>
-        <table style={{ width: '100%', borderCollapse: 'collapse', border: `1px solid ${borderColor}` }}>
-          <thead>
-            <tr>
-              {headers.map((h, i) => (
-                <th key={h} style={head(i)}>
-                  {h}
-                </th>
-              ))}
-            </tr>
-          </thead>
-          <tbody>
-            {inv.vatSummary.map((v) => (
-              <tr key={v.taxRate}>
-                <td style={cell()}>{pct(v.taxRate)}</td>
-                <td style={cell(true)}>{money(v.netTotal)}</td>
-                <td style={cell(true)}>{money(v.vatAmount)}</td>
-                <td style={cell(true)}>{money(v.grossTotal)}</td>
-              </tr>
-            ))}
-            {asBool(props.showTotalRow, true) ? (
-              <tr>
-                <td style={cell(false, true)}>{props.totalLabel || 'Total'}</td>
-                <td style={cell(true, true)}>{money(inv.netTotal)}</td>
-                <td style={cell(true, true)}>{money(inv.taxTotal)}</td>
-                <td style={cell(true, true)}>{money(inv.grossTotal)}</td>
-              </tr>
-            ) : null}
-          </tbody>
-        </table>
-      </Section>
-    );
-  },
+  render: (props) => <InvoiceVatSummaryCanvas {...props} />,
 }) as ComponentConfig<VatSummaryProps>;
+
+function InvoiceVatSummaryCanvas(props: VatSummaryProps): ReactElement {
+  const label = useTreeLabels();
+  const inv = sampleInvoice;
+  const fontSize = asNum(props.fontSize, 8);
+  const headerBold = asBool(props.headerBold, true);
+  const headerBg = asColor(props.headerBackground);
+  const headerColor = asColor(props.headerColor);
+  const borderColor = asColor(props.borderColor, '#cbd5e1') ?? '#cbd5e1';
+  const headers = [
+    label('pdf.vat.rate'),
+    label('pdf.column.net'),
+    label('pdf.vat.amount'),
+    label('pdf.column.gross'),
+  ];
+  const head = (i: number): CSSProperties => ({
+    ...thStyle,
+    fontSize,
+    fontWeight: headerBold ? 600 : 400,
+    color: headerColor,
+    background: headerBg,
+    textAlign: i === 0 ? 'left' : 'right',
+    borderBottom: `1px solid ${borderColor}`,
+    borderRight: `1px solid ${borderColor}`,
+  });
+  const cell = (right?: boolean, bold?: boolean): CSSProperties => ({
+    ...tdStyle,
+    fontSize,
+    fontWeight: bold ? 700 : 400,
+    textAlign: right ? 'right' : 'left',
+    borderBottom: `1px solid ${borderColor}`,
+    borderRight: `1px solid ${borderColor}`,
+  });
+  return (
+    <Section marginTop={asNum(props.marginTop, 0)} marginBottom={asNum(props.marginBottom, 12)}>
+      <table style={{ width: '100%', borderCollapse: 'collapse', border: `1px solid ${borderColor}` }}>
+        <thead>
+          <tr>
+            {headers.map((h, i) => (
+              <th key={h} style={head(i)}>
+                {h}
+              </th>
+            ))}
+          </tr>
+        </thead>
+        <tbody>
+          {inv.vatSummary.map((v) => (
+            <tr key={v.taxRate}>
+              <td style={cell()}>{pct(v.taxRate)}</td>
+              <td style={cell(true)}>{money(v.netTotal)}</td>
+              <td style={cell(true)}>{money(v.vatAmount)}</td>
+              <td style={cell(true)}>{money(v.grossTotal)}</td>
+            </tr>
+          ))}
+          {asBool(props.showTotalRow, true) ? (
+            <tr>
+              <td style={cell(false, true)}>{typed(props.totalLabel, label('pdf.label.total'))}</td>
+              <td style={cell(true, true)}>{money(inv.netTotal)}</td>
+              <td style={cell(true, true)}>{money(inv.taxTotal)}</td>
+              <td style={cell(true, true)}>{money(inv.grossTotal)}</td>
+            </tr>
+          ) : null}
+        </tbody>
+      </table>
+    </Section>
+  );
+}
 
 /* -------------------------------------------------------------------------- */
 /* InvoiceTotals                                                              */
@@ -713,55 +802,58 @@ const InvoiceTotals = invoiceSection({
     marginTop: 0,
     marginBottom: 16,
   },
-  render: (props) => {
-    const inv = sampleInvoice;
-    const align = asAlign(props.align, 'right');
-    const fontSize = asNum(props.fontSize, 10);
-    const color = asColor(props.color, '#0f172a');
-    const amountDueColor = asColor(props.amountDueColor) ?? color;
-    return (
-      <Section marginTop={asNum(props.marginTop, 0)} marginBottom={asNum(props.marginBottom, 16)}>
-        <div style={{ textAlign: align, fontSize, color }}>
-          {asBool(props.showPaid, true) ? (
-            <div>
-              {props.labelPaid || 'Paid'}: {money(inv.paidTotal)} {inv.currency}
-            </div>
-          ) : null}
-          {asBool(props.showAmountDue, true) ? (
-            <div
-              style={{
-                fontWeight: asBool(props.amountDueBold, true) ? 700 : 400,
-                color: amountDueColor,
-              }}
-            >
-              {props.labelAmountDue || 'Amount due'}: {money(inv.amountDue)} {inv.currency}
-            </div>
-          ) : null}
-          {asBool(props.showOverpayment, true) && inv.overpayment > 0 ? (
-            <div>
-              {props.labelOverpayment || 'Overpayment'}: {money(inv.overpayment)} {inv.currency}
-            </div>
-          ) : null}
-          {asBool(props.showGross, true) ? (
-            <div>
-              {props.labelGross || 'Total'}: {money(inv.grossTotal)} {inv.currency}
-            </div>
-          ) : null}
-          {asBool(props.showAmountInWords, true) ? (
-            <div
-              style={{
-                fontStyle: asBool(props.amountInWordsItalics, true) ? 'italic' : 'normal',
-                marginTop: 6,
-              }}
-            >
-              {props.labelInWords || 'In words'}: {inv.amountInWords} {inv.currency}
-            </div>
-          ) : null}
-        </div>
-      </Section>
-    );
-  },
+  render: (props) => <InvoiceTotalsCanvas {...props} />,
 }) as ComponentConfig<TotalsProps>;
+
+function InvoiceTotalsCanvas(props: TotalsProps): ReactElement {
+  const label = useTreeLabels();
+  const inv = sampleInvoice;
+  const align = asAlign(props.align, 'right');
+  const fontSize = asNum(props.fontSize, 10);
+  const color = asColor(props.color, '#0f172a');
+  const amountDueColor = asColor(props.amountDueColor) ?? color;
+  return (
+    <Section marginTop={asNum(props.marginTop, 0)} marginBottom={asNum(props.marginBottom, 16)}>
+      <div style={{ textAlign: align, fontSize, color }}>
+        {asBool(props.showPaid, true) ? (
+          <div>
+            {typed(props.labelPaid, label('pdf.label.paid'))}: {money(inv.paidTotal)} {inv.currency}
+          </div>
+        ) : null}
+        {asBool(props.showAmountDue, true) ? (
+          <div
+            style={{
+              fontWeight: asBool(props.amountDueBold, true) ? 700 : 400,
+              color: amountDueColor,
+            }}
+          >
+            {typed(props.labelAmountDue, label('pdf.label.amountDue'))}: {money(inv.amountDue)} {inv.currency}
+          </div>
+        ) : null}
+        {asBool(props.showOverpayment, true) && inv.overpayment > 0 ? (
+          <div>
+            {typed(props.labelOverpayment, label('pdf.label.overpayment'))}: {money(inv.overpayment)} {inv.currency}
+          </div>
+        ) : null}
+        {asBool(props.showGross, true) ? (
+          <div>
+            {typed(props.labelGross, label('pdf.label.total'))}: {money(inv.grossTotal)} {inv.currency}
+          </div>
+        ) : null}
+        {asBool(props.showAmountInWords, true) ? (
+          <div
+            style={{
+              fontStyle: asBool(props.amountInWordsItalics, true) ? 'italic' : 'normal',
+              marginTop: 6,
+            }}
+          >
+            {typed(props.labelInWords, label('pdf.label.inWords'))}: {inv.amountInWords} {inv.currency}
+          </div>
+        ) : null}
+      </div>
+    </Section>
+  );
+}
 
 /* -------------------------------------------------------------------------- */
 /* InvoiceNotes                                                               */
@@ -1081,17 +1173,24 @@ const InvoiceFooter = invoiceSection({
     marginTop: 0,
     marginBottom: 8,
   },
-  render: (props) =>
-    renderTextBlock(
-      { ...props, text: props.text || DEFAULT_FOOTER_TEXT },
-      {
-        fontSize: 9,
-        showTopDivider: true,
-        marginBottom: 8,
-        emptyHint: DEFAULT_FOOTER_TEXT,
-      },
-    ),
+  render: (props) => <InvoiceFooterCanvas {...props} />,
 }) as ComponentConfig<TextBlockProps>;
+
+function InvoiceFooterCanvas(props: TextBlockProps): ReactElement {
+  // An empty footer prints the default one in the document's language, as an
+  // empty label does (issue #437).
+  const label = useTreeLabels();
+  const text = typed(props.text, label('pdf.footer.default'));
+  return renderTextBlock(
+    { ...props, text },
+    {
+      fontSize: 9,
+      showTopDivider: true,
+      marginBottom: 8,
+      emptyHint: text,
+    },
+  );
+}
 
 /* -------------------------------------------------------------------------- */
 /* Config export                                                              */

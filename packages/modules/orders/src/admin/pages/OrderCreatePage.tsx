@@ -89,6 +89,7 @@ const ORDER_PRODUCT_RULES: ProductBrowserRules = {
 
 // Members of `ADMIN_ORDER_PREVIEW_MESSAGE_PRECEDENCE`, named rather than taken by
 // position: a renamed code then fails to compile instead of remapping a reason.
+const ARCHIVED_CODE: AdminOrderPreviewMessageCode = 'PRODUCT_ARCHIVED';
 const NOT_VISIBLE_CODE: AdminOrderPreviewMessageCode = 'PRODUCT_NOT_VISIBLE_TO_CUSTOMER';
 const NOT_IN_CHANNEL_CODE: AdminOrderPreviewMessageCode = 'PRODUCT_NOT_IN_SALES_CHANNEL';
 const BELOW_MINIMUM_CODE: AdminOrderPreviewMessageCode = 'BELOW_MINIMUM_QUANTITY';
@@ -103,7 +104,8 @@ interface PreviewMessage {
 /**
  * The line reason for a preview message
  * (`contracts/order-preview-unavailability.md` § Consumer mapping): the two
- * assortment/visibility codes carry their own reason; feature 155's
+ * assortment/visibility codes carry their own reason, and so does
+ * `PRODUCT_ARCHIVED` (issue #829) — the operator can restore the product; feature 155's
  * `BELOW_MINIMUM_QUANTITY` names the minimum it missed (FR-009) — the operator
  * can fix that one by raising the quantity, so it must not read as **No price**;
  * `PRODUCT_NOT_FOUND`, `QUOTE_ONLY` and any code this client does not know read
@@ -113,6 +115,7 @@ function unavailableReason(message: PreviewMessage | undefined): {
   key: string;
   params?: Record<string, number>;
 } {
+  if (message?.code === ARCHIVED_CODE) return { key: 'orderCreate.line.archived' };
   if (message?.code === NOT_VISIBLE_CODE) return { key: 'orderCreate.line.notVisible' };
   if (message?.code === NOT_IN_CHANNEL_CODE) return { key: 'orderCreate.line.notInChannel' };
   if (message?.code === BELOW_MINIMUM_CODE) {

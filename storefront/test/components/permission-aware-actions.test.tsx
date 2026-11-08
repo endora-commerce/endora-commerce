@@ -35,7 +35,7 @@ vi.mock('../../lib/session', () => ({
   setAnonCartCookie: async () => undefined,
 }));
 let shownPreview: unknown = null;
-vi.mock('../../lib/quick-order-preview-cookie', () => ({
+vi.mock('../../lib/api/quick-order-preview', () => ({
   readQuickOrderPreview: async () => shownPreview,
   writeQuickOrderPreview: async () => true,
   clearQuickOrderPreview: async () => undefined,

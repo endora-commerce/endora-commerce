@@ -3,7 +3,7 @@
 import { logoutCustomer } from '../api/auth';
 import { clearSessionCookie, getSessionCookie } from '../session';
 import { localeRedirect } from '../i18n/navigation';
-import { clearQuickOrderPreview } from '../quick-order-preview-cookie';
+import { clearQuickOrderPreview } from '../api/quick-order-preview';
 
 /**
  * Ends the buyer's session and sends them to the sign-in page.
@@ -14,9 +14,11 @@ import { clearQuickOrderPreview } from '../quick-order-preview-cookie';
  */
 export async function signOutAction(): Promise<void> {
   const session = await getSessionCookie();
+  // Issues #790, #809 — the quick-order preview is the buyer's uploaded data, so it ends with the
+  // session. The backend keeps it bound to the session, so it is dropped while the session can
+  // still name it. Best effort: signing out never waits on it, and the backend's TTL ends it anyway.
+  if (session) await clearQuickOrderPreview(session).catch(() => undefined);
   await logoutCustomer(session);
   await clearSessionCookie();
-  // Issue #790 — the quick-order preview is the buyer's uploaded data; it ends with the session.
-  await clearQuickOrderPreview();
   return await localeRedirect('/login');
 }

@@ -79,6 +79,43 @@ więc faktura co do grosza równa się temu, co pozostało zapłacone. Faktura p
 zatrzymane pozycje i nie jest odrzucana dla zamówienia zwróconego w całości. Gdy moduł `returns` jest
 wyłączony, każda pozycja jest fakturowana w zamówionej ilości.
 
+**Reklamacja, za którą zwrócono pieniądze przed wystawieniem faktury**, jest obecnie widoczna na
+fakturze jako kwota do zapłaty: faktura obejmuje towary w całości, a zwrot z reklamacji pomniejsza
+to, co zapłacono.
+
+### Faktury korygujące
+
+Zwrot albo reklamacja rozliczone zwrotem pieniędzy lub środkami na koncie **po** wystawieniu faktury
+dostają fakturę korygującą (`kind: correction`), jedną na sprawę. Korekta uznaje kwoty brutto
+według stawki VAT pozycji faktury, którą koryguje, i nigdy więcej niż to, co z faktury pozostało.
+Wymiana albo naprawa nie przenosi pieniędzy i nie powoduje korekty.
+
+**Zwrot** uznaje towary, które wróciły. Na fakturze wystawionej przy metodzie VAT liczonego dla każdej
+stawki korekta wynika z tego, co faktura zatrzymuje:
+
+- Gdy sprawa zwraca kwotę domyślną, faktura zatrzymuje w każdej stawce dokładnie VAT od sumy wartości
+  netto zatrzymanych ilości: te same kwoty, które pokazałaby faktura wystawiona po zwrocie. Na
+  przykład zwrot jednej sztuki z 3 × 10,01 netto przy 23 % (36,94 brutto) zwraca 12,32, a korekta
+  uznaje 10,01 netto i 2,31 VAT, więc zostaje 20,02 netto i 4,60 VAT.
+- Gdy operator zatwierdził niższą kwotę, faktura zatrzymuje resztę kwoty brutto w tej stawce,
+  podzieloną na netto i VAT według tej samej reguły. Dla niektórych kwot żadna wartość netto nie daje
+  dokładnie tej kwoty brutto (na przykład 6,00 z 12,32 przy 23 %). Wtedy sama korekta stosuje
+  regułę, a to, co zatrzymuje faktura, może różnić się od niej o 0,01 w tej stawce aż do następnej
+  korekty. Pieniądze zawsze zgadzają się co do grosza.
+- Część rabatu zamówienia, która przypadała na zwrócone towary, jest uznawana z powrotem w pozycji
+  0 %. Dostawa i dopłata za płatność nigdy nie są uznawane.
+
+**Reklamacja** rozliczona pieniędzmi jest **obniżką ceny**: kupujący zatrzymuje towary, więc obniża się
+ich cena, a żadna ilość nie wraca. Pozycja korekty nazywa się *Obniżka ceny (reklamacja RMA-…):
+produkt* i ma ilość 0. Jej wartość netto to obniżka, a cena jednostkowa to obniżka rozłożona na
+sztuki, które nadal są na fakturze. Nie uznaje rabatu, bo rabat zostaje przy zatrzymanych towarach,
+i nie zmniejsza ilości, od której liczony jest późniejszy zwrot tej samej pozycji. Dla integracji,
+która czyta pozycje korekty: pozycja towarowa z ilością 0 to obniżka ceny.
+
+Korekta, która uznałaby w jednej stawce VAT więcej towarów, niż faktura nadal w niej nalicza, jest
+odrzucana z `422 VALIDATION_FAILED` (`code: correction_exceeds_rate_remaining`), zanim zostaną
+przeniesione jakiekolwiek pieniądze.
+
 **Kwota do zapłaty** to kwota brutto pomniejszona o to, co zapłacono, i nigdy nie jest ujemna. Gdy
 zapłacono więcej niż kwota brutto, do zapłaty jest 0, a faktura podaje różnicę jako **nadpłatę**
 (`overpayment` w API, wiersz *Nadpłata* na ekranie panelu i na PDF — etykieta jest ustawieniem

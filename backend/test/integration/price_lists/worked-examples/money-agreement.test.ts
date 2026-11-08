@@ -59,6 +59,13 @@ const SUB_CENT: Record<string, string> = {
   [SEED_PRODUCT_103_ID]: '1.5050',
 };
 
+/** Issue #873 — the design's vectors: 3 × 10.01 at 23 % and 2 × 4.995 at 8 %. */
+const KEPT_STATE: Record<string, string> = {
+  [SEED_PRODUCT_101_ID]: '10.0100',
+  [SEED_PRODUCT_102_ID]: '4.9950',
+  [SEED_PRODUCT_103_ID]: '9.0450',
+};
+
 interface Vector {
   id: string;
   /** The vector's resolver amounts, when they are not {@link RESOLVER}'s. */
@@ -82,6 +89,12 @@ interface Vector {
   discount?: string;
   /** Lines that are not returnable: they come back through a complaint. */
   complaints?: number[];
+  /**
+   * A complaint refunded after invoicing, before the returns (issue #885): a price
+   * reduction of `amount` on `quantity` units of line `line`. Its correction is the
+   * first entry of `credited`.
+   */
+  priceReduction?: { line: number; quantity: number; amount: string };
 }
 
 const VECTORS: Vector[] = [
@@ -323,6 +336,78 @@ const VECTORS: Vector[] = [
       ['4.10', '3.33', '0.77'],
     ],
   },
+  // Issue #873 — the correction leaves what the invoice keeps: vatByRate of the kept nets.
+  {
+    // K1: 3 × 10.01 at 23 %, one unit at a time. The first refunds 12.32 and credits 10.01 net
+    // and 2.31 VAT, so the invoice keeps 20.02 / 4.60 (the rule's figures for 20.02), not 20.01 / 4.61.
+    id: 'K1',
+    resolver: KEPT_STATE,
+    lines: [{ productId: SEED_PRODUCT_101_ID, quantity: 3 }],
+    rates: { simple: 0.23 },
+    expectedLines: [['10.0100', '30.03', '36.94']],
+    rows: [[0.23, '30.03', '6.91', '36.94']],
+    net: '30.03',
+    tax: '6.91',
+    total: '39.44',
+    returns: [[1], [1], [1]],
+    credited: [
+      ['12.32', '10.01', '2.31'],
+      ['12.31', '10.01', '2.30'],
+      ['12.31', '10.01', '2.30'],
+    ],
+  },
+  {
+    // K2: two rates and a 5.00 order discount. 1A + 1B, then 1A, then the rest; each
+    // correction credits the goods per rate from the kept quantities and the discount on 0 %.
+    id: 'K2',
+    resolver: KEPT_STATE,
+    lines: [
+      { productId: SEED_PRODUCT_101_ID, quantity: 3 },
+      { productId: SEED_PRODUCT_102_ID, quantity: 2 },
+    ],
+    rates: { simple: 0.23, virtual: 0.08 },
+    expectedLines: [
+      ['10.0100', '30.03', '36.94'],
+      ['4.9950', '9.99', '10.79'],
+    ],
+    rows: [
+      [0.08, '9.99', '0.80', '10.79'],
+      [0.23, '30.03', '6.91', '36.94'],
+    ],
+    net: '40.02',
+    tax: '7.71',
+    total: '45.23',
+    discount: '5.00',
+    returns: [
+      [1, 1],
+      [1, 0],
+      [1, 1],
+    ],
+    credited: [
+      ['15.86', '13.15', '2.71'],
+      ['11.02', '8.72', '2.30'],
+      ['15.85', '13.15', '2.70'],
+    ],
+  },
+  {
+    // AC-885-1: a complaint refunded at 6.15 after invoicing is a price reduction of 5.00 net
+    // and 1.15 VAT; a return of 1 unit then refunds 12.32 and credits 10.01 / 2.31.
+    id: 'P1',
+    resolver: KEPT_STATE,
+    lines: [{ productId: SEED_PRODUCT_101_ID, quantity: 3 }],
+    rates: { simple: 0.23 },
+    expectedLines: [['10.0100', '30.03', '36.94']],
+    rows: [[0.23, '30.03', '6.91', '36.94']],
+    net: '30.03',
+    tax: '6.91',
+    total: '39.44',
+    priceReduction: { line: 0, quantity: 1, amount: '6.15' },
+    returns: [[1]],
+    credited: [
+      ['6.15', '5.00', '1.15'],
+      ['12.32', '10.01', '2.31'],
+    ],
+  },
 ];
 
 const two = (n: number | string) => Number(n).toFixed(2);
@@ -529,6 +614,34 @@ describe('worked examples — §10.17 and §10.18 every document an order produc
       const context = (await cradle.orderReturnContextPort.getReturnContext(orderId))!;
       const earlier: Array<{ orderItemId: string; quantity: number; defaultRefundAmount: string; defaultDiscountAmount: string }> = [];
       const credited: Array<[string, string, string]> = [];
+      const readCorrection = async (invoiceId: string) => {
+        const corrected = await h.app.inject({ method: 'GET', url: `/api/v1/admin/invoices/${invoiceId}`, cookies: ADMIN_COOKIE });
+        expect(corrected.statusCode, corrected.body).toBe(200);
+        const c = (corrected.json() as { data: { netTotal: number; taxTotal: number; grossTotal: number } }).data;
+        credited.push([two(c.grossTotal), two(c.netTotal), two(c.taxTotal)]);
+      };
+      if (v.priceReduction) {
+        // A complaint: the buyer keeps the goods, so it is not a return the defaults count (#885).
+        const item = context.lines.find((l) => l.productId === v.lines[v.priceReduction!.line]!.productId)!;
+        const reduction = await cradle.correctiveInvoicePort.createCorrection({
+          orderId,
+          lines: [
+            {
+              orderItemId: item.orderItemId,
+              productName: item.name,
+              quantity: v.priceReduction.quantity,
+              amount: Number(v.priceReduction.amount),
+              basis: 'price_reduction',
+            },
+          ],
+          total: Number(v.priceReduction.amount),
+          currency: 'PLN',
+          idempotencyKey: `ma-${v.id}-${orderId}-complaint`,
+          caseReference: `RMA-${v.id}`,
+        });
+        expect(reduction.issued).toBe(true);
+        await readCorrection((reduction as { invoiceId: string }).invoiceId);
+      }
       for (const [caseIndex, quantities] of v.returns.entries()) {
         const current = v.lines
           .map((line, i) => ({ orderItemId: context.lines.find((l) => l.productId === line.productId)!.orderItemId, quantity: quantities[i]! }))
@@ -564,14 +677,7 @@ describe('worked examples — §10.17 and §10.18 every document an order produc
           idempotencyKey: `money-agreement-${v.id}-${orderId}-${caseIndex}`,
         });
         expect(correction.issued).toBe(true);
-        const corrected = await h.app.inject({
-          method: 'GET',
-          url: `/api/v1/admin/invoices/${(correction as { invoiceId: string }).invoiceId}`,
-          cookies: ADMIN_COOKIE,
-        });
-        expect(corrected.statusCode, corrected.body).toBe(200);
-        const c = (corrected.json() as { data: { netTotal: number; taxTotal: number; grossTotal: number } }).data;
-        credited.push([two(c.grossTotal), two(c.netTotal), two(c.taxTotal)]);
+        await readCorrection((correction as { invoiceId: string }).invoiceId);
         current.forEach((cur, i) =>
           earlier.push({ ...cur, defaultRefundAmount: refunds[i]!.refund, defaultDiscountAmount: refunds[i]!.discount }),
         );
@@ -692,7 +798,9 @@ describe('worked examples — §10.17 and §10.18 every document an order produc
       cookies: ADMIN_COOKIE,
     });
     const c = (corrected.json() as { data: { netTotal: number; taxTotal: number; grossTotal: number } }).data;
-    // The credit is what was paid: the 0.01 of VAT never paid is never credited.
-    expect([c.grossTotal, c.netTotal, c.taxTotal].map(two)).toEqual(['40.80', '33.80', '7.00']);
+    // The credit is what was paid (issue #873): at 23 % the invoice keeps the cent never paid
+    // as 0.01 net and no VAT — what the per-rate rule gives 0.01 net — so the credit is 29.49
+    // net and 6.79 VAT there, all of the VAT the rate charged.
+    expect([c.grossTotal, c.netTotal, c.taxTotal].map(two)).toEqual(['40.80', '33.79', '7.01']);
   });
 });

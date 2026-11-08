@@ -1,6 +1,19 @@
 import { z } from 'zod';
 
 /**
+ * The value an erased audit-snapshot field holds (issue #844).
+ *
+ * When a customer is anonymised, the platform rewrites the audit history of
+ * that subject in place: every key is kept, so a diff still says *which* fields
+ * changed, and every personal value becomes this marker. It is the **stored**
+ * value — the raw JSON, the CLI and an export print it as is — and a reader
+ * that shows it to a person translates it (the admin audit viewer draws
+ * `auditLog.erased`). Only a value equal to the marker is one: a string that
+ * merely starts with it is ordinary data.
+ */
+export const AUDIT_ERASED_MARKER = '[erased]';
+
+/**
  * Audit-log reference labels — "what is this row about, and where does it live?"
  * (feature 075, D-87 drain).
  *
