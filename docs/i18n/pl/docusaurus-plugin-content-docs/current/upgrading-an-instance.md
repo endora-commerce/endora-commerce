@@ -4111,6 +4111,32 @@ administratora bez drugiego składnika do kroku konfiguracji, którego nie dało
 [listę kontrolną pierwszego wdrożenia](./deployment/first-deployment-checklist.md)) i uruchom
 backend ponownie, aby wymuszanie znów działało, albo wyłącz to ustawienie w **Ustawieniach**.
 
+### Terminy zwrotu liczą się od realizacji zamówienia {#return-window-from-completion}
+
+Wydanie, które zawiera tę zmianę, zapisuje, kiedy zamówienie zostało zrealizowane
+(`orders.completed_at`, zgłoszenie #905), i od tej chwili liczy terminy zwrotu. Dotąd liczyły się od
+ostatniej edycji zamówienia, która przesuwała się do przodu przy każdej zmianie zrealizowanego
+zamówienia. Migracja wypełnia nową kolumnę wartością `updated_at` każdego zrealizowanego zamówienia —
+chwilą, według której te zamówienia były oceniane wcześniej — więc w chwili aktualizacji nic się nie
+zmienia dla istniejących zamówień.
+
+Od tej pory zmieniają się dwie rzeczy:
+
+- **Dni kalendarzowe.** Okres bezpłatnego zwrotu (`returns.free_return_days`) kończy się teraz z
+  końcem ostatniego dnia kalendarzowego, a ostatni dzień przypadający w sobotę lub niedzielę
+  przesuwa się na poniedziałek. Wcześniej kończył się dokładnie `free_return_days × 24 h` po chwili
+  odniesienia. Sprawa może teraz kwalifikować się do bezpłatnego zwrotu do jednego dnia później niż
+  dotąd (do trzech przy weekendzie), nigdy wcześniej.
+- **Strefa czasowa.** Dni liczy się w nowym ustawieniu `returns.time_zone` (domyślnie
+  `Europe/Warsaw`, ustawiane także dla kanału sprzedaży).
+
+**Po aktualizacji:**
+
+1. **Jeśli sklep nie działa w strefie `Europe/Warsaw`**, ustaw `returns.time_zone` na jego strefę,
+   np. `Europe/Berlin`, na ekranie ustawień w panelu (grupa *Zwroty*).
+2. **Poproś operatorów, by realizowali zamówienie, gdy towar został doręczony.** Termin konsumenta na
+   odstąpienie od umowy liczy się od realizacji zamówienia, bo platforma nie zna daty doręczenia.
+
 ## Instancja niespójna od początku
 
 Instalator `0.101.x` lub starszy zapisywał każdy pakiet wydania z `^` poza

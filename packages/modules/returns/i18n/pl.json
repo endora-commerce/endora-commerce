@@ -34,5 +34,7 @@
   "organizationPermissions.returns.create.description": "Zgłaszanie zwrotu lub reklamacji do zamówienia, które widzisz: własnego albo współpracownika, jeśli możesz wyświetlać zamówienia organizacji.",
   "organizationPermissions.returns.view_organization.label": "Wyświetlanie zwrotów i reklamacji organizacji",
   "organizationPermissions.returns.view_organization.description": "Przeglądanie wszystkich zwrotów i reklamacji zgłoszonych w organizacji, nie tylko własnych. Komentowanie, dodawanie plików, wybór sposobu odesłania zwrotu i anulowanie pozostają w gestii osoby, która zgłosiła sprawę.",
-  "settingGroups.returns.name": "Zwroty"
+  "settingGroups.returns.name": "Zwroty",
+  "settingLabels.returns.time_zone.name": "Strefa czasowa okien zwrotu",
+  "settingLabels.returns.time_zone.description": "Strefa czasowa, jako nazwa IANA, np. Europe/Warsaw, w której okno bezpłatnego zwrotu i termin konsumenta na odstąpienie od umowy liczą dni kalendarzowe: każdy z nich kończy się z końcem ostatniego dnia w tej strefie, a ostatni dzień przypadający w sobotę lub niedzielę przesuwa się na poniedziałek. Wartość kanału sprzedaży nadpisuje wartość globalną."
 }

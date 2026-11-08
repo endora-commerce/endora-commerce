@@ -305,7 +305,9 @@ describe('155 — returns refuse non-returnable lines; complaints are untouched 
       ],
     );
     const placed = await whenOrderCreatedSettled(h, () => checkOutBasket(h));
-    await em.nativeUpdate(Order, { id: placed.id }, { status: 'completed' });
+    // A native update bypasses `OrderTransitionService`, so it stamps the
+    // completion itself (issue #905): the return window counts from it.
+    await em.nativeUpdate(Order, { id: placed.id }, { status: 'completed', completedAt: new Date() });
 
     // The operator flips both flags after the order was placed.
     await em.nativeUpdate(Product, { id: R.id }, { returnable: false });

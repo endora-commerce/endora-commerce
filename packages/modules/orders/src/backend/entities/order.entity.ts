@@ -2,6 +2,7 @@ import { Entity, Index, OptionalProps, PrimaryKey, Property, Unique } from '@mik
 import { OrgScoped } from '@endora-commerce/platform/tenancy';
 import { randomUUID } from 'crypto';
 import type { NextAction, OrderChargeLine } from '@endora-commerce/contracts';
+import { ORDER_STATUS_COMPLETED } from '../domain/order-status-graph.js';
 
 /**
  * Order — data-model.md § Domain 4.
@@ -23,6 +24,7 @@ export class Order {
     | 'businessId'
     | 'createdAt'
     | 'updatedAt'
+    | 'completedAt'
     | 'status'
     | 'paymentStatus'
     | 'placedOnBehalfByAdminUserId'
@@ -205,6 +207,23 @@ export class Order {
 
   @Property({ type: 'datetime', onUpdate: () => new Date() })
   updatedAt: Date = new Date();
+
+  /**
+   * The moment the order entered `completed` (issue #905): stamped once, by
+   * `OrderTransitionService` beside the status write, or here for an order
+   * created directly in that status, and never rewritten. It is the anchor
+   * `OrderReturnContextPort` reports as `completingStatusEnteredAt`, so a
+   * consumer's withdrawal period does not move when the order is edited later,
+   * which counting from `updatedAt` did. `null` = never completed: the period
+   * has not started. Rows completed before the column existed were backfilled
+   * from `updated_at`, the anchor of their day.
+   */
+  @Property({
+    type: 'datetime',
+    nullable: true,
+    onCreate: (order: Order) => (order.status === ORDER_STATUS_COMPLETED ? new Date() : null),
+  })
+  completedAt?: Date | null;
 
   /**
    * Whether this order still owes a GA4 `purchase` conversion (issue #277).
