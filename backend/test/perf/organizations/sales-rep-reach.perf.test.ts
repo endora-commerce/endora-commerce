@@ -180,7 +180,11 @@ describe.skipIf(!shouldRun)('#305 — the sales-representative reach at 50 000 o
     expect(reachP95, `reachOf ${label} p95`).toBeLessThanOrEqual(reachBudget);
   }, 600_000);
 
-  it.each(['/api/v1/admin/customers?pageSize=50', '/api/v1/admin/orders?pageSize=50'])(
+  // Known failure, issue #955 (ruling Q5 on PR #954): measured 7.7× and 22.7×
+  // on 2026-11-08 (`specs/175-sales-rep-reach-rule/research.md` R-3). The
+  // threshold stays; `it.fails` turns red the day the governor table makes it
+  // pass, which is when this marker is removed.
+  it.fails.each(['/api/v1/admin/customers?pageSize=50', '/api/v1/admin/orders?pageSize=50'])(
     '%s for a roll-up representative is within the ratio of the platform administrator’s',
     async (url) => {
       const read = (cookie: string) => async () => {

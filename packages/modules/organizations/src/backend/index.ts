@@ -1294,6 +1294,7 @@ function salesRepAssignmentServiceFor(
         ctx,
         'permissionService',
       ).hasPermission(adminUserId, 'organizations:rollup'),
+    warn: (fields, message) => ctx.log.warn(fields, message),
   });
 }
 

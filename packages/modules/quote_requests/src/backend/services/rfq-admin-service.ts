@@ -212,13 +212,9 @@ export class RfqAdminService {
       orderBy: { createdAt: 'desc' },
     });
 
-    // Visibility scoping (skipped for platform admin). For a sales
-    // representative this now agrees with the tenant filter the read ran under
-    // (issue #305: both are `canSeeOrganization`'s rule). It stays because this
-    // list applies the rule to every role but `platform_admin` — a custom role
-    // holding `rfqs:handle` resolves an unrestricted tenant scope — and that
-    // decision is not #305's to change.
-    if (!ctx.isPlatformAdmin) {
+    // Visibility scoping, for a role this list scopes and the tenant filter
+    // does not (see `needsPerOrganizationVisibility`).
+    if (needsPerOrganizationVisibility(ctx)) {
       const visible = await Promise.all(
         rfqs.map((r) =>
           this.deps.salesRepAssignment.canSeeOrganization(ctx.adminUserId, r.organizationId),
@@ -353,7 +349,7 @@ export class RfqAdminService {
       });
 
     let visibleOrgIds: string[] | null = null;
-    if (!ctx.isPlatformAdmin) {
+    if (needsPerOrganizationVisibility(ctx)) {
       const candidates = (
         (await em.execute(matching(null).distinct('organization_id'))) as Array<{ organization_id: string }>
       ).map((r) => r.organization_id);
@@ -1290,4 +1286,20 @@ export function operatorLineProducts<P extends Pick<CatalogProductRecord, 'id' |
     });
   }
   return found;
+}
+
+/**
+ * Whether a quote-request read must apply `canSeeOrganization` per
+ * organization itself, beside the tenant filter it already ran under.
+ *
+ * A sales representative's tenant scope *is* that rule since issue #305, so
+ * for them the pass would only repeat it, once per organization. It remains
+ * for the one actor the tenant filter does not narrow and this list does: a
+ * custom role holding `rfqs:handle`, which resolves an unrestricted tenant
+ * scope but is not `platform_admin`. Whether such a role should be narrowed at
+ * all is the PO's question, issue #957 (ruling: custom roles are
+ * platform-wide); until it is settled the list keeps narrowing it.
+ */
+function needsPerOrganizationVisibility(ctx: AdminContext): boolean {
+  return !ctx.isPlatformAdmin && orgConstraintFor().kind === 'all';
 }

@@ -4,6 +4,7 @@ import {
   quickOrderPreferenceScopeSchema,
   quickOrderPreferenceUpsertSchema,
   type CustomerAccountReadPort,
+  type OrganizationDetailsPort,
 } from '@endora-commerce/contracts';
 import { HttpError } from '@endora-commerce/platform/http';
 import { isOrgInScope, orgConstraintFor } from '@endora-commerce/platform/tenancy';
@@ -21,6 +22,12 @@ export interface QuickOrderPreferenceAdminRoutesDeps {
   service: DefaultPreferenceService;
   /** `customer_accounts`' read model — the target customer's organisation. */
   customerAccounts: CustomerAccountReadPort;
+  /**
+   * `organizations`' read model. Issue #305 (ruling Q4 on PR #954): a sales
+   * representative's reach is a complement, so an id naming no organization
+   * is "in reach"; the write refuses it as not found instead.
+   */
+  organizations: Pick<OrganizationDetailsPort, 'findById'>;
   requireAdmin: RequireAdminFactory;
   resolveAdminContext: (req: FastifyRequest) => { adminUserId: string };
 }
@@ -43,7 +50,7 @@ export async function registerQuickOrderPreferenceAdminRoutes(
   app: FastifyInstance,
   deps: QuickOrderPreferenceAdminRoutesDeps,
 ): Promise<void> {
-  const { service, customerAccounts, requireAdmin, resolveAdminContext } = deps;
+  const { service, customerAccounts, organizations, requireAdmin, resolveAdminContext } = deps;
 
   app.get(
     '/api/v1/admin/quick-order/preferences',
@@ -71,6 +78,9 @@ export async function registerQuickOrderPreferenceAdminRoutes(
       const body = quickOrderPreferenceUpsertSchema.parse(request.body);
       const ctx = resolveAdminContext(request);
       const actor = adminActor();
+      if (actor.kind === 'salesperson' && body.scope === 'organization' && !(await organizations.findById(body.scopeId))) {
+        throw new HttpError(404, ERROR_CODES.NOT_FOUND, 'Organization not found.');
+      }
       const result = await service.upsert(actor, body, { actorAdminUserId: ctx.adminUserId });
       return { data: result };
     },

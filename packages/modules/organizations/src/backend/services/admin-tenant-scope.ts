@@ -44,9 +44,20 @@ export function createAdminTenantScopePort(
         return { allowAll: false, allowedOrganizationIds: [], unresolved: refusal };
       }
       if (role.code !== SALES_REPRESENTATIVE_ROLE_CODE) return { allowAll: true };
-      // Not caught: a reach that cannot be computed fails the request, and
-      // never answers a wider one.
-      const reach = await salesRepReach.reachOf(adminUserId);
+      // A reach that cannot be computed is refused, never widened (ruling Q1 on
+      // PR #954): the scope holds no organization and carries the error, which
+      // the tenant guard raises on the first tenant-scoped read — as for a
+      // missing role, so the session-only routes keep answering.
+      let reach: SalesRepReach;
+      try {
+        reach = await salesRepReach.reachOf(adminUserId);
+      } catch (error) {
+        return {
+          allowAll: false,
+          allowedOrganizationIds: [],
+          unresolved: error instanceof Error ? error : new Error(String(error)),
+        };
+      }
       return {
         allowAll: false,
         reach: 'excluding',

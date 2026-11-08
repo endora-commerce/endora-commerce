@@ -6,7 +6,7 @@ import { ERROR_CODES, isUuidShape } from '@endora-commerce/contracts';
 import type { SalesRepAssignmentPort, SalesRepAssignmentRow } from '@endora-commerce/contracts';
 import { recordAuditFromContext } from '@endora-commerce/platform/commands';
 import type { AuditPort } from '@endora-commerce/platform/kernel';
-import type { OrganizationTreeService } from './organization-tree-service.js';
+import { isReadableTreePath, type OrganizationTreeService } from './organization-tree-service.js';
 import {
   decideSalesRepReach,
   type DescendantNode,
@@ -24,6 +24,13 @@ import {
 export interface SalesRepSubtreeDeps {
   readonly treeService: OrganizationTreeService;
   readonly hasRollupCapability: (adminUserId: string) => Promise<boolean>;
+  /**
+   * Issue #305 (ruling Q1 on PR #954) — told once per `reachOf` that met a
+   * governing organization whose stored tree path cannot be read, naming them.
+   * The reach is still answered, by the one-id rule; this is how the data
+   * defect gets found.
+   */
+  readonly warn?: (fields: { organizationIds: string[] }, message: string) => void;
 }
 
 /**
@@ -134,8 +141,9 @@ export class SalesRepAssignmentService implements SalesRepAssignmentPort {
    * neither list is governed by nobody and is in every representative's reach.
    *
    * Not on `SalesRepAssignmentPort`: its one consumer is this module's
-   * `adminTenantScopePort`. It does not catch: a failure of the statement fails
-   * the request. An empty excluded list is a real answer — nobody else holds an
+   * `adminTenantScopePort`. It does not catch: a failure of the statement
+   * reaches the port, which answers `unresolved` (no organization, the refusal
+   * deferred to the first tenant-scoped read). An empty excluded list is a real answer — nobody else holds an
    * assignment — and is never produced by an error.
    */
   async reachOf(adminUserId: string): Promise<SalesRepReach> {
@@ -228,6 +236,16 @@ export class SalesRepAssignmentService implements SalesRepAssignmentPort {
     for (const r of rows) {
       if (r.kind === 'g') governors.push({ organizationId: r.id, path: r.path, mine: r.mine === true });
       else descendants.push({ id: r.id, path: r.path });
+    }
+    const unreadable = governors
+      .filter((g) => !isReadableTreePath(g.path, g.organizationId))
+      .map((g) => g.organizationId);
+    if (unreadable.length > 0) {
+      this.subtree?.warn?.(
+        { organizationIds: unreadable },
+        'organizations: a governing organization has a stored tree position that cannot be read; ' +
+          'the sales-representative reach resolves it by its own assignments and the paths that name it',
+      );
     }
     return decideSalesRepReach({ rollup: true, governors, descendants });
   }

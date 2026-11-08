@@ -155,7 +155,7 @@ where not (                        -- the nearest governing node decides (FR-011
   limit 1
 )
 ```
-- The paths hold only `/`, hex digits and `-`, so `LIKE` needs no escaping. Every reader must still pass `isReadableTreePath` (`organization-tree-service.ts:110`). A path that is not readable makes the query fail, and the scope answers `unresolved`.
+- The paths hold only `/`, hex digits and `-`, so `LIKE` needs no escaping. Every reader must still pass `isReadableTreePath` (`organization-tree-service.ts:110`). ~~A path that is not readable makes the query fail, and the scope answers `unresolved`.~~ **Amended 2026-11-08 (ruling Q1 on PR #954):** a governing node whose path is not readable resolves through the one-id rule — it governs itself, and its descendants are the nodes whose own paths name it (`like '%/<id>/%'`) — and no longer refuses; each request that hits this fallback logs one `warn` naming the organizations. A statement that throws still fails the request (the scope answers `unresolved` only for the refusals the port already carries).
 - The dev must confirm that `organizations.path` has a `text_pattern_ops` (or `COLLATE "C"`) btree index, which is what the tree service's "scan on path" relies on. If it does not, adding one is an `organizations` migration (`pnpm --filter backend run migration:new`).
 
 **`assignedOrganizationIds`** keeps today's `listAssignedOrganizationIds`, which ranking and `scope=mine` need. Rewrite it as one statement over the same `gov` CTE, so the request runs at most two queries. Today it runs one `subtreeNodes` query per assigned node and loads the whole assignment table (lines 110-141).

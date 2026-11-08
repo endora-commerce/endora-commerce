@@ -10,6 +10,7 @@ import type {
   CatalogProductReadPort,
   CatalogQuickSearchPort,
   CustomerAccountReadPort,
+  OrganizationDetailsPort,
   DefaultPreferencePort,
   DeliveryMethodReadPort,
   OrderPlacementPort,
@@ -377,6 +378,7 @@ export function registerModule(ctx: ModuleContext): void {
     await registerQuickOrderPreferenceAdminRoutes(app, {
       service: preferenceService,
       customerAccounts: lazyPort<CustomerAccountReadPort>(ctx, 'customerAccountReadPort'),
+      organizations: lazyPort<OrganizationDetailsPort>(ctx, 'organizationDetailsPort'),
       requireAdmin,
       resolveAdminContext: (req: FastifyRequest) => cradle().adminContextResolver(req),
     });

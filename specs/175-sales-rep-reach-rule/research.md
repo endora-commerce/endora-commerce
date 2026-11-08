@@ -50,13 +50,16 @@ filter returning either form:
   `canSeeOrganization` resolves it: it governs itself (its own path names no ancestor), and its
   descendants are found by the segment their own paths carry (`like '%/<id>/%'`, a scan paid
   only while such a row exists). That is the one-id rule's answer, never wider, and the property
-  test now includes such a node. Question for the architect in the pull request.
+  test now includes such a node. **Accepted** (ruling Q1 on PR #954); each request that hits the
+  fallback logs one `warn` naming the organizations; the harness's seed paths are #956.
 - A failure of the statement fails the request (the port does not catch it).
 - The property test (`backend/test/integration/organizations/sales-rep-reach-property.test.ts`)
   holds `canSeeOrganization(rep, id) === !excluded(rep).includes(id)` over a fixture with every
   governance shape, three reps, flat and roll-up.
 
-## R-3. Performance (design §3) — **the budget is not met**
+## R-3. Performance (design §3) — **the budget is not met; #955 blocks the release**
+
+Budget not met; issue #955 (the governor table and the array parameter) blocks the release that ships this change, not its merge (ruling Q5 on PR #954). The 1.5× list assertion is marked as a known failure pointing at #955; its threshold is unchanged.
 
 Seed as §3 (`backend/test/perf/organizations/sales-rep-reach.perf.test.ts`): 50 000
 organizations (45 000 personal), 5 000 company organizations in trees of 10, 3 000 assignment
@@ -105,6 +108,12 @@ rows over 40 representatives. Measured 2026-11-08 on the shared 16-thread develo
   role holding `rfqs:handle` — whose tenant scope is unrestricted — is filtered only by the loop;
   deleting it widened such an admin to every request (measured:
   `test/integration/admin_search/quote-requests-provider.test.ts`). For a sales representative
-  the loop now agrees with the tenant filter. Question for the architect.
+  the loop now agrees with the tenant filter. **Ruling Q3 on PR #954:** kept, and run only when
+  the ambient constraint is `all` and the actor is not `platform_admin`, in both passes (list and
+  search). The PO ruled custom roles platform-wide (option A); that change is #957.
+- **Organization ids that do not exist** are "in reach" under the complement (ruling Q4:
+  accepted). The quick-order default-preference write now refuses one with 404 for a
+  representative; the price-book audience already refused it (400 `PRICE_BOOK_AUDIENCE_KIND`).
+  Pinned by `backend/test/contract/organizations/sales-rep-nonexistent-organization.contract.test.ts`.
 - **The static pin** allowlists the producer files in `organizations`; no module source names a
   tenant mode (a module test that observes the mode is allowed).
