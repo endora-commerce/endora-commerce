@@ -10,6 +10,7 @@ import { HttpError } from '@endora-commerce/platform/http';
 import type { AuditPort, SalesChannelMembershipPort } from '@endora-commerce/platform/kernel';
 import { Organization } from '../entities/organization.entity.js';
 import { predefinedRoleIdOn } from './organization-role-store.js';
+import { anyRowExists } from './scheduled-work-probe.js';
 
 /**
  * `customer_accounts`' own read and write of the row this service binds to an
@@ -41,8 +42,16 @@ const ANONYMIZED_ADDRESS_FIELD = '-';
  * Issue #802 added the legal name, the order-confirmation recipients and the
  * custom field values; issue #843 the block and rejection reasons, which are
  * free text an operator wrote about the person. An organisation scrubbed
- * before either answers `false` here, so the next run finishes it; no
- * backfill is needed.
+ * before either answers `false` here — and what makes the next run reach it is
+ * {@link incompletelyScrubbedRows}, which puts it back on the retention
+ * sweep's work list (issue #923). The account work list alone never did: an
+ * account an earlier release anonymised is not due again. No backfill is
+ * needed.
+ *
+ * **A field added to the scrub is added here and to
+ * {@link incompletelyScrubbedRows}.** The two must agree field by field;
+ * `backend/test/integration/customers/customer-deletion-service.test.ts` I-21
+ * fails when they do not.
  */
 function isFullyScrubbed(org: Organization): boolean {
   const address = org.registeredAddress;
@@ -58,6 +67,55 @@ function isFullyScrubbed(org: Organization): boolean {
     org.rejectedReason == null &&
     org.deletedAt != null
   );
+}
+
+/**
+ * A set of rows as a `from … where …` and its parameters — the `WorkRows`
+ * shape of the `scheduled-work-probe.ts` copies, so a probe of this module can
+ * take the same statement as it stands.
+ */
+export interface OrganizationRows {
+  /** Starts at `from`. No select list, no trailing `limit` or locking clause. */
+  readonly from: string;
+  readonly params: readonly unknown[];
+}
+
+/**
+ * Issue #923 — the personal organisations a scrub has reached that do not hold
+ * all of it: the scrub's signature (personal, and carrying its name, which
+ * every rule since feature 051 writes in the scrub transaction) and the
+ * negation of {@link isFullyScrubbed}, in one statement over this module's own
+ * table.
+ *
+ * **A field added to the scrub is added here and to {@link isFullyScrubbed}.**
+ * The JSON columns read the way the entity's fallbacks do: a `null` list or
+ * bag counts as empty, and a missing address line as not blanked.
+ *
+ * Built per call, so no caller shares a statement object with another.
+ */
+export function incompletelyScrubbedRows(): OrganizationRows {
+  return {
+    from:
+      `from "organizations" where "is_personal" = true and "name" = ? and (` +
+      [
+        `"legal_name" is not null`,
+        `"blocked_reason" is not null`,
+        `"rejected_reason" is not null`,
+        `coalesce(nullif("order_confirmation_emails", 'null'::jsonb), '[]'::jsonb) <> '[]'::jsonb`,
+        `coalesce(nullif("custom_field_values", 'null'::jsonb), '{}'::jsonb) <> '{}'::jsonb`,
+        `("registered_address"->>'street') is distinct from ?`,
+        `("registered_address"->>'city') is distinct from ?`,
+        `("registered_address"->>'postalCode') is distinct from ?`,
+        `"deleted_at" is null`,
+      ].join(' or ') +
+      `)`,
+    params: [
+      ANONYMIZED_ORGANIZATION_NAME,
+      ANONYMIZED_ADDRESS_FIELD,
+      ANONYMIZED_ADDRESS_FIELD,
+      ANONYMIZED_ADDRESS_FIELD,
+    ],
+  };
 }
 
 /**
@@ -335,6 +393,36 @@ export class PersonalOrganizationService {
       await txEm.flush();
       return row;
     });
+  }
+
+  /**
+   * Issue #923 — the ids of the personal organisations a scrub reached but did
+   * not finish under the current rule ({@link incompletelyScrubbedRows}). The
+   * retention sweep runs each one's anonymised member through the cascade
+   * again, and {@link anonymizeIfOrphaned} — whose {@link isFullyScrubbed}
+   * stays the in-transaction re-check — writes what is missing.
+   *
+   * Reads only this module's table and writes nothing. `Organization` is a
+   * `@GlobalEntity()`, and the caller is the sweep, inside the system scope its
+   * tick already opens.
+   */
+  async listIncompletelyScrubbed(): Promise<string[]> {
+    const rows = incompletelyScrubbedRows();
+    // `em.execute`, not the connection's: it runs on the caller's transaction.
+    const found = (await this.emFactory().execute(`select "id" ${rows.from} order by "id"`, [
+      ...rows.params,
+    ])) as Array<{ id: string }>;
+    return found.map((row) => row.id);
+  }
+
+  /**
+   * Whether {@link listIncompletelyScrubbed} would list anything — yes or no.
+   * The retention sweep's tick asks this outside any scope (issues #857,
+   * #923), over the list's own row source, so the question cannot drift from
+   * the list.
+   */
+  async hasIncompletelyScrubbed(): Promise<boolean> {
+    return anyRowExists(this.emFactory(), [incompletelyScrubbedRows()]);
   }
 
   /**

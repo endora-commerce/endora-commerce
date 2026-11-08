@@ -85,6 +85,8 @@ describe('CustomerDeletionService', () => {
         const org = await orgs.anonymizeIfOrphaned(id);
         return org ? toOrganizationRecord(org) : null;
       },
+      listIncompletelyScrubbed: () => orgs.listIncompletelyScrubbed(),
+      hasIncompletelyScrubbed: () => orgs.hasIncompletelyScrubbed(),
     };
   }
 
@@ -715,6 +717,10 @@ describe('CustomerDeletionService', () => {
     // And converged: a second call writes nothing and records nothing more.
     await personalOrgs.anonymizeIfOrphaned(customer.id);
     expect(await em.find(AuditLogEntry, { action: 'organization.anonymized', objectId: org.id })).toHaveLength(1);
+    // Nor does the sweep, which now reaches the organisation as well (#923):
+    // it anonymises the account and finds nothing left on the organisation.
+    expect(await svc.sweep(0, after(60_000))).toBe(1);
+    expect(await em.find(AuditLogEntry, { action: 'organization.anonymized', objectId: org.id })).toHaveLength(1);
   });
 
   it('I-13 — the account scrub and its audit row commit together, and nothing is announced (#802)', async () => {
@@ -977,6 +983,259 @@ describe('CustomerDeletionService', () => {
     expectNoReasonText(row);
   });
 
+  // --- issue #923: the sweep finishes what an earlier rule left -------------
+  //
+  // The sweep used to pick its work by account (`anonymizedAt: null`), so a
+  // personal organisation an earlier release scrubbed was never revisited when
+  // the rule grew. `organizations` now lists every personal organisation that
+  // carries the scrub's name but not the whole current scrub, and the sweep
+  // runs each one's anonymised member through the same convergent cascade.
+  // Every case drives `sweep()`, not `anonymizeIfOrphaned`.
+
+  const ORG_LEGAL_NAME = 'Solo Buyer Handel';
+  const ORG_RECIPIENT = 'solo.buyer@example.test';
+  const ORG_LOYALTY_CARD = 'LC-777';
+
+  /** The organisation-side residue an earlier rule could leave behind, every field at once. */
+  const EVERY_ORG_RESIDUE: Partial<Organization> = {
+    legalName: ORG_LEGAL_NAME,
+    orderConfirmationEmails: [ORG_RECIPIENT],
+    customFieldValues: { loyalty_card: ORG_LOYALTY_CARD },
+    blockedReason: ORG_BLOCK_REASON,
+    rejectedReason: ORG_REJECT_REASON,
+  };
+
+  /**
+   * A subject an earlier release anonymised: the account is finished, and its
+   * personal organisation got the name, the blank address and `deletedAt`, but
+   * still holds `orgResidue`.
+   */
+  async function makeEarlierScrubbedSubject(
+    scrubbedAt: Date,
+    orgResidue: Partial<Organization>,
+    accountResidue: Partial<Pick<CustomerAccount, 'blockReason' | 'customFieldValues'>> = {},
+  ): Promise<{ customer: CustomerAccount; org: Organization }> {
+    const customer = await makeEarlierAnonymizedCustomer(scrubbedAt, accountResidue);
+    const org = await em.findOneOrFail(Organization, { id: customer.organizationId });
+    Object.assign(org, orgResidue);
+    await em.flush();
+    return { customer, org };
+  }
+
+  const orgAuditRows = (id: string) => em.find(AuditLogEntry, { action: 'organization.anonymized', objectId: id });
+  const accountAuditRows = (id: string) => em.find(AuditLogEntry, { action: 'customer_account.anonymized', objectId: id });
+
+  it('I-19 — a personal organization scrubbed under an earlier rule is finished by the next sweep, with one audit row and no announcement (#923)', async () => {
+    const scrubbedAt = new Date('2026-04-05T06:07:08.000Z');
+    const blockedAt = new Date('2026-03-04T05:06:07.000Z');
+    const rejectedAt = new Date('2026-02-01T00:00:00.000Z');
+    const { customer, org } = await makeEarlierScrubbedSubject(scrubbedAt, {
+      ...EVERY_ORG_RESIDUE,
+      status: 'blocked',
+      blockedAt,
+      rejectedAt,
+    });
+
+    expect(await svc.sweep(0, after(60_000))).toBe(1);
+
+    em.clear();
+    const reloaded = await em.findOneOrFail(Organization, { id: org.id });
+    expect(reloaded.legalName ?? null).toBeNull();
+    expect(reloaded.orderConfirmationEmails).toEqual([]);
+    expect(reloaded.customFieldValues).toEqual({});
+    expect(reloaded.blockedReason ?? null).toBeNull();
+    expect(reloaded.rejectedReason ?? null).toBeNull();
+    expect(reloaded.status).toBe('blocked');
+    expect(reloaded.blockedAt!.toISOString()).toBe(blockedAt.toISOString());
+    expect(reloaded.rejectedAt!.toISOString()).toBe(rejectedAt.toISOString());
+    expect(reloaded.deletedAt!.toISOString()).toBe(scrubbedAt.toISOString());
+
+    const rows = await orgAuditRows(org.id);
+    expect(rows).toHaveLength(1);
+    expect(rows[0]!.stateBefore).toEqual({
+      wasDeleted: true,
+      hadLegalName: true,
+      orderConfirmationEmailCount: 1,
+      customFieldKeys: ['loyalty_card'],
+      hadBlockedReason: true,
+      hadRejectedReason: true,
+    });
+    const serialized = JSON.stringify([rows[0]!.stateBefore, rows[0]!.stateAfter]);
+    for (const erased of [ORG_LEGAL_NAME, ORG_RECIPIENT, ORG_LOYALTY_CARD, ORG_BLOCK_REASON, ORG_REJECT_REASON]) {
+      expect(serialized).not.toContain(erased);
+    }
+
+    // The account was finished already: no row, no second announcement, and
+    // its first anonymisation time stands.
+    expect(await accountAuditRows(customer.id)).toEqual([]);
+    const account = await em.findOneOrFail(CustomerAccount, { id: customer.id });
+    expect(account.anonymizedAt!.toISOString()).toBe(scrubbedAt.toISOString());
+    expect(anonymizedEvents).toEqual([]);
+
+    // And converged: the next tick has nothing to do.
+    expect(await svc.sweep(0, after(60_000))).toBe(0);
+    expect(await orgAuditRows(org.id)).toHaveLength(1);
+    expect(await accountAuditRows(customer.id)).toEqual([]);
+  });
+
+  it('I-20 — a subject unfinished on both owners is processed once, with one audit row each (#923)', async () => {
+    // Pre-#802 on both sides: the account kept its custom field values, the
+    // organisation its legal name, recipients and custom field values. The
+    // account is on both work lists — due for its own residue, and the member
+    // of a listed organisation — and must run once.
+    const scrubbedAt = new Date('2026-04-05T06:07:08.000Z');
+    const { customer, org } = await makeEarlierScrubbedSubject(
+      scrubbedAt,
+      {
+        legalName: ORG_LEGAL_NAME,
+        orderConfirmationEmails: [ORG_RECIPIENT],
+        customFieldValues: { loyalty_card: ORG_LOYALTY_CARD },
+      },
+      { customFieldValues: { birthday: '1990-01-01' } },
+    );
+
+    expect(await svc.sweep(0, after(60_000))).toBe(1);
+
+    em.clear();
+    const account = await em.findOneOrFail(CustomerAccount, { id: customer.id });
+    expect(account.customFieldValues).toEqual({});
+    expect(account.anonymizedAt!.toISOString()).toBe(scrubbedAt.toISOString());
+    const accountRows = await accountAuditRows(customer.id);
+    expect(accountRows).toHaveLength(1);
+    expect(accountRows[0]!.stateBefore).toEqual({
+      anonymizedAt: scrubbedAt.toISOString(),
+      customFieldKeys: ['birthday'],
+      hadBlockReason: false,
+    });
+    const reloaded = await em.findOneOrFail(Organization, { id: org.id });
+    expect(reloaded.legalName ?? null).toBeNull();
+    expect(reloaded.customFieldValues).toEqual({});
+    expect(await orgAuditRows(org.id)).toHaveLength(1);
+    expect(anonymizedEvents).toEqual([]);
+
+    expect(await svc.sweep(0, after(60_000))).toBe(0);
+  });
+
+  /**
+   * One row per field `anonymizeIfOrphaned` erases: the organisation is dirty
+   * on that field alone. The selection and `isFullyScrubbed` must agree on
+   * every one of them — a field added to the scrub is added to both.
+   */
+  const SINGLE_FIELD_RESIDUE: Array<[string, Partial<Organization> | ((org: Organization) => void)]> = [
+    ['legalName', { legalName: ORG_LEGAL_NAME }],
+    ['orderConfirmationEmails', { orderConfirmationEmails: [ORG_RECIPIENT] }],
+    ['customFieldValues', { customFieldValues: { loyalty_card: ORG_LOYALTY_CARD } }],
+    ['blockedReason', { blockedReason: ORG_BLOCK_REASON }],
+    ['rejectedReason', { rejectedReason: ORG_REJECT_REASON }],
+    ['registeredAddress.street', (org) => { org.registeredAddress = { ...org.registeredAddress, street: 'ul. Prywatna 7' }; }],
+    ['registeredAddress.city', (org) => { org.registeredAddress = { ...org.registeredAddress, city: 'Kraków' }; }],
+    ['registeredAddress.postalCode', (org) => { org.registeredAddress = { ...org.registeredAddress, postalCode: '30-001' }; }],
+    ['deletedAt', { deletedAt: null }],
+  ];
+
+  it.each(SINGLE_FIELD_RESIDUE)(
+    'I-21 — an organization dirty only on %s is listed and finished by the sweep; once finished it is not listed (#923)',
+    async (_field, residue) => {
+      const scrubbedAt = new Date('2026-04-05T06:07:08.000Z');
+      const { org } = await makeEarlierScrubbedSubject(scrubbedAt, {});
+      if (typeof residue === 'function') residue(org);
+      else Object.assign(org, residue);
+      await em.flush();
+
+      expect(await personalOrgs.listIncompletelyScrubbed()).toContain(org.id);
+      expect(await svc.sweep(0, after(60_000))).toBe(1);
+      // `isFullyScrubbed` agreed the organisation was unfinished: it wrote.
+      expect(await orgAuditRows(org.id)).toHaveLength(1);
+
+      em.clear();
+      expect(await personalOrgs.listIncompletelyScrubbed()).not.toContain(org.id);
+      expect(await svc.sweep(0, after(60_000))).toBe(0);
+    },
+  );
+
+  it('I-21 — a fully scrubbed personal organization is not listed, and the sweep leaves it alone (#923)', async () => {
+    const { org } = await makeEarlierScrubbedSubject(new Date('2026-04-05T06:07:08.000Z'), {});
+    expect(await personalOrgs.listIncompletelyScrubbed()).not.toContain(org.id);
+    expect(await svc.sweep(0, after(60_000))).toBe(0);
+    expect(await orgAuditRows(org.id)).toEqual([]);
+  });
+
+  it('I-22 — a live customer literally named “Deleted customer”, a company organization and a subject inside its window are not touched (#923)', async () => {
+    // A live person whose personal organisation carries the scrub's name.
+    const live = await makePersonalCustomer();
+    const liveOrg = await em.findOneOrFail(Organization, { id: live.organizationId });
+    liveOrg.name = 'Deleted customer';
+    liveOrg.legalName = 'Deleted customer Handel';
+    // A company organisation that happens to look like a scrubbed one.
+    const company = em.create(Organization, {
+      name: 'Deleted customer',
+      legalName: 'Deleted customer Sp. z o.o.',
+      taxId: `D${Date.now()}`,
+      status: 'active',
+      vatStatus: 'vat_payer',
+      isPersonal: false,
+      registeredAddress: { street: '-', city: '-', postalCode: '-', country: 'PL' },
+      deletedAt: new Date('2026-04-05T06:07:08.000Z'),
+    });
+    // A subject soft-deleted just now: inside the window, not anonymised,
+    // whose organisation a crashed earlier tick could not have reached.
+    const pending = await makePersonalCustomer();
+    const pendingOrg = await em.findOneOrFail(Organization, { id: pending.organizationId });
+    pendingOrg.name = 'Deleted customer';
+    pendingOrg.legalName = ORG_LEGAL_NAME;
+    await em.persistAndFlush(company);
+    await svc.softDelete(pending.id, actor);
+
+    expect(await personalOrgs.listIncompletelyScrubbed()).not.toContain(company.id);
+    expect(await svc.sweep(365, new Date())).toBe(0);
+
+    em.clear();
+    const reloadedLive = await em.findOneOrFail(Organization, { id: liveOrg.id });
+    expect(reloadedLive.legalName).toBe('Deleted customer Handel');
+    expect(reloadedLive.deletedAt ?? null).toBeNull();
+    const reloadedCompany = await em.findOneOrFail(Organization, { id: company.id });
+    expect(reloadedCompany.legalName).toBe('Deleted customer Sp. z o.o.');
+    const reloadedPending = await em.findOneOrFail(Organization, { id: pendingOrg.id });
+    expect(reloadedPending.legalName).toBe(ORG_LEGAL_NAME);
+    expect(reloadedPending.deletedAt ?? null).toBeNull();
+    for (const id of [liveOrg.id, company.id, pendingOrg.id]) {
+      expect(await orgAuditRows(id)).toEqual([]);
+    }
+    expect((await em.findOneOrFail(CustomerAccount, { id: pending.id })).anonymizedAt ?? null).toBeNull();
+    expect(anonymizedEvents).toEqual([]);
+  });
+
+  it('I-23 — both owners’ residue is finished even after the retention window is raised past the deletion (#923)', async () => {
+    // Anonymised a day ago; the operator has since raised the window to a
+    // year, so the cutoff lies long before `deletedAt`.
+    const deletedAt = new Date(Date.now() - 24 * 60 * 60 * 1000);
+    const { customer, org } = await makeEarlierScrubbedSubject(
+      deletedAt,
+      { blockedReason: ORG_BLOCK_REASON, rejectedReason: ORG_REJECT_REASON },
+      { blockReason: ACCOUNT_BLOCK_REASON },
+    );
+    // And one whose account is finished, so only the organisation's residue
+    // can bring it onto the work list.
+    const orgOnly = await makeEarlierScrubbedSubject(deletedAt, { legalName: ORG_LEGAL_NAME });
+
+    expect(await svc.sweep(365, new Date())).toBe(2);
+
+    em.clear();
+    const reloaded = await em.findOneOrFail(Organization, { id: org.id });
+    expect(reloaded.blockedReason ?? null).toBeNull();
+    expect(reloaded.rejectedReason ?? null).toBeNull();
+    expect(reloaded.deletedAt!.toISOString()).toBe(deletedAt.toISOString());
+    const account = await em.findOneOrFail(CustomerAccount, { id: customer.id });
+    expect(account.blockReason ?? null).toBeNull();
+    expect(await orgAuditRows(org.id)).toHaveLength(1);
+    expect(await accountAuditRows(customer.id)).toHaveLength(1);
+    const reloadedOrgOnly = await em.findOneOrFail(Organization, { id: orgOnly.org.id });
+    expect(reloadedOrgOnly.legalName ?? null).toBeNull();
+    expect(await orgAuditRows(orgOnly.org.id)).toHaveLength(1);
+    expect(await accountAuditRows(orgOnly.customer.id)).toEqual([]);
+    expect(anonymizedEvents).toEqual([]);
+  });
+
   it('I-18 — a company organization keeps its reasons when a member is anonymized (#843)', async () => {
     const company = em.create(Organization, {
       name: 'Reasoned Sp. z o.o.',
@@ -1069,6 +1328,36 @@ describe('CustomerDeletionService', () => {
 
     await accountWrites.anonymize(customer.id);
     expect((await accountWrites.listDueForAnonymization(cutoff)).map((d) => d.id)).not.toContain(customer.id);
+  });
+
+  /**
+   * Issues #857 and #923 together — the work list also holds the members of
+   * personal organisations an earlier rule left incompletely scrubbed, so the
+   * tick's question asks `organizations` too. A subject whose account is
+   * finished (no account-side residue) but whose organisation is not must make
+   * the question say yes, or the tick would be taken for an idle one and the
+   * organisation would never be finished.
+   */
+  it('I-25 — hasDue says yes for organisation-side residue the account probe cannot see (#857, #923)', async () => {
+    const scrubbedAt = new Date(Date.now() - 24 * 60 * 60 * 1000);
+    const { customer, org } = await makeEarlierScrubbedSubject(scrubbedAt, { legalName: ORG_LEGAL_NAME });
+    // A cutoff a year back: the account is finished and outside it, so only
+    // the organisation side can put the subject on the work list.
+    const cutoff = new Date(scrubbedAt.getTime() - 365 * 24 * 60 * 60 * 1000);
+    expect((await accountWrites.listDueForAnonymization(cutoff)).map((d) => d.id)).not.toContain(customer.id);
+
+    // The organisation probe agrees with its list, and the tick's question says yes.
+    expect(await personalOrgs.listIncompletelyScrubbed()).toContain(org.id);
+    expect(await personalOrgs.hasIncompletelyScrubbed()).toBe(true);
+    expect(await svc.hasDue(365, new Date())).toBe(true);
+
+    // The sweep that question lets in finishes the organisation.
+    await svc.sweep(365, new Date());
+    em.clear();
+    expect((await em.findOneOrFail(Organization, { id: org.id })).legalName ?? null).toBeNull();
+    const left = await personalOrgs.listIncompletelyScrubbed();
+    expect(left).not.toContain(org.id);
+    expect(await personalOrgs.hasIncompletelyScrubbed()).toBe(left.length > 0);
   });
 });
 
