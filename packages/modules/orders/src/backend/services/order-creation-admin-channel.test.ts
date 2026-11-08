@@ -54,6 +54,8 @@ function build(
       findById: async () => ({ id: CUSTOMER_ID, organizationId: ORG_ID, email: null }),
     } as unknown as CustomerAccountReadPort,
     membership,
+    // Issue #829 — no line is archived.
+    { findByIds: async () => [] },
   );
   return { svc, writes };
 }
