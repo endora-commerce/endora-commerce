@@ -27,6 +27,7 @@ import { AuditLogEntry } from '@endora-commerce/platform/kernel';
 
 import { InMemoryMailer } from '../../../../packages/modules/email/src/backend/services/mailer.js';
 import { Payment } from '../../helpers/package-entities.js';
+import { addOrganizationChannels } from '../../helpers/sales-channel-access.js';
 
 
 /**
@@ -65,6 +66,9 @@ describe('external order intake — storefront order parity (062 / SC-004)', () 
     });
     await em.persistAndFlush(channel);
     await h.salesChannels.cache.invalidate('ext-parity');
+    // Issue #699 — the intake places only on one of the bound Organization's
+    // active assigned channels.
+    await addOrganizationChannels(h, TEST_ORGANIZATION_ID, ['ext-parity']);
     await em.getConnection().execute(
       `insert into sales_channel_products (sales_channel_id, product_id) values (?,?)`,
       [channel.id, SEED_PRODUCT_101_ID],

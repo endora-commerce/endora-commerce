@@ -33,5 +33,6 @@
   "organizationPermissions.returns.create.label": "Create returns and complaints",
   "organizationPermissions.returns.create.description": "Open a return or a complaint for an order you can see: your own, or a colleague's if you may view the organization's orders.",
   "organizationPermissions.returns.view_organization.label": "View the organization's returns and complaints",
-  "organizationPermissions.returns.view_organization.description": "See every return and complaint filed in the organization, not only your own. Commenting, attaching files, choosing the return delivery method and cancelling stay with the member who filed the case."
+  "organizationPermissions.returns.view_organization.description": "See every return and complaint filed in the organization, not only your own. Commenting, attaching files, choosing the return delivery method and cancelling stay with the member who filed the case.",
+  "settingGroups.returns.name": "Returns"
 }

@@ -20,6 +20,16 @@ export class AnonymizationSweepWorker {
     private readonly resolveRetentionDays: () => Promise<number>,
   ) {}
 
+  /**
+   * The tick's question before its scope (issue #857). The retention setting is
+   * platform-wide configuration, not an Organization's data, so it is read here
+   * outside any scope; the sweep reads it again inside its own.
+   */
+  async hasDue(now: Date = new Date()): Promise<boolean> {
+    const retentionDays = await this.resolveRetentionDays();
+    return this.deletion.hasDue(retentionDays, now);
+  }
+
   async sweep(now: Date = new Date()): Promise<number> {
     const retentionDays = await this.resolveRetentionDays();
     return this.deletion.sweep(retentionDays, now);
@@ -58,13 +68,22 @@ export const ANONYMIZATION_SWEEP_SCOPE_REASON =
 export type AnonymizationSweepJobData = Record<string, never>;
 
 export interface AnonymizationSweepDeps {
-  readonly sweeper: Pick<AnonymizationSweepWorker, 'sweep'>;
+  readonly sweeper: Pick<AnonymizationSweepWorker, 'hasDue' | 'sweep'>;
   readonly log: PlatformLogger;
 }
 
 /**
- * What BullMQ invokes for one job: one sweep, in the system scope — the
- * accounts due are every tenant's.
+ * What BullMQ invokes for one job: ask whether any account is due, and only
+ * then one sweep, in the system scope — the accounts due are every tenant's.
+ *
+ * **An idle tick enters no scope** (issue #857). Entering the scope is what
+ * writes the `tenant.escape_hatch` audit row, so the question is asked first,
+ * outside any scope, and answers yes or no and nothing else
+ * (`AnonymizationSweepWorker.hasDue`). The answer decides only *whether* the
+ * scope is entered; the sweep re-reads its work list inside it. A question that
+ * cannot be answered counts as yes, so a failing probe may cost an audit row
+ * and can never skip an anonymization. A module switched off is not a failed
+ * question and is re-thrown.
  *
  * A failed sweep is logged and **re-thrown**, so the job is recorded as failed:
  * `CustomerDeletionService.sweep` anonymizes every account it can and then
@@ -74,6 +93,14 @@ export interface AnonymizationSweepDeps {
  * (module-composition item 7).
  */
 export async function runAnonymizationSweepTick(deps: AnonymizationSweepDeps): Promise<void> {
+  let hasWork = true;
+  try {
+    hasWork = await deps.sweeper.hasDue();
+  } catch (error) {
+    rethrowIfModuleDisabled(error);
+    hasWork = true;
+  }
+  if (!hasWork) return;
   try {
     const anonymized = await enterSystemScope(ANONYMIZATION_SWEEP_SCOPE_REASON, () => deps.sweeper.sweep());
     if (anonymized > 0) {

@@ -113,6 +113,7 @@ import { existsSync, readdirSync, readFileSync, statSync } from 'node:fs';
 import { join, relative } from 'node:path';
 import { fileURLToPath, pathToFileURL } from 'node:url';
 import ts from 'typescript';
+import { parseSource, rememberRead, withSharedParses } from '@endora-commerce/cli/lib/parsed-source.js';
 import { reportReadSize } from './lib/read-size.js';
 
 const TEST_ROOT = join(fileURLToPath(new URL('.', import.meta.url)), '..', 'test');
@@ -516,45 +517,74 @@ export function readBoundNames(sf: ts.SourceFile): Set<string> {
   return bound;
 }
 
+/**
+ * What one test source holds, read off **one** tree (issue #910): whether it
+ * reads the database at all, and its defaulted reads.
+ *
+ * Both of this check's walks — {@link filesReadingTheDatabase}, the vacuous
+ * guard, and {@link findDefaultedReads}, the rule — parsed every test file for
+ * themselves, and `--list` parsed them a third time. Inside a
+ * `withSharedParses` scope the answer is remembered, so the CLI parses each
+ * file once; outside one it is derived on every call, exactly as before.
+ */
+interface SourceReads {
+  readonly readsTheDatabase: boolean;
+  readonly defaulted: readonly DefaultedRead[];
+}
+
+function sourceReads(file: string, text: string): SourceReads {
+  return rememberRead('fixture-substitution:reads', file, text, () => {
+    const sf = parseSource(file, text);
+    const bound = readBoundNames(sf);
+    return {
+      readsTheDatabase: bound.size > 0,
+      defaulted: SEAM_FILES.has(file) ? [] : defaultedReadsIn(file, sf, bound),
+    };
+  });
+}
+
+/** One source's defaulted reads, in source order. */
+function defaultedReadsIn(file: string, sf: ts.SourceFile, bound: ReadonlySet<string>): DefaultedRead[] {
+  const found: DefaultedRead[] = [];
+  const builders = knexBoundNames(sf);
+
+  const visit = (node: ts.Node): void => {
+    if (ts.isBinaryExpression(node)) {
+      const operator =
+        node.operatorToken.kind === ts.SyntaxKind.QuestionQuestionToken
+          ? '??'
+          : node.operatorToken.kind === ts.SyntaxKind.BarBarToken
+            ? '||'
+            : null;
+      if (operator !== null && isPlaceholder(node.right) && !insideAssertion(node)) {
+        const inline = chainContainsRead(node.left, builders);
+        const root = rootIdentifier(node.left);
+        const twoStep = !inline && root !== null && bound.has(root);
+        if (inline || twoStep) {
+          found.push({
+            file,
+            line: sf.getLineAndCharacterOfPosition(node.getStart(sf)).line + 1,
+            holder: inline ? '(inline)' : (root as string),
+            shape: inline ? 'inline' : 'two-step',
+            operator,
+            fallback: node.right.getText(sf).trim(),
+          });
+        }
+      }
+    }
+    node.forEachChild(visit);
+  };
+  sf.forEachChild(visit);
+  return found;
+}
+
 /** Every defaulted database read in the given test sources. */
 export function findDefaultedReads(input: FixtureSubstitutionInput): DefaultedRead[] {
   const found: DefaultedRead[] = [];
-
   for (const [file, text] of input.sources) {
     if (SEAM_FILES.has(file)) continue;
-    const sf = ts.createSourceFile(file, text, ts.ScriptTarget.Latest, true);
-    const builders = knexBoundNames(sf);
-    const bound = readBoundNames(sf);
-
-    const visit = (node: ts.Node): void => {
-      if (ts.isBinaryExpression(node)) {
-        const operator =
-          node.operatorToken.kind === ts.SyntaxKind.QuestionQuestionToken
-            ? '??'
-            : node.operatorToken.kind === ts.SyntaxKind.BarBarToken
-              ? '||'
-              : null;
-        if (operator !== null && isPlaceholder(node.right) && !insideAssertion(node)) {
-          const inline = chainContainsRead(node.left, builders);
-          const root = rootIdentifier(node.left);
-          const twoStep = !inline && root !== null && bound.has(root);
-          if (inline || twoStep) {
-            found.push({
-              file,
-              line: sf.getLineAndCharacterOfPosition(node.getStart(sf)).line + 1,
-              holder: inline ? '(inline)' : (root as string),
-              shape: inline ? 'inline' : 'two-step',
-              operator,
-              fallback: node.right.getText(sf).trim(),
-            });
-          }
-        }
-      }
-      node.forEachChild(visit);
-    };
-    sf.forEachChild(visit);
+    found.push(...sourceReads(file, text).defaulted);
   }
-
   found.sort((a, b) => (a.file === b.file ? a.line - b.line : a.file.localeCompare(b.file)));
   return found;
 }
@@ -572,8 +602,7 @@ export function findDefaultedReads(input: FixtureSubstitutionInput): DefaultedRe
 export function filesReadingTheDatabase(input: FixtureSubstitutionInput): number {
   let count = 0;
   for (const [file, text] of input.sources) {
-    const sf = ts.createSourceFile(file, text, ts.ScriptTarget.Latest, true);
-    if (readBoundNames(sf).size > 0) count += 1;
+    if (sourceReads(file, text).readsTheDatabase) count += 1;
   }
   return count;
 }
@@ -600,6 +629,23 @@ export function checkFixtureSubstitution(
   };
 }
 
+/**
+ * The guard's count, the rule's verdict and every defaulted read, in one
+ * shared-parse scope — one parse per test file between the three walks
+ * (issue #910). What the CLI runs.
+ */
+export function scanFixtureSubstitution(input: FixtureSubstitutionInput): {
+  readonly reading: number;
+  readonly result: CheckResult;
+  readonly found: readonly DefaultedRead[];
+} {
+  return withSharedParses(() => ({
+    reading: filesReadingTheDatabase(input),
+    result: checkFixtureSubstitution(input),
+    found: findDefaultedReads(input),
+  }));
+}
+
 function main(): void {
   const listMode = process.argv.includes('--list');
   const files = walk(TEST_ROOT);
@@ -615,7 +661,9 @@ function main(): void {
     sources.set(relative(TEST_ROOT, file).split('\\').join('/'), readFileSync(file, 'utf8'));
   }
 
-  const reading = filesReadingTheDatabase({ sources });
+  // Nothing in the scan prints, so computing the verdict before the guard below
+  // refuses changes nothing this check reports.
+  const { reading, result, found } = scanFixtureSubstitution({ sources });
   if (reading === 0) {
     console.error(
       `[fixture-substitution] read ${sources.size} test sources and found no database read ` +
@@ -624,10 +672,8 @@ function main(): void {
     process.exit(2);
   }
 
-  const result = checkFixtureSubstitution({ sources });
-
   if (listMode) {
-    for (const entry of findDefaultedReads({ sources })) {
+    for (const entry of found) {
       const tag = DEFAULTED_FIXTURE_READS[keyOf(entry)] !== undefined ? 'LEDGERED' : 'DEFAULT ';
       console.log(
         `${tag} ${entry.file}:${entry.line}  [${entry.shape}] ${entry.holder} ${entry.operator} ${entry.fallback}`,

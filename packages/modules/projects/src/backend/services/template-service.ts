@@ -19,6 +19,7 @@ import { ProjectTemplateStageMove } from '../entities/project-template-stage-mov
 import { ProjectTemplateStageTask } from '../entities/project-template-stage-task.entity.js';
 import { isUuid, uuidArray } from './project-access.js';
 import { assertRolesExist } from './project-service.js';
+import { lockRolesForWrite } from './role-locks.js';
 
 /**
  * Project Templates (`specs/163-projects-and-tasks/`, User Story 3;
@@ -163,6 +164,19 @@ export async function readTemplateGraph(em: EntityManager, id: string): Promise<
           (positionOf.get(a.toStageId) ?? 0) - (positionOf.get(b.toStageId) ?? 0),
       ),
   };
+}
+
+/** The Roles a Template body's Stages and Stage Tasks name as responsible. */
+function stageRolesNamedBy(body: ProjectTemplateBody): string[] {
+  return [
+    ...body.stages.flatMap((stage) => stage.responsibleRoleIds ?? []),
+    ...body.stages.flatMap((stage) => (stage.tasks ?? []).map((task) => task.responsibleRoleId).filter((r): r is string => !!r)),
+  ];
+}
+
+/** Every Role a Template body names: its own, and its Stages' and Stage Tasks'. */
+function rolesNamedBy(body: ProjectTemplateBody): string[] {
+  return [...(body.roleIds ?? []), ...stageRolesNamedBy(body)];
 }
 
 export class TemplateService {
@@ -372,10 +386,7 @@ export class TemplateService {
         if (archived.get(roleId) && !held.has(roleId)) throw invalid('An archived project role is not added to a template.');
       }
     }
-    await assertRolesExist(em, [
-      ...body.stages.flatMap((stage) => stage.responsibleRoleIds ?? []),
-      ...body.stages.flatMap((stage) => (stage.tasks ?? []).map((task) => task.responsibleRoleId).filter((r): r is string => !!r)),
-    ]);
+    await assertRolesExist(em, stageRolesNamedBy(body));
   }
 
   /**
@@ -390,6 +401,9 @@ export class TemplateService {
     body: ProjectTemplateBody,
     keepIds: ReadonlySet<string>,
   ): Promise<TemplateGraph> {
+    // Issue #453 — every write of a Template's graph (create, save, duplicate)
+    // holds the Roles it names against a delete, and asks again that they exist.
+    await lockRolesForWrite(em, rolesNamedBy(body));
     await em.nativeDelete(ProjectTemplateRole, { templateId });
     await em.nativeDelete(ProjectTemplateStage, { templateId });
     for (const roleId of body.roleIds ?? []) em.create(ProjectTemplateRole, { templateId, roleId });

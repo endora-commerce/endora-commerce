@@ -386,6 +386,7 @@ export function searchModule(options: SearchModuleOptions): SearchModuleResult {
       // the timer keeps polling the setting so it can be re-enabled live.
       if (options.enableReindexScheduler) {
         const DISABLED_POLL_MS = 60_000;
+        const isSweepDue = (minutes: number): boolean => Number.isFinite(minutes) && minutes > 0;
         let timer: ReturnType<typeof setTimeout> | undefined;
         let stopped = false;
         // Feature 163 (code review W1) — once per process, on the first tick
@@ -423,17 +424,52 @@ export function searchModule(options: SearchModuleOptions): SearchModuleResult {
             scheduleNext(DISABLED_POLL_MS);
             return;
           }
+          void pollOnce()
+            .then(scheduleNext)
+            .catch((err: unknown) => {
+              app.log.error({ err }, 'search reindex tick failed');
+              scheduleNext(DISABLED_POLL_MS);
+            });
+        };
+
+        /**
+         * One poll: read the cadence, then enter the system scope only if there
+         * is work.
+         *
+         * Issue #120 — with the sweep disabled this timer still polls every
+         * minute, so a re-enable takes effect live, and every poll used to open
+         * the system scope first: one `tenant.escape_hatch` row a minute that
+         * recorded no access. `search.reindex_interval_minutes` is read
+         * **platform-wide** (channel `null`) from `Setting`/`SettingValue`,
+         * which are `@GlobalEntity`, so the read touches no organisation's data
+         * and needs no widened scope. The scope is entered when the sweep is
+         * due or the once-per-process index-settings check is still pending —
+         * and when the read fails, because an unknown answer fails toward the
+         * audit row: the scoped body then reads again, exactly as it did before.
+         */
+        const pollOnce = async (): Promise<number> => {
+          let interval: { readonly minutes: number } | undefined;
+          try {
+            interval = { minutes: await resolveReindexIntervalMinutes() };
+          } catch {
+            // Read again, and reported, inside the scope below.
+            interval = undefined;
+          }
+          if (querySettingsChecked && interval !== undefined && !isSweepDue(interval.minutes)) {
+            // Disabled — poll on, so a re-enable takes effect live.
+            return DISABLED_POLL_MS;
+          }
           // Feature 072 (FR-020), issue #128 — the timer is the entry point, so
-          // the scope opens here: the setting read and the sweep both query, and
+          // the scope opens here: the index check and the sweep both query, and
           // outside a scope they would run on whatever tenancy the ambient store
           // happened to hold. It goes around the *work* and not around the guard
-          // above, and the reschedule stays outside it, because this timer is the
-          // loop — a tick that failed to re-arm would stop the scheduler for the
-          // life of the process. `reindex()` is also reachable from the admin
+          // in `tick`, and the reschedule stays outside it, because this timer is
+          // the loop — a tick that failed to re-arm would stop the scheduler for
+          // the life of the process. `reindex()` is also reachable from the admin
           // route, where the request's scope is already open and a second one
           // would be wrong; that is why the scope lives at the timer rather than
           // inside the worker.
-          void enterSystemScope(
+          return enterSystemScope(
             'search: periodic reindex sweep',
             async (): Promise<number> => {
               if (!querySettingsChecked) {
@@ -451,13 +487,17 @@ export function searchModule(options: SearchModuleOptions): SearchModuleResult {
                 }
               }
               let minutes = 0;
-              try {
-                minutes = await resolveReindexIntervalMinutes();
-              } catch (err) {
-                app.log.error({ err }, 'search reindex: failed to resolve interval setting');
+              if (interval !== undefined) {
+                minutes = interval.minutes;
+              } else {
+                try {
+                  minutes = await resolveReindexIntervalMinutes();
+                } catch (err) {
+                  app.log.error({ err }, 'search reindex: failed to resolve interval setting');
+                }
               }
               // Disabled — poll on, so a re-enable takes effect live.
-              if (!Number.isFinite(minutes) || minutes <= 0) return DISABLED_POLL_MS;
+              if (!isSweepDue(minutes)) return DISABLED_POLL_MS;
               try {
                 const result = await reindexWorker.reindex();
                 app.log.info({ result }, 'search reindex sweep completed');
@@ -467,12 +507,7 @@ export function searchModule(options: SearchModuleOptions): SearchModuleResult {
               return minutes * 60_000;
             },
             { entryPoint: 'interval' },
-          )
-            .then(scheduleNext)
-            .catch((err: unknown) => {
-              app.log.error({ err }, 'search reindex tick failed');
-              scheduleNext(DISABLED_POLL_MS);
-            });
+          );
         };
 
         // Kick off the first poll without an immediate reindex at boot.

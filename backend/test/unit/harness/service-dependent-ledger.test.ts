@@ -433,6 +433,12 @@ const SERVICE_BOUND_BEYOND_THE_SCREEN: Readonly<Record<string, string>> = {
     'child processes, so it reaches the database through clients it constructs and through ' +
     '`spawn`. Measured under `BACKEND_TEST_SERVICES=none` (2026-10-20): `connect ECONNREFUSED ' +
     '127.0.0.1:1`, the `beforeAll` fails and all 9 cases are skipped. Correctly III(c).',
+  'test/integration/tenancy/process-start-audit.test.ts':
+    'Issue #120, the same shape as `demo-shop.test.ts`: it takes a PostgreSQL database of its ' +
+    'own through `migratedDatabase()`, spawns a composing CLI command into it as a child ' +
+    'process and reads its audit rows with `pg`. Measured under `BACKEND_TEST_SERVICES=none` ' +
+    '(2026-11-07): `connect ECONNREFUSED 127.0.0.1:1`, the `beforeAll` fails and both cases ' +
+    'are skipped. Correctly III(c).',
   'test/integration/demo/demo-pipeline-off-state.test.ts':
     'The same shape as `demo-shop.test.ts`, with CRM switched off between the runs: it ' +
     'takes a PostgreSQL database of its own through `migratedDatabase()`, writes the ' +

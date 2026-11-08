@@ -91,5 +91,6 @@
   "actions.openAutomations.keywords": "automatyzacje",
   "actions.openTags.keywords": "tagi, pola",
   "actions.openBlocks.keywords": "bloki, nagłówek, stopka",
-  "actions.openProvider.keywords": "nadawca, wysyłka"
+  "actions.openProvider.keywords": "nadawca, wysyłka",
+  "settingGroups.newsletter.name": "Newsletter"
 }

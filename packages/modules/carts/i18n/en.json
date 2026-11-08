@@ -99,5 +99,6 @@
   "organizationPermissions.carts.approve.label": "Approve and reject colleagues' carts",
   "organizationPermissions.carts.approve.description": "See the organization's carts and approve or reject the ones sent for approval.",
   "organizationPermissions.carts.order_without_approval.label": "Place orders without approval",
-  "organizationPermissions.carts.order_without_approval.description": "Order a cart directly, without sending it for approval first."
+  "organizationPermissions.carts.order_without_approval.description": "Order a cart directly, without sending it for approval first.",
+  "settingGroups.carts.name": "Carts"
 }

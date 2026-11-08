@@ -11,6 +11,7 @@ import type { AssetDetail } from '@endora-commerce/contracts';
 import { Button } from '../../ui/button.js';
 import { Alert, AlertDescription } from '../../ui/alert.js';
 import { useTranslation } from '../../i18n/useTranslation.js';
+import { ApiError } from '../../lib/index.js';
 import { uploadAsset, type AssetUploadFields } from './assets-api.js';
 
 export interface AssetUploaderProps {
@@ -65,7 +66,9 @@ export function AssetUploader({
       const asset = upload ? await upload(file) : await uploadAsset(file, defaults ?? {});
       onUploaded(asset);
     } catch (e) {
-      setError(e instanceof Error ? e.message : String(e));
+      // The server's own sentence for a refusal (issue #354: a failed upload
+      // is an `ApiError` now, whose `message` is prefixed with its code).
+      setError(e instanceof ApiError ? e.envelope.error.message : e instanceof Error ? e.message : String(e));
     } finally {
       setBusy(false);
     }

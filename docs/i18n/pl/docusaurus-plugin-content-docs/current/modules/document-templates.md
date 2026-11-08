@@ -79,7 +79,9 @@ aktywny język treści: kupujący otrzymuje układ w języku, w którym wyświet
 braku w języku o tym samym języku bazowym, a potem po angielsku lub w pierwszym języku szablonu;
 nazwy produktów i atrybutów, daty i ceny są drukowane w tym języku. Wybór języka, którego szablon
 jeszcze nie ma, pozwala zacząć go od kopii edytowanego języka. Faktury są drukowane wyłącznie po
-polsku, dlatego edytor faktury nie oferuje wyboru języka.
+polsku, dlatego edytor faktury nie oferuje wyboru języka. Pusta etykieta bloku faktury jest
+drukowana po polsku, podobnie jak stopka z pustą treścią; układ wbudowany pozostawia je wszystkie
+puste. Etykieta, którą wpiszesz, jest drukowana dokładnie tak, jak ją wpisano, w dowolnym języku.
 
 **Zapis** jest odrzucany, jeśli ktoś inny zapisał szablon po jego otwarciu; wczytaj go ponownie, aby
 zobaczyć zmiany. Blok, którego moduł jest wyłączony, zostaje w szablonie, jest pokazywany jako
