@@ -57,8 +57,11 @@ export class InvoiceLine {
   /**
    * Issue #904 — the line's kind, written for every line of an invoice or a
    * proforma issued from now on, the 0 % delivery and surcharge lines included.
-   * `null`: a line issued before, or one no writer names yet (a correction's),
-   * told apart as it always was — by its `orderItemId` and its sign.
+   * `null`: a line issued before, or one no writer names yet (a correction's
+   * goods and discount lines), told apart as it always was — by its
+   * `orderItemId` and its sign. A correction's credited delivery or surcharge
+   * (issue #876) is written with its kind: it names no order item and is
+   * positive, so nothing else would tell the two apart.
    */
   @Property({ type: 'string', length: 24, nullable: true })
   lineKind?: InvoiceLineKind | null = null;

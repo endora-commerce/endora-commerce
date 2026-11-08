@@ -176,6 +176,47 @@ before/after events and is written to the audit log.
   back. Before settling a return, check the order's other cases for an earlier
   complaint on the same line: if the defective unit the complaint compensated
   is the one coming back, lower the amount by hand.
+- **A consumer's withdrawal refunds the delivery and the payment surcharge**
+  (Directive 2011/83/EU art. 13(1), Polish Consumer Rights Act art. 32 ust. 1).
+  The case that brings back the last returned unit of a B2C order (the order's
+  organization is a personal one) refunds the order's delivery cost and payment
+  surcharge as well as the goods. All of these must hold:
+  - the case is a return, not a complaint;
+  - with this case, every unit of every order line has come back in a return
+    settled with a refund or a credit. An order with a line that could not be
+    returned can never be withdrawn in full, so it never refunds them;
+  - the case is settled as a refund or a credit. A replacement or a repair
+    refunds neither charge.
+
+  A partial withdrawal refunds neither charge, and the settlement form does not
+  offer them. The settlement form shows a *Delivery cost* row and a *Payment
+  surcharge* row, each with what was paid as its maximum. The row is filled in
+  with the full amount when the case was opened within the withdrawal window:
+  14 days from the order's completion, or the channel's
+  `returns.free_return_days` when that is longer. A channel set to `0` still
+  has the 14 days. Outside the window the row starts at 0 and you may raise it
+  to what was paid. Lower the delivery to the price of the cheapest standard
+  delivery when the customer chose a more expensive one (art. 13(2)). An amount
+  above what was paid is refused with `422 VALIDATION_FAILED`
+  (`code: refund_exceeds_paid`). Through the API, send
+  `deliveryRefundAmount` and `surchargeRefundAmount`; when you leave them out,
+  the prefilled amounts apply. The case's `totalRefundAmount` then includes the
+  charges, so it is more than the sum of the lines. The case detail reports
+  them as `chargeRefunds`, and the `return.settled` audit entry records each
+  one's maximum and the approved amount (`charges`). A business customer's
+  return and every complaint are unchanged.
+
+  On an invoiced order, the correction credits the delivery and the surcharge on
+  lines of their own, at the VAT rate the invoice charged them at (0 % today).
+  When everything came back and was refunded, the invoice nets to zero. On an
+  order not invoiced yet, the invoice issued later charges only what is left of
+  each charge, and leaves a line out when nothing is left. So a premium delivery
+  reduced to the standard price is invoiced alone for the difference. When
+  everything was refunded, there is no sale left and the invoice is refused.
+
+  Cases settled before this behaviour existed are not changed. To find B2C
+  orders that were returned in full without a delivery refund, see the upgrade
+  guide.
 - **A switched-off payment gateway refuses the settlement**.
   Money resolutions on a gateway-paid order call the PSP module that took the
   payment; when an operator has that module switched off — or the deployment
@@ -269,12 +310,18 @@ internal imports:
 - `OrderReturnContextPort` (orders) — paid-per-line amounts + completing-status
   time, and each line's `returnableAtPurchase` (`true`/`false` as recorded at
   placement, `null` for an order placed before it was recorded). Orders reports
-  the fact; the policy for `null` — returnable — is this module's.
+  the fact; the policy for `null` — returnable — is this module's. It also
+  reports the order's delivery cost and payment surcharge.
+- `OrganizationDetailsPort` (organizations) — whether the order's organization
+  is a personal one (B2C), which decides whether a withdrawal refunds the
+  delivery and the surcharge.
 - `PaymentRefundPort` (payments) — issue the refund, answer `pending_manual`
   where no PSP integration exists, or refuse when the gateway that took the
   payment is switched off.
 - `CorrectiveInvoicePort` (invoices) — create a `correction` invoice, or answer
-  that none is due because the order carries no invoice to correct.
+  that none is due because the order carries no invoice to correct. A
+  consumer's completing withdrawal also names the delivery and surcharge it
+  refunds (`charges`).
 - `CreditTopupPort` (credit_limits) — credit the organization grant.
 - `ShipmentService` (shipments) — optional replacement outbound shipment.
 
@@ -285,3 +332,8 @@ Migration `20260625T144227_returns_init.ts` creates `return_cases`, `return_case
 `return_reasons`, `return_delivery_methods`, `refunds`, `return_shipments`,
 `return_case_attachments`, `return_list_saved_views`, and the
 `return_cases_rma_seq` sequence.
+
+Migration `20261108T125405_returns_case_charge_refunds.ts` adds four columns to
+`return_cases`: `default_delivery_refund`, `approved_delivery_refund`,
+`default_surcharge_refund` and `approved_surcharge_refund`, each `0.00` by
+default. Existing cases keep `0.00`.

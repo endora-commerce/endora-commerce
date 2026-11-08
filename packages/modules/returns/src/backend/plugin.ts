@@ -6,6 +6,7 @@ import type {
   CreditTopupPort,
   OrderReadPort,
   OrderReturnContextPort,
+  OrganizationDetailsPort,
   OrganizationPermissionPort,
   PaymentRefundPort,
 } from '@endora-commerce/contracts';
@@ -58,6 +59,13 @@ export interface ReturnsModuleOptions {
    * the buyer's case list and read (`specs/170-organization-roles/` OR-11).
    */
   organizationPermissions: OrganizationPermissionPort;
+  /**
+   * `organizations`' record reader, a `lazyPort` proxy resolved per call
+   * (issue #876): whether the order's Organization is personal (B2C) decides
+   * whether a withdrawal refunds the delivery and the surcharge.
+   * `organizations` is a declared dependency and `nonDeactivatable`.
+   */
+  organizationDetails: Pick<OrganizationDetailsPort, 'findById'>;
   /** Settlement ports (US5). Money refunds, corrective invoices, credit top-up. */
   paymentRefund: PaymentRefundPort;
   correctiveInvoice: CorrectiveInvoicePort;
@@ -123,6 +131,10 @@ export function returnsModule(
     }
   };
 
+  // Issue #876 — a consumer (B2C) is a personal Organization; an order without one is not a consumer's.
+  const isPersonalOrganization = async (organizationId: string | null): Promise<boolean> =>
+    organizationId ? ((await options.organizationDetails.findById(organizationId))?.isPersonal ?? false) : false;
+
   const caseService = new ReturnCaseService({
     emFactory,
     graphService,
@@ -131,6 +143,7 @@ export function returnsModule(
     orderRead: options.orderReadPort,
     scope: new ReturnCaseScope(options.organizationPermissions),
     resolveFreeReturnDays,
+    isPersonalOrganization,
     ...(options.auditLog ? { auditLog: options.auditLog } : {}),
   });
 
@@ -170,6 +183,7 @@ export function returnsModule(
     correctiveInvoice: options.correctiveInvoice,
     creditTopup: options.creditTopup,
     orderContext,
+    isPersonalOrganization,
     ...(options.auditLog ? { auditLog: options.auditLog } : {}),
   });
 

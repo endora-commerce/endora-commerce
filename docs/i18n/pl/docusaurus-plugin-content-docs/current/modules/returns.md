@@ -158,6 +158,41 @@ trafia do dziennika audytu.
   nie wie, która sztuka wróciła. Przed rozliczeniem zwrotu sprawdź inne sprawy zamówienia pod kątem
   wcześniejszej reklamacji tej samej pozycji: jeśli wraca właśnie wadliwa sztuka, za którą
   zrekompensowano reklamację, obniż kwotę ręcznie.
+- **Odstąpienie konsumenta od umowy zwraca koszt dostawy i dopłatę za płatność**
+  (art. 13 ust. 1 dyrektywy 2011/83/UE, art. 32 ust. 1 ustawy o prawach konsumenta).
+  Sprawa, z którą wraca ostatnia zwracana sztuka zamówienia B2C (organizacja zamówienia jest
+  organizacją prywatną), zwraca oprócz towaru również koszt dostawy i dopłatę za płatność.
+  Muszą być spełnione wszystkie warunki:
+  - sprawa jest zwrotem, a nie reklamacją;
+  - z tą sprawą wróciła każda sztuka każdej pozycji zamówienia, w zwrotach rozliczonych zwrotem
+    pieniędzy albo zasileniem limitu. Zamówienia z pozycją, której nie można było zwrócić, nie da
+    się zwrócić w całości, więc nigdy nie zwraca ono tych opłat;
+  - sprawa jest rozliczana zwrotem pieniędzy albo zasileniem limitu. Wymiana i naprawa nie zwracają
+    żadnej z opłat.
+
+  Częściowe odstąpienie nie zwraca żadnej z opłat, a formularz rozliczenia ich nie proponuje.
+  Formularz rozliczenia pokazuje wiersz *Koszt dostawy* i wiersz *Dopłata za płatność*, każdy z
+  zapłaconą kwotą jako maksimum. Wiersz jest wypełniony pełną kwotą, gdy sprawę otwarto w terminie
+  na odstąpienie: 14 dni od zakończenia realizacji zamówienia albo `returns.free_return_days`
+  kanału, jeśli ten termin jest dłuższy. Kanał ustawiony na `0` nadal ma 14 dni. Po terminie wiersz
+  zaczyna się od 0 i możesz podnieść kwotę do tego, co zapłacono. Jeśli klient wybrał droższą
+  dostawę niż najtańszy zwykły sposób, obniż kwotę dostawy do ceny tego sposobu (art. 13 ust. 2).
+  Kwota wyższa niż zapłacona jest odrzucana z `422 VALIDATION_FAILED`
+  (`code: refund_exceeds_paid`). Przez API wyślij `deliveryRefundAmount` i
+  `surchargeRefundAmount`; gdy ich nie podasz, obowiązują kwoty z formularza. `totalRefundAmount`
+  sprawy obejmuje wtedy opłaty, więc jest wyższy niż suma pozycji. Szczegóły sprawy podają je jako
+  `chargeRefunds`, a wpis `return.settled` w dzienniku audytu odnotowuje maksimum i zatwierdzoną
+  kwotę każdej z nich (`charges`). Zwrot klienta firmowego i każda reklamacja działają bez zmian.
+
+  W zamówieniu z fakturą korekta zwraca dostawę i dopłatę w osobnych wierszach, ze stawką VAT,
+  z jaką faktura je naliczyła (dziś 0 %). Gdy wszystko wróciło i zostało zwrócone, faktura po
+  korekcie wynosi zero. W zamówieniu bez faktury wystawiona później faktura nalicza tylko to, co
+  zostało z każdej opłaty, i pomija wiersz, z którego nic nie zostało. Dostawa ekspresowa obniżona
+  do ceny zwykłej trafia więc na fakturę sama, na kwotę różnicy. Gdy zwrócono wszystko, nie
+  zostaje żadna sprzedaż i wystawienie faktury jest odrzucane.
+
+  Sprawy rozliczone przed tą zmianą pozostają bez zmian. Jak znaleźć zamówienia B2C zwrócone
+  w całości bez zwrotu kosztu dostawy, opisuje przewodnik aktualizacji.
 - **Wyłączona bramka płatności blokuje rozliczenie.** Rozliczenia pieniężne zamówień opłaconych
   przez bramkę wywołują moduł operatora płatności, który przyjął płatność; gdy operator wyłączył ten
   moduł — albo wdrożenie go nie oferuje — rozliczenie zwraca `503 MODULE_DISABLED` z nazwą modułu i
@@ -239,12 +274,16 @@ importy wnętrza innych modułów:
 - `OrderReturnContextPort` (orders) — kwoty zapłacone za każdą pozycję i czas osiągnięcia statusu
   kończącego realizację oraz `returnableAtPurchase` każdej pozycji (`true`/`false` zapisane przy
   składaniu zamówienia, `null` dla zamówienia złożonego, zanim zaczęto je zapisywać). Moduł Orders
-  podaje fakt; zasada dla `null` — podlega zwrotowi — należy do tego modułu.
+  podaje fakt; zasada dla `null` — podlega zwrotowi — należy do tego modułu. Port podaje też koszt
+  dostawy i dopłatę za płatność zamówienia.
+- `OrganizationDetailsPort` (organizations) — czy organizacja zamówienia jest organizacją prywatną
+  (B2C), od czego zależy, czy odstąpienie zwraca dostawę i dopłatę.
 - `PaymentRefundPort` (payments) — wykonanie zwrotu, odpowiedź `pending_manual`, gdy nie ma
   integracji z operatorem płatności, albo odmowa, gdy bramka, która przyjęła płatność, jest
   wyłączona.
 - `CorrectiveInvoicePort` (invoices) — utworzenie faktury `correction` albo odpowiedź, że korekta nie
-  jest potrzebna, bo zamówienie nie ma faktury.
+  jest potrzebna, bo zamówienie nie ma faktury. Odstąpienie konsumenta zamykające zamówienie
+  podaje też zwracaną dostawę i dopłatę (`charges`).
 - `CreditTopupPort` (credit_limits) — zasilenie limitu kredytowego organizacji.
 - `ShipmentService` (shipments) — opcjonalna przesyłka z towarem na wymianę.
 
@@ -254,3 +293,7 @@ Migracja `20260625T144227_returns_init.ts` tworzy `return_cases`, `return_case_i
 `return_statuses`, `return_status_transitions`, `return_reasons`, `return_delivery_methods`,
 `refunds`, `return_shipments`, `return_case_attachments`, `return_list_saved_views` oraz sekwencję
 `return_cases_rma_seq`.
+
+Migracja `20261108T125405_returns_case_charge_refunds.ts` dodaje do `return_cases` cztery
+kolumny: `default_delivery_refund`, `approved_delivery_refund`, `default_surcharge_refund`
+i `approved_surcharge_refund`, każda domyślnie `0.00`. Istniejące sprawy zachowują `0.00`.

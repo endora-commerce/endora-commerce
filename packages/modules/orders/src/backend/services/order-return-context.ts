@@ -55,7 +55,12 @@ export function returnContextFrom(
     | 'subtotal'
     | 'taxTotal'
     | 'discountTotal'
-  > & { vatMethod?: 'per_rate' | null | undefined },
+  > & {
+    vatMethod?: 'per_rate' | null | undefined;
+    /** Issue #876 — absent on a caller that predates it: read as no delivery. */
+    deliveryTotal?: string | undefined;
+    paymentMethodSnapshot?: { additionalPrice?: number | string | undefined } | null | undefined;
+  },
   items: ReadonlyArray<{
     id: string;
     productId: string;
@@ -80,6 +85,12 @@ export function returnContextFrom(
     // plus VAT less the discount. Delivery and the surcharge are not products.
     productsPaidTotal: roundHalfUp(decimalDifference(decimalSum(order.subtotal, order.taxTotal), order.discountTotal ?? '0')),
     discountTotal: roundHalfUp(order.discountTotal ?? '0'),
+    // Issue #876 — what the order charged beside its products, as stored: a
+    // consumer's withdrawal from the whole sale refunds both (Directive
+    // 2011/83 art. 13(1)). The surcharge is the one captured at placement
+    // (feature 034), which the invoice itemises the same way.
+    deliveryTotal: roundHalfUp(order.deliveryTotal ?? '0'),
+    paymentSurcharge: roundHalfUp(order.paymentMethodSnapshot?.additionalPrice ?? 0),
     lines: items.map((it) => ({
       orderItemId: it.id,
       productId: it.productId,

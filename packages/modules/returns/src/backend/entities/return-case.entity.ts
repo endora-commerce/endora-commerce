@@ -25,6 +25,10 @@ export class ReturnCase {
     | 'resolutionType'
     | 'refundPaymentMethodId'
     | 'totalRefundAmount'
+    | 'defaultDeliveryRefund'
+    | 'approvedDeliveryRefund'
+    | 'defaultSurchargeRefund'
+    | 'approvedSurchargeRefund'
     | 'rejectionReason'
     | 'authorizedAt'
     | 'resolvedAt'
@@ -89,6 +93,27 @@ export class ReturnCase {
 
   @Property({ type: 'decimal', precision: 14, scale: 2 })
   totalRefundAmount: string = '0.00';
+
+  /**
+   * Issue #876 — what the case refunds of the order's delivery cost and of its
+   * payment surcharge: a consumer's withdrawal from the whole sale refunds both
+   * (Directive 2011/83 art. 13(1)) on the case that completes it
+   * (`domain/charge-refunds.ts`). The default is the cap within the withdrawal
+   * window and 0 outside it; the approved amount is what the case refunds —
+   * provisional at creation, recomputed at settlement. `0.00` on every other
+   * case. `totalRefundAmount` includes the approved amounts.
+   */
+  @Property({ type: 'decimal', precision: 14, scale: 2 })
+  defaultDeliveryRefund: string = '0.00';
+
+  @Property({ type: 'decimal', precision: 14, scale: 2 })
+  approvedDeliveryRefund: string = '0.00';
+
+  @Property({ type: 'decimal', precision: 14, scale: 2 })
+  defaultSurchargeRefund: string = '0.00';
+
+  @Property({ type: 'decimal', precision: 14, scale: 2 })
+  approvedSurchargeRefund: string = '0.00';
 
   @Property({ type: 'text', nullable: true })
   rejectionReason?: string | null;

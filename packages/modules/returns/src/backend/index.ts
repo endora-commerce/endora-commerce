@@ -8,6 +8,7 @@ import type {
   EmailMailerPort,
   OrderReadPort,
   OrderReturnContextPort,
+  OrganizationDetailsPort,
   OrganizationPermissionPort,
   PaymentRefundPort,
   ReturnRefundReadPort,
@@ -172,6 +173,8 @@ export function registerModule(ctx: ModuleContext): void {
           // are `lazyPort` proxies resolved per call, never captured.
           orderReadPort: lazyPort<OrderReadPort>(ctx, 'orderReadPort'),
           organizationPermissions: lazyPort<OrganizationPermissionPort>(ctx, 'organizationPermissionPort'),
+          // Issue #876 — whether the order's Organization is personal (B2C).
+          organizationDetails: lazyPort<OrganizationDetailsPort>(ctx, 'organizationDetailsPort'),
           paymentRefund: lazyPort<PaymentRefundPort>(ctx, 'paymentRefundPort'),
           correctiveInvoice: lazyPort<CorrectiveInvoicePort>(ctx, 'correctiveInvoicePort'),
           creditTopup: lazyPort<CreditTopupPort>(ctx, 'creditTopupPort'),

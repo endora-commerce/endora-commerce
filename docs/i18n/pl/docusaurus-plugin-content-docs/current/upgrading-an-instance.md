@@ -4080,6 +4080,78 @@ opisuje strona modułu użytkowników panelu, sekcja *Role wymagające weryfikac
    konta* w panelu administracyjnym) albo upewnij się, że administrator innej roli może się
    zalogować i zmienić rolę.
 
+### Odstąpienie konsumenta zwraca koszt dostawy i dopłatę {#withdrawal-refunds-charges}
+
+Przy odstąpieniu konsumenta od umowy sprzedawca musi zwrócić wszystkie otrzymane płatności, w tym
+koszt dostawy (art. 13 ust. 1 dyrektywy 2011/83/UE; art. 32 ust. 1 ustawy o prawach konsumenta).
+Do tego wydania zwrot B2C zwracał tylko towar, więc koszt dostawy i dopłata za płatność zostawały
+w sklepie i na fakturze (zgłoszenie #876).
+
+Od tego wydania zwrot, z którym wraca ostatnia sztuka zamówienia B2C, zwraca też koszt dostawy
+i dopłatę za płatność zamówienia. Zamówienie B2C to zamówienie, którego organizacja jest organizacją
+prywatną. Formularz rozliczenia wypełnia obie kwoty w całości, gdy sprawę otwarto w ciągu 14 dni od
+zakończenia realizacji zamówienia albo w terminie `returns.free_return_days` kanału, jeśli ten jest
+dłuższy. Po tym terminie kwoty zaczynają się od 0 i możesz je podnieść do tego, co zapłacono.
+Zwrot częściowy, reklamacja i zwrot klienta firmowego działają bez zmian.
+
+**Co się dla ciebie zmienia:**
+
+- Sprawa B2C zamykająca odstąpienie przekazuje więcej pieniędzy niż suma jej pozycji. Jej
+  `totalRefundAmount` obejmuje opłaty.
+- Klient API, który rozlicza taką sprawę bez `deliveryRefundAmount` i `surchargeRefundAmount`,
+  zwraca kwoty z formularza. Wyślij `0`, żeby nie zwracać żadnej z nich, albo niższą kwotę, gdy
+  klient wybrał droższą dostawę niż najtańszy zwykły sposób (art. 13 ust. 2).
+- W zamówieniu z fakturą korekta zwraca dostawę i dopłatę w osobnych pozycjach. W zamówieniu bez
+  faktury faktura nalicza tylko to, co zostało z każdej opłaty. Zamówienie B2C zwrócone w całości
+  nie jest fakturowane.
+
+Migracja `20261108T125405_returns_case_charge_refunds.ts` dodaje do `return_cases` cztery kolumny,
+domyślnie `0.00`. Sprawy rozliczone przed aktualizacją pozostają bez zmian, a platforma nie zwraca
+za nie opłat wstecz.
+
+**Zamówienia już zwrócone w całości.** Aby znaleźć zamówienia B2C zwrócone w całości przed
+aktualizacją, w których nie zwrócono dostawy ani dopłaty, uruchom po aktualizacji to zapytanie
+(tylko do odczytu):
+
+```sql
+with returned as (
+  select rc.order_id, rci.order_item_id, sum(rci.quantity) as quantity
+  from return_cases rc
+  join return_case_items rci on rci.return_case_id = rc.id
+  where rc.kind = 'return'
+    and rc.resolution_type in ('refund', 'credit')
+  group by rc.order_id, rci.order_item_id
+),
+returned_in_full as (
+  select oi.order_id
+  from order_items oi
+  left join returned r on r.order_id = oi.order_id and r.order_item_id = oi.id
+  group by oi.order_id
+  having bool_and(coalesce(r.quantity, 0) >= oi.quantity)
+)
+select o.id as order_id,
+       o.placed_at,
+       o.currency,
+       o.delivery_total,
+       coalesce((o.payment_method_snapshot ->> 'additionalPrice')::numeric, 0) as payment_surcharge
+from orders o
+join returned_in_full f on f.order_id = o.id
+join organizations org on org.id = o.organization_id
+where org.is_personal
+  and (o.delivery_total > 0
+       or coalesce((o.payment_method_snapshot ->> 'additionalPrice')::numeric, 0) > 0)
+  and not exists (
+    select 1 from return_cases rc
+    where rc.order_id = o.id
+      and (rc.approved_delivery_refund > 0 or rc.approved_surcharge_refund > 0)
+  )
+order by o.placed_at;
+```
+
+Każdy wiersz to zamówienie, którego każda pozycja wróciła w zwrotach rozliczonych zwrotem pieniędzy
+albo zasileniem limitu, a którego dostawy ani dopłaty nie zwróciła żadna sprawa. Zdecyduj dla
+każdego z nich, czy zwrócić je ręcznie, na przykład przelewem, i odnotuj to w zamówieniu.
+
 ## Instancja niespójna od początku
 
 Instalator `0.101.x` lub starszy zapisywał każdy pakiet wydania z `^` poza

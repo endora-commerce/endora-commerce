@@ -1,5 +1,11 @@
 import type { EntityManager } from '@mikro-orm/postgresql';
-import { moneySum, type OrderReturnRefund, type OrderReturnedQuantity, type ReturnRefundReadPort } from '@endora-commerce/contracts';
+import {
+  moneySum,
+  type OrderRefundedCharges,
+  type OrderReturnRefund,
+  type OrderReturnedQuantity,
+  type ReturnRefundReadPort,
+} from '@endora-commerce/contracts';
 import { ReturnCase } from '../entities/return-case.entity.js';
 import { ReturnCaseItem } from '../entities/return-case-item.entity.js';
 import { Refund } from '../entities/refund.entity.js';
@@ -68,5 +74,23 @@ export class ReturnRefundReadService implements ReturnRefundReadPort {
     return [...byLine]
       .filter(([, line]) => line.quantity > 0)
       .map(([orderItemId, line]) => ({ orderItemId, quantity: line.quantity, discount: moneySum(line.discounts) }));
+  }
+
+  /**
+   * What the order's settled `return` cases refunded of its delivery cost and
+   * of its payment surcharge (issue #876): their approved amounts, over the same
+   * cases as {@link listReturnedQuantities} — so an invoice issued afterwards
+   * charges only what is left of each. Only the case that completes a
+   * consumer's withdrawal refunds either.
+   */
+  async listRefundedCharges(orderId: string): Promise<OrderRefundedCharges> {
+    const em = this.emFactory();
+    const cases = (
+      await em.find(ReturnCase, { orderId, kind: 'return', resolutionType: { $in: [...MONEY_RESOLUTIONS] } })
+    ).filter(entersKeptState);
+    return {
+      delivery: moneySum(cases.map((c) => c.approvedDeliveryRefund)),
+      surcharge: moneySum(cases.map((c) => c.approvedSurchargeRefund)),
+    };
   }
 }

@@ -78,6 +78,34 @@ export class CorrectionExceedsRateRemainingError extends Error {
 }
 
 /**
+ * A correction asked to credit more of an order charge — the delivery or the
+ * payment surcharge — than the invoice still charges for it (issue #876).
+ */
+export class CorrectionExceedsChargeRemainingError extends Error {
+  constructor(
+    readonly kind: CorrectionChargeKind,
+    readonly remaining: string,
+  ) {
+    super(`The correction credits more of the ${kind} than the invoice still charges for it, ${remaining}.`);
+    this.name = 'CorrectionExceedsChargeRemainingError';
+  }
+}
+
+/** The order charges a correction may credit (issue #876), named as `invoice_lines.line_kind` names their lines. */
+export type CorrectionChargeKind = 'delivery' | 'payment_surcharge';
+
+/** One order charge a correction credits (issue #876). */
+export interface CorrectionCharge {
+  kind: CorrectionChargeKind;
+  /** The gross credited. */
+  amount: string | number;
+  /** The rate of the invoice line that charged it, as stored (`0.0000` today). */
+  rate: string | number;
+  /** What the invoice still charges for it: the line's gross less what earlier corrections credited of it. */
+  remaining: string;
+}
+
+/**
  * On a correction, a goods line (one naming an order item) stored with
  * quantity 0 is a price reduction (issue #885): its value changed, not its
  * quantity. Corrections written before #885 never stored a goods line with
@@ -158,6 +186,11 @@ export interface CorrectionInput {
     /** What the line documents (issue #885); `returned_goods` when absent. */
     basis?: CorrectionLineBasis;
   }>;
+  /**
+   * Issue #876 — the order charges a consumer's withdrawal refunds, credited
+   * beside the goods: `total` includes them. Absent: goods only.
+   */
+  charges?: readonly CorrectionCharge[];
 }
 
 const ZERO = '0.00';
@@ -229,12 +262,32 @@ export function correctionAmounts(input: CorrectionInput): {
   discountCredit: string;
   /** Per rate of an invoice issued per rate, how its net was found. Not persisted. */
   paths: Record<string, CorrectionPath>;
+  /** The order charges credited (issue #876), each at its line's rate. */
+  chargeLines: Array<{ kind: CorrectionChargeKind; gross: string; net: string; rate: string }>;
 } {
+  // Issue #876 — the order charges first: each is credited in full at the rate
+  // of the invoice line that charged it, and never above what that line still
+  // charges. The goods share what is left of the total and of the invoice.
+  const chargeLines = (input.charges ?? [])
+    .filter((c) => compareDecimals(c.amount, 0) > 0)
+    .map((c) => {
+      const gross = roundHalfUp(c.amount);
+      if (compareDecimals(gross, c.remaining) > 0) throw new CorrectionExceedsChargeRemainingError(c.kind, roundHalfUp(c.remaining));
+      const rate = roundHalfUp(c.rate, 4);
+      const net = compareDecimals(rate, 0) === 0 ? gross : netFromGrossHalfUp(gross, rate, 'fraction');
+      return { kind: c.kind, gross, net, rate };
+    });
+  const chargesTotal = moneySum(chargeLines.map((c) => c.gross));
+
   const asked = input.lines.map((l) => (compareDecimals(l.amount, 0) < 0 ? ZERO : roundHalfUp(l.amount)));
   const linesTotal = moneySum(asked);
-  const total = roundHalfUp(input.total);
-  if (compareDecimals(total, linesTotal) > 0) throw new CorrectionTotalExceedsLinesError(total, linesTotal);
-  const remainingOfInvoice = moneyDifference(input.originalGross, input.creditedBefore ?? '0');
+  const total = moneyDifference(roundHalfUp(input.total), chargesTotal);
+  if (compareDecimals(total, linesTotal) > 0) throw new CorrectionTotalExceedsLinesError(roundHalfUp(input.total), moneySum([linesTotal, chargesTotal]));
+  if (compareDecimals(total, 0) < 0) throw new CorrectionTotalExceedsLinesError(roundHalfUp(input.total), chargesTotal);
+  const remainingOfInvoice = moneyDifference(
+    moneyDifference(input.originalGross, input.creditedBefore ?? '0'),
+    chargesTotal,
+  );
   const credited = compareDecimals(remainingOfInvoice, 0) <= 0 ? ZERO : minDecimal(total, remainingOfInvoice);
   const discounts = input.lines.map((l) =>
     l.discount === undefined || compareDecimals(l.discount, 0) <= 0 ? ZERO : roundHalfUp(l.discount),
@@ -382,7 +435,10 @@ export function correctionAmounts(input: CorrectionInput): {
     });
   }
 
-  const taxTotal = moneySum(grosses.map((g, i) => moneyDifference(g, nets[i]!)));
+  const taxTotal = moneySum([
+    ...grosses.map((g, i) => moneyDifference(g, nets[i]!)),
+    ...chargeLines.map((c) => moneyDifference(c.gross, c.net)),
+  ]);
   const rates = new Map<string, { net: string[]; gross: string[] }>();
   const addToRate = (key: string, net: string, gross: string) => {
     const sums = rates.get(key) ?? { net: [], gross: [] };
@@ -392,9 +448,11 @@ export function correctionAmounts(input: CorrectionInput): {
   };
   input.lines.forEach((l, i) => addToRate(rateOf(l.rate), nets[i]!, grosses[i]!));
   if (compareDecimals(discountCredit, 0) !== 0) addToRate('0.0000', discountCredit, discountCredit);
+  for (const c of chargeLines) addToRate(c.rate, c.net, c.gross);
+  const creditedTotal = moneySum([credited, chargesTotal]);
   return {
-    credited,
-    netTotal: roundHalfUp(decimalDifference(credited, taxTotal)),
+    credited: creditedTotal,
+    netTotal: roundHalfUp(decimalDifference(creditedTotal, taxTotal)),
     taxTotal,
     lines: input.lines.map((l, i) => ({
       gross: grosses[i]!,
@@ -419,6 +477,35 @@ export function correctionAmounts(input: CorrectionInput): {
       }),
     discountCredit,
     paths,
+    chargeLines,
+  };
+}
+
+/**
+ * The invoice's delivery and payment-surcharge lines (issue #876), by
+ * `line_kind`. A line issued before #904 has none: issuance has always written
+ * the delivery before the surcharge, each a positive line naming no order item,
+ * so with two such lines the first is the delivery and the second the
+ * surcharge. With one, it is whichever charge the order had — the settlement
+ * names only a charge that was paid, so it never asks for both — and it answers
+ * for either. On those invoices both are 0 % lines, so the rate a credit
+ * mirrors is the same either way.
+ */
+export function chargeLinesOf<T extends { orderItemId?: string | null; lineKind?: string | null; grossValue: string; ordinal: number }>(
+  lines: readonly T[],
+): { delivery?: T; payment_surcharge?: T } {
+  const delivery = lines.find((l) => l.lineKind === 'delivery');
+  const surcharge = lines.find((l) => l.lineKind === 'payment_surcharge');
+  if (delivery || surcharge || lines.some((l) => l.lineKind != null)) {
+    return { ...(delivery ? { delivery } : {}), ...(surcharge ? { payment_surcharge: surcharge } : {}) };
+  }
+  const legacy = lines
+    .filter((l) => !l.orderItemId && compareDecimals(l.grossValue, 0) > 0)
+    .sort((a, b) => a.ordinal - b.ordinal);
+  if (legacy.length === 1) return { delivery: legacy[0]!, payment_surcharge: legacy[0]! };
+  return {
+    ...(legacy[0] ? { delivery: legacy[0] } : {}),
+    ...(legacy[1] ? { payment_surcharge: legacy[1] } : {}),
   };
 }
 
@@ -599,6 +686,37 @@ export class CorrectiveInvoiceProvider implements CorrectiveInvoicePort {
     // The invoice's own discount line: the discount credit mirrors its name and
     // unit, and an invoice that itemized no discount credits none separately.
     const discountLine = originalLines.find((l) => !l.orderItemId && compareDecimals(l.grossValue, 0) < 0);
+    // Issue #876 — the invoice's delivery and surcharge lines a consumer's
+    // withdrawal credits, each at its own rate and never above what it still
+    // charges after earlier corrections.
+    const chargeLineOf = chargeLinesOf(originalLines);
+    const charges = (
+      [
+        ['delivery', input.charges?.delivery],
+        ['payment_surcharge', input.charges?.surcharge],
+      ] as const
+    ).flatMap(([kind, amount]) => {
+      if (amount === undefined || compareDecimals(amount, 0) <= 0) return [];
+      const charged = chargeLineOf[kind];
+      if (!charged) {
+        throw new HttpError(
+          422,
+          ERROR_CODES.VALIDATION_FAILED,
+          'The corrected charge has no line on the original invoice, so its VAT rate is unknown.',
+          { code: 'no_corrected_line', chargeKind: kind, originalInvoiceId: original.id },
+        );
+      }
+      const creditedOfIt = earlierLines.filter((l) => l.lineKind === kind).map((l) => l.grossValue);
+      return [
+        {
+          kind,
+          amount,
+          rate: charged.taxRate,
+          remaining: moneyDifference(charged.grossValue, moneySum(creditedOfIt)),
+          line: charged,
+        },
+      ];
+    });
     let amounts: ReturnType<typeof correctionAmounts>;
     try {
       amounts = correctionAmounts({
@@ -620,8 +738,16 @@ export class CorrectiveInvoiceProvider implements CorrectiveInvoicePort {
           orderItemId: l.orderItemId,
           basis: l.basis ?? 'returned_goods',
         })),
+        charges: charges.map(({ kind, amount, rate, remaining }) => ({ kind, amount, rate, remaining })),
       });
     } catch (err) {
+      if (err instanceof CorrectionExceedsChargeRemainingError) {
+        throw new HttpError(422, ERROR_CODES.VALIDATION_FAILED, err.message, {
+          code: 'correction_exceeds_charge_remaining',
+          chargeKind: err.kind,
+          remaining: err.remaining,
+        });
+      }
       if (err instanceof CorrectionExceedsRateRemainingError) {
         throw new HttpError(422, ERROR_CODES.VALIDATION_FAILED, err.message, {
           code: 'correction_exceeds_rate_remaining',
@@ -652,7 +778,12 @@ export class CorrectiveInvoiceProvider implements CorrectiveInvoicePort {
       unit: mirrored[index]!.unit,
       ...amounts.lines[index]!,
     }));
-    return { original, salesChannelId, amounts, snapshots, discountLine };
+    // Each credited charge mirrors the name and the unit of the line it credits.
+    const chargeSnapshots = amounts.chargeLines.map((c) => {
+      const line = charges.find((x) => x.kind === c.kind)!.line;
+      return { ...c, name: line.name, unit: line.unit };
+    });
+    return { original, salesChannelId, amounts, snapshots, discountLine, chargeSnapshots };
   }
 
   /**
@@ -702,7 +833,7 @@ export class CorrectiveInvoiceProvider implements CorrectiveInvoicePort {
     const plan = await this.#prepare(em, input);
     // No original, no correction (#135).
     if (!plan) return { issued: false, reason: 'order_not_invoiced' };
-    const { original, salesChannelId, amounts, snapshots, discountLine } = plan;
+    const { original, salesChannelId, amounts, snapshots, discountLine, chargeSnapshots } = plan;
     const { credited: creditedTotal, netTotal, taxTotal } = amounts;
 
     const issuedAt = new Date();
@@ -763,12 +894,29 @@ export class CorrectiveInvoiceProvider implements CorrectiveInvoicePort {
           orderItemId: s.orderItemId,
         });
       }
+      // Issue #876 — the delivery and the surcharge a consumer's withdrawal
+      // refunds, each on a line of its own kind at the rate it was charged at.
+      chargeSnapshots.forEach((c, i) => {
+        tx.create(InvoiceLine, {
+          invoiceId: inv.id,
+          ordinal: snapshots.length + i + 1,
+          name: c.name,
+          unit: c.unit,
+          quantity: '1',
+          unitNetPrice: roundHalfUp(c.net, 4),
+          taxRate: c.rate,
+          netValue: c.net,
+          grossValue: c.gross,
+          orderItemId: null,
+          lineKind: c.kind,
+        });
+      });
       // The order-level discount the returned goods carried, credited back on
       // a 0 % line of its own, as the invoice charged it (issue #417).
       if (discountLine && compareDecimals(amounts.discountCredit, 0) !== 0) {
         tx.create(InvoiceLine, {
           invoiceId: inv.id,
-          ordinal: snapshots.length + 1,
+          ordinal: snapshots.length + chargeSnapshots.length + 1,
           name: discountLine.name,
           unit: discountLine.unit,
           quantity: '1',
@@ -814,6 +962,9 @@ export class CorrectiveInvoiceProvider implements CorrectiveInvoicePort {
             originalInvoiceId: original.id,
             credited: Number(creditedTotal),
             priceReductionLines: input.lines.filter((l) => l.basis === 'price_reduction').length,
+            ...(chargeSnapshots.length > 0
+              ? { charges: Object.fromEntries(chargeSnapshots.map((c) => [c.kind, Number(c.gross)])) }
+              : {}),
           },
         })
         .catch(() => undefined);

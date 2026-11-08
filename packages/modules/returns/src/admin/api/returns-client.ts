@@ -50,6 +50,9 @@ export const returnsClient = {
       lines: Array<{ returnCaseItemId: string; approvedRefundAmount: number }>;
       refundPaymentMethodId?: string;
       createCorrectiveInvoice?: boolean;
+      /** Issue #876 — the delivery and surcharge refunds of a consumer's completing withdrawal. */
+      deliveryRefundAmount?: number;
+      surchargeRefundAmount?: number;
     },
   ): Promise<SettlementResult> =>
     unwrap(apiClient.post<Wrap<SettlementResult>>(`/api/v1/admin/returns/${id}/settlement`, body)),

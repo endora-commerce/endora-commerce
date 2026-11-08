@@ -401,6 +401,7 @@ import { Migration20261025T031736QuoteRequestsUnitPriceFourPlaces } from '@endor
 import { Migration20260625T144227ReturnsInit } from '@endora-commerce/mod-returns/migrations';
 import { Migration20260817T203206ReturnsRefundCorrectiveInvoiceOutcome } from '@endora-commerce/mod-returns/migrations';
 import { Migration20261024T174052ReturnsCaseItemDiscount } from '@endora-commerce/mod-returns/migrations';
+import { Migration20261108T125405ReturnsCaseChargeRefunds } from '@endora-commerce/mod-returns/migrations';
 
 // ── search ──────────────────────────────────────────────────────────────────
 import { Migration20260501T123145SearchPhraseRecordsInit } from '@endora-commerce/mod-search/migrations';
@@ -812,6 +813,7 @@ export const MIGRATION_REGISTRY: readonly MigrationRegistryEntry[] = [
   migration('returns', Migration20260625T144227ReturnsInit),
   migration('returns', Migration20260817T203206ReturnsRefundCorrectiveInvoiceOutcome),
   migration('returns', Migration20261024T174052ReturnsCaseItemDiscount),
+  migration('returns', Migration20261108T125405ReturnsCaseChargeRefunds),
 
   // ── search ──────────────────────────────────────────────────────────────────
   migration('search', Migration20260501T123145SearchPhraseRecordsInit),

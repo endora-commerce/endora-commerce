@@ -1,4 +1,7 @@
-import type { ReturnableResponse as ContractReturnableResponse } from '@endora-commerce/contracts';
+import type {
+  ReturnCaseDetail as ContractReturnCaseDetail,
+  ReturnableResponse as ContractReturnableResponse,
+} from '@endora-commerce/contracts';
 import { apiGetAuthed, apiMutate } from './mutations';
 
 /**
@@ -46,6 +49,11 @@ export interface ReturnCaseDetail extends ReturnCaseSummary {
   freeReturnEligible: boolean;
   items: ReturnCaseItem[];
   comments: ReturnCaseComment[];
+  /**
+   * Issue #876 — what the case refunds of the order's delivery and payment surcharge: a
+   * consumer's withdrawal from the whole order refunds both. Absent from an older backend.
+   */
+  chargeRefunds?: ContractReturnCaseDetail['chargeRefunds'];
 }
 
 /**
