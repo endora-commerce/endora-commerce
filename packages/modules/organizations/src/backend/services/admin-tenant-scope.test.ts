@@ -60,13 +60,15 @@ describe('adminTenantScopePort', () => {
     });
   });
 
-  it('does not swallow a failure of the reach', async () => {
+  // Ruling Q1 on PR #954: a reach statement that throws answers `unresolved`
+  // — no organization, the refusal deferred to the first tenant-scoped read —
+  // so the session-only routes keep answering and nothing widens.
+  it('answers a failure of the reach as unresolved, holding no organization', async () => {
     const down = new Error('connection lost');
-    await expect(
-      portOver({ role: role('sales_representative') }, [], [], async () => {
-        throw down;
-      }).resolveForAdmin('a1'),
-    ).rejects.toBe(down);
+    const scope = await portOver({ role: role('sales_representative') }, [], [], async () => {
+      throw down;
+    }).resolveForAdmin('a1');
+    expect(scope).toEqual({ allowAll: false, allowedOrganizationIds: [], unresolved: down });
   });
 
   it('gives an admin without a role no organization, and carries the refusal', async () => {

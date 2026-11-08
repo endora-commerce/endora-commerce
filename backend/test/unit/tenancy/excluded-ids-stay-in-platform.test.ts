@@ -45,6 +45,15 @@ const EXCLUDED_IDS_PRODUCERS = new Set([
 /** No module reads the tenant mode today; an entry here needs a reason beside it. */
 const MODE_READERS = new Set<string>([]);
 
+/**
+ * The test-fixture allowance (ruling Q6 on PR #954): exactly the files named `<name>.test.ts`, at any depth.
+ * Module source and any shared helper — a `*.test-helpers.ts`, a fixtures
+ * file, a `.tsx` — stay under both rules.
+ */
+function isTestFile(file: string): boolean {
+  return /\.test\.ts$/.test(file);
+}
+
 function sourceFiles(dir: string, out: string[] = []): string[] {
   for (const entry of readdirSync(dir, { withFileTypes: true })) {
     if (entry.name === 'node_modules' || entry.name === 'dist') continue;
@@ -71,13 +80,27 @@ const moduleSources = (): Array<{ file: string; text: string }> =>
 describe('#305 — the excluded organization ids stay in the platform', () => {
   const files = moduleSources();
 
+  it('allows exactly `*.test.ts` files as fixtures, and no source or shared helper', () => {
+    expect(isTestFile('packages/modules/orders/src/backend/services/order-status-usage.test.ts')).toBe(true);
+    for (const file of [
+      'packages/modules/orders/src/backend/services/order-status-usage.ts',
+      'packages/modules/orders/src/backend/services/scope-fixtures.ts',
+      'packages/modules/orders/src/backend/test-helpers.ts',
+      'packages/modules/orders/src/backend/services/scope.test-helpers.ts',
+      'packages/modules/orders/src/admin/OrderList.test.tsx',
+      'packages/modules/orders/src/backend/services/order.test.ts.bak',
+    ]) {
+      expect(isTestFile(file), file).toBe(false);
+    }
+  });
+
   it('reads module sources at all', () => {
     expect(files.length).toBeGreaterThan(100);
   });
 
   it('no module but the producer names `excludedOrganizationIds`', () => {
     const offenders = files
-      .filter(({ file, text }) => !/\.test\.tsx?$/.test(file) && text.includes('excludedOrganizationIds'))
+      .filter(({ file, text }) => !isTestFile(file) && text.includes('excludedOrganizationIds'))
       .map(({ file }) => file)
       .filter((file) => !EXCLUDED_IDS_PRODUCERS.has(file));
     expect(offenders).toEqual([]);
@@ -85,7 +108,7 @@ describe('#305 — the excluded organization ids stay in the platform', () => {
 
   it('no module names a tenant mode', () => {
     const offenders = files
-      .filter(({ file, text }) => !/\.test\.tsx?$/.test(file) && /'(allowed|excluded)-set'/.test(text))
+      .filter(({ file, text }) => !isTestFile(file) && /'(allowed|excluded)-set'/.test(text))
       .map(({ file }) => file)
       .filter((file) => !MODE_READERS.has(file));
     expect(offenders).toEqual([]);
