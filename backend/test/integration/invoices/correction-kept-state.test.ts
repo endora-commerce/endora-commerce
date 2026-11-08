@@ -354,7 +354,7 @@ describe('invoices — a correction leaves what the invoice keeps (#873, #885)',
       const refund = await withSystemScope('test: read the refund', () => h.em().fork().findOneOrFail(Refund, { returnCaseId: ret.caseId }));
       expect(roundHalfUp(refund.amount)).toBe('11.03');
       const retLines = await correctionLines(ret.correctiveInvoiceId!);
-      expect(retLines.map((l) => [l.orderItemId === null ? 'discount' : 'goods', l.taxRate, l.netValue, l.grossValue])).toEqual([
+      expect(retLines.map((l) => [compareDecimals(l.netValue, 0) < 0 ? 'discount' : 'goods', l.taxRate, l.netValue, l.grossValue])).toEqual([
         ['goods', '0.2300', '10.01', '12.32'],
         ['discount', '0.0000', '-1.29', '-1.29'],
       ]);

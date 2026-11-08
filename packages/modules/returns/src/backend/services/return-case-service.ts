@@ -19,7 +19,8 @@ import { ReturnReason } from '../entities/return-reason.entity.js';
 import { Refund } from '../entities/refund.entity.js';
 import { RETURN_STATUS_CANCELLED } from '../domain/return-status-graph.js';
 import { isWithinFreeWindow } from '../domain/free-return-window.js';
-import { approvedAmount, caseDefaultRefunds } from '../domain/refund-math.js';
+import { approvedAmount } from '../domain/refund-math.js';
+import { caseDefaults, liveItems, loadOrderCases } from './default-refund-service.js';
 import type { ReturnStatusGraphService } from './return-status-graph-service.js';
 import type { ReturnTransitionService } from './return-transition-service.js';
 import type { ReturnCaseScope, ReturnCustomerContext } from './return-case-scope.js';
@@ -29,9 +30,6 @@ import {
   nonReturnableRequestedLines,
   returnableVerdict,
 } from './return-eligibility.js';
-
-/** Statuses whose cases do NOT consume returnable quantity (FR-003). */
-const VOID_STATUS_CODES = new Set(['rejected', 'cancelled']);
 
 export interface ReturnCaseServiceDeps {
   emFactory: () => EntityManager;
@@ -155,8 +153,8 @@ export class ReturnCaseService {
     // transaction-scoped advisory lock keyed by the order, read once.
     const caseId = await this.deps.emFactory().transactional(async (em) => {
       await em.execute('select pg_advisory_xact_lock(hashtext(?))', [returnCaseOrderLockKey(input.orderId)]);
-      const live = await this.liveCaseItems(input.orderId, em);
-      const consumed = consumedFrom(live);
+      const history = await loadOrderCases(em, input.orderId);
+      const consumed = consumedFrom(liveItems(history));
       const reasons = new Map(
         (await this.deps.emFactory().find(ReturnReason, { isActive: true })).map((r) => [r.id, r]),
       );
@@ -225,27 +223,18 @@ export class ReturnCaseService {
       em.persist(rc);
 
       // What each returned line refunds by default — cumulatively over the
-      // order's live cases (issue #417, review of PR #423): no sequence of
-      // returns refunds more than the order charged, and a complete return
-      // refunds exactly that. Read from what the order stored, never recomputed.
-      const defaults = caseDefaultRefunds({
-        vatMethod: ctx.vatMethod,
-        productsPaidTotal: ctx.productsPaidTotal,
-        discountTotal: ctx.discountTotal,
-        orderLines: ctx.lines.map((l) => ({
-          orderItemId: l.orderItemId,
-          unitNetPrice: l.unitNetPrice,
-          taxRate: l.taxRate,
-          purchasedQty: l.purchasedQty,
-          paidLineAmount: approvedAmount(l.paidLineAmount),
-          returnable: isLineReturnable(l.returnableAtPurchase),
-        })),
-        earlier: live.map((it) => ({
-          orderItemId: it.orderItemId,
-          quantity: it.quantity,
-          defaultRefundAmount: it.defaultRefundAmount,
-          defaultDiscountAmount: it.defaultDiscountAmount,
-        })),
+      // order's cases (issue #417, review of PR #423): no sequence of returns
+      // refunds more than the order charged, and a complete return refunds
+      // exactly that. Read from what the order stored, never recomputed. On
+      // the provisional basis (issue #875): the live returns not settled yet
+      // count as if settled in the order they were opened, and a complaint is
+      // outside the kept state (issue #874). The settlement recomputes it from
+      // the cases settled by then, under the same lock.
+      const defaults = caseDefaults({
+        context: ctx,
+        history,
+        basis: 'provisional',
+        kind: input.kind,
         current: input.lines.map((line) => ({ orderItemId: line.orderItemId, quantity: line.quantity })),
       });
       for (const [index, line] of input.lines.entries()) {
@@ -359,15 +348,7 @@ export class ReturnCaseService {
   // --- internals ----------------------------------------------------------
 
   private async consumedQuantities(orderId: string): Promise<Map<string, number>> {
-    return consumedFrom(await this.liveCaseItems(orderId));
-  }
-
-  /** The lines of the order's live (non-void) cases — what was already returned and refunded. */
-  private async liveCaseItems(orderId: string, em: EntityManager = this.deps.emFactory()): Promise<ReturnCaseItem[]> {
-    const cases = await em.find(ReturnCase, { orderId });
-    const liveCaseIds = cases.filter((c) => !VOID_STATUS_CODES.has(c.statusCode)).map((c) => c.id);
-    if (liveCaseIds.length === 0) return [];
-    return em.find(ReturnCaseItem, { returnCaseId: { $in: liveCaseIds } });
+    return consumedFrom(liveItems(await loadOrderCases(this.deps.emFactory(), orderId)));
   }
 
   private async isWithinFreeWindow(

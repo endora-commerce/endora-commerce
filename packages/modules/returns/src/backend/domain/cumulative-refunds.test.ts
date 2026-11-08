@@ -556,10 +556,13 @@ describe('settlement on the settled kept state, with complaints and the line cei
           const reduced = fate > 0.8;
           const now = effectiveDefaultRefunds({ ...input, earlier: kept, complaints, kind: c.kind, current: c.lines });
           if (complaints.length === 0) {
-            // Complaint-free, the ceiling never applies: exactly the #875 rule.
+            // Complaint-free, the defaults are exactly the #875 rule, and a return's
+            // ceiling never applies (a complaint line is always bounded by its own).
             const plain = caseDefaultRefunds({ ...input, earlier: kept, current: c.lines });
             expect(now.map((r) => ({ refund: r.refund, discount: r.discount })), `seed ${seed}`).toEqual(plain);
-            expect(now.every((r) => r.effective === r.refund && r.ceiling === null), `seed ${seed}`).toBe(true);
+            if (c.kind === 'return') {
+              expect(now.every((r) => r.effective === r.refund && r.ceiling === null), `seed ${seed}`).toBe(true);
+            }
           }
           c.lines.forEach((l, i) => {
             const r = now[i]!;
@@ -622,8 +625,9 @@ describe('settlement on the settled kept state, with complaints and the line cei
           );
         }
       }
-      // The generator reaches the ceiling, so the bound above is not vacuous.
-      expect(bound).toBeGreaterThan(0);
+      // On orders placed per rate — where a line's refunds can outgrow it — the
+      // generator reaches the ceiling, so the bound above is not vacuous.
+      if (vatMethod === 'per_rate') expect(bound).toBeGreaterThan(0);
     });
   }
 });
