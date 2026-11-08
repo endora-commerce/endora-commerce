@@ -115,14 +115,15 @@ const REAL_ORG_TAX_ID = 'PL7777777777';
  * Two-way: an entry nothing produces any more fails as well.
  */
 const KEPT_REFERENCES: Readonly<Record<string, string>> = {
-  // The audit trail is append-only: it names what a write was made to and who
-  // it was made for, whether or not either still exists.
-  'audit_log_entries.object_id': 'append-only audit trail',
-  'audit_log_entries.impersonated_customer_account_id': 'append-only audit trail',
+  // The audit trail is append-only (its one exception, erasing an anonymised
+  // subject's values in place, issue #844, keeps every id): it names what a
+  // write was made to and who it was made for, whether or not either still exists.
+  'audit_log_entries.object_id': 'append-only audit trail, except anonymisation redaction',
+  'audit_log_entries.impersonated_customer_account_id': 'append-only audit trail, except anonymisation redaction',
   // The customer who acted for themselves (`specs/170-organization-roles/`
   // migration M1): the demo buyer's own writes name them, as they name an
   // impersonated one.
-  'audit_log_entries.actor_customer_account_id': 'append-only audit trail',
+  'audit_log_entries.actor_customer_account_id': 'append-only audit trail, except anonymisation redaction',
   // A log of messages that were really sent, and of bell entries an
   // administrator was really shown.
   'email_deliveries.document_id': 'delivery log of messages already sent',

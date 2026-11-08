@@ -3,7 +3,7 @@
   "version": "0.109.0",
   "type": "module",
   "sideEffects": false,
-  "description": "Append-only audit log for sensitive admin and customer actions.",
+  "description": "Append-only audit log for sensitive admin and customer actions (values of anonymised subjects are erased in place).",
   "license": "MIT",
   "endora": {
     "type": "module",

@@ -2,7 +2,7 @@
 
 # @endora-commerce/mod-audit-logs
 
-Append-only audit log for sensitive admin and customer actions.
+Append-only audit log for sensitive admin and customer actions (values of anonymised subjects are erased in place).
 
 ## What this is
 

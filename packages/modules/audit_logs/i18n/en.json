@@ -4,5 +4,7 @@
   "actions.openAuditLog.description": "Who changed what, and when",
   "auditLog.tenant.escape_hatch": "Cross-organization access",
   "actions.openAuditLog.keywords": "audit, log, history",
-  "settingGroups.audit_logs.name": "Audit log"
+  "settingGroups.audit_logs.name": "Audit log",
+  "auditLog.erased": "Erased",
+  "auditLog.audit.redacted": "Audit history erased"
 }
