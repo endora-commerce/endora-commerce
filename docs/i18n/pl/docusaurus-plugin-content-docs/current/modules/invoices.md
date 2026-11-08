@@ -65,6 +65,9 @@ wystawieniem faktury — każda pozycja produktu wróciła w rozliczonych zwrota
 za płatność nie zostały zatrzymane — traktowane jest tak samo, niezależnie od tego, czy pieniądze
 zostały już wypłacone (zwrot wciąż czeka na wykonanie przez człowieka albo na potwierdzenie bramki
 płatności). Gdy dostawa lub dopłata zostaje zatrzymana, faktura jest wystawiana tylko z tą pozycją.
+Odstąpienie konsumenta od całego zamówienia zwraca obie (zob. *Zwroty*), więc zamówienie B2C
+zwrócone w całości zwykle nie zostawia niczego i wystawienie jest odrzucane. Dostawa obniżona przez
+operatora do ceny zwykłej zostawia różnicę, która trafia na fakturę sama.
 
 Faktura wystawiona **po rozliczeniu zwrotu** obejmuje tylko to, co kupujący zatrzymał: nie ma
 jeszcze faktury do skorygowania, więc sama faktura dokumentuje sprzedaż, która pozostała. Każda
@@ -72,7 +75,8 @@ pozycja zamówienia jest fakturowana w zamówionej ilości pomniejszonej o iloś
 zamówienia (rodzaju *zwrot*, rozliczonych zwrotem pieniędzy albo środkami na koncie), niezależnie od
 tego, czy pieniądze zostały już wypłacone; pozycja zwrócona w całości jest pomijana. Wymiana,
 naprawa i reklamacja nie zmieniają żadnej pozycji. Pozycje dostawy i dopłaty za płatność są takie
-jak w zamówieniu. Pozycja rabatu obejmuje tylko część przypadającą na zatrzymane towary: rabat
+jak w zamówieniu, pomniejszone o to, co z nich zwróciło odstąpienie konsumenta; pozycja, z której
+nic nie zostało, jest pomijana. Pozycja rabatu obejmuje tylko część przypadającą na zatrzymane towary: rabat
 zamówienia pomniejszony o część, którą rozliczone zwroty oddały wraz ze zwrotem pieniędzy, i jest
 pomijana, gdy nic z niego nie zostaje. VAT nadal liczy się dla każdej stawki od sumy wartości netto,
 więc faktura co do grosza równa się temu, co pozostało zapłacone. Faktura proforma obejmuje te same
@@ -103,7 +107,14 @@ stawki korekta wynika z tego, co faktura zatrzymuje:
   regułę, a to, co zatrzymuje faktura, może różnić się od niej o 0,01 w tej stawce aż do następnej
   korekty. Pieniądze zawsze zgadzają się co do grosza.
 - Część rabatu zamówienia, która przypadała na zwrócone towary, jest uznawana z powrotem w pozycji
-  0 %. Dostawa i dopłata za płatność nigdy nie są uznawane.
+  0 %.
+- Dostawa i dopłata za płatność są uznawane tylko przy odstąpieniu konsumenta: zwrocie, który
+  zamyka odstąpienie od zamówienia B2C. Każda jest uznawana w osobnej pozycji (`lineKind`
+  `delivery` albo `payment_surcharge`), nazwanej jak pozycja faktury i z jej stawką VAT (dziś 0 %),
+  na kwotę zwróconą w rozliczeniu. Po odstąpieniu od całego zamówienia faktura po korekcie wynosi
+  zero. Korekta, która uznałaby więcej z opłaty, niż faktura jeszcze za nią nalicza, jest odrzucana
+  z `422 VALIDATION_FAILED` (`code: correction_exceeds_charge_remaining`), zanim zostaną przekazane
+  jakiekolwiek pieniądze. Zwroty klientów firmowych nigdy ich nie uznają.
 
 **Reklamacja** rozliczona pieniędzmi jest **obniżką ceny**: kupujący zatrzymuje towary, więc obniża się
 ich cena, a żadna ilość nie wraca. Pozycja korekty nazywa się *Obniżka ceny (reklamacja RMA-…):
@@ -130,8 +141,9 @@ mówi, czym jest pozycja: `goods`, `delivery`, `payment_surcharge` lub `discount
 fakturze i fakturze proforma; `price_reduction` jest zarezerwowane dla pozycji korekty.
 Zapisuje go każda pozycja dokumentu wystawionego od tego wydania, także pozycje dostawy
 i dopłaty za płatność ze stawką 0 %; nie zmienia żadnej kwoty. Pozycja wystawiona
-wcześniej oraz pozycja korekty mają `null` i są rozróżniane jak dotąd: po tym, czy
-wskazują pozycję zamówienia, i po znaku kwoty.
+wcześniej oraz pozycje towarów i rabatu w korekcie mają `null` i są rozróżniane jak dotąd: po tym,
+czy wskazują pozycję zamówienia, i po znaku kwoty. Uznana w korekcie dostawa lub dopłata ma
+`delivery` albo `payment_surcharge`.
 
 ## Numeracja
 

@@ -389,6 +389,7 @@ which is how one order carries two rates.
 | O1 | 10.0100 × 3, 23 %; two cases of 1 opened, the second settled first — or the first rejected | 30.03 | as K1 | as K1 | shown at creation 12.32, then 12.31; settled: the second **12.32**, then the first **12.31** (left paid 24.62, then 12.31); with the first rejected, the second **12.32** | until #875 each case settled at the figure shown when it was opened: the second refunded 12.31 and left 24.63 against a kept invoice of 24.62 |
 | P2 | as K2, no delivery or surcharge; a complaint refunded 6.15 on 1A, then all of A, then 2B | 30.03, 9.99 | as K2 | as K2 | complaint 6.15; 3A: default **33.07** (carrying 3.87), ceiling 33.07 − 6.15 = **26.92**, refunded 26.92 and carrying all 3.87; 2B: **9.66** — 42.73 refunded, line A 6.15 + 26.92 = its 33.07 | the arithmetic of the #885 amendment, §4: a complaint takes up returnable quantity, so no case can name all of A after it today. Under the #874 predicate without the ceiling A refunded 6.15 + 33.07 = 39.22 |
 | P3 | as P2; a complaint refunded at its default 11.03 on 1A, then 2A, then 2B | 30.03, 9.99 | as K2 | as K2 | complaint **11.03**; 2A: default 22.05 (carrying 2.58), ceiling 33.07 − 11.03 = **22.04**, refunded 22.04; 2B: **9.66** — 42.73 refunded, corrections after invoicing leave 0.00 | line A refunded 33.08, a cent above what it was paid |
+| W1 | 50.00 × 2, 23 %, 15.99 delivery, a consumer (B2C); 2 returned in one case — or 1, then 1 | 100.00 | **123.00** / **23.00** / **138.99** | 23 %: 100.00 / 23.00 / 123.00; 0 %: 15.99 (delivery) | one case: **138.99** (123.00 + 15.99 delivery) → 23 %: 123.00 / 100.00 / 23.00, 0 %: 15.99 / 15.99 / 0.00, the invoice nets to 0; two cases: **61.50**, then **77.49** (61.50 + 15.99); a premium 29.99 delivery reduced to 15.99: a kept-lines invoice of the delivery alone, **14.00** | until #876 a full withdrawal refunded 123.00 and the delivery stayed paid and on the invoice; a business customer's return still does |
 
 **A partial return refunds the drop in the kept goods' value** (issue #435, product-owner ruling
 Q1 (c) of 2026-11-07). For an order placed per rate, a case refunds what was left paid in each rate
@@ -430,6 +431,26 @@ line stored with quantity 0 and named *Obniżka ceny (reklamacja RMA-…)*, and 
 quantity (P1). Tests: `packages/modules/invoices/src/backend/services/correction-amounts.test.ts`
 (the vectors, and properties over random invoices with returns and complaints interleaved),
 `corrective-invoice-provider.test.ts` and `backend/test/integration/invoices/correction-kept-state.test.ts`.
+
+**A consumer's withdrawal refunds the delivery and the surcharge** (issue #876, Directive 2011/83
+art. 13(1); owner rulings E1–E3 of 2026-11-07). The case that completes a B2C order's withdrawal —
+a `return`, settled with a refund or a credit, after which every unit of every line is in the kept
+state — also refunds the order's delivery cost and payment surcharge, each capped at what was paid
+for it less what earlier cases refunded of it. A partial case refunds neither, and an order with a
+line not returnable at purchase is never withdrawn in full (W1: 61.50, then 77.49). The default is
+the cap when the case was opened within the statutory 14 days of the order's completion or the
+channel's longer free-return window, and 0 otherwise; the operator may lower it (art. 13(2), a premium
+delivery) or, outside the window, raise it to the cap. The charges never enter the goods' rule, so
+the order-level invariant is *money refunded ≤ the order's total*, and after every case what is left
+paid is the kept-lines invoice's gross: the kept goods, plus the delivery and surcharge not refunded,
+less the discount the refunds did not carry back. A correction credits each charge on a line of its
+own kind (`line_kind` `delivery` / `payment_surcharge`) at the rate the invoice line charged it at —
+0 % today — so a full withdrawal leaves the invoice at zero; a kept-lines invoice charges what is
+left of each charge and drops a line at 0. A business customer's return and a complaint are
+unchanged. Tests: `packages/modules/returns/src/backend/domain/charge-refunds.test.ts`, the
+withdrawal property in `cumulative-refunds.test.ts` (400 random orders with a delivery and a
+surcharge), the charge vectors in `correction-amounts.test.ts` and
+`backend/test/integration/returns/withdrawal-charges.test.ts`.
 
 V2 is the case the two rules disagreed on: the order summed every line's exact tax across all rates
 and rounded once, the invoice rounded each line's gross and took a rate's VAT as Σ gross − Σ net, so

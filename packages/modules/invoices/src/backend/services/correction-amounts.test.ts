@@ -10,6 +10,7 @@ import {
   vatByRate,
 } from '@endora-commerce/contracts';
 import {
+  CorrectionExceedsChargeRemainingError,
   CorrectionExceedsRateRemainingError,
   correctionAmounts,
   creditedQuantity,
@@ -718,5 +719,85 @@ describe('correctionAmounts — properties (issues #873, #885)', () => {
         for (const l of g.lines) expect(ledger.keptQuantity(l.id), `seed ${seed}`).toBe(kept.get(l.id));
       }
     }
+  });
+});
+
+describe('correctionAmounts — a consumer withdrawal credits the delivery and the surcharge (issue #876)', () => {
+  // 2 × 50.00 net at 23 % (123.00 gross) plus a 15.99 delivery and a 2.50 surcharge, both on 0 % lines.
+  const invoice = invoiceOf([{ id: 'a', unit: '50.0000', qty: 2, rate: '0.23' }], { delivery: '15.99', surcharge: '2.50' });
+  const base = {
+    originalGross: invoice.originalGross,
+    perRate: true,
+    originalLines: invoice.originalLines,
+    originalSummary: invoice.originalSummary,
+    earlierLines: [] as CreditedLine[],
+  };
+
+  it('the completing case credits 23 % −100.00 / −23.00 and 0 % −15.99 −2.50: the invoice nets to 0', () => {
+    expect(invoice.originalGross).toBe('141.49');
+    const r = correctionAmounts({
+      ...base,
+      total: '141.49',
+      lines: [line('123.00', 2, '0.23')],
+      charges: [
+        { kind: 'delivery', amount: '15.99', rate: '0.0000', remaining: '15.99' },
+        { kind: 'payment_surcharge', amount: '2.50', rate: '0.0000', remaining: '2.50' },
+      ],
+    });
+    expect([r.credited, r.netTotal, r.taxTotal]).toEqual(['141.49', '118.49', '23.00']);
+    expect(r.lines).toEqual([{ gross: '123.00', net: '100.00', unitNetPrice: '50.0000' }]);
+    expect(r.chargeLines).toEqual([
+      { kind: 'delivery', gross: '15.99', net: '15.99', rate: '0.0000' },
+      { kind: 'payment_surcharge', gross: '2.50', net: '2.50', rate: '0.0000' },
+    ]);
+    expect(perRate(r, '0.23')).toEqual({ taxRate: '0.2300', netTotal: '100.00', vatAmount: '23.00', grossTotal: '123.00' });
+    expect(perRate(r, '0')).toEqual({ taxRate: '0.0000', netTotal: '18.49', vatAmount: '0.00', grossTotal: '18.49' });
+    expect(moneyDifference(invoice.originalGross, r.credited)).toBe('0.00');
+  });
+
+  it('two cases: 61.50, then 61.50 + 15.99 — the second correction leaves nothing', () => {
+    const ledger = new Ledger(invoiceOf([{ id: 'a', unit: '50.0000', qty: 2, rate: '0.23' }], { delivery: '15.99' }));
+    expect(ledger.correct('61.50', [line('61.50', 1, '0.23')]).credited).toBe('61.50');
+    const second = correctionAmounts({
+      total: '77.49',
+      originalGross: ledger.invoice.originalGross,
+      creditedBefore: ledger.creditedBefore,
+      perRate: true,
+      originalLines: ledger.invoice.originalLines,
+      originalSummary: ledger.invoice.originalSummary,
+      earlierLines: ledger.earlier,
+      lines: [line('61.50', 1, '0.23')],
+      charges: [{ kind: 'delivery', amount: '15.99', rate: '0.0000', remaining: '15.99' }],
+    });
+    expect([second.credited, second.netTotal, second.taxTotal]).toEqual(['77.49', '65.99', '11.50']);
+    expect(moneyDifference(moneyDifference(ledger.invoice.originalGross, ledger.creditedBefore), second.credited)).toBe('0.00');
+  });
+
+  it('credits a charge at the rate its invoice line carries, so a taxed delivery backs its VAT out', () => {
+    const r = correctionAmounts({
+      ...base,
+      total: '135.30',
+      lines: [line('123.00', 2, '0.23')],
+      charges: [{ kind: 'delivery', amount: '12.30', rate: '0.2300', remaining: '12.30' }],
+    });
+    expect(r.chargeLines).toEqual([{ kind: 'delivery', gross: '12.30', net: '10.00', rate: '0.2300' }]);
+    expect([r.credited, r.taxTotal]).toEqual(['135.30', '25.30']);
+  });
+
+  it('refuses a charge above what the invoice still charges for it', () => {
+    expect(() =>
+      correctionAmounts({
+        ...base,
+        total: '139.00',
+        lines: [line('123.00', 2, '0.23')],
+        charges: [{ kind: 'delivery', amount: '16.00', rate: '0.0000', remaining: '15.99' }],
+      }),
+    ).toThrow(CorrectionExceedsChargeRemainingError);
+  });
+
+  it('without charges nothing changes: a return correction credits goods only', () => {
+    const r = correctionAmounts({ ...base, total: '123.00', lines: [line('123.00', 2, '0.23')] });
+    expect(r.chargeLines).toEqual([]);
+    expect(r.credited).toBe('123.00');
   });
 });

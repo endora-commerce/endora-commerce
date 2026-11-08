@@ -24,7 +24,8 @@ import { isWithinFreeWindow } from '../domain/free-return-window.js';
 import { withdrawalPeriod, withdrawalPeriodAnchor } from '../domain/withdrawal-period.js';
 import { classifyConsumerWithdrawal } from '../domain/consumer-withdrawal.js';
 import { approvedAmount } from '../domain/refund-math.js';
-import { caseDefaults, liveItems, loadOrderCases } from './default-refund-service.js';
+import { isWithinWithdrawalWindow } from '../domain/charge-refunds.js';
+import { caseCharges, caseDefaults, liveItems, loadOrderCases } from './default-refund-service.js';
 import type { ReturnStatusGraphService } from './return-status-graph-service.js';
 import type { ReturnTransitionService } from './return-transition-service.js';
 import type { ReturnCaseScope, ReturnCustomerContext } from './return-case-scope.js';
@@ -55,6 +56,12 @@ export interface ReturnCaseServiceDeps {
   organizationDetails: Pick<OrganizationDetailsPort, 'findById'>;
   /** Free-return window in days for a sales channel (0 = no free-return option). */
   resolveFreeReturnDays: (salesChannelId: string) => Promise<number>;
+  /**
+   * Whether the order's Organization is personal (B2C), through
+   * `organizations`' port (issue #876): a consumer's withdrawal refunds the
+   * delivery and the payment surcharge. Absent: no Organization is.
+   */
+  isPersonalOrganization?: (organizationId: string | null) => Promise<boolean>;
   /**
    * `returns.time_zone` for a sales channel (issue #905): the IANA zone the
    * free-return window counts calendar days in. Always a zone the runtime
@@ -226,6 +233,26 @@ export class ReturnCaseService {
       // Issue #905 (design §2) — fixed now, when the law fixes it.
       const consumerWithdrawal = await this.isConsumerWithdrawal(input.kind, ctx, now);
 
+      // Issue #876 — the order's delivery cost and payment surcharge, on the
+      // provisional basis the goods are shown on: the case that completes a
+      // consumer's withdrawal refunds both, by default within the window. The
+      // settlement recomputes them from the cases settled by then.
+      const current = input.lines.map((line) => ({ orderItemId: line.orderItemId, quantity: line.quantity }));
+      const charges = caseCharges({
+        context: ctx,
+        history,
+        basis: 'provisional',
+        kind: input.kind,
+        current,
+        isPersonal: (await this.deps.isPersonalOrganization?.(ctx.organizationId)) ?? false,
+        withinWindow: isWithinWithdrawalWindow({
+          freeReturnEligible,
+          submittedAt: now,
+          completingAt: withdrawalPeriodAnchor(ctx),
+          timeZone: await this.deps.resolveTimeZone(ctx.salesChannelId),
+        }),
+      });
+
       const rc = em.create(ReturnCase, {
         kind: input.kind,
         orderId: input.orderId,
@@ -236,6 +263,10 @@ export class ReturnCaseService {
         currency: ctx.currency,
         freeReturnEligible,
         submittedAt: now,
+        defaultDeliveryRefund: charges.delivery.default,
+        approvedDeliveryRefund: charges.delivery.default,
+        defaultSurchargeRefund: charges.surcharge.default,
+        approvedSurchargeRefund: charges.surcharge.default,
         consumerWithdrawal,
         // The trader received the statement when the case was filed (design D2).
         withdrawalReceivedAt: consumerWithdrawal ? now : null,
@@ -255,7 +286,7 @@ export class ReturnCaseService {
         history,
         basis: 'provisional',
         kind: input.kind,
-        current: input.lines.map((line) => ({ orderItemId: line.orderItemId, quantity: line.quantity })),
+        current,
       });
       for (const [index, line] of input.lines.entries()) {
         const ctxLine = byOrderItem.get(line.orderItemId)!;
@@ -488,6 +519,11 @@ export class ReturnCaseService {
             invoiceId: refund.correctiveInvoiceId ?? null,
           }
         : null,
+      // Issue #876 — what the case refunds of the order's delivery and surcharge.
+      chargeRefunds: {
+        delivery: Number(rc.approvedDeliveryRefund),
+        surcharge: Number(rc.approvedSurchargeRefund),
+      },
       consumerWithdrawal: rc.consumerWithdrawal ?? null,
       alternativeResolutionConsent: alternativeResolutionConsentOf(rc, opts),
     };

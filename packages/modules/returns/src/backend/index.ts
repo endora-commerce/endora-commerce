@@ -180,8 +180,9 @@ export function registerModule(ctx: ModuleContext): void {
           orderReadPort: lazyPort<OrderReadPort>(ctx, 'orderReadPort'),
           organizationPermissions: lazyPort<OrganizationPermissionPort>(ctx, 'organizationPermissionPort'),
           // Issue #905 — whether a return is a consumer withdrawal turns on the
-          // Organization being personal; `organizations` is a binding dependency
-          // and `nonDeactivatable`.
+          // Organization being personal, and so does whether a withdrawal refunds
+          // the delivery and the surcharge (issue #876); `organizations` is a
+          // binding dependency and `nonDeactivatable`.
           organizationDetails: lazyPort<OrganizationDetailsPort>(ctx, 'organizationDetailsPort'),
           commandBus,
           paymentRefund: lazyPort<PaymentRefundPort>(ctx, 'paymentRefundPort'),

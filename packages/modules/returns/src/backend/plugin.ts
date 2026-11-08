@@ -65,7 +65,8 @@ export interface ReturnsModuleOptions {
   /**
    * `organizations`' record reader, a `lazyPort` proxy resolved per call:
    * whether a return is a consumer withdrawal turns on the Organization being
-   * personal (issue #905).
+   * personal (issue #905), and so does whether a withdrawal refunds the
+   * delivery and the surcharge (issue #876).
    */
   organizationDetails: Pick<OrganizationDetailsPort, 'findById'>;
   /** The Command Bus the consent writes run through (issue #905, Principle XIII). */
@@ -147,6 +148,10 @@ export function returnsModule(
     }
   };
 
+  // Issue #876 — a consumer (B2C) is a personal Organization; an order without one is not a consumer's.
+  const isPersonalOrganization = async (organizationId: string | null): Promise<boolean> =>
+    organizationId ? ((await options.organizationDetails.findById(organizationId))?.isPersonal ?? false) : false;
+
   const caseService = new ReturnCaseService({
     emFactory,
     graphService,
@@ -156,6 +161,7 @@ export function returnsModule(
     scope: new ReturnCaseScope(options.organizationPermissions),
     organizationDetails: options.organizationDetails,
     resolveFreeReturnDays,
+    isPersonalOrganization,
     resolveTimeZone,
     ...(options.auditLog ? { auditLog: options.auditLog } : {}),
   });
@@ -196,6 +202,8 @@ export function returnsModule(
     correctiveInvoice: options.correctiveInvoice,
     creditTopup: options.creditTopup,
     orderContext,
+    isPersonalOrganization,
+    resolveTimeZone,
     ...(options.auditLog ? { auditLog: options.auditLog } : {}),
   });
   const consentService = new ReturnConsentService({ commandBus: options.commandBus, graphService });

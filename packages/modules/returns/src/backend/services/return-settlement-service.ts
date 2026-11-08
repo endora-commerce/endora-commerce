@@ -21,7 +21,9 @@ import { Refund } from '../entities/refund.entity.js';
 import { RETURN_STATUS_RESOLVED } from '../domain/return-status-graph.js';
 import { approvedAmount, carriedDiscount, settlementApproved, sumApproved } from '../domain/refund-math.js';
 import { isLineReturnable } from './return-eligibility.js';
-import { caseDefaults, loadOrderCases } from './default-refund-service.js';
+import { chargeApproved, isWithinWithdrawalWindow, type ChargeRefund } from '../domain/charge-refunds.js';
+import { withdrawalPeriodAnchor } from '../domain/withdrawal-period.js';
+import { caseCharges, caseDefaults, loadOrderCases, type OrderCases } from './default-refund-service.js';
 import {
   consentRequiredFor,
   defaultResolution,
@@ -52,7 +54,26 @@ export interface ReturnSettlementServiceDeps {
    * proposes and is compared with (issue #905, design D1).
    */
   orderContext: OrderReturnContextPort;
+  /**
+   * Whether the order's Organization is personal (B2C), through
+   * `organizations`' port (issue #876): a consumer's withdrawal that completes
+   * the order refunds the delivery and the payment surcharge. Absent: no
+   * Organization is, and no case refunds a charge.
+   */
+  isPersonalOrganization?: (organizationId: string | null) => Promise<boolean>;
+  /**
+   * `returns.time_zone` for a sales channel (issue #905): the zone the
+   * withdrawal window that decides the charges' default counts calendar days
+   * in, as `ReturnCaseService` counts the free-return window.
+   */
+  resolveTimeZone: (salesChannelId: string) => Promise<string>;
   auditLog?: AuditPort;
+}
+
+/** The order's two charges as recomputed for this case (issue #876). */
+interface CaseChargeRefunds {
+  delivery: ChargeRefund;
+  surcharge: ChargeRefund;
 }
 
 /** A line's default as recomputed for this settlement (issues #874, #875). */
@@ -127,9 +148,13 @@ export class ReturnSettlementService {
     // without the lock, so another settlement of the order may still move it;
     // the settlement itself decides. A settled case shows what it settled at.
     const order = await this.deps.orderContext.getReturnContext(rc.orderId);
-    const defaults = rc.resolutionType == null && order ? await this.#recompute(em, rc, items, order) : null;
+    const context = rc.resolutionType == null ? order : null;
+    const history = context ? await loadOrderCases(em, rc.orderId) : null;
+    const defaults = context && history ? await this.#recompute(em, rc, items, context, history) : null;
+    const charges = context && history ? await this.#charges(rc, items, context, history) : null;
     return {
       currency: rc.currency,
+      ...this.#prefillCharges(rc, charges),
       resolutionOptions: ['refund', 'credit', 'replacement', 'repair'],
       // Issue #905 (design D1) — a consumer withdrawal settles as a refund to
       // the order's own method; the other resolutions wait for consent.
@@ -161,6 +186,62 @@ export class ReturnSettlementService {
   }
 
   /**
+   * The charges the prefill shows (issue #876): on an open case, each charge
+   * whose recomputed cap is above 0, at its recomputed default — what an
+   * omitted field settles at (ruling Q2 on PR #965); on a settled case, what it
+   * settled at, with `cap` equal to `approved` and a charge settled at 0 left
+   * out (ruling Q4: the cap at settlement is in the `return.settled` audit
+   * entry). Absent when there is none, so a business customer's or a partial
+   * case shows nothing.
+   */
+  #prefillCharges(rc: ReturnCase, charges: CaseChargeRefunds | null): Pick<SettlementPrefill, 'charges'> {
+    const out: NonNullable<SettlementPrefill['charges']> = {};
+    const one = (key: 'delivery' | 'surcharge', approved: string) => {
+      if (charges) {
+        const recomputed = charges[key];
+        if (compareDecimals(recomputed.cap, 0) <= 0) return;
+        out[key] = { cap: Number(recomputed.cap), approved: Number(recomputed.default) };
+        return;
+      }
+      if (rc.resolutionType == null) return;
+      if (compareDecimals(approved, 0) > 0) out[key] = { cap: Number(approved), approved: Number(approved) };
+    };
+    one('delivery', rc.approvedDeliveryRefund);
+    one('surcharge', rc.approvedSurchargeRefund);
+    return Object.keys(out).length > 0 ? { charges: out } : {};
+  }
+
+  /**
+   * The order's charges `rc` refunds, recomputed on the settled basis (issue
+   * #876): the cap and the default of the delivery and of the surcharge, over
+   * the same cases as the goods ({@link caseCharges}). The window is the case's:
+   * the channel's free-return window it was opened in, or the statutory 14 days
+   * from the order's completing status.
+   */
+  async #charges(
+    rc: ReturnCase,
+    items: readonly ReturnCaseItem[],
+    context: OrderReturnContext,
+    history: OrderCases,
+  ): Promise<CaseChargeRefunds> {
+    return caseCharges({
+      context,
+      history,
+      basis: 'settled',
+      excludeCaseId: rc.id,
+      kind: rc.kind,
+      current: items.map((it) => ({ orderItemId: it.orderItemId, quantity: it.quantity })),
+      isPersonal: (await this.deps.isPersonalOrganization?.(context.organizationId)) ?? false,
+      withinWindow: isWithinWithdrawalWindow({
+        freeReturnEligible: rc.freeReturnEligible,
+        submittedAt: rc.submittedAt,
+        completingAt: withdrawalPeriodAnchor(context),
+        timeZone: await this.deps.resolveTimeZone(context.salesChannelId),
+      }),
+    });
+  }
+
+  /**
    * The default of each line of `rc`, recomputed from the order's other cases
    * on the settled basis (issues #874, #875): the kept state is the returns
    * settled with money, and a complaint settled with money counts against
@@ -173,10 +254,11 @@ export class ReturnSettlementService {
     rc: ReturnCase,
     items: readonly ReturnCaseItem[],
     known?: OrderReturnContext,
+    loaded?: OrderCases,
   ): Promise<Map<string, LineDefault> | null> {
     const context = known ?? (await this.deps.orderContext.getReturnContext(rc.orderId));
     if (!context) return null;
-    const history = await loadOrderCases(em, rc.orderId);
+    const history = loaded ?? (await loadOrderCases(em, rc.orderId));
     const computed = caseDefaults({
       context,
       history,
@@ -302,7 +384,8 @@ export class ReturnSettlementService {
     // what is left paid, and a complaint is outside the kept state (issue
     // #874), bounded with the returns of its line by what the line was paid
     // (the line ceiling).
-    const recomputed = await this.#recompute(em, rc, items, context);
+    const history = await loadOrderCases(em, rc.orderId);
+    const recomputed = await this.#recompute(em, rc, items, context, history);
     const defaultOf = (it: ReturnCaseItem): LineDefault =>
       recomputed?.get(it.id) ?? {
         refund: roundHalfUp(it.defaultRefundAmount),
@@ -331,7 +414,42 @@ export class ReturnSettlementService {
       approvedByItemId.set(it.id, Number(outcome.approved));
     }
     const approvedOf = (it: ReturnCaseItem): number => approvedByItemId.get(it.id)!;
-    const total = sumApproved(items.map(approvedOf));
+    // Issue #876 — the order's delivery cost and payment surcharge, recomputed
+    // under the lock from the cases settled by now: only a consumer's
+    // withdrawal that completes the order has a cap above 0, and within the
+    // window its default is the cap. An omitted amount settles at the
+    // recomputed default; a present one exactly as sent, 0 included, when it
+    // is within the cap (ruling Q2 on PR #965; art. 13(2)); anything above the
+    // cap is refused — a partial case cannot be given a charge (ruling E1).
+    // A replacement or a repair is not a withdrawal: the buyer keeps the
+    // goods, so its cap is 0 (ruling Q1) and an amount above 0 is refused.
+    const withdraws = input.resolutionType === 'refund' || input.resolutionType === 'credit';
+    const NO_CHARGE: ChargeRefund = { cap: '0.00', default: '0.00' };
+    const recomputedCharges = await this.#charges(rc, items, context, history);
+    const charges: CaseChargeRefunds = withdraws ? recomputedCharges : { delivery: NO_CHARGE, surcharge: NO_CHARGE };
+    const chargeOutcome = (requested: number | undefined, recomputed: ChargeRefund): string => {
+      const outcome = chargeApproved({ requested, recomputed });
+      if ('refused' in outcome) {
+        throw new HttpError(422, ERROR_CODES.VALIDATION_FAILED, 'Refund amount cannot exceed what was paid for the charge.', {
+          code: 'refund_exceeds_paid',
+        });
+      }
+      return outcome.approved;
+    };
+    const deliveryRefund = chargeOutcome(input.deliveryRefundAmount, charges.delivery);
+    const surchargeRefund = chargeOutcome(input.surchargeRefundAmount, charges.surcharge);
+    // What the money moves: the goods, plus the charges (issue #876) — so on a
+    // consumer's completing withdrawal it is more than the sum of the lines.
+    const total = sumApproved([...items.map(approvedOf), deliveryRefund, surchargeRefund]);
+    const chargesAudited =
+      [charges.delivery.cap, charges.surcharge.cap, deliveryRefund, surchargeRefund].some((v) => compareDecimals(v, 0) > 0)
+        ? {
+            charges: {
+              delivery: { cap: charges.delivery.cap, approved: deliveryRefund },
+              surcharge: { cap: charges.surcharge.cap, approved: surchargeRefund },
+            },
+          }
+        : {};
     // What the audit entry records of the recompute: a default that moved, and
     // a line the ceiling bound.
     const recomputedDefaults = items
@@ -388,6 +506,16 @@ export class ReturnSettlementService {
       idempotencyKey: rc.id,
       // The case a price-reduction line names (issue #885).
       ...(priceReduction && rc.rmaNumber ? { caseReference: rc.rmaNumber } : {}),
+      // Issue #876 — the charges a consumer's completing withdrawal refunds,
+      // credited on the invoice's delivery and surcharge lines.
+      ...(compareDecimals(deliveryRefund, 0) > 0 || compareDecimals(surchargeRefund, 0) > 0
+        ? {
+            charges: {
+              ...(compareDecimals(deliveryRefund, 0) > 0 ? { delivery: Number(deliveryRefund) } : {}),
+              ...(compareDecimals(surchargeRefund, 0) > 0 ? { surcharge: Number(surchargeRefund) } : {}),
+            },
+          }
+        : {}),
     };
     if (wantsCorrection) await this.deps.correctiveInvoice.validateCorrection(correctionInput);
 
@@ -515,6 +643,11 @@ export class ReturnSettlementService {
           target.resolutionType = input.resolutionType;
           target.refundPaymentMethodId = input.refundPaymentMethodId ?? null;
           target.totalRefundAmount = approvedAmount(total);
+          // Issue #876 — the recomputed default and the approved amount of each charge.
+          target.defaultDeliveryRefund = charges.delivery.default;
+          target.approvedDeliveryRefund = deliveryRefund;
+          target.defaultSurchargeRefund = charges.surcharge.default;
+          target.approvedSurchargeRefund = surchargeRefund;
           target.resolvedAt = new Date();
 
           for (const it of await tx.find(ReturnCaseItem, { returnCaseId: id })) {
@@ -560,6 +693,7 @@ export class ReturnSettlementService {
               ...withdrawalAudit,
               ...(recomputedDefaults.length > 0 ? { recomputedDefaults } : {}),
               ...(lineCeilings.length > 0 ? { lineCeilings } : {}),
+              ...chargesAudited,
             },
           });
         },

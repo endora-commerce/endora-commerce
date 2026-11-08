@@ -370,6 +370,9 @@ export const account = defineMessages({
     'account.return.fallbackTitle': 'Return case',
     'account.return.status': 'Status: {status}',
     'account.return.rejectionReason': 'Rejection reason: {reason}',
+    // Issue #876: a withdrawal from the whole order refunds the delivery and the payment surcharge.
+    'account.return.deliveryRefund': 'Delivery cost',
+    'account.return.surchargeRefund': 'Payment surcharge',
     'account.return.conversation': 'Conversation',
     'account.return.noMessages': 'No messages yet.',
     'account.return.addMessage': 'Add a message',
@@ -876,6 +879,9 @@ export const account = defineMessages({
     'account.return.fallbackTitle': 'Zgłoszenie zwrotu',
     'account.return.status': 'Status: {status}',
     'account.return.rejectionReason': 'Powód odrzucenia: {reason}',
+    // Issue #876: a withdrawal from the whole order refunds the delivery and the payment surcharge.
+    'account.return.deliveryRefund': 'Koszt dostawy',
+    'account.return.surchargeRefund': 'Dopłata za płatność',
     'account.return.conversation': 'Korespondencja',
     'account.return.noMessages': 'Nie ma jeszcze wiadomości.',
     'account.return.addMessage': 'Dodaj wiadomość',
