@@ -181,6 +181,11 @@ buyer pays is chosen.
   the position it continues from can be a product the viewer may not see. A cursor that does not
   open — altered, issued by a release before the seal, or before the instance's session key was
   changed — starts the listing again at its first page.
+- **Paging and creation time** — the default ordering, and the order of the unpriced products that
+  follow a price ordering, is the product's creation time, newest first. It is stored to the
+  millisecond: a value written by SQL, such as an import's or a bulk insert's `now()`, is rounded
+  to the millisecond as it is stored. So a walk through the listing by its cursor meets every
+  product once, including products created within the same millisecond.
 - **Reading named products** — `?ids=<id>,<id>,…` on `GET /api/v1/catalog/products` restricts the
   listing to those products: at most 24 distinct ids, each a uuid, or `400 VALIDATION_FAILED`. The
   answer is the subset the viewer may see, priced exactly as any listing card for that viewer, in
@@ -191,6 +196,15 @@ buyer pays is chosen.
   channel that hides prices until sign-in — the listing and the product detail carry no amount, and
   a price ordering or range is refused for that page. Sales channels have no price-visibility flag
   of their own any more: the display mode decides, for each viewer.
+- **Gross prices use each product's own VAT rate.** Every product on the listing and the product
+  detail carries `vatRate`, the VAT rate the viewer is charged for it, as a fraction (`0.08` = 8 %).
+  It is the rate the cart and the order apply: the product's tax class (its type) against the
+  viewer's organization — its VAT status and registered country. A VAT-exempt or reverse-charge
+  organization gets `0`; an anonymous visitor, or a buyer with no organization, is treated as a VAT
+  payer in Poland. The storefront derives every product's gross price — on the cards, the list rows
+  and the product page — from this rate. Where a reply carries no rate (`null` when the rate could
+  not be read, or no field from an older backend), the storefront shows the net price, labelled
+  net, and never a gross at an assumed rate.
 
 For developers: the listing paths price a whole page in one batched call —
 `resolveListingPrices`, or `resolveListingPriceDetails` where the page renders the split
@@ -203,6 +217,14 @@ the unpriced tail itself (`catalog-query.service.ts`). The external catalogue AP
 category and attribute writes publish the events `price_lists` subscribes to, which clear the
 pricing caches and mark on the price surface the products each event concerns, for the surface
 worker to refresh.
+
+`vatRate` is resolved per reply by `createProductTaxRateResolver` (`@endora-commerce/contracts`),
+the rule the cart uses too, over `organizations`' `organizationTaxProfilePort` and `taxes`'
+`taxService`. It depends on the viewer's organization and nothing else about the viewer, so it
+follows the same cache rule as the price: a reply for a viewer naming an organization is
+`Cache-Control: private, no-store`, and the shareable reply is the anonymous one, which carries the
+guest's rate. A failed resolution answers `vatRate: null` on every product rather than refusing the
+listing.
 
 ### Removed price fields (migration note)
 

@@ -3,5 +3,8 @@
   "actions.openAuditLog.label": "Dziennik audytu",
   "actions.openAuditLog.description": "Kto co zmienił i kiedy",
   "auditLog.tenant.escape_hatch": "Dostęp między organizacjami",
-  "actions.openAuditLog.keywords": "audyt, dziennik, historia"
+  "actions.openAuditLog.keywords": "audyt, dziennik, historia",
+  "settingGroups.audit_logs.name": "Dziennik audytu",
+  "auditLog.erased": "Usunięto",
+  "auditLog.audit.redacted": "Historia audytu usunięta"
 }

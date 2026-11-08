@@ -178,5 +178,6 @@
   "vatValidation.attempt.reason.not_found": "nie znaleziono",
   "vatValidation.attempt.reason.other": "błąd",
   "moderation.registryDivergence": "Pola różniące się od rejestru: {count}. Zobacz weryfikację VAT poniżej.",
-  "moderation.registryDivergenceLink": "Przejdź do weryfikacji VAT"
+  "moderation.registryDivergenceLink": "Przejdź do weryfikacji VAT",
+  "settingGroups.organizations.name": "Organizacje"
 }

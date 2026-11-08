@@ -95,5 +95,6 @@
   "identity.prefixDefaultLanguage.urlChangeWarning": "Changing the channel's languages or this switch changes the storefront's URLs. Old addresses are redirected; browsers may keep a redirect they cached for up to an hour.",
   "list.badge.signInRequired": "Sign-in required",
   "actions.openSalesChannels.keywords": "channel, channels, sales",
-  "actions.newSalesChannel.keywords": "channel, sales"
+  "actions.newSalesChannel.keywords": "channel, sales",
+  "settingGroups.sales_channels.name": "Sales channels"
 }

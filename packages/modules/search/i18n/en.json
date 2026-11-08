@@ -6,5 +6,6 @@
   "errors.PHRASE_REQUIRED": "Enter a search phrase.",
   "errors.PHRASE_TOO_LONG": "The search phrase is too long.",
   "errors.RESULT_COUNT_INVALID": "The number of results is invalid.",
-  "errors.LLM_CONFIG_INCOMPLETE": "LLM search configuration is incomplete."
+  "errors.LLM_CONFIG_INCOMPLETE": "LLM search configuration is incomplete.",
+  "settingGroups.search.name": "Search"
 }

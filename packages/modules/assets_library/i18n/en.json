@@ -116,5 +116,6 @@
   "kind.other": "a document",
   "actions.openLibrary.label": "Assets library",
   "actions.openLibrary.description": "Browse, upload and replace files, and manage permalinks.",
-  "actions.openLibrary.keywords": "files, assets"
+  "actions.openLibrary.keywords": "files, assets",
+  "settingGroups.storage.name": "Storage"
 }

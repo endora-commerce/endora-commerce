@@ -575,5 +575,6 @@
   "actions.openPriceLists.keywords": "cennik, cenniki",
   "actions.newPriceBook.keywords": "nowy cennik, utwórz cennik",
   "actions.openPriceExplainer.keywords": "wyjaśnienie ceny, dlaczego ta cena",
-  "actions.openPricingSettings.keywords": "ustawienia cenowe, kolejność cen, cena katalogowa"
+  "actions.openPricingSettings.keywords": "ustawienia cenowe, kolejność cen, cena katalogowa",
+  "settingGroups.pricing.name": "Ceny"
 }

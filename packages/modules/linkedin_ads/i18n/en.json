@@ -33,5 +33,6 @@
   "mappings.action.purchase": "Order completed",
   "mappings.action.contact_form_submitted": "Contact form submitted",
   "actions.openLinkedInAds.keywords": "conversions, ads",
-  "actions.newConversionMapping.keywords": "conversion, mapping"
+  "actions.newConversionMapping.keywords": "conversion, mapping",
+  "settingGroups.linkedin_ads.name": "LinkedIn Ads"
 }

@@ -825,5 +825,6 @@
   "actions.openCrmAnalytics.keywords": "analityka, raport, handlowiec",
   "actions.openCrmCalendar.keywords": "kalendarz, wydarzenia, przypomnienie, terminy",
   "actions.openCrmTags.keywords": "etykieta, etykiety",
-  "actions.openCrmWorkflow.keywords": "przepływ, statusy, lejek"
+  "actions.openCrmWorkflow.keywords": "przepływ, statusy, lejek",
+  "settingGroups.crm.name": "CRM"
 }

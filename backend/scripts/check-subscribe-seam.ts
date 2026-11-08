@@ -20,20 +20,75 @@ import { pathToFileURL } from 'node:url';
 
 import {
   BARE_SUBSCRIPTIONS_TO_DRAIN,
+  type BareSubscription,
+  type CheckResult,
   checkSubscribeSeam,
   checkWorkerSeam,
   collectSeamFiles,
   findBareSubscriptions,
   keyOf,
+  type SubscribeSeamInput,
   workerKeyOf,
+  type WorkerSeamResult,
   WORKERS_OUTSIDE_THE_SEAM,
 } from '@endora-commerce/cli/rules/subscribe-seam.js';
+
+import { withSharedParses } from '@endora-commerce/cli/lib/parsed-source.js';
 
 import { refuseVacuousModulePopulation } from './lib/module-population.js';
 import { requireModuleLayout } from './lib/module-roots.js';
 import { reportReadSize } from './lib/read-size.js';
 
 export * from '@endora-commerce/cli/rules/subscribe-seam.js';
+
+/**
+ * Both halves of the rule and every bare subscription, in one shared-parse
+ * scope (issue #910): each source is parsed once between the four walks,
+ * except a file that can hold a worker site, which the worker-site walk reads
+ * again because what it reads depends on every other file. What the CLI runs.
+ */
+export function scanSubscribeSeam(input: SubscribeSeamInput): {
+  readonly result: CheckResult;
+  readonly workers: WorkerSeamResult;
+  readonly subscriptions: readonly BareSubscription[];
+} {
+  return withSharedParses(() => ({
+    result: checkSubscribeSeam(input),
+    workers: checkWorkerSeam(input),
+    // The same input as the verdict above, `hostResidentModules` included, so
+    // `--list` names the owner the verdict judged (issue #919).
+    subscriptions: findBareSubscriptions(input),
+  }));
+}
+
+/**
+ * What `--list` prints, one line per bare subscription and per worker site —
+ * a function of the scan alone, so a test can hold it beside the verdict
+ * computed from the same scan.
+ */
+export function listingOf(scan: {
+  readonly workers: WorkerSeamResult;
+  readonly subscriptions: readonly BareSubscription[];
+}): string[] {
+  const lines: string[] = [];
+  for (const entry of scan.subscriptions) {
+    const tag = BARE_SUBSCRIPTIONS_TO_DRAIN[keyOf(entry)] !== undefined ? 'LEDGERED' : 'BARE    ';
+    lines.push(
+      `${tag} ${entry.file}:${entry.line}  [${entry.moduleId}] ${entry.receiver}.on('${entry.event}')`,
+    );
+  }
+  for (const site of scan.workers.sites) {
+    const tag = site.gated
+      ? 'SEAMED  '
+      : WORKERS_OUTSIDE_THE_SEAM[workerKeyOf(site)] !== undefined
+        ? 'LEDGERED'
+        : 'UNGATED ';
+    lines.push(
+      `${tag} ${site.file}:${site.line}  [${site.moduleId ?? '-'}] ${site.spelling} (${site.kind})`,
+    );
+  }
+  return lines;
+}
 
 async function main(): Promise<void> {
   const listMode = process.argv.includes('--list');
@@ -61,8 +116,9 @@ async function main(): Promise<void> {
   });
 
   const seamInput = { sources, hostResidentModules: layout.hostResidentModules };
-  const result = checkSubscribeSeam(seamInput);
-  const workers = checkWorkerSeam(seamInput);
+  // Nothing in the scan prints, so computing both halves before the worker
+  // guard below refuses changes nothing this check reports.
+  const { result, workers, subscriptions } = scanSubscribeSeam(seamInput);
 
   // Issue #113's shape for the worker half, and it needs its own refusal: the
   // subscription half's floor is the module population, which stays satisfied
@@ -80,23 +136,7 @@ async function main(): Promise<void> {
   }
 
   if (listMode) {
-    for (const entry of findBareSubscriptions({ sources })) {
-      const tag =
-        BARE_SUBSCRIPTIONS_TO_DRAIN[keyOf(entry)] !== undefined ? 'LEDGERED' : 'BARE    ';
-      console.log(
-        `${tag} ${entry.file}:${entry.line}  [${entry.moduleId}] ${entry.receiver}.on('${entry.event}')`,
-      );
-    }
-    for (const site of workers.sites) {
-      const tag = site.gated
-        ? 'SEAMED  '
-        : WORKERS_OUTSIDE_THE_SEAM[workerKeyOf(site)] !== undefined
-          ? 'LEDGERED'
-          : 'UNGATED ';
-      console.log(
-        `${tag} ${site.file}:${site.line}  [${site.moduleId ?? '-'}] ${site.spelling} (${site.kind})`,
-      );
-    }
+    for (const line of listingOf({ workers, subscriptions })) console.log(line);
     console.log('');
   }
 

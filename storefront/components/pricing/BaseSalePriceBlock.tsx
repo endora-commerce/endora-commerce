@@ -1,7 +1,7 @@
 import type { ReactNode } from 'react';
 import type { DisplayMode } from '@endora-commerce/contracts';
 import type { PricingMoney } from '../../lib/api/pricing';
-import { DEFAULT_VAT_RATE, formatMoney, grossUnitPriceFromNet } from '../../lib/i18n/money';
+import { formatMoney, grossUnitPriceFromNet } from '../../lib/i18n/money';
 import { tForLocale } from '../../lib/i18n/messages';
 
 /**
@@ -25,8 +25,9 @@ import { tForLocale } from '../../lib/i18n/messages';
  *
  * The wire amount is a decimal string (`"199.00"`); we parse with
  * `parseFloat` so the caller doesn't have to round-trip through the
- * formatter manually. Gross is computed as `net × (1 + vatRate)` to
- * match the storefront's pre-existing convention (see ProductCard).
+ * formatter manually. Gross is derived from net at `vatRate`, the
+ * product's own rate as the catalogue read answers it (issue #852). Without
+ * a rate no gross is derived: every mode shows the net, labelled net.
  */
 export function BaseSalePriceBlock(props: {
   basePrice: PricingMoney | null;
@@ -36,13 +37,13 @@ export function BaseSalePriceBlock(props: {
   displayMode: DisplayMode;
   locale: string;
   /**
-   * Fractional VAT rate used to derive gross from net. Defaults to the
-   * deployment assumption in `lib/i18n/money` — see its note for why the
-   * storefront cannot read a resolved rate yet (issue #132). This block used to
-   * default to its own `0.23` literal, which meant a deployment outside Poland
-   * had two other copies to find before it could correct anything.
+   * The product's VAT rate as a fraction — `ProductSummary.vatRate`, the
+   * buyer's rate the catalogue read resolved (issue #852). Absent or `null`
+   * derives no gross: the block shows the net, labelled net, in every mode.
+   * It used to default to a flat 23 %, so a reduced-rate product showed a
+   * gross the cart and the order did not charge.
    */
-  vatRate?: number;
+  vatRate?: number | null;
   /** Visual variant — `card` is compact (catalog grid), `pdp` is the
    *  larger PDP-friendly layout. */
   variant?: 'card' | 'pdp';
@@ -66,7 +67,7 @@ export function BaseSalePriceBlock(props: {
     listPrice = null,
     displayMode,
     locale,
-    vatRate = DEFAULT_VAT_RATE,
+    vatRate = null,
     variant = 'pdp',
     baseLabel = t('commerce.price.before'),
     saleLabel = t('commerce.price.special'),
@@ -213,9 +214,18 @@ function renderColumns(args: {
         </div>
       );
     case 'gross_only':
+      // No rate, no gross (issue #852): the net, and labelled as what it is.
+      if (gross === null) {
+        return (
+          <div className="b2b-pricing-block__columns b2b-pricing-block__columns--net">
+            <span className={mainClass}>{fmt(net, currency)}</span>
+            <span className="b2b-pricing-block__suffix">{netSuffix}</span>
+          </div>
+        );
+      }
       return (
         <div className="b2b-pricing-block__columns b2b-pricing-block__columns--gross">
-          <span className={mainClass}>{gross !== null ? fmt(gross, currency) : fmt(net, currency)}</span>
+          <span className={mainClass}>{fmt(gross, currency)}</span>
           <span className="b2b-pricing-block__suffix">{grossSuffix}</span>
         </div>
       );

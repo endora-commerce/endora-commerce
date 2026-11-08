@@ -24,7 +24,7 @@ export const manifest = defineModuleManifest({
   id: 'audit_logs',
   name: 'Audit logs',
   description:
-    'Append-only audit log for sensitive admin and customer actions.',
+    'Append-only audit log for sensitive admin and customer actions (values of anonymised subjects are erased in place).',
   version: '1.0.0',
   // `auth` owns the `requireAdmin` port both route files are gated by.
   dependencies: ['auth'],
