@@ -5,6 +5,7 @@ import {
   type BackendServerHandle,
 } from '../../helpers/test-server.js';
 import { seedCartForStubCustomer, SEED_PAYMENT_METHOD_ID } from '../../helpers/seed-commerce.js';
+import { SEED_PRODUCT_101_ID } from '../../helpers/seed-catalog.js';
 import { TEST_CUSTOMER_ID, TEST_ORGANIZATION_ID } from '../../helpers/test-actors.js';
 import { EventBus } from '@endora-commerce/platform/events';
 import {
@@ -118,6 +119,10 @@ describe('placeOrder — the recorded sales channel (issue #85)', () => {
     });
     expect(created.statusCode).toBe(201);
     const newDefaultId = (created.json() as { id: string }).id;
+    // Feature 163 (FR-001, FR-006) — placement refuses a basket line whose
+    // product the order's channel does not carry, so the new default channel
+    // carries the seeded basket's product 101.
+    await h.salesChannels.membershipService.addToChannel(newDefaultId, 'product', SEED_PRODUCT_101_ID);
 
     const moved = await h.app.inject({
       method: 'POST',
