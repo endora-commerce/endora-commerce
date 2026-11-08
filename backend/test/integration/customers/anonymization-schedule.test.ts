@@ -10,7 +10,7 @@ import {
 } from '../../helpers/test-server.js';
 import { withModuleOff, type OffStateAxis } from '../../helpers/off-state.js';
 import { AuditLogEntry } from '@endora-commerce/platform/kernel';
-import { CustomerAccount, Organization } from '../../helpers/package-entities.js';
+import { Cart, CustomerAccount, Organization } from '../../helpers/package-entities.js';
 import { seedCrmOrganization } from '../../helpers/seed-crm.js';
 import { ManifestReconciler } from '../../../src/kernel/settings/manifest-reconciler.js';
 import { defineModuleWorker } from '../../../src/kernel/lifecycle/plugin-helpers.js';
@@ -151,6 +151,26 @@ describe('customers — the anonymization sweep runs on its schedule (#677)', ()
 
   const isAnonymized = async (id: string): Promise<boolean> => (await stateOf(id)).anonymizedAt !== null;
 
+  /** Issue #920 — a cart of `customerAccountId` an operator rejected with a reason. */
+  async function rejectedCart(customerAccountId: string, reason: string): Promise<string> {
+    const em = h.em().fork();
+    const cart = em.create(Cart, {
+      customerAccountId,
+      organizationId,
+      status: 'rejected',
+      rejectedAt: new Date(),
+      rejectedByActor: `admin:${randomUUID()}`,
+      rejectedReason: reason,
+    });
+    await em.persistAndFlush(cart);
+    return cart.id;
+  }
+
+  async function cartReasonOf(id: string): Promise<{ status: string; rejectedReason: string | null }> {
+    const row = await h.em().fork().findOneOrFail(Cart, { id }, { filters: false });
+    return { status: row.status, rejectedReason: row.rejectedReason ?? null };
+  }
+
   beforeAll(async () => {
     h = await setupBackendServer();
     await new ManifestReconciler(h.em()).apply([customersManifest.settings!]);
@@ -178,6 +198,10 @@ describe('customers — the anonymization sweep runs on its schedule (#677)', ()
     redis?.disconnect();
     if (h) {
       if (accounts.length > 0) {
+        await h
+          .em()
+          .getConnection()
+          .execute(`delete from "carts" where "customer_account_id" = any(?::uuid[])`, [`{${accounts.join(',')}}`]);
         await h
           .em()
           .getConnection()
@@ -245,6 +269,8 @@ describe('customers — the anonymization sweep runs on its schedule (#677)', ()
     'with customers %s no tick runs, and the account is anonymised and an earlier scrub finished once the module is back',
     async (axis) => {
       const due = await deletedAccount(`off-${axis}`, RETENTION_DAYS + 1);
+      // Issue #920 — `carts`' step of the cascade waits with the rest of it.
+      const cart = await rejectedCart(due, `Operator note about ${due}`);
       const residual = await earlierScrubbedSubject(`off-${axis}`);
       await withModuleOff('customers', axis, async () => {
         const job = await queue.add('sweep', {});
@@ -253,6 +279,7 @@ describe('customers — the anonymization sweep runs on its schedule (#677)', ()
         expect(completed).not.toContain(job.id);
         expect(await isAnonymized(due)).toBe(false);
         expect(announced).not.toContain(due);
+        expect(await cartReasonOf(cart)).toEqual({ status: 'rejected', rejectedReason: `Operator note about ${due}` });
         // Issue #923 — nor is an earlier scrub finished: the residue stays,
         // and nothing is recorded.
         expect(await organizationResidue(residual.organizationId)).toEqual({
@@ -264,6 +291,8 @@ describe('customers — the anonymization sweep runs on its schedule (#677)', ()
       // Back on: the tick that waited runs, and the account is anonymised.
       expect(await until(() => isAnonymized(due), 60_000)).toBe(true);
       expect(announced).toContain(due);
+      // The composed `customers` reached `carts` through its port: the reason is gone, the status kept.
+      expect(await cartReasonOf(cart)).toEqual({ status: 'rejected', rejectedReason: null });
       // And the earlier scrub is finished in the same tick, with one audit row
       // and no second announcement.
       expect(await until(() => isFinished(residual.organizationId), 60_000)).toBe(true);

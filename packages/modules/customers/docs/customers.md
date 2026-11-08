@@ -100,6 +100,10 @@ itself, keep the values they recorded, the reason included, until earlier
 entries are redacted on anonymization
 ([#844](https://github.com/endora-commerce/endora-commerce/issues/844)).
 
+The sweep also erases the reasons operators and approvers gave for rejecting
+the account's carts, keeping each cart's status; the carts module documents
+what it erases and what it keeps (*Audit retention*).
+
 The sweep runs once a day, in the worker process and only while this module is
 on, so an account is anonymized up to a day after its window elapses. While the
 module is off no run happens; the accounts that came due meanwhile are

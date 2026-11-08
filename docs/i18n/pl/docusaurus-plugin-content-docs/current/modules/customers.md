@@ -87,6 +87,10 @@ odnotowują jedynie, że powód istniał. Wpisy audytu zapisane wcześniej, taki
 blokady, zachowują zapisane wartości, w tym powód, dopóki wcześniejsze wpisy nie będą redagowane
 przy anonimizacji ([#844](https://github.com/endora-commerce/endora-commerce/issues/844)).
 
+Zadanie usuwa też uzasadnienia, które operatorzy i osoby akceptujące podali, odrzucając koszyki tego
+konta; każdy koszyk zachowuje swój status. Co jest usuwane, a co zostaje, opisuje moduł koszyków
+(*Przechowywanie historii zmian*).
+
 Zadanie uruchamia się raz dziennie w procesie workera i tylko wtedy, gdy moduł jest włączony, więc
 konto zostaje zanonimizowane najpóźniej dzień po upływie okresu. Gdy moduł jest wyłączony, zadanie
 się nie uruchamia; konta, którym okres upłynął w tym czasie, anonimizuje pierwszy przebieg po

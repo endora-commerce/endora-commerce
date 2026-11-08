@@ -124,6 +124,9 @@ describe('CustomerDeletionService', () => {
       async () => 365,
       // Issue #927 — the retired personal book; this file seeds no row of it.
       { anonymizeForAccount: async () => 0 },
+      // Issue #920 — `carts`' step; this file seeds no cart. Its behaviour is
+      // `anonymization-cart-reasons.test.ts`.
+      { anonymizeForCustomerAccount: async () => 0 },
     );
   }
 
