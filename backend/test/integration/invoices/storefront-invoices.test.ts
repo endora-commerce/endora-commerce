@@ -47,6 +47,9 @@ describe('invoices — storefront customer download (US4)', () => {
       cookies: ADMIN_COOKIE,
       payload: { kind: 'invoice' },
     });
+    // A refused issue is the fixture's fault, not the assertion's: say so with
+    // the refusal's own reason rather than a TypeError on a missing `data`.
+    expect(res.statusCode, res.body).toBe(201);
     return (res.json() as { data: { id: string } }).data.id;
   }
 
@@ -74,7 +77,14 @@ describe('invoices — storefront customer download (US4)', () => {
 
   it('denies access to another party’s order (404)', async () => {
     // Order owned by a different customer + organization.
-    const order = h.em().create(Order, {
+    //
+    // One EntityManager for the whole fixture: `h.em()` forks a fresh one on
+    // every call, so an entity created on one fork and flushed on another is
+    // never written. This order used to be issued with no line at all — which
+    // since issue #435 (PR #865) is refused 422 `returned_in_full`, there being
+    // no sale to invoice.
+    const em = h.em();
+    const order = em.create(Order, {
       organizationId: randomUUID(),
       placedByCustomerAccountId: randomUUID(),
       salesChannelId: CH,
@@ -93,17 +103,18 @@ describe('invoices — storefront customer download (US4)', () => {
       currency: 'PLN',
       placedAt: new Date(),
     });
-    await h.em().persistAndFlush(order);
-    h.em().create(OrderItem, {
+    await em.persistAndFlush(order);
+    em.create(OrderItem, {
       orderId: order.id,
       productId: randomUUID(),
       productSnapshot: { sku: 'S', name: 'N', primaryAssetUrl: null },
       quantity: 1,
       unitPrice: '100.00',
       taxRate: '0.2300',
-      lineTotal: '100.00',
+      // Placement stores a line's gross here (issue #417).
+      lineTotal: '123.00',
     });
-    await h.em().flush();
+    await em.flush();
     await issueFor(order.id);
 
     const res = await h.app.inject({
