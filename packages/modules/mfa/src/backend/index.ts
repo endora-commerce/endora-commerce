@@ -487,19 +487,7 @@ export function registerModule(ctx: ModuleContext): void {
       createAdminEnforcementSettingConfirmation({
         canEnrolSecondFactor,
         liveAdminIds: liveAdminIds(ctx),
-        // This module's own table, read at the point of use: a boot hook must
-        // not resolve a gated port, this module's own included.
-        countUnprotected: async (ids) => {
-          const unique = [...new Set(ids)];
-          if (unique.length === 0) return 0;
-          const enrolled = new Set(
-            await new MfaEnrolmentStateService(ctx.cradle<MfaCradle>().emFactory).activeSubjectIds(
-              'admin',
-              unique,
-            ),
-          );
-          return unique.filter((id) => !enrolled.has(id)).length;
-        },
+        countUnprotected: unprotectedAdminCount(ctx),
       }),
     );
   });
@@ -552,6 +540,26 @@ export function registerModule(ctx: ModuleContext): void {
     const plugin = ctx.cradle<MfaCradle>().mfa.plugin as (a: typeof app) => Promise<void>;
     await plugin(app);
   });
+}
+
+/**
+ * How many of these administrators have no active enrolment, read from this
+ * module's own table when the Settings screen asks — never at boot, and not
+ * through `mfaAdminEnforcementPort`, which a contribution hook must not
+ * resolve. The same count the port's `countUnprotected` answers with a key.
+ */
+function unprotectedAdminCount(ctx: ModuleContext): (ids: readonly string[]) => Promise<number> {
+  return async (ids) => {
+    const unique = [...new Set(ids)];
+    if (unique.length === 0) return 0;
+    const enrolled = new Set(
+      await new MfaEnrolmentStateService(ctx.cradle<MfaCradle>().emFactory).activeSubjectIds(
+        'admin',
+        unique,
+      ),
+    );
+    return unique.filter((id) => !enrolled.has(id)).length;
+  };
 }
 
 /**
