@@ -1,5 +1,9 @@
 import { afterAll, beforeAll, describe, expect, it } from 'vitest';
-import { ADMIN_SESSION_COOKIE_NAME } from '@endora-commerce/contracts';
+import {
+  ADMIN_SESSION_COOKIE_NAME,
+  SettingGroupDtoSchema,
+  type SettingNoticeRegistryPort,
+} from '@endora-commerce/contracts';
 import {
   setupBackendServer,
   teardownBackendServer,
@@ -224,5 +228,41 @@ describe('mfa.admin.totp_enforced without an encryption key (issue #930)', () =>
       expect((res.json().error as { code: string }).code).toBe('MODULE_SETTING_READ_ONLY');
     });
     expect(await storedGlobalValue()).not.toBe(true);
+  });
+
+  // Last, because the provider it registers stays registered for the file.
+  it('keeps the Settings list answering when a notice provider fails', async () => {
+    const registry = (h.container.cradle as unknown as { settingNoticeRegistry: SettingNoticeRegistryPort })
+      .settingNoticeRegistry;
+    registry.register({
+      contributorModuleId: 'mfa',
+      codes: ['mfa.admin.totp_enabled'],
+      notice: async () => {
+        throw new Error('deliberate: a provider that fails');
+      },
+    });
+    await h
+      .em()
+      .getConnection()
+      .execute(`update "settings" set "global_value" = 'true'::jsonb where "code" = ?`, [ENFORCED]);
+    await h.settings.cache.invalidateAfterWrite(ENFORCED);
+
+    const list = await h.app.inject({
+      method: 'GET',
+      url: '/api/v1/admin/settings?groupCode=mfa',
+      cookies: STUB_ADMIN,
+    });
+    expect(list.statusCode).toBe(200);
+    const groups = (list.json() as { groups: unknown[] }).groups;
+    // The response schema: `notice` is optional and never `null`.
+    const parsed = groups.map((group) => SettingGroupDtoSchema.parse(group));
+    const raw = groups.flatMap((g) => (g as { settings: Array<Record<string, unknown>> }).settings);
+    for (const setting of raw) {
+      if (setting['code'] !== ENFORCED) expect('notice' in setting).toBe(false);
+    }
+    const enforced = parsed.flatMap((g) => g.settings).find((st) => st.code === ENFORCED);
+    expect(enforced?.notice?.code).toBe('encryption_key_missing');
+
+    expect((await putEnforced(false)).statusCode).toBe(200);
   });
 });

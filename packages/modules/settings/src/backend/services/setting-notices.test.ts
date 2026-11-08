@@ -36,3 +36,38 @@ describe('SettingNoticeRegistry', () => {
     expect(await registry.noticeFor({ code: 'x.flag', ownerModuleId: 'a', value: true })).toBeNull();
   });
 });
+
+describe('SettingNoticeRegistry — a provider that fails', () => {
+  function throwing(contributorModuleId: string, code: string): SettingNoticeProvider {
+    return {
+      contributorModuleId,
+      codes: [code],
+      notice: async () => {
+        throw new Error('provider down');
+      },
+    };
+  }
+
+  it('answers the next provider, and logs the failure with its contributor and code', async () => {
+    const errors: Array<Record<string, unknown>> = [];
+    const registry = new SettingNoticeRegistry(undefined, {
+      error: (fields) => {
+        errors.push(fields);
+      },
+    });
+    registry.register(throwing('broken', 'x.flag'));
+    registry.register(provider('a', 'x.flag'));
+    expect(await registry.noticeFor({ code: 'x.flag', ownerModuleId: 'a', value: true })).toEqual({
+      code: 'unmet',
+      message: 'Not in force.',
+    });
+    expect(errors).toHaveLength(1);
+    expect(errors[0]).toMatchObject({ contributorModuleId: 'broken', settingCode: 'x.flag' });
+  });
+
+  it('answers null when the only provider fails', async () => {
+    const registry = new SettingNoticeRegistry(undefined, { error: () => undefined });
+    registry.register(throwing('broken', 'x.flag'));
+    expect(await registry.noticeFor({ code: 'x.flag', ownerModuleId: 'a', value: true })).toBeNull();
+  });
+});
