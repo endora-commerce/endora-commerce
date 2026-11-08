@@ -12,9 +12,9 @@
  * **The container name is `auditRedactionService`**, platform-owned beside
  * `auditLogService`: the kernel writes its own table, so there is no module
  * owner, no manifest edge to declare and no off state to honour. `composeApp`
- * registers it, and `PLATFORM_OWNED_NAMES`
- * (`backend/scripts/check-port-dependencies.ts`) lists it, in the change that
- * adds its first reader — that check refuses a supplied name nothing reads.
+ * and the test kit register it, and `PLATFORM_OWNED_NAMES`
+ * (`backend/scripts/check-port-dependencies.ts`) lists it; its reader is the
+ * customers retention sweep.
  *
  * **A port of its own, not a method on {@link AuditPort}.** That port is typed
  * on by most modules and faked by many tests, and its writer's contract is

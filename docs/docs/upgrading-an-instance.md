@@ -3736,6 +3736,13 @@ So every account already past its window on the day you upgrade is anonymized wi
 first worker boot. **This cannot be undone**, and an account past its window can no longer be
 restored (`409 CUSTOMER_RESTORE_WINDOW_ELAPSED`), whether or not the sweep has reached it yet.
 
+**The audit history of each anonymized account is erased too** (issue #844). This covers the rows
+about the account and, for an individual, about their personal Organization and its addresses.
+Every row keeps its action, actors, time and object, but the recorded personal values become
+`[erased]`, and so do the IP address and user agent on the rows the customer wrote for themselves.
+This also cannot be undone. Each account gets one `audit.redacted` entry. The rule is described in
+the audit log module's documentation, under *Redaction on anonymisation*.
+
 **What to do:**
 
 1. **Count the accounts the first run will anonymize.** Run this read-only query before the
@@ -3759,7 +3766,8 @@ restored (`409 CUSTOMER_RESTORE_WINDOW_ELAPSED`), whether or not the sweep has r
 3. **Restore what you want to keep**, then set the window back to the value you want, if you
    raised it.
 4. **After the first run**, the worker logs `customers: anonymization sweep finished` at `info`
-   with the number anonymized, and each account has a `customer_account.anonymized` audit entry. An
+   with the number anonymized, and each account has a `customer_account.anonymized` and an
+   `audit.redacted` audit entry. An
    account that could not be anonymized is reported by id in a warning
    (`customers: the anonymization sweep failed; the next tick retries`) and is retried the next
    day. The query above then returns `0`.

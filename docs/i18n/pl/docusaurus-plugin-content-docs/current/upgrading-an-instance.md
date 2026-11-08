@@ -3917,6 +3917,14 @@ pierwszego uruchomienia workera. **Tego nie da się cofnąć**, a konta po upły
 przywrócić (`409 CUSTOMER_RESTORE_WINDOW_ELAPSED`), niezależnie od tego, czy zadanie już do niego
 dotarło.
 
+**Usuwana jest też historia audytu każdego zanonimizowanego konta** (zgłoszenie #844). Dotyczy to
+wpisów o koncie, a w przypadku klienta indywidualnego także o jego organizacji prywatnej i jej
+adresach. Każdy wpis zachowuje akcję, wykonawców, czas i obiekt, ale zapisane wartości osobowe
+zmieniają się w `[erased]`, podobnie jak adres IP i identyfikator przeglądarki (user agent) we
+wpisach, które klient zapisał sam. Tego również nie da się cofnąć. Każde konto otrzymuje jeden wpis
+`audit.redacted`. Regułę opisuje dokumentacja modułu dziennika audytu, w sekcji *Usuwanie danych
+przy anonimizacji*.
+
 **Co zrobić:**
 
 1. **Policz konta, które zanonimizuje pierwszy przebieg.** Przed aktualizacją uruchom to zapytanie
@@ -3940,8 +3948,8 @@ dotarło.
 3. **Przywróć konta, które chcesz zachować**, a potem, jeśli wydłużyłeś okres, ustaw go z powrotem
    na wybraną wartość.
 4. **Po pierwszym przebiegu** worker zapisuje w logu na poziomie `info` komunikat
-   `customers: anonymization sweep finished` z liczbą zanonimizowanych kont, a każde konto ma wpis
-   audytu `customer_account.anonymized`. Konto, którego nie udało się zanonimizować, jest zgłaszane
+   `customers: anonymization sweep finished` z liczbą zanonimizowanych kont, a każde konto ma wpisy
+   audytu `customer_account.anonymized` i `audit.redacted`. Konto, którego nie udało się zanonimizować, jest zgłaszane
    z identyfikatorem w ostrzeżeniu (`customers: the anonymization sweep failed; the next tick
    retries`) i ponawiane następnego dnia. Powyższe zapytanie zwraca wtedy `0`.
 

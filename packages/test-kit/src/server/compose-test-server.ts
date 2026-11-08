@@ -56,6 +56,7 @@ import { Redis } from 'ioredis';
 import {
   ApiInterceptorRegistry,
   AuditLogService,
+  AuditRedactionService,
   activationDeclarationsFrom,
   capabilityRegistryFrom,
   buildServer,
@@ -422,6 +423,8 @@ export async function composeTestServer(
       eventBus,
       commandBus,
       auditLogService,
+      // Issue #844 — as `composeApp` registers it.
+      auditRedactionService: new AuditRedactionService(em, auditLogService),
       apiInterceptors,
       resolvedModuleRegistry: composition.manifests,
       // Whether this process runs queue consumers — the platform's one

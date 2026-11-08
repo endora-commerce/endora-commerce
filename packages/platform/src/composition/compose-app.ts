@@ -81,6 +81,7 @@ import { ApiInterceptorRegistry } from '../http/interceptors/index.js';
 import type { ModulePlugin } from '../http/server.js';
 import { StorefrontRevalidator } from '../http/storefront-revalidator.js';
 import { AuditLogService } from '../kernel/audit/audit-log-service.js';
+import { AuditRedactionService } from '../kernel/audit/audit-redaction-service.js';
 import {
   attachEscapeHatchAuditWriter,
   type EscapeHatchAuditWriter,
@@ -710,6 +711,9 @@ export async function composeApp(options: ComposeAppOptions): Promise<ComposeApp
     // ships is a composition input, not something a module decides.
     resolvedModuleRegistry: resolvedRegistry,
     auditLogService,
+    // Issue #844 — the one non-append write on the audit table, platform-owned
+    // beside its writer; the customers retention sweep is its caller.
+    auditRedactionService: new AuditRedactionService(em, auditLogService),
     storefrontBaseUrl: process.env['STOREFRONT_BASE_URL'] ?? 'http://localhost:3000',
     // No verification-token probe outside a harness.
     organizationsExposeTestProbe: false,
