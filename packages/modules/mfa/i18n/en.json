@@ -14,6 +14,7 @@
   "errors.MFA_DEACTIVATION_BLOCKED": "Two-step verification cannot be switched off while administrators are required to use it. Turn off the setting \"Admin UI — enforce two-step verification\" (mfa.admin.totp_enforced) first, then switch the module off.",
   "errors.MFA_ENFORCEMENT_UNAVAILABLE": "Administrators cannot be required to use two-step verification on this instance.",
   "errors.MFA_ENFORCEMENT_UNAVAILABLE.encryption_key_missing": "Administrators cannot be required to use two-step verification on this instance, because no second factor can be set up: the encryption key MFA_SECRET_ENCRYPTION_KEY is not configured. Ask whoever runs this platform to set it, then turn the setting on again.",
+  "settingLabels.mfa.admin.totp_enforced.notice.encryption_key_missing": "Not in force: no encryption key (MFA_SECRET_ENCRYPTION_KEY).",
   "nav.security.label": "Account security",
   "actions.openSecurity.label": "Account security",
   "actions.openSecurity.description": "Set up or change your own two-step verification",

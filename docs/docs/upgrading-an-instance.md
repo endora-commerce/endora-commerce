@@ -3815,14 +3815,16 @@ not be completed, so none of them could sign in.
 
 - Turning `mfa.admin.totp_enforced` on is refused while the key is not set:
   `409 MFA_ENFORCEMENT_UNAVAILABLE`, with `details.reason: 'encryption_key_missing'`. Turning it off
-  is always allowed.
+  is always allowed, and so is saving it again when it is already on.
 - **On an instance where the setting is already on and the key is not set**, the setting is not
   applied: administrators without a second factor sign in with their password, as they would with
-  the setting off. The setting is not changed. The backend logs a warning at every start until the
-  key is set or the setting is turned off. Before, these administrators could not sign in at all.
+  the setting off. The setting is not changed. **Settings** shows *Not in force: no encryption key*
+  under it (the API's settings reads carry `notice.code: 'encryption_key_missing'`), and the
+  backend logs an error at every start until the key is set or the setting is turned off. Before,
+  these administrators could not sign in at all.
 - Nothing changes on an instance that has the key: enforcement applies as before.
 
-**After upgrading,** if the warning appears, either set `MFA_SECRET_ENCRYPTION_KEY` (see the
+**After upgrading,** if the notice or the logged error appears, either set `MFA_SECRET_ENCRYPTION_KEY` (see the
 [first deployment checklist](./deployment/first-deployment-checklist.md)) and restart, so that
 enforcement applies again, or turn the setting off in **Settings**.
 

@@ -4000,15 +4000,17 @@ administratora bez drugiego składnika do kroku konfiguracji, którego nie dało
 
 - Włączenie `mfa.admin.totp_enforced` jest odrzucane, dopóki klucz nie jest ustawiony:
   `409 MFA_ENFORCEMENT_UNAVAILABLE`, z `details.reason: 'encryption_key_missing'`. Wyłączenie
-  ustawienia jest zawsze dozwolone.
+  ustawienia jest zawsze dozwolone, podobnie jak ponowne zapisanie go, gdy jest już włączone.
 - **Na instancji, na której ustawienie jest już włączone, a klucz nie jest ustawiony**, ustawienie
   nie jest stosowane: administratorzy bez drugiego składnika logują się hasłem, tak jak przy
-  wyłączonym ustawieniu. Samo ustawienie się nie zmienia. Backend zapisuje ostrzeżenie w logu przy
-  każdym starcie, dopóki klucz nie zostanie ustawiony albo ustawienie wyłączone. Wcześniej ci
-  administratorzy nie mogli się w ogóle zalogować.
+  wyłączonym ustawieniu. Samo ustawienie się nie zmienia. **Ustawienia** pokazują pod nim
+  komunikat *Nie obowiązuje: brak klucza szyfrowania* (odczyty ustawień w API zawierają
+  `notice.code: 'encryption_key_missing'`), a backend zapisuje błąd w logu przy każdym starcie,
+  dopóki klucz nie zostanie ustawiony albo ustawienie wyłączone. Wcześniej ci administratorzy nie
+  mogli się w ogóle zalogować.
 - Na instancji z kluczem nic się nie zmienia: wymuszanie działa jak dotąd.
 
-**Po aktualizacji,** jeśli pojawi się ostrzeżenie, ustaw `MFA_SECRET_ENCRYPTION_KEY` (zobacz
+**Po aktualizacji,** jeśli pojawi się ten komunikat albo błąd w logu, ustaw `MFA_SECRET_ENCRYPTION_KEY` (zobacz
 [listę kontrolną pierwszego wdrożenia](./deployment/first-deployment-checklist.md)) i uruchom
 backend ponownie, aby wymuszanie znów działało, albo wyłącz to ustawienie w **Ustawieniach**.
 

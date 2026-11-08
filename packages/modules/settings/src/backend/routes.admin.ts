@@ -6,6 +6,8 @@ import {
   ResetValueQuerySchema,
   SetValueRequestSchema,
   SettingsListQuerySchema,
+  type SettingNotice,
+  type SettingNoticeInput,
 } from '@endora-commerce/contracts';
 import type { SettingsAdminService, AdminAuditContext } from './services/settings-admin.service.js';
 import type { Setting } from '@endora-commerce/platform/kernel';
@@ -37,6 +39,11 @@ export interface SettingsAdminDeps {
   adminService: SettingsAdminService;
   requireAdmin: RequireAdminFactory;
   resolveAdminAuditContext?: (req: FastifyRequest) => AdminAuditContext;
+  /**
+   * Issue #930 — the owning module's notice for a setting whose stored value
+   * is not in force. Absent in a composition without the registry: no notice.
+   */
+  noticeFor?: (input: SettingNoticeInput) => Promise<SettingNotice | null>;
 }
 
 interface SetValueWithVersion {
@@ -47,7 +54,7 @@ export async function registerSettingsAdminRoutes(
   app: FastifyInstance,
   deps: SettingsAdminDeps,
 ): Promise<void> {
-  const { adminService, requireAdmin, resolveAdminAuditContext } = deps;
+  const { adminService, requireAdmin, resolveAdminAuditContext, noticeFor } = deps;
 
   const auditContext = (request: FastifyRequest): AdminAuditContext => {
     const ctx = resolveAdminAuditContext?.(request) ?? {
@@ -73,6 +80,21 @@ export async function registerSettingsAdminRoutes(
   interface SettingClassification {
     editable: boolean;
     activationControl: boolean;
+    /** Issue #930 — computed by {@link noticeOf} before serialising. */
+    notice?: SettingNotice | null;
+  }
+
+  /**
+   * Issue #930 — asks the owning module whether the platform-wide value in
+   * force is what the stored value says. A `secret` value is never handed out.
+   */
+  async function noticeOf(setting: Setting): Promise<SettingNotice | null> {
+    if (!noticeFor) return null;
+    return noticeFor({
+      code: setting.code,
+      ownerModuleId: setting.ownerModule,
+      value: setting.valueType === 'secret' ? null : setting.globalValue ?? setting.defaultValue,
+    });
   }
 
   function serializeSetting(
@@ -108,10 +130,11 @@ export async function registerSettingsAdminRoutes(
       version: adminService.computeSettingVersion(setting, values),
       editable: classification.editable,
       activationControl: classification.activationControl,
+      ...(classification.notice ? { notice: classification.notice } : {}),
     };
   }
 
-  function serializeGroup(
+  async function serializeGroup(
     group: SettingGroup,
     settings: Array<{
       setting: Setting;
@@ -119,7 +142,8 @@ export async function registerSettingsAdminRoutes(
       editable: boolean;
       activationControl: boolean;
     }>,
-  ): Record<string, unknown> {
+  ): Promise<Record<string, unknown>> {
+    const notices = await Promise.all(settings.map((s) => noticeOf(s.setting)));
     return {
       id: group.id,
       code: group.code,
@@ -127,10 +151,11 @@ export async function registerSettingsAdminRoutes(
       isSystemProtected: group.isSystemProtected,
       ownerModule: group.ownerModule,
       salesChannelCodes: group.salesChannels.getItems().map((c) => c.code),
-      settings: settings.map((s) =>
+      settings: settings.map((s, i) =>
         serializeSetting(s.setting, s.values, {
           editable: s.editable,
           activationControl: s.activationControl,
+          notice: notices[i] ?? null,
         }),
       ),
     };
@@ -147,7 +172,9 @@ export async function registerSettingsAdminRoutes(
       const q = SettingsListQuerySchema.parse(request.query ?? {});
       const filter = q.groupCode ? { groupCode: q.groupCode } : undefined;
       const result = await adminService.listGroups(filter);
-      return { groups: result.groups.map((g) => serializeGroup(g.group, g.settings)) };
+      return {
+        groups: await Promise.all(result.groups.map((g) => serializeGroup(g.group, g.settings))),
+      };
     },
   );
 
@@ -158,7 +185,11 @@ export async function registerSettingsAdminRoutes(
       const { setting, values, version, editable, activationControl } =
         await adminService.getSettingByCode(request.params.code);
       setEtag(reply, version);
-      return serializeSetting(setting, values, { editable, activationControl });
+      return serializeSetting(setting, values, {
+        editable,
+        activationControl,
+        notice: await noticeOf(setting),
+      });
     },
   );
 
@@ -198,6 +229,7 @@ export async function registerSettingsAdminRoutes(
       return serializeSetting(detail.setting, detail.values, {
         editable: detail.editable,
         activationControl: detail.activationControl,
+        notice: await noticeOf(detail.setting),
       });
     },
   );
@@ -221,6 +253,7 @@ export async function registerSettingsAdminRoutes(
       return serializeSetting(detail.setting, detail.values, {
         editable: detail.editable,
         activationControl: detail.activationControl,
+        notice: await noticeOf(detail.setting),
       });
     },
   );

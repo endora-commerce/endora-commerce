@@ -15,6 +15,7 @@ import type {
   MfaEnrolmentStatePort,
   MfaLoginPort,
   OrganizationPermissionPort,
+  SettingNoticeRegistryPort,
   SettingWriteValidatorRegistryPort,
 } from '@endora-commerce/contracts';
 import { MFA_SETTING_CODES } from '@endora-commerce/contracts';
@@ -46,8 +47,9 @@ import { MfaEnrolmentStateService } from './services/mfa-enrolment-state.service
 import type { SocialIdentityDeps } from './services/social-identity-service.js';
 import { createCustomerChannelAccess } from './services/customer-channel-access.js';
 import {
+  createAdminEnforcementSettingNotice,
   createAdminEnforcementSettingValidator,
-  warnOfUnenforceableAdminSetting,
+  reportUnenforceableAdminSetting,
 } from './services/admin-enforcement-without-key.js';
 import { mfaModule, type MfaModuleHandle } from './plugin.js';
 import { MfaEnrolment } from './entities/mfa-enrolment.entity.js';
@@ -390,32 +392,43 @@ export function registerModule(ctx: ModuleContext): void {
 
   /**
    * Issue #930 — `mfa.admin.totp_enforced` cannot be turned on where no second
-   * factor can be enrolled. A **contribution** hook and unprobed, in the `cms`
-   * / `seo` shape: the registry itself skips a validator whose contributor is
-   * absent, and the platform refuses an absent module's setting writes first.
+   * factor can be enrolled, and its read says it is not in force while it is
+   * on there. **Contribution** hooks and unprobed, in the `cms` / `seo` shape:
+   * both registries skip a contributor that is absent, and the platform refuses
+   * an absent module's setting writes first.
    */
   ctx.onBoot(() => {
+    const canEnrolSecondFactor = () =>
+      ctx.cradle<MfaCradle>().mfa.handle().enrolmentService !== null;
     lazyPort<SettingWriteValidatorRegistryPort>(ctx, 'settingWriteValidatorRegistry').register(
-      createAdminEnforcementSettingValidator(
-        () => ctx.cradle<MfaCradle>().mfa.handle().enrolmentService !== null,
-      ),
+      createAdminEnforcementSettingValidator({
+        canEnrolSecondFactor,
+        readEnforced: () =>
+          ctx
+            .cradle<MfaCradle>()
+            .settingsReadPort.get(MFA_SETTING_CODES.ADMIN_TOTP_ENFORCED, null, z.boolean()),
+      }),
+    );
+    lazyPort<SettingNoticeRegistryPort>(ctx, 'settingNoticeRegistry').register(
+      createAdminEnforcementSettingNotice(canEnrolSecondFactor),
     );
   });
 
   /**
    * Issue #930 — an instance whose `mfa.admin.totp_enforced` is on with no
-   * encryption key is told at every boot that the requirement is not applied.
+   * encryption key is told at every boot, at error level, that the
+   * requirement is not applied.
    * Work, so asked for presence first: off means no second factor at all
    * (D-96), so there is nothing to warn about.
    */
   ctx.onBoot(async () => {
     if (!effectiveState.isPresent('mfa')) return;
     const { mfa, settingsReadPort } = ctx.cradle<MfaCradle>();
-    await warnOfUnenforceableAdminSetting({
+    await reportUnenforceableAdminSetting({
       hasEncryptionKey: mfa.handle().enrolmentService !== null,
       readEnforced: () =>
         settingsReadPort.get(MFA_SETTING_CODES.ADMIN_TOTP_ENFORCED, null, z.boolean()),
-      warn: (fields, message) => ctx.log.warn(fields, message),
+      error: (fields, message) => ctx.log.error(fields, message),
     });
   });
 

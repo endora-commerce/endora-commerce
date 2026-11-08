@@ -20,6 +20,7 @@ import {
   type ModulePresencePort,
 } from './services/settings-admin.service.js';
 import { SettingWriteValidatorRegistry } from './services/setting-write-validators.js';
+import { SettingNoticeRegistry } from './services/setting-notices.js';
 import { CacheAdminService } from './services/cache-admin.service.js';
 import { ShopInfoResolver } from './services/shop-info-resolver.js';
 import { createSocialProfilesValidator } from './services/social-profiles-validator.js';
@@ -93,6 +94,7 @@ export interface SettingsCradle {
    * a pull with a failure mode.
    */
   readonly settingWriteValidatorRegistry: SettingWriteValidatorRegistry;
+  readonly settingNoticeRegistry: SettingNoticeRegistry;
   readonly settingsCacheAdminService: CacheAdminService;
   readonly settingsShopInfoResolver: ShopInfoResolver;
   readonly settingsHomepageResolver: HomepageResolver;
@@ -110,6 +112,15 @@ export function registerModule(ctx: ModuleContext): void {
         registry.register(createSocialProfilesValidator());
         return registry;
       })
+      .singleton(),
+
+    // Issue #930 — the read-side twin of the validator registry: a module says
+    // when a setting's stored value is not what is in force.
+    settingNoticeRegistry: ctx
+      .asFunction(
+        ({ settingsModulePresence }: SettingsCradle) =>
+          new SettingNoticeRegistry(settingsModulePresence),
+      )
       .singleton(),
 
     settingsCacheAdminService: ctx
@@ -245,6 +256,8 @@ export function registerModule(ctx: ModuleContext): void {
       requireAdmin,
       resolveAdminAuditContext: (req) =>
         ctx.cradle<SettingsCradle>().adminAuditActorResolver(req),
+      // Read per call: the registry is filled from other modules' boot hooks.
+      noticeFor: (input) => ctx.cradle<SettingsCradle>().settingNoticeRegistry.noticeFor(input),
     });
     await registerSettingsStorefrontRoutes(app, {
       shopInfoResolver: cradle.settingsShopInfoResolver,
