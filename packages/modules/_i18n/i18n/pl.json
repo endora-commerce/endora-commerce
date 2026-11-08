@@ -1076,6 +1076,7 @@
   "orderCreate.items.browse": "Dodaj produkty do zamówienia",
   "orderCreate.items.empty": "Brak pozycji. Przeglądaj produkty lub użyj szybkiego wyszukiwania, aby je dodać.",
   "orderCreate.items.quickSearch": "Szybkie dodawanie po nazwie lub SKU",
+  "orderCreate.line.archived": "Produkt zarchiwizowany",
   "orderCreate.line.belowMinimum": "Poniżej minimum {minimum} szt.",
   "orderCreate.line.belowMinimumUnknown": "Poniżej minimalnej ilości zamówienia",
   "orderCreate.line.lineTotal": "Wartość",

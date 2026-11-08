@@ -112,6 +112,8 @@ describe('OrderCreationAdminService — inline-address cleanup', () => {
       customerAccountRead,
       // Issue #515 — the order's channel is one of the Organization's active channels.
       { listChannelsForEntity: async () => [{ id: CHANNEL_ID, active: true }] },
+      // Issue #829 — no line is archived.
+      { findByIds: async () => [] },
     );
 
   const input = {

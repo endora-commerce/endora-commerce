@@ -1,7 +1,8 @@
-import type { CSSProperties, ReactElement } from 'react';
+import { useEffect, useState, type CSSProperties, type ReactElement } from 'react';
 import type { ComponentConfig, Config } from '@puckeditor/core';
-import type { QuoteRequestDocumentData } from '@endora-commerce/contracts';
-import { useTranslation } from '@endora-commerce/admin-kit/i18n';
+import { supportedLanguageOf, type QuoteRequestDocumentData } from '@endora-commerce/contracts';
+import { getBundles, resolve, useTranslationContext } from '@endora-commerce/admin-kit/i18n';
+import type { Bundle, SupportedAdminLanguage } from '@endora-commerce/admin-kit/i18n';
 import { useBlockRenderEnvironment, useDocumentSample } from '@endora-commerce/page-builder-core/contributions';
 
 /**
@@ -25,6 +26,63 @@ const align = (v: unknown): CSSProperties['textAlign'] => (v === 'center' || v =
 const note: CSSProperties = { color: '#475569', fontSize: 11 };
 const heading: CSSProperties = { fontWeight: 700, marginBottom: 2 };
 
+/**
+ * The edited tree's language is the render environment the document-template
+ * editor provides around its canvas (`useBlockRenderEnvironment`). When it is
+ * the administrator's language the loaded bundle already holds it; otherwise
+ * that language's bundle is fetched once per session, and until it arrives the
+ * administrator's language stands in. The invoice canvas reads its labels the
+ * same way (issue #888).
+ */
+const treeBundles = new Map<SupportedAdminLanguage, Promise<Bundle>>();
+
+function treeBundle(language: SupportedAdminLanguage): Promise<Bundle> {
+  let pending = treeBundles.get(language);
+  if (!pending) {
+    pending = getBundles(language).then((response) => response.bundles);
+    // A failed read is not remembered, so the next canvas tries again.
+    pending.catch(() => treeBundles.delete(language));
+    treeBundles.set(language, pending);
+  }
+  return pending;
+}
+
+function useTreeLabels(): (key: string) => string {
+  const { language: treeLanguage } = useBlockRenderEnvironment();
+  const target = supportedLanguageOf(treeLanguage);
+  const { language: admin, bundle, fallbackBundle, t } = useTranslationContext();
+  const held = target === admin ? bundle : target === 'en' ? fallbackBundle : undefined;
+  const [fetched, setFetched] = useState<{ language: SupportedAdminLanguage; bundle: Bundle } | null>(null);
+  useEffect(() => {
+    if (held) return undefined;
+    let live = true;
+    treeBundle(target).then(
+      (loaded) => {
+        if (live) setFetched({ language: target, bundle: loaded });
+      },
+      () => undefined,
+    );
+    return () => {
+      live = false;
+    };
+  }, [held, target]);
+  const own = held ?? (fetched?.language === target ? fetched.bundle : undefined);
+  const english = admin === 'en' ? bundle : fallbackBundle;
+  return (key) => {
+    if (own) {
+      const result = resolve({
+        scope: 'quote_requests',
+        key,
+        language: target,
+        bundle: own,
+        ...(english ? { fallbackBundle: english } : {}),
+      });
+      if (result.outcome !== 'placeholder') return result.value;
+    }
+    return t('quote_requests', key);
+  };
+}
+
 function useDate(): (iso: string | null) => string {
   const { language } = useBlockRenderEnvironment();
   return (iso) => {
@@ -38,7 +96,7 @@ function useDate(): (iso: string | null) => string {
 }
 
 function Header(props: Props): ReactElement {
-  const t = useTranslation('quote_requests');
+  const t = useTreeLabels();
   const sample = useDocumentSample<QuoteRequestDocumentData>();
   const date = useDate();
   const label = (key: string, fallbackKey: string): string => str(props[key], t(fallbackKey));
@@ -57,7 +115,7 @@ function Header(props: Props): ReactElement {
 }
 
 function Parties(props: Props): ReactElement {
-  const t = useTranslation('quote_requests');
+  const t = useTreeLabels();
   const sample = useDocumentSample<QuoteRequestDocumentData>();
   const buyer = sample?.buyer;
   const sections: { title: string; lines: (string | null | undefined)[] }[] = [];
@@ -96,7 +154,7 @@ function Parties(props: Props): ReactElement {
 }
 
 function Notes(props: Props): ReactElement | null {
-  const t = useTranslation('quote_requests');
+  const t = useTreeLabels();
   const sample = useDocumentSample<QuoteRequestDocumentData>();
   const text = (sample?.quote.headerNote ?? '').trim();
   if (text === '' && !flag(props['showWhenEmpty'], false)) return <div style={{ ...note, fontStyle: 'italic' }}>—</div>;
@@ -110,7 +168,7 @@ function Notes(props: Props): ReactElement | null {
 }
 
 function Details(props: Props): ReactElement {
-  const t = useTranslation('quote_requests');
+  const t = useTreeLabels();
   const sample = useDocumentSample<QuoteRequestDocumentData>();
   const details = sample?.details ?? [];
   const title = str(props['heading'], t('documentBlocks.details.heading'));

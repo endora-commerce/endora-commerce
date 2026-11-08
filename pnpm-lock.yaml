@@ -3685,6 +3685,9 @@ importers:
       fastify:
         specifier: ^5.12.8
         version: 5.12.8
+      ioredis:
+        specifier: ^5.10.1
+        version: 5.10.1
       react:
         specifier: ^19.2.5
         version: 19.2.5

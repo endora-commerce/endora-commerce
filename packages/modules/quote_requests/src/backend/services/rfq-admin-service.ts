@@ -51,6 +51,7 @@ import { raisedOnChannelId } from './raised-on-channel.js';
 import { hasUnpricedLine, quoteIncompleteError, unitPriceText } from './agreed-price.js';
 import { listTotal } from './summarize.js';
 import { quoteRequestAmount } from './quote-amount.js';
+import { channelCurrencies, channelCurrency, requestLineCurrency, summaryCurrency } from './line-currency.js';
 import { pairLines } from './line-carry-over.js';
 import { LINE_STORAGE_ORDER, loadArrangedQuoteLines } from './line-order.js';
 import { groupingShape, planLineGrouping, type GroupingShapeEntry, type LineGroupingPlan } from './line-grouping.js';
@@ -252,6 +253,11 @@ export class RfqAdminService {
     for (const orgId of new Set(rfqs.map((r) => r.organizationId))) {
       taxRateByOrg.set(orgId, await this.deps.rfqService.taxRateForOrganization(orgId));
     }
+    // Issue #303 — a request with no lines speaks its channel's currency.
+    const currencyByChannel = await channelCurrencies(
+      em,
+      rfqs.filter((r) => !itemsByRfq.has(r.id)).map((r) => r.salesChannelId),
+    );
 
     return rfqs.map((rfq) => {
       const rfqItems = itemsByRfq.get(rfq.id) ?? [];
@@ -279,7 +285,7 @@ export class RfqAdminService {
         amount,
         agreement,
         taxRate: taxRateByOrg.get(rfq.organizationId) ?? 0,
-        currency: rfqItems[0]?.lineCurrency ?? 'PLN',
+        currency: summaryCurrency(rfq, rfqItems, currencyByChannel),
         submittedAt: rfq.submittedAt?.toISOString() ?? null,
         expiresAt: rfq.expiresAt?.toISOString() ?? null,
         createdAt: rfq.createdAt.toISOString(),
@@ -785,6 +791,8 @@ export class RfqAdminService {
         await em.removeAndFlush(existing);
         const groupIds = await writeLineGroups(em, rfq.id, storedGroups, plan);
         const items: QuoteRequestItem[] = [];
+        // Issue #303 — every line, a new one too, keeps the request's currency.
+        const lineCurrency = await requestLineCurrency(em, rfq, existing);
         // Feature 163 (FR-017 d, N2) — a line the operator adds is named at the
         // request channel's default language; a stored line keeps its snapshot.
         const lineNames = await this.deps.rfqService.lineNames(
@@ -827,7 +835,7 @@ export class RfqAdminService {
                   : null,
               lineNote:
                 lineInput.lineNote !== undefined ? lineInput.lineNote : (row?.lineNote ?? null),
-              lineCurrency: row?.lineCurrency ?? 'PLN',
+              lineCurrency,
               ...(row !== null
                 ? storedReferenceColumns(row)
                 : { referenceUnitPrice: null, referenceCurrency: null, referenceCapturedAt: null }),
@@ -1066,6 +1074,8 @@ export class RfqAdminService {
     });
     const groupIds = await writeLineGroups(em, rfq.id, [], plan);
     const items: QuoteRequestItem[] = [];
+    // Issue #303 — decided here, once: the raised-on channel's currency.
+    const lineCurrency = await channelCurrency(em, rfq.salesChannelId);
     // Feature 163 (FR-017 d, N2) — an operator's lines are named at the
     // request channel's default language.
     const lineNames = await this.deps.rfqService.lineNames(
@@ -1085,7 +1095,7 @@ export class RfqAdminService {
           quantity: lineInput.quantity,
           agreedUnitPrice: unitPriceText(lineInput.agreedUnitPrice),
           lineNote: lineInput.lineNote ?? null,
-          lineCurrency: 'PLN',
+          lineCurrency,
           groupId: groupIds(plan.lines[index]!.group),
           position: plan.lines[index]!.position,
         }),

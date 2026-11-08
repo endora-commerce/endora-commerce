@@ -20,14 +20,43 @@ let buildResult: unknown = null;
 let rfqLookupFails = false;
 let found: Array<{ productId: string; sku: string; name: string }> = [];
 
-// Issue #790 — the preview travels in the storefront's own cookie, not the URL.
-const cookieStore = vi.hoisted(() => new Map<string, string>());
+// Issue #809 — the preview is the backend's, one per buyer session; this double keeps it per
+// session and refuses a write as `PUT /api/v1/quick-order/preview` does: over the import row cap
+// (`cap`, the setting) only when it grew, never counting the rows past the import's limit; and it
+// stamps the limit those were past, as the backend does (PO ruling of 2026-11-08 on PR #942).
+type Written = {
+  recognized: unknown[];
+  rejected: Array<{ reason?: string }>;
+  summary: { overflowCount?: number; rowLimit?: number };
+};
+const previews = vi.hoisted(() => new Map<string, unknown>());
+const previewApi = vi.hoisted(() => ({ refuseWrites: false, readFails: false, cap: 2_000, written: [] as unknown[] }));
+vi.mock('../../lib/api/quick-order-preview', () => ({
+  readQuickOrderPreview: async (session: string) => {
+    if (previewApi.readFails) throw new Error('fetch failed');
+    return previews.has(session) ? structuredClone(previews.get(session)) : null;
+  },
+  writeQuickOrderPreview: async (session: string, preview: Written) => {
+    previewApi.written.push(structuredClone(preview));
+    if (previewApi.refuseWrites) return false;
+    const lines = (p: Written) => p.recognized.length + p.rejected.filter((row) => row.reason !== 'row_limit_exceeded').length;
+    const previous = previews.has(session) ? lines(previews.get(session) as Written) : 0;
+    if (lines(preview) > previewApi.cap && lines(preview) > previous) return false;
+    const kept = structuredClone(preview);
+    if ((kept.summary.overflowCount ?? 0) > 0) kept.summary.rowLimit ??= previewApi.cap;
+    previews.set(session, kept);
+    return true;
+  },
+  clearQuickOrderPreview: async (session: string) => void previews.delete(session),
+}));
+// Issue #809 — the storefront writes no cookie for the preview any more.
+const cookiesWritten = vi.hoisted(() => [] as string[]);
 vi.mock('next/headers', () => ({
   cookies: async () => ({
-    get: (name: string) => (cookieStore.has(name) ? { name, value: cookieStore.get(name)! } : undefined),
-    getAll: () => [...cookieStore].map(([name, value]) => ({ name, value })),
-    set: (name: string, value: string) => void cookieStore.set(name, value),
-    delete: (name: string) => void cookieStore.delete(name),
+    get: () => undefined,
+    getAll: () => [],
+    set: (name: string) => void cookiesWritten.push(name),
+    delete: (name: string) => void cookiesWritten.push(name),
   }),
 }));
 
@@ -103,7 +132,6 @@ vi.mock('../../lib/api/rfq', async () => {
 });
 
 const { default: QuickOrderPage } = await import('../../app/(account)/quick-order/page');
-const { packQuickOrderPreview } = await import('../../lib/quick-order-preview-cookie');
 const { default: QuotePage } = await import('../../app/(account)/quote-requests/[id]/page');
 
 const previewState = {
@@ -112,12 +140,12 @@ const previewState = {
   summary: { recognizedCount: 1, rejectedCount: 0, mergedCount: 1, truncated: false },
 };
 
-/** The cookie the import action writes, for the session the page mock signs in with. */
+/** The preview the import action wrote, for the session the page mock signs in with. */
 function seedPreview(state: unknown = previewState): void {
-  cookieStore.set('b2b_quick_order_preview', packQuickOrderPreview('session-cookie', state as never)!);
+  previews.set('session-cookie', structuredClone(state));
 }
 
-/** A preview of `rows` lines with uuid-random product ids (compression is what the budget measures). */
+/** A preview of `rows` lines with distinct product ids. */
 function previewOf(rows: number): typeof previewState {
   return {
     recognized: Array.from({ length: rows }, (_, index) => ({
@@ -132,11 +160,9 @@ function previewOf(rows: number): typeof previewState {
   };
 }
 
-/** The longest {@link previewOf} the cookie still holds. */
+/** The longest {@link previewOf} the backend keeps at the default import row cap (issue #809). */
 function fullPreview(): typeof previewState {
-  let rows = 1;
-  while (packQuickOrderPreview('session-cookie', previewOf(rows + 1) as never) !== null) rows += 1;
-  return previewOf(rows);
+  return previewOf(2_000);
 }
 
 async function quickTree(sp: Record<string, string> = {}): Promise<unknown> {
@@ -159,7 +185,12 @@ beforeEach(() => {
   buildResult = null;
   rfqLookupFails = false;
   found = [];
-  cookieStore.clear();
+  previews.clear();
+  previewApi.refuseWrites = false;
+  previewApi.readFails = false;
+  previewApi.cap = 2_000;
+  previewApi.written = [];
+  cookiesWritten.length = 0;
 });
 
 describe('quick order — a crafted parameter never reaches the page', () => {
@@ -298,8 +329,8 @@ describe('quote request — the actions redirect with a code', () => {
 
 /**
  * Issue #790 — the preview (the buyer's CSV, its raw rejected lines included) travelled in the
- * URL, so a crafted `?preview=` put any text on the page. It lives in the storefront's own
- * httpOnly cookie; the URL carries none of it.
+ * URL, so a crafted `?preview=` put any text on the page. Since issue #809 the backend keeps it,
+ * bound to the buyer session; neither the URL nor a cookie carries any of it.
  */
 describe('quick order — the preview never travels in the URL (issue #790)', () => {
   const crafted = Buffer.from(
@@ -324,6 +355,16 @@ describe('quick order — the preview never travels in the URL (issue #790)', ()
     const out = await quickText({});
     expect(out).toContain('BOLT-1');
     expect(out).toContain('NOPE,1');
+    expect(cookiesWritten).toEqual([]);
+  });
+
+  it('holds an import of 2 000 lines, far past the old cookie budget', async () => {
+    imported = previewOf(2_000);
+    const action = actionsOf(await quickTree()).get('importAction')!;
+    expect(await redirectOf(() => action(form({ csv: 'sku,quantity' }) as never))).toBe('/quick-order');
+    const out = await quickText({});
+    expect(out).toContain('SKU-0');
+    expect(out).toContain('SKU-1999');
   });
 
   /** The page's actions, the preview panel's included (a component `actionsOf` does not render). */
@@ -358,17 +399,9 @@ describe('quick order — the preview never travels in the URL (issue #790)', ()
     expect(html).not.toContain('name="preview"');
   });
 
-  it('a list too long to carry is refused in words, not cut short', async () => {
-    imported = {
-      ...previewState,
-      recognized: Array.from({ length: 2000 }, (_, index) => ({
-        line: index + 1,
-        sku: `SKU-${index}`,
-        productId: Buffer.from(String(index * 7919)).toString('hex').padEnd(36, String(index % 10)),
-        variantId: null,
-        quantity: index + 1,
-      })),
-    };
+  it('a list the backend will not keep (over 2 MiB) is refused in words, not cut short', async () => {
+    imported = previewOf(3);
+    previewApi.refuseWrites = true;
     const action = actionsOf(await quickTree()).get('importAction')!;
     expect(await redirectOf(() => action(form({ csv: 'sku,quantity' }) as never))).toBe(
       '/quick-order?problem=preview_too_large',
@@ -379,6 +412,35 @@ describe('quick order — the preview never travels in the URL (issue #790)', ()
     locale = 'pl-PL';
     expect(await quickText({ problem: 'preview_too_large' })).toContain(
       'Ta lista jest zbyt długa, by przejrzeć ją tutaj. Podziel ją na mniejsze pliki i zaimportuj je po kolei.',
+    );
+  });
+
+  /**
+   * PO ruling of 2026-11-08 on PR #942 — the rows past the import's limit are one count, not a
+   * row each, and the page says so in one sentence.
+   */
+  it('an import past the row limit keeps the rows it read and reports the rest as one count', async () => {
+    const read = previewOf(2_000);
+    imported = {
+      ...read,
+      rejected: [{ line: 2_002, raw: 'LATE-1,1', reason: 'row_limit_exceeded' }],
+      summary: { ...read.summary, rejectedCount: 1, truncated: true },
+    };
+    const action = actionsOf(await quickTree()).get('importAction')!;
+    expect(await redirectOf(() => action(form({ csv: 'sku,quantity' }) as never))).toBe('/quick-order');
+    // The storefront sends the count, not the rows.
+    const sent = previewApi.written.at(-1) as Written;
+    expect(sent.rejected).toEqual([]);
+    expect(sent.summary.overflowCount).toBe(1);
+
+    const en = await quickText({});
+    expect(en).toContain(
+      'Only the first 2000 rows of the file were read. Rows left out: 1. Split the file and import the rest separately.',
+    );
+    expect(en).not.toContain('LATE-1,1');
+    locale = 'pl-PL';
+    expect(await quickText({})).toContain(
+      'Wczytano tylko pierwsze 2000 wierszy pliku. Pominięte wiersze: 1. Podziel plik i zaimportuj resztę osobno.',
     );
   });
 
@@ -394,13 +456,13 @@ describe('quick order — the preview never travels in the URL (issue #790)', ()
     const action = actionsOf(await quickTree()).get('confirmAction')!;
     buildResult = { target: 'cart', cartId: 'c1', rejected: [] };
     expect(await redirectOf(() => action(form({ target: 'cart' }) as never))).toBe('/quick-order?built=cart');
-    expect(cookieStore.size).toBe(0);
+    expect(previews.size).toBe(0);
   });
 
   it('adding from search to a full preview is refused with its own advice, and the preview kept', async () => {
     const full = fullPreview();
     seedPreview(full);
-    // The line that would make it one longer than the cookie holds.
+    // The line that would make it one longer than the backend keeps.
     const next = previewOf(full.recognized.length + 1).recognized.at(-1)!;
     found = [{ productId: next.productId, sku: next.sku, name: 'Nut' }];
     const add = (await quickActions({ q: 'nut' })).get('addSearchResultAction')!;
@@ -445,17 +507,17 @@ describe('quick order — the preview never travels in the URL (issue #790)', ()
     expect(to).toBe('/quick-order?built=cart&sent=2&rejected=1');
     const out = await quickText(Object.fromEntries(new URL(to, 'http://x').searchParams));
     expect(out).toContain('Cart built from your import: 1 of 2 lines added.');
-    // The server-written cookie carries the build's names (architect ruling, round 2, Q3).
+    // The server-written preview carries the build's names (architect ruling, round 2, Q3).
     expect(out).toContain('Anchor bolt (BOLT-1) × 4 — Below the minimum (2 × Pallet)');
     // The preview now holds the line to retry, and nothing the cart took or the import refused.
     expect(out).not.toContain('NUT-2');
     expect(out).not.toContain('NOPE,1');
   });
 
-  it('a rewrite over the budget clears the preview and reports the counts only', async () => {
-    const full = fullPreview();
+  it('a rewrite the backend refuses clears the preview and reports the counts only', async () => {
+    const full = previewOf(40);
     seedPreview(full);
-    // Every line refused, each with a long name: the rewrite cannot fit the cookie.
+    previewApi.refuseWrites = true;
     buildResult = {
       target: 'cart',
       cartId: 'c1',
@@ -473,7 +535,7 @@ describe('quick order — the preview never travels in the URL (issue #790)', ()
     const confirm = actionsOf(await quickTree()).get('confirmAction')!;
     const to = await redirectOf(() => confirm(form({ target: 'cart' }) as never));
     expect(to).toBe(`/quick-order?built=cart&sent=${rows}&rejected=${rows}`);
-    expect(cookieStore.has('b2b_quick_order_preview')).toBe(false);
+    expect(previews.has('session-cookie')).toBe(false);
     const out = await quickText(Object.fromEntries(new URL(to, 'http://x').searchParams));
     expect(out).toContain('No lines were added to your cart.');
     expect(out).toContain(`+${rows} more`);
@@ -489,8 +551,67 @@ describe('quick order — the preview never travels in the URL (issue #790)', ()
   });
 
   it('a preview written for another session is not shown', async () => {
-    cookieStore.set('b2b_quick_order_preview', packQuickOrderPreview('someone-else', previewState as never)!);
+    previews.set('someone-else', structuredClone(previewState));
     expect(await quickText({})).not.toContain('BOLT-1');
+  });
+});
+
+/**
+ * Issue #809 — the backend keeps a preview for an hour after it was last written. A buyer who
+ * comes back to an edit, a removal or a build after that is told to paste the list again, in
+ * their language, instead of a bare "nothing to do".
+ */
+describe('quick order — an expired preview asks for the list again (issue #809)', () => {
+  const EN = 'Your list has expired. Paste it or upload the file again to review it.';
+  const PL = 'Twoja lista wygasła. Wklej ją lub prześlij plik ponownie, aby ją przejrzeć.';
+
+  /** The panel's actions, rendered against a preview that is then gone. */
+  async function actionsOfAnExpiredPreview(): Promise<Map<string, (...args: never[]) => unknown>> {
+    seedPreview();
+    const tree = (await quickTree({})) as React.ReactElement<{ children: React.ReactNode[] }>;
+    const panel = tree.props.children.find(
+      (child): child is React.ReactElement => isValidElement(child) && (child.type as { name?: string }).name === 'PreviewPanel',
+    )!;
+    const actions = actionsOf(tree);
+    for (const [name, run] of actionsOf((panel.type as (props: unknown) => unknown)(panel.props))) actions.set(name, run);
+    previews.clear();
+    return actions;
+  }
+
+  it.each([
+    ['updateQuantityAction', { line: '1', quantity: '9' }],
+    ['removeRecognizedAction', { line: '1' }],
+    ['confirmAction', { target: 'cart' }],
+  ])('%s says so', async (name, fields) => {
+    const actions = await actionsOfAnExpiredPreview();
+    expect(await redirectOf(() => actions.get(name)!(form(fields) as never))).toBe('/quick-order?problem=preview_expired');
+  });
+
+  it('the page words it in English and Polish', async () => {
+    expect(await quickText({ problem: 'preview_expired' })).toContain(EN);
+    locale = 'pl-PL';
+    expect(await quickText({ problem: 'preview_expired' })).toContain(PL);
+  });
+
+  it('an action that cannot reach the preview says so, rather than calling it expired', async () => {
+    const actions = await actionsOfAnExpiredPreview();
+    previewApi.readFails = true;
+    expect(await redirectOf(() => actions.get('confirmAction')!(form({ target: 'cart' }) as never))).toBe(
+      '/quick-order?problem=preview_unavailable',
+    );
+    expect(await quickText({ problem: 'preview_unavailable' })).toContain(
+      'Your list could not be loaded just now. Try again in a moment.',
+    );
+    locale = 'pl-PL';
+    expect(await quickText({ problem: 'preview_unavailable' })).toContain(
+      'Nie udało się teraz wczytać Twojej listy. Spróbuj ponownie za chwilę.',
+    );
+  });
+
+  it('a page that cannot reach the preview still renders the import', async () => {
+    previewApi.readFails = true;
+    const out = await quickText({});
+    expect(out).toContain('Quick order');
   });
 });
 
