@@ -6,9 +6,11 @@ import type {
   CreditTopupPort,
   OrderReadPort,
   OrderReturnContextPort,
+  OrganizationDetailsPort,
   OrganizationPermissionPort,
   PaymentRefundPort,
 } from '@endora-commerce/contracts';
+import type { CommandBus } from '@endora-commerce/platform/commands';
 import type { EventBus } from '@endora-commerce/platform/events';
 import type { PlatformLogger, SettingsReadPort } from '@endora-commerce/platform/kernel';
 import type { AuditPort } from '@endora-commerce/platform/kernel';
@@ -20,6 +22,7 @@ import { ReturnCaseService } from './services/return-case-service.js';
 import { ReturnCaseScope } from './services/return-case-scope.js';
 import { ReturnCommentService } from './services/return-comment-service.js';
 import { ReturnSettlementService } from './services/return-settlement-service.js';
+import { ReturnConsentService } from './services/return-consent-service.js';
 import { ReturnDeliveryMethodService } from './services/return-delivery-method-service.js';
 import { ReturnShipmentService } from './services/return-shipment-service.js';
 import { ReturnReasonService } from './services/return-reason-service.js';
@@ -59,6 +62,14 @@ export interface ReturnsModuleOptions {
    * the buyer's case list and read (`specs/170-organization-roles/` OR-11).
    */
   organizationPermissions: OrganizationPermissionPort;
+  /**
+   * `organizations`' record reader, a `lazyPort` proxy resolved per call:
+   * whether a return is a consumer withdrawal turns on the Organization being
+   * personal (issue #905).
+   */
+  organizationDetails: Pick<OrganizationDetailsPort, 'findById'>;
+  /** The Command Bus the consent writes run through (issue #905, Principle XIII). */
+  commandBus: Pick<CommandBus, 'run'>;
   /** Settlement ports (US5). Money refunds, corrective invoices, credit top-up. */
   paymentRefund: PaymentRefundPort;
   correctiveInvoice: CorrectiveInvoicePort;
@@ -143,6 +154,7 @@ export function returnsModule(
     orderContext,
     orderRead: options.orderReadPort,
     scope: new ReturnCaseScope(options.organizationPermissions),
+    organizationDetails: options.organizationDetails,
     resolveFreeReturnDays,
     resolveTimeZone,
     ...(options.auditLog ? { auditLog: options.auditLog } : {}),
@@ -183,9 +195,10 @@ export function returnsModule(
     paymentRefund: options.paymentRefund,
     correctiveInvoice: options.correctiveInvoice,
     creditTopup: options.creditTopup,
+    orderContext,
     ...(options.auditLog ? { auditLog: options.auditLog } : {}),
   });
-
+  const consentService = new ReturnConsentService({ commandBus: options.commandBus });
 
   await registerReturnsCustomerRoutes(app, {
     caseService,
@@ -203,6 +216,7 @@ export function returnsModule(
     authorizationService,
     commentService,
     settlementService,
+    consentService,
     deliveryMethodService,
     shipmentService,
     reasonService,

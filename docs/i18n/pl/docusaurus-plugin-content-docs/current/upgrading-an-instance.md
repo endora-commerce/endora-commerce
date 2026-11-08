@@ -4013,6 +4013,27 @@ Od tej pory zmieniają się dwie rzeczy:
 2. **Poproś operatorów, by realizowali zamówienie, gdy towar został doręczony.** Termin konsumenta na
    odstąpienie od umowy liczy się od realizacji zamówienia, bo platforma nie zna daty doręczenia.
 
+### Odstąpienie konsumenta rozlicza się zwrotem pieniędzy, chyba że zapisano zgodę {#consumer-withdrawal-consent}
+
+Wydanie z tą zmianą oznacza każdy zwrot zgłoszony przez konsumenta jako **odstąpienie konsumenta od
+umowy** (zgłoszenie #905): zwrot organizacji osobistej zgłoszony w terminie na odstąpienie, w
+dłuższym okresie bezpłatnego zwrotu kanału albo w 7 dniach karencji po nich. Taką sprawę rozlicza
+się zwrotem tym samym sposobem płatności, chyba że konsument zgodził się na inny (dyrektywa 2011/83
+art. 13 ust. 1), dlatego:
+
+- **Środki na przyszłe zamówienia, wymiana i naprawa wymagają zapisanej zgody konsumenta.** Bez niej
+  rozliczenie odpowiada `422 RETURN_ALTERNATIVE_RESOLUTION_CONSENT_REQUIRED`. Operator zapisuje zgodę
+  wraz z dowodem w panelu *Odstąpienie konsumenta od umowy* sprawy.
+- **Zwrot pieniędzy proponuje sposób płatności zamówienia.** Inny jest przyjmowany z ostrzeżeniem, a
+  wpis rozliczenia w dzienniku zdarzeń to odnotowuje.
+
+Zwroty firm i reklamacje się nie zmieniają. **Sprawy zgłoszone przed aktualizacją nie są
+klasyfikowane**: rozlicza się je jak dotąd. Otwarte sprawy sklasyfikuje jedno z kolejnych wydań.
+
+**Po aktualizacji:** poinformuj operatorów rozliczających zwroty, że środki na przyszłe zamówienia,
+wymiana albo naprawa dla konsumenta wymagają teraz najpierw zapisania zgody, a w dowodzie należy
+wskazać, gdzie konsument się zgodził (e-mail, zgłoszenie).
+
 ## Instancja niespójna od początku
 
 Instalator `0.101.x` lub starszy zapisywał każdy pakiet wydania z `^` poza

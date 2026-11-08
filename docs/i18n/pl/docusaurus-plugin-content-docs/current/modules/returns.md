@@ -32,6 +32,7 @@ Trasy administracyjne są chronione przez `returns:read` (odczyt) i `returns:wri
 | `POST /api/v1/admin/returns/:id/reject` | administrator | Odrzucenie z obowiązkowym powodem |
 | `POST /api/v1/admin/returns/:id/transition` | administrator | Kontrolowana zmiana statusu |
 | `GET\|POST /api/v1/admin/returns/:id/settlement` | administrator | Wstępne wypełnienie / wykonanie rozliczenia |
+| `POST\|DELETE /api/v1/admin/returns/:id/alternative-consent` | administrator | Zapisanie / wycofanie zgody konsumenta na inne rozliczenie niż zwrot pieniędzy (zob. *Odstąpienie konsumenta od umowy*) |
 | `GET\|POST /api/v1/admin/returns/:id/comments` | administrator | Lista / dodanie komentarza (widoczność i powiadomienie) |
 | `GET\|POST /api/v1/admin/returns/:id/shipments` + `/:shipmentId/receive` | administrator | Przesyłki zwrotne |
 | `GET\|POST /api/v1/admin/returns/list-views` | administrator | Własne zapisane widoki wywołującego i wszystkie udostępnione / zapisanie widoku |
@@ -124,7 +125,9 @@ trafia do dziennika audytu.
   wartość zatrzymanych towarów po zwrocie (VAT dla każdej stawki od zatrzymanych wartości netto,
   pomniejszony o przypadający na nie rabat), więc może różnić się o grosz od wartości samych
   zwracanych sztuk, a wszystkie zwroty zamówienia razem nadal zwracają dokładnie to, co zapłacono. Sposoby rozliczenia: zwrot pieniędzy, środki na koncie (zasilają limit
-  kredytowy organizacji w `credit_limits`), wymiana albo naprawa. Przy rozliczeniu pieniędzmi lub
+  kredytowy organizacji w `credit_limits`), wymiana albo naprawa; odstąpienie konsumenta od umowy
+  rozlicza się zwrotem pieniędzy, chyba że zapisano zgodę konsumenta na inne rozliczenie (zob.
+  *Odstąpienie konsumenta od umowy*). Przy rozliczeniu pieniędzmi lub
   środkami na koncie wymagana jest faktura korygująca (`invoices` rodzaju `correction`). Zamówienie,
   które nigdy nie zostało zafakturowane, nie ma dokumentu VAT do skorygowania, więc korekta nie
   powstaje: rozliczenie się udaje, zwrot jest zapisany w sprawie i w rekordzie płatności, a wynik
@@ -185,6 +188,55 @@ ostatniej edycji zamówienia. Teraz kończy się do jednego dnia później (do t
 nigdy wcześniej. Termin ustawowy i okres karencji wylicza `domain/withdrawal-period.ts`; funkcja
 odstąpienia od umowy, która z nich korzysta, pojawi się w kolejnym wydaniu.
 
+## Odstąpienie konsumenta od umowy
+
+Konsument, który kupuje na odległość, może odstąpić od umowy w ustawowym terminie bez podawania
+przyczyny i otrzymuje wtedy zwrot tym samym sposobem płatności, chyba że wyraźnie zgodzi się na inny
+(dyrektywa 2011/83 art. 9 i 13 ust. 1; w Polsce art. 27 i 32 ustawy o prawach konsumenta). Ten moduł
+odróżnia taką sprawę od każdego innego zwrotu i rozlicza ją zgodnie z tym.
+
+- **Która sprawa jest odstąpieniem konsumenta.** Zwrot (`return`, nigdy reklamacja) zgłoszony przez
+  organizację **osobistą** (taką, jaką każdy konsument otrzymuje przy zakupie; nigdy firmę), w czasie,
+  gdy odstąpienie od umowy jest jeszcze możliwe dla tego zamówienia: ustawowe 14 dni, dłuższy okres
+  bezpłatnego zwrotu kanału i 7 dni karencji po obu (zob. *Liczenie terminów*). Odpowiedź ustala się
+  w chwili zgłoszenia sprawy, a szczegóły sprawy podają ją jako `consumerWithdrawal`; widok sprawy w
+  panelu administracyjnym oznacza ją jako **Odstąpienie konsumenta**. Zwrot organizacji osobistej
+  zgłoszony po okresie karencji jest zwrotem handlowym na zasadach sklepu i nic z poniższego go nie
+  dotyczy. Przedsiębiorca na jednoosobowej działalności kupujący przez organizację firmową może mieć
+  to samo prawo (art. 38a); platforma nie potrafi tego rozpoznać, więc taką sprawę operator prowadzi
+  ręcznie.
+- **Sprawy zgłoszone przed tym wydaniem** nie mają odpowiedzi (`consumerWithdrawal: null`) i są
+  traktowane jak zwykłe zwroty. Ich klasyfikacja wymaga danych organizacji, których migracja nie może
+  odczytać, dlatego otwarte sprawy sklasyfikuje w tle jedno z kolejnych wydań.
+- **Domyślnie zwrot pieniędzy.** Formularz rozliczenia zaczyna od **Zwrot pieniędzy** na sposób
+  płatności zamówienia (`defaultRefundPaymentMethodId` w danych wstępnych rozliczenia). Środki na
+  koncie, wymiana i naprawa są niedostępne, dopóki nie zapisano zgody konsumenta, a rozliczenie je
+  odrzuca z `422 RETURN_ALTERNATIVE_RESOLUTION_CONSENT_REQUIRED` (`details.resolution` wskazuje
+  odrzucony sposób). Dane wstępne wymieniają je w `consentRequiredFor` i nadal podają wszystkie sposoby
+  w `resolutionOptions`. Zwroty firm i reklamacje się nie zmieniają.
+- **Inny sposób płatności ostrzega, ale nie blokuje.** Zamówienia płaconego przy odbiorze nie da się
+  zwrócić „tym samym sposobem”, a przyjętą praktyką jest wtedy przelew. Formularz pokazuje
+  ostrzeżenie, rozliczenie przechodzi, a jego wpis w dzienniku zdarzeń (`return.settled`) zawiera
+  `consumerWithdrawal: true` i `refundMethodDiffers: true`.
+- **Zapisanie zgody konsumenta.** Zgoda zwykle dociera do sklepu e-mailem albo telefonicznie.
+  Operator z uprawnieniem `returns:write` zapisuje ją w panelu **Odstąpienie konsumenta od umowy**
+  sprawy: na co konsument się zgodził (środki na koncie, wymiana albo naprawa), kiedy (nie w
+  przyszłości i nie przed zgłoszeniem sprawy) oraz dowód o długości do 2000 znaków, na przykład
+  *„E-mail klienta z 10 listopada 2026, zgłoszenie nr 123”*. Rozliczenie przyjmuje wtedy ten sposób,
+  a dwa pozostałe nadal odrzuca. Ponowne zapisanie zastępuje wcześniejszą zgodę. **Wycofaj zgodę**
+  usuwa ją. Obie czynności trafiają do dziennika zdarzeń (`return_case.alternative_consent.record` i
+  `.revoke`) z operatorem jako wykonawcą; wpis zawiera sposób rozliczenia, chwilę i źródło, ale nie
+  treść dowodu, która zostaje w sprawie. Po rozliczeniu sprawy zgoda jest zamrożona: obie czynności
+  odpowiadają `409` (`details.code: 'consent_frozen'`). Sprawa, która nie jest odstąpieniem
+  konsumenta, odpowiada `422` (`details.code: 'not_consumer_withdrawal'`).
+- **Dane osobowe.** Oświadczenie o odstąpieniu od umowy, które ten moduł będzie przechowywał, trzyma
+  imię i nazwisko oraz adres e-mail konsumenta w dwóch osobnych kolumnach, które można wyczyścić,
+  zachowując samo oświadczenie jako dowód sklepu.
+
+Funkcja odstąpienia od umowy w sklepie (art. 11a, dodany dyrektywą (UE) 2023/2673 i stosowany od
+19 czerwca 2026), e-mail z potwierdzeniem otrzymania i 14-dniowy termin zwrotu płatności pojawią się
+w kolejnych wydaniach.
+
 ## Produkty podlegające zwrotowi
 
 O tym, czy pozycję można zwrócić, decyduje flaga **Podlega zwrotowi** produktu w stanie z chwili
@@ -239,8 +291,10 @@ importy wnętrza innych modułów:
   zgłasza sprawę (własne albo współpracownika z `orders.view_organization`).
 - `OrganizationPermissionPort` (organizations) — `returns.create` i `returns.view_organization`,
   sprawdzane przy każdym żądaniu.
+- `OrganizationDetailsPort.findById` (organizations) — czy organizacja sprawy jest osobista,
+  odczytywane raz, przy zgłoszeniu zwrotu.
 - `OrderReturnContextPort` (orders) — kwoty zapłacone za każdą pozycję i czas osiągnięcia statusu
-  kończącego realizację oraz `returnableAtPurchase` każdej pozycji (`true`/`false` zapisane przy
+  kończącego realizację, sposób płatności zamówienia oraz `returnableAtPurchase` każdej pozycji (`true`/`false` zapisane przy
   składaniu zamówienia, `null` dla zamówienia złożonego, zanim zaczęto je zapisywać). Moduł Orders
   podaje fakt; zasada dla `null` — podlega zwrotowi — należy do tego modułu.
 - `PaymentRefundPort` (payments) — wykonanie zwrotu, odpowiedź `pending_manual`, gdy nie ma
@@ -257,3 +311,8 @@ Migracja `20260625T144227_returns_init.ts` tworzy `return_cases`, `return_case_i
 `return_statuses`, `return_status_transitions`, `return_reasons`, `return_delivery_methods`,
 `refunds`, `return_shipments`, `return_case_attachments`, `return_list_saved_views` oraz sekwencję
 `return_cases_rma_seq`.
+
+Migracja `20261108T023047_returns_consumer_withdrawal.ts` dodaje do `return_cases` kolumny odstąpienia
+konsumenta od umowy (`consumer_withdrawal`, kolumny zgody i fakty terminu zwrotu płatności) oraz
+tworzy `return_withdrawal_statements`. Nie dotyka tabel innych modułów, więc istniejących spraw nie
+klasyfikuje.

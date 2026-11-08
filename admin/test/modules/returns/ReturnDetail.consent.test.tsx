@@ -178,7 +178,8 @@ describe('ReturnDetail — a consumer withdrawal settles as a refund unless cons
     expect(option('refund')).not.toBeDisabled();
     for (const value of ['credit', 'replacement', 'repair']) expect(option(value)).toBeDisabled();
     const hint = screen.getByText('consent.requiredHint');
-    expect(select).toHaveAttribute('aria-describedby', expect.stringContaining(hint.id));
+    expect(hint.id).not.toBe('');
+    expect(select).toHaveAttribute('aria-describedby', hint.id);
   });
 
   it('opens only the consented resolution', async () => {

@@ -128,7 +128,7 @@ describe('returns — consumer withdrawal: classification and recorded consent (
     });
 
   const auditOf = (id: string, action: string) =>
-    h.em().fork().find(AuditLogEntry, { objectType: 'return_case', objectId: id, action }, { orderBy: { createdAt: 'asc' } });
+    h.em().fork().find(AuditLogEntry, { objectType: 'return_case', objectId: id, action }, { orderBy: { actedAt: 'asc' } });
 
   describe('classification at filing (design §2)', () => {
     it('classifies a return by a personal organization, in the period, as a consumer withdrawal', async () => {

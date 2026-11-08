@@ -1,10 +1,11 @@
-import { useCallback, useEffect, useState, type ReactNode } from 'react';
+import { useCallback, useEffect, useId, useState, type ReactNode } from 'react';
 import { Link, useParams } from 'react-router-dom';
 import { ArrowLeft } from 'lucide-react';
 import { ApiError, formatDateTime } from '@endora-commerce/admin-kit/lib';
 import { Alert, AlertDescription, Badge, Button, Card, CardContent, CardHeader, CardTitle, Checkbox, Label, Select, PageHeader, Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from '@endora-commerce/admin-kit/ui';
 import { useTranslation } from '@endora-commerce/admin-kit/i18n';
 import { returnsClient } from '../api/returns-client.js';
+import { CONSUMER_WITHDRAWAL_PANEL_ID, ConsumerWithdrawalPanel } from './ConsumerWithdrawalPanel.js';
 
 import type {
   ReturnCaseDetail,
@@ -16,6 +17,8 @@ import type {
 /** Returns / RMA case detail (feature 046, US2/US4/US5/US6). */
 export function ReturnDetail(): ReactNode {
   const t = useTranslation('core');
+  const tr = useTranslation('returns');
+  const consentHintId = useId();
   const { id = '' } = useParams<{ id: string }>();
   const [rc, setRc] = useState<ReturnCaseDetail | null>(null);
   const [transitions, setTransitions] = useState<ReturnTransitionDto[]>([]);
@@ -55,6 +58,9 @@ export function ReturnDetail(): ReactNode {
         // amount paid: a complaint line that was not returnable at purchase is
         // stored at 0, so nothing is refunded for it unless the operator sets it.
         setApproved(Object.fromEntries(pf.items.map((it) => [it.returnCaseItemId, it.approvedRefundAmount])));
+        // Issue #905 (design D1) — a refund to the order's own payment method.
+        setResolution(pf.defaultResolution ?? 'refund');
+        setPaymentMethodId(pf.defaultRefundPaymentMethodId ?? '');
       } else {
         setPrefill(null);
       }
@@ -101,6 +107,13 @@ export function ReturnDetail(): ReactNode {
   const notReturnableItemIds = new Set(
     rc.items.filter((it) => it.returnableAtPurchase === false).map((it) => it.id),
   );
+  // Issue #905 (design D1) — what a consumer withdrawal cannot settle as yet.
+  const consentRequiredFor = new Set<string>(prefill?.consentRequiredFor ?? []);
+  const refundMethodDiffers =
+    rc.consumerWithdrawal === true &&
+    resolution === 'refund' &&
+    !!prefill?.defaultRefundPaymentMethodId &&
+    paymentMethodId !== prefill.defaultRefundPaymentMethodId;
   const notReturnableBadge = (
     <Badge variant="warning" className="ml-2">
       {t('returns.detail.notReturnableAtPurchase')}
@@ -120,6 +133,7 @@ export function ReturnDetail(): ReactNode {
           <span className="flex items-center gap-2">
             {rc.rmaNumber ?? 'Return case'} <Badge variant="secondary">{rc.statusLabel}</Badge>
             <Badge variant="outline">{rc.kind}</Badge>
+            {rc.consumerWithdrawal === true && <Badge variant="secondary">{tr('consent.badge')}</Badge>}
           </span>
         }
         description={`Order ${rc.orderId}`}
@@ -170,6 +184,16 @@ export function ReturnDetail(): ReactNode {
         </CardContent>
       </Card>
 
+      {rc.consumerWithdrawal === true && (
+        <ConsumerWithdrawalPanel
+          rc={rc}
+          onChanged={async (message) => {
+            await refresh();
+            setInfo(message);
+          }}
+        />
+      )}
+
       {/* Items */}
       <Card>
         <CardHeader>
@@ -212,11 +236,17 @@ export function ReturnDetail(): ReactNode {
             <div className="flex flex-wrap items-end gap-3">
               <div className="space-y-1">
                 <Label htmlFor="resolution">{t('returns.detail.settlement.resolution')}</Label>
-                <Select id="resolution" value={resolution} onChange={(e) => setResolution(e.target.value)}>
-                  <option value="refund">{t('returns.detail.resolution.refund')}</option>
-                  <option value="credit">{t('returns.detail.resolution.credit')}</option>
-                  <option value="replacement">{t('returns.detail.resolution.replacement')}</option>
-                  <option value="repair">{t('returns.detail.resolution.repair')}</option>
+                <Select
+                  id="resolution"
+                  value={resolution}
+                  onChange={(e) => setResolution(e.target.value)}
+                  {...(consentRequiredFor.size > 0 ? { 'aria-describedby': consentHintId } : {})}
+                >
+                  {(['refund', 'credit', 'replacement', 'repair'] as const).map((option) => (
+                    <option key={option} value={option} disabled={consentRequiredFor.has(option)}>
+                      {t(`returns.detail.resolution.${option}`)}
+                    </option>
+                  ))}
                 </Select>
               </div>
               {resolution === 'refund' && (
@@ -231,6 +261,18 @@ export function ReturnDetail(): ReactNode {
                 </div>
               )}
             </div>
+            {consentRequiredFor.size > 0 && (
+              <p className="text-sm text-muted-foreground">
+                <a id={consentHintId} href={`#${CONSUMER_WITHDRAWAL_PANEL_ID}`} className="underline underline-offset-2">
+                  {tr('consent.requiredHint')}
+                </a>
+              </p>
+            )}
+            {refundMethodDiffers && (
+              <Alert variant="warning">
+                <AlertDescription>{tr('settlement.refundMethodDiffers')}</AlertDescription>
+              </Alert>
+            )}
             <Table>
               <TableHeader>
                 <TableRow>

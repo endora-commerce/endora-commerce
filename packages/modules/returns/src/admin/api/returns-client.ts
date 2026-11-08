@@ -6,6 +6,7 @@ import type {
   ReturnCaseDetail,
   ReturnDeliveryMethodDto,
   ReturnReasonDto,
+  RecordAlternativeConsentRequest,
   ReturnStatusGraphResponse,
   SettlementPrefill,
   SettlementResult,
@@ -53,6 +54,12 @@ export const returnsClient = {
     },
   ): Promise<SettlementResult> =>
     unwrap(apiClient.post<Wrap<SettlementResult>>(`/api/v1/admin/returns/${id}/settlement`, body)),
+
+  // The consumer's consent to another resolution (issue #905)
+  recordAlternativeConsent: (id: string, body: RecordAlternativeConsentRequest): Promise<ReturnCaseDetail> =>
+    unwrap(apiClient.post<Wrap<ReturnCaseDetail>>(`/api/v1/admin/returns/${id}/alternative-consent`, body)),
+  revokeAlternativeConsent: (id: string): Promise<ReturnCaseDetail> =>
+    unwrap(apiClient.delete<Wrap<ReturnCaseDetail>>(`/api/v1/admin/returns/${id}/alternative-consent`)),
 
   // Shipments
   shipments: (id: string): Promise<Array<{ id: string; direction: string; status: string; externalReference: string | null }>> =>

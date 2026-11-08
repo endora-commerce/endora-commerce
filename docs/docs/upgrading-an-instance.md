@@ -3827,6 +3827,26 @@ Two things do change from then on:
 2. **Tell the operators to complete an order when the goods have been delivered.** The consumer's
    withdrawal period counts from the order's completion, because the platform has no delivery date.
 
+### A consumer's withdrawal settles as a refund unless consent is recorded {#consumer-withdrawal-consent}
+
+The release that ships this change marks every return a consumer files as a **consumer withdrawal**
+(issue #905): a return by a personal Organization, filed within the withdrawal period, the channel's
+longer free-return window, or the 7-day grace after them. Such a case is refunded by the same means
+of payment unless the consumer agreed otherwise (Directive 2011/83 art. 13(1)), so:
+
+- **Credit toward future orders, a replacement and a repair need the consumer's consent on record.**
+  Without it the settlement answers `422 RETURN_ALTERNATIVE_RESOLUTION_CONSENT_REQUIRED`. An operator
+  records the consent, with an evidence note, in the case's *Consumer withdrawal* panel.
+- **The refund proposes the order's own payment method.** Another one is accepted with a warning, and
+  the settlement's audit entry records it.
+
+Company returns and complaints are unchanged. **Cases filed before the upgrade are not classified**:
+they settle as before. A later release classifies the open ones.
+
+**After upgrading:** tell the operators who settle returns that a consumer's credit, replacement or
+repair now needs the consent recorded first, and where the consumer agreed (an e-mail, a ticket) goes
+in its evidence note.
+
 ## An instance that is mixed from the start
 
 The installer of `0.101.x` or earlier wrote every package of the release with a `^` except

@@ -819,6 +819,16 @@ export const MINTED_ERROR_CODES: MintedErrorCodes = {
       'reused: the request is well formed, and the sentence has to tell the admin to pick ' +
       'another name.',
   },
+  RETURN_ALTERNATIVE_RESOLUTION_CONSENT_REQUIRED: {
+    to: 'returns',
+    reason:
+      'Minted for the refusal a consumer withdrawal earns when it is settled as a credit, a ' +
+      'replacement or a repair while the consumer\'s consent to that resolution is not on record ' +
+      '(#905, design D1; Directive 2011/83 art. 13(1)). The noun is a return case\'s settlement, ' +
+      '`returns`\' own row, and the one raise site is `return-settlement-service.ts`. ' +
+      '`VALIDATION_FAILED` is not reused: the request is well formed, and the sentence has to tell ' +
+      'the operator to record the consumer\'s consent first.',
+  },
   RFQ_SAVED_VIEW_NAME_TAKEN: {
     to: 'quote_requests',
     reason:
