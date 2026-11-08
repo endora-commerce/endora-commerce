@@ -291,6 +291,15 @@
         }
       }
     },
+    "/api/v1/admin/admin-roles/{code}/two-factor-impact": {
+      "get": {
+        "responses": {
+          "200": {
+            "description": "OK"
+          }
+        }
+      }
+    },
     "/api/v1/admin/admin-roles/{id}": {
       "delete": {
         "responses": {
@@ -7170,6 +7179,22 @@
         }
       }
     },
+    "/api/v1/admin/returns/{id}/alternative-consent": {
+      "delete": {
+        "responses": {
+          "200": {
+            "description": "OK"
+          }
+        }
+      },
+      "post": {
+        "responses": {
+          "200": {
+            "description": "OK"
+          }
+        }
+      }
+    },
     "/api/v1/admin/returns/{id}/authorize": {
       "post": {
         "responses": {
@@ -9620,6 +9645,29 @@
     },
     "/api/v1/quick-order/preferences/resolved": {
       "get": {
+        "responses": {
+          "200": {
+            "description": "OK"
+          }
+        }
+      }
+    },
+    "/api/v1/quick-order/preview": {
+      "delete": {
+        "responses": {
+          "200": {
+            "description": "OK"
+          }
+        }
+      },
+      "get": {
+        "responses": {
+          "200": {
+            "description": "OK"
+          }
+        }
+      },
+      "put": {
         "responses": {
           "200": {
             "description": "OK"
