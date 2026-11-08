@@ -20,6 +20,7 @@ import {
   vatByRate,
   allocateHalfUp,
   netForGrossAtRate,
+  chargesByRate,
 } from '../src/index.js';
 
 /**
@@ -274,5 +275,199 @@ describe('netForGrossAtRate', () => {
     // No net gives 0.03 at 23 %: 0.02 → 0.02 and 0.03 → 0.04.
     expect(netForGrossAtRate('0.03', '0.23', 'fraction')).toEqual({ net: '0.02', vat: '0.01', exact: false });
     expect(netForGrossAtRate('1.00', '0.23', 'fraction')).toEqual({ net: '0.81', vat: '0.19', exact: true });
+  });
+});
+
+/**
+ * Issue #904 (Phase A) — delivery and the payment surcharge follow the VAT rate
+ * of the goods they accompany (owner ruling of 2026-11-07), allocated over the
+ * goods' rates pro rata to the goods' net value per rate. The charge prices
+ * stay gross (owner ruling E-904-T3 of 2026-11-08), so each part's net is
+ * derived under the one VAT method by the "row target" rule. The vectors are
+ * the architect's (M1–M3, M6), re-measured against this implementation.
+ */
+describe('chargesByRate', () => {
+  const rowsOf = (
+    goods: ReadonlyArray<{ net: string; rate: string | number }>,
+    parts: ReadonlyArray<{ net: string; rate: string }>,
+  ) => vatByRate([...goods, ...parts.map((p) => ({ net: p.net, rate: p.rate }))], 'fraction');
+
+  it('M1: splits a delivery over two rates by the goods nets and keeps the total at goods gross + delivery', () => {
+    const goods = [
+      { net: '100.00', rate: '0.23' },
+      { net: '50.00', rate: '0.05' },
+    ];
+    const parts = chargesByRate({ goods, charges: [{ kind: 'delivery', gross: '15.99' }], unit: 'fraction' });
+    expect(parts).toEqual([
+      { kind: 'delivery', rate: '0.05', gross: '5.33', net: '5.08' },
+      { kind: 'delivery', rate: '0.23', gross: '10.66', net: '8.67' },
+    ]);
+    const v = rowsOf(goods, parts);
+    expect(v.rows).toEqual([
+      { rate: '0.05', net: '55.08', vat: '2.75', gross: '57.83' },
+      { rate: '0.23', net: '108.67', vat: '24.99', gross: '133.66' },
+    ]);
+    expect(v.gross).toBe(moneySum([vatByRate(goods, 'fraction').gross, '15.99']));
+    expect(v.gross).toBe('191.49');
+  });
+
+  it('M2: delivery and the surcharge at one rate share the row, so the total is goods gross + both charges', () => {
+    const goods = [{ net: '29.50', rate: 0.23 }];
+    const parts = chargesByRate({
+      goods,
+      charges: [
+        { kind: 'delivery', gross: '15.99' },
+        { kind: 'payment_surcharge', gross: '2.50' },
+      ],
+      unit: 'fraction',
+    });
+    expect(parts).toEqual([
+      { kind: 'delivery', rate: '0.23', gross: '15.99', net: '13.00' },
+      // On its own the surcharge's net would be 2.03 and the total 54.77.
+      { kind: 'payment_surcharge', rate: '0.23', gross: '2.50', net: '2.04' },
+    ]);
+    const v = rowsOf(goods, parts);
+    expect(v.rows).toEqual([{ rate: '0.23', net: '44.54', vat: '10.24', gross: '54.78' }]);
+    expect(netForGrossAtRate('2.50', '0.23', 'fraction').net).toBe('2.03');
+  });
+
+  it('M3: a three-rate split, where one row gross is unreachable and the total is a grosz off (E-904-6)', () => {
+    const goods = [
+      { net: '40.00', rate: '0.23' },
+      { net: '30.00', rate: '0.08' },
+      { net: '30.00', rate: '0.05' },
+    ];
+    const parts = chargesByRate({ goods, charges: [{ kind: 'delivery', gross: '19.99' }], unit: 'fraction' });
+    expect(parts).toEqual([
+      { kind: 'delivery', rate: '0.05', gross: '6.00', net: '5.71' },
+      { kind: 'delivery', rate: '0.08', gross: '6.00', net: '5.56' },
+      { kind: 'delivery', rate: '0.23', gross: '7.99', net: '6.50' },
+    ]);
+    const v = rowsOf(goods, parts);
+    expect(v.rows).toEqual([
+      { rate: '0.05', net: '35.71', vat: '1.79', gross: '37.50' },
+      { rate: '0.08', net: '35.56', vat: '2.84', gross: '38.40' },
+      { rate: '0.23', net: '46.50', vat: '10.70', gross: '57.20' },
+    ]);
+    // No net makes the 23 % row 57.19: the floor of "VAT on the net sum, rounded once".
+    expect(netForGrossAtRate('57.19', '0.23', 'fraction').exact).toBe(false);
+    expect(v.gross).toBe('133.10');
+    expect(moneySum([vatByRate(goods, 'fraction').gross, '19.99'])).toBe('133.09');
+  });
+
+  it('M6: goods at 0 % (an intra-EU supply) put the delivery at 0 %', () => {
+    const parts = chargesByRate({
+      goods: [{ net: '100.00', rate: 0 }],
+      charges: [{ kind: 'delivery', gross: '15.99' }],
+      unit: 'fraction',
+    });
+    expect(parts).toEqual([{ kind: 'delivery', rate: '0', gross: '15.99', net: '15.99' }]);
+  });
+
+  it('hands the leftover cents to the largest remainders, a tie to the higher rate', () => {
+    const goods = [
+      { net: '10.00', rate: '0.08' },
+      { net: '10.00', rate: '0.23' },
+    ];
+    const gross = (g: string) =>
+      chargesByRate({ goods, charges: [{ kind: 'delivery', gross: g }], unit: 'fraction' }).map((p) => [p.rate, p.gross]);
+    expect(gross('0.01')).toEqual([['0.23', '0.01']]);
+    expect(gross('0.03')).toEqual([
+      ['0.08', '0.01'],
+      ['0.23', '0.02'],
+    ]);
+    // 1.00 over 1 : 2 is 0.333… and 0.666…: the larger remainder takes the cent.
+    expect(
+      chargesByRate({
+        goods: [
+          { net: '1.00', rate: '0.23' },
+          { net: '2.00', rate: '0.05' },
+        ],
+        charges: [{ kind: 'delivery', gross: '1.00' }],
+        unit: 'fraction',
+      }).map((p) => [p.rate, p.gross]),
+    ).toEqual([
+      ['0.05', '0.67'],
+      ['0.23', '0.33'],
+    ]);
+  });
+
+  it('gives the whole charge to the highest goods rate when every goods line is priced at 0.00', () => {
+    const parts = chargesByRate({
+      goods: [
+        { net: '0.00', rate: '0.05' },
+        { net: '0.00', rate: '0.23' },
+      ],
+      charges: [{ kind: 'delivery', gross: '12.30' }],
+      unit: 'fraction',
+    });
+    expect(parts).toEqual([{ kind: 'delivery', rate: '0.23', gross: '12.30', net: '10.00' }]);
+  });
+
+  it('keeps a part whose net is 0.00: a part is dropped by its gross, never by its net', () => {
+    const goods = [{ net: '0.02', rate: '0.23' }];
+    const parts = chargesByRate({ goods, charges: [{ kind: 'delivery', gross: '0.01' }], unit: 'fraction' });
+    expect(parts).toHaveLength(1);
+    expect(parts).toEqual([{ kind: 'delivery', rate: '0.23', gross: '0.01', net: '0.00' }]);
+    // No net makes the row 0.03 at 23 %: it stays 0.02, a grosz under goods + delivery (E-904-6).
+    expect(rowsOf(goods, parts).rows).toEqual([{ rate: '0.23', net: '0.02', vat: '0.00', gross: '0.02' }]);
+  });
+
+  it('reads percent rates, keys a rate by its value, and drops a charge of 0.00', () => {
+    const parts = chargesByRate({
+      goods: [
+        { net: '10.00', rate: '23' },
+        { net: '5.00', rate: 23 },
+      ],
+      charges: [
+        { kind: 'delivery', gross: '0.00' },
+        { kind: 'payment_surcharge', gross: '1.23' },
+      ],
+      unit: 'percent',
+    });
+    expect(parts).toEqual([{ kind: 'payment_surcharge', rate: '0.23', gross: '1.23', net: '1.00' }]);
+    expect(chargesByRate({ goods: [{ net: '1.00', rate: 0.23 }], charges: [], unit: 'fraction' })).toEqual([]);
+  });
+
+  it('refuses a negative charge, and a charge with no goods line to follow', () => {
+    expect(() =>
+      chargesByRate({ goods: [{ net: '1.00', rate: 0.23 }], charges: [{ kind: 'delivery', gross: '-1.00' }], unit: 'fraction' }),
+    ).toThrow();
+    expect(() => chargesByRate({ goods: [], charges: [{ kind: 'delivery', gross: '1.00' }], unit: 'fraction' })).toThrow();
+  });
+
+  it('splits exactly, and lands every reachable row on goods row gross + charges (sweep)', () => {
+    const cents = (s: string) => Math.round(Number(s) * 100);
+    const rates = ['0.23', '0.08', '0.05', '0'];
+    let checked = 0;
+    for (let a = 0; a <= 4000; a += 397) {
+      for (let b = 1; b <= 3000; b += 451) {
+        for (let d = 1; d <= 2500; d += 233) {
+          const goods = [
+            { net: (a / 100).toFixed(2), rate: rates[(a + b) % 4]! },
+            { net: (b / 100).toFixed(2), rate: rates[(a + d) % 4]! },
+          ];
+          const charges = [
+            { kind: 'delivery' as const, gross: (d / 100).toFixed(2) },
+            { kind: 'payment_surcharge' as const, gross: ((d % 300) / 100).toFixed(2) },
+          ];
+          const parts = chargesByRate({ goods, charges, unit: 'fraction' });
+          for (const c of charges) {
+            const sum = parts.filter((p) => p.kind === c.kind).reduce((s, p) => s + cents(p.gross), 0);
+            expect(sum).toBe(cents(c.gross));
+          }
+          const goodsRows = vatByRate(goods, 'fraction').rows;
+          for (const row of rowsOf(goods, parts).rows) {
+            const goodsGross = cents(goodsRows.find((r) => r.rate === row.rate)?.gross ?? '0');
+            const target = goodsGross + parts.filter((p) => p.rate === row.rate).reduce((s, p) => s + cents(p.gross), 0);
+            const reachable = netForGrossAtRate((target / 100).toFixed(2), row.rate, 'fraction').exact;
+            if (reachable) expect(cents(row.gross)).toBe(target);
+            else expect(Math.abs(cents(row.gross) - target)).toBe(1);
+            checked += 1;
+          }
+        }
+      }
+    }
+    expect(checked).toBeGreaterThan(500);
   });
 });
