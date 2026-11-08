@@ -105,6 +105,12 @@ describe('Anonymization sweep — reasons written about the subject’s carts (i
       // Issue #927 — the retired personal book; this file seeds no row of it.
       { anonymizeForAccount: async () => 0 },
       carts,
+      // Issue #844 — the subject's audit history; not what this file is about.
+      {
+        redaction: { redact: async () => ({ rowsInScope: 0, rowsChanged: 0, markerWritten: false }) },
+        addressReads: { listIdsForOrganization: async () => [] },
+        retiredAddressBook: { listIdsForAccount: async () => [] },
+      },
     );
   }
 

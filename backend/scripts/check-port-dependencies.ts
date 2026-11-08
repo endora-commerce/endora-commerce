@@ -200,6 +200,10 @@ export const PLATFORM_OWNED_NAMES: ReadonlySet<string> = new Set([
   // modules a deployment ships is not something a module may decide.
   'resolvedModuleRegistry',
   'auditLogService',
+  // Issue #844 — the redaction port beside the writer: the kernel writes its
+  // own table, so no module owns the name and there is no owner to switch off.
+  // The customers retention sweep reads it.
+  'auditRedactionService',
   'commandBus',
   // Who an admin actor is, resolved differently by production and the harness
   // — which is exactly the difference a composition root exists to hold.
@@ -555,6 +559,9 @@ export const CAPTURABLE_NAMES: ReadonlySet<string> = new Set([
   'eventBus',
   'commandBus',
   'auditLogService',
+  // Issue #844 — built and registered beside `auditLogService`, before the
+  // modules compose, and with no owner to switch off: the same two facts.
+  'auditRedactionService',
   'resolvedModuleRegistry',
   'apiInterceptors',
   // Plain deployment values rather than gates: a string read from the

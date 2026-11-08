@@ -1,5 +1,10 @@
 import {
+  ADDRESS_AUDIT_KEEP_KEYS,
+  CUSTOMER_ACCOUNT_AUDIT_KEEP_KEYS,
+  CUSTOMER_ADDRESS_AUDIT_KEEP_KEYS,
   ERROR_CODES,
+  ORGANIZATION_AUDIT_KEEP_KEYS,
+  type AddressReadPort,
   type AddressServicePort,
   type CartAnonymizationPort,
   type CustomerAccountLifecycleWritePort,
@@ -8,7 +13,11 @@ import {
   type PersonalOrganizationPort,
 } from '@endora-commerce/contracts';
 import { HttpError } from '@endora-commerce/platform/http';
-import { rethrowIfModuleDisabled } from '@endora-commerce/platform/kernel';
+import {
+  rethrowIfModuleDisabled,
+  type AuditRedactionPort,
+  type AuditRedactionTarget,
+} from '@endora-commerce/platform/kernel';
 import type { AddressBookRetirementService } from './address-book-retirement-service.js';
 import type { CustomerAuthorityService } from './customer-authority-service.js';
 import type { OrganizationDepletionGuard } from './organization-depletion-guard.js';
@@ -46,6 +55,11 @@ import type {
  * is that the organisation can be scrubbed while the account is not yet
  * anonymised, which is why {@link restore} refuses past the retention window on
  * the same cutoff as the sweep rather than relying on `anonymizedAt` alone.
+ *
+ * **The subject's audit history (issue #844)** is erased after every other
+ * scrub and before the account step, so "anonymised" keeps meaning one thing: an
+ * account whose `anonymizedAt` is written has had its history erased too. The
+ * redaction is idempotent, so a re-run finishes what a crash left of it.
  */
 export class CustomerDeletionService {
   constructor(
@@ -80,6 +94,8 @@ export class CustomerDeletionService {
      * binding dependency, so this step has no absent state to degrade in.
      */
     private readonly carts: CartAnonymizationPort,
+    /** Issue #844 — what the history step names and calls. */
+    private readonly history: AnonymizedHistoryDeps,
   ) {}
 
   async softDelete(
@@ -244,8 +260,51 @@ export class CustomerDeletionService {
     // Issue #920 — and the reasons written about the account's carts, on any
     // account: a company member's basket is theirs too.
     await this.carts.anonymizeForCustomerAccount(customerAccountId);
+    // Issue #844 — and the history written about the subject is erased in place.
+    await this.redactHistory(customerAccountId, organization?.id ?? null);
     // Last: `anonymizedAt` takes the account off the work list (issue #800).
     await this.accountWrites.anonymize(customerAccountId);
+  }
+
+  /**
+   * Step 3 of the cascade (issue #844): the audit rows about the account and,
+   * for an individual, about its personal organisation and every address it
+   * ever had there, plus the account's rows in the retired personal book. The
+   * ids are named here, from the subject's own records; a company organisation
+   * is never named, because `anonymizeIfOrphaned` answers `null` for it.
+   */
+  private async redactHistory(customerAccountId: string, organizationId: string | null): Promise<void> {
+    const targets: AuditRedactionTarget[] = [
+      {
+        objectType: 'customer_account',
+        objectIds: [customerAccountId],
+        keepKeys: CUSTOMER_ACCOUNT_AUDIT_KEEP_KEYS,
+      },
+    ];
+    if (organizationId !== null) {
+      targets.push(
+        { objectType: 'organization', objectIds: [organizationId], keepKeys: ORGANIZATION_AUDIT_KEEP_KEYS },
+        {
+          objectType: 'address',
+          objectIds: await this.history.addressReads.listIdsForOrganization(organizationId, {
+            includeDeleted: true,
+          }),
+          keepKeys: ADDRESS_AUDIT_KEEP_KEYS,
+        },
+      );
+    }
+    targets.push({
+      objectType: 'customer_address',
+      objectIds: await this.history.retiredAddressBook.listIdsForAccount(customerAccountId),
+      keepKeys: CUSTOMER_ADDRESS_AUDIT_KEEP_KEYS,
+    });
+    await this.history.redaction.redact({
+      reason: 'anonymization',
+      subject: { objectType: 'customer_account', objectId: customerAccountId },
+      // Owner ruling on #844: the IP and user agent of the rows it wrote itself.
+      subjectActorAccountId: customerAccountId,
+      targets: targets.filter((target) => target.objectIds.length > 0),
+    });
   }
 
   private async load(id: string): Promise<CustomerAccountRecord> {
@@ -269,6 +328,19 @@ export class CustomerDeletionService {
       throw new HttpError(403, ERROR_CODES.FORBIDDEN, 'You are not allowed to manage this customer.');
     }
   }
+}
+
+/**
+ * What {@link CustomerDeletionService} needs to erase an anonymised subject's
+ * audit history (issue #844).
+ */
+export interface AnonymizedHistoryDeps {
+  /** The platform-owned `auditRedactionService`. */
+  readonly redaction: AuditRedactionPort;
+  /** `addresses`' read: every address id of the personal organisation. */
+  readonly addressReads: Pick<AddressReadPort, 'listIdsForOrganization'>;
+  /** This module's retired personal book: every row id of the account. */
+  readonly retiredAddressBook: Pick<AddressBookRetirementService, 'listIdsForAccount'>;
 }
 
 /**
