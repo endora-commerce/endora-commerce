@@ -113,6 +113,10 @@ export const core = defineMessages({
     'quickOrder.preview.invalid': 'invalid',
     'quickOrder.preview.units': 'units',
     'quickOrder.preview.truncated': 'The file exceeded the import row limit — extra rows were rejected.',
+    'quickOrder.preview.overflow':
+      'Only the first {max} rows of the file were read. Rows left out: {count}. Split the file and import the rest separately.',
+    'quickOrder.preview.overBuildLimit':
+      'This list has {count} lines that can be added. Up to {max} can be added to the cart or sent as a quote request at once. Remove lines, or split the file, to continue.',
     'quickOrder.preview.merged': '{count} duplicate row(s) merged (quantities summed).',
     'quickOrder.preview.recognisedRows': '{count} row(s) recognised — choose how to proceed.',
     'quickOrder.preview.update': 'Update',
@@ -649,6 +653,10 @@ export const core = defineMessages({
     'quickOrder.preview.invalid': 'błędne',
     'quickOrder.preview.units': 'szt.',
     'quickOrder.preview.truncated': 'Plik przekroczył limit wierszy importu — nadmiarowe wiersze odrzucono.',
+    'quickOrder.preview.overflow':
+      'Wczytano tylko pierwsze {max} wierszy pliku. Pominięte wiersze: {count}. Podziel plik i zaimportuj resztę osobno.',
+    'quickOrder.preview.overBuildLimit':
+      'Ta lista zawiera pozycje do dodania: {count}. Do koszyka lub do zapytania ofertowego można dodać jednorazowo najwyżej {max}. Usuń część pozycji albo podziel plik, aby kontynuować.',
     'quickOrder.preview.merged': 'Scalone powtórzone wiersze: {count} (ilości zsumowano).',
     'quickOrder.preview.recognisedRows': 'Rozpoznane wiersze: {count} — wybierz, co dalej.',
     'quickOrder.preview.update': 'Zmień',

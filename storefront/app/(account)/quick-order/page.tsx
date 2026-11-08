@@ -20,7 +20,7 @@ import { getCommerceAbilitiesAction } from '../../../lib/actions/cart';
 import type { CommerceAbilities } from '../../../lib/commerce-permissions';
 import { getServerContext } from '../../../lib/server-context';
 import { FileDropzone } from '../../../components/FileDropzone';
-import { summarizeQuickOrderPreview } from '../../../lib/quick-order-preview';
+import { previewOfImport, summarizeQuickOrderPreview } from '../../../lib/quick-order-preview';
 import {
   clearQuickOrderPreview,
   readQuickOrderPreview,
@@ -28,6 +28,7 @@ import {
   type QuickOrderPreview as PreviewState,
 } from '../../../lib/api/quick-order-preview';
 import type { Metadata } from 'next';
+import { QUICK_ORDER_BUILD_MAX_ITEMS } from '@endora-commerce/contracts';
 import { localeRedirect } from '../../../lib/i18n/navigation';
 import { QUICK_ORDER_ERRORS } from '../../../lib/commerce-errors';
 import { errorFiguresQuery, urlErrorText } from '../../../lib/url-error-figures';
@@ -55,6 +56,18 @@ const QUERY_MAX = 120;
 
 /** A quote request's id — the only shape `?rfqId=` is looked up in. */
 const UUID = /^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/i;
+
+/** The id of the notice that says a preview is over the build limit; both build actions cite it. */
+const BUILD_LIMIT_NOTICE_ID = 'quick-order-build-limit';
+
+/**
+ * Whether the preview has more lines a build would take than a build accepts
+ * (`QUICK_ORDER_BUILD_MAX_ITEMS`, PO ruling of 2026-11-08 on PR #942, Q2). Rejected rows are
+ * not built, so only recognised lines count.
+ */
+function overBuildLimit(preview: PreviewState): boolean {
+  return preview.recognized.length > QUICK_ORDER_BUILD_MAX_ITEMS;
+}
 
 /**
  * Quick order (feature 039 / US1). Two-step flow:
@@ -312,6 +325,7 @@ export default async function QuickOrderPage({
               value="cart"
               className="btn btn--dark"
               style={{ flex: '0 0 auto', height: 44 }}
+              {...(overBuildLimit(preview) ? { disabled: true, 'aria-describedby': BUILD_LIMIT_NOTICE_ID } : {})}
             >
               {t('quickOrder.bar.addToCart').replace('{count}', String(preview.recognized.length))}
             </button>
@@ -333,6 +347,8 @@ function PreviewPanel({
 }): ReactNode {
   const totals = summarizeQuickOrderPreview(preview);
   const t = tForLocale(locale);
+  const blocked = overBuildLimit(preview);
+  const blockedProps = blocked ? { disabled: true, 'aria-describedby': BUILD_LIMIT_NOTICE_ID } : {};
   return (
     <>
       <h3>{t('quickOrder.preview.heading')}</h3>
@@ -348,7 +364,14 @@ function PreviewPanel({
           <strong className="font-mono">{totals.units}</strong> {t('quickOrder.preview.units')}
         </span>
       </div>
-      {preview.summary.truncated ? (
+      {(preview.summary.overflowCount ?? 0) > 0 ? (
+        // PO ruling of 2026-11-08 on PR #942 — the rows past the import's limit are one count.
+        <p className="b2b-auth__error">
+          {t('quickOrder.preview.overflow')
+            .replace('{max}', () => String(preview.summary.rowLimit ?? preview.recognized.length + preview.rejected.length))
+            .replace('{count}', () => String(preview.summary.overflowCount))}
+        </p>
+      ) : preview.summary.truncated ? (
         <p className="b2b-auth__error">{t('quickOrder.preview.truncated')}</p>
       ) : null}
       {preview.summary.mergedCount > 0 ? (
@@ -402,15 +425,23 @@ function PreviewPanel({
               ))}
             </tbody>
           </table>
+          {blocked ? (
+            // PO ruling of 2026-11-08 on PR #942, Q2 — said before the buyer tries, not after.
+            <p id={BUILD_LIMIT_NOTICE_ID} className="b2b-auth__error" role="note">
+              {t('quickOrder.preview.overBuildLimit')
+                .replace('{count}', () => String(preview.recognized.length))
+                .replace('{max}', () => String(QUICK_ORDER_BUILD_MAX_ITEMS))}
+            </p>
+          ) : null}
           <form action={confirmAction}>
             <div className="b2b-auth__actions">
               {abilities.editCart ? (
-                <button type="submit" name="target" value="cart">
+                <button type="submit" name="target" value="cart" {...blockedProps}>
                   {t('quickOrder.preview.addAll')}
                 </button>
               ) : null}
               {abilities.requestQuote ? (
-                <button type="submit" name="target" value="quote_request">
+                <button type="submit" name="target" value="quote_request" {...blockedProps}>
                   {t('quickOrder.preview.sendAsQuote')}
                 </button>
               ) : null}
@@ -590,7 +621,7 @@ async function importAction(formData: FormData): Promise<void> {
   } catch (err) {
     return await localeRedirect(`/quick-order?problem=${QUICK_ORDER_ERRORS.failureCode(err, 'import_failed')}${errorFiguresQuery(err)}`);
   }
-  return await returnWithPreview(session, preview!, 'preview_too_large');
+  return await returnWithPreview(session, previewOfImport(preview!), 'preview_too_large');
 }
 
 async function confirmAction(formData: FormData): Promise<void> {
@@ -602,6 +633,9 @@ async function confirmAction(formData: FormData): Promise<void> {
   const preview = await loadPreview(session);
   if (!preview) return await localeRedirect('/quick-order?problem=preview_expired');
   if (preview.recognized.length === 0) return await localeRedirect('/quick-order?problem=nothing_to_build');
+  // Q2 of the PO ruling on PR #942 — the page disables both actions past the limit; a post that
+  // arrives anyway sends no build request and reads as the backend's own refusal would.
+  if (overBuildLimit(preview)) return await localeRedirect('/quick-order?problem=VALIDATION_FAILED.too_many_items');
 
   let rfqId: string | undefined;
   let rejected: unknown[] = [];

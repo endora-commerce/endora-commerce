@@ -95,9 +95,24 @@ zalogowany w innej sesji niczego nie odczytają. Wszystkie trzy wymagają zalogo
 (`carts.create` albo `quote_requests.create`); odczyt i usunięcie własnego podglądu wymagają tylko
 sesji.
 
-- Podgląd mieści najwyżej **2000** wierszy, rozpoznanych i odrzuconych łącznie. Jeden więcej jest
-  odrzucany z kodem `422 VALIDATION_FAILED`, `details: { code: 'too_many_lines', maximum: 2000 }`,
-  a treść większa niż 2 MiB — z kodem `413`. Odrzucony zapis zostawia poprzedni podgląd bez zmian.
+- **Limit wierszy to `quick_order.import_max_rows`** w chwili zapisu podglądu (ograniczany do
+  1–10 000). Liczą się wiersze wczytane przez import, rozpoznane i odrzucone. Wiersze ponad limit
+  importu nie są przechowywane pojedynczo: podgląd trzyma je jako jedną liczbę
+  `summary.overflowCount`, a limit, który przekroczyły, w `summary.rowLimit`. Sklep pokazuje jeden
+  komunikat: *„Wczytano tylko pierwsze 2000 wierszy pliku. Pominięte wiersze: 15. Podziel plik i
+  zaimportuj resztę osobno.”*
+- Import zawsze się więc mieści. Limit ogranicza tylko to, co dochodzi z wyszukiwania: zapis, który
+  powiększa podgląd ponad limit, jest odrzucany z kodem `422 VALIDATION_FAILED`,
+  `details: { code: 'too_many_lines', maximum }`, gdzie `maximum` to wartość ustawienia. Zapis, który
+  nie dodaje wierszy (zmiana, usunięcie, pozycje pozostawione przez budowanie koszyka), jest
+  przyjmowany nawet wtedy, gdy ustawienie obniżono poniżej zapisanego podglądu.
+- Treść większa niż 2 MiB jest odrzucana z kodem `413`, niezależnie od ustawienia. Odrzucony zapis
+  zostawia poprzedni podgląd bez zmian.
+- **Budowanie obejmuje najwyżej 200 pozycji.** Gdy podgląd ma więcej niż 200 rozpoznanych pozycji
+  (odrzucone wiersze nie są budowane i się nie liczą), sklep informuje o tym nad przyciskami i
+  wyłącza *Dodaj wszystko do koszyka* oraz *Wyślij jako zapytanie ofertowe*, dopóki kupujący nie
+  usunie części pozycji albo nie podzieli pliku. Odmowa `too_many_items` przy budowaniu zostaje jako
+  zabezpieczenie.
 - Podgląd wygasa **godzinę po ostatnim zapisie**. Odczyt tego czasu nie wydłuża. Wygasły podgląd
   odczytuje się jako `null`, a sklep prosi kupującego, by ponownie wkleił listę albo przesłał plik.
 - Sklep usuwa podgląd po udanym budowaniu i przy wylogowaniu. Wygasła sesja nie może go już

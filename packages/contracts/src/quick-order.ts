@@ -120,13 +120,17 @@ export type QuickOrderImportResponse = z.infer<typeof quickOrderImportResponseSc
 // --- Preview (the buyer's import, held between the import and the build) ---
 
 /**
- * Issue #809 — the most lines one preview holds, recognised and rejected rows together: the
- * import's default row cap (`quick_order.import_max_rows`). Enforced by `PUT
- * /api/v1/quick-order/preview` as `422 VALIDATION_FAILED`,
- * `details: { code: 'too_many_lines', maximum }`, deliberately not by a schema `.max()`, which
- * would answer 400 — the same shape as {@link QUICK_ORDER_BUILD_MAX_ITEMS}.
+ * Issue #809 — the hard maximum of a preview's line cap: the ceiling `quick_order.import_max_rows`
+ * is clamped to. The cap itself is that setting's effective value, read when the preview is
+ * written (PO ruling of 2026-11-08 on PR #942), and it counts the rows the import read —
+ * recognised and rejected — never the rows past its limit, which the preview keeps as one
+ * `summary.overflowCount`. So an import never exceeds it; it bounds what adding from search can
+ * grow, and a write that adds no line is accepted even above a cap lowered since. Enforced by
+ * `PUT /api/v1/quick-order/preview` as `422 VALIDATION_FAILED`,
+ * `details: { code: 'too_many_lines', maximum }` (`maximum` = the setting), deliberately not by a
+ * schema `.max()`, which would answer 400 — the same shape as {@link QUICK_ORDER_BUILD_MAX_ITEMS}.
  */
-export const QUICK_ORDER_PREVIEW_MAX_LINES = 2_000;
+export const QUICK_ORDER_PREVIEW_MAX_LINES = 10_000;
 
 /**
  * The largest preview body `PUT /api/v1/quick-order/preview` reads, in bytes; a larger one is
@@ -168,10 +172,21 @@ export type QuickOrderPreviewRecognizedItem = z.infer<typeof quickOrderPreviewRe
  * answers 204. All three need a signed-in buyer, and the session that wrote a preview is the only
  * one that reads it; no preview id travels anywhere.
  */
+/**
+ * The import's summary, plus what the preview keeps of the rows past the import's limit: how many
+ * there were (`overflowCount`) and the limit they were past (`rowLimit`, stamped by the backend
+ * when it is absent). The rows themselves are not kept.
+ */
+export const quickOrderPreviewSummarySchema = quickOrderImportSummarySchema.extend({
+  overflowCount: z.number().int().nonnegative().optional(),
+  rowLimit: z.number().int().positive().optional(),
+});
+export type QuickOrderPreviewSummary = z.infer<typeof quickOrderPreviewSummarySchema>;
+
 export const quickOrderPreviewSchema = z.object({
   recognized: z.array(quickOrderPreviewRecognizedItemSchema),
   rejected: z.array(rejectedQuickOrderItemSchema),
-  summary: quickOrderImportSummarySchema,
+  summary: quickOrderPreviewSummarySchema,
 });
 export type QuickOrderPreview = z.infer<typeof quickOrderPreviewSchema>;
 

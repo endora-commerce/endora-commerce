@@ -33,7 +33,12 @@ export interface QuickOrderPreview {
     }
   >;
   rejected: RejectedQuickOrderItem[];
-  summary: QuickOrderImportSummary;
+  summary: QuickOrderImportSummary & {
+    /** Rows past the import's limit — kept as this count, never row by row (PR #942). */
+    overflowCount?: number;
+    /** The limit those rows were past; the backend stamps it. */
+    rowLimit?: number;
+  };
 }
 
 const PATH = '/api/v1/quick-order/preview';
@@ -45,8 +50,8 @@ export async function readQuickOrderPreview(sessionCookie: string): Promise<Quic
 
 /**
  * Replaces the buyer session's preview. `false` when the backend will not keep it because it is
- * too long — over the line cap (`422 too_many_lines`) or the size cap (413) — and nothing was
- * written; any other refusal throws.
+ * too long — grown past the import row cap (`422 too_many_lines`) or over the size cap (413) — and
+ * nothing was written; any other refusal throws.
  */
 export async function writeQuickOrderPreview(sessionCookie: string, preview: QuickOrderPreview): Promise<boolean> {
   try {

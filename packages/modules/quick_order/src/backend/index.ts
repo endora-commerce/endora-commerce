@@ -356,6 +356,7 @@ export function registerModule(ctx: ModuleContext): void {
       requireCustomer,
       resolveCustomerContext,
       organizationPermissions,
+      resolveImportMaxRows,
     });
 
     await registerQuickOrderAdminRoutes(app, {

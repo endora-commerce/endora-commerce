@@ -185,9 +185,10 @@ language. The question here is what a *consumer* may put into a URL once it hold
   ruling of 2026-11-07, replacing the cookie of PR #805). The quick-order preview — the buyer's
   CSV, rejected raw lines included — is kept by `quick_order` in Redis, one per buyer session,
   keyed by the Organization, the buyer and a digest of the session, behind `GET` / `PUT` /
-  `DELETE /api/v1/quick-order/preview`; no preview id travels anywhere. It holds up to the
-  import's 2 000 lines; a preview over that, or over the 2 MiB body cap, is refused in words,
-  never written and never cut short. It expires an hour after its last write — a read does not
+  `DELETE /api/v1/quick-order/preview`; no preview id travels anywhere. It holds what the import
+  reads (`quick_order.import_max_rows`), the rows past that limit as one count; a preview grown
+  past it from search, or one over the 2 MiB body cap, is refused in words, never written and
+  never cut short. It expires an hour after its last write — a read does not
   extend it — and an action that finds it gone tells the buyer to paste the list again. It is
   dropped on a successful build and on sign-out; an expired session can no longer name it, so its
   TTL ends it. The cookie's budget was nginx's default header buffers; nothing the storefront

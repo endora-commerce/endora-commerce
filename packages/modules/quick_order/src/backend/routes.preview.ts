@@ -3,7 +3,6 @@ import {
   CustomerSessionRequiredError,
   ERROR_CODES,
   QUICK_ORDER_PREVIEW_MAX_BYTES,
-  QUICK_ORDER_PREVIEW_MAX_LINES,
   SESSION_COOKIE_NAME,
   quickOrderPreviewSchema,
   type OrganizationPermissionPort,
@@ -11,13 +10,14 @@ import {
 import { HttpError } from '@endora-commerce/platform/http';
 import { importPermissionPreHandler } from './routes.js';
 import type { QuickOrderPreviewOwner, QuickOrderPreviewStore } from './services/preview-store.js';
+import { collapseOverflow, previewLineCount, refusesGrowth } from './services/preview-limits.js';
 
 /**
  * The buyer's quick-order preview (issue #809) — the import's result as the buyer reviews and
  * edits it, kept here between the import and the build instead of in a storefront cookie.
  *
  *   - GET    /quick-order/preview  `{ data: preview | null }` — `null` for none or expired
- *   - PUT    /quick-order/preview  replaces it, ≤ 2 000 lines and ≤ 2 MiB, and starts its TTL
+ *   - PUT    /quick-order/preview  replaces it, within the import row cap and 2 MiB, and starts its TTL
  *   - DELETE /quick-order/preview  drops it (204)
  *
  * **Who.** All three need a signed-in buyer (`requireCustomer`), and the preview addressed is
@@ -26,6 +26,11 @@ import type { QuickOrderPreviewOwner, QuickOrderPreviewStore } from './services/
  * context, which refuses a buyer without one (Principle XI). Writing is part of the import, so
  * the PUT takes the import's own guard (`carts.create` or `quote_requests.create`); reading and
  * dropping one's own preview need nothing more than the session, so sign-out can always drop it.
+ *
+ * **The line cap** is the effective `quick_order.import_max_rows`, read on every write (PO ruling
+ * of 2026-11-08 on PR #942). The rows past the import's limit are kept as one `overflowCount`
+ * (`services/preview-limits.ts`) and never count, so an import always fits; the cap bounds what
+ * adding from search grows, and a write that adds no line is accepted above a cap lowered since.
  *
  * **Presence.** Registered through `ctx.routes` like every other route of the module, so while the
  * module is off they answer 503 `MODULE_DISABLED` and the stored previews are left as they are.
@@ -42,6 +47,8 @@ export interface QuickOrderPreviewRoutesDeps {
   };
   /** `organizations`' port, resolved per request (`module-composition.md` item 4a). */
   organizationPermissions: () => OrganizationPermissionPort;
+  /** The effective, clamped `quick_order.import_max_rows` — the preview's line cap. */
+  resolveImportMaxRows: () => Promise<number>;
 }
 
 export async function registerQuickOrderPreviewRoutes(
@@ -73,17 +80,22 @@ export async function registerQuickOrderPreviewRoutes(
       schema: { body: quickOrderPreviewSchema },
     },
     async (request, reply: FastifyReply) => {
-      const preview = quickOrderPreviewSchema.parse(request.body);
-      const lines = preview.recognized.length + preview.rejected.length;
-      if (lines > QUICK_ORDER_PREVIEW_MAX_LINES) {
-        throw new HttpError(
-          422,
-          ERROR_CODES.VALIDATION_FAILED,
-          `A preview holds at most ${QUICK_ORDER_PREVIEW_MAX_LINES} lines.`,
-          { code: 'too_many_lines', maximum: QUICK_ORDER_PREVIEW_MAX_LINES },
-        );
+      const owner = ownerOf(request);
+      const cap = await deps.resolveImportMaxRows();
+      const preview = collapseOverflow(quickOrderPreviewSchema.parse(request.body), cap);
+      const lines = previewLineCount(preview);
+      if (lines > cap) {
+        const previous = await store.get(owner);
+        if (refusesGrowth({ lines, previousLines: previous ? previewLineCount(previous) : 0, cap })) {
+          throw new HttpError(
+            422,
+            ERROR_CODES.VALIDATION_FAILED,
+            `A preview holds at most ${cap} lines.`,
+            { code: 'too_many_lines', maximum: cap },
+          );
+        }
       }
-      await store.put(ownerOf(request), preview);
+      await store.put(owner, preview);
       reply.header('Cache-Control', NO_STORE);
       return { data: preview };
     },

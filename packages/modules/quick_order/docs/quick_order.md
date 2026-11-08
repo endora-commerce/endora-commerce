@@ -107,10 +107,25 @@ preview id travels in a URL. Writing needs the import's permission
 (`carts.create` or `quote_requests.create`); reading and dropping one's own
 preview need only the session.
 
-- A preview holds at most **2 000** lines, recognised and rejected together.
-  One more is refused `422 VALIDATION_FAILED`,
-  `details: { code: 'too_many_lines', maximum: 2000 }`, and a body over 2 MiB is
-  refused `413`. A refused write leaves the previous preview as it was.
+- **The line cap is `quick_order.import_max_rows`** as it stands when the
+  preview is written (clamped to 1–10 000). It counts the rows the import read,
+  recognised and rejected. The rows past the import's limit are not kept one by
+  one: the preview keeps them as one `summary.overflowCount`, with the limit they
+  were past in `summary.rowLimit`. The storefront shows a single message:
+  *"Only the first 2000 rows of the file were read. Rows left out: 15. Split the
+  file and import the rest separately."*
+- So an import always fits. The cap limits only what adding from search adds:
+  a write that grows a preview past it is refused `422 VALIDATION_FAILED`,
+  `details: { code: 'too_many_lines', maximum }`, where `maximum` is the setting.
+  A write that adds no line (an edit, a removal, the lines a cart build left) is
+  accepted even when the setting has been lowered below the stored preview.
+- A body over 2 MiB is refused `413`, whatever the setting. A refused write
+  leaves the previous preview as it was.
+- **Building takes at most 200 lines.** When a preview has more than 200
+  recognised lines (rejected rows are not built and do not count), the
+  storefront says so above the actions and disables *Add all to cart* and *Send
+  as quote request* until lines are removed or the file is split. The build's
+  own `too_many_items` refusal stays as the guard.
 - It expires **one hour after its last write**. A read does not extend it. An
   expired preview reads as `null`, and the storefront tells the buyer to paste or
   upload the list again.
