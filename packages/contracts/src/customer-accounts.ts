@@ -1042,7 +1042,10 @@ export interface CustomerAccountLifecycleWritePort {
 
   /**
    * Soft-deleted accounts whose retention window elapsed before `cutoff` and
-   * that have not been anonymised yet — the sweep's work list.
+   * that have not been anonymised yet — the sweep's work list. It also lists,
+   * whatever the cutoff, an anonymised account that an earlier scrub left a
+   * block reason (before issue #843) or custom field values (before #802) on,
+   * until {@link anonymize} has finished it.
    */
   listDueForAnonymization(cutoff: Date): Promise<CustomerAccountRecord[]>;
 
@@ -1060,7 +1063,7 @@ export interface CustomerAccountLifecycleWritePort {
 
   /**
    * Irreversibly scrubs the account's personal data. Returns the account
-   * unchanged when it was already anonymised, and throws HTTP 404
+   * unchanged when it was already fully anonymised, and throws HTTP 404
    * `CUSTOMER_NOT_FOUND` for an id nothing matches. The row is locked before
    * `anonymizedAt` is read (issue #857), so two concurrent calls for one
    * account scrub, audit and announce it once.
@@ -1070,11 +1073,20 @@ export interface CustomerAccountLifecycleWritePort {
    * {@link listDueForAnonymization}, so it is the commit marker for the
    * organisation and address scrubs that run before it.
    *
-   * The scrub clears the e-mail, both names, the credentials and **every**
-   * custom field value, and commits in one transaction with its
+   * The scrub clears the e-mail, both names, the credentials, **every**
+   * custom field value and the operator's block reason (issue #843; the block
+   * itself stays), and commits in one transaction with its
    * `customer_account.anonymized` audit row, which records none of the erased
    * data (issue #802). `customer_account.anonymized.v1` is announced after
    * that commit, only on the transition.
+   *
+   * An account an earlier scrub left a block reason or custom field values on
+   * is finished once: those are cleared, `anonymizedAt` is kept, and one more
+   * `customer_account.anonymized` row is written, with no second announcement.
+   * The rows tell the two apart by `stateBefore.anonymizedAt`: `null` on the
+   * first scrub, the original ISO timestamp on a finish. On both,
+   * `stateBefore` is `{ anonymizedAt, customFieldKeys, hadBlockReason }` and
+   * `stateAfter.anonymizedAt` is the time of the first scrub.
    */
   anonymize(customerAccountId: string): Promise<CustomerAccountRecord>;
 }
