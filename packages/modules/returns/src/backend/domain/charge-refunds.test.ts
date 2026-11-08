@@ -128,33 +128,34 @@ describe('isWithinWithdrawalWindow — the statutory floor or the channel’s lo
   });
 });
 
-describe('chargeApproved — what a settlement approves for a charge', () => {
+describe('chargeApproved — what a settlement approves for a charge (ruling Q2 on PR #965)', () => {
   const recomputed = { cap: '15.99', default: '15.99' };
 
-  it('an amount equal to the stored or the recomputed default is the default approved', () => {
-    expect(chargeApproved({ requested: 15.99, previousDefault: '15.99', recomputed })).toEqual({ approved: '15.99' });
-    // A case created partial (default 0) that completes at settlement: the stored 0 is the default.
-    expect(chargeApproved({ requested: '0.00', previousDefault: '0.00', recomputed })).toEqual({ approved: '15.99' });
-    // A case created completing that no longer completes: the stored default follows the recompute.
-    expect(
-      chargeApproved({ requested: '15.99', previousDefault: '15.99', recomputed: { cap: '0.00', default: '0.00' } }),
-    ).toEqual({ approved: '0.00' });
+  it('an omitted amount takes the default recomputed under the lock', () => {
+    expect(chargeApproved({ recomputed })).toEqual({ approved: '15.99' });
+    expect(chargeApproved({ recomputed: { cap: '15.99', default: '0.00' } })).toEqual({ approved: '0.00' });
+    expect(chargeApproved({ recomputed: { cap: '0.00', default: '0.00' } })).toEqual({ approved: '0.00' });
   });
 
-  it('a lower amount is the operator’s — art. 13(2), a premium delivery reduced to the standard price', () => {
-    expect(chargeApproved({ requested: 0, previousDefault: '15.99', recomputed })).toEqual({ approved: '0.00' });
-    expect(chargeApproved({ requested: 9.99, previousDefault: '15.99', recomputed })).toEqual({ approved: '9.99' });
+  it('a present amount settles exactly, 0 included — never read as "the default approved"', () => {
+    expect(chargeApproved({ requested: 0, recomputed })).toEqual({ approved: '0.00' });
+    expect(chargeApproved({ requested: '0.00', recomputed })).toEqual({ approved: '0.00' });
+    // art. 13(2), a premium delivery reduced to the standard price.
+    expect(chargeApproved({ requested: 9.99, recomputed })).toEqual({ approved: '9.99' });
+    expect(chargeApproved({ requested: 15.99, recomputed })).toEqual({ approved: '15.99' });
   });
 
   it('outside the window the operator may raise it to the cap and no further', () => {
     const late = { cap: '15.99', default: '0.00' };
-    expect(chargeApproved({ requested: 15.99, previousDefault: '0.00', recomputed: late })).toEqual({ approved: '15.99' });
-    expect(chargeApproved({ requested: 16, previousDefault: '0.00', recomputed: late })).toEqual({
-      refused: 'refund_exceeds_paid',
-    });
+    expect(chargeApproved({ requested: 15.99, recomputed: late })).toEqual({ approved: '15.99' });
+    expect(chargeApproved({ requested: 16, recomputed: late })).toEqual({ refused: 'refund_exceeds_paid' });
   });
 
-  it('more than was paid is refused', () => {
-    expect(chargeApproved({ requested: 16, previousDefault: '15.99', recomputed })).toEqual({ refused: 'refund_exceeds_paid' });
+  it('a present amount above the cap is refused — a stale figure above a cap that shrank to 0 included', () => {
+    expect(chargeApproved({ requested: 16, recomputed })).toEqual({ refused: 'refund_exceeds_paid' });
+    expect(chargeApproved({ requested: 15.99, recomputed: { cap: '0.00', default: '0.00' } })).toEqual({
+      refused: 'refund_exceeds_paid',
+    });
+    expect(chargeApproved({ requested: 0, recomputed: { cap: '0.00', default: '0.00' } })).toEqual({ approved: '0.00' });
   });
 });

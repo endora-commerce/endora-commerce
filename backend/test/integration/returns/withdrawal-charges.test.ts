@@ -197,16 +197,21 @@ describe('returns — a consumer withdrawal refunds the delivery and the surchar
   async function settleRaw(
     caseId: string,
     charges: { deliveryRefundAmount?: number; surchargeRefundAmount?: number } = {},
+    resolutionType: 'refund' | 'replacement' = 'refund',
   ) {
     const p = await prefill(caseId);
+    const money = resolutionType === 'refund';
     return h.app.inject({
       method: 'POST',
       url: `/api/v1/admin/returns/${caseId}/settlement`,
       cookies: ADMIN_COOKIE,
       payload: {
-        resolutionType: 'refund',
-        refundPaymentMethodId: randomUUID(),
-        lines: p.items.map((it) => ({ returnCaseItemId: it.returnCaseItemId, approvedRefundAmount: it.approvedRefundAmount })),
+        resolutionType,
+        ...(money ? { refundPaymentMethodId: randomUUID() } : {}),
+        lines: p.items.map((it) => ({
+          returnCaseItemId: it.returnCaseItemId,
+          approvedRefundAmount: money ? it.approvedRefundAmount : 0,
+        })),
         ...charges,
       },
     });
@@ -234,6 +239,8 @@ describe('returns — a consumer withdrawal refunds the delivery and the surchar
 
     expect((await settle(rc.id)).totalRefundAmount).toBe(138.99);
     expect((await refundOf(rc.id)).amount).toBe('138.99');
+    // Ruling Q4 — a settled case shows what it settled at: the cap is the approved amount.
+    expect((await prefill(rc.id)).charges).toEqual({ delivery: { cap: 15.99, approved: 15.99 } });
 
     const detail = await h.app.inject({ method: 'GET', url: `/api/v1/returns/${rc.id}`, cookies: { b2b_session: consumer.cookie } });
     expect(detail.statusCode, detail.body).toBe(200);
@@ -351,4 +358,67 @@ describe('returns — a consumer withdrawal refunds the delivery and the surchar
     const other = await openCase(untouched.orderId, [{ orderItemId: untouched.item, quantity: 2 }]);
     expect((await settle(other.id)).totalRefundAmount).toBe(123);
   });
+
+  /**
+   * Ruling Q2 on PR #965 — a present charge amount settles exactly, 0 included;
+   * only an omitted one takes the default recomputed under the lock. Two cases
+   * of one unit each: the second opened shows the delivery provisionally, but
+   * settled first it does not complete the withdrawal, so its cap is 0; the
+   * first, opened partial, completes once the other is settled.
+   */
+  async function twoCases() {
+    const { orderId, item } = await seedOrder();
+    const first = await openCase(orderId, [{ orderItemId: item, quantity: 1 }]);
+    const second = await openCase(orderId, [{ orderItemId: item, quantity: 1 }]);
+    expect([first.chargeRefunds?.delivery, second.chargeRefunds?.delivery]).toEqual([0, 15.99]);
+    return { first, second };
+  }
+
+  it('Q2 — a stale figure above a cap that has shrunk is refused, and nothing is written', async () => {
+    const { second } = await twoCases();
+    // The case showed 15.99 when it was opened; settled first, it no longer completes.
+    expect((await prefill(second.id)).charges).toBeUndefined();
+    const refused = await settleRaw(second.id, { deliveryRefundAmount: 15.99 });
+    expect(refused.statusCode, refused.body).toBe(422);
+    expect((refused.json() as { error: { details?: { code?: string } } }).error.details?.code).toBe('refund_exceeds_paid');
+    // Omitted, it settles at the recomputed default: no delivery.
+    expect((await settle(second.id)).totalRefundAmount).toBe(61.5);
+  });
+
+  it('Q2 — on the case that completes it, an omitted amount settles the full delivery', async () => {
+    const { first, second } = await twoCases();
+    expect((await settle(second.id)).totalRefundAmount).toBe(61.5);
+    expect((await prefill(first.id)).charges).toEqual({ delivery: { cap: 15.99, approved: 15.99 } });
+    expect((await settle(first.id)).totalRefundAmount).toBe(77.49);
+  });
+
+  it('Q2 — on the case that completes it, an explicit 0 settles at 0', async () => {
+    const { first, second } = await twoCases();
+    expect((await settle(second.id)).totalRefundAmount).toBe(61.5);
+    expect((await settle(first.id, { deliveryRefundAmount: 0 })).totalRefundAmount).toBe(61.5);
+    // Q4 — a settled charge of 0 is not shown.
+    expect((await prefill(first.id)).charges).toBeUndefined();
+  });
+
+  it('Q1 — a replacement that completes the order refunds no charge; the kept-lines invoice still charges the delivery', async () => {
+    const { orderId, item } = await seedOrder();
+    const rc = await openCase(orderId, [{ orderItemId: item, quantity: 2 }]);
+    const refused = await settleRaw(rc.id, { deliveryRefundAmount: 15.99 }, 'replacement');
+    expect(refused.statusCode, refused.body).toBe(422);
+    expect((refused.json() as { error: { details?: { code?: string } } }).error.details?.code).toBe('refund_exceeds_paid');
+
+    const res = await settleRaw(rc.id, {}, 'replacement');
+    expect(res.statusCode, res.body).toBe(200);
+    // The money moved is the sum of the lines: none for a replacement.
+    expect((res.json() as { data: { totalRefundAmount: number } }).data.totalRefundAmount).toBe(0);
+    const detail = await h.app.inject({ method: 'GET', url: `/api/v1/admin/returns/${rc.id}`, cookies: ADMIN_COOKIE });
+    expect((detail.json() as { data: CaseDetail }).data.chargeRefunds).toEqual({ delivery: 0, surcharge: 0 });
+
+    const invoice = await issueInvoice(orderId);
+    expect(invoice.statusCode, invoice.body).toBe(201);
+    const data = (invoice.json() as { data: { grossTotal: number; lines: Array<{ grossValue: number }> } }).data;
+    expect(data.lines.map((l) => l.grossValue).sort((a, b) => a - b)).toEqual([15.99, 123]);
+    expect(data.grossTotal).toBe(138.99);
+  });
 });
+
