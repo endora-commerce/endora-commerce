@@ -563,7 +563,18 @@ Retention policy:
 - **Never auto-purge `cart_audit_entries`.** Org admins and the platform
   admin rely on a complete history to defend approval decisions and
   reproduce buyer disputes. The table is append-only — services never
-  `UPDATE` or `DELETE` rows.
+  `UPDATE` or `DELETE` rows, with the one exception below.
+- **Anonymisation erases the reasons, and only them.** When the customers
+  module's retention sweep anonymises a customer account, the reason an
+  operator or an approver gave for rejecting each of that account's carts is
+  set to empty: on the cart itself and on every entry of its history. The
+  cart keeps its status, when it was rejected and by whom; the history keeps
+  every entry, with its action, actor, time and states. Each cart changed gets
+  one `cart.anonymized` entry in the platform audit log, with no actor, that
+  records only whether the cart had a reason (`hadRejectedReason`). A cart the
+  account only approved or rejected for a colleague is the colleague's and
+  keeps its reason. A later run finds nothing left and writes nothing; no
+  event is sent.
 - **Cart deletion cascade.** `cart_audit_entries.cart_id` is `ON DELETE
   CASCADE`. We do not currently delete carts in production; if a future
   GDPR / right-to-erasure workflow ever does, the audit trail follows.

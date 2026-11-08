@@ -9,7 +9,7 @@ import type {
 import { AuditLogService } from '@endora-commerce/platform/composition';
 import { AuditLogEntry, hashPassword } from '@endora-commerce/platform/kernel';
 import { setupTestDb, type TestDb } from '../../helpers/test-db.js';
-import { Cart, CartAuditEntry, CustomerAccount } from '../../helpers/package-entities.js';
+import { Cart, CartAuditEntry, CustomerAccount, type CartRow } from '../../helpers/package-entities.js';
 import { seedAdHocOrganization } from '../../helpers/seed-organizations.js';
 import {
   customerAccountPortsFor,
@@ -180,7 +180,7 @@ describe('Anonymization sweep — reasons written about the subject’s carts (i
     owner: CustomerAccount,
     by: { kind: 'operator' } | { kind: 'approver'; approver: CustomerAccount },
     reason: string | null,
-  ): Promise<Cart> {
+  ): Promise<CartRow> {
     const cart = em.create(Cart, {
       customerAccountId: owner.id,
       organizationId: owner.organizationId,
@@ -271,7 +271,7 @@ describe('Anonymization sweep — reasons written about the subject’s carts (i
     const rows = [
       ...(await em.execute(`select row_to_json(c)::text as t from "carts" c where c."customer_account_id" = ?`, [customerAccountId])),
       ...(await em.execute(`select row_to_json(e)::text as t from "cart_audit_entries" e where e."cart_id" = any(?::uuid[])`, [ids])),
-      ...(await em.execute(`select row_to_json(a)::text as t from "audit_log_entries" a where a."object_id" = any(?::uuid[])`, [ids])),
+      ...(await em.execute(`select row_to_json(a)::text as t from "audit_log_entries" a where a."object_id" = any(?::text[])`, [ids])),
     ] as Array<{ t: string }>;
     return rows.map((row) => row.t).join('\n');
   }
@@ -297,9 +297,13 @@ describe('Anonymization sweep — reasons written about the subject’s carts (i
       action: 'cart.anonymized',
       objectType: 'cart',
       objectId: byOperator.id,
-      actorAdminUserId: null,
       stateBefore: { hadRejectedReason: true },
     });
+    // The sweep runs on a timer: no actor of any kind.
+    expect(row!.actorAdminUserId ?? null).toBeNull();
+    expect(row!.impersonatedCustomerAccountId ?? null).toBeNull();
+    expect(row!.actorCustomerAccountId ?? null).toBeNull();
+    expect(row!.stateAfter ?? null).toBeNull();
     expect(Object.keys(row!.stateBefore ?? {})).toEqual(['hadRejectedReason']);
 
     // Another customer's cart is not the subject's.

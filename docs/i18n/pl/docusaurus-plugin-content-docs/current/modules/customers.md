@@ -78,6 +78,10 @@ miękko usuwane, każdy z wpisem audytu `address.anonymized`. Dzieje się tak r�
 operator usunął już tę organizację. Złożone zamówienia zachowują swoje kopie adresów. Wpisy audytu
 anonimizacji odnotowują, że dane usunięto, ale nie przechowują samych danych.
 
+Zadanie usuwa też uzasadnienia, które operatorzy i osoby akceptujące podali, odrzucając koszyki tego
+konta; każdy koszyk zachowuje swój status. Co jest usuwane, a co zostaje, opisuje moduł koszyków
+(*Przechowywanie historii zmian*).
+
 Zadanie uruchamia się raz dziennie w procesie workera i tylko wtedy, gdy moduł jest włączony, więc
 konto zostaje zanonimizowane najpóźniej dzień po upływie okresu. Gdy moduł jest wyłączony, zadanie
 się nie uruchamia; konta, którym okres upłynął w tym czasie, anonimizuje pierwszy przebieg po

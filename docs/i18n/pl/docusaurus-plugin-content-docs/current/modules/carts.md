@@ -528,7 +528,16 @@ Zasady przechowywania:
 - **Nigdy nie usuwaj automatycznie `cart_audit_entries`.** Administratorzy organizacji i platformy
   potrzebują pełnej historii, aby uzasadniać decyzje o akceptacji i odtwarzać przebieg sporów z
   kupującymi. Do tabeli można tylko dopisywać — usługi nigdy nie wykonują na jej wierszach `UPDATE`
-  ani `DELETE`.
+  ani `DELETE`, z jednym wyjątkiem opisanym niżej.
+- **Anonimizacja usuwa uzasadnienia i tylko je.** Gdy okresowe zadanie anonimizacji z modułu klientów
+  anonimizuje konto klienta, uzasadnienie, które operator albo osoba akceptująca podali, odrzucając
+  każdy z koszyków tego konta, zostaje wyczyszczone: w samym koszyku i w każdym wpisie jego historii.
+  Koszyk zachowuje status, czas odrzucenia i to, kto go odrzucił; historia zachowuje wszystkie wpisy,
+  z działaniem, wykonawcą, czasem i stanami. Każdy zmieniony koszyk dostaje jeden wpis
+  `cart.anonymized` we wspólnym dzienniku audytu, bez wykonawcy, który zapisuje tylko, czy koszyk miał
+  uzasadnienie (`hadRejectedReason`). Koszyk, który to konto jedynie zaakceptowało albo odrzuciło
+  współpracownikowi, należy do współpracownika i zachowuje swoje uzasadnienie. Kolejne uruchomienie nie
+  znajduje już niczego do usunięcia i niczego nie zapisuje; żadne zdarzenie nie jest wysyłane.
 - **Kaskada przy usunięciu koszyka.** `cart_audit_entries.cart_id` ma `ON DELETE CASCADE`. Obecnie na
   produkcji koszyków się nie usuwa; jeśli przyszły proces RODO (prawo do usunięcia danych) będzie to
   robił, historia zostanie usunięta razem z koszykiem. Gdy taki proces powstanie, *przed* uruchomieniem

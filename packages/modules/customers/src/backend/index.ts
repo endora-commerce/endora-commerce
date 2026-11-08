@@ -15,6 +15,7 @@ import type {
   AdminUserReadPort,
   AuthSessionPort,
   AuthSessionReadPort,
+  CartAnonymizationPort,
   CartQueryPort,
   CustomFieldValuePort,
   CustomerAccountAdminSearchPort,
@@ -341,6 +342,8 @@ export function registerModule(ctx: ModuleContext): void {
             // each from an import of the owner's directory. Both are gated
             // ports, so a singleton may not hold one directly.
             cartQueryPort: lazyPort<CartQueryPort>(ctx, 'cartQueryPort'),
+            // Issue #920 — and its step in the anonymisation sweep.
+            cartAnonymizationPort: lazyPort<CartAnonymizationPort>(ctx, 'cartAnonymizationPort'),
             impersonationPort: lazyPort<ImpersonationPort>(ctx, 'impersonationPort'),
             // `auth`'s read over the session table, for the online-customers
             // panel — the last thing in this module that named `Session`.
