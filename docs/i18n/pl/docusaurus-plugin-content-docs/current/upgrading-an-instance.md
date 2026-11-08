@@ -3917,6 +3917,14 @@ pierwszego uruchomienia workera. **Tego nie da się cofnąć**, a konta po upły
 przywrócić (`409 CUSTOMER_RESTORE_WINDOW_ELAPSED`), niezależnie od tego, czy zadanie już do niego
 dotarło.
 
+**Usuwana jest też historia audytu każdego zanonimizowanego konta** (zgłoszenie #844). Dotyczy to
+wpisów o koncie, a w przypadku klienta indywidualnego także o jego organizacji prywatnej i jej
+adresach. Każdy wpis zachowuje akcję, wykonawców, czas i obiekt, ale zapisane wartości osobowe
+zmieniają się w `[erased]`, podobnie jak adres IP i identyfikator przeglądarki (user agent) we
+wpisach, które klient zapisał sam. Tego również nie da się cofnąć. Każde konto otrzymuje jeden wpis
+`audit.redacted`. Regułę opisuje dokumentacja modułu dziennika audytu, w sekcji *Usuwanie danych
+przy anonimizacji*.
+
 **Co zrobić:**
 
 1. **Policz konta, które zanonimizuje pierwszy przebieg.** Przed aktualizacją uruchom to zapytanie
@@ -3940,8 +3948,8 @@ dotarło.
 3. **Przywróć konta, które chcesz zachować**, a potem, jeśli wydłużyłeś okres, ustaw go z powrotem
    na wybraną wartość.
 4. **Po pierwszym przebiegu** worker zapisuje w logu na poziomie `info` komunikat
-   `customers: anonymization sweep finished` z liczbą zanonimizowanych kont, a każde konto ma wpis
-   audytu `customer_account.anonymized`. Konto, którego nie udało się zanonimizować, jest zgłaszane
+   `customers: anonymization sweep finished` z liczbą zanonimizowanych kont, a każde konto ma wpisy
+   audytu `customer_account.anonymized` i `audit.redacted`. Konto, którego nie udało się zanonimizować, jest zgłaszane
    z identyfikatorem w ostrzeżeniu (`customers: the anonymization sweep failed; the next tick
    retries`) i ponawiane następnego dnia. Powyższe zapytanie zwraca wtedy `0`.
 
@@ -4207,6 +4215,27 @@ Od tej pory zmieniają się dwie rzeczy:
    np. `Europe/Berlin`, na ekranie ustawień w panelu (grupa *Zwroty*).
 2. **Poproś operatorów, by realizowali zamówienie, gdy towar został doręczony.** Termin konsumenta na
    odstąpienie od umowy liczy się od realizacji zamówienia, bo platforma nie zna daty doręczenia.
+
+### Odstąpienie konsumenta rozlicza się zwrotem pieniędzy, chyba że zapisano zgodę {#consumer-withdrawal-consent}
+
+Wydanie z tą zmianą oznacza każdy zwrot zgłoszony przez konsumenta jako **odstąpienie konsumenta od
+umowy** (zgłoszenie #905): zwrot organizacji osobistej zgłoszony w terminie na odstąpienie, w
+dłuższym okresie bezpłatnego zwrotu kanału albo w 7 dniach karencji po nich. Taką sprawę rozlicza
+się zwrotem tym samym sposobem płatności, chyba że konsument zgodził się na inny (dyrektywa 2011/83
+art. 13 ust. 1), dlatego:
+
+- **Środki na przyszłe zamówienia, wymiana i naprawa wymagają zapisanej zgody konsumenta.** Bez niej
+  rozliczenie odpowiada `422 RETURN_ALTERNATIVE_RESOLUTION_CONSENT_REQUIRED`. Operator zapisuje zgodę
+  wraz z dowodem w panelu *Odstąpienie konsumenta od umowy* sprawy.
+- **Zwrot pieniędzy proponuje sposób płatności zamówienia.** Inny jest przyjmowany z ostrzeżeniem, a
+  wpis rozliczenia w dzienniku zdarzeń to odnotowuje.
+
+Zwroty firm i reklamacje się nie zmieniają. **Sprawy zgłoszone przed aktualizacją nie są
+klasyfikowane**: rozlicza się je jak dotąd. Otwarte sprawy sklasyfikuje jedno z kolejnych wydań.
+
+**Po aktualizacji:** poinformuj operatorów rozliczających zwroty, że środki na przyszłe zamówienia,
+wymiana albo naprawa dla konsumenta wymagają teraz najpierw zapisania zgody, a w dowodzie należy
+wskazać, gdzie konsument się zgodził (e-mail, zgłoszenie).
 
 ## Instancja niespójna od początku
 

@@ -83,9 +83,22 @@ Usuwane są też uzasadnienia, które operatorzy zapisali o kliencie: powód zab
 przypadku klienta indywidualnego także powody zablokowania i odrzucenia jego organizacji
 prywatnej. Organizacja firmowa zachowuje swoje powody. Sama blokada lub odrzucenie zostaje, więc
 ekrany klienta nadal pokazują status i jego datę, ale bez powodu. Wpisy audytu anonimizacji
-odnotowują jedynie, że powód istniał. Wpisy audytu zapisane wcześniej, takie jak wpis samej
-blokady, zachowują zapisane wartości, w tym powód, dopóki wcześniejsze wpisy nie będą redagowane
-przy anonimizacji ([#844](https://github.com/endora-commerce/endora-commerce/issues/844)).
+odnotowują jedynie, że powód istniał.
+
+Wcześniejsza historia audytu dotycząca klienta również jest usuwana w miejscu. Obejmuje to wpis
+samej blokady wraz z powodem, zmiany profilu i zmiany adresów. Dotyczy to wpisów o koncie, a w
+przypadku klienta indywidualnego także o jego organizacji prywatnej, adresach tej organizacji (w
+tym tych, które klient wcześniej usunął) oraz o jego wycofanych adresach osobistych. Każdy wpis
+zachowuje akcję, wykonawców, czas i obiekt, a każde zapisane pole zachowuje swoją nazwę. Imiona i
+nazwiska, adresy e-mail, adresy, dowolny tekst i każda wartość pola niestandardowego zmieniają się
+w `[erased]`, co przeglądarka audytu pokazuje jako *Usunięto*. We wpisach, które klient zapisał
+sam, usuwane są też adres IP i identyfikator przeglądarki (user agent). Wpisy o innych rekordach,
+na przykład o zamówieniach klienta, zachowują własną historię. Każdy zanonimizowany klient
+otrzymuje jeden wpis `audit.redacted`, zapisany przez system, zawierający wyłącznie liczby i
+identyfikatory. Samą regułę opisuje
+dokumentacja modułu dziennika audytu, w sekcji *Usuwanie danych przy anonimizacji*. Historia jest usuwana przed
+samym kontem, więc konto uznaje się za zanonimizowane dopiero wtedy, gdy jego historia też została
+usunięta.
 
 Zadanie usuwa też uzasadnienia, które operatorzy i osoby akceptujące podali, odrzucając koszyki tego
 konta; każdy koszyk zachowuje swój status. Co jest usuwane, a co zostaje, opisuje moduł koszyków

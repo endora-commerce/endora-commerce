@@ -3,7 +3,9 @@ import { ERROR_CODES, isUuidShape, returnCaseOrderLockKey } from '@endora-commer
 import type {
   CreateReturnCaseRequest,
   OrderReadPort,
+  OrderReturnContext,
   OrderReturnContextPort,
+  OrganizationDetailsPort,
   ReturnableResponse,
   ReturnCaseDetail,
   ReturnCaseSummary,
@@ -19,7 +21,8 @@ import { ReturnReason } from '../entities/return-reason.entity.js';
 import { Refund } from '../entities/refund.entity.js';
 import { RETURN_STATUS_CANCELLED } from '../domain/return-status-graph.js';
 import { isWithinFreeWindow } from '../domain/free-return-window.js';
-import { withdrawalPeriodAnchor } from '../domain/withdrawal-period.js';
+import { withdrawalPeriod, withdrawalPeriodAnchor } from '../domain/withdrawal-period.js';
+import { classifyConsumerWithdrawal } from '../domain/consumer-withdrawal.js';
 import { approvedAmount } from '../domain/refund-math.js';
 import { isWithinWithdrawalWindow } from '../domain/charge-refunds.js';
 import { caseCharges, caseDefaults, liveItems, loadOrderCases } from './default-refund-service.js';
@@ -46,6 +49,11 @@ export interface ReturnCaseServiceDeps {
   orderRead: Pick<OrderReadPort, 'findByIdForCustomer'>;
   /** The buyer's case scope — own cases, or the Organization's (FR-053). */
   scope: ReturnCaseScope;
+  /**
+   * `organizations`' record reader (issue #905, design §2): whether the case's
+   * Organization is personal decides whether a return is a consumer withdrawal.
+   */
+  organizationDetails: Pick<OrganizationDetailsPort, 'findById'>;
   /** Free-return window in days for a sales channel (0 = no free-return option). */
   resolveFreeReturnDays: (salesChannelId: string) => Promise<number>;
   /**
@@ -222,6 +230,8 @@ export class ReturnCaseService {
         input.kind === 'return'
           ? await this.isWithinFreeWindow(ctx.salesChannelId, withdrawalPeriodAnchor(ctx))
           : false;
+      // Issue #905 (design §2) — fixed now, when the law fixes it.
+      const consumerWithdrawal = await this.isConsumerWithdrawal(input.kind, ctx, now);
 
       // Issue #876 — the order's delivery cost and payment surcharge, on the
       // provisional basis the goods are shown on: the case that completes a
@@ -257,6 +267,9 @@ export class ReturnCaseService {
         approvedDeliveryRefund: charges.delivery.default,
         defaultSurchargeRefund: charges.surcharge.default,
         approvedSurchargeRefund: charges.surcharge.default,
+        consumerWithdrawal,
+        // The trader received the statement when the case was filed (design D2).
+        withdrawalReceivedAt: consumerWithdrawal ? now : null,
       });
       em.persist(rc);
 
@@ -327,6 +340,7 @@ export class ReturnCaseService {
             orderId: rc.orderId,
             statusCode: rc.statusCode,
             lineCount: input.lines.length,
+            consumerWithdrawal,
           },
         });
       }
@@ -399,6 +413,31 @@ export class ReturnCaseService {
       this.deps.resolveTimeZone(salesChannelId),
     ]);
     return isWithinFreeWindow(this.now(), completingAt, days, timeZone);
+  }
+
+  /**
+   * Whether a case of `kind` filed at `at` for this order is a consumer
+   * withdrawal (issue #905, design §2): a `return`, a personal Organization,
+   * and the withdrawal function still available for the order.
+   */
+  private async isConsumerWithdrawal(
+    kind: CreateReturnCaseRequest['kind'],
+    ctx: OrderReturnContext,
+    at: Date,
+  ): Promise<boolean> {
+    if (kind !== 'return' || !ctx.organizationId) return false;
+    const organization = await this.deps.organizationDetails.findById(ctx.organizationId);
+    if (organization?.isPersonal !== true) return false;
+    const [freeReturnDays, timeZone] = await Promise.all([
+      this.deps.resolveFreeReturnDays(ctx.salesChannelId),
+      this.deps.resolveTimeZone(ctx.salesChannelId),
+    ]);
+    return classifyConsumerWithdrawal({
+      kind,
+      organizationIsPersonal: true,
+      period: withdrawalPeriod(withdrawalPeriodAnchor(ctx), { timeZone, freeReturnDays }),
+      submittedAt: at,
+    });
   }
 
   private toSummary(rc: ReturnCase, statusLabel: string): ReturnCaseSummary {
@@ -485,8 +524,33 @@ export class ReturnCaseService {
         delivery: Number(rc.approvedDeliveryRefund),
         surcharge: Number(rc.approvedSurchargeRefund),
       },
+      consumerWithdrawal: rc.consumerWithdrawal ?? null,
+      alternativeResolutionConsent: alternativeResolutionConsentOf(rc, opts),
     };
   }
+}
+
+/**
+ * The consent on record, as the case detail reports it (issue #905). The
+ * evidence note and the operator who recorded it are the operator's: the
+ * buyer's view leaves both out.
+ */
+export function alternativeResolutionConsentOf(
+  rc: ReturnCase,
+  opts: { customerView: boolean },
+): ReturnCaseDetail['alternativeResolutionConsent'] {
+  if (!rc.alternativeConsentResolution || !rc.alternativeConsentAt) return null;
+  return {
+    resolution: rc.alternativeConsentResolution,
+    at: rc.alternativeConsentAt.toISOString(),
+    source: rc.alternativeConsentSource ?? 'operator_recorded',
+    ...(opts.customerView
+      ? {}
+      : {
+          note: rc.alternativeConsentNote ?? '',
+          byAdminUserId: rc.alternativeConsentByAdminUserId ?? null,
+        }),
+  };
 }
 
 /** Quantities already named per order item, by the order's live cases. */

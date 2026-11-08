@@ -55,6 +55,7 @@ export function returnContextFrom(
     | 'currency'
     | 'status'
     | 'completedAt'
+    | 'paymentMethodId'
     | 'subtotal'
     | 'taxTotal'
     | 'discountTotal'
@@ -82,6 +83,8 @@ export function returnContextFrom(
     organizationId: order.organizationId ?? null,
     currency: order.currency,
     completingStatusEnteredAt: completing ? (order.completedAt ?? null) : null,
+    // Issue #905 — the refund of a consumer's withdrawal proposes it.
+    paymentMethodId: order.paymentMethodId ?? null,
     vatMethod: order.vatMethod ?? null,
     // The order's discount is taken off its gross, without tax of its own (the
     // invoice carries it as a 0 % line): the products were charged their net

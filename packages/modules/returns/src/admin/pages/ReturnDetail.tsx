@@ -1,10 +1,12 @@
-import { useCallback, useEffect, useState, type ReactNode } from 'react';
+import { useCallback, useEffect, useId, useState, type ReactNode } from 'react';
 import { Link, useParams } from 'react-router-dom';
 import { ArrowLeft } from 'lucide-react';
 import { ApiError, formatDateTime } from '@endora-commerce/admin-kit/lib';
-import { Alert, AlertDescription, Badge, Button, Card, CardContent, CardHeader, CardTitle, Checkbox, Label, Select, PageHeader, Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from '@endora-commerce/admin-kit/ui';
-import { useTranslation } from '@endora-commerce/admin-kit/i18n';
-import { returnsClient } from '../api/returns-client.js';
+import { Alert, AlertDescription, Badge, Button, Card, CardContent, CardHeader, CardTitle, Checkbox, Input, Label, Select, PageHeader, Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from '@endora-commerce/admin-kit/ui';
+import { useTranslation, useTranslationContext } from '@endora-commerce/admin-kit/i18n';
+import { returnsClient, type RefundPaymentMethodOption } from '../api/returns-client.js';
+import { ResolutionRadioGroup } from '../components/ResolutionRadioGroup.js';
+import { CONSUMER_WITHDRAWAL_PANEL_ID, ConsumerWithdrawalPanel } from './ConsumerWithdrawalPanel.js';
 
 import type {
   ReturnCaseDetail,
@@ -13,12 +15,63 @@ import type {
   SettlementResult,
 } from '@endora-commerce/contracts';
 
+type Resolution = SettlementPrefill['defaultResolution'];
+const RESOLUTIONS: readonly Resolution[] = ['refund', 'credit', 'replacement', 'repair'];
+
+export interface RefundMethodChoice {
+  id: string;
+  label: string;
+}
+
+/**
+ * The refund payment methods the settlement form offers, by name (issue #905):
+ * the order's own method first and marked as such, then the rest by name. The
+ * order's method stays on the list when the payment-method list does not hold
+ * it, and so does a chosen id the list does not know, so the form never loses
+ * the value it is about to send.
+ */
+export function refundMethodChoices(input: {
+  methods: readonly RefundPaymentMethodOption[];
+  orderMethodId: string | null;
+  chosenId: string;
+  language: string;
+  orderMethodLabel: (name: string) => string;
+  orderMethodUnnamedLabel: string;
+}): RefundMethodChoice[] {
+  const nameOf = (m: RefundPaymentMethodOption): string =>
+    m.name[input.language] ?? m.name['en'] ?? Object.values(m.name)[0] ?? m.code;
+  const others = input.methods
+    .filter((m) => m.id !== input.orderMethodId)
+    .map((m) => ({ id: m.id, label: nameOf(m) }))
+    .sort((a, b) => a.label.localeCompare(b.label, input.language));
+  const choices: RefundMethodChoice[] = [];
+  if (input.orderMethodId) {
+    const own = input.methods.find((m) => m.id === input.orderMethodId);
+    choices.push({
+      id: input.orderMethodId,
+      label: own ? input.orderMethodLabel(nameOf(own)) : input.orderMethodUnnamedLabel,
+    });
+  }
+  choices.push(...others);
+  if (input.chosenId && !choices.some((c) => c.id === input.chosenId)) {
+    choices.push({ id: input.chosenId, label: input.chosenId });
+  }
+  return choices;
+}
+
 /** Returns / RMA case detail (feature 046, US2/US4/US5/US6). */
 export function ReturnDetail(): ReactNode {
   const t = useTranslation('core');
+  const tr = useTranslation('returns');
+  const { language } = useTranslationContext();
+  const consentHintId = useId();
+  const refundWarningId = useId();
+  const paymentMethodHintId = useId();
   const { id = '' } = useParams<{ id: string }>();
   const [rc, setRc] = useState<ReturnCaseDetail | null>(null);
   const [transitions, setTransitions] = useState<ReturnTransitionDto[]>([]);
+  // PO ruling on #945 (Q3): a terminal status of the configured graph closes the consent.
+  const [statusIsTerminal, setStatusIsTerminal] = useState(false);
   const [shipments, setShipments] = useState<Array<{ id: string; direction: string; status: string; externalReference: string | null }>>([]);
   const [prefill, setPrefill] = useState<SettlementPrefill | null>(null);
   const [error, setError] = useState<string | null>(null);
@@ -28,8 +81,11 @@ export function ReturnDetail(): ReactNode {
   const [commentVisible, setCommentVisible] = useState(true);
   const [commentNotify, setCommentNotify] = useState(false);
 
-  const [resolution, setResolution] = useState('refund');
+  const [resolution, setResolution] = useState<Resolution>('refund');
   const [paymentMethodId, setPaymentMethodId] = useState('');
+  // `undefined` while loading, `null` when the list cannot be read (module off,
+  // no permission): the field then falls back to the method's id.
+  const [paymentMethods, setPaymentMethods] = useState<RefundPaymentMethodOption[] | null | undefined>(undefined);
   const [approved, setApproved] = useState<Record<string, number>>({});
   // Issue #876 — the delivery and surcharge a consumer's completing withdrawal
   // refunds. Only an amount the operator edited is sent (ruling Q2 on PR #965):
@@ -52,6 +108,7 @@ export function ReturnDetail(): ReactNode {
       ]);
       setRc(detail);
       setTransitions(graph.transitions.filter((t) => t.fromStatusCode === detail.statusCode));
+      setStatusIsTerminal(graph.statuses.some((s) => s.code === detail.statusCode && s.isTerminal));
       setShipments(ship);
       if (detail.statusCode === 'received') {
         const pf = await returnsClient.settlementPrefill(id);
@@ -61,6 +118,9 @@ export function ReturnDetail(): ReactNode {
         // stored at 0, so nothing is refunded for it unless the operator sets it.
         setApproved(Object.fromEntries(pf.items.map((it) => [it.returnCaseItemId, it.approvedRefundAmount])));
         setApprovedCharges({});
+        // Issue #905 (design D1) — a refund to the order's own payment method.
+        setResolution(pf.defaultResolution ?? 'refund');
+        setPaymentMethodId(pf.defaultRefundPaymentMethodId ?? '');
       } else {
         setPrefill(null);
       }
@@ -72,6 +132,21 @@ export function ReturnDetail(): ReactNode {
   useEffect(() => {
     void refresh();
   }, [refresh]);
+
+  useEffect(() => {
+    let live = true;
+    returnsClient
+      .refundPaymentMethods()
+      .then((list) => {
+        if (live) setPaymentMethods(Array.isArray(list) && list.length > 0 ? list : null);
+      })
+      .catch(() => {
+        if (live) setPaymentMethods(null);
+      });
+    return (): void => {
+      live = false;
+    };
+  }, []);
 
   const run = useCallback(
     async (fn: () => Promise<unknown>, ok: string): Promise<void> => {
@@ -107,6 +182,29 @@ export function ReturnDetail(): ReactNode {
   const notReturnableItemIds = new Set(
     rc.items.filter((it) => it.returnableAtPurchase === false).map((it) => it.id),
   );
+  // Issue #905 (design D1) — what a consumer withdrawal cannot settle as yet.
+  const consentRequiredFor = new Set<string>(prefill?.consentRequiredFor ?? []);
+  const orderMethodId = prefill?.defaultRefundPaymentMethodId ?? null;
+  // Shown once another method is actually chosen — not while the field is empty.
+  const refundMethodDiffers =
+    rc.consumerWithdrawal === true &&
+    resolution === 'refund' &&
+    orderMethodId !== null &&
+    paymentMethodId.trim() !== '' &&
+    paymentMethodId.trim() !== orderMethodId;
+  // While the list loads the order's own method is offered unnamed; when it
+  // cannot be read the field takes an id instead.
+  const methodChoices =
+    paymentMethods === null
+      ? null
+      : refundMethodChoices({
+          methods: paymentMethods ?? [],
+          orderMethodId,
+          chosenId: paymentMethodId,
+          language,
+          orderMethodLabel: (name) => tr('settlement.orderMethod', { name }),
+          orderMethodUnnamedLabel: tr('settlement.orderMethodUnnamed'),
+        });
   const notReturnableBadge = (
     <Badge variant="warning" className="ml-2">
       {t('returns.detail.notReturnableAtPurchase')}
@@ -126,6 +224,7 @@ export function ReturnDetail(): ReactNode {
           <span className="flex items-center gap-2">
             {rc.rmaNumber ?? 'Return case'} <Badge variant="secondary">{rc.statusLabel}</Badge>
             <Badge variant="outline">{rc.kind}</Badge>
+            {rc.consumerWithdrawal === true && <Badge variant="warning">{tr('consent.badge')}</Badge>}
           </span>
         }
         description={`Order ${rc.orderId}`}
@@ -176,6 +275,17 @@ export function ReturnDetail(): ReactNode {
         </CardContent>
       </Card>
 
+      {rc.consumerWithdrawal === true && (
+        <ConsumerWithdrawalPanel
+          closed={statusIsTerminal}
+          rc={rc}
+          onChanged={async (message) => {
+            await refresh();
+            setInfo(message);
+          }}
+        />
+      )}
+
       {/* Items */}
       <Card>
         <CardHeader>
@@ -215,28 +325,73 @@ export function ReturnDetail(): ReactNode {
             <CardTitle>{t('returns.detail.settlement.title')}</CardTitle>
           </CardHeader>
           <CardContent className="space-y-3">
-            <div className="flex flex-wrap items-end gap-3">
+            <ResolutionRadioGroup
+              name="resolution"
+              legend={t('returns.detail.settlement.resolution')}
+              options={RESOLUTIONS}
+              value={resolution}
+              onChange={setResolution}
+              label={(option) => t(`returns.detail.resolution.${option}`)}
+              closed={consentRequiredFor}
+              closedReason={tr('consent.needsConsent')}
+              {...(consentRequiredFor.size > 0 ? { describedBy: consentHintId } : {})}
+            />
+            {consentRequiredFor.size > 0 && (
+              <p className="text-sm text-muted-foreground">
+                <span id={consentHintId}>{tr('consent.requiredHint')}</span>{' '}
+                <Button
+                  type="button"
+                  variant="link"
+                  className="h-auto p-0 align-baseline"
+                  onClick={() => document.getElementById(CONSUMER_WITHDRAWAL_PANEL_ID)?.focus()}
+                >
+                  {tr('consent.goToPanel')}
+                </Button>
+              </p>
+            )}
+            {resolution === 'refund' && (
               <div className="space-y-1">
-                <Label htmlFor="resolution">{t('returns.detail.settlement.resolution')}</Label>
-                <Select id="resolution" value={resolution} onChange={(e) => setResolution(e.target.value)}>
-                  <option value="refund">{t('returns.detail.resolution.refund')}</option>
-                  <option value="credit">{t('returns.detail.resolution.credit')}</option>
-                  <option value="replacement">{t('returns.detail.resolution.replacement')}</option>
-                  <option value="repair">{t('returns.detail.resolution.repair')}</option>
-                </Select>
-              </div>
-              {resolution === 'refund' && (
-                <div className="space-y-1">
-                  <Label htmlFor="pm">{t('returns.detail.settlement.paymentMethodId')}</Label>
-                  <input
+                <Label htmlFor="pm">{t('returns.detail.settlement.paymentMethodId')}</Label>
+                {methodChoices ? (
+                  <Select
                     id="pm"
-                    className="h-9 rounded-md border border-input bg-background px-3 text-sm"
+                    className="w-auto min-w-64"
                     value={paymentMethodId}
                     onChange={(e) => setPaymentMethodId(e.target.value)}
-                  />
-                </div>
-              )}
-            </div>
+                    {...(refundMethodDiffers ? { 'aria-describedby': refundWarningId } : {})}
+                  >
+                    {paymentMethodId === '' && <option value="">{tr('settlement.chooseMethod')}</option>}
+                    {methodChoices.map((choice) => (
+                      <option key={choice.id} value={choice.id}>
+                        {choice.label}
+                      </option>
+                    ))}
+                  </Select>
+                ) : (
+                  <>
+                    <Input
+                      id="pm"
+                      className="w-96 max-w-full font-mono"
+                      spellCheck={false}
+                      autoComplete="off"
+                      value={paymentMethodId}
+                      onChange={(e) => setPaymentMethodId(e.target.value)}
+                      aria-describedby={[paymentMethodHintId, refundMethodDiffers ? refundWarningId : '']
+                        .filter(Boolean)
+                        .join(' ')}
+                    />
+                    <p id={paymentMethodHintId} className="text-xs text-muted-foreground">
+                      {tr('settlement.paymentMethodIdHint')}
+                    </p>
+                  </>
+                )}
+              </div>
+            )}
+            {refundMethodDiffers && (
+              <Alert variant="warning" id={refundWarningId}>
+                <AlertDescription>{tr('settlement.refundMethodDiffers')}</AlertDescription>
+              </Alert>
+            )}
             <Table>
               <TableHeader>
                 <TableRow>
@@ -324,8 +479,8 @@ export function ReturnDetail(): ReactNode {
                         returnCaseItemId: it.returnCaseItemId,
                         approvedRefundAmount: approved[it.returnCaseItemId] ?? 0,
                       })),
-                      ...(resolution === 'refund' && paymentMethodId
-                        ? { refundPaymentMethodId: paymentMethodId }
+                      ...(resolution === 'refund' && paymentMethodId.trim()
+                        ? { refundPaymentMethodId: paymentMethodId.trim() }
                         : {}),
                       ...(approvedCharges.delivery !== undefined ? { deliveryRefundAmount: approvedCharges.delivery } : {}),
                       ...(approvedCharges.surcharge !== undefined ? { surchargeRefundAmount: approvedCharges.surcharge } : {}),

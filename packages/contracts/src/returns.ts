@@ -22,6 +22,39 @@ export type ReturnKind = z.infer<typeof returnKindSchema>;
 export const resolutionTypeSchema = z.enum(['refund', 'credit', 'replacement', 'repair']);
 export type ResolutionType = z.infer<typeof resolutionTypeSchema>;
 
+/**
+ * The resolutions that settle a consumer withdrawal otherwise than by a refund
+ * (issue #905, design D1). A consumer who withdraws is reimbursed by the same
+ * means of payment unless they expressly agree otherwise (Directive 2011/83
+ * art. 13(1)), so each needs the consumer's consent on record first.
+ */
+export const alternativeResolutionSchema = z.enum(['credit', 'replacement', 'repair']);
+export type AlternativeResolution = z.infer<typeof alternativeResolutionSchema>;
+
+/**
+ * Who put the consent on record. `operator_recorded` is the only source today:
+ * the consumer agrees by e-mail or telephone and an operator records it with
+ * the evidence. `consumer_storefront` is reserved for a consumer's own click on
+ * the storefront, should that be required later.
+ */
+export const alternativeConsentSourceSchema = z.enum(['operator_recorded', 'consumer_storefront']);
+export type AlternativeConsentSource = z.infer<typeof alternativeConsentSourceSchema>;
+
+/**
+ * The consumer's consent to settle a withdrawal as `resolution` (issue #905,
+ * design D1). `note` (the evidence) and `byAdminUserId` are the operator's:
+ * the buyer's view of a case leaves both out.
+ */
+export const alternativeResolutionConsentSchema = z.object({
+  resolution: alternativeResolutionSchema,
+  /** When the consumer gave the consent, as the operator recorded it. */
+  at: isoDateTimeSchema,
+  note: z.string().optional(),
+  byAdminUserId: uuidSchema.nullable().optional(),
+  source: alternativeConsentSourceSchema,
+});
+export type AlternativeResolutionConsent = z.infer<typeof alternativeResolutionConsentSchema>;
+
 /** State of a recorded refund's money movement. */
 export const settlementStateSchema = z.enum(['issued', 'pending_manual', 'failed']);
 export type SettlementState = z.infer<typeof settlementStateSchema>;
@@ -205,6 +238,15 @@ export const returnCaseDetailSchema = returnCaseSummarySchema.extend({
    * case. Optional on the wire, so an older producer still parses.
    */
   chargeRefunds: z.object({ delivery: z.number().finite(), surcharge: z.number().finite() }).optional(),
+  /**
+   * Whether the case is a consumer's withdrawal from a distance contract (issue
+   * #905, design §2): a `return` by a personal Organization, filed while the
+   * withdrawal function was available for the order. Fixed when the case is
+   * filed. `null` for a case filed before the classification existed.
+   */
+  consumerWithdrawal: z.boolean().nullable(),
+  /** The consumer's consent to a resolution other than a refund, when one is on record (design D1). */
+  alternativeResolutionConsent: alternativeResolutionConsentSchema.nullable(),
 });
 export type ReturnCaseDetail = z.infer<typeof returnCaseDetailSchema>;
 
@@ -313,7 +355,26 @@ export type SettlementCharge = z.infer<typeof settlementChargeSchema>;
 
 export const settlementPrefillSchema = z.object({
   currency: z.string().length(3),
+  /**
+   * Every resolution, always: a client that predates the consent gate keeps
+   * working, and the settlement's `422` is the boundary
+   * (`RETURN_ALTERNATIVE_RESOLUTION_CONSENT_REQUIRED`).
+   */
   resolutionOptions: z.array(resolutionTypeSchema),
+  /** The resolution the form starts on (issue #905): `refund`. */
+  defaultResolution: resolutionTypeSchema,
+  /**
+   * The resolutions this case cannot settle as until the consumer's consent is
+   * recorded (issue #905, design D1): on a consumer withdrawal, every one but a
+   * refund and the one consented to; empty on any other case.
+   */
+  consentRequiredFor: z.array(resolutionTypeSchema),
+  /**
+   * The order's own payment method, which a refund proposes (Directive 2011/83
+   * art. 13(1), "the same means of payment"). `null` when the order cannot be
+   * read.
+   */
+  defaultRefundPaymentMethodId: uuidSchema.nullable(),
   items: z.array(
     z.object({
       returnCaseItemId: uuidSchema,
@@ -383,6 +444,19 @@ export const settlementRequestSchema = z.object({
   surchargeRefundAmount: twoDecimalAmount(z.number().finite().nonnegative()).optional(),
 });
 export type SettlementRequest = z.infer<typeof settlementRequestSchema>;
+
+/**
+ * `POST /api/v1/admin/returns/:id/alternative-consent` (issue #905, design D1):
+ * the operator records that the consumer agreed to `resolution`, when, and the
+ * evidence. The moment may not be in the future, nor before the case was filed.
+ */
+export const recordAlternativeConsentRequestSchema = z.object({
+  resolution: alternativeResolutionSchema,
+  consentGivenAt: isoDateTimeSchema,
+  /** Where the consent is documented, e.g. "Customer's e-mail of 10 Nov 2026, ticket #123". */
+  note: z.string().trim().min(1).max(2000),
+});
+export type RecordAlternativeConsentRequest = z.infer<typeof recordAlternativeConsentRequestSchema>;
 
 /**
  * What became of the corrective invoice a settlement asked for (#135).
@@ -753,6 +827,12 @@ export interface OrderReturnContext {
   currency: string;
   /** When the order entered its fulfilment-completing status; null if it has not. */
   completingStatusEnteredAt: Date | null;
+  /**
+   * The payment method the order was paid with (issue #905): a consumer's
+   * withdrawal is refunded by the same means of payment unless they agree
+   * otherwise, so the settlement proposes it.
+   */
+  paymentMethodId: string | null;
   /**
    * The VAT method the order was placed under (issue #417): `per_rate` — VAT
    * per rate on the sum of the nets — from 0.108.0; `null` before, when the

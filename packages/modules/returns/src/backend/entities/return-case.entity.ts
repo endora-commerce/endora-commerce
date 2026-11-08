@@ -1,6 +1,7 @@
 import { Entity, Index, OptionalProps, PrimaryKey, Property, Unique } from '@mikro-orm/core';
 import { randomUUID } from 'crypto';
 import { OrgScoped } from '@endora-commerce/platform/tenancy';
+import type { AlternativeConsentSource, AlternativeResolution } from '@endora-commerce/contracts';
 
 /**
  * ReturnCase — feature 046 (RMA case).
@@ -33,6 +34,13 @@ export class ReturnCase {
     | 'authorizedAt'
     | 'resolvedAt'
     | 'closedAt'
+    | 'consumerWithdrawal'
+    | 'withdrawalReceivedAt'
+    | 'alternativeConsentResolution'
+    | 'alternativeConsentAt'
+    | 'alternativeConsentNote'
+    | 'alternativeConsentByAdminUserId'
+    | 'alternativeConsentSource'
     | 'createdAt'
     | 'updatedAt';
 
@@ -129,6 +137,42 @@ export class ReturnCase {
 
   @Property({ type: 'datetime', nullable: true })
   closedAt?: Date | null;
+
+  /**
+   * Issue #905 (design §2) — a consumer's withdrawal from a distance contract:
+   * a `return` by a personal Organization, filed while the withdrawal function
+   * was available. Set when the case is filed and never changed. `null` = filed
+   * before the classification existed, read as `false`.
+   */
+  @Property({ type: 'boolean', nullable: true })
+  consumerWithdrawal?: boolean | null;
+
+  /**
+   * When the trader received the consumer's withdrawal (design D2): the moment
+   * the case was filed, on a consumer withdrawal; `null` on any other case.
+   */
+  @Property({ type: 'datetime', nullable: true })
+  withdrawalReceivedAt?: Date | null;
+
+  /**
+   * The consumer's consent to settle the withdrawal otherwise than by a refund
+   * (design D1): the resolution, when it was given, the operator's evidence
+   * note, who recorded it and how. All null while none is on record.
+   */
+  @Property({ type: 'string', length: 16, nullable: true })
+  alternativeConsentResolution?: AlternativeResolution | null;
+
+  @Property({ type: 'datetime', nullable: true })
+  alternativeConsentAt?: Date | null;
+
+  @Property({ type: 'text', nullable: true })
+  alternativeConsentNote?: string | null;
+
+  @Property({ type: 'uuid', nullable: true })
+  alternativeConsentByAdminUserId?: string | null;
+
+  @Property({ type: 'string', length: 32, nullable: true })
+  alternativeConsentSource?: AlternativeConsentSource | null;
 
   @Property({ type: 'datetime', onCreate: () => new Date() })
   createdAt: Date = new Date();

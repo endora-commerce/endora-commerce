@@ -17,6 +17,7 @@ import type {
 } from '@endora-commerce/contracts';
 import type { AuditPort } from '@endora-commerce/platform/kernel';
 import type { EventBus } from '@endora-commerce/platform/events';
+import type { CommandBus } from '@endora-commerce/platform/commands';
 import type { ModuleContext } from '@endora-commerce/platform/kernel';
 import { lazyPort } from '@endora-commerce/platform/kernel';
 import type { RequireAdminFactory } from '@endora-commerce/platform/kernel';
@@ -40,6 +41,7 @@ import { ReturnReason } from './entities/return-reason.entity.js';
 import { ReturnShipment } from './entities/return-shipment.entity.js';
 import { ReturnStatusTransition } from './entities/return-status-transition.entity.js';
 import { ReturnStatus } from './entities/return-status.entity.js';
+import { ReturnWithdrawalStatement } from './entities/return-withdrawal-statement.entity.js';
 
 /**
  * `returns` — four settlement ports and a dead callback (feature 072, wave 2,
@@ -92,6 +94,8 @@ export interface ReturnsCradle {
   readonly emFactory: () => EntityManager;
   readonly eventBus: EventBus;
   readonly auditLogService: AuditPort;
+  /** The platform's Command Bus: the consent writes run through it (issue #905). */
+  readonly commandBus: CommandBus;
   readonly requireAdmin: RequireAdminFactory;
   readonly requireCustomer: (req: FastifyRequest, reply: unknown) => Promise<void>;
   readonly settingsReadPort: ReturnsModuleOptions['settingsService'];
@@ -117,7 +121,7 @@ export interface ReturnsCradle {
 export function registerModule(ctx: ModuleContext): void {
   ctx.di.register({
     returns: ctx
-      .asFunction(({ emFactory, eventBus, auditLogService }: ReturnsCradle) => {
+      .asFunction(({ emFactory, eventBus, auditLogService, commandBus }: ReturnsCradle) => {
         const cradle = (): ReturnsCradle => ctx.cradle<ReturnsCradle>();
         /**
          * The customer notification, built here rather than handed in (T143c).
@@ -175,8 +179,12 @@ export function registerModule(ctx: ModuleContext): void {
           // are `lazyPort` proxies resolved per call, never captured.
           orderReadPort: lazyPort<OrderReadPort>(ctx, 'orderReadPort'),
           organizationPermissions: lazyPort<OrganizationPermissionPort>(ctx, 'organizationPermissionPort'),
-          // Issue #876 — whether the order's Organization is personal (B2C).
+          // Issue #905 — whether a return is a consumer withdrawal turns on the
+          // Organization being personal, and so does whether a withdrawal refunds
+          // the delivery and the surcharge (issue #876); `organizations` is a
+          // binding dependency and `nonDeactivatable`.
           organizationDetails: lazyPort<OrganizationDetailsPort>(ctx, 'organizationDetailsPort'),
+          commandBus,
           paymentRefund: lazyPort<PaymentRefundPort>(ctx, 'paymentRefundPort'),
           correctiveInvoice: lazyPort<CorrectiveInvoicePort>(ctx, 'correctiveInvoicePort'),
           creditTopup: lazyPort<CreditTopupPort>(ctx, 'creditTopupPort'),
@@ -255,4 +263,5 @@ export const entities = [
   ReturnShipment,
   ReturnStatusTransition,
   ReturnStatus,
+  ReturnWithdrawalStatement,
 ];

@@ -54,6 +54,8 @@ describe('returns off-state (Constitution XVII)', () => {
   let h: BackendServerHandle;
   const admin = { b2b_session: 'stub-admin-session' };
   const channel = { 'x-sales-channel': 'default' };
+  /** A case id that names nothing: restored, the consent routes answer `404`, which is not absence. */
+  const ABSENT_CASE_ID = '00000000-0000-4000-8000-000000000905';
 
   beforeAll(async () => {
     h = await setupBackendServer();
@@ -70,6 +72,15 @@ describe('returns off-state (Constitution XVII)', () => {
         { url: '/api/v1/admin/returns/statuses', cookies: admin },
         { url: '/api/v1/returns/reasons', headers: channel },
         { url: '/api/v1/returns', headers: channel },
+        // Issue #905 — the consent Commands go with the module, on both axes:
+        // while it is off no consent is recorded or revoked.
+        {
+          method: 'POST',
+          url: `/api/v1/admin/returns/${ABSENT_CASE_ID}/alternative-consent`,
+          cookies: admin,
+          payload: { resolution: 'credit', consentGivenAt: '2026-11-08T10:00:00.000Z', note: 'off-state probe' },
+        },
+        { method: 'DELETE', url: `/api/v1/admin/returns/${ABSENT_CASE_ID}/alternative-consent`, cookies: admin },
       ],
       adminPresence: { cookies: admin },
       settingWrite: {
