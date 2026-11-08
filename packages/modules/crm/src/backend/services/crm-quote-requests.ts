@@ -1,15 +1,15 @@
-import type { QuoteRequestReadPort, QuoteRequestRecord } from '@endora-commerce/contracts';
+import type { QuoteRequestAgreement, QuoteRequestReadPort, QuoteRequestRecord } from '@endora-commerce/contracts';
 import { effectiveState } from '@endora-commerce/platform/kernel';
 
 /** A Quote Request as this module reads it: the record and what its owner says it is worth. */
 export interface CrmQuoteRequestDocument {
   record: QuoteRequestRecord;
-  /** Two places, net of tax — `quoteRequestReadPort.amountOf`'s figure (issue #456). */
-  amount: string;
+  /** Two places, net of tax — `quoteRequestReadPort.amountOf`'s figure (issue #456); `null` with no price. */
+  amount: string | null;
   /** The amount's currency — what the quote desk shows the total in — or `null` with no lines. */
   currency: string | null;
-  /** `true` while not every line has an agreed price. */
-  partiallyAgreed: boolean;
+  /** How far its lines are agreed. */
+  agreement: QuoteRequestAgreement;
 }
 
 export interface CrmQuoteRequests {

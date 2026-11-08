@@ -1273,8 +1273,9 @@ opportunity can hold several quote requests and several orders.
 
 A linked quote request is listed with its number, its status and its value —
 the amount the Quote Requests module computes for it, the figure its own list
-shows. While not every line of it has an agreed price, the value is marked
-**Partially agreed**.
+shows. While only some of its lines have an agreed price, the value is marked
+**Partially agreed**; while none has, **Not yet agreed**. A quote request
+without any price shows `—` and adds nothing to a computed value.
 **A quote request is the Quote Requests module's to show**: linking one, and
 being offered one to link, needs `rfqs:handle` — the permission that module
 reads a request with — as well as `crm:write`, and answers `403` without it.

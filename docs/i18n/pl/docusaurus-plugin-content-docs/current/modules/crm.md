@@ -1327,8 +1327,10 @@ kilka zapytań ofertowych i kilka zamówień.
 
 Powiązane zapytanie ofertowe jest na liście z numerem, statusem i wartością —
 kwotą, którą wylicza dla niego moduł Zapytania ofertowe, tą samą, którą pokazuje
-jego własna lista. Dopóki choć jedna jego pozycja nie ma uzgodnionej ceny,
-wartość ma oznaczenie **Częściowo uzgodnione**.
+jego własna lista. Dopóki uzgodnioną cenę ma tylko część jego pozycji, wartość
+ma oznaczenie **Częściowo uzgodnione**; dopóki nie ma jej żadna — **Jeszcze
+nieuzgodnione**. Zapytanie ofertowe bez żadnej ceny jest pokazywane jako `—` i
+nic nie dodaje do wyliczanej wartości.
 **Zapytanie ofertowe pokazuje moduł Zapytania ofertowe**: powiązanie zapytania
 i lista zapytań do powiązania wymagają `rfqs:handle` — uprawnienia, z którym
 ten moduł odczytuje zapytanie — oprócz `crm:write`; bez niego odpowiedzią jest

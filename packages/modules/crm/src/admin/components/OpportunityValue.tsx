@@ -123,9 +123,9 @@ export function OpportunityValue(props: OpportunityValueProps): ReactNode {
             ({moneyLabel(link.total, link.currency ?? opportunity.currency)})
           </span>
         ) : null}
-        {link?.available && link.partiallyAgreed ? (
+        {link?.available && link.total && link.agreement && link.agreement !== 'agreed' ? (
           <Badge variant="outline" className="ml-1 font-normal">
-            {t('links.quote.partiallyAgreed')}
+            {t(link.agreement === 'partial' ? 'links.quote.partiallyAgreed' : 'links.quote.notYetAgreed')}
           </Badge>
         ) : null}
         <span>{' — '}{reason}</span>

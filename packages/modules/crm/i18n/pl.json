@@ -537,6 +537,7 @@
   "links.quote.col.status": "Status zapytania",
   "links.quote.col.total": "Wartość netto",
   "links.quote.partiallyAgreed": "Częściowo uzgodnione",
+  "links.quote.notYetAgreed": "Jeszcze nieuzgodnione",
   "links.quote.unavailable": "Zapytanie ofertowe niedostępne",
   "links.quote.unavailableHint": "Zostało usunięte, Twoja rola nie daje do niego dostępu albo moduł Zapytania ofertowe jest wyłączony.",
   "links.quote.unlink.label": "Odłącz zapytanie ofertowe {number}",

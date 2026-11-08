@@ -2,4 +2,6 @@
 '@endora-commerce/mod-i18n': patch
 ---
 
-New key `rfq.list.badge.partiallyAgreed` (EN "Partially agreed", PL "Częściowo uzgodnione") for the quote desk list's marker (issue #456).
+New keys for the quote desk list's markers (issue #456):
+- `rfq.list.badge.partiallyAgreed`: EN "Partially agreed", PL "Częściowo uzgodnione";
+- `rfq.list.badge.notYetAgreed`: EN "Not yet agreed", PL "Jeszcze nieuzgodnione".

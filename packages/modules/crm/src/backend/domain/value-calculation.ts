@@ -31,8 +31,8 @@ export interface ValueQuoteRequestDocument {
   status: string;
   /** The Order placed from this Quote Request, once there is one. */
   convertedOrderId: string | null;
-  /** Two places, net of tax. */
-  amount: string;
+  /** Two places, net of tax; `null` when no line has a price — it adds nothing. */
+  amount: string | null;
   /** The amount's currency; `null` for a Quote Request without a line. */
   currency: string | null;
 }
@@ -112,8 +112,8 @@ export function calculateOpportunityValue(input: OpportunityValueInput): Opportu
     // subscriber of its own, which may not have run yet when this is asked.
     if (quoteRequest.convertedOrderId !== null && countedOrderIds.has(quoteRequest.convertedOrderId)) continue;
     if (countedThroughOrder.has(quoteRequest.id)) continue;
-    // No line, no currency: it is worth nothing, and nothing was left out.
-    if (quoteRequest.currency === null) continue;
+    // No price, or no line: it is worth nothing, and nothing was left out.
+    if (quoteRequest.amount === null || quoteRequest.currency === null) continue;
     if (quoteRequest.currency !== input.currency) {
       excludedDocuments.push({
         kind: 'quote_request',

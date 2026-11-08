@@ -259,7 +259,7 @@ export class RfqAdminService {
       const org = orgById.get(rfq.organizationId);
       // Exact sums (issue #417), the customer list's helper. The list shows
       // `amount` (issue #456); the two totals stay for API readers.
-      const { amount, partiallyAgreed } = quoteRequestAmount(rfqItems);
+      const { amount, agreement } = quoteRequestAmount(rfqItems);
       const totalAtAgreedPrice = rfqItems.every((it) => it.agreedUnitPrice != null)
         ? listTotal(rfqItems.map((it) => ({ price: it.agreedUnitPrice ?? '0', quantity: it.quantity })))
         : null;
@@ -277,7 +277,7 @@ export class RfqAdminService {
         totalAtCustomerPrice,
         totalAtAgreedPrice,
         amount,
-        partiallyAgreed,
+        agreement,
         taxRate: taxRateByOrg.get(rfq.organizationId) ?? 0,
         currency: rfqItems[0]?.lineCurrency ?? 'PLN',
         submittedAt: rfq.submittedAt?.toISOString() ?? null,

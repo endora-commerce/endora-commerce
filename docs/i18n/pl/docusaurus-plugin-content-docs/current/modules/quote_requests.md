@@ -219,15 +219,21 @@ lista w panelu administracyjnym, zapytania ofertowe powiązane z szansą sprzeda
 dokumenty projektu. Każda pozycja liczy się jako ilość × jej uzgodniona cena jednostkowa, a dopóki
 jej nie ma — cena jednostkowa, o którą prosił klient. Wartość każdej pozycji jest zaokrąglana
 połówkowo w górę do dwóch miejsc, a wartości pozycji są sumowane. Pozycja bez żadnej z tych cen nic
-nie dodaje. Kwota jest netto, w walucie pierwszej pozycji. Dopóki choć jedna pozycja nie ma
-uzgodnionej ceny, kwota jest pokazywana z oznaczeniem **Częściowo uzgodnione**. Zapytanie bez
-propozycji i bez uzgodnionej ceny jest więc warte `0.00` i jest częściowo uzgodnione. Pozycja po
-rewizji, której klient nie wycenił, liczy się według propozycji przeniesionej z ostatniej edycji
-szkicu przez klienta, dopóki sprzedawca nie ustali uzgodnionej ceny.
+nie dodaje. Kwota jest netto, w walucie pierwszej pozycji. Pozycja po rewizji, której klient nie
+wycenił, liczy się według propozycji przeniesionej z ostatniej edycji szkicu przez klienta, dopóki
+sprzedawca nie ustali uzgodnionej ceny.
 
-Lista w panelu administracyjnym podaje kwotę jako `amount`, a oznaczenie jako `partiallyAgreed` w
-każdym wierszu. Inne moduły odczytują ją przez `quoteRequestReadPort.amountOf(id)`, które zwraca
-`{ amount, currency, partiallyAgreed }` albo `null` dla zapytania, którego wywołujący nie widzi.
+| Pozycje | Wyświetlane |
+| --- | --- |
+| każda pozycja ma uzgodnioną cenę | kwota |
+| część pozycji ma uzgodnioną cenę | kwota z oznaczeniem **Częściowo uzgodnione** |
+| żadna pozycja nie ma uzgodnionej ceny, co najmniej jedna ma cenę, o którą prosił klient | kwota z oznaczeniem **Jeszcze nieuzgodnione** |
+| żadna pozycja nie ma żadnej ceny albo zapytanie nie ma pozycji | `—` |
+
+Lista w panelu administracyjnym podaje w każdym wierszu `amount` (`null`, gdy żadna pozycja nie ma
+ceny) i `agreement` (`agreed`, `partial` albo `none`). Inne moduły odczytują obie wartości przez
+`quoteRequestReadPort.amountOf(id)`, które zwraca `{ amount, currency, agreement }` albo `null` dla
+zapytania, którego wywołujący nie widzi.
 
 ## Historia
 

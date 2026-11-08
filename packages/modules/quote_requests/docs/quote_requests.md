@@ -241,16 +241,21 @@ project's linked records alike. Each line counts at its quantity × its agreed
 unit price, or — while it has none — the unit price the customer asked for.
 Each line's value is rounded half up to two places, and the line values are
 added. A line with neither price adds nothing. The amount is net of tax and in
-the first line's currency. While at least one line has no agreed price, the
-amount is shown with a **Partially agreed** marker. A request with no proposal
-and no agreed price is therefore worth `0.00`, and is partially agreed. A
-revised line the customer left unpriced counts at the proposal carried from
-the customer's last draft edit until the seller sets an agreed price.
+the first line's currency. A revised line the customer left unpriced counts at
+the proposal carried from the customer's last draft edit until the seller sets
+an agreed price.
 
-The admin list answers the amount as `amount` and the marker as
-`partiallyAgreed` on each row. Other modules read it through
-`quoteRequestReadPort.amountOf(id)`, which answers `{ amount, currency,
-partiallyAgreed }`, or `null` for a request the caller cannot see.
+| The lines | Shown |
+| --- | --- |
+| every line has an agreed price | the amount |
+| some lines have an agreed price | the amount, marked **Partially agreed** |
+| no line has an agreed price, at least one has an asked price | the amount, marked **Not yet agreed** |
+| no line has any price, or the request has no lines | `—` |
+
+The admin list answers `amount` (`null` when no line has a price) and
+`agreement` (`agreed`, `partial` or `none`) on each row. Other modules read
+both through `quoteRequestReadPort.amountOf(id)`, which answers `{ amount,
+currency, agreement }`, or `null` for a request the caller cannot see.
 
 ## History
 

@@ -482,11 +482,11 @@ export const OpportunityLinkSchema = z.object({
   total: z.string().optional(),
   currency: z.string().optional(),
   /**
-   * A Quote Request's link only, while available — `true` while not every line
-   * has an agreed price, so `total` counts asked prices for some (issue #456,
-   * `quoteRequestAmountSchema`).
+   * A Quote Request's link only, while available — how far its lines are
+   * agreed (issue #456, `quoteRequestAmountSchema`). `total` is absent when
+   * no line has a price.
    */
-  partiallyAgreed: z.boolean().optional(),
+  agreement: z.enum(['agreed', 'partial', 'none']).optional(),
   syncStatus: z.boolean(),
   linkSource: opportunityLinkSourceSchema,
   createdAt: isoTimestampSchema,

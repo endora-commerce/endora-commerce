@@ -292,7 +292,7 @@ export class LinkService {
               status: view.status,
               ...(view.amount !== null ? { amount: view.amount } : {}),
               ...(view.currency !== null ? { currency: view.currency } : {}),
-              ...(view.partiallyAgreed !== undefined ? { partiallyAgreed: view.partiallyAgreed } : {}),
+              ...(view.agreement !== undefined ? { agreement: view.agreement } : {}),
               href: view.href,
             }
           : {}),

@@ -2,6 +2,7 @@ import type {
   OpportunityReadPort,
   OrderReadPort,
   ProjectRecordKind,
+  QuoteRequestAgreement,
   QuoteRequestReadPort,
 } from '@endora-commerce/contracts';
 import { effectiveState } from '@endora-commerce/platform/kernel';
@@ -35,11 +36,8 @@ export interface LinkedRecordView {
   /** Two places, or `null` when the record has none (an Opportunity without a value). */
   amount: string | null;
   currency: string | null;
-  /**
-   * A Quote Request only: `true` while not every line has an agreed price
-   * (issue #456). Absent for the other kinds.
-   */
-  partiallyAgreed?: boolean;
+  /** A Quote Request only: how far its lines are agreed (issue #456). Absent for the other kinds. */
+  agreement?: QuoteRequestAgreement;
   /** The record's own admin screen. */
   href: string;
 }
@@ -90,7 +88,7 @@ export function createLinkedRecordOwners(ports: LinkedRecordPorts): LinkedRecord
     // The amount is `quote_requests`' to compute (issue #456), not this module's.
     const worth = await ports.quoteRequests.amountOf(record.id);
     if (!worth) return null;
-    const { amount, currency, partiallyAgreed } = worth;
+    const { amount, currency, agreement } = worth;
     return {
       kind: 'quote_request',
       id: record.id,
@@ -99,7 +97,7 @@ export function createLinkedRecordOwners(ports: LinkedRecordPorts): LinkedRecord
       status: record.status,
       amount,
       currency,
-      partiallyAgreed,
+      agreement,
       href: `/quote-requests/${record.id}`,
     };
   };
