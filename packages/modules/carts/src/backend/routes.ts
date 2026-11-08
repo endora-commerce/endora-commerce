@@ -19,6 +19,7 @@ import {
   OrganizationCannotTransactError,
   organizationPermissionPreHandler,
   type OrganizationPermissionPort,
+  type ProductTaxRateResolver,
   type CatalogProductAvailabilityPort,
   type CatalogProductUrlKeyReadPort,
   type CatalogProductReadPort,
@@ -62,7 +63,6 @@ import {
   type RequireCustomerGuard,
 } from '@endora-commerce/platform/kernel';
 import { cartLineAmount, cartSubtotal, cartTotalAfterDiscount, cartVatMoney } from './services/cart-money.js';
-import type { CartTaxRateResolver } from './services/cart-tax-rates.js';
 
 const ANON_COOKIE = 'b2b_cart_anon';
 
@@ -135,7 +135,7 @@ export interface CartsDeps {
    * as placement resolves the order's. The full view answers the cart's VAT
    * per rate from it, so a client never derives a gross itself.
    */
-  cartTaxRates: CartTaxRateResolver;
+  cartTaxRates: ProductTaxRateResolver;
   /**
    * Feature 027 US3 — ShoppingListService.convertToCart bridge for the
    * `POST /api/v1/cart/from-shopping-list/:listId` endpoint. Returns the

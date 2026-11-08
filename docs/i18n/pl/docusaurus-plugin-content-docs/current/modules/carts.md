@@ -325,7 +325,9 @@ składaniu zamówienia, więc cena, którą kupujący widzi w koszyku, jest cen�
 zamówienia — pilnuje tego `backend/test/integration/carts/cart-read-equals-placement.test.ts`.
 VAT liczy `cartVatMoney` (`src/backend/services/cart-money.ts`), wywołując `vatByRate` z kontraktów
 — tę samą funkcję, której używają sumy zamówienia — ze stawkami ustalonymi przez
-`createCartTaxRateResolver` (`cart-tax-rates.ts`); zgodność kwot koszyka z kwotami zamówienia
+`createProductTaxRateResolver` (`@endora-commerce/contracts`) — tę samą regułę, której używa
+`vatRate` katalogu, więc cena brutto produktu na jego stronie i w koszyku pochodzi z jednej stawki;
+zgodność kwot koszyka z kwotami zamówienia
 utrzymują `backend/test/unit/carts/cart-vat-equals-order.test.ts` i
 `backend/test/integration/carts/cart-vat-equals-placement.test.ts`.
 

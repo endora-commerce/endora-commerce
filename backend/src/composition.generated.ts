@@ -92,24 +92,24 @@ import * as module23 from '@endora-commerce/mod-prompt-actions/backend';
 import { manifest as manifest23 } from '@endora-commerce/mod-prompt-actions';
 import * as module24 from '@endora-commerce/mod-sales-channels/backend';
 import { manifest as manifest24 } from '@endora-commerce/mod-sales-channels';
-import * as module25 from '@endora-commerce/mod-catalog/backend';
-import { manifest as manifest25 } from '@endora-commerce/mod-catalog';
-import * as module26 from '@endora-commerce/mod-cms/backend';
-import { manifest as manifest26 } from '@endora-commerce/mod-cms';
-import * as module27 from '@endora-commerce/mod-blog/backend';
-import { manifest as manifest27 } from '@endora-commerce/mod-blog';
-import * as module28 from '@endora-commerce/mod-google-analytics/backend';
-import { manifest as manifest28 } from '@endora-commerce/mod-google-analytics';
-import * as module29 from '@endora-commerce/mod-google-tag-manager/backend';
-import { manifest as manifest29 } from '@endora-commerce/mod-google-tag-manager';
-import * as module30 from '@endora-commerce/mod-linkedin-ads/backend';
-import { manifest as manifest30 } from '@endora-commerce/mod-linkedin-ads';
-import * as module31 from '@endora-commerce/mod-meta-ads/backend';
-import { manifest as manifest31 } from '@endora-commerce/mod-meta-ads';
-import * as module32 from '@endora-commerce/mod-seo/backend';
-import { manifest as manifest32 } from '@endora-commerce/mod-seo';
-import * as module33 from '@endora-commerce/mod-taxes/backend';
-import { manifest as manifest33 } from '@endora-commerce/mod-taxes';
+import * as module25 from '@endora-commerce/mod-cms/backend';
+import { manifest as manifest25 } from '@endora-commerce/mod-cms';
+import * as module26 from '@endora-commerce/mod-google-analytics/backend';
+import { manifest as manifest26 } from '@endora-commerce/mod-google-analytics';
+import * as module27 from '@endora-commerce/mod-google-tag-manager/backend';
+import { manifest as manifest27 } from '@endora-commerce/mod-google-tag-manager';
+import * as module28 from '@endora-commerce/mod-linkedin-ads/backend';
+import { manifest as manifest28 } from '@endora-commerce/mod-linkedin-ads';
+import * as module29 from '@endora-commerce/mod-meta-ads/backend';
+import { manifest as manifest29 } from '@endora-commerce/mod-meta-ads';
+import * as module30 from '@endora-commerce/mod-taxes/backend';
+import { manifest as manifest30 } from '@endora-commerce/mod-taxes';
+import * as module31 from '@endora-commerce/mod-catalog/backend';
+import { manifest as manifest31 } from '@endora-commerce/mod-catalog';
+import * as module32 from '@endora-commerce/mod-blog/backend';
+import { manifest as manifest32 } from '@endora-commerce/mod-blog';
+import * as module33 from '@endora-commerce/mod-seo/backend';
+import { manifest as manifest33 } from '@endora-commerce/mod-seo';
 import * as module34 from '@endora-commerce/mod-transactional-emails/backend';
 import { manifest as manifest34 } from '@endora-commerce/mod-transactional-emails';
 import * as module35 from '@endora-commerce/mod-organizations/backend';
@@ -205,15 +205,15 @@ export const MODULES: readonly ModuleEntry[] = [
   { id: 'pim_connector', version: manifest22.version, registerModule: module22.registerModule },
   { id: 'prompt_actions', version: manifest23.version, registerModule: module23.registerModule },
   { id: 'sales_channels', version: manifest24.version, registerModule: module24.registerModule },
-  { id: 'catalog', version: manifest25.version, registerModule: module25.registerModule },
-  { id: 'cms', version: manifest26.version, registerModule: module26.registerModule },
-  { id: 'blog', version: manifest27.version, registerModule: module27.registerModule },
-  { id: 'google_analytics', version: manifest28.version, registerModule: module28.registerModule },
-  { id: 'google_tag_manager', version: manifest29.version, registerModule: module29.registerModule },
-  { id: 'linkedin_ads', version: manifest30.version, registerModule: module30.registerModule },
-  { id: 'meta_ads', version: manifest31.version, registerModule: module31.registerModule },
-  { id: 'seo', version: manifest32.version, registerModule: module32.registerModule },
-  { id: 'taxes', version: manifest33.version, registerModule: module33.registerModule },
+  { id: 'cms', version: manifest25.version, registerModule: module25.registerModule },
+  { id: 'google_analytics', version: manifest26.version, registerModule: module26.registerModule },
+  { id: 'google_tag_manager', version: manifest27.version, registerModule: module27.registerModule },
+  { id: 'linkedin_ads', version: manifest28.version, registerModule: module28.registerModule },
+  { id: 'meta_ads', version: manifest29.version, registerModule: module29.registerModule },
+  { id: 'taxes', version: manifest30.version, registerModule: module30.registerModule },
+  { id: 'catalog', version: manifest31.version, registerModule: module31.registerModule },
+  { id: 'blog', version: manifest32.version, registerModule: module32.registerModule },
+  { id: 'seo', version: manifest33.version, registerModule: module33.registerModule },
   { id: 'transactional_emails', version: manifest34.version, registerModule: module34.registerModule },
   { id: 'organizations', version: manifest35.version, registerModule: module35.registerModule },
   { id: 'addresses', version: manifest36.version, registerModule: module36.registerModule },

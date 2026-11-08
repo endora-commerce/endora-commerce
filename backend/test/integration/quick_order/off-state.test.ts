@@ -37,6 +37,13 @@ import { seedMemberWithPermissions } from '../../helpers/seed-organization-roles
  *    deliberately not the code written here;
  *  * **restoration** — asserted by the harness after both axes.
  */
+/** A one-line preview, the shape `PUT /api/v1/quick-order/preview` accepts (issue #809). */
+const PREVIEW = {
+  recognized: [{ line: 1, sku: 'BOLT-1', productId: '00000000-0000-4000-8000-00000000f001', variantId: null, quantity: 4 }],
+  rejected: [],
+  summary: { recognizedCount: 1, rejectedCount: 0, mergedCount: 0, truncated: false },
+};
+
 describe('quick_order off-state (Constitution XVII)', () => {
   let h: BackendServerHandle;
   const admin = { b2b_session: 'stub-admin-session' };
@@ -62,6 +69,9 @@ describe('quick_order off-state (Constitution XVII)', () => {
         },
         { url: '/api/v1/quick-order/preferences', cookies: customer },
         { url: '/api/v1/quick-order/search?q=widget', cookies: customer },
+        // Issue #809 — the buyer's preview is this module's too.
+        { url: '/api/v1/quick-order/preview', cookies: customer },
+        { method: 'PUT', url: '/api/v1/quick-order/preview', cookies: customer, payload: PREVIEW },
       ],
       adminPresence: { cookies: admin },
       settingWrite: {
@@ -71,6 +81,38 @@ describe('quick_order off-state (Constitution XVII)', () => {
       },
     });
   });
+  /**
+   * Issue #809 — off is non-destructive: a buyer's preview is refused while the module is off,
+   * on either axis, and is there again, unchanged, once it is back (its TTL permitting).
+   */
+  it.each(['deactivated', 'platform-unavailable'] as const satisfies readonly OffStateAxis[])(
+    'keeps the buyer\'s preview while off (%s) and serves it again after',
+    async (axis) => {
+      const written = await h.app.inject({
+        method: 'PUT',
+        url: '/api/v1/quick-order/preview',
+        cookies: customer,
+        payload: PREVIEW,
+      });
+      expect(written.statusCode, written.body).toBe(200);
+
+      await withModuleOff('quick_order', axis, async () => {
+        // The DELETE is probed here rather than in `expectModuleAbsent`, whose "answering"
+        // phases read a JSON body that a 204 does not have.
+        for (const method of ['GET', 'DELETE'] as const) {
+          const off = await h.app.inject({ method, url: '/api/v1/quick-order/preview', cookies: customer });
+          expect(off.statusCode, off.body).toBe(503);
+          expect((off.json() as { error: { code: string } }).error.code).toBe('MODULE_DISABLED');
+        }
+      });
+
+      const back = await h.app.inject({ method: 'GET', url: '/api/v1/quick-order/preview', cookies: customer });
+      expect(back.statusCode, back.body).toBe(200);
+      expect(back.json()).toEqual({ data: PREVIEW });
+      await h.app.inject({ method: 'DELETE', url: '/api/v1/quick-order/preview', cookies: customer });
+    },
+  );
+
   /**
    * `specs/170-organization-roles/` WP-06 (T087; FR-007, FR-025, US 8, SC-007)
    * — its permission follow the module's presence. While it is off, on either axis,

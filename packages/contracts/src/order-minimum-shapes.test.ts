@@ -194,6 +194,7 @@ describe('admin order preview', () => {
   it('keeps BELOW_MINIMUM_QUANTITY last, after the pricing codes (UNPRICED since feature 160)', () => {
     expect(ADMIN_ORDER_PREVIEW_MESSAGE_PRECEDENCE).toEqual([
       'PRODUCT_NOT_FOUND',
+      'PRODUCT_ARCHIVED',
       'PRODUCT_NOT_VISIBLE_TO_CUSTOMER',
       'PRODUCT_NOT_IN_SALES_CHANNEL',
       'QUOTE_ONLY',

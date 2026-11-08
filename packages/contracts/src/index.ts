@@ -40,6 +40,8 @@ export * from './money-input.js';
 // Feature 161 (G15) — the admin name fold shared by catalog's stored keys and price_lists' grid order.
 export * from './admin-name.js';
 export * from './taxes.js';
+// Issue #852 — the buyer's VAT rate per product tax class, shared by the cart and the catalogue.
+export * from './product-tax-rates.js';
 export * from './promotions.js';
 export * from './inventory.js';
 export * from './invoices.js';

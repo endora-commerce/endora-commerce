@@ -88,6 +88,18 @@ already deleted that organization. Placed orders keep their address snapshots.
 The anonymization audit entries record that the data was erased, not the data
 itself.
 
+Reasons that operators wrote about the customer are erased too: the account's
+block reason and, for an individual, the block and rejection reasons on their
+personal organization. A company organization keeps its reasons. The block or
+rejection itself stays, so the customer screens still show the status and its
+date, without a reason. The anonymization audit entries record only that a
+reason existed. If an account anonymized before reasons were erased still has a
+block reason, the next run erases it, together with any reasons left on its
+personal organization, and records one more audit entry for each. Audit
+entries written earlier, such as the entry for the block itself, keep the
+values they recorded, the reason included, until earlier entries are redacted
+on anonymization ([#844](https://github.com/endora-commerce/endora-commerce/issues/844)).
+
 The sweep also erases the reasons operators and approvers gave for rejecting
 the account's carts, keeping each cart's status; the carts module documents
 what it erases and what it keeps (*Audit retention*).
