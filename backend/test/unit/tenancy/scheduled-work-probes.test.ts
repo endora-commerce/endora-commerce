@@ -2,6 +2,7 @@ import { existsSync, readdirSync, readFileSync } from 'node:fs';
 import { join, relative, sep } from 'node:path';
 import { fileURLToPath } from 'node:url';
 import { describe, expect, it, vi } from 'vitest';
+import { anyRowExists as customerAccountsAnyRowExists } from '../../../../packages/modules/customer_accounts/src/backend/services/scheduled-work-probe.js';
 import { anyRowExists as crmAnyRowExists } from '../../../../packages/modules/crm/src/backend/services/scheduled-work-probe.js';
 import { anyRowExists as ordersAnyRowExists } from '../../../../packages/modules/orders/src/backend/services/scheduled-work-probe.js';
 import { anyRowExists as priceListsAnyRowExists } from '../../../../packages/modules/price_lists/src/backend/services/scheduled-work-probe.js';
@@ -51,6 +52,12 @@ const PROBES = [
   { module: 'tasks', file: 'services/reminder-service.ts', method: 'hasWork' },
   { module: 'tasks', file: 'services/digest-service.ts', method: 'hasWork' },
   { module: 'tasks', file: 'services/maintenance-service.ts', method: 'hasWork' },
+  // Issue #857 — the owner of the table answers for `customers`' anonymisation sweep tick.
+  {
+    module: 'customer_accounts',
+    file: 'services/customer-account-lifecycle-ports.ts',
+    method: 'hasDueForAnonymization',
+  },
 ] as const;
 
 const HELPER = 'services/scheduled-work-probe.ts';
@@ -128,6 +135,7 @@ describe('scheduled work probes answer one bit (issue #120)', () => {
     ['quote_requests', quoteRequestsAnyRowExists],
     ['projects', projectsAnyRowExists],
     ['tasks', tasksAnyRowExists],
+    ['customer_accounts', customerAccountsAnyRowExists],
   ] as const)('anyRowExists (%s)', (_module, anyRowExists) => {
     const emAnswering = (rows: unknown) => ({ execute: vi.fn(async () => rows) });
 

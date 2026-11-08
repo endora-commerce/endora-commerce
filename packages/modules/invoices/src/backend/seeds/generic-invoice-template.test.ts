@@ -28,12 +28,12 @@ describe('generic invoice template seed', () => {
     }
   });
 
-  it('keeps the seed revision, so no stored template is rewritten by the change', () => {
-    // `ensureGenericSeed` rewrites an existing system row when this number
-    // advances. Bumping it here would strip the KSeF node out of every
-    // existing instance's stored template — a write into stored documents the
-    // ruling rules out: existing templates keep the node, and it takes the
-    // FR-019 path wherever its declarant is absent.
-    expect(GENERIC_INVOICE_TEMPLATE_SEED_REVISION).toBe(2);
+  it('is at revision 3, the layout with empty labels (issue #437)', () => {
+    // T063 kept revision 2 because `ensureGenericSeed` rewrote the stored
+    // system row whenever it advanced, which would have stripped the KSeF
+    // node out of existing templates. That code went with `invoice_templates`
+    // (spec 152), so advancing it rewrites nothing; stored templates are
+    // corrected by `document_templates`' own migration, prop by prop.
+    expect(GENERIC_INVOICE_TEMPLATE_SEED_REVISION).toBe(3);
   });
 });

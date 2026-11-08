@@ -1,0 +1,5 @@
+---
+'@endora-commerce/cli': minor
+---
+
+A check that runs several of the CLI's source recognisers over one tree can now parse each file once (issue #910). The new `@endora-commerce/cli/lib/parsed-source.js` exports `withSharedParses(work)`: inside `work`, `namedSpecifiers`, `sqlTableAccesses`, `declaredIndexes` and `declaredTableNames` share what they read from a `(file, source)` pair instead of each calling `ts.createSourceFile` again. The scope keeps the small answers for its whole length and only the most recent parse tree, so memory stays flat; outside a scope nothing is kept and every call behaves exactly as before. `work` must be synchronous: a `work` that returns a promise throws a `TypeError`. `parseSource(file, source)` and `rememberRead(read, file, source, derive)` are exported so a rule's own reads can share the same scope. In `rules/subscribe-seam.js`, `findBareSubscriptions`, `findWorkerFactories` and `findSeamForwarders` share one parse per file inside a scope, and `findWorkerSites` now parses only files that import BullMQ's `Worker` or call a worker factory. No result changes.

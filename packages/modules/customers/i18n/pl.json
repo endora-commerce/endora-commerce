@@ -89,5 +89,6 @@
   "adminSearch.status.blocked": "Zablokowany",
   "actions.openCustomers.keywords": "klienci, klient",
   "actions.onlineCustomers.keywords": "aktywni, klienci online",
-  "errors.CUSTOMER_ADDRESS_BOOK_RETIRED": "Osobista książka adresowa została wycofana. Adresy są przechowywane w książce adresowej Twojej organizacji."
+  "errors.CUSTOMER_ADDRESS_BOOK_RETIRED": "Osobista książka adresowa została wycofana. Adresy są przechowywane w książce adresowej Twojej organizacji.",
+  "settingGroups.customers.name": "Klienci"
 }

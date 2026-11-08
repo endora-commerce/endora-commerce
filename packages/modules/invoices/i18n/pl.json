@@ -80,5 +80,6 @@
   "lines.discount": "Rabat",
   "lines.priceReduction": "Obniżka ceny (reklamacja {rma}): {product}",
   "lines.priceReductionUnreferenced": "Obniżka ceny (reklamacja): {product}",
-  "actions.openInvoices.keywords": "faktury"
+  "actions.openInvoices.keywords": "faktury",
+  "settingGroups.invoices.name": "Faktury"
 }

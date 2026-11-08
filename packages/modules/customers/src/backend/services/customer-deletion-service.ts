@@ -120,6 +120,15 @@ export class CustomerDeletionService {
   }
 
   /**
+   * Whether {@link sweep} with the same `retentionDays` and `now` would find an
+   * account to anonymize — yes or no (issue #857). The owner of the table
+   * answers over the work list's own predicate, at the same cutoff.
+   */
+  async hasDue(retentionDays: number, now: Date): Promise<boolean> {
+    return this.accountWrites.hasDueForAnonymization(retentionCutoff(retentionDays, now));
+  }
+
+  /**
    * Permanently anonymizes every soft-deleted account whose retention window
    * has elapsed (`deletedAt + retentionDays < now`). Returns the number
    * anonymized. Called by the repeatable sweep worker.

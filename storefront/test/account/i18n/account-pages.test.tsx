@@ -192,6 +192,9 @@ describe('account shell — the shop language (issue #85)', () => {
     expect(en).toContain('OrganizationOrganization addressesMembersRolesCarts to approve (1)');
     expect(en).not.toMatch(POLISH_DIACRITIC);
     expect(pl).toContain('ProfilZmień hasłoZamówieniaZwrotyZapytania ofertoweListy zakupów');
+    // Issue #359 — the ordering preferences, beside the quick order they serve.
+    expect(en).toContain('Quick orderOrdering preferences');
+    expect(pl).toContain('Szybkie zamówienieUstawienia zamówień');
     expect(pl).toContain('OrganizacjaAdresy organizacjiCzłonkowieRoleKoszyki do akceptacji (1)');
     expect(en).toContain('Sign out');
     expect(pl).toContain('Wyloguj się');

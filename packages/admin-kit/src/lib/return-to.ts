@@ -15,9 +15,13 @@ export const RETURN_TO_PARAM = 'returnTo';
 
 const IN_APP_PATH = /^\/(?![/\\])/;
 
-/** The return address a query names, or `null` when it names none this application would follow. */
-export function readReturnTo(params: URLSearchParams): string | null {
-  const value = params.get(RETURN_TO_PARAM) ?? '';
+/**
+ * The return address a query names, or `null` when it names none this application would follow.
+ *
+ * `param` names another parameter read by the same rule — `/login?next=` (issue #859).
+ */
+export function readReturnTo(params: URLSearchParams, param: string = RETURN_TO_PARAM): string | null {
+  const value = params.get(param) ?? '';
   return IN_APP_PATH.test(value) ? value : null;
 }
 

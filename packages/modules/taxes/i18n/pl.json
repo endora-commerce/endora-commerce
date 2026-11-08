@@ -2,5 +2,6 @@
   "nav.taxes.label": "Podatki",
   "actions.openTaxes.label": "Podatki",
   "actions.openTaxes.description": "Zarządzaj stawkami podatkowymi i regułami ich stosowania",
-  "actions.openTaxes.keywords": "podatek, podatki, stawka, stawki"
+  "actions.openTaxes.keywords": "podatek, podatki, stawka, stawki",
+  "settingGroups.taxes.name": "Podatki"
 }

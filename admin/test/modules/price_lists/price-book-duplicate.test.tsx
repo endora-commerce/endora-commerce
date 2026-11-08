@@ -93,7 +93,15 @@ describe('duplicate a price book', () => {
     await user.click(within(dialog).getByRole('checkbox', { name: 'B2B EU' }));
     await user.click(await within(dialog).findByRole('button', { name: 'Remove Acme B2B (demo)' }));
     await user.type(within(dialog).getByRole('combobox', { name: 'Add an organization' }), 'Beta');
-    await user.click(await screen.findByRole('option', { name: /Beta/ }));
+    // The list opens on the answer for no search, Beta second, and the search for "Beta" is
+    // debounced: under load its answer can replace that list before a click on it lands. Click
+    // the option once the list is that answer.
+    await waitFor(() =>
+      expect(within(screen.getByRole('listbox')).getAllByRole('option').map((option) => option.textContent)).toEqual([
+        expect.stringContaining('Beta'),
+      ]),
+    );
+    await user.click(within(screen.getByRole('listbox')).getByRole('option', { name: /Beta/ }));
     const multiplier = within(dialog).getByLabelText('Multiply fixed prices by');
     await user.clear(multiplier);
     await user.type(multiplier, '0,23');

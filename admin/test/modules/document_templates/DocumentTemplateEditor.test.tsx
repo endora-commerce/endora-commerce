@@ -21,13 +21,18 @@ import { BUNDLE, comparisonConfig, detail, invoiceConfig, typeDetail } from './f
  */
 
 let lastPuck: { config: Config; data: Data } | null = null;
-vi.mock('@endora-commerce/page-builder-core/editor', async (importOriginal) => ({
-  ...(await importOriginal<typeof import('@endora-commerce/page-builder-core/editor')>()),
-  Puck: (props: { config: Config; data: Data }) => {
-    lastPuck = props;
-    return <div data-testid="puck" />;
-  },
-}));
+vi.mock('@endora-commerce/page-builder-core/editor', async (importOriginal) => {
+  const { useBlockRenderEnvironment } = await import('@endora-commerce/page-builder-core/contributions');
+  return {
+    ...(await importOriginal<typeof import('@endora-commerce/page-builder-core/editor')>()),
+    Puck: (props: { config: Config; data: Data }) => {
+      lastPuck = props;
+      // What a block on the canvas reads as the language of the tree it draws (issue #888).
+      const { language, preview } = useBlockRenderEnvironment();
+      return <div data-testid="puck" data-language={language} data-preview={String(preview)} />;
+    },
+  };
+});
 
 const api = {
   getTemplate: vi.fn(),
@@ -169,5 +174,18 @@ describe('DocumentTemplateEditor (spec 152)', () => {
     expect(components().some((name) => name.startsWith('document_templates.'))).toBe(false);
     expect(screen.queryByTestId('language-switcher')).toBeNull();
     expect(screen.queryByTestId('merge-fields')).toBeNull();
+  });
+
+  it('hands the edited language to the blocks on the canvas, as a preview (issue #888)', async () => {
+    api.getTemplate.mockResolvedValue(
+      detail({ documentType: 'invoices.invoice', content: { schemaVersion: 1, languages: { 'pl-PL': { root: { props: {} }, content: [] } } } }),
+    );
+    api.getDocumentType.mockResolvedValue(
+      typeDetail({ code: 'invoices.invoice', moduleId: 'invoices', labelKey: 'documentTypes.invoice.label', languages: ['pl-PL'] }),
+    );
+    api.getBuilderConfig.mockResolvedValue(invoiceConfig());
+    renderEditor();
+    await waitFor(() => expect(screen.getByTestId('puck').getAttribute('data-language')).toBe('pl-PL'));
+    expect(screen.getByTestId('puck').getAttribute('data-preview')).toBe('true');
   });
 });

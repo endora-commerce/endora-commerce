@@ -520,5 +520,6 @@
   "settings.retention.cancel": "Anuluj",
   "settings.retention.readOnly": "Zmiana okresu przechowywania wymaga uprawnienia do obsługi i usuwania zgłoszeń oraz dostępu do wszystkich organizacji.",
   "errors.FORM_CAPTCHA_FAILED": "Nie udało się potwierdzić, że nie jesteś robotem. Wykonaj weryfikację i wyślij formularz ponownie.",
-  "errors.FORM_CAPTCHA_UNAVAILABLE": "Usługa weryfikacji jest teraz niedostępna. Odczekaj chwilę i wyślij formularz ponownie."
+  "errors.FORM_CAPTCHA_UNAVAILABLE": "Usługa weryfikacji jest teraz niedostępna. Odczekaj chwilę i wyślij formularz ponownie.",
+  "settingGroups.forms.name": "Formularze"
 }
