@@ -6,6 +6,7 @@ import {
   allocateHalfUp,
   decimalDifference,
   decimalProduct,
+  lineAmountHalfUp,
   moneyDifference,
   moneySum,
   netForGrossAtRate,
@@ -28,10 +29,15 @@ import { refuseDuplicateInvoiceNumber } from './duplicate-number-refusal.js';
 // it. Naming it from `@endora-commerce/contracts` keeps that direction while removing the
 // import: the implementor no longer depends on the declarer's directory.
 import type {
+  CorrectionLineBasis,
   CorrectiveInvoiceInput,
   CorrectiveInvoicePort,
   CorrectiveInvoiceResult,
+  SupportedLanguage,
 } from '@endora-commerce/contracts';
+import { supportedLanguageOf } from '@endora-commerce/contracts';
+import { INVOICE_RENDER_LANGUAGE } from '../document/invoice-document-type.js';
+import { invoicesProse, type InvoicesTranslate } from '../invoices-prose.js';
 
 /** The smaller of two decimals. */
 function minDecimal(a: string, b: string): string {
@@ -56,13 +62,72 @@ export class CorrectionTotalExceedsLinesError extends Error {
   }
 }
 
-/** A line already credited by an earlier correction of the same invoice, or a line of that invoice. */
+/**
+ * A correction asked to credit more goods at one VAT rate than the invoice
+ * still charges at that rate (issue #885). Crediting it would take back more
+ * VAT than the rate charged.
+ */
+export class CorrectionExceedsRateRemainingError extends Error {
+  constructor(
+    readonly taxRate: string,
+    readonly remaining: string,
+  ) {
+    super(`The correction credits more at ${taxRate} VAT than the invoice still charges there, ${remaining}.`);
+    this.name = 'CorrectionExceedsRateRemainingError';
+  }
+}
+
+/**
+ * On a correction, a goods line (one naming an order item) stored with
+ * quantity 0 is a price reduction (issue #885): its value changed, not its
+ * quantity. Corrections written before #885 never stored a goods line with
+ * quantity 0, so the rule holds for the whole history.
+ */
+export function isPriceReductionLine(l: { orderItemId?: string | null; quantity: string | number }): boolean {
+  return !!l.orderItemId && Number(l.quantity) === 0;
+}
+
+/** The units a correction line credits: none for a price reduction. */
+export function creditedQuantity(l: { orderItemId?: string | null; quantity: string | number }): number {
+  return isPriceReductionLine(l) ? 0 : Number(l.quantity);
+}
+
+/**
+ * The quantity a correction line is stored with: 0 for a price reduction, the
+ * returned quantity otherwise — and never 0 for returned goods, so a returned
+ * line is never read back as a price reduction.
+ */
+export function storedCorrectionQuantity(basis: CorrectionLineBasis | undefined, quantity: number): number {
+  return basis === 'price_reduction' ? 0 : quantity || 1;
+}
+
+/** A line already credited by an earlier correction of the same invoice, or a goods line of that invoice. */
 export interface CreditedLine {
   orderItemId: string;
   rate: string;
   net: string;
   gross: string;
+  /** As stored. On an earlier correction, 0 is a price reduction ({@link isPriceReductionLine}). */
+  quantity: number;
+  unitNetPrice: string;
 }
+
+/** One row of the corrected invoice's per-rate summary, as `invoices.vat_summary` stores it. */
+export interface CorrectedSummaryRow {
+  taxRate: string;
+  netTotal: string;
+  vatAmount: string;
+  grossTotal: string;
+}
+
+/**
+ * How a rate's credited net was found (issue #873). Returned for tests and not
+ * persisted: `quantity` — the refund is the default one, and the invoice keeps
+ * `vatByRate` of the kept nets; `gross` — what the invoice keeps at the rate
+ * has a net under the rule; `gross_credit` — it has none, but the credit does;
+ * `gross_nearest` — neither does, so the nearest net is kept.
+ */
+export type CorrectionPath = 'quantity' | 'gross' | 'gross_credit' | 'gross_nearest';
 
 export interface CorrectionInput {
   /** The gross the correction credits. Refused when above the sum of `lines`. */
@@ -77,9 +142,11 @@ export interface CorrectionInput {
    * credited line by line, in proportion to what each line was invoiced.
    */
   perRate: boolean;
-  /** The corrected invoice's lines — read for an invoice issued before the per-rate method. */
+  /** The corrected invoice's goods lines, with the quantities and unit prices it invoiced. */
   originalLines: readonly CreditedLine[];
-  /** The lines of earlier corrections of the same invoice. */
+  /** The corrected invoice's stored per-rate summary — read on an invoice issued per rate. */
+  originalSummary?: readonly CorrectedSummaryRow[] | null;
+  /** The goods lines of earlier, not cancelled, corrections of the same invoice. */
   earlierLines: readonly CreditedLine[];
   lines: ReadonlyArray<{
     amount: string | number;
@@ -88,13 +155,31 @@ export interface CorrectionInput {
     quantity: number;
     rate: string | number;
     orderItemId: string;
+    /** What the line documents (issue #885); `returned_goods` when absent. */
+    basis?: CorrectionLineBasis;
   }>;
+}
+
+const ZERO = '0.00';
+
+/** `round(net × rate)`, the VAT `vatByRate` charges on a net at one rate. */
+function vatAt(net: string, rate: string): string {
+  return roundHalfUp(decimalProduct(net, rate));
+}
+
+/** `net` shared over `weights` in proportion, adding up to `net` exactly. */
+function shareOut(net: string, weights: readonly string[]): string[] {
+  const sum = moneySum(weights, 6);
+  if (compareDecimals(sum, 0) === 0) return weights.map(() => ZERO);
+  return allocateHalfUp(
+    net,
+    weights.map((w) => quotientHalfUp(decimalProduct(net, w), sum, 6)),
+  );
 }
 
 /**
  * A correction's amounts, in exact decimal arithmetic, under the invoice's VAT
- * method and **cumulatively** over the corrections of one invoice (issue #417,
- * owner ruling of 2026-10-24, review of PR #423).
+ * method (issue #417, owner ruling of 2026-10-24, review of PR #423).
  *
  * The credited amount is gross (a return credits what was paid, tax included),
  * capped at what remains of the invoice after earlier corrections (FR-020),
@@ -102,15 +187,36 @@ export interface CorrectionInput {
  * refused ({@link CorrectionTotalExceedsLinesError}) rather than booked as a
  * net with no VAT and no line.
  *
- * What the invoice charged is split into groups: a VAT rate of an invoice
- * issued per rate, a line of one issued before 0.108.0. For each group, the
- * correction credits the net of everything credited so far, this correction
- * included, minus the nets earlier corrections already credited — per rate the
- * net `netForGrossAtRate` gives the cumulative gross (`N` with
- * `N + round(N × rate) = gross`), per line the invoiced line net in proportion
- * to the cumulative gross. The differences telescope: all corrections together
- * credit exactly the invoiced net and VAT. A group's net is shared over the
- * correction's lines in it in proportion to their gross (`allocateHalfUp`).
+ * **An invoice issued per rate** (issue #873) is corrected on what it keeps,
+ * rate by rate. Before the correction the invoice keeps `Nb` net and `Vb` VAT
+ * at a rate, `Gb` gross: its summary row less what earlier corrections credited
+ * there. The correction credits `G` gross at the rate. Its goods lines leave
+ * each invoiced line with a kept quantity — the invoiced quantity less every
+ * credited quantity, where a price reduction (issue #885) credits none — and
+ * the kept net `K` is those quantities at the invoiced unit prices.
+ * - **Quantity path**: when `Gb − G` is `K + round(K × rate)`, the refund is the
+ *   default one; the invoice keeps `K` net and `round(K × rate)` VAT, exactly
+ *   what `vatByRate` charges on the kept nets, and the correction credits the
+ *   rest.
+ * - **Gross path** otherwise — an operator-reduced amount, a price reduction, a
+ *   capped credit, an order placed before 0.108.0: the invoice keeps `Gb − G`
+ *   gross. When a net has that gross under the rule, the invoice keeps it;
+ *   otherwise, when one has `G`, the correction credits it; otherwise the
+ *   invoice keeps the nearest (owner ruling E1, 2026-11-07: the money is exact,
+ *   and what is left may be a cent off the rule until the next correction).
+ *
+ * In every case the credited VAT is `G` less the credited net, which lies
+ * within `[0, G]` and never above `Nb`; a `G` above `Gb` is refused
+ * ({@link CorrectionExceedsRateRemainingError}). On the quantity path a rate's
+ * net is shared over its lines by what each line's kept net fell; otherwise in
+ * proportion to their gross.
+ *
+ * **An invoice issued before 0.108.0** is credited line by line, cumulatively:
+ * the invoiced line net in proportion to the cumulative gross, less the nets
+ * earlier corrections credited.
+ *
+ * An order-level discount the goods carried is credited back as a negative
+ * 0 % amount. A price-reduction line carries none.
  */
 export function correctionAmounts(input: CorrectionInput): {
   credited: string;
@@ -121,15 +227,17 @@ export function correctionAmounts(input: CorrectionInput): {
   vatSummary: Array<{ taxRate: string; netTotal: string; vatAmount: string; grossTotal: string }>;
   /** The order-level discount credited back, as a negative 0 % amount (`0.00` when none). */
   discountCredit: string;
+  /** Per rate of an invoice issued per rate, how its net was found. Not persisted. */
+  paths: Record<string, CorrectionPath>;
 } {
-  const asked = input.lines.map((l) => (compareDecimals(l.amount, 0) < 0 ? '0.00' : roundHalfUp(l.amount)));
+  const asked = input.lines.map((l) => (compareDecimals(l.amount, 0) < 0 ? ZERO : roundHalfUp(l.amount)));
   const linesTotal = moneySum(asked);
   const total = roundHalfUp(input.total);
   if (compareDecimals(total, linesTotal) > 0) throw new CorrectionTotalExceedsLinesError(total, linesTotal);
   const remainingOfInvoice = moneyDifference(input.originalGross, input.creditedBefore ?? '0');
-  const credited = compareDecimals(remainingOfInvoice, 0) <= 0 ? '0.00' : minDecimal(total, remainingOfInvoice);
+  const credited = compareDecimals(remainingOfInvoice, 0) <= 0 ? ZERO : minDecimal(total, remainingOfInvoice);
   const discounts = input.lines.map((l) =>
-    l.discount === undefined || compareDecimals(l.discount, 0) <= 0 ? '0.00' : roundHalfUp(l.discount),
+    l.discount === undefined || compareDecimals(l.discount, 0) <= 0 ? ZERO : roundHalfUp(l.discount),
   );
   // An order-level discount (issue #417, review of PR #423): the invoice charged
   // the goods at their full value and the discount on a 0 % line of its own, so
@@ -152,10 +260,11 @@ export function correctionAmounts(input: CorrectionInput): {
     remaining = roundHalfUp(decimalDifference(remaining, gross));
     return gross;
   });
-  const discountCredit = withDiscount ? moneyDifference('0', moneySum(discounts)) : '0.00';
+  const discountCredit = withDiscount ? moneyDifference('0', moneySum(discounts)) : ZERO;
 
-  const groupOf = (l: { orderItemId: string; rate: string | number }) =>
-    input.perRate ? roundHalfUp(l.rate, 4) : l.orderItemId;
+  const isReduction = (i: number) => input.lines[i]!.basis === 'price_reduction';
+  const rateOf = (rate: string | number) => roundHalfUp(rate, 4);
+  const groupOf = (l: { orderItemId: string; rate: string | number }) => (input.perRate ? rateOf(l.rate) : l.orderItemId);
   const byGroup = new Map<string, number[]>();
   input.lines.forEach((l, i) => {
     const group = groupOf(l);
@@ -163,40 +272,111 @@ export function correctionAmounts(input: CorrectionInput): {
     if (indexes) indexes.push(i);
     else byGroup.set(group, [i]);
   });
-  const earlier = new Map<string, { net: string[]; gross: string[] }>();
-  for (const e of input.earlierLines) {
-    const group = groupOf(e);
-    const sums = earlier.get(group) ?? { net: [], gross: [] };
-    sums.net.push(e.net);
-    sums.gross.push(e.gross);
-    earlier.set(group, sums);
-  }
 
-  const nets: string[] = input.lines.map(() => '0.00');
+  // What the invoice invoiced and earlier corrections credited, per order item.
+  const invoiced = new Map<string, { quantity: number; net: string[]; unitNetPrice: string }>();
+  for (const o of input.originalLines) {
+    const cur = invoiced.get(o.orderItemId);
+    if (cur) {
+      cur.quantity += o.quantity;
+      cur.net.push(o.net);
+    } else {
+      invoiced.set(o.orderItemId, { quantity: o.quantity, net: [o.net], unitNetPrice: o.unitNetPrice });
+    }
+  }
+  const creditedBeforeOf = (orderItemId: string) => {
+    const lines = input.earlierLines.filter((e) => e.orderItemId === orderItemId);
+    return { quantity: lines.reduce((a, e) => a + creditedQuantity(e), 0), net: moneySum(lines.map((e) => e.net)) };
+  };
+
+  const nets: string[] = input.lines.map(() => ZERO);
+  const paths: Record<string, CorrectionPath> = {};
   for (const [group, indexes] of byGroup) {
     const gross = moneySum(indexes.map((i) => grosses[i]!));
-    const before = earlier.get(group) ?? { net: [], gross: [] };
-    const cumulativeGross = moneySum([...before.gross, gross]);
-    let cumulativeNet: string;
+    let net: string;
+    let weights = indexes.map((i) => grosses[i]!);
     if (input.perRate) {
-      cumulativeNet = netForGrossAtRate(cumulativeGross, group, 'fraction').net;
+      const rate = group;
+      const zeroRate = compareDecimals(rate, 0) === 0;
+      const goods = input.originalLines.filter((o) => rateOf(o.rate) === rate);
+      const row = zeroRate ? undefined : input.originalSummary?.find((r) => rateOf(r.taxRate) === rate);
+      // The invoice's own figures at the rate. At 0 % its row also holds the
+      // delivery, the surcharge and the discount, so the goods are summed.
+      const n0 = row ? roundHalfUp(row.netTotal) : moneySum(goods.map((o) => o.net));
+      const v0 = row ? roundHalfUp(row.vatAmount) : zeroRate ? ZERO : vatAt(n0, rate);
+      const before = input.earlierLines.filter((e) => rateOf(e.rate) === rate);
+      const nb = moneyDifference(n0, moneySum(before.map((e) => e.net)));
+      const vb = moneyDifference(v0, moneySum(before.map((e) => moneyDifference(e.gross, e.net))));
+      const gb = moneySum([nb, vb]);
+      // Nothing credited at the rate is never refused, whatever an earlier
+      // correction left there.
+      if (compareDecimals(gross, 0) > 0 && compareDecimals(gross, gb) > 0) {
+        throw new CorrectionExceedsRateRemainingError(rate, gb);
+      }
+
+      // The kept state after this correction: each invoiced line's kept
+      // quantity at its invoiced unit price, untouched when none came back.
+      const keptAfter = new Map<string, string>();
+      for (const id of new Set(goods.map((o) => o.orderItemId))) {
+        const inv = invoiced.get(id)!;
+        const returnedNow = indexes
+          .filter((i) => input.lines[i]!.orderItemId === id && !isReduction(i))
+          .reduce((a, i) => a + input.lines[i]!.quantity, 0);
+        const q = Math.max(0, inv.quantity - creditedBeforeOf(id).quantity - returnedNow);
+        keptAfter.set(id, q === inv.quantity ? moneySum(inv.net) : lineAmountHalfUp(inv.unitNetPrice, q));
+      }
+      const k = moneySum([...keptAfter.values()]);
+      const after = moneyDifference(gb, gross);
+      if (compareDecimals(after, moneySum([k, vatAt(k, rate)])) === 0) {
+        paths[rate] = 'quantity';
+        net = moneyDifference(nb, k);
+        // Each line's share: what its kept net fell by, split by quantity
+        // among entries naming the same item. Exact when the history was all
+        // on this path; a price reduction in the history may leave a weight
+        // that is not, and then the gross shares are used.
+        const fell = indexes.map((i) => {
+          const id = input.lines[i]!.orderItemId;
+          const remBefore = moneyDifference(moneySum(invoiced.get(id)?.net ?? []), creditedBeforeOf(id).net);
+          const drop = moneyDifference(remBefore, keptAfter.get(id) ?? ZERO);
+          const same = indexes.filter((j) => input.lines[j]!.orderItemId === id);
+          const units = same.reduce((a, j) => a + input.lines[j]!.quantity, 0);
+          return units > 0 ? quotientHalfUp(decimalProduct(drop, input.lines[i]!.quantity), units, 6) : ZERO;
+        });
+        if (
+          !indexes.some(isReduction) &&
+          fell.every((w) => compareDecimals(w, 0) >= 0) &&
+          fell.some((w) => compareDecimals(w, 0) > 0)
+        ) {
+          weights = fell;
+        }
+      } else {
+        const keeps = netForGrossAtRate(after, rate, 'fraction');
+        const credits = netForGrossAtRate(gross, rate, 'fraction');
+        if (keeps.exact) {
+          paths[rate] = 'gross';
+          net = moneyDifference(nb, keeps.net);
+        } else if (credits.exact) {
+          paths[rate] = 'gross_credit';
+          net = credits.net;
+        } else {
+          paths[rate] = 'gross_nearest';
+          net = moneyDifference(nb, keeps.net);
+        }
+      }
+      if (compareDecimals(net, nb) > 0) net = nb;
     } else {
+      const before = input.earlierLines.filter((e) => e.orderItemId === group);
+      const cumulativeGross = moneySum([...before.map((e) => e.gross), gross]);
       const original = input.originalLines.find((o) => o.orderItemId === group);
-      cumulativeNet =
+      const cumulativeNet =
         original && compareDecimals(original.gross, 0) > 0
           ? quotientHalfUp(decimalProduct(original.net, cumulativeGross), original.gross)
           : netFromGrossHalfUp(cumulativeGross, input.lines[indexes[0]!]!.rate, 'fraction');
+      net = moneyDifference(cumulativeNet, moneySum(before.map((e) => e.net)));
     }
-    let net = moneyDifference(cumulativeNet, moneySum(before.net));
-    if (compareDecimals(net, 0) < 0) net = '0.00';
+    if (compareDecimals(net, 0) < 0) net = ZERO;
     if (compareDecimals(net, gross) > 0) net = gross;
-    const shares =
-      compareDecimals(gross, 0) === 0
-        ? indexes.map(() => '0.00')
-        : allocateHalfUp(
-            net,
-            indexes.map((i) => quotientHalfUp(decimalProduct(net, grosses[i]!), gross, 6)),
-          );
+    const shares = compareDecimals(gross, 0) === 0 ? indexes.map(() => ZERO) : shareOut(net, weights);
     indexes.forEach((lineIndex, k) => {
       nets[lineIndex] = shares[k]!;
     });
@@ -210,7 +390,7 @@ export function correctionAmounts(input: CorrectionInput): {
     sums.gross.push(gross);
     rates.set(key, sums);
   };
-  input.lines.forEach((l, i) => addToRate(roundHalfUp(l.rate, 4), nets[i]!, grosses[i]!));
+  input.lines.forEach((l, i) => addToRate(rateOf(l.rate), nets[i]!, grosses[i]!));
   if (compareDecimals(discountCredit, 0) !== 0) addToRate('0.0000', discountCredit, discountCredit);
   return {
     credited,
@@ -219,7 +399,16 @@ export function correctionAmounts(input: CorrectionInput): {
     lines: input.lines.map((l, i) => ({
       gross: grosses[i]!,
       net: nets[i]!,
-      unitNetPrice: quotientHalfUp(nets[i]!, l.quantity || 1, 4),
+      // A price reduction's unit price is the change in the line's unit net
+      // price over the units still on the invoice (issue #885): 3 × 10.0100
+      // reduced by 5.00 shows 1.6667. Informational, at four places.
+      unitNetPrice: isReduction(i)
+        ? quotientHalfUp(
+            nets[i]!,
+            Math.max(1, (invoiced.get(l.orderItemId)?.quantity ?? 0) - creditedBeforeOf(l.orderItemId).quantity),
+            4,
+          )
+        : quotientHalfUp(nets[i]!, l.quantity || 1, 4),
     })),
     vatSummary: [...rates.entries()]
       .sort((a, b) => compareDecimals(a[0], b[0]))
@@ -229,6 +418,7 @@ export function correctionAmounts(input: CorrectionInput): {
         return { taxRate, netTotal, vatAmount: moneyDifference(grossTotal, netTotal), grossTotal };
       }),
     discountCredit,
+    paths,
   };
 }
 
@@ -295,6 +485,17 @@ export class CorrectiveInvoiceProvider implements CorrectiveInvoicePort {
     private readonly audit?: InvoiceAuditRecorder,
     private readonly events?: InvoiceDomainEventEmitter,
     private readonly ledgerRouting?: LedgerNumberingLookup,
+    /**
+     * The language a price-reduction line is named in, and this module's
+     * bundle to name it from (issue #885), as `InvoiceService` names the lines
+     * it itemises: the name is stored with the line, so it is written in the
+     * document's language, `INVOICE_RENDER_LANGUAGE`. Without a translator,
+     * English.
+     */
+    private readonly lineProse: {
+      readonly translate?: InvoicesTranslate | undefined;
+      readonly language?: SupportedLanguage;
+    } = {},
   ) {}
 
   /**
@@ -360,6 +561,20 @@ export class CorrectiveInvoiceProvider implements CorrectiveInvoicePort {
     // Resolve every line before the transaction opens, so a line that cannot
     // be mirrored refuses without having drawn a correction number.
     const mirrored = input.lines.map((l) => mirrorFor(original, mirrorByOrderItem, l.orderItemId));
+    // A price reduction keeps the goods, and the order discount they carried
+    // with them (issue #885), so it credits none back. `returns` never sends
+    // one; a caller that does has misread the port.
+    const discounted = input.lines.find(
+      (l) => l.basis === 'price_reduction' && l.discount !== undefined && compareDecimals(l.discount, 0) > 0,
+    );
+    if (discounted) {
+      throw new HttpError(
+        422,
+        ERROR_CODES.VALIDATION_FAILED,
+        'A price reduction carries no discount: the buyer keeps the goods and the discount they carried.',
+        { code: 'price_reduction_carries_discount', orderItemId: discounted.orderItemId },
+      );
+    }
     // What earlier corrections of this invoice already credited: the cap and
     // the cumulative rule both read it (review of PR #423).
     // A cancelled correction credits nothing, so it is neither in the cap nor in
@@ -376,6 +591,10 @@ export class CorrectiveInvoiceProvider implements CorrectiveInvoicePort {
       rate: l.taxRate,
       net: l.netValue,
       gross: l.grossValue,
+      // The kept quantities are read from these (issue #873); on an earlier
+      // correction, 0 is a price reduction and credits no unit (#885).
+      quantity: Number(l.quantity),
+      unitNetPrice: l.unitNetPrice,
     });
     // The invoice's own discount line: the discount credit mirrors its name and
     // unit, and an invoice that itemized no discount credits none separately.
@@ -388,6 +607,7 @@ export class CorrectiveInvoiceProvider implements CorrectiveInvoicePort {
         creditedBefore: moneySum(earlierCorrections.map((c) => c.total)),
         // Issued under the per-rate method exactly when it stored its summary.
         perRate: original.vatSummary != null,
+        originalSummary: original.vatSummary ?? null,
         // Goods lines only: a delivery, surcharge or discount line names no order
         // item, and an earlier correction's discount credit is not goods.
         originalLines: originalLines.filter((l) => l.orderItemId).map(asCredited),
@@ -398,9 +618,19 @@ export class CorrectiveInvoiceProvider implements CorrectiveInvoicePort {
           quantity: l.quantity,
           rate: mirrored[index]!.rate,
           orderItemId: l.orderItemId,
+          basis: l.basis ?? 'returned_goods',
         })),
       });
     } catch (err) {
+      if (err instanceof CorrectionExceedsRateRemainingError) {
+        throw new HttpError(422, ERROR_CODES.VALIDATION_FAILED, err.message, {
+          code: 'correction_exceeds_rate_remaining',
+          taxRate: err.taxRate,
+          remaining: err.remaining,
+          // For the operator's sentence: 23, not 0.2300.
+          vatRatePercent: String(Number(decimalProduct(err.taxRate, 100))),
+        });
+      }
       if (!(err instanceof CorrectionTotalExceedsLinesError)) throw err;
       throw new HttpError(400, ERROR_CODES.VALIDATION_FAILED, err.message, {
         code: 'correction_total_exceeds_lines',
@@ -408,16 +638,41 @@ export class CorrectiveInvoiceProvider implements CorrectiveInvoicePort {
         linesTotal: err.linesTotal,
       });
     }
+    // One at a time, as `invoicesProseTable` reads the bundle.
+    const names: string[] = [];
+    for (const l of input.lines) names.push(await this.#lineName(l, input.caseReference));
     const snapshots = input.lines.map((l, index) => ({
       ordinal: index + 1,
       orderItemId: l.orderItemId,
-      name: l.productName,
-      quantity: l.quantity || 1,
+      name: names[index]!,
+      // A price reduction is stored with quantity 0 (issue #885); returned
+      // goods keep their quantity, and never 0.
+      quantity: storedCorrectionQuantity(l.basis, l.quantity),
       rate: roundHalfUp(mirrored[index]!.rate, 4),
       unit: mirrored[index]!.unit,
       ...amounts.lines[index]!,
     }));
     return { original, salesChannelId, amounts, snapshots, discountLine };
+  }
+
+  /**
+   * A returned-goods line is named after its product. A price reduction is
+   * named as one, in the document's language, with the case it settles
+   * (issue #885): "Obniżka ceny (reklamacja RMA-…): Widget".
+   */
+  async #lineName(line: CorrectiveInvoiceInput['lines'][number], caseReference: string | undefined): Promise<string> {
+    if (line.basis !== 'price_reduction') return line.productName;
+    const language = this.lineProse.language ?? supportedLanguageOf(INVOICE_RENDER_LANGUAGE);
+    const name = caseReference
+      ? await invoicesProse(this.lineProse.translate, 'lines.priceReduction', language, {
+          rma: caseReference,
+          product: line.productName,
+        })
+      : await invoicesProse(this.lineProse.translate, 'lines.priceReductionUnreferenced', language, {
+          product: line.productName,
+        });
+    // The column's width.
+    return name.slice(0, 512);
   }
 
   async createCorrection(input: CorrectiveInvoiceInput): Promise<CorrectiveInvoiceResult> {
@@ -558,6 +813,7 @@ export class CorrectiveInvoiceProvider implements CorrectiveInvoicePort {
             orderId: input.orderId,
             originalInvoiceId: original.id,
             credited: Number(creditedTotal),
+            priceReductionLines: input.lines.filter((l) => l.basis === 'price_reduction').length,
           },
         })
         .catch(() => undefined);

@@ -37,7 +37,9 @@ Strona wygenerowana z manifestu modułu, bez żadnych ręcznych zmian. Co moduł
 | `custom_fields` | tak | ten moduł instaluje się i migruje po nim, a operator nie może go wyłączyć, dopóki ten moduł działa |
 | `email` | tak | ten moduł instaluje się i migruje po nim, a operator nie może go wyłączyć, dopóki ten moduł działa |
 | `sales_channels` | tak | ten moduł instaluje się i migruje po nim, a operator nie może go wyłączyć, dopóki ten moduł działa |
+| `taxes` | tak | ten moduł instaluje się i migruje po nim, a operator nie może go wyłączyć, dopóki ten moduł działa |
 | `organizations` | tylko bramkowanie | rozwiązuje `organizationDetailsPort`; pominięty w `dependencies`, bo kolejność instalacji nie może nieść tej krawędzi |
+| `organizations` | tylko bramkowanie | rozwiązuje `organizationTaxProfilePort`; pominięty w `dependencies`, bo kolejność instalacji nie może nieść tej krawędzi |
 | `price_lists` | tylko bramkowanie | rozwiązuje `pricingService`; pominięty w `dependencies`, bo kolejność instalacji nie może nieść tej krawędzi |
 | `admin_notifications` | nie | degrades-without `adminNotificationRecordPort` — masowe edycje i ponowne indeksowanie wyszukiwarki nadal działają i raportują postęp na stronie Bulk actions; brakuje tylko powiadomienia w panelu — e-mail o zakończeniu nadal trafia do administratora |
 | `admin_search` | nie | contributes-to `adminSearchProviderRegistry` |

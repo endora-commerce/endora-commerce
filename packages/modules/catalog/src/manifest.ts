@@ -143,6 +143,11 @@ export const manifest = defineModuleManifest({
     'custom_fields',
     'email',
     'sales_channels',
+    // Issue #852 — the public listing and product page answer each product's
+    // VAT rate for the buyer through `taxService`, as the cart does. `taxes` is
+    // `nonDeactivatable` and depends on neither this module nor anything that
+    // reaches it, so the edge closes no cycle.
+    'taxes',
   ],
   // Feature 075 — `organizations` is resolved, not imported, since the cut
   // replaced `em.findOne(Organization, …)` in the external namespace's price
@@ -173,6 +178,17 @@ export const manifest = defineModuleManifest({
         'do it. Over the port now — but `organizations` declares this module, so declaring it ' +
         'back closes a cycle. Acknowledged rather than declared, and the module is ' +
         'non-deactivatable, so nothing an operator can flip depends on the difference.',
+    },
+    {
+      moduleId: 'organizations',
+      port: 'organizationTaxProfilePort',
+      reason:
+        'Issue #852. The public listing and product page answer each product’s VAT rate for the ' +
+        'buyer, which depends on their organisation’s VAT status and registered country — the ' +
+        'rule the cart applies, through the same port. `organizations` declares this module, so ' +
+        'declaring it back closes a cycle. With `organizations` absent the seam fails closed: a ' +
+        'caller naming an organisation is refused rather than quoted a rate nobody resolved, and ' +
+        'an anonymous caller asks the port nothing.',
     },
     {
       moduleId: 'price_lists',

@@ -37,7 +37,9 @@ Rendered from the module's own manifest, and from nothing written by hand. What 
 | `custom_fields` | yes | installs and migrates after it, and an operator cannot switch it off underneath this module |
 | `email` | yes | installs and migrates after it, and an operator cannot switch it off underneath this module |
 | `sales_channels` | yes | installs and migrates after it, and an operator cannot switch it off underneath this module |
+| `taxes` | yes | installs and migrates after it, and an operator cannot switch it off underneath this module |
 | `organizations` | gating only | resolves `organizationDetailsPort`; withheld from `dependencies` because the install order cannot carry the edge |
+| `organizations` | gating only | resolves `organizationTaxProfilePort`; withheld from `dependencies` because the install order cannot carry the edge |
 | `price_lists` | gating only | resolves `pricingService`; withheld from `dependencies` because the install order cannot carry the edge |
 | `admin_notifications` | no | degrades-without `adminNotificationRecordPort` — bulk edits and search reindexes still run and still report on the Bulk actions page; only the bell entry is missing — the completion e-mail to the admin still goes out |
 | `admin_search` | no | contributes-to `adminSearchProviderRegistry` |

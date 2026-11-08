@@ -939,6 +939,13 @@ export const adminOrderPreviewLineSchema = z.object({
  */
 export const ADMIN_ORDER_PREVIEW_MESSAGE_PRECEDENCE = [
   'PRODUCT_NOT_FOUND',
+  /**
+   * Issue #829 — the product is archived (feature 163, FR-019). It equals
+   * `ERROR_CODES.PRODUCT_ARCHIVED`, the `409` admin order create answers for the same line
+   * and the reason an operator's quote request gives (FR-115). Archiving is product-wide,
+   * so it outranks the customer's visibility and the channel's assortment.
+   */
+  'PRODUCT_ARCHIVED',
   'PRODUCT_NOT_VISIBLE_TO_CUSTOMER',
   'PRODUCT_NOT_IN_SALES_CHANNEL',
   'QUOTE_ONLY',
@@ -965,9 +972,9 @@ export const adminOrderPreviewResponseSchema = z.object({
   /**
    * One entry per unavailable line, never more: its `code` is the first of
    * {@link ADMIN_ORDER_PREVIEW_MESSAGE_PRECEDENCE} that applies —
-   * `PRODUCT_NOT_FOUND`, `PRODUCT_NOT_VISIBLE_TO_CUSTOMER`,
-   * `PRODUCT_NOT_IN_SALES_CHANNEL`, `QUOTE_ONLY`, `BELOW_MINIMUM_QUANTITY` (feature
-   * 155, which alone carries `minimum`). `code` is deliberately a plain
+   * `PRODUCT_NOT_FOUND`, `PRODUCT_ARCHIVED` (issue #829),
+   * `PRODUCT_NOT_VISIBLE_TO_CUSTOMER`, `PRODUCT_NOT_IN_SALES_CHANNEL`, `QUOTE_ONLY`,
+   * `UNPRICED`, `BELOW_MINIMUM_QUANTITY` (feature 155, which alone carries `minimum`). `code` is deliberately a plain
    * string, not {@link adminOrderPreviewMessageCodeSchema}: a newer server may
    * add a code, and an older client must still parse the answer (treat an
    * unknown code as unavailable).

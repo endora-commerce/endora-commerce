@@ -263,6 +263,14 @@ nadpisany na *Tylko brutto* pokazuje cenę gościom nawet w kanale, którego try
 zalogowanych kupujących z tej organizacji. Tryby prezentacji ustawia się w *Ustawieniach cenowych*
 oraz w edytorach organizacji i kategorii.
 
+Cena brutto na karcie produktu, w wierszu listy i na stronie produktu to cena netto powiększona
+o **stawkę VAT tego produktu** dla oglądającego — tę samą, którą stosują koszyk i zamówienie, według
+reguł podatkowych dla typu produktu i organizacji oglądającego: 8 % dla produktu opodatkowanego
+stawką 8 %, a bez VAT dla organizacji zwolnionej z VAT lub rozliczającej odwrotne obciążenie.
+Niezalogowany odwiedzający widzi stawkę, którą płaci czynny podatnik VAT w Polsce. Jeśli sklep nie
+może poznać stawki, pokazuje cenę netto z oznaczeniem „netto”, a nie kwotę brutto, za którą nie może
+ręczyć.
+
 Kanały sprzedaży nie mają własnego przełącznika widoczności cen. Kiedyś go miały (`isPublic`), a gdy
 był wyłączony, kanał ukrywał ceny przed wszystkimi, także przed zalogowanymi kupującymi. Przełącznik
 wycofano: każdy kanał, który miał go wyłączonego, dostał tryb *Żaden* dla anonimowych

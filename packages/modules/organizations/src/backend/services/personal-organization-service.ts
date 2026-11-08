@@ -39,8 +39,10 @@ const ANONYMIZED_ADDRESS_FIELD = '-';
  * Whether every part of the personal-organisation scrub is already written.
  *
  * Issue #802 added the legal name, the order-confirmation recipients and the
- * custom field values. An organisation scrubbed before that answers `false`
- * here, so the next run finishes it; no backfill is needed.
+ * custom field values; issue #843 the block and rejection reasons, which are
+ * free text an operator wrote about the person. An organisation scrubbed
+ * before either answers `false` here, so the next run finishes it; no
+ * backfill is needed.
  */
 function isFullyScrubbed(org: Organization): boolean {
   const address = org.registeredAddress;
@@ -52,6 +54,8 @@ function isFullyScrubbed(org: Organization): boolean {
     org.legalName == null &&
     (org.orderConfirmationEmails ?? []).length === 0 &&
     Object.keys(org.customFieldValues ?? {}).length === 0 &&
+    org.blockedReason == null &&
+    org.rejectedReason == null &&
     org.deletedAt != null
   );
 }
@@ -261,6 +265,10 @@ export class PersonalOrganizationService {
    * legal name existed, how many recipients there were and which custom field
    * keys held a value (owner ruling Q2).
    *
+   * **And the operator's reasons (issue #843).** The block and the rejection
+   * reason are set to `null`; the status, `blockedAt` and `rejectedAt` stay.
+   * The audit row records only whether each reason existed.
+   *
    * Answers `null`, and writes nothing, only where the cascade does not apply:
    * an org-less account, an organisation that is not personal, and one that
    * still has a live member.
@@ -296,11 +304,19 @@ export class PersonalOrganizationService {
         hadLegalName: Boolean(row.legalName),
         orderConfirmationEmailCount: (row.orderConfirmationEmails ?? []).length,
         customFieldKeys: Object.keys(row.customFieldValues ?? {}).sort(),
+        hadBlockedReason: row.blockedReason != null,
+        hadRejectedReason: row.rejectedReason != null,
       };
       row.name = ANONYMIZED_ORGANIZATION_NAME;
       row.legalName = null;
       row.orderConfirmationEmails = [];
       row.customFieldValues = {};
+      // Issue #843 — the reasons go, the block or rejection stays: its status,
+      // dates and actor are not this person's data, and other flows read them.
+      // `null`, not a marker: it already means "no reason given" to every
+      // reader, and a marker would surface untranslated.
+      row.blockedReason = null;
+      row.rejectedReason = null;
       row.registeredAddress = {
         street: ANONYMIZED_ADDRESS_FIELD,
         city: ANONYMIZED_ADDRESS_FIELD,

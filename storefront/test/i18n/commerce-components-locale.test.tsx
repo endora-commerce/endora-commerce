@@ -111,7 +111,7 @@ describe('product card and row', () => {
     ['en-US', ['from / pc.', 'gross ', 'Low: 5']],
     ['pl-PL', ['od / szt.', 'brutto ', 'Mało: 5']],
   ])('card in %s', (locale, texts) => {
-    const out = html(<ProductCard presence={ALL_PRESENT} product={summary({ stockLevel: 5 })} locale={locale} salesChannelCode={undefined} />);
+    const out = html(<ProductCard presence={ALL_PRESENT} product={summary({ stockLevel: 5, vatRate: 0.23 })} locale={locale} salesChannelCode={undefined} />);
     for (const text of texts) expect(out).toContain(text);
   });
 
@@ -155,7 +155,7 @@ describe('price surfaces', () => {
     ['en-US', ['aria-label="Net / gross"', '>NET<', '>GROSS<']],
     ['pl-PL', ['aria-label="Netto / brutto"', '>NETTO<', '>BRUTTO<']],
   ])('PDP net/gross switch in %s', (locale, texts) => {
-    const out = html(<PdpPriceToggle basePrice={{ amount: '10.00', currency: 'USD' }} locale={locale} />);
+    const out = html(<PdpPriceToggle basePrice={{ amount: '10.00', currency: 'USD' }} locale={locale} vatRate={0.23} />);
     for (const text of texts) expect(out).toContain(text);
   });
 });
