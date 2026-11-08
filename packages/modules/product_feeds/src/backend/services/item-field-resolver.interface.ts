@@ -48,7 +48,7 @@ export interface FeedItemPrice {
   readonly net: string;
   readonly gross: string;
   /**
-   * False when `TaxService` fell through to `{ rate: 0, source: 'none' }`. On a
+   * False when `TaxService` answered `source: 'none'` (no rule, no default). On a
    * gross feed that is a run **warning**, not a silent zero-VAT price (R12).
    */
   readonly taxResolved: boolean;
