@@ -729,6 +729,15 @@ export interface OrderReturnContextPort {
   getReturnContext(orderId: string): Promise<OrderReturnContext | null>;
 }
 
+/**
+ * What a corrective-invoice line documents (issue #885). `returned_goods`: the
+ * units came back and are credited. `price_reduction`: a complaint settled with
+ * money (art. 106j ust. 1 pkt 2 of the Polish VAT Act), so the buyer keeps the
+ * goods and only their price is reduced.
+ */
+export const CORRECTION_LINE_BASES = ['returned_goods', 'price_reduction'] as const;
+export type CorrectionLineBasis = (typeof CORRECTION_LINE_BASES)[number];
+
 export interface CorrectiveInvoiceLine {
   /**
    * The order item this line credits. It is the link back to the line of the
@@ -748,6 +757,15 @@ export interface CorrectiveInvoiceLine {
    * a 0 % line; it still totals `amount`. Absent: no discount.
    */
   discount?: number;
+  /**
+   * What the line documents (issue #885). `returned_goods` (the default when
+   * absent): `quantity` units came back and are credited. `price_reduction`: a
+   * complaint settled with money, art. 106j ust. 1 pkt 2. The buyer keeps the
+   * goods, the line is credited at `amount` as gross at the line's rate, with no
+   * discount (one is refused), and `quantity` (the units complained about) is not
+   * credited. The document stores quantity 0.
+   */
+  basis?: CorrectionLineBasis;
 }
 
 export interface CorrectiveInvoiceInput {
@@ -770,6 +788,11 @@ export interface CorrectiveInvoiceInput {
    * Omitted, no deduplication is attempted and every call issues a document.
    */
   idempotencyKey?: string;
+  /**
+   * The case's RMA number, for the label of a price-reduction line (issue #885).
+   * Absent: the label names no case.
+   */
+  caseReference?: string;
 }
 
 /** A correction was issued: the document that credits the original invoice. */

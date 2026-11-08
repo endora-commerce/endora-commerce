@@ -318,6 +318,21 @@ export const productSummarySchema = z.object({
    * producer written before it still compiles).
    */
   resolvedPrice: productResolvedPriceSchema.nullable().optional(),
+  /**
+   * Issue #852 — the VAT rate this buyer is charged for this product, as a
+   * fraction (`0.08` = 8 %), resolved by the rule the cart and the order use
+   * (`createProductTaxRateResolver`): the product's tax class against the
+   * Organization's VAT status and registered country; `0` for a VAT-exempt or
+   * reverse-charge Organization; a buyer with no Organization is a VAT payer in
+   * PL. A storefront derives a single product's gross price from it.
+   *
+   * `null` where the resolution failed; absent from producers that do not
+   * resolve one (an older backend, the external namespace). Either way a
+   * consumer derives **no** gross and shows the net, labelled net — never a
+   * gross at an assumed rate. A variant shares its product's tax class, and so
+   * its rate.
+   */
+  vatRate: z.number().finite().nonnegative().nullable().optional(),
 });
 export type ProductSummary = z.infer<typeof productSummarySchema>;
 

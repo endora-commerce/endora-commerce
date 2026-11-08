@@ -146,7 +146,16 @@ before/after events and is written to the audit log.
   reason: "order_not_invoiced" }`. The invoice issued later lists only what the
   buyer kept: a return settled with a refund or a credit takes its quantity off
   the order line, a line returned in full is left off, and the discount the
-  refund carried comes off the invoice's discount line.
+  refund carried comes off the invoice's discount line. On an order that was
+  invoiced, a return's correction credits the returned goods and leaves on the
+  invoice the VAT per rate on the nets the buyer kept.
+- **A complaint refund is a price reduction** — a complaint settled with a
+  refund or a credit leaves the goods with the buyer, so on an invoiced order
+  its correction credits the approved amount at the line's VAT rate as a price
+  reduction: quantity 0, no share of the order discount, and no effect on the
+  quantity a later return of the line is credited from. A complaint resolved by
+  replacement or repair issues no correction. A complaint refunded before the
+  order was invoiced currently shows on the invoice as amount due.
 - **A switched-off payment gateway refuses the settlement**.
   Money resolutions on a gateway-paid order call the PSP module that took the
   payment; when an operator has that module switched off — or the deployment
