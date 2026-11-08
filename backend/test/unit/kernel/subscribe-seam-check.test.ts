@@ -397,6 +397,18 @@ describe('the tree itself', () => {
   // One scan, the one the CLI runs: inside a shared-parse scope it reads each
   // source once for both halves, where calling each half on its own parsed the
   // tree four times and timed out under load in `test:unit:fast` (issue #910).
+  // **A budget sized for the scan, not for a unit case** (issue #250). #918
+  // did not add cost here, it moved it: before it, one case parsed the module
+  // roots four times (18.1 s idle) under its own 30 s; now one scan, with the
+  // tree read, runs in this hook (7.4 s idle) under the hook's 30 s. Measured
+  // on 2026-11-08 on a 16-thread machine: 7.4 s idle, 34.7 s at load ~35-40
+  // (16 CPU burners beside two other agents' runs) — past the 30 s — and 16.4 s
+  // and 18.2 s on CI's 4-vCPU runner, where `test:unit:fast` runs four forks at
+  // once (run 42427743082, both attempts). Nothing in it repeats any more.
+  // 120 s is the budget `check-module-boundary.test.ts` gives its one
+  // whole-tree case (#908): over three times the loaded measurement, and still
+  // a bound, so a walk that stopped terminating still fails.
+  const TREE_SCAN_BUDGET_MS = 120_000;
   let scan: ReturnType<typeof scanSubscribeSeam>;
 
   beforeAll(async () => {
@@ -406,7 +418,7 @@ describe('the tree itself', () => {
       for (const [key, text] of readTree(root)) sources.set(key, text);
     }
     scan = scanSubscribeSeam({ sources });
-  });
+  }, TREE_SCAN_BUDGET_MS);
 
   it('has no queue consumer outside the seam, and an empty ledger', () => {
     // The scan judges against the shipped ledger, `WORKERS_OUTSIDE_THE_SEAM`.

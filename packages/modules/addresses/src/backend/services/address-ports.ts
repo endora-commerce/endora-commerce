@@ -75,6 +75,18 @@ export class AddressReadService implements AddressReadPort {
     });
     return address ? toAddressRecord(address) : null;
   }
+
+  async listIdsForOrganization(
+    organizationId: string,
+    options?: { includeDeleted?: boolean },
+  ): Promise<string[]> {
+    const addresses = await this.emFactory().find(
+      Address,
+      { organizationId, ...(options?.includeDeleted ? {} : { deletedAt: null }) },
+      { fields: ['id'], orderBy: { createdAt: 'asc', id: 'asc' } },
+    );
+    return addresses.map((address) => address.id);
+  }
 }
 
 /**

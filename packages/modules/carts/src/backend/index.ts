@@ -10,6 +10,7 @@ import {
   type OrganizationPermissionPort,
 } from '@endora-commerce/contracts';
 import type {
+  CartAnonymizationPort,
   CartQueryPort,
   CartReadPort,
   CartWritePort,
@@ -41,6 +42,7 @@ import type { SalesChannelResolutionPort } from '@endora-commerce/platform/kerne
 import type { SettingsReadPort } from '@endora-commerce/platform/kernel';
 import { abandonmentSettingsReaders } from './services/cart-abandonment-settings.js';
 import { CartQueryService } from './services/cart-query-service.js';
+import { CartAnonymizationService } from './services/cart-anonymization-service.js';
 import { CartPlacementApplyService } from './services/cart-placement-apply-port.js';
 import { CartLinePricing } from './services/cart-line-pricing.js';
 import { CartReadService, createCartWritePort } from './services/cart-read-port.js';
@@ -380,6 +382,18 @@ export function registerModule(ctx: ModuleContext): void {
   ctx.di.providePort<CartQueryPort>(
     'cartQueryPort',
     ctx.asFunction(({ emFactory }: CartsCradle) => new CartQueryService(emFactory)).singleton(),
+  );
+
+  // Issue #920 — this module's step in `customers`' anonymisation sweep: the
+  // reasons operators and approvers wrote about the account's carts.
+  ctx.di.providePort<CartAnonymizationPort>(
+    'cartAnonymizationPort',
+    ctx
+      .asFunction(
+        ({ emFactory, auditLogService }: CartsCradle) =>
+          new CartAnonymizationService(emFactory, auditLogService),
+      )
+      .singleton(),
   );
 
   ctx.routes(async (app) => {

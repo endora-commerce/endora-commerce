@@ -52,8 +52,9 @@ export class PurgePreviousVersionsJob {
     let previousPurged = 0;
     let skippedNotDue = 0;
     for (const selected of due) {
-      const selectedLocator = selected.previousStorageLocator;
-      if (!selectedLocator || selected.storageBackend === 'legacy') continue;
+      // The row source selects only rows this pass can purge (issue #914); one
+      // that changed since is re-checked under the lock and counted not due.
+      const selectedLocator = selected.previousStorageLocator ?? '';
       await this.deps.beforeClaim?.(selected.id);
       const claimed = await this.claim(selected.id, selectedLocator, cutoff);
       if (claimed === 'locked') continue;
@@ -82,6 +83,7 @@ export class PurgePreviousVersionsJob {
       if (!row) return 'locked';
       if (
         !hasPreviousVersion(row) ||
+        !row.previousStorageLocator ||
         row.previousStorageLocator !== selectedLocator ||
         !row.previousReplacedAt ||
         row.previousReplacedAt.getTime() > cutoff.getTime() ||

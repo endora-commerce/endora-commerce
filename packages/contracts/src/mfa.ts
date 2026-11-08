@@ -261,6 +261,15 @@ export type MfaResetBulkResult = z.infer<typeof mfaResetBulkResultSchema>;
 // Setting codes (single source for both manifest and resolver)
 // ---------------------------------------------------------------------------
 
+/**
+ * Why a second-factor requirement cannot be met on this instance: `mfa` has no
+ * `MFA_SECRET_ENCRYPTION_KEY`, so it serves no enrolment route (issue #930).
+ * One spelling for every refusal and notice that says so — the
+ * `mfa.admin.totp_enforced` write, its Settings notice, and a role's
+ * two-factor flag — as `details.reason` and as the sentence token.
+ */
+export const ENCRYPTION_KEY_MISSING = 'encryption_key_missing' as const;
+
 export const MFA_SETTING_CODES = {
   /**
    * Feature 074 — the operator-activation control (Constitution XVII). It sits

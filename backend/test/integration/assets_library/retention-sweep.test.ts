@@ -65,7 +65,11 @@ describe('retention sweep — previous versions and the cleanup ledger (feature 
   }
 
   /** A live asset with a stable file and a previous version replaced `replacedDaysAgo` days before `now`. */
-  async function forgeWithPrevious(now: Date, replacedDaysAgo: number) {
+  async function forgeWithPrevious(
+    now: Date,
+    replacedDaysAgo: number,
+    options: { storageBackend?: 'local' | 'legacy'; previousStorageLocator?: string } = {},
+  ) {
     const id = randomUUID();
     const stable = `as156/${id.slice(0, 2)}/${id}.pdf`;
     const previous = `as156/${id.slice(0, 2)}/${id}.prev-${randomUUID().replace(/-/g, '')}.pdf`;
@@ -80,9 +84,9 @@ describe('retention sweep — previous versions and the cleanup ledger (feature 
       sizeBytes: '7',
       storageUrl: `/assets/file/${id}`,
       storageLocator: stable,
-      storageBackend: 'local',
+      storageBackend: options.storageBackend ?? 'local',
       visibility: 'public',
-      previousStorageLocator: previous,
+      previousStorageLocator: options.previousStorageLocator ?? previous,
       previousFilename: `as156-${id.slice(0, 8)}-old.pdf`,
       previousMimeType: 'application/pdf',
       previousMimeTypeOverridden: false,
@@ -94,7 +98,7 @@ describe('retention sweep — previous versions and the cleanup ledger (feature 
     });
     await em.flush();
     created.push(id);
-    return { id, stable, previous, stableAbs, previousAbs };
+    return { id, stable, previous, stableAbs, previousAbs, replacedAt: new Date(now.getTime() - replacedDaysAgo * DAY_MS) };
   }
 
   async function row(id: string) {
@@ -276,6 +280,41 @@ describe('retention sweep — previous versions and the cleanup ledger (feature 
     expect(await exists(live.previousAbs)).toBe(true);
     expect(await entriesFor(live.stable)).toHaveLength(1);
     expect(await entriesFor(missing)).toEqual([]);
+  });
+
+  // Issue #914 — pass 1 never purges a legacy row, so it must not select one:
+  // the probe would answer yes on every tick, and a batch of them would hide
+  // the rows that really are due.
+  it('does not let rows it skips (legacy, no previous locator) fill pass 1`s batch: a due previous version behind them is purged', async () => {
+    const now = new Date();
+    const legacy = await forgeWithPrevious(now, 4000, { storageBackend: 'legacy' });
+    const noLocator = await forgeWithPrevious(now, 4000, { previousStorageLocator: '' });
+    const due = await forgeWithPrevious(now, 3999);
+
+    const result = await testRetentionSweeper(h, { batchSize: 2 }).sweep(now);
+
+    expect(result.previousPurged).toBe(1);
+    expect((await row(due.id)).previousStorageLocator ?? null).toBeNull();
+    expect(await exists(due.previousAbs)).toBe(false);
+    expect((await row(legacy.id)).previousStorageLocator).toBe(legacy.previous);
+    expect(await exists(legacy.previousAbs)).toBe(true);
+    expect((await row(noLocator.id)).previousReplacedAt).toEqual(noLocator.replacedAt);
+  });
+
+  it('hasDue says no when the only previous version past the cutoff is a legacy row pass 1 would skip', async () => {
+    const now = new Date();
+    const legacy = await forgeWithPrevious(now, 3000, { storageBackend: 'legacy' });
+    // A `now` at which nothing but this row is past any pass's cutoff.
+    const then = new Date(legacy.replacedAt.getTime() + 20 * DAY_MS);
+    const parked = await h
+      .em()
+      .getConnection()
+      .execute<Array<{ n: string }>>(`select count(*) as n from assets where deleted_at is not null and pending_cleanup = true`);
+    expect(Number(parked[0]!.n), 'a parked soft-deleted asset answers pass 3 at any time').toBe(0);
+
+    expect(await h.assetsLibrary.sweeper.hasDue(then)).toBe(false);
+    expect((await h.assetsLibrary.sweeper.sweep(then)).previousPurged).toBe(0);
+    expect((await row(legacy.id)).previousStorageLocator).toBe(legacy.previous);
   });
 
   it('runs a tick outside any tenant context, and hasDue says yes with one due row', async () => {
