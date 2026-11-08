@@ -1,0 +1,199 @@
+# The complete DB-backed backend suite on GitHub Actions (issue #968).
+#
+# Ports `.gitlab-ci.yml`'s `test:backend` and `test:backend:deployment`. Since
+# the migration to GitHub nothing ran them: `quality.yml` runs only
+# `test:unit:fast`, and the GitLab nightly (rung 0 of `.backend-test-rules`)
+# stopped with the pipelines. The reasoning for the suite itself — the shard
+# count, the heap cap, the junit report — stays above those jobs in
+# `.gitlab-ci.yml` and is not copied here.
+#
+# ## When it runs
+#
+# Nightly in GitLab's 22:03Z window, and by hand (`workflow_dispatch`), e.g.
+# before a release. **Never on a pull request**: D-198 stands, and this workflow
+# is what bounds it — see `specs/conventions/backend-test-suite.md`.
+#
+# ## Why the five shards run in parallel here
+#
+# GitLab serialised them (`resource_group: backend-suite`, issue #199) because
+# its runner was ONE shared 4 vCPU / 7.9 GB host, also carrying another
+# project's server, and two 2.5 GB shards at once made the host's OOM killer
+# take a fork. A GitHub-hosted job has a machine of its own (4 vCPU / 16 GiB
+# for a public repository) and service containers of its own, so that reason
+# does not apply: the shards run side by side, and `fail-fast: false` keeps one
+# red shard from cancelling the other four.
+
+name: test:backend
+
+on:
+  schedule:
+    - cron: '3 22 * * *'
+  workflow_dispatch:
+
+concurrency:
+  # One suite at a time, and a running one is never cancelled — GitLab's
+  # `auto_cancel: on_new_commit: none` for the schedule.
+  group: backend-suite
+  cancel-in-progress: false
+
+permissions:
+  contents: read
+
+jobs:
+  test-backend:
+    name: test:backend (shard ${{ matrix.shard }}/5)
+    runs-on: ubuntu-24.04
+    # GitLab's `timeout: 2h` was a floor, not a measurement (its comment says
+    # why); a hosted runner allows six hours, so this leaves margin.
+    timeout-minutes: 180
+    permissions:
+      contents: read
+    strategy:
+      fail-fast: false
+      matrix:
+        shard: [1, 2, 3, 4, 5]
+    services:
+      postgres:
+        image: postgres:16-alpine
+        env:
+          POSTGRES_USER: b2b
+          POSTGRES_PASSWORD: b2b
+          POSTGRES_DB: b2b
+        ports:
+          - 5432:5432
+        options: >-
+          --health-cmd "pg_isready -U b2b -d b2b"
+          --health-interval 5s --health-timeout 5s --health-retries 10
+      redis:
+        image: redis:7-alpine
+        ports:
+          - 6379:6379
+        options: >-
+          --health-cmd "redis-cli ping"
+          --health-interval 5s --health-timeout 3s --health-retries 10
+      meilisearch:
+        image: getmeili/meilisearch:v1.11
+        env:
+          MEILI_MASTER_KEY: devMasterKeyChangeMe
+          MEILI_ENV: development
+          MEILI_NO_ANALYTICS: 'true'
+        ports:
+          - 7700:7700
+        # 127.0.0.1, not localhost: see the same check in `docker-compose.yml`.
+        options: >-
+          --health-cmd "wget --quiet --spider http://127.0.0.1:7700/health"
+          --health-interval 5s --health-timeout 3s --health-retries 10
+    env:
+      # `.gitlab-ci.yml`'s `test:backend` variables. Services are reached on
+      # localhost here because the job runs on the host, not in a container.
+      # TEST_DATABASE_URL is the base name: `test/global-setup.ts` migrates the
+      # template from the empty service database, so do not pre-migrate it.
+      NODE_OPTIONS: --max-old-space-size=2048
+      TEST_DATABASE_URL: postgresql://b2b:b2b@localhost:5432/b2b_test
+      REDIS_URL: redis://localhost:6379
+      MEILISEARCH_URL: http://localhost:7700
+      MEILISEARCH_API_KEY: devMasterKeyChangeMe
+    steps:
+      # actions/checkout v7.0.1
+      - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1
+        with:
+          persist-credentials: false
+      # actions/setup-node v7.0.0
+      - uses: actions/setup-node@820762786026740c76f36085b0efc47a31fe5020
+        with:
+          node-version: '22.18'
+      - run: corepack enable && corepack prepare pnpm@9.15.0 --activate
+      - id: pnpm-store
+        run: echo "path=$(pnpm store path --silent)" >> "$GITHUB_OUTPUT"
+      # actions/cache v6.1.0
+      - uses: actions/cache@55cc8345863c7cc4c66a329aec7e433d2d1c52a9
+        with:
+          path: ${{ steps.pnpm-store.outputs.path }}
+          key: pnpm-store-${{ hashFiles('pnpm-lock.yaml') }}
+          restore-keys: pnpm-store-
+      - run: pnpm install --frozen-lockfile
+      - run: pnpm run build:packages
+      # `exec vitest`, not `run test --`: see the same line in `.gitlab-ci.yml`.
+      - run: pnpm --filter backend exec vitest run --shard=${{ matrix.shard }}/5
+      # The junit report outlives the job, so a failing test is named even when
+      # the log is not read to the end. `vitest.config.base.ts` writes it there.
+      # actions/upload-artifact v7.0.2
+      - if: ${{ !cancelled() }}
+        uses: actions/upload-artifact@cf430e030ddbb5b0abf93d22962f4752f3646cd9
+        with:
+          name: test-backend-junit-shard-${{ matrix.shard }}
+          path: backend/test-results.junit.xml
+          retention-days: 7
+          if-no-files-found: warn
+
+  test-backend-deployment:
+    # `.gitlab-ci.yml`'s `test:backend:deployment`, one instance per overlay
+    # deployment; its comment carries why it is unsharded and narrow.
+    name: test:backend:deployment (${{ matrix.deployment }})
+    runs-on: ubuntu-24.04
+    timeout-minutes: 60
+    permissions:
+      contents: read
+    strategy:
+      fail-fast: false
+      matrix:
+        deployment: [example]
+    services:
+      postgres:
+        image: postgres:16-alpine
+        env:
+          POSTGRES_USER: b2b
+          POSTGRES_PASSWORD: b2b
+          POSTGRES_DB: b2b
+        ports:
+          - 5432:5432
+        options: >-
+          --health-cmd "pg_isready -U b2b -d b2b"
+          --health-interval 5s --health-timeout 5s --health-retries 10
+      redis:
+        image: redis:7-alpine
+        ports:
+          - 6379:6379
+        options: >-
+          --health-cmd "redis-cli ping"
+          --health-interval 5s --health-timeout 3s --health-retries 10
+      meilisearch:
+        image: getmeili/meilisearch:v1.11
+        env:
+          MEILI_MASTER_KEY: devMasterKeyChangeMe
+          MEILI_ENV: development
+          MEILI_NO_ANALYTICS: 'true'
+        ports:
+          - 7700:7700
+        options: >-
+          --health-cmd "wget --quiet --spider http://127.0.0.1:7700/health"
+          --health-interval 5s --health-timeout 3s --health-retries 10
+    env:
+      DEPLOYMENT: ${{ matrix.deployment }}
+      NODE_OPTIONS: --max-old-space-size=2048
+      TEST_DATABASE_URL: postgresql://b2b:b2b@localhost:5432/b2b_test
+      REDIS_URL: redis://localhost:6379
+      MEILISEARCH_URL: http://localhost:7700
+      MEILISEARCH_API_KEY: devMasterKeyChangeMe
+    steps:
+      # actions/checkout v7.0.1
+      - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1
+        with:
+          persist-credentials: false
+      # actions/setup-node v7.0.0
+      - uses: actions/setup-node@820762786026740c76f36085b0efc47a31fe5020
+        with:
+          node-version: '22.18'
+      - run: corepack enable && corepack prepare pnpm@9.15.0 --activate
+      - id: pnpm-store
+        run: echo "path=$(pnpm store path --silent)" >> "$GITHUB_OUTPUT"
+      # actions/cache v6.1.0
+      - uses: actions/cache@55cc8345863c7cc4c66a329aec7e433d2d1c52a9
+        with:
+          path: ${{ steps.pnpm-store.outputs.path }}
+          key: pnpm-store-${{ hashFiles('pnpm-lock.yaml') }}
+          restore-keys: pnpm-store-
+      - run: pnpm install --frozen-lockfile
+      - run: pnpm run build:packages
+      - run: pnpm --filter backend run overlay:check
+      - run: pnpm --filter backend exec vitest run test/overlay test/integration/overlay test/contract/admin_users/permission-inventory.test.ts
