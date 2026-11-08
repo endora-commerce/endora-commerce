@@ -51,7 +51,7 @@ _Brak._
 
 ## Tłumaczenia
 
-Ten moduł nie deklaruje pakietów tłumaczeń.
+Pakiety tłumaczeń w katalogu `i18n` modułu, po jednym pliku na każdy obsługiwany język.
 
 ## Polecenia operatora
 

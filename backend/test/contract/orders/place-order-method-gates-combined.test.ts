@@ -16,6 +16,7 @@ import {
 import { SEED_PRODUCT_101_ID } from '../../helpers/seed-catalog.js';
 import { TEST_CUSTOMER_ID, TEST_ORGANIZATION_ID } from '../../helpers/test-actors.js';
 import { Cart, Organization } from '../../helpers/package-entities.js';
+import { addOrganizationChannels } from '../../helpers/sales-channel-access.js';
 
 /**
  * The two method gates of order placement, **together**.
@@ -95,6 +96,9 @@ describe('order placement — the Organization allow-list and the channel gate t
     };
     const channelBId = await createChannel('gates-combined-b');
     const intakeChannelId = await createChannel('gates-combined-intake');
+    // Issue #699 — the intake places only on one of the bound Organization's
+    // active assigned channels.
+    await addOrganizationChannels(h, TEST_ORGANIZATION_ID, ['gates-combined-intake']);
 
     const delivery = await h.app.inject({
       method: 'PUT',

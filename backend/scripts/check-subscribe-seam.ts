@@ -20,20 +20,46 @@ import { pathToFileURL } from 'node:url';
 
 import {
   BARE_SUBSCRIPTIONS_TO_DRAIN,
+  type BareSubscription,
+  type CheckResult,
   checkSubscribeSeam,
   checkWorkerSeam,
   collectSeamFiles,
   findBareSubscriptions,
   keyOf,
+  type SubscribeSeamInput,
   workerKeyOf,
+  type WorkerSeamResult,
   WORKERS_OUTSIDE_THE_SEAM,
 } from '@endora-commerce/cli/rules/subscribe-seam.js';
+
+import { withSharedParses } from '@endora-commerce/cli/lib/parsed-source.js';
 
 import { refuseVacuousModulePopulation } from './lib/module-population.js';
 import { requireModuleLayout } from './lib/module-roots.js';
 import { reportReadSize } from './lib/read-size.js';
 
 export * from '@endora-commerce/cli/rules/subscribe-seam.js';
+
+/**
+ * Both halves of the rule and every bare subscription, in one shared-parse
+ * scope (issue #910): each source is parsed once between the four walks,
+ * except a file that can hold a worker site, which the worker-site walk reads
+ * again because what it reads depends on every other file. What the CLI runs.
+ */
+export function scanSubscribeSeam(input: SubscribeSeamInput): {
+  readonly result: CheckResult;
+  readonly workers: WorkerSeamResult;
+  readonly subscriptions: readonly BareSubscription[];
+} {
+  return withSharedParses(() => ({
+    result: checkSubscribeSeam(input),
+    workers: checkWorkerSeam(input),
+    // `--list` has always attributed without `hostResidentModules`, unlike the
+    // verdict above; kept as it was, because this repair changes no output.
+    subscriptions: findBareSubscriptions({ sources: input.sources }),
+  }));
+}
 
 async function main(): Promise<void> {
   const listMode = process.argv.includes('--list');
@@ -61,8 +87,9 @@ async function main(): Promise<void> {
   });
 
   const seamInput = { sources, hostResidentModules: layout.hostResidentModules };
-  const result = checkSubscribeSeam(seamInput);
-  const workers = checkWorkerSeam(seamInput);
+  // Nothing in the scan prints, so computing both halves before the worker
+  // guard below refuses changes nothing this check reports.
+  const { result, workers, subscriptions } = scanSubscribeSeam(seamInput);
 
   // Issue #113's shape for the worker half, and it needs its own refusal: the
   // subscription half's floor is the module population, which stays satisfied
@@ -80,7 +107,7 @@ async function main(): Promise<void> {
   }
 
   if (listMode) {
-    for (const entry of findBareSubscriptions({ sources })) {
+    for (const entry of subscriptions) {
       const tag =
         BARE_SUBSCRIPTIONS_TO_DRAIN[keyOf(entry)] !== undefined ? 'LEDGERED' : 'BARE    ';
       console.log(

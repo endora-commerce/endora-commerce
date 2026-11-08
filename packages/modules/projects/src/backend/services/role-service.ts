@@ -1,6 +1,7 @@
 import type { EntityManager } from '@mikro-orm/postgresql';
 import { ProjectRole } from '../entities/project-role.entity.js';
 import { DictionaryService, type DictionaryServiceDeps } from './dictionary-service.js';
+import { lockRoleForDelete } from './role-locks.js';
 
 /**
  * Project Roles (`specs/163-projects-and-tasks/`, User Story 4, FR-007 –
@@ -11,7 +12,9 @@ import { DictionaryService, type DictionaryServiceDeps } from './dictionary-serv
  * A Role is **in use** while a Member holds it, a Template offers it, or a
  * Stage or Stage Task — of a Project or a Template — names it as responsible.
  * The Stages' `responsible_role_ids` carry no foreign key, which is why this
- * is asked rather than left to the schema's `restrict`.
+ * is asked rather than left to the schema's `restrict` — and why the delete
+ * asks it under the Role's lock, which every write naming the Role shares
+ * (`role-locks.ts`, issue #453).
  */
 export async function roleInUse(em: EntityManager, id: string): Promise<boolean> {
   const [row] = (await em.execute(
@@ -36,5 +39,6 @@ export function createRoleService(deps: DictionaryServiceDeps): DictionaryServic
     actionPrefix: 'projects.role',
     fallbackCode: 'role',
     inUse: roleInUse,
+    lockForDelete: lockRoleForDelete,
   });
 }

@@ -299,9 +299,14 @@ describe('ProjectDetail — the description', () => {
     );
     await renderPage();
     const panel = await screen.findByRole('tabpanel');
-    await userEvent.click(within(panel).getByRole('button', { name: en('overview.editDescription') }));
+    // The tab panel is drawn before the Overview inside it: find the button rather than get it.
+    await userEvent.click(await within(panel).findByRole('button', { name: en('overview.editDescription') }));
     const field = within(panel).getByLabelText(en('overview.description'));
-    await userEvent.type(field, ' Then the lights.');
+    // The field focuses itself with the caret after the text, but the editor applies that focus in
+    // an animation frame, which a loaded runner can delay past the first keystroke: the text then
+    // landed in front (issue #250). Wait for the focus, then type where the caret is.
+    await waitFor(() => expect(field).toHaveFocus());
+    await userEvent.keyboard(' Then the lights.');
     await userEvent.click(within(panel).getByRole('button', { name: en('overview.saveDescription') }));
     await waitFor(() =>
       expect(patchSpy).toHaveBeenCalledWith(DETAIL_PATH, {

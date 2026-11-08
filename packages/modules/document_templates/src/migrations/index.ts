@@ -8,7 +8,14 @@
  */
 
 import { Migration20261017T071754DocumentTemplatesInit } from './20261017T071754_document_templates_init.js';
+import { Migration20261107T110328DocumentTemplatesInvoiceSeededLabels } from './20261107T110328_document_templates_invoice_seeded_labels.js';
 
-export const migrations = [Migration20261017T071754DocumentTemplatesInit];
+export const migrations = [
+  Migration20261017T071754DocumentTemplatesInit,
+  Migration20261107T110328DocumentTemplatesInvoiceSeededLabels,
+];
 
-export { Migration20261017T071754DocumentTemplatesInit };
+export {
+  Migration20261017T071754DocumentTemplatesInit,
+  Migration20261107T110328DocumentTemplatesInvoiceSeededLabels,
+};

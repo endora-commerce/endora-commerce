@@ -102,6 +102,15 @@ default does not sell it. A product outside the chosen channel's assortment is
 refused before the customer's basket is touched, so the basket is left as it
 was.
 
+The external order API (`POST /api/v1/external/orders`) follows the same rule
+for the channel its API key is bound to: that channel has to be one of the
+bound organization's active sales channels **when the order is placed**, not
+only when the key was issued. A key whose organization was never assigned to
+the channel, or was unassigned from it later, is refused with
+`422 ORDER_SALES_CHANNEL_NOT_ALLOWED` before anything is written, the service
+account's basket included. A bound channel that is switched off is refused
+earlier, with `400 INACTIVE_SALES_CHANNEL`.
+
 What is read from an order's channel:
 
 - at placement — the minimum order value (`orders.min_order_value`), the

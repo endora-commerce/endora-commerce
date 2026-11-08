@@ -182,5 +182,6 @@
   "itemsTable.style.borderColor": "Kolor obramowania",
   "itemsTable.style.stripeColor": "Kolor pasków",
   "itemsTable.columns.editShort": "Edytuj",
-  "actions.openDocumentTemplates.keywords": "szablon pdf, szablon faktury, porównanie, szablon oferty, zapytanie ofertowe pdf"
+  "actions.openDocumentTemplates.keywords": "szablon pdf, szablon faktury, porównanie, szablon oferty, zapytanie ofertowe pdf",
+  "settingGroups.document_templates.name": "Szablony dokumentów"
 }

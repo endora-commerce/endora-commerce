@@ -145,6 +145,16 @@ export interface EmailEditorPaneProps {
 const PREVIEW_PLACEHOLDER_LOGO = 'https://placehold.co/160x48?text=Logo';
 const PREVIEW_UNSUBSCRIBE_URL = 'https://shop.example/newsletter/unsubscribe?token=preview';
 
+/**
+ * The sample `unsubscribeUrl` a preview is given (issue #862). Only a newsletter
+ * send carries one; a transactional e-mail has none, and since #861 its footer
+ * drops the Unsubscribe link when the URL is empty. The preview shows what a
+ * real send of this kind shows.
+ */
+function previewUnsubscribeUrl(builderContext: PageBuilderContext): Record<string, string> {
+  return builderContext === 'newsletter' ? { unsubscribeUrl: PREVIEW_UNSUBSCRIBE_URL } : {};
+}
+
 function pickLanguageTree(content: Record<string, unknown>): PuckDataTree | null {
   const raw = content['pl-PL'] ?? content['en-US'] ?? Object.values(content)[0] ?? null;
   if (!raw || typeof raw !== 'object') return null;
@@ -155,7 +165,13 @@ function pickLanguageTree(content: Record<string, unknown>): PuckDataTree | null
  * Canvas preview for an embedded block/template. Resolves branding (and other
  * sample) directives so `{{var branding.logoUrl}}` becomes a real `<img src>`.
  */
-function EmbedPreviewHtml({ content }: { content: Record<string, unknown> }): React.ReactElement {
+function EmbedPreviewHtml({
+  content,
+  builderContext,
+}: {
+  content: Record<string, unknown>;
+  builderContext: PageBuilderContext;
+}): React.ReactElement {
   const { logoUrl } = useEmailBrandingPreview();
   // The contributed renderers the pane loaded (feature 141): an embedded block
   // or template may hold a module's block, and it has to draw here as it does
@@ -170,7 +186,7 @@ function EmbedPreviewHtml({ content }: { content: Record<string, unknown> }): Re
         logoUrl: logoUrl || PREVIEW_PLACEHOLDER_LOGO,
         accentColor: '#1f2937',
       },
-      unsubscribeUrl: PREVIEW_UNSUBSCRIBE_URL,
+      ...previewUnsubscribeUrl(builderContext),
     },
     { escape: true },
   );
@@ -228,8 +244,12 @@ function SandboxedEmailHtml({ html }: { html: string }): React.ReactElement {
   );
 }
 
-function previewNode(content: Record<string, unknown>): ReactNode {
-  return <EmbedPreviewHtml content={content} />;
+/**
+ * Canvas preview of an embedded block or template. `builderContext` is the
+ * editor's: the sample Unsubscribe link is drawn for `'newsletter'` only.
+ */
+function previewNode(content: Record<string, unknown>, builderContext: PageBuilderContext = 'email'): ReactNode {
+  return <EmbedPreviewHtml content={content} builderContext={builderContext} />;
 }
 
 const STOREFRONT_BASE_URL = (
@@ -647,7 +667,7 @@ function EmailHtmlPreviewModal({
   );
 }
 
-function buildPreviewHtml(
+export function buildPreviewHtml(
   data: Data,
   variables: EmailVariableItem[],
   logoUrl: string,
@@ -655,6 +675,7 @@ function buildPreviewHtml(
   embedTrees?: EmailRenderEmbeds,
   previewLanguage?: string | null,
   blockRenderers: EmailBlockRenderers = {},
+  builderContext: PageBuilderContext = 'email',
 ): string {
   const language = previewLanguage || 'en-US';
   const raw = renderEmailHtml((data ?? emptyData) as never, {
@@ -683,7 +704,10 @@ function buildPreviewHtml(
     order['discountsText'] = sampleOrderDiscountsText(language);
   }
   fromDescriptors['order'] = order;
-  if (typeof fromDescriptors['unsubscribeUrl'] !== 'string' || !fromDescriptors['unsubscribeUrl']) {
+  if (
+    builderContext === 'newsletter' &&
+    (typeof fromDescriptors['unsubscribeUrl'] !== 'string' || !fromDescriptors['unsubscribeUrl'])
+  ) {
     fromDescriptors['unsubscribeUrl'] = PREVIEW_UNSUBSCRIBE_URL;
   }
   return renderDirectives(raw, fromDescriptors, { escape: true });
@@ -997,8 +1021,9 @@ export function EmailEditorPane({
         embedTrees,
         previewLanguage,
         composed.blockRenderers,
+        builderContext,
       ),
-    [data, variables, logoUrl, previewExtras, embedTrees, previewLanguage, composed.blockRenderers],
+    [data, variables, logoUrl, previewExtras, embedTrees, previewLanguage, composed.blockRenderers, builderContext],
   );
 
   return (

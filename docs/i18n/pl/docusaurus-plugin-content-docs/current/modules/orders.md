@@ -96,6 +96,15 @@ a produkt, który sprzedaje, jest przyjmowany, nawet jeśli kanał domyślny go 
 sprzedaje. Produkt spoza asortymentu wybranego kanału jest
 odrzucany, zanim koszyk klienta zostanie naruszony, więc koszyk pozostaje bez zmian.
 
+Zewnętrzne API zamówień (`POST /api/v1/external/orders`) stosuje tę samą zasadę
+do kanału, z którym powiązany jest klucz API: musi on być jednym z aktywnych
+kanałów sprzedaży powiązanej organizacji **w chwili składania zamówienia**, a nie
+tylko w chwili wydania klucza. Klucz, którego organizacja nigdy nie została
+przypisana do kanału albo została od niego później odłączona, jest odrzucany
+odpowiedzią `422 ORDER_SALES_CHANNEL_NOT_ALLOWED`, zanim cokolwiek zostanie
+zapisane, także koszyk konta serwisowego. Wyłączony kanał powiązany z kluczem
+jest odrzucany wcześniej, odpowiedzią `400 INACTIVE_SALES_CHANNEL`.
+
 Z kanału zamówienia odczytywane są:
 
 - przy składaniu zamówienia — minimalna wartość zamówienia
