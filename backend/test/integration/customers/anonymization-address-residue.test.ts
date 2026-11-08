@@ -86,7 +86,10 @@ describe('Anonymization sweep — address rows the customer deleted, and the ret
         const org = await orgs.anonymizeIfOrphaned(id);
         return org ? toOrganizationRecord(org) : null;
       },
-    } as PersonalOrganizationPort;
+      // Issue #923 — the sweep's second work-list source.
+      listIncompletelyScrubbed: () => orgs.listIncompletelyScrubbed(),
+      hasIncompletelyScrubbed: () => orgs.hasIncompletelyScrubbed(),
+    };
   }
 
   beforeAll(async () => {
