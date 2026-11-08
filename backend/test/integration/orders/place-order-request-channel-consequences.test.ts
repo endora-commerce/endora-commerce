@@ -96,6 +96,12 @@ describe('order placement — what follows the resolved request channel', () => 
     channelB = { id: (created.json() as { id: string }).id, code: 'consequences-b' };
     // Feature 154 — the buyer shops on channel B as well as on the default.
     await addOrganizationChannels(h, TEST_ORGANIZATION_ID, ['consequences-b']);
+    // Feature 163 (FR-001, FR-006) — a basket line must be effectively available
+    // at the order's channel, and channel membership is part of that: placement
+    // refuses a product channel B does not carry with the unknown-id 404. The
+    // seeded basket line is product 101, so channel B carries it, written the way
+    // the admin writes a membership.
+    await h.salesChannels.membershipService.addToChannel(channelB.id, 'product', SEED_PRODUCT_101_ID);
 
     // Channel B ships from a warehouse of its own, and only from it — so the
     // warehouse an order is allocated from says which channel's candidates
