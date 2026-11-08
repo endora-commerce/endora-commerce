@@ -311,6 +311,9 @@ export const ERROR_CODES = {
   // admin already holds a view on the return list whose name differs only by
   // case or surrounding spaces.
   RETURN_SAVED_VIEW_NAME_TAKEN: 'RETURN_SAVED_VIEW_NAME_TAKEN',
+  // Issue #905 — a consumer withdrawal settled as a credit, a replacement or a
+  // repair without the consumer's consent to that resolution on record.
+  RETURN_ALTERNATIVE_RESOLUTION_CONSENT_REQUIRED: 'RETURN_ALTERNATIVE_RESOLUTION_CONSENT_REQUIRED',
 
   // Credit Limit
   CREDIT_LIMIT_NOT_GRANTED: 'CREDIT_LIMIT_NOT_GRANTED',

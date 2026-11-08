@@ -33,6 +33,7 @@ Admin routes are gated by `returns:read` (read) / `returns:write` (mutations).
 | `POST /api/v1/admin/returns/:id/reject` | admin | Reject with a mandatory reason |
 | `POST /api/v1/admin/returns/:id/transition` | admin | Guarded status transition |
 | `GET\|POST /api/v1/admin/returns/:id/settlement` | admin | Prefill / execute settlement |
+| `POST\|DELETE /api/v1/admin/returns/:id/alternative-consent` | admin | Record / revoke the consumer's consent to a resolution other than a refund (see *Consumer withdrawal*) |
 | `GET\|POST /api/v1/admin/returns/:id/comments` | admin | List / add comment (visibility + notify) |
 | `GET\|POST /api/v1/admin/returns/:id/shipments` + `/:shipmentId/receive` | admin | Return shipments |
 | `GET\|POST /api/v1/admin/returns/list-views` | admin | The caller's own saved views plus every shared one / save a view |
@@ -138,7 +139,9 @@ before/after events and is written to the audit log.
   rate on the kept nets, less the discount they carry), so it can differ by a
   cent from the returned units' own value and the order's returns together still
   refund exactly what was paid. Resolutions: refund (money), credit (tops up
-  the organization's `credit_limits` grant), replacement, or repair. A corrective
+  the organization's `credit_limits` grant), replacement, or repair; a consumer
+  withdrawal settles as a refund unless the consumer's consent to another
+  resolution is on record (see *Consumer withdrawal*). A corrective
   invoice (`invoices` kind `correction`) is requested for money/credit settlements.
   An order that was never invoiced has no VAT document to correct, so none is
   issued: the settlement succeeds, the refund is recorded on the return case and
@@ -242,6 +245,76 @@ weekend), never earlier. The statutory period and the grace are computed by
 `domain/withdrawal-period.ts`; the withdrawal function that uses them arrives in
 a later release.
 
+## Consumer withdrawal
+
+A consumer who buys at a distance may withdraw from the contract within the
+statutory period without giving a reason, and is then reimbursed by the same
+means of payment unless they expressly agree otherwise (Directive 2011/83
+art. 9 and 13(1); in Poland, art. 27 and 32 of the *ustawa o prawach
+konsumenta*). This module tells such a case apart from any other return and
+settles it accordingly.
+
+- **Which case is a consumer withdrawal.** A `return` (never a complaint) by a
+  **personal** Organization (the one every consumer gets at checkout; never a
+  company), filed while the withdrawal is still possible for the order: the
+  statutory 14 days, the channel's longer free-return window, and the 7-day grace
+  after both (see *Counting the windows*). The answer is fixed when the case is filed and the
+  case detail reports it as `consumerWithdrawal`; the admin case view marks the
+  case **Consumer withdrawal**. A personal Organization's return filed after the
+  grace is a commercial return under the shop's own policy, and nothing below
+  applies to it. A sole trader buying through a company Organization may have
+  the same right under Polish law (art. 38a); the platform cannot tell, so an
+  operator handles such a case by hand.
+- **Cases filed before this release** carry no answer (`consumerWithdrawal:
+  null`) and are treated as ordinary returns. Classifying them needs the
+  Organization, which a migration may not read, so a later release classifies
+  the open ones in the background.
+- **A refund by default.** The settlement form starts on **Refund money**, to
+  the order's own payment method (`defaultRefundPaymentMethodId` in the
+  settlement prefill). The method is chosen by name from the shop's payment
+  methods, with the order's own listed first and marked; when that list
+  cannot be read, the form falls back to a field for the method's id. Credit,
+  replacement and repair stay visible but cannot be chosen until the
+  consumer's consent is on record, and the settlement refuses them with
+  `422 RETURN_ALTERNATIVE_RESOLUTION_CONSENT_REQUIRED` (`details.resolution`
+  names the one refused). The prefill names them in `consentRequiredFor` and keeps
+  every resolution in `resolutionOptions`. Company returns and complaints are
+  unaffected.
+- **Another payment method warns, and does not refuse.** A cash-on-delivery
+  order cannot be refunded "by the same means", and a bank transfer is the
+  accepted practice there. The form shows a warning, the settlement goes
+  through, and its audit entry (`return.settled`) records
+  `consumerWithdrawal: true` and `refundMethodDiffers: true`.
+- **Recording the consumer's consent.** The consent normally reaches the shop by
+  e-mail or telephone. An operator with `returns:write` records it in the
+  **Consumer withdrawal** panel of the case: what the consumer agreed to
+  (credit, a replacement or a repair), when (not in the future, not before the
+  case was filed), and an evidence note of up to 2000 characters, for example
+  *"Customer's e-mail of 10 Nov 2026, ticket #123"*. The settlement then accepts
+  that resolution, and still refuses the other two. Recording it again replaces
+  the earlier one. **Revoke consent** removes it after a confirmation, which
+  says what is lost: the evidence note is deleted, while the history keeps that
+  the consent was recorded and revoked. Both are audited
+  (`return_case.alternative_consent.record` and `.revoke`) with the operator as
+  the actor; the entry holds the resolution, the moment and the source, not the
+  evidence note, which stays on the case. Once the case is settled its consent
+  is frozen: both answer `409` (`details.code: 'consent_frozen'`). A case in a
+  **terminal status** of the configured workflow (`rejected`, `cancelled`, or
+  any status an operator marked terminal) can never be settled, so its consent
+  is closed too: both answer `409` (`details.code: 'case_closed'`), nothing is
+  written, and the panel shows the consent on record read-only, with no
+  actions. The time the consent was given is shown in the operator's browser
+  time zone, which is named beside it. A case that is
+  not a consumer withdrawal answers `422` (`details.code:
+  'not_consumer_withdrawal'`).
+- **Personal data.** The withdrawal statement this module will store keeps the
+  consumer's name and e-mail address in two columns of their own, which can be
+  cleared while the statement itself is kept as the shop's evidence.
+
+The withdrawal function on the storefront (art. 11a, inserted by Directive (EU)
+2023/2673 and applicable from 19 June 2026), the acknowledgement e-mail and the
+14-day reimbursement deadline arrive in later releases.
+
 ## Returnable products
 
 Whether a line may be returned is decided by the product's **Returnable** flag
@@ -304,8 +377,10 @@ internal imports:
   `orders.view_organization`).
 - `OrganizationPermissionPort` (organizations) — `returns.create` and
   `returns.view_organization`, asked per request.
+- `OrganizationDetailsPort.findById` (organizations) — whether the case's
+  Organization is personal, read once when a return is filed.
 - `OrderReturnContextPort` (orders) — paid-per-line amounts + completing-status
-  time, and each line's `returnableAtPurchase` (`true`/`false` as recorded at
+  time, the order's payment method, and each line's `returnableAtPurchase` (`true`/`false` as recorded at
   placement, `null` for an order placed before it was recorded). Orders reports
   the fact; the policy for `null` — returnable — is this module's.
 - `PaymentRefundPort` (payments) — issue the refund, answer `pending_manual`
@@ -323,3 +398,9 @@ Migration `20260625T144227_returns_init.ts` creates `return_cases`, `return_case
 `return_reasons`, `return_delivery_methods`, `refunds`, `return_shipments`,
 `return_case_attachments`, `return_list_saved_views`, and the
 `return_cases_rma_seq` sequence.
+
+Migration `20261108T023047_returns_consumer_withdrawal.ts` adds the consumer
+withdrawal's columns to `return_cases` (`consumer_withdrawal`, the consent
+columns, and the facts of the reimbursement deadline) and creates
+`return_withdrawal_statements`. It touches no other module's table, so it
+leaves existing cases unclassified.

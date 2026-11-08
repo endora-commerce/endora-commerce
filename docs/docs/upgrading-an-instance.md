@@ -3736,6 +3736,13 @@ So every account already past its window on the day you upgrade is anonymized wi
 first worker boot. **This cannot be undone**, and an account past its window can no longer be
 restored (`409 CUSTOMER_RESTORE_WINDOW_ELAPSED`), whether or not the sweep has reached it yet.
 
+**The audit history of each anonymized account is erased too** (issue #844). This covers the rows
+about the account and, for an individual, about their personal Organization and its addresses.
+Every row keeps its action, actors, time and object, but the recorded personal values become
+`[erased]`, and so do the IP address and user agent on the rows the customer wrote for themselves.
+This also cannot be undone. Each account gets one `audit.redacted` entry. The rule is described in
+the audit log module's documentation, under *Redaction on anonymisation*.
+
 **What to do:**
 
 1. **Count the accounts the first run will anonymize.** Run this read-only query before the
@@ -3759,7 +3766,8 @@ restored (`409 CUSTOMER_RESTORE_WINDOW_ELAPSED`), whether or not the sweep has r
 3. **Restore what you want to keep**, then set the window back to the value you want, if you
    raised it.
 4. **After the first run**, the worker logs `customers: anonymization sweep finished` at `info`
-   with the number anonymized, and each account has a `customer_account.anonymized` audit entry. An
+   with the number anonymized, and each account has a `customer_account.anonymized` and an
+   `audit.redacted` audit entry. An
    account that could not be anonymized is reported by id in a warning
    (`customers: the anonymization sweep failed; the next tick retries`) and is retried the next
    day. The query above then returns `0`.
@@ -3956,6 +3964,26 @@ Two things do change from then on:
    `Europe/Berlin`, on the Admin Settings screen (group *Returns*).
 2. **Tell the operators to complete an order when the goods have been delivered.** The consumer's
    withdrawal period counts from the order's completion, because the platform has no delivery date.
+
+### A consumer's withdrawal settles as a refund unless consent is recorded {#consumer-withdrawal-consent}
+
+The release that ships this change marks every return a consumer files as a **consumer withdrawal**
+(issue #905): a return by a personal Organization, filed within the withdrawal period, the channel's
+longer free-return window, or the 7-day grace after them. Such a case is refunded by the same means
+of payment unless the consumer agreed otherwise (Directive 2011/83 art. 13(1)), so:
+
+- **Credit toward future orders, a replacement and a repair need the consumer's consent on record.**
+  Without it the settlement answers `422 RETURN_ALTERNATIVE_RESOLUTION_CONSENT_REQUIRED`. An operator
+  records the consent, with an evidence note, in the case's *Consumer withdrawal* panel.
+- **The refund proposes the order's own payment method.** Another one is accepted with a warning, and
+  the settlement's audit entry records it.
+
+Company returns and complaints are unchanged. **Cases filed before the upgrade are not classified**:
+they settle as before. A later release classifies the open ones.
+
+**After upgrading:** tell the operators who settle returns that a consumer's credit, replacement or
+repair now needs the consent recorded first, and where the consumer agreed (an e-mail, a ticket) goes
+in its evidence note.
 
 ## An instance that is mixed from the start
 
