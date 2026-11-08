@@ -119,6 +119,9 @@ describe('derived-scope helpers — one case per arm', () => {
     expect(isOrgInScope('org-U', excluded)).toBe(true);
     expect(isOrgInScope('org-A', excluded)).toBe(true);
     expect(isOrgInScope('org-F', excluded)).toBe(false);
+    // `?? ''` is how callers spell "no organization": never in a reach that is a complement.
+    expect(isOrgInScope('', excluded)).toBe(false);
+    expect(isOrgInScope('', allowed)).toBe(false);
   });
 
   it('ruleVisibleForScope', () => {

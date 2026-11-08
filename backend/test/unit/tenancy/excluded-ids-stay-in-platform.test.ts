@@ -19,9 +19,10 @@ import { describe, expect, it } from 'vitest';
  * `ruleVisibleForScope`, `assignedOrganizationIdsForRanking`) are the only way
  * in, and this file holds that:
  *
- *  - no file under `packages/modules/<id>/src` names `excludedOrganizationIds`,
- *    except the producer — `organizations`, which computes the set and answers
- *    it on `adminTenantScopePort`;
+ *  - no source file under `packages/modules/<id>/src` names
+ *    `excludedOrganizationIds`, except the producer — `organizations`, which
+ *    computes the set and answers it on `adminTenantScopePort`. A module's
+ *    *test* may build an `excluded` constraint to drive the helpers with;
  *  - no source file there names a tenant mode spelling (`'allowed-set'`,
  *    `'excluded-set'`): a module reads the constraint, never the mode. A
  *    module's *test* may observe the mode it ran under (`auth`'s route-actor
@@ -36,11 +37,9 @@ const MODULES = join(REPO_ROOT, 'packages', 'modules');
 const EXCLUDED_IDS_PRODUCERS = new Set([
   // The port that answers the tenant reach: it hands the set to the platform.
   'packages/modules/organizations/src/backend/services/admin-tenant-scope.ts',
-  'packages/modules/organizations/src/backend/services/admin-tenant-scope.test.ts',
   // The one statement that computes it, and its pure decision half.
   'packages/modules/organizations/src/backend/services/sales-rep-assignment-service.ts',
   'packages/modules/organizations/src/backend/services/sales-rep-reach.ts',
-  'packages/modules/organizations/src/backend/services/sales-rep-reach.test.ts',
 ]);
 
 /** No module reads the tenant mode today; an entry here needs a reason beside it. */
@@ -78,7 +77,7 @@ describe('#305 — the excluded organization ids stay in the platform', () => {
 
   it('no module but the producer names `excludedOrganizationIds`', () => {
     const offenders = files
-      .filter(({ text }) => text.includes('excludedOrganizationIds'))
+      .filter(({ file, text }) => !/\.test\.tsx?$/.test(file) && text.includes('excludedOrganizationIds'))
       .map(({ file }) => file)
       .filter((file) => !EXCLUDED_IDS_PRODUCERS.has(file));
     expect(offenders).toEqual([]);

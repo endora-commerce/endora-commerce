@@ -1,4 +1,4 @@
-import type { EntityManager } from '@mikro-orm/postgresql';
+import type { EntityManager, Knex } from '@mikro-orm/postgresql';
 import type { FilterQuery } from '@mikro-orm/core';
 import type {
   AdminReturnRow,
@@ -7,7 +7,7 @@ import type {
   BulkTransitionResult,
 } from '@endora-commerce/contracts';
 import { ReturnCase } from '../entities/return-case.entity.js';
-import { orgConstraintFor } from '@endora-commerce/platform/tenancy';
+import { orgConstraintFor, orgScopeSql } from '@endora-commerce/platform/tenancy';
 import type { ReturnStatusGraphService } from './return-status-graph-service.js';
 import type { ReturnTransitionService } from './return-transition-service.js';
 import { isUuidShape } from '@endora-commerce/contracts';
@@ -135,8 +135,11 @@ export class ReturnListService {
       // constraint type still admits a null.
       if (constraint.organizationId === null) void qb.whereNull('organization_id');
       else void qb.where('organization_id', constraint.organizationId);
-    } else if (constraint.kind === 'set') {
-      void qb.whereIn('organization_id', [...constraint.organizationIds]);
+    } else if (constraint.kind !== 'all') {
+      // The platform's predicate for the reach (issue #305): a sales
+      // representative's is every organization nobody else governs.
+      const reach = orgScopeSql('organization_id', constraint);
+      void qb.whereRaw(reach.sql, [...reach.params] as Knex.RawBinding[]);
     }
     const rows = await qb;
     const out: Record<string, number> = {};

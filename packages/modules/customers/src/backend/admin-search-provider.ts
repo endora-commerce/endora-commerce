@@ -1,3 +1,4 @@
+import { isOrgInScope, type OrgConstraint } from '@endora-commerce/platform/tenancy';
 import type {
   AdminSearchFieldDescriptor,
   AdminSearchProvider,
@@ -37,10 +38,15 @@ export interface CustomerAdminSearchRow {
   readonly status: 'active' | 'blocked';
 }
 
-/** The customer list's scope, as `resolveModerationActor` answers it for the list route. */
+/**
+ * The customer list's scope, as `resolveModerationActor` answers it for the
+ * list route. What a scoped admin reaches is the tenant context's (issue #305:
+ * a sales representative reaches every organization nobody else governs);
+ * `reach` names a constraint explicitly, and defaults to the ambient one.
+ */
 export interface CustomerAdminSearchScope {
   readonly isPlatformAdmin: boolean;
-  readonly allowedOrganizationIds: readonly string[];
+  readonly reach?: OrgConstraint;
 }
 
 export interface CustomerAdminSearchDeps {
@@ -52,8 +58,8 @@ export interface CustomerAdminSearchDeps {
 /**
  * Global search over customer accounts (`specs/150-admin-global-search/`,
  * T045), through `customer_accounts`' admin search port — the read behind the
- * Customers list — with the list's own scope (`null` for a platform
- * administrator, the assigned organizations for a sales representative), the
+ * Customers list — with the list's own scope (the tenant filter on
+ * `CustomerAccount`, which for a sales representative is the reach rule), the
  * selected fields (`qFields`, matched literally, e-mail first by relevance)
  * and deleted and anonymized accounts left out (FR-016).
  *
@@ -71,7 +77,10 @@ export async function searchCustomersForAdmin(
       q: query.text,
       qFields,
       excludeDeleted: true,
-      allowedOrganizationIds: scope.isPlatformAdmin ? null : [...scope.allowedOrganizationIds],
+      // No set of ids describes a sales representative's reach (issue #305);
+      // `CustomerAccount` is `@OrgScoped`, so the owner's read is narrowed by
+      // the tenant filter, which is that reach.
+      allowedOrganizationIds: null,
       page: 1,
       pageSize: query.limit + 1,
     }),
@@ -81,7 +90,7 @@ export async function searchCustomersForAdmin(
     byId !== null &&
     byId.deletedAt === null &&
     byId.anonymizedAt === null &&
-    (scope.isPlatformAdmin || scope.allowedOrganizationIds.includes(byId.organizationId))
+    (scope.isPlatformAdmin || isOrgInScope(byId.organizationId, scope.reach))
       ? [byId]
       : [];
   const seen = new Set<string>();

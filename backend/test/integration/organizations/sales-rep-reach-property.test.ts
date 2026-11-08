@@ -27,6 +27,13 @@ import { SalesRepAssignmentService } from '../../../../packages/modules/organiza
  *     ├── ac (nobody)                         ├── sc (nobody)
  *     └── rs (S)                              └── sr (R)
  *         └── rsc (nobody)                        └── src (nobody)
+ *
+ *     x   (S, stored path unreadable)
+ *     └── xc (nobody, its own path names x)
+ *
+ * `x` is a data defect the create hook and the repair migration prevent, and
+ * the rule must still answer it exactly: its own path names no ancestor, so it
+ * governs itself, and `xc`'s path names it, so under roll-up it governs `xc`.
  */
 let seq = 0;
 async function node(em: EntityManager, label: string, parent?: Organization): Promise<Organization> {
@@ -71,8 +78,12 @@ describe('#305 — canSeeOrganization and the excluded set are one rule', () => 
     const sr = await node(em, 'sr', s);
     const src = await node(em, 'src', sr);
     const u = await node(em, 'u');
+    const x = await node(em, 'x');
+    const xc = await node(em, 'xc', x);
+    await em.getConnection().execute(`update organizations set path = '' where id = ?`, [x.id]);
     Object.assign(ids, {
       a: a.id, ac: ac.id, rs: rs.id, rsc: rsc.id, ab: ab.id, s: s.id, sc: sc.id, sr: sr.id, src: src.id, u: u.id,
+      x: x.id, xc: xc.id,
     });
     const assign = (organizationId: string, adminUserId: string) =>
       em.create(OrganizationSalesRepAssignment, { organizationId, adminUserId });
@@ -82,6 +93,7 @@ describe('#305 — canSeeOrganization and the excluded set are one rule', () => 
     assign(rs.id, S);
     assign(s.id, S);
     assign(sr.id, R);
+    assign(x.id, S);
     await em.flush();
   }, 60_000);
 
@@ -100,14 +112,14 @@ describe('#305 — canSeeOrganization and the excluded set are one rule', () => 
   /** Who sees which node, by the rule (§0 of the #305 design). */
   const EXPECTED: Record<'flat' | 'rollup', Record<string, Record<string, boolean>>> = {
     flat: {
-      R: { a: true, ac: true, rs: false, rsc: true, ab: true, s: false, sc: true, sr: true, src: true, u: true },
-      S: { a: false, ac: true, rs: true, rsc: true, ab: true, s: true, sc: true, sr: false, src: true, u: true },
-      T: { a: false, ac: true, rs: false, rsc: true, ab: false, s: false, sc: true, sr: false, src: true, u: true },
+      R: { a: true, ac: true, rs: false, rsc: true, ab: true, s: false, sc: true, sr: true, src: true, u: true, x: false, xc: true },
+      S: { a: false, ac: true, rs: true, rsc: true, ab: true, s: true, sc: true, sr: false, src: true, u: true, x: true, xc: true },
+      T: { a: false, ac: true, rs: false, rsc: true, ab: false, s: false, sc: true, sr: false, src: true, u: true, x: false, xc: true },
     },
     rollup: {
-      R: { a: true, ac: true, rs: false, rsc: false, ab: true, s: false, sc: false, sr: true, src: true, u: true },
-      S: { a: false, ac: false, rs: true, rsc: true, ab: true, s: true, sc: true, sr: false, src: false, u: true },
-      T: { a: false, ac: false, rs: false, rsc: false, ab: false, s: false, sc: false, sr: false, src: false, u: true },
+      R: { a: true, ac: true, rs: false, rsc: false, ab: true, s: false, sc: false, sr: true, src: true, u: true, x: false, xc: false },
+      S: { a: false, ac: false, rs: true, rsc: true, ab: true, s: true, sc: true, sr: false, src: false, u: true, x: true, xc: true },
+      T: { a: false, ac: false, rs: false, rsc: false, ab: false, s: false, sc: false, sr: false, src: false, u: true, x: false, xc: false },
     },
   };
   const REPS = { R, S, T } as const;
@@ -136,8 +148,8 @@ describe('#305 — canSeeOrganization and the excluded set are one rule', () => 
       const governed = Object.keys(ids).filter((key) => mine.has(ids[key]!)).sort();
       const expected =
         mode === 'flat'
-          ? { R: ['a', 'ab', 'sr'], S: ['ab', 'rs', 's'], T: [] }[rep]
-          : { R: ['a', 'ab', 'ac', 'sr', 'src'], S: ['ab', 'rs', 'rsc', 's', 'sc'], T: [] }[rep];
+          ? { R: ['a', 'ab', 'sr'], S: ['ab', 'rs', 's', 'x'], T: [] }[rep]
+          : { R: ['a', 'ab', 'ac', 'sr', 'src'], S: ['ab', 'rs', 'rsc', 's', 'sc', 'x', 'xc'], T: [] }[rep];
       expect(governed).toEqual([...expected].sort());
       expect(await svc.listAssignedOrganizationIds(REPS[rep])).toEqual(expect.arrayContaining(assignedOrganizationIds));
     });

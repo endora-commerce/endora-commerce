@@ -62,7 +62,32 @@ export function orgFilterCond(): Record<string, unknown> {
       return { organizationId: ctx.organizationId ?? null };
     case 'allowed-set':
       return { organizationId: { $in: [...(ctx.allowedOrganizationIds ?? [])] } };
+    case 'excluded-set':
+      return { organizationId: excludedSetPredicate(ctx.excludedOrganizationIds ?? []) };
   }
+}
+
+/**
+ * The `excluded-set` predicate on an organization column (issue #305): every
+ * organization but the excluded ones, on the filtered row's own column — no
+ * join, no subquery (FR-002, exit (a′)).
+ *
+ * **`$ne: null` is part of the predicate, not decoration.** `NOT IN (…)` is
+ * `NULL` for a null column and so already excludes such a row, but an *empty*
+ * `$nin` is rendered by MikroORM as `1 = 1`, which matches it. A rep on a
+ * platform where nobody else holds an assignment would then read rows that
+ * belong to no organization at all — the "no-organization path" Principle XI
+ * forbids. Spelling the null out keeps both lengths of the list on one answer.
+ *
+ * The list travels as MikroORM's `$nin` rather than as a single
+ * `<> all(?::uuid[])` array parameter: the spike for #305 measured that a
+ * `raw()`-keyed fragment returned from a filter `cond` is **dropped** when the
+ * same filter runs for a `populate` (101 rows where the find answered 90), a
+ * widening. `$nin` survived `find`, `count`, `populate`, a fork and a
+ * transaction, and held 70 000 ids in one statement on PostgreSQL 16.
+ */
+function excludedSetPredicate(excluded: readonly string[]): Record<string, unknown> {
+  return excluded.length === 0 ? { $ne: null } : { $ne: null, $nin: [...excluded] };
 }
 
 /**
@@ -142,6 +167,16 @@ export function customerFilterCond(
       // between "your reach excludes all of these" and "there are none", and
       // both answers look like `[]` from every layer above. Nothing in the
       // guard reads it back: it is an observation, not an input.
+      noteOrganizationAttributionRefusal(ctx);
+      return { [CUSTOMER_TENANT_KEY]: { $in: [] } };
+    }
+    case 'excluded-set': {
+      // Issue #305 — the same two answers as `allowed-set`, and never a third:
+      // the column compare when the entity carries one, the noted refusal when
+      // it does not. A row with no organization is in nobody's reach.
+      if (organizationColumn === 'present') {
+        return { [CUSTOMER_ORGANIZATION_KEY]: excludedSetPredicate(ctx.excludedOrganizationIds ?? []) };
+      }
       noteOrganizationAttributionRefusal(ctx);
       return { [CUSTOMER_TENANT_KEY]: { $in: [] } };
     }

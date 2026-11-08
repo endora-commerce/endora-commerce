@@ -41,7 +41,6 @@ import type {
   AdminSearchProviderRegistryPort,
   ResolvedTax,
   SalesChannelAttributionRegistryPort,
-  SalesRepAssignmentPort,
   SettingWriteValidatorRegistryPort,
   ShippingEmailRendererPort,
   TransactionalEmailSender,
@@ -96,7 +95,7 @@ import { OrderReadService, toOrderRecord } from './services/order-read-port.js';
 import { OrderReturnContextProvider } from './services/order-return-context.js';
 import { registerOrderSalesChannelAttributions } from './services/sales-channel-attributions.js';
 import type { OrderService } from './services/order-service.js';
-import type { OrderListService } from './services/order-list-service.js';
+import { orderListScopeFor, type OrderListService } from './services/order-list-service.js';
 import type { OrderTransitionService } from './services/order-transition-service.js';
 import type { OrderStatusGraphService } from './services/order-status-graph-service.js';
 import { OrderTransitionPortService } from './services/order-transition-port.js';
@@ -534,13 +533,7 @@ export function registerModule(ctx: ModuleContext): void {
       .asFunction(() => {
         const admins = lazyPort<AdminUserReadPort>(ctx, 'adminUserReadPort');
         const roles = lazyPort<AdminRolePort>(ctx, 'adminRolePort');
-        const salesRepScope = lazyPort<SalesRepAssignmentPort>(
-          ctx,
-          'organizationSalesRepScopePort',
-        );
-        return async (
-          request: FastifyRequest,
-        ): Promise<{ allowAll: true } | { allowAll: false; allowedOrganizationIds: string[] }> => {
+        return async (request: FastifyRequest): Promise<{ allowAll: boolean }> => {
           const actor = request.actor as Actor | undefined;
           // Not a refusal: a non-admin caller is every storefront request, and
           // the admin routes this scopes are gated by `requireAdmin` already.
@@ -551,12 +544,10 @@ export function registerModule(ctx: ModuleContext): void {
           // `on delete restrict`, so a non-null `adminRoleId` names a row.
           const role = adminUser?.adminRoleId ? await roles.getById(adminUser.adminRoleId) : null;
           if (role?.code !== 'sales_representative') return { allowAll: true };
-          // Feature 056 — subtree-expanded when the rep holds
-          // `organizations:rollup`, which is `organizations`' decision.
-          const allowedOrganizationIds = await salesRepScope.listAssignedOrganizationIds(
-            actor.adminUserId,
-          );
-          return { allowAll: false, allowedOrganizationIds };
+          // Issue #305 — what the representative reaches is the ambient
+          // tenant context's, which `organizations` derives by the one reach
+          // rule; this only says that the list is scoped.
+          return { allowAll: false };
         };
       })
       .singleton(),
@@ -925,7 +916,14 @@ export function registerModule(ctx: ModuleContext): void {
     'orderListPort',
     ctx
       .asFunction((): OrderListPort => ({
-        list: (query, scope) => requireExposed(exposed.orderListService, 'order list').list(query, scope),
+        // The port's scope names an explicit set (a caller that has already
+        // established its reach narrows to it); the list states it the way it
+        // states every reach, through the platform's helpers (issue #305).
+        list: (query, scope) =>
+          requireExposed(exposed.orderListService, 'order list').list(
+            query,
+            scope ? orderListScopeFor({ kind: 'allowed', organizationIds: scope.allowedOrganizationIds }) : undefined,
+          ),
       }))
       .singleton(),
   );
@@ -1169,19 +1167,7 @@ export function registerModule(ctx: ModuleContext): void {
         search: async (query) => {
           const service = cradle().orderListServiceAccessor();
           if (service === null) throw new Error('orders: the order list service is not composed yet');
-          const constraint = orgConstraintFor();
-          const scope =
-            constraint.kind === 'all'
-              ? undefined
-              : {
-                  allowedOrganizationIds:
-                    constraint.kind === 'set'
-                      ? [...constraint.organizationIds]
-                      : constraint.organizationId === null
-                        ? []
-                        : [constraint.organizationId],
-                };
-          return service.searchForAdmin(query, scope);
+          return service.searchForAdmin(query, orderListScopeFor(orgConstraintFor()));
         },
       }),
     );

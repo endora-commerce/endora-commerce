@@ -56,6 +56,7 @@ interface Choices {
 }
 
 describe('quote request PDF — admin routes Q1–Q3 (spec 153)', () => {
+  const OTHER_REP_ID = randomUUID();
   let h: BackendServerHandle;
   let channelA: string;
   let channelB: string;
@@ -161,6 +162,9 @@ describe('quote request PDF — admin routes Q1–Q3 (spec 153)', () => {
         lastName: 'Foreign',
       });
       await fork.persistAndFlush([account, fork.create(OrganizationSalesRepAssignment, { organizationId: org.id, adminUserId: rep.id })]);
+      // #305 — the seeded organization is another representative's: an
+      // unassigned organization is in every representative's reach.
+      await fork.persistAndFlush(fork.create(OrganizationSalesRepAssignment, { organizationId: TEST_ORGANIZATION_ID, adminUserId: OTHER_REP_ID }));
       foreignOrg = org.id;
       ADMIN_COOKIES[REP_SESSION] = { adminUserId: rep.id };
       foreignQuote = account.id;
@@ -174,6 +178,7 @@ describe('quote request PDF — admin routes Q1–Q3 (spec 153)', () => {
   }, 90_000);
 
   afterAll(async () => {
+    await h.em().getConnection().execute('delete from organization_sales_rep_assignments where admin_user_id = ?', [OTHER_REP_ID]);
     delete ADMIN_COOKIES[NONE_SESSION];
     delete ADMIN_COOKIES[REP_SESSION];
     await sql(`delete from document_templates where document_type = ?`, [QUOTE_REQUEST_DOCUMENT_TYPE]);

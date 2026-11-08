@@ -306,14 +306,12 @@ export interface OrdersModuleOptions {
   /** Feature 026 US4 — same for delivery methods. */
   resolveOrganizationDeliveryMethodAllowList?: (req: FastifyRequest) => Promise<string[] | null>;
   /**
-   * Feature 026 US6 — sales-rep ownership scoping for the admin orders list.
-   * Platform admins return `{ allowAll: true }`; sales reps return the set
-   * of organization ids they own.
+   * Feature 026 US6 — whether the admin orders list is scoped at all.
+   * Platform admins return `{ allowAll: true }`; sales reps `{ allowAll:
+   * false }`, and the list is then confined to the ambient tenant reach
+   * (issue #305: every organization nobody else governs).
    */
-  resolveAdminOrdersScope?: (req: FastifyRequest) => Promise<
-    | { allowAll: true }
-    | { allowAll: false; allowedOrganizationIds: string[] }
-  >;
+  resolveAdminOrdersScope?: (req: FastifyRequest) => Promise<{ allowAll: boolean }>;
   /**
    * Feature 027 US2 — promotion engine used by the cart's coupon flow.
    * When provided, `POST /api/v1/cart/coupon` validates the code via

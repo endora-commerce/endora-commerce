@@ -1,3 +1,4 @@
+import { randomUUID } from 'node:crypto';
 import { afterAll, beforeAll, describe, expect, it } from 'vitest';
 import {
   AdminRole,
@@ -9,7 +10,7 @@ import {
   teardownBackendServer,
   type BackendServerHandle,
 } from '../../helpers/test-server.js';
-import { ADMIN_COOKIES, OTHER_TEST_ORGANIZATION_ID } from '../../helpers/test-actors.js';
+import { ADMIN_COOKIES, OTHER_TEST_ORGANIZATION_ID, TEST_ORGANIZATION_ID } from '../../helpers/test-actors.js';
 import { seedOtherTestCustomer } from '../../helpers/seed-organizations.js';
 import { createImportProfile } from '../../helpers/import-profile.js';
 
@@ -27,6 +28,7 @@ const HEADER_ONLY_STOCK_CSV = 'product_sku,variant_id,on_hand\n';
 const HEADER_ONLY_PRODUCTS_CSV = 'sku,status,visibility,name,description\n';
 
 describe('import_export — per-entity permissions [integration]', () => {
+  const OTHER_REP_ID = randomUUID();
   let h: BackendServerHandle;
   const suffix = Date.now().toString(36);
   const cookies = {
@@ -99,16 +101,20 @@ describe('import_export — per-entity permissions [integration]', () => {
       lastName: 'Rep',
     });
     await em.persistAndFlush([role, rep]);
-    await em.persistAndFlush(
+    await em.persistAndFlush([
       em.create(OrganizationSalesRepAssignment, {
         organizationId: OTHER_TEST_ORGANIZATION_ID,
         adminUserId: rep.id,
       }),
-    );
+      // #305 — the foreign organization is another representative's: an
+      // unassigned organization is in every representative's reach.
+      em.create(OrganizationSalesRepAssignment, { organizationId: TEST_ORGANIZATION_ID, adminUserId: OTHER_REP_ID }),
+    ]);
     ADMIN_COOKIES[cookies.scopedRep] = { adminUserId: rep.id };
   }, 120_000);
 
   afterAll(async () => {
+    await h.em().getConnection().execute('delete from organization_sales_rep_assignments where admin_user_id = ?', [OTHER_REP_ID]);
     for (const cookie of Object.values(cookies)) delete ADMIN_COOKIES[cookie];
     if (salesRepRole) {
       const em = h.em();

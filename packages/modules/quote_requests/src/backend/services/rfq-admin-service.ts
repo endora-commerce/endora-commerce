@@ -33,7 +33,7 @@ import { HttpError } from '@endora-commerce/platform/http';
 import { recordAuditFromContext } from '@endora-commerce/platform/commands';
 import type { AuditPort } from '@endora-commerce/platform/kernel';
 import type { SalesChannelMembershipPort } from '@endora-commerce/platform/kernel';
-import { orgConstraintFor } from '@endora-commerce/platform/tenancy';
+import { orgConstraintFor, orgScopeSql, reachesNoOrganization } from '@endora-commerce/platform/tenancy';
 import type {
   QuoteRequestAdminSearchQuery,
   QuoteRequestAdminSearchRow,
@@ -211,7 +211,12 @@ export class RfqAdminService {
       orderBy: { createdAt: 'desc' },
     });
 
-    // Visibility scoping (skipped for platform admin)
+    // Visibility scoping (skipped for platform admin). For a sales
+    // representative this now agrees with the tenant filter the read ran under
+    // (issue #305: both are `canSeeOrganization`'s rule). It stays because this
+    // list applies the rule to every role but `platform_admin` — a custom role
+    // holding `rfqs:handle` resolves an unrestricted tenant scope — and that
+    // decision is not #305's to change.
     if (!ctx.isPlatformAdmin) {
       const visible = await Promise.all(
         rfqs.map((r) =>
@@ -325,21 +330,16 @@ export class RfqAdminService {
     if (matches.length === 0) return { rows: [], hasMore: false };
 
     const constraint = orgConstraintFor();
-    const tenantOrgIds =
-      constraint.kind === 'all'
-        ? null
-        : constraint.kind === 'set'
-          ? [...constraint.organizationIds]
-          : constraint.organizationId === null
-            ? []
-            : [constraint.organizationId];
-    if (tenantOrgIds !== null && tenantOrgIds.length === 0) return { rows: [], hasMore: false };
+    if (reachesNoOrganization(constraint)) return { rows: [], hasMore: false };
+    // The platform's predicate for the reach (issue #305): a sales
+    // representative's is every organization nobody else governs.
+    const tenantReach = constraint.kind === 'all' ? null : orgScopeSql('organization_id', constraint);
 
     const em = this.deps.emFactory();
     const knex = em.getKnex();
     const matching = (extraOrgIds: readonly string[] | null) =>
       knex('quote_requests').where((qb) => {
-        if (tenantOrgIds !== null) qb.whereIn('organization_id', tenantOrgIds);
+        if (tenantReach !== null) qb.whereRaw(tenantReach.sql, [...tenantReach.params] as Knex.RawBinding[]);
         if (extraOrgIds !== null) qb.whereIn('organization_id', [...extraOrgIds]);
         qb.andWhere((or) => {
           for (const match of matches) match(or);

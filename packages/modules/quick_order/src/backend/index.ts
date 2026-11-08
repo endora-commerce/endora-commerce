@@ -16,7 +16,6 @@ import type {
   OrganizationRestrictionPort,
   PaymentMethodReadPort,
   RfqCustomerPort,
-  SalesRepAssignmentPort,
 } from '@endora-commerce/contracts';
 import type { ModuleContext } from '@endora-commerce/platform/kernel';
 import { lazyPort } from '@endora-commerce/platform/kernel';
@@ -357,7 +356,6 @@ export function registerModule(ctx: ModuleContext): void {
     await registerQuickOrderPreferenceAdminRoutes(app, {
       service: preferenceService,
       customerAccounts: lazyPort<CustomerAccountReadPort>(ctx, 'customerAccountReadPort'),
-      salesRepScope: lazyPort<SalesRepAssignmentPort>(ctx, 'organizationSalesRepScopePort'),
       requireAdmin,
       resolveAdminContext: (req: FastifyRequest) => cradle().adminContextResolver(req),
     });

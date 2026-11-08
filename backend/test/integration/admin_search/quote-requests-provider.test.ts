@@ -143,8 +143,13 @@ describe('admin global search — Quote Request provider (spec 150)', () => {
     expect(found).toEqual(await listed(cookies));
   });
 
-  it('confines the sales representative to the assigned organization', async () => {
-    expect(await searchIds(h, GS_COOKIES.salesRep, `SR${T}`, 'quote_requests.quote_request')).toEqual([ids['scopeA']]);
+  // Issue #305 — one reach rule: the representative reaches their assigned
+  // organization and every organization nobody is assigned to (orgC), never
+  // another's (orgB).
+  it('confines the sales representative to the organizations they reach', async () => {
+    expect((await searchIds(h, GS_COOKIES.salesRep, `SR${T}`, 'quote_requests.quote_request')).sort()).toEqual(
+      [ids['scopeA'], ids['scopeC']].sort(),
+    );
     expect((await searchIds(h, GS_COOKIES.restricted, `SR${T}`, 'quote_requests.quote_request')).sort()).toEqual(
       [ids['scopeB'], ids['scopeC']].sort(),
     );

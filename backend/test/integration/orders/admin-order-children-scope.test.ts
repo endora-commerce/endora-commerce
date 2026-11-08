@@ -1,3 +1,4 @@
+import { randomUUID } from 'node:crypto';
 import { afterAll, beforeAll, describe, expect, it } from 'vitest';
 import { AdminRole, AdminUser, Organization, OrganizationSalesRepAssignment } from '../../helpers/package-entities.js';
 import type { EntityManager } from '@mikro-orm/postgresql';
@@ -40,6 +41,7 @@ describe('Admin child-aggregate routes honour the sales-rep assignment scope', (
   let repCookie: string;
   let assignedOrgId: string;
   let foreignOrgId: string;
+  const OTHER_REP_ID = randomUUID();
 
   const orders: Record<string, string> = {};
   const returnCases: Record<string, string> = {};
@@ -144,12 +146,15 @@ describe('Admin child-aggregate routes honour the sales-rep assignment scope', (
     assignedOrgId = assigned.id;
     foreignOrgId = foreign.id;
 
-    await em.persistAndFlush(
+    await em.persistAndFlush([
       em.create(OrganizationSalesRepAssignment, {
         organizationId: assignedOrgId,
         adminUserId: rep.id,
       }),
-    );
+      // #305 — the foreign organization is another representative's: an
+      // unassigned organization is in every representative's reach.
+      em.create(OrganizationSalesRepAssignment, { organizationId: foreignOrgId, adminUserId: OTHER_REP_ID }),
+    ]);
 
     // One pair per route, so no assertion depends on a row an earlier assertion
     // created (the retry route writes).
@@ -237,6 +242,7 @@ describe('Admin child-aggregate routes honour the sales-rep assignment scope', (
   });
 
   afterAll(async () => {
+    await h.em().getConnection().execute('delete from organization_sales_rep_assignments where admin_user_id = ?', [OTHER_REP_ID]);
     delete ADMIN_COOKIES[repCookie];
     await teardownBackendServer(h);
   });

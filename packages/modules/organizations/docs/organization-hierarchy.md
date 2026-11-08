@@ -52,16 +52,24 @@ Visibility across descendants is **permission-gated** by the
 - A **scoped sales-rep** holding the capability has each assignment expanded to
   the assigned node's subtree. A descendant that carries its **own** assignment
   overrides the inherited one for its subtree — the **nearest assignment on the
-  ancestor chain wins**. Without the capability the rep stays confined to the
-  organizations directly assigned to them.
+  ancestor chain wins**. Without the capability, an organization is governed by
+  its own assignments only.
 - A branch-only user (no roll-up) sees only their own organization.
 
-Expansion is derived **server-side** and widens the existing tenant-scope guard
-(`allowedOrganizationIds`) to exactly the subtree — never a sibling, cousin, or
-an ancestor outside the granted node. An out-of-subtree record is
-indistinguishable from "does not exist". The three admin read surfaces — orders,
-quotes, and customers — read the already-widened scope and need no change of
-their own.
+The nearest assignment decides on **every admin surface** (issue #305): the
+organization screens, the organizations list and pickers, admin search, and
+every tenant-scoped read and write. What it decides is who *governs* an
+organization. A sales representative reaches every organization nobody else
+governs — the ones they govern, and every one no representative governs at all
+(the unassigned fallback, personal organizations included). With roll-up, an
+unassigned child of another representative's organization is that
+representative's, and hidden from everyone else; without roll-up it is
+unassigned, and every representative reaches it.
+
+The reach is derived **server-side**, in one statement per request, and the
+tenant-scope guard filters by its complement — every organization except those
+governed by another representative (the `excluded-set` mode, see *Tenant
+scoping*). An out-of-reach record is indistinguishable from "does not exist".
 
 ## Term inheritance
 

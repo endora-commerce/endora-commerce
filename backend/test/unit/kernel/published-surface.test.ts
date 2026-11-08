@@ -309,8 +309,27 @@ const PUBLISHED_TENANCY_SURFACE: Readonly<Record<string, readonly string[]>> = {
    * requester — `catalog`'s `bulk-operation.service.ts` is the reach.
    */
   'escape-hatch.js': ['withSystemScope', 'withSystemScopeActingFor'],
-  /** Row 28, plus `orgConstraintFor`'s return shape. */
-  'derived-scope.js': ['orgConstraintFor', 'isOrgInScope', 'ruleVisibleForScope', 'OrgConstraint'],
+  /**
+   * Row 28, plus `orgConstraintFor`'s return shape. Issue #305 added the
+   * readers a module needs once a sales representative's reach is a
+   * complement (`excluded`): no module may read the constraint's id lists, so
+   * the `where` fragment (`orgScopeWhere`, which T042c had withdrawn as
+   * unreached), its SQL twin, the empty-reach test, the ranking ids and the
+   * reading of another administrator's scope are published instead.
+   */
+  'derived-scope.js': [
+    'orgConstraintFor',
+    'isOrgInScope',
+    'ruleVisibleForScope',
+    'OrgConstraint',
+    'orgScopeWhere',
+    'orgScopeSql',
+    'OrgScopeSql',
+    'OrgScopeSource',
+    'reachesNoOrganization',
+    'assignedOrganizationIdsForRanking',
+    'orgConstraintForAdminScope',
+  ],
 };
 
 /**
@@ -511,9 +530,6 @@ const NOT_PUBLISHED: Readonly<Record<string, string>> = {
   setEscapeHatchAuditSink: 'composition — the host wires the escape hatch to the audit sink.',
   EscapeHatchAuditRecord: 'composition — the argument of that sink.',
   EscapeHatchAuditSink: 'composition — the type of that sink.',
-  orgScopeWhere:
-    'unreached — modules take `orgConstraintFor` and build their own `where`; ' +
-    'publishing a MikroORM fragment builder would freeze that shape into the contract.',
   TenantScopeMode: 'unreached — a member of `TenantContext`, read as `ctx.mode`, never declared.',
   TenantActor: 'unreached — a member of `TenantContext`, read as `ctx.actor`.',
   TenantImpersonation: 'unreached — as above.',

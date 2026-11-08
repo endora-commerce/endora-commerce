@@ -3987,6 +3987,79 @@ powiązany z kluczem był odrzucany już wcześniej, odpowiedzią `400 INACTIVE_
 3. **Uruchom zapytanie ponownie.** Gdy nie zwraca żadnego wiersza, każda integracja może składać
    zamówienia.
 
+### Jedna reguła zasięgu przedstawiciela handlowego na wszystkich ekranach {#sales-rep-reach-one-rule}
+
+Wydanie z tą zmianą stosuje jedną regułę zasięgu przedstawicieli handlowych na każdym ekranie panelu
+(zgłoszenie #305). Przedstawiciel handlowy sięga do każdej organizacji, której **nie prowadzi inny
+przedstawiciel**: do przypisanych mu organizacji (z `organizations:rollup` — do ich poddrzew, przy
+czym wygrywa najbliższe przypisanie) i do każdej organizacji, do której nikt nie jest przypisany.
+Dotąd ekrany organizacji stosowały tę regułę, odczyty objęte izolacją tenantów — członkowie, klienci,
+zamówienia, faktury, koszyki, zwroty, zapytania ofertowe — uwzględniały tylko przypisania, a lista
+organizacji i wyszukiwarka panelu pokazywały każdą organizację. Dla każdego przedstawiciela
+handlowego zmieniają się dwie rzeczy:
+
+- **Zyskuje dostęp do danych każdej nieprzypisanej organizacji**, łącznie z organizacjami
+  prywatnymi (B2C): do organizacji prywatnej nie można przypisać przedstawiciela, więc każdy
+  przedstawiciel czyta teraz zamówienia, faktury, koszyki i zwroty każdego klienta B2C i może na nich
+  działać. Właściciel potwierdził to 2026-11-08.
+- **Lista organizacji, jej pola wyboru i wyszukiwarka panelu przestają pokazywać organizacje
+  przypisane innym przedstawicielom.** Dotąd je pokazywały, a otwarcie takiej organizacji kończyło się
+  odpowiedzią `404`.
+
+Nic nie jest migrowane i nic nie trzeba konfigurować; administratorzy platformy nie widzą zmian.
+
+**Po aktualizacji:**
+
+1. **Sprawdź, co zmienia się dla każdego przedstawiciela.** Uruchom to zapytanie tylko do odczytu.
+   Dla każdego przedstawiciela handlowego `gains_tenant_data_of` liczy organizacje, do których
+   członków, zamówień, faktur, koszyków, zwrotów i zapytań ofertowych teraz sięga (z tego
+   `of_which_personal` to organizacje B2C), a `leaves_list_and_search` — organizacje firmowe, których
+   lista i wyszukiwarka panelu już mu nie pokazują:
+
+   ```sql
+   with reps as (
+     select au.id, au.email,
+            (ar.permissions ? 'organizations:rollup' or ar.permissions ? '*') as rollup
+     from admin_users au
+     join admin_roles ar on ar.id = au.admin_role_id
+     where ar.code = 'sales_representative' and au.deleted_at is null
+   ),
+   gov as (
+     select a.organization_id as id, o.path, array_agg(a.admin_user_id) as reps
+     from organization_sales_rep_assignments a
+     join organizations o on o.id = a.organization_id
+     group by a.organization_id, o.path
+   ),
+   orgs as (
+     select o.id, o.is_personal,
+            (select g.reps from gov g where g.id = o.id) as own_reps,
+            (select g.reps from gov g
+              where o.path like g.path || '%'
+              order by length(g.path) desc limit 1) as nearest_reps
+     from organizations o
+     where o.deleted_at is null
+   ),
+   decided as (
+     select r.email, o.is_personal,
+            case when r.rollup then o.nearest_reps else o.own_reps end as governed_by,
+            r.id as rep_id
+     from reps r cross join orgs o
+   )
+   select email as sales_representative,
+          count(*) filter (where governed_by is null) as gains_tenant_data_of,
+          count(*) filter (where governed_by is null and is_personal) as of_which_personal,
+          count(*) filter (where governed_by is not null and not is_personal
+                             and not (rep_id = any (governed_by))) as leaves_list_and_search
+   from decided
+   group by email
+   order by email;
+   ```
+
+2. **Jeśli przedstawiciel nie powinien sięgać do nieprzypisanej organizacji**, przypisz ją
+   przedstawicielowi, który się nią opiekuje: wtedy jest prowadzona, a każdy inny przedstawiciel traci
+   do niej dostęp. Organizacji prywatnej nie można przypisać; ukrycie danych B2C przed
+   przedstawicielami byłoby inną regułą i nie da się go skonfigurować.
+
 ## Instancja niespójna od początku
 
 Instalator `0.101.x` lub starszy zapisywał każdy pakiet wydania z `^` poza

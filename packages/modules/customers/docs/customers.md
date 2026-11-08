@@ -51,7 +51,9 @@ switched off by a special case.
   Platform Administrator may act on anyone; otherwise the authorized salesperson
   is the one inherited from the customer's Organization. A personal organization
   never carries a sales-rep assignment, so the unassigned-organization fallback
-  leaves a standalone customer open to any salesperson. An org-owner depletion
+  leaves a standalone customer open to any salesperson — on the customer list,
+  the customer screen and every tenant-scoped read as well as for these actions,
+  since the reach rule is one rule on every surface (issue #305). An org-owner depletion
   guard refuses blocking, deleting or detaching the last active holder of a
   company organization's Administrator role (`409 ORG_OWNER_DEPLETION`);
   blocked administrators do not count. It

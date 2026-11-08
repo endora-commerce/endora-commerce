@@ -4,51 +4,46 @@ import {
   quickOrderPreferenceScopeSchema,
   quickOrderPreferenceUpsertSchema,
   type CustomerAccountReadPort,
-  type SalesRepAssignmentPort,
 } from '@endora-commerce/contracts';
 import { HttpError } from '@endora-commerce/platform/http';
+import { isOrgInScope, orgConstraintFor } from '@endora-commerce/platform/tenancy';
 import type { DefaultPreferenceService } from './services/default-preference-service.js';
 import { canManagePreference, type PreferenceActor } from './services/default-preference-authz.js';
 import type { RequireAdminFactory } from '@endora-commerce/platform/kernel';
 
 /**
  * Admin default-preferences routes (feature 039, FR-018). A platform admin
- * (no sales-rep assignments) manages any scope; a salesperson manages only
- * their assigned organizations and the customers within them. Guarded by
+ * manages any scope; a salesperson manages only the organizations in their
+ * reach (issue #305) and the customers within them. Guarded by
  * `orders:write`.
  */
 export interface QuickOrderPreferenceAdminRoutesDeps {
   service: DefaultPreferenceService;
   /** `customer_accounts`' read model — the target customer's organisation. */
   customerAccounts: CustomerAccountReadPort;
-  /** `organizations`' sales-rep scope — which orgs this admin may act on. */
-  salesRepScope: SalesRepAssignmentPort;
   requireAdmin: RequireAdminFactory;
   resolveAdminContext: (req: FastifyRequest) => { adminUserId: string };
 }
 
 /**
- * "No assignments" is what makes an admin a platform admin here, and the port
- * answers exactly that question — `listAssignedOrganizationIds` replaces an
- * `em.find(OrganizationSalesRepAssignment, …)` against a table `organizations`
- * owns (feature 075, Phase C).
+ * Which kind of admin this is, read off the role-derived tenant context
+ * (issue #305) rather than off the assignment table: an admin whose context
+ * reaches every organisation is a platform admin, and anybody else — a sales
+ * representative — manages the organisations in their reach, which is every
+ * organisation nobody else governs. "Has no assignments" used to mean
+ * "platform admin" here, which gave an unassigned representative everything.
  */
-async function adminActor(
-  salesRepScope: SalesRepAssignmentPort,
-  adminUserId: string,
-): Promise<PreferenceActor> {
-  const assignedOrganizationIds = await salesRepScope.listAssignedOrganizationIds(adminUserId);
-  if (assignedOrganizationIds.length > 0) {
-    return { kind: 'salesperson', assignedOrganizationIds };
-  }
-  return { kind: 'platform_admin' };
+function adminActor(): PreferenceActor {
+  const constraint = orgConstraintFor();
+  if (constraint.kind === 'all') return { kind: 'platform_admin' };
+  return { kind: 'salesperson', reaches: (organizationId) => isOrgInScope(organizationId, constraint) };
 }
 
 export async function registerQuickOrderPreferenceAdminRoutes(
   app: FastifyInstance,
   deps: QuickOrderPreferenceAdminRoutesDeps,
 ): Promise<void> {
-  const { service, customerAccounts, salesRepScope, requireAdmin, resolveAdminContext } = deps;
+  const { service, customerAccounts, requireAdmin, resolveAdminContext } = deps;
 
   app.get(
     '/api/v1/admin/quick-order/preferences',
@@ -57,7 +52,7 @@ export async function registerQuickOrderPreferenceAdminRoutes(
       const query = request.query as { scope?: string; scopeId?: string };
       const scope = quickOrderPreferenceScopeSchema.parse(query.scope);
       const scopeId = query.scopeId ?? '';
-      const actor = await adminActor(salesRepScope, resolveAdminContext(request).adminUserId);
+      const actor = adminActor();
       const targetCustomerOrgId =
         scope === 'customer'
           ? ((await customerAccounts.findById(scopeId))?.organizationId ?? null)
@@ -75,7 +70,7 @@ export async function registerQuickOrderPreferenceAdminRoutes(
     async (request) => {
       const body = quickOrderPreferenceUpsertSchema.parse(request.body);
       const ctx = resolveAdminContext(request);
-      const actor = await adminActor(salesRepScope, ctx.adminUserId);
+      const actor = adminActor();
       const result = await service.upsert(actor, body, { actorAdminUserId: ctx.adminUserId });
       return { data: result };
     },
