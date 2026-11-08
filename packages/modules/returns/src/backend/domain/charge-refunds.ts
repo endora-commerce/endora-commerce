@@ -1,5 +1,6 @@
 import { compareDecimals, moneyDifference, roundHalfUp } from '@endora-commerce/contracts';
 import { isWithinFreeWindow } from './free-return-window.js';
+import { STATUTORY_WITHDRAWAL_DAYS } from './withdrawal-period.js';
 
 /**
  * The order's charges a return refunds — pure domain (issue #876).
@@ -30,9 +31,6 @@ import { isWithinFreeWindow } from './free-return-window.js';
  * (`refund-math.ts`) is untouched: the charges never enter it and do not change
  * its cap, so the order-level invariant is "money refunded ≤ the order total".
  */
-
-/** The statutory withdrawal period, in days (Directive 2011/83 art. 9(1); PL art. 27). */
-export const STATUTORY_WITHDRAWAL_DAYS = 14;
 
 /** The two charges, as two-place decimal strings. */
 export interface OrderCharges {
@@ -102,16 +100,28 @@ export function completesOrder(
 /**
  * Whether a case was opened within the withdrawal window (owner ruling E2): the
  * channel's free-return window (`freeReturnEligible`, which an operator may set
- * longer than 14 days), or the statutory 14 days from the order's completing
- * status, which no setting removes — a channel with `free_return_days = 0`
- * still has it.
+ * longer than 14 days), or the statutory 14 days, which no setting removes — a
+ * channel with `free_return_days = 0` still has it. Counted as #936 counts the
+ * withdrawal period (`withdrawal-period.ts`): from `withdrawalPeriodAnchor`, in
+ * calendar days of `returns.time_zone`, a last day on a weekend moving to the
+ * Monday.
+ *
+ * Deliberately not `isWithinStatutoryPeriod`, which answers `true` while the
+ * period has not started: with no anchor this answers `false`, so the default
+ * never applies on an order that was not completed (it cannot fail open).
  */
 export function isWithinWithdrawalWindow(input: {
   freeReturnEligible: boolean;
   submittedAt: Date;
+  /** `withdrawalPeriodAnchor(ctx)`; `null` = the order has not been completed. */
   completingAt: Date | null;
+  /** `returns.time_zone` for the order's channel. */
+  timeZone: string;
 }): boolean {
-  return input.freeReturnEligible || isWithinFreeWindow(input.submittedAt, input.completingAt, STATUTORY_WITHDRAWAL_DAYS);
+  return (
+    input.freeReturnEligible ||
+    isWithinFreeWindow(input.submittedAt, input.completingAt, STATUTORY_WITHDRAWAL_DAYS, input.timeZone)
+  );
 }
 
 /**

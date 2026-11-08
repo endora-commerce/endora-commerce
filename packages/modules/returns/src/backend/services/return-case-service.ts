@@ -238,7 +238,8 @@ export class ReturnCaseService {
         withinWindow: isWithinWithdrawalWindow({
           freeReturnEligible,
           submittedAt: now,
-          completingAt: ctx.completingStatusEnteredAt,
+          completingAt: withdrawalPeriodAnchor(ctx),
+          timeZone: await this.deps.resolveTimeZone(ctx.salesChannelId),
         }),
       });
 

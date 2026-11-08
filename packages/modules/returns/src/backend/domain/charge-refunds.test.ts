@@ -1,13 +1,12 @@
 import { describe, expect, it } from 'vitest';
 import {
-  STATUTORY_WITHDRAWAL_DAYS,
   chargeApproved,
   chargeRefunds,
   completesOrder,
   isWithinWithdrawalWindow,
   type ChargeRefundInput,
 } from './charge-refunds.js';
-import { STATUTORY_WITHDRAWAL_DAYS as STATUTORY_FROM_936 } from './withdrawal-period.js';
+import { STATUTORY_WITHDRAWAL_DAYS } from './withdrawal-period.js';
 
 /**
  * Issue #876 — a consumer's withdrawal from the whole sale refunds the delivery
@@ -113,8 +112,9 @@ describe('isWithinWithdrawalWindow — the statutory floor or the channel’s lo
   const window = (submittedAt: string, freeReturnEligible = false, completingAt: Date | null = completedAt) =>
     isWithinWithdrawalWindow({ freeReturnEligible, submittedAt: new Date(submittedAt), completingAt, timeZone: TZ });
 
-  it('is the statutory 14 days of withdrawal-period.ts, not a copy', () => {
-    expect(STATUTORY_WITHDRAWAL_DAYS).toBe(STATUTORY_FROM_936);
+  it('is withdrawal-period.ts’s statutory period, with no copy here', async () => {
+    expect(STATUTORY_WITHDRAWAL_DAYS).toBe(14);
+    expect('STATUTORY_WITHDRAWAL_DAYS' in (await import('./charge-refunds.js'))).toBe(false);
   });
 
   it('runs to the end of the 14th calendar day in returns.time_zone, even on a channel with free_return_days = 0', () => {

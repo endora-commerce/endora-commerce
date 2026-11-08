@@ -198,6 +198,7 @@ export function returnsModule(
     creditTopup: options.creditTopup,
     orderContext,
     isPersonalOrganization,
+    resolveTimeZone,
     ...(options.auditLog ? { auditLog: options.auditLog } : {}),
   });
 

@@ -22,6 +22,7 @@ import { RETURN_STATUS_RESOLVED } from '../domain/return-status-graph.js';
 import { approvedAmount, carriedDiscount, settlementApproved, sumApproved } from '../domain/refund-math.js';
 import { isLineReturnable } from './return-eligibility.js';
 import { chargeApproved, isWithinWithdrawalWindow, type ChargeRefund } from '../domain/charge-refunds.js';
+import { withdrawalPeriodAnchor } from '../domain/withdrawal-period.js';
 import { caseCharges, caseDefaults, loadOrderCases, type OrderCases } from './default-refund-service.js';
 import type { ReturnTransitionService } from './return-transition-service.js';
 import type { ReturnStatusGraphService } from './return-status-graph-service.js';
@@ -51,6 +52,12 @@ export interface ReturnSettlementServiceDeps {
    * Organization is, and no case refunds a charge.
    */
   isPersonalOrganization?: (organizationId: string | null) => Promise<boolean>;
+  /**
+   * `returns.time_zone` for a sales channel (issue #905): the zone the
+   * withdrawal window that decides the charges' default counts calendar days
+   * in, as `ReturnCaseService` counts the free-return window.
+   */
+  resolveTimeZone: (salesChannelId: string) => Promise<string>;
   auditLog?: AuditPort;
 }
 
@@ -214,7 +221,8 @@ export class ReturnSettlementService {
       withinWindow: isWithinWithdrawalWindow({
         freeReturnEligible: rc.freeReturnEligible,
         submittedAt: rc.submittedAt,
-        completingAt: context.completingStatusEnteredAt,
+        completingAt: withdrawalPeriodAnchor(context),
+        timeZone: await this.deps.resolveTimeZone(context.salesChannelId),
       }),
     });
   }
