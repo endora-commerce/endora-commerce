@@ -16,10 +16,14 @@ showed settles at the recomputed default; a lower amount is kept as typed; a hig
 with `422 VALIDATION_FAILED` (`refund_exceeds_paid`) and nothing written.
 
 No order line refunds more than it was paid. A complaint and the returns of its line are bounded
-by the line's value: a return after a complaint gets its full default until that bound binds, and
-the operator lowers it by hand when the unit the complaint compensated is the one coming back. The
+by the line's value, and only the unabsorbed part of the complaint money lowers what is left paid
+for the order. A return after a complaint gets its full default until that bound binds; the figure
+shown when the case is opened is already bounded. The operator lowers the amount by hand
+when the unit the complaint compensated is the one coming back. The
 stored default stays the value of the goods that came back. The `return.settled` audit entry
 records `recomputedDefaults` and `lineCeilings` when either applies.
 
 `ReturnSettlementService` takes `orderContext` (`OrderReturnContextPort`) in its dependencies;
-`returnsModule` wires it from the options it already receives.
+`returnsModule` wires it from the options it already receives. A settlement whose order cannot be
+read is refused with `404 NOT_FOUND` before anything happens; a switched-off `orders` still answers
+`503 MODULE_DISABLED`.

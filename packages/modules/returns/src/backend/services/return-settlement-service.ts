@@ -5,6 +5,7 @@ import type {
   CorrectiveInvoiceInput,
   CorrectiveInvoicePort,
   CreditTopupPort,
+  OrderReturnContext,
   OrderReturnContextPort,
   PaymentRefundPort,
   SettlementPrefill,
@@ -149,10 +150,16 @@ export class ReturnSettlementService {
    * on the settled basis (issues #874, #875): the kept state is the returns
    * settled with money, and a complaint settled with money counts against
    * what is left paid and against its line. `null` when the order cannot be
-   * read, in which case the stored figures stand.
+   * read: the prefill then shows the stored figures, and the settlement has
+   * already refused.
    */
-  async #recompute(em: EntityManager, rc: ReturnCase, items: readonly ReturnCaseItem[]): Promise<Map<string, LineDefault> | null> {
-    const context = await this.deps.orderContext.getReturnContext(rc.orderId);
+  async #recompute(
+    em: EntityManager,
+    rc: ReturnCase,
+    items: readonly ReturnCaseItem[],
+    known?: OrderReturnContext,
+  ): Promise<Map<string, LineDefault> | null> {
+    const context = known ?? (await this.deps.orderContext.getReturnContext(rc.orderId));
     if (!context) return null;
     const history = await loadOrderCases(em, rc.orderId);
     const computed = caseDefaults({
@@ -227,6 +234,13 @@ export class ReturnSettlementService {
     const rc = await em.findOne(ReturnCase, { id });
     if (!rc) throw new HttpError(404, ERROR_CODES.NOT_FOUND, 'Return case not found.');
 
+    // The default is recomputed from the order (issue #875), so an order that
+    // cannot be read refuses the settlement, before any effect and with nothing
+    // written — as case creation does. A switched-off `orders` throws its own
+    // `ModuleDisabledError` (503), which is never caught here.
+    const context = await this.deps.orderContext.getReturnContext(rc.orderId);
+    if (!context) throw new HttpError(404, ERROR_CODES.NOT_FOUND, 'Order not found.');
+
     // Fail fast if the case cannot reach `resolved` before mutating anything.
     const graph = await this.deps.graphService.loadGraph();
     if (!graph.canTransition(rc.statusCode, RETURN_STATUS_RESOLVED)) {
@@ -261,8 +275,8 @@ export class ReturnSettlementService {
     // case was rejected, refunds what leaves the kept goods' invoice equal to
     // what is left paid, and a complaint is outside the kept state (issue
     // #874), bounded with the returns of its line by what the line was paid
-    // (the line ceiling). An order that cannot be read keeps the stored figures.
-    const recomputed = await this.#recompute(em, rc, items);
+    // (the line ceiling).
+    const recomputed = await this.#recompute(em, rc, items, context);
     const defaultOf = (it: ReturnCaseItem): LineDefault =>
       recomputed?.get(it.id) ?? {
         refund: roundHalfUp(it.defaultRefundAmount),

@@ -239,13 +239,14 @@ export class ReturnCaseService {
       });
       for (const [index, line] of input.lines.entries()) {
         const ctxLine = byOrderItem.get(line.orderItemId)!;
-        const { refund: defaultRefund, discount: defaultDiscount } = defaults[index]!;
+        const { refund: defaultRefund, discount: defaultDiscount, effective } = defaults[index]!;
         // Owner ruling R1 (feature 155, FR-020) — a complaint may name a line that
         // was not returnable at purchase, but nothing refunds it by default: its
-        // approved amount starts at 0 for the operator to set. The default refund
-        // stays the amount paid, because it is the cap settlement lets the
-        // operator approve up to (`exceedsCap`).
-        const approvedRefund = isLineReturnable(ctxLine.returnableAtPurchase) ? defaultRefund : '0.00';
+        // approved amount starts at 0 for the operator to set. Otherwise the
+        // figure shown is the effective default, bounded by the line ceiling
+        // (architect's ruling on PR #937); the stored default stays the goods'
+        // value, the next case's telescoping `earlier`.
+        const approvedRefund = isLineReturnable(ctxLine.returnableAtPurchase) ? effective : '0.00';
         em.persist(
           em.create(ReturnCaseItem, {
             returnCaseId: rc.id,

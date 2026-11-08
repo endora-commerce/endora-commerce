@@ -149,10 +149,12 @@ trafia do dziennika audytu.
   i nic nie zostaje zapisane: odśwież formularz i potwierdź. Wpis `return.settled` w dzienniku
   audytu odnotowuje kwotę domyślną, która się zmieniła (`recomputedDefaults`).
 - **Żadna pozycja nie zwraca więcej, niż za nią zapłacono** — zwrot pieniędzy z reklamacji pomniejsza
-  to, co pozostało zapłacone za zamówienie, i to, co pozostało w pozycji, której dotyczy. Późniejszy
+  to, co pozostało w pozycji, której dotyczy, a jego niewchłonięta część pomniejsza to, co pozostało
+  zapłacone za zamówienie: gdy zwrot tej pozycji został już o reklamację obniżony, ta kwota nie jest
+  liczona drugi raz. Późniejszy
   zwrot tej pozycji nadal dostaje pełną kwotę domyślną, dopóki zwroty pozycji razem z reklamacją nie
-  osiągną tego, co za nią zapłacono; od tej chwili formularz rozliczenia proponuje najwyżej to, co
-  z niej zostało, a wpis w dzienniku audytu odnotowuje to ograniczenie (`lineCeilings`). Platforma
+  osiągną tego, co za nią zapłacono; od tej chwili sprawa pokazuje, a formularz rozliczenia proponuje,
+  najwyżej to, co z niej zostało, a wpis w dzienniku audytu odnotowuje to ograniczenie (`lineCeilings`). Platforma
   nie wie, która sztuka wróciła. Przed rozliczeniem zwrotu sprawdź inne sprawy zamówienia pod kątem
   wcześniejszej reklamacji tej samej pozycji: jeśli wraca właśnie wadliwa sztuka, za którą
   zrekompensowano reklamację, obniż kwotę ręcznie.

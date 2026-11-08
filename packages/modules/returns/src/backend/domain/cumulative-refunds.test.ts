@@ -372,6 +372,7 @@ describe('caseDefaultRefunds and the line ceiling — complaints outside the kep
     complaints: Array<{ orderItemId: string; amount: string }> = [],
   ) => effectiveDefaultRefunds({ ...o, orderLines: o.lines, earlier, complaints, kind, current });
 
+  // Domain-level: under FR-033 a complaint takes up returnable quantity, so the 2-unit case of AC-885-2b is unreachable through the API.
   it('the order cap counts complaint money: 3 × 10.01, a complaint of 6.15, then 1 and 2 units (AC-885-2, 2b)', () => {
     expect(bolts.productsPaidTotal).toBe('36.94');
     const complaints = [{ orderItemId: 'A', amount: '6.15' }];
@@ -405,6 +406,7 @@ describe('caseDefaultRefunds and the line ceiling — complaints outside the kep
     expect([lineValue(o, 'A'), lineValue(o, 'B')]).toEqual(['33.07', '9.66']);
   });
 
+  // Domain-level: under FR-033 a complaint takes up returnable quantity, so 3A after it is unreachable through the API; settlement-recompute.test.ts pins the reachable 22.05 → 22.04.
   it('AC-885-7 — a complaint of 6.15 on 1A, then all of A: 26.92 carrying 3.87, then 2B 9.66, closing at 0', () => {
     const complaints = [{ orderItemId: 'A', amount: '6.15' }];
     const [a] = defaults(twoRate, 'return', [{ orderItemId: 'A', quantity: 3 }], [], complaints);

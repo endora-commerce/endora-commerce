@@ -103,8 +103,9 @@ export function caseDefaultRefunds(input: {
   earlier: ReadonlyArray<KeptStateLine>;
   current: ReadonlyArray<{ orderItemId: string; quantity: number }>;
   /**
-   * Money settled outside the kept state — complaints refunded or credited
-   * (issue #874) — that what remains paid is lowered by. Two places; `0` when absent.
+   * The unabsorbed part of the money settled outside the kept state —
+   * complaints refunded or credited (issue #874) — that what remains paid is
+   * lowered by ({@link effectiveDefaultRefunds}). Two places; `0` when absent.
    */
   refundedOutside?: string;
 }): Array<{ refund: string; discount: string }> {
@@ -321,12 +322,12 @@ export function lineValue(order: RefundOrder, orderItemId: string): string {
  * a capped figure would hand the cut back to. `effective` is what may be
  * refunded, and `ceiling` is set wherever the ceiling applied to the line.
  *
- * The complaint money passed to the order-level cap (`refundedOutside`) is what
- * of it the kept-state lines of its line have not already absorbed — once the
- * ceiling has cut a return by a complaint's amount, that amount is inside the
- * line's stored defaults and is not counted twice: per line,
- * `max(0, min(complaint money, lineValue − Σ stored defaults))`. With no
- * complaint money this is exactly {@link caseDefaultRefunds}.
+ * The order-level cap (`refundedOutside`) is lowered by **the unabsorbed part**
+ * of the complaint money only: once the ceiling has cut a return by a
+ * complaint's amount, that amount is inside the line's stored defaults and is
+ * not counted twice. Per line, `max(0, min(complaint money, lineValue − Σ
+ * stored defaults))` (architect's ruling on PR #937). With no complaint money
+ * this is exactly {@link caseDefaultRefunds}.
  */
 export function effectiveDefaultRefunds(
   input: RefundOrder & {

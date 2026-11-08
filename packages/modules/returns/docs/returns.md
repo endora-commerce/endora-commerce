@@ -166,11 +166,13 @@ before/after events and is written to the audit log.
   reload the form and confirm. The `return.settled` audit entry records a
   default that moved (`recomputedDefaults`).
 - **No line refunds more than it was paid** — a complaint refund counts against
-  what is left paid for the order and against the line it names. A later
+  the line it names, and the unabsorbed part of it counts against what is left
+  paid for the order: once a return of the line has been cut by the complaint,
+  that amount is not counted twice. A later
   return of that line still gets its full default, until the line's refunds,
   the complaint included, reach what the line was paid; from then on the
-  settlement form offers at most what is left of it, and the audit entry
-  records the bound (`lineCeilings`). The platform cannot tell which unit came
+  case shows, and the settlement form offers, at most what is left of it, and
+  the audit entry records the bound (`lineCeilings`). The platform cannot tell which unit came
   back. Before settling a return, check the order's other cases for an earlier
   complaint on the same line: if the defective unit the complaint compensated
   is the one coming back, lower the amount by hand.
