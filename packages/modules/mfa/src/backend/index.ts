@@ -19,6 +19,7 @@ import type {
   OrganizationPermissionPort,
   PermissionReadPort,
   SettingNoticeRegistryPort,
+  SettingsValueChangedPayload,
   SettingWriteValidatorRegistryPort,
 } from '@endora-commerce/contracts';
 import { MFA_SETTING_CODES } from '@endora-commerce/contracts';
@@ -56,6 +57,11 @@ import {
   createAdminEnforcementSettingValidator,
   reportUnenforceableAdminSetting,
 } from './services/admin-enforcement-without-key.js';
+import {
+  createAdminEnforcementSettingConfirmation,
+  createEndSessionsOnAdminEnforcement,
+} from './services/admin-enforcement-setting-sessions.js';
+import { reportUnusableEnrolments } from './services/unusable-enrolments-boot-report.js';
 import { mfaModule, type MfaModuleHandle } from './plugin.js';
 import { MfaEnrolment } from './entities/mfa-enrolment.entity.js';
 import { MfaOrganizationPolicy } from './entities/mfa-organization-policy.entity.js';
@@ -435,8 +441,8 @@ export function registerModule(ctx: ModuleContext): void {
 
   /**
    * Issue #349, M5 — with no encryption key nothing can be enrolled, so a role
-   * that requires a second factor locks its unenrolled holders out at sign-in.
-   * Said at every boot until it is gone.
+   * that requires a second factor is not applied (issue #948, owner ruling
+   * Q6). Said at every boot, at error level, until it is gone.
    */
   ctx.onBoot(async () => {
     // Off means no second factor is asked for (D-96), so there is nothing to
@@ -451,7 +457,7 @@ export function registerModule(ctx: ModuleContext): void {
       holdersOf: async (roleId) =>
         (await adminUsers.listByRoleId(roleId)).filter((admin) => admin.deletedAt === null).map((admin) => admin.id),
       activeAdminIds: (ids) => enrolmentState.activeSubjectIds('admin', ids),
-      warn: (fields, message) => ctx.log.warn(fields, message),
+      error: (fields, message) => ctx.log.error(fields, message),
     });
   });
 
@@ -474,9 +480,45 @@ export function registerModule(ctx: ModuleContext): void {
             .settingsReadPort.get(MFA_SETTING_CODES.ADMIN_TOTP_ENFORCED, null, z.boolean()),
       }),
     );
-    lazyPort<SettingNoticeRegistryPort>(ctx, 'settingNoticeRegistry').register(
-      createAdminEnforcementSettingNotice(canEnrolSecondFactor),
+    const notices = lazyPort<SettingNoticeRegistryPort>(ctx, 'settingNoticeRegistry');
+    notices.register(createAdminEnforcementSettingNotice(canEnrolSecondFactor));
+    // Issue #349, E-349-1 — what the Settings screen asks before switching it on.
+    notices.register(
+      createAdminEnforcementSettingConfirmation({
+        canEnrolSecondFactor,
+        liveAdminIds: liveAdminIds(ctx),
+        // This module's own table, read at the point of use: a boot hook must
+        // not resolve a gated port, this module's own included.
+        countUnprotected: async (ids) => {
+          const unique = [...new Set(ids)];
+          if (unique.length === 0) return 0;
+          const enrolled = new Set(
+            await new MfaEnrolmentStateService(ctx.cradle<MfaCradle>().emFactory).activeSubjectIds(
+              'admin',
+              unique,
+            ),
+          );
+          return unique.filter((id) => !enrolled.has(id)).length;
+        },
+      }),
     );
+  });
+
+  /**
+   * Issue #349, E-349-1 (owner ruling 2026-11-08) — switching
+   * `mfa.admin.totp_enforced` on ends the sessions every administrator without
+   * a second factor opened without one, as ticking a role's box does. Heard
+   * after `settings`' commit; `ctx.subscribe` stops it while this module is
+   * off, and without a key the enforcement port ends nothing.
+   */
+  ctx.subscribe('settings.value_changed', async (payload) => {
+    const { settingsReadPort } = ctx.cradle<MfaCradle>();
+    await createEndSessionsOnAdminEnforcement({
+      readEnforced: () =>
+        settingsReadPort.get(MFA_SETTING_CODES.ADMIN_TOTP_ENFORCED, null, z.boolean()),
+      liveAdminIds: liveAdminIds(ctx),
+      enforcement: lazyPort<MfaAdminEnforcementPort>(ctx, 'mfaAdminEnforcementPort'),
+    })(payload as SettingsValueChangedPayload);
   });
 
   /**
@@ -495,12 +537,32 @@ export function registerModule(ctx: ModuleContext): void {
         settingsReadPort.get(MFA_SETTING_CODES.ADMIN_TOTP_ENFORCED, null, z.boolean()),
       error: (fields, message) => ctx.log.error(fields, message),
     });
+    // Issue #948 — enrolments made with a key that is gone are not checked.
+    await reportUnusableEnrolments({
+      hasEncryptionKey: mfa.handle().enrolmentService !== null,
+      countActiveEnrolments: async () => {
+        const counts = await new MfaEnrolmentCountService(ctx.cradle<MfaCradle>().emFactory).countActiveEnrolments();
+        return { admin: counts.admins, customer: counts.customers };
+      },
+      error: (fields, message) => ctx.log.error(fields, message),
+    });
   });
 
   ctx.routes(async (app) => {
     const plugin = ctx.cradle<MfaCradle>().mfa.plugin as (a: typeof app) => Promise<void>;
     await plugin(app);
   });
+}
+
+/**
+ * Every administrator account that is not deleted — the people
+ * `mfa.admin.totp_enforced` binds. Read through `admin_users`' published port.
+ */
+function liveAdminIds(ctx: ModuleContext): () => Promise<string[]> {
+  return async () =>
+    (await lazyPort<AdminUserReadPort>(ctx, 'adminUserReadPort').listAll({ activeOnly: true })).map(
+      (admin) => admin.id,
+    );
 }
 
 /**

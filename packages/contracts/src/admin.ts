@@ -44,8 +44,22 @@ const adminUserAuthorProfileFields = {
 const REQUIRES_TWO_FACTOR_DESCRIPTION =
   'Whether holders of this role must sign in with a second factor. Read by `mfa` at sign-in: ' +
   'a holder with no enrolled factor is asked to set one up, an enrolled holder is challenged. ' +
-  'Has no effect while `mfa` is off (sign-in is then password-only), and `mfa` cannot be ' +
-  'switched off while any role sets it.';
+  'Has no effect while `mfa` is off (sign-in is then password-only), nor while `mfa` has no ' +
+  'encryption key (no second factor is asked for at all; see `twoFactorNotice`), and `mfa` ' +
+  'cannot be switched off while any role sets it.';
+
+/**
+ * Issue #948 — a role's `requiresTwoFactor` that is set and not in force, as
+ * the Settings read's `notice` says it of `mfa.admin.totp_enforced` (issue
+ * #930). `code` is the token the Roles screen looks up in `admin_users`'
+ * bundle (`roles.twoFactor.notice.<code>`); `message` is the English sentence
+ * it falls back to.
+ */
+export const adminRoleTwoFactorNoticeSchema = z.object({
+  code: z.string().min(1),
+  message: z.string().min(1),
+});
+export type AdminRoleTwoFactorNotice = z.infer<typeof adminRoleTwoFactorNoticeSchema>;
 
 export const adminRoleSchema = z.object({
   id: uuidSchema,
@@ -53,6 +67,12 @@ export const adminRoleSchema = z.object({
   name: z.string(),
   permissions: z.array(z.string()),
   requiresTwoFactor: z.boolean().describe(REQUIRES_TWO_FACTOR_DESCRIPTION),
+  /**
+   * Present only while `requiresTwoFactor` is set and not applied — `mfa` has
+   * no encryption key (`code: 'encryption_key_missing'`). Absent otherwise,
+   * and absent on a read that does not compute it.
+   */
+  twoFactorNotice: adminRoleTwoFactorNoticeSchema.optional(),
   createdAt: isoDateTimeSchema,
   updatedAt: isoDateTimeSchema,
 });

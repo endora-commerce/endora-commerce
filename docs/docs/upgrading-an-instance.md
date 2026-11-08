@@ -3858,6 +3858,11 @@ verification*, describes the behaviour.
 - The MFA module cannot be switched off while any role requires two-step verification: the module
   screen answers `409 MFA_DEACTIVATION_BLOCKED` and names the roles. Untick the box on those roles
   first. While MFA is off, the box cannot be ticked.
+- **Switching Admin UI — enforce two-step verification (`mfa.admin.totp_enforced`) on now signs
+  administrators out**, as ticking a role's box does (issue #349). Before, it took effect at each
+  administrator's next sign-in, which could be thirty days away. Now every administrator who has
+  not set up two-step verification is signed out at once, except for the session the change was
+  made from; **Settings** asks first and says how many. The upgrade itself signs nobody out.
 
 **Before upgrading:**
 
@@ -3879,16 +3884,13 @@ verification*, describes the behaviour.
    ```
 
 2. **Check that a second factor can be set up.** Without `MFA_SECRET_ENCRYPTION_KEY` no second
-   factor can be enrolled, so the holders counted in `not_enrolled` would be sent to a setup step
-   that cannot be completed, and could not sign in. If the key is not set, **untick the box on
-   those roles before you upgrade**, or set the key first:
-
-   ```sql
-   update admin_roles set requires_two_factor = false where code = '<code>';
-   ```
-
-   After the upgrade, an instance in that state logs a warning at every start naming the roles and
-   how many of their administrators have no second factor.
+   factor can be enrolled or checked, so the requirement is **not applied**: the holders sign in
+   with their password alone, as before the upgrade. The Roles screen shows *Not in force: no
+   encryption key* under the box, and the backend logs an error at every start naming the roles
+   and how many of their administrators have no second factor. Set the key and restart if you want
+   the requirement applied; otherwise untick the box on those roles to make the screen say what
+   happens (see
+   [Enforced two-step verification without an encryption key](#admin-two-step-without-key)).
 3. **Keep at least one administrator who can sign in.** If your own role is among the rows, set up
    two-step verification before you upgrade (*Account security* in the Admin UI), or make sure an
    administrator of another role can sign in to change the role.
@@ -3913,14 +3915,21 @@ not be completed, so none of them could sign in.
   backend logs an error at every start until the key is set or the setting is turned off. Before,
   these administrators could not sign in at all.
 - Nothing changes on an instance that has the key: enforcement applies as before.
-- This covers the setting only. A role that requires two-step verification is still enforced
-  without the key, so its holders who have no second factor still cannot sign in. Untick the box on
-  those roles, or set the key (see
-  [A role's two-step verification requirement is enforced](#role-two-factor-enforced)).
+- **Without the key no second factor is asked for at all** (issue #948):
+  - a role that requires two-step verification is not applied either; the Roles screen shows the
+    same notice under its box (the role read carries `twoFactorNotice.code: 'encryption_key_missing'`),
+    and the error logged at every start names those roles (see
+    [A role's two-step verification requirement is enforced](#role-two-factor-enforced));
+  - administrators and customers who set up two-step verification while the key was configured are
+    not asked for a code, because nothing can check it. Before, they could not sign in at all. The
+    backend logs an error at every start with how many such enrolments there are;
+  - nobody is signed out for being given a role that requires two-step verification.
 
-**After upgrading,** if the notice or the logged error appears, either set `MFA_SECRET_ENCRYPTION_KEY` (see the
-[first deployment checklist](./deployment/first-deployment-checklist.md)) and restart, so that
-enforcement applies again, or turn the setting off in **Settings**.
+**After upgrading,** if a notice or a logged error appears, either set `MFA_SECRET_ENCRYPTION_KEY`
+(see the [first deployment checklist](./deployment/first-deployment-checklist.md)) and restart, so
+that enforcement applies again, or turn the setting off in **Settings** and untick the box on the
+roles. Set the key the enrolments were made with: an enrolment made with another key cannot be
+checked with this one.
 
 ## An instance that is mixed from the start
 

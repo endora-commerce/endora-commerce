@@ -179,6 +179,16 @@ contributor whose module is off is skipped by both.
   its notice. `mfa` uses it for `mfa.admin.totp_enforced` when no encryption
   key is configured.
 
+  A provider may also implement `confirmation`, which says what to ask before a
+  write: `{ whenValue, code, message, params? }`, or `null`. The response then
+  carries it as `confirmation`. When an operator saves exactly `whenValue`, the
+  Settings screen asks first, with the text from your bundle at
+  `settingLabels.<setting code>.confirmation.<code>` filled in from `params`,
+  else `message`; declining saves nothing. A provider whose `confirmation`
+  throws is logged and skipped, and the write is saved without asking. `mfa`
+  uses it to say how many administrators switching `mfa.admin.totp_enforced`
+  on will sign out.
+
 ```ts
 ctx.onBoot(() => {
   lazyPort<SettingNoticeRegistryPort>(ctx, 'settingNoticeRegistry').register({

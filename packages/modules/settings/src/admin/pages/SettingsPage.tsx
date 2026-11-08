@@ -307,6 +307,22 @@ export function SettingsPage(): ReactNode {
 
   const saveAll = useCallback(async (): Promise<void> => {
     if (allDirtySettings.length === 0) return;
+    // Issue #349, E-349-1 — the owning module may ask before a value is written
+    // (switching `mfa.admin.totp_enforced` on signs administrators out). Asked
+    // before anything is saved, so declining saves nothing.
+    for (const s of allDirtySettings) {
+      const draft = drafts[s.code];
+      if (!draft || !s.confirmation) continue;
+      let value: unknown;
+      try {
+        value = parseValue(s.valueType, draft.text);
+      } catch {
+        continue; // the save below reports the unparsable value
+      }
+      if (JSON.stringify(value) !== JSON.stringify(s.confirmation.whenValue)) continue;
+      const question = labels.settingConfirmation(s);
+      if (question !== null && !window.confirm(question)) return;
+    }
     setSaving(true);
     setError(null);
     setInfo(null);
@@ -358,7 +374,7 @@ export function SettingsPage(): ReactNode {
     }
     await refresh();
     setSaving(false);
-  }, [allDirtySettings, channelContext, drafts, refresh, t]);
+  }, [allDirtySettings, channelContext, drafts, labels, refresh, t]);
 
   const resetSetting = useCallback(
     async (code: string): Promise<void> => {

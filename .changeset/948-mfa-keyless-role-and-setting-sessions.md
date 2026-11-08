@@ -1,0 +1,12 @@
+---
+'@endora-commerce/mod-mfa': minor
+---
+
+Issue #948 (owner ruling Q6) and issue #349 (E-349-1).
+
+- **Without `MFA_SECRET_ENCRYPTION_KEY` no second factor is asked for at all.** `MfaLoginService.beginLogin` answers `proceed` for every subject when the composition has no key: no challenge for an account that enrolled while a key was set, and no setup ticket for an account a requirement binds. Neither could be redeemed, because the module serves no code-entry or setup step without the key. `MfaPolicyResolver` no longer applies a role's `requiresTwoFactor` without the key either, as it already did not apply `mfa.admin.totp_enforced`.
+- Every boot without the key logs at error level how many administrator and customer enrolments cannot be checked. The report on roles that require a second factor is now at error level too, and says the requirement is not applied.
+- `MfaAdminEnforcementPort` ends nothing and counts nobody without the key: nobody is signed out for being given a role that requires a second factor there.
+- **Switching `mfa.admin.totp_enforced` on ends unprotected admin sessions.** A `settings.value_changed` subscriber calls `endUnprotectedAdminSessions` with every live administrator (trigger `setting_enabled`), sparing the session the change was made from. The audit row `mfa.admin_sessions_ended_for_requirement` names the setting (`objectType: 'setting'`). Through `settings`' notice registry, the setting's read carries a `confirmation` that says how many administrators will be signed out, in EN and PL (`settingLabels.mfa.admin.totp_enforced.confirmation.signs_out_unprotected`).
+
+**Behaviour change on upgrade.** Switching **Admin UI — enforce two-step verification** on now signs out, at once, every administrator who has not set up two-step verification, except for the session the change was made from. Before, they kept their sessions for up to thirty days. The Settings screen asks first and gives the number. The upgrade itself signs nobody out. On an instance without the key, accounts that enrolled while a key was set now sign in with their password instead of being refused, and so do holders of a role that requires two-step verification. Storefront and organization enforcement also ask nothing at sign-in without the key, because nothing could be set up there either. See *Enforced two-step verification without an encryption key* in the upgrade guide.

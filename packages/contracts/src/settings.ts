@@ -215,6 +215,22 @@ export const SettingNoticeSchema = z.object({
 });
 export type SettingNotice = z.infer<typeof SettingNoticeSchema>;
 
+/**
+ * Issue #349, E-349-1 — the module that declared a setting says what writing
+ * `whenValue` would do, so the Settings screen asks before it saves that value:
+ * switching `mfa.admin.totp_enforced` on signs out every administrator without
+ * a second factor. `code` is a token the screen looks up in the owner's bundle
+ * (`settingLabels.<setting code>.confirmation.<code>`), interpolated with
+ * `params`; `message` is the English sentence it falls back to.
+ */
+export const SettingWriteConfirmationSchema = z.object({
+  whenValue: z.unknown(),
+  code: z.string().min(1),
+  message: z.string().min(1),
+  params: z.record(z.string(), z.union([z.string(), z.number()])).optional(),
+});
+export type SettingWriteConfirmation = z.infer<typeof SettingWriteConfirmationSchema>;
+
 export const SettingDtoSchema = z.object({
   id: z.uuid(),
   code: z.string(),
@@ -287,6 +303,12 @@ export const SettingDtoSchema = z.object({
    * not in force (see {@link SettingNoticeSchema}). Absent otherwise.
    */
   notice: SettingNoticeSchema.optional(),
+  /**
+   * Issue #349, E-349-1 — present only while the owning module asks for a
+   * confirmation before a write of `whenValue` (see
+   * {@link SettingWriteConfirmationSchema}). Absent otherwise.
+   */
+  confirmation: SettingWriteConfirmationSchema.optional(),
 });
 export type SettingDto = z.infer<typeof SettingDtoSchema>;
 
@@ -624,6 +646,12 @@ export interface SettingNoticeProvider {
   readonly codes: readonly string[];
   /** A notice to show beside the setting, or `null` when there is nothing to say. */
   notice(input: SettingNoticeInput): Promise<SettingNotice | null>;
+  /**
+   * Issue #349, E-349-1 — what to ask before a write, given the value in force
+   * now, or `null` when there is nothing to ask. Optional: most providers only
+   * comment on what is stored.
+   */
+  confirmation?(input: SettingNoticeInput): Promise<SettingWriteConfirmation | null>;
 }
 
 /**
@@ -637,6 +665,32 @@ export interface SettingNoticeRegistryPort {
   forCode(code: string): readonly SettingNoticeProvider[];
   /** The first notice a present provider gives for the setting, or `null`. */
   noticeFor(input: SettingNoticeInput): Promise<SettingNotice | null>;
+  /** The first write confirmation a present provider gives for the setting, or `null`. */
+  confirmationFor(input: SettingNoticeInput): Promise<SettingWriteConfirmation | null>;
+}
+
+/**
+ * The payload `settings` emits as `settings.value_changed`, after a value
+ * write or reset has committed. In-process and best-effort, like every
+ * EventBus event.
+ */
+export interface SettingsValueChangedPayload {
+  readonly eventId: string;
+  readonly occurredAt: string;
+  readonly settingCode: string;
+  /** Channels whose own row the write set or reset; empty for a platform-wide write. */
+  readonly salesChannelIds: readonly string[];
+  /** Whether the platform-wide value was set or reset. */
+  readonly globalValueUpdated: boolean;
+  readonly valueType: string;
+  /**
+   * Issue #349, E-349-1 — the administrator who made the write, and the id of
+   * the session they made it from, so a consequence that ends other sessions
+   * can spare that one. `null` / absent for a write with no administrator
+   * behind it (a boot reconciler, a seed).
+   */
+  readonly actorAdminUserId?: string | null;
+  readonly actorSessionId?: string | null;
 }
 
 /**

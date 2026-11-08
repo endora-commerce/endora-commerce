@@ -175,6 +175,17 @@ wyłączony.
   jest wtedy pokazywane bez komunikatu. Moduł `mfa` korzysta z tego dla
   `mfa.admin.totp_enforced`, gdy nie skonfigurowano klucza szyfrowania.
 
+  Dostawca może też implementować `confirmation`, czyli pytanie zadawane przed
+  zapisem: `{ whenValue, code, message, params? }` albo `null`. Odpowiedź
+  zawiera je wtedy jako `confirmation`. Gdy operator zapisuje dokładnie
+  `whenValue`, ekran Ustawienia najpierw pyta o potwierdzenie, tekstem z Twojego
+  pakietu tłumaczeń pod kluczem
+  `settingLabels.<kod ustawienia>.confirmation.<code>` uzupełnionym wartościami
+  z `params`, a w jego braku `message`; odmowa niczego nie zapisuje. Dostawca,
+  którego `confirmation` zgłosi błąd, jest zapisywany w logu i pomijany, a
+  zapis odbywa się bez pytania. Moduł `mfa` korzysta z tego, by podać, ilu
+  administratorów wyloguje włączenie `mfa.admin.totp_enforced`.
+
 ```ts
 ctx.onBoot(() => {
   lazyPort<SettingNoticeRegistryPort>(ctx, 'settingNoticeRegistry').register({

@@ -17,6 +17,7 @@
   "errors.MFA_ENFORCEMENT_UNAVAILABLE": "Administrators cannot be required to use two-step verification on this instance.",
   "errors.MFA_ENFORCEMENT_UNAVAILABLE.encryption_key_missing": "Administrators cannot be required to use two-step verification on this instance, because no second factor can be set up: the encryption key MFA_SECRET_ENCRYPTION_KEY is not configured. Ask whoever runs this platform to set it, then turn the setting on again.",
   "settingLabels.mfa.admin.totp_enforced.notice.encryption_key_missing": "Not in force: no encryption key (MFA_SECRET_ENCRYPTION_KEY).",
+  "settingLabels.mfa.admin.totp_enforced.confirmation.signs_out_unprotected": "Administrators who have not set up two-step verification: {count}. They will be signed out now and asked to set it up at their next sign-in. Continue?",
   "nav.security.label": "Account security",
   "actions.openSecurity.label": "Account security",
   "actions.openSecurity.description": "Set up or change your own two-step verification",

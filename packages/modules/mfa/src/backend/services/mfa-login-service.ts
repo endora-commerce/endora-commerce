@@ -49,6 +49,13 @@ export class MfaLoginService implements MfaLoginPort {
     subject: MfaSubjectRef,
     ctx: MfaLoginContext,
   ): Promise<MfaLoginDecision> {
+    // Issue #948, owner ruling Q6 (2026-11-08) — without the encryption key
+    // this module serves neither the code-entry step nor the setup step, so a
+    // challenge or a setup ticket is one nothing can redeem: a lockout of
+    // exactly the accounts that opted into a second factor, or were required
+    // to. With no key there is no second step at all, for any subject; the
+    // boot report says how many enrolments that leaves unchecked.
+    if (!this.verifySecondFactor) return { kind: 'proceed' };
     const active = await this.findActiveEnrolment(subject);
     if (active) {
       const challengeId = await this.challengeStore.issueChallenge({

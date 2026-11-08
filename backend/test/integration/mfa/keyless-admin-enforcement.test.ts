@@ -29,6 +29,10 @@ import { AdminUser } from '../../helpers/package-entities.js';
  *    warning says so (held by the module's unit test).
  *  - With `mfa` off its validator does not answer: the platform's own
  *    read-only refusal does, as for every other setting of an absent module.
+ *  - Issue #948 (owner ruling Q6): no second factor is asked for at all — not
+ *    by a role's flag, not of an administrator who enrolled while the key was
+ *    there — the Roles screen says a flagged role is not in force, and giving
+ *    someone a flagged role signs nobody out.
  *
  * The harness pins the key for every file, so this one withholds it before it
  * composes and puts it back afterwards.

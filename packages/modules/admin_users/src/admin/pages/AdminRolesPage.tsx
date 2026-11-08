@@ -1,6 +1,6 @@
 import { useCallback, useEffect, useMemo, useState, type FormEvent, type ReactNode } from 'react';
 import { Link } from 'react-router-dom';
-import { Info, Plus, ShieldAlert } from 'lucide-react';
+import { AlertTriangle, Info, Plus, ShieldAlert } from 'lucide-react';
 import { missingPermissionRequirements } from '@endora-commerce/contracts';
 import { ApiError, apiClient, cn, useModulePresence } from '@endora-commerce/admin-kit/lib';
 import {
@@ -24,6 +24,11 @@ interface AdminRole {
   name: string;
   permissions: string[];
   requiresTwoFactor: boolean;
+  /**
+   * Issue #948 — present while the flag is set and not applied (`mfa` has no
+   * encryption key), as the Settings read's `notice`.
+   */
+  twoFactorNotice?: { code: string; message: string };
   updatedAt: string;
 }
 
@@ -389,6 +394,19 @@ function RoleEditor(props: RoleEditorProps): ReactNode {
             <p id="requires2fa-help" className="text-xs text-muted-foreground">
               {props.mfaPresent ? tu('roles.twoFactor.help') : tu('roles.twoFactor.mfaOff')}
             </p>
+            {props.mfaPresent && props.role.twoFactorNotice ? (
+              <p
+                role="status"
+                className="flex items-start gap-1 text-xs font-medium text-amber-800 dark:text-amber-300"
+              >
+                <AlertTriangle aria-hidden="true" className="mt-px size-3.5 shrink-0" />
+                <span>
+                  {props.role.twoFactorNotice.code === 'encryption_key_missing'
+                    ? tu('roles.twoFactor.notice.encryption_key_missing')
+                    : props.role.twoFactorNotice.message}
+                </span>
+              </p>
+            ) : null}
           </div>
 
           <div className={cn('space-y-3', wildcard && 'pointer-events-none opacity-50')}>
