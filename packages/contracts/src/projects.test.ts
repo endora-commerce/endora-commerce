@@ -479,3 +479,28 @@ describe('ports, events and error codes', () => {
     });
   });
 });
+
+describe('linked records — issue #456, how far a Quote Request is agreed', () => {
+  const link = {
+    id: UUID_A,
+    kind: 'quote_request',
+    recordId: UUID_B,
+    available: true,
+    number: 'QR-1',
+    status: 'Pending',
+    amount: '37.50',
+    currency: 'PLN',
+    href: `/quote-requests/${UUID_B}`,
+    linkedBy: null,
+    linkedAt: '2026-11-08T10:00:00.000Z',
+  };
+
+  it('a Quote Request link says how far its lines are agreed', () => {
+    for (const agreement of ['agreed', 'partial', 'none'] as const) {
+      expect(projects.ProjectLinkSchema.parse({ ...link, agreement }).agreement).toBe(agreement);
+    }
+    // An Order link, and an unavailable one, carry none.
+    expect(projects.ProjectLinkSchema.parse(link).agreement).toBeUndefined();
+    rejects(projects.ProjectLinkSchema, { ...link, agreement: 'some' });
+  });
+});

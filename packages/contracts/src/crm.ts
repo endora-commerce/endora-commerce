@@ -481,6 +481,12 @@ export const OpportunityLinkSchema = z.object({
   status: z.string().optional(),
   total: z.string().optional(),
   currency: z.string().optional(),
+  /**
+   * A Quote Request's link only, while available — how far its lines are
+   * agreed (issue #456, `quoteRequestAmountSchema`). `total` is absent when
+   * no line has a price.
+   */
+  agreement: z.enum(['agreed', 'partial', 'none']).optional(),
   syncStatus: z.boolean(),
   linkSource: opportunityLinkSourceSchema,
   createdAt: isoTimestampSchema,

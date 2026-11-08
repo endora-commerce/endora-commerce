@@ -10,10 +10,10 @@ import {
 /**
  * The published face of `admin_roles` (feature 075, Phase P).
  *
- * Fourteen inbound sites: `admin_users` reads a role beside its user and
- * enforces `requiresTwoFactor` at login, `admin_actions` filters the command
- * palette by a user's permissions, `blog` protects the role it seeds, and the
- * dev seed creates one.
+ * Fourteen inbound sites: `admin_users` reads a role beside its user,
+ * `admin_actions` filters the command palette by a user's permissions, `blog`
+ * protects the role it seeds, and the dev seed creates one. The two-factor flag
+ * is read by `mfa` at sign-in through `permissionService` (issue #349).
  *
  * `findByCode` is the method with no direct predecessor. `admin_users`'
  * service and the dev seed both look a role up by code with

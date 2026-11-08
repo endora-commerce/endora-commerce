@@ -11,6 +11,7 @@ import { isObjectNotFound } from './storage/errors.js';
 import type { EntityManager } from '@mikro-orm/postgresql';
 
 import { Asset } from '../entities/asset.entity.js';
+import { cleanupEntriesDue } from '../jobs/retention-due-rows.js';
 import {
   AssetObjectCleanup,
   type AssetObjectCleanupReason,
@@ -94,11 +95,17 @@ export class ObjectCleanupLedger implements CleanupLedgerPort {
     // command-coverage-ignore: storage bookkeeping with no operator intent and
     // nothing to undo — each entry only says an object still needs deleting.
     const em = this.emFactory().fork();
-    const entries = await em.find(
-      AssetObjectCleanup,
-      { recordedAt: { $lte: new Date(now.getTime() - graceMs) } },
-      { orderBy: { recordedAt: 'asc' }, limit },
+    // The ids through the pass's row source — the one the tick's probe asks
+    // about (issue #909) — then the entries through the ORM.
+    const source = cleanupEntriesDue(new Date(now.getTime() - graceMs));
+    const ids = await em.execute<Array<{ id: string }>>(
+      `select "id" ${source.from} order by "recorded_at" asc limit ?`,
+      [...source.params, limit],
     );
+    const entries =
+      ids.length === 0
+        ? []
+        : await em.find(AssetObjectCleanup, { id: { $in: ids.map((row) => row.id) } }, { orderBy: { recordedAt: 'asc' } });
     let cleanupsDone = 0;
     for (const entry of entries) {
       const referenced = await em.count(Asset, {

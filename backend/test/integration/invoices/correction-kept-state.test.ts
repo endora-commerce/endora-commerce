@@ -309,11 +309,16 @@ describe('invoices — a correction leaves what the invoice keeps (#873, #885)',
       expect(await leftPaid(x.orderId, x.total)).toBe('30.79');
     });
 
-    it('AC-885-2 — then a return of 1 unit: the kept quantity goes 3 → 2 and the money stays exact', async () => {
+    it('AC-885-2 — then a return of 1 unit at its default of 12.32: the kept quantity goes 3 → 2, credit 10.01 / 2.31', async () => {
       const x = await seedBolts();
       const invoice = await issueInvoice(x.orderId);
       await settleCase(x.orderId, [{ orderItemId: x.items[0]!, quantity: 1 }], { kind: 'complaint', amounts: [6.15] });
-      const { correctiveInvoiceId } = await settleCase(x.orderId, [{ orderItemId: x.items[0]!, quantity: 1 }]);
+      const { caseId, correctiveInvoiceId } = await settleCase(x.orderId, [{ orderItemId: x.items[0]!, quantity: 1 }]);
+      // The complaint is outside the kept state (#874): the return refunds the drop in the kept value.
+      const refund = await withSystemScope('test: read the refund', () => h.em().fork().findOneOrFail(Refund, { returnCaseId: caseId }));
+      expect(roundHalfUp(refund.amount)).toBe('12.32');
+      const correction = await h.em().fork().findOneOrFail(Invoice, { id: correctiveInvoiceId! });
+      expect([correction.total, correction.netTotal, correction.taxTotal]).toEqual(['12.32', '10.01', '2.31']);
       const em = h.em().fork();
       const corrections = await em.find(Invoice, { originalInvoiceId: invoice.id, kind: 'correction' });
       const credited = await em.find(InvoiceLine, { invoiceId: { $in: corrections.map((c) => c.id) }, orderItemId: x.items[0]! });
@@ -323,11 +328,13 @@ describe('invoices — a correction leaves what the invoice keeps (#873, #885)',
         [true, '1.000'],
       ]);
       const kept = await keptRows(x.orderId);
+      // 36.94 − 6.15 − 12.32.
+      expect(kept.rows).toEqual(new Map([['0.2300', { net: '15.02', vat: '3.45', gross: '18.47' }]]));
       expect(kept.gross).toBe(await leftPaid(x.orderId, x.total));
       expect(compareDecimals(moneySum(corrections.map((c) => c.total)), invoice.total)).toBeLessThanOrEqual(0);
     });
 
-    it('AC-885-3 — on a discounted order the complaint credits no discount, and the invoice’s discount line is untouched', async () => {
+    it('AC-885-3 — on a discounted order the complaint credits no discount, the discount line is untouched, then 1A refunds 11.03', async () => {
       const x = await seedTwoRate();
       await issueInvoice(x.orderId);
       const { correctiveInvoiceId } = await settleCase(x.orderId, [{ orderItemId: x.items[0]!, quantity: 1 }], {
@@ -341,6 +348,28 @@ describe('invoices — a correction leaves what the invoice keeps (#873, #885)',
       expect(kept.rows.get('0.0000')).toEqual({ net: '7.50', vat: '0.00', gross: '7.50' });
       expect(kept.rows.get('0.2300')).toEqual({ net: '25.03', vat: '5.76', gross: '30.79' });
       expect(kept.gross).toBe(await leftPaid(x.orderId, x.total));
+
+      // Then a return of 1A at its default of 11.03, carrying 1.29 of the discount.
+      const ret = await settleCase(x.orderId, [{ orderItemId: x.items[0]!, quantity: 1 }]);
+      const refund = await withSystemScope('test: read the refund', () => h.em().fork().findOneOrFail(Refund, { returnCaseId: ret.caseId }));
+      expect(roundHalfUp(refund.amount)).toBe('11.03');
+      const retLines = await correctionLines(ret.correctiveInvoiceId!);
+      expect(retLines.map((l) => [compareDecimals(l.netValue, 0) < 0 ? 'discount' : 'goods', l.taxRate, l.netValue, l.grossValue])).toEqual([
+        ['goods', '0.2300', '10.01', '12.32'],
+        ['discount', '0.0000', '-1.29', '-1.29'],
+      ]);
+      const after = await keptRows(x.orderId);
+      expect(after.rows).toEqual(
+        new Map([
+          // 10.00 delivery + 2.50 surcharge − 3.71 of discount kept.
+          ['0.0000', { net: '8.79', vat: '0.00', gross: '8.79' }],
+          ['0.0800', { net: '9.99', vat: '0.80', gross: '10.79' }],
+          ['0.2300', { net: '15.02', vat: '3.45', gross: '18.47' }],
+        ]),
+      );
+      // The goods: 18.47 + 10.79 − 3.71 = 25.55 = 42.73 − 6.15 − 11.03.
+      expect(after.gross).toBe(moneySum(['25.55', '12.50']));
+      expect(after.gross).toBe(await leftPaid(x.orderId, x.total));
     });
 
     it('AC-885-5 — a complaint resolved by replacement or repair issues no correction', async () => {

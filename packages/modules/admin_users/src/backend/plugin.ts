@@ -4,6 +4,7 @@ import type {
   AdminRolePort,
   AuthSessionPort,
   CustomerAccountReadPort,
+  MfaAdminEnforcementPort,
   MfaLoginPort,
   OrganizationRoleReadPort,
   PermissionCataloguePort,
@@ -63,6 +64,11 @@ export interface AdminModuleOptions {
   resolveAdminContext: (req: FastifyRequest) => { adminUserId: string };
   /** Feature 042 — lazily resolved MFA login port (absent ⇒ password-only). */
   getMfaLoginPort?: () => MfaLoginPort | undefined;
+  /**
+   * Issue #349 — lazily resolved `mfa` enforcement port, absent while `mfa`
+   * is: ends the sessions a role's two-factor requirement newly binds.
+   */
+  getMfaAdminEnforcementPort?: () => MfaAdminEnforcementPort | undefined;
   /** Feature 171 (US6) — whether a live library asset has this id (the avatar check). */
   assetExists?: (assetId: string) => Promise<boolean>;
   /**
@@ -150,6 +156,7 @@ export function adminModule(
     options.auditLogService,
     options.getMfaLoginPort,
     options.assetExists,
+    options.getMfaAdminEnforcementPort,
   );
   const adminPreferenceService = new AdminPreferenceService(options.emFactory, options.log);
   const handle: AdminModuleHandle = {

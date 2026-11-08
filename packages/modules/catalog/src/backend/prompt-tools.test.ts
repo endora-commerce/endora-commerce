@@ -46,6 +46,8 @@ function harness(initial: Row[], options: { bus?: boolean } = {}) {
     findOne: vi.fn(async (_entity: unknown, where: { id: string }) => rows.get(where.id) ?? null),
     persist: vi.fn(),
     flush: vi.fn(async () => undefined),
+    // The editor-version bump a product update takes (`bumpScopeVersion`).
+    execute: vi.fn(async () => [{ v: '1' }]),
   };
   const commandBus = {
     run: vi.fn(async (command: Parameters<CommandBus['run']>[0]) => {
@@ -168,7 +170,6 @@ describe('163 P-1 — assistant tools to archive and restore products', () => {
     const ids = tools.map((t) => t.id);
     expect(ids).not.toContain('catalog.archive_product');
     expect(ids).not.toContain('catalog.restore_product');
-    expect(ids).toContain('catalog.set_product_status');
   });
 
   it('S-2: a per-item failure names an HttpError\'s message, never another error\'s', async () => {
@@ -224,5 +225,55 @@ describe('163 checkpoint F (S-1) — product id lists the assistant sends are bo
     };
     expect(h.actions.map((a) => a.objectId)).toEqual([A, B]);
     expect(result.summary).toMatchObject({ total: 2, succeeded: 2 });
+  });
+});
+
+describe('issue #241 — the bulk field mutations write each product through the product.update Command', () => {
+  const editable = (id: string, visibility: string): Row =>
+    ({ ...product(id), type: 'simple', status: 'active', visibility, attributeValues: {}, allowedOrganizationIds: [] }) as Row;
+
+  it('set_products_visibility runs one audited product.update per product, through the bus', async () => {
+    const h = harness([editable(A, 'public'), editable(B, 'public')]);
+    const result = (await h.tool('catalog.set_products_visibility').execute(
+      { productIds: [A, B], visibility: 'logged_in_only' },
+      toolCtx,
+    )) as { summary: { total: number; succeeded: number } };
+    expect(h.actions).toEqual([
+      { action: 'product.update', objectId: A, audited: true },
+      { action: 'product.update', objectId: B, audited: true },
+    ]);
+    expect(result.summary).toMatchObject({ total: 2, succeeded: 2 });
+  });
+
+  it('a product already holding the value runs the Command but records no entry', async () => {
+    const h = harness([editable(A, 'logged_in_only')]);
+    await h.tool('catalog.set_products_visibility').execute({ productIds: [A], visibility: 'logged_in_only' }, toolCtx);
+    expect(h.actions).toEqual([{ action: 'product.update', objectId: A, audited: false }]);
+  });
+});
+
+describe('issue #241 — without a Command Bus the bulk field mutations are not offered', () => {
+  it('contributes none of them, since each product write would go unaudited', () => {
+    const ids = harness([], { bus: false }).tools.map((t) => t.id);
+    for (const id of [
+      'catalog.assign_products_to_category',
+      'catalog.remove_products_from_category',
+      'catalog.set_product_status',
+      'catalog.set_products_visibility',
+    ]) {
+      expect(ids).not.toContain(id);
+    }
+  });
+
+  it('contributes all of them with the bus', () => {
+    const ids = harness([]).tools.map((t) => t.id);
+    expect(ids).toEqual(
+      expect.arrayContaining([
+        'catalog.assign_products_to_category',
+        'catalog.remove_products_from_category',
+        'catalog.set_product_status',
+        'catalog.set_products_visibility',
+      ]),
+    );
   });
 });

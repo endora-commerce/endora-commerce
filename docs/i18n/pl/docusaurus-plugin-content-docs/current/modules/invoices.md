@@ -125,6 +125,14 @@ bloku podsumowania i tam można ten wiersz ukryć).
 
 `Invoice` (numer, daty wystawienia i dokumentu, odwołanie do pliku, `type ∈ {proforma, final}`).
 
+`InvoiceLine` (niezmienny zapis jednej pozycji z chwili wystawienia). Jej `lineKind`
+mówi, czym jest pozycja: `goods`, `delivery`, `payment_surcharge` lub `discount` na
+fakturze i fakturze proforma; `price_reduction` jest zarezerwowane dla pozycji korekty.
+Zapisuje go każda pozycja dokumentu wystawionego od tego wydania, także pozycje dostawy
+i dopłaty za płatność ze stawką 0 %; nie zmienia żadnej kwoty. Pozycja wystawiona
+wcześniej oraz pozycja korekty mają `null` i są rozróżniane jak dotąd: po tym, czy
+wskazują pozycję zamówienia, i po znaku kwoty.
+
 ## Numeracja
 
 Dwie cechy numeru faktury pozornie sobie przeczą — obie są zamierzone:

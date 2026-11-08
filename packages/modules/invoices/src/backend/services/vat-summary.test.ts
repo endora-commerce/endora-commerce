@@ -156,3 +156,22 @@ describe('readModelVatSummary — decided by the stored summary, not guessed (re
     ]);
   });
 });
+
+/**
+ * Issue #904 (Phase A) — a line says what it is (`invoice_lines.line_kind`).
+ * Once a charge can sit at 23 % beside the goods, "no `orderItemId`" no longer
+ * tells a charge from a goods line at the same rate; the kind is written for
+ * every new line, 0 % charges included, and is `null` only where nobody said.
+ */
+describe('buildInvoiceLines — line kinds (#904)', () => {
+  it('carries each raw line’s kind, and null where none was given', () => {
+    const r = buildInvoiceLines([
+      { name: 'A', unit: 'szt.', quantity: 1, unitNetPrice: 100, taxRate: 0.23, netValue: 100, orderItemId: 'i1', lineKind: 'goods' },
+      { name: 'Dostawa', unit: 'usł.', quantity: 1, unitNetPrice: 15.99, taxRate: 0, netValue: 15.99, lineKind: 'delivery' },
+      { name: 'Opłata', unit: 'usł.', quantity: 1, unitNetPrice: 2.5, taxRate: 0, netValue: 2.5, lineKind: 'payment_surcharge' },
+      { name: 'Rabat', unit: 'usł.', quantity: 1, unitNetPrice: -5, taxRate: 0, netValue: -5, lineKind: 'discount' },
+      { name: 'X', unit: 'szt.', quantity: 1, unitNetPrice: 1, taxRate: 0.23, netValue: 1 },
+    ]);
+    expect(r.lines.map((l) => l.lineKind)).toEqual(['goods', 'delivery', 'payment_surcharge', 'discount', null]);
+  });
+});

@@ -150,6 +150,7 @@ export function toOrderRecord(order: Order): OrderRecord {
     taxTotal: order.taxTotal,
     discountTotal: order.discountTotal,
     deliveryTotal: order.deliveryTotal,
+    chargeLines: order.chargeLines ?? null,
     total: order.total,
     currency: order.currency,
     promotionCode: order.promotionCode ?? null,

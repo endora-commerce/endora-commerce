@@ -23,6 +23,7 @@ import type { EntityManager } from '@mikro-orm/postgresql';
 import { Asset, clearPreviousVersion, hasPreviousVersion } from '../entities/asset.entity.js';
 import { AssetPermalinkRelease } from '../entities/asset-permalink-release.entity.js';
 import { ObjectCleanupLedger, type CleanupKey } from '../services/object-cleanup-ledger.js';
+import type { WorkRows } from '../services/scheduled-work-probe.js';
 import { isObjectNotFound } from '../services/storage/errors.js';
 import {
   ASSET_RETENTION_SWEEP_BATCH,
@@ -30,6 +31,7 @@ import {
   deleterOf,
   type RetentionSweepDeps,
 } from './retention-sweep-deps.js';
+import { pendingCleanupDue, softDeletedDue } from './retention-due-rows.js';
 
 export interface HardDeleteSweepResult {
   hardDeleted: number;
@@ -57,12 +59,8 @@ export class HardDeleteAssetWorker {
   async sweep(now: Date = new Date(), retentionDays?: number): Promise<HardDeleteSweepResult> {
     const days = retentionDays ?? (await this.deps.loadRetentionDays());
     const cutoff = cutoffFor(now, days);
-    const due = await this.deps.emFactory().fork().find(
-      Asset,
-      { deletedAt: { $ne: null, $lte: cutoff }, pendingCleanup: false },
-      { orderBy: { deletedAt: 'asc', id: 'asc' }, limit: this.batchSize },
-    );
-    return this.process(due.map((a) => a.id), now, (row) =>
+    const due = await this.dueIds(softDeletedDue(cutoff));
+    return this.process(due, now, (row) =>
       row.deletedAt !== null &&
       row.deletedAt !== undefined &&
       row.deletedAt.getTime() <= cutoff.getTime() &&
@@ -72,10 +70,12 @@ export class HardDeleteAssetWorker {
 
   /** How many due soft-deleted assets are left for later ticks (FR-035). */
   async countDue(now: Date, retentionDays: number): Promise<number> {
-    return this.deps.emFactory().fork().count(Asset, {
-      deletedAt: { $ne: null, $lte: cutoffFor(now, retentionDays) },
-      pendingCleanup: false,
-    });
+    const source = softDeletedDue(cutoffFor(now, retentionDays));
+    const rows = await this.deps.emFactory().fork().execute<Array<{ count: number | string }>>(
+      `select count(*) as "count" ${source.from}`,
+      [...source.params],
+    );
+    return Number(rows[0]?.count ?? 0);
   }
 
   /**
@@ -83,14 +83,22 @@ export class HardDeleteAssetWorker {
    * claim, re-checks and deletion as `sweep`.
    */
   async sweepPending(now: Date = new Date()): Promise<HardDeleteSweepResult> {
-    const due = await this.deps.emFactory().fork().find(
-      Asset,
-      { deletedAt: { $ne: null }, pendingCleanup: true },
-      { orderBy: { deletedAt: 'asc', id: 'asc' }, limit: this.batchSize },
-    );
-    return this.process(due.map((a) => a.id), now, (row) =>
+    const due = await this.dueIds(pendingCleanupDue());
+    return this.process(due, now, (row) =>
       row.deletedAt !== null && row.deletedAt !== undefined && row.pendingCleanup,
     );
+  }
+
+  /**
+   * One batch of ids from a pass's row source — the one the tick's probe asks
+   * about (issue #909) — oldest deletion first.
+   */
+  private async dueIds(source: WorkRows): Promise<string[]> {
+    const rows = await this.deps.emFactory().fork().execute<Array<{ id: string }>>(
+      `select "id" ${source.from} order by "deleted_at" asc, "id" asc limit ?`,
+      [...source.params, this.batchSize],
+    );
+    return rows.map((row) => row.id);
   }
 
   private async process(

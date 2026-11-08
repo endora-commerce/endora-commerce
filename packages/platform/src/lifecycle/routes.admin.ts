@@ -102,8 +102,9 @@ export interface ModulePresenceAdminDeps {
   mfaEnrolmentCount: MfaEnrolmentCountPort;
   /**
    * `mfa`'s answer to "is a second factor required of administrators right
-   * now?", asked before `mfa` is switched off. Resolved lazily like the count;
-   * unlike the count, a failed read refuses the switch-off.
+   * now?" — by the setting or by a role's flag — asked before `mfa` is switched
+   * off. Resolved lazily like the count; unlike the count, a failed read
+   * refuses the switch-off.
    */
   mfaDeactivationGuard: MfaDeactivationGuardPort;
 }
@@ -114,10 +115,17 @@ export interface ModulePresenceAdminDeps {
  *
  * Off means no second factor at all (D-96), so the switch-off would take the
  * administrator requirement with it in one step, as a side effect of a module
- * toggle. The requirement is a setting of its own (`mfa.admin.totp_enforced`)
- * and is turned off first, as its own change; the switch-off then goes through
- * exactly as before. Voluntary enrolments do not block it — the deactivation
- * dialog shows how many there are (D-96.5).
+ * toggle. The requirement has two sources since issue #349 — the setting
+ * `mfa.admin.totp_enforced` and any admin role whose `requiresTwoFactor` is
+ * set — and each is turned off first, as its own change; the switch-off then
+ * goes through exactly as before. Voluntary enrolments do not block it — the
+ * deactivation dialog shows how many there are (D-96.5).
+ *
+ * The refusal names what to turn off. `details.roleCodes` is the list a client
+ * reads; `details.roles` is the same list as text for the sentence, and
+ * `details.code` is the token that picks the sentence
+ * (`errors.MFA_DEACTIVATION_BLOCKED.<token>`): none when the setting alone
+ * requires it, which keeps the sentence it always had.
  *
  * Asked only while `mfa` is present: the port is read through an open gate,
  * and a module that is already off has no requirement left to protect. Only
@@ -129,15 +137,36 @@ export async function assertMfaMayBeSwitchedOff(
   guard: MfaDeactivationGuardPort,
 ): Promise<void> {
   if (moduleId !== 'mfa' || active || !effectiveState.isPresent('mfa')) return;
-  if (await guard.isAdminSecondFactorRequired()) {
+  const setting = MFA_SETTING_CODES.ADMIN_TOTP_ENFORCED;
+  const requirement = await guard.requirement();
+  const roleCodes = [...requirement.roleCodes];
+  if (!requirement.setting && roleCodes.length === 0) return;
+  if (roleCodes.length === 0) {
     throw new HttpError(
       409,
       ERROR_CODES.MFA_DEACTIVATION_BLOCKED,
       'Two-factor authentication cannot be switched off while administrators are required to ' +
-        `use it. Turn off "${MFA_SETTING_CODES.ADMIN_TOTP_ENFORCED}" first, then switch the module off.`,
-      { moduleId, setting: MFA_SETTING_CODES.ADMIN_TOTP_ENFORCED },
+        `use it. Turn off "${setting}" first, then switch the module off.`,
+      { moduleId, setting, roleCodes },
     );
   }
+  const roles = roleCodes.join(', ');
+  const turnOff = requirement.setting
+    ? `"${setting}" and the two-factor requirement of the roles ${roles}`
+    : `the two-factor requirement of the roles ${roles}`;
+  throw new HttpError(
+    409,
+    ERROR_CODES.MFA_DEACTIVATION_BLOCKED,
+    'Two-factor authentication cannot be switched off while administrators are required to ' +
+      `use it. Turn off ${turnOff} first, then switch the module off.`,
+    {
+      moduleId,
+      setting,
+      roleCodes,
+      roles,
+      code: requirement.setting ? 'setting_and_role_requirement' : 'role_requirement',
+    },
+  );
 }
 
 /**
