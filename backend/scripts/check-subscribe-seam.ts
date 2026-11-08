@@ -61,6 +61,35 @@ export function scanSubscribeSeam(input: SubscribeSeamInput): {
   }));
 }
 
+/**
+ * What `--list` prints, one line per bare subscription and per worker site —
+ * a function of the scan alone, so a test can hold it beside the verdict
+ * computed from the same scan.
+ */
+export function listingOf(scan: {
+  readonly workers: WorkerSeamResult;
+  readonly subscriptions: readonly BareSubscription[];
+}): string[] {
+  const lines: string[] = [];
+  for (const entry of scan.subscriptions) {
+    const tag = BARE_SUBSCRIPTIONS_TO_DRAIN[keyOf(entry)] !== undefined ? 'LEDGERED' : 'BARE    ';
+    lines.push(
+      `${tag} ${entry.file}:${entry.line}  [${entry.moduleId}] ${entry.receiver}.on('${entry.event}')`,
+    );
+  }
+  for (const site of scan.workers.sites) {
+    const tag = site.gated
+      ? 'SEAMED  '
+      : WORKERS_OUTSIDE_THE_SEAM[workerKeyOf(site)] !== undefined
+        ? 'LEDGERED'
+        : 'UNGATED ';
+    lines.push(
+      `${tag} ${site.file}:${site.line}  [${site.moduleId ?? '-'}] ${site.spelling} (${site.kind})`,
+    );
+  }
+  return lines;
+}
+
 async function main(): Promise<void> {
   const listMode = process.argv.includes('--list');
   // Every root a module's source can live in, derived (feature 080, T040a):
@@ -107,23 +136,7 @@ async function main(): Promise<void> {
   }
 
   if (listMode) {
-    for (const entry of subscriptions) {
-      const tag =
-        BARE_SUBSCRIPTIONS_TO_DRAIN[keyOf(entry)] !== undefined ? 'LEDGERED' : 'BARE    ';
-      console.log(
-        `${tag} ${entry.file}:${entry.line}  [${entry.moduleId}] ${entry.receiver}.on('${entry.event}')`,
-      );
-    }
-    for (const site of workers.sites) {
-      const tag = site.gated
-        ? 'SEAMED  '
-        : WORKERS_OUTSIDE_THE_SEAM[workerKeyOf(site)] !== undefined
-          ? 'LEDGERED'
-          : 'UNGATED ';
-      console.log(
-        `${tag} ${site.file}:${site.line}  [${site.moduleId ?? '-'}] ${site.spelling} (${site.kind})`,
-      );
-    }
+    for (const line of listingOf({ workers, subscriptions })) console.log(line);
     console.log('');
   }
 
