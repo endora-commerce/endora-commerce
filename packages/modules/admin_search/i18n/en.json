@@ -41,5 +41,6 @@
   "page.results.unavailable": "{label} could not be searched this time.",
   "page.results.announce": "{count} records found",
   "actions.openGlobalSearch.keywords": "search, find, records",
-  "actions.openConfiguration.keywords": "fields, search, configuration"
+  "actions.openConfiguration.keywords": "fields, search, configuration",
+  "settingGroups.admin_search.name": "Global search"
 }

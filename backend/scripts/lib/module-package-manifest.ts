@@ -139,6 +139,7 @@ import {
 import { findAliasMember } from './admin-surfaces.js';
 import { readEmitLayout, type EmitLayout } from './module-packages.js';
 import { namedSpecifiers, type SpecifierKind } from './specifiers.js';
+import { withSharedParses } from '@endora-commerce/cli/lib/parsed-source.js';
 import {
   ADMIN_LAYER_DIRECTORY,
   PUBLISHED_COMPONENT_LAYER_DIRECTORY,
@@ -1480,10 +1481,16 @@ export function renderModulePackageManifests(
       if (text === null) continue;
       sources.set(relative, text);
     }
-    for (const [file, text] of sources) {
-      specifierSites += namedSpecifiers(text, file).length;
-    }
-    const imported = peerNamesOf(sources);
+    // One scope per package, so the site count and the peer derivation read
+    // each source's specifiers off one parse (issue #910). Per package and not
+    // per run, because the keys are package-relative: `src/manifest.ts` names a
+    // different file in every module.
+    const imported = withSharedParses(() => {
+      for (const [file, text] of sources) {
+        specifierSites += namedSpecifiers(text, file).length;
+      }
+      return peerNamesOf(sources);
+    });
 
     const existing = existingManifest(identity.dir, countingFs);
     if (existing === null) firstRender.push(identity.name);

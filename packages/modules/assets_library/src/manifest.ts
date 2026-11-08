@@ -85,6 +85,8 @@ const settings = defineModuleSettingsManifest({
       defaultValue: 300,
     },
     {
+      // 1–3650 whole days, enforced by this module's settings write validator
+      // (issue #332); the reader holds a stored value outside it to the range.
       code: 'assets.soft_delete_retention_days',
       name: 'Soft-delete retention before hard-delete (days)',
       groupCode: 'storage',
@@ -150,6 +152,23 @@ export const manifest = defineModuleManifest({
   // (`specs/166-asset-reference-visibility/` research R-3). `admin_roles` is
   // non-deactivatable, so the edge owes no degrade classification.
   dependencies: ['auth', 'admin_users', 'admin_roles'],
+  /**
+   * Issue #332 — the retention setting's write rule is pushed into the
+   * `settings` module's write-validator registry at boot. `settings` declares
+   * this module (shop info resolves its logo through `assetsLibraryPort`), so
+   * declaring it back closes a cycle.
+   */
+  acknowledgedDependencies: [
+    {
+      moduleId: 'settings',
+      port: 'settingWriteValidatorRegistry',
+      reason:
+        'The soft-delete retention setting is held to 1-3650 days by a write validator pushed into ' +
+        'the settings write-validator registry at boot. settings declares assets_library, so ' +
+        'declaring it back closes a cycle. The push is an inert contribution: with settings absent ' +
+        'there is no settings write to validate, and the reader still holds a stored value to the range.',
+    },
+  ],
   settings,
   /**
    * The module's landing action under ⌘K (Constitution XVI) — "Assets library",

@@ -36,7 +36,7 @@ import {
 } from 'node:fs';
 import { tmpdir } from 'node:os';
 import { join } from 'node:path';
-import { fileURLToPath } from 'node:url';
+import { fileURLToPath, pathToFileURL } from 'node:url';
 
 import { afterEach, describe, expect, it } from 'vitest';
 
@@ -461,6 +461,38 @@ describe('`endora dev` — the verb `dev:all` runs', () => {
     });
     expect(result.status).toBe(2);
     expect(result.stderr).toContain('package.json');
+  });
+
+  it('starts without loading the TypeScript compiler — the supervisor never parses source', () => {
+    // Issue #250: `endora dev` imported every verb's module before dispatching,
+    // and `check`'s rules import `typescript` — about two seconds of CPU before
+    // the first layer was spawned, on every `dev:all`, for a compiler the
+    // supervisor never calls. Under a loaded runner that start-up alone took the
+    // case below past its timeout. Asserted on what is loaded, not on how long
+    // it took, so the answer does not depend on the machine.
+    const root = temp('dev-cli-');
+    const loaded = join(root, 'loaded.txt');
+    const hook = join(root, 'record-typescript.mjs');
+    writeFileSync(
+      hook,
+      `import { registerHooks } from 'node:module';\n` +
+        `import { appendFileSync } from 'node:fs';\n` +
+        `registerHooks({ resolve(specifier, context, next) {\n` +
+        `  const resolved = next(specifier, context);\n` +
+        `  if (/[\\\\/]node_modules[\\\\/]typescript[\\\\/]/.test(resolved.url)) {\n` +
+        `    appendFileSync(${JSON.stringify(loaded)}, resolved.url + '\\n');\n` +
+        `  }\n` +
+        `  return resolved;\n` +
+        `} });\n`,
+      'utf8',
+    );
+    const result = spawnSync(
+      process.execPath,
+      ['--import', pathToFileURL(hook).href, ENDORA, 'dev'],
+      { cwd: root, encoding: 'utf8', stdio: ['pipe', 'pipe', 'pipe'], timeout: 30_000 },
+    );
+    expect(result.status, result.stderr).toBe(2);
+    expect(existsSync(loaded) ? readFileSync(loaded, 'utf8') : '').toBe('');
   });
 
   it('a layer that fails takes the others down and the verb exits with its code', () => {

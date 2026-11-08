@@ -5,5 +5,6 @@
   "organizationPermissions.shopping_lists.create.label": "Tworzenie i edycja list zakupowych",
   "organizationPermissions.shopping_lists.create.description": "Tworzenie, zmiana nazwy i usuwanie list zakupowych, dodawanie, zmiana i usuwanie ich pozycji, wybór listy domyślnej oraz zapisywanie pozycji koszyka na liście.",
   "organizationPermissions.shopping_lists.convert.label": "Zamiana list zakupowych na zapytania ofertowe i koszyki",
-  "organizationPermissions.shopping_lists.convert.description": "Przenoszenie listy zakupowej lub wybranych jej pozycji do koszyka albo do zapytania ofertowego; wymaga też uprawnienia do utworzenia tego koszyka lub zapytania."
+  "organizationPermissions.shopping_lists.convert.description": "Przenoszenie listy zakupowej lub wybranych jej pozycji do koszyka albo do zapytania ofertowego; wymaga też uprawnienia do utworzenia tego koszyka lub zapytania.",
+  "settingGroups.shopping_lists.name": "Listy zakupowe"
 }

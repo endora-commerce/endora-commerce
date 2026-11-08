@@ -147,7 +147,7 @@ punkt wejścia, aktora i impersonację. Wiersz liczy każde wystąpienie:
 | `actor_admin_user_id`, `impersonated_customer_account_id` | administrator, który spowodował dostęp, i klient, w którego imieniu działał, jeśli taki jest |
 | `request_id`, `ip_address`, `user_agent` | ustawiane, gdy wszystkie wystąpienia w wierszu pochodzą z jednego żądania |
 | `acted_at` | pierwsze wystąpienie |
-| `state_after` | `scope`, `reason`, `organizationId`, `module`, `entryPoint`, `occurrences`, `firstAt`, `lastAt`, do 20 identyfikatorów `requestIds` oraz `actor`: rodzaj i identyfikator aktora, a także `context`, czyli uzasadnienie zakresu, w którym wywołujący już działał, na przykład `actor:anonymous` dla anonimowego żądania sklepu |
+| `state_after` | `scope`, `reason`, `organizationId`, `module`, `entryPoint`, `occurrences`, `firstAt`, `lastAt`, do 20 identyfikatorów `requestIds` oraz `actor`: rodzaj i identyfikator aktora, a także `context`, czyli uzasadnienie zakresu, w którym wywołujący już działał, na przykład `actor:anonymous` dla anonimowego żądania sklepu. Wiersz startu procesu zawiera dodatkowo `breakdown` (zob. niżej) |
 
 Agregacja ma znaczenie, bo dwa dostępy odbywają się przy każdym uwierzytelnionym żądaniu sklepu:
 `auth: resolve customer org` i `tenant: resolve customer roll-up flag`. Pole `module` jest
@@ -237,7 +237,15 @@ ominięcie audytu:
    pytanie, żeby zapytać. Jeśli przebieg wybiera wiersze przez ORM i nie może współdzielić
    zapytania, zostaw dwa i pokryj każdą gałąź testem, w którym tylko ta gałąź sprawia, że takt
    wykonuje swoją pracę. Jeśli dokładny warunek wymaga czegoś, co należy do zakresu — ustawienia
-   albo portu innego modułu — zadaj szersze pytanie, które może się mylić tylko w stronę `true`.
+   rozstrzyganego per kanał lub per organizacja albo portu innego modułu — zadaj szersze pytanie,
+   które może się mylić tylko w stronę `true`. Ustawienie **ogólnoplatformowe** (odczytywane
+   z kanałem `null`) nie należy do zakresu: `Setting` i `SettingValue` są encjami globalnymi, więc
+   taki odczyt nie dotyka danych żadnej organizacji. Takt odczytuje je przed otwarciem zakresu,
+   a odczyt zakończony błędem otwiera zakres, zgodnie z regułą 4. Tak działa cykliczne sprawdzanie
+   reindeksacji w module `search`: najpierw odczytuje `search.reindex_interval_minutes`, a zakres
+   otwiera tylko wtedy, gdy przebieg jest należny albo jednorazowe w procesie sprawdzenie
+   ustawień indeksów jeszcze się nie odbyło
+   (`backend/test/unit/search/reindex-scheduler-gating.test.ts`).
 3. **Jego odpowiedź nigdy nie trafia do przebiegu.** Praca odczytuje wszystko ponownie wewnątrz
    zakresu. Pytanie rozstrzyga, *czy* zakres zostanie otwarty, nigdy *co* się w nim wykona.
 4. **Pytanie zakończone błędem liczy się jako `true`.** Takt działa wtedy dokładnie tak jak
@@ -257,8 +265,44 @@ generowania feedu, sprawdzenia taksonomii. Przed nimi nie umieszczaj pytania. Je
 uczciwie zadać pytania bez zakresu, zostaw zakres tam, gdzie jest, i zaakceptuj wiersz: nadmiarowy
 wiersz audytu to szum, a brakujący to luka.
 
-Ta reguła dotyczy wyłącznie taktów zadań cyklicznych. Wejścia do zakresu wykonywane przy starcie
-procesu (`boot: …`) nadal są zapisywane po jednym wierszu każde.
+Ta reguła dotyczy wyłącznie taktów zadań cyklicznych. Start procesu jest obsługiwany inaczej,
+jak opisano niżej.
+
+### Start procesu to jeden wiersz
+
+Każdy proces, który składa aplikację, otwiera zakres systemowy raz dla każdego kroku startu i raz
+dla każdego haka startowego modułu: około pięćdziesięciu wejść z mniej więcej dwudziestoma pięcioma
+uzasadnieniami (`boot: load module presence`, `boot: inventory`, …). Przy jednym wierszu na
+uzasadnienie każdy start serwera i każde składające aplikację polecenie CLI zapisywało ponad
+dwadzieścia wierszy, zanim wykonało jakąkolwiek pracę.
+
+Dlatego `composeApp` obejmuje swój start klamrą. Otwiera ją przy podłączeniu zapisu audytu
+i zamyka po wykonaniu haków startowych modułów. Każdy rekord wewnątrz klamry, którego uzasadnienie
+zaczyna się od `boot: `, trafia do **jednego** wiersza:
+
+| Pole | Wartość |
+|---|---|
+| `state_after.scope` | `system` |
+| `state_after.entryPoint` | `boot` |
+| `state_after.reason` | `boot: process start` |
+| `state_after.module` | `platform` |
+| `state_after.occurrences` | liczba wejść przy starcie, równa sumie z `breakdown` |
+| `state_after.breakdown` | jeden wpis `{ module, reason, occurrences }` na krok startu lub hak, w kolejności startu |
+
+Nic nie ginie: każde wejście jest nadal policzone w jednym wierszu. Agregat czeka na zamknięcie
+klamry, więc zapis w trakcie długiego startu nie zapisze jego połowy. Kompozycja zamknięta przed
+końcem startu nadal zapisuje ten wiersz.
+
+Wszystko inne jest zapisywane dokładnie tak jak dotąd:
+
+- własne wejście operatora w poleceniu CLI (`cli: …`), które następuje po starcie. Składające
+  aplikację polecenie zapisuje więc jeden wiersz startu i jeden wiersz `cli:`;
+- rekord wewnątrz klamry z innym uzasadnieniem, na przykład takt workera, który ruszył w trakcie
+  startu, albo poszerzenie zakresu, które hak startowy wykonuje z własnym uzasadnieniem;
+- rekord `boot: …` poza klamrą.
+
+Polecenia operatorskie `module:*` nie składają aplikacji, więc nie mają startu, który można by
+objąć klamrą.
 
 ## Testy
 

@@ -30,33 +30,10 @@ import { resolve } from 'node:path';
 import { fileURLToPath } from 'node:url';
 import { parseArgs } from 'node:util';
 
-import { estateIds, runCheck } from '../check/index.js';
-import { NotAModulePackageError } from '../check/layout.js';
-import { runNewModule } from '../new-module/index.js';
-import { ScaffoldHostError, ScaffoldInputError } from '../new-module/spec.js';
-import { DeclarationLoadError } from '../inputs/declaration.js';
-import { inputForFlag } from '../inputs/resolve.js';
-import {
-  MissingInputsError,
-  runNewStorefront,
-  storefrontInputFlags,
-} from '../new-storefront/index.js';
-import { StorefrontHostError, StorefrontInputError } from '../new-storefront/reference.js';
-import {
-  InstanceHostError,
-  InstanceInputError,
-  runNewInstance,
-} from '../new-instance/index.js';
-import { InstallHostError, InstallInputError, runInstall } from '../install/index.js';
-import { DevHostError, DevInputError, runDev } from '../dev/index.js';
-import { runUpgrade, UpgradeHostError, UpgradeInputError } from '../upgrade/index.js';
-import {
-  generateFindingsRefusal,
-  generateReport,
-  GenerateHostError,
-  GenerateInputError,
-  runGenerate,
-} from '../generate/index.js';
+// Every verb's module is loaded by the verb that runs it, never up here. `check`'s
+// rules import the TypeScript compiler, and a static import of any verb reached
+// it: about two seconds of CPU before `endora dev` spawned its first layer, or
+// `--help` printed a line, for a compiler neither calls (issue #250).
 
 const USAGE = `endora — scaffolding and conformance tooling for Endora Commerce modules.
 
@@ -473,7 +450,13 @@ function asFlag(value: string | boolean | string[] | undefined): boolean {
  * code is `runCheck`'s. A flag that could change a verdict is the configuration
  * this program does not have.
  */
-function runCheckCommand(parsed: Parsed, positionals: readonly string[], cwd: string): number {
+async function runCheckCommand(
+  parsed: Parsed,
+  positionals: readonly string[],
+  cwd: string,
+): Promise<number> {
+  const { estateIds, runCheck } = await import('../check/index.js');
+  const { NotAModulePackageError } = await import('../check/layout.js');
   if (asFlag(parsed.values['list-rules'])) {
     for (const id of estateIds()) process.stdout.write(`${id}\n`);
     return 0;
@@ -536,6 +519,12 @@ async function runNewStorefrontCommand(
   declaredInputFlags: readonly string[],
   seams: MainSeams = {},
 ): Promise<number> {
+  const { inputForFlag } = await import('../inputs/resolve.js');
+  const { DeclarationLoadError } = await import('../inputs/declaration.js');
+  const { MissingInputsError, runNewStorefront } = await import('../new-storefront/index.js');
+  const { StorefrontHostError, StorefrontInputError } = await import(
+    '../new-storefront/reference.js'
+  );
   if (rest.length > 1) {
     process.stderr.write(
       `endora: \`new storefront\` takes one directory; got ${String(rest.length)} ` +
@@ -662,6 +651,13 @@ async function runGenerateCommand(
   rest: readonly string[],
   cwd: string,
 ): Promise<number> {
+  const {
+    generateFindingsRefusal,
+    generateReport,
+    GenerateHostError,
+    GenerateInputError,
+    runGenerate,
+  } = await import('../generate/index.js');
   if (rest.length > 0) {
     process.stderr.write(
       `endora: \`generate\` takes no argument; got ${rest.join(', ')}. It renders the ` +
@@ -708,6 +704,9 @@ async function runNewInstanceCommand(
   rest: readonly string[],
   cwd: string,
 ): Promise<number> {
+  const { InstanceHostError, InstanceInputError, runNewInstance } = await import(
+    '../new-instance/index.js'
+  );
   if (rest.length > 1) {
     process.stderr.write(
       `endora: \`new instance\` takes one directory; got ${String(rest.length)} ` +
@@ -795,6 +794,12 @@ async function runInstallCommand(
   cwd: string,
   seams: MainSeams = {},
 ): Promise<number> {
+  const { InstallHostError, InstallInputError, runInstall } = await import('../install/index.js');
+  const { InstanceHostError, InstanceInputError } = await import('../new-instance/index.js');
+  const { MissingInputsError } = await import('../new-storefront/index.js');
+  const { StorefrontHostError, StorefrontInputError } = await import(
+    '../new-storefront/reference.js'
+  );
   if (rest.length > 1) {
     process.stderr.write(
       `endora: \`install\` takes one directory; got ${String(rest.length)} ` +
@@ -928,6 +933,7 @@ async function runDevCommand(
   rest: readonly string[],
   cwd: string,
 ): Promise<number> {
+  const { DevHostError, DevInputError, runDev } = await import('../dev/index.js');
   if (rest.length > 0) {
     process.stderr.write(
       `endora: \`dev\` takes no argument; got ${rest.join(', ')}. Run it from the root of ` +
@@ -980,6 +986,7 @@ async function runUpgradeCommand(
   rest: readonly string[],
   cwd: string,
 ): Promise<number> {
+  const { runUpgrade, UpgradeHostError, UpgradeInputError } = await import('../upgrade/index.js');
   if (rest.length > 1) {
     process.stderr.write(
       `endora: \`upgrade\` takes one version at most; got ${rest.join(', ')}.\n`,
@@ -1037,6 +1044,9 @@ export async function main(
   // flag's *value* happens to read like a subcommand.
   let declaredInputFlags: readonly string[] = [];
   if (argv[0] === 'new' && argv[1] === 'storefront') {
+    const { storefrontInputFlags } = await import('../new-storefront/index.js');
+    const { StorefrontHostError } = await import('../new-storefront/reference.js');
+    const { DeclarationLoadError } = await import('../inputs/declaration.js');
     try {
       declaredInputFlags = await storefrontInputFlags(cwd, seams.packagedReferenceDir);
     } catch (error: unknown) {
@@ -1107,6 +1117,8 @@ export async function main(
     return 1;
   }
 
+  const { runNewModule } = await import('../new-module/index.js');
+  const { ScaffoldHostError, ScaffoldInputError } = await import('../new-module/spec.js');
   const id = rest[0];
   if (rest.length > 1) {
     process.stderr.write(

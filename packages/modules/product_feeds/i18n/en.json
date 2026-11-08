@@ -642,5 +642,7 @@
   "actions.openFeedTemplates.keywords": "feed template, fields",
   "actions.importFeedTemplate.keywords": "feed template, load",
   "actions.openFeedCategoryMapping.keywords": "taxonomy, category mapping, categories",
-  "actions.openFeedTaxonomyRevisions.keywords": "taxonomy update, new version, taxonomy version, taxonomy download"
+  "actions.openFeedTaxonomyRevisions.keywords": "taxonomy update, new version, taxonomy version, taxonomy download",
+  "settingGroups.product_feeds.name": "Product feeds",
+  "settingGroups.product_feeds_taxonomy.name": "Taxonomy updates"
 }

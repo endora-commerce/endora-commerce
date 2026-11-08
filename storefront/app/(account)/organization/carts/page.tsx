@@ -61,8 +61,7 @@ export default async function OrganizationCartsPage({
   }
 
   const anon = await getAnonCartCookie();
-  let carts: OrgCartSummary[] = [];
-  let loadError: string | null = null;
+  let carts: OrgCartSummary[];
   try {
     const res = await listOrganizationCarts(
       {
@@ -72,8 +71,21 @@ export default async function OrganizationCartsPage({
       onlyPending ? { approvalStatus: ['pending'] } : undefined,
     );
     carts = res.data;
-  } catch (err) {
-    loadError = err instanceof Error ? err.message : t('account.orgCarts.loadFailed');
+  } catch {
+    // Issue #658 — the page's own sentence, never the error's message: the
+    // client's is a developer diagnostic in English ("organization/carts list
+    // failed with HTTP <status>"). Nothing else is rendered, so a failed read
+    // does not read as an empty list. The same answer as `/organization/roles`.
+    const retryHref = onlyPending ? '/organization/carts?approval=pending' : '/organization/carts';
+    return (
+      <>
+        <h2>{t('account.orgCarts.heading')}</h2>
+        <p className="b2b-auth__error" role="alert">
+          {t('account.orgCarts.loadFailed')}{' '}
+          <LocalizedLink href={retryHref}>{t('account.orgCarts.retry')}</LocalizedLink>
+        </p>
+      </>
+    );
   }
 
   return (
@@ -99,8 +111,6 @@ export default async function OrganizationCartsPage({
           {t('account.orgCarts.filter.pending')}
         </LocalizedLink>
       </nav>
-
-      {loadError ? <p className="b2b-auth__error">{loadError}</p> : null}
 
       {carts.length === 0 ? (
         <p>{t(onlyPending ? 'account.orgCarts.emptyPending' : 'account.orgCarts.empty')}</p>

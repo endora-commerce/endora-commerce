@@ -60,7 +60,24 @@ Zamówienie **zwrócone w całości przed wystawieniem faktury** — zwroty są 
 i pokrywają całą kwotę zamówienia — nie jest fakturowane: nie ma już sprzedaży do udokumentowania.
 Wystawienie zwraca `422 INVOICE_ORDER_REFUNDED` i nie pobiera numeru; automatyczne wystawianie
 pomija zamówienie i zapisuje powód w logu. Zamówienie zwrócone tylko częściowo jest fakturowane,
-z zatrzymaną kwotą jako zapłaconą.
+z zatrzymaną kwotą jako zapłaconą. Zamówienie, którego **towary zwrócono w całości** przed
+wystawieniem faktury — każda pozycja produktu wróciła w rozliczonych zwrotach, a dostawa ani dopłata
+za płatność nie zostały zatrzymane — traktowane jest tak samo, niezależnie od tego, czy pieniądze
+zostały już wypłacone (zwrot wciąż czeka na wykonanie przez człowieka albo na potwierdzenie bramki
+płatności). Gdy dostawa lub dopłata zostaje zatrzymana, faktura jest wystawiana tylko z tą pozycją.
+
+Faktura wystawiona **po rozliczeniu zwrotu** obejmuje tylko to, co kupujący zatrzymał: nie ma
+jeszcze faktury do skorygowania, więc sama faktura dokumentuje sprzedaż, która pozostała. Każda
+pozycja zamówienia jest fakturowana w zamówionej ilości pomniejszonej o ilość z rozliczonych zwrotów
+zamówienia (rodzaju *zwrot*, rozliczonych zwrotem pieniędzy albo środkami na koncie), niezależnie od
+tego, czy pieniądze zostały już wypłacone; pozycja zwrócona w całości jest pomijana. Wymiana,
+naprawa i reklamacja nie zmieniają żadnej pozycji. Pozycje dostawy i dopłaty za płatność są takie
+jak w zamówieniu. Pozycja rabatu obejmuje tylko część przypadającą na zatrzymane towary: rabat
+zamówienia pomniejszony o część, którą rozliczone zwroty oddały wraz ze zwrotem pieniędzy, i jest
+pomijana, gdy nic z niego nie zostaje. VAT nadal liczy się dla każdej stawki od sumy wartości netto,
+więc faktura co do grosza równa się temu, co pozostało zapłacone. Faktura proforma obejmuje te same
+zatrzymane pozycje i nie jest odrzucana dla zamówienia zwróconego w całości. Gdy moduł `returns` jest
+wyłączony, każda pozycja jest fakturowana w zamówionej ilości.
 
 **Kwota do zapłaty** to kwota brutto pomniejszona o to, co zapłacono, i nigdy nie jest ujemna. Gdy
 zapłacono więcej niż kwota brutto, do zapłaty jest 0, a faktura podaje różnicę jako **nadpłatę**
