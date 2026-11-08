@@ -41,6 +41,11 @@ export function settingDescriptionKey(settingCode: string): string {
   return `settingLabels.${settingCode}.description`;
 }
 
+/** `settingLabels.<setting code>.notice.<notice code>` — issue #930. */
+export function settingNoticeKey(settingCode: string, noticeCode: string): string {
+  return `settingLabels.${settingCode}.notice.${noticeCode}`;
+}
+
 /** `settingGroups.<group code>.name` */
 export function settingGroupNameKey(groupCode: string): string {
   return `settingGroups.${groupCode}.name`;
@@ -100,6 +105,22 @@ export function resolveSettingDescription(
   );
 }
 
+/**
+ * Issue #930 — the owning module's notice that the stored value is not in
+ * force, in the administrator's language, else the API's English sentence.
+ * `null` when the read carried no notice.
+ */
+export function resolveSettingNotice(
+  setting: LabelledSetting & { readonly notice?: { code: string; message: string } | undefined },
+  source: SettingLabelSource,
+): string | null {
+  if (!setting.notice) return null;
+  return (
+    fromOwnerBundle(setting.ownerModule, settingNoticeKey(setting.code, setting.notice.code), source) ??
+    setting.notice.message
+  );
+}
+
 export function resolveSettingGroupName(
   group: LabelledSettingGroup,
   source: SettingLabelSource,
@@ -110,6 +131,9 @@ export function resolveSettingGroupName(
 export interface SettingLabels {
   settingName(setting: LabelledSetting): string;
   settingDescription(setting: LabelledSetting): string | null;
+  settingNotice(
+    setting: LabelledSetting & { readonly notice?: { code: string; message: string } | undefined },
+  ): string | null;
   groupName(group: LabelledSettingGroup): string;
 }
 
@@ -121,6 +145,7 @@ export function useSettingLabels(): SettingLabels {
     return {
       settingName: (setting) => resolveSettingName(setting, source),
       settingDescription: (setting) => resolveSettingDescription(setting, source),
+      settingNotice: (setting) => resolveSettingNotice(setting, source),
       groupName: (group) => resolveSettingGroupName(group, source),
     };
   }, [language, bundle, fallbackBundle]);

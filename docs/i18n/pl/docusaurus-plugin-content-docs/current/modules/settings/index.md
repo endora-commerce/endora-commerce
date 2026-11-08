@@ -155,6 +155,39 @@ się na `_asset_id` albo wskazuje obraz i kończy się na `_url`, zachowuje edyt
 Usunięcie flagi niczego też nie przepisuje: zapisana wartość zachowuje podziały wierszy do chwili,
 gdy operator następnym razem zmieni ją w polu jednowierszowym, które ich nie pomieści.
 
+### Walidacja zapisów i informacja, że wartość nie obowiązuje
+
+Dwa rejestry wkładów pozwalają modułowi, który zadeklarował ustawienie,
+odpowiadać za nie z haka startowego, podczas gdy `settings` nadal odpowiada za
+przechowywanie i rozstrzyganie wartości. Oba pomijają wkład modułu, który jest
+wyłączony.
+
+- `settingWriteValidatorRegistry` (`SettingWriteValidatorRegistryPort`):
+  walidator odrzuca wartość przed jej zapisaniem, zgłaszając `HttpError`.
+- `settingNoticeRegistry` (`SettingNoticeRegistryPort`): dostawca informuje,
+  że zapisana wartość dla całej platformy nie jest tą, która obowiązuje,
+  odpowiadając `{ code, message }`, albo `null`, gdy nie ma nic do
+  powiedzenia. Każda odpowiedź API ustawień w panelu zawiera wtedy pole
+  `notice`; w przeciwnym razie tego klucza nie ma. Ekran Ustawienia pokazuje
+  komunikat pod opisem, przetłumaczony z Twojego pakietu tłumaczeń pod kluczem
+  `settingLabels.<kod ustawienia>.notice.<code>`, a w jego braku `message`.
+  Dostawca, który zgłosi błąd, jest zapisywany w logu i pomijany: ustawienie
+  jest wtedy pokazywane bez komunikatu. Moduł `mfa` korzysta z tego dla
+  `mfa.admin.totp_enforced`, gdy nie skonfigurowano klucza szyfrowania.
+
+```ts
+ctx.onBoot(() => {
+  lazyPort<SettingNoticeRegistryPort>(ctx, 'settingNoticeRegistry').register({
+    contributorModuleId: 'your_module',
+    codes: ['your_module.enabled'],
+    notice: async ({ value }) =>
+      value === true && !configured()
+        ? { code: 'not_configured', message: 'Not in force: the connection is not configured.' }
+        : null,
+  });
+});
+```
+
 ## Dla administratorów platformy — edycja wartości
 
 Otwórz `Admin → Operations → Settings`. Ustawienia są pogrupowane według sekcji, do której należą.

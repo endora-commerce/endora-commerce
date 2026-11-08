@@ -3893,6 +3893,35 @@ verification*, describes the behaviour.
    two-step verification before you upgrade (*Account security* in the Admin UI), or make sure an
    administrator of another role can sign in to change the role.
 
+### Enforced two-step verification without an encryption key {#admin-two-step-without-key}
+
+The release that ships `MFA_ENFORCEMENT_UNAVAILABLE` closes a lockout (issue #930). Without
+`MFA_SECRET_ENCRYPTION_KEY` the MFA module cannot set up a second factor: it serves no setup or
+code-entry step. Yet with **Admin UI — enforce two-step verification** (`mfa.admin.totp_enforced`)
+on, sign-in still sent every administrator without a second factor to a setup step, which could
+not be completed, so none of them could sign in.
+
+**Behaviour change on upgrade:**
+
+- Turning `mfa.admin.totp_enforced` on is refused while the key is not set:
+  `409 MFA_ENFORCEMENT_UNAVAILABLE`, with `details.reason: 'encryption_key_missing'`. Turning it off
+  is always allowed, and so is saving it again when it is already on.
+- **On an instance where the setting is already on and the key is not set**, the setting is not
+  applied: administrators without a second factor sign in with their password, as they would with
+  the setting off. The setting is not changed. **Settings** shows *Not in force: no encryption key*
+  under it (the API's settings reads carry `notice.code: 'encryption_key_missing'`), and the
+  backend logs an error at every start until the key is set or the setting is turned off. Before,
+  these administrators could not sign in at all.
+- Nothing changes on an instance that has the key: enforcement applies as before.
+- This covers the setting only. A role that requires two-step verification is still enforced
+  without the key, so its holders who have no second factor still cannot sign in. Untick the box on
+  those roles, or set the key (see
+  [A role's two-step verification requirement is enforced](#role-two-factor-enforced)).
+
+**After upgrading,** if the notice or the logged error appears, either set `MFA_SECRET_ENCRYPTION_KEY` (see the
+[first deployment checklist](./deployment/first-deployment-checklist.md)) and restart, so that
+enforcement applies again, or turn the setting off in **Settings**.
+
 ## An instance that is mixed from the start
 
 The installer of `0.101.x` or earlier wrote every package of the release with a `^` except

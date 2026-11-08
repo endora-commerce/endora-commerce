@@ -3,7 +3,7 @@ import {
   type ChangeEvent,
   type ReactNode,
 } from 'react';
-import { Check, Copy, RotateCcw } from 'lucide-react';
+import { AlertTriangle, Check, Copy, RotateCcw } from 'lucide-react';
 import type { SettingDto } from '@endora-commerce/contracts';
 import { Badge, Button, Input } from '@endora-commerce/admin-kit/ui';
 import { cn } from '@endora-commerce/admin-kit/lib';
@@ -87,6 +87,8 @@ export function SettingRowEditor({
   // multi-line text printed inline loses its line breaks and can be very long.
   const preview = isMultiline ? formatMultilinePreview : formatPreview;
   const description = labels.settingDescription(setting);
+  // Issue #930 — the owning module says the stored value is not in force.
+  const notice = labels.settingNotice(setting);
   const isDirty = isDraftDirty(draft);
   const isSecret = setting.valueType === 'secret';
   const overrideCount = setting.valuesByChannel.length;
@@ -181,6 +183,15 @@ export function SettingRowEditor({
           </div>
           {description ? (
             <p className="mt-1 text-xs text-muted-foreground">{description}</p>
+          ) : null}
+          {notice ? (
+            <p
+              role="status"
+              className="mt-1 flex items-start gap-1 text-xs font-medium text-amber-800 dark:text-amber-300"
+            >
+              <AlertTriangle aria-hidden="true" className="mt-px h-3.5 w-3.5 shrink-0" />
+              <span>{notice}</span>
+            </p>
           ) : null}
           {readOnly ? (
             <p className="mt-1 text-xs text-muted-foreground">
