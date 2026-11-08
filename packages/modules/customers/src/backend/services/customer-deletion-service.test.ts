@@ -8,7 +8,7 @@ import type {
   PersonalOrganizationPort,
 } from '@endora-commerce/contracts';
 import { ModuleDisabledError } from '@endora-commerce/platform/kernel';
-import { CustomerDeletionService } from './customer-deletion-service.js';
+import { CustomerDeletionService, retentionCutoff } from './customer-deletion-service.js';
 import type { CustomerAuthorityService } from './customer-authority-service.js';
 import type { OrganizationDepletionGuard } from './organization-depletion-guard.js';
 
@@ -33,7 +33,12 @@ function harness(failAt: { step: Step; error: Error } | null = null) {
   const fail = (step: Step) => {
     if (failAt?.step === step) throw failAt.error;
   };
+  const probed: Date[] = [];
   const accountWrites = {
+    hasDueForAnonymization: async (cutoff: Date) => {
+      probed.push(cutoff);
+      return true;
+    },
     listDueForAnonymization: async () => due,
     anonymize: async (id: string) => {
       calls.push(['account', id]);
@@ -67,7 +72,7 @@ function harness(failAt: { step: Step; error: Error } | null = null) {
     addresses,
     async () => 365,
   );
-  return { service, calls };
+  return { service, calls, probed };
 }
 
 describe('CustomerDeletionService.sweep (issue #800)', () => {
@@ -222,4 +227,79 @@ describe('CustomerDeletionService.sweep — subjects an earlier rule left unfini
       expect(processed).toEqual([]);
     },
   );
+});
+
+describe('CustomerDeletionService.hasDue (issue #857)', () => {
+  it('U-4 — asks the owner of the table about the same cutoff the sweep lists by', async () => {
+    const { service, calls, probed } = harness();
+    const now = new Date('2026-11-07T12:00:00.000Z');
+    expect(await service.hasDue(30, now)).toBe(true);
+    expect(probed).toEqual([retentionCutoff(30, now)]);
+    // A question, not a pass.
+    expect(calls).toEqual([]);
+  });
+
+  /**
+   * Issue #923 — the sweep's work list also holds the members of personal
+   * organisations an earlier rule left incompletely scrubbed, so the question
+   * asks `organizations` too: an account-side "no" must not skip a tick that
+   * has organisation-side residue to finish. A question that cannot be
+   * answered counts as yes; a module that is off is re-thrown, as the sweep
+   * itself would.
+   */
+  function probeHarness(options: { accountsDue: boolean; orgs: boolean | Error }) {
+    const asked: string[] = [];
+    const accountWrites = {
+      hasDueForAnonymization: async () => {
+        asked.push('accounts');
+        return options.accountsDue;
+      },
+    } as unknown as CustomerAccountLifecycleWritePort;
+    const personalOrganizations = {
+      hasIncompletelyScrubbed: async () => {
+        asked.push('organizations');
+        if (options.orgs instanceof Error) throw options.orgs;
+        return options.orgs;
+      },
+    } as unknown as PersonalOrganizationPort;
+    const service = new CustomerDeletionService(
+      {} as CustomerAccountReadPort,
+      accountWrites,
+      personalOrganizations,
+      {} as CustomerAuthorityService,
+      { destroyAllForCustomer: async () => undefined },
+      {} as OrganizationDepletionGuard,
+      { anonymizeForOrganization: async () => 0 },
+      async () => 365,
+    );
+    return { service, asked };
+  }
+
+  it('#923 U-5 — answers yes when no account is due but an organisation is incompletely scrubbed', async () => {
+    const { service, asked } = probeHarness({ accountsDue: false, orgs: true });
+    expect(await service.hasDue(30, new Date())).toBe(true);
+    expect(asked).toEqual(['accounts', 'organizations']);
+  });
+
+  it('#923 U-6 — answers no only when both sides have nothing', async () => {
+    const { service } = probeHarness({ accountsDue: false, orgs: false });
+    expect(await service.hasDue(30, new Date())).toBe(false);
+  });
+
+  it('#923 U-7 — an account due is enough; organisations are not asked', async () => {
+    const { service, asked } = probeHarness({ accountsDue: true, orgs: false });
+    expect(await service.hasDue(30, new Date())).toBe(true);
+    expect(asked).toEqual(['accounts']);
+  });
+
+  it('#923 U-8 — an organisation-side question that fails counts as yes (fails open)', async () => {
+    const { service } = probeHarness({ accountsDue: false, orgs: new Error('connection reset') });
+    expect(await service.hasDue(30, new Date())).toBe(true);
+  });
+
+  it('#923 U-9 — organizations switched off is re-thrown, not taken for an answer', async () => {
+    const disabled = new ModuleDisabledError('organizations');
+    const { service } = probeHarness({ accountsDue: false, orgs: disabled });
+    await expect(service.hasDue(30, new Date())).rejects.toBe(disabled);
+  });
 });

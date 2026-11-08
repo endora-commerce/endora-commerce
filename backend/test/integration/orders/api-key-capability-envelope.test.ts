@@ -36,6 +36,7 @@ import { SalesChannel } from '@endora-commerce/platform/kernel';
 
 
 import { DeliveryMethod } from '../../helpers/package-entities.js';
+import { addOrganizationChannels } from '../../helpers/sales-channel-access.js';
 
 
 /**
@@ -147,6 +148,10 @@ describe('external order intake — org capability envelope (062 / T022)', () =>
     await em.persistAndFlush(channel);
     channelId = channel.id;
     await h.salesChannels.cache.invalidate('ext-envelope');
+    // Issue #699 — the intake places only on one of the bound Organization's
+    // active assigned channels.
+    await addOrganizationChannels(h, TEST_ORGANIZATION_ID, ['ext-envelope']);
+    await addOrganizationChannels(h, TEST_SUSPENDED_ORGANIZATION_ID, ['ext-envelope']);
     await em.getConnection().execute(
       `insert into sales_channel_products (sales_channel_id, product_id) values (?,?)`,
       [channelId, SEED_PRODUCT_101_ID],

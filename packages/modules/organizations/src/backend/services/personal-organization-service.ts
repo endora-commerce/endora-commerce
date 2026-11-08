@@ -10,6 +10,7 @@ import { HttpError } from '@endora-commerce/platform/http';
 import type { AuditPort, SalesChannelMembershipPort } from '@endora-commerce/platform/kernel';
 import { Organization } from '../entities/organization.entity.js';
 import { predefinedRoleIdOn } from './organization-role-store.js';
+import { anyRowExists } from './scheduled-work-probe.js';
 
 /**
  * `customer_accounts`' own read and write of the row this service binds to an
@@ -412,6 +413,16 @@ export class PersonalOrganizationService {
       ...rows.params,
     ])) as Array<{ id: string }>;
     return found.map((row) => row.id);
+  }
+
+  /**
+   * Whether {@link listIncompletelyScrubbed} would list anything — yes or no.
+   * The retention sweep's tick asks this outside any scope (issues #857,
+   * #923), over the list's own row source, so the question cannot drift from
+   * the list.
+   */
+  async hasIncompletelyScrubbed(): Promise<boolean> {
+    return anyRowExists(this.emFactory(), [incompletelyScrubbedRows()]);
   }
 
   /**

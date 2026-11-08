@@ -360,10 +360,12 @@ export default async function CheckoutPage({
                 </th>
               </tr>
             ) : null}
+            {/* Issue #853: the review sums net amounts, so its last row is the
+                net total, not what the buyer pays. VAT and gross are a design task. */}
             {cart.grandTotal ? (
               <tr>
                 <th colSpan={2} scope="row" className="text-right">
-                  <strong>{tr('commerce.common.total')}</strong>
+                  <strong>{tr('commerce.checkout.netTotal')}</strong>
                 </th>
                 <th className="text-right">
                   <strong>

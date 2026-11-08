@@ -37,6 +37,7 @@ import type { ProjectAccess } from './project-access.js';
 import { mergeProjectCustomFields } from './project-custom-fields.js';
 import { tellAfterCommit } from './project-notifier.js';
 import { nextProjectNumber } from './project-number.js';
+import { assertRolesExist, lockRolesShared } from './role-locks.js';
 import type { ProjectReadService } from './project-read-service.js';
 import { PROJECT_TASK_CONTEXT_TYPE, type ProjectTasks } from './project-tasks.js';
 import { storedReferencesOf, type ProjectReferenceService, type ProjectReferenceSource } from './reference-service.js';
@@ -109,6 +110,11 @@ export function projectChanged(): HttpError {
 
 function memberInvalid(message: string): HttpError {
   return new HttpError(422, ERROR_CODES.PROJECT_MEMBER_INVALID, message);
+}
+
+/** A Member's Role deleted between the check and the write (issue #453). */
+function memberRoleGone(): HttpError {
+  return memberInvalid('A project role does not exist.');
 }
 
 /**
@@ -288,6 +294,12 @@ export class ProjectService {
           // `created_by_admin_user_id` is not null: a Project is somebody's.
           throw new Error('projects: a Project is created by an administrator; the ambient actor is none.');
         }
+        // Issue #453 — the Roles its Stages, Stage Tasks and Members name, held
+        // against a delete, and asked again to exist.
+        const memberRoleIds = members.flatMap((member) => member.roleIds);
+        await lockRolesShared(em as EntityManager, [...stageRoleIds(stages), ...memberRoleIds]);
+        await assertRolesExist(em as EntityManager, stageRoleIds(stages));
+        await assertRolesExist(em as EntityManager, memberRoleIds, memberRoleGone);
         const project = em.create(Project, {
           id,
           number: await nextProjectNumber(em),
@@ -690,6 +702,10 @@ export class ProjectService {
       objectId: visible.id,
       run: async ({ em: tx }) => {
         await lockProject(tx, this.deps.access, visible.id);
+        // Issue #453 — the Roles the Members hold, held against a delete and asked again.
+        const memberRoleIds = members.flatMap((member) => member.roleIds);
+        await lockRolesShared(tx as EntityManager, memberRoleIds);
+        await assertRolesExist(tx as EntityManager, memberRoleIds, memberRoleGone);
         const rows = (await tx.execute(
           `select pm."id", pm."admin_user_id", coalesce(array_agg(pmr."role_id") filter (where pmr."role_id" is not null), '{}') as "role_ids"
              from "project_members" pm left join "project_member_roles" pmr on pmr."member_id" = pm."id"
@@ -813,22 +829,20 @@ async function hasLinksOf(em: EntityManager, projectId: string, organizationIds:
   return rows.length > 0;
 }
 
-/** Every id names a Project Role (archived ones included — a Stage may keep one). */
-export async function assertRolesExist(em: EntityManager, roleIds: readonly string[]): Promise<void> {
-  const ids = [...new Set(roleIds)];
-  if (ids.length === 0) return;
-  const rows = (await em.execute(`select r."id" from "project_roles" r where r."id" = any(?::uuid[])`, [
-    `{${ids.join(',')}}`,
-  ])) as Array<{ id: string }>;
-  if (rows.length !== ids.length) {
-    throw new HttpError(422, ERROR_CODES.VALIDATION_FAILED, 'A responsible role is not a project role.');
-  }
-}
+export { assertRolesExist } from './role-locks.js';
 
 function sameSet(a: readonly string[], b: readonly string[]): boolean {
   const left = new Set(a);
   const right = new Set(b);
   return left.size === right.size && [...left].every((id) => right.has(id));
+}
+
+/** Every Role a Project's new Stages and their Stage Tasks name. */
+function stageRoleIds(stages: readonly StageToCreate[]): string[] {
+  return stages.flatMap((stage) => [
+    ...(stage.responsibleRoleIds ?? []),
+    ...stage.tasks.flatMap((task) => (task.responsibleRoleId ? [task.responsibleRoleId] : [])),
+  ]);
 }
 
 /** A Stage the create Command writes, with the Stage Task definitions it is given. */

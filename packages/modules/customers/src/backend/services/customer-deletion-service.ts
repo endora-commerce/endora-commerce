@@ -120,6 +120,28 @@ export class CustomerDeletionService {
   }
 
   /**
+   * Whether {@link sweep} with the same `retentionDays` and `now` would find a
+   * subject to process — yes or no (issue #857). Each owner answers over its
+   * half of the work list's own predicate: `customer_accounts` for the due
+   * accounts at the same cutoff, then `organizations` for the personal
+   * organisations an earlier rule left incompletely scrubbed (issue #923).
+   *
+   * It fails open: an organisation-side question that cannot be answered counts
+   * as yes, so a failing probe may cost an audit row and can never skip a
+   * finish. A module switched off is re-thrown — the sweep would fail closed on
+   * it too.
+   */
+  async hasDue(retentionDays: number, now: Date): Promise<boolean> {
+    if (await this.accountWrites.hasDueForAnonymization(retentionCutoff(retentionDays, now))) return true;
+    try {
+      return await this.personalOrganizations.hasIncompletelyScrubbed();
+    } catch (error) {
+      rethrowIfModuleDisabled(error);
+      return true;
+    }
+  }
+
+  /**
    * Permanently anonymizes every soft-deleted account whose retention window
    * has elapsed (`deletedAt + retentionDays < now`), and finishes every subject
    * an earlier run left incomplete. Returns the number of subjects processed,

@@ -1,6 +1,6 @@
 import { randomUUID } from 'node:crypto';
 import type { EntityManager, FilterQuery } from '@mikro-orm/postgresql';
-import { QueryOrder, raw, UniqueConstraintViolationException } from '@mikro-orm/core';
+import { LockMode, QueryOrder, raw, UniqueConstraintViolationException } from '@mikro-orm/core';
 import {
   ERROR_CODES,
   normalizeEmailAddress,
@@ -34,6 +34,7 @@ import {
   toOneCustomerAccountRecord,
 } from './customer-account-ports.js';
 import type { TwoFactorEnrolmentReader } from './two-factor-enrolments.js';
+import { anyRowExists, type WorkRows } from './scheduled-work-probe.js';
 
 /**
  * The account lifecycle `customers` runs over this module's table
@@ -76,23 +77,31 @@ export const ANONYMIZED_PASSWORD_HASH = 'anonymized-no-login';
  * Whether an anonymised account still holds something today's scrub erases
  * (issue #843): a block reason, or custom field values a pre-#802 scrub left.
  * Such an account is unfinished, and {@link CustomerAccountLifecycleWriteService.anonymize}
- * finishes it. {@link scrubResidueWhere} is the same rule as a query.
+ * finishes it. The residue branch of {@link dueForAnonymization} is the same
+ * rule as SQL.
  */
 function hasScrubResidue(account: CustomerAccount): boolean {
   return account.blockReason != null || Object.keys(account.customFieldValues ?? {}).length > 0;
 }
 
 /**
- * {@link hasScrubResidue} as a query, over the `jsonb` custom field bag. A
- * function, not a constant: a `raw()` fragment is consumed by the query that
- * uses it, so a shared one would be gone from every query after the first.
+ * The accounts the retention sweep anonymises at `cutoff`, as a row source —
+ * **the one statement of that rule** (issue #857). Soft-deleted before the
+ * cutoff and not anonymised yet, **or** anonymised by an earlier scrub that left
+ * residue behind (issue #843, see {@link hasScrubResidue}). The residue branch
+ * is not under the cutoff: the window already elapsed once, and an operator
+ * raising `customers.deletion_retention_days` afterwards must not take the
+ * account off the list for good. `listDueForAnonymization` lists through it and
+ * `hasDueForAnonymization` asks through it, so a condition added here is added
+ * to both by the same edit and the sweep's question cannot drift from its work
+ * list.
  */
-function scrubResidueWhere(): FilterQuery<CustomerAccount> {
+function dueForAnonymization(cutoff: Date): WorkRows {
   return {
-    $or: [
-      { blockReason: { $ne: null } },
-      { [raw((alias: string) => `${alias}.custom_field_values <> '{}'::jsonb`)]: [] },
-    ],
+    from:
+      'from "customer_accounts" where ("deleted_at" is not null and "deleted_at" < ? and "anonymized_at" is null)' +
+      ` or ("anonymized_at" is not null and ("block_reason" is not null or "custom_field_values" <> '{}'::jsonb))`,
+    params: [cutoff],
   };
 }
 
@@ -477,18 +486,24 @@ export class CustomerAccountLifecycleWriteService implements CustomerAccountLife
   }
 
   async listDueForAnonymization(cutoff: Date): Promise<CustomerAccountRecord[]> {
-    // Issue #843 — an account anonymised by an earlier scrub that left
-    // something behind is due again until {@link anonymize} finishes it. That
-    // branch is not under the cutoff: the window already elapsed once, and an
-    // operator raising `customers.deletion_retention_days` afterwards must not
-    // take the account off the list for good.
-    const accounts = await this.emFactory().find(CustomerAccount, {
-      $or: [
-        { anonymizedAt: null, deletedAt: { $ne: null, $lt: cutoff } },
-        { $and: [{ anonymizedAt: { $ne: null } }, scrubResidueWhere()] },
-      ],
-    });
+    const em = this.emFactory();
+    const due = dueForAnonymization(cutoff);
+    // The ids through the shared row source, then the entities through the ORM,
+    // so the tenant filter still applies to what is returned.
+    const rows = await em.execute<Array<{ id: string }>>(`select "id" ${due.from}`, [...due.params]);
+    if (rows.length === 0) return [];
+    const accounts = await em.find(CustomerAccount, { id: { $in: rows.map((row) => row.id) } });
     return toCustomerAccountRecords(this.twoFactorEnrolments, accounts);
+  }
+
+  /**
+   * The sweep tick's question, asked outside any tenant scope (issue #857;
+   * `docs/docs/architecture/tenant-scoping.md` § *A scheduled tick with nothing
+   * to do enters no scope*). It learns one bit, through `anyRowExists`, over the
+   * work list's own row source.
+   */
+  async hasDueForAnonymization(cutoff: Date): Promise<boolean> {
+    return anyRowExists(this.emFactory(), [dueForAnonymization(cutoff)]);
   }
 
   /**
@@ -518,7 +533,12 @@ export class CustomerAccountLifecycleWriteService implements CustomerAccountLife
     // system-initiated scrub on a timer, audited below with the null actor
     // that fact deserves, not an operator-initiated write.
     const { row: account, transitioned } = await this.emFactory().transactional(async (tem) => {
-      const row = await this.#load(tem, customerAccountId);
+      // Issue #857 — the row is locked before `anonymizedAt` is read. Two
+      // passes can reach one account at once (a tick BullMQ hands back after
+      // its lock lapsed); without the lock both read `null` and both scrub,
+      // audit and announce. With it the second waits, then reads the first's
+      // commit and finds nothing left to scrub.
+      const row = await this.#load(tem, customerAccountId, LockMode.PESSIMISTIC_WRITE);
       if (row.anonymizedAt) {
         if (!hasScrubResidue(row)) return { row, transitioned: false };
         // An earlier scrub left a block reason (before #843) or custom field
@@ -600,11 +620,11 @@ export class CustomerAccountLifecycleWriteService implements CustomerAccountLife
     });
   }
 
-  async #load(em: EntityManager, id: string): Promise<CustomerAccount> {
+  async #load(em: EntityManager, id: string, lockMode?: LockMode): Promise<CustomerAccount> {
     if (!isUuidShape(id)) {
       throw new HttpError(404, ERROR_CODES.CUSTOMER_NOT_FOUND, 'Customer not found.');
     }
-    const account = await em.findOne(CustomerAccount, { id });
+    const account = await em.findOne(CustomerAccount, { id }, lockMode !== undefined ? { lockMode } : {});
     if (!account) {
       throw new HttpError(404, ERROR_CODES.CUSTOMER_NOT_FOUND, 'Customer not found.');
     }

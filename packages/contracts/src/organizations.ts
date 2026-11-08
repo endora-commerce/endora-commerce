@@ -777,6 +777,16 @@ export interface PersonalOrganizationPort {
    * state it answers an empty list.
    */
   listIncompletelyScrubbed(): Promise<string[]>;
+
+  /**
+   * Whether {@link listIncompletelyScrubbed} would list anything — **yes or
+   * no, and nothing else**. The retention sweep's scheduled tick asks it with
+   * no tenant context, before it enters the system scope, beside
+   * `CustomerAccountLifecycleWritePort.hasDueForAnonymization`, so that a tick
+   * with organisation-side residue to finish is not taken for an idle one. It
+   * is the list's own row source; no id, row or count leaves it.
+   */
+  hasIncompletelyScrubbed(): Promise<boolean>;
 }
 
 /** One sales-rep ↔ organisation assignment row. */

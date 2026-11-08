@@ -920,6 +920,7 @@ export function registerModule(ctx: ModuleContext): void {
             },
             // Issue #923 — what the retention sweep finishes besides the due accounts.
             listIncompletelyScrubbed: () => service.listIncompletelyScrubbed(),
+            hasIncompletelyScrubbed: () => service.hasIncompletelyScrubbed(),
           };
         },
       )

@@ -3945,6 +3945,48 @@ dotarło.
    z identyfikatorem w ostrzeżeniu (`customers: the anonymization sweep failed; the next tick
    retries`) i ponawiane następnego dnia. Powyższe zapytanie zwraca wtedy `0`.
 
+### Zamówienia przez klucz API trafiają tylko do kanałów organizacji {#api-key-intake-organization-channels}
+
+Wydanie, które zawiera tę zmianę, stosuje do zewnętrznego API zamówień
+(`POST /api/v1/external/orders`, zgłoszenie #699) tę samą zasadę co przy tworzeniu zamówienia w
+panelu. Klucz API jest powiązany z organizacją i kanałem sprzedaży, a zamówienie złożone tym kluczem
+musi teraz trafić do jednego z **aktywnych przypisanych** kanałów tej organizacji. Warunek jest
+sprawdzany przy każdym składaniu zamówienia, a nie przy wydaniu klucza. Dotąd przyjmowanie
+zamówień tego nie sprawdzało. Klucz, którego organizacja nie jest przypisana do kanału klucza albo
+została od niego później odłączona, dostaje teraz odpowiedź `422 ORDER_SALES_CHANNEL_NOT_ALLOWED`
+(„This sales channel is not one of the organization's active sales channels.”) i nic nie zostaje
+zapisane: nie powstaje zamówienie, a koszyk konta serwisowego się nie zmienia. Wyłączony kanał
+powiązany z kluczem był odrzucany już wcześniej, odpowiedzią `400 INACTIVE_SALES_CHANNEL`.
+
+**Po aktualizacji:**
+
+1. **Sprawdź, które klucze zostaną odrzucone.** Uruchom to zapytanie tylko do odczytu. Każdy
+   wiersz to aktywny klucz z zakresem `orders:write`, którego organizacja nie jest przypisana do
+   kanału klucza:
+
+   ```sql
+   select k.id, k.name, o.name as organization, sc.code as channel, sc.active as channel_active
+   from api_keys k
+   join sales_channels sc on sc.id = k.sales_channel_id
+   left join organizations o on o.id = k.organization_id
+   where k.status = 'active'
+     and k.scopes::jsonb ? 'orders:write'
+     and k.organization_id is not null
+     and not exists (
+       select 1 from sales_channel_organizations sco
+       where sco.sales_channel_id = k.sales_channel_id
+         and sco.organization_id = k.organization_id
+     )
+   order by k.name;
+   ```
+
+2. **Popraw każdy wiersz na jeden z dwóch sposobów.** Przypisz kanał do organizacji (*Kanały
+   sprzedaży* organizacji w panelu administracyjnym), jeśli organizacja rzeczywiście w nim kupuje,
+   albo powiąż klucz z jednym z kanałów organizacji: wydaj nowy klucz powiązany z tym kanałem,
+   przekaż go integracji i unieważnij stary. Powiązania istniejącego klucza nie da się edytować.
+3. **Uruchom zapytanie ponownie.** Gdy nie zwraca żadnego wiersza, każda integracja może składać
+   zamówienia.
+
 ## Instancja niespójna od początku
 
 Instalator `0.101.x` lub starszy zapisywał każdy pakiet wydania z `^` poza

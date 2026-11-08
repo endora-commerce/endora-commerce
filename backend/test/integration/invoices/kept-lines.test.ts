@@ -1,0 +1,596 @@
+import { randomUUID } from 'crypto';
+import { afterAll, beforeAll, describe, expect, it } from 'vitest';
+import { ERROR_CODES } from '@endora-commerce/contracts';
+import { CreditLimit, Invoice, Order, OrderItem, Payment, Refund, ReturnCase, ReturnCaseItem } from '../../helpers/package-entities.js';
+import { TEST_CUSTOMER_ID, TEST_ORGANIZATION_ID } from '../../helpers/test-actors.js';
+import { ensureSalesChannelId } from '../../helpers/sales-channel-fixtures.js';
+import {
+  setupBackendServer,
+  teardownBackendServer,
+  type BackendServerHandle,
+} from '../../helpers/test-server.js';
+import { withModuleOff } from '../../helpers/off-state.js';
+import { withSystemScope } from '../../../src/tenancy/escape-hatch.js';
+import { ADMIN_COOKIE, setSellerSettings } from './helpers.js';
+import { CUSTOMER_COOKIE, anyReasonId, resetReturnGraph } from '../returns/helpers.js';
+
+interface IssuedInvoice {
+  grossTotal: number;
+  paidTotal: number;
+  amountDue: number;
+  overpayment: number;
+  lines: Array<{ name: string; quantity: number; unitNetPrice: number; netValue: number; grossValue: number }>;
+  vatSummary: Array<{ taxRate: number; netTotal: number; vatAmount: number; grossTotal: number }>;
+}
+
+let CH: string;
+
+/**
+ * Issue #435 — an invoice issued after a return was settled, but before any
+ * invoice existed, lists only the lines the buyer kept (product-owner ruling of
+ * 2026-11-07). There is no invoice to correct at that point (#135), so the
+ * invoice itself documents the sale that is left: for each order line, the
+ * quantity of settled `return`-kind cases resolved with a refund or a credit is
+ * taken off, whether or not the money has been paid out. A replacement or a
+ * repair changes nothing, and with `returns` switched off nothing can say what
+ * came back, so every line is invoiced as before.
+ */
+describe('invoices — an invoice issued after a return lists the kept lines (#435)', () => {
+  let h: BackendServerHandle;
+
+  beforeAll(async () => {
+    h = await setupBackendServer();
+    CH = await ensureSalesChannelId(h.em(), 'inv-kept');
+    await resetReturnGraph(h.em());
+    await setSellerSettings(h);
+    await h.settings.adminService.setValueForSubset(
+      'invoices.numbering.invoice.pattern',
+      ['inv-kept'],
+      'FVKEPT {seq}/{YYYY}',
+      null,
+      { actorAdminUserId: '00000000-0000-0000-0000-000000000000' },
+    );
+    // The credit resolution tops up the organization's grant; without one it
+    // stays `pending_manual`.
+    const em = h.em().fork();
+    if (!(await em.findOne(CreditLimit, { organizationId: TEST_ORGANIZATION_ID }))) {
+      em.create(CreditLimit, { organizationId: TEST_ORGANIZATION_ID, grantedAmount: '500.00', currency: 'PLN' });
+      await em.flush();
+    }
+  });
+  afterAll(async () => {
+    await teardownBackendServer(h);
+  });
+
+  /**
+   * A completed, paid order placed under the per-rate VAT method, the way
+   * `OrderService.placeOrder` writes one. Two lines at 23 %: 3 × 10.00 (gross
+   * 36.90) and 1 × 20.00 (gross 24.60); 50.00 net, 11.50 VAT, 61.50 total.
+   */
+  async function seedOrder(
+    opts: { deliveryTotal?: string; kind?: 'bank_transfer' | 'gateway' } = {},
+  ): Promise<{ orderId: string; widget: string; gadget: string }> {
+    const em = h.em().fork();
+    const delivery = opts.deliveryTotal ?? '0.00';
+    const order = em.create(Order, {
+      organizationId: TEST_ORGANIZATION_ID,
+      placedByCustomerAccountId: TEST_CUSTOMER_ID,
+      salesChannelId: CH,
+      status: 'completed',
+      paymentStatus: 'paid',
+      vatMethod: 'per_rate',
+      deliveryAddress: { recipientName: 'A', street: 'S', city: 'C', postalCode: '00-000', country: 'PL' },
+      billingAddress: {
+        recipientName: 'Jan Kowalski',
+        street: 'ul. Testowa 1',
+        city: 'Warszawa',
+        postalCode: '00-002',
+        country: 'PL',
+        companyName: 'Example Buyer Sp. z o.o.',
+        taxId: '1231231230',
+      },
+      deliveryMethodId: randomUUID(),
+      deliveryMethodSnapshot: { code: 'dm', name: 'DM', cost: 0 },
+      paymentMethodId: randomUUID(),
+      paymentMethodSnapshot: { code: 'pm', name: 'Przelew', kind: opts.kind ?? 'bank_transfer' },
+      subtotal: '50.00',
+      taxTotal: '11.50',
+      deliveryTotal: delivery,
+      discountTotal: '0.00',
+      total: ((6150 + Math.round(Number(delivery) * 100)) / 100).toFixed(2),
+      currency: 'PLN',
+      placedAt: new Date(),
+    });
+    await em.persistAndFlush(order);
+    const widget = em.create(OrderItem, {
+      orderId: order.id,
+      productId: randomUUID(),
+      productSnapshot: { sku: 'KEPT-1', name: 'Widget', primaryAssetUrl: null },
+      quantity: 3,
+      position: 0,
+      unitPrice: '10.00',
+      taxRate: '0.2300',
+      lineTotal: '36.90',
+    });
+    const gadget = em.create(OrderItem, {
+      orderId: order.id,
+      productId: randomUUID(),
+      productSnapshot: { sku: 'KEPT-2', name: 'Gadget', primaryAssetUrl: null },
+      quantity: 1,
+      position: 1,
+      unitPrice: '20.00',
+      taxRate: '0.2300',
+      lineTotal: '24.60',
+    });
+    await em.persistAndFlush([widget, gadget]);
+    return { orderId: order.id, widget: widget.id, gadget: gadget.id };
+  }
+
+  /**
+   * A completed, paid per-rate order of one line, 3 × 10.01 at 23 %: 30.03 net,
+   * 6.91 VAT, 36.94 gross, less `discount` taken off the gross.
+   */
+  async function seedTenOhOne(discount = '0.00'): Promise<{ orderId: string; item: string }> {
+    const em = h.em().fork();
+    const total = (Math.round(36.94 * 100) - Math.round(Number(discount) * 100)) / 100;
+    const order = em.create(Order, {
+      organizationId: TEST_ORGANIZATION_ID,
+      placedByCustomerAccountId: TEST_CUSTOMER_ID,
+      salesChannelId: CH,
+      status: 'completed',
+      paymentStatus: 'paid',
+      vatMethod: 'per_rate',
+      deliveryAddress: { recipientName: 'A', street: 'S', city: 'C', postalCode: '00-000', country: 'PL' },
+      billingAddress: {
+        recipientName: 'Jan Kowalski',
+        street: 'ul. Testowa 1',
+        city: 'Warszawa',
+        postalCode: '00-002',
+        country: 'PL',
+        companyName: 'Example Buyer Sp. z o.o.',
+        taxId: '1231231230',
+      },
+      deliveryMethodId: randomUUID(),
+      deliveryMethodSnapshot: { code: 'dm', name: 'DM', cost: 0 },
+      paymentMethodId: randomUUID(),
+      paymentMethodSnapshot: { code: 'pm', name: 'Przelew', kind: 'bank_transfer' },
+      subtotal: '30.03',
+      taxTotal: '6.91',
+      deliveryTotal: '0.00',
+      discountTotal: discount,
+      total: total.toFixed(2),
+      currency: 'PLN',
+      placedAt: new Date(),
+    });
+    await em.persistAndFlush(order);
+    const item = em.create(OrderItem, {
+      orderId: order.id,
+      productId: randomUUID(),
+      productSnapshot: { sku: 'KEPT-3', name: 'Bolt', primaryAssetUrl: null },
+      quantity: 3,
+      position: 0,
+      unitPrice: '10.01',
+      taxRate: '0.2300',
+      lineTotal: '36.94',
+    });
+    await em.persistAndFlush(item);
+    return { orderId: order.id, item: item.id };
+  }
+
+  /** Submit a return of `quantity` of `orderItemId`, authorize it, receive it and settle it as `resolutionType`. */
+  async function settleReturn(
+    orderId: string,
+    orderItemId: string,
+    quantity: number,
+    resolutionType: 'refund' | 'credit' | 'replacement' | 'repair',
+  ): Promise<string> {
+    const reasonId = await anyReasonId(h.em());
+    const created = await h.app.inject({
+      method: 'POST',
+      url: '/api/v1/returns',
+      cookies: CUSTOMER_COOKIE,
+      payload: { orderId, kind: 'return', lines: [{ orderItemId, quantity, reasonId }] },
+    });
+    expect(created.statusCode, created.body).toBe(201);
+    const detail = (created.json() as { data: { id: string; items: Array<{ id: string; defaultRefundAmount: number }> } })
+      .data;
+    const authorized = await h.app.inject({
+      method: 'POST',
+      url: `/api/v1/admin/returns/${detail.id}/authorize`,
+      cookies: ADMIN_COOKIE,
+    });
+    expect(authorized.statusCode, authorized.body).toBe(200);
+    const received = await h.app.inject({
+      method: 'POST',
+      url: `/api/v1/admin/returns/${detail.id}/transition`,
+      cookies: ADMIN_COOKIE,
+      payload: { to: 'received' },
+    });
+    expect(received.statusCode, received.body).toBe(200);
+    const movesMoney = resolutionType === 'refund' || resolutionType === 'credit';
+    const settled = await h.app.inject({
+      method: 'POST',
+      url: `/api/v1/admin/returns/${detail.id}/settlement`,
+      cookies: ADMIN_COOKIE,
+      payload: {
+        resolutionType,
+        lines: detail.items.map((it) => ({
+          returnCaseItemId: it.id,
+          approvedRefundAmount: movesMoney ? it.defaultRefundAmount : 0,
+        })),
+        ...(resolutionType === 'refund' ? { refundPaymentMethodId: randomUUID() } : {}),
+      },
+    });
+    expect(settled.statusCode, settled.body).toBe(200);
+    return detail.id;
+  }
+
+  async function issueRaw(orderId: string, kind: 'invoice' | 'proforma' = 'invoice') {
+    return h.app.inject({
+      method: 'POST',
+      url: `/api/v1/admin/orders/${orderId}/invoices`,
+      cookies: ADMIN_COOKIE,
+      payload: { kind },
+    });
+  }
+
+  /** Every unit of both lines back, settled with a refund in the given state, seeded as a settlement writes it. */
+  async function seedFullReturn(
+    orderId: string,
+    lines: Array<{ orderItemId: string; quantity: number; amount: string }>,
+    settlementState: 'issued' | 'pending_manual',
+  ): Promise<void> {
+    await withSystemScope('test: seed a full return', async () => {
+      const em = h.em().fork();
+      for (const line of lines) {
+        const rc = em.create(ReturnCase, {
+          kind: 'return',
+          orderId,
+          salesChannelId: CH,
+          customerAccountId: TEST_CUSTOMER_ID,
+          organizationId: TEST_ORGANIZATION_ID,
+          statusCode: 'resolved',
+          currency: 'PLN',
+          resolutionType: 'refund',
+          submittedAt: new Date(),
+        });
+        em.create(ReturnCaseItem, {
+          returnCaseId: rc.id,
+          orderItemId: line.orderItemId,
+          productId: randomUUID(),
+          productName: 'Returned',
+          quantity: line.quantity,
+          defaultRefundAmount: line.amount,
+          approvedRefundAmount: line.amount,
+        });
+        em.create(Refund, {
+          returnCaseId: rc.id,
+          resolutionType: 'refund',
+          amount: line.amount,
+          currency: 'PLN',
+          settlementState,
+        });
+      }
+      await em.flush();
+    });
+  }
+
+  async function issueInvoice(orderId: string): Promise<IssuedInvoice> {
+    const res = await h.app.inject({
+      method: 'POST',
+      url: `/api/v1/admin/orders/${orderId}/invoices`,
+      cookies: ADMIN_COOKIE,
+      payload: { kind: 'invoice' },
+    });
+    expect(res.statusCode, res.body).toBe(201);
+    return (res.json() as { data: IssuedInvoice }).data;
+  }
+
+  const linesOf = (invoice: IssuedInvoice) =>
+    invoice.lines.map((l) => [l.name, l.quantity, l.netValue, l.grossValue]).sort((a, b) => String(a[0]).localeCompare(String(b[0])));
+
+  it('invoices the kept quantity of a line returned in part and refunded in full, equal to what was paid', async () => {
+    const { orderId, widget } = await seedOrder();
+    const caseId = await settleReturn(orderId, widget, 1, 'refund');
+    // The whole default refund of the returned unit, issued: a bank-transfer
+    // order's refund is recorded as issued and the operator makes the transfer.
+    const refund = await withSystemScope('test: read the refund', () =>
+      h.em().fork().findOneOrFail(Refund, { returnCaseId: caseId }),
+    );
+    expect([refund.amount, refund.settlementState]).toEqual(['12.30', 'issued']);
+
+    const invoice = await issueInvoice(orderId);
+    expect(linesOf(invoice)).toEqual([
+      ['Gadget', 1, 20, 24.6],
+      ['Widget', 2, 20, 24.6],
+    ]);
+    expect(invoice.vatSummary).toEqual([{ taxRate: 0.23, netTotal: 40, vatAmount: 9.2, grossTotal: 49.2 }]);
+    // 61.50 received less the 12.30 refunded: the invoice and the payment agree to the cent.
+    expect([invoice.grossTotal, invoice.paidTotal, invoice.amountDue, invoice.overpayment]).toEqual([49.2, 49.2, 0, 0]);
+  });
+
+  it('drops a line returned in full', async () => {
+    const { orderId, gadget } = await seedOrder();
+    await settleReturn(orderId, gadget, 1, 'credit');
+
+    const invoice = await issueInvoice(orderId);
+    expect(linesOf(invoice)).toEqual([['Widget', 3, 30, 36.9]]);
+    expect([invoice.grossTotal, invoice.paidTotal, invoice.amountDue, invoice.overpayment]).toEqual([36.9, 36.9, 0, 0]);
+  });
+
+  it('takes off a refund still waiting for a person, which the paid side does not yet deduct', async () => {
+    const { orderId, widget } = await seedOrder();
+    const caseId = await settleReturn(orderId, widget, 1, 'refund');
+    // A refund waiting for a person to make it (`pending_manual`, as a credit
+    // without a credit-limit grant records): the goods came back all the same.
+    await withSystemScope('test: the refund waits for a person', async () => {
+      const em = h.em().fork();
+      (await em.findOneOrFail(Refund, { returnCaseId: caseId })).settlementState = 'pending_manual';
+      await em.flush();
+    });
+
+    const invoice = await issueInvoice(orderId);
+    expect(linesOf(invoice)).toEqual([
+      ['Gadget', 1, 20, 24.6],
+      ['Widget', 2, 20, 24.6],
+    ]);
+    // The money side is `invoicePaidPosition`'s, unchanged: a pending refund is not deducted.
+    expect([invoice.grossTotal, invoice.paidTotal, invoice.overpayment]).toEqual([49.2, 61.5, 12.3]);
+  });
+
+  it('changes nothing for a replacement', async () => {
+    const { orderId, widget } = await seedOrder();
+    await settleReturn(orderId, widget, 1, 'replacement');
+
+    const invoice = await issueInvoice(orderId);
+    expect(linesOf(invoice)).toEqual([
+      ['Gadget', 1, 20, 24.6],
+      ['Widget', 3, 30, 36.9],
+    ]);
+    expect([invoice.grossTotal, invoice.paidTotal, invoice.amountDue]).toEqual([61.5, 61.5, 0]);
+  });
+
+  it('changes nothing for a complaint settled with a refund', async () => {
+    const { orderId, widget } = await seedOrder();
+    // Seeded: a complaint needs a complaint reason and an eligible order, and
+    // what is measured here is only which kinds the invoice reads.
+    await withSystemScope('test: seed a settled complaint', async () => {
+      const em = h.em().fork();
+      const rc = em.create(ReturnCase, {
+        kind: 'complaint',
+        orderId,
+        salesChannelId: CH,
+        customerAccountId: TEST_CUSTOMER_ID,
+        organizationId: TEST_ORGANIZATION_ID,
+        statusCode: 'resolved',
+        currency: 'PLN',
+        resolutionType: 'refund',
+        submittedAt: new Date(),
+      });
+      em.create(ReturnCaseItem, {
+        returnCaseId: rc.id,
+        orderItemId: widget,
+        productId: randomUUID(),
+        productName: 'Widget',
+        quantity: 1,
+        defaultRefundAmount: '12.30',
+        approvedRefundAmount: '12.30',
+      });
+      em.create(Refund, {
+        returnCaseId: rc.id,
+        resolutionType: 'refund',
+        amount: '12.30',
+        currency: 'PLN',
+        settlementState: 'pending_manual',
+      });
+      await em.flush();
+    });
+
+    const invoice = await issueInvoice(orderId);
+    expect(linesOf(invoice)).toEqual([
+      ['Gadget', 1, 20, 24.6],
+      ['Widget', 3, 30, 36.9],
+    ]);
+  });
+
+  // Ruling Q1 (c) of 2026-11-07 — the refund is the drop in the kept goods'
+  // value, so the kept invoice and what was paid agree to the cent where the
+  // returned unit's own value would leave a cent over.
+  it('3 × 10.01 at 23 %, 1 returned: refunds 12.32 and invoices 24.62 — 20.02 net, 4.60 VAT — what was paid', async () => {
+    const { orderId, item } = await seedTenOhOne();
+    const caseId = await settleReturn(orderId, item, 1, 'refund');
+    const refund = await withSystemScope('test: read the refund', () =>
+      h.em().fork().findOneOrFail(Refund, { returnCaseId: caseId }),
+    );
+    expect(refund.amount).toBe('12.32');
+
+    const invoice = await issueInvoice(orderId);
+    expect(linesOf(invoice)).toEqual([['Bolt', 2, 20.02, 24.62]]);
+    expect(invoice.vatSummary).toEqual([{ taxRate: 0.23, netTotal: 20.02, vatAmount: 4.6, grossTotal: 24.62 }]);
+    expect([invoice.grossTotal, invoice.paidTotal, invoice.amountDue, invoice.overpayment]).toEqual([24.62, 24.62, 0, 0]);
+  });
+
+  it('two partial returns: the invoice of the one unit kept is what was paid', async () => {
+    const { orderId, item } = await seedTenOhOne();
+    await settleReturn(orderId, item, 1, 'refund');
+    await settleReturn(orderId, item, 1, 'credit');
+
+    const invoice = await issueInvoice(orderId);
+    expect(linesOf(invoice)).toEqual([['Bolt', 1, 10.01, 12.31]]);
+    // 36.94 − 12.32 − 12.31.
+    expect([invoice.grossTotal, invoice.paidTotal, invoice.amountDue, invoice.overpayment]).toEqual([12.31, 12.31, 0, 0]);
+  });
+
+  // Ruling Q3 of 2026-11-07 — the discount line carries only the kept goods'
+  // share: the order discount less what the settled returns carried back.
+  it('a discounted order: the discount line is what the refunds did not take back, and the invoice is what was paid', async () => {
+    // 36.94 less a 6.94 discount: 30.00 paid. The returned unit refunds 10.01 and carries 2.31 of the discount.
+    const { orderId, item } = await seedTenOhOne('6.94');
+    const caseId = await settleReturn(orderId, item, 1, 'refund');
+    const refund = await withSystemScope('test: read the refund', () =>
+      h.em().fork().findOneOrFail(Refund, { returnCaseId: caseId }),
+    );
+    expect(refund.amount).toBe('10.01');
+
+    const invoice = await issueInvoice(orderId);
+    expect(linesOf(invoice)).toEqual([
+      ['Bolt', 2, 20.02, 24.62],
+      // Named in the invoice's language (owner answer N5).
+      ['Rabat', 1, -4.63, -4.63],
+    ]);
+    // 24.62 − 4.63 = 19.99 = 30.00 − 10.01.
+    expect([invoice.grossTotal, invoice.paidTotal, invoice.amountDue, invoice.overpayment]).toEqual([19.99, 19.99, 0, 0]);
+  });
+
+  // Review of PR #865, F3 — a settlement holds the order's `return_cases` lock
+  // from before it moves money until it has recorded the resolution. An
+  // invoice issued inside that window used to read the case unsettled, list
+  // every line, and leave the settlement's correction `not_due`: no document
+  // ever took the returned goods off. Issuing takes the same lock.
+  it('waits for a settlement of the order in progress, then lists only the kept lines', async () => {
+    const { orderId, widget } = await seedOrder();
+    const other = h.em().fork();
+    await other.begin();
+    let issuing: Promise<IssuedInvoice> | null = null;
+    try {
+      await withSystemScope('test: a settlement mid-write', async () => {
+        await other.execute('select pg_advisory_xact_lock(hashtext(?))', [`return_cases:${orderId}`]);
+        const rc = other.create(ReturnCase, {
+          kind: 'return',
+          orderId,
+          salesChannelId: CH,
+          customerAccountId: TEST_CUSTOMER_ID,
+          organizationId: TEST_ORGANIZATION_ID,
+          statusCode: 'resolved',
+          currency: 'PLN',
+          resolutionType: 'refund',
+          submittedAt: new Date(),
+        });
+        other.create(ReturnCaseItem, {
+          returnCaseId: rc.id,
+          orderItemId: widget,
+          productId: randomUUID(),
+          productName: 'Widget',
+          quantity: 1,
+          defaultRefundAmount: '12.30',
+          approvedRefundAmount: '12.30',
+        });
+        other.create(Refund, {
+          returnCaseId: rc.id,
+          resolutionType: 'refund',
+          amount: '12.30',
+          currency: 'PLN',
+          settlementState: 'issued',
+        });
+        await other.flush();
+      });
+
+      let done = false;
+      issuing = issueInvoice(orderId).finally(() => {
+        done = true;
+      });
+      await new Promise((resolve) => setTimeout(resolve, 750));
+      expect(done, 'the invoice did not wait for the settlement in progress').toBe(false);
+    } finally {
+      await other.commit();
+    }
+    const invoice = await issuing!;
+    expect(linesOf(invoice)).toEqual([
+      ['Gadget', 1, 20, 24.6],
+      ['Widget', 2, 20, 24.6],
+    ]);
+    expect([invoice.grossTotal, invoice.paidTotal, invoice.amountDue]).toEqual([49.2, 49.2, 0]);
+  });
+
+  // Product-owner ruling on F4 (review of PR #865) — an order returned in full
+  // before it is invoiced has no sale left to document, whether or not the
+  // refund has been paid out: the invoice is refused as for an order refunded
+  // in full, before a number is drawn.
+  async function expectReturnedInFullRefused(orderId: string): Promise<void> {
+    const res = await issueRaw(orderId);
+    expect(res.statusCode, res.body).toBe(422);
+    expect((res.json() as { error: { code: string } }).error.code).toBe(ERROR_CODES.INVOICE_ORDER_REFUNDED);
+    const issued = await h.em().fork().find(Invoice, { orderId, kind: 'invoice' });
+    expect(issued, 'nothing issued, no number drawn').toHaveLength(0);
+  }
+
+  it('refuses to invoice an order returned in full whose refund waits for a person', async () => {
+    const { orderId, widget, gadget } = await seedOrder();
+    await seedFullReturn(
+      orderId,
+      [
+        { orderItemId: widget, quantity: 3, amount: '36.90' },
+        { orderItemId: gadget, quantity: 1, amount: '24.60' },
+      ],
+      'pending_manual',
+    );
+    await expectReturnedInFullRefused(orderId);
+  });
+
+  it('refuses it as well for a gateway order whose refund waits for the gateway’s webhook', async () => {
+    const { orderId, widget, gadget } = await seedOrder({ kind: 'gateway' });
+    // Captured, and nothing refunded on the payment yet: the webhook has not arrived.
+    const em = h.em().fork();
+    em.create(Payment, {
+      orderId,
+      paymentMethodId: randomUUID(),
+      status: 'paid',
+      amount: '61.50',
+      currency: 'PLN',
+      paidAt: new Date(),
+    });
+    await em.flush();
+    await seedFullReturn(
+      orderId,
+      [
+        { orderItemId: widget, quantity: 3, amount: '36.90' },
+        { orderItemId: gadget, quantity: 1, amount: '24.60' },
+      ],
+      'issued',
+    );
+    await expectReturnedInFullRefused(orderId);
+  });
+
+  it('invoices only the delivery an order returned in full keeps', async () => {
+    const { orderId, widget, gadget } = await seedOrder({ deliveryTotal: '10.00' });
+    await seedFullReturn(
+      orderId,
+      [
+        { orderItemId: widget, quantity: 3, amount: '36.90' },
+        { orderItemId: gadget, quantity: 1, amount: '24.60' },
+      ],
+      'pending_manual',
+    );
+    const res = await issueRaw(orderId);
+    expect(res.statusCode, res.body).toBe(201);
+    const invoice = (res.json() as { data: IssuedInvoice }).data;
+    expect(invoice.lines.map((l) => [l.quantity, l.netValue, l.grossValue])).toEqual([[1, 10, 10]]);
+    expect(invoice.grossTotal).toBe(10);
+  });
+
+  it('still issues a proforma for an order returned in full', async () => {
+    const { orderId, widget, gadget } = await seedOrder();
+    await seedFullReturn(
+      orderId,
+      [
+        { orderItemId: widget, quantity: 3, amount: '36.90' },
+        { orderItemId: gadget, quantity: 1, amount: '24.60' },
+      ],
+      'pending_manual',
+    );
+    const res = await issueRaw(orderId, 'proforma');
+    expect(res.statusCode, res.body).toBe(201);
+  });
+
+  it('degrades without returns: every line is invoiced, as before', async () => {
+    const { orderId, widget } = await seedOrder();
+    await settleReturn(orderId, widget, 1, 'credit');
+
+    const invoice = await withModuleOff('returns', 'deactivated', () => issueInvoice(orderId));
+    expect(linesOf(invoice)).toEqual([
+      ['Gadget', 1, 20, 24.6],
+      ['Widget', 3, 30, 36.9],
+    ]);
+    expect([invoice.grossTotal, invoice.paidTotal]).toEqual([61.5, 61.5]);
+  });
+});

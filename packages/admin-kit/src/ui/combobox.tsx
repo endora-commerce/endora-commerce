@@ -165,6 +165,14 @@ function ComboboxInner<T>(
   const closedDisplay = selectedOption?.label ?? selectedLabel ?? '';
   const displayValue = open ? query : closedDisplay;
 
+  // What can be cleared follows the value the field shows, not the options it
+  // has loaded (issue #846): a server-side picker's committed value is often
+  // not on the current page — somebody further down the list, or a record the
+  // lookup no longer returns — yet the field still shows it through
+  // `selectedLabel`, and a value that is shown must be clearable.
+  const hasSelection =
+    selectedOption !== null || (value !== null && value !== undefined && closedDisplay !== '');
+
   const filtered = useMemo(() => {
     if (manualFilter) return options;
     const normalizedQuery = normalize(query);
@@ -267,13 +275,13 @@ function ComboboxInner<T>(
       if (!open) return;
       e.preventDefault();
       setActiveIndex(Math.max(0, filtered.length - 1));
-    } else if (e.key === 'Backspace' && query === '' && selectedOption !== null && clearable) {
+    } else if (e.key === 'Backspace' && query === '' && hasSelection && clearable) {
       // Backspace on an empty input clears the current selection — common combobox affordance.
       clear();
     }
   };
 
-  const showClear = clearable && !disabled && (selectedOption !== null || query.length > 0);
+  const showClear = clearable && !disabled && (hasSelection || query.length > 0);
 
   // The one status the open list is in, for the live region below. Empty while
   // closed: nothing is on screen to describe, and clearing it is what lets the

@@ -192,8 +192,29 @@ describe('invoices — the auto-issue reactor observes the dispatch result (#115
     await expect(createAutoIssueReactor(deps).onOrderStatusChanged(PAID)).resolves.toBeUndefined();
     expect(dispatched).toEqual([]);
     expect(logged).toHaveLength(1);
-    expect(logged[0]!.message).toContain('refunded in full');
+    expect(logged[0]!.message).toContain('refunded or returned in full');
     expect(logged[0]!.context).toMatchObject({ orderId: ORDER_ID, reason: ERROR_CODES.INVOICE_ORDER_REFUNDED });
+  });
+
+  // Product-owner ruling on F4 (review of PR #865) — an order returned in full
+  // before it is invoiced is refused with the same code, and skipped the same
+  // way; the log names which of the two it was.
+  it('skips an order returned in full, and the log says it was returned', async () => {
+    const { logged, dispatched, deps } = fakes({
+      issue: async () => {
+        throw new HttpError(422, ERROR_CODES.INVOICE_ORDER_REFUNDED, 'Returned in full.', { reason: 'returned_in_full' });
+      },
+    });
+
+    await expect(createAutoIssueReactor(deps).onOrderStatusChanged(PAID)).resolves.toBeUndefined();
+    expect(dispatched).toEqual([]);
+    expect(logged).toHaveLength(1);
+    expect(logged[0]!.message).toContain('refunded or returned in full');
+    expect(logged[0]!.context).toMatchObject({
+      orderId: ORDER_ID,
+      reason: ERROR_CODES.INVOICE_ORDER_REFUNDED,
+      cause: 'returned_in_full',
+    });
   });
 
   it('treats an unregistered trigger setting as "no trigger" and nothing else', async () => {

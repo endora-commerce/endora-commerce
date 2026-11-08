@@ -1,6 +1,6 @@
 import { randomUUID } from 'crypto';
 import type { EntityManager } from '@mikro-orm/postgresql';
-import { ERROR_CODES, compareDecimals, isUuidShape } from '@endora-commerce/contracts';
+import { ERROR_CODES, compareDecimals, isUuidShape, returnCaseOrderLockKey } from '@endora-commerce/contracts';
 import type {
   CorrectiveInvoiceInput,
   CorrectiveInvoicePort,
@@ -121,7 +121,7 @@ export class ReturnSettlementService {
     return em.getKnex().transaction(async (lock) => {
       await lock.raw(`set local lock_timeout = '${SETTLEMENT_LOCK_TIMEOUT}'`);
       try {
-        await lock.raw('select pg_advisory_xact_lock(hashtext(?))', [`return_cases:${rc.orderId}`]);
+        await lock.raw('select pg_advisory_xact_lock(hashtext(?))', [returnCaseOrderLockKey(rc.orderId)]);
       } catch (err) {
         if ((err as { code?: string }).code !== LOCK_NOT_AVAILABLE) throw err;
         throw new HttpError(

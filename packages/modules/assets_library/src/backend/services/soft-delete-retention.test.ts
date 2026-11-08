@@ -76,6 +76,8 @@ describe('soft-delete retention setting (#322)', () => {
     { name: 'zero days (held to the one-day floor)', options: { globalValue: 0 }, days: 1 },
     { name: 'manifest default without an override', options: { defaultValue: 14 }, days: 14 },
     { name: 'missing setting', options: { missing: true }, days: 30 },
+    // Issue #332: a stored value past the 3650-day ceiling is held to it.
+    { name: 'stored value past the ceiling', options: { globalValue: 1e15 }, days: 3650 },
     { name: 'negative value', options: { globalValue: -1 }, days: 30 },
     { name: 'non-finite value', options: { globalValue: Infinity }, days: 30 },
     { name: 'unparseable value', options: { globalValue: 'invalid' }, days: 30 },
