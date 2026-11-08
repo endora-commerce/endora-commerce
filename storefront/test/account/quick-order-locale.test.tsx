@@ -44,7 +44,7 @@ vi.mock('../../lib/api/quick-order', () => ({
 }));
 let shownPreview: unknown = null;
 vi.mock('../../lib/api/rfq', () => ({ getRfqById: async () => ({ businessId: 'RFQ-7' }) }));
-vi.mock('../../lib/quick-order-preview-cookie', () => ({
+vi.mock('../../lib/api/quick-order-preview', () => ({
   readQuickOrderPreview: async () => shownPreview,
   writeQuickOrderPreview: async () => true,
   clearQuickOrderPreview: async () => undefined,
@@ -57,7 +57,7 @@ vi.mock('next/navigation', () => ({
 
 const { default: QuickOrderPage } = await import('../../app/(account)/quick-order/page');
 
-// Issue #790 — the preview is read from the storefront's own cookie, never from the URL.
+// Issue #790 — the preview is never read from the URL; since #809 the backend keeps it.
 const preview = {
   recognized: [{ line: 1, sku: 'BOLT-1', productId: 'p1', variantId: null, quantity: 4 }],
   rejected: [{ line: 2, raw: 'NOPE,1', reason: 'product_not_found' }],
