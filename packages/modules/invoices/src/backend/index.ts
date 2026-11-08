@@ -27,7 +27,7 @@ import type {
   SettingsAdminPort,
   TransactionalEmailSender,
 } from '@endora-commerce/contracts';
-import { moneySum } from '@endora-commerce/contracts';
+import { moneySum, supportedLanguageOf } from '@endora-commerce/contracts';
 
 /**
  * A payment attempt whose amount was captured: paid, or paid and since
@@ -62,7 +62,7 @@ import { INVOICE_ISSUED_DEFAULT } from './email-templates/invoice-issued.default
 import { InvoiceExternalAttachment } from './entities/invoice-external-attachment.entity.js';
 import { InvoiceLine } from './entities/invoice-line.entity.js';
 import { InvoiceNumberCounter } from './entities/invoice-number-counter.entity.js';
-import { createInvoiceDocumentType } from './document/invoice-document-type.js';
+import { createInvoiceDocumentType, INVOICE_RENDER_LANGUAGE } from './document/invoice-document-type.js';
 import type { InvoicesTranslate } from './invoices-prose.js';
 import { GRANT_DONE_SETTING, grantDocumentTemplatesAccess } from './document/document-templates-grant.js';
 import { Invoice } from './entities/invoice.entity.js';
@@ -435,6 +435,8 @@ export function registerModule(ctx: ModuleContext): void {
                 ).activeVendorModuleId();
               },
             },
+            // A price-reduction line is named in the document's language (issue #885).
+            { translate, language: supportedLanguageOf(INVOICE_RENDER_LANGUAGE) },
           ),
       )
       .singleton(),
