@@ -495,6 +495,22 @@ describe('`endora dev` — the verb `dev:all` runs', () => {
     expect(existsSync(loaded) ? readFileSync(loaded, 'utf8') : '').toBe('');
   });
 
+  // **The verb's own worst case, not a unit case's** (issue #250). When the
+  // API fails, the supervisor stops the admin layer politely and forces it
+  // once `superviseDev`'s grace is up, which `endora dev` leaves at its 10 s
+  // default, so this case's legitimate upper bound is the chain's start-up
+  // **plus ten seconds** — and the package's 10 s `testTimeout` sat below the
+  // grace alone. On CI the case took 1.5 s when the polite stop landed, and
+  // 11.4 s and 11.6 s in the two red runs (42428845134, 42432426923), while
+  // the two `spawnSync` cases just before it in those same runs took 45-102 ms:
+  // the runner was not slow, and 1.5 s plus the grace is what the forced stop
+  // costs. Locally the case takes 0.36 s idle and 1.4-4.6 s under 32 CPU
+  // burners (110 runs, none forced), so the race that leaves the admin layer
+  // up past the polite stop is CI's to show, not this machine's. Whether the stop was polite or forced is not this
+  // case's subject — the grace has its own case above — so its budget is the
+  // bound it already set for the process: `spawnSync`'s 60 s.
+  const SPAWN_BUDGET_MS = 60_000;
+
   it('a layer that fails takes the others down and the verb exits with its code', () => {
     const root = temp('dev-cli-');
     // Scripts that stand in for the three layers: the API fails at once, the
@@ -508,12 +524,12 @@ describe('`endora dev` — the verb `dev:all` runs', () => {
       cwd: instance,
       encoding: 'utf8',
       stdio: ['pipe', 'pipe', 'pipe'],
-      timeout: 60_000,
+      timeout: SPAWN_BUDGET_MS,
     });
     expect(result.status).toBe(4);
     expect(`${result.stdout}${result.stderr}`).toContain('[api]');
     expect(`${result.stdout}${result.stderr}`).toMatch(/api exited with code 4/);
-  });
+  }, SPAWN_BUDGET_MS);
 });
 
 /**
