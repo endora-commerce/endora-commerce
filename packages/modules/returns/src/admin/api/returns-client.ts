@@ -13,6 +13,13 @@ import type {
 } from '@endora-commerce/contracts';
 
 type Wrap<T> = { data: T };
+
+/** A payment method as the refund field names it: the `payment_methods` admin list, read as is. */
+export interface RefundPaymentMethodOption {
+  id: string;
+  code: string;
+  name: Record<string, string>;
+}
 const unwrap = <T>(p: Promise<Wrap<T>>): Promise<T> => p.then((r) => r.data);
 
 /** Typed admin client for the returns module (feature 046). */
@@ -60,6 +67,15 @@ export const returnsClient = {
     unwrap(apiClient.post<Wrap<ReturnCaseDetail>>(`/api/v1/admin/returns/${id}/alternative-consent`, body)),
   revokeAlternativeConsent: (id: string): Promise<ReturnCaseDetail> =>
     unwrap(apiClient.delete<Wrap<ReturnCaseDetail>>(`/api/v1/admin/returns/${id}/alternative-consent`)),
+
+  /**
+   * The payment methods a refund can name, so the settlement form offers names
+   * instead of an id to type (issue #905). The list belongs to `payment_methods`:
+   * when that module is off or the operator may not read it, the call fails and
+   * the form keeps the id field, as `orders`' list filters do.
+   */
+  refundPaymentMethods: (): Promise<RefundPaymentMethodOption[]> =>
+    unwrap(apiClient.get<Wrap<RefundPaymentMethodOption[]>>('/api/v1/admin/payment-methods?pageSize=200')),
 
   // Shipments
   shipments: (id: string): Promise<Array<{ id: string; direction: string; status: string; externalReference: string | null }>> =>

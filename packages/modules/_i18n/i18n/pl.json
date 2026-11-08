@@ -1720,7 +1720,7 @@
   "returns.detail.settlement.done": "Rozliczono.",
   "returns.detail.settlement.gatewayRejected": "Bramka płatnicza odrzuciła zwrot środków.",
   "returns.detail.settlement.maxPaid": "Maks. (zapłacono)",
-  "returns.detail.settlement.paymentMethodId": "Identyfikator metody zwrotu płatności",
+  "returns.detail.settlement.paymentMethodId": "Metoda zwrotu pieniędzy",
   "returns.detail.settlement.resolution": "Rozstrzygnięcie",
   "returns.detail.settlement.settle": "Rozlicz sprawę",
   "returns.detail.settlement.title": "Rozliczenie",

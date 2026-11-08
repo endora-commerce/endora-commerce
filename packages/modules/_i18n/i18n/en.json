@@ -1720,7 +1720,7 @@
   "returns.detail.settlement.done": "Settled.",
   "returns.detail.settlement.gatewayRejected": "Payment gateway rejected the refund.",
   "returns.detail.settlement.maxPaid": "Max (paid)",
-  "returns.detail.settlement.paymentMethodId": "Refund payment method id",
+  "returns.detail.settlement.paymentMethodId": "Refund payment method",
   "returns.detail.settlement.resolution": "Resolution",
   "returns.detail.settlement.settle": "Settle case",
   "returns.detail.settlement.title": "Settlement",
