@@ -226,20 +226,31 @@ export class ReturnSettlementService {
     // **before** any money moves (issue #417, review of PR #423): a correction
     // that cannot be made must never follow a refund that was.
     const wantsCorrection = movesMoney && (input.createCorrectiveInvoice ?? true);
+    // A complaint settled with money is a price reduction of goods the buyer
+    // keeps (issue #885, product-owner ruling of 2026-11-07): it credits no
+    // quantity and carries no discount, because the discount stays with the
+    // kept goods. A complaint resolved by replacement or repair moves no money
+    // and asks for no correction.
+    const priceReduction = rc.kind === 'complaint';
     const correctionInput: CorrectiveInvoiceInput = {
       orderId: rc.orderId,
       lines: items.map((it) => {
         // The approved amount for this settlement, which is not on the row
         // yet: the rows are written in step 4.
         const amount = approvedOf(it);
-        const discount = carriedDiscount(it.defaultDiscountAmount, it.defaultRefundAmount, amount);
-        return {
+        const line = {
           // The order item is what ties this credit to the invoice line it
           // corrects, so the correction can mirror that line's VAT rate.
           orderItemId: it.orderItemId,
           productName: it.productName,
           quantity: it.quantity,
           amount,
+        };
+        if (priceReduction) return { ...line, basis: 'price_reduction' as const };
+        const discount = carriedDiscount(it.defaultDiscountAmount, it.defaultRefundAmount, amount);
+        return {
+          ...line,
+          basis: 'returned_goods' as const,
           // The order-level discount this amount carries (issue #417).
           ...(compareDecimals(discount, 0) > 0 ? { discount: Number(discount) } : {}),
         };
@@ -250,6 +261,8 @@ export class ReturnSettlementService {
       // retried. Not per order: a second partial return against the same
       // order is a different case and gets its own document.
       idempotencyKey: rc.id,
+      // The case a price-reduction line names (issue #885).
+      ...(priceReduction && rc.rmaNumber ? { caseReference: rc.rmaNumber } : {}),
     };
     if (wantsCorrection) await this.deps.correctiveInvoice.validateCorrection(correctionInput);
 

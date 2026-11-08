@@ -181,22 +181,21 @@ language. The question here is what a *consumer* may put into a URL once it hold
   typed into its search box (#790). It may, on three conditions: the page caps it where it reads
   it (120 characters, the search's own limit), it is the buyer's input and nothing else's, and it
   is shown only as the quoted query or as an input's value — never as a system message.
-- **Data the buyer uploaded goes in a session-bound cookie, not the URL** (#790, architect ruling
-  on PR #805). The quick-order preview — the buyer's CSV, rejected raw lines included — sits in
-  one httpOnly cookie the server writes itself, bound to the session that wrote it, cleared on a
-  successful build and on sign-out or session expiry. **Its budget is the reverse proxy's**: the
-  deployment's nginx runs on default buffers, so a Cookie line over 8 KB
-  (`large_client_header_buffers 4 8k`) is a 400 and upstream response headers over ~4 KB
-  (`proxy_buffer_size 4k`) are a 502, which would lock the buyer out of the whole storefront until
-  the cookie expired. One cookie, its value at most ~3 000 characters; data that does not fit is
-  refused in words, never written and never cut short. The defaults are the contract: the cap was
-  measured safe on them, and the larger buffers in `deploy/nginx.example.conf` are a margin that
-  does not raise it.
+- **Data the buyer uploaded stays on the backend, not in the URL or a cookie** (#790; #809, owner
+  ruling of 2026-11-07, replacing the cookie of PR #805). The quick-order preview — the buyer's
+  CSV, rejected raw lines included — is kept by `quick_order` in Redis, one per buyer session,
+  keyed by the Organization, the buyer and a digest of the session, behind `GET` / `PUT` /
+  `DELETE /api/v1/quick-order/preview`; no preview id travels anywhere. It holds what the import
+  reads (`quick_order.import_max_rows`), the rows past that limit as one count; a preview grown
+  past it from search, or one over the 2 MiB body cap, is refused in words, never written and
+  never cut short. It expires an hour after its last write — a read does not
+  extend it — and an action that finds it gone tells the buyer to paste the list again. It is
+  dropped on a successful build and on sign-out; an expired session can no longer name it, so its
+  TTL ends it. The cookie's budget was nginx's default header buffers; nothing the storefront
+  writes depends on them now.
 - **Rejected: a short-lived error cookie.** It is per-request state. It puts a `Set-Cookie` on
   server-rendered redirects, which hurts caching (Principle VII). And it would still ship the
-  backend's sentence, so it adds a mechanism without solving the problem (Principle IV). The
-  preview cookie above is not this: it holds the buyer's own data across a multi-step flow, not
-  a message for one redirect.
+  backend's sentence, so it adds a mechanism without solving the problem (Principle IV).
 
 There are two instruments. `storefront/test/url-errors/no-sentence-in-url.test.ts` (from #783)
 refuses an `encodeURIComponent`-wrapped value after `error=`, `reason=`, `couponError=`,
@@ -214,8 +213,7 @@ code mappers), a literal or a choice between literals, or an identifier on its s
 proof is textual — a listed identifier is only as good as the type it was read to have, and a
 code built with `' +` concatenation is refused outright. The per-page tests beside them are the
 evidence that a crafted value never reaches the screen; the free-text net also holds that no
-scanned source but the reader carries a typed value's pattern. Open follow-up: #809 (keeping the
-quick-order preview on the backend instead of in a cookie).
+scanned source but the reader carries a typed value's pattern.
 
 **Four kinds of string leave the backend and only the first is in scope**, which is the
 distinction that makes the question answerable: *platform prose* a developer wrote (a bundle,

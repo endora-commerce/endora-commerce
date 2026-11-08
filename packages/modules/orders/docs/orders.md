@@ -517,6 +517,7 @@ code — the first that applies, in this order — and shows one reason:
 | Preview code | Line reason | What to change |
 | --- | --- | --- |
 | `PRODUCT_NOT_FOUND` | *No price* | The product is no longer in the catalogue: remove the line. |
+| `PRODUCT_ARCHIVED` | *Archived product* | The product is archived: restore it in the catalogue, or remove the line. |
 | `PRODUCT_NOT_VISIBLE_TO_CUSTOMER` | *The customer cannot see this product* | The product's visibility or its allowed organizations exclude the customer's Organization: change them on the product in the catalogue, choose another customer, or remove the line. |
 | `PRODUCT_NOT_IN_SALES_CHANNEL` | *Not in this sales channel's assortment* | Choose a sales channel whose assortment holds the product, add the product to this channel's assortment, or remove the line. |
 | `QUOTE_ONLY` | *No price* | The customer's price for the product is quote-only: remove the line, or create a quote request instead. |
@@ -533,7 +534,12 @@ keep their prices and the summary counts only the priced ones. The preview
 checks the assortment of exactly the sales channel the request names; a
 `salesChannelId` that names no channel is refused with `404 NOT_FOUND`, and the
 screen shows *Could not calculate prices* without marking any line. A
-soft-deleted product is priced as before. The order created is exactly the
+soft-deleted product is `PRODUCT_NOT_FOUND`, as creating the order answers it
+(`404 PRODUCT_NOT_FOUND`). An archived product is `PRODUCT_ARCHIVED` whoever
+may see it and whichever channel is chosen, and creating the order refuses it
+with `409 PRODUCT_ARCHIVED` (*Product is archived.*), naming the archived
+products in `details.productIds` and writing nothing — the reason an
+operator's quote request gives. The order created is exactly the
 lines and quantities on screen, in the `POST /api/v1/admin/orders`
 payload.
 
