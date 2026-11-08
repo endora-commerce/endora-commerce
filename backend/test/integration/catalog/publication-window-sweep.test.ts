@@ -126,6 +126,48 @@ describe('163 — publication-window sweep [integration]', () => {
     expect(events).toEqual([]);
   });
 
+  // Issue #894 — the question the tick asks before it enters the system scope
+  // is the sweep's own predicate, answered against the same rows.
+  it('hasDueTransitions answers yes exactly when the sweep would emit, for each row source', async () => {
+    const em = db.em();
+    const channelId = await insertChannel(em);
+    const { sweep } = rig(minutes(-5));
+
+    expect(await sweep.hasDueTransitions(NOW), 'nothing crossed yet').toBe(false);
+
+    await insertProduct(em, { from: minutes(+3) });
+    await insertProduct(em, { until: minutes(-30) });
+    const inheriting = await insertProduct(em);
+    await em.execute(
+      `insert into product_channel_scopes (product_id, sales_channel_id, status, created_at, updated_at) values (?, ?, 'inactive', now(), now())`,
+      [inheriting, channelId],
+    );
+    expect(await sweep.hasDueTransitions(NOW), 'bounds outside the interval are not due').toBe(false);
+
+    // Only an overridden channel window crossed: the second row source alone.
+    const overridden = await insertProduct(em);
+    await em.execute(
+      `insert into product_channel_scopes (product_id, sales_channel_id, window_overridden, publish_until, created_at, updated_at)
+       values (?, ?, true, ?, now(), now())`,
+      [overridden, channelId, minutes(-2)],
+    );
+    expect(await sweep.hasDueTransitions(NOW)).toBe(true);
+    await em.execute(`delete from product_channel_scopes where product_id = ?`, [overridden]);
+    expect(await sweep.hasDueTransitions(NOW)).toBe(false);
+
+    // Only a global bound crossed: the first row source alone.
+    const opens = await insertProduct(em, { from: minutes(-1) });
+    expect(await sweep.hasDueTransitions(NOW)).toBe(true);
+    const result = await sweep.sweep(NOW);
+    expect(result.productIds).toEqual([opens]);
+
+    // A deleted product is not due, as the sweep does not emit for it.
+    await em.execute(`update products set deleted_at = now() where id = ?`, [opens]);
+    const { sweep: again } = rig(minutes(-5));
+    expect(await again.hasDueTransitions(NOW)).toBe(false);
+    expect((await again.sweep(NOW)).productIds).toEqual([]);
+  });
+
   it('starts at now − 2 × interval when there is no watermark', async () => {
     const em = db.em();
     const inside = await insertProduct(em, { from: new Date(NOW.getTime() - PUBLICATION_WINDOW_SWEEP_EVERY_MS - 1000) });
