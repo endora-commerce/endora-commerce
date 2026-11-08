@@ -120,6 +120,9 @@ describe('CustomerDeletionService', () => {
       overrides.addresses ?? addresses,
       // `customers.deletion_retention_days`, at its default (issue #800).
       async () => 365,
+      // Issue #920 — `carts`' step; this file seeds no cart. Its behaviour is
+      // `anonymization-cart-reasons.test.ts`.
+      { anonymizeForCustomerAccount: async () => 0 },
     );
   }
 
