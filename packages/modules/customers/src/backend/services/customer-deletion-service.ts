@@ -8,6 +8,7 @@ import {
 } from '@endora-commerce/contracts';
 import { HttpError } from '@endora-commerce/platform/http';
 import { rethrowIfModuleDisabled } from '@endora-commerce/platform/kernel';
+import type { AddressBookRetirementService } from './address-book-retirement-service.js';
 import type { CustomerAuthorityService } from './customer-authority-service.js';
 import type { OrganizationDepletionGuard } from './organization-depletion-guard.js';
 import type {
@@ -35,7 +36,8 @@ import type {
  * **The order of the sweep (issue #800).** No transaction spans the three
  * owners, so the sweep is made restartable instead: the account's
  * `anonymizedAt` is the cascade's commit marker and is written **last** —
- * organisation, then its saved addresses, then the account. Until that last
+ * organisation, then its saved addresses, then the account's rows in this
+ * module's retired personal book (issue #927), then the account. Until that last
  * write commits the account is still on `listDueForAnonymization`, and both
  * earlier steps converge (they write only what is still missing and audit only
  * what they wrote), so the next tick finishes whatever a crash left. The price
@@ -65,6 +67,11 @@ export class CustomerDeletionService {
      * it so that the window it honours is the sweep's, not a second one.
      */
     private readonly resolveRetentionDays: () => Promise<number>,
+    /**
+     * This module's retired personal address book (`customer_addresses`,
+     * issue #927): every row of the anonymized account is blanked with it.
+     */
+    private readonly retiredAddressBook: Pick<AddressBookRetirementService, 'anonymizeForAccount'>,
   ) {}
 
   async softDelete(
@@ -179,6 +186,10 @@ export class CustomerDeletionService {
     // which are the customer's one address book, are cleared and blanked.
     // Order snapshots are copies on `orders`' rows and stay as they are.
     if (organization) await this.addresses.anonymizeForOrganization(organization.id);
+    // Issue #927 — and every row of the account's retired personal book, which
+    // is this module's own table: the moved and the deleted rows still hold
+    // the data. Any account, since the book was the account's.
+    await this.retiredAddressBook.anonymizeForAccount(customerAccountId);
     // Last: `anonymizedAt` takes the account off the work list (issue #800).
     await this.accountWrites.anonymize(customerAccountId);
   }
