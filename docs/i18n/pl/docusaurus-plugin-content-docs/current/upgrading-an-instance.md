@@ -3987,6 +3987,41 @@ powiązany z kluczem był odrzucany już wcześniej, odpowiedzią `400 INACTIVE_
 3. **Uruchom zapytanie ponownie.** Gdy nie zwraca żadnego wiersza, każda integracja może składać
    zamówienia.
 
+### Pozycje zapytań ofertowych mają walutę swojego kanału {#quote-line-currency}
+
+Do tego wydania każda pozycja zapytania ofertowego była zapisywana z walutą `PLN`, niezależnie od
+domyślnej waluty kanału sprzedaży, w którym zapytanie złożono (zgłoszenie #303). Od tego wydania
+pozycje nowego zapytania mają domyślną walutę tego kanału. Jest ona ustalana raz, przy tworzeniu
+zapytania — przez klienta albo przez operatora w jego imieniu — i zachowywana przy każdej
+późniejszej edycji, wersji sprzedawcy i ponownym złożeniu. Listy zapytań ofertowych pokazują
+zapytanie bez pozycji w walucie jego kanału.
+
+**Istniejące zapytania nie są zmieniane.** Ich ceny wpisano i uzgodniono na ekranach, które
+podawały PLN, więc zmiana etykiety zmieniłaby znaczenie dawnych ofert. Zapytanie już zapisane
+zachowuje `PLN` w swoich pozycjach, podobnie jak jego ponowne złożenie. Instancja, której wszystkie
+kanały sprzedaży używają PLN, nie musi nic robić.
+
+**Co zrobić:** wypisz zapytania ofertowe złożone w kanale, którego domyślną walutą nie jest PLN. To
+zapytanie, tylko do odczytu, pokazuje każde z nich wraz z walutą kanału i walutami, w których
+zapisano jego pozycje:
+
+```sql
+select qr.id, qr.business_id, qr.status, qr.created_at,
+       sc.code as channel, sc.default_currency as channel_currency,
+       array_agg(distinct qi.line_currency) as line_currencies
+from quote_requests qr
+join sales_channels sc on sc.id = qr.sales_channel_id
+left join quote_request_items qi on qi.quote_request_id = qr.id
+where sc.default_currency <> 'PLN'
+group by qr.id, sc.code, sc.default_currency
+order by qr.created_at;
+```
+
+Każde zwrócone zapytanie przejrzyj z jego sprzedawcą. Nie ma automatycznej korekty: zmiana waluty
+zapisanego zapytania jest decyzją o tym, co znaczyły jego ceny, więc podejmuj ją dla każdego
+zapytania osobno, ręcznie i tylko wtedy, gdy sprzedawca potwierdzi, że ceny miały być w walucie
+kanału.
+
 ## Instancja niespójna od początku
 
 Instalator `0.101.x` lub starszy zapisywał każdy pakiet wydania z `^` poza
