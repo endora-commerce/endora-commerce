@@ -183,9 +183,15 @@ describe('invoices — issue + download (US1)', () => {
         `select "line_kind", "tax_rate", "net_value", "order_item_id" from "invoice_lines" where "invoice_id" = ? order by "ordinal"`,
         [data.id],
       );
-      expect(rows).toEqual([
-        { line_kind: 'goods', tax_rate: '0.2300', net_value: '900.00', order_item_id: itemIds[0] },
-        { line_kind: 'goods', tax_rate: '0.2300', net_value: '4505.00', order_item_id: itemIds[1] },
+      // The two goods lines were seeded in one flush, so their order is not the point.
+      expect(rows.slice(0, 2)).toHaveLength(2);
+      expect(rows.slice(0, 2)).toEqual(
+        expect.arrayContaining([
+          { line_kind: 'goods', tax_rate: '0.2300', net_value: '900.00', order_item_id: itemIds[0] },
+          { line_kind: 'goods', tax_rate: '0.2300', net_value: '4505.00', order_item_id: itemIds[1] },
+        ]),
+      );
+      expect(rows.slice(2)).toEqual([
         // Phase A changes no amount: the charges stay 0 % lines, now named.
         { line_kind: 'delivery', tax_rate: '0.0000', net_value: '30.00', order_item_id: null },
         { line_kind: 'payment_surcharge', tax_rate: '0.0000', net_value: '2.50', order_item_id: null },
