@@ -12,6 +12,8 @@
   "errors.MFA_TOO_MANY_ATTEMPTS": "Too many incorrect codes were entered, so this sign-in attempt was stopped. Sign in again and use the next code straight from your authenticator app, or one of your recovery codes.",
   "errors.MFA_WRONG_SURFACE": "This sign-in was started somewhere else, so the code cannot be confirmed here. Go back to the page you were signing in on and enter it there.",
   "errors.MFA_DEACTIVATION_BLOCKED": "Two-step verification cannot be switched off while administrators are required to use it. Turn off the setting \"Admin UI — enforce two-step verification\" (mfa.admin.totp_enforced) first, then switch the module off.",
+  "errors.MFA_DEACTIVATION_BLOCKED.role_requirement": "Two-step verification cannot be switched off while administrators are required to use it. Untick \"Requires two-step verification on assigned users\" on these roles first: {roles}. Then switch the module off.",
+  "errors.MFA_DEACTIVATION_BLOCKED.setting_and_role_requirement": "Two-step verification cannot be switched off while administrators are required to use it. Turn off the setting \"Admin UI — enforce two-step verification\" (mfa.admin.totp_enforced) and untick \"Requires two-step verification on assigned users\" on these roles first: {roles}. Then switch the module off.",
   "nav.security.label": "Account security",
   "actions.openSecurity.label": "Account security",
   "actions.openSecurity.description": "Set up or change your own two-step verification",

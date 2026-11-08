@@ -34,8 +34,9 @@ Strona wygenerowana z manifestu modułu, bez żadnych ręcznych zmian. Co moduł
 | `customer_accounts` | tylko bramkowanie | rozwiązuje `customerAccountReadPort`; pominięty w `dependencies`, bo kolejność instalacji nie może nieść tej krawędzi |
 | `organizations` | tylko bramkowanie | rozwiązuje `organizationRoleReadPort`; pominięty w `dependencies`, bo kolejność instalacji nie może nieść tej krawędzi |
 | `assets_library` | nie | degrades-without `assetReadPort` — administrator nie może ustawić avatara autora, gdy biblioteka jest wyłączona; ustawiony już avatar zostaje i wraca razem z biblioteką. Reszta profilu nadal się zapisuje. |
+| `mfa` | nie | degrades-without `mfaAdminEnforcementPort` — żadna sesja nie jest kończona, gdy rola zaczyna wymagać weryfikacji dwuetapowej, i żadna rola nie może zacząć jej wymagać; rola, która już jej wymaga, znów obowiązuje po powrocie MFA. |
 | `mfa` | nie | degrades-without `mfaEnrolmentStatePort` — pokazuje „brak drugiego składnika” dla każdego administratora na /admin-users, /admin/me i w odpowiedzi logowania. To prawda, gdy MFA jest wyłączone — logowanie administratora nie pyta wtedy o drugi składnik — i nie oznacza, że nikt go nie zarejestrował. |
-| `mfa` | nie | degrades-without `mfaLoginPort` — logowanie administratora przestaje pytać o drugi składnik i nie oferuje przycisku Google/Microsoft. Każdy administrator ma hasło, które inny administrator może zresetować, więc nikt nie traci dostępu. |
+| `mfa` | nie | degrades-without `mfaLoginPort` — logowanie administratora nie pyta o drugi składnik, nie stosuje wymogu weryfikacji dwuetapowej z ról i nie oferuje przycisku Google/Microsoft. Inny administrator może zresetować każde hasło, więc nikt nie traci dostępu. |
 
 ## Uprawnienia
 
