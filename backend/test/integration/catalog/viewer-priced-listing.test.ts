@@ -71,6 +71,18 @@ interface Summary {
  * value is the fixture's own `description`. It is the deliberate change this
  * assertion exists to surface, not a leak: it carries no price and nothing
  * that varies by viewer.
+ *
+ * `vatRate` was added the same way, and is the same kind of change: issue #852
+ * (PR #896) answers every product of a listing the buyer's VAT rate so the
+ * storefront derives the gross at the product's own rate. The rate depends on
+ * the caller's Organization and on nothing else, and an anonymous caller names
+ * none, so every anonymous caller is answered the same guest rate — a VAT payer
+ * in PL — and the answer stays one a shared cache may keep; a caller naming an
+ * Organization is `private, no-store` below. It is `0` here because this
+ * database holds no `taxes` rule, which `createProductTaxRateResolver` answers
+ * as 0, the rate the cart and the order charge in the same case; the guest rate
+ * under configured rules is pinned in
+ * `test/contract/catalog/product-vat-rate.contract.test.ts`.
  */
 const RECORDED_ANONYMOUS_LISTING_ENTRY = {
   id: '00000000-0000-4000-8000-00000000f001',
@@ -93,6 +105,8 @@ const RECORDED_ANONYMOUS_LISTING_ENTRY = {
     salePrice: null,
     displayMode: 'gross_only',
   },
+  // Issue #852 — the guest's rate; no `taxes` rule is configured here.
+  vatRate: 0,
 };
 
 /**
@@ -116,6 +130,8 @@ const RECORDED_ANONYMOUS_SOURCE_ENTRY = {
   minOrderQuantity: null,
   // Nothing prices it; the display mode is still the viewer's.
   resolvedPrice: { basePrice: null, salePrice: null, displayMode: 'gross_only' },
+  // The rate is the product tax class's, priced or not.
+  vatRate: 0,
 };
 
 describe('a catalogue listing is priced for the viewer', () => {
