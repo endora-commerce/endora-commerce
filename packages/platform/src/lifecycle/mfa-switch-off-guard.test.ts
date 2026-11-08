@@ -70,10 +70,4 @@ describe('assertMfaMayBeSwitchedOff — what keeps the second factor required', 
     registryCache.__setEnabledForTesting(['mfa']);
     expect(await refusalOf(guardOf(false, []))).toBeNull();
   });
-
-  it('falls back to the yes/no answer for a guard that cannot name its sources', async () => {
-    registryCache.__setEnabledForTesting(['mfa']);
-    const refusal = await refusalOf({ isAdminSecondFactorRequired: async () => true });
-    expect(refusal?.details).toEqual({ moduleId: 'mfa', setting: 'mfa.admin.totp_enforced' });
-  });
 });

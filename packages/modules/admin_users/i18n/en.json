@@ -8,5 +8,12 @@
   "errors.NEW_PASSWORD_UNCHANGED": "The new password is the same as the current one. Choose a different password.",
   "errors.ADMIN_USER_OUTRANKS_ACTOR": "This account's role holds permissions your own role does not ({permissions}), so you cannot change it, set its password, deactivate it or delete it.",
   "errors.ADMIN_USER_AVATAR_NOT_FOUND": "The avatar must be an image from the library. Choose it again.",
-  "actions.openAdminUsers.keywords": "users, operators, accounts"
+  "actions.openAdminUsers.keywords": "users, operators, accounts",
+  "errors.MFA_REQUIRED_FOR_ROLE_TWO_FACTOR": "This role cannot require two-step verification on this instance.",
+  "errors.MFA_REQUIRED_FOR_ROLE_TWO_FACTOR.mfa_off": "This role cannot require two-step verification while two-step verification (the MFA module) is switched off. Switch it on first, then save the role again.",
+  "errors.MFA_REQUIRED_FOR_ROLE_TWO_FACTOR.encryption_key_missing": "This role cannot require two-step verification because no second factor can be set up on this instance: the encryption key MFA_SECRET_ENCRYPTION_KEY is not configured. Ask whoever runs this platform to set it.",
+  "roles.twoFactor.help": "Administrators with this role must sign in with a second factor; those who have not set one up are asked to at their next sign-in.",
+  "roles.twoFactor.mfaOff": "Two-step verification is switched off, so this requirement is not applied now; it applies again when two-step verification is switched back on.",
+  "roles.twoFactor.confirmSignOut": "Administrators with this role who have not set up two-step verification: {count}. They will be signed out now and asked to set it up at their next sign-in. Continue?",
+  "roles.twoFactor.signedOut": "Saved role {code}. Administrators signed out because they have not set up two-step verification: {count}."
 }

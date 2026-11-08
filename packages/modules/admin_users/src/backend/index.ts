@@ -11,6 +11,7 @@ import type {
   AuthSessionPort,
   CustomerAccountReadPort,
   ImpersonationPort,
+  MfaAdminEnforcementPort,
   MfaEnrolmentStatePort,
   MfaLoginPort,
   OrganizationRoleReadPort,
@@ -100,6 +101,11 @@ export function registerModule(ctx: ModuleContext): void {
   // response the Admin UI seeds its auth context from.
   const mfaEnrolmentStatePort = lazyPort<MfaEnrolmentStatePort>(ctx, 'mfaEnrolmentStatePort');
 
+  // Issue #349 — what a role's two-factor requirement does to sessions already
+  // open, on the same terms as the two ports above: presence is decided first,
+  // and absent, nothing is resolved.
+  const mfaAdminEnforcementPort = lazyPort<MfaAdminEnforcementPort>(ctx, 'mfaAdminEnforcementPort');
+
   /**
    * The degrade is performed by **not resolving**, exactly as `getMfaLoginPort`
    * below does it — presence is decided first and there is deliberately no
@@ -148,6 +154,8 @@ export function registerModule(ctx: ModuleContext): void {
           // branch — the password-only fallback of feature 042 FR-033 — is what
           // `undefined` selects.
           getMfaLoginPort: () => (effectiveState.isPresent('mfa') ? mfaLoginPort : undefined),
+          getMfaAdminEnforcementPort: () =>
+            effectiveState.isPresent('mfa') ? mfaAdminEnforcementPort : undefined,
           // Feature 171 (US6) — the avatar must be a live library asset. With the
           // library absent no avatar can be set, decided before the port is
           // resolved (the `mfa` shape above): a `MODULE_DISABLED` answer.

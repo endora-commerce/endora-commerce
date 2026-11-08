@@ -17,6 +17,7 @@ import { readKnownDevice } from './known-device-cookie.js';
 import type { AdminUserService } from './services/admin-user-service.js';
 import type { AdminUser } from './entities/admin-user.entity.js';
 import type { TwoFactorEnrolmentReader } from './services/two-factor-enrolments.js';
+import { roleTwoFactorRefusal, turnsTwoFactorOn } from './services/role-two-factor.js';
 import type { RequireAdminFactory, SettingsReadPort } from '@endora-commerce/platform/kernel';
 import { readIdleLogoutMinutes } from './services/idle-logout-policy.js';
 import type { AdminPreferenceService } from './services/admin-preference-service.js';
@@ -266,6 +267,10 @@ export async function registerAdminUsersAdminRoutes(
           ...(body.bio !== undefined ? { bio: body.bio } : {}),
         },
         await actorAuthority(request),
+        {
+          actingAdminUserId: resolveAdminContext(request).adminUserId,
+          sessionCookieValue: request.cookies?.[ADMIN_SESSION_COOKIE_NAME],
+        },
       );
       return { data: await serializeOneAdminUser(user) };
     },
@@ -329,6 +334,24 @@ export async function registerAdminUsersAdminRoutes(
     },
   );
 
+  /**
+   * Issue #349 — how many holders of a role have no enrolled second factor,
+   * so the editor can say how many will be signed out before it turns the
+   * requirement on. `null` while `mfa` is absent. An unknown code previews
+   * nobody, because a role that does not exist yet has no holders.
+   */
+  app.get<{ Params: { code: string } }>(
+    '/api/v1/admin/admin-roles/:code/two-factor-impact',
+    { preHandler: requireAdmin('admin_users:manage') },
+    async (request) => {
+      const role = await adminRolePort.findByCode(request.params.code);
+      const unprotectedAdministrators = await adminUserService.countUnprotectedHoldersOfRole(
+        role?.id ?? null,
+      );
+      return { data: { unprotectedAdministrators } };
+    },
+  );
+
   app.put<{ Params: { code: string } }>(
     '/api/v1/admin/admin-roles/:code',
     {
@@ -337,6 +360,15 @@ export async function registerAdminUsersAdminRoutes(
     },
     async (request) => {
       const body = upsertAdminRoleRequestSchema.parse(request.body);
+      // Issue #349 — the flag is enforced by `mfa` at sign-in, so it may only
+      // start binding people where `mfa` can meet it. Decided before the write;
+      // turning it off is never refused.
+      const before = await adminRolePort.findByCode(request.params.code);
+      const turningOn = turnsTwoFactorOn(before?.requiresTwoFactor ?? null, body.requiresTwoFactor);
+      if (turningOn) {
+        const unavailable = await adminUserService.roleTwoFactorUnavailableReason();
+        if (unavailable !== null) throw roleTwoFactorRefusal(unavailable);
+      }
       // An operator write: held to the actor's own permissions, and refused
       // on a seeded role unless the actor holds the wildcard.
       const role = await adminRolePort.upsertByCode(
@@ -350,7 +382,17 @@ export async function registerAdminUsersAdminRoutes(
         },
         { grantor: await actorAuthority(request) },
       );
-      return { data: serializeAdminRole(role) };
+      // After the write, so a refused one signs nobody out: the holders who
+      // opened their sessions without a second factor lose them now rather
+      // than in up to thirty days. The acting administrator keeps this one.
+      const signedOutAdministrators =
+        turningOn && role.requiresTwoFactor
+          ? await adminUserService.endUnprotectedSessionsOfRole(role, {
+              actingAdminUserId: resolveAdminContext(request).adminUserId,
+              sessionCookieValue: request.cookies?.[ADMIN_SESSION_COOKIE_NAME],
+            })
+          : 0;
+      return { data: { ...serializeAdminRole(role), signedOutAdministrators } };
     },
   );
 
