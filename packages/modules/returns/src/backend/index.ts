@@ -12,6 +12,7 @@ import type {
   OrganizationPermissionPort,
   PaymentRefundPort,
   ReturnRefundReadPort,
+  SettingWriteValidatorRegistryPort,
   TransactionalEmailSender,
 } from '@endora-commerce/contracts';
 import type { AuditPort } from '@endora-commerce/platform/kernel';
@@ -22,6 +23,7 @@ import type { RequireAdminFactory } from '@endora-commerce/platform/kernel';
 import { returnsModule, type ReturnsModuleOptions } from './plugin.js';
 import { ReturnEmailNotifier } from './services/return-email-notifier.js';
 import { ReturnRefundReadService } from './services/return-refund-read-service.js';
+import { createReturnsTimeZoneValidator } from './services/time-zone-validator.js';
 import {
   createChannelLanguageResolver,
   createCustomerEmailResolver,
@@ -218,6 +220,16 @@ export function registerModule(ctx: ModuleContext): void {
     defaults.register('return_rejected', RETURN_REJECTED_DEFAULT, 'returns');
   });
 
+  /**
+   * `returns.time_zone` must be a zone the runtime knows (issue #905) — a
+   * **contribution** into `settings`' validator registry, which filters
+   * contributors by presence when it is read, so the hook carries no probe.
+   */
+  ctx.onBoot(() => {
+    lazyPort<SettingWriteValidatorRegistryPort>(ctx, 'settingWriteValidatorRegistry').register(
+      createReturnsTimeZoneValidator(),
+    );
+  });
 }
 
 /**

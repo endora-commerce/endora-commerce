@@ -13,7 +13,8 @@ import type {
 import type { EventBus } from '@endora-commerce/platform/events';
 import type { PlatformLogger, SettingsReadPort } from '@endora-commerce/platform/kernel';
 import type { AuditPort } from '@endora-commerce/platform/kernel';
-import { RETURNS_SETTING_CODES } from '../manifest.js';
+import { RETURNS_SETTING_CODES, RETURNS_DEFAULT_TIME_ZONE } from '../manifest.js';
+import { isKnownTimeZone } from './services/time-zone-validator.js';
 import { ReturnStatusGraphService } from './services/return-status-graph-service.js';
 import { ReturnTransitionService } from './services/return-transition-service.js';
 import { ReturnCaseService } from './services/return-case-service.js';
@@ -118,6 +119,18 @@ export function returnsModule(
     }
   };
 
+  // Issue #905 — the zone the windows count calendar days in. A value the
+  // runtime does not know (written around the validator, straight into the
+  // table) falls back to the manifest default rather than refusing every return.
+  const resolveTimeZone = async (salesChannelId: string): Promise<string> => {
+    try {
+      const value = await settingsService.get(RETURNS_SETTING_CODES.TIME_ZONE, salesChannelId, z.string());
+      return isKnownTimeZone(value) ? value : RETURNS_DEFAULT_TIME_ZONE;
+    } catch {
+      return RETURNS_DEFAULT_TIME_ZONE;
+    }
+  };
+
   const resolveDefaultCostBearer = async (salesChannelId: string): Promise<'customer' | 'shop'> => {
     try {
       const value = await settingsService.get(
@@ -144,6 +157,7 @@ export function returnsModule(
     scope: new ReturnCaseScope(options.organizationPermissions),
     resolveFreeReturnDays,
     isPersonalOrganization,
+    resolveTimeZone,
     ...(options.auditLog ? { auditLog: options.auditLog } : {}),
   });
 

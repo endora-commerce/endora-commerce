@@ -21,6 +21,7 @@ import type {
   AddressServicePort,
   AuthSessionPort,
   AuthSessionReadPort,
+  CartAnonymizationPort,
   CartQueryPort,
   CustomFieldValuePort,
   CustomerAccountAdminSearchPort,
@@ -203,6 +204,11 @@ export interface CustomersModuleOptions {
    * `CartQueryService` from an import of that module's directory (feature 075).
    */
   cartQueryPort: CartQueryPort;
+  /**
+   * `carts`' step in the anonymisation sweep (issue #920): the reasons
+   * operators and approvers wrote about the account's carts are erased.
+   */
+  cartAnonymizationPort: CartAnonymizationPort;
   /** Base URL for the storefront set-password link in reset emails. */
   storefrontBaseUrl: string;
   /** Feature 167 — the channel admin-sent storefront links are composed for (system default). */
@@ -299,6 +305,8 @@ export function customersModule(options: CustomersModuleOptions): {
     depletionGuard,
     options.addressServicePort,
     options.resolveDeletionRetentionDays,
+    addressBookRetirement,
+    options.cartAnonymizationPort,
   );
   const presenceService = new CustomerPresenceService(
     {

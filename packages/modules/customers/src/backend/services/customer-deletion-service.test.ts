@@ -2,6 +2,7 @@ import { describe, expect, it } from 'vitest';
 import type {
   AddressServicePort,
   CustomerAccountLifecycleWritePort,
+  CartAnonymizationPort,
   CustomerAccountReadPort,
   CustomerAccountRecord,
   OrganizationRecord,
@@ -16,14 +17,14 @@ import type { OrganizationDepletionGuard } from './organization-depletion-guard.
  * Issue #800 — the order of the anonymisation sweep, without a database.
  *
  * The account's `anonymizedAt` is the cascade's commit marker, so it is the
- * last write: organisation, then its addresses, then the account. A step that
- * throws leaves the account on the work list for the next tick, and a module
- * that is off aborts the tick rather than being counted as one account's
- * failure. The behaviour over the real owners is
+ * last write: organisation, then its addresses, then the account's carts (issue
+ * #920), then the account. A step that throws leaves the account on the work
+ * list for the next tick, and a module that is off aborts the tick rather than
+ * being counted as one account's failure. The behaviour over the real owners is
  * `backend/test/integration/customers/customer-deletion-service.test.ts`.
  */
 
-type Step = 'org' | 'addresses' | 'account';
+type Step = 'org' | 'addresses' | 'retiredBook' | 'carts' | 'account';
 
 function harness(failAt: { step: Step; error: Error } | null = null) {
   const calls: Array<[Step, string]> = [];
@@ -62,6 +63,22 @@ function harness(failAt: { step: Step; error: Error } | null = null) {
       return 1;
     },
   };
+  // Issue #927 — this module's own retired personal book, every row of the account.
+  const retiredBook = {
+    anonymizeForAccount: async (customerAccountId: string) => {
+      calls.push(['retiredBook', customerAccountId]);
+      fail('retiredBook');
+      return 1;
+    },
+  };
+  // Issue #920 — `carts`' step: the reasons written about the account's carts.
+  const carts: CartAnonymizationPort = {
+    anonymizeForCustomerAccount: async (customerAccountId: string) => {
+      calls.push(['carts', customerAccountId]);
+      fail('carts');
+      return 1;
+    },
+  };
   const service = new CustomerDeletionService(
     {} as CustomerAccountReadPort,
     accountWrites,
@@ -71,25 +88,31 @@ function harness(failAt: { step: Step; error: Error } | null = null) {
     {} as OrganizationDepletionGuard,
     addresses,
     async () => 365,
+    retiredBook,
+    carts,
   );
   return { service, calls, probed };
 }
 
 describe('CustomerDeletionService.sweep (issue #800)', () => {
-  it('U-1 — runs organisation, then addresses, then the account, per account', async () => {
+  it('U-1 — runs organisation, then addresses, then the retired book, then carts, then the account, per account', async () => {
     const { service, calls } = harness();
     expect(await service.sweep(0, new Date())).toBe(2);
     expect(calls).toEqual([
       ['org', 'acc-1'],
       ['addresses', 'org-acc-1'],
+      ['retiredBook', 'acc-1'],
+      ['carts', 'acc-1'],
       ['account', 'acc-1'],
       ['org', 'acc-2'],
       ['addresses', 'org-acc-2'],
+      ['retiredBook', 'acc-2'],
+      ['carts', 'acc-2'],
       ['account', 'acc-2'],
     ]);
   });
 
-  it.each<Step>(['org', 'addresses'])(
+  it.each<Step>(['org', 'addresses', 'retiredBook', 'carts'])(
     'U-2 — a failure at the %s step leaves the account un-anonymised and the sweep goes on',
     async (step) => {
       const { service, calls } = harness({ step, error: new Error('boom') });
@@ -164,6 +187,10 @@ describe('CustomerDeletionService.sweep — subjects an earlier rule left unfini
       {} as OrganizationDepletionGuard,
       { anonymizeForOrganization: async () => 0 },
       async () => 365,
+      // Issue #927 — the retired personal book; these harnesses seed no row of it.
+      { anonymizeForAccount: async () => 0 },
+      // Issue #920 — `carts`' step; these harnesses seed no cart.
+      { anonymizeForCustomerAccount: async () => 0 },
     );
     return { service, processed, disabled };
   }
@@ -271,6 +298,10 @@ describe('CustomerDeletionService.hasDue (issue #857)', () => {
       {} as OrganizationDepletionGuard,
       { anonymizeForOrganization: async () => 0 },
       async () => 365,
+      // Issue #927 — the retired personal book; these harnesses seed no row of it.
+      { anonymizeForAccount: async () => 0 },
+      // Issue #920 — `carts`' step; these harnesses seed no cart.
+      { anonymizeForCustomerAccount: async () => 0 },
     );
     return { service, asked };
   }

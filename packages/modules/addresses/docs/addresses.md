@@ -41,12 +41,19 @@ number.*
 
 ## Anonymization
 
-`addressServicePort.anonymizeForOrganization(organizationId)` blanks every live
-address of the organization (`-` for the recipient, street, city and postal
-code; no phone; not default; the country kept), soft-deletes it and writes one
-`address.anonymized` audit entry per address, with no actor. `customers`'
-retention sweep calls it when it scrubs an individual's personal organization.
-Orders keep their own address snapshots.
+`addressServicePort.anonymizeForOrganization(organizationId)` blanks every
+address of the organization, including the ones already deleted (`-` for the
+recipient, street, city and postal code; no phone; not default; the country
+kept), soft-deletes it (a deleted address keeps its deletion date) and writes one
+`address.anonymized` audit entry per address, with no actor. The entry records
+only the organization, the kind and whether the address was already deleted. An
+address already blanked is skipped, so a second call changes nothing.
+`customers`' retention sweep calls it when it scrubs an individual's personal
+organization. Orders keep their own address snapshots.
+
+`addressReadPort.listIdsForOrganization(organizationId, { includeDeleted })`
+lists the ids of the organization's addresses, the deleted ones too when
+`includeDeleted` is `true`.
 
 ## Entities
 

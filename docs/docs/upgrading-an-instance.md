@@ -3963,6 +3963,58 @@ order by o.placed_at;
 Each row is an order whose every line came back through returns settled with a refund or a
 credit, and whose delivery or surcharge no case refunded. Decide for each one whether to refund
 it by hand, for example by bank transfer, and record that on the order.
+### Enforced two-step verification without an encryption key {#admin-two-step-without-key}
+
+The release that ships `MFA_ENFORCEMENT_UNAVAILABLE` closes a lockout (issue #930). Without
+`MFA_SECRET_ENCRYPTION_KEY` the MFA module cannot set up a second factor: it serves no setup or
+code-entry step. Yet with **Admin UI — enforce two-step verification** (`mfa.admin.totp_enforced`)
+on, sign-in still sent every administrator without a second factor to a setup step, which could
+not be completed, so none of them could sign in.
+
+**Behaviour change on upgrade:**
+
+- Turning `mfa.admin.totp_enforced` on is refused while the key is not set:
+  `409 MFA_ENFORCEMENT_UNAVAILABLE`, with `details.reason: 'encryption_key_missing'`. Turning it off
+  is always allowed, and so is saving it again when it is already on.
+- **On an instance where the setting is already on and the key is not set**, the setting is not
+  applied: administrators without a second factor sign in with their password, as they would with
+  the setting off. The setting is not changed. **Settings** shows *Not in force: no encryption key*
+  under it (the API's settings reads carry `notice.code: 'encryption_key_missing'`), and the
+  backend logs an error at every start until the key is set or the setting is turned off. Before,
+  these administrators could not sign in at all.
+- Nothing changes on an instance that has the key: enforcement applies as before.
+- This covers the setting only. A role that requires two-step verification is still enforced
+  without the key, so its holders who have no second factor still cannot sign in. Untick the box on
+  those roles, or set the key (see
+  [A role's two-step verification requirement is enforced](#role-two-factor-enforced)).
+
+**After upgrading,** if the notice or the logged error appears, either set `MFA_SECRET_ENCRYPTION_KEY` (see the
+[first deployment checklist](./deployment/first-deployment-checklist.md)) and restart, so that
+enforcement applies again, or turn the setting off in **Settings**.
+
+### Return windows count from the order's completion {#return-window-from-completion}
+
+The release that ships this change records when an order was completed (`orders.completed_at`,
+issue #905) and counts the return windows from it. Until now they counted from the order's last
+edit, which moved forward whenever a completed order was changed. The migration fills the new column
+with each completed order's `updated_at`, which is the moment those orders were judged by before, so
+nothing changes for existing orders at upgrade time.
+
+Two things do change from then on:
+
+- **Calendar days.** The free-return window (`returns.free_return_days`) now ends at the end of its
+  last calendar day, and a last day on a Saturday or Sunday moves to the Monday. Before, it ended
+  exactly `free_return_days × 24 h` after the anchor. A case can now be free-return eligible up to a
+  day later than before (up to three over a weekend), never earlier.
+- **A time zone.** The days are counted in a new setting, `returns.time_zone` (default
+  `Europe/Warsaw`, settable per sales channel).
+
+**After upgrading:**
+
+1. **If the shop is not in `Europe/Warsaw`**, set `returns.time_zone` to its zone, for example
+   `Europe/Berlin`, on the Admin Settings screen (group *Returns*).
+2. **Tell the operators to complete an order when the goods have been delivered.** The consumer's
+   withdrawal period counts from the order's completion, because the platform has no delivery date.
 
 ## An instance that is mixed from the start
 

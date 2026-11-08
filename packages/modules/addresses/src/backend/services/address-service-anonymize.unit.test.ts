@@ -83,7 +83,22 @@ describe('AddressService.anonymizeForOrganization (T-U3)', () => {
     const count = await service.anonymizeForOrganization(ORG);
 
     expect(count).toBe(2);
-    expect(filters).toEqual([{ organizationId: ORG, deletedAt: null }]);
+    expect(filters).toEqual([
+      {
+        organizationId: ORG,
+        // Issue #927 — every row any part of the scrub has not reached, the
+        // soft-deleted ones included; a fully scrubbed row is not selected.
+        $or: [
+          { deletedAt: null },
+          { recipientName: { $ne: '-' } },
+          { street: { $ne: '-' } },
+          { city: { $ne: '-' } },
+          { postalCode: { $ne: '-' } },
+          { phone: { $ne: null } },
+          { isDefault: true },
+        ],
+      },
+    ]);
     expect(flushed()).toBe(1);
     for (const row of rows) {
       expect(row.recipientName).toBe('-');
@@ -111,7 +126,29 @@ describe('AddressService.anonymizeForOrganization (T-U3)', () => {
     expect(JSON.stringify(recorded)).not.toContain('Testowa');
   });
 
-  it('answers 0 and records nothing for an Organization with no live address', async () => {
+  it('issue #927 — blanks an address the customer deleted earlier and keeps when it was deleted', async () => {
+    const deletedAt = new Date('2025-01-02T03:04:05.000Z');
+    const rows = [
+      anAddress('00000000-0000-4000-8000-0000000000b1'),
+      anAddress('00000000-0000-4000-8000-0000000000b2', { kind: 'billing', deletedAt }),
+    ];
+    const { service, recorded } = harness(rows);
+
+    expect(await service.anonymizeForOrganization(ORG)).toBe(2);
+
+    const removed = rows[1]!;
+    expect(removed).toMatchObject({ recipientName: '-', street: '-', city: '-', postalCode: '-', isDefault: false });
+    expect(removed.phone).toBeNull();
+    expect(removed.deletedAt).toBe(deletedAt);
+    // Whether the row was already deleted is the one new fact the entry records.
+    expect(recorded.map((r) => r.stateBefore)).toEqual([
+      { organizationId: ORG, kind: 'delivery', wasDeleted: false },
+      { organizationId: ORG, kind: 'billing', wasDeleted: true },
+    ]);
+    expect(JSON.stringify(recorded)).not.toContain('Kowalski');
+  });
+
+  it('answers 0 and records nothing for an Organization with no address left to scrub', async () => {
     const { service, recorded } = harness([]);
     expect(await service.anonymizeForOrganization(ORG)).toBe(0);
     expect(recorded).toEqual([]);

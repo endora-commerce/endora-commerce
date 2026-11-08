@@ -1,4 +1,5 @@
 import type { EntityManager } from '@mikro-orm/postgresql';
+import { ORDER_STATUS_COMPLETED } from '../domain/order-status-graph.js';
 import { Order } from '../entities/order.entity.js';
 import type { OrderReturnContext, OrderReturnContextPort } from '@endora-commerce/contracts';
 import { loadArrangedOrderLines } from './order-line-order.js';
@@ -14,12 +15,14 @@ import { decimalDifference, decimalSum, quotientHalfUp, roundHalfUp, isUuidShape
  * the direction the port was designed in and the reason it can be named from
  * both sides without either module importing the other.
  *
- * MVP note: the fulfilment-completing anchor uses the orders default completing
- * status (`completed`) and the order's `updatedAt` as the entered-at timestamp.
- * A precise per-status timestamp (an additive `orders.completed_at` column) is a
- * planned refinement (research R4) and does not change this interface.
+ * The fulfilment-completing anchor is the moment the order entered its
+ * completing status (`completed`), stored once as `orders.completed_at` (issue
+ * #905). It used to be the order's `updatedAt`, which any later edit moved
+ * forward; the interface did not change. A completed row without the stamp —
+ * not expected, since the migration backfilled every one and the entity stamps
+ * every new one — reports `null`, never a moment that drifts. Nothing here reads
+ * `shipments`, so that module's off-state changes nothing about the anchor.
  */
-const COMPLETING_STATUS = 'completed';
 
 export class OrderReturnContextProvider implements OrderReturnContextPort {
   constructor(private readonly emFactory: () => EntityManager) {}
@@ -51,7 +54,7 @@ export function returnContextFrom(
     | 'organizationId'
     | 'currency'
     | 'status'
-    | 'updatedAt'
+    | 'completedAt'
     | 'subtotal'
     | 'taxTotal'
     | 'discountTotal'
@@ -72,13 +75,13 @@ export function returnContextFrom(
     returnableAtPurchase?: boolean | null | undefined;
   }>,
 ): OrderReturnContext {
-  const completing = order.status === COMPLETING_STATUS;
+  const completing = order.status === ORDER_STATUS_COMPLETED;
   return {
     salesChannelId: order.salesChannelId,
     customerAccountId: order.placedByCustomerAccountId,
     organizationId: order.organizationId ?? null,
     currency: order.currency,
-    completingStatusEnteredAt: completing ? order.updatedAt : null,
+    completingStatusEnteredAt: completing ? (order.completedAt ?? null) : null,
     vatMethod: order.vatMethod ?? null,
     // The order's discount is taken off its gross, without tax of its own (the
     // invoice carries it as a 0 % line): the products were charged their net

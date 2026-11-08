@@ -235,6 +235,15 @@ export const MINTED_ERROR_CODES: MintedErrorCodes = {
       'The noun is the credential configuration, `credentials`\' own row, and the one raise ' +
       'site is its update command.',
   },
+  MFA_ENFORCEMENT_UNAVAILABLE: {
+    to: 'mfa',
+    reason:
+      'Minted by issue #930 for the refusal an operator earns by turning ' +
+      '`mfa.admin.totp_enforced` on where no second factor can be enrolled, because `mfa` has no ' +
+      'encryption key. The noun is the second factor, this module\'s whole subject; the one ' +
+      'raise site is `mfa`\'s own setting validator, which `settings` consults only while `mfa` ' +
+      'is present.',
+  },
   MFA_DEACTIVATION_BLOCKED: {
     to: 'mfa',
     reason:

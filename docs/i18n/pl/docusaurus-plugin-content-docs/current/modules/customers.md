@@ -73,8 +73,9 @@ przywrócenie nie jest już możliwe: od chwili upływu okresu przywrócenie ko�
 traci adres e-mail, imię i nazwisko, hasło oraz wszystkie wartości pól niestandardowych. W
 przypadku klienta indywidualnego zadanie anonimizuje też jego organizację prywatną: czyści jej
 nazwę, adres rejestrowy, nazwę prawną, adresy e-mail do potwierdzeń zamówień i wszystkie wartości
-pól niestandardowych, a jej zapisane adresy są czyszczone (`-`, bez telefonu, kraj zostaje) i
-miękko usuwane, każdy z wpisem audytu `address.anonymized`. Dzieje się tak również wtedy, gdy
+pól niestandardowych, a wszystkie jej zapisane adresy, także te, które klient wcześniej usunął,
+są czyszczone (`-`, bez telefonu, kraj zostaje) i miękko usuwane (usunięty adres zachowuje datę
+usunięcia), każdy z wpisem audytu `address.anonymized`. Dzieje się tak również wtedy, gdy
 operator usunął już tę organizację. Złożone zamówienia zachowują swoje kopie adresów. Wpisy audytu
 anonimizacji odnotowują, że dane usunięto, ale nie przechowują samych danych.
 
@@ -85,6 +86,10 @@ ekrany klienta nadal pokazują status i jego datę, ale bez powodu. Wpisy audytu
 odnotowują jedynie, że powód istniał. Wpisy audytu zapisane wcześniej, takie jak wpis samej
 blokady, zachowują zapisane wartości, w tym powód, dopóki wcześniejsze wpisy nie będą redagowane
 przy anonimizacji ([#844](https://github.com/endora-commerce/endora-commerce/issues/844)).
+
+Zadanie usuwa też uzasadnienia, które operatorzy i osoby akceptujące podali, odrzucając koszyki tego
+konta; każdy koszyk zachowuje swój status. Co jest usuwane, a co zostaje, opisuje moduł koszyków
+(*Przechowywanie historii zmian*).
 
 Zadanie uruchamia się raz dziennie w procesie workera i tylko wtedy, gdy moduł jest włączony, więc
 konto zostaje zanonimizowane najpóźniej dzień po upływie okresu. Gdy moduł jest wyłączony, zadanie
@@ -131,6 +136,11 @@ wszystkich, w dwóch wydaniach:
 
 Stronę operatora opisuje uwaga do aktualizacji *Wycofanie osobistej książki adresowej (wydanie 1 z
 2)*.
+
+Gdy zadanie anonimizacji anonimizuje konto, w ten sam sposób czyści też każdy wiersz tego konta w tej
+książce, niezależnie od tego, czy wiersz został przeniesiony, usunięty przez zadanie, usunięty przez
+klienta czy odrzucony, z jednym wpisem audytu `customer_address.anonymized` na wiersz. Dotyczy to
+każdego konta, także członka firmy.
 
 ## API publiczne
 

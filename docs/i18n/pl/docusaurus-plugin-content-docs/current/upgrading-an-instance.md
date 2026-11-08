@@ -4151,6 +4151,62 @@ order by o.placed_at;
 Każdy wiersz to zamówienie, którego każda pozycja wróciła w zwrotach rozliczonych zwrotem pieniędzy
 albo zasileniem limitu, a którego dostawy ani dopłaty nie zwróciła żadna sprawa. Zdecyduj dla
 każdego z nich, czy zwrócić je ręcznie, na przykład przelewem, i odnotuj to w zamówieniu.
+### Wymuszona weryfikacja dwuetapowa bez klucza szyfrowania {#admin-two-step-without-key}
+
+Wydanie, które zawiera `MFA_ENFORCEMENT_UNAVAILABLE`, usuwa blokadę dostępu (zgłoszenie #930). Bez
+`MFA_SECRET_ENCRYPTION_KEY` moduł MFA nie może skonfigurować drugiego składnika: nie udostępnia ani
+kroku konfiguracji, ani kroku wpisania kodu. Mimo to przy włączonym ustawieniu **Admin UI — enforce
+two-step verification** (`mfa.admin.totp_enforced`) logowanie nadal kierowało każdego
+administratora bez drugiego składnika do kroku konfiguracji, którego nie dało się ukończyć, więc
+żaden z nich nie mógł się zalogować.
+
+**Zmiana zachowania po aktualizacji:**
+
+- Włączenie `mfa.admin.totp_enforced` jest odrzucane, dopóki klucz nie jest ustawiony:
+  `409 MFA_ENFORCEMENT_UNAVAILABLE`, z `details.reason: 'encryption_key_missing'`. Wyłączenie
+  ustawienia jest zawsze dozwolone, podobnie jak ponowne zapisanie go, gdy jest już włączone.
+- **Na instancji, na której ustawienie jest już włączone, a klucz nie jest ustawiony**, ustawienie
+  nie jest stosowane: administratorzy bez drugiego składnika logują się hasłem, tak jak przy
+  wyłączonym ustawieniu. Samo ustawienie się nie zmienia. **Ustawienia** pokazują pod nim
+  komunikat *Nie obowiązuje: brak klucza szyfrowania* (odczyty ustawień w API zawierają
+  `notice.code: 'encryption_key_missing'`), a backend zapisuje błąd w logu przy każdym starcie,
+  dopóki klucz nie zostanie ustawiony albo ustawienie wyłączone. Wcześniej ci administratorzy nie
+  mogli się w ogóle zalogować.
+- Na instancji z kluczem nic się nie zmienia: wymuszanie działa jak dotąd.
+- Dotyczy to tylko tego ustawienia. Wymóg weryfikacji dwuetapowej w roli jest bez klucza nadal
+  egzekwowany, więc posiadacze takiej roli bez drugiego składnika nadal nie mogą się zalogować.
+  Odznacz to pole w tych rolach albo ustaw klucz (zobacz
+  [Wymóg weryfikacji dwuetapowej w roli jest egzekwowany](#role-two-factor-enforced)).
+
+**Po aktualizacji,** jeśli pojawi się ten komunikat albo błąd w logu, ustaw `MFA_SECRET_ENCRYPTION_KEY` (zobacz
+[listę kontrolną pierwszego wdrożenia](./deployment/first-deployment-checklist.md)) i uruchom
+backend ponownie, aby wymuszanie znów działało, albo wyłącz to ustawienie w **Ustawieniach**.
+
+### Terminy zwrotu liczą się od realizacji zamówienia {#return-window-from-completion}
+
+Wydanie, które zawiera tę zmianę, zapisuje, kiedy zamówienie zostało zrealizowane
+(`orders.completed_at`, zgłoszenie #905), i od tej chwili liczy terminy zwrotu. Dotąd liczyły się od
+ostatniej edycji zamówienia, która przesuwała się do przodu przy każdej zmianie zrealizowanego
+zamówienia. Migracja wypełnia nową kolumnę wartością `updated_at` każdego zrealizowanego zamówienia —
+chwilą, według której te zamówienia były oceniane wcześniej — więc w chwili aktualizacji nic się nie
+zmienia dla istniejących zamówień.
+
+Od tej pory zmieniają się dwie rzeczy:
+
+- **Dni kalendarzowe.** Okres bezpłatnego zwrotu (`returns.free_return_days`) kończy się teraz z
+  końcem ostatniego dnia kalendarzowego, a ostatni dzień przypadający w sobotę lub niedzielę
+  przesuwa się na poniedziałek. Wcześniej kończył się dokładnie `free_return_days × 24 h` po chwili
+  odniesienia. Sprawa może teraz kwalifikować się do bezpłatnego zwrotu do jednego dnia później niż
+  dotąd (do trzech przy weekendzie), nigdy wcześniej.
+- **Strefa czasowa.** Dni liczy się w nowym ustawieniu `returns.time_zone` (domyślnie
+  `Europe/Warsaw`, ustawiane także dla kanału sprzedaży).
+
+**Po aktualizacji:**
+
+1. **Jeśli sklep nie działa w strefie `Europe/Warsaw`**, ustaw `returns.time_zone` na jego strefę,
+   np. `Europe/Berlin`, na ekranie ustawień w panelu (grupa *Zwroty*).
+2. **Poproś operatorów, by realizowali zamówienie, gdy towar został doręczony.** Termin konsumenta na
+   odstąpienie od umowy liczy się od realizacji zamówienia, bo platforma nie zna daty doręczenia.
 
 ## Instancja niespójna od początku
 
