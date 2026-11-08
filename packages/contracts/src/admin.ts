@@ -41,12 +41,18 @@ const adminUserAuthorProfileFields = {
   bio: z.record(z.string().min(2).max(16), z.string().max(ADMIN_USER_BIO_MAX_LENGTH)).nullable().optional(),
 };
 
+const REQUIRES_TWO_FACTOR_DESCRIPTION =
+  'Whether holders of this role must sign in with a second factor. Read by `mfa` at sign-in: ' +
+  'a holder with no enrolled factor is asked to set one up, an enrolled holder is challenged. ' +
+  'Has no effect while `mfa` is off (sign-in is then password-only), and `mfa` cannot be ' +
+  'switched off while any role sets it.';
+
 export const adminRoleSchema = z.object({
   id: uuidSchema,
   code: z.string(),
   name: z.string(),
   permissions: z.array(z.string()),
-  requiresTwoFactor: z.boolean(),
+  requiresTwoFactor: z.boolean().describe(REQUIRES_TWO_FACTOR_DESCRIPTION),
   createdAt: isoDateTimeSchema,
   updatedAt: isoDateTimeSchema,
 });
@@ -189,9 +195,40 @@ export const upsertAdminRoleRequestSchema = z.object({
   code: z.string().min(1).max(64),
   name: z.string().min(1).max(160),
   permissions: z.array(z.string().min(1).max(120)),
-  requiresTwoFactor: z.boolean().optional(),
+  requiresTwoFactor: z
+    .boolean()
+    .optional()
+    .describe(
+      `${REQUIRES_TWO_FACTOR_DESCRIPTION} Turning it on is refused with 409 ` +
+        '`MFA_REQUIRED_FOR_ROLE_TWO_FACTOR` while `mfa` is off or has no encryption key; ' +
+        'turning it off is always allowed.',
+    ),
 });
 export type UpsertAdminRoleRequest = z.infer<typeof upsertAdminRoleRequestSchema>;
+
+/**
+ * `PUT /api/v1/admin/admin-roles/:code` — the role as saved, plus how many of
+ * its holders were signed out by the save (issue #349).
+ *
+ * Non-zero only when the save turned `requiresTwoFactor` on: the holders with
+ * no enrolled second factor had sessions opened without one, and those end.
+ * The acting administrator's own current session is kept.
+ */
+export const adminRoleWriteResultSchema = adminRoleSchema.extend({
+  signedOutAdministrators: z.number().int().nonnegative(),
+});
+export type AdminRoleWriteResult = z.infer<typeof adminRoleWriteResultSchema>;
+
+/**
+ * `GET /api/v1/admin/admin-roles/:code/two-factor-impact` — how many holders of
+ * the role have no enrolled second factor, so the editor can say how many will
+ * be signed out before it turns the requirement on. `null` while `mfa` is off,
+ * when no session would be ended and the requirement cannot be turned on.
+ */
+export const adminRoleTwoFactorImpactSchema = z.object({
+  unprotectedAdministrators: z.number().int().nonnegative().nullable(),
+});
+export type AdminRoleTwoFactorImpact = z.infer<typeof adminRoleTwoFactorImpactSchema>;
 
 /** Optional per-module permission declaration on `ModuleManifest.permissions`. */
 export const modulePermissionDeclarationSchema = z.object({

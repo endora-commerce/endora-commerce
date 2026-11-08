@@ -319,7 +319,9 @@ describe('155 — catalogue writes of minOrderQuantity and returnable [contract]
       const events = new EventBus();
       const audit = h.auditLogService;
       const commandBus = new CommandBus(h.orm, audit, events);
-      const catalogAdmin = new CatalogAdminService(em, events as CatalogEventBus, audit);
+      // Issue #241 — the worker's admin service carries the bus: each product is the
+      // `product.update` Command, which is what writes its audit entry.
+      const catalogAdmin = new CatalogAdminService(em, events as CatalogEventBus, audit, undefined, commandBus);
       const bulkUpdate = new CatalogBulkUpdateService(em, catalogAdmin, undefined, audit);
       const bulkOps = new BulkOperationService(em, bulkUpdate, {}, commandBus);
       await bulkOps.processById(opId);

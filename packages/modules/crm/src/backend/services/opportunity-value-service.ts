@@ -264,7 +264,8 @@ export class OpportunityValueService {
           id: document.record.id,
           status: document.record.status,
           convertedOrderId: document.record.convertedOrderId,
-          lines: document.lines,
+          amount: document.amount,
+          currency: document.currency,
         });
       }
     }

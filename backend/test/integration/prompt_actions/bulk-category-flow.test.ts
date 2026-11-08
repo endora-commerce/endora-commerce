@@ -10,6 +10,7 @@ import { Product } from '../../helpers/package-entities.js';
 import { Category } from '../../helpers/package-entities.js';
 import { BulkOperation } from '../../helpers/package-entities.js';
 import { AuditLogEntry } from '@endora-commerce/platform/kernel';
+import { CommandBus } from '@endora-commerce/platform/commands';
 import { PromptActionRequest } from '../../helpers/package-entities.js';
 
 /**
@@ -334,7 +335,10 @@ describe('US2 — bulk category assignment (T041/T042)', () => {
     const { CatalogAdminService } = await import(
       '../../../../packages/modules/catalog/dist/backend/services/catalog-admin.service.js'
     );
-    const adminService = new CatalogAdminService(h.em, h.eventBus as never, h.auditLogService);
+    // Issue #241 — the worker's admin service carries the bus: a bulk edit refuses to
+    // run without it, since each product is the audited `product.update` Command.
+    const commandBus = new CommandBus(h.orm, h.auditLogService, h.eventBus as never);
+    const adminService = new CatalogAdminService(h.em, h.eventBus as never, h.auditLogService, undefined, commandBus);
     const updater = new CatalogBulkUpdateService(h.em, adminService, undefined, h.auditLogService);
     const opService = new BulkOperationService(h.em, updater, {});
     await opService.processById(op.id);

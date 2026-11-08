@@ -631,6 +631,12 @@ export const ERROR_CODES = {
    * with a second factor; the requirement is turned off first.
    */
   MFA_DEACTIVATION_BLOCKED: 'MFA_DEACTIVATION_BLOCKED',
+  /**
+   * A role cannot start requiring a second factor that this instance cannot
+   * enrol: `mfa` is off, or has no encryption key (issue #349). Raised by
+   * `admin_users`' role write; `details.reason` says which.
+   */
+  MFA_REQUIRED_FOR_ROLE_TWO_FACTOR: 'MFA_REQUIRED_FOR_ROLE_TWO_FACTOR',
   MFA_INVALID_CODE: 'MFA_INVALID_CODE',
   MFA_INVALID_CHALLENGE: 'MFA_INVALID_CHALLENGE',
   MFA_TOO_MANY_ATTEMPTS: 'MFA_TOO_MANY_ATTEMPTS',

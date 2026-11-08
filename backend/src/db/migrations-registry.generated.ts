@@ -253,6 +253,7 @@ import { Migration20260914T133603InvoicesErpImportedSaleDocuments } from '@endor
 import { Migration20260926T230239InvoicesImportIdentity } from '@endora-commerce/mod-invoices/migrations';
 import { Migration20261017T075839InvoicesDropInvoiceTemplates } from '@endora-commerce/mod-invoices/migrations';
 import { Migration20261024T145631InvoicesVatSummary } from '@endora-commerce/mod-invoices/migrations';
+import { Migration20261108T073244InvoicesInvoiceLineKind } from '@endora-commerce/mod-invoices/migrations';
 
 // ── languages ───────────────────────────────────────────────────────────────
 import { Migration20260425T161557LanguagesCurrenciesInit } from '@endora-commerce/mod-languages/migrations';
@@ -301,6 +302,7 @@ import { Migration20261021T165247OrdersOrderItemsPriceSource } from '@endora-com
 import { Migration20261024T145147OrdersVatMethod } from '@endora-commerce/mod-orders/migrations';
 import { Migration20261025T031732OrdersUnitPriceFourPlaces } from '@endora-commerce/mod-orders/migrations';
 import { Migration20261108T000543OrdersCompletedAt } from '@endora-commerce/mod-orders/migrations';
+import { Migration20261108T073238OrdersChargeLines } from '@endora-commerce/mod-orders/migrations';
 
 // ── organizations ───────────────────────────────────────────────────────────
 import { Migration20260424T205317OrganizationsInit } from '@endora-commerce/mod-organizations/migrations';
@@ -663,6 +665,7 @@ export const MIGRATION_REGISTRY: readonly MigrationRegistryEntry[] = [
   migration('invoices', Migration20260926T230239InvoicesImportIdentity),
   migration('invoices', Migration20261017T075839InvoicesDropInvoiceTemplates),
   migration('invoices', Migration20261024T145631InvoicesVatSummary),
+  migration('invoices', Migration20261108T073244InvoicesInvoiceLineKind),
 
   // ── languages ───────────────────────────────────────────────────────────────
   migration('languages', Migration20260425T161557LanguagesCurrenciesInit),
@@ -711,6 +714,7 @@ export const MIGRATION_REGISTRY: readonly MigrationRegistryEntry[] = [
   migration('orders', Migration20261024T145147OrdersVatMethod),
   migration('orders', Migration20261025T031732OrdersUnitPriceFourPlaces),
   migration('orders', Migration20261108T000543OrdersCompletedAt),
+  migration('orders', Migration20261108T073238OrdersChargeLines),
 
   // ── organizations ───────────────────────────────────────────────────────────
   migration('organizations', Migration20260424T205317OrganizationsInit),
