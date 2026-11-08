@@ -81,9 +81,11 @@ restore answers `409 CUSTOMER_RESTORE_WINDOW_ELAPSED`, even if the sweep has
 not reached the account yet. The account loses its e-mail, name, password and
 all custom field values. For an individual, the sweep also scrubs their
 personal organization: its name, registered address, legal name,
-order-confirmation e-mails and all custom field values are cleared, and its
-saved addresses are blanked (`-`, no phone, country kept) and soft-deleted, one
-`address.anonymized` audit entry each. This happens even if an operator has
+order-confirmation e-mails and all custom field values are cleared, and all
+its saved addresses, including the ones the customer had already deleted, are
+blanked (`-`, no phone, country kept) and soft-deleted (a deleted one keeps its
+deletion date), one `address.anonymized` audit entry each. This happens
+even if an operator has
 already deleted that organization. Placed orders keep their address snapshots.
 The anonymization audit entries record that the data was erased, not the data
 itself.
@@ -151,6 +153,11 @@ It is retired for everyone, in two releases:
 
 The upgrade note *Personal address book retired (release 1 of 2)* covers the
 operator's side.
+
+When the anonymization sweep anonymizes an account, it also blanks every row of
+that account in this book the same way, whether the row was moved, erased,
+deleted by the customer or refused, with one `customer_address.anonymized`
+audit entry each. This applies to every account, a company member's included.
 
 ## Public surface
 

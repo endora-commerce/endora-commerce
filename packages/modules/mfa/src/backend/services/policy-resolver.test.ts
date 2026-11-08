@@ -169,3 +169,75 @@ describe('MfaPolicyResolver — the administrator role requirement', () => {
     expect(asked).toEqual([]);
   });
 });
+
+/**
+ * Issue #930 — without `MFA_SECRET_ENCRYPTION_KEY` this module serves no
+ * enrolment route, so `mfa.admin.totp_enforced` demands a setup that nothing
+ * can complete: every administrator without a factor is locked out. Where no
+ * second factor can be enrolled, that one setting is not in force; nothing
+ * else the resolver answers changes.
+ */
+describe('MfaPolicyResolver — no second factor can be enrolled (issue #930)', () => {
+  const noDefaultChannel = async (): Promise<string | null> => null;
+
+  it('does not enforce mfa.admin.totp_enforced on an administrator', async () => {
+    const resolver = new MfaPolicyResolver(
+      fakeSettings({ [MFA_SETTING_CODES.ADMIN_TOTP_ENFORCED]: true }),
+      fakeEmFactory(null),
+      roleOf(false),
+      noDefaultChannel,
+      false,
+    );
+    const p = await resolver.resolve(
+      { subjectType: 'admin', subjectId: 'a1' },
+      { salesChannelId: null },
+    );
+    expect(p.totpEnforced).toBe(false);
+  });
+
+  it('still enforces the setting where a factor can be enrolled', async () => {
+    const resolver = new MfaPolicyResolver(
+      fakeSettings({ [MFA_SETTING_CODES.ADMIN_TOTP_ENFORCED]: true }),
+      fakeEmFactory(null),
+      roleOf(false),
+      noDefaultChannel,
+      true,
+    );
+    const p = await resolver.resolve(
+      { subjectType: 'admin', subjectId: 'a1' },
+      { salesChannelId: null },
+    );
+    expect(p.totpEnforced).toBe(true);
+    expect(p.totpEnabled).toBe(true);
+  });
+
+  it('leaves storefront and organization enforcement as they are', async () => {
+    const resolver = new MfaPolicyResolver(
+      fakeSettings({ [MFA_SETTING_CODES.STOREFRONT_TOTP_ENFORCED]: true }),
+      fakeEmFactory(true),
+      roleOf(false),
+      noDefaultChannel,
+      false,
+    );
+    const p = await resolver.resolve(
+      { subjectType: 'customer', subjectId: 'c1' },
+      { salesChannelId: 'ch1', organizationId: 'org1' },
+    );
+    expect(p.totpEnforced).toBe(true);
+  });
+
+  it("keeps a role's requirement in force (#349 fails closed; only the setting is lifted)", async () => {
+    const resolver = new MfaPolicyResolver(
+      fakeSettings({ [MFA_SETTING_CODES.ADMIN_TOTP_ENFORCED]: true }),
+      fakeEmFactory(null),
+      roleOf(true),
+      noDefaultChannel,
+      false,
+    );
+    const p = await resolver.resolve(
+      { subjectType: 'admin', subjectId: 'a1' },
+      { salesChannelId: null },
+    );
+    expect(p.totpEnforced).toBe(true);
+  });
+});

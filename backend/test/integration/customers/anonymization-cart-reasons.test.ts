@@ -102,6 +102,8 @@ describe('Anonymization sweep — reasons written about the subject’s carts (i
       {} as OrganizationDepletionGuard,
       addresses,
       async () => 365,
+      // Issue #927 — the retired personal book; this file seeds no row of it.
+      { anonymizeForAccount: async () => 0 },
       carts,
     );
   }
