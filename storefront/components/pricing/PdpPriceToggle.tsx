@@ -11,8 +11,9 @@ import { tForLocale } from '../../lib/i18n/messages';
  * A purely presentational NETTO/BRUTTO switch: it re-emphasises which price the
  * {@link BaseSalePriceBlock} shows (net_only vs gross_only) without touching the
  * server-resolved pricing model. It is only used when the resolver returns
- * `displayMode === 'both'` (both prices available); for every other mode the PDP
- * keeps the plain `PriceTag`, so a toggle never appears with nothing to switch.
+ * `displayMode === 'both'` (both prices available) **and** the product carries
+ * its VAT rate (issue #852); for every other case the PDP keeps the plain
+ * `PriceTag`, so a toggle never appears with nothing to switch.
  *
  * Client component, but SSR-rendered on first paint (the net price is in the
  * initial HTML for crawlers — Principle VII).
@@ -27,7 +28,8 @@ export function PdpPriceToggle(props: {
   listPriceLabel?: string;
   yourPriceLabel?: string;
   locale: string;
-  vatRate?: number;
+  /** The product's VAT rate for this buyer (`ProductDetail.vatRate`, issue #852). */
+  vatRate: number;
   labels?: { net: string; gross: string };
 }): ReactNode {
   const [mode, setMode] = useState<'net' | 'gross'>('net');
@@ -47,7 +49,7 @@ export function PdpPriceToggle(props: {
         {...(props.yourPriceLabel !== undefined ? { yourPriceLabel: props.yourPriceLabel } : {})}
         displayMode={mode === 'net' ? 'net_only' : 'gross_only'}
         locale={props.locale}
-        {...(props.vatRate !== undefined ? { vatRate: props.vatRate } : {})}
+        vatRate={props.vatRate}
         variant="pdp"
       />
       {/* Net/gross switch — pinned to the top-right of the price block. */}

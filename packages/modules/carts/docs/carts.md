@@ -339,7 +339,8 @@ a buyer sees in the basket is the price placement charges —
 `backend/test/integration/carts/cart-read-equals-placement.test.ts` holds that.
 The VAT is `cartVatMoney` (`src/backend/services/cart-money.ts`), which calls
 the contracts' `vatByRate` — the function the order's totals call — with the
-rates `createCartTaxRateResolver` resolves (`cart-tax-rates.ts`);
+rates `createProductTaxRateResolver` (`@endora-commerce/contracts`) resolves — the rule the
+catalogue's `vatRate` uses too, so a product's gross on its page and in the cart come from one rate;
 `backend/test/unit/carts/cart-vat-equals-order.test.ts` and
 `backend/test/integration/carts/cart-vat-equals-placement.test.ts` hold the
 cart's figures to the order's.

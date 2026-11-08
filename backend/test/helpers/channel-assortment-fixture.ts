@@ -56,15 +56,18 @@ export interface ChannelAssortment {
 export async function seedProbeChannelAssortment(
   em: EntityManager,
   prefix: string,
+  /** The channel's one currency, and so its default (issue #303 probes a non-PLN one). */
+  options: { currency?: string } = {},
 ): Promise<ChannelAssortment> {
+  const currency = options.currency ?? 'PLN';
   const code = `${prefix}-${randomUUID().slice(0, 8)}`;
   const channel = em.create(SalesChannel, {
     code,
     name: { 'en-US': `Assortment probe ${code}` },
     languages: ['en-US'],
     defaultLanguage: 'en-US',
-    currencies: ['PLN'],
-    defaultCurrency: 'PLN',
+    currencies: [currency],
+    defaultCurrency: currency,
     active: true,
   });
   await em.persistAndFlush(channel);
