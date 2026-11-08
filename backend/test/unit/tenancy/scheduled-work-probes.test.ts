@@ -5,6 +5,7 @@ import { describe, expect, it, vi } from 'vitest';
 import { anyRowExists as catalogAnyRowExists } from '../../../../packages/modules/catalog/src/backend/services/scheduled-work-probe.js';
 import { anyRowExists as customerAccountsAnyRowExists } from '../../../../packages/modules/customer_accounts/src/backend/services/scheduled-work-probe.js';
 import { anyRowExists as crmAnyRowExists } from '../../../../packages/modules/crm/src/backend/services/scheduled-work-probe.js';
+import { anyRowExists as organizationsAnyRowExists } from '../../../../packages/modules/organizations/src/backend/services/scheduled-work-probe.js';
 import { anyRowExists as ordersAnyRowExists } from '../../../../packages/modules/orders/src/backend/services/scheduled-work-probe.js';
 import { anyRowExists as priceListsAnyRowExists } from '../../../../packages/modules/price_lists/src/backend/services/scheduled-work-probe.js';
 import { anyRowExists as productFeedsAnyRowExists } from '../../../../packages/modules/product_feeds/src/backend/services/scheduled-work-probe.js';
@@ -60,6 +61,12 @@ const PROBES = [
     module: 'customer_accounts',
     file: 'services/customer-account-lifecycle-ports.ts',
     method: 'hasDueForAnonymization',
+  },
+  // Issue #923 — and `organizations` for the personal organisations an earlier rule left incompletely scrubbed.
+  {
+    module: 'organizations',
+    file: 'services/personal-organization-service.ts',
+    method: 'hasIncompletelyScrubbed',
   },
 ] as const;
 
@@ -140,6 +147,7 @@ describe('scheduled work probes answer one bit (issue #120)', () => {
     ['tasks', tasksAnyRowExists],
     ['catalog', catalogAnyRowExists],
     ['customer_accounts', customerAccountsAnyRowExists],
+    ['organizations', organizationsAnyRowExists],
   ] as const)('anyRowExists (%s)', (_module, anyRowExists) => {
     const emAnswering = (rows: unknown) => ({ execute: vi.fn(async () => rows) });
 

@@ -93,19 +93,18 @@ block reason and, for an individual, the block and rejection reasons on their
 personal organization. A company organization keeps its reasons. The block or
 rejection itself stays, so the customer screens still show the status and its
 date, without a reason. The anonymization audit entries record only that a
-reason existed. If an account anonymized before reasons were erased still has a
-block reason, the next run erases it, together with any reasons left on its
-personal organization, and records one more audit entry for each. Audit
-entries written earlier, such as the entry for the block itself, keep the
-values they recorded, the reason included, until earlier entries are redacted
-on anonymization ([#844](https://github.com/endora-commerce/endora-commerce/issues/844)).
+reason existed. Audit entries written earlier, such as the entry for the block
+itself, keep the values they recorded, the reason included, until earlier
+entries are redacted on anonymization
+([#844](https://github.com/endora-commerce/endora-commerce/issues/844)).
 
 The sweep runs once a day, in the worker process and only while this module is
 on, so an account is anonymized up to a day after its window elapses. While the
 module is off no run happens; the accounts that came due meanwhile are
 anonymized by the first run after it is switched back on. A run first checks
-whether any account is due, and when none is it does nothing and writes no
-audit entry. Two runs that overlap anonymize an account once.
+whether any account is due or any earlier scrub is left to finish, and when
+none is it does nothing and writes no audit entry. If that check cannot be
+answered, the run goes ahead. Two runs that overlap anonymize an account once.
 
 The sweep scrubs the personal organization and its addresses first and the
 account last. If a run is interrupted, the account is picked up again on the
@@ -113,6 +112,15 @@ next run, which completes the remaining steps without repeating the audit
 entries of the steps already done. An account that cannot be anonymized does
 not hold up the others: the run anonymizes the rest and then reports the failed
 account ids.
+
+The same holds when what the sweep erases grows. Anything a run under an earlier
+release left on an anonymized account or on its personal organization, such as
+custom field values, a legal name, order-confirmation e-mails or a block or
+rejection reason, is erased by the next run, whatever the retention window is
+set to now. That run records one more audit entry for each record it changes,
+keeps the original anonymization date, and does not announce the anonymization
+again, so what other modules do on anonymization, such as Forms erasing the
+customer's entries, does not run a second time.
 
 ## The personal address book is retired
 

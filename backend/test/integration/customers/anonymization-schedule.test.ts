@@ -9,7 +9,8 @@ import {
   type BackendServerHandle,
 } from '../../helpers/test-server.js';
 import { withModuleOff, type OffStateAxis } from '../../helpers/off-state.js';
-import { CustomerAccount } from '../../helpers/package-entities.js';
+import { AuditLogEntry } from '@endora-commerce/platform/kernel';
+import { CustomerAccount, Organization } from '../../helpers/package-entities.js';
 import { seedCrmOrganization } from '../../helpers/seed-crm.js';
 import { ManifestReconciler } from '../../../src/kernel/settings/manifest-reconciler.js';
 import { defineModuleWorker } from '../../../src/kernel/lifecycle/plugin-helpers.js';
@@ -81,6 +82,58 @@ describe('customers — the anonymization sweep runs on its schedule (#677)', ()
     accounts.push(row.id);
     return row.id;
   }
+
+  const ORG_BLOCK_REASON = 'Sweep subject abused the returns policy';
+
+  /**
+   * Issue #923 — a subject an earlier release anonymised: the account is
+   * finished, its personal organisation got the name, the blank address and
+   * `deletedAt`, and still holds a legal name and a block reason.
+   */
+  async function earlierScrubbedSubject(label: string): Promise<{ accountId: string; organizationId: string }> {
+    const em = h.em().fork();
+    const scrubbedAt = new Date(Date.now() - (RETENTION_DAYS + 5) * DAY_MS);
+    const accountId = randomUUID();
+    const org = em.create(Organization, {
+      name: 'Deleted customer',
+      legalName: `Sweep ${label} Handel`,
+      taxId: accountId.replace(/-/g, ''),
+      status: 'blocked',
+      vatStatus: 'vat_exempt',
+      isPersonal: true,
+      blockedAt: scrubbedAt,
+      blockedReason: ORG_BLOCK_REASON,
+      registeredAddress: { street: '-', city: '-', postalCode: '-', country: 'PL' },
+      deletedAt: scrubbedAt,
+    } as never);
+    await em.persistAndFlush(org);
+    const row = em.create(CustomerAccount, {
+      id: accountId,
+      organizationId: org.id,
+      email: `deleted+${accountId}@anonymized.invalid`,
+      passwordHash: 'x'.repeat(60),
+      firstName: 'Deleted customer',
+      lastName: 'Deleted customer',
+      deletedAt: scrubbedAt,
+      anonymizedAt: scrubbedAt,
+    } as never);
+    await em.persistAndFlush(row);
+    accounts.push(accountId);
+    return { accountId, organizationId: org.id };
+  }
+
+  async function organizationResidue(id: string): Promise<{ legalName: string | null; blockedReason: string | null }> {
+    const row = await h.em().fork().findOneOrFail(Organization, { id }, { filters: false });
+    return { legalName: row.legalName ?? null, blockedReason: row.blockedReason ?? null };
+  }
+
+  const organizationAuditRows = (id: string) =>
+    h.em().fork().find(AuditLogEntry, { action: 'organization.anonymized', objectId: id });
+
+  const isFinished = async (id: string): Promise<boolean> => {
+    const residue = await organizationResidue(id);
+    return residue.legalName === null && residue.blockedReason === null;
+  };
 
   async function stateOf(id: string): Promise<{ email: string; anonymizedAt: Date | null }> {
     const row = await h.em().fork().findOneOrFail(CustomerAccount, { id }, { filters: false });
@@ -189,9 +242,10 @@ describe('customers — the anonymization sweep runs on its schedule (#677)', ()
   }, 60_000);
 
   it.each<OffStateAxis>(['deactivated', 'platform-unavailable'])(
-    'with customers %s no tick runs, and the account is anonymised once the module is back',
+    'with customers %s no tick runs, and the account is anonymised and an earlier scrub finished once the module is back',
     async (axis) => {
       const due = await deletedAccount(`off-${axis}`, RETENTION_DAYS + 1);
+      const residual = await earlierScrubbedSubject(`off-${axis}`);
       await withModuleOff('customers', axis, async () => {
         const job = await queue.add('sweep', {});
         // Long enough for a running consumer to have taken it many times over.
@@ -199,10 +253,22 @@ describe('customers — the anonymization sweep runs on its schedule (#677)', ()
         expect(completed).not.toContain(job.id);
         expect(await isAnonymized(due)).toBe(false);
         expect(announced).not.toContain(due);
+        // Issue #923 — nor is an earlier scrub finished: the residue stays,
+        // and nothing is recorded.
+        expect(await organizationResidue(residual.organizationId)).toEqual({
+          legalName: `Sweep off-${axis} Handel`,
+          blockedReason: ORG_BLOCK_REASON,
+        });
+        expect(await organizationAuditRows(residual.organizationId)).toEqual([]);
       });
       // Back on: the tick that waited runs, and the account is anonymised.
       expect(await until(() => isAnonymized(due), 60_000)).toBe(true);
       expect(announced).toContain(due);
+      // And the earlier scrub is finished in the same tick, with one audit row
+      // and no second announcement.
+      expect(await until(() => isFinished(residual.organizationId), 60_000)).toBe(true);
+      expect(await organizationAuditRows(residual.organizationId)).toHaveLength(1);
+      expect(announced).not.toContain(residual.accountId);
     },
     120_000,
   );
