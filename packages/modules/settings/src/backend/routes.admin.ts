@@ -8,6 +8,7 @@ import {
   SettingsListQuerySchema,
   type SettingNotice,
   type SettingNoticeInput,
+  type SettingWriteConfirmation,
 } from '@endora-commerce/contracts';
 import type { SettingsAdminService, AdminAuditContext } from './services/settings-admin.service.js';
 import type { Setting } from '@endora-commerce/platform/kernel';
@@ -44,6 +45,11 @@ export interface SettingsAdminDeps {
    * is not in force. Absent in a composition without the registry: no notice.
    */
   noticeFor?: (input: SettingNoticeInput) => Promise<SettingNotice | null>;
+  /**
+   * Issue #349, E-349-1 — the owning module's question before a write. Absent
+   * in a composition without the registry: nothing is asked.
+   */
+  confirmationFor?: (input: SettingNoticeInput) => Promise<SettingWriteConfirmation | null>;
 }
 
 interface SetValueWithVersion {
@@ -54,16 +60,20 @@ export async function registerSettingsAdminRoutes(
   app: FastifyInstance,
   deps: SettingsAdminDeps,
 ): Promise<void> {
-  const { adminService, requireAdmin, resolveAdminAuditContext, noticeFor } = deps;
+  const { adminService, requireAdmin, resolveAdminAuditContext, noticeFor, confirmationFor } = deps;
 
   const auditContext = (request: FastifyRequest): AdminAuditContext => {
     const ctx = resolveAdminAuditContext?.(request) ?? {
       actorAdminUserId: null,
     };
     const rid = request.headers['x-request-id'];
+    // Issue #349, E-349-1 — the session the write was made from, so a
+    // `settings.value_changed` subscriber that ends sessions can spare it.
+    const actor = request.actor;
     return {
       ...ctx,
       requestId: typeof rid === 'string' ? rid : null,
+      ...(actor?.kind === 'admin' && actor.sessionId !== undefined ? { actorSessionId: actor.sessionId } : {}),
     };
   };
 
@@ -80,22 +90,33 @@ export async function registerSettingsAdminRoutes(
   interface SettingClassification {
     editable: boolean;
     activationControl: boolean;
-    /** Issue #930 — computed by {@link noticeOf}; absent means no `notice` key at all. */
+    /** Issue #930 — computed by {@link commentaryOf}; absent means no `notice` key at all. */
     notice?: SettingNotice | undefined;
+    /** Issue #349, E-349-1 — computed by {@link commentaryOf}; absent means no `confirmation` key. */
+    confirmation?: SettingWriteConfirmation | undefined;
   }
 
   /**
    * Issue #930 — asks the owning module whether the platform-wide value in
-   * force is what the stored value says. A `secret` value is never handed out.
+   * force is what the stored value says; and (issue #349, E-349-1) what to ask
+   * before a write. A `secret` value is never handed out.
    */
-  async function noticeOf(setting: Setting): Promise<SettingNotice | undefined> {
-    if (!noticeFor) return undefined;
-    const notice = await noticeFor({
+  async function commentaryOf(
+    setting: Setting,
+  ): Promise<{ notice?: SettingNotice; confirmation?: SettingWriteConfirmation }> {
+    const input: SettingNoticeInput = {
       code: setting.code,
       ownerModuleId: setting.ownerModule,
       value: setting.valueType === 'secret' ? null : setting.globalValue ?? setting.defaultValue,
-    });
-    return notice ?? undefined;
+    };
+    const [notice, confirmation] = await Promise.all([
+      noticeFor ? noticeFor(input) : null,
+      confirmationFor ? confirmationFor(input) : null,
+    ]);
+    return {
+      ...(notice ? { notice } : {}),
+      ...(confirmation ? { confirmation } : {}),
+    };
   }
 
   function serializeSetting(
@@ -132,6 +153,7 @@ export async function registerSettingsAdminRoutes(
       editable: classification.editable,
       activationControl: classification.activationControl,
       ...(classification.notice ? { notice: classification.notice } : {}),
+      ...(classification.confirmation ? { confirmation: classification.confirmation } : {}),
     };
   }
 
@@ -144,7 +166,7 @@ export async function registerSettingsAdminRoutes(
       activationControl: boolean;
     }>,
   ): Promise<Record<string, unknown>> {
-    const notices = await Promise.all(settings.map((s) => noticeOf(s.setting)));
+    const commentary = await Promise.all(settings.map((s) => commentaryOf(s.setting)));
     return {
       id: group.id,
       code: group.code,
@@ -156,7 +178,7 @@ export async function registerSettingsAdminRoutes(
         serializeSetting(s.setting, s.values, {
           editable: s.editable,
           activationControl: s.activationControl,
-          notice: notices[i],
+          ...commentary[i],
         }),
       ),
     };
@@ -189,7 +211,7 @@ export async function registerSettingsAdminRoutes(
       return serializeSetting(setting, values, {
         editable,
         activationControl,
-        notice: await noticeOf(setting),
+        ...(await commentaryOf(setting)),
       });
     },
   );
@@ -230,7 +252,7 @@ export async function registerSettingsAdminRoutes(
       return serializeSetting(detail.setting, detail.values, {
         editable: detail.editable,
         activationControl: detail.activationControl,
-        notice: await noticeOf(detail.setting),
+        ...(await commentaryOf(detail.setting)),
       });
     },
   );
@@ -254,7 +276,7 @@ export async function registerSettingsAdminRoutes(
       return serializeSetting(detail.setting, detail.values, {
         editable: detail.editable,
         activationControl: detail.activationControl,
-        notice: await noticeOf(detail.setting),
+        ...(await commentaryOf(detail.setting)),
       });
     },
   );

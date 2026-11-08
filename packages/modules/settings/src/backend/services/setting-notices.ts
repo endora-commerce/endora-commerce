@@ -3,6 +3,7 @@ import type {
   SettingNoticeInput,
   SettingNoticeProvider,
   SettingNoticeRegistryPort,
+  SettingWriteConfirmation,
 } from '@endora-commerce/contracts';
 import type { ModulePresencePort } from './settings-admin.service.js';
 
@@ -18,6 +19,9 @@ import type { ModulePresencePort } from './settings-admin.service.js';
  *
  * **Absent-contributor policy: `skip`**, as for the validators: a module that
  * is off does not answer for a code.
+ *
+ * Issue #349, E-349-1 — a provider may also say what to ask before a write
+ * (`confirmation`), on the same read and under the same two policies.
  */
 /** Where a provider's failure is reported: `ctx.log`'s shape. */
 export interface SettingNoticeLog {
@@ -64,6 +68,27 @@ export class SettingNoticeRegistry implements SettingNoticeRegistryPort {
         this.log?.error(
           { err: error, contributorModuleId: provider.contributorModuleId, settingCode: input.code },
           `A setting notice provider failed; the setting is shown without its notice.`,
+        );
+      }
+    }
+    return null;
+  }
+
+  /**
+   * The question to ask before a write, under the same failure policy as a
+   * notice: a provider that fails costs its question, is logged, and the next
+   * provider is asked.
+   */
+  async confirmationFor(input: SettingNoticeInput): Promise<SettingWriteConfirmation | null> {
+    for (const provider of this.forCode(input.code)) {
+      if (!provider.confirmation) continue;
+      try {
+        const confirmation = await provider.confirmation(input);
+        if (confirmation !== null) return confirmation;
+      } catch (error) {
+        this.log?.error(
+          { err: error, contributorModuleId: provider.contributorModuleId, settingCode: input.code },
+          `A setting confirmation provider failed; the setting is saved without asking.`,
         );
       }
     }

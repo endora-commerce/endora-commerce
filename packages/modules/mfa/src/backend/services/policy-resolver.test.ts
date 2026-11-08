@@ -174,8 +174,9 @@ describe('MfaPolicyResolver — the administrator role requirement', () => {
  * Issue #930 — without `MFA_SECRET_ENCRYPTION_KEY` this module serves no
  * enrolment route, so `mfa.admin.totp_enforced` demands a setup that nothing
  * can complete: every administrator without a factor is locked out. Where no
- * second factor can be enrolled, that one setting is not in force; nothing
- * else the resolver answers changes.
+ * second factor can be enrolled, no administrator requirement is in force —
+ * the setting, and since issue #948 a role's flag too; storefront and
+ * organization enforcement are unchanged here.
  */
 describe('MfaPolicyResolver — no second factor can be enrolled (issue #930)', () => {
   const noDefaultChannel = async (): Promise<string | null> => null;
@@ -226,13 +227,47 @@ describe('MfaPolicyResolver — no second factor can be enrolled (issue #930)', 
     expect(p.totpEnforced).toBe(true);
   });
 
-  it("keeps a role's requirement in force (#349 fails closed; only the setting is lifted)", async () => {
+  // Issue #948, owner ruling Q6 (2026-11-08): without a key nothing is
+  // enforced on an administrator, a role's requirement included.
+  it("does not enforce a role's requirement either", async () => {
     const resolver = new MfaPolicyResolver(
-      fakeSettings({ [MFA_SETTING_CODES.ADMIN_TOTP_ENFORCED]: true }),
+      fakeSettings({}),
       fakeEmFactory(null),
       roleOf(true),
       noDefaultChannel,
       false,
+    );
+    const p = await resolver.resolve(
+      { subjectType: 'admin', subjectId: 'a1' },
+      { salesChannelId: null },
+    );
+    expect(p.totpEnforced).toBe(false);
+  });
+
+  it('does not enforce on an unreadable role either: the fail-closed read is moot without a key', async () => {
+    const resolver = new MfaPolicyResolver(
+      fakeSettings({ [MFA_SETTING_CODES.ADMIN_TOTP_ENFORCED]: true }),
+      fakeEmFactory(null),
+      async () => {
+        throw new Error('admin_roles unavailable');
+      },
+      noDefaultChannel,
+      false,
+    );
+    const p = await resolver.resolve(
+      { subjectType: 'admin', subjectId: 'a1' },
+      { salesChannelId: null },
+    );
+    expect(p.totpEnforced).toBe(false);
+  });
+
+  it("still enforces a role's requirement where a factor can be enrolled", async () => {
+    const resolver = new MfaPolicyResolver(
+      fakeSettings({}),
+      fakeEmFactory(null),
+      roleOf(true),
+      noDefaultChannel,
+      true,
     );
     const p = await resolver.resolve(
       { subjectType: 'admin', subjectId: 'a1' },

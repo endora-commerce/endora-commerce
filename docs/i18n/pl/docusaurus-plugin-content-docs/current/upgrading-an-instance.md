@@ -4052,6 +4052,12 @@ opisuje strona modułu użytkowników panelu, sekcja *Role wymagające weryfikac
 - Modułu MFA nie można wyłączyć, dopóki którakolwiek rola wymaga weryfikacji dwuetapowej: ekran
   modułów odpowiada `409 MFA_DEACTIVATION_BLOCKED` i podaje te role. Najpierw odznacz pole w tych
   rolach. Gdy MFA jest wyłączone, pola nie można zaznaczyć.
+- **Włączenie Admin UI — enforce two-step verification (`mfa.admin.totp_enforced`) teraz
+  wylogowuje administratorów**, tak jak zaznaczenie pola w roli (zgłoszenie #349). Wcześniej
+  działało dopiero przy następnym logowaniu każdego administratora, które mogło nastąpić za
+  trzydzieści dni. Teraz każdy administrator bez skonfigurowanej weryfikacji dwuetapowej zostaje od
+  razu wylogowany, z wyjątkiem sesji, z której wprowadzono zmianę; **Ustawienia** najpierw pytają o
+  potwierdzenie i podają, ilu ich jest. Sama aktualizacja nikogo nie wylogowuje.
 
 **Przed aktualizacją:**
 
@@ -4073,16 +4079,13 @@ opisuje strona modułu użytkowników panelu, sekcja *Role wymagające weryfikac
    ```
 
 2. **Sprawdź, czy da się skonfigurować drugi składnik.** Bez `MFA_SECRET_ENCRYPTION_KEY` nie da
-   się zarejestrować drugiego składnika, więc posiadacze policzeni w `not_enrolled` trafiliby do
-   konfiguracji, której nie można dokończyć, i nie mogliby się zalogować. Jeśli klucz nie jest
-   ustawiony, **odznacz pole w tych rolach przed aktualizacją** albo najpierw ustaw klucz:
-
-   ```sql
-   update admin_roles set requires_two_factor = false where code = '<code>';
-   ```
-
-   Po aktualizacji instancja w takim stanie przy każdym starcie zapisuje ostrzeżenie z nazwami
-   ról i liczbą ich administratorów bez drugiego składnika.
+   się zarejestrować ani sprawdzić drugiego składnika, więc wymóg **nie jest stosowany**:
+   posiadacze logują się samym hasłem, jak przed aktualizacją. Ekran ról pokazuje pod polem
+   *Nie obowiązuje: brak klucza szyfrowania*, a backend przy każdym starcie zapisuje błąd z nazwami
+   ról i liczbą ich administratorów bez drugiego składnika. Ustaw klucz i uruchom backend ponownie,
+   jeśli wymóg ma obowiązywać; w przeciwnym razie odznacz pole w tych rolach, aby ekran pokazywał
+   to, co faktycznie się dzieje (zobacz
+   [Wymuszona weryfikacja dwuetapowa bez klucza szyfrowania](#admin-two-step-without-key)).
 3. **Zachowaj co najmniej jednego administratora, który może się zalogować.** Jeśli Twoja rola
    jest wśród wierszy, skonfiguruj weryfikację dwuetapową przed aktualizacją (*Bezpieczeństwo
    konta* w panelu administracyjnym) albo upewnij się, że administrator innej roli może się
@@ -4110,14 +4113,23 @@ administratora bez drugiego składnika do kroku konfiguracji, którego nie dało
   dopóki klucz nie zostanie ustawiony albo ustawienie wyłączone. Wcześniej ci administratorzy nie
   mogli się w ogóle zalogować.
 - Na instancji z kluczem nic się nie zmienia: wymuszanie działa jak dotąd.
-- Dotyczy to tylko tego ustawienia. Wymóg weryfikacji dwuetapowej w roli jest bez klucza nadal
-  egzekwowany, więc posiadacze takiej roli bez drugiego składnika nadal nie mogą się zalogować.
-  Odznacz to pole w tych rolach albo ustaw klucz (zobacz
-  [Wymóg weryfikacji dwuetapowej w roli jest egzekwowany](#role-two-factor-enforced)).
+- **Bez klucza drugi składnik nie jest wymagany w ogóle** (zgłoszenie #948):
+  - wymóg weryfikacji dwuetapowej w roli również nie jest stosowany; ekran ról pokazuje pod polem
+    ten sam komunikat (odczyt roli zawiera `twoFactorNotice.code: 'encryption_key_missing'`), a
+    błąd zapisywany przy każdym starcie podaje te role (zobacz
+    [Wymóg weryfikacji dwuetapowej w roli jest egzekwowany](#role-two-factor-enforced));
+  - administratorzy i klienci, którzy skonfigurowali weryfikację dwuetapową, gdy klucz był
+    ustawiony, nie są proszeni o kod, bo nic nie może go sprawdzić. Wcześniej nie mogli się w ogóle
+    zalogować. Backend przy każdym starcie zapisuje błąd z liczbą takich rejestracji;
+  - nikt nie zostaje wylogowany z powodu otrzymania roli, która wymaga weryfikacji dwuetapowej.
+  - bez klucza klienci również nie są proszeni o drugi składnik, niezależnie od tego, czy go
+    zarejestrowali, czy obowiązuje ich wymuszanie w sklepie lub w organizacji.
 
-**Po aktualizacji,** jeśli pojawi się ten komunikat albo błąd w logu, ustaw `MFA_SECRET_ENCRYPTION_KEY` (zobacz
-[listę kontrolną pierwszego wdrożenia](./deployment/first-deployment-checklist.md)) i uruchom
-backend ponownie, aby wymuszanie znów działało, albo wyłącz to ustawienie w **Ustawieniach**.
+**Po aktualizacji,** jeśli pojawi się komunikat albo błąd w logu, ustaw `MFA_SECRET_ENCRYPTION_KEY`
+(zobacz [listę kontrolną pierwszego wdrożenia](./deployment/first-deployment-checklist.md)) i
+uruchom backend ponownie, aby wymuszanie znów działało, albo wyłącz to ustawienie w
+**Ustawieniach** i odznacz pole w rolach. Ustaw ten klucz, z którym utworzono rejestracje:
+rejestracji utworzonej innym kluczem nie da się nim sprawdzić.
 
 ### Terminy zwrotu liczą się od realizacji zamówienia {#return-window-from-completion}
 

@@ -13,7 +13,8 @@ export interface RoleRequirementBootWarningDeps {
   readonly holdersOf: (roleId: string) => Promise<readonly string[]>;
   /** The subset of these administrators with an active enrolment. */
   readonly activeAdminIds: (adminUserIds: readonly string[]) => Promise<readonly string[]>;
-  readonly warn: (fields: Record<string, unknown>, message: string) => void;
+  /** Logged at error level, as `mfa.admin.totp_enforced`'s report is. */
+  readonly error: (fields: Record<string, unknown>, message: string) => void;
 }
 
 /**
@@ -28,21 +29,20 @@ export function describeUnenforceableRoleRequirements(
   return (
     'MFA_SECRET_ENCRYPTION_KEY is not set, so no second factor can be enrolled, yet these roles ' +
     `require one; the number of their administrators with no enrolled factor is in brackets: ${named}. ` +
-    'Those administrators are sent to a setup step at sign-in that cannot be completed. Set ' +
-    'MFA_SECRET_ENCRYPTION_KEY, or turn off "Requires two-step verification" on these roles ' +
-    '(on the Roles screen as an administrator whose role does not require it, or with ' +
-    '`update admin_roles set requires_two_factor = false where code = \'<code>\'`).'
+    'The requirement is not applied: those administrators sign in with their password alone. Set ' +
+    'MFA_SECRET_ENCRYPTION_KEY and restart to apply it, or turn off "Requires two-step ' +
+    'verification" on these roles.'
   );
 }
 
 /**
  * Issue #349, M5 — without an encryption key this module composes but serves
- * no enrolment route, while `beginLogin` still answers `setup` for an
- * administrator a role binds. That is a lockout for every unenrolled holder,
- * so it is reported at every boot until it is gone, naming the roles and how
- * many holders each has without a factor. The role write already refuses the
- * flag in this state; this is for a flag set before the key went, or before
- * the refusal existed.
+ * no enrolment route, so a role's requirement is not applied there (issue
+ * #948, owner ruling Q6): a ticked box that does nothing. It is reported at
+ * every boot until it is gone, at error level as `mfa.admin.totp_enforced`'s
+ * report is, naming the roles and how many holders each has without a factor.
+ * The role write already refuses the flag in this state; this is for a flag set
+ * before the key went, or before the refusal existed.
  */
 export async function warnOfUnenforceableRoleRequirements(
   deps: RoleRequirementBootWarningDeps,
@@ -60,5 +60,5 @@ export async function warnOfUnenforceableRoleRequirements(
     });
   }
   const message = describeUnenforceableRoleRequirements(roles);
-  if (message !== null) deps.warn({ rolesRequiringTwoFactor: roles }, message);
+  if (message !== null) deps.error({ rolesRequiringTwoFactor: roles }, message);
 }

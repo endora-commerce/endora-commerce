@@ -18,8 +18,9 @@ export interface MfaAdminEnforcementDeps {
 }
 
 /**
- * Issue #349 — what a role's two-factor requirement does to the sessions it
- * finds already open.
+ * Issue #349 — what a second-factor requirement (a role's flag, or since
+ * E-349-1 `mfa.admin.totp_enforced`) does to the sessions it finds already
+ * open.
  *
  * Mirrors `factor-withdrawal.ts`, which ends sessions when a factor is removed:
  * the sessions here were opened **without** a factor that is now required, so
@@ -27,8 +28,9 @@ export interface MfaAdminEnforcementDeps {
  * an active enrolment is left alone — their session was opened through a
  * challenge, or they proved the factor by confirming it.
  *
- * Called by `admin_users` after its write is persisted, never before, so a
- * write that is refused or rolled back signs nobody out. Session revocation is
+ * Called by `admin_users` after its write is persisted, and by this module's
+ * `settings.value_changed` subscriber after the setting's write has committed
+ * — never before, so a write that is refused or rolled back signs nobody out. Session revocation is
  * auth bookkeeping rather than a domain write, as it is for a password change
  * and a factor removal; it is audited here, one row per call that affected
  * anybody.
@@ -40,6 +42,9 @@ export class MfaAdminEnforcementService implements MfaAdminEnforcementPort {
     adminUserIds: readonly string[],
     options: MfaEndUnprotectedAdminSessionsOptions,
   ): Promise<number> {
+    // Issue #948 — without a key no requirement is in force, so it binds
+    // nobody and nobody is signed out on its account.
+    if (!this.deps.canEnforce) return 0;
     const unprotected = await this.unprotected(adminUserIds);
     const destroyOptions =
       options.exceptSessionId === undefined ? undefined : { exceptSessionId: options.exceptSessionId };
@@ -48,17 +53,28 @@ export class MfaAdminEnforcementService implements MfaAdminEnforcementPort {
       await this.deps.invalidatePending(adminUserId);
     }
     if (unprotected.length > 0) {
-      await this.deps.auditLog.record({
-        action: 'mfa.admin_sessions_ended_for_requirement',
-        objectType: 'admin_role',
-        objectId: options.roleCode,
-        stateAfter: { trigger: options.trigger, roleCode: options.roleCode, count: unprotected.length },
-      });
+      const count = unprotected.length;
+      await this.deps.auditLog.record(
+        options.trigger === 'setting_enabled'
+          ? {
+              action: 'mfa.admin_sessions_ended_for_requirement',
+              objectType: 'setting',
+              objectId: options.settingCode,
+              stateAfter: { trigger: options.trigger, settingCode: options.settingCode, count },
+            }
+          : {
+              action: 'mfa.admin_sessions_ended_for_requirement',
+              objectType: 'admin_role',
+              objectId: options.roleCode,
+              stateAfter: { trigger: options.trigger, roleCode: options.roleCode, count },
+            },
+      );
     }
     return unprotected.length;
   }
 
   async countUnprotected(adminUserIds: readonly string[]): Promise<number> {
+    if (!this.deps.canEnforce) return 0;
     return (await this.unprotected(adminUserIds)).length;
   }
 
