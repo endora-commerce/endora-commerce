@@ -81,7 +81,10 @@ describe('Anonymization sweep — reasons written about the subject’s carts (i
         const org = await orgs.anonymizeIfOrphaned(id);
         return org ? toOrganizationRecord(org) : null;
       },
-    } as PersonalOrganizationPort;
+      // Issue #923 — the sweep's second work-list source.
+      listIncompletelyScrubbed: () => orgs.listIncompletelyScrubbed(),
+      hasIncompletelyScrubbed: () => orgs.hasIncompletelyScrubbed(),
+    };
   }
 
   function buildService(overrides: { accountWrites?: CustomerAccountLifecycleWritePort } = {}): CustomerDeletionService {

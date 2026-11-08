@@ -176,6 +176,8 @@ describe('CustomerDeletionService.sweep — subjects an earlier rule left unfini
       {} as OrganizationDepletionGuard,
       { anonymizeForOrganization: async () => 0 },
       async () => 365,
+      // Issue #920 — `carts`' step; these harnesses seed no cart.
+      { anonymizeForCustomerAccount: async () => 0 },
     );
     return { service, processed, disabled };
   }
@@ -283,6 +285,8 @@ describe('CustomerDeletionService.hasDue (issue #857)', () => {
       {} as OrganizationDepletionGuard,
       { anonymizeForOrganization: async () => 0 },
       async () => 365,
+      // Issue #920 — `carts`' step; these harnesses seed no cart.
+      { anonymizeForCustomerAccount: async () => 0 },
     );
     return { service, asked };
   }
