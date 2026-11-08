@@ -299,6 +299,7 @@ export function customersModule(options: CustomersModuleOptions): {
     depletionGuard,
     options.addressServicePort,
     options.resolveDeletionRetentionDays,
+    addressBookRetirement,
   );
   const presenceService = new CustomerPresenceService(
     {

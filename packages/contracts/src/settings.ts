@@ -202,6 +202,19 @@ export const SettingValueByChannelSchema = z.object({
   updatedAt: z.iso.datetime(),
 });
 
+/**
+ * Issue #930 — the module that declared a setting says that what is stored is
+ * not what is in force, so the Settings screen does not show a setting as "on"
+ * while it does nothing. `code` is a token the screen looks up in the owner's
+ * bundle (`settingLabels.<setting code>.notice.<code>`); `message` is the
+ * English sentence it falls back to.
+ */
+export const SettingNoticeSchema = z.object({
+  code: z.string().min(1),
+  message: z.string().min(1),
+});
+export type SettingNotice = z.infer<typeof SettingNoticeSchema>;
+
 export const SettingDtoSchema = z.object({
   id: z.uuid(),
   code: z.string(),
@@ -269,6 +282,11 @@ export const SettingDtoSchema = z.object({
    * setting the ordinary write path refuses (the audited Command owns it).
    */
   activationControl: z.boolean().optional(),
+  /**
+   * Issue #930 — present only while the owning module says the stored value is
+   * not in force (see {@link SettingNoticeSchema}). Absent otherwise.
+   */
+  notice: SettingNoticeSchema.optional(),
 });
 export type SettingDto = z.infer<typeof SettingDtoSchema>;
 
@@ -581,6 +599,44 @@ export interface SettingWriteValidator {
   readonly codes: readonly string[];
   /** Throws an `HttpError` to refuse. Resolving is acceptance. */
   validate(input: SettingWriteValidationInput): Promise<void>;
+}
+
+// ---------------------------------------------------------------------------
+// Read notices, contributed by the owning module (issue #930)
+// ---------------------------------------------------------------------------
+
+export interface SettingNoticeInput {
+  readonly code: string;
+  /** The module that declared the setting. */
+  readonly ownerModuleId: string;
+  /**
+   * The platform-wide value in force before any per-channel row: the stored
+   * global value, else the manifest default. `null` for a `secret` setting,
+   * whose value never leaves `settings`.
+   */
+  readonly value: unknown;
+}
+
+export interface SettingNoticeProvider {
+  /** The module contributing the provider — used for the presence filter. */
+  readonly contributorModuleId: string;
+  /** Exact setting codes, for the reason {@link SettingWriteValidator.codes} gives. */
+  readonly codes: readonly string[];
+  /** A notice to show beside the setting, or `null` when there is nothing to say. */
+  notice(input: SettingNoticeInput): Promise<SettingNotice | null>;
+}
+
+/**
+ * Container name: `settingNoticeRegistry`. Owner: `settings`. A contribution
+ * seam like {@link SettingWriteValidatorRegistryPort}: pushed into once from a
+ * boot hook, and filtered by contributor presence.
+ */
+export interface SettingNoticeRegistryPort {
+  register(provider: SettingNoticeProvider): void;
+  /** Providers for `code`, filtered by contributor presence. */
+  forCode(code: string): readonly SettingNoticeProvider[];
+  /** The first notice a present provider gives for the setting, or `null`. */
+  noticeFor(input: SettingNoticeInput): Promise<SettingNotice | null>;
 }
 
 /**

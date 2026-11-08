@@ -38,11 +38,16 @@ opisane własnym zdaniem, na przykład *Wpisz ulicę i numer.*
 
 ## Anonimizacja
 
-`addressServicePort.anonymizeForOrganization(organizationId)` czyści każdy aktywny adres organizacji
-(`-` w polach odbiorcy, ulicy, miejscowości i kodu pocztowego; bez telefonu; nie jest domyślny; kraj
-zostaje), miękko go usuwa i zapisuje jeden wpis audytu `address.anonymized` na adres, bez autora.
-Wywołuje ją zadanie anonimizacji modułu `customers`, gdy anonimizuje organizację prywatną klienta
-indywidualnego. Zamówienia zachowują własne kopie adresów.
+`addressServicePort.anonymizeForOrganization(organizationId)` czyści każdy adres organizacji, także
+już usunięty (`-` w polach odbiorcy, ulicy, miejscowości i kodu pocztowego; bez telefonu; nie jest
+domyślny; kraj zostaje), miękko go usuwa (usunięty adres zachowuje datę usunięcia) i zapisuje jeden
+wpis audytu `address.anonymized` na adres, bez autora. Wpis odnotowuje tylko organizację, rodzaj
+adresu i to, czy adres był już usunięty. Adres już wyczyszczony jest pomijany, więc ponowne
+wywołanie niczego nie zmienia. Wywołuje ją zadanie anonimizacji modułu `customers`, gdy anonimizuje
+organizację prywatną klienta indywidualnego. Zamówienia zachowują własne kopie adresów.
+
+`addressReadPort.listIdsForOrganization(organizationId, { includeDeleted })` zwraca identyfikatory
+adresów organizacji, a gdy `includeDeleted` ma wartość `true`, także adresów usuniętych.
 
 ## Encje
 

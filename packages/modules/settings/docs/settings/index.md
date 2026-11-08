@@ -161,6 +161,37 @@ keeps its asset or image editor. And removing the flag does not rewrite
 anything: a stored value keeps its line breaks until an operator next edits it
 in the single-line field, which cannot hold them.
 
+### Validating writes, and saying a value is not in force
+
+Two contribution registries let the module that declared a setting answer for
+it, from a boot hook, while `settings` keeps owning storage and resolution. A
+contributor whose module is off is skipped by both.
+
+- `settingWriteValidatorRegistry` (`SettingWriteValidatorRegistryPort`): a
+  validator refuses a value before it is stored, by throwing an `HttpError`.
+- `settingNoticeRegistry` (`SettingNoticeRegistryPort`): a provider says that
+  the stored platform-wide value is not what is in force, by answering
+  `{ code, message }`, or `null` when there is nothing to say. Every admin
+  settings response then carries it as `notice`; the key is absent otherwise.
+  The Settings screen shows it under the description, translated from your
+  bundle at `settingLabels.<setting code>.notice.<code>`, else `message`. A
+  provider that throws is logged and skipped: the setting is shown without
+  its notice. `mfa` uses it for `mfa.admin.totp_enforced` when no encryption
+  key is configured.
+
+```ts
+ctx.onBoot(() => {
+  lazyPort<SettingNoticeRegistryPort>(ctx, 'settingNoticeRegistry').register({
+    contributorModuleId: 'your_module',
+    codes: ['your_module.enabled'],
+    notice: async ({ value }) =>
+      value === true && !configured()
+        ? { code: 'not_configured', message: 'Not in force: the connection is not configured.' }
+        : null,
+  });
+});
+```
+
 ## For platform admins — editing values
 
 Open `Admin → Operations → Settings`. Settings are grouped by their owning

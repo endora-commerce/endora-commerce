@@ -1,4 +1,5 @@
 import type { EntityManager } from '@mikro-orm/postgresql';
+import type { FilterQuery } from '@mikro-orm/core';
 import {
   DictionaryReferenceError,
   ERROR_CODES,
@@ -151,7 +152,7 @@ export class AddressService {
   }
 
   /**
-   * Clear **and** blank every live address of the Organization
+   * Clear **and** blank every address of the Organization
    * (`specs/173-b2c-address-book-merge/` OD-7) — the retention sweep's call
    * for a personal Organization it has just anonymized. The personal fields
    * become `'-'`, the phone `null`, the default flag `false`; the country stays
@@ -159,13 +160,21 @@ export class AddressService {
    * soft-deleted. One `address.anonymized` entry per row, with a null actor and
    * no personal data, in the same transaction as the scrub. Order snapshots are
    * copies on `orders`' rows and are not touched. Answers the number of rows.
+   *
+   * **Every row, the soft-deleted ones included (issue #927).** An address the
+   * customer deleted before the sweep reached them still holds the street, the
+   * phone and the name, so it is blanked too; it keeps its own `deletedAt`,
+   * and its entry says `wasDeleted: true`. A row is selected only while some
+   * part of the scrub is missing from it ({@link anonymizationResidue}), so a
+   * repeat call scrubs and records nothing.
    */
   async anonymizeForOrganization(organizationId: string): Promise<number> {
     const em = this.emFactory();
     return em.transactional(async (txEm) => {
-      const rows = await txEm.find(Address, { organizationId, deletedAt: null });
+      const rows = await txEm.find(Address, { organizationId, ...anonymizationResidue() });
       const now = new Date();
       for (const address of rows) {
+        const wasDeleted = address.deletedAt != null;
         // command-coverage-ignore: the retention sweep's system-initiated scrub,
         // audited below with the null actor that fact deserves.
         address.recipientName = ANONYMIZED;
@@ -174,13 +183,13 @@ export class AddressService {
         address.postalCode = ANONYMIZED;
         address.phone = null;
         address.isDefault = false;
-        address.deletedAt = now;
+        address.deletedAt ??= now;
         this.auditLog?.recordWithin(txEm, {
           actorAdminUserId: null,
           action: 'address.anonymized',
           objectType: 'address',
           objectId: address.id,
-          stateBefore: { organizationId, kind: address.kind },
+          stateBefore: { organizationId, kind: address.kind, wasDeleted },
           stateAfter: { anonymizedAt: now.toISOString() },
         });
       }
@@ -210,4 +219,26 @@ export class AddressService {
       throw err;
     }
   }
+}
+
+/**
+ * The rows {@link AddressService.anonymizeForOrganization} still has work on:
+ * any field of the scrub not yet written, `deletedAt` included (issue #927).
+ * The negation of a fully scrubbed row, as a filter over this module's own
+ * table; a field added to the scrub is added here, or a row missing only that
+ * field is never selected again. Built per call: the ORM may rewrite a filter
+ * object it is handed.
+ */
+export function anonymizationResidue(): { $or: Array<FilterQuery<Address>> } {
+  return {
+    $or: [
+      { deletedAt: null },
+      { recipientName: { $ne: ANONYMIZED } },
+      { street: { $ne: ANONYMIZED } },
+      { city: { $ne: ANONYMIZED } },
+      { postalCode: { $ne: ANONYMIZED } },
+      { phone: { $ne: null } },
+      { isDefault: true },
+    ],
+  };
 }
