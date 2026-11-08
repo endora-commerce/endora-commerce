@@ -67,17 +67,22 @@ describe('905 — orders.completed_at [integration]', () => {
     return order.id;
   }
 
-  const row = async (orderId: string) =>
-    (
-      (await h
-        .em()
-        .getConnection()
-        .execute(`select "status", "completed_at", "updated_at" from "orders" where "id" = ?`, [orderId])) as Array<{
-        status: string;
-        completed_at: Date | null;
-        updated_at: Date;
-      }>
-    )[0]!;
+  /** The stored row; raw timestamps arrive as text, so they are read back as instants. */
+  const row = async (orderId: string) => {
+    const [stored] = (await h
+      .em()
+      .getConnection()
+      .execute(`select "status", "completed_at", "updated_at" from "orders" where "id" = ?`, [orderId])) as Array<{
+      status: string;
+      completed_at: Date | string | null;
+      updated_at: Date | string;
+    }>;
+    return {
+      status: stored!.status,
+      completed_at: stored!.completed_at === null ? null : new Date(stored!.completed_at),
+      updated_at: new Date(stored!.updated_at),
+    };
+  };
 
   const transition = (orderId: string, to: string) =>
     h.app.inject({ method: 'POST', url: `/api/v1/admin/orders/${orderId}/status`, payload: { to }, ...ADMIN });

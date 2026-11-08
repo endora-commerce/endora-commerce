@@ -3803,6 +3803,30 @@ bound channel that is switched off was already refused, with `400 INACTIVE_SALES
    to the integration and revoke the old one. A key's binding cannot be edited.
 3. **Run the query again.** It returns no rows when every integration can place orders.
 
+### Return windows count from the order's completion {#return-window-from-completion}
+
+The release that ships this change records when an order was completed (`orders.completed_at`,
+issue #905) and counts the return windows from it. Until now they counted from the order's last
+edit, which moved forward whenever a completed order was changed. The migration fills the new column
+with each completed order's `updated_at`, which is the moment those orders were judged by before, so
+nothing changes for existing orders at upgrade time.
+
+Two things do change from then on:
+
+- **Calendar days.** The free-return window (`returns.free_return_days`) now ends at the end of its
+  last calendar day, and a last day on a Saturday or Sunday moves to the Monday. Before, it ended
+  exactly `free_return_days × 24 h` after the anchor. A case can now be free-return eligible up to a
+  day later than before (up to three over a weekend), never earlier.
+- **A time zone.** The days are counted in a new setting, `returns.time_zone` (default
+  `Europe/Warsaw`, settable per sales channel).
+
+**After upgrading:**
+
+1. **If the shop is not in `Europe/Warsaw`**, set `returns.time_zone` to its zone, for example
+   `Europe/Berlin`, on the Admin Settings screen (group *Returns*).
+2. **Tell the operators to complete an order when the goods have been delivered.** The consumer's
+   withdrawal period counts from the order's completion, because the platform has no delivery date.
+
 ## An instance that is mixed from the start
 
 The installer of `0.101.x` or earlier wrote every package of the release with a `^` except

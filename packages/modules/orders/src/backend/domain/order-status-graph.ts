@@ -66,6 +66,14 @@ export interface OrderTransitionDef {
  */
 export { ORDER_STATUS_ON_HOLD, ORDER_STATUS_CANCELLED, ORDER_STATUS_INITIAL };
 
+/**
+ * The fulfilment-completing status (feature 046, research R4): the one whose
+ * entry `orders.completed_at` records (issue #905), and from which a return's
+ * free window and a consumer's withdrawal period are counted. It is a system
+ * status, so an operator cannot delete or rename it.
+ */
+export const ORDER_STATUS_COMPLETED = 'completed';
+
 /** The 9 default statuses shipped on install (data-model.md §1). */
 export const DEFAULT_ORDER_STATUSES: OrderStatusDef[] = [
   { code: 'new', name: { en: 'New', pl: 'Nowy' }, defaultName: 'New', isInitial: true, isTerminal: false, isSystem: true, weight: 10, color: '#64748b' },

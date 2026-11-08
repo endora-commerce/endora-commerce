@@ -109,8 +109,11 @@ trafia do dziennika audytu.
 
 - **Uprawnienie do zwrotu i okres bezpłatnego zwrotu** — sprawę można otworzyć, gdy zamówienie
   osiągnie status kończący realizację; okres bezpłatnego zwrotu (`returns.free_return_days`,
-  domyślnie **14** zgodnie z dyrektywą (UE) 2023/2673) liczy się od tej chwili i decyduje, kto
-  ponosi koszt przesyłki zwrotnej.
+  domyślnie **14**, ustawowy termin na odstąpienie od umowy z art. 9 dyrektywy 2011/83) liczy się
+  od tej chwili i decyduje, kto ponosi koszt przesyłki zwrotnej. Tą chwilą jest realizacja
+  zamówienia zapisana przez moduł `orders` (`orders.completed_at`), której późniejsza edycja
+  zamówienia nie przesuwa; we wcześniejszych wydaniach była nią ostatnia edycja zamówienia. Zob. *Liczenie
+  terminów* poniżej.
 - **Numeracja RMA** — `${prefix}${sequence}${suffix}` z `returns.rma_number_prefix` /
   `returns.rma_number_suffix`, nadawana przy autoryzacji, unikalna i nigdy nieużywana ponownie.
 - **Zwroty częściowe i wielokrotne** — ilość w każdej pozycji jest ograniczona do pozostałej ilości
@@ -152,6 +155,35 @@ trafia do dziennika audytu.
   odpowiada `{ data: { deleted: <id> } }`. Widoki zapisane przed wprowadzeniem tych reguł zachowują
   nazwy w zapisanej postaci — także puste i zdublowane — dopóki właściciel ich nie zmieni lub nie
   usunie; zmiana, która nie dotyczy nazwy, nigdy nie jest z tego powodu odrzucana.
+
+## Liczenie terminów
+
+Oba terminy, które ocenia ten moduł — okres bezpłatnego zwrotu kanału i ustawowy termin konsumenta
+na odstąpienie od umowy — liczą się od tej samej chwili: wejścia zamówienia w status kończący
+realizację (`completingStatusEnteredAt` z `OrderReturnContextPort`). Zamówienie, które nie zostało
+zrealizowane, nie rozpoczęło żadnego z nich. Platforma nie zna daty doręczenia (sukces przesyłki
+oznacza przyjęcie paczki przez przewoźnika, co następuje wcześniej, niż konsument ją otrzyma), więc
+zrealizowanie zamówienia przez operatora jest najbliższym dostępnym faktem; strona Orders prosi
+operatorów, by realizowali zamówienie, gdy towar został doręczony. Moduł nie odczytuje do tego
+modułu Shipments, więc jego wyłączenie nie zmienia żadnego z terminów.
+
+- **Dni kalendarzowe w `returns.time_zone`.** Termin *n* dni kończy się z końcem *n*-tego dnia
+  kalendarzowego po dniu realizacji, w strefie wskazanej przez ustawienie (nazwa IANA, domyślnie
+  `Europe/Warsaw`, ustawiana także dla kanału sprzedaży; strefa nieznana środowisku jest
+  odrzucana). Samego dnia realizacji się nie wlicza.
+- **Weekendy.** Ostatni dzień przypadający w sobotę lub niedzielę przesuwa się na najbliższy
+  poniedziałek. Święta nie są uwzględniane: nie ma kalendarza świąt.
+- **Termin ustawowy** wynosi 14 dni bez względu na `returns.free_return_days` — kanał ustawiony na
+  `0` lub na mniej dni nie może go skrócić.
+- **7 dni karencji.** Operator może zrealizować zamówienie, zanim paczka dotrze, dlatego odstąpienie
+  od umowy pozostaje możliwe jeszcze przez 7 dni kalendarzowych po późniejszym z dwóch końców:
+  terminu ustawowego i okresu bezpłatnego zwrotu kanału. Odstąpienie złożone w okresie karencji jest
+  przyjmowane i oznaczane jako złożone po terminie ustawowym, do oceny operatora.
+
+We wcześniejszych wydaniach okres bezpłatnego zwrotu kończył się dokładnie `free_return_days × 24 h` po
+ostatniej edycji zamówienia. Teraz kończy się do jednego dnia później (do trzech przy weekendzie),
+nigdy wcześniej. Termin ustawowy i okres karencji wylicza `domain/withdrawal-period.ts`; funkcja
+odstąpienia od umowy, która z nich korzysta, pojawi się w kolejnym wydaniu.
 
 ## Produkty podlegające zwrotowi
 
