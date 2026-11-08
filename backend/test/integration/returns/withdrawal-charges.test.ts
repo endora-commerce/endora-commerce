@@ -155,10 +155,10 @@ describe('returns — a consumer withdrawal refunds the delivery and the surchar
       : null;
     await em.persistAndFlush(other ? [item, other] : [item]);
     if (opts.completedDaysAgo) {
-      // The order entered `completed` that long ago (the anchor master reads is `updated_at`).
+      // The order entered `completed` that long ago: `orders.completed_at`, the withdrawal period's anchor (#905).
       await em
         .getKnex()
-        .raw(`update orders set updated_at = now() - (? * interval '1 day') where id = ?`, [opts.completedDaysAgo, order.id]);
+        .raw(`update orders set completed_at = now() - (? * interval '1 day') where id = ?`, [opts.completedDaysAgo, order.id]);
     }
     return { orderId: order.id, item: item.id, ...(other ? { other: other.id } : {}) };
   }
