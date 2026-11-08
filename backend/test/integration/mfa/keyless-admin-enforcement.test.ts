@@ -29,6 +29,10 @@ import { AdminUser } from '../../helpers/package-entities.js';
  *    warning says so (held by the module's unit test).
  *  - With `mfa` off its validator does not answer: the platform's own
  *    read-only refusal does, as for every other setting of an absent module.
+ *  - Issue #948 (owner ruling Q6): no second factor is asked for at all — not
+ *    by a role's flag, not of an administrator who enrolled while the key was
+ *    there — the Roles screen says a flagged role is not in force, and giving
+ *    someone a flagged role signs nobody out.
  *
  * The harness pins the key for every file, so this one withholds it before it
  * composes and puts it back afterwards.
@@ -217,6 +221,130 @@ describe('mfa.admin.totp_enforced without an encryption key (issue #930)', () =>
     expect((login.json() as { data: { status: string } }).data.status).toBe('authenticated');
 
     expect((await putEnforced(false)).statusCode).toBe(200);
+  });
+
+  // --- Issue #948, owner ruling Q6 (2026-11-08) ------------------------------
+  // Without the key no second factor is asked for at all: not by the setting,
+  // not by a role's flag, and not of an administrator who enrolled while the
+  // key was there — nothing could check the code.
+
+  const createAdmin = async (email: string, adminRoleId: string): Promise<string> => {
+    const res = await h.app.inject({
+      method: 'POST',
+      url: '/api/v1/admin/admin-users',
+      cookies: STUB_ADMIN,
+      payload: { email, password: PASSWORD, firstName: 'Key', lastName: 'Less', adminRoleId },
+    });
+    expect(res.statusCode).toBe(201);
+    return (res.json() as { data: { id: string } }).data.id;
+  };
+
+  const putRole = (code: string, requiresTwoFactor: boolean) =>
+    h.app.inject({
+      method: 'PUT',
+      url: `/api/v1/admin/admin-roles/${code}`,
+      cookies: STUB_ADMIN,
+      payload: { code, name: code, permissions: ['orders:read'], requiresTwoFactor },
+    });
+
+  /** A role whose flag was set before the key went: written past the refusal. */
+  const flaggedRole = async (code: string): Promise<string> => {
+    const res = await putRole(code, false);
+    expect(res.statusCode).toBe(200);
+    await h
+      .em()
+      .getConnection()
+      .execute(`update "admin_roles" set "requires_two_factor" = true where "code" = ?`, [code]);
+    return (res.json() as { data: { id: string } }).data.id;
+  };
+
+  const signIn = (email: string) =>
+    h.app.inject({
+      method: 'POST',
+      url: '/api/v1/auth/admin/login',
+      payload: { email, password: PASSWORD },
+    });
+
+  it("refuses ticking a role's box, as it refuses the setting", async () => {
+    expect((await putRole('keyless_refused', false)).statusCode).toBe(200);
+    const res = await putRole('keyless_refused', true);
+    expect(res.statusCode).toBe(409);
+    const error = res.json().error as { code: string; details: Record<string, unknown> };
+    expect(error.code).toBe('MFA_REQUIRED_FOR_ROLE_TWO_FACTOR');
+    expect(error.details).toMatchObject({ reason: 'encryption_key_missing' });
+  });
+
+  it("signs an unenrolled holder of a flagged role in on the password", async () => {
+    const roleId = await flaggedRole('keyless_flagged');
+    await createAdmin('keyless-holder@example.com', roleId);
+    const res = await signIn('keyless-holder@example.com');
+    expect(res.statusCode).toBe(200);
+    expect((res.json() as { data: { status: string } }).data.status).toBe('authenticated');
+  });
+
+  it('signs an administrator who enrolled before the key went in on the password', async () => {
+    const adminId = await createAdmin('keyless-enrolled@example.com', PLATFORM_ADMIN_ROLE_ID);
+    await h
+      .em()
+      .getConnection()
+      .execute(
+        `insert into "mfa_enrolments"
+           ("id", "subject_type", "subject_id", "status", "secret_ciphertext", "secret_iv",
+            "secret_auth_tag", "confirmed_at", "created_at", "updated_at")
+         values (gen_random_uuid(), 'admin', ?, 'active', decode('00', 'hex'),
+                 decode('00', 'hex'), decode('00', 'hex'), now(), now(), now())`,
+        [adminId],
+      );
+    const res = await signIn('keyless-enrolled@example.com');
+    expect(res.statusCode).toBe(200);
+    expect((res.json() as { data: { status: string } }).data.status).toBe('authenticated');
+  });
+
+  it("says on the Roles screen that a flagged role's requirement is not in force", async () => {
+    await flaggedRole('keyless_noticed');
+    expect((await putRole('keyless_plain', false)).statusCode).toBe(200);
+    const res = await h.app.inject({
+      method: 'GET',
+      url: '/api/v1/admin/admin-roles',
+      cookies: STUB_ADMIN,
+    });
+    expect(res.statusCode).toBe(200);
+    const roles = (res.json() as { data: Array<{ code: string; twoFactorNotice?: unknown }> }).data;
+    expect(roles.find((r) => r.code === 'keyless_noticed')?.twoFactorNotice).toEqual({
+      code: 'encryption_key_missing',
+      message: 'Not in force: no encryption key (MFA_SECRET_ENCRYPTION_KEY).',
+    });
+    expect(roles.find((r) => r.code === 'keyless_plain')).not.toHaveProperty('twoFactorNotice');
+  });
+
+  it('signs nobody out for being given a flagged role, which binds nobody here', async () => {
+    const roleId = await flaggedRole('keyless_assigned');
+    const adminId = await createAdmin('keyless-assigned@example.com', PLATFORM_ADMIN_ROLE_ID);
+    const login = await signIn('keyless-assigned@example.com');
+    const cookie = login.cookies.find((c) => c.name === ADMIN_SESSION_COOKIE_NAME)!.value;
+    const patch = await h.app.inject({
+      method: 'PATCH',
+      url: `/api/v1/admin/admin-users/${adminId}`,
+      cookies: STUB_ADMIN,
+      payload: { adminRoleId: roleId },
+    });
+    expect(patch.statusCode).toBe(200);
+    const me = await h.app.inject({
+      method: 'GET',
+      url: '/api/v1/admin/me',
+      cookies: { [ADMIN_SESSION_COOKIE_NAME]: cookie },
+    });
+    expect(me.statusCode).toBe(200);
+  });
+
+  it('asks the Settings screen for no sign-out confirmation, where the write is refused', async () => {
+    expect((await putEnforced(false)).statusCode).toBe(200);
+    const detail = await h.app.inject({
+      method: 'GET',
+      url: `/api/v1/admin/settings/${ENFORCED}`,
+      cookies: STUB_ADMIN,
+    });
+    expect(detail.json()).not.toHaveProperty('confirmation');
   });
 
   it('leaves the refusal to the platform while mfa is off', async () => {

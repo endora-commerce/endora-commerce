@@ -307,6 +307,41 @@ export function SettingsPage(): ReactNode {
 
   const saveAll = useCallback(async (): Promise<void> => {
     if (allDirtySettings.length === 0) return;
+    // Issue #349, E-349-1 — the owning module may ask before a value is written
+    // (switching `mfa.admin.totp_enforced` on signs administrators out). Asked
+    // before anything is saved, so declining saves nothing. The setting is
+    // re-read first, so the question carries the count in force now rather
+    // than the one the screen loaded with; a re-read that asks nothing saves
+    // without asking.
+    const confirmed: SettingDto[] = [];
+    for (const s of allDirtySettings) {
+      const draft = drafts[s.code];
+      if (!draft || !s.confirmation) continue;
+      let value: unknown;
+      try {
+        value = parseValue(s.valueType, draft.text);
+      } catch {
+        continue; // the save below reports the unparsable value
+      }
+      if (JSON.stringify(value) !== JSON.stringify(s.confirmation.whenValue)) continue;
+      let fresh: SettingDto;
+      try {
+        fresh = await settingsClient.getByCode(s.code);
+      } catch (err) {
+        setError(err instanceof ApiError ? err.envelope.error.message : 'Save failed.');
+        return;
+      }
+      if (
+        !fresh.confirmation ||
+        JSON.stringify(value) !== JSON.stringify(fresh.confirmation.whenValue)
+      ) {
+        continue;
+      }
+      const question = labels.settingConfirmation(fresh);
+      if (question === null) continue;
+      if (!window.confirm(question)) return;
+      confirmed.push(fresh);
+    }
     setSaving(true);
     setError(null);
     setInfo(null);
@@ -354,11 +389,23 @@ export function SettingsPage(): ReactNode {
 
     setConflicts((prev) => ({ ...prev, ...newConflicts }));
     if (savedCodes.size > 0) {
-      setInfo(t('editor.savedNotice', { count: savedCodes.size }));
+      // What an accepted confirmation set in motion, in the owner's words
+      // (`settingLabels.<code>.confirmed.<token>`): one line, with no count —
+      // the sign-out runs after the commit, so no number is known yet. It
+      // replaces the saved-count line rather than sitting beside it.
+      const followUps = confirmed
+        .filter((setting) => savedCodes.has(setting.code))
+        .map((setting) => labels.settingConfirmed(setting))
+        .filter((line): line is string => line !== null);
+      setInfo(
+        followUps.length > 0
+          ? followUps.join(' ')
+          : t('editor.savedNotice', { count: savedCodes.size }),
+      );
     }
     await refresh();
     setSaving(false);
-  }, [allDirtySettings, channelContext, drafts, refresh, t]);
+  }, [allDirtySettings, channelContext, drafts, labels, refresh, t]);
 
   const resetSetting = useCallback(
     async (code: string): Promise<void> => {

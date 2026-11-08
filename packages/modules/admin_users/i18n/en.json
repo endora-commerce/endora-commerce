@@ -15,5 +15,6 @@
   "roles.twoFactor.help": "Administrators with this role must sign in with a second factor; those who have not set one up are asked to at their next sign-in.",
   "roles.twoFactor.mfaOff": "Two-step verification is switched off, so this requirement is not applied now; it applies again when two-step verification is switched back on.",
   "roles.twoFactor.confirmSignOut": "Administrators with this role who have not set up two-step verification: {count}. They will be signed out now and asked to set it up at their next sign-in. Continue?",
-  "roles.twoFactor.signedOut": "Saved role {code}. Administrators signed out because they have not set up two-step verification: {count}."
+  "roles.twoFactor.signedOut": "Saved role {code}. Administrators signed out because they have not set up two-step verification: {count}.",
+  "roles.twoFactor.notice.encryption_key_missing": "Not in force: no encryption key (MFA_SECRET_ENCRYPTION_KEY)."
 }

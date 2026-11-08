@@ -110,6 +110,13 @@ signed out after. A refused save signs nobody out. Each sign-out is recorded in
 the audit log as `mfa.admin_sessions_ended_for_requirement`, with the role and
 the number of administrators.
 
+Switching `mfa.admin.totp_enforced` on in **Settings** does the same for every
+administrator: each one who has not set up two-step verification is signed out
+at once, except for the session the change was made from. The Settings screen
+asks first, with the number of administrators who will be signed out. The audit
+row names the setting instead of a role (`objectType: 'setting'`,
+`trigger: 'setting_enabled'`).
+
 **When the requirement cannot be turned on.** The checkbox is enforced by the
 MFA module, so:
 
@@ -121,14 +128,16 @@ MFA module, so:
 - MFA cannot be switched off while any role requires two-step verification:
   the module screen refuses with 409 `MFA_DEACTIVATION_BLOCKED` and names the
   roles (`details.roleCodes`). Untick the checkbox on those roles first;
-- without `MFA_SECRET_ENCRYPTION_KEY` no second factor can be set up, so a
-  role cannot start requiring one either (`details.reason:
-  'encryption_key_missing'`). A role that already requires it would send its
-  holders to a setup step that cannot be completed, so the instance logs a
-  warning at every start naming the roles and how many of their holders have no
-  second factor. Set the key, or untick the checkbox on those roles — as an
-  administrator whose role does not require it, or in the database:
-  `update admin_roles set requires_two_factor = false where code = '<code>';`.
+- without `MFA_SECRET_ENCRYPTION_KEY` no second factor can be set up or
+  checked, so a role cannot start requiring one either (`details.reason:
+  'encryption_key_missing'`). A role that already requires it is **not
+  applied**: its holders sign in with their password alone, and nobody is
+  signed out for being given the role. The Roles screen shows *Not in force: no
+  encryption key* under the checkbox (the role read carries
+  `twoFactorNotice.code: 'encryption_key_missing'`), and the instance logs an
+  error at every start naming the roles and how many of their holders have no
+  second factor. Set the key and restart to apply the requirement again, or
+  untick the checkbox on those roles.
 
 When a deployment removes the MFA module altogether, sign-in asks for no second
 factor, whatever the roles say.

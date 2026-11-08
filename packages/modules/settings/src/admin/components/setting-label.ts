@@ -46,6 +46,16 @@ export function settingNoticeKey(settingCode: string, noticeCode: string): strin
   return `settingLabels.${settingCode}.notice.${noticeCode}`;
 }
 
+/** `settingLabels.<setting code>.confirmation.<confirmation code>` — issue #349, E-349-1. */
+export function settingConfirmationKey(settingCode: string, confirmationCode: string): string {
+  return `settingLabels.${settingCode}.confirmation.${confirmationCode}`;
+}
+
+/** `settingLabels.<setting code>.confirmed.<confirmation code>` — said after an accepted save. */
+export function settingConfirmedKey(settingCode: string, confirmationCode: string): string {
+  return `settingLabels.${settingCode}.confirmed.${confirmationCode}`;
+}
+
 /** `settingGroups.<group code>.name` */
 export function settingGroupNameKey(groupCode: string): string {
   return `settingGroups.${groupCode}.name`;
@@ -78,6 +88,7 @@ function fromOwnerBundle(
   ownerModule: string,
   key: string,
   source: SettingLabelSource,
+  params?: Record<string, string | number>,
 ): string | null {
   const result = resolve({
     scope: ownerModule,
@@ -85,6 +96,7 @@ function fromOwnerBundle(
     language: source.language,
     bundle: source.bundle,
     ...(source.fallbackBundle !== undefined ? { fallbackBundle: source.fallbackBundle } : {}),
+    ...(params !== undefined ? { params } : {}),
   });
   return result.outcome === 'placeholder' ? null : result.value;
 }
@@ -121,6 +133,47 @@ export function resolveSettingNotice(
   );
 }
 
+/**
+ * Issue #349, E-349-1 — the owning module's question before a write, in the
+ * administrator's language with the read's `params`, else the API's English
+ * sentence. `null` when the read carried no confirmation.
+ */
+export function resolveSettingConfirmation(
+  setting: LabelledSetting & {
+    readonly confirmation?:
+      | { code: string; message: string; params?: Record<string, string | number> | undefined }
+      | undefined;
+  },
+  source: SettingLabelSource,
+): string | null {
+  if (!setting.confirmation) return null;
+  return (
+    fromOwnerBundle(
+      setting.ownerModule,
+      settingConfirmationKey(setting.code, setting.confirmation.code),
+      source,
+      setting.confirmation.params,
+    ) ?? setting.confirmation.message
+  );
+}
+
+/**
+ * After a save whose confirmation was accepted: what is now happening, in the
+ * owner's words and without a count. `null` when the owner's bundles say
+ * nothing — there is no API fallback, so a module opts in by shipping the key.
+ */
+export function resolveSettingConfirmed(
+  setting: LabelledSetting & { readonly confirmation?: { code: string } | undefined },
+  source: SettingLabelSource,
+): string | null {
+  if (!setting.confirmation) return null;
+  return fromOwnerBundle(
+    setting.ownerModule,
+    settingConfirmedKey(setting.code, setting.confirmation.code),
+    source,
+  );
+}
+
 export function resolveSettingGroupName(
   group: LabelledSettingGroup,
   source: SettingLabelSource,
@@ -134,10 +187,20 @@ export interface SettingLabels {
   settingNotice(
     setting: LabelledSetting & { readonly notice?: { code: string; message: string } | undefined },
   ): string | null;
+  settingConfirmation(
+    setting: LabelledSetting & {
+      readonly confirmation?:
+        | { code: string; message: string; params?: Record<string, string | number> | undefined }
+        | undefined;
+    },
+  ): string | null;
+  settingConfirmed(
+    setting: LabelledSetting & { readonly confirmation?: { code: string } | undefined },
+  ): string | null;
   groupName(group: LabelledSettingGroup): string;
 }
 
-/** The three resolvers bound to the current administrator's language and bundles. */
+/** The resolvers bound to the current administrator's language and bundles. */
 export function useSettingLabels(): SettingLabels {
   const { language, bundle, fallbackBundle } = useTranslationContext();
   return useMemo<SettingLabels>(() => {
@@ -146,6 +209,8 @@ export function useSettingLabels(): SettingLabels {
       settingName: (setting) => resolveSettingName(setting, source),
       settingDescription: (setting) => resolveSettingDescription(setting, source),
       settingNotice: (setting) => resolveSettingNotice(setting, source),
+      settingConfirmation: (setting) => resolveSettingConfirmation(setting, source),
+      settingConfirmed: (setting) => resolveSettingConfirmed(setting, source),
       groupName: (group) => resolveSettingGroupName(group, source),
     };
   }, [language, bundle, fallbackBundle]);

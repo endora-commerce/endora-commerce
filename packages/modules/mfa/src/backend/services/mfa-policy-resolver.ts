@@ -29,19 +29,19 @@ import { MfaOrganizationPolicy } from '../entities/mfa-organization-policy.entit
  * This code runs only while `mfa` is present, so the worst case is an
  * administrator asked to enrol a factor this module can enrol; an
  * administrator with no role is refused everywhere anyway
- * (`ADMIN_ROLE_REQUIRED`). The one case it cannot repair is a deployment with
- * no encryption key, where nothing can be enrolled — that is why a role write
- * refuses the flag there and the module warns at boot.
+ * (`ADMIN_ROLE_REQUIRED`).
  *
- * **`mfa.admin.totp_enforced` is not in force where no factor can be enrolled**
- * (issue #930). Without `MFA_SECRET_ENCRYPTION_KEY` this module serves no
- * enrolment route, so enforcing the setting would send every administrator
- * without a factor to a setup step nothing can complete — the whole Admin UI
- * locked out, with no administrator left to turn the setting off. The setting's
- * write refuses to turn it on in that state and every boot warns while it is
- * on, so this branch is reached only by a value set before the key went. It is
- * that one setting and nothing else: storefront, organization and role
- * enforcement are untouched.
+ * **No administrator requirement is in force where no factor can be enrolled**
+ * (issue #930 for `mfa.admin.totp_enforced`; issue #948, owner ruling Q6 of
+ * 2026-11-08, for a role's flag). Without `MFA_SECRET_ENCRYPTION_KEY` this
+ * module serves no enrolment route, so enforcing either would send every
+ * administrator it binds without a factor to a setup step nothing can complete
+ * — for the setting, the whole Admin UI locked out. Both writes refuse to turn
+ * the requirement on in that state, every boot reports it at error level while
+ * it is set, and the Settings and Roles screens say it is not in force, so
+ * this branch is reached only by a value set before the key went. Storefront
+ * and organization enforcement are untouched here; `MfaLoginService` asks for
+ * no second step of anybody without the key.
  */
 export interface MfaResolvedPolicy {
   totpEnabled: boolean;
@@ -127,16 +127,20 @@ export class MfaPolicyResolver {
     if (!isAdmin && ctx.organizationId) {
       orgEnforced = await this.readOrgEnforcement(ctx.organizationId);
     }
+    // Issues #930 and #948 — no administrator requirement is applied where
+    // nothing can meet it: neither the platform-wide setting nor a role's flag.
+    const adminRequirementApplies = !isAdmin || this.canEnrolSecondFactor;
+
     // Role enforcement is additive (administrators only). The federated
     // provider list and its start step resolve with no subject — nobody has
     // signed in yet — and read only the provider switches, so there is no
-    // role to read.
-    const roleEnforced = isAdmin && subject.subjectId !== '' ? await this.readRoleEnforcement(subject.subjectId) : false;
-
-    // Issue #930 — the platform-wide setting is not applied where nothing can
-    // meet it. A role's requirement (#349) stays fail-closed: an administrator
-    // whose role does not require it can still sign in and clear the flag.
-    const settingEnforced = isAdmin && !this.canEnrolSecondFactor ? false : totpEnforcedRaw;
+    // role to read. Without a key the role is not read at all, so its
+    // fail-closed read cannot bring the requirement back.
+    const roleEnforced =
+      isAdmin && adminRequirementApplies && subject.subjectId !== ''
+        ? await this.readRoleEnforcement(subject.subjectId)
+        : false;
+    const settingEnforced = adminRequirementApplies ? totpEnforcedRaw : false;
     const totpEnforced = settingEnforced || orgEnforced || roleEnforced;
     // Invariant FR-016: enforcement implies enablement.
     const totpEnabled = totpEnabledRaw || totpEnforced;

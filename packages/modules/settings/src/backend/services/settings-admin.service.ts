@@ -5,6 +5,7 @@ import {
   type SettingValueType,
   type SettingWriteChannelProjection,
   type SettingWriteValidatorRegistryPort,
+  type SettingsValueChangedPayload,
 } from '@endora-commerce/contracts';
 import { HttpError } from '@endora-commerce/platform/http';
 import type { EventBus } from '@endora-commerce/platform/events';
@@ -59,6 +60,12 @@ import { SecretKeyMissing, SecretKeyInvalid, encryptSecretValue } from '@endora-
 export interface AdminAuditContext {
   actorAdminUserId: string | null;
   requestId?: string | null;
+  /**
+   * Issue #349, E-349-1 — the session the write was made from. Not audited;
+   * carried on `settings.value_changed` so a subscriber that ends sessions can
+   * spare it.
+   */
+  actorSessionId?: string | null;
 }
 
 /**
@@ -577,7 +584,9 @@ export class SettingsAdminService {
       salesChannelIds: affectedChannelIds,
       globalValueUpdated,
       valueType: setting.valueType,
-    } as never);
+      actorAdminUserId: actor.actorAdminUserId,
+      actorSessionId: actor.actorSessionId ?? null,
+    } satisfies SettingsValueChangedPayload as never);
 
     return { setting, affectedChannelIds, newVersion };
   }
@@ -770,7 +779,9 @@ export class SettingsAdminService {
         salesChannelIds: resetChannelIds,
         globalValueUpdated: globalValueCleared,
         valueType: setting.valueType,
-      } as never);
+        actorAdminUserId: actor.actorAdminUserId,
+        actorSessionId: actor.actorSessionId ?? null,
+      } satisfies SettingsValueChangedPayload as never);
     }
 
     return { setting, resetChannelIds, globalValueCleared, newVersion };

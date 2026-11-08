@@ -258,6 +258,8 @@ export function registerModule(ctx: ModuleContext): void {
         ctx.cradle<SettingsCradle>().adminAuditActorResolver(req),
       // Read per call: the registry is filled from other modules' boot hooks.
       noticeFor: (input) => ctx.cradle<SettingsCradle>().settingNoticeRegistry.noticeFor(input),
+      confirmationFor: (input) =>
+        ctx.cradle<SettingsCradle>().settingNoticeRegistry.confirmationFor(input),
     });
     await registerSettingsStorefrontRoutes(app, {
       shopInfoResolver: cradle.settingsShopInfoResolver,

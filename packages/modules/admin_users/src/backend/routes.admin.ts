@@ -1,6 +1,7 @@
 import type { FastifyInstance, FastifyRequest } from 'fastify';
 import {
   ADMIN_SESSION_COOKIE_NAME,
+  ENCRYPTION_KEY_MISSING,
   createAdminUserRequestSchema,
   resetAdminUserPasswordRequestSchema,
   updateAdminUserRequestSchema,
@@ -10,6 +11,7 @@ import {
   type AdminRolePort,
   type AdminPreferences,
   type AdminRoleRecord,
+  type AdminRoleTwoFactorNotice,
   type PermissionCataloguePort,
   type PermissionReadPort,
 } from '@endora-commerce/contracts';
@@ -325,12 +327,25 @@ export async function registerAdminUsersAdminRoutes(
   );
 
   // --- Admin roles -----------------------------------------------------------
+  /**
+   * Issue #948, owner ruling Q6 — without `mfa`'s encryption key a role's
+   * `requiresTwoFactor` is not applied, so the read says so beside a role that
+   * sets it, as the Settings read says it of `mfa.admin.totp_enforced`.
+   * `undefined` everywhere else, including while `mfa` is off: the Roles
+   * screen already says that from module presence.
+   */
+  const roleTwoFactorNoticeOf = async (): Promise<AdminRoleTwoFactorNotice | undefined> =>
+    (await adminUserService.roleTwoFactorUnavailableReason()) === ENCRYPTION_KEY_MISSING
+      ? ROLE_TWO_FACTOR_KEYLESS_NOTICE
+      : undefined;
+
   app.get(
     '/api/v1/admin/admin-roles',
     { preHandler: requireAdmin('admin_users:manage') },
     async () => {
       const rows = await adminRolePort.list();
-      return { data: rows.map(serializeAdminRole) };
+      const notice = await roleTwoFactorNoticeOf();
+      return { data: rows.map((row) => serializeAdminRole(row, notice)) };
     },
   );
 
@@ -392,7 +407,12 @@ export async function registerAdminUsersAdminRoutes(
               sessionCookieValue: request.cookies?.[ADMIN_SESSION_COOKIE_NAME],
             })
           : 0;
-      return { data: { ...serializeAdminRole(role), signedOutAdministrators } };
+      return {
+        data: {
+          ...serializeAdminRole(role, await roleTwoFactorNoticeOf()),
+          signedOutAdministrators,
+        },
+      };
     },
   );
 
@@ -427,13 +447,21 @@ function serializeAdminUser(u: AdminUser, twoFactorEnabled: boolean) {
   };
 }
 
-function serializeAdminRole(r: AdminRoleRecord) {
+/** Issue #948 — the Roles screen translates it from `roles.twoFactor.notice.<code>`. */
+const ROLE_TWO_FACTOR_KEYLESS_NOTICE: AdminRoleTwoFactorNotice = {
+  code: ENCRYPTION_KEY_MISSING,
+  message: 'Not in force: no encryption key (MFA_SECRET_ENCRYPTION_KEY).',
+};
+
+/** `notice` is attached only to a role that sets the flag; absent means no key at all. */
+function serializeAdminRole(r: AdminRoleRecord, notice?: AdminRoleTwoFactorNotice) {
   return {
     id: r.id,
     code: r.code,
     name: r.name,
     permissions: r.permissions,
     requiresTwoFactor: r.requiresTwoFactor,
+    ...(notice !== undefined && r.requiresTwoFactor ? { twoFactorNotice: notice } : {}),
     createdAt: r.createdAt.toISOString(),
     updatedAt: r.updatedAt.toISOString(),
   };
