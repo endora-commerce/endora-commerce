@@ -487,6 +487,7 @@ jeden kod — pierwszy pasujący, w tej kolejności — i pokazuje jeden powód:
 | Kod wyceny | Powód przy pozycji | Co zmienić |
 | --- | --- | --- |
 | `PRODUCT_NOT_FOUND` | *Brak ceny* | Produktu nie ma już w katalogu: usuń pozycję. |
+| `PRODUCT_ARCHIVED` | *Produkt zarchiwizowany* | Produkt jest zarchiwizowany: przywróć go w katalogu albo usuń pozycję. |
 | `PRODUCT_NOT_VISIBLE_TO_CUSTOMER` | *Klient nie widzi tego produktu* | Widoczność produktu albo jego lista dozwolonych organizacji wyklucza organizację klienta: zmień je przy produkcie w katalogu, wybierz innego klienta albo usuń pozycję. |
 | `PRODUCT_NOT_IN_SALES_CHANNEL` | *Poza asortymentem tego kanału sprzedaży* | Wybierz kanał sprzedaży, którego asortyment zawiera produkt, dodaj produkt do asortymentu tego kanału albo usuń pozycję. |
 | `QUOTE_ONLY` | *Brak ceny* | Cena produktu dla tego klienta jest dostępna tylko w ofercie: usuń pozycję albo utwórz zapytanie ofertowe. |
@@ -500,7 +501,11 @@ ilości i wariancie każdej z nich — więc utworzone zamówienie ma ceny pokaz
 ceny, a podsumowanie liczy tylko wycenione. Wycena sprawdza asortyment dokładnie tego kanału
 sprzedaży, który wskazuje żądanie; `salesChannelId`, który nie wskazuje żadnego kanału, jest
 odrzucany z `404 NOT_FOUND`, a ekran pokazuje *Nie udało się przeliczyć cen*, nie oznaczając żadnej
-pozycji. Produkt usunięty miękko jest wyceniany jak dotąd. Utworzone zamówienie zawiera dokładnie
+pozycji. Produkt usunięty miękko ma kod `PRODUCT_NOT_FOUND`, tak jak odpowiada utworzenie zamówienia
+(`404 PRODUCT_NOT_FOUND`). Produkt zarchiwizowany ma kod `PRODUCT_ARCHIVED` niezależnie od tego, kto
+może go widzieć i jaki kanał wybrano, a utworzenie zamówienia odrzuca go z `409 PRODUCT_ARCHIVED`
+(*Produkt jest zarchiwizowany.*), wskazując zarchiwizowane produkty w `details.productIds` i niczego
+nie zapisując — z tym samym powodem, który podaje zapytanie ofertowe operatora. Utworzone zamówienie zawiera dokładnie
 pozycje i ilości widoczne na ekranie, w treści żądania `POST /api/v1/admin/orders`.
 
 **Najwyżej 200 pozycji.** `POST /api/v1/admin/orders` i `POST /api/v1/admin/orders/preview` w

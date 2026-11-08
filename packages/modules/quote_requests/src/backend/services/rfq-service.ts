@@ -49,6 +49,7 @@ import { raisedInScopeLanguage, raisedOnChannelId } from './raised-on-channel.js
 import { hasUnpricedLine, quoteIncompleteError, unitPriceText } from './agreed-price.js';
 import { underRowLock } from './transition-lock.js';
 import { summarize } from './summarize.js';
+import { channelCurrencies, channelCurrency, requestLineCurrency } from './line-currency.js';
 import {
   assertValidSuppliedReferences,
   referenceColumns,
@@ -478,6 +479,11 @@ export class RfqService {
     // Every RFQ in a customer listing belongs to the same Organization
     // (the caller's), so the VAT rate is resolved once for the page.
     const taxRate = await this.taxRateForOrganization(ctx.organizationId);
+    // Issue #303 — a request with no lines speaks its channel's currency.
+    const currencyByChannel = await channelCurrencies(
+      em,
+      rfqs.filter((rfq) => !itemsByRfq.has(rfq.id)).map((rfq) => rfq.salesChannelId),
+    );
 
     return rfqs.map((rfq) => {
       const rfqItems = itemsByRfq.get(rfq.id) ?? [];
@@ -485,6 +491,7 @@ export class RfqService {
       return summarize(rfq, rfqItems, {
         requesterDisplayName: requester ? customerDisplayName(requester) : null,
         taxRate,
+        currencyByChannel,
       });
     });
   }
@@ -596,6 +603,8 @@ export class RfqService {
 
     const items: QuoteRequestItem[] = [];
     const lineNames = await this.lineNames([...productById.values()], salesChannelId, options.languageTag);
+    // Issue #303 — decided here, once: the raised-on channel's currency.
+    const lineCurrency = await channelCurrency(em, salesChannelId);
     for (const [index, lineInput] of input.items.entries()) {
       const product = productById.get(lineInput.productId)!;
       const unit = packaging[index]!;
@@ -620,7 +629,7 @@ export class RfqService {
         desiredUnitPrice:
           lineInput.desiredUnitPrice !== undefined ? unitPriceText(lineInput.desiredUnitPrice) : null,
         lineNote: lineInput.lineNote ?? null,
-        lineCurrency: 'PLN',
+        lineCurrency,
         ...referenceColumns(references[index] ?? null, capturedAt),
         // Feature 159 — the request's order, stored (ungrouped: one section).
         position: index,
@@ -776,6 +785,8 @@ export class RfqService {
           : referenceColumns(resolved[next++] ?? null, capturedAt),
       );
 
+      // Issue #303 — every line keeps the currency the request already has.
+      const lineCurrency = await requestLineCurrency(em, rfq, existing);
       // Feature 163 — the names the edited lines snapshot (FR-017 d).
       const lineNames = await this.lineNames(
         [...productById.values()],
@@ -811,7 +822,7 @@ export class RfqService {
           // Threat model T5 — an omitted proposal on a paired line is kept.
           desiredUnitPrice: carriedProposal(lineInput.desiredUnitPrice, row),
           lineNote: lineInput.lineNote ?? null,
-          lineCurrency: 'PLN',
+          lineCurrency,
           ...references[index]!,
           groupId: plannedGroupId(grouping.lines[index]!.group),
           position: grouping.lines[index]!.position,

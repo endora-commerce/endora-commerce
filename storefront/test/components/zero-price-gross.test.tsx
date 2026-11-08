@@ -16,7 +16,8 @@ const ALL_PRESENT = moduleActionPresence({ isPresent: () => true });
  * price and gets the same net + gross treatment every other amount gets.
  */
 
-function summary(price: ProductSummary['price']): ProductSummary {
+/** A product as the catalogue read answers it: priced, with its VAT rate (issue #852). */
+function summary(price: ProductSummary['price'], vatRate = 0.23): ProductSummary {
   return {
     id: '00000000-0000-4000-8000-000000000001',
     sku: 'SKU-1',
@@ -28,6 +29,7 @@ function summary(price: ProductSummary['price']): ProductSummary {
     price,
     stockIndicator: null,
     stockLevel: null,
+    vatRate,
   };
 }
 
@@ -47,12 +49,11 @@ describe('ProductRow — a zero price is a price', () => {
     expect(html).not.toContain('brutto');
   });
 
-  it('derives the gross figure at a caller-supplied rate', () => {
+  it('derives the gross figure at the product’s own rate', () => {
     const html = renderToString(
       <ProductRow presence={ALL_PRESENT}
-        product={summary({ amount: 100, currency: 'PLN' })}
+        product={summary({ amount: 100, currency: 'PLN' }, 0.05)}
         locale="pl-PL"
-        vatRate={0.05}
       />,
     );
     expect(html).toMatch(/105/);
@@ -68,12 +69,11 @@ describe('ProductCard — a zero price keeps its gross line', () => {
     expect(html).toContain('brutto');
   });
 
-  it('derives the gross figure at a caller-supplied rate', () => {
+  it('derives the gross figure at the product’s own rate', () => {
     const html = renderToString(
       <ProductCard presence={ALL_PRESENT}
-        product={summary({ amount: 100, currency: 'PLN' })}
+        product={summary({ amount: 100, currency: 'PLN' }, 0.05)}
         locale="pl-PL"
-        vatRate={0.05}
         salesChannelCode="retail"
       />,
     );

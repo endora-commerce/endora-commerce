@@ -9,7 +9,8 @@ import { SEED_PRODUCT_101_ID } from '../../helpers/seed-catalog.js';
 import { CUSTOMER_COOKIES, TEST_ORGANIZATION_ID } from '../../helpers/test-actors.js';
 
 /**
- * T195 — `GET /api/v1/admin/audit-log` returns the append-only log with
+ * T195 — `GET /api/v1/admin/audit-log` returns the append-only log (its one
+ * exception is erasure on anonymisation, issue #844) with
  * filters by actor / action / objectType / objectId. The query is gated by
  * the `audit_log:read` permission.
  */

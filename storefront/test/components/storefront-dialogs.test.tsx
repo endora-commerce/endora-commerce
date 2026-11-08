@@ -1,5 +1,8 @@
 import { describe, expect, it } from 'vitest';
 import { renderToString } from 'react-dom/server';
+import { readFileSync, readdirSync } from 'node:fs';
+import { join, relative } from 'node:path';
+import { fileURLToPath } from 'node:url';
 import { ClearListButton } from '../../components/shopping-lists/ClearListButton';
 import { DeleteShoppingListButton } from '../../components/shopping-lists/DeleteShoppingListButton';
 import { NotifyWhenAvailableDialog } from '../../components/inventory/NotifyWhenAvailableDialog';
@@ -141,5 +144,40 @@ describe('NotifyWhenAvailableDialog — the form (issue #804)', () => {
 
   it('mounts its status region before it has anything to say', () => {
     expect(dialogOf(renders.notify())).toMatch(/<div role="status"[^>]*><\/div>/);
+  });
+});
+
+/**
+ * Issue #838 — the trigger is a secondary action on the product page: it sits
+ * beside Add to cart, the view's one primary CTA, so it takes the outline
+ * button the PDP's other secondary actions use. `b2b-cta` is the dark primary
+ * atom and has no `--secondary` modifier, so the old class painted it primary.
+ */
+describe('NotifyWhenAvailableDialog — the trigger is a secondary action (issue #838)', () => {
+  it('uses the outline button, not the dark primary CTA', () => {
+    const trigger = /<button type="button"[^>]*aria-haspopup="dialog"[^>]*>/.exec(renders.notify())?.[0] ?? '';
+    const classes = /\sclass="([^"]*)"/.exec(trigger)?.[1]?.split(/\s+/) ?? [];
+    expect(classes).toEqual(expect.arrayContaining(['btn', 'btn--outline']));
+    expect(classes.some((c) => c.startsWith('b2b-cta'))).toBe(false);
+  });
+
+  it('leaves no storefront source naming a b2b-cta modifier, none being defined', () => {
+    const root = fileURLToPath(new URL('../..', import.meta.url));
+    const css = readFileSync(join(root, 'app/globals.css'), 'utf8');
+    const defined = new Set(css.match(/\.b2b-cta--[\w-]+/g)?.map((s) => s.slice(1)) ?? []);
+    const offenders: string[] = [];
+    const walk = (dir: string): void => {
+      for (const entry of readdirSync(dir, { withFileTypes: true })) {
+        const path = join(dir, entry.name);
+        if (entry.isDirectory()) walk(path);
+        else if (/\.tsx?$/.test(entry.name)) {
+          for (const used of readFileSync(path, 'utf8').match(/\bb2b-cta--[\w-]+/g) ?? []) {
+            if (!defined.has(used)) offenders.push(`${relative(root, path)}: ${used}`);
+          }
+        }
+      }
+    };
+    for (const dir of ['app', 'components', 'lib']) walk(join(root, dir));
+    expect(offenders).toEqual([]);
   });
 });

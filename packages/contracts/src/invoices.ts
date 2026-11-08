@@ -90,6 +90,10 @@ export const invoiceLineSchema = z.object({
   ordinal: z.number().int().positive(),
   name: z.string().max(512),
   unit: z.string().max(32),
+  /**
+   * On a correction, a goods line with quantity 0 is a price reduction (issue
+   * #885): its value changed, not its quantity.
+   */
   quantity: z.number().finite(),
   unitNetPrice: z.number().finite(),
   taxRate: z.number().finite().describe('Fractional VAT rate, e.g. 0.23 for 23%'),

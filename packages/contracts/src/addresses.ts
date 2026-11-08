@@ -16,6 +16,15 @@
 export type AddressKindValue = 'delivery' | 'billing';
 
 /**
+ * The codes a redacted `address` audit row keeps (issue #844).
+ *
+ * Owner: `addresses`; **codes only** — see `CUSTOMER_ACCOUNT_AUDIT_KEEP_KEYS`
+ * for the rule they extend. The anonymisation scrub keeps an address's country,
+ * so its history may keep the country code too.
+ */
+export const ADDRESS_AUDIT_KEEP_KEYS: readonly string[] = ['countryCode'];
+
+/**
  * An address as it crosses a module boundary — a plain shape, never the ORM
  * entity (FR-011).
  *

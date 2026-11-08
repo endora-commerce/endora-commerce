@@ -70,7 +70,10 @@ describe('catalog — the publication-window sweep runs on its schedule [integra
     const attach = (): void => {
       throw new Error('no consumer may be attached');
     };
-    const sweep = { sweep: async () => ({ from: new Date(), to: new Date(), productIds: [] }) } as never;
+    const sweep = {
+      hasDueTransitions: async () => true,
+      sweep: async () => ({ from: new Date(), to: new Date(), productIds: [] }),
+    } as never;
     const onClose = (): void => undefined;
     expect(await startPublicationWindowSweep({ processRunsWorkers: false, moduleQueueRedis: redis, sweep, log, attach, onClose, queuePrefix: prefix })).toBe(false);
     expect(await startPublicationWindowSweep({ processRunsWorkers: true, moduleQueueRedis: undefined, sweep, log, attach, onClose, queuePrefix: prefix })).toBe(false);
@@ -83,6 +86,9 @@ describe('catalog — the publication-window sweep runs on its schedule [integra
       moduleQueueRedis: redis,
       queuePrefix: prefix,
       sweep: {
+        // Something is always due here: what this file holds is the schedule,
+        // and the question is held by the unit and audit tests (#894).
+        hasDueTransitions: async () => true,
         sweep: async () => {
           sweeps += 1;
           return { from: new Date(), to: new Date(), productIds: [] };

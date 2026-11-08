@@ -74,9 +74,24 @@ export const ANONYMIZED_CUSTOMER_NAME = 'Deleted customer';
 export const ANONYMIZED_PASSWORD_HASH = 'anonymized-no-login';
 
 /**
+ * Whether an anonymised account still holds something today's scrub erases
+ * (issue #843): a block reason, or custom field values a pre-#802 scrub left.
+ * Such an account is unfinished, and {@link CustomerAccountLifecycleWriteService.anonymize}
+ * finishes it. The residue branch of {@link dueForAnonymization} is the same
+ * rule as SQL.
+ */
+function hasScrubResidue(account: CustomerAccount): boolean {
+  return account.blockReason != null || Object.keys(account.customFieldValues ?? {}).length > 0;
+}
+
+/**
  * The accounts the retention sweep anonymises at `cutoff`, as a row source —
  * **the one statement of that rule** (issue #857). Soft-deleted before the
- * cutoff and not anonymised yet. `listDueForAnonymization` lists through it and
+ * cutoff and not anonymised yet, **or** anonymised by an earlier scrub that left
+ * residue behind (issue #843, see {@link hasScrubResidue}). The residue branch
+ * is not under the cutoff: the window already elapsed once, and an operator
+ * raising `customers.deletion_retention_days` afterwards must not take the
+ * account off the list for good. `listDueForAnonymization` lists through it and
  * `hasDueForAnonymization` asks through it, so a condition added here is added
  * to both by the same edit and the sweep's question cannot drift from its work
  * list.
@@ -84,7 +99,8 @@ export const ANONYMIZED_PASSWORD_HASH = 'anonymized-no-login';
 function dueForAnonymization(cutoff: Date): WorkRows {
   return {
     from:
-      'from "customer_accounts" where "deleted_at" is not null and "deleted_at" < ? and "anonymized_at" is null',
+      'from "customer_accounts" where ("deleted_at" is not null and "deleted_at" < ? and "anonymized_at" is null)' +
+      ` or ("anonymized_at" is not null and ("block_reason" is not null or "custom_field_values" <> '{}'::jsonb))`,
     params: [cutoff],
   };
 }
@@ -503,6 +519,14 @@ export class CustomerAccountLifecycleWriteService implements CustomerAccountLife
    * Every custom field value goes with the name and the e-mail (owner ruling
    * Q1, 2026-11-06), and the audit row stores none of what it erased (Q2):
    * only which custom field keys held a value.
+   *
+   * The block reason, free text an operator wrote about the person, is set to
+   * `null` too (issue #843); the block itself — `blockedAt`, `blockSource` and
+   * who applied it — stays, and the audit row records only `hadBlockReason`.
+   * An account an earlier scrub left a block reason or custom field values on
+   * is finished here once, with its own audit row: it keeps its
+   * `anonymizedAt` and is not announced again, since the transition was
+   * announced when it happened.
    */
   async anonymize(customerAccountId: string): Promise<CustomerAccountRecord> {
     // command-coverage-ignore: the retention sweep's last step — a
@@ -513,9 +537,30 @@ export class CustomerAccountLifecycleWriteService implements CustomerAccountLife
       // passes can reach one account at once (a tick BullMQ hands back after
       // its lock lapsed); without the lock both read `null` and both scrub,
       // audit and announce. With it the second waits, then reads the first's
-      // commit and returns the account unchanged.
+      // commit and finds nothing left to scrub.
       const row = await this.#load(tem, customerAccountId, LockMode.PESSIMISTIC_WRITE);
-      if (row.anonymizedAt) return { row, transitioned: false };
+      if (row.anonymizedAt) {
+        if (!hasScrubResidue(row)) return { row, transitioned: false };
+        // An earlier scrub left a block reason (before #843) or custom field
+        // values (before #802); finishing the account clears what is left.
+        const leftKeys = Object.keys(row.customFieldValues ?? {}).sort();
+        this.auditLog.recordWithin(tem, {
+          actorAdminUserId: null,
+          action: 'customer_account.anonymized',
+          objectType: 'customer_account',
+          objectId: row.id,
+          stateBefore: {
+            anonymizedAt: row.anonymizedAt.toISOString(),
+            customFieldKeys: leftKeys,
+            hadBlockReason: row.blockReason != null,
+          },
+          stateAfter: { anonymizedAt: row.anonymizedAt.toISOString() },
+        });
+        row.blockReason = null;
+        row.customFieldValues = {};
+        await tem.flush();
+        return { row, transitioned: false };
+      }
       row.email = `deleted+${row.id}@anonymized.invalid`;
       row.firstName = ANONYMIZED_CUSTOMER_NAME;
       row.lastName = ANONYMIZED_CUSTOMER_NAME;
@@ -527,6 +572,8 @@ export class CustomerAccountLifecycleWriteService implements CustomerAccountLife
       row.twoFactorConfirmedAt = null;
       const customFieldKeys = Object.keys(row.customFieldValues ?? {}).sort();
       row.customFieldValues = {};
+      const hadBlockReason = row.blockReason != null;
+      row.blockReason = null;
       row.anonymizedAt = new Date();
       // The sweep runs on a timer, so there is no operator to attribute it to.
       this.auditLog.recordWithin(tem, {
@@ -534,7 +581,7 @@ export class CustomerAccountLifecycleWriteService implements CustomerAccountLife
         action: 'customer_account.anonymized',
         objectType: 'customer_account',
         objectId: row.id,
-        stateBefore: { anonymizedAt: null, customFieldKeys },
+        stateBefore: { anonymizedAt: null, customFieldKeys, hadBlockReason },
         stateAfter: { anonymizedAt: row.anonymizedAt.toISOString() },
       });
       await tem.flush();

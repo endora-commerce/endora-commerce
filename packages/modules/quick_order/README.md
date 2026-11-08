@@ -37,6 +37,7 @@ Everything below is a **peer** dependency, so the application resolves exactly o
 - `@mikro-orm/postgresql` ^6
 - `exceljs` ^4
 - `fastify` ^5.11.0
+- `ioredis` ^5
 - `react` ^19 — *optional*
 - `zod` ^4
 
