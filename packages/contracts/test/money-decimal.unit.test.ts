@@ -404,6 +404,15 @@ describe('chargesByRate', () => {
     expect(parts).toEqual([{ kind: 'delivery', rate: '0.23', gross: '12.30', net: '10.00' }]);
   });
 
+  it('keeps a part whose net is 0.00: a part is dropped by its gross, never by its net', () => {
+    const goods = [{ net: '0.02', rate: '0.23' }];
+    const parts = chargesByRate({ goods, charges: [{ kind: 'delivery', gross: '0.01' }], unit: 'fraction' });
+    expect(parts).toHaveLength(1);
+    expect(parts).toEqual([{ kind: 'delivery', rate: '0.23', gross: '0.01', net: '0.00' }]);
+    // No net makes the row 0.03 at 23 %: it stays 0.02, a grosz under goods + delivery (E-904-6).
+    expect(rowsOf(goods, parts).rows).toEqual([{ rate: '0.23', net: '0.02', vat: '0.00', gross: '0.02' }]);
+  });
+
   it('reads percent rates, keys a rate by its value, and drops a charge of 0.00', () => {
     const parts = chargesByRate({
       goods: [

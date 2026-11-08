@@ -484,6 +484,8 @@ export interface ChargeByRate {
  *    method can produce that gross at all; where it cannot, the row is a grosz
  *    off and so is the total (owner ruling E-904-6 of 2026-11-08), and a
  *    part's own gross is informational, as a line's is.
+ *    A part's net may be 0.00; a part is dropped only when its gross is 0.00,
+ *    never by its net.
  *
  * Charges are taken in input order, and their parts are answered in that order,
  * each charge's parts by ascending rate. A negative charge, or a non-zero charge

@@ -226,6 +226,9 @@ export class Order {
    * rate on the sum of the nets, `vatByRate`) for an order placed from 0.108.0;
    * `null` for one placed before, whose stored totals are the rule of their day.
    * Read wherever what the order charged matters (returns), never recomputed.
+   * The DB CHECK and `OrderVatMethod` already admit `per_rate_charges` (issue
+   * #904); this type widens in Phase B with its first writer, together with
+   * `returns.ts`, `order-return-context.ts` and `refund-math.ts`.
    */
   @Property({ type: 'string', length: 16, nullable: true })
   vatMethod?: 'per_rate' | null = null;
