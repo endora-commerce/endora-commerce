@@ -19,12 +19,17 @@ import {
 } from '@endora-commerce/admin-kit/ui';
 import { AdminUserPicker, CustomerPicker } from '@endora-commerce/admin-kit/components';
 import { useTranslation, useTranslationContext } from '@endora-commerce/admin-kit/i18n';
+import { AuditStateView, AuditTextValue } from '../components/AuditStateView.js';
 
 /**
  * Audit Log viewer (T195 / FR-084). Append-only — no edit / delete UI.
  * Filters mirror the backend query: actor, action, objectType, objectId,
  * impersonated customer. The detail row expands stateBefore / stateAfter
  * as JSON so support can compare changes inline.
+ *
+ * An anonymised subject's history is erased in place (issue #844): its values
+ * are the stored marker `[erased]`, which the detail row draws as a translated
+ * token — in the snapshots, and as the IP or user agent — rather than raw.
  *
  * The action, object type and object id filters live in the URL query
  * (`?action=…&objectType=…&objectId=…`, feature 161 G13), so another screen
@@ -257,19 +262,20 @@ export default function AuditLogViewer(): ReactNode {
                             <div>
                               <strong>{t('auditLog.detail.before')}</strong>
                               <pre className="mt-1 max-h-80 overflow-auto rounded-md bg-muted p-3 text-xs">
-                                {JSON.stringify(r.stateBefore ?? null, null, 2)}
+                                <AuditStateView value={r.stateBefore ?? null} />
                               </pre>
                             </div>
                             <div>
                               <strong>{t('auditLog.detail.after')}</strong>
                               <pre className="mt-1 max-h-80 overflow-auto rounded-md bg-muted p-3 text-xs">
-                                {JSON.stringify(r.stateAfter ?? null, null, 2)}
+                                <AuditStateView value={r.stateAfter ?? null} />
                               </pre>
                             </div>
                           </div>
                           <div className="mt-2 text-xs text-muted-foreground">
-                            {t('auditLog.detail.ip')} {r.ipAddress ?? '—'} · {t('auditLog.detail.userAgent')}{' '}
-                            {r.userAgent ? r.userAgent.slice(0, 60) : '—'} · {t('auditLog.detail.request')}{' '}
+                            {t('auditLog.detail.ip')} <AuditTextValue value={r.ipAddress} /> ·{' '}
+                            {t('auditLog.detail.userAgent')} <AuditTextValue value={r.userAgent} maxLength={60} /> ·{' '}
+                            {t('auditLog.detail.request')}{' '}
                             {r.requestId ?? '—'}
                             {r.impersonatedCustomerAccountId ? (
                               <>

@@ -52,7 +52,7 @@ function harness(initial: Row[]) {
   const rows = [...initial];
   const updates: unknown[][] = [];
   const recorded: RecordAuditInput[] = [];
-  const hooks: { afterList?: (calls: number) => void; beforeUpdate?: (n: number) => void } = {};
+  const hooks: { afterList?: ((calls: number) => void) | undefined; beforeUpdate?: ((n: number) => void) | undefined } = {};
   let listCalls = 0;
 
   const execute = vi.fn(async (sql: string, params: unknown[] = []): Promise<unknown[]> => {

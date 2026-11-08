@@ -63,7 +63,7 @@ describe('the audit.redacted row on the audit log screen', () => {
     expect(moduleIdForAuditAction('audit.redacted')).toBe('audit_logs');
   });
 
-  it.each(['en', 'pl'] as const)('has a %s label, and a %s label for the erased value', (locale) => {
+  it.each(['en', 'pl'] as const)('has a %s label for the row and for the erased value', (locale) => {
     const labels = bundle(locale);
     expect(labels['auditLog.audit.redacted']).toBeTruthy();
     expect(labels['auditLog.erased']).toBeTruthy();

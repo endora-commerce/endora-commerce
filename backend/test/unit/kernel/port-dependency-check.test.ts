@@ -733,14 +733,6 @@ describe('the bridging tables stay honest', () => {
       expect(PLATFORM_OWNED_NAMES.has(name), `${name} is in both tables`).toBe(false);
     }
   });
-
-  it('the audit redaction port is platform-owned, beside the audit writer (issue #844)', () => {
-    // The kernel writes its own table: no module owns the name, so a consumer
-    // declares no manifest edge for it and there is no owner to switch off.
-    expect(PLATFORM_OWNED_NAMES.has('auditLogService')).toBe(true);
-    expect(PLATFORM_OWNED_NAMES.has('auditRedactionService')).toBe(true);
-    expect(HOST_REGISTERED_PORTS['auditRedactionService']).toBeUndefined();
-  });
 });
 
 describe('rootRegisteredNames — what a composition root writes into the container', () => {

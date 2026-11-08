@@ -54,6 +54,23 @@ export type VatStatus = z.infer<typeof vatStatusSchema>;
 export const creditInheritanceModeSchema = z.enum(['shared_pool', 'independent_default']);
 export type CreditInheritanceMode = z.infer<typeof creditInheritanceModeSchema>;
 
+/**
+ * The codes a redacted `organization` audit row keeps (issue #844).
+ *
+ * Owner: `organizations`; **codes only** — see
+ * `CUSTOMER_ACCOUNT_AUDIT_KEEP_KEYS` for the rule they extend. This module's
+ * snapshots record codes under `provider` and `outcome` (a tax-id validation)
+ * and `creditInheritanceMode`; `blockSource` and `countryCode` are kept
+ * wherever a writer records them, as they are on the account and the address.
+ */
+export const ORGANIZATION_AUDIT_KEEP_KEYS: readonly string[] = [
+  'blockSource',
+  'countryCode',
+  'creditInheritanceMode',
+  'outcome',
+  'provider',
+];
+
 export const addressKindSchema = z.enum(['delivery', 'billing']);
 export type AddressKind = z.infer<typeof addressKindSchema>;
 

@@ -44,6 +44,10 @@ describe('AuditRedactionService against PostgreSQL (issue #844)', () => {
     await db.close();
   });
 
+  type WriteChunk = (this: unknown, ...args: unknown[]) => Promise<void>;
+  /** The private one-statement write, which a case counts, fails or extends. */
+  const writes = AuditRedactionService.prototype as unknown as { writeChunk: WriteChunk };
+
   function track(id: string): string {
     written.push(id);
     return id;
@@ -88,7 +92,7 @@ describe('AuditRedactionService against PostgreSQL (issue #844)', () => {
     id: string;
     action: string;
     object_id: string;
-    acted_at: Date;
+    acted_at: string | Date;
     request_id: string | null;
     actor_customer_account_id: string | null;
     state_before: Record<string, unknown> | null;
@@ -129,7 +133,7 @@ describe('AuditRedactionService against PostgreSQL (issue #844)', () => {
     await seed('organization', org, 403);
     await seed('address', address, 200);
     const before = [...(await rowsOf(subject)), ...(await rowsOf(org)), ...(await rowsOf(address))];
-    const update = vi.spyOn(AuditRedactionService.prototype as never, 'writeChunk' as never);
+    const update = vi.spyOn(writes, 'writeChunk');
 
     const result = await run(
       forSubject(subject, [
@@ -156,7 +160,7 @@ describe('AuditRedactionService against PostgreSQL (issue #844)', () => {
     expect(after.filter((r) => r.object_id === subject).every((r) => r.ip_address === AUDIT_ERASED_MARKER && r.user_agent === AUDIT_ERASED_MARKER)).toBe(true);
     expect(after.filter((r) => r.object_id !== subject).every((r) => r.ip_address === '203.0.113.7')).toBe(true);
     // Action, actors, time, object and request are the record, and they stay.
-    const keep = (r: Stored) => [r.id, r.action, r.object_id, r.acted_at.toISOString(), r.request_id, r.actor_customer_account_id];
+    const keep = (r: Stored) => [r.id, r.action, r.object_id, String(r.acted_at), r.request_id, r.actor_customer_account_id];
     expect(after.map(keep).sort()).toEqual(before.map(keep).sort());
   });
 
@@ -185,14 +189,14 @@ describe('AuditRedactionService against PostgreSQL (issue #844)', () => {
   it('finishes a run interrupted after its first chunk, with one marker row in all', async () => {
     const subject = track(randomUUID());
     await seed('customer_account', subject, 1100);
-    const original = (AuditRedactionService.prototype as unknown as { writeChunk: (...args: unknown[]) => Promise<void> }).writeChunk;
+    const original = writes.writeChunk;
     let calls = 0;
-    vi.spyOn(AuditRedactionService.prototype as never, 'writeChunk' as never).mockImplementation(
+    vi.spyOn(writes, 'writeChunk').mockImplementation(
       async function (this: unknown, ...args: unknown[]) {
         calls += 1;
         if (calls === 2) throw new Error('injected: connection lost');
         return original.apply(this, args);
-      } as never,
+      },
     );
 
     await expect(run(forSubject(subject, [{ objectType: 'customer_account', objectIds: [subject] }]))).rejects.toThrow(
@@ -215,9 +219,9 @@ describe('AuditRedactionService against PostgreSQL (issue #844)', () => {
     const subject = track(randomUUID());
     const org = track(randomUUID());
     await seed('customer_account', subject, 2);
-    const original = (AuditRedactionService.prototype as unknown as { writeChunk: (...args: unknown[]) => Promise<void> }).writeChunk;
+    const original = writes.writeChunk;
     let injected = false;
-    vi.spyOn(AuditRedactionService.prototype as never, 'writeChunk' as never).mockImplementation(
+    vi.spyOn(writes, 'writeChunk').mockImplementation(
       async function (this: unknown, ...args: unknown[]) {
         await original.apply(this, args);
         if (!injected) {
@@ -225,7 +229,7 @@ describe('AuditRedactionService against PostgreSQL (issue #844)', () => {
           // A late write about the organisation, after the snapshot was taken.
           await seed('organization', org, 1);
         }
-      } as never,
+      },
     );
 
     const result = await run(

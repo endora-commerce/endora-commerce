@@ -101,6 +101,20 @@ export interface CustomerGroupReadPort {
 export type CustomerAccountBlockSource = 'staff' | 'org_owner';
 
 /**
+ * The codes a redacted `customer_account` audit row keeps (issue #844).
+ *
+ * Owner: `customer_accounts`; **codes only**. When an anonymised subject's
+ * audit history is erased, the platform's rule keeps ids, timestamps, booleans
+ * and a few global code keys, and erases every other value. These are the keys
+ * this module's audit snapshots record a *code* under that the rule would not
+ * otherwise keep — `blockSource` (`staff` / `org_owner`) and `via` (how a
+ * password was changed: `reset_token` / `self_service`). A value under one of
+ * them is still erased unless it has a code's shape. Adding a key here keeps it
+ * in every erased history, so add a key only when its values are codes.
+ */
+export const CUSTOMER_ACCOUNT_AUDIT_KEEP_KEYS: readonly string[] = ['blockSource', 'via'];
+
+/**
  * A customer account as it crosses a module boundary — a plain shape, never
  * the ORM entity (FR-011).
  *
