@@ -7,6 +7,7 @@ import {
   isWithinWithdrawalWindow,
   type ChargeRefundInput,
 } from './charge-refunds.js';
+import { STATUTORY_WITHDRAWAL_DAYS as STATUTORY_FROM_936 } from './withdrawal-period.js';
 
 /**
  * Issue #876 — a consumer's withdrawal from the whole sale refunds the delivery
@@ -105,26 +106,42 @@ describe('completesOrder — every unit of every line back in the kept state, th
   });
 });
 
-describe('isWithinWithdrawalWindow — the statutory floor or the channel’s longer window (E2)', () => {
+describe('isWithinWithdrawalWindow — the statutory floor or the channel’s longer window (E2, counted as #936 counts)', () => {
+  const TZ = 'Europe/Warsaw';
+  // Completed on Monday 2026-06-01, 14:00 in Warsaw. Day 14 is Monday 2026-06-15.
   const completedAt = new Date('2026-06-01T12:00:00.000Z');
-  const day = (n: number) => new Date(completedAt.getTime() + n * 24 * 60 * 60 * 1000);
+  const window = (submittedAt: string, freeReturnEligible = false, completingAt: Date | null = completedAt) =>
+    isWithinWithdrawalWindow({ freeReturnEligible, submittedAt: new Date(submittedAt), completingAt, timeZone: TZ });
 
-  it('is 14 days', () => {
-    expect(STATUTORY_WITHDRAWAL_DAYS).toBe(14);
+  it('is the statutory 14 days of withdrawal-period.ts, not a copy', () => {
+    expect(STATUTORY_WITHDRAWAL_DAYS).toBe(STATUTORY_FROM_936);
   });
 
-  it('a case opened within 14 days is within it, even on a channel with free_return_days = 0', () => {
-    expect(isWithinWithdrawalWindow({ freeReturnEligible: false, submittedAt: day(14), completingAt: completedAt })).toBe(true);
+  it('runs to the end of the 14th calendar day in returns.time_zone, even on a channel with free_return_days = 0', () => {
+    expect(window('2026-06-15T21:59:59.999Z')).toBe(true); // 23:59:59.999 in Warsaw
+    expect(window('2026-06-15T22:00:00.000Z')).toBe(false); // midnight, Tuesday the 16th
   });
 
-  it('a case opened after 14 days is outside it, unless the channel’s free-return window covered it', () => {
-    const late = new Date(day(14).getTime() + 1);
-    expect(isWithinWithdrawalWindow({ freeReturnEligible: false, submittedAt: late, completingAt: completedAt })).toBe(false);
-    expect(isWithinWithdrawalWindow({ freeReturnEligible: true, submittedAt: day(30), completingAt: completedAt })).toBe(true);
+  it('counts in the channel’s zone, not the server’s', () => {
+    const at = { freeReturnEligible: false, submittedAt: new Date('2026-06-15T23:00:00.000Z'), completingAt: completedAt };
+    expect(isWithinWithdrawalWindow({ ...at, timeZone: 'UTC' })).toBe(true);
+    expect(isWithinWithdrawalWindow({ ...at, timeZone: 'Europe/Warsaw' })).toBe(false);
   });
 
-  it('an order not in its completing status has no statutory anchor', () => {
-    expect(isWithinWithdrawalWindow({ freeReturnEligible: false, submittedAt: completedAt, completingAt: null })).toBe(false);
+  it('a 14th day on a Saturday moves to the Monday', () => {
+    // Completed on Saturday 2026-06-06: day 14 is Saturday the 20th, so the period ends on Monday the 22nd.
+    const saturday = new Date('2026-06-06T10:00:00.000Z');
+    expect(window('2026-06-22T21:00:00.000Z', false, saturday)).toBe(true);
+    expect(window('2026-06-22T22:00:00.000Z', false, saturday)).toBe(false);
+  });
+
+  it('outside the 14 days only the channel’s free-return window covers it', () => {
+    expect(window('2026-07-01T10:00:00.000Z')).toBe(false);
+    expect(window('2026-07-01T10:00:00.000Z', true)).toBe(true);
+  });
+
+  it('an order not in its completing status has no anchor, so the default does not apply (it never fails open)', () => {
+    expect(window('2026-06-02T10:00:00.000Z', false, null)).toBe(false);
   });
 });
 
