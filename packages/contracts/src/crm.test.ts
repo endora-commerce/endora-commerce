@@ -1006,3 +1006,26 @@ describe('events and the calendar (§12d, US21, US22)', () => {
     rejects(crm.OpportunityUnreadMessagesResponseSchema, { data: { unreadMessageCount: -1 } });
   });
 });
+
+describe('§3 links — issue #456, the partially-agreed marker', () => {
+  const link = {
+    id: UUID_A,
+    documentKind: 'quote_request',
+    documentId: UUID_B,
+    available: true,
+    number: 'QR-1',
+    status: 'Pending',
+    total: '37.50',
+    currency: 'PLN',
+    syncStatus: false,
+    linkSource: 'manual',
+    createdAt: '2026-11-08T10:00:00.000Z',
+  };
+
+  it('a Quote Request link says whether every line has an agreed price', () => {
+    expect(crm.OpportunityLinkSchema.parse({ ...link, partiallyAgreed: true }).partiallyAgreed).toBe(true);
+    // An Order link, and an unavailable one, carry no flag.
+    expect(crm.OpportunityLinkSchema.parse(link).partiallyAgreed).toBeUndefined();
+    rejects(crm.OpportunityLinkSchema, { ...link, partiallyAgreed: 'yes' });
+  });
+});

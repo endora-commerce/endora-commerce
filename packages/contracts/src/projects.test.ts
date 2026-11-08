@@ -479,3 +479,25 @@ describe('ports, events and error codes', () => {
     });
   });
 });
+
+describe('linked records — issue #456, the partially-agreed marker', () => {
+  const link = {
+    id: UUID_A,
+    kind: 'quote_request',
+    recordId: UUID_B,
+    available: true,
+    number: 'QR-1',
+    status: 'Pending',
+    amount: '37.50',
+    currency: 'PLN',
+    href: `/quote-requests/${UUID_B}`,
+    linkedBy: null,
+    linkedAt: '2026-11-08T10:00:00.000Z',
+  };
+
+  it('a Quote Request link says whether every line has an agreed price', () => {
+    expect(projects.ProjectLinkSchema.parse({ ...link, partiallyAgreed: true }).partiallyAgreed).toBe(true);
+    expect(projects.ProjectLinkSchema.parse(link).partiallyAgreed).toBeUndefined();
+    rejects(projects.ProjectLinkSchema, { ...link, partiallyAgreed: 'yes' });
+  });
+});

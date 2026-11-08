@@ -128,6 +128,30 @@ describe('Linked records', () => {
     expect(within(group('opportunity')).getByRole('link', { name: 'OPP-000007' })).toBeInTheDocument();
   });
 
+  it('marks a Quote Request whose lines are not all agreed beside its amount (issue #456)', async () => {
+    const quote = (n: number, amount: string, partiallyAgreed: boolean): ProjectLink =>
+      link({
+        id: `00000000-0000-4000-8000-0000000001b${n}`,
+        kind: 'quote_request',
+        recordId: `00000000-0000-4000-8000-0000000000d${n}`,
+        available: true,
+        number: `QR-${n}`,
+        status: 'Pending',
+        amount,
+        currency: 'PLN',
+        partiallyAgreed,
+        href: `/quote-requests/00000000-0000-4000-8000-0000000000d${n}`,
+      });
+    links = [quote(1, '35.00', true), quote(2, '33.50', false)];
+    await renderTab();
+    const quotes = group('quote_request');
+    const row = (number: string) => within(quotes).getByRole('link', { name: number }).closest('li')!;
+    expect(within(row('QR-1')).getByText(/35/)).toBeInTheDocument();
+    expect(within(row('QR-1')).getByText(en('links.partiallyAgreed'))).toBeInTheDocument();
+    expect(within(row('QR-2')).queryByText(en('links.partiallyAgreed'))).toBeNull();
+    expect(en('links.partiallyAgreed')).toBe('Partially agreed');
+  });
+
   it('offers records of the Project’s Organization only, and links the one chosen', async () => {
     postSpy.mockImplementation(() => {
       links = [...links, link({ id: '00000000-0000-4000-8000-0000000001a4', kind: 'order', recordId: FREE_ORDER_ID, available: true, number: 'ORD-1002' })];
