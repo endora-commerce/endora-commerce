@@ -3,7 +3,7 @@ import { screen, waitFor, within } from '@testing-library/react';
 import userEvent from '@testing-library/user-event';
 import type { ProjectDetail, ProjectLink } from '@endora-commerce/contracts';
 import { setMobileViewport } from '../../setup';
-import { ORGANIZATION_ID, PROJECT_ID, detail, en, renderProjects } from './projects-fixtures';
+import { ORGANIZATION_ID, PROJECT_ID, detail, en, pl, renderProjects } from './projects-fixtures';
 
 /**
  * A Project's *Linked records* tab (`specs/163-projects-and-tasks/`, User
@@ -101,13 +101,19 @@ function project(overrides: Partial<ProjectDetail> = {}): ProjectDetail {
 }
 
 async function renderTab(
-  options: { project?: ProjectDetail; permissions?: readonly string[]; present?: readonly string[] } = {},
+  options: {
+    project?: ProjectDetail;
+    permissions?: readonly string[];
+    present?: readonly string[];
+    language?: 'en' | 'pl';
+  } = {},
 ): Promise<void> {
   renderProjects(<LinkedRecordsTab project={options.project ?? project()} onChange={vi.fn()} reload={vi.fn(async () => {})} />, {
     permissions: options.permissions ?? ALL_READ,
     present: options.present ?? EVERY_OWNER,
+    ...(options.language ? { language: options.language } : {}),
   });
-  await screen.findByRole('heading', { name: en('links.group.order') });
+  await screen.findByRole('heading', { name: (options.language === 'pl' ? pl : en)('links.group.order') });
 }
 
 const group = (kind: 'order' | 'quote_request' | 'opportunity'): HTMLElement =>
@@ -126,30 +132,6 @@ describe('Linked records', () => {
     expect(within(quotes).queryByRole('link')).toBeNull();
 
     expect(within(group('opportunity')).getByRole('link', { name: 'OPP-000007' })).toBeInTheDocument();
-  });
-
-  it('marks a Quote Request whose lines are not all agreed beside its amount (issue #456)', async () => {
-    const quote = (n: number, amount: string, partiallyAgreed: boolean): ProjectLink =>
-      link({
-        id: `00000000-0000-4000-8000-0000000001b${n}`,
-        kind: 'quote_request',
-        recordId: `00000000-0000-4000-8000-0000000000d${n}`,
-        available: true,
-        number: `QR-${n}`,
-        status: 'Pending',
-        amount,
-        currency: 'PLN',
-        partiallyAgreed,
-        href: `/quote-requests/00000000-0000-4000-8000-0000000000d${n}`,
-      });
-    links = [quote(1, '35.00', true), quote(2, '33.50', false)];
-    await renderTab();
-    const quotes = group('quote_request');
-    const row = (number: string) => within(quotes).getByRole('link', { name: number }).closest('li')!;
-    expect(within(row('QR-1')).getByText(/35/)).toBeInTheDocument();
-    expect(within(row('QR-1')).getByText(en('links.partiallyAgreed'))).toBeInTheDocument();
-    expect(within(row('QR-2')).queryByText(en('links.partiallyAgreed'))).toBeNull();
-    expect(en('links.partiallyAgreed')).toBe('Partially agreed');
   });
 
   it('offers records of the Project’s Organization only, and links the one chosen', async () => {
@@ -248,5 +230,60 @@ describe('Linked records', () => {
     await renderTab({ project: project({ organizations: [] }) });
     expect(screen.getByText(en('links.internal'))).toBeInTheDocument();
     expect(screen.queryByLabelText(en('links.add.record.order'))).toBeNull();
+  });
+});
+
+/**
+ * Issue #456 (owner ruling of 2026-11-07, PO ruling of 2026-11-08) — a linked
+ * Quote Request is shown at the amount `quote_requests` publishes, with how
+ * far it is agreed: no marker, *Partially agreed*, *Not yet agreed*, and `—`
+ * with no marker when it has no price at all.
+ */
+describe.each(['en', 'pl'] as const)('Linked records — the agreement marker of a Quote Request (%s)', (language) => {
+  const say = language === 'pl' ? pl : en;
+
+  it('ships both markers', () => {
+    expect({ partial: say('links.partiallyAgreed'), notYet: say('links.notYetAgreed') }).toEqual(
+      language === 'en'
+        ? { partial: 'Partially agreed', notYet: 'Not yet agreed' }
+        : { partial: 'Częściowo uzgodnione', notYet: 'Jeszcze nieuzgodnione' },
+    );
+  });
+
+  it('shows the four states', async () => {
+    const quote = (n: number, shown: Partial<ProjectLink>): ProjectLink =>
+      link({
+        id: `00000000-0000-4000-8000-0000000001b${n}`,
+        kind: 'quote_request',
+        recordId: `00000000-0000-4000-8000-0000000000d${n}`,
+        available: true,
+        number: `QR-${n}`,
+        status: 'Pending',
+        currency: 'PLN',
+        href: `/quote-requests/00000000-0000-4000-8000-0000000000d${n}`,
+        ...shown,
+      });
+    links = [
+      quote(1, { amount: '33.50', agreement: 'agreed' }),
+      quote(2, { amount: '35.00', agreement: 'partial' }),
+      quote(3, { amount: '39.00', agreement: 'none' }),
+      quote(4, { agreement: 'none' }),
+    ];
+    await renderTab({ language });
+    const quotes = screen.getByRole('heading', { name: say('links.group.quote_request') }).closest('section')!;
+    const row = (n: number) => within(quotes).getByRole('link', { name: `QR-${n}` }).closest('li')!;
+    const partial = say('links.partiallyAgreed');
+    const notYet = say('links.notYetAgreed');
+
+    expect(row(1)).toHaveTextContent(/33[.,]50/);
+    expect(row(1)).not.toHaveTextContent(partial);
+    expect(row(1)).not.toHaveTextContent(notYet);
+    expect(row(2)).toHaveTextContent(/35[.,]00/);
+    expect(row(2)).toHaveTextContent(partial);
+    expect(row(3)).toHaveTextContent(/39[.,]00/);
+    expect(row(3)).toHaveTextContent(notYet);
+    expect(row(4)).toHaveTextContent('—');
+    expect(row(4)).not.toHaveTextContent(partial);
+    expect(row(4)).not.toHaveTextContent(notYet);
   });
 });

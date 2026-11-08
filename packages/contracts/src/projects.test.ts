@@ -480,7 +480,7 @@ describe('ports, events and error codes', () => {
   });
 });
 
-describe('linked records — issue #456, the partially-agreed marker', () => {
+describe('linked records — issue #456, how far a Quote Request is agreed', () => {
   const link = {
     id: UUID_A,
     kind: 'quote_request',
@@ -495,9 +495,12 @@ describe('linked records — issue #456, the partially-agreed marker', () => {
     linkedAt: '2026-11-08T10:00:00.000Z',
   };
 
-  it('a Quote Request link says whether every line has an agreed price', () => {
-    expect(projects.ProjectLinkSchema.parse({ ...link, partiallyAgreed: true }).partiallyAgreed).toBe(true);
-    expect(projects.ProjectLinkSchema.parse(link).partiallyAgreed).toBeUndefined();
-    rejects(projects.ProjectLinkSchema, { ...link, partiallyAgreed: 'yes' });
+  it('a Quote Request link says how far its lines are agreed', () => {
+    for (const agreement of ['agreed', 'partial', 'none'] as const) {
+      expect(projects.ProjectLinkSchema.parse({ ...link, agreement }).agreement).toBe(agreement);
+    }
+    // An Order link, and an unavailable one, carry none.
+    expect(projects.ProjectLinkSchema.parse(link).agreement).toBeUndefined();
+    rejects(projects.ProjectLinkSchema, { ...link, agreement: 'some' });
   });
 });

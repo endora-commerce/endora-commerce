@@ -3,7 +3,7 @@ import { screen, within } from '@testing-library/react';
 import { MemoryRouter } from 'react-router-dom';
 import { readFileSync } from 'node:fs';
 import { resolve } from 'node:path';
-import { renderWithI18n, passthroughBundle } from '../../helpers/render-with-i18n';
+import { renderWithI18n } from '../../helpers/render-with-i18n';
 import { setMobileViewport } from '../../setup';
 
 const getSpy = vi.fn();
@@ -51,27 +51,11 @@ vi.mock('@endora-commerce/admin-kit/components', async () => {
 
 const { RfqList } = await import('../../../../packages/modules/quote_requests/src/admin/pages/RfqList');
 
-const BUNDLE = passthroughBundle('core', [
-  'rfq.list.title',
-  'rfq.list.description',
-  'rfq.list.field.visibility',
-  'rfq.list.scope.mine',
-  'rfq.list.scope.unassigned',
-  'rfq.list.scope.all',
-  'rfq.list.field.status',
-  'rfq.list.field.organizationId',
-  'rfq.list.field.uuid',
-  'rfq.list.refresh',
-  'rfq.list.column.rfq',
-  'rfq.list.column.organization',
-  'rfq.list.column.customer',
-  'rfq.list.column.status',
-  'rfq.list.column.lines',
-  'rfq.list.column.total',
-  'rfq.list.statusFilter.all',
-  'rfq.list.open',
-  'rfq.list.badge.partiallyAgreed',
-]);
+/** The shipped core bundle of one language. */
+const shipped = (language: 'en' | 'pl'): Record<string, string> =>
+  JSON.parse(
+    readFileSync(resolve(process.cwd(), `../packages/modules/_i18n/i18n/${language}.json`), 'utf8'),
+  ) as Record<string, string>;
 
 const row = (n: number, overrides: Record<string, unknown>) => ({
   id: `00000000-0000-4000-8000-00000000000${n}`,
@@ -90,9 +74,13 @@ const row = (n: number, overrides: Record<string, unknown>) => ({
 
 const RFQ_LIST = {
   data: [
-    // One line agreed at 10.00 × 2, one asked at 5.00 × 3 (asked total 39.00).
-    row(1, { totalAtCustomerPrice: 39, totalAtAgreedPrice: null, amount: '35.00', partiallyAgreed: true }),
-    row(2, { totalAtCustomerPrice: 39, totalAtAgreedPrice: 33.5, amount: '33.50', partiallyAgreed: false }),
+    row(1, { amount: '33.50', agreement: 'agreed' }),
+    // One line agreed at 10.00 × 2, one asked at 5.00 × 3.
+    row(2, { amount: '35.00', agreement: 'partial' }),
+    // Both lines asked only: 12.00 × 2 + 5.00 × 3.
+    row(3, { amount: '39.00', agreement: 'none' }),
+    // No price on any line.
+    row(4, { amount: null, agreement: 'none' }),
   ],
 };
 
@@ -108,33 +96,50 @@ beforeEach(() => {
 });
 
 /**
- * Issue #456 (owner ruling of 2026-11-07) — the quote desk list shows the one
- * amount `quote_requests` publishes (per line, agreed price or else the asked
- * one), and marks a quote whose lines are not all agreed.
+ * Issue #456 (owner ruling of 2026-11-07, PO ruling of 2026-11-08) — the quote
+ * desk list shows the one amount `quote_requests` publishes (per line, agreed
+ * price or else the asked one) and says how far it is agreed: no marker,
+ * *Partially agreed*, *Not yet agreed* — and `—` with no marker when there is
+ * no price at all.
  */
-describe('RfqList — the amount and the partially-agreed marker', () => {
-  it('shows the published amount, with the marker only on a quote not every line of which is agreed', async () => {
+describe.each(['en', 'pl'] as const)('RfqList — the amount and its agreement marker (%s)', (language) => {
+  const bundle = shipped(language);
+  const partial = bundle['rfq.list.badge.partiallyAgreed']!;
+  const notYet = bundle['rfq.list.badge.notYetAgreed']!;
+
+  it('ships both markers', () => {
+    expect({ partial, notYet }).toEqual(
+      language === 'en'
+        ? { partial: 'Partially agreed', notYet: 'Not yet agreed' }
+        : { partial: 'Częściowo uzgodnione', notYet: 'Jeszcze nieuzgodnione' },
+    );
+  });
+
+  it('shows the four states', async () => {
     renderWithI18n(
       <MemoryRouter>
         <RfqList />
       </MemoryRouter>,
-      BUNDLE,
+      { core: bundle },
+      { language },
     );
-    const partial = (await screen.findByText('#QR-1')).closest('tr')!;
-    const agreed = screen.getByText('#QR-2').closest('tr')!;
-    expect(within(partial).getByText(/35,00\sPLN/)).toBeInTheDocument();
-    expect(within(partial).queryByText(/39,00/)).toBeNull();
-    expect(within(partial).getByText('rfq.list.badge.partiallyAgreed')).toBeInTheDocument();
-    expect(within(agreed).getByText(/33,50\sPLN/)).toBeInTheDocument();
-    expect(within(agreed).queryByText('rfq.list.badge.partiallyAgreed')).toBeNull();
-  });
+    const rowOf = (n: number) => screen.getByText(`#QR-${n}`).closest('tr')!;
+    await screen.findByText('#QR-1');
+    // The Total column: RFQ, Organization, Customer, Status, Lines, Total.
+    const total = (n: number) => within(rowOf(n)).getAllByRole('cell')[5]!;
 
-  it('ships the marker in English and Polish', () => {
-    const bundle = (language: string) =>
-      JSON.parse(
-        readFileSync(resolve(process.cwd(), `../packages/modules/_i18n/i18n/${language}.json`), 'utf8'),
-      ) as Record<string, string>;
-    expect(bundle('en')['rfq.list.badge.partiallyAgreed']).toBe('Partially agreed');
-    expect(bundle('pl')['rfq.list.badge.partiallyAgreed']).toBe('Częściowo uzgodnione');
+    expect(total(1)).toHaveTextContent(/^33,50\sPLN$/);
+    expect(within(rowOf(1)).queryByText(partial)).toBeNull();
+    expect(within(rowOf(1)).queryByText(notYet)).toBeNull();
+
+    expect(total(2)).toHaveTextContent(/^35,00\sPLN/);
+    expect(within(rowOf(2)).getByText(partial)).toBeInTheDocument();
+
+    expect(total(3)).toHaveTextContent(/^39,00\sPLN/);
+    expect(within(rowOf(3)).getByText(notYet)).toBeInTheDocument();
+
+    expect(total(4)).toHaveTextContent(/^—$/);
+    expect(within(rowOf(4)).queryByText(partial)).toBeNull();
+    expect(within(rowOf(4)).queryByText(notYet)).toBeNull();
   });
 });

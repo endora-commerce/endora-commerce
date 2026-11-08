@@ -378,7 +378,7 @@ describe('in-process ports (type level)', () => {
       listOpenForOrganizations: async () => [],
       listItems: async () => [legacy],
       findByBusinessId: async () => null,
-      amountOf: async () => ({ amount: '0.00', currency: 'PLN', partiallyAgreed: true }),
+      amountOf: async () => ({ amount: '0.00', currency: 'PLN', agreement: 'partial' }),
     };
     expect(await port.listItems(ID(10))).toEqual([legacy]);
   });
@@ -839,24 +839,29 @@ describe('163 — the operator names the channel an on-behalf quote request is r
 });
 
 describe('issue #456 — one rule for what a quote request is worth', () => {
-  it('the amount is a two-place string, with its currency and the partially-agreed flag', () => {
-    expect(quoteRequestAmountSchema.parse({ amount: '37.50', currency: 'PLN', partiallyAgreed: true })).toEqual({
-      amount: '37.50',
-      currency: 'PLN',
-      partiallyAgreed: true,
-    });
-    // A quote without a line has no currency to show the amount in.
-    expect(quoteRequestAmountSchema.parse({ amount: '0.00', currency: null, partiallyAgreed: false }).currency).toBeNull();
-  });
-
-  it('refuses an amount that is not two places, and a missing flag', () => {
-    for (const amount of ['37.5', '37', '37.505', '-1.00', 37.5]) {
-      expect(() => quoteRequestAmountSchema.parse({ amount, currency: 'PLN', partiallyAgreed: false })).toThrow();
+  it('the amount is a two-place string, with its currency and how far it is agreed', () => {
+    for (const agreement of ['agreed', 'partial', 'none'] as const) {
+      expect(quoteRequestAmountSchema.parse({ amount: '37.50', currency: 'PLN', agreement })).toEqual({
+        amount: '37.50',
+        currency: 'PLN',
+        agreement,
+      });
     }
-    expect(() => quoteRequestAmountSchema.parse({ amount: '1.00', currency: 'PLN' })).toThrow();
   });
 
-  it('the admin list row carries the amount and the flag; the customer row may omit them', () => {
+  it('a quote without any price has no amount — not 0.00 (PO ruling of 2026-11-08)', () => {
+    expect(quoteRequestAmountSchema.parse({ amount: null, currency: null, agreement: 'none' }).amount).toBeNull();
+  });
+
+  it('refuses an amount that is not two places, an unknown agreement and the old boolean', () => {
+    for (const amount of ['37.5', '37', '37.505', '-1.00', 37.5]) {
+      expect(() => quoteRequestAmountSchema.parse({ amount, currency: 'PLN', agreement: 'agreed' })).toThrow();
+    }
+    expect(() => quoteRequestAmountSchema.parse({ amount: '1.00', currency: 'PLN', agreement: 'some' })).toThrow();
+    expect(() => quoteRequestAmountSchema.parse({ amount: '1.00', currency: 'PLN', partiallyAgreed: true })).toThrow();
+  });
+
+  it('the admin list row carries the amount and the agreement; the customer row may omit them', () => {
     const row = {
       id: ID(10),
       businessId: 'QR-1',
@@ -874,11 +879,12 @@ describe('issue #456 — one rule for what a quote request is worth', () => {
       updatedAt: '2026-11-08T10:00:00.000Z',
       version: 1,
     };
-    expect(quoteRequestSummarySchema.parse({ ...row, amount: '12.34', partiallyAgreed: true })).toMatchObject({
+    expect(quoteRequestSummarySchema.parse({ ...row, amount: '12.34', agreement: 'partial' })).toMatchObject({
       amount: '12.34',
-      partiallyAgreed: true,
+      agreement: 'partial',
     });
+    expect(quoteRequestSummarySchema.parse({ ...row, amount: null, agreement: 'none' }).amount).toBeNull();
     expect(quoteRequestSummarySchema.parse(row).amount).toBeUndefined();
-    expect(() => quoteRequestSummarySchema.parse({ ...row, amount: '12.3', partiallyAgreed: true })).toThrow();
+    expect(() => quoteRequestSummarySchema.parse({ ...row, amount: '12.3', agreement: 'partial' })).toThrow();
   });
 });

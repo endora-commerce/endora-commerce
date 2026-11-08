@@ -1007,7 +1007,7 @@ describe('events and the calendar (§12d, US21, US22)', () => {
   });
 });
 
-describe('§3 links — issue #456, the partially-agreed marker', () => {
+describe('§3 links — issue #456, how far a Quote Request is agreed', () => {
   const link = {
     id: UUID_A,
     documentKind: 'quote_request',
@@ -1022,10 +1022,12 @@ describe('§3 links — issue #456, the partially-agreed marker', () => {
     createdAt: '2026-11-08T10:00:00.000Z',
   };
 
-  it('a Quote Request link says whether every line has an agreed price', () => {
-    expect(crm.OpportunityLinkSchema.parse({ ...link, partiallyAgreed: true }).partiallyAgreed).toBe(true);
-    // An Order link, and an unavailable one, carry no flag.
-    expect(crm.OpportunityLinkSchema.parse(link).partiallyAgreed).toBeUndefined();
-    rejects(crm.OpportunityLinkSchema, { ...link, partiallyAgreed: 'yes' });
+  it('a Quote Request link says how far its lines are agreed', () => {
+    for (const agreement of ['agreed', 'partial', 'none'] as const) {
+      expect(crm.OpportunityLinkSchema.parse({ ...link, agreement }).agreement).toBe(agreement);
+    }
+    // An Order link, and an unavailable one, carry none.
+    expect(crm.OpportunityLinkSchema.parse(link).agreement).toBeUndefined();
+    rejects(crm.OpportunityLinkSchema, { ...link, agreement: 'some' });
   });
 });

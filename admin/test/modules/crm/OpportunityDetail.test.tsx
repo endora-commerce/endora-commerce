@@ -642,35 +642,6 @@ describe('OpportunityDetail — tabs and their address (User Story 20)', () => {
     ).toBeInTheDocument();
   });
 
-  it('marks a linked Quote Request whose lines are not all agreed beside its amount (issue #456)', async () => {
-    const quoteLink = (n: number, total: string, partiallyAgreed: boolean) => ({
-      id: `00000000-0000-4000-8000-0000000000d${n}`,
-      documentKind: 'quote_request' as const,
-      documentId: `00000000-0000-4000-8000-0000000000c${n}`,
-      available: true,
-      number: `QR-${n}`,
-      status: 'Pending',
-      total,
-      currency: 'PLN',
-      partiallyAgreed,
-      syncStatus: false,
-      linkSource: 'manual' as const,
-      createdAt: '2026-10-05T10:06:00.000Z',
-    });
-    current = detail({ links: [...detail().links, quoteLink(1, '35.00', true), quoteLink(2, '33.50', false)] });
-    getSpy.mockImplementation(
-      answerWith((path) =>
-        path.startsWith('/api/v1/admin/crm/lookups/quote-requests') ? Promise.resolve({ data: [] }) : undefined,
-      ),
-    );
-    await renderPage(undefined, { search: '?tab=links', alsoPresent: ['quote_requests'] });
-    const quotes = await screen.findByRole('region', { name: en('links.quote.title') });
-    const row = (number: string) => within(quotes).getByRole('link', { name: number }).closest('tr')!;
-    expect(within(row('QR-1')).getByText(en('links.quote.partiallyAgreed'))).toBeInTheDocument();
-    expect(within(row('QR-2')).queryByText(en('links.quote.partiallyAgreed'))).toBeNull();
-    expect(en('links.quote.partiallyAgreed')).toBe('Partially agreed');
-  });
-
   it('counts the linked documents on the tab, and shows no number when there is none', async () => {
     current = detail({
       links: [

@@ -186,7 +186,7 @@ describe('calculateOpportunityValue', () => {
     expect(result).toEqual({ value: '0.00', excludedDocuments: [] });
   });
 
-  it('takes a Quote Request at the amount its owner publishes, partially agreed or not (issue #456)', () => {
+  it('takes a Quote Request at the amount its owner publishes, however far it is agreed (issue #456)', () => {
     const result = calculateOpportunityValue(
       input({
         quoteRequests: [{ id: QUOTE_A, status: 'Approved', convertedOrderId: null, amount: '35.00', currency: 'PLN' }],
@@ -195,10 +195,20 @@ describe('calculateOpportunityValue', () => {
     expect(result).toEqual({ value: '35.00', excludedDocuments: [] });
   });
 
+  it('a Quote Request without any price has no amount and adds nothing, without being named', () => {
+    const result = calculateOpportunityValue(
+      input({
+        orders: [{ id: ORDER_A, status: 'paid', total: '50.00', currency: 'PLN' }],
+        quoteRequests: [{ id: QUOTE_A, status: 'Approved', convertedOrderId: null, amount: null, currency: 'PLN' }],
+      }),
+    );
+    expect(result).toEqual({ value: '50.00', excludedDocuments: [] });
+  });
+
   it('a Quote Request without a line has no currency and adds nothing, without being named', () => {
     const result = calculateOpportunityValue(
       input({
-        quoteRequests: [{ id: QUOTE_A, status: 'Approved', convertedOrderId: null, amount: '0.00', currency: null }],
+        quoteRequests: [{ id: QUOTE_A, status: 'Approved', convertedOrderId: null, amount: null, currency: null }],
       }),
     );
     expect(result).toEqual({ value: '0.00', excludedDocuments: [] });

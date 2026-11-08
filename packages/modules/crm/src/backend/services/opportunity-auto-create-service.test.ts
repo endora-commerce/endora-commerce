@@ -36,7 +36,7 @@ function service(overrides: Partial<OpportunityAutoCreateServiceDeps> = {}) {
         },
         amount: '10.00',
         currency: 'EUR',
-        partiallyAgreed: false,
+        agreement: 'agreed',
       })),
     },
     links: {

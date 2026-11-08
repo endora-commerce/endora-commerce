@@ -17,7 +17,7 @@ function port(): QuoteRequestReadPort {
     listItems: vi.fn(async () => {
       throw new Error('the lines are quote_requests’ to value');
     }),
-    amountOf: vi.fn(async () => ({ amount: '35.00', currency: 'PLN', partiallyAgreed: true })),
+    amountOf: vi.fn(async () => ({ amount: '35.00', currency: 'PLN', agreement: 'partial' as const })),
   };
 }
 
@@ -25,7 +25,7 @@ describe('createCrmQuoteRequests — the published amount (issue #456)', () => {
   it('loads a Quote Request with its owner’s amount, currency and partially-agreed flag', async () => {
     const quotes = port();
     const document = await createCrmQuoteRequests(quotes).load(ID);
-    expect(document).toMatchObject({ amount: '35.00', currency: 'PLN', partiallyAgreed: true });
+    expect(document).toMatchObject({ amount: '35.00', currency: 'PLN', agreement: 'partial' });
     expect(quotes.amountOf).toHaveBeenCalledWith(ID);
     expect(quotes.listItems).not.toHaveBeenCalled();
   });
