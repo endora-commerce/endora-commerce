@@ -29,6 +29,9 @@ describe('settlement charges on the wire (#876)', () => {
     const prefill = settlementPrefillSchema.parse({
       currency: 'PLN',
       resolutionOptions: ['refund'],
+      defaultResolution: 'refund',
+      consentRequiredFor: [],
+      defaultRefundPaymentMethodId: null,
       items: [],
       charges: { delivery: { cap: 15.99, approved: 15.99 } },
     });
