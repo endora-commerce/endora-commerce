@@ -22,6 +22,13 @@ import { RETURN_STATUS_RESOLVED } from '../domain/return-status-graph.js';
 import { approvedAmount, carriedDiscount, settlementApproved, sumApproved } from '../domain/refund-math.js';
 import { isLineReturnable } from './return-eligibility.js';
 import { caseDefaults, loadOrderCases } from './default-refund-service.js';
+import {
+  consentRequiredFor,
+  defaultResolution,
+  refundMethodDiffers,
+  resolutionNeedsConsent,
+  type ConsentState,
+} from '../domain/consumer-withdrawal.js';
 import type { ReturnTransitionService } from './return-transition-service.js';
 import type { ReturnStatusGraphService } from './return-status-graph-service.js';
 
@@ -40,7 +47,9 @@ export interface ReturnSettlementServiceDeps {
   creditTopup: CreditTopupPort;
   /**
    * `orders`' return context (a hard manifest dependency): the order facts the
-   * default refund is recomputed from at settlement (issue #875).
+   * default refund is recomputed from at settlement (issue #875), and the
+   * order's own payment method, which the refund of a consumer withdrawal
+   * proposes and is compared with (issue #905, design D1).
    */
   orderContext: OrderReturnContextPort;
   auditLog?: AuditPort;
@@ -117,10 +126,16 @@ export class ReturnSettlementService {
     // stored approved amount mapped onto it as the settlement maps it. Read
     // without the lock, so another settlement of the order may still move it;
     // the settlement itself decides. A settled case shows what it settled at.
-    const defaults = rc.resolutionType == null ? await this.#recompute(em, rc, items) : null;
+    const order = await this.deps.orderContext.getReturnContext(rc.orderId);
+    const defaults = rc.resolutionType == null && order ? await this.#recompute(em, rc, items, order) : null;
     return {
       currency: rc.currency,
       resolutionOptions: ['refund', 'credit', 'replacement', 'repair'],
+      // Issue #905 (design D1) — a consumer withdrawal settles as a refund to
+      // the order's own method; the other resolutions wait for consent.
+      defaultResolution: defaultResolution(),
+      consentRequiredFor: consentRequiredFor(consentStateOf(rc)),
+      defaultRefundPaymentMethodId: order?.paymentMethodId ?? null,
       items: items.map((it) => {
         const d = defaults?.get(it.id);
         if (!d) {
@@ -255,6 +270,17 @@ export class ReturnSettlementService {
         code: 'payment_method_required',
       });
     }
+    // Issue #905 (design D1) — a consumer withdrawal settles otherwise than by
+    // a refund only with the consumer's consent to that resolution on record.
+    if (resolutionNeedsConsent(consentStateOf(rc), input.resolutionType)) {
+      throw new HttpError(
+        422,
+        ERROR_CODES.RETURN_ALTERNATIVE_RESOLUTION_CONSENT_REQUIRED,
+        `A consumer withdrawal is settled as a refund unless the consumer has agreed to a ${input.resolutionType}. Record their consent first.`,
+        { resolution: input.resolutionType },
+      );
+    }
+    const withdrawalAudit = await this.#withdrawalAudit(rc, input);
 
     // Step 1 — validate. The approved amounts are computed into a map and
     // **not** assigned: an assignment on a managed entity is a write the next
@@ -531,6 +557,7 @@ export class ReturnSettlementService {
                   ? 'issued'
                   : result.correctiveInvoice.reason
                 : 'not_requested',
+              ...withdrawalAudit,
               ...(recomputedDefaults.length > 0 ? { recomputedDefaults } : {}),
               ...(lineCeilings.length > 0 ? { lineCeilings } : {}),
             },
@@ -542,6 +569,22 @@ export class ReturnSettlementService {
     // Step 5 — after commit.
     this.emitSettled(rc, refund, total);
     return result;
+  }
+
+  /**
+   * What the audit row says about a consumer withdrawal (issue #905, design
+   * D1): that it was one, and — for a refund — whether the money went to
+   * another payment method than the order's own. Not refused: a
+   * cash-on-delivery order cannot be refunded by the same means.
+   */
+  async #withdrawalAudit(rc: ReturnCase, input: SettlementRequest): Promise<Record<string, unknown>> {
+    if (rc.consumerWithdrawal !== true) return {};
+    if (input.resolutionType !== 'refund') return { consumerWithdrawal: true };
+    const order = await this.deps.orderContext.getReturnContext(rc.orderId);
+    return {
+      consumerWithdrawal: true,
+      refundMethodDiffers: refundMethodDiffers(consentStateOf(rc), input.refundPaymentMethodId, order?.paymentMethodId ?? null),
+    };
   }
 
   private emitSettled(rc: ReturnCase, refund: Refund | null, total: number): void {
@@ -557,4 +600,12 @@ export class ReturnSettlementService {
     };
     this.deps.events.emit('return.refund.settled.v1', payload);
   }
+}
+
+/** The two facts of a case the consent gate reads (issue #905). */
+function consentStateOf(rc: ReturnCase): ConsentState {
+  return {
+    consumerWithdrawal: rc.consumerWithdrawal ?? null,
+    alternativeConsentResolution: rc.alternativeConsentResolution ?? null,
+  };
 }

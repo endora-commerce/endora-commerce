@@ -1,0 +1,5 @@
+---
+'@endora-commerce/contracts': minor
+---
+
+Return contracts for a consumer's withdrawal and the consent to settle it otherwise than by a refund (#905). New schemas: `alternativeResolutionSchema` (`credit`, `replacement`, `repair`), `alternativeConsentSourceSchema`, `alternativeResolutionConsentSchema` and `recordAlternativeConsentRequestSchema` (`{ resolution, consentGivenAt, note }`, the note trimmed and 1 to 2000 characters). `returnCaseDetailSchema` gains `consumerWithdrawal` (`boolean | null`; `null` for a case filed before the classification existed) and `alternativeResolutionConsent` (nullable; the buyer's view omits `note` and `byAdminUserId`). `settlementPrefillSchema` gains three **required** fields, `defaultResolution`, `consentRequiredFor` and `defaultRefundPaymentMethodId`: a caller that builds a prefill by hand must now set them, while `resolutionOptions` still lists every resolution. `OrderReturnContext` gains a required `paymentMethodId: string | null`, so an implementation of `OrderReturnContextPort` outside this repository must report it. New error code `RETURN_ALTERNATIVE_RESOLUTION_CONSENT_REQUIRED`.

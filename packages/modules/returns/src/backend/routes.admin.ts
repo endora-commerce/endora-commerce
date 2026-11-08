@@ -7,6 +7,7 @@ import {
   bulkTransitionRequestSchema,
   createReturnSavedViewRequestSchema,
   createReturnShipmentRequestSchema,
+  recordAlternativeConsentRequestSchema,
   returnDeliveryMethodCreateSchema,
   returnDeliveryMethodUpdateSchema,
   returnReasonCreateSchema,
@@ -22,6 +23,7 @@ import type { ReturnCaseService } from './services/return-case-service.js';
 import type { ReturnAuthorizationService } from './services/return-authorization-service.js';
 import type { ReturnCommentService } from './services/return-comment-service.js';
 import type { ReturnSettlementService } from './services/return-settlement-service.js';
+import type { ReturnConsentService } from './services/return-consent-service.js';
 import type { ReturnDeliveryMethodService } from './services/return-delivery-method-service.js';
 import type { ReturnShipmentService } from './services/return-shipment-service.js';
 import type { ReturnReasonService } from './services/return-reason-service.js';
@@ -43,6 +45,7 @@ export interface ReturnsAdminRoutesDeps {
   authorizationService: ReturnAuthorizationService;
   commentService: ReturnCommentService;
   settlementService: ReturnSettlementService;
+  consentService: ReturnConsentService;
   deliveryMethodService: ReturnDeliveryMethodService;
   shipmentService: ReturnShipmentService;
   reasonService: ReturnReasonService;
@@ -64,6 +67,7 @@ export async function registerReturnsAdminRoutes(
     authorizationService,
     commentService,
     settlementService,
+    consentService,
     deliveryMethodService,
     shipmentService,
     reasonService,
@@ -310,6 +314,28 @@ export async function registerReturnsAdminRoutes(
       const body = settlementRequestSchema.parse(request.body);
       const data = await settlementService.settle(request.params.id, adminUserId, body);
       return { data };
+    },
+  );
+
+  // --- The consumer's consent to another resolution (issue #905, design D1)
+  // Both are Commands; the route answers the case detail, as the other case
+  // actions do.
+  app.post<{ Params: { id: string } }>(
+    '/api/v1/admin/returns/:id/alternative-consent',
+    { preHandler: requireAdmin('returns:write'), schema: { body: recordAlternativeConsentRequestSchema } },
+    async (request) => {
+      const body = recordAlternativeConsentRequestSchema.parse(request.body);
+      await consentService.record(request.params.id, body);
+      return { data: await caseService.getByIdForAdmin(request.params.id) };
+    },
+  );
+
+  app.delete<{ Params: { id: string } }>(
+    '/api/v1/admin/returns/:id/alternative-consent',
+    { preHandler: requireAdmin('returns:write') },
+    async (request) => {
+      await consentService.revoke(request.params.id);
+      return { data: await caseService.getByIdForAdmin(request.params.id) };
     },
   );
 
