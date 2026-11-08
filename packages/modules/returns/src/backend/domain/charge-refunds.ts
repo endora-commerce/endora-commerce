@@ -116,24 +116,23 @@ export function isWithinWithdrawalWindow(input: {
 
 /**
  * What a settlement approves for one charge, once it is recomputed under the
- * order's lock — the rule `settlementApproved` applies to a goods line, with the
- * cap apart from the default because outside the window they differ:
+ * order's lock (ruling Q2 on PR #965):
  *
- * - an amount equal to the stored default or to the recomputed one is the
- *   default approved, and settles at the recomputed default;
- * - otherwise an amount at most the cap is the operator's, kept as typed;
- * - anything else is `refund_exceeds_paid`, with nothing written.
+ * - an omitted amount takes the recomputed default;
+ * - a present amount at most the cap settles exactly as sent, 0 included;
+ * - a present amount above the cap is `refund_exceeds_paid`, with nothing
+ *   written — a stale figure above a cap that has since shrunk included.
+ *
+ * This deliberately differs from the goods' rule (`settlementApproved`), where
+ * an amount equal to a default stored at creation means "the default approved":
+ * a charge sent as 0 means no refund of it.
  */
 export function chargeApproved(input: {
-  requested: string | number;
-  previousDefault: string | number;
+  requested?: string | number | undefined;
   recomputed: ChargeRefund;
 }): { approved: string } | { refused: 'refund_exceeds_paid' } {
+  if (input.requested === undefined) return { approved: roundHalfUp(input.recomputed.default) };
   const requested = roundHalfUp(input.requested);
-  const isDefault = [input.previousDefault, input.recomputed.default].some(
-    (d) => compareDecimals(requested, roundHalfUp(d)) === 0,
-  );
-  if (isDefault) return { approved: roundHalfUp(input.recomputed.default) };
   if (compareDecimals(requested, input.recomputed.cap) <= 0) return { approved: requested };
   return { refused: 'refund_exceeds_paid' };
 }

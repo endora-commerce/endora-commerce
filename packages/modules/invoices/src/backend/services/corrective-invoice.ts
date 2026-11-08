@@ -483,15 +483,20 @@ export function correctionAmounts(input: CorrectionInput): {
 
 /**
  * The invoice's delivery and payment-surcharge lines (issue #876), by
- * `line_kind`. A line issued before #904 has none: issuance has always written
- * the delivery before the surcharge, each a positive line naming no order item,
- * so with two such lines the first is the delivery and the second the
- * surcharge. With one, it is whichever charge the order had — the settlement
+ * `line_kind`. A line issued before #904 has none. Issuance has written the
+ * delivery before the surcharge, each a positive 0 % line naming no order item,
+ * since it first itemised them (`ee860569e`, "itemize delivery, payment
+ * surcharge, and discount as lines"), so with two such lines the first is the
+ * delivery and the second the surcharge. Only 0 % lines are matched (ruling Q3
+ * on PR #965): a positive line at another rate is no charge issuance wrote, so
+ * a credit asked of it is refused `no_corrected_line`. With one, it is whichever charge the order had — the settlement
  * names only a charge that was paid, so it never asks for both — and it answers
  * for either. On those invoices both are 0 % lines, so the rate a credit
  * mirrors is the same either way.
  */
-export function chargeLinesOf<T extends { orderItemId?: string | null; lineKind?: string | null; grossValue: string; ordinal: number }>(
+export function chargeLinesOf<
+  T extends { orderItemId?: string | null; lineKind?: string | null; grossValue: string; taxRate: string; ordinal: number },
+>(
   lines: readonly T[],
 ): { delivery?: T; payment_surcharge?: T } {
   const delivery = lines.find((l) => l.lineKind === 'delivery');
@@ -500,7 +505,7 @@ export function chargeLinesOf<T extends { orderItemId?: string | null; lineKind?
     return { ...(delivery ? { delivery } : {}), ...(surcharge ? { payment_surcharge: surcharge } : {}) };
   }
   const legacy = lines
-    .filter((l) => !l.orderItemId && compareDecimals(l.grossValue, 0) > 0)
+    .filter((l) => !l.orderItemId && compareDecimals(l.grossValue, 0) > 0 && compareDecimals(l.taxRate, 0) === 0)
     .sort((a, b) => a.ordinal - b.ordinal);
   if (legacy.length === 1) return { delivery: legacy[0]!, payment_surcharge: legacy[0]! };
   return {

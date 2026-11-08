@@ -186,7 +186,7 @@ before/after events and is written to the audit log.
     settled with a refund or a credit. An order with a line that could not be
     returned can never be withdrawn in full, so it never refunds them;
   - the case is settled as a refund or a credit. A replacement or a repair
-    refunds neither charge.
+    refunds neither charge, and an amount above 0 sent for one is refused.
 
   A partial withdrawal refunds neither charge, and the settlement form does not
   offer them. The settlement form shows a *Delivery cost* row and a *Payment
@@ -198,9 +198,13 @@ before/after events and is written to the audit log.
   to what was paid. Lower the delivery to the price of the cheapest standard
   delivery when the customer chose a more expensive one (art. 13(2)). An amount
   above what was paid is refused with `422 VALIDATION_FAILED`
-  (`code: refund_exceeds_paid`). Through the API, send
-  `deliveryRefundAmount` and `surchargeRefundAmount`; when you leave them out,
-  the prefilled amounts apply. The case's `totalRefundAmount` then includes the
+  (`code: refund_exceeds_paid`). Through the API, `deliveryRefundAmount` and
+  `surchargeRefundAmount` work differently from the line amounts. When you
+  leave one out, it settles at the default recomputed at settlement. When you
+  send one, it settles at exactly that amount, `0` included, as long as it is
+  not above the maximum. A figure the case showed when it was opened can be
+  above the maximum by then, and is refused. The settlement form sends only an
+  amount you changed. The case's `totalRefundAmount` then includes the
   charges, so it is more than the sum of the lines. The case detail reports
   them as `chargeRefunds`, and the `return.settled` audit entry records each
   one's maximum and the approved amount (`charges`). A business customer's

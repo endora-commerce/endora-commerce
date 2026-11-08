@@ -328,9 +328,11 @@ export const settlementPrefillSchema = z.object({
    * consumer's withdrawal that completes the order, and each charge only when
    * its cap is above 0. `cap` is what was paid for it less what earlier cases
    * refunded — the most the operator may approve; `approved` is what settles
-   * if the operator changes nothing: the cap within the withdrawal window
-   * (the statutory 14 days or the channel's longer free-return window), `0`
-   * outside it.
+   * if the field is omitted: the cap within the withdrawal window (the
+   * statutory 14 days or the channel's longer free-return window), `0`
+   * outside it. On a settled case `cap` equals `approved`, and a charge settled
+   * at 0 is left out; the cap at settlement is recorded in the
+   * `return.settled` audit entry.
    */
   charges: z
     .object({
@@ -367,12 +369,15 @@ export const settlementRequestSchema = z.object({
   createCorrectiveInvoice: z.boolean().optional(),
   /**
    * Issue #876 — what the case refunds of the order's delivery cost and of its
-   * payment surcharge. Omitted: the case's stored approved amount. An amount
-   * equal to the prefilled default settles at the default recomputed under the
-   * order's lock; a lower one is kept (art. 13(2): a premium delivery reduced
-   * to the standard one); one above the cap is refused `422
-   * refund_exceeds_paid`, and only a consumer's withdrawal that completes the
-   * order has a cap above 0.
+   * payment surcharge (ruling Q2 on PR #965):
+   * - omitted: the default recomputed under the order's lock (the full amount
+   *   within the withdrawal window, 0 outside it);
+   * - present: settled exactly as sent, 0 included, when it is at most the cap
+   *   (art. 13(2): a premium delivery reduced to the standard one);
+   * - above the cap: refused `422 refund_exceeds_paid`, with nothing written.
+   * Only a consumer's withdrawal that completes the order, settled with a
+   * refund or a credit, has a cap above 0. This deliberately differs from the
+   * line rule, where an amount equal to a default means the default approved.
    */
   deliveryRefundAmount: twoDecimalAmount(z.number().finite().nonnegative()).optional(),
   surchargeRefundAmount: twoDecimalAmount(z.number().finite().nonnegative()).optional(),

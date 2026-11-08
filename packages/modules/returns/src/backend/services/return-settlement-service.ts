@@ -166,27 +166,27 @@ export class ReturnSettlementService {
 
   /**
    * The charges the prefill shows (issue #876): on an open case, each charge
-   * whose recomputed cap is above 0, with the stored approved amount mapped onto
-   * it as the settlement maps it; on a settled case, what it settled at. Absent
-   * when there is none, so a business customer's or a partial case shows nothing.
+   * whose recomputed cap is above 0, at its recomputed default — what an
+   * omitted field settles at (ruling Q2 on PR #965); on a settled case, what it
+   * settled at, with `cap` equal to `approved` and a charge settled at 0 left
+   * out (ruling Q4: the cap at settlement is in the `return.settled` audit
+   * entry). Absent when there is none, so a business customer's or a partial
+   * case shows nothing.
    */
   #prefillCharges(rc: ReturnCase, charges: CaseChargeRefunds | null): Pick<SettlementPrefill, 'charges'> {
     const out: NonNullable<SettlementPrefill['charges']> = {};
-    const one = (key: 'delivery' | 'surcharge', stored: { default: string; approved: string }) => {
+    const one = (key: 'delivery' | 'surcharge', approved: string) => {
       if (charges) {
         const recomputed = charges[key];
         if (compareDecimals(recomputed.cap, 0) <= 0) return;
-        const mapped = chargeApproved({ requested: stored.approved, previousDefault: stored.default, recomputed });
-        out[key] = { cap: Number(recomputed.cap), approved: Number('approved' in mapped ? mapped.approved : recomputed.default) };
+        out[key] = { cap: Number(recomputed.cap), approved: Number(recomputed.default) };
         return;
       }
       if (rc.resolutionType == null) return;
-      // Settled: the cap is not stored, so the larger of the default and the approved amount stands for it.
-      const cap = compareDecimals(stored.default, stored.approved) >= 0 ? stored.default : stored.approved;
-      if (compareDecimals(cap, 0) > 0) out[key] = { cap: Number(cap), approved: Number(stored.approved) };
+      if (compareDecimals(approved, 0) > 0) out[key] = { cap: Number(approved), approved: Number(approved) };
     };
-    one('delivery', { default: rc.defaultDeliveryRefund, approved: rc.approvedDeliveryRefund });
-    one('surcharge', { default: rc.defaultSurchargeRefund, approved: rc.approvedSurchargeRefund });
+    one('delivery', rc.approvedDeliveryRefund);
+    one('surcharge', rc.approvedSurchargeRefund);
     return Object.keys(out).length > 0 ? { charges: out } : {};
   }
 
@@ -384,16 +384,18 @@ export class ReturnSettlementService {
     // Issue #876 — the order's delivery cost and payment surcharge, recomputed
     // under the lock from the cases settled by now: only a consumer's
     // withdrawal that completes the order has a cap above 0, and within the
-    // window its default is the cap. An amount equal to a default settles at
-    // the recomputed one, a lower one is kept (art. 13(2)), anything above the
+    // window its default is the cap. An omitted amount settles at the
+    // recomputed default; a present one exactly as sent, 0 included, when it
+    // is within the cap (ruling Q2 on PR #965; art. 13(2)); anything above the
     // cap is refused — a partial case cannot be given a charge (ruling E1).
-    const charges = await this.#charges(rc, items, context, history);
-    const chargeOutcome = (
-      requested: number | undefined,
-      stored: { default: string; approved: string },
-      recomputed: ChargeRefund,
-    ): string => {
-      const outcome = chargeApproved({ requested: requested ?? stored.approved, previousDefault: stored.default, recomputed });
+    // A replacement or a repair is not a withdrawal: the buyer keeps the
+    // goods, so its cap is 0 (ruling Q1) and an amount above 0 is refused.
+    const withdraws = input.resolutionType === 'refund' || input.resolutionType === 'credit';
+    const NO_CHARGE: ChargeRefund = { cap: '0.00', default: '0.00' };
+    const recomputedCharges = await this.#charges(rc, items, context, history);
+    const charges: CaseChargeRefunds = withdraws ? recomputedCharges : { delivery: NO_CHARGE, surcharge: NO_CHARGE };
+    const chargeOutcome = (requested: number | undefined, recomputed: ChargeRefund): string => {
+      const outcome = chargeApproved({ requested, recomputed });
       if ('refused' in outcome) {
         throw new HttpError(422, ERROR_CODES.VALIDATION_FAILED, 'Refund amount cannot exceed what was paid for the charge.', {
           code: 'refund_exceeds_paid',
@@ -401,23 +403,8 @@ export class ReturnSettlementService {
       }
       return outcome.approved;
     };
-    // A replacement or a repair is not a withdrawal: the buyer keeps the
-    // goods, so it refunds no charge, whatever the case stored.
-    const withdraws = input.resolutionType === 'refund' || input.resolutionType === 'credit';
-    const deliveryRefund = withdraws
-      ? chargeOutcome(
-          input.deliveryRefundAmount,
-          { default: rc.defaultDeliveryRefund, approved: rc.approvedDeliveryRefund },
-          charges.delivery,
-        )
-      : '0.00';
-    const surchargeRefund = withdraws
-      ? chargeOutcome(
-          input.surchargeRefundAmount,
-          { default: rc.defaultSurchargeRefund, approved: rc.approvedSurchargeRefund },
-          charges.surcharge,
-        )
-      : '0.00';
+    const deliveryRefund = chargeOutcome(input.deliveryRefundAmount, charges.delivery);
+    const surchargeRefund = chargeOutcome(input.surchargeRefundAmount, charges.surcharge);
     // What the money moves: the goods, plus the charges (issue #876) — so on a
     // consumer's completing withdrawal it is more than the sum of the lines.
     const total = sumApproved([...items.map(approvedOf), deliveryRefund, surchargeRefund]);

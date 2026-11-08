@@ -168,7 +168,7 @@ trafia do dziennika audytu.
     pieniędzy albo zasileniem limitu. Zamówienia z pozycją, której nie można było zwrócić, nie da
     się zwrócić w całości, więc nigdy nie zwraca ono tych opłat;
   - sprawa jest rozliczana zwrotem pieniędzy albo zasileniem limitu. Wymiana i naprawa nie zwracają
-    żadnej z opłat.
+    żadnej z opłat, a kwota wyższa niż 0 wysłana dla nich jest odrzucana.
 
   Częściowe odstąpienie nie zwraca żadnej z opłat, a formularz rozliczenia ich nie proponuje.
   Formularz rozliczenia pokazuje wiersz *Koszt dostawy* i wiersz *Dopłata za płatność*, każdy z
@@ -178,8 +178,11 @@ trafia do dziennika audytu.
   zaczyna się od 0 i możesz podnieść kwotę do tego, co zapłacono. Jeśli klient wybrał droższą
   dostawę niż najtańszy zwykły sposób, obniż kwotę dostawy do ceny tego sposobu (art. 13 ust. 2).
   Kwota wyższa niż zapłacona jest odrzucana z `422 VALIDATION_FAILED`
-  (`code: refund_exceeds_paid`). Przez API wyślij `deliveryRefundAmount` i
-  `surchargeRefundAmount`; gdy ich nie podasz, obowiązują kwoty z formularza. `totalRefundAmount`
+  (`code: refund_exceeds_paid`). W API `deliveryRefundAmount` i `surchargeRefundAmount` działają
+  inaczej niż kwoty pozycji. Pole pominięte jest rozliczane według kwoty domyślnej przeliczonej przy
+  rozliczeniu. Pole wysłane jest rozliczane dokładnie na tę kwotę, także `0`, o ile nie przekracza
+  maksimum. Kwota, którą sprawa pokazywała przy otwarciu, może do tego czasu przekraczać maksimum
+  i wtedy jest odrzucana. Formularz rozliczenia wysyła tylko kwotę, którą zmieniłeś. `totalRefundAmount`
   sprawy obejmuje wtedy opłaty, więc jest wyższy niż suma pozycji. Szczegóły sprawy podają je jako
   `chargeRefunds`, a wpis `return.settled` w dzienniku audytu odnotowuje maksimum i zatwierdzoną
   kwotę każdej z nich (`charges`). Zwrot klienta firmowego i każda reklamacja działają bez zmian.

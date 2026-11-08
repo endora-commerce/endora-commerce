@@ -31,7 +31,10 @@ export function ReturnDetail(): ReactNode {
   const [resolution, setResolution] = useState('refund');
   const [paymentMethodId, setPaymentMethodId] = useState('');
   const [approved, setApproved] = useState<Record<string, number>>({});
-  // Issue #876 — the delivery and surcharge a consumer's completing withdrawal refunds.
+  // Issue #876 — the delivery and surcharge a consumer's completing withdrawal
+  // refunds. Only an amount the operator edited is sent (ruling Q2 on PR #965):
+  // an omitted one settles at the default recomputed under the order's lock,
+  // a sent one exactly as typed, 0 included.
   const [approvedCharges, setApprovedCharges] = useState<{ delivery?: number; surcharge?: number }>({});
   // Issue #150 — a correction is asked for by default, as the screen always
   // did; the control exists because "not requested" is one of the three
@@ -57,10 +60,7 @@ export function ReturnDetail(): ReactNode {
         // amount paid: a complaint line that was not returnable at purchase is
         // stored at 0, so nothing is refunded for it unless the operator sets it.
         setApproved(Object.fromEntries(pf.items.map((it) => [it.returnCaseItemId, it.approvedRefundAmount])));
-        setApprovedCharges({
-          ...(pf.charges?.delivery ? { delivery: pf.charges.delivery.approved } : {}),
-          ...(pf.charges?.surcharge ? { surcharge: pf.charges.surcharge.approved } : {}),
-        });
+        setApprovedCharges({});
       } else {
         setPrefill(null);
       }
@@ -291,7 +291,7 @@ export function ReturnDetail(): ReactNode {
                           max={charge.cap}
                           aria-label={label}
                           className="h-8 w-28 rounded-md border border-input bg-background px-2 text-sm"
-                          value={approvedCharges[key] ?? 0}
+                          value={approvedCharges[key] ?? charge.approved}
                           onChange={(e) => setApprovedCharges((prev) => ({ ...prev, [key]: Number(e.target.value) }))}
                         />
                       </TableCell>
@@ -327,8 +327,8 @@ export function ReturnDetail(): ReactNode {
                       ...(resolution === 'refund' && paymentMethodId
                         ? { refundPaymentMethodId: paymentMethodId }
                         : {}),
-                      ...(prefill.charges?.delivery ? { deliveryRefundAmount: approvedCharges.delivery ?? 0 } : {}),
-                      ...(prefill.charges?.surcharge ? { surchargeRefundAmount: approvedCharges.surcharge ?? 0 } : {}),
+                      ...(approvedCharges.delivery !== undefined ? { deliveryRefundAmount: approvedCharges.delivery } : {}),
+                      ...(approvedCharges.surcharge !== undefined ? { surchargeRefundAmount: approvedCharges.surcharge } : {}),
                       createCorrectiveInvoice,
                     });
                     // Issue #150 — kept whatever the gateway said, because the
