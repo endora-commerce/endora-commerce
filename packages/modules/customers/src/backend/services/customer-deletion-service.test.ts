@@ -1,14 +1,22 @@
 import { describe, expect, it } from 'vitest';
-import type {
-  AddressServicePort,
-  CustomerAccountLifecycleWritePort,
-  CustomerAccountReadPort,
-  CustomerAccountRecord,
-  OrganizationRecord,
-  PersonalOrganizationPort,
+import {
+  ADDRESS_AUDIT_KEEP_KEYS,
+  CUSTOMER_ACCOUNT_AUDIT_KEEP_KEYS,
+  CUSTOMER_ADDRESS_AUDIT_KEEP_KEYS,
+  ORGANIZATION_AUDIT_KEEP_KEYS,
+  type AddressServicePort,
+  type CustomerAccountLifecycleWritePort,
+  type CustomerAccountReadPort,
+  type CustomerAccountRecord,
+  type OrganizationRecord,
+  type PersonalOrganizationPort,
 } from '@endora-commerce/contracts';
-import { ModuleDisabledError } from '@endora-commerce/platform/kernel';
-import { CustomerDeletionService, retentionCutoff } from './customer-deletion-service.js';
+import { ModuleDisabledError, type AuditRedactionInput } from '@endora-commerce/platform/kernel';
+import {
+  CustomerDeletionService,
+  retentionCutoff,
+  type AnonymizedHistoryDeps,
+} from './customer-deletion-service.js';
 import type { CustomerAuthorityService } from './customer-authority-service.js';
 import type { OrganizationDepletionGuard } from './organization-depletion-guard.js';
 
@@ -24,6 +32,13 @@ import type { OrganizationDepletionGuard } from './organization-depletion-guard.
  */
 
 type Step = 'org' | 'addresses' | 'account';
+
+/** Step 3 (issue #844) with no history to name: the cases below are about the other steps. */
+const NO_HISTORY: AnonymizedHistoryDeps = {
+  redaction: { redact: async () => ({ rowsInScope: 0, rowsChanged: 0, markerWritten: true }) },
+  addressReads: { listIdsForOrganization: async () => [] },
+  retiredAddressBook: { listIdsForAccount: async () => [] },
+};
 
 function harness(failAt: { step: Step; error: Error } | null = null) {
   const calls: Array<[Step, string]> = [];
@@ -71,6 +86,7 @@ function harness(failAt: { step: Step; error: Error } | null = null) {
     {} as OrganizationDepletionGuard,
     addresses,
     async () => 365,
+    NO_HISTORY,
   );
   return { service, calls, probed };
 }
@@ -164,6 +180,7 @@ describe('CustomerDeletionService.sweep — subjects an earlier rule left unfini
       {} as OrganizationDepletionGuard,
       { anonymizeForOrganization: async () => 0 },
       async () => 365,
+      NO_HISTORY,
     );
     return { service, processed, disabled };
   }
@@ -271,6 +288,7 @@ describe('CustomerDeletionService.hasDue (issue #857)', () => {
       {} as OrganizationDepletionGuard,
       { anonymizeForOrganization: async () => 0 },
       async () => 365,
+      NO_HISTORY,
     );
     return { service, asked };
   }
@@ -301,5 +319,128 @@ describe('CustomerDeletionService.hasDue (issue #857)', () => {
     const disabled = new ModuleDisabledError('organizations');
     const { service } = probeHarness({ accountsDue: false, orgs: disabled });
     await expect(service.hasDue(30, new Date())).rejects.toBe(disabled);
+  });
+});
+
+/**
+ * Issue #844 — step 3 of the cascade: the subject's audit history is erased
+ * through the platform's `auditRedactionService`, after its organisation and
+ * addresses are scrubbed and **before** the account step, so `anonymizedAt`
+ * stays the one fact that says the subject is finished. A throw at step 3
+ * leaves the account due, and the next tick finishes it.
+ */
+describe("CustomerDeletionService.sweep — the subject's audit history (issue #844)", () => {
+  const ACCOUNT = '00000000-0000-4000-8000-000000844001';
+  const PERSONAL_ORG = '00000000-0000-4000-8000-000000844002';
+  const ADDRESS_LIVE = '00000000-0000-4000-8000-000000844003';
+  const ADDRESS_DELETED = '00000000-0000-4000-8000-000000844004';
+  const LEGACY_ADDRESS = '00000000-0000-4000-8000-000000844005';
+
+  function historyHarness(options: {
+    personal: boolean;
+    addressIds?: string[];
+    legacyIds?: string[];
+    redactFails?: Error;
+  }) {
+    const calls: string[] = [];
+    const redactions: AuditRedactionInput[] = [];
+    const addressQueries: Array<[string, { includeDeleted?: boolean } | undefined]> = [];
+    const record = { id: ACCOUNT, organizationId: PERSONAL_ORG } as unknown as CustomerAccountRecord;
+    const accountWrites = {
+      listDueForAnonymization: async () => [record],
+      anonymize: async () => {
+        calls.push('account');
+        return record;
+      },
+    } as unknown as CustomerAccountLifecycleWritePort;
+    const personalOrganizations = {
+      anonymizeIfOrphaned: async () => {
+        calls.push('org');
+        return options.personal ? ({ id: PERSONAL_ORG } as OrganizationRecord) : null;
+      },
+      listIncompletelyScrubbed: async () => [],
+    } as unknown as PersonalOrganizationPort;
+    const history: AnonymizedHistoryDeps = {
+      redaction: {
+        redact: async (input) => {
+          calls.push('redact');
+          redactions.push(input);
+          if (options.redactFails) throw options.redactFails;
+          return { rowsInScope: 1, rowsChanged: 1, markerWritten: true };
+        },
+      },
+      addressReads: {
+        listIdsForOrganization: async (organizationId, query) => {
+          addressQueries.push([organizationId, query]);
+          return options.addressIds ?? [];
+        },
+      },
+      retiredAddressBook: { listIdsForAccount: async () => options.legacyIds ?? [] },
+    };
+    const service = new CustomerDeletionService(
+      {} as CustomerAccountReadPort,
+      accountWrites,
+      personalOrganizations,
+      {} as CustomerAuthorityService,
+      { destroyAllForCustomer: async () => undefined },
+      {} as OrganizationDepletionGuard,
+      {
+        anonymizeForOrganization: async () => {
+          calls.push('addresses');
+          return 0;
+        },
+      },
+      async () => 365,
+      history,
+    );
+    return { service, calls, redactions, addressQueries };
+  }
+
+  it('U-844-1 — redacts after the organisation and its addresses, and before the account', async () => {
+    const { service, calls } = historyHarness({ personal: true });
+    expect(await service.sweep(0, new Date())).toBe(1);
+    expect(calls).toEqual(['org', 'addresses', 'redact', 'account']);
+  });
+
+  it('U-844-2 — a personal subject names its account, organisation, every address (deleted ones too) and its retired book', async () => {
+    const { service, redactions, addressQueries } = historyHarness({
+      personal: true,
+      addressIds: [ADDRESS_LIVE, ADDRESS_DELETED],
+      legacyIds: [LEGACY_ADDRESS],
+    });
+    await service.sweep(0, new Date());
+    expect(addressQueries).toEqual([[PERSONAL_ORG, { includeDeleted: true }]]);
+    expect(redactions).toEqual([
+      {
+        reason: 'anonymization',
+        subject: { objectType: 'customer_account', objectId: ACCOUNT },
+        // Owner ruling on #844: the IP and user agent of the rows it wrote itself.
+        subjectActorAccountId: ACCOUNT,
+        targets: [
+          { objectType: 'customer_account', objectIds: [ACCOUNT], keepKeys: CUSTOMER_ACCOUNT_AUDIT_KEEP_KEYS },
+          { objectType: 'organization', objectIds: [PERSONAL_ORG], keepKeys: ORGANIZATION_AUDIT_KEEP_KEYS },
+          { objectType: 'address', objectIds: [ADDRESS_LIVE, ADDRESS_DELETED], keepKeys: ADDRESS_AUDIT_KEEP_KEYS },
+          { objectType: 'customer_address', objectIds: [LEGACY_ADDRESS], keepKeys: CUSTOMER_ADDRESS_AUDIT_KEEP_KEYS },
+        ],
+      },
+    ]);
+  });
+
+  it('U-844-2 — a company member names only its own account, and an empty target is left out', async () => {
+    const { service, redactions, addressQueries } = historyHarness({ personal: false });
+    await service.sweep(0, new Date());
+    // The company organisation and its book are not the subject's: never asked for.
+    expect(addressQueries).toEqual([]);
+    expect(redactions.map((r) => r.targets)).toEqual([
+      [{ objectType: 'customer_account', objectIds: [ACCOUNT], keepKeys: CUSTOMER_ACCOUNT_AUDIT_KEEP_KEYS }],
+    ]);
+  });
+
+  it('U-844-3 — a failed redaction leaves the account un-anonymised, named in the error, for the next tick', async () => {
+    const { service, calls } = historyHarness({ personal: true, redactFails: new Error('boom') });
+    const error = await service.sweep(0, new Date()).catch((e: unknown) => e);
+    expect(error).toBeInstanceOf(AggregateError);
+    expect((error as AggregateError).message).toContain(ACCOUNT);
+    expect(calls).toEqual(['org', 'addresses', 'redact']);
   });
 });
