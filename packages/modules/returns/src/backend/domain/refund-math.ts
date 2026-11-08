@@ -76,7 +76,16 @@ export interface RefundOrderLine {
  * every line back — refunds exactly what remains of it: what the order charged,
  * the same target the correction credits (for an order placed before 0.108.0
  * the stored lines may add up to a cent off `productsPaidTotal`; the money
- * charged decides).
+ * charged decides). What remains is `productsPaidTotal` less what the earlier
+ * cases refunded by default, less `refundedOutside`.
+ *
+ * Which cases are `earlier` is the kept state (issues #874 and #875,
+ * `kept-state.ts`): the lines of the order's `return` cases settled with a
+ * refund or a credit — at settlement — or, for the figure shown when a case is
+ * created, also its live returns not settled yet. A complaint is a price
+ * reduction of goods the buyer keeps (issue #885), so it is never `earlier`:
+ * the money a settled complaint moved enters only the order-level cap, as
+ * `refundedOutside`.
  *
  * Each line's answer is its `refund` and the `discount` that refund carries —
  * what a correction credits back on the invoice's discount line. A group's
@@ -90,9 +99,15 @@ export function caseDefaultRefunds(input: {
   /** The order-level discount, as stored. */
   discountTotal?: string;
   orderLines: readonly RefundOrderLine[];
-  /** Lines of the order's earlier, live cases — returns and complaints — with the default refund and discount each recorded. */
-  earlier: ReadonlyArray<{ orderItemId: string; quantity: number; defaultRefundAmount: string; defaultDiscountAmount: string }>;
+  /** Lines of the order's cases in the kept state (`kept-state.ts`), with the default refund and discount each recorded. */
+  earlier: ReadonlyArray<KeptStateLine>;
   current: ReadonlyArray<{ orderItemId: string; quantity: number }>;
+  /**
+   * The unabsorbed part of the money settled outside the kept state —
+   * complaints refunded or credited (issue #874) — that what remains paid is
+   * lowered by ({@link effectiveDefaultRefunds}). Two places; `0` when absent.
+   */
+  refundedOutside?: string;
 }): Array<{ refund: string; discount: string }> {
   const lineById = new Map(input.orderLines.map((l) => [l.orderItemId, l]));
   const perRate = input.vatMethod === 'per_rate';
@@ -206,7 +221,10 @@ export function caseDefaultRefunds(input: {
 
   // The order-level cap, and the completing case.
   const refundedSoFar = moneySum([...refundedBefore.values()].flat());
-  const remainingPaid = moneyDifference(input.productsPaidTotal, refundedSoFar);
+  const remainingPaid = moneyDifference(
+    moneyDifference(input.productsPaidTotal, refundedSoFar),
+    roundHalfUp(input.refundedOutside ?? '0'),
+  );
   const completes = lines.every((l) => (after.get(l.orderItemId) ?? 0) >= l.purchasedQty);
   const raw = moneySum([...groupRefund.values()]);
   const target = completes ? remainingPaid : compareDecimals(raw, remainingPaid) > 0 ? remainingPaid : raw;
@@ -247,6 +265,169 @@ export function caseDefaultRefunds(input: {
     });
   }
   return out;
+}
+
+/** One line of a case in the kept state, as {@link caseDefaultRefunds} reads it. */
+export interface KeptStateLine {
+  orderItemId: string;
+  quantity: number;
+  defaultRefundAmount: string;
+  defaultDiscountAmount: string;
+}
+
+/** The order facts the default refund is computed from, as {@link caseDefaultRefunds} reads them. */
+export interface RefundOrder {
+  vatMethod: 'per_rate' | null;
+  productsPaidTotal: string;
+  discountTotal?: string;
+  orderLines: readonly RefundOrderLine[];
+}
+
+/**
+ * What one line of the order was paid, under the kept-state rule (the #885
+ * amendment, §4): the default refund of the whole line coming back, with
+ * nothing else returned — its share of its group less the discount that share
+ * carries. The bound no line's refunds, complaints and returns together, exceed.
+ */
+export function lineValue(order: RefundOrder, orderItemId: string): string {
+  const line = order.orderLines.find((l) => l.orderItemId === orderItemId);
+  if (!line) return '0.00';
+  return caseDefaultRefunds({ ...order, earlier: [], current: [{ orderItemId, quantity: line.purchasedQty }] })[0]!.refund;
+}
+
+/**
+ * **The default refund of each line of a case, with the per-line ceiling**
+ * (issues #874 and #875, the #885 amendment §4, product-owner ruling E-C of
+ * 2026-11-07).
+ *
+ * A complaint that moved money is a price reduction of goods the buyer keeps,
+ * so it is not in the kept state: a later return of the same line still gets
+ * the full default of the goods coming back. Without a bound, a complaint and
+ * the returns of one line could then refund more than the line was paid — on
+ * an order of several VAT rates the order-level cap does not bound one line.
+ * So, per line `l`:
+ *
+ *   ceiling(l) = max(0, lineValue(l) − Σ stored defaults of the kept-state
+ *                lines naming l − Σ complaint money on l)
+ *
+ * and the **effective default** of a return line is its default bounded by the
+ * ceiling when a complaint moved money on the line; a complaint line is always
+ * bounded by it. The first units back get their full default and the last ones
+ * absorb the cut (ruling E-C): the platform cannot know which unit came back,
+ * and the operator lowers the amount by hand when it is the defective one. A
+ * line named twice in one case takes the ceiling in the order of the case.
+ *
+ * `refund` and `discount` stay the default of the goods, which is what the
+ * settlement stores: they are the telescoping `earlier` of the next case, which
+ * a capped figure would hand the cut back to. `effective` is what may be
+ * refunded, and `ceiling` is set wherever the ceiling applied to the line.
+ *
+ * The order-level cap (`refundedOutside`) is lowered by **the unabsorbed part**
+ * of the complaint money only: once the ceiling has cut a return by a
+ * complaint's amount, that amount is inside the line's stored defaults and is
+ * not counted twice. Per line, `max(0, min(complaint money, lineValue − Σ
+ * stored defaults))` (architect's ruling on PR #937). With no complaint money
+ * this is exactly {@link caseDefaultRefunds}.
+ */
+export function effectiveDefaultRefunds(
+  input: RefundOrder & {
+    earlier: ReadonlyArray<KeptStateLine>;
+    /** The approved amounts of the lines of complaints settled with money, the case being settled excluded. */
+    complaints: ReadonlyArray<{ orderItemId: string; amount: string }>;
+    kind: 'return' | 'complaint';
+    current: ReadonlyArray<{ orderItemId: string; quantity: number }>;
+  },
+): Array<{ refund: string; discount: string; effective: string; ceiling: string | null }> {
+  const order: RefundOrder = {
+    vatMethod: input.vatMethod,
+    productsPaidTotal: input.productsPaidTotal,
+    ...(input.discountTotal !== undefined ? { discountTotal: input.discountTotal } : {}),
+    orderLines: input.orderLines,
+  };
+  const sumBy = (rows: ReadonlyArray<{ orderItemId: string }>, amount: (row: never) => string) => {
+    const out = new Map<string, string>();
+    for (const row of rows) out.set(row.orderItemId, moneySum([out.get(row.orderItemId) ?? '0', amount(row as never)]));
+    return out;
+  };
+  const complaintMoney = sumBy(input.complaints, (c: { amount: string }) => c.amount);
+  const keptDefaults = sumBy(input.earlier, (e: KeptStateLine) => e.defaultRefundAmount);
+  const values = new Map<string, string>();
+  const valueOf = (orderItemId: string): string => {
+    let value = values.get(orderItemId);
+    if (value === undefined) {
+      value = lineValue(order, orderItemId);
+      values.set(orderItemId, value);
+    }
+    return value;
+  };
+
+  // What of the complaint money the line's kept-state defaults have not absorbed.
+  const outside = [...complaintMoney].map(([orderItemId, money]) => {
+    const room = moneyDifference(valueOf(orderItemId), keptDefaults.get(orderItemId) ?? '0');
+    const absorbed = compareDecimals(money, room) <= 0 ? money : room;
+    return compareDecimals(absorbed, 0) < 0 ? '0.00' : absorbed;
+  });
+  const defaults = caseDefaultRefunds({
+    ...order,
+    earlier: input.earlier,
+    current: input.current,
+    refundedOutside: moneySum(outside),
+  });
+
+  const room = new Map<string, string>();
+  return input.current.map((c, i) => {
+    const { refund, discount } = defaults[i]!;
+    const bound = input.kind === 'complaint' || compareDecimals(complaintMoney.get(c.orderItemId) ?? '0', 0) > 0;
+    if (!bound) return { refund, discount, effective: refund, ceiling: null };
+    let left = room.get(c.orderItemId);
+    if (left === undefined) {
+      const ceiling = moneyDifference(
+        moneyDifference(valueOf(c.orderItemId), keptDefaults.get(c.orderItemId) ?? '0'),
+        complaintMoney.get(c.orderItemId) ?? '0',
+      );
+      left = compareDecimals(ceiling, 0) < 0 ? '0.00' : ceiling;
+    }
+    const effective = compareDecimals(refund, left) <= 0 ? refund : left;
+    room.set(c.orderItemId, moneyDifference(left, effective));
+    return { refund, discount, effective, ceiling: left };
+  });
+}
+
+/**
+ * What a settlement approves for one line, once its default is recomputed
+ * under the order's lock (issue #875). `requested` is the amount the operator
+ * sent, or the stored approved amount for a line the request leaves out.
+ *
+ * - An amount equal to a default — the one stored at creation, the recomputed
+ *   one, or the effective one the line ceiling leaves — is the default
+ *   approved, and settles at the effective default.
+ * - Otherwise an amount at most the effective default is the operator's, and
+ *   is kept as typed.
+ * - Anything else is more than may be refunded: `refund_exceeds_paid`, with
+ *   nothing written; the operator reloads the form and confirms.
+ *
+ * `zeroIsAmount`: a non-returnable complaint line starts at an approved 0 for
+ * the operator to set (feature 155, owner ruling R1), so its 0 is an amount and
+ * is never read as a default approved.
+ */
+export function settlementApproved(input: {
+  requested: string | number;
+  previousDefault: string | number;
+  recomputedDefault: string | number;
+  effectiveDefault: string | number;
+  zeroIsAmount: boolean;
+}): { approved: string } | { refused: 'refund_exceeds_paid' } {
+  const requested = approvedAmount(input.requested);
+  const effective = approvedAmount(input.effectiveDefault);
+  const isZeroAmount = input.zeroIsAmount && compareDecimals(requested, 0) === 0;
+  const isDefault =
+    !isZeroAmount &&
+    [input.previousDefault, input.recomputedDefault, input.effectiveDefault].some(
+      (d) => compareDecimals(requested, approvedAmount(d)) === 0,
+    );
+  if (isDefault) return { approved: effective };
+  if (compareDecimals(requested, effective) <= 0) return { approved: requested };
+  return { refused: 'refund_exceeds_paid' };
 }
 
 /**
