@@ -154,6 +154,67 @@ describe('mfa.admin.totp_enforced without an encryption key (issue #930)', () =>
     expect((await putEnforced(false)).statusCode).toBe(200);
   });
 
+  it('says on the Settings screen that the setting is on and not in force', async () => {
+    const notice = async () => {
+      const detail = await h.app.inject({
+        method: 'GET',
+        url: `/api/v1/admin/settings/${ENFORCED}`,
+        cookies: STUB_ADMIN,
+      });
+      expect(detail.statusCode).toBe(200);
+      const list = await h.app.inject({
+        method: 'GET',
+        url: '/api/v1/admin/settings?groupCode=mfa',
+        cookies: STUB_ADMIN,
+      });
+      expect(list.statusCode).toBe(200);
+      const listed = (
+        list.json() as { groups: Array<{ settings: Array<{ code: string; notice?: unknown }> }> }
+      ).groups
+        .flatMap((g) => g.settings)
+        .find((s) => s.code === ENFORCED);
+      expect(listed?.notice).toEqual((detail.json() as { notice?: unknown }).notice);
+      return (detail.json() as { notice?: unknown }).notice;
+    };
+
+    expect(await notice()).toBeUndefined();
+
+    await h
+      .em()
+      .getConnection()
+      .execute(`update "settings" set "global_value" = 'true'::jsonb where "code" = ?`, [ENFORCED]);
+    await h.settings.cache.invalidateAfterWrite(ENFORCED);
+    expect(await notice()).toEqual({
+      code: 'encryption_key_missing',
+      message: 'Not in force: no encryption key (MFA_SECRET_ENCRYPTION_KEY).',
+    });
+
+    expect((await putEnforced(false)).statusCode).toBe(200);
+    expect(await notice()).toBeUndefined();
+  });
+
+  it('accepts re-saving an unchanged true, and the setting is still not applied', async () => {
+    await h
+      .em()
+      .getConnection()
+      .execute(`update "settings" set "global_value" = 'true'::jsonb where "code" = ?`, [ENFORCED]);
+    await h.settings.cache.invalidateAfterWrite(ENFORCED);
+
+    const resave = await putEnforced(true);
+    expect(resave.statusCode).toBe(200);
+    expect(await storedGlobalValue()).toBe(true);
+
+    const login = await h.app.inject({
+      method: 'POST',
+      url: '/api/v1/auth/admin/login',
+      payload: { email: EMAIL, password: PASSWORD },
+    });
+    expect(login.statusCode).toBe(200);
+    expect((login.json() as { data: { status: string } }).data.status).toBe('authenticated');
+
+    expect((await putEnforced(false)).statusCode).toBe(200);
+  });
+
   it('leaves the refusal to the platform while mfa is off', async () => {
     // Stated, not inherited: a case above that failed may have left it on.
     expect((await putEnforced(false)).statusCode).toBe(200);
