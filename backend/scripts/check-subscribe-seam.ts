@@ -55,9 +55,9 @@ export function scanSubscribeSeam(input: SubscribeSeamInput): {
   return withSharedParses(() => ({
     result: checkSubscribeSeam(input),
     workers: checkWorkerSeam(input),
-    // `--list` has always attributed without `hostResidentModules`, unlike the
-    // verdict above; kept as it was, because this repair changes no output.
-    subscriptions: findBareSubscriptions({ sources: input.sources }),
+    // The same input as the verdict above, `hostResidentModules` included, so
+    // `--list` names the owner the verdict judged (issue #919).
+    subscriptions: findBareSubscriptions(input),
   }));
 }
 
