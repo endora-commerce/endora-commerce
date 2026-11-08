@@ -1,5 +1,114 @@
 # @endora-commerce/admin-kit
 
+## 0.110.0
+
+### Minor Changes
+
+- 9d9c8df: Blog post authors and administrator author profiles (feature 171, US6–US7).
+
+  An administrator keeps an avatar (a library asset) and an _about me_ text per language on their
+  profile page: `PATCH /api/v1/admin/me` and `PATCH /api/v1/admin/admin-users/:id` take
+  `avatarAssetId` and `bio`; an avatar that is no live asset is refused with
+  `422 ADMIN_USER_AVATAR_NOT_FOUND`. The library counts an avatar as a use of the asset (reference kind
+  `admin_user_avatar`). `admin_users` declares `assets_library` as a non-binding dependency.
+
+  A blog post names one author, an administrator (`authorAdminUserId` on create and patch;
+  `422 BLOG_AUTHOR_NOT_FOUND` for anyone but an active administrator). Editors with `blog.write` pick
+  one from `GET /api/v1/admin/blog/author-candidates` (names and avatars only). The storefront shows the
+  author's name, avatar and biography on the post page, the name on cards and a `Person` in the post's
+  JSON-LD; an inactive author is still shown, a deleted one is not. `blog` now depends on `admin_users`.
+
+  `@endora-commerce/contracts`: `AdminUserRecord.avatarAssetId` and `.bio`, and
+  `AdminUserReadPort.findByAvatarAssetIds` — **an implementer of the port must add it**;
+  `adminUserSchema.avatarAssetId`/`.bio`; `ADMIN_USER_BIO_MAX_LENGTH`; `blogAuthorSchema`,
+  `blogAuthorCardSchema`, `blogAuthorCandidateSchema`, `blogPostAuthorAdminSchema`; `authorId` and
+  `author` on post cards and the resolved post; `assetReferenceKindSchema` gains `admin_user_avatar`.
+  `@endora-commerce/admin-kit`: `AdminMe.adminUser.avatarAssetId` and `.bio`.
+
+- 3f020ba: **`ScopedField` — one inherited-value control for scoped product fields (feature 174).** `@endora-commerce/admin-kit` exports `ScopedField` and its types (`ScopedFieldProps`, `ScopedFieldControlProps`, `ScopedFieldViewWithParent`, `ScopedInheritedValue`): a field at Global, a channel, or a channel and language, showing "Use value from _parent scope_", an own value, or a deliberately empty value. `use-unsaved-changes-prompt` honours a `[data-own-unsaved-guard]` opt-out.
+
+  **Breaking:** the product browser and the page-builder catalog pickers read a product's `name` as a string (the Global name); a caller passing a per-language name map passes the string instead.
+
+  `CategoryTreePicker`'s list is a labelled `role="group"` instead of `role="tree"`: its rows are checkboxes, not `treeitem`s, and it has no tree keyboard model. A test that queried `getByRole('tree', …)` queries `getByRole('group', …)`.
+  - `@endora-commerce/admin-kit/ui` exports `DropdownMenuSeparator` (the existing primitive), so a menu can set its destructive item apart.
+  - `CategoryTreePicker`: clicking a category name toggles it, each expand control names its branch (`categoryTreePicker.expand` / `.collapse` take `{name}`), the list id is per instance, the loading line is a status, and its controls are 44 px below 1024 px. The `ScopedField` "Edit at" control is 44 px there too.
+
+- cea1470: **Breaking:** `useAuth()` gains `federatedSignInError: FederatedSignInErrorCode | null`, and the `?error=` a federated sign-in leaves on `/login` no longer arrives in `lastLoginError`. `AuthProvider` passes on only a value that parses with `federatedSignInErrorCodeSchema`; any other value, a sentence an older `mod-mfa` sent included, arrives as `'sign_in_failed'`, so the raw value is never available to print. A login screen that rendered `lastLoginError` to show a federated refusal now reads `federatedSignInError` and words the code itself. `lastLoginError` still carries the backend's answer to a password or second-step attempt and the session-expired notice. `useAuth()` also gains `lastLoginReason: LoginErrorReason | null` (the type is exported from `@endora-commerce/admin-kit/lib`). It is `'session_expired'` for the notice set when a signed-in session answers 401, and `null` otherwise. It is set and cleared together with `lastLoginError`, so a screen titles the session-expired notice from the reason instead of matching the message text. The next sign-in attempt clears all three (issue #813).
+
+### Patch Changes
+
+- 7f2fa6e: `ScopedField` no longer drops an untick of "Use value from <parent>" made right after the field renders. The reset that a new read (a new `view`) applies now happens while rendering instead of in an effect, so it can no longer be queued behind the untick and undo it. A new `view` still starts the field over, as before.
+- b476f44: `Combobox` (`@endora-commerce/admin-kit/ui`) now lets you clear any value the field shows, not only one found among the loaded `options`. Before, the "Clear selection" button and Backspace on an empty input worked only once `options` contained the current `value`. So a server-side picker that shows its value through `selectedLabel` could not clear it when that value was missing from the current page, or when the lookup no longer returned it (a deactivated record). This affected every picker built on `Combobox`, the kit's own and modules' alike. The props are unchanged; `clearable={false}` and `disabled` still mean no Clear. A non-null `value` that the field cannot show (not in `options` and no `selectedLabel`) still offers nothing to clear.
+- 5cbffb9: A signed-in admin who opens `/login` (a bookmark, a link in an e-mail) is redirected instead of seeing "Page not found" (issue #859). `App` gains a `/login` route for the authenticated tree. It leads to the `?next=` target when that is a path of this application, and to the dashboard (`/`) otherwise. Nothing else in the query is carried over, so `?error=` is still never shown.
+
+  `readReturnTo(params, param?)` in `@endora-commerce/admin-kit/lib` takes an optional parameter name, which defaults to `returnTo`. It reads `next` by the same rule: a path of this application only, never a scheme, a host or `//`. Existing calls are unchanged.
+
+- fc7db4c: `SalesChannelPicker` with `activeOnly` keeps a stored inactive channel among its options (#912). It used to ask the endpoint for active channels only, so a saved value pointing at a deactivated channel was missing from the options: the field showed nothing and offered no Clear. The picker now reads the whole list and narrows the options itself, as the CRM's sales-channel lookup does — the stored channel stays visible, marked inactive in the list, and can be cleared or replaced, while other inactive channels are still not offered as new choices. Its request is now always `activeOnly=false`.
+- 974be57: The asset upload now goes through the kit's 401 handling (issue #354). `uploadAsset` posts through the new `postMultipart` helper, exported from `./lib`. An expired session now notifies the `onUnauthorized` listeners and sends the operator back to sign in, and every failed upload is an `ApiError` instead of a plain `Error`. `AssetUploader` shows the server's message for a refused upload. `createApiClient` sends a `FormData` body as multipart instead of as JSON, and without a `fetchFn` it now looks up the global `fetch` on each request rather than once at creation.
+- Updated dependencies [18cce2e]
+- Updated dependencies [9cfb28b]
+- Updated dependencies [a206da9]
+- Updated dependencies [34485ae]
+- Updated dependencies [0f1717c]
+- Updated dependencies [86e8761]
+- Updated dependencies [9bfb0b8]
+- Updated dependencies [ed5cf6a]
+- Updated dependencies [2da23d2]
+- Updated dependencies [2da23d2]
+- Updated dependencies [9d9c8df]
+- Updated dependencies [9d9c8df]
+- Updated dependencies [9d9c8df]
+- Updated dependencies [9d9c8df]
+- Updated dependencies [5303aab]
+- Updated dependencies [16f85f4]
+- Updated dependencies [270aa2b]
+- Updated dependencies [3f020ba]
+- Updated dependencies [b59e5d5]
+- Updated dependencies [bf1cc2d]
+- Updated dependencies [ff60e93]
+- Updated dependencies [6f19230]
+- Updated dependencies [77b8c37]
+- Updated dependencies [65104b8]
+- Updated dependencies [7acaa33]
+- Updated dependencies [7019c71]
+- Updated dependencies [4eee98b]
+- Updated dependencies [14ac256]
+- Updated dependencies [248bf1b]
+- Updated dependencies [4cf529d]
+- Updated dependencies [5e4dd48]
+- Updated dependencies [75b053f]
+- Updated dependencies [54fc8f1]
+- Updated dependencies [dac5795]
+- Updated dependencies [5bbb389]
+- Updated dependencies [d69e765]
+- Updated dependencies [dbc1cef]
+- Updated dependencies [a6bc891]
+- Updated dependencies [a9398c8]
+- Updated dependencies [0b56038]
+- Updated dependencies [717e4c6]
+- Updated dependencies [cea1470]
+- Updated dependencies [29d7e90]
+- Updated dependencies [57145f7]
+- Updated dependencies [58a1632]
+- Updated dependencies [e46d233]
+- Updated dependencies [14fe4fb]
+- Updated dependencies [76d89ab]
+- Updated dependencies [6bd2ab7]
+- Updated dependencies [a3502c0]
+- Updated dependencies [7a73cc8]
+- Updated dependencies [5ff8302]
+- Updated dependencies [c34b405]
+- Updated dependencies [5af8c25]
+- Updated dependencies [48f055e]
+- Updated dependencies [bf50b85]
+- Updated dependencies [2c6fba0]
+- Updated dependencies [0801f69]
+- Updated dependencies [d1c0d13]
+- Updated dependencies [32b4d0c]
+- Updated dependencies [3355e60]
+- Updated dependencies [7ce9b8a]
+  - @endora-commerce/contracts@0.110.0
+
 ## 0.109.0
 
 ### Minor Changes

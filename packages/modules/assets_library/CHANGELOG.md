@@ -1,5 +1,215 @@
 # @endora-commerce/mod-assets-library
 
+## 0.110.0
+
+### Minor Changes
+
+- 9d9c8df: Blog post authors and administrator author profiles (feature 171, US6–US7).
+
+  An administrator keeps an avatar (a library asset) and an _about me_ text per language on their
+  profile page: `PATCH /api/v1/admin/me` and `PATCH /api/v1/admin/admin-users/:id` take
+  `avatarAssetId` and `bio`; an avatar that is no live asset is refused with
+  `422 ADMIN_USER_AVATAR_NOT_FOUND`. The library counts an avatar as a use of the asset (reference kind
+  `admin_user_avatar`). `admin_users` declares `assets_library` as a non-binding dependency.
+
+  A blog post names one author, an administrator (`authorAdminUserId` on create and patch;
+  `422 BLOG_AUTHOR_NOT_FOUND` for anyone but an active administrator). Editors with `blog.write` pick
+  one from `GET /api/v1/admin/blog/author-candidates` (names and avatars only). The storefront shows the
+  author's name, avatar and biography on the post page, the name on cards and a `Person` in the post's
+  JSON-LD; an inactive author is still shown, a deleted one is not. `blog` now depends on `admin_users`.
+
+  `@endora-commerce/contracts`: `AdminUserRecord.avatarAssetId` and `.bio`, and
+  `AdminUserReadPort.findByAvatarAssetIds` — **an implementer of the port must add it**;
+  `adminUserSchema.avatarAssetId`/`.bio`; `ADMIN_USER_BIO_MAX_LENGTH`; `blogAuthorSchema`,
+  `blogAuthorCardSchema`, `blogAuthorCandidateSchema`, `blogPostAuthorAdminSchema`; `authorId` and
+  `author` on post cards and the resolved post; `assetReferenceKindSchema` gains `admin_user_avatar`.
+  `@endora-commerce/admin-kit`: `AdminMe.adminUser.avatarAssetId` and `.bio`.
+
+- 0e019f5: **Breaking:** the Assets Library reads every `assets.*` setting platform-wide, through the platform's settings read (issue #333). A value saved in Admin Settings as the platform-wide value now takes effect: the active storage adapter (`assets.storage.adapter`), the local store (`assets.local.base_dir`, `assets.local.public_url_base`), every `assets.s3.*` and `assets.gcs.*` setting, and the upload policy (`assets.allowed_file_types`, `assets.max_file_size_mb`). Until now the module read those settings from the database itself and skipped the platform-wide value, so the manifest default applied; only `assets.soft_delete_retention_days` and `assets.private_url_ttl_sec` honoured it.
+
+  A per-channel value stored for an `assets.*` setting is no longer read. The module used to take whichever such value it found as the answer for every channel, and it now answers with the platform-wide value, or the default when there is none. An instance that configured its storage or upload policy as a per-channel value must save the same values as the platform-wide value in Admin Settings before it upgrades, or the module falls back to the defaults: the local store under `var/assets`, any file type, no size limit.
+
+  `assets.s3.secret_access_key` and `assets.gcs.service_account_json` are now the `secret` value type, as other modules' credentials are: Admin Settings stores a value saved from now on encrypted, never shows it again, and the settings cache holds it encrypted too. The type changes in place at boot, and a value stored before the upgrade keeps working — **but it stays plaintext, in the database and in the settings cache (Redis), until it is saved again.** After upgrading, save both credentials again in Admin Settings as the platform-wide value, and reset any per-channel value they still have, which is no longer read but is not removed. Saving either one needs `SETTINGS_SECRET_ENCRYPTION_KEY`, which every secret setting already requires.
+
+  The active storage adapter is still built once per process, so a change to the adapter or its credentials applies after a restart, as before.
+
+- 7019c71: Page Builder pages, hooks and menus no longer saturate the database on a cache miss (issue #685).
+
+  `cms` turned every asset a page, block, template or hook embeds into a URL through
+  `AssetsLibraryPort.getAsset`, one call per embed. The detail it builds carries the asset's "used by"
+  list, which walks the content of every CMS page, block and template, blog post, product and menu — so a
+  home page with ~150 images ran that walk ~150 times whenever its cache expired, and every other request
+  waited behind it. `megamenu` (asset targets and icons) and `pwa` (icon redirects) made the same call.
+
+  `@endora-commerce/contracts`: `AssetReadPort.resolveUrls(assetIds)` — the URL `getAsset` would carry
+  for each live asset (versioned for a public one, signed for a private one), in one read, keyed by id;
+  an id that names no live asset, or is not a uuid, is absent. **An implementer of `AssetReadPort` must
+  add it.** `@endora-commerce/mod-assets-library` implements it.
+
+  `cms` now resolves a whole page, block, template or hook in two keyed reads (`resolveUrls`, then
+  `findByIds` for the ids that have a URL); `megamenu` and `pwa` take the URL from `resolveUrls`.
+  Rendered output is unchanged, except that an asset in the trash no longer renders.
+
+### Patch Changes
+
+- b2db8c3: English module names and admin sidebar labels are now sentence case, like the rest of the UI. The manifest `name` changes for 22 modules and for the platform's `_lifecycle` module ("Quote Requests" becomes "Quote requests", "API Keys" becomes "API keys", "Module Lifecycle" becomes "Module lifecycle"). The English `module.name` for Quick order, Quote requests and Shopping lists changes the same way. That string heads their permission groups on the organization role form and appears on the modules screen. The admin sidebar labels in blog ("Blog posts", "Blog categories", "Blog tags"), cms ("CMS pages", "CMS blocks", "CMS templates", "CMS hooks"), custom_fields ("Custom fields"), import_export ("Import / export"), newsletter ("Tags & fields") and transactional_emails ("Transactional emails", "Email blocks", "Email templates") change the same way. Product names (Google Analytics, Google Tag Manager, LinkedIn Ads, Meta Ads) keep their capitals. Polish strings do not change. If your code compares a manifest `name` against the old title-case string, update the comparison. Better, compare the module `id`.
+- 0b64c13: English page titles, dialog titles, command-palette action labels, settings group names and
+  documentation page titles now use sentence case, like the module names and sidebar labels
+  before them. For example, "Quote Requests" becomes "Quote requests", "CMS Pages" becomes
+  "CMS pages" and the "Quick Order" settings group becomes "Quick order". Polish strings are
+  unchanged. Product names keep their capitals: Page Builder, Google Analytics, LinkedIn and
+  Meta among them.
+
+  The admin search group labels change the same way: "Quote Requests" becomes "Quote requests"
+  and "Sales Opportunities" becomes "Sales opportunities". The demo megamenu's English button
+  label becomes "Quick order". The demo seed does not rewrite a menu it has already created, so an
+  existing demo database keeps "Quick Order" until it is seeded afresh or the label is edited on
+  the megamenu screen.
+
+  The settings group names are updated in the database the next time the settings manifest
+  reconciler runs at boot. Nothing has to be migrated.
+
+- d69e765: A path parameter that is not a UUID is answered exactly as a well-formed id that names nothing, on every customer- and admin-facing id route, mutations included, instead of `500` (issue #781). The shape is checked with `isUuidShape` from `@endora-commerce/contracts` before the database is asked, so a malformed id gets the route's own answer for an unknown record: its own not-found code (`404`), or the empty list or `204` the route gives an unknown id. Examples: `POST /api/v1/orders/:id/cancel` answers `404 ORDER_NOT_FOUND`; the returns comment, delivery-method and cancel routes and `POST /api/v1/organization/carts/:id/approve` and `/reject` answer `404 NOT_FOUND`.
+
+  Routes whose params schema demanded a UUID answered a malformed id `400 VALIDATION_FAILED`; they now answer `404` like an unknown id (owner ruling of 2026-11-05): `/api/v1/organizations/mine/roles/:id`, `/api/v1/admin/organizations/:id/roles[/:roleId]` and `…/permission-catalogue`, `/api/v1/organizations/mine/members/:id[/role]`, every `/api/v1/admin/product-feeds/:id…`, `/api/v1/admin/feed-templates/:id` and `/api/v1/admin/feed-taxonomies/revisions/:taxonomyId…` route, `/api/v1/admin/document-templates/:id…`, `/api/v1/admin/quote-requests/:id/document-templates`, `…/document-template` and `…/pdf`, the blog `url-redirects/:redirectId` and `addresses/:id` deletes, `PATCH /api/v1/admin/cms/hooks/:id/attachments/:blockId`, and `GET`, `PATCH` and `DELETE /api/v1/admin/import-export/profiles/:id` (`404 IMPORT_PROFILE_NOT_FOUND`). A client that told a malformed id from an unknown one by the `400` can no longer do so.
+
+  Every private copy of the UUID pattern is replaced by `isUuidShape`, `UUID_SHAPE_PATTERN` or, where a filter has always asked for RFC 9562 version and variant bits (the CRM board filters), `uuidSchema`; what each check accepts is unchanged, except that the invoice-ledger delivery retry now accepts any uuid-shaped id and answers an unknown one `404` from the lookup.
+
+- d24be0e: The module documentation pages have readable titles instead of the module id (for example _Carts_ instead of `carts`), in the docs sidebar, the module map and the browser tab, in English and Polish. Page headings and screen names in the page text are sentence case, as in the Admin UI (#795). File names and URLs are unchanged.
+- ca120cc: Every settings group a module declares now has a translated heading on the Settings screen (#884). Each module's bundle gains `settingGroups.<group code>.name` in English and Polish, so a Polish operator no longer reads group headings such as _Orders_, _Carts_ or _Security / MFA_ in English. `@endora-commerce/mod-admin-notifications` and `@endora-commerce/mod-shipments` ship translation bundles for the first time: their manifests declare `i18n: { bundlesDir: 'i18n' }` and their tarballs carry `i18n/`.
+- 7fcd546: The retention sweep's "is anything due?" question is now one `exists(…)` statement over the
+  four passes' own row sources, instead of four ORM counts. Each pass (previous versions,
+  soft-deleted assets, assets parked in `pending_cleanup`, the cleanup ledger) lists its batch
+  through the same row source the question asks about, so the two cannot drift apart. A question
+  that fails still counts as "yes", so a sweep is never skipped. No behaviour changes for an
+  operator.
+- 42c929f: The retention sweep's previous-version pass no longer selects rows it cannot purge: a legacy
+  asset, or one whose kept previous version has no file locator. Before, such rows filled the
+  pass's batch ahead of the previous versions that really were due, which were then never
+  reached, and they kept the sweep's "is anything due?" question answering yes on every tick.
+  Which previous versions are kept and for how long does not change.
+- 11e0423: Four asset-library refusals now name, in English and Polish, what the thrower's English message
+  already said. The codes and statuses are unchanged; **`details` gained keys**, and a client that
+  compares `details` for equality will see them:
+
+  - `409 ASSET_FOLDER_NAME_CONFLICT` — `details.name`, the folder name asked for (on create and on
+    rename). "A folder named "{name}" already exists here. Choose a different name."
+  - `409 ASSET_FOLDER_NOT_EMPTY` — `details.subfolderCount` and `details.assetCount`, counting only
+    the files the caller may see, as the message already did. "This folder is not empty (subfolders:
+    {subfolderCount}, assets: {assetCount}). Move or delete its subfolders and assets first."
+  - `415 ASSET_UPLOAD_TYPE_NOT_ALLOWED` — refused by `assets.allowed_file_types`:
+    `details.code: 'not_allowed_by_policy'`, `details.fileType` (the declared type, or the sniffed
+    one when the content disagrees) and `details.allowedTypes` (the setting's list, comma-joined).
+    "Files of type "{fileType}" cannot be uploaded to the asset library. Allowed types:
+    {allowedTypes}." A document a browser would run: `details.code: 'active_content'`, "HTML, XHTML,
+    XML and JavaScript files cannot be uploaded to the asset library." The same code raised by the
+    CRM and project attachment uploads is unchanged and has no `details`.
+  - `409 ASSET_NO_PREVIOUS_VERSION` past `restorableUntil` — `details.code: 'retention_expired'`
+    beside the existing `details.restorableUntil`. It used to answer "This asset has no previous
+    version to restore."; it now says "The previous version is past its retention period and can no
+    longer be restored."
+
+  `details.code` is the refusal token the error envelope reads to pick
+  `errors.<CODE>.<token>`; branch on it rather than on the message.
+
+- b3ec2a8: The refusal of an Opportunity or Project attachment that a browser would open and run (HTML, SVG,
+  XML, JavaScript) now has its own sentence in English and Polish. Before, the error envelope
+  answered the asset library's generic "Files of this type cannot be uploaded to the asset library",
+  which named the wrong place and none of the refused types (issue #623).
+
+  The code and status are unchanged (`415 ASSET_UPLOAD_TYPE_NOT_ALLOWED`); **`details` gained
+  `code: 'attachment_active_content'`**, so a client that compares `details` for equality will see
+  it. The sentence lives in `@endora-commerce/mod-assets-library`'s bundle, which owns the code:
+  "HTML, SVG, XML and JavaScript files cannot be attachments: a browser would open and run them." /
+  "Pliki HTML, SVG, XML i JavaScript nie mogą być załącznikami: przeglądarka by je otworzyła i
+  uruchomiła." The thrower's English message is the same sentence.
+
+- 4d60073: `assets.soft_delete_retention_days` is held to 1–3650 whole days (issue #332). The settings write refuses any other value with `422 VALIDATION_FAILED`, and a value stored before this rule that is above 3650 is read as 3650 days. A large stored value used to make the purge date invalid, so every asset delete and every recursive folder delete failed until somebody corrected the setting.
+- Updated dependencies [18cce2e]
+- Updated dependencies [18cce2e]
+- Updated dependencies [9cfb28b]
+- Updated dependencies [a206da9]
+- Updated dependencies [34485ae]
+- Updated dependencies [34485ae]
+- Updated dependencies [0f1717c]
+- Updated dependencies [86e8761]
+- Updated dependencies [9bfb0b8]
+- Updated dependencies [ed5cf6a]
+- Updated dependencies [2da23d2]
+- Updated dependencies [2da23d2]
+- Updated dependencies [9d9c8df]
+- Updated dependencies [9d9c8df]
+- Updated dependencies [9d9c8df]
+- Updated dependencies [9d9c8df]
+- Updated dependencies [5303aab]
+- Updated dependencies [16f85f4]
+- Updated dependencies [270aa2b]
+- Updated dependencies [3f020ba]
+- Updated dependencies [3f020ba]
+- Updated dependencies [b59e5d5]
+- Updated dependencies [b59e5d5]
+- Updated dependencies [bf1cc2d]
+- Updated dependencies [ff60e93]
+- Updated dependencies [6f19230]
+- Updated dependencies [77b8c37]
+- Updated dependencies [65104b8]
+- Updated dependencies [7acaa33]
+- Updated dependencies [7019c71]
+- Updated dependencies [4eee98b]
+- Updated dependencies [14ac256]
+- Updated dependencies [248bf1b]
+- Updated dependencies [b2db8c3]
+- Updated dependencies [4cf529d]
+- Updated dependencies [5e4dd48]
+- Updated dependencies [75b053f]
+- Updated dependencies [54fc8f1]
+- Updated dependencies [dac5795]
+- Updated dependencies [5bbb389]
+- Updated dependencies [d69e765]
+- Updated dependencies [dbc1cef]
+- Updated dependencies [d69e765]
+- Updated dependencies [a6bc891]
+- Updated dependencies [8ad737c]
+- Updated dependencies [a9398c8]
+- Updated dependencies [0b56038]
+- Updated dependencies [717e4c6]
+- Updated dependencies [cea1470]
+- Updated dependencies [cea1470]
+- Updated dependencies [d46d414]
+- Updated dependencies [73e2eec]
+- Updated dependencies [29d7e90]
+- Updated dependencies [7f2fa6e]
+- Updated dependencies [57145f7]
+- Updated dependencies [58a1632]
+- Updated dependencies [e46d233]
+- Updated dependencies [e46d233]
+- Updated dependencies [58a1632]
+- Updated dependencies [b476f44]
+- Updated dependencies [14fe4fb]
+- Updated dependencies [76d89ab]
+- Updated dependencies [5cbffb9]
+- Updated dependencies [6bd2ab7]
+- Updated dependencies [a3502c0]
+- Updated dependencies [7a73cc8]
+- Updated dependencies [5ff8302]
+- Updated dependencies [fc7db4c]
+- Updated dependencies [c34b405]
+- Updated dependencies [5af8c25]
+- Updated dependencies [48f055e]
+- Updated dependencies [bf50b85]
+- Updated dependencies [2c6fba0]
+- Updated dependencies [0801f69]
+- Updated dependencies [d1c0d13]
+- Updated dependencies [6d1d284]
+- Updated dependencies [974be57]
+- Updated dependencies [99c075e]
+- Updated dependencies [32b4d0c]
+- Updated dependencies [3355e60]
+- Updated dependencies [7ce9b8a]
+  - @endora-commerce/contracts@0.110.0
+  - @endora-commerce/platform@0.110.0
+  - @endora-commerce/admin-kit@0.110.0
+
 ## 0.109.0
 
 ### Minor Changes

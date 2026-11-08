@@ -1,5 +1,132 @@
 # @endora-commerce/mod-delivery-methods
 
+## 0.110.0
+
+### Patch Changes
+
+- b2db8c3: English module names and admin sidebar labels are now sentence case, like the rest of the UI. The manifest `name` changes for 22 modules and for the platform's `_lifecycle` module ("Quote Requests" becomes "Quote requests", "API Keys" becomes "API keys", "Module Lifecycle" becomes "Module lifecycle"). The English `module.name` for Quick order, Quote requests and Shopping lists changes the same way. That string heads their permission groups on the organization role form and appears on the modules screen. The admin sidebar labels in blog ("Blog posts", "Blog categories", "Blog tags"), cms ("CMS pages", "CMS blocks", "CMS templates", "CMS hooks"), custom_fields ("Custom fields"), import_export ("Import / export"), newsletter ("Tags & fields") and transactional_emails ("Transactional emails", "Email blocks", "Email templates") change the same way. Product names (Google Analytics, Google Tag Manager, LinkedIn Ads, Meta Ads) keep their capitals. Polish strings do not change. If your code compares a manifest `name` against the old title-case string, update the comparison. Better, compare the module `id`.
+- d69e765: A path parameter that is not a UUID is answered exactly as a well-formed id that names nothing, on every customer- and admin-facing id route, mutations included, instead of `500` (issue #781). The shape is checked with `isUuidShape` from `@endora-commerce/contracts` before the database is asked, so a malformed id gets the route's own answer for an unknown record: its own not-found code (`404`), or the empty list or `204` the route gives an unknown id. Examples: `POST /api/v1/orders/:id/cancel` answers `404 ORDER_NOT_FOUND`; the returns comment, delivery-method and cancel routes and `POST /api/v1/organization/carts/:id/approve` and `/reject` answer `404 NOT_FOUND`.
+
+  Routes whose params schema demanded a UUID answered a malformed id `400 VALIDATION_FAILED`; they now answer `404` like an unknown id (owner ruling of 2026-11-05): `/api/v1/organizations/mine/roles/:id`, `/api/v1/admin/organizations/:id/roles[/:roleId]` and `…/permission-catalogue`, `/api/v1/organizations/mine/members/:id[/role]`, every `/api/v1/admin/product-feeds/:id…`, `/api/v1/admin/feed-templates/:id` and `/api/v1/admin/feed-taxonomies/revisions/:taxonomyId…` route, `/api/v1/admin/document-templates/:id…`, `/api/v1/admin/quote-requests/:id/document-templates`, `…/document-template` and `…/pdf`, the blog `url-redirects/:redirectId` and `addresses/:id` deletes, `PATCH /api/v1/admin/cms/hooks/:id/attachments/:blockId`, and `GET`, `PATCH` and `DELETE /api/v1/admin/import-export/profiles/:id` (`404 IMPORT_PROFILE_NOT_FOUND`). A client that told a malformed id from an unknown one by the `400` can no longer do so.
+
+  Every private copy of the UUID pattern is replaced by `isUuidShape`, `UUID_SHAPE_PATTERN` or, where a filter has always asked for RFC 9562 version and variant bits (the CRM board filters), `uuidSchema`; what each check accepts is unchanged, except that the invoice-ledger delivery retry now accepts any uuid-shaped id and answers an unknown one `404` from the lookup.
+
+- d24be0e: The module documentation pages have readable titles instead of the module id (for example _Carts_ instead of `carts`), in the docs sidebar, the module map and the browser tab, in English and Polish. Page headings and screen names in the page text are sentence case, as in the Admin UI (#795). File names and URLs are unchanged.
+- ca120cc: Every settings group a module declares now has a translated heading on the Settings screen (#884). Each module's bundle gains `settingGroups.<group code>.name` in English and Polish, so a Polish operator no longer reads group headings such as _Orders_, _Carts_ or _Security / MFA_ in English. `@endora-commerce/mod-admin-notifications` and `@endora-commerce/mod-shipments` ship translation bundles for the first time: their manifests declare `i18n: { bundlesDir: 'i18n' }` and their tarballs carry `i18n/`.
+- 3355e60: Refusals on the buyer-facing and admin order paths have an error code of their own instead of
+  `VALIDATION_FAILED`, and a sentence in English and Polish (issue #86). **A client that matches on
+  `VALIDATION_FAILED` for these cases now sees the specific code.** The HTTP status of each is
+  unchanged. Until now each was answered with an English sentence in every language, because the
+  error envelope never replaces the message of `VALIDATION_FAILED`.
+
+  | Was                                                                                                                              | Is                                                           | `details`                                                                                |
+  | -------------------------------------------------------------------------------------------------------------------------------- | ------------------------------------------------------------ | ---------------------------------------------------------------------------------------- |
+  | `400 VALIDATION_FAILED`, `details.code = "delivery_method_not_allowed_for_organization"`                                         | `400 ORDER_DELIVERY_METHOD_UNAVAILABLE`, same `details.code` | `deliveryMethodId` (unchanged)                                                           |
+  | `400 VALIDATION_FAILED`, `details.code = "delivery_method_not_in_sales_channel"`                                                 | `400 ORDER_DELIVERY_METHOD_UNAVAILABLE`, same `details.code` | `deliveryMethodId`, `salesChannelId` (unchanged)                                         |
+  | `400 VALIDATION_FAILED`, _"Delivery method is not active."_ or _"The selected shipping method is not available for this order."_ | `400 ORDER_DELIVERY_METHOD_UNAVAILABLE`, no `details.code`   | `deliveryMethodId` (new)                                                                 |
+  | `400 VALIDATION_FAILED`, `details.code = "payment_method_not_allowed_for_organization"`                                          | `400 ORDER_PAYMENT_METHOD_UNAVAILABLE`, same `details.code`  | `paymentMethodId` (unchanged)                                                            |
+  | `400 VALIDATION_FAILED`, `details.code = "payment_method_not_in_sales_channel"`                                                  | `400 ORDER_PAYMENT_METHOD_UNAVAILABLE`, same `details.code`  | `paymentMethodId`, `salesChannelId` (unchanged)                                          |
+  | `400 VALIDATION_FAILED`, _"Payment method is not active."_ or _"The selected payment method is not available for this order."_   | `400 ORDER_PAYMENT_METHOD_UNAVAILABLE`, no `details.code`    | `paymentMethodId` (new)                                                                  |
+  | `422 VALIDATION_FAILED`, `details: { code: "order_below_minimum", minimum, subtotal }` (numbers)                                 | `422 ORDER_BELOW_MINIMUM_VALUE`                              | `minimum`, `subtotal` as two-decimal **strings**, and `currency`; `details.code` is gone |
+  | `409 VALIDATION_FAILED`, _"Commenting is closed for completed or cancelled orders."_                                             | `409 ORDER_COMMENTS_CLOSED`                                  | `orderId`                                                                                |
+  | `409 VALIDATION_FAILED`, _"Order has no line items to clone."_                                                                   | `409 ORDER_CLONE_NO_LINES`                                   | `orderId`                                                                                |
+  | `503 VALIDATION_FAILED`, _"Quote Requests module is not available."_                                                             | `503 MODULE_DISABLED`                                        | `module: "quote_requests"`                                                               |
+
+  The method refusals are answered by `POST /api/v1/orders`, `POST /api/v1/orders/preview-total`,
+  `POST /api/v1/admin/orders`, `POST /api/v1/admin/orders/preview`, `POST /api/v1/external/orders`
+  and every other caller of order placement; the minimum order value by placement (checkout and
+  admin create); the comment refusal by `POST /api/v1/orders/:id/comments` and
+  `POST /api/v1/admin/orders/:id/comments`; the two clone refusals by both clone-to-quote routes.
+  The `details.code` tokens of the method refusals are unchanged, and each now picks its own
+  sentence. The five new codes are members of `ERROR_CODES` in `@endora-commerce/contracts`,
+  declared by the `orders` manifest; the `delivery_methods` and `payment_methods` documentation
+  pages name the new codes. No setting, permission or migration changes.
+
+- Updated dependencies [18cce2e]
+- Updated dependencies [18cce2e]
+- Updated dependencies [9cfb28b]
+- Updated dependencies [a206da9]
+- Updated dependencies [34485ae]
+- Updated dependencies [34485ae]
+- Updated dependencies [0f1717c]
+- Updated dependencies [86e8761]
+- Updated dependencies [9bfb0b8]
+- Updated dependencies [ed5cf6a]
+- Updated dependencies [2da23d2]
+- Updated dependencies [2da23d2]
+- Updated dependencies [9d9c8df]
+- Updated dependencies [9d9c8df]
+- Updated dependencies [9d9c8df]
+- Updated dependencies [9d9c8df]
+- Updated dependencies [5303aab]
+- Updated dependencies [16f85f4]
+- Updated dependencies [270aa2b]
+- Updated dependencies [3f020ba]
+- Updated dependencies [3f020ba]
+- Updated dependencies [b59e5d5]
+- Updated dependencies [b59e5d5]
+- Updated dependencies [bf1cc2d]
+- Updated dependencies [ff60e93]
+- Updated dependencies [6f19230]
+- Updated dependencies [77b8c37]
+- Updated dependencies [65104b8]
+- Updated dependencies [7acaa33]
+- Updated dependencies [7019c71]
+- Updated dependencies [4eee98b]
+- Updated dependencies [14ac256]
+- Updated dependencies [248bf1b]
+- Updated dependencies [b2db8c3]
+- Updated dependencies [4cf529d]
+- Updated dependencies [5e4dd48]
+- Updated dependencies [75b053f]
+- Updated dependencies [54fc8f1]
+- Updated dependencies [dac5795]
+- Updated dependencies [5bbb389]
+- Updated dependencies [d69e765]
+- Updated dependencies [dbc1cef]
+- Updated dependencies [d69e765]
+- Updated dependencies [a6bc891]
+- Updated dependencies [8ad737c]
+- Updated dependencies [a9398c8]
+- Updated dependencies [0b56038]
+- Updated dependencies [717e4c6]
+- Updated dependencies [cea1470]
+- Updated dependencies [cea1470]
+- Updated dependencies [d46d414]
+- Updated dependencies [73e2eec]
+- Updated dependencies [29d7e90]
+- Updated dependencies [7f2fa6e]
+- Updated dependencies [57145f7]
+- Updated dependencies [58a1632]
+- Updated dependencies [e46d233]
+- Updated dependencies [e46d233]
+- Updated dependencies [58a1632]
+- Updated dependencies [b476f44]
+- Updated dependencies [14fe4fb]
+- Updated dependencies [76d89ab]
+- Updated dependencies [5cbffb9]
+- Updated dependencies [6bd2ab7]
+- Updated dependencies [a3502c0]
+- Updated dependencies [7a73cc8]
+- Updated dependencies [5ff8302]
+- Updated dependencies [fc7db4c]
+- Updated dependencies [c34b405]
+- Updated dependencies [5af8c25]
+- Updated dependencies [48f055e]
+- Updated dependencies [bf50b85]
+- Updated dependencies [2c6fba0]
+- Updated dependencies [0801f69]
+- Updated dependencies [d1c0d13]
+- Updated dependencies [6d1d284]
+- Updated dependencies [974be57]
+- Updated dependencies [99c075e]
+- Updated dependencies [32b4d0c]
+- Updated dependencies [3355e60]
+- Updated dependencies [7ce9b8a]
+  - @endora-commerce/contracts@0.110.0
+  - @endora-commerce/platform@0.110.0
+  - @endora-commerce/admin-kit@0.110.0
+
 ## 0.109.0
 
 ### Patch Changes

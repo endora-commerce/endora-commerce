@@ -1,5 +1,135 @@
 # @endora-commerce/mod-mfa
 
+## 0.110.0
+
+### Minor Changes
+
+- 34485ae: Setting an organization's two-factor policy is reserved to its _Administrator_ role, judged by `organizationPermissionPort.isAdministrator` rather than the legacy `role` column (`specs/170-organization-roles/`, WP-03; FR-011). `createOrganizationAdminResolver(accounts)` becomes `createOrganizationAdminResolver(accounts, permissions)`.
+- b59e5d5: Issue #349 — `AdminRole.requiresTwoFactor` is enforced at administrator sign-in. `MfaPolicyResolver` adds the role's flag to `mfa.admin.totp_enforced`, so password sign-in, Google and Microsoft sign-in and the self-service status (`totpEnforcedForScope`) all apply it. A role that cannot be read counts as requiring a second factor.
+
+  - `mfa` now depends on `admin_roles` (`nonDeactivatable`, no dependencies of its own, so no operator flip is affected).
+  - `mfaDeactivationGuardPort` blocks switching `mfa` off while any role sets the flag, and names the roles (`errors.MFA_DEACTIVATION_BLOCKED.role_requirement` and `.setting_and_role_requirement`, EN and PL).
+  - New port `mfaAdminEnforcementPort`: ends the sessions and pending logins of administrators a requirement newly binds who have no active enrolment, audited as `mfa.admin_sessions_ended_for_requirement`.
+  - Without `MFA_SECRET_ENCRYPTION_KEY`, a warning is logged at every boot naming each role that requires a second factor and how many of its administrators have none.
+
+  **Behaviour change on upgrade.** An operator may have ticked a role's two-step verification box believing it already worked. After the upgrade, each holder of such a role who has not set up two-step verification is asked to set it up at their next sign-in, and an enrolled holder is challenged. The upgrade signs nobody out. Switching `mfa` off is refused while any role sets the flag. Without an encryption key such holders cannot finish setup: untick the box on those roles before upgrading, or set the key. See _A role's two-step verification requirement is enforced_ in the upgrade guide.
+
+- a6bc891: The customer federated sign-in redirect contract changes (issue #789). A refused customer sign-in is now sent back to `/login?error=<code>` with a code from the new `federatedSignInErrorCodeSchema` / `FederatedSignInErrorCode` in `@endora-commerce/contracts`. It no longer carries an English sentence. The codes are `unknown_provider`, `provider_unavailable`, `sign_in_cancelled`, `sign_in_expired`, `sign_in_failed`, `email_unverified`, `no_matching_account`, `account_blocked`, `registration_disabled_in_channel`, `mfa_setup_required`, `sales_channel_sign_in_required` and `sales_channel_not_permitted`.
+
+  A storefront that matched the old sentences must map these codes and treat any other value as its generic sign-in failure. `registration_disabled_in_channel` is new. It replaces "No account found. Please create an account first." for a sign-up refused because personal (org-less) registration is off on the sign-in channel (`customers.allow_registration_without_organization` off); business registration stays open. The codes are redirect codes, not API `error.code` values, so they are lower-case and fall outside `errorCodeRe`. In `@endora-commerce/mod-mfa`, `SocialSignInResult`'s `registration_required` reason is renamed `registration_disabled_in_channel`. The Admin UI surface still receives its sentences, unchanged.
+
+- cea1470: **Breaking (redirect contract):** a refused federated sign-in on the Admin UI surface now redirects to `/login?error=<code>` with a bare `federatedSignInErrorCodeSchema` code (for example `/login?error=no_matching_account`), as the storefront surface has since #789. It used to redirect with a URL-encoded English sentence (`/login?error=No%20account%20matches%20this%20provider...`). The internal `ADMIN_LOGIN_ERROR_SENTENCE` table is removed. An Admin UI that prints `?error=` verbatim now shows the code; take `@endora-commerce/admin-kit` and `@endora-commerce/admin-shell` from the same release, which word it (issue #813).
+- bf50b85: Issue #930 — `mfa.admin.totp_enforced` no longer locks administrators out of an instance with no `MFA_SECRET_ENCRYPTION_KEY`, where no second factor can be enrolled.
+
+  - Turning the setting on there is refused with `409 MFA_ENFORCEMENT_UNAVAILABLE` (`details.reason: 'encryption_key_missing'`), through `settings`' write-validator registry, so the Settings screen and its API refuse alike. Only a change from off to on is refused: turning it off, and saving `true` again over `true`, are accepted. Sentences in EN and PL (`errors.MFA_ENFORCEMENT_UNAVAILABLE` and `.encryption_key_missing`).
+  - `MfaPolicyResolver` takes a fourth constructor argument, `canEnrolSecondFactor` (default `true`). When it is `false`, `mfa.admin.totp_enforced` is not applied to administrators. Storefront and organization enforcement are unchanged.
+  - While the setting is on and the key is missing, its settings read carries `notice: { code: 'encryption_key_missing', … }`, which the Settings screen shows as "Not in force: no encryption key" / "Nie obowiązuje: brak klucza szyfrowania". Every boot logs the same fact at error level.
+
+  **Behaviour change on upgrade.** On an instance where the setting is on and the key is not set, administrators without a second factor used to be sent to a setup step that could not be completed, so they could not sign in. They now sign in with their password. The Settings screen marks the setting as not in force, and every boot logs an error until the key is set or the setting is turned off. Instances that have the key are unaffected. See _Enforced two-step verification without an encryption key_ in the upgrade guide.
+
+- 2c6fba0: Issue #948 (owner ruling Q6) and issue #349 (E-349-1).
+
+  - **Without `MFA_SECRET_ENCRYPTION_KEY` no second factor is asked for at all.** `MfaLoginService.beginLogin` answers `proceed` for every subject when the composition has no key: no challenge for an account that enrolled while a key was set, and no setup ticket for an account a requirement binds. Neither could be redeemed, because the module serves no code-entry or setup step without the key. `MfaPolicyResolver` no longer applies a role's `requiresTwoFactor` without the key either, as it already did not apply `mfa.admin.totp_enforced`.
+  - Every boot without the key logs at error level how many administrator and customer enrolments cannot be checked. The report on roles that require a second factor is now at error level too, and says the requirement is not applied.
+  - `MfaAdminEnforcementPort` ends nothing and counts nobody without the key: nobody is signed out for being given a role that requires a second factor there.
+  - **Switching `mfa.admin.totp_enforced` on ends unprotected admin sessions.** A `settings.value_changed` subscriber acts after any write that leaves the setting on: it calls `endUnprotectedAdminSessions` with every live administrator (trigger `setting_enabled`), sparing the session the change was made from. The audit row `mfa.admin_sessions_ended_for_requirement` names the setting (`objectType: 'setting'`). Through `settings`' notice registry, the setting's read carries a `confirmation` that says how many administrators will be signed out, in EN and PL (`settingLabels.mfa.admin.totp_enforced.confirmation.signs_out_unprotected`), and the line shown after an accepted save (`…confirmed.signs_out_unprotected`).
+
+  **Behaviour change on upgrade.** Switching **Admin UI — enforce two-step verification** on now signs out, at once, every administrator who has not set up two-step verification, except for the session the change was made from. Before, they kept their sessions for up to thirty days. The Settings screen asks first and gives the number. The upgrade itself signs nobody out. On an instance without the key, accounts that enrolled while a key was set now sign in with their password instead of being refused, and so do holders of a role that requires two-step verification. Without the key, customers are not asked for a second factor either, whether they are enrolled or bound by storefront or organization enforcement. See _Enforced two-step verification without an encryption key_ in the upgrade guide.
+
+### Patch Changes
+
+- d69e765: A path parameter that is not a UUID is answered exactly as a well-formed id that names nothing, on every customer- and admin-facing id route, mutations included, instead of `500` (issue #781). The shape is checked with `isUuidShape` from `@endora-commerce/contracts` before the database is asked, so a malformed id gets the route's own answer for an unknown record: its own not-found code (`404`), or the empty list or `204` the route gives an unknown id. Examples: `POST /api/v1/orders/:id/cancel` answers `404 ORDER_NOT_FOUND`; the returns comment, delivery-method and cancel routes and `POST /api/v1/organization/carts/:id/approve` and `/reject` answer `404 NOT_FOUND`.
+
+  Routes whose params schema demanded a UUID answered a malformed id `400 VALIDATION_FAILED`; they now answer `404` like an unknown id (owner ruling of 2026-11-05): `/api/v1/organizations/mine/roles/:id`, `/api/v1/admin/organizations/:id/roles[/:roleId]` and `…/permission-catalogue`, `/api/v1/organizations/mine/members/:id[/role]`, every `/api/v1/admin/product-feeds/:id…`, `/api/v1/admin/feed-templates/:id` and `/api/v1/admin/feed-taxonomies/revisions/:taxonomyId…` route, `/api/v1/admin/document-templates/:id…`, `/api/v1/admin/quote-requests/:id/document-templates`, `…/document-template` and `…/pdf`, the blog `url-redirects/:redirectId` and `addresses/:id` deletes, `PATCH /api/v1/admin/cms/hooks/:id/attachments/:blockId`, and `GET`, `PATCH` and `DELETE /api/v1/admin/import-export/profiles/:id` (`404 IMPORT_PROFILE_NOT_FOUND`). A client that told a malformed id from an unknown one by the `400` can no longer do so.
+
+  Every private copy of the UUID pattern is replaced by `isUuidShape`, `UUID_SHAPE_PATTERN` or, where a filter has always asked for RFC 9562 version and variant bits (the CRM board filters), `uuidSchema`; what each check accepts is unchanged, except that the invoice-ledger delivery retry now accepts any uuid-shaped id and answers an unknown one `404` from the lookup.
+
+- ca120cc: Every settings group a module declares now has a translated heading on the Settings screen (#884). Each module's bundle gains `settingGroups.<group code>.name` in English and Polish, so a Polish operator no longer reads group headings such as _Orders_, _Carts_ or _Security / MFA_ in English. `@endora-commerce/mod-admin-notifications` and `@endora-commerce/mod-shipments` ship translation bundles for the first time: their manifests declare `i18n: { bundlesDir: 'i18n' }` and their tarballs carry `i18n/`.
+- Updated dependencies [18cce2e]
+- Updated dependencies [18cce2e]
+- Updated dependencies [9cfb28b]
+- Updated dependencies [a206da9]
+- Updated dependencies [34485ae]
+- Updated dependencies [34485ae]
+- Updated dependencies [0f1717c]
+- Updated dependencies [86e8761]
+- Updated dependencies [9bfb0b8]
+- Updated dependencies [ed5cf6a]
+- Updated dependencies [2da23d2]
+- Updated dependencies [2da23d2]
+- Updated dependencies [9d9c8df]
+- Updated dependencies [9d9c8df]
+- Updated dependencies [9d9c8df]
+- Updated dependencies [9d9c8df]
+- Updated dependencies [5303aab]
+- Updated dependencies [16f85f4]
+- Updated dependencies [270aa2b]
+- Updated dependencies [3f020ba]
+- Updated dependencies [3f020ba]
+- Updated dependencies [b59e5d5]
+- Updated dependencies [b59e5d5]
+- Updated dependencies [bf1cc2d]
+- Updated dependencies [ff60e93]
+- Updated dependencies [6f19230]
+- Updated dependencies [77b8c37]
+- Updated dependencies [65104b8]
+- Updated dependencies [7acaa33]
+- Updated dependencies [7019c71]
+- Updated dependencies [4eee98b]
+- Updated dependencies [14ac256]
+- Updated dependencies [248bf1b]
+- Updated dependencies [b2db8c3]
+- Updated dependencies [4cf529d]
+- Updated dependencies [5e4dd48]
+- Updated dependencies [75b053f]
+- Updated dependencies [54fc8f1]
+- Updated dependencies [dac5795]
+- Updated dependencies [5bbb389]
+- Updated dependencies [d69e765]
+- Updated dependencies [dbc1cef]
+- Updated dependencies [d69e765]
+- Updated dependencies [a6bc891]
+- Updated dependencies [8ad737c]
+- Updated dependencies [a9398c8]
+- Updated dependencies [0b56038]
+- Updated dependencies [717e4c6]
+- Updated dependencies [cea1470]
+- Updated dependencies [cea1470]
+- Updated dependencies [d46d414]
+- Updated dependencies [73e2eec]
+- Updated dependencies [29d7e90]
+- Updated dependencies [7f2fa6e]
+- Updated dependencies [57145f7]
+- Updated dependencies [58a1632]
+- Updated dependencies [e46d233]
+- Updated dependencies [e46d233]
+- Updated dependencies [58a1632]
+- Updated dependencies [b476f44]
+- Updated dependencies [14fe4fb]
+- Updated dependencies [76d89ab]
+- Updated dependencies [5cbffb9]
+- Updated dependencies [6bd2ab7]
+- Updated dependencies [a3502c0]
+- Updated dependencies [7a73cc8]
+- Updated dependencies [5ff8302]
+- Updated dependencies [fc7db4c]
+- Updated dependencies [c34b405]
+- Updated dependencies [5af8c25]
+- Updated dependencies [48f055e]
+- Updated dependencies [bf50b85]
+- Updated dependencies [2c6fba0]
+- Updated dependencies [0801f69]
+- Updated dependencies [d1c0d13]
+- Updated dependencies [6d1d284]
+- Updated dependencies [974be57]
+- Updated dependencies [99c075e]
+- Updated dependencies [32b4d0c]
+- Updated dependencies [3355e60]
+- Updated dependencies [7ce9b8a]
+  - @endora-commerce/contracts@0.110.0
+  - @endora-commerce/platform@0.110.0
+  - @endora-commerce/admin-kit@0.110.0
+
 ## 0.109.0
 
 ### Minor Changes

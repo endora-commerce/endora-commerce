@@ -1,5 +1,259 @@
 # @endora-commerce/mod-carts
 
+## 0.110.0
+
+### Minor Changes
+
+- 0f1717c: Carts are gated by organization permissions, and cart approval is decided by the members' roles (`specs/170-organization-roles/`, OR-3). Breaking for a storefront or an integration that used the removed endpoints or reads the changed refusals:
+
+  - `carts` declares three organization permissions: `carts.create` (member default), `carts.approve` and `carts.order_without_approval` (member default), with EN and PL labels.
+  - `carts.create` gates `POST /api/v1/cart/items`, `PATCH`/`DELETE /api/v1/cart/items/:itemId`, `POST`/`DELETE /api/v1/cart/coupon` (a guest is not judged), `POST /api/v1/cart/from-quote-request/:quoteRequestId` and `POST /api/v1/cart/from-shopping-list/:shoppingListId`: a signed-in member whose role lacks it is refused `403 ORGANIZATION_PERMISSION_REQUIRED`. `GET /api/v1/cart` is not gated. The sign-in merge of a guest basket is skipped for such a member (`CartService.mergeAnonymousIntoCustomer` answers `skipped_permission`; the guest basket is kept).
+  - Whether a basket must be approved is `!carts.order_without_approval` for its owner — for `primaryCta`, `POST /api/v1/cart/submit-for-approval` and the placement gate alike. `submit-for-approval` by a buyer holding the permission (an administrator included) answers `422 CART_APPROVAL_NOT_REQUIRED`; `CART_APPROVAL_SELF_SUBMIT` is no longer raised and is removed from the module's declared error codes, its bundles and `ERROR_CODES`.
+  - `GET /api/v1/organization/carts`, `GET …/:id`, `POST …/:id/approve` and `POST …/:id/reject` need `carts.approve` (was: the `organization_admin` role; refused `403 FORBIDDEN`, now `403 ORGANIZATION_PERMISSION_REQUIRED`). Approving or rejecting one's own pending cart answers the new `422 CART_APPROVAL_SELF_APPROVE`, after the not-pending check. The "cart sent for approval" e-mail goes to every member whose role holds `carts.approve`.
+  - A role gaining `carts.order_without_approval`, or a member moving to a role holding it, returns the affected `pending` carts to `not_required` (subscribers to `organization_role.permissions_changed.v1` and `customer_account.organization_role_changed.v1`, audited as `approval_policy_reset`).
+  - Removed: `PATCH /api/v1/organization/policies/cart-approval`, `GET`/`PATCH /api/v1/admin/organizations/:id/cart-approval-policy`, the `organization.detail.after` zone contribution (`CartApprovalPolicy` / `CartApprovalPolicyPanel`) and its `policy.*` bundle keys, the `customers:manage` operator-permission declaration that backed the operator route, and `CartApprovalService`'s `getPolicyByAdmin`, `setPolicyByAdmin` and `setPolicyForOrganization`. `CartApprovalPolicyReads` is now `{ permissions }` (was `{ organizations, customerAccounts }`), and `organizationAdminRecipients(accounts, organizationId, submitterId)` is `approverRecipients(accounts, permissions, organizationId, submitterId)`.
+
+- 9cc9aa0: Three cart routes are judged by the organization permissions other modules declare (`specs/170-organization-roles/` T137). Breaking for a storefront or an integration whose member's role lacks the code: the route now answers `403 ORGANIZATION_PERMISSION_REQUIRED`, naming the permission, where it reached the handler before.
+
+  - `POST /api/v1/cart/items/:itemId/save-to-shopping-list` needs `shopping_lists.create`.
+  - `POST /api/v1/cart/convert-to-quote-request` needs `quote_requests.create`.
+  - `POST /api/v1/cart/from-shopping-list/:shoppingListId` needs `shopping_lists.convert`, judged before `carts.create`.
+
+  All three codes are member defaults, so a migrated _Member_ role is unaffected.
+
+- 9bfb0b8: The legacy two-value organization role is removed (`specs/170-organization-roles/`, WP-12). Breaking for every consumer that still names it. A member holds a role **id**, and what they may do follows from that role's permissions. Old → new:
+
+  - `organizationRoleSchema` and `OrganizationRole` (`'organization_admin' | 'regular_user'`, from `common.ts`) are removed. Use `OrganizationRoleRef` (`{ id, name, kind }`) and `OrganizationRoleKind` (`administrator`, `member`, `custom`) instead.
+  - `CustomerAccountRole` is removed, and so are `CustomerAccountRecord.role` and `CustomerAccountCreateInput.role`. Read and write `organizationRoleId` instead; it is required on create.
+  - `CustomerAccountReadPort.countByOrganizationRole(organizationId, role, options)` is removed. Use `countAdministrators(organizationId, options)`, which takes the same options. `listByOrganization` still answers the Organization's _Administrator_ holders first, then by creation date.
+  - `CustomerRolePort.changeRole(organizationId, customerAccountId, newRole)` is removed. Use `customerAccountRoleCommandPort.changeRole({ organizationId, customerAccountId, roleId })`, the `customer_account.change_role` Command. `customerRolePort` keeps `listMembers` and `removeMember`.
+  - `RfqCustomerContext.isOrgAdmin` is removed. Ask `OrganizationPermissionPort.isAdministrator(subject)` instead (research R-30). `carts`, `orders`, `quick_order` and `shopping_lists` no longer pass it.
+  - `OrganizationRecord.requiresCartApproval`, `OrganizationCartApprovalWritePort` (the container name `organizationCartApprovalWritePort` is no longer registered), `CartApprovalPolicyWriteResult`, `setCartApprovalPolicySchema` / `SetCartApprovalPolicy` and `cartApprovalPolicyResponseSchema` / `CartApprovalPolicyResponse` are removed, together with the `organization.set_cart_approval_policy` Command. Approval now follows the member's `carts.order_without_approval` permission (OR-3), and the policy endpoints were already removed.
+  - On responses, `role` is no longer described on `customerAccountSchema`, `customerLoginResponseSchema`'s `customerAccount` or `impersonationStartResponseSchema`'s `impersonatedCustomerAccount`. `organizationRole` is now **required** on all three, and `permissions` is required on the first two: every producer sends them. `POST /api/v1/admin/organizations/:id/impersonate` (`admin_users`) no longer sends `role` and now sends `organizationRole`, read through `organizationRoleReadPort` (an acknowledged dependency on `organizations`); `POST /api/v1/admin/customers/:id/impersonate` (`customers`) always sends it.
+  - The request schemas `inviteMemberRequestSchema` (`{ email, role? }`), `changeMemberRoleRequestSchema` (`{ role }`), `adminDirectMemberRequestSchema` (`role?`) and `adminPatchMemberRoleRequestSchema` (`{ role, expectedUpdatedAt? }`) are removed. Use `inviteMemberToRoleRequestSchema`, `assignMemberRoleRequestSchema`, `adminDirectMemberToRoleRequestSchema` and `adminAssignMemberRoleRequestSchema`, which take `roleId`. They stay strict, so a body that still sends `role` is refused with `400`.
+  - The customers CSV export (`import_export`) carries `organization_role_name` (a predefined role's English label, or a custom role's name) and `organization_role_kind` (`administrator`, `member`, `custom`) in place of its `role` column. It reads them through `organizationRoleReadPort`, a new non-binding `degrades-without` edge on `organizations`. The export is export-only, so no import is affected.
+  - `carts`' published bundles (`i18n/en.json`, `i18n/pl.json`) drop five unread keys that described the removed policy and the administrator-only approval: `approval.banner.pending`, `approval.banner.rejected`, `approval.banner.policy_on`, `approval.banner.policy_off` and `reject.email.body`.
+  - The `CustomerAccount` entity loses `role`. `Organization` loses `requiresCartApproval`, and `OrganizationInvitation` loses `role`, so its `organizationRoleId` is now required. Nothing writes the legacy value any more.
+  - New migrations `Migration20261104T094535OrganizationsDropLegacyRoleColumns` (M4) and `Migration20261104T094540CustomerAccountsDropLegacyRoleColumn` (M5):
+    - M4 drops `organizations.requires_cart_approval`, `organization_invitations.role` and the invitation default trigger that read it.
+    - M5 drops `customer_accounts.role` with its index.
+    - M5 also redefines the account default: an account inserted without a role holds _Administrator_ in a personal Organization, else _Member_.
+    - Each `down()` re-derives the dropped values from the role reference.
+
+- bf1cc2d: The cart read answers its VAT per rate, the way the order computes it (issue #436).
+
+  - `@endora-commerce/contracts`: new `cartVatSchema` / `CartVat` and `cartVatRowSchema` / `CartVatRow`. `cartFullPayloadSchema` gains `vat` (`CartVat | null`, default `null`): one row per rate (`taxRate`, `net`, `vat`, `gross`), `vatTotal`, `subtotalGross` and `grandTotalGross`. `cartViewLineSchema` gains the optional `taxRate` (a fraction) and `lineGross` (the line's own rounding of its gross, informational). All additive: a reply without them parses as before.
+  - `@endora-commerce/mod-carts`: `GET /api/v1/cart` (the full view) answers `vat` and each line's `taxRate` and `lineGross`. The rates are resolved as placement resolves them — the product's tax class against the Organization's VAT status and registered country — and the VAT is the contracts' `vatByRate`: per rate, on the sum of the line nets, rounded half-up once; gross = net + VAT; the discount comes off the gross untaxed. For the same lines the cart's gross grand total equals the order total before delivery and the payment surcharge. The line-mutation replies answer `vat: null`, as does a read whose rate resolution failed; the mini view (`?view=mini`) is unchanged. The module now declares `taxes` as a dependency (it resolves `taxService`).
+
+- 77b8c37: **Breaking:** `CartWritePort.clearForCustomer(ctx)` is removed from the published cart write port (`@endora-commerce/contracts`), and with it the adapter's `clearForCustomer` and `CartService.clearForCustomer` in the `carts` module. It deleted every line of the customer's active basket and marked the basket `completed` without an order, which reads as a finished basket that produced nothing (the defect issue #169 fixed); since #169 no code of the platform calls it.
+
+  A module that called it does one of these instead:
+
+  - **To place an order for a customer**, write the lines into a working basket — `const basket = await cartWritePort.addItems({ customer }, lines, { onLineError: 'throw', workingBasket: true })` — and place from it with `orderPlacementPort.placeOrder(ctx, request, { workingBasketId: basket.cart.id })`. The customer's active basket is not touched.
+  - **To replace what is in the customer's basket**, call `cartWritePort.replaceItemsForCustomer(ctx, lines)`; the basket stays active. `replaceItemsForCustomer(ctx, [])` leaves it active and empty.
+
+  A test that reset a buyer's basket with `clearForCustomer` needs a fixture of its own; the platform's tests delete the basket row (`delete from "carts" where "customer_account_id" = ? and "sales_channel_id" = ? and "status" = 'active'`, lines and audit entries cascade).
+
+- 65104b8: **Breaking:** order placement now enforces cart approval (issue #648). In an Organization that requires cart approval (`requiresCartApproval`), a member's basket that is not `approved` — never sent for approval, awaiting the Organization administrator, or rejected — is refused by `POST /api/v1/orders` (and so by the storefront checkout page, which calls it) with `409 ORDER_CART_APPROVAL_REQUIRED`, before anything is reserved or written; the basket is kept as it was. Such baskets were placed until now: only the storefront's call to action stood in the way. An Organization administrator's own basket and every basket of an Organization without the policy are placed as before, and so are orders placed from a working basket (admin order creation, one-click buy, the external order API).
+
+  - `@endora-commerce/contracts`: `ERROR_CODES.ORDER_CART_APPROVAL_REQUIRED`. Its `details` are `{ code, cartId, approvalStatus }`, with `code` one of `cart_approval_not_submitted`, `cart_approval_pending`, `cart_approval_rejected`; `orders` declares the code with English and Polish sentences per token.
+  - `@endora-commerce/mod-carts`: `CartPlacementApplyPort` (`@endora-commerce/mod-carts/ports`) gains a required `awaitsApproval({ cart, organizationId })`, answering whether the basket still awaits its Organization's approval. A hand-written implementation of the port must add it; `CartPlacementApplyService` takes the reads it is judged from (`{ organizations, customerAccounts }`) as a new fourth constructor argument.
+  - `@endora-commerce/mod-orders`: `OrderService.placeOrder` asks it for the customer's active basket and refuses as above.
+
+  An instance whose members order without sending baskets for approval will see those orders refused once it upgrades: such a member now sends the basket for approval and the administrator approves it, or the Organization switches the policy off (`PATCH /api/v1/organization/policies/cart-approval`).
+
+- 54fc8f1: After an approver rejects a member's basket, the member's next basket starts with the rejected basket's lines (issue #755).
+
+  - **The lines come back once.** When a basket is opened for a member whose most recent basket on the channel was rejected (the rejection still in force, as `previousRejection` reads it), each of its lines (product, variant, packaging unit and quantity) is added as the member would add it now, so it is checked for availability and priced afresh. This happens only where a basket is created, so an existing basket is never touched. It does not run again after the member empties or abandons the restored basket, and it does not carry the coupon over. A member whose role lacks `carts.create` gets nothing restored. Each restored line lands its usual `line_added` audit row, and the restore itself lands `lines_restored_from_rejection` on the new basket, with the source basket, the restored count and the skipped lines in its metadata. The rejected basket is left as it was.
+  - **The rejection notice says what was restored.** In `@endora-commerce/contracts`, `cartPreviousRejectionSchema` gains `restoredLineCount` (default `0`) and `skippedLines` (the `droppedLines` line shape, default `[]`), so a reply without them still parses. `CartPreviousRejection` now has both keys, so code that builds one must set them.
+  - `CartAuditAction` gains `lines_restored_from_rejection`.
+
+- c34b405: `carts` provides `cartAnonymizationPort` (issue #920). For every cart of an anonymised customer account it sets `Cart.rejectedReason` and the `reason` of the cart's `cart_audit_entries` rows to `null`; the cart's status, `rejectedAt`, `rejectedByActor` and every other column, and the history's actions, actors, states and metadata, are kept. Each cart it changed gets one `cart.anonymized` platform audit entry with a null actor and `stateBefore: { hadRejectedReason }` only. A cart with no reason left is not touched, so a repeat call writes and records nothing; no event is published. A cart the account only approved or rejected for a colleague is not its cart and is left alone. `cart_audit_entries` is append-only except for this one update.
+- de01fbb: The cart-approval e-mails are sent (issue #651). `CartApprovalService` called an optional `CartEmailDispatch` that the `carts` composition never supplied, so nobody was told about a submit, an approve or a reject. The composition now supplies one, `createCartApprovalEmailDispatch` (`services/cart-approval-emails.ts`), which sends through `transactional_emails`:
+
+  - `cart_approval_requested` — to every active, unblocked administrator of the buyer's Organization when a member sends a cart for approval;
+  - `cart_approved` — to the buyer, naming who approved it;
+  - `cart_rejected` — to the buyer, with the reason.
+
+  Each is rendered in the default language of the cart's sales channel (`en-US` when it has none), with default subjects and bodies in `en-US` and `pl-PL` that an operator can edit or switch off on the e-mail templates screen. A message that does not go out is written to the log and never fails the approval step.
+
+  The module now declares `transactional_emails` in `dependencies` and takes `@endora-commerce/email-components` as a peer dependency.
+
+- 0801f69: Six refusals of `carts` have an error code of their own instead of `VALIDATION_FAILED`, and a
+  sentence in English and Polish (issue #86). **A client that matches on `VALIDATION_FAILED`, or on
+  the token that was the message, for these cases now sees the specific code**; the HTTP status of
+  each is unchanged (`422`). Until now the message was a machine token, which the error envelope
+  never replaces for `VALIDATION_FAILED`, so the buyer and the operator read the token in every
+  language.
+
+  | Route                                                       | Was (`422 VALIDATION_FAILED`, message) | Is (`422`)                        | `details`                  |
+  | ----------------------------------------------------------- | -------------------------------------- | --------------------------------- | -------------------------- |
+  | `POST /api/v1/cart/submit-for-approval`                     | `approval_not_required`                | `CART_APPROVAL_NOT_REQUIRED`      | —                          |
+  | `POST /api/v1/cart/submit-for-approval`                     | `approval_already_initiated`           | `CART_APPROVAL_ALREADY_SUBMITTED` | `cartId`, `approvalStatus` |
+  | `POST /api/v1/cart/submit-for-approval`                     | `org_admin_self_submit`                | `CART_APPROVAL_SELF_SUBMIT`       | —                          |
+  | `POST /api/v1/organization/carts/:id/approve` and `/reject` | `approval_not_pending`                 | `CART_APPROVAL_NOT_PENDING`       | `cartId`, `approvalStatus` |
+  | `POST /api/v1/admin/carts/:id/reject`                       | `already_terminal`                     | `CART_ALREADY_TERMINAL`           | `cartId`, `status`         |
+  | `POST /api/v1/cart/from-quote-request/:quoteRequestId`      | `quote_request_empty`                  | `RFQ_EMPTY`                       | `quoteRequestId`           |
+
+  `RFQ_EMPTY` is the existing code of `quote_requests`, answered with its sentence; the other five are
+  new members of `ERROR_CODES` in `@endora-commerce/contracts`, declared by the `carts` manifest. No
+  setting, permission or migration changes.
+
+- d1c0d13: Two additive reads for the storefront's cart-approval screens (issue #650).
+
+  - **The buyer learns their basket was rejected.** A rejection closes the basket (`status = 'rejected'`), so the buyer's next `GET /api/v1/cart` was a new basket whose `approvalStatus` could never say `rejected_by_org_admin`, and the reason was shown nowhere. Every full cart answer (`GET /api/v1/cart` and the line, coupon and quantity answers) now carries `previousRejection: { cartId, rejectedAt, reason } | null`: the buyer's most recent rejected basket on the request's sales channel, while the current basket has not been sent for approval and no basket of theirs on that channel has been ordered or converted to a quote request since. It is `null` otherwise, and for an anonymous basket. In `@endora-commerce/contracts`, `cartFullPayloadSchema` gains the field as `cartPreviousRejectionSchema.nullable().default(null)`, so a reply without it still parses; `CartFullPayload` now has the key, so code that builds one must set it.
+  - **The administrator sees what they approve.** `GET /api/v1/organization/carts/:id` now answers `items`: each line's `id`, `productId`, `variantId`, `displayName` (in the response language, the packaging unit appended), `productSku`, `quantity`, and `unitPrice` and `lineTotal` as stored. The new `orgCartDetailViewSchema` / `orgCartDetailViewResponseSchema` describe that route as it answers; the older `orgCartDetailPayloadSchema` never matched it and is left unchanged.
+
+  `CartsOrganizationRoutesDeps` (the options of `registerCartsOrganizationRoutes`) gains a required `catalogProducts` member; the module's own composition provides it.
+
+- bf1f8a3: **Behaviour break:** a cart awaiting approval that its member changes is no longer approvable as it
+  is; the buyer must submit it again (issue #649, owner ruling 2026-11-03).
+
+  A content change on a `pending` cart — `POST /api/v1/cart/items`, `PATCH` or `DELETE
+/api/v1/cart/items/:itemId`, `POST` or `DELETE /api/v1/cart/coupon` — now returns it to
+  `approval_status: 'not_required'`, the state it was submitted from, clears
+  `submitted_for_approval_at`, and records an `approval_resubmission_required` audit entry
+  (`pending` → `not_required`). Until now the cart stayed `pending`, so an Organization administrator
+  could approve contents other than those the buyer submitted. After the change the cart is gone
+  from `GET /api/v1/organization/carts?approvalStatus=pending`, `POST
+/api/v1/organization/carts/:id/approve` and `…/reject` answer `422 CART_APPROVAL_NOT_PENDING`,
+  and the cart answers give `primaryCta: 'submit_for_approval'` again. A client that relied on an
+  edited cart staying `pending` must offer the submit again.
+
+  The re-arm of an `approved` cart (back to `pending`) is unchanged, except that a quantity set to
+  the value it already had is no longer a change and re-arms nothing. Both transitions are now
+  written in the same transaction as the change they react to; they used to be a second write after
+  it.
+
+  `CartApprovalService.maybeReArm(cart, actor)` is replaced by the synchronous
+  `reArmWithin(em, cart, actor)`, which stages the transition and its audit row on the caller's
+  entity manager and flushes nothing — call it before the flush that writes the change.
+
+### Patch Changes
+
+- 0ab9c96: A signed-in member's cart answers (`GET /api/v1/cart`, every cart write's reply and `POST /api/v1/cart/submit-for-approval`) judge the cart-approval rule with the role the request's actor already carries, so the permission port no longer reads the member's account on each of them (`specs/170-organization-roles/` FR-080, SC-004). `CartsDeps.resolveCartActor`'s and `CartsOrganizationRoutesDeps.resolveCartActor`'s `customer`, `CartsDeps.cartApprovalPolicy`'s buyer and `ApproveActor` gain an optional `organizationRoleId`; a composition that does not pass it is served as before. No response changes.
+- 8b5f126: `CartPlacementApplyPort.awaitsApproval` takes an optional `organizationRoleId`, the basket owner's organization role when the caller knows it (`specs/170-organization-roles/` FR-080). With it the cart-approval rule is judged from the role cache and the owner's account is not read; a caller that does not pass it is served as before.
+- 3f020ba: Product names, descriptions, alt texts, attachment and packaging-unit names are read at the document's sales channel and language — Channel × language → Channel → Global — through `catalogProductAvailabilityPort.effectiveTexts`, or as the Global string where there is no channel (feature 174). Basket, quote and order snapshots take the effective name when the line is created; a deliberately empty packaging-unit name at the scope keeps the Global name. The back-in-stock e-mail shows the Global name.
+- 45c9893: The organization role form, on the storefront and in the admin Roles tab, heads the Addresses, Carts, Orders, Quote Requests and Returns permission groups in the reader's language. The five modules now ship `module.name` in English and Polish ("Adresy", "Koszyki", "Zamówienia", "Zapytania ofertowe", "Zwroty"); before this, Polish pages showed the English manifest name.
+- 5e4dd48: The Organization cart surfaces name a cart's owner and the order a completed cart produced; the auto-created default shopping list gets a published marker (issue #751).
+
+  - `orgCartSummarySchema` — and with it `orgCartDetailViewSchema` and `orgCartsListResponseSchema` — gains two required fields: `ownerEmail: string | null`, the owner's e-mail (`null` when the account can no longer be read), and `orderId: string | null`, the order a completed cart produced (`null` for any other cart). A consumer that builds these shapes by hand must now supply both.
+  - `ownerDisplayName` on `GET /api/v1/organization/carts` and `GET /api/v1/organization/carts/:id` is now the owner's first and last name; it falls back to the e-mail for an owner with no name, then to the account id. It was the e-mail alone — read `ownerEmail` where the e-mail is what you need.
+  - New `SHOPPING_LIST_AUTO_DEFAULT_NAME` (`'Default'`, the name `shopping_lists` stores on the default list it creates) and `isAutoDefaultShoppingList({ name, isDefault })`: whether a list is that default and still carries that name, so a storefront can name it in the shop language. `shopping_lists` creates the list with the constant; what it stores is unchanged.
+
+- 75b053f: A customer record read by an id that is not a UUID answers `404` with the route's own not-found code, exactly as a well-formed id that names nothing does, instead of `500` (issue #753). This covers `GET /api/v1/orders/:id` (`ORDER_NOT_FOUND`), `GET /api/v1/returns/:id`, `GET /api/v1/quote-requests/:id`, `GET /api/v1/shopping-lists/:id` and `GET /api/v1/organization/carts/:id` (`NOT_FOUND`), and every other route that reads its record through the same lookup.
+- d69e765: A path parameter that is not a UUID is answered exactly as a well-formed id that names nothing, on every customer- and admin-facing id route, mutations included, instead of `500` (issue #781). The shape is checked with `isUuidShape` from `@endora-commerce/contracts` before the database is asked, so a malformed id gets the route's own answer for an unknown record: its own not-found code (`404`), or the empty list or `204` the route gives an unknown id. Examples: `POST /api/v1/orders/:id/cancel` answers `404 ORDER_NOT_FOUND`; the returns comment, delivery-method and cancel routes and `POST /api/v1/organization/carts/:id/approve` and `/reject` answer `404 NOT_FOUND`.
+
+  Routes whose params schema demanded a UUID answered a malformed id `400 VALIDATION_FAILED`; they now answer `404` like an unknown id (owner ruling of 2026-11-05): `/api/v1/organizations/mine/roles/:id`, `/api/v1/admin/organizations/:id/roles[/:roleId]` and `…/permission-catalogue`, `/api/v1/organizations/mine/members/:id[/role]`, every `/api/v1/admin/product-feeds/:id…`, `/api/v1/admin/feed-templates/:id` and `/api/v1/admin/feed-taxonomies/revisions/:taxonomyId…` route, `/api/v1/admin/document-templates/:id…`, `/api/v1/admin/quote-requests/:id/document-templates`, `…/document-template` and `…/pdf`, the blog `url-redirects/:redirectId` and `addresses/:id` deletes, `PATCH /api/v1/admin/cms/hooks/:id/attachments/:blockId`, and `GET`, `PATCH` and `DELETE /api/v1/admin/import-export/profiles/:id` (`404 IMPORT_PROFILE_NOT_FOUND`). A client that told a malformed id from an unknown one by the `400` can no longer do so.
+
+  Every private copy of the UUID pattern is replaced by `isUuidShape`, `UUID_SHAPE_PATTERN` or, where a filter has always asked for RFC 9562 version and variant bits (the CRM board filters), `uuidSchema`; what each check accepts is unchanged, except that the invoice-ledger delivery retry now accepts any uuid-shaped id and answers an unknown one `404` from the lookup.
+
+- d24be0e: The module documentation pages have readable titles instead of the module id (for example _Carts_ instead of `carts`), in the docs sidebar, the module map and the browser tab, in English and Polish. Page headings and screen names in the page text are sentence case, as in the Admin UI (#795). File names and URLs are unchanged.
+- 14fe4fb: A product's gross price uses that product's own VAT rate for the buyer, not a flat 23 % (issue #852).
+
+  - `@endora-commerce/contracts`: `productSummarySchema` (and so `productDetailSchema`) gains the optional `vatRate` — the buyer's VAT rate for the product as a fraction, `null` where it could not be resolved. Additive: a reply without it parses as before. New `createProductTaxRateResolver` / `ProductTaxRateResolver`: the rate rule the cart applied since issue #436 — the product's tax class against the Organization's VAT status and registered country through `OrganizationTaxProfilePort` and `TaxServicePort`, `0` for a VAT-exempt or reverse-charge Organization, a buyer with no Organization a VAT payer in PL — moved here so the cart and the catalogue resolve one rule.
+  - `@endora-commerce/mod-catalog`: `GET /api/v1/catalog/products` and `GET /api/v1/catalog/products/:idOrSlug` answer `vatRate` on every product. It depends only on the viewer's Organization, so it follows the price's cache rule: a reply for a caller naming an Organization is `private, no-store`, and the shareable anonymous reply carries the guest's rate. A failed resolution answers `vatRate: null` rather than refusing the listing. The module now declares `taxes` as a dependency (it resolves `taxService`) and acknowledges `organizations`' `organizationTaxProfilePort`.
+  - `@endora-commerce/mod-carts`: the cart's rates come from the contracts' `createProductTaxRateResolver`; the module's own `cart-tax-rates.ts` is gone. No change to what the cart answers.
+  - `@endora-commerce/mod-price-lists`: the display-mode documentation says how a gross price is derived.
+
+- ca120cc: Every settings group a module declares now has a translated heading on the Settings screen (#884). Each module's bundle gains `settingGroups.<group code>.name` in English and Polish, so a Polish operator no longer reads group headings such as _Orders_, _Carts_ or _Security / MFA_ in English. `@endora-commerce/mod-admin-notifications` and `@endora-commerce/mod-shipments` ship translation bundles for the first time: their manifests declare `i18n: { bundlesDir: 'i18n' }` and their tarballs carry `i18n/`.
+- 87bed2b: Cart approval works end to end (issue #619). For an Organization that requires cart approval:
+
+  - `POST /api/v1/cart/submit-for-approval` now stores the cart as `pending`, with its audit entry, in one write. It used to answer `200 { approvalStatus: 'pending' }` and store nothing, so a second submit was accepted again; it is now refused with `422 CART_APPROVAL_ALREADY_SUBMITTED`.
+  - An Organization administrator now reaches the carts of every member of their own Organization on `GET /api/v1/organization/carts`, `GET /api/v1/organization/carts/:id`, `POST …/:id/approve` and `POST …/:id/reject`. These read only the administrator's own carts before, so a member's cart answered `404 NOT_FOUND` and the list showed none. A cart of another Organization still answers `404`, and a member who is not an administrator is still refused with `403 FORBIDDEN`.
+  - Switching the policy off through `PATCH /api/v1/organization/policies/cart-approval` now returns every member's pending or approved cart to `not_required`; it reset only the administrator's own before.
+  - Changing an approved cart now stores it as `pending` again, as the re-arm rule says; the change was not stored before.
+  - The cart answers (`GET /api/v1/cart` and the line, coupon and quantity answers) now give `primaryCta: 'submit_for_approval'` for a basket a member must send for approval. It was always `checkout`, so the storefront offered checkout instead of the submit.
+
+  `CartsDeps` (the options of `registerCartRoutes`) gains a required `cartApprovalPolicy` member; the module's own composition provides it.
+
+- Updated dependencies [18cce2e]
+- Updated dependencies [18cce2e]
+- Updated dependencies [9cfb28b]
+- Updated dependencies [a206da9]
+- Updated dependencies [34485ae]
+- Updated dependencies [34485ae]
+- Updated dependencies [0f1717c]
+- Updated dependencies [86e8761]
+- Updated dependencies [9bfb0b8]
+- Updated dependencies [ed5cf6a]
+- Updated dependencies [2da23d2]
+- Updated dependencies [2da23d2]
+- Updated dependencies [9d9c8df]
+- Updated dependencies [9d9c8df]
+- Updated dependencies [9d9c8df]
+- Updated dependencies [9d9c8df]
+- Updated dependencies [5303aab]
+- Updated dependencies [16f85f4]
+- Updated dependencies [270aa2b]
+- Updated dependencies [3f020ba]
+- Updated dependencies [3f020ba]
+- Updated dependencies [b59e5d5]
+- Updated dependencies [b59e5d5]
+- Updated dependencies [bf1cc2d]
+- Updated dependencies [ff60e93]
+- Updated dependencies [6f19230]
+- Updated dependencies [06cf85b]
+- Updated dependencies [77b8c37]
+- Updated dependencies [65104b8]
+- Updated dependencies [7acaa33]
+- Updated dependencies [7019c71]
+- Updated dependencies [4eee98b]
+- Updated dependencies [14ac256]
+- Updated dependencies [248bf1b]
+- Updated dependencies [b2db8c3]
+- Updated dependencies [4cf529d]
+- Updated dependencies [5e4dd48]
+- Updated dependencies [75b053f]
+- Updated dependencies [54fc8f1]
+- Updated dependencies [dac5795]
+- Updated dependencies [5bbb389]
+- Updated dependencies [d69e765]
+- Updated dependencies [dbc1cef]
+- Updated dependencies [d69e765]
+- Updated dependencies [a6bc891]
+- Updated dependencies [8ad737c]
+- Updated dependencies [a9398c8]
+- Updated dependencies [0b56038]
+- Updated dependencies [717e4c6]
+- Updated dependencies [cea1470]
+- Updated dependencies [cea1470]
+- Updated dependencies [d46d414]
+- Updated dependencies [73e2eec]
+- Updated dependencies [29d7e90]
+- Updated dependencies [7f2fa6e]
+- Updated dependencies [57145f7]
+- Updated dependencies [58a1632]
+- Updated dependencies [e46d233]
+- Updated dependencies [e46d233]
+- Updated dependencies [58a1632]
+- Updated dependencies [b476f44]
+- Updated dependencies [14fe4fb]
+- Updated dependencies [76d89ab]
+- Updated dependencies [5cbffb9]
+- Updated dependencies [6bd2ab7]
+- Updated dependencies [a3502c0]
+- Updated dependencies [7a73cc8]
+- Updated dependencies [5ff8302]
+- Updated dependencies [fc7db4c]
+- Updated dependencies [c34b405]
+- Updated dependencies [5af8c25]
+- Updated dependencies [48f055e]
+- Updated dependencies [bf50b85]
+- Updated dependencies [2c6fba0]
+- Updated dependencies [0801f69]
+- Updated dependencies [d1c0d13]
+- Updated dependencies [6d1d284]
+- Updated dependencies [974be57]
+- Updated dependencies [99c075e]
+- Updated dependencies [32b4d0c]
+- Updated dependencies [3355e60]
+- Updated dependencies [7ce9b8a]
+  - @endora-commerce/contracts@0.110.0
+  - @endora-commerce/platform@0.110.0
+  - @endora-commerce/admin-kit@0.110.0
+  - @endora-commerce/email-components@0.110.0
+
 ## 0.109.0
 
 ### Minor Changes

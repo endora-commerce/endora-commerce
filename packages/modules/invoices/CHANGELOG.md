@@ -1,5 +1,201 @@
 # @endora-commerce/mod-invoices
 
+## 0.110.0
+
+### Minor Changes
+
+- 9bfb0b8: The legacy two-value organization role is removed (`specs/170-organization-roles/`, WP-12). Breaking for every consumer that still names it. A member holds a role **id**, and what they may do follows from that role's permissions. Old → new:
+
+  - `organizationRoleSchema` and `OrganizationRole` (`'organization_admin' | 'regular_user'`, from `common.ts`) are removed. Use `OrganizationRoleRef` (`{ id, name, kind }`) and `OrganizationRoleKind` (`administrator`, `member`, `custom`) instead.
+  - `CustomerAccountRole` is removed, and so are `CustomerAccountRecord.role` and `CustomerAccountCreateInput.role`. Read and write `organizationRoleId` instead; it is required on create.
+  - `CustomerAccountReadPort.countByOrganizationRole(organizationId, role, options)` is removed. Use `countAdministrators(organizationId, options)`, which takes the same options. `listByOrganization` still answers the Organization's _Administrator_ holders first, then by creation date.
+  - `CustomerRolePort.changeRole(organizationId, customerAccountId, newRole)` is removed. Use `customerAccountRoleCommandPort.changeRole({ organizationId, customerAccountId, roleId })`, the `customer_account.change_role` Command. `customerRolePort` keeps `listMembers` and `removeMember`.
+  - `RfqCustomerContext.isOrgAdmin` is removed. Ask `OrganizationPermissionPort.isAdministrator(subject)` instead (research R-30). `carts`, `orders`, `quick_order` and `shopping_lists` no longer pass it.
+  - `OrganizationRecord.requiresCartApproval`, `OrganizationCartApprovalWritePort` (the container name `organizationCartApprovalWritePort` is no longer registered), `CartApprovalPolicyWriteResult`, `setCartApprovalPolicySchema` / `SetCartApprovalPolicy` and `cartApprovalPolicyResponseSchema` / `CartApprovalPolicyResponse` are removed, together with the `organization.set_cart_approval_policy` Command. Approval now follows the member's `carts.order_without_approval` permission (OR-3), and the policy endpoints were already removed.
+  - On responses, `role` is no longer described on `customerAccountSchema`, `customerLoginResponseSchema`'s `customerAccount` or `impersonationStartResponseSchema`'s `impersonatedCustomerAccount`. `organizationRole` is now **required** on all three, and `permissions` is required on the first two: every producer sends them. `POST /api/v1/admin/organizations/:id/impersonate` (`admin_users`) no longer sends `role` and now sends `organizationRole`, read through `organizationRoleReadPort` (an acknowledged dependency on `organizations`); `POST /api/v1/admin/customers/:id/impersonate` (`customers`) always sends it.
+  - The request schemas `inviteMemberRequestSchema` (`{ email, role? }`), `changeMemberRoleRequestSchema` (`{ role }`), `adminDirectMemberRequestSchema` (`role?`) and `adminPatchMemberRoleRequestSchema` (`{ role, expectedUpdatedAt? }`) are removed. Use `inviteMemberToRoleRequestSchema`, `assignMemberRoleRequestSchema`, `adminDirectMemberToRoleRequestSchema` and `adminAssignMemberRoleRequestSchema`, which take `roleId`. They stay strict, so a body that still sends `role` is refused with `400`.
+  - The customers CSV export (`import_export`) carries `organization_role_name` (a predefined role's English label, or a custom role's name) and `organization_role_kind` (`administrator`, `member`, `custom`) in place of its `role` column. It reads them through `organizationRoleReadPort`, a new non-binding `degrades-without` edge on `organizations`. The export is export-only, so no import is affected.
+  - `carts`' published bundles (`i18n/en.json`, `i18n/pl.json`) drop five unread keys that described the removed policy and the administrator-only approval: `approval.banner.pending`, `approval.banner.rejected`, `approval.banner.policy_on`, `approval.banner.policy_off` and `reject.email.body`.
+  - The `CustomerAccount` entity loses `role`. `Organization` loses `requiresCartApproval`, and `OrganizationInvitation` loses `role`, so its `organizationRoleId` is now required. Nothing writes the legacy value any more.
+  - New migrations `Migration20261104T094535OrganizationsDropLegacyRoleColumns` (M4) and `Migration20261104T094540CustomerAccountsDropLegacyRoleColumn` (M5):
+    - M4 drops `organizations.requires_cart_approval`, `organization_invitations.role` and the invitation default trigger that read it.
+    - M5 drops `customer_accounts.role` with its index.
+    - M5 also redefines the account default: an account inserted without a role holds _Administrator_ in a personal Organization, else _Member_.
+    - Each `down()` re-derives the dropped values from the role reference.
+
+- 6bd2ab7: Issue #876 — invoices follow a consumer's withdrawal that refunded the delivery cost and the payment surcharge.
+
+  - `CorrectiveInvoiceProvider` credits `CorrectiveInvoiceInput.charges` on lines of their own, written with `lineKind` `delivery` / `payment_surcharge`, named and rated like the invoice line that charged them (0 % today). A charge is never credited above what that line still charges after earlier corrections. Otherwise the correction is refused `422 correction_exceeds_charge_remaining` before any money moves. A charge the invoice has no line for is refused `422 no_corrected_line`. An invoice issued before #904 has no line kinds: its delivery line is the first positive 0 % line naming no order item, and its surcharge line the second. A positive line at any other rate is never taken for a charge. `correctionAmounts` takes `charges` and answers `chargeLines`; `CorrectionExceedsChargeRemainingError` and `chargeLinesOf` are new.
+  - An invoice issued after such a settlement charges the delivery and the surcharge less what the settled returns refunded (`ReturnRefundsLookup.refundedChargesFor`, from `returnRefundReadPort.listRefundedCharges`), and leaves a line out when nothing is left. A B2C order returned and refunded in full is refused `422 INVOICE_ORDER_REFUNDED` as before.
+
+  **Behaviour change on upgrade.** On a B2C order returned in full after it was invoiced, the last correction now also credits the delivery and the surcharge, so the invoice nets to zero. Before, the delivery stayed charged. A B2C order returned in full before it was invoiced is now refused, where it used to be invoiced for the delivery alone. When the operator reduced a premium delivery, only the difference is invoiced. Documents already issued are not changed.
+
+- 7a73cc8: Migration `Migration20261108T073244InvoicesInvoiceLineKind` adds a nullable `invoice_lines.line_kind` (`goods`, `delivery`, `payment_surcharge`, `discount`, `price_reduction`), an internal column read through the `InvoiceLine` entity's `lineKind` (issue #904). It is not published on the API: `invoiceLineSchema` and the invoice responses are unchanged. Every line of a newly issued invoice or proforma records its kind, including the 0 % delivery and surcharge lines; `RawOrderLine` and `BuiltInvoiceLine` carry it. No amount changes. Lines issued earlier and correction lines stay `null`.
+- 32b4d0c: **The content of an invoice issued after a return changes** (issue #435). An invoice or proforma issued once a return has been settled, while the order has no invoice yet, now lists only what the buyer kept: each order line is invoiced at its ordered quantity less the quantity of the order's settled `return`-kind cases resolved with a refund or a credit — whether or not the money has been paid out — and a line returned in full is left off. The discount line carries only the kept goods' share: the order's `discountTotal` less the discount those cases carried back with their refunds (as recorded at settlement), left off when nothing remains. Before, every order line and the whole discount were invoiced, so the amount due included goods the buyer had returned. Replacement, repair and complaint cases change no line; the delivery and payment-surcharge lines, the per-rate VAT on the sum of the nets and `paidTotal` (captured − refunded) are unchanged; an invoice for an order refunded in full is still refused with `422 INVOICE_ORDER_REFUNDED` (a proforma is not). With `returns` switched off, every line is invoiced as before. Invoices already issued are not touched.
+
+  **A default return refund can differ by one cent from before.** For an order placed under the per-rate VAT method, the default refund of a case is now the drop in the value of the goods kept — what was left paid less VAT per rate on the nets kept after the case, net of the discount the kept part carries — instead of the value of the returned units on their own, so the kept-lines invoice equals what is left paid to the cent. Example: 3 × 10.01 at 23 % (36.94) refunds 12.32 for one unit, not 12.31. All of an order's returns together still refund exactly what was paid, and a cent an earlier case refunded under the previous rule is absorbed by the next case on the same order. Orders placed before 0.108.0 keep their rule. This is not a breaking change.
+
+  `ReturnRefundReadPort` (`returnRefundReadPort`, owned by `@endora-commerce/mod-returns`) gains `listReturnedQuantities(orderId)`, returning the new `OrderReturnedQuantity` (`{ orderItemId, quantity, discount }`) from `@endora-commerce/contracts`. The change is additive for a consumer of the port; an implementation of `ReturnRefundReadPort` outside `@endora-commerce/mod-returns` adds the method.
+
+  An invoice for an order **returned in full** before it was invoiced — every product line back through settled returns and no delivery or payment surcharge kept — is refused with the existing `422 INVOICE_ORDER_REFUNDED`, whatever the state of the refund (issued, waiting for a person, or waiting for the gateway's webhook); a proforma is not refused. The error carries `details.reason` (`refunded_in_full` or `returned_in_full`), its message (`errors.INVOICE_ORDER_REFUNDED`) now covers both causes, and automatic issuance skips such an order and logs the cause. When the delivery or the surcharge is kept, the invoice lists only that line.
+
+  Issuing an invoice now holds the order's returns lock, the one `@endora-commerce/mod-returns` takes to create and to settle a case, so an invoice is never drawn from a return being settled; it waits, and answers `409 VERSION_CONFLICT` (`details.code: settlement_in_progress`), retryable, after 15 s. The key is the new `returnCaseOrderLockKey(orderId)` in `@endora-commerce/contracts`. A return line whose default refund is 0.00 because its discount share takes its whole value now carries that discount back, so the invoice's discount line no longer keeps it. None of this is breaking. `@endora-commerce/mod-i18n` adds the sentence for `errors.VERSION_CONFLICT.settlement_in_progress` in English and Polish.
+
+### Patch Changes
+
+- 6459048: Polish invoice PDFs no longer print English labels (issue #437). The invoice document type's built-in layout carried English literals in its label props (_Issue date_, _Sale date_, _Payment due_, _Payment method_, _Seller_, _Buyer_, the VAT summary's _Total_, and the totals block's _Paid_, _Amount due_, _Total_ and _In words_) and in its footer text (_Thank you for your business._). A label prop wins over the translation, so an invoice, proforma or correction printed with that layout said _Paid_ where it should say _Zapłacono_. Every one of these props is empty in the built-in layout now (`GENERIC_INVOICE_TEMPLATE_SEED_REVISION` 3), and an empty prop is drawn in the document's language. The footer follows the labels: an empty or blank footer text prints the default footer in the document's language. Until now it printed an empty footer, while the editor's canvas already showed the default.
+
+  `Migration20261107T110328DocumentTemplatesInvoiceSeededLabels` (`mod-document-templates`) does the same to stored invoice templates. In every language layout of every `invoices.invoice` template, it empties a prop only where the prop holds **exactly** the English literal the built-in layout seeded, and it advances `version` on each template it changes. Every other value stays as it is: a translated label, a reworded one, or a footer with a line added. Other document types are untouched.
+
+  **Behaviour change on upgrade.** If an invoice template kept a seeded English label because you wanted English on Polish invoices, the label prints in Polish after the upgrade. Type the English label into the block again to keep it. The same applies to the English sample footer.
+
+- 7acaa33: The buyer invoice routes for an order — `GET /api/v1/orders/:id/invoices` and
+  `GET /api/v1/orders/:id/invoices/:invoiceId/pdf` — now follow the order's own read scope. A regular
+  member of an Organization reaches only the invoices of orders they placed; an `organization_admin`
+  reaches the invoices of every order of the Organization. Any other order answers 404, as
+  `GET /api/v1/orders/:id` already did. Previously these routes accepted any order of the caller's
+  Organization.
+
+  `GET /api/v1/account/organization/invoices` is unchanged.
+
+- d69e765: A path parameter that is not a UUID is answered exactly as a well-formed id that names nothing, on every customer- and admin-facing id route, mutations included, instead of `500` (issue #781). The shape is checked with `isUuidShape` from `@endora-commerce/contracts` before the database is asked, so a malformed id gets the route's own answer for an unknown record: its own not-found code (`404`), or the empty list or `204` the route gives an unknown id. Examples: `POST /api/v1/orders/:id/cancel` answers `404 ORDER_NOT_FOUND`; the returns comment, delivery-method and cancel routes and `POST /api/v1/organization/carts/:id/approve` and `/reject` answer `404 NOT_FOUND`.
+
+  Routes whose params schema demanded a UUID answered a malformed id `400 VALIDATION_FAILED`; they now answer `404` like an unknown id (owner ruling of 2026-11-05): `/api/v1/organizations/mine/roles/:id`, `/api/v1/admin/organizations/:id/roles[/:roleId]` and `…/permission-catalogue`, `/api/v1/organizations/mine/members/:id[/role]`, every `/api/v1/admin/product-feeds/:id…`, `/api/v1/admin/feed-templates/:id` and `/api/v1/admin/feed-taxonomies/revisions/:taxonomyId…` route, `/api/v1/admin/document-templates/:id…`, `/api/v1/admin/quote-requests/:id/document-templates`, `…/document-template` and `…/pdf`, the blog `url-redirects/:redirectId` and `addresses/:id` deletes, `PATCH /api/v1/admin/cms/hooks/:id/attachments/:blockId`, and `GET`, `PATCH` and `DELETE /api/v1/admin/import-export/profiles/:id` (`404 IMPORT_PROFILE_NOT_FOUND`). A client that told a malformed id from an unknown one by the `400` can no longer do so.
+
+  Every private copy of the UUID pattern is replaced by `isUuidShape`, `UUID_SHAPE_PATTERN` or, where a filter has always asked for RFC 9562 version and variant bits (the CRM board filters), `uuidSchema`; what each check accepts is unchanged, except that the invoice-ledger delivery retry now accepts any uuid-shaped id and answers an unknown one `404` from the lookup.
+
+- d24be0e: The module documentation pages have readable titles instead of the module id (for example _Carts_ instead of `carts`), in the docs sidebar, the module map and the browser tab, in English and Polish. Page headings and screen names in the page text are sentence case, as in the Admin UI (#795). File names and URLs are unchanged.
+- a3502c0: A corrective invoice of an invoice issued under the per-rate VAT method now leaves, per rate, what
+  the invoice keeps (issue #873). When a return refunds its default amount, the net and VAT left at
+  each rate are VAT per rate on the nets of the kept quantities, the figures an invoice issued after
+  the same return lists. For example, returning one unit of 3 × 10.01 net at 23 % credits 10.01 net
+  and 2.31 VAT and leaves 20.02 / 4.60; until now it credited 10.02 / 2.30 and left 20.01 / 4.61.
+  An operator-reduced amount splits the gross the invoice keeps at the rate by the same rule. Where
+  no net carries that gross, the correction itself follows the rule and what is left may be 0.01 off
+  it at that rate (owner ruling E1); the money is always exact.
+
+  Only corrections issued from now on change; issued ones are not rewritten. An order placed before
+  0.108.0 and invoiced per rate now keeps its unpaid cent as 0.01 net and no VAT, where its
+  correction used to leave 0.00 net and 0.01 VAT.
+
+  `correctionAmounts` (`services/corrective-invoice.ts`) takes `originalSummary` and the quantity and
+  unit net price of every `CreditedLine`, and reports how each rate's net was found in `paths`.
+
+- ca120cc: Every settings group a module declares now has a translated heading on the Settings screen (#884). Each module's bundle gains `settingGroups.<group code>.name` in English and Polish, so a Polish operator no longer reads group headings such as _Orders_, _Carts_ or _Security / MFA_ in English. `@endora-commerce/mod-admin-notifications` and `@endora-commerce/mod-shipments` ship translation bundles for the first time: their manifests declare `i18n: { bundlesDir: 'i18n' }` and their tarballs carry `i18n/`.
+- a3502c0: A complaint refunded or credited after the order was invoiced is now documented as a price
+  reduction, not as goods coming back (issue #885, product-owner ruling of 2026-11-07). The
+  settlement sends its lines with `basis: 'price_reduction'`, no discount and the case's RMA number.
+  The correction credits the approved amount at the line's VAT rate on a line stored with quantity 0
+  and named in the document's language, _Obniżka ceny (reklamacja RMA-…): product_
+  (`invoices.lines.priceReduction`, or `lines.priceReductionUnreferenced` without an RMA number). It
+  credits no discount, and it does not lower the quantity a later return of the line is credited
+  from. A complaint resolved by replacement or repair still issues no correction.
+
+  The provider refuses, before any money moves, a price-reduction line that carries a discount
+  (`422 VALIDATION_FAILED`, `price_reduction_carries_discount`) and a correction that credits more
+  goods at one VAT rate than the invoice still charges there (`422 VALIDATION_FAILED`,
+  `correction_exceeds_rate_remaining`, with `taxRate`, `remaining` and `vatRatePercent`; the operator
+  sentence is in `@endora-commerce/mod-i18n`). The `invoice.corrected` audit entry records
+  `priceReductionLines`.
+
+  Wire `CorrectiveInvoiceProvider`'s new last constructor argument, `{ translate, language }`, to name
+  the line; without it the line is named in English.
+
+  A complaint refunded before the order was invoiced is unchanged: the invoice still lists the goods
+  in full and shows the complaint refund as amount due.
+
+- 2fd4bde: The invoice template editor's canvas draws what the PDF prints (#888). A label the template leaves empty is shown in the language of the tree being edited, from the invoices bundle's `pdf.*` keys. That covers the header title and dates, seller and buyer, the tax ID rows, the line-item and VAT-summary column headers, the totals and the default footer. A label the operator typed is shown as typed. The document-template editor now wraps its canvas in `BlockRenderEnvironmentProvider` with the edited language and `preview: true`, so a contributed block's `useBlockRenderEnvironment().language` is the edited tree's language and no longer always `en`.
+- Updated dependencies [18cce2e]
+- Updated dependencies [18cce2e]
+- Updated dependencies [9cfb28b]
+- Updated dependencies [a206da9]
+- Updated dependencies [34485ae]
+- Updated dependencies [34485ae]
+- Updated dependencies [0f1717c]
+- Updated dependencies [86e8761]
+- Updated dependencies [9bfb0b8]
+- Updated dependencies [ed5cf6a]
+- Updated dependencies [2da23d2]
+- Updated dependencies [2da23d2]
+- Updated dependencies [2da23d2]
+- Updated dependencies [9d9c8df]
+- Updated dependencies [9d9c8df]
+- Updated dependencies [9d9c8df]
+- Updated dependencies [9d9c8df]
+- Updated dependencies [5303aab]
+- Updated dependencies [16f85f4]
+- Updated dependencies [270aa2b]
+- Updated dependencies [3f020ba]
+- Updated dependencies [3f020ba]
+- Updated dependencies [b59e5d5]
+- Updated dependencies [b59e5d5]
+- Updated dependencies [bf1cc2d]
+- Updated dependencies [ff60e93]
+- Updated dependencies [6f19230]
+- Updated dependencies [06cf85b]
+- Updated dependencies [77b8c37]
+- Updated dependencies [65104b8]
+- Updated dependencies [7acaa33]
+- Updated dependencies [7019c71]
+- Updated dependencies [4eee98b]
+- Updated dependencies [14ac256]
+- Updated dependencies [248bf1b]
+- Updated dependencies [b2db8c3]
+- Updated dependencies [4cf529d]
+- Updated dependencies [5e4dd48]
+- Updated dependencies [75b053f]
+- Updated dependencies [54fc8f1]
+- Updated dependencies [dac5795]
+- Updated dependencies [5bbb389]
+- Updated dependencies [d69e765]
+- Updated dependencies [dbc1cef]
+- Updated dependencies [d69e765]
+- Updated dependencies [a6bc891]
+- Updated dependencies [8ad737c]
+- Updated dependencies [a9398c8]
+- Updated dependencies [0b56038]
+- Updated dependencies [717e4c6]
+- Updated dependencies [cea1470]
+- Updated dependencies [cea1470]
+- Updated dependencies [d46d414]
+- Updated dependencies [73e2eec]
+- Updated dependencies [29d7e90]
+- Updated dependencies [7f2fa6e]
+- Updated dependencies [57145f7]
+- Updated dependencies [58a1632]
+- Updated dependencies [e46d233]
+- Updated dependencies [e46d233]
+- Updated dependencies [58a1632]
+- Updated dependencies [b476f44]
+- Updated dependencies [14fe4fb]
+- Updated dependencies [76d89ab]
+- Updated dependencies [5cbffb9]
+- Updated dependencies [c01aaa3]
+- Updated dependencies [6bd2ab7]
+- Updated dependencies [a3502c0]
+- Updated dependencies [7a73cc8]
+- Updated dependencies [5ff8302]
+- Updated dependencies [fc7db4c]
+- Updated dependencies [c34b405]
+- Updated dependencies [5af8c25]
+- Updated dependencies [48f055e]
+- Updated dependencies [bf50b85]
+- Updated dependencies [2c6fba0]
+- Updated dependencies [0801f69]
+- Updated dependencies [d1c0d13]
+- Updated dependencies [6d1d284]
+- Updated dependencies [974be57]
+- Updated dependencies [99c075e]
+- Updated dependencies [32b4d0c]
+- Updated dependencies [3355e60]
+- Updated dependencies [7ce9b8a]
+  - @endora-commerce/contracts@0.110.0
+  - @endora-commerce/platform@0.110.0
+  - @endora-commerce/page-builder-admin@0.110.0
+  - @endora-commerce/admin-kit@0.110.0
+  - @endora-commerce/email-components@0.110.0
+  - @endora-commerce/page-builder-core@0.110.0
+
 ## 0.109.0
 
 ### Minor Changes

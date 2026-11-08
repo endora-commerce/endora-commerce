@@ -1,5 +1,179 @@
 # @endora-commerce/mod-i18n
 
+## 0.110.0
+
+### Minor Changes
+
+- 2da23d2: A form picker for the `forms.Form` block (`specs/170-forms-module/` FR-004).
+
+  - `@endora-commerce/page-builder-admin`: `FormPickerControl` and `createFormPickerField` — a Puck field choosing one of the forms the editor may see, with its status, a link creating a new form in a new tab, and the not-found, forbidden and load-failed states (the block keeps its form when the list cannot be read).
+  - `@endora-commerce/mod-i18n`: the picker's words, `pageBuilder.formPicker.*`, in English and Polish.
+
+- 6f19230: **BREAKING — `POST /api/v1/admin/orders` and `POST /api/v1/admin/orders/preview` for a sales channel that is not one of the customer's Organization's active assigned channels now answer `422 ORDER_SALES_CHANNEL_NOT_ALLOWED`: a channel the Organization is not assigned to, or an inactive one, where they answered `201` / `200`, and a channel id that does not exist, where they answered `404 NOT_FOUND`. `GET` and `PUT /api/v1/admin/organizations/:id/sales-channels` for an Organization outside a sales representative's reach now answer `404 NOT_FOUND` where they answered `200`.** Recorded at `minor`, which in a `0.x` series already takes every caret dependent out of range (issue #515).
+
+  An order an operator creates on a customer's behalf is placed only on one of the customer's Organization's active assigned channels — the rule a quote request created on a customer's behalf has followed since the product data scopes release. The refusal comes before anything is written: no working basket, no inline address, no order. The order's `salesChannelId` stays required, so there is no defaulted channel to check; a request without it is still `400 VALIDATION_FAILED`.
+
+  - `@endora-commerce/contracts`: `ERROR_CODES.ORDER_SALES_CHANNEL_NOT_ALLOWED`, declared by `orders` with an English and a Polish sentence.
+  - `@endora-commerce/mod-orders`: `OrderCreationAdminService` takes the Organization channel read (`SalesChannelMembershipPort.listChannelsForEntity`) as a new sixth constructor argument, before `mailer`; composed without it, `create` fails closed with `500 INTERNAL`, as the preview already did. The _Create order_ screen offers the customer's Organization's active channels, read from `GET /api/v1/admin/organizations/:id/sales-channels` — the only one preselected, else a choice; a `salesChannelId` in the link kept only when it is one of them; a notice and a retry when the Organization has none or they cannot be read — instead of every active channel.
+  - `@endora-commerce/mod-organizations`: the Organization sales-channel read and replace apply the request's tenant scope. A platform administrator reaches every Organization, as before; a sales representative only the ones assigned to them. The response shape is unchanged.
+  - `@endora-commerce/mod-i18n`: the _Create order_ screen's channel notices (`orderCreate.channelsLoadError`, `orderCreate.noChannelWarning`, `orderCreate.hint.salesChannel`), in English and Polish.
+
+  An instance whose operators create orders on channels their customers' Organizations are not assigned to will see those requests refused once it upgrades: assign the Organization to the channel first (the Organization's _Sales channels_ panel), or create the order on one of its channels.
+
+- 248bf1b: The audit log names a customer who acted for themselves (issue #741; `specs/170-organization-roles/` FR-065). Before this change, a role, invitation or member change made by an Organization administrator on the storefront was shown as _system_.
+
+  - `@endora-commerce/contracts`: `auditLogEntrySchema` gains `actorCustomerAccountId`, nullable and optional. A payload without it still parses.
+  - `@endora-commerce/mod-audit-logs`: each row from `GET /api/v1/admin/audit-log` carries `actorCustomerAccountId` and `actorCustomerLabel`. The label comes from the `customer_account` audit reference, the same lookup already used for impersonated customers. The audit log viewer renders such a row as _Customer: <label>_. The audit log viewer falls back to the short account id when there is no label.
+  - **Breaking:** in `GET /api/v1/admin/audit-log/recent-activity`, `actorKind` gains the value `'customer'` beside `'admin'` and `'system'`. For those rows `actorDisplayName` is the customer's label. A consumer that switches exhaustively on `actorKind` must handle the new value.
+  - `@endora-commerce/admin-shell`: the Recent activity card prefixes a customer actor with _Customer:_.
+  - `@endora-commerce/mod-customer-accounts`: the `customer_account` audit reference now names the person as `<first> <last> (<e-mail>)`, or the e-mail alone when the account has no name. Before, it was the Organization's name. Impersonation rows (`… (as <customer>)` on Recent activity) now name the person too. `registerCustomerAccountAuditReferences` no longer takes an `OrganizationDetailsPort`.
+  - `@endora-commerce/mod-i18n`: adds `auditLog.actor.customer` and `home.activity.actor.customer` in English and Polish.
+
+### Patch Changes
+
+- ff60e93: New keys for the quote desk list's markers (issue #456):
+  - `rfq.list.badge.partiallyAgreed`: EN "Partially agreed", PL "Częściowo uzgodnione";
+  - `rfq.list.badge.notYetAgreed`: EN "Not yet agreed", PL "Jeszcze nieuzgodnione".
+- d591bbe: A personal (B2C) Organization is labelled for what it is rather than by its placeholder tax id (issue #767, owner ruling of 2026-11-05). The admin Organizations list and the Organization detail header show "Personal account" ("Konto osobiste") in place of the tax id. The admin order and quote request screens' _Organization_ panel show "Individual customer" ("Klient indywidualny") where the tax-id line was. The three strings are new core keys: `organizations.personalAccount`, `orderDetail.org.individualCustomer` and `rfq.detail.org.individualCustomer`.
+- 0b64c13: English page titles, dialog titles, command-palette action labels, settings group names and
+  documentation page titles now use sentence case, like the module names and sidebar labels
+  before them. For example, "Quote Requests" becomes "Quote requests", "CMS Pages" becomes
+  "CMS pages" and the "Quick Order" settings group becomes "Quick order". Polish strings are
+  unchanged. Product names keep their capitals: Page Builder, Google Analytics, LinkedIn and
+  Meta among them.
+
+  The admin search group labels change the same way: "Quote Requests" becomes "Quote requests"
+  and "Sales Opportunities" becomes "Sales opportunities". The demo megamenu's English button
+  label becomes "Quick order". The demo seed does not rewrite a menu it has already created, so an
+  existing demo database keeps "Quick Order" until it is seeded afresh or the label is edited on
+  the megamenu screen.
+
+  The settings group names are updated in the database the next time the settings manifest
+  reconciler runs at boot. Nothing has to be migrated.
+
+- d24be0e: The module documentation pages have readable titles instead of the module id (for example _Carts_ instead of `carts`), in the docs sidebar, the module map and the browser tab, in English and Polish. Page headings and screen names in the page text are sentence case, as in the Admin UI (#795). File names and URLs are unchanged.
+- 29d7e90: Adds `orderCreate.line.archived` ("Archived product" / "Produkt zarchiwizowany"). The order create screen uses it for a preview line reported as `PRODUCT_ARCHIVED`.
+- 6bd2ab7: Issue #876 — a consumer's withdrawal from the whole order refunds the delivery cost and the payment surcharge (Directive 2011/83/EU art. 13(1), Polish Consumer Rights Act art. 32 ust. 1; owner rulings E1–E3 of 2026-11-07). The case that brings back the last unit of a B2C order (its organization `isPersonal`, read through `organizationDetailsPort`) refunds both, besides the goods, when it is a `return` settled with a refund or a credit. A partial case, a complaint, a replacement or repair, and a business customer's return refund neither, and an order with a line not returnable at purchase is never withdrawn in full.
+
+  - Each charge is capped at what was paid for it less what earlier cases refunded. The default is the cap when the case was opened within 14 days of the order's completion or within the channel's longer `returns.free_return_days`, and 0 outside it. A channel set to `0` keeps the 14 days.
+  - The settlement takes `deliveryRefundAmount` / `surchargeRefundAmount`. An omitted one settles at the default recomputed under the order's lock. A present one settles exactly as sent, `0` included, when it is within the cap (art. 13(2), a premium delivery). One above the cap is refused `422 refund_exceeds_paid` with nothing written. This deliberately differs from the line amounts, where an amount equal to a default means the default approved. A replacement or a repair has a cap of 0. The admin form sends only an amount the operator edited. The prefill reports `charges` (on a settled case `cap` equals `approved`), the case detail `chargeRefunds`, and the `return.settled` audit entry `charges: { delivery: { cap, approved }, surcharge: { cap, approved } }`.
+  - `totalRefundAmount`, the gateway refund, the credit top-up and the corrective invoice's `total` include the charges, and the correction names them (`CorrectiveInvoiceInput.charges`).
+  - `returnRefundReadPort.listRefundedCharges` reports what settled returns refunded of each charge.
+  - The admin settlement form shows a _Delivery cost_ and a _Payment surcharge_ row when there is something to refund (strings in `mod-i18n`, EN and PL).
+  - `Migration20261108T125405ReturnsCaseChargeRefunds` adds `default_delivery_refund`, `approved_delivery_refund`, `default_surcharge_refund` and `approved_surcharge_refund` to `return_cases`, `0.00` by default, with no backfill.
+
+  **Behaviour change on upgrade.** A B2C return that completes a withdrawal now refunds more than the sum of its lines: the settlement form prefills the delivery and the surcharge, and an API client that settles without the two new fields refunds them. Cases settled before the upgrade are not changed and nothing is refunded retroactively (owner ruling E4). To list B2C orders already returned in full whose delivery or surcharge was not refunded, use the query in _A consumer's withdrawal refunds the delivery and the surcharge_ in the upgrade guide. The window that decides the default is counted as the withdrawal period is (#905): from the order's completion, in calendar days of `returns.time_zone`, with a last day on a weekend moved to the Monday.
+
+- a3502c0: A complaint refunded or credited after the order was invoiced is now documented as a price
+  reduction, not as goods coming back (issue #885, product-owner ruling of 2026-11-07). The
+  settlement sends its lines with `basis: 'price_reduction'`, no discount and the case's RMA number.
+  The correction credits the approved amount at the line's VAT rate on a line stored with quantity 0
+  and named in the document's language, _Obniżka ceny (reklamacja RMA-…): product_
+  (`invoices.lines.priceReduction`, or `lines.priceReductionUnreferenced` without an RMA number). It
+  credits no discount, and it does not lower the quantity a later return of the line is credited
+  from. A complaint resolved by replacement or repair still issues no correction.
+
+  The provider refuses, before any money moves, a price-reduction line that carries a discount
+  (`422 VALIDATION_FAILED`, `price_reduction_carries_discount`) and a correction that credits more
+  goods at one VAT rate than the invoice still charges there (`422 VALIDATION_FAILED`,
+  `correction_exceeds_rate_remaining`, with `taxRate`, `remaining` and `vatRatePercent`; the operator
+  sentence is in `@endora-commerce/mod-i18n`). The `invoice.corrected` audit entry records
+  `priceReductionLines`.
+
+  Wire `CorrectiveInvoiceProvider`'s new last constructor argument, `{ translate, language }`, to name
+  the line; without it the line is named in English.
+
+  A complaint refunded before the order was invoiced is unchanged: the invoice still lists the goods
+  in full and shows the complaint refund as amount due.
+
+- 5ff8302: Adds the sentences, in English and Polish, for the two refusals a return's consent earns when an operator tries to record or revoke it on a settled case (`errors.INVALID_TRANSITION.consent_frozen`) or on a case in a terminal status (`errors.INVALID_TRANSITION.case_closed`, #905). The settlement form's refund-method label now reads "Refund payment method" ("Metoda zwrotu pieniędzy"), since the field offers methods by name.
+- 32b4d0c: **The content of an invoice issued after a return changes** (issue #435). An invoice or proforma issued once a return has been settled, while the order has no invoice yet, now lists only what the buyer kept: each order line is invoiced at its ordered quantity less the quantity of the order's settled `return`-kind cases resolved with a refund or a credit — whether or not the money has been paid out — and a line returned in full is left off. The discount line carries only the kept goods' share: the order's `discountTotal` less the discount those cases carried back with their refunds (as recorded at settlement), left off when nothing remains. Before, every order line and the whole discount were invoiced, so the amount due included goods the buyer had returned. Replacement, repair and complaint cases change no line; the delivery and payment-surcharge lines, the per-rate VAT on the sum of the nets and `paidTotal` (captured − refunded) are unchanged; an invoice for an order refunded in full is still refused with `422 INVOICE_ORDER_REFUNDED` (a proforma is not). With `returns` switched off, every line is invoiced as before. Invoices already issued are not touched.
+
+  **A default return refund can differ by one cent from before.** For an order placed under the per-rate VAT method, the default refund of a case is now the drop in the value of the goods kept — what was left paid less VAT per rate on the nets kept after the case, net of the discount the kept part carries — instead of the value of the returned units on their own, so the kept-lines invoice equals what is left paid to the cent. Example: 3 × 10.01 at 23 % (36.94) refunds 12.32 for one unit, not 12.31. All of an order's returns together still refund exactly what was paid, and a cent an earlier case refunded under the previous rule is absorbed by the next case on the same order. Orders placed before 0.108.0 keep their rule. This is not a breaking change.
+
+  `ReturnRefundReadPort` (`returnRefundReadPort`, owned by `@endora-commerce/mod-returns`) gains `listReturnedQuantities(orderId)`, returning the new `OrderReturnedQuantity` (`{ orderItemId, quantity, discount }`) from `@endora-commerce/contracts`. The change is additive for a consumer of the port; an implementation of `ReturnRefundReadPort` outside `@endora-commerce/mod-returns` adds the method.
+
+  An invoice for an order **returned in full** before it was invoiced — every product line back through settled returns and no delivery or payment surcharge kept — is refused with the existing `422 INVOICE_ORDER_REFUNDED`, whatever the state of the refund (issued, waiting for a person, or waiting for the gateway's webhook); a proforma is not refused. The error carries `details.reason` (`refunded_in_full` or `returned_in_full`), its message (`errors.INVOICE_ORDER_REFUNDED`) now covers both causes, and automatic issuance skips such an order and logs the cause. When the delivery or the surcharge is kept, the invoice lists only that line.
+
+  Issuing an invoice now holds the order's returns lock, the one `@endora-commerce/mod-returns` takes to create and to settle a case, so an invoice is never drawn from a return being settled; it waits, and answers `409 VERSION_CONFLICT` (`details.code: settlement_in_progress`), retryable, after 15 s. The key is the new `returnCaseOrderLockKey(orderId)` in `@endora-commerce/contracts`. A return line whose default refund is 0.00 because its discount share takes its whole value now carries that discount back, so the invoice's discount line no longer keeps it. None of this is breaking. `@endora-commerce/mod-i18n` adds the sentence for `errors.VERSION_CONFLICT.settlement_in_progress` in English and Polish.
+
+- Updated dependencies [18cce2e]
+- Updated dependencies [18cce2e]
+- Updated dependencies [9cfb28b]
+- Updated dependencies [a206da9]
+- Updated dependencies [34485ae]
+- Updated dependencies [34485ae]
+- Updated dependencies [0f1717c]
+- Updated dependencies [86e8761]
+- Updated dependencies [9bfb0b8]
+- Updated dependencies [ed5cf6a]
+- Updated dependencies [2da23d2]
+- Updated dependencies [2da23d2]
+- Updated dependencies [9d9c8df]
+- Updated dependencies [9d9c8df]
+- Updated dependencies [9d9c8df]
+- Updated dependencies [9d9c8df]
+- Updated dependencies [5303aab]
+- Updated dependencies [16f85f4]
+- Updated dependencies [270aa2b]
+- Updated dependencies [3f020ba]
+- Updated dependencies [b59e5d5]
+- Updated dependencies [b59e5d5]
+- Updated dependencies [bf1cc2d]
+- Updated dependencies [ff60e93]
+- Updated dependencies [6f19230]
+- Updated dependencies [77b8c37]
+- Updated dependencies [65104b8]
+- Updated dependencies [7acaa33]
+- Updated dependencies [7019c71]
+- Updated dependencies [4eee98b]
+- Updated dependencies [14ac256]
+- Updated dependencies [248bf1b]
+- Updated dependencies [b2db8c3]
+- Updated dependencies [4cf529d]
+- Updated dependencies [5e4dd48]
+- Updated dependencies [75b053f]
+- Updated dependencies [54fc8f1]
+- Updated dependencies [dac5795]
+- Updated dependencies [5bbb389]
+- Updated dependencies [d69e765]
+- Updated dependencies [dbc1cef]
+- Updated dependencies [d69e765]
+- Updated dependencies [a6bc891]
+- Updated dependencies [8ad737c]
+- Updated dependencies [a9398c8]
+- Updated dependencies [0b56038]
+- Updated dependencies [717e4c6]
+- Updated dependencies [cea1470]
+- Updated dependencies [d46d414]
+- Updated dependencies [73e2eec]
+- Updated dependencies [29d7e90]
+- Updated dependencies [57145f7]
+- Updated dependencies [58a1632]
+- Updated dependencies [e46d233]
+- Updated dependencies [e46d233]
+- Updated dependencies [58a1632]
+- Updated dependencies [14fe4fb]
+- Updated dependencies [76d89ab]
+- Updated dependencies [6bd2ab7]
+- Updated dependencies [a3502c0]
+- Updated dependencies [7a73cc8]
+- Updated dependencies [5ff8302]
+- Updated dependencies [c34b405]
+- Updated dependencies [5af8c25]
+- Updated dependencies [48f055e]
+- Updated dependencies [bf50b85]
+- Updated dependencies [2c6fba0]
+- Updated dependencies [0801f69]
+- Updated dependencies [d1c0d13]
+- Updated dependencies [6d1d284]
+- Updated dependencies [99c075e]
+- Updated dependencies [32b4d0c]
+- Updated dependencies [3355e60]
+- Updated dependencies [7ce9b8a]
+  - @endora-commerce/contracts@0.110.0
+  - @endora-commerce/platform@0.110.0
+
 ## 0.109.0
 
 ### Minor Changes
