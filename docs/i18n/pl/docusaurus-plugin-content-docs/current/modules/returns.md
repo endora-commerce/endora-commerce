@@ -128,7 +128,15 @@ trafia do dziennika audytu.
   zawiera `correctiveInvoice: { issued: false, reason: "order_not_invoiced" }`. Faktura wystawiona
   później obejmuje tylko to, co kupujący zatrzymał: zwrot rozliczony zwrotem pieniędzy albo
   środkami na koncie zmniejsza ilość w pozycji zamówienia, pozycja zwrócona w całości jest
-  pomijana, a rabat, który oddał zwrot, zmniejsza pozycję rabatu na fakturze.
+  pomijana, a rabat, który oddał zwrot, zmniejsza pozycję rabatu na fakturze. Na zamówieniu, które
+  zostało zafakturowane, korekta zwrotu uznaje zwrócone towary i zostawia na fakturze VAT dla każdej
+  stawki od wartości netto, które kupujący zatrzymał.
+- **Zwrot pieniędzy z reklamacji jest obniżką ceny** — reklamacja rozliczona zwrotem pieniędzy albo
+  środkami na koncie zostawia towary u kupującego, więc na zafakturowanym zamówieniu jej korekta
+  uznaje zatwierdzoną kwotę według stawki VAT pozycji jako obniżkę ceny: ilość 0, bez części rabatu
+  zamówienia i bez wpływu na ilość, od której liczony jest późniejszy zwrot tej pozycji. Reklamacja
+  rozwiązana wymianą albo naprawą nie powoduje korekty. Reklamacja, za którą zwrócono pieniądze
+  przed wystawieniem faktury, jest obecnie widoczna na fakturze jako kwota do zapłaty.
 - **Wyłączona bramka płatności blokuje rozliczenie.** Rozliczenia pieniężne zamówień opłaconych
   przez bramkę wywołują moduł operatora płatności, który przyjął płatność; gdy operator wyłączył ten
   moduł — albo wdrożenie go nie oferuje — rozliczenie zwraca `503 MODULE_DISABLED` z nazwą modułu i
