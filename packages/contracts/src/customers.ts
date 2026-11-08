@@ -20,6 +20,17 @@ export type CustomerAddressKind = z.infer<typeof customerAddressKindSchema>;
 export const customerBlockSourceSchema = z.enum(['staff', 'org_owner']);
 export type CustomerBlockSource = z.infer<typeof customerBlockSourceSchema>;
 
+/**
+ * The codes a redacted `customer_address` audit row keeps (issue #844) — the
+ * legacy personal address book's rows (`specs/173-b2c-address-book-merge/`).
+ *
+ * Owner: `customers`; **codes only** — see `CUSTOMER_ACCOUNT_AUDIT_KEEP_KEYS`
+ * for the rule they extend. `mergeRefusal` is the code a refused merge into the
+ * Organization book records; `countryCode` is kept as the address scrub keeps
+ * the country.
+ */
+export const CUSTOMER_ADDRESS_AUDIT_KEEP_KEYS: readonly string[] = ['countryCode', 'mergeRefusal'];
+
 export const customerLifecycleStatusSchema = z.enum([
   'active',
   'blocked',

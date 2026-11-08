@@ -156,6 +156,30 @@ before/after events and is written to the audit log.
   quantity a later return of the line is credited from. A complaint resolved by
   replacement or repair issues no correction. A complaint refunded before the
   order was invoiced currently shows on the invoice as amount due.
+- **The default refund is recomputed at settlement** — the figure a case shows
+  when it is opened is provisional. The settlement recomputes it, one
+  settlement of an order at a time, from the cases settled by then. Only a
+  return settled with a refund or a credit takes goods off what the buyer
+  keeps; a rejected, replaced or repaired case and every complaint take nothing
+  off. So the figure can move by a cent or two when cases are settled in a
+  different order from the one they were opened in, or after an earlier case
+  was rejected. The settlement form shows the recomputed figure. An approved
+  amount equal to a default the case showed settles at the recomputed default,
+  a lower amount is kept as typed, and a higher one is refused with
+  `422 VALIDATION_FAILED` (`code: refund_exceeds_paid`) with nothing written:
+  reload the form and confirm. The `return.settled` audit entry records a
+  default that moved (`recomputedDefaults`).
+- **No line refunds more than it was paid** — a complaint refund counts against
+  the line it names, and the unabsorbed part of it counts against what is left
+  paid for the order: once a return of the line has been cut by the complaint,
+  that amount is not counted twice. A later
+  return of that line still gets its full default, until the line's refunds,
+  the complaint included, reach what the line was paid; from then on the
+  case shows, and the settlement form offers, at most what is left of it, and
+  the audit entry records the bound (`lineCeilings`). The platform cannot tell which unit came
+  back. Before settling a return, check the order's other cases for an earlier
+  complaint on the same line: if the defective unit the complaint compensated
+  is the one coming back, lower the amount by hand.
 - **A switched-off payment gateway refuses the settlement**.
   Money resolutions on a gateway-paid order call the PSP module that took the
   payment; when an operator has that module switched off — or the deployment

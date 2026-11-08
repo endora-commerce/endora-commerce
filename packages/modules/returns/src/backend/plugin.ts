@@ -183,6 +183,7 @@ export function returnsModule(
     paymentRefund: options.paymentRefund,
     correctiveInvoice: options.correctiveInvoice,
     creditTopup: options.creditTopup,
+    orderContext,
     ...(options.auditLog ? { auditLog: options.auditLog } : {}),
   });
 

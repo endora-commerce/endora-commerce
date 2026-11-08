@@ -78,11 +78,20 @@ miękko usuwane, każdy z wpisem audytu `address.anonymized`. Dzieje się tak r�
 operator usunął już tę organizację. Złożone zamówienia zachowują swoje kopie adresów. Wpisy audytu
 anonimizacji odnotowują, że dane usunięto, ale nie przechowują samych danych.
 
+Usuwane są też uzasadnienia, które operatorzy zapisali o kliencie: powód zablokowania konta, a w
+przypadku klienta indywidualnego także powody zablokowania i odrzucenia jego organizacji
+prywatnej. Organizacja firmowa zachowuje swoje powody. Sama blokada lub odrzucenie zostaje, więc
+ekrany klienta nadal pokazują status i jego datę, ale bez powodu. Wpisy audytu anonimizacji
+odnotowują jedynie, że powód istniał. Wpisy audytu zapisane wcześniej, takie jak wpis samej
+blokady, zachowują zapisane wartości, w tym powód, dopóki wcześniejsze wpisy nie będą redagowane
+przy anonimizacji ([#844](https://github.com/endora-commerce/endora-commerce/issues/844)).
+
 Zadanie uruchamia się raz dziennie w procesie workera i tylko wtedy, gdy moduł jest włączony, więc
 konto zostaje zanonimizowane najpóźniej dzień po upływie okresu. Gdy moduł jest wyłączony, zadanie
 się nie uruchamia; konta, którym okres upłynął w tym czasie, anonimizuje pierwszy przebieg po
-ponownym włączeniu modułu. Przebieg najpierw sprawdza, czy jakieś konto czeka na anonimizację; jeśli
-nie, nic nie robi i nie zapisuje wpisu audytu. Dwa nakładające się przebiegi anonimizują konto
+ponownym włączeniu modułu. Przebieg najpierw sprawdza, czy jakieś konto czeka na anonimizację albo czy
+jakaś wcześniejsza anonimizacja pozostała do dokończenia; jeśli nie, nic nie robi i nie zapisuje
+wpisu audytu. Gdy tego nie da się sprawdzić, przebieg i tak się odbywa. Dwa nakładające się przebiegi anonimizują konto
 tylko raz.
 
 Zadanie najpierw anonimizuje organizację prywatną i jej adresy, a konto na końcu. Jeśli przebieg
@@ -90,6 +99,15 @@ zostanie przerwany, konto zostanie podjęte ponownie w następnym przebiegu, kt�
 kroki bez powtarzania wpisów audytu kroków już wykonanych. Konto, którego nie da się
 zanonimizować, nie wstrzymuje pozostałych: przebieg anonimizuje resztę, a następnie zgłasza
 identyfikatory kont, których nie udało się przetworzyć.
+
+Tak samo jest, gdy zakres usuwanych danych się poszerza. Wszystko, co przebieg z wcześniejszej
+wersji pozostawił na zanonimizowanym koncie lub w jego organizacji prywatnej, na przykład wartości
+pól niestandardowych, nazwę prawną, adresy e-mail do potwierdzeń zamówień albo powód zablokowania
+lub odrzucenia, usuwa następny przebieg, niezależnie od obecnego ustawienia okresu przechowywania.
+Ten przebieg zapisuje po jednym dodatkowym wpisie audytu dla każdego zmienionego rekordu, zachowuje
+pierwotną datę anonimizacji i nie ogłasza anonimizacji ponownie, więc to, co inne moduły robią przy
+anonimizacji, na przykład usuwanie zgłoszeń klienta przez moduł Formularze, nie jest wykonywane
+drugi raz.
 
 ## Wycofanie osobistej książki adresowej
 
