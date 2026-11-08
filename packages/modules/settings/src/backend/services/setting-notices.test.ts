@@ -71,3 +71,72 @@ describe('SettingNoticeRegistry — a provider that fails', () => {
     expect(await registry.noticeFor({ code: 'x.flag', ownerModuleId: 'a', value: true })).toBeNull();
   });
 });
+
+/**
+ * Issue #349, E-349-1 — the owning module may also say what writing a value
+ * would do, so the Settings screen can ask before it saves: turning
+ * `mfa.admin.totp_enforced` on signs out every administrator with no second
+ * factor. The same seam and the same policies as the notice: a provider of a
+ * module that is off is not asked, and one that fails costs only its question.
+ */
+describe('SettingNoticeRegistry — write confirmations', () => {
+  const confirmation = {
+    whenValue: true,
+    code: 'signs_out',
+    message: '3 administrators will be signed out.',
+    params: { count: 3 },
+  };
+
+  it('answers the first confirmation a provider for the code gives, and none for a provider without one', async () => {
+    const registry = new SettingNoticeRegistry();
+    registry.register(provider('a', 'x.flag'));
+    registry.register({
+      contributorModuleId: 'a',
+      codes: ['x.flag'],
+      notice: async () => null,
+      confirmation: async () => confirmation,
+    });
+    expect(
+      await registry.confirmationFor({ code: 'x.flag', ownerModuleId: 'a', value: false }),
+    ).toEqual(confirmation);
+    expect(
+      await registry.confirmationFor({ code: 'x.other', ownerModuleId: 'a', value: false }),
+    ).toBeNull();
+  });
+
+  it('does not ask a provider whose module is off', async () => {
+    const registry = new SettingNoticeRegistry({ presenceOf: (id) => id !== 'a' });
+    registry.register({
+      contributorModuleId: 'a',
+      codes: ['x.flag'],
+      notice: async () => null,
+      confirmation: async () => confirmation,
+    });
+    expect(
+      await registry.confirmationFor({ code: 'x.flag', ownerModuleId: 'a', value: false }),
+    ).toBeNull();
+  });
+
+  it('logs a provider that fails and answers no confirmation', async () => {
+    const errors: Array<Record<string, unknown>> = [];
+    const registry = new SettingNoticeRegistry(undefined, {
+      error: (fields) => {
+        errors.push(fields);
+      },
+    });
+    registry.register({
+      contributorModuleId: 'broken',
+      codes: ['x.flag'],
+      notice: async () => null,
+      confirmation: async () => {
+        throw new Error('provider down');
+      },
+    });
+    expect(
+      await registry.confirmationFor({ code: 'x.flag', ownerModuleId: 'a', value: false }),
+    ).toBeNull();
+    expect(errors).toEqual([
+      expect.objectContaining({ contributorModuleId: 'broken', settingCode: 'x.flag' }),
+    ]);
+  });
+});

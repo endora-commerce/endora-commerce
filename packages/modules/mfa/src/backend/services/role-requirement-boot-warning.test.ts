@@ -7,9 +7,10 @@ import {
 
 /**
  * Issue #349, M5 — without `MFA_SECRET_ENCRYPTION_KEY` no second factor can be
- * enrolled, yet a role that requires one still sends its unenrolled holders to
- * a setup step nothing can complete. The instance says so at every boot, naming
- * the roles and how many of their holders are affected.
+ * enrolled, so a role's requirement is not applied there (issue #948, owner
+ * ruling Q6). The instance says so at every boot, at error level as the
+ * platform-wide setting's report does, naming the roles and how many of their
+ * holders sign in on their password alone.
  */
 function role(code: string, requiresTwoFactor: boolean): AdminRoleRecord {
   return {
@@ -33,7 +34,7 @@ function deps(hasKey: boolean, roles: AdminRoleRecord[]) {
       holdersOf: async (roleId: string) =>
         roleId === 'id-accounting' ? ['a1', 'a2', 'a3'] : roleId === 'id-admins' ? ['a4'] : [],
       activeAdminIds: async (ids: readonly string[]) => ids.filter((id) => id === 'a2'),
-      warn: (fields: Record<string, unknown>, message: string) => {
+      error: (fields: Record<string, unknown>, message: string) => {
         warnings.push([fields, message]);
       },
     },
@@ -59,6 +60,8 @@ describe('the boot warning for a role requirement no enrolment can meet', () => 
     expect(message).toContain('MFA_SECRET_ENCRYPTION_KEY');
     expect(message).toContain('accounting (2)');
     expect(message).toContain('admins (1)');
+    expect(message).toContain('not applied');
+    expect(message).not.toContain('cannot be completed');
   });
 
   it('says nothing when the key is configured', async () => {

@@ -177,7 +177,8 @@ describe('MfaLoginService.beginLogin — a role that requires a second factor', 
         },
       }),
     );
-    return new MfaLoginService(em, new ChallengeStore(fakeRedis()), resolver);
+    // A composition with its encryption key: the second step can be checked.
+    return new MfaLoginService(em, new ChallengeStore(fakeRedis()), resolver, async () => ({ ok: true }));
   }
   const admin = { subjectType: 'admin', subjectId: 'a1' } as const;
 
@@ -195,4 +196,61 @@ describe('MfaLoginService.beginLogin — a role that requires a second factor', 
     const decision = await loginWith(false, false).beginLogin(admin, { salesChannelId: null });
     expect(decision.kind).toBe('proceed');
   });
+});
+
+/**
+ * Issue #948, owner ruling Q6 (2026-11-08) — without `MFA_SECRET_ENCRYPTION_KEY`
+ * this module serves neither the code-entry step nor the setup step, so a
+ * challenge or a setup ticket is one nothing can redeem: a lockout of exactly
+ * the accounts that opted into a second factor, or were required to. With no
+ * key there is no second step at all, for administrators and customers alike.
+ */
+describe('MfaLoginService.beginLogin — no encryption key (issue #948)', () => {
+  function keyless(options: { enrolled: boolean; enforced: boolean }): {
+    login: MfaLoginService;
+    issued: string[];
+  } {
+    const issued: string[] = [];
+    const em = (() => ({
+      findOne: async () => (options.enrolled ? { id: 'e1', status: 'active' } : null),
+    })) as unknown as () => EntityManager;
+    const store = new ChallengeStore(fakeRedis());
+    const issueChallenge = store.issueChallenge.bind(store);
+    const issueSetupTicket = store.issueSetupTicket.bind(store);
+    store.issueChallenge = async (input) => {
+      issued.push('challenge');
+      return issueChallenge(input);
+    };
+    store.issueSetupTicket = async (input) => {
+      issued.push('setup');
+      return issueSetupTicket(input);
+    };
+    const resolver = {
+      resolve: async () => ({
+        totpEnabled: options.enforced,
+        totpEnforced: options.enforced,
+        googleEnabled: false,
+        microsoftEnabled: false,
+      }),
+    } as unknown as MfaPolicyResolver;
+    // No verifier: the composition was given no encryption key.
+    return { login: new MfaLoginService(em, store, resolver), issued };
+  }
+
+  for (const subject of [
+    { subjectType: 'admin', subjectId: 'a1' },
+    { subjectType: 'customer', subjectId: 'c1' },
+  ] as const) {
+    it(`does not challenge an enrolled ${subject.subjectType}`, async () => {
+      const { login, issued } = keyless({ enrolled: true, enforced: false });
+      expect((await login.beginLogin(subject, { salesChannelId: null })).kind).toBe('proceed');
+      expect(issued).toEqual([]);
+    });
+
+    it(`does not send an unenrolled ${subject.subjectType} to a setup step, whatever requires it`, async () => {
+      const { login, issued } = keyless({ enrolled: false, enforced: true });
+      expect((await login.beginLogin(subject, { salesChannelId: null })).kind).toBe('proceed');
+      expect(issued).toEqual([]);
+    });
+  }
 });
