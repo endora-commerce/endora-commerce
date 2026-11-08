@@ -1,6 +1,5 @@
 import { beforeEach, describe, expect, it, vi } from 'vitest';
 import { createHash } from 'node:crypto';
-import { QUICK_ORDER_PREVIEW_MAX_LINES } from '@endora-commerce/contracts';
 import { isValidElement } from 'react';
 import { renderToString } from 'react-dom/server';
 import type { RfqDetail } from '../../lib/api/rfq';
@@ -22,18 +21,30 @@ let rfqLookupFails = false;
 let found: Array<{ productId: string; sku: string; name: string }> = [];
 
 // Issue #809 — the preview is the backend's, one per buyer session; this double keeps it per
-// session and refuses a write over the line cap, as `PUT /api/v1/quick-order/preview` does.
+// session and refuses a write as `PUT /api/v1/quick-order/preview` does: over the import row cap
+// (`cap`, the setting) only when it grew, never counting the rows past the import's limit; and it
+// stamps the limit those were past, as the backend does (PO ruling of 2026-11-08 on PR #942).
+type Written = {
+  recognized: unknown[];
+  rejected: Array<{ reason?: string }>;
+  summary: { overflowCount?: number; rowLimit?: number };
+};
 const previews = vi.hoisted(() => new Map<string, unknown>());
-const previewApi = vi.hoisted(() => ({ refuseWrites: false, readFails: false }));
+const previewApi = vi.hoisted(() => ({ refuseWrites: false, readFails: false, cap: 2_000, written: [] as unknown[] }));
 vi.mock('../../lib/api/quick-order-preview', () => ({
   readQuickOrderPreview: async (session: string) => {
     if (previewApi.readFails) throw new Error('fetch failed');
     return previews.has(session) ? structuredClone(previews.get(session)) : null;
   },
-  writeQuickOrderPreview: async (session: string, preview: { recognized: unknown[]; rejected: unknown[] }) => {
+  writeQuickOrderPreview: async (session: string, preview: Written) => {
+    previewApi.written.push(structuredClone(preview));
     if (previewApi.refuseWrites) return false;
-    if (preview.recognized.length + preview.rejected.length > 2_000) return false;
-    previews.set(session, structuredClone(preview));
+    const lines = (p: Written) => p.recognized.length + p.rejected.filter((row) => row.reason !== 'row_limit_exceeded').length;
+    const previous = previews.has(session) ? lines(previews.get(session) as Written) : 0;
+    if (lines(preview) > previewApi.cap && lines(preview) > previous) return false;
+    const kept = structuredClone(preview);
+    if ((kept.summary.overflowCount ?? 0) > 0) kept.summary.rowLimit ??= previewApi.cap;
+    previews.set(session, kept);
     return true;
   },
   clearQuickOrderPreview: async (session: string) => void previews.delete(session),
@@ -149,9 +160,9 @@ function previewOf(rows: number): typeof previewState {
   };
 }
 
-/** The longest {@link previewOf} the backend keeps: the import's 2 000 lines (issue #809). */
+/** The longest {@link previewOf} the backend keeps at the default import row cap (issue #809). */
 function fullPreview(): typeof previewState {
-  return previewOf(QUICK_ORDER_PREVIEW_MAX_LINES);
+  return previewOf(2_000);
 }
 
 async function quickTree(sp: Record<string, string> = {}): Promise<unknown> {
@@ -177,6 +188,8 @@ beforeEach(() => {
   previews.clear();
   previewApi.refuseWrites = false;
   previewApi.readFails = false;
+  previewApi.cap = 2_000;
+  previewApi.written = [];
   cookiesWritten.length = 0;
 });
 
@@ -346,12 +359,12 @@ describe('quick order — the preview never travels in the URL (issue #790)', ()
   });
 
   it('holds an import of 2 000 lines, far past the old cookie budget', async () => {
-    imported = previewOf(QUICK_ORDER_PREVIEW_MAX_LINES);
+    imported = previewOf(2_000);
     const action = actionsOf(await quickTree()).get('importAction')!;
     expect(await redirectOf(() => action(form({ csv: 'sku,quantity' }) as never))).toBe('/quick-order');
     const out = await quickText({});
     expect(out).toContain('SKU-0');
-    expect(out).toContain(`SKU-${QUICK_ORDER_PREVIEW_MAX_LINES - 1}`);
+    expect(out).toContain('SKU-1999');
   });
 
   /** The page's actions, the preview panel's included (a component `actionsOf` does not render). */
@@ -386,8 +399,9 @@ describe('quick order — the preview never travels in the URL (issue #790)', ()
     expect(html).not.toContain('name="preview"');
   });
 
-  it('a list too long to keep is refused in words, not cut short', async () => {
-    imported = previewOf(QUICK_ORDER_PREVIEW_MAX_LINES + 1);
+  it('a list the backend will not keep (over 2 MiB) is refused in words, not cut short', async () => {
+    imported = previewOf(3);
+    previewApi.refuseWrites = true;
     const action = actionsOf(await quickTree()).get('importAction')!;
     expect(await redirectOf(() => action(form({ csv: 'sku,quantity' }) as never))).toBe(
       '/quick-order?problem=preview_too_large',
@@ -398,6 +412,35 @@ describe('quick order — the preview never travels in the URL (issue #790)', ()
     locale = 'pl-PL';
     expect(await quickText({ problem: 'preview_too_large' })).toContain(
       'Ta lista jest zbyt długa, by przejrzeć ją tutaj. Podziel ją na mniejsze pliki i zaimportuj je po kolei.',
+    );
+  });
+
+  /**
+   * PO ruling of 2026-11-08 on PR #942 — the rows past the import's limit are one count, not a
+   * row each, and the page says so in one sentence.
+   */
+  it('an import past the row limit keeps the rows it read and reports the rest as one count', async () => {
+    const read = previewOf(2_000);
+    imported = {
+      ...read,
+      rejected: [{ line: 2_002, raw: 'LATE-1,1', reason: 'row_limit_exceeded' }],
+      summary: { ...read.summary, rejectedCount: 1, truncated: true },
+    };
+    const action = actionsOf(await quickTree()).get('importAction')!;
+    expect(await redirectOf(() => action(form({ csv: 'sku,quantity' }) as never))).toBe('/quick-order');
+    // The storefront sends the count, not the rows.
+    const sent = previewApi.written.at(-1) as Written;
+    expect(sent.rejected).toEqual([]);
+    expect(sent.summary.overflowCount).toBe(1);
+
+    const en = await quickText({});
+    expect(en).toContain(
+      'Only the first 2000 rows of the file were read. Rows left out: 1. Split the file and import the rest separately.',
+    );
+    expect(en).not.toContain('LATE-1,1');
+    locale = 'pl-PL';
+    expect(await quickText({})).toContain(
+      'Wczytano tylko pierwsze 2000 wierszy pliku. Pominięte wiersze: 1. Podziel plik i zaimportuj resztę osobno.',
     );
   });
 

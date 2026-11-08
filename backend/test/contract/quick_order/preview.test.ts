@@ -6,6 +6,7 @@ import {
   QUICK_ORDER_PREVIEW_MAX_LINES,
   QUICK_ORDER_PREVIEW_TTL_SECONDS,
 } from '@endora-commerce/contracts';
+import { QUICK_ORDER_SETTING_CODES } from '@endora-commerce/mod-quick-order';
 import {
   setupBackendServer,
   teardownBackendServer,
@@ -24,10 +25,13 @@ import { seedOtherTestCustomer } from '../../helpers/seed-organizations.js';
 /**
  * Issue #809 — the buyer's quick-order preview is kept by `quick_order`, in Redis, one per buyer
  * session and scoped to the buyer's Organization (Principle XI). It replaces the storefront
- * cookie of #805, whose proxy budget held a few dozen lines; the cap is the import's 2 000.
+ * cookie of #805, whose proxy budget held a few dozen lines. The line cap is the effective
+ * `quick_order.import_max_rows` (PO ruling of 2026-11-08 on PR #942): only rows the import read
+ * count, the rows past its limit are kept as one `overflowCount`, and a write that adds no line is
+ * accepted even above a cap lowered since.
  *
  *  - `GET    /api/v1/quick-order/preview` — `{ data: preview | null }`, never cached;
- *  - `PUT    /api/v1/quick-order/preview` — replaces it; ≤ 2 000 lines, ≤ 2 MiB; starts the TTL;
+ *  - `PUT    /api/v1/quick-order/preview` — replaces it; ≤ the import row cap, ≤ 2 MiB; starts the TTL;
  *  - `DELETE /api/v1/quick-order/preview` — 204.
  *
  * `stub-customer-session` is `TEST_ORGANIZATION_ID`'s administrator (every create permission).
@@ -66,6 +70,16 @@ describe('quick-order preview (issue #809)', () => {
     h.app.inject({ method: 'GET', url: URL, ...(cookies ? { cookies } : {}) });
   const del = (cookies?: Record<string, string>) =>
     h.app.inject({ method: 'DELETE', url: URL, ...(cookies ? { cookies } : {}) });
+  const setImportMaxRows = async (value: number): Promise<void> => {
+    await h.settings.adminService.setValueForAllChannels(
+      QUICK_ORDER_SETTING_CODES.IMPORT_MAX_ROWS,
+      value,
+      null,
+      { actorAdminUserId: null },
+    );
+    await new Promise((resolve) => setTimeout(resolve, 60));
+  };
+  const lineCount = (data: { recognized: unknown[]; rejected: unknown[] }) => data.recognized.length + data.rejected.length;
   const keysOf = (organizationId: string, customerAccountId: string) =>
     h.redis.keys(`b2b:quick_order:preview:${organizationId}:${customerAccountId}:*`);
 
@@ -81,6 +95,7 @@ describe('quick-order preview (issue #809)', () => {
   });
 
   afterAll(async () => {
+    await setImportMaxRows(2_000);
     for (const name of cookieNames) delete CUSTOMER_COOKIES[name];
     await teardownBackendServer(h);
   });
@@ -116,27 +131,90 @@ describe('quick-order preview (issue #809)', () => {
     expect(read.json()).toEqual({ data: preview });
   });
 
-  it('holds 2 000 lines, and refuses one more with 422 too_many_lines', async () => {
-    expect(QUICK_ORDER_PREVIEW_MAX_LINES).toBe(2_000);
-    const atCap = await put(BUYER, previewOf(1_500, 500));
-    expect(atCap.statusCode, atCap.body).toBe(200);
-    expect((await get(BUYER)).json().data.recognized).toHaveLength(1_500);
+  describe('the line cap is the effective quick_order.import_max_rows', () => {
+    afterEach(async () => {
+      await setImportMaxRows(2_000);
+    });
 
-    const over = await put(BUYER, previewOf(1_500, 501));
-    expect(over.statusCode, over.body).toBe(422);
-    const error = (over.json() as { error: { code: string; details?: { code?: string; maximum?: number } } }).error;
-    expect(error.code).toBe(ERROR_CODES.VALIDATION_FAILED);
-    expect(error.details).toMatchObject({ code: 'too_many_lines', maximum: 2_000 });
-    // The refused write left the previous preview as it was.
-    expect((await get(BUYER)).json().data.recognized).toHaveLength(1_500);
+    it('keeps 10 000 as the hard maximum of the clamp', () => {
+      expect(QUICK_ORDER_PREVIEW_MAX_LINES).toBe(10_000);
+    });
+
+    it('setting 2 000, a file of 2 001 data rows: 2 000 lines kept and the overflow as one count', async () => {
+      await setImportMaxRows(2_000);
+      const csv = ['sku,quantity', ...Array.from({ length: 2_001 }, (_, index) => `NOPE-${index},1`)].join('\n');
+      const imported = await h.app.inject({ method: 'POST', url: '/api/v1/quick-order/import', cookies: BUYER, payload: { csv } });
+      expect(imported.statusCode, imported.body).toBe(200);
+
+      const written = await put(BUYER, imported.json().data);
+      expect(written.statusCode, written.body).toBe(200);
+      const stored = (await get(BUYER)).json().data as {
+        recognized: unknown[];
+        rejected: Array<{ reason: string }>;
+        summary: { overflowCount?: number; rowLimit?: number; truncated: boolean };
+      };
+      expect(lineCount(stored)).toBe(2_000);
+      expect(stored.rejected.some((row) => row.reason === 'row_limit_exceeded')).toBe(false);
+      expect(stored.summary).toMatchObject({ overflowCount: 1, rowLimit: 2_000, truncated: true });
+    });
+
+    it('setting 5 000, a preview of 4 000 lines is kept in full', async () => {
+      await setImportMaxRows(5_000);
+      const res = await put(BUYER, previewOf(3_000, 1_000));
+      expect(res.statusCode, res.body).toBe(200);
+      expect(lineCount((await get(BUYER)).json().data)).toBe(4_000);
+    });
+
+    it('a preview at the cap refuses one more line with too_many_lines naming the setting', async () => {
+      await setImportMaxRows(1_000);
+      expect((await put(BUYER, previewOf(900, 100))).statusCode).toBe(200);
+
+      const over = await put(BUYER, previewOf(901, 100));
+      expect(over.statusCode, over.body).toBe(422);
+      const error = (over.json() as { error: { code: string; details?: { code?: string; maximum?: number } } }).error;
+      expect(error.code).toBe(ERROR_CODES.VALIDATION_FAILED);
+      expect(error.details).toMatchObject({ code: 'too_many_lines', maximum: 1_000 });
+      // The refused write left the previous preview as it was.
+      expect(lineCount((await get(BUYER)).json().data)).toBe(1_000);
+    });
+
+    it('a setting lowered under a stored preview: a removal is accepted, an addition is refused', async () => {
+      await setImportMaxRows(5_000);
+      expect((await put(BUYER, previewOf(3_000))).statusCode).toBe(200);
+      await setImportMaxRows(1_000);
+
+      const removed = await put(BUYER, previewOf(2_999));
+      expect(removed.statusCode, removed.body).toBe(200);
+      const edited = await put(BUYER, { ...previewOf(2_999), recognized: previewOf(2_999).recognized.map((row) => ({ ...row, quantity: 7 })) });
+      expect(edited.statusCode, edited.body).toBe(200);
+
+      const added = await put(BUYER, previewOf(3_000));
+      expect(added.statusCode, added.body).toBe(422);
+      expect(added.json().error.details).toMatchObject({ code: 'too_many_lines', maximum: 1_000 });
+    });
+
+    it('rows past the limit sent row by row are stored as one count', async () => {
+      await setImportMaxRows(2_000);
+      const preview = previewOf(2, 0);
+      const overflow = Array.from({ length: 3 }, (_, index) => ({ line: 10 + index, raw: `X-${index},1`, reason: 'row_limit_exceeded' as const }));
+      const res = await put(BUYER, { ...preview, rejected: overflow, summary: { ...preview.summary, truncated: true } });
+      expect(res.statusCode, res.body).toBe(200);
+      const stored = (await get(BUYER)).json().data;
+      expect(stored.rejected).toEqual([]);
+      expect(stored.summary).toMatchObject({ overflowCount: 3, rowLimit: 2_000, truncated: true });
+    });
   });
 
-  it('refuses a body over the size cap before reading it', async () => {
+  it('refuses a body over the size cap before reading it, whatever the row cap', async () => {
+    await setImportMaxRows(10_000);
+    expect((await put(BUYER, previewOf(1))).statusCode).toBe(200);
     const huge = previewOf(0, 2);
     huge.rejected[0]!.raw = 'x'.repeat(QUICK_ORDER_PREVIEW_MAX_BYTES);
     const res = await put(BUYER, huge);
     expect(res.statusCode, res.body).toBe(413);
-    expect((await get(BUYER)).json()).toEqual({ data: null });
+    // The earlier preview is untouched.
+    expect((await get(BUYER)).json().data.recognized).toHaveLength(1);
+    await setImportMaxRows(2_000);
   });
 
   it('refuses a body that is not a preview', async () => {
