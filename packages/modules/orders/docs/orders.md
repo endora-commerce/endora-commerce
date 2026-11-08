@@ -896,6 +896,35 @@ Returns module is switched on.
 Migration `20261016T082022_orders_order_item_returnable_at_purchase.ts` adds
 the column (nullable).
 
+## When an order was completed
+
+An order records the moment it first entered `completed`
+(`orders.completed_at`). `OrderTransitionService` stamps it in the same
+transaction as the status write, and an order created directly in `completed`
+is stamped when it is inserted. It is never rewritten: editing a completed order
+afterwards does not move it.
+
+It is the moment the Returns module counts from. `OrderReturnContextPort`
+reports it as `completingStatusEnteredAt`, and the free-return window and a
+consumer's withdrawal period run from it. An order that has never been
+completed reports `null`: its period has not started. Nothing here reads the
+Shipments module, so switching Shipments off changes nothing about it.
+
+**Complete an order when the goods have been delivered.** The platform has no
+delivery date: a shipment's success means the carrier accepted the parcel. A
+consumer's withdrawal period counts from the day they receive the goods, and
+completing the order is how the shop says that day has come. Completing it at
+dispatch starts the period early; the Returns module keeps a grace after the
+period for that reason (see the Returns page).
+
+Until this column existed, the moment was read from the order's `updated_at`,
+which every later edit moved forward. Migration
+`20261108T000543_orders_completed_at.ts` adds the column (nullable) and fills it
+with `updated_at` on every order already in `completed`. That is exactly the
+moment those orders were judged by before, so no existing order changes on
+upgrade; for an order edited after it was completed, it is the last edit rather
+than the completion, an approximation nothing recorded can improve.
+
 ## Settings
 
 `orders.min_order_value` (number, gates Checkout + admin create; an amount, so

@@ -9,6 +9,7 @@ import {
   type AuditPort,
   type PlatformLogger,
 } from '@endora-commerce/platform/kernel';
+import { ORDER_STATUS_COMPLETED } from '../domain/order-status-graph.js';
 import { effectsOwedByStatusTransition } from '../domain/transition-effects.js';
 import { Order } from '../entities/order.entity.js';
 import type { OrderStatusGraphService } from './order-status-graph-service.js';
@@ -201,6 +202,12 @@ export class OrderTransitionService {
         }
 
         locked.status = to;
+        // Issue #905 — the first entry into `completed` is the anchor of the
+        // return window and the consumer's withdrawal period. Stamped once, in
+        // the transaction that writes the status, and never rewritten.
+        if (to === ORDER_STATUS_COMPLETED && locked.completedAt == null) {
+          locked.completedAt = new Date();
+        }
         if (this.auditLog) {
           this.auditLog.recordWithin(tx, {
             action: ORDER_STATUS_TRANSITION_ACTION,

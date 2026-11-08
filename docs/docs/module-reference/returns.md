@@ -62,6 +62,7 @@ An operator switches this module on and off on **/platform/modules**. The choice
 | `returns.free_return_days` | Free-return window (days) | `number` |
 | `returns.rma_number_prefix` | RMA number prefix | `string` |
 | `returns.rma_number_suffix` | RMA number suffix | `string` |
+| `returns.time_zone` | Time zone of the return windows | `string` |
 
 ## Translations
 

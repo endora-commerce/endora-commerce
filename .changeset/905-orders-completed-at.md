@@ -1,0 +1,5 @@
+---
+'@endora-commerce/mod-orders': minor
+---
+
+Orders record when they were completed (#905). A new column, `orders.completed_at` (`Order.completedAt`), is stamped once, in the same transaction as the status write, when an order first enters `completed`, and is never rewritten; an order created directly in `completed` is stamped on insert. `OrderReturnContextPort.getReturnContext` now reports it as `completingStatusEnteredAt` instead of the order's `updatedAt`, so the return window and the consumer's withdrawal period no longer move forward when a completed order is edited. The interface is unchanged. The migration backfills every order already in `completed` with its `updated_at`, which is exactly the anchor it was judged by before, so no existing order changes behaviour on upgrade. A completed row without the stamp reports `null` (not started) rather than `updatedAt`. Nothing in the anchor reads `shipments`. `ORDER_STATUS_COMPLETED` is exported from the orders status-graph domain module beside the other status constants.

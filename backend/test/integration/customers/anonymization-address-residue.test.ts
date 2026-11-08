@@ -138,6 +138,8 @@ describe('Anonymization sweep — address rows the customer deleted, and the ret
       addresses,
       async () => 365,
       retiredBook,
+      // Issue #920 — `carts`' step; this file seeds no cart.
+      { anonymizeForCustomerAccount: async () => 0 },
     );
   });
 

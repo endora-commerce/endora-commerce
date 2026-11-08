@@ -1,6 +1,7 @@
 import {
   ERROR_CODES,
   type AddressServicePort,
+  type CartAnonymizationPort,
   type CustomerAccountLifecycleWritePort,
   type CustomerAccountReadPort,
   type CustomerAccountRecord,
@@ -37,10 +38,11 @@ import type {
  * owners, so the sweep is made restartable instead: the account's
  * `anonymizedAt` is the cascade's commit marker and is written **last** —
  * organisation, then its saved addresses, then the account's rows in this
- * module's retired personal book (issue #927), then the account. Until that last
- * write commits the account is still on `listDueForAnonymization`, and both
- * earlier steps converge (they write only what is still missing and audit only
- * what they wrote), so the next tick finishes whatever a crash left. The price
+ * module's retired personal book (issue #927), then the reasons written about
+ * the account's carts (issue #920), then the account. Until that last
+ * write commits the account is still on `listDueForAnonymization`, and every
+ * earlier step converges (each writes only what is still missing and audits only
+ * what it wrote), so the next tick finishes whatever a crash left. The price
  * is that the organisation can be scrubbed while the account is not yet
  * anonymised, which is why {@link restore} refuses past the retention window on
  * the same cutoff as the sweep rather than relying on `anonymizedAt` alone.
@@ -72,6 +74,12 @@ export class CustomerDeletionService {
      * issue #927): every row of the anonymized account is blanked with it.
      */
     private readonly retiredAddressBook: Pick<AddressBookRetirementService, 'anonymizeForAccount'>,
+    /**
+     * `carts`' step (issue #920): the reasons operators and approvers wrote
+     * about the account's carts. `carts` is `nonDeactivatable` and already a
+     * binding dependency, so this step has no absent state to degrade in.
+     */
+    private readonly carts: CartAnonymizationPort,
   ) {}
 
   async softDelete(
@@ -233,6 +241,9 @@ export class CustomerDeletionService {
     // is this module's own table: the moved and the deleted rows still hold
     // the data. Any account, since the book was the account's.
     await this.retiredAddressBook.anonymizeForAccount(customerAccountId);
+    // Issue #920 — and the reasons written about the account's carts, on any
+    // account: a company member's basket is theirs too.
+    await this.carts.anonymizeForCustomerAccount(customerAccountId);
     // Last: `anonymizedAt` takes the account off the work list (issue #800).
     await this.accountWrites.anonymize(customerAccountId);
   }
