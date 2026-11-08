@@ -286,6 +286,28 @@ describe('the assignee on the opportunity', () => {
     );
   });
 
+  it('unassigns a deactivated assignee the lookup no longer returns (issue #846)', async () => {
+    current = detail({ assignee: GONE });
+    const answer = getSpy.getMockImplementation() as (path: string) => Promise<unknown>;
+    // The assignee lookup lists active admins only, so Piotr is not among the loaded options.
+    getSpy.mockImplementation((path: string) =>
+      path.startsWith('/api/v1/admin/crm/lookups/assignees')
+        ? Promise.resolve({ data: [{ id: ADMIN_ID, name: 'Anna Nowak' }] })
+        : answer(path),
+    );
+    postSpy.mockResolvedValue({ data: detail({ assignee: null, version: 2 }) });
+    const section = await renderDetail();
+    expect(within(section).getByLabelText(en('assignment.change'))).toHaveValue('Piotr Zielony');
+    await waitFor(() => expect(queriesOf('/api/v1/admin/crm/lookups/assignees').length).toBeGreaterThan(0));
+
+    await userEvent.click(
+      within(section).getByRole('button', { name: core('common.combobox.clearSelection') }),
+    );
+    await waitFor(() =>
+      expect(postSpy).toHaveBeenCalledWith(`${DETAIL_PATH}/assign`, { adminUserId: null }),
+    );
+  });
+
   it('shows the refusal and keeps the assignee when the person cannot be assigned', async () => {
     postSpy.mockRejectedValue(
       new ApiError(422, {

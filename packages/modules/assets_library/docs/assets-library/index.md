@@ -421,8 +421,10 @@ Deletes go through a two-step lifecycle:
 ## Retention and purge
 
 `assets.soft_delete_retention_days` (default 30) is the retention period for
-both soft-deleted assets and replaced files. The effective period is at least
-one day: `0`, or anything between zero and one, is one day; an empty,
+both soft-deleted assets and replaced files. Settings accepts a whole number of
+days from 1 to 3650 and refuses anything else with a `422 VALIDATION_FAILED`. A
+value stored before that rule existed is read as follows: `0`, or anything
+between zero and one, is one day; anything above 3650 is 3650 days; an empty,
 non-numeric or negative value applies the default of 30.
 
 - **Hourly sweep.** A scheduled job runs every hour and handles at most 500

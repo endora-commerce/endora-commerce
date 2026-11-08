@@ -156,7 +156,7 @@ impersonation. The row counts every occurrence:
 | `actor_admin_user_id`, `impersonated_customer_account_id` | the admin who caused the crossing, and the customer they acted for, when there is one |
 | `request_id`, `ip_address`, `user_agent` | set when every occurrence in the row came from one request |
 | `acted_at` | the first occurrence |
-| `state_after` | `scope`, `reason`, `organizationId`, `module`, `entryPoint`, `occurrences`, `firstAt`, `lastAt`, up to 20 `requestIds`, and `actor`: its kind and id plus `context`, the reason of the scope the caller was already in, such as `actor:anonymous` for an anonymous storefront request |
+| `state_after` | `scope`, `reason`, `organizationId`, `module`, `entryPoint`, `occurrences`, `firstAt`, `lastAt`, up to 20 `requestIds`, and `actor`: its kind and id plus `context`, the reason of the scope the caller was already in, such as `actor:anonymous` for an anonymous storefront request. The process-start row also carries `breakdown` (see below) |
 
 Aggregation matters because two crossings run on every authenticated storefront
 request: `auth: resolve customer org` and `tenant: resolve customer roll-up flag`.
@@ -253,8 +253,15 @@ to four rules. They are what keeps it from becoming a way around the audit:
    through the ORM and cannot share a statement, keep two and cover every
    branch with a test in which only that branch makes the tick do its work.
    Where the exact predicate needs something that belongs inside the scope — a
-   setting, another module's port — ask a wider question that can only err
-   towards `true`.
+   setting resolved per channel or per organization, another module's port —
+   ask a wider question that can only err towards `true`. A **platform-wide**
+   setting (read with channel `null`) does not belong inside the scope:
+   `Setting` and `SettingValue` are global entities, so that read touches no
+   organization's data. The tick reads it before the scope, and a read that
+   fails enters the scope, as rule 4 says. The `search` reindex poll works this
+   way: it reads `search.reindex_interval_minutes` first, and enters the scope
+   only when the sweep is due or its once-per-process index check is still
+   pending (`backend/test/unit/search/reindex-scheduler-gating.test.ts`).
 3. **Its answer is never handed to the pass.** The work re-reads everything
    inside the scope. The probe decides *whether* the scope is entered, never
    *what* is done in it.
@@ -276,8 +283,45 @@ feed generation, a taxonomy check. Do not put a probe in front of those. If no
 scope-free question can be asked honestly, leave the scope where it is and
 accept the row: an extra audit row is noise, a missing one is a hole.
 
-This rule covers scheduled ticks only. The scope entries a process makes while
-it starts (`boot: …`) are still written one row each.
+This rule covers scheduled ticks only. A process start is handled differently,
+as described next.
+
+### A process start is one row
+
+Every process that composes the application enters a system scope once for each
+boot step and once for each module boot hook: about fifty entries under some
+twenty-five reasons (`boot: load module presence`, `boot: inventory`, …). With
+one row per reason, every server start and every composing CLI command wrote
+more than twenty rows before it did any work.
+
+`composeApp` therefore brackets its boot. It opens the bracket when it attaches
+the writer and closes it after the module boot hooks have run. Every record
+inside the bracket whose reason starts with `boot: ` is folded into **one** row:
+
+| Field | Value |
+|---|---|
+| `state_after.scope` | `system` |
+| `state_after.entryPoint` | `boot` |
+| `state_after.reason` | `boot: process start` |
+| `state_after.module` | `platform` |
+| `state_after.occurrences` | the number of boot entries, which is the sum of the breakdown |
+| `state_after.breakdown` | one `{ module, reason, occurrences }` per boot step or hook, in boot order |
+
+Nothing is dropped: every entry is still counted in one row. The aggregate is
+held back until the bracket closes, so a flush during a long boot cannot write
+half of it. A composition disposed before its boot finished still writes the
+row.
+
+Everything else is written exactly as before:
+
+- the operator's own entry of a CLI command (`cli: …`), which comes after the
+  boot. A composing command therefore writes one boot row and one `cli:` row;
+- a record inside the bracket under any other reason, such as a worker tick that
+  starts during boot, or a widening a boot hook makes under a reason of its own;
+- a `boot: …` record outside the bracket.
+
+The `module:*` operator commands do not compose, so they have no boot to
+bracket.
 
 ## Tests
 

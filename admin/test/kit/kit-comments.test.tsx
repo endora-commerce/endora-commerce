@@ -163,7 +163,11 @@ describe('CommentThread', () => {
     mount(thread());
     await userEvent.click(await screen.findByRole('button', { name: core('comments.edit') }));
     const editor = screen.getByLabelText(core('comments.edit.label'));
-    await userEvent.type(editor, ' Twice.');
+    // The field focuses itself with the caret after the text, but the editor applies that focus
+    // in an animation frame, which a loaded runner can delay past the first keystroke: the text
+    // then landed in front (issue #529). Wait for the focus, then type where the caret is.
+    await waitFor(() => expect(editor).toHaveFocus());
+    await userEvent.keyboard(' Twice.');
     await userEvent.click(screen.getByRole('button', { name: core('common.action.save') }));
     await waitFor(() =>
       expect(update).toHaveBeenCalledWith('00000000-0000-4000-8000-0000000c0001', 'First call went well. Twice.'),

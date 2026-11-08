@@ -223,7 +223,9 @@ describe('quote_requests contributes the price-negotiation lock to two detail zo
     it('reads its own state and shows it on a labelled control', async () => {
       const container = renderOrganization();
       await waitFor(() => expect(container.textContent).toContain('Members may propose prices'));
-      expect(getSpy).toHaveBeenCalledWith(ORG_ROUTE);
+      // The label is in the commit that mounts the panel, and the panel starts its
+      // read from that commit's effect: wait for it (issue #418).
+      await waitFor(() => expect(getSpy).toHaveBeenCalledWith(ORG_ROUTE));
       await waitFor(() => expect(organizationToggle(container).checked).toBe(false));
       const label = container.querySelector(`label[for="quote-price-negotiation-org-${ORG_ID}"]`);
       expect(label?.textContent).toContain('Members may propose prices');

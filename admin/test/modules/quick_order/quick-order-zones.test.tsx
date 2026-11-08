@@ -172,10 +172,14 @@ describe('quick_order contributes the organization and customer detail zones', (
       props: { organizationId: ORG_ID },
     });
     await waitFor(() => expect(container.textContent).toContain('defaultPreferences.title'));
-    expect(getSpy).toHaveBeenCalledWith(
-      `/api/v1/admin/quick-order/preferences?scope=organization&scopeId=${ORG_ID}`,
-    );
-    expect(getSpy).toHaveBeenCalledWith(`/api/v1/admin/organizations/${ORG_ID}/addresses`);
+    // The title is in the commit that mounts the panel, and the panel starts its
+    // reads from that commit's effect: wait for them (issue #418).
+    await waitFor(() => {
+      expect(getSpy).toHaveBeenCalledWith(
+        `/api/v1/admin/quick-order/preferences?scope=organization&scopeId=${ORG_ID}`,
+      );
+      expect(getSpy).toHaveBeenCalledWith(`/api/v1/admin/organizations/${ORG_ID}/addresses`);
+    });
   });
 
   it('renders the defaults panel with the customer scope', async () => {
@@ -184,12 +188,14 @@ describe('quick_order contributes the organization and customer detail zones', (
       props: { customerId: CUSTOMER_ID },
     });
     await waitFor(() => expect(container.textContent).toContain('defaultPreferences.title'));
-    expect(getSpy).toHaveBeenCalledWith(
-      `/api/v1/admin/quick-order/preferences?scope=customer&scopeId=${CUSTOMER_ID}`,
-    );
-    // The scope decides the address route, which is the one behaviour the two
-    // wrappers do not share.
-    expect(getSpy).toHaveBeenCalledWith(`/api/v1/admin/customers/${CUSTOMER_ID}/addresses`);
+    await waitFor(() => {
+      expect(getSpy).toHaveBeenCalledWith(
+        `/api/v1/admin/quick-order/preferences?scope=customer&scopeId=${CUSTOMER_ID}`,
+      );
+      // The scope decides the address route, which is the one behaviour the two
+      // wrappers do not share.
+      expect(getSpy).toHaveBeenCalledWith(`/api/v1/admin/customers/${CUSTOMER_ID}/addresses`);
+    });
   });
 
   it('renders neither zone while the module is switched off, and fetches no chunk', async () => {

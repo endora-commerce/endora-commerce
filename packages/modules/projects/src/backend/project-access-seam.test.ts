@@ -58,6 +58,9 @@ const SQL_WITHOUT_RULE_SCOPED_TABLES: Readonly<Record<string, string>> = {
     'Project Roles and loss reasons — global dictionaries (`@GlobalEntity`); whether one is in use is asked of ' +
     '`role-service` / `loss-reason-service`.',
   'services/project-number.ts': 'Draws the next Project number from its sequence — no row of any Project.',
+  'services/role-locks.ts':
+    'Advisory locks keyed by a Role id and the existence check of Project Roles, a global dictionary ' +
+    '(`@GlobalEntity`) — no row of any Project (issue #453).',
   'services/template-service.ts': 'Templates and their Stages are global configuration (`@GlobalEntity`).',
   'services/scheduled-work-probe.ts':
     'Answers one bit — does any row exist — over a statement its caller hands in; the Stage-alert store, an allowed ' +

@@ -67,6 +67,8 @@ describe('the production composition root boots', () => {
   let composition: Awaited<ReturnType<typeof composeApp>> | undefined;
   let app: FastifyInstance | undefined;
   const originalRole = process.env['BACKEND_ROLE'];
+  /** Taken before `composeApp`, so the escape-hatch rows of this boot can be told from earlier files'. */
+  let bootStartedAt: Date;
 
   beforeAll(async () => {
     // Asserted, not trusted. `global-setup.ts` forces DATABASE_URL to the test
@@ -82,6 +84,7 @@ describe('the production composition root boots', () => {
     // consumers on the Redis the rest of the suite shares.
     process.env['BACKEND_ROLE'] = 'api';
 
+    bootStartedAt = new Date();
     composition = await composeApp({ deploymentRoot: deploymentRoot() });
     app = await buildServer({
       // `index.ts` reads SESSION_COOKIE_SECRET; nothing here signs a cookie.
@@ -233,15 +236,52 @@ describe('the production composition root boots', () => {
         );
     }
 
-    it('records the boot`s own system scope', async () => {
-      const rows = await escapeHatchRows('boot: load module presence');
+    /**
+     * Issue #120 — one process start is one row. The boot enters a system scope
+     * once per boot step and once per module boot hook, and each reason used to
+     * be a row of its own (26 rows from 55 entries). `composeApp` brackets its
+     * boot, and every `boot: …` record inside folds into one aggregate whose
+     * breakdown keeps each (module, reason) count (architect ruling 2026-11-07).
+     */
+    it('records the process start as exactly one row, whose breakdown sums to its entries', async () => {
+      await composition!.escapeHatchAudit.flush();
+      const rows: Array<{
+        object_type: string;
+        object_id: string;
+        state_after: {
+          reason: string;
+          occurrences: number;
+          breakdown?: Array<{ module: string; reason: string; occurrences: number }>;
+        };
+      }> = await composition!.orm.em
+        .fork()
+        .getConnection()
+        .execute(
+          `select object_type, object_id, state_after
+             from audit_log_entries
+            where action = 'tenant.escape_hatch'
+              and (state_after->>'entryPoint' = 'boot' or state_after->>'reason' like 'boot: %')
+              and acted_at >= ?
+            order by acted_at`,
+          [bootStartedAt],
+        );
 
-      expect(rows.length).toBeGreaterThanOrEqual(1);
+      expect(rows.map((row) => row.state_after.reason)).toEqual(['boot: process start']);
       expect(rows[0]).toMatchObject({
         object_type: 'tenant_scope',
         object_id: 'system',
         state_after: { scope: 'system', module: 'platform', entryPoint: 'boot' },
       });
+      const breakdown = rows[0]!.state_after.breakdown ?? [];
+      expect(breakdown).toEqual(
+        expect.arrayContaining([
+          { module: 'platform', reason: 'boot: load module presence', occurrences: 1 },
+        ]),
+      );
+      expect(breakdown.every((entry) => entry.reason.startsWith('boot: '))).toBe(true);
+      expect(breakdown.reduce((sum, entry) => sum + entry.occurrences, 0)).toBe(
+        rows[0]!.state_after.occurrences,
+      );
     });
 
     it('records a widening an anonymous HTTP request causes, with its module and request id', async () => {

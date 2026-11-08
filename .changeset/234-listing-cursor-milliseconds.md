@@ -1,0 +1,7 @@
+---
+'@endora-commerce/mod-catalog': patch
+---
+
+`GET /api/v1/catalog/products` no longer drops products created within the same millisecond when you page through it with its cursor (issue #234). The listing pages by `(created_at, id)`, and its cursor carries `created_at` in milliseconds. A product whose `created_at` came from SQL `now()`, such as an import, a seed or a bulk insert, was stored with microseconds, so the next page skipped the rest of that millisecond. Of six products 100 µs apart, three came back. The price-range path and the unpriced tail of a price ordering were affected the same way. `products.created_at` is now `timestamptz(3)` (`Migration20261107T120008CatalogProductCreatedAtMilliseconds`, and `columnType` on `Product.createdAt`), so PostgreSQL rounds every stored value to the millisecond, whoever writes it. The cursor format is unchanged, and cursors already issued stay valid.
+
+**Upgrade note: plan the migration for a quiet window.** Changing the column's precision rewrites `products` and its indexes under an `ACCESS EXCLUSIVE` lock, which blocks every read and write of the table, storefront listings included, until the rewrite ends. How long that takes grows with the size of the table. Existing values are rounded to the nearest millisecond. Rounding can move a `created_at` by up to half a millisecond, or give two products the same value; `id` already breaks such ties.

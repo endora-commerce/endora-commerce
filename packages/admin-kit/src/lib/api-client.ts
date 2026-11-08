@@ -19,7 +19,11 @@ export interface ApiClientOptions {
   baseUrl: string;
   /** Optional API-key for server-to-server integrations. Overrides cookie auth when set. */
   apiKey?: string;
-  /** Optional custom fetch implementation (useful in tests and server-side rendering). */
+  /**
+   * Optional custom fetch implementation (useful in tests and server-side
+   * rendering). Absent, the global `fetch` is looked up on every request, so a
+   * test that stubs it reaches this client too.
+   */
   fetchFn?: typeof fetch;
 }
 
@@ -43,24 +47,27 @@ export interface ApiClient {
 }
 
 export function createApiClient(options: ApiClientOptions): ApiClient {
-  const { baseUrl, apiKey, fetchFn = fetch } = options;
+  const { baseUrl, apiKey, fetchFn } = options;
 
   async function request<T>(method: string, path: string, body?: unknown, init: RequestInit = {}): Promise<T> {
     const headers = new Headers(init.headers);
     headers.set('Accept', 'application/json');
-    if (body !== undefined) {
+    // A `FormData` body is sent as it is: the runtime writes the multipart
+    // content type with its boundary, which a JSON content type would replace.
+    const multipart = body instanceof FormData;
+    if (body !== undefined && !multipart) {
       headers.set('Content-Type', 'application/json');
     }
     if (apiKey) {
       headers.set('Authorization', `Bearer ${apiKey}`);
     }
 
-    const response = await fetchFn(`${baseUrl}${path}`, {
+    const response = await (fetchFn ?? fetch)(`${baseUrl}${path}`, {
       ...init,
       method,
       headers,
       credentials: apiKey ? 'omit' : 'include',
-      ...(body === undefined ? {} : { body: JSON.stringify(body) }),
+      ...(body === undefined ? {} : { body: multipart ? body : JSON.stringify(body) }),
     });
 
     if (!response.ok) {
@@ -123,6 +130,16 @@ function trap<T>(promise: Promise<T>): Promise<T> {
     }
     throw err;
   });
+}
+
+/**
+ * A multipart `POST` through the same 401 trap as {@link apiClient} (issue
+ * #354): a `401` notifies the `onUnauthorized` listeners and every failure is
+ * an {@link ApiError}. The asset upload used a bare `fetch` and stranded an
+ * operator whose session had expired on the page.
+ */
+export function postMultipart<T>(path: string, form: FormData, init?: RequestInit): Promise<T> {
+  return trap(inner.post<T>(path, form, init));
 }
 
 export const apiClient: ApiClient = {

@@ -255,7 +255,7 @@ describe('crm admin copy', () => {
 
   it('ships no key under its own prefixes that no screen asks for', () => {
     const text = sources.map((source) => source.text).join('\n');
-    // Everything but the seven families the host and the backend read by a
+    // Everything but the eight families the host and the backend read by a
     // name they build themselves: sidebar rows and palette actions (from the
     // manifest), permission labels, error codes, audit actions and the bell's
     // sentences — the last are addressed by `crm-notifier.ts` and drawn by the
@@ -265,8 +265,11 @@ describe('crm admin copy', () => {
     // record type's group and field labels, which global search resolves on the
     // server from the provider's descriptor (`backend/admin-search-provider.ts`,
     // held by its own test and by `admin_search`'s provider-conformance test).
+    // `settingGroups` is the eighth: the Settings screen reads a group's heading
+    // as `settingGroups.<group code>.name` from the declaring module's bundle
+    // (issue #884), held repo-wide by `backend/test/unit/_i18n/setting-group-names.test.ts`.
     const own = Object.keys(en).filter(
-      (key) => !/^(nav|actions|adminRoles|errors|auditLog|notifications|adminSearch)\./.test(key),
+      (key) => !/^(nav|actions|adminRoles|errors|auditLog|notifications|adminSearch|settingGroups)\./.test(key),
     );
     expect(own.length).toBeGreaterThan(400);
     const unused = own.filter((key) => {

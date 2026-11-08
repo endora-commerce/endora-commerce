@@ -125,6 +125,7 @@ import { existsSync, readdirSync, statSync } from 'node:fs';
 import { join } from 'node:path';
 
 import ts from 'typescript';
+import { parseSource, rememberRead } from '../lib/parsed-source.js';
 
 import {
   NO_HOST_RESIDENT_MODULES,
@@ -262,6 +263,57 @@ function stringLiteralOf(node: ts.Node): string | null {
   return null;
 }
 
+/**
+ * What a source holds that needs nothing from any other file — its
+ * subscriptions, the worker factories and seam forwarders it declares, and
+ * whether it can hold a worker site at all — taken off **one** tree (issue
+ * #910).
+ *
+ * The check asked these in four walks, each parsing every file for itself.
+ * Inside a `withSharedParses` scope this answer is remembered, so the first
+ * three walks parse each file once between them; outside one it is derived on
+ * every call. The fourth, {@link findWorkerSites}, needs the tree again — what
+ * it reads depends on the factories and forwarders of **every** file — but only
+ * for a file that can produce a site, which the last two fields decide exactly:
+ * a site is a `new` of the file's BullMQ binding or a call to a factory by
+ * name, so a file with neither yields none whatever the factories turn out to
+ * be.
+ */
+interface SeamReads {
+  /** Every `.on(…)` call that looks like a bus subscription, before module attribution. */
+  readonly subscriptions: ReadonlyArray<Omit<BareSubscription, 'file' | 'moduleId'>>;
+  readonly factories: readonly string[];
+  readonly forwarders: readonly string[];
+  /** The local name BullMQ's `Worker` is imported under, or `null`. */
+  readonly workerBinding: string | null;
+  /** Every name the source calls as a bare identifier — `f(…)`, never `x.f(…)`. */
+  readonly identifierCallees: ReadonlySet<string>;
+}
+
+function seamReads(file: string, text: string): SeamReads {
+  return rememberRead('subscribe-seam:reads', file, text, () => {
+    const sf = parseSource(file, text);
+    return {
+      subscriptions: subscriptionsIn(sf),
+      factories: workerFactoriesIn(sf),
+      forwarders: seamForwardersIn(sf),
+      workerBinding: bullmqWorkerBinding(sf),
+      identifierCallees: identifierCalleesIn(sf),
+    };
+  });
+}
+
+/** Every name `sf` calls as a bare identifier. */
+function identifierCalleesIn(sf: ts.SourceFile): Set<string> {
+  const names = new Set<string>();
+  const visit = (node: ts.Node): void => {
+    if (ts.isCallExpression(node) && ts.isIdentifier(node.expression)) names.add(node.expression.text);
+    node.forEachChild(visit);
+  };
+  sf.forEachChild(visit);
+  return names;
+}
+
 /** Every `<bus>.on(<event>, <handler>)` in a module's own sources. */
 export function findBareSubscriptions(input: SubscribeSeamInput): BareSubscription[] {
   const found: BareSubscription[] = [];
@@ -273,40 +325,45 @@ export function findBareSubscriptions(input: SubscribeSeamInput): BareSubscripti
     // the kernel, `http/`, `db/`, a composition root — is not this rule's
     // business.
     if (moduleId === null) continue;
-    const sf = ts.createSourceFile(file, text, ts.ScriptTarget.Latest, true);
-
-    const visit = (node: ts.Node): void => {
-      if (
-        ts.isCallExpression(node) &&
-        ts.isPropertyAccessExpression(node.expression) &&
-        node.expression.name.text === 'on' &&
-        node.arguments.length >= 2
-      ) {
-        const receiver = tailName(node.expression.expression);
-        const [nameArgument] = node.arguments;
-        // `'order.status_changed.v1' as never` is the spelling `pwa` used to
-        // satisfy an untyped bus, so the cast is unwrapped before the literal
-        // is read — otherwise the ledger key would say `<dynamic>` for an event
-        // written out in full.
-        const literal = nameArgument === undefined ? null : stringLiteralOf(nameArgument);
-        const looksLikeBus = receiver !== null && BUS_RECEIVER.test(receiver);
-        const looksLikeDomainEvent = literal !== null && DOMAIN_EVENT.test(literal);
-        if (looksLikeBus || looksLikeDomainEvent) {
-          found.push({
-            file,
-            line: sf.getLineAndCharacterOfPosition(node.getStart(sf)).line + 1,
-            moduleId,
-            event: literal ?? DYNAMIC,
-            receiver: receiver ?? '(expression)',
-          });
-        }
-      }
-      node.forEachChild(visit);
-    };
-    sf.forEachChild(visit);
+    for (const { line, event, receiver } of seamReads(file, text).subscriptions) {
+      found.push({ file, line, moduleId, event, receiver });
+    }
   }
 
   found.sort((a, b) => (a.file === b.file ? a.line - b.line : a.file.localeCompare(b.file)));
+  return found;
+}
+
+/** One source's bus subscriptions, in source order. */
+function subscriptionsIn(sf: ts.SourceFile): Array<Omit<BareSubscription, 'file' | 'moduleId'>> {
+  const found: Array<Omit<BareSubscription, 'file' | 'moduleId'>> = [];
+  const visit = (node: ts.Node): void => {
+    if (
+      ts.isCallExpression(node) &&
+      ts.isPropertyAccessExpression(node.expression) &&
+      node.expression.name.text === 'on' &&
+      node.arguments.length >= 2
+    ) {
+      const receiver = tailName(node.expression.expression);
+      const [nameArgument] = node.arguments;
+      // `'order.status_changed.v1' as never` is the spelling `pwa` used to
+      // satisfy an untyped bus, so the cast is unwrapped before the literal
+      // is read — otherwise the ledger key would say `<dynamic>` for an event
+      // written out in full.
+      const literal = nameArgument === undefined ? null : stringLiteralOf(nameArgument);
+      const looksLikeBus = receiver !== null && BUS_RECEIVER.test(receiver);
+      const looksLikeDomainEvent = literal !== null && DOMAIN_EVENT.test(literal);
+      if (looksLikeBus || looksLikeDomainEvent) {
+        found.push({
+          line: sf.getLineAndCharacterOfPosition(node.getStart(sf)).line + 1,
+          event: literal ?? DYNAMIC,
+          receiver: receiver ?? '(expression)',
+        });
+      }
+    }
+    node.forEachChild(visit);
+  };
+  sf.forEachChild(visit);
   return found;
 }
 
@@ -501,20 +558,26 @@ function enclosingFunctionName(node: ts.Node): string | null {
 export function findWorkerFactories(input: SubscribeSeamInput): Set<string> {
   const names = new Set<string>();
   for (const [file, text] of input.sources) {
-    const sf = ts.createSourceFile(file, text, ts.ScriptTarget.Latest, true);
-    const binding = bullmqWorkerBinding(sf);
-    if (binding === null) continue;
-    const visit = (node: ts.Node): void => {
-      if (ts.isNewExpression(node) && ts.isIdentifier(node.expression) && node.expression.text === binding) {
-        if (isHandedToCaller(node)) {
-          const name = enclosingFunctionName(node);
-          if (name !== null) names.add(name);
-        }
-      }
-      node.forEachChild(visit);
-    };
-    sf.forEachChild(visit);
+    for (const name of seamReads(file, text).factories) names.add(name);
   }
+  return names;
+}
+
+/** The worker factories one source declares, in source order. */
+function workerFactoriesIn(sf: ts.SourceFile): string[] {
+  const names: string[] = [];
+  const binding = bullmqWorkerBinding(sf);
+  if (binding === null) return names;
+  const visit = (node: ts.Node): void => {
+    if (ts.isNewExpression(node) && ts.isIdentifier(node.expression) && node.expression.text === binding) {
+      if (isHandedToCaller(node)) {
+        const name = enclosingFunctionName(node);
+        if (name !== null) names.push(name);
+      }
+    }
+    node.forEachChild(visit);
+  };
+  sf.forEachChild(visit);
   return names;
 }
 
@@ -531,18 +594,24 @@ export function findWorkerFactories(input: SubscribeSeamInput): Set<string> {
 export function findSeamForwarders(input: SubscribeSeamInput): Set<string> {
   const names = new Set<string>();
   for (const [file, text] of input.sources) {
-    const sf = ts.createSourceFile(file, text, ts.ScriptTarget.Latest, true);
-    const visit = (node: ts.Node): void => {
-      if (ts.isPropertyAssignment(node) && ts.isIdentifier(node.name)) {
-        const body = node.initializer;
-        if ((ts.isArrowFunction(body) || ts.isFunctionExpression(body)) && callsSeam(body)) {
-          names.add(node.name.text);
-        }
-      }
-      node.forEachChild(visit);
-    };
-    sf.forEachChild(visit);
+    for (const name of seamReads(file, text).forwarders) names.add(name);
   }
+  return names;
+}
+
+/** The seam forwarders one source declares, in source order. */
+function seamForwardersIn(sf: ts.SourceFile): string[] {
+  const names: string[] = [];
+  const visit = (node: ts.Node): void => {
+    if (ts.isPropertyAssignment(node) && ts.isIdentifier(node.name)) {
+      const body = node.initializer;
+      if ((ts.isArrowFunction(body) || ts.isFunctionExpression(body)) && callsSeam(body)) {
+        names.push(node.name.text);
+      }
+    }
+    node.forEachChild(visit);
+  };
+  sf.forEachChild(visit);
   return names;
 }
 
@@ -578,7 +647,14 @@ export function findWorkerSites(
   const hostResident = input.hostResidentModules ?? NO_HOST_RESIDENT_MODULES;
 
   for (const [file, text] of input.sources) {
-    const sf = ts.createSourceFile(file, text, ts.ScriptTarget.Latest, true);
+    // A file with no BullMQ binding and no call to a factory can produce no
+    // site below, so it is not parsed a second time (issue #910; see
+    // {@link SeamReads}).
+    const reads = seamReads(file, text);
+    if (reads.workerBinding === null && ![...reads.identifierCallees].some((name) => factories.has(name))) {
+      continue;
+    }
+    const sf = parseSource(file, text);
     const binding = bullmqWorkerBinding(sf);
     const lineOf = (node: ts.Node): number =>
       sf.getLineAndCharacterOfPosition(node.getStart(sf)).line + 1;

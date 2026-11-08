@@ -758,25 +758,25 @@
         ],
         [
           {
-            "text": "Issue date: 2026-05-04",
+            "text": "Data wystawienia: 2026-05-04",
             "alignment": "left"
           }
         ],
         [
           {
-            "text": "Sale date: 2026-05-04",
+            "text": "Data sprzedaży: 2026-05-04",
             "alignment": "left"
           }
         ],
         [
           {
-            "text": "Payment due: 2026-05-18",
+            "text": "Termin płatności: 2026-05-18",
             "alignment": "left"
           }
         ],
         [
           {
-            "text": "Payment method: Bank transfer",
+            "text": "Metoda płatności: Bank transfer",
             "alignment": "left"
           }
         ]
@@ -805,7 +805,7 @@
         "width": "50%",
         "stack": [
           {
-            "text": "Seller",
+            "text": "Sprzedawca",
             "bold": true,
             "fontSize": 10,
             "margin": [
@@ -849,7 +849,7 @@
         "width": "50%",
         "stack": [
           {
-            "text": "Buyer",
+            "text": "Nabywca",
             "bold": true,
             "fontSize": 10,
             "margin": [
@@ -1102,7 +1102,7 @@
         ],
         [
           {
-            "text": "Total",
+            "text": "Razem",
             "fontSize": 8,
             "bold": true
           },
@@ -1138,13 +1138,13 @@
   "seed.invoices.InvoiceTotals": {
     "stack": [
       {
-        "text": "Paid: 2450,00 PLN",
+        "text": "Zapłacono: 2450,00 PLN",
         "alignment": "right",
         "fontSize": 10,
         "color": "#0f172a"
       },
       {
-        "text": "Amount due: 0,00 PLN",
+        "text": "Do zapłaty: 0,00 PLN",
         "alignment": "right",
         "bold": true,
         "fontSize": 10,
@@ -1157,13 +1157,13 @@
         "color": "#0f172a"
       },
       {
-        "text": "Total: 2400,00 PLN",
+        "text": "Razem: 2400,00 PLN",
         "alignment": "right",
         "fontSize": 10,
         "color": "#0f172a"
       },
       {
-        "text": "In words: dwa tysiące czterysta złotych 00/100",
+        "text": "Słownie: dwa tysiące czterysta złotych 00/100",
         "alignment": "right",
         "italics": true,
         "fontSize": 10,
@@ -1205,7 +1205,7 @@
         ]
       },
       {
-        "text": "Thank you for your business.\nAcme Supplies Ltd. · Tax ID 12-3456789",
+        "text": "Dziękujemy za współpracę.\nAcme Supplies Ltd. · NIP 12-3456789",
         "alignment": "center",
         "fontSize": 9,
         "color": "#0f172a",

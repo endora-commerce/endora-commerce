@@ -487,8 +487,9 @@ export function footerSection(
   inv: InvoiceDetail,
   labels: InvoicePdfLabels = INVOICE_PDF_LABELS_EN,
 ): Content {
-  const raw =
-    typeof props['text'] === 'string' ? (props['text'] as string) : labels['pdf.footer.default'];
+  // An empty footer text prints the default one in the document's language,
+  // as an empty label does (issue #437); the built-in layout leaves it empty.
+  const raw = optStr(props, 'text') ?? labels['pdf.footer.default'];
   return textBlock(raw, inv, props, { fontSize: 9, showTopDivider: true, marginBottom: 8 });
 }
 

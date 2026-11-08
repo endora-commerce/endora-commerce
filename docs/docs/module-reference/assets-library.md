@@ -32,6 +32,7 @@ Rendered from the module's own manifest, and from nothing written by hand. What 
 | `admin_roles` | yes | installs and migrates after it, and an operator cannot switch it off underneath this module |
 | `admin_users` | yes | installs and migrates after it, and an operator cannot switch it off underneath this module |
 | `auth` | yes | installs and migrates after it, and an operator cannot switch it off underneath this module |
+| `settings` | gating only | resolves `settingWriteValidatorRegistry`; withheld from `dependencies` because the install order cannot carry the edge |
 
 ## Permissions
 

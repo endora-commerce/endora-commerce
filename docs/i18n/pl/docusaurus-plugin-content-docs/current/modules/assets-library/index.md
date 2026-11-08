@@ -384,9 +384,10 @@ Usuwanie przebiega w dwóch etapach:
 ## Przechowywanie i trwałe usuwanie {#retention-and-purge}
 
 `assets.soft_delete_retention_days` (domyślnie 30) to okres przechowywania zarówno plików usuniętych
-miękko, jak i podmienionych wersji. Obowiązujący okres wynosi co najmniej jeden dzień: `0` albo
-dowolna wartość od zera do jednego oznacza jeden dzień; wartość pusta, nieliczbowa lub ujemna oznacza
-domyślne 30 dni.
+miękko, jak i podmienionych wersji. Ustawienia przyjmują liczbę całkowitą dni od 1 do 3650, a każdą
+inną wartość odrzucają z błędem `422 VALIDATION_FAILED`. Wartość zapisana przed wprowadzeniem tej
+reguły jest odczytywana tak: `0` albo dowolna wartość od zera do jednego oznacza jeden dzień; wartość
+powyżej 3650 oznacza 3650 dni; wartość pusta, nieliczbowa lub ujemna oznacza domyślne 30 dni.
 
 - **Czyszczenie co godzinę.** Zaplanowane zadanie działa co godzinę i w jednym przebiegu obsługuje
   najwyżej 500 plików, zaczynając od najdawniej usuniętych. Każdy przebieg zapisuje jedną linię

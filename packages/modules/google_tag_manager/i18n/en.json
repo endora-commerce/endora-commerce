@@ -1,5 +1,6 @@
 {
   "actions.openGoogleTagManager.label": "Google Tag Manager",
   "actions.openGoogleTagManager.description": "Configure the GTM container and server-side tagging per sales channel",
-  "actions.openGoogleTagManager.keywords": "tags, container"
+  "actions.openGoogleTagManager.keywords": "tags, container",
+  "settingGroups.google_tag_manager.name": "Google Tag Manager"
 }
