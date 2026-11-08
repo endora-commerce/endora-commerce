@@ -68,8 +68,10 @@ interface AdminRfqRow {
   status: RfqStatus;
   awaitingCustomerRevisionAcceptance: boolean;
   lineCount: number;
-  totalAtCustomerPrice: number | null;
-  totalAtAgreedPrice: number | null;
+  /** Issue #456 — the one amount `quote_requests` publishes, two places; `null` without any price. */
+  amount?: string | null;
+  /** How far its lines are agreed. */
+  agreement?: 'agreed' | 'partial' | 'none';
   currency: string;
   submittedAt: string | null;
   expiresAt: string | null;
@@ -126,8 +128,14 @@ function savedCustomFieldFilters(saved: unknown): CustomFieldFilters {
   );
 }
 
+/**
+ * The amount the backend computed (issue #456): per line, the agreed price or
+ * else the asked one. The list does not re-derive it from the two totals.
+ */
 function rowTotal(r: AdminRfqRow): number | null {
-  return r.totalAtAgreedPrice ?? r.totalAtCustomerPrice;
+  if (r.amount === undefined || r.amount === null) return null;
+  const amount = Number(r.amount);
+  return Number.isFinite(amount) ? amount : null;
 }
 
 function formatTotal(r: AdminRfqRow): string {
@@ -464,7 +472,16 @@ export function RfqList(): ReactNode {
     total: {
       id: 'total',
       header: t('rfq.list.column.total'),
-      render: (r) => <span className="tabular-nums">{formatTotal(r)}</span>,
+      render: (r) => (
+        <>
+          <span className="tabular-nums">{formatTotal(r)}</span>
+          {rowTotal(r) !== null && r.agreement !== undefined && r.agreement !== 'agreed' ? (
+            <Badge variant="outline" className="ml-2 font-normal">
+              {t(r.agreement === 'partial' ? 'rfq.list.badge.partiallyAgreed' : 'rfq.list.badge.notYetAgreed')}
+            </Badge>
+          ) : null}
+        </>
+      ),
     },
   };
 

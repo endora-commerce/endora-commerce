@@ -22,7 +22,8 @@ Zarządzanie użytkownikami i rolami wymaga uprawnienia `admin_users:manage`.
 | `PATCH /api/v1/admin/admin-users/:id` | Aktualizacja imienia, przypisanej roli lub statusu; nie ustawia hasła — pole `password` jest odrzucane z 400 `VALIDATION_FAILED`. Rolę można zmienić na inną, ale nie można jej usunąć: `adminRoleId: null` jest odrzucane z 400 `ADMIN_USER_ROLE_REQUIRED`. Ustawienie `status: 'inactive'` wylogowuje konto ze wszystkich sesji |
 | `DELETE /api/v1/admin/admin-users/:id` | Usunięcie miękkie (ustawia `deletedAt` i `status='inactive'`) oraz wylogowanie konta ze wszystkich sesji |
 | `GET /api/v1/admin/admin-roles` | Lista ról z tablicami uprawnień |
-| `PUT /api/v1/admin/admin-roles/:code` | Utworzenie lub aktualizacja roli według kodu; nieznane uprawnienia zwracają 400 `VALIDATION_FAILED` |
+| `PUT /api/v1/admin/admin-roles/:code` | Utworzenie lub aktualizacja roli według kodu; nieznane uprawnienia zwracają 400 `VALIDATION_FAILED`. Włączenie `requiresTwoFactor` jest odrzucane z 409 `MFA_REQUIRED_FOR_ROLE_TWO_FACTOR`, gdy MFA jest wyłączone albo nie ma klucza szyfrowania; odpowiedź zawiera `signedOutAdministrators` (zob. *Role wymagające weryfikacji dwuetapowej*) |
+| `GET /api/v1/admin/admin-roles/:code/two-factor-impact` | Ilu posiadaczy roli nie ma drugiego składnika i zostałoby wylogowanych po włączeniu jej wymogu (`unprotectedAdministrators`; `null`, gdy MFA jest wyłączone) |
 | `DELETE /api/v1/admin/admin-roles/:id` | Usunięcie; odrzucane z 409 `ADMIN_ROLE_IN_USE`, gdy rola jest nadal przypisana do jakiegokolwiek użytkownika — **także usuniętego miękko**, bo jego przypisanie wraca po przywróceniu konta. Odpowiedź wskazuje, która grupa ma tę rolę (`details.code` to `assigned` albo `assigned_to_deleted`) i ilu jest takich użytkowników |
 | `GET /api/v1/admin/permissions` | Kanoniczny katalog uprawnień (moduł / kod / etykieta), z którego korzysta macierz uprawnień w panelu |
 | `GET /api/v1/admin/me/preferences` | Własne preferencje panelu administracyjnego zalogowanego administratora; kod uprawnienia nie jest potrzebny (zob. *Preferencje panelu administracyjnego*) |
@@ -76,6 +77,58 @@ Polecenie aktualizuje istniejące konto, ustawia podane hasło i przypisuje rol�
 chyba że `--role` wskazuje inną. Przy aktualizacji konta nie dostają roli automatycznie:
 oznaczałoby to nadanie dostępu, o którym nikt nie zdecydował.
 
+## Role wymagające weryfikacji dwuetapowej
+
+Pole **Wymaga weryfikacji dwuetapowej od przypisanych użytkowników** w roli
+(`requiresTwoFactor`) sprawia, że każdy posiadacz roli loguje się z drugim
+składnikiem, tak jak ustawienie `mfa.admin.totp_enforced` wymaga tego od
+wszystkich administratorów. Oba źródła się sumują: administrator musi użyć
+drugiego składnika, gdy obowiązuje którekolwiek z nich.
+
+Przy logowaniu — hasłem albo przez Google lub Microsoft — posiadacz, który ma
+skonfigurowaną weryfikację dwuetapową, jest proszony o kod. Posiadacz, który
+jej nie ma, zostaje przeprowadzony przez konfigurację i dostaje sesję dopiero
+po jej zakończeniu. Ekran weryfikacji dwuetapowej posiadacza pokazuje ten wymóg
+(`totpEnforcedForScope`).
+
+**Kto zostaje wylogowany.** Sesja administratora trwa trzydzieści dni, więc
+wymóg nie czeka na następne logowanie:
+
+- gdy rola zaczyna wymagać weryfikacji dwuetapowej, od razu zostają wylogowani
+  wszyscy jej posiadacze, którzy jej nie skonfigurowali;
+- gdy administrator bez skonfigurowanej weryfikacji dostaje taką rolę, zostaje
+  od razu wylogowany.
+
+Posiadacze, którzy już korzystają z weryfikacji dwuetapowej, pozostają
+zalogowani. Administrator wprowadzający zmianę zachowuje sesję, z której ją
+wprowadził, i przy następnym logowaniu zostanie poproszony o konfigurację.
+Ekran ról przed zapisaniem podaje, ilu posiadaczy zostanie wylogowanych, a po
+zapisaniu — ilu wylogowano. Odrzucony zapis nikogo nie wylogowuje. Każde
+wylogowanie jest zapisywane w dzienniku audytu jako
+`mfa.admin_sessions_ended_for_requirement`, z rolą i liczbą administratorów.
+
+**Kiedy wymogu nie da się włączyć.** Pole egzekwuje moduł MFA, dlatego:
+
+- gdy MFA jest wyłączone, pole jest nieaktywne i rola nie może zacząć wymagać
+  weryfikacji dwuetapowej (409 `MFA_REQUIRED_FOR_ROLE_TWO_FACTOR`,
+  `details.reason: 'mfa_off'`). Rola, która już jej wymaga, zachowuje to
+  ustawienie i zacznie ono znów obowiązywać po ponownym włączeniu MFA.
+  Wyłączenie wymogu jest zawsze dozwolone;
+- nie można wyłączyć MFA, dopóki którakolwiek rola wymaga weryfikacji
+  dwuetapowej: ekran modułów odmawia z 409 `MFA_DEACTIVATION_BLOCKED` i podaje
+  te role (`details.roleCodes`). Najpierw odznacz pole w tych rolach;
+- bez `MFA_SECRET_ENCRYPTION_KEY` nie da się skonfigurować drugiego składnika,
+  więc rola nie może też zacząć go wymagać (`details.reason:
+  'encryption_key_missing'`). Rola, która już go wymaga, kierowałaby swoich
+  posiadaczy do konfiguracji, której nie da się dokończyć, dlatego instancja
+  przy każdym starcie zapisuje ostrzeżenie z nazwami ról i liczbą ich
+  posiadaczy bez drugiego składnika. Ustaw klucz albo odznacz pole w tych
+  rolach — jako administrator, którego rola tego nie wymaga, albo w bazie
+  danych: `update admin_roles set requires_two_factor = false where code = '<code>';`.
+
+Gdy wdrożenie całkowicie usuwa moduł MFA, logowanie nie wymaga drugiego
+składnika, niezależnie od ustawień ról.
+
 ## Sesje a zmiana hasła
 
 Sesja jest poświadczeniem, dlatego jest unieważniana wtedy, gdy przestaje obowiązywać to, co
@@ -88,6 +141,7 @@ potwierdzała:
 | Konto zostaje dezaktywowane (`status: 'inactive'`) albo usunięte | Wszystkie sesje konta |
 | Polecenie `admin_users create` (`admin:create`) zostaje uruchomione ponownie dla konta, które już istnieje | Wszystkie sesje konta. Zapis trafia do dziennika audytu jako `admin_user.change_password` z `via: 'cli'` i bez administratora wykonującego |
 | Administrator wyłącza własną weryfikację dwuetapową (`POST /api/v1/admin/account/mfa/disable`) | Wszystkie sesje konta **poza tą, z której wysłano żądanie** |
+| Rola konta zaczyna wymagać weryfikacji dwuetapowej albo konto dostaje taką rolę, a nie ma jej skonfigurowanej | Wszystkie sesje konta, **poza tą, z której wprowadzono zmianę, jeśli wprowadziło ją to konto** (zob. *Role wymagające weryfikacji dwuetapowej*) |
 
 „Wszystkie sesje” to logowania w innych przeglądarkach i na innych urządzeniach oraz sesje
 logowania jako klient rozpoczęte przez tego administratora. Te same zapisy wycofują każde

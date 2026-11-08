@@ -437,7 +437,11 @@ A project role is not one of these: holding one grants no permission (see
 
 A project's **Linked records** tab lists the Orders, Quote requests and
 Opportunities linked to it, a group each: every record with its number — a
-link to it — its status and its amount.
+link to it — its status and its amount. A quote request's amount is the one
+the Quote Requests module computes, the figure its own list shows. While only
+some of its lines have an agreed price, it is marked **Partially agreed**;
+while none has, **Not yet agreed**. A quote request without any price shows
+`—`.
 
 - **Only records of the project's Organizations** can be linked. The picker of
   each kind searches that kind's own list of the Organization chosen — with one

@@ -10,16 +10,14 @@
 // filter, and every reference resolver the soft-delete pass asks reads with
 // plain SQL.
 
-import { Asset } from '../entities/asset.entity.js';
-import { AssetObjectCleanup } from '../entities/asset-object-cleanup.entity.js';
 import { ObjectCleanupLedger } from '../services/object-cleanup-ledger.js';
 import type { StorageAdapter } from '../services/storage/storage-adapter.js';
 import { HardDeleteAssetWorker } from './hard-delete-asset.job.js';
 import { PurgePreviousVersionsJob } from './purge-previous-versions.job.js';
+import { RetentionDueProbe } from './retention-due-probe.js';
 import {
   ASSET_CLEANUP_GRACE_MS,
   ASSET_RETENTION_SWEEP_BATCH,
-  cutoffFor,
   deleterOf,
   type RetentionSweepDeps,
 } from './retention-sweep-deps.js';
@@ -63,6 +61,7 @@ export function createAssetRetentionSweeper(deps: RetentionSweepDeps): AssetRete
   const previous = new PurgePreviousVersionsJob(deps);
   const softDeleted = new HardDeleteAssetWorker(deps);
   const ledger = new ObjectCleanupLedger(deps.emFactory);
+  const probe = new RetentionDueProbe(deps);
   const batch = deps.batchSize ?? ASSET_RETENTION_SWEEP_BATCH;
 
   const adapterFor = async (
@@ -76,24 +75,7 @@ export function createAssetRetentionSweeper(deps: RetentionSweepDeps): AssetRete
   return {
     retentionDays: () => deps.loadRetentionDays(),
 
-    async hasDue(now = new Date()) {
-      const cutoff = cutoffFor(now, await deps.loadRetentionDays());
-      const em = deps.emFactory().fork();
-      const checks = [
-        () => em.count(Asset, { previousReplacedAt: { $lte: cutoff } }),
-        () => em.count(Asset, { deletedAt: { $ne: null, $lte: cutoff } }),
-        () => em.count(Asset, { deletedAt: { $ne: null }, pendingCleanup: true }),
-        () =>
-          em.count(
-            AssetObjectCleanup,
-            { recordedAt: { $lte: new Date(now.getTime() - ASSET_CLEANUP_GRACE_MS) } },
-          ),
-      ];
-      for (const check of checks) {
-        if ((await check()) > 0) return true;
-      }
-      return false;
-    },
+    hasDue: (now = new Date()) => probe.hasDue(now),
 
     async sweep(now = new Date()) {
       const retentionDays = await deps.loadRetentionDays();

@@ -257,6 +257,11 @@ export function LinkedQuoteRequests(props: LinkedQuoteRequestsProps): ReactNode 
                   </TableCell>
                   <TableCell className="text-right tabular-nums">
                     {shown ? moneyLabel(item.total, item.currency ?? opportunity.currency) : null}
+                    {shown && item.total !== undefined && item.agreement && item.agreement !== 'agreed' ? (
+                      <Badge variant="outline" className="ml-2 font-normal">
+                        {t(item.agreement === 'partial' ? 'links.quote.partiallyAgreed' : 'links.quote.notYetAgreed')}
+                      </Badge>
+                    ) : null}
                   </TableCell>
                   {canWrite ? (
                     <TableCell className="text-right">

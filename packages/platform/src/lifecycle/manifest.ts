@@ -53,9 +53,10 @@ export const manifest = defineModuleManifest({
    * is to inform the flip, not to refuse it.
    *
    * The second edge does refuse, narrowly: `mfaDeactivationGuardPort` answers
-   * whether administrators are currently *required* to use a second factor,
-   * and while they are the switch-off is refused so that requirement is turned
-   * off as its own change. Non-binding for the same reason as the count.
+   * whether administrators are currently *required* to use a second factor —
+   * by `mfa.admin.totp_enforced` or by a role's `requiresTwoFactor` — and while
+   * they are the switch-off is refused so that requirement is turned off as its
+   * own change. Non-binding for the same reason as the count.
    */
   nonBindingDependencies: [
     {
@@ -67,8 +68,9 @@ export const manifest = defineModuleManifest({
         'to protect, and switching it back on is never refused.',
       reason:
         'POST /api/v1/admin/modules/:id/activation refuses to switch `mfa` off while ' +
-        '`mfa.admin.totp_enforced` is on, so the administrator requirement is withdrawn as its ' +
-        'own change rather than as a side effect of the module toggle. The setting is `mfa`\'s, ' +
+        '`mfa.admin.totp_enforced` is on or any admin role requires a second factor, and names ' +
+        'which, so the administrator requirement is withdrawn as its own change rather than as ' +
+        'a side effect of the module toggle. The setting and the role flag are read by `mfa`, ' +
         'so `mfa` answers through a port; the route asks only while `mfa` is present.',
     },
     {

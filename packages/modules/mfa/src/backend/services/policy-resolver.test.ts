@@ -1,8 +1,10 @@
 import { describe, expect, it } from 'vitest';
 import type { z } from 'zod';
 import { MFA_SETTING_CODES } from '@endora-commerce/contracts';
+import type { AdminRoleResolution } from '@endora-commerce/contracts';
 import {
   MfaPolicyResolver,
+  type AdminRoleReader,
   type SettingsReader,
 } from './mfa-policy-resolver.js';
 
@@ -30,9 +32,27 @@ function fakeEmFactory(enforceTotp: boolean | null) {
     }) as never;
 }
 
+/** A role reader answering one role for every administrator, recording who was asked. */
+function roleOf(requiresTwoFactor: boolean, asked: string[] = []): AdminRoleReader {
+  return async (adminUserId): Promise<AdminRoleResolution> => {
+    asked.push(adminUserId);
+    return {
+      role: {
+        id: 'r1',
+        code: 'accounting',
+        name: 'Accounting',
+        permissions: [],
+        requiresTwoFactor,
+        createdAt: new Date(0),
+        updatedAt: new Date(0),
+      },
+    };
+  };
+}
+
 describe('MfaPolicyResolver', () => {
   it('storefront: disabled by default when nothing is set', async () => {
-    const resolver = new MfaPolicyResolver(fakeSettings({}), fakeEmFactory(null));
+    const resolver = new MfaPolicyResolver(fakeSettings({}), fakeEmFactory(null), roleOf(false));
     const p = await resolver.resolve(
       { subjectType: 'customer', subjectId: 'c1' },
       { salesChannelId: null },
@@ -49,6 +69,7 @@ describe('MfaPolicyResolver', () => {
     const resolver = new MfaPolicyResolver(
       fakeSettings({ [MFA_SETTING_CODES.STOREFRONT_TOTP_ENFORCED]: true }),
       fakeEmFactory(null),
+      roleOf(false),
     );
     const p = await resolver.resolve(
       { subjectType: 'customer', subjectId: 'c1' },
@@ -59,7 +80,7 @@ describe('MfaPolicyResolver', () => {
   });
 
   it('organization enforcement is additive for customers', async () => {
-    const resolver = new MfaPolicyResolver(fakeSettings({}), fakeEmFactory(true));
+    const resolver = new MfaPolicyResolver(fakeSettings({}), fakeEmFactory(true), roleOf(false));
     const p = await resolver.resolve(
       { subjectType: 'customer', subjectId: 'c1' },
       { salesChannelId: null, organizationId: 'org1' },
@@ -75,6 +96,7 @@ describe('MfaPolicyResolver', () => {
         [MFA_SETTING_CODES.ADMIN_GOOGLE_ENABLED]: true,
       }),
       fakeEmFactory(true),
+      roleOf(false),
     );
     const p = await resolver.resolve(
       { subjectType: 'admin', subjectId: 'a1' },
@@ -84,5 +106,66 @@ describe('MfaPolicyResolver', () => {
     expect(p.totpEnforced).toBe(false);
     expect(p.googleEnabled).toBe(true);
     expect(p.microsoftEnabled).toBe(false);
+  });
+});
+
+/**
+ * Issue #349 — a role's `requiresTwoFactor` is the administrator's equivalent of
+ * an organization's enforcement: additive to `mfa.admin.totp_enforced`, read
+ * for admin subjects only, and failing closed when the role cannot be read.
+ */
+describe('MfaPolicyResolver — the administrator role requirement', () => {
+  const admin = { subjectType: 'admin', subjectId: 'a1' } as const;
+  const ctx = { salesChannelId: null };
+
+  it('enforces (and therefore enables) TOTP for a holder of a role that requires it', async () => {
+    const resolver = new MfaPolicyResolver(fakeSettings({}), fakeEmFactory(null), roleOf(true));
+    const p = await resolver.resolve(admin, ctx);
+    expect(p.totpEnforced).toBe(true);
+    expect(p.totpEnabled).toBe(true);
+  });
+
+  it('changes nothing for a role that does not require it', async () => {
+    const resolver = new MfaPolicyResolver(fakeSettings({}), fakeEmFactory(null), roleOf(false));
+    const p = await resolver.resolve(admin, ctx);
+    expect(p).toMatchObject({ totpEnforced: false, totpEnabled: false });
+  });
+
+  it('keeps the platform-wide setting in force whatever the role says', async () => {
+    const resolver = new MfaPolicyResolver(
+      fakeSettings({ [MFA_SETTING_CODES.ADMIN_TOTP_ENFORCED]: true }),
+      fakeEmFactory(null),
+      roleOf(false),
+    );
+    expect((await resolver.resolve(admin, ctx)).totpEnforced).toBe(true);
+  });
+
+  it('fails closed when the role read throws', async () => {
+    const resolver = new MfaPolicyResolver(fakeSettings({}), fakeEmFactory(null), async () => {
+      throw new Error('admin_roles unavailable');
+    });
+    expect((await resolver.resolve(admin, ctx)).totpEnforced).toBe(true);
+  });
+
+  it('fails closed when the role read answers a refusal', async () => {
+    const resolver = new MfaPolicyResolver(fakeSettings({}), fakeEmFactory(null), async () => ({
+      refusal: new Error('ADMIN_ROLE_REQUIRED'),
+    }));
+    expect((await resolver.resolve(admin, ctx)).totpEnforced).toBe(true);
+  });
+
+  it('never reads a role for a customer subject', async () => {
+    const asked: string[] = [];
+    const resolver = new MfaPolicyResolver(fakeSettings({}), fakeEmFactory(null), roleOf(true, asked));
+    const p = await resolver.resolve({ subjectType: 'customer', subjectId: 'c1' }, ctx);
+    expect(p.totpEnforced).toBe(false);
+    expect(asked).toEqual([]);
+  });
+
+  it('reads no role for the anonymous provider list, which names no administrator', async () => {
+    const asked: string[] = [];
+    const resolver = new MfaPolicyResolver(fakeSettings({}), fakeEmFactory(null), roleOf(true, asked));
+    await resolver.resolve({ subjectType: 'admin', subjectId: '' }, ctx);
+    expect(asked).toEqual([]);
   });
 });

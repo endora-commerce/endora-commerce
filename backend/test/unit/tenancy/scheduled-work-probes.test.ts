@@ -2,6 +2,7 @@ import { existsSync, readdirSync, readFileSync } from 'node:fs';
 import { join, relative, sep } from 'node:path';
 import { fileURLToPath } from 'node:url';
 import { describe, expect, it, vi } from 'vitest';
+import { anyRowExists as assetsLibraryAnyRowExists } from '../../../../packages/modules/assets_library/src/backend/services/scheduled-work-probe.js';
 import { anyRowExists as catalogAnyRowExists } from '../../../../packages/modules/catalog/src/backend/services/scheduled-work-probe.js';
 import { anyRowExists as customerAccountsAnyRowExists } from '../../../../packages/modules/customer_accounts/src/backend/services/scheduled-work-probe.js';
 import { anyRowExists as crmAnyRowExists } from '../../../../packages/modules/crm/src/backend/services/scheduled-work-probe.js';
@@ -54,6 +55,8 @@ const PROBES = [
   { module: 'tasks', file: 'services/reminder-service.ts', method: 'hasWork' },
   { module: 'tasks', file: 'services/digest-service.ts', method: 'hasWork' },
   { module: 'tasks', file: 'services/maintenance-service.ts', method: 'hasWork' },
+  // Issue #909 — the retention sweep's four passes, one question.
+  { module: 'assets_library', file: 'jobs/retention-due-probe.ts', method: 'hasDue' },
   // Issue #894 — the publication-window sweep.
   { module: 'catalog', file: 'services/publication-window-sweep.ts', method: 'hasDueTransitions' },
   // Issue #857 — the owner of the table answers for `customers`' anonymisation sweep tick.
@@ -145,6 +148,7 @@ describe('scheduled work probes answer one bit (issue #120)', () => {
     ['quote_requests', quoteRequestsAnyRowExists],
     ['projects', projectsAnyRowExists],
     ['tasks', tasksAnyRowExists],
+    ['assets_library', assetsLibraryAnyRowExists],
     ['catalog', catalogAnyRowExists],
     ['customer_accounts', customerAccountsAnyRowExists],
     ['organizations', organizationsAnyRowExists],

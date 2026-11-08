@@ -519,6 +519,41 @@ export const quoteRequestSchema = z.object({
 });
 export type QuoteRequest = z.infer<typeof quoteRequestSchema>;
 
+/**
+ * How far a quote request is agreed (issue #456, PO ruling of 2026-11-08):
+ * `agreed` — every line has an agreed price; `partial` — some lines do;
+ * `none` — no line does (a quote without a line included).
+ */
+export const quoteRequestAgreementSchema = z.enum(['agreed', 'partial', 'none']);
+export type QuoteRequestAgreement = z.infer<typeof quoteRequestAgreementSchema>;
+
+/**
+ * What a quote request is worth — **one rule**, owned by `quote_requests`
+ * (issue #456, owner ruling of 2026-11-07). The quote desk list, a CRM
+ * Opportunity's link and a Project's link all show this figure; none of them
+ * re-derives it. Read it from `quoteRequestReadPort.amountOf`.
+ *
+ * - **Per line**: quantity × (agreed unit price ?? the price the customer
+ *   asked for). The unit price keeps its four places; the line value is the
+ *   rounding point, half-up to two places once (`lineAmountHalfUp`,
+ *   `specs/conventions/pricing.md`), and the line values are summed exactly.
+ * - **A line with neither price adds nothing** — it is not a zero price, it is
+ *   no price. A quote none of whose lines has a price has **no amount**
+ *   (`null`, shown as `—`), not `0.00`.
+ * - Net of tax, in the currency of the first line (what the desk shows the
+ *   total in); `null` for a quote without a line.
+ *
+ * A consumer shows a marker only beside an amount: *Partially agreed* for
+ * `partial`, *Not yet agreed* for `none`.
+ */
+export const quoteRequestAmountSchema = z.object({
+  /** Two places, non-negative: `35.00`; `null` when no line has a price. */
+  amount: z.string().regex(/^\d+\.\d{2}$/).nullable(),
+  currency: z.string().length(3).nullable(),
+  agreement: quoteRequestAgreementSchema,
+});
+export type QuoteRequestAmount = z.infer<typeof quoteRequestAmountSchema>;
+
 export const quoteRequestSummarySchema = z.object({
   id: uuidSchema,
   businessId: z.string(),
@@ -546,6 +581,13 @@ export const quoteRequestSummarySchema = z.object({
     .optional(),
   organizationName: z.string().optional(),
   customerDisplayName: z.string().nullable().optional(),
+  /**
+   * Issue #456 — the quote's amount and how far it is agreed
+   * ({@link quoteRequestAmountSchema}). **Admin list only**; the customer list
+   * keeps its two every-line-or-`null` totals.
+   */
+  amount: quoteRequestAmountSchema.shape.amount.optional(),
+  agreement: quoteRequestAgreementSchema.optional(),
 });
 export type QuoteRequestSummary = z.infer<typeof quoteRequestSummarySchema>;
 
@@ -979,6 +1021,15 @@ export interface QuoteRequestReadPort {
    * resolve it.
    */
   findByBusinessId(businessId: string): Promise<QuoteRequestRecord | null>;
+  /**
+   * What the quote is worth, by the one rule of {@link quoteRequestAmountSchema},
+   * or `null` when the quote is missing or out of the caller's scope — the
+   * answer `findById` gives for it.
+   *
+   * Added for issue #456: `crm` and `projects` each kept a copy of the rule
+   * over `listItems`, and the quote desk list a third, different one.
+   */
+  amountOf(quoteRequestId: string): Promise<QuoteRequestAmount | null>;
 }
 
 /** Who is asking, on a customer-facing quote path. */
