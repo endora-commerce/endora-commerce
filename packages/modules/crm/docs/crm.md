@@ -1271,7 +1271,11 @@ same endpoint with `"documentKind": "quote_request"`. It must belong to the
 opportunity's organization, and it belongs to at most one opportunity. An
 opportunity can hold several quote requests and several orders.
 
-A linked quote request is listed with its number, its status and its value.
+A linked quote request is listed with its number, its status and its value —
+the amount the Quote Requests module computes for it, the figure its own list
+shows. While only some of its lines have an agreed price, the value is marked
+**Partially agreed**; while none has, **Not yet agreed**. A quote request
+without any price shows `—` and adds nothing to a computed value.
 **A quote request is the Quote Requests module's to show**: linking one, and
 being offered one to link, needs `rfqs:handle` — the permission that module
 reads a request with — as well as `crm:write`, and answers `403` without it.
@@ -1315,10 +1319,11 @@ A computed value is the sum of:
   order's **total** — the gross amount the customer pays: goods, tax, delivery
   and any payment surcharge, less discounts;
 - every linked **quote request** whose status is a counting quote request
-  status, at the **sum of quantity × unit price** over its lines. The unit
-  price is the agreed price, or the price the customer asked for while none has
-  been agreed. Quote prices are **net of tax** — this is the figure the quote
-  request's own screen shows as its net total.
+  status, at its **amount**: the sum over its lines of quantity × unit price,
+  where each line's unit price is its agreed price, or the price the customer
+  asked for while that line has none. A line with neither price adds nothing.
+  The Quote Requests module computes this amount, and its own list shows the
+  same figure. Quote prices are **net of tax**.
 
 The two are not on the same basis, and neither is converted: each document
 counts at the figure its own screen shows.
@@ -1332,9 +1337,9 @@ are both counted.
 **One currency.** An opportunity has one currency and nothing is converted. A
 document in another currency that would otherwise count is left out, and the
 opportunity names it: `excludedDocuments` on the opportunity lists each one as
-`{ kind, id, reason: "currency_mismatch" }`. A quote request with lines in
-several currencies counts the lines in the opportunity's currency and is named
-as well.
+`{ kind, id, reason: "currency_mismatch" }`. A quote request counts in the
+currency its amount is in, its first line's: in another currency, it is left
+out and named as a whole.
 
 The value follows the documents: it is recalculated when a document is linked
 or unlinked, when a linked order changes status, when a linked quote request is

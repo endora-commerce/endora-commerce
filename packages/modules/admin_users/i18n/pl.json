@@ -8,5 +8,12 @@
   "errors.NEW_PASSWORD_UNCHANGED": "Nowe hasło jest takie samo jak obecne. Wybierz inne hasło.",
   "errors.ADMIN_USER_OUTRANKS_ACTOR": "Rola tego konta ma uprawnienia, których nie ma Twoja rola ({permissions}), więc nie możesz go zmienić, ustawić mu hasła, dezaktywować ani usunąć.",
   "errors.ADMIN_USER_AVATAR_NOT_FOUND": "Avatar musi być obrazem z biblioteki. Wybierz go ponownie.",
-  "actions.openAdminUsers.keywords": "użytkownicy, operatorzy, konta"
+  "actions.openAdminUsers.keywords": "użytkownicy, operatorzy, konta",
+  "errors.MFA_REQUIRED_FOR_ROLE_TWO_FACTOR": "Ta rola nie może wymagać weryfikacji dwuetapowej na tej instancji.",
+  "errors.MFA_REQUIRED_FOR_ROLE_TWO_FACTOR.mfa_off": "Ta rola nie może wymagać weryfikacji dwuetapowej, dopóki weryfikacja dwuetapowa (moduł MFA) jest wyłączona. Najpierw ją włącz, a potem zapisz rolę ponownie.",
+  "errors.MFA_REQUIRED_FOR_ROLE_TWO_FACTOR.encryption_key_missing": "Ta rola nie może wymagać weryfikacji dwuetapowej, bo na tej instancji nie da się skonfigurować drugiego składnika: nie ustawiono klucza szyfrowania MFA_SECRET_ENCRYPTION_KEY. Poproś osobę, która utrzymuje platformę, o jego ustawienie.",
+  "roles.twoFactor.help": "Administratorzy z tą rolą muszą logować się z drugim składnikiem; ci, którzy go nie skonfigurowali, zostaną o to poproszeni przy następnym logowaniu.",
+  "roles.twoFactor.mfaOff": "Weryfikacja dwuetapowa jest wyłączona, więc ten wymóg nie jest teraz stosowany; zacznie obowiązywać ponownie po jej włączeniu.",
+  "roles.twoFactor.confirmSignOut": "Administratorzy z tą rolą bez skonfigurowanej weryfikacji dwuetapowej: {count}. Zostaną teraz wylogowani i przy następnym logowaniu poproszeni o jej skonfigurowanie. Kontynuować?",
+  "roles.twoFactor.signedOut": "Zapisano rolę {code}. Wylogowani administratorzy bez skonfigurowanej weryfikacji dwuetapowej: {count}."
 }
