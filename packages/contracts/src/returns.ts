@@ -231,6 +231,14 @@ export const returnCaseDetailSchema = returnCaseSummarySchema.extend({
    */
   correctiveInvoice: returnCaseCorrectiveInvoiceSchema.nullable(),
   /**
+   * Issue #876 — the order's delivery cost and payment surcharge this case
+   * refunds: a consumer's withdrawal from the whole sale refunds both
+   * (Directive 2011/83 art. 13(1)) on the case that completes it. The approved
+   * amounts — provisional until the case is settled — and `0` on every other
+   * case. Optional on the wire, so an older producer still parses.
+   */
+  chargeRefunds: z.object({ delivery: z.number().finite(), surcharge: z.number().finite() }).optional(),
+  /**
    * Whether the case is a consumer's withdrawal from a distance contract (issue
    * #905, design §2): a `return` by a personal Organization, filed while the
    * withdrawal function was available for the order. Fixed when the case is
@@ -338,6 +346,13 @@ export type AdminReturnRow = z.infer<typeof adminReturnRowSchema>;
 // Settlement (US5)
 // ---------------------------------------------------------------------------
 
+/** One order charge a settlement may refund (issue #876): the most that may be approved, and the amount prefilled. */
+export const settlementChargeSchema = z.object({
+  cap: z.number().finite(),
+  approved: z.number().finite(),
+});
+export type SettlementCharge = z.infer<typeof settlementChargeSchema>;
+
 export const settlementPrefillSchema = z.object({
   currency: z.string().length(3),
   /**
@@ -369,6 +384,23 @@ export const settlementPrefillSchema = z.object({
       approvedRefundAmount: z.number().finite(),
     }),
   ),
+  /**
+   * Issue #876 — the order's charges the case may refund: present only on a
+   * consumer's withdrawal that completes the order, and each charge only when
+   * its cap is above 0. `cap` is what was paid for it less what earlier cases
+   * refunded — the most the operator may approve; `approved` is what settles
+   * if the field is omitted: the cap within the withdrawal window (the
+   * statutory 14 days or the channel's longer free-return window), `0`
+   * outside it. On a settled case `cap` equals `approved`, and a charge settled
+   * at 0 is left out; the cap at settlement is recorded in the
+   * `return.settled` audit entry.
+   */
+  charges: z
+    .object({
+      delivery: settlementChargeSchema.optional(),
+      surcharge: settlementChargeSchema.optional(),
+    })
+    .optional(),
 });
 export type SettlementPrefill = z.infer<typeof settlementPrefillSchema>;
 
@@ -396,6 +428,20 @@ export const settlementRequestSchema = z.object({
     .default([]),
   refundPaymentMethodId: uuidSchema.optional(),
   createCorrectiveInvoice: z.boolean().optional(),
+  /**
+   * Issue #876 — what the case refunds of the order's delivery cost and of its
+   * payment surcharge (ruling Q2 on PR #965):
+   * - omitted: the default recomputed under the order's lock (the full amount
+   *   within the withdrawal window, 0 outside it);
+   * - present: settled exactly as sent, 0 included, when it is at most the cap
+   *   (art. 13(2): a premium delivery reduced to the standard one);
+   * - above the cap: refused `422 refund_exceeds_paid`, with nothing written.
+   * Only a consumer's withdrawal that completes the order, settled with a
+   * refund or a credit, has a cap above 0. This deliberately differs from the
+   * line rule, where an amount equal to a default means the default approved.
+   */
+  deliveryRefundAmount: twoDecimalAmount(z.number().finite().nonnegative()).optional(),
+  surchargeRefundAmount: twoDecimalAmount(z.number().finite().nonnegative()).optional(),
 });
 export type SettlementRequest = z.infer<typeof settlementRequestSchema>;
 
@@ -691,6 +737,19 @@ export interface ReturnRefundReadPort {
    * invoice to correct yet — lists only what the buyer kept.
    */
   listReturnedQuantities(orderId: string): Promise<OrderReturnedQuantity[]>;
+  /**
+   * What the order's settled `return` cases refunded of its delivery cost and
+   * of its payment surcharge (issue #876), over the same cases as
+   * {@link listReturnedQuantities}, so an invoice issued afterwards charges
+   * only what is left of each.
+   */
+  listRefundedCharges(orderId: string): Promise<OrderRefundedCharges>;
+}
+
+/** What settled returns refunded of an order's charges (issue #876): two-place decimal strings, `0.00` for none. */
+export interface OrderRefundedCharges {
+  delivery: string;
+  surcharge: string;
 }
 
 // --- the other three consumer-declared seams ---------------------------------
@@ -789,6 +848,13 @@ export interface OrderReturnContext {
   productsPaidTotal: string;
   /** The order-level discount, as stored (two places) — the part of it a return carries is credited back as a discount. */
   discountTotal: string;
+  /**
+   * Issue #876 — the order's delivery cost, as stored (two places): a
+   * consumer's withdrawal from the whole sale refunds it.
+   */
+  deliveryTotal: string;
+  /** Issue #876 — the payment surcharge captured at placement, as stored (two places; `0.00` without one). */
+  paymentSurcharge: string;
   lines: OrderReturnContextLine[];
 }
 
@@ -873,6 +939,14 @@ export interface CorrectiveInvoiceInput {
    * Absent: the label names no case.
    */
   caseReference?: string;
+  /**
+   * Issue #876 — the order's charges this correction credits, gross: a
+   * consumer's withdrawal from the whole sale refunds the delivery and the
+   * payment surcharge. Each is credited at the rate of the invoice line that
+   * charged it, and never above what that line still charges. `total`
+   * includes them. Absent or 0: a return correction credits goods only.
+   */
+  charges?: { delivery?: number; surcharge?: number };
 }
 
 /** A correction was issued: the document that credits the original invoice. */

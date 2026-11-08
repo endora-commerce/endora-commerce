@@ -3903,6 +3903,76 @@ verification*, describes the behaviour.
    two-step verification before you upgrade (*Account security* in the Admin UI), or make sure an
    administrator of another role can sign in to change the role.
 
+### A consumer's withdrawal refunds the delivery and the surcharge {#withdrawal-refunds-charges}
+
+On a consumer's withdrawal from a sale, the trader must refund every payment received, the delivery
+cost included (Directive 2011/83/EU art. 13(1); art. 32 ust. 1 of the Polish Consumer Rights Act).
+Until this release a B2C return refunded the goods only, so the delivery cost and the payment
+surcharge stayed with the shop and on the invoice (issue #876).
+
+From this release, the return that brings back the last unit of a B2C order refunds the order's
+delivery cost and payment surcharge as well. A B2C order is one whose organization is a personal
+one. The settlement form fills both in at the full amount when the case was opened within 14 days of
+the order's completion, or within the channel's `returns.free_return_days` when that is longer.
+Outside that window it starts at 0, and you may raise it to what was paid. A partial return, a
+complaint and a business customer's return are unchanged.
+
+**What changes for you:**
+
+- A B2C case that completes a withdrawal moves more money than the sum of its lines. Its
+  `totalRefundAmount` includes the charges.
+- An API client that settles such a case without `deliveryRefundAmount` and `surchargeRefundAmount`
+  refunds the prefilled amounts. Send `0` to refund neither, or a lower amount when the customer
+  chose a more expensive delivery than the cheapest standard one (art. 13(2)).
+- On an invoiced order, the correction credits the delivery and the surcharge on lines of their own.
+  On an order not invoiced yet, the invoice charges only what is left of each. A B2C order refunded
+  in full is not invoiced.
+
+Migration `20261108T125405_returns_case_charge_refunds.ts` adds four columns to `return_cases`, all
+`0.00` by default. Cases settled before the upgrade are not changed, and the platform does not
+refund them retroactively.
+
+**Orders already returned in full.** To find B2C orders returned in full before the upgrade whose
+delivery or surcharge was not refunded, run this read-only query after the upgrade:
+
+```sql
+with returned as (
+  select rc.order_id, rci.order_item_id, sum(rci.quantity) as quantity
+  from return_cases rc
+  join return_case_items rci on rci.return_case_id = rc.id
+  where rc.kind = 'return'
+    and rc.resolution_type in ('refund', 'credit')
+  group by rc.order_id, rci.order_item_id
+),
+returned_in_full as (
+  select oi.order_id
+  from order_items oi
+  left join returned r on r.order_id = oi.order_id and r.order_item_id = oi.id
+  group by oi.order_id
+  having bool_and(coalesce(r.quantity, 0) >= oi.quantity)
+)
+select o.id as order_id,
+       o.placed_at,
+       o.currency,
+       o.delivery_total,
+       coalesce((o.payment_method_snapshot ->> 'additionalPrice')::numeric, 0) as payment_surcharge
+from orders o
+join returned_in_full f on f.order_id = o.id
+join organizations org on org.id = o.organization_id
+where org.is_personal
+  and (o.delivery_total > 0
+       or coalesce((o.payment_method_snapshot ->> 'additionalPrice')::numeric, 0) > 0)
+  and not exists (
+    select 1 from return_cases rc
+    where rc.order_id = o.id
+      and (rc.approved_delivery_refund > 0 or rc.approved_surcharge_refund > 0)
+  )
+order by o.placed_at;
+```
+
+Each row is an order whose every line came back through returns settled with a refund or a
+credit, and whose delivery or surcharge no case refunded. Decide for each one whether to refund
+it by hand, for example by bank transfer, and record that on the order.
 ### Enforced two-step verification without an encryption key {#admin-two-step-without-key}
 
 The release that ships `MFA_ENFORCEMENT_UNAVAILABLE` closes a lockout (issue #930). Without

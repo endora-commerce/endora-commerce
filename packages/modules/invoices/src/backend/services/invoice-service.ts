@@ -11,6 +11,7 @@ import {
   type InvoiceDetail,
   type InvoiceKind,
   type OrderReadPort,
+  type OrderRefundedCharges,
   type OrderReturnRefund,
   type OrderReturnedQuantity,
   type SupportedLanguage,
@@ -63,6 +64,11 @@ export interface CapturedPaymentsLookup {
 export interface ReturnRefundsLookup {
   refundsFor(orderId: string): Promise<OrderReturnRefund[]>;
   returnedQuantitiesFor(orderId: string): Promise<OrderReturnedQuantity[]>;
+  /**
+   * What those cases refunded of the order's delivery and surcharge (issue
+   * #876) — `0.00` each when `returns` is absent and nothing can say.
+   */
+  refundedChargesFor(orderId: string): Promise<OrderRefundedCharges>;
 }
 
 /** Minimal audit-log seam (FR-035). */
@@ -186,8 +192,8 @@ export class InvoiceService {
     // invoice exists has no invoice to correct (#135), so the invoice lists
     // each line at its ordered quantity less what came back, and a line
     // returned in full drops out. The delivery and surcharge lines below are
-    // the order's; the discount line carries only the kept goods' share
-    // (ruling Q3).
+    // the order's, less what a consumer's withdrawal refunded of them (issue
+    // #876); the discount line carries only the kept goods' share (ruling Q3).
     const returned = (await this.returnRefunds?.returnedQuantitiesFor(orderId)) ?? [];
     const raw: RawOrderLine[] = keptOrderLines(items, returned).map(({ item: it, quantity }) => ({
       name: it.productSnapshot?.name ?? names['lines.item'],
@@ -205,7 +211,13 @@ export class InvoiceService {
     // and subtracts the discount on the gross without extra VAT, so each is a
     // 0%-VAT line (the discount is a negative line).
     // The amounts are read as the decimals they are stored as (issue #417).
-    const deliveryTotal = roundHalfUp(order.deliveryTotal ?? 0);
+    // Issue #876 — less what a settled return refunded of each: a consumer's
+    // withdrawal from the whole sale refunds the delivery and the surcharge, so
+    // the invoice charges only what is left, and a line that reaches 0 drops
+    // out. What is left is a delivery the operator reduced to the standard
+    // price (art. 13(2)), or one a business customer's return kept.
+    const refundedCharges = (await this.returnRefunds?.refundedChargesFor(orderId)) ?? { delivery: '0', surcharge: '0' };
+    const deliveryTotal = maxDecimal(moneyDifference(roundHalfUp(order.deliveryTotal ?? 0), refundedCharges.delivery), '0.00');
     if (Number(deliveryTotal) > 0) {
       raw.push({
         name: names['lines.delivery'],
@@ -217,7 +229,10 @@ export class InvoiceService {
         lineKind: 'delivery',
       });
     }
-    const surcharge = roundHalfUp(order.paymentMethodSnapshot?.additionalPrice ?? 0);
+    const surcharge = maxDecimal(
+      moneyDifference(roundHalfUp(order.paymentMethodSnapshot?.additionalPrice ?? 0), refundedCharges.surcharge),
+      '0.00',
+    );
     if (Number(surcharge) > 0) {
       raw.push({
         name: names['lines.paymentSurcharge'],

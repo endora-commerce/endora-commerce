@@ -87,6 +87,11 @@ export function ReturnDetail(): ReactNode {
   // no permission): the field then falls back to the method's id.
   const [paymentMethods, setPaymentMethods] = useState<RefundPaymentMethodOption[] | null | undefined>(undefined);
   const [approved, setApproved] = useState<Record<string, number>>({});
+  // Issue #876 — the delivery and surcharge a consumer's completing withdrawal
+  // refunds. Only an amount the operator edited is sent (ruling Q2 on PR #965):
+  // an omitted one settles at the default recomputed under the order's lock,
+  // a sent one exactly as typed, 0 included.
+  const [approvedCharges, setApprovedCharges] = useState<{ delivery?: number; surcharge?: number }>({});
   // Issue #150 — a correction is asked for by default, as the screen always
   // did; the control exists because "not requested" is one of the three
   // outcomes below and an operator has to be able to reach it deliberately.
@@ -112,6 +117,7 @@ export function ReturnDetail(): ReactNode {
         // amount paid: a complaint line that was not returnable at purchase is
         // stored at 0, so nothing is refunded for it unless the operator sets it.
         setApproved(Object.fromEntries(pf.items.map((it) => [it.returnCaseItemId, it.approvedRefundAmount])));
+        setApprovedCharges({});
         // Issue #905 (design D1) — a refund to the order's own payment method.
         setResolution(pf.defaultResolution ?? 'refund');
         setPaymentMethodId(pf.defaultRefundPaymentMethodId ?? '');
@@ -415,8 +421,43 @@ export function ReturnDetail(): ReactNode {
                     </TableCell>
                   </TableRow>
                 ))}
+                {/*
+                  Issue #876 — a consumer's withdrawal that completes the order
+                  refunds the delivery and the payment surcharge (Directive
+                  2011/83 art. 13(1)). Shown only when there is something to
+                  refund; lower it for a premium delivery (art. 13(2)).
+                */}
+                {(['delivery', 'surcharge'] as const).map((key) => {
+                  const charge = prefill.charges?.[key];
+                  if (!charge || charge.cap <= 0) return null;
+                  const label =
+                    key === 'delivery'
+                      ? t('returns.detail.settlement.charge.delivery')
+                      : t('returns.detail.settlement.charge.surcharge');
+                  return (
+                    <TableRow key={key}>
+                      <TableCell>{label}</TableCell>
+                      <TableCell>{charge.cap.toFixed(2)}</TableCell>
+                      <TableCell>
+                        <input
+                          type="number"
+                          step="0.01"
+                          min="0"
+                          max={charge.cap}
+                          aria-label={label}
+                          className="h-8 w-28 rounded-md border border-input bg-background px-2 text-sm"
+                          value={approvedCharges[key] ?? charge.approved}
+                          onChange={(e) => setApprovedCharges((prev) => ({ ...prev, [key]: Number(e.target.value) }))}
+                        />
+                      </TableCell>
+                    </TableRow>
+                  );
+                })}
               </TableBody>
             </Table>
+            {prefill.charges ? (
+              <p className="text-xs text-muted-foreground">{t('returns.detail.settlement.charge.hint')}</p>
+            ) : null}
             <label className="flex items-center gap-2 text-sm" htmlFor="createCorrectiveInvoice">
               <Checkbox
                 id="createCorrectiveInvoice"
@@ -441,6 +482,8 @@ export function ReturnDetail(): ReactNode {
                       ...(resolution === 'refund' && paymentMethodId.trim()
                         ? { refundPaymentMethodId: paymentMethodId.trim() }
                         : {}),
+                      ...(approvedCharges.delivery !== undefined ? { deliveryRefundAmount: approvedCharges.delivery } : {}),
+                      ...(approvedCharges.surcharge !== undefined ? { surchargeRefundAmount: approvedCharges.surcharge } : {}),
                       createCorrectiveInvoice,
                     });
                     // Issue #150 — kept whatever the gateway said, because the

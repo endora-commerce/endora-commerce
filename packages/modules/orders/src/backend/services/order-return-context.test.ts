@@ -62,6 +62,21 @@ describe('returnContextFrom', () => {
     const ctx = returnContextFrom(order('per_rate', '100.00', '23.00', '50.00'), [item('a', '100.00', 1, '0.2300', '123.00')]);
     expect([ctx.productsPaidTotal, ctx.discountTotal]).toEqual(['73.00', '50.00']);
   });
+
+  it('reports the delivery cost and the payment surcharge as stored (issue #876)', () => {
+    // A consumer's withdrawal from the whole sale refunds both (Directive 2011/83 art. 13(1)).
+    const base = order('per_rate', '100.00', '23.00') as unknown as Record<string, unknown>;
+    const ctx = returnContextFrom(
+      { ...base, deliveryTotal: '15.99', paymentMethodSnapshot: { code: 'cod', name: 'COD', kind: 'cash_on_delivery', additionalPrice: 2.5 } } as never,
+      [item('a', '50.00', 2, '0.2300', '123.00')],
+    );
+    expect([ctx.deliveryTotal, ctx.paymentSurcharge]).toEqual(['15.99', '2.50']);
+  });
+
+  it('reports 0.00 for an order with neither', () => {
+    const ctx = returnContextFrom(order('per_rate', '100.00', '23.00'), [item('a', '50.00', 2, '0.2300', '123.00')]);
+    expect([ctx.deliveryTotal, ctx.paymentSurcharge]).toEqual(['0.00', '0.00']);
+  });
 });
 
 /**

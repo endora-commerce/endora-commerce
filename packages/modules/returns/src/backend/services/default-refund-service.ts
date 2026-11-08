@@ -1,5 +1,5 @@
 import type { EntityManager } from '@mikro-orm/postgresql';
-import type { OrderReturnContext } from '@endora-commerce/contracts';
+import { moneySum, type OrderReturnContext } from '@endora-commerce/contracts';
 import { ReturnCase } from '../entities/return-case.entity.js';
 import { ReturnCaseItem } from '../entities/return-case-item.entity.js';
 import {
@@ -9,6 +9,7 @@ import {
   VOID_STATUS_CODES,
 } from '../domain/kept-state.js';
 import { approvedAmount, effectiveDefaultRefunds, type RefundOrder } from '../domain/refund-math.js';
+import { chargeRefunds, completesOrder, type ChargeRefund } from '../domain/charge-refunds.js';
 import { isLineReturnable } from './return-eligibility.js';
 
 /**
@@ -103,3 +104,41 @@ export function caseDefaults(input: {
     current: input.current,
   });
 }
+
+/**
+ * The order's charges a case refunds (issue #876): the cap and the default of
+ * the delivery cost and of the payment surcharge, on the same basis — and over
+ * the same cases — as {@link caseDefaults}, so the case that completes the
+ * withdrawal is the one the goods' rule completes on. `isPersonal` and
+ * `withinWindow` are the caller's to establish (`domain/charge-refunds.ts`).
+ */
+export function caseCharges(input: {
+  context: OrderReturnContext;
+  history: OrderCases;
+  basis: KeptStateBasis;
+  excludeCaseId?: string;
+  kind: 'return' | 'complaint';
+  current: ReadonlyArray<{ orderItemId: string; quantity: number }>;
+  isPersonal: boolean;
+  withinWindow: boolean;
+}): { delivery: ChargeRefund; surcharge: ChargeRefund } {
+  const counts = input.basis === 'settled' ? entersKeptState : entersKeptStateProvisionally;
+  const kept = input.history.cases.filter((c) => c.id !== input.excludeCaseId).filter(counts);
+  const keptIds = new Set(kept.map((c) => c.id));
+  return chargeRefunds({
+    isPersonal: input.isPersonal,
+    kind: input.kind,
+    completes: completesOrder(
+      input.context.lines,
+      input.history.items.filter((it) => keptIds.has(it.returnCaseId)),
+      input.current,
+    ),
+    withinWindow: input.withinWindow,
+    paid: { delivery: input.context.deliveryTotal, surcharge: input.context.paymentSurcharge },
+    refundedBefore: {
+      delivery: moneySum(kept.map((c) => c.approvedDeliveryRefund)),
+      surcharge: moneySum(kept.map((c) => c.approvedSurchargeRefund)),
+    },
+  });
+}
+
