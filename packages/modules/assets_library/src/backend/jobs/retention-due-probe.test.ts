@@ -2,7 +2,7 @@ import { describe, expect, it, vi } from 'vitest';
 
 import { ASSET_CLEANUP_GRACE_MS, cutoffFor, DAY_MS, type RetentionSweepDeps } from './retention-sweep-deps.js';
 import { RetentionDueProbe } from './retention-due-probe.js';
-import { retentionDueRows } from './retention-due-rows.js';
+import { previousVersionsDue, retentionDueRows } from './retention-due-rows.js';
 import { createAssetRetentionSweeper } from './retention-sweeper.js';
 
 /**
@@ -55,6 +55,15 @@ describe('retentionDueRows (#909)', () => {
       cutoff,
       new Date(NOW.getTime() - ASSET_CLEANUP_GRACE_MS),
     ]);
+  });
+});
+
+describe('previousVersionsDue — only the rows pass 1 can purge (#914)', () => {
+  it('leaves out legacy rows and rows with no previous locator, which the pass never purges', () => {
+    const { from } = previousVersionsDue(cutoffFor(NOW, RETENTION_DAYS));
+
+    expect(from).toContain(`"storage_backend" <> 'legacy'`);
+    expect(from).toContain(`"previous_storage_locator" <> ''`);
   });
 });
 
