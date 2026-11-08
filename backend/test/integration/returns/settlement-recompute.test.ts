@@ -124,7 +124,7 @@ describe('returns — the default refund recomputed at settlement (#874, #875)',
 
   interface OpenCase {
     id: string;
-    items: Array<{ id: string; defaultRefundAmount: number }>;
+    items: Array<{ id: string; defaultRefundAmount: number; approvedRefundAmount: number }>;
   }
 
   /** Submit a case; with `received`, authorize it and receive it so it can settle. */
@@ -421,6 +421,22 @@ describe('returns — the default refund recomputed at settlement (#874, #875)',
       expect(await leftPaid(o.orderId, o.total)).toBe('0.00');
       // Every correction went through, and the invoice keeps what is left paid.
       expect(await keptGross(o.orderId)).toBe('0.00');
+    });
+
+    it('the figure shown at creation is the effective default: after a complaint of 11.03 on 1A, a case for 2A shows 22.04, and settling it in order moves nothing', async () => {
+      const o = await seedTwoRate();
+      const complaint = await openCase(o.orderId, [{ orderItemId: o.items[0]!, quantity: 1 }], 'complaint');
+      await receive(complaint);
+      await settled(complaint);
+      const a = await openCase(o.orderId, [{ orderItemId: o.items[0]!, quantity: 2 }]);
+      // Shown at creation: the ceiling applies on the provisional basis; the stored default stays the goods' value.
+      expect(a.items[0]!.approvedRefundAmount).toBe(22.04);
+      expect(await stored(a)).toEqual([['22.05', '2.58', '22.04']]);
+      await receive(a);
+      await settled(a, { amounts: [a.items[0]!.approvedRefundAmount] });
+      expect(await stored(a)).toEqual([['22.05', '2.58', '22.04']]);
+      expect(await refundOf(a)).toBe('22.04');
+      expect((await settledAudit(a)).recomputedDefaults).toBeUndefined();
     });
 
     it('E-C — a complaint of 6.15 on 1A, then 1A returned: the form offers the full 11.03; 4.88 is accepted and the money is exact', async () => {
