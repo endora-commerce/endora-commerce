@@ -11,6 +11,7 @@ import {
   findSeamForwarders,
   findWorkerFactories,
   keyOf,
+  listingOf,
   scanSubscribeSeam,
 } from '../../../scripts/check-subscribe-seam.js';
 
@@ -348,6 +349,35 @@ describe('findWorkerFactories / findWorkerSites — the queue-consumer spellings
       "defineModuleWorker('pwa', createPushDeliveryWorker(options.redis, processor));",
     );
     expect(checkWorkerSeam({ sources: fixed }, { [key]: 'stale now' }).stale).toEqual([key]);
+  });
+});
+
+describe('--list attributes the way the verdict does (issue #919)', () => {
+  // A host-resident module's directory carries no `modules/<id>/` segment, so
+  // its owner comes from `hostResidentModules` alone. The verdict always took
+  // the map; `--list` did not, and so listed a different population from the
+  // one the verdict judged. Both outputs come from one scan here, the one the
+  // CLI runs, so the two cannot be compared over different inputs.
+  const sources = new Map([
+    [
+      'lifecycle/services/reconcile-listener.ts',
+      "eventBus.on('module.activation_changed.v1', async (p) => { await reconcile(p); });",
+    ],
+  ]);
+  const hostResidentModules = new Map([['lifecycle', '_lifecycle']]);
+
+  it('names the host-resident owner in the listing that the verdict judged', () => {
+    const scan = scanSubscribeSeam({ sources, hostResidentModules });
+
+    expect(scan.result.violations.map((v) => `${v.file} ${v.moduleId}`)).toEqual([
+      'lifecycle/services/reconcile-listener.ts _lifecycle',
+    ]);
+    expect(scan.subscriptions.map((s) => `${s.file} ${s.moduleId}`)).toEqual(
+      scan.result.violations.map((v) => `${v.file} ${v.moduleId}`),
+    );
+    expect(listingOf(scan)).toEqual([
+      "BARE     lifecycle/services/reconcile-listener.ts:1  [_lifecycle] eventBus.on('module.activation_changed.v1')",
+    ]);
   });
 });
 

@@ -1,5 +1,5 @@
 import { describe, expect, it } from 'vitest';
-import { DEFAULT_VAT_RATE, grossFromNet, moneyByMode } from '../../lib/i18n/money';
+import { grossFromNet, moneyByMode } from '../../lib/i18n/money';
 
 /**
  * Issue #132 — one seam for every derived gross figure.
@@ -10,10 +10,9 @@ import { DEFAULT_VAT_RATE, grossFromNet, moneyByMode } from '../../lib/i18n/mone
  * the copies also collapsed a zero net into "no gross", because it tested the
  * derived amount for truthiness.
  *
- * The rate itself is still an assumption; the storefront has no resolved tax to
- * read (see the note on `DEFAULT_VAT_RATE`). What these tests pin is that the
- * assumption is named once, that a caller can override it, and that zero
- * survives.
+ * Since issue #852 there is no assumption left to name: every product read
+ * carries its resolved `vatRate`, and a gross is derived at that rate or not at
+ * all. What these tests pin is the derivation itself, and that zero survives.
  */
 
 describe('grossFromNet', () => {
@@ -35,9 +34,7 @@ describe('grossFromNet', () => {
     expect(grossFromNet(Number.NaN, 0.23)).toBeNull();
   });
 
-  it('keeps the deployment assumption in exactly one place', () => {
-    expect(DEFAULT_VAT_RATE).toBe(0.23);
-  });
+
 });
 
 /**
@@ -60,7 +57,7 @@ describe('grossFromNet — the exact decimal product, half-up', () => {
   });
 
   it('the gross shown is the gross a feed publishes', () => {
-    expect(moneyByMode({ amount: 16.5, currency: 'PLN' }, 'gross_only', 'pl-PL').primary).toBe(
+    expect(moneyByMode({ amount: 16.5, currency: 'PLN' }, 'gross_only', 'pl-PL', 0.23).primary).toBe(
       new Intl.NumberFormat('pl-PL', { style: 'currency', currency: 'PLN' }).format(20.3),
     );
   });

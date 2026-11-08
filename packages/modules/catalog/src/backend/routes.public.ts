@@ -19,10 +19,12 @@ import {
   type ProductAudience,
   type ProductListCapabilities,
   type ProductListSort,
+  type ProductTaxRateResolver,
+  type ProductType,
   type SearchQueryPort,
 } from '@endora-commerce/contracts';
 import { HttpError } from '@endora-commerce/platform/http';
-import { effectiveState } from '@endora-commerce/platform/kernel';
+import { effectiveState, rethrowIfModuleDisabled } from '@endora-commerce/platform/kernel';
 import { getResolvedChannel } from '@endora-commerce/platform/kernel';
 import { markPersonalisedPricing, productAudienceOf } from '@endora-commerce/platform/http';
 
@@ -114,6 +116,13 @@ export interface CatalogPublicDeps {
    * refuses loudly when it is.
    */
   listingPriceOrder?: ListingPriceOrderPort;
+  /**
+   * Issue #852 — the buyer's VAT rate per product tax class, by the rule the
+   * cart and the order use. Each product of a listing and the product page
+   * carry it as `vatRate`. Absent in a composition that wires none, and then
+   * no product carries one.
+   */
+  productTaxRates?: ProductTaxRateResolver;
 }
 
 export async function registerCatalogPublicRoutes(
@@ -139,6 +148,44 @@ export async function registerCatalogPublicRoutes(
         p.primaryAssetUrl ? p : { ...p, primaryAssetUrl: url },
       ),
     };
+  }
+
+  /**
+   * Issue #852 — each product's VAT rate for this buyer, so the storefront
+   * derives a gross price at the product's own rate rather than a flat one.
+   *
+   * The rate is the buyer's: it depends on `audience.organizationId` and on
+   * nothing else about the caller, which is what keeps it out of every shared
+   * cache. A caller naming an Organization is answered `private, no-store`
+   * (`markPersonalisedPricing`, set before this runs); a caller naming none —
+   * the only answer a shared cache may hold — is answered the guest's rate,
+   * the same for every such caller.
+   *
+   * A failed resolution answers `vatRate: null` on every product, and the
+   * storefront shows the net: a listing is not refused because a rate could
+   * not be read, and no rate is invented for it. A switched-off owner is not a
+   * failure to tolerate (issue #84) and is re-thrown; both owners are
+   * non-deactivatable today.
+   */
+  async function withVatRates<T extends { type: ProductType }>(
+    products: T[],
+    ctx: ReturnType<typeof readContext>,
+    log: FastifyRequest['log'],
+  ): Promise<Array<T & { vatRate?: number | null }>> {
+    const resolve = deps.productTaxRates;
+    if (!resolve || products.length === 0) return products;
+    try {
+      const byType = await resolve({
+        organizationId: ctx.audience.organizationId,
+        productTypes: products.map((p) => p.type),
+      });
+      return products.map((p) => ({ ...p, vatRate: byType.get(p.type) ?? 0 }));
+    } catch (err) {
+      // A failed read degrades to "no rate", never to a rate: see above.
+      rethrowIfModuleDisabled(err);
+      log.warn({ err }, 'catalog: VAT rate resolution failed; answering no rate');
+      return products.map((p) => ({ ...p, vatRate: null }));
+    }
   }
 
   /**
@@ -284,10 +331,8 @@ export async function registerCatalogPublicRoutes(
       );
       if (outcome.status === 'ok') {
         reply.header('x-search-backend', 'meilisearch');
-        return {
-          ...(await withListPlaceholder(outcome.result, ctx.resolvedChannel.code)),
-          capabilities,
-        };
+        const page = await withListPlaceholder(outcome.result, ctx.resolvedChannel.code);
+        return { ...page, data: await withVatRates(page.data, ctx, request.log), capabilities };
       }
       request.log.warn(
         { err: outcome.reason },
@@ -300,7 +345,8 @@ export async function registerCatalogPublicRoutes(
       ctx,
     );
     reply.header('x-search-backend', 'postgres');
-    return { ...(await withListPlaceholder(result, ctx.resolvedChannel.code)), capabilities };
+    const page = await withListPlaceholder(result, ctx.resolvedChannel.code);
+    return { ...page, data: await withVatRates(page.data, ctx, request.log), capabilities };
   });
 
   // GET /api/v1/catalog/products/:idOrSlug
@@ -312,7 +358,8 @@ export async function registerCatalogPublicRoutes(
       const query = productDetailQuerySchema.parse(request.query ?? {});
       const ctx = readContext(request);
       markPersonalisedPricing(reply, ctx.audience);
-      const product = await queryService.getProductByIdOrSlug(request.params.idOrSlug, ctx);
+      const found = await queryService.getProductByIdOrSlug(request.params.idOrSlug, ctx);
+      const product = (await withVatRates([found], ctx, request.log))[0] ?? found;
       // Imageless product → fall back to the configured placeholder so the PDP
       // hero/card renders something instead of an empty box.
       if (

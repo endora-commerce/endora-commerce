@@ -25,7 +25,8 @@ import {
   type MinimumProductFixture,
 } from '../../helpers/order-minimum-fixture.js';
 
-const [NOT_FOUND, NOT_VISIBLE, NOT_IN_CHANNEL, QUOTE_ONLY, , BELOW_MINIMUM] = ADMIN_ORDER_PREVIEW_MESSAGE_PRECEDENCE;
+const [NOT_FOUND, ARCHIVED, NOT_VISIBLE, NOT_IN_CHANNEL, QUOTE_ONLY, , BELOW_MINIMUM] =
+  ADMIN_ORDER_PREVIEW_MESSAGE_PRECEDENCE;
 
 const ADMIN = { b2b_session: 'stub-admin-session' };
 const OTHER_ORG_ID = '00000000-0000-4000-8000-0000000a1450';
@@ -129,7 +130,7 @@ describe('Admin order preview — visibility and assortment codes (feature 145)'
   afterAll(async () => {
     const em = h.em();
     await em.nativeUpdate(Product, { id: SUBJECT }, { allowedOrganizationIds: [] });
-    await em.nativeUpdate(Product, { id: PRICED }, { deletedAt: null });
+    await em.nativeUpdate(Product, { id: PRICED }, { deletedAt: null, archivedAt: null });
     await em.nativeDelete(PriceDisplayModeOverride, { scope: 'product', targetId: QUOTE_ONLY_PRODUCT });
     if (listedHere) await removeBasePriceSql(em, QUOTE_ONLY_PRODUCT);
     await teardownBackendServer(h);
@@ -296,6 +297,36 @@ describe('Admin order preview — visibility and assortment codes (feature 145)'
       await h.em().nativeUpdate(Product, { id: PRICED }, { deletedAt: null });
     }
   });
+  it('an archived product is PRODUCT_ARCHIVED only, on any channel and whoever may see it (issue #829)', async () => {
+    // Admin order create refuses an archived product with 409
+    // PRODUCT_ARCHIVED, so the preview names the same reason — never the
+    // assortment code the feature-163 availability filter used to produce.
+    expect(ARCHIVED).toBe(ERROR_CODES.PRODUCT_ARCHIVED);
+    await h.em().nativeUpdate(Product, { id: PRICED }, { archivedAt: new Date() });
+    try {
+      for (const channel of [channelA, channelB]) {
+        const data = await previewOk(channel, [PRICED]);
+        expectUnavailable(data, PRICED, ARCHIVED);
+        expect(data.messages).toHaveLength(1);
+        expect(data.summary.subtotal).toBe(0);
+      }
+
+      // Restricted to another Organization as well: archived still outranks it.
+      await h.em().nativeUpdate(Product, { id: PRICED }, { allowedOrganizationIds: [OTHER_ORG_ID] });
+      expectUnavailable(await previewOk(channelA, [PRICED]), PRICED, ARCHIVED);
+      await h.em().nativeUpdate(Product, { id: PRICED }, { allowedOrganizationIds: [] });
+
+      // A live line beside it is still priced.
+      await allowSubjectTo([]);
+      const mixed = await previewOk(channelA, [PRICED, SUBJECT]);
+      expectUnavailable(mixed, PRICED, ARCHIVED);
+      expectPriced(mixed, SUBJECT);
+      expectOneMessagePerUnavailableLine(mixed);
+    } finally {
+      await h.em().nativeUpdate(Product, { id: PRICED }, { archivedAt: null, allowedOrganizationIds: [] });
+    }
+  });
+
   describe('feature 155 — BELOW_MINIMUM_QUANTITY, last in the precedence (FR-009, FR-035)', () => {
     function messageFor(data: PreviewBody['data'], productId: string) {
       return data.messages.find((m) => m.productId === productId);

@@ -86,30 +86,19 @@ export function formatMoneyObject(
   return formatMoney(money.amount, money.currency, locale, options);
 }
 
-/**
- * The VAT rate this deployment **assumes** when deriving a gross amount from a
- * net one — issue #132.
+/*
+ * There is no VAT rate here, and that is deliberate — issue #852.
  *
- * It is an assumption, and saying so is the point. The `taxes` module resolves
- * a real rate per `(country, productType, vatStatus)`, but nothing the
- * storefront reads for a product carries it: `ProductSummary` and the
- * resolved-price payload are net-only, and the `taxes` routes are admin-gated.
- * So no code path on a listing, a card or a PDP price block can consult a tax
- * authority today.
- *
- * The cart no longer assumes it (issue #436): `GET /api/v1/cart` answers each
- * line's rate and the cart's VAT per rate, computed the way the order computes
- * it, and `CartTotals` and `CartLine` render those through
- * {@link moneyByModeWithGross} — showing the net where the read carries none.
- *
- * What changed here is that the assumption lives in one place instead of three.
- * `BaseSalePriceBlock`, `ProductCard` and `ProductRow` each carried their own
- * `0.23` / `1.23` literal, so a deployment in another jurisdiction had nothing
- * to correct; each of them now takes an optional rate and defaults to this
- * constant. When the resolved rate reaches the wire, this is the one seam that
- * has to change.
+ * `DEFAULT_VAT_RATE` (0.23) stood here as the storefront's one assumption about
+ * VAT (issue #132), because nothing it read for a product carried a rate. The
+ * cart stopped assuming it first (issue #436): `GET /api/v1/cart` answers each
+ * line's rate and the cart's VAT per rate. The catalogue followed (issue
+ * #852): every product of the listing and the product page carries `vatRate`,
+ * the buyer's rate for that product, resolved by the same rule the cart and the
+ * order use. So every gross the storefront derives is derived at a rate the
+ * backend resolved, and where a read carries none the surface shows the net,
+ * labelled net — a gross at an assumed rate is not a figure.
  */
-export const DEFAULT_VAT_RATE = 0.23;
 
 /**
  * Derive a gross amount from a net one, or `null` when there is no rate to
@@ -168,12 +157,13 @@ export interface MoneyByMode {
 export function moneyByMode(
   net: { amount: number; currency: string },
   mode: 'net_only' | 'gross_only' | 'both' | 'none',
-  locale?: string,
-  vatRate: number = DEFAULT_VAT_RATE,
+  locale: string | undefined,
+  /** The resolved rate (issue #852); `null` derives no gross, and every mode shows the net. */
+  vatRate: number | null,
   options: FormatMoneyOptions = {},
 ): MoneyByMode {
   const gross = options.unitPrice ? grossUnitPriceFromNet(net.amount, vatRate) : grossFromNet(net.amount, vatRate);
-  return moneyByModeWithGross(net, gross ?? net.amount, mode, locale, options);
+  return moneyByModeWithGross(net, gross, mode, locale, options);
 }
 
 /**
