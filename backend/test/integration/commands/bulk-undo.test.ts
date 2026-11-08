@@ -54,7 +54,8 @@ describe('bulk-edit undo (feature 054, US2) [real DB]', () => {
     events = new EventBus();
     const audit = new AuditLogService(em);
     const commandBus = new CommandBus(orm, audit, events);
-    const catalogAdmin = new CatalogAdminService(em, events as CatalogEventBus, audit);
+    // Issue #241 — a bulk edit refuses to run without the bus that audits each product.
+    const catalogAdmin = new CatalogAdminService(em, events as CatalogEventBus, audit, undefined, commandBus);
     const bulkUpdate = new CatalogBulkUpdateService(em, catalogAdmin, undefined, audit);
     bulkOps = new BulkOperationService(em, bulkUpdate, { events: events as CatalogEventBus }, commandBus);
   });

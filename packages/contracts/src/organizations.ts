@@ -54,6 +54,23 @@ export type VatStatus = z.infer<typeof vatStatusSchema>;
 export const creditInheritanceModeSchema = z.enum(['shared_pool', 'independent_default']);
 export type CreditInheritanceMode = z.infer<typeof creditInheritanceModeSchema>;
 
+/**
+ * The codes a redacted `organization` audit row keeps (issue #844).
+ *
+ * Owner: `organizations`; **codes only** — see
+ * `CUSTOMER_ACCOUNT_AUDIT_KEEP_KEYS` for the rule they extend. This module's
+ * snapshots record codes under `provider` and `outcome` (a tax-id validation)
+ * and `creditInheritanceMode`; `blockSource` and `countryCode` are kept
+ * wherever a writer records them, as they are on the account and the address.
+ */
+export const ORGANIZATION_AUDIT_KEEP_KEYS: readonly string[] = [
+  'blockSource',
+  'countryCode',
+  'creditInheritanceMode',
+  'outcome',
+  'provider',
+];
+
 export const addressKindSchema = z.enum(['delivery', 'billing']);
 export type AddressKind = z.infer<typeof addressKindSchema>;
 
@@ -740,7 +757,9 @@ export interface PersonalOrganizationPort {
    * the account, and calls it again on the next tick if anything after it
    * failed. It writes only what part of the scrub is still missing (the name,
    * the registered address, the legal name, the order-confirmation e-mails,
-   * every custom field value, `deletedAt` — an existing `deletedAt` is kept),
+   * every custom field value, the block and rejection reasons (issue #843:
+   * set to `null`, while the status and its dates stay), `deletedAt` — an
+   * existing `deletedAt` is kept),
    * in one transaction with its audit row, and records nothing when nothing
    * was missing. The audit row names none of the erased data (issue #802).
    * It answers the organisation **whether or not it wrote anything**,
@@ -754,6 +773,37 @@ export interface PersonalOrganizationPort {
    * whether the organisation qualifies.
    */
   anonymizeIfOrphaned(customerAccountId: string): Promise<OrganizationRecord | null>;
+
+  /**
+   * Issue #923 — the ids of the personal organisations a scrub has reached
+   * (they carry its name) that do not yet hold all of the **current** scrub:
+   * one an earlier release scrubbed before the rule grew, or one a crash left
+   * half-written. The retention sweep runs each one's anonymised member
+   * through the cascade again, and {@link anonymizeIfOrphaned} writes what is
+   * missing, so a field added to the scrub reaches every earlier subject on
+   * the next run with no backfill.
+   *
+   * The selection is free of any retention cutoff: a subject already
+   * anonymised is finished whatever the window reads today. It agrees field by
+   * field with the owner's own "fully scrubbed" test, which stays the
+   * in-transaction re-check; a live organisation that merely carries the name
+   * may be listed, and is left alone because it still has a live member.
+   *
+   * Reads only the owner's rows; writes nothing. Unbounded, like
+   * `CustomerAccountLifecycleWritePort.listDueForAnonymization`: in steady
+   * state it answers an empty list.
+   */
+  listIncompletelyScrubbed(): Promise<string[]>;
+
+  /**
+   * Whether {@link listIncompletelyScrubbed} would list anything — **yes or
+   * no, and nothing else**. The retention sweep's scheduled tick asks it with
+   * no tenant context, before it enters the system scope, beside
+   * `CustomerAccountLifecycleWritePort.hasDueForAnonymization`, so that a tick
+   * with organisation-side residue to finish is not taken for an idle one. It
+   * is the list's own row source; no id, row or count leaves it.
+   */
+  hasIncompletelyScrubbed(): Promise<boolean>;
 }
 
 /** One sales-rep ↔ organisation assignment row. */

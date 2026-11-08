@@ -197,6 +197,7 @@ export class InvoiceService {
       taxRate: it.taxRate,
       netValue: lineAmountHalfUp(it.unitPrice, quantity),
       orderItemId: it.id,
+      lineKind: 'goods',
     }));
 
     // Itemize the order's non-product amounts so the invoice total reconciles
@@ -213,6 +214,7 @@ export class InvoiceService {
         unitNetPrice: deliveryTotal,
         taxRate: 0,
         netValue: deliveryTotal,
+        lineKind: 'delivery',
       });
     }
     const surcharge = roundHalfUp(order.paymentMethodSnapshot?.additionalPrice ?? 0);
@@ -224,6 +226,7 @@ export class InvoiceService {
         unitNetPrice: surcharge,
         taxRate: 0,
         netValue: surcharge,
+        lineKind: 'payment_surcharge',
       });
     }
     // Whether anything is left to sell: a kept product line, the delivery or
@@ -243,6 +246,7 @@ export class InvoiceService {
         unitNetPrice: negative,
         taxRate: 0,
         netValue: negative,
+        lineKind: 'discount',
       });
     }
     const built = buildInvoiceLines(raw);
@@ -342,6 +346,7 @@ export class InvoiceService {
           netValue: l.stored.netValue,
           grossValue: l.stored.grossValue,
           orderItemId: l.orderItemId ?? null,
+          lineKind: l.lineKind,
         });
       }
       await tx.flush();

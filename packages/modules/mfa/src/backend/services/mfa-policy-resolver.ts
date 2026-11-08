@@ -1,7 +1,11 @@
 import type { EntityManager } from '@mikro-orm/postgresql';
 import { z } from 'zod';
 import { MFA_SETTING_CODES } from '@endora-commerce/contracts';
-import type { MfaLoginContext, MfaSubjectRef } from '@endora-commerce/contracts';
+import type {
+  AdminRoleResolution,
+  MfaLoginContext,
+  MfaSubjectRef,
+} from '@endora-commerce/contracts';
 import { MfaOrganizationPolicy } from '../entities/mfa-organization-policy.entity.js';
 
 /**
@@ -11,11 +15,23 @@ import { MfaOrganizationPolicy } from '../entities/mfa-organization-policy.entit
  * settings read at the subject's sales channel (per-channel value → global →
  * default); admin settings are read platform-wide, which since feature 072
  * (D-41) has a spelling of its own — `null`. Organization enforcement is
- * additive. The invariant `enforced ⇒ enabled` (FR-016) is applied here.
+ * additive for customers. Role enforcement is additive for administrators
+ * (issue #349): a role whose `requiresTwoFactor` is set requires TOTP of its
+ * holder exactly as `mfa.admin.totp_enforced` requires it of every
+ * administrator. The invariant `enforced ⇒ enabled` (FR-016) is applied here.
  *
  * Every settings read is defensive: if a setting is not yet registered (e.g. a
  * narrow test that skips manifest seeding) the resolver treats it as `false`,
  * so login degrades safely to password-only rather than erroring.
+ *
+ * **The role read is not, and fails closed.** A role that cannot be read — the
+ * read throws, or answers a refusal — counts as requiring a second factor.
+ * This code runs only while `mfa` is present, so the worst case is an
+ * administrator asked to enrol a factor this module can enrol; an
+ * administrator with no role is refused everywhere anyway
+ * (`ADMIN_ROLE_REQUIRED`). The one case it cannot repair is a deployment with
+ * no encryption key, where nothing can be enrolled — that is why a role write
+ * refuses the flag there and the module warns at boot.
  */
 export interface MfaResolvedPolicy {
   totpEnabled: boolean;
@@ -23,6 +39,12 @@ export interface MfaResolvedPolicy {
   googleEnabled: boolean;
   microsoftEnabled: boolean;
 }
+
+/**
+ * The administrator's role, as `admin_roles`' `PermissionReadPort.resolveRole`
+ * answers it. A port call, never an entity read across the boundary.
+ */
+export type AdminRoleReader = (adminUserId: string) => Promise<AdminRoleResolution>;
 
 /** The slice of SettingsService the resolver needs (port — not the class). */
 export interface SettingsReader {
@@ -33,6 +55,8 @@ export class MfaPolicyResolver {
   constructor(
     private readonly settings: SettingsReader,
     private readonly emFactory: () => EntityManager,
+    /** Issue #349 — the administrator's role, for its `requiresTwoFactor`. */
+    private readonly readAdminRole: AdminRoleReader,
     /**
      * Resolves the system-default sales-channel id for a storefront request
      * that arrived without one. `settingsService.get` requires a real channel
@@ -87,8 +111,13 @@ export class MfaPolicyResolver {
     if (!isAdmin && ctx.organizationId) {
       orgEnforced = await this.readOrgEnforcement(ctx.organizationId);
     }
+    // Role enforcement is additive (administrators only). The federated
+    // provider list and its start step resolve with no subject — nobody has
+    // signed in yet — and read only the provider switches, so there is no
+    // role to read.
+    const roleEnforced = isAdmin && subject.subjectId !== '' ? await this.readRoleEnforcement(subject.subjectId) : false;
 
-    const totpEnforced = totpEnforcedRaw || orgEnforced;
+    const totpEnforced = totpEnforcedRaw || orgEnforced || roleEnforced;
     // Invariant FR-016: enforcement implies enablement.
     const totpEnabled = totpEnabledRaw || totpEnforced;
 
@@ -100,6 +129,16 @@ export class MfaPolicyResolver {
       return await this.settings.get(code, channelId, z.boolean());
     } catch {
       return false;
+    }
+  }
+
+  /** Fails closed: an unreadable role, or a refusal, counts as requiring it. */
+  private async readRoleEnforcement(adminUserId: string): Promise<boolean> {
+    try {
+      const resolution = await this.readAdminRole(adminUserId);
+      return resolution.role ? resolution.role.requiresTwoFactor : true;
+    } catch {
+      return true;
     }
   }
 

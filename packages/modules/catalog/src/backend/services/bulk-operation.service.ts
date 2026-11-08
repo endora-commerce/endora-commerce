@@ -228,7 +228,7 @@ export class BulkOperationService {
   async create(input: CreateBulkOperationInput): Promise<SerializedBulkOperation> {
     // command-coverage-ignore: catalog_bulk_operations row bookkeeping (queue
     // status / progress counters); the actual product mutations are audited by
-    // updateProduct, or by the Archive / Restore Commands for `fields.archived`.
+    // the `product.update` Command, or by the Archive / Restore Commands for `fields.archived`.
     // The operation record itself is not a domain-audit target.
     const type = input.type ?? 'product_bulk_update';
     // Final security review S-L3 — a product write runs acting for its requester
@@ -275,7 +275,7 @@ export class BulkOperationService {
   async processById(operationId: string): Promise<void> {
     // command-coverage-ignore: catalog_bulk_operations row bookkeeping (queue
     // status / progress counters); the actual product mutations are audited by
-    // updateProduct, or by the Archive / Restore Commands for `fields.archived`.
+    // the `product.update` Command, or by the Archive / Restore Commands for `fields.archived`.
     // The operation record itself is not a domain-audit target.
     const em = this.emFactory();
     const affected = await em.nativeUpdate(
@@ -351,7 +351,7 @@ export class BulkOperationService {
   private async claimNextPending(): Promise<string | null> {
     // command-coverage-ignore: catalog_bulk_operations row bookkeeping (queue
     // status / progress counters); the actual product mutations are audited by
-    // updateProduct, or by the Archive / Restore Commands for `fields.archived`.
+    // the `product.update` Command, or by the Archive / Restore Commands for `fields.archived`.
     // The operation record itself is not a domain-audit target.
     const em = this.emFactory();
     const candidate = await em.findOne(
@@ -375,7 +375,7 @@ export class BulkOperationService {
   private async processOne(id: string): Promise<void> {
     // command-coverage-ignore: catalog_bulk_operations row bookkeeping (queue
     // status / progress counters); the actual product mutations are audited by
-    // updateProduct, or by the Archive / Restore Commands for `fields.archived`.
+    // the `product.update` Command, or by the Archive / Restore Commands for `fields.archived`.
     // The operation record itself is not a domain-audit target.
     const em = this.emFactory();
     if (!isUuidShape(id)) return;
@@ -502,7 +502,7 @@ export class BulkOperationService {
   ): Promise<void> {
     // command-coverage-ignore: catalog_bulk_operations row bookkeeping (queue
     // status / progress counters); the actual product mutations are audited by
-    // updateProduct, or by the Archive / Restore Commands for `fields.archived`.
+    // the `product.update` Command, or by the Archive / Restore Commands for `fields.archived`.
     // The operation record itself is not a domain-audit target.
     const em = this.emFactory();
     if (!this.deps.reindexRunner) {

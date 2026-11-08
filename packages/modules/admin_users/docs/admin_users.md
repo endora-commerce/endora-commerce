@@ -22,7 +22,8 @@ User + role CRUD is gated by the `admin_users:manage` permission.
 | `PATCH /api/v1/admin/admin-users/:id` | Update name / role assignment / status; it sets no password — a `password` field is refused with 400 `VALIDATION_FAILED`. A role can be changed for another, never cleared: `adminRoleId: null` is refused with 400 `ADMIN_USER_ROLE_REQUIRED`. Setting `status: 'inactive'` signs the account out of every session |
 | `DELETE /api/v1/admin/admin-users/:id` | Soft delete (sets `deletedAt` + `status='inactive'`) and signs the account out of every session |
 | `GET /api/v1/admin/admin-roles` | List roles with their permission arrays |
-| `PUT /api/v1/admin/admin-roles/:code` | Upsert role by code; unknown permissions return 400 `VALIDATION_FAILED` |
+| `PUT /api/v1/admin/admin-roles/:code` | Upsert role by code; unknown permissions return 400 `VALIDATION_FAILED`. Turning `requiresTwoFactor` on is refused with 409 `MFA_REQUIRED_FOR_ROLE_TWO_FACTOR` while MFA is off or has no encryption key; the answer carries `signedOutAdministrators` (see *Roles that require two-step verification*) |
+| `GET /api/v1/admin/admin-roles/:code/two-factor-impact` | How many holders of the role have no second factor and would be signed out by turning its requirement on (`unprotectedAdministrators`; `null` while MFA is off) |
 | `DELETE /api/v1/admin/admin-roles/:id` | Delete; refuses with 409 `ADMIN_ROLE_IN_USE` if any user is still assigned — **including a soft-deleted one**, whose assignment comes back when the account is restored. The refusal names which population holds the role (`details.code` is `assigned` or `assigned_to_deleted`) and how many there are |
 | `GET /api/v1/admin/permissions` | Canonical permission catalogue (module / code / label) used by the matrix UI |
 | `GET /api/v1/admin/me/preferences` | The signed-in administrator's own Admin UI preferences; no permission code is needed (see *Admin UI preferences*) |
@@ -80,6 +81,58 @@ The command updates the existing account, sets the password it is given and
 assigns `platform_admin` unless `--role` names another role. Accounts are not
 given a role automatically on upgrade: that would grant access nobody chose.
 
+## Roles that require two-step verification
+
+A role's **Requires two-step verification on assigned users** checkbox
+(`requiresTwoFactor`) makes every holder of the role sign in with a second
+factor, as the setting `mfa.admin.totp_enforced` does for every administrator.
+The two add up: an administrator must use a second factor when either applies.
+
+At sign-in — with a password, or with Google or Microsoft — a holder who has
+set up two-step verification is asked for a code. A holder who has not is
+taken to set it up, and gets a session only once setup is finished. The
+holder's own two-step verification screen reports the requirement
+(`totpEnforcedForScope`).
+
+**Who is signed out.** An administrator session lasts thirty days, so the
+requirement does not wait for the next sign-in:
+
+- when a role starts requiring two-step verification, every holder who has
+  not set it up is signed out at once;
+- when an administrator who has not set it up is given such a role, they are
+  signed out at once.
+
+Holders who already use two-step verification stay signed in. The
+administrator who makes the change keeps the session they made it from and is
+asked to set two-step verification up at their next sign-in. The Roles screen
+says how many holders will be signed out before it saves, and how many were
+signed out after. A refused save signs nobody out. Each sign-out is recorded in
+the audit log as `mfa.admin_sessions_ended_for_requirement`, with the role and
+the number of administrators.
+
+**When the requirement cannot be turned on.** The checkbox is enforced by the
+MFA module, so:
+
+- while MFA is switched off, the checkbox is disabled and a role cannot start
+  requiring two-step verification (409 `MFA_REQUIRED_FOR_ROLE_TWO_FACTOR`,
+  `details.reason: 'mfa_off'`). A role that already requires it keeps the
+  flag, which applies again when MFA is switched back on. Turning the flag off
+  is always allowed;
+- MFA cannot be switched off while any role requires two-step verification:
+  the module screen refuses with 409 `MFA_DEACTIVATION_BLOCKED` and names the
+  roles (`details.roleCodes`). Untick the checkbox on those roles first;
+- without `MFA_SECRET_ENCRYPTION_KEY` no second factor can be set up, so a
+  role cannot start requiring one either (`details.reason:
+  'encryption_key_missing'`). A role that already requires it would send its
+  holders to a setup step that cannot be completed, so the instance logs a
+  warning at every start naming the roles and how many of their holders have no
+  second factor. Set the key, or untick the checkbox on those roles — as an
+  administrator whose role does not require it, or in the database:
+  `update admin_roles set requires_two_factor = false where code = '<code>';`.
+
+When a deployment removes the MFA module altogether, sign-in asks for no second
+factor, whatever the roles say.
+
 ## Sessions and password changes
 
 A session is a credential, so it is withdrawn when the thing it stood for is:
@@ -91,6 +144,7 @@ A session is a credential, so it is withdrawn when the thing it stood for is:
 | The account is deactivated (`status: 'inactive'`) or deleted | Every session of the account |
 | `admin_users create` (`admin:create`) is run again for an account that already exists | Every session of the account. The write is audited as `admin_user.change_password` with `via: 'cli'` and no acting administrator |
 | The administrator disables their own two-step verification (`POST /api/v1/admin/account/mfa/disable`) | Every session of the account **except the one the request was made from** |
+| A role the account holds starts requiring two-step verification, or the account is given such a role, and the account has not set it up | Every session of the account, **except the one the change was made from when the account made it** (see *Roles that require two-step verification*) |
 
 "Every session" means the sign-ins on other browsers and devices and the impersonation sessions
 the administrator started. The same writes withdraw every sign-in the account had begun and not

@@ -211,6 +211,7 @@ export { DefaultChannelReconciler } from '../kernel/sales-channels/default-chann
 // composition root's to construct.
 export { composeErrorEnvelopeOptions } from '../kernel/i18n/error-envelope-options.js';
 export { AuditLogService } from '../kernel/audit/audit-log-service.js';
+export { AuditRedactionService } from '../kernel/audit/audit-redaction-service.js';
 
 // --- tenancy: establishing and forking a context --------------------------
 export { forkScopedEm } from '../tenancy/scoped-em.js';

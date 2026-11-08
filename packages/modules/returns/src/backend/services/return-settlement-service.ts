@@ -1,10 +1,11 @@
 import { randomUUID } from 'crypto';
 import type { EntityManager } from '@mikro-orm/postgresql';
-import { ERROR_CODES, compareDecimals, isUuidShape, returnCaseOrderLockKey } from '@endora-commerce/contracts';
+import { ERROR_CODES, compareDecimals, isUuidShape, returnCaseOrderLockKey, roundHalfUp } from '@endora-commerce/contracts';
 import type {
   CorrectiveInvoiceInput,
   CorrectiveInvoicePort,
   CreditTopupPort,
+  OrderReturnContext,
   OrderReturnContextPort,
   PaymentRefundPort,
   SettlementPrefill,
@@ -18,7 +19,9 @@ import { ReturnCase } from '../entities/return-case.entity.js';
 import { ReturnCaseItem } from '../entities/return-case-item.entity.js';
 import { Refund } from '../entities/refund.entity.js';
 import { RETURN_STATUS_RESOLVED } from '../domain/return-status-graph.js';
-import { approvedAmount, carriedDiscount, exceedsCap, sumApproved } from '../domain/refund-math.js';
+import { approvedAmount, carriedDiscount, settlementApproved, sumApproved } from '../domain/refund-math.js';
+import { isLineReturnable } from './return-eligibility.js';
+import { caseDefaults, loadOrderCases } from './default-refund-service.js';
 import {
   consentRequiredFor,
   defaultResolution,
@@ -43,11 +46,24 @@ export interface ReturnSettlementServiceDeps {
   correctiveInvoice: CorrectiveInvoicePort;
   creditTopup: CreditTopupPort;
   /**
-   * The order's own payment method, which the refund of a consumer withdrawal
+   * `orders`' return context (a hard manifest dependency): the order facts the
+   * default refund is recomputed from at settlement (issue #875), and the
+   * order's own payment method, which the refund of a consumer withdrawal
    * proposes and is compared with (issue #905, design D1).
    */
-  orderContext: Pick<OrderReturnContextPort, 'getReturnContext'>;
+  orderContext: OrderReturnContextPort;
   auditLog?: AuditPort;
+}
+
+/** A line's default as recomputed for this settlement (issues #874, #875). */
+interface LineDefault {
+  /** The default of the goods, stored on the line: the next case's telescoping `earlier`. */
+  refund: string;
+  discount: string;
+  /** What may be refunded: the default, bounded by the line ceiling. */
+  effective: string;
+  /** Whether the line was returnable when bought — a non-returnable complaint line's 0 is an amount. */
+  returnable: boolean;
 }
 
 /**
@@ -64,7 +80,10 @@ export interface ReturnSettlementServiceDeps {
  * of work as the `Refund` row that records what happened.** In order:
  *
  *  1. **Validate** — the graph transition, the refund method, the per-line
- *     caps. Nothing is assigned and nothing is flushed.
+ *     caps. The default of each line is recomputed from the cases settled by
+ *     now (issue #875): an amount equal to a default settles at the recomputed
+ *     one, a lower one is kept, anything else is refused. Nothing is assigned
+ *     and nothing is flushed.
  *  2. **Attempt every external effect: money, then document.** The gateway
  *     refund or the store credit, then the corrective invoice. Outcomes are
  *     held in memory. A refusal here — a `ModuleDisabledError` from a
@@ -73,7 +92,7 @@ export interface ReturnSettlementServiceDeps {
  *     still `received` and the whole settlement is retryable.
  *  3. **Build the `Refund` row from those outcomes**, including its
  *     `settlementState` and its provider details.
- *  4. **One unit of work** — the item amounts, the `Refund` row, the audit
+ *  4. **One unit of work** — the item amounts and recomputed defaults, the `Refund` row, the audit
  *     entry and the transition to `resolved`, in the transition's single flush.
  *     Either the case is resolved with a complete record of what happened, or
  *     it is untouched.
@@ -102,7 +121,13 @@ export class ReturnSettlementService {
     const rc = await em.findOne(ReturnCase, { id });
     if (!rc) throw new HttpError(404, ERROR_CODES.NOT_FOUND, 'Return case not found.');
     const items = await em.find(ReturnCaseItem, { returnCaseId: id });
+    // An open case previews what the settlement would recompute (issue #875):
+    // the default on the settled basis, bounded by the line ceiling, and the
+    // stored approved amount mapped onto it as the settlement maps it. Read
+    // without the lock, so another settlement of the order may still move it;
+    // the settlement itself decides. A settled case shows what it settled at.
     const order = await this.deps.orderContext.getReturnContext(rc.orderId);
+    const defaults = rc.resolutionType == null && order ? await this.#recompute(em, rc, items, order) : null;
     return {
       currency: rc.currency,
       resolutionOptions: ['refund', 'credit', 'replacement', 'repair'],
@@ -111,14 +136,76 @@ export class ReturnSettlementService {
       defaultResolution: defaultResolution(),
       consentRequiredFor: consentRequiredFor(consentStateOf(rc)),
       defaultRefundPaymentMethodId: order?.paymentMethodId ?? null,
-      items: items.map((it) => ({
-        returnCaseItemId: it.id,
-        productName: it.productName,
-        quantity: it.quantity,
-        defaultRefundAmount: Number(it.defaultRefundAmount),
-        approvedRefundAmount: Number(it.approvedRefundAmount),
-      })),
+      items: items.map((it) => {
+        const d = defaults?.get(it.id);
+        if (!d) {
+          return {
+            returnCaseItemId: it.id,
+            productName: it.productName,
+            quantity: it.quantity,
+            defaultRefundAmount: Number(it.defaultRefundAmount),
+            approvedRefundAmount: Number(it.approvedRefundAmount),
+          };
+        }
+        const mapped = this.#approved(rc, it, d, it.approvedRefundAmount);
+        return {
+          returnCaseItemId: it.id,
+          productName: it.productName,
+          quantity: it.quantity,
+          // The most the operator may approve.
+          defaultRefundAmount: Number(d.effective),
+          approvedRefundAmount: Number('approved' in mapped ? mapped.approved : d.effective),
+        };
+      }),
     };
+  }
+
+  /**
+   * The default of each line of `rc`, recomputed from the order's other cases
+   * on the settled basis (issues #874, #875): the kept state is the returns
+   * settled with money, and a complaint settled with money counts against
+   * what is left paid and against its line. `null` when the order cannot be
+   * read: the prefill then shows the stored figures, and the settlement has
+   * already refused.
+   */
+  async #recompute(
+    em: EntityManager,
+    rc: ReturnCase,
+    items: readonly ReturnCaseItem[],
+    known?: OrderReturnContext,
+  ): Promise<Map<string, LineDefault> | null> {
+    const context = known ?? (await this.deps.orderContext.getReturnContext(rc.orderId));
+    if (!context) return null;
+    const history = await loadOrderCases(em, rc.orderId);
+    const computed = caseDefaults({
+      context,
+      history,
+      basis: 'settled',
+      excludeCaseId: rc.id,
+      kind: rc.kind,
+      current: items.map((it) => ({ orderItemId: it.orderItemId, quantity: it.quantity })),
+    });
+    const returnable = new Map(context.lines.map((l) => [l.orderItemId, isLineReturnable(l.returnableAtPurchase)]));
+    return new Map(
+      items.map((it, i) => {
+        const c = computed[i]!;
+        return [
+          it.id,
+          { refund: c.refund, discount: c.discount, effective: c.effective, returnable: returnable.get(it.orderItemId) ?? true },
+        ] as const;
+      }),
+    );
+  }
+
+  /** What `requested` settles at on line `it`, against its recomputed default ({@link settlementApproved}). */
+  #approved(rc: ReturnCase, it: ReturnCaseItem, d: LineDefault, requested: string | number) {
+    return settlementApproved({
+      requested,
+      previousDefault: it.defaultRefundAmount,
+      recomputedDefault: d.refund,
+      effectiveDefault: d.effective,
+      zeroIsAmount: rc.kind === 'complaint' && !d.returnable,
+    });
   }
 
   /**
@@ -162,6 +249,13 @@ export class ReturnSettlementService {
     const rc = await em.findOne(ReturnCase, { id });
     if (!rc) throw new HttpError(404, ERROR_CODES.NOT_FOUND, 'Return case not found.');
 
+    // The default is recomputed from the order (issue #875), so an order that
+    // cannot be read refuses the settlement, before any effect and with nothing
+    // written — as case creation does. A switched-off `orders` throws its own
+    // `ModuleDisabledError` (503), which is never caught here.
+    const context = await this.deps.orderContext.getReturnContext(rc.orderId);
+    if (!context) throw new HttpError(404, ERROR_CODES.NOT_FOUND, 'Order not found.');
+
     // Fail fast if the case cannot reach `resolved` before mutating anything.
     const graph = await this.deps.graphService.loadGraph();
     if (!graph.canTransition(rc.statusCode, RETURN_STATUS_RESOLVED)) {
@@ -193,15 +287,39 @@ export class ReturnSettlementService {
     // flush carries, and under the ordering law nothing is written until step 4.
     const items = await em.find(ReturnCaseItem, { returnCaseId: id });
     const byId = new Map(items.map((it) => [it.id, it]));
-    const approvedByItemId = new Map<string, number>();
+    const requestedByItemId = new Map<string, number>();
     for (const line of input.lines) {
-      const item = byId.get(line.returnCaseItemId);
-      if (!item) {
+      if (!byId.has(line.returnCaseItemId)) {
         throw new HttpError(422, ERROR_CODES.VALIDATION_FAILED, 'Unknown return line.', {
           code: 'unknown_line',
         });
       }
-      if (exceedsCap(line.approvedRefundAmount, item.defaultRefundAmount)) {
+      requestedByItemId.set(line.returnCaseItemId, line.approvedRefundAmount);
+    }
+    // The default, recomputed under the lock from the cases settled by now
+    // (issue #875): a case settled out of creation order, or after an earlier
+    // case was rejected, refunds what leaves the kept goods' invoice equal to
+    // what is left paid, and a complaint is outside the kept state (issue
+    // #874), bounded with the returns of its line by what the line was paid
+    // (the line ceiling).
+    const recomputed = await this.#recompute(em, rc, items, context);
+    const defaultOf = (it: ReturnCaseItem): LineDefault =>
+      recomputed?.get(it.id) ?? {
+        refund: roundHalfUp(it.defaultRefundAmount),
+        discount: roundHalfUp(it.defaultDiscountAmount),
+        effective: roundHalfUp(it.defaultRefundAmount),
+        returnable: true,
+      };
+    // What this settlement refunds, over **every** line of the case: a line the
+    // request leaves out settles at its stored approved amount, and the
+    // correction below credits it at that amount, so the refund and the
+    // correction come from one set of lines (review of PR #423, B1). An amount
+    // equal to a default is the default approved, and settles at the
+    // recomputed one; a lower one is kept as typed; anything else is refused.
+    const approvedByItemId = new Map<string, number>();
+    for (const it of items) {
+      const outcome = this.#approved(rc, it, defaultOf(it), requestedByItemId.get(it.id) ?? it.approvedRefundAmount);
+      if ('refused' in outcome) {
         throw new HttpError(
           422,
           ERROR_CODES.VALIDATION_FAILED,
@@ -210,15 +328,18 @@ export class ReturnSettlementService {
         );
       }
       // At the two places it is stored at, half-up (issue #417).
-      const approved = Number(approvedAmount(line.approvedRefundAmount));
-      approvedByItemId.set(line.returnCaseItemId, approved);
+      approvedByItemId.set(it.id, Number(outcome.approved));
     }
-    // What this settlement refunds, over **every** line of the case: a line the
-    // request leaves out keeps its stored approved amount, and the correction
-    // below credits it at that amount, so the refund and the correction come
-    // from one set of lines (review of PR #423, B1).
-    const approvedOf = (it: ReturnCaseItem): number => approvedByItemId.get(it.id) ?? Number(it.approvedRefundAmount);
+    const approvedOf = (it: ReturnCaseItem): number => approvedByItemId.get(it.id)!;
     const total = sumApproved(items.map(approvedOf));
+    // What the audit entry records of the recompute: a default that moved, and
+    // a line the ceiling bound.
+    const recomputedDefaults = items
+      .filter((it) => compareDecimals(defaultOf(it).refund, it.defaultRefundAmount) !== 0)
+      .map((it) => ({ itemId: it.id, from: roundHalfUp(it.defaultRefundAmount), to: defaultOf(it).refund }));
+    const lineCeilings = items
+      .filter((it) => compareDecimals(defaultOf(it).effective, defaultOf(it).refund) < 0)
+      .map((it) => ({ itemId: it.id, default: defaultOf(it).refund, ceiling: defaultOf(it).effective }));
 
     const movesMoney = input.resolutionType === 'refund' || input.resolutionType === 'credit';
 
@@ -247,7 +368,11 @@ export class ReturnSettlementService {
           amount,
         };
         if (priceReduction) return { ...line, basis: 'price_reduction' as const };
-        const discount = carriedDiscount(it.defaultDiscountAmount, it.defaultRefundAmount, amount);
+        // Against the effective default: a return approved at it carries its
+        // full default discount, because the goods leave and their share of
+        // the discount leaves with them (the #885 amendment, section 4).
+        const d = defaultOf(it);
+        const discount = carriedDiscount(d.discount, d.effective, amount);
         return {
           ...line,
           basis: 'returned_goods' as const,
@@ -395,6 +520,14 @@ export class ReturnSettlementService {
           for (const it of await tx.find(ReturnCaseItem, { returnCaseId: id })) {
             const approved = approvedByItemId.get(it.id);
             if (approved !== undefined) it.approvedRefundAmount = approvedAmount(approved);
+            // The recomputed default of the goods, which the next case of the
+            // order reads as `earlier` (issue #875).
+            const original = byId.get(it.id);
+            if (original) {
+              const d = defaultOf(original);
+              it.defaultRefundAmount = d.refund;
+              it.defaultDiscountAmount = d.discount;
+            }
           }
 
           if (refundFields) {
@@ -425,6 +558,8 @@ export class ReturnSettlementService {
                   : result.correctiveInvoice.reason
                 : 'not_requested',
               ...withdrawalAudit,
+              ...(recomputedDefaults.length > 0 ? { recomputedDefaults } : {}),
+              ...(lineCeilings.length > 0 ? { lineCeilings } : {}),
             },
           });
         },

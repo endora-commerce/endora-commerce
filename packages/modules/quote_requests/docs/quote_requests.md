@@ -241,13 +241,32 @@ read the cart price from `referenceUnitPrice`.
 
 **Totals.** The reference price is never used as a fallback for a total. The
 customer list's `totalAtCustomerPrice` is `null` — shown as `—` — unless
-**every** line carries a proposal, the rule the admin list already applied; a
-cart-converted request therefore has none until it is priced. The admin list's
+**every** line carries a proposal; a cart-converted request therefore has none
+until it is priced. The admin list carries the same two totals, and its
 customer-price total survives the seller's revisions, because a revision keeps
-each line's proposal. The CRM opportunity value of a request with no proposal
-and no agreed price is `0`; a revised line the customer left unpriced is valued
-at the proposal carried from the customer's last draft edit until the seller
-sets an agreed price.
+each line's proposal.
+
+**The amount of a quote request** is one figure, computed by this module and
+shown by the admin list, by a CRM opportunity's linked quote requests and by a
+project's linked records alike. Each line counts at its quantity × its agreed
+unit price, or — while it has none — the unit price the customer asked for.
+Each line's value is rounded half up to two places, and the line values are
+added. A line with neither price adds nothing. The amount is net of tax and in
+the first line's currency. A revised line the customer left unpriced counts at
+the proposal carried from the customer's last draft edit until the seller sets
+an agreed price.
+
+| The lines | Shown |
+| --- | --- |
+| every line has an agreed price | the amount |
+| some lines have an agreed price | the amount, marked **Partially agreed** |
+| no line has an agreed price, at least one has an asked price | the amount, marked **Not yet agreed** |
+| no line has any price, or the request has no lines | `—` |
+
+The admin list answers `amount` (`null` when no line has a price) and
+`agreement` (`agreed`, `partial` or `none`) on each row. Other modules read
+both through `quoteRequestReadPort.amountOf(id)`, which answers `{ amount,
+currency, agreement }`, or `null` for a request the caller cannot see.
 
 ## History
 

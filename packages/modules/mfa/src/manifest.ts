@@ -168,7 +168,12 @@ export const manifest = defineModuleManifest({
   // Feature 075 Phase C turned the session edge into the published port: the
   // second factor mints its session over `authSessionPort`, so no `Session`
   // entity and no `SessionService` class crosses into this module any more.
-  dependencies: ['admin_users', 'customer_accounts', 'organizations', 'settings', 'auth'],
+  //
+  // Issue #349 — `admin_roles` answers the administrator's role, whose
+  // two-factor flag is read at sign-in, and lists the roles the
+  // deactivation guard asks about. It is `nonDeactivatable` and has no
+  // dependencies, so the edge forms no cycle and locks no operator flip.
+  dependencies: ['admin_users', 'admin_roles', 'customer_accounts', 'organizations', 'settings', 'auth'],
   settings,
   // Feature 074 (Constitution XVII) — a control this module never had, so an
   // operator could not decline it at all. Two-factor authentication is a client
@@ -260,8 +265,10 @@ export const manifest = defineModuleManifest({
     // Raised by the platform's activation write, on this module's behalf: the
     // module cannot be switched off while administrators are required to use a
     // second factor. Only ever raised while the module is present, so this
-    // bundle is there to translate it.
-    { code: 'MFA_DEACTIVATION_BLOCKED' },
+    // bundle is there to translate it. Issue #349 — the two tokens name the
+    // roles that require it, alone or beside the setting; with no token the
+    // setting alone does.
+    { code: 'MFA_DEACTIVATION_BLOCKED', tokens: ['role_requirement', 'setting_and_role_requirement'] },
     { code: 'MFA_INVALID_CHALLENGE' },
     { code: 'MFA_INVALID_CODE' },
     { code: 'MFA_NOT_ENABLED' },

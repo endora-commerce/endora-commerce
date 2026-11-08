@@ -3,7 +3,7 @@ import type { Redis } from 'ioredis';
 import { describe, expect, it } from 'vitest';
 import { ChallengeStore } from './challenge-store.js';
 import { MfaLoginService } from './mfa-login-service.js';
-import type { MfaPolicyResolver } from './mfa-policy-resolver.js';
+import { MfaPolicyResolver } from './mfa-policy-resolver.js';
 import type { SecondFactorVerifier } from './second-factor-verifier.js';
 
 /**
@@ -149,5 +149,50 @@ describe('MfaLoginService.verifyChallenge — the attempt budget', () => {
       ok: false,
       error: 'invalid_challenge',
     });
+  });
+});
+
+/**
+ * Issue #349 — an administrator whose role requires a second factor is asked
+ * to enrol when they have none, and challenged when they have one, exactly as
+ * `mfa.admin.totp_enforced` asks every administrator.
+ */
+describe('MfaLoginService.beginLogin — a role that requires a second factor', () => {
+  function loginWith(enrolled: boolean, requiresTwoFactor: boolean): MfaLoginService {
+    const em = (() => ({
+      findOne: async () => (enrolled ? { id: 'e1', status: 'active' } : null),
+    })) as unknown as () => EntityManager;
+    const resolver = new MfaPolicyResolver(
+      { get: async () => false as never },
+      em,
+      async () => ({
+        role: {
+          id: 'r1',
+          code: 'accounting',
+          name: 'Accounting',
+          permissions: [],
+          requiresTwoFactor,
+          createdAt: new Date(0),
+          updatedAt: new Date(0),
+        },
+      }),
+    );
+    return new MfaLoginService(em, new ChallengeStore(fakeRedis()), resolver);
+  }
+  const admin = { subjectType: 'admin', subjectId: 'a1' } as const;
+
+  it('answers "setup" for a holder with no enrolment', async () => {
+    const decision = await loginWith(false, true).beginLogin(admin, { salesChannelId: null });
+    expect(decision.kind).toBe('setup');
+  });
+
+  it('answers "challenge" for a holder who is enrolled', async () => {
+    const decision = await loginWith(true, true).beginLogin(admin, { salesChannelId: null });
+    expect(decision.kind).toBe('challenge');
+  });
+
+  it('answers "proceed" when the role does not require it and nothing else does', async () => {
+    const decision = await loginWith(false, false).beginLogin(admin, { salesChannelId: null });
+    expect(decision.kind).toBe('proceed');
   });
 });

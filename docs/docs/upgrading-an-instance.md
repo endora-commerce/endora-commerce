@@ -3836,6 +3836,63 @@ Review any request this returns with its seller. There is no automatic correctio
 currency of a stored request is a decision about what its prices meant, so make it per request, by
 hand, and only where the seller confirms the prices were meant in the channel's currency.
 
+### A role's two-step verification requirement is enforced {#role-two-factor-enforced}
+
+The release that ships `MFA_REQUIRED_FOR_ROLE_TWO_FACTOR` makes a role's **Requires two-step
+verification on assigned users** checkbox (`requiresTwoFactor`) do what it says (issue #349).
+Until now it was stored, shown and edited, and no sign-in read it. From this release a holder of
+such a role signs in with a second factor, exactly as `mfa.admin.totp_enforced` makes every
+administrator do. The admin users module page, section *Roles that require two-step
+verification*, describes the behaviour.
+
+**Behaviour change on upgrade:**
+
+- An operator may have ticked the box believing it already worked. At their next sign-in, every
+  holder of such a role who has not set up two-step verification is taken to set it up and gets a
+  session only after that; a holder who has set it up is asked for a code. Google and Microsoft
+  sign-in behave the same way.
+- **The upgrade itself signs nobody out.** Sessions end only when the requirement starts binding
+  somebody after the upgrade: when a role's box is ticked, or when such a role is given to an
+  administrator who has not set up two-step verification. Holders already signed in before the
+  upgrade keep their sessions until they expire or sign out.
+- The MFA module cannot be switched off while any role requires two-step verification: the module
+  screen answers `409 MFA_DEACTIVATION_BLOCKED` and names the roles. Untick the box on those roles
+  first. While MFA is off, the box cannot be ticked.
+
+**Before upgrading:**
+
+1. **See who will be asked to set up two-step verification.** Run this read-only query. Every row
+   is a role that requires it, with the number of its live administrators and how many of them have
+   not set it up:
+
+   ```sql
+   select r.code,
+          count(u.id) as admins,
+          count(u.id) filter (where e.id is null) as not_enrolled
+   from admin_roles r
+   join admin_users u on u.admin_role_id = r.id and u.deleted_at is null
+   left join mfa_enrolments e
+     on e.subject_type = 'admin' and e.subject_id = u.id and e.status = 'active'
+   where r.requires_two_factor
+   group by r.code
+   order by r.code;
+   ```
+
+2. **Check that a second factor can be set up.** Without `MFA_SECRET_ENCRYPTION_KEY` no second
+   factor can be enrolled, so the holders counted in `not_enrolled` would be sent to a setup step
+   that cannot be completed, and could not sign in. If the key is not set, **untick the box on
+   those roles before you upgrade**, or set the key first:
+
+   ```sql
+   update admin_roles set requires_two_factor = false where code = '<code>';
+   ```
+
+   After the upgrade, an instance in that state logs a warning at every start naming the roles and
+   how many of their administrators have no second factor.
+3. **Keep at least one administrator who can sign in.** If your own role is among the rows, set up
+   two-step verification before you upgrade (*Account security* in the Admin UI), or make sure an
+   administrator of another role can sign in to change the role.
+
 ### Return windows count from the order's completion {#return-window-from-completion}
 
 The release that ships this change records when an order was completed (`orders.completed_at`,

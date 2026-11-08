@@ -1912,6 +1912,8 @@
   "rfq.detail.vatStatus.vat_exempt": "Zwolniony z VAT",
   "rfq.detail.vatStatus.vat_payer": "Płatnik VAT",
   "rfq.list.badge.awaitingCustomer": "Oczekuje na klienta",
+  "rfq.list.badge.partiallyAgreed": "Częściowo uzgodnione",
+  "rfq.list.badge.notYetAgreed": "Jeszcze nieuzgodnione",
   "rfq.list.column.customer": "Klient",
   "rfq.list.column.lines": "Pozycje",
   "rfq.list.column.org": "Organizacja",

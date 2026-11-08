@@ -21,6 +21,7 @@ import {
   deleterOf,
   type RetentionSweepDeps,
 } from './retention-sweep-deps.js';
+import { previousVersionsDue } from './retention-due-rows.js';
 
 export interface PreviousVersionPassResult {
   previousPurged: number;
@@ -36,11 +37,18 @@ export class PurgePreviousVersionsJob {
 
   async run(now: Date, retentionDays: number): Promise<PreviousVersionPassResult> {
     const cutoff = cutoffFor(now, retentionDays);
-    const due = await this.deps.emFactory().fork().find(
-      Asset,
-      { previousReplacedAt: { $lte: cutoff } },
-      { orderBy: { previousReplacedAt: 'asc' }, limit: this.deps.batchSize ?? ASSET_RETENTION_SWEEP_BATCH },
+    // The ids through the pass's row source — the one the tick's probe asks
+    // about (issue #909) — then the rows through the ORM.
+    const em = this.deps.emFactory().fork();
+    const source = previousVersionsDue(cutoff);
+    const ids = await em.execute<Array<{ id: string }>>(
+      `select "id" ${source.from} order by "previous_replaced_at" asc limit ?`,
+      [...source.params, this.deps.batchSize ?? ASSET_RETENTION_SWEEP_BATCH],
     );
+    const due =
+      ids.length === 0
+        ? []
+        : await em.find(Asset, { id: { $in: ids.map((row) => row.id) } }, { orderBy: { previousReplacedAt: 'asc' } });
     let previousPurged = 0;
     let skippedNotDue = 0;
     for (const selected of due) {

@@ -1325,7 +1325,12 @@ samym punktem końcowym, z `"documentKind": "quote_request"`. Musi należeć do
 organizacji szansy i należy do co najwyżej jednej szansy. Szansa może mieć
 kilka zapytań ofertowych i kilka zamówień.
 
-Powiązane zapytanie ofertowe jest na liście z numerem, statusem i wartością.
+Powiązane zapytanie ofertowe jest na liście z numerem, statusem i wartością —
+kwotą, którą wylicza dla niego moduł Zapytania ofertowe, tą samą, którą pokazuje
+jego własna lista. Dopóki uzgodnioną cenę ma tylko część jego pozycji, wartość
+ma oznaczenie **Częściowo uzgodnione**; dopóki nie ma jej żadna — **Jeszcze
+nieuzgodnione**. Zapytanie ofertowe bez żadnej ceny jest pokazywane jako `—` i
+nic nie dodaje do wyliczanej wartości.
 **Zapytanie ofertowe pokazuje moduł Zapytania ofertowe**: powiązanie zapytania
 i lista zapytań do powiązania wymagają `rfqs:handle` — uprawnienia, z którym
 ten moduł odczytuje zapytanie — oprócz `crm:write`; bez niego odpowiedzią jest
@@ -1372,10 +1377,11 @@ Wartość wyliczana to suma:
   kwocie **sumy zamówienia** — kwoty brutto, którą płaci klient: towary,
   podatek, dostawa i ewentualna dopłata za płatność, pomniejszone o rabaty;
 - każdego powiązanego **zapytania ofertowego**, którego status jest statusem
-  liczonym, w kwocie **sumy ilość × cena jednostkowa** po jego pozycjach. Cena
-  jednostkowa to cena uzgodniona, a dopóki żadnej nie uzgodniono — cena, o którą
-  prosił klient. Ceny w zapytaniach ofertowych są **netto** — to kwota, którą
-  ekran zapytania ofertowego pokazuje jako sumę netto.
+  liczonym, w jego **kwocie**: sumie ilość × cena jednostkowa po jego pozycjach,
+  gdzie cena jednostkowa każdej pozycji to jej cena uzgodniona, a dopóki jej nie
+  ma — cena, o którą prosił klient. Pozycja bez żadnej z tych cen nic nie dodaje.
+  Tę kwotę wylicza moduł Zapytania ofertowe, a jego własna lista pokazuje tę
+  samą wartość. Ceny w zapytaniach ofertowych są **netto**.
 
 Te dwie kwoty nie mają tej samej podstawy i żadna nie jest przeliczana: każdy
 dokument liczy się w kwocie, którą pokazuje jego własny ekran.
@@ -1389,8 +1395,9 @@ wspólnego, są liczone oba.
 **Jedna waluta.** Szansa ma jedną walutę i nic nie jest przeliczane. Dokument w
 innej walucie, który w przeciwnym razie by się liczył, jest pomijany, a szansa
 go wskazuje: `excludedDocuments` na szansie wymienia każdy taki dokument jako
-`{ kind, id, reason: "currency_mismatch" }`. Zapytanie ofertowe z pozycjami w
-kilku walutach liczy pozycje w walucie szansy i również jest wskazywane.
+`{ kind, id, reason: "currency_mismatch" }`. Zapytanie ofertowe liczy się w
+walucie swojej kwoty, czyli pierwszej pozycji: w innej walucie jest pomijane i
+wskazywane w całości.
 
 Wartość podąża za dokumentami: jest przeliczana, gdy dokument zostaje powiązany
 albo odwiązany, gdy powiązane zamówienie zmienia status, gdy powiązane

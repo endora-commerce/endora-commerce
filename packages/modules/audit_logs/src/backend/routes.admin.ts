@@ -125,6 +125,9 @@ export function moduleIdForAuditAction(action: string): string {
   // platform for every cross-organization access, labelled here, because the
   // audit log is where an operator reads them.
   if (action.startsWith('tenant.')) return 'audit_logs';
+  // Issue #844 — the row the platform writes when it erases an anonymised
+  // subject's history; labelled here for the same reason.
+  if (action.startsWith('audit.')) return 'audit_logs';
   if (action.startsWith('setting.')) return 'settings';
   if (action.startsWith('setting_group.')) return 'settings';
   if (action.startsWith('module.')) return 'core';
