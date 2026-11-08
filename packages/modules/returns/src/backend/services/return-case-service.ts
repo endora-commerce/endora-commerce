@@ -19,6 +19,7 @@ import { ReturnReason } from '../entities/return-reason.entity.js';
 import { Refund } from '../entities/refund.entity.js';
 import { RETURN_STATUS_CANCELLED } from '../domain/return-status-graph.js';
 import { isWithinFreeWindow } from '../domain/free-return-window.js';
+import { withdrawalPeriodAnchor } from '../domain/withdrawal-period.js';
 import { approvedAmount } from '../domain/refund-math.js';
 import { caseDefaults, liveItems, loadOrderCases } from './default-refund-service.js';
 import type { ReturnStatusGraphService } from './return-status-graph-service.js';
@@ -46,6 +47,12 @@ export interface ReturnCaseServiceDeps {
   scope: ReturnCaseScope;
   /** Free-return window in days for a sales channel (0 = no free-return option). */
   resolveFreeReturnDays: (salesChannelId: string) => Promise<number>;
+  /**
+   * `returns.time_zone` for a sales channel (issue #905): the IANA zone the
+   * free-return window counts calendar days in. Always a zone the runtime
+   * knows — the resolver falls back to the manifest default.
+   */
+  resolveTimeZone: (salesChannelId: string) => Promise<string>;
   /** Injected for deterministic tests; defaults to `new Date()`. */
   now?: () => Date;
   /** Feature 054 — audits case creation co-transactionally when provided. */
@@ -114,7 +121,7 @@ export class ReturnCaseService {
     if (verdict.eligible === false && verdict.reason === 'order_not_completing') {
       return { eligible: false, reason: 'order_not_completing', freeReturnEligible: false, lines };
     }
-    const freeReturnEligible = await this.isWithinFreeWindow(ctx.salesChannelId, ctx.completingStatusEnteredAt);
+    const freeReturnEligible = await this.isWithinFreeWindow(ctx.salesChannelId, withdrawalPeriodAnchor(ctx));
     if (verdict.eligible === false) {
       return { eligible: false, reason: verdict.reason, freeReturnEligible, lines };
     }
@@ -206,7 +213,7 @@ export class ReturnCaseService {
       const now = this.now();
       const freeReturnEligible =
         input.kind === 'return'
-          ? await this.isWithinFreeWindow(ctx.salesChannelId, ctx.completingStatusEnteredAt)
+          ? await this.isWithinFreeWindow(ctx.salesChannelId, withdrawalPeriodAnchor(ctx))
           : false;
 
       const rc = em.create(ReturnCase, {
@@ -356,8 +363,11 @@ export class ReturnCaseService {
     salesChannelId: string,
     completingAt: Date | null,
   ): Promise<boolean> {
-    const days = await this.deps.resolveFreeReturnDays(salesChannelId);
-    return isWithinFreeWindow(this.now(), completingAt, days);
+    const [days, timeZone] = await Promise.all([
+      this.deps.resolveFreeReturnDays(salesChannelId),
+      this.deps.resolveTimeZone(salesChannelId),
+    ]);
+    return isWithinFreeWindow(this.now(), completingAt, days, timeZone);
   }
 
   private toSummary(rc: ReturnCase, statusLabel: string): ReturnCaseSummary {

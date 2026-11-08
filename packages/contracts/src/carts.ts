@@ -1123,3 +1123,27 @@ export interface CustomerCartsView {
 export interface CartQueryPort {
   listForCustomer(customerAccountId: string): Promise<CustomerCartsView>;
 }
+
+/**
+ * Container name: `cartAnonymizationPort`. Owner: `carts`.
+ *
+ * `carts`' step in the customer-account anonymisation sweep (issue #920),
+ * which `customers` runs before it writes the account's `anonymizedAt`. Every
+ * cart of the account loses the free text operators and approvers wrote about
+ * it: `Cart.rejectedReason` and the `reason` of its `cart_audit_entries` rows
+ * are set to `null`. The status, the rejection's time and actor, and every
+ * other column stay. Each cart it changed gets one `cart.anonymized` audit
+ * entry, with a null actor and `hadRejectedReason` as its only payload. No
+ * event is published.
+ *
+ * Answers how many carts it changed. Idempotent: a repeat call finds nothing
+ * left to erase, writes nothing and records nothing. Carts the account only
+ * acted on (a colleague's basket it approved or rejected) are not its carts
+ * and are left alone. Run under the system scope the sweep's tick enters.
+ *
+ * **Owner off:** the seam fails closed, as {@link CartQueryPort}'s does; `carts`
+ * declares `nonDeactivatable`, so it never enters that state.
+ */
+export interface CartAnonymizationPort {
+  anonymizeForCustomerAccount(customerAccountId: string): Promise<number>;
+}

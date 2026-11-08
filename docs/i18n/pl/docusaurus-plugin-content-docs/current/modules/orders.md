@@ -836,6 +836,33 @@ Składanie zamówienia zapisuje ją niezależnie od tego, czy moduł Returns jes
 Migracja `20261016T082022_orders_order_item_returnable_at_purchase.ts` dodaje tę kolumnę
 (dopuszcza `null`).
 
+## Kiedy zamówienie zostało zrealizowane
+
+Zamówienie zapisuje chwilę, w której po raz pierwszy weszło w status `completed`
+(`orders.completed_at`). `OrderTransitionService` zapisuje ją w tej samej transakcji co zmianę
+statusu, a zamówienie utworzone od razu w statusie `completed` dostaje ją przy zapisie. Nigdy nie
+jest nadpisywana: późniejsza edycja zrealizowanego zamówienia jej nie przesuwa.
+
+Od tej chwili liczy moduł Returns. `OrderReturnContextPort` podaje ją jako
+`completingStatusEnteredAt`, i od niej biegną okno bezpłatnego zwrotu oraz termin konsumenta na
+odstąpienie od umowy. Zamówienie, które nigdy nie zostało zrealizowane, podaje `null`: jego termin
+jeszcze się nie rozpoczął. Nic tutaj nie odczytuje modułu Shipments, więc jego wyłączenie niczego w
+tym nie zmienia.
+
+**Realizuj zamówienie, gdy towar został doręczony.** Platforma nie zna daty doręczenia: sukces
+przesyłki oznacza, że przewoźnik przyjął paczkę. Termin konsumenta na odstąpienie od umowy liczy się
+od dnia, w którym otrzymał towar, a zrealizowanie zamówienia jest sposobem, w jaki sklep stwierdza,
+że ten dzień nadszedł. Zrealizowanie go przy wysyłce rozpoczyna termin za wcześnie; z tego powodu
+moduł Returns zachowuje okres karencji po terminie (zob. stronę Returns).
+
+Zanim powstała ta kolumna, tę chwilę odczytywano z `updated_at` zamówienia, które każda późniejsza
+edycja przesuwała do przodu. Migracja `20261108T000543_orders_completed_at.ts` dodaje kolumnę
+(dopuszcza `null`) i wypełnia ją wartością `updated_at` w każdym zamówieniu, które już jest w
+statusie `completed`. To dokładnie ta chwila, według której te zamówienia były oceniane wcześniej,
+więc aktualizacja nie zmienia żadnego istniejącego zamówienia; dla zamówienia edytowanego po
+realizacji jest to ostatnia edycja zamiast realizacji — przybliżenie, którego nic zapisanego nie
+pozwala poprawić.
+
 ## Ustawienia
 
 `orders.min_order_value` (liczba; dotyczy checkoutu i tworzenia zamówień w panelu; to kwota, więc

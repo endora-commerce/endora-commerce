@@ -140,6 +140,11 @@ describe('CustomerDeletionService', () => {
       overrides.addresses ?? addresses,
       // `customers.deletion_retention_days`, at its default (issue #800).
       async () => 365,
+      // Issue #927 — the retired personal book; this file seeds no row of it.
+      { anonymizeForAccount: async () => 0 },
+      // Issue #920 — `carts`' step; this file seeds no cart. Its behaviour is
+      // `anonymization-cart-reasons.test.ts`.
+      { anonymizeForCustomerAccount: async () => 0 },
       // Issue #844 — the subject's audit history; the cases about it pass the
       // real redaction, the rest a no-op.
       overrides.history ?? NO_HISTORY,
@@ -1639,7 +1644,8 @@ describe('CustomerDeletionService', () => {
       });
       expect(orgRow!.stateAfter).toEqual({ anonymizedAt: expect.stringMatching(/^\d{4}-/), isPersonal: true });
       const [addressRow] = await em.find(AuditLogEntry, { action: 'address.anonymized', objectId: live.id });
-      expect(addressRow!.stateBefore).toEqual({ organizationId: org.id, kind: 'delivery' });
+      // `wasDeleted` is #927's: a live row, so `false`.
+      expect(addressRow!.stateBefore).toEqual({ organizationId: org.id, kind: 'delivery', wasDeleted: false });
     });
 
     it('I-844-5 — a company member: only its own account’s rows are erased, the company’s are untouched', async () => {

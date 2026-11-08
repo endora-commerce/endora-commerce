@@ -17,6 +17,7 @@ import { ChallengeStore } from './services/challenge-store.js';
 import { createFactorWithdrawal } from './services/factor-withdrawal.js';
 import {
   MfaPolicyResolver,
+  type AdminRoleReader,
   type SettingsReader,
 } from './services/mfa-policy-resolver.js';
 import { MfaLoginService } from './services/mfa-login-service.js';
@@ -76,6 +77,14 @@ export interface MfaModuleOptions {
    */
   customerPasswordState: CustomerPasswordStatePort;
   sessionService: AuthSessionPort;
+  /**
+   * Issue #349 — an administrator's role, from `admin_roles`' published
+   * `permissionService`. Its `requiresTwoFactor` is a second source of the
+   * administrator requirement, beside `mfa.admin.totp_enforced`. Required: a
+   * composition without it would have to guess, and guessing "not required"
+   * is the defect the issue was filed about.
+   */
+  readAdminRole: AdminRoleReader;
   /** Resolves the system-default sales-channel id for global setting reads. */
   resolveDefaultChannelId?: () => Promise<string | null>;
   /** base64 32-byte AES key for TOTP secrets at rest. */
@@ -153,15 +162,18 @@ export function mfaModule(options: MfaModuleOptions): {
   handle: () => MfaModuleHandle;
 } {
   const challengeStore = new ChallengeStore(options.redis);
-  const policyResolver = new MfaPolicyResolver(
-    options.settingsService,
-    options.emFactory,
-    options.resolveDefaultChannelId ?? (async () => null),
-  );
-
   const cipher = options.secretEncryptionKey
     ? new SecretCipher(options.secretEncryptionKey)
     : null;
+  const policyResolver = new MfaPolicyResolver(
+    options.settingsService,
+    options.emFactory,
+    options.readAdminRole,
+    options.resolveDefaultChannelId ?? (async () => null),
+    // Issue #930 — no cipher, no enrolment route: see the resolver.
+    cipher !== null,
+  );
+
   const enrolmentService = cipher
     ? new MfaEnrolmentService(options.emFactory, cipher, options.auditLogService)
     : null;

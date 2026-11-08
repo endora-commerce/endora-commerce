@@ -24,7 +24,12 @@ export const RETURNS_SETTING_CODES = {
   RMA_NUMBER_SUFFIX: 'returns.rma_number_suffix',
   /** Who bears the return cost once the free-return window has passed. */
   DEFAULT_COST_BEARER_OUTSIDE_WINDOW: 'returns.default_cost_bearer_outside_window',
+  /** The IANA zone the free-return window and the withdrawal period count calendar days in (issue #905). */
+  TIME_ZONE: 'returns.time_zone',
 } as const;
+
+/** `returns.time_zone`'s default, and what a value the runtime does not know falls back to. */
+export const RETURNS_DEFAULT_TIME_ZONE = 'Europe/Warsaw';
 
 const settings = defineModuleSettingsManifest({
   moduleCode: 'returns',
@@ -74,6 +79,17 @@ const settings = defineModuleSettingsManifest({
       valueType: 'string',
       defaultValue: 'customer',
       enumOptions: ['customer', 'shop'],
+    },
+    {
+      // Issue #905 (design D3.4). A module setting of its own, as
+      // `tasks.time_zone` is: there is no platform-wide shop time zone.
+      code: RETURNS_SETTING_CODES.TIME_ZONE,
+      name: 'Time zone of the return windows',
+      description:
+        'The time zone, as an IANA name such as Europe/Warsaw, in which the free-return window and the consumer\'s withdrawal period count calendar days: each ends at the end of its last day in this zone, and a last day on a Saturday or Sunday moves to the Monday. Sales-channel value overrides the global value.',
+      groupCode: 'returns',
+      valueType: 'string',
+      defaultValue: RETURNS_DEFAULT_TIME_ZONE,
     },
   ],
 });

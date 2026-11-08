@@ -21,6 +21,7 @@ import {
   deleterOf,
   type RetentionSweepDeps,
 } from './retention-sweep-deps.js';
+import { previousVersionsDue } from './retention-due-rows.js';
 
 export interface PreviousVersionPassResult {
   previousPurged: number;
@@ -36,16 +37,24 @@ export class PurgePreviousVersionsJob {
 
   async run(now: Date, retentionDays: number): Promise<PreviousVersionPassResult> {
     const cutoff = cutoffFor(now, retentionDays);
-    const due = await this.deps.emFactory().fork().find(
-      Asset,
-      { previousReplacedAt: { $lte: cutoff } },
-      { orderBy: { previousReplacedAt: 'asc' }, limit: this.deps.batchSize ?? ASSET_RETENTION_SWEEP_BATCH },
+    // The ids through the pass's row source — the one the tick's probe asks
+    // about (issue #909) — then the rows through the ORM.
+    const em = this.deps.emFactory().fork();
+    const source = previousVersionsDue(cutoff);
+    const ids = await em.execute<Array<{ id: string }>>(
+      `select "id" ${source.from} order by "previous_replaced_at" asc limit ?`,
+      [...source.params, this.deps.batchSize ?? ASSET_RETENTION_SWEEP_BATCH],
     );
+    const due =
+      ids.length === 0
+        ? []
+        : await em.find(Asset, { id: { $in: ids.map((row) => row.id) } }, { orderBy: { previousReplacedAt: 'asc' } });
     let previousPurged = 0;
     let skippedNotDue = 0;
     for (const selected of due) {
-      const selectedLocator = selected.previousStorageLocator;
-      if (!selectedLocator || selected.storageBackend === 'legacy') continue;
+      // The row source selects only rows this pass can purge (issue #914); one
+      // that changed since is re-checked under the lock and counted not due.
+      const selectedLocator = selected.previousStorageLocator ?? '';
       await this.deps.beforeClaim?.(selected.id);
       const claimed = await this.claim(selected.id, selectedLocator, cutoff);
       if (claimed === 'locked') continue;
@@ -74,6 +83,7 @@ export class PurgePreviousVersionsJob {
       if (!row) return 'locked';
       if (
         !hasPreviousVersion(row) ||
+        !row.previousStorageLocator ||
         row.previousStorageLocator !== selectedLocator ||
         !row.previousReplacedAt ||
         row.previousReplacedAt.getTime() > cutoff.getTime() ||

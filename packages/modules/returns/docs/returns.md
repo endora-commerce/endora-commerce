@@ -119,8 +119,12 @@ before/after events and is written to the audit log.
 
 - **Eligibility & free-return window** — a case is allowed once the order
   reaches its fulfilment-completing status; the free-return window
-  (`returns.free_return_days`, default **14** per EU Directive (EU) 2023/2673)
-  is counted from that moment and governs who bears the return shipping cost.
+  (`returns.free_return_days`, default **14**, the statutory withdrawal period
+  of Directive 2011/83 art. 9) is counted from that moment and governs who
+  bears the return shipping cost. The moment is the order's completion as
+  `orders` records it (`orders.completed_at`), which a later edit of the order
+  does not move; in earlier releases it was the order's last edit. See *Counting the
+  windows* below.
 - **RMA numbering** — `${prefix}${sequence}${suffix}` from
   `returns.rma_number_prefix` / `returns.rma_number_suffix`, assigned on
   authorization, unique and never reused.
@@ -203,6 +207,40 @@ before/after events and is written to the audit log.
   <id> } }`. Views saved before these rules keep their names as stored —
   including blank names and duplicates — until their owner renames or deletes
   them; a change that leaves the name alone is never refused for it.
+
+## Counting the windows
+
+Both windows this module judges — the channel's free-return window and the
+consumer's statutory withdrawal period — count from the same moment: when the
+order entered its fulfilment-completing status (`completingStatusEnteredAt`,
+from `OrderReturnContextPort`). An order that has not been completed has not
+started either period. The platform has no delivery date (a shipment's success
+is the carrier accepting the parcel, which is earlier than the consumer
+receiving it), so the operator completing the order is the closest fact there
+is; the Orders page asks operators to complete an order when the goods have
+been delivered. This module does not read Shipments for it, so switching
+Shipments off changes nothing about either window.
+
+- **Calendar days in `returns.time_zone`.** A period of *n* days ends at the end
+  of the *n*-th calendar day after the day of completion, in the zone the
+  setting names (an IANA name, default `Europe/Warsaw`, settable per sales
+  channel; a zone the runtime does not know is refused). The day of completion
+  itself is not counted.
+- **Weekends.** A last day on a Saturday or Sunday moves to the following
+  Monday. Public holidays are not modelled: there is no holiday calendar.
+- **The statutory period** is 14 days, whatever `returns.free_return_days` says
+  — a channel set to `0` or to fewer days cannot shorten it.
+- **A 7-day grace.** An operator may complete an order before the parcel
+  arrives, so the consumer's withdrawal stays possible for 7 calendar days after
+  the later of the statutory end and the channel's free-return window. A
+  withdrawal made in the grace is accepted and marked as outside the statutory
+  period, for the operator to judge.
+
+In earlier releases the free-return window ended exactly `free_return_days × 24 h`
+after the order's last edit. It now ends up to a day later (up to three over a
+weekend), never earlier. The statutory period and the grace are computed by
+`domain/withdrawal-period.ts`; the withdrawal function that uses them arrives in
+a later release.
 
 ## Returnable products
 

@@ -3844,6 +3844,116 @@ Review any request this returns with its seller. There is no automatic correctio
 currency of a stored request is a decision about what its prices meant, so make it per request, by
 hand, and only where the seller confirms the prices were meant in the channel's currency.
 
+### A role's two-step verification requirement is enforced {#role-two-factor-enforced}
+
+The release that ships `MFA_REQUIRED_FOR_ROLE_TWO_FACTOR` makes a role's **Requires two-step
+verification on assigned users** checkbox (`requiresTwoFactor`) do what it says (issue #349).
+Until now it was stored, shown and edited, and no sign-in read it. From this release a holder of
+such a role signs in with a second factor, exactly as `mfa.admin.totp_enforced` makes every
+administrator do. The admin users module page, section *Roles that require two-step
+verification*, describes the behaviour.
+
+**Behaviour change on upgrade:**
+
+- An operator may have ticked the box believing it already worked. At their next sign-in, every
+  holder of such a role who has not set up two-step verification is taken to set it up and gets a
+  session only after that; a holder who has set it up is asked for a code. Google and Microsoft
+  sign-in behave the same way.
+- **The upgrade itself signs nobody out.** Sessions end only when the requirement starts binding
+  somebody after the upgrade: when a role's box is ticked, or when such a role is given to an
+  administrator who has not set up two-step verification. Holders already signed in before the
+  upgrade keep their sessions until they expire or sign out.
+- The MFA module cannot be switched off while any role requires two-step verification: the module
+  screen answers `409 MFA_DEACTIVATION_BLOCKED` and names the roles. Untick the box on those roles
+  first. While MFA is off, the box cannot be ticked.
+
+**Before upgrading:**
+
+1. **See who will be asked to set up two-step verification.** Run this read-only query. Every row
+   is a role that requires it, with the number of its live administrators and how many of them have
+   not set it up:
+
+   ```sql
+   select r.code,
+          count(u.id) as admins,
+          count(u.id) filter (where e.id is null) as not_enrolled
+   from admin_roles r
+   join admin_users u on u.admin_role_id = r.id and u.deleted_at is null
+   left join mfa_enrolments e
+     on e.subject_type = 'admin' and e.subject_id = u.id and e.status = 'active'
+   where r.requires_two_factor
+   group by r.code
+   order by r.code;
+   ```
+
+2. **Check that a second factor can be set up.** Without `MFA_SECRET_ENCRYPTION_KEY` no second
+   factor can be enrolled, so the holders counted in `not_enrolled` would be sent to a setup step
+   that cannot be completed, and could not sign in. If the key is not set, **untick the box on
+   those roles before you upgrade**, or set the key first:
+
+   ```sql
+   update admin_roles set requires_two_factor = false where code = '<code>';
+   ```
+
+   After the upgrade, an instance in that state logs a warning at every start naming the roles and
+   how many of their administrators have no second factor.
+3. **Keep at least one administrator who can sign in.** If your own role is among the rows, set up
+   two-step verification before you upgrade (*Account security* in the Admin UI), or make sure an
+   administrator of another role can sign in to change the role.
+
+### Enforced two-step verification without an encryption key {#admin-two-step-without-key}
+
+The release that ships `MFA_ENFORCEMENT_UNAVAILABLE` closes a lockout (issue #930). Without
+`MFA_SECRET_ENCRYPTION_KEY` the MFA module cannot set up a second factor: it serves no setup or
+code-entry step. Yet with **Admin UI — enforce two-step verification** (`mfa.admin.totp_enforced`)
+on, sign-in still sent every administrator without a second factor to a setup step, which could
+not be completed, so none of them could sign in.
+
+**Behaviour change on upgrade:**
+
+- Turning `mfa.admin.totp_enforced` on is refused while the key is not set:
+  `409 MFA_ENFORCEMENT_UNAVAILABLE`, with `details.reason: 'encryption_key_missing'`. Turning it off
+  is always allowed, and so is saving it again when it is already on.
+- **On an instance where the setting is already on and the key is not set**, the setting is not
+  applied: administrators without a second factor sign in with their password, as they would with
+  the setting off. The setting is not changed. **Settings** shows *Not in force: no encryption key*
+  under it (the API's settings reads carry `notice.code: 'encryption_key_missing'`), and the
+  backend logs an error at every start until the key is set or the setting is turned off. Before,
+  these administrators could not sign in at all.
+- Nothing changes on an instance that has the key: enforcement applies as before.
+- This covers the setting only. A role that requires two-step verification is still enforced
+  without the key, so its holders who have no second factor still cannot sign in. Untick the box on
+  those roles, or set the key (see
+  [A role's two-step verification requirement is enforced](#role-two-factor-enforced)).
+
+**After upgrading,** if the notice or the logged error appears, either set `MFA_SECRET_ENCRYPTION_KEY` (see the
+[first deployment checklist](./deployment/first-deployment-checklist.md)) and restart, so that
+enforcement applies again, or turn the setting off in **Settings**.
+
+### Return windows count from the order's completion {#return-window-from-completion}
+
+The release that ships this change records when an order was completed (`orders.completed_at`,
+issue #905) and counts the return windows from it. Until now they counted from the order's last
+edit, which moved forward whenever a completed order was changed. The migration fills the new column
+with each completed order's `updated_at`, which is the moment those orders were judged by before, so
+nothing changes for existing orders at upgrade time.
+
+Two things do change from then on:
+
+- **Calendar days.** The free-return window (`returns.free_return_days`) now ends at the end of its
+  last calendar day, and a last day on a Saturday or Sunday moves to the Monday. Before, it ended
+  exactly `free_return_days × 24 h` after the anchor. A case can now be free-return eligible up to a
+  day later than before (up to three over a weekend), never earlier.
+- **A time zone.** The days are counted in a new setting, `returns.time_zone` (default
+  `Europe/Warsaw`, settable per sales channel).
+
+**After upgrading:**
+
+1. **If the shop is not in `Europe/Warsaw`**, set `returns.time_zone` to its zone, for example
+   `Europe/Berlin`, on the Admin Settings screen (group *Returns*).
+2. **Tell the operators to complete an order when the goods have been delivered.** The consumer's
+   withdrawal period counts from the order's completion, because the platform has no delivery date.
+
 ## An instance that is mixed from the start
 
 The installer of `0.101.x` or earlier wrote every package of the release with a `^` except

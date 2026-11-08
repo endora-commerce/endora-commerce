@@ -1,7 +1,8 @@
 import { Entity, Index, OptionalProps, PrimaryKey, Property, Unique } from '@mikro-orm/core';
 import { OrgScoped } from '@endora-commerce/platform/tenancy';
 import { randomUUID } from 'crypto';
-import type { NextAction } from '@endora-commerce/contracts';
+import type { NextAction, OrderChargeLine } from '@endora-commerce/contracts';
+import { ORDER_STATUS_COMPLETED } from '../domain/order-status-graph.js';
 
 /**
  * Order — data-model.md § Domain 4.
@@ -23,6 +24,7 @@ export class Order {
     | 'businessId'
     | 'createdAt'
     | 'updatedAt'
+    | 'completedAt'
     | 'status'
     | 'paymentStatus'
     | 'placedOnBehalfByAdminUserId'
@@ -207,6 +209,23 @@ export class Order {
   updatedAt: Date = new Date();
 
   /**
+   * The moment the order entered `completed` (issue #905): stamped once, by
+   * `OrderTransitionService` beside the status write, or here for an order
+   * created directly in that status, and never rewritten. It is the anchor
+   * `OrderReturnContextPort` reports as `completingStatusEnteredAt`, so a
+   * consumer's withdrawal period does not move when the order is edited later,
+   * which counting from `updatedAt` did. `null` = never completed: the period
+   * has not started. Rows completed before the column existed were backfilled
+   * from `updated_at`, the anchor of their day.
+   */
+  @Property({
+    type: 'datetime',
+    nullable: true,
+    onCreate: (order: Order) => (order.status === ORDER_STATUS_COMPLETED ? new Date() : null),
+  })
+  completedAt?: Date | null;
+
+  /**
    * Whether this order still owes a GA4 `purchase` conversion (issue #277).
    *
    * Inverted on purpose, and the default is the load-bearing half: `false`
@@ -226,9 +245,23 @@ export class Order {
    * rate on the sum of the nets, `vatByRate`) for an order placed from 0.108.0;
    * `null` for one placed before, whose stored totals are the rule of their day.
    * Read wherever what the order charged matters (returns), never recomputed.
+   * The DB CHECK and `OrderVatMethod` already admit `per_rate_charges` (issue
+   * #904); this type widens in Phase B with its first writer, together with
+   * `returns.ts`, `order-return-context.ts` and `refund-math.ts`.
    */
   @Property({ type: 'string', length: 16, nullable: true })
   vatMethod?: 'per_rate' | null = null;
+
+  /**
+   * Issue #904 — delivery and the payment surcharge split over the goods' VAT
+   * rates, as `chargesByRate` answered it at placement: `[{ kind, rate, gross,
+   * net }]`, two-place decimal strings. Read by every document the order
+   * produces, never recomputed. `null` on every order whose charges carry no
+   * VAT — which is every order until placement switches to `per_rate_charges`
+   * (Phase B); nothing writes it yet.
+   */
+  @Property({ type: 'json', nullable: true })
+  chargeLines?: OrderChargeLine[] | null = null;
 
   /**
    * When the conversion was reported, if it ever was.

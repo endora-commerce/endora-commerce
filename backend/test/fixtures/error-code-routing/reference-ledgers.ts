@@ -210,6 +210,15 @@ export const MINTED_ERROR_CODES: MintedErrorCodes = {
       'organization. The noun is an admin role and the one place the refusal is built is ' +
       '`admin_roles`\' permission service, which `organizations` asks for it.',
   },
+  MFA_REQUIRED_FOR_ROLE_TWO_FACTOR: {
+    to: 'admin_users',
+    reason:
+      'Minted by issue #349 for the refusal a role write earns by turning `requiresTwoFactor` ' +
+      'on where no second factor can be enrolled: `mfa` is off, or has no encryption key. The ' +
+      'noun is the role editor\'s write, whose one raise site is `admin_users`\' ' +
+      '`PUT /admin-roles/:code`; it is raised while `mfa` may be absent, so `mfa`\'s bundle ' +
+      'could not be the one that translates it.',
+  },
   ADMIN_USER_ROLE_REQUIRED: {
     to: 'admin_users',
     reason:
@@ -225,6 +234,15 @@ export const MINTED_ERROR_CODES: MintedErrorCodes = {
       'record\'s secrets are sent — an API Base URL, a mail host — without re-entering them. ' +
       'The noun is the credential configuration, `credentials`\' own row, and the one raise ' +
       'site is its update command.',
+  },
+  MFA_ENFORCEMENT_UNAVAILABLE: {
+    to: 'mfa',
+    reason:
+      'Minted by issue #930 for the refusal an operator earns by turning ' +
+      '`mfa.admin.totp_enforced` on where no second factor can be enrolled, because `mfa` has no ' +
+      'encryption key. The noun is the second factor, this module\'s whole subject; the one ' +
+      'raise site is `mfa`\'s own setting validator, which `settings` consults only while `mfa` ' +
+      'is present.',
   },
   MFA_DEACTIVATION_BLOCKED: {
     to: 'mfa',

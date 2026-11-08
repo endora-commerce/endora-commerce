@@ -12,35 +12,73 @@ import {
   type PreviewRequest,
 } from './preview-model.js';
 
-const now = () => performance.now();
+/**
+ * The CPU time this process has spent, in milliseconds — not the wall clock.
+ *
+ * Issue #250: under load the wall clock also counts the time the scheduler gave
+ * to other processes, and a timing of a millisecond or two can absorb a whole
+ * time slice. On a loaded CI runner the linear function below read `16× the
+ * text, 6.05× the time`, and pinned to one core shared with three busy
+ * processes it read 7.27× in one run of twenty. The process's own CPU time does
+ * not advance while it is not scheduled, so what it measures is the work.
+ */
+const cpuNow = (): number => {
+  // This file runs under Node (the package's `environment: 'node'`), while the
+  // admin program it is type-checked in carries no Node types, so the one call
+  // it needs is declared here rather than pulling `@types/node` into the UI.
+  const { process } = globalThis as unknown as {
+    readonly process: { cpuUsage(): { readonly user: number; readonly system: number } };
+  };
+  const used = process.cpuUsage();
+  return (used.user + used.system) / 1000;
+};
 
 /**
- * Issue #612: the cost is compared across sizes, not against a clock — a
- * wall-clock budget measures the host as much as the code. `run` is timed once
- * on an input of `length` against {@link GROWTH} calls on inputs
- * {@link GROWTH} times shorter, each side the fastest of five timings after a
- * warm-up, every call on an input of its own built outside the timed region.
- * Linear code does the same work on both sides, so the ratio is about 1 however
- * busy the host is; a quadratic path makes it about {@link GROWTH}.
+ * Issue #612: the cost is compared across sizes, not against a budget. `run` is
+ * timed once on an input of `length` against {@link GROWTH} calls on inputs
+ * {@link GROWTH} times shorter, every call on an input of its own built outside
+ * the timed region. Linear code does the same work on both sides, so the ratio
+ * is about 1; a quadratic path makes it grow with {@link GROWTH}.
+ *
+ * Issue #250 made it hold under load as well as on an idle machine: CPU time
+ * rather than the wall clock ({@link cpuNow}); both sides warmed up before
+ * anything is kept, so neither is timed before the compiler has reached it; and
+ * {@link SAMPLES} timings per side, taken in turns, of which the fastest is
+ * kept, so a pause lands on both sides or on neither.
  */
-const GROWTH = 16;
-/** Four times above linear, four times below what a quadratic path gives. */
+const GROWTH = 64;
+/**
+ * Between the worst linear reading and the best quadratic one, measured on
+ * 2026-11-08 under load — 40 cold runs of this file, half pinned to one core
+ * shared with three busy processes, half beside 32 busy processes at load ~55:
+ * 0.36-1.41 for this file's function, and 9.48-19.65 over 21 runs with the
+ * #612 quadratic (a group's agent list copied per line and searched per rule)
+ * planted in its place. About 2.5 times clear of each.
+ */
 const LINEAR_BOUND = 4;
+const SAMPLES = 15;
+const WARM_UP = 3;
 function growthRatio<T>(run: (input: T) => unknown, input: (length: number) => T, length: number): number {
-  const fastest = (inputs: () => T[]): number => {
-    let best = Number.POSITIVE_INFINITY;
-    for (let sample = 0; sample <= 5; sample += 1) {
-      const batch = inputs();
-      const start = now();
-      for (const value of batch) run(value);
-      const elapsed = now() - start;
-      if (sample > 0) best = Math.min(best, elapsed);
-    }
-    return best;
+  const timed = (batch: readonly T[]): number => {
+    const start = cpuNow();
+    for (const value of batch) run(value);
+    return cpuNow() - start;
   };
-  const once = fastest(() => [input(length)]);
-  const many = fastest(() => Array.from({ length: GROWTH }, () => input(Math.ceil(length / GROWTH))));
-  return once / many;
+  const one = (): T[] => [input(length)];
+  const many = (): T[] => Array.from({ length: GROWTH }, () => input(Math.ceil(length / GROWTH)));
+  for (let round = 0; round < WARM_UP; round += 1) {
+    timed(one());
+    timed(many());
+  }
+  let fastestOne = Number.POSITIVE_INFINITY;
+  let fastestMany = Number.POSITIVE_INFINITY;
+  for (let sample = 0; sample < SAMPLES; sample += 1) {
+    const longer = one();
+    const shorter = many();
+    fastestOne = Math.min(fastestOne, timed(longer));
+    fastestMany = Math.min(fastestMany, timed(shorter));
+  }
+  return fastestOne / fastestMany;
 }
 
 /**

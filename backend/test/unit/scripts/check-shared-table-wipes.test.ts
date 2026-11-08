@@ -344,10 +344,22 @@ describe('over the real tree', () => {
   // test file once for every assertion below, where calling each walk on its
   // own parsed the whole of `test/` per assertion and timed out under load in
   // `test:unit:fast` (issue #910).
+  // **A budget sized for the scan, not for a unit case** (issue #250). #918
+  // did not add cost here, it moved it: before it, four whole-tree cases each
+  // parsed `test/` for themselves (8.2-9.0 s each, idle) under their own 30 s;
+  // now one scan does all four in this hook (6.5 s idle) under the hook's 30 s.
+  // That scan, measured on 2026-11-08 on a 16-thread machine: 6.5 s idle,
+  // 34.5 s at load ~35-40 (16 CPU burners beside two other agents' runs), and
+  // 20.2 s and 20.8 s on CI's 4-vCPU runner, where `test:unit:fast` runs four
+  // forks at once (run 42427743082, both attempts). Nothing in it repeats any
+  // more. 120 s is the budget `check-module-boundary.test.ts` gives its one
+  // whole-tree case (#908): over three times the loaded measurement, and still
+  // a bound, so a walk that stopped terminating still fails.
+  const TREE_SCAN_BUDGET_MS = 120_000;
   let scan: ReturnType<typeof scanSharedTableWipes>;
   beforeAll(() => {
     scan = scanSharedTableWipes({ sources });
-  });
+  }, TREE_SCAN_BUDGET_MS);
 
   it('reads a tree big enough for a green to mean something', () => {
     expect(sources.size, 'no sources found under test/ — a vacuous pass').toBeGreaterThan(500);

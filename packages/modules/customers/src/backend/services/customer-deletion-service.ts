@@ -6,6 +6,7 @@ import {
   ORGANIZATION_AUDIT_KEEP_KEYS,
   type AddressReadPort,
   type AddressServicePort,
+  type CartAnonymizationPort,
   type CustomerAccountLifecycleWritePort,
   type CustomerAccountReadPort,
   type CustomerAccountRecord,
@@ -45,16 +46,18 @@ import type {
  * **The order of the sweep (issue #800).** No transaction spans the three
  * owners, so the sweep is made restartable instead: the account's
  * `anonymizedAt` is the cascade's commit marker and is written **last** —
- * organisation, then its saved addresses, then the account. Until that last
- * write commits the account is still on `listDueForAnonymization`, and both
- * earlier steps converge (they write only what is still missing and audit only
- * what they wrote), so the next tick finishes whatever a crash left. The price
+ * organisation, then its saved addresses, then the account's rows in this
+ * module's retired personal book (issue #927), then the reasons written about
+ * the account's carts (issue #920), then the account. Until that last
+ * write commits the account is still on `listDueForAnonymization`, and every
+ * earlier step converges (each writes only what is still missing and audits only
+ * what it wrote), so the next tick finishes whatever a crash left. The price
  * is that the organisation can be scrubbed while the account is not yet
  * anonymised, which is why {@link restore} refuses past the retention window on
  * the same cutoff as the sweep rather than relying on `anonymizedAt` alone.
  *
- * **The subject's audit history (issue #844)** is erased between the address
- * step and the account step, so "anonymised" keeps meaning one thing: an
+ * **The subject's audit history (issue #844)** is erased after every other
+ * scrub and before the account step, so "anonymised" keeps meaning one thing: an
  * account whose `anonymizedAt` is written has had its history erased too. The
  * redaction is idempotent, so a re-run finishes what a crash left of it.
  */
@@ -80,6 +83,17 @@ export class CustomerDeletionService {
      * it so that the window it honours is the sweep's, not a second one.
      */
     private readonly resolveRetentionDays: () => Promise<number>,
+    /**
+     * This module's retired personal address book (`customer_addresses`,
+     * issue #927): every row of the anonymized account is blanked with it.
+     */
+    private readonly retiredAddressBook: Pick<AddressBookRetirementService, 'anonymizeForAccount'>,
+    /**
+     * `carts`' step (issue #920): the reasons operators and approvers wrote
+     * about the account's carts. `carts` is `nonDeactivatable` and already a
+     * binding dependency, so this step has no absent state to degrade in.
+     */
+    private readonly carts: CartAnonymizationPort,
     /** Issue #844 — what the history step names and calls. */
     private readonly history: AnonymizedHistoryDeps,
   ) {}
@@ -239,6 +253,13 @@ export class CustomerDeletionService {
     // which are the customer's one address book, are cleared and blanked.
     // Order snapshots are copies on `orders`' rows and stay as they are.
     if (organization) await this.addresses.anonymizeForOrganization(organization.id);
+    // Issue #927 — and every row of the account's retired personal book, which
+    // is this module's own table: the moved and the deleted rows still hold
+    // the data. Any account, since the book was the account's.
+    await this.retiredAddressBook.anonymizeForAccount(customerAccountId);
+    // Issue #920 — and the reasons written about the account's carts, on any
+    // account: a company member's basket is theirs too.
+    await this.carts.anonymizeForCustomerAccount(customerAccountId);
     // Issue #844 — and the history written about the subject is erased in place.
     await this.redactHistory(customerAccountId, organization?.id ?? null);
     // Last: `anonymizedAt` takes the account off the work list (issue #800).

@@ -4030,6 +4030,121 @@ zapisanego zapytania jest decyzją o tym, co znaczyły jego ceny, więc podejmuj
 zapytania osobno, ręcznie i tylko wtedy, gdy sprzedawca potwierdzi, że ceny miały być w walucie
 kanału.
 
+### Wymóg weryfikacji dwuetapowej w roli jest egzekwowany {#role-two-factor-enforced}
+
+Wydanie, które wprowadza `MFA_REQUIRED_FOR_ROLE_TWO_FACTOR`, sprawia, że pole roli **Wymaga
+weryfikacji dwuetapowej od przypisanych użytkowników** (`requiresTwoFactor`) działa zgodnie z
+opisem (zgłoszenie #349). Do tej pory było zapisywane, wyświetlane i edytowane, ale żadne
+logowanie go nie odczytywało. Od tego wydania posiadacz takiej roli loguje się z drugim
+składnikiem, tak jak `mfa.admin.totp_enforced` wymaga tego od każdego administratora. Działanie
+opisuje strona modułu użytkowników panelu, sekcja *Role wymagające weryfikacji dwuetapowej*.
+
+**Zmiana zachowania po aktualizacji:**
+
+- Operator mógł zaznaczyć to pole w przekonaniu, że już działa. Przy następnym logowaniu każdy
+  posiadacz takiej roli, który nie skonfigurował weryfikacji dwuetapowej, zostanie przeprowadzony
+  przez jej konfigurację i dostanie sesję dopiero po niej; posiadacz, który ją skonfigurował,
+  zostanie poproszony o kod. Logowanie przez Google i Microsoft działa tak samo.
+- **Sama aktualizacja nikogo nie wylogowuje.** Sesje kończą się dopiero wtedy, gdy wymóg zaczyna
+  kogoś obowiązywać po aktualizacji: gdy w roli zostanie zaznaczone pole albo gdy taka rola
+  zostanie nadana administratorowi bez skonfigurowanej weryfikacji. Posiadacze zalogowani przed
+  aktualizacją zachowują sesje do ich wygaśnięcia lub wylogowania.
+- Modułu MFA nie można wyłączyć, dopóki którakolwiek rola wymaga weryfikacji dwuetapowej: ekran
+  modułów odpowiada `409 MFA_DEACTIVATION_BLOCKED` i podaje te role. Najpierw odznacz pole w tych
+  rolach. Gdy MFA jest wyłączone, pola nie można zaznaczyć.
+
+**Przed aktualizacją:**
+
+1. **Sprawdź, kto zostanie poproszony o konfigurację weryfikacji dwuetapowej.** Uruchom to
+   zapytanie tylko do odczytu. Każdy wiersz to rola, która jej wymaga, z liczbą jej aktywnych
+   administratorów i liczbą tych, którzy jej nie skonfigurowali:
+
+   ```sql
+   select r.code,
+          count(u.id) as admins,
+          count(u.id) filter (where e.id is null) as not_enrolled
+   from admin_roles r
+   join admin_users u on u.admin_role_id = r.id and u.deleted_at is null
+   left join mfa_enrolments e
+     on e.subject_type = 'admin' and e.subject_id = u.id and e.status = 'active'
+   where r.requires_two_factor
+   group by r.code
+   order by r.code;
+   ```
+
+2. **Sprawdź, czy da się skonfigurować drugi składnik.** Bez `MFA_SECRET_ENCRYPTION_KEY` nie da
+   się zarejestrować drugiego składnika, więc posiadacze policzeni w `not_enrolled` trafiliby do
+   konfiguracji, której nie można dokończyć, i nie mogliby się zalogować. Jeśli klucz nie jest
+   ustawiony, **odznacz pole w tych rolach przed aktualizacją** albo najpierw ustaw klucz:
+
+   ```sql
+   update admin_roles set requires_two_factor = false where code = '<code>';
+   ```
+
+   Po aktualizacji instancja w takim stanie przy każdym starcie zapisuje ostrzeżenie z nazwami
+   ról i liczbą ich administratorów bez drugiego składnika.
+3. **Zachowaj co najmniej jednego administratora, który może się zalogować.** Jeśli Twoja rola
+   jest wśród wierszy, skonfiguruj weryfikację dwuetapową przed aktualizacją (*Bezpieczeństwo
+   konta* w panelu administracyjnym) albo upewnij się, że administrator innej roli może się
+   zalogować i zmienić rolę.
+
+### Wymuszona weryfikacja dwuetapowa bez klucza szyfrowania {#admin-two-step-without-key}
+
+Wydanie, które zawiera `MFA_ENFORCEMENT_UNAVAILABLE`, usuwa blokadę dostępu (zgłoszenie #930). Bez
+`MFA_SECRET_ENCRYPTION_KEY` moduł MFA nie może skonfigurować drugiego składnika: nie udostępnia ani
+kroku konfiguracji, ani kroku wpisania kodu. Mimo to przy włączonym ustawieniu **Admin UI — enforce
+two-step verification** (`mfa.admin.totp_enforced`) logowanie nadal kierowało każdego
+administratora bez drugiego składnika do kroku konfiguracji, którego nie dało się ukończyć, więc
+żaden z nich nie mógł się zalogować.
+
+**Zmiana zachowania po aktualizacji:**
+
+- Włączenie `mfa.admin.totp_enforced` jest odrzucane, dopóki klucz nie jest ustawiony:
+  `409 MFA_ENFORCEMENT_UNAVAILABLE`, z `details.reason: 'encryption_key_missing'`. Wyłączenie
+  ustawienia jest zawsze dozwolone, podobnie jak ponowne zapisanie go, gdy jest już włączone.
+- **Na instancji, na której ustawienie jest już włączone, a klucz nie jest ustawiony**, ustawienie
+  nie jest stosowane: administratorzy bez drugiego składnika logują się hasłem, tak jak przy
+  wyłączonym ustawieniu. Samo ustawienie się nie zmienia. **Ustawienia** pokazują pod nim
+  komunikat *Nie obowiązuje: brak klucza szyfrowania* (odczyty ustawień w API zawierają
+  `notice.code: 'encryption_key_missing'`), a backend zapisuje błąd w logu przy każdym starcie,
+  dopóki klucz nie zostanie ustawiony albo ustawienie wyłączone. Wcześniej ci administratorzy nie
+  mogli się w ogóle zalogować.
+- Na instancji z kluczem nic się nie zmienia: wymuszanie działa jak dotąd.
+- Dotyczy to tylko tego ustawienia. Wymóg weryfikacji dwuetapowej w roli jest bez klucza nadal
+  egzekwowany, więc posiadacze takiej roli bez drugiego składnika nadal nie mogą się zalogować.
+  Odznacz to pole w tych rolach albo ustaw klucz (zobacz
+  [Wymóg weryfikacji dwuetapowej w roli jest egzekwowany](#role-two-factor-enforced)).
+
+**Po aktualizacji,** jeśli pojawi się ten komunikat albo błąd w logu, ustaw `MFA_SECRET_ENCRYPTION_KEY` (zobacz
+[listę kontrolną pierwszego wdrożenia](./deployment/first-deployment-checklist.md)) i uruchom
+backend ponownie, aby wymuszanie znów działało, albo wyłącz to ustawienie w **Ustawieniach**.
+
+### Terminy zwrotu liczą się od realizacji zamówienia {#return-window-from-completion}
+
+Wydanie, które zawiera tę zmianę, zapisuje, kiedy zamówienie zostało zrealizowane
+(`orders.completed_at`, zgłoszenie #905), i od tej chwili liczy terminy zwrotu. Dotąd liczyły się od
+ostatniej edycji zamówienia, która przesuwała się do przodu przy każdej zmianie zrealizowanego
+zamówienia. Migracja wypełnia nową kolumnę wartością `updated_at` każdego zrealizowanego zamówienia —
+chwilą, według której te zamówienia były oceniane wcześniej — więc w chwili aktualizacji nic się nie
+zmienia dla istniejących zamówień.
+
+Od tej pory zmieniają się dwie rzeczy:
+
+- **Dni kalendarzowe.** Okres bezpłatnego zwrotu (`returns.free_return_days`) kończy się teraz z
+  końcem ostatniego dnia kalendarzowego, a ostatni dzień przypadający w sobotę lub niedzielę
+  przesuwa się na poniedziałek. Wcześniej kończył się dokładnie `free_return_days × 24 h` po chwili
+  odniesienia. Sprawa może teraz kwalifikować się do bezpłatnego zwrotu do jednego dnia później niż
+  dotąd (do trzech przy weekendzie), nigdy wcześniej.
+- **Strefa czasowa.** Dni liczy się w nowym ustawieniu `returns.time_zone` (domyślnie
+  `Europe/Warsaw`, ustawiane także dla kanału sprzedaży).
+
+**Po aktualizacji:**
+
+1. **Jeśli sklep nie działa w strefie `Europe/Warsaw`**, ustaw `returns.time_zone` na jego strefę,
+   np. `Europe/Berlin`, na ekranie ustawień w panelu (grupa *Zwroty*).
+2. **Poproś operatorów, by realizowali zamówienie, gdy towar został doręczony.** Termin konsumenta na
+   odstąpienie od umowy liczy się od realizacji zamówienia, bo platforma nie zna daty doręczenia.
+
 ## Instancja niespójna od początku
 
 Instalator `0.101.x` lub starszy zapisywał każdy pakiet wydania z `^` poza

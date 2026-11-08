@@ -172,11 +172,16 @@ export interface AddressServicePort {
   ): Promise<AddressRecord>;
   deleteAddress(organizationId: string, addressId: string): Promise<void>;
   /**
-   * Clear **and** blank every live address of the Organization
+   * Clear **and** blank every address of the Organization
    * (`specs/173-b2c-address-book-merge/` OD-7): `recipientName`, `street`,
    * `city` and `postalCode` become `'-'`, `phone` `null`, `isDefault` `false`,
-   * the country stays and the row is soft-deleted. One `address.anonymized`
-   * audit entry per row, with a null actor. Answers how many rows it scrubbed.
+   * the country stays and the row is soft-deleted. **Every** row, the ones
+   * already soft-deleted included (issue #927): an address the customer
+   * deleted still holds their data, and it keeps its own `deletedAt`. A row
+   * already fully scrubbed is not selected, so a repeat call writes nothing.
+   * One `address.anonymized` audit entry per row scrubbed, with a null actor
+   * and no personal data — `stateBefore` names the organisation, the kind and
+   * `wasDeleted`. Answers how many rows it scrubbed.
    *
    * The retention sweep's call, for a personal Organization it has just
    * anonymized; order snapshots are copies on `orders`' rows and are untouched.

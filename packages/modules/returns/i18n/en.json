@@ -34,5 +34,7 @@
   "organizationPermissions.returns.create.description": "Open a return or a complaint for an order you can see: your own, or a colleague's if you may view the organization's orders.",
   "organizationPermissions.returns.view_organization.label": "View the organization's returns and complaints",
   "organizationPermissions.returns.view_organization.description": "See every return and complaint filed in the organization, not only your own. Commenting, attaching files, choosing the return delivery method and cancelling stay with the member who filed the case.",
-  "settingGroups.returns.name": "Returns"
+  "settingGroups.returns.name": "Returns",
+  "settingLabels.returns.time_zone.name": "Time zone of the return windows",
+  "settingLabels.returns.time_zone.description": "The time zone, as an IANA name such as Europe/Warsaw, in which the free-return window and the consumer's withdrawal period count calendar days: each ends at the end of its last day in this zone, and a last day on a Saturday or Sunday moves to the Monday. Sales-channel value overrides the global value."
 }

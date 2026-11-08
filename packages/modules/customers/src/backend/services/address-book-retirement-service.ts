@@ -1,4 +1,4 @@
-import { LockMode } from '@mikro-orm/core';
+import { LockMode, type FilterQuery } from '@mikro-orm/core';
 import type { EntityManager } from '@mikro-orm/postgresql';
 import type {
   AddressRecord,
@@ -95,6 +95,27 @@ const PENDING = `"deleted_at" is null and "merge_refusal" is null`;
 
 const ERASED = '-';
 
+/**
+ * The rows {@link AddressBookRetirementService.anonymizeForAccount} still has
+ * work on: any field of the scrub not yet written, `deletedAt` included (issue
+ * #927). A field added to the scrub is added here, or a row missing only that
+ * field is never selected again. Built per call: the ORM may rewrite a filter
+ * object it is handed.
+ */
+export function anonymizationResidue(): { $or: Array<FilterQuery<CustomerAddress>> } {
+  return {
+    $or: [
+      { deletedAt: null },
+      { recipientName: { $ne: ERASED } },
+      { street: { $ne: ERASED } },
+      { city: { $ne: ERASED } },
+      { postalCode: { $ne: ERASED } },
+      { phone: { $ne: null } },
+      { isDefault: true },
+    ],
+  };
+}
+
 /** What the first phase of a move decided for one row. */
 type Decision =
   | { readonly kind: 'link'; readonly target: AddressRecord; readonly deduplicated: boolean }
@@ -178,6 +199,55 @@ export class AddressBookRetirementService {
           { orderBy: { createdAt: 'asc', id: 'asc' } },
         ),
     );
+  }
+
+  /**
+   * Blank **every** row of the account in the retired book — the ones the job
+   * moved or erased, the ones the customer deleted, a refused one — the
+   * retention sweep's step for an account it anonymizes (issue #927). The rows
+   * the job moved are soft-deleted copies that still hold the data, so nothing
+   * else ever reaches them. The same fields get the same values as the
+   * Organization book's scrub (`'-'`, no phone, not default, country kept); a
+   * row keeps its `deletedAt`, provenance and refusal code, none of which is
+   * personal. One `customer_address.anonymized` entry per row, with a null
+   * actor, no personal data and `wasDeleted`, in the scrub's transaction.
+   *
+   * Idempotent: only a row some part of the scrub is missing from is selected,
+   * so a repeat call writes and records nothing. Answers how many rows it
+   * scrubbed. For every account, whatever its Organization: the book was the
+   * account's own. Run under the system scope the sweep's tick enters.
+   */
+  async anonymizeForAccount(customerAccountId: string): Promise<number> {
+    return this.deps.emFactory().transactional(async (em) => {
+      const rows = await em.find(
+        CustomerAddress,
+        { customerAccountId, ...anonymizationResidue() },
+        { orderBy: { createdAt: 'asc', id: 'asc' }, lockMode: LockMode.PESSIMISTIC_WRITE },
+      );
+      const now = new Date();
+      for (const row of rows) {
+        const wasDeleted = row.deletedAt != null;
+        // command-coverage-ignore: the retention sweep's system-initiated
+        // scrub, audited below with the null actor that fact deserves.
+        row.recipientName = ERASED;
+        row.street = ERASED;
+        row.city = ERASED;
+        row.postalCode = ERASED;
+        row.phone = null;
+        row.isDefault = false;
+        row.deletedAt ??= now;
+        this.deps.auditLog.recordWithin(em, {
+          actorAdminUserId: null,
+          action: 'customer_address.anonymized',
+          objectType: 'customer_address',
+          objectId: row.id,
+          stateBefore: { customerAccountId, kind: row.kind, wasDeleted },
+          stateAfter: { anonymizedAt: now.toISOString() },
+        });
+      }
+      await em.flush();
+      return rows.length;
+    });
   }
 
   /** The next batch of accounts with pending rows, by keyset over the account id. */

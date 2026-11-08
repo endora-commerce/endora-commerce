@@ -5,17 +5,24 @@ import type {
   AdminAuthenticationThrottlePort,
   CustomerAuthenticationThrottlePort,
   AdminPasswordVerificationPort,
+  AdminRolePort,
   AdminUserReadPort,
   AuthSessionPort,
   CustomerAccountReadPort,
   CustomerPasswordStatePort,
   CustomerPasswordVerificationPort,
+  MfaAdminEnforcementPort,
   MfaDeactivationGuardPort,
   MfaEnrolmentCountPort,
   MfaEnrolmentStatePort,
   MfaLoginPort,
   OrganizationPermissionPort,
+  PermissionReadPort,
+  SettingNoticeRegistryPort,
+  SettingWriteValidatorRegistryPort,
 } from '@endora-commerce/contracts';
+import { MFA_SETTING_CODES } from '@endora-commerce/contracts';
+import { z } from 'zod';
 import type {
   AuditPort,
   SalesChannelAccessPort,
@@ -23,7 +30,7 @@ import type {
 } from '@endora-commerce/platform/kernel';
 import type { CommandBus } from '@endora-commerce/platform/commands';
 import type { ModuleContext } from '@endora-commerce/platform/kernel';
-import { lazyPort } from '@endora-commerce/platform/kernel';
+import { effectiveState, lazyPort } from '@endora-commerce/platform/kernel';
 import type { RequireAdminFactory } from '@endora-commerce/platform/kernel';
 import type { SettingsReader } from './services/mfa-policy-resolver.js';
 import {
@@ -40,8 +47,15 @@ import {
 import { MfaEnrolmentCountService } from './services/mfa-enrolment-count.service.js';
 import { MfaDeactivationGuardService } from './services/mfa-deactivation-guard.service.js';
 import { MfaEnrolmentStateService } from './services/mfa-enrolment-state.service.js';
+import { MfaAdminEnforcementService } from './services/mfa-admin-enforcement.service.js';
+import { warnOfUnenforceableRoleRequirements } from './services/role-requirement-boot-warning.js';
 import type { SocialIdentityDeps } from './services/social-identity-service.js';
 import { createCustomerChannelAccess } from './services/customer-channel-access.js';
+import {
+  createAdminEnforcementSettingNotice,
+  createAdminEnforcementSettingValidator,
+  reportUnenforceableAdminSetting,
+} from './services/admin-enforcement-without-key.js';
 import { mfaModule, type MfaModuleHandle } from './plugin.js';
 import { MfaEnrolment } from './entities/mfa-enrolment.entity.js';
 import { MfaOrganizationPolicy } from './entities/mfa-organization-policy.entity.js';
@@ -257,6 +271,12 @@ export function registerModule(ctx: ModuleContext): void {
             // `Session` entity stays behind the boundary, where its `tokenHash`
             // belongs.
             sessionService: lazyPort<AuthSessionPort>(ctx, 'authSessionPort'),
+            // Issue #349 — the administrator's role, for its two-factor flag.
+            // `admin_roles`' published `permissionService`, a proxy like every
+            // port here; `admin_roles` is `nonDeactivatable` and in this
+            // module's `dependencies`, so no operator loses a control to it.
+            readAdminRole: (adminUserId) =>
+              lazyPort<PermissionReadPort>(ctx, 'permissionService').resolveRole(adminUserId),
             resolveDefaultChannelId: () => ctx.cradle<MfaCradle>().mfaDefaultChannelIdResolver(),
             ...(secretEncryptionKey === undefined ? {} : { secretEncryptionKey }),
             ...(backendBaseUrl === undefined ? {} : { backendBaseUrl }),
@@ -343,9 +363,10 @@ export function registerModule(ctx: ModuleContext): void {
 
   /**
    * Whether switching this module off would withdraw a second factor the
-   * platform requires of administrators. `/platform/modules` asks before an
-   * operator switches `mfa` off and refuses while it is `true`, so the
-   * requirement is turned off as its own change first. Read while the module
+   * platform requires of administrators — by the setting or by a role's flag.
+   * `/platform/modules` asks before an operator switches `mfa` off and refuses
+   * while it is `true`, so the requirement is turned off as its own change
+   * first. Read while the module
    * is still on, through an open gate, like the count above.
    */
   ctx.di.providePort<MfaDeactivationGuardPort>(
@@ -354,10 +375,15 @@ export function registerModule(ctx: ModuleContext): void {
       .asFunction(
         () =>
           // Deferred for the reason the module's own settings reader above is.
-          new MfaDeactivationGuardService({
-            get: (code, salesChannelId, schema) =>
-              ctx.cradle<MfaCradle>().settingsReadPort.get(code, salesChannelId, schema),
-          }),
+          new MfaDeactivationGuardService(
+            {
+              get: (code, salesChannelId, schema) =>
+                ctx.cradle<MfaCradle>().settingsReadPort.get(code, salesChannelId, schema),
+            },
+            // Issue #349 — a role's `requiresTwoFactor` is the requirement's
+            // second source.
+            lazyPort<AdminRolePort>(ctx, 'adminRolePort'),
+          ),
       )
       .singleton(),
   );
@@ -380,6 +406,96 @@ export function registerModule(ctx: ModuleContext): void {
       .asFunction(({ emFactory }: MfaCradle) => new MfaEnrolmentStateService(emFactory))
       .singleton(),
   );
+
+  /**
+   * Issue #349 — what `admin_users` calls when a role's two-factor requirement
+   * starts binding administrators: end the sessions they opened without a
+   * factor, preview how many that is, and say whether a requirement set now
+   * can be met at all (this composition holds its encryption key).
+   *
+   * Gated like every other port. `admin_users` decides `mfa`'s presence before
+   * it resolves this and declares the edge `degrades-without`: with `mfa`
+   * absent the flag cannot be turned on, so there is nothing to end.
+   */
+  ctx.di.providePort<MfaAdminEnforcementPort>(
+    'mfaAdminEnforcementPort',
+    ctx
+      .asFunction(({ emFactory, auditLogService, mfa }: MfaCradle) => {
+        const enrolmentState = new MfaEnrolmentStateService(emFactory);
+        return new MfaAdminEnforcementService({
+          activeAdminIds: (ids) => enrolmentState.activeSubjectIds('admin', ids),
+          sessions: lazyPort<AuthSessionPort>(ctx, 'authSessionPort'),
+          invalidatePending: (adminUserId) => mfa.handle().challengeStore.invalidateSubject('admin', adminUserId),
+          auditLog: auditLogService,
+          canEnforce: mfa.handle().enrolmentService !== null,
+        });
+      })
+      .singleton(),
+  );
+
+  /**
+   * Issue #349, M5 — with no encryption key nothing can be enrolled, so a role
+   * that requires a second factor locks its unenrolled holders out at sign-in.
+   * Said at every boot until it is gone.
+   */
+  ctx.onBoot(async () => {
+    // Off means no second factor is asked for (D-96), so there is nothing to
+    // warn about — and a hook must not read through closed gates.
+    if (!effectiveState.isPresent('mfa')) return;
+    const { emFactory, mfa } = ctx.cradle<MfaCradle>();
+    const enrolmentState = new MfaEnrolmentStateService(emFactory);
+    const adminUsers = lazyPort<AdminUserReadPort>(ctx, 'adminUserReadPort');
+    await warnOfUnenforceableRoleRequirements({
+      hasEncryptionKey: mfa.handle().enrolmentService !== null,
+      listRoles: () => lazyPort<AdminRolePort>(ctx, 'adminRolePort').list(),
+      holdersOf: async (roleId) =>
+        (await adminUsers.listByRoleId(roleId)).filter((admin) => admin.deletedAt === null).map((admin) => admin.id),
+      activeAdminIds: (ids) => enrolmentState.activeSubjectIds('admin', ids),
+      warn: (fields, message) => ctx.log.warn(fields, message),
+    });
+  });
+
+  /**
+   * Issue #930 — `mfa.admin.totp_enforced` cannot be turned on where no second
+   * factor can be enrolled, and its read says it is not in force while it is
+   * on there. **Contribution** hooks and unprobed, in the `cms` / `seo` shape:
+   * both registries skip a contributor that is absent, and the platform refuses
+   * an absent module's setting writes first.
+   */
+  ctx.onBoot(() => {
+    const canEnrolSecondFactor = () =>
+      ctx.cradle<MfaCradle>().mfa.handle().enrolmentService !== null;
+    lazyPort<SettingWriteValidatorRegistryPort>(ctx, 'settingWriteValidatorRegistry').register(
+      createAdminEnforcementSettingValidator({
+        canEnrolSecondFactor,
+        readEnforced: () =>
+          ctx
+            .cradle<MfaCradle>()
+            .settingsReadPort.get(MFA_SETTING_CODES.ADMIN_TOTP_ENFORCED, null, z.boolean()),
+      }),
+    );
+    lazyPort<SettingNoticeRegistryPort>(ctx, 'settingNoticeRegistry').register(
+      createAdminEnforcementSettingNotice(canEnrolSecondFactor),
+    );
+  });
+
+  /**
+   * Issue #930 — an instance whose `mfa.admin.totp_enforced` is on with no
+   * encryption key is told at every boot, at error level, that the
+   * requirement is not applied.
+   * Work, so asked for presence first: off means no second factor at all
+   * (D-96), so there is nothing to warn about.
+   */
+  ctx.onBoot(async () => {
+    if (!effectiveState.isPresent('mfa')) return;
+    const { mfa, settingsReadPort } = ctx.cradle<MfaCradle>();
+    await reportUnenforceableAdminSetting({
+      hasEncryptionKey: mfa.handle().enrolmentService !== null,
+      readEnforced: () =>
+        settingsReadPort.get(MFA_SETTING_CODES.ADMIN_TOTP_ENFORCED, null, z.boolean()),
+      error: (fields, message) => ctx.log.error(fields, message),
+    });
+  });
 
   ctx.routes(async (app) => {
     const plugin = ctx.cradle<MfaCradle>().mfa.plugin as (a: typeof app) => Promise<void>;

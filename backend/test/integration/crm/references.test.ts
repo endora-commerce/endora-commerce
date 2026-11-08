@@ -36,7 +36,13 @@ describe('crm references to Products and Orders (US12)', () => {
   let h: BackendServerHandle;
   let otherOrganizationId: string;
   const product = formatOpportunityReferenceToken('product', SEED_PRODUCT_101_ID);
-  const PRODUCT_NAMES = { 'en-US': 'Example simple product', 'pl-PL': 'Przykładowy produkt prosty' };
+  /**
+   * The seeded Product's Global name (`seed-catalog.ts`). Since feature 174
+   * (`specs/174-product-editor-scope-switcher/data-model.md` §1, FR-031)
+   * `products.name` is one text, not a language map, and a reference is
+   * labelled by it whatever language the reader works in.
+   */
+  const PRODUCT_NAME = 'Example simple product';
 
   const call = (
     method: 'GET' | 'POST' | 'PATCH' | 'DELETE',
@@ -62,11 +68,8 @@ describe('crm references to Products and Orders (US12)', () => {
       .map((row) => `${row.sourceKind}:${row.sourceId ?? '-'}:${row.targetType}:${row.targetId}`)
       .sort();
 
-  const renameProduct = (name: Record<string, string>) =>
-    h.em().getConnection().execute(`update "products" set "name" = ?::jsonb where "id" = ?`, [
-      JSON.stringify(name),
-      SEED_PRODUCT_101_ID,
-    ]);
+  const renameProduct = (name: string) =>
+    h.em().getConnection().execute(`update "products" set "name" = ? where "id" = ?`, [name, SEED_PRODUCT_101_ID]);
 
   beforeAll(async () => {
     h = await setupBackendServer();
@@ -75,7 +78,7 @@ describe('crm references to Products and Orders (US12)', () => {
   });
 
   afterAll(async () => {
-    await renameProduct(PRODUCT_NAMES);
+    await renameProduct(PRODUCT_NAME);
     await restoreDefaultCrmWorkflow(h.em());
     await teardownBackendServer(h);
   });
@@ -113,7 +116,7 @@ describe('crm references to Products and Orders (US12)', () => {
         },
         { type: 'order', id: order.id, available: true, label: order.businessId, url: `/orders/${order.id}`, order: orderFacts() },
       ]);
-      expect(Object.values(PRODUCT_NAMES)).toContain(read.references[0]?.label);
+      expect(read.references[0]?.label).toBe(PRODUCT_NAME);
       expect(await storedReferences(opportunity.id)).toEqual(
         [`description:-:order:${order.id}`, `description:-:product:${SEED_PRODUCT_101_ID}`].sort(),
       );
@@ -187,14 +190,14 @@ describe('crm references to Products and Orders (US12)', () => {
     it('shows the Product’s current name — renamed after the text was written', async () => {
       const opportunity = await createCrmOpportunity(h, { description: `Interested in ${product}` });
       const marker = `Renamed ${randomUUID().slice(0, 8)}`;
-      await renameProduct({ 'en-US': marker, 'pl-PL': marker, en: marker, pl: marker });
+      await renameProduct(marker);
       try {
         const read = await detail(opportunity.id);
         expect(read.references[0]).toMatchObject({ available: true, label: marker });
         // Nothing of the old name was kept anywhere the response is built from.
-        expect(JSON.stringify(read.references)).not.toContain(PRODUCT_NAMES['en-US']);
+        expect(JSON.stringify(read.references)).not.toContain(PRODUCT_NAME);
       } finally {
-        await renameProduct(PRODUCT_NAMES);
+        await renameProduct(PRODUCT_NAME);
       }
     });
 
