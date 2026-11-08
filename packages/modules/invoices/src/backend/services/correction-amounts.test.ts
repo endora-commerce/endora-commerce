@@ -433,6 +433,36 @@ describe('correctionAmounts — a complaint refund is a price reduction (issue #
     expect(ledger.remaining('0.23')).toEqual(['0.00', '0.00', '0.00']);
   });
 
+  // Architect ruling on #932: the invoice-wide cap applies before the per-rate
+  // guard, so AC-885-8 applies to multi-rate invoices only.
+  it('cap first on one rate: 36.94 asked after a 6.15 price reduction is capped at 30.79 = 25.03 / 5.76, not refused', () => {
+    const ledger = new Ledger(invoiceOf([BOLT]));
+    ledger.correct('6.15', [reduction('6.15')]);
+    expect(ledger.earlier[0]).toMatchObject({ net: '5.00', gross: '6.15', quantity: 0 });
+    let r: ReturnType<typeof correctionAmounts> | undefined;
+    expect(() => {
+      r = ledger.correct('36.94', [line('36.94', 3, '0.23', 'A')]);
+    }).not.toThrow();
+    expect([r!.credited, r!.netTotal, r!.taxTotal]).toEqual(['30.79', '25.03', '5.76']);
+    expect(ledger.remaining('0.23')).toEqual(['0.00', '0.00', '0.00']);
+  });
+
+  it('a zero credit at a rate the invoice no longer charges is not refused', () => {
+    const ledger = new Ledger(invoiceOf([BOLT, WASHER], { discount: '5.00' }));
+    // All of A back: the 23 % rate is fully credited.
+    ledger.correct('33.07', [line('33.07', 3, '0.23', 'A', { discount: '3.87' })]);
+    expect(ledger.remaining('0.23')).toEqual(['0.00', '0.00', '0.00']);
+    let r: ReturnType<typeof correctionAmounts> | undefined;
+    expect(() => {
+      r = ledger.correct('4.83', [
+        line('0.00', 1, '0.23', 'A'),
+        line('4.83', 1, '0.08', 'B', { discount: '0.56' }),
+      ]);
+    }).not.toThrow(CorrectionExceedsRateRemainingError);
+    expect(perRate(r!, '0.23')).toEqual({ taxRate: '0.2300', netTotal: '0.00', vatAmount: '0.00', grossTotal: '0.00' });
+    expect(ledger.remaining('0.23')).toEqual(['0.00', '0.00', '0.00']);
+  });
+
   it('AC-885-2 — then a return of 1 unit at 12.32 (3 → 2), then the last 2 capped at 18.47, down to 0', () => {
     const ledger = new Ledger(invoiceOf([BOLT]));
     ledger.correct('6.15', [reduction('6.15')]);
