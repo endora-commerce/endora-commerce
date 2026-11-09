@@ -4195,11 +4195,26 @@ administratora bez drugiego składnika do kroku konfiguracji, którego nie dało
   - nikt nie zostaje wylogowany z powodu otrzymania roli, która wymaga weryfikacji dwuetapowej.
   - bez klucza klienci również nie są proszeni o drugi składnik, niezależnie od tego, czy go
     zarejestrowali, czy obowiązuje ich wymuszanie w sklepie lub w organizacji.
+- **Wymagania wobec klientów podlegają tym samym zasadom** (zgłoszenie #947):
+  - włączenie ustawienia **Storefront — enforce two-step verification**
+    (`mfa.storefront.totp_enforced`), dla wszystkich kanałów sprzedaży albo dla części z nich, jest
+    odrzucane, dopóki klucz nie jest ustawiony: `409 MFA_ENFORCEMENT_UNAVAILABLE`, z
+    `details.reason: 'encryption_key_missing'`. Tak samo odrzucana jest polityka organizacji, która
+    wymaga weryfikacji dwuetapowej od jej członków, niezależnie od tego, czy ustawia ją
+    administrator organizacji w sklepie, czy operator przez Admin API. Wyłączenie każdego z nich
+    jest zawsze dozwolone, podobnie jak ponowne zapisanie, gdy jest już włączone;
+  - wcześniej bez klucza nie istniał żaden z dwóch zapisów polityki organizacji, więc polityki
+    ustawionej, gdy klucz był skonfigurowany, nie dało się zdjąć. Teraz oba zapisy działają także
+    bez klucza;
+  - gdy ustawienie sklepu jest włączone, **Ustawienia** pokazują pod nim komunikat *Nie obowiązuje:
+    brak klucza szyfrowania*. Backend przy każdym starcie zapisuje w logu błąd dotyczący ustawienia,
+    z nazwami kanałów sprzedaży, dla których jest włączone, oraz drugi błąd z liczbą organizacji,
+    które wymagają weryfikacji dwuetapowej.
 
 **Po aktualizacji,** jeśli pojawi się komunikat albo błąd w logu, ustaw `MFA_SECRET_ENCRYPTION_KEY`
 (zobacz [listę kontrolną pierwszego wdrożenia](./deployment/first-deployment-checklist.md)) i
-uruchom backend ponownie, aby wymuszanie znów działało, albo wyłącz to ustawienie w
-**Ustawieniach** i odznacz pole w rolach. Ustaw ten klucz, z którym utworzono rejestracje:
+uruchom backend ponownie, aby wymuszanie znów działało, albo wyłącz te ustawienia w
+**Ustawieniach**, odznacz pole w rolach i zdejmij polityki organizacji. Ustaw ten klucz, z którym utworzono rejestracje:
 rejestracji utworzonej innym kluczem nie da się nim sprawdzić.
 
 ### Terminy zwrotu liczą się od realizacji zamówienia {#return-window-from-completion}

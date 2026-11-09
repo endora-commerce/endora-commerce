@@ -271,8 +271,10 @@ export const manifest = defineModuleManifest({
     { code: 'MFA_DEACTIVATION_BLOCKED', tokens: ['role_requirement', 'setting_and_role_requirement'] },
     // Issue #930 — the `mfa.admin.totp_enforced` write, refused while no
     // second factor can be enrolled. Raised by this module's own validator,
-    // which `settings` consults only while the module is present.
-    { code: 'MFA_ENFORCEMENT_UNAVAILABLE', tokens: ['encryption_key_missing'] },
+    // which `settings` consults only while the module is present. Issue #947
+    // — `customer_encryption_key_missing` is the same refusal of
+    // `mfa.storefront.totp_enforced` and of an organization's policy.
+    { code: 'MFA_ENFORCEMENT_UNAVAILABLE', tokens: ['encryption_key_missing', 'customer_encryption_key_missing'] },
     { code: 'MFA_INVALID_CHALLENGE' },
     { code: 'MFA_INVALID_CODE' },
     { code: 'MFA_NOT_ENABLED' },

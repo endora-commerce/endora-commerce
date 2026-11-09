@@ -4004,11 +4004,23 @@ not be completed, so none of them could sign in.
   - nobody is signed out for being given a role that requires two-step verification.
   - without the key, customers are not asked for a second factor either, whether they are
     enrolled or bound by storefront or organization enforcement.
+- **The customer requirements follow the same rules** (issue #947):
+  - turning **Storefront — enforce two-step verification** (`mfa.storefront.totp_enforced`) on, for
+    every sales channel or for some of them, is refused while the key is not set:
+    `409 MFA_ENFORCEMENT_UNAVAILABLE`, with `details.reason: 'encryption_key_missing'`. So is an
+    organization's policy requiring two-step verification of its members, whether its administrator
+    sets it on the storefront or an operator sets it through the Admin API. Turning either off is
+    always allowed, and so is saving it again when it is already on;
+  - before, neither organization-policy write existed without the key, so a policy set while the key
+    was configured could not be lifted. Both writes now exist without the key;
+  - while the storefront setting is on, **Settings** shows *Not in force: no encryption key* under
+    it. The backend logs an error at every start for the setting, naming the sales channels it is on
+    for, and another with how many organizations require two-step verification.
 
 **After upgrading,** if a notice or a logged error appears, either set `MFA_SECRET_ENCRYPTION_KEY`
 (see the [first deployment checklist](./deployment/first-deployment-checklist.md)) and restart, so
-that enforcement applies again, or turn the setting off in **Settings** and untick the box on the
-roles. Set the key the enrolments were made with: an enrolment made with another key cannot be
+that enforcement applies again, or turn the settings off in **Settings**, untick the box on the
+roles and lift the organizations' policies. Set the key the enrolments were made with: an enrolment made with another key cannot be
 checked with this one.
 
 ### Return windows count from the order's completion {#return-window-from-completion}

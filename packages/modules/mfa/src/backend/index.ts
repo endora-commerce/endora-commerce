@@ -62,6 +62,11 @@ import {
   createEndSessionsOnAdminEnforcement,
 } from './services/admin-enforcement-setting-sessions.js';
 import { reportUnusableEnrolments } from './services/unusable-enrolments-boot-report.js';
+import {
+  createStorefrontEnforcementSettingNotice,
+  createStorefrontEnforcementSettingValidator,
+  reportUnenforceableCustomerRequirements,
+} from './services/customer-enforcement-without-key.js';
 import { mfaModule, type MfaModuleHandle } from './plugin.js';
 import { MfaEnrolment } from './entities/mfa-enrolment.entity.js';
 import { MfaOrganizationPolicy } from './entities/mfa-organization-policy.entity.js';
@@ -464,7 +469,7 @@ export function registerModule(ctx: ModuleContext): void {
   /**
    * Issue #930 — `mfa.admin.totp_enforced` cannot be turned on where no second
    * factor can be enrolled, and its read says it is not in force while it is
-   * on there. **Contribution** hooks and unprobed, in the `cms` / `seo` shape:
+   * on there; issue #947 — nor can `mfa.storefront.totp_enforced`. **Contribution** hooks and unprobed, in the `cms` / `seo` shape:
    * both registries skip a contributor that is absent, and the platform refuses
    * an absent module's setting writes first.
    */
@@ -480,8 +485,17 @@ export function registerModule(ctx: ModuleContext): void {
             .settingsReadPort.get(MFA_SETTING_CODES.ADMIN_TOTP_ENFORCED, null, z.boolean()),
       }),
     );
+    // Issue #947 — `mfa.storefront.totp_enforced` on the same terms, read at
+    // each scope the write targets (it is set per sales channel too).
+    lazyPort<SettingWriteValidatorRegistryPort>(ctx, 'settingWriteValidatorRegistry').register(
+      createStorefrontEnforcementSettingValidator({
+        canEnrolSecondFactor,
+        readEnforcedAt: storefrontEnforcedAt(ctx),
+      }),
+    );
     const notices = lazyPort<SettingNoticeRegistryPort>(ctx, 'settingNoticeRegistry');
     notices.register(createAdminEnforcementSettingNotice(canEnrolSecondFactor));
+    notices.register(createStorefrontEnforcementSettingNotice(canEnrolSecondFactor));
     // Issue #349, E-349-1 — what the Settings screen asks before switching it on.
     notices.register(
       createAdminEnforcementSettingConfirmation({
@@ -512,7 +526,8 @@ export function registerModule(ctx: ModuleContext): void {
   /**
    * Issue #930 — an instance whose `mfa.admin.totp_enforced` is on with no
    * encryption key is told at every boot, at error level, that the
-   * requirement is not applied.
+   * requirement is not applied; issue #947 — likewise for the storefront
+   * setting and the organizations' policies.
    * Work, so asked for presence first: off means no second factor at all
    * (D-96), so there is nothing to warn about.
    */
@@ -523,6 +538,16 @@ export function registerModule(ctx: ModuleContext): void {
       hasEncryptionKey: mfa.handle().enrolmentService !== null,
       readEnforced: () =>
         settingsReadPort.get(MFA_SETTING_CODES.ADMIN_TOTP_ENFORCED, null, z.boolean()),
+      error: (fields, message) => ctx.log.error(fields, message),
+    });
+    // Issue #947 — the customer requirements: the storefront setting and the
+    // organizations' policies.
+    await reportUnenforceableCustomerRequirements({
+      hasEncryptionKey: mfa.handle().enrolmentService !== null,
+      listChannels: () => lazyPort<SalesChannelResolutionPort>(ctx, 'salesChannelResolutionPort').listAll(),
+      readEnforcedAt: storefrontEnforcedAt(ctx),
+      countEnforcingOrganizations: () =>
+        ctx.cradle<MfaCradle>().emFactory().count(MfaOrganizationPolicy, { enforceTotp: true }),
       error: (fields, message) => ctx.log.error(fields, message),
     });
     // Issue #948 — enrolments made with a key that is gone are not checked.
@@ -560,6 +585,18 @@ function unprotectedAdminCount(ctx: ModuleContext): (ids: readonly string[]) => 
     );
     return unique.filter((id) => !enrolled.has(id)).length;
   };
+}
+
+/**
+ * `mfa.storefront.totp_enforced` in force at a sales channel (its own row,
+ * else platform-wide), or platform-wide for `null` — `settings`' resolution,
+ * read when asked.
+ */
+function storefrontEnforcedAt(ctx: ModuleContext): (salesChannelId: string | null) => Promise<boolean> {
+  return (salesChannelId) =>
+    ctx
+      .cradle<MfaCradle>()
+      .settingsReadPort.get(MFA_SETTING_CODES.STOREFRONT_TOTP_ENFORCED, salesChannelId, z.boolean());
 }
 
 /**
