@@ -29,13 +29,6 @@ export async function registerMfaOrgRoutes(
       const body = mfaOrgPolicyRequestSchema.parse(request.body);
       const { organizationId, actor } = await deps.resolveOrgAdmin(request);
       const res = await deps.orgPolicyService.setEnforcement(organizationId, body.enforceTotp, actor);
-      await deps.auditLogService.record({
-        action: 'mfa.org_enforced',
-        objectType: 'organization',
-        objectId: organizationId,
-        stateAfter: { enforceTotp: body.enforceTotp },
-        ...(request.ip ? { ipAddress: request.ip } : {}),
-      });
       return { data: res };
     },
   );

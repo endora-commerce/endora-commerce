@@ -132,14 +132,6 @@ export async function registerMfaAdminRoutes(
       }
       const actor = resolveAdminActor(request).adminUserId;
       const res = await deps.orgPolicyService.setEnforcement(organizationId, body.enforceTotp, actor);
-      await auditLogService.record({
-        actorAdminUserId: actor,
-        action: 'mfa.org_enforced',
-        objectType: 'organization',
-        objectId: organizationId,
-        stateAfter: { enforceTotp: body.enforceTotp },
-        ...(request.ip ? { ipAddress: request.ip } : {}),
-      });
       return { data: res };
     },
   );

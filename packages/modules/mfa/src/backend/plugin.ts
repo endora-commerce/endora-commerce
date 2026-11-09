@@ -192,7 +192,7 @@ export function mfaModule(options: MfaModuleOptions): {
     policyResolver,
     verifySecondFactor,
   );
-  const orgPolicyService = new MfaOrgPolicyService(options.emFactory, options.auditLogService);
+  const orgPolicyService = new MfaOrgPolicyService(options.emFactory, options.commandBus);
   // Deliberately not behind the `oauthProvider` check below: the links an
   // account already holds stay listable and severable after an operator turns
   // a provider off, which is precisely when somebody goes looking for them.
