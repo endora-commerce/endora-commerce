@@ -96,7 +96,17 @@ jobs:
       # programs and the rejected three-way split are in `.gitlab-ci.yml`'s
       # `quality` job, which carries the measurement; the two values move
       # together.
-      NODE_OPTIONS: --max-old-space-size=2560
+      #
+      # Raised to 3072 on 2026-11-09 (issue #986): `pnpm -r run typecheck` died
+      # `heap out of memory` (exit 134) on PRs #965, #976, #979, #980 and #984
+      # and on the master push of 919ee91a9, and a rerun usually passed.
+      # Re-bracketed under Node 22.20, `backend/test/tsconfig.json` now dies
+      # at 2304 and 2432 and passes at 2560 (6162 files, 3.96M instantiations,
+      # tsc `Memory used` 2.63 GB), so 2560 has become the cliff;
+      # `backend/tsconfig.json` dies at 1920 and passes at 2048 (5692 files).
+      # 3072 restores ~512 MB over the larger one. The brackets are in
+      # `.gitlab-ci.yml`'s `quality` job; the two values move together.
+      NODE_OPTIONS: --max-old-space-size=3072
     steps:
       - uses: actions/checkout@v7
       - uses: actions/setup-node@v7

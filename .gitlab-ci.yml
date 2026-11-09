@@ -293,7 +293,27 @@ quality:
     # largest still needs 1792 (dies at 1664), 256 MB less for another ~35 s.
     # When 2560 is reached again, re-bracket both programs first; the next
     # split is `test/integration`, the largest single directory.
-    NODE_OPTIONS: --max-old-space-size=2560
+    #
+    # **2026-11-09: reached, raised to 3072** (issue #986). The GitHub
+    # `quality` job died `heap out of memory` (exit 134) on PRs #965, #976,
+    # #979, #980 and #984 and on the master push of 919ee91a9, and a rerun
+    # usually passed: the larger program had grown onto the cap. Both programs
+    # re-bracketed under Node 22.20, serially, on a shared host, each run
+    # `tsc -p <config> --noEmit --extendedDiagnostics`:
+    # `backend/tsconfig.json` dies at 1792 and 1920 and passes at 2048 and
+    # 2304 (5692 files, 2.79M instantiations, `Memory used` 2.12 GB at 2048,
+    # 2.39 GB uncapped); `backend/test/tsconfig.json` dies at 2304 and 2432
+    # and passes at 2560 three runs out of three, and at 2688, 2816 and 3072
+    # (6162 files, 3.96M instantiations, `Memory used` 2.63 GB at 2560,
+    # 2.85 GB uncapped). The requirement is ~2560 against ~2048 when this was
+    # split, so 2560 is the cliff again, not a margin, and 3072 restores the
+    # ~512 MB over the larger program. Against the container's usable ~3840
+    # it leaves ~770 MB, so the named V8 error still arrives before a cgroup
+    # SIGKILL. The `test/integration` split named above was not taken in the
+    # same change: it reshapes the programs and their one-owner invariant,
+    # and this restores the margin while that is weighed. When 3072 is
+    # reached, split rather than raise again.
+    NODE_OPTIONS: --max-old-space-size=3072
   before_script:
     # `node:22.18-slim` carries no git, and `check:release-intent` below asks
     # it. The line was first written for `check:root-dispositions`, which died
