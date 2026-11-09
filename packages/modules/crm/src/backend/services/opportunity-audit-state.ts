@@ -185,6 +185,8 @@ export function recordValueChange(
   }
   if (changedFields.length === 0 && changedCustomFields.length === 0) return {};
 
+  // command-coverage-ignore: runs only inside a `crm.opportunity.*` Command's `run`, on the
+  // `em` the bus handed it — the row commits with that Command's one audit entry.
   const row = em.create(CrmOpportunityValueChange, {
     opportunityId,
     before: change.before === null ? null : storedBefore,
