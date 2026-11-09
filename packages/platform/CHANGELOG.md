@@ -1,5 +1,113 @@
 # @endora-commerce/platform
 
+## 0.110.0
+
+### Minor Changes
+
+- 18cce2e: Two Command Bus extensions and an audit column (`specs/170-organization-roles/`).
+
+  - `CommandContext.run(child)` runs a child Command inside the parent's transaction, on its `em` and actor: the child records its own single audit entry (none when it answers `skipAudit`), its event is dispatched once on the parent's commit, and a throwing child rolls back the parent and every sibling. The bus always supplies `run`; it is optional on the type so that a context built by hand without the bus still compiles — a Command that runs children must throw when it is absent, never skip them.
+  - `CommandActor.actorCustomerAccountId` names a customer who acted for themselves; it stays `null` for an operator, a system or API-key actor and under impersonation, which keeps `actorAdminUserId` + `impersonatedCustomerAccountId`. `actorFromContext` fills it, `RecordAuditInput.actorCustomerAccountId` carries it through `AuditPort.recordWithin` and `recordAuditFromContext`, and `AuditLogEntry.actorCustomerAccountId` stores it. Optional on `CommandActor` for the same reason as `run`.
+  - Core migration `Migration20261103T162518CoreAuditActorCustomerAccount` adds the nullable `audit_log_entries.actor_customer_account_id` column. No backfill.
+  - The platform's `customerContextResolver`, `cartActorResolver` and `customerActorResolver` pass the actor's `organizationRoleId` through, and the error envelope answers the organization-permission guard's `CustomerSessionRequiredError` as `401 UNAUTHORIZED`.
+
+- 34485ae: `OrganizationReadPort` (`@endora-commerce/platform/kernel`) loses `loadCartApprovalPolicy(organizationId)`, which nothing called; the per-organization cart-approval policy it read is replaced by the `carts.order_without_approval` organization permission (`specs/170-organization-roles/`, OR-3, WP-03). The port is `{ loadEffectiveOrganization, assertCanTransact }`.
+- b59e5d5: Issue #349 — `POST /api/v1/admin/modules/mfa/activation` also refuses switching `mfa` off while any admin role requires two-step verification. `MFA_DEACTIVATION_BLOCKED` keeps its code and its sentence when only `mfa.admin.totp_enforced` requires it; `details` gains `roleCodes: string[]`, and when roles require it `details.roles` (the codes as text) and `details.code` (`role_requirement` or `setting_and_role_requirement`) pick and fill a sentence naming them.
+- 8ad737c: `GET /api/v1/admin/modules/:id/deactivation-impact` answers `404 MODULE_NOT_FOUND` for a module id neither the registry nor a manifest knows, as the activation write does. It answered `500` before: the id reached the response schema, whose module-id pattern refused it (issue #793).
+- e46d233: New kernel port `AuditRedactionPort` (exported from `@endora-commerce/platform/kernel` with `AuditRedactionInput`, `AuditRedactionTarget`, `AuditRedactionResult`, `AUDIT_REDACTED_ACTION` and `AUDIT_REDACTION_MAX_IDS_PER_TARGET`), whose platform-owned container name is `auditRedactionService`, beside `auditLogService` (`composeApp` registers it together with its first caller, the customers retention sweep). `redact({ reason: 'anonymization', subject, targets, subjectActorAccountId })` erases an anonymised subject's audit history in place: every key of `stateBefore` / `stateAfter` is kept, UUID ids, ISO timestamps, booleans, `null` and short codes under code keys (plus the caller's `keepKeys`) are kept, every custom-field value and every other value becomes `"[erased]"`, and the IP address and user agent are erased on the rows the subject wrote for itself. It works in chunks of 500 rows with one `UPDATE` each, skips rows already erased, catches rows written during the run, and records one `audit.redacted` row per subject. It refuses a call with no target, an empty target, a non-UUID id or more than 1,000 ids in one target. `AuditPort` is unchanged. The implementation, `AuditRedactionService(emFactory, auditLog)`, is on the host-internal `./composition` subpath beside `AuditLogService`.
+
+### Patch Changes
+
+- b2db8c3: English module names and admin sidebar labels are now sentence case, like the rest of the UI. The manifest `name` changes for 22 modules and for the platform's `_lifecycle` module ("Quote Requests" becomes "Quote requests", "API Keys" becomes "API keys", "Module Lifecycle" becomes "Module lifecycle"). The English `module.name` for Quick order, Quote requests and Shopping lists changes the same way. That string heads their permission groups on the organization role form and appears on the modules screen. The admin sidebar labels in blog ("Blog posts", "Blog categories", "Blog tags"), cms ("CMS pages", "CMS blocks", "CMS templates", "CMS hooks"), custom_fields ("Custom fields"), import_export ("Import / export"), newsletter ("Tags & fields") and transactional_emails ("Transactional emails", "Email blocks", "Email templates") change the same way. Product names (Google Analytics, Google Tag Manager, LinkedIn Ads, Meta Ads) keep their capitals. Polish strings do not change. If your code compares a manifest `name` against the old title-case string, update the comparison. Better, compare the module `id`.
+- d69e765: A path parameter that is not a UUID is answered exactly as a well-formed id that names nothing, on every customer- and admin-facing id route, mutations included, instead of `500` (issue #781). The shape is checked with `isUuidShape` from `@endora-commerce/contracts` before the database is asked, so a malformed id gets the route's own answer for an unknown record: its own not-found code (`404`), or the empty list or `204` the route gives an unknown id. Examples: `POST /api/v1/orders/:id/cancel` answers `404 ORDER_NOT_FOUND`; the returns comment, delivery-method and cancel routes and `POST /api/v1/organization/carts/:id/approve` and `/reject` answer `404 NOT_FOUND`.
+
+  Routes whose params schema demanded a UUID answered a malformed id `400 VALIDATION_FAILED`; they now answer `404` like an unknown id (owner ruling of 2026-11-05): `/api/v1/organizations/mine/roles/:id`, `/api/v1/admin/organizations/:id/roles[/:roleId]` and `…/permission-catalogue`, `/api/v1/organizations/mine/members/:id[/role]`, every `/api/v1/admin/product-feeds/:id…`, `/api/v1/admin/feed-templates/:id` and `/api/v1/admin/feed-taxonomies/revisions/:taxonomyId…` route, `/api/v1/admin/document-templates/:id…`, `/api/v1/admin/quote-requests/:id/document-templates`, `…/document-template` and `…/pdf`, the blog `url-redirects/:redirectId` and `addresses/:id` deletes, `PATCH /api/v1/admin/cms/hooks/:id/attachments/:blockId`, and `GET`, `PATCH` and `DELETE /api/v1/admin/import-export/profiles/:id` (`404 IMPORT_PROFILE_NOT_FOUND`). A client that told a malformed id from an unknown one by the `400` can no longer do so.
+
+  Every private copy of the UUID pattern is replaced by `isUuidShape`, `UUID_SHAPE_PATTERN` or, where a filter has always asked for RFC 9562 version and variant bits (the CRM board filters), `uuidSchema`; what each check accepts is unchanged, except that the invoice-ledger delivery retry now accepts any uuid-shaped id and answers an unknown one `404` from the lookup.
+
+- d46d414: A `module:*` command's `--json` answer is the only thing on its stdout again (issue #819). The platform's own log lines — the ORM bootstrap's tenancy-chain notice among them, emitted once any installed module has a transitive chain ending at a customer-scoped entity — reached `platformLogger()`'s stdout fallback in a process that builds no server, and landed in front of the JSON document.
+
+  `runInstanceOperatorCommand` now sends them to the command's `err` channel, one JSON line each (`{"level":…,"msg":…,…fields}`), for the run's duration. An application that builds its own `module:*` entry points calls the new `attachOperatorDiagnostics(err)` from `@endora-commerce/platform/lifecycle` before opening anything; it returns the detach.
+
+- 73e2eec: A module's install or uninstall hook that logs no longer breaks `module:install --json` (issue #825). The orchestrator's default lifecycle logger — the one every hook is handed on the `module:*` path — wrote with `console.log`, so a hook's `log.info(...)` landed on stdout in front of the JSON document.
+
+  That logger now writes through the platform's attached log destination when one is attached, and falls back to the console only when none is. Under a `module:*` command that destination is `attachOperatorDiagnostics(err)` (issue #819), so a hook's line arrives on the command's error channel as one JSON line, beside the platform's own; in a built server it is the server's logger.
+
+- 58a1632: `composeApp` registers `auditRedactionService`, the platform-owned `AuditRedactionPort`, beside `auditLogService`, now that its first caller, the customers retention sweep, reads it (issue #844).
+- 6d1d284: A process start now writes one `tenant.escape_hatch` audit row instead of one row per boot step (issue #120). Every server, worker and composing CLI command used to write about 25 rows before it did any work. Each boot step and module boot hook that entered a system scope (`boot: load module presence`, `boot: inventory`, …) had a row of its own. `composeApp` now brackets its boot through two new methods on the escape-hatch audit writer, `beginBoot()` and `endBoot()`. Every record inside the bracket whose reason starts with `boot: ` is folded into one row: scope `system`, entry point `boot`, reason `boot: process start`. The row's `state_after.breakdown` holds one `{ module, reason, occurrences }` entry per folded reason, and `state_after.occurrences` is their sum, so no entry goes uncounted. The following are recorded exactly as before: a CLI command's own `cli: …` entry, any record inside the bracket under another reason, and any `boot: …` record outside the bracket. The stderr line is still written for every entry. No migration is needed.
+
+  Upgrade note: an audit query that looked for a single boot step by its reason, such as `state_after->>'reason' = 'boot: load module presence'`, now finds that step inside the `breakdown` of the `boot: process start` row.
+
+- 99c075e: A setting that becomes `secret` no longer keeps its stored plaintext (issue #700). When `ManifestReconciler` applies the sanctioned `string` → `secret` upgrade, it now encrypts every non-empty value of that code, `settings.global_value` and each `setting_values` row, in the same flush as the type change, then drops the code's cache entries. `ManifestReconciler` takes an optional second argument, `{ secretEncryptionKey?, cache?, warn? }`; without a key the upgrade still applies, the values are left as they are, and a warning names the code. `composeApp` passes the key and the settings cache, and so does the module install path. `SettingsService.get` / `getMany` never cache a secret as plaintext: a legacy plain-string secret is cached as its envelope when a key is configured, and not cached at all otherwise. A new boot step, `backfillPlaintextSecrets` on `@endora-commerce/platform/composition`, runs after the settings reconcile and encrypts any non-envelope value of every `secret` setting. It is idempotent, so a value already in an envelope is never re-encrypted.
+
+  Upgrade note: existing plaintext secrets, including the `assets.s3.secret_access_key` and `assets.gcs.service_account_json` values stored before #333 made them `secret`, are encrypted at the first boot once `SETTINGS_SECRET_ENCRYPTION_KEY` is set. That boot logs one info line, `[settings] encrypted the stored plaintext of N secret setting(s): <codes>`, which names every code it encrypted and none of the values. Until the key is set, or while it is malformed, every boot logs one warning per code still holding plaintext, says whether the key is absent or malformed, and leaves the values unchanged.
+
+  Rotating credentials: database backups and Redis snapshots taken before that first boot with a key still hold those values in plaintext. If such backups or snapshots are kept under weaker access control than the credentials themselves, or cannot be purged, rotate every credential the info line names, not only the S3/GCS ones. Then save the new values again in the admin; they are written encrypted.
+
+- Updated dependencies [18cce2e]
+- Updated dependencies [9cfb28b]
+- Updated dependencies [a206da9]
+- Updated dependencies [34485ae]
+- Updated dependencies [0f1717c]
+- Updated dependencies [86e8761]
+- Updated dependencies [9bfb0b8]
+- Updated dependencies [ed5cf6a]
+- Updated dependencies [2da23d2]
+- Updated dependencies [2da23d2]
+- Updated dependencies [9d9c8df]
+- Updated dependencies [9d9c8df]
+- Updated dependencies [9d9c8df]
+- Updated dependencies [9d9c8df]
+- Updated dependencies [5303aab]
+- Updated dependencies [16f85f4]
+- Updated dependencies [270aa2b]
+- Updated dependencies [3f020ba]
+- Updated dependencies [b59e5d5]
+- Updated dependencies [bf1cc2d]
+- Updated dependencies [ff60e93]
+- Updated dependencies [6f19230]
+- Updated dependencies [77b8c37]
+- Updated dependencies [65104b8]
+- Updated dependencies [7acaa33]
+- Updated dependencies [7019c71]
+- Updated dependencies [4eee98b]
+- Updated dependencies [14ac256]
+- Updated dependencies [248bf1b]
+- Updated dependencies [4cf529d]
+- Updated dependencies [5e4dd48]
+- Updated dependencies [75b053f]
+- Updated dependencies [54fc8f1]
+- Updated dependencies [dac5795]
+- Updated dependencies [5bbb389]
+- Updated dependencies [d69e765]
+- Updated dependencies [dbc1cef]
+- Updated dependencies [a6bc891]
+- Updated dependencies [a9398c8]
+- Updated dependencies [0b56038]
+- Updated dependencies [717e4c6]
+- Updated dependencies [cea1470]
+- Updated dependencies [29d7e90]
+- Updated dependencies [57145f7]
+- Updated dependencies [58a1632]
+- Updated dependencies [e46d233]
+- Updated dependencies [14fe4fb]
+- Updated dependencies [76d89ab]
+- Updated dependencies [6bd2ab7]
+- Updated dependencies [a3502c0]
+- Updated dependencies [7a73cc8]
+- Updated dependencies [5ff8302]
+- Updated dependencies [c34b405]
+- Updated dependencies [5af8c25]
+- Updated dependencies [48f055e]
+- Updated dependencies [bf50b85]
+- Updated dependencies [2c6fba0]
+- Updated dependencies [0801f69]
+- Updated dependencies [d1c0d13]
+- Updated dependencies [32b4d0c]
+- Updated dependencies [3355e60]
+- Updated dependencies [7ce9b8a]
+  - @endora-commerce/contracts@0.110.0
+
 ## 0.109.0
 
 ### Minor Changes
