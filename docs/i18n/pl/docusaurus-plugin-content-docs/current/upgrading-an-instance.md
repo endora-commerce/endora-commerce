@@ -4701,24 +4701,42 @@ Większa ilość przechodziła wcześniej walidację i kończyła się błędem 
 
 **Zmiana zachowania po aktualizacji:**
 
-- Ilość w pozycji większa niż 1 000 000 jest odrzucana z `400 VALIDATION_FAILED`, a `details`
-  wskazują pole: przy dodawaniu do koszyka, tworzeniu i edycji zapytania ofertowego przez klienta
-  i przez operatora, tworzeniu zamówienia przez operatora i jego podglądzie, w szybkim zamówieniu
-  (budowanie i zakup jednym kliknięciem), na listach zakupowych (dodawanie i zmiana), w zwrotach
-  i w podglądzie promocji. W zewnętrznym API `POST /api/v1/external/orders` i
-  `POST /api/v1/external/catalog/prices` odpowiadają `422 VALIDATION_FAILED`, tak jak na każde
-  niepoprawne żądanie.
+- Ilość w pozycji większa niż 1 000 000 jest odrzucana z nowym kodem błędu,
+  `400 LINE_QUANTITY_EXCEEDED`, z przetłumaczonym komunikatem, a `details` wskazują pole. Dotyczy
+  to dodawania do koszyka i zmiany pozycji koszyka, tworzenia i edycji zapytania ofertowego przez
+  klienta i przez operatora, tworzenia zamówienia przez operatora i jego podglądu, szybkiego
+  zamówienia (budowanie i zakup jednym kliknięciem), list zakupowych (dodawanie i zmiana), zwrotów,
+  podglądu promocji oraz ilości bazowej jednostki opakowania. Żądanie, które jest błędne także pod
+  innym względem, dostaje `400 VALIDATION_FAILED`, a `LINE_QUANTITY_EXCEEDED` jest jednym z
+  elementów `details`.
+- W zewnętrznym API `POST /api/v1/external/orders` i `POST /api/v1/external/catalog/prices`
+  odpowiadają `422 VALIDATION_FAILED`, tak jak na każde niepoprawne żądanie; `issue` w elemencie
+  `details` to `LINE_QUANTITY_EXCEEDED`.
+- Dodanie do koszyka jest odrzucane z `422 LINE_QUANTITY_EXCEEDED`,
+  `details: { quantity, maximum }`, gdy pozycja, do której dodaje, przekroczyłaby 1 000 000, albo
+  gdy przekroczyłaby tę granicę liczba sztuk jednostki opakowania (ilość bazowa jednostki razy
+  zamówiona liczba jednostek). Nic nie jest zapisywane. Dotyczy to też dodawania kilku produktów
+  naraz, ponownego zamówienia i przeniesienia listy zakupowej do koszyka. Gdy przy logowaniu koszyk
+  anonimowy jest sumowany z koszykiem klienta, zsumowana pozycja zostaje zatrzymana na 1 000 000.
+- Zmiana ilości w pozycji koszyka przyjmuje każdą ilość do 1 000 000; wcześniej kończyła się na 999.
 - `POST /api/v1/admin/quote-requests`, `PATCH /api/v1/admin/quote-requests/:id` i
-  `POST /api/v1/returns` odrzucają więcej niż 200 pozycji z `400 VALIDATION_FAILED`.
-- Wiersz pliku szybkiego zamówienia z ilością większą niż 1 000 000 trafia na listę odrzuconych
-  z powodu ilości, zamiast zostać rozpoznany.
+  `POST /api/v1/returns` odrzucają więcej niż 200 pozycji z `400 VALIDATION_FAILED`. Granica to te
+  same 200 co gdzie indziej, ale odpowiedź nie jest ta sama: przyjmowanie zamówień i szybkie
+  zamówienie nadal odpowiadają `422 VALIDATION_FAILED` z `details.code: 'too_many_items'`, a koszyk
+  `422 CART_LINE_CAP_EXCEEDED`.
+- Wiersz pliku szybkiego zamówienia z ilością większą niż 1 000 000, a także każdy wiersz
+  powtórzonego produktu, którego wiersze sumują się do większej ilości, trafia na listę
+  odrzuconych z powodu ilości, zamiast zostać rozpoznany.
 - W panelu administracyjnym ekrany tworzenia zamówienia i zapytania ofertowego oznaczają taką
-  pozycję jako niepoprawną, a w sklepie pola ilości szybkiego zamówienia, szkicu zapytania
-  ofertowego i mobilnego paska zakupu zatrzymują się na tej granicy.
-- Zapisane dane się nie zmieniają: pozycja, która już przekracza granicę, zostaje bez zmian.
+  pozycję jako niepoprawną. W sklepie pola ilości szybkiego zamówienia, koszyka, szkicu zapytania
+  ofertowego i mobilnego paska zakupu zatrzymują się na tej granicy, a wpisana większa wartość jest
+  pokazywana jako 1 000 000.
+- Zapisane dane się nie zmieniają: pozycja albo jednostka opakowania, która już przekracza granicę,
+  zostaje bez zmian. Dodanie do koszyka w takiej jednostce jest odrzucane.
 
 **Po aktualizacji** integracja, która wysyła większe ilości albo więcej niż 200 pozycji do
-zapytania ofertowego operatora lub do zwrotów, musi podzielić żądanie.
+zapytania ofertowego operatora lub do zwrotów, musi podzielić żądanie, a integracja rozróżniająca
+kody błędów powinna obsłużyć `LINE_QUANTITY_EXCEEDED`.
 
 ## Instancja niespójna od początku
 

@@ -1,6 +1,6 @@
 import { z } from 'zod';
 import { isoDateTimeSchema, moneySchema, uuidSchema } from './common.js';
-import { lineQuantitySchema } from './line-bounds.js';
+import { boundedLineQuantity, lineQuantitySchema } from './line-bounds.js';
 
 /**
  * Cart + CartItem contracts. The Cart can be anonymous (cookie-held) or
@@ -82,8 +82,13 @@ export const updateCartItemRequestStrictSchema = z.object({
 });
 export type UpdateCartItemRequestStrict = z.infer<typeof updateCartItemRequestStrictSchema>;
 
+/**
+ * `0` removes the line; anything else up to `LINE_QUANTITY_MAX` (issue #351,
+ * architect ruling R3 — it stopped at 999, below what the add path accepts, so a
+ * buyer could add a line they could then not edit).
+ */
 export const updateCartItemRequestSchema = z.object({
-  quantity: z.number().int().min(0).max(999),
+  quantity: boundedLineQuantity(z.number().int().min(0)),
 });
 export type UpdateCartItemRequest = z.infer<typeof updateCartItemRequestSchema>;
 

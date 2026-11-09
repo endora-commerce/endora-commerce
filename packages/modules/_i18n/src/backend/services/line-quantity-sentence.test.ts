@@ -3,7 +3,7 @@ import { dirname, join } from 'node:path';
 import { fileURLToPath } from 'node:url';
 import { describe, expect, it } from 'vitest';
 import { LINE_QUANTITY_MAX } from '@endora-commerce/contracts';
-import { manifest } from './manifest.js';
+import { manifest } from '../../manifest.js';
 
 /**
  * Issue #351, architect ruling R1 — `LINE_QUANTITY_EXCEEDED` is raised by the
@@ -13,7 +13,7 @@ import { manifest } from './manifest.js';
  * each sentence to `LINE_QUANTITY_MAX`, formatted for its language, so a change
  * of the constant reds the bundle.
  */
-const root = join(dirname(fileURLToPath(import.meta.url)), '..', 'i18n');
+const root = join(dirname(fileURLToPath(import.meta.url)), '..', '..', '..', 'i18n');
 const bundle = (language: 'en' | 'pl'): Record<string, string> =>
   JSON.parse(readFileSync(join(root, `${language}.json`), 'utf8')) as Record<string, string>;
 

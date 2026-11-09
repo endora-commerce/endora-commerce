@@ -185,6 +185,16 @@ export const MINTED_ERROR_CODES: MintedErrorCodes = {
       'the two-place sentence of `AMOUNT_PRECISION_EXCEEDED` would be false for it. One code for ' +
       'every module, raised by the error envelope from the Zod issue `money-input.ts` tags.',
   },
+  LINE_QUANTITY_EXCEEDED: {
+    to: '_i18n',
+    reason:
+      'Minted by issue #351 (architect ruling R1 on PR #1009) for a line quantity past ' +
+      '`LINE_QUANTITY_MAX`, which used to pass validation and answer 500 at the database. One code ' +
+      'for every module carrying a line, so it sits in the platform block; its raisers are the error ' +
+      'envelope, from the Zod issue `line-bounds.ts` tags, and `carts`, for a line a merge or a ' +
+      'packaging unit would take past the bound. `VALIDATION_FAILED` is not reused: the envelope ' +
+      'never translates that code.',
+  },
   ADMIN_AUTHENTICATION_THROTTLED: {
     to: 'admin_users',
     reason:
@@ -2552,6 +2562,15 @@ export const PLATFORM_OWNED_ERROR_CODES: PlatformOwnedErrorCodes = {
       'A typed unit price with more than four decimal places (owner ruling of 2026-10-25) — a ' +
       'quote\'s desired, agreed or proposed price. The noun is the request\'s unit price, which no ' +
       'one module owns, and the raiser is the error envelope reading the Zod issue `money-input.ts` tags.',
+  },
+  LINE_QUANTITY_EXCEEDED: {
+    tier: 'T3',
+    reason:
+      'A line quantity past `LINE_QUANTITY_MAX` (issue #351, architect ruling R1 on PR #1009), ' +
+      'refused on every request carrying a line — the basket, quote requests, orders, quick order, ' +
+      'shopping lists, returns, external pricing and the promotion preview. The noun is the ' +
+      'request\'s line quantity, which no one module owns; the raisers are the error envelope reading ' +
+      'the Zod issue `line-bounds.ts` tags and `carts` for a merged or packaging-unit line.',
   },
   UNAUTHORIZED: {
     tier: 'T3',

@@ -4487,22 +4487,39 @@ validation and fail at the database with `500 INTERNAL`.
 
 **Behaviour change on upgrade:**
 
-- A line quantity above 1 000 000 is refused with `400 VALIDATION_FAILED`, whose `details` name
-  the field: adding to the basket, the customer's and the operator's quote request create and
-  edit, the operator's order creation and its preview, quick order (build and one-click), shopping
-  lists (add and update), returns, and the promotion preview. On the external API,
-  `POST /api/v1/external/orders` and `POST /api/v1/external/catalog/prices` answer
-  `422 VALIDATION_FAILED`, as they do for every malformed body.
+- A line quantity above 1 000 000 is refused with a new error code, `400 LINE_QUANTITY_EXCEEDED`,
+  whose message is translated and whose `details` name the field. This applies to adding to the
+  basket and editing a basket line, the customer's and the operator's quote request create and
+  edit, the operator's order creation and its preview, quick order (build and one-click),
+  shopping lists (add and update), returns, the promotion preview, and a packaging unit's base
+  quantity. A request that is wrong in another way as well answers `400 VALIDATION_FAILED`, with
+  `LINE_QUANTITY_EXCEEDED` among its `details`.
+- On the external API, `POST /api/v1/external/orders` and `POST /api/v1/external/catalog/prices`
+  answer `422 VALIDATION_FAILED`, as they do for every malformed body; the `details` entry's
+  `issue` is `LINE_QUANTITY_EXCEEDED`.
+- Adding to the basket is refused with `422 LINE_QUANTITY_EXCEEDED`,
+  `details: { quantity, maximum }`, when the line it adds to would pass 1 000 000, or when a
+  packaging unit's pieces (the unit's base quantity times the units ordered) would. Nothing is
+  written. This covers adding several products at once, reordering and moving a shopping list to
+  the basket. When signing in sums the anonymous basket into the customer's, a summed line is kept
+  at 1 000 000 instead.
+- Editing a basket line accepts any quantity up to 1 000 000; it used to stop at 999.
 - `POST /api/v1/admin/quote-requests`, `PATCH /api/v1/admin/quote-requests/:id` and
-  `POST /api/v1/returns` refuse more than 200 lines with `400 VALIDATION_FAILED`.
-- A quick-order file row with a quantity above 1 000 000 is listed as rejected for its quantity
-  instead of being recognised.
-- In the admin, the order and quote request create screens mark such a line invalid, and the
-  storefront's quick-order, quote draft and mobile buy-bar quantity inputs stop at the bound.
-- Nothing stored changes: a line already above the bound stays as it is.
+  `POST /api/v1/returns` refuse more than 200 lines with `400 VALIDATION_FAILED`. The value is the
+  same 200 as elsewhere, but the refusal is not: the order intake and quick order keep answering
+  `422 VALIDATION_FAILED` with `details.code: 'too_many_items'`, and the basket
+  `422 CART_LINE_CAP_EXCEEDED`.
+- A quick-order file row with a quantity above 1 000 000, and every row of a repeated product whose
+  rows add up to more, is listed as rejected for its quantity instead of being recognised.
+- In the admin, the order and quote request create screens mark such a line invalid. In the
+  storefront, the quick-order, basket, quote draft and mobile buy-bar quantity inputs stop at the
+  bound, and a value typed past it is shown as 1 000 000.
+- Nothing stored changes: a line or a packaging unit already above the bound stays as it is. Adding
+  by such a unit is refused.
 
 **After upgrading,** an integration that sends larger quantities, or more than 200 lines to the
-operator's quote request or to returns, has to split the request.
+operator's quote request or to returns, has to split the request, and one that branches on error
+codes should handle `LINE_QUANTITY_EXCEEDED`.
 
 ## An instance that is mixed from the start
 

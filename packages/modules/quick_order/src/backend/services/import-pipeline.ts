@@ -292,7 +292,7 @@ export class QuickOrderImportPipeline {
       rejected.push({ line: c.line, raw: c.raw, reason: 'product_not_found' });
     }
 
-    const { recognized: merged, mergedCount } = this.mergeDuplicates(resolvedLines);
+    const { recognized: merged, mergedCount } = this.mergeDuplicates(resolvedLines, rejected);
 
     // Feature 155 (P1, R12.1) — the minimum rules of every product a
     // recognised row resolved to, from the records already loaded above.
@@ -401,19 +401,28 @@ export class QuickOrderImportPipeline {
   }
 
   /** Merge duplicate (productId, variantId) lines, summing quantity (FR-009). */
-  private mergeDuplicates(lines: ResolvedLine[]): {
+  /**
+   * Issue #351 (architect ruling R3 on PR #1009) — a duplicate whose sum passes
+   * `LINE_QUANTITY_MAX` is not recognised: every one of its rows is rejected as
+   * `quantity_invalid`, the outcome a single row past the bound already has. The
+   * import report is per row, so the rest of the file is still recognised.
+   */
+  private mergeDuplicates(
+    lines: ResolvedLine[],
+    rejected: RejectedQuickOrderItem[],
+  ): {
     recognized: Array<RecognizedQuickOrderItem & { raw: string }>;
     mergedCount: number;
   } {
-    const byKey = new Map<string, RecognizedQuickOrderItem & { raw: string; mergedFromLines: number[] }>();
-    let mergedCount = 0;
+    type Merged = RecognizedQuickOrderItem & { raw: string; mergedFromLines: number[]; sources: ResolvedLine[] };
+    const byKey = new Map<string, Merged>();
     for (const line of lines) {
       const key = `${line.productId}::${line.variantId ?? ''}`;
       const existing = byKey.get(key);
       if (existing) {
         existing.quantity += line.quantity;
         existing.mergedFromLines.push(line.line);
-        mergedCount += 1;
+        existing.sources.push(line);
       } else {
         byKey.set(key, {
           line: line.line,
@@ -424,13 +433,21 @@ export class QuickOrderImportPipeline {
           resolvedVariantSku: line.resolvedVariantSku,
           quantity: line.quantity,
           mergedFromLines: [],
+          sources: [line],
         });
       }
     }
-    const recognized = Array.from(byKey.values()).map((item) => {
-      const { mergedFromLines, ...rest } = item;
-      return mergedFromLines.length > 0 ? { ...rest, mergedFromLines } : rest;
-    });
+    let mergedCount = 0;
+    const recognized: Array<RecognizedQuickOrderItem & { raw: string }> = [];
+    for (const item of byKey.values()) {
+      const { mergedFromLines, sources, ...rest } = item;
+      if (rest.quantity > LINE_QUANTITY_MAX) {
+        for (const source of sources) rejected.push({ line: source.line, raw: source.raw, reason: 'quantity_invalid' });
+        continue;
+      }
+      mergedCount += mergedFromLines.length;
+      recognized.push(mergedFromLines.length > 0 ? { ...rest, mergedFromLines } : rest);
+    }
     return { recognized, mergedCount };
   }
 

@@ -1998,7 +1998,8 @@ export type PackagingUnitDto = z.infer<typeof packagingUnitSchema>;
 export const createPackagingUnitRequestSchema = z
   .object({
     name: z.string().trim().min(1).max(160),
-    baseQuantity: z.number().int().positive(),
+    /** Issue #351 — a unit's pieces are a line quantity: at most `LINE_QUANTITY_MAX`. */
+    baseQuantity: lineQuantitySchema,
     isDefault: z.boolean().optional(),
     position: z.number().int().nonnegative().optional(),
     /** Feature 155 — minimum number of this unit per order of the product; `null` clears. */
@@ -2014,7 +2015,7 @@ export type CreatePackagingUnitRequest = z.infer<typeof createPackagingUnitReque
  */
 export const updatePackagingUnitRequestSchema = z
   .object({
-    baseQuantity: z.number().int().positive().optional(),
+    baseQuantity: lineQuantitySchema.optional(),
     isDefault: z.boolean().optional(),
     position: z.number().int().nonnegative().optional(),
     /** Feature 155 — minimum number of this unit per order of the product; `null` clears. */

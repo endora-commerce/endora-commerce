@@ -500,8 +500,10 @@ export function DraftLine({
             // What was typed is kept as typed — "15" over a floor of 10 is not rewritten on the
             // "1" — and saved as soon as it is a whole quantity at or above the floor; anything
             // else is normalised on blur (Postel's Law).
-            setQtyText(e.target.value);
             const typed = draftQuantityOnType(e.target.value, minimum);
+            // Issue #351 (ruling R4) — a value past LINE_QUANTITY_MAX is saved at the bound,
+            // and the field shows the bound at once rather than the number that was typed.
+            setQtyText(Number(e.target.value) > LINE_QUANTITY_MAX ? String(LINE_QUANTITY_MAX) : e.target.value);
             if (typed !== null) onQty(typed);
           }}
           onBlur={(e): void => {
