@@ -25,6 +25,8 @@ A closed list. The **shape** decides, not the business meaning:
 
 - the ids of the audited record and of its own child rows; ids of platform-global records (admin
   users, sales channels, warehouses, API keys);
+- ids of other records (any module, tenant-scoped or not) — a linked Order, a causing Order, a carry's
+  source document: an id is an opaque reference that reveals nothing without reach to that record;
 - document numbers (`number`, `revisionNumber`);
 - code-shaped values: status, kind, mode, source and decision codes from a closed set, plus
   dictionary codes (not their labels);
@@ -71,7 +73,9 @@ A reversible Command keeps its pre-state in its own operation row (`RevertRecord
 ### 5. Platform-global records
 
 Catalog, settings, dictionaries and the other platform-global records are outside this rule and
-may record values. A global module that writes **about** a tenant-scoped record follows this rule
+may record values. That includes what such a record says when it is quoted in a tenant
+record's entry: a custom-field **definition's** label in a carry's `skipped[].label` is the
+definition's (global) text, not a value of the record being audited. A global module that writes **about** a tenant-scoped record follows this rule
 for that write.
 
 ### 6. Test obligation
