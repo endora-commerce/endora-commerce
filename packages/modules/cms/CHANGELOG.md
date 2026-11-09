@@ -1,5 +1,196 @@
 # @endora-commerce/mod-cms
 
+## 0.110.0
+
+### Minor Changes
+
+- 9d9c8df: **Operator note:** a blog URL prefix set per sales channel (`blog.url_prefix`) now takes effect on
+  the storefront. Until now the storefront served the blog at `/blog` whatever the setting said, while
+  the sitemap and the breadcrumbs used the setting — links that answered 404. After the upgrade the
+  blog is served under the prefix, and `/blog/…` answers `301` to the same page under it. A channel
+  left on `blog` sees no change. Feature 171 (`specs/171-blog-i18n-authors/`, US1).
+
+  `blog.url_prefix` writes are now judged, on the Settings screen and the Settings API: a prefix that
+  is malformed (`400 BLOG_URL_PREFIX_INVALID`), reserved (`api`, `tag`, `author`, the deployment's
+  `cms.reserved_slug_segments` — `409 BLOG_URL_PREFIX_RESERVED`), a language prefix of any channel or
+  the first slug segment of a CMS page in the channel (`409 BLOG_URL_PREFIX_CONFLICT`) is refused. The
+  rule existed as `BlogSettingsResolver.assertValidPrefix`, which nothing called; that static method is
+  removed. A stored value that would now be refused keeps working until it is next changed.
+
+  The blog records every prefix a channel has served (`blog_url_prefixes`), and a former prefix
+  answers `301` to the current one while the SEO module is present. `GET /api/v1/blog/routing` answers
+  the channel's prefix per language and its former prefixes — the read the storefront middleware maps
+  the prefix with. `GET /api/v1/admin/blog/addresses` lists them and
+  `DELETE /api/v1/admin/blog/addresses/:id` forgets a former one (`blog.url_prefix.forget`).
+
+  `@endora-commerce/contracts`:
+
+  - `blogPath(input)` / `blogDefaultPath(input)` and the `BlogPathView` type — the one place a blog
+    URL is composed, on top of `storefrontPagePath`.
+  - Every storefront blog payload gains an optional `url` — post cards, category tiles, tag
+    references, the resolved post and category, the index and the tag page's tag. Breadcrumb URLs
+    now carry the language prefix of the request language (feature 167) and the blog prefix.
+  - `blogRoutingResponseSchema` / `BlogRouting`, `blogUrlPrefixRowSchema` / `BlogUrlPrefixRow`.
+  - `ERROR_CODES.BLOG_URL_PREFIX_CONFLICT`, `ERROR_CODES.BLOG_URL_PREFIX_NOT_FOUND`;
+    `BLOG_RESERVED_URL_PREFIXES` gains `tag` and `author`.
+  - `CmsPageReadPort.firstSegmentsInChannel(salesChannelId)` — an implementer of the port must add it.
+  - `CmsReservedSegmentContributor` and `CmsReservedSegmentRegistryPort`.
+
+  `@endora-commerce/mod-cms`: a module can claim first path segments per channel through the new
+  `cmsReservedSegmentRegistry`; a page slug starting with a claimed segment is refused with
+  `409 CMS_SLUG_RESERVED` and `details.claimedBy`. A switched-off contributor claims nothing.
+
+- 5303aab: The CMS contributes the Page Builder canvas to the catalogue's new `product.content.editor` admin zone (`specs/172-product-content-attributes/`): the full block palette and the **Translate** action, for one product content attribute in one language. The catalogue owns the document and the save; the contribution never saves, and it needs the CMS module's read permission. With the CMS off the zone has no member and product content is not rendered on the storefront.
+
+### Patch Changes
+
+- 2da23d2: The Page Builder editor gains the `forms.Form` block's fields (form picker, field look, size, button look, alignment) and its labels in English and Polish, and previews the block's form — a draft, a closed or a missing form with a note on the canvas — through the admin preview of the `forms` module. Nothing changes for pages without the block, or when `forms` is off.
+- 3f020ba: Product names, descriptions, alt texts, attachment and packaging-unit names are read at the document's sales channel and language — Channel × language → Channel → Global — through `catalogProductAvailabilityPort.effectiveTexts`, or as the Global string where there is no channel (feature 174). Basket, quote and order snapshots take the effective name when the line is created; a deliberately empty packaging-unit name at the scope keeps the Global name. The back-in-stock e-mail shows the Global name.
+- 7019c71: Page Builder pages, hooks and menus no longer saturate the database on a cache miss (issue #685).
+
+  `cms` turned every asset a page, block, template or hook embeds into a URL through
+  `AssetsLibraryPort.getAsset`, one call per embed. The detail it builds carries the asset's "used by"
+  list, which walks the content of every CMS page, block and template, blog post, product and menu — so a
+  home page with ~150 images ran that walk ~150 times whenever its cache expired, and every other request
+  waited behind it. `megamenu` (asset targets and icons) and `pwa` (icon redirects) made the same call.
+
+  `@endora-commerce/contracts`: `AssetReadPort.resolveUrls(assetIds)` — the URL `getAsset` would carry
+  for each live asset (versioned for a public one, signed for a private one), in one read, keyed by id;
+  an id that names no live asset, or is not a uuid, is absent. **An implementer of `AssetReadPort` must
+  add it.** `@endora-commerce/mod-assets-library` implements it.
+
+  `cms` now resolves a whole page, block, template or hook in two keyed reads (`resolveUrls`, then
+  `findByIds` for the ids that have a URL); `megamenu` and `pwa` take the URL from `resolveUrls`.
+  Rendered output is unchanged, except that an asset in the trash no longer renders.
+
+- b2db8c3: English module names and admin sidebar labels are now sentence case, like the rest of the UI. The manifest `name` changes for 22 modules and for the platform's `_lifecycle` module ("Quote Requests" becomes "Quote requests", "API Keys" becomes "API keys", "Module Lifecycle" becomes "Module lifecycle"). The English `module.name` for Quick order, Quote requests and Shopping lists changes the same way. That string heads their permission groups on the organization role form and appears on the modules screen. The admin sidebar labels in blog ("Blog posts", "Blog categories", "Blog tags"), cms ("CMS pages", "CMS blocks", "CMS templates", "CMS hooks"), custom_fields ("Custom fields"), import_export ("Import / export"), newsletter ("Tags & fields") and transactional_emails ("Transactional emails", "Email blocks", "Email templates") change the same way. Product names (Google Analytics, Google Tag Manager, LinkedIn Ads, Meta Ads) keep their capitals. Polish strings do not change. If your code compares a manifest `name` against the old title-case string, update the comparison. Better, compare the module `id`.
+- 0b64c13: English page titles, dialog titles, command-palette action labels, settings group names and
+  documentation page titles now use sentence case, like the module names and sidebar labels
+  before them. For example, "Quote Requests" becomes "Quote requests", "CMS Pages" becomes
+  "CMS pages" and the "Quick Order" settings group becomes "Quick order". Polish strings are
+  unchanged. Product names keep their capitals: Page Builder, Google Analytics, LinkedIn and
+  Meta among them.
+
+  The admin search group labels change the same way: "Quote Requests" becomes "Quote requests"
+  and "Sales Opportunities" becomes "Sales opportunities". The demo megamenu's English button
+  label becomes "Quick order". The demo seed does not rewrite a menu it has already created, so an
+  existing demo database keeps "Quick Order" until it is seeded afresh or the label is edited on
+  the megamenu screen.
+
+  The settings group names are updated in the database the next time the settings manifest
+  reconciler runs at boot. Nothing has to be migrated.
+
+- d69e765: A path parameter that is not a UUID is answered exactly as a well-formed id that names nothing, on every customer- and admin-facing id route, mutations included, instead of `500` (issue #781). The shape is checked with `isUuidShape` from `@endora-commerce/contracts` before the database is asked, so a malformed id gets the route's own answer for an unknown record: its own not-found code (`404`), or the empty list or `204` the route gives an unknown id. Examples: `POST /api/v1/orders/:id/cancel` answers `404 ORDER_NOT_FOUND`; the returns comment, delivery-method and cancel routes and `POST /api/v1/organization/carts/:id/approve` and `/reject` answer `404 NOT_FOUND`.
+
+  Routes whose params schema demanded a UUID answered a malformed id `400 VALIDATION_FAILED`; they now answer `404` like an unknown id (owner ruling of 2026-11-05): `/api/v1/organizations/mine/roles/:id`, `/api/v1/admin/organizations/:id/roles[/:roleId]` and `…/permission-catalogue`, `/api/v1/organizations/mine/members/:id[/role]`, every `/api/v1/admin/product-feeds/:id…`, `/api/v1/admin/feed-templates/:id` and `/api/v1/admin/feed-taxonomies/revisions/:taxonomyId…` route, `/api/v1/admin/document-templates/:id…`, `/api/v1/admin/quote-requests/:id/document-templates`, `…/document-template` and `…/pdf`, the blog `url-redirects/:redirectId` and `addresses/:id` deletes, `PATCH /api/v1/admin/cms/hooks/:id/attachments/:blockId`, and `GET`, `PATCH` and `DELETE /api/v1/admin/import-export/profiles/:id` (`404 IMPORT_PROFILE_NOT_FOUND`). A client that told a malformed id from an unknown one by the `400` can no longer do so.
+
+  Every private copy of the UUID pattern is replaced by `isUuidShape`, `UUID_SHAPE_PATTERN` or, where a filter has always asked for RFC 9562 version and variant bits (the CRM board filters), `uuidSchema`; what each check accepts is unchanged, except that the invoice-ledger delivery retry now accepts any uuid-shaped id and answers an unknown one `404` from the lookup.
+
+- cc1496f: The remaining English Page Builder block labels now use sentence case: "Simple Text" becomes
+  "Simple text", "Rich Content" becomes "Rich content", "Insert Block" becomes "Insert block",
+  "Insert Template" becomes "Insert template" and "Spacer / Divider" becomes "Spacer / divider".
+  The quote request field in the admin search configuration becomes "Quote request number".
+  The Polish import and export navigation label and page title become "Import / eksport". Other
+  Polish strings are unchanged. Product names keep their capitals: Page Builder among them.
+
+  The documentation pages that quote these labels are updated to match, and the admin search
+  page now writes its group labels as "Quote requests" and "Sales opportunities", as the screen
+  has shown them since the previous release.
+
+- ca120cc: Every settings group a module declares now has a translated heading on the Settings screen (#884). Each module's bundle gains `settingGroups.<group code>.name` in English and Polish, so a Polish operator no longer reads group headings such as _Orders_, _Carts_ or _Security / MFA_ in English. `@endora-commerce/mod-admin-notifications` and `@endora-commerce/mod-shipments` ship translation bundles for the first time: their manifests declare `i18n: { bundlesDir: 'i18n' }` and their tarballs carry `i18n/`.
+- Updated dependencies [18cce2e]
+- Updated dependencies [18cce2e]
+- Updated dependencies [9cfb28b]
+- Updated dependencies [a206da9]
+- Updated dependencies [34485ae]
+- Updated dependencies [34485ae]
+- Updated dependencies [0f1717c]
+- Updated dependencies [86e8761]
+- Updated dependencies [9bfb0b8]
+- Updated dependencies [ed5cf6a]
+- Updated dependencies [2da23d2]
+- Updated dependencies [2da23d2]
+- Updated dependencies [2da23d2]
+- Updated dependencies [2da23d2]
+- Updated dependencies [9d9c8df]
+- Updated dependencies [9d9c8df]
+- Updated dependencies [9d9c8df]
+- Updated dependencies [9d9c8df]
+- Updated dependencies [5303aab]
+- Updated dependencies [16f85f4]
+- Updated dependencies [270aa2b]
+- Updated dependencies [3f020ba]
+- Updated dependencies [3f020ba]
+- Updated dependencies [b59e5d5]
+- Updated dependencies [b59e5d5]
+- Updated dependencies [bf1cc2d]
+- Updated dependencies [ff60e93]
+- Updated dependencies [6f19230]
+- Updated dependencies [77b8c37]
+- Updated dependencies [65104b8]
+- Updated dependencies [7acaa33]
+- Updated dependencies [7019c71]
+- Updated dependencies [4eee98b]
+- Updated dependencies [14ac256]
+- Updated dependencies [248bf1b]
+- Updated dependencies [b2db8c3]
+- Updated dependencies [4cf529d]
+- Updated dependencies [5e4dd48]
+- Updated dependencies [75b053f]
+- Updated dependencies [54fc8f1]
+- Updated dependencies [dac5795]
+- Updated dependencies [5bbb389]
+- Updated dependencies [d69e765]
+- Updated dependencies [dbc1cef]
+- Updated dependencies [d69e765]
+- Updated dependencies [a6bc891]
+- Updated dependencies [8ad737c]
+- Updated dependencies [a9398c8]
+- Updated dependencies [0b56038]
+- Updated dependencies [cc1496f]
+- Updated dependencies [717e4c6]
+- Updated dependencies [cea1470]
+- Updated dependencies [cea1470]
+- Updated dependencies [d46d414]
+- Updated dependencies [73e2eec]
+- Updated dependencies [29d7e90]
+- Updated dependencies [7f2fa6e]
+- Updated dependencies [57145f7]
+- Updated dependencies [58a1632]
+- Updated dependencies [e46d233]
+- Updated dependencies [e46d233]
+- Updated dependencies [58a1632]
+- Updated dependencies [b476f44]
+- Updated dependencies [14fe4fb]
+- Updated dependencies [76d89ab]
+- Updated dependencies [5cbffb9]
+- Updated dependencies [c01aaa3]
+- Updated dependencies [6bd2ab7]
+- Updated dependencies [a3502c0]
+- Updated dependencies [7a73cc8]
+- Updated dependencies [5ff8302]
+- Updated dependencies [fc7db4c]
+- Updated dependencies [c34b405]
+- Updated dependencies [5af8c25]
+- Updated dependencies [48f055e]
+- Updated dependencies [bf50b85]
+- Updated dependencies [2c6fba0]
+- Updated dependencies [0801f69]
+- Updated dependencies [d1c0d13]
+- Updated dependencies [6d1d284]
+- Updated dependencies [974be57]
+- Updated dependencies [99c075e]
+- Updated dependencies [32b4d0c]
+- Updated dependencies [3355e60]
+- Updated dependencies [7ce9b8a]
+  - @endora-commerce/contracts@0.110.0
+  - @endora-commerce/platform@0.110.0
+  - @endora-commerce/cms-components@0.110.0
+  - @endora-commerce/page-builder-admin@0.110.0
+  - @endora-commerce/admin-kit@0.110.0
+  - @endora-commerce/llm-client@0.110.0
+  - @endora-commerce/page-builder-core@0.110.0
+
 ## 0.109.0
 
 ### Minor Changes

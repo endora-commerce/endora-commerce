@@ -1,5 +1,254 @@
 # @endora-commerce/mod-orders
 
+## 0.110.0
+
+### Minor Changes
+
+- c0bf059: A colleague's order is visible by permission (`specs/170-organization-roles/` FR-049, owner ruling OR-5). The manifest declares the organization permission `orders.view_organization` ("View the organization's orders", not member-default; _Administrator_ holds it implicitly), labelled in English and Polish. `OrderAccessService` asks `organizationPermissionPort.can(…, 'orders.view_organization')` instead of reading `role === 'organization_admin'`: a holder sees every order of the Organization (its subtree for a roll-up login), anyone else only the orders they placed, and a colleague's order answers `404` to the list, the detail, reorder, clone to a quote request and the invoices read through `OrderReadPort.findByIdForCustomer`.
+
+  Constructor shapes change. `OrderAccessService(customerAccountRead: CustomerAccountReadPort)` becomes `OrderAccessService(organizationPermissions: OrganizationPermissionPort)`; `OrderReadService(emFactory, customerAccountRead)` becomes `OrderReadService(emFactory, organizationPermissions)`; `OrderCloneToQuoteService(emFactory, getRfqService, customerAccountRead)` becomes `OrderCloneToQuoteService(emFactory, getRfqService, organizationPermissions)`; `OrderReorderService` takes `organizationPermissions: OrganizationPermissionPort` as a new fifth parameter, after `customerAccountRead`. The orders plugin options gain the required `organizationPermissions`. `OrderService` no longer builds an `OrderAccessService` from `neighbours.customerAccountRead` when none is passed: a service built without one refuses its scoped reads (`getById`, `listForCustomer`).
+
+- 9bfb0b8: The legacy two-value organization role is removed (`specs/170-organization-roles/`, WP-12). Breaking for every consumer that still names it. A member holds a role **id**, and what they may do follows from that role's permissions. Old → new:
+
+  - `organizationRoleSchema` and `OrganizationRole` (`'organization_admin' | 'regular_user'`, from `common.ts`) are removed. Use `OrganizationRoleRef` (`{ id, name, kind }`) and `OrganizationRoleKind` (`administrator`, `member`, `custom`) instead.
+  - `CustomerAccountRole` is removed, and so are `CustomerAccountRecord.role` and `CustomerAccountCreateInput.role`. Read and write `organizationRoleId` instead; it is required on create.
+  - `CustomerAccountReadPort.countByOrganizationRole(organizationId, role, options)` is removed. Use `countAdministrators(organizationId, options)`, which takes the same options. `listByOrganization` still answers the Organization's _Administrator_ holders first, then by creation date.
+  - `CustomerRolePort.changeRole(organizationId, customerAccountId, newRole)` is removed. Use `customerAccountRoleCommandPort.changeRole({ organizationId, customerAccountId, roleId })`, the `customer_account.change_role` Command. `customerRolePort` keeps `listMembers` and `removeMember`.
+  - `RfqCustomerContext.isOrgAdmin` is removed. Ask `OrganizationPermissionPort.isAdministrator(subject)` instead (research R-30). `carts`, `orders`, `quick_order` and `shopping_lists` no longer pass it.
+  - `OrganizationRecord.requiresCartApproval`, `OrganizationCartApprovalWritePort` (the container name `organizationCartApprovalWritePort` is no longer registered), `CartApprovalPolicyWriteResult`, `setCartApprovalPolicySchema` / `SetCartApprovalPolicy` and `cartApprovalPolicyResponseSchema` / `CartApprovalPolicyResponse` are removed, together with the `organization.set_cart_approval_policy` Command. Approval now follows the member's `carts.order_without_approval` permission (OR-3), and the policy endpoints were already removed.
+  - On responses, `role` is no longer described on `customerAccountSchema`, `customerLoginResponseSchema`'s `customerAccount` or `impersonationStartResponseSchema`'s `impersonatedCustomerAccount`. `organizationRole` is now **required** on all three, and `permissions` is required on the first two: every producer sends them. `POST /api/v1/admin/organizations/:id/impersonate` (`admin_users`) no longer sends `role` and now sends `organizationRole`, read through `organizationRoleReadPort` (an acknowledged dependency on `organizations`); `POST /api/v1/admin/customers/:id/impersonate` (`customers`) always sends it.
+  - The request schemas `inviteMemberRequestSchema` (`{ email, role? }`), `changeMemberRoleRequestSchema` (`{ role }`), `adminDirectMemberRequestSchema` (`role?`) and `adminPatchMemberRoleRequestSchema` (`{ role, expectedUpdatedAt? }`) are removed. Use `inviteMemberToRoleRequestSchema`, `assignMemberRoleRequestSchema`, `adminDirectMemberToRoleRequestSchema` and `adminAssignMemberRoleRequestSchema`, which take `roleId`. They stay strict, so a body that still sends `role` is refused with `400`.
+  - The customers CSV export (`import_export`) carries `organization_role_name` (a predefined role's English label, or a custom role's name) and `organization_role_kind` (`administrator`, `member`, `custom`) in place of its `role` column. It reads them through `organizationRoleReadPort`, a new non-binding `degrades-without` edge on `organizations`. The export is export-only, so no import is affected.
+  - `carts`' published bundles (`i18n/en.json`, `i18n/pl.json`) drop five unread keys that described the removed policy and the administrator-only approval: `approval.banner.pending`, `approval.banner.rejected`, `approval.banner.policy_on`, `approval.banner.policy_off` and `reject.email.body`.
+  - The `CustomerAccount` entity loses `role`. `Organization` loses `requiresCartApproval`, and `OrganizationInvitation` loses `role`, so its `organizationRoleId` is now required. Nothing writes the legacy value any more.
+  - New migrations `Migration20261104T094535OrganizationsDropLegacyRoleColumns` (M4) and `Migration20261104T094540CustomerAccountsDropLegacyRoleColumn` (M5):
+    - M4 drops `organizations.requires_cart_approval`, `organization_invitations.role` and the invitation default trigger that read it.
+    - M5 drops `customer_accounts.role` with its index.
+    - M5 also redefines the account default: an account inserted without a role holds _Administrator_ in a personal Organization, else _Member_.
+    - Each `down()` re-derives the dropped values from the role reference.
+
+- ed5cf6a: The description of the organization permission `orders.view_organization` (manifest and the English and Polish bundles) now names starting a return or complaint from a colleague's order, which `returns` allows a holder of `returns.create` from this release (`specs/170-organization-roles/` FR-054, owner ruling OR-11). No behaviour of `orders` changes; the module page says the same.
+- bc1045a: The buyer's order actions are judged by what they build (`specs/170-organization-roles/`, WP-16). `POST /api/v1/orders/:id/reorder` replaces the active basket and now refuses a member whose organization role lacks `carts.create` with `403 ORGANIZATION_PERMISSION_REQUIRED` (`details.permission = 'carts.create'`); `POST /api/v1/orders/:id/clone-to-quote` creates a quote request and now refuses a member lacking `quote_requests.create` the same way. Both refusals come after `requireCustomer` and before the order is read, so the answer is the same for the member's own order, a colleague's and an unknown id; a member holding the code then meets the order scope as before (`404 ORDER_NOT_FOUND` for a colleague's order without `orders.view_organization`). While `quote_requests` is switched off, its code grants nothing, so the buyer's clone is refused by the guard (`403`) instead of the service's `503 MODULE_DISABLED` (owner ruling of 2026-11-04). The operator routes `POST /api/v1/admin/orders/:id/{reorder,clone-to-quote}` are unchanged. The three `ORDER_CART_APPROVAL_REQUIRED` sentences (`cart_approval_not_submitted`, `cart_approval_pending`, `cart_approval_rejected`) now say that the member's role requires approval and that an approver in the organization decides, not the organization administrator. No member loses access on upgrade, because _Member_ and _Administrator_ hold both codes.
+- 6f19230: **BREAKING — `POST /api/v1/admin/orders` and `POST /api/v1/admin/orders/preview` for a sales channel that is not one of the customer's Organization's active assigned channels now answer `422 ORDER_SALES_CHANNEL_NOT_ALLOWED`: a channel the Organization is not assigned to, or an inactive one, where they answered `201` / `200`, and a channel id that does not exist, where they answered `404 NOT_FOUND`. `GET` and `PUT /api/v1/admin/organizations/:id/sales-channels` for an Organization outside a sales representative's reach now answer `404 NOT_FOUND` where they answered `200`.** Recorded at `minor`, which in a `0.x` series already takes every caret dependent out of range (issue #515).
+
+  An order an operator creates on a customer's behalf is placed only on one of the customer's Organization's active assigned channels — the rule a quote request created on a customer's behalf has followed since the product data scopes release. The refusal comes before anything is written: no working basket, no inline address, no order. The order's `salesChannelId` stays required, so there is no defaulted channel to check; a request without it is still `400 VALIDATION_FAILED`.
+
+  - `@endora-commerce/contracts`: `ERROR_CODES.ORDER_SALES_CHANNEL_NOT_ALLOWED`, declared by `orders` with an English and a Polish sentence.
+  - `@endora-commerce/mod-orders`: `OrderCreationAdminService` takes the Organization channel read (`SalesChannelMembershipPort.listChannelsForEntity`) as a new sixth constructor argument, before `mailer`; composed without it, `create` fails closed with `500 INTERNAL`, as the preview already did. The _Create order_ screen offers the customer's Organization's active channels, read from `GET /api/v1/admin/organizations/:id/sales-channels` — the only one preselected, else a choice; a `salesChannelId` in the link kept only when it is one of them; a notice and a retry when the Organization has none or they cannot be read — instead of every active channel.
+  - `@endora-commerce/mod-organizations`: the Organization sales-channel read and replace apply the request's tenant scope. A platform administrator reaches every Organization, as before; a sales representative only the ones assigned to them. The response shape is unchanged.
+  - `@endora-commerce/mod-i18n`: the _Create order_ screen's channel notices (`orderCreate.channelsLoadError`, `orderCreate.noChannelWarning`, `orderCreate.hint.salesChannel`), in English and Polish.
+
+  An instance whose operators create orders on channels their customers' Organizations are not assigned to will see those requests refused once it upgrades: assign the Organization to the channel first (the Organization's _Sales channels_ panel), or create the order on one of its channels.
+
+- 65104b8: **Breaking:** order placement now enforces cart approval (issue #648). In an Organization that requires cart approval (`requiresCartApproval`), a member's basket that is not `approved` — never sent for approval, awaiting the Organization administrator, or rejected — is refused by `POST /api/v1/orders` (and so by the storefront checkout page, which calls it) with `409 ORDER_CART_APPROVAL_REQUIRED`, before anything is reserved or written; the basket is kept as it was. Such baskets were placed until now: only the storefront's call to action stood in the way. An Organization administrator's own basket and every basket of an Organization without the policy are placed as before, and so are orders placed from a working basket (admin order creation, one-click buy, the external order API).
+
+  - `@endora-commerce/contracts`: `ERROR_CODES.ORDER_CART_APPROVAL_REQUIRED`. Its `details` are `{ code, cartId, approvalStatus }`, with `code` one of `cart_approval_not_submitted`, `cart_approval_pending`, `cart_approval_rejected`; `orders` declares the code with English and Polish sentences per token.
+  - `@endora-commerce/mod-carts`: `CartPlacementApplyPort` (`@endora-commerce/mod-carts/ports`) gains a required `awaitsApproval({ cart, organizationId })`, answering whether the basket still awaits its Organization's approval. A hand-written implementation of the port must add it; `CartPlacementApplyService` takes the reads it is judged from (`{ organizations, customerAccounts }`) as a new fourth constructor argument.
+  - `@endora-commerce/mod-orders`: `OrderService.placeOrder` asks it for the customer's active basket and refuses as above.
+
+  An instance whose members order without sending baskets for approval will see those orders refused once it upgrades: such a member now sends the basket for approval and the administrator approves it, or the Organization switches the policy off (`PATCH /api/v1/organization/policies/cart-approval`).
+
+- 7acaa33: `OrderReadPort` gains `findByIdForCustomer(id, { customerAccountId, organizationId })`. It answers
+  the order only when that customer may read it under the rule `GET /api/v1/orders/:id` applies — a
+  regular member reaches the orders they placed, an `organization_admin` every order of their
+  Organization — and `null` otherwise, which the caller answers as 404. `orders` implements it with
+  the same access service its own order reads use, so a module serving a customer an order-scoped
+  resource no longer restates the rule.
+
+  The method is required on the interface, so a hand-written `OrderReadPort` (a test fake, for
+  example) has to add it.
+
+- 29d7e90: An archived product now gets its own reason on the operator's order paths (issue #829):
+
+  - **`POST /api/v1/admin/orders/preview`** reports the line as `PRODUCT_ARCHIVED` on every channel, whoever may see the product. Before, it was reported as `PRODUCT_NOT_IN_SALES_CHANNEL`. The order create screen shows the line as _Archived product_ / _Produkt zarchiwizowany_ and keeps **Create order** blocked.
+  - **Behaviour change for API clients:** `POST /api/v1/admin/orders` refuses a line whose product is archived with `409 PRODUCT_ARCHIVED` ("Product is archived."), naming the archived products in `details.productIds`. Nothing is written. Before, it answered `404 PRODUCT_NOT_FOUND`. This is the answer an operator's quote request already gives. A product id that does not exist, or a soft-deleted product, still answers `404 PRODUCT_NOT_FOUND`.
+
+- 7a73cc8: Migration `Migration20261108T073238OrdersChargeLines` adds a nullable `orders.charge_lines` (jsonb) and lets `orders.vat_method` hold `per_rate_charges` (issue #904). `Order.chargeLines` and `OrderReadPort`'s `OrderRecord.chargeLines` expose the column. Nothing writes either value yet: orders are still placed `per_rate`, with delivery and the surcharge at 0 %. Nothing is backfilled.
+- 71a7a6a: Orders record when they were completed (#905). A new column, `orders.completed_at` (`Order.completedAt`), is stamped once, in the same transaction as the status write, when an order first enters `completed`, and is never rewritten; an order created directly in `completed` is stamped on insert. `OrderReturnContextPort.getReturnContext` now reports it as `completingStatusEnteredAt` instead of the order's `updatedAt`, so the return window and the consumer's withdrawal period no longer move forward when a completed order is edited. The interface is unchanged. The migration backfills every order already in `completed` with its `updated_at`, which is exactly the anchor it was judged by before, so no existing order changes behaviour on upgrade. A completed row without the stamp reports `null` (not started) rather than `updatedAt`. Nothing in the anchor reads `shipments`. `ORDER_STATUS_COMPLETED` is exported from the orders status-graph domain module beside the other status constants.
+- 5ff8302: `OrderReturnContextPort.getReturnContext` reports the order's `paymentMethodId` (#905), so the refund of a consumer's withdrawal can propose the order's own payment method. Additive: nothing else in the context changes.
+- 3355e60: Refusals on the buyer-facing and admin order paths have an error code of their own instead of
+  `VALIDATION_FAILED`, and a sentence in English and Polish (issue #86). **A client that matches on
+  `VALIDATION_FAILED` for these cases now sees the specific code.** The HTTP status of each is
+  unchanged. Until now each was answered with an English sentence in every language, because the
+  error envelope never replaces the message of `VALIDATION_FAILED`.
+
+  | Was                                                                                                                              | Is                                                           | `details`                                                                                |
+  | -------------------------------------------------------------------------------------------------------------------------------- | ------------------------------------------------------------ | ---------------------------------------------------------------------------------------- |
+  | `400 VALIDATION_FAILED`, `details.code = "delivery_method_not_allowed_for_organization"`                                         | `400 ORDER_DELIVERY_METHOD_UNAVAILABLE`, same `details.code` | `deliveryMethodId` (unchanged)                                                           |
+  | `400 VALIDATION_FAILED`, `details.code = "delivery_method_not_in_sales_channel"`                                                 | `400 ORDER_DELIVERY_METHOD_UNAVAILABLE`, same `details.code` | `deliveryMethodId`, `salesChannelId` (unchanged)                                         |
+  | `400 VALIDATION_FAILED`, _"Delivery method is not active."_ or _"The selected shipping method is not available for this order."_ | `400 ORDER_DELIVERY_METHOD_UNAVAILABLE`, no `details.code`   | `deliveryMethodId` (new)                                                                 |
+  | `400 VALIDATION_FAILED`, `details.code = "payment_method_not_allowed_for_organization"`                                          | `400 ORDER_PAYMENT_METHOD_UNAVAILABLE`, same `details.code`  | `paymentMethodId` (unchanged)                                                            |
+  | `400 VALIDATION_FAILED`, `details.code = "payment_method_not_in_sales_channel"`                                                  | `400 ORDER_PAYMENT_METHOD_UNAVAILABLE`, same `details.code`  | `paymentMethodId`, `salesChannelId` (unchanged)                                          |
+  | `400 VALIDATION_FAILED`, _"Payment method is not active."_ or _"The selected payment method is not available for this order."_   | `400 ORDER_PAYMENT_METHOD_UNAVAILABLE`, no `details.code`    | `paymentMethodId` (new)                                                                  |
+  | `422 VALIDATION_FAILED`, `details: { code: "order_below_minimum", minimum, subtotal }` (numbers)                                 | `422 ORDER_BELOW_MINIMUM_VALUE`                              | `minimum`, `subtotal` as two-decimal **strings**, and `currency`; `details.code` is gone |
+  | `409 VALIDATION_FAILED`, _"Commenting is closed for completed or cancelled orders."_                                             | `409 ORDER_COMMENTS_CLOSED`                                  | `orderId`                                                                                |
+  | `409 VALIDATION_FAILED`, _"Order has no line items to clone."_                                                                   | `409 ORDER_CLONE_NO_LINES`                                   | `orderId`                                                                                |
+  | `503 VALIDATION_FAILED`, _"Quote Requests module is not available."_                                                             | `503 MODULE_DISABLED`                                        | `module: "quote_requests"`                                                               |
+
+  The method refusals are answered by `POST /api/v1/orders`, `POST /api/v1/orders/preview-total`,
+  `POST /api/v1/admin/orders`, `POST /api/v1/admin/orders/preview`, `POST /api/v1/external/orders`
+  and every other caller of order placement; the minimum order value by placement (checkout and
+  admin create); the comment refusal by `POST /api/v1/orders/:id/comments` and
+  `POST /api/v1/admin/orders/:id/comments`; the two clone refusals by both clone-to-quote routes.
+  The `details.code` tokens of the method refusals are unchanged, and each now picks its own
+  sentence. The five new codes are members of `ERROR_CODES` in `@endora-commerce/contracts`,
+  declared by the `orders` manifest; the `delivery_methods` and `payment_methods` documentation
+  pages name the new codes. No setting, permission or migration changes.
+
+### Patch Changes
+
+- a29965b: Placing an order from one's own basket passes the placer's organization role, off the request's actor, to `carts`' approval rule, so placement no longer reads the placer's account for it (`specs/170-organization-roles/` FR-080). `CustomerContext` and the `resolveCustomerContext` option gain an optional `organizationRoleId`; a composition that does not pass it is served as before.
+- 3f020ba: Product names, descriptions, alt texts, attachment and packaging-unit names are read at the document's sales channel and language — Channel × language → Channel → Global — through `catalogProductAvailabilityPort.effectiveTexts`, or as the Global string where there is no channel (feature 174). Basket, quote and order snapshots take the effective name when the line is created; a deliberately empty packaging-unit name at the scope keeps the Global name. The back-in-stock e-mail shows the Global name.
+- 45c9893: The organization role form, on the storefront and in the admin Roles tab, heads the Addresses, Carts, Orders, Quote Requests and Returns permission groups in the reader's language. The five modules now ship `module.name` in English and Polish ("Adresy", "Koszyki", "Zamówienia", "Zapytania ofertowe", "Zwroty"); before this, Polish pages showed the English manifest name.
+- 75b053f: A customer record read by an id that is not a UUID answers `404` with the route's own not-found code, exactly as a well-formed id that names nothing does, instead of `500` (issue #753). This covers `GET /api/v1/orders/:id` (`ORDER_NOT_FOUND`), `GET /api/v1/returns/:id`, `GET /api/v1/quote-requests/:id`, `GET /api/v1/shopping-lists/:id` and `GET /api/v1/organization/carts/:id` (`NOT_FOUND`), and every other route that reads its record through the same lookup.
+- 6c7ddc7: An order placed by a personal (B2C) Organization is billed to the person (issue #759). Its billing snapshot no longer falls back to the Organization's tax id, which for a personal Organization is an internal placeholder, nor to the Organization's name as the company name: without company data typed at checkout, `billingAddress.companyName` and `billingAddress.taxId` are absent, so the invoice, its PDF, the order confirmation e-mail and the admin order screen print no company and no tax-id line. Company data the buyer types is kept as before, and a company Organization still defaults to its legal (or display) name and tax id. Orders placed before this change keep the snapshot they were placed with.
+- d591bbe: A personal (B2C) Organization is labelled for what it is rather than by its placeholder tax id (issue #767, owner ruling of 2026-11-05). The admin Organizations list and the Organization detail header show "Personal account" ("Konto osobiste") in place of the tax id. The admin order and quote request screens' _Organization_ panel show "Individual customer" ("Klient indywidualny") where the tax-id line was. The three strings are new core keys: `organizations.personalAccount`, `orderDetail.org.individualCustomer` and `rfq.detail.org.individualCustomer`.
+- 5bbb389: A personal (B2C) Organization's placeholder tax id is no longer shown anywhere outside `organizations` (issue #767). The quote request PDF prints the person as the buyer, with no tax-id line and no placeholder head office. `GET /api/v1/admin/orders/:id` and `GET /api/v1/admin/quote-requests/:id` answer `organization.taxId: null` for it, and the admin order and quote request screens' _Organization_ panel then print no tax-id line. The price-book (`…/price-books/targets/organizations`) and push audience (`…/pwa/rule-targets/organizations`) organization pickers answer `taxId: null` for it, so the picker shows no hint. A company Organization's tax id is shown as before.
+- d69e765: A path parameter that is not a UUID is answered exactly as a well-formed id that names nothing, on every customer- and admin-facing id route, mutations included, instead of `500` (issue #781). The shape is checked with `isUuidShape` from `@endora-commerce/contracts` before the database is asked, so a malformed id gets the route's own answer for an unknown record: its own not-found code (`404`), or the empty list or `204` the route gives an unknown id. Examples: `POST /api/v1/orders/:id/cancel` answers `404 ORDER_NOT_FOUND`; the returns comment, delivery-method and cancel routes and `POST /api/v1/organization/carts/:id/approve` and `/reject` answer `404 NOT_FOUND`.
+
+  Routes whose params schema demanded a UUID answered a malformed id `400 VALIDATION_FAILED`; they now answer `404` like an unknown id (owner ruling of 2026-11-05): `/api/v1/organizations/mine/roles/:id`, `/api/v1/admin/organizations/:id/roles[/:roleId]` and `…/permission-catalogue`, `/api/v1/organizations/mine/members/:id[/role]`, every `/api/v1/admin/product-feeds/:id…`, `/api/v1/admin/feed-templates/:id` and `/api/v1/admin/feed-taxonomies/revisions/:taxonomyId…` route, `/api/v1/admin/document-templates/:id…`, `/api/v1/admin/quote-requests/:id/document-templates`, `…/document-template` and `…/pdf`, the blog `url-redirects/:redirectId` and `addresses/:id` deletes, `PATCH /api/v1/admin/cms/hooks/:id/attachments/:blockId`, and `GET`, `PATCH` and `DELETE /api/v1/admin/import-export/profiles/:id` (`404 IMPORT_PROFILE_NOT_FOUND`). A client that told a malformed id from an unknown one by the `400` can no longer do so.
+
+  Every private copy of the UUID pattern is replaced by `isUuidShape`, `UUID_SHAPE_PATTERN` or, where a filter has always asked for RFC 9562 version and variant bits (the CRM board filters), `uuidSchema`; what each check accepts is unchanged, except that the invoice-ledger delivery retry now accepts any uuid-shaped id and answers an unknown one `404` from the lookup.
+
+- d24be0e: The module documentation pages have readable titles instead of the module id (for example _Carts_ instead of `carts`), in the docs sidebar, the module map and the browser tab, in English and Polish. Page headings and screen names in the page text are sentence case, as in the Admin UI (#795). File names and URLs are unchanged.
+- f8b7319: `POST /api/v1/admin/orders/preview` reports a soft-deleted product as `PRODUCT_NOT_FOUND` on every channel (issue #820). It used to report `PRODUCT_NOT_IN_SALES_CHANNEL` on a channel that still listed the product. The preview now reads products with `liveOnly`. A soft-deleted product has been unavailable everywhere since feature 163, and `POST /api/v1/admin/orders` refuses it with `404 PRODUCT_NOT_FOUND`, so the preview now gives the same answer as create. Other lines in the same preview are priced as before.
+- 6bd2ab7: Issue #876 — `OrderReturnContextProvider` (`orderReturnContextPort`) reports the order's `deliveryTotal` and `paymentSurcharge` (the surcharge captured at placement), as stored, so `returns` can refund them on a consumer's withdrawal from the whole order.
+
+  **Behaviour change on upgrade.** None in `orders`: it reports two more facts and changes no order. What `returns` does with them is described in the `@endora-commerce/mod-returns` changeset.
+
+- ca120cc: Every settings group a module declares now has a translated heading on the Settings screen (#884). Each module's bundle gains `settingGroups.<group code>.name` in English and Polish, so a Polish operator no longer reads group headings such as _Orders_, _Carts_ or _Security / MFA_ in English. `@endora-commerce/mod-admin-notifications` and `@endora-commerce/mod-shipments` ship translation bundles for the first time: their manifests declare `i18n: { bundlesDir: 'i18n' }` and their tarballs carry `i18n/`.
+- 48b5b94: The external order API (`POST /api/v1/external/orders`) now refuses an order whose API-key channel is not one of the bound Organization's active sales channels, with `422 ORDER_SALES_CHANNEL_NOT_ALLOWED` — the rule admin order creation already follows (issue #699). It is checked at placement, so a key keeps working only while its Organization stays assigned to the channel, and nothing is written when it refuses.
+
+  **Behaviour change on upgrade.** An existing integration whose Organization is not assigned to its key's channel stops placing orders and gets `422 ORDER_SALES_CHANNEL_NOT_ALLOWED`. Before upgrading, list those keys with the read-only query in _Upgrading an instance_ ("API-key orders are placed only on the Organization's channels"). Then either assign the channel to the Organization, or issue a new key bound to one of the Organization's channels and revoke the old one.
+
+- 54fb38f: Security fix (issue #665): cloning an order into a quote request and reordering it now resolve the
+  order through the same access rule as reading it. A member who is not an Organization administrator
+  can clone or reorder only the orders they placed. An Organization administrator can still act on
+  every order of the Organization. Any other order is answered `404 ORDER_NOT_FOUND`, the answer
+  `GET /api/v1/orders/:id` gives. This applies to `POST /api/v1/orders/:id/clone-to-quote` and
+  `POST /api/v1/orders/:id/reorder`. Before this change, the rule was enforced by those two routes
+  only, not by the services behind them.
+
+  The admin routes `POST /api/v1/admin/orders/:id/clone-to-quote` and
+  `POST /api/v1/admin/orders/:id/reorder` behave as before. A cloned quote request is no longer
+  created with the caller marked as an Organization administrator: the flag is now stated as
+  `false`, as every other caller that creates a quote request states it. No setting, permission,
+  migration or contract changes.
+
+- Updated dependencies [18cce2e]
+- Updated dependencies [18cce2e]
+- Updated dependencies [9cfb28b]
+- Updated dependencies [a206da9]
+- Updated dependencies [34485ae]
+- Updated dependencies [34485ae]
+- Updated dependencies [0f1717c]
+- Updated dependencies [0f1717c]
+- Updated dependencies [9cc9aa0]
+- Updated dependencies [86e8761]
+- Updated dependencies [9bfb0b8]
+- Updated dependencies [0ab9c96]
+- Updated dependencies [8b5f126]
+- Updated dependencies [ed5cf6a]
+- Updated dependencies [2da23d2]
+- Updated dependencies [2da23d2]
+- Updated dependencies [9d9c8df]
+- Updated dependencies [9d9c8df]
+- Updated dependencies [9d9c8df]
+- Updated dependencies [9d9c8df]
+- Updated dependencies [5303aab]
+- Updated dependencies [5303aab]
+- Updated dependencies [16f85f4]
+- Updated dependencies [270aa2b]
+- Updated dependencies [3f020ba]
+- Updated dependencies [3f020ba]
+- Updated dependencies [3f020ba]
+- Updated dependencies [b59e5d5]
+- Updated dependencies [b59e5d5]
+- Updated dependencies [bf1cc2d]
+- Updated dependencies [6459048]
+- Updated dependencies [ff60e93]
+- Updated dependencies [a0bba32]
+- Updated dependencies [6f19230]
+- Updated dependencies [06cf85b]
+- Updated dependencies [77b8c37]
+- Updated dependencies [65104b8]
+- Updated dependencies [7acaa33]
+- Updated dependencies [7acaa33]
+- Updated dependencies [7019c71]
+- Updated dependencies [4eee98b]
+- Updated dependencies [14ac256]
+- Updated dependencies [45c9893]
+- Updated dependencies [248bf1b]
+- Updated dependencies [b2db8c3]
+- Updated dependencies [4cf529d]
+- Updated dependencies [5e4dd48]
+- Updated dependencies [75b053f]
+- Updated dependencies [75b053f]
+- Updated dependencies [54fc8f1]
+- Updated dependencies [dac5795]
+- Updated dependencies [5bbb389]
+- Updated dependencies [d69e765]
+- Updated dependencies [dbc1cef]
+- Updated dependencies [d69e765]
+- Updated dependencies [a6bc891]
+- Updated dependencies [8ad737c]
+- Updated dependencies [d24be0e]
+- Updated dependencies [a9398c8]
+- Updated dependencies [0b56038]
+- Updated dependencies [717e4c6]
+- Updated dependencies [cea1470]
+- Updated dependencies [cea1470]
+- Updated dependencies [d46d414]
+- Updated dependencies [73e2eec]
+- Updated dependencies [29d7e90]
+- Updated dependencies [7f2fa6e]
+- Updated dependencies [57145f7]
+- Updated dependencies [58a1632]
+- Updated dependencies [e46d233]
+- Updated dependencies [e46d233]
+- Updated dependencies [58a1632]
+- Updated dependencies [b476f44]
+- Updated dependencies [14fe4fb]
+- Updated dependencies [76d89ab]
+- Updated dependencies [5cbffb9]
+- Updated dependencies [a3502c0]
+- Updated dependencies [6bd2ab7]
+- Updated dependencies [6bd2ab7]
+- Updated dependencies [ca120cc]
+- Updated dependencies [a3502c0]
+- Updated dependencies [a3502c0]
+- Updated dependencies [2fd4bde]
+- Updated dependencies [7a73cc8]
+- Updated dependencies [7a73cc8]
+- Updated dependencies [5ff8302]
+- Updated dependencies [fc7db4c]
+- Updated dependencies [c34b405]
+- Updated dependencies [c34b405]
+- Updated dependencies [5af8c25]
+- Updated dependencies [48f055e]
+- Updated dependencies [bf50b85]
+- Updated dependencies [2c6fba0]
+- Updated dependencies [de01fbb]
+- Updated dependencies [87bed2b]
+- Updated dependencies [0801f69]
+- Updated dependencies [d1c0d13]
+- Updated dependencies [bf1f8a3]
+- Updated dependencies [6d1d284]
+- Updated dependencies [974be57]
+- Updated dependencies [99c075e]
+- Updated dependencies [32b4d0c]
+- Updated dependencies [3355e60]
+- Updated dependencies [7ce9b8a]
+  - @endora-commerce/contracts@0.110.0
+  - @endora-commerce/platform@0.110.0
+  - @endora-commerce/mod-carts@0.110.0
+  - @endora-commerce/mod-invoices@0.110.0
+  - @endora-commerce/admin-kit@0.110.0
+  - @endora-commerce/mod-promotions@0.110.0
+  - @endora-commerce/mod-inventory@0.110.0
+  - @endora-commerce/email-components@0.110.0
+  - @endora-commerce/mod-credit-limits@0.110.0
+
 ## 0.109.0
 
 ### Minor Changes

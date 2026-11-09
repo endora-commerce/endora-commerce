@@ -1,5 +1,230 @@
 # @endora-commerce/mod-returns
 
+## 0.110.0
+
+### Minor Changes
+
+- ed5cf6a: Returns and complaints follow the buyer's organization role (`specs/170-organization-roles/` FR-052 – FR-054, owner ruling OR-11, research R-41). The manifest declares two organization permissions, labelled in English and Polish: `returns.create` ("Create returns and complaints", member-default) and `returns.view_organization` ("View the organization's returns and complaints", not member-default); _Administrator_ holds both. `organizations` joins `dependencies` (it is `nonDeactivatable`, so no operator control is lost).
+
+  Behaviour on the buyer routes:
+
+  - `POST /api/v1/returns` is gated by `organizationPermissionPreHandler(…, 'returns.create')` after `requireCustomer`: a role without it is refused `403 ORGANIZATION_PERMISSION_REQUIRED` before the order is read.
+  - `GET /api/v1/orders/:orderId/returnable` and `POST /api/v1/returns` judge the order through `orderReadPort.findByIdForCustomer` instead of comparing the order's placer with the caller: a member holding `orders.view_organization` (or _Administrator_) may start a return from a colleague's order, filed in the starter's name; an order out of reach is still `404`.
+  - `GET /api/v1/returns` and `GET /api/v1/returns/:id` widen for a holder of `returns.view_organization` to every case of the Organization (its subtree for a roll-up login); anyone else keeps the cases they filed. The case summary and the operator's row carry `customerAccountId`.
+  - Comments, attachments, the delivery-method choice and cancelling stay the filer's (`404` to anyone else) and need no code.
+
+  _Member_ keeps exactly its former reach. An administrator's reach widens on upgrade (owner's answer to Q-R3).
+
+  Shape changes: `ReturnsModuleOptions` gains the required `orderReadPort: OrderReadPort` and `organizationPermissions: OrganizationPermissionPort`; `ReturnCaseServiceDeps` gains the required `orderRead` and `scope: ReturnCaseScope`; `ReturnCaseService.getReturnable`, `.createCase`, `.listForCustomer` and `.getForCustomer` take a `ReturnCustomerContext` (`{ customerAccountId, organizationId, organizationRoleId? }`) where they took a `customerAccountId: string`.
+
+- 6bd2ab7: Issue #876 — a consumer's withdrawal from the whole order refunds the delivery cost and the payment surcharge (Directive 2011/83/EU art. 13(1), Polish Consumer Rights Act art. 32 ust. 1; owner rulings E1–E3 of 2026-11-07). The case that brings back the last unit of a B2C order (its organization `isPersonal`, read through `organizationDetailsPort`) refunds both, besides the goods, when it is a `return` settled with a refund or a credit. A partial case, a complaint, a replacement or repair, and a business customer's return refund neither, and an order with a line not returnable at purchase is never withdrawn in full.
+
+  - Each charge is capped at what was paid for it less what earlier cases refunded. The default is the cap when the case was opened within 14 days of the order's completion or within the channel's longer `returns.free_return_days`, and 0 outside it. A channel set to `0` keeps the 14 days.
+  - The settlement takes `deliveryRefundAmount` / `surchargeRefundAmount`. An omitted one settles at the default recomputed under the order's lock. A present one settles exactly as sent, `0` included, when it is within the cap (art. 13(2), a premium delivery). One above the cap is refused `422 refund_exceeds_paid` with nothing written. This deliberately differs from the line amounts, where an amount equal to a default means the default approved. A replacement or a repair has a cap of 0. The admin form sends only an amount the operator edited. The prefill reports `charges` (on a settled case `cap` equals `approved`), the case detail `chargeRefunds`, and the `return.settled` audit entry `charges: { delivery: { cap, approved }, surcharge: { cap, approved } }`.
+  - `totalRefundAmount`, the gateway refund, the credit top-up and the corrective invoice's `total` include the charges, and the correction names them (`CorrectiveInvoiceInput.charges`).
+  - `returnRefundReadPort.listRefundedCharges` reports what settled returns refunded of each charge.
+  - The admin settlement form shows a _Delivery cost_ and a _Payment surcharge_ row when there is something to refund (strings in `mod-i18n`, EN and PL).
+  - `Migration20261108T125405ReturnsCaseChargeRefunds` adds `default_delivery_refund`, `approved_delivery_refund`, `default_surcharge_refund` and `approved_surcharge_refund` to `return_cases`, `0.00` by default, with no backfill.
+
+  **Behaviour change on upgrade.** A B2C return that completes a withdrawal now refunds more than the sum of its lines: the settlement form prefills the delivery and the surcharge, and an API client that settles without the two new fields refunds them. Cases settled before the upgrade are not changed and nothing is refunded retroactively (owner ruling E4). To list B2C orders already returned in full whose delivery or surcharge was not refunded, use the query in _A consumer's withdrawal refunds the delivery and the surcharge_ in the upgrade guide. The window that decides the default is counted as the withdrawal period is (#905): from the order's completion, in calendar days of `returns.time_zone`, with a last day on a weekend moved to the Monday.
+
+- 71a7a6a: The free-return window counts calendar days in a new setting, `returns.time_zone` (#905). The setting is an IANA zone name (default `Europe/Warsaw`), can be set per sales channel, and refuses a zone the runtime does not know with `422 VALIDATION_FAILED`. The window now ends at the end of its last day in that zone, and a last day on a Saturday or Sunday moves to the following Monday. It used to end exactly `free_return_days × 24 h` after the anchor, so a case can now be free-return eligible up to a day (or, over a weekend, up to three days) later than before, never earlier. The anchor is the order's completion (`orders.completed_at`, through `OrderReturnContextPort`), no longer its last edit. A new pure module, `domain/withdrawal-period.ts`, derives the consumer's statutory withdrawal period from that anchor: 14 calendar days, the same weekend roll, and a 7-day grace before the withdrawal function closes. An order that has not been completed has not started its period. Nothing reads it yet besides the free-return window; the withdrawal function and its stored in-period flag come in later releases. `isWithinFreeWindow` takes the time zone as a fourth argument.
+- 5ff8302: A consumer's withdrawal settles as a refund unless the consumer's consent to another resolution is on record (#905). A `return` filed by a personal Organization while the withdrawal is still possible for the order (the statutory 14 days, the channel's longer free-return window, or the 7-day grace after them) is classified as a consumer withdrawal when it is filed, read through `organizationDetailsPort`; the case detail reports `consumerWithdrawal`. Such a case can no longer be settled as credit, a replacement or a repair until an operator records the consumer's consent to that resolution: the settlement answers `422 RETURN_ALTERNATIVE_RESOLUTION_CONSENT_REQUIRED` with `details.resolution`. `POST /api/v1/admin/returns/:id/alternative-consent` (`returns:write`) records the consent (resolution, when, and an evidence note) and `DELETE` on the same path revokes it; both are Commands, audited as `return_case.alternative_consent.record` and `.revoke` without the note's text, and both answer `409` (`consent_frozen`) once the case is settled, or `409` (`case_closed`) while it sits in a terminal status of the configured workflow (rejected, cancelled, or one an operator marked terminal), writing nothing. The settlement prefill proposes a refund to the order's own payment method; a refund to another method is accepted and its `return.settled` audit entry records `refundMethodDiffers`. Company returns and complaints are unchanged, and cases filed before this release stay unclassified (`null`) and settle as before. A new migration adds the consumer-withdrawal columns to `return_cases` and creates `return_withdrawal_statements`, which nothing writes yet. The `returns.free_return_days` description now cites Directive 2011/83 art. 9 for the 14 days instead of Directive (EU) 2023/2673. In the admin, the case detail of a consumer withdrawal carries a warning badge and a Consumer withdrawal panel that records, changes or revokes the consent (revoking asks first, because it deletes the evidence note); the settlement form lists the resolutions as radios, marks those that need consent, and offers the refund payment method by name, falling back to the method's id when the payment-method list cannot be read.
+- 32b4d0c: **The content of an invoice issued after a return changes** (issue #435). An invoice or proforma issued once a return has been settled, while the order has no invoice yet, now lists only what the buyer kept: each order line is invoiced at its ordered quantity less the quantity of the order's settled `return`-kind cases resolved with a refund or a credit — whether or not the money has been paid out — and a line returned in full is left off. The discount line carries only the kept goods' share: the order's `discountTotal` less the discount those cases carried back with their refunds (as recorded at settlement), left off when nothing remains. Before, every order line and the whole discount were invoiced, so the amount due included goods the buyer had returned. Replacement, repair and complaint cases change no line; the delivery and payment-surcharge lines, the per-rate VAT on the sum of the nets and `paidTotal` (captured − refunded) are unchanged; an invoice for an order refunded in full is still refused with `422 INVOICE_ORDER_REFUNDED` (a proforma is not). With `returns` switched off, every line is invoiced as before. Invoices already issued are not touched.
+
+  **A default return refund can differ by one cent from before.** For an order placed under the per-rate VAT method, the default refund of a case is now the drop in the value of the goods kept — what was left paid less VAT per rate on the nets kept after the case, net of the discount the kept part carries — instead of the value of the returned units on their own, so the kept-lines invoice equals what is left paid to the cent. Example: 3 × 10.01 at 23 % (36.94) refunds 12.32 for one unit, not 12.31. All of an order's returns together still refund exactly what was paid, and a cent an earlier case refunded under the previous rule is absorbed by the next case on the same order. Orders placed before 0.108.0 keep their rule. This is not a breaking change.
+
+  `ReturnRefundReadPort` (`returnRefundReadPort`, owned by `@endora-commerce/mod-returns`) gains `listReturnedQuantities(orderId)`, returning the new `OrderReturnedQuantity` (`{ orderItemId, quantity, discount }`) from `@endora-commerce/contracts`. The change is additive for a consumer of the port; an implementation of `ReturnRefundReadPort` outside `@endora-commerce/mod-returns` adds the method.
+
+  An invoice for an order **returned in full** before it was invoiced — every product line back through settled returns and no delivery or payment surcharge kept — is refused with the existing `422 INVOICE_ORDER_REFUNDED`, whatever the state of the refund (issued, waiting for a person, or waiting for the gateway's webhook); a proforma is not refused. The error carries `details.reason` (`refunded_in_full` or `returned_in_full`), its message (`errors.INVOICE_ORDER_REFUNDED`) now covers both causes, and automatic issuance skips such an order and logs the cause. When the delivery or the surcharge is kept, the invoice lists only that line.
+
+  Issuing an invoice now holds the order's returns lock, the one `@endora-commerce/mod-returns` takes to create and to settle a case, so an invoice is never drawn from a return being settled; it waits, and answers `409 VERSION_CONFLICT` (`details.code: settlement_in_progress`), retryable, after 15 s. The key is the new `returnCaseOrderLockKey(orderId)` in `@endora-commerce/contracts`. A return line whose default refund is 0.00 because its discount share takes its whole value now carries that discount back, so the invoice's discount line no longer keeps it. None of this is breaking. `@endora-commerce/mod-i18n` adds the sentence for `errors.VERSION_CONFLICT.settlement_in_progress` in English and Polish.
+
+- 7ce9b8a: **Behaviour change for API clients** — the saved views of the admin Returns list follow the rules
+  of the order, product and quote request lists' saved views (#312), and the Returns list gains the
+  _Saved views_ control.
+
+  `GET`/`POST /api/v1/admin/returns/list-views` and `PATCH`/`DELETE /api/v1/admin/returns/list-views/:id`
+  stay gated by `returns:read`, and change as follows:
+
+  - **`PATCH` and `DELETE` with an id that is not a UUID answer `404 NOT_FOUND`** (was `500 INTERNAL`).
+  - **Another admin's private view answers `404 NOT_FOUND`** on `PATCH` and `DELETE` (was `403 FORBIDDEN`),
+    so a view the caller may not see is indistinguishable from one that does not exist.
+  - **A shared view can be changed or deleted by its owner or by a platform admin** — an admin whose
+    access is not restricted to a set of organizations. Anyone else gets `403 FORBIDDEN` (before, only
+    the owner could).
+  - **Names are stricter**: trimmed before they are stored, 1–160 characters (was 1–200, untrimmed, so
+    `"   "` was accepted), and without control or format characters; a name breaking these answers
+    `400 VALIDATION_FAILED`.
+  - **New `409 RETURN_SAVED_VIEW_NAME_TAKEN`** on `POST`, and on a `PATCH` that changes the name, when the
+    view's owner already holds a view on the return list whose name differs only by letter case or
+    surrounding spaces. The message is translated (English and Polish). Two admins may each use a name.
+  - **Size caps** — `filters` at most 8 KB of JSON (UTF-8), `visibleColumns` at most 64 entries of at
+    most 64 characters, `sort.field` at most 64 characters; over a cap answers `400 VALIDATION_FAILED`.
+  - **`shared` is required on `POST`** (was optional, defaulting to `false`), as on the other lists;
+    `sort` stays required.
+  - **List items and write answers carry `ownerAdminUserId`, `ownedByCaller` and `canModify`**, and the
+    list is ordered by name (was by creation time).
+  - **`DELETE` answers `{ "data": { "deleted": "<id>" } }`** (was `{ "data": { "ok": true } }`).
+
+  Views saved before this release are kept exactly as stored — a blank name, a name over 160
+  characters or two names of one owner sharing a key included. No migration rewrites them: they are
+  listed as they are, a `PATCH` that leaves the name alone is never refused for it, and renaming one
+  must meet the rules above.
+
+  `@endora-commerce/contracts`: `returnSavedViewSortSchema`, `returnSavedViewSchema`,
+  `ReturnSavedViewDto`, `returnSavedViewCreateSchema` and `returnSavedViewUpdateSchema` are removed.
+  Use `createReturnSavedViewRequestSchema` and `updateReturnSavedViewRequestSchema` (with the types
+  `CreateReturnSavedViewRequest` and `UpdateReturnSavedViewRequest`) for the requests, and the shared
+  `savedListViewSchema` / `SavedListView` for a view. `ERROR_CODES.RETURN_SAVED_VIEW_NAME_TAKEN` is new.
+
+### Patch Changes
+
+- 45c9893: The organization role form, on the storefront and in the admin Roles tab, heads the Addresses, Carts, Orders, Quote Requests and Returns permission groups in the reader's language. The five modules now ship `module.name` in English and Polish ("Adresy", "Koszyki", "Zamówienia", "Zapytania ofertowe", "Zwroty"); before this, Polish pages showed the English manifest name.
+- 75b053f: A customer record read by an id that is not a UUID answers `404` with the route's own not-found code, exactly as a well-formed id that names nothing does, instead of `500` (issue #753). This covers `GET /api/v1/orders/:id` (`ORDER_NOT_FOUND`), `GET /api/v1/returns/:id`, `GET /api/v1/quote-requests/:id`, `GET /api/v1/shopping-lists/:id` and `GET /api/v1/organization/carts/:id` (`NOT_FOUND`), and every other route that reads its record through the same lookup.
+- d69e765: A path parameter that is not a UUID is answered exactly as a well-formed id that names nothing, on every customer- and admin-facing id route, mutations included, instead of `500` (issue #781). The shape is checked with `isUuidShape` from `@endora-commerce/contracts` before the database is asked, so a malformed id gets the route's own answer for an unknown record: its own not-found code (`404`), or the empty list or `204` the route gives an unknown id. Examples: `POST /api/v1/orders/:id/cancel` answers `404 ORDER_NOT_FOUND`; the returns comment, delivery-method and cancel routes and `POST /api/v1/organization/carts/:id/approve` and `/reject` answer `404 NOT_FOUND`.
+
+  Routes whose params schema demanded a UUID answered a malformed id `400 VALIDATION_FAILED`; they now answer `404` like an unknown id (owner ruling of 2026-11-05): `/api/v1/organizations/mine/roles/:id`, `/api/v1/admin/organizations/:id/roles[/:roleId]` and `…/permission-catalogue`, `/api/v1/organizations/mine/members/:id[/role]`, every `/api/v1/admin/product-feeds/:id…`, `/api/v1/admin/feed-templates/:id` and `/api/v1/admin/feed-taxonomies/revisions/:taxonomyId…` route, `/api/v1/admin/document-templates/:id…`, `/api/v1/admin/quote-requests/:id/document-templates`, `…/document-template` and `…/pdf`, the blog `url-redirects/:redirectId` and `addresses/:id` deletes, `PATCH /api/v1/admin/cms/hooks/:id/attachments/:blockId`, and `GET`, `PATCH` and `DELETE /api/v1/admin/import-export/profiles/:id` (`404 IMPORT_PROFILE_NOT_FOUND`). A client that told a malformed id from an unknown one by the `400` can no longer do so.
+
+  Every private copy of the UUID pattern is replaced by `isUuidShape`, `UUID_SHAPE_PATTERN` or, where a filter has always asked for RFC 9562 version and variant bits (the CRM board filters), `uuidSchema`; what each check accepts is unchanged, except that the invoice-ledger delivery retry now accepts any uuid-shaped id and answers an unknown one `404` from the lookup.
+
+- d24be0e: The module documentation pages have readable titles instead of the module id (for example _Carts_ instead of `carts`), in the docs sidebar, the module map and the browser tab, in English and Polish. Page headings and screen names in the page text are sentence case, as in the Admin UI (#795). File names and URLs are unchanged.
+- ead3ee3: The default refund of a return is now recomputed at settlement, from the cases already settled
+  (issue #875). The kept state is the return cases settled with a refund or a credit: a case that was
+  rejected, replaced or repaired takes nothing off it, and a complaint never enters it (issue #874).
+  A complaint settled with money is a price reduction of goods the buyer keeps, so it counts only
+  against what is left paid for the order and against the line it names. A case settled out of the
+  order it was opened in, or after an earlier case was rejected, therefore refunds what leaves the
+  kept-lines invoice and the corrected invoice equal to what is left paid, to the cent.
+
+  The figure an open case shows is provisional until settlement and may move by a cent or two. The
+  settlement prefill previews the recomputed figure. An approved amount equal to a default the case
+  showed settles at the recomputed default; a lower amount is kept as typed; a higher one is refused
+  with `422 VALIDATION_FAILED` (`refund_exceeds_paid`) and nothing written.
+
+  No order line refunds more than it was paid. A complaint and the returns of its line are bounded
+  by the line's value, and only the unabsorbed part of the complaint money lowers what is left paid
+  for the order. A return after a complaint gets its full default until that bound binds; the figure
+  shown when the case is opened is already bounded. The operator lowers the amount by hand
+  when the unit the complaint compensated is the one coming back. The
+  stored default stays the value of the goods that came back. The `return.settled` audit entry
+  records `recomputedDefaults` and `lineCeilings` when either applies.
+
+  `ReturnSettlementService` takes `orderContext` (`OrderReturnContextPort`) in its dependencies;
+  `returnsModule` wires it from the options it already receives. A settlement whose order cannot be
+  read is refused with `404 NOT_FOUND` before anything happens; a switched-off `orders` still answers
+  `503 MODULE_DISABLED`.
+
+- ca120cc: Every settings group a module declares now has a translated heading on the Settings screen (#884). Each module's bundle gains `settingGroups.<group code>.name` in English and Polish, so a Polish operator no longer reads group headings such as _Orders_, _Carts_ or _Security / MFA_ in English. `@endora-commerce/mod-admin-notifications` and `@endora-commerce/mod-shipments` ship translation bundles for the first time: their manifests declare `i18n: { bundlesDir: 'i18n' }` and their tarballs carry `i18n/`.
+- a3502c0: A complaint refunded or credited after the order was invoiced is now documented as a price
+  reduction, not as goods coming back (issue #885, product-owner ruling of 2026-11-07). The
+  settlement sends its lines with `basis: 'price_reduction'`, no discount and the case's RMA number.
+  The correction credits the approved amount at the line's VAT rate on a line stored with quantity 0
+  and named in the document's language, _Obniżka ceny (reklamacja RMA-…): product_
+  (`invoices.lines.priceReduction`, or `lines.priceReductionUnreferenced` without an RMA number). It
+  credits no discount, and it does not lower the quantity a later return of the line is credited
+  from. A complaint resolved by replacement or repair still issues no correction.
+
+  The provider refuses, before any money moves, a price-reduction line that carries a discount
+  (`422 VALIDATION_FAILED`, `price_reduction_carries_discount`) and a correction that credits more
+  goods at one VAT rate than the invoice still charges there (`422 VALIDATION_FAILED`,
+  `correction_exceeds_rate_remaining`, with `taxRate`, `remaining` and `vatRatePercent`; the operator
+  sentence is in `@endora-commerce/mod-i18n`). The `invoice.corrected` audit entry records
+  `priceReductionLines`.
+
+  Wire `CorrectiveInvoiceProvider`'s new last constructor argument, `{ translate, language }`, to name
+  the line; without it the line is named in English.
+
+  A complaint refunded before the order was invoiced is unchanged: the invoice still lists the goods
+  in full and shows the complaint refund as amount due.
+
+- Updated dependencies [18cce2e]
+- Updated dependencies [18cce2e]
+- Updated dependencies [9cfb28b]
+- Updated dependencies [a206da9]
+- Updated dependencies [34485ae]
+- Updated dependencies [34485ae]
+- Updated dependencies [0f1717c]
+- Updated dependencies [86e8761]
+- Updated dependencies [9bfb0b8]
+- Updated dependencies [ed5cf6a]
+- Updated dependencies [2da23d2]
+- Updated dependencies [2da23d2]
+- Updated dependencies [9d9c8df]
+- Updated dependencies [9d9c8df]
+- Updated dependencies [9d9c8df]
+- Updated dependencies [9d9c8df]
+- Updated dependencies [5303aab]
+- Updated dependencies [16f85f4]
+- Updated dependencies [270aa2b]
+- Updated dependencies [3f020ba]
+- Updated dependencies [3f020ba]
+- Updated dependencies [b59e5d5]
+- Updated dependencies [b59e5d5]
+- Updated dependencies [bf1cc2d]
+- Updated dependencies [ff60e93]
+- Updated dependencies [6f19230]
+- Updated dependencies [06cf85b]
+- Updated dependencies [77b8c37]
+- Updated dependencies [65104b8]
+- Updated dependencies [7acaa33]
+- Updated dependencies [7019c71]
+- Updated dependencies [4eee98b]
+- Updated dependencies [14ac256]
+- Updated dependencies [248bf1b]
+- Updated dependencies [b2db8c3]
+- Updated dependencies [4cf529d]
+- Updated dependencies [5e4dd48]
+- Updated dependencies [75b053f]
+- Updated dependencies [54fc8f1]
+- Updated dependencies [dac5795]
+- Updated dependencies [5bbb389]
+- Updated dependencies [d69e765]
+- Updated dependencies [dbc1cef]
+- Updated dependencies [d69e765]
+- Updated dependencies [a6bc891]
+- Updated dependencies [8ad737c]
+- Updated dependencies [a9398c8]
+- Updated dependencies [0b56038]
+- Updated dependencies [717e4c6]
+- Updated dependencies [cea1470]
+- Updated dependencies [cea1470]
+- Updated dependencies [d46d414]
+- Updated dependencies [73e2eec]
+- Updated dependencies [29d7e90]
+- Updated dependencies [7f2fa6e]
+- Updated dependencies [57145f7]
+- Updated dependencies [58a1632]
+- Updated dependencies [e46d233]
+- Updated dependencies [e46d233]
+- Updated dependencies [58a1632]
+- Updated dependencies [b476f44]
+- Updated dependencies [14fe4fb]
+- Updated dependencies [76d89ab]
+- Updated dependencies [5cbffb9]
+- Updated dependencies [6bd2ab7]
+- Updated dependencies [a3502c0]
+- Updated dependencies [7a73cc8]
+- Updated dependencies [5ff8302]
+- Updated dependencies [fc7db4c]
+- Updated dependencies [c34b405]
+- Updated dependencies [5af8c25]
+- Updated dependencies [48f055e]
+- Updated dependencies [bf50b85]
+- Updated dependencies [2c6fba0]
+- Updated dependencies [0801f69]
+- Updated dependencies [d1c0d13]
+- Updated dependencies [6d1d284]
+- Updated dependencies [974be57]
+- Updated dependencies [99c075e]
+- Updated dependencies [32b4d0c]
+- Updated dependencies [3355e60]
+- Updated dependencies [7ce9b8a]
+  - @endora-commerce/contracts@0.110.0
+  - @endora-commerce/platform@0.110.0
+  - @endora-commerce/admin-kit@0.110.0
+  - @endora-commerce/email-components@0.110.0
+
 ## 0.109.0
 
 ### Patch Changes

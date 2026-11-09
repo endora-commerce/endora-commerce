@@ -1,5 +1,215 @@
 # @endora-commerce/mod-organizations
 
+## 0.110.0
+
+### Minor Changes
+
+- 9cfb28b: Organization roles (`specs/170-organization-roles/`). Every organization now has an _Administrator_ and a _Member_ role — created with the organization, by a database trigger, whichever path creates it — and up to 50 custom roles, each a set of organization permissions declared by the modules in their manifests' `organizationPermissions`.
+
+  - Migration `Migration20261103T173304OrganizationsOrganizationRoles` creates `organization_roles`, gives every existing organization its two predefined roles, withholds `carts.order_without_approval` and `quick_order.one_click` from _Member_ where the organization required cart approval, and adds `organization_invitations.organization_role_id` (backfilled from `role`, `not null`, a composite foreign key to the invitation's own organization's roles). The invitation service writes both `role` and the new column.
+  - Storefront routes for an organization's administrator: `GET/POST /api/v1/organizations/mine/roles`, `GET/PATCH/DELETE /api/v1/organizations/mine/roles/:id`, `GET /api/v1/organizations/mine/permission-catalogue`; and `GET /api/v1/organizations/mine/role` for every member. A personal organization answers `404`.
+  - Operator routes `GET/POST /api/v1/admin/organizations/:id/roles`, `PATCH/DELETE /api/v1/admin/organizations/:id/roles/:roleId` and `GET /api/v1/admin/organizations/:id/permission-catalogue`, gated by the new operator codes `organizations:read-roles` and `organizations:manage-roles` (which requires the first).
+  - The role writes are the Commands `organization_role.create`, `organization_role.update` (emits `organization_role.permissions_changed.v1` with `added` / `removed`) and `organization_role.delete`, audited against the organization.
+  - New ports `organizationPermissionPort` (`can`, `assert`, `isAdministrator`, `effective`, `rolesHolding`) and `organizationRoleReadPort` (`predefinedRoleId`), over a per-process role cache dropped on every role change and announced on `b2b:organization-roles:changed`.
+  - Seven new error codes declared and translated (EN, PL): `ORGANIZATION_PERMISSION_REQUIRED`, `ORGANIZATION_ROLE_NAME_TAKEN`, `ORGANIZATION_ROLE_STALE`, `ORGANIZATION_ROLE_LIMIT_REACHED`, `ORGANIZATION_ROLE_PROTECTED`, `ORGANIZATION_ROLE_REPLACEMENT_REQUIRED`, `ORGANIZATION_PERMISSION_UNKNOWN`.
+
+  Members are not yet assigned to roles individually: until they are, a member counts as _Administrator_ when they are the organization's administrator (or the member of a personal organization) and _Member_ otherwise, and a custom role somebody holds cannot be deleted.
+
+- a206da9: Organization roles reach the members (`specs/170-organization-roles/`, WP-02b).
+
+  - Deleting a custom role that members or invitations hold now takes `replacementRoleId` and moves every holder in the same transaction: one `customer_account.change_role` Command per account, each audited, then the invitations, then the role. A held role without a replacement is still refused `422 ORGANIZATION_ROLE_REPLACEMENT_REQUIRED`.
+  - The permission port reads the member's own role (`organizationRoleId`) instead of deriving it from the legacy `role`, and the role list's member counts come from the assignment.
+  - `organizationRoleReadPort.findRole(organizationId, roleId)`.
+  - The personal-organization provisioning answers carry `administratorRoleId` (`PersonalOrganizationProvisionApi.provisionFor` from `@endora-commerce/mod-organizations/ports` answers `PersonalOrganizationProvisioned` — `{ id, administratorRoleId }` where it answered `{ id }`); self-registration of a company, an operator's direct member creation and invitation acceptance create the account with its role.
+
+- 34485ae: Members, invitations, session views and addresses by organization role (`specs/170-organization-roles/`, WP-03). Breaking for an HTTP client:
+
+  - Requests name a role by id, and every body is strict — a body that still sends `role` is `400 VALIDATION_FAILED`: `PATCH /api/v1/organizations/mine/members/:id/role` takes `{ roleId }` (was `{ role }`); `POST /api/v1/organizations/mine/invitations` and `POST /api/v1/admin/organizations/:id/members/invite` take `{ email, roleId? }` (was `{ email, role? }`; default: the organization's _Member_ role); `POST /api/v1/admin/organizations/:id/members` takes `roleId?` (was `role?`); `PATCH /api/v1/admin/organizations/:id/members/:customerAccountId/role` takes `{ roleId, expectedUpdatedAt? }` (was `{ role, expectedUpdatedAt? }`). A role of another organization is `404`.
+  - Responses drop `role` (`organization_admin` / `regular_user`) and carry `organizationRole: { id, name, kind }`: the login answer, `GET /api/v1/me` and the invitation accept (each with `permissions: string[]`), the members and invitations lists, the operator's member roster and member answers. `GET /api/v1/admin/organizations/:id` also answers `predefinedRoles` (the organization's _Administrator_ and _Member_ role references), for a role select an operator without `organizations:read-roles` can fill.
+  - Managing members and invitations is reserved to the _Administrator_ role (`403 FORBIDDEN` otherwise, whatever the role's permissions); a personal organization's member is its administrator, and inviting there is `422 VALIDATION_FAILED`.
+  - `GET /api/v1/organizations/mine/invitations` no longer lists expired invitations, and an expired administrator invitation no longer counts as the way back in for `409 CANNOT_REVOKE_LAST_ADMIN_INVITE`, nor does a blocked administrator count as an active one.
+  - Creating, editing and deleting an organization address needs the `addresses.manage` permission (`403 ORGANIZATION_PERMISSION_REQUIRED`).
+  - Invitations are created and revoked by the audited Commands `organization_invitation.create` / `organization_invitation.revoke`; the operator's role change and _recover administrator access_ run `customer_account.change_role`. The hand-written audit actions `organization.invite`, `organization.invite_sent`, `organization.invite_revoke`, `customer_account.admin_role_change` and `organization.break_glass_admin_promoted` are no longer recorded.
+  - The invitation e-mail shows the role's own label in the e-mail's language (#667).
+  - A login whose guest-basket merge was skipped for permission answers `cartMerge.outcome = 'noop'` and keeps the `b2b_cart_anon` cookie.
+  - `InvitationService` takes one `InvitationServiceDeps` object (was positional arguments) and `invite(actor, { email, roleId? })` (was `{ email, role? }`); `buildInvitationEmail` takes `roleLabel` and `organizationRoleId` (was `role`). `organizationsModule` requires `commandBus`, `organizationRoles`, `customerAccountRoles` and `resolveEmailLanguage`. `OrganizationContextService.loadCartApprovalPolicy` is removed.
+
+- 4b7543c: Admin UI for organization roles (`specs/170-organization-roles/`, US 7). The Organization screen (`/organizations/:id`) gains a **Roles** tab for a company Organization, shown to an operator holding `organizations:read-roles` (read-only) or `organizations:manage-roles` (create, edit, delete — a held role is deleted only with a replacement role), with the permission editor grouped by module and a _History_ link to the Organization's audit log. The members table's role select and the invite and direct-create forms now offer the Organization's roles and send `roleId` instead of `role`; they read each member's `organizationRole` instead of `role`, and last-administrator protection keys off `organizationRole.kind`. The admin layer therefore needs the backend's `roleId` member endpoints of the same release.
+- 9bfb0b8: The legacy two-value organization role is removed (`specs/170-organization-roles/`, WP-12). Breaking for every consumer that still names it. A member holds a role **id**, and what they may do follows from that role's permissions. Old → new:
+
+  - `organizationRoleSchema` and `OrganizationRole` (`'organization_admin' | 'regular_user'`, from `common.ts`) are removed. Use `OrganizationRoleRef` (`{ id, name, kind }`) and `OrganizationRoleKind` (`administrator`, `member`, `custom`) instead.
+  - `CustomerAccountRole` is removed, and so are `CustomerAccountRecord.role` and `CustomerAccountCreateInput.role`. Read and write `organizationRoleId` instead; it is required on create.
+  - `CustomerAccountReadPort.countByOrganizationRole(organizationId, role, options)` is removed. Use `countAdministrators(organizationId, options)`, which takes the same options. `listByOrganization` still answers the Organization's _Administrator_ holders first, then by creation date.
+  - `CustomerRolePort.changeRole(organizationId, customerAccountId, newRole)` is removed. Use `customerAccountRoleCommandPort.changeRole({ organizationId, customerAccountId, roleId })`, the `customer_account.change_role` Command. `customerRolePort` keeps `listMembers` and `removeMember`.
+  - `RfqCustomerContext.isOrgAdmin` is removed. Ask `OrganizationPermissionPort.isAdministrator(subject)` instead (research R-30). `carts`, `orders`, `quick_order` and `shopping_lists` no longer pass it.
+  - `OrganizationRecord.requiresCartApproval`, `OrganizationCartApprovalWritePort` (the container name `organizationCartApprovalWritePort` is no longer registered), `CartApprovalPolicyWriteResult`, `setCartApprovalPolicySchema` / `SetCartApprovalPolicy` and `cartApprovalPolicyResponseSchema` / `CartApprovalPolicyResponse` are removed, together with the `organization.set_cart_approval_policy` Command. Approval now follows the member's `carts.order_without_approval` permission (OR-3), and the policy endpoints were already removed.
+  - On responses, `role` is no longer described on `customerAccountSchema`, `customerLoginResponseSchema`'s `customerAccount` or `impersonationStartResponseSchema`'s `impersonatedCustomerAccount`. `organizationRole` is now **required** on all three, and `permissions` is required on the first two: every producer sends them. `POST /api/v1/admin/organizations/:id/impersonate` (`admin_users`) no longer sends `role` and now sends `organizationRole`, read through `organizationRoleReadPort` (an acknowledged dependency on `organizations`); `POST /api/v1/admin/customers/:id/impersonate` (`customers`) always sends it.
+  - The request schemas `inviteMemberRequestSchema` (`{ email, role? }`), `changeMemberRoleRequestSchema` (`{ role }`), `adminDirectMemberRequestSchema` (`role?`) and `adminPatchMemberRoleRequestSchema` (`{ role, expectedUpdatedAt? }`) are removed. Use `inviteMemberToRoleRequestSchema`, `assignMemberRoleRequestSchema`, `adminDirectMemberToRoleRequestSchema` and `adminAssignMemberRoleRequestSchema`, which take `roleId`. They stay strict, so a body that still sends `role` is refused with `400`.
+  - The customers CSV export (`import_export`) carries `organization_role_name` (a predefined role's English label, or a custom role's name) and `organization_role_kind` (`administrator`, `member`, `custom`) in place of its `role` column. It reads them through `organizationRoleReadPort`, a new non-binding `degrades-without` edge on `organizations`. The export is export-only, so no import is affected.
+  - `carts`' published bundles (`i18n/en.json`, `i18n/pl.json`) drop five unread keys that described the removed policy and the administrator-only approval: `approval.banner.pending`, `approval.banner.rejected`, `approval.banner.policy_on`, `approval.banner.policy_off` and `reject.email.body`.
+  - The `CustomerAccount` entity loses `role`. `Organization` loses `requiresCartApproval`, and `OrganizationInvitation` loses `role`, so its `organizationRoleId` is now required. Nothing writes the legacy value any more.
+  - New migrations `Migration20261104T094535OrganizationsDropLegacyRoleColumns` (M4) and `Migration20261104T094540CustomerAccountsDropLegacyRoleColumn` (M5):
+    - M4 drops `organizations.requires_cart_approval`, `organization_invitations.role` and the invitation default trigger that read it.
+    - M5 drops `customer_accounts.role` with its index.
+    - M5 also redefines the account default: an account inserted without a role holds _Administrator_ in a personal Organization, else _Member_.
+    - Each `down()` re-derives the dropped values from the role reference.
+
+- 16f85f4: Company registry lookup at storefront registration (`specs/173-registration-registry-lookup/`). A business registering on the storefront can fetch its legal name, address and VAT status from the public registry by tax ID, and the registration persists what the registry answered for moderation. **Off by default.**
+
+  - New anonymous endpoints `GET /api/v1/organizations/registration-options` and `POST /api/v1/organizations/registry-lookup` (10 lookups per 10 minutes per client address; answers as an unknown route while the switch is off). Polish NIPs go to GUS REGON (BIR1.1) and/or the Ministry of Finance VAT White List, other EU VAT numbers to VIES; answers are cached in Redis and every registry has a platform-wide budget.
+  - Three settings: `organizations.registration.registry_lookup_enabled` (default `false`), `organizations.registration.registry_lookup_pl_sources` (`gus_mf` — default — `gus` or `mf`) and `organizations.registration.gus_credentials`; a palette action opens them, and the Settings screen warns while `gus` is chosen with no GUS credential.
+  - A new credential type, `organizations_gus_bir` (user key, secret; environment `production` / `test`), contributed to `credentials`' registry. `credentials` stays switchable: without it Polish lookups use the White List alone.
+  - `POST /api/v1/organizations/register` accepts an optional top-level `registryLookupId`; with the switch on and a matching reference it writes one `organization_tax_id_validations` row with `origin: 'registration'` and stamps the organization's last-validation summary. Registration never fails or waits on the lookup.
+  - Migration `Migration20261105T121034OrganizationsRegistryLookupProvenance` adds `origin` (default `'admin'`), `registry_details` and `submitted_values` to `organization_tax_id_validations` and admits the `gus_pl` provider.
+  - The admin VAT validation history answers the new fields and a computed `divergence`; the panel shows the registry data at registration beside what was submitted, and a pending organization's moderation actions show how many fields differ.
+  - `MinisterstwoFinansowClient` gains `search(nip)` and `ViesClient` gains `check(country, number)`, which their `validate()` now runs over. Two answers change for "Validate now": the White List's daily-limit (`WL-1919`) and maintenance (`WL-1188`) refusals are `deferred` (`rate_limited`, `provider_maintenance`) rather than `failed`, and a VIES answer naming a member-state outage (`userError` `MS_UNAVAILABLE`, `TIMEOUT`, …) is `deferred` rather than `failed` / `not_found`.
+
+- 6f19230: **BREAKING — `POST /api/v1/admin/orders` and `POST /api/v1/admin/orders/preview` for a sales channel that is not one of the customer's Organization's active assigned channels now answer `422 ORDER_SALES_CHANNEL_NOT_ALLOWED`: a channel the Organization is not assigned to, or an inactive one, where they answered `201` / `200`, and a channel id that does not exist, where they answered `404 NOT_FOUND`. `GET` and `PUT /api/v1/admin/organizations/:id/sales-channels` for an Organization outside a sales representative's reach now answer `404 NOT_FOUND` where they answered `200`.** Recorded at `minor`, which in a `0.x` series already takes every caret dependent out of range (issue #515).
+
+  An order an operator creates on a customer's behalf is placed only on one of the customer's Organization's active assigned channels — the rule a quote request created on a customer's behalf has followed since the product data scopes release. The refusal comes before anything is written: no working basket, no inline address, no order. The order's `salesChannelId` stays required, so there is no defaulted channel to check; a request without it is still `400 VALIDATION_FAILED`.
+
+  - `@endora-commerce/contracts`: `ERROR_CODES.ORDER_SALES_CHANNEL_NOT_ALLOWED`, declared by `orders` with an English and a Polish sentence.
+  - `@endora-commerce/mod-orders`: `OrderCreationAdminService` takes the Organization channel read (`SalesChannelMembershipPort.listChannelsForEntity`) as a new sixth constructor argument, before `mailer`; composed without it, `create` fails closed with `500 INTERNAL`, as the preview already did. The _Create order_ screen offers the customer's Organization's active channels, read from `GET /api/v1/admin/organizations/:id/sales-channels` — the only one preselected, else a choice; a `salesChannelId` in the link kept only when it is one of them; a notice and a retry when the Organization has none or they cannot be read — instead of every active channel.
+  - `@endora-commerce/mod-organizations`: the Organization sales-channel read and replace apply the request's tenant scope. A platform administrator reaches every Organization, as before; a sales representative only the ones assigned to them. The response shape is unchanged.
+  - `@endora-commerce/mod-i18n`: the _Create order_ screen's channel notices (`orderCreate.channelsLoadError`, `orderCreate.noChannelWarning`, `orderCreate.hint.salesChannel`), in English and Polish.
+
+  An instance whose operators create orders on channels their customers' Organizations are not assigned to will see those requests refused once it upgrades: assign the Organization to the channel first (the Organization's _Sales channels_ panel), or create the order on one of its channels.
+
+- 8ad737c: `GET /api/v1/admin/organizations/:id/restrictions` and `POST /api/v1/admin/organizations/:id/vat-validations` answer `404 NOT_FOUND` for an Organization that does not exist, is soft-deleted, or whose id is not a UUID, as every other Organization route does. They answered `500` before (issue #793).
+- 5af8c25: The customer anonymization sweep now finishes every subject an earlier scrub rule left incomplete (issue #923), not only the accounts never anonymized. Until now it picked its work by account, so a personal organization anonymized before the scrub covered its legal name, order-confirmation e-mails, custom field values or block and rejection reasons kept them for good once its account was done.
+
+  `PersonalOrganizationPort` gains `listIncompletelyScrubbed(): Promise<string[]>`: the ids of the personal organizations that carry the scrub's name but not all of the current scrub. It reads only the `organizations` table, ignores the retention cutoff, and agrees field by field with the check `anonymizeIfOrphaned` makes before it writes. An implementation or a test fake of the port must add the method.
+
+  `PersonalOrganizationPort` also gains `hasIncompletelyScrubbed(): Promise<boolean>`, the same rows as a yes-or-no question. The sweep's scheduled tick asks it, outside any tenant scope, when no account is due, so a tick with only organization-side work left is not skipped as idle. If that question fails, the tick runs anyway. An implementation or a test fake of the port must add it too.
+
+  Each sweep run now works through the accounts due for anonymization, then the anonymized member of every organization that method lists, each subject once, through the unchanged cascade. Finishing a subject writes one audit entry for each record it changes, keeps the account's `anonymizedAt` and the organization's `deletedAt`, and announces nothing: no second `customer_account.anonymized.v1`, so Forms does not erase the customer's entries a second time. The next run then finds nothing to do. The count `AnonymizationSweepWorker.sweep()` returns is now the number of subjects processed, finished ones included.
+
+  The `customers` module page now describes this.
+
+### Patch Changes
+
+- 18cce2e: The customer login response reports the new internal cart-merge outcome `skipped_permission` as `cartMerge.outcome: 'noop'`. Nothing produces that outcome yet.
+- ca52dff: `MinisterstwoFinansowClient` calls the White List at its new host, `wykazpodatnikowvat.mf.gov.pl`, by default (`specs/173-registration-registry-lookup/`, research R-6). The Ministry of Finance moved the service there on 2026-10-15 and serves the old `wl-api.mf.gov.pl` only until 2026-12-01, after which the admin "Validate now" for Polish NIPs would have answered `deferred` / `network_error` on every attempt. Paths and response bodies are unchanged; a `baseUrl` passed to the constructor still wins.
+- 3890037: The admin Organization `/:id` routes now apply the sales-representative visibility rule (issue #698). `Organization` is a global entity, so no tenant filter narrowed these routes, and a sales representative could open, edit, block, restrict and delete an Organization assigned to another representative. Every `/api/v1/admin/organizations/:id` route — reads and writes, the nested ones included (addresses, restrictions, applicable price lists, VAT validations, subtree, ancestors, sales channels, moderation, members, recover administrator access, delete) — now answers a sales representative only for an Organization assigned to them (expanded to the subtree under `organizations:rollup`), or one no representative is assigned to, such as a registration awaiting approval. Any other Organization answers `404 NOT_FOUND`, the same answer an unknown Organization gets; every admin now gets that `404` for an unknown id on `/addresses`, `/applicable-price-lists` and `/vat-validations`, which answered `200` before. `GET /api/v1/admin/organizations` is unchanged, and a platform administrator is unaffected.
+- 2056a2e: The module page's _Roles on the storefront_ section now says that a personal (B2C) Organization's member is offered neither _Organization_ nor _Org addresses_ in the storefront account: `/organization` redirects to `/account`, `/organization/addresses` to `/addresses`, the profile shows no _Organization_ row, and the checkout's billing tax-id field starts empty instead of with the synthetic tax id. Documentation only; no code in the package changed.
+- d591bbe: A personal (B2C) Organization is labelled for what it is rather than by its placeholder tax id (issue #767, owner ruling of 2026-11-05). The admin Organizations list and the Organization detail header show "Personal account" ("Konto osobiste") in place of the tax id. The admin order and quote request screens' _Organization_ panel show "Individual customer" ("Klient indywidualny") where the tax-id line was. The three strings are new core keys: `organizations.personalAccount`, `orderDetail.org.individualCustomer` and `rfq.detail.org.individualCustomer`.
+- d69e765: A path parameter that is not a UUID is answered exactly as a well-formed id that names nothing, on every customer- and admin-facing id route, mutations included, instead of `500` (issue #781). The shape is checked with `isUuidShape` from `@endora-commerce/contracts` before the database is asked, so a malformed id gets the route's own answer for an unknown record: its own not-found code (`404`), or the empty list or `204` the route gives an unknown id. Examples: `POST /api/v1/orders/:id/cancel` answers `404 ORDER_NOT_FOUND`; the returns comment, delivery-method and cancel routes and `POST /api/v1/organization/carts/:id/approve` and `/reject` answer `404 NOT_FOUND`.
+
+  Routes whose params schema demanded a UUID answered a malformed id `400 VALIDATION_FAILED`; they now answer `404` like an unknown id (owner ruling of 2026-11-05): `/api/v1/organizations/mine/roles/:id`, `/api/v1/admin/organizations/:id/roles[/:roleId]` and `…/permission-catalogue`, `/api/v1/organizations/mine/members/:id[/role]`, every `/api/v1/admin/product-feeds/:id…`, `/api/v1/admin/feed-templates/:id` and `/api/v1/admin/feed-taxonomies/revisions/:taxonomyId…` route, `/api/v1/admin/document-templates/:id…`, `/api/v1/admin/quote-requests/:id/document-templates`, `…/document-template` and `…/pdf`, the blog `url-redirects/:redirectId` and `addresses/:id` deletes, `PATCH /api/v1/admin/cms/hooks/:id/attachments/:blockId`, and `GET`, `PATCH` and `DELETE /api/v1/admin/import-export/profiles/:id` (`404 IMPORT_PROFILE_NOT_FOUND`). A client that told a malformed id from an unknown one by the `400` can no longer do so.
+
+  Every private copy of the UUID pattern is replaced by `isUuidShape`, `UUID_SHAPE_PATTERN` or, where a filter has always asked for RFC 9562 version and variant bits (the CRM board filters), `uuidSchema`; what each check accepts is unchanged, except that the invoice-ledger delivery retry now accepts any uuid-shaped id and answers an unknown one `404` from the lookup.
+
+- d24be0e: The module documentation pages have readable titles instead of the module id (for example _Carts_ instead of `carts`), in the docs sidebar, the module map and the browser tab, in English and Polish. Page headings and screen names in the page text are sentence case, as in the Admin UI (#795). File names and URLs are unchanged.
+- a9398c8: The customer anonymization sweep is restartable (issue #800). It now scrubs a personal organization, then its saved addresses, and anonymizes the account last, so an account whose cascade was interrupted stays due and the next run completes it. Each account runs on its own: one that fails no longer stops the run, which anonymizes the others and then throws once, naming the failed account ids. A `ModuleDisabledError` still aborts the run.
+
+  `PersonalOrganizationPort.anonymizeIfOrphaned` is convergent. It writes only the part of the scrub that is still missing, keeps an existing `deletedAt` (an operator's soft-delete), and records `organization.anonymized` in the same transaction as the scrub, only when something changed. It answers the organization on a repeat call too, and answers `null` only for an org-less account, a non-personal organization, or one that still has a live member.
+
+  `POST /api/v1/admin/customers/:id/restore` answers `409 CUSTOMER_RESTORE_WINDOW_ELAPSED` once `customers.deletion_retention_days` has elapsed since the deletion, even before the sweep has anonymized the account. It used to succeed in that case. `CustomerDeletionService` takes the retention-days resolver as a new constructor argument. `CUSTOMER_RESTORE_WINDOW_ELAPSED` now has a sentence in English and Polish in `customer_accounts`' bundle, so both raise sites answer in the reader's language.
+
+- 90a4a76: Documentation only: the storefront account page now shows the member's role in the profile summary, with _What your role allows_ opening the role's permissions in a dialog instead of a section in the page body (issue #801).
+- 0b56038: The customer anonymization sweep now clears every field that can hold the person's data (issue #802). On a personal organization, `PersonalOrganizationPort.anonymizeIfOrphaned` also sets `legalName` to `null`, empties `orderConfirmationEmails` (so `orders` stops mailing those addresses) and clears all custom field values. A personal organization scrubbed by an earlier release is finished on the next sweep run. On the account, `CustomerAccountLifecycleWritePort.anonymize` also clears all custom field values.
+
+  `CustomerAccountLifecycleWritePort.anonymize` now writes the scrub and its `customer_account.anonymized` audit entry in one transaction, and announces `customer_account.anonymized.v1` only after that commit. Before, the audit entry was written after the scrub had committed, so a crash between the two left an anonymized account with no audit entry.
+
+  The two audit entries no longer store the data they erase. `customer_account.anonymized` no longer has `stateBefore.email`; its `stateBefore` is `{ anonymizedAt: null, customFieldKeys }`, the sorted keys that held a value. `organization.anonymized` no longer has `stateBefore.name`; its `stateBefore` records `wasDeleted`, `hadLegalName`, `orderConfirmationEmailCount` and `customFieldKeys` (the sorted keys that held a value).
+
+- 57145f7: The customer anonymization sweep now erases the reasons operators wrote about the customer (issue #843). `PersonalOrganizationPort.anonymizeIfOrphaned` sets a personal organization's `blockedReason` and `rejectedReason` to `null`; `CustomerAccountLifecycleWritePort.anonymize` sets the account's `blockReason` to `null`. The block or rejection itself is kept: the status, `blockedAt`, `rejectedAt`, `blockSource` and who applied the block. A company organization keeps its reasons.
+
+  The audit entries record only whether a reason existed: `organization.anonymized` gains `stateBefore.hadBlockedReason` and `stateBefore.hadRejectedReason`, and `customer_account.anonymized` gains `stateBefore.hadBlockReason`. None of them stores the reason text.
+
+  A subject anonymized by an earlier release is finished on the next sweep run. `CustomerAccountLifecycleWritePort.listDueForAnonymization` now also lists an anonymized account that still has a block reason or custom field values (left by a scrub before #802), whatever the retention cutoff, so raising `customers.deletion_retention_days` cannot strand it. For such an account, `anonymize` clears what is left and writes one more `customer_account.anonymized` entry. That entry's `stateBefore.anonymizedAt` is the original anonymization time, where the first scrub's is `null`; `hadBlockReason` and `customFieldKeys` say what was left. It keeps `anonymizedAt` and does not announce `customer_account.anonymized.v1` again. A personal organization with a reason left is finished whenever the sweep reaches its account.
+
+  The `customers` module page now describes this, and says that audit entries written earlier keep the reason they recorded until #844 ships.
+
+- 289fc12: `GET /api/v1/admin/organizations/:organizationId/sales-reps` now answers by the same organization reach as every other `/api/v1/admin/organizations/:id` route (issue #856, following #698). A sales representative gets the list for an organization assigned to them (with `organizations:rollup`, for one whose nearest assigned ancestor is theirs) or for one no representative is assigned to. An organization assigned to another representative answers `404 NOT_FOUND`, like an unknown id, so its representatives' names and e-mail addresses are no longer readable. The route also answers `404` for a deleted organization, as the other `/:id` routes do. A platform administrator is not affected.
+- ca120cc: Every settings group a module declares now has a translated heading on the Settings screen (#884). Each module's bundle gains `settingGroups.<group code>.name` in English and Polish, so a Polish operator no longer reads group headings such as _Orders_, _Carts_ or _Security / MFA_ in English. `@endora-commerce/mod-admin-notifications` and `@endora-commerce/mod-shipments` ship translation bundles for the first time: their manifests declare `i18n: { bundlesDir: 'i18n' }` and their tarballs carry `i18n/`.
+- Updated dependencies [18cce2e]
+- Updated dependencies [18cce2e]
+- Updated dependencies [9cfb28b]
+- Updated dependencies [a206da9]
+- Updated dependencies [34485ae]
+- Updated dependencies [34485ae]
+- Updated dependencies [0f1717c]
+- Updated dependencies [86e8761]
+- Updated dependencies [9bfb0b8]
+- Updated dependencies [ed5cf6a]
+- Updated dependencies [2da23d2]
+- Updated dependencies [2da23d2]
+- Updated dependencies [9d9c8df]
+- Updated dependencies [9d9c8df]
+- Updated dependencies [9d9c8df]
+- Updated dependencies [9d9c8df]
+- Updated dependencies [5303aab]
+- Updated dependencies [16f85f4]
+- Updated dependencies [270aa2b]
+- Updated dependencies [3f020ba]
+- Updated dependencies [3f020ba]
+- Updated dependencies [b59e5d5]
+- Updated dependencies [b59e5d5]
+- Updated dependencies [bf1cc2d]
+- Updated dependencies [ff60e93]
+- Updated dependencies [6f19230]
+- Updated dependencies [06cf85b]
+- Updated dependencies [77b8c37]
+- Updated dependencies [65104b8]
+- Updated dependencies [7acaa33]
+- Updated dependencies [7019c71]
+- Updated dependencies [4eee98b]
+- Updated dependencies [14ac256]
+- Updated dependencies [248bf1b]
+- Updated dependencies [b2db8c3]
+- Updated dependencies [4cf529d]
+- Updated dependencies [5e4dd48]
+- Updated dependencies [75b053f]
+- Updated dependencies [54fc8f1]
+- Updated dependencies [dac5795]
+- Updated dependencies [5bbb389]
+- Updated dependencies [d69e765]
+- Updated dependencies [dbc1cef]
+- Updated dependencies [d69e765]
+- Updated dependencies [a6bc891]
+- Updated dependencies [8ad737c]
+- Updated dependencies [a9398c8]
+- Updated dependencies [0b56038]
+- Updated dependencies [717e4c6]
+- Updated dependencies [cea1470]
+- Updated dependencies [cea1470]
+- Updated dependencies [d46d414]
+- Updated dependencies [73e2eec]
+- Updated dependencies [29d7e90]
+- Updated dependencies [7f2fa6e]
+- Updated dependencies [57145f7]
+- Updated dependencies [58a1632]
+- Updated dependencies [e46d233]
+- Updated dependencies [e46d233]
+- Updated dependencies [58a1632]
+- Updated dependencies [b476f44]
+- Updated dependencies [14fe4fb]
+- Updated dependencies [76d89ab]
+- Updated dependencies [5cbffb9]
+- Updated dependencies [6bd2ab7]
+- Updated dependencies [a3502c0]
+- Updated dependencies [7a73cc8]
+- Updated dependencies [5ff8302]
+- Updated dependencies [fc7db4c]
+- Updated dependencies [c34b405]
+- Updated dependencies [5af8c25]
+- Updated dependencies [48f055e]
+- Updated dependencies [bf50b85]
+- Updated dependencies [2c6fba0]
+- Updated dependencies [0801f69]
+- Updated dependencies [d1c0d13]
+- Updated dependencies [6d1d284]
+- Updated dependencies [974be57]
+- Updated dependencies [99c075e]
+- Updated dependencies [32b4d0c]
+- Updated dependencies [3355e60]
+- Updated dependencies [7ce9b8a]
+  - @endora-commerce/contracts@0.110.0
+  - @endora-commerce/platform@0.110.0
+  - @endora-commerce/admin-kit@0.110.0
+  - @endora-commerce/email-components@0.110.0
+
 ## 0.109.0
 
 ### Minor Changes

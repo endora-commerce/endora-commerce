@@ -1,5 +1,114 @@
 # @endora-commerce/mod-seo
 
+## 0.110.0
+
+### Minor Changes
+
+- 3f020ba: **Breaking — product metadata has three scopes and is saved with the product (feature 174).**
+
+  - Product SEO overrides sit at Global, Channel or Channel × language. **The `product_meta_three_levels` migration deletes every product override stored for a language without a channel** — there is no such scope any more; category and CMS page overrides are unchanged.
+  - `GET /api/v1/admin/seo/meta/product/:id` is a static route on `catalog:read`, addressed by `?channelId=&languageCode=`, and answers each field's own or inherited value, the resolved metadata and its sources.
+  - The generic `PUT` and `DELETE /api/v1/admin/seo/meta/product/:id` answer `422 VALIDATION_FAILED` (`reason: product_seo_saved_with_product`): product SEO is written by catalog's `PUT …/scoped-values`, through the new `seoProductMetaWritePort` (`readWithin`, `applyWithin`) on the caller's transaction.
+  - `seoMetaWritePort` (`SeoMetaWritePort.upsertProductMeta`, a language-only writer) is removed. Write product SEO through catalog's save, or through the connector port where the field is supported.
+  - The derived product metadata reads the effective name and description at the request's channel and language (`catalogProductAvailabilityPort.effectiveTexts`); a deliberately empty override makes the page use the derived value.
+
+- 8ad737c: `POST /api/v1/admin/seo/sitemap/:channelCode/regenerate` and `GET /api/v1/admin/seo/sitemap/:channelCode/xml` answer `404 NOT_FOUND` for a channel code no sales channel has, as the crawler-file preview does. They answered `500` before (issue #793).
+
+### Patch Changes
+
+- 59239e3: The Admin robots.txt preview's "closes the site to every crawler" notice (`closesSiteToEveryCrawler`) now takes time proportional to the text. Before, a group of many consecutive `User-agent` lines was quadratic: the group's agent list was copied for every line and searched for every rule. The answer is unchanged.
+- d69e765: A path parameter that is not a UUID is answered exactly as a well-formed id that names nothing, on every customer- and admin-facing id route, mutations included, instead of `500` (issue #781). The shape is checked with `isUuidShape` from `@endora-commerce/contracts` before the database is asked, so a malformed id gets the route's own answer for an unknown record: its own not-found code (`404`), or the empty list or `204` the route gives an unknown id. Examples: `POST /api/v1/orders/:id/cancel` answers `404 ORDER_NOT_FOUND`; the returns comment, delivery-method and cancel routes and `POST /api/v1/organization/carts/:id/approve` and `/reject` answer `404 NOT_FOUND`.
+
+  Routes whose params schema demanded a UUID answered a malformed id `400 VALIDATION_FAILED`; they now answer `404` like an unknown id (owner ruling of 2026-11-05): `/api/v1/organizations/mine/roles/:id`, `/api/v1/admin/organizations/:id/roles[/:roleId]` and `…/permission-catalogue`, `/api/v1/organizations/mine/members/:id[/role]`, every `/api/v1/admin/product-feeds/:id…`, `/api/v1/admin/feed-templates/:id` and `/api/v1/admin/feed-taxonomies/revisions/:taxonomyId…` route, `/api/v1/admin/document-templates/:id…`, `/api/v1/admin/quote-requests/:id/document-templates`, `…/document-template` and `…/pdf`, the blog `url-redirects/:redirectId` and `addresses/:id` deletes, `PATCH /api/v1/admin/cms/hooks/:id/attachments/:blockId`, and `GET`, `PATCH` and `DELETE /api/v1/admin/import-export/profiles/:id` (`404 IMPORT_PROFILE_NOT_FOUND`). A client that told a malformed id from an unknown one by the `400` can no longer do so.
+
+  Every private copy of the UUID pattern is replaced by `isUuidShape`, `UUID_SHAPE_PATTERN` or, where a filter has always asked for RFC 9562 version and variant bits (the CRM board filters), `uuidSchema`; what each check accepts is unchanged, except that the invoice-ledger delivery retry now accepts any uuid-shaped id and answers an unknown one `404` from the lookup.
+
+- d24be0e: The module documentation pages have readable titles instead of the module id (for example _Carts_ instead of `carts`), in the docs sidebar, the module map and the browser tab, in English and Polish. Page headings and screen names in the page text are sentence case, as in the Admin UI (#795). File names and URLs are unchanged.
+- Updated dependencies [18cce2e]
+- Updated dependencies [18cce2e]
+- Updated dependencies [9cfb28b]
+- Updated dependencies [a206da9]
+- Updated dependencies [34485ae]
+- Updated dependencies [34485ae]
+- Updated dependencies [0f1717c]
+- Updated dependencies [86e8761]
+- Updated dependencies [9bfb0b8]
+- Updated dependencies [ed5cf6a]
+- Updated dependencies [2da23d2]
+- Updated dependencies [2da23d2]
+- Updated dependencies [9d9c8df]
+- Updated dependencies [9d9c8df]
+- Updated dependencies [9d9c8df]
+- Updated dependencies [9d9c8df]
+- Updated dependencies [5303aab]
+- Updated dependencies [16f85f4]
+- Updated dependencies [270aa2b]
+- Updated dependencies [3f020ba]
+- Updated dependencies [3f020ba]
+- Updated dependencies [b59e5d5]
+- Updated dependencies [b59e5d5]
+- Updated dependencies [bf1cc2d]
+- Updated dependencies [ff60e93]
+- Updated dependencies [6f19230]
+- Updated dependencies [77b8c37]
+- Updated dependencies [65104b8]
+- Updated dependencies [7acaa33]
+- Updated dependencies [7019c71]
+- Updated dependencies [4eee98b]
+- Updated dependencies [14ac256]
+- Updated dependencies [248bf1b]
+- Updated dependencies [b2db8c3]
+- Updated dependencies [4cf529d]
+- Updated dependencies [5e4dd48]
+- Updated dependencies [75b053f]
+- Updated dependencies [54fc8f1]
+- Updated dependencies [dac5795]
+- Updated dependencies [5bbb389]
+- Updated dependencies [d69e765]
+- Updated dependencies [dbc1cef]
+- Updated dependencies [d69e765]
+- Updated dependencies [a6bc891]
+- Updated dependencies [8ad737c]
+- Updated dependencies [a9398c8]
+- Updated dependencies [0b56038]
+- Updated dependencies [717e4c6]
+- Updated dependencies [cea1470]
+- Updated dependencies [cea1470]
+- Updated dependencies [d46d414]
+- Updated dependencies [73e2eec]
+- Updated dependencies [29d7e90]
+- Updated dependencies [7f2fa6e]
+- Updated dependencies [57145f7]
+- Updated dependencies [58a1632]
+- Updated dependencies [e46d233]
+- Updated dependencies [e46d233]
+- Updated dependencies [58a1632]
+- Updated dependencies [b476f44]
+- Updated dependencies [14fe4fb]
+- Updated dependencies [76d89ab]
+- Updated dependencies [5cbffb9]
+- Updated dependencies [6bd2ab7]
+- Updated dependencies [a3502c0]
+- Updated dependencies [7a73cc8]
+- Updated dependencies [5ff8302]
+- Updated dependencies [fc7db4c]
+- Updated dependencies [c34b405]
+- Updated dependencies [5af8c25]
+- Updated dependencies [48f055e]
+- Updated dependencies [bf50b85]
+- Updated dependencies [2c6fba0]
+- Updated dependencies [0801f69]
+- Updated dependencies [d1c0d13]
+- Updated dependencies [6d1d284]
+- Updated dependencies [974be57]
+- Updated dependencies [99c075e]
+- Updated dependencies [32b4d0c]
+- Updated dependencies [3355e60]
+- Updated dependencies [7ce9b8a]
+  - @endora-commerce/contracts@0.110.0
+  - @endora-commerce/platform@0.110.0
+  - @endora-commerce/admin-kit@0.110.0
+
 ## 0.109.0
 
 ### Minor Changes
