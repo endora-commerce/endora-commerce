@@ -1,12 +1,12 @@
 import { describe, expect, it } from 'vitest';
 import {
+  CUSTOMER_ENCRYPTION_KEY_MISSING,
   ENCRYPTION_KEY_MISSING,
   MFA_SETTING_CODES,
   type SettingWriteValidationInput,
 } from '@endora-commerce/contracts';
 import { HttpError } from '@endora-commerce/platform/http';
 import {
-  CUSTOMER_ENCRYPTION_KEY_MISSING,
   createStorefrontEnforcementSettingNotice,
   createStorefrontEnforcementSettingValidator,
   reportUnenforceableCustomerRequirements,
@@ -101,35 +101,58 @@ describe('the mfa.storefront.totp_enforced write validator', () => {
 });
 
 describe('the mfa.storefront.totp_enforced Settings notice', () => {
-  it('answers for that one setting, on behalf of mfa', () => {
-    const n = createStorefrontEnforcementSettingNotice(() => false);
-    expect(n.contributorModuleId).toBe('mfa');
-    expect(n.codes).toEqual([ENFORCED]);
-  });
+  const NOT_IN_FORCE = {
+    code: ENCRYPTION_KEY_MISSING,
+    message: 'Not in force: no encryption key (MFA_SECRET_ENCRYPTION_KEY).',
+  };
 
-  it('says the setting is not in force while it is on and no factor can be enrolled', async () => {
-    const n = createStorefrontEnforcementSettingNotice(() => false);
-    expect(await n.notice({ code: ENFORCED, ownerModuleId: 'mfa', value: true })).toEqual({
-      code: ENCRYPTION_KEY_MISSING,
-      message: 'Not in force: no encryption key (MFA_SECRET_ENCRYPTION_KEY).',
+  /** `enforcedAt` maps a channel id to its value; `reads` counts every read. */
+  function noticeOf(canEnrol: boolean, enforcedAt: Record<string, boolean> = {}) {
+    let reads = 0;
+    const provider = createStorefrontEnforcementSettingNotice({
+      canEnrolSecondFactor: () => canEnrol,
+      listChannels: async () => {
+        reads += 1;
+        return [
+          { id: 'ch1', code: 'b2b' },
+          { id: 'ch2', code: 'retail' },
+        ];
+      },
+      readEnforcedAt: async (salesChannelId) => {
+        reads += 1;
+        return enforcedAt[salesChannelId ?? '*'] ?? false;
+      },
     });
+    return {
+      provider,
+      reads: () => reads,
+      notice: (value: unknown) => provider.notice({ code: ENFORCED, ownerModuleId: 'mfa', value }),
+    };
+  }
+
+  it('answers for that one setting, on behalf of mfa', () => {
+    const { provider } = noticeOf(false);
+    expect(provider.contributorModuleId).toBe('mfa');
+    expect(provider.codes).toEqual([ENFORCED]);
   });
 
-  it('says nothing while it is off, or where a factor can be enrolled', async () => {
-    expect(
-      await createStorefrontEnforcementSettingNotice(() => false).notice({
-        code: ENFORCED,
-        ownerModuleId: 'mfa',
-        value: false,
-      }),
-    ).toBeNull();
-    expect(
-      await createStorefrontEnforcementSettingNotice(() => true).notice({
-        code: ENFORCED,
-        ownerModuleId: 'mfa',
-        value: true,
-      }),
-    ).toBeNull();
+  it('says the setting is not in force while it is on platform-wide and no factor can be enrolled', async () => {
+    expect(await noticeOf(false).notice(true)).toEqual(NOT_IN_FORCE);
+  });
+
+  it('says so too when it is off platform-wide and on for one channel', async () => {
+    expect(await noticeOf(false, { ch2: true }).notice(false)).toEqual(NOT_IN_FORCE);
+  });
+
+  it('says nothing when it is off platform-wide and for every channel', async () => {
+    expect(await noticeOf(false).notice(false)).toBeNull();
+  });
+
+  it('says nothing, and reads nothing, where a factor can be enrolled', async () => {
+    const n = noticeOf(true, { ch1: true });
+    expect(await n.notice(true)).toBeNull();
+    expect(await n.notice(false)).toBeNull();
+    expect(n.reads()).toBe(0);
   });
 });
 

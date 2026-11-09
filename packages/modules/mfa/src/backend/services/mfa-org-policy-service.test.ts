@@ -1,8 +1,7 @@
 import { describe, expect, it } from 'vitest';
-import { ENCRYPTION_KEY_MISSING } from '@endora-commerce/contracts';
+import { CUSTOMER_ENCRYPTION_KEY_MISSING, ENCRYPTION_KEY_MISSING } from '@endora-commerce/contracts';
 import { HttpError } from '@endora-commerce/platform/http';
 import { MfaOrgPolicyService } from './mfa-org-policy-service.js';
-import { CUSTOMER_ENCRYPTION_KEY_MISSING } from './customer-enforcement-without-key.js';
 
 /**
  * Issue #947 — an organization's policy cannot be switched on where no second

@@ -1,4 +1,5 @@
 import {
+  CUSTOMER_ENCRYPTION_KEY_MISSING,
   ENCRYPTION_KEY_MISSING,
   ERROR_CODES,
   MFA_SETTING_CODES,
@@ -30,14 +31,6 @@ import { HttpError } from '@endora-commerce/platform/http';
  */
 
 const ENFORCED = MFA_SETTING_CODES.STOREFRONT_TOTP_ENFORCED;
-
-/**
- * The sentence token of every customer-side refusal (`details.code`). The
- * shared `ENCRYPTION_KEY_MISSING` token's sentence says *administrators*, so
- * the customer refusals pick their own; `details.reason` is still
- * `ENCRYPTION_KEY_MISSING`, the value a client reads.
- */
-export const CUSTOMER_ENCRYPTION_KEY_MISSING = 'customer_encryption_key_missing' as const;
 
 /** The refusal both customer requirements answer an off → on write with. */
 export function customerEnforcementUnavailable(details: Record<string, unknown> = {}): HttpError {

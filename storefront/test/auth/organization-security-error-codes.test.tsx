@@ -76,8 +76,8 @@ describe('each known code renders its sentence, in English and Polish', () => {
     // Issue #947 — the store has no encryption key, so nobody could set it up.
     [
       'UNAVAILABLE',
-      'Two-step verification cannot be required yet: this store cannot set it up. Contact the store.',
-      'Nie można jeszcze wymagać weryfikacji dwuetapowej: ten sklep nie może jej skonfigurować. Skontaktuj się ze sklepem.',
+      'Two-step verification cannot be required yet, because this store does not offer it. Contact the store if you need it.',
+      'Nie można jeszcze wymagać weryfikacji dwuetapowej, bo ten sklep jej nie oferuje. Jeśli jej potrzebujesz, skontaktuj się ze sklepem.',
     ],
   ])('%s', async (code, en, pl) => {
     expect(await text({ error: code })).toContain(en);
