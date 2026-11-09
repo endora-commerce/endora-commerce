@@ -7,6 +7,11 @@ import { customerEnforcementUnavailable } from './customer-enforcement-without-k
 /**
  * Per-organization 2FA enforcement (feature 042, US3, FR-014). Owned by the
  * `mfa` module; consulted additively by `MfaPolicyResolver`.
+ *
+ * Issue #947 — any future admin or storefront screen that shows an
+ * organization's MFA policy must show the same "not in force: no encryption
+ * key" notice the Settings screen shows for `mfa.storefront.totp_enforced`
+ * while no second factor can be enrolled.
  */
 export class MfaOrgPolicyService {
   constructor(

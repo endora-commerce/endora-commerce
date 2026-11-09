@@ -23,8 +23,8 @@ import { HttpError } from '@endora-commerce/platform/http';
  *    through `settings`' validator registry; the policy refuses in
  *    `MfaOrgPolicyService`, which both of its writes — the storefront
  *    administrator's and the Admin UI's — go through;
- *  - while the setting is on, its read carries "not in force: no encryption
- *    key", so the Settings screen does not show it as "on" while it does
+ *  - while the setting is on (platform-wide or for any channel), its read
+ *    carries "not in force: no encryption key", so the Settings screen does not show it as "on" while it does
  *    nothing;
  *  - an instance in that state is told so at every boot, at error level, for
  *    the setting and for the policies alike.
@@ -77,26 +77,46 @@ export function createStorefrontEnforcementSettingValidator(
   };
 }
 
+export interface StorefrontEnforcementNoticeDeps {
+  /** Whether this composition can enrol a second factor (it holds a key). */
+  readonly canEnrolSecondFactor: () => boolean;
+  /** As {@link StorefrontEnforcementValidatorDeps.readEnforcedAt}. */
+  readonly readEnforcedAt: (salesChannelId: string | null) => Promise<boolean>;
+  /** Every sales channel, for the setting's per-channel values. */
+  readonly listChannels: () => Promise<ReadonlyArray<{ readonly id: string; readonly code: string }>>;
+}
+
 /**
- * The Settings read's notice for `mfa.storefront.totp_enforced`, while its
- * platform-wide value is on. The screen translates it from this module's
- * bundle (`settingLabels.mfa.storefront.totp_enforced.notice.encryption_key_missing`);
+ * The Settings read's notice for `mfa.storefront.totp_enforced`, while it is
+ * on platform-wide or for any sales channel (architect ruling on PR #981:
+ * the setting is set per channel, so a channel's own `true` is as much "not in
+ * force" as the platform-wide one). Reads nothing where a factor can be
+ * enrolled. The screen translates it from this module's bundle
+ * (`settingLabels.mfa.storefront.totp_enforced.notice.encryption_key_missing`);
  * `message` is its English fallback.
  */
 export function createStorefrontEnforcementSettingNotice(
-  canEnrolSecondFactor: () => boolean,
+  deps: StorefrontEnforcementNoticeDeps,
 ): SettingNoticeProvider {
   return {
     contributorModuleId: 'mfa',
     codes: [ENFORCED],
     async notice({ value }) {
-      if (value !== true || canEnrolSecondFactor()) return null;
+      if (deps.canEnrolSecondFactor()) return null;
+      if (value !== true && !(await onForAnyChannel(deps))) return null;
       return {
         code: ENCRYPTION_KEY_MISSING,
         message: 'Not in force: no encryption key (MFA_SECRET_ENCRYPTION_KEY).',
       };
     },
   };
+}
+
+async function onForAnyChannel(deps: StorefrontEnforcementNoticeDeps): Promise<boolean> {
+  for (const channel of await deps.listChannels()) {
+    if (await deps.readEnforcedAt(channel.id)) return true;
+  }
+  return false;
 }
 
 export interface CustomerRequirementBootReportDeps {

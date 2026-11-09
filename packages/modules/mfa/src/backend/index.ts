@@ -495,7 +495,14 @@ export function registerModule(ctx: ModuleContext): void {
     );
     const notices = lazyPort<SettingNoticeRegistryPort>(ctx, 'settingNoticeRegistry');
     notices.register(createAdminEnforcementSettingNotice(canEnrolSecondFactor));
-    notices.register(createStorefrontEnforcementSettingNotice(canEnrolSecondFactor));
+    notices.register(
+      createStorefrontEnforcementSettingNotice({
+        canEnrolSecondFactor,
+        readEnforcedAt: storefrontEnforcedAt(ctx),
+        listChannels: () =>
+          lazyPort<SalesChannelResolutionPort>(ctx, 'salesChannelResolutionPort').listAll(),
+      }),
+    );
     // Issue #349, E-349-1 — what the Settings screen asks before switching it on.
     notices.register(
       createAdminEnforcementSettingConfirmation({
