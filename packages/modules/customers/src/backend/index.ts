@@ -25,6 +25,7 @@ import type {
   CustomerGroupReadPort,
   CustomerPasswordResetPort,
   DefaultPreferencePort,
+  EmailDeliveryAnonymizationPort,
   EmailMailerPort,
   ImpersonationPort,
   OrderListPort,
@@ -347,6 +348,11 @@ export function registerModule(ctx: ModuleContext): void {
             cartQueryPort: lazyPort<CartQueryPort>(ctx, 'cartQueryPort'),
             // Issue #920 — and its step in the anonymisation sweep.
             cartAnonymizationPort: lazyPort<CartAnonymizationPort>(ctx, 'cartAnonymizationPort'),
+            // Issue #928 — `email`'s step: the records of the e-mails sent to the account.
+            emailDeliveryAnonymizationPort: lazyPort<EmailDeliveryAnonymizationPort>(
+              ctx,
+              'emailDeliveryAnonymizationPort',
+            ),
             impersonationPort: lazyPort<ImpersonationPort>(ctx, 'impersonationPort'),
             // `auth`'s read over the session table, for the online-customers
             // panel — the last thing in this module that named `Session`.

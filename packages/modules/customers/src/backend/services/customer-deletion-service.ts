@@ -10,6 +10,7 @@ import {
   type CustomerAccountLifecycleWritePort,
   type CustomerAccountReadPort,
   type CustomerAccountRecord,
+  type EmailDeliveryAnonymizationPort,
   type PersonalOrganizationPort,
 } from '@endora-commerce/contracts';
 import { HttpError } from '@endora-commerce/platform/http';
@@ -94,6 +95,12 @@ export class CustomerDeletionService {
      * binding dependency, so this step has no absent state to degrade in.
      */
     private readonly carts: CartAnonymizationPort,
+    /**
+     * `email`'s step (issue #928): the records of the e-mails sent to the
+     * account. `email` is `nonDeactivatable` and already a binding dependency,
+     * so this step has no absent state to degrade in either.
+     */
+    private readonly emailDeliveries: EmailDeliveryAnonymizationPort,
     /** Issue #844 — what the history step names and calls. */
     private readonly history: AnonymizedHistoryDeps,
   ) {}
@@ -260,6 +267,7 @@ export class CustomerDeletionService {
     // Issue #920 — and the reasons written about the account's carts, on any
     // account: a company member's basket is theirs too.
     await this.carts.anonymizeForCustomerAccount(customerAccountId);
+    void this.emailDeliveries; // RED: issue #928's step is not called yet.
     // Issue #844 — and the history written about the subject is erased in place.
     await this.redactHistory(customerAccountId, organization?.id ?? null);
     // Last: `anonymizedAt` takes the account off the work list (issue #800).
