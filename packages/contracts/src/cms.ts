@@ -684,9 +684,27 @@ export const cmsResolvedPageSchema = z.object({
 });
 export type CmsResolvedPage = z.infer<typeof cmsResolvedPageSchema>;
 
+/**
+ * The details of the library assets a hook's or a block's tree embeds, keyed by
+ * id — the map a page answers as `assets`, so the storefront renders each image
+ * at its versioned `?v=` URL rather than at a bare `/assets/file/<id>`, which is
+ * `public, no-cache` and revalidated on every visit.
+ *
+ * Optional only for an answer cached before the field existed; read it as `{}`.
+ */
+const cmsStandaloneAssetsSchema = z.record(uuidSchema, cmsAssetEmbedResolutionSchema).optional();
+
+/** `GET /api/v1/cms/blocks/by-code`: the block, with the assets it embeds. */
+export const cmsResolvedBlockByCodeSchema = cmsResolvedBlockSchema.extend({
+  assets: cmsStandaloneAssetsSchema,
+});
+export type CmsResolvedBlockByCode = z.infer<typeof cmsResolvedBlockByCodeSchema>;
+
 export const cmsResolvedHookSchema = z.object({
   hookCode: z.string(),
   blocks: z.array(cmsResolvedBlockSchema),
+  /** Every asset any of `blocks` embeds, in one map. */
+  assets: cmsStandaloneAssetsSchema,
 });
 export type CmsResolvedHook = z.infer<typeof cmsResolvedHookSchema>;
 

@@ -6,7 +6,7 @@ import '@endora-commerce/cms-components/styles.css';
 import type { CmsResolvedPage, CmsResolvedBlock, CmsResolvedTemplate } from '@endora-commerce/contracts';
 import type { RequestContext } from '../lib/api/client';
 import type { ModulePresenceSet } from '../lib/api/module-presence';
-import { toAbsoluteAssetUrl } from '../lib/asset-url';
+import { toAbsoluteAssetMap } from '../lib/asset-url';
 import { BlockData } from './BlockData';
 import { Hook } from './Hook';
 import { PageBuilderRender } from './PageBuilderRender';
@@ -78,12 +78,7 @@ export async function CmsPageRenderer({
         })
       : undefined;
 
-  const assets = Object.fromEntries(
-    Object.entries(page.assets).map(([id, asset]) => [
-      id,
-      { ...asset, url: toAbsoluteAssetUrl(asset.url) },
-    ]),
-  );
+  const assets = toAbsoluteAssetMap(page.assets);
 
   return (
     <LocalizedCmsRenderProvider
