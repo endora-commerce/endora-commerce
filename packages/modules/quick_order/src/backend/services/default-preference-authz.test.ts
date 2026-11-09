@@ -23,10 +23,12 @@ describe('canManagePreference', () => {
     expect(canManagePreference(actor, { scope: 'customer', scopeId: 'cust-2' }, 'org-2')).toBe(false);
   });
 
-  it('salesperson manages assigned orgs and their customers only', () => {
+  // Issue #305 — the actor carries the reach question; `org-2` stands for an
+  // organisation governed by another representative.
+  it('salesperson manages the orgs in their reach and their customers only', () => {
     const actor: PreferenceActor = {
       kind: 'salesperson',
-      assignedOrganizationIds: ['org-1', 'org-3'],
+      reaches: (organizationId) => organizationId !== 'org-2',
     };
     expect(canManagePreference(actor, { scope: 'organization', scopeId: 'org-1' }, null)).toBe(true);
     expect(canManagePreference(actor, { scope: 'organization', scopeId: 'org-2' }, null)).toBe(false);

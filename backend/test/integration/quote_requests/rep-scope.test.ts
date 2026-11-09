@@ -204,20 +204,16 @@ describe('146 — sales representative scope [integration]', () => {
   });
 
   /**
-   * Phase 4's open question, answered by observation and pinned. `canSeeOrganization`
-   * has an "unassigned organization is visible to every rep" fallback, but the
-   * tenant filter the reads run under is fed by `listAssignedOrganizationIds`
-   * — assigned rows only. So for an organization with no assignment at all the
-   * surfaces split along the line the platform already draws: what reads an
-   * `@OrgScoped` row (customer accounts, quote requests) answers the unknown-id
-   * 404, what reads the unfiltered organization row answers 200. The new
-   * negotiation panels and the price probe inherit that split; none of them
-   * leaks anything the existing `/customers/:id` and `/organizations/:id`
-   * screens do not, and a rep cannot open the request itself (404), so the
-   * Modify tab's probe is unreachable for it. Pinned so a change of either
-   * half is noticed.
+   * Phase 4's open question, answered by issue #305 (owner ruling 2026-11-07):
+   * there is one reach rule, `canSeeOrganization`'s — assigned, roll-up and the
+   * unassigned fallback — and the tenant filter the reads run under now applies
+   * it too. An organization with no assignment at all is therefore reachable on
+   * every surface: its requests, its members, its negotiation panels and the
+   * price probe answer as they do for the representative's own organization.
+   * This pinned the split the platform used to have (`@OrgScoped` reads 404,
+   * the organization row 200) and pins its end.
    */
-  it('a representative and an organization nobody is assigned to: the split the platform already has', async () => {
+  it('a representative and an organization nobody is assigned to: reachable on every surface (#305)', async () => {
     const rows: Record<string, number> = {};
     const probe = async (label: string, method: 'GET' | 'PUT' | 'POST', url: string, payload?: unknown) => {
       rows[label] = (await call(method, url, REP, payload)).statusCode;
@@ -235,17 +231,15 @@ describe('146 — sales representative scope [integration]', () => {
     await probe('customer detail (pre-existing)', 'GET', `/api/v1/admin/customers/${accountUnassigned}`);
     await probe('organization detail (pre-existing)', 'GET', `/api/v1/admin/organizations/${orgUnassigned}`);
     expect(rows).toEqual({
-      'rfq detail': 404,
-      'rfq history': 404,
+      'rfq detail': 200,
+      'rfq history': 200,
       'neg org GET': 200,
-      'neg customer GET': 404,
+      'neg customer GET': 200,
       'probe org': 200,
-      'probe account': 404,
+      'probe account': 200,
       'neg org PUT': 200,
-      'neg customer PUT': 404,
-      'customer detail (pre-existing)': 404,
-      // Issue #698 gates `/organizations/:id` on `canSeeOrganization`, whose
-      // unassigned fallback keeps this 200; which rule wins is issue #305.
+      'neg customer PUT': 200,
+      'customer detail (pre-existing)': 200,
       'organization detail (pre-existing)': 200,
     });
   });

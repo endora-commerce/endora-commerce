@@ -554,10 +554,8 @@ holds `customers:manage` but **not** `customers:read` sees no panel. A sales
 representative reaches only the organizations they may see; any other id
 answers `404`. An organization with no assigned sales representative is visible
 to every representative (see *Visibility model*), so any representative may
-change its lock; issue #305 tracks that rule itself. Its customer accounts are
-not reachable that way: they sit behind the assigned-organization filter, so a
-representative's request for an account's panel — read or change — answers
-`404`, and its overrides stay with a platform administrator. Every change is an audited write that records the
+change its lock — and, since issue #305, its customer accounts' overrides too:
+the accounts are reached by the same rule as their organization. Every change is an audited write that records the
 administrator, the organization or account and the old and new value.
 
 **Switched off.** While this module is off, the panels, the four admin routes,
@@ -575,7 +573,14 @@ predicate centralises the visibility rule:
 2. Otherwise the admin sees an organization iff a row in
    `organization_sales_rep_assignments` ties them together, OR the
    organization has zero rows in that table (the "unassigned-org
-   fallback" — visible to every sales rep).
+   fallback" — visible to every sales rep). With `organizations:rollup`
+   the nearest ancestor-or-self carrying any row decides instead.
+
+It is the one rule on every surface (issue #305): the tenant filter every
+admin quote-request read runs under is that rule — every organization except
+those governed by another representative — so the list, the detail, the
+history and the global search all agree, and an unassigned organization's
+requests are listed and readable by every representative.
 
 A sales representative who names a quote request of an organization they may
 not see gets the same `404` as for an id that does not exist, on every admin

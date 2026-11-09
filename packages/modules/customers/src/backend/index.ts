@@ -35,7 +35,6 @@ import type {
   OrganizationRoleReadPort,
   PersonalOrganizationPort,
   RfqCustomerPort,
-  SalesRepAssignmentPort,
   VatValidator,
 } from '@endora-commerce/contracts';
 import {
@@ -161,16 +160,12 @@ function registerModerationActor(ctx: ModuleContext): void {
       .asFunction(() => {
         const admins = lazyPort<AdminUserReadPort>(ctx, 'adminUserReadPort');
         const roles = lazyPort<AdminRolePort>(ctx, 'adminRolePort');
-        const salesRepScope = lazyPort<SalesRepAssignmentPort>(
-          ctx,
-          'organizationSalesRepScopePort',
-        );
         return async (request: FastifyRequest) => {
           const actor = request.actor as Actor | undefined;
           if (actor?.kind !== 'admin') {
             throw new HttpError(401, ERROR_CODES.UNAUTHORIZED, 'Admin session required.');
           }
-          return moderationActorFor({ admins, roles, salesRepScope }, actor.adminUserId);
+          return moderationActorFor({ admins, roles }, actor.adminUserId);
         };
       })
       .singleton(),
@@ -178,7 +173,7 @@ function registerModerationActor(ctx: ModuleContext): void {
 }
 
 /**
- * Who is moderating, and which organizations they may act on — the customer
+ * Who is moderating, and whether their reach is scoped at all — the customer
  * list's scope, asked by its routes for the request's admin and by global
  * search for the searching admin (`specs/150-admin-global-search/`).
  */
@@ -186,22 +181,19 @@ async function moderationActorFor(
   ports: {
     admins: AdminUserReadPort;
     roles: AdminRolePort;
-    salesRepScope: SalesRepAssignmentPort;
   },
   adminUserId: string,
-): Promise<{ adminUserId: string; isPlatformAdmin: boolean; allowedOrganizationIds: string[] }> {
+): Promise<{ adminUserId: string; isPlatformAdmin: boolean }> {
   const adminUser = await ports.admins.findById(adminUserId);
   // `getById` cannot 404 here: `admin_users_admin_role_fk` is
   // `on delete restrict`, so a non-null `adminRoleId` names a row.
   const role = adminUser?.adminRoleId ? await ports.roles.getById(adminUser.adminRoleId) : null;
   const isPlatformAdmin = role?.code !== 'sales_representative';
-  // Feature 056 — subtree-expanded when the rep holds
-  // `organizations:rollup`, which is `organizations`' decision and the
-  // reason this reads an assembled port rather than the tree.
-  const allowedOrganizationIds = isPlatformAdmin
-    ? []
-    : await ports.salesRepScope.listAssignedOrganizationIds(adminUserId);
-  return { adminUserId, isPlatformAdmin, allowedOrganizationIds };
+  // Issue #305 — which organizations a sales representative reaches is not
+  // this module's to list: it is the ambient tenant context's, derived by
+  // `organizations`' one reach rule (assigned, roll-up and every unassigned
+  // organization), and `CustomerAccount` reads are narrowed by it.
+  return { adminUserId, isPlatformAdmin };
 }
 
 /**
@@ -214,7 +206,6 @@ function customerAdminSearchDeps(ctx: ModuleContext): CustomerAdminSearchProvide
   const scopePorts = {
     admins: lazyPort<AdminUserReadPort>(ctx, 'adminUserReadPort'),
     roles: lazyPort<AdminRolePort>(ctx, 'adminRolePort'),
-    salesRepScope: lazyPort<SalesRepAssignmentPort>(ctx, 'organizationSalesRepScopePort'),
   };
   const searchDeps = {
     accountSearch: lazyPort<CustomerAccountAdminSearchPort>(ctx, 'customerAccountAdminSearchPort'),

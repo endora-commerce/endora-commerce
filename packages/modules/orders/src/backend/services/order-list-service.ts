@@ -7,6 +7,14 @@ import {
   type CustomFieldListFilterPort,
   type OrganizationDetailsPort,
 } from '@endora-commerce/contracts';
+import {
+  orgConstraintFor,
+  orgScopeSql,
+  orgScopeWhere,
+  reachesNoOrganization,
+  type OrgConstraint,
+  type OrgScopeSql,
+} from '@endora-commerce/platform/tenancy';
 import { Order } from '../entities/order.entity.js';
 import { SalesChannel } from '@endora-commerce/platform/kernel';
 import type { OrderStatusGraphService } from './order-status-graph-service.js';
@@ -50,8 +58,29 @@ export interface OrderListQuery {
   pageSize: number;
 }
 
+/**
+ * The organizations an admin order list is confined to, as the platform states
+ * the reach (issue #305) — a sales representative's is every organization
+ * nobody else governs, which no list of allowed ids can express. Built by
+ * {@link orderListScopeFor}; absent ⇒ every organization.
+ */
 export interface OrderListScope {
-  allowedOrganizationIds: string[];
+  /** On `organizationId`, for the entity manager. */
+  readonly where: Record<string, unknown>;
+  /** On the `organization_id` column, for SQL. */
+  readonly sql: OrgScopeSql;
+  /** Nothing is reached: no statement need run. */
+  readonly empty: boolean;
+}
+
+/** The list scope a constraint (the ambient one by default) implies, or `undefined` for every organization. */
+export function orderListScopeFor(constraint: OrgConstraint = orgConstraintFor()): OrderListScope | undefined {
+  if (constraint.kind === 'all') return undefined;
+  return {
+    where: orgScopeWhere('organizationId', constraint),
+    sql: orgScopeSql('organization_id', constraint),
+    empty: reachesNoOrganization(constraint),
+  };
 }
 
 export interface AdminOrderRow {
@@ -132,7 +161,7 @@ export class OrderListService {
     // Base filter shared by the page query and the per-status counts.
     const base: FilterQuery<Order> = {};
     const and: FilterQuery<Order>[] = [];
-    if (scope) base.organizationId = { $in: scope.allowedOrganizationIds };
+    if (scope) Object.assign(base, scope.where);
     if (query.organizationId) base.organizationId = query.organizationId;
     if (query.placedByCustomerAccountId) {
       base.placedByCustomerAccountId = query.placedByCustomerAccountId;
@@ -228,8 +257,8 @@ export class OrderListService {
   /**
    * Global search over orders (`specs/150-admin-global-search/`, T028).
    *
-   * The list's own visibility: `scope` is the organization set the list is
-   * confined to (absent ⇒ every organization), applied **in the statement**;
+   * The list's own visibility: `scope` is the reach the list is confined to
+   * (absent ⇒ every organization), applied **in the statement**;
    * the organization and customer name lookups go through the same owners'
    * ports `list` uses. Only the selected fields are matched, literally
    * (`likeEscaped`, Postgres' default `\` LIKE escape), and the identifier
@@ -264,7 +293,7 @@ export class OrderListService {
     }
     if (query.isUuid) matches.push((qb) => qb.orWhereRaw('"id" = ?::uuid', [query.text]));
     if (matches.length === 0) return { rows: [], hasMore: false };
-    if (scope && scope.allowedOrganizationIds.length === 0) return { rows: [], hasMore: false };
+    if (scope?.empty) return { rows: [], hasMore: false };
 
     const exact: string[] = [];
     const starts: string[] = [];
@@ -296,7 +325,7 @@ export class OrderListService {
       .getKnex()('orders')
       .select('id')
       .where((qb) => {
-        if (scope) qb.whereIn('organization_id', scope.allowedOrganizationIds);
+        if (scope) qb.whereRaw(scope.sql.sql, [...scope.sql.params] as Knex.RawBinding[]);
         qb.andWhere((or) => {
           for (const match of matches) match(or);
         });

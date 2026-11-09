@@ -272,12 +272,15 @@ describe('MfaLoginService.beginLogin — no encryption key (issue #948)', () => 
       issued.push('challenge');
       return 'challenge';
     };
+    // Resolved as a composition with a key would resolve it, so the
+    // organization's requirement is real; the keyless resolver does not apply
+    // it either (issue #947), and `proceed` must not depend on that.
     const resolver = new MfaPolicyResolver(
       { get: async () => false as never },
       em,
       async () => ({ refusal: new Error('not an administrator') }),
       async () => null,
-      false,
+      true,
     );
     const policy = await resolver.resolve(
       { subjectType: 'customer', subjectId: 'c1' },
