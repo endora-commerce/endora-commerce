@@ -1,5 +1,181 @@
 # @endora-commerce/mod-customers
 
+## 0.110.0
+
+### Minor Changes
+
+- 34485ae: Customers by organization role (`specs/170-organization-roles/`, WP-03).
+
+  - The depletion guard (`409 ORG_OWNER_DEPLETION`) on blocking, deleting and detaching a customer protects the last active holder of a **company** organization's _Administrator_ role, read from the role rather than the legacy `role` column. Blocked administrators no longer count on any of the three paths (deletion and detaching counted them before), so deleting or detaching the last unblocked administrator is refused. Blocking or deleting a personal organization's member is no longer refused.
+  - `GET /api/v1/me/customer` answers `organizationRole` and `permissions`; the impersonation start answers `impersonatedCustomerAccount.organizationRole`.
+  - `CustomerModerationService` and `CustomerDeletionService` take an `OrganizationDepletionGuard` as their last constructor argument; `customersModule` requires `organizationPermissionPort` and an `organizationRoleReadPort` that also answers `roleRef`.
+
+- 9bfb0b8: The legacy two-value organization role is removed (`specs/170-organization-roles/`, WP-12). Breaking for every consumer that still names it. A member holds a role **id**, and what they may do follows from that role's permissions. Old → new:
+
+  - `organizationRoleSchema` and `OrganizationRole` (`'organization_admin' | 'regular_user'`, from `common.ts`) are removed. Use `OrganizationRoleRef` (`{ id, name, kind }`) and `OrganizationRoleKind` (`administrator`, `member`, `custom`) instead.
+  - `CustomerAccountRole` is removed, and so are `CustomerAccountRecord.role` and `CustomerAccountCreateInput.role`. Read and write `organizationRoleId` instead; it is required on create.
+  - `CustomerAccountReadPort.countByOrganizationRole(organizationId, role, options)` is removed. Use `countAdministrators(organizationId, options)`, which takes the same options. `listByOrganization` still answers the Organization's _Administrator_ holders first, then by creation date.
+  - `CustomerRolePort.changeRole(organizationId, customerAccountId, newRole)` is removed. Use `customerAccountRoleCommandPort.changeRole({ organizationId, customerAccountId, roleId })`, the `customer_account.change_role` Command. `customerRolePort` keeps `listMembers` and `removeMember`.
+  - `RfqCustomerContext.isOrgAdmin` is removed. Ask `OrganizationPermissionPort.isAdministrator(subject)` instead (research R-30). `carts`, `orders`, `quick_order` and `shopping_lists` no longer pass it.
+  - `OrganizationRecord.requiresCartApproval`, `OrganizationCartApprovalWritePort` (the container name `organizationCartApprovalWritePort` is no longer registered), `CartApprovalPolicyWriteResult`, `setCartApprovalPolicySchema` / `SetCartApprovalPolicy` and `cartApprovalPolicyResponseSchema` / `CartApprovalPolicyResponse` are removed, together with the `organization.set_cart_approval_policy` Command. Approval now follows the member's `carts.order_without_approval` permission (OR-3), and the policy endpoints were already removed.
+  - On responses, `role` is no longer described on `customerAccountSchema`, `customerLoginResponseSchema`'s `customerAccount` or `impersonationStartResponseSchema`'s `impersonatedCustomerAccount`. `organizationRole` is now **required** on all three, and `permissions` is required on the first two: every producer sends them. `POST /api/v1/admin/organizations/:id/impersonate` (`admin_users`) no longer sends `role` and now sends `organizationRole`, read through `organizationRoleReadPort` (an acknowledged dependency on `organizations`); `POST /api/v1/admin/customers/:id/impersonate` (`customers`) always sends it.
+  - The request schemas `inviteMemberRequestSchema` (`{ email, role? }`), `changeMemberRoleRequestSchema` (`{ role }`), `adminDirectMemberRequestSchema` (`role?`) and `adminPatchMemberRoleRequestSchema` (`{ role, expectedUpdatedAt? }`) are removed. Use `inviteMemberToRoleRequestSchema`, `assignMemberRoleRequestSchema`, `adminDirectMemberToRoleRequestSchema` and `adminAssignMemberRoleRequestSchema`, which take `roleId`. They stay strict, so a body that still sends `role` is refused with `400`.
+  - The customers CSV export (`import_export`) carries `organization_role_name` (a predefined role's English label, or a custom role's name) and `organization_role_kind` (`administrator`, `member`, `custom`) in place of its `role` column. It reads them through `organizationRoleReadPort`, a new non-binding `degrades-without` edge on `organizations`. The export is export-only, so no import is affected.
+  - `carts`' published bundles (`i18n/en.json`, `i18n/pl.json`) drop five unread keys that described the removed policy and the administrator-only approval: `approval.banner.pending`, `approval.banner.rejected`, `approval.banner.policy_on`, `approval.banner.policy_off` and `reject.email.body`.
+  - The `CustomerAccount` entity loses `role`. `Organization` loses `requiresCartApproval`, and `OrganizationInvitation` loses `role`, so its `organizationRoleId` is now required. Nothing writes the legacy value any more.
+  - New migrations `Migration20261104T094535OrganizationsDropLegacyRoleColumns` (M4) and `Migration20261104T094540CustomerAccountsDropLegacyRoleColumn` (M5):
+    - M4 drops `organizations.requires_cart_approval`, `organization_invitations.role` and the invitation default trigger that read it.
+    - M5 drops `customer_accounts.role` with its index.
+    - M5 also redefines the account default: an account inserted without a role holds _Administrator_ in a personal Organization, else _Member_.
+    - Each `down()` re-derives the dropped values from the role reference.
+
+- 270aa2b: **Breaking:** the personal address book is retired for everyone (`specs/173-b2c-address-book-merge/` release 1 of 2).
+
+  - Every former personal-address-book endpoint answers `410 Gone` with `CUSTOMER_ADDRESS_BOOK_RETIRED`, in Polish or English: `GET`/`POST /api/v1/me/customer/addresses`, `PATCH`/`DELETE /api/v1/me/customer/addresses/:addressId`, `PUT /api/v1/me/customer/addresses/:addressId/default`, `POST /api/v1/admin/customers/:id/addresses`, and a `PUT /api/v1/me/customer/defaults` whose body carries `billingAddressId` or `shippingAddressId`. Manage addresses on `/api/v1/organizations/mine/addresses`.
+  - `GET /api/v1/me/customer/defaults` (and the admin customer detail's `defaults`) reports the default addresses of the customer's Organization book.
+  - `GET /api/v1/admin/customers/:id/addresses` answers `{ organization, personal }`, where `personal` lists only the rows the retirement job refused, each with `mergeRefusal`.
+  - The `customerAddressReadPort` port is no longer published.
+  - A one-time BullMQ job (`customers.address-book-retirement`, run by the worker process while `customers` is on) moves every live B2C personal-book row into the customer's personal Organization's book without duplicates, keeping an existing Organization default, and erases every other live row — a company member's, one of an individual whose personal Organization was already anonymized, or one of an account with no Organization. The summary it logs counts the last as `erasedWithoutOrganization` and warns when there are any. Each row is audited; a row `addresses` refuses stays live with its reason. A migration adds the provenance columns it writes. The package now peers on `bullmq` and `ioredis`.
+  - The retention sweep also blanks and soft-deletes a scrubbed personal Organization's saved addresses.
+
+- a41e6ac: The customer's _Addresses_ card in the Admin UI (`AddressesPanel`) is read-only (`specs/173-b2c-address-book-merge/`, OD-6). It lists the customer's Organization address book, then any personal-book row the retirement job refused, with its reason. The add form is gone, and so are its bundle keys `detail.addresses.recipient`, `.street`, `.city`, `.postal`, `.country` and `.add`. New keys: `detail.addresses.organizationBook`, `.refused`, `.refusedHint` and `.refusalReason`. The module page documents the retired personal book.
+- dac5795: The storefront can read whether individual self-registration is offered before it renders the form (issue #756). `customers` adds the public `GET /api/v1/storefront/settings/customer-registration`, which answers `{ data: { allowRegistrationWithoutOrganization } }` from `customers.allow_registration_without_organization`, the same answer `POST /api/v1/customers/register` applies. Its shape is `customerRegistrationOptionsResponseSchema` in the contracts. `CustomerRegistrationService` gains `allowsStandalone()`, and `registerStandalone` now uses it. The response is not cached.
+- 54ad556: `customers.allow_registration_without_organization` is now read for the request's sales channel (issue #773). `POST /api/v1/customers/register` and `GET /api/v1/storefront/settings/customer-registration` (through `CustomerRegistrationService.allowsStandalone()`) resolve the value set for the channel the request resolves to, then the all-channels value, then the manifest default (`false`). Until now both read the system-default channel's value and applied it to every channel, so a value set only for another channel had no effect.
+
+  **Behaviour change on upgrade.** An installation that enabled the setting only for its default channel had B2C registration on every channel; after this release it has it only on the default channel, and its other channels refuse standalone registration with `REGISTRATION_REQUIRES_ORGANIZATION`. To keep the previous behaviour, set the value for all channels, or for each channel that should offer it, on the admin settings screen.
+
+  **Federated sign-up (`mod-customer-accounts`).** A first sign-in through an external identity provider (`GET /api/v1/auth/customer/oauth/:provider/callback`) creates an account through `customerSocialLoginPort.autoCreate`, which now reads the same setting for the channel the sign-in was started on (the channel `SocialIdentityService` carries out of the OAuth transaction) instead of the system-default channel. Where the setting is off for that channel the sign-in answers `registration_required` and creates no account; a caller that names no channel gets no account either. The same upgrade note applies: federated sign-up stops on every channel that does not have the setting on.
+
+  **Outside a request** (no resolved sales channel), the `mod-customers` registration gate now answers `false` rather than the system-default channel's value. `customers.deletion_retention_days` and `customers.presence_freshness_minutes` still read the system-default channel.
+
+- 8ad737c: The admin sub-resources of a customer that does not exist answer `404 CUSTOMER_NOT_FOUND`, as the customer itself and a malformed id do (issue #794). Before, `PATCH …/custom-fields` and `POST …/impersonate` answered `404 NOT_FOUND`, and `GET …/addresses`, `…/orders`, `…/quote-requests` and `…/carts` answered `200` with empty lists. A customer outside a scoped operator's reach reads as absent, so it now answers the same `404`. The permission is still judged first: a caller without `customers:impersonate` is refused `403` whether or not the customer exists. The retired `POST …/addresses` answers `410 CUSTOMER_ADDRESS_BOOK_RETIRED` to every caller holding `customers:manage`, whatever the id (`specs/173-b2c-address-book-merge/` FR-005); a malformed id there answered `404 CUSTOMER_NOT_FOUND` before.
+- a9398c8: The customer anonymization sweep is restartable (issue #800). It now scrubs a personal organization, then its saved addresses, and anonymizes the account last, so an account whose cascade was interrupted stays due and the next run completes it. Each account runs on its own: one that fails no longer stops the run, which anonymizes the others and then throws once, naming the failed account ids. A `ModuleDisabledError` still aborts the run.
+
+  `PersonalOrganizationPort.anonymizeIfOrphaned` is convergent. It writes only the part of the scrub that is still missing, keeps an existing `deletedAt` (an operator's soft-delete), and records `organization.anonymized` in the same transaction as the scrub, only when something changed. It answers the organization on a repeat call too, and answers `null` only for an org-less account, a non-personal organization, or one that still has a live member.
+
+  `POST /api/v1/admin/customers/:id/restore` answers `409 CUSTOMER_RESTORE_WINDOW_ELAPSED` once `customers.deletion_retention_days` has elapsed since the deletion, even before the sweep has anonymized the account. It used to succeed in that case. `CustomerDeletionService` takes the retention-days resolver as a new constructor argument. `CUSTOMER_RESTORE_WINDOW_ELAPSED` now has a sentence in English and Polish in `customer_accounts`' bundle, so both raise sites answer in the reader's language.
+
+### Patch Changes
+
+- a206da9: Assigning a customer to another organization, or detaching them to their own personal organization, writes the role they hold there with the move (`specs/170-organization-roles/`, WP-02b): a company's _Administrator_ stays _Administrator_ in the target, anyone else becomes its _Member_, and a detached customer is their personal organization's _Administrator_.
+- 9b87711: Soft-deleted customer accounts are now anonymized once `customers.deletion_retention_days` has elapsed (issue #677). `AnonymizationSweepWorker.sweep()` had no caller, so a deleted account kept its personal data indefinitely and `customer_account.anonymized.v1` was never announced. The module now installs a daily BullMQ Job Scheduler (`customers.anonymization.sweep`, idempotent across restarts and replicas) and consumes it through `ctx.worker` in processes that run workers, so no run happens while `customers` is off.
+
+  **Behaviour change on upgrade.** The first worker boot after the upgrade installs the schedule, and its first run starts immediately: every soft-deleted account already older than `customers.deletion_retention_days` (default 365) is anonymized within minutes, irreversibly. To keep any of them, raise `customers.deletion_retention_days` before upgrading, for all channels or at least the default channel, and restore them; once the window has passed, restore is refused. See _Deleted customer accounts are anonymized on schedule_ in the upgrade guide, which has a query to count the accounts due.
+
+- d24be0e: The module documentation pages have readable titles instead of the module id (for example _Carts_ instead of `carts`), in the docs sidebar, the module map and the browser tab, in English and Polish. Page headings and screen names in the page text are sentence case, as in the Admin UI (#795). File names and URLs are unchanged.
+- 57145f7: The customer anonymization sweep now erases the reasons operators wrote about the customer (issue #843). `PersonalOrganizationPort.anonymizeIfOrphaned` sets a personal organization's `blockedReason` and `rejectedReason` to `null`; `CustomerAccountLifecycleWritePort.anonymize` sets the account's `blockReason` to `null`. The block or rejection itself is kept: the status, `blockedAt`, `rejectedAt`, `blockSource` and who applied the block. A company organization keeps its reasons.
+
+  The audit entries record only whether a reason existed: `organization.anonymized` gains `stateBefore.hadBlockedReason` and `stateBefore.hadRejectedReason`, and `customer_account.anonymized` gains `stateBefore.hadBlockReason`. None of them stores the reason text.
+
+  A subject anonymized by an earlier release is finished on the next sweep run. `CustomerAccountLifecycleWritePort.listDueForAnonymization` now also lists an anonymized account that still has a block reason or custom field values (left by a scrub before #802), whatever the retention cutoff, so raising `customers.deletion_retention_days` cannot strand it. For such an account, `anonymize` clears what is left and writes one more `customer_account.anonymized` entry. That entry's `stateBefore.anonymizedAt` is the original anonymization time, where the first scrub's is `null`; `hadBlockReason` and `customFieldKeys` say what was left. It keeps `anonymizedAt` and does not announce `customer_account.anonymized.v1` again. A personal organization with a reason left is finished whenever the sweep reaches its account.
+
+  The `customers` module page now describes this, and says that audit entries written earlier keep the reason they recorded until #844 ships.
+
+- 58a1632: The retention sweep erases the anonymised customer's audit history in place, through the platform's `auditRedactionService` (issue #844). This covers the rows about the account, and for an individual also the rows about their personal Organization, every address of it (deleted ones included) and the account's rows in the retired personal address book. Keys, ids, timestamps, codes, actions, actors and times stay. Personal values, free text and every custom-field value become `"[erased]"`, and so do the IP address and user agent on the rows the customer wrote for themselves. One `audit.redacted` entry is written per subject. The step runs after the organisation and address scrubs and before the account's own scrub, so an interrupted run is finished by the next one. `CustomerDeletionService` takes the history step's dependencies as a ninth constructor argument, and the module reads `auditRedactionService` off its cradle.
+- 76d89ab: The daily anonymization sweep no longer enters the system scope when no account is due, so an idle instance stops writing one `tenant.escape_hatch` audit row a day (issue #857).
+
+  - `CustomerAccountLifecycleWritePort` gains `hasDueForAnonymization(cutoff): Promise<boolean>`: whether `listDueForAnonymization(cutoff)` would list anything, answered yes or no over the same predicate. An implementation of the port outside this repository must add it.
+  - The sweep tick reads `customers.deletion_retention_days` and asks that question before it enters its scope. A question that fails counts as yes, so the sweep then runs as before.
+  - `CustomerAccountLifecycleWritePort.anonymize` locks the account row before it checks `anonymizedAt`, so two overlapping sweep runs anonymize an account once, with one `customer_account.anonymized` audit entry and one `customer_account.anonymized.v1` event.
+
+- ca120cc: Every settings group a module declares now has a translated heading on the Settings screen (#884). Each module's bundle gains `settingGroups.<group code>.name` in English and Polish, so a Polish operator no longer reads group headings such as _Orders_, _Carts_ or _Security / MFA_ in English. `@endora-commerce/mod-admin-notifications` and `@endora-commerce/mod-shipments` ship translation bundles for the first time: their manifests declare `i18n: { bundlesDir: 'i18n' }` and their tarballs carry `i18n/`.
+- c34b405: The retention sweep now erases the reasons operators and approvers gave for rejecting the anonymised account's carts, through `carts`' `cartAnonymizationPort`, before the account's own scrub, so an interrupted run is finished by the next one (issue #920). `CustomerDeletionService` takes the port as a ninth constructor argument, and `CustomersModuleOptions` gains `cartAnonymizationPort`.
+- 5af8c25: The customer anonymization sweep now finishes every subject an earlier scrub rule left incomplete (issue #923), not only the accounts never anonymized. Until now it picked its work by account, so a personal organization anonymized before the scrub covered its legal name, order-confirmation e-mails, custom field values or block and rejection reasons kept them for good once its account was done.
+
+  `PersonalOrganizationPort` gains `listIncompletelyScrubbed(): Promise<string[]>`: the ids of the personal organizations that carry the scrub's name but not all of the current scrub. It reads only the `organizations` table, ignores the retention cutoff, and agrees field by field with the check `anonymizeIfOrphaned` makes before it writes. An implementation or a test fake of the port must add the method.
+
+  `PersonalOrganizationPort` also gains `hasIncompletelyScrubbed(): Promise<boolean>`, the same rows as a yes-or-no question. The sweep's scheduled tick asks it, outside any tenant scope, when no account is due, so a tick with only organization-side work left is not skipped as idle. If that question fails, the tick runs anyway. An implementation or a test fake of the port must add it too.
+
+  Each sweep run now works through the accounts due for anonymization, then the anonymized member of every organization that method lists, each subject once, through the unchanged cascade. Finishing a subject writes one audit entry for each record it changes, keeps the account's `anonymizedAt` and the organization's `deletedAt`, and announces nothing: no second `customer_account.anonymized.v1`, so Forms does not erase the customer's entries a second time. The next run then finds nothing to do. The count `AnonymizationSweepWorker.sweep()` returns is now the number of subjects processed, finished ones included.
+
+  The `customers` module page now describes this.
+
+- 48f055e: The retention sweep now blanks every row of the anonymised account in the retired personal address book (`customer_addresses`), whether the retirement job moved it, erased it or refused it, or the customer deleted it; each row is audited `customer_address.anonymized` with `customerAccountId`, `kind` and `wasDeleted` only, and keeps its `deletedAt`, `mergedIntoAddressId` and `mergeRefusal`. It runs for every anonymised account, before the account's own scrub, and writes nothing on a repeat run (issue #927). `CustomerDeletionService` takes the retired book as a ninth constructor argument.
+- Updated dependencies [18cce2e]
+- Updated dependencies [18cce2e]
+- Updated dependencies [9cfb28b]
+- Updated dependencies [a206da9]
+- Updated dependencies [34485ae]
+- Updated dependencies [34485ae]
+- Updated dependencies [0f1717c]
+- Updated dependencies [86e8761]
+- Updated dependencies [9bfb0b8]
+- Updated dependencies [ed5cf6a]
+- Updated dependencies [2da23d2]
+- Updated dependencies [2da23d2]
+- Updated dependencies [9d9c8df]
+- Updated dependencies [9d9c8df]
+- Updated dependencies [9d9c8df]
+- Updated dependencies [9d9c8df]
+- Updated dependencies [5303aab]
+- Updated dependencies [16f85f4]
+- Updated dependencies [270aa2b]
+- Updated dependencies [3f020ba]
+- Updated dependencies [3f020ba]
+- Updated dependencies [b59e5d5]
+- Updated dependencies [b59e5d5]
+- Updated dependencies [bf1cc2d]
+- Updated dependencies [ff60e93]
+- Updated dependencies [6f19230]
+- Updated dependencies [77b8c37]
+- Updated dependencies [65104b8]
+- Updated dependencies [7acaa33]
+- Updated dependencies [7019c71]
+- Updated dependencies [4eee98b]
+- Updated dependencies [14ac256]
+- Updated dependencies [248bf1b]
+- Updated dependencies [b2db8c3]
+- Updated dependencies [4cf529d]
+- Updated dependencies [5e4dd48]
+- Updated dependencies [75b053f]
+- Updated dependencies [54fc8f1]
+- Updated dependencies [dac5795]
+- Updated dependencies [5bbb389]
+- Updated dependencies [d69e765]
+- Updated dependencies [dbc1cef]
+- Updated dependencies [d69e765]
+- Updated dependencies [a6bc891]
+- Updated dependencies [8ad737c]
+- Updated dependencies [a9398c8]
+- Updated dependencies [0b56038]
+- Updated dependencies [717e4c6]
+- Updated dependencies [cea1470]
+- Updated dependencies [cea1470]
+- Updated dependencies [d46d414]
+- Updated dependencies [73e2eec]
+- Updated dependencies [29d7e90]
+- Updated dependencies [7f2fa6e]
+- Updated dependencies [57145f7]
+- Updated dependencies [58a1632]
+- Updated dependencies [e46d233]
+- Updated dependencies [e46d233]
+- Updated dependencies [58a1632]
+- Updated dependencies [b476f44]
+- Updated dependencies [14fe4fb]
+- Updated dependencies [76d89ab]
+- Updated dependencies [5cbffb9]
+- Updated dependencies [6bd2ab7]
+- Updated dependencies [a3502c0]
+- Updated dependencies [7a73cc8]
+- Updated dependencies [5ff8302]
+- Updated dependencies [fc7db4c]
+- Updated dependencies [c34b405]
+- Updated dependencies [5af8c25]
+- Updated dependencies [48f055e]
+- Updated dependencies [bf50b85]
+- Updated dependencies [2c6fba0]
+- Updated dependencies [0801f69]
+- Updated dependencies [d1c0d13]
+- Updated dependencies [6d1d284]
+- Updated dependencies [974be57]
+- Updated dependencies [99c075e]
+- Updated dependencies [32b4d0c]
+- Updated dependencies [3355e60]
+- Updated dependencies [7ce9b8a]
+  - @endora-commerce/contracts@0.110.0
+  - @endora-commerce/platform@0.110.0
+  - @endora-commerce/admin-kit@0.110.0
+
 ## 0.109.0
 
 ### Minor Changes
