@@ -189,6 +189,9 @@ describe('GET /assets/file/:assetId — response headers by stored type', () => 
     });
     expect(r.statusCode).toBe(304);
     expect(r.headers['x-content-type-options']).toBe('nosniff');
+    // The browser merges a 304's headers into the cached response: without this
+    // the host's default `same-origin` replaces the 200's and blocks the embed.
+    expect(r.headers['cross-origin-resource-policy']).toBe('cross-origin');
   });
 });
 
@@ -322,5 +325,6 @@ describe('GET /assets/file — permalinks and the private answer by form (featur
     expect(conditional.statusCode).toBe(304);
     expect(conditional.headers['content-security-policy']).toBe(byId.headers['content-security-policy']);
     expect(conditional.headers['x-content-type-options']).toBe('nosniff');
+    expect(conditional.headers['cross-origin-resource-policy']).toBe('cross-origin');
   });
 });

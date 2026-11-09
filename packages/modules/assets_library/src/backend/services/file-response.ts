@@ -109,6 +109,10 @@ function serve(row: FileRow, request: FileRequest, cacheControl: string): FileDe
     'Cache-Control': cacheControl,
     ETag: etag,
   };
+  // Public files are embedded cross-origin by the storefront and the admin. On
+  // the 304 too: the browser merges its headers into the cached response, and
+  // the host's default `same-origin` would replace the 200's and block the embed.
+  if (row.visibility === 'public') shared['Cross-Origin-Resource-Policy'] = 'cross-origin';
   if (ifNoneMatchHits(request.ifNoneMatch, etag)) {
     return { status: 304, headers: shared, body: 'none' };
   }
@@ -120,8 +124,6 @@ function serve(row: FileRow, request: FileRequest, cacheControl: string): FileDe
   };
   // A stale or legacy `0` would tell the browser the body is empty.
   if (Number(row.sizeBytes) > 0) headers['Content-Length'] = String(row.sizeBytes);
-  // Public files are embedded cross-origin by the storefront and the admin.
-  if (row.visibility === 'public') headers['Cross-Origin-Resource-Policy'] = 'cross-origin';
   return { status: 200, headers, body: 'stream' };
 }
 

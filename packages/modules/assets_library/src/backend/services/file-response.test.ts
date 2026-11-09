@@ -95,6 +95,9 @@ describe('decideFileResponse — private with a valid signature', () => {
     expect(d.status).toBe(200);
     expect(d.headers['Cache-Control']).toBe('private, no-store, max-age=0');
     expect(d.headers).not.toHaveProperty('Cross-Origin-Resource-Policy');
+    const conditional = decide({ row: row({ visibility: 'private' }), signatureValid: true, ifNoneMatch: `"${ID}-${CV}"` });
+    expect(conditional.status).toBe(304);
+    expect(conditional.headers).not.toHaveProperty('Cross-Origin-Resource-Policy');
   });
 
   it.each(['s3', 'gcs'] as const)('%s → 302 to the time-limited URL, no-store', (backend) => {
@@ -140,6 +143,7 @@ describe('decideFileResponse — public, local', () => {
     const conditional = decide({ ifNoneMatch: `"${ID}-${CV}"` });
     expect(conditional.status).toBe(304);
     expect(conditional.headers['Content-Security-Policy']).toBe(SANDBOX_CSP);
+    expect(conditional.headers['Cross-Origin-Resource-Policy']).toBe('cross-origin');
   });
 
   it('current v → immutable for a year', () => {
