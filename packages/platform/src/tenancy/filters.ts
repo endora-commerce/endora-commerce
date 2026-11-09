@@ -4,6 +4,8 @@ import {
   MissingTenantContextError,
   noteOrganizationAttributionRefusal,
   throwIfScopeUnresolved,
+  type ExcludedOrganizationsQuery,
+  type TenantContext,
 } from './tenant-context.js';
 
 /**
@@ -64,8 +66,25 @@ export function orgFilterCond(): Record<string, unknown> {
     case 'allowed-set':
       return { organizationId: { $in: [...(ctx.allowedOrganizationIds ?? [])] } };
     case 'excluded-set':
-      return { organizationId: excludedOrganizationsPredicate(ctx.excludedOrganizationIds ?? []) };
+      // Issue #955 — the row's own column against the owner's uncorrelated
+      // subquery: the one narrow revision of FR-002's "no subquery" (architect
+      // ruling of 2026-11-09, `excluded-predicate.ts`). Still no join, never a
+      // correlated read.
+      return { organizationId: excludedOrganizationsPredicate(excludedQueryOf(ctx)) };
   }
+}
+
+/**
+ * The `excluded-set` context's query (issue #955). `resolveTenantContext`
+ * refuses an `excluding` scope without one; a context built by hand without it
+ * has no predicate to give, so it is refused here too — never read as
+ * "nothing excluded".
+ */
+function excludedQueryOf(ctx: TenantContext): ExcludedOrganizationsQuery {
+  if (ctx.excludedOrganizationsQuery === undefined) {
+    throw new Error('An `excluded-set` tenant context must carry its excludedOrganizationsQuery (issue #955).');
+  }
+  return ctx.excludedOrganizationsQuery;
 }
 
 /**
@@ -153,7 +172,7 @@ export function customerFilterCond(
       // the column compare when the entity carries one, the noted refusal when
       // it does not. A row with no organization is in nobody's reach.
       if (organizationColumn === 'present') {
-        return { [CUSTOMER_ORGANIZATION_KEY]: excludedOrganizationsPredicate(ctx.excludedOrganizationIds ?? []) };
+        return { [CUSTOMER_ORGANIZATION_KEY]: excludedOrganizationsPredicate(excludedQueryOf(ctx)) };
       }
       noteOrganizationAttributionRefusal(ctx);
       return { [CUSTOMER_TENANT_KEY]: { $in: [] } };

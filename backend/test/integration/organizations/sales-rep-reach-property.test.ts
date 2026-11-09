@@ -2,7 +2,8 @@ import { afterAll, beforeAll, describe, expect, it, vi } from 'vitest';
 import type { EntityManager } from '@mikro-orm/postgresql';
 import { randomUUID } from 'node:crypto';
 import type { Command } from '@endora-commerce/platform/commands';
-import { resolveTenantContext, runWithTenantContext } from '@endora-commerce/platform/tenancy';
+import { resolveTenantContext } from '@endora-commerce/platform/composition';
+import { runWithTenantContext } from '../../../src/tenancy/tenant-context.js';
 import {
   AdminUser,
   Organization,
@@ -297,7 +298,7 @@ describe('#305 — canSeeOrganization and the excluded set are one rule', () => 
       const visible = await runWithTenantContext(ctx, async () =>
         h.orm.em.fork().find(QuoteRequestOrgPolicy, { organizationId: { $in: ids } }),
       );
-      const seen = new Set(visible.map((row) => row.organizationId));
+      const seen = new Set(visible.map((row: { organizationId: string }) => row.organizationId));
       return new Set(ids.filter((id) => !seen.has(id)));
     }
 

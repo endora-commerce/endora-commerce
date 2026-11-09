@@ -2,13 +2,9 @@ import { afterAll, beforeAll, describe, expect, it } from 'vitest';
 import { randomUUID } from 'node:crypto';
 import pg from 'pg';
 import { EntitySchema, MikroORM, RawQueryFragment } from '@mikro-orm/postgresql';
-import {
-  orgScopeSql,
-  orgScopeWhere,
-  resolveTenantContext,
-  runWithTenantContext,
-  type TenantContext,
-} from '@endora-commerce/platform/tenancy';
+import { orgScopeSql, orgScopeWhere, type TenantContext } from '@endora-commerce/platform/tenancy';
+import { resolveTenantContext } from '@endora-commerce/platform/composition';
+import { runWithTenantContext } from '../../../src/tenancy/tenant-context.js';
 import { Cart, QuoteRequestOrgPolicy } from '../../helpers/package-entities.js';
 import {
   setupBackendServer,
@@ -18,7 +14,7 @@ import {
 // The filter conds the `@OrgScoped` / `@CustomerScoped` decorators attach, from
 // the same `dist` the harness composes, so the scratch entities below are
 // filtered by exactly the code every real entity is.
-import { customerFilterCond, orgFilterCond } from '../../../../packages/platform/dist/tenancy/filters.js';
+import { customerFilterCond, orgFilterCond } from '../../../src/tenancy/filters.js';
 import { OrganizationTreeService } from '../../../../packages/modules/organizations/src/backend/services/organization-tree-service.js';
 import { SalesRepAssignmentService } from '../../../../packages/modules/organizations/src/backend/services/sales-rep-assignment-service.js';
 import { reachExcludedQuery } from '../../../../packages/modules/organizations/src/backend/services/admin-tenant-scope.js';
@@ -346,7 +342,7 @@ describe('#955 — the reach governor table and the subquery that reads it', () 
       const HolderSchema = new EntitySchema<Holder>({
         class: Holder,
         tableName: 'r955_holder',
-        properties: { id: { type: 'uuid', primary: true }, items: { kind: '1:m', entity: () => Item, mappedBy: 'holder' } },
+        properties: { id: { type: 'uuid', primary: true }, items: { kind: '1:m', entity: () => Item, mappedBy: 'holder' } as never },
       });
       const ItemSchema = new EntitySchema<Item>({
         class: Item,
@@ -370,7 +366,7 @@ describe('#955 — the reach governor table and the subquery that reads it', () 
       });
       orm = await MikroORM.init({
         entities: [HolderSchema, ItemSchema, CartLikeSchema],
-        clientUrl: process.env['DATABASE_URL'],
+        clientUrl: process.env['DATABASE_URL']!,
         allowGlobalContext: true,
         discovery: { warnWhenNoEntities: false },
       });

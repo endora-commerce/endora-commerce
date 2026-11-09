@@ -231,6 +231,38 @@ export class Migration20261109T144721OrganizationsReachGovernor extends Migratio
       `);
     }
 
+    // One representative's reach over the governor table (architect ruling on
+    // #955, Q2), defined once: `organizations_reach_split` answers, for every
+    // governed organization, whether the representative governs it; flat reads
+    // the self-rows — an organization governs itself exactly when it carries an
+    // assignment. `organizations_reach_excluded` is its `not mine` half, which
+    // the tenant filter reads as `col not in (select x from
+    // organizations_reach_excluded(rep, rollup) as x)`; `reachOf` reads the
+    // split in one scan for both of its lists, so the list and the filter
+    // cannot drift. Both are `language sql`, `stable`, no `SET`, not
+    // `security definer`: the conditions for PostgreSQL to inline them (the
+    // excluded set plans as a hashed anti join, the filter as a hashed
+    // SubPlan) rather than run an opaque Function Scan.
+    this.addSql(`
+      create or replace function "organizations_reach_split"(p_admin_user_id uuid, p_rollup boolean)
+      returns table ("organization_id" uuid, "mine" boolean) language sql stable parallel safe as $$
+        select g."organization_id", m."organization_id" is not null
+          from "organization_reach_governor" g
+          left join (
+            select distinct a."organization_id"
+              from "organization_sales_rep_assignments" a
+             where a."admin_user_id" = p_admin_user_id
+          ) m on m."organization_id" = g."governor_id"
+         where p_rollup or g."governor_id" = g."organization_id"
+      $$;
+    `);
+    this.addSql(`
+      create or replace function "organizations_reach_excluded"(p_admin_user_id uuid, p_rollup boolean)
+      returns setof uuid language sql stable parallel safe as $$
+        select s."organization_id" from "organizations_reach_split"(p_admin_user_id, p_rollup) s where not s."mine"
+      $$;
+    `);
+
     // The backfill: the same function, over everything.
     this.addSql(`select "organizations_reach_governor_rebuild"(null);`);
   }
@@ -239,6 +271,8 @@ export class Migration20261109T144721OrganizationsReachGovernor extends Migratio
     for (const [name, table] of [...STATEMENT_TRIGGERS, ...TRUNCATE_TRIGGERS]) {
       this.addSql(`drop trigger if exists "${name}" on "${table}";`);
     }
+    this.addSql(`drop function if exists "organizations_reach_excluded"(uuid, boolean);`);
+    this.addSql(`drop function if exists "organizations_reach_split"(uuid, boolean);`);
     this.addSql(`drop function if exists "organizations_reach_governor_on_truncate"();`);
     this.addSql(`drop function if exists "organizations_reach_governor_on_organizations"();`);
     this.addSql(`drop function if exists "organizations_reach_governor_on_assignments"();`);

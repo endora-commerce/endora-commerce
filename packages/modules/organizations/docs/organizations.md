@@ -466,6 +466,12 @@ so it is a migration of `name_search`, not an edit.
   and adds the triggers on `organizations` and `organization_sales_rep_assignments` that keep it
   current in the writing transaction (see "Sales-rep ownership" above).
 
+  **Restoring data with triggers disabled.** A data-only restore run with
+  `pg_restore --disable-triggers` (or anything else that writes these two tables with
+  their triggers off) leaves `organization_reach_governor` stale, and a stale row
+  widens a sales representative's reach. Run
+  `select organizations_reach_governor_rebuild(null);` afterwards.
+
 ### Personal organizations (B2C)
 
 The Organization is the platform's single tenant concept. A B2C /

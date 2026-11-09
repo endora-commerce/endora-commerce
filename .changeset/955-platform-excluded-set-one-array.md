@@ -1,5 +1,8 @@
 ---
-'@endora-commerce/platform': patch
+'@endora-commerce/platform': minor
+'@endora-commerce/contracts': minor
 ---
 
-The `excluded-set` tenant filter, and `orgScopeWhere(field)` on its `excluded` arm, now carry the excluded organizations as **one** array parameter — `organization_id <> all(?::uuid[])` — instead of one parameter per id (issue #955). The where fragment is `{ [field]: { $ne: raw('all(?::uuid[])', ['{…}']) } }` (was `{ [field]: { $ne: null, $nin: [...] } }`); an empty list is still `{ [field]: { $ne: null } }`. It matches exactly the rows the `$nin` form did — a null organization never matches — and survives `populate`, `count`, forks and transactions the same way. Code that only passes the fragment to the entity manager needs no change; code that inspected its `$nin` key must not.
+The `excluded-set` tenant filter no longer ships the excluded organizations into each statement (issue #955, architect ruling of 2026-11-09). `AdminTenantScope`'s `excluding` member (`@endora-commerce/contracts`) gains a required `excludedOrganizationsQuery: { sql, params }` — the owner's uncorrelated `SELECT` of one uuid column — and `AdminScopeInput`, `TenantContext` and `OrgConstraint`'s `excluded` arm (`@endora-commerce/platform/tenancy`) carry it. An `excluding` scope or an `excluded` constraint without it is refused (`resolveTenantContext`, `orgConstraintFor`, `orgConstraintForAdminScope` throw), never read as "nothing excluded".
+
+Both global filters and `orgScopeWhere(field)` render it as `{ [field]: { $ne: null, $nin: <query builder> } }` — `field is not null and field not in (<S>)` (was `{ [field]: { $ne: null, $nin: [...ids] } }`); `orgScopeSql(column)` renders `(column is not null and column not in (<S>))` with S's parameters (was `column <> all(?::uuid[])` with one array literal). Code that passes these fragments to the entity manager or into SQL needs no change; a test that builds an `excluded` constraint by hand must add the query.

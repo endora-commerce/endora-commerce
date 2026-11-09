@@ -438,6 +438,12 @@ edycji.
   `organization_sales_rep_assignments`, które utrzymują ją aktualną w transakcji zapisu (zobacz „Przypisanie
   handlowców” wyżej).
 
+  **Odtwarzanie danych z wyłączonymi wyzwalaczami.** Odtworzenie samych danych przez
+  `pg_restore --disable-triggers` (albo każdy inny zapis tych dwóch tabel przy wyłączonych
+  wyzwalaczach) pozostawia `organization_reach_governor` nieaktualną, a nieaktualny wiersz poszerza
+  zasięg przedstawiciela handlowego. Po odtworzeniu uruchom
+  `select organizations_reach_governor_rebuild(null);`.
+
 ### Organizacje prywatne (B2C)
 
 Organizacja jest jedynym pojęciem tenanta w platformie. Klient B2C, czyli osoba fizyczna, **nie** jest

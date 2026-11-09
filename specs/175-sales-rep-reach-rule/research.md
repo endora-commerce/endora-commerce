@@ -204,6 +204,75 @@ architect.
    redundant one halves that cost; it does not reach 1.5× alone.
 3. The trigger-based maintenance above, in place of per-Command calls.
 
+## R-6. The architect's ruling on #955 (2026-11-09), implemented
+
+### Q1 — trigger maintenance accepted; its known costs
+
+- **Serialisation.** The maintenance takes one platform-wide transaction-scoped advisory lock,
+  so every assignment write, organization insert and path change serialises from its triggering
+  statement until its transaction commits. An update that changes no path takes no lock
+  (`v_changed is null`). Registration runs at human speed; a parallel bulk organization import
+  serialises. A lock keyed by tree root is a possible follow-up, on a measurement only: its
+  correctness under unreadable paths and orphan assignments is subtle, and a wrong key widens reach.
+- **Deadlocks.** The advisory lock can invert order against row locks the same transaction already
+  holds; PostgreSQL detects that and aborts one side. Accepted.
+- **Proven, not only argued.** `test/integration/organizations/reach-governor-maintenance.test.ts`
+  races an assignment on X against a create, and against a move, of D under X on two real
+  connections, in both commit orders; D stays governed by X and a roll-up representative other
+  than the assignee does not reach it. The same file asserts all eight triggers exist with
+  `tgenabled = 'O'`. The property test now also assigns through the Command Bus, undoes it (the
+  inverse write) and runs a Command that fails after its write.
+
+### Q2 — the subquery, and the spelling that survived
+
+The two property-keyed spellings the ruling named, in order:
+
+1. `{ organizationId: { $ne: null, $nin: <knex query builder over S> } }` — **passed the whole
+   matrix** (spike on scratch entities, then the integration file above on
+   `quote_request_org_policies`, `Cart` and scratch entities filtered by the platform's own conds):
+   `find`, `count`, `findAndCount`, `findByCursor`, joined and select-in `populate`,
+   `Collection.init`, fork, `transactional`, `nativeUpdate`, `nativeDelete`, a filter merged with a
+   `where` on the same column (`=`, `$ne`, `$nin`), a genuinely empty S with an organization-less
+   row, and MikroORM's raw-fragment cache unchanged over 1 000 statements. It renders
+   `col is not null and col not in (select * from (S) as "reach_excluded")` in the main query and
+   in a joined populate's `on` clause alike. The builder comes from a connection-less knex
+   instance, so `orgScopeWhere` stays pure.
+2. `{ $not: { organizationId: { $in: … } } }` — not needed; in the spike it failed in a joined
+   populate (`'[object Object]'` rendered into the `on` clause) and in a `where` on a relation.
+
+`organizations_reach_excluded(admin_user_id, rollup)` is `language sql stable`: inlined, it plans
+as a hashed anti join over the governor table (1.4 ms roll-up, 2.4 ms flat at the perf seed), and
+the filtered statement as a hashed SubPlan — pinned by an `EXPLAIN` assertion on
+`customer_accounts` and `orders`. It is the `not mine` half of `organizations_reach_split`, which `reachOf` reads in one scan for both of its lists.
+
+### Q3 — the orders list carries the reach once
+
+`orderListScopeFor()` with no argument answers `where: {}`; the perf file asserts that every
+`orders` and `customer_accounts` statement of a representative's list names
+`organizations_reach_excluded` exactly once.
+
+### Result after Phase 1 and Q3 (2026-11-09)
+
+Perf seed as R-3, `sales-rep-reach.perf.test.ts`, each run started only once the load average
+had fallen below 8 (the host was shared with two other agents; a run that spiked to 24 mid-way is
+discarded). p95:
+
+| Measurement | Budget | Run A (load 6.9 → 4.3) | Run B (load 4.3 → 3.6) |
+| --- | --- | --- | --- |
+| `reachOf`, flat | 5 ms | 3.1 ms | 4.9 ms |
+| `reachOf`, roll-up | 5 ms | 4.5 ms | 4.9 ms |
+| customers list, rep vs admin | ≤ 1.5× | 23.1 vs 15.4 ms (**1.50×**) | 27.5 vs 18.8 ms (**1.46×**) |
+| orders list, rep vs admin | ≤ 1.5× | 21.3 vs 14.7 ms (**1.45×**) | 24.6 vs 11.9 ms (**2.07×**) |
+
+The reach meets its budget (both lists now come from one scan of
+`organizations_reach_split`, of which `organizations_reach_excluded` is the `not mine` half). The
+lists are **at the threshold, not reliably under it**: three of four ratios pass, one does not, so
+the 1.5× assertion keeps its `it.fails` marker and its threshold. What remains on a list request
+is the reach statement the scope hook still runs on every admin request (~3–5 ms, about a third of
+the platform administrator's whole orders request) — Phase 2 of the ruling, which removes it from
+the hot path, is a breaking platform-API change and waits for the owner. The reach budget is still
+to be re-measured on a quiet host (load < 2) before the release.
+
 ## R-4. Choices the design left open
 
 - **Consumers that took an `AdminTenantScope` of another administrator** (`crm` assignee and

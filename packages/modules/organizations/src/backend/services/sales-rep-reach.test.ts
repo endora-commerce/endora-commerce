@@ -13,20 +13,22 @@ const id = (n: number): string => `00000000-0000-4000-8000-${String(n).padStart(
 
 describe('reachFromAggregate', () => {
   it('splits both lists', () => {
-    expect(reachFromAggregate({ excluded: `${id(1)},${id(2)}`, assigned: id(3) })).toEqual({
+    expect(reachFromAggregate({ excluded: `${id(1)},${id(2)}`, assigned: id(3) }, true)).toEqual({
       excludedOrganizationIds: [id(1), id(2)],
       assignedOrganizationIds: [id(3)],
+      rollup: true,
     });
   });
 
   it('an empty aggregate is SQL null and reads as an empty list — nobody else governs anything', () => {
-    expect(reachFromAggregate({ excluded: null, assigned: null })).toEqual({
+    expect(reachFromAggregate({ excluded: null, assigned: null }, false)).toEqual({
       excludedOrganizationIds: [],
       assignedOrganizationIds: [],
+      rollup: false,
     });
   });
 
   it('no row at all reads as the same empty answer', () => {
-    expect(reachFromAggregate(undefined)).toEqual({ excludedOrganizationIds: [], assignedOrganizationIds: [] });
+    expect(reachFromAggregate(undefined, false)).toEqual({ excludedOrganizationIds: [], assignedOrganizationIds: [], rollup: false });
   });
 });

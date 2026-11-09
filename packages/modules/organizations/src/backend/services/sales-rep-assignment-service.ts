@@ -148,49 +148,34 @@ export class SalesRepAssignmentService implements SalesRepAssignmentPort {
     // An id that is not uuid-shaped is nobody's: bound as null, it matches no row.
     const rep = isUuidShape(adminUserId) ? adminUserId : null;
     const rollup = this.subtree !== undefined && (await this.subtree.hasRollupCapability(adminUserId));
-    if (!rollup) {
-      // Flat: an organization is governed by its own assignment rows. Those are
-      // exactly the governor table's self-rows — every assigned organization
-      // is the first link of its own chain, and no other row names itself — so
-      // flat reads the same maintained table, without a `group by` over every
-      // assignment.
-      const rows = (await em.execute(
-        `with "mine" as materialized (
-           select distinct "organization_id" from "organization_sales_rep_assignments" where "admin_user_id" = ?::uuid
-         )
-         select string_agg("g"."organization_id"::text, ',') filter (where "m"."organization_id" is null) as "excluded",
-                string_agg("g"."organization_id"::text, ',') filter (where "m"."organization_id" is not null) as "assigned"
-           from "organization_reach_governor" "g"
-           left join "mine" "m" on "m"."organization_id" = "g"."organization_id"
-          where "g"."organization_id" = "g"."governor_id"`,
-        [rep],
-      )) as ReachAggregateRow[];
-      return reachFromAggregate(rows[0]);
-    }
-    // Roll-up (issue #955): one scan of the materialised governor table — each
-    // organization's nearest ancestor-or-self carrying an assignment, read off
-    // its own path, maintained in the transaction of every write that can move
-    // it (migration `20261109T144721`). It used to be one path probe per
-    // governing organization, ~73 ms at 3 000 of them. The third column names
-    // the governing organizations whose own stored path cannot be read: the
-    // `materialized` CTE pins it to a scan of a partial index that is empty
-    // unless the data is damaged (left to itself the planner probed that index
-    // once per assignment, 10 ms at 3 000).
+    // Issue #955 (architect ruling, Q2) — both lists come from
+    // `organizations_reach_split`, in one scan; the tenant filter's subquery
+    // reads `organizations_reach_excluded`, which is that split's `not mine`
+    // half, so the list and the filter cannot drift. Both halves read the
+    // materialised governor table (each organization's nearest assigned
+    // ancestor-or-self, maintained in the transaction of every write that can
+    // move it — migration `20261109T144721`); flat reads its self-rows, since an
+    // organization governs itself exactly when it carries an assignment. The
+    // roll-up reach used to be one path probe per governing organization, ~73 ms
+    // at 3 000 of them.
+    //
+    // The third column, roll-up only, names the governing organizations whose
+    // own stored path cannot be read: the `materialized` CTE pins it to a scan
+    // of a partial index that is empty unless the data is damaged (left to
+    // itself the planner probed that index once per assignment, 10 ms at 3 000).
     const rows = (await em.execute(
-      `with "mine" as materialized (
-         select distinct "organization_id" from "organization_sales_rep_assignments" where "admin_user_id" = ?::uuid
-       ), "unreadable" as materialized (
-         select "o"."id" from "organizations" "o" where not "organizations_tree_path_readable"("o"."path", "o"."id")
+      `with "unreadable" as materialized (
+         select "o"."id" from "organizations" "o"
+          where ?::boolean and not "organizations_tree_path_readable"("o"."path", "o"."id")
        )
-       select string_agg("g"."organization_id"::text, ',') filter (where "m"."organization_id" is null) as "excluded",
-              string_agg("g"."organization_id"::text, ',') filter (where "m"."organization_id" is not null) as "assigned",
+       select string_agg("s"."organization_id"::text, ',') filter (where not "s"."mine") as "excluded",
+              string_agg("s"."organization_id"::text, ',') filter (where "s"."mine") as "assigned",
               (select string_agg("u"."id"::text, ',')
                  from "unreadable" "u"
                 where exists (select 1 from "organization_sales_rep_assignments" "a" where "a"."organization_id" = "u"."id")
               ) as "unreadable"
-         from "organization_reach_governor" "g"
-         left join "mine" "m" on "m"."organization_id" = "g"."governor_id"`,
-      [rep],
+         from "organizations_reach_split"(?::uuid, ?::boolean) "s"`,
+      [rollup, rep, rollup],
     )) as Array<ReachAggregateRow & { unreadable: string | null }>;
     const row = rows[0];
     if (row?.unreadable) {
@@ -200,7 +185,7 @@ export class SalesRepAssignmentService implements SalesRepAssignmentPort {
           'the sales-representative reach resolves it by its own assignments and the paths that name it',
       );
     }
-    return reachFromAggregate(row);
+    return reachFromAggregate(row, rollup);
   }
 
   #repsByOrg(rows: readonly OrganizationSalesRepAssignment[]): Map<string, Set<string>> {

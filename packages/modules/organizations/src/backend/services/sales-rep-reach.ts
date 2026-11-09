@@ -31,6 +31,12 @@ export interface SalesRepReach {
   readonly excludedOrganizationIds: string[];
   /** Governed by the representative (roll-up expanded). */
   readonly assignedOrganizationIds: string[];
+  /**
+   * Whether the reach was answered under roll-up (`organizations:rollup`). The
+   * tenant scope passes it to `organizations_reach_excluded`, so the filter's
+   * subquery answers the same question this did (issue #955).
+   */
+  readonly rollup: boolean;
 }
 
 /** The reach statement's one row: each list as `string_agg(id, ',')`, `null` when empty. */
@@ -40,10 +46,11 @@ export interface ReachAggregateRow {
 }
 
 /** Reads the reach statement's row back into the two id lists. */
-export function reachFromAggregate(row: ReachAggregateRow | undefined): SalesRepReach {
+export function reachFromAggregate(row: ReachAggregateRow | undefined, rollup: boolean): SalesRepReach {
   return {
     excludedOrganizationIds: splitIds(row?.excluded),
     assignedOrganizationIds: splitIds(row?.assigned),
+    rollup,
   };
 }
 
