@@ -634,6 +634,9 @@ export async function composeApp(options: ComposeAppOptions): Promise<ComposeApp
   // Feature 054 (Principle XIII) — the Command Bus: the single, guaranteed audit
   // writer for sensitive writes. It forks the scoped EM, runs the write + one
   // audit insert co-transactionally, and dispatches the domain event on commit.
+  // No `getRequestMeta`: the bus reads the request in flight from the ambient
+  // platform scope by default, so an entry carries the same IP, user agent and
+  // request id a direct `auditLogService.record` call takes (issue #997).
   const commandBus = new CommandBus(orm, auditLogService, eventBus);
 
   // Feature 060 — API interceptor registry. Modules register pre/post
