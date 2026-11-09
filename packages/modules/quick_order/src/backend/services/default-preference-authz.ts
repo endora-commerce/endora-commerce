@@ -49,13 +49,8 @@ export function canManagePreference(
       return targetCustomerOrganizationId === actor.organizationId;
 
     case 'salesperson':
-      if (target.scope === 'organization') {
-        return actor.assignedOrganizationIds.includes(target.scopeId);
-      }
-      return (
-        targetCustomerOrganizationId !== null &&
-        actor.assignedOrganizationIds.includes(targetCustomerOrganizationId)
-      );
+      if (target.scope === 'organization') return actor.reaches(target.scopeId);
+      return targetCustomerOrganizationId !== null && actor.reaches(targetCustomerOrganizationId);
 
     default:
       return false;

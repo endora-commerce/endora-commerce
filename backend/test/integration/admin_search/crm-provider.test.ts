@@ -8,6 +8,7 @@ import { createCrmOpportunity } from '../../helpers/seed-crm.js';
 import { withSystemScope } from '../../../src/tenancy/escape-hatch.js';
 import {
   GS_COOKIES,
+  assignToAnotherRepresentative,
   ensureSalesRep,
   providerFor,
   providerQuery,
@@ -25,6 +26,7 @@ import {
 describe('admin global search — Sales Opportunity provider (spec 150)', () => {
   let h: BackendServerHandle;
   let cleanupSalesRep: () => Promise<void>;
+  let cleanupOtherRep: (() => Promise<void>) | undefined;
   const T = runToken();
   const ids: Record<string, string> = {};
   let numbered = { id: '', number: '' };
@@ -56,9 +58,13 @@ describe('admin global search — Sales Opportunity provider (spec 150)', () => 
     await create('scopeB', { title: `SR${T} b`, organizationId: orgs['b'] });
     ids['orgA'] = orgs['a']!;
     cleanupSalesRep = await ensureSalesRep(h, [orgs['a']!], ['crm:read']);
+    // #305 — the other organizations are another representative's: one nobody
+    // is assigned to is in every representative's reach.
+    cleanupOtherRep = await assignToAnotherRepresentative(h, [orgs['b']!, orgs['named']!]);
   });
 
   afterAll(async () => {
+    await cleanupOtherRep?.();
     await cleanupSalesRep?.();
     await teardownBackendServer(h);
   });

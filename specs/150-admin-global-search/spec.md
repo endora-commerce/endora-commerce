@@ -238,10 +238,11 @@ session and confirm that admin's own visibility rules apply.
   permission that type's own admin list requires.
 - **FR-015**: Global search MUST NOT return any record the admin could not find through that record
   type's own admin list, and MUST NOT return records outside the admin's organization scope. No
-  count, hint or label may reveal that hidden records exist. **Exception, by owner decision (Q2):**
-  Organization results follow exactly the visibility of today's Organizations admin list (every
-  non-personal, non-deleted organization, for anyone who may read that list), not the admin's
-  organization scope.
+  count, hint or label may reveal that hidden records exist. Organization results follow exactly
+  the visibility of the Organizations admin list: the organizations the list shows the searching
+  admin, which for a sales representative is the reach rule of `organizations` (amended 2026-11-07
+  by the owner's ruling on issue #305, which superseded the Q2 exception "every non-personal,
+  non-deleted organization, for anyone who may read that list").
 - **FR-015a**: For an admin whose organization scope is restricted, Organization results MUST rank
   the organizations in that scope (their assigned organizations) before all others; within each of
   the two groups the FR-009 ranking applies, and the order MUST be stable (ties broken by the
@@ -360,7 +361,10 @@ session and confirm that admin's own visibility rules apply.
   **not** limited to the admin's scope: they show every organization the admin could see on today's
   Organizations admin list (same visibility rule as that list), but the organizations assigned to
   the admin (in their scope) are ranked **first**, then the rest (FR-015 exception, FR-015a). Every
-  other record type stays scope-limited.
+  other record type stays scope-limited. *Superseded 2026-11-07 by the owner's ruling on issue
+  #305:* there is one reach rule on every surface, and the Organizations list itself narrows to it,
+  so Organization results are the reach — never an organization assigned to another
+  representative. FR-015a's ranking is unchanged.
 - **Q3** — Ignore Polish diacritics on every name field? → **Only organization names** in this
   release (the default was kept; FR-011).
 

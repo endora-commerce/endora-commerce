@@ -143,8 +143,25 @@ describe('admin global search — Quote Request provider (spec 150)', () => {
     expect(found).toEqual(await listed(cookies));
   });
 
-  it('confines the sales representative to the assigned organization', async () => {
-    expect(await searchIds(h, GS_COOKIES.salesRep, `SR${T}`, 'quote_requests.quote_request')).toEqual([ids['scopeA']]);
+  // PR #954, ruling Q3 — the list's own per-organization pass runs only for a
+  // role the tenant filter leaves unrestricted. The custom role keeps being
+  // narrowed by it (issue #957 holds the question whether it should be); the
+  // representative, whom the tenant filter already narrows, gets the same rows.
+  it('narrows the quote request list of a custom role holding rfqs:handle by the assignment rule', async () => {
+    expect(await listed(GS_COOKIES.restricted)).toEqual([ids['scopeB'], ids['scopeC']].sort());
+  });
+
+  it('gives the sales representative the same list rows as before the per-organization pass was skipped for them', async () => {
+    expect(await listed(GS_COOKIES.salesRep)).toEqual([ids['scopeA'], ids['scopeC']].sort());
+  });
+
+  // Issue #305 — one reach rule: the representative reaches their assigned
+  // organization and every organization nobody is assigned to (orgC), never
+  // another's (orgB).
+  it('confines the sales representative to the organizations they reach', async () => {
+    expect((await searchIds(h, GS_COOKIES.salesRep, `SR${T}`, 'quote_requests.quote_request')).sort()).toEqual(
+      [ids['scopeA'], ids['scopeC']].sort(),
+    );
     expect((await searchIds(h, GS_COOKIES.restricted, `SR${T}`, 'quote_requests.quote_request')).sort()).toEqual(
       [ids['scopeB'], ids['scopeC']].sort(),
     );

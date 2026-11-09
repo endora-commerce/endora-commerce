@@ -502,10 +502,8 @@ dla ról z `customers:read`; zmiana wartości wymaga `customers:manage`, a bez n
 jest nieaktywna. Rola, która ma `customers:manage`, ale **nie** ma `customers:read`, nie widzi
 panelu. Opiekun handlowy sięga tylko do organizacji, które może widzieć; każdy inny identyfikator
 dostaje `404`. Organizacja bez przypisanego opiekuna handlowego jest widoczna dla każdego opiekuna
-(zob. *Model widoczności*), więc każdy opiekun może zmienić jej blokadę; samą tę regułę opisuje
-zgłoszenie #305. Nie dotyczy to kont jej klientów: podlegają filtrowi przypisanych
-organizacji, więc żądanie opiekuna o panel konta — odczyt lub zmiana — dostaje `404`, a nadpisania
-tych kont pozostają w gestii administratora platformy. Każda zmiana jest audytowanym zapisem, który zapisuje administratora, organizację
+(zob. *Model widoczności*), więc każdy opiekun może zmienić jej blokadę — a od zgłoszenia #305 także
+nadpisania kont jej klientów: konta podlegają tej samej regule co ich organizacja. Każda zmiana jest audytowanym zapisem, który zapisuje administratora, organizację
 lub konto oraz starą i nową wartość.
 
 **Moduł wyłączony.** Gdy ten moduł jest wyłączony, panele, cztery endpointy administracyjne, odczyt
@@ -522,6 +520,13 @@ skupia w jednym miejscu predykat
 2. W przeciwnym razie administrator widzi organizację wtedy i tylko wtedy, gdy łączy ich wiersz w
    `organization_sales_rep_assignments` LUB organizacja nie ma w tej tabeli żadnych wierszy
    (reguła zastępcza dla organizacji bez opiekuna — taką organizację widzi każdy opiekun handlowy).
+   Z uprawnieniem `organizations:rollup` rozstrzyga zamiast tego najbliższa organizacja w łańcuchu
+   „ona sama i jej organizacje nadrzędne”, która ma jakikolwiek wiersz.
+
+To jedna reguła na wszystkich ekranach (zgłoszenie #305): filtr tenanta, pod którym działa każdy
+odczyt zapytań ofertowych w panelu, jest właśnie tą regułą — każda organizacja oprócz prowadzonych
+przez innego opiekuna — więc lista, szczegóły, historia i wyszukiwarka panelu są zgodne, a zapytania
+organizacji nieprzypisanej każdy opiekun widzi na liście i może otworzyć.
 
 Opiekun handlowy, który wskaże zapytanie ofertowe organizacji, której nie może widzieć, dostaje ten
 sam `404` co dla nieistniejącego identyfikatora, na każdym endpoincie administracyjnym zapytań

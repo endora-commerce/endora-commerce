@@ -4,7 +4,8 @@ import {
   teardownBackendServer,
   type BackendServerHandle,
 } from '../../helpers/test-server.js';
-import { Organization } from '../../helpers/package-entities.js';
+import { randomUUID } from 'node:crypto';
+import { Organization, OrganizationSalesRepAssignment } from '../../helpers/package-entities.js';
 import { withSystemScope } from '../../../src/tenancy/escape-hatch.js';
 import {
   GS_COOKIES,
@@ -21,16 +22,19 @@ import {
  * `specs/150-admin-global-search/` T039 — the Organization provider.
  *
  * Diacritic folding on the name (FR-011), the list's exclusions (personal and
- * deleted organizations), and the **owner's answer to spec Q2** (FR-015a): a
- * sales representative sees exactly the organizations the Organizations list
- * shows them — not only their scope — with the ones assigned to them first,
- * then the rest, each group in the usual ranking and in a stable order.
+ * deleted organizations), and FR-015/FR-015a: a sales representative sees
+ * exactly the organizations the Organizations list shows them — which since
+ * issue #305 (owner ruling 2026-11-07, superseding the answer to spec Q2) is
+ * the reach rule: their own and every unassigned one, never one assigned to
+ * another representative — with the ones assigned to them first, then the
+ * rest, each group in the usual ranking and in a stable order.
  */
 describe('admin global search — Organization provider (spec 150, owner Q2)', () => {
   let h: BackendServerHandle;
   let cleanupSalesRep: () => Promise<void>;
   const T = runToken();
   const ids: Record<string, string> = {};
+  const OTHER_REP_ID = randomUUID();
 
   beforeAll(async () => {
     h = await setupBackendServer();
@@ -52,11 +56,21 @@ describe('admin global search — Organization provider (spec 150, owner Q2)', (
       await seed('other2', { name: `Q2${T} Beta` });
       const later = new Date(Date.now() + 60_000);
       await em.nativeUpdate(Organization, { id: { $in: [ids['other1']!, ids['other2']!] } }, { updatedAt: later });
+      // #305 — assigned to another representative: out of reach, so neither
+      // listed nor found.
+      await seed('foreign', { name: `Q2${T} Foreign` });
+      await em.persistAndFlush(
+        em.create(OrganizationSalesRepAssignment, { organizationId: ids['foreign']!, adminUserId: OTHER_REP_ID }),
+      );
     });
     cleanupSalesRep = await ensureSalesRep(h, [ids['assigned']!], ['customers:read']);
   });
 
   afterAll(async () => {
+    await h
+      ?.em()
+      .getConnection()
+      .execute('delete from organization_sales_rep_assignments where admin_user_id = ?', [OTHER_REP_ID]);
     await cleanupSalesRep?.();
     await teardownBackendServer(h);
   });
@@ -94,10 +108,10 @@ describe('admin global search — Organization provider (spec 150, owner Q2)', (
 
   it('gives a platform admin one group: recency, then id', async () => {
     const found = await searchIds(h, GS_COOKIES.admin, `Q2${T}`, 'organizations.organization');
-    expect(found).toEqual([...byId(ids['other1'], ids['other2']), ids['assigned']]);
+    expect(found).toEqual([...byId(ids['other1'], ids['other2']), ids['foreign'], ids['assigned']]);
   });
 
-  it("shows a sales representative exactly the Organizations list's rows — not only their scope (owner Q2)", async () => {
+  it("shows a sales representative exactly the Organizations list's rows — the reach rule (#305)", async () => {
     const found = await searchIds(h, GS_COOKIES.salesRep, `Q2${T}`, 'organizations.organization');
     const list = await h.app.inject({
       method: 'GET',
@@ -108,6 +122,7 @@ describe('admin global search — Organization provider (spec 150, owner Q2)', (
     const listed = (list.json() as { data: Array<{ id: string }> }).data.map((r) => r.id);
     expect([...found].sort()).toEqual([...listed].sort());
     expect(found).toHaveLength(3);
+    expect(found).not.toContain(ids['foreign']);
   });
 
   it('ranks the assigned organization first, then the rest in a stable order (FR-015a)', async () => {

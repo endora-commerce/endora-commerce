@@ -13,7 +13,7 @@ import {
   type TopOpportunitiesQuery,
 } from '@endora-commerce/contracts';
 import { HttpError } from '@endora-commerce/platform/http';
-import { orgConstraintFor, type OrgConstraint } from '@endora-commerce/platform/tenancy';
+import { orgConstraintFor, orgScopeSql, reachesNoOrganization, type OrgConstraint } from '@endora-commerce/platform/tenancy';
 import { effectiveOpportunityValueSql } from '../domain/effective-value.js';
 import { CrmOpportunity } from '../entities/crm-opportunity.entity.js';
 import type { WorkflowReadService } from './workflow-read-service.js';
@@ -49,22 +49,16 @@ const EFFECTIVE_VALUE = effectiveOpportunityValueSql('o');
  * These are aggregates handed to the connection as SQL, which the entity
  * filter never sees — so the predicate is written here, from the constraint
  * the ambient context implies (`orgConstraintFor`), and from nothing else: a
- * reader who reaches every Organization gets none, a reader confined to a set
- * gets `in (…)` over it, and for a reader who reaches none no statement runs.
+ * reader who reaches every Organization gets none, any other reader gets the
+ * platform's predicate for its reach (`orgScopeSql`; a sales representative's
+ * is every Organization nobody else governs, issue #305), and for a reader who
+ * reaches none no statement runs.
  */
 export function analyticsScopePredicate(scope: OrgConstraint): SqlFragment | null {
   if (scope.kind === 'all') return { sql: '', params: [] };
-  const allowed =
-    scope.kind === 'single'
-      ? scope.organizationId === null
-        ? []
-        : [scope.organizationId]
-      : [...scope.organizationIds];
-  if (allowed.length === 0) return null;
-  return {
-    sql: ` and o."organization_id" in (${allowed.map(() => '?').join(', ')})`,
-    params: allowed,
-  };
+  if (reachesNoOrganization(scope)) return null;
+  const reach = orgScopeSql('o."organization_id"', scope);
+  return { sql: ` and ${reach.sql}`, params: [...reach.params] as string[] };
 }
 
 /**

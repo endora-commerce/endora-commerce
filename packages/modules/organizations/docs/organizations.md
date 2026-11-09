@@ -38,7 +38,7 @@ organization's Administrator role, checked server-side through
 | `POST /api/v1/organizations/mine/addresses` | customer (`addresses.manage`) | Create address |
 | `PATCH /api/v1/organizations/mine/addresses/:id` | customer (`addresses.manage`) | Update |
 | `DELETE /api/v1/organizations/mine/addresses/:id` | customer (`addresses.manage`) | Remove |
-| `GET /api/v1/admin/organizations` | admin | List with `filter[status]` / `filter[vatStatus]` / `q` |
+| `GET /api/v1/admin/organizations` | admin | List with `filter[status]` / `filter[vatStatus]` / `q`. A sales representative sees only the Organizations they reach (see below the table) |
 | `POST /api/v1/admin/organizations` | admin (`customers:manage`) | Create an Organization with its sales channels (see *Sales channels* below) |
 | `GET /api/v1/admin/organizations/sales-channel-options` | admin (`customers:manage`) | The channels the create form offers |
 | `GET /api/v1/admin/organizations/:id/sales-channels` | admin (`customers:read` or `customers:manage`) | The channels assigned to the Organization, and the channels it could be assigned. `404 NOT_FOUND` for an Organization outside a sales representative's reach (see below the table), as for one that does not exist |
@@ -51,7 +51,9 @@ organization's Administrator role, checked server-side through
 | `DELETE /api/v1/admin/organizations/:id/members/:customerAccountId` | admin | Soft-remove member (last-administrator guard) |
 | `POST /api/v1/admin/organizations/:id/recover-admin-access` | admin | Break-glass — give an existing member the Administrator role |
 
-**Which Organizations a sales representative reaches.** Every `/api/v1/admin/organizations/:id` route — reads and writes, the nested ones included — answers a sales representative only for an Organization assigned to them (with `organizations:rollup`, one whose nearest assigned ancestor is theirs), or one no representative is assigned to, such as a registration awaiting approval. Any other Organization — one assigned to another representative — answers `404 NOT_FOUND`, exactly as one that does not exist, and so does an unknown id for every admin. The list is not narrowed: it shows every Organization to any admin who may read it. Any other admin role reaches every Organization.
+**Which Organizations a sales representative reaches.** There is one rule, and every admin surface applies it: a sales representative reaches every Organization that is **not governed by another representative**. An Organization is governed by its own assignments; with `organizations:rollup`, by the nearest Organization on its ancestor-or-self chain that carries any assignment. So a representative reaches the Organizations assigned to them (with roll-up, the subtree below them, minus any branch assigned to somebody else), and every Organization no representative is assigned to — a registration awaiting approval, and every personal (B2C) Organization, which can never be assigned.
+
+The same rule decides every surface: every `/api/v1/admin/organizations/:id` route (reads and writes, the nested ones included), the Organizations list and pickers, admin search, and every tenant-scoped read and write — members, customers, orders, invoices, carts, returns, quote requests and customer-level settings. An Organization outside the reach answers `404 NOT_FOUND`, exactly as one that does not exist, and is absent from every list; an unknown id answers the same for every admin. Any other admin role reaches every Organization. Until issue #305 the tenant-scoped reads followed only the assignments, so an unassigned Organization opened on its screen and showed no members or requests, while the list showed Organizations whose screen then answered `404`.
 
 Configure **`SMTP_URL`** in the backend environment so outbound mail uses SMTP instead of the console logger.
 
@@ -236,9 +238,12 @@ constructor argument, which the `promotions` module wires to
 
 `organization_sales_rep_assignments` (pivot: `(organization_id,
 admin_user_id)`) binds sales reps to organizations. When the
-caller's admin role is `sales_representative`, the admin Orders list
-and RFQ list are filtered to the orgs the rep owns. Platform admins
-see everything.
+caller's admin role is `sales_representative`, every admin surface is
+confined to the Organizations the rep reaches (see *Which Organizations
+a sales representative reaches*): the tenant scope of every admin request
+is "every Organization except those governed by another representative",
+computed once per request from this table. Platform admins see
+everything.
 
 Three endpoints maintain the relation, and this module owns and
 registers all three:
@@ -478,7 +483,9 @@ This means:
 - **Invisible in B2B admin.** Personal orgs are excluded by default from
   the admin org list/pickers, cannot receive a sales rep, and never enter
   the moderation queue (they are created `active`). The admin org list
-  accepts `?includePersonal=true` to surface them when needed.
+  accepts `?includePersonal=true` to surface them when needed. Because no
+  rep can be assigned to one, every sales representative reaches every
+  personal org and its orders, invoices, carts and returns.
 - **Per-channel gate.** Standalone (B2C) registration is controlled per
   sales channel by the `customers.allow_registration_without_organization`
   setting; a B2B-only channel refuses the registration and provisions
@@ -677,4 +684,4 @@ The admin's global search (the command palette, ⌘K / Ctrl+K) finds organizatio
 | Tax ID | yes |
 | Legal name | no |
 
-Names are matched without regard to Polish diacritics, so `lodz` finds *Łódź*. Results are the organizations the Organizations list shows the admin — business organizations that are not deleted — for a role holding `customers:read` or `customers:manage`. For a sales representative the organizations assigned to them are listed first, then the others.
+Names are matched without regard to Polish diacritics, so `lodz` finds *Łódź*. Results are the organizations the Organizations list shows the admin — business organizations that are not deleted — for a role holding `customers:read` or `customers:manage`. For a sales representative that is the Organizations they reach; the ones assigned to them are listed first, then the others.

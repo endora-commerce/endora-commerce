@@ -1,3 +1,4 @@
+import { randomUUID } from 'node:crypto';
 import type { AddressServicePort } from '@endora-commerce/contracts';
 import { Cart } from '../../helpers/package-entities.js';
 import { AdminRole, AdminUser, Organization, OrganizationSalesRepAssignment } from '../../helpers/package-entities.js';
@@ -52,6 +53,7 @@ describe('@CustomerScoped surfaces honour the sales-rep assignment scope', () =>
   let repCookie: string;
   let assignedOrgId: string;
   let foreignOrgId: string;
+  const OTHER_REP_ID = randomUUID();
 
   const carts: Record<string, string> = {};
   const customers: Record<string, string> = {};
@@ -110,12 +112,15 @@ describe('@CustomerScoped surfaces honour the sales-rep assignment scope', () =>
     assignedOrgId = assigned.id;
     foreignOrgId = foreign.id;
 
-    await em.persistAndFlush(
+    await em.persistAndFlush([
       em.create(OrganizationSalesRepAssignment, {
         organizationId: assignedOrgId,
         adminUserId: rep.id,
       }),
-    );
+      // #305 — the foreign organization is another representative's: an
+      // unassigned organization is in every representative's reach.
+      em.create(OrganizationSalesRepAssignment, { organizationId: foreignOrgId, adminUserId: OTHER_REP_ID }),
+    ]);
 
     for (const key of ['own', 'foreign'] as const) {
       const organizationId = key === 'own' ? assignedOrgId : foreignOrgId;
@@ -163,6 +168,7 @@ describe('@CustomerScoped surfaces honour the sales-rep assignment scope', () =>
   });
 
   afterAll(async () => {
+    await h.em().getConnection().execute('delete from organization_sales_rep_assignments where admin_user_id = ?', [OTHER_REP_ID]);
     delete ADMIN_COOKIES[repCookie];
     await teardownBackendServer(h);
   });

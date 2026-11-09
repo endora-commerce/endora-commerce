@@ -23,7 +23,7 @@ import {
   SEED_DELIVERY_METHOD_ID,
   SEED_PAYMENT_METHOD_ID,
 } from '../../helpers/seed-commerce.js';
-import { ADMIN_COOKIES, TEST_CUSTOMER_ID } from '../../helpers/test-actors.js';
+import { ADMIN_COOKIES, TEST_CUSTOMER_ID, TEST_ORGANIZATION_ID } from '../../helpers/test-actors.js';
 import { deepStrict, disagreements } from '../../helpers/strict-schema.js';
 
 const ADMIN = { b2b_session: 'stub-admin-session' };
@@ -44,6 +44,7 @@ interface OrderReply {
  * FR-063, FR-080, FR-081).
  */
 describe('159 — POST /api/v1/admin/orders with line groups [contract]', () => {
+  const OTHER_REP_ID = randomUUID();
   let h: BackendServerHandle;
   let channelId = '';
   const stamp = Date.now();
@@ -118,11 +119,15 @@ describe('159 — POST /api/v1/admin/orders with line groups [contract]', () => 
       });
       await fork.persistAndFlush([org, rep]);
       await fork.persistAndFlush(fork.create(OrganizationSalesRepAssignment, { organizationId: org.id, adminUserId: rep.id }));
+      // #305 — the seeded organization is another representative's: an
+      // unassigned organization is in every representative's reach.
+      await fork.persistAndFlush(fork.create(OrganizationSalesRepAssignment, { organizationId: TEST_ORGANIZATION_ID, adminUserId: OTHER_REP_ID }));
       ADMIN_COOKIES[REP_SESSION] = { adminUserId: rep.id };
     });
   }, 90_000);
 
   afterAll(async () => {
+    await h.em().getConnection().execute('delete from organization_sales_rep_assignments where admin_user_id = ?', [OTHER_REP_ID]);
     delete ADMIN_COOKIES[REP_SESSION];
     await teardownBackendServer(h);
   });
