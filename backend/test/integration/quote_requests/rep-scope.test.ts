@@ -244,6 +244,81 @@ describe('146 — sales representative scope [integration]', () => {
     });
   });
 
+  /**
+   * Issue #957 (product-owner ruling 2026-11-08, option A): only the
+   * `sales_representative` role is reach-scoped. A custom role holding
+   * `rfqs:handle` is platform-wide on the quote-request surfaces, as on every
+   * other one — list, detail and actions alike — including an organization
+   * another representative is assigned to.
+   */
+  it('a custom role holding rfqs:handle reaches the requests of every organization (#957)', async () => {
+    const CUSTOM_SESSION = `stub-957-custom-${stamp}`;
+    const CUSTOM = { b2b_session: CUSTOM_SESSION };
+    await withSystemScope('957: seed a custom rfqs:handle role and its admin', async () => {
+      const em = h.orm.em.fork();
+      const role = em.create(AdminRole, {
+        code: `rfq_desk_957_${stamp}`,
+        name: 'RFQ desk (957)',
+        permissions: ['rfqs:handle'],
+      });
+      await em.persistAndFlush(role);
+      const admin = em.create(AdminUser, {
+        email: `957-custom-${stamp}@scope.local`,
+        passwordHash: 'x'.repeat(60),
+        adminRoleId: role.id,
+        firstName: '957',
+        lastName: 'Custom',
+      });
+      await em.persistAndFlush(admin);
+      ADMIN_COOKIES[CUSTOM_SESSION] = { adminUserId: admin.id };
+    });
+    try {
+      const list = await call('GET', '/api/v1/admin/quote-requests', CUSTOM);
+      expect(list.statusCode, list.body).toBe(200);
+      const listed = new Set((list.json() as { data: Array<{ id: string }> }).data.map((r) => r.id));
+      expect([rfqOwn, rfqForeign, rfqUnassigned].filter((id) => !listed.has(id))).toEqual([]);
+
+      const rows: Record<string, number> = {};
+      for (const [label, id] of [['own', rfqOwn], ['foreign', rfqForeign], ['unassigned', rfqUnassigned]] as const) {
+        rows[`detail ${label}`] = (await call('GET', `/api/v1/admin/quote-requests/${id}`, CUSTOM)).statusCode;
+        rows[`history ${label}`] = (await call('GET', `/api/v1/admin/quote-requests/${id}/history`, CUSTOM)).statusCode;
+      }
+      const assign = await call('POST', `/api/v1/admin/quote-requests/${rfqForeign}/assign`, CUSTOM, {
+        adminUserId: otherRepId,
+      });
+      rows['assign foreign'] = assign.statusCode;
+      const onBehalf = await call('POST', '/api/v1/admin/quote-requests', CUSTOM, {
+        organizationId: orgForeign,
+        customerAccountId: accountForeign,
+        items: [{ productId: SEED_PRODUCT_101_ID, quantity: 2, agreedUnitPrice: 10 }],
+      });
+      rows['create on behalf foreign'] = onBehalf.statusCode;
+      expect(rows, `${assign.body}\n${onBehalf.body}`).toEqual({
+        'detail own': 200,
+        'history own': 200,
+        'detail foreign': 200,
+        'history foreign': 200,
+        'detail unassigned': 200,
+        'history unassigned': 200,
+        'assign foreign': 200,
+        'create on behalf foreign': 201,
+      });
+
+      // The representative's own list is unchanged by the ruling: their own
+      // organization's request and the unassigned one, never the foreign one.
+      const repList = await call('GET', '/api/v1/admin/quote-requests', REP);
+      expect(repList.statusCode, repList.body).toBe(200);
+      const repIds = new Set((repList.json() as { data: Array<{ id: string }> }).data.map((r) => r.id));
+      expect({ own: repIds.has(rfqOwn), unassigned: repIds.has(rfqUnassigned), foreign: repIds.has(rfqForeign) }).toEqual({
+        own: true,
+        unassigned: true,
+        foreign: false,
+      });
+    } finally {
+      delete ADMIN_COOKIES[CUSTOM_SESSION];
+    }
+  });
+
   describe('effectiveFor and an account row that is deleted or missing', () => {
     const POLICY_SERVICE = 'quoteRequestNegotiationPolicyService';
     type Policy = {
