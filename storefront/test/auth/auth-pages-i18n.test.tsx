@@ -11,7 +11,13 @@ import { beforeEach, describe, expect, it, vi } from 'vitest';
 
 const context = { locale: 'en-US' };
 const mfa = {
-  status: { totpActive: false, recoveryCodesRemaining: 0, socialLinks: [] as unknown[] },
+  status: {
+    totpActive: false,
+    recoveryCodesRemaining: 0,
+    canDisable: true,
+    disableBlockedReason: null as 'factor_required' | null,
+    socialLinks: [] as unknown[],
+  },
   recoveryFlash: null as string[] | null,
   setup: null as { secret: string; otpauthUri: string } | null,
 };
@@ -112,7 +118,13 @@ function inBoth(
 
 beforeEach(() => {
   context.locale = 'en-US';
-  mfa.status = { totpActive: false, recoveryCodesRemaining: 0, socialLinks: [] };
+  mfa.status = {
+    totpActive: false,
+    recoveryCodesRemaining: 0,
+    canDisable: true,
+    disableBlockedReason: null,
+    socialLinks: [],
+  };
   mfa.recoveryFlash = null;
   mfa.setup = null;
   verify.fails = false;
