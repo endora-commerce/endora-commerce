@@ -70,9 +70,12 @@ least one content attribute with content. It shows the plain description first,
 then each content attribute in the attribute set's order. No heading or label is
 printed above a document — the document carries its own headings.
 
-Each document is resolved to one language in this order: the visitor's language,
-the sales channel's default language, English, then any language that has
-content. A language whose document holds no block is skipped. The content is the
+Each document is resolved to one language in this order: the visitor's language
+as the sales channel offers it, else the channel's default language; then the
+channel's default language, English, and any language that has content. The
+visitor's language is the first `Accept-Language` entry, by weight, that the
+channel offers (`pl` matches the channel's `pl-PL`); a language the channel does
+not offer is never used, even where a document is stored in it. A language whose document holds no block is skipped. The content is the
 product's, so it is the same whichever variant is selected.
 
 The blocks are drawn by the storefront's Page Builder renderer — the one that

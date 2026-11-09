@@ -439,6 +439,11 @@ verify each outcome below.
 - **FR-033**: Each content document MUST be resolved to one language in this order: the visitor's
   language, the sales channel's default language, English, then any language with content;
   languages with no block are skipped.
+  *Amended 2026-11-09 (issue #397, PR #1010):* "the visitor's language" is the visitor's language
+  as the sales channel offers it, else the channel's default language: the first
+  `Accept-Language` entry in descending `q` that the channel offers, matched exactly then by base
+  language (`pl` → `pl-PL`). A language the channel does not offer is never the visitor's
+  language, even where a document is stored in it. The rest of the order is unchanged.
 - **FR-034**: Content MUST be drawn by the storefront's single Page Builder render boundary, with the
   same blocks, HTML sanitisation and module-presence rule as CMS pages, and MUST be part of the
   server-rendered product page (Principle VII).
