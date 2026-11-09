@@ -13,8 +13,14 @@ import {
 } from '@endora-commerce/contracts';
 import { HttpError } from '@endora-commerce/platform/http';
 import type { SettingsReadPort } from '@endora-commerce/platform/kernel';
-import { getTenantContext, isOrgInScope, orgConstraintFor } from '@endora-commerce/platform/tenancy';
-import type { OrgReach, ProjectViewer } from '../domain/visibility-rule.js';
+import {
+  getTenantContext,
+  isOrgInScope,
+  orgConstraintFor,
+  orgConstraintForAdminScope,
+  orgScopeSql,
+} from '@endora-commerce/platform/tenancy';
+import { orgReachOf, type OrgReach, type ProjectViewer } from '../domain/visibility-rule.js';
 
 /**
  * `ProjectAccess` — **the module's only read path to a Project**
@@ -197,11 +203,13 @@ export function visibleProjectSqlFor(viewer: ProjectViewer, setting: ProjectVisi
     // R-2: at least one Organization, and none out of reach. An empty reach
     // sees no Project at all.
     sql.push(`exists (select 1 from "project_organizations" po_any where po_any."project_id" = p."id")`);
+    // `coalesce`: a predicate that is `NULL` for a row counts as out of reach.
+    const reach = orgScopeSql('po_out."organization_id"', viewer.reach.constraint);
     sql.push(
       `not exists (select 1 from "project_organizations" po_out
-                    where po_out."project_id" = p."id" and not (po_out."organization_id" = any(?::uuid[])))`,
+                    where po_out."project_id" = p."id" and not coalesce(${reach.sql}, false))`,
     );
-    params.push(uuidArray(viewer.reach.organizationIds));
+    params.push(...reach.params);
   }
   if (!viewer.seeAll) {
     // R-3: open to everyone by the effective visibility, or a Member, or listed.
@@ -222,15 +230,7 @@ export function visibleProjectSqlFor(viewer: ProjectViewer, setting: ProjectVisi
 
 /** The reach the ambient tenant context gives the caller — throws without one (fail-closed). */
 export function ambientReach(): OrgReach {
-  const constraint = orgConstraintFor();
-  switch (constraint.kind) {
-    case 'all':
-      return { all: true, organizationIds: new Set() };
-    case 'single':
-      return { all: false, organizationIds: new Set(constraint.organizationId ? [constraint.organizationId] : []) };
-    case 'set':
-      return { all: false, organizationIds: new Set(constraint.organizationIds) };
-  }
+  return orgReachOf(orgConstraintFor());
 }
 
 /** The administrator behind the current request, or `null` for anybody else. */
@@ -548,9 +548,7 @@ export class ProjectAccess {
     const held = await this.deps.permissions.listPermissions(adminUserId);
     if (!holds(held, PROJECTS_READ_PERMISSION)) return false;
     const scope = await this.deps.tenantScopes.resolveForAdmin(adminUserId);
-    const reach: OrgReach = scope.allowAll
-      ? { all: true, organizationIds: new Set() }
-      : { all: false, organizationIds: new Set(scope.allowedOrganizationIds) };
+    const reach: OrgReach = orgReachOf(orgConstraintForAdminScope(scope));
     const visible = visibleProjectSqlFor(
       { adminUserId, canRead: true, seeAll: holds(held, PROJECTS_SEE_ALL_PERMISSION), reach },
       await this.visibilitySetting(),

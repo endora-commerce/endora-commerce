@@ -203,6 +203,38 @@ export async function ensureSalesRep(
   };
 }
 
+/**
+ * Issue #305 — make `organizationIds` another representative's.
+ *
+ * A sales representative reaches every Organization nobody else governs, so an
+ * Organization with no assignment at all is in the global-search
+ * representative's reach. A fixture that means "an Organization outside their
+ * scope" assigns it here, to a representative no admin account is behind.
+ * Returns the cleanup.
+ */
+export const GS_OTHER_REP_ID = '00000000-0000-4000-8000-0000000150a9';
+
+export async function assignToAnotherRepresentative(
+  h: BackendServerHandle,
+  organizationIds: readonly string[],
+): Promise<() => Promise<void>> {
+  await withSystemScope('test seed: global search, another representative', async () => {
+    const em = h.em();
+    for (const organizationId of organizationIds) {
+      const existing = await em.findOne(OrganizationSalesRepAssignment, { adminUserId: GS_OTHER_REP_ID, organizationId });
+      if (!existing) em.create(OrganizationSalesRepAssignment, { adminUserId: GS_OTHER_REP_ID, organizationId });
+    }
+    await em.flush();
+  });
+  return async () => {
+    await withSystemScope('test cleanup: global search, another representative', async () => {
+      const em = h.em();
+      const rows = await em.find(OrganizationSalesRepAssignment, { adminUserId: GS_OTHER_REP_ID });
+      if (rows.length > 0) await em.removeAndFlush(rows);
+    });
+  };
+}
+
 /** An admin on a custom role holding exactly `permissions` (role code per caller, so files do not share it). */
 export async function ensureAdminWithRole(
   h: BackendServerHandle,

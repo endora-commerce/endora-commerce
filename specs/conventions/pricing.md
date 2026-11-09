@@ -103,6 +103,18 @@ Polish.
   never rounded. A **unit price** a person or an integration types — a quote's desired, agreed or
   proposed price — takes `fourDecimalUnitPrice` beside it: more than four places is
   `400 UNIT_PRICE_PRECISION_EXCEEDED`, never rounded.
+- **No applicable tax rule means no VAT, the same amount everywhere.** `taxRateFor` answers
+  `source: 'none'` when no rule and no default apply; that is not a rate, and a configured 0 %
+  (`rule`/`default` with `rate: 0`) is a different, legitimate answer. Every surface prices a
+  `none` line net, so order, quote, cart, the catalogue's `vatRate` and a product feed publish the
+  same amount. Order, quote, cart and catalogue carry it as rate `0` (`createProductTaxRateResolver`
+  in `packages/contracts/src/product-tax-rates.ts`, `orders`/`quote_requests` `resolveTaxRate`),
+  because `vatByRate` needs a number. `product_feeds` carries it as `taxRatePercent: null` — an
+  internal marker that is never written to the file, which has no rate field — so a gross feed
+  raises `zero_tax_rate_on_gross_feed` rather than presenting a net price as gross without a word;
+  a quote likewise drops its VAT row rather than printing 0 %. Never invent a rate for `none`, and
+  never fold the absent `taxes` owner (`MODULE_DISABLED`) into it: that is a failure, and the
+  caller decides what it means.
 - **The precedence is data, read from the active version.** Consumers never encode a cell order;
   the resolver reads `price_list_precedence` through `PrecedenceStore`. A change to presets or
   invariants goes through `validatePrecedence` and keeps `precedence.test.ts` exhaustive. The write

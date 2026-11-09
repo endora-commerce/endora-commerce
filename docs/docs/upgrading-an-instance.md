@@ -4378,6 +4378,76 @@ earlier, by the pull requests that made each change. No instance had been upgrad
 `pnpm run upgrade 0.110.0` when it was written; the order of the steps and the storefront edits are
 untried.
 
+### One sales-representative reach rule on every surface {#sales-rep-reach-one-rule}
+
+The release that ships this change applies one reach rule for sales representatives on every admin
+surface (issue #305). A sales representative reaches every Organization **not governed by another
+representative**: the ones assigned to them (with `organizations:rollup`, their subtrees, the nearest
+assignment winning) and every Organization nobody is assigned to. Until now the Organization screens
+followed that rule while the tenant-scoped reads — members, customers, orders, invoices, carts,
+returns, quote requests — followed only the assignments, and the Organizations list and admin search
+showed every Organization. Two things change for every sales representative:
+
+- **They gain the tenant data of every unassigned Organization**, personal (B2C) Organizations
+  included: no representative can be assigned to a personal Organization, so every representative now
+  reads and acts on every B2C customer's orders, invoices, carts and returns. The owner confirmed this
+  on 2026-11-08.
+- **The Organizations list, its pickers and admin search lose the Organizations assigned to other
+  representatives.** They used to show them, and opening one answered `404`.
+
+Nothing is migrated and nothing needs configuring; platform administrators see no change.
+
+**After upgrading:**
+
+1. **See what changes for each representative.** Run this read-only query. Per sales representative,
+   `gains_tenant_data_of` counts the Organizations whose members, orders, invoices, carts, returns and
+   quote requests they now reach (`of_which_personal` of them B2C), and `leaves_list_and_search` the
+   business Organizations the list and admin search no longer show them:
+
+   ```sql
+   with reps as (
+     select au.id, au.email,
+            (ar.permissions ? 'organizations:rollup' or ar.permissions ? '*') as rollup
+     from admin_users au
+     join admin_roles ar on ar.id = au.admin_role_id
+     where ar.code = 'sales_representative' and au.deleted_at is null
+   ),
+   gov as (
+     select a.organization_id as id, o.path, array_agg(a.admin_user_id) as reps
+     from organization_sales_rep_assignments a
+     join organizations o on o.id = a.organization_id
+     group by a.organization_id, o.path
+   ),
+   orgs as (
+     select o.id, o.is_personal,
+            (select g.reps from gov g where g.id = o.id) as own_reps,
+            (select g.reps from gov g
+              where o.path like g.path || '%'
+              order by length(g.path) desc limit 1) as nearest_reps
+     from organizations o
+     where o.deleted_at is null
+   ),
+   decided as (
+     select r.email, o.is_personal,
+            case when r.rollup then o.nearest_reps else o.own_reps end as governed_by,
+            r.id as rep_id
+     from reps r cross join orgs o
+   )
+   select email as sales_representative,
+          count(*) filter (where governed_by is null) as gains_tenant_data_of,
+          count(*) filter (where governed_by is null and is_personal) as of_which_personal,
+          count(*) filter (where governed_by is not null and not is_personal
+                             and not (rep_id = any (governed_by))) as leaves_list_and_search
+   from decided
+   group by email
+   order by email;
+   ```
+
+2. **If a representative must not reach an unassigned Organization**, assign it to the
+   representative who looks after it: it is then governed, and every other representative loses it.
+   A personal Organization cannot be assigned; keeping B2C data from representatives would be a
+   different rule, and is not configurable.
+
 ### Customer two-step verification requirements without an encryption key {#customer-two-step-without-key}
 
 The release that ships this change extends to the customer requirements what

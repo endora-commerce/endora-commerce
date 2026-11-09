@@ -66,23 +66,24 @@ describe('customers — the moderation actor it defaults', () => {
     await expect(resolve(requestWith({ kind: 'admin', adminUserId: 'admin-1' }))).resolves.toEqual({
       adminUserId: 'admin-1',
       isPlatformAdmin: true,
-      allowedOrganizationIds: [],
     });
   });
 
-  it('scopes a sales representative to the organizations the assignment port lists', async () => {
+  // Issue #305 — what a sales representative reaches is the ambient tenant
+  // context's, derived by `organizations`' one reach rule; this says only that
+  // the reach is scoped.
+  it('reads a sales representative as scoped, and asks the assignment port nothing', async () => {
     const resolve = resolverOver({
       adminUserReadPort: { findById: () => Promise.resolve({ adminRoleId: 'role-2' }) },
       adminRolePort: { getById: () => Promise.resolve({ code: 'sales_representative' }) },
       organizationSalesRepScopePort: {
-        listAssignedOrganizationIds: () => Promise.resolve(['org-1', 'org-2']),
+        listAssignedOrganizationIds: () => Promise.reject(new Error('not asked')),
       },
     });
 
     await expect(resolve(requestWith({ kind: 'admin', adminUserId: 'rep-1' }))).resolves.toEqual({
       adminUserId: 'rep-1',
       isPlatformAdmin: false,
-      allowedOrganizationIds: ['org-1', 'org-2'],
     });
   });
 

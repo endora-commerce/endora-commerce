@@ -34,11 +34,11 @@ import { assignOrganizationRole, predefinedRoleIdOf } from '../../helpers/seed-o
  * (`SalesRepAssignmentPort.canSeeOrganization`), per the architect's ruling on
  * PR #847: an Organization assigned to the representative — under
  * `organizations:rollup`, one whose nearest assigned ancestor is theirs — **or
- * one nobody is assigned to** (owner ruling D-3W; which rule is the platform's
- * is issue #305). A pending registration is unassigned by construction, so a
- * representative still moderates it (D-87). The list is unchanged: it shows
- * every Organization (spec 150 owner Q2). A platform administrator reaches
- * every Organization, and gets the same 404 for an unknown id on every route.
+ * one nobody is assigned to** (owner ruling D-3W). A pending registration is
+ * unassigned by construction, so a representative still moderates it (D-87).
+ * Since issue #305 (owner ruling 2026-11-07) the list narrows to the same rule,
+ * so no row of it opens a 404. A platform administrator reaches every
+ * Organization, and gets the same 404 for an unknown id on every route.
  */
 describe('admin Organization routes — the administrator’s reach (#698)', () => {
   let h: BackendServerHandle;
@@ -179,10 +179,13 @@ describe('admin Organization routes — the administrator’s reach (#698)', () 
     await teardownBackendServer(h);
   });
 
-  describe('the list (unchanged, spec 150 owner Q2)', () => {
-    it('holds every Organization for a sales representative', async () => {
+  // Issue #305, owner ruling 2026-11-07 — the list narrows to the reach rule
+  // the `/:id` routes answer by. It used to hold every Organization (spec 150
+  // owner Q2, superseded), and the foreign row opened a 404.
+  describe('the list narrows to the same rule (#305)', () => {
+    it('holds exactly the Organizations a sales representative reaches', async () => {
       expect((await listIds(`q=${stamp}`, REP)).sort()).toEqual(
-        [ownOrgId, childOrgId, foreignOrgId, unassignedOrgId, pendingOrgId].sort(),
+        [ownOrgId, childOrgId, unassignedOrgId, pendingOrgId].sort(),
       );
     });
 

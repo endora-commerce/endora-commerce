@@ -1,4 +1,4 @@
-import type { OrgConstraint } from '@endora-commerce/platform/tenancy';
+import { orgScopeSql, reachesNoOrganization, type OrgConstraint } from '@endora-commerce/platform/tenancy';
 
 /**
  * The statement behind the per-status "in use" count on the workflow screen,
@@ -17,15 +17,9 @@ export function opportunityStatusUsageQuery(
   const select = 'select "status_code" as status_code, count(*) as count from "crm_opportunities"';
   const groupBy = 'group by "status_code"';
   if (scope.kind === 'all') return { sql: `${select} ${groupBy}`, params: [] };
-  const allowed =
-    scope.kind === 'single'
-      ? scope.organizationId === null
-        ? []
-        : [scope.organizationId]
-      : [...scope.organizationIds];
-  if (allowed.length === 0) return null;
-  return {
-    sql: `${select} where "organization_id" in (${allowed.map(() => '?').join(', ')}) ${groupBy}`,
-    params: allowed,
-  };
+  if (reachesNoOrganization(scope)) return null;
+  // The platform's predicate for the reach (issue #305): a sales
+  // representative's is every Organization nobody else governs.
+  const reach = orgScopeSql('"organization_id"', scope);
+  return { sql: `${select} where ${reach.sql} ${groupBy}`, params: [...reach.params] as string[] };
 }

@@ -228,6 +228,19 @@ function codeForSignal(signal: NodeJS.Signals): number {
   return number === undefined ? 1 : 128 + number;
 }
 
+/**
+ * How often the polite stop is repeated while the grace runs (issue #952).
+ *
+ * A group signal reaches the processes in the group **when it is sent**, and
+ * nothing that joins it afterwards. `pnpm run` can take the stop before it has
+ * spawned the script it runs, and still spawn it — a process the one SIGTERM
+ * never reached, holding the layer's pipe open until the forced stop, so every
+ * failure of `endora dev` waited out the whole grace. Repeating SIGTERM to the
+ * groups still running reaches such a late member within this interval; it is
+ * the same polite signal, and SIGKILL still waits for the grace.
+ */
+const RESIGNAL_EVERY_MS = 250;
+
 /** Signal a layer and everything it started. */
 function signalGroup(pid: number, signal: NodeJS.Signals): void {
   try {
@@ -261,10 +274,12 @@ export function superviseDev(
     let stopping = false;
     let result: number | null = null;
     let forceTimer: NodeJS.Timeout | null = null;
+    let resignalTimer: NodeJS.Timeout | null = null;
 
     const finishWhenAllStopped = (): void => {
       void Promise.all(exits).then(() => {
         if (forceTimer !== null) clearTimeout(forceTimer);
+        if (resignalTimer !== null) clearInterval(resignalTimer);
         options.signal?.removeEventListener('abort', onAbort);
         resolveCode(result ?? 0);
       });
@@ -276,7 +291,12 @@ export function superviseDev(
       const left = [...running.keys()];
       if (left.length > 0) write(`[endora dev] stopping ${left.join(', ')}`);
       for (const pid of running.values()) signalGroup(pid, 'SIGTERM');
+      resignalTimer = setInterval(() => {
+        for (const pid of running.values()) signalGroup(pid, 'SIGTERM');
+      }, RESIGNAL_EVERY_MS);
+      resignalTimer.unref();
       forceTimer = setTimeout(() => {
+        if (resignalTimer !== null) clearInterval(resignalTimer);
         for (const pid of running.values()) signalGroup(pid, 'SIGKILL');
       }, graceMs);
       forceTimer.unref();

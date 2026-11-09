@@ -6,7 +6,13 @@ import { ERROR_CODES, isUuidShape } from '@endora-commerce/contracts';
 import type { SalesRepAssignmentPort, SalesRepAssignmentRow } from '@endora-commerce/contracts';
 import { recordAuditFromContext } from '@endora-commerce/platform/commands';
 import type { AuditPort } from '@endora-commerce/platform/kernel';
-import type { OrganizationTreeService } from './organization-tree-service.js';
+import { isReadableTreePath, type OrganizationTreeService } from './organization-tree-service.js';
+import {
+  decideSalesRepReach,
+  type DescendantNode,
+  type GoverningNode,
+  type SalesRepReach,
+} from './sales-rep-reach.js';
 
 /**
  * Feature 056 US2 — optional roll-up wiring. When present, a sales-rep whose
@@ -18,6 +24,13 @@ import type { OrganizationTreeService } from './organization-tree-service.js';
 export interface SalesRepSubtreeDeps {
   readonly treeService: OrganizationTreeService;
   readonly hasRollupCapability: (adminUserId: string) => Promise<boolean>;
+  /**
+   * Issue #305 (ruling Q1 on PR #954) — told once per `reachOf` that met a
+   * governing organization whose stored tree path cannot be read, naming them.
+   * The reach is still answered, by the one-id rule; this is how the data
+   * defect gets found.
+   */
+  readonly warn?: (fields: { organizationIds: string[] }, message: string) => void;
 }
 
 /**
@@ -53,6 +66,12 @@ export type { SalesRepAssignmentPort, SalesRepAssignmentRow };
  *   - An admin user with an explicit assignment row sees that org.
  *   - An organization with ZERO assignment rows is in
  *     "unassigned-org fallback" mode and is visible to every sales rep.
+ *
+ * Issue #305 (owner ruling 2026-11-07): this is the **one** reach rule, on
+ * every surface. `canSeeOrganization` answers it for one id; {@link reachOf}
+ * answers it for the whole platform as its complement — the organizations
+ * governed by somebody else — which is what the tenant scope filters by. An
+ * integration property holds the two equal for every node.
  */
 export class SalesRepAssignmentService implements SalesRepAssignmentPort {
   constructor(
@@ -100,45 +119,135 @@ export class SalesRepAssignmentService implements SalesRepAssignmentPort {
   }
 
   /**
-   * Returns the list of organization IDs the admin user can act on.
+   * The organizations the representative is assigned, roll-up expanded: each
+   * assigned node's subtree minus any descendant governed by its own (nearer)
+   * assignment (FR-011). Without the capability, the flat assigned rows.
    *
-   * Feature 056 — when the actor holds the roll-up capability, each assigned
-   * node expands to its subtree MINUS any descendant subtree governed by its
-   * own (nearer) assignment (FR-011). Without the capability, returns the flat
-   * assigned rows (pre-feature behavior).
+   * Since issue #305 this is **not** the representative's reach — an
+   * unassigned organization is in reach too — but "mine": ranking, `scope=mine`
+   * filters, the assignment report. It is the `assignedOrganizationIds` half of
+   * {@link reachOf}, from the same statement.
    */
   async listAssignedOrganizationIds(adminUserId: string): Promise<string[]> {
-    const em = this.emFactory();
     if (!isUuidShape(adminUserId)) return [];
-    const rows = await em.find(OrganizationSalesRepAssignment, { adminUserId });
-    const rawAssigned = rows.map((r) => r.organizationId);
-    if (!this.subtree || rawAssigned.length === 0) return rawAssigned;
-    if (!(await this.subtree.hasRollupCapability(adminUserId))) return rawAssigned;
+    return (await this.reachOf(adminUserId)).assignedOrganizationIds;
+  }
 
-    // All assignment rows (small table) → org → set of reps, for the override rule.
-    const allRows = await em.find(OrganizationSalesRepAssignment, {});
-    const repsByOrg = this.#repsByOrg(allRows);
-
-    const result = new Set<string>();
-    for (const nodeId of new Set(rawAssigned)) {
-      const nodes = await this.subtree.treeService.subtreeNodes(nodeId);
-      const parentOf = new Map<string, string | null>();
-      for (const n of nodes) parentOf.set(n.id, n.parentId);
-      for (const n of nodes) {
-        // Walk up to the nearest ancestor-or-self carrying an assignment; the
-        // assigned root (nodeId, assigned to this rep) always terminates it.
-        let cur: string | null = n.id;
-        while (cur) {
-          const reps = repsByOrg.get(cur);
-          if (reps) {
-            if (reps.has(adminUserId)) result.add(n.id);
-            break;
-          }
-          cur = parentOf.get(cur) ?? null;
-        }
-      }
+  /**
+   * Issue #305 — the representative's reach for the tenant scope, in one
+   * statement: the organizations governed by somebody else
+   * (`excludedOrganizationIds`, never reachable) and the ones the
+   * representative governs (`assignedOrganizationIds`). An organization in
+   * neither list is governed by nobody and is in every representative's reach.
+   *
+   * Not on `SalesRepAssignmentPort`: its one consumer is this module's
+   * `adminTenantScopePort`. It does not catch: a failure of the statement
+   * reaches the port, which answers `unresolved` (no organization, the refusal
+   * deferred to the first tenant-scoped read). An empty excluded list is a real answer — nobody else holds an
+   * assignment — and is never produced by an error.
+   */
+  async reachOf(adminUserId: string): Promise<SalesRepReach> {
+    // `em.execute`, not the bare connection: the statement must see the rows of
+    // the transaction the caller is in, as every other read of this service does.
+    const em = this.emFactory();
+    // Compared as text so an id that is not uuid-shaped is simply nobody's.
+    const rollup = this.subtree !== undefined && (await this.subtree.hasRollupCapability(adminUserId));
+    if (!rollup) {
+      const rows = (await em.execute(
+        `select "organization_id"::text as "id", bool_or("admin_user_id"::text = ?) as "mine"
+           from "organization_sales_rep_assignments"
+          group by "organization_id"`,
+        [adminUserId],
+      )) as Array<{ id: string; mine: boolean }>;
+      return decideSalesRepReach({
+        rollup: false,
+        governors: rows.map((r) => ({ organizationId: r.id, path: null, mine: r.mine })),
+        descendants: [],
+      });
     }
-    return [...result];
+    // Roll-up: every governing node with its path, then every node below one
+    // of them — which is every node whose own path names it, since that path is
+    // the chain `canSeeOrganization` walks. For a governing node whose stored
+    // path is readable that is a prefix scan on the `text_pattern_ops` index
+    // (`organizations_path_prefix_idx`; the range compare is the index's, `like`
+    // rechecks it; paths hold only `/`, hex digits and `-`, which `~` sorts
+    // after). For one whose path cannot be read (`isReadableTreePath`'s rule:
+    // a data defect the create hook and the repair migration exist to prevent)
+    // the prefix would be a guess, so its descendants are found by the segment
+    // their own paths carry — a scan, paid only while such a row exists. Either
+    // way the answer is the one-id rule's, never wider.
+    //
+    // Every CTE is `materialized` and every per-node read is a `lateral ...
+    // offset 0`, which pins the plan to "one index probe per governing node".
+    // Left to itself the planner flattened the scan for unreadable paths into
+    // a nested loop over every organization × every governing node, and turned
+    // on JIT for the cost it then estimated: 11.5 s at 50 000 organizations and
+    // 3 000 assignments, for a branch that had no row to visit.
+    //
+    // JIT is switched off for the statement (`set local`, inside its own
+    // transaction or savepoint): the planner cannot know that the unreadable
+    // branch visits nothing, prices it in the millions, and then spends half
+    // a second compiling a statement that runs in tens of milliseconds
+    // (measured at 50 000 organizations: 448 ms of JIT for a 45 ms execution).
+    const rows = (await em.transactional(async (tx) => {
+      await tx.execute('set local jit = off');
+      return tx.execute(
+        `with "gov" as materialized (
+           select "organization_id" as "id", bool_or("admin_user_id"::text = ?) as "mine"
+             from "organization_sales_rep_assignments"
+            group by "organization_id"
+         ), "g" as materialized (
+           select "gov"."id", "gov"."mine", coalesce("o"."path", '') as "path"
+             from "gov"
+             left join lateral (select "path" from "organizations" where "id" = "gov"."id" offset 0) "o" on true
+         ), "r" as materialized (
+           select "g"."id", "g"."mine", "g"."path",
+                  ("g"."path" like '/%/' and "g"."path" not like '%//%' and "g"."path" !~ '[%_\\\\]'
+                   and "g"."path" like '%/' || "g"."id"::text || '/') as "readable"
+             from "g"
+         )
+         select 'g' as "kind", "r"."id"::text as "id", "r"."path", "r"."mine" from "r"
+         union all
+         select 'd', "d"."id"::text, "d"."path", null
+           from "r"
+           cross join lateral (
+             select "x"."id", "x"."path" from "organizations" "x"
+              where "x"."path" ~>=~ "r"."path"
+                and "x"."path" ~<~ ("r"."path" || '~')
+                and "x"."path" like "r"."path" || '%'
+                and "x"."id" <> "r"."id"
+             offset 0
+           ) "d"
+          where "r"."readable"
+         union all
+         select 'd', "d"."id"::text, "d"."path", null
+           from "r"
+           cross join lateral (
+             select "x"."id", "x"."path" from "organizations" "x"
+              where "x"."path" like '%/' || "r"."id"::text || '/%' and "x"."id" <> "r"."id"
+             offset 0
+           ) "d"
+          where not "r"."readable"`,
+        [adminUserId],
+      );
+    })) as Array<{ kind: 'g' | 'd'; id: string; path: string | null; mine: boolean | null }>;
+    const governors: GoverningNode[] = [];
+    const descendants: DescendantNode[] = [];
+    for (const r of rows) {
+      if (r.kind === 'g') governors.push({ organizationId: r.id, path: r.path, mine: r.mine === true });
+      else descendants.push({ id: r.id, path: r.path });
+    }
+    const unreadable = governors
+      .filter((g) => !isReadableTreePath(g.path, g.organizationId))
+      .map((g) => g.organizationId);
+    if (unreadable.length > 0) {
+      this.subtree?.warn?.(
+        { organizationIds: unreadable },
+        'organizations: a governing organization has a stored tree position that cannot be read; ' +
+          'the sales-representative reach resolves it by its own assignments and the paths that name it',
+      );
+    }
+    return decideSalesRepReach({ rollup: true, governors, descendants });
   }
 
   #repsByOrg(rows: readonly OrganizationSalesRepAssignment[]): Map<string, Set<string>> {

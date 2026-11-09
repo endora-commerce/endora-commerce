@@ -20,6 +20,7 @@ describe('Invoices — cross-tenant scoping (feature 050 US1)', () => {
   let repCookie: string;
   const orgAId = randomUUID();
   const orgBId = randomUUID();
+  const OTHER_REP_ID = randomUUID();
   // Feature 078, D-95: `{channel}` is rendered from the `sales_channels` row, so
   // this file's channel has to be one. Both organizations issue on it — the
   // point of the file is that the *organization* scopes the invoice, not the
@@ -70,9 +71,12 @@ describe('Invoices — cross-tenant scoping (feature 050 US1)', () => {
         lastName: 'Rep',
       });
       await em.persistAndFlush(rep);
-      await em.persistAndFlush(
+      await em.persistAndFlush([
         em.create(OrganizationSalesRepAssignment, { organizationId: orgAId, adminUserId: rep.id }),
-      );
+        // #305 — Org B is another representative's: an unassigned organization
+        // is in every representative's reach.
+        em.create(OrganizationSalesRepAssignment, { organizationId: orgBId, adminUserId: OTHER_REP_ID }),
+      ]);
       repCookie = `stub-sales-rep-050-inv-${Date.now()}`;
       ADMIN_COOKIES[repCookie] = { adminUserId: rep.id };
     });
@@ -82,6 +86,7 @@ describe('Invoices — cross-tenant scoping (feature 050 US1)', () => {
   });
 
   afterAll(async () => {
+    await h.em().getConnection().execute('delete from organization_sales_rep_assignments where admin_user_id = ?', [OTHER_REP_ID]);
     delete ADMIN_COOKIES[repCookie];
     await teardownBackendServer(h);
   });

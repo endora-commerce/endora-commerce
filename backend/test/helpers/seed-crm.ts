@@ -147,6 +147,44 @@ export async function seedCrmOrder(
 }
 
 /** A second Organization with a row behind it — `crm_opportunities` has a real foreign key. */
+/**
+ * The representative every fixture Organization is assigned to (issue #305).
+ *
+ * A sales representative reaches every Organization nobody else governs, so an
+ * Organization with no assignment at all is in every representative's reach.
+ * The fixtures model the B2B book instead: each Organization is somebody's, and
+ * a representative reaches the ones {@link seedCrmSalesRep} gives them (they
+ * share the assignment, so it is theirs) and no other. No admin account carries
+ * this id; it exists only as the assignment's other party.
+ */
+export const CRM_BOOK_REP_ID = randomUUID();
+
+/**
+ * Issue #305 — put an Organization the harness seeds (`TEST_ORGANIZATION_ID`,
+ * `OTHER_TEST_ORGANIZATION_ID`) into the book of {@link CRM_BOOK_REP_ID}, so a
+ * representative not given it does not reach it. Returns the undo.
+ */
+export async function assignToCrmBook(
+  em: EntityManager,
+  organizationIds: readonly string[],
+): Promise<() => Promise<void>> {
+  for (const organizationId of organizationIds) {
+    await em.getConnection().execute(
+      `insert into "organization_sales_rep_assignments" ("id", "organization_id", "admin_user_id", "created_at")
+       values (gen_random_uuid(), ?, ?, now()) on conflict do nothing`,
+      [organizationId, CRM_BOOK_REP_ID],
+    );
+  }
+  return async () => {
+    await em
+      .getConnection()
+      .execute(
+        `delete from "organization_sales_rep_assignments" where "admin_user_id" = ? and "organization_id" = any(?::uuid[])`,
+        [CRM_BOOK_REP_ID, `{${organizationIds.join(',')}}`],
+      );
+  };
+}
+
 export async function seedCrmOrganization(em: EntityManager, label: string): Promise<string> {
   const organization = em.create(Organization, {
     name: `CRM ${label} ${randomUUID().slice(0, 8)}`,
@@ -156,6 +194,9 @@ export async function seedCrmOrganization(em: EntityManager, label: string): Pro
     registeredAddress: { street: 'ul. Testowa 1', city: 'Warszawa', postalCode: '00-100', country: 'PL' },
   });
   await em.persistAndFlush(organization);
+  await em.persistAndFlush(
+    em.create(OrganizationSalesRepAssignment, { organizationId: organization.id, adminUserId: CRM_BOOK_REP_ID }),
+  );
   // Feature 154 — an Organization with no sales channel may not shop anywhere;
   // bind the stores the harness seeds.
   await bindOrganizationsToFixtureChannelsSql(em, [organization.id]);

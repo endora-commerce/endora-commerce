@@ -17,7 +17,9 @@ danych — izolacja działa więc nawet wtedy, gdy usługa zapomni o jawnym filt
   żądania, parametrów zapytania ani nagłówków.
   - Klient → `single-org` (jego organizacja i konto klienta).
   - Administrator platformy → `all` (bez ograniczeń).
-  - Administrator-handlowiec z ograniczonym zakresem → `allowed-set` (przypisane mu organizacje).
+  - Administrator-handlowiec → `excluded-set`: każda organizacja **oprócz** prowadzonych przez
+    innego handlowca (zob. *Tryb `excluded-set`* poniżej).
+  - Klient z włączonym roll-upem → `allowed-set` (wskazane poddrzewo).
   - Worker, migracja, jawne obejście → `system`.
   - Klucz API powiązany z organizacją → `single-org` (jego organizacja i konto serwisowe);
     klucz niepowiązany i ruch anonimowy → `system`.
@@ -40,8 +42,8 @@ danych — izolacja działa więc nawet wtedy, gdy usługa zapomni o jawnym filt
   kodem 403 `ADMIN_ROLE_REQUIRED` — brak roli nigdy nie oznacza „wszystkie organizacje”.
   `ComposeAppOptions.buildTenantContext` zastępuje mapowanie we wdrożeniu, które tego potrzebuje,
   a zamiennik jest odrzucany — żądanie kończy się błędem — gdy na żądanie klienta lub klucza API
-  powiązanego z organizacją odpowiada kontekstem `system` albo `all`, a na żądanie administratora
-  kontekstem `system`.
+  powiązanego z organizacją odpowiada kontekstem `system`, `all` albo `excluded-set`, a na żądanie
+  administratora kontekstem `system`.
 
   **O tym, czyje jest żądanie, decyduje trasa, a nie to, jakie ciasteczka są obecne.** Jedna
   przeglądarka może mieć jednocześnie sesję administratora i sesję klienta — operator zalogowany
@@ -68,6 +70,41 @@ danych — izolacja działa więc nawet wtedy, gdy usługa zapomni o jawnym filt
 - **Odmowa w razie braku kontekstu (fail-closed)** — zapytanie do encji objętej izolacją wykonane
   **bez** kontekstu rzuca `MissingTenantContextError`. Zapomniany kontekst to głośny błąd, a
   nigdy cichy odczyt danych innego tenanta.
+
+
+## Tryb `excluded-set`
+
+Handlowiec ma dostęp do każdej organizacji, której nie prowadzi inny handlowiec (zgłoszenie #305):
+do organizacji przypisanych jemu (z uprawnieniem `organizations:rollup` — do ich poddrzew, przy czym
+wygrywa najbliższe przypisanie) i do każdej organizacji, do której nikt nie jest przypisany — łącznie
+z organizacjami osobistymi (B2C), do których nie można nikogo przypisać. Moduł `organizations`
+zwraca ten zakres przez `adminTenantScopePort` jako `{ reach: 'excluding', excludedOrganizationIds,
+assignedOrganizationIds }`, obliczony jednym zapytaniem na żądanie, a zabezpieczenie filtruje
+według niego.
+
+- **Dlaczego dopełnienie.** Zbiór dostępnych organizacji obejmuje każdą nieprzypisaną, a więc
+  każdą osobistą: rośnie razem z bazą klientów, a jako lista `IN (…)` obciążałby każde żądanie
+  panelu. Zbiór wykluczony zawiera tylko organizacje z przypisaniem oraz — przy roll-upie — ich
+  poddrzewa, więc jest ograniczony wielkością portfela B2B. Predykat to
+  `organization_id NOT IN (excluded)` na własnej kolumnie filtrowanego wiersza — bez złączenia
+  i bez podzapytania.
+- **Brak organizacji nigdy nie pasuje.** Predykat zawiera też jawne `organization_id IS NOT NULL`,
+  dzięki czemu pusty zbiór wykluczony nie zamienia się w „wszystkie wiersze”, łącznie z tymi bez
+  organizacji.
+- **Odmowa przy błędzie.** Zbiór jest wyznaczany po stronie serwera z tabel modułu
+  `organizations`, nigdy z żądania. Jeśli jego zapytanie się nie powiedzie, żądanie kończy się
+  błędem; jeśli przy roll-upie nie da się odczytać zapisanej pozycji w drzewie organizacji
+  prowadzącej, zakres zostaje odrzucony, a odmowę zgłasza pierwszy odczyt objęty izolacją. Pusty
+  zbiór wykluczony jest prawdziwą odpowiedzią — nikt inny nie ma przypisań — i nigdy nie powstaje
+  w wyniku błędu.
+- **Zapisy przechodzą przez tę samą gałąź.** Zabezpieczenie zapisu i `isOrgInScope` odrzucają zapis
+  z wykluczoną organizacją, więc handlowiec zapisuje tylko tam, gdzie może czytać.
+- **Moduły nigdy nie czytają identyfikatorów.** Moduł odczytuje swój zakres przez funkcje
+  pomocnicze zakresu pochodnego — `orgScopeWhere`, `orgScopeSql` (jeden parametr tablicowy, dla
+  surowego SQL), `isOrgInScope`, `ruleVisibleForScope`, `reachesNoOrganization` oraz
+  `assignedOrganizationIdsForRanking` (wyłącznie do kolejności i filtrów „moje”). `OrgConstraint`
+  ma gałęzie `all`, `single`, `allowed` i `excluded`; dawna gałąź `set` została usunięta, a nie
+  pozostawiona obok, aby żaden konsument nie odczytał zakresu handlowca jako „bez ograniczeń”.
 
 ## Klasyfikacja encji
 

@@ -1,3 +1,4 @@
+import { randomUUID } from 'node:crypto';
 import { Invoice } from '../../helpers/package-entities.js';
 import { AdminRole, AdminUser, Organization, OrganizationSalesRepAssignment } from '../../helpers/package-entities.js';
 import { afterAll, beforeAll, describe, expect, it } from 'vitest';
@@ -19,7 +20,7 @@ import {
 
 import { CustomerAccount } from '../../helpers/package-entities.js';
 
-import { ADMIN_COOKIES, TEST_CUSTOMER_ID } from '../../helpers/test-actors.js';
+import { ADMIN_COOKIES, TEST_CUSTOMER_ID, TEST_ORGANIZATION_ID } from '../../helpers/test-actors.js';
 
 import { SEED_PRODUCT_101_ID } from '../../helpers/seed-catalog.js';
 import { systemDefaultSalesChannelId } from '../../helpers/sales-channel-fixtures.js';
@@ -61,6 +62,7 @@ describe('Admin order routes honour the sales-rep assignment scope (feature 085 
   let repCookie: string;
   let assignedOrgId: string;
   let foreignOrgId: string;
+  const OTHER_REP_ID = randomUUID();
 
   const orders: Record<string, string> = {};
   /** A customer account inside the rep's assigned organization. */
@@ -161,12 +163,18 @@ describe('Admin order routes honour the sales-rep assignment scope (feature 085 
     // directly, so they are bound to the fixture channels here.
     await bindOrganizationsToFixtureChannelsSql(em, [assignedOrgId, foreignOrgId]);
 
-    await em.persistAndFlush(
+    await em.persistAndFlush([
       em.create(OrganizationSalesRepAssignment, {
         organizationId: assignedOrgId,
         adminUserId: rep.id,
       }),
-    );
+      // #305 — the foreign organization is another representative's: an
+      // unassigned organization is in every representative's reach.
+      em.create(OrganizationSalesRepAssignment, { organizationId: foreignOrgId, adminUserId: OTHER_REP_ID }),
+      // …and so is the seeded customer's organization, which the "customer
+      // outside the scope" cases below act for.
+      em.create(OrganizationSalesRepAssignment, { organizationId: TEST_ORGANIZATION_ID, adminUserId: OTHER_REP_ID }),
+    ]);
 
     // One pair per route under test, so no assertion depends on a transition an
     // earlier assertion applied.
@@ -232,6 +240,7 @@ describe('Admin order routes honour the sales-rep assignment scope (feature 085 
   });
 
   afterAll(async () => {
+    await h.em().getConnection().execute('delete from organization_sales_rep_assignments where admin_user_id = ?', [OTHER_REP_ID]);
     delete ADMIN_COOKIES[repCookie];
     await teardownBackendServer(h);
   });

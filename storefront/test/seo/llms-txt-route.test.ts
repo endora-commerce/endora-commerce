@@ -9,7 +9,9 @@ import {
   type CrawlerFiles,
   type CrawlerFilesRead,
 } from '../../lib/seo/crawler-policy';
-import { GROWTH, LINEAR_BOUND, growthRatio } from './linear-time';
+// The shared linear-time protocol (issue #953): a test-only module of
+// `@endora-commerce/contracts`, reached through its source path and never published.
+import { GROWTH, LINEAR_BOUND, growthRatio } from '../../../packages/contracts/src/linear-time.cases.js';
 import { CRAWLER_FILES_CAPABILITY_HEADER } from '../../lib/seo/crawler-file-response';
 import { llmsTxtResponse, type UnservedPages } from '../../lib/seo/llms-txt';
 import { renderLlmsTxtBase } from '../../lib/seo/llms-txt-base';
