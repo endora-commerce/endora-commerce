@@ -254,8 +254,20 @@ export function registerModule(ctx: ModuleContext): void {
       ctx.worker(ctx.cradle<WebhooksCradle>().webhookDeliveryWorker, { logger: app.log });
     }
 
-    // RED: the retention tick is not started yet.
-    void startWebhookDeliveryRetention;
+    // Issue #928 — the daily retention tick of the delivery history, attached
+    // and gated exactly as the delivery consumer: through `ctx.worker`, so no
+    // tick runs while this module is off, and only where this composition runs
+    // the module's workers.
+    await startWebhookDeliveryRetention({
+      runWorkers: webhooksRunWorkers,
+      redis: webhooksRunWorkers ? ctx.cradle<WebhooksCradle>().redis : undefined,
+      retention: ctx.cradle<WebhooksCradle>().webhookDeliveryRetention,
+      log: ctx.log,
+      attach: (worker) => ctx.worker(worker, { logger: app.log }),
+      onClose: (close) => {
+        app.addHook('onClose', close);
+      },
+    });
 
     await registerWebhooksAdminRoutes(app, {
       eventTypes: () => ctx.cradle<WebhooksCradle>().webhookEventRegistry.list(),

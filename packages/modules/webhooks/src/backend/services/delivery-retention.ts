@@ -74,11 +74,10 @@ export class WebhookDeliveryRetentionService {
     // command-coverage-ignore: the retention window of a delivery log — no
     // domain state, nothing to undo; the subscription writes are audited where
     // they happen.
-    // RED: nothing is deleted yet.
-    void WebhookDelivery;
-    void this.emFactory;
-    void now;
-    const deleted = 0;
+    const deleted = await this.emFactory().nativeDelete(WebhookDelivery, {
+      createdAt: { $lt: deliveryRetentionCutoff(retentionDays, now) },
+      status: { $in: [...WEBHOOK_DELIVERY_PURGEABLE_STATUSES] },
+    });
     return { retentionDays, deleted };
   }
 }

@@ -34,6 +34,20 @@ Do 8 prób na wysyłkę, z wykładniczo rosnącym odstępem od 1 s i limitem cza
 ostatniej próbie wysyłka przechodzi w stan `dead_lettered`. Endpoint ponowienia kopiuje wiersz
 `failed` / `dead_lettered` jako nową wysyłkę `pending`.
 
+## Przechowywanie historii wysyłek
+
+Każdy wiersz wysyłki przechowuje treść zdarzenia w postaci, w jakiej została wysłana, oraz
+odpowiedź odbiorcy. Treść może zawierać dane osobowe, na przykład powód zablokowania organizacji
+podany przez operatora, dlatego historia jest przechowywana przez ograniczony czas. Raz dziennie
+usuwana jest każda zakończona wysyłka (`succeeded`, `failed` lub `dead_lettered`) starsza niż
+`webhooks.delivery_retention_days`. Domyślnie jest to 365 dni, tyle samo co okres przechowywania
+usuniętego konta klienta, więc gdy usunięty klient zostaje zanonimizowany, wysyłki zapisane przed
+usunięciem już nie istnieją. Wartość spoza zakresu 1–3650 pełnych dni jest traktowana jak
+domyślna. Wysyłka `pending` ani `in_flight` nigdy nie jest usuwana, bez względu na wiek. Usuniętej
+wysyłki nie można już ponowić. Sprawdzenie działa w procesie workera i tylko wtedy, gdy moduł jest
+włączony; gdy jest wyłączony, nic nie jest usuwane, a pierwszy przebieg po ponownym włączeniu usuwa
+to, czemu w tym czasie upłynął termin.
+
 ## Które zdarzenia są dostarczane
 
 Zdarzenie jest dostarczane tylko wtedy, gdy jest przekazywane do kolejki wysyłek. Ten moduł sam z
