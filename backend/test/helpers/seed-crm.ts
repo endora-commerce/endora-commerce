@@ -700,3 +700,32 @@ export async function unassignCrmSalesRep(
 ): Promise<void> {
   await em.nativeDelete(OrganizationSalesRepAssignment, { organizationId, adminUserId });
 }
+
+/** One row of `crm_opportunity_value_changes` — what an Opportunity's write changed, with the values (#470). */
+export interface CrmValueChangeRow {
+  id: string;
+  opportunityId: string;
+  before: Record<string, unknown> | null;
+  after: Record<string, unknown> | null;
+}
+
+/**
+ * The value-store row a `crm.opportunity.*` audit entry points at by
+ * `valueChangeId` (issue #470), read raw — or `null` when the entry points at
+ * none or the row is not there. Since #470 the audit entry names what changed
+ * and the values are here.
+ */
+export async function crmValueChangeOf(
+  h: BackendServerHandle,
+  entry: { stateBefore?: Record<string, unknown> | null; stateAfter?: Record<string, unknown> | null },
+): Promise<CrmValueChangeRow | null> {
+  const pointer = entry.stateAfter?.valueChangeId ?? entry.stateBefore?.valueChangeId;
+  if (typeof pointer !== 'string') return null;
+  const rows = (await h.orm.em
+    .getConnection()
+    .execute(
+      `select "id", "opportunity_id" as "opportunityId", "before", "after" from "crm_opportunity_value_changes" where "id" = ?`,
+      [pointer],
+    )) as CrmValueChangeRow[];
+  return rows[0] ?? null;
+}

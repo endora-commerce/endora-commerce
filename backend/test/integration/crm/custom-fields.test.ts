@@ -13,6 +13,7 @@ import {
   seedCrmOrganization,
   seedCrmSalesRep,
   restoreDefaultCrmWorkflow,
+  crmValueChangeOf,
 } from '../../helpers/seed-crm.js';
 import { TEST_ORGANIZATION_ID } from '../../helpers/test-actors.js';
 
@@ -184,15 +185,15 @@ describe('crm custom fields on an opportunity (User Story 15)', () => {
     const updates = await h.auditLogService.query({ action: 'crm.opportunity.update', objectId: created.id });
     expect(creates).toHaveLength(1);
     expect(updates).toHaveLength(1);
-    expect((creates[0]!.stateAfter as { customFieldValues: unknown }).customFieldValues).toEqual({
-      lead_source: 'referral',
-    });
-    expect((updates[0]!.stateBefore as { customFieldValues: unknown }).customFieldValues).toEqual({
-      lead_source: 'referral',
-    });
-    expect((updates[0]!.stateAfter as { customFieldValues: unknown }).customFieldValues).toEqual({
-      lead_source: 'referral',
-      seats: 7,
+    // The entries name the fields; the values are in the Opportunity's own store (#470).
+    expect(creates[0]!.stateAfter).toMatchObject({ changedCustomFields: ['lead_source'] });
+    expect(creates[0]!.stateAfter).not.toHaveProperty('customFieldValues');
+    expect((await crmValueChangeOf(h, creates[0]!))?.after?.customFieldValues).toEqual({ lead_source: 'referral' });
+    expect(updates[0]!.stateAfter).toMatchObject({ changedCustomFields: ['seats'] });
+    expect(updates[0]!.stateBefore).not.toHaveProperty('customFieldValues');
+    expect(await crmValueChangeOf(h, updates[0]!)).toMatchObject({
+      before: { customFieldValues: { seats: null } },
+      after: { customFieldValues: { seats: 7 } },
     });
     // Nothing else was recorded against this Opportunity: the generic layer
     // validates and never writes or audits.
