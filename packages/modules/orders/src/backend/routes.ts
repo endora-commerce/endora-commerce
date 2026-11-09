@@ -50,6 +50,7 @@ import type {
 } from '@endora-commerce/contracts';
 import type { EntityManager } from '@mikro-orm/postgresql';
 import { HttpError } from '@endora-commerce/platform/http';
+import { isOrgInScope } from '@endora-commerce/platform/tenancy';
 import { getResolvedChannel, rethrowIfModuleDisabled } from '@endora-commerce/platform/kernel';
 import type { SalesChannelMembershipPort } from '@endora-commerce/platform/kernel';
 import type { Command, CommandBus } from '@endora-commerce/platform/commands';
@@ -64,7 +65,7 @@ import {
 import { assertWithinAdminOrderItemBound } from './services/request-minimums.js';
 import type { OrderStatusGraphService } from './services/order-status-graph-service.js';
 import type { OrderTransitionService } from './services/order-transition-service.js';
-import type { OrderListService, OrderListScope } from './services/order-list-service.js';
+import { orderListScopeFor, type OrderListService, type OrderListScope } from './services/order-list-service.js';
 import type { OrderListViewService } from './services/order-list-view-service.js';
 import { savedViewActor } from './saved-view-actor.js';
 import type { OrderExportService } from './services/order-export-service.js';
@@ -148,14 +149,12 @@ export interface OrdersDeps {
    */
   assertOrganizationCanTransact?: (organizationId: string) => Promise<void>;
   /**
-   * Feature 026 US6 — resolves admin visibility scope for the orders list.
-   * `{ allowAll: true }` ⇒ platform admin (no filter); otherwise the list
-   * is intersected with `allowedOrganizationIds` (sales-rep ownership).
+   * Feature 026 US6 — whether the admin orders list is scoped at all.
+   * `{ allowAll: true }` ⇒ platform admin (no filter); otherwise the list is
+   * confined to the ambient tenant reach (issue #305: a sales representative
+   * reaches every organization nobody else governs).
    */
-  resolveAdminOrdersScope?: (req: FastifyRequest) => Promise<
-    | { allowAll: true }
-    | { allowAll: false; allowedOrganizationIds: string[] }
-  >;
+  resolveAdminOrdersScope?: (req: FastifyRequest) => Promise<{ allowAll: boolean }>;
   /**
    * The read models this surface resolves from the modules that own the rows
    * (feature 075). Each is a `lazyPort` handed down by `backend.ts`, so a
@@ -550,12 +549,14 @@ export async function registerOrderRoutes(
 
   // --- Admin surface ----------------------------------------------------
 
-  // Resolve the sales-rep org scope (feature 026 US6). `null` ⇒ no scoping
-  // (platform admin sees all).
+  // Resolve the sales-rep org scope (feature 026 US6). `undefined` ⇒ no
+  // scoping (platform admin sees all). Whether to scope is the resolver's
+  // answer; *what* the scope is, the ambient tenant context's (issue #305): a
+  // sales representative reaches every organization nobody else governs.
   const resolveListScope = async (request: FastifyRequest): Promise<OrderListScope | undefined> => {
     if (!deps.resolveAdminOrdersScope) return undefined;
     const scope = await deps.resolveAdminOrdersScope(request);
-    return scope.allowAll ? undefined : { allowedOrganizationIds: scope.allowedOrganizationIds };
+    return scope.allowAll ? undefined : orderListScopeFor();
   };
 
   /**
@@ -635,10 +636,7 @@ export async function registerOrderRoutes(
     const scope = await resolveListScope(request);
     if (!scope) return;
     const customer = await deps.customerAccountRead.findById(customerAccountId);
-    if (
-      !customer?.organizationId ||
-      !scope.allowedOrganizationIds.includes(customer.organizationId)
-    ) {
+    if (!customer?.organizationId || !isOrgInScope(customer.organizationId)) {
       throw new HttpError(
         403,
         ERROR_CODES.FORBIDDEN,

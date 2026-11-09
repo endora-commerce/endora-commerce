@@ -23,6 +23,7 @@ describe('Returns — cross-tenant scoping (feature 050 US1)', () => {
   let orgBId: string;
   let returnAId: string;
   let returnBId: string;
+  const OTHER_REP_ID = randomUUID();
 
   beforeAll(async () => {
     h = await setupBackendServer();
@@ -53,9 +54,12 @@ describe('Returns — cross-tenant scoping (feature 050 US1)', () => {
         lastName: 'Rep',
       });
       await em.persistAndFlush(rep);
-      await em.persistAndFlush(
+      await em.persistAndFlush([
         em.create(OrganizationSalesRepAssignment, { organizationId: orgAId, adminUserId: rep.id }),
-      );
+        // #305 — Org B is another representative's: an unassigned organization
+        // is in every representative's reach.
+        em.create(OrganizationSalesRepAssignment, { organizationId: orgBId, adminUserId: OTHER_REP_ID }),
+      ]);
 
       repCookie = `stub-sales-rep-050-ret-${Date.now()}`;
       ADMIN_COOKIES[repCookie] = { adminUserId: rep.id };
@@ -78,6 +82,7 @@ describe('Returns — cross-tenant scoping (feature 050 US1)', () => {
   });
 
   afterAll(async () => {
+    await h.em().getConnection().execute('delete from organization_sales_rep_assignments where admin_user_id = ?', [OTHER_REP_ID]);
     delete ADMIN_COOKIES[repCookie];
     await teardownBackendServer(h);
   });

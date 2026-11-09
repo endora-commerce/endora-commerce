@@ -1,3 +1,4 @@
+import { randomUUID } from 'node:crypto';
 import { afterAll, beforeAll, describe, expect, it } from 'vitest';
 import type { EntityManager } from '@mikro-orm/postgresql';
 import {
@@ -62,6 +63,7 @@ describe('@CustomerScoped rows are not disclosed to an allowed-set administrator
   let unassignedRepCookie: string;
   let assignedOrgId: string;
   let foreignOrgId: string;
+  const OTHER_REP_ID = randomUUID();
 
   const accounts: Record<string, string> = {};
   const comparisons: Record<string, string> = {};
@@ -160,12 +162,16 @@ describe('@CustomerScoped rows are not disclosed to an allowed-set administrator
     foreignOrgId = foreign.id;
 
     const repId = await newRep(em, role.id, 'assigned');
-    await em.persistAndFlush(
+    await em.persistAndFlush([
       em.create(OrganizationSalesRepAssignment, {
         organizationId: assignedOrgId,
         adminUserId: repId,
       }),
-    );
+      // #305 — the foreign organization is another representative's: an
+      // unassigned organization is in every representative's reach. The
+      // representative with no assignment below then reaches neither.
+      em.create(OrganizationSalesRepAssignment, { organizationId: foreignOrgId, adminUserId: OTHER_REP_ID }),
+    ]);
 
     // A second representative with the same role and **no** assignment at all.
     // Their allowed set is empty, which on every `@OrgScoped` entity means
@@ -273,6 +279,7 @@ describe('@CustomerScoped rows are not disclosed to an allowed-set administrator
   }, 120_000);
 
   afterAll(async () => {
+    await h.em().getConnection().execute('delete from organization_sales_rep_assignments where admin_user_id = ?', [OTHER_REP_ID]);
     delete ADMIN_COOKIES[repCookie];
     delete ADMIN_COOKIES[unassignedRepCookie];
     await teardownBackendServer(h);

@@ -40,6 +40,10 @@ export interface AuditRedactionPort {
    *
    * **Irreversible.** Nothing keeps the values it erases.
    *
+   * **One call per subject, however many ids.** A target's ids are split
+   * inside the call into lookups of at most 1,000 (issue #959), so a subject with
+   * thousands of addresses is finished by one call, under one marker row.
+   *
    * Refuses — it throws, never silently narrows — on no target, a target with
    * no id, an id that is not UUID-shaped, more than
    * {@link AUDIT_REDACTION_MAX_IDS_PER_TARGET} ids in one target, a reason it
@@ -51,8 +55,14 @@ export interface AuditRedactionPort {
 /** The action of the one row a redaction writes about its subject. */
 export const AUDIT_REDACTED_ACTION = 'audit.redacted';
 
-/** The most ids one {@link AuditRedactionTarget} may name. */
-export const AUDIT_REDACTION_MAX_IDS_PER_TARGET = 1000;
+/**
+ * The most ids one {@link AuditRedactionTarget} may name — a sanity limit, not
+ * a batch size (issue #959): the call splits a target into lookups of at most
+ * 1,000 ids itself. It stays because every id
+ * a call names is copied into its `audit.redacted` row, which this keeps to a
+ * bounded size.
+ */
+export const AUDIT_REDACTION_MAX_IDS_PER_TARGET = 10_000;
 
 /** One object type, and the explicit ids of its rows to rewrite. */
 export interface AuditRedactionTarget {

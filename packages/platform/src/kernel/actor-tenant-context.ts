@@ -287,10 +287,11 @@ export function containerTenantScopeSources(container: KernelContainer): ActorTe
  * Why a context is wider than its actor may hold, or `undefined` when it is not.
  *
  *  - a **customer** may hold `single-org` or `allowed-set` (the roll-up) and
- *    nothing else: `system` and `all` both cross every organization;
+ *    nothing else: `system` and `all` both cross every organization, and
+ *    `excluded-set` (issue #305) crosses every organization but a few;
  *  - an **admin** may hold `all` — that is what a platform administrator is —
- *    or `allowed-set`, and never `system`, which would also drop the admin as
- *    the recorded actor;
+ *    `allowed-set` or `excluded-set` (a sales representative), and never
+ *    `system`, which would also drop the admin as the recorded actor;
  *  - an **API key bound to an organization** is held to the customer's rule. An
  *    unbound key is not an identified tenant and keeps system scope.
  *
@@ -300,7 +301,8 @@ function wideningFor(actor: Actor | undefined, tenant: TenantContext): string | 
   // `null` as well as `undefined`: a composition may decorate the slot and
   // never fill it.
   if (actor === undefined || actor === null) return undefined;
-  const crossesEveryOrganization = tenant.mode === 'system' || tenant.mode === 'all';
+  const crossesEveryOrganization =
+    tenant.mode === 'system' || tenant.mode === 'all' || tenant.mode === 'excluded-set';
   if (actor.kind === 'customer' && crossesEveryOrganization) return 'a customer';
   if (actor.kind === 'admin' && tenant.mode === 'system') return 'an admin';
   if (actor.kind === 'api_key' && actor.organizationId && crossesEveryOrganization) {

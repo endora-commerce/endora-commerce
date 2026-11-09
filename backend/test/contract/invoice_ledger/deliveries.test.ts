@@ -47,6 +47,7 @@ function listItems(body: unknown): unknown[] {
 }
 
 describe('invoice_ledger — deliveries list and retry [contract]', () => {
+  const OTHER_REP_ID = randomUUID();
   let h: BackendServerHandle;
   let channelId: string;
   const ledgerFixtureHttp = new ScriptedLedgerFixtureClient();
@@ -89,18 +90,22 @@ describe('invoice_ledger — deliveries list and retry [contract]', () => {
         lastName: 'Ledger',
       });
       await em.persistAndFlush(rep);
-      await em.persistAndFlush(
+      await em.persistAndFlush([
         em.create(OrganizationSalesRepAssignment, {
           organizationId: TEST_ORGANIZATION_ID,
           adminUserId: rep.id,
         }),
-      );
+        // #305 — the foreign organization is another representative's: an
+        // unassigned organization is in every representative's reach.
+        em.create(OrganizationSalesRepAssignment, { organizationId: OTHER_TEST_ORGANIZATION_ID, adminUserId: OTHER_REP_ID }),
+      ]);
       scopedCookie = `stub-sales-rep-119-del-${Date.now()}`;
       ADMIN_COOKIES[scopedCookie] = { adminUserId: rep.id };
     });
   });
 
   afterAll(async () => {
+    await h.em().getConnection().execute('delete from organization_sales_rep_assignments where admin_user_id = ?', [OTHER_REP_ID]);
     await teardownBackendServer(h);
   });
 

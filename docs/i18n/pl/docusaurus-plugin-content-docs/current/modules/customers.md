@@ -46,7 +46,8 @@ zamiast być wyłączane jako przypadek szczególny.
   administrator platformy może działać na każdym kliencie; poza nim uprawniony jest handlowiec
   przypisany do organizacji klienta. Organizacja prywatna nigdy nie ma przypisanego handlowca, więc
   reguła dla nieprzypisanych organizacji sprawia, że samodzielnym klientem może zająć się dowolny
-  handlowiec. Zabezpieczenie odmawia zablokowania, usunięcia lub odłączenia ostatniego aktywnego
+  handlowiec — na liście klientów, na ekranie klienta i przy każdym odczycie objętym izolacją, a nie
+  tylko przy tych akcjach, bo reguła zasięgu jest jedna na wszystkich ekranach (zgłoszenie #305). Zabezpieczenie odmawia zablokowania, usunięcia lub odłączenia ostatniego aktywnego
   członka z rolą Administrator organizacji firmowej (`409 ORG_OWNER_DEPLETION`);
   zablokowani administratorzy się nie liczą. Nie dotyczy
   organizacji prywatnej, której jedyny członek ma rolę Administrator: zablokowanie lub usunięcie

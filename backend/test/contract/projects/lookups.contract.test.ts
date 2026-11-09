@@ -13,6 +13,7 @@ import {
   type BackendServerHandle,
 } from '../../helpers/test-server.js';
 import {
+  assignToCrmBook,
   seedCrmAdmin,
   seedCrmOrder,
   seedCrmOrganization,
@@ -257,14 +258,21 @@ describe('projects (contract) — lookups for the pickers', () => {
     });
 
     it('answers only for the Organizations within the caller’s reach', async () => {
-      const both = `?organizationIds=${orgA}&organizationIds=${TEST_ORGANIZATION_ID}`;
-      expect(ids(await documents(`${both}&q=${q(orderOfA.businessId)}`, confined), 'order')).toContain(orderOfA.id);
-      expect(ids(await documents(`${both}&q=${q(orderOfTest.businessId)}`, confined), 'order')).not.toContain(
-        orderOfTest.id,
-      );
-      // Out of reach alone is no Organization at all: no Orders are offered.
-      const outOfReach = await documents(`?organizationIds=${TEST_ORGANIZATION_ID}`, confined);
-      expect(outOfReach.groups.map((group) => group.kind)).not.toContain('order');
+      // #305 — the test Organization is another representative's: one nobody
+      // is assigned to is in every representative's reach.
+      const undoBook = await assignToCrmBook(h.em(), [TEST_ORGANIZATION_ID]);
+      try {
+        const both = `?organizationIds=${orgA}&organizationIds=${TEST_ORGANIZATION_ID}`;
+        expect(ids(await documents(`${both}&q=${q(orderOfA.businessId)}`, confined), 'order')).toContain(orderOfA.id);
+        expect(ids(await documents(`${both}&q=${q(orderOfTest.businessId)}`, confined), 'order')).not.toContain(
+          orderOfTest.id,
+        );
+        // Out of reach alone is no Organization at all: no Orders are offered.
+        const outOfReach = await documents(`?organizationIds=${TEST_ORGANIZATION_ID}`, confined);
+        expect(outOfReach.groups.map((group) => group.kind)).not.toContain('order');
+      } finally {
+        await undoBook();
+      }
     });
 
     it('ignores organizationIds beside a projectId — the Project’s Organizations are the answer', async () => {

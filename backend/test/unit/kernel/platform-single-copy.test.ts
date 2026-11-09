@@ -348,7 +348,7 @@ describe('the platform is one copy (feature 080, the relocation)', () => {
   // than the assertion relaxed: it is the whole point of this file that the
   // count is exact, and a `toBeGreaterThan` here would make the next real
   // duplication invisible.
-  it('shares 57 values across the five published subpaths, which is every one still spelled twice', () => {
+  it('shares 62 values across the five published subpaths, which is every one still spelled twice', () => {
     // Not a target and not a floor somebody chose: it opened at **57**, the
     // number the superseded `host-package-copy.test.ts` measured as *distinct*
     // over this same population, and it is here so that the inversion is visible
@@ -395,6 +395,10 @@ describe('the platform is one copy (feature 080, the relocation)', () => {
     // `withSystemScopeActingFor` (feature 163, S-W2) — a worker's system scope
     // acting for the admin who queued the work — and the application's tenancy
     // shim forwards the barrel, so the name is comparable from its first day.
+    // **57 -> 62 is the same event, on `./tenancy`:** issue #305 published the
+    // derived-scope readers a module needs once a sales representative's reach
+    // is a complement — `orgScopeWhere`, `orgScopeSql`, `reachesNoOrganization`,
+    // `assignedOrganizationIdsForRanking` and `orgConstraintForAdminScope`.
     //
     // It is summed over the **five published** subpaths and not over every
     // comparison, which is what preserves that provenance: no host-internal
@@ -405,7 +409,7 @@ describe('the platform is one copy (feature 080, the relocation)', () => {
     const total = comparisons
       .filter((entry) => published.has(entry.subpath))
       .reduce((sum, entry) => sum + entry.shared.length, 0);
-    expect(total).toBe(57);
+    expect(total).toBe(62);
   });
 
   /**

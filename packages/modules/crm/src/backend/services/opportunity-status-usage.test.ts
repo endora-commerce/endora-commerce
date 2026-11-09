@@ -14,18 +14,25 @@ describe('opportunityStatusUsageQuery', () => {
 
   it('confines a reader of one organization to it', () => {
     const query = opportunityStatusUsageQuery({ kind: 'single', organizationId: ORG_A });
-    expect(query?.sql).toContain('where "organization_id" in (?)');
+    expect(query?.sql).toContain('where "organization_id" = ?');
     expect(query?.params).toEqual([ORG_A]);
   });
 
   it('confines a reader of a set to the set', () => {
-    const query = opportunityStatusUsageQuery({ kind: 'set', organizationIds: [ORG_A, ORG_B] });
-    expect(query?.sql).toContain('where "organization_id" in (?, ?)');
-    expect(query?.params).toEqual([ORG_A, ORG_B]);
+    const query = opportunityStatusUsageQuery({ kind: 'allowed', organizationIds: [ORG_A, ORG_B] });
+    expect(query?.sql).toContain('where "organization_id" = any(?::uuid[])');
+    expect(query?.params).toEqual([`{"${ORG_A}","${ORG_B}"}`]);
+  });
+
+  // Issue #305 — a sales representative reaches every organization nobody else governs.
+  it('confines a sales representative to every organization nobody else governs', () => {
+    const query = opportunityStatusUsageQuery({ kind: 'excluded', excludedOrganizationIds: ['f1'], assignedOrganizationIds: [] });
+    expect(query?.sql).toContain('where ("organization_id" is not null and "organization_id" <> all(?::uuid[]))');
+    expect(query?.params).toEqual(['{"f1"}']);
   });
 
   it('runs no statement for a reader who reaches no organization', () => {
-    expect(opportunityStatusUsageQuery({ kind: 'set', organizationIds: [] })).toBeNull();
+    expect(opportunityStatusUsageQuery({ kind: 'allowed', organizationIds: [] })).toBeNull();
     expect(opportunityStatusUsageQuery({ kind: 'single', organizationId: null })).toBeNull();
   });
 });
