@@ -28,12 +28,14 @@ Output: `{ status, headers, body: 'stream' | 'none' | { code, message }, locatio
 ```text
 1. row = null                               → 404 ASSET_NOT_FOUND
 2. row.visibility = private and the HMAC signature (token, exp) for row.id is missing or invalid:
-     form = id                              → 403 ASSET_ACCESS_DENIED                  (master, unchanged)
+     form = id                              → 404 ASSET_NOT_FOUND, identical to rule 1  (issue #542; was 403)
      form = permalink                       → 404 ASSET_NOT_FOUND, identical to rule 1  (owner ruling P2)
 3. row.deletedAt                            → 410 ASSET_GONE                            (any form, any v)
 4. row.visibility = private (signature valid):
      backend = local                        → 200 / 304, `private, no-store, max-age=0`, v ignored
-     backend ∈ {s3, gcs}                    → 302 Location: time-limited URL from resolveUrl, `no-store`
+     backend ∈ {s3, gcs}                    → 302 Location: time-limited URL from resolveUrl, `no-store`;
+                                              the URL is signed with the row's type and its cloud
+                                              disposition, attachment when download=1 (issue #815)
 5. public, backend ∈ {s3, gcs}              → 302 Location: stable URL (+ `?v=<current>` when the request
                                               carried v), `no-store`
    public, backend = legacy                 → 302 Location: stored URL when it is http(s); otherwise
@@ -60,10 +62,15 @@ when `form = id`, `/assets/file/<row.permalink>` (stored value, each segment per
 | --- | --- | --- | --- | --- |
 | 200 | `nosniff` | `servingPolicyFor(row.mimeType)` | per rule 4 / 6 | `Content-Type` = row MIME; `Content-Length` when > 0; `ETag`; `Cross-Origin-Resource-Policy: cross-origin` when public; `Content-Disposition` = `contentDispositionHeader(mode, row.filename)` with `mode = attachment` when `download=1` or `!policy.inline` |
 | 304 | `nosniff` | `servingPolicyFor(row.mimeType)` | same as the 200 it stands for | `ETag` |
-| 302, 403, 404, 410 | `nosniff` | `SANDBOX_CSP` (fixed) | `no-store` | `Location` on 302 only |
+| 302, 404, 410 | `nosniff` | `SANDBOX_CSP` (fixed) | `no-store` | `Location` on 302 only |
 
 The route sets the decided headers on the reply before throwing the error envelope, so the error
 handler's response carries them. The `404` of rule 2 and the `404` of rule 1 are byte-identical.
+
+*Amended 2026-11-09 (issue #542).* Rule 2 by id answered `403 ASSET_ACCESS_DENIED`, which let a
+caller without a signature confirm that a private asset exists. It now answers rule 1's `404`, as
+the permalink form already did. `ASSET_ACCESS_DENIED` stays in the error catalogue; the file route
+no longer emits it.
 
 ## 3. URL forms the module hands out
 
