@@ -5,7 +5,7 @@ import {
   type BackendServerHandle,
 } from '../../helpers/test-server.js';
 import { SEED_PRODUCT_101_ID, SEED_PRODUCT_102_ID } from '../../helpers/seed-catalog.js';
-import { LINE_QUANTITY_MAX, expectBoundRefused } from '../../helpers/line-bounds.js';
+import { LINE_QUANTITY_MAX, expectQuantityRefused } from '../../helpers/line-bounds.js';
 
 /**
  * Issue #351 — a shopping-list item's quantity is bounded at
@@ -42,8 +42,8 @@ describe('shopping lists — line quantity bound (issue #351)', () => {
     });
 
   it('POST /api/v1/shopping-lists/:id/items refuses one past the bound and stores the bound', async () => {
-    expectBoundRefused(await add(LINE_QUANTITY_MAX + 1), 'quantity');
-    expectBoundRefused(await add(2 ** 31), 'quantity');
+    expectQuantityRefused(await add(LINE_QUANTITY_MAX + 1), 'quantity');
+    expectQuantityRefused(await add(2 ** 31), 'quantity');
     const res = await add(LINE_QUANTITY_MAX);
     expect(res.statusCode, res.body.slice(0, 500)).toBe(201);
   });
@@ -61,7 +61,7 @@ describe('shopping lists — line quantity bound (issue #351)', () => {
         cookies: CUSTOMER,
         payload: { quantity },
       });
-    expectBoundRefused(await patch(LINE_QUANTITY_MAX + 1), 'quantity');
+    expectQuantityRefused(await patch(LINE_QUANTITY_MAX + 1), 'quantity');
     const res = await patch(LINE_QUANTITY_MAX);
     expect(res.statusCode, res.body.slice(0, 500)).toBe(200);
   });

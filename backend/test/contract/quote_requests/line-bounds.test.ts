@@ -6,7 +6,7 @@ import {
 } from '../../helpers/test-server.js';
 import { SEED_PRODUCT_101_ID } from '../../helpers/seed-catalog.js';
 import { TEST_CUSTOMER_ID, TEST_ORGANIZATION_ID } from '../../helpers/test-actors.js';
-import { LINE_QUANTITY_MAX, REQUEST_LINE_ITEMS_MAX, expectBoundRefused } from '../../helpers/line-bounds.js';
+import { LINE_QUANTITY_MAX, REQUEST_LINE_ITEMS_MAX, expectQuantityRefused, expectLineCountRefused } from '../../helpers/line-bounds.js';
 
 /**
  * Issue #351 — the quote request create and edit routes, the customer's and the
@@ -58,14 +58,14 @@ describe('quote requests — line bounds (issue #351)', () => {
 
   describe('POST /api/v1/quote-requests', () => {
     it('refuses a quantity one past the bound', async () => {
-      expectBoundRefused(await customerCreate(lines(1, LINE_QUANTITY_MAX + 1)), 'items.0.quantity');
+      expectQuantityRefused(await customerCreate(lines(1, LINE_QUANTITY_MAX + 1)), 'items.0.quantity');
     });
     it('accepts a quantity at the bound', async () => {
       const res = await customerCreate(lines(1, LINE_QUANTITY_MAX));
       expect(res.statusCode, res.body).toBe(201);
     });
     it('refuses one line past the line bound and accepts the bound', async () => {
-      expectBoundRefused(await customerCreate(lines(REQUEST_LINE_ITEMS_MAX + 1)), 'items');
+      expectLineCountRefused(await customerCreate(lines(REQUEST_LINE_ITEMS_MAX + 1)), 'items');
       expect((await customerCreate(lines(REQUEST_LINE_ITEMS_MAX))).statusCode).toBe(201);
     });
   });
@@ -73,13 +73,13 @@ describe('quote requests — line bounds (issue #351)', () => {
   describe('PATCH /api/v1/quote-requests/:id (draft edit)', () => {
     it('refuses a quantity one past the bound and accepts the bound', async () => {
       const { id } = await pending();
-      expectBoundRefused(await customerPatch(id, lines(1, LINE_QUANTITY_MAX + 1)), 'items.0.quantity');
+      expectQuantityRefused(await customerPatch(id, lines(1, LINE_QUANTITY_MAX + 1)), 'items.0.quantity');
       const res = await customerPatch(id, lines(1, LINE_QUANTITY_MAX));
       expect(res.statusCode, res.body).toBe(200);
     });
     it('refuses one line past the line bound and accepts the bound', async () => {
       const { id } = await pending();
-      expectBoundRefused(await customerPatch(id, lines(REQUEST_LINE_ITEMS_MAX + 1)), 'items');
+      expectLineCountRefused(await customerPatch(id, lines(REQUEST_LINE_ITEMS_MAX + 1)), 'items');
       const res = await customerPatch(id, lines(REQUEST_LINE_ITEMS_MAX));
       expect(res.statusCode, res.body).toBe(200);
     });
@@ -87,12 +87,12 @@ describe('quote requests — line bounds (issue #351)', () => {
 
   describe('POST /api/v1/admin/quote-requests', () => {
     it('refuses a quantity one past the bound and accepts the bound', async () => {
-      expectBoundRefused(await adminCreate(adminLines(1, LINE_QUANTITY_MAX + 1)), 'items.0.quantity');
+      expectQuantityRefused(await adminCreate(adminLines(1, LINE_QUANTITY_MAX + 1)), 'items.0.quantity');
       const res = await adminCreate(adminLines(1, LINE_QUANTITY_MAX));
       expect(res.statusCode, res.body).toBe(201);
     });
     it('refuses one line past the line bound and accepts the bound', async () => {
-      expectBoundRefused(await adminCreate(adminLines(REQUEST_LINE_ITEMS_MAX + 1)), 'items');
+      expectLineCountRefused(await adminCreate(adminLines(REQUEST_LINE_ITEMS_MAX + 1)), 'items');
       const res = await adminCreate(adminLines(REQUEST_LINE_ITEMS_MAX));
       expect(res.statusCode, res.body).toBe(201);
     });
@@ -101,13 +101,13 @@ describe('quote requests — line bounds (issue #351)', () => {
   describe('PATCH /api/v1/admin/quote-requests/:id', () => {
     it('refuses a quantity one past the bound and accepts the bound', async () => {
       const { id, version } = await pending();
-      expectBoundRefused(await adminPatch(id, version, adminLines(1, LINE_QUANTITY_MAX + 1)), 'items.0.quantity');
+      expectQuantityRefused(await adminPatch(id, version, adminLines(1, LINE_QUANTITY_MAX + 1)), 'items.0.quantity');
       const res = await adminPatch(id, version, adminLines(1, LINE_QUANTITY_MAX));
       expect(res.statusCode, res.body).toBe(200);
     });
     it('refuses one line past the line bound and accepts the bound', async () => {
       const { id, version } = await pending();
-      expectBoundRefused(await adminPatch(id, version, adminLines(REQUEST_LINE_ITEMS_MAX + 1)), 'items');
+      expectLineCountRefused(await adminPatch(id, version, adminLines(REQUEST_LINE_ITEMS_MAX + 1)), 'items');
       const res = await adminPatch(id, version, adminLines(REQUEST_LINE_ITEMS_MAX));
       expect(res.statusCode, res.body).toBe(200);
     });

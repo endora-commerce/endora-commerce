@@ -6,7 +6,7 @@ import {
 } from '../../helpers/test-server.js';
 import { SEED_PRODUCT_101_ID, SEED_PRODUCT_101_SKU } from '../../helpers/seed-catalog.js';
 import { TEST_CUSTOMER_ID, TEST_ORGANIZATION_ID } from '../../helpers/test-actors.js';
-import { LINE_QUANTITY_MAX, expectBoundRefused } from '../../helpers/line-bounds.js';
+import { LINE_QUANTITY_MAX, expectQuantityRefused } from '../../helpers/line-bounds.js';
 
 /**
  * Issue #351 — quick order bounds a line's quantity at `LINE_QUANTITY_MAX`: the
@@ -58,19 +58,19 @@ describe('quick order — line quantity bound (issue #351)', () => {
     });
 
   it('POST /api/v1/quick-order/build refuses one past the bound and builds the bound', async () => {
-    expectBoundRefused(await build(LINE_QUANTITY_MAX + 1), 'items.0.quantity');
+    expectQuantityRefused(await build(LINE_QUANTITY_MAX + 1), 'items.0.quantity');
     const res = await build(LINE_QUANTITY_MAX);
     expect(res.statusCode, res.body.slice(0, 500)).toBe(200);
   });
 
   it('POST /api/v1/admin/quick-order/build refuses one past the bound and builds the bound', async () => {
-    expectBoundRefused(await adminBuild(LINE_QUANTITY_MAX + 1), 'items.0.quantity');
+    expectQuantityRefused(await adminBuild(LINE_QUANTITY_MAX + 1), 'items.0.quantity');
     const res = await adminBuild(LINE_QUANTITY_MAX);
     expect(res.statusCode, res.body.slice(0, 500)).toBe(200);
   });
 
   it('POST /api/v1/quick-order/one-click refuses one past the bound; the bound passes validation', async () => {
-    expectBoundRefused(await oneClick(LINE_QUANTITY_MAX + 1), 'quantity');
+    expectQuantityRefused(await oneClick(LINE_QUANTITY_MAX + 1), 'quantity');
     // One-click is switched off for the stub customer, so the bound is refused
     // by eligibility — not by validation, which is what this asserts.
     const res = await oneClick(LINE_QUANTITY_MAX);
@@ -90,5 +90,23 @@ describe('quick order — line quantity bound (issue #351)', () => {
     }).data;
     expect(data.rejected).toEqual([expect.objectContaining({ line: 2, reason: 'quantity_invalid' })]);
     expect(data.recognized.map((r) => r.quantity)).toEqual([LINE_QUANTITY_MAX]);
+  });
+
+  it('POST /api/v1/quick-order/import rejects duplicate rows whose sum passes the bound (R3)', async () => {
+    const res = await h.app.inject({
+      method: 'POST',
+      url: '/api/v1/quick-order/import',
+      cookies: CUSTOMER,
+      payload: { csv: `sku,quantity\n${SEED_PRODUCT_101_SKU},${LINE_QUANTITY_MAX}\n${SEED_PRODUCT_101_SKU},1` },
+    });
+    expect(res.statusCode, res.body.slice(0, 500)).toBe(200);
+    const data = (res.json() as {
+      data: { recognized: unknown[]; rejected: Array<{ line: number; reason: string }> };
+    }).data;
+    expect(data.recognized).toEqual([]);
+    expect(data.rejected.map((r) => [r.line, r.reason])).toEqual([
+      [2, 'quantity_invalid'],
+      [3, 'quantity_invalid'],
+    ]);
   });
 });

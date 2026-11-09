@@ -5,7 +5,7 @@ import {
   type BackendServerHandle,
 } from '../../helpers/test-server.js';
 import { SEED_PRODUCT_101_ID } from '../../helpers/seed-catalog.js';
-import { LINE_QUANTITY_MAX, expectBoundRefused } from '../../helpers/line-bounds.js';
+import { LINE_QUANTITY_MAX, expectQuantityRefused } from '../../helpers/line-bounds.js';
 
 /**
  * Issue #351 — `POST /api/v1/cart/items` bounds the line quantity at
@@ -33,7 +33,7 @@ describe('POST /api/v1/cart/items — line quantity bound (issue #351)', () => {
     });
 
   it.each([LINE_QUANTITY_MAX + 1, 2 ** 31])('refuses %d with 400 VALIDATION_FAILED', async (quantity) => {
-    expectBoundRefused(await add(`anon-351-over-${quantity}-${Date.now()}`, quantity), 'quantity');
+    expectQuantityRefused(await add(`anon-351-over-${quantity}-${Date.now()}`, quantity), 'quantity');
   });
 
   it('adds a line at the bound', async () => {

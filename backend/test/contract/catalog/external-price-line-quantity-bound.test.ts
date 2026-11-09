@@ -7,7 +7,7 @@ import {
 import { SEED_PRODUCT_101_SKU } from '../../helpers/seed-catalog.js';
 import { systemDefaultSalesChannelId } from '../../helpers/sales-channel-fixtures.js';
 import { TEST_CUSTOMER_ID, TEST_ORGANIZATION_ID } from '../../helpers/test-actors.js';
-import { LINE_QUANTITY_MAX, expectBoundRefused } from '../../helpers/line-bounds.js';
+import { LINE_QUANTITY_MAX, expectQuantityRefused } from '../../helpers/line-bounds.js';
 
 /**
  * Issue #351 — `POST /api/v1/external/catalog/prices` bounds a line's quantity
@@ -51,8 +51,8 @@ describe('POST /api/v1/external/catalog/prices — line quantity bound (issue #3
     });
 
   it('refuses one past the bound with 422 and prices the bound', async () => {
-    expectBoundRefused(await price(LINE_QUANTITY_MAX + 1), 'lines.0.quantity', 422);
-    expectBoundRefused(await price(2 ** 53 + 2), 'lines.0.quantity', 422);
+    expectQuantityRefused(await price(LINE_QUANTITY_MAX + 1), 'lines.0.quantity', { external: true });
+    expectQuantityRefused(await price(2 ** 31), 'lines.0.quantity', { external: true });
     const res = await price(LINE_QUANTITY_MAX);
     expect(res.statusCode, res.body.slice(0, 500)).toBe(200);
   });

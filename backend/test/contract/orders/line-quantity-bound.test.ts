@@ -20,7 +20,7 @@ import {
   minimumFixtureRun,
   type MinimumProductFixture,
 } from '../../helpers/order-minimum-fixture.js';
-import { LINE_QUANTITY_MAX, expectBoundRefused } from '../../helpers/line-bounds.js';
+import { LINE_QUANTITY_MAX, expectQuantityRefused } from '../../helpers/line-bounds.js';
 
 /**
  * Issue #351 — the admin create-order route, its preview and the external API
@@ -107,21 +107,21 @@ describe('orders — line quantity bound (issue #351)', () => {
   });
 
   it('POST /api/v1/admin/orders refuses one past the bound with 400 and creates an order at it', async () => {
-    expectBoundRefused(await create(LINE_QUANTITY_MAX + 1), 'items.0.quantity');
-    expectBoundRefused(await create(2 ** 31), 'items.0.quantity');
+    expectQuantityRefused(await create(LINE_QUANTITY_MAX + 1), 'items.0.quantity');
+    expectQuantityRefused(await create(2 ** 31), 'items.0.quantity');
     const res = await create(LINE_QUANTITY_MAX);
     expect(res.statusCode, res.body.slice(0, 500)).toBe(201);
   });
 
   it('POST /api/v1/admin/orders/preview refuses one past the bound with 400 and prices the bound', async () => {
-    expectBoundRefused(await preview(LINE_QUANTITY_MAX + 1), 'items.0.quantity');
+    expectQuantityRefused(await preview(LINE_QUANTITY_MAX + 1), 'items.0.quantity');
     const res = await preview(LINE_QUANTITY_MAX);
     expect(res.statusCode, res.body.slice(0, 500)).toBe(200);
   });
 
   it('POST /api/v1/external/orders refuses one past the bound with 422 and places an order at it', async () => {
-    expectBoundRefused(await external(LINE_QUANTITY_MAX + 1), 'lines.0.quantity', 422);
-    expectBoundRefused(await external(2 ** 31), 'lines.0.quantity', 422);
+    expectQuantityRefused(await external(LINE_QUANTITY_MAX + 1), 'lines.0.quantity', { external: true });
+    expectQuantityRefused(await external(2 ** 31), 'lines.0.quantity', { external: true });
     const res = await external(LINE_QUANTITY_MAX);
     expect(res.statusCode, res.body.slice(0, 500)).toBe(201);
   });

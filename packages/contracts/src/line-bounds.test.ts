@@ -1,6 +1,13 @@
 import { describe, expect, it } from 'vitest';
 import {
   ADMIN_ORDER_MAX_ITEMS,
+  ERROR_CODES,
+  LINE_QUANTITY_EXCEEDED,
+  createPackagingUnitRequestSchema,
+  isAmountPrecisionIssue,
+  isLineQuantityExceededIssue,
+  updateCartItemRequestSchema,
+  updatePackagingUnitRequestSchema,
   LINE_QUANTITY_MAX,
   ORDER_MINIMUM_MAX,
   QUICK_ORDER_BUILD_MAX_ITEMS,
@@ -56,10 +63,30 @@ describe('lineQuantitySchema (issue #351)', () => {
     expect(lineQuantitySchema.safeParse(value).success).toBe(false);
   });
 
-  it('reports a too_big issue naming the bound', () => {
-    const result = lineQuantitySchema.safeParse(LINE_QUANTITY_MAX + 1);
-    expect(result.success).toBe(false);
-    expect(result.error?.issues[0]).toMatchObject({ code: 'too_big', maximum: LINE_QUANTITY_MAX });
+  // Architect ruling R1 on PR #1009 — a refusal of its own, tagged like the
+  // money-precision issue, so the envelope answers the translated
+  // `LINE_QUANTITY_EXCEEDED` instead of `VALIDATION_FAILED`.
+  it('refuses past the bound with the one issue tagged LINE_QUANTITY_EXCEEDED', () => {
+    const issues = lineQuantitySchema.safeParse(LINE_QUANTITY_MAX + 1).error?.issues ?? [];
+    expect(issues).toHaveLength(1);
+    expect(issues[0]!.message).toBe(LINE_QUANTITY_EXCEEDED);
+    expect(isLineQuantityExceededIssue(issues[0])).toBe(true);
+    expect(isAmountPrecisionIssue(issues[0])).toBe(false);
+    expect(ERROR_CODES.LINE_QUANTITY_EXCEEDED).toBe(LINE_QUANTITY_EXCEEDED);
+  });
+
+  it('keeps the floor and the whole-number rule as plain issues', () => {
+    for (const value of [0, 1.5]) {
+      const issues = lineQuantitySchema.safeParse(value).error?.issues ?? [];
+      expect(issues.length).toBeGreaterThan(0);
+      expect(issues.some(isLineQuantityExceededIssue)).toBe(false);
+    }
+  });
+
+  it('recognises the Fastify-wrapped form, whose params carry the issue', () => {
+    expect(isLineQuantityExceededIssue({ params: { params: { code: LINE_QUANTITY_EXCEEDED } } })).toBe(true);
+    expect(isLineQuantityExceededIssue({ params: { code: 'too_big' } })).toBe(false);
+    expect(isLineQuantityExceededIssue(null)).toBe(false);
   });
 });
 
@@ -183,5 +210,24 @@ describe('line arrays bounded at REQUEST_LINE_ITEMS_MAX (issue #351)', () => {
   it.each(cases)('%s accepts the cap and refuses one more', (_name, body, schema) => {
     expect(schema.safeParse(body(REQUEST_LINE_ITEMS_MAX))).toMatchObject({ success: true });
     expect(schema.safeParse(body(REQUEST_LINE_ITEMS_MAX + 1)).success).toBe(false);
+  });
+});
+
+describe('the cart line edit and the packaging unit base quantity (ruling R3)', () => {
+  it('a cart line edit takes 0 (remove) up to the bound, past 999', () => {
+    for (const quantity of [0, 999, 5000, LINE_QUANTITY_MAX]) {
+      expect(updateCartItemRequestSchema.safeParse({ quantity }).success, String(quantity)).toBe(true);
+    }
+    const issues = updateCartItemRequestSchema.safeParse({ quantity: LINE_QUANTITY_MAX + 1 }).error?.issues ?? [];
+    expect(issues.map(isLineQuantityExceededIssue)).toEqual([true]);
+    expect(updateCartItemRequestSchema.safeParse({ quantity: -1 }).success).toBe(false);
+  });
+
+  it('a packaging unit base quantity is a line quantity: past the bound it is refused', () => {
+    const create = (baseQuantity: number) => createPackagingUnitRequestSchema.safeParse({ name: 'Pallet', baseQuantity });
+    expect(create(LINE_QUANTITY_MAX).success).toBe(true);
+    expect((create(LINE_QUANTITY_MAX + 1).error?.issues ?? []).map(isLineQuantityExceededIssue)).toEqual([true]);
+    expect(updatePackagingUnitRequestSchema.safeParse({ baseQuantity: LINE_QUANTITY_MAX }).success).toBe(true);
+    expect(updatePackagingUnitRequestSchema.safeParse({ baseQuantity: LINE_QUANTITY_MAX + 1 }).success).toBe(false);
   });
 });

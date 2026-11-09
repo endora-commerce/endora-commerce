@@ -4,7 +4,7 @@ import {
   teardownBackendServer,
   type BackendServerHandle,
 } from '../../helpers/test-server.js';
-import { LINE_QUANTITY_MAX, expectBoundRefused } from '../../helpers/line-bounds.js';
+import { LINE_QUANTITY_MAX, expectQuantityRefused } from '../../helpers/line-bounds.js';
 
 /**
  * Issue #351 — the admin promotion preview's cart snapshot bounds a line's
@@ -45,7 +45,7 @@ describe('POST /api/v1/admin/promotions/preview — line quantity bound (issue #
     });
 
   it('refuses one past the bound and previews the bound', async () => {
-    expectBoundRefused(await preview(LINE_QUANTITY_MAX + 1), 'lines.0.quantity');
+    expectQuantityRefused(await preview(LINE_QUANTITY_MAX + 1), 'lines.0.quantity');
     const res = await preview(LINE_QUANTITY_MAX);
     expect(res.statusCode, res.body.slice(0, 500)).toBe(200);
   });

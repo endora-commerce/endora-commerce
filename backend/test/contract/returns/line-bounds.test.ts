@@ -4,7 +4,7 @@ import {
   teardownBackendServer,
   type BackendServerHandle,
 } from '../../helpers/test-server.js';
-import { LINE_QUANTITY_MAX, REQUEST_LINE_ITEMS_MAX, expectBoundRefused } from '../../helpers/line-bounds.js';
+import { LINE_QUANTITY_MAX, REQUEST_LINE_ITEMS_MAX, expectQuantityRefused, expectLineCountRefused } from '../../helpers/line-bounds.js';
 import {
   CUSTOMER_COOKIE,
   anyReasonId,
@@ -45,8 +45,8 @@ describe('POST /api/v1/returns — line bounds (issue #351)', () => {
       lines: [{ quantity: LINE_QUANTITY_MAX, returnableAtPurchase: true }],
     });
     const orderItemId = itemIds[0]!;
-    expectBoundRefused(await submit(orderId, [{ orderItemId, quantity: LINE_QUANTITY_MAX + 1 }]), 'lines.0.quantity');
-    expectBoundRefused(await submit(orderId, [{ orderItemId, quantity: 2 ** 31 }]), 'lines.0.quantity');
+    expectQuantityRefused(await submit(orderId, [{ orderItemId, quantity: LINE_QUANTITY_MAX + 1 }]), 'lines.0.quantity');
+    expectQuantityRefused(await submit(orderId, [{ orderItemId, quantity: 2 ** 31 }]), 'lines.0.quantity');
     const res = await submit(orderId, [{ orderItemId, quantity: LINE_QUANTITY_MAX }]);
     expect(res.statusCode, res.body.slice(0, 500)).toBe(201);
   });
@@ -56,7 +56,7 @@ describe('POST /api/v1/returns — line bounds (issue #351)', () => {
       lines: Array.from({ length: REQUEST_LINE_ITEMS_MAX + 1 }, () => ({ quantity: 1, returnableAtPurchase: true })),
     });
     const lines = itemIds.map((orderItemId) => ({ orderItemId, quantity: 1 }));
-    expectBoundRefused(await submit(orderId, lines), 'lines');
+    expectLineCountRefused(await submit(orderId, lines), 'lines');
     const res = await submit(orderId, lines.slice(0, REQUEST_LINE_ITEMS_MAX));
     expect(res.statusCode, res.body.slice(0, 500)).toBe(201);
   });

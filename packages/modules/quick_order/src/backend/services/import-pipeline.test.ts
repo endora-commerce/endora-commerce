@@ -72,6 +72,22 @@ describe('QuickOrderImportPipeline', () => {
     expect(result.recognized.map((r) => [r.productId, r.quantity])).toEqual([['p2', LINE_QUANTITY_MAX]]);
   });
 
+  it('rejects every row of a duplicate whose sum passes LINE_QUANTITY_MAX as quantity_invalid (issue #351, R3)', async () => {
+    const pipeline = new QuickOrderImportPipeline(lookupOf({ products: [ACTIVE('p1', 'ABC'), ACTIVE('p2', 'DEF')] }));
+    const half = LINE_QUANTITY_MAX / 2;
+    const csv = ['sku,quantity', `ABC,${half}`, `DEF,${half}`, `ABC,${half + 1}`, `DEF,${half}`].join('\n');
+    const result = await pipeline.run(parseCsvRows(csv), { maxRows: 100, audience: AUDIENCE });
+
+    expect(result.rejected.map((r) => [r.line, r.reason, r.raw])).toEqual([
+      [2, 'quantity_invalid', `ABC,${half}`],
+      [4, 'quantity_invalid', `ABC,${half + 1}`],
+    ]);
+    // A sum exactly at the bound is still one recognised line.
+    expect(result.recognized.map((r) => [r.productId, r.quantity, r.mergedFromLines])).toEqual([
+      ['p2', LINE_QUANTITY_MAX, [5]],
+    ]);
+  });
+
   it('reads "archived" from archivedAt, never from the status (spec 163, FR-010, FR-019)', async () => {
     const pipeline = new QuickOrderImportPipeline(
       lookupOf({
