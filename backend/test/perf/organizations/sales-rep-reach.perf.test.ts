@@ -31,8 +31,12 @@ import { SalesRepAssignmentService } from '../../../../packages/modules/organiza
  * organizations in trees of 10 (a binary tree, depth ≤ 4) — and 3 000
  * assignment rows over 40 representatives, roll-up on for half of them.
  *
- * If this fails, the fallback the design names is the materialised
- * `organization_reach_governor` table, not a cache; report the measurement.
+ * Issue #955 met it: the roll-up reach is one scan of the materialised
+ * `organization_reach_governor` table (design D5.1), and the excluded list
+ * travels into every tenant-scoped statement as one array parameter. The seed
+ * below writes through raw SQL, which the table's triggers maintain exactly as
+ * they do for the Commands. There is still no cache (E-305-2); if this fails,
+ * report the measurement rather than move a threshold.
  *
  * Tuning knobs (env):
  *   PERF_RUN            — set to 'true' to run; otherwise skipped.
@@ -180,11 +184,7 @@ describe.skipIf(!shouldRun)('#305 — the sales-representative reach at 50 000 o
     expect(reachP95, `reachOf ${label} p95`).toBeLessThanOrEqual(reachBudget);
   }, 600_000);
 
-  // Known failure, issue #955 (ruling Q5 on PR #954): measured 7.7× and 22.7×
-  // on 2026-11-08 (`specs/175-sales-rep-reach-rule/research.md` R-3). The
-  // threshold stays; `it.fails` turns red the day the governor table makes it
-  // pass, which is when this marker is removed.
-  it.fails.each(['/api/v1/admin/customers?pageSize=50', '/api/v1/admin/orders?pageSize=50'])(
+  it.each(['/api/v1/admin/customers?pageSize=50', '/api/v1/admin/orders?pageSize=50'])(
     '%s for a roll-up representative is within the ratio of the platform administrator’s',
     async (url) => {
       const read = (cookie: string) => async () => {

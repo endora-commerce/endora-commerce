@@ -1,7 +1,7 @@
 import { afterAll, beforeAll, describe, expect, it } from 'vitest';
 import type { EntityManager } from '@mikro-orm/postgresql';
 import { randomUUID } from 'node:crypto';
-import { Organization, OrganizationSalesRepAssignment } from '../../helpers/package-entities.js';
+import { AdminUser, Organization, OrganizationSalesRepAssignment } from '../../helpers/package-entities.js';
 import {
   setupBackendServer,
   teardownBackendServer,
@@ -34,6 +34,14 @@ import { SalesRepAssignmentService } from '../../../../packages/modules/organiza
  * `x` is a data defect the create hook and the repair migration prevent, and
  * the rule must still answer it exactly: its own path names no ancestor, so it
  * governs itself, and `xc`'s path names it, so under roll-up it governs `xc`.
+ *
+ * Issue #955 — the roll-up half of the excluded set is read off the
+ * materialised `organization_reach_governor` table, and a stale row there
+ * **widens** reach. So the property is held again after every kind of write
+ * that can move a governor — create, assign, a second assignment on the same
+ * organization, unassign, set-parent, move, delete, and the raw writes the
+ * fixtures and the demo reset make — each through its real write path, and
+ * the table is compared with a rebuild from scratch after each one.
  */
 let seq = 0;
 async function node(em: EntityManager, label: string, parent?: Organization): Promise<Organization> {
@@ -167,5 +175,167 @@ describe('#305 — canSeeOrganization and the excluded set are one rule', () => 
         [`{${excludedOrganizationIds.join(',')}}`],
       );
     expect(rows[0]!.n).toBe('0');
+  });
+
+  /**
+   * Issue #955 — after every mutation type, the maintained governor table is
+   * still the rule. Each step goes through the write path an operator uses
+   * (the admin routes, so the Commands and the assignment service), except the
+   * last, which writes the way fixtures and the demo reset do.
+   *
+   *     p (–)                q (–)
+   *     ├── p1 (–)           └── q1 (–)
+   *     │   └── p11 (–)
+   *     └── p2 (–)
+   */
+  describe('after every mutation type (#955)', () => {
+    const stamp = Date.now().toString().slice(-7);
+    let R2 = '';
+    let S2 = '';
+    const T2 = randomUUID();
+    const tree: Record<string, string> = {};
+    let channelId = '';
+    let created = 0;
+
+    const admin = (method: 'POST' | 'DELETE', url: string, payload?: Record<string, unknown>) =>
+      h.app.inject({ method, url, cookies: { b2b_session: 'stub-admin-session' }, ...(payload ? { payload } : {}) });
+    const ok = async (pending: ReturnType<typeof admin>, status: number): Promise<Record<string, unknown>> => {
+      const res = await pending;
+      expect(res.statusCode, res.body).toBe(status);
+      return status === 204 ? {} : (res.json() as { data: Record<string, unknown> }).data;
+    };
+    const create = async (label: string): Promise<string> => {
+      created += 1;
+      const data = await ok(
+        admin('POST', '/api/v1/admin/organizations', {
+          name: `R955 ${label} ${stamp}`,
+          taxId: `PL955${stamp}${String(created).padStart(3, '0')}`,
+          registeredAddress: { street: 'ul. Nowa 1', city: 'Kraków', postalCode: '30-001', country: 'PL' },
+          salesChannelIds: [channelId],
+        }),
+        201,
+      );
+      tree[label] = data['id'] as string;
+      return tree[label]!;
+    };
+    const setParent = (label: string, parent: string | null) =>
+      ok(admin('POST', `/api/v1/admin/organizations/${tree[label]}/parent`, { parentId: parent === null ? null : tree[parent] }), 200);
+    const assignRep = (label: string, rep: string) =>
+      ok(admin('POST', `/api/v1/admin/organizations/${tree[label]}/sales-reps`, { adminUserId: rep }), 201);
+    const unassignRep = (label: string, rep: string) =>
+      ok(admin('DELETE', `/api/v1/admin/organizations/${tree[label]}/sales-reps/${rep}`), 204);
+
+    /** The maintained table against a rebuild from scratch, in a transaction that is rolled back. */
+    async function staleGovernorRows(): Promise<number> {
+      const sentinel = new Error('rollback');
+      let stale = -1;
+      await h.orm.em
+        .fork()
+        .transactional(async (tx) => {
+          await tx.execute('create temporary table "r955_maintained" on commit drop as select * from "organization_reach_governor"');
+          await tx.execute('select "organizations_reach_governor_rebuild"(null)');
+          const rows = await tx.execute<Array<{ n: string }>>(
+            `select count(*)::text as "n" from (
+               (select * from "r955_maintained" except select * from "organization_reach_governor")
+               union all
+               (select * from "organization_reach_governor" except select * from "r955_maintained")
+             ) d`,
+          );
+          stale = Number(rows[0]!.n);
+          throw sentinel;
+        })
+        .catch((error: unknown) => {
+          if (error !== sentinel) throw error;
+        });
+      return stale;
+    }
+
+    async function expectOneRule(step: string): Promise<void> {
+      expect(await staleGovernorRows(), `${step}: governor rows differing from a rebuild`).toBe(0);
+      for (const mode of ['flat', 'rollup'] as const) {
+        for (const rep of [R2, S2, T2]) (mode === 'rollup' ? rollup.add(rep) : rollup.delete(rep));
+        for (const [name, rep] of [['R2', R2], ['S2', S2], ['T2', T2]] as const) {
+          const excluded = new Set((await svc.reachOf(rep)).excludedOrganizationIds);
+          for (const [label, id] of Object.entries(tree)) {
+            expect(!excluded.has(id), `${step}: ${name} ${mode} ${label}`).toBe(await svc.canSeeOrganization(rep, id));
+          }
+        }
+      }
+    }
+
+    beforeAll(async () => {
+      const em = h.orm.em.fork();
+      const rep = (label: string): AdminUser =>
+        em.create(AdminUser, {
+          email: `r955-${label}-${stamp}@scope.local`,
+          passwordHash: 'x'.repeat(60),
+          firstName: '955',
+          lastName: label,
+        });
+      const r = rep('r');
+      const s = rep('s');
+      await em.persistAndFlush([r, s]);
+      R2 = r.id;
+      S2 = s.id;
+      const channels = await em
+        .getConnection()
+        .execute<Array<{ id: string }>>('select "id" from "sales_channels" order by "system_default" desc limit 1');
+      channelId = channels[0]!.id;
+      for (const label of ['p', 'p1', 'p11', 'p2', 'q', 'q1']) await create(label);
+      await setParent('p1', 'p');
+      await setParent('p11', 'p1');
+      await setParent('p2', 'p');
+      await setParent('q1', 'q');
+    }, 60_000);
+
+    afterAll(async () => {
+      await h
+        .em()
+        .getConnection()
+        .execute('delete from organization_sales_rep_assignments where admin_user_id in (?, ?)', [R2, S2]);
+    });
+
+    it('holds after a create, every assignment change, set-parent, move, delete and a raw write', async () => {
+      await expectOneRule('the fixture');
+      await create('n');
+      await expectOneRule('create');
+      await assignRep('p', R2);
+      await expectOneRule('assign over an ungoverned subtree');
+      await assignRep('p1', S2);
+      await expectOneRule('assign under a governed node (the override)');
+      await setParent('n', 'p11');
+      await expectOneRule('set-parent of a root under an overridden node');
+      await setParent('p1', 'q');
+      await expectOneRule('move of a subtree to another tree');
+      await assignRep('q', R2);
+      await expectOneRule('assign above an overridden subtree');
+      await unassignRep('p1', S2);
+      await expectOneRule('unassign: the subtree falls to the nearer ancestor');
+      await assignRep('q', S2);
+      await expectOneRule('a second representative on the same organization');
+      await unassignRep('q', R2);
+      await expectOneRule('unassign one of two representatives');
+      await unassignRep('q', S2);
+      await expectOneRule('unassign the last representative');
+      await setParent('p1', 'p');
+      await expectOneRule('move back under a governed node');
+      await ok(admin('DELETE', `/api/v1/admin/organizations/${tree['n']}`), 204);
+      await expectOneRule('delete');
+
+      // The writes fixtures and the demo reset make, which no Command sees.
+      const db = h.em().getConnection();
+      await db.execute(
+        'insert into organization_sales_rep_assignments (id, organization_id, admin_user_id, created_at) values (gen_random_uuid(), ?, ?, now())',
+        [tree['q1'], S2],
+      );
+      await expectOneRule('raw insert of an assignment');
+      await db.execute(`update organizations set path = '' where id = ?`, [tree['p1']]);
+      await expectOneRule('raw write of an unreadable path');
+      await db.execute('delete from organization_sales_rep_assignments where organization_id = ? and admin_user_id = ?', [
+        tree['p'],
+        R2,
+      ]);
+      await expectOneRule('raw delete of an assignment');
+    }, 240_000);
   });
 });

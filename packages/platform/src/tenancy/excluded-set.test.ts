@@ -1,4 +1,5 @@
 import { describe, expect, it } from 'vitest';
+import { RawQueryFragment } from '@mikro-orm/core';
 import { resolveTenantContext } from './resolve-tenant-context.js';
 import { runWithTenantContext, type TenantContext } from './tenant-context.js';
 import { customerFilterCond, orgFilterCond } from './filters.js';
@@ -33,6 +34,23 @@ const repContext = (scope: Parameters<typeof resolveTenantContext>[1] = REP_SCOP
 const inRep = <T>(fn: () => T, ctx: TenantContext = repContext()): Promise<T> =>
   runWithTenantContext(ctx, async () => fn());
 
+/**
+ * Issue #955 — the excluded list travels as **one** array parameter,
+ * `<> all(?::uuid[])`, not as one bind per id: at a roll-up representative's
+ * few thousand ids the per-id binds dominated every tenant-scoped statement of
+ * the request. Read off the fragment rather than compared whole, because a
+ * `RawQueryFragment` carries a private cache key.
+ */
+function oneArrayParameter(predicate: unknown): { keys: string[]; sql: string; params: unknown[] } {
+  const value = predicate as Record<string, unknown>;
+  const ne = value['$ne'];
+  expect(ne).toBeInstanceOf(RawQueryFragment);
+  const fragment = ne as RawQueryFragment;
+  return { keys: Object.keys(value), sql: fragment.sql, params: fragment.params };
+}
+
+const EXCLUDING_ORG_F = { keys: ['$ne'], sql: 'all(?::uuid[])', params: ['{"org-F"}'] };
+
 describe('resolveTenantContext — the `excluding` reach (#305)', () => {
   it('maps to the excluded-set mode, carrying both id lists', () => {
     const ctx = repContext();
@@ -56,9 +74,10 @@ describe('resolveTenantContext — the `excluding` reach (#305)', () => {
 
 describe('filter conds — the excluded-set arm (#305)', () => {
   it('@OrgScoped: every organization but the excluded ones, and never a null one', async () => {
-    expect(await inRep(() => orgFilterCond())).toEqual({
-      organizationId: { $ne: null, $nin: ['org-F'] },
-    });
+    const cond = await inRep(() => orgFilterCond());
+    expect(Object.keys(cond)).toEqual(['organizationId']);
+    // `null <> all(<a non-empty list>)` is NULL, so a null organization never matches.
+    expect(oneArrayParameter(cond['organizationId'])).toEqual(EXCLUDING_ORG_F);
   });
 
   it('@OrgScoped: an empty excluded list restricts nothing but the null organization', async () => {
@@ -67,9 +86,9 @@ describe('filter conds — the excluded-set arm (#305)', () => {
   });
 
   it('@CustomerScoped with an organization column: the same predicate', async () => {
-    expect(await inRep(() => customerFilterCond('present'))).toEqual({
-      organizationId: { $ne: null, $nin: ['org-F'] },
-    });
+    const cond = await inRep(() => customerFilterCond('present'));
+    expect(Object.keys(cond)).toEqual(['organizationId']);
+    expect(oneArrayParameter(cond['organizationId'])).toEqual(EXCLUDING_ORG_F);
   });
 
   it('@CustomerScoped without one: matches nothing and notes the refusal', async () => {
@@ -103,7 +122,9 @@ describe('derived-scope helpers — one case per arm', () => {
     expect(orgScopeWhere('id', platform)).toEqual({});
     expect(orgScopeWhere('id', single)).toEqual({ id: 'org-A' });
     expect(orgScopeWhere('id', allowed)).toEqual({ id: { $in: ['org-A'] } });
-    expect(orgScopeWhere('id', excluded)).toEqual({ id: { $ne: null, $nin: ['org-F'] } });
+    const where = orgScopeWhere('id', excluded);
+    expect(Object.keys(where)).toEqual(['id']);
+    expect(oneArrayParameter(where['id'])).toEqual(EXCLUDING_ORG_F);
     expect(orgScopeWhere('id', repContext({ ...REP_SCOPE, excludedOrganizationIds: [] }))).toEqual({
       id: { $ne: null },
     });
