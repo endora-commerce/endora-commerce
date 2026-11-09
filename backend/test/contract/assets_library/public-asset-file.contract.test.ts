@@ -132,11 +132,14 @@ describe('public asset file (T037)', () => {
     await h.em().removeAndFlush(await h.em().findOneOrFail(Asset, { id }));
   });
 
-  it('rejects an unauthenticated request for a private asset with 403', async () => {
+  // Issue #542: indistinguishable from an id that names nothing.
+  it('answers an unauthenticated request for a private asset exactly like a missing one', async () => {
     const id = await uploadOne('private');
     const r = await h.app.inject({ method: 'GET', url: `/assets/file/${id}` });
-    expect(r.statusCode).toBe(403);
-    expect(r.json()).toMatchObject({ error: { code: 'ASSET_ACCESS_DENIED' } });
+    const missing = await h.app.inject({ method: 'GET', url: '/assets/file/aabbccdd-ffff-ffff-ffff-ffffffffffff' });
+    expect(r.statusCode).toBe(404);
+    expect(r.json()).toMatchObject({ error: { code: 'ASSET_NOT_FOUND' } });
+    expect(r.body).toBe(missing.body);
     await h.em().removeAndFlush(await h.em().findOneOrFail(Asset, { id }));
   });
 
@@ -299,7 +302,7 @@ describe('public asset file (T037)', () => {
     }
   });
 
-  it('checks a soft-deleted private asset’s signature first: 403 without or with a tampered one, 410 with a valid one', async () => {
+  it('checks a soft-deleted private asset’s signature first: 404 without or with a tampered one, 410 with a valid one', async () => {
     const id = await uploadOne('private');
     const signed = await h.app.inject({ method: 'GET', url: `/api/v1/admin/assets/${id}/url`, cookies: adminCookie });
     const url = new URL((signed.json() as { data: { url: string } }).data.url);
@@ -310,8 +313,8 @@ describe('public asset file (T037)', () => {
     const without = await h.app.inject({ method: 'GET', url: `/assets/file/${id}` });
     const tampered = await h.app.inject({ method: 'GET', url: `/assets/file/${id}?token=${'0'.repeat(64)}&exp=${exp}` });
     const valid = await h.app.inject({ method: 'GET', url: `/assets/file/${id}?token=${token}&exp=${exp}` });
-    expect([without.statusCode, tampered.statusCode, valid.statusCode]).toEqual([403, 403, 410]);
-    expect(without.json()).toMatchObject({ error: { code: 'ASSET_ACCESS_DENIED' } });
+    expect([without.statusCode, tampered.statusCode, valid.statusCode]).toEqual([404, 404, 410]);
+    expect(without.json()).toMatchObject({ error: { code: 'ASSET_NOT_FOUND' } });
     expect(valid.json()).toMatchObject({ error: { code: 'ASSET_GONE' } });
     for (const r of [without, tampered, valid]) expectRefusalHeaders(r);
   });
