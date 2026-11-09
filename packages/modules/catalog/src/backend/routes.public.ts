@@ -13,6 +13,7 @@ import {
   productListIdsSchema,
   productDetailQuerySchema,
   productListSortSchema,
+  requestScopeLanguage,
   resolveListingCurrency,
   validateBundleConfigurationRequestSchema,
   type ListingPriceOrderPort,
@@ -497,8 +498,10 @@ export function readContext(request: FastifyRequest): {
     requestedCurrency === undefined ? undefined : listingCurrencyQuerySchema.parse(requestedCurrency),
     ch,
   );
+  // Issue #397 — the request language is the channel's language the header asks
+  // for: q-weighted, matched exactly then by base language, else the default.
   const acceptLanguage = acceptLanguageHeaderSchema.parse(request.headers['accept-language']);
-  const preferredLanguage = acceptLanguage ? acceptLanguage.split(',')[0]?.trim() : undefined;
+  const preferredLanguage = acceptLanguage ? requestScopeLanguage(ch, acceptLanguage) : undefined;
   return {
     resolvedChannel: {
       id: ch.id,

@@ -1,5 +1,6 @@
+import { randomUUID } from 'node:crypto';
 import { AuditLogEntry } from '@endora-commerce/platform/kernel';
-import { afterAll, beforeAll, describe, expect, it } from 'vitest';
+import { afterAll, beforeAll, describe, expect, it, onTestFinished } from 'vitest';
 
 import { seedProductScopesAdmins } from '../../helpers/product-scopes-admins.js';
 import {
@@ -422,6 +423,31 @@ describe('Product content — admin routes (feature 172)', () => {
 
     it('resolves each document: visitor, channel default, en-US, then any stored; an empty language is skipped (FR-033)', async () => {
       const product = await createVisibleProduct();
+      // Issue #397 — the visitor's language is one the channel offers (`pl_retail` offers only
+      // its default), so the visitor leg is read on a channel that also offers `de-DE`.
+      const connection = h.em().getConnection();
+      const channelId = randomUUID();
+      const channelCode = `pc172-de-${channelId.slice(0, 8)}`;
+      await connection.execute(
+        `insert into sales_channels (id, code, name, default_language, languages, currencies, default_currency,
+                                     active, created_at, updated_at)
+         values (?, ?, ?::jsonb, ?, ?::jsonb, '["PLN"]'::jsonb, 'PLN', true, now(), now())`,
+        [
+          channelId,
+          channelCode,
+          JSON.stringify({ 'en-US': 'FR-033 visitor leg' }),
+          retailDefaultLanguage,
+          JSON.stringify([retailDefaultLanguage, 'de-DE']),
+        ],
+      );
+      await connection.execute(`insert into sales_channel_products (sales_channel_id, product_id) values (?, ?)`, [
+        channelId,
+        product.id,
+      ]);
+      onTestFinished(async () => {
+        await connection.execute(`delete from sales_channel_products where sales_channel_id = ?`, [channelId]);
+        await connection.execute(`delete from sales_channels where id = ?`, [channelId]);
+      });
       await put(product.id, 'pc_guide', { languages: { 'en-US': tree('English'), 'de-DE': tree('Deutsch') } });
       await put(product.id, 'pc_banner', { languages: { 'de-DE': tree('Nur Deutsch') } });
       await put(product.id, 'pc_tie_a', {
@@ -430,9 +456,15 @@ describe('Product content — admin routes (feature 172)', () => {
 
       const read = async (language?: string) =>
         Object.fromEntries(
-          ((await pdp(product.slug, '?include=content', language)).json() as { data: Detail }).data.contentAttributes!.map(
-            (entry) => [entry.key, entry.language],
-          ),
+          (
+            (
+              await h.app.inject({
+                method: 'GET',
+                url: `/api/v1/catalog/products/${product.slug}?include=content`,
+                headers: { 'x-sales-channel': channelCode, ...(language ? { 'accept-language': language } : {}) },
+              })
+            ).json() as { data: Detail }
+          ).data.contentAttributes!.map((entry) => [entry.key, entry.language]),
         );
 
       expect(await read('de-DE')).toMatchObject({ pc_guide: 'de-DE', pc_banner: 'de-DE' });

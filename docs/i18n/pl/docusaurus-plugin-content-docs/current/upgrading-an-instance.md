@@ -4690,6 +4690,29 @@ uruchom backend ponownie, aby wymagania znów obowiązywały, albo wyłącz usta
 **Ustawieniach** i zdejmij polityki organizacji. Ustaw ten klucz, z którym utworzono rejestracje:
 rejestracji utworzonej innym kluczem nie da się nim sprawdzić.
 
+### Katalog odczytuje cały nagłówek `Accept-Language` {#catalog-accept-language}
+
+Wydanie z tą zmianą sprawia, że katalog odczytuje `Accept-Language` zgodnie z definicją tego
+nagłówka, jako listę języków z wagami (zgłoszenie #397). Publiczne API katalogu (`/api/v1/catalog/*`) i zewnętrzne API katalogu
+(`/api/v1/external/catalog/*`) brały dotąd pierwszy wpis nagłówka dosłownie, razem z ewentualną
+wagą `;q=`.
+
+**Zmiana zachowania po aktualizacji:**
+
+- Tagi są odczytywane według wagi `q`, od najwyższej. Katalog odpowiada w pierwszym języku, który
+  oferuje kanał sprzedaży, dopasowanym dokładnie albo po samym języku, więc `pl` pasuje do `pl-PL`
+  kanału. Jeśli kanał nie oferuje żadnego z nich, odpowiada w domyślnym języku kanału.
+  `en;q=0.1, pl-PL;q=0.9` dostaje teraz odpowiedź po polsku. Wcześniej odpowiedź była po
+  angielsku.
+- Język, którego kanał nie oferuje, nie jest już serwowany, nawet jeśli nazwa kategorii albo
+  etykieta atrybutu ma w nim tekst. Odpowiedź jest w domyślnym języku kanału.
+- Sklep wysyła język, który ustalił dla kanału, więc zwykle zmiana go nie dotyczy. Nie dotyczy też
+  żądania bez tego nagłówka.
+
+**Po aktualizacji** sprawdź integracje, które wywołują API katalogu z własnym `Accept-Language`.
+Integracja, która potrzebuje konkretnego języka, musi prosić o język oferowany przez kanał
+sprzedaży. Jeśli go brakuje, dodaj go do kanału na ekranie **Kanały sprzedaży**.
+
 ## Instancja niespójna od początku
 
 Instalator `0.101.x` lub starszy zapisywał każdy pakiet wydania z `^` poza

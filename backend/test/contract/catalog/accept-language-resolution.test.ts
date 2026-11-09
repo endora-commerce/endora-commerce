@@ -118,7 +118,9 @@ describe('Catalogue request language from Accept-Language (issue #397)', () => {
     });
     expect(res.statusCode, res.body).toBe(200);
     const detail = (res.json() as { data: Detail }).data;
-    return { name: detail.name, category: detail.categories.find((c) => c.id === categoryId)?.name ?? '' };
+    const category = detail.categories.find((c) => c.id === categoryId);
+    expect(category, 'the product lists its category').toBeDefined();
+    return { name: detail.name, category: category!.name };
   }
 
   describe.each(['public', 'external'] as const)('the %s product read', (surface) => {

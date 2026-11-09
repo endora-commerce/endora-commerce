@@ -68,6 +68,7 @@ export * from './analytics.js';
 export * from './seo.js';
 export * from './i18n.js';
 export * from './platform-language.js';
+export * from './accept-language.js';
 export * from './admin-i18n.js';
 export {
   // `cmsPageStatusSchema` and `CmsPageStatus` are on this list because feature
