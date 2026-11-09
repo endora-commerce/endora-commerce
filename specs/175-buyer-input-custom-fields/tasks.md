@@ -80,6 +80,8 @@ Setup/Foundational/Polish phases do.
 - [X] T026 [US1] Persist `input.customFieldValues ?? {}` in `create` in `packages/modules/customer_accounts/src/backend/services/customer-account-ports.ts:360` — makes T024 green
 - [X] T027 [US6] Clear `account.customFieldValues = {}` in `anonymize` in `packages/modules/customer_accounts/src/backend/services/customer-account-lifecycle-ports.ts:463` — makes T025 green
 - [X] T028 [US6] Write and pass `backend/test/integration/customer_accounts/anonymize-custom-fields.test.ts`: an account registered with a `phone` value, anonymised by the retention path, reads `customFieldValues: {}` and no audit row or event carries the phone (SC-008)
+
+> **After rebase onto master (issue #802):** master's own anonymisation scrub already clears the whole custom-field bag inside its transactional audit, and pins it in `customer-account-lifecycle-ports.test.ts` and `customers/customer-deletion-service.test.ts`. T025, T027 and T028's own tests and change were dropped as duplicates; FR-026/FR-027 and SC-008 trace to those master tests.
 - [X] T029 Write `.changeset/175-customer-accounts-custom-field-values.md` (`@endora-commerce/mod-customer-accounts`: minor)
 
 ---
