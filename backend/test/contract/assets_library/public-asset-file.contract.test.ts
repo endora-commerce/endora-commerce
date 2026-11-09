@@ -139,7 +139,13 @@ describe('public asset file (T037)', () => {
     const missing = await h.app.inject({ method: 'GET', url: '/assets/file/aabbccdd-ffff-ffff-ffff-ffffffffffff' });
     expect(r.statusCode).toBe(404);
     expect(r.json()).toMatchObject({ error: { code: 'ASSET_NOT_FOUND' } });
-    expect(r.body).toBe(missing.body);
+    // Everything but the per-request id is the same envelope.
+    const withoutRequestId = (body: string) => {
+      const { requestId: _requestId, ...rest } = (JSON.parse(body) as { error: Record<string, unknown> }).error;
+      return rest;
+    };
+    expect(missing.statusCode).toBe(404);
+    expect(withoutRequestId(r.body)).toEqual(withoutRequestId(missing.body));
     await h.em().removeAndFlush(await h.em().findOneOrFail(Asset, { id }));
   });
 

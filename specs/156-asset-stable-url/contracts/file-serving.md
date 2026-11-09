@@ -69,8 +69,8 @@ handler's response carries them. The `404` of rule 2 and the `404` of rule 1 are
 
 *Amended 2026-11-09 (issue #542).* Rule 2 by id answered `403 ASSET_ACCESS_DENIED`, which let a
 caller without a signature confirm that a private asset exists. It now answers rule 1's `404`, as
-the permalink form already did. `ASSET_ACCESS_DENIED` stays in the error catalogue; the file route
-no longer emits it.
+the permalink form already did. Nothing raised `ASSET_ACCESS_DENIED` any more, so the code was dropped
+from the error catalogue (`check-error-translations`' unraised-code rule).
 
 ## 3. URL forms the module hands out
 
