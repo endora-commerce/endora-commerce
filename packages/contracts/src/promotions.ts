@@ -1,6 +1,7 @@
 import { z } from 'zod';
 import { isoDateTimeSchema, moneySchema, uuidSchema } from './common.js';
 import { addAmountPrecisionIssue, hasAtMostTwoDecimals, twoDecimalAmount } from './money-input.js';
+import { lineQuantitySchema } from './line-bounds.js';
 
 /**
  * Promotion contracts (T129, T132 / FR-052).
@@ -479,7 +480,7 @@ export const cartLineSchema = z.object({
   productId: uuidSchema,
   variantId: uuidSchema.nullable(),
   categoryIds: z.array(uuidSchema),
-  quantity: z.number().int().positive(),
+  quantity: lineQuantitySchema,
   unitPrice: moneySchema,
   /**
    * Feature 012 / US8 — optional attribute snapshot for line-level

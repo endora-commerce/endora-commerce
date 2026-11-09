@@ -4477,6 +4477,33 @@ that the requirements apply again, or turn the storefront setting off in **Setti
 organizations' policies. Set the key the enrolments were made with: an enrolment made with another
 key cannot be checked with this one.
 
+### Line quantities and line counts are bounded {#line-quantity-bound}
+
+The release that ships this change bounds the quantity of a request line at **1 000 000** — the
+same ceiling as the order minimums — on every route that takes one, and bounds the line lists of
+an operator's quote request and of a return at **200**, as the basket, quick order, the order
+intake and the customer's quote request already were (issue #351). A larger quantity used to pass
+validation and fail at the database with `500 INTERNAL`.
+
+**Behaviour change on upgrade:**
+
+- A line quantity above 1 000 000 is refused with `400 VALIDATION_FAILED`, whose `details` name
+  the field: adding to the basket, the customer's and the operator's quote request create and
+  edit, the operator's order creation and its preview, quick order (build and one-click), shopping
+  lists (add and update), returns, and the promotion preview. On the external API,
+  `POST /api/v1/external/orders` and `POST /api/v1/external/catalog/prices` answer
+  `422 VALIDATION_FAILED`, as they do for every malformed body.
+- `POST /api/v1/admin/quote-requests`, `PATCH /api/v1/admin/quote-requests/:id` and
+  `POST /api/v1/returns` refuse more than 200 lines with `400 VALIDATION_FAILED`.
+- A quick-order file row with a quantity above 1 000 000 is listed as rejected for its quantity
+  instead of being recognised.
+- In the admin, the order and quote request create screens mark such a line invalid, and the
+  storefront's quick-order, quote draft and mobile buy-bar quantity inputs stop at the bound.
+- Nothing stored changes: a line already above the bound stays as it is.
+
+**After upgrading,** an integration that sends larger quantities, or more than 200 lines to the
+operator's quote request or to returns, has to split the request.
+
 ## An instance that is mixed from the start
 
 The installer of `0.101.x` or earlier wrote every package of the release with a `^` except

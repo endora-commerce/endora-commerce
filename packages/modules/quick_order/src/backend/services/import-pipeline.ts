@@ -1,5 +1,6 @@
 import {
   evaluateOrderMinimums,
+  LINE_QUANTITY_MAX,
   type OrderMinimumLine,
   type OrderMinimumProduct,
   type ProductAudience,
@@ -368,7 +369,7 @@ export class QuickOrderImportPipeline {
     return operator ? { recognized, rejected, warningCount } : { recognized, rejected };
   }
 
-  /** Validate sku + integer quantity, rejecting malformed rows with a reason. */
+  /** Validate sku + integer quantity (1…`LINE_QUANTITY_MAX`), rejecting malformed rows with a reason. */
   private toCandidates(rows: NormalizedRow[], rejected: RejectedQuickOrderItem[]): Candidate[] {
     const candidates: Candidate[] = [];
     for (const row of rows) {
@@ -377,7 +378,14 @@ export class QuickOrderImportPipeline {
         continue;
       }
       const quantity = Number.parseInt(row.quantityRaw, 10);
-      if (!Number.isFinite(quantity) || quantity < 1 || String(quantity) !== row.quantityRaw) {
+      // Issue #351 — past the line bound the build would refuse the row, so it is
+      // refused here, by row, instead of being recognised into a failing build.
+      if (
+        !Number.isFinite(quantity) ||
+        quantity < 1 ||
+        quantity > LINE_QUANTITY_MAX ||
+        String(quantity) !== row.quantityRaw
+      ) {
         rejected.push({ line: row.rowNumber, raw: row.raw, reason: 'quantity_invalid' });
         continue;
       }

@@ -3,7 +3,7 @@
 import { useRouter } from 'next/navigation';
 import { useLocalizedPath } from '../../lib/i18n/localized-link';
 import { useEffect, useMemo, useState, type ReactNode } from 'react';
-import { lineAmountHalfUp, moneySum, unitPriceDisplayText } from '@endora-commerce/contracts';
+import { LINE_QUANTITY_MAX, lineAmountHalfUp, moneySum, unitPriceDisplayText } from '@endora-commerce/contracts';
 import { formatMoney as formatMoneyShared, type FormatMoneyOptions } from '../../lib/i18n/money';
 import {
   clampDraftQuantity,
@@ -492,6 +492,7 @@ export function DraftLine({
         <input
           type="number"
           min={floor}
+          max={LINE_QUANTITY_MAX}
           value={qtyText ?? line.quantity}
           aria-label={t.qtyLabel}
           {...(belowText ? { 'aria-invalid': true, 'aria-describedby': belowId } : {})}

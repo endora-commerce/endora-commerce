@@ -11,6 +11,7 @@ import type { FulfilmentStrategy } from './inventory.js';
 import type { BulkImportReport } from './import-export.js';
 import type { AttributeScope } from './product-value-resolver.js';
 import { ORDER_MINIMUM_MAX } from './order-minimums.js';
+import { lineQuantitySchema, REQUEST_LINE_ITEMS_MAX } from './line-bounds.js';
 import { productPagePathsSchema } from './product-url-keys.js';
 import type { FieldPath, ScopeLevel } from './product-scope-model.js';
 import type { ProductScopedWriteCell } from './product-scopes.js';
@@ -623,11 +624,11 @@ export const catalogBulkPriceRequestSchema = z.object({
     .array(
       z.object({
         sku: z.string().min(1),
-        quantity: z.number().int().min(1),
+        quantity: lineQuantitySchema,
       }),
     )
     .min(1)
-    .max(200),
+    .max(REQUEST_LINE_ITEMS_MAX),
 });
 export type CatalogBulkPriceRequest = z.infer<typeof catalogBulkPriceRequestSchema>;
 

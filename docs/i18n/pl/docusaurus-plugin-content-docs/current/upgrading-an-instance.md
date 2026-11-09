@@ -4690,6 +4690,36 @@ uruchom backend ponownie, aby wymagania znów obowiązywały, albo wyłącz usta
 **Ustawieniach** i zdejmij polityki organizacji. Ustaw ten klucz, z którym utworzono rejestracje:
 rejestracji utworzonej innym kluczem nie da się nim sprawdzić.
 
+### Ograniczenie ilości w pozycji i liczby pozycji {#line-quantity-bound}
+
+Wydanie z tą zmianą ogranicza ilość w pozycji żądania do **1 000 000** — tyle samo, ile wynosi
+górna granica minimów zamówienia — na każdej ścieżce, która ją przyjmuje, a listy pozycji
+zapytania ofertowego tworzonego przez operatora i zwrotu do **200**, tak jak już były ograniczone
+koszyk, szybkie zamówienie, przyjmowanie zamówień i zapytanie ofertowe klienta (zgłoszenie #351).
+Większa ilość przechodziła wcześniej walidację i kończyła się błędem bazy danych z odpowiedzią
+`500 INTERNAL`.
+
+**Zmiana zachowania po aktualizacji:**
+
+- Ilość w pozycji większa niż 1 000 000 jest odrzucana z `400 VALIDATION_FAILED`, a `details`
+  wskazują pole: przy dodawaniu do koszyka, tworzeniu i edycji zapytania ofertowego przez klienta
+  i przez operatora, tworzeniu zamówienia przez operatora i jego podglądzie, w szybkim zamówieniu
+  (budowanie i zakup jednym kliknięciem), na listach zakupowych (dodawanie i zmiana), w zwrotach
+  i w podglądzie promocji. W zewnętrznym API `POST /api/v1/external/orders` i
+  `POST /api/v1/external/catalog/prices` odpowiadają `422 VALIDATION_FAILED`, tak jak na każde
+  niepoprawne żądanie.
+- `POST /api/v1/admin/quote-requests`, `PATCH /api/v1/admin/quote-requests/:id` i
+  `POST /api/v1/returns` odrzucają więcej niż 200 pozycji z `400 VALIDATION_FAILED`.
+- Wiersz pliku szybkiego zamówienia z ilością większą niż 1 000 000 trafia na listę odrzuconych
+  z powodu ilości, zamiast zostać rozpoznany.
+- W panelu administracyjnym ekrany tworzenia zamówienia i zapytania ofertowego oznaczają taką
+  pozycję jako niepoprawną, a w sklepie pola ilości szybkiego zamówienia, szkicu zapytania
+  ofertowego i mobilnego paska zakupu zatrzymują się na tej granicy.
+- Zapisane dane się nie zmieniają: pozycja, która już przekracza granicę, zostaje bez zmian.
+
+**Po aktualizacji** integracja, która wysyła większe ilości albo więcej niż 200 pozycji do
+zapytania ofertowego operatora lub do zwrotów, musi podzielić żądanie.
+
 ## Instancja niespójna od początku
 
 Instalator `0.101.x` lub starszy zapisywał każdy pakiet wydania z `^` poza

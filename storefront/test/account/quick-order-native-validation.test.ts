@@ -26,8 +26,8 @@ describe('quick order — no native validation bubble on the quantity forms', ()
   }
 
   it('normalises the posted quantity on the server instead', () => {
-    expect(source).toContain(
-      "const quantity = Math.max(1, Number.parseInt((formData.get('quantity') as string) ?? '1', 10) || 1);",
-    );
+    // Issue #351 — into 1…LINE_QUANTITY_MAX, through one helper both actions call.
+    expect(source).toContain('return Math.min(LINE_QUANTITY_MAX, Math.max(1, typed));');
+    expect(source.match(/const quantity = typedQuantity\(formData\);/g)).toHaveLength(2);
   });
 });

@@ -17,6 +17,8 @@
  * during SSR, so the module is safe to import from either side.
  */
 
+import { LINE_QUANTITY_MAX } from '@endora-commerce/contracts';
+
 export const RFQ_DRAFT_STORAGE_KEY = 'b2b:rfq-draft';
 export const RFQ_DRAFT_CHANGED_EVENT = 'b2b:rfq-draft:changed';
 
@@ -85,12 +87,13 @@ export type RfqDraftAddition = Omit<RfqDraftItem, 'quantity'> & { quantity?: num
 /**
  * Feature 155 (FR-032) — a draft line's quantity normalised: a whole number, never below the
  * product's pieces minimum (`null`/absent or ≤ 1 = none, floor 1). The draft page's stepper
- * and input go through this, so a line cannot be lowered below the minimum.
+ * and input go through this, so a line cannot be lowered below the minimum. Nor raised past
+ * `LINE_QUANTITY_MAX`, which the submit would refuse (issue #351).
  */
 export function clampDraftQuantity(quantity: number, minimum: number | null | undefined): number {
   const floor = typeof minimum === 'number' && minimum > 1 ? Math.floor(minimum) : 1;
   if (!Number.isFinite(quantity)) return floor;
-  return Math.max(Math.floor(quantity), floor);
+  return Math.min(Math.max(Math.floor(quantity), floor), LINE_QUANTITY_MAX);
 }
 
 /**

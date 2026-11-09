@@ -1,5 +1,6 @@
 import { z } from 'zod';
 import { isoDateTimeSchema, moneySchema, uuidSchema } from './common.js';
+import { lineQuantitySchema } from './line-bounds.js';
 
 /**
  * Cart + CartItem contracts. The Cart can be anonymous (cookie-held) or
@@ -61,9 +62,10 @@ export const addCartItemRequestSchema = z.object({
   /**
    * Without `packagingUnitId` this is the number of base pieces. With
    * `packagingUnitId` it is the number of packaging units, and the resulting
-   * line quantity is `unit.baseQuantity × quantity` (feature 043).
+   * line quantity is `unit.baseQuantity × quantity` (feature 043). At most
+   * `LINE_QUANTITY_MAX` (issue #351).
    */
-  quantity: z.number().int().positive(),
+  quantity: lineQuantitySchema,
   /** Feature 043 — order by a packaging unit (e.g. a pallet) of this product. */
   packagingUnitId: uuidSchema.optional(),
 });
@@ -76,7 +78,7 @@ export type AddCartItemRequest = z.infer<typeof addCartItemRequestSchema>;
 // needs the positive-only check.
 
 export const updateCartItemRequestStrictSchema = z.object({
-  quantity: z.number().int().positive(),
+  quantity: lineQuantitySchema,
 });
 export type UpdateCartItemRequestStrict = z.infer<typeof updateCartItemRequestStrictSchema>;
 
