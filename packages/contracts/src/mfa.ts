@@ -270,6 +270,14 @@ export type MfaResetBulkResult = z.infer<typeof mfaResetBulkResultSchema>;
  */
 export const ENCRYPTION_KEY_MISSING = 'encryption_key_missing' as const;
 
+/**
+ * Issue #947 — sentence token for customer-side refusals; `details.reason`
+ * stays `ENCRYPTION_KEY_MISSING`. Carried as `details.code` by the refusal of
+ * `mfa.storefront.totp_enforced` and of an organization's policy, whose
+ * sentence names customers rather than administrators.
+ */
+export const CUSTOMER_ENCRYPTION_KEY_MISSING = 'customer_encryption_key_missing' as const;
+
 export const MFA_SETTING_CODES = {
   /**
    * Feature 074 — the operator-activation control (Constitution XVII). It sits
