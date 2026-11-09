@@ -1,4 +1,5 @@
 import { describe, expect, it } from 'vitest';
+import { GROWTH, LINEAR_BOUND, growthRatio } from './linear-time.cases.js';
 import {
   ORDER_MINIMUM_MAX,
   evaluateOrderMinimums,
@@ -9,39 +10,6 @@ import {
   type OrderMinimumRules,
   type OrderMinimumViolation,
 } from './order-minimums.js';
-
-// This package's tests are typed against no runtime, so the high-resolution
-// clock is reached through `globalThis` rather than named.
-const now = (): number => (globalThis as unknown as { performance: { now(): number } }).performance.now();
-
-/**
- * Issue #612: the cost is compared across sizes, not against a clock — a
- * wall-clock budget measures the host as much as the code. `run` is timed once
- * on an input of `length` against {@link GROWTH} calls on inputs
- * {@link GROWTH} times shorter, each side the fastest of five timings after a
- * warm-up, every call on an input of its own built outside the timed region.
- * Linear code does the same work on both sides, so the ratio is about 1 however
- * busy the host is; a quadratic path makes it about {@link GROWTH}.
- */
-const GROWTH = 16;
-/** Four times above linear, four times below what a quadratic path gives. */
-const LINEAR_BOUND = 4;
-function growthRatio<T>(run: (input: T) => unknown, input: (length: number) => T, length: number): number {
-  const fastest = (inputs: () => T[]): number => {
-    let best = Number.POSITIVE_INFINITY;
-    for (let sample = 0; sample <= 5; sample += 1) {
-      const batch = inputs();
-      const start = now();
-      for (const value of batch) run(value);
-      const elapsed = now() - start;
-      if (sample > 0) best = Math.min(best, elapsed);
-    }
-    return best;
-  };
-  const once = fastest(() => [input(length)]);
-  const many = fastest(() => Array.from({ length: GROWTH }, () => input(Math.ceil(length / GROWTH))));
-  return once / many;
-}
 
 /**
  * Feature 155 (FR-006a, FR-028, FR-037; research R6.1) — the one implementation of the
@@ -440,7 +408,7 @@ describe('evaluateOrderMinimums — rules of R6.1', () => {
     expect(evaluateOrderMinimums([], rules([product(A, 10)]))).toEqual([]);
   });
 
-  it('evaluates 10 000 lines over 10 000 products in time proportional to them (linear, F4)', () => {
+  it('evaluates 10 000 lines over 10 000 products in time proportional to them (linear, F4)', async () => {
     const cart = (n: number) => {
       const products: OrderMinimumRules['products'][number][] = [];
       const units: OrderMinimumRules['packagingUnits'][number][] = [];
@@ -457,7 +425,7 @@ describe('evaluateOrderMinimums — rules of R6.1', () => {
     const { lines, rules: all } = cart(n);
     // Every line is below 10 pieces; even lines are also below 3 pallets.
     expect(evaluateOrderMinimums(lines, all)).toHaveLength(n + n / 2);
-    const ratio = growthRatio((given: ReturnType<typeof cart>) => evaluateOrderMinimums(given.lines, given.rules), cart, n);
+    const ratio = await growthRatio((given: ReturnType<typeof cart>) => evaluateOrderMinimums(given.lines, given.rules), cart, n);
     expect(ratio, `${GROWTH}× the lines, ${ratio.toFixed(2)}× the time`).toBeLessThan(LINEAR_BOUND);
   });
 });

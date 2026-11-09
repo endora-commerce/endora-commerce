@@ -1,7 +1,9 @@
 import { afterEach, beforeEach, describe, expect, it } from 'vitest';
 
 import { SITEMAP_STATIC_ROUTES } from '../../app/sitemap';
-import { GROWTH, LINEAR_BOUND, growthRatio } from './linear-time';
+// The shared linear-time protocol (issue #953): a test-only module of
+// `@endora-commerce/contracts`, reached through its source path and never published.
+import { GROWTH, LINEAR_BOUND, growthRatio } from '../../../packages/contracts/src/linear-time.cases.js';
 import {
   LLMS_TXT_CONDITIONAL_PAGES,
   LLMS_TXT_PAGE_TITLES,
