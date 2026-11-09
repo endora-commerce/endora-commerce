@@ -457,8 +457,11 @@ describe(
     expect(await running).toBe(0);
     const elapsed = Date.now() - stoppedAt;
     expect(existsSync(latePid), 'the layer never started its late child').toBe(true);
-    expect(alive(Number(readFileSync(latePid, 'utf8'))), 'the late child survived').toBe(false);
     expect(elapsed, 'the late child waited for the forced stop').toBeLessThan(3_000);
+    // Polled: its parent may have gone first, and an orphan is a zombie until
+    // init reaps it, which `kill(pid, 0)` still reports as alive.
+    const pid = Number(readFileSync(latePid, 'utf8'));
+    expect(await eventually(() => !alive(pid)), 'the late child survived').toBe(true);
   });
 
   it('a layer that ends on its own is a stop too — a server that returned is not running', async () => {
@@ -545,9 +548,13 @@ describe('`endora dev` — the verb `dev:all` runs', () => {
   // the runner was not slow, and 1.5 s plus the grace is what the forced stop
   // costs. Locally the case takes 0.36 s idle and 1.4-4.6 s under 32 CPU
   // burners (110 runs, none forced), so the race that leaves the admin layer
-  // up past the polite stop is CI's to show, not this machine's. Whether the stop was polite or forced is not this
-  // case's subject — the grace has its own case above — so its budget is the
-  // bound it already set for the process: `spawnSync`'s 60 s.
+  // up past the polite stop is CI's to show, not this machine's. Issue #952
+  // took the likeliest cause away — a process joining the group after the one
+  // SIGTERM, now reached by the supervisor's repeated polite stop, which has
+  // its own case above — but it was inferred, not reproduced, so the forced
+  // stop stays a legitimate path for this case. Whether the stop was polite or
+  // forced is not this case's subject — the grace has its own case above — so
+  // its budget is the bound it already set for the process: `spawnSync`'s 60 s.
   const SPAWN_BUDGET_MS = 60_000;
 
   it('a layer that fails takes the others down and the verb exits with its code', () => {
