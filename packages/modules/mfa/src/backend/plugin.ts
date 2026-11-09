@@ -34,7 +34,7 @@ import type { OAuthProviderPort } from './services/oauth-provider-service.js';
 import { SecretCipher } from './services/secret-cipher.js';
 import { registerMfaPublicRoutes } from './routes.public.js';
 import { registerMfaSelfServiceRoutes } from './routes.self-service.js';
-import { registerMfaAdminRoutes } from './routes.admin.js';
+import { registerMfaAdminOrgPolicyRoutes, registerMfaAdminRoutes } from './routes.admin.js';
 import { registerMfaOrgRoutes } from './routes.org.js';
 import { registerMfaOAuthRoutes } from './routes.oauth.js';
 import type { RequireAdminFactory } from '@endora-commerce/platform/kernel';
@@ -60,7 +60,8 @@ type ModuleAttach = (app: FastifyInstance) => Promise<void>;
  *
  * Enrolment requires `secretEncryptionKey`; when it is absent the module still
  * composes and `beginLogin` works (password-only), but the enrolment + verify
- * routes are not registered.
+ * routes are not registered. The organization-policy writes are (issue #947),
+ * and refuse requiring a second factor.
  */
 export interface MfaModuleOptions {
   emFactory: () => EntityManager;
@@ -192,7 +193,12 @@ export function mfaModule(options: MfaModuleOptions): {
     policyResolver,
     verifySecondFactor,
   );
-  const orgPolicyService = new MfaOrgPolicyService(options.emFactory, options.auditLogService);
+  // Issue #947 — without a cipher, requiring a second factor is refused.
+  const orgPolicyService = new MfaOrgPolicyService(
+    options.emFactory,
+    options.auditLogService,
+    cipher !== null,
+  );
   // Deliberately not behind the `oauthProvider` check below: the links an
   // account already holds stay listable and severable after an operator turns
   // a provider off, which is precisely when somebody goes looking for them.
@@ -205,6 +211,24 @@ export function mfaModule(options: MfaModuleOptions): {
   const withdrawFactorGrants = createFactorWithdrawal(options.sessionService, challengeStore);
 
   const plugin: ModuleAttach = async (app) => {
+    // Organization enforcement (US3), storefront and Admin UI. Served with or
+    // without an encryption key (issue #947): without one, a policy set before
+    // the key went must stay liftable, and `orgPolicyService` refuses
+    // requiring one.
+    await registerMfaOrgRoutes(app, {
+      orgPolicyService,
+      auditLogService: options.auditLogService,
+      requireCustomer: options.requireCustomer,
+      resolveOrgAdmin: options.resolveOrgAdmin,
+    });
+    if (options.requireAdmin) {
+      await registerMfaAdminOrgPolicyRoutes(app, {
+        orgPolicyService,
+        auditLogService: options.auditLogService,
+        requireAdmin: options.requireAdmin,
+        resolveAdminActor: options.resolveAdminActor,
+      });
+    }
     // enrolment disabled without an encryption key
     if (!enrolmentService || !verifySecondFactor) return;
     await registerMfaPublicRoutes(app, {
@@ -257,14 +281,7 @@ export function mfaModule(options: MfaModuleOptions): {
         ...(options.channelUrlFactsFor ? { channelUrlFactsFor: options.channelUrlFactsFor } : {}),
       });
     }
-    // Storefront org-admin enforcement (US3).
-    await registerMfaOrgRoutes(app, {
-      orgPolicyService,
-      auditLogService: options.auditLogService,
-      requireCustomer: options.requireCustomer,
-      resolveOrgAdmin: options.resolveOrgAdmin,
-    });
-    // Admin user self-service (US2) + admin reset (US6) + org enforcement (US3).
+    // Admin user self-service (US2) + admin reset (US6).
     const { requireAdmin, resolveAdminActor } = options;
     if (requireAdmin) {
       await registerMfaSelfServiceRoutes(app, {
@@ -285,7 +302,6 @@ export function mfaModule(options: MfaModuleOptions): {
       });
       await registerMfaAdminRoutes(app, {
         enrolmentService,
-        orgPolicyService,
         auditLogService: options.auditLogService,
         requireAdmin,
         resolveAdminActor,

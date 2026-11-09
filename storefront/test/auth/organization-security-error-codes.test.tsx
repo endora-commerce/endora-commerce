@@ -73,6 +73,12 @@ describe('each known code renders its sentence, in English and Polish', () => {
       'To ustawienie mogą zmieniać tylko administratorzy organizacji.',
     ],
     ['FAILED', 'Could not update enforcement.', 'Nie udało się zaktualizować wymogu.'],
+    // Issue #947 — the store has no encryption key, so nobody could set it up.
+    [
+      'UNAVAILABLE',
+      'Two-step verification cannot be required yet, because this store does not offer it. Contact the store if you need it.',
+      'Nie można jeszcze wymagać weryfikacji dwuetapowej, bo ten sklep jej nie oferuje. Jeśli jej potrzebujesz, skontaktuj się ze sklepem.',
+    ],
   ])('%s', async (code, en, pl) => {
     expect(await text({ error: code })).toContain(en);
     locale = 'pl-PL';
@@ -84,6 +90,11 @@ describe('the action redirects with a code, never a sentence', () => {
   it('carries FORBIDDEN when the API refuses a non-administrator', async () => {
     failure = new StorefrontApiError(403, 'FORBIDDEN', 'Organization administrator required.');
     expect(await redirectOf(value('true'))).toBe('/account/organization-security?error=FORBIDDEN');
+  });
+
+  it('carries UNAVAILABLE when the store cannot set up a second factor (issue #947)', async () => {
+    failure = new StorefrontApiError(409, 'MFA_ENFORCEMENT_UNAVAILABLE', 'No encryption key.');
+    expect(await redirectOf(value('true'))).toBe('/account/organization-security?error=UNAVAILABLE');
   });
 
   it('carries FAILED for any other refusal or a transport error', async () => {

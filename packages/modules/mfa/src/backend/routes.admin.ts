@@ -15,11 +15,11 @@ import type { RequireAdminFactory } from '@endora-commerce/platform/kernel';
 /**
  * Admin MFA management endpoints (feature 042). 2FA reset is a Platform-Admin
  * capability (`mfa:reset`, US6); per-organization enforcement is `mfa:manage`
- * (US3). Every mutation is audited.
+ * (US3) and is registered by `registerMfaAdminOrgPolicyRoutes`. Every
+ * mutation is audited.
  */
 export interface MfaAdminDeps {
   enrolmentService: MfaEnrolmentService;
-  orgPolicyService: MfaOrgPolicyService;
   auditLogService: AuditPort;
   requireAdmin: RequireAdminFactory;
   resolveAdminActor: (req: FastifyRequest) => { adminUserId: string };
@@ -104,8 +104,26 @@ export async function registerMfaAdminRoutes(
       return { data: { requested, affected, skipped: requested - affected } };
     },
   );
+}
 
-  // Per-organization enforcement (FR-014, US3).
+export interface MfaAdminOrgPolicyDeps {
+  orgPolicyService: MfaOrgPolicyService;
+  auditLogService: AuditPort;
+  requireAdmin: RequireAdminFactory;
+  resolveAdminActor: (req: FastifyRequest) => { adminUserId: string };
+}
+
+/**
+ * Per-organization enforcement (FR-014, US3), on its own because it is served
+ * with or without an encryption key (issue #947): without one, lifting a policy
+ * set before the key went has to stay possible, and requiring one is refused by
+ * `MfaOrgPolicyService`. The reset routes above need the key.
+ */
+export async function registerMfaAdminOrgPolicyRoutes(
+  app: FastifyInstance,
+  deps: MfaAdminOrgPolicyDeps,
+): Promise<void> {
+  const { auditLogService, requireAdmin, resolveAdminActor } = deps;
   app.post<{ Params: { organizationId: string } }>(
     '/api/v1/admin/organizations/:organizationId/mfa-policy',
     { preHandler: requireAdmin('mfa:manage'), schema: { body: mfaOrgPolicyRequestSchema } },
