@@ -9,7 +9,6 @@ import {
   type RecordReferenceType,
 } from '@endora-commerce/contracts';
 import type { TaskReferenceSourceKind } from '../entities/task-reference.entity.js';
-import { actingAdminUserId } from './task-access.js';
 import type { OwnerReadChecks } from './owner-read-permissions.js';
 import type { SwitchableRecordKind, TaskRecordOwners } from './record-owners.js';
 
@@ -67,8 +66,6 @@ export interface TaskReferenceServiceDeps {
   mayRead: OwnerReadChecks;
 }
 
-const FALLBACK_LANGUAGE = 'en';
-
 /** Where a chip leads. A person leads nowhere: an administrator's screen is `admin_users`'. */
 function adminUrl(token: RecordReferenceToken): string | null {
   switch (token.type) {
@@ -89,7 +86,6 @@ function adminUrl(token: RecordReferenceToken): string | null {
   }
 }
 
-/** A Product's name in the reader's language, then any name of that language, then any name, then its SKU. */
 function isActive(person: { status: string; deletedAt: Date | null }): boolean {
   return person.status === 'active' && person.deletedAt === null;
 }
@@ -161,12 +157,11 @@ export class TaskReferenceService {
       productIds.length > 0 ? this.deps.mayRead.products() : Promise.resolve(false),
       orderIds.length > 0 ? this.deps.mayRead.orders() : Promise.resolve(false),
     ]);
-    const [products, orders, people, tasks, _language, switchable] = await Promise.all([
+    const [products, orders, people, tasks, switchable] = await Promise.all([
       mayReadProducts ? this.deps.products.findByIds(productIds, { liveOnly: true }) : Promise.resolve([]),
       mayReadOrders ? this.deps.orders.findByIds(orderIds) : Promise.resolve([]),
       personIds.length > 0 ? this.deps.adminUsers.findByIds(personIds) : Promise.resolve([]),
       taskIds.length > 0 ? this.deps.tasks(taskIds) : Promise.resolve([]),
-      mayReadProducts ? this.#viewerLanguage() : Promise.resolve(FALLBACK_LANGUAGE),
       Promise.all(
         (Object.keys(SWITCHABLE) as SwitchableRecordKind[]).map(async (kind) => {
           const ids = idsOf(kind);
@@ -216,13 +211,5 @@ export class TaskReferenceService {
         };
       }),
     );
-  }
-
-  /** The reader's stored language — what the Admin UI renders in — or English. */
-  async #viewerLanguage(): Promise<string> {
-    const reader = actingAdminUserId();
-    if (reader === null) return FALLBACK_LANGUAGE;
-    const admin = await this.deps.adminUsers.findById(reader);
-    return admin?.preferredLanguage ?? FALLBACK_LANGUAGE;
   }
 }
