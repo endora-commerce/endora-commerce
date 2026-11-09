@@ -127,11 +127,12 @@ describe('email — the delivery records of an anonymised address are scrubbed (
     const rows = await auditRowsFor(ids);
     expect(rows.map((row) => row.objectId).sort()).toEqual([...ids].sort());
     for (const row of rows) {
-      expect(row).toMatchObject({
-        objectType: 'email_delivery',
-        actorAdminUserId: null,
-        actorCustomerAccountId: null,
-      });
+      // A hydrated nullable column reads `undefined`: compare as `null`.
+      expect({
+        objectType: row.objectType,
+        actorAdminUserId: row.actorAdminUserId ?? null,
+        actorCustomerAccountId: row.actorCustomerAccountId ?? null,
+      }).toEqual({ objectType: 'email_delivery', actorAdminUserId: null, actorCustomerAccountId: null });
       expect(row.stateBefore ?? null).toBeNull();
       expect(row.stateAfter ?? null).toBeNull();
     }

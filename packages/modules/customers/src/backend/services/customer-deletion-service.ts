@@ -49,7 +49,8 @@ import type {
  * `anonymizedAt` is the cascade's commit marker and is written **last** —
  * organisation, then its saved addresses, then the account's rows in this
  * module's retired personal book (issue #927), then the reasons written about
- * the account's carts (issue #920), then the account. Until that last
+ * the account's carts (issue #920), then the records of the e-mails sent to the
+ * account (issue #928), then the account. Until that last
  * write commits the account is still on `listDueForAnonymization`, and every
  * earlier step converges (each writes only what is still missing and audits only
  * what it wrote), so the next tick finishes whatever a crash left. The price
@@ -207,9 +208,9 @@ export class CustomerDeletionService {
     const work = await this.workList(retentionCutoff(retentionDays, now));
     let completed = 0;
     const failures: Array<{ customerAccountId: string; error: unknown }> = [];
-    for (const customerAccountId of work) {
+    for (const [customerAccountId, account] of work) {
       try {
-        await this.anonymizeOne(customerAccountId);
+        await this.anonymizeOne(account);
         completed += 1;
       } catch (error) {
         // A module that is off fails the whole tick closed. Anything else is
@@ -222,7 +223,7 @@ export class CustomerDeletionService {
     if (failures.length > 0) {
       throw new AggregateError(
         failures.map((f) => f.error),
-        `Anonymization sweep failed for ${failures.length} of ${work.length} account(s): ` +
+        `Anonymization sweep failed for ${failures.length} of ${work.size} account(s): ` +
           failures.map((f) => f.customerAccountId).join(', '),
       );
     }
@@ -232,23 +233,24 @@ export class CustomerDeletionService {
   /**
    * The due accounts first, then the anonymised members of the personal
    * organisations an earlier scrub left incomplete (issue #923), without
-   * duplicates. Read in full before any subject is processed.
+   * duplicates, keyed by account id. Read in full before any subject is
+   * processed.
    */
-  private async workList(cutoff: Date): Promise<string[]> {
-    const work = new Set(
-      (await this.accountWrites.listDueForAnonymization(cutoff)).map((account) => account.id),
-    );
+  private async workList(cutoff: Date): Promise<Map<string, CustomerAccountRecord>> {
+    const work = new Map<string, CustomerAccountRecord>();
+    for (const account of await this.accountWrites.listDueForAnonymization(cutoff)) work.set(account.id, account);
     for (const organizationId of await this.personalOrganizations.listIncompletelyScrubbed()) {
       // Every member, not only the live ones: the subject is the soft-deleted one.
       for (const member of await this.accounts.listByOrganization(organizationId)) {
-        if (member.anonymizedAt != null) work.add(member.id);
+        if (member.anonymizedAt != null && !work.has(member.id)) work.set(member.id, member);
       }
     }
-    return [...work];
+    return work;
   }
 
   /** The cascade for one account, in the order that makes it restartable. */
-  private async anonymizeOne(customerAccountId: string): Promise<void> {
+  private async anonymizeOne(account: CustomerAccountRecord): Promise<void> {
+    const customerAccountId = account.id;
     // Feature 051 — a personal (B2C) organization backs exactly one customer.
     // Once that customer is soft-deleted the org has no live member, so the
     // scrub cascades: the owner renames it, blanks its address and soft-deletes
@@ -267,7 +269,10 @@ export class CustomerDeletionService {
     // Issue #920 — and the reasons written about the account's carts, on any
     // account: a company member's basket is theirs too.
     await this.carts.anonymizeForCustomerAccount(customerAccountId);
-    void this.emailDeliveries; // RED: issue #928's step is not called yet.
+    // Issue #928 — and the records of the e-mails sent to the account's
+    // address, read while the account still holds it. An account already
+    // anonymised holds its marker instead, which nothing was ever sent to.
+    if (account.anonymizedAt == null) await this.emailDeliveries.anonymizeForRecipient(account.email);
     // Issue #844 — and the history written about the subject is erased in place.
     await this.redactHistory(customerAccountId, organization?.id ?? null);
     // Last: `anonymizedAt` takes the account off the work list (issue #800).
