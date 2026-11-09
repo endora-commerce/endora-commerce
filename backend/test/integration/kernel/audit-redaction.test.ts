@@ -164,6 +164,41 @@ describe('AuditRedactionService against PostgreSQL (issue #844)', () => {
     expect(after.map(keep).sort()).toEqual(before.map(keep).sort());
   });
 
+  it('redacts 1,001 address and 1,001 retired-book ids in one call, under one marker row (issue #959)', async () => {
+    const subject = track(randomUUID());
+    const addresses = Array.from({ length: 1001 }, () => track(randomUUID()));
+    const retired = Array.from({ length: 1001 }, () => track(randomUUID()));
+    const em = db.orm.em.fork();
+    for (const [objectType, ids] of [['address', addresses], ['customer_address', retired]] as const) {
+      for (let offset = 0; offset < ids.length; offset += 500) {
+        const slice = ids.slice(offset, offset + 500);
+        await em.execute(
+          `insert into "audit_log_entries" ("id", "acted_at", "action", "object_type", "object_id", "state_after")
+           values ${slice.map(() => "(?, now(), 'address.update', ?, ?, ?::jsonb)").join(', ')}`,
+          slice.flatMap((id) => [randomUUID(), objectType, id, JSON.stringify({ line1: 'Somewhere 1' })]),
+        );
+      }
+    }
+
+    const result = await run(
+      forSubject(subject, [
+        { objectType: 'address', objectIds: addresses },
+        { objectType: 'customer_address', objectIds: retired },
+      ]),
+    );
+
+    expect(result).toEqual({ rowsInScope: 2002, rowsChanged: 2002, markerWritten: true });
+    const rewritten = await db.orm.em
+      .fork()
+      .execute<Array<{ n: string }>>(
+        `select count(*) as n from "audit_log_entries" where "object_type" in ('address', 'customer_address')
+           and "object_id" in (${[...addresses, ...retired].map(() => '?').join(', ')}) and "state_after" ->> 'line1' = ?`,
+        [...addresses, ...retired, AUDIT_ERASED_MARKER],
+      );
+    expect(Number(rewritten[0]!.n)).toBe(2002);
+    expect((await rowsOf(subject)).filter((r) => r.action === AUDIT_REDACTED_ACTION)).toHaveLength(1);
+  });
+
   it('writes exactly one audit.redacted row, and a second run changes nothing', async () => {
     const subject = track(randomUUID());
     await seed('customer_account', subject, 3);
