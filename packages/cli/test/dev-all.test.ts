@@ -422,6 +422,48 @@ describe(
     expect(await eventually(() => !alive(Number(readFileSync(pidFile, 'utf8'))))).toBe(true);
   });
 
+  // Issue #952: on CI, `endora dev`'s failing case sometimes took start-up
+  // plus the full 10 s grace — a layer survived the group SIGTERM. A process
+  // that joins the group *after* the signal was sent never receives it, and
+  // the layer's pipe stays open until the forced stop. The layer here is that
+  // race made deterministic: it answers the polite stop by starting a child,
+  // as `pnpm run` does when the signal lands before it has spawned the script.
+  it('a child started after the polite stop is stopped politely too, well before the grace runs out', async () => {
+    if (process.platform === 'win32') return;
+    const dir = temp('dev-run-');
+    const ready = join(dir, 'ready');
+    const latePid = join(dir, 'late.pid');
+    const controller = new AbortController();
+    const running = superviseDev(
+      [
+        nodeProcess(
+          'api',
+          dir,
+          `const { spawn } = require('child_process');` +
+            ` process.once('SIGTERM', () => {` +
+            ` const child = spawn(process.execPath, ['-e', ${JSON.stringify(RUN_FOREVER)}], { stdio: 'inherit' });` +
+            // Its pid is written by the parent, at once, so the case does not
+            // depend on how fast the child starts.
+            ` require('fs').writeFileSync(${JSON.stringify(latePid)}, String(child.pid));` +
+            ` child.on('exit', () => process.exit(0)); });` +
+            ` require('fs').writeFileSync(${JSON.stringify(ready)}, ''); ${RUN_FOREVER}`,
+        ),
+      ],
+      { write: () => undefined, signal: controller.signal, graceMs: 10_000 },
+    );
+    expect(await eventually(() => existsSync(ready))).toBe(true);
+    const stoppedAt = Date.now();
+    controller.abort();
+    expect(await running).toBe(0);
+    const elapsed = Date.now() - stoppedAt;
+    expect(existsSync(latePid), 'the layer never started its late child').toBe(true);
+    expect(elapsed, 'the late child waited for the forced stop').toBeLessThan(3_000);
+    // Polled: its parent may have gone first, and an orphan is a zombie until
+    // init reaps it, which `kill(pid, 0)` still reports as alive.
+    const pid = Number(readFileSync(latePid, 'utf8'));
+    expect(await eventually(() => !alive(pid)), 'the late child survived').toBe(true);
+  });
+
   it('a layer that ends on its own is a stop too — a server that returned is not running', async () => {
     const dir = temp('dev-run-');
     const lines: string[] = [];
@@ -506,9 +548,13 @@ describe('`endora dev` — the verb `dev:all` runs', () => {
   // the runner was not slow, and 1.5 s plus the grace is what the forced stop
   // costs. Locally the case takes 0.36 s idle and 1.4-4.6 s under 32 CPU
   // burners (110 runs, none forced), so the race that leaves the admin layer
-  // up past the polite stop is CI's to show, not this machine's. Whether the stop was polite or forced is not this
-  // case's subject — the grace has its own case above — so its budget is the
-  // bound it already set for the process: `spawnSync`'s 60 s.
+  // up past the polite stop is CI's to show, not this machine's. Issue #952
+  // took the likeliest cause away — a process joining the group after the one
+  // SIGTERM, now reached by the supervisor's repeated polite stop, which has
+  // its own case above — but it was inferred, not reproduced, so the forced
+  // stop stays a legitimate path for this case. Whether the stop was polite or
+  // forced is not this case's subject — the grace has its own case above — so
+  // its budget is the bound it already set for the process: `spawnSync`'s 60 s.
   const SPAWN_BUDGET_MS = 60_000;
 
   it('a layer that fails takes the others down and the verb exits with its code', () => {
