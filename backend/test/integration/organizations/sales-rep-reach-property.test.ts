@@ -1,7 +1,14 @@
 import { afterAll, beforeAll, describe, expect, it, vi } from 'vitest';
 import type { EntityManager } from '@mikro-orm/postgresql';
 import { randomUUID } from 'node:crypto';
-import { AdminUser, Organization, OrganizationSalesRepAssignment } from '../../helpers/package-entities.js';
+import type { Command } from '@endora-commerce/platform/commands';
+import { resolveTenantContext, runWithTenantContext } from '@endora-commerce/platform/tenancy';
+import {
+  AdminUser,
+  Organization,
+  OrganizationSalesRepAssignment,
+  QuoteRequestOrgPolicy,
+} from '../../helpers/package-entities.js';
 import {
   setupBackendServer,
   teardownBackendServer,
@@ -9,6 +16,7 @@ import {
 } from '../../helpers/test-server.js';
 import { OrganizationTreeService } from '../../../../packages/modules/organizations/src/backend/services/organization-tree-service.js';
 import { SalesRepAssignmentService } from '../../../../packages/modules/organizations/src/backend/services/sales-rep-assignment-service.js';
+import { reachExcludedQuery } from '../../../../packages/modules/organizations/src/backend/services/admin-tenant-scope.js';
 
 /**
  * Issue #305 — the reach rule exists once.
@@ -262,18 +270,83 @@ describe('#305 — canSeeOrganization and the excluded set are one rule', () => 
       return stale;
     }
 
+    /** The set the tenant filter's subquery selects (`organizations_reach_excluded`), read directly. */
+    async function excludedBySubquery(rep: string, rollupOn: boolean): Promise<Set<string>> {
+      const query = reachExcludedQuery(rep, rollupOn);
+      const rows = await h.em().getConnection().execute<Array<{ x: string }>>(
+        `select q.x::text as x from (${query.sql}) q`,
+        [...query.params],
+      );
+      return new Set(rows.map((r) => r.x));
+    }
+
+    /** The fixture organizations the global `org` filter hides from `rep`, on a real `@OrgScoped` table. */
+    async function hiddenByFilter(rep: string): Promise<Set<string>> {
+      const ids = Object.values(tree);
+      const reach = await svc.reachOf(rep);
+      const ctx = resolveTenantContext(
+        { kind: 'admin', adminUserId: rep },
+        {
+          allowAll: false,
+          reach: 'excluding',
+          excludedOrganizationIds: reach.excludedOrganizationIds,
+          assignedOrganizationIds: reach.assignedOrganizationIds,
+          excludedOrganizationsQuery: reachExcludedQuery(rep, rollup.has(rep)),
+        },
+      );
+      const visible = await runWithTenantContext(ctx, async () =>
+        h.orm.em.fork().find(QuoteRequestOrgPolicy, { organizationId: { $in: ids } }),
+      );
+      const seen = new Set(visible.map((row) => row.organizationId));
+      return new Set(ids.filter((id) => !seen.has(id)));
+    }
+
     async function expectOneRule(step: string): Promise<void> {
       expect(await staleGovernorRows(), `${step}: governor rows differing from a rebuild`).toBe(0);
+      // Every fixture organization carries one row of a real tenant table, so
+      // the filter's answer is observable (#955, architect ruling Q2).
+      await h.em().getConnection().execute(
+        `insert into quote_request_org_policies (organization_id, price_proposals_allowed, created_at, updated_at)
+         select o.id, true, now(), now() from organizations o where o.id = any(?::uuid[])
+         on conflict do nothing`,
+        [`{${Object.values(tree).join(',')}}`],
+      );
       for (const mode of ['flat', 'rollup'] as const) {
         for (const rep of [R2, S2, T2]) (mode === 'rollup' ? rollup.add(rep) : rollup.delete(rep));
         for (const [name, rep] of [['R2', R2], ['S2', S2], ['T2', T2]] as const) {
-          const excluded = new Set((await svc.reachOf(rep)).excludedOrganizationIds);
+          const listed = new Set((await svc.reachOf(rep)).excludedOrganizationIds);
+          const selected = await excludedBySubquery(rep, mode === 'rollup');
+          expect([...selected].sort(), `${step}: ${name} ${mode} subquery = reachOf`).toEqual([...listed].sort());
+          const hidden = await hiddenByFilter(rep);
           for (const [label, id] of Object.entries(tree)) {
-            expect(!excluded.has(id), `${step}: ${name} ${mode} ${label}`).toBe(await svc.canSeeOrganization(rep, id));
+            const sees = await svc.canSeeOrganization(rep, id);
+            expect(!listed.has(id), `${step}: ${name} ${mode} ${label}`).toBe(sees);
+            expect(!hidden.has(id), `${step}: ${name} ${mode} ${label} (filter)`).toBe(sees);
           }
         }
       }
     }
+
+    /** An assignment written inside a Command Bus transaction, through the service's own write. */
+    const assignmentCommand = (
+      label: string,
+      rep: string,
+      write: 'assign' | 'unassign',
+      thenFail = false,
+    ): Command<void> => ({
+      action: write === 'assign' ? 'organization.sales_rep_assign' : 'organization.sales_rep_unassign',
+      objectType: 'organization',
+      objectId: tree[label]!,
+      run: async ({ em }) => {
+        const service = new SalesRepAssignmentService(() => em);
+        if (write === 'assign') await service.assign({ organizationId: tree[label]!, adminUserId: rep });
+        else await service.unassign({ organizationId: tree[label]!, adminUserId: rep });
+        if (thenFail) throw new Error('#955: roll the command back');
+        return { result: undefined, before: null, after: { adminUserId: rep } };
+      },
+    });
+    const commandBus = () =>
+      (h.container.cradle as unknown as { commandBus: { run<T>(command: Command<T>): Promise<T> } }).commandBus;
 
     beforeAll(async () => {
       const em = h.orm.em.fork();
@@ -301,10 +374,11 @@ describe('#305 — canSeeOrganization and the excluded set are one rule', () => 
     }, 60_000);
 
     afterAll(async () => {
-      await h
-        .em()
-        .getConnection()
-        .execute('delete from organization_sales_rep_assignments where admin_user_id in (?, ?)', [R2, S2]);
+      const db = h.em().getConnection();
+      await db.execute('delete from organization_sales_rep_assignments where admin_user_id in (?, ?)', [R2, S2]);
+      await db.execute('delete from quote_request_org_policies where organization_id = any(?::uuid[])', [
+        `{${Object.values(tree).join(',')}}`,
+      ]);
     });
 
     it('holds after a create, every assignment change, set-parent, move, delete and a raw write', async () => {
@@ -333,6 +407,15 @@ describe('#305 — canSeeOrganization and the excluded set are one rule', () => 
       await expectOneRule('move back under a governed node');
       await ok(admin('DELETE', `/api/v1/admin/organizations/${tree['n']}`), 204);
       await expectOneRule('delete');
+
+      // Through the Command Bus, then its undo — the inverse write — and a
+      // Command that fails after its write, whose projection must roll back with it.
+      await commandBus().run(assignmentCommand('p2', S2, 'assign'));
+      await expectOneRule('assign through the Command Bus');
+      await commandBus().run(assignmentCommand('p2', S2, 'unassign'));
+      await expectOneRule('undo of that assignment');
+      await expect(commandBus().run(assignmentCommand('q', S2, 'assign', true))).rejects.toThrow(/roll the command back/);
+      await expectOneRule('a Command that fails after its write');
 
       // The writes fixtures and the demo reset make, which no Command sees.
       const db = h.em().getConnection();

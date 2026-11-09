@@ -1,5 +1,4 @@
 import { describe, expect, it } from 'vitest';
-import { RawQueryFragment } from '@mikro-orm/core';
 import { resolveTenantContext } from './resolve-tenant-context.js';
 import { runWithTenantContext, type TenantContext } from './tenant-context.js';
 import { customerFilterCond, orgFilterCond } from './filters.js';
@@ -21,11 +20,13 @@ import {
  * the row's own column. These are the platform half of that: the mode, the two
  * filter arms, and every derived-scope helper's new arm.
  */
+const EXCLUDED_QUERY = { sql: 'select x from "reach_source"(?::uuid, ?::boolean) as x', params: ['rep', true] } as const;
 const REP_SCOPE = {
   allowAll: false,
   reach: 'excluding',
   excludedOrganizationIds: ['org-F'],
   assignedOrganizationIds: ['org-A'],
+  excludedOrganizationsQuery: EXCLUDED_QUERY,
 } as const;
 
 const repContext = (scope: Parameters<typeof resolveTenantContext>[1] = REP_SCOPE): TenantContext =>
@@ -35,21 +36,27 @@ const inRep = <T>(fn: () => T, ctx: TenantContext = repContext()): Promise<T> =>
   runWithTenantContext(ctx, async () => fn());
 
 /**
- * Issue #955 — the excluded list travels as **one** array parameter,
- * `<> all(?::uuid[])`, not as one bind per id: at a roll-up representative's
- * few thousand ids the per-id binds dominated every tenant-scoped statement of
- * the request. Read off the fragment rather than compared whole, because a
- * `RawQueryFragment` carries a private cache key.
+ * Issue #955 (architect ruling, Q2) — the excluded organizations are not
+ * shipped as a list: the owner's uncorrelated `SELECT` is rendered on the row's
+ * own column as `col is not null and col not in (S)`, the ANY-sublink form
+ * PostgreSQL hashes. Property-keyed (`$nin` with a query-builder subquery),
+ * because a raw key is dropped by a joined `populate` (R-1). Read off the
+ * builder rather than compared whole.
  */
-function oneArrayParameter(predicate: unknown): { keys: string[]; sql: string; params: unknown[] } {
+function excludingSubquery(predicate: unknown): { keys: string[]; ne: unknown; sql: string; bindings: unknown[] } {
   const value = predicate as Record<string, unknown>;
-  const ne = value['$ne'];
-  expect(ne).toBeInstanceOf(RawQueryFragment);
-  const fragment = ne as RawQueryFragment;
-  return { keys: Object.keys(value), sql: fragment.sql, params: fragment.params };
+  const nin = value['$nin'] as { toSQL?: () => { sql: string; bindings: readonly unknown[] } } | undefined;
+  expect(typeof nin?.toSQL).toBe('function');
+  const compiled = nin!.toSQL!();
+  return { keys: Object.keys(value), ne: value['$ne'], sql: compiled.sql, bindings: [...compiled.bindings] };
 }
 
-const EXCLUDING_ORG_F = { keys: ['$ne'], sql: 'all(?::uuid[])', params: ['{"org-F"}'] };
+const EXCLUDING_SUBQUERY = {
+  keys: ['$ne', '$nin'],
+  ne: null,
+  sql: 'select * from (select x from "reach_source"(?::uuid, ?::boolean) as x) as "reach_excluded"',
+  bindings: ['rep', true],
+};
 
 describe('resolveTenantContext — the `excluding` reach (#305)', () => {
   it('maps to the excluded-set mode, carrying both id lists', () => {
@@ -76,19 +83,27 @@ describe('filter conds — the excluded-set arm (#305)', () => {
   it('@OrgScoped: every organization but the excluded ones, and never a null one', async () => {
     const cond = await inRep(() => orgFilterCond());
     expect(Object.keys(cond)).toEqual(['organizationId']);
-    // `null <> all(<a non-empty list>)` is NULL, so a null organization never matches.
-    expect(oneArrayParameter(cond['organizationId'])).toEqual(EXCLUDING_ORG_F);
+    // `is not null` is spelled out: `null not in (<an empty set>)` is true.
+    expect(excludingSubquery(cond['organizationId'])).toEqual(EXCLUDING_SUBQUERY);
   });
 
-  it('@OrgScoped: an empty excluded list restricts nothing but the null organization', async () => {
+  it('@OrgScoped: the filter reads the query, not the list — an empty list renders the same predicate', async () => {
+    // The list is the one `reachOf` answered when the scope was resolved; the
+    // query is read live in each statement's snapshot. Only the query filters.
     const ctx = repContext({ ...REP_SCOPE, excludedOrganizationIds: [] });
-    expect(await inRep(() => orgFilterCond(), ctx)).toEqual({ organizationId: { $ne: null } });
+    const cond = await inRep(() => orgFilterCond(), ctx);
+    expect(excludingSubquery(cond['organizationId'])).toEqual(EXCLUDING_SUBQUERY);
+  });
+
+  it('an `excluding` scope without its query is refused, never read as "nothing excluded"', () => {
+    const { excludedOrganizationsQuery: _omitted, ...withoutQuery } = REP_SCOPE;
+    expect(() => repContext(withoutQuery)).toThrow(/excludedOrganizationsQuery/);
   });
 
   it('@CustomerScoped with an organization column: the same predicate', async () => {
     const cond = await inRep(() => customerFilterCond('present'));
     expect(Object.keys(cond)).toEqual(['organizationId']);
-    expect(oneArrayParameter(cond['organizationId'])).toEqual(EXCLUDING_ORG_F);
+    expect(excludingSubquery(cond['organizationId'])).toEqual(EXCLUDING_SUBQUERY);
   });
 
   it('@CustomerScoped without one: matches nothing and notes the refusal', async () => {
@@ -115,6 +130,7 @@ describe('derived-scope helpers — one case per arm', () => {
       kind: 'excluded',
       excludedOrganizationIds: ['org-F'],
       assignedOrganizationIds: ['org-A'],
+      excludedOrganizationsQuery: EXCLUDED_QUERY,
     });
   });
 
@@ -124,10 +140,7 @@ describe('derived-scope helpers — one case per arm', () => {
     expect(orgScopeWhere('id', allowed)).toEqual({ id: { $in: ['org-A'] } });
     const where = orgScopeWhere('id', excluded);
     expect(Object.keys(where)).toEqual(['id']);
-    expect(oneArrayParameter(where['id'])).toEqual(EXCLUDING_ORG_F);
-    expect(orgScopeWhere('id', repContext({ ...REP_SCOPE, excludedOrganizationIds: [] }))).toEqual({
-      id: { $ne: null },
-    });
+    expect(excludingSubquery(where['id'])).toEqual(EXCLUDING_SUBQUERY);
   });
 
   it('isOrgInScope', () => {
@@ -162,8 +175,8 @@ describe('derived-scope helpers — one case per arm', () => {
       params: ['{"org-A"}'],
     });
     expect(orgScopeSql('o.organization_id', excluded)).toEqual({
-      sql: '(o.organization_id is not null and o.organization_id <> all(?::uuid[]))',
-      params: ['{"org-F"}'],
+      sql: '(o.organization_id is not null and o.organization_id not in (select x from "reach_source"(?::uuid, ?::boolean) as x))',
+      params: ['rep', true],
     });
   });
 
