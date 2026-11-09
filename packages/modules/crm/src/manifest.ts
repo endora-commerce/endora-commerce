@@ -1,6 +1,7 @@
 import {
   defineModuleManifest,
   defineModuleSettingsManifest,
+  type CustomFieldWriteDeclaration,
   type ModuleDemoManifest,
 } from '@endora-commerce/contracts';
 import type { ModuleContext } from '@endora-commerce/platform/kernel';
@@ -115,6 +116,28 @@ const demo: ModuleDemoManifest<ModuleContext> = {
   seed: async (context) => (await import('./backend/demo/seed.js')).seedDemo(context),
   reset: async (context) => (await import('./backend/demo/reset.js')).resetDemo(context),
 };
+
+/**
+ * Feature 175 (`specs/175-buyer-input-custom-fields/` research R-11) — the
+ * admin writes of this module's custom-field host, for `check:custom-field-writes`.
+ * Read as a literal by the check: keep every entry a literal object.
+ */
+export const customFieldWrites = [
+  {
+    entityType: 'opportunity',
+    kind: 'create',
+    method: 'POST',
+    path: '/api/v1/admin/crm/opportunities',
+    body: 'CreateOpportunityRequestSchema',
+  },
+  {
+    entityType: 'opportunity',
+    kind: 'update',
+    method: 'PATCH',
+    path: '/api/v1/admin/crm/opportunities/:id',
+    body: 'UpdateOpportunityRequestSchema',
+  },
+] satisfies CustomFieldWriteDeclaration[];
 
 export const manifest = defineModuleManifest({
   id: 'crm',

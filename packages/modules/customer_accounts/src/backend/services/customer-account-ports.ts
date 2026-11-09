@@ -380,6 +380,9 @@ export class CustomerAccountMemberWriteService implements CustomerAccountMemberW
       firstName: input.firstName,
       lastName: input.lastName,
       organizationRoleId: input.organizationRoleId,
+      // Feature 175 (research R-5) — already validated by the caller through
+      // custom_fields' value port; stored as given, never re-validated here.
+      customFieldValues: input.customFieldValues ?? {},
       ...(input.emailVerified ? { emailVerifiedAt: new Date() } : {}),
     });
     this.#audit(em, 'customer_account.create', account.id, null, {

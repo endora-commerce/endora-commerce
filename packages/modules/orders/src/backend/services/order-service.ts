@@ -1739,6 +1739,13 @@ export class OrderService {
        * is not read.
        */
       workingBasketId?: string | undefined;
+      /**
+       * Feature 175 (FR-017) — custom-field values the admin create has
+       * ALREADY VALIDATED (`validateAndMerge('order', {}, …)`), stored on the
+       * new order over anything carried from a quote request and recorded in
+       * the on-behalf audit row. This module's own admin create path only.
+       */
+      customFieldValues?: Record<string, unknown> | undefined;
     },
   ): Promise<Order> {
     const em = this.emFactory();
@@ -2421,6 +2428,9 @@ export class OrderService {
         // Issue #417 — placed under the per-rate VAT method.
         vatMethod: 'per_rate',
         ...(carry && carry.carried.length > 0 ? { customFieldValues: { ...carry.values } } : {}),
+        ...(options?.customFieldValues
+          ? { customFieldValues: { ...(carry?.values ?? {}), ...options.customFieldValues } }
+          : {}),
       });
       await tx.persistAndFlush(order);
 
@@ -2841,6 +2851,8 @@ export class OrderService {
             ...(lineLayout.groups.length > 0 ? { groups: layoutShape(lineLayout) } : {}),
             // Feature 162 (US1-5) — the custom-field values carried from the request.
             ...(carry && carry.carried.length > 0 ? { carriedCustomFieldKeys: [...carry.carried] } : {}),
+            // Feature 175 (FR-021) — the values the administrator set on the create.
+            ...(options?.customFieldValues ? { customFieldValues: order.customFieldValues } : {}),
           },
         });
       }

@@ -1,5 +1,7 @@
 import {
   customFieldDefinitionSchema,
+  type CustomFieldAdminAccess,
+  type CustomFieldAudience,
   type CustomFieldOptionDto,
   type CustomFieldValueType,
   type LocalizedLabel,
@@ -154,4 +156,30 @@ export function toCreateOptions(options: readonly CustomFieldOptionDto[]): Custo
     isDefault: option.isDefault,
     sortOrder: index,
   }));
+}
+
+/**
+ * Why the buyer-input option cannot be turned on for this definition, as a
+ * bundle key; `null` when it can (feature 175, FR-035). The server refuses the
+ * same two states (`customer_input_audience`, `customer_input_value_type`) —
+ * the form says it before anything is sent.
+ */
+export function customerInputBlockReason(definition: {
+  audience: CustomFieldAudience;
+  valueType: CustomFieldValueType;
+}): string | null {
+  if (definition.valueType === 'page_builder') return 'customFields.customerInput.disabledPageBuilder';
+  if (definition.audience !== 'customer') return 'customFields.customerInput.disabledAudience';
+  return null;
+}
+
+/** The admin access levels, in the order the form offers them (feature 175). */
+export const ADMIN_ACCESS_LEVELS: readonly CustomFieldAdminAccess[] = ['edit', 'read', 'hidden'];
+
+/**
+ * Whether `level` may be chosen alongside `required` — a required field stays
+ * editable in the admin (SD-2; the server's `admin_access_required`).
+ */
+export function adminAccessAllowed(level: CustomFieldAdminAccess, required: boolean): boolean {
+  return level === 'edit' || !required;
 }

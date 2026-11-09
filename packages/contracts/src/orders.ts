@@ -812,6 +812,11 @@ export const adminCreateOrderRequestSchema = z
      * not returned. Only this admin request may carry it.
      */
     origin: OriginReferenceSchema.optional(),
+    /**
+     * Feature 175 (FR-017) — the order's custom-field values, validated with
+     * the administrator's rules inside the creating Command.
+     */
+    customFieldValues: customFieldValuesSchema.optional(),
   })
   .superRefine((val, ctx) => {
     if ((val.deliveryAddressId == null) === (val.deliveryAddress == null)) {

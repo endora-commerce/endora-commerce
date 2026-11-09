@@ -138,6 +138,7 @@ jobs:
           pnpm --filter backend run check:entry-presence
           pnpm --filter backend run check:lock-claims
           pnpm --filter backend run check:action-route-permissions
+          pnpm --filter backend run check:custom-field-writes
           pnpm --filter backend run check:harness-teardown
           pnpm --filter backend run check:fixture-substitution
           pnpm --filter backend run check:shared-table-wipes

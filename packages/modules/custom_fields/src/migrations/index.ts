@@ -26,12 +26,14 @@ import { Migration20260718T200338CustomFieldsInit } from './20260718T200338_cust
 import { Migration20261010T090000CustomFieldsDefinitionAudience } from './20261010T090000_custom_fields_definition_audience.js';
 import { Migration20261019T103522CustomFieldsDefinitionListFilter } from './20261019T103522_custom_fields_definition_list_filter.js';
 import { Migration20261020T110920CustomFieldsDefinitionCarryTo } from './20261020T110920_custom_fields_definition_carry_to.js';
+import { Migration20261106T094044CustomFieldsDefinitionCustomerInputAdminAccess } from './20261106T094044_custom_fields_definition_customer_input_admin_access.js';
 
 export const migrations = [
   Migration20260718T200338CustomFieldsInit,
   Migration20261010T090000CustomFieldsDefinitionAudience,
   Migration20261019T103522CustomFieldsDefinitionListFilter,
   Migration20261020T110920CustomFieldsDefinitionCarryTo,
+  Migration20261106T094044CustomFieldsDefinitionCustomerInputAdminAccess,
 ];
 
 export {
@@ -39,4 +41,5 @@ export {
   Migration20261010T090000CustomFieldsDefinitionAudience,
   Migration20261019T103522CustomFieldsDefinitionListFilter,
   Migration20261020T110920CustomFieldsDefinitionCarryTo,
+  Migration20261106T094044CustomFieldsDefinitionCustomerInputAdminAccess,
 };

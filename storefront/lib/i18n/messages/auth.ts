@@ -77,6 +77,14 @@ export const auth = defineMessages({
     'auth.register.lookup.rateLimited':
       'Too many lookups in a short time. Wait a few minutes or enter your company details below.',
     'auth.register.lookup.filledMark': 'Filled from the registry',
+    // Feature 175 — the custom fields an administrator opened on registration.
+    'auth.register.customFields.organizationLegend': 'More about your company',
+    'auth.register.customFields.customerLegend': 'More about you',
+    'auth.register.customFields.required': '(required)',
+    'auth.register.customFields.choose': 'Choose…',
+    // The backend words each refusal (module-i18n case 1); this is only for one
+    // that arrived without a sentence.
+    'auth.register.customFields.error.invalid': 'Check this field.',
     // Individual (org-less) registration.
     'auth.registerCustomer.heading': 'Create your account',
     'auth.registerCustomer.intro':
@@ -270,6 +278,11 @@ export const auth = defineMessages({
     'auth.register.lookup.rateLimited':
       'Zbyt wiele zapytań w krótkim czasie. Odczekaj kilka minut albo wpisz dane firmy poniżej.',
     'auth.register.lookup.filledMark': 'Uzupełniono z rejestru',
+    'auth.register.customFields.organizationLegend': 'Więcej o firmie',
+    'auth.register.customFields.customerLegend': 'Więcej o Tobie',
+    'auth.register.customFields.required': '(wymagane)',
+    'auth.register.customFields.choose': 'Wybierz…',
+    'auth.register.customFields.error.invalid': 'Sprawdź to pole.',
     'auth.registerCustomer.heading': 'Załóż konto',
     'auth.registerCustomer.intro':
       'Zarejestruj konto osobiste, aby przeglądać ofertę i składać zamówienia. Konto można później powiązać z organizacją.',

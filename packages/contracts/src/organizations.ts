@@ -9,6 +9,7 @@ import { organizationRoleRefSchema } from './organization-roles.js';
 import { SalesChannelOptionSchema } from './sales-channels.js';
 import { foldDiacritics } from './text-normalization.js';
 import { registryLookupIdSchema } from './organization-registry-lookup.js';
+import { customFieldValuesSchema } from './custom-fields.js';
 
 /**
  * Organizations, customer accounts, addresses, invitations — Source of truth
@@ -216,12 +217,25 @@ export const registerOrganizationRequestSchema = z.object({
       country: z.string().length(2),
     }),
     vatStatus: vatStatusSchema.optional(),
+    /**
+     * Feature 175 — the Organization's custom-field values (entity type
+     * `organization`). On registration they are validated as BUYER input on
+     * the `organization.register` surface; on the admin create, which derives
+     * from this member (`AdminOrganizationCreateBodySchema`), with the
+     * administrator's rules — the two routes never share a validator (FR-023).
+     */
+    customFieldValues: customFieldValuesSchema.optional(),
   }),
   firstUser: z.object({
     email: z.string().email(),
     password: z.string().min(12).max(256),
     firstName: z.string().min(1).max(120),
     lastName: z.string().min(1).max(120),
+    /**
+     * Feature 175 — the registering person's custom-field values (entity type
+     * `customer`), validated as buyer input on `organization.register`.
+     */
+    customFieldValues: customFieldValuesSchema.optional(),
   }),
   acceptedTermsVersion: z.string(),
   /**

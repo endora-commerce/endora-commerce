@@ -1,9 +1,9 @@
 import { Fragment, useCallback, useEffect, useMemo, useRef, useState, type FormEvent, type ReactNode } from 'react';
 import { Link, useSearchParams } from 'react-router-dom';
 import { Plus, Pencil, Trash2, Eye, EyeOff, FileText } from 'lucide-react';
-import { ApiError, apiClient, cn } from '@endora-commerce/admin-kit/lib';
+import { ApiError, apiClient, cn, useAuth } from '@endora-commerce/admin-kit/lib';
 import { Alert, AlertDescription, Badge, Button, Card, CardContent, Input, Label, PageHeader, Select, Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from '@endora-commerce/admin-kit/ui';
-import { AssetPicker, adminLanguageToLocale, buildCategoryTree, flattenCategoryTree, pickCategoryDisplayName } from '@endora-commerce/admin-kit/components';
+import { AssetPicker, CustomFieldValuesPanel, adminLanguageToLocale, customFieldErrorsOf, buildCategoryTree, flattenCategoryTree, pickCategoryDisplayName } from '@endora-commerce/admin-kit/components';
 import type { CategoryTreePickerCategory } from '@endora-commerce/admin-kit/components';
 import { useTranslation, useTranslationContext } from '@endora-commerce/admin-kit/i18n';
 import { AdminZone, useAdminZone } from '@endora-commerce/admin-kit/zones';
@@ -17,7 +17,22 @@ interface AdminCategory {
   mainImageAssetId?: string | null;
   /** Feature 068 — false hides the category (and its branch) from the storefront. */
   isActive: boolean;
+  /** Feature 055 — the category's custom-field bag (feature 175 edits it here). */
+  customFieldValues?: Record<string, unknown>;
 }
+
+/**
+ * Feature 175 (FR-016, FR-039) — the embedded custom-field panel's state in the
+ * create and edit forms: its bag, sent with the form's own request, and the
+ * refusals a `422 CUSTOM_FIELD_VALUE_INVALID` named. `null` when the operator
+ * lacks `custom_fields:read`: no panel, and the request carries no values.
+ */
+interface CustomFieldsSlot {
+  errors: Record<string, string>;
+}
+
+/** The panel's starting bag on a create: a new category has none. */
+const EMPTY_VALUES: Record<string, unknown> = {};
 
 /**
  * The props the tree counts `category.content.editor` contributors with.
@@ -49,6 +64,10 @@ export function CategoriesTree(): ReactNode {
   const [info, setInfo] = useState<string | null>(null);
   const [createUnderId, setCreateUnderId] = useState<string | null>(null);
   const [editing, setEditing] = useState<string | null>(null);
+  const { hasPermission } = useAuth();
+  const canSeeCustomFields = hasPermission('custom_fields:read');
+  // Feature 175 — the refusals of the last create / edit attempt, by field key.
+  const [customFieldErrors, setCustomFieldErrors] = useState<Record<string, string>>({});
   // `?focus=<id>` — where a global-search Category result lands
   // (`specs/150-admin-global-search/` research R-15). The tree has no collapsed
   // state, so the category's ancestors are always shown; the row is marked
@@ -100,7 +119,9 @@ export function CategoriesTree(): ReactNode {
       slug: string;
       nameEn: string;
       namePl: string;
+      customFieldValues?: Record<string, unknown>;
     }): Promise<void> => {
+      setCustomFieldErrors({});
       try {
         const name: Record<string, string> = {};
         if (input.nameEn) name['en-US'] = input.nameEn;
@@ -109,11 +130,15 @@ export function CategoriesTree(): ReactNode {
           parentCategoryId: input.parentCategoryId,
           slug: input.slug,
           name,
+          ...(input.customFieldValues && Object.keys(input.customFieldValues).length > 0
+            ? { customFieldValues: input.customFieldValues }
+            : {}),
         });
         setInfo(t('categories.success.create'));
         setCreateUnderId(null);
         await refresh();
       } catch (err) {
+        setCustomFieldErrors(customFieldErrorsOf(err) ?? {});
         setError(err instanceof ApiError ? err.envelope.error.message : t('categories.error.create'));
       }
     },
@@ -123,9 +148,19 @@ export function CategoriesTree(): ReactNode {
   const handleUpdate = useCallback(
     async (
       id: string,
-      input: { slug?: string; nameEn?: string; namePl?: string; parentCategoryId?: string | null },
+      input: {
+        slug?: string;
+        nameEn?: string;
+        namePl?: string;
+        parentCategoryId?: string | null;
+        customFieldValues?: Record<string, unknown>;
+      },
     ): Promise<void> => {
+      setCustomFieldErrors({});
       const payload: Record<string, unknown> = {};
+      if (input.customFieldValues !== undefined && Object.keys(input.customFieldValues).length > 0) {
+        payload['customFieldValues'] = input.customFieldValues;
+      }
       if (input.slug !== undefined) payload['slug'] = input.slug;
       if (input.parentCategoryId !== undefined) payload['parentCategoryId'] = input.parentCategoryId;
       if (input.nameEn !== undefined || input.namePl !== undefined) {
@@ -144,6 +179,7 @@ export function CategoriesTree(): ReactNode {
         setEditing(null);
         await refresh();
       } catch (err) {
+        setCustomFieldErrors(customFieldErrorsOf(err) ?? {});
         setError(err instanceof ApiError ? err.envelope.error.message : t('categories.error.update'));
       }
     },
@@ -211,6 +247,7 @@ export function CategoriesTree(): ReactNode {
       {createUnderId === '__root__' ? (
         <CreateForm
           parentLabel="(root)"
+          customFields={canSeeCustomFields ? { errors: customFieldErrors } : null}
           onCancel={(): void => setCreateUnderId(null)}
           onSubmit={(input): void => void handleCreate({ parentCategoryId: null, ...input })}
         />
@@ -254,6 +291,8 @@ export function CategoriesTree(): ReactNode {
                           <EditForm
                             category={c}
                             categories={categories}
+                            values={record?.customFieldValues ?? EMPTY_VALUES}
+                            customFields={canSeeCustomFields ? { errors: customFieldErrors } : null}
                             onCancel={(): void => setEditing(null)}
                             onSubmit={(input): void => void handleUpdate(c.id, input)}
                           />
@@ -357,6 +396,7 @@ export function CategoriesTree(): ReactNode {
                         <TableCell colSpan={6} style={{ paddingLeft: depth * 24 + 32 }}>
                           <CreateForm
                             parentLabel={label(c.name, c.slug)}
+                            customFields={canSeeCustomFields ? { errors: customFieldErrors } : null}
                             onCancel={(): void => setCreateUnderId(null)}
                             onSubmit={(input): void =>
                               void handleCreate({ parentCategoryId: c.id, ...input })
@@ -379,17 +419,26 @@ export function CategoriesTree(): ReactNode {
 
 function CreateForm({
   parentLabel,
+  customFields,
   onSubmit,
   onCancel,
 }: {
   parentLabel: string;
-  onSubmit: (input: { slug: string; nameEn: string; namePl: string }) => void;
+  customFields: CustomFieldsSlot | null;
+  onSubmit: (input: {
+    slug: string;
+    nameEn: string;
+    namePl: string;
+    customFieldValues?: Record<string, unknown>;
+  }) => void;
   onCancel: () => void;
 }): ReactNode {
   const t = useTranslation('catalog');
+  const { language } = useTranslationContext();
   const [slug, setSlug] = useState('');
   const [nameEn, setNameEn] = useState('');
   const [namePl, setNamePl] = useState('');
+  const [customFieldValues, setCustomFieldValues] = useState<Record<string, unknown>>({});
   return (
     <Card className="mb-4">
       <CardContent className="pt-6">
@@ -397,7 +446,7 @@ function CreateForm({
           className="space-y-4"
           onSubmit={(e: FormEvent): void => {
             e.preventDefault();
-            onSubmit({ slug, nameEn, namePl });
+            onSubmit({ slug, nameEn, namePl, ...(customFields ? { customFieldValues } : {}) });
           }}
         >
           <p className="text-sm">
@@ -424,6 +473,15 @@ function CreateForm({
               <Input id="cpl" value={namePl} onChange={(e): void => setNamePl(e.target.value)} />
             </div>
           </div>
+          {customFields ? (
+            <CustomFieldValuesPanel
+              entityType="category"
+              values={EMPTY_VALUES}
+              onChange={setCustomFieldValues}
+              fieldErrors={customFields.errors}
+              language={language}
+            />
+          ) : null}
           <div className="flex gap-2">
             <Button type="submit">{t('categories.action.create')}</Button>
             <Button type="button" variant="outline" onClick={onCancel}>
@@ -439,16 +497,22 @@ function CreateForm({
 function EditForm({
   category,
   categories,
+  values,
+  customFields,
   onSubmit,
   onCancel,
 }: {
   category: CategoryTreePickerCategory;
   categories: AdminCategory[];
+  /** The category's stored custom-field bag, the embedded panel's start. */
+  values: Record<string, unknown>;
+  customFields: CustomFieldsSlot | null;
   onSubmit: (input: {
     slug: string;
     nameEn: string;
     namePl: string;
     parentCategoryId: string | null;
+    customFieldValues?: Record<string, unknown>;
   }) => void;
   onCancel: () => void;
 }): ReactNode {
@@ -459,13 +523,22 @@ function EditForm({
   const [nameEn, setNameEn] = useState(category.name['en-US'] ?? '');
   const [namePl, setNamePl] = useState(category.name['pl-PL'] ?? '');
   const [parentId, setParentId] = useState<string>(category.parentCategoryId ?? '');
+  // Feature 175 — `undefined` until the operator edits a field, so a save that
+  // touched none sends no bag and leaves the stored values to the server.
+  const [customFieldValues, setCustomFieldValues] = useState<Record<string, unknown> | undefined>(undefined);
   const contributions = useAdminZone('category.editor.after', { categoryId: category.id });
   return (
     <form
       className="space-y-4"
       onSubmit={(e: FormEvent): void => {
         e.preventDefault();
-        onSubmit({ slug, nameEn, namePl, parentCategoryId: parentId === '' ? null : parentId });
+        onSubmit({
+          slug,
+          nameEn,
+          namePl,
+          parentCategoryId: parentId === '' ? null : parentId,
+          ...(customFieldValues !== undefined ? { customFieldValues } : {}),
+        });
       }}
     >
       <div className="grid gap-3 md:grid-cols-2">
@@ -500,6 +573,18 @@ function EditForm({
           <Input value={namePl} onChange={(e): void => setNamePl(e.target.value)} />
         </div>
       </div>
+      {/* Feature 175 — embedded rather than saving on its own: the panel's own
+          button would be a second submit inside this form. Its bag travels in
+          the same `PATCH …/categories/:id` as the rest of the edit. */}
+      {customFields ? (
+        <CustomFieldValuesPanel
+          entityType="category"
+          values={values}
+          onChange={setCustomFieldValues}
+          fieldErrors={customFields.errors}
+          language={language}
+        />
+      ) : null}
       <div className="flex gap-2">
         <Button type="submit" size="sm">
           {t('categories.action.save')}

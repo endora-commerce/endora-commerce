@@ -158,6 +158,28 @@ export interface RfqAdminServiceDeps {
 export class RfqAdminService {
   constructor(private readonly deps: RfqAdminServiceDeps) {}
 
+  /**
+   * Feature 175 — a new request's bag: the values sent, validated with the
+   * administrator's rules onto an empty record. `{}` without the value port,
+   * as before. The refusal is the 422 every admin custom-field write answers.
+   */
+  async #newCustomFieldValues(values: Record<string, unknown> | undefined): Promise<Record<string, unknown>> {
+    if (!this.deps.customFieldValues) return {};
+    try {
+      return await this.deps.customFieldValues.validateAndMerge('quote_request', {}, values ?? {});
+    } catch (err) {
+      if (isCustomFieldValidationFailure(err)) {
+        throw new HttpError(
+          422,
+          ERROR_CODES.CUSTOM_FIELD_VALUE_INVALID,
+          'One or more custom fields are invalid.',
+          err.errors.map((e) => ({ path: e.field, issue: e.message })),
+        );
+      }
+      throw err;
+    }
+  }
+
   /** Feature 054 — co-transactional RFQ audit on `em` (actor from context). */
   #audit(
     em: EntityManager,
@@ -1038,6 +1060,13 @@ export class RfqAdminService {
       body.items.map((it) => it.productId),
     );
 
+    // Feature 175 (FR-015, FR-019) — the request's custom-field values,
+    // validated as a merge onto an empty bag before anything is numbered or
+    // written: a refusal creates nothing, a `required` definition is refused
+    // even when no value is sent, and the creation's audit row below carries
+    // what was stored.
+    const customFieldValues = await this.#newCustomFieldValues(body.customFieldValues);
+
     const businessId = await this.deps.rfqService.generateBusinessId(em);
     const rfq = em.create(QuoteRequest, {
       ...(businessId ? { businessId } : {}),
@@ -1063,6 +1092,7 @@ export class RfqAdminService {
         body.expiresInDays !== undefined
           ? new Date(Date.now() + body.expiresInDays * 86_400_000)
           : null,
+      customFieldValues,
     });
     await em.persistAndFlush(rfq);
 
@@ -1106,6 +1136,7 @@ export class RfqAdminService {
       itemCount: items.length,
       salesChannelId: rfq.salesChannelId ?? null,
       groups: plan.after,
+      customFieldValues: rfq.customFieldValues,
     });
     await em.persistAndFlush(items);
 

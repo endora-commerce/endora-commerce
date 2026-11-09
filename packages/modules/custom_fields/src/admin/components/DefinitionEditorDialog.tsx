@@ -81,7 +81,7 @@ interface PendingDrift {
   resolve: (proceed: boolean) => void;
 }
 
-const sameTargets = (a: readonly SupportedEntityType[], b: readonly SupportedEntityType[]): boolean =>
+const sameTargets = <T extends string>(a: readonly T[], b: readonly T[]): boolean =>
   a.length === b.length && a.every((target) => b.includes(target));
 
 /** The fields a server refusal can be said next to; anything else is said beside the submit button. */
@@ -165,6 +165,9 @@ function initialValue(props: DefinitionEditorDialogProps): DefinitionFormValue {
       audience: 'internal',
       listFilter: false,
       carryTo: [],
+      // Feature 175 — open on no surface and editable, the server's defaults.
+      customerInput: [],
+      adminAccess: 'edit',
       options: [],
     };
   }
@@ -179,6 +182,9 @@ function initialValue(props: DefinitionEditorDialogProps): DefinitionFormValue {
     audience: definition.audience,
     listFilter: definition.listFilter,
     carryTo: [...(definition.carryTo ?? [])],
+    // `?? …`: a definition read from a server older than feature 175.
+    customerInput: [...(definition.customerInput ?? [])],
+    adminAccess: definition.adminAccess ?? 'edit',
     options: [],
   };
 }
@@ -194,8 +200,9 @@ function initialValue(props: DefinitionEditorDialogProps): DefinitionFormValue {
  *
  * **Edit** shows the key, the entity type and the value type, never offers
  * them. *Save* sends **one** `PATCH` holding only the members the operator
- * changed among `labelDefault`, `label`, `required`, `audience`, `listFilter`
- * and `carryTo` (feature 162, as the whole new list) — never `config`,
+ * changed among `labelDefault`, `label`, `required`, `audience`, `listFilter`,
+ * `carryTo` (feature 162, as the whole new list), `customerInput` (feature
+ * 175, as the whole new list) and `adminAccess` — never `config`,
  * `options`, `valueType` or `key` (threat model F-6); nothing changed sends
  * nothing. Options are edited through their own sub-routes, one action at a
  * time, and the dialog re-reads the definition after each.
@@ -246,10 +253,12 @@ export function DefinitionEditorDialog(props: DefinitionEditorDialogProps): Reac
           labelKey: entityTypeLabelKey(value.entityType, entityTypes),
           listFilter: false,
           carryTargets: [],
+          customerInputSurfaces: [],
         })
       : props.entityTypeInfo;
   const carryTargets = entityTypeInfo.carryTargets ?? [];
   const offersCarry = carryTargets.length > 0;
+  const surfaces = entityTypeInfo.customerInputSurfaces ?? [];
 
   const typeLabel = useCallback(
     (entityType: SupportedEntityType): string => t(entityTypeLabelKey(entityType, entityTypes)),
@@ -398,6 +407,9 @@ export function DefinitionEditorDialog(props: DefinitionEditorDialogProps): Reac
         config: {},
         // Feature 162 — `[]` unless the operator ticked a target the type offers.
         carryTo: value.carryTo.filter((target) => carryTargets.includes(target)),
+        // Feature 175 — `[]` unless the operator ticked a surface the type offers.
+        customerInput: value.customerInput.filter((surface) => surfaces.includes(surface)),
+        adminAccess: value.adminAccess,
         options: hasOptions(value.valueType) ? toCreateOptions(value.options) : [],
         // Sent only where the entity type offers the option.
         ...(entityTypeInfo.listFilter ? { listFilter: value.listFilter } : {}),
@@ -421,6 +433,10 @@ export function DefinitionEditorDialog(props: DefinitionEditorDialogProps): Reac
     if (value.audience !== definition.audience) patch.audience = value.audience;
     if (value.listFilter !== definition.listFilter) patch.listFilter = value.listFilter;
     if (offersCarry && !sameTargets(value.carryTo, definition.carryTo ?? [])) patch.carryTo = value.carryTo;
+    if (surfaces.length > 0 && !sameTargets(value.customerInput, definition.customerInput ?? [])) {
+      patch.customerInput = value.customerInput;
+    }
+    if (value.adminAccess !== (definition.adminAccess ?? 'edit')) patch.adminAccess = value.adminAccess;
     if (Object.keys(patch).length === 0) {
       onClose();
       return;

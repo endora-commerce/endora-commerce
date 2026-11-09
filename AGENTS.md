@@ -1,6 +1,6 @@
 # Endora Commerce (b2b-platform) — Agent Instructions
 
-Last updated: 2026-11-04
+Last updated: 2026-11-06
 
 **This file is the single source of truth for every AI coding agent working in this
 repository, and since 2026-09-11 it is a *router*.** It holds what an agent needs before its
@@ -161,6 +161,7 @@ the *Subject* column, which keeps the section names this file used to carry.
 | Judging whether something may be published, or reviewing a file, a changeset body or a commit message against the disclosure gate | Commercial data | `specs/conventions/commercial-data.md` |
 | Writing or changing anything under `backend/src/apps/<deployment>/` | Overlay modules | `specs/conventions/overlay-modules.md` |
 | Changing how a price is stored, resolved, displayed, sorted, indexed or cached, or specifying anything that touches price lists | Pricing | `specs/conventions/pricing.md` |
+| Adding or changing a custom-field write path — an admin create/update of a custom-field host, a buyer input surface, or admin access | Custom-field writes | `specs/conventions/custom-field-writes.md` |
 | Touching a package's build configuration, or a type-check and a test run disagreeing about a file | Building the packages | `specs/conventions/building-packages.md` |
 | Running or changing anything in `backend/test/`, or a suite result needing to mean something | Which backend test command to use | `specs/conventions/backend-test-suite.md` |
 
@@ -289,6 +290,6 @@ never a copy — `.agents/skills/ux-laws/SKILL.md` is one. Update it in place.
 See "Repo map" above.
 
 ## Recent Changes
+- 175-buyer-input-custom-fields
 - 172-product-content-attributes
 - 171-blog-i18n-authors
-- 170-organization-roles

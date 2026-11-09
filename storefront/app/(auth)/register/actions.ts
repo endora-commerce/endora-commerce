@@ -3,10 +3,13 @@
 import { headers } from 'next/headers';
 import { registerOrganization } from '../../../lib/api/auth';
 import { StorefrontApiError } from '../../../lib/api/client';
+import { getRegistrationCustomFields } from '../../../lib/api/custom-field-input';
 import { lookupCompany, type LookupCompanyOutcome } from '../../../lib/api/registry-lookup';
 import {
   applyLookupOutcome,
   companyValuesOf,
+  customFieldErrorsOf,
+  customFieldsFromFormData,
   lookupIdFromFormData,
   lookupStateOf,
   refusedRegistration,
@@ -33,6 +36,13 @@ import { getServerContext } from '../../../lib/server-context';
  *
  * `lookupCompanyAction` is the same lookup for the JavaScript path, which fills
  * the fields in place without submitting the form.
+ *
+ * Feature 175 (`specs/175-buyer-input-custom-fields/` research R-10) — the
+ * custom fields open on `organization.register` are read again here, from the
+ * same cache the page read them from, so each posted `cf.<group>.<key>` is
+ * understood by its value type: `organization` is sent as
+ * `organization.customFieldValues`, `customer` as `firstUser.customFieldValues`.
+ * A refusal returns them as typed, with each refused field named.
  */
 
 /** The buyer's address as the request reached the storefront, for the backend's per-client limit. */
@@ -61,8 +71,10 @@ async function lookupOrEmpty(values: Pick<RegisterFormValues, 'taxId' | 'country
 
 export async function registerFormAction(previous: RegisterFormState, formData: FormData): Promise<RegisterFormState> {
   const values = valuesFromFormData(formData);
+  const { locale } = await getServerContext();
+  const customFields = customFieldsFromFormData(formData, await getRegistrationCustomFields({ locale }));
   if (formData.get('intent') === 'lookup') {
-    return applyLookupOutcome({ ...previous, values }, await lookupOrEmpty(values));
+    return applyLookupOutcome({ ...previous, values, customFields: customFields.typed }, await lookupOrEmpty(values));
   }
 
   const registryLookupId = lookupIdFromFormData(formData);
@@ -77,22 +89,37 @@ export async function registerFormAction(previous: RegisterFormState, formData: 
           postalCode: values.postalCode,
           country: values.country,
         },
+        ...(customFields.request.organization ? { customFieldValues: customFields.request.organization } : {}),
       },
       firstUser: {
         email: values.email,
         password: (formData.get('password') as string | null) ?? '',
         firstName: values.firstName,
         lastName: values.lastName,
+        ...(customFields.request.customer ? { customFieldValues: customFields.request.customer } : {}),
       },
       acceptedTermsVersion: (formData.get('acceptedTermsVersion') as string | null) ?? '2025-01',
       ...(registryLookupId ? { registryLookupId } : {}),
     });
   } catch (err) {
     if (err instanceof StorefrontApiError) {
-      return refusedRegistration(previous, formData, { code: err.code, message: err.detail });
+      return refusedRegistration(
+        previous,
+        formData,
+        { code: err.code, message: err.detail },
+        {
+          customFields: customFields.typed,
+          ...(err.code === 'CUSTOM_FIELD_VALUE_INVALID' ? { fieldErrors: customFieldErrorsOf(err.details) } : {}),
+        },
+      );
     }
-    const t = tForLocale((await getServerContext()).locale);
-    return refusedRegistration(previous, formData, { code: 'INTERNAL', message: t('auth.register.failed') });
+    const t = tForLocale(locale);
+    return refusedRegistration(
+      previous,
+      formData,
+      { code: 'INTERNAL', message: t('auth.register.failed') },
+      { customFields: customFields.typed },
+    );
   }
   // Issue #745 — no address in the URL: it is personal data, and the page would print it.
   return await localeRedirect('/register?status=pending');

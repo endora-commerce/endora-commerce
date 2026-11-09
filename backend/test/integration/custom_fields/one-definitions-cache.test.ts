@@ -78,6 +78,8 @@ describe('custom_fields — one definitions cache [integration]', () => {
       sortOrder: 900,
       config: {},
       carryTo: [],
+      customerInput: [],
+      adminAccess: 'edit',
       options: [],
     });
 
