@@ -6,7 +6,8 @@ import {
   deliverableWebhookEventTypes,
   type WebhookEventRegistryPort,
 } from '@endora-commerce/contracts';
-import type { AuditPort } from '@endora-commerce/platform/kernel';
+import { z } from 'zod';
+import type { AuditPort, SettingsReadPort } from '@endora-commerce/platform/kernel';
 import { effectiveState, lazyPort, type ModuleContext } from '@endora-commerce/platform/kernel';
 import type { RequireAdminFactory } from '@endora-commerce/platform/kernel';
 import { registerWebhooksAdminRoutes } from './routes.js';
@@ -19,6 +20,13 @@ import {
   type WebhookJobData,
 } from './services/webhook-queue.js';
 import { createDeliveryProcessor } from './services/webhook-delivery-worker.js';
+import {
+  WEBHOOK_DELIVERY_RETENTION_DEFAULT_DAYS,
+  WEBHOOK_DELIVERY_RETENTION_SETTING,
+  WebhookDeliveryRetentionService,
+  retentionDaysFrom,
+} from './services/delivery-retention.js';
+import { startWebhookDeliveryRetention } from './services/delivery-retention-worker.js';
 import { WebhookDelivery } from './entities/webhook-delivery.entity.js';
 import { Webhook } from './entities/webhook.entity.js';
 
@@ -83,6 +91,10 @@ export interface WebhooksCradle {
   readonly webhookService: WebhookService;
   readonly webhookQueue: Queue<WebhookJobData>;
   readonly webhookDeliveryWorker: Worker<WebhookJobData>;
+  /** The platform's settings read: the delivery-history retention window (issue #928). */
+  readonly settingsReadPort: SettingsReadPort;
+  /** Deletes finished delivery rows past `webhooks.delivery_retention_days` (issue #928). */
+  readonly webhookDeliveryRetention: WebhookDeliveryRetentionService;
   /** The event types other modules offer — a contribution seam, registered ungated. */
   readonly webhookEventRegistry: WebhookEventRegistryPort;
   /**
@@ -145,6 +157,28 @@ export function registerModule(ctx: ModuleContext): void {
       )
       .singleton()
       .disposer((worker: Worker<WebhookJobData>) => worker.close().catch(() => undefined)),
+
+    /**
+     * Issue #928 — the retention window of the delivery history. The setting
+     * is platform-wide, so it is read with `null` for the channel; a read that
+     * fails, or a value outside 1–3650 whole days, is the default.
+     */
+    webhookDeliveryRetention: ctx
+      .asFunction(
+        ({ emFactory }: WebhooksCradle) =>
+          new WebhookDeliveryRetentionService(emFactory, async () => {
+            try {
+              return retentionDaysFrom(
+                await ctx
+                  .cradle<WebhooksCradle>()
+                  .settingsReadPort.get(WEBHOOK_DELIVERY_RETENTION_SETTING, null, z.unknown()),
+              );
+            } catch {
+              return WEBHOOK_DELIVERY_RETENTION_DEFAULT_DAYS;
+            }
+          }),
+      )
+      .singleton(),
   });
 
   /**
@@ -219,6 +253,9 @@ export function registerModule(ctx: ModuleContext): void {
     if (webhooksRunWorkers) {
       ctx.worker(ctx.cradle<WebhooksCradle>().webhookDeliveryWorker, { logger: app.log });
     }
+
+    // RED: the retention tick is not started yet.
+    void startWebhookDeliveryRetention;
 
     await registerWebhooksAdminRoutes(app, {
       eventTypes: () => ctx.cradle<WebhooksCradle>().webhookEventRegistry.list(),
