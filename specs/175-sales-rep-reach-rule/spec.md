@@ -2,7 +2,7 @@
 
 **Feature Branch**: `fix/305-sales-rep-reach-rule`
 **Created**: 2026-11-08
-**Status**: Implemented, except FR-006 (the performance budget is not met — `research.md` R-3)
+**Status**: Implemented, except FR-006's list ratio (the reach meets its 5 ms budget since #955; a representative's list is still 3.6–10.8× a platform administrator's — `research.md` R-5)
 **Input**: GitHub issue #305, and the owner's rulings on it of 2026-11-07 ("one rule, every
 surface, do it now") and 2026-11-08 (E-305-1 confirmed; E-305-2: no cache unless the governor
 table fails the budget).

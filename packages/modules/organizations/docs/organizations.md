@@ -242,7 +242,10 @@ caller's admin role is `sales_representative`, every admin surface is
 confined to the Organizations the rep reaches (see *Which Organizations
 a sales representative reaches*): the tenant scope of every admin request
 is "every Organization except those governed by another representative",
-computed once per request from this table. Platform admins see
+computed once per request from this table and from
+`organization_reach_governor`, which holds each Organization's nearest
+assigned ancestor-or-self and is kept current inside the transaction of
+every write that can change it. Nothing is cached. Platform admins see
 everything.
 
 Three endpoints maintain the relation, and this module owns and
@@ -458,6 +461,10 @@ so it is a migration of `name_search`, not an edit.
   (`admin` for every existing row), `registry_details` and `submitted_values` to
   `organization_tax_id_validations`, and admits the `gus_pl` provider (see
   "Registry lookup at registration" above).
+- `20261109T144721_organizations_reach_governor.ts` — creates `organization_reach_governor`
+  (each Organization's nearest ancestor-or-self carrying a sales-rep assignment), backfills it,
+  and adds the triggers on `organizations` and `organization_sales_rep_assignments` that keep it
+  current in the writing transaction (see "Sales-rep ownership" above).
 
 ### Personal organizations (B2C)
 

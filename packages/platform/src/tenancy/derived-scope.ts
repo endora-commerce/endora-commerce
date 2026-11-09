@@ -1,4 +1,5 @@
 import type { AdminScopeInput } from './resolve-tenant-context.js';
+import { excludedOrganizationsPredicate, pgTextArray } from './excluded-predicate.js';
 import {
   getTenantContext,
   MissingTenantContextError,
@@ -128,9 +129,8 @@ function constraintOf(source: OrgScopeSource): OrgConstraint {
  * `'organizationId'`). Returns `{}` (no restriction) for platform-admin /
  * system scope.
  *
- * The `excluded` arm also refuses a null organization — see
- * `excludedSetPredicate` in `filters.ts` for why an empty `$nin` alone would
- * not.
+ * The `excluded` arm is the global filter's own predicate — one array
+ * parameter, and never a null organization (`excluded-predicate.ts`).
  */
 export function orgScopeWhere(field: string, ctx?: OrgScopeSource): Record<string, unknown> {
   const constraint = constraintOf(ctx);
@@ -142,12 +142,7 @@ export function orgScopeWhere(field: string, ctx?: OrgScopeSource): Record<strin
     case 'allowed':
       return { [field]: { $in: [...constraint.organizationIds] } };
     case 'excluded':
-      return {
-        [field]:
-          constraint.excludedOrganizationIds.length === 0
-            ? { $ne: null }
-            : { $ne: null, $nin: [...constraint.excludedOrganizationIds] },
-      };
+      return { [field]: excludedOrganizationsPredicate(constraint.excludedOrganizationIds) };
   }
 }
 
@@ -185,10 +180,6 @@ export function orgScopeSql(columnSql: string, ctx?: OrgScopeSource): OrgScopeSq
   }
 }
 
-/** A PostgreSQL array literal, every element quoted, for one bind parameter. */
-function pgTextArray(values: readonly string[]): string {
-  return `{${values.map((v) => `"${v.replace(/[\\"]/g, (c) => `\\${c}`)}"`).join(',')}}`;
-}
 
 /**
  * Whether the ambient scope may act on `organizationId`. Platform-admin/system

@@ -1,4 +1,4 @@
-import { afterAll, beforeAll, describe, expect, it } from 'vitest';
+import { afterAll, beforeAll, describe, expect, it, vi } from 'vitest';
 import type { EntityManager } from '@mikro-orm/postgresql';
 import { randomUUID } from 'node:crypto';
 import { AdminUser, Organization, OrganizationSalesRepAssignment } from '../../helpers/package-entities.js';
@@ -161,6 +161,18 @@ describe('#305 — canSeeOrganization and the excluded set are one rule', () => 
       expect(governed).toEqual([...expected].sort());
       expect(await svc.listAssignedOrganizationIds(REPS[rep])).toEqual(expect.arrayContaining(assignedOrganizationIds));
     });
+  });
+
+  it('a roll-up reach that meets the unreadable governing path names it in one warn (ruling Q1 on PR #954)', async () => {
+    const warn = vi.fn();
+    const warned = new SalesRepAssignmentService(h.em, undefined, {
+      treeService: new OrganizationTreeService(h.em),
+      hasRollupCapability: async () => true,
+      warn,
+    });
+    await warned.reachOf(T);
+    expect(warn).toHaveBeenCalledTimes(1);
+    expect((warn.mock.calls[0]![0] as { organizationIds: string[] }).organizationIds).toContain(ids['x']);
   });
 
   it('the excluded set never names a personal organization (they cannot be assigned)', async () => {
