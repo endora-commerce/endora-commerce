@@ -248,7 +248,13 @@ inBoth('the account security page with 2FA off', () => render(SecurityPage), {
 
 describe('the account security page with 2FA on and fresh recovery codes', () => {
   it('renders in both languages, the count in the locale’s digits', async () => {
-    mfa.status = { totpActive: true, recoveryCodesRemaining: 10000, socialLinks: [] };
+    mfa.status = {
+      totpActive: true,
+      recoveryCodesRemaining: 10000,
+      canDisable: true,
+      disableBlockedReason: null,
+      socialLinks: [],
+    };
     mfa.recoveryFlash = ['aaaa-bbbb'];
     const en = await render(SecurityPage);
     expect(en).toContain('Two-step verification is on');

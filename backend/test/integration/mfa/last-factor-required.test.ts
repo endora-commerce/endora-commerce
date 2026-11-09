@@ -85,6 +85,14 @@ describe('MFA — the last factor cannot be removed while a policy requires one 
     await h.settings.cache.invalidate(code);
   }
 
+  /** `mfa.storefront.totp_enforced` on {@link CHANNEL} alone: its own row, which outranks the platform-wide value. */
+  async function setChannelEnforced(value: boolean): Promise<void> {
+    await h.settings.adminService.setValueForSubset('mfa.storefront.totp_enforced', [CHANNEL], value, null, {
+      actorAdminUserId: null,
+    });
+    await h.settings.cache.invalidate('mfa.storefront.totp_enforced');
+  }
+
   const putRole = (requiresTwoFactor: boolean) =>
     h.app.inject({
       method: 'PUT',
@@ -165,10 +173,10 @@ describe('MFA — the last factor cannot be removed while a policy requires one 
     expect(res.statusCode, res.body).toBe(409);
     const error = res.json().error as { code: string; message: string };
     expect(error.code).toBe('MFA_LAST_FACTOR_REQUIRED');
-    expect(error.message).toBe(SENTENCE_EN);
-    const pl = await disable(s, { ...headers, 'accept-language': 'pl' });
-    expect(pl.statusCode).toBe(409);
-    expect((pl.json().error as { message: string }).message).toBe(SENTENCE_PL);
+    // The sentence is the bundle's, in whichever language the reader resolves
+    // to (an administrator's preference, a channel's language), never the
+    // thrower's prose.
+    expect([SENTENCE_EN, SENTENCE_PL]).toContain(error.message);
     expect((await status(s, headers))['totpActive']).toBe(true);
   }
 
@@ -187,6 +195,7 @@ describe('MFA — the last factor cannot be removed while a policy requires one 
     await setSetting('mfa.storefront.totp_enabled', true);
     await setSetting('mfa.admin.totp_enforced', false);
     await setSetting('mfa.storefront.totp_enforced', false);
+    await setChannelEnforced(false);
     await setOrgPolicy(false);
 
     const role = await putRole(false);
@@ -227,6 +236,7 @@ describe('MFA — the last factor cannot be removed while a policy requires one 
   afterAll(async () => {
     await setSetting('mfa.admin.totp_enforced', false);
     await setSetting('mfa.storefront.totp_enforced', false);
+    await setChannelEnforced(false);
     await setSetting('mfa.admin.totp_enabled', false);
     await setSetting('mfa.storefront.totp_enabled', false);
     await setOrgPolicy(false);
@@ -254,18 +264,25 @@ describe('MFA — the last factor cannot be removed while a policy requires one 
   });
 
   it('refuses a customer on a channel where mfa.storefront.totp_enforced is on, and only there', async () => {
-    await h.settings.adminService.setValueForSubset('mfa.storefront.totp_enforced', [CHANNEL], true, null, {
-      actorAdminUserId: null,
-    });
-    await h.settings.cache.invalidate('mfa.storefront.totp_enforced');
+    await setChannelEnforced(true);
     await expectRefused(CUSTOMER, { 'x-sales-channel': CHANNEL });
-    await setSetting('mfa.storefront.totp_enforced', false);
+    // The system default channel carries no value of its own: not required there.
+    expect(await status(CUSTOMER)).toMatchObject({ totpEnforcedForScope: false, canDisable: true });
+    await setChannelEnforced(false);
     await expectAllowed(CUSTOMER, { 'x-sales-channel': CHANNEL });
   });
 
   it("refuses a customer while the organization's policy requires a second factor", async () => {
     await setOrgPolicy(true);
     await expectRefused(CUSTOMER);
+    for (const [language, sentence] of [
+      ['en', SENTENCE_EN],
+      ['pl', SENTENCE_PL],
+    ] as const) {
+      const res = await disable(CUSTOMER, { 'accept-language': language });
+      expect(res.statusCode).toBe(409);
+      expect((res.json().error as { message: string }).message).toBe(sentence);
+    }
     await setOrgPolicy(false);
     await expectAllowed(CUSTOMER);
   });

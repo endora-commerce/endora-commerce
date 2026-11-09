@@ -660,6 +660,14 @@ export const ERROR_CODES = {
   // credential is refused: an account created by a social sign-in holds a
   // random password nobody knows, so the link is the way back in.
   MFA_SOCIAL_LAST_CREDENTIAL: 'MFA_SOCIAL_LAST_CREDENTIAL',
+  /**
+   * Issue #935 — removing the account's last second factor is refused while
+   * a requirement is in force: `mfa.admin.totp_enforced` or a role's
+   * `requiresTwoFactor` for an administrator, `mfa.storefront.totp_enforced`
+   * at the request's sales channel or the organization's policy for a
+   * customer. Raised by the self-service `POST …/mfa/disable`.
+   */
+  MFA_LAST_FACTOR_REQUIRED: 'MFA_LAST_FACTOR_REQUIRED',
   // Feature 055 — Custom Fields Layer.
   CUSTOM_FIELD_NOT_FOUND: 'CUSTOM_FIELD_NOT_FOUND',
   CUSTOM_FIELD_KEY_CONFLICT: 'CUSTOM_FIELD_KEY_CONFLICT',
