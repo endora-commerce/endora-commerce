@@ -161,6 +161,56 @@ keeps its asset or image editor. And removing the flag does not rewrite
 anything: a stored value keeps its line breaks until an operator next edits it
 in the single-line field, which cannot hold them.
 
+### Validating writes, and saying a value is not in force
+
+Two contribution registries let the module that declared a setting answer for
+it, from a boot hook, while `settings` keeps owning storage and resolution. A
+contributor whose module is off is skipped by both.
+
+- `settingWriteValidatorRegistry` (`SettingWriteValidatorRegistryPort`): a
+  validator refuses a value before it is stored, by throwing an `HttpError`.
+- `settingNoticeRegistry` (`SettingNoticeRegistryPort`): a provider says that
+  the stored platform-wide value is not what is in force, by answering
+  `{ code, message }`, or `null` when there is nothing to say. Every admin
+  settings response then carries it as `notice`; the key is absent otherwise.
+  The Settings screen shows it under the description, translated from your
+  bundle at `settingLabels.<setting code>.notice.<code>`, else `message`. A
+  provider that throws is logged and skipped: the setting is shown without
+  its notice. `mfa` uses it for `mfa.admin.totp_enforced` when no encryption
+  key is configured.
+
+  A provider may also implement `confirmation`, which says what to ask before a
+  write: `{ whenValue, code, message, params? }`, or `null`. The response then
+  carries it as `confirmation`. When an operator saves exactly `whenValue`, the
+  Settings screen re-reads the setting just before saving and asks with that
+  read's `confirmation`, so a count in `params` is the one in force at save
+  time; if the re-read carries none, it saves without asking. The question is
+  the text from your bundle at `settingLabels.<setting code>.confirmation.<code>`
+  filled in from `params`, else `message`; declining saves nothing. After an
+  accepted save the screen shows `settingLabels.<setting code>.confirmed.<code>`
+  from your bundle, when you ship it, in place of the saved-count line. A
+  provider whose `confirmation` throws is logged and skipped, and the write is
+  saved without asking.
+
+  `mfa` uses it for `mfa.admin.totp_enforced`. The sign-out itself is not tied
+  to the question: `mfa` ends the sessions of administrators without a second
+  factor after any write that leaves `mfa.admin.totp_enforced` on, through
+  `settings.value_changed`. The question is asked only when a save turns it on,
+  with how many administrators that is.
+
+```ts
+ctx.onBoot(() => {
+  lazyPort<SettingNoticeRegistryPort>(ctx, 'settingNoticeRegistry').register({
+    contributorModuleId: 'your_module',
+    codes: ['your_module.enabled'],
+    notice: async ({ value }) =>
+      value === true && !configured()
+        ? { code: 'not_configured', message: 'Not in force: the connection is not configured.' }
+        : null,
+  });
+});
+```
+
 ## For platform admins — editing values
 
 Open `Admin → Operations → Settings`. Settings are grouped by their owning

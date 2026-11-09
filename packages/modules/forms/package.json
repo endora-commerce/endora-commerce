@@ -1,6 +1,6 @@
 {
   "name": "@endora-commerce/mod-forms",
-  "version": "0.109.0",
+  "version": "0.110.0",
   "type": "module",
   "sideEffects": false,
   "description": "A form builder: forms with sections, conditional logic and translations, published as immutable versions and placed on pages with the Form block; entries with statuses, notes, export, notifications and retention.",

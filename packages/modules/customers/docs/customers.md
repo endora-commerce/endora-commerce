@@ -83,9 +83,11 @@ restore answers `409 CUSTOMER_RESTORE_WINDOW_ELAPSED`, even if the sweep has
 not reached the account yet. The account loses its e-mail, name, password and
 all custom field values. For an individual, the sweep also scrubs their
 personal organization: its name, registered address, legal name,
-order-confirmation e-mails and all custom field values are cleared, and its
-saved addresses are blanked (`-`, no phone, country kept) and soft-deleted, one
-`address.anonymized` audit entry each. This happens even if an operator has
+order-confirmation e-mails and all custom field values are cleared, and all
+its saved addresses, including the ones the customer had already deleted, are
+blanked (`-`, no phone, country kept) and soft-deleted (a deleted one keeps its
+deletion date), one `address.anonymized` audit entry each. This happens
+even if an operator has
 already deleted that organization. Placed orders keep their address snapshots.
 The anonymization audit entries record that the data was erased, not the data
 itself.
@@ -95,10 +97,27 @@ block reason and, for an individual, the block and rejection reasons on their
 personal organization. A company organization keeps its reasons. The block or
 rejection itself stays, so the customer screens still show the status and its
 date, without a reason. The anonymization audit entries record only that a
-reason existed. Audit entries written earlier, such as the entry for the block
-itself, keep the values they recorded, the reason included, until earlier
-entries are redacted on anonymization
-([#844](https://github.com/endora-commerce/endora-commerce/issues/844)).
+reason existed.
+
+The audit history written earlier about the customer is erased in place as
+well. This covers the entry for the block with its reason, profile edits, and
+address changes. It applies to the rows about the account and, for an
+individual, about their personal organization, that organization's addresses
+(including the ones the customer deleted earlier) and their retired personal
+addresses. Every row keeps its action, actors, time and object, and every
+recorded field keeps its name. Names, e-mails, addresses, free text and every
+custom field value become `[erased]`, which the audit viewer shows as *Erased*.
+On the rows the customer wrote for themselves, the IP address and user agent
+are erased too. Rows about other records, such as the customer's orders, keep
+their own history. Each anonymized customer gets one `audit.redacted` entry,
+written by the system, that holds only counts and ids. The rule itself is
+described in the audit log module's documentation, under *Redaction on
+anonymisation*. The history is erased before the account itself, so an account
+counts as anonymized only once its history is erased too.
+
+The sweep also erases the reasons operators and approvers gave for rejecting
+the account's carts, keeping each cart's status; the carts module documents
+what it erases and what it keeps (*Audit retention*).
 
 The sweep runs once a day, in the worker process and only while this module is
 on, so an account is anonymized up to a day after its window elapses. While the
@@ -149,6 +168,11 @@ It is retired for everyone, in two releases:
 
 The upgrade note *Personal address book retired (release 1 of 2)* covers the
 operator's side.
+
+When the anonymization sweep anonymizes an account, it also blanks every row of
+that account in this book the same way, whether the row was moved, erased,
+deleted by the customer or refused, with one `customer_address.anonymized`
+audit entry each. This applies to every account, a company member's included.
 
 ## Public surface
 

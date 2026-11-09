@@ -67,7 +67,11 @@ refunded only in part is invoiced, with what was kept as paid. An order
 settled returns, and no delivery or payment surcharge kept — counts the same,
 whether or not the refund has been paid out yet (one still waiting for a person
 to make it, or for the payment gateway to confirm it). When the delivery or the
-surcharge is kept, the invoice is issued with only that line.
+surcharge is kept, the invoice is issued with only that line. A consumer's
+withdrawal from the whole order refunds both (see *Returns*), so a B2C order
+returned in full usually has nothing left and is refused. A delivery the
+operator reduced to the standard price leaves the difference, which is invoiced
+alone.
 
 An invoice issued **after a return was settled** lists only what the buyer
 kept: there is no invoice yet to correct, so the invoice itself documents the
@@ -75,7 +79,8 @@ sale that is left. Each order line is invoiced at its ordered quantity less the
 quantity of the order's settled returns (kind *return*, settled with a refund or
 a credit), whether or not the money has been paid out yet; a line returned in
 full is left off. A replacement, a repair and a complaint change no line. The
-delivery and payment-surcharge lines are the order's. The discount line carries
+delivery and payment-surcharge lines are the order's, less what a consumer's
+withdrawal refunded of them; a line with nothing left is left off. The discount line carries
 only the kept goods' share: the order discount less the part the settled returns
 carried back with their refunds, and it is left off when nothing remains. VAT is
 still calculated per rate on the sum of the nets, so the invoice equals what is
@@ -110,7 +115,16 @@ per-rate VAT method, the correction is worked out from what the invoice keeps:
   from it by 0.01 at that rate until the next correction. The money is always
   exact.
 - The share of the order discount that the returned goods carried is credited
-  back on a 0 % line. The delivery and the payment surcharge are never credited.
+  back on a 0 % line.
+- The delivery and the payment surcharge are credited only on a consumer's
+  withdrawal: the return that completes the withdrawal from a B2C order. Each is
+  credited on a line of its own (`lineKind` `delivery` or `payment_surcharge`),
+  named like the invoice's line and at its VAT rate (0 % today), for the amount
+  the settlement refunded. After a full withdrawal the invoice nets to zero. A
+  correction that would credit more of a charge than the invoice still charges
+  for it is refused with `422 VALIDATION_FAILED`
+  (`code: correction_exceeds_charge_remaining`), before any money moves.
+  Business customers' returns never credit them.
 
 **A complaint** settled with money is a **price reduction**: the buyer keeps the
 goods, so their price is reduced and no quantity comes back. The correction's
@@ -142,8 +156,10 @@ says what the line is: `goods`, `delivery`, `payment_surcharge` or `discount`
 on an invoice or a proforma, with `price_reduction` reserved for a
 correction's line. Every line of a document issued from this release records
 it, the 0 % delivery and surcharge lines included; it changes no amount. A line
-issued before, and a correction's line, carry `null` and are told apart as
-before, by whether they name an order line and by their sign.
+issued before, and a correction's goods and discount lines, carry `null` and are
+told apart as before, by whether they name an order line and by their sign. A
+correction's credited delivery or surcharge carries `delivery` or
+`payment_surcharge`.
 
 ## Numbering
 

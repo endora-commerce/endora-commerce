@@ -181,6 +181,9 @@ async function authPluginImpl(app: FastifyInstance, opts: AuthPluginOptions): Pr
         request.adminActor = {
           kind: 'admin',
           adminUserId: resolvedAdmin.session.adminUserId,
+          // Issue #349, E-349-1 — so a write whose consequence ends other
+          // sessions, reached through an event, can spare this one.
+          sessionId: resolvedAdmin.session.id,
         };
         // An administrator's presence, kept as a customer's is below: until
         // this line `lastSeenAt` held an administrator's sign-in time and

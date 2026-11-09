@@ -155,6 +155,59 @@ się na `_asset_id` albo wskazuje obraz i kończy się na `_url`, zachowuje edyt
 Usunięcie flagi niczego też nie przepisuje: zapisana wartość zachowuje podziały wierszy do chwili,
 gdy operator następnym razem zmieni ją w polu jednowierszowym, które ich nie pomieści.
 
+### Walidacja zapisów i informacja, że wartość nie obowiązuje
+
+Dwa rejestry wkładów pozwalają modułowi, który zadeklarował ustawienie,
+odpowiadać za nie z haka startowego, podczas gdy `settings` nadal odpowiada za
+przechowywanie i rozstrzyganie wartości. Oba pomijają wkład modułu, który jest
+wyłączony.
+
+- `settingWriteValidatorRegistry` (`SettingWriteValidatorRegistryPort`):
+  walidator odrzuca wartość przed jej zapisaniem, zgłaszając `HttpError`.
+- `settingNoticeRegistry` (`SettingNoticeRegistryPort`): dostawca informuje,
+  że zapisana wartość dla całej platformy nie jest tą, która obowiązuje,
+  odpowiadając `{ code, message }`, albo `null`, gdy nie ma nic do
+  powiedzenia. Każda odpowiedź API ustawień w panelu zawiera wtedy pole
+  `notice`; w przeciwnym razie tego klucza nie ma. Ekran Ustawienia pokazuje
+  komunikat pod opisem, przetłumaczony z Twojego pakietu tłumaczeń pod kluczem
+  `settingLabels.<kod ustawienia>.notice.<code>`, a w jego braku `message`.
+  Dostawca, który zgłosi błąd, jest zapisywany w logu i pomijany: ustawienie
+  jest wtedy pokazywane bez komunikatu. Moduł `mfa` korzysta z tego dla
+  `mfa.admin.totp_enforced`, gdy nie skonfigurowano klucza szyfrowania.
+
+  Dostawca może też implementować `confirmation`, czyli pytanie zadawane przed
+  zapisem: `{ whenValue, code, message, params? }` albo `null`. Odpowiedź
+  zawiera je wtedy jako `confirmation`. Gdy operator zapisuje dokładnie
+  `whenValue`, ekran Ustawienia tuż przed zapisem ponownie odczytuje ustawienie
+  i pyta na podstawie `confirmation` z tego odczytu, więc liczba w `params` jest
+  aktualna w chwili zapisu; jeśli ponowny odczyt go nie zawiera, zapis odbywa
+  się bez pytania. Pytanie to tekst z Twojego pakietu tłumaczeń pod kluczem
+  `settingLabels.<kod ustawienia>.confirmation.<code>` uzupełniony wartościami
+  z `params`, a w jego braku `message`; odmowa niczego nie zapisuje. Po
+  zaakceptowanym zapisie ekran pokazuje, zamiast wiersza z liczbą zapisanych
+  zmian, tekst `settingLabels.<kod ustawienia>.confirmed.<code>` z Twojego
+  pakietu, jeśli go dostarczasz. Dostawca, którego `confirmation` zgłosi błąd,
+  jest zapisywany w logu i pomijany, a zapis odbywa się bez pytania.
+
+  Moduł `mfa` korzysta z tego dla `mfa.admin.totp_enforced`. Samo wylogowanie
+  nie zależy od pytania: `mfa` kończy sesje administratorów bez drugiego
+  składnika po każdym zapisie, który pozostawia `mfa.admin.totp_enforced`
+  włączone, przez `settings.value_changed`. Pytanie pada tylko wtedy, gdy zapis
+  je włącza, i podaje, ilu administratorów to dotyczy.
+
+```ts
+ctx.onBoot(() => {
+  lazyPort<SettingNoticeRegistryPort>(ctx, 'settingNoticeRegistry').register({
+    contributorModuleId: 'your_module',
+    codes: ['your_module.enabled'],
+    notice: async ({ value }) =>
+      value === true && !configured()
+        ? { code: 'not_configured', message: 'Not in force: the connection is not configured.' }
+        : null,
+  });
+});
+```
+
 ## Dla administratorów platformy — edycja wartości
 
 Otwórz `Admin → Operations → Settings`. Ustawienia są pogrupowane według sekcji, do której należą.

@@ -17,7 +17,11 @@ import { AuditLogEntry } from '@endora-commerce/platform/kernel';
 import { CustomerAccount } from '../../helpers/package-entities.js';
 import { seedAdHocOrganization } from '../../helpers/seed-organizations.js';
 import { CustomerAuthorityService } from '../../../../packages/modules/customers/src/backend/services/customer-authority-service.js';
-import { CustomerDeletionService } from '../../../../packages/modules/customers/src/backend/services/customer-deletion-service.js';
+import {
+  CustomerDeletionService,
+  type AnonymizedHistoryDeps,
+} from '../../../../packages/modules/customers/src/backend/services/customer-deletion-service.js';
+import { AddressBookRetirementService } from '../../../../packages/modules/customers/src/backend/services/address-book-retirement-service.js';
 import { PersonalOrganizationService } from '../../../../packages/modules/organizations/src/backend/services/personal-organization-service.js';
 import { toOrganizationRecord } from '../../../../packages/modules/organizations/src/backend/services/organization-details-port.js';
 import { hashPassword } from '@endora-commerce/platform/kernel';
@@ -41,7 +45,20 @@ import { OrganizationDepletionGuard } from '../../../../packages/modules/custome
 import { Address, Order } from '../../helpers/package-entities.js';
 import { SEED_DELIVERY_METHOD_ID, SEED_PAYMENT_METHOD_ID } from '../../helpers/seed-commerce.js';
 import { AddressService } from '../../../../packages/modules/addresses/src/backend/services/address-service.js';
-import { createAddressServicePort } from '../../../../packages/modules/addresses/src/backend/services/address-ports.js';
+import {
+  AddressReadService,
+  createAddressServicePort,
+} from '../../../../packages/modules/addresses/src/backend/services/address-ports.js';
+import { AuditRedactionService } from '@endora-commerce/platform/composition';
+import { AUDIT_ERASED_MARKER } from '@endora-commerce/contracts';
+import { CustomerAddress } from '../../helpers/package-entities.js';
+
+/** Step 3 (issue #844) as a no-op, for the cases about the other steps. */
+const NO_HISTORY: AnonymizedHistoryDeps = {
+  redaction: { redact: async () => ({ rowsInScope: 0, rowsChanged: 0, markerWritten: false }) },
+  addressReads: { listIdsForOrganization: async () => [] },
+  retiredAddressBook: { listIdsForAccount: async () => [] },
+};
 
 /**
  * Feature 040, US7 — soft-delete, restore within window, and the permanent
@@ -98,6 +115,7 @@ describe('CustomerDeletionService', () => {
     accountWrites?: CustomerAccountLifecycleWritePort;
     personalOrganizations?: PersonalOrganizationPort;
     addresses?: Pick<AddressServicePort, 'anonymizeForOrganization'>;
+    history?: AnonymizedHistoryDeps;
   } = {}): CustomerDeletionService {
     return new CustomerDeletionService(
       accounts,
@@ -122,6 +140,14 @@ describe('CustomerDeletionService', () => {
       overrides.addresses ?? addresses,
       // `customers.deletion_retention_days`, at its default (issue #800).
       async () => 365,
+      // Issue #927 — the retired personal book; this file seeds no row of it.
+      { anonymizeForAccount: async () => 0 },
+      // Issue #920 — `carts`' step; this file seeds no cart. Its behaviour is
+      // `anonymization-cart-reasons.test.ts`.
+      { anonymizeForCustomerAccount: async () => 0 },
+      // Issue #844 — the subject's audit history; the cases about it pass the
+      // real redaction, the rest a no-op.
+      overrides.history ?? NO_HISTORY,
     );
   }
 
@@ -1356,6 +1382,314 @@ describe('CustomerDeletionService', () => {
     const left = await personalOrgs.listIncompletelyScrubbed();
     expect(left).not.toContain(org.id);
     expect(await personalOrgs.hasIncompletelyScrubbed()).toBe(left.length > 0);
+  });
+
+  /**
+   * Issue #844 — the sweep erases the anonymised subject's audit history, in
+   * place, through the platform's `auditRedactionService` (step 3, before the
+   * account step). The rows are written here through the audit writer with the
+   * shapes the owners' writers record; the redaction rule itself is the
+   * platform's and is pinned in `test/integration/kernel/audit-redaction.test.ts`.
+   */
+  describe('the subject’s audit history (#844)', () => {
+    const SUBJECT_IP = '203.0.113.44';
+    const SUBJECT_UA = 'Mozilla/5.0 (subject’s own browser)';
+    const OPERATOR_IP = '198.51.100.7';
+    const OPERATOR_UA = 'Operator console';
+    /** Every value seeded about the subject that must not survive the sweep. */
+    const PERSONAL = {
+      email: 'anna.subject844@example.test',
+      firstName: 'Annabel',
+      lastName: 'Subjectova',
+      legalName: 'Annabel Subjectova Handel',
+      recipient: 'faktury.subject844@example.test',
+      customField: 'loyalty-844-ZX',
+      blockReason: 'Subject844 abused the returns policy',
+      street: 'ul. Tajna 844',
+      deletedStreet: 'ul. Usunięta 17',
+      legacyStreet: 'ul. Dawna 9',
+      phone: '+48 844 844 844',
+    };
+
+    type Row = {
+      id: string;
+      action: string;
+      object_type: string;
+      object_id: string;
+      acted_at: Date;
+      actor_admin_user_id: string | null;
+      actor_customer_account_id: string | null;
+      request_id: string | null;
+      state_before: unknown;
+      state_after: unknown;
+      ip_address: string | null;
+      user_agent: string | null;
+    };
+
+    /** Every audit row about the given objects, by id, straight from the table. */
+    async function rowsAbout(objectIds: readonly string[]): Promise<Row[]> {
+      return em.execute<Row[]>(
+        `select "id", "action", "object_type", "object_id", "acted_at", "actor_admin_user_id",
+                "actor_customer_account_id", "request_id", "state_before", "state_after",
+                "ip_address", "user_agent"
+           from "audit_log_entries" where "object_id" in (${objectIds.map(() => '?').join(', ')})
+          order by "id"`,
+        [...objectIds],
+      );
+    }
+
+    const columnsKept = (rows: Row[]) =>
+      rows.map((r) => ({
+        id: r.id,
+        action: r.action,
+        objectType: r.object_type,
+        objectId: r.object_id,
+        actedAt: new Date(r.acted_at).toISOString(),
+        actorAdminUserId: r.actor_admin_user_id,
+        actorCustomerAccountId: r.actor_customer_account_id,
+        requestId: r.request_id,
+      }));
+
+    const textOf = (rows: Row[]) =>
+      rows.map((r) => JSON.stringify([r.state_before, r.state_after, r.ip_address, r.user_agent])).join('\n');
+
+    function redactingService(overrides: { redaction?: AnonymizedHistoryDeps['redaction'] } = {}) {
+      return buildService({
+        history: {
+          redaction: overrides.redaction ?? new AuditRedactionService(() => em, audit),
+          addressReads: new AddressReadService(() => em),
+          retiredAddressBook: new AddressBookRetirementService({
+            emFactory: () => em,
+            accounts: accounts,
+            organizations: { findByIds: async () => [] },
+            addresses,
+            auditLog: audit,
+          }),
+        },
+      });
+    }
+
+    /**
+     * A personal subject with a history: its own profile edits (with its IP),
+     * an operator's block and custom-field edit, its organisation's legal name
+     * and recipients, a live address, an address it deleted before deletion,
+     * and a row in the retired personal book.
+     */
+    async function subjectWithHistory() {
+      const c = await makePersonalCustomer();
+      const org = await em.findOneOrFail(Organization, { id: c.organizationId });
+      org.legalName = PERSONAL.legalName;
+      org.orderConfirmationEmails = [PERSONAL.recipient];
+      const input = {
+        recipientName: `${PERSONAL.firstName} ${PERSONAL.lastName}`,
+        city: 'Kraków',
+        postalCode: '30-844',
+        country: 'PL',
+        phone: PERSONAL.phone,
+      };
+      const live = await addresses.createAddress(c.organizationId, { ...input, street: PERSONAL.street, kind: 'delivery' });
+      const gone = await addresses.createAddress(c.organizationId, { ...input, street: PERSONAL.deletedStreet, kind: 'billing' });
+      await addresses.deleteAddress(c.organizationId, gone.id);
+      const legacy = em.create(CustomerAddress, {
+        customerAccountId: c.id,
+        kind: 'delivery',
+        recipientName: input.recipientName,
+        street: PERSONAL.legacyStreet,
+        city: 'Kraków',
+        postalCode: '30-844',
+        country: 'PL',
+        phone: PERSONAL.phone,
+        deletedAt: new Date(),
+        mergeRefusal: 'COUNTRY_NOT_ALLOWED',
+      });
+      await em.persistAndFlush(legacy);
+
+      const own = { actorCustomerAccountId: c.id, ipAddress: SUBJECT_IP, userAgent: SUBJECT_UA, requestId: 'req-844-own' };
+      const operator = { actorAdminUserId: actor.adminUserId, ipAddress: OPERATOR_IP, userAgent: OPERATOR_UA, requestId: 'req-844-op' };
+      const writes = [
+        { ...own, action: 'customer_account.profile_updated', objectType: 'customer_account', objectId: c.id,
+          stateBefore: { email: 'old.subject844@example.test', firstName: 'Ann' },
+          stateAfter: { email: PERSONAL.email, firstName: PERSONAL.firstName, lastName: PERSONAL.lastName, updatedAt: new Date().toISOString() } },
+        { ...operator, action: 'customer_account.blocked', objectType: 'customer_account', objectId: c.id,
+          stateBefore: { status: 'active' },
+          stateAfter: { status: 'blocked', blockSource: 'staff', blockReason: PERSONAL.blockReason, organizationId: org.id } },
+        { ...operator, action: 'customer_account.custom_fields_updated', objectType: 'customer_account', objectId: c.id,
+          stateBefore: { customFieldValues: { loyalty_card: null } },
+          stateAfter: { customFieldValues: { loyalty_card: PERSONAL.customField, vip: true } } },
+        { ...operator, action: 'organization.updated', objectType: 'organization', objectId: org.id,
+          stateBefore: { legalName: null, orderConfirmationEmails: [] },
+          stateAfter: { legalName: PERSONAL.legalName, orderConfirmationEmails: [PERSONAL.recipient], countryCode: 'PL' } },
+        { ...own, action: 'address.updated', objectType: 'address', objectId: live.id,
+          stateBefore: { street: 'ul. Stara 1', phone: null },
+          stateAfter: { street: PERSONAL.street, phone: PERSONAL.phone, countryCode: 'PL', kind: 'delivery' } },
+        { ...own, action: 'address.created', objectType: 'address', objectId: gone.id,
+          stateAfter: { street: PERSONAL.deletedStreet, recipientName: input.recipientName } },
+        { ...own, action: 'customer_address.created', objectType: 'customer_address', objectId: legacy.id,
+          stateAfter: { street: PERSONAL.legacyStreet, phone: PERSONAL.phone, mergeRefusal: 'COUNTRY_NOT_ALLOWED' } },
+      ];
+      for (const write of writes) audit.recordWithin(em, write);
+      await em.flush();
+      return { c, org, objectIds: [c.id, org.id, live.id, gone.id, legacy.id], live, gone, legacy };
+    }
+
+    it('I-844-1 — no seeded value survives in the subject’s history, and every column but the values is unchanged (AC-844-1)', async () => {
+      const svc = redactingService();
+      const { c, objectIds } = await subjectWithHistory();
+      await svc.softDelete(c.id, actor);
+      const before = await rowsAbout(objectIds);
+      expect(textOf(before)).toContain(PERSONAL.deletedStreet);
+
+      expect(await svc.sweep(0, new Date(Date.now() + 60_000))).toBe(1);
+
+      em.clear();
+      const after = (await rowsAbout(objectIds)).filter((r) => r.action !== 'audit.redacted');
+      const text = textOf(after);
+      for (const value of [...Object.values(PERSONAL), SUBJECT_IP, SUBJECT_UA]) {
+        expect(text, `'${value}' survived`).not.toContain(value);
+      }
+      // Who did what, and when, is kept: the rows written before the sweep
+      // keep every column but their values.
+      const beforeIds = new Set(before.map((r) => r.id));
+      expect(columnsKept(after.filter((r) => beforeIds.has(r.id)))).toEqual(columnsKept(before));
+      // The operator's IP and user agent are the operator's, not the subject's.
+      const blocked = after.find((r) => r.action === 'customer_account.blocked')!;
+      expect([blocked.ip_address, blocked.user_agent]).toEqual([OPERATOR_IP, OPERATOR_UA]);
+      expect(blocked.state_after).toEqual({
+        status: 'blocked',
+        blockSource: 'staff',
+        blockReason: AUDIT_ERASED_MARKER,
+        organizationId: expect.any(String),
+      });
+      const own = after.find((r) => r.action === 'customer_account.profile_updated')!;
+      expect([own.ip_address, own.user_agent]).toEqual([AUDIT_ERASED_MARKER, AUDIT_ERASED_MARKER]);
+      const fields = after.find((r) => r.action === 'customer_account.custom_fields_updated')!;
+      expect(fields.state_after).toEqual({ customFieldValues: { loyalty_card: AUDIT_ERASED_MARKER, vip: AUDIT_ERASED_MARKER } });
+    });
+
+    it('I-844-2 — one audit.redacted row with counts and ids only, and a second sweep changes nothing (AC-844-2)', async () => {
+      const svc = redactingService();
+      const { c, org, objectIds, live, gone, legacy } = await subjectWithHistory();
+      await svc.softDelete(c.id, actor);
+      await svc.sweep(0, new Date(Date.now() + 60_000));
+
+      em.clear();
+      const markers = await em.find(AuditLogEntry, { action: 'audit.redacted', objectId: c.id });
+      expect(markers).toHaveLength(1);
+      const marker = markers[0]!;
+      expect(marker.objectType).toBe('customer_account');
+      expect([marker.actorAdminUserId ?? null, marker.actorCustomerAccountId ?? null]).toEqual([null, null]);
+      expect(Object.keys(marker.stateAfter ?? {}).sort()).toEqual(
+        ['byObjectType', 'objectIds', 'reason', 'rowsChanged', 'rowsInScope'],
+      );
+      expect(marker.stateAfter).toMatchObject({
+        reason: 'anonymization',
+        objectIds: {
+          customer_account: [c.id],
+          organization: [org.id],
+          address: expect.arrayContaining([live.id, gone.id]),
+          customer_address: [legacy.id],
+        },
+      });
+      expect(JSON.stringify(marker.stateAfter)).not.toContain(PERSONAL.email);
+
+      const settled = textOf(await rowsAbout(objectIds));
+      await svc.sweep(0, new Date(Date.now() + 120_000));
+      em.clear();
+      expect(textOf(await rowsAbout(objectIds))).toBe(settled);
+      expect(await em.find(AuditLogEntry, { action: 'audit.redacted', objectId: c.id })).toHaveLength(1);
+    });
+
+    it('I-844-3 — rows about other objects are byte-identical, the subject’s own actions on them included (AC-844-3)', async () => {
+      const svc = redactingService();
+      const { c } = await subjectWithHistory();
+      const other = await makePersonalCustomer();
+      const elsewhere = randomUUID();
+      audit.recordWithin(em, {
+        actorCustomerAccountId: c.id, ipAddress: SUBJECT_IP, userAgent: SUBJECT_UA,
+        action: 'order.placed', objectType: 'order', objectId: elsewhere,
+        stateAfter: { deliveryAddress: { street: PERSONAL.street }, email: PERSONAL.email },
+      });
+      audit.recordWithin(em, {
+        actorAdminUserId: actor.adminUserId, action: 'customer_account.profile_updated',
+        objectType: 'customer_account', objectId: other.id, stateAfter: { email: other.email },
+      });
+      await em.flush();
+      const untouched = await rowsAbout([elsewhere, other.id]);
+      await svc.softDelete(c.id, actor);
+
+      await svc.sweep(0, new Date(Date.now() + 60_000));
+
+      em.clear();
+      expect(await rowsAbout([elsewhere, other.id])).toEqual(untouched);
+      // Scope, said once: these stores keep their own copies and are follow-ups
+      // of #844, one per owner. Widening the scope is a change to this list.
+      expect(['email_deliveries', 'webhook_deliveries', 'cart_audit_entries', 'return_*', 'newsletter_*', 'form_entries']).toHaveLength(6);
+    });
+
+    it('I-844-4 — the organization.anonymized and address.anonymized rows the same sweep wrote are left as their owners wrote them', async () => {
+      const svc = redactingService();
+      const { c, org, live } = await subjectWithHistory();
+      await svc.softDelete(c.id, actor);
+      await svc.sweep(0, new Date(Date.now() + 60_000));
+
+      em.clear();
+      const [orgRow] = await em.find(AuditLogEntry, { action: 'organization.anonymized', objectId: org.id });
+      expect(orgRow!.stateBefore).toEqual({
+        wasDeleted: false,
+        hadLegalName: true,
+        orderConfirmationEmailCount: 1,
+        customFieldKeys: [],
+        hadBlockedReason: false,
+        hadRejectedReason: false,
+      });
+      expect(orgRow!.stateAfter).toEqual({ anonymizedAt: expect.stringMatching(/^\d{4}-/), isPersonal: true });
+      const [addressRow] = await em.find(AuditLogEntry, { action: 'address.anonymized', objectId: live.id });
+      // `wasDeleted` is #927's: a live row, so `false`.
+      expect(addressRow!.stateBefore).toEqual({ organizationId: org.id, kind: 'delivery', wasDeleted: false });
+    });
+
+    it('I-844-5 — a company member: only its own account’s rows are erased, the company’s are untouched', async () => {
+      const svc = redactingService();
+      const c = await makeCustomer();
+      const company = await em.findOneOrFail(Organization, { id: c.organizationId });
+      expect(company.isPersonal).toBe(false);
+      audit.recordWithin(em, {
+        actorCustomerAccountId: c.id, ipAddress: SUBJECT_IP, action: 'customer_account.profile_updated',
+        objectType: 'customer_account', objectId: c.id, stateAfter: { email: PERSONAL.email },
+      });
+      audit.recordWithin(em, {
+        actorCustomerAccountId: c.id, ipAddress: SUBJECT_IP, action: 'organization.updated',
+        objectType: 'organization', objectId: company.id, stateAfter: { legalName: 'Company 844 Sp. z o.o.' },
+      });
+      await em.flush();
+      const companyRows = await rowsAbout([company.id]);
+      await svc.softDelete(c.id, actor);
+
+      await svc.sweep(0, new Date(Date.now() + 60_000));
+
+      em.clear();
+      expect(textOf(await rowsAbout([c.id]))).not.toContain(PERSONAL.email);
+      expect(await rowsAbout([company.id])).toEqual(companyRows);
+      const [marker] = await em.find(AuditLogEntry, { action: 'audit.redacted', objectId: c.id });
+      expect(Object.keys((marker!.stateAfter as { objectIds: object }).objectIds)).toEqual(['customer_account']);
+    });
+
+    it('I-844-6 — a crash at the redaction step leaves the account due, and the next sweep finishes it with one marker', async () => {
+      const { c, objectIds } = await subjectWithHistory();
+      const crashing = redactingService({
+        redaction: { redact: async () => { throw new Error('redaction crashed'); } },
+      });
+      await crashing.softDelete(c.id, actor);
+      await expect(crashing.sweep(0, new Date(Date.now() + 60_000))).rejects.toThrow(c.id);
+      em.clear();
+      expect((await em.findOneOrFail(CustomerAccount, { id: c.id })).anonymizedAt ?? null).toBeNull();
+
+      expect(await redactingService().sweep(0, new Date(Date.now() + 60_000))).toBe(1);
+      em.clear();
+      expect((await em.findOneOrFail(CustomerAccount, { id: c.id })).anonymizedAt).toBeInstanceOf(Date);
+      expect(textOf(await rowsAbout(objectIds))).not.toContain(PERSONAL.email);
+      expect(await em.find(AuditLogEntry, { action: 'audit.redacted', objectId: c.id })).toHaveLength(1);
+    });
   });
 });
 

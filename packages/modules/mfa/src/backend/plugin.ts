@@ -162,16 +162,18 @@ export function mfaModule(options: MfaModuleOptions): {
   handle: () => MfaModuleHandle;
 } {
   const challengeStore = new ChallengeStore(options.redis);
+  const cipher = options.secretEncryptionKey
+    ? new SecretCipher(options.secretEncryptionKey)
+    : null;
   const policyResolver = new MfaPolicyResolver(
     options.settingsService,
     options.emFactory,
     options.readAdminRole,
     options.resolveDefaultChannelId ?? (async () => null),
+    // Issue #930 — no cipher, no enrolment route: see the resolver.
+    cipher !== null,
   );
 
-  const cipher = options.secretEncryptionKey
-    ? new SecretCipher(options.secretEncryptionKey)
-    : null;
   const enrolmentService = cipher
     ? new MfaEnrolmentService(options.emFactory, cipher, options.auditLogService)
     : null;

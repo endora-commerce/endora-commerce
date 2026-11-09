@@ -8,6 +8,7 @@ import {
   settlementApproved,
   type RefundOrderLine,
 } from './refund-math.js';
+import { chargeRefunds, completesOrder } from './charge-refunds.js';
 
 /**
  * Review of PR #423, owner ruling of 2026-10-24 (issue #417) — the default
@@ -637,3 +638,64 @@ describe('settlement on the settled kept state, with complaints and the line cei
 function compareCents(a: string, b: string): number {
   return Math.sign(cents(a) - cents(b));
 }
+
+/**
+ * Issue #876 — a consumer's withdrawal from the whole sale refunds the delivery
+ * and the surcharge on the case that completes it (owner ruling E1). With
+ * those, the order-level invariant is "money refunded ≤ the order's total",
+ * and after every case what is left paid is the kept-lines invoice's gross: the
+ * kept goods, plus the delivery and surcharge not refunded, less the discount
+ * the refunds did not carry back.
+ */
+describe('a consumer withdrawal in partial cases, with the delivery and the surcharge (#876, property)', () => {
+  for (const withDiscount of [false, true]) {
+    it(`never refunds more than the order total, and the completing case refunds it exactly${withDiscount ? ' (discounted)' : ''}`, () => {
+      for (let seed = 1; seed <= 200; seed += 1) {
+        const next = rng(seed);
+        const order = randomOrder(next, 'per_rate', withDiscount);
+        const delivery = roundHalfUp(Math.floor(next() * 3000) / 100);
+        const surcharge = next() < 0.5 ? '0.00' : roundHalfUp(Math.floor(next() * 500) / 100);
+        const orderTotal = decimalSum(order.productsPaidTotal, delivery, surcharge);
+        const remaining = new Map(order.lines.map((l) => [l.orderItemId, l.purchasedQty]));
+        const earlier: Array<{ orderItemId: string; quantity: number; defaultRefundAmount: string; defaultDiscountAmount: string }> = [];
+        const refundedCharges = { delivery: '0.00', surcharge: '0.00' };
+        let money = '0.00';
+        while ([...remaining.values()].some((q) => q > 0)) {
+          const current = order.lines
+            .filter((l) => remaining.get(l.orderItemId)! > 0 && next() < 0.6)
+            .map((l) => ({ orderItemId: l.orderItemId, quantity: 1 + Math.floor(next() * remaining.get(l.orderItemId)!) }));
+          if (current.length === 0) continue;
+          const completes = completesOrder(order.lines, earlier, current);
+          const refunds = caseDefaultRefunds({ ...order, orderLines: order.lines, earlier, current });
+          const charges = chargeRefunds({
+            isPersonal: true,
+            kind: 'return',
+            completes,
+            withinWindow: true,
+            paid: { delivery, surcharge },
+            refundedBefore: refundedCharges,
+          });
+          current.forEach((c, i) => {
+            remaining.set(c.orderItemId, remaining.get(c.orderItemId)! - c.quantity);
+            earlier.push({ ...c, defaultRefundAmount: refunds[i]!.refund, defaultDiscountAmount: refunds[i]!.discount });
+          });
+          refundedCharges.delivery = decimalSum(refundedCharges.delivery, charges.delivery.default);
+          refundedCharges.surcharge = decimalSum(refundedCharges.surcharge, charges.surcharge.default);
+          money = decimalSum(money, ...refunds.map((r) => r.refund), charges.delivery.default, charges.surcharge.default);
+          expect(cents(money), `seed ${seed}: refunded more than the order total`).toBeLessThanOrEqual(cents(orderTotal));
+
+          const keptNets = order.lines.map((l) => ({ net: lineAmountHalfUp(l.unitNetPrice, remaining.get(l.orderItemId)!), rate: l.taxRate }));
+          const carried = earlier.map((e) => carriedDiscount(e.defaultDiscountAmount, e.defaultRefundAmount, e.defaultRefundAmount));
+          const keptInvoice = decimalSum(
+            moneyDifference(vatByRate(keptNets, 'fraction').gross, moneyDifference(order.discountTotal, decimalSum('0', ...carried))),
+            moneyDifference(delivery, refundedCharges.delivery),
+            moneyDifference(surcharge, refundedCharges.surcharge),
+          );
+          expect(moneyDifference(orderTotal, money), `seed ${seed}: paid left against the kept-lines invoice`).toBe(roundHalfUp(keptInvoice));
+          if (!completes) expect([charges.delivery.default, charges.surcharge.default], `seed ${seed}: a partial case`).toEqual(['0.00', '0.00']);
+        }
+        expect(roundHalfUp(money), `seed ${seed}: a complete withdrawal`).toBe(roundHalfUp(orderTotal));
+      }
+    });
+  }
+});

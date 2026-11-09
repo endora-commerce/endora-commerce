@@ -311,6 +311,9 @@ export const ERROR_CODES = {
   // admin already holds a view on the return list whose name differs only by
   // case or surrounding spaces.
   RETURN_SAVED_VIEW_NAME_TAKEN: 'RETURN_SAVED_VIEW_NAME_TAKEN',
+  // Issue #905 — a consumer withdrawal settled as a credit, a replacement or a
+  // repair without the consumer's consent to that resolution on record.
+  RETURN_ALTERNATIVE_RESOLUTION_CONSENT_REQUIRED: 'RETURN_ALTERNATIVE_RESOLUTION_CONSENT_REQUIRED',
 
   // Credit Limit
   CREDIT_LIMIT_NOT_GRANTED: 'CREDIT_LIMIT_NOT_GRANTED',
@@ -637,6 +640,13 @@ export const ERROR_CODES = {
    * `admin_users`' role write; `details.reason` says which.
    */
   MFA_REQUIRED_FOR_ROLE_TWO_FACTOR: 'MFA_REQUIRED_FOR_ROLE_TWO_FACTOR',
+  /**
+   * Administrators cannot be required to use a second factor that this
+   * instance cannot enrol: `mfa` has no encryption key (issue #930). Raised by
+   * the `mfa.admin.totp_enforced` write; `details.reason` is
+   * `encryption_key_missing`.
+   */
+  MFA_ENFORCEMENT_UNAVAILABLE: 'MFA_ENFORCEMENT_UNAVAILABLE',
   MFA_INVALID_CODE: 'MFA_INVALID_CODE',
   MFA_INVALID_CHALLENGE: 'MFA_INVALID_CHALLENGE',
   MFA_TOO_MANY_ATTEMPTS: 'MFA_TOO_MANY_ATTEMPTS',

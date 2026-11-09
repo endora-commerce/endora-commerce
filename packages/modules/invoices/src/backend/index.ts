@@ -286,6 +286,12 @@ export function registerModule(ctx: ModuleContext): void {
               if (!effectiveState.isPresent('returns')) return [];
               return lazyPort<ReturnRefundReadPort>(ctx, 'returnRefundReadPort').listReturnedQuantities(orderId);
             },
+            // Issue #876 — what of the delivery and the surcharge a consumer's
+            // withdrawal refunded, so the invoice charges only what is left.
+            refundedChargesFor: async (orderId) => {
+              if (!effectiveState.isPresent('returns')) return { delivery: '0.00', surcharge: '0.00' };
+              return lazyPort<ReturnRefundReadPort>(ctx, 'returnRefundReadPort').listRefundedCharges(orderId);
+            },
           },
           ledgerRouting: {
             numberingModeFor: async (salesChannelId) => {

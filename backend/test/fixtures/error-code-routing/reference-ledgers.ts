@@ -235,6 +235,15 @@ export const MINTED_ERROR_CODES: MintedErrorCodes = {
       'The noun is the credential configuration, `credentials`\' own row, and the one raise ' +
       'site is its update command.',
   },
+  MFA_ENFORCEMENT_UNAVAILABLE: {
+    to: 'mfa',
+    reason:
+      'Minted by issue #930 for the refusal an operator earns by turning ' +
+      '`mfa.admin.totp_enforced` on where no second factor can be enrolled, because `mfa` has no ' +
+      'encryption key. The noun is the second factor, this module\'s whole subject; the one ' +
+      'raise site is `mfa`\'s own setting validator, which `settings` consults only while `mfa` ' +
+      'is present.',
+  },
   MFA_DEACTIVATION_BLOCKED: {
     to: 'mfa',
     reason:
@@ -827,6 +836,16 @@ export const MINTED_ERROR_CODES: MintedErrorCodes = {
       'row, and the one raise site is `return-list-view-service.ts`. `VALIDATION_FAILED` is not ' +
       'reused: the request is well formed, and the sentence has to tell the admin to pick ' +
       'another name.',
+  },
+  RETURN_ALTERNATIVE_RESOLUTION_CONSENT_REQUIRED: {
+    to: 'returns',
+    reason:
+      'Minted for the refusal a consumer withdrawal earns when it is settled as a credit, a ' +
+      'replacement or a repair while the consumer\'s consent to that resolution is not on record ' +
+      '(#905, design D1; Directive 2011/83 art. 13(1)). The noun is a return case\'s settlement, ' +
+      '`returns`\' own row, and the one raise site is `return-settlement-service.ts`. ' +
+      '`VALIDATION_FAILED` is not reused: the request is well formed, and the sentence has to tell ' +
+      'the operator to record the consumer\'s consent first.',
   },
   RFQ_SAVED_VIEW_NAME_TAKEN: {
     to: 'quote_requests',

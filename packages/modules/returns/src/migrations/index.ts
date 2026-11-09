@@ -25,15 +25,21 @@
 import { Migration20260625T144227ReturnsInit } from './20260625T144227_returns_init.js';
 import { Migration20260817T203206ReturnsRefundCorrectiveInvoiceOutcome } from './20260817T203206_returns_refund_corrective_invoice_outcome.js';
 import { Migration20261024T174052ReturnsCaseItemDiscount } from './20261024T174052_returns_case_item_discount.js';
+import { Migration20261108T023047ReturnsConsumerWithdrawal } from './20261108T023047_returns_consumer_withdrawal.js';
+import { Migration20261108T125405ReturnsCaseChargeRefunds } from './20261108T125405_returns_case_charge_refunds.js';
 
 export const migrations = [
   Migration20260625T144227ReturnsInit,
   Migration20260817T203206ReturnsRefundCorrectiveInvoiceOutcome,
   Migration20261024T174052ReturnsCaseItemDiscount,
+  Migration20261108T023047ReturnsConsumerWithdrawal,
+  Migration20261108T125405ReturnsCaseChargeRefunds,
 ];
 
 export {
   Migration20260625T144227ReturnsInit,
   Migration20260817T203206ReturnsRefundCorrectiveInvoiceOutcome,
   Migration20261024T174052ReturnsCaseItemDiscount,
+  Migration20261108T023047ReturnsConsumerWithdrawal,
+  Migration20261108T125405ReturnsCaseChargeRefunds,
 };

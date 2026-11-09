@@ -22,6 +22,39 @@ export type ReturnKind = z.infer<typeof returnKindSchema>;
 export const resolutionTypeSchema = z.enum(['refund', 'credit', 'replacement', 'repair']);
 export type ResolutionType = z.infer<typeof resolutionTypeSchema>;
 
+/**
+ * The resolutions that settle a consumer withdrawal otherwise than by a refund
+ * (issue #905, design D1). A consumer who withdraws is reimbursed by the same
+ * means of payment unless they expressly agree otherwise (Directive 2011/83
+ * art. 13(1)), so each needs the consumer's consent on record first.
+ */
+export const alternativeResolutionSchema = z.enum(['credit', 'replacement', 'repair']);
+export type AlternativeResolution = z.infer<typeof alternativeResolutionSchema>;
+
+/**
+ * Who put the consent on record. `operator_recorded` is the only source today:
+ * the consumer agrees by e-mail or telephone and an operator records it with
+ * the evidence. `consumer_storefront` is reserved for a consumer's own click on
+ * the storefront, should that be required later.
+ */
+export const alternativeConsentSourceSchema = z.enum(['operator_recorded', 'consumer_storefront']);
+export type AlternativeConsentSource = z.infer<typeof alternativeConsentSourceSchema>;
+
+/**
+ * The consumer's consent to settle a withdrawal as `resolution` (issue #905,
+ * design D1). `note` (the evidence) and `byAdminUserId` are the operator's:
+ * the buyer's view of a case leaves both out.
+ */
+export const alternativeResolutionConsentSchema = z.object({
+  resolution: alternativeResolutionSchema,
+  /** When the consumer gave the consent, as the operator recorded it. */
+  at: isoDateTimeSchema,
+  note: z.string().optional(),
+  byAdminUserId: uuidSchema.nullable().optional(),
+  source: alternativeConsentSourceSchema,
+});
+export type AlternativeResolutionConsent = z.infer<typeof alternativeResolutionConsentSchema>;
+
 /** State of a recorded refund's money movement. */
 export const settlementStateSchema = z.enum(['issued', 'pending_manual', 'failed']);
 export type SettlementState = z.infer<typeof settlementStateSchema>;
@@ -197,6 +230,23 @@ export const returnCaseDetailSchema = returnCaseSummarySchema.extend({
    * "not requested" (D-92).
    */
   correctiveInvoice: returnCaseCorrectiveInvoiceSchema.nullable(),
+  /**
+   * Issue #876 — the order's delivery cost and payment surcharge this case
+   * refunds: a consumer's withdrawal from the whole sale refunds both
+   * (Directive 2011/83 art. 13(1)) on the case that completes it. The approved
+   * amounts — provisional until the case is settled — and `0` on every other
+   * case. Optional on the wire, so an older producer still parses.
+   */
+  chargeRefunds: z.object({ delivery: z.number().finite(), surcharge: z.number().finite() }).optional(),
+  /**
+   * Whether the case is a consumer's withdrawal from a distance contract (issue
+   * #905, design §2): a `return` by a personal Organization, filed while the
+   * withdrawal function was available for the order. Fixed when the case is
+   * filed. `null` for a case filed before the classification existed.
+   */
+  consumerWithdrawal: z.boolean().nullable(),
+  /** The consumer's consent to a resolution other than a refund, when one is on record (design D1). */
+  alternativeResolutionConsent: alternativeResolutionConsentSchema.nullable(),
 });
 export type ReturnCaseDetail = z.infer<typeof returnCaseDetailSchema>;
 
@@ -296,9 +346,35 @@ export type AdminReturnRow = z.infer<typeof adminReturnRowSchema>;
 // Settlement (US5)
 // ---------------------------------------------------------------------------
 
+/** One order charge a settlement may refund (issue #876): the most that may be approved, and the amount prefilled. */
+export const settlementChargeSchema = z.object({
+  cap: z.number().finite(),
+  approved: z.number().finite(),
+});
+export type SettlementCharge = z.infer<typeof settlementChargeSchema>;
+
 export const settlementPrefillSchema = z.object({
   currency: z.string().length(3),
+  /**
+   * Every resolution, always: a client that predates the consent gate keeps
+   * working, and the settlement's `422` is the boundary
+   * (`RETURN_ALTERNATIVE_RESOLUTION_CONSENT_REQUIRED`).
+   */
   resolutionOptions: z.array(resolutionTypeSchema),
+  /** The resolution the form starts on (issue #905): `refund`. */
+  defaultResolution: resolutionTypeSchema,
+  /**
+   * The resolutions this case cannot settle as until the consumer's consent is
+   * recorded (issue #905, design D1): on a consumer withdrawal, every one but a
+   * refund and the one consented to; empty on any other case.
+   */
+  consentRequiredFor: z.array(resolutionTypeSchema),
+  /**
+   * The order's own payment method, which a refund proposes (Directive 2011/83
+   * art. 13(1), "the same means of payment"). `null` when the order cannot be
+   * read.
+   */
+  defaultRefundPaymentMethodId: uuidSchema.nullable(),
   items: z.array(
     z.object({
       returnCaseItemId: uuidSchema,
@@ -308,6 +384,23 @@ export const settlementPrefillSchema = z.object({
       approvedRefundAmount: z.number().finite(),
     }),
   ),
+  /**
+   * Issue #876 — the order's charges the case may refund: present only on a
+   * consumer's withdrawal that completes the order, and each charge only when
+   * its cap is above 0. `cap` is what was paid for it less what earlier cases
+   * refunded — the most the operator may approve; `approved` is what settles
+   * if the field is omitted: the cap within the withdrawal window (the
+   * statutory 14 days or the channel's longer free-return window), `0`
+   * outside it. On a settled case `cap` equals `approved`, and a charge settled
+   * at 0 is left out; the cap at settlement is recorded in the
+   * `return.settled` audit entry.
+   */
+  charges: z
+    .object({
+      delivery: settlementChargeSchema.optional(),
+      surcharge: settlementChargeSchema.optional(),
+    })
+    .optional(),
 });
 export type SettlementPrefill = z.infer<typeof settlementPrefillSchema>;
 
@@ -335,8 +428,35 @@ export const settlementRequestSchema = z.object({
     .default([]),
   refundPaymentMethodId: uuidSchema.optional(),
   createCorrectiveInvoice: z.boolean().optional(),
+  /**
+   * Issue #876 — what the case refunds of the order's delivery cost and of its
+   * payment surcharge (ruling Q2 on PR #965):
+   * - omitted: the default recomputed under the order's lock (the full amount
+   *   within the withdrawal window, 0 outside it);
+   * - present: settled exactly as sent, 0 included, when it is at most the cap
+   *   (art. 13(2): a premium delivery reduced to the standard one);
+   * - above the cap: refused `422 refund_exceeds_paid`, with nothing written.
+   * Only a consumer's withdrawal that completes the order, settled with a
+   * refund or a credit, has a cap above 0. This deliberately differs from the
+   * line rule, where an amount equal to a default means the default approved.
+   */
+  deliveryRefundAmount: twoDecimalAmount(z.number().finite().nonnegative()).optional(),
+  surchargeRefundAmount: twoDecimalAmount(z.number().finite().nonnegative()).optional(),
 });
 export type SettlementRequest = z.infer<typeof settlementRequestSchema>;
+
+/**
+ * `POST /api/v1/admin/returns/:id/alternative-consent` (issue #905, design D1):
+ * the operator records that the consumer agreed to `resolution`, when, and the
+ * evidence. The moment may not be in the future, nor before the case was filed.
+ */
+export const recordAlternativeConsentRequestSchema = z.object({
+  resolution: alternativeResolutionSchema,
+  consentGivenAt: isoDateTimeSchema,
+  /** Where the consent is documented, e.g. "Customer's e-mail of 10 Nov 2026, ticket #123". */
+  note: z.string().trim().min(1).max(2000),
+});
+export type RecordAlternativeConsentRequest = z.infer<typeof recordAlternativeConsentRequestSchema>;
 
 /**
  * What became of the corrective invoice a settlement asked for (#135).
@@ -617,6 +737,19 @@ export interface ReturnRefundReadPort {
    * invoice to correct yet — lists only what the buyer kept.
    */
   listReturnedQuantities(orderId: string): Promise<OrderReturnedQuantity[]>;
+  /**
+   * What the order's settled `return` cases refunded of its delivery cost and
+   * of its payment surcharge (issue #876), over the same cases as
+   * {@link listReturnedQuantities}, so an invoice issued afterwards charges
+   * only what is left of each.
+   */
+  listRefundedCharges(orderId: string): Promise<OrderRefundedCharges>;
+}
+
+/** What settled returns refunded of an order's charges (issue #876): two-place decimal strings, `0.00` for none. */
+export interface OrderRefundedCharges {
+  delivery: string;
+  surcharge: string;
 }
 
 // --- the other three consumer-declared seams ---------------------------------
@@ -695,6 +828,12 @@ export interface OrderReturnContext {
   /** When the order entered its fulfilment-completing status; null if it has not. */
   completingStatusEnteredAt: Date | null;
   /**
+   * The payment method the order was paid with (issue #905): a consumer's
+   * withdrawal is refunded by the same means of payment unless they agree
+   * otherwise, so the settlement proposes it.
+   */
+  paymentMethodId: string | null;
+  /**
    * The VAT method the order was placed under (issue #417): `per_rate` — VAT
    * per rate on the sum of the nets — from 0.108.0; `null` before, when the
    * stored totals followed the rule of their day. Decides how a return groups
@@ -709,6 +848,13 @@ export interface OrderReturnContext {
   productsPaidTotal: string;
   /** The order-level discount, as stored (two places) — the part of it a return carries is credited back as a discount. */
   discountTotal: string;
+  /**
+   * Issue #876 — the order's delivery cost, as stored (two places): a
+   * consumer's withdrawal from the whole sale refunds it.
+   */
+  deliveryTotal: string;
+  /** Issue #876 — the payment surcharge captured at placement, as stored (two places; `0.00` without one). */
+  paymentSurcharge: string;
   lines: OrderReturnContextLine[];
 }
 
@@ -793,6 +939,14 @@ export interface CorrectiveInvoiceInput {
    * Absent: the label names no case.
    */
   caseReference?: string;
+  /**
+   * Issue #876 — the order's charges this correction credits, gross: a
+   * consumer's withdrawal from the whole sale refunds the delivery and the
+   * payment surcharge. Each is credited at the rate of the invoice line that
+   * charged it, and never above what that line still charges. `total`
+   * includes them. Absent or 0: a return correction credits goods only.
+   */
+  charges?: { delivery?: number; surcharge?: number };
 }
 
 /** A correction was issued: the document that credits the original invoice. */

@@ -3633,7 +3633,322 @@ storefront's history; the entries from *Product feeds* to *the message catalogue
 earlier, by the pull requests that made each change. No instance had been upgraded with `pnpm run upgrade 0.109.0` when it was written; the
 order of the steps and the storefront edits are untried.
 
-### Personal address book retired (release 1 of 2) {#personal-address-book-retired-1}
+### After upgrading to 0.110.0 {#after-0-110-0}
+
+`pnpm run upgrade 0.110.0` moves the packages of the release from `0.109.0` and applies its
+migrations — twenty-six for modules of earlier releases (each runs where its module is declared),
+and one more for the new `forms` module, which runs only once an instance declares it. **Four
+changes drop or rewrite stored data and need a decision from you before you migrate**: a product's
+values now have three scopes, Global, Channel and Channel × language, and **the migrations drop every
+language-only value**, product names and descriptions in languages other than the Global one among
+them ([Product scopes](#after-0-110-0-product-scopes)); the legacy two-value organization role is
+replaced by roles with permissions, and the cart-approval policy of an Organization becomes a
+permission of its *Member* role ([Organization roles](#after-0-110-0-organization-roles)); order
+placement now enforces cart approval ([Cart approval](#after-0-110-0-cart-approval)); and the
+personal address book is retired ([Personal address book](#personal-address-book-retired-1)).
+Beside them the release anonymizes deleted customer accounts on schedule, enforces a role's
+two-step verification requirement, serves a blog post only in the languages assigned to it, places
+admin and API-key orders only on the Organization's channels, refunds the delivery and the surcharge
+on a consumer's withdrawal, and adds the `forms` module. The steps below say what to do, in order;
+each entry after them stands on its own, so read the ones for the parts of the platform you use.
+
+#### What to do, in order {#after-0-110-0-steps}
+
+Before the upgrade:
+
+1. **Export the product translations you want to keep.** The `catalog` and `seo` migrations keep one
+   Global name and description per product (the `en-US` text, else the first non-empty language,
+   else the SKU for the name) and drop every other language, every language-only attribute value,
+   gallery alt text and attachment or packaging-unit name, and every product SEO override stored for
+   a language without a channel. Nothing converts them. Export the products CSV before upgrading so
+   that you can re-enter them at Channel × language afterwards
+   ([Product scopes](#after-0-110-0-product-scopes)).
+2. **Make sure the role that runs migrations may create the `btree_gist` extension**, or create it
+   once as a superuser: `create extension if not exists btree_gist;`. It ships with PostgreSQL, and
+   `Migration20261030T113904CatalogScopeModelUrlKeys` needs it.
+3. **Count the deleted customer accounts the first sweep will anonymize**, and raise
+   `customers.deletion_retention_days` if you want to keep any of them
+   ([Anonymization sweep](#customer-anonymization-sweep)). This cannot be undone after the upgrade.
+4. **List the people a role's two-step verification requirement will stop**, and the API keys and
+   operators who place orders on channels their Organization is not assigned to
+   ([Two-step verification by role](#role-two-factor-enforced),
+   [API-key orders](#api-key-intake-organization-channels),
+   [Admin orders](#after-0-110-0-order-channels)).
+5. **Save the Assets Library's settings as platform-wide values** if you configured them per sales
+   channel: a per-channel `assets.*` value is no longer read
+   ([Assets settings](#after-0-110-0-assets-settings)).
+6. **Check the published blog posts assigned to a language they are not written in**: from this
+   release they answer 404 in that language ([Blog](#after-0-110-0-blog)).
+7. **Stop every process of the previous release before you migrate**, API and workers alike. The
+   migrations drop columns the previous release reads (`customer_accounts.role`,
+   `organizations.requires_cart_approval`, `organization_invitations.role`) and change the type of
+   `products.name` and `products.description`.
+
+The upgrade itself:
+
+8. **Run `pnpm run upgrade 0.110.0`.** `setup` applies the migrations module by module, in the
+   order of the modules' dependencies, and each module's own in the order of their stamps. Grouped
+   by module:
+
+   | Migration | Module | What it does |
+   | --- | --- | --- |
+   | `Migration20261103T162518CoreAuditActorCustomerAccount` | `core` | Nullable `audit_log_entries.actor_customer_account_id`: the customer who acted, for entries written from now on |
+   | `Migration20261103T140300AdminUsersAuthorProfile` | `admin_users` | Nullable avatar and per-language biography of an administrator's author profile — see [Blog](#after-0-110-0-blog) |
+   | `Migration20261103T173304OrganizationsOrganizationRoles` | `organizations` | Table `organization_roles` with an *Administrator* and a *Member* role for every Organization; withholds `carts.order_without_approval` and `quick_order.one_click` from *Member* where the Organization required cart approval — see [Organization roles](#after-0-110-0-organization-roles) |
+   | `Migration20261104T094535OrganizationsDropLegacyRoleColumns` | `organizations` | Drops `organizations.requires_cart_approval` and `organization_invitations.role` |
+   | `Migration20261105T121034OrganizationsRegistryLookupProvenance` | `organizations` | `origin`, `registry_details` and `submitted_values` on `organization_tax_id_validations`, and the `gus_pl` provider — see [Registration](#after-0-110-0-registration) |
+   | `Migration20261103T190132CustomerAccountsOrganizationRoleAssignment` | `customer_accounts` | `customer_accounts.organization_role_id` for every account: *Administrator* for an `organization_admin` and for every member of a personal Organization, else *Member* |
+   | `Migration20261104T094540CustomerAccountsDropLegacyRoleColumn` | `customer_accounts` | Drops `customer_accounts.role` |
+   | `Migration20261105T180317CustomersAddressBookRetirement` | `customers` | Provenance columns the address-book retirement job writes — see [Personal address book](#personal-address-book-retired-1) |
+   | `Migration20261030T113855CatalogScopeModelTexts` | `catalog` | `products.name` and `description` become the Global text; **drops every other language** and every language-only attribute value — see [Product scopes](#after-0-110-0-product-scopes) |
+   | `Migration20261030T113859CatalogScopeModelOrderRules` | `catalog` | A flag for a channel's own minimum order quantity |
+   | `Migration20261030T113904CatalogScopeModelUrlKeys` | `catalog` | Recreates `product_url_keys` and `product_url_redirects` at Channel and Channel × language; **drops every language key and every redirect**; needs `btree_gist` |
+   | `Migration20261030T113908CatalogScopeModelMedia` | `catalog` | One override table per gallery, attachment and packaging-unit family; drops the per-channel tables and the `*_translations` columns |
+   | `Migration20261104T121504CatalogProductContentValues` | `catalog` | Table `product_content_values`, empty — see [Product content attributes](#after-0-110-0-product-content) |
+   | `Migration20261107T093126CatalogSkuUniqueAmongLive` | `catalog` | A deleted product and its variants free their SKUs: uniqueness holds among live rows only |
+   | `Migration20261107T120008CatalogProductCreatedAtMilliseconds` | `catalog` | `products.created_at` to the millisecond, so the storefront listing no longer skips imported rows |
+   | `Migration20261103T171312SeoProductMetaThreeLevels` | `seo` | **Deletes every product SEO override stored for a language without a channel**; category and CMS page overrides are unchanged |
+   | `Migration20261103T112345BlogUrlPrefixes` | `blog` | Table `blog_url_prefixes`: the prefixes each channel serves and has served |
+   | `Migration20261103T134216BlogUrlKeysAndRedirects` | `blog` | URL keys per language for posts and categories, and the former keys that redirect |
+   | `Migration20261103T140555BlogPostAuthor` | `blog` | Nullable `blog_posts.author_id` |
+   | `Migration20261103T154219ImportExportImportProfiles` | `import_export` | Table of import profiles (a locale mapping for products imports), empty |
+   | `Migration20261107T110328DocumentTemplatesInvoiceSeededLabels` | `document_templates` | Empties the English labels a template copied from the built-in invoice layout — see [Documents](#after-0-110-0-documents) |
+   | `Migration20261108T000543OrdersCompletedAt` | `orders` | `orders.completed_at`, filled with `updated_at` for every completed order — see [Return windows](#return-window-from-completion) |
+   | `Migration20261108T073238OrdersChargeLines` | `orders` | Nullable `orders.charge_lines` and the `per_rate_charges` VAT method; nothing writes them yet |
+   | `Migration20261108T073244InvoicesInvoiceLineKind` | `invoices` | Nullable `invoice_lines.line_kind`, written for documents issued from now on |
+   | `Migration20261108T023047ReturnsConsumerWithdrawal` | `returns` | The consumer-withdrawal columns of `return_cases`; cases filed before stay unclassified — see [Consumer withdrawal](#consumer-withdrawal-consent) |
+   | `Migration20261108T125405ReturnsCaseChargeRefunds` | `returns` | Four `0.00` columns for the delivery and surcharge refunded — see [Withdrawal refunds](#withdrawal-refunds-charges) |
+
+   Declaring `forms` adds `Migration20261102T111501FormsInit`, which only creates the module's own
+   four tables (step 15).
+
+After the upgrade, before the instance takes traffic again:
+
+9. **Keep a process that runs workers up.** Its first boot installs the anonymization schedule,
+   whose first run starts at once, and runs the address-book retirement job
+   ([Personal address book](#personal-address-book-retired-1)).
+10. **Run one full search reindex** (*Reindex products* in the Admin UI, or
+    `pnpm run cli search reindex`): the search document now carries one text block per channel
+    language, and until an index is reindexed it is queried without the language restriction
+    ([Product scopes](#after-0-110-0-product-scopes)).
+11. **Review the Organizations that required cart approval**: their *Member* role no longer holds
+    `carts.order_without_approval`, so their members' baskets need approval before they are placed
+    ([Cart approval](#after-0-110-0-cart-approval)).
+12. **Bring the storefront over.** A storefront created by an earlier release does not have the
+    organization role screens, the cart-approval screen, the per-language blog addresses or the
+    error codes in URLs, and its personal address pages call endpoints that now answer `410`. The
+    shortest path is to bring over the release's storefront as a whole —
+    `git diff v0.109.0 v0.110.0 -- storefront` in the platform repository lists every change
+    ([Storefront](#after-0-110-0-storefront)).
+
+Whenever it suits you:
+
+13. **Re-enter the product translations** of step 1 at Channel × language, in the product editor or
+    with a products CSV in the new column grammar ([Product scopes](#after-0-110-0-product-scopes)).
+14. **Save the S3 or GCS credentials again** once `SETTINGS_SECRET_ENCRYPTION_KEY` is set, and rotate
+    them if old backups hold them in plaintext ([Assets settings](#after-0-110-0-assets-settings)).
+15. **Decide whether to add `forms`** ([Forms](#after-0-110-0-forms)).
+16. **Check B2C registration per channel** and the invoice labels you kept in English
+    ([Registration](#after-0-110-0-registration), [Documents](#after-0-110-0-documents)).
+
+#### Products: three scopes, and the language-only values are dropped {#after-0-110-0-product-scopes}
+
+- **What changed.** The product editor edits one scope at a time: **Global**, a **sales channel**, or
+  a **channel and language**. The language-only scope of 0.109.0 is gone. A Channel or Channel ×
+  language value overrides the one above it and shows the value it inherits. `products.name` and
+  `description` hold the Global text.
+- **What the migrations drop.** Every name and description in a language other than the Global one,
+  every language-only attribute value, gallery alt text and attachment or packaging-unit name, every
+  0.109.0 language URL key and every product URL redirect, the per-channel gallery and attachment
+  rows of 0.109.0, and every product SEO override stored for a language without a channel. `down`
+  restores the 0.109.0 schema without that data. Re-enter translations at Channel × language.
+- **URL keys** are set at Channel and at Channel × language, and a key text belongs to one product
+  per sales channel across its languages. Until a key is set, the product's slug serves it.
+- **Search.** The search document carries `texts.<language>` for every language a channel offers,
+  and a query searches only the shopper's language. Run one full reindex after the upgrade.
+- **Products CSV.** Headers are `<field>`, `<field>@<channel code>` and
+  `<field>@<channel code>/<language>`. An empty cell is no change, `NULL` is deliberately empty and
+  `INHERIT` removes the own value. **A file with a 0.109.0 per-language header such as `name_en` is
+  refused as a whole**: rename it to `name@<channel>/en-US`, or `name` for the Global value. Import
+  profiles map a source file's locales and channels to scopes.
+- **PIM connectors** map each locale to Global or to a channel and language, and write through the
+  scope write port v2 ([For module and overlay authors](#after-0-110-0-authors)).
+- **API clients.** `GET|PUT /api/v1/admin/catalog/products/:id/scoped-values` read and save one
+  scope, with a `version` precondition (`409 VERSION_CONFLICT`). `…/scope-context`,
+  `…/value-overrides` and `…/gallery/channel-roles` are removed. In every scoped write `null` means
+  *deliberately empty*; send `{ "inherit": true }` to remove an override. Product SEO is saved with
+  the product: the generic `PUT` and `DELETE /api/v1/admin/seo/meta/product/:id` answer
+  `422 VALIDATION_FAILED` (`reason: product_seo_saved_with_product`).
+
+#### Organization roles and permissions {#after-0-110-0-organization-roles}
+
+- **What changed.** Every Organization has an *Administrator* and a *Member* role, and up to 50
+  custom roles, each a set of organization permissions the modules declare. A member holds one role,
+  and what they may do follows from its permissions: creating baskets (`carts.create`), approving
+  them (`carts.approve`), ordering without approval (`carts.order_without_approval`), managing
+  addresses (`addresses.manage`), quote requests, quick order and shopping lists among them. An
+  Organization's administrator manages the roles on the storefront; an operator manages them on the
+  Organization's *Roles* tab with the new `organizations:read-roles` and
+  `organizations:manage-roles` permissions.
+- **The migration.** Every `organization_admin` becomes *Administrator*, every other member
+  *Member*, and every member of a personal Organization *Administrator*. Where an Organization
+  required cart approval, *Member* does not hold `carts.order_without_approval` or
+  `quick_order.one_click`. The legacy `role` columns and the cart-approval policy flag are dropped.
+- **What to do.** Give the operators who manage Organizations the two new permissions on *Admin
+  roles*. Tell the administrators of company Organizations that they can now define roles.
+- **API clients.** Requests name a role by id (`roleId`), and a body that still sends `role` is
+  `400 VALIDATION_FAILED`. Responses carry `organizationRole: { id, name, kind }` and `permissions`
+  instead of `role`. A member whose role lacks a permission is refused with
+  `403 ORGANIZATION_PERMISSION_REQUIRED`, naming it. The cart-approval policy endpoints
+  (`PATCH /api/v1/organization/policies/cart-approval`,
+  `GET`/`PATCH /api/v1/admin/organizations/:id/cart-approval-policy`) are removed.
+
+#### Cart approval is enforced at placement {#after-0-110-0-cart-approval}
+
+- **Placement.** A basket of a member whose role lacks `carts.order_without_approval` that is not
+  `approved` is refused by `POST /api/v1/orders` with `409 ORDER_CART_APPROVAL_REQUIRED`, before
+  anything is reserved. Such baskets were placed until now. Orders placed from a working basket
+  (admin order creation, one-click buy, the external order API) are unchanged.
+- **Editing a pending basket withdraws it.** A change to a basket awaiting approval returns it to
+  *not sent*, and the buyer sends it again. An administrator can no longer approve contents other
+  than those submitted.
+- **E-mails.** `cart_approval_requested`, `cart_approved` and `cart_rejected` are sent, in the
+  default language of the basket's sales channel; edit or switch them off on the e-mail templates
+  screen.
+- **What to do.** Where members used to order without sending baskets for approval, either have
+  them send the basket and an approver approve it, or give their role
+  `carts.order_without_approval`. Approving one's own basket answers
+  `422 CART_APPROVAL_SELF_APPROVE`.
+
+#### Admin orders are placed only on the Organization's channels {#after-0-110-0-order-channels}
+
+`POST /api/v1/admin/orders` and `POST /api/v1/admin/orders/preview` for a sales channel that is not
+one of the customer's Organization's active assigned channels answer
+`422 ORDER_SALES_CHANNEL_NOT_ALLOWED`, where they answered `201` / `200` (or `404` for a channel
+that does not exist). `GET` and `PUT /api/v1/admin/organizations/:id/sales-channels` for an
+Organization outside a sales representative's reach answer `404`. Before upgrading, assign each
+Organization to the channels your operators order on for it (its *Sales channels* panel). The same
+rule now applies to API-key orders ([API-key orders](#api-key-intake-organization-channels)).
+
+Refusals on the order paths also have codes of their own instead of `VALIDATION_FAILED`, with the
+same HTTP status: `ORDER_DELIVERY_METHOD_UNAVAILABLE`, `ORDER_PAYMENT_METHOD_UNAVAILABLE`,
+`ORDER_BELOW_MINIMUM_VALUE` (whose `minimum` and `subtotal` are now two-decimal strings, with
+`currency`), `ORDER_COMMENTS_CLOSED` and `ORDER_CLONE_NO_LINES`; six cart refusals likewise. A
+client that matched on `VALIDATION_FAILED` for these cases must match the new codes.
+
+#### Assets Library settings are read platform-wide {#after-0-110-0-assets-settings}
+
+- The module reads every `assets.*` setting through the platform's settings, so a value saved as the
+  platform-wide value now takes effect: the storage adapter, the local store, every `assets.s3.*` and
+  `assets.gcs.*` setting, and the upload policy. **A per-channel value is no longer read.** If you
+  configured storage or the upload policy per channel, save the same values as the platform-wide
+  value before upgrading, or the module falls back to the defaults: the local store under
+  `var/assets`, any file type, no size limit.
+- `assets.s3.secret_access_key` and `assets.gcs.service_account_json` are `secret` settings. A
+  stored plaintext secret, these two included, is encrypted at the first boot once
+  `SETTINGS_SECRET_ENCRYPTION_KEY` is set; that boot logs
+  `[settings] encrypted the stored plaintext of N secret setting(s): <codes>`. Until the key is set,
+  every boot logs a warning per code still holding plaintext. Backups and Redis snapshots taken
+  before that boot still hold the plaintext: rotate the credentials it names if those copies are
+  less protected than the credentials themselves.
+- Soft-delete retention (`assets.soft_delete_retention_days`) is held to 1–3650 days.
+
+#### Blog: languages, addresses and authors {#after-0-110-0-blog}
+
+- **A post or category is served only in the languages assigned to it**; requested in another
+  language it answers 404. Before upgrading, either write the published posts in the languages
+  they are assigned to or unassign those languages. A category assigned no language is in every
+  one. Publishing is refused with `422 BLOG_LANGUAGE_INCOMPLETE` while an assigned language has no
+  name or content.
+- **The blog URL prefix set per channel (`blog.url_prefix`) takes effect.** The storefront used to
+  serve the blog at `/blog` whatever the setting said; it now serves it under the prefix, and
+  `/blog/…` answers `301`. A prefix per language is `blog.url_prefix_by_language`. A malformed,
+  reserved or conflicting prefix is refused when it is saved.
+- Posts and categories get a URL key per language, a former key redirects while `seo` is present,
+  and **Blog → Addresses** lists every prefix a channel has served. A post can name an author, an
+  administrator with a public author profile, and the blog lists are paginated.
+
+#### Registration {#after-0-110-0-registration}
+
+- **B2C registration follows the setting of each sales channel.** An installation that enabled it
+  only for its default channel offered it on every channel; after this release only the default
+  channel does, and federated sign-up follows the same setting. Set the value for every channel
+  that should offer registration.
+- **Company registry lookup** at registration — GUS REGON, the Ministry of Finance VAT White List and
+  VIES — is off by default (`organizations.registration.registry_lookup_enabled`).
+
+#### Documents: invoice and quote labels in the document's language {#after-0-110-0-documents}
+
+An invoice template created from the built-in layout stored its English labels, so a Polish invoice
+printed *Paid*. The migration empties those labels, and they now print in the document's language.
+If you kept an English label on purpose, type it into the block again. Canvas labels of invoice
+and quote templates follow the edited tree's language.
+
+#### Product content attributes {#after-0-110-0-product-content}
+
+A new attribute type, **Page Builder content**, holds one Page Builder document per language and
+product, shown on the product page's description tab. Deleting an attribute is now refused while a
+channel override or a variant holds a value, and a value held only by a deleted product no longer
+refuses it.
+
+#### Forms: a new module {#after-0-110-0-forms}
+
+The release brings a new package, **`@endora-commerce/mod-forms`** (module id `forms`): a form
+builder whose forms are placed on CMS pages as the *Form* block, with entries, notes, CSV export,
+e-mail notifications, spam protection (honeypot, rate limit, optional Cloudflare Turnstile or
+hCaptcha) and retention. No module requires it, so the upgrade does not declare it;
+[Adding a module that is new in a release](#adding-a-new-module) says how. Once declared it is
+switched on (`forms.enabled`); give the roles that should use it `forms:read`, `forms:write`,
+`forms:entries_read`, `forms:entries_write` and `forms:entries_export`. See
+[Forms](./modules/forms.md).
+
+#### Sign-in and errors carry codes {#after-0-110-0-error-codes}
+
+- A refused federated sign-in (Google, Microsoft) redirects to `/login?error=<code>` on both the
+  Admin UI and the storefront, never with a sentence. Take `admin-kit`, `admin-shell` and `mod-mfa`
+  from the same release.
+- A malformed or unknown record id answers `404` on every id route, where some answered `500`.
+- The storefront carries error codes in its URLs, never free text.
+- The return list's saved views follow the rules of the other lists: a non-UUID id or another
+  admin's private view answers `404`, names are trimmed and at most 160 characters, `shared` is
+  required on `POST`, and `DELETE` answers `{ "data": { "deleted": "<id>" } }`.
+- In `GET /api/v1/admin/audit-log/recent-activity`, `actorKind` can be `'customer'`.
+
+#### In an existing storefront {#after-0-110-0-storefront}
+
+The release's storefront has the organization roles and members screens, the cart-approval screen
+and rejection notice, the per-language blog addresses, error codes in URLs, the Organization book
+as the one address book, and module links hidden while their module is off. A storefront created by
+an earlier release keeps rendering, but its personal address pages call endpoints that answer
+`410 CUSTOMER_ADDRESS_BOOK_RETIRED`, and its member and invitation forms send `role`, which is
+refused. Bring the release's storefront over — `git diff v0.109.0 v0.110.0 -- storefront` lists
+every change.
+
+#### Dependencies {#after-0-110-0-dependencies}
+
+New peer dependencies, all already present in an instance that runs the platform:
+`@endora-commerce/mod-customers` on `bullmq` and `ioredis` `^5`, `@endora-commerce/mod-quick-order`
+on `ioredis` `^5`, and `@endora-commerce/mod-import-export` on `@mikro-orm/core`,
+`@mikro-orm/migrations` and `@mikro-orm/postgresql` `^6` and `zod` `^4`. `@endora-commerce/mod-forms`
+declares the peers every module of its kind does.
+
+#### For module and overlay authors {#after-0-110-0-authors}
+
+- **The legacy organization role is removed** from `@endora-commerce/contracts`:
+  `OrganizationRole`, `organizationRoleSchema` and `CustomerAccountRole` give way to
+  `OrganizationRoleRef` and `OrganizationRoleKind`; read and write `organizationRoleId`; ask
+  `OrganizationPermissionPort` (`can`, `assert`, `isAdministrator`) instead of `isOrgAdmin`. The
+  changelog of `@endora-commerce/contracts` has the full old → new list.
+- **`catalogProductValueOverrideWritePort` and `seoMetaWritePort` are retired.** A connector writes
+  through `catalogProductScopeWritePort.applyScopes` v2: cells `{ scope, field, value }`, refused
+  per cell. `name` and `description` on `CatalogProductRecord` are strings, and a reader with a
+  channel resolves the effective texts through `catalogProductAvailabilityPort.effectiveTexts`.
+- **`CartWritePort.clearForCustomer` is removed**; no platform code called it.
+- `CmsPageReadPort` gains `firstSegmentsInChannel`: an implementer of the port must add it.
+- A new platform port lets a module redact the audit history of an anonymized subject.
+- `endora new module` refuses a title-case `--name`: write it in sentence case.
+
+#### Personal address book retired (release 1 of 2) {#personal-address-book-retired-1}
 
 The release that ships `CUSTOMER_ADDRESS_BOOK_RETIRED` gives every customer **one** address book,
 their Organization's (`specs/173-b2c-address-book-merge/`). The `customers` module's personal
@@ -3717,7 +4032,7 @@ Each row leaves an audit entry (`customer_address.merge`, `customer_address.eras
    `ERROR_CODES.CUSTOMER_ADDRESS_NOT_FOUND`, the `customerAddressReadPort` port is gone, and
    `AddressServicePort` gains `anonymizeForOrganization`.
 
-### Deleted customer accounts are anonymized on schedule {#customer-anonymization-sweep}
+#### Deleted customer accounts are anonymized on schedule {#customer-anonymization-sweep}
 
 The release that ships the `customers.anonymization.sweep` queue starts the retention sweep that
 earlier releases built but never ran (issue #677). Until now a soft-deleted customer account kept
@@ -3735,6 +4050,13 @@ run starts immediately**. Later boots keep the existing schedule and do not trig
 So every account already past its window on the day you upgrade is anonymized within minutes of the
 first worker boot. **This cannot be undone**, and an account past its window can no longer be
 restored (`409 CUSTOMER_RESTORE_WINDOW_ELAPSED`), whether or not the sweep has reached it yet.
+
+**The audit history of each anonymized account is erased too** (issue #844). This covers the rows
+about the account and, for an individual, about their personal Organization and its addresses.
+Every row keeps its action, actors, time and object, but the recorded personal values become
+`[erased]`, and so do the IP address and user agent on the rows the customer wrote for themselves.
+This also cannot be undone. Each account gets one `audit.redacted` entry. The rule is described in
+the audit log module's documentation, under *Redaction on anonymisation*.
 
 **What to do:**
 
@@ -3759,12 +4081,13 @@ restored (`409 CUSTOMER_RESTORE_WINDOW_ELAPSED`), whether or not the sweep has r
 3. **Restore what you want to keep**, then set the window back to the value you want, if you
    raised it.
 4. **After the first run**, the worker logs `customers: anonymization sweep finished` at `info`
-   with the number anonymized, and each account has a `customer_account.anonymized` audit entry. An
+   with the number anonymized, and each account has a `customer_account.anonymized` and an
+   `audit.redacted` audit entry. An
    account that could not be anonymized is reported by id in a warning
    (`customers: the anonymization sweep failed; the next tick retries`) and is retried the next
    day. The query above then returns `0`.
 
-### API-key orders are placed only on the Organization's channels {#api-key-intake-organization-channels}
+#### API-key orders are placed only on the Organization's channels {#api-key-intake-organization-channels}
 
 The release that ships this change applies the admin order rule to the external order API
 (`POST /api/v1/external/orders`, issue #699). An API key is bound to an Organization and a sales
@@ -3802,6 +4125,258 @@ bound channel that is switched off was already refused, with `400 INACTIVE_SALES
    one of the Organization's own channels, that is, issue a new key bound to that channel, hand it
    to the integration and revoke the old one. A key's binding cannot be edited.
 3. **Run the query again.** It returns no rows when every integration can place orders.
+
+#### Quote request lines carry their channel's currency {#quote-line-currency}
+
+Until this release every quote request line was stored with the currency `PLN`, whatever the
+default currency of the sales channel the request was raised on (issue #303). From this release a
+new request's lines carry that channel's default currency, decided once when the request is created
+— by the customer or by an operator on their behalf — and kept by every later edit, seller revision
+and resubmission. The quote request lists show a request with no lines in its channel's currency.
+
+**Existing requests are not changed.** Their prices were typed and agreed against screens that said
+PLN, so relabelling them would change what past offers mean. A request already stored keeps `PLN`
+on its lines, and so does a resubmission of it. An instance whose sales channels all use PLN has
+nothing to do.
+
+**What to do:** list the quote requests raised on a channel whose default currency is not PLN. This
+read-only query shows each of them, with the currency its channel uses and the currencies its lines
+were stored in:
+
+```sql
+select qr.id, qr.business_id, qr.status, qr.created_at,
+       sc.code as channel, sc.default_currency as channel_currency,
+       array_agg(distinct qi.line_currency) as line_currencies
+from quote_requests qr
+join sales_channels sc on sc.id = qr.sales_channel_id
+left join quote_request_items qi on qi.quote_request_id = qr.id
+where sc.default_currency <> 'PLN'
+group by qr.id, sc.code, sc.default_currency
+order by qr.created_at;
+```
+
+Review any request this returns with its seller. There is no automatic correction: changing the
+currency of a stored request is a decision about what its prices meant, so make it per request, by
+hand, and only where the seller confirms the prices were meant in the channel's currency.
+
+#### A role's two-step verification requirement is enforced {#role-two-factor-enforced}
+
+The release that ships `MFA_REQUIRED_FOR_ROLE_TWO_FACTOR` makes a role's **Requires two-step
+verification on assigned users** checkbox (`requiresTwoFactor`) do what it says (issue #349).
+Until now it was stored, shown and edited, and no sign-in read it. From this release a holder of
+such a role signs in with a second factor, exactly as `mfa.admin.totp_enforced` makes every
+administrator do. The admin users module page, section *Roles that require two-step
+verification*, describes the behaviour.
+
+**Behaviour change on upgrade:**
+
+- An operator may have ticked the box believing it already worked. At their next sign-in, every
+  holder of such a role who has not set up two-step verification is taken to set it up and gets a
+  session only after that; a holder who has set it up is asked for a code. Google and Microsoft
+  sign-in behave the same way.
+- **The upgrade itself signs nobody out.** Sessions end only when the requirement starts binding
+  somebody after the upgrade: when a role's box is ticked, or when such a role is given to an
+  administrator who has not set up two-step verification. Holders already signed in before the
+  upgrade keep their sessions until they expire or sign out.
+- The MFA module cannot be switched off while any role requires two-step verification: the module
+  screen answers `409 MFA_DEACTIVATION_BLOCKED` and names the roles. Untick the box on those roles
+  first. While MFA is off, the box cannot be ticked.
+- **Switching Admin UI — enforce two-step verification (`mfa.admin.totp_enforced`) on now signs
+  administrators out**, as ticking a role's box does (issue #349). Before, it took effect at each
+  administrator's next sign-in, which could be thirty days away. Now every administrator who has
+  not set up two-step verification is signed out at once, except for the session the change was
+  made from; **Settings** asks first and says how many. The upgrade itself signs nobody out.
+
+**Before upgrading:**
+
+1. **See who will be asked to set up two-step verification.** Run this read-only query. Every row
+   is a role that requires it, with the number of its live administrators and how many of them have
+   not set it up:
+
+   ```sql
+   select r.code,
+          count(u.id) as admins,
+          count(u.id) filter (where e.id is null) as not_enrolled
+   from admin_roles r
+   join admin_users u on u.admin_role_id = r.id and u.deleted_at is null
+   left join mfa_enrolments e
+     on e.subject_type = 'admin' and e.subject_id = u.id and e.status = 'active'
+   where r.requires_two_factor
+   group by r.code
+   order by r.code;
+   ```
+
+2. **Check that a second factor can be set up.** Without `MFA_SECRET_ENCRYPTION_KEY` no second
+   factor can be enrolled or checked, so the requirement is **not applied**: the holders sign in
+   with their password alone, as before the upgrade. The Roles screen shows *Not in force: no
+   encryption key* under the box, and the backend logs an error at every start naming the roles
+   and how many of their administrators have no second factor. Set the key and restart if you want
+   the requirement applied; otherwise untick the box on those roles to make the screen say what
+   happens (see
+   [Enforced two-step verification without an encryption key](#admin-two-step-without-key)).
+3. **Keep at least one administrator who can sign in.** If your own role is among the rows, set up
+   two-step verification before you upgrade (*Account security* in the Admin UI), or make sure an
+   administrator of another role can sign in to change the role.
+
+#### A consumer's withdrawal refunds the delivery and the surcharge {#withdrawal-refunds-charges}
+
+On a consumer's withdrawal from a sale, the trader must refund every payment received, the delivery
+cost included (Directive 2011/83/EU art. 13(1); art. 32 ust. 1 of the Polish Consumer Rights Act).
+Until this release a B2C return refunded the goods only, so the delivery cost and the payment
+surcharge stayed with the shop and on the invoice (issue #876).
+
+From this release, the return that brings back the last unit of a B2C order refunds the order's
+delivery cost and payment surcharge as well. A B2C order is one whose organization is a personal
+one. The settlement form fills both in at the full amount when the case was opened within 14 days of
+the order's completion, or within the channel's `returns.free_return_days` when that is longer.
+Outside that window it starts at 0, and you may raise it to what was paid. A partial return, a
+complaint and a business customer's return are unchanged.
+
+**What changes for you:**
+
+- A B2C case that completes a withdrawal moves more money than the sum of its lines. Its
+  `totalRefundAmount` includes the charges.
+- An API client that settles such a case without `deliveryRefundAmount` and `surchargeRefundAmount`
+  refunds the prefilled amounts. Send `0` to refund neither, or a lower amount when the customer
+  chose a more expensive delivery than the cheapest standard one (art. 13(2)).
+- On an invoiced order, the correction credits the delivery and the surcharge on lines of their own.
+  On an order not invoiced yet, the invoice charges only what is left of each. A B2C order refunded
+  in full is not invoiced.
+
+Migration `20261108T125405_returns_case_charge_refunds.ts` adds four columns to `return_cases`, all
+`0.00` by default. Cases settled before the upgrade are not changed, and the platform does not
+refund them retroactively.
+
+**Orders already returned in full.** To find B2C orders returned in full before the upgrade whose
+delivery or surcharge was not refunded, run this read-only query after the upgrade:
+
+```sql
+with returned as (
+  select rc.order_id, rci.order_item_id, sum(rci.quantity) as quantity
+  from return_cases rc
+  join return_case_items rci on rci.return_case_id = rc.id
+  where rc.kind = 'return'
+    and rc.resolution_type in ('refund', 'credit')
+  group by rc.order_id, rci.order_item_id
+),
+returned_in_full as (
+  select oi.order_id
+  from order_items oi
+  left join returned r on r.order_id = oi.order_id and r.order_item_id = oi.id
+  group by oi.order_id
+  having bool_and(coalesce(r.quantity, 0) >= oi.quantity)
+)
+select o.id as order_id,
+       o.placed_at,
+       o.currency,
+       o.delivery_total,
+       coalesce((o.payment_method_snapshot ->> 'additionalPrice')::numeric, 0) as payment_surcharge
+from orders o
+join returned_in_full f on f.order_id = o.id
+join organizations org on org.id = o.organization_id
+where org.is_personal
+  and (o.delivery_total > 0
+       or coalesce((o.payment_method_snapshot ->> 'additionalPrice')::numeric, 0) > 0)
+  and not exists (
+    select 1 from return_cases rc
+    where rc.order_id = o.id
+      and (rc.approved_delivery_refund > 0 or rc.approved_surcharge_refund > 0)
+  )
+order by o.placed_at;
+```
+
+Each row is an order whose every line came back through returns settled with a refund or a
+credit, and whose delivery or surcharge no case refunded. Decide for each one whether to refund
+it by hand, for example by bank transfer, and record that on the order.
+
+#### Enforced two-step verification without an encryption key {#admin-two-step-without-key}
+
+The release that ships `MFA_ENFORCEMENT_UNAVAILABLE` closes a lockout (issue #930). Without
+`MFA_SECRET_ENCRYPTION_KEY` the MFA module cannot set up a second factor: it serves no setup or
+code-entry step. Yet with **Admin UI — enforce two-step verification** (`mfa.admin.totp_enforced`)
+on, sign-in still sent every administrator without a second factor to a setup step, which could
+not be completed, so none of them could sign in.
+
+**Behaviour change on upgrade:**
+
+- Turning `mfa.admin.totp_enforced` on is refused while the key is not set:
+  `409 MFA_ENFORCEMENT_UNAVAILABLE`, with `details.reason: 'encryption_key_missing'`. Turning it off
+  is always allowed, and so is saving it again when it is already on.
+- **On an instance where the setting is already on and the key is not set**, the setting is not
+  applied: administrators without a second factor sign in with their password, as they would with
+  the setting off. The setting is not changed. **Settings** shows *Not in force: no encryption key*
+  under it (the API's settings reads carry `notice.code: 'encryption_key_missing'`), and the
+  backend logs an error at every start until the key is set or the setting is turned off. Before,
+  these administrators could not sign in at all.
+- Nothing changes on an instance that has the key: enforcement applies as before.
+- **Without the key no second factor is asked for at all** (issue #948):
+  - a role that requires two-step verification is not applied either; the Roles screen shows the
+    same notice under its box (the role read carries `twoFactorNotice.code: 'encryption_key_missing'`),
+    and the error logged at every start names those roles (see
+    [A role's two-step verification requirement is enforced](#role-two-factor-enforced));
+  - administrators and customers who set up two-step verification while the key was configured are
+    not asked for a code, because nothing can check it. Before, they could not sign in at all. The
+    backend logs an error at every start with how many such enrolments there are;
+  - nobody is signed out for being given a role that requires two-step verification.
+  - without the key, customers are not asked for a second factor either, whether they are
+    enrolled or bound by storefront or organization enforcement.
+
+**After upgrading,** if a notice or a logged error appears, either set `MFA_SECRET_ENCRYPTION_KEY`
+(see the [first deployment checklist](./deployment/first-deployment-checklist.md)) and restart, so
+that enforcement applies again, or turn the setting off in **Settings** and untick the box on the
+roles. Set the key the enrolments were made with: an enrolment made with another key cannot be
+checked with this one.
+
+#### Return windows count from the order's completion {#return-window-from-completion}
+
+The release that ships this change records when an order was completed (`orders.completed_at`,
+issue #905) and counts the return windows from it. Until now they counted from the order's last
+edit, which moved forward whenever a completed order was changed. The migration fills the new column
+with each completed order's `updated_at`, which is the moment those orders were judged by before, so
+nothing changes for existing orders at upgrade time.
+
+Two things do change from then on:
+
+- **Calendar days.** The free-return window (`returns.free_return_days`) now ends at the end of its
+  last calendar day, and a last day on a Saturday or Sunday moves to the Monday. Before, it ended
+  exactly `free_return_days × 24 h` after the anchor. A case can now be free-return eligible up to a
+  day later than before (up to three over a weekend), never earlier.
+- **A time zone.** The days are counted in a new setting, `returns.time_zone` (default
+  `Europe/Warsaw`, settable per sales channel).
+
+**After upgrading:**
+
+1. **If the shop is not in `Europe/Warsaw`**, set `returns.time_zone` to its zone, for example
+   `Europe/Berlin`, on the Admin Settings screen (group *Returns*).
+2. **Tell the operators to complete an order when the goods have been delivered.** The consumer's
+   withdrawal period counts from the order's completion, because the platform has no delivery date.
+
+#### A consumer's withdrawal settles as a refund unless consent is recorded {#consumer-withdrawal-consent}
+
+The release that ships this change marks every return a consumer files as a **consumer withdrawal**
+(issue #905): a return by a personal Organization, filed within the withdrawal period, the channel's
+longer free-return window, or the 7-day grace after them. Such a case is refunded by the same means
+of payment unless the consumer agreed otherwise (Directive 2011/83 art. 13(1)), so:
+
+- **Credit toward future orders, a replacement and a repair need the consumer's consent on record.**
+  Without it the settlement answers `422 RETURN_ALTERNATIVE_RESOLUTION_CONSENT_REQUIRED`. An operator
+  records the consent, with an evidence note, in the case's *Consumer withdrawal* panel.
+- **The refund proposes the order's own payment method.** Another one is accepted with a warning, and
+  the settlement's audit entry records it.
+
+Company returns and complaints are unchanged. **Cases filed before the upgrade are not classified**:
+they settle as before. A later release classifies the open ones.
+
+**After upgrading:** tell the operators who settle returns that a consumer's credit, replacement or
+repair now needs the consent recorded first, and where the consumer agreed (an e-mail, a ticket) goes
+in its evidence note.
+
+This section was written on 2026-11-09 against the release branch `release/version-0.110.0`, read
+from the changesets of the release against its migrations and manifests; the entries from
+*Personal address book retired* to *A consumer's withdrawal settles as a refund* were written
+earlier, by the pull requests that made each change. No instance had been upgraded with
+`pnpm run upgrade 0.110.0` when it was written; the order of the steps and the storefront edits are
+untried.
 
 ### One sales-representative reach rule on every surface {#sales-rep-reach-one-rule}
 
@@ -3872,96 +4447,6 @@ Nothing is migrated and nothing needs configuring; platform administrators see n
    representative who looks after it: it is then governed, and every other representative loses it.
    A personal Organization cannot be assigned; keeping B2C data from representatives would be a
    different rule, and is not configurable.
-
-### Quote request lines carry their channel's currency {#quote-line-currency}
-
-Until this release every quote request line was stored with the currency `PLN`, whatever the
-default currency of the sales channel the request was raised on (issue #303). From this release a
-new request's lines carry that channel's default currency, decided once when the request is created
-— by the customer or by an operator on their behalf — and kept by every later edit, seller revision
-and resubmission. The quote request lists show a request with no lines in its channel's currency.
-
-**Existing requests are not changed.** Their prices were typed and agreed against screens that said
-PLN, so relabelling them would change what past offers mean. A request already stored keeps `PLN`
-on its lines, and so does a resubmission of it. An instance whose sales channels all use PLN has
-nothing to do.
-
-**What to do:** list the quote requests raised on a channel whose default currency is not PLN. This
-read-only query shows each of them, with the currency its channel uses and the currencies its lines
-were stored in:
-
-```sql
-select qr.id, qr.business_id, qr.status, qr.created_at,
-       sc.code as channel, sc.default_currency as channel_currency,
-       array_agg(distinct qi.line_currency) as line_currencies
-from quote_requests qr
-join sales_channels sc on sc.id = qr.sales_channel_id
-left join quote_request_items qi on qi.quote_request_id = qr.id
-where sc.default_currency <> 'PLN'
-group by qr.id, sc.code, sc.default_currency
-order by qr.created_at;
-```
-
-Review any request this returns with its seller. There is no automatic correction: changing the
-currency of a stored request is a decision about what its prices meant, so make it per request, by
-hand, and only where the seller confirms the prices were meant in the channel's currency.
-
-### A role's two-step verification requirement is enforced {#role-two-factor-enforced}
-
-The release that ships `MFA_REQUIRED_FOR_ROLE_TWO_FACTOR` makes a role's **Requires two-step
-verification on assigned users** checkbox (`requiresTwoFactor`) do what it says (issue #349).
-Until now it was stored, shown and edited, and no sign-in read it. From this release a holder of
-such a role signs in with a second factor, exactly as `mfa.admin.totp_enforced` makes every
-administrator do. The admin users module page, section *Roles that require two-step
-verification*, describes the behaviour.
-
-**Behaviour change on upgrade:**
-
-- An operator may have ticked the box believing it already worked. At their next sign-in, every
-  holder of such a role who has not set up two-step verification is taken to set it up and gets a
-  session only after that; a holder who has set it up is asked for a code. Google and Microsoft
-  sign-in behave the same way.
-- **The upgrade itself signs nobody out.** Sessions end only when the requirement starts binding
-  somebody after the upgrade: when a role's box is ticked, or when such a role is given to an
-  administrator who has not set up two-step verification. Holders already signed in before the
-  upgrade keep their sessions until they expire or sign out.
-- The MFA module cannot be switched off while any role requires two-step verification: the module
-  screen answers `409 MFA_DEACTIVATION_BLOCKED` and names the roles. Untick the box on those roles
-  first. While MFA is off, the box cannot be ticked.
-
-**Before upgrading:**
-
-1. **See who will be asked to set up two-step verification.** Run this read-only query. Every row
-   is a role that requires it, with the number of its live administrators and how many of them have
-   not set it up:
-
-   ```sql
-   select r.code,
-          count(u.id) as admins,
-          count(u.id) filter (where e.id is null) as not_enrolled
-   from admin_roles r
-   join admin_users u on u.admin_role_id = r.id and u.deleted_at is null
-   left join mfa_enrolments e
-     on e.subject_type = 'admin' and e.subject_id = u.id and e.status = 'active'
-   where r.requires_two_factor
-   group by r.code
-   order by r.code;
-   ```
-
-2. **Check that a second factor can be set up.** Without `MFA_SECRET_ENCRYPTION_KEY` no second
-   factor can be enrolled, so the holders counted in `not_enrolled` would be sent to a setup step
-   that cannot be completed, and could not sign in. If the key is not set, **untick the box on
-   those roles before you upgrade**, or set the key first:
-
-   ```sql
-   update admin_roles set requires_two_factor = false where code = '<code>';
-   ```
-
-   After the upgrade, an instance in that state logs a warning at every start naming the roles and
-   how many of their administrators have no second factor.
-3. **Keep at least one administrator who can sign in.** If your own role is among the rows, set up
-   two-step verification before you upgrade (*Account security* in the Admin UI), or make sure an
-   administrator of another role can sign in to change the role.
 
 ## An instance that is mixed from the start
 

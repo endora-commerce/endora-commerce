@@ -33,6 +33,7 @@ Admin routes are gated by `returns:read` (read) / `returns:write` (mutations).
 | `POST /api/v1/admin/returns/:id/reject` | admin | Reject with a mandatory reason |
 | `POST /api/v1/admin/returns/:id/transition` | admin | Guarded status transition |
 | `GET\|POST /api/v1/admin/returns/:id/settlement` | admin | Prefill / execute settlement |
+| `POST\|DELETE /api/v1/admin/returns/:id/alternative-consent` | admin | Record / revoke the consumer's consent to a resolution other than a refund (see *Consumer withdrawal*) |
 | `GET\|POST /api/v1/admin/returns/:id/comments` | admin | List / add comment (visibility + notify) |
 | `GET\|POST /api/v1/admin/returns/:id/shipments` + `/:shipmentId/receive` | admin | Return shipments |
 | `GET\|POST /api/v1/admin/returns/list-views` | admin | The caller's own saved views plus every shared one / save a view |
@@ -119,8 +120,12 @@ before/after events and is written to the audit log.
 
 - **Eligibility & free-return window** — a case is allowed once the order
   reaches its fulfilment-completing status; the free-return window
-  (`returns.free_return_days`, default **14** per EU Directive (EU) 2023/2673)
-  is counted from that moment and governs who bears the return shipping cost.
+  (`returns.free_return_days`, default **14**, the statutory withdrawal period
+  of Directive 2011/83 art. 9) is counted from that moment and governs who
+  bears the return shipping cost. The moment is the order's completion as
+  `orders` records it (`orders.completed_at`), which a later edit of the order
+  does not move; in earlier releases it was the order's last edit. See *Counting the
+  windows* below.
 - **RMA numbering** — `${prefix}${sequence}${suffix}` from
   `returns.rma_number_prefix` / `returns.rma_number_suffix`, assigned on
   authorization, unique and never reused.
@@ -134,7 +139,9 @@ before/after events and is written to the audit log.
   rate on the kept nets, less the discount they carry), so it can differ by a
   cent from the returned units' own value and the order's returns together still
   refund exactly what was paid. Resolutions: refund (money), credit (tops up
-  the organization's `credit_limits` grant), replacement, or repair. A corrective
+  the organization's `credit_limits` grant), replacement, or repair; a consumer
+  withdrawal settles as a refund unless the consumer's consent to another
+  resolution is on record (see *Consumer withdrawal*). A corrective
   invoice (`invoices` kind `correction`) is requested for money/credit settlements.
   An order that was never invoiced has no VAT document to correct, so none is
   issued: the settlement succeeds, the refund is recorded on the return case and
@@ -176,6 +183,51 @@ before/after events and is written to the audit log.
   back. Before settling a return, check the order's other cases for an earlier
   complaint on the same line: if the defective unit the complaint compensated
   is the one coming back, lower the amount by hand.
+- **A consumer's withdrawal refunds the delivery and the payment surcharge**
+  (Directive 2011/83/EU art. 13(1), Polish Consumer Rights Act art. 32 ust. 1).
+  The case that brings back the last returned unit of a B2C order (the order's
+  organization is a personal one) refunds the order's delivery cost and payment
+  surcharge as well as the goods. All of these must hold:
+  - the case is a return, not a complaint;
+  - with this case, every unit of every order line has come back in a return
+    settled with a refund or a credit. An order with a line that could not be
+    returned can never be withdrawn in full, so it never refunds them;
+  - the case is settled as a refund or a credit. A replacement or a repair
+    refunds neither charge, and an amount above 0 sent for one is refused.
+
+  A partial withdrawal refunds neither charge, and the settlement form does not
+  offer them. The settlement form shows a *Delivery cost* row and a *Payment
+  surcharge* row, each with what was paid as its maximum. The row is filled in
+  with the full amount when the case was opened within the withdrawal window:
+  14 days from the order's completion, or the channel's
+  `returns.free_return_days` when that is longer. A channel set to `0` still
+  has the 14 days. Outside the window the row starts at 0 and you may raise it
+  to what was paid. Lower the delivery to the price of the cheapest standard
+  delivery when the customer chose a more expensive one (art. 13(2)). An amount
+  above what was paid is refused with `422 VALIDATION_FAILED`
+  (`code: refund_exceeds_paid`). Through the API, `deliveryRefundAmount` and
+  `surchargeRefundAmount` work differently from the line amounts. When you
+  leave one out, it settles at the default recomputed at settlement. When you
+  send one, it settles at exactly that amount, `0` included, as long as it is
+  not above the maximum. A figure the case showed when it was opened can be
+  above the maximum by then, and is refused. The settlement form sends only an
+  amount you changed. The case's `totalRefundAmount` then includes the
+  charges, so it is more than the sum of the lines. The case detail reports
+  them as `chargeRefunds`, and the `return.settled` audit entry records each
+  one's maximum and the approved amount (`charges`). A business customer's
+  return and every complaint are unchanged.
+
+  On an invoiced order, the correction credits the delivery and the surcharge on
+  lines of their own, at the VAT rate the invoice charged them at (0 % today).
+  When everything came back and was refunded, the invoice nets to zero. On an
+  order not invoiced yet, the invoice issued later charges only what is left of
+  each charge, and leaves a line out when nothing is left. So a premium delivery
+  reduced to the standard price is invoiced alone for the difference. When
+  everything was refunded, there is no sale left and the invoice is refused.
+
+  Cases settled before this behaviour existed are not changed. To find B2C
+  orders that were returned in full without a delivery refund, see the upgrade
+  guide.
 - **A switched-off payment gateway refuses the settlement**.
   Money resolutions on a gateway-paid order call the PSP module that took the
   payment; when an operator has that module switched off — or the deployment
@@ -203,6 +255,110 @@ before/after events and is written to the audit log.
   <id> } }`. Views saved before these rules keep their names as stored —
   including blank names and duplicates — until their owner renames or deletes
   them; a change that leaves the name alone is never refused for it.
+
+## Counting the windows
+
+Both windows this module judges — the channel's free-return window and the
+consumer's statutory withdrawal period — count from the same moment: when the
+order entered its fulfilment-completing status (`completingStatusEnteredAt`,
+from `OrderReturnContextPort`). An order that has not been completed has not
+started either period. The platform has no delivery date (a shipment's success
+is the carrier accepting the parcel, which is earlier than the consumer
+receiving it), so the operator completing the order is the closest fact there
+is; the Orders page asks operators to complete an order when the goods have
+been delivered. This module does not read Shipments for it, so switching
+Shipments off changes nothing about either window.
+
+- **Calendar days in `returns.time_zone`.** A period of *n* days ends at the end
+  of the *n*-th calendar day after the day of completion, in the zone the
+  setting names (an IANA name, default `Europe/Warsaw`, settable per sales
+  channel; a zone the runtime does not know is refused). The day of completion
+  itself is not counted.
+- **Weekends.** A last day on a Saturday or Sunday moves to the following
+  Monday. Public holidays are not modelled: there is no holiday calendar.
+- **The statutory period** is 14 days, whatever `returns.free_return_days` says
+  — a channel set to `0` or to fewer days cannot shorten it.
+- **A 7-day grace.** An operator may complete an order before the parcel
+  arrives, so the consumer's withdrawal stays possible for 7 calendar days after
+  the later of the statutory end and the channel's free-return window. A
+  withdrawal made in the grace is accepted and marked as outside the statutory
+  period, for the operator to judge.
+
+In earlier releases the free-return window ended exactly `free_return_days × 24 h`
+after the order's last edit. It now ends up to a day later (up to three over a
+weekend), never earlier. The statutory period and the grace are computed by
+`domain/withdrawal-period.ts`; the withdrawal function that uses them arrives in
+a later release.
+
+## Consumer withdrawal
+
+A consumer who buys at a distance may withdraw from the contract within the
+statutory period without giving a reason, and is then reimbursed by the same
+means of payment unless they expressly agree otherwise (Directive 2011/83
+art. 9 and 13(1); in Poland, art. 27 and 32 of the *ustawa o prawach
+konsumenta*). This module tells such a case apart from any other return and
+settles it accordingly.
+
+- **Which case is a consumer withdrawal.** A `return` (never a complaint) by a
+  **personal** Organization (the one every consumer gets at checkout; never a
+  company), filed while the withdrawal is still possible for the order: the
+  statutory 14 days, the channel's longer free-return window, and the 7-day grace
+  after both (see *Counting the windows*). The answer is fixed when the case is filed and the
+  case detail reports it as `consumerWithdrawal`; the admin case view marks the
+  case **Consumer withdrawal**. A personal Organization's return filed after the
+  grace is a commercial return under the shop's own policy, and nothing below
+  applies to it. A sole trader buying through a company Organization may have
+  the same right under Polish law (art. 38a); the platform cannot tell, so an
+  operator handles such a case by hand.
+- **Cases filed before this release** carry no answer (`consumerWithdrawal:
+  null`) and are treated as ordinary returns. Classifying them needs the
+  Organization, which a migration may not read, so a later release classifies
+  the open ones in the background.
+- **A refund by default.** The settlement form starts on **Refund money**, to
+  the order's own payment method (`defaultRefundPaymentMethodId` in the
+  settlement prefill). The method is chosen by name from the shop's payment
+  methods, with the order's own listed first and marked; when that list
+  cannot be read, the form falls back to a field for the method's id. Credit,
+  replacement and repair stay visible but cannot be chosen until the
+  consumer's consent is on record, and the settlement refuses them with
+  `422 RETURN_ALTERNATIVE_RESOLUTION_CONSENT_REQUIRED` (`details.resolution`
+  names the one refused). The prefill names them in `consentRequiredFor` and keeps
+  every resolution in `resolutionOptions`. Company returns and complaints are
+  unaffected.
+- **Another payment method warns, and does not refuse.** A cash-on-delivery
+  order cannot be refunded "by the same means", and a bank transfer is the
+  accepted practice there. The form shows a warning, the settlement goes
+  through, and its audit entry (`return.settled`) records
+  `consumerWithdrawal: true` and `refundMethodDiffers: true`.
+- **Recording the consumer's consent.** The consent normally reaches the shop by
+  e-mail or telephone. An operator with `returns:write` records it in the
+  **Consumer withdrawal** panel of the case: what the consumer agreed to
+  (credit, a replacement or a repair), when (not in the future, not before the
+  case was filed), and an evidence note of up to 2000 characters, for example
+  *"Customer's e-mail of 10 Nov 2026, ticket #123"*. The settlement then accepts
+  that resolution, and still refuses the other two. Recording it again replaces
+  the earlier one. **Revoke consent** removes it after a confirmation, which
+  says what is lost: the evidence note is deleted, while the history keeps that
+  the consent was recorded and revoked. Both are audited
+  (`return_case.alternative_consent.record` and `.revoke`) with the operator as
+  the actor; the entry holds the resolution, the moment and the source, not the
+  evidence note, which stays on the case. Once the case is settled its consent
+  is frozen: both answer `409` (`details.code: 'consent_frozen'`). A case in a
+  **terminal status** of the configured workflow (`rejected`, `cancelled`, or
+  any status an operator marked terminal) can never be settled, so its consent
+  is closed too: both answer `409` (`details.code: 'case_closed'`), nothing is
+  written, and the panel shows the consent on record read-only, with no
+  actions. The time the consent was given is shown in the operator's browser
+  time zone, which is named beside it. A case that is
+  not a consumer withdrawal answers `422` (`details.code:
+  'not_consumer_withdrawal'`).
+- **Personal data.** The withdrawal statement this module will store keeps the
+  consumer's name and e-mail address in two columns of their own, which can be
+  cleared while the statement itself is kept as the shop's evidence.
+
+The withdrawal function on the storefront (art. 11a, inserted by Directive (EU)
+2023/2673 and applicable from 19 June 2026), the acknowledgement e-mail and the
+14-day reimbursement deadline arrive in later releases.
 
 ## Returnable products
 
@@ -266,15 +422,23 @@ internal imports:
   `orders.view_organization`).
 - `OrganizationPermissionPort` (organizations) — `returns.create` and
   `returns.view_organization`, asked per request.
+- `OrganizationDetailsPort.findById` (organizations) — whether the case's
+  Organization is personal, read once when a return is filed.
 - `OrderReturnContextPort` (orders) — paid-per-line amounts + completing-status
-  time, and each line's `returnableAtPurchase` (`true`/`false` as recorded at
+  time, the order's payment method, and each line's `returnableAtPurchase` (`true`/`false` as recorded at
   placement, `null` for an order placed before it was recorded). Orders reports
-  the fact; the policy for `null` — returnable — is this module's.
+  the fact; the policy for `null` — returnable — is this module's. It also
+  reports the order's delivery cost and payment surcharge.
+- `OrganizationDetailsPort` (organizations) — whether the order's organization
+  is a personal one (B2C), which decides whether a withdrawal refunds the
+  delivery and the surcharge.
 - `PaymentRefundPort` (payments) — issue the refund, answer `pending_manual`
   where no PSP integration exists, or refuse when the gateway that took the
   payment is switched off.
 - `CorrectiveInvoicePort` (invoices) — create a `correction` invoice, or answer
-  that none is due because the order carries no invoice to correct.
+  that none is due because the order carries no invoice to correct. A
+  consumer's completing withdrawal also names the delivery and surcharge it
+  refunds (`charges`).
 - `CreditTopupPort` (credit_limits) — credit the organization grant.
 - `ShipmentService` (shipments) — optional replacement outbound shipment.
 
@@ -285,3 +449,14 @@ Migration `20260625T144227_returns_init.ts` creates `return_cases`, `return_case
 `return_reasons`, `return_delivery_methods`, `refunds`, `return_shipments`,
 `return_case_attachments`, `return_list_saved_views`, and the
 `return_cases_rma_seq` sequence.
+
+Migration `20261108T023047_returns_consumer_withdrawal.ts` adds the consumer
+withdrawal's columns to `return_cases` (`consumer_withdrawal`, the consent
+columns, and the facts of the reimbursement deadline) and creates
+`return_withdrawal_statements`. It touches no other module's table, so it
+leaves existing cases unclassified.
+
+Migration `20261108T125405_returns_case_charge_refunds.ts` adds four columns to
+`return_cases`: `default_delivery_refund`, `approved_delivery_refund`,
+`default_surcharge_refund` and `approved_surcharge_refund`, each `0.00` by
+default. Existing cases keep `0.00`.

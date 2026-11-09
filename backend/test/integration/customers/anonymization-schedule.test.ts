@@ -2,7 +2,7 @@ import { randomUUID } from 'node:crypto';
 import { Queue, type Worker } from 'bullmq';
 import { Redis } from 'ioredis';
 import { afterAll, beforeAll, describe, expect, it } from 'vitest';
-import { CUSTOMER_ACCOUNT_ANONYMIZED_EVENT } from '@endora-commerce/contracts';
+import { AUDIT_ERASED_MARKER, CUSTOMER_ACCOUNT_ANONYMIZED_EVENT } from '@endora-commerce/contracts';
 import {
   setupBackendServer,
   teardownBackendServer,
@@ -10,7 +10,7 @@ import {
 } from '../../helpers/test-server.js';
 import { withModuleOff, type OffStateAxis } from '../../helpers/off-state.js';
 import { AuditLogEntry } from '@endora-commerce/platform/kernel';
-import { CustomerAccount, Organization } from '../../helpers/package-entities.js';
+import { Cart, CustomerAccount, Organization } from '../../helpers/package-entities.js';
 import { seedCrmOrganization } from '../../helpers/seed-crm.js';
 import { ManifestReconciler } from '../../../src/kernel/settings/manifest-reconciler.js';
 import { defineModuleWorker } from '../../../src/kernel/lifecycle/plugin-helpers.js';
@@ -130,6 +130,15 @@ describe('customers — the anonymization sweep runs on its schedule (#677)', ()
   const organizationAuditRows = (id: string) =>
     h.em().fork().find(AuditLogEntry, { action: 'organization.anonymized', objectId: id });
 
+  /** Issue #844 — the subject's own profile rows, as e-mail and IP. */
+  const historyOf = async (id: string) =>
+    (
+      await h.em().fork().find(AuditLogEntry, { action: 'customer_account.profile_updated', objectId: id })
+    ).map((row) => ({ email: (row.stateAfter as { email?: unknown } | null)?.email, ip: row.ipAddress }));
+
+  const redactionMarkers = (id: string) =>
+    h.em().fork().find(AuditLogEntry, { action: 'audit.redacted', objectId: id });
+
   const isFinished = async (id: string): Promise<boolean> => {
     const residue = await organizationResidue(id);
     return residue.legalName === null && residue.blockedReason === null;
@@ -150,6 +159,26 @@ describe('customers — the anonymization sweep runs on its schedule (#677)', ()
   };
 
   const isAnonymized = async (id: string): Promise<boolean> => (await stateOf(id)).anonymizedAt !== null;
+
+  /** Issue #920 — a cart of `customerAccountId` an operator rejected with a reason. */
+  async function rejectedCart(customerAccountId: string, reason: string): Promise<string> {
+    const em = h.em().fork();
+    const cart = em.create(Cart, {
+      customerAccountId,
+      organizationId,
+      status: 'rejected',
+      rejectedAt: new Date(),
+      rejectedByActor: `admin:${randomUUID()}`,
+      rejectedReason: reason,
+    });
+    await em.persistAndFlush(cart);
+    return cart.id;
+  }
+
+  async function cartReasonOf(id: string): Promise<{ status: string; rejectedReason: string | null }> {
+    const row = await h.em().fork().findOneOrFail(Cart, { id }, { filters: false });
+    return { status: row.status, rejectedReason: row.rejectedReason ?? null };
+  }
 
   beforeAll(async () => {
     h = await setupBackendServer();
@@ -178,6 +207,10 @@ describe('customers — the anonymization sweep runs on its schedule (#677)', ()
     redis?.disconnect();
     if (h) {
       if (accounts.length > 0) {
+        await h
+          .em()
+          .getConnection()
+          .execute(`delete from "carts" where "customer_account_id" = any(?::uuid[])`, [`{${accounts.join(',')}}`]);
         await h
           .em()
           .getConnection()
@@ -245,7 +278,19 @@ describe('customers — the anonymization sweep runs on its schedule (#677)', ()
     'with customers %s no tick runs, and the account is anonymised and an earlier scrub finished once the module is back',
     async (axis) => {
       const due = await deletedAccount(`off-${axis}`, RETENTION_DAYS + 1);
+      // Issue #920 — `carts`' step of the cascade waits with the rest of it.
+      const cart = await rejectedCart(due, `Operator note about ${due}`);
       const residual = await earlierScrubbedSubject(`off-${axis}`);
+      // Issue #844 — a row of the subject's history that holds its e-mail.
+      const dueEmail = `off-${axis}-${RUN}@anonymization-schedule.test`;
+      await h.auditLogService.record({
+        actorCustomerAccountId: due,
+        action: 'customer_account.profile_updated',
+        objectType: 'customer_account',
+        objectId: due,
+        stateAfter: { email: dueEmail },
+        ipAddress: '203.0.113.9',
+      });
       await withModuleOff('customers', axis, async () => {
         const job = await queue.add('sweep', {});
         // Long enough for a running consumer to have taken it many times over.
@@ -253,6 +298,7 @@ describe('customers — the anonymization sweep runs on its schedule (#677)', ()
         expect(completed).not.toContain(job.id);
         expect(await isAnonymized(due)).toBe(false);
         expect(announced).not.toContain(due);
+        expect(await cartReasonOf(cart)).toEqual({ status: 'rejected', rejectedReason: `Operator note about ${due}` });
         // Issue #923 — nor is an earlier scrub finished: the residue stays,
         // and nothing is recorded.
         expect(await organizationResidue(residual.organizationId)).toEqual({
@@ -260,15 +306,29 @@ describe('customers — the anonymization sweep runs on its schedule (#677)', ()
           blockedReason: ORG_BLOCK_REASON,
         });
         expect(await organizationAuditRows(residual.organizationId)).toEqual([]);
+        // Nor is any history erased while the module is off.
+        expect(await historyOf(due)).toEqual([{ email: dueEmail, ip: '203.0.113.9' }]);
+        expect(await redactionMarkers(due)).toEqual([]);
       });
       // Back on: the tick that waited runs, and the account is anonymised.
       expect(await until(() => isAnonymized(due), 60_000)).toBe(true);
       expect(announced).toContain(due);
+      // The composed `customers` reached `carts` through its port: the reason is gone, the status kept.
+      expect(await cartReasonOf(cart)).toEqual({ status: 'rejected', rejectedReason: null });
       // And the earlier scrub is finished in the same tick, with one audit row
       // and no second announcement.
       expect(await until(() => isFinished(residual.organizationId), 60_000)).toBe(true);
       expect(await organizationAuditRows(residual.organizationId)).toHaveLength(1);
       expect(announced).not.toContain(residual.accountId);
+      // Issue #844 — and the history of both subjects is erased, with one marker
+      // each. Waited for: the organisation is finished at step 1 of the cascade,
+      // and the marker is written at step 3.
+      const marked = async (id: string) => (await redactionMarkers(id)).length > 0;
+      expect(await until(() => marked(due), 60_000)).toBe(true);
+      expect(await until(() => marked(residual.accountId), 60_000)).toBe(true);
+      expect(await historyOf(due)).toEqual([{ email: AUDIT_ERASED_MARKER, ip: AUDIT_ERASED_MARKER }]);
+      expect(await redactionMarkers(due)).toHaveLength(1);
+      expect(await redactionMarkers(residual.accountId)).toHaveLength(1);
     },
     120_000,
   );

@@ -261,6 +261,15 @@ export type MfaResetBulkResult = z.infer<typeof mfaResetBulkResultSchema>;
 // Setting codes (single source for both manifest and resolver)
 // ---------------------------------------------------------------------------
 
+/**
+ * Why a second-factor requirement cannot be met on this instance: `mfa` has no
+ * `MFA_SECRET_ENCRYPTION_KEY`, so it serves no enrolment route (issue #930).
+ * One spelling for every refusal and notice that says so — the
+ * `mfa.admin.totp_enforced` write, its Settings notice, and a role's
+ * two-factor flag — as `details.reason` and as the sentence token.
+ */
+export const ENCRYPTION_KEY_MISSING = 'encryption_key_missing' as const;
+
 export const MFA_SETTING_CODES = {
   /**
    * Feature 074 — the operator-activation control (Constitution XVII). It sits
@@ -355,17 +364,29 @@ export interface MfaAdminSecondFactorRequirement {
   readonly roleCodes: readonly string[];
 }
 
-/** Why a role's second-factor requirement started binding these administrators. */
-export type MfaAdminEnforcementTrigger = 'role_requirement_enabled' | 'role_assigned';
+/**
+ * Why a second-factor requirement started binding these administrators: a
+ * role's flag was turned on, a role with the flag was given to them, or
+ * (issue #349, E-349-1) `mfa.admin.totp_enforced` was switched on.
+ */
+export type MfaAdminEnforcementTrigger = 'role_requirement_enabled' | 'role_assigned' | 'setting_enabled';
 
 /** What {@link MfaAdminEnforcementPort.endUnprotectedAdminSessions} is told. */
-export interface MfaEndUnprotectedAdminSessionsOptions {
+export type MfaEndUnprotectedAdminSessionsOptions = {
   /** The acting administrator's own current session, which is kept. */
   readonly exceptSessionId?: string;
-  readonly trigger: MfaAdminEnforcementTrigger;
-  /** The role whose requirement now binds them, for the audit row. */
-  readonly roleCode: string;
-}
+} & (
+  | {
+      readonly trigger: 'role_requirement_enabled' | 'role_assigned';
+      /** The role whose requirement now binds them, for the audit row. */
+      readonly roleCode: string;
+    }
+  | {
+      readonly trigger: 'setting_enabled';
+      /** The setting that now binds them, for the audit row. */
+      readonly settingCode: string;
+    }
+);
 
 /**
  * Container name: `mfaAdminEnforcementPort`. Owner: `mfa`.
@@ -382,14 +403,19 @@ export interface MfaEndUnprotectedAdminSessionsOptions {
  *
  * Non-binding for `admin_users`: it resolves this only while `mfa` is present,
  * and with `mfa` absent the flag cannot be turned on at all
- * (`MFA_REQUIRED_FOR_ROLE_TWO_FACTOR`).
+ * (`MFA_REQUIRED_FOR_ROLE_TWO_FACTOR`). `mfa` calls it itself when
+ * `mfa.admin.totp_enforced` is switched on (issue #349, E-349-1).
+ *
+ * Without the encryption key no requirement is in force (issue #948, owner
+ * ruling Q6), so none binds anybody: nothing is ended and nobody is counted.
  */
 export interface MfaAdminEnforcementPort {
   /**
    * End every session and pending login of these administrators that is not
    * protected by an active second factor, sparing `exceptSessionId`. Records
    * one audit row when anybody was affected. Answers how many administrators
-   * had no active enrolment, which is how many were signed out.
+   * had no active enrolment, which is how many were signed out — `0`, and
+   * nothing ended, where no second factor can be enrolled.
    */
   endUnprotectedAdminSessions(
     adminUserIds: readonly string[],

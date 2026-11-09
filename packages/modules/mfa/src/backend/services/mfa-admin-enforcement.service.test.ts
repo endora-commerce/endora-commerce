@@ -86,4 +86,39 @@ describe('MfaAdminEnforcementService', () => {
     expect(await harness([], true).service.canEnforceAdminSecondFactor()).toBe(true);
     expect(await harness([], false).service.canEnforceAdminSecondFactor()).toBe(false);
   });
+
+  // Issue #948, owner ruling Q6 — without a key no requirement is in force, so
+  // none binds anybody and no session is ended on its account.
+  it('ends nothing and records nothing without an encryption key', async () => {
+    const { service, destroyed, invalidated, audits } = harness([], false);
+    const count = await service.endUnprotectedAdminSessions(['a', 'b'], {
+      trigger: 'role_assigned',
+      roleCode: 'accounting',
+    });
+    expect(count).toBe(0);
+    expect(destroyed).toEqual([]);
+    expect(invalidated).toEqual([]);
+    expect(audits).toEqual([]);
+  });
+
+  it('previews nobody without an encryption key', async () => {
+    expect(await harness([], false).service.countUnprotected(['a', 'b'])).toBe(0);
+  });
+
+  // Issue #349, E-349-1 — the platform-wide setting is the other source of the
+  // requirement, and its audit row names the setting rather than a role.
+  it('records a setting trigger against the setting', async () => {
+    const { service, audits } = harness([]);
+    const count = await service.endUnprotectedAdminSessions(['a'], {
+      trigger: 'setting_enabled',
+      settingCode: 'mfa.admin.totp_enforced',
+    });
+    expect(count).toBe(1);
+    expect(audits[0]).toMatchObject({
+      action: 'mfa.admin_sessions_ended_for_requirement',
+      objectType: 'setting',
+      objectId: 'mfa.admin.totp_enforced',
+      stateAfter: { trigger: 'setting_enabled', settingCode: 'mfa.admin.totp_enforced', count: 1 },
+    });
+  });
 });

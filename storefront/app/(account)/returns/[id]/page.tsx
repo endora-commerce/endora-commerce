@@ -65,6 +65,7 @@ export default async function ReturnDetailPage({
   const isColleaguesCase = filedByColleague(detail.customerAccountId, me?.customerAccount.id);
   const { locale } = await getServerContext();
   const t = tForLocale(locale);
+  const charges = detail.chargeRefunds;
 
   return (
     <div className="b2b-auth max-w-[720px]">
@@ -97,6 +98,19 @@ export default async function ReturnDetailPage({
               <td className="text-right">{it.approvedRefundAmount.toFixed(2)}</td>
             </tr>
           ))}
+          {/* Issue #876 — what a withdrawal from the whole order refunds beside the goods. */}
+          {charges && charges.delivery > 0 ? (
+            <tr>
+              <td colSpan={2}>{t('account.return.deliveryRefund')}</td>
+              <td className="text-right">{charges.delivery.toFixed(2)}</td>
+            </tr>
+          ) : null}
+          {charges && charges.surcharge > 0 ? (
+            <tr>
+              <td colSpan={2}>{t('account.return.surchargeRefund')}</td>
+              <td className="text-right">{charges.surcharge.toFixed(2)}</td>
+            </tr>
+          ) : null}
         </tbody>
       </table>
 

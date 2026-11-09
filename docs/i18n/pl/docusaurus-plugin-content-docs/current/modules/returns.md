@@ -32,6 +32,7 @@ Trasy administracyjne są chronione przez `returns:read` (odczyt) i `returns:wri
 | `POST /api/v1/admin/returns/:id/reject` | administrator | Odrzucenie z obowiązkowym powodem |
 | `POST /api/v1/admin/returns/:id/transition` | administrator | Kontrolowana zmiana statusu |
 | `GET\|POST /api/v1/admin/returns/:id/settlement` | administrator | Wstępne wypełnienie / wykonanie rozliczenia |
+| `POST\|DELETE /api/v1/admin/returns/:id/alternative-consent` | administrator | Zapisanie / wycofanie zgody konsumenta na inne rozliczenie niż zwrot pieniędzy (zob. *Odstąpienie konsumenta od umowy*) |
 | `GET\|POST /api/v1/admin/returns/:id/comments` | administrator | Lista / dodanie komentarza (widoczność i powiadomienie) |
 | `GET\|POST /api/v1/admin/returns/:id/shipments` + `/:shipmentId/receive` | administrator | Przesyłki zwrotne |
 | `GET\|POST /api/v1/admin/returns/list-views` | administrator | Własne zapisane widoki wywołującego i wszystkie udostępnione / zapisanie widoku |
@@ -109,8 +110,11 @@ trafia do dziennika audytu.
 
 - **Uprawnienie do zwrotu i okres bezpłatnego zwrotu** — sprawę można otworzyć, gdy zamówienie
   osiągnie status kończący realizację; okres bezpłatnego zwrotu (`returns.free_return_days`,
-  domyślnie **14** zgodnie z dyrektywą (UE) 2023/2673) liczy się od tej chwili i decyduje, kto
-  ponosi koszt przesyłki zwrotnej.
+  domyślnie **14**, ustawowy termin na odstąpienie od umowy z art. 9 dyrektywy 2011/83) liczy się
+  od tej chwili i decyduje, kto ponosi koszt przesyłki zwrotnej. Tą chwilą jest realizacja
+  zamówienia zapisana przez moduł `orders` (`orders.completed_at`), której późniejsza edycja
+  zamówienia nie przesuwa; we wcześniejszych wydaniach była nią ostatnia edycja zamówienia. Zob. *Liczenie
+  terminów* poniżej.
 - **Numeracja RMA** — `${prefix}${sequence}${suffix}` z `returns.rma_number_prefix` /
   `returns.rma_number_suffix`, nadawana przy autoryzacji, unikalna i nigdy nieużywana ponownie.
 - **Zwroty częściowe i wielokrotne** — ilość w każdej pozycji jest ograniczona do pozostałej ilości
@@ -121,7 +125,9 @@ trafia do dziennika audytu.
   wartość zatrzymanych towarów po zwrocie (VAT dla każdej stawki od zatrzymanych wartości netto,
   pomniejszony o przypadający na nie rabat), więc może różnić się o grosz od wartości samych
   zwracanych sztuk, a wszystkie zwroty zamówienia razem nadal zwracają dokładnie to, co zapłacono. Sposoby rozliczenia: zwrot pieniędzy, środki na koncie (zasilają limit
-  kredytowy organizacji w `credit_limits`), wymiana albo naprawa. Przy rozliczeniu pieniędzmi lub
+  kredytowy organizacji w `credit_limits`), wymiana albo naprawa; odstąpienie konsumenta od umowy
+  rozlicza się zwrotem pieniędzy, chyba że zapisano zgodę konsumenta na inne rozliczenie (zob.
+  *Odstąpienie konsumenta od umowy*). Przy rozliczeniu pieniędzmi lub
   środkami na koncie wymagana jest faktura korygująca (`invoices` rodzaju `correction`). Zamówienie,
   które nigdy nie zostało zafakturowane, nie ma dokumentu VAT do skorygowania, więc korekta nie
   powstaje: rozliczenie się udaje, zwrot jest zapisany w sprawie i w rekordzie płatności, a wynik
@@ -158,6 +164,44 @@ trafia do dziennika audytu.
   nie wie, która sztuka wróciła. Przed rozliczeniem zwrotu sprawdź inne sprawy zamówienia pod kątem
   wcześniejszej reklamacji tej samej pozycji: jeśli wraca właśnie wadliwa sztuka, za którą
   zrekompensowano reklamację, obniż kwotę ręcznie.
+- **Odstąpienie konsumenta od umowy zwraca koszt dostawy i dopłatę za płatność**
+  (art. 13 ust. 1 dyrektywy 2011/83/UE, art. 32 ust. 1 ustawy o prawach konsumenta).
+  Sprawa, z którą wraca ostatnia zwracana sztuka zamówienia B2C (organizacja zamówienia jest
+  organizacją prywatną), zwraca oprócz towaru również koszt dostawy i dopłatę za płatność.
+  Muszą być spełnione wszystkie warunki:
+  - sprawa jest zwrotem, a nie reklamacją;
+  - z tą sprawą wróciła każda sztuka każdej pozycji zamówienia, w zwrotach rozliczonych zwrotem
+    pieniędzy albo zasileniem limitu. Zamówienia z pozycją, której nie można było zwrócić, nie da
+    się zwrócić w całości, więc nigdy nie zwraca ono tych opłat;
+  - sprawa jest rozliczana zwrotem pieniędzy albo zasileniem limitu. Wymiana i naprawa nie zwracają
+    żadnej z opłat, a kwota wyższa niż 0 wysłana dla nich jest odrzucana.
+
+  Częściowe odstąpienie nie zwraca żadnej z opłat, a formularz rozliczenia ich nie proponuje.
+  Formularz rozliczenia pokazuje wiersz *Koszt dostawy* i wiersz *Dopłata za płatność*, każdy z
+  zapłaconą kwotą jako maksimum. Wiersz jest wypełniony pełną kwotą, gdy sprawę otwarto w terminie
+  na odstąpienie: 14 dni od zakończenia realizacji zamówienia albo `returns.free_return_days`
+  kanału, jeśli ten termin jest dłuższy. Kanał ustawiony na `0` nadal ma 14 dni. Po terminie wiersz
+  zaczyna się od 0 i możesz podnieść kwotę do tego, co zapłacono. Jeśli klient wybrał droższą
+  dostawę niż najtańszy zwykły sposób, obniż kwotę dostawy do ceny tego sposobu (art. 13 ust. 2).
+  Kwota wyższa niż zapłacona jest odrzucana z `422 VALIDATION_FAILED`
+  (`code: refund_exceeds_paid`). W API `deliveryRefundAmount` i `surchargeRefundAmount` działają
+  inaczej niż kwoty pozycji. Pole pominięte jest rozliczane według kwoty domyślnej przeliczonej przy
+  rozliczeniu. Pole wysłane jest rozliczane dokładnie na tę kwotę, także `0`, o ile nie przekracza
+  maksimum. Kwota, którą sprawa pokazywała przy otwarciu, może do tego czasu przekraczać maksimum
+  i wtedy jest odrzucana. Formularz rozliczenia wysyła tylko kwotę, którą zmieniłeś. `totalRefundAmount`
+  sprawy obejmuje wtedy opłaty, więc jest wyższy niż suma pozycji. Szczegóły sprawy podają je jako
+  `chargeRefunds`, a wpis `return.settled` w dzienniku audytu odnotowuje maksimum i zatwierdzoną
+  kwotę każdej z nich (`charges`). Zwrot klienta firmowego i każda reklamacja działają bez zmian.
+
+  W zamówieniu z fakturą korekta zwraca dostawę i dopłatę w osobnych wierszach, ze stawką VAT,
+  z jaką faktura je naliczyła (dziś 0 %). Gdy wszystko wróciło i zostało zwrócone, faktura po
+  korekcie wynosi zero. W zamówieniu bez faktury wystawiona później faktura nalicza tylko to, co
+  zostało z każdej opłaty, i pomija wiersz, z którego nic nie zostało. Dostawa ekspresowa obniżona
+  do ceny zwykłej trafia więc na fakturę sama, na kwotę różnicy. Gdy zwrócono wszystko, nie
+  zostaje żadna sprzedaż i wystawienie faktury jest odrzucane.
+
+  Sprawy rozliczone przed tą zmianą pozostają bez zmian. Jak znaleźć zamówienia B2C zwrócone
+  w całości bez zwrotu kosztu dostawy, opisuje przewodnik aktualizacji.
 - **Wyłączona bramka płatności blokuje rozliczenie.** Rozliczenia pieniężne zamówień opłaconych
   przez bramkę wywołują moduł operatora płatności, który przyjął płatność; gdy operator wyłączył ten
   moduł — albo wdrożenie go nie oferuje — rozliczenie zwraca `503 MODULE_DISABLED` z nazwą modułu i
@@ -181,6 +225,92 @@ trafia do dziennika audytu.
   odpowiada `{ data: { deleted: <id> } }`. Widoki zapisane przed wprowadzeniem tych reguł zachowują
   nazwy w zapisanej postaci — także puste i zdublowane — dopóki właściciel ich nie zmieni lub nie
   usunie; zmiana, która nie dotyczy nazwy, nigdy nie jest z tego powodu odrzucana.
+
+## Liczenie terminów
+
+Oba terminy, które ocenia ten moduł — okres bezpłatnego zwrotu kanału i ustawowy termin konsumenta
+na odstąpienie od umowy — liczą się od tej samej chwili: wejścia zamówienia w status kończący
+realizację (`completingStatusEnteredAt` z `OrderReturnContextPort`). Zamówienie, które nie zostało
+zrealizowane, nie rozpoczęło żadnego z nich. Platforma nie zna daty doręczenia (sukces przesyłki
+oznacza przyjęcie paczki przez przewoźnika, co następuje wcześniej, niż konsument ją otrzyma), więc
+zrealizowanie zamówienia przez operatora jest najbliższym dostępnym faktem; strona Orders prosi
+operatorów, by realizowali zamówienie, gdy towar został doręczony. Moduł nie odczytuje do tego
+modułu Shipments, więc jego wyłączenie nie zmienia żadnego z terminów.
+
+- **Dni kalendarzowe w `returns.time_zone`.** Termin *n* dni kończy się z końcem *n*-tego dnia
+  kalendarzowego po dniu realizacji, w strefie wskazanej przez ustawienie (nazwa IANA, domyślnie
+  `Europe/Warsaw`, ustawiana także dla kanału sprzedaży; strefa nieznana środowisku jest
+  odrzucana). Samego dnia realizacji się nie wlicza.
+- **Weekendy.** Ostatni dzień przypadający w sobotę lub niedzielę przesuwa się na najbliższy
+  poniedziałek. Święta nie są uwzględniane: nie ma kalendarza świąt.
+- **Termin ustawowy** wynosi 14 dni bez względu na `returns.free_return_days` — kanał ustawiony na
+  `0` lub na mniej dni nie może go skrócić.
+- **7 dni karencji.** Operator może zrealizować zamówienie, zanim paczka dotrze, dlatego odstąpienie
+  od umowy pozostaje możliwe jeszcze przez 7 dni kalendarzowych po późniejszym z dwóch końców:
+  terminu ustawowego i okresu bezpłatnego zwrotu kanału. Odstąpienie złożone w okresie karencji jest
+  przyjmowane i oznaczane jako złożone po terminie ustawowym, do oceny operatora.
+
+We wcześniejszych wydaniach okres bezpłatnego zwrotu kończył się dokładnie `free_return_days × 24 h` po
+ostatniej edycji zamówienia. Teraz kończy się do jednego dnia później (do trzech przy weekendzie),
+nigdy wcześniej. Termin ustawowy i okres karencji wylicza `domain/withdrawal-period.ts`; funkcja
+odstąpienia od umowy, która z nich korzysta, pojawi się w kolejnym wydaniu.
+
+## Odstąpienie konsumenta od umowy
+
+Konsument, który kupuje na odległość, może odstąpić od umowy w ustawowym terminie bez podawania
+przyczyny i otrzymuje wtedy zwrot tym samym sposobem płatności, chyba że wyraźnie zgodzi się na inny
+(dyrektywa 2011/83 art. 9 i 13 ust. 1; w Polsce art. 27 i 32 ustawy o prawach konsumenta). Ten moduł
+odróżnia taką sprawę od każdego innego zwrotu i rozlicza ją zgodnie z tym.
+
+- **Która sprawa jest odstąpieniem konsumenta.** Zwrot (`return`, nigdy reklamacja) zgłoszony przez
+  organizację **osobistą** (taką, jaką każdy konsument otrzymuje przy zakupie; nigdy firmę), w czasie,
+  gdy odstąpienie od umowy jest jeszcze możliwe dla tego zamówienia: ustawowe 14 dni, dłuższy okres
+  bezpłatnego zwrotu kanału i 7 dni karencji po obu (zob. *Liczenie terminów*). Odpowiedź ustala się
+  w chwili zgłoszenia sprawy, a szczegóły sprawy podają ją jako `consumerWithdrawal`; widok sprawy w
+  panelu administracyjnym oznacza ją jako **Odstąpienie konsumenta**. Zwrot organizacji osobistej
+  zgłoszony po okresie karencji jest zwrotem handlowym na zasadach sklepu i nic z poniższego go nie
+  dotyczy. Przedsiębiorca na jednoosobowej działalności kupujący przez organizację firmową może mieć
+  to samo prawo (art. 38a); platforma nie potrafi tego rozpoznać, więc taką sprawę operator prowadzi
+  ręcznie.
+- **Sprawy zgłoszone przed tym wydaniem** nie mają odpowiedzi (`consumerWithdrawal: null`) i są
+  traktowane jak zwykłe zwroty. Ich klasyfikacja wymaga danych organizacji, których migracja nie może
+  odczytać, dlatego otwarte sprawy sklasyfikuje w tle jedno z kolejnych wydań.
+- **Domyślnie zwrot pieniędzy.** Formularz rozliczenia zaczyna od **Zwrot pieniędzy** na sposób
+  płatności zamówienia (`defaultRefundPaymentMethodId` w danych wstępnych rozliczenia). Sposób
+  płatności wybiera się po nazwie z listy sposobów płatności sklepu, na której sposób zamówienia jest
+  pierwszy i oznaczony; gdy listy nie da się odczytać, formularz pokazuje pole na identyfikator
+  sposobu. Środki na koncie, wymiana i naprawa są widoczne, ale nie można ich wybrać, dopóki nie zapisano zgody konsumenta, a rozliczenie je
+  odrzuca z `422 RETURN_ALTERNATIVE_RESOLUTION_CONSENT_REQUIRED` (`details.resolution` wskazuje
+  odrzucony sposób). Dane wstępne wymieniają je w `consentRequiredFor` i nadal podają wszystkie sposoby
+  w `resolutionOptions`. Zwroty firm i reklamacje się nie zmieniają.
+- **Inny sposób płatności ostrzega, ale nie blokuje.** Zamówienia płaconego przy odbiorze nie da się
+  zwrócić „tym samym sposobem”, a przyjętą praktyką jest wtedy przelew. Formularz pokazuje
+  ostrzeżenie, rozliczenie przechodzi, a jego wpis w dzienniku zdarzeń (`return.settled`) zawiera
+  `consumerWithdrawal: true` i `refundMethodDiffers: true`.
+- **Zapisanie zgody konsumenta.** Zgoda zwykle dociera do sklepu e-mailem albo telefonicznie.
+  Operator z uprawnieniem `returns:write` zapisuje ją w panelu **Odstąpienie konsumenta od umowy**
+  sprawy: na co konsument się zgodził (środki na koncie, wymiana albo naprawa), kiedy (nie w
+  przyszłości i nie przed zgłoszeniem sprawy) oraz dowód o długości do 2000 znaków, na przykład
+  *„E-mail klienta z 10 listopada 2026, zgłoszenie nr 123”*. Rozliczenie przyjmuje wtedy ten sposób,
+  a dwa pozostałe nadal odrzuca. Ponowne zapisanie zastępuje wcześniejszą zgodę. **Wycofaj zgodę**
+  usuwa ją po potwierdzeniu, które mówi, co zostanie utracone: notatka z dowodem jest usuwana, a
+  historia zachowuje informację, że zgodę zarejestrowano i wycofano. Obie czynności trafiają do dziennika zdarzeń (`return_case.alternative_consent.record` i
+  `.revoke`) z operatorem jako wykonawcą; wpis zawiera sposób rozliczenia, chwilę i źródło, ale nie
+  treść dowodu, która zostaje w sprawie. Po rozliczeniu sprawy zgoda jest zamrożona: obie czynności
+  odpowiadają `409` (`details.code: 'consent_frozen'`). Sprawy w **statusie końcowym** skonfigurowanego
+  przebiegu (`rejected`, `cancelled` albo dowolny status, który operator oznaczył jako końcowy) nie da
+  się już rozliczyć, więc jej zgoda jest również zamknięta: obie czynności odpowiadają `409`
+  (`details.code: 'case_closed'`), nic nie jest zapisywane, a panel pokazuje zapisaną zgodę tylko do
+  odczytu, bez akcji. Czas wyrażenia zgody jest pokazywany w strefie czasowej przeglądarki operatora,
+  podanej obok. Sprawa, która nie jest odstąpieniem
+  konsumenta, odpowiada `422` (`details.code: 'not_consumer_withdrawal'`).
+- **Dane osobowe.** Oświadczenie o odstąpieniu od umowy, które ten moduł będzie przechowywał, trzyma
+  imię i nazwisko oraz adres e-mail konsumenta w dwóch osobnych kolumnach, które można wyczyścić,
+  zachowując samo oświadczenie jako dowód sklepu.
+
+Funkcja odstąpienia od umowy w sklepie (art. 11a, dodany dyrektywą (UE) 2023/2673 i stosowany od
+19 czerwca 2026), e-mail z potwierdzeniem otrzymania i 14-dniowy termin zwrotu płatności pojawią się
+w kolejnych wydaniach.
 
 ## Produkty podlegające zwrotowi
 
@@ -236,15 +366,21 @@ importy wnętrza innych modułów:
   zgłasza sprawę (własne albo współpracownika z `orders.view_organization`).
 - `OrganizationPermissionPort` (organizations) — `returns.create` i `returns.view_organization`,
   sprawdzane przy każdym żądaniu.
+- `OrganizationDetailsPort.findById` (organizations) — czy organizacja sprawy jest osobista,
+  odczytywane raz, przy zgłoszeniu zwrotu.
 - `OrderReturnContextPort` (orders) — kwoty zapłacone za każdą pozycję i czas osiągnięcia statusu
-  kończącego realizację oraz `returnableAtPurchase` każdej pozycji (`true`/`false` zapisane przy
+  kończącego realizację, sposób płatności zamówienia oraz `returnableAtPurchase` każdej pozycji (`true`/`false` zapisane przy
   składaniu zamówienia, `null` dla zamówienia złożonego, zanim zaczęto je zapisywać). Moduł Orders
-  podaje fakt; zasada dla `null` — podlega zwrotowi — należy do tego modułu.
+  podaje fakt; zasada dla `null` — podlega zwrotowi — należy do tego modułu. Port podaje też koszt
+  dostawy i dopłatę za płatność zamówienia.
+- `OrganizationDetailsPort` (organizations) — czy organizacja zamówienia jest organizacją prywatną
+  (B2C), od czego zależy, czy odstąpienie zwraca dostawę i dopłatę.
 - `PaymentRefundPort` (payments) — wykonanie zwrotu, odpowiedź `pending_manual`, gdy nie ma
   integracji z operatorem płatności, albo odmowa, gdy bramka, która przyjęła płatność, jest
   wyłączona.
 - `CorrectiveInvoicePort` (invoices) — utworzenie faktury `correction` albo odpowiedź, że korekta nie
-  jest potrzebna, bo zamówienie nie ma faktury.
+  jest potrzebna, bo zamówienie nie ma faktury. Odstąpienie konsumenta zamykające zamówienie
+  podaje też zwracaną dostawę i dopłatę (`charges`).
 - `CreditTopupPort` (credit_limits) — zasilenie limitu kredytowego organizacji.
 - `ShipmentService` (shipments) — opcjonalna przesyłka z towarem na wymianę.
 
@@ -254,3 +390,12 @@ Migracja `20260625T144227_returns_init.ts` tworzy `return_cases`, `return_case_i
 `return_statuses`, `return_status_transitions`, `return_reasons`, `return_delivery_methods`,
 `refunds`, `return_shipments`, `return_case_attachments`, `return_list_saved_views` oraz sekwencję
 `return_cases_rma_seq`.
+
+Migracja `20261108T023047_returns_consumer_withdrawal.ts` dodaje do `return_cases` kolumny odstąpienia
+konsumenta od umowy (`consumer_withdrawal`, kolumny zgody i fakty terminu zwrotu płatności) oraz
+tworzy `return_withdrawal_statements`. Nie dotyka tabel innych modułów, więc istniejących spraw nie
+klasyfikuje.
+
+Migracja `20261108T125405_returns_case_charge_refunds.ts` dodaje do `return_cases` cztery
+kolumny: `default_delivery_refund`, `approved_delivery_refund`, `default_surcharge_refund`
+i `approved_surcharge_refund`, każda domyślnie `0.00`. Istniejące sprawy zachowują `0.00`.

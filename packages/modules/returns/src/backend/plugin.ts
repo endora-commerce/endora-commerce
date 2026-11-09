@@ -6,19 +6,23 @@ import type {
   CreditTopupPort,
   OrderReadPort,
   OrderReturnContextPort,
+  OrganizationDetailsPort,
   OrganizationPermissionPort,
   PaymentRefundPort,
 } from '@endora-commerce/contracts';
+import type { CommandBus } from '@endora-commerce/platform/commands';
 import type { EventBus } from '@endora-commerce/platform/events';
 import type { PlatformLogger, SettingsReadPort } from '@endora-commerce/platform/kernel';
 import type { AuditPort } from '@endora-commerce/platform/kernel';
-import { RETURNS_SETTING_CODES } from '../manifest.js';
+import { RETURNS_SETTING_CODES, RETURNS_DEFAULT_TIME_ZONE } from '../manifest.js';
+import { isKnownTimeZone } from './services/time-zone-validator.js';
 import { ReturnStatusGraphService } from './services/return-status-graph-service.js';
 import { ReturnTransitionService } from './services/return-transition-service.js';
 import { ReturnCaseService } from './services/return-case-service.js';
 import { ReturnCaseScope } from './services/return-case-scope.js';
 import { ReturnCommentService } from './services/return-comment-service.js';
 import { ReturnSettlementService } from './services/return-settlement-service.js';
+import { ReturnConsentService } from './services/return-consent-service.js';
 import { ReturnDeliveryMethodService } from './services/return-delivery-method-service.js';
 import { ReturnShipmentService } from './services/return-shipment-service.js';
 import { ReturnReasonService } from './services/return-reason-service.js';
@@ -58,6 +62,15 @@ export interface ReturnsModuleOptions {
    * the buyer's case list and read (`specs/170-organization-roles/` OR-11).
    */
   organizationPermissions: OrganizationPermissionPort;
+  /**
+   * `organizations`' record reader, a `lazyPort` proxy resolved per call:
+   * whether a return is a consumer withdrawal turns on the Organization being
+   * personal (issue #905), and so does whether a withdrawal refunds the
+   * delivery and the surcharge (issue #876).
+   */
+  organizationDetails: Pick<OrganizationDetailsPort, 'findById'>;
+  /** The Command Bus the consent writes run through (issue #905, Principle XIII). */
+  commandBus: Pick<CommandBus, 'run'>;
   /** Settlement ports (US5). Money refunds, corrective invoices, credit top-up. */
   paymentRefund: PaymentRefundPort;
   correctiveInvoice: CorrectiveInvoicePort;
@@ -110,6 +123,18 @@ export function returnsModule(
     }
   };
 
+  // Issue #905 — the zone the windows count calendar days in. A value the
+  // runtime does not know (written around the validator, straight into the
+  // table) falls back to the manifest default rather than refusing every return.
+  const resolveTimeZone = async (salesChannelId: string): Promise<string> => {
+    try {
+      const value = await settingsService.get(RETURNS_SETTING_CODES.TIME_ZONE, salesChannelId, z.string());
+      return isKnownTimeZone(value) ? value : RETURNS_DEFAULT_TIME_ZONE;
+    } catch {
+      return RETURNS_DEFAULT_TIME_ZONE;
+    }
+  };
+
   const resolveDefaultCostBearer = async (salesChannelId: string): Promise<'customer' | 'shop'> => {
     try {
       const value = await settingsService.get(
@@ -123,6 +148,10 @@ export function returnsModule(
     }
   };
 
+  // Issue #876 — a consumer (B2C) is a personal Organization; an order without one is not a consumer's.
+  const isPersonalOrganization = async (organizationId: string | null): Promise<boolean> =>
+    organizationId ? ((await options.organizationDetails.findById(organizationId))?.isPersonal ?? false) : false;
+
   const caseService = new ReturnCaseService({
     emFactory,
     graphService,
@@ -130,7 +159,10 @@ export function returnsModule(
     orderContext,
     orderRead: options.orderReadPort,
     scope: new ReturnCaseScope(options.organizationPermissions),
+    organizationDetails: options.organizationDetails,
     resolveFreeReturnDays,
+    isPersonalOrganization,
+    resolveTimeZone,
     ...(options.auditLog ? { auditLog: options.auditLog } : {}),
   });
 
@@ -170,9 +202,11 @@ export function returnsModule(
     correctiveInvoice: options.correctiveInvoice,
     creditTopup: options.creditTopup,
     orderContext,
+    isPersonalOrganization,
+    resolveTimeZone,
     ...(options.auditLog ? { auditLog: options.auditLog } : {}),
   });
-
+  const consentService = new ReturnConsentService({ commandBus: options.commandBus, graphService });
 
   await registerReturnsCustomerRoutes(app, {
     caseService,
@@ -190,6 +224,7 @@ export function returnsModule(
     authorizationService,
     commentService,
     settlementService,
+    consentService,
     deliveryMethodService,
     shipmentService,
     reasonService,

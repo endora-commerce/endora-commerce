@@ -1,5 +1,566 @@
 # @endora-commerce/contracts
 
+## 0.110.0
+
+### Minor Changes
+
+- 18cce2e: Organization roles and permissions, first shapes (`specs/170-organization-roles/`). Everything is added beside what exists; nothing is removed yet.
+
+  - New `organization-roles` exports: `organizationRoleKindSchema` / `OrganizationRoleKind` (`administrator`, `member`, `custom`), `organizationRoleRefSchema` / `OrganizationRoleRef` (`{ id, name, kind }`), `organizationRoleViewSchema` / `OrganizationRoleView` with its list, single, permission-catalogue, own-role and delete response schemas, and the request schemas `createOrganizationRoleRequestSchema`, `updateOrganizationRoleRequestSchema`, `deleteOrganizationRoleRequestSchema`, `assignMemberRoleRequestSchema` (`{ roleId }`), `inviteMemberToRoleRequestSchema` (`{ email, roleId? }`), `adminDirectMemberToRoleRequestSchema` and `adminAssignMemberRoleRequestSchema`. Every one of them is strict: a body that still sends `role` is refused rather than stripped.
+  - The permission port types `OrganizationPermissionPort`, `OrganizationPermissionSubject`, `OrganizationEffectivePermissions` and `OrganizationRoleReadPort`, and the route guard `organizationPermissionPreHandler(getPort, code, { guests? })`: it judges a customer actor (impersonation included) through the port's `assert`; a non-customer actor is refused with `CustomerSessionRequiredError` (`401 UNAUTHORIZED`), or, with `guests: 'pass'`, let through unjudged.
+  - Module manifests gain the optional `organizationPermissions` field (`moduleOrganizationPermissionDeclarationSchema`, `ORGANIZATION_PERMISSION_CODE`: `<module>.<action>`). `defineModuleManifest` refuses a code of the wrong shape, one outside the module's own namespace, and a duplicate.
+  - `ActorCustomer.organizationRoleId?: string | null`.
+  - Optional `organizationRole` (and, on the session shapes, `permissions`) beside `role` on `customerAccountSchema`, `customerLoginResponseSchema`'s `customerAccount` and `impersonationStartResponseSchema`'s `impersonatedCustomerAccount`.
+  - `cartMergeOutcomeSchema`'s `outcome` gains `skipped_permission` (owner ruling PR-12): sign-in skipped merging the guest basket because the member's role lacks `carts.create`. A consumer switching exhaustively over `CartMergeOutcome['outcome']` has one more case; the public `cartMergeOutcomePublicSchema` is unchanged and reports it as `noop`.
+  - Deprecated, to be removed in the same release line: `organizationRoleSchema` and `OrganizationRole` (use `OrganizationRoleRef` / `OrganizationRoleKind`), `CustomerAccountRole` and the `role` fields of `CustomerAccountRecord` and `CustomerAccountCreateInput`, `CustomerAccountReadPort.countByOrganizationRole`, `RfqCustomerContext.isOrgAdmin` (ask `OrganizationPermissionPort.isAdministrator`), `OrganizationRecord.requiresCartApproval`, `OrganizationCartApprovalWritePort`, `CartApprovalPolicyWriteResult`, `setCartApprovalPolicySchema` and `cartApprovalPolicyResponseSchema` (replaced by the `carts.order_without_approval` permission), the `role` fields of the response shapes above, and the request schemas `inviteMemberRequestSchema`, `changeMemberRoleRequestSchema`, `adminDirectMemberRequestSchema`'s `role` and `adminPatchMemberRoleRequestSchema`.
+
+- 9cfb28b: `ERROR_CODES` gains the seven organization-role codes (`specs/170-organization-roles/`): `ORGANIZATION_PERMISSION_REQUIRED` (403 — the member's role lacks the organization permission an action needs; `details: { permission, permissionLabel }`), `ORGANIZATION_ROLE_NAME_TAKEN` (409), `ORGANIZATION_ROLE_STALE` (409), `ORGANIZATION_ROLE_LIMIT_REACHED` (422), `ORGANIZATION_ROLE_PROTECTED` (409), `ORGANIZATION_ROLE_REPLACEMENT_REQUIRED` (422) and `ORGANIZATION_PERMISSION_UNKNOWN` (422). A consumer switching exhaustively over `ErrorCode` has seven more cases.
+- a206da9: Organization role assignment (`specs/170-organization-roles/`, WP-02b). Breaking for an implementer or a hand-built caller of the changed ports:
+
+  - `CustomerAccountRecord` gains the required `organizationRoleId: string` — the organization role the account holds, a role of its own organization.
+  - `CustomerAccountCreateInput` gains the required `organizationRoleId`; the deprecated `role` stays and is passed with the matching value (`organization_admin` only for the _Administrator_ role).
+  - `CustomerAccountReadPort` gains `countAdministrators(organizationId, options?)`, the replacement for the deprecated `countByOrganizationRole(organizationId, 'organization_admin', options?)`.
+  - `CustomerAccountMemberWritePort.attachToOrganization(customerAccountId, organizationId)` becomes `attachToOrganization(customerAccountId, organizationId, organizationRoleId)`.
+  - `CustomerAccountLifecycleWritePort.setOrganization` and `detachToPersonalOrganization` take `input: CustomerAccountOrganizationMoveInput` — `{ actorAdminUserId, organizationRoleId }` where it was `{ actorAdminUserId }`; the role is a role of the destination organization.
+  - `PersonalOrganizationPort.provisionPersonalOrganization` answers `ProvisionedPersonalOrganizationRecord` (`OrganizationRecord` plus `administratorRoleId`) where it answered `OrganizationRecord`.
+  - `OrganizationRoleReadPort` gains `findRole(organizationId, roleId)` answering `OrganizationRoleSummary | null` (`{ id, kind, name }`).
+  - New: `CustomerAccountRoleCommandPort` (`changeRole(input)` answering a `CustomerAccountRoleChangeCommand` to run on the Command Bus or as a child Command, and `holdersOf(organizationId, roleId)`), with `CustomerAccountRoleChangeInput`, `CustomerAccountRoleChangeResult`, and the event `CUSTOMER_ACCOUNT_ORGANIZATION_ROLE_CHANGED_EVENT` (`customer_account.organization_role_changed.v1`) with `CustomerAccountOrganizationRoleChangedEventV1`.
+
+- 34485ae: Members, invitations and session views name the organization role (`specs/170-organization-roles/`, WP-03). Breaking for an implementer of the changed port or a reader of the changed response types:
+
+  - `OrganizationRoleReadPort` gains `roleRef(organizationId, roleId, language?)` answering `OrganizationRoleRef | null` — `{ id, name, kind }`, with a predefined role's name translated.
+  - The deprecated `role` of `customerAccountSchema`, of `customerLoginResponseSchema`'s `customerAccount` and of `impersonationStartResponseSchema`'s `impersonatedCustomerAccount` becomes optional: the server no longer sends it. Read `organizationRole` (`{ id, name, kind }`) and, on the session views, `permissions: string[]`.
+  - `RfqCustomerContext.isOrgAdmin` becomes optional (`isOrgAdmin?: boolean`, was `isOrgAdmin: boolean`); absent reads as `false`.
+  - `customerSelfProfileSchema` (`GET /api/v1/me/customer`) gains the `organizationRole` (`{ id, name, kind }`) and `permissions: string[]` the endpoint answers.
+
+- 0f1717c: `ERROR_CODES` gains `CART_APPROVAL_SELF_APPROVE` (422 — an approver may not approve or reject their own pending cart; `details.cartId`; `specs/170-organization-roles/`, R-36) and loses `CART_APPROVAL_SELF_SUBMIT`, which nothing raises any more: a buyer whose role lets them order without approval — an administrator included — is refused `CART_APPROVAL_NOT_REQUIRED` instead. Replace `ERROR_CODES.CART_APPROVAL_SELF_SUBMIT` with `ERROR_CODES.CART_APPROVAL_NOT_REQUIRED` where a client branched on it. A consumer switching exhaustively over `ErrorCode` has one case more and one fewer.
+- 86e8761: One-click and default preferences by organization role (`specs/170-organization-roles/`, WP-06). Breaking for a caller that builds or switches on `PreferenceActor`:
+
+  - `PreferenceActor`'s `{ kind: 'org_admin'; organizationId }` becomes `{ kind: 'administrator'; organizationId }` — a member holding the Organization's _Administrator_ role.
+  - `quickOrderOneClickEligibilitySchema`'s `reason` gains `permission_required` (the role lacks `quick_order.one_click`) and `cart_approval_required` (it holds that but lacks `carts.order_without_approval`), judged in that order before `setting_disabled`, `missing_defaults` and `ineligible_default`.
+
+- 9bfb0b8: The legacy two-value organization role is removed (`specs/170-organization-roles/`, WP-12). Breaking for every consumer that still names it. A member holds a role **id**, and what they may do follows from that role's permissions. Old → new:
+
+  - `organizationRoleSchema` and `OrganizationRole` (`'organization_admin' | 'regular_user'`, from `common.ts`) are removed. Use `OrganizationRoleRef` (`{ id, name, kind }`) and `OrganizationRoleKind` (`administrator`, `member`, `custom`) instead.
+  - `CustomerAccountRole` is removed, and so are `CustomerAccountRecord.role` and `CustomerAccountCreateInput.role`. Read and write `organizationRoleId` instead; it is required on create.
+  - `CustomerAccountReadPort.countByOrganizationRole(organizationId, role, options)` is removed. Use `countAdministrators(organizationId, options)`, which takes the same options. `listByOrganization` still answers the Organization's _Administrator_ holders first, then by creation date.
+  - `CustomerRolePort.changeRole(organizationId, customerAccountId, newRole)` is removed. Use `customerAccountRoleCommandPort.changeRole({ organizationId, customerAccountId, roleId })`, the `customer_account.change_role` Command. `customerRolePort` keeps `listMembers` and `removeMember`.
+  - `RfqCustomerContext.isOrgAdmin` is removed. Ask `OrganizationPermissionPort.isAdministrator(subject)` instead (research R-30). `carts`, `orders`, `quick_order` and `shopping_lists` no longer pass it.
+  - `OrganizationRecord.requiresCartApproval`, `OrganizationCartApprovalWritePort` (the container name `organizationCartApprovalWritePort` is no longer registered), `CartApprovalPolicyWriteResult`, `setCartApprovalPolicySchema` / `SetCartApprovalPolicy` and `cartApprovalPolicyResponseSchema` / `CartApprovalPolicyResponse` are removed, together with the `organization.set_cart_approval_policy` Command. Approval now follows the member's `carts.order_without_approval` permission (OR-3), and the policy endpoints were already removed.
+  - On responses, `role` is no longer described on `customerAccountSchema`, `customerLoginResponseSchema`'s `customerAccount` or `impersonationStartResponseSchema`'s `impersonatedCustomerAccount`. `organizationRole` is now **required** on all three, and `permissions` is required on the first two: every producer sends them. `POST /api/v1/admin/organizations/:id/impersonate` (`admin_users`) no longer sends `role` and now sends `organizationRole`, read through `organizationRoleReadPort` (an acknowledged dependency on `organizations`); `POST /api/v1/admin/customers/:id/impersonate` (`customers`) always sends it.
+  - The request schemas `inviteMemberRequestSchema` (`{ email, role? }`), `changeMemberRoleRequestSchema` (`{ role }`), `adminDirectMemberRequestSchema` (`role?`) and `adminPatchMemberRoleRequestSchema` (`{ role, expectedUpdatedAt? }`) are removed. Use `inviteMemberToRoleRequestSchema`, `assignMemberRoleRequestSchema`, `adminDirectMemberToRoleRequestSchema` and `adminAssignMemberRoleRequestSchema`, which take `roleId`. They stay strict, so a body that still sends `role` is refused with `400`.
+  - The customers CSV export (`import_export`) carries `organization_role_name` (a predefined role's English label, or a custom role's name) and `organization_role_kind` (`administrator`, `member`, `custom`) in place of its `role` column. It reads them through `organizationRoleReadPort`, a new non-binding `degrades-without` edge on `organizations`. The export is export-only, so no import is affected.
+  - `carts`' published bundles (`i18n/en.json`, `i18n/pl.json`) drop five unread keys that described the removed policy and the administrator-only approval: `approval.banner.pending`, `approval.banner.rejected`, `approval.banner.policy_on`, `approval.banner.policy_off` and `reject.email.body`.
+  - The `CustomerAccount` entity loses `role`. `Organization` loses `requiresCartApproval`, and `OrganizationInvitation` loses `role`, so its `organizationRoleId` is now required. Nothing writes the legacy value any more.
+  - New migrations `Migration20261104T094535OrganizationsDropLegacyRoleColumns` (M4) and `Migration20261104T094540CustomerAccountsDropLegacyRoleColumn` (M5):
+    - M4 drops `organizations.requires_cart_approval`, `organization_invitations.role` and the invitation default trigger that read it.
+    - M5 drops `customer_accounts.role` with its index.
+    - M5 also redefines the account default: an account inserted without a role holds _Administrator_ in a personal Organization, else _Member_.
+    - Each `down()` re-derives the dropped values from the role reference.
+
+- ed5cf6a: `returnCaseSummarySchema` (and so `ReturnCaseSummary`) gains the required field `customerAccountId: uuidSchema`, the account that filed the case (`specs/170-organization-roles/` FR-053, owner ruling OR-11). A buyer whose role holds `returns.view_organization` lists the Organization's cases, and the field lets the storefront tell a colleague's case from the caller's own. Additive for readers: `returnCaseDetailSchema` already declared the field and keeps it, and `adminReturnRowSchema` inherits it through `.extend`. A producer that builds a `ReturnCaseSummary` or an `AdminReturnRow` must now fill it.
+
+  The doc comment on `OrderReadPort.findByIdForCustomer` is corrected (comment only, no type change): a member whose organization role holds `orders.view_organization` (_Administrator_ included) reaches every order of the Organization, anyone else only the orders they placed; `returns` is named beside `invoices` as a consumer (FR-054).
+
+- 2da23d2: Forms contracts (`specs/170-forms-module/`), all additive:
+
+  - `forms.ts`: the form definition (`formDefinitionSchema`, `FormDefinition`, `FormDefinitionInput`), the admin request and response shapes (`formDetailSchema`, `formListResponseSchema`, `formEntryListResponseSchema`, `formEntryDetailSchema`, `formRetentionBodySchema`, `formEntryExportQuerySchema` and their siblings), the public read (`publicFormDefinitionSchema`, `PublicFormDefinition`) and submit shapes (`formSubmitBodySchema`, `formSubmitResponseSchema`, `formSubmissionInvalidDetailsSchema`), `FormFieldErrorCode`, `FORMS_EVENTS` and `FormEntrySubmittedEventV1Schema` (`forms.entry.submitted.v1`).
+  - `forms-logic.ts`: the one evaluator of field visibility and validation that the backend, the storefront renderer and the admin preview share.
+  - `FORMS_STOREFRONT_CACHE_TAGS` (`form(formId)` → `forms:form:<id>`, `maxLength`).
+  - `ERROR_CODES`: `FORM_NOT_FOUND`, `FORM_KEY_TAKEN`, `FORM_DEFINITION_INVALID`, `FORM_REVISION_CONFLICT`, `FORM_HAS_ENTRIES`, `FORM_NOT_ACCEPTING`, `FORM_SUBMISSION_TOO_LARGE`, `FORM_SUBMISSION_INVALID`, `FORM_ENTRY_NOT_FOUND`, `FORM_ENTRY_STATUS_CONFLICT`, `FORM_SCOPE_REQUIRED`, `FORM_CAPTCHA_FAILED`, `FORM_CAPTCHA_UNAVAILABLE`.
+
+- 2da23d2: `customer_account.anonymized.v1`: a customer account's anonymisation is announced once.
+
+  - `@endora-commerce/contracts`: `CUSTOMER_ACCOUNT_ANONYMIZED_EVENT` (`'customer_account.anonymized.v1'`), `CustomerAccountAnonymizedEventV1Schema` and `CustomerAccountAnonymizedEventV1` — `{ eventId, occurredAt, customerAccountId, organizationId }`, strict, ids only.
+  - `@endora-commerce/mod-customer-accounts`: `CustomerAccountLifecycleWritePort.anonymize` emits it on the in-process event bus after its write and its audit row, on the transition only — anonymising an account that is already anonymised emits nothing. A module holding data attributed to the account can erase it in the same step. The event is not offered to outbound webhooks. `CustomerAccountLifecycleWriteService` takes an optional sixth constructor argument, the emit callback; a service built without it announces nothing.
+
+- 9d9c8df: Blog post authors and administrator author profiles (feature 171, US6–US7).
+
+  An administrator keeps an avatar (a library asset) and an _about me_ text per language on their
+  profile page: `PATCH /api/v1/admin/me` and `PATCH /api/v1/admin/admin-users/:id` take
+  `avatarAssetId` and `bio`; an avatar that is no live asset is refused with
+  `422 ADMIN_USER_AVATAR_NOT_FOUND`. The library counts an avatar as a use of the asset (reference kind
+  `admin_user_avatar`). `admin_users` declares `assets_library` as a non-binding dependency.
+
+  A blog post names one author, an administrator (`authorAdminUserId` on create and patch;
+  `422 BLOG_AUTHOR_NOT_FOUND` for anyone but an active administrator). Editors with `blog.write` pick
+  one from `GET /api/v1/admin/blog/author-candidates` (names and avatars only). The storefront shows the
+  author's name, avatar and biography on the post page, the name on cards and a `Person` in the post's
+  JSON-LD; an inactive author is still shown, a deleted one is not. `blog` now depends on `admin_users`.
+
+  `@endora-commerce/contracts`: `AdminUserRecord.avatarAssetId` and `.bio`, and
+  `AdminUserReadPort.findByAvatarAssetIds` — **an implementer of the port must add it**;
+  `adminUserSchema.avatarAssetId`/`.bio`; `ADMIN_USER_BIO_MAX_LENGTH`; `blogAuthorSchema`,
+  `blogAuthorCardSchema`, `blogAuthorCandidateSchema`, `blogPostAuthorAdminSchema`; `authorId` and
+  `author` on post cards and the resolved post; `assetReferenceKindSchema` gains `admin_user_avatar`.
+  `@endora-commerce/admin-kit`: `AdminMe.adminUser.avatarAssetId` and `.bio`.
+
+- 9d9c8df: **Behaviour break — operators, read before upgrading:** a blog post or category is now served only in
+  the languages assigned to it (feature 171, US3). Requested in another language it answers 404, and no
+  list in that language shows it. Until now a post written in one language was served under every
+  language's URL. Before upgrading, list the published posts assigned to a language they are not
+  written in (`specs/171-blog-i18n-authors/quickstart.md` §4) and either write them or unassign the
+  language. A category assigned no language (the seeded `Default`) is in every one.
+
+  Publishing a post, and saving a published one, is refused with `422 BLOG_LANGUAGE_INCOMPLETE` when an
+  assigned language has no name — or no content, once the post has content in any language; a category
+  needs a name in each of its languages on every save. Drafts may be incomplete.
+
+  Posts and categories get a **URL key per language** (US4): `GET`/`PUT
+/api/v1/admin/blog/{posts|categories}/:id/url-keys`, `DELETE …/url-redirects/:redirectId`. A key
+  resolves only in its own language and is unique per sales channel and language across posts and
+  categories (`409 BLOG_URL_KEY_TAKEN`). A replaced key, the base slug of a keyed language and a changed
+  base slug redirect (while `seo` is present); taking over another entry's redirect needs
+  `confirmTakeover` (`409 BLOG_URL_KEY_REDIRECT_TAKEOVER_REQUIRED`). `GET /api/v1/blog/by-slug` answers
+  `{ kind: 'redirect', path, permanent: true }` for those, and a post's and category's answers carry
+  `alternates` per language for `hreflang` and the language switcher.
+
+  A blog prefix per language (US5): the setting `blog.url_prefix_by_language` (`{ "<language>":
+"<prefix>" }`), judged like `blog.url_prefix`; `GET /api/v1/blog/routing` answers it per language.
+  The admin gains **Blog → Addresses** (current and former prefixes per channel; palette action `open-blog-addresses`) and an **Address** card
+  in the post and category editors.
+
+  `@endora-commerce/contracts`: `blogUrlKeysResponseSchema`, `putBlogUrlKeysRequestSchema`,
+  `blogAlternatesSchema`, `blogRedirectResolutionSchema` (a new member of `blogBySlugResponseSchema`),
+  `BLOG_SETTING_CODES.URL_PREFIX_BY_LANGUAGE`, and the error codes `BLOG_LANGUAGE_INCOMPLETE`,
+  `BLOG_URL_KEY_TAKEN`, `BLOG_URL_KEY_REDIRECT_TAKEOVER_REQUIRED`, `BLOG_URL_REDIRECT_NOT_FOUND`. A
+  consumer switching over `kind` must handle `'redirect'`.
+
+- 9d9c8df: `GET /api/v1/blog/posts` pages its posts (feature 171, US2): `page` (default 1) and `perPage`
+  (1–24) — `limit` stays as its synonym, and a request naming neither keeps today's page size of 6.
+  The response gains `pagination` (`page`, `perPage`, `totalItems`, `totalPages`) beside `data`; a page
+  past the last answers an empty `data` with the real totals. New filters `tagCode` and `authorId`
+  combine with `categorySlug`. The order has a stable tie-breaker (`published_at`, `created_at`, `id`),
+  so pages never repeat or skip a post.
+
+  `GET /api/v1/blog/by-channel` takes `page` and answers `posts: { data, pagination }`, paged by
+  `blog.posts_per_page`; `topLevelCategories` is filled on page 1 only, and `latestPosts` is deprecated
+  (it equals `posts.data`). `blog.latest_count` now sizes only the _Latest posts_ page-builder block.
+  The storefront blog index is paged, and a page number past the last is a 404 on the index, a category
+  and a tag.
+
+  `@endora-commerce/contracts`: `blogPostsListQuerySchema` gains `page`, `perPage`, `tagCode` and
+  `authorId` and resolves `perPage`; `blogPostsListResponseSchema.pagination`;
+  `blogIndexResponseSchema.posts`.
+
+- 9d9c8df: **Operator note:** a blog URL prefix set per sales channel (`blog.url_prefix`) now takes effect on
+  the storefront. Until now the storefront served the blog at `/blog` whatever the setting said, while
+  the sitemap and the breadcrumbs used the setting — links that answered 404. After the upgrade the
+  blog is served under the prefix, and `/blog/…` answers `301` to the same page under it. A channel
+  left on `blog` sees no change. Feature 171 (`specs/171-blog-i18n-authors/`, US1).
+
+  `blog.url_prefix` writes are now judged, on the Settings screen and the Settings API: a prefix that
+  is malformed (`400 BLOG_URL_PREFIX_INVALID`), reserved (`api`, `tag`, `author`, the deployment's
+  `cms.reserved_slug_segments` — `409 BLOG_URL_PREFIX_RESERVED`), a language prefix of any channel or
+  the first slug segment of a CMS page in the channel (`409 BLOG_URL_PREFIX_CONFLICT`) is refused. The
+  rule existed as `BlogSettingsResolver.assertValidPrefix`, which nothing called; that static method is
+  removed. A stored value that would now be refused keeps working until it is next changed.
+
+  The blog records every prefix a channel has served (`blog_url_prefixes`), and a former prefix
+  answers `301` to the current one while the SEO module is present. `GET /api/v1/blog/routing` answers
+  the channel's prefix per language and its former prefixes — the read the storefront middleware maps
+  the prefix with. `GET /api/v1/admin/blog/addresses` lists them and
+  `DELETE /api/v1/admin/blog/addresses/:id` forgets a former one (`blog.url_prefix.forget`).
+
+  `@endora-commerce/contracts`:
+
+  - `blogPath(input)` / `blogDefaultPath(input)` and the `BlogPathView` type — the one place a blog
+    URL is composed, on top of `storefrontPagePath`.
+  - Every storefront blog payload gains an optional `url` — post cards, category tiles, tag
+    references, the resolved post and category, the index and the tag page's tag. Breadcrumb URLs
+    now carry the language prefix of the request language (feature 167) and the blog prefix.
+  - `blogRoutingResponseSchema` / `BlogRouting`, `blogUrlPrefixRowSchema` / `BlogUrlPrefixRow`.
+  - `ERROR_CODES.BLOG_URL_PREFIX_CONFLICT`, `ERROR_CODES.BLOG_URL_PREFIX_NOT_FOUND`;
+    `BLOG_RESERVED_URL_PREFIXES` gains `tag` and `author`.
+  - `CmsPageReadPort.firstSegmentsInChannel(salesChannelId)` — an implementer of the port must add it.
+  - `CmsReservedSegmentContributor` and `CmsReservedSegmentRegistryPort`.
+
+  `@endora-commerce/mod-cms`: a module can claim first path segments per channel through the new
+  `cmsReservedSegmentRegistry`; a page slug starting with a claimed segment is refused with
+  `409 CMS_SLUG_RESERVED` and `details.claimedBy`. A switched-off contributor claims nothing.
+
+- 5303aab: Product content attributes (`specs/172-product-content-attributes/`), all additive:
+
+  - `page_builder` is a new member of `customFieldValueTypeSchema`, `attributeValueTypeSchema` and `apiAttributeTypeSchema`, and `apiAttributeTypeOf('page_builder', …)` answers `page_builder`. `CUSTOM_FIELD_FILTER_OPERATORS.page_builder` is `[]`, and `CUSTOM_FIELD_DEFINITION_ERROR_CODES` gains `value_type_unsupported`. **Connector and integration authors**: an exhaustive `switch` over one of those unions needs a `page_builder` case — skip it. No integration path (the external API, the API-key attribute-set read, imports, exports, feeds) carries a `page_builder` attribute or its content.
+  - Content shapes: `PAGE_BUILDER_CONTENT_MAX_BYTES` (1 048 576, equal to `CATEGORY_CONTENT_MAX_BYTES`), `productContentEnvelopeSchema`, `putProductContentRequestSchema`, `adminProductContentSchema`, `adminProductContentListSchema`, `adminAttributeUsageSchema` (`{ attributeSetCount, productValueCount, productContentCount }`), `productPageContentAttributeSchema` and `productDetailQuerySchema` (`include=content`).
+  - `productDetailSchema` gains the optional `contentAttributes`; it is present only when the product page asks for it with `?include=content`.
+  - `CatalogBulkImportPort` gains `contentAttributeKeys()`.
+  - `assetReferenceKindSchema` gains `product_content`.
+  - `AdminZoneNameSchema` gains the zone `product.content.editor`, with `ProductContentEditorZoneProps` (`{ productId, attributeKey, language, data, onChange }`).
+
+- 16f85f4: Company registry lookup at storefront registration (`specs/173-registration-registry-lookup/`). New `organization-registry-lookup.ts`, exported from the root:
+
+  - `registryLookupRequestSchema` / `registryLookupResponseSchema` for `POST /api/v1/organizations/registry-lookup` — statuses `found`, `not_found`, `unavailable`, `invalid_tax_id`, `unsupported_country`; VAT status, activity status and source as machine tokens; a 43-character `lookupId` (`registryLookupIdSchema`).
+  - `registrationOptionsResponseSchema` for `GET /api/v1/organizations/registration-options`, and `REGISTRY_LOOKUP_COUNTRIES` (Poland and the VIES member states, Greece as `EL`, Northern Ireland as `XI`) with `registryLookupCountryForPicker` (`EL` → `GR`).
+  - `organizationTaxIdValidationRecordSchema` — the admin VAT validation history item, now typed, with the new `origin`, `registryDetails`, `submittedValues` and `divergence`, and the schemas they are built from.
+
+  Additive changes to `organizations.ts`: `registerOrganizationRequestSchema` accepts an optional top-level `registryLookupId` (not inside `organization`, so `AdminOrganizationCreateBodySchema` does not), and `VatValidationProvider` gains `'gus_pl'` — a consumer that switches exhaustively over it has one more case.
+
+- 270aa2b: **Breaking:** the personal address book is retired (`specs/173-b2c-address-book-merge/` release 1 of 2); every customer's one address book is their Organization's.
+
+  - Removed `CustomerAddressReadPort` and `CustomerAddressRecord` (the `customerAddressReadPort` container name is no longer registered). Read a buyer's addresses through `AddressReadPort` (`addressReadPort`) over their Organization instead.
+  - Removed `customerAddressInputSchema` and its `CustomerAddressInput` type: nothing accepts a personal address any more. Use `createAddressRequestSchema` on `/api/v1/organizations/mine/addresses`.
+  - Removed the error code `ERROR_CODES.CUSTOMER_ADDRESS_NOT_FOUND`, which nothing raises any more. Added `ERROR_CODES.CUSTOMER_ADDRESS_BOOK_RETIRED`, the code every former personal-address-book endpoint answers with (`410 Gone`).
+  - `customerAddressSchema` gains an optional `mergeRefusal` (the reason the retirement job could not move a row); `customerAddressBookSchema` is now only the admin card's `{ organization, personal }`, where `personal` holds the refused rows.
+  - `AddressServicePort` gains `anonymizeForOrganization(organizationId): Promise<number>`. An implementation of the port must add it.
+
+- 3f020ba: **Breaking — product values have three scopes, and `null` changes meaning in place (feature 174, FR-116).**
+
+  Scoped product values live at Global, Channel or Channel × language; there is no language-only scope. Every scoped write — `scopedValueChangesSchema` (`PUT …/products/:id/scoped-values`), `productScopedWriteInputSchema` (connector port v2), `PATCH …/products/:id/scopes`, `putProductUrlKeysRequestSchema` and the products CSV — uses one write encoding, `scopedWrite` / `toScopedWriteOp`:
+
+  | Intent                         | JSON                  | CSV cell   |
+  | ------------------------------ | --------------------- | ---------- |
+  | No change                      | absent, or `""`       | empty cell |
+  | Deliberately empty             | `null`                | `NULL`     |
+  | Inherit (remove the own value) | `{ "inherit": true }` | `INHERIT`  |
+
+  **`null` used to mean "use inherited" for scoped product values (feature 163); it now stores a deliberately empty override.** There is no versioned v2 and no refusal period. A caller that sent `null` to remove an override sends `{ "inherit": true }` instead:
+
+  ```diff
+  - { "channelKeys": [{ "channelId": "…", "languageCode": "pl-PL", "key": null }] }
+  + { "channelKeys": [{ "channelId": "…", "languageCode": "pl-PL", "key": { "inherit": true } }] }
+  ```
+
+  `null` on a required field and `INHERIT` at Global are refused (`SCOPED_VALUE_INVALID`). FR-117: this applies to scoped product values only. These fields keep `null` = inherit in this release and are named follow-ups: the per-product stock mode, the per-product fulfilment strategy, the organisation fulfilment / stock-reservation strategy, the organisation credit-inheritance mode, the variant base price per currency, the settings store `globalValue`, and CMS page translation fields (where a blank value inherits).
+
+  Other breaking shape changes:
+
+  - `name` and `description` of a product are strings (the Global value) on `CatalogProductRecord`, `createProductRequestSchema`, `updateProductRequestSchema` and the summaries; a reader with a channel resolves the effective texts through `catalogProductAvailabilityPort.effectiveTexts`.
+  - Removed: `ScopedStatusExport`, `scopedStatusColumn`, `parseScopedStatusColumn`, `CatalogBulkImportPort.exportScopedStatuses`, the value-override and scope-context route schemas, the `gallery/channel-roles` schemas, `SeoMetaWritePort` (`seoMetaWritePort`), the `'language'` member of `scopeLevelSchema`, and the per-language `nameTranslations` / `descriptionTranslations` / `altText` maps on gallery items, attachments and packaging units. `updateGalleryItemRequestSchema`, `updateAttachmentRequestSchema` and `updatePackagingUnitRequestSchema` carry collection fields only.
+  - Removed: `ProductValueOverrideDelete`, `ProductScopeChannel` and `ProductScopeContextResponse` (with their schemas), the last shapes of the retired value-override and scope-context routes.
+  - `ProductEditorSeoZoneProps` (admin zone `product.editor.seo`) gains a required `version` (the product's scope version the editor read). Breaking for a host that renders the zone — it must pass `version`; a module that only contributes to the zone receives one more prop and is unaffected.
+  - `ProductUrlKeyWrite` addresses a key by `(channelId, languageCode?)`: `channelId: null` is the Global key, `languageCode: null` the Channel key.
+  - `catalogProductValueOverrideWritePort` is retired; connectors write through `CatalogProductScopeWritePort.applyScopes` v2 (`productScopedWriteInputSchema`, `fieldPathSchema`, `integrationWritableField`, `ProductScopedWriteResult`).
+
+  Added: `product-scope-model` (`PRODUCT_FIELD_SCOPE_SETS`, `ScopeRef`, `scopeRequestSchema`, `scopeFromRequest`), `product-scoped-values` (`ScopedFieldView` with optional `inheritedValue: { value, level: 'G' | 'C' }`, `INHERITED_LEVELS`, `scopedValuesResponseSchema`, `SEO_PRODUCT_META_MAX`), `scoped-write-encoding` (`scopedWrite`, `decodeCsvScopedCell`, `validateScopedWrite`, `scopeVersionTokenSchema`), `SeoProductMetaWritePort` and `seoProductMetaQuerySchema`, the import-profile schemas, `importChannelTargetSchema` / `importChannelTargetListResponseSchema`, `BulkImportReport.truncated` and `BulkImportRowError.code`, and the error codes `SCOPED_VALUE_INVALID`, `FIELD_NOT_AT_SCOPE`, `GLOBAL_ONLY_FIELD`, `VERSION_CONFLICT` and `IMPORT_PROFILE_*`.
+  - `feedRunIssueReasonSchema` keeps `missing_translation` for run issues recorded before this release; nothing emits it any more, since a Global text satisfies every channel and language.
+
+- b59e5d5: Issue #349 — the contract side of enforcing `AdminRole.requiresTwoFactor` at administrator sign-in.
+
+  - `ERROR_CODES.MFA_REQUIRED_FOR_ROLE_TWO_FACTOR` (409): a role write turned `requiresTwoFactor` on where no second factor can be enrolled. `details.reason` is `mfa_off` or `encryption_key_missing`. A consumer switching exhaustively over `ErrorCode` has one more case.
+  - `MfaDeactivationGuardPort.isAdminSecondFactorRequired()` now means "a second factor is required of any administrator", by the setting `mfa.admin.totp_enforced` **or** by any role's flag; same signature. The port gains a `requirement()` method answering `MfaAdminSecondFactorRequirement` (`{ setting, roleCodes }`), so a caller can name what to turn off; an implementer of the port must add it.
+  - New port `MfaAdminEnforcementPort` (container name `mfaAdminEnforcementPort`, owner `mfa`): `endUnprotectedAdminSessions(adminUserIds, options)`, `countUnprotected(adminUserIds)` and `canEnforceAdminSecondFactor()`, with `MfaEndUnprotectedAdminSessionsOptions` and `MfaAdminEnforcementTrigger`.
+  - `adminRoleWriteResultSchema` / `AdminRoleWriteResult`: the role write's answer, the role plus `signedOutAdministrators`. `adminRoleTwoFactorImpactSchema` / `AdminRoleTwoFactorImpact`: `{ unprotectedAdministrators: number | null }`.
+  - `adminRoleSchema.requiresTwoFactor` and `upsertAdminRoleRequestSchema.requiresTwoFactor` carry a description saying who reads the flag and when, and the `AdminRolePort` / `AdminRoleRecord` docblocks no longer claim that `admin_users` enforces it.
+
+- bf1cc2d: The cart read answers its VAT per rate, the way the order computes it (issue #436).
+
+  - `@endora-commerce/contracts`: new `cartVatSchema` / `CartVat` and `cartVatRowSchema` / `CartVatRow`. `cartFullPayloadSchema` gains `vat` (`CartVat | null`, default `null`): one row per rate (`taxRate`, `net`, `vat`, `gross`), `vatTotal`, `subtotalGross` and `grandTotalGross`. `cartViewLineSchema` gains the optional `taxRate` (a fraction) and `lineGross` (the line's own rounding of its gross, informational). All additive: a reply without them parses as before.
+  - `@endora-commerce/mod-carts`: `GET /api/v1/cart` (the full view) answers `vat` and each line's `taxRate` and `lineGross`. The rates are resolved as placement resolves them — the product's tax class against the Organization's VAT status and registered country — and the VAT is the contracts' `vatByRate`: per rate, on the sum of the line nets, rounded half-up once; gross = net + VAT; the discount comes off the gross untaxed. For the same lines the cart's gross grand total equals the order total before delivery and the payment surcharge. The line-mutation replies answer `vat: null`, as does a read whose rate resolution failed; the mini view (`?view=mini`) is unchanged. The module now declares `taxes` as a dependency (it resolves `taxService`).
+
+- ff60e93: One rule for what a quote request is worth (issue #456).
+  - New `quoteRequestAmountSchema` / `QuoteRequestAmount`, shaped `{ amount, currency, agreement }`:
+    - the amount is per line, quantity × (agreed unit price ?? asked unit price); each line value is rounded half up to two places and the values are summed;
+    - a line with neither price adds nothing, and `amount` is `null` when no line has a price;
+    - `agreement` (`quoteRequestAgreementSchema`) is `agreed`, `partial` or `none`.
+  - `QuoteRequestReadPort` gains a required `amountOf(quoteRequestId)` that returns it, or `null` for a quote the caller cannot see. A structural stub of the port must add it.
+  - `quoteRequestSummarySchema` gains optional `amount` and `agreement` (admin list rows).
+  - `OpportunityLinkSchema` and `ProjectLinkSchema` gain an optional `agreement`.
+- 6f19230: **BREAKING — `POST /api/v1/admin/orders` and `POST /api/v1/admin/orders/preview` for a sales channel that is not one of the customer's Organization's active assigned channels now answer `422 ORDER_SALES_CHANNEL_NOT_ALLOWED`: a channel the Organization is not assigned to, or an inactive one, where they answered `201` / `200`, and a channel id that does not exist, where they answered `404 NOT_FOUND`. `GET` and `PUT /api/v1/admin/organizations/:id/sales-channels` for an Organization outside a sales representative's reach now answer `404 NOT_FOUND` where they answered `200`.** Recorded at `minor`, which in a `0.x` series already takes every caret dependent out of range (issue #515).
+
+  An order an operator creates on a customer's behalf is placed only on one of the customer's Organization's active assigned channels — the rule a quote request created on a customer's behalf has followed since the product data scopes release. The refusal comes before anything is written: no working basket, no inline address, no order. The order's `salesChannelId` stays required, so there is no defaulted channel to check; a request without it is still `400 VALIDATION_FAILED`.
+
+  - `@endora-commerce/contracts`: `ERROR_CODES.ORDER_SALES_CHANNEL_NOT_ALLOWED`, declared by `orders` with an English and a Polish sentence.
+  - `@endora-commerce/mod-orders`: `OrderCreationAdminService` takes the Organization channel read (`SalesChannelMembershipPort.listChannelsForEntity`) as a new sixth constructor argument, before `mailer`; composed without it, `create` fails closed with `500 INTERNAL`, as the preview already did. The _Create order_ screen offers the customer's Organization's active channels, read from `GET /api/v1/admin/organizations/:id/sales-channels` — the only one preselected, else a choice; a `salesChannelId` in the link kept only when it is one of them; a notice and a retry when the Organization has none or they cannot be read — instead of every active channel.
+  - `@endora-commerce/mod-organizations`: the Organization sales-channel read and replace apply the request's tenant scope. A platform administrator reaches every Organization, as before; a sales representative only the ones assigned to them. The response shape is unchanged.
+  - `@endora-commerce/mod-i18n`: the _Create order_ screen's channel notices (`orderCreate.channelsLoadError`, `orderCreate.noChannelWarning`, `orderCreate.hint.salesChannel`), in English and Polish.
+
+  An instance whose operators create orders on channels their customers' Organizations are not assigned to will see those requests refused once it upgrades: assign the Organization to the channel first (the Organization's _Sales channels_ panel), or create the order on one of its channels.
+
+- 77b8c37: **Breaking:** `CartWritePort.clearForCustomer(ctx)` is removed from the published cart write port (`@endora-commerce/contracts`), and with it the adapter's `clearForCustomer` and `CartService.clearForCustomer` in the `carts` module. It deleted every line of the customer's active basket and marked the basket `completed` without an order, which reads as a finished basket that produced nothing (the defect issue #169 fixed); since #169 no code of the platform calls it.
+
+  A module that called it does one of these instead:
+
+  - **To place an order for a customer**, write the lines into a working basket — `const basket = await cartWritePort.addItems({ customer }, lines, { onLineError: 'throw', workingBasket: true })` — and place from it with `orderPlacementPort.placeOrder(ctx, request, { workingBasketId: basket.cart.id })`. The customer's active basket is not touched.
+  - **To replace what is in the customer's basket**, call `cartWritePort.replaceItemsForCustomer(ctx, lines)`; the basket stays active. `replaceItemsForCustomer(ctx, [])` leaves it active and empty.
+
+  A test that reset a buyer's basket with `clearForCustomer` needs a fixture of its own; the platform's tests delete the basket row (`delete from "carts" where "customer_account_id" = ? and "sales_channel_id" = ? and "status" = 'active'`, lines and audit entries cascade).
+
+- 65104b8: **Breaking:** order placement now enforces cart approval (issue #648). In an Organization that requires cart approval (`requiresCartApproval`), a member's basket that is not `approved` — never sent for approval, awaiting the Organization administrator, or rejected — is refused by `POST /api/v1/orders` (and so by the storefront checkout page, which calls it) with `409 ORDER_CART_APPROVAL_REQUIRED`, before anything is reserved or written; the basket is kept as it was. Such baskets were placed until now: only the storefront's call to action stood in the way. An Organization administrator's own basket and every basket of an Organization without the policy are placed as before, and so are orders placed from a working basket (admin order creation, one-click buy, the external order API).
+
+  - `@endora-commerce/contracts`: `ERROR_CODES.ORDER_CART_APPROVAL_REQUIRED`. Its `details` are `{ code, cartId, approvalStatus }`, with `code` one of `cart_approval_not_submitted`, `cart_approval_pending`, `cart_approval_rejected`; `orders` declares the code with English and Polish sentences per token.
+  - `@endora-commerce/mod-carts`: `CartPlacementApplyPort` (`@endora-commerce/mod-carts/ports`) gains a required `awaitsApproval({ cart, organizationId })`, answering whether the basket still awaits its Organization's approval. A hand-written implementation of the port must add it; `CartPlacementApplyService` takes the reads it is judged from (`{ organizations, customerAccounts }`) as a new fourth constructor argument.
+  - `@endora-commerce/mod-orders`: `OrderService.placeOrder` asks it for the customer's active basket and refuses as above.
+
+  An instance whose members order without sending baskets for approval will see those orders refused once it upgrades: such a member now sends the basket for approval and the administrator approves it, or the Organization switches the policy off (`PATCH /api/v1/organization/policies/cart-approval`).
+
+- 7acaa33: `OrderReadPort` gains `findByIdForCustomer(id, { customerAccountId, organizationId })`. It answers
+  the order only when that customer may read it under the rule `GET /api/v1/orders/:id` applies — a
+  regular member reaches the orders they placed, an `organization_admin` every order of their
+  Organization — and `null` otherwise, which the caller answers as 404. `orders` implements it with
+  the same access service its own order reads use, so a module serving a customer an order-scoped
+  resource no longer restates the rule.
+
+  The method is required on the interface, so a hand-written `OrderReadPort` (a test fake, for
+  example) has to add it.
+
+- 7019c71: Page Builder pages, hooks and menus no longer saturate the database on a cache miss (issue #685).
+
+  `cms` turned every asset a page, block, template or hook embeds into a URL through
+  `AssetsLibraryPort.getAsset`, one call per embed. The detail it builds carries the asset's "used by"
+  list, which walks the content of every CMS page, block and template, blog post, product and menu — so a
+  home page with ~150 images ran that walk ~150 times whenever its cache expired, and every other request
+  waited behind it. `megamenu` (asset targets and icons) and `pwa` (icon redirects) made the same call.
+
+  `@endora-commerce/contracts`: `AssetReadPort.resolveUrls(assetIds)` — the URL `getAsset` would carry
+  for each live asset (versioned for a public one, signed for a private one), in one read, keyed by id;
+  an id that names no live asset, or is not a uuid, is absent. **An implementer of `AssetReadPort` must
+  add it.** `@endora-commerce/mod-assets-library` implements it.
+
+  `cms` now resolves a whole page, block, template or hook in two keyed reads (`resolveUrls`, then
+  `findByIds` for the ids that have a URL); `megamenu` and `pwa` take the URL from `resolveUrls`.
+  Rendered output is unchanged, except that an asset in the trash no longer renders.
+
+- 248bf1b: The audit log names a customer who acted for themselves (issue #741; `specs/170-organization-roles/` FR-065). Before this change, a role, invitation or member change made by an Organization administrator on the storefront was shown as _system_.
+
+  - `@endora-commerce/contracts`: `auditLogEntrySchema` gains `actorCustomerAccountId`, nullable and optional. A payload without it still parses.
+  - `@endora-commerce/mod-audit-logs`: each row from `GET /api/v1/admin/audit-log` carries `actorCustomerAccountId` and `actorCustomerLabel`. The label comes from the `customer_account` audit reference, the same lookup already used for impersonated customers. The audit log viewer renders such a row as _Customer: <label>_. The audit log viewer falls back to the short account id when there is no label.
+  - **Breaking:** in `GET /api/v1/admin/audit-log/recent-activity`, `actorKind` gains the value `'customer'` beside `'admin'` and `'system'`. For those rows `actorDisplayName` is the customer's label. A consumer that switches exhaustively on `actorKind` must handle the new value.
+  - `@endora-commerce/admin-shell`: the Recent activity card prefixes a customer actor with _Customer:_.
+  - `@endora-commerce/mod-customer-accounts`: the `customer_account` audit reference now names the person as `<first> <last> (<e-mail>)`, or the e-mail alone when the account has no name. Before, it was the Organization's name. Impersonation rows (`… (as <customer>)` on Recent activity) now name the person too. `registerCustomerAccountAuditReferences` no longer takes an `OrganizationDetailsPort`.
+  - `@endora-commerce/mod-i18n`: adds `auditLog.actor.customer` and `home.activity.actor.customer` in English and Polish.
+
+- 4cf529d: `GET /api/v1/me/credit-limit` lists only the reservations of orders the buyer may read (issue #748). A member whose organization role lacks `orders.view_organization` now sees the reservations of the orders they placed, not their colleagues'; a holder of the code, and the Administrator, still sees every reservation of the limit. `grantedAmount` and `availableAmount` stay the Organization's figures.
+
+  `creditLimitViewSchema` gains a required `activeReservationCount`: the number of active reservations on the limit, whoever placed the order. A consumer that counted reservations with `activeReservations.length` reads `activeReservationCount` instead, because the list can now be shorter than the count. Every admin credit-limit response carries the field too, equal to the list's length there.
+
+- 5e4dd48: The Organization cart surfaces name a cart's owner and the order a completed cart produced; the auto-created default shopping list gets a published marker (issue #751).
+
+  - `orgCartSummarySchema` — and with it `orgCartDetailViewSchema` and `orgCartsListResponseSchema` — gains two required fields: `ownerEmail: string | null`, the owner's e-mail (`null` when the account can no longer be read), and `orderId: string | null`, the order a completed cart produced (`null` for any other cart). A consumer that builds these shapes by hand must now supply both.
+  - `ownerDisplayName` on `GET /api/v1/organization/carts` and `GET /api/v1/organization/carts/:id` is now the owner's first and last name; it falls back to the e-mail for an owner with no name, then to the account id. It was the e-mail alone — read `ownerEmail` where the e-mail is what you need.
+  - New `SHOPPING_LIST_AUTO_DEFAULT_NAME` (`'Default'`, the name `shopping_lists` stores on the default list it creates) and `isAutoDefaultShoppingList({ name, isDefault })`: whether a list is that default and still carries that name, so a storefront can name it in the shop language. `shopping_lists` creates the list with the constant; what it stores is unchanged.
+
+- 54fc8f1: After an approver rejects a member's basket, the member's next basket starts with the rejected basket's lines (issue #755).
+
+  - **The lines come back once.** When a basket is opened for a member whose most recent basket on the channel was rejected (the rejection still in force, as `previousRejection` reads it), each of its lines (product, variant, packaging unit and quantity) is added as the member would add it now, so it is checked for availability and priced afresh. This happens only where a basket is created, so an existing basket is never touched. It does not run again after the member empties or abandons the restored basket, and it does not carry the coupon over. A member whose role lacks `carts.create` gets nothing restored. Each restored line lands its usual `line_added` audit row, and the restore itself lands `lines_restored_from_rejection` on the new basket, with the source basket, the restored count and the skipped lines in its metadata. The rejected basket is left as it was.
+  - **The rejection notice says what was restored.** In `@endora-commerce/contracts`, `cartPreviousRejectionSchema` gains `restoredLineCount` (default `0`) and `skippedLines` (the `droppedLines` line shape, default `[]`), so a reply without them still parses. `CartPreviousRejection` now has both keys, so code that builds one must set them.
+  - `CartAuditAction` gains `lines_restored_from_rejection`.
+
+- dac5795: The storefront can read whether individual self-registration is offered before it renders the form (issue #756). `customers` adds the public `GET /api/v1/storefront/settings/customer-registration`, which answers `{ data: { allowRegistrationWithoutOrganization } }` from `customers.allow_registration_without_organization`, the same answer `POST /api/v1/customers/register` applies. Its shape is `customerRegistrationOptionsResponseSchema` in the contracts. `CustomerRegistrationService` gains `allowsStandalone()`, and `registerStandalone` now uses it. The response is not cached.
+- 5bbb389: New `organizationCompanyTaxId(organization)`: the tax id a reader may print or hand out for an `OrganizationRecord` — a company Organization's, `null` for a personal (B2C) Organization, whose `taxId` is an internal placeholder, and `null` for an empty one (issue #767). Three response shapes widen accordingly: `adminOrderDetailSchema`'s `organization.taxId`, the admin quote request's `organization.taxId` and `priceBookTargetOrganizationSchema`'s `taxId` are now `string | null`. A consumer that read them as `string` must handle `null`, which is answered for a personal Organization. The admin order and admin quote request `organization` objects also gain a required `isPersonal: boolean`. The helper accepts an Organization whose `isPersonal` is absent and reads it as a company.
+- a6bc891: The customer federated sign-in redirect contract changes (issue #789). A refused customer sign-in is now sent back to `/login?error=<code>` with a code from the new `federatedSignInErrorCodeSchema` / `FederatedSignInErrorCode` in `@endora-commerce/contracts`. It no longer carries an English sentence. The codes are `unknown_provider`, `provider_unavailable`, `sign_in_cancelled`, `sign_in_expired`, `sign_in_failed`, `email_unverified`, `no_matching_account`, `account_blocked`, `registration_disabled_in_channel`, `mfa_setup_required`, `sales_channel_sign_in_required` and `sales_channel_not_permitted`.
+
+  A storefront that matched the old sentences must map these codes and treat any other value as its generic sign-in failure. `registration_disabled_in_channel` is new. It replaces "No account found. Please create an account first." for a sign-up refused because personal (org-less) registration is off on the sign-in channel (`customers.allow_registration_without_organization` off); business registration stays open. The codes are redirect codes, not API `error.code` values, so they are lower-case and fall outside `errorCodeRe`. In `@endora-commerce/mod-mfa`, `SocialSignInResult`'s `registration_required` reason is renamed `registration_disabled_in_channel`. The Admin UI surface still receives its sentences, unchanged.
+
+- 717e4c6: Quick-order preview contracts (issue #809). New exports: `quickOrderPreviewSchema` and its type `QuickOrderPreview` — the import's response as the buyer has edited it, whose recognised lines may carry `notAdded` (`quickOrderPreviewNotAddedSchema`) after a partial cart build — plus `quickOrderPreviewRecognizedItemSchema` and `quickOrderPreviewSummarySchema`, the import summary with `overflowCount` (rows past the import's limit, kept as a count) and `rowLimit` (the limit they were past). Three constants: `QUICK_ORDER_PREVIEW_MAX_LINES` (10 000, the hard maximum of the line cap, which is the effective `quick_order.import_max_rows`), `QUICK_ORDER_PREVIEW_MAX_BYTES` (2 MiB) and `QUICK_ORDER_PREVIEW_TTL_SECONDS` (one hour). Nothing existing changes.
+- 29d7e90: `ADMIN_ORDER_PREVIEW_MESSAGE_PRECEDENCE` (and so `adminOrderPreviewMessageCodeSchema` and `AdminOrderPreviewMessageCode`) gains `PRODUCT_ARCHIVED`, second, after `PRODUCT_NOT_FOUND` and before `PRODUCT_NOT_VISIBLE_TO_CUSTOMER`. It equals `ERROR_CODES.PRODUCT_ARCHIVED`. A consumer that takes the codes by position (`const [NOT_FOUND, NOT_VISIBLE] = ADMIN_ORDER_PREVIEW_MESSAGE_PRECEDENCE`) must name them instead, or insert the new one; a consumer switching exhaustively over `AdminOrderPreviewMessageCode` has one more case. `adminOrderPreviewResponseSchema.messages[].code` stays a plain string.
+- 58a1632: `ORGANIZATION_AUDIT_KEEP_KEYS` now also keeps `orderConfirmationEmailCount`, the count the `organization.anonymized` entry records, so the sweep's redaction leaves the entry it has just written as it was.
+- e46d233: New `AUDIT_ERASED_MARKER` (`'[erased]'`), the stored value of an audit-snapshot field erased when its subject was anonymised, and four owner-declared lists of the code keys a redacted audit row keeps for an object type: `CUSTOMER_ACCOUNT_AUDIT_KEEP_KEYS`, `ORGANIZATION_AUDIT_KEEP_KEYS`, `ADDRESS_AUDIT_KEEP_KEYS` and `CUSTOMER_ADDRESS_AUDIT_KEEP_KEYS`. Additive; nothing existing changes.
+- 14fe4fb: A product's gross price uses that product's own VAT rate for the buyer, not a flat 23 % (issue #852).
+
+  - `@endora-commerce/contracts`: `productSummarySchema` (and so `productDetailSchema`) gains the optional `vatRate` — the buyer's VAT rate for the product as a fraction, `null` where it could not be resolved. Additive: a reply without it parses as before. New `createProductTaxRateResolver` / `ProductTaxRateResolver`: the rate rule the cart applied since issue #436 — the product's tax class against the Organization's VAT status and registered country through `OrganizationTaxProfilePort` and `TaxServicePort`, `0` for a VAT-exempt or reverse-charge Organization, a buyer with no Organization a VAT payer in PL — moved here so the cart and the catalogue resolve one rule.
+  - `@endora-commerce/mod-catalog`: `GET /api/v1/catalog/products` and `GET /api/v1/catalog/products/:idOrSlug` answer `vatRate` on every product. It depends only on the viewer's Organization, so it follows the price's cache rule: a reply for a caller naming an Organization is `private, no-store`, and the shareable anonymous reply carries the guest's rate. A failed resolution answers `vatRate: null` rather than refusing the listing. The module now declares `taxes` as a dependency (it resolves `taxService`) and acknowledges `organizations`' `organizationTaxProfilePort`.
+  - `@endora-commerce/mod-carts`: the cart's rates come from the contracts' `createProductTaxRateResolver`; the module's own `cart-tax-rates.ts` is gone. No change to what the cart answers.
+  - `@endora-commerce/mod-price-lists`: the display-mode documentation says how a gross price is derived.
+
+- 76d89ab: The daily anonymization sweep no longer enters the system scope when no account is due, so an idle instance stops writing one `tenant.escape_hatch` audit row a day (issue #857).
+
+  - `CustomerAccountLifecycleWritePort` gains `hasDueForAnonymization(cutoff): Promise<boolean>`: whether `listDueForAnonymization(cutoff)` would list anything, answered yes or no over the same predicate. An implementation of the port outside this repository must add it.
+  - The sweep tick reads `customers.deletion_retention_days` and asks that question before it enters its scope. A question that fails counts as yes, so the sweep then runs as before.
+  - `CustomerAccountLifecycleWritePort.anonymize` locks the account row before it checks `anonymizedAt`, so two overlapping sweep runs anonymize an account once, with one `customer_account.anonymized` audit entry and one `customer_account.anonymized.v1` event.
+
+- 6bd2ab7: Issue #876 — the shapes a consumer's withdrawal needs to refund the delivery cost and the payment surcharge (Directive 2011/83/EU art. 13(1)). On the wire every field is additive:
+
+  - `settlementRequestSchema` takes optional `deliveryRefundAmount` and `surchargeRefundAmount` (two places, non-negative).
+  - `settlementPrefillSchema` gains optional `charges: { delivery?, surcharge? }`, each a `settlementChargeSchema` (`{ cap, approved }`; `SettlementCharge`).
+  - `returnCaseDetailSchema` gains optional `chargeRefunds: { delivery, surcharge }`.
+  - `CorrectiveInvoiceInput` takes optional `charges: { delivery?, surcharge? }`, gross amounts that `total` includes.
+
+  Two port interfaces gain required members, so an implementation outside this repository has to add them. `OrderReturnContext` gains `deliveryTotal` and `paymentSurcharge` (two-place decimal strings, as stored; `orders` implements it). `ReturnRefundReadPort` gains `listRefundedCharges(orderId): Promise<OrderRefundedCharges>` (`{ delivery, surcharge }`; `returns` implements it).
+
+  **Behaviour change on upgrade.** None from the schemas alone. A client that reads `SettlementResult.totalRefundAmount` or a case's `totalRefundAmount` as the sum of the lines' approved amounts is wrong for a B2C case that completes a withdrawal: from this release that total also includes the delivery and the surcharge refunded (see `@endora-commerce/mod-returns`).
+
+- a3502c0: `CorrectiveInvoiceLine` gains an optional `basis` (`CORRECTION_LINE_BASES`, type
+  `CorrectionLineBasis`): `returned_goods`, the default when absent, or `price_reduction`, a
+  complaint settled with money where the buyer keeps the goods (issue #885).
+  `CorrectiveInvoiceInput` gains an optional `caseReference`, the case's RMA number, which names a
+  price-reduction line. The JSDoc of `invoiceLineSchema.quantity` states the convention an integration
+  reads back: on a correction, a goods line with quantity 0 is a price reduction. Both fields are
+  additive; a caller that sends neither is corrected as before.
+- 7a73cc8: `chargesByRate({ goods, charges, unit })` allocates order-level charges (delivery, the payment surcharge) over the goods' VAT rates (issue #904). It splits each charge's gross pro rata to the goods' net value per rate, in whole cents by largest remainder (a tie goes to the higher rate), and gives the whole charge to the highest goods rate when every goods line is 0.00. Each part's net comes from the row-target rule, so `vatByRate` over the goods and the parts gives each rate's row gross as goods row gross + charges wherever that gross can be produced. New types: `OrderChargeKind` and `ChargeByRate`.
+
+  Additive contract fields: `orderVatMethodSchema` / `OrderVatMethod` (`per_rate`, `per_rate_charges`); `orderChargeLineSchema` / `OrderChargeLine`; an optional `OrderRecord.chargeLines`; an optional `chargeLines`, `deliveryNet` and `paymentSurchargeNet` on `orderSchema`; and optional `deliveryNet`, `paymentSurchargeNet` and `vatRows` on `orderPreviewTotalResponseSchema` and on `adminOrderPreviewResponseSchema.summary`. The platform does not fill any of them yet.
+
+- 5ff8302: Return contracts for a consumer's withdrawal and the consent to settle it otherwise than by a refund (#905). New schemas: `alternativeResolutionSchema` (`credit`, `replacement`, `repair`), `alternativeConsentSourceSchema`, `alternativeResolutionConsentSchema` and `recordAlternativeConsentRequestSchema` (`{ resolution, consentGivenAt, note }`, the note trimmed and 1 to 2000 characters). `returnCaseDetailSchema` gains `consumerWithdrawal` (`boolean | null`; `null` for a case filed before the classification existed) and `alternativeResolutionConsent` (nullable; the buyer's view omits `note` and `byAdminUserId`). `settlementPrefillSchema` gains three **required** fields, `defaultResolution`, `consentRequiredFor` and `defaultRefundPaymentMethodId`: a caller that builds a prefill by hand must now set them, while `resolutionOptions` still lists every resolution. `OrderReturnContext` gains a required `paymentMethodId: string | null`, so an implementation of `OrderReturnContextPort` outside this repository must report it. New error code `RETURN_ALTERNATIVE_RESOLUTION_CONSENT_REQUIRED`.
+- c34b405: New port `CartAnonymizationPort` (container name `cartAnonymizationPort`, owner `carts`) with one method, `anonymizeForCustomerAccount(customerAccountId): Promise<number>`: the customer-account anonymisation sweep's step that erases the reasons operators and approvers wrote about the account's carts, answering how many carts it changed (issue #920). Additive; nothing existing changes.
+- 5af8c25: The customer anonymization sweep now finishes every subject an earlier scrub rule left incomplete (issue #923), not only the accounts never anonymized. Until now it picked its work by account, so a personal organization anonymized before the scrub covered its legal name, order-confirmation e-mails, custom field values or block and rejection reasons kept them for good once its account was done.
+
+  `PersonalOrganizationPort` gains `listIncompletelyScrubbed(): Promise<string[]>`: the ids of the personal organizations that carry the scrub's name but not all of the current scrub. It reads only the `organizations` table, ignores the retention cutoff, and agrees field by field with the check `anonymizeIfOrphaned` makes before it writes. An implementation or a test fake of the port must add the method.
+
+  `PersonalOrganizationPort` also gains `hasIncompletelyScrubbed(): Promise<boolean>`, the same rows as a yes-or-no question. The sweep's scheduled tick asks it, outside any tenant scope, when no account is due, so a tick with only organization-side work left is not skipped as idle. If that question fails, the tick runs anyway. An implementation or a test fake of the port must add it too.
+
+  Each sweep run now works through the accounts due for anonymization, then the anonymized member of every organization that method lists, each subject once, through the unchanged cascade. Finishing a subject writes one audit entry for each record it changes, keeps the account's `anonymizedAt` and the organization's `deletedAt`, and announces nothing: no second `customer_account.anonymized.v1`, so Forms does not erase the customer's entries a second time. The next run then finds nothing to do. The count `AnonymizationSweepWorker.sweep()` returns is now the number of subjects processed, finished ones included.
+
+  The `customers` module page now describes this.
+
+- 48f055e: `AddressReadPort` gains `listIdsForOrganization(organizationId, options?: { includeDeleted?: boolean }): Promise<string[]>`: the ids of an Organization's addresses, oldest first, live ones only unless `includeDeleted` is `true`. An implementation of the port must add it. `AddressServicePort.anonymizeForOrganization` is now documented as scrubbing every address of the Organization, soft-deleted ones included (issue #927).
+- bf50b85: Issue #930:
+
+  - `ERROR_CODES` gains `MFA_ENFORCEMENT_UNAVAILABLE` (409): a write turned `mfa.admin.totp_enforced` on where no second factor can be enrolled. `details.reason` is `encryption_key_missing` and `details.setting` names the setting. A consumer switching exhaustively over `ErrorCode` has one more case.
+  - `ENCRYPTION_KEY_MISSING` (`'encryption_key_missing'`): the one spelling of "`mfa` has no encryption key" as a refusal reason or a notice token.
+  - `SettingDtoSchema` gains an optional `notice: { code, message }` (`SettingNoticeSchema`): the owning module says the stored value is not in force. New contribution types `SettingNoticeInput`, `SettingNoticeProvider` and `SettingNoticeRegistryPort` (container name `settingNoticeRegistry`, owner `settings`).
+
+- 2c6fba0: Issue #948 and issue #349 (E-349-1), all additive.
+
+  - `ActorAdmin.sessionId?`: the id of the session the admin actor was resolved from.
+  - `MfaAdminEnforcementTrigger` gains `'setting_enabled'`. `MfaEndUnprotectedAdminSessionsOptions` becomes a union: a role trigger carries `roleCode`, `setting_enabled` carries `settingCode`.
+  - `SettingWriteConfirmationSchema` / `SettingWriteConfirmation` (`{ whenValue, code, message, params? }`), the optional `SettingDto.confirmation`, the optional `SettingNoticeProvider.confirmation(input)`, and `SettingNoticeRegistryPort.confirmationFor(input)`.
+  - `SettingsValueChangedPayload`, the payload of `settings.value_changed`, with the new optional `actorAdminUserId` and `actorSessionId`.
+  - `adminRoleTwoFactorNoticeSchema` / `AdminRoleTwoFactorNotice`, and the optional `twoFactorNotice` on `adminRoleSchema`: present while a role's `requiresTwoFactor` is set and not applied, because `mfa` has no encryption key.
+
+- d1c0d13: Two additive reads for the storefront's cart-approval screens (issue #650).
+
+  - **The buyer learns their basket was rejected.** A rejection closes the basket (`status = 'rejected'`), so the buyer's next `GET /api/v1/cart` was a new basket whose `approvalStatus` could never say `rejected_by_org_admin`, and the reason was shown nowhere. Every full cart answer (`GET /api/v1/cart` and the line, coupon and quantity answers) now carries `previousRejection: { cartId, rejectedAt, reason } | null`: the buyer's most recent rejected basket on the request's sales channel, while the current basket has not been sent for approval and no basket of theirs on that channel has been ordered or converted to a quote request since. It is `null` otherwise, and for an anonymous basket. In `@endora-commerce/contracts`, `cartFullPayloadSchema` gains the field as `cartPreviousRejectionSchema.nullable().default(null)`, so a reply without it still parses; `CartFullPayload` now has the key, so code that builds one must set it.
+  - **The administrator sees what they approve.** `GET /api/v1/organization/carts/:id` now answers `items`: each line's `id`, `productId`, `variantId`, `displayName` (in the response language, the packaging unit appended), `productSku`, `quantity`, and `unitPrice` and `lineTotal` as stored. The new `orgCartDetailViewSchema` / `orgCartDetailViewResponseSchema` describe that route as it answers; the older `orgCartDetailPayloadSchema` never matched it and is left unchanged.
+
+  `CartsOrganizationRoutesDeps` (the options of `registerCartsOrganizationRoutes`) gains a required `catalogProducts` member; the module's own composition provides it.
+
+- 32b4d0c: **The content of an invoice issued after a return changes** (issue #435). An invoice or proforma issued once a return has been settled, while the order has no invoice yet, now lists only what the buyer kept: each order line is invoiced at its ordered quantity less the quantity of the order's settled `return`-kind cases resolved with a refund or a credit — whether or not the money has been paid out — and a line returned in full is left off. The discount line carries only the kept goods' share: the order's `discountTotal` less the discount those cases carried back with their refunds (as recorded at settlement), left off when nothing remains. Before, every order line and the whole discount were invoiced, so the amount due included goods the buyer had returned. Replacement, repair and complaint cases change no line; the delivery and payment-surcharge lines, the per-rate VAT on the sum of the nets and `paidTotal` (captured − refunded) are unchanged; an invoice for an order refunded in full is still refused with `422 INVOICE_ORDER_REFUNDED` (a proforma is not). With `returns` switched off, every line is invoiced as before. Invoices already issued are not touched.
+
+  **A default return refund can differ by one cent from before.** For an order placed under the per-rate VAT method, the default refund of a case is now the drop in the value of the goods kept — what was left paid less VAT per rate on the nets kept after the case, net of the discount the kept part carries — instead of the value of the returned units on their own, so the kept-lines invoice equals what is left paid to the cent. Example: 3 × 10.01 at 23 % (36.94) refunds 12.32 for one unit, not 12.31. All of an order's returns together still refund exactly what was paid, and a cent an earlier case refunded under the previous rule is absorbed by the next case on the same order. Orders placed before 0.108.0 keep their rule. This is not a breaking change.
+
+  `ReturnRefundReadPort` (`returnRefundReadPort`, owned by `@endora-commerce/mod-returns`) gains `listReturnedQuantities(orderId)`, returning the new `OrderReturnedQuantity` (`{ orderItemId, quantity, discount }`) from `@endora-commerce/contracts`. The change is additive for a consumer of the port; an implementation of `ReturnRefundReadPort` outside `@endora-commerce/mod-returns` adds the method.
+
+  An invoice for an order **returned in full** before it was invoiced — every product line back through settled returns and no delivery or payment surcharge kept — is refused with the existing `422 INVOICE_ORDER_REFUNDED`, whatever the state of the refund (issued, waiting for a person, or waiting for the gateway's webhook); a proforma is not refused. The error carries `details.reason` (`refunded_in_full` or `returned_in_full`), its message (`errors.INVOICE_ORDER_REFUNDED`) now covers both causes, and automatic issuance skips such an order and logs the cause. When the delivery or the surcharge is kept, the invoice lists only that line.
+
+  Issuing an invoice now holds the order's returns lock, the one `@endora-commerce/mod-returns` takes to create and to settle a case, so an invoice is never drawn from a return being settled; it waits, and answers `409 VERSION_CONFLICT` (`details.code: settlement_in_progress`), retryable, after 15 s. The key is the new `returnCaseOrderLockKey(orderId)` in `@endora-commerce/contracts`. A return line whose default refund is 0.00 because its discount share takes its whole value now carries that discount back, so the invoice's discount line no longer keeps it. None of this is breaking. `@endora-commerce/mod-i18n` adds the sentence for `errors.VERSION_CONFLICT.settlement_in_progress` in English and Polish.
+
+- 7ce9b8a: **Behaviour change for API clients** — the saved views of the admin Returns list follow the rules
+  of the order, product and quote request lists' saved views (#312), and the Returns list gains the
+  _Saved views_ control.
+
+  `GET`/`POST /api/v1/admin/returns/list-views` and `PATCH`/`DELETE /api/v1/admin/returns/list-views/:id`
+  stay gated by `returns:read`, and change as follows:
+
+  - **`PATCH` and `DELETE` with an id that is not a UUID answer `404 NOT_FOUND`** (was `500 INTERNAL`).
+  - **Another admin's private view answers `404 NOT_FOUND`** on `PATCH` and `DELETE` (was `403 FORBIDDEN`),
+    so a view the caller may not see is indistinguishable from one that does not exist.
+  - **A shared view can be changed or deleted by its owner or by a platform admin** — an admin whose
+    access is not restricted to a set of organizations. Anyone else gets `403 FORBIDDEN` (before, only
+    the owner could).
+  - **Names are stricter**: trimmed before they are stored, 1–160 characters (was 1–200, untrimmed, so
+    `"   "` was accepted), and without control or format characters; a name breaking these answers
+    `400 VALIDATION_FAILED`.
+  - **New `409 RETURN_SAVED_VIEW_NAME_TAKEN`** on `POST`, and on a `PATCH` that changes the name, when the
+    view's owner already holds a view on the return list whose name differs only by letter case or
+    surrounding spaces. The message is translated (English and Polish). Two admins may each use a name.
+  - **Size caps** — `filters` at most 8 KB of JSON (UTF-8), `visibleColumns` at most 64 entries of at
+    most 64 characters, `sort.field` at most 64 characters; over a cap answers `400 VALIDATION_FAILED`.
+  - **`shared` is required on `POST`** (was optional, defaulting to `false`), as on the other lists;
+    `sort` stays required.
+  - **List items and write answers carry `ownerAdminUserId`, `ownedByCaller` and `canModify`**, and the
+    list is ordered by name (was by creation time).
+  - **`DELETE` answers `{ "data": { "deleted": "<id>" } }`** (was `{ "data": { "ok": true } }`).
+
+  Views saved before this release are kept exactly as stored — a blank name, a name over 160
+  characters or two names of one owner sharing a key included. No migration rewrites them: they are
+  listed as they are, a `PATCH` that leaves the name alone is never refused for it, and renaming one
+  must meet the rules above.
+
+  `@endora-commerce/contracts`: `returnSavedViewSortSchema`, `returnSavedViewSchema`,
+  `ReturnSavedViewDto`, `returnSavedViewCreateSchema` and `returnSavedViewUpdateSchema` are removed.
+  Use `createReturnSavedViewRequestSchema` and `updateReturnSavedViewRequestSchema` (with the types
+  `CreateReturnSavedViewRequest` and `UpdateReturnSavedViewRequest`) for the requests, and the shared
+  `savedListViewSchema` / `SavedListView` for a view. `ERROR_CODES.RETURN_SAVED_VIEW_NAME_TAKEN` is new.
+
+### Patch Changes
+
+- 4eee98b: Adds `attributeKeyShapeSchema`, the shape of an attribute key (snake_case starting with a letter, at most 64 characters), and `isAttributeKey(key)` (issue #687). `createAttributeRequestSchema` now takes its `key` rule from `attributeKeyShapeSchema`; what it accepts is unchanged.
+- 14ac256: Deleting a product now frees its SKU and the SKUs of its variants, so a new product or variant
+  can take them (issue #693). Until now the SKU of a deleted product stayed taken for good, and the
+  only remedy was SQL. This includes products deleted before the upgrade.
+
+  - A new catalog migration replaces the table-wide `products_sku_unique` and
+    `product_variants_sku_unique` constraints with partial unique indexes
+    (`products_sku_live_unique`, `product_variants_sku_live_unique`, `where deleted_at is null`).
+    `product_variants` gains a nullable `deleted_at`, which the `product.delete` Command sets on the
+    product's variants. The migration back-fills it from products that are already deleted.
+  - The deleted row keeps its real SKU, for audit and ERP/PIM reconciliation. Order lines keep the
+    SKU they snapshotted.
+  - Every SKU check and lookup in `catalog` now ignores deleted rows: create, PATCH, duplicate
+    (`-copy` allocation), variant create, the product bulk import, and
+    `PUT /api/v1/catalog/products/by-sku/:sku`. For a SKU that only a deleted product holds, that
+    route now creates a new product (`201`) instead of addressing the deleted one.
+  - **The read port's default lookup now prefers the live row.** `CatalogProductReadPort.findBySku`,
+    `findBySkus` and `findVariantsBySkus` answer the live product or variant when one holds the
+    SKU, otherwise the most recently deleted one, and return at most one record per SKU. Without
+    `liveOnly`, a SKU that only a deleted product holds still resolves, as before. With duplicates
+    now possible, the previous default would have picked an arbitrary row. The inventory CSV stock
+    import and the stock-level import therefore write the live product.
+
+- 75b053f: New exports `uuidShapeSchema` and `isUuidShape(value)`: whether a value has the shape of a PostgreSQL `uuid` (8-4-4-4-12 hexadecimal digits, either case), without the RFC 9562 version and variant check that `uuidSchema` applies. A route keyed by a `uuid` column checks its path parameter with it before the database sees the value, so that a malformed id answers the route's own not-found rather than a 500.
+- d69e765: New export `UUID_SHAPE_PATTERN`: the shape `isUuidShape` checks, as an unanchored regular-expression source that matches either case without a flag, for a pattern that has to find a uuid inside a longer value (an address, a `kind:id` token). `uuidShapeSchema`, `REFERENCE_TOKEN_SOURCE` and the record rich-text reader are built from it, so the package carries one spelling of a uuid's shape; what each of them accepts is unchanged (issue #781).
+- dbc1cef: `GET /api/v1/storefront/forms/:formId` answers a malformed id (one that is not a UUID) with `200 { formId, availability: 'unavailable' }`, the body an unknown id gets, instead of `400 VALIDATION_FAILED` (owner ruling of 2026-11-05, issue #781), so the read no longer tells a malformed id from a form that does not exist. `formId` echoes the requested value. To match, the `unavailable` arm of `publicFormDefinitionSchema` in `@endora-commerce/contracts` types `formId` as a non-empty string rather than a UUID; the available arm still requires a UUID. `POST /api/v1/storefront/forms/:formId/entries` still answers a malformed id `400`.
+- a9398c8: The customer anonymization sweep is restartable (issue #800). It now scrubs a personal organization, then its saved addresses, and anonymizes the account last, so an account whose cascade was interrupted stays due and the next run completes it. Each account runs on its own: one that fails no longer stops the run, which anonymizes the others and then throws once, naming the failed account ids. A `ModuleDisabledError` still aborts the run.
+
+  `PersonalOrganizationPort.anonymizeIfOrphaned` is convergent. It writes only the part of the scrub that is still missing, keeps an existing `deletedAt` (an operator's soft-delete), and records `organization.anonymized` in the same transaction as the scrub, only when something changed. It answers the organization on a repeat call too, and answers `null` only for an org-less account, a non-personal organization, or one that still has a live member.
+
+  `POST /api/v1/admin/customers/:id/restore` answers `409 CUSTOMER_RESTORE_WINDOW_ELAPSED` once `customers.deletion_retention_days` has elapsed since the deletion, even before the sweep has anonymized the account. It used to succeed in that case. `CustomerDeletionService` takes the retention-days resolver as a new constructor argument. `CUSTOMER_RESTORE_WINDOW_ELAPSED` now has a sentence in English and Polish in `customer_accounts`' bundle, so both raise sites answer in the reader's language.
+
+- 0b56038: The customer anonymization sweep now clears every field that can hold the person's data (issue #802). On a personal organization, `PersonalOrganizationPort.anonymizeIfOrphaned` also sets `legalName` to `null`, empties `orderConfirmationEmails` (so `orders` stops mailing those addresses) and clears all custom field values. A personal organization scrubbed by an earlier release is finished on the next sweep run. On the account, `CustomerAccountLifecycleWritePort.anonymize` also clears all custom field values.
+
+  `CustomerAccountLifecycleWritePort.anonymize` now writes the scrub and its `customer_account.anonymized` audit entry in one transaction, and announces `customer_account.anonymized.v1` only after that commit. Before, the audit entry was written after the scrub had committed, so a crash between the two left an anonymized account with no audit entry.
+
+  The two audit entries no longer store the data they erase. `customer_account.anonymized` no longer has `stateBefore.email`; its `stateBefore` is `{ anonymizedAt: null, customFieldKeys }`, the sorted keys that held a value. `organization.anonymized` no longer has `stateBefore.name`; its `stateBefore` records `wasDeleted`, `hadLegalName`, `orderConfirmationEmailCount` and `customFieldKeys` (the sorted keys that held a value).
+
+- cea1470: The `federatedSignInErrorCodeSchema` doc comment now states that the Admin UI surface receives the code too, not a sentence (issue #813). No change to the schema.
+- 57145f7: The customer anonymization sweep now erases the reasons operators wrote about the customer (issue #843). `PersonalOrganizationPort.anonymizeIfOrphaned` sets a personal organization's `blockedReason` and `rejectedReason` to `null`; `CustomerAccountLifecycleWritePort.anonymize` sets the account's `blockReason` to `null`. The block or rejection itself is kept: the status, `blockedAt`, `rejectedAt`, `blockSource` and who applied the block. A company organization keeps its reasons.
+
+  The audit entries record only whether a reason existed: `organization.anonymized` gains `stateBefore.hadBlockedReason` and `stateBefore.hadRejectedReason`, and `customer_account.anonymized` gains `stateBefore.hadBlockReason`. None of them stores the reason text.
+
+  A subject anonymized by an earlier release is finished on the next sweep run. `CustomerAccountLifecycleWritePort.listDueForAnonymization` now also lists an anonymized account that still has a block reason or custom field values (left by a scrub before #802), whatever the retention cutoff, so raising `customers.deletion_retention_days` cannot strand it. For such an account, `anonymize` clears what is left and writes one more `customer_account.anonymized` entry. That entry's `stateBefore.anonymizedAt` is the original anonymization time, where the first scrub's is `null`; `hadBlockReason` and `customFieldKeys` say what was left. It keeps `anonymizedAt` and does not announce `customer_account.anonymized.v1` again. A personal organization with a reason left is finished whenever the sweep reaches its account.
+
+  The `customers` module page now describes this, and says that audit entries written earlier keep the reason they recorded until #844 ships.
+
+- 0801f69: Six refusals of `carts` have an error code of their own instead of `VALIDATION_FAILED`, and a
+  sentence in English and Polish (issue #86). **A client that matches on `VALIDATION_FAILED`, or on
+  the token that was the message, for these cases now sees the specific code**; the HTTP status of
+  each is unchanged (`422`). Until now the message was a machine token, which the error envelope
+  never replaces for `VALIDATION_FAILED`, so the buyer and the operator read the token in every
+  language.
+
+  | Route                                                       | Was (`422 VALIDATION_FAILED`, message) | Is (`422`)                        | `details`                  |
+  | ----------------------------------------------------------- | -------------------------------------- | --------------------------------- | -------------------------- |
+  | `POST /api/v1/cart/submit-for-approval`                     | `approval_not_required`                | `CART_APPROVAL_NOT_REQUIRED`      | —                          |
+  | `POST /api/v1/cart/submit-for-approval`                     | `approval_already_initiated`           | `CART_APPROVAL_ALREADY_SUBMITTED` | `cartId`, `approvalStatus` |
+  | `POST /api/v1/cart/submit-for-approval`                     | `org_admin_self_submit`                | `CART_APPROVAL_SELF_SUBMIT`       | —                          |
+  | `POST /api/v1/organization/carts/:id/approve` and `/reject` | `approval_not_pending`                 | `CART_APPROVAL_NOT_PENDING`       | `cartId`, `approvalStatus` |
+  | `POST /api/v1/admin/carts/:id/reject`                       | `already_terminal`                     | `CART_ALREADY_TERMINAL`           | `cartId`, `status`         |
+  | `POST /api/v1/cart/from-quote-request/:quoteRequestId`      | `quote_request_empty`                  | `RFQ_EMPTY`                       | `quoteRequestId`           |
+
+  `RFQ_EMPTY` is the existing code of `quote_requests`, answered with its sentence; the other five are
+  new members of `ERROR_CODES` in `@endora-commerce/contracts`, declared by the `carts` manifest. No
+  setting, permission or migration changes.
+
+- 3355e60: Refusals on the buyer-facing and admin order paths have an error code of their own instead of
+  `VALIDATION_FAILED`, and a sentence in English and Polish (issue #86). **A client that matches on
+  `VALIDATION_FAILED` for these cases now sees the specific code.** The HTTP status of each is
+  unchanged. Until now each was answered with an English sentence in every language, because the
+  error envelope never replaces the message of `VALIDATION_FAILED`.
+
+  | Was                                                                                                                              | Is                                                           | `details`                                                                                |
+  | -------------------------------------------------------------------------------------------------------------------------------- | ------------------------------------------------------------ | ---------------------------------------------------------------------------------------- |
+  | `400 VALIDATION_FAILED`, `details.code = "delivery_method_not_allowed_for_organization"`                                         | `400 ORDER_DELIVERY_METHOD_UNAVAILABLE`, same `details.code` | `deliveryMethodId` (unchanged)                                                           |
+  | `400 VALIDATION_FAILED`, `details.code = "delivery_method_not_in_sales_channel"`                                                 | `400 ORDER_DELIVERY_METHOD_UNAVAILABLE`, same `details.code` | `deliveryMethodId`, `salesChannelId` (unchanged)                                         |
+  | `400 VALIDATION_FAILED`, _"Delivery method is not active."_ or _"The selected shipping method is not available for this order."_ | `400 ORDER_DELIVERY_METHOD_UNAVAILABLE`, no `details.code`   | `deliveryMethodId` (new)                                                                 |
+  | `400 VALIDATION_FAILED`, `details.code = "payment_method_not_allowed_for_organization"`                                          | `400 ORDER_PAYMENT_METHOD_UNAVAILABLE`, same `details.code`  | `paymentMethodId` (unchanged)                                                            |
+  | `400 VALIDATION_FAILED`, `details.code = "payment_method_not_in_sales_channel"`                                                  | `400 ORDER_PAYMENT_METHOD_UNAVAILABLE`, same `details.code`  | `paymentMethodId`, `salesChannelId` (unchanged)                                          |
+  | `400 VALIDATION_FAILED`, _"Payment method is not active."_ or _"The selected payment method is not available for this order."_   | `400 ORDER_PAYMENT_METHOD_UNAVAILABLE`, no `details.code`    | `paymentMethodId` (new)                                                                  |
+  | `422 VALIDATION_FAILED`, `details: { code: "order_below_minimum", minimum, subtotal }` (numbers)                                 | `422 ORDER_BELOW_MINIMUM_VALUE`                              | `minimum`, `subtotal` as two-decimal **strings**, and `currency`; `details.code` is gone |
+  | `409 VALIDATION_FAILED`, _"Commenting is closed for completed or cancelled orders."_                                             | `409 ORDER_COMMENTS_CLOSED`                                  | `orderId`                                                                                |
+  | `409 VALIDATION_FAILED`, _"Order has no line items to clone."_                                                                   | `409 ORDER_CLONE_NO_LINES`                                   | `orderId`                                                                                |
+  | `503 VALIDATION_FAILED`, _"Quote Requests module is not available."_                                                             | `503 MODULE_DISABLED`                                        | `module: "quote_requests"`                                                               |
+
+  The method refusals are answered by `POST /api/v1/orders`, `POST /api/v1/orders/preview-total`,
+  `POST /api/v1/admin/orders`, `POST /api/v1/admin/orders/preview`, `POST /api/v1/external/orders`
+  and every other caller of order placement; the minimum order value by placement (checkout and
+  admin create); the comment refusal by `POST /api/v1/orders/:id/comments` and
+  `POST /api/v1/admin/orders/:id/comments`; the two clone refusals by both clone-to-quote routes.
+  The `details.code` tokens of the method refusals are unchanged, and each now picks its own
+  sentence. The five new codes are members of `ERROR_CODES` in `@endora-commerce/contracts`,
+  declared by the `orders` manifest; the `delivery_methods` and `payment_methods` documentation
+  pages name the new codes. No setting, permission or migration changes.
+
 ## 0.109.0
 
 ### Minor Changes

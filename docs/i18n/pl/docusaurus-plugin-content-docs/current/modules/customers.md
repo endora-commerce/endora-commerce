@@ -74,8 +74,9 @@ przywrócenie nie jest już możliwe: od chwili upływu okresu przywrócenie ko�
 traci adres e-mail, imię i nazwisko, hasło oraz wszystkie wartości pól niestandardowych. W
 przypadku klienta indywidualnego zadanie anonimizuje też jego organizację prywatną: czyści jej
 nazwę, adres rejestrowy, nazwę prawną, adresy e-mail do potwierdzeń zamówień i wszystkie wartości
-pól niestandardowych, a jej zapisane adresy są czyszczone (`-`, bez telefonu, kraj zostaje) i
-miękko usuwane, każdy z wpisem audytu `address.anonymized`. Dzieje się tak również wtedy, gdy
+pól niestandardowych, a wszystkie jej zapisane adresy, także te, które klient wcześniej usunął,
+są czyszczone (`-`, bez telefonu, kraj zostaje) i miękko usuwane (usunięty adres zachowuje datę
+usunięcia), każdy z wpisem audytu `address.anonymized`. Dzieje się tak również wtedy, gdy
 operator usunął już tę organizację. Złożone zamówienia zachowują swoje kopie adresów. Wpisy audytu
 anonimizacji odnotowują, że dane usunięto, ale nie przechowują samych danych.
 
@@ -83,9 +84,26 @@ Usuwane są też uzasadnienia, które operatorzy zapisali o kliencie: powód zab
 przypadku klienta indywidualnego także powody zablokowania i odrzucenia jego organizacji
 prywatnej. Organizacja firmowa zachowuje swoje powody. Sama blokada lub odrzucenie zostaje, więc
 ekrany klienta nadal pokazują status i jego datę, ale bez powodu. Wpisy audytu anonimizacji
-odnotowują jedynie, że powód istniał. Wpisy audytu zapisane wcześniej, takie jak wpis samej
-blokady, zachowują zapisane wartości, w tym powód, dopóki wcześniejsze wpisy nie będą redagowane
-przy anonimizacji ([#844](https://github.com/endora-commerce/endora-commerce/issues/844)).
+odnotowują jedynie, że powód istniał.
+
+Wcześniejsza historia audytu dotycząca klienta również jest usuwana w miejscu. Obejmuje to wpis
+samej blokady wraz z powodem, zmiany profilu i zmiany adresów. Dotyczy to wpisów o koncie, a w
+przypadku klienta indywidualnego także o jego organizacji prywatnej, adresach tej organizacji (w
+tym tych, które klient wcześniej usunął) oraz o jego wycofanych adresach osobistych. Każdy wpis
+zachowuje akcję, wykonawców, czas i obiekt, a każde zapisane pole zachowuje swoją nazwę. Imiona i
+nazwiska, adresy e-mail, adresy, dowolny tekst i każda wartość pola niestandardowego zmieniają się
+w `[erased]`, co przeglądarka audytu pokazuje jako *Usunięto*. We wpisach, które klient zapisał
+sam, usuwane są też adres IP i identyfikator przeglądarki (user agent). Wpisy o innych rekordach,
+na przykład o zamówieniach klienta, zachowują własną historię. Każdy zanonimizowany klient
+otrzymuje jeden wpis `audit.redacted`, zapisany przez system, zawierający wyłącznie liczby i
+identyfikatory. Samą regułę opisuje
+dokumentacja modułu dziennika audytu, w sekcji *Usuwanie danych przy anonimizacji*. Historia jest usuwana przed
+samym kontem, więc konto uznaje się za zanonimizowane dopiero wtedy, gdy jego historia też została
+usunięta.
+
+Zadanie usuwa też uzasadnienia, które operatorzy i osoby akceptujące podali, odrzucając koszyki tego
+konta; każdy koszyk zachowuje swój status. Co jest usuwane, a co zostaje, opisuje moduł koszyków
+(*Przechowywanie historii zmian*).
 
 Zadanie uruchamia się raz dziennie w procesie workera i tylko wtedy, gdy moduł jest włączony, więc
 konto zostaje zanonimizowane najpóźniej dzień po upływie okresu. Gdy moduł jest wyłączony, zadanie
@@ -132,6 +150,11 @@ wszystkich, w dwóch wydaniach:
 
 Stronę operatora opisuje uwaga do aktualizacji *Wycofanie osobistej książki adresowej (wydanie 1 z
 2)*.
+
+Gdy zadanie anonimizacji anonimizuje konto, w ten sam sposób czyści też każdy wiersz tego konta w tej
+książce, niezależnie od tego, czy wiersz został przeniesiony, usunięty przez zadanie, usunięty przez
+klienta czy odrzucony, z jednym wpisem audytu `customer_address.anonymized` na wiersz. Dotyczy to
+każdego konta, także członka firmy.
 
 ## API publiczne
 

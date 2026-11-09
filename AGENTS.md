@@ -176,10 +176,10 @@ Every one of these has already produced an answer that looked right and was not.
 rather than in a routed document because each catches an agent who was not trying to do the
 thing it is about.
 
-- **A merge-request pipeline does not create `test:backend`.** Owner ruling **D-198**
-  (2026-09-03) took the `merge_request_event` clause off every rung of `.backend-test-rules`, so
-  the contract and integration suites do not run before a merge — they run on `master`,
-  afterwards, for whoever runs next. `only_allow_merge_if_pipeline_succeeds` is not the lever.
+- **A pull request does not run `test:backend`.** Owner ruling **D-198** (2026-09-03) keeps
+  the contract and integration suites off merge requests, so they do not run before a merge —
+  they run on `master` afterwards, nightly or by `workflow_dispatch`, in
+  `.github/workflows/backend-suite.yml`. A green `quality` is not the lever.
   D-198 is a suspension, and the condition for restoring the clause is written beside it.
 - **Deleting a file? Grep `backend/test/**` for it before you finish, and do not trust
   `test:unit:fast`.** It skips the contract and integration trees entirely — where a test that

@@ -27,7 +27,15 @@ vi.mock('@endora-commerce/admin-kit/lib', async () => {
   };
 });
 
-const ROLE = {
+const ROLE: {
+  id: string;
+  code: string;
+  name: string;
+  permissions: string[];
+  requiresTwoFactor: boolean;
+  updatedAt: string;
+  twoFactorNotice?: { code: string; message: string };
+} = {
   id: '00000000-0000-4000-8000-0000000000aa',
   code: 'accounting',
   name: 'Accounting',
@@ -48,6 +56,7 @@ const bundle = {
     'roles.twoFactor.mfaOff',
     'roles.twoFactor.confirmSignOut',
     'roles.twoFactor.signedOut',
+    'roles.twoFactor.notice.encryption_key_missing',
   ]),
 };
 
@@ -128,4 +137,24 @@ describe('AdminRolesPage — the two-factor requirement', () => {
     ));
     expect(apiClient.put).not.toHaveBeenCalled();
   });
+
+  // Issue #948, owner ruling Q6 — without an encryption key a role's
+  // requirement is not applied. The read says so, as the Settings screen says
+  // it of `mfa.admin.totp_enforced`, so a ticked box does not read as in force.
+  it('says a requirement that is set is not in force when the read carries its notice', async () => {
+    const box = await renderPage(['admin_users', 'admin_roles', 'mfa'], {
+      ...ROLE,
+      requiresTwoFactor: true,
+      twoFactorNotice: { code: 'encryption_key_missing', message: 'Not in force: no encryption key.' },
+    });
+    expect(box.checked).toBe(true);
+    const status = screen.getByRole('status');
+    expect(status.textContent).toContain('roles.twoFactor.notice.encryption_key_missing');
+  });
+
+  it('shows no notice when the read carries none', async () => {
+    await renderPage(['admin_users', 'admin_roles', 'mfa'], { ...ROLE, requiresTwoFactor: true });
+    expect(screen.queryByText('roles.twoFactor.notice.encryption_key_missing')).toBeNull();
+  });
 });
+

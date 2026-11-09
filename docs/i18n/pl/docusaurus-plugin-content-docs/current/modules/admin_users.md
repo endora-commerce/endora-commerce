@@ -107,6 +107,13 @@ zapisaniu — ilu wylogowano. Odrzucony zapis nikogo nie wylogowuje. Każde
 wylogowanie jest zapisywane w dzienniku audytu jako
 `mfa.admin_sessions_ended_for_requirement`, z rolą i liczbą administratorów.
 
+Włączenie `mfa.admin.totp_enforced` w **Ustawieniach** działa tak samo wobec
+wszystkich administratorów: każdy, kto nie skonfigurował weryfikacji
+dwuetapowej, zostaje od razu wylogowany, z wyjątkiem sesji, z której wprowadzono
+zmianę. Ekran ustawień najpierw pyta o potwierdzenie i podaje, ilu
+administratorów zostanie wylogowanych. Wpis w dzienniku audytu wskazuje wtedy
+ustawienie zamiast roli (`objectType: 'setting'`, `trigger: 'setting_enabled'`).
+
 **Kiedy wymogu nie da się włączyć.** Pole egzekwuje moduł MFA, dlatego:
 
 - gdy MFA jest wyłączone, pole jest nieaktywne i rola nie może zacząć wymagać
@@ -117,14 +124,16 @@ wylogowanie jest zapisywane w dzienniku audytu jako
 - nie można wyłączyć MFA, dopóki którakolwiek rola wymaga weryfikacji
   dwuetapowej: ekran modułów odmawia z 409 `MFA_DEACTIVATION_BLOCKED` i podaje
   te role (`details.roleCodes`). Najpierw odznacz pole w tych rolach;
-- bez `MFA_SECRET_ENCRYPTION_KEY` nie da się skonfigurować drugiego składnika,
-  więc rola nie może też zacząć go wymagać (`details.reason:
-  'encryption_key_missing'`). Rola, która już go wymaga, kierowałaby swoich
-  posiadaczy do konfiguracji, której nie da się dokończyć, dlatego instancja
-  przy każdym starcie zapisuje ostrzeżenie z nazwami ról i liczbą ich
-  posiadaczy bez drugiego składnika. Ustaw klucz albo odznacz pole w tych
-  rolach — jako administrator, którego rola tego nie wymaga, albo w bazie
-  danych: `update admin_roles set requires_two_factor = false where code = '<code>';`.
+- bez `MFA_SECRET_ENCRYPTION_KEY` nie da się skonfigurować ani sprawdzić
+  drugiego składnika, więc rola nie może też zacząć go wymagać
+  (`details.reason: 'encryption_key_missing'`). Rola, która już go wymaga,
+  **nie jest stosowana**: jej posiadacze logują się samym hasłem i nikt nie
+  zostaje wylogowany z powodu otrzymania tej roli. Ekran ról pokazuje pod polem
+  *Nie obowiązuje: brak klucza szyfrowania* (odczyt roli zawiera
+  `twoFactorNotice.code: 'encryption_key_missing'`), a instancja przy każdym
+  starcie zapisuje błąd z nazwami ról i liczbą ich posiadaczy bez drugiego
+  składnika. Ustaw klucz i uruchom instancję ponownie, aby wymóg znów
+  obowiązywał, albo odznacz pole w tych rolach.
 
 Gdy wdrożenie całkowicie usuwa moduł MFA, logowanie nie wymaga drugiego
 składnika, niezależnie od ustawień ról.

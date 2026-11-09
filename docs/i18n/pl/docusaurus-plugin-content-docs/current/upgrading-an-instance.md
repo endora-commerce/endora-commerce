@@ -3806,7 +3806,335 @@ przez pull requesty, które wprowadziły każdą zmianę. W chwili jej pisania �
 zaktualizowana poleceniem `pnpm run upgrade 0.109.0`; kolejność kroków i zmiany w storefroncie nie
 zostały wypróbowane.
 
-### Wycofanie osobistej książki adresowej (wydanie 1 z 2) {#personal-address-book-retired-1}
+### Po aktualizacji do wydania 0.110.0 {#after-0-110-0}
+
+`pnpm run upgrade 0.110.0` przenosi pakiety wydania z `0.109.0` i wykonuje jego migracje —
+dwadzieścia sześć dla modułów z wcześniejszych wydań (każda wykonuje się tam, gdzie jej moduł jest
+zadeklarowany), i jedną dla nowego modułu `forms`, wykonywaną dopiero wtedy, gdy instancja go
+zadeklaruje. **Cztery zmiany usuwają lub przepisują zapisane dane i wymagają twojej decyzji przed
+migracją**: wartości produktu mają teraz trzy zakresy — Globalny, Kanał oraz Kanał × język — a
+**migracje usuwają każdą wartość zapisaną tylko dla języka**, w tym nazwy i opisy produktów w językach
+innych niż globalny ([Zakresy produktu](#after-0-110-0-product-scopes)); dawną dwuwartościową rolę w
+organizacji zastępują role z uprawnieniami, a zasada akceptacji koszyka organizacji staje się
+uprawnieniem jej roli *Członek* ([Role w organizacji](#after-0-110-0-organization-roles)); składanie
+zamówienia egzekwuje teraz akceptację koszyka ([Akceptacja koszyka](#after-0-110-0-cart-approval));
+a osobista książka adresowa zostaje wycofana
+([Osobista książka adresowa](#personal-address-book-retired-1)). Obok nich wydanie anonimizuje
+usunięte konta klientów według harmonogramu, egzekwuje wymóg weryfikacji dwuetapowej w roli,
+udostępnia wpis bloga tylko w przypisanych mu językach, składa zamówienia z panelu i przez klucz API
+tylko w kanałach organizacji, przy odstąpieniu konsumenta zwraca koszt dostawy i dopłatę oraz dodaje
+moduł `forms`. Poniższe kroki mówią, co zrobić i w jakiej kolejności; każdy wpis po nich jest
+samodzielny, więc przeczytaj te, które dotyczą używanych przez ciebie części platformy.
+
+#### Co zrobić i w jakiej kolejności {#after-0-110-0-steps}
+
+Przed aktualizacją:
+
+1. **Wyeksportuj tłumaczenia produktów, które chcesz zachować.** Migracje `catalog` i `seo`
+   zostawiają jedną globalną nazwę i jeden opis na produkt (tekst `en-US`, w przeciwnym razie
+   pierwszy niepusty język, a dla nazwy w ostateczności SKU) i usuwają każdy inny język, każdą
+   wartość atrybutu zapisaną tylko dla języka, tekst alternatywny galerii, nazwy załączników i
+   jednostek opakowania oraz każde nadpisanie SEO produktu zapisane dla języka bez kanału. Nic ich nie
+   przenosi. Przed aktualizacją wyeksportuj plik CSV produktów, aby potem wpisać je ponownie na
+   poziomie Kanał × język ([Zakresy produktu](#after-0-110-0-product-scopes)).
+2. **Upewnij się, że rola wykonująca migracje może utworzyć rozszerzenie `btree_gist`**, albo utwórz
+   je raz jako superużytkownik: `create extension if not exists btree_gist;`. Jest dostarczane z
+   PostgreSQL, a potrzebuje go `Migration20261030T113904CatalogScopeModelUrlKeys`.
+3. **Policz usunięte konta klientów, które zanonimizuje pierwszy przebieg**, i podnieś
+   `customers.deletion_retention_days`, jeśli chcesz któreś zachować
+   ([Anonimizacja](#customer-anonymization-sweep)). Po aktualizacji nie da się tego cofnąć.
+4. **Wypisz osoby, które zatrzyma wymóg weryfikacji dwuetapowej w roli**, oraz klucze API i
+   operatorów, którzy składają zamówienia w kanałach nieprzypisanych do organizacji
+   ([Weryfikacja dwuetapowa w roli](#role-two-factor-enforced),
+   [Zamówienia przez klucz API](#api-key-intake-organization-channels),
+   [Zamówienia z panelu](#after-0-110-0-order-channels)).
+5. **Zapisz ustawienia Biblioteki zasobów jako wartości dla całej platformy**, jeśli
+   konfigurowałeś je per kanał sprzedaży: wartość `assets.*` per kanał nie jest już odczytywana
+   ([Ustawienia zasobów](#after-0-110-0-assets-settings)).
+6. **Sprawdź opublikowane wpisy bloga przypisane do języka, w którym nie są napisane**: od tego
+   wydania odpowiadają w tym języku kodem 404 ([Blog](#after-0-110-0-blog)).
+7. **Przed migracją zatrzymaj wszystkie procesy poprzedniego wydania**, zarówno API, jak i workery.
+   Migracje usuwają kolumny, które czyta poprzednie wydanie (`customer_accounts.role`,
+   `organizations.requires_cart_approval`, `organization_invitations.role`), i zmieniają typ
+   `products.name` oraz `products.description`.
+
+Sama aktualizacja:
+
+8. **Uruchom `pnpm run upgrade 0.110.0`.** `setup` wykonuje migracje moduł po module, w kolejności
+   zależności między modułami, a migracje każdego modułu w kolejności ich znaczników czasu.
+   Pogrupowane według modułów:
+
+   | Migracja | Moduł | Co robi |
+   | --- | --- | --- |
+   | `Migration20261103T162518CoreAuditActorCustomerAccount` | `core` | Kolumna `audit_log_entries.actor_customer_account_id` (może być `null`): klient, który wykonał akcję, dla wpisów zapisywanych od teraz |
+   | `Migration20261103T140300AdminUsersAuthorProfile` | `admin_users` | Opcjonalny awatar i biografia per język w profilu autora administratora — zob. [Blog](#after-0-110-0-blog) |
+   | `Migration20261103T173304OrganizationsOrganizationRoles` | `organizations` | Tabela `organization_roles` z rolami *Administrator* i *Członek* dla każdej organizacji; odbiera roli *Członek* `carts.order_without_approval` i `quick_order.one_click` tam, gdzie organizacja wymagała akceptacji koszyka — zob. [Role w organizacji](#after-0-110-0-organization-roles) |
+   | `Migration20261104T094535OrganizationsDropLegacyRoleColumns` | `organizations` | Usuwa `organizations.requires_cart_approval` i `organization_invitations.role` |
+   | `Migration20261105T121034OrganizationsRegistryLookupProvenance` | `organizations` | `origin`, `registry_details` i `submitted_values` w `organization_tax_id_validations` oraz dostawca `gus_pl` — zob. [Rejestracja](#after-0-110-0-registration) |
+   | `Migration20261103T190132CustomerAccountsOrganizationRoleAssignment` | `customer_accounts` | `customer_accounts.organization_role_id` dla każdego konta: *Administrator* dla `organization_admin` i dla każdego członka organizacji osobistej, w pozostałych przypadkach *Członek* |
+   | `Migration20261104T094540CustomerAccountsDropLegacyRoleColumn` | `customer_accounts` | Usuwa `customer_accounts.role` |
+   | `Migration20261105T180317CustomersAddressBookRetirement` | `customers` | Kolumny pochodzenia zapisywane przez zadanie wycofujące książkę adresową — zob. [Osobista książka adresowa](#personal-address-book-retired-1) |
+   | `Migration20261030T113855CatalogScopeModelTexts` | `catalog` | `products.name` i `description` stają się tekstem globalnym; **usuwa każdy inny język** i każdą wartość atrybutu zapisaną tylko dla języka — zob. [Zakresy produktu](#after-0-110-0-product-scopes) |
+   | `Migration20261030T113859CatalogScopeModelOrderRules` | `catalog` | Flaga własnej minimalnej ilości zamówienia w kanale |
+   | `Migration20261030T113904CatalogScopeModelUrlKeys` | `catalog` | Odtwarza `product_url_keys` i `product_url_redirects` na poziomach Kanał oraz Kanał × język; **usuwa każdy klucz językowy i każde przekierowanie**; wymaga `btree_gist` |
+   | `Migration20261030T113908CatalogScopeModelMedia` | `catalog` | Jedna tabela nadpisań dla galerii, załączników i jednostek opakowania; usuwa tabele per kanał i kolumny `*_translations` |
+   | `Migration20261104T121504CatalogProductContentValues` | `catalog` | Tabela `product_content_values`, pusta — zob. [Atrybuty treści produktu](#after-0-110-0-product-content) |
+   | `Migration20261107T093126CatalogSkuUniqueAmongLive` | `catalog` | Usunięty produkt i jego warianty zwalniają SKU: unikalność obowiązuje tylko wśród nieusuniętych wierszy |
+   | `Migration20261107T120008CatalogProductCreatedAtMilliseconds` | `catalog` | `products.created_at` z dokładnością do milisekundy, więc lista produktów storefrontu nie pomija już zaimportowanych wierszy |
+   | `Migration20261103T171312SeoProductMetaThreeLevels` | `seo` | **Usuwa każde nadpisanie SEO produktu zapisane dla języka bez kanału**; nadpisania kategorii i stron CMS się nie zmieniają |
+   | `Migration20261103T112345BlogUrlPrefixes` | `blog` | Tabela `blog_url_prefixes`: prefiksy, które każdy kanał obsługuje i obsługiwał |
+   | `Migration20261103T134216BlogUrlKeysAndRedirects` | `blog` | Klucze URL per język dla wpisów i kategorii oraz dawne klucze, które przekierowują |
+   | `Migration20261103T140555BlogPostAuthor` | `blog` | Kolumna `blog_posts.author_id` (może być `null`) |
+   | `Migration20261103T154219ImportExportImportProfiles` | `import_export` | Tabela profili importu (mapowanie lokalizacji dla importu produktów), pusta |
+   | `Migration20261107T110328DocumentTemplatesInvoiceSeededLabels` | `document_templates` | Opróżnia angielskie etykiety skopiowane z wbudowanego układu faktury do szablonu — zob. [Dokumenty](#after-0-110-0-documents) |
+   | `Migration20261108T000543OrdersCompletedAt` | `orders` | `orders.completed_at`, wypełnione wartością `updated_at` każdego zrealizowanego zamówienia — zob. [Terminy zwrotu](#return-window-from-completion) |
+   | `Migration20261108T073238OrdersChargeLines` | `orders` | Kolumna `orders.charge_lines` (może być `null`) i metoda VAT `per_rate_charges`; na razie nic ich nie zapisuje |
+   | `Migration20261108T073244InvoicesInvoiceLineKind` | `invoices` | Kolumna `invoice_lines.line_kind` (może być `null`), zapisywana dla dokumentów wystawianych od teraz |
+   | `Migration20261108T023047ReturnsConsumerWithdrawal` | `returns` | Kolumny odstąpienia konsumenta w `return_cases`; sprawy złożone wcześniej pozostają niesklasyfikowane — zob. [Odstąpienie konsumenta](#consumer-withdrawal-consent) |
+   | `Migration20261108T125405ReturnsCaseChargeRefunds` | `returns` | Cztery kolumny `0.00` na zwrócony koszt dostawy i dopłatę — zob. [Zwroty przy odstąpieniu](#withdrawal-refunds-charges) |
+
+   Zadeklarowanie `forms` dodaje `Migration20261102T111501FormsInit`, która tworzy tylko cztery
+   własne tabele modułu (krok 15).
+
+Po aktualizacji, zanim instancja znów zacznie obsługiwać ruch:
+
+9. **Utrzymuj uruchomiony proces, który wykonuje workery.** Jego pierwsze uruchomienie instaluje
+   harmonogram anonimizacji, którego pierwszy przebieg startuje od razu, i wykonuje zadanie
+   wycofujące książkę adresową ([Osobista książka adresowa](#personal-address-book-retired-1)).
+10. **Wykonaj jedno pełne przeindeksowanie wyszukiwarki** (*Reindex products* w panelu albo
+    `pnpm run cli search reindex`): dokument wyszukiwania zawiera teraz jeden blok tekstów na każdy
+    język kanału, a dopóki indeks nie zostanie przebudowany, jest odpytywany bez ograniczenia do
+    języka ([Zakresy produktu](#after-0-110-0-product-scopes)).
+11. **Przejrzyj organizacje, które wymagały akceptacji koszyka**: ich rola *Członek* nie ma już
+    `carts.order_without_approval`, więc koszyki ich członków wymagają akceptacji przed złożeniem
+    zamówienia ([Akceptacja koszyka](#after-0-110-0-cart-approval)).
+12. **Przenieś storefront.** Storefront utworzony przez wcześniejsze wydanie nie ma ekranów ról w
+    organizacji, ekranu akceptacji koszyka, adresów bloga per język ani kodów błędów w adresach URL,
+    a jego strony osobistych adresów wywołują punkty końcowe, które odpowiadają teraz kodem `410`.
+    Najkrótsza droga to przenieść storefront wydania w całości —
+    `git diff v0.109.0 v0.110.0 -- storefront` w repozytorium platformy wypisuje każdą zmianę
+    ([Storefront](#after-0-110-0-storefront)).
+
+Kiedy będzie ci wygodnie:
+
+13. **Wpisz ponownie tłumaczenia produktów** z kroku 1 na poziomie Kanał × język, w edytorze
+    produktu albo plikiem CSV produktów w nowej składni kolumn
+    ([Zakresy produktu](#after-0-110-0-product-scopes)).
+14. **Zapisz ponownie dane uwierzytelniające S3 lub GCS**, gdy `SETTINGS_SECRET_ENCRYPTION_KEY` jest
+    ustawiony, i zmień je, jeśli stare kopie zapasowe przechowują je jawnym tekstem
+    ([Ustawienia zasobów](#after-0-110-0-assets-settings)).
+15. **Zdecyduj, czy dodać `forms`** ([Formularze](#after-0-110-0-forms)).
+16. **Sprawdź rejestrację B2C per kanał** oraz etykiety faktur, które zostawiłeś po angielsku
+    ([Rejestracja](#after-0-110-0-registration), [Dokumenty](#after-0-110-0-documents)).
+
+#### Produkty: trzy zakresy, a wartości zapisane tylko dla języka są usuwane {#after-0-110-0-product-scopes}
+
+- **Co się zmieniło.** Edytor produktu edytuje jeden zakres naraz: **Globalny**, **kanał sprzedaży**
+  albo **kanał i język**. Zakresu samego języka z wydania 0.109.0 już nie ma. Wartość na poziomie
+  Kanał lub Kanał × język nadpisuje wartość z poziomu wyżej i pokazuje wartość, którą dziedziczy.
+  `products.name` i `description` przechowują tekst globalny.
+- **Co usuwają migracje.** Każdą nazwę i każdy opis w języku innym niż globalny, każdą wartość
+  atrybutu zapisaną tylko dla języka, tekst alternatywny galerii oraz nazwy załączników i jednostek
+  opakowania, każdy klucz URL języka z wydania 0.109.0 i każde przekierowanie URL produktu, wiersze
+  galerii i załączników per kanał z wydania 0.109.0 oraz każde nadpisanie SEO produktu zapisane dla
+  języka bez kanału. `down` przywraca schemat z wydania 0.109.0 bez tych danych. Wpisz tłumaczenia
+  ponownie na poziomie Kanał × język.
+- **Klucze URL** ustawia się na poziomach Kanał oraz Kanał × język, a tekst klucza należy do jednego
+  produktu w danym kanale sprzedaży we wszystkich jego językach. Dopóki klucz nie jest ustawiony,
+  produkt jest dostępny pod swoim slugiem.
+- **Wyszukiwarka.** Dokument wyszukiwania zawiera `texts.<language>` dla każdego języka, który oferuje
+  kanał, a zapytanie przeszukuje tylko język kupującego. Po aktualizacji wykonaj jedno pełne
+  przeindeksowanie.
+- **CSV produktów.** Nagłówki mają postać `<field>`, `<field>@<channel code>` i
+  `<field>@<channel code>/<language>`. Pusta komórka oznacza brak zmiany, `NULL` — wartość celowo
+  pustą, a `INHERIT` usuwa własną wartość. **Plik z nagłówkiem per język z wydania 0.109.0, takim jak
+  `name_en`, jest odrzucany w całości**: zmień go na `name@<channel>/en-US` albo na `name` dla wartości
+  globalnej. Profile importu mapują lokalizacje i kanały pliku źródłowego na zakresy.
+- **Konektory PIM** mapują każdą lokalizację na poziom Globalny albo na kanał i język i zapisują przez
+  port zapisu zakresów v2 ([Dla autorów modułów i modułów nakładkowych](#after-0-110-0-authors)).
+- **Klienci API.** `GET|PUT /api/v1/admin/catalog/products/:id/scoped-values` odczytują i zapisują
+  jeden zakres, z warunkiem `version` (`409 VERSION_CONFLICT`). `…/scope-context`,
+  `…/value-overrides` i `…/gallery/channel-roles` zostały usunięte. W każdym zapisie zakresu `null`
+  oznacza wartość *celowo pustą*; aby usunąć nadpisanie, wyślij `{ "inherit": true }`. SEO produktu
+  zapisuje się razem z produktem: ogólne `PUT` i `DELETE /api/v1/admin/seo/meta/product/:id`
+  odpowiadają `422 VALIDATION_FAILED` (`reason: product_seo_saved_with_product`).
+
+#### Role i uprawnienia w organizacji {#after-0-110-0-organization-roles}
+
+- **Co się zmieniło.** Każda organizacja ma role *Administrator* i *Członek* oraz do 50 ról własnych,
+  z których każda jest zbiorem uprawnień organizacji deklarowanych przez moduły. Członek ma jedną
+  rolę, a to, co może zrobić, wynika z jej uprawnień: między innymi tworzenie koszyków
+  (`carts.create`), ich akceptacja (`carts.approve`), zamawianie bez akceptacji
+  (`carts.order_without_approval`), zarządzanie adresami (`addresses.manage`), zapytania ofertowe,
+  szybkie zamówienie i listy zakupowe. Administrator organizacji zarządza rolami w storefroncie;
+  operator — na karcie *Role* organizacji, z nowymi uprawnieniami `organizations:read-roles` i
+  `organizations:manage-roles`.
+- **Migracja.** Każdy `organization_admin` dostaje rolę *Administrator*, każdy inny członek — rolę
+  *Członek*, a każdy członek organizacji osobistej — rolę *Administrator*. Tam, gdzie organizacja
+  wymagała akceptacji koszyka, *Członek* nie ma `carts.order_without_approval` ani
+  `quick_order.one_click`. Dawne kolumny `role` i flaga zasady akceptacji koszyka są usuwane.
+- **Co zrobić.** Nadaj operatorom zarządzającym organizacjami dwa nowe uprawnienia w *Rolach
+  administratorów*. Poinformuj administratorów organizacji firmowych, że mogą teraz definiować role.
+- **Klienci API.** Żądania wskazują rolę przez id (`roleId`), a treść, która nadal wysyła `role`,
+  dostaje `400 VALIDATION_FAILED`. Odpowiedzi zawierają `organizationRole: { id, name, kind }` i
+  `permissions` zamiast `role`. Członek, którego rola nie ma uprawnienia, dostaje
+  `403 ORGANIZATION_PERMISSION_REQUIRED` z nazwą tego uprawnienia. Punkty końcowe zasady akceptacji
+  koszyka (`PATCH /api/v1/organization/policies/cart-approval`,
+  `GET`/`PATCH /api/v1/admin/organizations/:id/cart-approval-policy`) zostały usunięte.
+
+#### Akceptacja koszyka jest egzekwowana przy składaniu zamówienia {#after-0-110-0-cart-approval}
+
+- **Składanie zamówienia.** Koszyk członka, którego rola nie ma `carts.order_without_approval`, a który
+  nie jest `approved`, jest odrzucany przez `POST /api/v1/orders` z kodem
+  `409 ORDER_CART_APPROVAL_REQUIRED`, zanim cokolwiek zostanie zarezerwowane. Dotąd takie koszyki były
+  składane. Zamówienia składane z koszyka roboczego (tworzenie zamówienia w panelu, zakup jednym
+  kliknięciem, zewnętrzne API zamówień) się nie zmieniają.
+- **Edycja oczekującego koszyka wycofuje go.** Zmiana koszyka oczekującego na akceptację przywraca go
+  do stanu *niewysłany*, a kupujący wysyła go ponownie. Administrator nie może już zaakceptować innej
+  zawartości niż wysłana.
+- **E-maile.** Wysyłane są `cart_approval_requested`, `cart_approved` i `cart_rejected`, w domyślnym
+  języku kanału sprzedaży koszyka; można je edytować lub wyłączyć na ekranie szablonów e-maili.
+- **Co zrobić.** Tam, gdzie członkowie zamawiali bez wysyłania koszyków do akceptacji, niech wysyłają
+  koszyk, a osoba akceptująca go zatwierdza — albo nadaj ich roli `carts.order_without_approval`.
+  Akceptacja własnego koszyka odpowiada `422 CART_APPROVAL_SELF_APPROVE`.
+
+#### Zamówienia z panelu trafiają tylko do kanałów organizacji {#after-0-110-0-order-channels}
+
+`POST /api/v1/admin/orders` i `POST /api/v1/admin/orders/preview` dla kanału sprzedaży, który nie jest
+jednym z aktywnych przypisanych kanałów organizacji klienta, odpowiadają
+`422 ORDER_SALES_CHANNEL_NOT_ALLOWED` tam, gdzie odpowiadały `201` / `200` (albo `404` dla kanału,
+który nie istnieje). `GET` i `PUT /api/v1/admin/organizations/:id/sales-channels` dla organizacji
+spoza zasięgu przedstawiciela handlowego odpowiadają `404`. Przed aktualizacją przypisz każdą
+organizację do kanałów, w których operatorzy składają za nią zamówienia (panel *Kanały sprzedaży*
+organizacji). Ta sama zasada obowiązuje teraz zamówienia przez klucz API
+([Zamówienia przez klucz API](#api-key-intake-organization-channels)).
+
+Odmowy na ścieżkach zamówień mają też własne kody zamiast `VALIDATION_FAILED`, z tym samym statusem
+HTTP: `ORDER_DELIVERY_METHOD_UNAVAILABLE`, `ORDER_PAYMENT_METHOD_UNAVAILABLE`,
+`ORDER_BELOW_MINIMUM_VALUE` (którego `minimum` i `subtotal` są teraz tekstami z dwoma miejscami po
+przecinku, razem z `currency`), `ORDER_COMMENTS_CLOSED` i `ORDER_CLONE_NO_LINES`; podobnie sześć
+odmów koszyka. Klient, który w tych przypadkach rozpoznawał `VALIDATION_FAILED`, musi rozpoznawać
+nowe kody.
+
+#### Ustawienia Biblioteki zasobów są odczytywane dla całej platformy {#after-0-110-0-assets-settings}
+
+- Moduł odczytuje każde ustawienie `assets.*` przez ustawienia platformy, więc wartość zapisana jako
+  wartość dla całej platformy zaczyna działać: adapter magazynu, magazyn lokalny, każde ustawienie
+  `assets.s3.*` i `assets.gcs.*` oraz zasady wgrywania. **Wartość per kanał nie jest już
+  odczytywana.** Jeśli konfigurowałeś magazyn lub zasady wgrywania per kanał, przed aktualizacją
+  zapisz te same wartości jako wartość dla całej platformy, w przeciwnym razie moduł wróci do wartości
+  domyślnych: magazyn lokalny w `var/assets`, dowolny typ pliku, brak limitu rozmiaru.
+- `assets.s3.secret_access_key` i `assets.gcs.service_account_json` są ustawieniami typu `secret`.
+  Zapisany jawnym tekstem sekret, w tym te dwa, jest szyfrowany przy pierwszym uruchomieniu, gdy
+  `SETTINGS_SECRET_ENCRYPTION_KEY` jest ustawiony; to uruchomienie zapisuje w logu
+  `[settings] encrypted the stored plaintext of N secret setting(s): <codes>`. Dopóki klucz nie jest
+  ustawiony, każde uruchomienie zapisuje ostrzeżenie dla każdego kodu, który nadal przechowuje jawny
+  tekst. Kopie zapasowe i migawki Redis wykonane przed tym uruchomieniem nadal przechowują jawny
+  tekst: zmień dane uwierzytelniające, które wymienia log, jeśli te kopie są słabiej chronione niż
+  same dane.
+- Okres przechowywania usuniętych plików (`assets.soft_delete_retention_days`) mieści się w
+  przedziale 1–3650 dni.
+
+#### Blog: języki, adresy i autorzy {#after-0-110-0-blog}
+
+- **Wpis lub kategoria są udostępniane tylko w przypisanych im językach**; w innym języku odpowiadają
+  kodem 404. Przed aktualizacją napisz opublikowane wpisy w językach, do których są przypisane, albo
+  odepnij te języki. Kategoria bez przypisanego języka jest w każdym. Publikacja jest odrzucana z
+  kodem `422 BLOG_LANGUAGE_INCOMPLETE`, dopóki przypisany język nie ma nazwy lub treści.
+- **Prefiks URL bloga ustawiony per kanał (`blog.url_prefix`) zaczyna działać.** Storefront
+  udostępniał blog pod `/blog` niezależnie od ustawienia; teraz udostępnia go pod prefiksem, a
+  `/blog/…` odpowiada `301`. Prefiks per język to `blog.url_prefix_by_language`. Niepoprawny,
+  zarezerwowany lub kolidujący prefiks jest odrzucany przy zapisie.
+- Wpisy i kategorie mają klucz URL per język, dawny klucz przekierowuje, dopóki jest obecny moduł
+  `seo`, a **Blog → Adresy** wypisuje każdy prefiks, który kanał obsługiwał. Wpis może wskazywać
+  autora — administratora z publicznym profilem autora — a listy bloga są stronicowane.
+
+#### Rejestracja {#after-0-110-0-registration}
+
+- **Rejestracja B2C podlega ustawieniu każdego kanału sprzedaży.** Instalacja, która włączyła ją tylko
+  dla kanału domyślnego, oferowała ją w każdym kanale; od tego wydania oferuje ją tylko kanał
+  domyślny, a rejestracja przez zewnętrznego dostawcę tożsamości podlega temu samemu ustawieniu.
+  Ustaw wartość dla każdego kanału, który ma oferować rejestrację.
+- **Wyszukiwanie firmy w rejestrach publicznych** przy rejestracji — GUS REGON, Biała Lista VAT
+  Ministerstwa Finansów i VIES — jest domyślnie wyłączone
+  (`organizations.registration.registry_lookup_enabled`).
+
+#### Dokumenty: etykiety faktur i ofert w języku dokumentu {#after-0-110-0-documents}
+
+Szablon faktury utworzony z wbudowanego układu zapisywał jego angielskie etykiety, więc polska faktura
+drukowała *Paid*. Migracja opróżnia te etykiety i są one teraz drukowane w języku dokumentu. Jeśli
+celowo zostawiłeś angielską etykietę, wpisz ją w bloku ponownie. Etykiety na kanwie szablonów faktur
+i ofert podążają za językiem edytowanego drzewa.
+
+#### Atrybuty treści produktu {#after-0-110-0-product-content}
+
+Nowy typ atrybutu, **Treść kreatora stron**, przechowuje jeden dokument kreatora stron na język i
+produkt, wyświetlany na karcie opisu strony produktu. Usunięcie atrybutu jest teraz odrzucane, dopóki
+wartość ma nadpisanie kanału lub wariant, a wartość należąca tylko do usuniętego produktu już go nie
+blokuje.
+
+#### Formularze: nowy moduł {#after-0-110-0-forms}
+
+Wydanie przynosi nowy pakiet, **`@endora-commerce/mod-forms`** (id modułu `forms`): kreator
+formularzy, które umieszcza się na stronach CMS jako blok *Formularz*, ze zgłoszeniami, notatkami,
+eksportem CSV, powiadomieniami e-mail, ochroną przed spamem (honeypot, limit zgłoszeń, opcjonalnie
+Cloudflare Turnstile lub hCaptcha) i okresem przechowywania. Żaden moduł go nie wymaga, więc
+aktualizacja go nie deklaruje; jak to zrobić, mówi
+[Dodawanie modułu, który jest nowy w wydaniu](#adding-a-new-module). Po zadeklarowaniu jest włączony
+(`forms.enabled`); nadaj rolom, które mają z niego korzystać, uprawnienia `forms:read`, `forms:write`,
+`forms:entries_read`, `forms:entries_write` i `forms:entries_export`. Zob.
+[Formularze](./modules/forms.md).
+
+#### Logowanie i błędy niosą kody {#after-0-110-0-error-codes}
+
+- Odrzucone logowanie przez zewnętrznego dostawcę (Google, Microsoft) przekierowuje do
+  `/login?error=<code>` zarówno w panelu, jak i w storefroncie, nigdy ze zdaniem. Weź `admin-kit`,
+  `admin-shell` i `mod-mfa` z tego samego wydania.
+- Niepoprawny lub nieznany identyfikator rekordu odpowiada `404` na każdej trasie z identyfikatorem,
+  tam gdzie niektóre odpowiadały `500`.
+- Storefront przenosi w adresach URL kody błędów, nigdy dowolny tekst.
+- Zapisane widoki listy zwrotów podlegają zasadom pozostałych list: identyfikator, który nie jest
+  UUID, i prywatny widok innego administratora odpowiadają `404`, nazwy są przycinane i mają najwyżej
+  160 znaków, `shared` jest wymagane w `POST`, a `DELETE` odpowiada
+  `{ "data": { "deleted": "<id>" } }`.
+- W `GET /api/v1/admin/audit-log/recent-activity` pole `actorKind` może mieć wartość `'customer'`.
+
+#### W istniejącym storefroncie {#after-0-110-0-storefront}
+
+Storefront wydania ma ekrany ról i członków organizacji, ekran akceptacji koszyka i powiadomienie o
+odrzuceniu, adresy bloga per język, kody błędów w adresach URL, książkę adresową organizacji jako
+jedyną książkę adresową oraz ukrywa linki modułów, gdy moduł jest wyłączony. Storefront utworzony
+przez wcześniejsze wydanie nadal się renderuje, ale jego strony osobistych adresów wywołują punkty
+końcowe, które odpowiadają `410 CUSTOMER_ADDRESS_BOOK_RETIRED`, a jego formularze członków i
+zaproszeń wysyłają `role`, które jest odrzucane. Przenieś storefront wydania —
+`git diff v0.109.0 v0.110.0 -- storefront` wypisuje każdą zmianę.
+
+#### Zależności {#after-0-110-0-dependencies}
+
+Nowe zależności peer, wszystkie już obecne w instancji, która uruchamia platformę:
+`@endora-commerce/mod-customers` od `bullmq` i `ioredis` `^5`, `@endora-commerce/mod-quick-order` od
+`ioredis` `^5` oraz `@endora-commerce/mod-import-export` od `@mikro-orm/core`,
+`@mikro-orm/migrations` i `@mikro-orm/postgresql` `^6` oraz `zod` `^4`. `@endora-commerce/mod-forms`
+deklaruje zależności peer takie jak każdy moduł tego rodzaju.
+
+#### Dla autorów modułów i modułów nakładkowych {#after-0-110-0-authors}
+
+- **Dawna rola w organizacji została usunięta** z `@endora-commerce/contracts`: `OrganizationRole`,
+  `organizationRoleSchema` i `CustomerAccountRole` ustępują miejsca `OrganizationRoleRef` i
+  `OrganizationRoleKind`; odczytuj i zapisuj `organizationRoleId`; zamiast `isOrgAdmin` pytaj
+  `OrganizationPermissionPort` (`can`, `assert`, `isAdministrator`). Changelog
+  `@endora-commerce/contracts` zawiera pełną listę zmian.
+- **`catalogProductValueOverrideWritePort` i `seoMetaWritePort` zostały wycofane.** Konektor zapisuje
+  przez `catalogProductScopeWritePort.applyScopes` v2: komórki `{ scope, field, value }`, odrzucane
+  pojedynczo. `name` i `description` w `CatalogProductRecord` są tekstami, a czytelnik znający kanał
+  rozwiązuje obowiązujące teksty przez `catalogProductAvailabilityPort.effectiveTexts`.
+- **`CartWritePort.clearForCustomer` zostało usunięte**; żaden kod platformy go nie wywoływał.
+- `CmsPageReadPort` zyskuje `firstSegmentsInChannel`: implementacja portu musi ją dodać.
+- Nowy port platformy pozwala modułowi zredagować historię audytu zanonimizowanego podmiotu.
+- `endora new module` odrzuca `--name` zapisane wielkimi literami na początku każdego słowa: zapisz
+  nazwę tak, jak zdanie.
+
+#### Wycofanie osobistej książki adresowej (wydanie 1 z 2) {#personal-address-book-retired-1}
 
 Wydanie, które wprowadza `CUSTOMER_ADDRESS_BOOK_RETIRED`, daje każdemu klientowi **jedną** książkę
 adresową — książkę jego organizacji (`specs/173-b2c-address-book-merge/`). Osobista książka adresowa
@@ -3895,7 +4223,7 @@ już nic do zrobienia.
    portu `customerAddressReadPort` już nie ma, a `AddressServicePort` zyskuje
    `anonymizeForOrganization`.
 
-### Usunięte konta klientów są anonimizowane według harmonogramu {#customer-anonymization-sweep}
+#### Usunięte konta klientów są anonimizowane według harmonogramu {#customer-anonymization-sweep}
 
 Wydanie, które wprowadza kolejkę `customers.anonymization.sweep`, uruchamia zadanie anonimizacji po
 okresie przechowywania, które wcześniejsze wydania zbudowały, ale nigdy nie uruchamiały (zgłoszenie
@@ -3916,6 +4244,14 @@ przechowywania upłynął przed dniem aktualizacji, zostaje więc zanonimizowane
 pierwszego uruchomienia workera. **Tego nie da się cofnąć**, a konta po upływie okresu nie można już
 przywrócić (`409 CUSTOMER_RESTORE_WINDOW_ELAPSED`), niezależnie od tego, czy zadanie już do niego
 dotarło.
+
+**Usuwana jest też historia audytu każdego zanonimizowanego konta** (zgłoszenie #844). Dotyczy to
+wpisów o koncie, a w przypadku klienta indywidualnego także o jego organizacji prywatnej i jej
+adresach. Każdy wpis zachowuje akcję, wykonawców, czas i obiekt, ale zapisane wartości osobowe
+zmieniają się w `[erased]`, podobnie jak adres IP i identyfikator przeglądarki (user agent) we
+wpisach, które klient zapisał sam. Tego również nie da się cofnąć. Każde konto otrzymuje jeden wpis
+`audit.redacted`. Regułę opisuje dokumentacja modułu dziennika audytu, w sekcji *Usuwanie danych
+przy anonimizacji*.
 
 **Co zrobić:**
 
@@ -3940,12 +4276,12 @@ dotarło.
 3. **Przywróć konta, które chcesz zachować**, a potem, jeśli wydłużyłeś okres, ustaw go z powrotem
    na wybraną wartość.
 4. **Po pierwszym przebiegu** worker zapisuje w logu na poziomie `info` komunikat
-   `customers: anonymization sweep finished` z liczbą zanonimizowanych kont, a każde konto ma wpis
-   audytu `customer_account.anonymized`. Konto, którego nie udało się zanonimizować, jest zgłaszane
+   `customers: anonymization sweep finished` z liczbą zanonimizowanych kont, a każde konto ma wpisy
+   audytu `customer_account.anonymized` i `audit.redacted`. Konto, którego nie udało się zanonimizować, jest zgłaszane
    z identyfikatorem w ostrzeżeniu (`customers: the anonymization sweep failed; the next tick
    retries`) i ponawiane następnego dnia. Powyższe zapytanie zwraca wtedy `0`.
 
-### Zamówienia przez klucz API trafiają tylko do kanałów organizacji {#api-key-intake-organization-channels}
+#### Zamówienia przez klucz API trafiają tylko do kanałów organizacji {#api-key-intake-organization-channels}
 
 Wydanie, które zawiera tę zmianę, stosuje do zewnętrznego API zamówień
 (`POST /api/v1/external/orders`, zgłoszenie #699) tę samą zasadę co przy tworzeniu zamówienia w
@@ -3986,6 +4322,268 @@ powiązany z kluczem był odrzucany już wcześniej, odpowiedzią `400 INACTIVE_
    przekaż go integracji i unieważnij stary. Powiązania istniejącego klucza nie da się edytować.
 3. **Uruchom zapytanie ponownie.** Gdy nie zwraca żadnego wiersza, każda integracja może składać
    zamówienia.
+
+#### Pozycje zapytań ofertowych mają walutę swojego kanału {#quote-line-currency}
+
+Do tego wydania każda pozycja zapytania ofertowego była zapisywana z walutą `PLN`, niezależnie od
+domyślnej waluty kanału sprzedaży, w którym zapytanie złożono (zgłoszenie #303). Od tego wydania
+pozycje nowego zapytania mają domyślną walutę tego kanału. Jest ona ustalana raz, przy tworzeniu
+zapytania — przez klienta albo przez operatora w jego imieniu — i zachowywana przy każdej
+późniejszej edycji, wersji sprzedawcy i ponownym złożeniu. Listy zapytań ofertowych pokazują
+zapytanie bez pozycji w walucie jego kanału.
+
+**Istniejące zapytania nie są zmieniane.** Ich ceny wpisano i uzgodniono na ekranach, które
+podawały PLN, więc zmiana etykiety zmieniłaby znaczenie dawnych ofert. Zapytanie już zapisane
+zachowuje `PLN` w swoich pozycjach, podobnie jak jego ponowne złożenie. Instancja, której wszystkie
+kanały sprzedaży używają PLN, nie musi nic robić.
+
+**Co zrobić:** wypisz zapytania ofertowe złożone w kanale, którego domyślną walutą nie jest PLN. To
+zapytanie, tylko do odczytu, pokazuje każde z nich wraz z walutą kanału i walutami, w których
+zapisano jego pozycje:
+
+```sql
+select qr.id, qr.business_id, qr.status, qr.created_at,
+       sc.code as channel, sc.default_currency as channel_currency,
+       array_agg(distinct qi.line_currency) as line_currencies
+from quote_requests qr
+join sales_channels sc on sc.id = qr.sales_channel_id
+left join quote_request_items qi on qi.quote_request_id = qr.id
+where sc.default_currency <> 'PLN'
+group by qr.id, sc.code, sc.default_currency
+order by qr.created_at;
+```
+
+Każde zwrócone zapytanie przejrzyj z jego sprzedawcą. Nie ma automatycznej korekty: zmiana waluty
+zapisanego zapytania jest decyzją o tym, co znaczyły jego ceny, więc podejmuj ją dla każdego
+zapytania osobno, ręcznie i tylko wtedy, gdy sprzedawca potwierdzi, że ceny miały być w walucie
+kanału.
+
+#### Wymóg weryfikacji dwuetapowej w roli jest egzekwowany {#role-two-factor-enforced}
+
+Wydanie, które wprowadza `MFA_REQUIRED_FOR_ROLE_TWO_FACTOR`, sprawia, że pole roli **Wymaga
+weryfikacji dwuetapowej od przypisanych użytkowników** (`requiresTwoFactor`) działa zgodnie z
+opisem (zgłoszenie #349). Do tej pory było zapisywane, wyświetlane i edytowane, ale żadne
+logowanie go nie odczytywało. Od tego wydania posiadacz takiej roli loguje się z drugim
+składnikiem, tak jak `mfa.admin.totp_enforced` wymaga tego od każdego administratora. Działanie
+opisuje strona modułu użytkowników panelu, sekcja *Role wymagające weryfikacji dwuetapowej*.
+
+**Zmiana zachowania po aktualizacji:**
+
+- Operator mógł zaznaczyć to pole w przekonaniu, że już działa. Przy następnym logowaniu każdy
+  posiadacz takiej roli, który nie skonfigurował weryfikacji dwuetapowej, zostanie przeprowadzony
+  przez jej konfigurację i dostanie sesję dopiero po niej; posiadacz, który ją skonfigurował,
+  zostanie poproszony o kod. Logowanie przez Google i Microsoft działa tak samo.
+- **Sama aktualizacja nikogo nie wylogowuje.** Sesje kończą się dopiero wtedy, gdy wymóg zaczyna
+  kogoś obowiązywać po aktualizacji: gdy w roli zostanie zaznaczone pole albo gdy taka rola
+  zostanie nadana administratorowi bez skonfigurowanej weryfikacji. Posiadacze zalogowani przed
+  aktualizacją zachowują sesje do ich wygaśnięcia lub wylogowania.
+- Modułu MFA nie można wyłączyć, dopóki którakolwiek rola wymaga weryfikacji dwuetapowej: ekran
+  modułów odpowiada `409 MFA_DEACTIVATION_BLOCKED` i podaje te role. Najpierw odznacz pole w tych
+  rolach. Gdy MFA jest wyłączone, pola nie można zaznaczyć.
+- **Włączenie Admin UI — enforce two-step verification (`mfa.admin.totp_enforced`) teraz
+  wylogowuje administratorów**, tak jak zaznaczenie pola w roli (zgłoszenie #349). Wcześniej
+  działało dopiero przy następnym logowaniu każdego administratora, które mogło nastąpić za
+  trzydzieści dni. Teraz każdy administrator bez skonfigurowanej weryfikacji dwuetapowej zostaje od
+  razu wylogowany, z wyjątkiem sesji, z której wprowadzono zmianę; **Ustawienia** najpierw pytają o
+  potwierdzenie i podają, ilu ich jest. Sama aktualizacja nikogo nie wylogowuje.
+
+**Przed aktualizacją:**
+
+1. **Sprawdź, kto zostanie poproszony o konfigurację weryfikacji dwuetapowej.** Uruchom to
+   zapytanie tylko do odczytu. Każdy wiersz to rola, która jej wymaga, z liczbą jej aktywnych
+   administratorów i liczbą tych, którzy jej nie skonfigurowali:
+
+   ```sql
+   select r.code,
+          count(u.id) as admins,
+          count(u.id) filter (where e.id is null) as not_enrolled
+   from admin_roles r
+   join admin_users u on u.admin_role_id = r.id and u.deleted_at is null
+   left join mfa_enrolments e
+     on e.subject_type = 'admin' and e.subject_id = u.id and e.status = 'active'
+   where r.requires_two_factor
+   group by r.code
+   order by r.code;
+   ```
+
+2. **Sprawdź, czy da się skonfigurować drugi składnik.** Bez `MFA_SECRET_ENCRYPTION_KEY` nie da
+   się zarejestrować ani sprawdzić drugiego składnika, więc wymóg **nie jest stosowany**:
+   posiadacze logują się samym hasłem, jak przed aktualizacją. Ekran ról pokazuje pod polem
+   *Nie obowiązuje: brak klucza szyfrowania*, a backend przy każdym starcie zapisuje błąd z nazwami
+   ról i liczbą ich administratorów bez drugiego składnika. Ustaw klucz i uruchom backend ponownie,
+   jeśli wymóg ma obowiązywać; w przeciwnym razie odznacz pole w tych rolach, aby ekran pokazywał
+   to, co faktycznie się dzieje (zobacz
+   [Wymuszona weryfikacja dwuetapowa bez klucza szyfrowania](#admin-two-step-without-key)).
+3. **Zachowaj co najmniej jednego administratora, który może się zalogować.** Jeśli Twoja rola
+   jest wśród wierszy, skonfiguruj weryfikację dwuetapową przed aktualizacją (*Bezpieczeństwo
+   konta* w panelu administracyjnym) albo upewnij się, że administrator innej roli może się
+   zalogować i zmienić rolę.
+
+#### Odstąpienie konsumenta zwraca koszt dostawy i dopłatę {#withdrawal-refunds-charges}
+
+Przy odstąpieniu konsumenta od umowy sprzedawca musi zwrócić wszystkie otrzymane płatności, w tym
+koszt dostawy (art. 13 ust. 1 dyrektywy 2011/83/UE; art. 32 ust. 1 ustawy o prawach konsumenta).
+Do tego wydania zwrot B2C zwracał tylko towar, więc koszt dostawy i dopłata za płatność zostawały
+w sklepie i na fakturze (zgłoszenie #876).
+
+Od tego wydania zwrot, z którym wraca ostatnia sztuka zamówienia B2C, zwraca też koszt dostawy
+i dopłatę za płatność zamówienia. Zamówienie B2C to zamówienie, którego organizacja jest organizacją
+prywatną. Formularz rozliczenia wypełnia obie kwoty w całości, gdy sprawę otwarto w ciągu 14 dni od
+zakończenia realizacji zamówienia albo w terminie `returns.free_return_days` kanału, jeśli ten jest
+dłuższy. Po tym terminie kwoty zaczynają się od 0 i możesz je podnieść do tego, co zapłacono.
+Zwrot częściowy, reklamacja i zwrot klienta firmowego działają bez zmian.
+
+**Co się dla ciebie zmienia:**
+
+- Sprawa B2C zamykająca odstąpienie przekazuje więcej pieniędzy niż suma jej pozycji. Jej
+  `totalRefundAmount` obejmuje opłaty.
+- Klient API, który rozlicza taką sprawę bez `deliveryRefundAmount` i `surchargeRefundAmount`,
+  zwraca kwoty z formularza. Wyślij `0`, żeby nie zwracać żadnej z nich, albo niższą kwotę, gdy
+  klient wybrał droższą dostawę niż najtańszy zwykły sposób (art. 13 ust. 2).
+- W zamówieniu z fakturą korekta zwraca dostawę i dopłatę w osobnych pozycjach. W zamówieniu bez
+  faktury faktura nalicza tylko to, co zostało z każdej opłaty. Zamówienie B2C zwrócone w całości
+  nie jest fakturowane.
+
+Migracja `20261108T125405_returns_case_charge_refunds.ts` dodaje do `return_cases` cztery kolumny,
+domyślnie `0.00`. Sprawy rozliczone przed aktualizacją pozostają bez zmian, a platforma nie zwraca
+za nie opłat wstecz.
+
+**Zamówienia już zwrócone w całości.** Aby znaleźć zamówienia B2C zwrócone w całości przed
+aktualizacją, w których nie zwrócono dostawy ani dopłaty, uruchom po aktualizacji to zapytanie
+(tylko do odczytu):
+
+```sql
+with returned as (
+  select rc.order_id, rci.order_item_id, sum(rci.quantity) as quantity
+  from return_cases rc
+  join return_case_items rci on rci.return_case_id = rc.id
+  where rc.kind = 'return'
+    and rc.resolution_type in ('refund', 'credit')
+  group by rc.order_id, rci.order_item_id
+),
+returned_in_full as (
+  select oi.order_id
+  from order_items oi
+  left join returned r on r.order_id = oi.order_id and r.order_item_id = oi.id
+  group by oi.order_id
+  having bool_and(coalesce(r.quantity, 0) >= oi.quantity)
+)
+select o.id as order_id,
+       o.placed_at,
+       o.currency,
+       o.delivery_total,
+       coalesce((o.payment_method_snapshot ->> 'additionalPrice')::numeric, 0) as payment_surcharge
+from orders o
+join returned_in_full f on f.order_id = o.id
+join organizations org on org.id = o.organization_id
+where org.is_personal
+  and (o.delivery_total > 0
+       or coalesce((o.payment_method_snapshot ->> 'additionalPrice')::numeric, 0) > 0)
+  and not exists (
+    select 1 from return_cases rc
+    where rc.order_id = o.id
+      and (rc.approved_delivery_refund > 0 or rc.approved_surcharge_refund > 0)
+  )
+order by o.placed_at;
+```
+
+Każdy wiersz to zamówienie, którego każda pozycja wróciła w zwrotach rozliczonych zwrotem pieniędzy
+albo zasileniem limitu, a którego dostawy ani dopłaty nie zwróciła żadna sprawa. Zdecyduj dla
+każdego z nich, czy zwrócić je ręcznie, na przykład przelewem, i odnotuj to w zamówieniu.
+
+#### Wymuszona weryfikacja dwuetapowa bez klucza szyfrowania {#admin-two-step-without-key}
+
+Wydanie, które zawiera `MFA_ENFORCEMENT_UNAVAILABLE`, usuwa blokadę dostępu (zgłoszenie #930). Bez
+`MFA_SECRET_ENCRYPTION_KEY` moduł MFA nie może skonfigurować drugiego składnika: nie udostępnia ani
+kroku konfiguracji, ani kroku wpisania kodu. Mimo to przy włączonym ustawieniu **Admin UI — enforce
+two-step verification** (`mfa.admin.totp_enforced`) logowanie nadal kierowało każdego
+administratora bez drugiego składnika do kroku konfiguracji, którego nie dało się ukończyć, więc
+żaden z nich nie mógł się zalogować.
+
+**Zmiana zachowania po aktualizacji:**
+
+- Włączenie `mfa.admin.totp_enforced` jest odrzucane, dopóki klucz nie jest ustawiony:
+  `409 MFA_ENFORCEMENT_UNAVAILABLE`, z `details.reason: 'encryption_key_missing'`. Wyłączenie
+  ustawienia jest zawsze dozwolone, podobnie jak ponowne zapisanie go, gdy jest już włączone.
+- **Na instancji, na której ustawienie jest już włączone, a klucz nie jest ustawiony**, ustawienie
+  nie jest stosowane: administratorzy bez drugiego składnika logują się hasłem, tak jak przy
+  wyłączonym ustawieniu. Samo ustawienie się nie zmienia. **Ustawienia** pokazują pod nim
+  komunikat *Nie obowiązuje: brak klucza szyfrowania* (odczyty ustawień w API zawierają
+  `notice.code: 'encryption_key_missing'`), a backend zapisuje błąd w logu przy każdym starcie,
+  dopóki klucz nie zostanie ustawiony albo ustawienie wyłączone. Wcześniej ci administratorzy nie
+  mogli się w ogóle zalogować.
+- Na instancji z kluczem nic się nie zmienia: wymuszanie działa jak dotąd.
+- **Bez klucza drugi składnik nie jest wymagany w ogóle** (zgłoszenie #948):
+  - wymóg weryfikacji dwuetapowej w roli również nie jest stosowany; ekran ról pokazuje pod polem
+    ten sam komunikat (odczyt roli zawiera `twoFactorNotice.code: 'encryption_key_missing'`), a
+    błąd zapisywany przy każdym starcie podaje te role (zobacz
+    [Wymóg weryfikacji dwuetapowej w roli jest egzekwowany](#role-two-factor-enforced));
+  - administratorzy i klienci, którzy skonfigurowali weryfikację dwuetapową, gdy klucz był
+    ustawiony, nie są proszeni o kod, bo nic nie może go sprawdzić. Wcześniej nie mogli się w ogóle
+    zalogować. Backend przy każdym starcie zapisuje błąd z liczbą takich rejestracji;
+  - nikt nie zostaje wylogowany z powodu otrzymania roli, która wymaga weryfikacji dwuetapowej.
+  - bez klucza klienci również nie są proszeni o drugi składnik, niezależnie od tego, czy go
+    zarejestrowali, czy obowiązuje ich wymuszanie w sklepie lub w organizacji.
+
+**Po aktualizacji,** jeśli pojawi się komunikat albo błąd w logu, ustaw `MFA_SECRET_ENCRYPTION_KEY`
+(zobacz [listę kontrolną pierwszego wdrożenia](./deployment/first-deployment-checklist.md)) i
+uruchom backend ponownie, aby wymuszanie znów działało, albo wyłącz to ustawienie w
+**Ustawieniach** i odznacz pole w rolach. Ustaw ten klucz, z którym utworzono rejestracje:
+rejestracji utworzonej innym kluczem nie da się nim sprawdzić.
+
+#### Terminy zwrotu liczą się od realizacji zamówienia {#return-window-from-completion}
+
+Wydanie, które zawiera tę zmianę, zapisuje, kiedy zamówienie zostało zrealizowane
+(`orders.completed_at`, zgłoszenie #905), i od tej chwili liczy terminy zwrotu. Dotąd liczyły się od
+ostatniej edycji zamówienia, która przesuwała się do przodu przy każdej zmianie zrealizowanego
+zamówienia. Migracja wypełnia nową kolumnę wartością `updated_at` każdego zrealizowanego zamówienia —
+chwilą, według której te zamówienia były oceniane wcześniej — więc w chwili aktualizacji nic się nie
+zmienia dla istniejących zamówień.
+
+Od tej pory zmieniają się dwie rzeczy:
+
+- **Dni kalendarzowe.** Okres bezpłatnego zwrotu (`returns.free_return_days`) kończy się teraz z
+  końcem ostatniego dnia kalendarzowego, a ostatni dzień przypadający w sobotę lub niedzielę
+  przesuwa się na poniedziałek. Wcześniej kończył się dokładnie `free_return_days × 24 h` po chwili
+  odniesienia. Sprawa może teraz kwalifikować się do bezpłatnego zwrotu do jednego dnia później niż
+  dotąd (do trzech przy weekendzie), nigdy wcześniej.
+- **Strefa czasowa.** Dni liczy się w nowym ustawieniu `returns.time_zone` (domyślnie
+  `Europe/Warsaw`, ustawiane także dla kanału sprzedaży).
+
+**Po aktualizacji:**
+
+1. **Jeśli sklep nie działa w strefie `Europe/Warsaw`**, ustaw `returns.time_zone` na jego strefę,
+   np. `Europe/Berlin`, na ekranie ustawień w panelu (grupa *Zwroty*).
+2. **Poproś operatorów, by realizowali zamówienie, gdy towar został doręczony.** Termin konsumenta na
+   odstąpienie od umowy liczy się od realizacji zamówienia, bo platforma nie zna daty doręczenia.
+
+#### Odstąpienie konsumenta rozlicza się zwrotem pieniędzy, chyba że zapisano zgodę {#consumer-withdrawal-consent}
+
+Wydanie z tą zmianą oznacza każdy zwrot zgłoszony przez konsumenta jako **odstąpienie konsumenta od
+umowy** (zgłoszenie #905): zwrot organizacji osobistej zgłoszony w terminie na odstąpienie, w
+dłuższym okresie bezpłatnego zwrotu kanału albo w 7 dniach karencji po nich. Taką sprawę rozlicza
+się zwrotem tym samym sposobem płatności, chyba że konsument zgodził się na inny (dyrektywa 2011/83
+art. 13 ust. 1), dlatego:
+
+- **Środki na przyszłe zamówienia, wymiana i naprawa wymagają zapisanej zgody konsumenta.** Bez niej
+  rozliczenie odpowiada `422 RETURN_ALTERNATIVE_RESOLUTION_CONSENT_REQUIRED`. Operator zapisuje zgodę
+  wraz z dowodem w panelu *Odstąpienie konsumenta od umowy* sprawy.
+- **Zwrot pieniędzy proponuje sposób płatności zamówienia.** Inny jest przyjmowany z ostrzeżeniem, a
+  wpis rozliczenia w dzienniku zdarzeń to odnotowuje.
+
+Zwroty firm i reklamacje się nie zmieniają. **Sprawy zgłoszone przed aktualizacją nie są
+klasyfikowane**: rozlicza się je jak dotąd. Otwarte sprawy sklasyfikuje jedno z kolejnych wydań.
+
+**Po aktualizacji:** poinformuj operatorów rozliczających zwroty, że środki na przyszłe zamówienia,
+wymiana albo naprawa dla konsumenta wymagają teraz najpierw zapisania zgody, a w dowodzie należy
+wskazać, gdzie konsument się zgodził (e-mail, zgłoszenie).
+
+Ta sekcja została napisana 2026-11-09 na gałęzi wydania `release/version-0.110.0`, na podstawie
+changesetów wydania zestawionych z jego migracjami i manifestami; wpisy od *Wycofania osobistej
+książki adresowej* do *Odstąpienia konsumenta rozliczanego zwrotem pieniędzy* zostały napisane
+wcześniej, przez pull requesty, które wprowadziły każdą zmianę. W chwili jej pisania żadna instancja
+nie była zaktualizowana poleceniem `pnpm run upgrade 0.110.0`; kolejność kroków i zmiany w
+storefroncie nie zostały wypróbowane.
 
 ### Jedna reguła zasięgu przedstawiciela handlowego na wszystkich ekranach {#sales-rep-reach-one-rule}
 
@@ -4059,99 +4657,6 @@ Nic nie jest migrowane i nic nie trzeba konfigurować; administratorzy platformy
    przedstawicielowi, który się nią opiekuje: wtedy jest prowadzona, a każdy inny przedstawiciel traci
    do niej dostęp. Organizacji prywatnej nie można przypisać; ukrycie danych B2C przed
    przedstawicielami byłoby inną regułą i nie da się go skonfigurować.
-
-### Pozycje zapytań ofertowych mają walutę swojego kanału {#quote-line-currency}
-
-Do tego wydania każda pozycja zapytania ofertowego była zapisywana z walutą `PLN`, niezależnie od
-domyślnej waluty kanału sprzedaży, w którym zapytanie złożono (zgłoszenie #303). Od tego wydania
-pozycje nowego zapytania mają domyślną walutę tego kanału. Jest ona ustalana raz, przy tworzeniu
-zapytania — przez klienta albo przez operatora w jego imieniu — i zachowywana przy każdej
-późniejszej edycji, wersji sprzedawcy i ponownym złożeniu. Listy zapytań ofertowych pokazują
-zapytanie bez pozycji w walucie jego kanału.
-
-**Istniejące zapytania nie są zmieniane.** Ich ceny wpisano i uzgodniono na ekranach, które
-podawały PLN, więc zmiana etykiety zmieniłaby znaczenie dawnych ofert. Zapytanie już zapisane
-zachowuje `PLN` w swoich pozycjach, podobnie jak jego ponowne złożenie. Instancja, której wszystkie
-kanały sprzedaży używają PLN, nie musi nic robić.
-
-**Co zrobić:** wypisz zapytania ofertowe złożone w kanale, którego domyślną walutą nie jest PLN. To
-zapytanie, tylko do odczytu, pokazuje każde z nich wraz z walutą kanału i walutami, w których
-zapisano jego pozycje:
-
-```sql
-select qr.id, qr.business_id, qr.status, qr.created_at,
-       sc.code as channel, sc.default_currency as channel_currency,
-       array_agg(distinct qi.line_currency) as line_currencies
-from quote_requests qr
-join sales_channels sc on sc.id = qr.sales_channel_id
-left join quote_request_items qi on qi.quote_request_id = qr.id
-where sc.default_currency <> 'PLN'
-group by qr.id, sc.code, sc.default_currency
-order by qr.created_at;
-```
-
-Każde zwrócone zapytanie przejrzyj z jego sprzedawcą. Nie ma automatycznej korekty: zmiana waluty
-zapisanego zapytania jest decyzją o tym, co znaczyły jego ceny, więc podejmuj ją dla każdego
-zapytania osobno, ręcznie i tylko wtedy, gdy sprzedawca potwierdzi, że ceny miały być w walucie
-kanału.
-
-### Wymóg weryfikacji dwuetapowej w roli jest egzekwowany {#role-two-factor-enforced}
-
-Wydanie, które wprowadza `MFA_REQUIRED_FOR_ROLE_TWO_FACTOR`, sprawia, że pole roli **Wymaga
-weryfikacji dwuetapowej od przypisanych użytkowników** (`requiresTwoFactor`) działa zgodnie z
-opisem (zgłoszenie #349). Do tej pory było zapisywane, wyświetlane i edytowane, ale żadne
-logowanie go nie odczytywało. Od tego wydania posiadacz takiej roli loguje się z drugim
-składnikiem, tak jak `mfa.admin.totp_enforced` wymaga tego od każdego administratora. Działanie
-opisuje strona modułu użytkowników panelu, sekcja *Role wymagające weryfikacji dwuetapowej*.
-
-**Zmiana zachowania po aktualizacji:**
-
-- Operator mógł zaznaczyć to pole w przekonaniu, że już działa. Przy następnym logowaniu każdy
-  posiadacz takiej roli, który nie skonfigurował weryfikacji dwuetapowej, zostanie przeprowadzony
-  przez jej konfigurację i dostanie sesję dopiero po niej; posiadacz, który ją skonfigurował,
-  zostanie poproszony o kod. Logowanie przez Google i Microsoft działa tak samo.
-- **Sama aktualizacja nikogo nie wylogowuje.** Sesje kończą się dopiero wtedy, gdy wymóg zaczyna
-  kogoś obowiązywać po aktualizacji: gdy w roli zostanie zaznaczone pole albo gdy taka rola
-  zostanie nadana administratorowi bez skonfigurowanej weryfikacji. Posiadacze zalogowani przed
-  aktualizacją zachowują sesje do ich wygaśnięcia lub wylogowania.
-- Modułu MFA nie można wyłączyć, dopóki którakolwiek rola wymaga weryfikacji dwuetapowej: ekran
-  modułów odpowiada `409 MFA_DEACTIVATION_BLOCKED` i podaje te role. Najpierw odznacz pole w tych
-  rolach. Gdy MFA jest wyłączone, pola nie można zaznaczyć.
-
-**Przed aktualizacją:**
-
-1. **Sprawdź, kto zostanie poproszony o konfigurację weryfikacji dwuetapowej.** Uruchom to
-   zapytanie tylko do odczytu. Każdy wiersz to rola, która jej wymaga, z liczbą jej aktywnych
-   administratorów i liczbą tych, którzy jej nie skonfigurowali:
-
-   ```sql
-   select r.code,
-          count(u.id) as admins,
-          count(u.id) filter (where e.id is null) as not_enrolled
-   from admin_roles r
-   join admin_users u on u.admin_role_id = r.id and u.deleted_at is null
-   left join mfa_enrolments e
-     on e.subject_type = 'admin' and e.subject_id = u.id and e.status = 'active'
-   where r.requires_two_factor
-   group by r.code
-   order by r.code;
-   ```
-
-2. **Sprawdź, czy da się skonfigurować drugi składnik.** Bez `MFA_SECRET_ENCRYPTION_KEY` nie da
-   się zarejestrować drugiego składnika, więc posiadacze policzeni w `not_enrolled` trafiliby do
-   konfiguracji, której nie można dokończyć, i nie mogliby się zalogować. Jeśli klucz nie jest
-   ustawiony, **odznacz pole w tych rolach przed aktualizacją** albo najpierw ustaw klucz:
-
-   ```sql
-   update admin_roles set requires_two_factor = false where code = '<code>';
-   ```
-
-   Po aktualizacji instancja w takim stanie przy każdym starcie zapisuje ostrzeżenie z nazwami
-   ról i liczbą ich administratorów bez drugiego składnika.
-3. **Zachowaj co najmniej jednego administratora, który może się zalogować.** Jeśli Twoja rola
-   jest wśród wierszy, skonfiguruj weryfikację dwuetapową przed aktualizacją (*Bezpieczeństwo
-   konta* w panelu administracyjnym) albo upewnij się, że administrator innej roli może się
-   zalogować i zmienić rolę.
 
 ## Instancja niespójna od początku
 

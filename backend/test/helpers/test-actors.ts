@@ -48,6 +48,11 @@ export interface TestCustomerActor {
 export interface TestAdminActor {
   kind: 'admin';
   adminUserId: string;
+  /**
+   * Mirrors the production `ActorAdmin.sessionId` (issue #349, E-349-1): set
+   * for a real session, absent for a stub cookie, which has none.
+   */
+  sessionId?: string;
 }
 
 /**
@@ -499,7 +504,11 @@ export function registerTestAuth(app: FastifyInstance, deps: TestAuthDeps): void
       if (adminRaw.includes('.')) {
         const resolvedAdmin = await deps.sessionService.loadSession(adminRaw);
         if (resolvedAdmin?.kind === 'admin' && resolvedAdmin.session.adminUserId) {
-          adminCandidate = { kind: 'admin', adminUserId: resolvedAdmin.session.adminUserId };
+          adminCandidate = {
+            kind: 'admin',
+            adminUserId: resolvedAdmin.session.adminUserId,
+            sessionId: resolvedAdmin.session.id,
+          };
         }
       }
       if (!adminCandidate && ADMIN_COOKIES[adminRaw]) {
@@ -540,6 +549,7 @@ export function registerTestAuth(app: FastifyInstance, deps: TestAuthDeps): void
           setActor({
             kind: 'admin',
             adminUserId: resolved.session.adminUserId,
+            sessionId: resolved.session.id,
           });
           return;
         }

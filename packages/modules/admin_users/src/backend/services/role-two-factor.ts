@@ -26,8 +26,9 @@ export function turnsTwoFactorOn(before: boolean | null, requested: boolean | un
  * With `mfa` off, sign-in asks for no second factor at all (D-96), so the flag
  * would be a promise nothing keeps — and `mfa` could then not be switched back
  * on without the operator first learning that it binds people. Without an
- * encryption key, `mfa` serves no enrolment route, so every unenrolled holder
- * would be sent to a setup step nothing can complete: a lockout.
+ * encryption key, `mfa` serves no enrolment route and applies no requirement
+ * (issue #948, owner ruling Q6), so the flag would read as on while doing
+ * nothing — the defect #349 was filed about.
  *
  * `details.code` is the token that picks the sentence
  * (`errors.MFA_REQUIRED_FOR_ROLE_TWO_FACTOR.<token>`); `details.reason` carries

@@ -62,11 +62,15 @@ export type CreditInheritanceMode = z.infer<typeof creditInheritanceModeSchema>;
  * snapshots record codes under `provider` and `outcome` (a tax-id validation)
  * and `creditInheritanceMode`; `blockSource` and `countryCode` are kept
  * wherever a writer records them, as they are on the account and the address.
+ * `orderConfirmationEmailCount` is the count the `organization.anonymized` row
+ * records instead of the addresses: the retention sweep redacts after that row
+ * is written, and must leave it as its owner wrote it (issue #844).
  */
 export const ORGANIZATION_AUDIT_KEEP_KEYS: readonly string[] = [
   'blockSource',
   'countryCode',
   'creditInheritanceMode',
+  'orderConfirmationEmailCount',
   'outcome',
   'provider',
 ];

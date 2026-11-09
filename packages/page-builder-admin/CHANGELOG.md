@@ -1,5 +1,107 @@
 # @endora-commerce/page-builder-admin
 
+## 0.110.0
+
+### Minor Changes
+
+- 2da23d2: A form picker for the `forms.Form` block (`specs/170-forms-module/` FR-004).
+
+  - `@endora-commerce/page-builder-admin`: `FormPickerControl` and `createFormPickerField` — a Puck field choosing one of the forms the editor may see, with its status, a link creating a new form in a new tab, and the not-found, forbidden and load-failed states (the block keeps its form when the list cannot be read).
+  - `@endora-commerce/mod-i18n`: the picker's words, `pageBuilder.formPicker.*`, in English and Polish.
+
+- 3f020ba: **`ScopedField` — one inherited-value control for scoped product fields (feature 174).** `@endora-commerce/admin-kit` exports `ScopedField` and its types (`ScopedFieldProps`, `ScopedFieldControlProps`, `ScopedFieldViewWithParent`, `ScopedInheritedValue`): a field at Global, a channel, or a channel and language, showing "Use value from _parent scope_", an own value, or a deliberately empty value. `use-unsaved-changes-prompt` honours a `[data-own-unsaved-guard]` opt-out.
+
+  **Breaking:** the product browser and the page-builder catalog pickers read a product's `name` as a string (the Global name); a caller passing a per-language name map passes the string instead.
+
+  `CategoryTreePicker`'s list is a labelled `role="group"` instead of `role="tree"`: its rows are checkboxes, not `treeitem`s, and it has no tree keyboard model. A test that queried `getByRole('tree', …)` queries `getByRole('group', …)`.
+  - `@endora-commerce/admin-kit/ui` exports `DropdownMenuSeparator` (the existing primitive), so a menu can set its destructive item apart.
+  - `CategoryTreePicker`: clicking a category name toggles it, each expand control names its branch (`categoryTreePicker.expand` / `.collapse` take `{name}`), the list id is per instance, the loading line is a status, and its controls are 44 px below 1024 px. The `ScopedField` "Edit at" control is 44 px there too.
+
+### Patch Changes
+
+- c01aaa3: The e-mail editor preview shows the sample Unsubscribe link for newsletter templates only (issue #862). Since #861, a transactional e-mail is sent without the link, but `EmailEditorPane` still supplied a sample `unsubscribeUrl` for every template. It now supplies it only when `builderContext` is `'newsletter'`, in the HTML preview and in the canvas previews of embedded blocks. The newsletter preview is unchanged.
+
+  `previewNode(content, builderContext?)` takes the editor's context as an optional second argument. It defaults to `'email'`, so a call without it draws no sample Unsubscribe link. Pass `'newsletter'` to keep the link in a newsletter canvas.
+
+- Updated dependencies [18cce2e]
+- Updated dependencies [9cfb28b]
+- Updated dependencies [a206da9]
+- Updated dependencies [34485ae]
+- Updated dependencies [0f1717c]
+- Updated dependencies [86e8761]
+- Updated dependencies [9bfb0b8]
+- Updated dependencies [ed5cf6a]
+- Updated dependencies [2da23d2]
+- Updated dependencies [2da23d2]
+- Updated dependencies [2da23d2]
+- Updated dependencies [9d9c8df]
+- Updated dependencies [9d9c8df]
+- Updated dependencies [9d9c8df]
+- Updated dependencies [9d9c8df]
+- Updated dependencies [5303aab]
+- Updated dependencies [16f85f4]
+- Updated dependencies [270aa2b]
+- Updated dependencies [3f020ba]
+- Updated dependencies [3f020ba]
+- Updated dependencies [b59e5d5]
+- Updated dependencies [bf1cc2d]
+- Updated dependencies [ff60e93]
+- Updated dependencies [6f19230]
+- Updated dependencies [06cf85b]
+- Updated dependencies [77b8c37]
+- Updated dependencies [65104b8]
+- Updated dependencies [7acaa33]
+- Updated dependencies [7019c71]
+- Updated dependencies [4eee98b]
+- Updated dependencies [14ac256]
+- Updated dependencies [248bf1b]
+- Updated dependencies [4cf529d]
+- Updated dependencies [5e4dd48]
+- Updated dependencies [75b053f]
+- Updated dependencies [54fc8f1]
+- Updated dependencies [dac5795]
+- Updated dependencies [5bbb389]
+- Updated dependencies [d69e765]
+- Updated dependencies [dbc1cef]
+- Updated dependencies [d69e765]
+- Updated dependencies [a6bc891]
+- Updated dependencies [a9398c8]
+- Updated dependencies [0b56038]
+- Updated dependencies [cc1496f]
+- Updated dependencies [717e4c6]
+- Updated dependencies [cea1470]
+- Updated dependencies [cea1470]
+- Updated dependencies [29d7e90]
+- Updated dependencies [7f2fa6e]
+- Updated dependencies [57145f7]
+- Updated dependencies [58a1632]
+- Updated dependencies [e46d233]
+- Updated dependencies [b476f44]
+- Updated dependencies [14fe4fb]
+- Updated dependencies [76d89ab]
+- Updated dependencies [5cbffb9]
+- Updated dependencies [6bd2ab7]
+- Updated dependencies [a3502c0]
+- Updated dependencies [7a73cc8]
+- Updated dependencies [5ff8302]
+- Updated dependencies [fc7db4c]
+- Updated dependencies [c34b405]
+- Updated dependencies [5af8c25]
+- Updated dependencies [48f055e]
+- Updated dependencies [bf50b85]
+- Updated dependencies [2c6fba0]
+- Updated dependencies [0801f69]
+- Updated dependencies [d1c0d13]
+- Updated dependencies [974be57]
+- Updated dependencies [32b4d0c]
+- Updated dependencies [3355e60]
+- Updated dependencies [7ce9b8a]
+  - @endora-commerce/contracts@0.110.0
+  - @endora-commerce/cms-components@0.110.0
+  - @endora-commerce/admin-kit@0.110.0
+  - @endora-commerce/email-components@0.110.0
+  - @endora-commerce/page-builder-core@0.110.0
+
 ## 0.109.0
 
 ### Minor Changes

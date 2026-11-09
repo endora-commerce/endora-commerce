@@ -1,5 +1,223 @@
 # @endora-commerce/mod-catalog
 
+## 0.110.0
+
+### Minor Changes
+
+- 5303aab: Product content attributes (`specs/172-product-content-attributes/`).
+
+  - A new attribute type, **Page Builder content** (`page_builder`): one Page Builder document per language and product, stored in the new `product_content_values` table (migration `catalog_product_content_values`). The type is always language-scoped and every other capability is held off — setting one on create or update is refused with `400 VALIDATION_FAILED`, and the type cannot be changed to or from (`409`).
+  - New admin routes: `GET /api/v1/admin/catalog/products/:id/content`, `GET` and `PUT /api/v1/admin/catalog/products/:id/content/:attributeKey` (`catalog:read` / `catalog:write`; the save runs the audited command `product.content.update` and emits `product.content.updated.v1`). A content attribute's key in `attributeValues` is refused with `400 ATTRIBUTE_VALUE_REJECTED` on every write path.
+  - The product page read `GET /api/v1/catalog/products/:idOrSlug?include=content` carries `contentAttributes`, and carries none while the CMS module is off. Without `include` the response is unchanged.
+  - Admin: a content card on the product's Attributes tab, the product content screen `/catalog/products/:id/content/:attributeKey` (its editor is the `product.content.editor` zone), and a **Delete** action with a usage dialog for every attribute type on the attributes screen.
+  - Duplicating a product copies its content; assets embedded in content are reported as in use (`product_content`).
+  - New: `GET /api/v1/admin/catalog/attributes/:idOrKey/usage`.
+
+  **Behaviour change for API callers of `DELETE /api/v1/admin/catalog/attributes/:idOrKey`**:
+
+  - a per-sales-channel override (`product_value_overrides`) or a variant value now **refuses** the delete with `409`, as a value on the product always did — such rows were previously left orphaned;
+  - a value held only by a **soft-deleted** product **no longer** refuses it;
+  - a `page_builder` attribute's content rows are deleted with it, counted in the audit row's `before.productContentCount`;
+  - the delete now emits `attribute.updated.v1` with `isSearchable: false` and `isFilterable: false` after commit.
+
+  Promotion conditions, price-list rows and feed rules naming the deleted key are neither refused nor removed; their owners already treat an unknown key as matching nothing.
+
+- 3f020ba: **Breaking — the product editor edits one scope at a time: Global, a sales channel, or a channel and language (feature 174).**
+
+  - **New routes.** `GET|PUT /api/v1/admin/catalog/products/:id/scoped-values` (`catalog:read` / `catalog:write`) read and save every scoped field of one scope in one audited Command (`product.scoped_values.save`), with a `version` precondition (`409 VERSION_CONFLICT`); `POST …/scoped-values/copy`; `GET …/editor-preference`. A save that changes nothing answers 200, leaves the version and writes no audit entry. Each view carries `inheritedValue` at Channel and Channel × language.
+  - **Retired routes.** `GET …/products/:id/scope-context`, `GET` and `PATCH …/products/:id/value-overrides`, and `GET` / `PUT …/gallery/channel-roles`. The gallery, attachment and packaging-unit `PATCH` routes keep their collection fields only (position, type, base quantity, default flag, minimum); alt text, hidden flags, gallery roles and names are scoped fields written through `PUT …/scoped-values`.
+  - **`null` means "deliberately empty"** in every scoped write, in place (FR-116): send `{ "inherit": true }` to remove an override. This includes `PATCH …/products/:id/scopes`, `PUT …/url-keys` (where `null` is now refused, the key being required) and the minimum order quantity.
+  - **URL keys** follow the three scopes: a Channel key and a Channel × language key replace 163's language key, and a key text belongs to at most one product per sales channel across its languages. The `scope_model_url_keys` migration enforces this with an exclusion constraint and runs `CREATE EXTENSION IF NOT EXISTS btree_gist`: **the database role that runs migrations needs the right to create that extension** (it ships with PostgreSQL), or a superuser creates it once beforehand.
+  - **Migrations** (`scope_model_texts`, `scope_model_order_rules`, `scope_model_url_keys`, `scope_model_media`) turn `products.name` / `description` into text holding the Global value — the `en-US` text, else the first non-empty language, else the SKU for the name — and **drop the other languages and every language-only value**, since that scope no longer exists (FR-020); they also replace the per-channel gallery and attachment tables and the `*_translations` columns with scope-override tables. Re-enter translations at Channel × language after the upgrade. `down` restores the 163 schema without its data.
+  - **The save writes SEO** through `seo`'s `seoProductMetaWritePort` in the same transaction; with `seo` off, a save naming SEO fields answers `503 MODULE_DISABLED`. Duplicate copies every scope, SEO included.
+  - **`PATCH /products/:id`** takes `name` / `description` as strings, compares an optional `version` (`409 VERSION_CONFLICT`), and refuses an attribute set or a category that does not exist with `400 VALIDATION_FAILED` (`unknown_attribute_set`, `unknown_category_ids: …`) instead of a 500.
+  - **Connector port v2.** `catalogProductScopeWritePort.applyScopes` takes cells `{ scope, field, value }` in the write encoding, applies them per cell and reports refusals (`not_supported`, `SCOPE_INVALID`, `FIELD_NOT_AT_SCOPE`, `required_empty`, `not_emptyable`, `inherit_at_global`, `subject_not_found`, `invalid`); a cell whose op is not exactly `set`, `empty` or `inherit` is `422 VALIDATION_FAILED`. URL keys from an integration are never forced. `catalogProductValueOverrideWritePort` is retired; an external connector must move to v2.
+  - **Products import.** A re-imported unchanged file writes nothing (FR-114); a cell that writes what the scope already holds is dropped.
+  - **Page Builder content attributes** (`page_builder`, released with `172-product-content-attributes`) are never `scopable` and hold no scoped value: `scopable: true` on one is refused with `400 VALIDATION_FAILED`, the scoped read does not list one, and `PUT …/scoped-values` (also when it switches the attribute set) and `applyScopes` refuse its key. The `scope_model_texts` migration keeps an existing content attribute not scopable.
+  - `editor-preference` without a resolved admin answers `403 FORBIDDEN`.
+  - `POST /api/v1/admin/catalog/products/:id/duplicate` writes one audit entry, the `product.duplicate` Command's (it names `sourceProductId`, `sku` and what was copied); the second, route-level entry is gone.
+  - **One vocabulary in the editor, en + pl.** The product's scope overview tab and table are the **Scope map** (`Mapa zakresów`), the publication window is `Okres publikacji` in Polish everywhere, and a reset on the Scope map reads "Use value from <scope>" naming the scope the value then comes from (Global for a channel, the channel for a channel and language). The `productEditor.scopeOverview.reset`, `resetAria`, `confirmReset.title` and `confirmReset.body` values take a new `{parent}` parameter.
+
+- 14fe4fb: A product's gross price uses that product's own VAT rate for the buyer, not a flat 23 % (issue #852).
+
+  - `@endora-commerce/contracts`: `productSummarySchema` (and so `productDetailSchema`) gains the optional `vatRate` — the buyer's VAT rate for the product as a fraction, `null` where it could not be resolved. Additive: a reply without it parses as before. New `createProductTaxRateResolver` / `ProductTaxRateResolver`: the rate rule the cart applied since issue #436 — the product's tax class against the Organization's VAT status and registered country through `OrganizationTaxProfilePort` and `TaxServicePort`, `0` for a VAT-exempt or reverse-charge Organization, a buyer with no Organization a VAT payer in PL — moved here so the cart and the catalogue resolve one rule.
+  - `@endora-commerce/mod-catalog`: `GET /api/v1/catalog/products` and `GET /api/v1/catalog/products/:idOrSlug` answer `vatRate` on every product. It depends only on the viewer's Organization, so it follows the price's cache rule: a reply for a caller naming an Organization is `private, no-store`, and the shareable anonymous reply carries the guest's rate. A failed resolution answers `vatRate: null` rather than refusing the listing. The module now declares `taxes` as a dependency (it resolves `taxService`) and acknowledges `organizations`' `organizationTaxProfilePort`.
+  - `@endora-commerce/mod-carts`: the cart's rates come from the contracts' `createProductTaxRateResolver`; the module's own `cart-tax-rates.ts` is gone. No change to what the cart answers.
+  - `@endora-commerce/mod-price-lists`: the display-mode documentation says how a gross price is derived.
+
+### Patch Changes
+
+- c06e6d2: `GET /api/v1/catalog/products` no longer drops products created within the same millisecond when you page through it with its cursor (issue #234). The listing pages by `(created_at, id)`, and its cursor carries `created_at` in milliseconds. A product whose `created_at` came from SQL `now()`, such as an import, a seed or a bulk insert, was stored with microseconds, so the next page skipped the rest of that millisecond. Of six products 100 µs apart, three came back. The price-range path and the unpriced tail of a price ordering were affected the same way. `products.created_at` is now `timestamptz(3)` (`Migration20261107T120008CatalogProductCreatedAtMilliseconds`, and `columnType` on `Product.createdAt`), so PostgreSQL rounds every stored value to the millisecond, whoever writes it. The cursor format is unchanged, and cursors already issued stay valid.
+
+  **Upgrade note: plan the migration for a quiet window.** Changing the column's precision rewrites `products` and its indexes under an `ACCESS EXCLUSIVE` lock, which blocks every read and write of the table, storefront listings included, until the rewrite ends. How long that takes grows with the size of the table. Existing values are rounded to the nearest millisecond. Rounding can move a `created_at` by up to half a millisecond, or give two products the same value; `id` already breaks such ties.
+
+- e80113d: A product bulk edit now writes each product through the `product.update` Command, the same one a single-product edit runs. Each product gets its own audit entry in the same transaction as its write, and the actor is the admin, or the requester a queued operation acts for. Before this change the entry was recorded by hand after the write.
+
+  A product update that changes nothing no longer writes an audit entry and no longer emits `product.updated.v1`. This applies to the bulk edit, the admin product update, the API-key update by SKU and the catalog write port. A field now counts as changed only when its stored value moves, so `changedFields` no longer lists a field that was sent with the value it already had. The product's editor version still moves on such a write.
+
+  `CatalogAdminService.updateProduct` no longer takes an audit context: it is the unaudited path, reached only when no Command Bus is composed. Its signature is now `(id, req, gate?)`.
+
+  A bulk edit now refuses to run when no Command Bus is composed, rather than writing products unaudited. `CatalogBulkUpdateService.bulkUpdate` throws an internal error, and `CatalogAdminService.hasCommandBus()` reports whether a bus is present. Without a bus, the assistant is offered no catalog mutation tool. Before this change it lost only Archive and Restore.
+
+- 59cb01c: The product editor's Variants tab reads `GET /api/v1/admin/catalog/products/:productId/variants` instead of the storefront's channel- and status-filtered product read, so an inactive product, or one outside the request's sales channel, shows its variants instead of a load error (issue #410).
+- 613a563: Catalog → Attributes in the admin now handles `select` (dropdown single-select) attributes. When
+  you edit one, the locked Type field shows `select` instead of `string`, and the options editor is
+  shown so you can add, rename and remove its options, as for `enum` and `multiselect`. `select` can
+  also be chosen when you create an attribute, with its initial options entered as comma-separated
+  values.
+- f9eba37: `GET /api/v1/catalog/products?filter[attr.<key>]=<option>` answers every product whose multiselect attribute `<key>` holds `<option>` among its options, on both listing backends. With `CATALOG_SEARCH_BACKEND=meilisearch` such a filter answered `[]`: the search document stored a multiselect as its JSON text (`"[\"s-146\"]"`), which no option filter can match. On the Postgres backend a multiselect was compared as its comma-joined text, so a one-option value matched and a value holding `a` and `b` matched neither `a` nor `b`.
+
+  A multiselect now matches when any of its options is among the requested values; several values for one key stay OR-ed (`filter[attr.k]=a&filter[attr.k]=b`), and an empty multiselect matches nothing. Scalar values (string, number, boolean) are compared exactly as before. The search document's `attributes.<key>` holds a multiselect as `string[]` (each option as `String` renders it), and `IndexedDocument['attributes']` admits `string[]`.
+
+  **Upgrade step:** run one reindex per sales channel (the `search_reindex` bulk operation or the reindex CLI). Documents indexed before the upgrade still hold the JSON text, and a multiselect filter on the Meilisearch backend matches none of them until they are rewritten.
+
+- 4eee98b: `GET /api/v1/catalog/products` refuses a `filter[attr.<key>]` whose key no attribute could have (`isAttributeKey`) before either listing backend sees it, with the same `400 FILTER_NOT_ALLOWED` an undeclared key already answers (issue #687).
+- 14ac256: Deleting a product now frees its SKU and the SKUs of its variants, so a new product or variant
+  can take them (issue #693). Until now the SKU of a deleted product stayed taken for good, and the
+  only remedy was SQL. This includes products deleted before the upgrade.
+
+  - A new catalog migration replaces the table-wide `products_sku_unique` and
+    `product_variants_sku_unique` constraints with partial unique indexes
+    (`products_sku_live_unique`, `product_variants_sku_live_unique`, `where deleted_at is null`).
+    `product_variants` gains a nullable `deleted_at`, which the `product.delete` Command sets on the
+    product's variants. The migration back-fills it from products that are already deleted.
+  - The deleted row keeps its real SKU, for audit and ERP/PIM reconciliation. Order lines keep the
+    SKU they snapshotted.
+  - Every SKU check and lookup in `catalog` now ignores deleted rows: create, PATCH, duplicate
+    (`-copy` allocation), variant create, the product bulk import, and
+    `PUT /api/v1/catalog/products/by-sku/:sku`. For a SKU that only a deleted product holds, that
+    route now creates a new product (`201`) instead of addressing the deleted one.
+  - **The read port's default lookup now prefers the live row.** `CatalogProductReadPort.findBySku`,
+    `findBySkus` and `findVariantsBySkus` answer the live product or variant when one holds the
+    SKU, otherwise the most recently deleted one, and return at most one record per SKU. Without
+    `liveOnly`, a SKU that only a deleted product holds still resolves, as before. With duplicates
+    now possible, the previous default would have picked an arbitrary row. The inventory CSV stock
+    import and the stock-level import therefore write the live product.
+
+- 0b64c13: English page titles, dialog titles, command-palette action labels, settings group names and
+  documentation page titles now use sentence case, like the module names and sidebar labels
+  before them. For example, "Quote Requests" becomes "Quote requests", "CMS Pages" becomes
+  "CMS pages" and the "Quick Order" settings group becomes "Quick order". Polish strings are
+  unchanged. Product names keep their capitals: Page Builder, Google Analytics, LinkedIn and
+  Meta among them.
+
+  The admin search group labels change the same way: "Quote Requests" becomes "Quote requests"
+  and "Sales Opportunities" becomes "Sales opportunities". The demo megamenu's English button
+  label becomes "Quick order". The demo seed does not rewrite a menu it has already created, so an
+  existing demo database keeps "Quick Order" until it is seeded afresh or the label is edited on
+  the megamenu screen.
+
+  The settings group names are updated in the database the next time the settings manifest
+  reconciler runs at boot. Nothing has to be migrated.
+
+- d69e765: A path parameter that is not a UUID is answered exactly as a well-formed id that names nothing, on every customer- and admin-facing id route, mutations included, instead of `500` (issue #781). The shape is checked with `isUuidShape` from `@endora-commerce/contracts` before the database is asked, so a malformed id gets the route's own answer for an unknown record: its own not-found code (`404`), or the empty list or `204` the route gives an unknown id. Examples: `POST /api/v1/orders/:id/cancel` answers `404 ORDER_NOT_FOUND`; the returns comment, delivery-method and cancel routes and `POST /api/v1/organization/carts/:id/approve` and `/reject` answer `404 NOT_FOUND`.
+
+  Routes whose params schema demanded a UUID answered a malformed id `400 VALIDATION_FAILED`; they now answer `404` like an unknown id (owner ruling of 2026-11-05): `/api/v1/organizations/mine/roles/:id`, `/api/v1/admin/organizations/:id/roles[/:roleId]` and `…/permission-catalogue`, `/api/v1/organizations/mine/members/:id[/role]`, every `/api/v1/admin/product-feeds/:id…`, `/api/v1/admin/feed-templates/:id` and `/api/v1/admin/feed-taxonomies/revisions/:taxonomyId…` route, `/api/v1/admin/document-templates/:id…`, `/api/v1/admin/quote-requests/:id/document-templates`, `…/document-template` and `…/pdf`, the blog `url-redirects/:redirectId` and `addresses/:id` deletes, `PATCH /api/v1/admin/cms/hooks/:id/attachments/:blockId`, and `GET`, `PATCH` and `DELETE /api/v1/admin/import-export/profiles/:id` (`404 IMPORT_PROFILE_NOT_FOUND`). A client that told a malformed id from an unknown one by the `400` can no longer do so.
+
+  Every private copy of the UUID pattern is replaced by `isUuidShape`, `UUID_SHAPE_PATTERN` or, where a filter has always asked for RFC 9562 version and variant bits (the CRM board filters), `uuidSchema`; what each check accepts is unchanged, except that the invoice-ledger delivery retry now accepts any uuid-shaped id and answers an unknown one `404` from the lookup.
+
+- d24be0e: The module documentation pages have readable titles instead of the module id (for example _Carts_ instead of `carts`), in the docs sidebar, the module map and the browser tab, in English and Polish. Page headings and screen names in the page text are sentence case, as in the Admin UI (#795). File names and URLs are unchanged.
+- 987a7e9: The product editor's gallery puts focus where a move or a removal ends even when the button is pressed right after the gallery renders: on the moved image's button for the same direction, or its other one at an end, and on the gallery heading after a removal. Before, an effect still pending from the earlier render could take the focus target too early, leaving focus on a button that the move had disabled.
+- bb77ac3: Adding a variant to a deleted product now answers `404 PRODUCT_NOT_FOUND`, the same as for an unknown product, and writes nothing (#869). Before this, `POST /api/v1/admin/catalog/products/:productId/variants` read the parent without excluding soft-deleted products and created the variant.
+- fd70455: The publication-window sweep no longer enters the system scope on an idle tick. Each tick
+  first asks, outside any tenant scope, whether a product's publication window (global, or an
+  overridden channel window) was crossed since the last sweep, and opens the system scope only
+  when one was. An instance where no window is crossed therefore stops writing a
+  `tenant.escape_hatch` audit row every five minutes. A probe that fails counts as "yes", so a
+  failure can cost an audit row but never skip a sweep.
+
+  `PublicationWindowSweep` gains `hasDueTransitions()` and `crossedRows()`, and the tick
+  (`runPublicationWindowSweepTick`) now needs `hasDueTransitions` beside `sweep`.
+
+- Updated dependencies [18cce2e]
+- Updated dependencies [18cce2e]
+- Updated dependencies [9cfb28b]
+- Updated dependencies [a206da9]
+- Updated dependencies [34485ae]
+- Updated dependencies [34485ae]
+- Updated dependencies [0f1717c]
+- Updated dependencies [86e8761]
+- Updated dependencies [9bfb0b8]
+- Updated dependencies [ed5cf6a]
+- Updated dependencies [2da23d2]
+- Updated dependencies [2da23d2]
+- Updated dependencies [9d9c8df]
+- Updated dependencies [9d9c8df]
+- Updated dependencies [9d9c8df]
+- Updated dependencies [9d9c8df]
+- Updated dependencies [5303aab]
+- Updated dependencies [5303aab]
+- Updated dependencies [16f85f4]
+- Updated dependencies [270aa2b]
+- Updated dependencies [3f020ba]
+- Updated dependencies [3f020ba]
+- Updated dependencies [b59e5d5]
+- Updated dependencies [b59e5d5]
+- Updated dependencies [bf1cc2d]
+- Updated dependencies [ff60e93]
+- Updated dependencies [6f19230]
+- Updated dependencies [77b8c37]
+- Updated dependencies [65104b8]
+- Updated dependencies [7acaa33]
+- Updated dependencies [7019c71]
+- Updated dependencies [4eee98b]
+- Updated dependencies [14ac256]
+- Updated dependencies [248bf1b]
+- Updated dependencies [b2db8c3]
+- Updated dependencies [4cf529d]
+- Updated dependencies [5e4dd48]
+- Updated dependencies [75b053f]
+- Updated dependencies [54fc8f1]
+- Updated dependencies [dac5795]
+- Updated dependencies [5bbb389]
+- Updated dependencies [0b64c13]
+- Updated dependencies [d69e765]
+- Updated dependencies [dbc1cef]
+- Updated dependencies [d69e765]
+- Updated dependencies [a6bc891]
+- Updated dependencies [8ad737c]
+- Updated dependencies [d24be0e]
+- Updated dependencies [a9398c8]
+- Updated dependencies [0b56038]
+- Updated dependencies [717e4c6]
+- Updated dependencies [cea1470]
+- Updated dependencies [cea1470]
+- Updated dependencies [d46d414]
+- Updated dependencies [73e2eec]
+- Updated dependencies [29d7e90]
+- Updated dependencies [7f2fa6e]
+- Updated dependencies [57145f7]
+- Updated dependencies [58a1632]
+- Updated dependencies [e46d233]
+- Updated dependencies [e46d233]
+- Updated dependencies [58a1632]
+- Updated dependencies [b476f44]
+- Updated dependencies [14fe4fb]
+- Updated dependencies [76d89ab]
+- Updated dependencies [5cbffb9]
+- Updated dependencies [6bd2ab7]
+- Updated dependencies [a3502c0]
+- Updated dependencies [7a73cc8]
+- Updated dependencies [5ff8302]
+- Updated dependencies [fc7db4c]
+- Updated dependencies [c34b405]
+- Updated dependencies [5af8c25]
+- Updated dependencies [48f055e]
+- Updated dependencies [bf50b85]
+- Updated dependencies [2c6fba0]
+- Updated dependencies [0801f69]
+- Updated dependencies [d1c0d13]
+- Updated dependencies [6d1d284]
+- Updated dependencies [974be57]
+- Updated dependencies [99c075e]
+- Updated dependencies [32b4d0c]
+- Updated dependencies [3355e60]
+- Updated dependencies [7ce9b8a]
+  - @endora-commerce/contracts@0.110.0
+  - @endora-commerce/platform@0.110.0
+  - @endora-commerce/admin-kit@0.110.0
+  - @endora-commerce/mod-custom-fields@0.110.0
+
 ## 0.109.0
 
 ### Minor Changes

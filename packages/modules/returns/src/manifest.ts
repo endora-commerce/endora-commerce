@@ -8,7 +8,10 @@ import {
  *
  * Owns return/complaint (RMA) case management: configurable workflow, RMA
  * numbering, comments, settlement (refunds / credit / replacement / repair),
- * return delivery methods, and the EU 2023/2673-aligned defaults. Scalar
+ * return delivery methods, and the defaults the EU consumer rules set: the
+ * 14-day withdrawal period of Directive 2011/83 art. 9, and the withdrawal
+ * function its art. 11a (inserted by Directive (EU) 2023/2673, applicable from
+ * 19 June 2026) requires. Scalar
  * settings are declared here and seeded by the module-lifecycle
  * ManifestReconciler on boot; they are Sales-Channel-scopable through the
  * standard settings scoping.
@@ -24,7 +27,12 @@ export const RETURNS_SETTING_CODES = {
   RMA_NUMBER_SUFFIX: 'returns.rma_number_suffix',
   /** Who bears the return cost once the free-return window has passed. */
   DEFAULT_COST_BEARER_OUTSIDE_WINDOW: 'returns.default_cost_bearer_outside_window',
+  /** The IANA zone the free-return window and the withdrawal period count calendar days in (issue #905). */
+  TIME_ZONE: 'returns.time_zone',
 } as const;
+
+/** `returns.time_zone`'s default, and what a value the runtime does not know falls back to. */
+export const RETURNS_DEFAULT_TIME_ZONE = 'Europe/Warsaw';
 
 const settings = defineModuleSettingsManifest({
   moduleCode: 'returns',
@@ -44,7 +52,7 @@ const settings = defineModuleSettingsManifest({
       code: RETURNS_SETTING_CODES.FREE_RETURN_DAYS,
       name: 'Free-return window (days)',
       description:
-        'Number of days a Customer may open a free return, counted from the moment the Order entered its fulfilment-completing status. 0 = no free-return option. Default 14 reflects the EU consumer withdrawal period (Directive (EU) 2023/2673). Sales-channel value overrides the global value.',
+        'Number of days a Customer may open a free return, counted from the moment the Order entered its fulfilment-completing status. 0 = no free-return option. Default 14 reflects the EU consumer withdrawal period (Directive 2011/83/EU, art. 9). Sales-channel value overrides the global value.',
       groupCode: 'returns',
       valueType: 'number',
       defaultValue: 14,
@@ -74,6 +82,17 @@ const settings = defineModuleSettingsManifest({
       valueType: 'string',
       defaultValue: 'customer',
       enumOptions: ['customer', 'shop'],
+    },
+    {
+      // Issue #905 (design D3.4). A module setting of its own, as
+      // `tasks.time_zone` is: there is no platform-wide shop time zone.
+      code: RETURNS_SETTING_CODES.TIME_ZONE,
+      name: 'Time zone of the return windows',
+      description:
+        'The time zone, as an IANA name such as Europe/Warsaw, in which the free-return window and the consumer\'s withdrawal period count calendar days: each ends at the end of its last day in this zone, and a last day on a Saturday or Sunday moves to the Monday. Sales-channel value overrides the global value.',
+      groupCode: 'returns',
+      valueType: 'string',
+      defaultValue: RETURNS_DEFAULT_TIME_ZONE,
     },
   ],
 });
@@ -284,6 +303,16 @@ export const manifest = defineModuleManifest({
    * `RETURN_SAVED_VIEW_NAME_TAKEN` (#312) is the 409 a saved view on the return
    * list earns when its owner already holds one whose name differs only by case
    * or surrounding spaces; `return-list-view-service.ts` is the one raise site.
+   *
+   * `RETURN_ALTERNATIVE_RESOLUTION_CONSENT_REQUIRED` (#905, design D1) is the 422
+   * a consumer withdrawal's settlement as a credit, a replacement or a repair
+   * earns while the consumer's consent to that resolution is not on record;
+   * `return-settlement-service.ts` is the one raise site. Its `details` carry
+   * `{ resolution }`, no `code`.
    */
-  errorCodes: [{ code: 'RETURN_LINE_NOT_RETURNABLE' }, { code: 'RETURN_SAVED_VIEW_NAME_TAKEN' }],
+  errorCodes: [
+    { code: 'RETURN_LINE_NOT_RETURNABLE' },
+    { code: 'RETURN_SAVED_VIEW_NAME_TAKEN' },
+    { code: 'RETURN_ALTERNATIVE_RESOLUTION_CONSENT_REQUIRED' },
+  ],
 });

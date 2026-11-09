@@ -1,3 +1,4 @@
+import { readFileSync } from 'node:fs';
 import { describe, expect, it } from 'vitest';
 import { returnContextFrom } from './order-return-context.js';
 
@@ -60,5 +61,75 @@ describe('returnContextFrom', () => {
     // The products were charged 73.00 — not 123.00, and not the 83.00 that includes the delivery.
     const ctx = returnContextFrom(order('per_rate', '100.00', '23.00', '50.00'), [item('a', '100.00', 1, '0.2300', '123.00')]);
     expect([ctx.productsPaidTotal, ctx.discountTotal]).toEqual(['73.00', '50.00']);
+  });
+
+  it('reports the delivery cost and the payment surcharge as stored (issue #876)', () => {
+    // A consumer's withdrawal from the whole sale refunds both (Directive 2011/83 art. 13(1)).
+    const base = order('per_rate', '100.00', '23.00') as unknown as Record<string, unknown>;
+    const ctx = returnContextFrom(
+      { ...base, deliveryTotal: '15.99', paymentMethodSnapshot: { code: 'cod', name: 'COD', kind: 'cash_on_delivery', additionalPrice: 2.5 } } as never,
+      [item('a', '50.00', 2, '0.2300', '123.00')],
+    );
+    expect([ctx.deliveryTotal, ctx.paymentSurcharge]).toEqual(['15.99', '2.50']);
+  });
+
+  it('reports 0.00 for an order with neither', () => {
+    const ctx = returnContextFrom(order('per_rate', '100.00', '23.00'), [item('a', '50.00', 2, '0.2300', '123.00')]);
+    expect([ctx.deliveryTotal, ctx.paymentSurcharge]).toEqual(['0.00', '0.00']);
+  });
+});
+
+/**
+ * Issue #905 (PR 1) — the withdrawal period counts from the moment the order
+ * entered `completed`, stored once as `orders.completed_at`, and never from
+ * `updatedAt`, which any later edit moves.
+ */
+describe('returnContextFrom — the completing anchor (issue #905)', () => {
+  const at = (status: string, completedAt: Date | null, updatedAt: Date) =>
+    ({
+      salesChannelId: 'ch',
+      placedByCustomerAccountId: 'acc',
+      organizationId: 'org',
+      currency: 'PLN',
+      status,
+      completedAt,
+      updatedAt,
+      vatMethod: 'per_rate',
+      subtotal: '10.00',
+      taxTotal: '0.00',
+      discountTotal: '0.00',
+    }) as never;
+
+  it('reports completed_at, not updatedAt, as the moment the order entered its completing status', () => {
+    const completedAt = new Date('2026-10-01T10:00:00Z');
+    const ctx = returnContextFrom(at('completed', completedAt, new Date('2026-10-01T10:00:00Z')), []);
+    expect(ctx.completingStatusEnteredAt).toEqual(completedAt);
+  });
+
+  it('does not move when the order is edited after completion', () => {
+    const completedAt = new Date('2026-10-01T10:00:00Z');
+    const editedLater = new Date('2026-10-20T08:30:00Z');
+    const ctx = returnContextFrom(at('completed', completedAt, editedLater), []);
+    expect(ctx.completingStatusEnteredAt).toEqual(completedAt);
+  });
+
+  it('is null for an order that has not been completed: its period has not started', () => {
+    const ctx = returnContextFrom(at('shipment_sent', null, new Date('2026-10-20T08:30:00Z')), []);
+    expect(ctx.completingStatusEnteredAt).toBeNull();
+  });
+
+  it('does not fall back to updatedAt for a completed row that carries no stamp', () => {
+    // The migration backfills every completed row and the entity stamps every
+    // new one, so such a row is not expected; if one exists, the period is
+    // reported as not started rather than counted from a moment that drifts.
+    const ctx = returnContextFrom(at('completed', null, new Date('2026-10-20T08:30:00Z')), []);
+    expect(ctx.completingStatusEnteredAt).toBeNull();
+  });
+
+  it('reads no shipment fact: the anchor does not depend on `shipments`, so its off-state changes nothing', () => {
+    const source = readFileSync(new URL('./order-return-context.ts', import.meta.url), 'utf8');
+    const imports = [...source.matchAll(/from '([^']+)'/g)].map((m) => m[1]);
+    expect(imports.filter((specifier) => /shipment/i.test(specifier ?? ''))).toEqual([]);
+    expect(source).not.toMatch(/\bShipment\b/);
   });
 });
