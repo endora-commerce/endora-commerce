@@ -4448,6 +4448,35 @@ Nothing is migrated and nothing needs configuring; platform administrators see n
    A personal Organization cannot be assigned; keeping B2C data from representatives would be a
    different rule, and is not configurable.
 
+### Customer two-step verification requirements without an encryption key {#customer-two-step-without-key}
+
+The release that ships this change extends to the customer requirements what
+[Enforced two-step verification without an encryption key](#admin-two-step-without-key) did for the
+administrator one (issue #947). Without `MFA_SECRET_ENCRYPTION_KEY` customers are already not asked
+for a second factor; the requirements could still be turned on, though, and nothing said they were
+not in force.
+
+**Behaviour change on upgrade:**
+
+- Turning **Storefront — enforce two-step verification** (`mfa.storefront.totp_enforced`) on, for
+  every sales channel or for some of them, is refused while the key is not set:
+  `409 MFA_ENFORCEMENT_UNAVAILABLE`, with `details.reason: 'encryption_key_missing'`. So is an
+  organization's policy requiring two-step verification of its members, whether its administrator
+  sets it on the storefront or an operator sets it through the Admin API. Turning either off is
+  always allowed, and so is saving it again when it is already on.
+- Before, neither organization-policy write existed without the key, so a policy set while the key
+  was configured could not be lifted. Both writes now exist without the key.
+- While the storefront setting is on, **Settings** shows *Not in force: no encryption key* under
+  it. The backend logs an error at every start for the setting, naming the sales channels it is on
+  for, and another with how many organizations require two-step verification.
+- Nothing changes on an instance that has the key.
+
+**After upgrading,** if the notice or a logged error appears, either set `MFA_SECRET_ENCRYPTION_KEY`
+(see the [first deployment checklist](./deployment/first-deployment-checklist.md)) and restart, so
+that the requirements apply again, or turn the storefront setting off in **Settings** and lift the
+organizations' policies. Set the key the enrolments were made with: an enrolment made with another
+key cannot be checked with this one.
+
 ## An instance that is mixed from the start
 
 The installer of `0.101.x` or earlier wrote every package of the release with a `^` except

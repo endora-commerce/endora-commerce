@@ -1,6 +1,5 @@
 import type { FastifyInstance, FastifyReply, FastifyRequest } from 'fastify';
 import { mfaOrgPolicyRequestSchema } from '@endora-commerce/contracts';
-import type { AuditPort } from '@endora-commerce/platform/kernel';
 import type { MfaOrgPolicyService } from './services/mfa-org-policy-service.js';
 
 /**
@@ -12,7 +11,6 @@ import type { MfaOrgPolicyService } from './services/mfa-org-policy-service.js';
  */
 export interface MfaOrgRoutesDeps {
   orgPolicyService: MfaOrgPolicyService;
-  auditLogService: AuditPort;
   requireCustomer: (req: FastifyRequest, reply: FastifyReply) => Promise<void>;
   /** Resolves the caller's org and asserts they are an org admin (throws 403). */
   resolveOrgAdmin: (req: FastifyRequest) => Promise<{ organizationId: string; actor: string }>;

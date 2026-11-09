@@ -164,6 +164,8 @@ export const auth = defineMessages({
     'auth.organizationSecurity.stop': 'Stop requiring two-step verification',
     'auth.organizationSecurity.failed': 'Could not update enforcement.',
     'auth.organizationSecurity.forbidden': 'Only the organization’s administrators can change this setting.',
+    'auth.organizationSecurity.unavailable':
+      'Two-step verification cannot be required yet, because this store does not offer it. Contact the store if you need it.',
     // The sign-out button (account sidebar; callers may pass their own label).
     'auth.signOut.button': 'Sign out',
     // ── issue #745: the two-step verification codes the sign-in and security pages
@@ -352,6 +354,8 @@ export const auth = defineMessages({
     'auth.organizationSecurity.stop': 'Wyłącz wymóg weryfikacji dwuetapowej',
     'auth.organizationSecurity.failed': 'Nie udało się zaktualizować wymogu.',
     'auth.organizationSecurity.forbidden': 'To ustawienie mogą zmieniać tylko administratorzy organizacji.',
+    'auth.organizationSecurity.unavailable':
+      'Nie można jeszcze wymagać weryfikacji dwuetapowej, bo ten sklep jej nie oferuje. Jeśli jej potrzebujesz, skontaktuj się ze sklepem.',
     'auth.signOut.button': 'Wyloguj się',
     // ── issue #745
     'auth.mfa.error.MFA_INVALID_CODE':

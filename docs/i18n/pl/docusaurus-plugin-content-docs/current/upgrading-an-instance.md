@@ -4658,6 +4658,38 @@ Nic nie jest migrowane i nic nie trzeba konfigurować; administratorzy platformy
    do niej dostęp. Organizacji prywatnej nie można przypisać; ukrycie danych B2C przed
    przedstawicielami byłoby inną regułą i nie da się go skonfigurować.
 
+### Wymagania weryfikacji dwuetapowej klientów bez klucza szyfrowania {#customer-two-step-without-key}
+
+Wydanie z tą zmianą rozszerza na wymagania wobec klientów to, co
+[Wymuszona weryfikacja dwuetapowa bez klucza szyfrowania](#admin-two-step-without-key) wprowadziła
+dla wymagania wobec administratorów (zgłoszenie #947). Bez `MFA_SECRET_ENCRYPTION_KEY` klienci już
+teraz nie są proszeni o drugi składnik; wymagania dało się jednak nadal włączyć i nic nie mówiło,
+że nie obowiązują.
+
+**Zmiana zachowania po aktualizacji:**
+
+- Włączenie ustawienia **Storefront — enforce two-step verification**
+  (`mfa.storefront.totp_enforced`), dla wszystkich kanałów sprzedaży albo dla części z nich, jest
+  odrzucane, dopóki klucz nie jest ustawiony: `409 MFA_ENFORCEMENT_UNAVAILABLE`, z
+  `details.reason: 'encryption_key_missing'`. Tak samo odrzucana jest polityka organizacji, która
+  wymaga weryfikacji dwuetapowej od jej członków, niezależnie od tego, czy ustawia ją administrator
+  organizacji w sklepie, czy operator przez Admin API. Wyłączenie każdego z nich jest zawsze
+  dozwolone, podobnie jak ponowne zapisanie, gdy jest już włączone.
+- Wcześniej bez klucza nie istniał żaden z dwóch zapisów polityki organizacji, więc polityki
+  ustawionej, gdy klucz był skonfigurowany, nie dało się zdjąć. Teraz oba zapisy działają także bez
+  klucza.
+- Gdy ustawienie sklepu jest włączone, **Ustawienia** pokazują pod nim komunikat *Nie obowiązuje:
+  brak klucza szyfrowania*. Backend przy każdym starcie zapisuje w logu błąd dotyczący ustawienia,
+  z nazwami kanałów sprzedaży, dla których jest włączone, oraz drugi błąd z liczbą organizacji,
+  które wymagają weryfikacji dwuetapowej.
+- Na instancji, która ma klucz, nic się nie zmienia.
+
+**Po aktualizacji,** jeśli pojawi się komunikat albo błąd w logu, ustaw `MFA_SECRET_ENCRYPTION_KEY`
+(zobacz [listę kontrolną pierwszego wdrożenia](./deployment/first-deployment-checklist.md)) i
+uruchom backend ponownie, aby wymagania znów obowiązywały, albo wyłącz ustawienie sklepu w
+**Ustawieniach** i zdejmij polityki organizacji. Ustaw ten klucz, z którym utworzono rejestracje:
+rejestracji utworzonej innym kluczem nie da się nim sprawdzić.
+
 ## Instancja niespójna od początku
 
 Instalator `0.101.x` lub starszy zapisywał każdy pakiet wydania z `^` poza
