@@ -287,13 +287,16 @@ describe('146 — sales representative scope [integration]', () => {
         adminUserId: otherRepId,
       });
       rows['assign foreign'] = assign.statusCode;
+      rows['document choices foreign'] = (
+        await call('GET', `/api/v1/admin/quote-requests/${rfqForeign}/document-templates`, CUSTOM)
+      ).statusCode;
       const onBehalf = await call('POST', '/api/v1/admin/quote-requests', CUSTOM, {
         organizationId: orgForeign,
         customerAccountId: accountForeign,
         items: [{ productId: SEED_PRODUCT_101_ID, quantity: 2, agreedUnitPrice: 10 }],
       });
       rows['create on behalf foreign'] = onBehalf.statusCode;
-      expect(rows, `${assign.body}\n${onBehalf.body}`).toEqual({
+      expect(rows, `${assign.body.slice(0, 300)}\n${onBehalf.body.slice(0, 300)}`).toEqual({
         'detail own': 200,
         'history own': 200,
         'detail foreign': 200,
@@ -301,6 +304,7 @@ describe('146 — sales representative scope [integration]', () => {
         'detail unassigned': 200,
         'history unassigned': 200,
         'assign foreign': 200,
+        'document choices foreign': 200,
         'create on behalf foreign': 201,
       });
 

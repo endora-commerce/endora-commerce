@@ -569,8 +569,9 @@ A sales representative is a platform administrator with the
 `SalesRepAssignmentService.canSeeOrganization(adminUserId, organizationId)`
 predicate centralises the visibility rule:
 
-1. `platform_admin` role → sees every organization.
-2. Otherwise the admin sees an organization iff a row in
+1. Any role other than `sales_representative` (`platform_admin`, or a custom
+   role holding `rfqs:handle`) → sees every organization (issue #957).
+2. A `sales_representative` sees an organization iff a row in
    `organization_sales_rep_assignments` ties them together, OR the
    organization has zero rows in that table (the "unassigned-org
    fallback" — visible to every sales rep). With `organizations:rollup`
@@ -738,10 +739,10 @@ and **Delete view**.
   representative can delete only their own views, and nobody can see or delete
   another admin's private view.
 - **Two meanings of "platform admin" on this list.** The rule above is not the
-  one *Visibility model* applies: the list's default scope and its
-  every-organization visibility still key on the literal `platform_admin` role.
-  So an admin with a custom role may delete a colleague's shared view yet opens
-  the list on *My organizations*.
+  one the list's default scope applies: that still keys on the literal
+  `platform_admin` role. So an admin with a custom role may delete a colleague's
+  shared view, and sees every organization's requests (*Visibility model*), yet
+  opens the list on *My organizations*.
 - **Only save, load and delete.** The Admin UI does not rename a view, change
   whether it is shared, or overwrite it with the current setup; save a new view
   and delete the old one instead. There is no limit on the number of views.
@@ -793,7 +794,7 @@ and **Delete view**.
   product and quote request lists derive it the same way, and it fails closed:
   an admin whose reach cannot be resolved is not a platform admin.
   It is deliberately not the module's own `role.code === 'platform_admin'`
-  test, which the list's visibility uses.
+  test, which the list's default scope uses.
 - **Refusals.** An absent view, or another admin's private view, is
   `404 NOT_FOUND` — the two are indistinguishable. A shared view the caller
   neither owns nor may modify as a platform admin is `403 FORBIDDEN`. A name
