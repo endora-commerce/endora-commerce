@@ -37,7 +37,7 @@ platformy (`/api/v1/admin/*`) są chronione przez `customers:manage`.
 | `POST /api/v1/organizations/mine/addresses` | klient (`addresses.manage`) | Utworzenie adresu |
 | `PATCH /api/v1/organizations/mine/addresses/:id` | klient (`addresses.manage`) | Aktualizacja |
 | `DELETE /api/v1/organizations/mine/addresses/:id` | klient (`addresses.manage`) | Usunięcie |
-| `GET /api/v1/admin/organizations` | administrator | Lista z `filter[status]` / `filter[vatStatus]` / `q` |
+| `GET /api/v1/admin/organizations` | administrator | Lista z `filter[status]` / `filter[vatStatus]` / `q`. Przedstawiciel handlowy widzi tylko organizacje ze swojego zasięgu (zob. pod tabelą) |
 | `POST /api/v1/admin/organizations` | administrator (`customers:manage`) | Utworzenie organizacji z jej kanałami sprzedaży (zob. *Kanały sprzedaży* niżej) |
 | `GET /api/v1/admin/organizations/sales-channel-options` | administrator (`customers:manage`) | Kanały oferowane w formularzu tworzenia |
 | `GET /api/v1/admin/organizations/:id/sales-channels` | administrator (`customers:read` lub `customers:manage`) | Kanały przypisane do organizacji i kanały, które można jej przypisać. `404 NOT_FOUND` dla organizacji spoza zasięgu przedstawiciela handlowego (zob. pod tabelą), jak dla organizacji, która nie istnieje |
@@ -50,7 +50,9 @@ platformy (`/api/v1/admin/*`) są chronione przez `customers:manage`.
 | `DELETE /api/v1/admin/organizations/:id/members/:customerAccountId` | administrator | Usunięcie miękkie członka (z ochroną ostatniego administratora) |
 | `POST /api/v1/admin/organizations/:id/recover-admin-access` | administrator | Procedura awaryjna — nadanie istniejącemu członkowi roli Administrator |
 
-**Do których organizacji sięga przedstawiciel handlowy.** Każda trasa `/api/v1/admin/organizations/:id` — odczyty i zapisy, także zagnieżdżone — odpowiada przedstawicielowi handlowemu tylko dla organizacji przypisanej do niego (z `organizations:rollup` także takiej, której najbliższy przypisany przodek jest jego) albo takiej, do której nie przypisano żadnego przedstawiciela, na przykład rejestracji oczekującej na zatwierdzenie. Każda inna organizacja — przypisana do innego przedstawiciela — odpowiada `404 NOT_FOUND`, dokładnie tak jak organizacja, która nie istnieje; tak samo nieznany identyfikator, dla każdego administratora. Lista nie jest zawężana: pokazuje każdą organizację każdemu administratorowi, który może ją czytać. Każda inna rola administratora sięga do wszystkich organizacji.
+**Do których organizacji sięga przedstawiciel handlowy.** Reguła jest jedna i stosuje ją każdy ekran panelu: przedstawiciel handlowy sięga do każdej organizacji, której **nie prowadzi inny przedstawiciel**. O tym, kto prowadzi organizację, decydują jej własne przypisania; z `organizations:rollup` — najbliższa organizacja w łańcuchu „ona sama i jej organizacje nadrzędne”, która ma jakiekolwiek przypisanie. Przedstawiciel sięga więc do organizacji przypisanych do niego (z roll-upem także do poddrzewa poniżej, bez gałęzi przypisanych komuś innemu) i do każdej organizacji, do której nie przypisano żadnego przedstawiciela — rejestracji oczekującej na zatwierdzenie oraz każdej organizacji prywatnej (B2C), do której nie można nikogo przypisać.
+
+Ta sama reguła rozstrzyga na każdym ekranie: na każdej trasie `/api/v1/admin/organizations/:id` (odczyty i zapisy, także zagnieżdżone), na liście organizacji i w polach wyboru, w wyszukiwarce panelu oraz przy każdym odczycie i zapisie objętym izolacją tenantów — członkowie, klienci, zamówienia, faktury, koszyki, zwroty, zapytania ofertowe i ustawienia na poziomie klienta. Organizacja spoza zasięgu odpowiada `404 NOT_FOUND`, dokładnie tak jak organizacja, która nie istnieje, i nie pojawia się na żadnej liście; nieznany identyfikator odpowiada tak samo każdemu administratorowi. Każda inna rola administratora sięga do wszystkich organizacji. Przed zgłoszeniem #305 odczyty objęte izolacją uwzględniały tylko przypisania, więc organizacja nieprzypisana otwierała się na swoim ekranie, ale nie pokazywała członków ani zapytań, a lista pokazywała organizacje, których ekran odpowiadał potem `404`.
 
 Ustaw **`SMTP_URL`** w środowisku backendu, aby poczta była wysyłana przez SMTP, a nie wypisywana do
 konsoli.
@@ -237,8 +239,10 @@ jest podłączone przez wymagany argument konstruktora `resolveOrganizationStatu
 ### Przypisanie handlowców
 
 `organization_sales_rep_assignments` (tabela łącząca `(organization_id, admin_user_id)`) wiąże
-handlowców z organizacjami. Gdy rola administratora wywołującego to `sales_representative`, listy
-zamówień i zapytań ofertowych w panelu są ograniczane do organizacji przypisanych temu handlowcowi.
+handlowców z organizacjami. Gdy rola administratora wywołującego to `sales_representative`, każdy
+ekran panelu jest ograniczany do organizacji z zasięgu tego handlowca (zob. *Do których organizacji
+sięga przedstawiciel handlowy*): zakresem tenanta każdego żądania panelu jest „każda organizacja
+oprócz prowadzonych przez innego przedstawiciela”, obliczany raz na żądanie z tej tabeli.
 Administratorzy platformy widzą wszystko.
 
 Tę relację obsługują trzy endpointy, należące do tego modułu i przez niego rejestrowane:
@@ -450,7 +454,8 @@ przy samodzielnej rejestracji i przy logowaniu przez zewnętrznego dostawcę to�
 - **Niewidoczne na ekranach B2B w panelu.** Organizacje prywatne są domyślnie pomijane na listach i
   listach wyboru w panelu, nie można przypisać do nich handlowca i nie trafiają do kolejki moderacji
   (powstają jako `active`). Lista organizacji w panelu przyjmuje `?includePersonal=true`, aby je w
-  razie potrzeby pokazać.
+  razie potrzeby pokazać. Ponieważ nie można do nich przypisać handlowca, każdy przedstawiciel
+  handlowy sięga do każdej organizacji prywatnej oraz do jej zamówień, faktur, koszyków i zwrotów.
 - **Dostępność zależna od kanału.** Samodzielną rejestrację (B2C) w każdym kanale sprzedaży włącza
   ustawienie `customers.allow_registration_without_organization`; kanał tylko dla B2B odrzuca
   rejestrację i niczego nie tworzy. Nazwa ustawienia to pozostałość po wcześniejszym rozwiązaniu —
@@ -645,4 +650,4 @@ Wyszukiwanie globalne w panelu administracyjnym (paleta poleceń, ⌘K / Ctrl+K)
 | NIP | tak |
 | Nazwa prawna | nie |
 
-Nazwy są dopasowywane bez względu na polskie znaki diakrytyczne, więc `lodz` znajduje *Łódź*. Wynikami są organizacje, które administratorowi pokazuje lista organizacji — organizacje firmowe, które nie zostały usunięte — dla roli z uprawnieniem `customers:read` lub `customers:manage`. Przedstawicielowi handlowemu przypisane mu organizacje są pokazywane jako pierwsze, a pozostałe po nich.
+Nazwy są dopasowywane bez względu na polskie znaki diakrytyczne, więc `lodz` znajduje *Łódź*. Wynikami są organizacje, które administratorowi pokazuje lista organizacji — organizacje firmowe, które nie zostały usunięte — dla roli z uprawnieniem `customers:read` lub `customers:manage`. Przedstawicielowi handlowemu są to organizacje z jego zasięgu; przypisane mu organizacje są pokazywane jako pierwsze, a pozostałe po nich.

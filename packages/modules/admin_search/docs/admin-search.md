@@ -69,10 +69,13 @@ same administrator:
   for Organizations, `customers:read` for Customers, and `catalog:read` for
   Products and Categories.
 - A sales representative sees only the orders, quote requests, opportunities
-  and customers of the organizations assigned to them.
+  and customers of the organizations they reach: the ones assigned to them and
+  every organization no representative is assigned to (issue #305 — the one
+  reach rule of the `organizations` module).
 - Organizations follow the Organizations list exactly: a sales representative
-  sees every organization that list shows them, with the organizations assigned
-  to them listed first.
+  sees every organization that list shows them — the same reach, never an
+  organization assigned to another representative — with the organizations
+  assigned to them listed first.
 
 ## The command palette
 

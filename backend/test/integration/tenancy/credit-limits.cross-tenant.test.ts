@@ -1,3 +1,4 @@
+import { randomUUID } from 'node:crypto';
 import { afterAll, beforeAll, describe, expect, it } from 'vitest';
 import { AdminRole, AdminUser, Organization, OrganizationSalesRepAssignment } from '../../helpers/package-entities.js';
 import {
@@ -22,6 +23,7 @@ describe('Credit limits — cross-tenant scoping (feature 050 US1)', () => {
   let repCookie: string;
   let orgAId: string;
   let orgBId: string;
+  const OTHER_REP_ID = randomUUID();
 
   const makeOrg = (label: string) =>
     ({
@@ -63,9 +65,12 @@ describe('Credit limits — cross-tenant scoping (feature 050 US1)', () => {
     orgAId = orgA.id;
     orgBId = orgB.id;
 
-    await em.persistAndFlush(
+    await em.persistAndFlush([
       em.create(OrganizationSalesRepAssignment, { organizationId: orgA.id, adminUserId: rep.id }),
-    );
+      // #305 — Org B is another representative's: an unassigned organization
+      // is in every representative's reach.
+      em.create(OrganizationSalesRepAssignment, { organizationId: orgB.id, adminUserId: OTHER_REP_ID }),
+    ]);
 
     repCookie = `stub-sales-rep-050-${Date.now()}`;
     ADMIN_COOKIES[repCookie] = { adminUserId: rep.id };
@@ -83,6 +88,7 @@ describe('Credit limits — cross-tenant scoping (feature 050 US1)', () => {
   });
 
   afterAll(async () => {
+    await h.em().getConnection().execute('delete from organization_sales_rep_assignments where admin_user_id = ?', [OTHER_REP_ID]);
     delete ADMIN_COOKIES[repCookie];
     await teardownBackendServer(h);
   });

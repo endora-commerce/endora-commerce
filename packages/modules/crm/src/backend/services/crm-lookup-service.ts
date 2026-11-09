@@ -72,11 +72,23 @@ export class CrmLookupService {
     if (constraint.kind === 'all') {
       return (await this.deps.organizations.searchByName(query.q ?? '', query.limit)).map(option);
     }
+    if (constraint.kind === 'excluded') {
+      // A sales representative (issue #305) reaches every Organization nobody
+      // else governs, so the population is the platform's and the search pages
+      // through it — widening the window until a page holds `limit` in reach
+      // or the matches run out. The excluded set is bounded by the B2B book,
+      // so the window grows rarely and never far.
+      for (let window = query.limit * 2; ; window *= 2) {
+        const page = await this.deps.organizations.searchByName(query.q ?? '', window);
+        const inReach = page.filter((row) => isOrgInScope(row.id, constraint));
+        if (inReach.length >= query.limit || page.length < window) return inReach.slice(0, query.limit).map(option);
+      }
+    }
     // A confined administrator: the allowed set is the population, and the
     // search narrows it — never the other way round, where a page of matches
     // taken platform-wide could hold none of the caller's Organizations.
     const allowed =
-      constraint.kind === 'set'
+      constraint.kind === 'allowed'
         ? [...constraint.organizationIds]
         : constraint.organizationId
           ? [constraint.organizationId]

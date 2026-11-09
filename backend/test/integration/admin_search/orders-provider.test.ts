@@ -8,6 +8,7 @@ import { Order } from '../../helpers/package-entities.js';
 import { withSystemScope } from '../../../src/tenancy/escape-hatch.js';
 import {
   GS_COOKIES,
+  assignToAnotherRepresentative,
   ensureSalesRep,
   providerFor,
   providerQuery,
@@ -27,6 +28,7 @@ import {
 describe('admin global search — Order provider (spec 150)', () => {
   let h: BackendServerHandle;
   let cleanupSalesRep: () => Promise<void>;
+  let cleanupOtherRep: (() => Promise<void>) | undefined;
   const T = runToken();
   const ids: Record<string, string> = {};
 
@@ -40,6 +42,7 @@ describe('admin global search — Order provider (spec 150)', () => {
       const custA = await seedCustomer(em, orgA.id, { email: `a-${T}@example.com`, lastName: 'Plain' });
       const custB = await seedCustomer(em, orgB.id, { email: `b-${T}@example.com`, lastName: `CUST${T}` });
       ids['orgA'] = orgA.id;
+      ids['orgC'] = orgC.id;
       ids['orgB'] = orgB.id;
       const order = async (key: string, over: Parameters<typeof seedOrder>[1]) => {
         ids[key] = (await seedOrder(em, over)).id;
@@ -70,9 +73,13 @@ describe('admin global search — Order provider (spec 150)', () => {
       await order('scopeB', { organizationId: orgC.id, customerId: custA.id, businessId: `SR${T}-b` });
     });
     cleanupSalesRep = await ensureSalesRep(h, [ids['orgA']!], ['orders:read']);
+    // #305 — the other organizations are another representative's: one nobody
+    // is assigned to is in every representative's reach.
+    cleanupOtherRep = await assignToAnotherRepresentative(h, [ids['orgB']!, ids['orgC']!]);
   });
 
   afterAll(async () => {
+    await cleanupOtherRep?.();
     await cleanupSalesRep?.();
     await teardownBackendServer(h);
   });

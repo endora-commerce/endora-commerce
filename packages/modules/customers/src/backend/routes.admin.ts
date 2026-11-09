@@ -80,7 +80,6 @@ export type ResolveModerationActor = (
 ) => Promise<{
   adminUserId: string;
   isPlatformAdmin: boolean;
-  allowedOrganizationIds: string[];
 }>;
 
 export interface CustomersAdminDeps {
@@ -257,10 +256,7 @@ export async function registerCustomersAdminRoutes(
           page,
           pageSize,
         },
-        {
-          isPlatformAdmin: actor.isPlatformAdmin,
-          allowedOrganizationIds: actor.allowedOrganizationIds,
-        },
+        { isPlatformAdmin: actor.isPlatformAdmin },
       );
       return { data: result.rows, meta: { page, pageSize, total: result.total } };
     },

@@ -1,4 +1,5 @@
 import type { EntityManager } from '@mikro-orm/postgresql';
+import { orgReachOf } from '../domain/visibility-rule.js';
 import { describe, expect, it } from 'vitest';
 import type { ProjectViewer } from '../domain/visibility-rule.js';
 import type { SqlFragment } from './project-access.js';
@@ -37,7 +38,7 @@ function restrictionDeps(options: { canRead?: boolean; predicate?: SqlFragment |
     adminUserId: '00000000-0000-4000-8000-00000000000b',
     canRead: options.canRead ?? true,
     seeAll: false,
-    reach: { all: true, organizationIds: new Set() },
+    reach: orgReachOf({ kind: 'all' }),
   };
   const deps: ProjectAssetRestrictionDeps = {
     access: () => {

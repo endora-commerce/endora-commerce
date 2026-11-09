@@ -49,14 +49,22 @@ organization descendants”).
 - **Handlowiec z ograniczonym zakresem**, który ma to uprawnienie, ma każde przypisanie rozszerzone
   na poddrzewo przypisanego węzła. Organizacja podrzędna z **własnym** przypisaniem zastępuje
   odziedziczone dla swojego poddrzewa — wygrywa **najbliższe przypisanie w łańcuchu organizacji
-  nadrzędnych**. Bez tego uprawnienia handlowiec widzi tylko organizacje przypisane mu bezpośrednio.
+  nadrzędnych**. Bez tego uprawnienia o organizacji decydują wyłącznie jej własne przypisania.
 - Użytkownik oddziału bez wglądu w strukturę widzi wyłącznie własną organizację.
 
-Rozszerzenie jest obliczane **po stronie serwera** i poszerza istniejące zabezpieczenie zakresu
-tenanta (`allowedOrganizationIds`) dokładnie o poddrzewo — nigdy o organizacje siostrzane, dalsze
-gałęzie ani organizacje nadrzędne powyżej przypisanego węzła. Rekordu spoza poddrzewa nie da się
-odróżnić od rekordu, który nie istnieje. Trzy ekrany odczytu w panelu — zamówienia, oferty i klienci —
-już korzystają z poszerzonego zakresu i nie wymagają żadnych zmian.
+Najbliższe przypisanie rozstrzyga na **każdym ekranie panelu** (zgłoszenie #305): na stronach
+organizacji, na liście organizacji i w polach wyboru, w wyszukiwarce panelu oraz przy każdym odczycie
+i zapisie objętym zakresem tenanta. Rozstrzyga ono, kto *prowadzi* organizację. Handlowiec widzi
+każdą organizację, której nie prowadzi nikt inny — te, które prowadzi sam, i każdą, której nie
+prowadzi żaden handlowiec (reguła organizacji nieprzypisanych, łącznie z organizacjami osobistymi).
+Przy wglądzie w strukturę nieprzypisana organizacja podrzędna organizacji innego handlowca należy do
+tamtego handlowca i jest ukryta przed pozostałymi; bez wglądu w strukturę jest nieprzypisana i widzi
+ją każdy handlowiec.
+
+Zakres jest obliczany **po stronie serwera**, jednym zapytaniem na żądanie, a zabezpieczenie zakresu
+tenanta filtruje według jego dopełnienia — każda organizacja oprócz prowadzonych przez innego
+handlowca (tryb `excluded-set`, zob. *Izolacja tenantów*). Rekordu spoza zakresu nie da się odróżnić od
+rekordu, który nie istnieje.
 
 ## Dziedziczenie warunków
 

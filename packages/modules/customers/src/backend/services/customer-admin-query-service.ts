@@ -32,9 +32,13 @@ import type { CustomerDefaultsService } from './customer-defaults-service.js';
  * `EntityManager` at all: it owns no table, and every question it answers is
  * somebody's published read.
  */
+/**
+ * Whether the list is scoped. What a scoped admin reaches is the tenant
+ * filter's on `CustomerAccount` (issue #305: a sales representative reaches
+ * every organization nobody else governs), so no id list travels here.
+ */
 export interface AdminCustomerListScope {
   isPlatformAdmin: boolean;
-  allowedOrganizationIds: string[];
 }
 
 export interface AdminCustomerListQuery {
@@ -67,16 +71,18 @@ export class CustomerAdminQueryService {
 
   async list(
     query: AdminCustomerListQuery,
-    scope: AdminCustomerListScope,
+    // Kept for the route's call shape: the reach itself is the tenant filter's.
+    _scope: AdminCustomerListScope,
   ): Promise<AdminCustomerListResult> {
     const { rows, total } = await this.ports.accountSearch.search({
       q: query.q,
       status: query.status,
       organizationId: query.organizationId,
       customerGroupId: query.customerGroupId,
-      // `null` is the unscoped read. A salesperson gets their territory, and
-      // org-less customers are visible to every salesperson by construction.
-      allowedOrganizationIds: scope.isPlatformAdmin ? null : scope.allowedOrganizationIds,
+      // `null`: no list of ids narrows the read. `CustomerAccount` is
+      // `@OrgScoped`, so a salesperson's read is confined by the tenant filter,
+      // which is the one reach rule (issue #305).
+      allowedOrganizationIds: null,
       page: query.page,
       pageSize: query.pageSize,
     });

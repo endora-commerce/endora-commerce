@@ -845,10 +845,12 @@ export interface SalesRepAssignmentPort {
 }
 
 /**
- * Which organizations an admin's requests may reach: every one, or a named set.
+ * Which organizations an admin's requests may reach: every one, a named set, or
+ * every one but a named set (issue #305).
  *
- * The same two-member answer the admin list resolvers already give, so the
- * tenant context and the lists built over it cannot disagree about one admin.
+ * The platform turns it into the ambient tenant context, and the admin lists
+ * read their scope from that context, so the two cannot disagree about one
+ * admin.
  */
 export type AdminTenantScope =
   | { readonly allowAll: true }
@@ -863,16 +865,39 @@ export type AdminTenantScope =
        * can only turn an answer into a refusal, never widen one.
        */
       readonly unresolved?: Error;
+    }
+  | {
+      /**
+       * Issue #305 — a sales representative's reach, described by its
+       * **complement**: every Organization except those governed by somebody
+       * else. Under the reach rule a representative sees every Organization
+       * nobody is assigned to (B2C personal organizations included, which can
+       * never carry an assignment), so the reachable set grows with the
+       * customer base while the excluded one is bounded by the B2B book.
+       */
+      readonly allowAll: false;
+      readonly reach: 'excluding';
+      /** Organizations governed by another representative: never reachable. */
+      readonly excludedOrganizationIds: string[];
+      /**
+       * The representative's own assignments, roll-up expanded. For ranking
+       * and "mine" filters only; never a filter input.
+       */
+      readonly assignedOrganizationIds: string[];
+      readonly unresolved?: Error;
     };
 
 /**
  * Container name: `adminTenantScopePort`. Owner: `organizations`.
  *
  * The tenant reach of an authenticated admin, derived from the role the admin
- * holds and never from request inputs (Principle XI). An admin whose role
- * confines them to assigned organizations answers the assigned set — expanded
- * to each assignment's subtree when the admin holds `organizations:rollup` —
- * and an admin holding any other role answers `allowAll`.
+ * holds and never from request inputs (Principle XI). An admin whose role is
+ * the sales-representative one answers the `excluding` reach (issue #305): every
+ * Organization except those governed by another representative — the reach
+ * rule of `SalesRepAssignmentPort.canSeeOrganization`, assigned, roll-up and
+ * the unassigned fallback — and an admin holding any other role answers
+ * `allowAll`. The `allowedOrganizationIds` member remains for the customer
+ * roll-up and API keys, which name their set.
  *
  * **An admin with no role is refused, never widened.** An id that names no
  * live administrator, or an administrator holding no role, answers the empty
