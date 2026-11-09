@@ -105,7 +105,8 @@ describe('orders — the admin custom-field write and a concurrent writer of the
         `select count(*)::int as n from pg_stat_activity
           where datname = current_database() and pid <> pg_backend_pid() and wait_event_type = 'Lock'`,
       )) as Array<{ n: number }>;
-    return (rows[0]?.n ?? 0) > 0;
+    expect(rows).toHaveLength(1);
+    return rows[0]!.n > 0;
   };
 
   beforeAll(async () => {
