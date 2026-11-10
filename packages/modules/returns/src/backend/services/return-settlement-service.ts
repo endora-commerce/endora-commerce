@@ -60,7 +60,7 @@ export interface ReturnSettlementServiceDeps {
    * the order refunds the delivery and the payment surcharge. Absent: no
    * Organization is, and no case refunds a charge.
    */
-  isPersonalOrganization?: (organizationId: string | null) => Promise<boolean>;
+  isPersonalOrganization?: (organizationId: string | null, placedAt?: Date) => Promise<boolean>;
   /**
    * `returns.time_zone` for a sales channel (issue #905): the zone the
    * withdrawal window that decides the charges' default counts calendar days
@@ -231,7 +231,7 @@ export class ReturnSettlementService {
       excludeCaseId: rc.id,
       kind: rc.kind,
       current: items.map((it) => ({ orderItemId: it.orderItemId, quantity: it.quantity })),
-      isPersonal: (await this.deps.isPersonalOrganization?.(context.organizationId)) ?? false,
+      isPersonal: (await this.deps.isPersonalOrganization?.(context.organizationId, context.placedAt)) ?? false,
       withinWindow: isWithinWithdrawalWindow({
         freeReturnEligible: rc.freeReturnEligible,
         submittedAt: rc.submittedAt,

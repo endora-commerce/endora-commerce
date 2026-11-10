@@ -417,7 +417,18 @@ export const manifest = defineModuleManifest({
     },
     // `specs/177-tax-id-scope/` FR-017 — the installation's tax-ID scope. The
     // routes also refuse a scoped administrator holding it (D-260).
-    { code: 'organizations:manage-tax-id-scope', label: 'Manage the tax-ID scope' },
+    {
+      code: 'organizations:manage-tax-id-scope',
+      label: 'Manage the tax-ID scope',
+      requires: ['customers:read'],
+    },
+    // `specs/177-tax-id-scope/` FR-031 — the personal → company conversion,
+    // an operator's action only (admin route, its screen and the detail button).
+    {
+      code: 'organizations:convert-to-company',
+      label: 'Convert personal organizations to companies',
+      requires: ['customers:read'],
+    },
   ],
   settings,
   /**
@@ -655,6 +666,11 @@ export const manifest = defineModuleManifest({
     { code: 'ORGANIZATION_TAX_ID_EXISTS' },
     // `specs/177-tax-id-scope/` FR-015 — `{sharedTaxIdCount}` is always filled.
     { code: 'ORGANIZATION_TAX_ID_SCOPE_DUPLICATES', tokens: ['shared_tax_ids'] },
+    // `specs/177-tax-id-scope/` FR-033 — every raise carries one of the three tokens.
+    {
+      code: 'ORGANIZATION_CONVERSION_REFUSED',
+      tokens: ['not_personal', 'deleted', 'owner_not_administrator'],
+    },
     {
       code: 'ORGANIZATION_TREE_INVALID',
       tokens: ['cycle', 'max_depth_exceeded', 'path_unreadable', 'tax_id_shared_across_trees'],

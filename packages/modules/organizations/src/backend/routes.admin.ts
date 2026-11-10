@@ -25,6 +25,7 @@ import {
   type OrganizationRoleRef,
   AdminOrganizationCreateBodySchema,
   adminTaxIdScopeSetBodySchema,
+  adminOrganizationConvertToCompanyBodySchema,
   type AdminTaxIdScopeResponse,
   DictionaryReferenceError,
   OrganizationSalesChannelsUpdateBodySchema,
@@ -43,6 +44,8 @@ import { makeMoveCommand } from './commands/move.command.js';
 import { makeSetCreditModeCommand } from './commands/set-credit-mode.command.js';
 import { makeCreateOrganizationCommand } from './commands/create-organization.command.js';
 import { makeSetTaxIdScopeCommand } from './commands/set-tax-id-scope.command.js';
+import { makeConvertToCompanyCommand } from './commands/convert-to-company.command.js';
+import type { OrganizationRoleCache } from './services/organization-role-cache.js';
 import { TaxIdScopeService } from './services/tax-id-scope-service.js';
 import { runOrganizationWrite, taxIdExistsRefusal } from './services/organization-write.js';
 import { taxIdSharedAcrossTreesRefusal } from './services/organization-tree-service.js';
@@ -179,6 +182,12 @@ export interface AdminOrgsDeps {
    * `organizationSalesRepScopePort`, built with the roll-up deps (#108).
    */
   salesRepScope: Pick<SalesRepAssignmentPort, 'canSeeOrganization'>;
+  /**
+   * `specs/177-tax-id-scope/` — the role cache entry a conversion drops and
+   * announces after it commits: role management now applies to the
+   * Organization. Absent: nothing is cached to drop.
+   */
+  roleCache?: Pick<OrganizationRoleCache, 'dropAndAnnounce'>;
 }
 
 export async function registerOrganizationsAdminRoutes(
@@ -603,6 +612,49 @@ export async function registerOrganizationsAdminRoutes(
       );
     }
   }
+
+  // ── Personal → company conversion (`specs/177-tax-id-scope/`, FR-030 … FR-041) ──
+  // The gate is the preHandler (`module-admin-surfaces.md` item 3); the VAT
+  // validation, when asked for, runs after the conversion committed and never
+  // rolls it back (D-290 / OD-2). No reverse route exists (FR-041).
+  app.post<{ Params: { id: string } }>(
+    '/api/v1/admin/organizations/:id/convert-to-company',
+    {
+      preHandler: [requireAdmin('organizations:convert-to-company'), organizationInReach],
+      schema: { body: adminOrganizationConvertToCompanyBodySchema },
+    },
+    async (request) => {
+      if (!isUuidShape(request.params.id)) {
+        throw new HttpError(404, ERROR_CODES.NOT_FOUND, 'Organization not found.');
+      }
+      const { validateTaxId, ...input } = adminOrganizationConvertToCompanyBodySchema.parse(request.body);
+      await assertCountryAvailable(deps.dictionaryValidator, input.registeredAddress.country);
+      const org = await runOrganizationWrite(
+        deps.commandBus,
+        makeConvertToCompanyCommand(
+          { accounts: deps.customerAccountRead },
+          { organizationId: request.params.id, input },
+        ),
+        () => taxIdExistsRefusal(),
+      );
+      await deps.roleCache?.dropAndAnnounce(org.id);
+      let vatValidation: { outcome: string; provider: string | null } | null = null;
+      if (validateTaxId && taxIdValidationService) {
+        try {
+          const result = await taxIdValidationService.trigger(org.id, {
+            providerHint: 'auto',
+            actorAdminUserId: resolveAdminUserId(request),
+          });
+          vatValidation = { outcome: result.record.outcome, provider: result.record.provider ?? null };
+        } catch (err) {
+          request.log.warn({ err, organizationId: org.id }, 'organizations: VAT validation after a conversion failed');
+          vatValidation = { outcome: 'failed', provider: null };
+        }
+      }
+      const fresh = await emFactory().findOneOrFail(Organization, { id: org.id });
+      return { data: serializeOrg(fresh), vatValidation };
+    },
+  );
 
   // ── Moderation lifecycle (feature 026) ─────────────────────────────────
   // Approve / Reject / Block / Unblock. Mounted only when the moderation

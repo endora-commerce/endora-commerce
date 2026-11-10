@@ -623,6 +623,24 @@ export type OrganizationConvertToCompanyInput = Omit<
 >;
 
 /**
+ * Container name: `organizationCommandPort`. Owner: `organizations`
+ * (`specs/177-tax-id-scope/` `contracts/convert-to-company.md` §4).
+ *
+ * Server-side writes on the Organization aggregate, each one audited Command.
+ */
+export interface OrganizationCommandPort {
+  /**
+   * Runs `organization.convert_to_company` as one Command with the ambient
+   * actor (an administrator inside an admin request; the system under
+   * `withSystemScope` in a worker). For admin routes and server code — an ERP
+   * import — and never for a customer-facing route. No VAT validation: trigger
+   * one after it resolves if you need it. Refusals: `404 NOT_FOUND`,
+   * `409 ORGANIZATION_CONVERSION_REFUSED`, `409 ORGANIZATION_TAX_ID_EXISTS`.
+   */
+  convertToCompany(organizationId: string, input: OrganizationConvertToCompanyInput): Promise<OrganizationRecord>;
+}
+
+/**
  * `organization.converted_to_company.v1` — emitted once, after the conversion
  * commits, never on rollback (FR-039). Carries no name and no tax ID: a
  * subscriber has the id and {@link OrganizationDetailsPort}.

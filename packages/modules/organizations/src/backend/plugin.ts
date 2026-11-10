@@ -1,3 +1,4 @@
+import type { OrganizationRoleCache } from './services/organization-role-cache.js';
 import type { FastifyInstance, FastifyRequest } from 'fastify';
 import type { EntityManager } from '@mikro-orm/postgresql';
 import type {
@@ -73,6 +74,8 @@ export interface OrganizationsModuleOptions {
    * routes. The port is a thunk, resolved per request.
    */
   roleService: OrganizationRoleService;
+  /** `specs/177-tax-id-scope/` — dropped and announced after a conversion commits. */
+  roleCache?: Pick<OrganizationRoleCache, 'dropAndAnnounce'>;
   organizationPermissions: () => OrganizationPermissionPort;
   /**
    * WP-03 — the role as every member response names it (FR-008), and
@@ -353,6 +356,7 @@ export function organizationsModule(options: OrganizationsModuleOptions) {
           : {}),
         ...(options.dictionaryValidator ? { dictionaryValidator: options.dictionaryValidator } : {}),
         treeService: new OrganizationTreeService(options.emFactory),
+        ...(options.roleCache ? { roleCache: options.roleCache } : {}),
       });
       await registerOrganizationAdminRoleRoutes(app, {
         roleService: options.roleService,

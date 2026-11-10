@@ -22,6 +22,7 @@ import type {
   EmailDefaultsRegistryPort,
   EmailMailerPort,
   OrganizationDetailsPort,
+  OrganizationCommandPort,
   OrganizationInheritancePort,
   OrganizationPermissionPort,
   OrganizationRestrictionPort,
@@ -70,6 +71,7 @@ import type { PersonalOrganizationProvisionApi } from '../ports/index.js';
 import { OrganizationRestrictionService } from './services/organization-restriction-service.js';
 import { OrganizationTreeService } from './services/organization-tree-service.js';
 import { TaxIdScopeService } from './services/tax-id-scope-service.js';
+import { OrganizationCommandService } from './services/organization-command-port.js';
 import { probeTaxIdScope } from './services/tax-id-scope-probe.js';
 import { OrganizationInheritanceService } from './services/organization-inheritance-service.js';
 import { OrganizationModerationService } from './services/organization-moderation-service.js';
@@ -814,6 +816,7 @@ export function registerModule(ctx: ModuleContext): void {
               cradle().customerContextResolver(req),
             onLogin: (input) => cradle().organizationsLoginHook(input),
             roleService: cradle().organizationRoleService,
+            roleCache: cradle().organizationRoleCache,
             organizationPermissions: () =>
               lazyPort<OrganizationPermissionPort>(ctx, 'organizationPermissionPort'),
             // WP-03 — the role every member response names, and the member
@@ -881,6 +884,25 @@ export function registerModule(ctx: ModuleContext): void {
    * reason. Eleven modules read the row itself, and between them they touch
    * nearly every column; that is this port.
    */
+  /**
+   * `specs/177-tax-id-scope/` (`contracts/convert-to-company.md` §4) — writes
+   * on the Organization aggregate for admin routes and server code; today the
+   * personal → company conversion.
+   */
+  ctx.di.providePort<OrganizationCommandPort>(
+    'organizationCommandPort',
+    ctx
+      .asFunction(
+        ({ commandBus, organizationRoleCache }: OrganizationsCradle) =>
+          new OrganizationCommandService({
+            commandBus,
+            accounts: lazyPort<CustomerAccountReadPort>(ctx, 'customerAccountReadPort'),
+            roleCache: organizationRoleCache,
+          }),
+      )
+      .singleton(),
+  );
+
   ctx.di.providePort<OrganizationDetailsPort>(
     'organizationDetailsPort',
     ctx

@@ -34,7 +34,7 @@ function sources(dir: string): string[] {
 }
 
 const WRITES = /em\.create\(Organization\b|applyReparentPaths\(/;
-const FACTORIES = /\bmake(CreateOrganization|SetParent|Move)Command\b/;
+const FACTORIES = /\bmake(CreateOrganization|SetParent|Move|ConvertToCompany)Command\b/;
 
 describe('the writes of organizations.tax_id and path', () => {
   it('are the create and re-parent Commands', () => {
@@ -42,7 +42,11 @@ describe('the writes of organizations.tax_id and path', () => {
       .filter((path) => WRITES.test(readFileSync(path, 'utf8')))
       .map((path) => relative(BACKEND, path))
       .sort();
-    expect(commands).toEqual(['commands/create-organization.command.ts', 'commands/set-parent.command.ts']);
+    expect(commands).toEqual([
+      'commands/convert-to-company.command.ts',
+      'commands/create-organization.command.ts',
+      'commands/set-parent.command.ts',
+    ]);
   });
 
   it('run those Commands through runOrganizationWrite at every call site', () => {
@@ -50,11 +54,11 @@ describe('the writes of organizations.tax_id and path', () => {
       if (path.includes(`${join(BACKEND, 'commands')}/`)) return false;
       return FACTORIES.test(readFileSync(path, 'utf8'));
     });
-    expect(callers.map((path) => relative(BACKEND, path))).toEqual(['routes.admin.ts']);
+    expect(callers.map((path) => relative(BACKEND, path)).sort()).toEqual(['routes.admin.ts', 'services/organization-command-port.ts']);
     for (const path of callers) {
       const text = readFileSync(path, 'utf8');
       expect(text, relative(BACKEND, path)).toContain('runOrganizationWrite(');
-      expect(text).not.toMatch(/\.run\(\s*make(CreateOrganization|SetParent|Move)Command\(/);
+      expect(text).not.toMatch(/\.run\(\s*make(CreateOrganization|SetParent|Move|ConvertToCompany)Command\(/);
       expect(text).not.toMatch(/commandBus\.run\(\s*command\s*\)/);
     }
   });

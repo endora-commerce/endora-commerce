@@ -4,6 +4,7 @@ import {
   DictionaryReferenceError,
   ERROR_CODES,
   normalizeTaxId,
+  type OrganizationConvertedToCompanyEvent,
   type CustomerAccountMemberWritePort,
   type CustomerAccountReadPort,
   type CustomerAccountRecord,
@@ -47,6 +48,12 @@ export interface OrganizationEvents extends Record<string, EventBase> {
   'organization.registered.v1': EventBase & { organizationId: string };
   'organization.verified.v1': EventBase & { organizationId: string; customerAccountId: string };
   'organization.status_changed.v1': EventBase & { organizationId: string; newStatus: string };
+  /**
+   * `specs/177-tax-id-scope/` FR-039 — a personal organization became a company
+   * (`organization.convert_to_company`), dispatched once on commit. No
+   * subscriber in core; for overlays and connectors (research R-12).
+   */
+  'organization.converted_to_company.v1': EventBase & OrganizationConvertedToCompanyEvent;
   /**
    * A CustomerAccount belonging to an Organization was created (self-service
    * registration, admin direct-create, or invitation accept). Consumed by the

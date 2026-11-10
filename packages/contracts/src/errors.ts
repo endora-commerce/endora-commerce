@@ -158,6 +158,9 @@ export const ERROR_CODES = {
   // `specs/177-tax-id-scope/` — switching the tax-ID scope to `global` while a
   // tax ID is on more than one organization (409, `details.code = 'shared_tax_ids'`).
   ORGANIZATION_TAX_ID_SCOPE_DUPLICATES: 'ORGANIZATION_TAX_ID_SCOPE_DUPLICATES',
+  // `specs/177-tax-id-scope/` — a personal → company conversion refused (409,
+  // `details.code` = `not_personal` | `deleted` | `owner_not_administrator`).
+  ORGANIZATION_CONVERSION_REFUSED: 'ORGANIZATION_CONVERSION_REFUSED',
   // Feature 056 — deletion of a parent with children is blocked (reassign /
   // remove children first). Backed by the `parent_id ON DELETE RESTRICT` FK.
   ORGANIZATION_HAS_CHILDREN: 'ORGANIZATION_HAS_CHILDREN',

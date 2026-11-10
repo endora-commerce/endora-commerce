@@ -12,6 +12,7 @@ import {
   unreadablePathRefusal,
 } from '../../../../packages/modules/organizations/src/backend/services/organization-tree-service.js';
 import { scopeDuplicatesRefusal } from '../../../../packages/modules/organizations/src/backend/commands/set-tax-id-scope.command.js';
+import { conversionRefusal } from '../../../../packages/modules/organizations/src/backend/commands/convert-to-company.command.js';
 import { permissionRequiredRefusal } from '../../../../packages/modules/organizations/src/backend/services/organization-role-permission-port.js';
 
 /**
@@ -129,6 +130,15 @@ describe('the always-tokened organizations codes', () => {
       status: 409,
       contains: '3',
     },
+    // `specs/177-tax-id-scope/` FR-033 — the three conversion refusals.
+    ...(['not_personal', 'deleted', 'owner_not_administrator'] as const).map((token) => ({
+      code: 'ORGANIZATION_CONVERSION_REFUSED' as const,
+      name: `a conversion refused as ${token}`,
+      refusal: conversionRefusal(token),
+      token,
+      status: 409,
+      contains: null,
+    })),
   ] as const;
 
   for (const { code, name, refusal, token, status, contains } of cases) {
@@ -162,7 +172,7 @@ describe('the always-tokened organizations codes', () => {
     }
   }
 
-  for (const code of ['ORGANIZATION_HAS_CHILDREN', 'ORGANIZATION_TREE_INVALID', 'ORGANIZATION_TAX_ID_SCOPE_DUPLICATES'] as const) {
+  for (const code of ['ORGANIZATION_HAS_CHILDREN', 'ORGANIZATION_TREE_INVALID', 'ORGANIZATION_TAX_ID_SCOPE_DUPLICATES', 'ORGANIZATION_CONVERSION_REFUSED'] as const) {
     for (const language of LANGUAGES) {
       it(`keeps ${code}'s unreachable base sentence (${language})`, () => {
         // **This key renders for nobody, and it is load-bearing anyway** —
@@ -197,6 +207,7 @@ describe('the always-tokened organizations codes', () => {
       'tax_id_shared_across_trees',
     ]);
     expect(produced.get('ORGANIZATION_TAX_ID_SCOPE_DUPLICATES')).toEqual(['shared_tax_ids']);
+    expect(produced.get('ORGANIZATION_CONVERSION_REFUSED')).toEqual(['not_personal', 'deleted', 'owner_not_administrator']);
   });
 });
 
