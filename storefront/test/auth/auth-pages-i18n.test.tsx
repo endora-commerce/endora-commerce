@@ -11,7 +11,13 @@ import { beforeEach, describe, expect, it, vi } from 'vitest';
 
 const context = { locale: 'en-US' };
 const mfa = {
-  status: { totpActive: false, recoveryCodesRemaining: 0, socialLinks: [] as unknown[] },
+  status: {
+    totpActive: false,
+    recoveryCodesRemaining: 0,
+    canDisable: true,
+    disableBlockedReason: null as 'factor_required' | null,
+    socialLinks: [] as unknown[],
+  },
   recoveryFlash: null as string[] | null,
   setup: null as { secret: string; otpauthUri: string } | null,
 };
@@ -112,7 +118,13 @@ function inBoth(
 
 beforeEach(() => {
   context.locale = 'en-US';
-  mfa.status = { totpActive: false, recoveryCodesRemaining: 0, socialLinks: [] };
+  mfa.status = {
+    totpActive: false,
+    recoveryCodesRemaining: 0,
+    canDisable: true,
+    disableBlockedReason: null,
+    socialLinks: [],
+  };
   mfa.recoveryFlash = null;
   mfa.setup = null;
   verify.fails = false;
@@ -248,7 +260,13 @@ inBoth('the account security page with 2FA off', () => render(SecurityPage), {
 
 describe('the account security page with 2FA on and fresh recovery codes', () => {
   it('renders in both languages, the count in the locale’s digits', async () => {
-    mfa.status = { totpActive: true, recoveryCodesRemaining: 10000, socialLinks: [] };
+    mfa.status = {
+      totpActive: true,
+      recoveryCodesRemaining: 10000,
+      canDisable: true,
+      disableBlockedReason: null,
+      socialLinks: [],
+    };
     mfa.recoveryFlash = ['aaaa-bbbb'];
     const en = await render(SecurityPage);
     expect(en).toContain('Two-step verification is on');
