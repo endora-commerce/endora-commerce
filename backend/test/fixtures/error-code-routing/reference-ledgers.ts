@@ -244,6 +244,14 @@ export const MINTED_ERROR_CODES: MintedErrorCodes = {
       'raise site is `mfa`\'s own setting validator, which `settings` consults only while `mfa` ' +
       'is present.',
   },
+  MFA_LAST_FACTOR_REQUIRED: {
+    to: 'mfa',
+    reason:
+      'Minted by issue #935 for the refusal an account earns by switching off its last second ' +
+      'factor while a requirement is in force for it: a setting, an administrator\'s role or a ' +
+      'customer\'s organization. The noun is the second factor, this module\'s whole subject; ' +
+      'the one raise site is `mfa`\'s self-service `POST …/mfa/disable`.',
+  },
   MFA_DEACTIVATION_BLOCKED: {
     to: 'mfa',
     reason:

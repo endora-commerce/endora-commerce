@@ -178,6 +178,21 @@ export class MfaEnrolmentService {
     return { recoveryCodes: codes };
   }
 
+  /**
+   * How many active second factors the subject holds (issue #935). TOTP is the
+   * only kind, and a partial unique index keeps it to one per subject, so this
+   * answers 0 or 1 today; recovery codes belong to the enrolment and are not a
+   * factor of their own.
+   */
+  async countActiveFactors(subject: MfaSubjectRef): Promise<number> {
+    const em = this.emFactory();
+    return em.count(MfaEnrolment, {
+      subjectType: subject.subjectType,
+      subjectId: subject.subjectId,
+      status: 'active',
+    });
+  }
+
   async status(
     subject: MfaSubjectRef,
   ): Promise<{ totpActive: boolean; recoveryCodesRemaining: number }> {
