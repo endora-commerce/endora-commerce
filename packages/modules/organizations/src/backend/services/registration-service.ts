@@ -13,6 +13,7 @@ import {
 import type { EventBase, EventBus } from '@endora-commerce/platform/events';
 import { HttpError } from '@endora-commerce/platform/http';
 import { Organization } from '../entities/organization.entity.js';
+import { TaxIdLookupService } from './tax-id-lookup-service.js';
 import { EmailVerificationToken } from '../entities/email-verification-token.entity.js';
 import { recordAuditFromContext } from '@endora-commerce/platform/commands';
 import type { AuditPort, SalesChannelMembershipPort } from '@endora-commerce/platform/kernel';
@@ -149,8 +150,13 @@ export class RegistrationService {
     // Pre-check the easy cases so we can return the right error code before
     // hashing the password (avoids a wasted ~50 ms of argon2 work — the hash
     // is computed inside `create` below, after both checks have passed).
-    const existingByTaxId = await em.findOne(Organization, { taxId: req.organization.taxId });
-    if (existingByTaxId) {
+    // `specs/177-tax-id-scope/` FR-024 — through the one tax-ID lookup, which
+    // normalises the input (`contracts/tax-id-scope.md` §5).
+    const existingByTaxId = await new TaxIdLookupService(this.emFactory).resolveByTaxId(
+      req.organization.taxId,
+      { em },
+    );
+    if (existingByTaxId.kind !== 'none') {
       throw new HttpError(
         409,
         ERROR_CODES.ORGANIZATION_TAX_ID_EXISTS,

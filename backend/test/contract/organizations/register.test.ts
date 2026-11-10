@@ -63,4 +63,21 @@ describe('POST /api/v1/organizations/register — duplicate taxId', () => {
     const body = second.json() as { error: { code: string } };
     expect(body.error.code).toBe(ERROR_CODES.ORGANIZATION_TAX_ID_EXISTS);
   });
+
+  // `specs/177-tax-id-scope/` FR-024 — the pre-check goes through
+  // `resolveByTaxId`, which normalises its input (whitespace and dashes
+  // stripped, upper-cased): the same tax ID typed differently is the same one.
+  it('refuses a tax ID that differs from an existing one only in case, spaces and dashes', async () => {
+    const res = await h.app.inject({
+      method: 'POST',
+      url: '/api/v1/organizations/register',
+      payload: {
+        ...payload,
+        organization: { ...payload.organization, taxId: 'pl 1234-567-890' },
+        firstUser: { ...payload.firstUser, email: 'normalised-duplicate@example.com' },
+      },
+    });
+    expect(res.statusCode, res.body).toBe(409);
+    expect((res.json() as { error: { code: string } }).error.code).toBe(ERROR_CODES.ORGANIZATION_TAX_ID_EXISTS);
+  });
 });

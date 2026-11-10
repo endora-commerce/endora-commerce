@@ -92,6 +92,36 @@ describe('a personal Organization’s administrator (PR-3)', () => {
     });
   });
 
+  // `specs/177-tax-id-scope/` T015 (O7, O8, O6) — a personal organization has no tax ID.
+  it('/me answers the personal organization with taxId null', async () => {
+    const res = await inject({ method: 'GET', url: '/api/v1/me' });
+    expect(res.statusCode, res.body).toBe(200);
+    expect((res.json() as { data: { organization: { taxId: unknown } } }).data.organization.taxId).toBeNull();
+  });
+
+  it('the admin detail answers taxId null for the personal organization', async () => {
+    const res = await h.app.inject({
+      method: 'GET',
+      url: `/api/v1/admin/organizations/${personalOrganizationId}`,
+      cookies: { b2b_admin_session: 'stub-admin-session' },
+    });
+    expect(res.statusCode, res.body).toBe(200);
+    const body = res.json() as { data: { id: string; taxId: unknown; isPersonal: boolean } };
+    expect(body.data).toMatchObject({ id: personalOrganizationId, isPersonal: true });
+    expect(body.data.taxId).toBeNull();
+  });
+
+  it('the admin list q never matches the personal organization by its former placeholder', async () => {
+    const res = await h.app.inject({
+      method: 'GET',
+      url: `/api/v1/admin/organizations?includePersonal=true&q=${personalAccountId.replace(/-/g, '')}`,
+      cookies: { b2b_admin_session: 'stub-admin-session' },
+    });
+    expect(res.statusCode, res.body).toBe(200);
+    const ids = (res.json() as { data: Array<{ id: string }> }).data.map((o) => o.id);
+    expect(ids).not.toContain(personalOrganizationId);
+  });
+
   it('lists the members — only themself (PR-10)', async () => {
     const res = await inject({ method: 'GET', url: '/api/v1/organizations/mine/members' });
     expect(res.statusCode, res.body).toBe(200);

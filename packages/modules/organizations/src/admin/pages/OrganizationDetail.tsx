@@ -39,7 +39,8 @@ interface OrgDetail {
   id: string;
   name: string;
   legalName?: string | null;
-  taxId: string;
+  /** `null` for a personal Organization (`specs/177-tax-id-scope/`). */
+  taxId: string | null;
   status: 'pending_verification' | 'active' | 'blocked' | 'rejected';
   vatStatus: 'vat_payer' | 'vat_exempt' | 'reverse_charge';
   /** A B2C customer's own Organization: no role management there (PR-3). */
@@ -353,14 +354,14 @@ export function OrganizationDetail(): ReactNode {
         title={org.name}
         description={
           <span>
-            {/* A personal Organization's tax id is an internal placeholder (#767). */}
+            {/* A personal Organization has no tax ID (`specs/177-tax-id-scope/`). */}
             {org.isPersonal ? (
               <span>{t('organizations.personalAccount')}</span>
-            ) : (
+            ) : org.taxId ? (
               <>
                 {t('organizations.detail.taxIdLabel')} <code className="font-mono text-xs">{org.taxId}</code>
               </>
-            )}
+            ) : null}
             {org.updatedAt ? (
               <>
                 {' '}
@@ -756,22 +757,25 @@ export function OrganizationDetail(): ReactNode {
         />
       </div>
 
-      {/* Feature 026 US7 — VAT-ID / NIP validation history + retrigger. */}
-      <div className="mt-4">
-        <VatValidationPanel
-          organizationId={org.id}
-          summary={{
-            outcome: org.vatValidation?.outcome ?? null,
-            provider: org.vatValidation?.provider ?? null,
-            validatedAt: org.vatValidation?.validatedAt ?? null,
-          }}
-          headingId={VAT_VALIDATION_HEADING_ID}
-          onHistoryLoaded={(items) =>
-            setRegistryDivergenceCount(newestRegistrationRow(items)?.divergence?.length ?? 0)
-          }
-          onChanged={refresh}
-        />
-      </div>
+      {/* Feature 026 US7 — VAT-ID / NIP validation history + retrigger. A personal
+          Organization has no tax ID to validate (`specs/177-tax-id-scope/` O14). */}
+      {org.isPersonal ? null : (
+        <div className="mt-4">
+          <VatValidationPanel
+            organizationId={org.id}
+            summary={{
+              outcome: org.vatValidation?.outcome ?? null,
+              provider: org.vatValidation?.provider ?? null,
+              validatedAt: org.vatValidation?.validatedAt ?? null,
+            }}
+            headingId={VAT_VALIDATION_HEADING_ID}
+            onHistoryLoaded={(items) =>
+              setRegistryDivergenceCount(newestRegistrationRow(items)?.divergence?.length ?? 0)
+            }
+            onChanged={refresh}
+          />
+        </div>
+      )}
 
       {/* Org-level warehouse-picking (fulfilment) strategy override. */}
       <div className="mt-4">

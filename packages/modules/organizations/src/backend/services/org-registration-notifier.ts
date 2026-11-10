@@ -147,7 +147,7 @@ export class OrgRegistrationNotifier {
           messageId,
           variables: {
             organizationName: org.name,
-            taxId: org.taxId,
+            taxId: org.taxId ?? '',
             statusLabel,
             linkPath: `/organizations/${org.id}`,
           },

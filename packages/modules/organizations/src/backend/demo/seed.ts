@@ -18,6 +18,7 @@ import type { DemoSeedResult, ModuleDemoContext } from '@endora-commerce/contrac
 import type { ModuleContext } from '@endora-commerce/platform/kernel';
 import type { EntityManager } from '@mikro-orm/postgresql';
 import { Organization } from '../entities/organization.entity.js';
+import { TaxIdLookupService } from '../services/tax-id-lookup-service.js';
 import { DEMO_ORGANIZATION } from './rows.js';
 
 /** The one thing a demo body needs off its module's own cradle. */
@@ -35,7 +36,14 @@ export async function seedDemo(
   // refuses to run against a production database at all.
   const em = context.ctx.cradle<OrganizationsDemoCradle>().emFactory();
 
-  const existing = await em.findOne(Organization, { taxId: DEMO_ORGANIZATION.taxId });
+  // `specs/177-tax-id-scope/` O5 — in `per-tree-root` a branch may share the
+  // demo tax ID, so the lookup answers a list, the tree's root first. Deleted
+  // rows count: the old unique `findOne` found them too, and in `global` the
+  // constraint still holds their tax ID.
+  const [existing] = await new TaxIdLookupService(() => em).findByTaxId(DEMO_ORGANIZATION.taxId, {
+    includeDeleted: true,
+    em,
+  });
   // Present already: left exactly as it is. An operator may have renamed it or
   // moved it through moderation, and overwriting that here would be this body
   // deciding its own literal outranks their change.

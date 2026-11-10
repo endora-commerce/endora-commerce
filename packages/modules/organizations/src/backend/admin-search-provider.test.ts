@@ -91,4 +91,14 @@ describe('organizations admin search provider — mapping', () => {
       },
     ]);
   });
+
+  // `specs/177-tax-id-scope/` T015 (O11) — a row without a tax ID shows the city alone.
+  it('omits a null tax ID from the subtitle', async () => {
+    const provider = createOrganizationAdminSearchProvider({
+      search: async () => ({ rows: [{ ...row, taxId: null }, { ...row, id: 'org-2', taxId: null, city: null }], hasMore: false }),
+      translate: async (key) => key,
+    });
+    const result = await provider.search(query());
+    expect(result.hits.map((hit) => hit.subtitle)).toEqual(['Łódź', null]);
+  });
 });

@@ -21,35 +21,38 @@ import { seedDemo } from './seed.js';
 import { resetDemo } from './reset.js';
 
 /**
- * A minimal EntityManager over an in-memory table, keyed the way the real one
- * is: `taxId` is `Organization`'s unique column, so a `create` of a tax id that
- * is already there is the duplicate-key failure a non-idempotent body would hit
- * against Postgres.
+ * A minimal EntityManager over an in-memory table. The bodies find the demo
+ * organisation through `TaxIdLookupService` (`specs/177-tax-id-scope/` O5),
+ * which selects ids in SQL — root first — and loads them with `find`; so the
+ * fake answers `execute` with the matching ids in insertion order (the first
+ * row stands for the tree's root) and `find` by `id: { $in }`. `create` of a
+ * tax id that is already there is the duplicate-key failure a non-idempotent
+ * body would hit against Postgres in the `global` scope.
  */
 function fakeEm(existing: readonly string[] = []): {
   em: EntityManager;
   created: Record<string, unknown>[];
   deletes: unknown[];
 } {
-  const rows = new Set(existing);
+  const rows = existing.map((taxId, index) => ({ id: index === 0 ? `id-of-${taxId}` : `id-${index}-of-${taxId}`, taxId }));
   const created: Record<string, unknown>[] = [];
   const deletes: unknown[] = [];
   const em = {
-    findOne: async (_entity: unknown, where: { taxId: string }) =>
-      rows.has(where.taxId) ? { taxId: where.taxId } : null,
+    execute: async (_sql: string, params: unknown[]) =>
+      rows.filter((row) => row.taxId === params[0]).map((row) => ({ id: row.id })),
+    find: async (_entity: unknown, where: { id: { $in: string[] } }) =>
+      rows.filter((row) => where.id.$in.includes(row.id)),
     create: (_entity: unknown, payload: Record<string, unknown>) => {
       const taxId = payload['taxId'] as string;
-      if (rows.has(taxId)) throw new Error(`duplicate key: ${taxId}`);
-      rows.add(taxId);
+      if (rows.some((row) => row.taxId === taxId)) throw new Error(`duplicate key: ${taxId}`);
+      rows.push({ id: `id-of-${taxId}`, taxId });
       created.push(payload);
       return payload;
     },
     flush: async () => undefined,
-    find: async (_entity: unknown, where: { taxId: string }) =>
-      rows.has(where.taxId) ? [{ id: `id-of-${where.taxId}` }] : [],
     nativeDelete: async (entity: { name: string }, where: unknown) => {
       deletes.push({ [entity.name]: where });
-      return rows.size;
+      return 1;
     },
   };
   return { em: em as unknown as EntityManager, created, deletes };
@@ -77,10 +80,25 @@ describe('organizations demo data', () => {
     expect(result.created).toEqual([{ entity: 'Organization', count: 1 }]);
   });
 
-  it('withdraws by the tax id it assigned, never by the table (§2.5)', async () => {
+  it('withdraws the organisation found by the tax id it assigned, by id, never by the table (§2.5)', async () => {
     const { em, deletes } = fakeEm([DEMO_ORGANIZATION.taxId, 'PL0000000000']);
     await resetDemo(contextOver(em));
-    expect(deletes.at(-1)).toEqual({ Organization: { taxId: DEMO_ORGANIZATION.taxId } });
+    expect(deletes.at(-1)).toEqual({ Organization: { id: `id-of-${DEMO_ORGANIZATION.taxId}` } });
+  });
+
+  // `specs/177-tax-id-scope/` T026 (O5) — in `per-tree-root` a branch may share
+  // the demo tax ID; a delete by tax ID would take it with the demo row.
+  it('leaves a branch that shares the demo tax ID in place', async () => {
+    const { em, deletes } = fakeEm([DEMO_ORGANIZATION.taxId, DEMO_ORGANIZATION.taxId]);
+    await resetDemo(contextOver(em));
+    const organizationDeletes = deletes.filter((entry) => Object.keys(entry as object)[0] === 'Organization');
+    expect(organizationDeletes).toEqual([{ Organization: { id: `id-of-${DEMO_ORGANIZATION.taxId}` } }]);
+  });
+
+  it('creates nothing when a branch already holds the demo tax ID under the demo root', async () => {
+    const { em, created } = fakeEm([DEMO_ORGANIZATION.taxId, DEMO_ORGANIZATION.taxId]);
+    await seedDemo(contextOver(em));
+    expect(created).toEqual([]);
   });
 
   it('withdraws what this module holds against that organisation first (issue #143)', async () => {
@@ -94,14 +112,19 @@ describe('organizations demo data', () => {
     expect(deletes).toEqual([
       { OrganizationInvitation: demoOnly },
       { OrganizationSalesRepAssignment: demoOnly },
-      { Organization: { taxId: DEMO_ORGANIZATION.taxId } },
+      { Organization: { id: `id-of-${DEMO_ORGANIZATION.taxId}` } },
     ]);
   });
 
-  it('touches no invitation or assignment when there is no demo organisation', async () => {
+  it('deletes nothing when there is no demo organisation', async () => {
     const { em, deletes } = fakeEm(['PL0000000000']);
-    await resetDemo(contextOver(em));
-    expect(deletes).toEqual([{ Organization: { taxId: DEMO_ORGANIZATION.taxId } }]);
+    const result = await resetDemo(contextOver(em));
+    expect(deletes).toEqual([]);
+    expect(result.removed).toEqual([
+      { entity: 'Organization', count: 0 },
+      { entity: 'OrganizationInvitation', count: 0 },
+      { entity: 'OrganizationSalesRepAssignment', count: 0 },
+    ]);
   });
 
   it('creates no buyer and no credit limit — both are the composition\'s (§5.1)', async () => {

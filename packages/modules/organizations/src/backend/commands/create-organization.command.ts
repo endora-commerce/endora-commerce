@@ -5,6 +5,7 @@ import type { Command } from '@endora-commerce/platform/commands';
 import { HttpError } from '@endora-commerce/platform/http';
 import type { SalesChannelMembershipPort } from '@endora-commerce/platform/kernel';
 import { Organization } from '../entities/organization.entity.js';
+import { TaxIdLookupService } from '../services/tax-id-lookup-service.js';
 
 /**
  * `organization.create` — an operator creates a customer Organization and
@@ -41,8 +42,13 @@ export function makeCreateOrganizationCommand(
     objectType: 'organization',
     objectId: organizationId,
     run: async ({ em, actor }) => {
-      const existing = await em.findOne(Organization, { taxId: input.taxId });
-      if (existing) {
+      // FR-024 — through the one tax-ID lookup, inside this transaction. Deleted
+      // rows count: a deleted company keeps holding its tax ID (OD-8).
+      const existing = await new TaxIdLookupService(() => em).findByTaxId(input.taxId, {
+        includeDeleted: true,
+        em,
+      });
+      if (existing.length > 0) {
         throw new HttpError(
           409,
           ERROR_CODES.ORGANIZATION_TAX_ID_EXISTS,

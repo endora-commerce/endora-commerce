@@ -9,7 +9,8 @@ import { useTranslation } from '@endora-commerce/admin-kit/i18n';
 interface AdminOrganization {
   id: string;
   name: string;
-  taxId: string;
+  /** `null` for a personal Organization (`specs/177-tax-id-scope/`). */
+  taxId: string | null;
   isPersonal?: boolean;
   status: 'pending_verification' | 'active' | 'blocked' | 'rejected';
   vatStatus: 'vat_payer' | 'vat_exempt' | 'reverse_charge';
@@ -113,13 +114,13 @@ export function OrganizationsList(): ReactNode {
                   header: t('organizations.column.name'),
                   primary: true,
                   render: (o) => <span className="font-medium">{o.name}</span>,
-                  // A personal Organization's tax id is an internal placeholder (#767).
+                  // A personal Organization has no tax ID (`specs/177-tax-id-scope/`).
                   meta: (o) =>
                     o.isPersonal ? (
                       <span className="text-xs text-muted-foreground">{t('organizations.personalAccount')}</span>
-                    ) : (
+                    ) : o.taxId ? (
                       <span className="font-mono text-xs text-muted-foreground">{o.taxId}</span>
-                    ),
+                    ) : null,
                 },
                 {
                   id: 'status',
