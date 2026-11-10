@@ -76,6 +76,18 @@ placeholder from `personal_account_id` (`replace(personal_account_id::text, '-',
 `replace(id::text, '-', '')` for unlinked personal rows, then drops the checks, the index and the
 columns and restores `not null`. Data-preserving for every row M1 could link.
 
+**M3 `tax_id_write_lock`** (added during WP-3, D-290 / OD-10) — function
+`organizations_tax_id_write_lock()` and a `before insert or update of tax_id, path` row trigger taking
+`pg_advisory_xact_lock(hashtextextended('organizations.tax_id:' || tax_id, 0))` for a non-null tax ID.
+Lock order: tax-ID locks (ascending, pre-taken by the tree Command for a subtree) before the reach
+governor's lock. `down()` drops both.
+
+**M4 `tax_id_normalise`** (D-290 / OD-11) — refuses while normalised-equal tax IDs with different
+stored values exist across roots (`per-tree-root`) or anywhere (`global`), listing ≤ 50 groups;
+otherwise `update organizations set tax_id = upper(regexp_replace(tax_id, '[[:space:]-]', '', 'g'))`
+where it differs, then adds `organizations_tax_id_normalised check (tax_id is null or tax_id = upper(regexp_replace(tax_id, '[[:space:]-]', '', 'g')))`.
+`down()` drops the check only (the original spellings are not kept).
+
 **Lock cost.** M2's stored generated column rewrites `organizations` under `ACCESS EXCLUSIVE`; the
 header says so and the upgrade note repeats it.
 

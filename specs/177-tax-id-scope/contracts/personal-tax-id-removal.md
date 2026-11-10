@@ -77,6 +77,7 @@ read a different `taxId` (an order snapshot, the seller's, a tax rule's id, a su
 | X8 | Storefront checkout prefill | `storefront/app/(commerce)/checkout/page.tsx` l. 277 | already `organizationCompanyTaxId` | T025 |
 | X9 | Storefront account organization page | `storefront/app/(account)/organization/page.tsx` l. 38–39; `storefront/lib/api/account.ts` l. 38 | type `string \| null`; row hidden when null | T025 |
 | X10 | Customer-accounts standalone create (doc) | `customer_accounts/src/backend/services/customer-account-lifecycle-ports.ts` l. 158–170 | comment: the link, not the tax ID, makes provisioning re-runnable | T012 |
+| X12 | Demo composition package | `packages/demo-composition/src/composition.ts` l. 166, 1083, 1237, 1288, 1588; `sales-pipeline.ts` l. 151, 721 | `findOne({ taxId })` → `findByTaxId(...)[0]` (D-290 / OD-12) | T026a |
 | X11 | Returns consumer withdrawal | `returns/src/backend/services/return-case-service.ts` l. 420–440 | not a tax-ID reader; reacts to conversion (`convert-to-company.md` §6) | T059, T060 |
 
 ### 3.3 Verified not readers of `Organization.taxId`

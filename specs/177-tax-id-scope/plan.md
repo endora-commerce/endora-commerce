@@ -257,6 +257,56 @@ The owner accepted every recommendation below on 2026-11-10; the ruling is recor
     migration's second statement links accounts `where o.tax_id = <placeholder>`. That would match
     nothing, and the old migration's own D-178 refusal would abort.
 
+- **OD-10** *(resolved under D-290, after WP-3)* — **the M3 write lock is accepted, and it is
+  widened.** Without it, racing writes of one tax ID deadlocked (`40P01`). Each write to
+  `organizations` ends its statement holding the reach governor's advisory lock
+  (`20261109T144721`, statement-level `after insert/update/delete`), and the deferred exclusion
+  constraint waits at commit for the other writer's row. M3's `before` row trigger takes
+  `pg_advisory_xact_lock` on the tax ID before the row exists, so every writer acquires its locks
+  in one order: tax ID first, then the governor.
+  - **Kept as a trigger, not an app-level `pg_advisory_xact_lock(hashtext(tax_id))`.** The trigger
+    covers every writer, including a future path, an import or raw SQL. App code would cover only the
+    paths that remember to call it, which is the 500 FR-021 forbids. It is the same reason the
+    constraint lives in the database (FR-013).
+  - **Widened: the trigger fires on `update of tax_id, path`.** A set-parent or move changes `path`,
+    so it moves the generated `root_id` and takes the governor lock without touching `tax_id`. A move
+    racing a create of a tax ID its subtree holds would still deadlock.
+  - **Lock order inside the tree Command.** Before the path rewrite, the Command locks the subtree's
+    distinct non-null tax IDs in ascending order (`pg_advisory_xact_lock` on the same key as the
+    trigger). The trigger's per-row re-acquisitions are then re-entrant no-ops, and two moves
+    sharing tax IDs cannot lock them in opposite orders.
+  - Hash collisions in `hashtextextended` only make two writers of different tax IDs wait for each
+    other. They cannot affect correctness.
+  The invariant "tax-ID locks before the governor, tax-ID locks in ascending order" is written in
+  M3's header and in `organization-tree-service.ts`. Task T041c.
+- **OD-11** *(resolved under D-290, after WP-3)* — **tax IDs are stored normalised.** The unique and
+  exclusion constraints compare stored values, so `526-025-09-95` and `5260250995` in two trees would
+  satisfy both while being one tax ID. Comparing both forms in the pre-checks fixes the readable 409,
+  not the guarantee.
+  - **Every writer stores the normalised form**: registration, admin create, conversion, demo seed and
+    imports. The canonical form is the admin boundary's rule (whitespace and dashes removed,
+    upper-cased). Registration normalises server-side, inside its write. The public request schema is
+    unchanged (not a contract break), and the stored and echoed value is the canonical one.
+  - **A database check** `organizations_tax_id_normalised check (tax_id is null or tax_id = upper(regexp_replace(tax_id, '[[:space:]-]', '', 'g')))`
+    refuses any un-normalised value from any future writer.
+  - **Data migration M4 `tax_id_normalise`**, timestamped after M3. It first finds collision groups:
+    rows whose normalised values are equal but whose stored values differ, across different roots
+    (`per-tree-root`) or anywhere (`global`). If any group exists, M4 raises and lists up to 50
+    groups with their organization ids. It merges, renames and picks nothing, because which
+    organization keeps the tax ID is the operator's call. Otherwise it updates every row to the
+    normalised form and adds the check.
+  - The upgrade note gives the query that finds such groups, so an operator can fix them **before**
+    upgrading. The dual-form comparison in the pre-checks is removed once M4 holds.
+  - The feature 173 registry-lookup ticket already compares normalised tax IDs, so nothing changes
+    there. Task T041d.
+- **OD-12** *(resolved under D-290)* — **`packages/demo-composition` joins WP-2** as inventory row X12.
+  `composition.ts` l. 1083, 1237, 1288, 1588 and `sales-pipeline.ts` l. 721 use `findOne({ taxId })`.
+  The package was outside the grep of the original inventory (`packages/modules/*` only), and in
+  `per-tree-root` such a call returns an arbitrary member of the demo tree. Those calls switch to
+  `organizationDetailsPort.findByTaxId(...)[0]` (the root), or `resolveByTaxId`, under FR-024. The
+  `taxId: string | null` types at `composition.ts` l. 166 and `sales-pipeline.ts` l. 151 are already
+  right. Task T026a.
+
 ## Complexity Tracking
 
 | Addition | Why needed | Simpler alternative rejected because |
