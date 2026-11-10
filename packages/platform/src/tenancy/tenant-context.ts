@@ -38,6 +38,25 @@ export interface ExcludedOrganizationsQuery {
   readonly params: readonly (string | boolean)[];
 }
 
+/** Issue #955 Phase 2 — a representative's reach as lists, for the single-id helpers and ranking. */
+export interface ExcludedReach {
+  /** Governed by another representative: never in reach. */
+  readonly excludedOrganizationIds: readonly string[];
+  /** The representative's own assignments, roll-up expanded: ranking and "mine" filters only. */
+  readonly assignedOrganizationIds: readonly string[];
+}
+
+/**
+ * Issue #955 Phase 2 — one load per tenant context, however many questions it
+ * answers and however concurrently they are asked: the first call's promise is
+ * kept, rejection included, so a failed load refuses every later question too
+ * rather than being retried into a different answer within one request.
+ */
+export function memoiseReach(load: () => Promise<ExcludedReach>): () => Promise<ExcludedReach> {
+  let pending: Promise<ExcludedReach> | undefined;
+  return () => (pending ??= load());
+}
+
 export type TenantScopeMode = 'single-org' | 'allowed-set' | 'excluded-set' | 'all' | 'system';
 
 export interface TenantActor {
@@ -83,23 +102,17 @@ export interface TenantContext {
   /** Present for `allowed-set`. */
   readonly allowedOrganizationIds?: readonly string[];
   /**
-   * Present for `excluded-set` (issue #305): the organizations governed by
-   * another representative. Read by the platform's tenancy directory only — a
-   * module reads its scope through the derived-scope helpers.
-   */
-  readonly excludedOrganizationIds?: readonly string[];
-  /**
-   * Present for `excluded-set`: the representative's own assignments, roll-up
-   * expanded. Ranking and "mine" filters only, never a filter input
-   * (`assignedOrganizationIdsForRanking`).
-   */
-  readonly assignedOrganizationIds?: readonly string[];
-  /**
    * Present for `excluded-set` (issue #955): the owner's uncorrelated SELECT of
    * the excluded organizations — what the filters actually render. Read by the
    * platform's tenancy directory only.
    */
   readonly excludedOrganizationsQuery?: ExcludedOrganizationsQuery;
+  /**
+   * Present for `excluded-set` (issue #955 Phase 2): the excluded and assigned
+   * lists, loaded on demand and memoised for this context. Read by the
+   * platform's tenancy directory only, through the async helpers.
+   */
+  readonly loadExcludedReach?: () => Promise<ExcludedReach>;
   /** Present for customer actors — drives the `customerAccount` filter. */
   readonly customerAccountId?: string | null;
   readonly actor: TenantActor;

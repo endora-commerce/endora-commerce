@@ -15,7 +15,7 @@ import { withSystemScope } from '../../../src/tenancy/escape-hatch.js';
  *
  * A sales representative's reach is a complement — every organization except
  * those governed by somebody else — so an id that names no organization at all
- * is not excluded, and `isOrgInScope` answers yes for it. That is accepted on
+ * is not excluded, and `orgInScope` answers yes for it. That is accepted on
  * the condition that the writes taking an organization id still refuse an
  * organization that does not exist. This holds them to it, for a roll-up
  * representative: a price-book audience member and a quick-order default

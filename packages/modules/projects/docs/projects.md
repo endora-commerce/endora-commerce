@@ -117,9 +117,10 @@ Its tabs:
 - **Change history** — everything done to the project, newest first: who did
   it, when, and the fields it changed, read a page at a time with *Show earlier
   changes*. A note or a message is recorded by its length, never by what it
-  says. A change of the value or of a custom field shows the value before and
-  after it — the project keeps those itself; the platform's audit log, which is
-  not kept per Organization, names only *which* fields changed. An
+  says. A change of the title, the value or a custom field shows it before and
+  after — the project keeps those itself; the platform's audit log, which is
+  not kept per Organization, names only *which* fields changed. Entries
+  recorded before the title was kept this way still show it as recorded. An
   Organization outside your reach that the project once had is not named in
   it.
 
@@ -677,7 +678,7 @@ the figures are not served.
 | `POST /api/v1/admin/projects/:id/attachments/upload` | `projects:write` | `multipart/form-data` with one `file` part → `201`; stored private, then attached — a file that could not be attached is taken back. `415` for active content or a type the library refuses, `413` `PROJECT_ATTACHMENT_TOO_LARGE` beyond 25 MB, and the library's own size limit. |
 | `POST /api/v1/admin/projects/:id/attachments` | `projects:write` **and** `assets.read` | `{ assetId }` of a private, live file that is not active content → `201` (`200` for a file already attached); `422` for a public file or one that is not there — including one attached to a project the caller may not see. |
 | `DELETE /api/v1/admin/projects/:id/attachments/:attachmentId` | `projects:write` | `204`; the file stays in the library. |
-| `GET /api/v1/admin/projects/:id/history` | `projects:read` | `RecordHistoryPage` — the audit trail of the project, newest first, `limit` and an opaque `cursor`, reaching back 499 entries (`truncated` on the last page past that). A write that changed the value or custom fields is served with them before and after — `valueAmount` (two places, as the project stores it) / `valueCurrency` and `customFieldValues` of the changed fields, from the project's own `project_value_changes` — while its audit entry names them only (`changedFields` / `changedCustomFields`, and `valueChangeId`, which the response leaves out). Custom fields, by value or by name, only for a holder of `custom_fields:read`; no Organization out of the reader's reach, nor the record of a link that named one. |
+| `GET /api/v1/admin/projects/:id/history` | `projects:read` | `RecordHistoryPage` — the audit trail of the project, newest first, `limit` and an opaque `cursor`, reaching back 499 entries (`truncated` on the last page past that). A write that changed the title, the value or custom fields is served with them before and after — `title`, `valueAmount` (two places, as the project stores it) / `valueCurrency` and `customFieldValues` of the changed fields, from the project's own `project_value_changes` — while its audit entry names them only (`changedFields` / `changedCustomFields`, and `valueChangeId`, which the response leaves out). Custom fields, by value or by name, only for a holder of `custom_fields:read`; no Organization out of the reader's reach, nor the record of a link that named one. |
 | `GET /api/v1/admin/projects/lookups/mentionable` | `projects:write` | `?projectId=&q=` → `{ data: { id, name, email }[] }` — active administrators holding `projects:read` who may see the project (without `projectId`, every holder of `projects:read`); at most 20. |
 | `GET /api/v1/admin/projects/lookups/documents` | `projects:write` | `?projectId=&q=` → `RecordDocumentLookupResponse` (`{ groups: { kind, items }[] }`, not wrapped in `data`) — the `@@` list, the schema CRM's `GET /crm/lookups/documents` answers; a group only with its read code and its module on, at most 10 per group. Before a project exists, `organizationIds` (repeatable) names the Organizations whose Orders and Quote Requests are offered — only those within the caller's reach count, an Organization out of reach is left out without a word; beside a `projectId` it is ignored. |
 | `GET /api/v1/admin/projects/roles`, `…/loss-reasons` | `projects:read` | The dictionaries, with `label` in the reader's language; `active=true` leaves archived rows out. |

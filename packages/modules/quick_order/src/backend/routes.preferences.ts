@@ -78,7 +78,7 @@ export async function registerQuickOrderPreferenceRoutes(
       scope === 'customer'
         ? ((await customerAccounts.findById(scopeId))?.organizationId ?? null)
         : null;
-    if (!canManagePreference(actor, { scope, scopeId }, targetCustomerOrgId)) {
+    if (!(await canManagePreference(actor, { scope, scopeId }, targetCustomerOrgId))) {
       throw new HttpError(403, ERROR_CODES.FORBIDDEN, 'Not allowed to read these defaults.');
     }
     return { data: await service.readRaw(scope, scopeId) };

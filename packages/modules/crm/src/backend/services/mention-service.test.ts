@@ -23,7 +23,7 @@ vi.mock('@endora-commerce/platform/tenancy', async () => {
       scope.actorId === null
         ? { mode: 'system', actor: { kind: 'system' } }
         : { mode: 'all', actor: { kind: 'admin', id: scope.actorId } },
-    isOrgInScope: (organizationId: string) => scope.reachable.has(organizationId),
+    orgInScope: async (organizationId: string) => scope.reachable.has(organizationId),
   };
 });
 

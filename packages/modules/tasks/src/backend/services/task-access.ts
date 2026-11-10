@@ -110,6 +110,11 @@ export const TASK_ACCESS_READERS: Readonly<Record<string, string>> = {
     'and is deleting its own record — and hands each to the delete Command. `createMany` looks up which of the ' +
     'source keys it was handed that one context already holds, for the same owner, and answers their ids in their ' +
     'place: ids of Tasks that owner created in its own record (R-19).',
+  'services/task-history-service.ts':
+    'The Task\'s own value store (`task_value_changes`, issue #470) is read only after `findVisibleRow` handed ' +
+    'out the Task, keyed by that Task\'s id and the row ids its audit entries point at — a pointer to another ' +
+    'Task\'s row reads nothing — and what it holds is served through the same context and Task-id redaction as ' +
+    'the entries themselves.',
 };
 
 /** One `tasks` row as every read selects it. */

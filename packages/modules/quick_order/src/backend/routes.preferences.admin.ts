@@ -7,7 +7,7 @@ import {
   type OrganizationDetailsPort,
 } from '@endora-commerce/contracts';
 import { HttpError } from '@endora-commerce/platform/http';
-import { isOrgInScope, orgConstraintFor } from '@endora-commerce/platform/tenancy';
+import { orgConstraintFor, orgInScope } from '@endora-commerce/platform/tenancy';
 import type { DefaultPreferenceService } from './services/default-preference-service.js';
 import { canManagePreference, type PreferenceActor } from './services/default-preference-authz.js';
 import type { RequireAdminFactory } from '@endora-commerce/platform/kernel';
@@ -43,7 +43,7 @@ export interface QuickOrderPreferenceAdminRoutesDeps {
 function adminActor(): PreferenceActor {
   const constraint = orgConstraintFor();
   if (constraint.kind === 'all') return { kind: 'platform_admin' };
-  return { kind: 'salesperson', reaches: (organizationId) => isOrgInScope(organizationId, constraint) };
+  return { kind: 'salesperson', reaches: (organizationId) => orgInScope(organizationId, constraint) };
 }
 
 export async function registerQuickOrderPreferenceAdminRoutes(
@@ -64,7 +64,7 @@ export async function registerQuickOrderPreferenceAdminRoutes(
         scope === 'customer'
           ? ((await customerAccounts.findById(scopeId))?.organizationId ?? null)
           : null;
-      if (!canManagePreference(actor, { scope, scopeId }, targetCustomerOrgId)) {
+      if (!(await canManagePreference(actor, { scope, scopeId }, targetCustomerOrgId))) {
         throw new HttpError(403, ERROR_CODES.FORBIDDEN, 'Not allowed to read these defaults.');
       }
       return { data: await service.readRaw(scope, scopeId) };

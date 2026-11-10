@@ -20,10 +20,10 @@ import {
 const A = 'org-a';
 const B = 'org-b';
 
-const ALL: OrgReach = orgReachOf({ kind: 'all' });
-const REACHES_A: OrgReach = orgReachOf({ kind: 'allowed', organizationIds: [A] });
-const REACHES_A_AND_B: OrgReach = orgReachOf({ kind: 'allowed', organizationIds: [A, B] });
-const REACHES_NOTHING: OrgReach = orgReachOf({ kind: 'allowed', organizationIds: [] });
+const ALL: OrgReach = await orgReachOf({ kind: 'all' });
+const REACHES_A: OrgReach = await orgReachOf({ kind: 'allowed', organizationIds: [A] });
+const REACHES_A_AND_B: OrgReach = await orgReachOf({ kind: 'allowed', organizationIds: [A, B] });
+const REACHES_NOTHING: OrgReach = await orgReachOf({ kind: 'allowed', organizationIds: [] });
 
 describe('projectOrgRule (R-2, Q1 = C)', () => {
   const cases: Array<[string, OrgReach, string[], boolean]> = [

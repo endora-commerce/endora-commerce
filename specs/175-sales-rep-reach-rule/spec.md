@@ -2,7 +2,7 @@
 
 **Feature Branch**: `fix/305-sales-rep-reach-rule`
 **Created**: 2026-11-08
-**Status**: Implemented, except FR-006's list ratio (the reach meets its 5 ms budget since #955; a representative's list is at the 1.5× threshold but not reliably under it, 1.45–2.07× — `research.md` R-6)
+**Status**: Implemented. FR-006's list ratio met after Phase 2 (1.14–1.48× at load < 5); roll-up `reachOf` at the 5 ms budget (4.3–5.5 ms, off the list hot path); a quiet-host re-measure is owed before the release (`research.md` R-7)
 **Input**: GitHub issue #305, and the owner's rulings on it of 2026-11-07 ("one rule, every
 surface, do it now") and 2026-11-08 (E-305-1 confirmed; E-305-2: no cache unless the governor
 table fails the budget).
@@ -26,8 +26,15 @@ opens, and an Organization they may act on shows its members, orders and request
   Organizations included (E-305-1).
 - **FR-003**: The tenant scope describes the reach by its complement (`excluded-set`), on the
   row's own organization column, and never matches a row with no organization.
+  **Amended by owner ruling 2026-11-10 (issue #955):** the complement is rendered as an
+  uncorrelated subquery owned by `organizations` (`col is not null and col not in (select x from
+  organizations_reach_excluded(rep, rollup) as x)`), which the owner allowed; this amends the
+  FR-002 / exit (a′) ruling of 2026-08-24 ("no join, no subquery") for exactly that shape. Joins
+  and correlated subqueries stay forbidden.
 - **FR-004**: The reach is computed server-side, per request, with no cache; a failure refuses
-  rather than widens.
+  rather than widens. Since #955 Phase 2 (owner ruling 2026-11-10) the lists are loaded on
+  demand, at most once per request, and only when a request asks a single-Organization question
+  or ranks; the filter reads the live subquery.
 - **FR-005**: The excluded set and `canSeeOrganization` are one rule: for every Organization and
   representative, flat and roll-up, they agree.
 - **FR-006**: The reach costs at most 5 ms p95 per request at the design's reference volume,

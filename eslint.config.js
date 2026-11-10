@@ -104,6 +104,65 @@ export default [
       ],
     },
   },
+  // Issue #955 Phase 2 (owner ruling of 2026-11-10): the tenant scope's
+  // single-id helpers became async (`orgInScope`, `ruleInScope`,
+  // `assignedOrganizationIdsForRanking`) and the synchronous `isOrgInScope` /
+  // `ruleVisibleForScope` were removed, because `if (!isOrgInScope(x))` over a
+  // Promise is always false — a gate that silently opens. These two typed rules
+  // hold every file that asks the question; they need type information, so
+  // the block names the files rather than the whole tree (a project-wide typed
+  // lint is a separate decision). A file that starts asking the question
+  // belongs on this list.
+  {
+    files: [
+      'packages/modules/carts/src/backend/services/cart-admin-service.ts',
+      'packages/modules/carts/src/backend/services/organization-cart-reach.ts',
+      'packages/modules/credit_limits/src/backend/routes.ts',
+      'packages/modules/crm/src/backend/services/admin-reach.ts',
+      'packages/modules/crm/src/backend/services/crm-document-lookup-service.ts',
+      'packages/modules/crm/src/backend/services/crm-lookup-service.ts',
+      'packages/modules/crm/src/backend/services/mention-service.ts',
+      'packages/modules/crm/src/backend/services/opportunity-origin-link-service.ts',
+      'packages/modules/crm/src/backend/services/opportunity-service.ts',
+      'packages/modules/customers/src/backend/admin-search-provider.ts',
+      'packages/modules/invoice_ledger/src/backend/services/invoice-ledger-delivery-admin.service.ts',
+      'packages/modules/invoices/src/backend/routes.admin.ts',
+      'packages/modules/invoices/src/backend/services/erp-sale-document-write-port.ts',
+      'packages/modules/invoices/src/backend/services/invoice-service.ts',
+      'packages/modules/mfa/src/backend/routes.admin.ts',
+      'packages/modules/orders/src/backend/routes.ts',
+      'packages/modules/organizations/src/backend/index.ts',
+      'packages/modules/organizations/src/backend/organization-reach.ts',
+      'packages/modules/organizations/src/backend/services/admin-tenant-scope.ts',
+      'packages/modules/organizations/src/backend/services/sales-rep-assignment-service.ts',
+      'packages/modules/price_lists/src/backend/routes.price-books.ts',
+      'packages/modules/price_lists/src/backend/services/price-book-scope.ts',
+      'packages/modules/price_lists/src/backend/services/price-book-service.ts',
+      'packages/modules/projects/src/backend/domain/visibility-rule.ts',
+      'packages/modules/projects/src/backend/services/document-lookup-service.ts',
+      'packages/modules/projects/src/backend/services/history-service.ts',
+      'packages/modules/projects/src/backend/services/lookup-service.ts',
+      'packages/modules/projects/src/backend/services/project-access.ts',
+      'packages/modules/projects/src/backend/services/project-service.ts',
+      'packages/modules/quick_order/src/backend/routes.admin.ts',
+      'packages/modules/quick_order/src/backend/routes.preferences.admin.ts',
+      'packages/modules/quick_order/src/backend/routes.preferences.ts',
+      'packages/modules/quick_order/src/backend/services/default-preference-authz.ts',
+      'packages/modules/quick_order/src/backend/services/default-preference-service.ts',
+      'packages/platform/src/tenancy/derived-scope.ts',
+      'packages/platform/src/tenancy/index.ts',
+      'packages/platform/src/tenancy/org-write-guard.ts',
+      'packages/platform/src/tenancy/resolve-tenant-context.ts',
+      'packages/platform/src/tenancy/tenant-context.ts',
+    ],
+    languageOptions: {
+      parserOptions: { projectService: true, tsconfigRootDir: import.meta.dirname },
+    },
+    rules: {
+      '@typescript-eslint/no-floating-promises': 'error',
+      '@typescript-eslint/no-misused-promises': 'error',
+    },
+  },
   // React rules, in the shared root and scoped to `.tsx` (feature 091, Phase 4).
   //
   // The header above calls this config framework-agnostic, and it still is for

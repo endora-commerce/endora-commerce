@@ -13,6 +13,7 @@ import {
   type RfqDraftItem,
 } from '../../lib/rfqDraft';
 import { quoteAddQuantity } from '../../lib/orderMinimum';
+import { LINE_QUANTITY_MAX } from '@endora-commerce/contracts';
 
 /**
  * Feature 155, FR-032 (US4 #13, #14) — the storefront quote-request draft mirrors the cart
@@ -101,6 +102,11 @@ describe('DraftLine — a line at or above the minimum (US4 #14)', () => {
     expect(html).not.toContain('Below the minimum');
     expect(html).not.toContain('Minimum order');
   });
+
+  it('bounds the input at the line quantity bound (issue #351)', () => {
+    const html = renderLine({ quantity: 3, minimum: null, locale: 'en-US' });
+    expect(qtyInput(html, 'Quantity')).toContain(`max="${LINE_QUANTITY_MAX}"`);
+  });
 });
 
 describe('clampDraftQuantity', () => {
@@ -115,6 +121,13 @@ describe('clampDraftQuantity', () => {
     expect(clampDraftQuantity(4.7, null)).toBe(4);
     expect(clampDraftQuantity(Number.NaN, 10)).toBe(10);
     expect(clampDraftQuantity(Number.NaN, null)).toBe(1);
+  });
+
+  // Issue #351 — the API refuses a line quantity past LINE_QUANTITY_MAX.
+  it('never goes past the line quantity bound', () => {
+    expect(clampDraftQuantity(LINE_QUANTITY_MAX, null)).toBe(LINE_QUANTITY_MAX);
+    expect(clampDraftQuantity(LINE_QUANTITY_MAX + 1, null)).toBe(LINE_QUANTITY_MAX);
+    expect(draftQuantityOnType(String(2 ** 31), null)).toBe(LINE_QUANTITY_MAX);
   });
 });
 
