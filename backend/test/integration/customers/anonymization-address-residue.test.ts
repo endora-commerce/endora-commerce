@@ -154,6 +154,8 @@ describe('Anonymization sweep — address rows the customer deleted, and the ret
       retiredBook,
       // Issue #920 — `carts`' step; this file seeds no cart.
       { anonymizeForCustomerAccount: async () => 0 },
+      // Issue #928 — `email`'s step; this file seeds no delivery record.
+      { anonymizeForRecipient: async () => 0 },
       // Issue #844 — the subject's audit history; not what this file is about.
       {
         redaction: { redact: async () => ({ rowsInScope: 0, rowsChanged: 0, markerWritten: false }) },

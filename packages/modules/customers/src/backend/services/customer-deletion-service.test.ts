@@ -9,6 +9,7 @@ import {
   type CustomerAccountLifecycleWritePort,
   type CustomerAccountReadPort,
   type CustomerAccountRecord,
+  type EmailDeliveryAnonymizationPort,
   type OrganizationRecord,
   type PersonalOrganizationPort,
 } from '@endora-commerce/contracts';
@@ -26,13 +27,14 @@ import type { OrganizationDepletionGuard } from './organization-depletion-guard.
  *
  * The account's `anonymizedAt` is the cascade's commit marker, so it is the
  * last write: organisation, then its addresses, then the account's carts (issue
- * #920), then the account. A step that throws leaves the account on the work
+ * #920), then the delivery records of the e-mails sent to it (issue #928), then
+ * the account. A step that throws leaves the account on the work
  * list for the next tick, and a module that is off aborts the tick rather than
  * being counted as one account's failure. The behaviour over the real owners is
  * `backend/test/integration/customers/customer-deletion-service.test.ts`.
  */
 
-type Step = 'org' | 'addresses' | 'retiredBook' | 'carts' | 'account';
+type Step = 'org' | 'addresses' | 'retiredBook' | 'carts' | 'emailDeliveries' | 'account';
 
 /** Step 3 (issue #844) with no history to name: the cases below are about the other steps. */
 const NO_HISTORY: AnonymizedHistoryDeps = {
@@ -44,7 +46,7 @@ const NO_HISTORY: AnonymizedHistoryDeps = {
 function harness(failAt: { step: Step; error: Error } | null = null) {
   const calls: Array<[Step, string]> = [];
   const due = ['acc-1', 'acc-2'].map(
-    (id) => ({ id, organizationId: `org-${id}` }) as unknown as CustomerAccountRecord,
+    (id) => ({ id, organizationId: `org-${id}`, email: `${id}@example.test`, anonymizedAt: null }) as unknown as CustomerAccountRecord,
   );
   const fail = (step: Step) => {
     if (failAt?.step === step) throw failAt.error;
@@ -94,6 +96,14 @@ function harness(failAt: { step: Step; error: Error } | null = null) {
       return 1;
     },
   };
+  // Issue #928 — `email`'s step: the delivery records of the e-mails sent to the account.
+  const emailDeliveries: EmailDeliveryAnonymizationPort = {
+    anonymizeForRecipient: async (recipient: string) => {
+      calls.push(['emailDeliveries', recipient]);
+      fail('emailDeliveries');
+      return 1;
+    },
+  };
   const service = new CustomerDeletionService(
     {} as CustomerAccountReadPort,
     accountWrites,
@@ -105,13 +115,14 @@ function harness(failAt: { step: Step; error: Error } | null = null) {
     async () => 365,
     retiredBook,
     carts,
+    emailDeliveries,
     NO_HISTORY,
   );
   return { service, calls, probed };
 }
 
 describe('CustomerDeletionService.sweep (issue #800)', () => {
-  it('U-1 — runs organisation, then addresses, then the retired book, then carts, then the account, per account', async () => {
+  it('U-1 — runs organisation, then addresses, then the retired book, then carts, then e-mail deliveries, then the account, per account', async () => {
     const { service, calls } = harness();
     expect(await service.sweep(0, new Date())).toBe(2);
     expect(calls).toEqual([
@@ -119,16 +130,18 @@ describe('CustomerDeletionService.sweep (issue #800)', () => {
       ['addresses', 'org-acc-1'],
       ['retiredBook', 'acc-1'],
       ['carts', 'acc-1'],
+      ['emailDeliveries', 'acc-1@example.test'],
       ['account', 'acc-1'],
       ['org', 'acc-2'],
       ['addresses', 'org-acc-2'],
       ['retiredBook', 'acc-2'],
       ['carts', 'acc-2'],
+      ['emailDeliveries', 'acc-2@example.test'],
       ['account', 'acc-2'],
     ]);
   });
 
-  it.each<Step>(['org', 'addresses', 'retiredBook', 'carts'])(
+  it.each<Step>(['org', 'addresses', 'retiredBook', 'carts', 'emailDeliveries'])(
     'U-2 — a failure at the %s step leaves the account un-anonymised and the sweep goes on',
     async (step) => {
       const { service, calls } = harness({ step, error: new Error('boom') });
@@ -168,9 +181,16 @@ describe('CustomerDeletionService.sweep — subjects an earlier rule left unfini
     disabledAt?: 'listIncompletelyScrubbed' | 'listByOrganization';
   }) {
     const processed: string[] = [];
+    const emailed: string[] = [];
     const disabled = new ModuleDisabledError('organizations');
+    // The account's own marker once anonymised, as `customer_accounts` writes it.
     const record = (id: string, organizationId: string, anonymizedAt: Date | null) =>
-      ({ id, organizationId, anonymizedAt }) as unknown as CustomerAccountRecord;
+      ({
+        id,
+        organizationId,
+        anonymizedAt,
+        email: anonymizedAt ? `deleted+${id}@anonymized.invalid` : `${id}@example.test`,
+      }) as unknown as CustomerAccountRecord;
     const accountWrites = {
       listDueForAnonymization: async () => options.due.map((id) => record(id, `org-${id}`, null)),
       anonymize: async (id: string) => record(id, `org-${id}`, new Date()),
@@ -207,9 +227,16 @@ describe('CustomerDeletionService.sweep — subjects an earlier rule left unfini
       { anonymizeForAccount: async () => 0 },
       // Issue #920 — `carts`' step; these harnesses seed no cart.
       { anonymizeForCustomerAccount: async () => 0 },
+      // Issue #928 — `email`'s step.
+      {
+        anonymizeForRecipient: async (recipient: string) => {
+          emailed.push(recipient);
+          return 0;
+        },
+      },
       NO_HISTORY,
     );
-    return { service, processed, disabled };
+    return { service, processed, emailed, disabled };
   }
 
   it('#923 U-1 — runs the due accounts, then the anonymised members of incompletely scrubbed organisations, each once', async () => {
@@ -227,6 +254,18 @@ describe('CustomerDeletionService.sweep — subjects an earlier rule left unfini
     });
     expect(await service.sweep(0, new Date())).toBe(4);
     expect(processed).toEqual(['acc-1', 'acc-2', 'acc-3', 'acc-4']);
+  });
+
+  it('#928 U-1 — the e-mail step is handed the address of a subject not yet anonymised, and never the marker of one that is', async () => {
+    const { service, emailed } = residualHarness({
+      due: ['acc-1'],
+      incomplete: ['org-x'],
+      members: { 'org-x': [{ id: 'acc-3', anonymized: true }] },
+    });
+    expect(await service.sweep(0, new Date())).toBe(2);
+    // acc-3's address is already `deleted+acc-3@anonymized.invalid`: no delivery
+    // was ever sent there, and the one it had is gone with the account's scrub.
+    expect(emailed).toEqual(['acc-1@example.test']);
   });
 
   it('#923 U-2 — a member not yet anonymised is not added, and an organisation with no member is skipped', async () => {
@@ -319,6 +358,8 @@ describe('CustomerDeletionService.hasDue (issue #857)', () => {
       { anonymizeForAccount: async () => 0 },
       // Issue #920 — `carts`' step; these harnesses seed no cart.
       { anonymizeForCustomerAccount: async () => 0 },
+      // Issue #928 — `email`'s step; a question runs no step.
+      { anonymizeForRecipient: async () => 0 },
       NO_HISTORY,
     );
     return { service, asked };
@@ -376,7 +417,12 @@ describe("CustomerDeletionService.sweep — the subject's audit history (issue #
     const calls: string[] = [];
     const redactions: AuditRedactionInput[] = [];
     const addressQueries: Array<[string, { includeDeleted?: boolean } | undefined]> = [];
-    const record = { id: ACCOUNT, organizationId: PERSONAL_ORG } as unknown as CustomerAccountRecord;
+    const record = {
+      id: ACCOUNT,
+      organizationId: PERSONAL_ORG,
+      email: 'subject@example.test',
+      anonymizedAt: null,
+    } as unknown as CustomerAccountRecord;
     const accountWrites = {
       listDueForAnonymization: async () => [record],
       anonymize: async () => {
@@ -434,6 +480,12 @@ describe("CustomerDeletionService.sweep — the subject's audit history (issue #
           return 0;
         },
       },
+      {
+        anonymizeForRecipient: async () => {
+          calls.push('emailDeliveries');
+          return 0;
+        },
+      },
       history,
     );
     return { service, calls, redactions, addressQueries };
@@ -442,7 +494,7 @@ describe("CustomerDeletionService.sweep — the subject's audit history (issue #
   it('U-844-1 — redacts after every other scrub, and before the account', async () => {
     const { service, calls } = historyHarness({ personal: true });
     expect(await service.sweep(0, new Date())).toBe(1);
-    expect(calls).toEqual(['org', 'addresses', 'retiredBook', 'carts', 'redact', 'account']);
+    expect(calls).toEqual(['org', 'addresses', 'retiredBook', 'carts', 'emailDeliveries', 'redact', 'account']);
   });
 
   it('U-844-2 — a personal subject names its account, organisation, every address (deleted ones too) and its retired book', async () => {
@@ -484,6 +536,6 @@ describe("CustomerDeletionService.sweep — the subject's audit history (issue #
     const error = await service.sweep(0, new Date()).catch((e: unknown) => e);
     expect(error).toBeInstanceOf(AggregateError);
     expect((error as AggregateError).message).toContain(ACCOUNT);
-    expect(calls).toEqual(['org', 'addresses', 'retiredBook', 'carts', 'redact']);
+    expect(calls).toEqual(['org', 'addresses', 'retiredBook', 'carts', 'emailDeliveries', 'redact']);
   });
 });
