@@ -53,6 +53,9 @@ describe('kernel-owned schema is filed under the core migration group', () => {
       // migration was already filed under `core`, so only this guard moved.
       'module_registrations',
       'sales_channels',
+      // `specs/178-extensible-columns/` FR-022 — the declared-extension ledger,
+      // platform-owned and created by a `core` migration.
+      'schema_extensions',
       'setting_group_sales_channels',
       'setting_groups',
       'setting_sales_channels',

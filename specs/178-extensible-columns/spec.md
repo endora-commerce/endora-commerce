@@ -2,7 +2,7 @@
 
 **Feature Branch**: `spec/178-extensible-columns`
 **Created**: 2026-11-10
-**Status**: Draft
+**Status**: Approved (D-291, 2026-11-10); Phase A in implementation
 **Input**: Owner rulings of 2026-11-10 on the instance-extensibility review: OD-13 (b), OD-14 (a),
 OD-15 (owner's variant: every custom-field host table, derived from the custom-field binding
 registry), OD-16 (yes), OD-17 (b), OD-29 (orphan on uninstall, explicit audited drop). The
@@ -69,7 +69,7 @@ safe across platform upgrades.
   → A: At the head (research R-5). The brief says "right after the declaring module's block"; the
   intent — after the host and everything the module depends on — is kept, and the head position is
   what lets the module's own later migrations back-fill the new column on a fresh database. Flagged
-  in Open decisions as OD-178-1 in case the owner meant the literal wording.
+  as OD-178-1; the owner confirmed the head position on 2026-11-10 (D-291, *Decisions* below).
 - Q: Where does an instance package declare its extension? → A: As a code export
   (`schemaExtensions`) of its `./backend` subpath, beside `entities`; not a manifest field
   (research R-7).
@@ -401,17 +401,24 @@ The package's admin zone on the organization detail screen calls
 - **SC-004**: A package migration writing a foreign table cannot complete `migrate up`.
 - **SC-005**: Boot verification adds ≤ 2 queries and ≤ 20 ms on a database with 9 extended tables.
 
-## Open decisions *(architect recommendations; the orchestrator takes them to the owner only if it cannot accept them)*
+## Decisions *(resolved — owner rulings of 2026-11-10, decision **D-291**)*
 
-- **OD-178-1** — Head vs tail of the declaring module's block (research R-5). Recommendation: head.
-- **OD-178-2** — Closed on reconciliation with 176's draft: `noteAuditChanges` gives one audit
-  entry with names only. Remains a dependency on 176 merging unchanged.
-- **OD-178-3** — Runtime foreign-schema guard does not see writes through a migration's
-  `getEntityManager()`. Recommendation: wrap it with a flush-time table check in the same guard
-  (verified feasible by design, not spiked) rather than refuse the method.
-- **OD-178-4** — Rollout of the other 8 hosts in a later release than organizations.
-  Recommendation: allowed; OD-15's list is honoured by derivation, the rollout constant is temporary.
-- **OD-178-5** — `adminReads` default `false`. Recommendation: keep opt-in (columns may hold data an
-  integration does not want on every admin read).
-- **OD-178-6** — HTTP `extensions` body on core admin writes. Recommendation: defer; no core form
-  can fill it today, and server-side callers already have `command.extensions`.
+All architect recommendations were accepted by the owner on 2026-11-10 and are recorded as
+decision **D-291** (spec 176 is D-289, spec 177 is D-290). None of them is open any more.
+
+- **OD-178-1 — resolved: head.** The generated DDL runs at the **head** of the declaring module's
+  block (research R-5): after every module it depends on, the host included, and before the
+  module's own migrations, so they can back-fill the new column on a fresh database.
+- **OD-178-2 — closed** on reconciliation with 176's draft: `noteAuditChanges` gives one audit
+  entry with names only. Remains a dependency on 176 merging unchanged (re-checked at T046).
+- **OD-178-3 — resolved: flush-time guard.** The runtime foreign-schema guard also wraps a
+  migration's `getEntityManager()` with a flush-time table check rather than refusing the method.
+  The design stays as written; it is built in Phase C.
+- **OD-178-4 — resolved: later release.** `organizations` ships first (Phases B + C together);
+  the other eight hosts (Phase D) ship in a later release and are **out of this release**. OD-15's
+  list is honoured by derivation; the rollout constant is temporary.
+- **OD-178-5 — resolved: opt-in.** `adminReads` defaults to `false`.
+- **OD-178-6 — resolved: deferred.** No HTTP `extensions` body on core admin writes; server-side
+  callers pass `command.extensions`.
+- **OD-29 (restated for D-291)** — uninstalling the declaring module keeps its columns (ledger rows
+  `orphaned`); an explicit audited command drops them (FR-034, FR-081).

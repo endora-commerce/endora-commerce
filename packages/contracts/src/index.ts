@@ -321,3 +321,6 @@ export * from './document-templates.js';
 // storefront renderer and the admin preview all run (research R-5).
 export * from './forms.js';
 export * from './forms-logic.js';
+// Declared extension columns on core tables (`specs/178-extensible-columns/`): the
+// `?extensions=` query parameter and the `extensions` attribute of an admin read.
+export * from './schema-extensions.js';

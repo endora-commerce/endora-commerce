@@ -152,6 +152,7 @@ export function instanceContributions(
       migrations,
       entities: [],
       dependencies: moduleDependencies?.get(id) ?? [],
+      schemaExtensions: [],
     }))
     .sort((left, right) => left.id.localeCompare(right.id));
 }

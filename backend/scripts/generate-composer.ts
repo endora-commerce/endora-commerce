@@ -84,6 +84,7 @@ import {
 } from './lib/platform-root.js';
 import { barrelKeyOf, parseBarrel, type BarrelParse } from './lib/platform-surface.js';
 import { entityDeclarations, entityDecoratorMentionLine } from './lib/entity-declarations.js';
+import { schemaExtensionDeclarationSites } from './lib/schema-extension-declarations.js';
 import { declaresRegisterModule } from './lib/module-roots.js';
 import { BASELINE_THROUGH } from '@endora-commerce/platform/db';
 import { BASELINE_MIGRATION_INVENTORY } from '@endora-commerce/platform/migrations';
@@ -1602,6 +1603,47 @@ export function collectEntities(sources: SourceTree): DiscoveredEntity[] {
   return found;
 }
 
+/**
+ * Refuses a declared extension column anywhere the composer walks
+ * (`specs/178-extensible-columns/` FR-008, FR-064; tasks.md T011).
+ *
+ * Declared columns on another module's table are an **installed** package's
+ * mechanism (research R-7): the platform reads them at runtime from the
+ * package's `./backend` export, exactly as it reads that package's entities.
+ * Nothing this generator walks may declare one. A **workspace module package**
+ * owns its own tables, so it adds a column to a table it owns with a migration,
+ * or keeps its data on a side table of its own; an **overlay module** ships no
+ * schema at all (D-106). The application tree is refused on the same terms.
+ */
+export function assertNoSchemaExtensionDeclarations(sources: SourceTree): void {
+  for (const [file, { text, owner }] of [...sources].sort(([a], [b]) => a.localeCompare(b))) {
+    const sites = schemaExtensionDeclarationSites(text, file);
+    if (sites.length === 0) continue;
+    const site = sites[0]!;
+    const what =
+      site.kind === 'call' ? 'calls defineColumnExtension' : "exports 'schemaExtensions'";
+    const where =
+      owner !== null
+        ? `the workspace module package ${owner.name} (module "${owner.moduleId}")`
+        : file.startsWith('apps/')
+          ? 'a deployment overlay module'
+          : "the application's own tree";
+    const remedy =
+      owner !== null
+        ? 'A first-party module owns its tables: add the column to a table it owns with a ' +
+          'migration, or keep the data on a side table of its own.'
+        : file.startsWith('apps/')
+          ? 'An overlay module ships no schema (D-106); ship the extension from an installed ' +
+            'module package.'
+          : 'Ship the extension from an installed module package.';
+    throw new Error(
+      `[composer] ${file}:${String(site.line)} ${what} in ${where}. Declared extension columns ` +
+        `are an installed package's mechanism, read at runtime from its ./backend export ` +
+        `(specs/178-extensible-columns/ FR-008, FR-064). ${remedy}`,
+    );
+  }
+}
+
 function emitEntitiesHeader(): string {
   return `${HEADER('generate-composer.ts')}//
 // The entity registry \`mikro-orm.config.ts\` discovers through.
@@ -1744,6 +1786,7 @@ export function renderEntitiesRegistry(sources: SourceTree = readSourceTree()): 
   outputPath: string;
   content: string;
 } {
+  assertNoSchemaExtensionDeclarations(sources);
   return {
     outputPath: entitiesRegistryOutputPath,
     content: emitEntitiesRegistry(collectEntities(sources)),

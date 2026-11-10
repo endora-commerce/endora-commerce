@@ -106,7 +106,8 @@ specs/conventions/module-migrations.md, module-activation.md   edit (FR-092)
 
 ## Deviations from the brief (flagged)
 
-- Generated DDL at the **head** of the declaring module's block, not after it (OD-178-1).
+- Generated DDL at the **head** of the declaring module's block, not after it (OD-178-1; accepted by
+  the owner 2026-11-10, D-291).
 - `index: 'unique'` is allowed on nullable columns only, as a partial index (unique + default would
   collide on every existing row).
 - "Last core migration on that table" is reported as the last executed migration of the table's
@@ -121,8 +122,14 @@ specs/conventions/module-migrations.md, module-activation.md   edit (FR-092)
 | **C — OD-17** | runtime foreign-schema guard; exemption artefact; parity test; `check:extensible-tables` | A | yes |
 | **D — other 8 hosts** | rollout constant deleted; preservation over 9; `?extensions` on 8 hosts' admin reads | B | yes |
 
-**Release rule**: B and C ship in the same release (OD-17: "the release that ships S2"). D may follow
-in a later release (OD-178-4). A without B ships nothing user-visible.
+**Release rule**: B and C ship in the same release (OD-17: "the release that ships S2"). D ships in
+a later release (OD-178-4, ruled by the owner 2026-11-10 as D-291: Phase D is out of this release).
+A without B ships nothing user-visible.
+
+**Owner rulings (D-291, 2026-11-10)**: every Open decision of `spec.md` was accepted as the architect
+recommended — OD-178-1 head, OD-178-3 flush-time guard (Phase C), OD-178-4 Phase D in a later
+release, OD-178-5 `adminReads` opt-in (default `false`), OD-178-6 HTTP `extensions` deferred; OD-29
+uninstall keeps columns (orphaned) plus the audited drop command. See `spec.md` § *Decisions*.
 
 ## Test plan (FR → test)
 
@@ -171,7 +178,7 @@ in a later release (OD-178-4). A without B ships nothing user-visible.
 2. **Index builds lock large hosts** (`orders`, `products`) during `migrate`; documented; no
    `concurrently` in v1.
 3. **`getEntityManager()` writes in package migrations** bypass the statement guard unless the
-   flush wrapper (OD-178-3) works; covered by a dedicated test before C merges.
+   flush wrapper (OD-178-3, ruled D-291) works; covered by a dedicated test before C merges.
 4. **Existing paid/client packages doing foreign DDL** would fail `migrate` after upgrade (the
    working doc's open question). Mitigation: Phase C ships a dry-run report
    (`module:schema-extensions audit-packages`) usable on the previous release before upgrade; the
