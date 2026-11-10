@@ -12,7 +12,16 @@
 
 import { Migration20261026T133731TasksInit } from './20261026T133731_tasks_init.js';
 import { Migration20261028T140002TasksTaskManagement } from './20261028T140002_tasks_task_management.js';
+import { Migration20261110T054810TasksValueChanges } from './20261110T054810_tasks_value_changes.js';
 
-export const migrations = [Migration20261026T133731TasksInit, Migration20261028T140002TasksTaskManagement];
+export const migrations = [
+  Migration20261026T133731TasksInit,
+  Migration20261028T140002TasksTaskManagement,
+  Migration20261110T054810TasksValueChanges,
+];
 
-export { Migration20261026T133731TasksInit, Migration20261028T140002TasksTaskManagement };
+export {
+  Migration20261026T133731TasksInit,
+  Migration20261028T140002TasksTaskManagement,
+  Migration20261110T054810TasksValueChanges,
+};

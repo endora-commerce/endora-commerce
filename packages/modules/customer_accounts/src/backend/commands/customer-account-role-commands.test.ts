@@ -150,11 +150,11 @@ describe('customer_account.change_role', () => {
     expect(outcome.skipAudit).toBeFalsy();
     expect(outcome.before).toEqual({
       customerAccountId: target.id,
-      role: { id: member.id, name: null, kind: 'member' },
+      role: { id: member.id, kind: 'member' },
     });
     expect(outcome.after).toEqual({
       customerAccountId: target.id,
-      role: { id: admin.id, name: null, kind: 'administrator' },
+      role: { id: admin.id, kind: 'administrator' },
     });
     const event = promote.event?.(outcome.result);
     expect(event?.eventName).toBe('customer_account.organization_role_changed.v1');
@@ -174,7 +174,7 @@ describe('customer_account.change_role', () => {
     expect(accounts.rows.get(target.id)).toMatchObject({ organizationRoleId: member.id });
   });
 
-  it('moves the account to a custom role and names the custom role in the audit', async () => {
+  it('moves the account to a custom role and audits it by id and kind, never by its name (D-288)', async () => {
     const { roles, accounts, deps, member } = fixture();
     const buyer = roles.add(ORG, 'custom', 'Buyer');
     const target = accounts.seed(ORG, member.id);
@@ -182,7 +182,7 @@ describe('customer_account.change_role', () => {
       makeChangeCustomerAccountRoleCommand(deps, { organizationId: ORG, customerAccountId: target.id, roleId: buyer.id }),
     );
     expect(accounts.rows.get(target.id)).toMatchObject({ organizationRoleId: buyer.id });
-    expect(outcome.after).toEqual({ customerAccountId: target.id, role: { id: buyer.id, name: 'Buyer', kind: 'custom' } });
+    expect(outcome.after).toEqual({ customerAccountId: target.id, role: { id: buyer.id, kind: 'custom' } });
   });
 
   it('records nothing and emits nothing when the account already holds the role', async () => {
@@ -257,7 +257,7 @@ describe('customer_account.remove_member', () => {
     expect(command).toMatchObject({ action: 'customer_account.remove_member', objectType: 'organization', objectId: ORG });
     const outcome = await run(command);
     expect(accounts.rows.get(target.id)?.deletedAt).toBeInstanceOf(Date);
-    expect(outcome.before).toEqual({ customerAccountId: target.id, role: { id: member.id, name: null, kind: 'member' } });
+    expect(outcome.before).toEqual({ customerAccountId: target.id, role: { id: member.id, kind: 'member' } });
     expect(outcome.after).toBeNull();
   });
 
@@ -290,7 +290,7 @@ describe('customer_account.promote_organization_admin', () => {
     const outcome = await run(command);
     expect(accounts.rows.get(target.id)).toMatchObject({ organizationRoleId: admin.id });
     expect(accounts.rows.get(target.id)).not.toHaveProperty('role');
-    expect(outcome.after).toEqual({ customerAccountId: target.id, role: { id: admin.id, name: null, kind: 'administrator' } });
+    expect(outcome.after).toEqual({ customerAccountId: target.id, role: { id: admin.id, kind: 'administrator' } });
     expect(command.event?.(outcome.result)?.eventName).toBe('customer_account.organization_role_changed.v1');
   });
 

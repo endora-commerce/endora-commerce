@@ -1,5 +1,5 @@
 import { describe, expect, it } from 'vitest';
-import { ANONYMOUS_PRODUCT_AUDIENCE } from '@endora-commerce/contracts';
+import { ANONYMOUS_PRODUCT_AUDIENCE, LINE_QUANTITY_MAX } from '@endora-commerce/contracts';
 import { parseCsvRows } from './import-rows.js';
 import {
   QUICK_ORDER_IMPORT_ROWS_CEILING,
@@ -58,6 +58,34 @@ describe('QuickOrderImportPipeline', () => {
     expect(result.recognized[0]).toMatchObject({ productId: 'p1', variantId: null, quantity: 2 });
     const reasons = result.rejected.map((r) => r.reason).sort();
     expect(reasons).toEqual(['product_archived', 'product_not_found', 'quantity_invalid', 'sku_missing']);
+  });
+
+  it('rejects a row past LINE_QUANTITY_MAX as quantity_invalid and recognises the bound (issue #351)', async () => {
+    const pipeline = new QuickOrderImportPipeline(lookupOf({ products: [ACTIVE('p1', 'ABC'), ACTIVE('p2', 'DEF')] }));
+    const csv = ['sku,quantity', `ABC,${LINE_QUANTITY_MAX + 1}`, `DEF,${LINE_QUANTITY_MAX}`, 'ABC,2147483648'].join('\n');
+    const result = await pipeline.run(parseCsvRows(csv), { maxRows: 100, audience: AUDIENCE });
+
+    expect(result.rejected.map((r) => [r.line, r.reason])).toEqual([
+      [2, 'quantity_invalid'],
+      [4, 'quantity_invalid'],
+    ]);
+    expect(result.recognized.map((r) => [r.productId, r.quantity])).toEqual([['p2', LINE_QUANTITY_MAX]]);
+  });
+
+  it('rejects every row of a duplicate whose sum passes LINE_QUANTITY_MAX as quantity_invalid (issue #351, R3)', async () => {
+    const pipeline = new QuickOrderImportPipeline(lookupOf({ products: [ACTIVE('p1', 'ABC'), ACTIVE('p2', 'DEF')] }));
+    const half = LINE_QUANTITY_MAX / 2;
+    const csv = ['sku,quantity', `ABC,${half}`, `DEF,${half}`, `ABC,${half + 1}`, `DEF,${half}`].join('\n');
+    const result = await pipeline.run(parseCsvRows(csv), { maxRows: 100, audience: AUDIENCE });
+
+    expect(result.rejected.map((r) => [r.line, r.reason, r.raw])).toEqual([
+      [2, 'quantity_invalid', `ABC,${half}`],
+      [4, 'quantity_invalid', `ABC,${half + 1}`],
+    ]);
+    // A sum exactly at the bound is still one recognised line.
+    expect(result.recognized.map((r) => [r.productId, r.quantity, r.mergedFromLines])).toEqual([
+      ['p2', LINE_QUANTITY_MAX, [5]],
+    ]);
   });
 
   it('reads "archived" from archivedAt, never from the status (spec 163, FR-010, FR-019)', async () => {

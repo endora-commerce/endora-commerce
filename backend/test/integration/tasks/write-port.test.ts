@@ -283,6 +283,18 @@ describe('tasks — the write port', () => {
       expect(ids[0]).toBe(theirs);
       expect((await keysOf(contextId)).map((r) => r.source_key)).toEqual(['free', 'raced']);
       expect(await h.auditLogService.query({ action: 'tasks.task.create', objectId: theirs })).toEqual([]);
+      // Issue #470 — the refused Command's value-store row went with it; the
+      // committed one's stayed, beside its audit entry.
+      const titled = async (title: string) =>
+        ((await h.orm.em
+          .getConnection()
+          .execute(
+            `select count(*)::int as n from "task_value_changes" v join "tasks" t on t."id" = v."task_id"
+              where v."after"->>'title' = ? and t."context_id" = ?`,
+            [title, contextId],
+          )) as Array<{ n: number }>)[0]?.n;
+      expect(await titled('Ours')).toBe(0);
+      expect(await titled('Also ours')).toBe(1);
     });
   });
 

@@ -1,3 +1,4 @@
+import { LINE_QUANTITY_MAX } from '@endora-commerce/contracts';
 import type { ProductBrowserItem } from './types.js';
 
 /**
@@ -16,10 +17,14 @@ export function productDisplayName(
   return item.name || item.slug || item.sku || '';
 }
 
-/** A whole number of at least 1, or `null` when the input is not one. */
+/**
+ * A line quantity: a whole number in 1…`LINE_QUANTITY_MAX`, or `null` when the
+ * input is not one. The upper bound is the API's (issue #351), so a line the
+ * request would refuse is marked invalid on the form instead.
+ */
 export function parsePositiveInt(input: string): number | null {
   const trimmed = input.trim();
   if (!/^\d+$/.test(trimmed)) return null;
   const n = Number(trimmed);
-  return Number.isSafeInteger(n) && n >= 1 ? n : null;
+  return Number.isSafeInteger(n) && n >= 1 && n <= LINE_QUANTITY_MAX ? n : null;
 }
