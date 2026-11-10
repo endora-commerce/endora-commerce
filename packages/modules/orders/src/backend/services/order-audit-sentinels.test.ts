@@ -259,6 +259,20 @@ describe('orders audit state carries names, never values (#470)', () => {
     expect(topLevelKeys(entries).filter((key) => !ORDER_AUDIT_KEYS.has(key))).toEqual([]);
   });
 
+  it('order.place_on_behalf — the keys the administrator set on the create, sorted; never their values (feature 175)', () => {
+    const state = placeOnBehalfAuditState({
+      order: { status: 'new' },
+      layout: { groups: [], lines: new Map() },
+      carriedCustomFieldKeys: [],
+      adminCustomFieldValues: { zone: S.customField, risk: S.carried },
+    });
+    const entries = [{ action: 'order.place_on_behalf', stateBefore: null, stateAfter: state }];
+
+    expectNoAuditValues(entries, SENTINELS);
+    expect(state).toEqual({ status: 'new', changedCustomFields: ['risk', 'zone'] });
+    expect(topLevelKeys(entries).filter((key) => !ORDER_AUDIT_KEYS.has(key))).toEqual([]);
+  });
+
   it('order.place_via_api_key — the key and the order number; not the tenant anchor', () => {
     // The binding the intake holds: the key, and the tenant it places for.
     const binding = { apiKeyId: ADMIN, organizationId: ORG, salesChannelId: randomUUID(), customerAccountId: CONTACT };

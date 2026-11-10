@@ -34,6 +34,8 @@ const FALLBACK_ENTITY_TYPES: CustomFieldEntityTypeInfo[] = (
   listFilter: false,
   // So are the carry options (feature 162).
   carryTargets: [],
+  // And the buyer input surfaces (feature 175).
+  customerInputSurfaces: [],
 }));
 /** A change from the table waiting on the drift warning's answer (feature 162). */
 interface PendingTableChange {
@@ -227,7 +229,22 @@ export function CustomFieldsPage(): ReactNode {
       id: 'label',
       header: t('customFields.table.label'),
       primary: true,
-      render: (d) => resolveCustomFieldLabel(d.label, d.labelDefault, language),
+      // Feature 175 (FR-035, FR-036) — every definition is listed, whatever its
+      // admin access; the badges say which ones a buyer fills in at
+      // registration and which ones the admin panel does not offer for editing.
+      render: (d) => {
+        const label = resolveCustomFieldLabel(d.label, d.labelDefault, language);
+        const access = d.adminAccess ?? 'edit';
+        const collected = (d.customerInput ?? []).length > 0;
+        if (!collected && access === 'edit') return label;
+        return (
+          <span className="flex flex-wrap items-center gap-1">
+            <span className="min-w-0 break-words">{label}</span>
+            {collected ? <Badge variant="secondary">{t('customFields.badge.registration')}</Badge> : null}
+            {access !== 'edit' ? <Badge variant="outline">{t(`customFields.badge.${access}`)}</Badge> : null}
+          </span>
+        );
+      },
     },
     { id: 'type', header: t('customFields.table.type'), render: (d) => t(`customFields.valueType.${d.valueType}`) },
     {

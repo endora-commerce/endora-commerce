@@ -449,6 +449,31 @@ export const ESTATE: readonly EstateEntry[] = [
     tier: 'A',
   },
   {
+    id: 'check:custom-field-writes',
+    script: 'backend/scripts/check-custom-field-writes.ts',
+    scope: 'package',
+    // Feature 175 (`specs/175-buyer-input-custom-fields/` research R-11). A module
+    // package can be judged on its own declarations — the routes it registers,
+    // the bodies they validate with, the test its buyer surface names — and the
+    // analysis takes every input as an argument. What a package host still needs
+    // is two inputs it does not have on its own: the custom-field registry's
+    // input surfaces (`custom_fields`' source, a peer's) and the whole installed
+    // set, without which `entity-type-undeclared` would report every type the
+    // package does not host.
+    host: pending(
+      'a package-scope host reading the registry and the installed set over the peers, ' +
+        'the input `check:action-route-permissions` waits on as well',
+    ),
+    subjectDeclaration: {
+      kind: 'manifest-block',
+      declaration: 'a `customFieldWrites` export beside the module manifest',
+    },
+    // The declarations are read as source text; the body schemas out of the
+    // built contracts.
+    readsArtefact: true,
+    tier: 'B',
+  },
+  {
     id: 'check:default-language-prose',
     script: 'backend/scripts/check-default-language-prose.ts',
     scope: 'package',

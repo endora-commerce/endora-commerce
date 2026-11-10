@@ -73,6 +73,8 @@ describe('§1.1 carryTo on the definition schemas', () => {
       audience: 'internal',
       config: {},
       listFilter: false,
+      customerInput: [],
+      adminAccess: 'edit',
       options: [],
       createdAt: NOW,
       updatedAt: NOW,

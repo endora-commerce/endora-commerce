@@ -58,6 +58,11 @@ kolejności:
    - **Wymagane** — rekordu nie da się zapisać bez wartości.
    - **Kto widzi wartość** — *Wewnętrzne* (tylko administratorzy, domyślnie) albo *Klient* (wartość
      trafia też do klienta w sklepie oraz do integracji korzystających z zewnętrznego API).
+   - **Dostęp w panelu** — *Edytowalne* (domyślnie), *Tylko do odczytu* albo *Ukryte*: jak pole
+     wygląda w panelach administracyjnych, w których edytuje się rekordy. Zob. sekcję *Dostęp w
+     panelu* poniżej.
+   - **Zbieraj od kupującego podczas rejestracji** — dostępne tylko dla pól organizacji i klientów.
+     Zob. sekcję *Zbieranie pola od kupującego* poniżej.
 5. **Zachowanie**
    - **Używaj jako filtra listy** — dostępne tylko dla zamówień, zapytań ofertowych i szans
      sprzedażowych. Zob. [Filtry list](#filtry-list).
@@ -100,6 +105,8 @@ rekordu, klucz i typ są pokazane jako stały tekst; resztę można zmienić:
   niestandardowych. Nic nie jest uzupełniane automatycznie.
 - **Kto widzi wartość** — ten sam wybór, który daje kolumna *Widoczne dla* w tabeli. Zmiana, po
   której przenoszenie wartości przestałoby działać, najpierw pyta o potwierdzenie, tak jak w tabeli.
+- **Dostęp w panelu** i **Zbieraj od kupującego podczas rejestracji**, z tymi samymi regułami co
+  przy tworzeniu pola.
 - **Używaj jako filtra listy**, tam gdzie typ rekordu na to pozwala.
 - **Przenoś wartość do: …**, tam gdzie typ rekordu na to pozwala — jedno pole wyboru na każdy typ
   docelowy, każde z własną linią pomocy.
@@ -112,6 +119,77 @@ zmiana pola.
 **Czego nie da się zmienić.** Klucz, typ rekordu i typ są stałe po utworzeniu pola; żeby je zmienić,
 utwórz nowe pole. Opcji w użyciu nie można usunąć. Żadna edycja nie zmienia wartości, którą rekord
 już ma.
+
+## Dostęp w panelu
+
+Niektóre pola utrzymuje integracja albo własny kod instancji — sumę kontrolną synchronizacji,
+zewnętrzny numer klienta — i administrator nie powinien zmienić ich przypadkiem. **Dostęp w panelu**
+określa, jak takie pole wygląda w panelach administracyjnych, w których edytuje się rekordy
+(zamówienie, organizacja, klient, kategoria, zapytanie ofertowe):
+
+| Dostęp w panelu | W panelu administracyjnym |
+| --- | --- |
+| *Edytowalne* (domyślnie) | pole do wpisania wartości, jak każde inne |
+| *Tylko do odczytu* | etykieta i zapisana wartość (myślnik, gdy jej brak), bez pola do wpisania |
+| *Ukryte* | niewidoczne |
+
+Zapis panelu wysyła tylko pola edytowalne, więc wartość tylko do odczytu albo ukryta nigdy nie
+zostanie z panelu nadpisana — także taka, którą integracja zapisała już po otwarciu strony. Jeśli
+zapis zostanie odrzucony z powodu pola tylko do odczytu albo ukrytego (na przykład jego zapisana
+wartość przestała pasować do pola), panel podaje, o które pole chodzi, i że zmienia się je na
+ekranie **Pola niestandardowe**.
+
+**Dostęp w panelu to wygoda panelu administracyjnego, a nie kontrola dostępu.** Pola tylko do
+odczytu i ukryte można nadal odczytywać i zapisywać przez API, mogą być filtrami list, a eksport i
+dziennik audytu obejmują je dokładnie tak jak pola edytowalne. Kto może edytować rekord przez API,
+ten może zmienić te wartości; żeby odciąć kogoś od wartości, użyj uprawnień, a nie dostępu w panelu.
+
+**Pole wymagane musi pozostać edytowalne.** Pole nie może być jednocześnie wymagane i tylko do
+odczytu albo ukryte: każdy zapis rekordu sprawdza wszystkie pola wymagane, więc pole wymagane,
+którego nikt nie może wypełnić w panelu, uniemożliwiłoby tam zapis każdego rekordu bez wartości.
+Formularz wyłącza *Tylko do odczytu* i *Ukryte*, dopóki zaznaczone jest **Wymagane**, a
+**Wymagane** — dopóki pole nie jest edytowalne, w obu przypadkach z podaniem powodu. Tabela
+definicji pokazuje każde pole niezależnie od dostępu w panelu, z oznaczeniem *Tylko do odczytu*
+albo *Ukryte*.
+
+Atrybuty produktów mają to samo ustawienie, na ekranie **Katalog → Atrybuty**.
+
+## Zbieranie pola od kupującego
+
+Pole może wypełnić kupujący w formularzu rejestracji w sklepie — wtedy informacje potrzebne o nowym
+kliencie biznesowym (skąd o was wie, branża, numer telefonu) przychodzą razem z rejestracją, a nie w
+późniejszym e-mailu. Zaznacz w polu **Zbieraj od kupującego podczas rejestracji**:
+
+- Pola **organizacji** pojawiają się w sekcji firmy formularza rejestracji B2B i są zapisywane w
+  nowej organizacji; pola **klienta** pojawiają się w sekcji danych osobowych i są zapisywane na
+  koncie osoby, która się rejestruje.
+- Sklep pokazuje zaznaczone pola, każde z etykietą w języku sklepu, z oznaczeniem pól wymaganych,
+  bez zmiany kodu; zmiana na ekranie **Pola niestandardowe** dociera do formularza w ciągu kilku
+  minut.
+- **Zbierać można tylko pola widoczne dla klientów.** Opcja jest niedostępna, z podaniem powodu,
+  dopóki *Kto widzi wartość* ma wartość *Wewnętrzne* — kupujący nigdy nie jest proszony o wartość,
+  której nie mógłby potem odczytać — oraz dla pola Page Builder. Zmiana zbieranego pola na
+  *Wewnętrzne* jest odrzucana, dopóki opcja jest zaznaczona.
+- Zbierane pole może być w panelu tylko do odczytu albo ukryte, chyba że jest wymagane.
+- Tabela definicji oznacza zbierane pola etykietą *Rejestracja*.
+
+**Co kupujący może wysłać, a co jest odrzucane.** Rejestracja przyjmuje wartości tylko dla pól
+zaznaczonych do rejestracji — każdy inny klucz, pole wewnętrzne, pole drugiego typu rekordu albo
+nieistniejące jest **odrzucane, nigdy pomijane**, a rejestracja nie dochodzi do skutku. Wymagane
+zbierane pole musi zostać wypełnione; wymagane pole, które nie jest zbierane, nie jest wymagane przy
+rejestracji. Każda wartość jest sprawdzana tak jak wartość wpisana przez administratora (typ, opcje,
+daty, liczby), a do tego obowiązują trzy limity dla anonimowego autora: tekst ma najwyżej 1 000
+znaków po usunięciu spacji z początku i końca, tekst złożony z samych spacji liczy się jako pusty, a
+jednorazowo można wysłać najwyżej 50 pól jednego typu rekordu. Każda odmowa jest podana przy swoim
+polu, w języku kupującego; odrzucona rejestracja niczego nie tworzy.
+
+Zebrana wartość jest daną osobową jak reszta konta: anonimizacja klienta czyści jego wartości pól
+niestandardowych, a wpis rejestracji w dzienniku audytu zapisuje, które pola wypełniono, nigdy ich
+wartości.
+
+Zbieranie od kupującego jest dziś dostępne w jednym formularzu — rejestracji B2B. Storefront
+utworzony przed wprowadzeniem tej opcji wymaga niewielkiej zmiany, żeby pokazać pola; opisuje ją
+dokumentacja modułu `organizations`.
 
 ## Filtry list
 
@@ -292,11 +370,16 @@ jego kluczem — bieżąca definicja pola nie jest odczytywana.
 
 | Metoda + ścieżka | Uprawnienie | Cel |
 | --- | --- | --- |
-| `GET /api/v1/admin/custom-fields/entity-types` | `custom_fields:read` | Obecnie dostępne typy encji, każdy z `listFilter`: czy jego pola mogą być filtrami list, oraz `carryTargets`: typy, do których jego pola mogą przenosić wartości, bez typu, którego moduł jest wyłączony. |
+| `GET /api/v1/admin/custom-fields/entity-types` | `custom_fields:read` | Obecnie dostępne typy encji, każdy z `listFilter`: czy jego pola mogą być filtrami list, `carryTargets`: typy, do których jego pola mogą przenosić wartości, bez typu, którego moduł jest wyłączony, oraz `customerInputSurfaces`: powierzchnie danych od kupującego, na których można otworzyć jego pola (`organization.register` dla `organization` i `customer`, w pozostałych przypadkach `[]`). |
 | `GET /api/v1/admin/custom-fields/definitions?entityType=…` | `custom_fields:read` | Pola danego typu, każde z `listFilter` i `carryTo` — typami, do których przenosi wartość (bez typu, którego moduł jest wyłączony). |
-| `POST /api/v1/admin/custom-fields/definitions` | `custom_fields:write` | Tworzy pole; `listFilter` jest opcjonalne, a dla typu, który go nie obsługuje, odrzucane z `422`; `carryTo` jest opcjonalne (domyślnie `[]`). |
-| `PATCH /api/v1/admin/custom-fields/definitions/:id` | `custom_fields:write` | Zmienia `labelDefault`, `label`, `required`, `audience`, `listFilter` lub `carryTo` (całą nową listę); nieobecne pola zostają bez zmian. Oceniany jest tylko **nowo dodany** element `carryTo`, więc ponowne wysłanie przenoszenia, które w międzyczasie stało się niezgodne, jest przyjmowane, a element wskazujący wyłączony moduł zostaje zachowany niezależnie od wysłanej listy. |
+| `POST /api/v1/admin/custom-fields/definitions` | `custom_fields:write` | Tworzy pole; `listFilter` jest opcjonalne, a dla typu, który go nie obsługuje, odrzucane z `422`; `carryTo` jest opcjonalne (domyślnie `[]`); `customerInput` (powierzchnie, na których pole jest otwarte, domyślnie `[]`) i `adminAccess` (`edit`, `read` lub `hidden`, domyślnie `edit`) są opcjonalne. |
+| `PATCH /api/v1/admin/custom-fields/definitions/:id` | `custom_fields:write` | Zmienia `labelDefault`, `label`, `required`, `audience`, `listFilter`, `carryTo` (całą nową listę), `customerInput` (całą nową listę) lub `adminAccess`; nieobecne pola zostają bez zmian. Oceniany jest tylko **nowo dodany** element `carryTo`, więc ponowne wysłanie przenoszenia, które w międzyczasie stało się niezgodne, jest przyjmowane, a element wskazujący wyłączony moduł zostaje zachowany niezależnie od wysłanej listy. |
 | `POST`, `PATCH`, `DELETE …/definitions/:id/options[/:optionId]` | `custom_fields:write` | Dodaje, zmienia (etykiety, `isDefault`, `sortOrder` — nigdy `value`) lub usuwa opcję. `409` dla opcji w użyciu. |
+| `GET /api/v1/custom-fields/input-surfaces/:surface` | brak — anonimowo, także w sklepie zamkniętym dla anonimowych odwiedzających | Pola otwarte na powierzchni danych od kupującego, dla każdego typu encji w ich kolejności: `key`, `valueType`, `required`, `label` i `label` opcji w języku żądania (z etykietą domyślną, gdy brak tłumaczenia), `options` i `sortOrder`. Nigdy zapisana wartość, widoczność, dostęp w panelu ani pole wewnętrzne. Nieznana powierzchnia daje `200` z `entities: {}`. |
+
+Każda definicja zwraca `customerInput` i `adminAccess`. `adminAccess` odczytują wyłącznie panele
+administracyjne: żaden endpoint nie przyjmuje, nie zwraca, nie filtruje, nie eksportuje ani nie
+audytuje wartości inaczej z jego powodu.
 
 Ścieżki definicji i opcji odmawiają z tymi kodami:
 
@@ -305,7 +388,7 @@ jego kluczem — bieżąca definicja pola nie jest odczytywana.
 | `409` | `CUSTOM_FIELD_OPTION_IN_USE` | usunięcie opcji, którą ma jeszcze któryś rekord | `value`, `label` — zapisana wartość i domyślna etykieta opcji |
 | `409` | `CUSTOM_FIELD_VALUE_TYPE_LOCKED` | zmiana typu wartości pola, gdy rekordy mają wartości | `key` |
 | `409` | `CUSTOM_FIELD_STORED_VALUES_EXIST` | utworzenie pola widocznego dla *Klienta* pod kluczem, którego wartości zostawiło na rekordach usunięte pole — najpierw utwórz je jako wewnętrzne | `key` |
-| `422` | `CUSTOM_FIELD_DEFINITION_INVALID` | niepoprawna definicja, w tym `listFilter` dla typu rekordu, który go nie obsługuje (`list_filter_unsupported`) | — |
+| `422` | `CUSTOM_FIELD_DEFINITION_INVALID` | niepoprawna definicja, w tym `listFilter` dla typu rekordu, który go nie obsługuje (`list_filter_unsupported`), oraz cztery odmowy dotyczące danych od kupującego i dostępu w panelu: `customer_input_unsupported` (powierzchnia, której typ rekordu nie oferuje), `customer_input_audience` (pole otwarte na powierzchni, a *Wewnętrzne*), `customer_input_value_type` (pole Page Builder otwarte na powierzchni) i `admin_access_required` (pole wymagane, a tylko do odczytu albo ukryte) | `code` i `reason` dla tych czterech oraz `key` |
 | `422` | `CUSTOM_FIELD_CARRY_INCOMPATIBLE` | włączenie elementu `carryTo`, którego typ docelowy nie może przyjąć | `code` — `target_missing`, `value_type_mismatch`, `options_missing`, `audience_mismatch`, `pair_unsupported` (para, która nie jest oferowana, w tym własny typ pola) lub `target_unavailable` (moduł typu docelowego jest wyłączony); `targetEntityType`, `key`; `sourceValueType` i `targetValueType` przy niezgodności typów; `missingOptionValues` (tekst rozdzielony przecinkami) i `missingOptionValueList` (tablica) przy brakujących opcjach |
 
 Trzy listy przyjmują filtry jako parametr żądania:
@@ -325,3 +408,13 @@ danej listy, daje `400` `CUSTOM_FIELD_FILTER_UNAVAILABLE` z odrzuconym kluczem w
 Odwrócony zakres — `min` większe niż `max`, `from` późniejsze niż `to` — oraz operator, który nie
 pasuje do typu pola (na przykład `contains` dla liczby), dają `400` `VALIDATION_FAILED` z nazwą pola
 i operatora: żadne z nich nie jest pomijane.
+
+Wartość wysłana przez kupującego na powierzchni danych od kupującego jest odrzucana standardową
+odmową pól niestandardowych platformy, `422` `CUSTOM_FIELD_VALUE_INVALID`, z jednym wpisem
+`details` na pole, z jego `code` i z `message` sformułowanym dla kupującego w języku żądania —
+który nigdy nie podaje klucza ani nie powtarza wartości. Dwa kody występują tylko tam:
+`not_open_for_input` (pole nie jest otwarte na powierzchni albo nie istnieje) i `too_many_keys`
+(więcej niż 50 pól jednego typu rekordu). Pozostałe — `missing_required`, `wrong_type`,
+`out_of_range`, `unknown_option`, `duplicate_option` — to te same kody, z którymi odrzucane są
+wartości administratora. Która ścieżka przenosi wartości i jak nazywa każde pole w `details`,
+decyduje moduł gospodarza: dla rejestracji opisuje to dokumentacja modułu `organizations`.

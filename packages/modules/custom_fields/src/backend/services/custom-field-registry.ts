@@ -1,4 +1,4 @@
-import type { SupportedEntityType } from '@endora-commerce/contracts';
+import type { CustomFieldInputSurface, SupportedEntityType } from '@endora-commerce/contracts';
 import { effectiveState } from '@endora-commerce/platform/kernel';
 
 /**
@@ -72,6 +72,15 @@ export interface SupportedEntityMeta {
    * only whether the type offers it, never which host stores the documents.
    */
   readonly pageBuilderValues?: true;
+  /**
+   * Optional buyer-input marker (feature 175). The input surfaces definitions
+   * of this type may be opened on — the forms on which a buyer supplies their
+   * value. A definition's `customerInput` may name only these; on any other
+   * type the option is refused with `customer_input_unsupported`. Generic,
+   * like the markers above: the core compares surface names, never which
+   * module owns the form or the route.
+   */
+  readonly customerInputSurfaces?: readonly CustomFieldInputSurface[];
 }
 
 export const SUPPORTED_ENTITIES: Record<SupportedEntityType, SupportedEntityMeta> = {
@@ -82,8 +91,18 @@ export const SUPPORTED_ENTITIES: Record<SupportedEntityType, SupportedEntityMeta
     listFilter: true,
     carryTargets: ['opportunity'],
   },
-  organization: { labelKey: 'customFields.entity.organization', orgOwned: false },
-  customer: { labelKey: 'customFields.entity.customer', orgOwned: true },
+  // Feature 175 — both are written by B2B registration, whose two value
+  // groups a buyer may fill in.
+  organization: {
+    labelKey: 'customFields.entity.organization',
+    orgOwned: false,
+    customerInputSurfaces: ['organization.register'],
+  },
+  customer: {
+    labelKey: 'customFields.entity.customer',
+    orgOwned: true,
+    customerInputSurfaces: ['organization.register'],
+  },
   // Feature 157 — a Quote Request belongs to `quote_requests`, and its
   // definitions follow that module's presence as an Opportunity's follow `crm`.
   quote_request: {
@@ -166,4 +185,9 @@ export function offersListFilter(entityType: string): boolean {
 /** Whether definitions of `entityType` may take the `page_builder` value type (feature 172). */
 export function offersPageBuilderValues(entityType: string): boolean {
   return isSupportedEntityType(entityType) && SUPPORTED_ENTITIES[entityType].pageBuilderValues === true;
+}
+
+/** The buyer input surfaces definitions of `entityType` may be opened on (feature 175). */
+export function customerInputSurfacesOf(entityType: string): readonly CustomFieldInputSurface[] {
+  return isSupportedEntityType(entityType) ? (SUPPORTED_ENTITIES[entityType].customerInputSurfaces ?? []) : [];
 }

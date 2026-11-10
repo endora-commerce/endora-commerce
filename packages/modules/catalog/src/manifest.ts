@@ -1,6 +1,7 @@
 import {
   defineModuleManifest,
   defineModuleRecentActivity,
+  type CustomFieldWriteDeclaration,
   type ModuleDemoManifest,
 } from '@endora-commerce/contracts';
 import type { ModuleContext } from '@endora-commerce/platform/kernel';
@@ -34,6 +35,42 @@ const demo: ModuleDemoManifest<ModuleContext> = {
   seed: async (context) => (await import('./backend/demo/seed.js')).seedDemo(context),
   reset: async (context) => (await import('./backend/demo/reset.js')).resetDemo(context),
 };
+
+/**
+ * Feature 175 (`specs/175-buyer-input-custom-fields/` research R-11) — the
+ * admin writes of this module's two custom-field hosts, for
+ * `check:custom-field-writes`: the category create and update, and the
+ * `product` exemption — a product's values are catalog attribute values, which
+ * the catalog's attribute surfaces write, not a custom-field bag on the product
+ * create or update. Read as a literal by the check: keep every entry a literal
+ * object.
+ */
+export const customFieldWrites = [
+  {
+    entityType: 'category',
+    kind: 'create',
+    method: 'POST',
+    path: '/api/v1/admin/catalog/categories',
+    body: 'createCategoryRequestSchema',
+  },
+  {
+    entityType: 'category',
+    kind: 'update',
+    method: 'PATCH',
+    path: '/api/v1/admin/catalog/categories/:id',
+    body: 'updateCategoryRequestSchema',
+  },
+  {
+    entityType: 'product',
+    kind: 'create',
+    exempt: 'host-managed: values are catalog attribute values written by the catalog\'s attribute surfaces',
+  },
+  {
+    entityType: 'product',
+    kind: 'update',
+    exempt: 'host-managed: values are catalog attribute values written by the catalog\'s attribute surfaces',
+  },
+] satisfies CustomFieldWriteDeclaration[];
 
 /**
  * Catalog module — feature 002 (and predecessors).

@@ -5,7 +5,9 @@ import {
   type CartWritePort,
   type CatalogProductReadPort,
   type CustomerAccountReadPort,
+  type CustomFieldValuePort,
   type OriginReference,
+  isCustomFieldValidationFailure,
 } from '@endora-commerce/contracts';
 import { HttpError } from '@endora-commerce/platform/http';
 import type { Order } from '../entities/order.entity.js';
@@ -62,6 +64,12 @@ export interface AdminCreateOrderInput {
   comment?: { body: string; isCustomerVisible: boolean; notifyCustomer: boolean } | undefined;
   /** Where the order is created from — opaque here; handed on to `order.created.v1`. */
   origin?: OriginReference | undefined;
+  /**
+   * Feature 175 (FR-017) — the order's custom-field values, validated with the
+   * administrator's rules before anything is written and stored by the
+   * placement on the new order.
+   */
+  customFieldValues?: Record<string, unknown> | undefined;
 }
 
 /**
@@ -90,7 +98,36 @@ export class OrderCreationAdminService {
     private readonly catalogProductRead: Pick<CatalogProductReadPort, 'findByIds'>,
     private readonly mailer?: EmailMailerPort,
     private readonly getTransactionalEmailSender?: () => TransactionalEmailSender | undefined,
+    /**
+     * Feature 175 (FR-015, FR-017) — `custom_fields`' value port. Without it the
+     * order is created with no values, as before.
+     */
+    private readonly customFieldValues?: Pick<CustomFieldValuePort, 'validateAndMerge'>,
   ) {}
+
+  /**
+   * The new order's bag: the values sent, validated as a merge onto an empty
+   * record — so a `required` definition with no value is refused here, at
+   * creation, even when the request sends none (FR-015). The refusal is the
+   * 422 every admin custom-field write answers.
+   */
+  async #validatedCustomFieldValues(values: Record<string, unknown> | undefined): Promise<Record<string, unknown>> {
+    if (!this.customFieldValues) return {};
+    try {
+      return await this.customFieldValues.validateAndMerge('order', {}, values ?? {});
+    } catch (err) {
+      // Structural, as on the values patch; anything else is re-thrown.
+      if (isCustomFieldValidationFailure(err)) {
+        throw new HttpError(
+          422,
+          ERROR_CODES.CUSTOM_FIELD_VALUE_INVALID,
+          'One or more custom fields are invalid.',
+          err.errors.map((e) => ({ path: e.field, issue: e.message })),
+        );
+      }
+      throw err;
+    }
+  }
 
   /**
    * `options.language` names a product refused for its minimum (the request's
@@ -160,6 +197,12 @@ export class OrderCreationAdminService {
       this.catalogProductRead,
       input.items.map((it) => it.productId),
     );
+
+    // Feature 175 (FR-017, FR-021) — the order's custom-field values, refused
+    // here, before the working basket and the inline addresses are written, so
+    // a refused value creates nothing. The placement stores the validated bag
+    // on the order in its own transaction and its audit row carries it.
+    const customFieldValues = await this.#validatedCustomFieldValues(input.customFieldValues);
 
     // Resolve each address side to an org address id. An inline address is
     // created in the org book (so placeOrder can look it up and snapshot it);
@@ -268,6 +311,7 @@ export class OrderCreationAdminService {
           ...(input.origin ? { origin: input.origin } : {}),
           ...(options.language ? { language: options.language } : {}),
           ...(lineGrouping ? { lineGrouping } : {}),
+          ...(Object.keys(customFieldValues).length > 0 ? { customFieldValues } : {}),
           workingBasketId: working.cart.id,
         },
       );

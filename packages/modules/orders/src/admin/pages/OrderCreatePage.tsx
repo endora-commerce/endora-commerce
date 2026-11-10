@@ -9,6 +9,7 @@ import type {
 import {
   ApiError,
   apiClient,
+  useAuth,
   useUnsavedChangesPrompt,
   formatMoney as formatMoneyShared,
   type FormatMoneyOptions,
@@ -34,6 +35,8 @@ import {
 import type { ComboboxOption } from '@endora-commerce/admin-kit/ui';
 import {
   CountrySelect,
+  CustomFieldValuesPanel,
+  customFieldErrorsOf,
   LineGroupsEditor,
   ProductBrowserDialog,
   ProductBrowserTrigger,
@@ -46,7 +49,7 @@ import {
   type ProductBrowserItem,
   type ProductBrowserRules,
 } from '@endora-commerce/admin-kit/components';
-import { useTranslation } from '@endora-commerce/admin-kit/i18n';
+import { useTranslation, useTranslationContext } from '@endora-commerce/admin-kit/i18n';
 import { RouteTabsZone } from '@endora-commerce/admin-kit/zones';
 import {
   OrderSectionSummary,
@@ -611,8 +614,20 @@ function AddressPicker(props: {
  * the cart/checkout totals. On submit the backend creates the order on-behalf
  * and notifies the customer to pay it.
  */
+/** The panel's starting bag: a new order has none. */
+const EMPTY_VALUES: Record<string, unknown> = {};
+
 export function OrderCreatePage(): ReactNode {
   const t = useTranslation('core');
+  const { language } = useTranslationContext();
+  // Feature 175 (FR-017, FR-039) — the order's custom fields, embedded in the
+  // form: their bag travels as `customFieldValues` in the create and a refusal
+  // is said at the field it names. Their definitions are `custom_fields:read`'s,
+  // so without that code the panel is not shown and the create carries none.
+  const { hasPermission } = useAuth();
+  const canSeeCustomFields = hasPermission('custom_fields:read');
+  const [customFieldValues, setCustomFieldValues] = useState<Record<string, unknown>>({});
+  const [customFieldErrors, setCustomFieldErrors] = useState<Record<string, string>>({});
   const tGroups = useTranslation('orders');
   const groupLabels = useOrderLineGroupLabels();
   const splitLabels = useOrderSplitLineLabels();
@@ -682,7 +697,8 @@ export function OrderCreatePage(): ReactNode {
       addressIsDraft(deliveryChoice) ||
       addressIsDraft(billingChoice) ||
       items.length > 0 ||
-      groups.length > 0);
+      groups.length > 0 ||
+      Object.keys(customFieldValues).length > 0);
   useUnsavedChangesPrompt(dirty);
 
   // Issue #515 — the customer's Organization's channels. `null` while there is
@@ -978,6 +994,7 @@ export function OrderCreatePage(): ReactNode {
   const submit = async (): Promise<void> => {
     setBusy(true);
     setError(null);
+    setCustomFieldErrors({});
     // Feature 159 — with groups, each line names its own group (the server
     // places the lines as sent, one order line each: each group's lines, then
     // the ungrouped ones); without, the request is the one it always was.
@@ -1001,6 +1018,7 @@ export function OrderCreatePage(): ReactNode {
         ...(groups.length > 0 ? { groups: groups.map((group) => ({ key: group.key, name: group.name.trim() })) } : {}),
         items: sentItems,
         ...(openedWith.origin ? { origin: openedWith.origin } : {}),
+        ...(canSeeCustomFields && Object.keys(customFieldValues).length > 0 ? { customFieldValues } : {}),
       });
       setSubmitted(true);
       if (openedWith.returnTo) {
@@ -1009,6 +1027,7 @@ export function OrderCreatePage(): ReactNode {
         navigate(`/orders/${res.data.id}`);
       }
     } catch (err) {
+      setCustomFieldErrors(customFieldErrorsOf(err) ?? {});
       setError(err instanceof ApiError ? err.envelope.error.message : t('orderCreate.error'));
     } finally {
       setBusy(false);
@@ -1465,6 +1484,18 @@ export function OrderCreatePage(): ReactNode {
         <Alert variant="destructive" className="mb-4">
           <AlertDescription>{previewError}</AlertDescription>
         </Alert>
+      ) : null}
+
+      {canSeeCustomFields ? (
+        <div className="mb-4">
+          <CustomFieldValuesPanel
+            entityType="order"
+            values={EMPTY_VALUES}
+            onChange={setCustomFieldValues}
+            fieldErrors={customFieldErrors}
+            language={language}
+          />
+        </div>
       ) : null}
 
       <Card className="mb-4">

@@ -7,7 +7,7 @@ import {
   newLineGroupInputSchema,
   refineLineGrouping,
 } from './line-groups.js';
-import { customFieldCarrySkipSchema } from './custom-fields.js';
+import { customFieldCarrySkipSchema, customFieldValuesSchema } from './custom-fields.js';
 import { fourDecimalUnitPrice } from './money-input.js';
 import { lineQuantitySchema, REQUEST_LINE_ITEMS_MAX } from './line-bounds.js';
 
@@ -688,6 +688,11 @@ export const adminCreateQuoteRequestSchema = z
      * Not stored and not returned.
      */
     origin: OriginReferenceSchema.optional(),
+    /**
+     * Feature 175 (FR-019) — the request's custom-field values, validated with
+     * the administrator's rules inside the creating Command.
+     */
+    customFieldValues: customFieldValuesSchema.optional(),
   })
   .superRefine((body, ctx) => refineLineGrouping(ctx, body));
 export type AdminCreateQuoteRequest = z.infer<typeof adminCreateQuoteRequestSchema>;

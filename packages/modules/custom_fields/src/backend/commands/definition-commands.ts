@@ -43,6 +43,9 @@ function snapshotDefinition(def: CustomFieldDefinition): Record<string, unknown>
     config: def.config,
     listFilter: def.listFilter,
     carryTo: [...def.carryTo],
+    // Feature 175 (FR-008) — both attributes are audited like any other.
+    customerInput: [...(def.customerInput ?? [])],
+    adminAccess: def.adminAccess ?? 'edit',
   };
 }
 

@@ -2092,6 +2092,8 @@ function serializeAdminAttribute(
     // Feature 174 (R15) — the scope flag the attribute editor edits and the levels it derives.
     scopable: a.scopable,
     scopeLevels: [...a.scopeLevels],
+    // Feature 175 (FR-036) — the backing definition's admin access.
+    adminAccess: a.adminAccess ?? 'edit',
     createdAt: a.createdAt.toISOString(),
     updatedAt: a.updatedAt.toISOString(),
   };

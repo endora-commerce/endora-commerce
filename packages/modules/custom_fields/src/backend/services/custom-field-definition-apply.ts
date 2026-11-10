@@ -2,7 +2,9 @@ import type { EntityManager } from '@mikro-orm/postgresql';
 import {
   assessCustomFieldCarry,
   customFieldDefinitionSchema,
+  type CustomFieldAdminAccess,
   type CustomFieldAudience,
+  type CustomFieldInputSurface,
   type CustomFieldOptionDto,
   type CustomFieldValueType,
   type SupportedEntityType,
@@ -14,6 +16,7 @@ import { CustomFieldOption } from '../entities/custom-field-option.entity.js';
 import type { CustomFieldDefinitionApplyCreateInput } from '../../ports/index.js';
 import {
   carryTargetsOf,
+  customerInputSurfacesOf,
   isEntityTypeServed,
   isSupportedEntityType,
   offersListFilter,
@@ -49,7 +52,12 @@ export class CustomFieldDefinitionError extends Error {
       | 'invalid_key'
       | 'list_filter_unsupported'
       | 'carry_incompatible'
-      | 'value_type_unsupported',
+      | 'value_type_unsupported'
+      // Feature 175 (research R-4) — the buyer-input and admin-access invariants.
+      | 'customer_input_unsupported'
+      | 'customer_input_audience'
+      | 'customer_input_value_type'
+      | 'admin_access_required',
     message: string,
     /**
      * What a refusal's sentence names (feature 157): the field `key`, an
@@ -131,6 +139,68 @@ export function assertValueTypeChangeAllowed(key: string, from: string, to: stri
     throw new CustomFieldDefinitionError(
       'value_type_locked',
       `The value type of "${key}" cannot be changed to or from Page Builder content.`,
+      { key },
+    );
+  }
+}
+
+/** A definition's surfaces as stored: deduplicated and sorted (feature 175). */
+export function normaliseCustomerInput(
+  surfaces: readonly CustomFieldInputSurface[] | undefined,
+): CustomFieldInputSurface[] {
+  return [...new Set(surfaces ?? [])].sort();
+}
+
+/** The members of a definition the buyer-input and admin-access invariants read (feature 175). */
+export interface CustomerInputSubject {
+  readonly entityType: string;
+  readonly key: string;
+  readonly valueType: string;
+  readonly audience: CustomFieldAudience;
+  readonly required: boolean;
+  readonly customerInput: readonly CustomFieldInputSurface[];
+  readonly adminAccess: CustomFieldAdminAccess;
+}
+
+/**
+ * The four invariants of `specs/175-buyer-input-custom-fields/` research R-4,
+ * judged on the RESULTING definition — so turning the input on under an
+ * internal audience and turning the audience internal under an open field are
+ * one predicate, whichever side of the change raised it.
+ *
+ * Judged before the entity type's value-type offer, so an open Page Builder
+ * field is refused for being open rather than for its type.
+ */
+export function assertCustomerInputAndAdminAccess(definition: CustomerInputSubject): void {
+  const { key } = definition;
+  if (definition.customerInput.length > 0) {
+    if (definition.valueType === 'page_builder') {
+      throw new CustomFieldDefinitionError(
+        'customer_input_value_type',
+        `Field "${key}" holds Page Builder content and cannot be collected from buyers.`,
+        { key },
+      );
+    }
+    const offered = customerInputSurfacesOf(definition.entityType);
+    if (definition.customerInput.some((surface) => !offered.includes(surface))) {
+      throw new CustomFieldDefinitionError(
+        'customer_input_unsupported',
+        `Field "${key}" cannot be collected from buyers on that form.`,
+        { key },
+      );
+    }
+    if (definition.audience !== 'customer') {
+      throw new CustomFieldDefinitionError(
+        'customer_input_audience',
+        `Field "${key}" is collected from buyers, so it must be visible to customers.`,
+        { key },
+      );
+    }
+  }
+  if (definition.required && definition.adminAccess !== 'edit') {
+    throw new CustomFieldDefinitionError(
+      'admin_access_required',
+      `Field "${key}" is required, so it must stay editable in the admin.`,
       { key },
     );
   }
@@ -275,6 +345,9 @@ export async function applyCreateDefinition(
   if (!isSupportedEntityType(input.entityType)) {
     throw new CustomFieldDefinitionError('entity_type_unknown', `Unknown entity type "${input.entityType}".`);
   }
+  const customerInput = normaliseCustomerInput(input.customerInput);
+  const adminAccess = input.adminAccess ?? 'edit';
+  assertCustomerInputAndAdminAccess({ ...input, customerInput, adminAccess });
   assertValueTypeOffered(input.entityType, input.valueType);
   assertOptionsRule(input.valueType, input.options);
   assertListFilterSupported(input.entityType, input.listFilter);
@@ -301,6 +374,8 @@ export async function applyCreateDefinition(
     config: input.config,
     listFilter: input.listFilter ?? false,
     carryTo: [...(input.carryTo ?? [])],
+    customerInput,
+    adminAccess,
   });
   if (SELECT_TYPES.has(input.valueType)) {
     // Flush the definition first: options reference it by id (no ORM relation),
@@ -322,6 +397,20 @@ export async function applyUpdateDefinition(
   const def = await em.findOne(CustomFieldDefinition, { id });
   if (!def) throw new CustomFieldDefinitionError('not_found', `Custom field ${id} not found.`);
   assertValueTypeChangeAllowed(def.key, def.valueType, patch.valueType);
+  const customerInput =
+    patch.customerInput !== undefined
+      ? normaliseCustomerInput(patch.customerInput)
+      : [...(def.customerInput ?? [])];
+  const adminAccess = patch.adminAccess ?? def.adminAccess ?? 'edit';
+  assertCustomerInputAndAdminAccess({
+    entityType: def.entityType,
+    key: def.key,
+    valueType: patch.valueType ?? def.valueType,
+    audience: patch.audience ?? def.audience,
+    required: patch.required ?? def.required,
+    customerInput,
+    adminAccess,
+  });
   assertListFilterSupported(def.entityType, patch.listFilter);
   assertCarryPairsOffered(
     def.entityType,
@@ -348,6 +437,8 @@ export async function applyUpdateDefinition(
   if (patch.config !== undefined) def.config = patch.config;
   if (patch.listFilter !== undefined) def.listFilter = patch.listFilter;
   if (patch.carryTo !== undefined) def.carryTo = [...patch.carryTo];
+  if (patch.customerInput !== undefined) def.customerInput = customerInput;
+  if (patch.adminAccess !== undefined) def.adminAccess = adminAccess;
   return def;
 }
 

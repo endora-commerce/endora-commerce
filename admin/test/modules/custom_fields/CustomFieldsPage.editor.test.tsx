@@ -20,8 +20,8 @@ import corePl from '../../../../packages/modules/_i18n/i18n/pl.json';
  */
 
 const ENTITY_TYPES: CustomFieldEntityTypeInfo[] = [
-  { entityType: 'order', labelKey: 'customFields.entity.order', listFilter: true, carryTargets: [] },
-  { entityType: 'customer', labelKey: 'customFields.entity.customer', listFilter: false, carryTargets: [] },
+  { entityType: 'order', labelKey: 'customFields.entity.order', listFilter: true, carryTargets: [], customerInputSurfaces: [] },
+  { entityType: 'customer', labelKey: 'customFields.entity.customer', listFilter: false, carryTargets: [], customerInputSurfaces: [] },
 ];
 
 function definition(overrides: Partial<CustomFieldDefinitionDto>): CustomFieldDefinitionDto {
@@ -38,6 +38,8 @@ function definition(overrides: Partial<CustomFieldDefinitionDto>): CustomFieldDe
     config: { hostFlag: true },
     listFilter: false,
     carryTo: [],
+    customerInput: [],
+    adminAccess: 'edit',
     options: [
       { id: '00000000-0000-4000-8000-0000000000a1', value: 'north', label: { en: 'North' }, labelDefault: 'North', isDefault: false, sortOrder: 0 },
       { id: '00000000-0000-4000-8000-0000000000a2', value: 'south', label: { en: 'South' }, labelDefault: 'South', isDefault: false, sortOrder: 1 },
@@ -174,9 +176,12 @@ describe('CustomFieldsPage — the definition editor', () => {
     expect(within(dialog).getByText('region')).toBeInTheDocument();
     expect(within(dialog).getByText('Order')).toBeInTheDocument();
     expect(within(dialog).getByText('Single choice')).toBeInTheDocument();
-    // The audience is the dialog's one select (issue #447); type and record type are text.
-    expect(within(dialog).getAllByRole('combobox').map((select) => select.getAttribute('id'))).toHaveLength(1);
-    expect(within(dialog).getByRole('combobox')).toHaveAccessibleName('Who can see the value');
+    // The audience and — since feature 175 — the admin access are the dialog's
+    // only selects (issue #447); type and record type are text.
+    const selects = within(dialog).getAllByRole('combobox');
+    expect(selects).toHaveLength(2);
+    expect(selects[0]).toHaveAccessibleName('Who can see the value');
+    expect(selects[1]).toHaveAccessibleName('Admin access');
     expect(within(dialog).queryByDisplayValue('region')).toBeNull();
   });
 

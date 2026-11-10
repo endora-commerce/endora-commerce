@@ -13,6 +13,9 @@ import {
 } from 'react';
 import { CountryPicker } from '../../lib/dictionary/pickers/CountryPicker';
 import { tForLocale } from '../../lib/i18n/messages';
+// Type only: the read module reaches `next/headers`, which a client module may not import.
+import type { RegistrationCustomFields } from '../../lib/api/custom-field-input';
+import { CustomFieldInputs } from './CustomFieldInputs';
 
 type Translate = ReturnType<typeof tForLocale>;
 type MessageKey = Parameters<Translate>[0];
@@ -53,7 +56,15 @@ import {
  * arrives (WCAG 4.1.3); focus stays on the control that started the lookup; a
  * refused registration is announced in a `role="alert"` region that takes focus.
  * A filled field says so in text, not colour alone.
+ *
+ * Feature 175 — the custom fields open on `organization.register`
+ * ({@link CustomFieldInputs}): the company's at the end of the company section,
+ * the account owner's at the end of the personal one. They travel with the
+ * form and come back in the state, as typed, with any refusal beside its field.
  */
+
+/** No custom field open on registration — the form as it was before feature 175. */
+const NO_CUSTOM_FIELDS: RegistrationCustomFields = { organization: [], customer: [] };
 
 type CompanyValues = Pick<RegisterFormValues, 'organizationName' | 'taxId' | 'country' | RegisterCompanyField>;
 
@@ -89,6 +100,7 @@ export function RegisterForm({
   lookupAction,
   initialState = INITIAL_REGISTER_FORM_STATE,
   termsVersion = '2025-01',
+  customFields = NO_CUSTOM_FIELDS,
 }: {
   locale: string;
   lookupEnabled: boolean;
@@ -96,6 +108,8 @@ export function RegisterForm({
   lookupAction: RegisterLookupAction;
   initialState?: RegisterFormState;
   termsVersion?: string;
+  /** Feature 175 — the custom fields open on registration; none by default. */
+  customFields?: RegistrationCustomFields;
 }): ReactNode {
   const t = tForLocale(locale);
   const [state, formAction] = useActionState(action, initialState);
@@ -279,6 +293,15 @@ export function RegisterForm({
           {companyField('city', 'addr-city', 'checkout.address.city', 120)}
         </div>
         <input type="hidden" name="registryLookupId" value={lookup?.lookupId ?? ''} />
+        <CustomFieldInputs
+          group="organization"
+          errorPrefix="organization"
+          legend={t('auth.register.customFields.organizationLegend')}
+          fields={customFields.organization}
+          values={state.customFields?.organization ?? {}}
+          errors={state.fieldErrors ?? {}}
+          t={t}
+        />
       </fieldset>
       <fieldset className="b2b-auth__form" style={{ border: 0, padding: 0 }}>
         <legend style={{ fontWeight: 600 }}>{t('auth.register.ownerLegend')}</legend>
@@ -331,6 +354,15 @@ export function RegisterForm({
             autoComplete="new-password"
           />
         </div>
+        <CustomFieldInputs
+          group="customer"
+          errorPrefix="firstUser"
+          legend={t('auth.register.customFields.customerLegend')}
+          fields={customFields.customer}
+          values={state.customFields?.customer ?? {}}
+          errors={state.fieldErrors ?? {}}
+          t={t}
+        />
       </fieldset>
       <input type="hidden" name="acceptedTermsVersion" value={termsVersion} />
       <div className="b2b-auth__actions">

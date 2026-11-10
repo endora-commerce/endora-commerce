@@ -87,6 +87,12 @@ export const CHANNEL_ACCESS_OPEN_ROUTES: Readonly<Record<string, OpenRouteEntry>
     reason:
       'The business registration form prefills from public registries before anybody can sign in; per-IP rate-limited, no channel-scoped data (feature 173, OD-2).',
   },
+  // the fields a buyer fills in on registration — `custom_fields` (feature 175)
+  'GET /api/v1/custom-fields/input-surfaces/:surface': {
+    owner: 'custom_fields',
+    reason:
+      'The registration form reads which extra fields it shows, and registration is open on a closed store.',
+  },
   'POST /api/v1/organizations/invitations/:token/accept': {
     owner: 'organizations',
     reason: 'An invited person joins an Organization before they can sign in.',

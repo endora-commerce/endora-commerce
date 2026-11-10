@@ -6,7 +6,12 @@ import { describe, expect, it } from 'vitest';
 import {
   ModuleManifestSchema,
   SUPPORTED_LANGUAGES,
+  adminApproveQuoteRequestSchema,
+  createCategoryRequestSchema,
+  customFieldValuesSchema,
   defineModuleManifest,
+  registerOrganizationRequestSchema,
+  updateCategoryRequestSchema,
   type EnvironmentInput,
   type ModuleManifest,
 } from '@endora-commerce/contracts';
@@ -267,6 +272,8 @@ import * as ruleSingletonIdentity from '@endora-commerce/cli/rules/singleton-ide
 import * as ruleTransactionContext from '@endora-commerce/cli/rules/transaction-context.js';
 import * as hostEnvInputs from '../../../scripts/check-env-inputs.js';
 import * as ruleEnvInputs from '@endora-commerce/cli/rules/env-inputs.js';
+import * as hostCustomFieldWrites from '../../../scripts/check-custom-field-writes.js';
+import * as ruleCustomFieldWrites from '@endora-commerce/cli/rules/custom-field-writes.js';
 import * as hostTenantClassification from '../../../scripts/check-entity-tenant-classification.js';
 import * as ruleTenantClassification from '@endora-commerce/cli/rules/entity-tenant-classification.js';
 import * as hostEntryPresence from '../../../scripts/check-entry-presence.js';
@@ -1056,6 +1063,71 @@ const ACTION_WITHOUT_CODE: ActionRecord = {
   actionId: 'open-inventory',
   targetRoute: '/inventory',
 };
+
+/**
+ * `check:custom-field-writes` (feature 175) — a host's declarations, its route
+ * file and the input-surface registry, all as **source text** and the real
+ * built contracts as the schemas, so the literal reader, the route reader and
+ * the Zod introspection each run under every proof.
+ */
+const CFW_SCHEMAS: Record<string, unknown> = {
+  adminApproveQuoteRequestSchema,
+  createCategoryRequestSchema,
+  customFieldValuesSchema,
+  registerOrganizationRequestSchema,
+  updateCategoryRequestSchema,
+};
+const CFW_TEST = 'backend/test/contract/widgets/register.contract.test.ts';
+const CFW_CREATE =
+  "{ entityType: 'category', kind: 'create', method: 'POST', path: '/api/v1/admin/widgets', body: 'createCategoryRequestSchema' }";
+const CFW_UPDATE =
+  "{ entityType: 'category', kind: 'update', method: 'PATCH', path: '/api/v1/admin/widgets/:id', body: 'updateCategoryRequestSchema' }";
+const CFW_BUYER =
+  "{ entityType: 'category', kind: 'buyer-input', surface: 'organization.register', method: 'POST', " +
+  "path: '/api/v1/widgets/register', body: 'registerOrganizationRequestSchema', " +
+  `at: 'organization.customFieldValues', test: '${CFW_TEST}' }`;
+const CFW_ROUTE = {
+  create: "app.post('/api/v1/admin/widgets', { schema: { body: createCategoryRequestSchema } }, h);",
+  update: "app.patch('/api/v1/admin/widgets/:id', { schema: { body: updateCategoryRequestSchema } }, h);",
+  register: "app.post('/api/v1/widgets/register', { schema: { body: registerOrganizationRequestSchema } }, h);",
+};
+
+function customFieldWritesFindings(
+  kind: ruleCustomFieldWrites.CustomFieldWritesFindingKind,
+  fixture: {
+    readonly entries: string;
+    readonly manifest?: string;
+    readonly routes?: readonly string[];
+    readonly surfaces?: readonly string[];
+    readonly test?: string | null;
+  },
+): number {
+  const routes = fixture.routes ?? [CFW_ROUTE.create, CFW_ROUTE.update];
+  const result = ruleCustomFieldWrites.analyseCustomFieldWrites({
+    entityTypes: ['category'],
+    inputSurfaces: new Map([['category', fixture.surfaces ?? []]]),
+    modules: [
+      {
+        moduleId: 'widgets',
+        manifestFile: 'packages/modules/widgets/src/manifest.ts',
+        manifestText:
+          fixture.manifest ??
+          `export const customFieldWrites = [${fixture.entries}] satisfies CustomFieldWriteDeclaration[];`,
+        sources: new Map([
+          [
+            'packages/modules/widgets/src/backend/routes.ts',
+            `import type { FastifyInstance } from 'fastify';\nexport function r(app: FastifyInstance) {\n${routes.join('\n')}\n}\n`,
+          ],
+        ]),
+      },
+    ],
+    resolveSchema: (name) => CFW_SCHEMAS[name],
+    valuesSchema: customFieldValuesSchema,
+    readTest: (path) =>
+      path === CFW_TEST ? (fixture.test === undefined ? "'organization.register' not_open_for_input" : fixture.test) : null,
+  });
+  return result.findings.filter((finding) => finding.kind === kind).length;
+}
 
 const UNAUDITED_WRITE = `
   export class ThingService {
@@ -8659,6 +8731,81 @@ const CHECKS: readonly CheckEntry[] = [
     },
   },
   {
+    // `specs/175-buyer-input-custom-fields/` (research R-11, FR-043 – FR-045) —
+    // every custom-field host declares its admin create and update (or values
+    // endpoint) and its buyer surfaces in a literal `customFieldWrites` export
+    // beside its manifest, and the declarations agree with the routes the
+    // module registers and the contracts those routes validate with. Nine
+    // findings, nine proofs, each entering as **source text** — the manifest and
+    // the route file — with the real built contracts as the schemas.
+    script: 'backend/scripts/check-custom-field-writes.ts',
+    npmScript: 'check:custom-field-writes',
+    job: 'quality',
+    companionTest: 'backend/test/unit/scripts/check-custom-field-writes.test.ts',
+    vacuousGuard: 'exit-2',
+    readSize: 'reported',
+    residueGuard: 'derived-population',
+    red: {
+      'entity-type-undeclared': top(() =>
+        customFieldWritesFindings('entity-type-undeclared', { entries: CFW_CREATE, routes: [CFW_ROUTE.create] }),
+      ),
+      'create-without-values': top(() =>
+        customFieldWritesFindings('create-without-values', {
+          entries: `${CFW_CREATE.replace("'createCategoryRequestSchema'", "'adminApproveQuoteRequestSchema'")}, ${CFW_UPDATE}`,
+          routes: [CFW_ROUTE.create.replace('createCategoryRequestSchema', 'adminApproveQuoteRequestSchema'), CFW_ROUTE.update],
+        }),
+      ),
+      'update-without-values': top(() =>
+        customFieldWritesFindings('update-without-values', {
+          entries: `${CFW_CREATE}, ${CFW_UPDATE.replace("'updateCategoryRequestSchema'", "'adminApproveQuoteRequestSchema'")}`,
+          routes: [CFW_ROUTE.create, CFW_ROUTE.update.replace('updateCategoryRequestSchema', 'adminApproveQuoteRequestSchema')],
+        }),
+      ),
+      'declared-route-missing': top(() =>
+        customFieldWritesFindings('declared-route-missing', {
+          entries: `${CFW_CREATE}, ${CFW_UPDATE.replace('/:id', '/:id/rename')}`,
+          routes: [CFW_ROUTE.create],
+        }),
+      ),
+      'undeclared-write-route': top(() =>
+        customFieldWritesFindings('undeclared-write-route', {
+          entries: `${CFW_CREATE}, ${CFW_UPDATE}`,
+          routes: [
+            CFW_ROUTE.create,
+            CFW_ROUTE.update,
+            "app.put('/api/v1/admin/widgets/:widgetId', { schema: { body: updateCategoryRequestSchema } }, h);",
+          ],
+        }),
+      ),
+      'exemption-without-reason': top(() =>
+        customFieldWritesFindings('exemption-without-reason', {
+          entries: `${CFW_CREATE}, { entityType: 'category', kind: 'update', exempt: ' ' }`,
+          routes: [CFW_ROUTE.create],
+        }),
+      ),
+      'surface-without-contract': top(() =>
+        customFieldWritesFindings('surface-without-contract', {
+          entries: `${CFW_CREATE}, ${CFW_UPDATE}`,
+          surfaces: ['organization.register'],
+        }),
+      ),
+      'surface-without-test': top(() =>
+        customFieldWritesFindings('surface-without-test', {
+          entries: `${CFW_CREATE}, ${CFW_UPDATE}, ${CFW_BUYER}`,
+          routes: [CFW_ROUTE.create, CFW_ROUTE.update, CFW_ROUTE.register],
+          surfaces: ['organization.register'],
+          test: null,
+        }),
+      ),
+      'computed-declaration': top(() =>
+        customFieldWritesFindings('computed-declaration', {
+          entries: '',
+          manifest: 'export const customFieldWrites = [...SHARED_WRITES];',
+        }),
+      ),
+    },
+  },
+  {
     // `specs/098-storefront-ssr-seo-a11y-suite/` Phase 2 — every storefront
     // route says whether a crawler may index it, and the sitemap and the route
     // table agree in both directions. It lands **at zero findings with the
@@ -11858,6 +12005,8 @@ describe('every red proof enters at the top of the analysis', () => {
       // Two directions of a wrong code, three ways a target cannot be resolved,
       // and the ledger's stale direction.
       'backend/scripts/check-action-route-permissions.ts': 8,
+      // Feature 175 — one per finding kind.
+      'backend/scripts/check-custom-field-writes.ts': 9,
       'backend/scripts/check-channel-resolution.ts': 5,
       // Five, plus D-89's five: `em.create` joining the vocabulary, the two
       // narrowings that keep it from manufacturing findings, the field
@@ -12952,6 +13101,9 @@ describe('a relocated analysis has one implementation and two hosts', () => {
       // `backend/scripts/` would be invisible for the one rule of the three
       // whose unblocking is not scheduled at all.
       ['check:env-inputs', hostEnvInputs as unknown as Record<string, unknown>, ruleEnvInputs as unknown as Record<string, unknown>],
+      // Feature 175 — written relocated from the start: the analysis is the
+      // package's, and the repository host only resolves roots and floors.
+      ['check:custom-field-writes', hostCustomFieldWrites as unknown as Record<string, unknown>, ruleCustomFieldWrites as unknown as Record<string, unknown>],
       // Phase 3.
       ['check-entity-tenant-classification', hostTenantClassification as unknown as Record<string, unknown>, ruleTenantClassification as unknown as Record<string, unknown>],
       ['check:entry-presence', hostEntryPresence as unknown as Record<string, unknown>, ruleEntryPresence as unknown as Record<string, unknown>],
