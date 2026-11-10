@@ -9,16 +9,23 @@ same `name` (research R-10, spike-verified) overriding:
 - `addSql(sql)` and `execute(sql, params)` — stringify (knex builders via `toQuery()`), classify,
   refuse or pass through;
 - `getEntityManager()` — returns the fork wrapped so its `flush` refuses changesets whose
-  `meta.tableName` is foreign (OD-178-3; design, not spiked).
+  `meta.tableName` is foreign, **and** so its non-flush shortcuts (`nativeInsert`, `nativeUpdate`,
+  `nativeDelete`, `insert`, `insertMany`, query builders, `execute`) are classified the same way
+  (OD-178-3; scope amended by D-291 R-A1).
 
 `context`: `moduleId`; `ownTables` = tables mapped by the package's `entities` ∪ tables its own
-migrations `create` (collected as the guard sees them, in order); `declaredHosts` with their own
-`x_<module>_` prefix; `exemptions` (§3).
+migrations `create` **that no other module's entity maps**; DDL on a table the same migration
+creates is a declaration, not a write. Tables created by the module's earlier migrations are found
+by an in-memory dry run of its migrations (`execute` answering no rows), lazily at the first guarded
+migration, never at boot; a table the dry run cannot see is foreign (fail closed) — D-291 R-A2.
+`declaredHosts` with their own `x_<module>_` prefix; `exemptions` (§3).
 
 Classifier `sqlWriteTargets(sql)` (`packages/platform/src/db/sql-statement-targets.ts`, regex, no
 TypeScript dependency): targets of `alter table`, `create [unique] index … on`, `drop table|index`,
 `comment on (table|column)`, `create trigger … on`, `create rule … to`, `insert into`, `update`,
-`delete from`, `truncate`, `merge into`; scans inside `do $$…$$` bodies.
+`delete from`, `truncate`, `merge into`; scans inside `do $$…$$` bodies, `create function` /
+`create procedure` bodies, and PL/pgSQL `execute '…'` strings read as SQL (D-291 R-A1). `drop
+index` is resolved to its table through `pg_indexes` at run time.
 
 Verdict per target table `t`:
 

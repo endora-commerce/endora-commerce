@@ -131,6 +131,13 @@ recommended — OD-178-1 head, OD-178-3 flush-time guard (Phase C), OD-178-4 Pha
 release, OD-178-5 `adminReads` opt-in (default `false`), OD-178-6 HTTP `extensions` deferred; OD-29
 uninstall keeps columns (orphaned) plus the audited drop command. See `spec.md` § *Decisions*.
 
+**D-291 addendum (architect, 2026-11-10, after Phases A–C)**: R-A1 keep the stricter OD-17 guard
+(function bodies, PL/pgSQL `execute` strings, EM shortcuts) and amend the contract; R-A2 own
+unmapped tables via the lazy dry run, failing closed; R-A3 178 merges first at 4.2.0, 177/176 take
+4.3.0/4.4.0 in merge order; R-A4 pruning reserved-stamp rows not in the list is accepted inside the
+`up` transaction, logged, tested (T068); R-A5 migrate marks rows of modules with no declaration
+`orphaned` — fixed in this release (T069), blocking with B + C.
+
 ## Test plan (FR → test)
 
 | FR | Test (fails first) |

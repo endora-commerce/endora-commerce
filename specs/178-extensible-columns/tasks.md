@@ -157,6 +157,20 @@ Phase C implementation notes (2026-11-10, `feat/178-extensible-columns-c`):
   built package host; the binding/owner reconciliation is a declared partial signal there. It has no
   ledger, by the contract; the tree is clean (123 migrations of 8 owners).
 
+D-291 addendum tasks (architect, 2026-11-10; release-blocking with B + C):
+
+- [ ] T068 Test: `migrateUpVerified` prunes only rows named `Migration10000101T000000%` that are not in
+  the current list — a non-generated row, and a current generated row, are never deleted; each pruned
+  name is logged at `info`; pruning rolls back with a failed `up` — then align the implementation
+  (`packages/platform/src/db/migrate.ts`) [D-291 R-A4]
+- [ ] T069 Test: package removed from the instance root without `uninstall --hard` → next `migrate up`
+  marks its `applied` rows `orphaned` in the same transaction; `module:schema-extensions drop
+  <module> --confirm` then succeeds; reinstalling the same package re-attaches them (`applied`); a
+  module that still declares any element is untouched; boot only warns — then implement in
+  `migrateUpVerified` [FR-023, D-291 R-A5]
+- [ ] T070 Update the developer page (`docs/docs/architecture/schema-extensions.md` + PL) for R-A1
+  (what the guard reads) and R-A5 (vanished packages are orphaned at migrate) [FR-093]
+
 ## Phase D — Remaining eight hosts (later release — OD-178-4, ruled D-291; out of this release)
 
 - [ ] T080 Delete the rollout constant; T004 asserts all 9 hosts [FR-011]

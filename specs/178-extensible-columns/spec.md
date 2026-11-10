@@ -276,7 +276,8 @@ The package's admin zone on the organization detail screen calls
   element: module, host table, kind, physical name, key, normalised spec, spec hash, status
   (`applied` | `orphaned` | `dropped`), platform and package versions, timestamps.
 - **FR-023**: The step's `down()` (run by `uninstall --hard`) MUST mark the module's rows
-  `orphaned` and drop nothing.
+  `orphaned` and drop nothing; `migrate up` MUST also mark `orphaned` the `applied` rows of a module
+  that no longer has any discovered declaration (D-291 R-A5).
 - **FR-024**: A declared column that already exists unledgered MUST be adopted when its type
   matches and refused otherwise.
 
@@ -422,3 +423,46 @@ decision **D-291** (spec 176 is D-289, spec 177 is D-290). None of them is open 
   callers pass `command.extensions`.
 - **OD-29 (restated for D-291)** — uninstalling the declaring module keeps its columns (ledger rows
   `orphaned`); an explicit audited command drops them (FR-034, FR-081).
+
+### D-291 addendum — architect rulings on the implementation (2026-11-10, after Phases A–C)
+
+Taken by the architect on questions the developer raised from `feat/178-extensible-columns-c`
+(`8a4ca9c9d`); none reopens an owner ruling.
+
+- **R-A1 — the stricter OD-17 guard stays.** The guard also reads function bodies
+  (`create function … $$ … $$`), PL/pgSQL `execute '…'` strings and the migration entity manager's
+  non-flush shortcuts (`nativeInsert`/`nativeUpdate`/`nativeDelete`, `insert`, query builders), on
+  top of `addSql`/`execute`/flush. Rationale: each of those is a write path a package can take, and a
+  guard that skips one is a guard with a documented bypass; the measurement (T065: every first-party
+  module refuses exactly the R2 ledger's (module, migration, table) set, without exemptions, in both
+  directions) shows the stricter reading produces no false refusal on the corpus we own. Narrowing
+  was rejected: it would buy nothing measurable and reopen OD-178-3's hole by another door.
+  `contracts/foreign-schema-guard.md` §1 is amended to the implemented scope.
+- **R-A2 — own tables no entity maps are recognised by the dry run, as built.** Own = entity tables ∪
+  tables the module's own migrations create and no other module's entity maps; tables created by
+  earlier migrations of the module are found by an in-memory dry run of its migrations (`execute`
+  answering no rows), lazily at the first guarded migration, never at boot. Its failure direction is
+  **closed**: a table the dry run cannot see is treated as foreign and refused loudly, never allowed.
+  Rejected: a manifest `ownedTables` declaration (a second, unverifiable claim a package could make
+  about any table), and reading `mikro_orm_migrations` history (says nothing about tables).
+- **R-A3 — constitution merge order.** 178 merges first and carries 4.1.0 → 4.2.0. Whichever of 177
+  and 176 merges next rebases and takes the next MINOR (4.3.0), the last one 4.4.0; each Sync Impact
+  Report states the version it found on `master` and chains from it. No spec reserves a version in
+  advance. 178 B + C do not depend on 176 (only T046/T046a do), so 176 P1 being blocked does not hold
+  178 back.
+- **R-A4 — pruning stale generated-step rows is accepted, bounded.** `migrateUpVerified` may delete
+  rows of `mikro_orm_migrations` only when (i) the name carries the reserved stamp
+  `Migration10000101T000000` — which `orderMigrations` refuses on any non-generated entry, so no
+  author can produce one — and (ii) the name is not in the current migration list; inside the same
+  transaction as `up` and the verifier; each pruned name logged at `info`. Rationale: the step's name
+  is a digest, so A → B → A must re-run A's reconcile, and the rows pruned are already ignored by
+  umzug. Rejected: a generation counter in the name (not a pure function of the declarations, so
+  fresh and upgraded databases diverge) and reconciling outside the migration list (loses ordering,
+  lock and history). The developer adds a test that no other row is ever touched (T068).
+- **R-A5 — OD-29 orphan marking is fixed in this release.** At migrate, `migrateUpVerified` marks
+  `orphaned`, inside its transaction, every `applied` ledger row whose module has **no discovered
+  declaration at all** (package removed without `uninstall --hard`). Without it the drop command —
+  which acts only on `orphaned` rows — could never clean up after a vanished package, which is the
+  OD-29 promise unkept. It is non-destructive and reversible (a returning package re-attaches the
+  rows, same hash → `applied`). A module that still declares something is left to its generated step;
+  boot stays read-only and only warns (FR-026). Task T069; blocks the release with B + C.
