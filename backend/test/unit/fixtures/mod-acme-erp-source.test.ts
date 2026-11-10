@@ -32,12 +32,12 @@ describe('the mod-acme-erp worked example', () => {
 });
 
 /**
- * The compiled fixture, installed: discovery reads its declaration, and in
- * Phase A — no host rolled out — the migration merge refuses it as
- * `host-not-extensible`. That is the mechanism being inert, observed from the
- * outside: an instance cannot reach a real host until Phase B rolls it out.
+ * The compiled fixture, installed: discovery reads its declaration, and since
+ * Phase B rolled out `organizations` (FR-011) the migration merge accepts it and
+ * places the generated step at the head of `acme_erp`'s block — after the host,
+ * before the module's own back-fill (FR-020, OD-178-1).
  */
-describe('the installed mod-acme-erp in Phase A', () => {
+describe('the installed mod-acme-erp', () => {
   const scratch = join(here, '..', '..', '.installed-package-instances');
   let root: string | undefined;
 
@@ -46,7 +46,7 @@ describe('the installed mod-acme-erp in Phase A', () => {
     root = undefined;
   });
 
-  it('is read by discovery and refused by the merge as host-not-extensible', async () => {
+  it('is read by discovery and merged with its generated step at the head of its block', async () => {
     mkdirSync(scratch, { recursive: true });
     root = mkdtempSync(join(scratch, 'instance-'));
     const destination = join(root, 'node_modules', '@acme', 'mod-acme-erp');
@@ -58,12 +58,13 @@ describe('the installed mod-acme-erp in Phase A', () => {
     expect(contribution?.id).toBe('acme_erp');
     expect(contribution?.schemaExtensions.map((declaration) => declaration.id)).toEqual(['acme_erp:organizations']);
 
-    expect(() =>
-      configuredMigrationsFrom({
-        coreEntries: [],
-        coreModuleDependencies: new Map([['core', []], ['organizations', []]]),
-        packages: [contribution!],
-      }),
-    ).toThrow(/host-not-extensible.*extensible hosts: \(none\)/s);
+    const merged = configuredMigrationsFrom({
+      coreEntries: [],
+      coreModuleDependencies: new Map([['core', []], ['organizations', []]]),
+      packages: [contribution!],
+    });
+    expect(merged.names).toHaveLength(2);
+    expect(merged.names[0]).toMatch(/^Migration10000101T000000AcmeErpSchemaExtensions[0-9a-f]{12}$/);
+    expect(merged.names[1]).toBe('Migration20261201T090000AcmeErpBackfillCreditTier');
   });
 });

@@ -298,6 +298,12 @@ innego modułu zasila albo poprawia własna migracja tego modułu, hook instalac
 albo port modułu-właściciela podczas startu. Tabele należące do samej platformy nie wymagają
 deklaracji — platforma jest zawsze obecna i nie może wystąpić w tablicy `dependencies`.
 
+**Jest jeden wyjątek i dotyczy pojedynczych kolumn:** moduł, który deklaruje kolumny rozszerzeń w
+rozszerzalnej tabeli gospodarza (zobacz niżej *Deklarowanie kolumn w tabeli rdzenia*), jest
+właścicielem tych kolumn `x_<moduleId>_*`, więc jego własna migracja może je uzupełnić —
+`update "<gospodarz>" set "x_<moduleId>_…" = …`, o ile każda ustawiana kolumna jest jego własna.
+Ustawienie dowolnej innej kolumny gospodarza nadal jest zapisem do tabeli innego modułu.
+
 W tym repozytorium obie reguły egzekwuje `pnpm --filter backend run check:module-boundary`, obok
 opisanego niżej walidatora kluczy obcych. Tak jak w przypadku tablicy `./migrations`, nic w hoście
 nie czyta SQL migracji zainstalowanego pakietu, więc w pakiecie pilnujesz ich samodzielnie.
@@ -382,6 +388,51 @@ może (generator odrzuca jedno i drugie) — jego rozwiązanie jest zawsze dost�
 jeden katalog: utwórz tabelę w module rdzenia i odczytuj ją przez port tego modułu. Autor zewnętrzny
 nie ma modułu rdzenia i dlatego odpowiedź jest inna. Zobacz
 `docs/docs/architecture/overlay-pattern.md`.
+
+### Deklarowanie kolumn w tabeli rdzenia
+
+Pakiet, który potrzebuje kilku pól **w** wierszu rdzenia, a nie obok niego, deklaruje je; nigdy nie
+pisze samodzielnie `alter table`. Deklaracja to kod eksportowany z podścieżki `./backend` pakietu
+jako `schemaExtensions`:
+
+```ts
+export const acmeOrganizationColumns = defineColumnExtension({
+  host: 'organizations',
+  module: 'acme_erp',
+  columns: { erpCode: { type: 'varchar', length: 64, nullable: true, index: 'unique' } },
+});
+export const schemaExtensions = [acmeOrganizationColumns];
+```
+
+Na tej podstawie platforma wyprowadza **jeden generowany krok migracji na każdy deklarujący moduł**:
+
+- **Jego nazwa** to `Migration10000101T000000<PrefiksModułu>SchemaExtensions<hash12>`, gdzie
+  `hash12` jest skrótem znormalizowanych deklaracji. Krok oczekuje na wykonanie dokładnie wtedy,
+  gdy deklaracje się zmieniły, a zarezerwowany znacznik czasu jest odrzucany w każdej migracji
+  napisanej przez pakiet.
+- **Wykonuje się na początku bloku modułu deklarującego** — po każdym module, od którego ten moduł
+  zależy, łącznie z gospodarzem, i przed własnymi migracjami modułu, więc mogą one uzupełnić nowe
+  kolumny także na świeżej bazie danych.
+- **Uzgadnia stan wyłącznie addytywnie.** Dodaje brakujące kolumny i indeksy, ponownie dołącza
+  osierocony element o niezmienionej specyfikacji, oznacza jako `orphaned` element, który nie jest
+  już deklarowany, i odrzuca każdą zmianę nieaddytywną (typ, dopuszczalność `null`, wartość
+  domyślna). Każdy element jest zapisywany w rejestrze platformy `schema_extensions`.
+- **Jest weryfikowany.** `migrate up`, `migrate fresh` i `install` cyklu życia wykonują się w jednej
+  transakcji i przed zatwierdzeniem sprawdzają każdą zadeklarowaną kolumnę i indeks, więc
+  przebieg, który którąś utraci, jest wycofywany; start platformy wykonuje to samo sprawdzenie w
+  trybie tylko do odczytu i odmawia uruchomienia przy rozjeździe, podając moduł, kolumnę, tabelę i
+  ostatnią wykonaną migrację właściciela tabeli.
+- **Jego `down()` niczego nie usuwa.** `module:uninstall --hard` modułu deklarującego oznacza jego
+  elementy jako `orphaned` i zachowuje kolumny wraz z wartościami;
+  `module:schema-extensions drop <moduleId> --confirm` usuwa osierocone elementy jako audytowane
+  polecenie. Odinstalowanie gospodarza, gdy moduł deklarujący jest zainstalowany, jest odrzucane
+  (`dependents-block`).
+
+Reguły, typy kolumn i pełny przykład są na stronie
+[Zadeklarowane kolumny rozszerzeń](./schema-extensions.md). Rdzeń dotrzymuje swojej strony
+obietnicy w CI: test integracyjny wykonuje całą kolejność migracji rdzenia z przykładowymi
+kolumnami `x_fixture_*` w każdej otwartej rozszerzalnej tabeli i kończy się błędem, gdy migracja
+rdzenia którąś z nich utraci.
 
 
 ## Reguły kolejności

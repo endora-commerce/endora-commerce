@@ -9,6 +9,7 @@ import { organizationRoleRefSchema } from './organization-roles.js';
 import { SalesChannelOptionSchema } from './sales-channels.js';
 import { foldDiacritics } from './text-normalization.js';
 import { registryLookupIdSchema } from './organization-registry-lookup.js';
+import { ExtensionAttributesSchema } from './schema-extensions.js';
 
 /**
  * Organizations, customer accounts, addresses, invitations — Source of truth
@@ -114,6 +115,19 @@ export const organizationSchema = z.object({
   updatedAt: isoDateTimeSchema,
 });
 export type Organization = z.infer<typeof organizationSchema>;
+
+/**
+ * `specs/178-extensible-columns/` FR-051 — an Organization as the admin detail
+ * and list reads return it. `extensions` is present only when the request named
+ * modules with `?extensions=` (`ExtensionsQuerySchema`): per
+ * named module that declares columns on `organizations` with `adminReads` and is
+ * present, its declared keys and values; an absent, switched-off or
+ * non-exposing module is simply not a key (FR-052).
+ */
+export const adminOrganizationSchema = organizationSchema.extend({
+  extensions: ExtensionAttributesSchema.optional(),
+});
+export type AdminOrganization = z.infer<typeof adminOrganizationSchema>;
 
 // --- Hierarchy (feature 056) ------------------------------------------------
 

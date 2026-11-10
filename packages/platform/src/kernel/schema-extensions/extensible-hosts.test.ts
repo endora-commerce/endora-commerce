@@ -22,14 +22,31 @@ describe('EXTENSIBLE_HOSTS', () => {
   });
 });
 
-describe('the Phase A rollout constant', () => {
-  it('rolls out no host yet', () => {
-    expect(SCHEMA_EXTENSION_ROLLOUT).toEqual([]);
-    expect(rolledOutExtensibleHosts().size).toBe(0);
+describe('the Phase B rollout constant', () => {
+  it('rolls out organizations alone (OD-178-4, D-291)', () => {
+    expect(SCHEMA_EXTENSION_ROLLOUT).toEqual(['organizations']);
+    expect([...rolledOutExtensibleHosts()]).toEqual([
+      ['organizations', { table: 'organizations', ownerModuleId: 'organizations' }],
+    ]);
   });
 
-  it('makes every host refuse V2 at discovery', () => {
-    for (const table of EXTENSIBLE_HOSTS.keys()) {
+  it('accepts organizations at discovery', () => {
+    const declaration = defineColumnExtension({
+      host: 'organizations',
+      module: 'acme_erp',
+      columns: { note: { type: 'text', nullable: true } },
+    });
+    expect(
+      validateDeclarationContext([declaration], {
+        hosts: rolledOutExtensibleHosts(),
+        packageModuleId: 'acme_erp',
+        dependencyClosure: new Set(['organizations']),
+      }),
+    ).toEqual([declaration]);
+  });
+
+  it('makes every other host refuse V2 at discovery', () => {
+    for (const table of [...EXTENSIBLE_HOSTS.keys()].filter((host) => host !== 'organizations')) {
       const declaration = defineColumnExtension({
         host: table as 'organizations',
         module: 'acme_erp',

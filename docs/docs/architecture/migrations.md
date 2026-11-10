@@ -303,6 +303,12 @@ migration, by your module's install hook, or through the owning module's port at
 the platform itself owns need no declaration — the platform is always present and cannot
 appear in a `dependencies` array.
 
+**One exception, and it is column-granular:** a module that declares extension columns on an
+extensible host (see *Declaring columns on a core table* below) owns those `x_<moduleId>_*`
+columns, so its own migration may back-fill them — `update "<host>" set "x_<moduleId>_…" = …`,
+every column it sets being its own. Setting any other column of the host is still a write to a
+table another module owns.
+
 In this repository both rules are enforced by `pnpm --filter backend run check:module-boundary`,
 beside the foreign-key validator described below. As with the `./migrations` array, nothing in
 the host reads an installed package's migration SQL, so in a package they are yours to keep.
@@ -387,6 +393,48 @@ A package may ship entities and migrations. A **per-deployment overlay module** 
 costs nothing but a directory: own the table from a core module and read it through that
 module's port. A third-party author has no core module, which is why the answer differs. See
 `docs/docs/architecture/overlay-pattern.md`.
+
+### Declaring columns on a core table
+
+A package that needs a few fields **on** a core row rather than beside it declares them; it
+never writes the `alter table` itself. The declaration is code, exported from the package's
+`./backend` subpath as `schemaExtensions`:
+
+```ts
+export const acmeOrganizationColumns = defineColumnExtension({
+  host: 'organizations',
+  module: 'acme_erp',
+  columns: { erpCode: { type: 'varchar', length: 64, nullable: true, index: 'unique' } },
+});
+export const schemaExtensions = [acmeOrganizationColumns];
+```
+
+From that the platform derives **one generated migration step per declaring module**:
+
+- **Its name** is `Migration10000101T000000<ModulePrefix>SchemaExtensions<hash12>`, where
+  `hash12` digests the normalised declarations. The step is pending exactly when the
+  declarations changed, and the reserved stamp is refused on any migration a package writes.
+- **It runs at the head of the declaring module's block** — after every module it depends on,
+  the host included, and before the module's own migrations, so they can back-fill the new
+  columns on a fresh database.
+- **It reconciles, additively.** It adds missing columns and indexes, re-attaches an orphaned
+  element whose spec is unchanged, marks an element that is no longer declared `orphaned`, and
+  refuses any non-additive change (type, nullability, default). Every element is recorded in
+  the platform's `schema_extensions` ledger.
+- **It is verified.** `migrate up`, `migrate fresh` and lifecycle `install` run inside one
+  transaction and check every declared column and index before commit, so a run that loses one
+  rolls back; boot runs the same check read-only and refuses to start on drift, naming the
+  module, the column, the table and the last executed migration of the table's owner.
+- **Its `down()` drops nothing.** `module:uninstall --hard` of the declaring module marks its
+  elements `orphaned` and keeps the columns and their values;
+  `module:schema-extensions drop <moduleId> --confirm` drops orphaned elements as an audited
+  Command. Uninstalling the host while the declaring module is installed is refused
+  (`dependents-block`).
+
+The rules, the column types and the worked example are on
+[Declared extension columns](./schema-extensions.md). Core keeps its side of the promise in CI:
+an integration test applies the whole core migration order with sample `x_fixture_*` columns
+on every open extensible table and fails when a core migration loses one.
 
 
 ## Ordering rules

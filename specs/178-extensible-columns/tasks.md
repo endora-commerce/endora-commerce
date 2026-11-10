@@ -89,19 +89,40 @@ Phase A implementation notes (2026-11-10, `feat/178-extensible-columns-a`):
 
 ## Phase B — Organizations (release together with Phase C)
 
-- [ ] T040 Test: preservation test (`contracts/preservation-test.md`) over the rolled-out list, red with a hand-written rebuilding migration in a throwaway module, green on master — `backend/test/integration/db/schema-extension-preservation.test.ts` [FR-080]
-- [ ] T041 Set rollout constant to `['organizations']`; update T004's assertion [FR-011]
-- [ ] T042 Test: end-to-end fixture on `organizations` — migrate, accessor via a Command (one audit entry, column patch), US1 scenarios 1–5, US2 1–4 — `backend/test/integration/organizations/schema-extension-example.test.ts` [FR-020–FR-033, SC-001]
-- [ ] T043 Test: off-state — core org create/read/list responses and audit rows byte-identical with fixture absent vs installed-and-off vs installed-and-on-without-param — `schema-extension-off-state.test.ts` [SC-002, FR-052]
-- [ ] T044 Test (contract): `GET /api/v1/admin/organizations/:id` and list with `?extensions=acme_erp` — shape, one extra query for 50 rows, omitted when off/absent/not `adminReads` — `backend/test/contract/organizations/extension-attributes.test.ts` [FR-050–FR-052]
-- [ ] T045 Implement `?extensions` in `packages/modules/organizations/src/backend/routes.admin.ts` (l. 257, 295) and optional `extensions` on the admin record schema in `packages/contracts/src/organizations.ts` [FR-051]
-- [ ] T046 Re-reconcile `contracts/command-hooks-dependency.md` with 176 as merged; Test US3 (custom `organization.create` hook sets `onboardedVia` and finds the unflushed row; single audit entry with `extensions.acme_erp.changedFields`; throwing hook rolls back; module off → hook skipped) — `schema-extension-hook.test.ts`; implement in the fixture [FR-040, FR-041]
-- [ ] T046a Test then implement `columnExtensionHook` (absent input no-op; valid input written; invalid → 422 `SCHEMA_EXTENSION_INPUT_INVALID` with `extensions.<module>` paths; error code declared and translated pl + en) [FR-042]
-- [ ] T047 Constitution amendment I/XIV/XV, Sync Impact Report, 4.1.0 → 4.2.0 [FR-090]
-- [ ] T048 [P] `customisation-ladder.md` EN + PL data ladder [FR-091]
-- [ ] T049 [P] `migrations.md` EN + PL; `specs/conventions/module-migrations.md`; `specs/conventions/module-activation.md` [FR-092]
-- [ ] T050 [P] Developer page EN + PL with the worked example (path per `specs/conventions/module-documentation.md`); `check:docs-translations`, `check:module-docs` [FR-093]
-- [ ] T051 Changesets per plan §Generated artefacts
+- [x] T040 Test: preservation test (`contracts/preservation-test.md`) over the rolled-out list, red with a hand-written rebuilding migration in a throwaway module, green on master — `backend/test/integration/db/schema-extension-preservation.test.ts` [FR-080]
+- [x] T041 Set rollout constant to `['organizations']`; update T004's assertion [FR-011]
+- [x] T042 Test: end-to-end fixture on `organizations` — migrate, accessor via a Command (one audit entry, column patch), US1 scenarios 1–5, US2 1–4 — `backend/test/integration/organizations/schema-extension-example.test.ts` [FR-020–FR-033, SC-001]
+- [x] T043 Test: off-state — core org create/read/list responses and audit rows byte-identical with fixture absent vs installed-and-off vs installed-and-on-without-param — `schema-extension-off-state.test.ts` [SC-002, FR-052]
+- [x] T044 Test (contract): `GET /api/v1/admin/organizations/:id` and list with `?extensions=acme_erp` — shape, one extra query for 50 rows, omitted when off/absent/not `adminReads` — `backend/test/contract/organizations/extension-attributes.test.ts` [FR-050–FR-052]
+- [x] T045 Implement `?extensions` in `packages/modules/organizations/src/backend/routes.admin.ts` (l. 257, 295) and optional `extensions` on the admin record schema in `packages/contracts/src/organizations.ts` [FR-051]
+- [ ] T046 **(waits for spec 176 — not merged; open by design, see Phase B notes)** Re-reconcile `contracts/command-hooks-dependency.md` with 176 as merged; Test US3 (custom `organization.create` hook sets `onboardedVia` and finds the unflushed row; single audit entry with `extensions.acme_erp.changedFields`; throwing hook rolls back; module off → hook skipped) — `schema-extension-hook.test.ts`; implement in the fixture [FR-040, FR-041]
+- [ ] T046a **(waits for spec 176)** Test then implement `columnExtensionHook` (absent input no-op; valid input written; invalid → 422 `SCHEMA_EXTENSION_INPUT_INVALID` with `extensions.<module>` paths; error code declared and translated pl + en) [FR-042]
+- [x] T047 Constitution amendment I/XIV/XV, Sync Impact Report, 4.1.0 → 4.2.0 [FR-090]
+- [x] T048 [P] `customisation-ladder.md` EN + PL data ladder [FR-091]
+- [x] T049 [P] `migrations.md` EN + PL; `specs/conventions/module-migrations.md`; `specs/conventions/module-activation.md` [FR-092]
+- [x] T050 [P] Developer page EN + PL with the worked example (path per `specs/conventions/module-documentation.md`); `check:docs-translations`, `check:module-docs` [FR-093]
+- [x] T051 Changesets per plan §Generated artefacts
+
+Phase B implementation notes (2026-11-10, `feat/178-extensible-columns-b`):
+
+- **T046 / T046a are open, deliberately**: they need spec 176's command hooks (`ctx.commandHooks`,
+  `noteAuditChanges`, `command.extensions`), and 176 is not merged. US3 and FR-040 – FR-042 ship
+  with or after it; `contracts/command-hooks-dependency.md` is re-reconciled then.
+- T042 – T044 install `mod-acme-erp` into a throwaway instance root and point the backend's **own**
+  ORM configuration at it with `ENDORA_INSTANCE_ROOT`, over a clone of the run's template migrated
+  forward with `migrateUpVerified` (`backend/test/helpers/acme-erp-instance.ts`). Presence is seeded
+  on the registry cache, the axis the package's manifest would supply in an instance.
+- Vitest externalizes anything under `node_modules`, so the installed copy's own code runs against a
+  second, native evaluation of the platform; T042 therefore drives the accessor through the
+  declaration object the ORM registered and mirrors the package's `syncErpCode` line for line. An
+  instance's process holds one platform, so this is a test-runner artefact, not a product gap.
+- T043 passed on first run: it is a guard over Phase A's design (the core entity never maps the
+  columns), not a red-then-green task. "Absent" is the platform axis off within the installed
+  database; a platform with no package at all differs from it in nothing a core path reads.
+- The developer page lives at `docs/docs/architecture/schema-extensions.md` (beside
+  `custom-fields.md` and the ladder), not under a new `developers/` category the site does not have.
+- With `?extensions=` present every record carries `extensions` (`{}` when no named module
+  qualifies), so absent, off and non-exposing modules answer the same bytes.
 
 ## Phase C — Foreign schema refusal (OD-17) (release together with Phase B)
 

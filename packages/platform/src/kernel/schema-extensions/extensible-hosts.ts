@@ -31,12 +31,12 @@ export const EXTENSIBLE_HOSTS: ExtensibleHostSet = new Map(
 /**
  * The hosts rolled out so far — **temporary** (FR-011).
  *
- * Empty in Phase A: the mechanism ships inert, and a declaration on any host is
- * refused at discovery as `host-not-extensible`. Phase B sets it to
- * `['organizations']`; Phase D deletes it together with the test asserting it,
- * leaving the derived list as the whole answer.
+ * Phase A shipped it empty (the mechanism inert). Phase B rolls out
+ * `organizations` alone (OD-178-4, D-291): a declaration on any other host is
+ * refused at discovery as `host-not-extensible`. Phase D deletes it together
+ * with the test asserting it, leaving the derived list as the whole answer.
  */
-export const SCHEMA_EXTENSION_ROLLOUT: readonly ExtensibleHostTable[] = [];
+export const SCHEMA_EXTENSION_ROLLOUT: readonly ExtensibleHostTable[] = ['organizations'];
 
 /** The derived list narrowed to the rollout — what discovery validates against. */
 export function rolledOutExtensibleHosts(): ExtensibleHostSet {

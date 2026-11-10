@@ -2,7 +2,7 @@
 
 **Feature Branch**: `spec/178-extensible-columns`
 **Created**: 2026-11-10
-**Status**: Approved (D-291, 2026-11-10); Phase A in implementation
+**Status**: Approved (D-291, 2026-11-10); Phases A – C in implementation (US3 waits for spec 176)
 **Input**: Owner rulings of 2026-11-10 on the instance-extensibility review: OD-13 (b), OD-14 (a),
 OD-15 (owner's variant: every custom-field host table, derived from the custom-field binding
 registry), OD-16 (yes), OD-17 (b), OD-29 (orphan on uninstall, explicit audited drop). The
