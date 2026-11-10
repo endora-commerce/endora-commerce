@@ -2835,8 +2835,6 @@ export class OrderService {
           stateBefore: null,
           stateAfter: placeOnBehalfAuditState({
             order,
-            total: money.total,
-            currency,
             layout: lineLayout,
             carriedCustomFieldKeys: carry?.carried ?? [],
           }),

@@ -595,6 +595,14 @@ carried keys as `carriedCustomFieldKeys`. A customer's own checkout writes no au
 before. The carried values are on the order from the start, so subscribers of `order.created.v1`
 read them.
 
+**What the audit log holds.** The platform audit log is read by everybody holding
+`audit_log:read`, whichever organizations they may see, so an order's entries carry names and
+structure, never its values. The custom-field change (`order.custom_fields.update`) and the carry
+from an opportunity (`order.custom_fields.carry`) name the keys that changed as
+`changedCustomFields`, without their values. Neither `order.place_on_behalf` nor
+`order.place_via_api_key` records the order's total, currency, organization or customer. The order
+itself holds the values.
+
 ### The system note
 
 When a value is skipped, the order's **Comments** tab holds one note by **System** for that
@@ -811,7 +819,8 @@ minimum order quantity is still judged on its total across its lines).
 `POST /api/v1/admin/orders` takes an optional `groups` list
 (`{ key, name }`, in display order, at most 50, names of 1 to 120 characters)
 and per item an optional `groupKey`. The grouping is recorded in the
-`order.place_on_behalf` audit entry (each group's name and line count); a
+`order.place_on_behalf` audit entry (each group's line count, in order; not its
+name, which is a value and stays out of the audit log); a
 buyer's own checkout stays unaudited, as before.
 
 **Where they are shown.** The admin order screen and the buyer's order page

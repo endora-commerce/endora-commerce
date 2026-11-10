@@ -4690,6 +4690,26 @@ uruchom backend ponownie, aby wymagania znów obowiązywały, albo wyłącz usta
 **Ustawieniach** i zdejmij polityki organizacji. Ustaw ten klucz, z którym utworzono rejestracje:
 rejestracji utworzonej innym kluczem nie da się nim sprawdzić.
 
+### Wartości zamówień znikają z dziennika audytu platformy {#orders-audit-names-only}
+
+Wydanie z tą zmianą przestaje zapisywać wartości zamówienia w dzienniku audytu całej platformy
+(zgłoszenie #470). Ten dziennik to jedna tabela, czytana przez każdego, kto ma `audit_log:read`, bez
+względu na to, które organizacje widzi, dlatego teraz mówi tylko, czego dotyczyła zmiana zamówienia.
+
+**Zmiana zachowania po aktualizacji:**
+
+- Na ekranie **Dziennik audytu** i w `audit_logs read` nowy wpis `order.custom_fields.update` lub
+  `order.custom_fields.carry` nie zawiera już wartości pól niestandardowych. Wymienia zmienione
+  klucze jako `changedCustomFields`.
+- Nowy wpis `order.place_on_behalf` nie zawiera już sumy i waluty zamówienia, a jego `groups` podają
+  liczbę pozycji każdej grupy bez jej nazwy.
+- Nowy wpis `order.place_via_api_key` nie zawiera już organizacji ani klienta, w imieniu których
+  klucz składa zamówienia. Zachowuje identyfikator klucza API i numer zamówienia.
+- Wpisy zapisane przed aktualizacją nie są przepisywane.
+
+**Po aktualizacji** nie trzeba nic robić. Raport lub eksport, który odczytywał te wartości z
+dziennika audytu, odczytuje je z samego zamówienia (`GET /api/v1/admin/orders/:id`).
+
 ## Instancja niespójna od początku
 
 Instalator `0.101.x` lub starszy zapisywał każdy pakiet wydania z `^` poza

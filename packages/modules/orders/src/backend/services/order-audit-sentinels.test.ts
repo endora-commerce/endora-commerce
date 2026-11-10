@@ -200,7 +200,13 @@ describe('orders audit state carries names, never values (#470)', () => {
     const receiver = new OrderCustomFieldCarryReceiver({
       commandBus: h.commandBus,
       customFieldCarry: {
-        plan: async ({ sourceValues, targetValues }) => ({
+        plan: async ({
+          sourceValues,
+          targetValues,
+        }: {
+          sourceValues: Record<string, unknown>;
+          targetValues: Record<string, unknown>;
+        }) => ({
           values: { ...targetValues, channel: sourceValues.channel },
           carried: ['channel'],
           skipped: [{ key: 'risk', reason: 'target_not_empty' as never }],
@@ -254,10 +260,9 @@ describe('orders audit state carries names, never values (#470)', () => {
   });
 
   it('order.place_via_api_key — the key and the order number; not the tenant anchor', () => {
-    const state = apiKeyPlacementAuditState(
-      { apiKeyId: ADMIN, organizationId: ORG, customerAccountId: CONTACT },
-      { businessId: 'ORD-000470' },
-    );
+    // The binding the intake holds: the key, and the tenant it places for.
+    const binding = { apiKeyId: ADMIN, organizationId: ORG, salesChannelId: randomUUID(), customerAccountId: CONTACT };
+    const state = apiKeyPlacementAuditState(binding, { businessId: 'ORD-000470' });
     const entries = [{ action: 'order.place_via_api_key', stateBefore: null, stateAfter: state }];
 
     expectNoAuditValues(entries, SENTINELS);
