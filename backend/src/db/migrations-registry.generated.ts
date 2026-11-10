@@ -346,6 +346,7 @@ import { Migration20261022T012134PriceListsPriceSurfaceGenerations } from '@endo
 import { Migration20261022T111815PriceListsPriceBooksConversion } from '@endora-commerce/mod-price-lists/migrations';
 import { Migration20261022T182527PriceListsProductLines } from '@endora-commerce/mod-price-lists/migrations';
 import { Migration20261023T152351PriceListsPriceSurfaceTargetedMarks } from '@endora-commerce/mod-price-lists/migrations';
+import { Migration20261110T073922PriceListsValueChanges } from '@endora-commerce/mod-price-lists/migrations';
 
 // ── product_feeds ───────────────────────────────────────────────────────────
 import { Migration20260802T073547ProductFeedsInit } from '@endora-commerce/mod-product-feeds/migrations';
@@ -427,6 +428,7 @@ import { Migration20260611T140418ShoppingListsDefault } from '@endora-commerce/m
 // ── tasks ───────────────────────────────────────────────────────────────────
 import { Migration20261026T133731TasksInit } from '@endora-commerce/mod-tasks/migrations';
 import { Migration20261028T140002TasksTaskManagement } from '@endora-commerce/mod-tasks/migrations';
+import { Migration20261110T054810TasksValueChanges } from '@endora-commerce/mod-tasks/migrations';
 
 // ── taxes ───────────────────────────────────────────────────────────────────
 import { Migration20260426T081516TaxesPromotionsInit } from '@endora-commerce/mod-taxes/migrations';
@@ -763,6 +765,7 @@ export const MIGRATION_REGISTRY: readonly MigrationRegistryEntry[] = [
   migration('price_lists', Migration20261022T111815PriceListsPriceBooksConversion),
   migration('price_lists', Migration20261022T182527PriceListsProductLines),
   migration('price_lists', Migration20261023T152351PriceListsPriceSurfaceTargetedMarks),
+  migration('price_lists', Migration20261110T073922PriceListsValueChanges),
 
   // ── product_feeds ───────────────────────────────────────────────────────────
   migration('product_feeds', Migration20260802T073547ProductFeedsInit),
@@ -844,6 +847,7 @@ export const MIGRATION_REGISTRY: readonly MigrationRegistryEntry[] = [
   // ── tasks ───────────────────────────────────────────────────────────────────
   migration('tasks', Migration20261026T133731TasksInit),
   migration('tasks', Migration20261028T140002TasksTaskManagement),
+  migration('tasks', Migration20261110T054810TasksValueChanges),
 
   // ── taxes ───────────────────────────────────────────────────────────────────
   migration('taxes', Migration20260426T081516TaxesPromotionsInit),

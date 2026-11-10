@@ -51,7 +51,7 @@ export const manifest = defineModuleManifest({
       'on the platform screen that holds the module switches.',
   },
   /**
-   * **The platform's error-code block — 22 codes, and this is their home** rather
+   * **The platform's error-code block — 24 codes, and this is their home** rather
    * than the residue of a migration (feature 090,
    * `specs/090-module-owned-error-codes/core-block-home.md`; D-186 §4).
    *
@@ -140,7 +140,15 @@ export const manifest = defineModuleManifest({
    * issue #417, and its unit-price sibling `UNIT_PRICE_PRECISION_EXCEEDED`
    * (owner ruling of 2026-10-25) arrived after the measurement of 21 and are
    * raised by the envelope itself rather than at a `new HttpError` site, so the
-   * raise-site count stands.) The seven codes with no
+   * raise-site count stands. `LINE_QUANTITY_EXCEEDED` (issue #351, architect
+   * ruling R1 on PR #1009) arrived after them and is raised both by the envelope
+   * and at one `new HttpError` site in `carts`, so the count was re-scanned for
+   * it on 2026-11-09 rather than incremented: every `new HttpError(...)` whose
+   * code argument names a code of this block, read from the TypeScript AST over
+   * the same walk `check:error-translations` reads — **944 raise sites over the
+   * 24 codes, one of them `LINE_QUANTITY_EXCEEDED`'s, five codes carrying a
+   * `details.code`** (`INVALID_TRANSITION` joined the four since #83). The 794
+   * above is the issue-#83 measurement and is kept as that.) The seven codes with no
    * sentence are the six `MODULE_*` refusals an operator meets through the
    * lifecycle CLI rather than through the envelope, plus `PRICE_UNAVAILABLE`,
    * which nothing raises. All seven are on `UNTRANSLATED_ERROR_CODES` under this
@@ -180,6 +188,11 @@ export const manifest = defineModuleManifest({
     // Owner ruling of 2026-10-25 — its sibling for a typed unit price, which
     // keeps four places; the sentence has to say four, not two.
     { code: 'UNIT_PRICE_PRECISION_EXCEEDED' },
+    // Issue #351 (architect ruling R1 on PR #1009) — a line quantity past
+    // `LINE_QUANTITY_MAX`, on any module's line: raised by the error envelope
+    // from the Zod issue `line-bounds.ts` tags, and by `carts` for a line a
+    // merge or a packaging unit would take past the bound.
+    { code: 'LINE_QUANTITY_EXCEEDED' },
     { code: 'UNAUTHORIZED' },
     { code: 'VALIDATION_FAILED' },
     { code: 'VERSION_CONFLICT', tokens: ['organization_version_mismatch'] },

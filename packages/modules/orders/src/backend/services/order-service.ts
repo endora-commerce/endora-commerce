@@ -125,7 +125,6 @@ import {
   adminLayout,
   basketLayout,
   carryQuoteGrouping,
-  layoutShape,
   type OrderLineGroupingInput,
 } from '../domain/quote-line-groups.js';
 import { quoteSourceHonoursExemptions } from '../domain/quote-source-exemption.js';
@@ -144,6 +143,7 @@ import {
 } from './placement-minimums.js';
 import { returnableAtPurchase } from './returnable-at-purchase.js';
 import { orderTotalsMoney } from './order-money.js';
+import { placeOnBehalfAuditState } from './order-audit-state.js';
 import type { InvoicePlacementApplyPort } from '@endora-commerce/mod-invoices/ports';
 import type { PaymentPlacementApplyPort } from '../../ports/index.js';
 import type { CreditLimitPort } from '@endora-commerce/mod-credit-limits/ports';
@@ -2843,17 +2843,11 @@ export class OrderService {
           objectType: 'order',
           objectId: order.id,
           stateBefore: null,
-          stateAfter: {
-            total: money.total,
-            currency,
-            status: order.status,
-            // Feature 159 (FR-081, research R-22) — the grouping's shape, when the order has one.
-            ...(lineLayout.groups.length > 0 ? { groups: layoutShape(lineLayout) } : {}),
-            // Feature 162 (US1-5) — the custom-field values carried from the request.
-            ...(carry && carry.carried.length > 0 ? { carriedCustomFieldKeys: [...carry.carried] } : {}),
-            // Feature 175 (FR-021) — the values the administrator set on the create.
-            ...(options?.customFieldValues ? { customFieldValues: order.customFieldValues } : {}),
-          },
+          stateAfter: placeOnBehalfAuditState({
+            order,
+            layout: lineLayout,
+            carriedCustomFieldKeys: carry?.carried ?? [],
+          }),
         });
       }
 

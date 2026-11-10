@@ -9,6 +9,7 @@ import {
 } from './line-groups.js';
 import { customFieldCarrySkipSchema, customFieldValuesSchema } from './custom-fields.js';
 import { fourDecimalUnitPrice } from './money-input.js';
+import { lineQuantitySchema, REQUEST_LINE_ITEMS_MAX } from './line-bounds.js';
 
 /**
  * Quote Requests (RFQ) module contracts — feature 008 workflow rewrite.
@@ -598,7 +599,7 @@ export type QuoteRequestSummary = z.infer<typeof quoteRequestSummarySchema>;
 export const createQuoteRequestLineSchema = z.object({
   productId: uuidSchema,
   variantId: uuidSchema.optional(),
-  quantity: z.number().int().positive(),
+  quantity: lineQuantitySchema,
   desiredUnitPrice: fourDecimalUnitPrice(z.number().finite().nonnegative()).optional(),
   lineNote: z.string().max(2000).optional(),
   /** Feature 043 — snapshot when the line was added as a packaging unit. */
@@ -616,14 +617,14 @@ export type CreateQuoteRequestLine = z.infer<typeof createQuoteRequestLineSchema
  */
 export const createQuoteRequestSchema = z.object({
   headerNote: z.string().max(2000).optional(),
-  items: z.array(createQuoteRequestLineSchema).min(1).max(200),
+  items: z.array(createQuoteRequestLineSchema).min(1).max(REQUEST_LINE_ITEMS_MAX),
 });
 export type CreateQuoteRequest = z.infer<typeof createQuoteRequestSchema>;
 
 export const patchQuoteRequestSchema = z
   .object({
     headerNote: z.string().max(2000).nullable().optional(),
-    items: z.array(createQuoteRequestLineSchema).min(1).max(200).optional(),
+    items: z.array(createQuoteRequestLineSchema).min(1).max(REQUEST_LINE_ITEMS_MAX).optional(),
   })
   .strict();
 export type PatchQuoteRequest = z.infer<typeof patchQuoteRequestSchema>;
@@ -653,7 +654,7 @@ export type ResubmitQuoteRequest = z.infer<typeof resubmitQuoteRequestSchema>;
 export const adminCreateQuoteRequestLineSchema = z.object({
   productId: uuidSchema,
   variantId: uuidSchema.optional(),
-  quantity: z.number().int().positive(),
+  quantity: lineQuantitySchema,
   agreedUnitPrice: fourDecimalUnitPrice(z.number().finite().nonnegative()),
   lineNote: z.string().max(2000).optional(),
   /** Feature 159 — the `groups[].key` this line belongs to; absent or `null` = ungrouped. */
@@ -669,7 +670,7 @@ export const adminCreateQuoteRequestSchema = z
     /** Feature 159 — the new quote's groups in display order; lines name them by `groupKey`. */
     groups: z.array(newLineGroupInputSchema).optional(),
     /** In display order: each group's lines, then the ungrouped lines. */
-    items: z.array(adminCreateQuoteRequestLineSchema).min(1),
+    items: z.array(adminCreateQuoteRequestLineSchema).min(1).max(REQUEST_LINE_ITEMS_MAX),
     expiresInDays: z.number().int().nonnegative().optional(),
     /**
      * Feature 163 (FR-018) — the sales channel the operator raises the request on:
@@ -733,7 +734,7 @@ export const adminPatchQuoteRequestLineSchema = z.object({
   id: uuidSchema.optional(),
   productId: uuidSchema,
   variantId: uuidSchema.optional(),
-  quantity: z.number().int().positive(),
+  quantity: lineQuantitySchema,
   agreedUnitPrice: fourDecimalUnitPrice(z.number().finite().nonnegative()).nullable().optional(),
   lineNote: z.string().max(2000).nullable().optional(),
   /** Feature 159 — the `groups[].key` this line belongs to; `null` = ungrouped. */
@@ -759,7 +760,7 @@ export const adminPatchQuoteRequestSchema = z
      */
     groups: z.array(lineGroupInputSchema).optional(),
     /** In display order: each group's lines, then the ungrouped lines. */
-    items: z.array(adminPatchQuoteRequestLineSchema).min(1).optional(),
+    items: z.array(adminPatchQuoteRequestLineSchema).min(1).max(REQUEST_LINE_ITEMS_MAX).optional(),
     expiresInDays: z.number().int().nonnegative().optional(),
     /** Feature 055 — custom-field values for this quote request (validated on write). */
     customFieldValues: z.record(z.string(), z.unknown()).optional(),

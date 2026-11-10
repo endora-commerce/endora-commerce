@@ -740,6 +740,7 @@
   "defaultPreferences.title": "Domyślne preferencje zamówień",
   "errors.AMOUNT_PRECISION_EXCEEDED": "Kwota może mieć najwyżej dwa miejsca po przecinku.",
   "errors.UNIT_PRICE_PRECISION_EXCEEDED": "Cena jednostkowa może mieć najwyżej cztery miejsca po przecinku.",
+  "errors.LINE_QUANTITY_EXCEEDED": "Ilość w pozycji może wynosić najwyżej 1 000 000.",
   "errors.CURRENT_PASSWORD_INVALID": "Obecne hasło jest nieprawidłowe.",
   "errors.EMAIL_ALREADY_REGISTERED": "Konto z tym adresem e-mail już istnieje.",
   "errors.FORBIDDEN": "Nie masz uprawnień do wykonania tej akcji.",
