@@ -334,12 +334,12 @@ describe('adminLayout', () => {
 });
 
 describe('layoutShape', () => {
-  it('names each group with its line count — the audit entry’s `groups` (FR-081)', () => {
+  it('counts each group’s lines, never naming it — the audit entry’s `groups` (FR-081, D-288)', () => {
     const quote = [quoteLine(P1, '10', HALL_A, 0), quoteLine(P2, '20', HALL_A, 1), quoteLine(P3, '30', HALL_B, 0)];
     const layout = carryQuoteGrouping(quote, [orderLine('a', P1, '10'), orderLine('b', P2, '20'), orderLine('c', P3, '30')]);
     expect(layoutShape(layout)).toEqual([
-      { name: 'Hall A', lineCount: 2 },
-      { name: 'Hall B', lineCount: 1 },
+      { lineCount: 2 },
+      { lineCount: 1 },
     ]);
     expect(layoutShape(basketLayout([orderLine('a', P1, '1')]))).toEqual([]);
   });
