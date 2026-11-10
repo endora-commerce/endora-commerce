@@ -1,8 +1,11 @@
+import { excludedOrganizationsPredicate } from './excluded-predicate.js';
 import {
   getTenantContext,
   MissingTenantContextError,
   noteOrganizationAttributionRefusal,
   throwIfScopeUnresolved,
+  type ExcludedOrganizationsQuery,
+  type TenantContext,
 } from './tenant-context.js';
 
 /**
@@ -63,31 +66,25 @@ export function orgFilterCond(): Record<string, unknown> {
     case 'allowed-set':
       return { organizationId: { $in: [...(ctx.allowedOrganizationIds ?? [])] } };
     case 'excluded-set':
-      return { organizationId: excludedSetPredicate(ctx.excludedOrganizationIds ?? []) };
+      // Issue #955 — the row's own column against the owner's uncorrelated
+      // subquery: the one narrow revision of FR-002's "no subquery" (architect
+      // ruling of 2026-11-09, `excluded-predicate.ts`). Still no join, never a
+      // correlated read.
+      return { organizationId: excludedOrganizationsPredicate(excludedQueryOf(ctx)) };
   }
 }
 
 /**
- * The `excluded-set` predicate on an organization column (issue #305): every
- * organization but the excluded ones, on the filtered row's own column — no
- * join, no subquery (FR-002, exit (a′)).
- *
- * **`$ne: null` is part of the predicate, not decoration.** `NOT IN (…)` is
- * `NULL` for a null column and so already excludes such a row, but an *empty*
- * `$nin` is rendered by MikroORM as `1 = 1`, which matches it. A rep on a
- * platform where nobody else holds an assignment would then read rows that
- * belong to no organization at all — the "no-organization path" Principle XI
- * forbids. Spelling the null out keeps both lengths of the list on one answer.
- *
- * The list travels as MikroORM's `$nin` rather than as a single
- * `<> all(?::uuid[])` array parameter: the spike for #305 measured that a
- * `raw()`-keyed fragment returned from a filter `cond` is **dropped** when the
- * same filter runs for a `populate` (101 rows where the find answered 90), a
- * widening. `$nin` survived `find`, `count`, `populate`, a fork and a
- * transaction, and held 70 000 ids in one statement on PostgreSQL 16.
+ * The `excluded-set` context's query (issue #955). `resolveTenantContext`
+ * refuses an `excluding` scope without one; a context built by hand without it
+ * has no predicate to give, so it is refused here too — never read as
+ * "nothing excluded".
  */
-function excludedSetPredicate(excluded: readonly string[]): Record<string, unknown> {
-  return excluded.length === 0 ? { $ne: null } : { $ne: null, $nin: [...excluded] };
+function excludedQueryOf(ctx: TenantContext): ExcludedOrganizationsQuery {
+  if (ctx.excludedOrganizationsQuery === undefined) {
+    throw new Error('An `excluded-set` tenant context must carry its excludedOrganizationsQuery (issue #955).');
+  }
+  return ctx.excludedOrganizationsQuery;
 }
 
 /**
@@ -175,7 +172,7 @@ export function customerFilterCond(
       // the column compare when the entity carries one, the noted refusal when
       // it does not. A row with no organization is in nobody's reach.
       if (organizationColumn === 'present') {
-        return { [CUSTOMER_ORGANIZATION_KEY]: excludedSetPredicate(ctx.excludedOrganizationIds ?? []) };
+        return { [CUSTOMER_ORGANIZATION_KEY]: excludedOrganizationsPredicate(excludedQueryOf(ctx)) };
       }
       noteOrganizationAttributionRefusal(ctx);
       return { [CUSTOMER_TENANT_KEY]: { $in: [] } };

@@ -79,29 +79,38 @@ do organizacji przypisanych jemu (z uprawnieniem `organizations:rollup` — do i
 wygrywa najbliższe przypisanie) i do każdej organizacji, do której nikt nie jest przypisany — łącznie
 z organizacjami osobistymi (B2C), do których nie można nikogo przypisać. Moduł `organizations`
 zwraca ten zakres przez `adminTenantScopePort` jako `{ reach: 'excluding', excludedOrganizationIds,
-assignedOrganizationIds }`, obliczony jednym zapytaniem na żądanie, a zabezpieczenie filtruje
-według niego.
+assignedOrganizationIds, excludedOrganizationsQuery }`, a zabezpieczenie filtruje według niego.
+Zakres jest odczytywany z tabeli `organization_reach_governor` — dla każdej organizacji najbliższy
+przodek (lub ona sama) z przypisanym handlowcem — którą wyzwalacze na poziomie instrukcji utrzymują
+aktualną w transakcji każdego zapisu, który może ją zmienić (issue #955). Nic nie jest buforowane.
 
 - **Dlaczego dopełnienie.** Zbiór dostępnych organizacji obejmuje każdą nieprzypisaną, a więc
   każdą osobistą: rośnie razem z bazą klientów, a jako lista `IN (…)` obciążałby każde żądanie
   panelu. Zbiór wykluczony zawiera tylko organizacje z przypisaniem oraz — przy roll-upie — ich
   poddrzewa, więc jest ograniczony wielkością portfela B2B. Predykat to
-  `organization_id NOT IN (excluded)` na własnej kolumnie filtrowanego wiersza — bez złączenia
-  i bez podzapytania.
+  `organization_id NOT IN (<excludedOrganizationsQuery>)` na własnej kolumnie filtrowanego wiersza:
+  nieskorelowane podzapytanie należące do modułu `organizations`, które platforma wstawia, nie
+  nazywając tego, co ono czyta; bez złączenia. Przesyłanie samej listy kosztowało każde zapytanie
+  objęte izolacją literał wielkości tej listy; podzapytanie to haszowany SubPlan na tabeli
+  `organization_reach_governor` (rozstrzygnięcie architekta w #955 z 2026-11-09, które wąsko zmienia
+  dawną regułę „bez podzapytania”: nieskorelowane podzapytanie na własnej kolumnie wiersza jest
+  dozwolone, skorelowane ani złączenie — nie).
 - **Brak organizacji nigdy nie pasuje.** Predykat zawiera też jawne `organization_id IS NOT NULL`,
-  dzięki czemu pusty zbiór wykluczony nie zamienia się w „wszystkie wiersze”, łącznie z tymi bez
-  organizacji.
+  ponieważ `NULL NOT IN (<pusty zbiór>)` jest prawdą: dzięki temu pusty zbiór wykluczony nie zamienia
+  się w „wszystkie wiersze”, łącznie z tymi bez organizacji.
 - **Odmowa przy błędzie.** Zbiór jest wyznaczany po stronie serwera z tabel modułu
   `organizations`, nigdy z żądania. Jeśli jego zapytanie się nie powiedzie, żądanie kończy się
-  błędem; jeśli przy roll-upie nie da się odczytać zapisanej pozycji w drzewie organizacji
-  prowadzącej, zakres zostaje odrzucony, a odmowę zgłasza pierwszy odczyt objęty izolacją. Pusty
+  błędem. Organizacja prowadząca, której zapisanej pozycji w drzewie nie da się przy roll-upie
+  odczytać, nie powoduje odrzucenia zakresu: rozstrzyga ją reguła dla pojedynczego identyfikatora —
+  prowadzi samą siebie, a jej potomków wskazują ich własne ścieżki — a żądanie zapisuje jedno
+  ostrzeżenie (`warn`) z jej identyfikatorem (rozstrzygnięcie Q1 w PR #954). Pusty
   zbiór wykluczony jest prawdziwą odpowiedzią — nikt inny nie ma przypisań — i nigdy nie powstaje
   w wyniku błędu.
 - **Zapisy przechodzą przez tę samą gałąź.** Zabezpieczenie zapisu i `isOrgInScope` odrzucają zapis
   z wykluczoną organizacją, więc handlowiec zapisuje tylko tam, gdzie może czytać.
 - **Moduły nigdy nie czytają identyfikatorów.** Moduł odczytuje swój zakres przez funkcje
-  pomocnicze zakresu pochodnego — `orgScopeWhere`, `orgScopeSql` (jeden parametr tablicowy, dla
-  surowego SQL), `isOrgInScope`, `ruleVisibleForScope`, `reachesNoOrganization` oraz
+  pomocnicze zakresu pochodnego — `orgScopeWhere`, `orgScopeSql` (dla surowego SQL: to samo
+  podzapytanie, z parametrami dołączonymi do parametrów wywołującego), `isOrgInScope`, `ruleVisibleForScope`, `reachesNoOrganization` oraz
   `assignedOrganizationIdsForRanking` (wyłącznie do kolejności i filtrów „moje”). `OrgConstraint`
   ma gałęzie `all`, `single`, `allowed` i `excluded`; dawna gałąź `set` została usunięta, a nie
   pozostawiona obok, aby żaden konsument nie odczytał zakresu handlowca jako „bez ograniczeń”.

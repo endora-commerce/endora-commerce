@@ -24,11 +24,11 @@ function portOver(
   resolution: AdminRoleResolution,
   assigned: string[] = [],
   excluded: string[] = [],
-  reachOf?: () => Promise<{ excludedOrganizationIds: string[]; assignedOrganizationIds: string[] }>,
+  reachOf?: () => Promise<{ excludedOrganizationIds: string[]; assignedOrganizationIds: string[]; rollup: boolean }>,
 ) {
   return createAdminTenantScopePort(
     { resolveRole: async () => resolution },
-    { reachOf: reachOf ?? (async () => ({ excludedOrganizationIds: excluded, assignedOrganizationIds: assigned })) },
+    { reachOf: reachOf ?? (async () => ({ excludedOrganizationIds: excluded, assignedOrganizationIds: assigned, rollup: true })) },
   );
 }
 
@@ -47,6 +47,12 @@ describe('adminTenantScopePort', () => {
       reach: 'excluding',
       excludedOrganizationIds: ['f1'],
       assignedOrganizationIds: ['o1', 'o2'],
+      // Issue #955 — what the tenant filter renders: the owner's live SELECT,
+      // carrying the roll-up flag the reach was answered under.
+      excludedOrganizationsQuery: {
+        sql: 'select x from "organizations_reach_excluded"(?::uuid, ?::boolean) as x',
+        params: ['a1', true],
+      },
     });
   });
 
@@ -57,6 +63,10 @@ describe('adminTenantScopePort', () => {
       reach: 'excluding',
       excludedOrganizationIds: ['f1'],
       assignedOrganizationIds: [],
+      excludedOrganizationsQuery: {
+        sql: 'select x from "organizations_reach_excluded"(?::uuid, ?::boolean) as x',
+        params: ['a1', true],
+      },
     });
   });
 

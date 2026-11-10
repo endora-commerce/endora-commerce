@@ -57,13 +57,13 @@ describe('AnalyticsQueryService.summary — tenant confinement', () => {
   // governed by somebody else.
   it('confines a sales representative to every organization nobody else governs', async () => {
     const { service, statements } = serviceOver();
-    const scope: OrgConstraint = { kind: 'excluded', excludedOrganizationIds: ['f1'], assignedOrganizationIds: ['o1'] };
+    const scope: OrgConstraint = { kind: 'excluded', excludedOrganizationIds: ['f1'], assignedOrganizationIds: ['o1'], excludedOrganizationsQuery: { sql: 'select x from "reach"(?::uuid) as x', params: ['rep'] } };
     await service.summary(WINDOW, scope);
 
     expect(statements).toHaveLength(2);
     for (const { sql, params } of statements) {
-      expect(sql).toContain('(organization_id is not null and organization_id <> all(?::uuid[]))');
-      expect(params).toEqual([WINDOW.from, WINDOW.to, '{"f1"}']);
+      expect(sql).toContain('(organization_id is not null and organization_id not in (select x from "reach"(?::uuid) as x))');
+      expect(params).toEqual([WINDOW.from, WINDOW.to, 'rep']);
     }
   });
 

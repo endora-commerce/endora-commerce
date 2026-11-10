@@ -34,7 +34,15 @@ vi.mock('@aws-sdk/client-s3', () => {
     CopyObjectCommand: named('CopyObjectCommand'),
   };
 });
-vi.mock('@aws-sdk/s3-request-presigner', () => ({ getSignedUrl: vi.fn(async () => 'signed') }));
+const presigned: Array<{ command: string; input: Record<string, unknown>; options: unknown }> = [];
+vi.mock('@aws-sdk/s3-request-presigner', () => ({
+  getSignedUrl: vi.fn(
+    async (_client: unknown, cmd: { commandName: string; input: Record<string, unknown> }, options: unknown) => {
+      presigned.push({ command: cmd.commandName, input: cmd.input, options });
+      return 'signed';
+    },
+  ),
+}));
 
 const { S3StorageAdapter } = await import('./s3-adapter.js');
 const { BackendUnavailableError } = await import('./errors.js');
@@ -54,6 +62,7 @@ function adapter() {
 
 beforeEach(() => {
   sent.length = 0;
+  presigned.length = 0;
   failNext = false;
 });
 
@@ -131,5 +140,45 @@ describe('S3StorageAdapter.copy', () => {
     await expect(
       adapter().copy({ from, to, visibility: 'public', mimeType: 'application/pdf' }),
     ).rejects.toBeInstanceOf(BackendUnavailableError);
+  });
+});
+
+// Issue #815 — a bucket response cannot carry `X-Content-Type-Options`, so the
+// signed URL at least pins the type and disposition the bucket answers with.
+describe('S3StorageAdapter.resolveUrl — response overrides on a signed URL', () => {
+  it('signs ResponseContentType and ResponseContentDisposition when given', async () => {
+    const out = await adapter().resolveUrl({
+      locator: `aa/bb/${ID}.pdf`,
+      visibility: 'private',
+      responseHeaders: {
+        contentType: 'application/pdf',
+        contentDisposition: 'attachment; filename="scan.pdf"',
+      },
+    });
+    expect(out.url).toBe('signed');
+    expect(presigned).toHaveLength(1);
+    expect(presigned[0]!.command).toBe('GetObjectCommand');
+    expect(presigned[0]!.input).toEqual({
+      Bucket: 'media-bucket',
+      Key: `aa/bb/${ID}.pdf`,
+      ResponseContentType: 'application/pdf',
+      ResponseContentDisposition: 'attachment; filename="scan.pdf"',
+    });
+    expect(presigned[0]!.options).toEqual({ expiresIn: 300 });
+  });
+
+  it('signs a bare GetObject without them', async () => {
+    await adapter().resolveUrl({ locator: `aa/bb/${ID}.pdf`, visibility: 'private' });
+    expect(presigned[0]!.input).toEqual({ Bucket: 'media-bucket', Key: `aa/bb/${ID}.pdf` });
+  });
+
+  it('never signs a public URL, overrides or not', async () => {
+    const out = await adapter().resolveUrl({
+      locator: `aa/bb/${ID}.pdf`,
+      visibility: 'public',
+      responseHeaders: { contentType: 'application/pdf', contentDisposition: 'inline' },
+    });
+    expect(presigned).toHaveLength(0);
+    expect(out.expiresAt).toBeNull();
   });
 });

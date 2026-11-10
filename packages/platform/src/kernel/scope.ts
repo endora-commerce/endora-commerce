@@ -163,6 +163,21 @@ export function getCurrentPlatformScope(): PlatformScope | undefined {
   return scopeStorage.getStore();
 }
 
+/**
+ * The request metadata of the current execution, or `undefined` outside an
+ * HTTP scope (issue #997).
+ *
+ * Read from the innermost platform scope, so a worker or system scope opened
+ * inside a request answers for itself — with nothing — rather than inheriting
+ * the request's values, and two requests in flight each see their own. This is
+ * what the Command Bus stamps on the audit entry it writes: the same
+ * `request.ip`, `user-agent` and `request.id` a route passes to a direct
+ * `auditLogService.record` call, captured once by the request-scope hook.
+ */
+export function currentRequestMeta(): RequestMeta | undefined {
+  return scopeStorage.getStore()?.requestMeta ?? undefined;
+}
+
 let openScopes = 0;
 
 /**
