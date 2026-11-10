@@ -404,7 +404,7 @@ export type PreferenceActor =
    * nobody else governs — assigned, roll-up and unassigned — which no list of
    * ids names, so the actor carries the question rather than an answer.
    */
-  | { kind: 'salesperson'; reaches: (organizationId: string) => boolean }
+  | { kind: 'salesperson'; reaches: (organizationId: string) => Promise<boolean> }
   | { kind: 'platform_admin' };
 
 /**

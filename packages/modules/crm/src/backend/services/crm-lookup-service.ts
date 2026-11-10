@@ -13,7 +13,7 @@ import {
   type OrganizationDetailsPort,
 } from '@endora-commerce/contracts';
 import { SalesChannel } from '@endora-commerce/platform/kernel';
-import { isOrgInScope, orgConstraintFor } from '@endora-commerce/platform/tenancy';
+import { orgInScope, orgConstraintFor } from '@endora-commerce/platform/tenancy';
 
 export interface CrmLookupServiceDeps {
   emFactory: () => EntityManager;
@@ -49,7 +49,7 @@ function personName(person: { firstName: string; lastName: string; email: string
  *
  * **Tenant scope is applied here, by name.** `Organization` is the tenant, not
  * a tenant-scoped row, so its port answers whoever asks (research N-14); the
- * caller's reach is `orgConstraintFor()` / `isOrgInScope()`, the platform's own
+ * caller's reach is `orgConstraintFor()` / `orgInScope()`, the platform's own
  * answer, and an Organization out of reach is not listed, not labelled, and has
  * no contact persons to offer.
  */
@@ -64,7 +64,7 @@ export class CrmLookupService {
       name: row.name,
     });
     if (query.id !== undefined) {
-      if (!isOrgInScope(query.id)) return [];
+      if (!(await orgInScope(query.id))) return [];
       const found = await this.deps.organizations.findById(query.id);
       return found ? [option(found)] : [];
     }
@@ -80,7 +80,8 @@ export class CrmLookupService {
       // so the window grows rarely and never far.
       for (let window = query.limit * 2; ; window *= 2) {
         const page = await this.deps.organizations.searchByName(query.q ?? '', window);
-        const inReach = page.filter((row) => isOrgInScope(row.id, constraint));
+        const reached = await Promise.all(page.map((row) => orgInScope(row.id, constraint)));
+        const inReach = page.filter((_, index) => reached[index]);
         if (inReach.length >= query.limit || page.length < window) return inReach.slice(0, query.limit).map(option);
       }
     }
@@ -129,7 +130,7 @@ export class CrmLookupService {
 
   /** The members of one Organization the caller may reach; of any other, none. */
   async contacts(query: OpportunityContactLookupQuery): Promise<OpportunityContactOption[]> {
-    if (!isOrgInScope(query.organizationId)) return [];
+    if (!(await orgInScope(query.organizationId))) return [];
     return (
       await this.deps.customerAccounts.listByOrganization(query.organizationId, { activeOnly: true })
     )

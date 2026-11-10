@@ -1,4 +1,4 @@
-import { isOrgInScope, type OrgConstraint } from '@endora-commerce/platform/tenancy';
+import { orgInScope, type OrgConstraint } from '@endora-commerce/platform/tenancy';
 import type {
   AdminSearchFieldDescriptor,
   AdminSearchProvider,
@@ -90,7 +90,7 @@ export async function searchCustomersForAdmin(
     byId !== null &&
     byId.deletedAt === null &&
     byId.anonymizedAt === null &&
-    (scope.isPlatformAdmin || isOrgInScope(byId.organizationId, scope.reach))
+    (scope.isPlatformAdmin || (await orgInScope(byId.organizationId, scope.reach)))
       ? [byId]
       : [];
   const seen = new Set<string>();

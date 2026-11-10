@@ -4729,6 +4729,34 @@ Organizations they may see.
 **After upgrading,** nothing has to be done. A report that read granted amounts out of the audit log
 reads them from the credit limit instead.
 
+### A sales representative's reach loads on demand; the scope helpers are async {#sales-rep-reach-async-helpers}
+
+The release that ships this change stops computing a sales representative's reach on every admin
+request (issue #955; owner ruling of 2026-11-10). The tenant filter already reads the reach as a
+subquery owned by `organizations`; the lists of excluded and assigned Organizations are now loaded
+only when a request asks a single-Organization question or ranks search results, and at most once per
+request. Nobody's reach changes, and nothing is cached.
+
+**Breaking change for code that builds on the platform:**
+
+- `isOrgInScope(id, ctx?)` and `ruleVisibleForScope(ids, ctx?)` are removed from
+  `@endora-commerce/platform/tenancy`. Use `await orgInScope(id, ctx?)` and
+  `await ruleInScope(ids, ctx?)`. For a check repeated over rows you already hold, take the
+  synchronous predicate once: `const inScope = await orgScopeTest(ctx?)`, then `inScope(id)`.
+- `assignedOrganizationIdsForRanking(ctx?)` returns a promise.
+- `AdminTenantScope`'s `excluding` member (`@endora-commerce/contracts`) no longer carries
+  `excludedOrganizationIds` / `assignedOrganizationIds`; it carries
+  `excludedOrganizationsQuery` and `loadReach()`. The `excluded` arm of `OrgConstraint` changed the
+  same way, and `PreferenceActor`'s `salesperson.reaches(id)` returns a promise.
+- The helpers were removed rather than retyped on purpose: `if (!isOrgInScope(x))` over a promise is
+  always false, so a gate kept on the old spelling would have stopped refusing. Code that still names
+  them fails to compile. Turn on `@typescript-eslint/no-floating-promises` and
+  `@typescript-eslint/no-misused-promises` for the files that ask the question.
+
+**After upgrading,** rebuild any extension package or overlay module that imports these helpers and
+follow the compile errors. Nothing else needs doing: the migration that ships with the reach change
+(`organization_reach_governor`) is unchanged.
+
 ## An instance that is mixed from the start
 
 The installer of `0.101.x` or earlier wrote every package of the release with a `^` except

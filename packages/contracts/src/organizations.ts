@@ -877,15 +877,8 @@ export type AdminTenantScope =
        */
       readonly allowAll: false;
       readonly reach: 'excluding';
-      /** Organizations governed by another representative: never reachable. */
-      readonly excludedOrganizationIds: string[];
       /**
-       * The representative's own assignments, roll-up expanded. For ranking
-       * and "mine" filters only; never a filter input.
-       */
-      readonly assignedOrganizationIds: string[];
-      /**
-       * Issue #955 (architect ruling, Q2) — the excluded organizations as one
+       * Issue #955 (architect ruling, Q2; owner ruling of 2026-11-10) — the excluded organizations as one
        * uncorrelated SELECT of a single non-null uuid column, read live in each
        * statement's own snapshot. Built by the owner from the authenticated
        * admin's identity and permissions only — never from request input. The
@@ -896,6 +889,19 @@ export type AdminTenantScope =
         readonly sql: string;
         readonly params: readonly (string | boolean)[];
       };
+      /**
+       * Issue #955 Phase 2 (owner ruling of 2026-11-10) — the lists, on demand:
+       * the organizations governed by another representative, and the
+       * representative's own assignments (roll-up expanded; ranking and "mine"
+       * filters only, never a filter input). They replaced the
+       * `excludedOrganizationIds` / `assignedOrganizationIds` fields, which made
+       * every admin request compute them. The owner memoises the call once per
+       * answered scope; a failure rejects, which refuses rather than widens.
+       */
+      readonly loadReach: () => Promise<{
+        readonly excludedOrganizationIds: readonly string[];
+        readonly assignedOrganizationIds: readonly string[];
+      }>;
       readonly unresolved?: Error;
     };
 
