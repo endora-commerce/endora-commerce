@@ -623,34 +623,6 @@ export type OrganizationConvertToCompanyInput = Omit<
 >;
 
 /**
- * Container name: `organizationCommandPort`. Owner: `organizations`.
- *
- * Server-side writes on the Organization aggregate, each one Command through
- * the Command Bus (`contracts/convert-to-company.md` §4). Reads are on
- * {@link OrganizationDetailsPort}; this port carries writes only.
- *
- * **Never for a customer-facing route** — which no type can say, so a test
- * enumerating every registered non-admin route proves it (FR-031).
- *
- * **Owner off:** the seam fails closed — resolving this port throws
- * `ModuleDisabledError` and the call answers 503 `MODULE_DISABLED`. Whether
- * `organizations` has an off state at all is its manifest's `activation` to
- * say, not this line's: a module declaring `nonDeactivatable` never enters one.
- */
-export interface OrganizationCommandPort {
-  /**
-   * Runs `organization.convert_to_company` as one Command with the ambient
-   * actor (an admin inside an admin request; system under `withSystemScope` in
-   * a worker). The organization keeps its id. No VAT validation: trigger one
-   * after it resolves if you need it.
-   */
-  convertToCompany(
-    organizationId: string,
-    input: OrganizationConvertToCompanyInput,
-  ): Promise<OrganizationRecord>;
-}
-
-/**
  * `organization.converted_to_company.v1` — emitted once, after the conversion
  * commits, never on rollback (FR-039). Carries no name and no tax ID: a
  * subscriber has the id and {@link OrganizationDetailsPort}.
