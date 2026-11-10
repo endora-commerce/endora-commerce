@@ -1,6 +1,6 @@
 import type { Redis } from 'ioredis';
 import type {
-  CmsResolvedBlock,
+  CmsResolvedBlockByCode,
   CmsResolvedHook,
   CmsResolvedPage,
 } from '@endora-commerce/contracts';
@@ -12,7 +12,7 @@ import type {
  * families:
  *
  *   - `cms:v1:page:<slug>:<channel>:<language>`    → CmsResolvedPage
- *   - `cms:v1:block:<code>:<channel>:<language>`   → CmsResolvedBlock
+ *   - `cms:v1:block:<code>:<channel>:<language>`   → CmsResolvedBlockByCode
  *   - `cms:v1:hook:<code>:<channel>:<language>`    → CmsResolvedHook
  *
  * TTL is fixed at 5 minutes; invalidation runs on every Page / Block /
@@ -85,15 +85,15 @@ export class CmsCache {
     code: string,
     channel: string,
     language: string,
-  ): Promise<CmsResolvedBlock | null> {
-    return this.read<CmsResolvedBlock>(CmsCache.blockKey(code, channel, language));
+  ): Promise<CmsResolvedBlockByCode | null> {
+    return this.read<CmsResolvedBlockByCode>(CmsCache.blockKey(code, channel, language));
   }
 
   async setBlock(
     code: string,
     channel: string,
     language: string,
-    value: CmsResolvedBlock,
+    value: CmsResolvedBlockByCode,
   ): Promise<void> {
     await this.write(CmsCache.blockKey(code, channel, language), value);
   }

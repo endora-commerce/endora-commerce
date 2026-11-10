@@ -61,6 +61,20 @@ Most module writes use a small private `#audit(em, action, objectId, before, aft
 helper that delegates to `recordAuditFromContext`, keeping the audit call one line at
 each write site.
 
+## What an audit entry holds
+
+The audit log is one platform-wide table, read under one permission (`audit_log:read`)
+regardless of which Organizations the reader may see. So for a **tenant-scoped record** (an
+`@OrgScoped`, `@CustomerScoped`, `@TransitivelyScoped` or `@RuleScoped` entity) a Command's
+before/after state carries **names and structure, never values**: ids, document numbers, status
+and other codes, booleans, counts, dates, and `changedFields` / `changedCustomFields` listing what
+changed. Titles, descriptions, amounts, custom-field values, personal data and the record's own
+Organization or Customer Account id stay out of it. A module whose record history shows values
+keeps them in a store of its own, written in the same Command and read only through the record's
+scoped access path; the audit entry points at that row by `valueChangeId`. Platform-global
+records (catalog, settings, dictionaries) may still record values. The rule and its test
+obligation are `specs/conventions/audit-state.md` in the repository (issue #470).
+
 ## Reversibility & undo
 
 A command may capture per-record before/after state so an operator can **undo** it.

@@ -81,6 +81,7 @@ likely to meet this.
 | `./server` | `composeTestServer`, `teardownTestServer`, and the two types they take and return |
 | `./database` | the per-invocation database lease (issue #189), and the naming and selection rules behind it |
 | `./support` | `TestSupportContribution` — what a module publishes at its own `./test-support` |
+| `./audit` | `expectNoAuditValues` / `findAuditValues` — the sentinel assertion every Command that writes a tenant-scoped record is held to (`specs/conventions/audit-state.md`, issue #470) |
 
 There is **no root export**: a caller names the seam it wants, so a test that needs only the
 lease does not load the server.
