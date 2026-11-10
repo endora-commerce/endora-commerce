@@ -4500,6 +4500,25 @@ compares against `ERROR_CODES.ASSET_ACCESS_DENIED` no longer compiles: drop the 
 compare against `ERROR_CODES.ASSET_NOT_FOUND`. With cloud storage, add `X-Content-Type-Options:
 nosniff` in front of the bucket, as the assets library page describes.
 
+### Credit-limit amounts leave the platform audit log {#credit-limits-audit-names-only}
+
+The release that ships this change stops writing credit-limit amounts into the platform-wide audit
+log (issue #470). That log is one table, read by everybody holding `audit_log:read` whatever
+Organizations they may see.
+
+**Behaviour change on upgrade:**
+
+- On the **Audit log** screen, and in `audit_logs read`, a new `credit_limit.grant`,
+  `credit_limit.adjust` or `credit_limit.credit_from_return` entry no longer carries the granted
+  amount, the currency or the Organization's id. It says what changed (`changedFields`, for example
+  `['grantedAmount']`), and a credit from a return keeps the return case's id. The entry is still
+  recorded against the Organization.
+- The limit itself, and the Organization's credit-limit screen, are unchanged.
+- Entries recorded before the upgrade are not rewritten: they keep their amounts.
+
+**After upgrading,** nothing has to be done. A report that read granted amounts out of the audit log
+reads them from the credit limit instead.
+
 ## An instance that is mixed from the start
 
 The installer of `0.101.x` or earlier wrote every package of the release with a `^` except
