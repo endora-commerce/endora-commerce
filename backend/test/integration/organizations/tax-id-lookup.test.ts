@@ -152,7 +152,7 @@ describe('organizationDetailsPort — lookups by tax ID', () => {
               exclude using gist ("tax_id" with =, "root_id" with <>) deferrable initially deferred;
           end if;
           alter table "organizations" drop constraint if exists "organizations_tax_id_unique";
-          update "organization_tax_id_policy" set "scope" = 'per-tree-root', "updated_at" = now();
+          update "organization_tax_id_policy" set "scope" = 'per-tree-root', "updated_at" = now() where "id";
         end
         $$;
       `);
@@ -184,7 +184,7 @@ describe('organizationDetailsPort — lookups by tax ID', () => {
             alter table "organizations" add constraint "organizations_tax_id_unique" unique ("tax_id");
           end if;
           alter table "organizations" drop constraint if exists "organizations_tax_id_one_tree";
-          update "organization_tax_id_policy" set "scope" = 'global', "updated_at" = now();
+          update "organization_tax_id_policy" set "scope" = 'global', "updated_at" = now() where "id";
         end
         $$;
       `);

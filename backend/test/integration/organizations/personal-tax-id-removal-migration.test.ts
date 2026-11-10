@@ -38,7 +38,7 @@ describe('organizations — M1: personal organizations lose the synthetic tax ID
       client: { acquireConnection(): Promise<NodeJS.EventEmitter> };
     };
     const connection = await trx.client.acquireConnection();
-    const listener = (notice: { message?: string }) => notices.push(notice.message ?? '');
+    const listener = (notice: { message?: string }) => notices.push(String(notice.message));
     connection.on('notice', listener);
     return () => connection.off('notice', listener);
   }

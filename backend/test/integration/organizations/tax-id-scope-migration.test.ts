@@ -127,7 +127,7 @@ describe('organizations — M2: the tax-ID scope foundation', () => {
   it('the policy table holds one row and only the two scopes', async () => {
     for (const sql of [
       `insert into "organization_tax_id_policy" ("id", "scope") values (false, 'global')`,
-      `update "organization_tax_id_policy" set "scope" = 'none'`,
+      `update "organization_tax_id_policy" set "scope" = 'none' where "id"`,
     ]) {
       await em.execute('savepoint m2_policy');
       await expect(em.execute(sql)).rejects.toThrow();
@@ -141,7 +141,7 @@ describe('organizations — M2: the tax-ID scope foundation', () => {
   });
 
   it('down() refuses while the policy says per-tree-root, and changes nothing', async () => {
-    await em.execute(`update "organization_tax_id_policy" set "scope" = 'per-tree-root'`);
+    await em.execute(`update "organization_tax_id_policy" set "scope" = 'per-tree-root' where "id"`);
     await em.execute('savepoint m2_down');
     await expect(run('down')).rejects.toThrow(/per-tree-root/);
     await em.execute('rollback to savepoint m2_down');
