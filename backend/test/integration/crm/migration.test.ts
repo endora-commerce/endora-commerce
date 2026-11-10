@@ -23,6 +23,7 @@ import {
   CrmOpportunityStatusHistory,
   CrmOpportunityStatusTransition,
   CrmOpportunityTag,
+  CrmOpportunityValueChange,
   CrmOrderStatusMapping,
   CrmStatusPropagation,
   CrmTag,
@@ -56,6 +57,7 @@ const TABLES = [
   'crm_opportunity_status_transitions',
   'crm_opportunity_statuses',
   'crm_opportunity_tags',
+  'crm_opportunity_value_changes',
   'crm_order_status_mappings',
   'crm_status_propagations',
   'crm_tags',
@@ -86,7 +88,7 @@ describe('crm init migration', () => {
     return found.map((row) => row.indexdef.replace(/\s+/g, ' '));
   }
 
-  it('creates the sixteen tables of the data model and no seventeenth', async () => {
+  it('creates the seventeen tables of the data model and no eighteenth', async () => {
     const found = await rows<{ table_name: string }>(
       `select table_name from information_schema.tables
         where table_schema = current_schema() and table_name like 'crm\\_%' order by table_name`,
@@ -198,9 +200,35 @@ describe('crm init migration', () => {
         'crm_opportunity_references',
         'crm_opportunity_status_history',
         'crm_opportunity_tags',
+        'crm_opportunity_value_changes',
         'crm_status_propagations',
       ].map((child) => ({ child, on_delete: 'c' })),
     );
+  });
+
+  describe('crm_opportunity_value_changes (issue #470)', () => {
+    it('holds the values an audit entry names — both sides nullable jsonb, keyed by its Opportunity', async () => {
+      const columns = await rows<{ column_name: string; data_type: string; is_nullable: string }>(
+        `select column_name, data_type, is_nullable from information_schema.columns
+          where table_schema = current_schema() and table_name = 'crm_opportunity_value_changes'
+          order by ordinal_position`,
+      );
+      expect(columns).toEqual([
+        { column_name: 'id', data_type: 'uuid', is_nullable: 'NO' },
+        { column_name: 'opportunity_id', data_type: 'uuid', is_nullable: 'NO' },
+        { column_name: 'before', data_type: 'jsonb', is_nullable: 'YES' },
+        { column_name: 'after', data_type: 'jsonb', is_nullable: 'YES' },
+        { column_name: 'at', data_type: 'timestamp with time zone', is_nullable: 'NO' },
+      ]);
+      const definitions = await indexDefinitions('crm_opportunity_value_changes');
+      expect(definitions.some((definition) => /\(opportunity_id\)$/.test(definition))).toBe(true);
+      // No tenant column of its own and no other module's table: the one foreign key is to the Opportunity.
+      const keys = await rows<{ referenced: string }>(
+        `select c.confrelid::regclass::text as referenced from pg_constraint c
+          where c.contype = 'f' and c.conrelid = 'crm_opportunity_value_changes'::regclass`,
+      );
+      expect(keys).toEqual([{ referenced: 'crm_opportunities' }]);
+    });
   });
 
   describe('the unread-message tables', () => {
@@ -360,6 +388,7 @@ describe('crm init migration', () => {
       CrmOpportunityStatusHistory,
       CrmOpportunityStatusTransition,
       CrmOpportunityTag,
+      CrmOpportunityValueChange,
       CrmOrderStatusMapping,
       CrmStatusPropagation,
       CrmTag,
