@@ -49,12 +49,11 @@ import type {
   PaymentMethodReadPort,
 } from '@endora-commerce/contracts';
 import type { EntityManager } from '@mikro-orm/postgresql';
-import { LockMode } from '@mikro-orm/core';
 import { HttpError } from '@endora-commerce/platform/http';
 import { orgInScope } from '@endora-commerce/platform/tenancy';
 import { getResolvedChannel, rethrowIfModuleDisabled } from '@endora-commerce/platform/kernel';
 import type { SalesChannelMembershipPort } from '@endora-commerce/platform/kernel';
-import type { Command, CommandBus } from '@endora-commerce/platform/commands';
+import type { CommandBus } from '@endora-commerce/platform/commands';
 import { orderTotalsMoney } from './services/order-money.js';
 import type { OrderService } from './services/order-service.js';
 import { assertMethodsOfferedInChannel } from './services/method-channel-gate.js';
@@ -79,6 +78,7 @@ import { assertChannelAllowedForOrganization } from './services/organization-cha
 import type { CustomerOrderCancellationService } from './services/order-cancellation-service.js';
 import type { PurchaseConversionService } from './services/purchase-conversion-service.js';
 import { Order } from './entities/order.entity.js';
+import { orderCustomFieldsUpdateCommand } from './services/order-audit-state.js';
 import { replyAfterCommittedWrite } from './services/committed-write-reply.js';
 import { serializeOrderForAdmin, serializeOrderForCustomer } from './order-response.js';
 import { OrderTransitionEffect } from './entities/order-transition-effect.entity.js';
@@ -272,28 +272,7 @@ export async function registerOrderRoutes(
         const patch = customFieldValuesSchema.parse(request.body);
         const orderId = request.params.id;
         if (!isUuidShape(orderId)) throw new HttpError(404, ERROR_CODES.NOT_FOUND, 'Order not found.');
-        const command: Command<Order> = {
-          action: 'order.custom_fields.update',
-          objectType: 'order',
-          objectId: orderId,
-          run: async ({ em }) => {
-            // The one read of the row, `for update`: the audit's before-state
-            // and the merge are both made over the bag this transaction holds.
-            const order = await em.findOne(
-              Order,
-              { id: orderId },
-              { lockMode: LockMode.PESSIMISTIC_WRITE, refresh: true },
-            );
-            if (!order) throw new HttpError(404, ERROR_CODES.NOT_FOUND, 'Order not found.');
-            const before = { customFieldValues: { ...(order.customFieldValues ?? {}) } };
-            order.customFieldValues = await customFieldValues.validateAndMerge(
-              'order',
-              order.customFieldValues ?? {},
-              patch,
-            );
-            return { result: order, before, after: { customFieldValues: order.customFieldValues } };
-          },
-        };
+        const command = orderCustomFieldsUpdateCommand(orderId, patch, customFieldValues);
         try {
           const order = await commandBus.run(command);
           return { data: await serializeOrderForAdmin(emFactory(), order) };

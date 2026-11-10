@@ -125,7 +125,9 @@ describe('quote_requests — custom-field values received from a Sales Opportuni
     const entries = await audit(rfq.id);
     expect(entries).toHaveLength(1);
     expect(entries[0]!.actorAdminUserId ?? null).toBeNull();
-    expect(entries[0]!.stateAfter).toMatchObject({ customFieldValues: { [key]: 'fair' } });
+    // The entry names the carried key, never its value (D-288, #470).
+    expect(entries[0]!.stateAfter).toMatchObject({ changedCustomFields: [key] });
+    expect(JSON.stringify(entries[0]!.stateAfter)).not.toContain('fair');
   });
 
   it('keeps a value the request already holds, and writes no entry (US3-3)', async () => {

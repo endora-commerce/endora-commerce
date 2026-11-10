@@ -218,7 +218,14 @@ export function makeSendDocumentCommand(
       await em.flush();
       return {
         result: { sent, failed },
-        after: { templateId: input.pdf.templateId, language: input.language, recipients: sent, failedRecipients: failed },
+        // How many it went to, never the addresses (D-288, #470): the
+        // `pdf-sent` history event above keeps them, under the quote's reach.
+        after: {
+          templateId: input.pdf.templateId,
+          language: input.language,
+          recipientCount: sent.length,
+          failedRecipientCount: failed.length,
+        },
       };
     },
   };

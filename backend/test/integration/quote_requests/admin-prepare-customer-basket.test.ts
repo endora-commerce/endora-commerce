@@ -107,7 +107,9 @@ describe('admin — prepare the customer’s basket from an approved Quote Reque
         [id],
       );
     expect(rows).toHaveLength(1);
-    expect(rows[0]!.state_after).toMatchObject({ customerAccountId: TEST_CUSTOMER_ID, itemCount: 1 });
+    // The basket and its size; the customer is the request's tenant anchor and stays out (D-288, #470).
+    expect(rows[0]!.state_after).toMatchObject({ itemCount: 1 });
+    expect(rows[0]!.state_after).not.toHaveProperty('customerAccountId');
   });
 
   it('refuses a request that is not approved, as the customer’s conversion does', async () => {

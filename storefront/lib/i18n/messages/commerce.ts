@@ -273,6 +273,7 @@ export const commerce = defineMessages({
       'This product is sold on request only, so it cannot be added to the cart. Ask for a quote instead.',
     'commerce.error.CART_PRODUCT_UNPRICED': 'This product has no price, so it cannot be added to the cart.',
     'commerce.error.CART_QUANTITY_INVALID': 'This quantity cannot be ordered. Change it and try again.',
+    'commerce.error.LINE_QUANTITY_EXCEEDED': 'A line can hold at most 1,000,000 pieces. Lower the quantity and try again.',
     'commerce.error.CART_PRICE_CHANGED': 'The prices in your cart have changed. Review your cart and place the order again.',
     'commerce.error.CART_APPROVAL_NOT_REQUIRED':
       'Your role lets you place orders without approval, so this cart does not need to be sent for approval. Place the order directly.',
@@ -593,6 +594,7 @@ export const commerce = defineMessages({
       'Ten produkt jest sprzedawany wyłącznie na zapytanie, dlatego nie można dodać go do koszyka. Wyślij zapytanie ofertowe.',
     'commerce.error.CART_PRODUCT_UNPRICED': 'Ten produkt nie ma ceny, dlatego nie można dodać go do koszyka.',
     'commerce.error.CART_QUANTITY_INVALID': 'Tej ilości nie można zamówić. Zmień ją i spróbuj ponownie.',
+    'commerce.error.LINE_QUANTITY_EXCEEDED': 'Pozycja może mieć najwyżej 1 000 000 sztuk. Zmniejsz ilość i spróbuj ponownie.',
     'commerce.error.CART_PRICE_CHANGED': 'Ceny w Twoim koszyku uległy zmianie. Sprawdź koszyk i złóż zamówienie ponownie.',
     'commerce.error.CART_APPROVAL_NOT_REQUIRED':
       'Twoja rola pozwala składać zamówienia bez akceptacji, więc tego koszyka nie trzeba wysyłać do akceptacji. Złóż zamówienie bezpośrednio.',

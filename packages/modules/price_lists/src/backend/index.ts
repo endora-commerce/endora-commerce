@@ -50,6 +50,8 @@ import { PriceListPrecedence } from './entities/price-list-precedence.entity.js'
 import { PriceProfile } from './entities/price-profile.entity.js';
 import { PriceProfilePrice } from './entities/price-profile-price.entity.js';
 import { PriceProfileStaleProduct } from './entities/price-profile-stale-product.entity.js';
+import { PriceListValueChange } from './entities/price-list-value-change.entity.js';
+import { PriceListRowValueChange } from './entities/price-list-row-value-change.entity.js';
 
 /**
  * `price_lists` — the decoration proof target (feature 072, wave 3, T127).
@@ -542,6 +544,9 @@ export const entities = [
   PriceListProductLine,
   // Feature 160 (owner ruling 2026-10-23) — the surface's (profile, product) marks.
   PriceProfileStaleProduct,
+  // Issue #470 (owner ruling O-3) — the book's price-change history.
+  PriceListValueChange,
+  PriceListRowValueChange,
 ];
 
 /**

@@ -100,6 +100,29 @@ Organization:
 A role change also announces `customer_account.organization_role_changed.v1`
 once it is committed.
 
+### What the audit log holds
+
+The platform audit log is read by everybody holding `audit_log:read`, whichever
+organizations they may see, so an account's entries carry names and structure,
+never its values:
+
+- a profile change (`customer_account.update_profile`) names the fields that
+  changed as `changedFields`, without the e-mail or the names;
+- an account's creation (`customer_account.create`, `.register_standalone`,
+  `.register_social`) names the fields it was created with, its role by id and
+  whether its address was confirmed;
+- a move between Organizations (`customer_account.organization_assigned`,
+  `.organization_unassigned`, `.attach_organization`) is recorded as
+  `changedFields: ['organizationId', 'organizationRoleId']`, with the role ids
+  but not the Organizations;
+- a block (`customer_account.blocked`, `.unblocked`) records when, its source
+  and `hasBlockReason`, never the reason;
+- a custom-field change (`customer.custom_fields.update`) names the changed keys
+  as `changedCustomFields`;
+- a role change records the role by id and kind, never a custom role's name.
+
+The account itself holds the values.
+
 ## Entities
 
 `CustomerAccount` (email, passwordHash, organizationRoleId), `PasswordResetToken`.

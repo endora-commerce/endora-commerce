@@ -156,7 +156,8 @@ export async function lockProjectRow(em: EntityManager, id: string): Promise<Pro
 /**
  * The audit snapshot of a Project. The audit trail is the platform's and is not
  * tenant-scoped, so it carries no free text and no figure a tenant owns: the
- * description by its length only, and neither the value nor the custom-field
+ * description by its length only, and neither the title (owner ruling O-1,
+ * 2026-11-10: a title is a value, #470), the value nor the custom-field
  * values at all — a write says *that* they changed ({@link changedValueKeys}),
  * never what to (T144 F4). The values go to the Project's own store, which its
  * history reads ({@link recordValueChange}, T145).
@@ -164,7 +165,6 @@ export async function lockProjectRow(em: EntityManager, id: string): Promise<Pro
 function snapshot(project: Project): Record<string, unknown> {
   return {
     number: project.number,
-    title: project.title,
     state: project.state,
     startOn: project.startOn ?? null,
     visibility: project.visibility,
@@ -173,9 +173,10 @@ function snapshot(project: Project): Record<string, unknown> {
   };
 }
 
-type ValueSide = Pick<Project, 'valueAmount' | 'valueCurrency'>;
+/** The values a write may change that the trail does not carry: the title (O-1) and the value. */
+type ValueSide = Pick<Project, 'valueAmount' | 'valueCurrency'> & { title?: string | null };
 
-const NO_VALUE: ValueSide = { valueAmount: null, valueCurrency: null };
+const NO_VALUE: ValueSide = { valueAmount: null, valueCurrency: null, title: null };
 
 /**
  * An amount as `numeric(18,2)` stores and prints it — `1234.5` typed is
@@ -196,13 +197,16 @@ function changedValueKeys(
   customFields: { before: Record<string, unknown>; after: Record<string, unknown> } | null,
 ): { changedFields?: string[]; changedCustomFields?: string[] } {
   const out: { changedFields?: string[]; changedCustomFields?: string[] } = {};
+  const fields: string[] = [];
+  if (value && (value.before.title ?? null) !== (value.after.title ?? null)) fields.push('title');
   if (
     value &&
     (storedAmount(value.before.valueAmount) !== storedAmount(value.after.valueAmount) ||
       (value.before.valueCurrency ?? null) !== (value.after.valueCurrency ?? null))
   ) {
-    out.changedFields = ['value'];
+    fields.push('value');
   }
+  if (fields.length > 0) out.changedFields = fields;
   if (customFields) {
     const keys = [...new Set([...Object.keys(customFields.before), ...Object.keys(customFields.after)])]
       .filter((key) => !isDeepStrictEqual(customFields.before[key], customFields.after[key]))
@@ -231,7 +235,11 @@ function recordValueChange(
   if (!keys.changedFields && !keys.changedCustomFields) return keys;
   const before: ProjectValueState = {};
   const after: ProjectValueState = {};
-  if (keys.changedFields && value) {
+  if (keys.changedFields?.includes('title') && value) {
+    before.title = value.before?.title ?? null;
+    after.title = value.after.title ?? null;
+  }
+  if (keys.changedFields?.includes('value') && value) {
     before.valueAmount = storedAmount(value.before?.valueAmount);
     before.valueCurrency = value.before?.valueCurrency ?? null;
     after.valueAmount = storedAmount(value.after.valueAmount);
@@ -474,7 +482,11 @@ export class ProjectService {
         run: async ({ em }) => {
           const project = await claim(em as EntityManager);
           const before = snapshot(project);
-          const valueBefore = { valueAmount: project.valueAmount ?? null, valueCurrency: project.valueCurrency ?? null };
+          const valueBefore = {
+            valueAmount: project.valueAmount ?? null,
+            valueCurrency: project.valueCurrency ?? null,
+            title: project.title,
+          };
           if (body.title !== undefined) project.title = body.title;
           if (body.description !== undefined && body.description !== project.description) {
             described.mentions = {
