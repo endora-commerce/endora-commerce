@@ -136,7 +136,9 @@ uninstall keeps columns (orphaned) plus the audited drop command. See `spec.md` 
 unmapped tables via the lazy dry run, failing closed; R-A3 178 merges first at 4.2.0, 177/176 take
 4.3.0/4.4.0 in merge order; R-A4 pruning reserved-stamp rows not in the list is accepted inside the
 `up` transaction, logged, tested (T068); R-A5 migrate marks rows of modules with no declaration
-`orphaned` — fixed in this release (T069), blocking with B + C.
+`orphaned` — fixed in this release (T069), blocking with B + C; R-A6 refuse a package dropping a
+table another module's entity maps in `up()` and `down()`, exempting only first-party D-226 bridges
+through a derived `bridge` entry in the exemption artefact (T071).
 
 ## Test plan (FR → test)
 

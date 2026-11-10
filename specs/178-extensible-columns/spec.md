@@ -466,3 +466,15 @@ Taken by the architect on questions the developer raised from `feat/178-extensib
   OD-29 promise unkept. It is non-destructive and reversible (a returning package re-attaches the
   rows, same hash → `applied`). A module that still declares something is left to its generated step;
   boot stays read-only and only warns (FR-026). Task T069; blocks the release with B + C.
+- **R-A6 — a package may not drop another module's table, in `up()` or `down()`.** The residual
+  hole left by `4d7b1413c` (a `create table if not exists <foreign>` in `up()` lets the package's
+  `down()` drop that table on hard uninstall) is **not acceptable**: it is foreign data loss through
+  the one path `dependents-block` cannot see. `drop table`, `truncate`, `alter table … drop` and
+  `drop index` on a table mapped by an entity of another module are refused in both directions,
+  whatever the same migration created. The only exemption is first-party and derived: the exemption
+  artefact (FR-071) gains entries of kind `bridge`, rendered by `composer:generate` from the
+  first-party migrations that `check:module-boundary`'s D-226 bridge rule already accepts, keyed
+  (module, migration, table, direction) — which covers `inventory`'s
+  `Migration20260912T125716InventoryOrganizationWarehouses` (`organization_warehouses`, mapped by
+  `organizations`). No hand-written list; a third-party bridge is not offered in this release (own an
+  S1 table instead). Task T071.
