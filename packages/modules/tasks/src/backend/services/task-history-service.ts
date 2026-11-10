@@ -4,6 +4,7 @@ import {
   type RecordHistoryPage,
   type RecordHistoryQuery,
 } from '@endora-commerce/contracts';
+import type { EntityManager } from '@mikro-orm/postgresql';
 import { HttpError } from '@endora-commerce/platform/http';
 import type { AuditPort } from '@endora-commerce/platform/kernel';
 import { actingAdminUserId, type TaskAccess } from './task-access.js';
@@ -40,6 +41,8 @@ function decodeCursor(cursor: string | undefined): number {
 }
 
 export interface TaskHistoryServiceDeps {
+  /** Reads the Task's own value store (#470), by the id of a Task the reader may see. */
+  emFactory: () => EntityManager;
   tasks: Pick<TaskService, 'findVisibleRow'>;
   /** Whether the reader may see a context an entry names — the Task may have left it since. */
   visibility: Pick<TaskVisibility, 'canSeeContext'>;
@@ -116,6 +119,55 @@ function showsReminder(
   return Array.isArray(state['recipientIds']) && state['recipientIds'].includes(reader);
 }
 
+/** The audit keys that stand in for the values the Task's own store keeps (#470). */
+const VALUE_POINTER = 'valueChangeId';
+const VALUE_NAMES = ['changedFields', 'changedCustomFields'] as const;
+
+/** One row of `task_value_changes`: the changed values of one write, either side. */
+export interface StoredTaskValueChange {
+  before: Record<string, unknown> | null;
+  after: Record<string, unknown> | null;
+}
+
+const UUID_SHAPE = /^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/i;
+
+/** The `task_value_changes` row an entry points at — on the side that has one — or `null`. */
+export function valueChangeIdOf(entry: { before: unknown; after: unknown }): string | null {
+  for (const state of [entry.after, entry.before]) {
+    const id = asRecord(state)?.[VALUE_POINTER];
+    if (typeof id === 'string' && UUID_SHAPE.test(id)) return id;
+  }
+  return null;
+}
+
+/**
+ * An entry with the values the Task's store kept for it (#470): the audit entry
+ * names what changed and points at the row by `valueChangeId`; the history
+ * serves the values in place of the names, in the shape entries written before
+ * #470 carried them. Without a row the names stay and only the pointer goes.
+ * Entries written before #470 carry their values and are served as stored
+ * (owner ruling O-4, 2026-11-10).
+ */
+export function withStoredValues(
+  entry: { before: unknown; after: unknown },
+  change: StoredTaskValueChange | null,
+): { before: unknown; after: unknown } {
+  const strip = (state: unknown): unknown => {
+    const record = asRecord(state);
+    if (!record || !(VALUE_POINTER in record || (change && VALUE_NAMES.some((key) => key in record)))) return state;
+    const out = { ...record };
+    delete out[VALUE_POINTER];
+    if (change) for (const key of VALUE_NAMES) delete out[key];
+    return out;
+  };
+  const merge = (state: unknown, values: Record<string, unknown> | null): unknown => {
+    const stripped = strip(state);
+    if (!values) return stripped;
+    return { ...(asRecord(stripped) ?? {}), ...values };
+  };
+  return { before: merge(entry.before, change?.before ?? null), after: merge(entry.after, change?.after ?? null) };
+}
+
 /** An audited state with its context blanked. */
 export function withoutContext(state: Record<string, unknown>): Record<string, unknown> {
   const out = { ...state };
@@ -151,14 +203,27 @@ export class TaskHistoryService {
     const hasMore = entries.length > offset + query.limit;
     const truncated = !hasMore && read.length > TASK_HISTORY_REACH;
 
+    // The values the page's entries name, from the Task's own store — keyed by
+    // the Task `findVisibleRow` handed out, so a pointer to another Task's row
+    // reads nothing (#470).
+    const pointers = page
+      .map((entry) => valueChangeIdOf({ before: entry.stateBefore ?? null, after: entry.stateAfter ?? null }))
+      .filter((id): id is string => id !== null);
+    const changes = await this.#valueChanges(task.id, pointers);
+    const states = page.map((entry) => {
+      const raw = { before: entry.stateBefore ?? null, after: entry.stateAfter ?? null };
+      const pointer = valueChangeIdOf(raw);
+      return withStoredValues(raw, pointer === null ? null : (changes.get(pointer) ?? null));
+    });
+
     const actorIds = [...new Set(page.map((entry) => entry.actorAdminUserId).filter((id): id is string => Boolean(id)))];
     const actors = actorIds.length > 0 ? await this.deps.adminUsers.findByIds(actorIds) : [];
     const names = new Map(actors.map((admin) => [admin.id, `${admin.firstName} ${admin.lastName}`.trim() || admin.email]));
 
     // Each context the page names, asked once, under the reader's own context.
     const seen = new Map<string, boolean>();
-    for (const entry of page) {
-      for (const state of [entry.stateBefore, entry.stateAfter]) {
+    for (const entry of states) {
+      for (const state of [entry.before, entry.after]) {
         const context = contextOf(state);
         if (!context) continue;
         const key = `${context.contextType}:${context.contextId}`;
@@ -166,7 +231,7 @@ export class TaskHistoryService {
       }
     }
     // Every Task the page names, asked once, in one read.
-    const named = page.flatMap((entry) => [...taskIdsOf(entry.stateBefore), ...taskIdsOf(entry.stateAfter)]);
+    const named = states.flatMap((entry) => [...taskIdsOf(entry.before), ...taskIdsOf(entry.after)]);
     const visibleTasks = named.length > 0 ? await this.deps.access.visibleIds(named) : new Set<string>();
     const withoutHiddenTasks = (state: unknown): unknown => {
       const record = asRecord(state);
@@ -186,7 +251,7 @@ export class TaskHistoryService {
     };
 
     return {
-      data: page.map((entry) => {
+      data: page.map((entry, index) => {
         const actorId = entry.actorAdminUserId ?? null;
         return {
           id: entry.id,
@@ -196,13 +261,24 @@ export class TaskHistoryService {
             actorId === null
               ? { kind: 'system', id: null, name: null }
               : { kind: 'admin', id: actorId, name: names.get(actorId) ?? null },
-          before: served(entry.stateBefore),
-          after: served(entry.stateAfter),
+          before: served(states[index]?.before ?? null),
+          after: served(states[index]?.after ?? null),
           references: [],
         };
       }),
       pagination: { cursor: hasMore ? encodeCursor(offset + query.limit) : null, hasMore, limit: query.limit },
       truncated,
     };
+  }
+
+  /** The stored values of the page's entries, by row id — read by the Task's own id. */
+  async #valueChanges(taskId: string, ids: readonly string[]): Promise<Map<string, StoredTaskValueChange>> {
+    if (ids.length === 0) return new Map();
+    const rows = (await this.deps.emFactory().execute(
+      `select v."id", v."before", v."after" from "task_value_changes" v
+        where v."task_id" = ? and v."id" = any(?::uuid[])`,
+      [taskId, `{${ids.join(',')}}`],
+    )) as Array<{ id: string; before: Record<string, unknown> | null; after: Record<string, unknown> | null }>;
+    return new Map(rows.map((row) => [row.id, { before: row.before, after: row.after }]));
   }
 }

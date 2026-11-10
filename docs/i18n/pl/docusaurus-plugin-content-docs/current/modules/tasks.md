@@ -323,6 +323,15 @@ je od najnowszej. Historia zapisuje długość opisu, nigdy jego treść. Projek
 który zadanie opuściło, a którego nie możesz zobaczyć, nie jest w niej
 wymieniony.
 
+Wartości, które pokazuje historia — tytuł zadania, jego notatka z rekordu, dla
+którego zostało utworzone, wartości pól niestandardowych i nazwa pliku
+załącznika — są przechowywane przy zadaniu i pokazywane tylko temu, kto może je
+zobaczyć. Dziennik audytu całej platformy, który czyta każdy z
+`audit_log:read` bez względu na to, co widzi, mówi, co się zmieniło
+(`changedFields`, `changedCustomFields`), i nie zawiera żadnej z tych wartości.
+Wpisy zapisane przed tą zmianą zachowują swoje wartości i są pokazywane tak, jak
+zostały zapisane.
+
 ## Konfiguracja zadań
 
 Posiadacze *Configure tasks* docierają do tych ekranów z **Ustawień zadań**

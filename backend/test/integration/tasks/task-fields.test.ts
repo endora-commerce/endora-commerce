@@ -97,6 +97,45 @@ describe('tasks — the fields of a Task (US1)', () => {
     await teardownBackendServer(h);
   });
 
+  /**
+   * Issue #470 (D-288; owner ruling O-1: a title is a value). The global audit
+   * log names what changed; the Task's history serves the values from the
+   * Task's own store, and only to a reader who may see the Task.
+   */
+  describe('audit state names, the history shows values (#470)', () => {
+    it('keeps the title out of the global audit log and serves it in the Task’s history', async () => {
+      const task = await create({ title: 'S470-TASK-TITLE' });
+      await patch(task.id, { title: 'S470-TASK-TITLE-NEW' });
+
+      const global = await h.app.inject({ method: 'GET', url: `/api/v1/admin/audit-log?filter[objectId]=${task.id}`, cookies: admin });
+      expect(global.statusCode, global.body).toBe(200);
+      const rows = (global.json() as { data: Array<{ action: string; stateBefore: unknown; stateAfter: unknown }> }).data;
+      expect(rows.map((row) => row.action).sort()).toEqual(['tasks.task.create', 'tasks.task.update']);
+      expect(JSON.stringify(rows.map((row) => [row.stateBefore, row.stateAfter]))).not.toContain('S470');
+      expect(rows.find((row) => row.action === 'tasks.task.update')?.stateAfter).toMatchObject({ changedFields: ['title'] });
+
+      const history = await call('GET', `/${task.id}/history?limit=50`);
+      expect(history.statusCode, history.body).toBe(200);
+      const [update] = (history.json() as { data: Array<{ action: string; before: unknown; after: unknown }> }).data;
+      expect(update).toMatchObject({
+        action: 'tasks.task.update',
+        before: { title: 'S470-TASK-TITLE' },
+        after: { title: 'S470-TASK-TITLE-NEW' },
+      });
+      expect(update?.after).not.toHaveProperty('valueChangeId');
+    });
+
+    it('answers a reader who may not see the Task 404, as for a missing one', async () => {
+      const task = await create({ title: 'S470-PRIVATE', private: true }, first.cookies);
+      const hidden = await call('GET', `/${task.id}/history`, undefined, second.cookies);
+      const missing = await call('GET', `/${randomUUID()}/history`, undefined, second.cookies);
+      expect(hidden.statusCode).toBe(404);
+      expect(missing.statusCode).toBe(404);
+      expect(hidden.json().error.code).toBe(missing.json().error.code);
+      expect(hidden.body).not.toContain('S470');
+    });
+  });
+
   describe('assignees (FR-001)', () => {
     it('two assignees added are each told once, by number; the actor among them is never told', async () => {
       const task = await create({ title: 'Install the racks', assigneeIds: [TEST_ADMIN_ID] });
@@ -234,7 +273,15 @@ describe('tasks — the fields of a Task (US1)', () => {
       const invalidLater = await call('PATCH', `/${task.id}`, { customFieldValues: { [key]: 'four' } });
       expect(invalidLater.statusCode, invalidLater.body).toBe(422);
       const changed = (await audit(task.id)).find((row) => row.action === 'tasks.task.custom_fields_change');
-      expect(changed).toMatchObject({ stateBefore: { customFieldValues: { [key]: 3 } }, stateAfter: { customFieldValues: { [key]: 4 } } });
+      // The entry names the key; the values are the Task's own store's (#470).
+      expect(changed?.stateBefore ?? null).toBeNull();
+      expect(changed?.stateAfter).toMatchObject({ changedCustomFields: [key], valueChangeId: expect.any(String) });
+      const [stored] = (await h.orm.em
+        .getConnection()
+        .execute(`select "before", "after" from "task_value_changes" where "id" = ?`, [
+          (changed!.stateAfter as { valueChangeId: string }).valueChangeId,
+        ])) as Array<{ before: unknown; after: unknown }>;
+      expect(stored).toEqual({ before: { customFieldValues: { [key]: 3 } }, after: { customFieldValues: { [key]: 4 } } });
     });
   });
 

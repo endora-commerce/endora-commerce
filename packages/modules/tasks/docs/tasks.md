@@ -293,6 +293,14 @@ history lists them, newest first. The history records the length of a
 description, never its text. A project the task has left, and you may not see,
 is not named in it.
 
+The values the history shows — a task's title, its note from the record it was
+created for, its custom field values and an attachment's file name — are kept
+beside the task and shown only to somebody who may see it. The platform-wide
+audit log, which everybody holding `audit_log:read` reads whatever they may
+see, names what changed (`changedFields`, `changedCustomFields`) and holds none
+of those values. Entries recorded before this change keep their values and are
+shown as they were recorded.
+
 ## Configuring Tasks
 
 Holders of *Configure tasks* reach these screens from **Task settings** in the

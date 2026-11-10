@@ -4500,6 +4500,28 @@ compares against `ERROR_CODES.ASSET_ACCESS_DENIED` no longer compiles: drop the 
 compare against `ERROR_CODES.ASSET_NOT_FOUND`. With cloud storage, add `X-Content-Type-Options:
 nosniff` in front of the bucket, as the assets library page describes.
 
+### Task values leave the platform audit log {#tasks-audit-names-only}
+
+The release that ships this change stops writing a task's values into the platform-wide audit log
+(issue #470). That log is one table, read by everybody holding `audit_log:read` whatever they may
+see, so it now names what a task's change touched and nothing more.
+
+**Behaviour change on upgrade:**
+
+- On the **Audit log** screen, and in `audit_logs read`, a new `tasks.*` entry no longer carries the
+  task's title, its note from the record it was created for, its custom field values or an
+  attachment's file name. It carries the task's number, status, dates, context type and id, and
+  `changedFields` / `changedCustomFields`, the names of what changed.
+- A task's **History** tab is unchanged: it still shows the values, now read from a store the Tasks
+  module keeps beside the task (`task_value_changes`, created by this release's migration), and only
+  to a reader who may see that task.
+- Entries recorded before the upgrade are not rewritten: they keep their values, on the Audit log
+  screen and in the history.
+
+**After upgrading,** nothing has to be done. A report or an export that read a task's values out of
+the audit log reads them from the task, or from its history (`GET /api/v1/admin/tasks/:id/history`),
+instead.
+
 ## An instance that is mixed from the start
 
 The installer of `0.101.x` or earlier wrote every package of the release with a `^` except
