@@ -99,6 +99,45 @@ describe('Newsletter storefront routes (feature 048)', () => {
     expect(JSON.stringify(block.content.data)).toContain('/privacy-policy');
   });
 
+  // Issue #470 (D-288) — a subscriber is `@CustomerScoped`; the platform audit
+  // log is read without that reach, so its entries name, never the address nor a
+  // reason typed in free text.
+  it('keeps the e-mail address and the unsubscribe reason out of the audit log', async () => {
+    const email = `s470-${Date.now()}@example.test`;
+    const subscribed = await h.app.inject({ method: 'POST', url: '/api/v1/newsletter/subscribe', payload: { email, channelCode: 'default' } });
+    expect(subscribed.statusCode, subscribed.body).toBeLessThan(300);
+    const [subscriber] = (await h.em().getConnection().execute(
+      `select id, version from newsletter_subscribers where email = ?`,
+      [email],
+    )) as Array<{ id: string; version: number }>;
+    if (!subscriber) throw new Error('the subscribe call stored no subscriber');
+    const admin = { b2b_session: 'stub-admin-session' };
+    const unsubscribed = await h.app.inject({
+      method: 'POST',
+      url: `/api/v1/admin/newsletter/subscribers/${subscriber.id}/unsubscribe`,
+      cookies: admin,
+      payload: { reason: 'S470-REASON moved abroad', expectedVersion: Number(subscriber.version) },
+    });
+    expect(unsubscribed.statusCode, unsubscribed.body).toBe(200);
+    const removed = await h.app.inject({ method: 'DELETE', url: `/api/v1/admin/newsletter/subscribers/${subscriber.id}`, cookies: admin });
+    expect(removed.statusCode, removed.body).toBe(204);
+
+    const rows = (await h.em().getConnection().execute(
+      `select "action", "state_before", "state_after" from "audit_log_entries" where "object_id" = ? order by "acted_at"`,
+      [subscriber.id],
+    )) as Array<{ action: string; state_before: unknown; state_after: unknown }>;
+    expect(rows.map((row) => row.action)).toEqual(
+      expect.arrayContaining(['newsletter_subscribe', 'newsletter_unsubscribe', 'newsletter_delete']),
+    );
+    const states = JSON.stringify(rows.map((row) => [row.state_before, row.state_after]));
+    expect(states).not.toContain(email);
+    expect(states).not.toContain('S470');
+    expect(rows.find((row) => row.action === 'newsletter_unsubscribe')?.state_after).toEqual({
+      status: 'unsubscribed',
+      hasReason: true,
+    });
+  });
+
   // Feature 167 (US6, FR-034) — the storefront pages a confirm or unsubscribe link
   // lands on carry the subscriber's channel language prefix (its default language:
   // a subscriber records no language).
