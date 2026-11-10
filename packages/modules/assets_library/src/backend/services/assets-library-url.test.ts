@@ -323,3 +323,64 @@ describe('AssetsLibraryService — the permalink base is read once per call (fea
     expect(spy).toHaveBeenCalledTimes(1);
   });
 });
+
+/**
+ * Issue #815 — a time-limited cloud URL pins the bucket's answer to the type
+ * and disposition the serving policy chose, so the bucket never answers with a
+ * type the object metadata drifted to, nor shows inline what the policy keeps
+ * as an attachment. The adapter is stubbed to record what it is asked.
+ */
+describe('AssetsLibraryService.resolveUrl — response headers for a signed URL (issue #815)', () => {
+  function recording(asset: Asset) {
+    const asked: Array<Record<string, unknown>> = [];
+    const adapter = {
+      resolveUrl: async (input: Record<string, unknown>) => {
+        asked.push(input);
+        return { url: 'https://bucket.example.test/signed', expiresAt: new Date() };
+      },
+    };
+    const service = makeService(asset, '', {
+      adapters: { getForBackend: async () => adapter } as unknown as AdapterRegistry,
+    });
+    return { service, asked };
+  }
+
+  it('asks for the stored type and the policy disposition', async () => {
+    const { service, asked } = recording(
+      seededAsset({ visibility: 'private', storageBackend: 's3', filename: 'scan.pdf', mimeType: 'application/pdf' } as Partial<Asset>),
+    );
+    await service.resolveUrl(ASSET_ID);
+    expect(asked[0]).toMatchObject({
+      visibility: 'private',
+      responseHeaders: {
+        contentType: 'application/pdf',
+        contentDisposition: `inline; filename="scan.pdf"; filename*=UTF-8''scan.pdf`,
+      },
+    });
+  });
+
+  it('keeps an SVG and a non-displayable type an attachment', async () => {
+    for (const [filename, mimeType] of [
+      ['logo.svg', 'image/svg+xml'],
+      ['data.zip', 'application/zip'],
+    ] as const) {
+      const { service, asked } = recording(
+        seededAsset({ visibility: 'private', storageBackend: 'gcs', filename, mimeType } as Partial<Asset>),
+      );
+      await service.resolveUrl(ASSET_ID);
+      expect(asked[0]).toMatchObject({
+        responseHeaders: { contentType: mimeType, contentDisposition: expect.stringMatching(/^attachment;/) },
+      });
+    }
+  });
+
+  it('asks for an attachment when the caller wants a download', async () => {
+    const { service, asked } = recording(
+      seededAsset({ visibility: 'private', storageBackend: 's3', filename: 'photo.png', mimeType: 'image/png' } as Partial<Asset>),
+    );
+    await service.resolveUrl(ASSET_ID, { download: true });
+    expect(asked[0]).toMatchObject({
+      responseHeaders: { contentDisposition: expect.stringMatching(/^attachment;/) },
+    });
+  });
+});
