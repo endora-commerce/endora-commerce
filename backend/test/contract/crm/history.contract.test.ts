@@ -15,6 +15,7 @@ import {
   seedCrmAdmin,
   transitionCrmOpportunity,
 } from '../../helpers/seed-crm.js';
+import { TEST_ORGANIZATION_ID } from '../../helpers/test-actors.js';
 
 /**
  * The change history of an Opportunity
@@ -215,5 +216,52 @@ describe('crm opportunity history — custom-field values need custom_fields:rea
       }
     }
     expect(entries[0]).toMatchObject({ before: { title: 'Valued' }, after: { title: 'Valued again' } });
+  });
+  /**
+   * Issue #470 (D-288) — the platform-wide audit screen,
+   * `GET /api/v1/admin/audit-log`, is read under `audit_log:read` without
+   * Organization reach. A row the Opportunity's update writes names what
+   * changed and carries none of the values.
+   */
+  it('leaves the global audit log names only — no value of the Opportunity in its rows', async () => {
+    const opportunity = await createCrmOpportunity(h, {
+      title: 'S470-TITLE',
+      description: 'S470-DESC',
+      manualValue: '470470.47',
+      customFieldValues: { [key]: 'S470-CF' },
+    });
+    const edited = await h.app.inject({
+      method: 'PATCH',
+      url: `${CRM_API}/opportunities/${opportunity.id}`,
+      cookies: CRM_ADMIN,
+      payload: {
+        title: 'S470-TITLE-NEW',
+        description: 'S470-DESC-NEW',
+        manualValue: '470471.47',
+        customFieldValues: { [key]: 'S470-CF-NEW' },
+      },
+    });
+    expect(edited.statusCode, edited.body).toBe(200);
+
+    const response = await h.app.inject({
+      method: 'GET',
+      url: `/api/v1/admin/audit-log?filter[objectId]=${opportunity.id}`,
+      cookies: CRM_ADMIN,
+    });
+    expect(response.statusCode, response.body).toBe(200);
+    const rows = (response.json() as {
+      data: Array<{ action: string; stateBefore: Record<string, unknown> | null; stateAfter: Record<string, unknown> | null }>;
+    }).data;
+    expect(rows.map((row) => row.action).sort()).toEqual(['crm.opportunity.create', 'crm.opportunity.update']);
+    const states = JSON.stringify(rows.map((row) => [row.stateBefore, row.stateAfter]));
+    for (const sentinel of ['S470', '470470.47', '470471.47', TEST_ORGANIZATION_ID]) {
+      expect(states, sentinel).not.toContain(sentinel);
+    }
+    const update = rows.find((row) => row.action === 'crm.opportunity.update');
+    expect(update?.stateAfter).toMatchObject({
+      changedFields: ['description', 'manualValue', 'title'],
+      changedCustomFields: [key],
+      valueChangeId: expect.any(String),
+    });
   });
 });

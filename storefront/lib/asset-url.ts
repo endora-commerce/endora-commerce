@@ -26,3 +26,12 @@ export function toAbsoluteAssetUrl(url: string | null | undefined): string {
   if (url.startsWith('/')) return `${apiBaseUrl.replace(/\/+$/, '')}${url}`;
   return url;
 }
+
+/** A CMS asset map with every URL rebased by `toAbsoluteAssetUrl`; absent (a cached legacy answer): empty. */
+export function toAbsoluteAssetMap<T extends { url: string }>(
+  assets: Readonly<Record<string, T>> | undefined,
+): Record<string, T> {
+  return Object.fromEntries(
+    Object.entries(assets ?? {}).map(([id, asset]) => [id, { ...asset, url: toAbsoluteAssetUrl(asset.url) }]),
+  );
+}

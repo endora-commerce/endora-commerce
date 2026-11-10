@@ -8,7 +8,8 @@ import {
 } from '@endora-commerce/contracts';
 import { HttpError } from '@endora-commerce/platform/http';
 import type { AuditPort } from '@endora-commerce/platform/kernel';
-import { loadOpportunity } from './opportunity-access.js';
+import { CrmOpportunityValueChange } from '../entities/crm-opportunity-value-change.entity.js';
+import { isUuid, loadOpportunity } from './opportunity-access.js';
 import type { ReferenceService } from './reference-service.js';
 
 export interface OpportunityHistoryServiceDeps {
@@ -38,17 +39,71 @@ function textsOf(state: unknown): string[] {
   );
 }
 
+/** The keys of a state that belong to `custom_fields`: the values, and the names of the changed ones. */
+const CUSTOM_FIELD_KEYS = ['customFieldValues', 'changedCustomFields'] as const;
+
 /**
- * An audited state as the reader may see it: without `customFieldValues` for a
- * caller who may not read custom fields. Only the top-level key holds values —
- * `customFieldCarry` names keys, reasons and labels, never a value, and stays.
- * The audit entry itself is never rewritten.
+ * An audited state as the reader may see it: without `customFieldValues` and
+ * `changedCustomFields` for a caller who may not read custom fields.
+ * `customFieldCarry` names keys and reasons, never a value, and stays. The
+ * audit entry itself is never rewritten.
  */
 function visibleState(state: unknown, mayReadCustomFields: boolean): unknown {
   if (mayReadCustomFields || state === null || typeof state !== 'object' || Array.isArray(state)) return state;
-  if (!Object.hasOwn(state, 'customFieldValues')) return state;
-  const { customFieldValues: _hidden, ...rest } = state as Record<string, unknown>;
+  if (!CUSTOM_FIELD_KEYS.some((key) => Object.hasOwn(state, key))) return state;
+  const rest = { ...(state as Record<string, unknown>) };
+  for (const key of CUSTOM_FIELD_KEYS) delete rest[key];
   return rest;
+}
+
+/** The audit keys that stand in for the values the Opportunity's own store keeps (#470). */
+const VALUE_POINTER = 'valueChangeId';
+const VALUE_NAMES = ['changedFields', 'changedCustomFields'] as const;
+
+function asRecord(state: unknown): Record<string, unknown> | null {
+  return state === null || typeof state !== 'object' || Array.isArray(state) ? null : (state as Record<string, unknown>);
+}
+
+/** The `crm_opportunity_value_changes` row an entry points at — on the side that has one — or `null`. */
+export function valueChangeIdOf(entry: { before: unknown; after: unknown }): string | null {
+  for (const state of [entry.after, entry.before]) {
+    const id = asRecord(state)?.[VALUE_POINTER];
+    if (typeof id === 'string' && isUuid(id)) return id;
+  }
+  return null;
+}
+
+/** One row of the value store: the changed values of one write, either side. */
+export interface StoredValueChange {
+  before: Record<string, unknown> | null;
+  after: Record<string, unknown> | null;
+}
+
+/**
+ * An entry with the values the Opportunity's store kept for it (#470): the
+ * audit entry names what changed and points at the row by `valueChangeId`;
+ * the history serves the values in place of the names, in the shape entries
+ * written before #470 carried them, so the tab reads both alike. Without a
+ * row the names stay and only the pointer goes.
+ */
+export function withStoredValues(
+  entry: { before: unknown; after: unknown },
+  change: StoredValueChange | null,
+): { before: unknown; after: unknown } {
+  const strip = (state: unknown): unknown => {
+    const record = asRecord(state);
+    if (!record || !(VALUE_POINTER in record || (change && VALUE_NAMES.some((key) => key in record)))) return state;
+    const out = { ...record };
+    delete out[VALUE_POINTER];
+    if (change) for (const key of VALUE_NAMES) delete out[key];
+    return out;
+  };
+  const merge = (state: unknown, values: Record<string, unknown> | null): unknown => {
+    const stripped = strip(state);
+    if (!values) return stripped;
+    return { ...(asRecord(stripped) ?? {}), ...values };
+  };
+  return { before: merge(entry.before, change?.before ?? null), after: merge(entry.after, change?.after ?? null) };
 }
 
 /** The object type every Command about an Opportunity, or anything hanging on it, is recorded under. */
@@ -101,6 +156,14 @@ function decodeCursor(cursor: string | undefined): number {
  * Served to `crm:read`, not `audit_log:read`: a Sales Rep reads what happened
  * to their Opportunity without being given the platform's whole audit log.
  *
+ * **The values come from the Opportunity's own store** (issue #470, D-288).
+ * Since #470 an entry names what a write changed (`changedFields`,
+ * `changedCustomFields`) and points at a `crm_opportunity_value_changes` row
+ * by `valueChangeId`; the row is read by this Opportunity's id, after the
+ * Opportunity was loaded through the scoped EntityManager, and its values are
+ * served in place of the names. Entries written before #470 still carry their
+ * values in the audit row and are served as they are: nothing rewrites them.
+ *
  * **A text is returned as it was audited, tokens and all**, with what its
  * tokens name beside it — resolved now, for this reader, under the rule every
  * other text of the module is read by (User Story 18; research N-M6). The
@@ -126,7 +189,8 @@ export class OpportunityHistoryService {
     query: OpportunityHistoryQuery,
   ): Promise<OpportunityHistoryResponse> {
     const offset = decodeCursor(query.cursor);
-    const opportunity = await loadOpportunity(this.deps.emFactory(), opportunityId);
+    const em = this.deps.emFactory();
+    const opportunity = await loadOpportunity(em, opportunityId);
 
     // Newest first, from the port. One row more than the page tells whether
     // there is another page; nothing is asked beyond the port's own cap.
@@ -148,8 +212,26 @@ export class OpportunityHistoryService {
       actors.map((admin) => [admin.id, `${admin.firstName} ${admin.lastName}`.trim() || admin.email]),
     );
 
+    // The values the audit entries name, from the Opportunity's own store —
+    // by this Opportunity's id, so a pointer to another one's row reads nothing.
+    const pointers = page
+      .map((entry) => valueChangeIdOf({ before: entry.stateBefore ?? null, after: entry.stateAfter ?? null }))
+      .filter((id): id is string => id !== null);
+    const stored =
+      pointers.length > 0
+        ? await em.find(CrmOpportunityValueChange, { opportunityId: opportunity.id, id: { $in: pointers } })
+        : [];
+    const changes = new Map<string, StoredValueChange>(
+      stored.map((row) => [row.id, { before: row.before ?? null, after: row.after ?? null }]),
+    );
+    const states = page.map((entry) => {
+      const raw = { before: entry.stateBefore ?? null, after: entry.stateAfter ?? null };
+      const pointer = valueChangeIdOf(raw);
+      return withStoredValues(raw, pointer === null ? null : (changes.get(pointer) ?? null));
+    });
+
     // One resolution for the whole page, as a page of comments has.
-    const texts = page.map((entry) => [...textsOf(entry.stateBefore), ...textsOf(entry.stateAfter)]);
+    const texts = states.map((state) => [...textsOf(state.before), ...textsOf(state.after)]);
     const resolved = await this.deps.references.resolveMany(texts.map((list) => list.join('\n')));
     const referencesOf = (index: number): OpportunityReference[] => resolved[index] ?? [];
     const mayReadCustomFields = page.length > 0 ? await this.deps.mayReadCustomFields() : true;
@@ -167,8 +249,8 @@ export class OpportunityHistoryService {
             actorId === null
               ? { kind: 'system', id: null, name: null }
               : { kind: 'admin', id: actorId, name: actorNames.get(actorId) ?? null },
-          before: visibleState(entry.stateBefore ?? null, mayReadCustomFields),
-          after: visibleState(entry.stateAfter ?? null, mayReadCustomFields),
+          before: visibleState(states[index]?.before ?? null, mayReadCustomFields),
+          after: visibleState(states[index]?.after ?? null, mayReadCustomFields),
           references: referencesOf(index),
         };
       }),
