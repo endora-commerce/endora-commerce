@@ -180,6 +180,31 @@ describe('AssetReadService.resolveUrls', () => {
     expect(filters[0]).toMatchObject({ id: { $in: [PUBLIC_ID, PRIVATE_ID] }, deletedAt: null });
   });
 
+  // Issue #815: the signed link pins the bucket's type and disposition, as the
+  // detail's does.
+  it('asks the adapter for the stored type and the policy disposition on a private asset', async () => {
+    const asked: Array<Record<string, unknown>> = [];
+    const em = { find: async () => [seededAsset(PRIVATE_ID, { visibility: 'private', storageBackend: 's3', filename: 'logo.svg', mimeType: 'image/svg+xml' } as Partial<Asset>)] } as unknown as EntityManager;
+    const adapters = {
+      getForBackend: async () => ({
+        resolveUrl: (input: Record<string, unknown>) => {
+          asked.push(input);
+          return { url: 'https://bucket.example.test/signed', expiresAt: new Date() };
+        },
+      }),
+    } as unknown as AssetStorageRegistry;
+    const service = new AssetReadService(() => em, () => adapters, () => NO_VISIBILITY);
+
+    await service.resolveUrls([PRIVATE_ID]);
+
+    expect(asked[0]).toMatchObject({
+      responseHeaders: {
+        contentType: 'image/svg+xml',
+        contentDisposition: `attachment; filename="logo.svg"; filename*=UTF-8''logo.svg`,
+      },
+    });
+  });
+
   it('reads nothing at all for an empty batch, or one with no uuid in it', async () => {
     const { service, filters } = makeService([seededAsset(PUBLIC_ID)]);
 

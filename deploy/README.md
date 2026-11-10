@@ -339,8 +339,10 @@ docker compose --env-file .env -f compose.prod.yml run --rm backend \
 
 ### Notes & caveats
 
-- **RAM**: building happens in CI, but the running stack (2 Node processes +
-  Postgres + Redis + Meilisearch) wants **≥ 4 GB** (8 GB comfortable).
+- **RAM**: building happens in CI, so the VPS sizes for the running stack (2 Node
+  processes + Postgres + Redis + Meilisearch) only — the tiers and the measured footprint are in
+  the root `README.md`, *Hardware & system requirements* (4 GB minimum, 8 GB for the target
+  workload).
 - **Backups**: Postgres data lives in the `postgres-data` volume. Add a cron job
   running the `pg_dump` above off-box (e.g. to object storage) — a stray
   `docker compose down -v` wipes the volume.

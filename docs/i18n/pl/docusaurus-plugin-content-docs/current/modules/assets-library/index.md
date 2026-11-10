@@ -94,18 +94,21 @@ wyświetla — obrazy rastrowe, SVG, wideo, audio, PDF i zwykły tekst — są s
 od parametrów żądania; `?download=1` prosi o `attachment`. SVG otwarty bezpośrednio nie uruchamia
 więc żadnego skryptu, a osadzanie go przez `<img>` działa bez zmian.
 
-Przekierowania i odpowiedzi z błędem (`302`, `403`, `404`, `410`) mają `no-store` i stałą politykę
+Przekierowania i odpowiedzi z błędem (`302`, `404`, `410`) mają `no-store` i stałą politykę
 `sandbox` opisaną wyżej, niezależnie od zapisanego typu.
 
 Trasa rozstrzyga w tej kolejności:
 
 1. Nieznany identyfikator lub nazwa — `404 ASSET_NOT_FOUND`.
-2. Plik **prywatny** jest najpierw sprawdzany pod kątem ważnego podpisu. Bez niego odpowiada
-   `403 ASSET_ACCESS_DENIED` przez identyfikator — także gdy jest usunięty miękko — i `404` przez
-   stały link, bajt w bajt tak samo jak nieużywana nazwa.
+2. Plik **prywatny** jest najpierw sprawdzany pod kątem ważnego podpisu. Bez niego — albo z podpisem
+   wygasłym lub podrobionym — odpowiada `404 ASSET_NOT_FOUND`, przez identyfikator i przez stały
+   link, także gdy jest usunięty miękko: bajt w bajt tak samo jak nieznany identyfikator albo
+   nieużywana nazwa, więc bez podpisu nie da się stwierdzić, że plik prywatny istnieje.
 3. Plik usunięty miękko — `410 ASSET_GONE`.
 4. Plik prywatny z ważnym podpisem jest przesyłany strumieniowo (lokalnie) albo przekierowywany na
-   adres zasobnika ważny przez ograniczony czas (S3, GCS), zawsze z `no-store`.
+   adres zasobnika ważny przez ograniczony czas (S3, GCS), zawsze z `no-store`. Taki adres jest
+   podpisany z zapisanym typem pliku i opisanym wyżej `Content-Disposition` (`attachment` przy
+   `?download=1`), więc zasobnik odpowiada z tymi nagłówkami niezależnie od metadanych obiektu.
 5. Publiczny plik w chmurze jest przekierowywany (`302`, `no-store`) na stały adres w zasobniku — z
    `?v=<bieżąca>`, gdy żądanie zawierało `v`.
 6. Publiczny plik lokalny jest przesyłany strumieniowo; zobacz [Pamięć podręczna](#caching).
@@ -131,7 +134,8 @@ podpisujący pochodzi ze zmiennej środowiskowej `ASSETS_LIBRARY_HMAC_KEY` (wyge
 W **S3** i **GCS** adresy prywatne podpisuje (V4) SDK dostawcy; backend nie potrzebuje niczego poza
 danymi uwierzytelniającymi. `GET /assets/file/:assetId` przekierowuje plik z chmury na jego
 rozwiązany adres, ale dla pliku `private` dopiero po tym samym sprawdzeniu tokenu HMAC, któremu
-podlega plik lokalny; bez ważnego tokenu odpowiada `403 ASSET_ACCESS_DENIED`. Ekrany panelu pobierają
+podlega plik lokalny; bez ważnego tokenu odpowiada `404 ASSET_NOT_FOUND`, tak jak dla pliku, którego
+nie ma. Ekrany panelu pobierają
 adresy prywatne z `GET /api/v1/admin/assets/:id/url` i działają bez zmian.
 
 ## Kto widzi które pliki {#who-sees-which-files}
@@ -259,9 +263,9 @@ wpisywania i prosi o potwierdzenie przed zmianą lub usunięciem ustawionego sta
   `400 ASSET_PERMALINK_INVALID` z `details.code` wskazującym naruszoną zasadę.
 - **Unikalny bez względu na wielkość liter** i bez względu na nią dopasowywany przy serwowaniu.
   Nazwa zajęta przez inny plik daje `409 ASSET_PERMALINK_TAKEN`.
-- **Pliki prywatne.** Stały link pliku prywatnego bez ważnego podpisu odpowiada `404`, tak samo jak
-  nieużywana nazwa, a adres z identyfikatorem odpowiada `403` — zarówno dla pliku aktywnego, jak i
-  usuniętego miękko. Plik prywatny usunięty miękko odpowiada `410` tylko na ważny podpis.
+- **Pliki prywatne.** Stały link i adres z identyfikatorem pliku prywatnego bez ważnego podpisu
+  odpowiadają `404`, tak samo jak nieużywana nazwa albo nieznany identyfikator — zarówno dla pliku
+  aktywnego, jak i usuniętego miękko. Plik prywatny usunięty miękko odpowiada `410` tylko na ważny podpis.
 - **Zmiana lub usunięcie** działa od razu: stara nazwa odpowiada `404` od następnego żądania.
 - **Ponowne użycie nazwy.** Nazwę, która została zmieniona, usunięta albo zwolniona przez trwałe
   usunięcie, można zająć od razu. Jeśli ostatnio należała do **innego** pliku, żądanie odpowiada
@@ -313,7 +317,7 @@ Co trasa pliku odpowiada w zależności od żądania:
 | Publiczny S3 / GCS | `302` na stały adres w zasobniku | `no-store` |
 | Prywatny, ważny podpis, lokalny | `200` / `304` | `private, no-store, max-age=0` |
 | Prywatny, ważny podpis, S3 / GCS | `302` na adres ważny przez ograniczony czas | `no-store` |
-| Odmowy (`403`, `404`, `410`) | — | `no-store` |
+| Odmowy (`404`, `410`) | — | `no-store` |
 
 - **Aktualność.** Podmiana jest widoczna przy następnym żądaniu adresu pliku lub stałego linku: oba
   są za każdym razem weryfikowane ponownie, a adresy osadzenia wydawane przez platformę zawierają
@@ -350,7 +354,20 @@ zmianie pliku jest śledzone w [zgłoszeniu #363](https://github.com/endora-comm
 - **Nieaktualne `v`** w adresie zasobnika serwuje bieżący plik; zasobnik nie wersjonuje po parametrze
   zapytania.
 - **Pliki prywatne** są serwowane przez API tylko z ważnym podpisem platformy, który przekierowuje na
-  adres zasobnika ważny przez ograniczony czas.
+  adres zasobnika ważny przez ograniczony czas. Ten adres zawiera zapisany typ pliku i
+  `Content-Disposition` z polityki serwowania jako podpisane nadpisania odpowiedzi (w S3
+  `response-content-type` / `response-content-disposition`, w GCS to samo przez parametry
+  podpisanego adresu), więc obiekt prywatny odpowiada z nimi nawet wtedy, gdy jego metadane zapisała
+  wcześniejsza wersja.
+- **`X-Content-Type-Options: nosniff`** nie może być nagłówkiem obiektu w zasobniku ani częścią
+  podpisanego adresu; własne odpowiedzi API wysyłają go zawsze. Dodaj go do odpowiedzi zasobnika w
+  CDN lub load balancerze przed zasobnikiem — w S3 przez politykę nagłówków odpowiedzi CloudFront, w
+  GCS przez niestandardowy nagłówek odpowiedzi w zasobniku zaplecza load balancera — zobacz
+  [Obsługa CDN](#operating-a-cdn). Adres ważny przez ograniczony czas jest wydawany na własnym
+  punkcie końcowym zasobnika, więc trafia do zasobnika bez tego nagłówka.
+- **Osobny adres źródłowy.** Serwuj zasobnik, i każdy CDN przed nim, z hosta, który nie dzieli
+  plików cookie z API ani z panelem — nie z subdomeny domeny, dla której ustawiane jest cookie sesji
+  panelu — aby plik otwarty z zasobnika nigdy nie działał w ramach sesji.
 - **Obiekty poprzednich wersji i obiekty tymczasowe** mają losowe nazwy i prywatne ACL. **Polityka
   zasobnika nie może dawać publicznego odczytu poza obiektami, które moduł udostępnia publicznie.**
 - **Rozmiar.** Plik w S3 może mieć najwyżej 5 GiB; większa podmiana jest odrzucana z komunikatem o

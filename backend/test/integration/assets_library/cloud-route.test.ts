@@ -71,11 +71,11 @@ describe('the file route for cloud assets (feature 156)', () => {
     expect(marked.headers['location']).toBe(`${stable}?v=${a.contentVersion}`);
   });
 
-  it('refuses a private S3 asset without a signature — 403 by id, 404 by permalink — with no Location', async () => {
+  it('refuses a private S3 asset without a signature — 404 by id and by permalink — with no Location', async () => {
     const a = await forge('private');
     const byId = await h.app.inject({ method: 'GET', url: `/assets/file/${a.id}` });
-    expect(byId.statusCode).toBe(403);
-    expect(byId.json()).toMatchObject({ error: { code: 'ASSET_ACCESS_DENIED' } });
+    expect(byId.statusCode).toBe(404);
+    expect(byId.json()).toMatchObject({ error: { code: 'ASSET_NOT_FOUND' } });
     expect(byId.headers['location']).toBeUndefined();
     const byName = await h.app.inject({ method: 'GET', url: `/assets/file/${a.permalink}` });
     expect(byName.statusCode).toBe(404);
