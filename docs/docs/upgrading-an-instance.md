@@ -4500,6 +4500,24 @@ compares against `ERROR_CODES.ASSET_ACCESS_DENIED` no longer compiles: drop the 
 compare against `ERROR_CODES.ASSET_NOT_FOUND`. With cloud storage, add `X-Content-Type-Options:
 nosniff` in front of the bucket, as the assets library page describes.
 
+### Project titles leave the platform audit log {#projects-title-out-of-audit}
+
+The release that ships this change stops writing a project's title into the platform-wide audit log
+(issue #470, owner ruling of 2026-11-10: a title is a value). Projects already kept the value and the
+custom field values out of it.
+
+**Behaviour change on upgrade:**
+
+- On the **Audit log** screen, and in `audit_logs read`, a new `projects.project.*` entry names a
+  project by its number and no longer carries its title. A change of the title is recorded as
+  `changedFields: ['title']`.
+- A project's **Change history** tab is unchanged: the title before and after a change is read from
+  the project's own `project_value_changes`, and only for a reader who may see the project. No
+  migration is needed: the table already exists.
+- Entries recorded before the upgrade are not rewritten: they keep the title they were written with.
+
+**After upgrading,** nothing has to be done.
+
 ## An instance that is mixed from the start
 
 The installer of `0.101.x` or earlier wrote every package of the release with a `^` except

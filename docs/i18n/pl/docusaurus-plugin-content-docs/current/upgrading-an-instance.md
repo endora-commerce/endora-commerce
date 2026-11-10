@@ -4714,6 +4714,24 @@ Kod porównujący z `ERROR_CODES.ASSET_ACCESS_DENIED` przestaje się kompilować
 porównuj z `ERROR_CODES.ASSET_NOT_FOUND`. Przy magazynie w chmurze dodaj nagłówek
 `X-Content-Type-Options: nosniff` przed bucketem, jak opisuje strona biblioteki zasobów.
 
+### Tytuły projektów znikają z dziennika audytu platformy {#projects-title-out-of-audit}
+
+Wydanie z tą zmianą przestaje zapisywać tytuł projektu w dzienniku audytu całej platformy
+(zgłoszenie #470, decyzja właściciela z 2026-11-10: tytuł jest wartością). Wartość i wartości pól
+niestandardowych projekty już wcześniej trzymały poza nim.
+
+**Zmiana zachowania po aktualizacji:**
+
+- Na ekranie **Dziennik audytu** i w `audit_logs read` nowy wpis `projects.project.*` nazywa projekt
+  jego numerem i nie zawiera już tytułu. Zmiana tytułu jest zapisywana jako
+  `changedFields: ['title']`.
+- Karta **Historia zmian** projektu się nie zmienia: tytuł przed zmianą i po niej jest odczytywany z
+  własnej tabeli projektu `project_value_changes`, i tylko dla czytającego, który może zobaczyć
+  projekt. Migracja nie jest potrzebna: tabela już istnieje.
+- Wpisy zapisane przed aktualizacją nie są przepisywane: zachowują tytuł, z którym zostały zapisane.
+
+**Po aktualizacji** nie trzeba nic robić.
+
 ## Instancja niespójna od początku
 
 Instalator `0.101.x` lub starszy zapisywał każdy pakiet wydania z `^` poza
