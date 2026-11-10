@@ -16,7 +16,7 @@ const SALES_REPRESENTATIVE_ROLE_CODE = 'sales_representative';
  * The reach is answered by its complement (`reach: 'excluding'`): the
  * reachable set includes every unassigned, and so every personal, organization
  * and grows with the customer base; the excluded one is bounded by the B2B
- * book. The platform turns it into `organization_id NOT IN (excluded)` on the
+ * book. The platform turns it into `organization_id NOT IN (<the owner's SELECT>)` on the
  * row's own column.
  *
  * **An admin with no role reaches none, and is refused.** The role is where the
@@ -35,7 +35,10 @@ const SALES_REPRESENTATIVE_ROLE_CODE = 'sales_representative';
  */
 export function createAdminTenantScopePort(
   permissions: Pick<PermissionReadPort, 'resolveRole'>,
-  salesRepReach: { reachOf(adminUserId: string): Promise<SalesRepReach> },
+  salesRepReach: {
+    reachOf(adminUserId: string): Promise<SalesRepReach>;
+    hasRollupCapability(adminUserId: string): Promise<boolean>;
+  },
 ): AdminTenantScopePort {
   return {
     resolveForAdmin: async (adminUserId) => {
@@ -44,13 +47,13 @@ export function createAdminTenantScopePort(
         return { allowAll: false, allowedOrganizationIds: [], unresolved: refusal };
       }
       if (role.code !== SALES_REPRESENTATIVE_ROLE_CODE) return { allowAll: true };
-      // A reach that cannot be computed is refused, never widened (ruling Q1 on
-      // PR #954): the scope holds no organization and carries the error, which
-      // the tenant guard raises on the first tenant-scoped read — as for a
-      // missing role, so the session-only routes keep answering.
-      let reach: SalesRepReach;
+      // A question that cannot be answered is refused, never widened (ruling
+      // Q1 on PR #954): the scope holds no organization and carries the error,
+      // which the tenant guard raises on the first tenant-scoped read — as for
+      // a missing role, so the session-only routes keep answering.
+      let rollup: boolean;
       try {
-        reach = await salesRepReach.reachOf(adminUserId);
+        rollup = await salesRepReach.hasRollupCapability(adminUserId);
       } catch (error) {
         return {
           allowAll: false,
@@ -58,12 +61,21 @@ export function createAdminTenantScopePort(
           unresolved: error instanceof Error ? error : new Error(String(error)),
         };
       }
+      // Issue #955 Phase 2 (owner ruling of 2026-11-10) — the reach is not
+      // computed here, on every admin request: the filter renders the query,
+      // and the lists load on demand, once for this scope. A failure of that
+      // load rejects every helper that awaits it, so it refuses too.
+      let pending: Promise<{ excludedOrganizationIds: string[]; assignedOrganizationIds: string[] }> | undefined;
+      const loadReach = () =>
+        (pending ??= salesRepReach.reachOf(adminUserId).then((reach) => ({
+          excludedOrganizationIds: reach.excludedOrganizationIds,
+          assignedOrganizationIds: reach.assignedOrganizationIds,
+        })));
       return {
         allowAll: false,
         reach: 'excluding',
-        excludedOrganizationIds: reach.excludedOrganizationIds,
-        assignedOrganizationIds: reach.assignedOrganizationIds,
-        excludedOrganizationsQuery: reachExcludedQuery(adminUserId, reach.rollup),
+        excludedOrganizationsQuery: reachExcludedQuery(adminUserId, rollup),
+        loadReach,
       };
     },
   };

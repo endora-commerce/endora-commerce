@@ -5,7 +5,7 @@ import {
   type OpportunityDocumentKind,
   type OriginReference,
 } from '@endora-commerce/contracts';
-import { isOrgInScope, orgConstraintForAdminScope } from '@endora-commerce/platform/tenancy';
+import { orgInScope, orgConstraintForAdminScope } from '@endora-commerce/platform/tenancy';
 import { CrmOpportunity } from '../entities/crm-opportunity.entity.js';
 import type { OpportunityLinkService } from './opportunity-link-service.js';
 
@@ -136,7 +136,7 @@ export class OpportunityOriginLinkService {
 
   async #canReach(adminUserId: string, organizationId: string): Promise<boolean> {
     const scope = await this.deps.adminScope.resolveForAdmin(adminUserId);
-    return isOrgInScope(organizationId, orgConstraintForAdminScope(scope));
+    return orgInScope(organizationId, orgConstraintForAdminScope(scope));
   }
 
   #refuse(origin: OriginReference, document: OriginatedDocument, reason: string): 'refused' {

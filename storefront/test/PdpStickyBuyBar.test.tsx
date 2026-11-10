@@ -3,6 +3,7 @@ import { renderToString } from 'react-dom/server';
 import { PdpStickyBuyBar } from '../components/mobile/PdpStickyBuyBar';
 import { PdpPriceToggle } from '../components/pricing/PdpPriceToggle';
 import type { AddToCartResult } from '../lib/cartAddState';
+import { LINE_QUANTITY_MAX } from '@endora-commerce/contracts';
 
 /**
  * Feature 044 / US3 — sticky PDP buy bar + net/gross price toggle.
@@ -16,6 +17,14 @@ import type { AddToCartResult } from '../lib/cartAddState';
 const noop = async (): Promise<AddToCartResult> => ({ status: 'idle' });
 
 describe('PdpStickyBuyBar', () => {
+  it('bounds the quantity input at the line quantity bound (issue #351)', () => {
+    const html = renderToString(
+      <PdpStickyBuyBar locale="en-US" productId="p" addToCartAction={noop} addToCartLabel="Do koszyka" />,
+    );
+    const input = html.match(/<input[^>]*name="quantity"[^>]*>/)?.[0] ?? '';
+    expect(input).toContain(`max="${LINE_QUANTITY_MAX}"`);
+  });
+
   it('renders the quantity stepper, add-to-cart label and product id', () => {
     const html = renderToString(
       <PdpStickyBuyBar locale="en-US"

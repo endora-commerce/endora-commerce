@@ -42,4 +42,27 @@ describe('returns — audit trail', () => {
     );
     expect(authEntry).toBeTruthy();
   });
+
+  it('records that a transition had a reason, never the reason itself (#470, D-288)', async () => {
+    const { orderId, itemIds } = await seedReturnableOrder(h.em());
+    const reasonId = await anyReasonId(h.em());
+    const created = await h.app.inject({
+      method: 'POST',
+      url: '/api/v1/returns',
+      cookies: CUSTOMER_COOKIE,
+      payload: { orderId, kind: 'return', lines: [{ orderItemId: itemIds[0], quantity: 1, reasonId }] },
+    });
+    const caseId = (created.json() as { data: { id: string } }).data.id;
+    const moved = await h.app.inject({
+      method: 'POST',
+      url: `/api/v1/admin/returns/${caseId}/transition`,
+      cookies: ADMIN_COOKIE,
+      payload: { to: 'authorized', reason: 'S470-REASON Jan Kowalski' },
+    });
+    expect(moved.statusCode, moved.body).toBe(200);
+    const entries = await h.em().find(AuditLogEntry, { objectType: 'return_case', objectId: caseId });
+    expect(JSON.stringify(entries.map((e) => [e.stateBefore, e.stateAfter]))).not.toContain('S470');
+    const transition = entries.find((e) => e.action === 'return.status_changed');
+    expect(transition?.stateAfter).toEqual({ statusCode: 'authorized', hasReason: true });
+  });
 });

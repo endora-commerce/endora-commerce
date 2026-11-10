@@ -82,6 +82,17 @@ modules are switched on. The payload is sent whole; the strict schema is
   subscription to it is refused; stored subscriptions are kept and receive
   nothing until it is back on.
 
+## In the audit log
+
+Granting, adjusting and crediting a limit from a return are each one entry in the
+platform-wide audit log (`credit_limit.grant`, `credit_limit.adjust`,
+`credit_limit.credit_from_return`), recorded against the Organization. The audit
+log is read by everybody holding `audit_log:read` whatever Organizations they may
+see, so an entry names what changed — `changedFields: ['grantedAmount']`, and the
+return case's id for a credit — and holds no amount. The current limit is on the
+Organization's credit-limit screen. Entries recorded before this change keep the
+amounts they were written with.
+
 ## Extension points
 
 - **Release reasons** — `releaseByOrder(reason)` accepts

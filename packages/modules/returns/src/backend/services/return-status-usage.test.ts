@@ -33,7 +33,7 @@ describe('returnStatusUsageQuery', () => {
 
   // Issue #305 — a sales representative reaches every organization nobody else governs.
   it('confines a sales representative to every organization nobody else governs', () => {
-    const query = returnStatusUsageQuery({ kind: 'excluded', excludedOrganizationIds: ['f1'], assignedOrganizationIds: [], excludedOrganizationsQuery: { sql: 'select x from "reach"(?::uuid) as x', params: ['rep'] } });
+    const query = returnStatusUsageQuery({ kind: 'excluded', excludedOrganizationsQuery: { sql: 'select x from "reach"(?::uuid) as x', params: ['rep'] }, loadReach: async () => ({ excludedOrganizationIds: ['f1'], assignedOrganizationIds: [] }) });
     expect(query?.sql).toContain('where ("organization_id" is not null and "organization_id" not in (select x from "reach"(?::uuid) as x))');
     expect(query?.params).toEqual(['rep']);
   });

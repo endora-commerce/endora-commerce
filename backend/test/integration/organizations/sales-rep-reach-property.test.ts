@@ -290,8 +290,7 @@ describe('#305 — canSeeOrganization and the excluded set are one rule', () => 
         {
           allowAll: false,
           reach: 'excluding',
-          excludedOrganizationIds: reach.excludedOrganizationIds,
-          assignedOrganizationIds: reach.assignedOrganizationIds,
+          loadReach: async () => reach,
           excludedOrganizationsQuery: reachExcludedQuery(rep, rollup.has(rep)),
         },
       );

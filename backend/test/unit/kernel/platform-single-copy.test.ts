@@ -399,6 +399,10 @@ describe('the platform is one copy (feature 080, the relocation)', () => {
     // derived-scope readers a module needs once a sales representative's reach
     // is a complement — `orgScopeWhere`, `orgScopeSql`, `reachesNoOrganization`,
     // `assignedOrganizationIdsForRanking` and `orgConstraintForAdminScope`.
+    // **62 -> 63 is the same event, on `./tenancy`:** issue #955 Phase 2
+    // replaced the synchronous `isOrgInScope` / `ruleVisibleForScope` with the
+    // async `orgInScope` / `ruleInScope` (two out, two in) and added
+    // `orgScopeTest`, the synchronous predicate a caller takes once.
     //
     // It is summed over the **five published** subpaths and not over every
     // comparison, which is what preserves that provenance: no host-internal
@@ -409,7 +413,7 @@ describe('the platform is one copy (feature 080, the relocation)', () => {
     const total = comparisons
       .filter((entry) => published.has(entry.subpath))
       .reduce((sum, entry) => sum + entry.shared.length, 0);
-    expect(total).toBe(62);
+    expect(total).toBe(63);
   });
 
   /**

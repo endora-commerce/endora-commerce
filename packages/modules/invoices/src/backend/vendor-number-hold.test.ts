@@ -225,7 +225,7 @@ describe('invoices — vendor number hold (mode B)', () => {
       },
     );
 
-    // `InvoiceService.issue` asks `isOrgInScope`, which refuses outside a tenant
+    // `InvoiceService.issue` asks `orgInScope`, which refuses outside a tenant
     // context. The route supplies one in production and `backend`'s harness
     // supplied one to every test in the run (`backend/test/tenancy-setup.ts`);
     // this package's own vitest configuration installs no such default, so the

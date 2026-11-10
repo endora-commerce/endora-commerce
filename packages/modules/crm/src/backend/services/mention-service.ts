@@ -7,7 +7,7 @@ import {
   type OpportunityMentionOption,
   type PermissionReadPort,
 } from '@endora-commerce/contracts';
-import { isOrgInScope } from '@endora-commerce/platform/tenancy';
+import { orgInScope } from '@endora-commerce/platform/tenancy';
 import type { AdminReach } from './admin-reach.js';
 import { crmNotificationText, type CrmNotifier } from './crm-notifier.js';
 import { actingAdminUserId, isActiveAdministrator } from './opportunity-assignment-service.js';
@@ -79,7 +79,7 @@ export class MentionService {
 
   async mentionable(query: OpportunityMentionLookupQuery): Promise<OpportunityMentionOption[]> {
     const organizationId = query.organizationId;
-    if (organizationId !== undefined && !isOrgInScope(organizationId)) return [];
+    if (organizationId !== undefined && !(await orgInScope(organizationId))) return [];
     const needle = foldDiacritics(query.q ?? '').trim().toLowerCase();
     const candidates = (await this.deps.adminUsers.listAll({ activeOnly: true }))
       .filter(isActiveAdministrator)

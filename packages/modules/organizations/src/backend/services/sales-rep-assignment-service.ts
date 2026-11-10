@@ -141,13 +141,23 @@ export class SalesRepAssignmentService implements SalesRepAssignmentPort {
    * deferred to the first tenant-scoped read). An empty excluded list is a real answer — nobody else holds an
    * assignment — and is never produced by an error.
    */
+  /**
+   * Whether the representative's reach is answered under roll-up
+   * (`organizations:rollup`) — the flag `adminTenantScopePort` puts into the
+   * tenant filter's subquery without computing the reach (issue #955 Phase 2).
+   * The same question `reachOf` asks, through the same dependency.
+   */
+  async hasRollupCapability(adminUserId: string): Promise<boolean> {
+    return this.subtree !== undefined && (await this.subtree.hasRollupCapability(adminUserId));
+  }
+
   async reachOf(adminUserId: string): Promise<SalesRepReach> {
     // `em.execute`, not the bare connection: the statement must see the rows of
     // the transaction the caller is in, as every other read of this service does.
     const em = this.emFactory();
     // An id that is not uuid-shaped is nobody's: bound as null, it matches no row.
     const rep = isUuidShape(adminUserId) ? adminUserId : null;
-    const rollup = this.subtree !== undefined && (await this.subtree.hasRollupCapability(adminUserId));
+    const rollup = await this.hasRollupCapability(adminUserId);
     // Issue #955 (architect ruling, Q2) — both lists come from
     // `organizations_reach_split`, in one scan; the tenant filter's subquery
     // reads `organizations_reach_excluded`, which is that split's `not mine`
