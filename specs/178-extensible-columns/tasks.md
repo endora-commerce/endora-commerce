@@ -195,8 +195,22 @@ R2-ledgered column additions on foreign tables) and is now refused, so their har
 `_i18n`, `admin_users`, `assets_library`, `carts`, `delivery_methods`, `dictionaries`, `languages`,
 `organizations`, `payment_methods`, `price_lists`, `quote_requests`, `taxes`.
 
-- [ ] T072 Test: the instance audit (`instance-foreign-writes.test.ts`) refuses in `down()` exactly the sites failing R-A7's predicate — after T073, none — and every first-party module's hard uninstall passes the guard; a fixture package dropping `organizations` in `down()` is still refused; withdrawing a lock in a fixture manifest turns its site red. Then extract the predicate from `backend/test/unit/db/foreign-column-ddl.test.ts` into one shared implementation used by that test, the guard's exemption derivation and `composer:generate` (kind `derived-down`, with clause a/b/c recorded) [D-291 R-A7, FR-071]
-- [ ] T073 Test: `module:uninstall quote_requests --hard` leaves `organization_sales_rep_assignments` and its rows intact — then remove the `drop table` from `Migration20260503T141344QuoteRequestsWorkflow.down()`; file the issue moving the table's creation into `organizations`' own migration (`if not exists`); changeset note for `mod-quote-requests` [D-291 R-A7]
+- [x] T072 Test: the instance audit (`instance-foreign-writes.test.ts`) refuses in `down()` exactly the sites failing R-A7's predicate — after T073, none — and every first-party module's hard uninstall passes the guard; a fixture package dropping `organizations` in `down()` is still refused; withdrawing a lock in a fixture manifest turns its site red. Then extract the predicate from `backend/test/unit/db/foreign-column-ddl.test.ts` into one shared implementation used by that test, the guard's exemption derivation and `composer:generate` (kind `derived-down`, with clause a/b/c recorded) [D-291 R-A7, FR-071]
+- [x] T073 Test: `module:uninstall quote_requests --hard` leaves `organization_sales_rep_assignments` and its rows intact — then remove the `drop table` from `Migration20260503T141344QuoteRequestsWorkflow.down()`; file the issue moving the table's creation into `organizations`' own migration (`if not exists`); changeset note for `mod-quote-requests` [D-291 R-A7]
+
+T072/T073 notes (2026-11-10): the predicate is `packages/platform/src/db/reverse-edge.ts`
+(`reverseEdgeClause`, `requiredModulesOf`), read by the guard at run time (owner from each package's
+entities, the merged dependency graph, the committed and packaged `nonDeactivatable` flags),
+`composer:generate` (`derived-down` entries with their clause, via
+`backend/scripts/lib/first-party-bridges.ts`) and `foreign-column-ddl.test.ts`. Rendered: 13 entries
+over 12 modules — `_i18n`, `admin_users`, `carts`, `dictionaries` (×2), `languages`, `price_lists`
+(both-required); `assets_library`, `delivery_methods`, `organizations` (×2), `payment_methods`, `taxes`
+(owner-depends-on-writer). `quote_requests` fails the predicate and its drop was removed from
+`Migration20260503T141344QuoteRequestsWorkflow.down()` (T073). After both, no first-party module's hard
+uninstall is refused. **Issue to file** (not filed from this branch): "Move the creation of
+`organization_sales_rep_assignments` into an `organizations` migration (`create table if not exists`,
+same columns, indexes and constraints as `quote_requests`' 20260503 workflow), so its owner creates it;
+spec 178 D-291 R-A7."
 
 ## Phase D — Remaining eight hosts (later release — OD-178-4, ruled D-291; out of this release)
 

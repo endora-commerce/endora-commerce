@@ -4,6 +4,8 @@ import {
   PLATFORM_ENTITIES,
   auditForeignSchemaWrites,
   committedModuleDependencies,
+  requiredModulesOf,
+  reverseEdgeClause,
   type ForeignWriteAudit,
 } from '@endora-commerce/platform/db';
 import { FIRST_PARTY_FOREIGN_WRITE_EXEMPTIONS } from '@endora-commerce/platform/migrations';
@@ -35,6 +37,7 @@ import { instanceContributions } from '../../helpers/instance-migration-order.js
 let orm: MikroORM;
 let audit: ForeignWriteAudit;
 let unexempted: ForeignWriteAudit;
+let runtimeOnly: ForeignWriteAudit;
 
 beforeAll(async () => {
   orm = await MikroORM.init({ ...(await mikroOrmConfig()), connect: false });
@@ -57,6 +60,16 @@ beforeAll(async () => {
   };
   audit = await auditForeignSchemaWrites({ ...inputs, exemptions: FIRST_PARTY_FOREIGN_WRITE_EXEMPTIONS });
   unexempted = await auditForeignSchemaWrites({ ...inputs, exemptions: [] });
+  const dependencies = committedModuleDependencies(DISCOVERED_MANIFESTS);
+  const required = requiredModulesOf(DISCOVERED_MANIFESTS);
+  runtimeOnly = await auditForeignSchemaWrites({
+    ...inputs,
+    exemptions: FIRST_PARTY_FOREIGN_WRITE_EXEMPTIONS.filter((row) => row.kind !== 'derived-down'),
+    reverseEdges: {
+      ownerOf: (table) => owners.get(table)?.id,
+      clause: (writer, owner) => reverseEdgeClause({ writer, owner, dependencies, required }),
+    },
+  });
 }, 600_000);
 
 afterAll(async () => {
@@ -78,23 +91,28 @@ describe('an instance of every first-party module, through the foreign-schema gu
   });
 
   /**
-   * D-291 R-A6 — a migration may not destroy a table another module's entity
-   * maps, in `down()` either, whatever it created; only a derived D-226 bridge
-   * is exempt. What is left refused is exactly that: `down()`s that drop a
-   * pre-split table or a column they once added to another module's table, so
-   * a hard uninstall of those modules is refused in an instance rather than
-   * destroying another module's schema.
+   * D-291 R-A6 + R-A7 — a migration may not destroy a table another module's
+   * entity maps unless that owner cannot be present when the revert runs (R-A7's
+   * predicate) or it is a derived D-226 bridge. After T073 no first-party site
+   * fails it, so every first-party module's hard uninstall passes the guard.
    */
-  it('refuses in down() only the destruction of a table another module maps, never a bridge', () => {
-    const destructive = /^(drop\s+table|drop\s+index|truncate|alter\s+table\s+\S+\s.*\bdrop\b)/i;
-    const left = audit.findings.filter((finding) => finding.method === 'down');
-    expect(left.filter((finding) => !destructive.test(finding.statement))).toEqual([]);
-    expect(left.some((finding) => finding.table === 'organization_warehouses')).toBe(false);
+  it('refuses nothing in down(): every first-party hard uninstall passes the guard', () => {
     expect(
-      unexempted.findings.some(
-        (finding) => finding.table === 'organization_warehouses' && finding.method === 'down',
-      ),
+      audit.findings
+        .filter((finding) => finding.method === 'down')
+        .map((finding) => `${finding.moduleId} ${finding.migration}.down() → ${finding.table}: ${finding.statement}`),
+    ).toEqual([]);
+    expect(
+      unexempted.findings.some((finding) => finding.table === 'organization_warehouses' && finding.method === 'down'),
     ).toBe(true);
+  });
+
+  it('reaches the same verdict through the runtime predicate, without the rendered derived-down entries', () => {
+    expect(
+      runtimeOnly.findings
+        .filter((finding) => finding.method === 'down')
+        .map((finding) => `${finding.moduleId} ${finding.migration}.down() → ${finding.table}`),
+    ).toEqual([]);
   });
 
   it('refuses, without the exemptions, exactly the writes R2 records — the list is neither short nor stale', () => {

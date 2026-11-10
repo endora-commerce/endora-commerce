@@ -451,9 +451,12 @@ nie mapuje jej encja żadnego innego modułu. Dozwolone są ponadto:
 - własne tabele platformy i `mikro_orm_migrations`;
 - DDL na tabeli, którą tworzy ta sama migracja — indeks obok jej `create table`, usunięcie w
   `down()` — **chyba że mapuje ją encja innego modułu**: usunięcie, wyczyszczenie albo
-  `alter … drop` takiej tabeli jest odrzucane zarówno w `up()`, jak i w `down()`, a jedynym wyjątkiem
-  jest własny most platformy według D-226, który `composer:generate` wyprowadza na listę wyjątków
-  jako wpis `bridge`;
+  `alter … drop` takiej tabeli jest odrzucane zarówno w `up()`, jak i w `down()`. Są dwa wyjątki, oba
+  wyprowadzane: własny most platformy według D-226 (wpisy `bridge`) oraz `down()`, którego właściciel
+  celu nie może być obecny w chwili wykonania — właściciel zależy od piszącego, piszący jest rdzeniem
+  albo oba moduły są niewyłączalne (jeden predykat, wspólny z `foreign-column-ddl.test.ts`,
+  stosowany w czasie działania do każdego autora i zapisywany dla migracji platformy jako wpisy
+  `derived-down`);
 - `update "<gospodarz>" set "x_<moduleId>_…" = …` na gospodarzu, w którym moduł deklaruje kolumny
   rozszerzeń, o ile każda ustawiana kolumna jest jego własna — czyli jego uzupełnianie danych;
 - zapisy własnych modułów platformy zapisane w rejestrze R2 `check:module-boundary`, dzięki czemu

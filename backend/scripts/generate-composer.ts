@@ -85,7 +85,7 @@ import {
 import { barrelKeyOf, parseBarrel, type BarrelParse } from './lib/platform-surface.js';
 import { entityDeclarations, entityDecoratorMentionLine } from './lib/entity-declarations.js';
 import { schemaExtensionDeclarationSites } from './lib/schema-extension-declarations.js';
-import { firstPartyBridges } from './lib/first-party-bridges.js';
+import { firstPartyBridges, firstPartyDerivedDowns } from './lib/first-party-bridges.js';
 import { declaresRegisterModule } from './lib/module-roots.js';
 import { BASELINE_THROUGH } from '@endora-commerce/platform/db';
 import { BASELINE_MIGRATION_INVENTORY } from '@endora-commerce/platform/migrations';
@@ -2158,9 +2158,13 @@ export interface ForeignWriteExemptionRow {
   readonly moduleId: string;
   readonly migration: string;
   readonly table: string;
-  /** Absent for an R2 write; `bridge` for a derived D-226 bridge (D-291 R-A6). */
-  readonly kind?: 'bridge';
+  /**
+   * Absent for an R2 write; `bridge` for a derived D-226 bridge (D-291 R-A6);
+   * `derived-down` for a `down()` destruction R-A7's predicate exempts.
+   */
+  readonly kind?: 'bridge' | 'derived-down';
   readonly direction?: 'up' | 'down';
+  readonly clause?: string;
 }
 
 /**
@@ -2208,6 +2212,7 @@ export function emitForeignWriteExemptions(rows: readonly ForeignWriteExemptionR
   const line = (row: ForeignWriteExemptionRow): string =>
     `  { moduleId: '${row.moduleId}', migration: '${row.migration}', table: '${row.table}'` +
     (row.kind === undefined ? '' : `, kind: '${row.kind}', direction: '${row.direction}'`) +
+    (row.clause === undefined ? '' : `, clause: '${row.clause}'`) +
     ' },';
   return `${HEADER('generate-composer.ts')}//
 // The first-party migrations the runtime foreign-schema guard lets write a table
@@ -2219,14 +2224,19 @@ export function emitForeignWriteExemptions(rows: readonly ForeignWriteExemptionR
 // Entries of kind \`bridge\` (D-291 R-A6) are derived, not ledgered: the D-226
 // bridges — a table a module's migration creates while another module's entity
 // maps it, bridging a table of each — whose migration may destroy that table in
-// \`direction\` (backend/scripts/lib/first-party-bridges.ts).
+// \`direction\` (backend/scripts/lib/first-party-bridges.ts). Entries of kind
+// \`derived-down\` (D-291 R-A7) are the first-party \`down()\` destructions of a
+// table another module owns that the shared predicate exempts — the owner
+// depends on the writer, the writer is core, or both are non-deactivatable —
+// with the clause recorded.
 
 export const FIRST_PARTY_FOREIGN_WRITE_EXEMPTIONS: readonly {
   readonly moduleId: string;
   readonly migration: string;
   readonly table: string;
-  readonly kind?: 'write' | 'bridge';
+  readonly kind?: 'write' | 'bridge' | 'derived-down';
   readonly direction?: 'up' | 'down';
+  readonly clause?: 'owner-depends-on-writer' | 'writer-is-core' | 'both-required';
 }[] = [
 ${rows.map(line).join('\n')}
 ];
@@ -2242,6 +2252,8 @@ export async function renderForeignWriteExemptions(): Promise<{ outputPath: stri
       // D-291 R-A6 — derived from `check:module-boundary`'s owner map and the
       // manifests, never hand-listed.
       ...(await firstPartyBridges()),
+      // D-291 R-A7 — the shared predicate's verdicts, with their clause.
+      ...(await firstPartyDerivedDowns()),
     ]),
   };
 }

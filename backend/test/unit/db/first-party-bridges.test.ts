@@ -1,7 +1,11 @@
 import { describe, expect, it } from 'vitest';
 import { FIRST_PARTY_FOREIGN_WRITE_EXEMPTIONS } from '@endora-commerce/platform/migrations';
 
-import { bridgeEntriesOf, firstPartyBridges } from '../../../scripts/lib/first-party-bridges.js';
+import {
+  bridgeEntriesOf,
+  firstPartyBridges,
+  firstPartyDerivedDowns,
+} from '../../../scripts/lib/first-party-bridges.js';
 
 /**
  * `specs/178-extensible-columns/` D-291 R-A6 (tasks.md T071) — the only
@@ -62,3 +66,26 @@ describe('first-party D-226 bridges', () => {
     ).toEqual(['down']);
   });
 });
+
+/**
+ * D-291 R-A7 (T072) — the `derived-down` entries: every first-party `down()`
+ * destruction of a table another module owns that R-A7's predicate exempts,
+ * with the clause that exempts it. Two-way against the artefact.
+ */
+describe('first-party derived-down exemptions', () => {
+  const sort = <T>(rows: readonly T[]): T[] => [...rows].sort((a, b) => JSON.stringify(a).localeCompare(JSON.stringify(b)));
+
+  it('the generated artefact holds exactly the derived entries', async () => {
+    const rendered = FIRST_PARTY_FOREIGN_WRITE_EXEMPTIONS.filter((row) => row.kind === 'derived-down');
+    expect(sort(rendered)).toEqual(sort(await firstPartyDerivedDowns()));
+  });
+
+  it('records the clause, and names the sites the ruling measured', async () => {
+    const derived = await firstPartyDerivedDowns();
+    const at = (moduleId: string, table: string) => derived.find((row) => row.moduleId === moduleId && row.table === table)?.clause;
+    expect(at('taxes', 'promotions')).toBe('owner-depends-on-writer');
+    expect(at('dictionaries', 'languages')).toBe('both-required');
+    expect(derived.some((row) => row.moduleId === 'quote_requests')).toBe(false);
+  });
+});
+

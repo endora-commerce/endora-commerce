@@ -222,7 +222,9 @@ the entity manager's raw `getKnex()` cannot be attributed to a table and are ref
 `create table if not exists` on a table another module's entity maps creates nothing you may
 then alter, and **no migration of yours may drop, truncate or `alter … drop` a table another
 module's entity maps — in `up()` or in `down()`, whatever it created** — so a hard uninstall of
-your package can never take another module's table with it.
+your package can never take another module's table with it. The one exception is a `down()` whose
+target cannot outlive your module: its owner depends on your module (so it is removed first), or
+both modules are non-deactivatable.
 
 A table is yours when one of your entities maps it, or one of your migrations creates it and no
 other module's entity maps it. **The guard fails closed**: a table it cannot attribute to you is

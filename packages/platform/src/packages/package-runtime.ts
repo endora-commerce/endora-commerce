@@ -455,6 +455,12 @@ export interface PackageSchemaContribution {
    */
   readonly dependencies: readonly string[];
   /**
+   * Whether its manifest declares `activation.nonDeactivatable` — the required
+   * set D-291 R-A7's clause (c) reads. Absent on a hand-built contribution,
+   * which is "not locked" (fail closed).
+   */
+  readonly nonDeactivatable?: boolean;
+  /**
    * The extension-column declarations its `./backend` export names as
    * `schemaExtensions` (`specs/178-extensible-columns/` FR-008, research R-7),
    * already held to the package-context rules V9 – V11. Empty when it declares
@@ -627,6 +633,8 @@ export async function packageSchemaContributionsUnder(
       migrations,
       entities: backend === null ? [] : entityClassesFrom(installed, backend),
       dependencies: manifestEntry?.manifest.dependencies ?? [],
+      nonDeactivatable:
+        (manifestEntry?.manifest.activation as { nonDeactivatable?: unknown } | undefined)?.nonDeactivatable === true,
       schemaExtensions: [],
     });
   }

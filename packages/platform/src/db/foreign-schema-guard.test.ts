@@ -421,3 +421,49 @@ describe('guardExternalMigration — destroying a table another module maps (R-A
     await refusal(revert(cls, ctx));
   });
 });
+
+/** D-291 R-A7 (T072) — a down() destruction the owner cannot outlive is exempt, for every author. */
+describe('guardExternalMigration — R-A7 down() exemption', () => {
+  const dropping = (name: string) => {
+    const cls = class extends Migration {
+      override async up(): Promise<void> {}
+      override async down(): Promise<void> {
+        this.addSql('drop table if exists "organizations" cascade');
+      }
+    };
+    Object.defineProperty(cls, 'name', { value: name });
+    return cls as MigrationClass;
+  };
+  const revert = async (cls: MigrationClass, ctx: ForeignSchemaGuardContext) => {
+    const Guarded = guardExternalMigration(cls, ctx) as unknown as new (d: unknown, c: unknown) => Migration;
+    await new Guarded(fakeDriver(), {}).down();
+  };
+
+  it('exempts it when the owner depends on the writer (dependents-block removes the owner first)', async () => {
+    const ctx = context({
+      reverseEdges: { ownerOf: (table) => (table === 'organizations' ? 'organizations' : undefined), clause: () => 'owner-depends-on-writer' },
+    });
+    await expect(revert(dropping('Migration20261201T100055AcmeErpInit'), ctx)).resolves.toBeUndefined();
+  });
+
+  it('still refuses it when the predicate does not hold', async () => {
+    const ctx = context({
+      reverseEdges: { ownerOf: () => 'organizations', clause: () => null },
+    });
+    expect((await refusal(revert(dropping('Migration20261201T100056AcmeErpInit'), ctx))).direction).toBe('down');
+  });
+
+  it('refuses it when the owner cannot be attributed (fail closed)', async () => {
+    const ctx = context({ reverseEdges: { ownerOf: () => undefined, clause: () => 'writer-is-core' } });
+    await refusal(revert(dropping('Migration20261201T100057AcmeErpInit'), ctx));
+  });
+
+  it('honours a rendered derived-down entry, in down() only', async () => {
+    const ctx = context({
+      exemptions: [
+        { moduleId: 'acme_erp', migration: 'Migration20261201T100058AcmeErpInit', table: 'organizations', kind: 'derived-down', direction: 'down', clause: 'both-required' },
+      ],
+    });
+    await expect(revert(dropping('Migration20261201T100058AcmeErpInit'), ctx)).resolves.toBeUndefined();
+  });
+});

@@ -12,14 +12,19 @@
 // Entries of kind `bridge` (D-291 R-A6) are derived, not ledgered: the D-226
 // bridges — a table a module's migration creates while another module's entity
 // maps it, bridging a table of each — whose migration may destroy that table in
-// `direction` (backend/scripts/lib/first-party-bridges.ts).
+// `direction` (backend/scripts/lib/first-party-bridges.ts). Entries of kind
+// `derived-down` (D-291 R-A7) are the first-party `down()` destructions of a
+// table another module owns that the shared predicate exempts — the owner
+// depends on the writer, the writer is core, or both are non-deactivatable —
+// with the clause recorded.
 
 export const FIRST_PARTY_FOREIGN_WRITE_EXEMPTIONS: readonly {
   readonly moduleId: string;
   readonly migration: string;
   readonly table: string;
-  readonly kind?: 'write' | 'bridge';
+  readonly kind?: 'write' | 'bridge' | 'derived-down';
   readonly direction?: 'up' | 'down';
+  readonly clause?: 'owner-depends-on-writer' | 'writer-is-core' | 'both-required';
 }[] = [
   { moduleId: '_i18n', migration: 'Migration20260507T091405I18nAdminI18nInit', table: 'admin_users' },
   { moduleId: 'assets_library', migration: 'Migration20260505T102206AssetsLibraryInit', table: 'categories' },
@@ -34,4 +39,17 @@ export const FIRST_PARTY_FOREIGN_WRITE_EXEMPTIONS: readonly {
   { moduleId: 'payment_methods', migration: 'Migration20260611T140353PaymentMethodsAdapter', table: 'payments' },
   { moduleId: 'price_lists', migration: 'Migration20260426T075235PriceListsPricingInit', table: 'organizations' },
   { moduleId: 'inventory', migration: 'Migration20260912T125716InventoryOrganizationWarehouses', table: 'organization_warehouses', kind: 'bridge', direction: 'down' },
+  { moduleId: '_i18n', migration: 'Migration20260507T091405I18nAdminI18nInit', table: 'admin_users', kind: 'derived-down', direction: 'down', clause: 'both-required' },
+  { moduleId: 'admin_users', migration: 'Migration20260425T053028AdminUsersInit', table: 'admin_roles', kind: 'derived-down', direction: 'down', clause: 'both-required' },
+  { moduleId: 'assets_library', migration: 'Migration20260505T102206AssetsLibraryInit', table: 'categories', kind: 'derived-down', direction: 'down', clause: 'owner-depends-on-writer' },
+  { moduleId: 'carts', migration: 'Migration20260611T140352CartsConsolidation', table: 'organizations', kind: 'derived-down', direction: 'down', clause: 'both-required' },
+  { moduleId: 'delivery_methods', migration: 'Migration20260611T140354DeliveryMethodsShippingMethodsAdapterAndShipments', table: 'shipments', kind: 'derived-down', direction: 'down', clause: 'owner-depends-on-writer' },
+  { moduleId: 'dictionaries', migration: 'Migration20260506T112634DictionariesDictionaryInit', table: 'currencies', kind: 'derived-down', direction: 'down', clause: 'both-required' },
+  { moduleId: 'dictionaries', migration: 'Migration20260506T112634DictionariesDictionaryInit', table: 'languages', kind: 'derived-down', direction: 'down', clause: 'both-required' },
+  { moduleId: 'languages', migration: 'Migration20260425T161557LanguagesCurrenciesInit', table: 'currencies', kind: 'derived-down', direction: 'down', clause: 'both-required' },
+  { moduleId: 'organizations', migration: 'Migration20260424T205317OrganizationsInit', table: 'addresses', kind: 'derived-down', direction: 'down', clause: 'owner-depends-on-writer' },
+  { moduleId: 'organizations', migration: 'Migration20260424T205317OrganizationsInit', table: 'customer_accounts', kind: 'derived-down', direction: 'down', clause: 'owner-depends-on-writer' },
+  { moduleId: 'payment_methods', migration: 'Migration20260611T140353PaymentMethodsAdapter', table: 'payments', kind: 'derived-down', direction: 'down', clause: 'owner-depends-on-writer' },
+  { moduleId: 'price_lists', migration: 'Migration20260426T075235PriceListsPricingInit', table: 'organizations', kind: 'derived-down', direction: 'down', clause: 'both-required' },
+  { moduleId: 'taxes', migration: 'Migration20260426T081516TaxesPromotionsInit', table: 'promotions', kind: 'derived-down', direction: 'down', clause: 'owner-depends-on-writer' },
 ];

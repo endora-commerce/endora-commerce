@@ -1,9 +1,19 @@
 import { existsSync, readdirSync, readFileSync } from 'node:fs';
 import { join } from 'node:path';
+import { pathToFileURL } from 'node:url';
+
+import ts from 'typescript';
+import {
+  requiredModulesOf,
+  reverseEdgeClause,
+  sqlWriteTargets,
+  type ReverseEdgeClause,
+} from '@endora-commerce/platform/db';
 
 import { buildTableOwners, scanModuleBoundaryTree } from '../check-module-boundary.js';
 import { closureOf, loadManifestDependencies } from './manifest-dependencies.js';
 import { requireModuleLayout } from './module-roots.js';
+import { declaredIndexes } from './sql-tables.js';
 
 /**
  * The first-party D-226 bridges (`specs/178-extensible-columns/` D-291 R-A6,
@@ -92,6 +102,99 @@ export async function firstPartyBridges(): Promise<BridgeExemption[]> {
       for (const name of readdirSync(directory).sort()) {
         if (!name.endsWith('.ts') || name.endsWith('.test.ts') || name === 'index.ts') continue;
         out.push(...bridgeEntriesOf(moduleId, readFileSync(join(directory, name), 'utf8'), owners, closures));
+      }
+    }
+  }
+  return out;
+}
+
+export interface DerivedDownExemption {
+  readonly moduleId: string;
+  readonly migration: string;
+  readonly table: string;
+  readonly kind: 'derived-down';
+  readonly direction: 'down';
+  readonly clause: ReverseEdgeClause;
+}
+
+/** The literal texts inside a method named `down`, substitutions as `?`. */
+function downLiterals(text: string, file: string): string[] {
+  const source = ts.createSourceFile(file, text, ts.ScriptTarget.Latest, true);
+  const out: string[] = [];
+  const visit = (node: ts.Node, inside: boolean): void => {
+    const here = inside || (ts.isMethodDeclaration(node) && ts.isIdentifier(node.name) && node.name.text === 'down');
+    if (here && (ts.isStringLiteral(node) || ts.isNoSubstitutionTemplateLiteral(node))) out.push(node.text);
+    else if (here && ts.isTemplateExpression(node)) {
+      let spliced = node.head.text;
+      for (const span of node.templateSpans) spliced += ` ? ${span.literal.text}`;
+      out.push(spliced);
+    }
+    node.forEachChild((child) => visit(child, here));
+  };
+  source.forEachChild((child) => visit(child, false));
+  return out;
+}
+
+const DESTROYS = (target: { verb: string; destructive?: boolean }): boolean =>
+  target.verb === 'drop' ||
+  target.verb === 'truncate' ||
+  target.verb === 'drop-index' ||
+  (target.verb === 'alter' && target.destructive === true);
+
+/**
+ * D-291 R-A7 — every first-party `down()` destruction of a table another module
+ * owns that the shared predicate (`reverseEdgeClause`) exempts, with its
+ * clause. Rendered by `composer:generate` as `derived-down` entries; the guard
+ * reaches the same verdict at run time, and these entries make that verdict
+ * independent of which manifests an instance happens to read.
+ */
+export async function firstPartyDerivedDowns(): Promise<DerivedDownExemption[]> {
+  const layout = await requireModuleLayout('[first-party-derived-downs]');
+  const scan = await scanModuleBoundaryTree(layout);
+  const owners = new Map(
+    [...buildTableOwners(scan.input.schema, scan.input.packageTables, scan.input.hostResidentModules).owners].map(
+      ([table, owner]) => [table, owner.id] as const,
+    ),
+  );
+  const dependencies = await loadManifestDependencies(layout.manifestIndexPath);
+  const { DISCOVERED_MANIFESTS } = (await import(pathToFileURL(layout.manifestIndexPath).href)) as {
+    DISCOVERED_MANIFESTS: ReadonlyArray<{ id: string; manifest: { activation?: unknown } }>;
+  };
+  const required = requiredModulesOf(DISCOVERED_MANIFESTS);
+  const files: Array<{ moduleId: string; file: string; text: string }> = [];
+  for (const moduleId of [...layout.registeredIds].sort()) {
+    const root = layout.moduleDirectoryOf(moduleId);
+    if (root === null) continue;
+    for (const directory of [join(root, 'src', 'migrations'), join(root, 'migrations')]) {
+      if (!existsSync(directory)) continue;
+      for (const name of readdirSync(directory).sort()) {
+        if (!name.endsWith('.ts') || name.endsWith('.test.ts') || name === 'index.ts') continue;
+        const file = join(directory, name);
+        files.push({ moduleId, file, text: readFileSync(file, 'utf8') });
+      }
+    }
+  }
+  const indexTables = new Map<string, string>();
+  for (const { file, text } of files) for (const { index, table } of declaredIndexes(text, file)) indexTables.set(index, table);
+
+  const seen = new Set<string>();
+  const out: DerivedDownExemption[] = [];
+  for (const { moduleId, file, text } of files) {
+    const declared = /export class (Migration\w+)/.exec(text);
+    if (declared === null) continue;
+    for (const literal of downLiterals(text, file)) {
+      for (const target of sqlWriteTargets(literal)) {
+        if (!DESTROYS(target)) continue;
+        const table = target.table ?? (target.index === undefined ? undefined : indexTables.get(target.index));
+        if (table === undefined || table === null) continue;
+        const owner = owners.get(table);
+        if (owner === undefined || owner === moduleId || owner === 'kernel' || owner.startsWith('core:')) continue;
+        const clause = reverseEdgeClause({ writer: moduleId, owner, dependencies, required });
+        if (clause === null) continue;
+        const key = `${moduleId} ${declared[1]} ${table}`;
+        if (seen.has(key)) continue;
+        seen.add(key);
+        out.push({ moduleId, migration: declared[1]!, table, kind: 'derived-down', direction: 'down', clause });
       }
     }
   }

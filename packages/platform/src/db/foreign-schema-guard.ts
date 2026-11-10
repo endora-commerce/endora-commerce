@@ -2,6 +2,7 @@ import type { EntityManager, EntityName } from '@mikro-orm/core';
 import { knex } from '@mikro-orm/postgresql';
 import type { Migration } from '@mikro-orm/migrations';
 import { sqlWriteTargets, type SqlWriteTarget } from './sql-statement-targets.js';
+import type { ReverseEdgeClause } from './reverse-edge.js';
 import { resolvedColumnExtension } from '../kernel/schema-extensions/define.js';
 import type { ColumnExtension } from '../kernel/schema-extensions/types.js';
 
@@ -63,8 +64,24 @@ export interface ForeignWriteExemption {
    * bridge whose migration may destroy the table another module's entity maps,
    * in `direction` only (D-291 R-A6). Both are rendered by `composer:generate`.
    */
-  readonly kind?: 'write' | 'bridge';
+  readonly kind?: 'write' | 'bridge' | 'derived-down';
   readonly direction?: 'up' | 'down';
+  /** For `derived-down`: the R-A7 clause that exempts it, recorded for the reader. */
+  readonly clause?: ReverseEdgeClause;
+}
+
+/**
+ * D-291 R-A7 at run time — who owns a table, and whether the owner can outlive
+ * this module's revert. Applies to every author; an owner that cannot be
+ * attributed is no exemption (fail closed).
+ */
+export interface ReverseEdges {
+  /** Each installed module's entity classes — the owner of a table they map. */
+  readonly entitiesByModule?: ReadonlyMap<string, readonly unknown[]>;
+  /** Or the owner directly (tests). */
+  readonly ownerOf?: (table: string) => string | undefined;
+  /** The clause letting this module destroy what `owner` owns in a `down()`, or `null`. */
+  readonly clause: (owner: string) => ReverseEdgeClause | null;
 }
 
 export interface ForeignSchemaGuardContext {
@@ -83,6 +100,8 @@ export interface ForeignSchemaGuardContext {
   readonly exemptions: readonly ForeignWriteExemption[];
   /** Every migration class of the module, raw — the dry run's population. */
   readonly moduleMigrations: () => readonly MigrationClass[];
+  /** D-291 R-A7 — the derived `down()` exemption. Absent: none applies. */
+  readonly reverseEdges?: ReverseEdges;
 }
 
 /** `foreign-schema-write` — a package migration wrote a table its module does not own. */
@@ -137,6 +156,17 @@ function tablesOf(driver: DriverLike, classes: readonly unknown[]): Set<string> 
     if (table !== undefined) tables.add(table.toLowerCase());
   }
   return tables;
+}
+
+/** table → owning module, from `edges`, by the ORM's metadata. */
+function ownerLookup(driver: DriverLike, edges: ReverseEdges | undefined): (table: string) => string | undefined {
+  if (edges === undefined) return () => undefined;
+  if (edges.ownerOf !== undefined) return edges.ownerOf;
+  const owners = new Map<string, string>();
+  for (const [moduleId, entities] of edges.entitiesByModule ?? []) {
+    for (const table of tablesOf(driver, entities)) owners.set(table, moduleId);
+  }
+  return (table) => owners.get(table);
 }
 
 /** Every table some discovered entity maps — the tables a `create table` cannot make one's own. */
@@ -324,8 +354,22 @@ function destructionRefused(
   mapped: ReadonlySet<string>,
   target: { readonly table: string; readonly verb: string; readonly destructive?: boolean },
   direction: 'up' | 'down',
-): string | null {
+  ownerOf: (table: string) => string | undefined = () => undefined,
+): string | null | typeof EXEMPT {
   if (!destroys(target) || !mapped.has(target.table) || mine.has(target.table)) return null;
+  if (direction === 'down') {
+    // D-291 R-A7 — the owner cannot be present when this revert runs.
+    const derived = context.exemptions.some(
+      (exemption) =>
+        exemption.kind === 'derived-down' &&
+        exemption.moduleId === context.moduleId &&
+        exemption.migration === migration &&
+        exemption.table === target.table,
+    );
+    if (derived) return EXEMPT;
+    const owner = ownerOf(target.table);
+    if (owner !== undefined && owner !== context.moduleId && context.reverseEdges?.clause(owner) != null) return EXEMPT;
+  }
   const bridged = context.exemptions.some(
     (exemption) =>
       exemption.kind === 'bridge' &&
@@ -334,8 +378,11 @@ function destructionRefused(
       exemption.migration === migration &&
       exemption.table === target.table,
   );
-  return bridged ? null : target.table;
+  return bridged ? EXEMPT : target.table;
 }
+
+/** A destruction the bridge or R-A7 rule allows outright — no further verdict applies. */
+const EXEMPT = Symbol('exempt');
 
 /**
  * `cls` with every statement it issues judged before it runs. Same `name`, so
@@ -350,6 +397,7 @@ export function guardExternalMigration<T extends MigrationClass>(cls: T, context
     #createdIndexes = new Map<string, string>();
     #createdHere = new Set<string>();
     #reverting = false;
+    #ownerOf: ((table: string) => string | undefined) | undefined;
 
     async #own(): Promise<Set<string>> {
       const state = stateOf(context);
@@ -428,7 +476,17 @@ export function guardExternalMigration<T extends MigrationClass>(cls: T, context
         if (table === null) continue;
         const state = stateOf(context);
         const direction = this.#reverting ? 'down' : 'up';
-        const destroyed = destructionRefused(context, migrationName, state.mine, state.mapped, { ...target, table }, direction);
+        this.#ownerOf ??= ownerLookup((this as unknown as { driver: DriverLike }).driver, context.reverseEdges);
+        const destroyed = destructionRefused(
+          context,
+          migrationName,
+          state.mine,
+          state.mapped,
+          { ...target, table },
+          direction,
+          this.#ownerOf,
+        );
+        if (destroyed === EXEMPT) continue;
         if (destroyed !== null) {
           throw new ForeignSchemaWriteError(
             context.packageName,
@@ -760,6 +818,11 @@ export async function auditForeignSchemaWrites(input: {
   readonly exemptions: readonly ForeignWriteExemption[];
   /** Override the own-table derivation (entities ∪ creates) — a test models an instance with it. */
   readonly ownTables?: (moduleId: string) => ReadonlySet<string> | undefined;
+  /** D-291 R-A7 at run time: the owner of a table, and the clause for (writer, owner). */
+  readonly reverseEdges?: {
+    readonly ownerOf: (table: string) => string | undefined;
+    readonly clause: (writer: string, owner: string) => ReverseEdgeClause | null;
+  };
 }): Promise<ForeignWriteAudit> {
   const driver = input.driver as DriverLike;
   const platform = tablesOf(driver, input.platformEntities);
@@ -817,6 +880,14 @@ export async function auditForeignSchemaWrites(input: {
       declaredHosts: declaredColumnsByHost(pkg.schemaExtensions ?? []),
       exemptions: input.exemptions,
       moduleMigrations: () => [],
+      ...(input.reverseEdges === undefined
+        ? {}
+        : {
+            reverseEdges: {
+              ownerOf: input.reverseEdges.ownerOf,
+              clause: (owner: string) => input.reverseEdges!.clause(pkg.id, owner),
+            },
+          }),
     };
     // Both halves of one migration are "the same source" (R2's reading) — except
     // that in `up()` a `create table if not exists` on a table another module's
@@ -845,7 +916,16 @@ export async function auditForeignSchemaWrites(input: {
         if (table === null) unresolvedIndexes.add(target.index);
       }
       if (table === null) continue;
-      const destroyed = destructionRefused(context, migration, mine, mapped, { ...target, table }, method);
+      const destroyed = destructionRefused(
+        context,
+        migration,
+        mine,
+        mapped,
+        { ...target, table },
+        method,
+        input.reverseEdges?.ownerOf,
+      );
+      if (destroyed === EXEMPT) continue;
       if (destroyed !== null) {
         findings.push({ packageName: pkg.packageName, moduleId: pkg.id, migration, method, table: destroyed, statement: target.statement });
         continue;

@@ -25,6 +25,7 @@ import {
   type MigrationClass as GuardedMigrationClass,
 } from './foreign-schema-guard.js';
 import { resolvedColumnExtension } from '../kernel/schema-extensions/define.js';
+import { requiredModulesOf, reverseEdgeClause } from './reverse-edge.js';
 import { schemaExtensionEntries } from './schema-extension-migration.js';
 import {
   rolledOutExtensibleHosts,
@@ -232,6 +233,11 @@ export function configuredMigrationsFrom(inputs: {
    * `composer:generate` renders from R2's ledger; a test passes its own.
    */
   readonly foreignWriteExemptions?: readonly ForeignWriteExemption[];
+  /**
+   * The required set (`activation.nonDeactivatable`) of the committed manifests,
+   * for D-291 R-A7's clause (c); the packages' own flags are added to it.
+   */
+  readonly requiredModules?: ReadonlySet<string>;
 }): ConfiguredMigrations {
   // `specs/178-extensible-columns/` FR-020 — one generated step per installed
   // module that declares extension columns, at the head of that module's block.
@@ -295,6 +301,14 @@ export function configuredMigrationsFrom(inputs: {
   // the package's module does not own is refused and the run rolls back. The
   // wrapper keeps the class name, so ordering and history see the package's own.
   const exemptions = inputs.foreignWriteExemptions ?? FIRST_PARTY_FOREIGN_WRITE_EXEMPTIONS;
+  // D-291 R-A7 — who owns which table at run time (each package's entities) and
+  // the merged dependency graph and required set the clause reads. Evaluated
+  // lazily, at migrate, so the graph below is complete by then.
+  const entitiesByModule = new Map(inputs.packages.map((contribution) => [contribution.id, contribution.entities] as const));
+  const required = new Set<string>([
+    ...(inputs.requiredModules ?? []),
+    ...inputs.packages.filter((contribution) => contribution.nonDeactivatable === true).map((c) => c.id),
+  ]);
   const guarded = inputs.packages.flatMap((contribution) => {
     const context: ForeignSchemaGuardContext = {
       moduleId: contribution.id,
@@ -304,6 +318,11 @@ export function configuredMigrationsFrom(inputs: {
       declaredHosts: declaredColumnsByHost(contribution.schemaExtensions ?? []),
       exemptions: exemptions.filter((exemption) => exemption.moduleId === contribution.id),
       moduleMigrations: () => contribution.migrations.map((entry) => entry.cls as unknown as GuardedMigrationClass),
+      reverseEdges: {
+        entitiesByModule,
+        clause: (owner) =>
+          reverseEdgeClause({ writer: contribution.id, owner, dependencies: moduleDependencies, required }),
+      },
     };
     // Only a real class can be subclassed; a stand-in a test registers to drive
     // the ordering alone is not a migration anything runs.
@@ -432,5 +451,6 @@ export async function discoverConfiguredMigrations(
     ),
     coreModuleDependencies: committedModuleDependencies(sources.manifests),
     packages: await discoverPackageSchema(env),
+    requiredModules: requiredModulesOf(sources.manifests),
   });
 }

@@ -161,4 +161,13 @@ export {
   type ForeignWriteAudit,
   type ForeignWriteExemption,
   type ForeignWriteFinding,
+  type ReverseEdges,
 } from './foreign-schema-guard.js';
+
+// D-291 R-A7 — the one predicate for a module acting on what another owns.
+export {
+  dependencyClosureOf,
+  requiredModulesOf,
+  reverseEdgeClause,
+  type ReverseEdgeClause,
+} from './reverse-edge.js';
