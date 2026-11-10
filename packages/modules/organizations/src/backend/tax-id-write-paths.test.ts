@@ -33,7 +33,7 @@ function sources(dir: string): string[] {
   });
 }
 
-const WRITES = /em\.create\(Organization\b|applyReparentPaths\(/;
+const WRITES = /em\.create\(Organization\b|applyReparentPaths\(|\borg\.taxId = /;
 const FACTORIES = /\bmake(CreateOrganization|SetParent|Move|ConvertToCompany)Command\b/;
 
 describe('the writes of organizations.tax_id and path', () => {
