@@ -213,3 +213,17 @@ export function fixtureMigrations(declarations: readonly ColumnExtension[], opti
     (migration) => migration.name,
   );
 }
+
+/**
+ * Revert one migration on the fixture ORM — a declaring module's hard uninstall,
+ * in miniature.
+ *
+ * The schema-extension tests drive the migrator on a **database of their own**
+ * ({@link throwawayDatabase}), never on the invocation's shared run database, so
+ * they are outside `test/migrator-driving-tests.ts`' subject: that ledger
+ * contains files that would otherwise mutate the schema every other file shares.
+ * It is spelled here, once, rather than in each test file for that reason.
+ */
+export async function revertMigration(orm: MikroORM, name: string): Promise<void> {
+  await orm.getMigrator().down({ migrations: [name] });
+}

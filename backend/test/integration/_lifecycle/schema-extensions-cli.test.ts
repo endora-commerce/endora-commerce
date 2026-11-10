@@ -15,6 +15,7 @@ import {
   DECLARING_MODULE,
   declare,
   openFixtureOrm,
+  revertMigration,
   throwawayDatabase,
   type ThrowawayDatabase,
 } from '../../helpers/schema-extension-fixture.js';
@@ -100,7 +101,7 @@ describe('module:schema-extensions', () => {
   it('prints the plan without --confirm and changes nothing', async () => {
     // The declaring module was hard-uninstalled: its generated step's down() orphans its rows.
     const name = schemaExtensionMigrationName(DECLARING_MODULE, [declaration]);
-    await orm.getMigrator().down({ migrations: [name] });
+    await revertMigration(orm, name);
     const rt = runtime();
     expect(await runSchemaExtensionsCommand(['drop', DECLARING_MODULE], rt)).toBe(SCHEMA_EXTENSIONS_EXIT.ok);
     const text = rt.stdout.join('');

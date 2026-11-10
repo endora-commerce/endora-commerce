@@ -85,7 +85,7 @@ export interface OrmConfigurationInputs {
 function projectedDeclarations(inputs: OrmConfigurationInputs): readonly ColumnExtension[] {
   const declarations =
     inputs.schemaExtensions ??
-    inputs.migrations.packages.flatMap((contribution) => contribution.schemaExtensions);
+    inputs.migrations.packages.flatMap((contribution) => contribution.schemaExtensions ?? []);
   const hosts = inputs.extensibleHosts ?? rolledOutExtensibleHosts();
   for (const declaration of declarations) {
     if (!hosts.has(declaration.host)) {

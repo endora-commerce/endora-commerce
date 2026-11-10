@@ -223,8 +223,10 @@ export function configuredMigrationsFrom(inputs: {
   // V2 is asked here, before any DDL can be generated for a host that is not
   // rolled out; the ORM configuration asks it again of the same packages.
   const hosts = inputs.extensibleHosts ?? rolledOutExtensibleHosts();
+  // `?? []`: a contribution built by hand before the field existed — a test
+  // harness, an older host's shim — declares nothing, and must keep merging.
   for (const contribution of inputs.packages) {
-    for (const declaration of contribution.schemaExtensions) {
+    for (const declaration of contribution.schemaExtensions ?? []) {
       if (!hosts.has(declaration.host)) {
         throw new SchemaExtensionInvalidError(
           'host-not-extensible',
@@ -240,7 +242,7 @@ export function configuredMigrationsFrom(inputs: {
     inputs.packages.map((contribution) => ({
       moduleId: contribution.id,
       version: contribution.version,
-      declarations: contribution.schemaExtensions,
+      declarations: contribution.schemaExtensions ?? [],
     })),
   );
   const entries: MigrationRegistryEntry[] = [

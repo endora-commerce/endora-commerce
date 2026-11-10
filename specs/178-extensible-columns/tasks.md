@@ -13,60 +13,79 @@ Verify per task: `pnpm run build:packages` after editing a package, then the tar
 
 ### A1. Contracts and bindings
 
-- [ ] T001 Test: `CUSTOM_FIELD_HOST_BINDINGS` holds 9 entries with table/valueColumn/ownerModuleId, `products` → table `products`, column `attribute_values`, owner `catalog` — `packages/contracts/src/custom-fields.test.ts` [FR-010]
-- [ ] T002 Move the binding to `packages/contracts/src/custom-fields.ts`; `custom_fields`' `hostStorageBinding` reads it; grep `backend/test/**` for the old map [FR-010]
-- [ ] T003 [P] Test + implement `ExtensionsQuerySchema`, `ExtensionAttributesSchema`, `ExtensibleHostTable` in `packages/contracts/src/schema-extensions.ts` [FR-050]
-- [ ] T004 Test: derived `EXTENSIBLE_HOSTS` equals the binding tables; rollout constant `[]` makes every host refuse V2 — `packages/platform/src/kernel/schema-extensions/extensible-hosts.test.ts` [FR-010, FR-011]
-- [ ] T005 Implement `extensible-hosts.ts` [FR-010, FR-011]
+- [x] T001 Test: `CUSTOM_FIELD_HOST_BINDINGS` holds 9 entries with table/valueColumn/ownerModuleId, `products` → table `products`, column `attribute_values`, owner `catalog` — `packages/contracts/src/custom-fields.test.ts` [FR-010]
+- [x] T002 Move the binding to `packages/contracts/src/custom-fields.ts`; `custom_fields`' `hostStorageBinding` reads it; grep `backend/test/**` for the old map [FR-010]
+- [x] T003 [P] Test + implement `ExtensionsQuerySchema`, `ExtensionAttributesSchema`, `ExtensibleHostTable` in `packages/contracts/src/schema-extensions.ts` [FR-050]
+- [x] T004 Test: derived `EXTENSIBLE_HOSTS` equals the binding tables; rollout constant `[]` makes every host refuse V2 — `packages/platform/src/kernel/schema-extensions/extensible-hosts.test.ts` [FR-010, FR-011]
+- [x] T005 Implement `extensible-hosts.ts` [FR-010, FR-011]
 
 ### A2. Declaration API
 
-- [ ] T006 Test: `defineColumnExtension` inferred types (`expectTypeOf`) for every type row of `data-model.md` §3; Zod schemas accept/refuse the same values — `define.test.ts` [FR-001, FR-002, FR-003]
-- [ ] T007 Test: one failing case per rule V1–V8, V12 — `validate.test.ts` [FR-003–FR-007, FR-060, FR-063]
-- [ ] T008 Implement `define.ts`, `types.ts`, `zod.ts`, `validate.ts`, `errors.ts`; export from `packages/platform/src/kernel/index.ts` [FR-001–FR-007]
-- [ ] T009 Test: `packageSchemaContributionsUnder` reads `schemaExtensions` from `./backend`; refuses non-array / non-branded; V9–V11 with package context — `packages/platform/src/packages/package-runtime-schema-extensions.test.ts` [FR-007, FR-008]
-- [ ] T010 Implement in `package-runtime.ts` (`PackageSchemaContribution.schemaExtensions`) [FR-008]
-- [ ] T011 Test + implement: composer refuses a `schemaExtensions` export in a workspace module package; overlay module refused [FR-008, FR-064]
+- [x] T006 Test: `defineColumnExtension` inferred types (`expectTypeOf`) for every type row of `data-model.md` §3; Zod schemas accept/refuse the same values — `define.test.ts` [FR-001, FR-002, FR-003]
+- [x] T007 Test: one failing case per rule V1–V8, V12 — `validate.test.ts` [FR-003–FR-007, FR-060, FR-063]
+- [x] T008 Implement `define.ts`, `types.ts`, `zod.ts`, `validate.ts`, `errors.ts`; export from `packages/platform/src/kernel/index.ts` [FR-001–FR-007]
+- [x] T009 Test: `packageSchemaContributionsUnder` reads `schemaExtensions` from `./backend`; refuses non-array / non-branded; V9–V11 with package context — `packages/platform/src/packages/package-runtime-schema-extensions.test.ts` [FR-007, FR-008]
+- [x] T010 Implement in `package-runtime.ts` (`PackageSchemaContribution.schemaExtensions`) [FR-008]
+- [x] T011 Test + implement: composer refuses a `schemaExtensions` export in a workspace module package; overlay module refused [FR-008, FR-064]
 
 ### A3. Ledger
 
-- [ ] T012 Scaffold `pnpm --filter backend run migration:new -- --module core --name schema_extensions_ledger`; write table per `data-model.md` §1; entity `SchemaExtensionElement` (`@GlobalEntity`) in `PLATFORM_ENTITIES`; `composer:generate`, commit registries [FR-022]
-- [ ] T013 Test: `check-entity-tenant-classification` and `kernel-migration-ownership.test.ts` stay green with the new entity (run them) [FR-022]
+- [x] T012 Scaffold `pnpm --filter backend run migration:new -- --module core --name schema_extensions_ledger`; write table per `data-model.md` §1; entity `SchemaExtensionElement` (`@GlobalEntity`) in `PLATFORM_ENTITIES`; `composer:generate`, commit registries [FR-022]
+- [x] T013 Test: `check-entity-tenant-classification` and `kernel-migration-ownership.test.ts` stay green with the new entity (run them) [FR-022]
 
 ### A4. Projection and mapping rule
 
-- [ ] T014 Test (unit, `connect: false`, ports research R-1/R-3): default discovery refuses; with the rule declared projections pass, undeclared second mapping refused naming classes; projection props ⊆ allowed — `packages/platform/src/db/table-mapping-rule.test.ts` [FR-031]
-- [ ] T015 Test: projection carries `filters.org` for an `@OrgScoped` host, `RuleScoped`/`GlobalEntity` copied, insert/delete hooks present; no `x_*` property on the core meta — `schema-extension-projection.test.ts` [FR-030, FR-032]
-- [ ] T016 Implement `schema-extension-projection.ts`, `table-mapping-rule.ts`; `mikroOrmConfigFrom` takes `schemaExtensions`, always sets the discovery pair [FR-030–FR-032]
-- [ ] T017 Test: test-kit fixture ORM registers no projection (R-4) [FR-031]
+- [x] T014 Test (unit, `connect: false`, ports research R-1/R-3): default discovery refuses; with the rule declared projections pass, undeclared second mapping refused naming classes; projection props ⊆ allowed — `packages/platform/src/db/table-mapping-rule.test.ts` [FR-031]
+- [x] T015 Test: projection carries `filters.org` for an `@OrgScoped` host, `RuleScoped`/`GlobalEntity` copied, insert/delete hooks present; no `x_*` property on the core meta — `schema-extension-projection.test.ts` [FR-030, FR-032]
+- [x] T016 Implement `schema-extension-projection.ts`, `table-mapping-rule.ts`; `mikroOrmConfigFrom` takes `schemaExtensions`, always sets the discovery pair [FR-030–FR-032]
+- [x] T017 Test: test-kit fixture ORM registers no projection (R-4) [FR-031]
 
 ### A5. Synthetic step, reconcile, verifier
 
-- [ ] T018 Test: `orderMigrations` places a `generated` entry at the head of its module's block; refuses `reserved-stamp` on non-generated; hash changes iff declarations change — `migration-order.test.ts`, `schema-extension-migration.test.ts` [FR-020]
-- [ ] T019 Implement origin `generated`, reserved stamp, `schemaExtensionEntries()` in `schema-extension-migration.ts`, wired in `configuredMigrationsFrom` [FR-020]
-- [ ] T020 Test (integration, throwaway host table via fixture module owning it — keeps Phase A independent of real hosts): fresh apply; re-run idempotent; add key; remove key → orphaned; re-add same → applied; changed spec → `non-additive-change`; adopt matching unledgered column; mismatch refused; `down()` orphans and drops nothing — `backend/test/integration/db/schema-extension-reconcile.test.ts` [FR-021–FR-024]
-- [ ] T021 Implement reconcile `up()`/`down()` [FR-021–FR-024]
-- [ ] T022 Test (integration): verifier finds missing / wrong-typed column and missing index; message names module, key, column, host, owner's last executed migration; ≤ 2 catalog queries; in-run loss rolls back `migrateUpVerified` — `schema-extension-verifier.test.ts` [FR-025–FR-027]
-- [ ] T023 Implement `schema-extension-verifier.ts`, `migrateUpVerified` in `db/migrate.ts`; `up`/`fresh` verbs and orchestrator `install` use it; `composeApp` verifies at boot [FR-025, FR-026]
+- [x] T018 Test: `orderMigrations` places a `generated` entry at the head of its module's block; refuses `reserved-stamp` on non-generated; hash changes iff declarations change — `migration-order.test.ts`, `schema-extension-migration.test.ts` [FR-020]
+- [x] T019 Implement origin `generated`, reserved stamp, `schemaExtensionEntries()` in `schema-extension-migration.ts`, wired in `configuredMigrationsFrom` [FR-020]
+- [x] T020 Test (integration, throwaway host table via fixture module owning it — keeps Phase A independent of real hosts): fresh apply; re-run idempotent; add key; remove key → orphaned; re-add same → applied; changed spec → `non-additive-change`; adopt matching unledgered column; mismatch refused; `down()` orphans and drops nothing — `backend/test/integration/db/schema-extension-reconcile.test.ts` [FR-021–FR-024]
+- [x] T021 Implement reconcile `up()`/`down()` [FR-021–FR-024]
+- [x] T022 Test (integration): verifier finds missing / wrong-typed column and missing index; message names module, key, column, host, owner's last executed migration; ≤ 2 catalog queries; in-run loss rolls back `migrateUpVerified` — `schema-extension-verifier.test.ts` [FR-025–FR-027]
+- [x] T023 Implement `schema-extension-verifier.ts`, `migrateUpVerified` in `db/migrate.ts`; `up`/`fresh` verbs and orchestrator `install` use it; `composeApp` verifies at boot [FR-025, FR-026]
 
 ### A6. Accessor and reads service
 
-- [ ] T024 Test (integration over the fixture host): `load` one fields-limited select; `set` one UPDATE of changed columns only (query logger), returns sorted `changedFields`, no values; unknown id → not found, no INSERT; outside tx refused; module off → `ModuleDisabledError`; `em.remove` on projection refused; org-scoped filter narrows — `accessor.test.ts` [FR-033, FR-032]
-- [ ] T025 Implement `accessor.ts` [FR-033]
-- [ ] T026 Test + implement `reads.ts` (`schemaExtensionReads.attach`): omits absent/undeclared/non-`adminReads`; one query per module; registered in `composeApp` [FR-051, FR-052]
+- [x] T024 Test (integration over the fixture host): `load` one fields-limited select; `set` one UPDATE of changed columns only (query logger), returns sorted `changedFields`, no values; unknown id → not found, no INSERT; outside tx refused; module off → `ModuleDisabledError`; `em.remove` on projection refused; org-scoped filter narrows — `accessor.test.ts` [FR-033, FR-032]
+- [x] T025 Implement `accessor.ts` [FR-033]
+- [x] T026 Test + implement `reads.ts` (`schemaExtensionReads.attach`): omits absent/undeclared/non-`adminReads`; one query per module; registered in `composeApp` [FR-051, FR-052]
 
 ### A7. Uninstall, drop CLI
 
-- [ ] T027 Test: `uninstall --hard` of the declaring fixture → rows `orphaned`, columns present; host `--hard` → rows `dropped`; host uninstall with declarer installed → `dependents-block` — `backend/test/integration/_lifecycle/schema-extension-uninstall.test.ts` [FR-023, FR-034, FR-082]
-- [ ] T028 Implement FR-034 in the orchestrator [FR-034]
-- [ ] T029 Test: `module:schema-extensions list`; `drop` plan without `--confirm`; refusals `extension-still-declared`, `not-orphaned`; with `--confirm` drops, rows `dropped`, one audit `schema_extension.drop` without values — `schema-extensions-cli.test.ts` [FR-081]
-- [ ] T030 Implement `lifecycle/commands/schema-extensions.ts`, entry `backend/src/lifecycle/scripts/schema-extensions.ts`, `backend/package.json` script; check gate-coverage classification [FR-081]
+- [x] T027 Test: `uninstall --hard` of the declaring fixture → rows `orphaned`, columns present; host `--hard` → rows `dropped`; host uninstall with declarer installed → `dependents-block` — `backend/test/integration/_lifecycle/schema-extension-uninstall.test.ts` [FR-023, FR-034, FR-082]
+- [x] T028 Implement FR-034 in the orchestrator [FR-034]
+- [x] T029 Test: `module:schema-extensions list`; `drop` plan without `--confirm`; refusals `extension-still-declared`, `not-orphaned`; with `--confirm` drops, rows `dropped`, one audit `schema_extension.drop` without values — `schema-extensions-cli.test.ts` [FR-081]
+- [x] T030 Implement `lifecycle/commands/schema-extensions.ts`, entry `backend/src/lifecycle/scripts/schema-extensions.ts`, `backend/package.json` script; check gate-coverage classification [FR-081]
 
 ### A8. Fixture
 
-- [ ] T031 Create `backend/test/fixtures/installed-packages/mod-acme-erp/` per `quickstart.md` (compiled JS + `src/` TS reproduced for docs) and a `tsc --noEmit` test over its `src/` [SC-001]
+- [x] T031 Create `backend/test/fixtures/installed-packages/mod-acme-erp/` per `quickstart.md` (compiled JS + `src/` TS reproduced for docs) and a `tsc --noEmit` test over its `src/` [SC-001]
 
 **Checkpoint A**: all of the above green with rollout `[]`; real hosts untouched; mergeable.
+
+Phase A implementation notes (2026-11-10, `feat/178-extensible-columns-a`):
+
+- V2 is asked twice, by design: `defineColumnExtension` refuses a host outside the full derived
+  list at import (a typo fails where it is written), and discovery — `configuredMigrationsFrom`
+  and `mikroOrmConfigFrom` — refuses a host outside the *rolled-out* list. With rollout `[]` every
+  real declaration is refused there (T004, and `backend/test/unit/fixtures/mod-acme-erp-source.test.ts`).
+- The integration tests (T020 – T029) run over a throwaway host module (`fixture_host`, tables
+  `x178_hosts` / `x178_org_hosts`) in a database of their own, through the real configuration path
+  with the host set passed where production passes the rolled-out one
+  (`backend/test/helpers/schema-extension-fixture.ts`).
+- The generated step's name is a digest of the declarations, so a module that returns to an earlier
+  declaration set (A → B → A) would find A recorded as executed. `migrateUpVerified` therefore
+  forgets every generated step that is not the current one before it runs (those names are no longer
+  in the migration list, which umzug already ignores).
+- The accessor's presence seam is not on `./kernel` (a module could answer its own gate):
+  `extensionColumnsWithPresence` is on the host-internal `./db`.
+- The audit entry of `schema_extension.drop` is linked to the ledger rows (`drop_audit_id`) right
+  after the Command commits, since the bus writes the entry inside the transaction and returns no id.
 
 ## Phase B — Organizations (release together with Phase C)
 
@@ -95,7 +114,7 @@ Verify per task: `pnpm run build:packages` after editing a package, then the tar
 - [ ] T066 Test (red proofs per finding, exit 2, read line) then implement `check:extensible-tables`; inventory row, `check-inventory.test.ts`, estate entry, `quality` job; record read size in a clean tree [FR-072]
 - [ ] T067 Test + implement `module:schema-extensions audit-packages` (dry-run of the guard over installed packages, no writes) [FR-073]
 
-## Phase D — Remaining eight hosts
+## Phase D — Remaining eight hosts (later release — OD-178-4, ruled D-291; out of this release)
 
 - [ ] T080 Delete the rollout constant; T004 asserts all 9 hosts [FR-011]
 - [ ] T081 Preservation test over 9 tables green (fix or escalate any core migration it reds) [FR-080]

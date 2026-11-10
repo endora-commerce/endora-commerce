@@ -10,6 +10,7 @@ import {
   HOST_TABLE,
   declare,
   openFixtureOrm,
+  revertMigration,
   throwawayDatabase,
   type ThrowawayDatabase,
 } from '../../helpers/schema-extension-fixture.js';
@@ -172,7 +173,7 @@ describe('the generated schema-extension step', () => {
     const orm = await openFixtureOrm(db.url, [v3]);
     try {
       const name = schemaExtensionMigrationName(DECLARING_MODULE, [v3]);
-      await orm.getMigrator().down({ migrations: [name] });
+      await revertMigration(orm, name);
     } finally {
       await orm.close(true);
     }

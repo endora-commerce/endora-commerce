@@ -1,0 +1,14 @@
+---
+'@endora-commerce/platform': minor
+---
+
+Declared extension columns on core tables — the platform mechanism (`specs/178-extensible-columns/` Phase A). **Inert in this release**: no host table is rolled out yet, so a deployment that declares no extension migrates, boots and behaves exactly as before, and a declaration on any host is refused at discovery as `schema_extension_invalid (host-not-extensible)`.
+
+- `./kernel`: `defineColumnExtension(decl)` (typed, frozen, validated at import), `columnExtensionSchema` / `columnExtensionPatchSchema` (Zod), `extensionColumns(decl, em)` — `get`, `load`, `set`, UPDATE-only, gated on the declaring module's presence (`ModuleDisabledError` when off), writes only inside a transaction, `set` returns `{ changedFields }` (names, never values) — and the errors `SchemaExtensionInvalidError`, `ExtensionHostRowNotFoundError`, `ExtensionWriteOutsideCommandError`, `ExtensionProjectionWriteError`, `ExtensionValueCorruptError`.
+- An installed package declares extensions as a `schemaExtensions` array exported from its `./backend` subpath; `packageSchemaContributionsUnder` reads it and applies the package rules (module id, host dependency, one declaration per host). `PackageSchemaContribution` gains `schemaExtensions`.
+- New platform table `schema_extensions` (core migration `Migration20261110T140633CoreSchemaExtensionsLedger`, entity `SchemaExtensionElement` on `./composition`).
+- `MigrationOrigin` gains `'generated'`; the stamp `10000101T000000` is reserved for the platform's generated schema-extension step and refused on anything else (`MigrationOrderError` code `reserved-stamp`). `configuredMigrationsFrom` merges one generated step per declaring module, at the head of its block.
+- `mikroOrmConfigFrom` always sets `discovery.checkDuplicateTableNames: false` together with a duplicate-table rule of its own that admits only the platform's projections of validated declarations, and refuses every other second mapping of a table by name (`DuplicateTableMappingError`).
+- `./db`: `migrateUpVerified(orm)` — used by `migrate up` / `fresh` and lifecycle `install` — runs the migrations and the verifier in one transaction when anything is declared (a bare `migrator.up()` otherwise); `composeApp` verifies at boot (`SchemaExtensionDriftError`). Host seams for tests and composition roots: `createColumnExtension`, `extensionColumnsWithPresence`, `createSchemaExtensionReads`, `verifySchemaExtensions`, `inspectSchemaExtensions`, `EXTENSIBLE_HOSTS`, `SCHEMA_EXTENSION_ROLLOUT` (empty).
+- The kernel container gains `schemaExtensionReads` (extension attributes on admin reads; used by host routes from Phase B).
+- `./lifecycle`: `runSchemaExtensionsCommand` — `module:schema-extensions list` and the audited `drop <moduleId> [--key] [--confirm]` (`schema_extension.drop`). Hard-uninstalling a declaring module keeps its columns (ledger rows `orphaned`); hard-uninstalling a host marks its rows `dropped`.
