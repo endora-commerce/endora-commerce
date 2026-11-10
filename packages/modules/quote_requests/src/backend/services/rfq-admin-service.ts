@@ -67,6 +67,7 @@ import {
   type HistoryEventInput,
   type HistoryRevisionInput,
 } from './history/history-projection.js';
+import { cancelAuditState, prepareBasketAuditState } from './quote-request-audit-state.js';
 
 /**
  * Admin-facing Quote Requests service — feature 008 workflow.
@@ -591,11 +592,13 @@ export class RfqAdminService {
       salesChannelId: rfq.salesChannelId ?? fallbackChannelId,
     };
     const seeded = await this.deps.rfqService.seedBasketFromApproved(em, rfq, owner);
-    this.#audit(em, 'quote_request.prepare_customer_basket', rfq.id, null, {
-      cartId: seeded.cartId,
-      customerAccountId: owner.customerAccountId,
-      itemCount: seeded.itemCount,
-    });
+    this.#audit(
+      em,
+      'quote_request.prepare_customer_basket',
+      rfq.id,
+      null,
+      prepareBasketAuditState({ cartId: seeded.cartId, customerAccountId: owner.customerAccountId, itemCount: seeded.itemCount }),
+    );
     await em.flush();
     return { cartId: seeded.cartId, customerAccountId: owner.customerAccountId, itemCount: seeded.itemCount };
   }
@@ -625,7 +628,7 @@ export class RfqAdminService {
       if (reason) rfq.cancellationReason = reason;
       rfq.assignedAdminUserId = ctx.adminUserId;
       rfq.version += 1;
-      this.#audit(em, 'quote_request.cancel', rfq.id, null, { status: 'Canceled', reason: reason ?? null });
+      this.#audit(em, 'quote_request.cancel', rfq.id, null, cancelAuditState(reason));
       await em.flush();
     });
 
