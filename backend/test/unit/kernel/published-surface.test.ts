@@ -287,6 +287,34 @@ const PUBLISHED_KERNEL_SURFACE: Readonly<Record<string, readonly string[]>> = {
   ],
   /** Feature 154 — the write seam a channel delete drops the access cache through. */
   'sales-channels/sales-channel-access-cache.js': ['SalesChannelAccessCacheInvalidation'],
+  /**
+   * `specs/178-extensible-columns/` — the declaration API an installed package
+   * declares its extension columns with, the Zod schemas of its values, the
+   * accessor it reads and writes them through, and the errors and shapes those
+   * throw and answer in. The presence seam of the accessor, the projection and
+   * the ledger are **not** here: they are the host's (`./db`, `./composition`).
+   */
+  'schema-extensions/define.js': ['defineColumnExtension'],
+  'schema-extensions/zod.js': ['columnExtensionPatchSchema', 'columnExtensionSchema'],
+  'schema-extensions/accessor.js': ['ExtensionColumnsAccessor', 'extensionColumns'],
+  'schema-extensions/reads.js': ['ExtensionAttributeMap', 'ExtensionJsonValue', 'SchemaExtensionReads'],
+  'schema-extensions/errors.js': [
+    'ExtensionHostRowNotFoundError',
+    'ExtensionProjectionWriteError',
+    'ExtensionValueCorruptError',
+    'ExtensionWriteOutsideCommandError',
+    'SchemaExtensionInvalidError',
+  ],
+  'schema-extensions/types.js': [
+    'ColumnExtension',
+    'ColumnExtensionInput',
+    'ColumnExtensionPatch',
+    'ColumnExtensionValues',
+    'ColumnIndex',
+    'ColumnSpec',
+    'ColumnType',
+    'ExtensibleHostTable',
+  ],
 };
 
 /**
@@ -712,6 +740,12 @@ const HOST_COMPOSITION_SURFACE: Readonly<Record<string, readonly string[]>> = {
   // into `packages/platform/dist/` — a specifier that resolves in this checkout
   // and in no client's. One export here retired six re-export shims.
   'kernel/lifecycle/module-registration.entity.ts': ['ModuleRegistration'],
+  /**
+   * `specs/178-extensible-columns/` FR-022 — the ledger row, on this subpath for
+   * `ModuleRegistration`'s reason: the generated entity registry must name it
+   * and no module may.
+   */
+  'kernel/schema-extensions/schema-extension-element.entity.ts': ['SchemaExtensionElement'],
   'kernel/settings/compose.ts': ['composeSettingsKernel', 'SettingsKernel'],
   'kernel/settings/manifest-reconciler.ts': ['ManifestReconciler'],
   // Issue #700 — the boot step that encrypts any plaintext a `secret` setting

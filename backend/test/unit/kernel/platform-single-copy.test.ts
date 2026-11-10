@@ -399,6 +399,9 @@ describe('the platform is one copy (feature 080, the relocation)', () => {
     // derived-scope readers a module needs once a sales representative's reach
     // is a complement — `orgScopeWhere`, `orgScopeSql`, `reachesNoOrganization`,
     // `assignedOrganizationIdsForRanking` and `orgConstraintForAdminScope`.
+    // **62 -> 71 is the same event, on `./kernel`:** declared extension columns
+    // (`specs/178-extensible-columns/`) published `defineColumnExtension`, the
+    // two Zod schema builders, `extensionColumns` and its five errors.
     //
     // It is summed over the **five published** subpaths and not over every
     // comparison, which is what preserves that provenance: no host-internal
@@ -409,7 +412,7 @@ describe('the platform is one copy (feature 080, the relocation)', () => {
     const total = comparisons
       .filter((entry) => published.has(entry.subpath))
       .reduce((sum, entry) => sum + entry.shared.length, 0);
-    expect(total).toBe(62);
+    expect(total).toBe(71);
   });
 
   /**
