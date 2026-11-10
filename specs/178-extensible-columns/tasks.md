@@ -126,14 +126,36 @@ Phase B implementation notes (2026-11-10, `feat/178-extensible-columns-b`):
 
 ## Phase C — Foreign schema refusal (OD-17) (release together with Phase B)
 
-- [ ] T060 Test: `sqlWriteTargets` corpus incl. `do $$` bodies, knex `toQuery()`, quoted/unquoted, schema-qualified — `sql-statement-targets.test.ts` [FR-070]
-- [ ] T061 Implement `sql-statement-targets.ts` [FR-070]
-- [ ] T062 Test: parity with `sqlTableAccesses` over every first-party migration — `backend/test/unit/db/sql-write-targets-parity.test.ts` [FR-070]
-- [ ] T063 Test: guard refuses foreign DDL via `addSql`, foreign DML via `execute`, foreign write via `getEntityManager().flush()`; allows own tables, kernel tables, own-`x_` back-fill; refuses back-fill touching core columns; preserves class name; rolls back — `foreign-schema-guard.test.ts` + integration with a rogue fixture package [FR-070, US7]
-- [ ] T064 Implement `foreign-schema-guard.ts`; wrap `external` entries in `configuredMigrationsFrom` [FR-070]
-- [ ] T065 Test + implement exemption rendering in `composer:generate` from the R2 ledger; freshness in `overlay:check`; an instance composition of all first-party packages migrates clean (`backend/test/unit/db/instance-migration-order.test.ts` harness) [FR-071]
-- [ ] T066 Test (red proofs per finding, exit 2, read line) then implement `check:extensible-tables`; inventory row, `check-inventory.test.ts`, estate entry, `quality` job; record read size in a clean tree [FR-072]
-- [ ] T067 Test + implement `module:schema-extensions audit-packages` (dry-run of the guard over installed packages, no writes) [FR-073]
+- [x] T060 Test: `sqlWriteTargets` corpus incl. `do $$` bodies, knex `toQuery()`, quoted/unquoted, schema-qualified — `sql-statement-targets.test.ts` [FR-070]
+- [x] T061 Implement `sql-statement-targets.ts` [FR-070]
+- [x] T062 Test: parity with `sqlTableAccesses` over every first-party migration — `backend/test/unit/db/sql-write-targets-parity.test.ts` [FR-070]
+- [x] T063 Test: guard refuses foreign DDL via `addSql`, foreign DML via `execute`, foreign write via `getEntityManager().flush()`; allows own tables, kernel tables, own-`x_` back-fill; refuses back-fill touching core columns; preserves class name; rolls back — `foreign-schema-guard.test.ts` + integration with a rogue fixture package [FR-070, US7]
+- [x] T064 Implement `foreign-schema-guard.ts`; wrap `external` entries in `configuredMigrationsFrom` [FR-070]
+- [x] T065 Test + implement exemption rendering in `composer:generate` from the R2 ledger; freshness in `overlay:check`; an instance composition of all first-party packages migrates clean (`backend/test/unit/db/instance-migration-order.test.ts` harness) [FR-071]
+- [x] T066 Test (red proofs per finding, exit 2, read line) then implement `check:extensible-tables`; inventory row, `check-inventory.test.ts`, estate entry, `quality` job; record read size in a clean tree [FR-072]
+- [x] T067 Test + implement `module:schema-extensions audit-packages` (dry-run of the guard over installed packages, no writes) [FR-073]
+
+Phase C implementation notes (2026-11-10, `feat/178-extensible-columns-c`):
+
+- **The parity test (T062) found three real gaps in `sqlTableAccesses`**, fixed in it rather than
+  tolerated: a table a statement reads before it writes was recorded as a read only (`with … update`);
+  DML inside `do $$ … $$` blocks and `create function` bodies was invisible. One R2 write the first gap
+  hid is now ledgered (`organizations` personal-organizations `up()` re-parents `customer_accounts`).
+  The runtime classifier in turn learned to read PL/pgSQL `execute '…'` strings as SQL.
+- **The guard's ownership rule is R2's**, measured by T065 rather than assumed: own = entity tables ∪
+  tables the module's migrations create **and no other module's entity maps** (a migration from before a
+  module split does not own the table it once created); DDL on a table the same migration creates is a
+  declaration, not a write (both halves of the migration count). With those two rules, an instance of every
+  first-party module refuses, without exemptions, **exactly** the R2 ledger's (module, migration, table)
+  set, and with them nothing (`backend/test/unit/db/instance-foreign-writes.test.ts`, both directions).
+- Own tables created by a module's *earlier* migrations are found by a dry run of the module's migrations
+  (`up()` with `execute` answering no rows), lazily at the first guarded migration — never at boot.
+  `drop index` is resolved through `pg_indexes` at run time and through the audited migrations' own
+  `create index`es in the audit.
+- umzug wraps the refusal in a `MigrationError`; `ForeignSchemaWriteError` is its `cause`.
+- `check:extensible-tables` is a relocated rule (`@endora-commerce/cli/rules/extensible-tables.js`) with a
+  built package host; the binding/owner reconciliation is a declared partial signal there. It has no
+  ledger, by the contract; the tree is clean (123 migrations of 8 owners).
 
 ## Phase D — Remaining eight hosts (later release — OD-178-4, ruled D-291; out of this release)
 

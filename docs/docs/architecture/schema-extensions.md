@@ -189,6 +189,22 @@ Uninstalling your module keeps its columns and their values; only an explicit, a
 declared. Uninstalling the host while your module is installed is refused with
 `dependents-block`.
 
+## What a package migration may not do
+
+Declaring is the only route onto a core table. Every migration an installed package ships runs
+inside the platform's foreign-schema guard, which refuses — and rolls the `migrate` run back —
+any statement that writes a table your module does not own: an `alter table "organizations"`,
+an index on it, an `insert` into `orders`, and the same through `getEntityManager()`. Your own
+tables, the platform's tables and the back-fill of your own `x_<moduleId>_*` columns on a host
+you declare are allowed; the rules are on [Migrations](./migrations.md), under *The
+foreign-schema guard*.
+
+To see what a release would refuse before upgrading to it:
+
+```bash
+pnpm --filter backend run module:schema-extensions audit-packages
+```
+
 ## Packaging
 
 There are no instance-local packages yet: build your module, `pnpm pack` it and install the

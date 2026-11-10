@@ -3,7 +3,7 @@ import {
   discoverPackageSchema,
   type PackageSchemaContribution,
 } from '../packages/package-runtime.js';
-import { BASELINE_MIGRATIONS } from '../migrations/index.js';
+import { BASELINE_MIGRATIONS, FIRST_PARTY_FOREIGN_WRITE_EXEMPTIONS } from '../migrations/index.js';
 import type { DiscoveredManifestEntry } from '../lifecycle/manifest-registry.js';
 import {
   orderMigrations,
@@ -13,9 +13,17 @@ import {
 } from './migration-order.js';
 import {
   CORE_MODULE_ID,
+  PLATFORM_ENTITIES,
   PLATFORM_MIGRATION_ENTRIES,
   mergeByIdentity,
 } from './platform-schema.js';
+import {
+  guardExternalMigration,
+  type ForeignSchemaGuardContext,
+  type ForeignWriteExemption,
+  type MigrationClass as GuardedMigrationClass,
+} from './foreign-schema-guard.js';
+import { physicalColumnPrefix } from '../kernel/schema-extensions/naming.js';
 import { schemaExtensionEntries } from './schema-extension-migration.js';
 import {
   rolledOutExtensibleHosts,
@@ -217,6 +225,12 @@ export function configuredMigrationsFrom(inputs: {
    * test passes a throwaway host here.
    */
   readonly extensibleHosts?: ExtensibleHostSet;
+  /**
+   * The first-party writes the foreign-schema guard lets through
+   * (`specs/178-extensible-columns/` FR-071). Defaults to the list
+   * `composer:generate` renders from R2's ledger; a test passes its own.
+   */
+  readonly foreignWriteExemptions?: readonly ForeignWriteExemption[];
 }): ConfiguredMigrations {
   // `specs/178-extensible-columns/` FR-020 — one generated step per installed
   // module that declares extension columns, at the head of that module's block.
@@ -245,11 +259,34 @@ export function configuredMigrationsFrom(inputs: {
       declarations: contribution.schemaExtensions ?? [],
     })),
   );
-  const entries: MigrationRegistryEntry[] = [
-    ...inputs.coreEntries,
-    ...inputs.packages.flatMap((contribution) => contribution.migrations),
-    ...generated,
-  ];
+  // `specs/178-extensible-columns/` FR-070 (OR-5) — every installed package's
+  // migration runs through the foreign-schema guard: a statement writing a table
+  // the package's module does not own is refused and the run rolls back. The
+  // wrapper keeps the class name, so ordering and history see the package's own.
+  const exemptions = inputs.foreignWriteExemptions ?? FIRST_PARTY_FOREIGN_WRITE_EXEMPTIONS;
+  const guarded = inputs.packages.flatMap((contribution) => {
+    const context: ForeignSchemaGuardContext = {
+      moduleId: contribution.id,
+      packageName: contribution.packageName,
+      entities: contribution.entities,
+      platformEntities: PLATFORM_ENTITIES,
+      declaredHosts: new Map(
+        (contribution.schemaExtensions ?? []).map(
+          (declaration) => [declaration.host, physicalColumnPrefix(declaration.module)] as const,
+        ),
+      ),
+      exemptions: exemptions.filter((exemption) => exemption.moduleId === contribution.id),
+      moduleMigrations: () => contribution.migrations.map((entry) => entry.cls as unknown as GuardedMigrationClass),
+    };
+    // Only a real class can be subclassed; a stand-in a test registers to drive
+    // the ordering alone is not a migration anything runs.
+    return contribution.migrations.map((entry) =>
+      (entry.origin ?? 'core') === 'external' && typeof entry.cls === 'function'
+        ? { ...entry, cls: guardExternalMigration(entry.cls as unknown as GuardedMigrationClass, context) as never }
+        : entry,
+    );
+  });
+  const entries: MigrationRegistryEntry[] = [...inputs.coreEntries, ...guarded, ...generated];
   const moduleDependencies = new Map(inputs.coreModuleDependencies);
   // A package's own module is a node in the graph like any other, so its chain
   // lands at its topological position. Its `dependencies` are read from the

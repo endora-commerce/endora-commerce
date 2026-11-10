@@ -305,8 +305,8 @@ właścicielem tych kolumn `x_<moduleId>_*`, więc jego własna migracja może j
 Ustawienie dowolnej innej kolumny gospodarza nadal jest zapisem do tabeli innego modułu.
 
 W tym repozytorium obie reguły egzekwuje `pnpm --filter backend run check:module-boundary`, obok
-opisanego niżej walidatora kluczy obcych. Tak jak w przypadku tablicy `./migrations`, nic w hoście
-nie czyta SQL migracji zainstalowanego pakietu, więc w pakiecie pilnujesz ich samodzielnie.
+opisanego niżej walidatora kluczy obcych. **W przypadku zainstalowanego pakietu regułę zapisu
+egzekwuje sam host, przy `migrate`**: zobacz niżej *Strażnik obcego schematu*.
 
 Nie ma innej dźwigni. Przesunięcie znacznika czasu tego nie zrobi (zobacz niżej), a krawędzi
 kolejności dla pojedynczej migracji nie ma.
@@ -432,7 +432,45 @@ Reguły, typy kolumn i pełny przykład są na stronie
 [Zadeklarowane kolumny rozszerzeń](./schema-extensions.md). Rdzeń dotrzymuje swojej strony
 obietnicy w CI: test integracyjny wykonuje całą kolejność migracji rdzenia z przykładowymi
 kolumnami `x_fixture_*` w każdej otwartej rozszerzalnej tabeli i kończy się błędem, gdy migracja
-rdzenia którąś z nich utraci.
+rdzenia którąś z nich utraci, a `check:extensible-tables` odrzuca w każdym merge requeście
+migrację właściciela rozszerzalnej tabeli, która ją przebudowuje (`drop table`, `rename to`,
+kopia przez `create table … as select`).
+
+### Strażnik obcego schematu
+
+Każda migracja dostarczana przez zainstalowany pakiet wykonuje się wewnątrz strażnika platformy.
+Strażnik czyta każdą instrukcję, którą migracja przekazuje do `addSql` albo `execute` — builder
+knex po SQL, który generuje, blok `do $$ … $$` i ciało funkcji po ich tekście, a ciąg wykonywany
+przez `execute` w PL/pgSQL jako SQL — i **odrzuca** DDL albo DML na tabeli, której moduł pakietu
+nie jest właścicielem. Odmowa to `foreign-schema-write` z nazwą pakietu, migracji, tabeli i
+instrukcji, a cały przebieg `migrate` jest wycofywany.
+
+Tabela należy do modułu, gdy mapuje ją jedna z jego encji albo tworzy ją jedna z jego migracji i
+nie mapuje jej encja żadnego innego modułu. Dozwolone są ponadto:
+
+- własne tabele platformy i `mikro_orm_migrations`;
+- DDL na tabeli, którą tworzy ta sama migracja — indeks obok jej `create table`, usunięcie w
+  `down()`;
+- `update "<gospodarz>" set "x_<moduleId>_…" = …` na gospodarzu, w którym moduł deklaruje kolumny
+  rozszerzeń, o ile każda ustawiana kolumna jest jego własna — czyli jego uzupełnianie danych;
+- zapisy własnych modułów platformy zapisane w rejestrze R2 `check:module-boundary`, dzięki czemu
+  instancja może zainstalować moduły samej platformy jako pakiety. `composer:generate` zapisuje je
+  w `FIRST_PARTY_FOREIGN_WRITE_EXEMPTIONS` w `@endora-commerce/platform/migrations`, a
+  `overlay:check` pilnuje zgodności tej listy z rejestrem.
+
+`this.getEntityManager()` nie jest obejściem: jego `flush` jest sprawdzany zbiór zmian po zbiorze
+zmian, a skróty `insert*`, `upsert*`, `native*` i `execute` również. Odczyty nigdy nie są
+oceniane.
+
+**Przed aktualizacją do wydania, które odmawia**, operator może zobaczyć, czego by odmówiło:
+
+```bash
+pnpm --filter backend run module:schema-extensions audit-packages
+```
+
+wykonuje tę samą klasyfikację na migracjach wszystkich zainstalowanych pakietów, nie wykonując
+żadnej z nich, wypisuje każdą instrukcję, która zostałaby odrzucona, i kończy się kodem 65, gdy
+taka istnieje.
 
 
 ## Reguły kolejności

@@ -310,8 +310,8 @@ every column it sets being its own. Setting any other column of the host is stil
 table another module owns.
 
 In this repository both rules are enforced by `pnpm --filter backend run check:module-boundary`,
-beside the foreign-key validator described below. As with the `./migrations` array, nothing in
-the host reads an installed package's migration SQL, so in a package they are yours to keep.
+beside the foreign-key validator described below. **For an installed package the host enforces
+the write rule itself, at `migrate`**: see *The foreign-schema guard* below.
 
 There is no other lever. Moving your timestamp cannot do it (see below), and there is no
 per-migration ordering edge.
@@ -434,7 +434,44 @@ From that the platform derives **one generated migration step per declaring modu
 The rules, the column types and the worked example are on
 [Declared extension columns](./schema-extensions.md). Core keeps its side of the promise in CI:
 an integration test applies the whole core migration order with sample `x_fixture_*` columns
-on every open extensible table and fails when a core migration loses one.
+on every open extensible table and fails when a core migration loses one, and
+`check:extensible-tables` refuses, on every merge request, a migration of an extensible table's
+owner that rebuilds it (`drop table`, `rename to`, a `create table … as select` copy).
+
+### The foreign-schema guard
+
+Every migration an installed package ships runs inside a platform guard. It reads each statement
+the migration hands to `addSql` or `execute` — a knex builder by the SQL it renders, a
+`do $$ … $$` block and a function body by their text, the string a PL/pgSQL `execute` runs as
+SQL — and **refuses** DDL or DML on a table the package's module does not own. The refusal is
+`foreign-schema-write`, naming the package, the migration, the table and the statement, and the
+whole `migrate` run rolls back.
+
+A table is the module's own when one of its entities maps it, or one of its migrations creates
+it and no other module's entity maps it. Also allowed:
+
+- the platform's own tables and `mikro_orm_migrations`;
+- DDL on a table the same migration creates — indexing it beside its `create table`, dropping it
+  in `down()`;
+- `update "<host>" set "x_<moduleId>_…" = …` on a host the module declares extension columns
+  on, every set column its own — its back-fill;
+- the first-party writes recorded in `check:module-boundary`'s R2 ledger, which is what lets an
+  instance install this platform's own modules as packages. `composer:generate` renders them
+  into `FIRST_PARTY_FOREIGN_WRITE_EXEMPTIONS` on `@endora-commerce/platform/migrations`, and
+  `overlay:check` holds the list to the ledger.
+
+`this.getEntityManager()` is no way around it: its flush is checked change set by change set,
+and its `insert*`, `upsert*`, `native*` and `execute` shortcuts are checked as well. Reads are
+never judged.
+
+**Before upgrading to the release that refuses**, an operator can see what it would refuse:
+
+```bash
+pnpm --filter backend run module:schema-extensions audit-packages
+```
+
+runs the same classification over every installed package's migrations without executing any of
+them, prints each statement that would be refused, and exits 65 when there is one.
 
 
 ## Ordering rules

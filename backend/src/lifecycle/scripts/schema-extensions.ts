@@ -10,11 +10,13 @@ import {
 } from '@endora-commerce/platform/lifecycle';
 import type { MikroORM } from '@mikro-orm/postgresql';
 import { closeOrm, initOrm } from '../../db/index.js';
+import { configuredMigrations } from '../../db/configured-migrations.js';
 import { enterSystemScope } from '../../kernel/scope.js';
 
 /**
  * `pnpm --filter backend run module:schema-extensions list [--module <id>] [--json]`
  * `pnpm --filter backend run module:schema-extensions drop <moduleId> [--key <key>] [--confirm]`
+ * `pnpm --filter backend run module:schema-extensions audit-packages [--json]`
  *
  * The **wiring**, and nothing else (`specs/178-extensible-columns/` FR-081):
  * the grammar, the refusals and the audited drop Command are
@@ -40,6 +42,9 @@ async function main(): Promise<number> {
     return await runSchemaExtensionsCommand(process.argv.slice(2), {
       orm: open,
       declarations: () => activeSchemaExtensionContext().declarations,
+      // FR-073 — the installed packages this instance's configuration discovered,
+      // as they arrived (the guard wraps them only inside the merged order).
+      packages: async () => (await configuredMigrations()).packages,
       commandBus: async () => {
         const opened = await open();
         return new CommandBus(opened, new AuditLogService(() => opened.em.fork()), new EventBus());

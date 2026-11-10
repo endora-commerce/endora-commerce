@@ -4,9 +4,12 @@ import { withSystemScope } from '../../tenancy/escape-hatch.js';
 import { resolvedColumnExtension } from '../../kernel/schema-extensions/define.js';
 import type { ColumnExtension } from '../../kernel/schema-extensions/types.js';
 import { declaredElements, dropColumnSql, dropIndexSql, quoteIdent } from '../../db/schema-extension-sql.js';
+import { auditForeignSchemaWrites, type AuditedPackage } from '../../db/foreign-schema-guard.js';
+import { PLATFORM_ENTITIES } from '../../db/platform-schema.js';
+import { FIRST_PARTY_FOREIGN_WRITE_EXEMPTIONS } from '../../migrations/index.js';
 
 /**
- * `module:schema-extensions list | drop` — the operator's view of the
+ * `module:schema-extensions list | drop | audit-packages` — the operator's view of the
  * `schema_extensions` ledger and the one way an extension's columns are ever
  * dropped (`specs/178-extensible-columns/` FR-081,
  * `contracts/generated-ddl-and-ledger.md` §6; OD-29).
@@ -18,6 +21,12 @@ import { declaredElements, dropColumnSql, dropIndexSql, quoteIdent } from '../..
  * an installed package still declares (`extension-still-declared`) and one that
  * is not orphaned (`not-orphaned`). The audit entry names what was dropped and
  * how many rows held a value — never the values (audit-state D-288).
+ *
+ * `audit-packages` (FR-073) runs the foreign-schema guard's classification over
+ * every installed package's migrations **without executing them** and lists each
+ * statement the guard would refuse at `migrate` — so an operator can check the
+ * packages on the current release before upgrading to the one that refuses
+ * (OD-17 b). It writes nothing; exit 65 when anything would be refused.
  */
 
 export interface SchemaExtensionsRuntime {
@@ -27,6 +36,8 @@ export interface SchemaExtensionsRuntime {
   readonly commandBus: () => Promise<CommandBus>;
   readonly out: (line: string) => void;
   readonly err: (line: string) => void;
+  /** The installed packages' raw schema contributions — `audit-packages`' population. */
+  readonly packages?: () => Promise<readonly AuditedPackage[]>;
 }
 
 export const SCHEMA_EXTENSIONS_EXIT = { ok: 0, usage: 64, refused: 65, failed: 70 } as const;
@@ -45,13 +56,14 @@ interface LedgerRow {
 
 const USAGE =
   'usage: module:schema-extensions list [--module <id>] [--json]\n' +
-  '       module:schema-extensions drop <moduleId> [--key <key>] [--confirm]\n';
+  '       module:schema-extensions drop <moduleId> [--key <key>] [--confirm]\n' +
+  '       module:schema-extensions audit-packages [--json]\n';
 
 const MODULE_ID_RE = /^[a-z][a-z0-9_]*$/;
 const KEY_RE = /^[a-z][a-zA-Z0-9]*$/;
 
 interface Parsed {
-  readonly verb: 'list' | 'drop';
+  readonly verb: 'list' | 'drop' | 'audit-packages';
   readonly moduleId?: string;
   readonly key?: string;
   readonly confirm: boolean;
@@ -60,7 +72,9 @@ interface Parsed {
 
 function parse(argv: readonly string[]): Parsed | string {
   const [verb, ...rest] = argv;
-  if (verb !== 'list' && verb !== 'drop') return `unknown verb ${JSON.stringify(verb ?? '')}`;
+  if (verb !== 'list' && verb !== 'drop' && verb !== 'audit-packages') {
+    return `unknown verb ${JSON.stringify(verb ?? '')}`;
+  }
   let moduleId: string | undefined;
   let key: string | undefined;
   let confirm = false;
@@ -83,6 +97,9 @@ function parse(argv: readonly string[]): Parsed | string {
   if (key !== undefined && !KEY_RE.test(key)) return `invalid key: ${key}`;
   if (verb === 'drop' && moduleId === undefined) return 'drop takes a module id';
   if (verb === 'list' && (confirm || key !== undefined)) return 'list takes --module and --json only';
+  if (verb === 'audit-packages' && (confirm || key !== undefined || moduleId !== undefined)) {
+    return 'audit-packages takes --json only';
+  }
   return {
     verb,
     confirm,
@@ -239,6 +256,46 @@ async function drop(rt: SchemaExtensionsRuntime, args: Parsed): Promise<number> 
   return SCHEMA_EXTENSIONS_EXIT.ok;
 }
 
+async function auditPackages(rt: SchemaExtensionsRuntime, args: Parsed): Promise<number> {
+  if (rt.packages === undefined) {
+    rt.err('[schema-extensions] audit-packages: this entry point supplies no installed-package population\n');
+    return SCHEMA_EXTENSIONS_EXIT.failed;
+  }
+  const orm = await rt.orm();
+  const audit = await auditForeignSchemaWrites({
+    packages: await rt.packages(),
+    driver: orm.em.getDriver(),
+    config: orm.config,
+    platformEntities: PLATFORM_ENTITIES,
+    exemptions: FIRST_PARTY_FOREIGN_WRITE_EXEMPTIONS,
+  });
+  if (args.json) {
+    rt.out(`${JSON.stringify(audit, null, 2)}\n`);
+  } else {
+    for (const finding of audit.findings) {
+      rt.out(
+        `${finding.packageName} (${finding.moduleId}) ${finding.migration}.${finding.method}() → ${finding.table}: ` +
+          `${finding.statement}\n`,
+      );
+    }
+    for (const index of audit.unresolvedIndexes) {
+      rt.out(`(not judged) drop index "${index}": no audited migration creates it\n`);
+    }
+    for (const failure of audit.dryRunErrors) {
+      rt.out(`(partly judged) ${failure.migration}: its up() threw in a dry run — ${failure.message}\n`);
+    }
+    rt.out(
+      audit.findings.length === 0
+        ? `no installed package migration would be refused (${audit.migrations} migration(s), ` +
+            `${audit.statements} statement(s) read)\n`
+        : `${audit.findings.length} statement(s) would be refused as foreign-schema-write at migrate ` +
+            `(${audit.migrations} migration(s) read). A package migration may write only its own tables ` +
+            `and, on a host it declares, its own x_<module>_ columns.\n`,
+    );
+  }
+  return audit.findings.length === 0 ? SCHEMA_EXTENSIONS_EXIT.ok : SCHEMA_EXTENSIONS_EXIT.refused;
+}
+
 export async function runSchemaExtensionsCommand(
   argv: readonly string[],
   rt: SchemaExtensionsRuntime,
@@ -249,6 +306,7 @@ export async function runSchemaExtensionsCommand(
     return SCHEMA_EXTENSIONS_EXIT.usage;
   }
   try {
+    if (args.verb === 'audit-packages') return await auditPackages(rt, args);
     return args.verb === 'list' ? await list(rt, args) : await drop(rt, args);
   } catch (error) {
     rt.err(`[schema-extensions] ${error instanceof Error ? error.message : String(error)}\n`);

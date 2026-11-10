@@ -12106,6 +12106,21 @@ export const RECORDED_READ_SIZES: Readonly<Record<string, RecordedReadSize>> = {
   // queue-name construction sites, so a module gaining a queue moves it while
   // `files` barely notices, and a run whose `sites` collapsed while `files`
   // stood still is #235/#237's shape exactly.
+  // **New with `specs/178-extensible-columns/` T066.** Its walk is the migration
+  // sources of the modules the custom-field bindings name as owners of an
+  // extensible table, so `files` moves when one of those modules adds or deletes
+  // a migration and `sites` — the literals outside a `down()` — when one gains a
+  // statement. `extensible-owners` is the independent count: the owning modules
+  // the bindings in `@endora-commerce/contracts` name. Measured on
+  // `feat/178-extensible-columns-c`; no file outside those migration directories
+  // reaches the walk.
+  'backend/scripts/check-extensible-tables.ts': {
+    prefix: '[extensible-tables]',
+    run: { kind: 'tsx', path: 'scripts/check-extensible-tables.ts', args: [] },
+    files: 123,
+    sites: 885,
+    sources: ['extensible-owners'],
+  },
   'backend/scripts/check-queue-names.ts': {
     prefix: '[queue-names]',
     run: { kind: 'tsx', path: 'scripts/check-queue-names.ts', args: [] },

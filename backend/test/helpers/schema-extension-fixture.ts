@@ -145,6 +145,12 @@ export interface FixtureOptions {
    * lifecycle orchestrator needs (registrations, settings, the audit log).
    */
   readonly platform?: boolean;
+  /**
+   * Migrations the declaring package itself ships, tagged `external` as package
+   * discovery tags them — so the foreign-schema guard wraps them
+   * (`specs/178-extensible-columns/` FR-070).
+   */
+  readonly packageMigrations?: readonly (new (...args: never[]) => Migration)[];
 }
 
 export function fixtureConfig(
@@ -152,8 +158,9 @@ export function fixtureConfig(
   declarations: readonly ColumnExtension[],
   options: FixtureOptions = {},
 ): Options {
+  const packageMigrations = options.packageMigrations ?? [];
   const packages =
-    declarations.length === 0
+    declarations.length === 0 && packageMigrations.length === 0
       ? []
       : [
           {
@@ -161,7 +168,11 @@ export function fixtureConfig(
             packageName: '@acme/mod-acme-erp',
             version: '1.0.0',
             migrationsDirectory: null,
-            migrations: [],
+            migrations: packageMigrations.map((cls) => ({
+              moduleId: DECLARING_MODULE,
+              cls: cls as never,
+              origin: 'external' as const,
+            })),
             entities: [],
             dependencies: [FIXTURE_HOST_MODULE],
             schemaExtensions: declarations,

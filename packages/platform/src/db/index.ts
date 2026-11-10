@@ -139,3 +139,25 @@ export {
   type ModulePresenceReader,
 } from '../kernel/schema-extensions/accessor.js';
 export { createSchemaExtensionReads } from '../kernel/schema-extensions/reads.js';
+
+// The runtime refusal of foreign schema writes (`specs/178-extensible-columns/`
+// FR-070, FR-073): the statement classifier, the guard `configuredMigrationsFrom`
+// wraps every installed package's migration in, and the dry run
+// `module:schema-extensions audit-packages` reports with.
+export {
+  sqlWriteTargets,
+  type SqlWriteTarget,
+  type SqlWriteVerb,
+} from './sql-statement-targets.js';
+export {
+  ForeignSchemaWriteError,
+  auditForeignSchemaWrites,
+  dryRunStatements,
+  guardExternalMigration,
+  queryText,
+  type AuditedPackage,
+  type ForeignSchemaGuardContext,
+  type ForeignWriteAudit,
+  type ForeignWriteExemption,
+  type ForeignWriteFinding,
+} from './foreign-schema-guard.js';

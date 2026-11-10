@@ -93,7 +93,13 @@ number", never pick a number, never edit an execution list.
    `schemaExtensions` export from a workspace module package); it owns its tables or uses a side
    table. And the owner of an extensible table owes the other side: a migration that rebuilds one
    (`drop table`, `rename to`, a `create table … as select` copy) loses every extension's columns,
-   which the preservation test in `test:backend` catches after the merge.
+   which `check:extensible-tables` refuses on the merge request and the preservation test in
+   `test:backend` catches after the merge. In an **instance** every module arrives as an installed
+   package, and there R2 is not a review finding but a refusal: the platform's foreign-schema guard
+   wraps every package migration and refuses a write to a table the module does not own at
+   `migrate`, letting through only R2's ledger entries (`composer:generate` renders them into
+   `FIRST_PARTY_FOREIGN_WRITE_EXEMPTIONS`). So a new R2 write in this tree is also a broken
+   `migrate` for every client until it is ledgered or repaired.
 5. **Renaming an applied migration class costs a database rebuild.** Since feature 072 there
    is no frozen name map and nothing in the repository forbids the rename — but
    `mikro_orm_migrations` stores the **class name**, so every database that already ran the

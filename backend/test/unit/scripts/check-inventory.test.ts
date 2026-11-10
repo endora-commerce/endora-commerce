@@ -244,6 +244,8 @@ import * as ruleBundlePairing from '@endora-commerce/cli/rules/bundle-pairing.js
 import * as ruleContainerImports from '@endora-commerce/cli/rules/container-imports.js';
 import * as ruleSubscribeSeam from '@endora-commerce/cli/rules/subscribe-seam.js';
 import * as ruleQueueNames from '@endora-commerce/cli/rules/queue-names.js';
+import * as hostExtensibleTables from '../../../scripts/check-extensible-tables.js';
+import * as ruleExtensibleTables from '@endora-commerce/cli/rules/extensible-tables.js';
 import * as ruleCommandCoverage from '@endora-commerce/cli/rules/command-coverage.js';
 import * as hostActionRoute from '../../../scripts/check-action-route-permissions.js';
 import * as hostChannelResolution from '../../../scripts/check-channel-resolution.js';
@@ -346,6 +348,7 @@ import { publishedSurface } from '../../../scripts/lib/platform-surface.js';
 import { checkPortShape } from '../../../scripts/check-port-shape.js';
 import { checkSubscribeSeam, checkWorkerSeam } from '../../../scripts/check-subscribe-seam.js';
 import { checkQueueNames } from '../../../scripts/check-queue-names.js';
+import { checkExtensibleTables } from '../../../scripts/check-extensible-tables.js';
 import { checkTransactionContext } from '../../../scripts/check-transaction-context.js';
 import {
   checkSingletonIdentity,
@@ -9086,6 +9089,56 @@ const CHECKS: readonly CheckEntry[] = [
     },
   },
   {
+    // `specs/178-extensible-columns/` FR-072, FR-012 — core's promise to the
+    // extensions declaring columns on its tables. One proof per rebuild shape,
+    // each entering as migration **source text** so the literal walk and the
+    // `down()` exclusion run, and one for the binding reconciliation over an
+    // owner map the fixture supplies.
+    script: 'backend/scripts/check-extensible-tables.ts',
+    npmScript: 'check:extensible-tables',
+    job: 'quality',
+    companionTest: 'backend/test/unit/scripts/check-extensible-tables.test.ts',
+    vacuousGuard: 'exit-2',
+    readSize: 'reported',
+    // Its population is the migration directories of the modules the
+    // custom-field bindings name as owners — derived from
+    // `@endora-commerce/contracts`, not from the manifest index — and its own
+    // floor is `extensible-owners:<covered>/<expected>`: a moved tree leaves an
+    // owner contributing no source and the run exits 2.
+    residueGuard: 'not-a-module-walk',
+    red: Object.fromEntries(
+      (
+        [
+          ['drop-table', 'drop table if exists "organizations" cascade'],
+          ['rename-to', 'alter table "organizations" rename to "organizations_old"'],
+          ['create-table-as-select', 'create table "o2" as select "id" from "organizations"'],
+          ['insert-select-star', 'insert into "o2" select * from "organizations"'],
+          ['select-star-into', 'select * into "o2" from "organizations"'],
+        ] as const
+      ).map(([shape, sql]) => [
+        shape,
+        top(
+          () =>
+            checkExtensibleTables({
+              migrations: new Map([
+                [
+                  'packages/modules/organizations/src/migrations/20261201T000000_organizations_rebuild.ts',
+                  {
+                    moduleId: 'organizations',
+                    text:
+                      'export class Migration20261201T000000OrganizationsRebuild extends Migration {\n' +
+                      `  override async up(): Promise<void> { this.addSql(\`${sql}\`); }\n}\n`,
+                  },
+                ],
+              ]),
+              bindings: [{ entityType: 'organization', table: 'organizations', ownerModuleId: 'organizations' }],
+              owners: null,
+            }).findings.filter((finding) => finding.kind === 'extensible-table-rebuild').length,
+        ),
+      ]),
+    ),
+  },
+  {
     // One rule and one finding, and the proofs are about the **resolver**
     // rather than about the predicate. `'a:b'.includes(':')` cannot rot;
     // reaching `'a:b'` from `new Queue(COMARCH_XL_DETECT_QUEUE, …)` is the part
@@ -12202,6 +12255,9 @@ describe('every red proof enters at the top of the analysis', () => {
       // one. A single proof over a literal at the construction site would go
       // green over the very tree that took `master` down.
       'backend/scripts/check-queue-names.ts': 4,
+      // One per rebuild shape. `binding-owner-mismatch` is proven in the
+      // companion test, where the owner map it reads is built.
+      'backend/scripts/check-extensible-tables.ts': 5,
       // Two findings — the centre and the undecidable gate — plus the ledger's
       // three directions and the three refusals `vacuousReason` answers. The
       // fourth refusal is `readSizeRefusal`'s `short-walk` over the
@@ -12924,6 +12980,7 @@ describe('a relocated analysis has one implementation and two hosts', () => {
       ['check:block-renderers', hostBlockRenderers as unknown as Record<string, unknown>, ruleBlockRenderers as unknown as Record<string, unknown>],
       ['check:container-imports', hostContainerImports as unknown as Record<string, unknown>, ruleContainerImports as unknown as Record<string, unknown>],
       ['check:queue-names', hostQueueNames as unknown as Record<string, unknown>, ruleQueueNames as unknown as Record<string, unknown>],
+      ['check:extensible-tables', hostExtensibleTables as unknown as Record<string, unknown>, ruleExtensibleTables as unknown as Record<string, unknown>],
       ['check:subscribe-seam', hostSubscribeSeam as unknown as Record<string, unknown>, ruleSubscribeSeam as unknown as Record<string, unknown>],
       ['check:command-coverage', hostCommandCoverage as unknown as Record<string, unknown>, ruleCommandCoverage as unknown as Record<string, unknown>],
       // Phase 2. Two of these — `check:action-route-permissions` and

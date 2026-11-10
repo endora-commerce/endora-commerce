@@ -260,7 +260,9 @@ audytowanym poleceniem. Przykład i wszystkie reguły są na stronie
 [Zadeklarowane kolumny rozszerzeń](./schema-extensions.md).
 
 **Nigdy nie jest stopniem: nadpisywanie schematu rdzenia.** Kolumny, ograniczenia, indeksu ani
-klasy encji rdzenia nigdy nie zmienia się spoza ich modułu. Moduł nakładkowy wdrożenia nie zawiera ani klas encji, ani migracji, a generator odrzuca jedno i drugie:
+klasy encji rdzenia nigdy nie zmienia się spoza ich modułu, a migracja pakietu zapisująca tabelę
+innego modułu jest odrzucana przy `migrate` — przez platformę, nie przez przegląd kodu. Moduł
+nakładkowy wdrożenia nie zawiera ani klas encji, ani migracji, a generator odrzuca jedno i drugie:
 utwórz tabelę we własnym module (D1) i odczytuj ją z nakładki przez port tego modułu.
 
 Powodem **nie** jest kolejność migracji — ten argument sprawdzono pomiarem, okazał się fałszywy i

@@ -270,7 +270,9 @@ orphaned) until an operator drops them with an audited command. The worked
 example and every rule are on [Declared extension columns](./schema-extensions.md).
 
 **Never a rung: overriding core schema.** A core column, constraint, index or
-entity class is never changed from outside its module. A per-deployment overlay module ships no entity class and no migration
+entity class is never changed from outside its module, and a package migration
+that writes another module's table is refused at `migrate` — by the platform, not
+by review. A per-deployment overlay module ships no entity class and no migration
 at all, and the generator refuses both: own the table from a module of yours (D1)
 and read it from the overlay through that module's port.
 

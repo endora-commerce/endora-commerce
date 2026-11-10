@@ -45,6 +45,13 @@
  * the platform applies them in.
  */
 export { BASELINE_MIGRATIONS } from './baseline-migrations.generated.js';
+/**
+ * The first-party migrations the runtime foreign-schema guard lets write a
+ * table another module owns (`specs/178-extensible-columns/` FR-071), rendered
+ * by `composer:generate` from R2's ledger. An instance installs this
+ * repository's modules as packages, and these are their recorded R2 writes.
+ */
+export { FIRST_PARTY_FOREIGN_WRITE_EXEMPTIONS } from './foreign-write-exemptions.generated.js';
 export {
   BASELINE_MIGRATION_INVENTORY,
   type BaselineMigrationIdentity,

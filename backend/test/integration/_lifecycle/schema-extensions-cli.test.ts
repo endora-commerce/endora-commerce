@@ -1,4 +1,5 @@
 import { afterAll, beforeAll, describe, expect, it } from 'vitest';
+import { Migration } from '@mikro-orm/migrations';
 import type { MikroORM } from '@mikro-orm/postgresql';
 import { CommandBus } from '@endora-commerce/platform/commands';
 import { AuditLogService } from '@endora-commerce/platform/composition';
@@ -13,6 +14,8 @@ import type { ColumnExtension } from '@endora-commerce/platform/kernel';
 
 import {
   DECLARING_MODULE,
+  ORG_HOST_TABLE,
+  HOST_TABLE,
   declare,
   openFixtureOrm,
   revertMigration,
@@ -129,5 +132,58 @@ describe('module:schema-extensions', () => {
     const recorded = JSON.stringify(audits[0]);
     expect(recorded).toContain('x178_hosts.x_acme_erp_erp_code');
     expect(recorded).not.toContain('E-1');
+  });
+});
+
+/**
+ * `specs/178-extensible-columns/` FR-073 (tasks.md T067) — the guard's verdict
+ * over the installed packages' migrations, **without executing them**, so an
+ * operator can check a release's packages before upgrading to the one that
+ * refuses.
+ */
+describe('module:schema-extensions audit-packages', () => {
+  class Migration20261201T100000AcmeErpRogue extends Migration {
+    override async up(): Promise<void> {
+      this.addSql(`alter table "${ORG_HOST_TABLE}" add column "foo" text`);
+      this.addSql(`update "${HOST_TABLE}" set "x_acme_erp_credit_tier" = 1`);
+    }
+  }
+  const rogue = {
+    id: DECLARING_MODULE,
+    packageName: '@acme/mod-acme-erp',
+    entities: [],
+    migrations: [{ cls: Migration20261201T100000AcmeErpRogue }],
+    schemaExtensions: [declaration],
+  };
+
+  it('lists every would-be refusal and executes nothing', async () => {
+    const rt = { ...runtime(), packages: async () => [rogue] };
+    expect(await runSchemaExtensionsCommand(['audit-packages'], rt)).toBe(SCHEMA_EXTENSIONS_EXIT.refused);
+    const out = rt.stdout.join('');
+    expect(out).toContain('@acme/mod-acme-erp');
+    expect(out).toContain('Migration20261201T100000AcmeErpRogue');
+    expect(out).toContain(ORG_HOST_TABLE);
+    // The own-column back-fill on the declared host is not a refusal.
+    expect(out).not.toMatch(new RegExp(`→ ${HOST_TABLE}\\b`));
+    const columns = await db.query<{ column_name: string }>(
+      `select column_name from information_schema.columns where table_name = $1 and column_name = 'foo'`,
+      [ORG_HOST_TABLE],
+    );
+    expect(columns).toEqual([]);
+  });
+
+  it('answers JSON with --json', async () => {
+    const rt = { ...runtime(), packages: async () => [rogue] };
+    await runSchemaExtensionsCommand(['audit-packages', '--json'], rt);
+    const parsed = JSON.parse(rt.stdout.join('')) as { findings: { table: string; migration: string }[] };
+    expect(parsed.findings).toEqual([
+      expect.objectContaining({ table: ORG_HOST_TABLE, migration: 'Migration20261201T100000AcmeErpRogue' }),
+    ]);
+  });
+
+  it('exits 0 when no installed package would be refused', async () => {
+    const rt = { ...runtime(), packages: async () => [] };
+    expect(await runSchemaExtensionsCommand(['audit-packages'], rt)).toBe(SCHEMA_EXTENSIONS_EXIT.ok);
+    expect(rt.stdout.join('')).toContain('no installed package migration would be refused');
   });
 });

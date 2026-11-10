@@ -201,6 +201,7 @@ export function generatedArtifactPaths(): readonly string[] {
     entitiesRegistryOutputPath,
     migrationsRegistryOutputPath,
     baselineListOutputPath(),
+    foreignWriteExemptionsOutputPath(),
     adminRegistryOutputPathIn(repoRoot),
     tailwindRegistryOutputPathIn(repoRoot),
     // The entity index (`specs/109-backend-test-kit/` T065). It belongs here for
@@ -2131,6 +2132,100 @@ export function renderBaselineList(_sources: SourceTree = readSourceTree()): {
 }
 
 
+// ── the first-party foreign-write exemptions ────────────────────────────────
+//
+// `specs/178-extensible-columns/` FR-071, `contracts/foreign-schema-guard.md` §3.
+// An installed package's migration that writes another module's table is
+// refused at `migrate` (FR-070). This repository's modules are installed as
+// packages in an instance, and some of their migrations write a table another
+// module owns — each one recorded, with its reason and its retirement, in R2's
+// ledger (`scripts/ledgers/migration-foreign-writes/`). The guard lets exactly
+// those through, by (module, migration class, table), and this artefact is how
+// it knows them: rendered from the ledger, published on the platform's
+// `./migrations` subpath, and held fresh by `overlay:check` like the baseline
+// list beside it. An entry retired from the ledger leaves this list in the same
+// merge request.
+
+/** R2's ledger directory — `check:module-boundary`'s own. */
+const FOREIGN_WRITE_LEDGER_ROOT = join(here, 'ledgers', 'migration-foreign-writes');
+
+function foreignWriteExemptionsOutputPath(): string {
+  return join(dirname(baselineListOutputPath()), 'foreign-write-exemptions.generated.ts');
+}
+
+export interface ForeignWriteExemptionRow {
+  readonly moduleId: string;
+  readonly migration: string;
+  readonly table: string;
+}
+
+/**
+ * The ledger's entries as (module, class, table). The class name is read off
+ * the migration file the key names rather than derived from its file name: the
+ * file is in this tree, and a derivation would be a second author of the
+ * naming convention.
+ */
+export async function foreignWriteExemptionRows(
+  ledgerRoot: string = FOREIGN_WRITE_LEDGER_ROOT,
+): Promise<ForeignWriteExemptionRow[]> {
+  if (!existsSync(ledgerRoot)) {
+    throw new Error(`[composer] R2's ledger directory is missing (${ledgerRoot}); refusing to render no exemptions`);
+  }
+  const rows: ForeignWriteExemptionRow[] = [];
+  for (const name of readdirSync(ledgerRoot).sort()) {
+    if (!name.endsWith('.ts')) continue;
+    const moduleId = name.replace(/\.ts$/, '');
+    const shard = (await import(pathToFileURL(join(ledgerRoot, name)).href)) as {
+      entries?: Readonly<Record<string, unknown>>;
+    };
+    for (const key of Object.keys(shard.entries ?? {})) {
+      const split = key.lastIndexOf(':');
+      const file = key.slice(0, split);
+      const table = key.slice(split + 1);
+      const path = join(repoRoot, file);
+      const declared = existsSync(path) ? /export class (Migration\w+)/.exec(readFileSync(path, 'utf8')) : null;
+      if (declared === null) {
+        throw new Error(
+          `[composer] R2 ledger entry "${key}" (${moduleId}) names no migration class — the file is gone ` +
+            'or declares none. Retire the entry in the same merge request that moved the migration.',
+        );
+      }
+      rows.push({ moduleId, migration: declared[1]!, table });
+    }
+  }
+  return rows.sort(
+    (a, b) =>
+      a.moduleId.localeCompare(b.moduleId) || a.migration.localeCompare(b.migration) || a.table.localeCompare(b.table),
+  );
+}
+
+/** Pure emit — the published exemption list. */
+export function emitForeignWriteExemptions(rows: readonly ForeignWriteExemptionRow[]): string {
+  return `${HEADER('generate-composer.ts')}//
+// The first-party migrations the runtime foreign-schema guard lets write a table
+// another module owns (specs/178-extensible-columns/ FR-071), by module,
+// migration class and table — rendered from R2's ledger,
+// backend/scripts/ledgers/migration-foreign-writes/, where each entry carries its
+// reason and its retirement. It shrinks as that ledger drains.
+
+export const FIRST_PARTY_FOREIGN_WRITE_EXEMPTIONS: readonly {
+  readonly moduleId: string;
+  readonly migration: string;
+  readonly table: string;
+}[] = [
+${rows.map((row) => `  { moduleId: '${row.moduleId}', migration: '${row.migration}', table: '${row.table}' },`).join('\n')}
+];
+`;
+}
+
+/** Pure render — the target path + expected content of the exemption list. */
+export async function renderForeignWriteExemptions(): Promise<{ outputPath: string; content: string }> {
+  return {
+    outputPath: foreignWriteExemptionsOutputPath(),
+    content: emitForeignWriteExemptions(await foreignWriteExemptionRows()),
+  };
+}
+
 // ── the admin contribution registry ─────────────────────────────────────────
 //
 // The fifth artefact (feature 091, Phase 2). Its three siblings under
@@ -2347,6 +2442,14 @@ export async function renderAll(): Promise<
     // registry agree is R1.7, and it is asserted where it can be: over both
     // committed artefacts, in test/unit/db/instance-migration-order.test.ts.
     { label: 'baseline-migrations', ...renderBaselineList(sources), entryKind: 'none' as const },
+    // `specs/178-extensible-columns/` FR-071 — the first-party R2 writes the
+    // runtime foreign-schema guard lets through. It names migration classes and
+    // tables, not files, so it has no containment population either.
+    {
+      label: 'foreign-write-exemptions',
+      ...(await renderForeignWriteExemptions()),
+      entryKind: 'none' as const,
+    },
     { label: 'admin-registry', ...renderAdminRegistry(population) },
     { label: 'admin-tailwind', ...renderTailwindRegistry(population), entryKind: 'css-specifier' as const },
     { label: 'entity-index', ...renderEntityIndex(population) },

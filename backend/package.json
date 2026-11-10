@@ -41,6 +41,7 @@
     "check:entry-scope": "tsx scripts/check-entry-scope.ts",
     "check:error-translations": "tsx scripts/check-error-translations.ts",
     "check:env-inputs": "tsx scripts/check-env-inputs.ts",
+    "check:extensible-tables": "tsx scripts/check-extensible-tables.ts",
     "check:fixture-substitution": "tsx scripts/check-fixture-substitution.ts",
     "check:harness-teardown": "tsx scripts/check-harness-teardown.ts",
     "check:kernel-boundary": "tsx scripts/check-kernel-boundary.ts",

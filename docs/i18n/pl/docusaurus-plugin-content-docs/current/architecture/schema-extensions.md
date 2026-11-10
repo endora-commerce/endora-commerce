@@ -185,6 +185,22 @@ audytowane `drop … --confirm`, i to tylko dla elementów osieroconych i już n
 Odinstalowanie gospodarza, gdy twój moduł jest zainstalowany, jest odrzucane z
 `dependents-block`.
 
+## Czego migracja pakietu robić nie może
+
+Deklaracja to jedyna droga do tabeli rdzenia. Każda migracja dostarczana przez zainstalowany
+pakiet wykonuje się wewnątrz strażnika obcego schematu platformy, który odrzuca — i wycofuje
+przebieg `migrate` — każdą instrukcję zapisującą tabelę, której właścicielem nie jest twój moduł:
+`alter table "organizations"`, indeks na niej, `insert` do `orders`, a także to samo przez
+`getEntityManager()`. Dozwolone są własne tabele, tabele platformy i uzupełnianie własnych kolumn
+`x_<moduleId>_*` w zadeklarowanym gospodarzu; reguły są na stronie [Migracje](./migrations.md), w
+sekcji *Strażnik obcego schematu*.
+
+Aby przed aktualizacją sprawdzić, czego wydanie by odmówiło:
+
+```bash
+pnpm --filter backend run module:schema-extensions audit-packages
+```
+
 ## Pakowanie
 
 Pakietów lokalnych dla instancji jeszcze nie ma: zbuduj moduł, wykonaj `pnpm pack` i zainstaluj
