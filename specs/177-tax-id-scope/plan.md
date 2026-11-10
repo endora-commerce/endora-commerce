@@ -231,6 +231,32 @@ The owner accepted every recommendation below on 2026-11-10; the ruling is recor
 - **OD-8** Soft-deleted organizations keep holding their tax ID for uniqueness (today's behaviour) —
   a deleted company's tax ID is not silently reusable. **Resolved: keep.**
 
+- **OD-9** *(resolved under D-290 on 2026-11-10, after WP-1)* — `customer_accounts`'
+  `20260825T141659_customer_accounts_organization_required` still INSERTs personal organizations with
+  the 32-hex placeholder `tax_id` and then links accounts **by** that `tax_id`. Migration order is
+  topological, so a database that has not applied it runs this feature's M1
+  (`20261110T135922_organizations_personal_tax_id_removal`) first, and the old INSERT then fails the
+  new `organizations_tax_id_presence` check. That migration first shipped in **v0.100.0**, the first
+  published release (`git tag --contains`), so only a pre-0.100.0 database can hit it.
+  **Resolved: the minimum version to upgrade from is 0.100.0, and M1 enforces it.** M1 starts with a
+  precondition: if `organizations` holds any row **and** `mikro_orm_migrations` has no row named
+  `Migration20260825T141659CustomerAccountsOrganizationRequired`, it raises before it changes
+  anything. The message names both migrations and says what to do: upgrade to a 0.100.x–0.110.x
+  release, run `migrate`, then upgrade to this one. A fresh database passes, because `organizations`
+  is empty and the old INSERT then selects no account. `mikro_orm_migrations` is the platform's ledger
+  and not a module's table, so reading it is outside `module-migrations.md` item 4a. The upgrade note
+  states the minimum version (T082).
+  Rejected:
+  - *Order M1 after the customer_accounts migration through `dependencies`*: `customer_accounts`
+    already depends on `organizations`, so the edge would make a cycle.
+  - *Add the check `NOT VALID` and validate it later*: `NOT VALID` exempts only rows that already
+    exist. The old migration's INSERT writes new rows, which are still checked.
+  - *A guarded edit of the old migration*: AGENTS.md forbids touching another module's migrations,
+    and it would change history for databases that already ran it.
+  - *A `before insert` trigger that moves the placeholder into `personal_account_id`*: the old
+    migration's second statement links accounts `where o.tax_id = <placeholder>`. That would match
+    nothing, and the old migration's own D-178 refusal would abort.
+
 ## Complexity Tracking
 
 | Addition | Why needed | Simpler alternative rejected because |
