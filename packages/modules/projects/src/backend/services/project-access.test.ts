@@ -11,8 +11,8 @@ import { uuidArray, visibleProjectSqlFor } from './project-access.js';
 const A = '00000000-0000-4000-8000-00000000000a';
 const ME = '00000000-0000-4000-8000-0000000000e1';
 
-const all = orgReachOf({ kind: 'all' });
-const reachA = orgReachOf({ kind: 'allowed', organizationIds: [A] });
+const all = await orgReachOf({ kind: 'all' });
+const reachA = await orgReachOf({ kind: 'allowed', organizationIds: [A] });
 
 describe('visibleProjectSqlFor', () => {
   it('narrows nothing for the system, or for an unrestricted holder of projects:see_all', () => {
@@ -30,8 +30,8 @@ describe('visibleProjectSqlFor', () => {
 
   // Issue #305 — a sales representative reaches every Organization nobody else
   // governs: a Project is out of reach when one of its Organizations is excluded.
-  it('binds a sales representative’s excluded set, and never lets a NULL predicate count as in reach', () => {
-    const reach = orgReachOf({ kind: 'excluded', excludedOrganizationIds: [A], assignedOrganizationIds: [], excludedOrganizationsQuery: { sql: 'select x from "reach"(?::uuid) as x', params: ['rep'] } });
+  it('binds a sales representative’s excluded set, and never lets a NULL predicate count as in reach', async () => {
+    const reach = await orgReachOf({ kind: 'excluded', excludedOrganizationsQuery: { sql: 'select x from "reach"(?::uuid) as x', params: ['rep'] }, loadReach: async () => ({ excludedOrganizationIds: [A], assignedOrganizationIds: [] }) });
     const fragment = visibleProjectSqlFor({ adminUserId: ME, canRead: true, seeAll: true, reach }, 'everyone');
     expect(fragment?.params).toEqual(['rep']);
     expect(fragment?.sql).toContain('not in (select x from "reach"(?::uuid) as x)');

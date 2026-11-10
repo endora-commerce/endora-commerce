@@ -329,12 +329,17 @@ const PUBLISHED_TENANCY_SURFACE: Readonly<Record<string, readonly string[]>> = {
    * complement (`excluded`): no module may read the constraint's id lists, so
    * the `where` fragment (`orgScopeWhere`, which T042c had withdrawn as
    * unreached), its SQL twin, the empty-reach test, the ranking ids and the
-   * reading of another administrator's scope are published instead.
+   * reading of another administrator's scope are published instead. Issue
+   * #955 Phase 2 (owner ruling of 2026-11-10) replaced the synchronous
+   * `isOrgInScope` / `ruleVisibleForScope` with the async `orgInScope` /
+   * `ruleInScope`, and added `orgScopeTest`, the synchronous predicate a
+   * caller obtains once.
    */
   'derived-scope.js': [
     'orgConstraintFor',
-    'isOrgInScope',
-    'ruleVisibleForScope',
+    'orgInScope',
+    'ruleInScope',
+    'orgScopeTest',
     'OrgConstraint',
     'orgScopeWhere',
     'orgScopeSql',

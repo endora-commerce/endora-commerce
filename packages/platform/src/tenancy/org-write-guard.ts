@@ -1,6 +1,6 @@
 import type { EntityName, EventArgs, EventSubscriber } from '@mikro-orm/core';
 import { tenantClassifications } from './org-scoped.decorator.js';
-import { isOrgInScope } from './derived-scope.js';
+import { orgInScope } from './derived-scope.js';
 import { OrgWriteOutOfScopeError } from './tenant-context.js';
 
 /**
@@ -65,7 +65,7 @@ import { OrgWriteOutOfScopeError } from './tenant-context.js';
  *
  * ## What "no ambient context" does
  *
- * `isOrgInScope` delegates to `orgConstraintFor`, which raises
+ * `orgInScope` delegates to `orgConstraintFor`, which raises
  * `MissingTenantContextError` when no context is established — the same answer a
  * *read* of the same class gets today (`filters.ts`). A write with no scope
  * therefore fails closed for the same reason and with the same error, rather
@@ -120,25 +120,28 @@ export class OrgWriteGuardSubscriber implements EventSubscriber<object> {
       .map((meta) => meta.target as EntityName<object>);
   }
 
-  beforeCreate(args: EventArgs<object>): void {
-    this.assertInScope(args);
+  // Async since issue #955 Phase 2 (a representative's reach loads on demand);
+  // MikroORM awaits `beforeCreate` / `beforeUpdate` subscribers inside the
+  // flush, so a refusal still aborts the write before it is sent.
+  async beforeCreate(args: EventArgs<object>): Promise<void> {
+    await this.assertInScope(args);
   }
 
-  beforeUpdate(args: EventArgs<object>): void {
+  async beforeUpdate(args: EventArgs<object>): Promise<void> {
     // `beforeUpdate` is what catches the **cross-organization move**: setting
     // `organizationId = B` on a row legitimately loaded under org A. The read
     // filter cannot see that write at all — the row was visible when it was
     // loaded — and the changed value is on the entity by the time this runs.
-    this.assertInScope(args);
+    await this.assertInScope(args);
   }
 
-  private assertInScope(args: EventArgs<object>): void {
+  private async assertInScope(args: EventArgs<object>): Promise<void> {
     const entity = args.entity;
     const className = args.meta?.className ?? entity.constructor.name;
     if (!this.orgScopedClassNames().has(className)) return;
     const organizationId = (entity as { organizationId?: unknown }).organizationId;
     if (typeof organizationId !== 'string') return;
-    if (isOrgInScope(organizationId)) return;
+    if (await orgInScope(organizationId)) return;
     throw new OrgWriteOutOfScopeError(className);
   }
 }

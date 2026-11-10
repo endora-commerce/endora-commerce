@@ -7,7 +7,7 @@ import {
   type ProjectOrganizationLookupQuery,
   type ProjectOrganizationOption,
 } from '@endora-commerce/contracts';
-import { isOrgInScope, orgConstraintFor } from '@endora-commerce/platform/tenancy';
+import { orgInScope, orgConstraintFor } from '@endora-commerce/platform/tenancy';
 
 export interface ProjectLookupServiceDeps {
   /** Ports of other modules — lazy, resolved per call, never captured. */
@@ -42,7 +42,7 @@ function personName(person: { firstName: string; lastName: string; email: string
  *
  * **Tenant scope is applied here, by name.** An Organization is the tenant, not
  * a tenant-scoped row, so its port answers whoever asks; the caller's reach is
- * `orgConstraintFor()` / `isOrgInScope()`, and an Organization out of reach is
+ * `orgConstraintFor()` / `orgInScope()`, and an Organization out of reach is
  * neither listed nor labelled — exactly what `POST /projects` would refuse.
  */
 export class ProjectLookupService {
@@ -51,7 +51,7 @@ export class ProjectLookupService {
   async organizations(query: ProjectOrganizationLookupQuery): Promise<ProjectOrganizationOption[]> {
     const option = (row: { id: string; name: string }): ProjectOrganizationOption => ({ id: row.id, name: row.name });
     if (query.id !== undefined) {
-      if (!isOrgInScope(query.id)) return [];
+      if (!(await orgInScope(query.id))) return [];
       const found = await this.deps.organizations.findById(query.id);
       return found ? [option(found)] : [];
     }
@@ -67,7 +67,8 @@ export class ProjectLookupService {
       // so the window grows rarely and never far.
       for (let window = query.limit * 2; ; window *= 2) {
         const page = await this.deps.organizations.searchByName(query.q ?? '', window);
-        const inReach = page.filter((row) => isOrgInScope(row.id, constraint));
+        const reached = await Promise.all(page.map((row) => orgInScope(row.id, constraint)));
+        const inReach = page.filter((_, index) => reached[index]);
         if (inReach.length >= query.limit || page.length < window) return inReach.slice(0, query.limit).map(option);
       }
     }

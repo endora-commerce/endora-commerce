@@ -758,7 +758,8 @@ export class ProjectService {
         ERROR_CODES.PROJECT_ORGANIZATION_OUT_OF_SCOPE,
         'An organization of this project is not available to you.',
       );
-    if (organizationIds.some((orgId) => !this.deps.access.isOrgInScope(orgId))) throw outOfScope();
+    const reached = await Promise.all(organizationIds.map((orgId) => this.deps.access.orgInScope(orgId)));
+    if (reached.some((inReach) => !inReach)) throw outOfScope();
     const found = await this.deps.organizations.findByIds(organizationIds);
     if (found.length !== new Set(organizationIds).size) throw outOfScope();
   }

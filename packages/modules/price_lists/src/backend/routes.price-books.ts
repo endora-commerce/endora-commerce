@@ -138,14 +138,14 @@ export async function registerPriceBookRoutes(app: FastifyInstance, deps: PriceB
 
   app.get(base, { preHandler: readGate }, async (request) => {
     const query = parseOr400(priceBookListQuerySchema, request.query);
-    return deps.reads.list(query, currentPriceBookScope());
+    return deps.reads.list(query, await currentPriceBookScope());
   });
 
   app.post(base, { preHandler: writeGate }, async (request, reply) => {
     const body = parseOr400(priceBookCreateSchema, request.body);
-    const created = await books.createBook(body, currentPriceBookScope());
+    const created = await books.createBook(body, await currentPriceBookScope());
     reply.status(201);
-    return { data: await deps.reads.get(created.id, currentPriceBookScope()) };
+    return { data: await deps.reads.get(created.id, await currentPriceBookScope()) };
   });
 
   // ---- Settings (G8) and precedence: fixed paths before `/:id` --------------------
@@ -214,16 +214,16 @@ export async function registerPriceBookRoutes(app: FastifyInstance, deps: PriceB
 
   app.get(`${base}/base-prices`, { preHandler: readGate }, async (request) => {
     const { productId } = parseOr400(z.object({ productId: z.string().refine(isUuidShape, 'productId must be a uuid') }), request.query);
-    return { data: await books.basePrices(productId, currentPriceBookScope()) };
+    return { data: await books.basePrices(productId, await currentPriceBookScope()) };
   });
 
   app.put<{ Params: { productId: string } }>(`${base}/base-prices/:productId`, { preHandler: writeGate }, async (request) => {
     if (!isUuidShape(request.params.productId)) throw new HttpError(404, ERROR_CODES.NOT_FOUND, 'Product not found.');
     // Base books are everyone's prices: a representative reads them and does not write them.
-    if (!currentPriceBookScope().all) throw new HttpError(403, ERROR_CODES.FORBIDDEN, 'Base prices are read-only for you.');
+    if (!(await currentPriceBookScope()).all) throw new HttpError(403, ERROR_CODES.FORBIDDEN, 'Base prices are read-only for you.');
     const body = parseOr400(basePricesWriteSchema, request.body);
     await books.setBasePrices(request.params.productId, body);
-    return { data: await books.basePrices(request.params.productId, currentPriceBookScope()) };
+    return { data: await books.basePrices(request.params.productId, await currentPriceBookScope()) };
   });
 
   // ---- Targets (pickers) ----------------------------------------------------------
@@ -244,7 +244,7 @@ export async function registerPriceBookRoutes(app: FastifyInstance, deps: PriceB
         .refine((q) => q.ids === undefined || q.search === undefined, { message: 'Name organizations by ids or search them, not both.', path: ['ids'] }),
       request.query,
     );
-    const scope = currentPriceBookScope();
+    const scope = await currentPriceBookScope();
     if (query.ids) {
       // Scope-filtered exactly as the search: an organization out of the
       // caller's reach is absent, like an unknown id — never an error that
@@ -384,7 +384,7 @@ export async function registerPriceBookRoutes(app: FastifyInstance, deps: PriceB
         ...(answer.explanation?.bookId ? [answer.explanation.bookId] : []),
         ...(answer.explanation?.candidates.map((c) => c.bookId) ?? []),
       ]),
-      currentPriceBookScope(),
+      await currentPriceBookScope(),
     );
     // G16 of 161 — every runner-up named: its book (from the resolution) and
     // its selection (one batched label read across every line's candidates).
@@ -434,13 +434,13 @@ export async function registerPriceBookRoutes(app: FastifyInstance, deps: PriceB
 
   app.get<{ Params: { id: string } }>(`${base}/:id`, { preHandler: readGate }, async (request) => {
     if (!isUuidShape(request.params.id)) throw new HttpError(404, ERROR_CODES.NOT_FOUND, 'Price book not found.');
-    return { data: await deps.reads.get(request.params.id, currentPriceBookScope()) };
+    return { data: await deps.reads.get(request.params.id, await currentPriceBookScope()) };
   });
 
   app.patch<{ Params: { id: string } }>(`${base}/:id`, { preHandler: writeGate }, async (request) => {
     const id = request.params.id;
     if (!isUuidShape(id)) throw new HttpError(404, ERROR_CODES.NOT_FOUND, 'Price book not found.');
-    const scope = currentPriceBookScope();
+    const scope = await currentPriceBookScope();
     const raw = (request.body ?? {}) as Record<string, unknown>;
     // The book is resolved (and its scope checked) before the body is judged, so
     // an out-of-scope book answers 404 whatever was sent.
@@ -459,21 +459,21 @@ export async function registerPriceBookRoutes(app: FastifyInstance, deps: PriceB
 
   app.post<{ Params: { id: string } }>(`${base}/:id/activate`, { preHandler: writeGate }, async (request) => {
     if (!isUuidShape(request.params.id)) throw new HttpError(404, ERROR_CODES.NOT_FOUND, 'Price book not found.');
-    const scope = currentPriceBookScope();
+    const scope = await currentPriceBookScope();
     await books.activate(request.params.id, scope);
     return { data: await deps.reads.get(request.params.id, scope) };
   });
 
   app.post<{ Params: { id: string } }>(`${base}/:id/draftify`, { preHandler: writeGate }, async (request) => {
     if (!isUuidShape(request.params.id)) throw new HttpError(404, ERROR_CODES.NOT_FOUND, 'Price book not found.');
-    const scope = currentPriceBookScope();
+    const scope = await currentPriceBookScope();
     await books.draftify(request.params.id, scope);
     return { data: await deps.reads.get(request.params.id, scope) };
   });
 
   app.post<{ Params: { id: string } }>(`${base}/:id/duplicate`, { preHandler: writeGate }, async (request, reply) => {
     if (!isUuidShape(request.params.id)) throw new HttpError(404, ERROR_CODES.NOT_FOUND, 'Price book not found.');
-    const scope = currentPriceBookScope();
+    const scope = await currentPriceBookScope();
     await deps.reads.header(request.params.id, scope);
     const body = parseOr400(priceBookDuplicateSchema, request.body);
     const copy = await books.duplicate(request.params.id, body, scope);
@@ -483,7 +483,7 @@ export async function registerPriceBookRoutes(app: FastifyInstance, deps: PriceB
 
   app.delete<{ Params: { id: string } }>(`${base}/:id`, { preHandler: writeGate }, async (request, reply) => {
     if (!isUuidShape(request.params.id)) throw new HttpError(404, ERROR_CODES.NOT_FOUND, 'Price book not found.');
-    await books.deleteBook(request.params.id, currentPriceBookScope());
+    await books.deleteBook(request.params.id, await currentPriceBookScope());
     return reply.status(204).send();
   });
 
@@ -492,21 +492,21 @@ export async function registerPriceBookRoutes(app: FastifyInstance, deps: PriceB
   app.get<{ Params: { id: string } }>(`${base}/:id/rows`, { preHandler: readGate }, async (request) => {
     if (!isUuidShape(request.params.id)) throw new HttpError(404, ERROR_CODES.NOT_FOUND, 'Price book not found.');
     const query = parseOr400(priceBookRowsQuerySchema, request.query);
-    return deps.reads.rows(request.params.id, query, currentPriceBookScope(), labelLanguage(request));
+    return deps.reads.rows(request.params.id, query, await currentPriceBookScope(), labelLanguage(request));
   });
 
   // 161 G15 — the grid's pages: whole lines, at a cost that does not grow with the book.
   app.get<{ Params: { id: string } }>(`${base}/:id/lines`, { preHandler: readGate }, async (request) => {
     if (!isUuidShape(request.params.id)) throw new HttpError(404, ERROR_CODES.NOT_FOUND, 'Price book not found.');
     const query = parseOr400(priceBookLinesQuerySchema, request.query);
-    return deps.reads.lines(request.params.id, query, currentPriceBookScope(), labelLanguage(request));
+    return deps.reads.lines(request.params.id, query, await currentPriceBookScope(), labelLanguage(request));
   });
 
   // 161 (Checkpoint 5 review) — which picked products already have a line, in one read.
   app.get<{ Params: { id: string } }>(`${base}/:id/product-lines`, { preHandler: readGate }, async (request) => {
     if (!isUuidShape(request.params.id)) throw new HttpError(404, ERROR_CODES.NOT_FOUND, 'Price book not found.');
     const { productIds } = parseOr400(priceBookProductLinesQuerySchema, request.query);
-    return { data: { productIds: await deps.reads.productLines(request.params.id, productIds, currentPriceBookScope()) } };
+    return { data: { productIds: await deps.reads.productLines(request.params.id, productIds, await currentPriceBookScope()) } };
   });
 
   app.put<{ Params: { id: string }; Querystring: { dryRun?: string } }>(
@@ -515,7 +515,7 @@ export async function registerPriceBookRoutes(app: FastifyInstance, deps: PriceB
     async (request) => {
       const id = request.params.id;
       if (!isUuidShape(id)) throw new HttpError(404, ERROR_CODES.NOT_FOUND, 'Price book not found.');
-      const scope = currentPriceBookScope();
+      const scope = await currentPriceBookScope();
       await deps.reads.header(id, scope);
       const dryRun = request.query.dryRun === 'true' || request.query.dryRun === '1';
       const raw = (request.body ?? {}) as { expectedVersion?: unknown };

@@ -1,5 +1,5 @@
 import type { AdminTenantScopePort } from '@endora-commerce/contracts';
-import { isOrgInScope, orgConstraintForAdminScope } from '@endora-commerce/platform/tenancy';
+import { orgInScope, orgConstraintForAdminScope } from '@endora-commerce/platform/tenancy';
 
 /** Whether an administrator's requests may reach an Organization. */
 export type AdminReach = (adminUserId: string, organizationId: string) => Promise<boolean>;
@@ -24,6 +24,6 @@ export function createAdminReach(scopes: AdminTenantScopePort): AdminReach {
     const scope = await scopes.resolveForAdmin(adminUserId);
     // The platform's reading of the scope (issue #305): a sales
     // representative reaches every Organization nobody else governs.
-    return isOrgInScope(organizationId, orgConstraintForAdminScope(scope));
+    return orgInScope(organizationId, orgConstraintForAdminScope(scope));
   };
 }

@@ -208,7 +208,7 @@ export class ProjectHistoryService {
     const resolved = await this.deps.references.resolveMany(texts);
     const referencesOf = (index: number): RecordReference[] => resolved[index] ?? [];
     const mayReadCustomFields = page.length > 0 ? await this.deps.mayReadCustomFields() : true;
-    const reach = ambientReach();
+    const reach = await ambientReach();
     const served = (state: unknown): unknown => withinReach(visibleAuditState(state ?? null, mayReadCustomFields), reach);
     const changes = await this.#valueChanges(
       project.id,

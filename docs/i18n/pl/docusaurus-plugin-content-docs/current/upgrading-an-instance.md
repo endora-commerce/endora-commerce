@@ -4714,6 +4714,35 @@ Kod porównujący z `ERROR_CODES.ASSET_ACCESS_DENIED` przestaje się kompilować
 porównuj z `ERROR_CODES.ASSET_NOT_FOUND`. Przy magazynie w chmurze dodaj nagłówek
 `X-Content-Type-Options: nosniff` przed bucketem, jak opisuje strona biblioteki zasobów.
 
+### Zasięg przedstawiciela handlowego jest wczytywany na żądanie; funkcje pomocnicze zakresu są asynchroniczne {#sales-rep-reach-async-helpers}
+
+Wydanie z tą zmianą przestaje wyznaczać zasięg przedstawiciela handlowego przy każdym żądaniu panelu
+(issue #955; rozstrzygnięcie właściciela z 2026-11-10). Filtr izolacji już teraz odczytuje zasięg jako
+podzapytanie należące do modułu `organizations`; listy wykluczonych i przypisanych organizacji są
+wczytywane dopiero wtedy, gdy żądanie zadaje pytanie o pojedynczą organizację albo układa kolejność
+wyników wyszukiwania, i najwyżej raz na żądanie. Niczyj zasięg się nie zmienia i nic nie jest
+buforowane.
+
+**Zmiana niezgodna wstecz dla kodu opartego na platformie:**
+
+- `isOrgInScope(id, ctx?)` i `ruleVisibleForScope(ids, ctx?)` zostały usunięte z
+  `@endora-commerce/platform/tenancy`. Używaj `await orgInScope(id, ctx?)` i
+  `await ruleInScope(ids, ctx?)`. Dla sprawdzenia powtarzanego na wierszach, które już masz, pobierz
+  raz predykat synchroniczny: `const inScope = await orgScopeTest(ctx?)`, a potem `inScope(id)`.
+- `assignedOrganizationIdsForRanking(ctx?)` zwraca obietnicę (promise).
+- Gałąź `excluding` typu `AdminTenantScope` (`@endora-commerce/contracts`) nie zawiera już
+  `excludedOrganizationIds` / `assignedOrganizationIds`; zawiera `excludedOrganizationsQuery` i
+  `loadReach()`. Tak samo zmieniła się gałąź `excluded` typu `OrgConstraint`, a
+  `salesperson.reaches(id)` w `PreferenceActor` zwraca obietnicę.
+- Funkcje usunięto, zamiast zmienić ich typ, celowo: `if (!isOrgInScope(x))` na obietnicy jest zawsze
+  fałszem, więc zabezpieczenie zostawione przy starej pisowni przestałoby odmawiać. Kod, który wciąż
+  ich używa, się nie skompiluje. Włącz `@typescript-eslint/no-floating-promises` i
+  `@typescript-eslint/no-misused-promises` dla plików, które zadają to pytanie.
+
+**Po aktualizacji** przebuduj każdy pakiet rozszerzenia i moduł nakładkowy, który importuje te funkcje,
+i popraw błędy kompilacji. Nic więcej nie trzeba robić: migracja dostarczona ze zmianą zasięgu
+(`organization_reach_governor`) się nie zmienia.
+
 ## Instancja niespójna od początku
 
 Instalator `0.101.x` lub starszy zapisywał każdy pakiet wydania z `^` poza

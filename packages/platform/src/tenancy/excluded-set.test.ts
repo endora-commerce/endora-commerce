@@ -8,6 +8,7 @@ import {
   orgConstraintFor,
   orgInScope,
   orgScopeSql,
+  orgScopeTest,
   orgScopeWhere,
   ruleInScope,
 } from './derived-scope.js';
@@ -167,6 +168,15 @@ describe('derived-scope helpers — one case per arm', () => {
     expect(await orgInScope('', allowed)).toBe(false);
   });
 
+  it('orgScopeTest answers what orgInScope answers, as a synchronous predicate', async () => {
+    for (const ctx of [platform, single, allowed, excluded]) {
+      const inScope = await orgScopeTest(ctx);
+      for (const id of ['org-F', 'org-A', 'org-U', '']) {
+        expect(inScope(id), id).toBe(await orgInScope(id, ctx));
+      }
+    }
+  });
+
   it('ruleInScope answers every arm, asynchronously', async () => {
     expect(await ruleInScope(['org-F'], platform)).toBe(true);
     expect(await ruleInScope([], excluded)).toBe(true);
@@ -193,6 +203,7 @@ describe('derived-scope helpers — one case per arm', () => {
     await expect(orgInScope('org-U', ctx)).rejects.toBe(down);
     await expect(ruleInScope(['org-U'], ctx)).rejects.toBe(down);
     await expect(assignedOrganizationIdsForRanking(ctx)).rejects.toBe(down);
+    await expect(orgScopeTest(ctx)).rejects.toBe(down);
     // The filter predicate does not need the loader, so a list still renders.
     expect(excludingSubquery((await inRep(() => orgFilterCond(), ctx))['organizationId'])).toEqual(EXCLUDING_SUBQUERY);
   });
@@ -202,6 +213,7 @@ describe('derived-scope helpers — one case per arm', () => {
     expect('ruleVisibleForScope' in tenancyBarrel).toBe(false);
     expect(typeof tenancyBarrel.orgInScope).toBe('function');
     expect(typeof tenancyBarrel.ruleInScope).toBe('function');
+    expect(typeof tenancyBarrel.orgScopeTest).toBe('function');
   });
 
   it('orgScopeSql gives one array parameter per arm, and never matches a null organization', () => {
