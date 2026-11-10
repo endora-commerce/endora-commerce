@@ -828,6 +828,12 @@ export interface OrderReturnContext {
   /** When the order entered its fulfilment-completing status; null if it has not. */
   completingStatusEnteredAt: Date | null;
   /**
+   * When the order was placed (`specs/177-tax-id-scope/`, FR-040): an
+   * organization converted from personal to company keeps a consumer's
+   * withdrawal right for an order placed before its `convertedToCompanyAt`.
+   */
+  placedAt: Date;
+  /**
    * The payment method the order was paid with (issue #905): a consumer's
    * withdrawal is refunded by the same means of payment unless they agree
    * otherwise, so the settlement proposes it.

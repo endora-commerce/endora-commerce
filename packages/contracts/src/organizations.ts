@@ -83,7 +83,11 @@ export type AddressKind = z.infer<typeof addressKindSchema>;
 export const organizationSchema = z.object({
   id: uuidSchema,
   name: z.string(),
-  taxId: z.string(),
+  /**
+   * `specs/177-tax-id-scope/` — `null` for a personal (B2C) organization, which
+   * has no tax ID; a company organization always has one (FR-001, FR-004).
+   */
+  taxId: z.string().nullable(),
   status: organizationStatusSchema,
   vatStatus: vatStatusSchema,
   /** Feature 051 — true for a single-member personal (B2C) organization. */
@@ -204,6 +208,20 @@ export type Address = z.infer<typeof addressSchema>;
 
 /** Polish NIP or a generic tax-id string; exact validation lives in the backend. */
 const taxIdSchema = z.string().min(8).max(32);
+
+/**
+ * `specs/177-tax-id-scope/` — the one normalisation a tax ID gets before it is
+ * stored or looked up: whitespace and dashes stripped, upper-cased. It is the
+ * admin boundary's rule (`organizations`' `schemas/organization.ts`), published
+ * so the lookups (`OrganizationDetailsPort.findByTaxId`) and the conversion body
+ * apply exactly the same one. Pure, so it is a function and not a port.
+ */
+export function normalizeTaxId(input: string): string {
+  return input.replace(/[\s-]+/g, '').toUpperCase();
+}
+
+/** A tax ID as an operator types it, normalised, then held to the stored length (8–32). */
+const normalizedTaxIdSchema = z.string().transform(normalizeTaxId).pipe(z.string().min(8).max(32));
 
 export const registerOrganizationRequestSchema = z.object({
   organization: z.object({
@@ -488,7 +506,12 @@ export interface OrganizationRecord {
   id: string;
   name: string;
   legalName: string | null;
-  taxId: string;
+  /**
+   * `null` for a personal (B2C) organization (`specs/177-tax-id-scope/`,
+   * FR-004): it used to carry a 32-hex placeholder derived from its account id.
+   * Print it through {@link organizationCompanyTaxId}.
+   */
+  taxId: string | null;
   status: OrganizationStatus;
   vatStatus: VatStatus;
   isPersonal: boolean;
@@ -516,6 +539,129 @@ export interface OrganizationRecord {
   createdAt: Date;
   updatedAt: Date;
   deletedAt: Date | null;
+  /**
+   * When `organization.convert_to_company` turned this personal organization
+   * into a company (`specs/177-tax-id-scope/`, FR-039); `null` for one that was
+   * never converted. Set once, never cleared — `returns` reads it to keep a
+   * consumer's withdrawal right for orders placed before it (FR-040).
+   */
+  convertedToCompanyAt: Date | null;
+}
+
+// --- Tax-ID scope (specs/177-tax-id-scope/) ----------------------------------
+
+/**
+ * Where the same tax ID may appear twice (`contracts/tax-id-scope.md` §1):
+ * `global` — nowhere, every tax ID belongs to one organization (the default of
+ * every installation); `per-tree-root` — only inside one organization tree, so
+ * a head office and its branches may share it. Enforced by the database and
+ * changed only by the audited `organization.tax_id_scope.set` Command.
+ */
+export const taxIdScopeSchema = z.enum(['global', 'per-tree-root']);
+export type TaxIdScope = z.infer<typeof taxIdScopeSchema>;
+
+/** `PUT /api/v1/admin/organizations/tax-id-scope` — the scope to switch to. */
+export const adminTaxIdScopeSetBodySchema = z.object({ scope: taxIdScopeSchema });
+export type AdminTaxIdScopeSetBody = z.infer<typeof adminTaxIdScopeSetBodySchema>;
+
+/**
+ * `GET` / `PUT /api/v1/admin/organizations/tax-id-scope` — the installation's
+ * scope, who set it last, how many tax IDs are on more than one organization,
+ * and whether the database enforcement agrees with the stored scope
+ * (`mismatch` only after a hand edit; re-applying the scope repairs it).
+ */
+export const adminTaxIdScopeResponseSchema = z.object({
+  data: z.object({
+    scope: taxIdScopeSchema,
+    updatedAt: isoDateTimeSchema,
+    updatedByAdminUserId: uuidSchema.nullable(),
+    sharedTaxIdCount: z.number().int().nonnegative(),
+    enforcement: z.enum(['consistent', 'mismatch']),
+  }),
+});
+export type AdminTaxIdScopeResponse = z.infer<typeof adminTaxIdScopeResponseSchema>;
+
+/**
+ * What {@link OrganizationDetailsPort.resolveByTaxId} answers. `one` carries the
+ * tree's root (all matches share it in both scopes); `ambiguous` — matches in
+ * more than one tree — is unreachable in `global` and `per-tree-root` alike and
+ * is typed for a later scope, so a caller handles it today.
+ */
+export type TaxIdResolution =
+  | { kind: 'none' }
+  | { kind: 'one'; organization: OrganizationRecord }
+  | { kind: 'ambiguous'; organizations: OrganizationRecord[] };
+
+// --- Personal → company conversion (specs/177-tax-id-scope/) -----------------
+
+/**
+ * `POST /api/v1/admin/organizations/:id/convert-to-company`
+ * (`contracts/convert-to-company.md` §2). The tax ID is normalised exactly as
+ * the admin boundary normalises it. `validateTaxId` is the route's own switch
+ * — a VAT validation after the conversion commits — and is not part of the
+ * Command's input.
+ */
+export const adminOrganizationConvertToCompanyBodySchema = z.object({
+  name: z.string().trim().min(1).max(255),
+  legalName: z.string().trim().min(1).max(255).optional(),
+  taxId: normalizedTaxIdSchema,
+  registeredAddress: z.object({
+    street: z.string().min(1).max(255),
+    city: z.string().min(1).max(120),
+    postalCode: z.string().min(1).max(20),
+    country: z.string().length(2),
+  }),
+  vatStatus: vatStatusSchema.default('vat_payer'),
+  validateTaxId: z.boolean().default(false),
+});
+export type AdminOrganizationConvertToCompanyBody = z.infer<
+  typeof adminOrganizationConvertToCompanyBodySchema
+>;
+export type OrganizationConvertToCompanyInput = Omit<
+  AdminOrganizationConvertToCompanyBody,
+  'validateTaxId'
+>;
+
+/**
+ * Container name: `organizationCommandPort`. Owner: `organizations`.
+ *
+ * Server-side writes on the Organization aggregate, each one Command through
+ * the Command Bus (`contracts/convert-to-company.md` §4). Reads are on
+ * {@link OrganizationDetailsPort}; this port carries writes only.
+ *
+ * **Never for a customer-facing route** — which no type can say, so a test
+ * enumerating every registered non-admin route proves it (FR-031).
+ *
+ * **Owner off:** the seam fails closed — resolving this port throws
+ * `ModuleDisabledError` and the call answers 503 `MODULE_DISABLED`. Whether
+ * `organizations` has an off state at all is its manifest's `activation` to
+ * say, not this line's: a module declaring `nonDeactivatable` never enters one.
+ */
+export interface OrganizationCommandPort {
+  /**
+   * Runs `organization.convert_to_company` as one Command with the ambient
+   * actor (an admin inside an admin request; system under `withSystemScope` in
+   * a worker). The organization keeps its id. No VAT validation: trigger one
+   * after it resolves if you need it.
+   */
+  convertToCompany(
+    organizationId: string,
+    input: OrganizationConvertToCompanyInput,
+  ): Promise<OrganizationRecord>;
+}
+
+/**
+ * `organization.converted_to_company.v1` — emitted once, after the conversion
+ * commits, never on rollback (FR-039). Carries no name and no tax ID: a
+ * subscriber has the id and {@link OrganizationDetailsPort}.
+ */
+export interface OrganizationConvertedToCompanyEvent {
+  eventId: string;
+  /** ISO-8601. */
+  occurredAt: string;
+  organizationId: string;
+  /** ISO-8601 — the organization's `convertedToCompanyAt`. */
+  convertedAt: string;
 }
 
 /**
@@ -556,12 +702,29 @@ export interface OrganizationDetailsPort {
   searchByName(query: string, limit: number): Promise<OrganizationRecord[]>;
   /** The same search, ids only — for the order list's organisation filter. */
   searchIdsByName(query: string): Promise<string[]>;
+  /**
+   * `specs/177-tax-id-scope/` (FR-023) — every live organization holding this
+   * tax ID: the tree's root first, then by depth, creation time and id. The
+   * input is normalised with {@link normalizeTaxId}; an input with nothing left
+   * answers `[]`. Soft-deleted rows are excluded unless `includeDeleted`.
+   * In `global` there is at most one; in `per-tree-root` a head office and its
+   * branches. Never matches a personal organization, which has no tax ID.
+   */
+  findByTaxId(taxId: string, options?: { includeDeleted?: boolean }): Promise<OrganizationRecord[]>;
+  /**
+   * The single organization a tax ID resolves to — the root of the tree that
+   * holds it (the live root, else the oldest live match), `none` when no live
+   * organization holds it. See {@link TaxIdResolution} for `ambiguous`.
+   */
+  resolveByTaxId(taxId: string): Promise<TaxIdResolution>;
 }
 
 /**
  * The tax id a reader may print or hand out for an Organization: a company's,
- * never a personal (B2C) Organization's, whose `taxId` is an internal 32-hex
- * placeholder derived from the account id (issue #767). `null` — not an empty
+ * never a personal (B2C) Organization's. A personal Organization stores no tax
+ * id at all since `specs/177-tax-id-scope/` (it carried an internal 32-hex
+ * placeholder derived from the account id until then, issue #767), and the flag
+ * is still honoured for a payload written before that. `null` — not an empty
  * string — when there is nothing to show, so every renderer drops its tax-id
  * line rather than printing a label with no value.
  *
@@ -575,10 +738,10 @@ export interface OrganizationDetailsPort {
 export function organizationCompanyTaxId(organization: {
   /** Absent reads as a company, as a session payload without the flag does. */
   readonly isPersonal?: boolean | undefined;
-  readonly taxId: string;
+  readonly taxId: string | null;
 }): string | null {
   if (organization.isPersonal) return null;
-  const taxId = organization.taxId.trim();
+  const taxId = organization.taxId?.trim() ?? '';
   return taxId === '' ? null : taxId;
 }
 
@@ -746,8 +909,10 @@ export interface PersonalOrganizationPort {
    * the authority check and the "an organisation keeps an administrator" guard
    * that must precede it are `customers`' policy.
    *
-   * Idempotent: the personal organisation's `taxId` is derived from the account
-   * id, so a second call re-finds the row rather than creating a second one.
+   * Idempotent by the account link: the personal organisation records the
+   * account it was provisioned for (`specs/177-tax-id-scope/`, FR-003), so a
+   * second call re-finds the row rather than creating a second one. It has no
+   * tax ID.
    */
   provisionPersonalOrganization(customerAccountId: string): Promise<ProvisionedPersonalOrganizationRecord>;
 
@@ -1076,6 +1241,13 @@ export const AdminOrganizationCreateBodySchema = registerOrganizationRequestSche
   .extend({
     status: z.enum(['active', 'pending_verification']).default('active'),
     salesChannelIds: organizationSalesChannelIdsSchema,
+    /**
+     * `specs/177-tax-id-scope/` (FR-018) — create the organization as a branch
+     * under this parent, in the same Command, so that in `per-tree-root` it may
+     * carry the head office's tax ID. Naming a parent requires an unscoped
+     * platform administrator (D-260).
+     */
+    parentId: uuidSchema.optional(),
   });
 export type AdminOrganizationCreateBody = z.infer<typeof AdminOrganizationCreateBodySchema>;
 export type AdminOrganizationCreateRequest = z.input<typeof AdminOrganizationCreateBodySchema>;
