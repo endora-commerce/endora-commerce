@@ -38,7 +38,7 @@ export interface FileRequest {
 
 /** Where a redirect points; the route resolves the first two through the asset's adapter. */
 export type FileLocation =
-  | { kind: 'private-signed' }
+  | { kind: 'private-signed'; download: boolean }
   | { kind: 'stable'; version?: string }
   | { kind: 'url'; url: string };
 
@@ -47,7 +47,7 @@ export type FileDecision =
   | { status: 304; headers: Record<string, string>; body: 'none' }
   | { status: 302; headers: Record<string, string>; body: 'none'; location: FileLocation }
   | {
-      status: 403 | 404 | 410;
+      status: 404 | 410;
       headers: Record<string, string>;
       body: { code: ErrorCode; message: string };
     };
@@ -59,7 +59,7 @@ const REFUSAL_HEADERS: Readonly<Record<string, string>> = {
   'Cache-Control': 'no-store',
 };
 
-function refusal(status: 403 | 404 | 410, code: ErrorCode, message: string): FileDecision {
+function refusal(status: 404 | 410, code: ErrorCode, message: string): FileDecision {
   return { status, headers: { ...REFUSAL_HEADERS }, body: { code, message } };
 }
 
@@ -109,6 +109,10 @@ function serve(row: FileRow, request: FileRequest, cacheControl: string): FileDe
     'Cache-Control': cacheControl,
     ETag: etag,
   };
+  // Public files are embedded cross-origin by the storefront and the admin. On
+  // the 304 too: the browser merges its headers into the cached response, and
+  // the host's default `same-origin` would replace the 200's and block the embed.
+  if (row.visibility === 'public') shared['Cross-Origin-Resource-Policy'] = 'cross-origin';
   if (ifNoneMatchHits(request.ifNoneMatch, etag)) {
     return { status: 304, headers: shared, body: 'none' };
   }
@@ -120,8 +124,6 @@ function serve(row: FileRow, request: FileRequest, cacheControl: string): FileDe
   };
   // A stale or legacy `0` would tell the browser the body is empty.
   if (Number(row.sizeBytes) > 0) headers['Content-Length'] = String(row.sizeBytes);
-  // Public files are embedded cross-origin by the storefront and the admin.
-  if (row.visibility === 'public') headers['Cross-Origin-Resource-Policy'] = 'cross-origin';
   return { status: 200, headers, body: 'stream' };
 }
 
@@ -132,14 +134,11 @@ export function decideFileResponse(request: FileRequest): FileDecision {
   if (!row) return NOT_FOUND();
 
   // 2. The signature comes first, before anything that depends on the row's
-  //    state — so a private asset's deleted state, its ETag and its storage
-  //    location are visible only to a valid signature. By permalink the answer
-  //    is that of a name that resolves to nothing (owner ruling P2).
-  if (row.visibility === 'private' && !request.signatureValid) {
-    return form === 'id'
-      ? refusal(403, ERROR_CODES.ASSET_ACCESS_DENIED, 'Access denied.')
-      : NOT_FOUND();
-  }
+  //    state — so a private asset's existence, its deleted state, its ETag and
+  //    its storage location are visible only to a valid signature. By id and by
+  //    permalink alike the answer is that of an identifier that resolves to
+  //    nothing (owner ruling P2; by id since issue #542).
+  if (row.visibility === 'private' && !request.signatureValid) return NOT_FOUND();
 
   // 3. Soft-deleted, whatever the form and the marker.
   if (row.deletedAt) return refusal(410, ERROR_CODES.ASSET_GONE, 'Asset has been deleted.');
@@ -147,7 +146,7 @@ export function decideFileResponse(request: FileRequest): FileDecision {
   // 4. Private, signature valid.
   if (row.visibility === 'private') {
     if (row.storageBackend === 's3' || row.storageBackend === 'gcs') {
-      return redirect({ kind: 'private-signed' });
+      return redirect({ kind: 'private-signed', download: query.download === '1' });
     }
     if (row.storageBackend === 'legacy') {
       return refusal(404, ERROR_CODES.ASSET_FILE_MISSING, 'Underlying file is missing.');

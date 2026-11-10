@@ -256,6 +256,14 @@ export async function registerOrderRoutes(
   // Narrow admin write for Order custom-field values. The write runs through
   // the Command Bus (audited by construction, Principle XIII); validation may
   // reject with a per-field 422. Only mounted when both deps are provided.
+  //
+  // Issue #399: the request names only the keys it changes — `validateAndMerge`
+  // keeps every key the request leaves out and clears one it sends empty — and
+  // the merge is made over the bag **read under the row lock**, held until the
+  // Command commits. Orders carry no `version`, so without the lock another
+  // writer of the bag (the system carry that fills empty fields right after an
+  // order is created, which locks the row itself) could commit between this
+  // read and this write and have its value overwritten by the stale bag.
   if (customFieldValues && commandBus) {
     app.patch<{ Params: { id: string } }>(
       '/api/v1/admin/orders/:id/custom-fields',

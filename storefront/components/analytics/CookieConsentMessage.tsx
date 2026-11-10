@@ -1,7 +1,7 @@
 import type { ReactNode } from 'react';
 import { getCmsBlockByCode } from '../../lib/api/cms';
 import type { RequestContext } from '../../lib/api/client';
-import { PageBuilderRender } from '../PageBuilderRender';
+import { CmsStandaloneBlock } from '../CmsStandaloneBlock';
 import { tForLocale } from '../../lib/i18n/messages';
 
 /**
@@ -12,6 +12,6 @@ import { tForLocale } from '../../lib/i18n/messages';
  */
 export async function CookieConsentMessage({ ctx }: { ctx: RequestContext }): Promise<ReactNode> {
   const block = await getCmsBlockByCode('cookieconsent.message', ctx).catch(() => null);
-  if (block) return <PageBuilderRender data={block.content.data} />;
+  if (block) return <CmsStandaloneBlock block={block} />;
   return <>{tForLocale(ctx.locale ?? '')('chrome.consent.defaultMessage')}</>;
 }

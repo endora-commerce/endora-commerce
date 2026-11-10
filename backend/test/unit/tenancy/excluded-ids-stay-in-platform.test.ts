@@ -31,8 +31,15 @@ import { describe, expect, it } from 'vitest';
  * The allowlist is explicit and commented. Adding to it is a review question,
  * not a formality.
  */
+/**
+ * Issue #955 (architect ruling, Q2) — the reach reaches the filter as an
+ * `organizations`-owned uncorrelated `SELECT` (`excludedOrganizationsQuery`).
+ * The platform renders it and never names what it reads; one file builds it.
+ */
+const EXCLUDED_QUERY_PRODUCER = 'packages/modules/organizations/src/backend/services/admin-tenant-scope.ts';
 const REPO_ROOT = join(fileURLToPath(new URL('.', import.meta.url)), '..', '..', '..', '..');
 const MODULES = join(REPO_ROOT, 'packages', 'modules');
+const PLATFORM_SRC = join(REPO_ROOT, 'packages', 'platform', 'src');
 
 const EXCLUDED_IDS_PRODUCERS = new Set([
   // The port that answers the tenant reach: it hands the set to the platform.
@@ -119,5 +126,22 @@ describe('#305 — the excluded organization ids stay in the platform', () => {
     for (const file of EXCLUDED_IDS_PRODUCERS) {
       expect(byFile.get(file), file).toContain('excludedOrganizationIds');
     }
+  });
+
+  it('no module but the producer names `excludedOrganizationsQuery` (#955)', () => {
+    const offenders = files
+      .filter(({ file, text }) => !isTestFile(file) && text.includes('excludedOrganizationsQuery'))
+      .map(({ file }) => file)
+      .filter((file) => file !== EXCLUDED_QUERY_PRODUCER);
+    expect(offenders).toEqual([]);
+    expect(files.find(({ file }) => file === EXCLUDED_QUERY_PRODUCER)?.text).toContain('excludedOrganizationsQuery');
+  });
+
+  it('the platform never names the governor table or the function that reads it (#955, Principle I)', () => {
+    const offenders = sourceFiles(PLATFORM_SRC)
+      .map((path) => ({ file: relative(REPO_ROOT, path).split(sep).join('/'), text: readFileSync(path, 'utf8') }))
+      .filter(({ text }) => /organization_reach_governor|organizations_reach_excluded/.test(text))
+      .map(({ file }) => file);
+    expect(offenders).toEqual([]);
   });
 });

@@ -1,4 +1,4 @@
-import type { TenantContext, TenantScopeNotices } from './tenant-context.js';
+import type { ExcludedOrganizationsQuery, TenantContext, TenantScopeNotices } from './tenant-context.js';
 
 /**
  * Actor → TenantContext derivation (feature 050, FR-002 / data-model §1).
@@ -98,6 +98,12 @@ export interface AdminScopeInput {
   /** With `reach: 'excluding'`: the admin's own assignments, for ranking only. */
   readonly assignedOrganizationIds?: readonly string[];
   /**
+   * With `reach: 'excluding'` (issue #955): the owner's uncorrelated SELECT of
+   * the excluded organizations, which the filters render as
+   * `col is not null and col not in (<sql>)`. Required beside the list.
+   */
+  readonly excludedOrganizationsQuery?: ExcludedOrganizationsQuery;
+  /**
    * Set when the scope is the **fallback** for a question nobody could answer
    * — the module that decides an admin's reach, or one it reads, is absent. It
    * is carried onto the context as `scopeUnresolved` and never widens it: a
@@ -182,10 +188,17 @@ export function resolveTenantContext(actor: TenantActorInput, adminScope?: Admin
     if (adminScope.excludedOrganizationIds === undefined) {
       throw new Error('An `excluding` admin scope must name its excluded organizations (issue #305).');
     }
+    // Issue #955 — the filter reads the query, never the list; a scope without
+    // one has no predicate to give and is refused rather than read as "nothing
+    // excluded".
+    if (adminScope.excludedOrganizationsQuery === undefined) {
+      throw new Error('An `excluding` admin scope must carry its excludedOrganizationsQuery (issue #955).');
+    }
     return {
       mode: 'excluded-set',
       excludedOrganizationIds: [...adminScope.excludedOrganizationIds],
       assignedOrganizationIds: [...(adminScope.assignedOrganizationIds ?? [])],
+      excludedOrganizationsQuery: adminScope.excludedOrganizationsQuery,
       notices: newScopeNotices(),
       actor: { kind: 'admin', id: actor.adminUserId },
     };

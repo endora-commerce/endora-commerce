@@ -4477,6 +4477,58 @@ that the requirements apply again, or turn the storefront setting off in **Setti
 organizations' policies. Set the key the enrolments were made with: an enrolment made with another
 key cannot be checked with this one.
 
+### A private asset's file route answers 404 without a signature {#private-asset-file-404}
+
+The release that ships this change stops the public file route from telling a private asset apart
+from one that does not exist (issue #542).
+
+**Behaviour change on upgrade:**
+
+- `GET /assets/file/<asset id>` answers a request for a **private** asset that carries no
+  signature, or an expired or invalid one, with `404 ASSET_NOT_FOUND`: the same status, body and
+  headers as an id that names nothing. It used to answer `403 ASSET_ACCESS_DENIED`, which let anyone
+  holding an id confirm that a private asset exists. The permalink form already answered `404`.
+- `ERROR_CODES.ASSET_ACCESS_DENIED` is removed from `@endora-commerce/contracts`, because nothing
+  raises it any more.
+- A signed link to a private file in S3 or GCS storage now carries the file's type and its
+  inline or attachment disposition (issue #815), and `?download=1` asks for an attachment there as
+  it already did on local storage.
+
+**After upgrading,** if a client or an integration treats `403` from the file route as "exists but
+needs a signed link", make it treat `404` the same way and fetch a signed URL as before. Code that
+compares against `ERROR_CODES.ASSET_ACCESS_DENIED` no longer compiles: drop the comparison, or
+compare against `ERROR_CODES.ASSET_NOT_FOUND`. With cloud storage, add `X-Content-Type-Options:
+nosniff` in front of the bucket, as the assets library page describes.
+
+### The last second factor stays while two-step verification is required {#last-factor-required}
+
+The release that ships this change closes a gap in the two-step requirements (issue #935). An
+administrator or a customer whose policy required a second factor could switch their only one off
+on their own security screen; the next sign-in then asked them to set it up again.
+
+**Behaviour change on upgrade:**
+
+- `POST /api/v1/admin/account/mfa/disable` and `POST /api/v1/account/mfa/disable` refuse to remove
+  the account's last second factor while a requirement is in force for it:
+  `409 MFA_LAST_FACTOR_REQUIRED`. The refusal comes before the code or password is checked, so it
+  spends neither.
+- Every source of the requirement counts, and each counts exactly as it does at sign-in: for an
+  administrator, **Admin UI — enforce two-step verification** (`mfa.admin.totp_enforced`) and a
+  role with *Requires two-step verification on assigned users*; for a customer,
+  **Storefront — enforce two-step verification** (`mfa.storefront.totp_enforced`) on the sales
+  channel of the request, and the organization's policy.
+- Without `MFA_SECRET_ENCRYPTION_KEY` no requirement is in force, and these routes are not served,
+  so nothing changes there.
+- `GET …/mfa/status` answers two new fields, `canDisable` and `disableBlockedReason`
+  (`'factor_required'` or `null`). The Admin UI's **Account security** screen and the storefront's
+  account security page hide the switch-off form while it is refused and say why.
+- An administrator's reset of somebody else's two-step verification is unchanged: it is the way
+  back in for a lost device.
+
+**After upgrading,** nothing has to be done. A client of the API that offers switching two-step
+verification off should read `canDisable` instead of guessing, and handle
+`409 MFA_LAST_FACTOR_REQUIRED`.
+
 ### Order values leave the platform audit log {#orders-audit-names-only}
 
 The release that ships this change stops writing an order's values into the platform-wide audit

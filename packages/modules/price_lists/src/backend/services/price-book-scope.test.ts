@@ -63,7 +63,7 @@ describe('price-book scope (feature 160)', () => {
   // else governs, so a book is theirs when no member is another rep's.
   const REP_305: PriceBookScope = {
     all: false,
-    constraint: { kind: 'excluded', excludedOrganizationIds: ['f'], assignedOrganizationIds: ['a'] },
+    constraint: { kind: 'excluded', excludedOrganizationIds: ['f'], assignedOrganizationIds: ['a'], excludedOrganizationsQuery: { sql: 'select x from "reach"(?::uuid) as x', params: ['rep'] } },
   };
 
   it('#305 — a representative sees a book over their own and unassigned organizations, never one naming another rep’s', () => {
@@ -72,7 +72,7 @@ describe('price-book scope (feature 160)', () => {
     expect(bookVisible(REP_305, book('organizations', []))).toBe(false);
     expect(organizationInScope(REP_305, 'u')).toBe(true);
     expect(organizationInScope(REP_305, 'f')).toBe(false);
-    expect(visibleBookSql(REP_305)).toMatchObject({ params: ['{"f"}'] });
-    expect(visibleBookSql(REP_305)?.sql).toContain('<> all(?::uuid[])');
+    expect(visibleBookSql(REP_305)).toMatchObject({ params: ['rep'] });
+    expect(visibleBookSql(REP_305)?.sql).toContain('not in (select x from "reach"(?::uuid) as x)');
   });
 });

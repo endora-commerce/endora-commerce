@@ -4690,6 +4690,61 @@ uruchom backend ponownie, aby wymagania znów obowiązywały, albo wyłącz usta
 **Ustawieniach** i zdejmij polityki organizacji. Ustaw ten klucz, z którym utworzono rejestracje:
 rejestracji utworzonej innym kluczem nie da się nim sprawdzić.
 
+### Trasa pliku prywatnego zasobu odpowiada 404 bez podpisu {#private-asset-file-404}
+
+Wydanie z tą zmianą sprawia, że publiczna trasa plików nie odróżnia już prywatnego zasobu od
+zasobu, który nie istnieje (zgłoszenie #542).
+
+**Zmiana zachowania po aktualizacji:**
+
+- `GET /assets/file/<asset id>` odpowiada na żądanie **prywatnego** zasobu bez podpisu albo z
+  podpisem wygasłym lub nieprawidłowym kodem `404 ASSET_NOT_FOUND`: z tym samym statusem, treścią i
+  nagłówkami co dla identyfikatora, który niczego nie wskazuje. Dotąd odpowiadała
+  `403 ASSET_ACCESS_DENIED`, przez co każdy, kto znał identyfikator, mógł potwierdzić, że prywatny
+  zasób istnieje. Odnośnik stały (permalink) już wcześniej odpowiadał `404`.
+- `ERROR_CODES.ASSET_ACCESS_DENIED` zostaje usunięty z `@endora-commerce/contracts`, bo nic go już
+  nie zgłasza.
+- Podpisany odnośnik do prywatnego pliku w magazynie S3 lub GCS niesie teraz typ pliku i sposób
+  jego wyświetlenia — w przeglądarce albo jako załącznik (zgłoszenie #815) — a `?download=1` prosi
+  tam o załącznik, tak jak już wcześniej w magazynie lokalnym.
+
+**Po aktualizacji,** jeśli klient lub integracja traktuje `403` z trasy pliku jako „istnieje, ale
+wymaga podpisanego odnośnika”, niech tak samo traktuje `404` i pobiera podpisany adres jak dotąd.
+Kod porównujący z `ERROR_CODES.ASSET_ACCESS_DENIED` przestaje się kompilować: usuń porównanie albo
+porównuj z `ERROR_CODES.ASSET_NOT_FOUND`. Przy magazynie w chmurze dodaj nagłówek
+`X-Content-Type-Options: nosniff` przed bucketem, jak opisuje strona biblioteki zasobów.
+
+### Ostatni drugi składnik zostaje, gdy weryfikacja dwuetapowa jest wymagana {#last-factor-required}
+
+Wydanie z tą zmianą zamyka lukę w wymaganiach weryfikacji dwuetapowej (zgłoszenie #935).
+Administrator albo klient, od którego polityka wymagała drugiego składnika, mógł wyłączyć jedyny,
+jaki miał, na własnym ekranie bezpieczeństwa; przy następnym logowaniu był proszony o ponowną
+konfigurację.
+
+**Zmiana zachowania po aktualizacji:**
+
+- `POST /api/v1/admin/account/mfa/disable` i `POST /api/v1/account/mfa/disable` odmawiają usunięcia
+  ostatniego drugiego składnika konta, dopóki obowiązuje wobec niego wymaganie:
+  `409 MFA_LAST_FACTOR_REQUIRED`. Odmowa pada przed sprawdzeniem kodu albo hasła, więc nie zużywa
+  ani jednego, ani drugiego.
+- Liczy się każde źródło wymagania, i to dokładnie tak, jak przy logowaniu: dla administratora
+  ustawienie **Admin UI — enforce two-step verification** (`mfa.admin.totp_enforced`) oraz rola z
+  opcją *Wymaga weryfikacji dwuetapowej od przypisanych użytkowników*; dla klienta ustawienie
+  **Storefront — enforce two-step verification** (`mfa.storefront.totp_enforced`) w kanale
+  sprzedaży, z którego przyszło żądanie, oraz polityka organizacji.
+- Bez `MFA_SECRET_ENCRYPTION_KEY` żadne wymaganie nie obowiązuje, a te ścieżki nie są udostępniane,
+  więc tam nic się nie zmienia.
+- `GET …/mfa/status` zwraca dwa nowe pola, `canDisable` i `disableBlockedReason`
+  (`'factor_required'` albo `null`). Ekran **Bezpieczeństwo konta** w panelu administracyjnym i
+  strona bezpieczeństwa konta w sklepie ukrywają formularz wyłączenia, gdy jest ono odrzucane, i
+  wyjaśniają dlaczego.
+- Reset weryfikacji dwuetapowej innej osoby przez administratora działa bez zmian: to droga powrotu
+  po utracie urządzenia.
+
+**Po aktualizacji** nic nie trzeba robić. Klient API, który oferuje wyłączenie weryfikacji
+dwuetapowej, powinien odczytywać `canDisable` zamiast zgadywać i obsługiwać
+`409 MFA_LAST_FACTOR_REQUIRED`.
+
 ### Wartości zamówień znikają z dziennika audytu platformy {#orders-audit-names-only}
 
 Wydanie z tą zmianą przestaje zapisywać wartości zamówienia w dzienniku audytu całej platformy

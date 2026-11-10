@@ -277,6 +277,9 @@ export const manifest = defineModuleManifest({
     { code: 'MFA_ENFORCEMENT_UNAVAILABLE', tokens: ['encryption_key_missing', 'customer_encryption_key_missing'] },
     { code: 'MFA_INVALID_CHALLENGE' },
     { code: 'MFA_INVALID_CODE' },
+    // Issue #935 — the self-service disable, refused while the factor is the
+    // account's last one and a requirement is in force.
+    { code: 'MFA_LAST_FACTOR_REQUIRED' },
     { code: 'MFA_NOT_ENABLED' },
     { code: 'MFA_NO_ACTIVE_ENROLMENT' },
     { code: 'MFA_NO_PENDING_ENROLMENT' },

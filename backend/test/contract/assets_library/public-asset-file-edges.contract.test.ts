@@ -106,7 +106,7 @@ describe('public file route — private and stale-marker edges (feature 156 QA)'
     expect(etag).not.toBe('undefined');
 
     const byId = await get(`/assets/file/${a.id}`, { 'if-none-match': etag });
-    expect(byId.statusCode).toBe(403);
+    expect(byId.statusCode).toBe(404);
     expect(byId.headers.etag).toBeUndefined();
     const byName = await get(`/assets/file/${permalink}`, { 'if-none-match': etag });
     expect(byName.statusCode).toBe(404);
@@ -118,12 +118,12 @@ describe('public file route — private and stale-marker edges (feature 156 QA)'
     const a = await asset('private');
     const b = await asset('private');
     const foreign = await get(`/assets/file/${a.id}${await signedQuery(b.id)}`);
-    expect(foreign.statusCode).toBe(403);
+    expect(foreign.statusCode).toBe(404);
     const params = new URLSearchParams(await signedQuery(a.id));
     params.set('exp', String(Math.floor(Date.now() / 1000) - 60));
     const expired = await get(`/assets/file/${a.id}?${params}`);
-    expect(expired.statusCode).toBe(403);
-    expect(expired.json()).toMatchObject({ error: { code: 'ASSET_ACCESS_DENIED' } });
+    expect(expired.statusCode).toBe(404);
+    expect(expired.json()).toMatchObject({ error: { code: 'ASSET_NOT_FOUND' } });
   });
 
   it('sends a stale marker on a permalink to the permalink’s current version, never copying a signature', async () => {

@@ -16,7 +16,6 @@
   "errors.ASSET_LEGACY_LOCATOR_CANNOT_HARDEN": "Tego pliku nie można oznaczyć jako prywatnego, ponieważ jest zapisany pod adresem, którego nie nadała platforma. Najpierw prześlij go ponownie.",
   "errors.ASSET_FILE_MISSING": "Plik tego zasobu nie istnieje w magazynie plików.",
   "errors.ASSET_GONE": "Ten zasób został usunięty. Aby go zmienić, najpierw go przywróć.",
-  "errors.ASSET_ACCESS_DENIED": "Brak dostępu do tego pliku.",
   "errors.ASSET_REPLACE_KIND_MISMATCH": "Ten zasób zawiera plik typu {currentKind} i można go zastąpić tylko innym plikiem typu {currentKind}; wybrany plik jest typu {newKind}.",
   "errors.ASSET_LEGACY_CANNOT_REPLACE": "Ten plik jest zapisany pod adresem, którego nie nadała platforma, więc nie można go podmienić w miejscu. Prześlij go ponownie jako nowy zasób.",
   "errors.ASSET_REPLACE_CONFLICT": "Ktoś inny zmienił plik tego zasobu w trakcie przesyłania. Wczytaj zasób ponownie i spróbuj jeszcze raz.",

@@ -48,6 +48,7 @@ An operator switches this module on and off on **/platform/modules**. The choice
 
 | Code | Name | Type |
 | --- | --- | --- |
+| `webhooks.delivery_retention_days` | Delivery history retention (days) | `number` |
 | `webhooks.enabled` | Webhooks enabled | `boolean` |
 
 ## Translations

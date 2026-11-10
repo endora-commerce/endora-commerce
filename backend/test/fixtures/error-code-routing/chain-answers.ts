@@ -50,8 +50,7 @@
  * is a reference that agrees with whatever the migration did.
  */
 export const CHAIN_ROUTING_ANSWERS: Readonly<Record<string, string>> = {
-  // assets_library (15)
-  ASSET_ACCESS_DENIED: 'assets_library',
+  // assets_library (14)
   ASSET_FILE_MISSING: 'assets_library',
   ASSET_FOLDER_CYCLE: 'assets_library',
   ASSET_FOLDER_NAME_CONFLICT: 'assets_library',

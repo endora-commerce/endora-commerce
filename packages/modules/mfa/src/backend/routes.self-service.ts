@@ -7,7 +7,7 @@ import {
   mfaRegenerateRequestSchema,
   mfaSocialUnlinkParamsSchema,
 } from '@endora-commerce/contracts';
-import type { AdminAuthenticationOrigin, MfaSubjectRef } from '@endora-commerce/contracts';
+import type { AdminAuthenticationOrigin, MfaLoginContext, MfaSubjectRef } from '@endora-commerce/contracts';
 import { readKnownDevice } from './known-device-cookie.js';
 import { HttpError } from '@endora-commerce/platform/http';
 import type { AuditPort } from '@endora-commerce/platform/kernel';
@@ -17,6 +17,7 @@ import type { SecondFactorVerifier } from './services/second-factor-verifier.js'
 import type { MfaPolicyResolver } from './services/mfa-policy-resolver.js';
 import type { SocialLinkService } from './services/social-link-service.js';
 import type { FactorWithdrawal } from './services/factor-withdrawal.js';
+import { FactorRemovalGuard } from './services/factor-removal-guard.js';
 
 /**
  * Surface-agnostic self-service 2FA endpoints (feature 042). Mounted twice by
@@ -84,13 +85,21 @@ export async function registerMfaSelfServiceRoutes(
     subjectId: resolveSubjectId(req),
   });
 
+  /** The scope every policy read on these routes resolves at: the sign-in decision's. */
+  const policyContextOf = (req: FastifyRequest): MfaLoginContext => ({
+    salesChannelId: currentSalesChannel()?.id ?? null,
+    organizationId: opts.resolveOrganizationId?.(req) ?? null,
+  });
+
+  // Issue #935 — the last factor stays while a requirement is in force.
+  const factorRemoval = new FactorRemovalGuard(policyResolver, (subject) =>
+    enrolmentService.countActiveFactors(subject),
+  );
+
   app.post(`${pathPrefix}/setup`, { preHandler: requireGuard }, async (request) => {
     const subject = subjectOf(request);
     // FR-001 — enrolment is only permitted when 2FA is enabled for the scope.
-    const policy = await policyResolver.resolve(subject, {
-      salesChannelId: currentSalesChannel()?.id ?? null,
-      organizationId: opts.resolveOrganizationId?.(request) ?? null,
-    });
+    const policy = await policyResolver.resolve(subject, policyContextOf(request));
     if (!policy.totpEnabled) {
       throw new HttpError(403, 'MFA_NOT_ENABLED', 'Two-step verification is not enabled for your account.');
     }
@@ -122,6 +131,9 @@ export async function registerMfaSelfServiceRoutes(
     async (request) => {
       const body = mfaDisableRequestSchema.parse(request.body);
       const subject = subjectOf(request);
+      // Before the re-authentication, so a refusal spends neither a one-time
+      // code nor an attempt of the account's authentication throttle.
+      await factorRemoval.assertMayRemove(subject, policyContextOf(request));
       await reauthenticate(opts, subject, body, originOf(request, subjectType));
       const removed = await enrolmentService.disable(subject);
       await auditLogService.record({
@@ -161,16 +173,19 @@ export async function registerMfaSelfServiceRoutes(
   app.get(`${pathPrefix}/status`, { preHandler: requireGuard }, async (request) => {
     const subject = subjectOf(request);
     const status = await enrolmentService.status(subject);
-    const policy = await policyResolver.resolve(subject, {
-      salesChannelId: currentSalesChannel()?.id ?? null,
-      organizationId: opts.resolveOrganizationId?.(request) ?? null,
-    });
+    const ctx = policyContextOf(request);
+    const policy = await policyResolver.resolve(subject, ctx);
+    // The verdict `POST …/disable` enforces, so the screen hides the control
+    // and says why instead of discovering the refusal on the click.
+    const removal = await factorRemoval.verdict(subject, ctx);
     return {
       data: {
         totpActive: status.totpActive,
         recoveryCodesRemaining: status.recoveryCodesRemaining,
         totpEnabledForScope: policy.totpEnabled,
         totpEnforcedForScope: policy.totpEnforced,
+        canDisable: removal.canDisable,
+        disableBlockedReason: removal.disableBlockedReason,
         // Issue #194 — the contract has declared this field since feature 042
         // and the handler answered `[]` unconditionally, so the account holder
         // could neither see a linked identity nor reach the route that removes

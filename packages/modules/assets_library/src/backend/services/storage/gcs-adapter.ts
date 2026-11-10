@@ -134,6 +134,12 @@ export class GcsStorageAdapter implements StorageAdapter {
       version: 'v4',
       action: 'read',
       expires: expiresAt.getTime(),
+      ...(input.responseHeaders
+        ? {
+            responseType: input.responseHeaders.contentType,
+            responseDisposition: input.responseHeaders.contentDisposition,
+          }
+        : {}),
     });
     return { url, expiresAt };
   }

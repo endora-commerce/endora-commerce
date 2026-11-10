@@ -49,6 +49,7 @@ Operator włącza i wyłącza ten moduł na **/platform/modules**. Decyduje o ty
 | Kod | Nazwa | Typ |
 | --- | --- | --- |
 | `webhooks.enabled` | Webhooks enabled | `boolean` |
+| `webhooks.delivery_retention_days` | Delivery history retention (days) | `number` |
 
 ## Tłumaczenia
 

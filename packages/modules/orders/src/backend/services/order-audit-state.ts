@@ -3,6 +3,7 @@ import type { CustomFieldValuePort } from '@endora-commerce/contracts';
 import { ERROR_CODES, isUuidShape } from '@endora-commerce/contracts';
 import type { Command } from '@endora-commerce/platform/commands';
 import { HttpError } from '@endora-commerce/platform/http';
+import { LockMode } from '@mikro-orm/core';
 import { layoutShape, type OrderLineLayout } from '../domain/quote-line-groups.js';
 import { Order } from '../entities/order.entity.js';
 
@@ -97,7 +98,13 @@ export function orderCustomFieldsUpdateCommand(
     objectId: orderId,
     run: async ({ em }) => {
       if (!isUuidShape(orderId)) throw new HttpError(404, ERROR_CODES.NOT_FOUND, 'Order not found.');
-      const order = await em.findOne(Order, { id: orderId });
+      // The one read of the row, `for update` (#399): the change set and the
+      // merge are both made over the bag this transaction holds.
+      const order = await em.findOne(
+        Order,
+        { id: orderId },
+        { lockMode: LockMode.PESSIMISTIC_WRITE, refresh: true },
+      );
       if (!order) throw new HttpError(404, ERROR_CODES.NOT_FOUND, 'Order not found.');
       const current = { ...(order.customFieldValues ?? {}) };
       order.customFieldValues = await customFieldValues.validateAndMerge('order', current, patch);

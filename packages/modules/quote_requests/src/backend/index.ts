@@ -830,28 +830,24 @@ export const entities = [
 
 /**
  * What global search's Quote Request provider reads through: this module's own
- * admin service, asked with the same admin context the list's routes resolve,
- * and this module's bundle for status labels. Built outside the boot hook so
- * the hook only registers — the closures run per search, never at boot.
+ * admin service, under the request's tenant scope — which is the whole of the
+ * list's visibility since issue #957 — and this module's bundle for status
+ * labels. Built outside the boot hook so the hook only registers — the closures
+ * run per search, never at boot.
  */
 function quoteRequestAdminSearchDeps(ctx: ModuleContext): QuoteRequestAdminSearchProviderDeps {
-  const admins = lazyPort<AdminUserReadPort>(ctx, 'adminUserReadPort');
-  const roles = lazyPort<AdminRolePort>(ctx, 'adminRolePort');
   const i18n = lazyPort<AdminI18nTranslatePort>(ctx, 'adminI18nService');
   return {
-    search: async (query, adminUserId) =>
-      ctx
-        .cradle<QuoteRequestsCradle>()
-        .quoteRequests.handle()
-        .adminService.searchForAdmin(await rfqAdminContextFor(admins, roles, adminUserId), query),
+    search: (query) =>
+      ctx.cradle<QuoteRequestsCradle>().quoteRequests.handle().adminService.searchForAdmin(query),
     translate: (key, language) => i18n.translate('quote_requests', key, language),
   };
 }
 
 /**
- * Who is administering, as the quote request list's routes and global search
- * both read it: the role decides whether the sales-representative visibility
- * rule applies (`isPlatformAdmin`) and what the event records call the actor.
+ * Who is administering, as the quote request routes read it: what the event
+ * records call the actor. Which organizations they reach is the tenant scope's
+ * answer, not this one's (issue #957).
  */
 async function rfqAdminContextFor(
   admins: AdminUserReadPort,

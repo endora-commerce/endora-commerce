@@ -73,13 +73,28 @@ export interface OrderListScope {
   readonly empty: boolean;
 }
 
-/** The list scope a constraint (the ambient one by default) implies, or `undefined` for every organization. */
-export function orderListScopeFor(constraint: OrgConstraint = orgConstraintFor()): OrderListScope | undefined {
-  if (constraint.kind === 'all') return undefined;
+/**
+ * The list scope a constraint implies, or `undefined` for every organization.
+ *
+ * With **no argument** — the ambient constraint — `where` is `{}`: `Order` is
+ * `@OrgScoped`, so the global filter already applies exactly this predicate to
+ * every statement the list issues through the entity manager, and spelling it
+ * a second time made each of them carry the reach twice (issue #955, architect
+ * ruling Q3: the orders list for a sales representative ran four statements,
+ * each with the excluded set twice). `sql` stays, for `searchForAdmin`, which
+ * reads through knex where no global filter applies; `empty` stays, for the
+ * short-circuit.
+ *
+ * With an **explicit** constraint — `orderListPort`'s caller-authorised
+ * allowed set, narrower than the ambient scope — `where` carries it.
+ */
+export function orderListScopeFor(constraint?: OrgConstraint): OrderListScope | undefined {
+  const effective = constraint ?? orgConstraintFor();
+  if (effective.kind === 'all') return undefined;
   return {
-    where: orgScopeWhere('organizationId', constraint),
-    sql: orgScopeSql('organization_id', constraint),
-    empty: reachesNoOrganization(constraint),
+    where: constraint === undefined ? {} : orgScopeWhere('organizationId', effective),
+    sql: orgScopeSql('organization_id', effective),
+    empty: reachesNoOrganization(effective),
   };
 }
 

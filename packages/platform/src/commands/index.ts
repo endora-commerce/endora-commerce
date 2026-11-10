@@ -26,8 +26,9 @@
  * author will look for them:
  *
  *  - **the bus's construction** — `CommandBusOptions` and
- *    `CommandRequestMeta`. A composition root builds the one {@link CommandBus}
- *    and supplies its request-metadata resolver; a module resolves
+ *    `CommandRequestMeta`. A composition root builds the one {@link CommandBus},
+ *    which reads request metadata from the ambient platform scope unless a
+ *    resolver is supplied (issue #997); a module resolves
  *    `commandBus` from the container and calls `run`. The class travels because
  *    75 module files name it in a constructor signature or a cradle field.
  *  - **the command registry**, which this barrel exported until T042f pruned it
