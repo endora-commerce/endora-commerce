@@ -2473,6 +2473,21 @@ export const RECORDED_READ_SIZES: Readonly<Record<string, RecordedReadSize>> = {
     // reads a module package's sources and not `backend/test`, so the move is an
     // arrival rather than a transfer — measured, by taking the file back out.
   },
+  'backend/scripts/check-custom-field-writes.ts': {
+    prefix: '[custom-field-writes]',
+    run: { kind: 'tsx', path: 'scripts/check-custom-field-writes.ts', args: [] },
+    // **Feature 175 (`specs/175-buyer-input-custom-fields/`), first recording.** Every
+    // registered module's manifest, the custom-field registry, and the route sources of
+    // the modules that declare `customFieldWrites`. Measured in a fresh detached worktree
+    // carrying this branch's change, after `setup-worktree.sh` and `build:packages`, with
+    // `docs/docs/modules` cleaned.
+    files: 809,
+    // Declarations read: route declarations, exemptions and buyer surfaces.
+    sites: 22,
+    // `entity-types` is the contracts' supported types reconciled against the registry
+    // this run read.
+    sources: ['entity-types', 'manifest-index'],
+  },
   'backend/scripts/check-diacritic-folds.ts': {
     prefix: '[diacritic-folds]',
     run: { kind: 'tsx', path: 'scripts/check-diacritic-folds.ts', args: [] },

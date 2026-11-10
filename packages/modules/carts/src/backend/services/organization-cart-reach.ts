@@ -1,6 +1,6 @@
 import { ERROR_CODES } from '@endora-commerce/contracts';
 import { HttpError } from '@endora-commerce/platform/http';
-import { isOrgInScope, withSystemScope } from '@endora-commerce/platform/tenancy';
+import { orgInScope, withSystemScope } from '@endora-commerce/platform/tenancy';
 
 /**
  * The one way a member who approves carts reads the carts of their
@@ -24,7 +24,7 @@ import { isOrgInScope, withSystemScope } from '@endora-commerce/platform/tenancy
  *    the caller is the approval cascade, which `organizations` and
  *    `customer_accounts` announce for this Organization (FR-034);
  *  - the Organization is re-checked against the **ambient** tenant context
- *    (`isOrgInScope`) before anything widens, so the crossing can never reach
+ *    (`orgInScope`) before anything widens, so the crossing can never reach
  *    an Organization the request itself is not scoped to — that refusal is the
  *    same 404 a foreign cart gets, never a 403 (anti-enumeration);
  *  - every statement `fn` runs names `organizationId` in its own `where`, so
@@ -34,9 +34,9 @@ import { isOrgInScope, withSystemScope } from '@endora-commerce/platform/tenancy
  * own context, so the write is attributed to the approver and not to the
  * system.
  */
-export function readOrganizationCarts<T>(organizationId: string, fn: () => Promise<T>): Promise<T> {
-  if (!isOrgInScope(organizationId)) {
-    return Promise.reject(new HttpError(404, ERROR_CODES.NOT_FOUND, 'cart_not_found'));
+export async function readOrganizationCarts<T>(organizationId: string, fn: () => Promise<T>): Promise<T> {
+  if (!(await orgInScope(organizationId))) {
+    throw new HttpError(404, ERROR_CODES.NOT_FOUND, 'cart_not_found');
   }
   return withSystemScope(
     `carts: an approver reads the member carts of organization ${organizationId}`,

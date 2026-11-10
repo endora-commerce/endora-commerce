@@ -175,6 +175,14 @@ export interface AdminRoute {
   readonly clauses: GateClauses;
   /** The `preHandler` as written, for a failure message that can be acted on. */
   readonly gateText: string;
+  /**
+   * The identifier the registration validates its body with — `schema: { body:
+   * X }` read as `X` — or `null` where there is none or it is not a bare name
+   * (`X.optional()`, a computed options object). Read for
+   * `check:custom-field-writes` (feature 175), which compares it against the
+   * body a host declares for the route.
+   */
+  readonly body?: string | null;
 }
 
 /** Resolves a constant argument to its literal; injected so fixtures can drive it. */
@@ -210,6 +218,13 @@ export interface RouteScanInput {
    * where a registrar is mounted and be held to it.
    */
   readonly pathBindings?: ReadonlyMap<string, ReadonlyMap<string, readonly string[]>>;
+  /**
+   * Which registrations are read: those whose path starts with this. Defaults
+   * to `/api/v1/admin`, this rule's own subject; `check:custom-field-writes`
+   * (feature 175) reads the buyer-facing `/api/v1` routes through the same
+   * reader rather than a second one.
+   */
+  readonly pathPrefix?: string;
 }
 
 // ---------------------------------------------------------------------------
@@ -418,10 +433,27 @@ function external(name: string, context: PathContext): PathReading {
  * Whether the literal start of a path settles that it is **not** an admin path:
  * it has diverged from `/api/v1/admin` before the unresolved part began.
  */
-function provablyNotAdmin(head: string): boolean {
+function provablyNotAdmin(head: string, prefix: string = ADMIN_API_PREFIX): boolean {
   if (head === '') return false;
-  const compared = Math.min(head.length, ADMIN_API_PREFIX.length);
-  return head.slice(0, compared) !== ADMIN_API_PREFIX.slice(0, compared);
+  const compared = Math.min(head.length, prefix.length);
+  return head.slice(0, compared) !== prefix.slice(0, compared);
+}
+
+/** `schema: { body: X }` in a registration's options object, as `X`, or `null`. */
+function bodyOf(options: ts.Node | undefined): string | null {
+  if (options === undefined || !ts.isObjectLiteralExpression(options)) return null;
+  const valueOf = (object: ts.ObjectLiteralExpression, name: string): ts.Expression | null => {
+    for (const property of object.properties) {
+      if (ts.isPropertyAssignment(property) && property.name.getText() === name) return property.initializer;
+      if (ts.isShorthandPropertyAssignment(property) && property.name.text === name) return property.name;
+    }
+    return null;
+  };
+  const schema = valueOf(options, 'schema');
+  if (schema === null || !ts.isObjectLiteralExpression(schema)) return null;
+  const body = valueOf(schema, 'body');
+  if (body === null) return null;
+  return ts.isIdentifier(body) || ts.isPropertyAccessExpression(body) ? tailName(body) : null;
 }
 
 /** The permission codes a guard call requires, as one clause, or `null`. */
@@ -635,17 +667,18 @@ function fullDeclarationOf(
   return { methods, url, options };
 }
 
-/** Every `/api/v1/admin/**` route registration under `sources`, with its gate. */
+/** Every route registration under `sources` whose path starts with the prefix (`/api/v1/admin` by default), with its gate and body schema. */
 export function findAdminRoutes(input: RouteScanInput): RouteScanResult {
   const routes: AdminRoute[] = [];
   const unreadable: UnreadableRegistration[] = [];
+  const prefix = input.pathPrefix ?? ADMIN_API_PREFIX;
 
   for (const [file, text] of input.sources) {
     // A file that neither names the admin prefix nor registers Fastify routes
     // holds nothing to read. The second half is what keeps a registrar mounted
     // under a prefix it is *handed* in the population: it never spells the
     // prefix, and skipping it is how its routes went unread.
-    if (!text.includes(ADMIN_API_PREFIX) && !/from 'fastify'/.test(text)) continue;
+    if (!text.includes(prefix) && !/from 'fastify'/.test(text)) continue;
     const sf = ts.createSourceFile(file, text, ts.ScriptTarget.Latest, true);
     const bindings = localBindings(sf);
     const moduleId = moduleIdOf(file, input.hostResidentModules);
@@ -689,24 +722,25 @@ export function findAdminRoutes(input: RouteScanInput): RouteScanResult {
       const pathText = pathArgument.getText().replace(/\s+/g, ' ').slice(0, 120);
       if (reading.values === null) {
         // What was read already shows the path has left the admin prefix.
-        if (provablyNotAdmin(reading.head)) return;
+        if (provablyNotAdmin(reading.head, prefix)) return;
         // A call that is not shaped like a registration is only a registration
         // if its path says so in as many words; `rows.get(`${id}:order`, …)`
         // is a template and is not a route.
-        if (!shaped && !pathText.includes(ADMIN_API_PREFIX)) return;
+        if (!shaped && !pathText.includes(prefix)) return;
         unreadable.push({ file, line, pathText });
         return;
       }
-      const admin = reading.values.filter((path) => path.startsWith(ADMIN_API_PREFIX));
+      const admin = reading.values.filter((path) => path.startsWith(prefix));
       if (admin.length === 0) return;
       if (methods === null) {
         unreadable.push({ file, line, pathText });
         return;
       }
+      const body = bodyOf(optionsArgument);
       for (const path of admin) {
         const gate = gateOf(optionsArgument, file, input, bindings);
         for (const method of methods) {
-          routes.push({ file, line, method, path, moduleId, clauses: gate.clauses, gateText: gate.text });
+          routes.push({ file, line, method, path, moduleId, clauses: gate.clauses, gateText: gate.text, body });
         }
       }
     };

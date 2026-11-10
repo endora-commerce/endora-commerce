@@ -13,7 +13,7 @@ import type { ProjectTasks } from './project-tasks.js';
 export const DOCUMENT_LIST_GROUP_LIMIT = 10;
 
 export interface ProjectDocumentLookupServiceDeps {
-  access: Pick<ProjectAccess, 'loadVisible' | 'organizationIdsOf' | 'isOrgInScope' | 'searchVisible'>;
+  access: Pick<ProjectAccess, 'loadVisible' | 'organizationIdsOf' | 'orgInScope' | 'searchVisible'>;
   /** `orders`' list — lazy, resolved per call. `orders` cannot be switched off. */
   orders: OrderListPort;
   /** The one door to Quote Requests and Opportunities — asked `isPresent` first. */
@@ -47,13 +47,16 @@ export interface ProjectDocumentLookupServiceDeps {
 export class ProjectDocumentLookupService {
   constructor(private readonly deps: ProjectDocumentLookupServiceDeps) {}
 
+  async #inScope(organizationIds: readonly string[]): Promise<string[]> {
+    const reached = await Promise.all(organizationIds.map((id) => this.deps.access.orgInScope(id)));
+    return organizationIds.filter((_, index) => reached[index]);
+  }
+
   async documents(query: ProjectDocumentLookupQuery): Promise<RecordDocumentLookupResponse> {
     const organizationIds =
       query.projectId !== undefined
         ? await this.deps.access.organizationIdsOf((await this.deps.access.loadVisible(query.projectId)).id)
-        : [...new Set(query.organizationIds ?? [])].filter((organizationId) =>
-            this.deps.access.isOrgInScope(organizationId),
-          );
+        : await this.#inScope([...new Set(query.organizationIds ?? [])]);
     const q = (query.q ?? '').trim();
     const withOrganizations = organizationIds.length > 0;
     const quoteRequestsPresent = withOrganizations && this.deps.quoteRequests.isPresent('quote_request');

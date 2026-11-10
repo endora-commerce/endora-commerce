@@ -18,7 +18,7 @@ platformy (`/api/v1/admin/*`) są chronione przez `customers:manage`.
 
 | Metoda i ścieżka | Kto | Przeznaczenie |
 | --- | --- | --- |
-| `POST /api/v1/organizations/register` | anonimowy | Rejestracja organizacji i jej pierwszego członka, wysłanie e-maila weryfikacyjnego |
+| `POST /api/v1/organizations/register` | anonimowy | Rejestracja organizacji i jej pierwszego członka, wysłanie e-maila weryfikacyjnego; przenosi pola niestandardowe otwarte przy rejestracji (zob. *Pola niestandardowe przy rejestracji* niżej) |
 | `POST /api/v1/auth/email-verification/verify` | anonimowy | Użycie tokenu weryfikacyjnego |
 | `POST /api/v1/auth/customer/login` | anonimowy | Logowanie klienta → ustawia ciasteczko `b2b_session`; łączy koszyk anonimowy |
 | `POST /api/v1/auth/customer/logout` | klient | Zakończenie sesji |
@@ -38,14 +38,14 @@ platformy (`/api/v1/admin/*`) są chronione przez `customers:manage`.
 | `PATCH /api/v1/organizations/mine/addresses/:id` | klient (`addresses.manage`) | Aktualizacja |
 | `DELETE /api/v1/organizations/mine/addresses/:id` | klient (`addresses.manage`) | Usunięcie |
 | `GET /api/v1/admin/organizations` | administrator | Lista z `filter[status]` / `filter[vatStatus]` / `q`. Przedstawiciel handlowy widzi tylko organizacje ze swojego zasięgu (zob. pod tabelą) |
-| `POST /api/v1/admin/organizations` | administrator (`customers:manage`) | Utworzenie organizacji z jej kanałami sprzedaży (zob. *Kanały sprzedaży* niżej) |
+| `POST /api/v1/admin/organizations` | administrator (`customers:manage`) | Utworzenie organizacji z jej kanałami sprzedaży (zob. *Kanały sprzedaży* niżej) i wartościami pól niestandardowych (`customFieldValues`) |
 | `GET /api/v1/admin/organizations/sales-channel-options` | administrator (`customers:manage`) | Kanały oferowane w formularzu tworzenia |
 | `GET /api/v1/admin/organizations/:id/sales-channels` | administrator (`customers:read` lub `customers:manage`) | Kanały przypisane do organizacji i kanały, które można jej przypisać. `404 NOT_FOUND` dla organizacji spoza zasięgu przedstawiciela handlowego (zob. pod tabelą), jak dla organizacji, która nie istnieje |
 | `PUT /api/v1/admin/organizations/:id/sales-channels` | administrator (`customers:manage`) | Zastąpienie przypisanych kanałów (`{ salesChannelIds }`, co najmniej jeden); `404 NOT_FOUND` poza zasięgiem przedstawiciela handlowego, jak przy odczycie |
 | `GET /api/v1/admin/organizations/:id` | administrator | Organizacja z listą członków (`updatedAt`, członkowie z `lastLoginAt` i `organizationRole`; `predefinedRoles` podaje role Administrator i Członek) |
 | `PATCH /api/v1/admin/organizations/:id` | administrator | Zmiana nazwy, `status` lub `vatStatus`; opcjonalne `expectedUpdatedAt` → `409 VERSION_CONFLICT`, gdy dane są nieaktualne |
 | `POST /api/v1/admin/organizations/:id/members/invite` | administrator | Zaproszenie e-mailem (`{ email, roleId? }`, domyślnie rola Członek; z poziomu platformy) |
-| `POST /api/v1/admin/organizations/:id/members` | administrator | Bezpośrednie utworzenie członka z hasłem (`roleId?`, domyślnie rola Członek) |
+| `POST /api/v1/admin/organizations/:id/members` | administrator | Bezpośrednie utworzenie członka z hasłem (`roleId?`, domyślnie rola Członek) i wartościami pól niestandardowych konta (`customFieldValues`) |
 | `PATCH /api/v1/admin/organizations/:id/members/:customerAccountId/role` | administrator | Przypisanie roli (`{ roleId, expectedUpdatedAt? }`) |
 | `DELETE /api/v1/admin/organizations/:id/members/:customerAccountId` | administrator | Usunięcie miękkie członka (z ochroną ostatniego administratora) |
 | `POST /api/v1/admin/organizations/:id/recover-admin-access` | administrator | Procedura awaryjna — nadanie istniejącemu członkowi roli Administrator |
@@ -393,6 +393,168 @@ zamiast rejestrować; z JavaScriptem Enter pobiera dane tylko w polu NIP.
 | `GET /api/v1/organizations/registration-options` | Czy wyszukiwanie jest włączone i dla których krajów (sklep zapamiętuje odpowiedź do 5 minut i odświeża ją po zmianie ustawienia) |
 | `POST /api/v1/organizations/registry-lookup` | Jedno wyszukiwanie (`{ taxId, country }`); odpowiada `found`, `not_found`, `unavailable`, `invalid_tax_id` albo `unsupported_country` wraz z `lookupId` |
 | `POST /api/v1/organizations/register` | Przyjmuje opcjonalne `registryLookupId` na najwyższym poziomie; dane z rejestru są odczytywane z magazynu platformy, nigdy z żądania |
+
+### Pola niestandardowe przy rejestracji
+
+Administrator może poprosić rejestrującą się firmę o więcej niż własne pola
+platformy — skąd wie o sklepie, z jakiej jest branży, numer telefonu — bez
+zmiany kodu: definiuje pole na ekranie **Pola niestandardowe** dla
+*Organizacji* albo *Klientów* i zaznacza **Zbieraj od kupującego podczas
+rejestracji**. Formularz rejestracji pokazuje je wtedy z etykietą w języku
+sklepu i z oznaczeniem, gdy jest wymagane: pola organizacji w sekcji firmy, pola
+klienta w sekcji danych osobowych. To, co wypełniono, zapisuje się w nowej
+organizacji i na koncie osoby, która się rejestruje, razem z samą rejestracją;
+moderator odczytuje to w panelach *Pola niestandardowe* organizacji i klienta.
+
+- **Przyjmowane są tylko pola zaznaczone do rejestracji.** Wartość dla każdego
+  innego pola — wewnętrznego, pola drugiego typu rekordu, nieistniejącego — jest
+  odrzucana, nigdy pomijana, podobnie jak wartość złego typu albo kształtu.
+  Tekst ma najwyżej 1 000 znaków, a pól każdego typu rekordu można wysłać
+  najwyżej 50.
+- **Odrzucona rejestracja niczego nie tworzy**: ani organizacji, ani konta, ani
+  powiązania z kanałem sprzedaży. Każda odmowa jest podana przy swoim polu, w
+  języku kupującego, a formularz wraca ze wszystkim, co wpisano, poza hasłem.
+- **Wymagane pole zaznaczone do rejestracji trzeba wypełnić**; wymagane pole,
+  które nie jest zaznaczone, nie jest wymagane przy rejestracji.
+- Wpis rejestracji w dzienniku audytu zapisuje, **które** pola wypełniono,
+  nigdy ich wartości.
+
+Formularz *Nowa organizacja* i formularz bezpośredniego tworzenia członka
+pokazują te same pola — każde, które administrator może edytować — i wysyłają je
+razem z utworzeniem; pole wymagane trzeba wypełnić także tam, a odmowa jest
+pokazywana przy polu. Utworzenia w panelu sprawdzają wartości według reguł
+administratora — wypełnić można każde pole danego typu rekordu, nie tylko te
+otwarte przy rejestracji.
+
+**Żądanie.** `POST /api/v1/organizations/register` przyjmuje dwie opcjonalne
+grupy, każda to mapa kluczy pól na wartości, a żądanie bez nich działa dokładnie
+tak jak wcześniej:
+
+```json
+{
+  "organization": {
+    "name": "Acme Sp. z o.o.",
+    "taxId": "PL5260250274",
+    "registeredAddress": { "street": "ul. Prosta 1", "city": "Warszawa", "postalCode": "00-001", "country": "PL" },
+    "customFieldValues": { "acquisition_source": "trade_fair" }
+  },
+  "firstUser": {
+    "email": "anna@acme.example",
+    "password": "…",
+    "firstName": "Anna",
+    "lastName": "Nowak",
+    "customFieldValues": { "phone": "+48 600 000 000" }
+  },
+  "acceptedTermsVersion": "2025-01"
+}
+```
+
+`organization.customFieldValues` zawiera pola organizacji,
+`firstUser.customFieldValues` — pola osoby. Pole *Tak / Nie* to `true` albo
+`false`, liczba to liczba JSON, data to `YYYY-MM-DD`, wybór to zapisana wartość
+opcji, wielokrotny wybór to tablica takich wartości.
+
+**Odmowa.** `422` `CUSTOM_FIELD_VALUE_INVALID`, jeden wpis `details` na każde
+odrzucone pole. `field` podaje grupę i klucz (`organization.<key>`,
+`firstUser.<key>`; samą grupę, gdy przeniosła więcej niż 50 pól), `code` to
+powód, a `message` to zdanie dla kupującego w języku żądania, które nie podaje
+ani klucza, ani wartości:
+
+```json
+{ "error": { "code": "CUSTOM_FIELD_VALUE_INVALID", "message": "Some fields are missing or invalid. Correct them and try again.", "details": [
+  { "field": "organization.acquisition_source", "code": "missing_required", "message": "This field is required.", "path": "organization.acquisition_source", "issue": "This field is required." },
+  { "field": "firstUser.credit_tier", "code": "not_open_for_input", "message": "This field cannot be filled in here.", "path": "firstUser.credit_tier", "issue": "This field cannot be filled in here." }
+] } }
+```
+
+Kody to `not_open_for_input`, `too_many_keys`, `missing_required`,
+`wrong_type`, `out_of_range`, `unknown_option` i `duplicate_option`. Pokazuj
+`message`; od `code` uzależniaj działanie tylko wtedy, gdy tego potrzebujesz.
+
+#### Dodanie pól do storefrontu utworzonego przed tym wydaniem
+
+Referencyjny storefront sam pokazuje otwarte pola. Storefront utworzony z
+wcześniejszego wydania ma własną kopię strony rejestracji i potrzebuje trzech
+zmian, wszystkich opartych na powyższym API.
+
+1. **Odczytaj otwarte pola** na stronie rejestracji, po stronie serwera:
+   `GET /api/v1/custom-fields/input-surfaces/organization.register`, z językiem
+   strony w `Accept-Language`. Nie wymaga sesji i odpowiada także w sklepie
+   zamkniętym dla anonimowych odwiedzających. `data.entities.organization` i
+   `data.entities.customer` to pola obu sekcji, każde
+   `{ key, valueType, required, label, options: [{ value, label }], sortOrder }`
+   w kolejności wyświetlania; typu bez otwartego pola nie ma w odpowiedzi albo
+   ma `[]`, a nieznana powierzchnia daje `200` z `entities: {}`. Zapisuj odpowiedź
+   w pamięci podręcznej (referencyjny storefront robi to na pięć minut) i
+   traktuj **każdy** błąd jako „brak dodatkowych pól”, żeby strona nigdy nie
+   zawiodła z ich powodu.
+2. **Pokaż jedną kontrolkę na pole** w jego sekcji, z jego `label`, z
+   oznaczeniem, gdy `required`: pola tekstowe i liczbowe, pole daty, pole
+   wyboru dla *Tak / Nie* (wyślij `false`, gdy nie jest zaznaczone), listę
+   rozwijaną albo grupę przycisków opcji dla pojedynczego wyboru i grupę pól
+   wyboru dla wielokrotnego wyboru.
+3. **Wyślij i pokaż z powrotem.** Umieść wartości w
+   `organization.customFieldValues` i `firstUser.customFieldValues`, pomijając
+   pola pozostawione puste. Przy `422` `CUSTOM_FIELD_VALUE_INVALID` umieść
+   `message` każdego wpisu `details` przy polu, które wskazuje jego `field`, i
+   pokaż formularz ponownie z tym, co wpisano — nigdy w adresie strony.
+
+Minimalny Server Component dla kroku 1 i pierwszej sekcji kroku 2 (Next.js App
+Router; `API_URL` to adres backendu):
+
+```tsx
+type OpenField = {
+  key: string;
+  valueType: 'text' | 'number' | 'boolean' | 'date' | 'select' | 'multiselect';
+  required: boolean;
+  label: string;
+  options: { value: string; label: string }[];
+};
+
+async function openRegistrationFields(language: string): Promise<{ organization: OpenField[]; customer: OpenField[] }> {
+  try {
+    const response = await fetch(`${process.env.API_URL}/api/v1/custom-fields/input-surfaces/organization.register`, {
+      headers: { 'Accept-Language': language },
+      next: { revalidate: 300 },
+    });
+    if (!response.ok) return { organization: [], customer: [] };
+    const { data } = (await response.json()) as { data: { entities: Record<string, OpenField[]> } };
+    return { organization: data.entities.organization ?? [], customer: data.entities.customer ?? [] };
+  } catch {
+    return { organization: [], customer: [] };
+  }
+}
+
+export async function CompanyExtraFields({ language }: { language: string }) {
+  const { organization } = await openRegistrationFields(language);
+  return organization.map((field) => (
+    <label key={field.key}>
+      {field.label}
+      {field.required ? ' *' : null}
+      {field.valueType === 'select' ? (
+        <select name={`cf.organization.${field.key}`} required={field.required}>
+          <option value="" />
+          {field.options.map((option) => (
+            <option key={option.value} value={option.value}>{option.label}</option>
+          ))}
+        </select>
+      ) : (
+        <input
+          name={`cf.organization.${field.key}`}
+          type={field.valueType === 'date' ? 'date' : 'text'}
+          required={field.required}
+        />
+      )}
+    </label>
+  ));
+}
+```
+
+Akcja serwera odczytuje następnie każdą wartość formularza `cf.organization.<key>`
+do `organization.customFieldValues` (a `cf.customer.<key>` do
+`firstUser.customFieldValues`), zamieniając pole liczbowe przez `Number(...)`.
+Przykład pomija kontrolki *Tak / Nie* i wielokrotnego wyboru oraz rozmieszczenie
+błędów z kroku 3.
 
 ### Lista wyboru i wyszukiwanie bez polskich znaków
 

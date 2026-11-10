@@ -1,6 +1,7 @@
 import {
   defineModuleManifest,
   defineModuleSettingsManifest,
+  type CustomFieldWriteDeclaration,
 } from '@endora-commerce/contracts';
 
 /**
@@ -59,6 +60,23 @@ const settings = defineModuleSettingsManifest({
     },
   ],
 });
+
+/**
+ * Feature 175 (`specs/175-buyer-input-custom-fields/` research R-11) — the
+ * admin write of the `customer` host's values this module serves, for
+ * `check:custom-field-writes`. The `customer` create is `organizations`'
+ * (member direct-create) and is declared there. Read as a literal by the
+ * check: keep every entry a literal object.
+ */
+export const customFieldWrites = [
+  {
+    entityType: 'customer',
+    kind: 'values',
+    method: 'PATCH',
+    path: '/api/v1/admin/customers/:id/custom-fields',
+    body: 'customFieldValuesSchema',
+  },
+] satisfies CustomFieldWriteDeclaration[];
 
 export const manifest = defineModuleManifest({
   id: 'customers',

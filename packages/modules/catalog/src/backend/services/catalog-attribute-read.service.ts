@@ -248,6 +248,8 @@ export class CatalogAttributeReadService {
       labelDefault: definition.labelDefault,
       valueType,
       isRequired: definition.required,
+      // Feature 175 — `?? 'edit'`: a definition published before the attribute existed.
+      adminAccess: definition.adminAccess ?? 'edit',
       options: options.map((o) => ({
         id: o.id,
         value: o.value,

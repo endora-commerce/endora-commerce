@@ -5,6 +5,8 @@ import {
   MissingTenantContextError,
   throwIfScopeUnresolved,
   type ExcludedOrganizationsQuery,
+  memoiseReach,
+  type ExcludedReach,
   type TenantContext,
 } from './tenant-context.js';
 
@@ -38,12 +40,14 @@ export type OrgConstraint =
   | { readonly kind: 'allowed'; readonly organizationIds: readonly string[] }
   | {
       readonly kind: 'excluded';
-      /** Organizations governed by another representative. Never a consumer's input. */
-      readonly excludedOrganizationIds: readonly string[];
-      /** The representative's own assignments: ranking and "mine" filters only. */
-      readonly assignedOrganizationIds: readonly string[];
       /** Issue #955 — what the predicates render: the owner's SELECT of the excluded organizations. */
       readonly excludedOrganizationsQuery: ExcludedOrganizationsQuery;
+      /**
+       * Issue #955 Phase 2 — the excluded and assigned lists, loaded on demand
+       * and memoised once per tenant context. Only the async single-id helpers
+       * and the ranking await it; a rejection refuses, never widens.
+       */
+      readonly loadReach: () => Promise<ExcludedReach>;
     };
 
 /** Compute the org constraint from a context (defaults to the ambient one). */
@@ -66,9 +70,8 @@ export function orgConstraintFor(ctx: TenantContext | undefined = getTenantConte
     case 'excluded-set':
       return {
         kind: 'excluded',
-        excludedOrganizationIds: ctx.excludedOrganizationIds ?? [],
-        assignedOrganizationIds: ctx.assignedOrganizationIds ?? [],
         excludedOrganizationsQuery: requireExcludedQuery(ctx.excludedOrganizationsQuery),
+        loadReach: requireReachLoader(ctx.loadExcludedReach),
       };
   }
 }
@@ -79,6 +82,14 @@ function requireExcludedQuery(query: ExcludedOrganizationsQuery | undefined): Ex
     throw new Error('An `excluded` organization constraint must carry its excludedOrganizationsQuery (issue #955).');
   }
   return query;
+}
+
+/** An `excluded` constraint without its loader cannot answer a single-id question: refuse (issue #955). */
+function requireReachLoader(load: (() => Promise<ExcludedReach>) | undefined): () => Promise<ExcludedReach> {
+  if (load === undefined) {
+    throw new Error('An `excluded` organization constraint must carry its loadReach (issue #955).');
+  }
+  return load;
 }
 
 /**
@@ -95,9 +106,8 @@ export function orgConstraintForAdminScope(scope: AdminScopeInput): OrgConstrain
   if (scope.reach === 'excluding') {
     return {
       kind: 'excluded',
-      excludedOrganizationIds: scope.excludedOrganizationIds ?? [],
-      assignedOrganizationIds: scope.assignedOrganizationIds ?? [],
       excludedOrganizationsQuery: requireExcludedQuery(scope.excludedOrganizationsQuery),
+      loadReach: memoiseReach(requireReachLoader(scope.loadReach)),
     };
   }
   return { kind: 'allowed', organizationIds: scope.allowedOrganizationIds ?? [] };
@@ -194,13 +204,21 @@ export function orgScopeSql(columnSql: string, ctx?: OrgScopeSource): OrgScopeSq
 
 
 /**
- * Whether the ambient scope may act on `organizationId`. Platform-admin/system
- * see all; a single-org actor only their org; an `allowed` scope only its set;
- * a sales representative (`excluded`) every organization nobody else governs.
- * Use to gate writes (inserts) that the column filter cannot reach — respond
- * indistinguishably from "not found" (FR-008) when this returns false.
+ * Whether the scope may act on `organizationId` (issue #955 Phase 2: async).
+ * Platform-admin/system see all; a single-org actor only their org; an
+ * `allowed` scope only its set; a sales representative (`excluded`) every
+ * organization nobody else governs — read from the reach the owner loads on
+ * demand, once per tenant context. Use to gate writes (inserts) that the column
+ * filter cannot reach — respond indistinguishably from "not found" (FR-008)
+ * when this answers false.
+ *
+ * **Always await it.** It replaced the synchronous `isOrgInScope`, which was
+ * removed rather than retyped: `if (!isOrgInScope(x))` over a Promise is
+ * always false, which would have widened every gate silently. The promise lint
+ * rules (`no-floating-promises`, `no-misused-promises`) hold the call sites.
+ * A loader that fails rejects, so the gate refuses.
  */
-export function isOrgInScope(organizationId: string, ctx?: OrgScopeSource): boolean {
+export async function orgInScope(organizationId: string, ctx?: OrgScopeSource): Promise<boolean> {
   const constraint = constraintOf(ctx);
   switch (constraint.kind) {
     case 'all':
@@ -209,23 +227,57 @@ export function isOrgInScope(organizationId: string, ctx?: OrgScopeSource): bool
       return constraint.organizationId === organizationId;
     case 'allowed':
       return constraint.organizationIds.includes(organizationId);
-    case 'excluded':
+    case 'excluded': {
       // An empty id is how callers spell "no organization" (`?? ''`), and under
       // the other arms it is simply absent from the set. Here absence would be
       // *inclusion*, so it is refused by name: a row with no organization is in
       // nobody's reach (issue #305).
-      return organizationId !== '' && !constraint.excludedOrganizationIds.includes(organizationId);
+      if (organizationId === '') return false;
+      const { excludedOrganizationIds } = await constraint.loadReach();
+      return !excludedOrganizationIds.includes(organizationId);
+    }
+  }
+}
+
+/**
+ * Issue #955 Phase 2 — the scope as a **synchronous** test, obtained once,
+ * asynchronously: `const inScope = await orgScopeTest(); rows.filter((r) =>
+ * inScope(r.organizationId))`. For a caller that asks the question many times
+ * over rows it already holds (a page, a book's members), where awaiting
+ * {@link orgInScope} per row would be noise. The returned function is a plain
+ * boolean predicate, so it cannot be the Promise-in-an-`if` that the removal of
+ * `isOrgInScope` closed; it answers exactly what {@link orgInScope} answers,
+ * from the same memoised load. A failed load rejects here, before any row is
+ * judged.
+ */
+export async function orgScopeTest(ctx?: OrgScopeSource): Promise<(organizationId: string) => boolean> {
+  const constraint = constraintOf(ctx);
+  switch (constraint.kind) {
+    case 'all':
+      return () => true;
+    case 'single': {
+      const own = constraint.organizationId;
+      return (organizationId) => own === organizationId;
+    }
+    case 'allowed': {
+      const allowed = new Set(constraint.organizationIds);
+      return (organizationId) => allowed.has(organizationId);
+    }
+    case 'excluded': {
+      const excluded = new Set((await constraint.loadReach()).excludedOrganizationIds);
+      return (organizationId) => organizationId !== '' && !excluded.has(organizationId);
+    }
   }
 }
 
 /**
  * For rule-scoped entities (price_lists): given the set of organizations a rule
- * targets, decide whether the ambient scope may see it. Platform-admin/system
- * see everything; a scoped admin sees a rule only if it targets at least one
- * organization in their reach (or targets no org at all — a channel/global
- * rule).
+ * targets, decide whether the scope may see it (issue #955 Phase 2: async).
+ * Platform-admin/system see everything; a scoped admin sees a rule only if it
+ * targets at least one organization in their reach (or targets no org at all —
+ * a channel/global rule). Replaces the synchronous `ruleVisibleForScope`.
  */
-export function ruleVisibleForScope(ruleTargetOrgIds: readonly string[], ctx?: OrgScopeSource): boolean {
+export async function ruleInScope(ruleTargetOrgIds: readonly string[], ctx?: OrgScopeSource): Promise<boolean> {
   const constraint = constraintOf(ctx);
   switch (constraint.kind) {
     case 'all':
@@ -239,7 +291,7 @@ export function ruleVisibleForScope(ruleTargetOrgIds: readonly string[], ctx?: O
     }
     case 'excluded': {
       if (ruleTargetOrgIds.length === 0) return true;
-      const excluded = new Set(constraint.excludedOrganizationIds);
+      const excluded = new Set((await constraint.loadReach()).excludedOrganizationIds);
       return ruleTargetOrgIds.some((id) => !excluded.has(id));
     }
   }
@@ -248,12 +300,13 @@ export function ruleVisibleForScope(ruleTargetOrgIds: readonly string[], ctx?: O
 /**
  * The organizations a scoped admin is **assigned** (roll-up expanded), for
  * ranking — "assigned first" — and "mine" filters (issue #305). Empty for a
- * platform admin, a system scope and a single-org actor.
+ * platform admin, a system scope and a single-org actor. Async since issue
+ * #955 Phase 2: a representative's list is loaded on demand.
  *
  * It is never the reach: a sales representative reaches every unassigned
  * organization too. Filter through {@link orgScopeWhere} / {@link orgScopeSql}.
  */
-export function assignedOrganizationIdsForRanking(ctx?: OrgScopeSource): readonly string[] {
+export async function assignedOrganizationIdsForRanking(ctx?: OrgScopeSource): Promise<readonly string[]> {
   const constraint = constraintOf(ctx);
   switch (constraint.kind) {
     case 'all':
@@ -262,6 +315,6 @@ export function assignedOrganizationIdsForRanking(ctx?: OrgScopeSource): readonl
     case 'allowed':
       return constraint.organizationIds;
     case 'excluded':
-      return constraint.assignedOrganizationIds;
+      return (await constraint.loadReach()).assignedOrganizationIds;
   }
 }

@@ -125,7 +125,6 @@ import {
   adminLayout,
   basketLayout,
   carryQuoteGrouping,
-  layoutShape,
   type OrderLineGroupingInput,
 } from '../domain/quote-line-groups.js';
 import { quoteSourceHonoursExemptions } from '../domain/quote-source-exemption.js';
@@ -144,6 +143,7 @@ import {
 } from './placement-minimums.js';
 import { returnableAtPurchase } from './returnable-at-purchase.js';
 import { orderTotalsMoney } from './order-money.js';
+import { placeOnBehalfAuditState } from './order-audit-state.js';
 import type { InvoicePlacementApplyPort } from '@endora-commerce/mod-invoices/ports';
 import type { PaymentPlacementApplyPort } from '../../ports/index.js';
 import type { CreditLimitPort } from '@endora-commerce/mod-credit-limits/ports';
@@ -1739,6 +1739,15 @@ export class OrderService {
        * is not read.
        */
       workingBasketId?: string | undefined;
+      /**
+       * Feature 175 (FR-017) — custom-field values the admin create has
+       * ALREADY VALIDATED (`validateAndMerge('order', {}, …)`), stored on the
+       * new order over anything carried from a quote request; the on-behalf
+       * audit row names their keys (`changedCustomFields`), never the values
+       * (`specs/conventions/audit-state.md`). This module's own admin create
+       * path only.
+       */
+      customFieldValues?: Record<string, unknown> | undefined;
     },
   ): Promise<Order> {
     const em = this.emFactory();
@@ -2421,6 +2430,9 @@ export class OrderService {
         // Issue #417 — placed under the per-rate VAT method.
         vatMethod: 'per_rate',
         ...(carry && carry.carried.length > 0 ? { customFieldValues: { ...carry.values } } : {}),
+        ...(options?.customFieldValues
+          ? { customFieldValues: { ...(carry?.values ?? {}), ...options.customFieldValues } }
+          : {}),
       });
       await tx.persistAndFlush(order);
 
@@ -2833,15 +2845,13 @@ export class OrderService {
           objectType: 'order',
           objectId: order.id,
           stateBefore: null,
-          stateAfter: {
-            total: money.total,
-            currency,
-            status: order.status,
-            // Feature 159 (FR-081, research R-22) — the grouping's shape, when the order has one.
-            ...(lineLayout.groups.length > 0 ? { groups: layoutShape(lineLayout) } : {}),
-            // Feature 162 (US1-5) — the custom-field values carried from the request.
-            ...(carry && carry.carried.length > 0 ? { carriedCustomFieldKeys: [...carry.carried] } : {}),
-          },
+          stateAfter: placeOnBehalfAuditState({
+            order,
+            layout: lineLayout,
+            carriedCustomFieldKeys: carry?.carried ?? [],
+            // Feature 175 (FR-021) — the keys the administrator set on the create.
+            adminCustomFieldValues: options?.customFieldValues,
+          }),
         });
       }
 

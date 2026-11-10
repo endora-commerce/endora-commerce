@@ -28,7 +28,7 @@ import {
   type QuickOrderPreview as PreviewState,
 } from '../../../lib/api/quick-order-preview';
 import type { Metadata } from 'next';
-import { QUICK_ORDER_BUILD_MAX_ITEMS } from '@endora-commerce/contracts';
+import { LINE_QUANTITY_MAX, QUICK_ORDER_BUILD_MAX_ITEMS } from '@endora-commerce/contracts';
 import { localeRedirect } from '../../../lib/i18n/navigation';
 import { QUICK_ORDER_ERRORS } from '../../../lib/commerce-errors';
 import { errorFiguresQuery, urlErrorText } from '../../../lib/url-error-figures';
@@ -286,6 +286,7 @@ export default async function QuickOrderPage({
                         type="number"
                         name="quantity"
                         min={1}
+                        max={LINE_QUANTITY_MAX}
                         defaultValue={1}
                         style={{ width: 64 }}
                         aria-label={t('quickOrder.qtyFor').replace('{sku}', () => r.sku)}
@@ -408,6 +409,7 @@ function PreviewPanel({
                         type="number"
                         name="quantity"
                         min={1}
+                        max={LINE_QUANTITY_MAX}
                         defaultValue={r.quantity}
                         style={{ width: 72 }}
                         aria-label={t('quickOrder.qtyFor').replace('{sku}', () => r.sku)}
@@ -538,6 +540,15 @@ async function returnWithPreview(
   return await localeRedirect(quickOrderHref(q));
 }
 
+/**
+ * The quantity a form typed, kept within 1…`LINE_QUANTITY_MAX`: below 1 (or not a number) is 1, as
+ * it always was, and past the bound is the bound — a line the build would refuse (issue #351).
+ */
+function typedQuantity(formData: FormData): number {
+  const typed = Number.parseInt((formData.get('quantity') as string) ?? '1', 10) || 1;
+  return Math.min(LINE_QUANTITY_MAX, Math.max(1, typed));
+}
+
 async function addSearchResultAction(formData: FormData): Promise<void> {
   'use server';
   const session = await getSessionCookie();
@@ -546,7 +557,7 @@ async function addSearchResultAction(formData: FormData): Promise<void> {
   const productId = (formData.get('productId') as string) ?? '';
   const sku = (formData.get('sku') as string) ?? '';
   const q = ((formData.get('q') as string) ?? '').trim();
-  const quantity = Math.max(1, Number.parseInt((formData.get('quantity') as string) ?? '1', 10) || 1);
+  const quantity = typedQuantity(formData);
 
   const preview: PreviewState = (await loadPreview(session)) ?? {
     recognized: [],
@@ -557,7 +568,7 @@ async function addSearchResultAction(formData: FormData): Promise<void> {
   // If the product is already in the list, bump its quantity; else append.
   const existing = preview.recognized.find((r) => r.productId === productId && !r.variantId);
   if (existing) {
-    existing.quantity += quantity;
+    existing.quantity = Math.min(LINE_QUANTITY_MAX, existing.quantity + quantity);
   } else {
     const nextLine = preview.recognized.reduce((max, r) => Math.max(max, r.line), 0) + 1;
     preview.recognized.push({ line: nextLine, sku, productId, variantId: null, quantity });
@@ -573,7 +584,7 @@ async function updateQuantityAction(formData: FormData): Promise<void> {
   if (!session) return await localeRedirect('/login');
   const preview = await loadPreview(session);
   const line = Number.parseInt((formData.get('line') as string) ?? '', 10);
-  const quantity = Math.max(1, Number.parseInt((formData.get('quantity') as string) ?? '1', 10) || 1);
+  const quantity = typedQuantity(formData);
   // The form was rendered from a preview, so one that is gone has expired (issue #809).
   if (!preview) return await localeRedirect('/quick-order?problem=preview_expired');
 

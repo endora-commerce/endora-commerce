@@ -162,6 +162,8 @@ describe('§1.1 the listFilter attribute', () => {
     sortOrder: 0,
     config: {},
     carryTo: [],
+    customerInput: [],
+    adminAccess: 'edit',
     options: [],
     createdAt: NOW,
     updatedAt: NOW,

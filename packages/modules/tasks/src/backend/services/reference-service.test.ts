@@ -29,6 +29,7 @@ describe('TaskReferenceService — a mentioned Product (issue #963)', () => {
         quoteRequests: async () => false,
         opportunities: async () => false,
         projects: async () => false,
+        customFields: async () => false,
       },
     });
     expect(await service.resolve(`[[product:${PRODUCT}]]`)).toEqual([

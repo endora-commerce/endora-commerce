@@ -35,6 +35,8 @@ export const PROJECTS_READ_PERMISSION = 'projects:read';
  * here: a reader without it sees no Task.
  */
 export const TASKS_READ_PERMISSION = 'tasks:read';
+/** `custom_fields`' read permission: a Task's custom-field values in its history (#470, feature 162 P2 = a). */
+export const CUSTOM_FIELDS_READ_PERMISSION = 'custom_fields:read';
 
 /** Whether whoever is behind the request may read what one other module owns. */
 export type OwnerReadCheck = () => Promise<boolean>;
@@ -46,6 +48,7 @@ export interface OwnerReadChecks {
   quoteRequests: OwnerReadCheck;
   opportunities: OwnerReadCheck;
   projects: OwnerReadCheck;
+  customFields: OwnerReadCheck;
 }
 
 /**
@@ -68,5 +71,6 @@ export function createOwnerReadChecks(permissions: PermissionReadPort): OwnerRea
     quoteRequests: createOwnerReadCheck(permissions, QUOTE_REQUESTS_READ_PERMISSION),
     opportunities: createOwnerReadCheck(permissions, CRM_READ_PERMISSION),
     projects: createOwnerReadCheck(permissions, PROJECTS_READ_PERMISSION),
+    customFields: createOwnerReadCheck(permissions, CUSTOM_FIELDS_READ_PERMISSION),
   };
 }

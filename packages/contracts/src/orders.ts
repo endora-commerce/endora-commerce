@@ -28,6 +28,7 @@ import {
   savedListViewSortSchema,
 } from './saved-list-views.js';
 import { twoDecimalAmount } from './money-input.js';
+import { lineQuantitySchema, REQUEST_LINE_ITEMS_MAX } from './line-bounds.js';
 import { vatSummaryRowSchema } from './invoices.js';
 
 /**
@@ -741,7 +742,7 @@ export type UpdateOrderSavedViewRequest = z.infer<typeof updateOrderSavedViewReq
 export const adminCreateOrderItemSchema = z.object({
   productId: uuidSchema,
   variantId: uuidSchema.optional(),
-  quantity: z.number().int().positive(),
+  quantity: lineQuantitySchema,
 });
 
 /**
@@ -767,7 +768,7 @@ export type AdminCreateOrderInlineAddress = z.infer<typeof adminCreateOrderInlin
  * VALIDATION_FAILED`, `details: { code: 'too_many_items', maximum }`), deliberately not by
  * a schema `.max()`, which would answer 400.
  */
-export const ADMIN_ORDER_MAX_ITEMS = 200;
+export const ADMIN_ORDER_MAX_ITEMS = REQUEST_LINE_ITEMS_MAX;
 
 /**
  * Feature 159 — a line of the admin create request: the preview's item plus the
@@ -812,6 +813,11 @@ export const adminCreateOrderRequestSchema = z
      * not returned. Only this admin request may carry it.
      */
     origin: OriginReferenceSchema.optional(),
+    /**
+     * Feature 175 (FR-017) — the order's custom-field values, validated with
+     * the administrator's rules inside the creating Command.
+     */
+    customFieldValues: customFieldValuesSchema.optional(),
   })
   .superRefine((val, ctx) => {
     if ((val.deliveryAddressId == null) === (val.deliveryAddress == null)) {
@@ -873,7 +879,7 @@ export const apiPlaceOrderRequestSchema = z
       .array(
         z.object({
           sku: z.string().min(1),
-          quantity: z.number().int().min(1),
+          quantity: lineQuantitySchema,
         }),
       )
       .min(1),

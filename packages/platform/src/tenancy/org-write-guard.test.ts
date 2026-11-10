@@ -23,7 +23,7 @@ import {
  *
  * **Every case establishes its own context.** `vitest.setup.ts` enters
  * `mode: 'system'` in a global `beforeAll` *and* `beforeEach`, under which
- * `isOrgInScope` answers `true` for everything — so a case that did not open its
+ * `orgInScope` answers `true` for everything — so a case that did not open its
  * own context would pass whatever the subscriber did.
  *
  * It enters fixtures **at the decorator**, like `transitive-parent-resolution.test.ts`:
@@ -99,7 +99,7 @@ describe('OrgWriteGuardSubscriber — which writes it refuses', () => {
 
   it('refuses a create whose organization is outside an `allowed-set` scope', async () => {
     await runWithTenantContext(scopedTo(ORG_A), async () => {
-      expect(() => guard.beforeCreate(eventFor(row(ORG_B), 'GuardedRow'))).toThrow(
+      await expect(guard.beforeCreate(eventFor(row(ORG_B), 'GuardedRow'))).rejects.toThrow(
         OrgWriteOutOfScopeError,
       );
     });
@@ -107,7 +107,7 @@ describe('OrgWriteGuardSubscriber — which writes it refuses', () => {
 
   it('refuses an update whose organization is outside it — the cross-organization move', async () => {
     await runWithTenantContext(scopedTo(ORG_A), async () => {
-      expect(() => guard.beforeUpdate(eventFor(row(ORG_B), 'GuardedRow'))).toThrow(
+      await expect(guard.beforeUpdate(eventFor(row(ORG_B), 'GuardedRow'))).rejects.toThrow(
         OrgWriteOutOfScopeError,
       );
     });
@@ -116,7 +116,7 @@ describe('OrgWriteGuardSubscriber — which writes it refuses', () => {
   it('names the entity and never the organization, in the message or on the error', async () => {
     await runWithTenantContext(scopedTo(ORG_A), async () => {
       try {
-        guard.beforeCreate(eventFor(row(ORG_B), 'GuardedRow'));
+        await guard.beforeCreate(eventFor(row(ORG_B), 'GuardedRow'));
         expect.unreachable('the guard must refuse');
       } catch (error) {
         expect(error).toBeInstanceOf(OrgWriteOutOfScopeError);
@@ -131,10 +131,10 @@ describe('OrgWriteGuardSubscriber — which writes it refuses', () => {
 
   it('refuses a create outside a `single-org` scope and permits the one inside it', async () => {
     await runWithTenantContext(pinnedTo(ORG_A), async () => {
-      expect(() => guard.beforeCreate(eventFor(row(ORG_B), 'GuardedRow'))).toThrow(
+      await expect(guard.beforeCreate(eventFor(row(ORG_B), 'GuardedRow'))).rejects.toThrow(
         OrgWriteOutOfScopeError,
       );
-      expect(() => guard.beforeCreate(eventFor(row(ORG_A), 'GuardedRow'))).not.toThrow();
+      await expect(guard.beforeCreate(eventFor(row(ORG_A), 'GuardedRow'))).resolves.toBeUndefined();
     });
   });
 
@@ -144,17 +144,17 @@ describe('OrgWriteGuardSubscriber — which writes it refuses', () => {
       { mode: 'system', actor: { kind: 'system' as const }, reason: 'd260a-unit' } as TenantContext,
     ]) {
       await runWithTenantContext(ctx, async () => {
-        expect(() => guard.beforeCreate(eventFor(row(ORG_B), 'GuardedRow'))).not.toThrow();
+        await expect(guard.beforeCreate(eventFor(row(ORG_B), 'GuardedRow'))).resolves.toBeUndefined();
       });
     }
   });
 
-  it('fails closed with `MissingTenantContextError` when no context is established', () => {
+  it('fails closed with `MissingTenantContextError` when no context is established', async () => {
     // The same answer a *read* of the same class gets (`filters.ts`), and
     // deliberately not a second arm here that would decide how much of the
     // fail-closed guarantee to keep.
-    runWithoutTenantContext(() => {
-      expect(() => guard.beforeCreate(eventFor(row(ORG_B), 'GuardedRow'))).toThrow(
+    await runWithoutTenantContext(async () => {
+      await expect(guard.beforeCreate(eventFor(row(ORG_B), 'GuardedRow'))).rejects.toThrow(
         MissingTenantContextError,
       );
     });
@@ -167,8 +167,8 @@ describe('OrgWriteGuardSubscriber — what it deliberately leaves alone', () => 
   it('does not refuse a null or absent organization [D-259’s open question, not this guard’s]', async () => {
     await runWithTenantContext(scopedTo(ORG_A), async () => {
       const nulled = Object.assign(new GuardedRow(), { organizationId: null });
-      expect(() => guard.beforeCreate(eventFor(nulled, 'GuardedRow'))).not.toThrow();
-      expect(() => guard.beforeCreate(eventFor(new GuardedRow(), 'GuardedRow'))).not.toThrow();
+      await expect(guard.beforeCreate(eventFor(nulled, 'GuardedRow'))).resolves.toBeUndefined();
+      await expect(guard.beforeCreate(eventFor(new GuardedRow(), 'GuardedRow'))).resolves.toBeUndefined();
     });
   });
 
@@ -189,7 +189,7 @@ describe('OrgWriteGuardSubscriber — what it deliberately leaves alone', () => 
   it('falls back to the constructor name when the event carries no metadata', async () => {
     await runWithTenantContext(scopedTo(ORG_A), async () => {
       const guarded = Object.assign(new GuardedRow(), { organizationId: ORG_B });
-      expect(() => guard.beforeCreate(eventFor(guarded))).toThrow(OrgWriteOutOfScopeError);
+      await expect(guard.beforeCreate(eventFor(guarded))).rejects.toThrow(OrgWriteOutOfScopeError);
     });
   });
 });

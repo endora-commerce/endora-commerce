@@ -4,20 +4,24 @@ import { useTranslation } from '@endora-commerce/admin-kit/i18n';
 import type {
   CustomFieldAudience,
   CustomFieldEntityTypeInfo,
+  CustomFieldInputSurface,
   CustomFieldValueType,
   LocalizedLabel,
   SupportedEntityType,
 } from '@endora-commerce/contracts';
 import { entityTypeLabelKey } from '../lib/carry-labels.js';
+import { customerInputBlockReason } from '../lib/definition-draft.js';
 
 /**
  * The block's value. `carryTo` is present where the entity type offers carry
  * targets (feature 162) — a caller for a type that offers none leaves it out,
- * and `onChange` answers it back only when it was given or changed.
+ * and `onChange` answers it back only when it was given or changed. The same
+ * holds for `customerInput` and the buyer input surfaces (feature 175).
  */
 export interface DefinitionBehaviourValue {
   listFilter: boolean;
   carryTo?: SupportedEntityType[];
+  customerInput?: CustomFieldInputSurface[];
 }
 
 export interface DefinitionBehaviourFieldsProps {
@@ -60,8 +64,14 @@ export interface DefinitionBehaviourFieldsProps {
  *   what turning it on does without reading the block's prose (owner ruling
  *   V2, 2026-10-21). The narrow create-form row that explained the group with
  *   one shared line went with that row (issue #447).
+ * - *Collect from the buyer …*, one checkbox per
+ *   `entityTypeInfo.customerInputSurfaces` entry, none when the type declares
+ *   no surface (feature 175, FR-035). Disabled, with the reason beside it,
+ *   while the field is internal or holds Page Builder content — unless it is
+ *   already ticked, so the operator can still turn it off.
  */
 export function DefinitionBehaviourFields({
+  definition,
   entityTypeInfo,
   value,
   onChange,
@@ -75,7 +85,10 @@ export function DefinitionBehaviourFields({
   // `?? []`: an entry read from a server older than feature 162 has no marker.
   const carryTargets = entityTypeInfo.carryTargets ?? [];
   const carryTo = value.carryTo ?? [];
-  if (!entityTypeInfo.listFilter && carryTargets.length === 0) return null;
+  // `?? []`: an entry read from a server older than feature 175 has no marker.
+  const surfaces = entityTypeInfo.customerInputSurfaces ?? [];
+  const customerInput = value.customerInput ?? [];
+  if (!entityTypeInfo.listFilter && carryTargets.length === 0 && surfaces.length === 0) return null;
   const helpId = `${id}-help`;
   const carryErrorId = `${id}-carry-error`;
   const describedBy = (...ids: ReadonlyArray<string | false | undefined>): string | undefined =>
@@ -85,7 +98,37 @@ export function DefinitionBehaviourFields({
     onChange({
       listFilter: next.listFilter ?? value.listFilter,
       ...(value.carryTo !== undefined || next.carryTo !== undefined ? { carryTo: next.carryTo ?? carryTo } : {}),
+      ...(value.customerInput !== undefined || next.customerInput !== undefined
+        ? { customerInput: next.customerInput ?? customerInput }
+        : {}),
     });
+
+  const blockReason = customerInputBlockReason(definition);
+  const blockReasonId = `${id}-customer-input-reason`;
+  const customerInputHelpId = `${id}-customer-input-help`;
+  const customerInputControls = surfaces.map((surface) => {
+    const controlId = `${id}-customer-input-${surface}`;
+    const ticked = customerInput.includes(surface);
+    return (
+      <label key={controlId} htmlFor={controlId} className="flex min-h-11 items-center gap-2 text-sm font-medium">
+        <Checkbox
+          id={controlId}
+          checked={ticked}
+          disabled={disabled || (blockReason !== null && !ticked)}
+          aria-describedby={describedBy(customerInputHelpId, blockReason !== null && blockReasonId)}
+          onChange={(event): void =>
+            emit({
+              // Kept in the registry's order, whatever order they were ticked in.
+              customerInput: event.target.checked
+                ? surfaces.filter((candidate) => candidate === surface || customerInput.includes(candidate))
+                : customerInput.filter((candidate) => candidate !== surface),
+            })
+          }
+        />
+        {t(`customFields.customerInput.surface.${surface}`)}
+      </label>
+    );
+  });
 
   const listFilterControl = entityTypeInfo.listFilter ? (
     <label htmlFor={id} className="flex min-h-11 items-center gap-2 text-sm font-medium">
@@ -176,6 +219,20 @@ export function DefinitionBehaviourFields({
             </div>
           ))}
           {carryErrorLine('break-words text-sm')}
+        </fieldset>
+      ) : null}
+      {customerInputControls.length > 0 ? (
+        <fieldset className="space-y-2">
+          <legend className="text-sm font-semibold">{t('customFields.customerInput.legend')}</legend>
+          {customerInputControls}
+          <p id={customerInputHelpId} className={help}>
+            {t('customFields.customerInput.help')}
+          </p>
+          {blockReason !== null ? (
+            <p id={blockReasonId} className={help}>
+              {t(blockReason)}
+            </p>
+          ) : null}
         </fieldset>
       ) : null}
     </div>

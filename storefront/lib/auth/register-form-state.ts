@@ -1,4 +1,5 @@
-import { registryLookupIdSchema } from '@endora-commerce/contracts';
+import { registryLookupIdSchema, type InputSurfaceField } from '@endora-commerce/contracts';
+import type { RegistrationCustomFields } from '../api/custom-field-input';
 import type { LookupCompanyOutcome } from '../api/registry-lookup';
 
 /**
@@ -46,11 +47,42 @@ export interface RegisterLookupState {
   noDetails: boolean;
 }
 
+/**
+ * Feature 175 — one custom field as the buyer typed it: the text of a text,
+ * number, date or single-choice field, the ticked options of a multiselect, the
+ * state of a checkbox. Never converted: it is what the form is re-seeded with.
+ */
+export type RegisterCustomFieldValue = string | string[] | boolean;
+
+/** The custom fields as typed, per group, keyed by definition key. */
+export interface RegisterCustomFieldGroups {
+  organization: Record<string, RegisterCustomFieldValue>;
+  customer: Record<string, RegisterCustomFieldValue>;
+}
+
+/** One refused custom field, as the backend named it. */
+export interface RegisterFieldError {
+  code: string;
+  /** The backend's sentence — said only for a code the storefront has no words for. */
+  message: string;
+}
+
 export interface RegisterFormState {
   values: RegisterFormValues;
   lookup: RegisterLookupState | null;
   /** The backend's translated message for a refused registration. */
   error: null | { code: string; message: string };
+  /**
+   * Feature 175 — the custom fields as typed, kept across a refusal and a
+   * lookup posted without JavaScript. Absent before the first answer.
+   */
+  customFields?: RegisterCustomFieldGroups;
+  /**
+   * Feature 175 — a refused registration's custom-field refusals, keyed as the
+   * backend names them: `organization.<key>` / `firstUser.<key>`, or the group
+   * alone (`organization`, `firstUser`) for a refusal of the whole group.
+   */
+  fieldErrors?: Record<string, RegisterFieldError>;
 }
 
 export const EMPTY_REGISTER_VALUES: RegisterFormValues = {
@@ -148,6 +180,8 @@ export function applyLookupOutcome(state: RegisterFormState, outcome: LookupComp
     values: { ...state.values, ...(companyValuesOf(outcome) ?? {}) },
     lookup: lookupStateOf(outcome),
     error: null,
+    // Feature 175 — the custom fields typed before a lookup posted without JavaScript.
+    ...(state.customFields ? { customFields: state.customFields } : {}),
   };
 }
 
@@ -155,11 +189,13 @@ export function applyLookupOutcome(state: RegisterFormState, outcome: LookupComp
  * A refused registration: every value but the password, the lookup the buyer
  * was shown, and the refusal. The reference the form posted is kept even when
  * the previous state lost it, so the retry still carries the snapshot (FR-017).
+ * Feature 175 — the custom fields as typed and their refusals, when given.
  */
 export function refusedRegistration(
   previous: RegisterFormState,
   formData: FormData,
   error: { code: string; message: string },
+  custom: { customFields?: RegisterCustomFieldGroups; fieldErrors?: Record<string, RegisterFieldError> } = {},
 ): RegisterFormState {
   const postedLookupId = lookupIdFromFormData(formData) ?? null;
   const lookup: RegisterLookupState | null =
@@ -173,5 +209,96 @@ export function refusedRegistration(
     values: valuesFromFormData(formData),
     lookup: lookup && postedLookupId && lookup.lookupId !== postedLookupId ? { ...lookup, lookupId: postedLookupId } : lookup,
     error,
+    ...(custom.customFields ? { customFields: custom.customFields } : {}),
+    ...(custom.fieldErrors && Object.keys(custom.fieldErrors).length > 0 ? { fieldErrors: custom.fieldErrors } : {}),
   };
+}
+
+// ---------------------------------------------------------------------------
+// Feature 175 — custom fields open on `organization.register`
+// (`specs/175-buyer-input-custom-fields/` research R-10, FR-031 – FR-033)
+// ---------------------------------------------------------------------------
+
+/** The form-field name of one custom field: `cf.organization.<key>` / `cf.customer.<key>`. */
+export function customFieldName(group: keyof RegisterCustomFieldGroups, key: string): string {
+  return `cf.${group}.${key}`;
+}
+
+/** One field as typed — the value the form is re-seeded with. */
+function typedValue(formData: FormData, name: string, field: InputSurfaceField): RegisterCustomFieldValue {
+  const all = formData.getAll(name).filter((v): v is string => typeof v === 'string');
+  switch (field.valueType) {
+    case 'boolean':
+      // The hidden `false` comes first, the checkbox's `true` after it when ticked.
+      return all.at(-1) === 'true';
+    case 'multiselect':
+      return all.filter((v) => v !== '');
+    default:
+      return all.at(-1) ?? '';
+  }
+}
+
+/**
+ * One field as the request carries it, or `undefined` for one left empty — a
+ * whitespace-only answer is empty, as the backend reads it. An unticked
+ * checkbox is `false`, never absent (spec edge case). A number is sent as one
+ * when it reads as one (a decimal comma accepted); otherwise as typed, for the
+ * backend to refuse beside the field.
+ */
+function requestValue(value: RegisterCustomFieldValue, field: InputSurfaceField): unknown {
+  if (typeof value === 'boolean') return value;
+  if (Array.isArray(value)) return value.length > 0 ? value : undefined;
+  const trimmed = value.trim();
+  if (trimmed === '') return undefined;
+  if (field.valueType === 'number') {
+    const number = Number(trimmed.replace(',', '.'));
+    return Number.isFinite(number) ? number : trimmed;
+  }
+  return trimmed;
+}
+
+/**
+ * The custom fields of one posted form, read against the fields the form was
+ * rendered with: `typed` re-seeds the form, `request` is each group's
+ * `customFieldValues` — a group with nothing to send is absent, so a form with
+ * no open field sends the request it always sent.
+ */
+export function customFieldsFromFormData(
+  formData: FormData,
+  fields: RegistrationCustomFields,
+): {
+  typed: RegisterCustomFieldGroups;
+  request: { organization?: Record<string, unknown>; customer?: Record<string, unknown> };
+} {
+  const typed: RegisterCustomFieldGroups = { organization: {}, customer: {} };
+  const request: { organization?: Record<string, unknown>; customer?: Record<string, unknown> } = {};
+  for (const group of ['organization', 'customer'] as const) {
+    const bag: Record<string, unknown> = {};
+    for (const field of fields[group]) {
+      const value = typedValue(formData, customFieldName(group, field.key), field);
+      typed[group][field.key] = value;
+      const sent = requestValue(value, field);
+      if (sent !== undefined) bag[field.key] = sent;
+    }
+    if (Object.keys(bag).length > 0) request[group] = bag;
+  }
+  return { typed, request };
+}
+
+/**
+ * The per-field refusals of a `422 CUSTOM_FIELD_VALUE_INVALID` envelope's
+ * `details` (`{ field, code, message }`), keyed by `field`. Anything else in
+ * the array is ignored.
+ */
+export function customFieldErrorsOf(details: unknown): Record<string, RegisterFieldError> {
+  if (!Array.isArray(details)) return {};
+  const out: Record<string, RegisterFieldError> = {};
+  for (const entry of details as unknown[]) {
+    if (!entry || typeof entry !== 'object') continue;
+    const { field, code, message } = entry as Record<string, unknown>;
+    if (typeof field === 'string' && typeof code === 'string') {
+      out[field] = { code, message: typeof message === 'string' ? message : '' };
+    }
+  }
+  return out;
 }

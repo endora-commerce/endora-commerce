@@ -1,6 +1,7 @@
 import {
   defineModuleManifest,
   defineModuleSettingsManifest,
+  type CustomFieldWriteDeclaration,
 } from '@endora-commerce/contracts';
 
 /**
@@ -90,6 +91,29 @@ const settings = defineModuleSettingsManifest({
 });
 
 /** Module-lifecycle manifest (feature 018). */
+/**
+ * Feature 175 (`specs/175-buyer-input-custom-fields/` research R-11) — the
+ * admin writes of this module's custom-field host, for
+ * `check:custom-field-writes`: the create on behalf and the update. Read as a
+ * literal by the check: keep every entry a literal object.
+ */
+export const customFieldWrites = [
+  {
+    entityType: 'quote_request',
+    kind: 'create',
+    method: 'POST',
+    path: '/api/v1/admin/quote-requests',
+    body: 'adminCreateQuoteRequestSchema',
+  },
+  {
+    entityType: 'quote_request',
+    kind: 'update',
+    method: 'PATCH',
+    path: '/api/v1/admin/quote-requests/:id',
+    body: 'adminPatchQuoteRequestSchema',
+  },
+] satisfies CustomFieldWriteDeclaration[];
+
 export const manifest = defineModuleManifest({
   id: 'quote_requests',
   name: 'Quote requests',

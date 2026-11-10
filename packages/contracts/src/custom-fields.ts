@@ -1,5 +1,6 @@
 import { z } from 'zod';
 import { calendarDateSchema, isoDateTimeSchema, uuidSchema } from './common.js';
+import type { SupportedLanguage } from './platform-language.js';
 
 /**
  * Custom Fields Layer (feature 055) — entity-agnostic runtime custom fields
@@ -116,6 +117,27 @@ export type CustomFieldValueType = z.infer<typeof customFieldValueTypeSchema>;
 export const customFieldAudienceSchema = z.enum(['customer', 'internal']);
 export type CustomFieldAudience = z.infer<typeof customFieldAudienceSchema>;
 
+/**
+ * Feature 175 — the forms on which a BUYER may supply a custom-field value
+ * (`specs/175-buyer-input-custom-fields/`, OD-3). A closed vocabulary: the
+ * next surface is a release, not data an operator types. A definition names
+ * the surfaces it is open on (`customerInput`); an entity type's registry entry
+ * names the surfaces it offers at all.
+ */
+export const customFieldInputSurfaceSchema = z.enum(['organization.register']);
+export type CustomFieldInputSurface = z.infer<typeof customFieldInputSurfaceSchema>;
+
+/**
+ * Feature 175 — how the admin custom-field panel offers a field: `edit`
+ * (an input), `read` (the value, no input) or `hidden` (not rendered).
+ *
+ * **A panel convenience, not access control** (OD-8, FR-007): no API endpoint
+ * reads it, so what the admin API accepts, answers, filters, exports and
+ * audits is the same at every level. A `required` field is always `edit`.
+ */
+export const customFieldAdminAccessSchema = z.enum(['edit', 'read', 'hidden']);
+export type CustomFieldAdminAccess = z.infer<typeof customFieldAdminAccessSchema>;
+
 export const localizedLabelSchema = z.record(z.string(), z.string());
 export type LocalizedLabel = z.infer<typeof localizedLabelSchema>;
 
@@ -186,6 +208,16 @@ export const customFieldDefinitionSchema = z.object({
   listFilter: z.boolean(),
   /** See {@link customFieldCarryToSchema} (feature 162). */
   carryTo: customFieldCarryToSchema,
+  /**
+   * Feature 175 — the input surfaces a buyer may supply this field's value on
+   * ({@link customFieldInputSurfaceSchema}). Only surfaces the entity type
+   * offers ({@link customFieldEntityTypeInfoSchema}); non-empty only with the
+   * `customer` audience and never for `page_builder`. Stored deduplicated and
+   * sorted.
+   */
+  customerInput: z.array(customFieldInputSurfaceSchema),
+  /** Feature 175 — see {@link customFieldAdminAccessSchema}. */
+  adminAccess: customFieldAdminAccessSchema,
   options: z.array(customFieldOptionSchema).default([]),
   createdAt: isoDateTimeSchema,
   updatedAt: isoDateTimeSchema,
@@ -200,10 +232,14 @@ export const createCustomFieldDefinitionSchema = customFieldDefinitionSchema
   // A definition created without `listFilter` is not a list filter; the
   // server reads the absence as `false` rather than the schema defaulting it.
   // A definition created without `carryTo` carries nothing (feature 162).
+  // Feature 175 — one created without `customerInput` is open on no surface,
+  // and one without `adminAccess` is editable in the admin panel.
   .extend({
     audience: customFieldAudienceSchema.default('internal'),
     listFilter: z.boolean().optional(),
     carryTo: customFieldCarryToSchema.default([]),
+    customerInput: z.array(customFieldInputSurfaceSchema).default([]),
+    adminAccess: customFieldAdminAccessSchema.default('edit'),
   });
 export type CreateCustomFieldDefinitionRequest = z.infer<typeof createCustomFieldDefinitionSchema>;
 
@@ -221,6 +257,8 @@ export const updateCustomFieldDefinitionSchema = createCustomFieldDefinitionSche
     config: z.record(z.string(), z.unknown()).optional(),
     listFilter: z.boolean().optional(),
     carryTo: customFieldCarryToSchema.optional(),
+    customerInput: z.array(customFieldInputSurfaceSchema).optional(),
+    adminAccess: customFieldAdminAccessSchema.optional(),
   });
 export type UpdateCustomFieldDefinitionRequest = z.infer<typeof updateCustomFieldDefinitionSchema>;
 
@@ -248,6 +286,12 @@ export const customFieldEntityTypeInfoSchema = z.object({
    * (feature 162), filtered to targets whose owner module is present.
    */
   carryTargets: z.array(supportedEntityTypeSchema).default([]),
+  /**
+   * Feature 175 — the input surfaces definitions of this type may be opened
+   * on; the definition editor offers the buyer-input option only when it is
+   * non-empty (FR-035).
+   */
+  customerInputSurfaces: z.array(customFieldInputSurfaceSchema).default([]),
 });
 export type CustomFieldEntityTypeInfo = z.infer<typeof customFieldEntityTypeInfoSchema>;
 
@@ -264,6 +308,12 @@ export const customFieldValidationErrorSchema = z.object({
     'unknown_option',
     'out_of_range',
     'duplicate_option',
+    // Feature 175 — a buyer-supplied key that is not a live definition open on
+    // the surface (also every key when the value port is not composed).
+    'not_open_for_input',
+    // Feature 175 — more than 50 keys in one buyer-supplied group; `field` is
+    // the group's name, not a key.
+    'too_many_keys',
   ]),
   message: z.string(),
 });
@@ -430,6 +480,37 @@ export const customFieldListFilterFieldSchema = z
   .strict();
 export type CustomFieldListFilterField = z.infer<typeof customFieldListFilterFieldSchema>;
 
+/**
+ * Feature 175 — one field open on a buyer input surface, as the public read
+ * `GET /api/v1/custom-fields/input-surfaces/:surface` answers it
+ * (`specs/175-buyer-input-custom-fields/contracts/input-surface-read.md`).
+ * Labels are resolved in the request's language with `labelDefault` as the
+ * fallback. Never a stored value, the audience, the admin access level or
+ * `config`; never a `page_builder` field.
+ */
+export const inputSurfaceFieldSchema = z.object({
+  key: z.string(),
+  valueType: customFieldValueTypeSchema.exclude(['page_builder']),
+  required: z.boolean(),
+  label: z.string(),
+  /** `[]` unless the field is `select` / `multiselect`. */
+  options: z.array(z.object({ value: z.string(), label: z.string() })),
+  sortOrder: z.number().int(),
+});
+export type InputSurfaceField = z.infer<typeof inputSurfaceFieldSchema>;
+
+/**
+ * The fields open on one surface, per entity type in display order. An
+ * unknown surface, or one no entity type declares, answers `entities: {}`.
+ */
+export const inputSurfaceFieldsResponseSchema = z.object({
+  data: z.object({
+    surface: z.string(),
+    entities: z.partialRecord(supportedEntityTypeSchema, z.array(inputSurfaceFieldSchema)),
+  }),
+});
+export type InputSurfaceFieldsResponse = z.infer<typeof inputSurfaceFieldsResponseSchema>;
+
 export const customFieldListFilterFieldsResponseSchema = z.object({
   data: z.array(customFieldListFilterFieldSchema),
 });
@@ -526,6 +607,15 @@ export const CUSTOM_FIELD_DEFINITION_ERROR_CODES = [
   'carry_incompatible',
   // Feature 172 — a value type the definition's entity type does not offer (`page_builder` off `product`).
   'value_type_unsupported',
+  // Feature 175 (research R-4) — the four refusals of the buyer-input and
+  // admin-access attributes, each judged on the RESULTING definition: a
+  // surface the entity type does not offer; an open field whose audience is
+  // not `customer`; an open `page_builder` field; a `required` field that is
+  // not `edit` in the admin.
+  'customer_input_unsupported',
+  'customer_input_audience',
+  'customer_input_value_type',
+  'admin_access_required',
 ] as const;
 export type CustomFieldDefinitionErrorCode =
   (typeof CUSTOM_FIELD_DEFINITION_ERROR_CODES)[number];
@@ -572,6 +662,10 @@ export interface CustomFieldDefinitionRecord {
   listFilter: boolean;
   /** Feature 162 — see {@link customFieldCarryToSchema}. */
   carryTo: SupportedEntityType[];
+  /** Feature 175 — the input surfaces a buyer may supply the value on. */
+  customerInput: CustomFieldInputSurface[];
+  /** Feature 175 — see {@link customFieldAdminAccessSchema}. */
+  adminAccess: CustomFieldAdminAccess;
   createdAt: Date;
   updatedAt: Date;
 }
@@ -707,7 +801,70 @@ export interface CustomFieldValuePort {
     entityType: SupportedEntityType,
     bag: Record<string, unknown>,
   ): Promise<Record<string, unknown>>;
+  /**
+   * Feature 175 — values a BUYER supplies on a declared input surface, for a record
+   * being created. Refuses (never drops) any key not open on `surface`; enforces
+   * `required` only among open definitions; text ≤ 1 000 chars after trimming,
+   * whitespace-only = empty; ≤ 50 keys, refused before any definition is read.
+   * Returns the bag to store. Throws the CustomFieldValidationError family.
+   *
+   * The administrator's {@link validateAndMerge} is a different rule set and is
+   * never the one a buyer-facing route calls: it drops unknown keys and
+   * enforces `required` across every definition of the type.
+   *
+   * Each refusal's `message` is a sentence a buyer can read beside the field —
+   * it never names the key or echoes the value. Given `language` (the
+   * request's, `request.responseLanguage()`), it is worded in that language by
+   * the owning module (`specs/conventions/module-i18n.md`: an HTTP response is
+   * translated by the backend, and `code` stays on the wire beside it).
+   */
+  validateForCustomerInput(
+    entityType: SupportedEntityType,
+    values: Record<string, unknown> | undefined,
+    surface: CustomFieldInputSurface,
+    language?: SupportedLanguage,
+  ): Promise<Record<string, unknown>>;
 }
+
+/**
+ * Feature 175 (research R-11) — one admin write path of a custom-field host,
+ * as the host declares it in the `customFieldWrites` export beside its
+ * manifest. Read as literal source by `check:custom-field-writes`; typed here
+ * so `tsc` checks the export too.
+ *
+ * - `create` / `update` / `values` — the route (`method` + `path`) and the
+ *   name of the `@endora-commerce/contracts` export validating its body, which
+ *   must carry `customFieldValues` (a `values` body is the value-bag schema
+ *   itself).
+ * - an exemption — a `create` or `update` the host does not offer values on,
+ *   with the non-empty reason why.
+ * - `buyer-input` — a route on which a buyer supplies values for an input
+ *   `surface`; `at` is the dotted path of the bag inside `body`, and `test`
+ *   the file proving its refusals.
+ */
+export type CustomFieldWriteDeclaration =
+  | {
+      readonly entityType: SupportedEntityType;
+      readonly kind: 'create' | 'update' | 'values';
+      readonly method: 'POST' | 'PATCH' | 'PUT';
+      readonly path: string;
+      readonly body: string;
+    }
+  | {
+      readonly entityType: SupportedEntityType;
+      readonly kind: 'create' | 'update';
+      readonly exempt: string;
+    }
+  | {
+      readonly entityType: SupportedEntityType;
+      readonly kind: 'buyer-input';
+      readonly surface: CustomFieldInputSurface;
+      readonly method: 'POST';
+      readonly path: string;
+      readonly body: string;
+      readonly at: string;
+      readonly test: string;
+    };
 
 // `CustomFieldValidationFailure` and `isCustomFieldValidationFailure` are
 // declared once, above, beside the other D-77 structural guards. Two Phase-C

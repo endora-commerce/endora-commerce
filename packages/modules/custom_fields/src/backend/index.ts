@@ -1,6 +1,7 @@
 import type { EntityManager } from '@mikro-orm/postgresql';
 import type { Redis } from 'ioredis';
 import type {
+  AdminI18nTranslatePort,
   CustomFieldCarryPort,
   CustomFieldDefinitionReadPort,
   CustomFieldListFilterPort,
@@ -9,6 +10,8 @@ import type {
 import type { CommandBus } from '@endora-commerce/platform/commands';
 import type { ModuleContext } from '@endora-commerce/platform/kernel';
 import type { RequireAdminFactory } from '@endora-commerce/platform/kernel';
+import { lazyPort } from '@endora-commerce/platform/kernel';
+import { StorefrontRevalidator } from '@endora-commerce/platform/http';
 import { CustomFieldDefinitionsCache } from './services/custom-field-definitions-cache.js';
 import { CustomFieldDefinitionService } from './services/custom-field-definition.service.js';
 import { CustomFieldValueService } from './services/custom-field-value.service.js';
@@ -16,6 +19,8 @@ import { CustomFieldDefinitionReadService } from './services/custom-field-read-p
 import { CustomFieldListFilterService } from './services/custom-field-list-filter.service.js';
 import { CustomFieldCarryService } from './services/custom-field-carry.service.js';
 import { registerCustomFieldsAdminRoutes } from './routes.admin.js';
+import { registerCustomFieldsPublicRoutes } from './routes.public.js';
+import { inputSurfaceRevalidation } from './services/input-surface-revalidation.js';
 import { CustomFieldDefinition } from './entities/custom-field-definition.entity.js';
 import { CustomFieldOption } from './entities/custom-field-option.entity.js';
 
@@ -66,6 +71,7 @@ export interface CustomFieldsCradle {
   /** The shared subscriber connection; see the note on `onBoot` below. */
   readonly redisSubscriber: Redis;
   readonly customFieldDefinitionsCache: CustomFieldDefinitionsCache;
+  readonly customFieldsStorefrontRevalidator: StorefrontRevalidator;
   readonly customFieldServices: CustomFieldServices;
   readonly customFieldDefinitionService: CustomFieldDefinitionService;
   readonly customFieldValueService: CustomFieldValueService;
@@ -84,6 +90,21 @@ export function registerModule(ctx: ModuleContext): void {
       .asFunction(({ redis }: CustomFieldsCradle) => new CustomFieldDefinitionsCache(redis))
       .singleton(),
 
+    // Internal (feature 175): drops the storefront's cached copy of an input
+    // surface's open fields after a definition change (research R-7). Read
+    // from the environment when first resolved, as a deployment's process
+    // does; a no-op where `STOREFRONT_BASE_URL` / `REVALIDATE_SECRET` are unset
+    // (the feature-173 registration-options shape).
+    customFieldsStorefrontRevalidator: ctx
+      .asFunction(
+        () =>
+          new StorefrontRevalidator({
+            baseUrl: process.env['STOREFRONT_BASE_URL'],
+            secret: process.env['REVALIDATE_SECRET'],
+          }),
+      )
+      .singleton(),
+
     // The two services are **one registration** because they are one object
     // graph: the definition service holds the value service to run its
     // change-guards, and the value service reads definitions back through it.
@@ -97,13 +118,26 @@ export function registerModule(ctx: ModuleContext): void {
           emFactory,
           customFieldDefinitionsCache,
           commandBus,
+          customFieldsStorefrontRevalidator,
         }: CustomFieldsCradle): CustomFieldServices => {
           const definitionService = new CustomFieldDefinitionService(
             emFactory,
             customFieldDefinitionsCache,
             commandBus,
+            inputSurfaceRevalidation(customFieldsStorefrontRevalidator),
           );
-          const valueService = new CustomFieldValueService(definitionService);
+          // Feature 175 — a buyer's refusals are worded in this module's own
+          // bundle, in the request's language (`specs/conventions/module-i18n.md`,
+          // case 1). Resolved per call, so the gate stays live; a key the
+          // bundle lacks comes back as `custom_fields.<key>` and reads as a miss.
+          const valueService = new CustomFieldValueService(definitionService, async (key, language) => {
+            const sentence = await lazyPort<AdminI18nTranslatePort>(ctx, 'adminI18nService').translate(
+              'custom_fields',
+              key,
+              language,
+            );
+            return sentence === `custom_fields.${key}` ? null : sentence;
+          });
           definitionService.setValueService(valueService);
           return { definitionService, valueService };
         },
@@ -208,6 +242,17 @@ export function registerModule(ctx: ModuleContext): void {
       definitionService: customFieldDefinitionService,
       requireAdmin,
     });
+  });
+
+  /**
+   * Feature 175 — the anonymous read of the fields open on a buyer input
+   * surface (`GET /api/v1/custom-fields/input-surfaces/:surface`), answered
+   * from the same per-entity cache every definition read rides.
+   */
+  ctx.routes(async (app) => {
+    const { customFieldDefinitionService, customFieldsStorefrontRevalidator } = ctx.cradle<CustomFieldsCradle>();
+    customFieldsStorefrontRevalidator.setLogger(app.log);
+    await registerCustomFieldsPublicRoutes(app, { definitions: customFieldDefinitionService });
   });
 }
 

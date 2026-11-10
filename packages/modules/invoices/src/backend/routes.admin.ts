@@ -8,7 +8,7 @@ import {
   type OrderReadPort,
 } from '@endora-commerce/contracts';
 import { Invoice } from './entities/invoice.entity.js';
-import { isOrgInScope } from '@endora-commerce/platform/tenancy';
+import { orgInScope } from '@endora-commerce/platform/tenancy';
 import type { InvoiceService } from './services/invoice-service.js';
 import { renderInvoicePdf } from './document/render-invoice.js';
 import type { RequireAdminFactory } from '@endora-commerce/platform/kernel';
@@ -108,11 +108,14 @@ export async function registerInvoicesAdminRoutes(
       // Feature 050 — Invoice is transitively scoped via its Order's org; hide
       // invoices whose order is out of the ambient tenant scope. ERP-imported
       // rows without an order scope directly on `organizationId` (feature 119).
-      const scoped = rows.filter((i) =>
-        i.origin === 'erp_import'
-          ? isOrgInScope(i.organizationId ?? '')
-          : isOrgInScope(orgByOrder.get(i.orderId ?? '') ?? ''),
+      const visible = await Promise.all(
+        rows.map((i) =>
+          i.origin === 'erp_import'
+            ? orgInScope(i.organizationId ?? '')
+            : orgInScope(orgByOrder.get(i.orderId ?? '') ?? ''),
+        ),
       );
+      const scoped = rows.filter((_, index) => visible[index]);
       return {
         data: scoped.map((i) => serialize(i, i.orderId ? (byOrder.get(i.orderId) ?? null) : null)),
         pagination: { cursor: null, hasMore: false, limit: scoped.length },

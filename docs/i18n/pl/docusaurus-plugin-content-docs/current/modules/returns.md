@@ -104,7 +104,7 @@ Cykl życia sprawy **konfiguruje się w panelu administracyjnym** (`return_statu
 
 Przejścia są egzekwowane; statusu początkowego nie można zmienić; ze statusów końcowych nie prowadzą
 żadne przejścia. Każde przejście emituje zdarzenia `return.status.*` before/after według szablonu i
-trafia do dziennika audytu.
+trafia do dziennika audytu — z informacją, czy podano powód (`hasReason`), nigdy z jego treścią.
 
 ## Najważniejsze zachowania
 
@@ -153,14 +153,14 @@ trafia do dziennika audytu.
   sprawa pokazywała, jest rozliczana według przeliczonej kwoty domyślnej, niższa kwota zostaje tak,
   jak ją wpisano, a wyższa jest odrzucana z `422 VALIDATION_FAILED` (`code: refund_exceeds_paid`)
   i nic nie zostaje zapisane: odśwież formularz i potwierdź. Wpis `return.settled` w dzienniku
-  audytu odnotowuje kwotę domyślną, która się zmieniła (`recomputedDefaults`).
+  audytu wymienia pozycje, których kwota domyślna się zmieniła (`recomputedDefaultItemIds`), bez kwot.
 - **Żadna pozycja nie zwraca więcej, niż za nią zapłacono** — zwrot pieniędzy z reklamacji pomniejsza
   to, co pozostało w pozycji, której dotyczy, a jego niewchłonięta część pomniejsza to, co pozostało
   zapłacone za zamówienie: gdy zwrot tej pozycji został już o reklamację obniżony, ta kwota nie jest
   liczona drugi raz. Późniejszy
   zwrot tej pozycji nadal dostaje pełną kwotę domyślną, dopóki zwroty pozycji razem z reklamacją nie
   osiągną tego, co za nią zapłacono; od tej chwili sprawa pokazuje, a formularz rozliczenia proponuje,
-  najwyżej to, co z niej zostało, a wpis w dzienniku audytu odnotowuje to ograniczenie (`lineCeilings`). Platforma
+  najwyżej to, co z niej zostało, a wpis w dzienniku audytu wymienia pozycję, której dotyczy to ograniczenie (`ceilingBoundItemIds`). Platforma
   nie wie, która sztuka wróciła. Przed rozliczeniem zwrotu sprawdź inne sprawy zamówienia pod kątem
   wcześniejszej reklamacji tej samej pozycji: jeśli wraca właśnie wadliwa sztuka, za którą
   zrekompensowano reklamację, obniż kwotę ręcznie.
@@ -190,8 +190,8 @@ trafia do dziennika audytu.
   maksimum. Kwota, którą sprawa pokazywała przy otwarciu, może do tego czasu przekraczać maksimum
   i wtedy jest odrzucana. Formularz rozliczenia wysyła tylko kwotę, którą zmieniłeś. `totalRefundAmount`
   sprawy obejmuje wtedy opłaty, więc jest wyższy niż suma pozycji. Szczegóły sprawy podają je jako
-  `chargeRefunds`, a wpis `return.settled` w dzienniku audytu odnotowuje maksimum i zatwierdzoną
-  kwotę każdej z nich (`charges`). Zwrot klienta firmowego i każda reklamacja działają bez zmian.
+  `chargeRefunds`, a wpis `return.settled` w dzienniku audytu wymienia zwrócone opłaty
+  (`refundedCharges`), bez kwot. Zwrot klienta firmowego i każda reklamacja działają bez zmian.
 
   W zamówieniu z fakturą korekta zwraca dostawę i dopłatę w osobnych wierszach, ze stawką VAT,
   z jaką faktura je naliczyła (dziś 0 %). Gdy wszystko wróciło i zostało zwrócone, faktura po
@@ -356,6 +356,17 @@ więc pozycje zamówień złożonych po wydaniu nie podlegają zwrotowi, dopóki
 oznaczony w katalogu jako podlegający zwrotowi — zaznacz produkty na liście produktów i użyj
 **Edycja masowa → Podlega zwrotowi → Tak — podlega zwrotowi**. Zamówienia złożone przed wydaniem
 pozostają bez zmian: ich pozycje nie mają zapisanej wartości i nadal podlegają zwrotowi.
+
+## W dzienniku audytu
+
+Sprawa zwrotu to rekord organizacji, a dziennik audytu całej platformy czyta każdy, kto ma
+`audit_log:read`, bez względu na to, które organizacje widzi. Dlatego wpisy sprawy nazywają i
+liczą, a nie zawierają żadnej kwoty ani wolnego tekstu: `return.settled` zapisuje sposób
+rozliczenia, walutę, stan rozliczenia i wynik korekty, a pozycje i opłaty, których dotyczy, przez
+identyfikator albo rodzaj; `return.status_changed` zapisuje status i to, czy podano powód. Kwoty
+są w sprawie i w jej zwrocie pieniędzy. Powód podany przy zmianie statusu trafia do zdarzeń statusu, które
+ta zmiana emituje, i nie jest zapisywany nigdzie indziej. Wpisy
+zapisane przed tą zmianą zachowują to, z czym zostały zapisane.
 
 ## Interfejsy między modułami
 

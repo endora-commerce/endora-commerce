@@ -13,7 +13,7 @@ import type { CommandBus } from '@endora-commerce/platform/commands';
 import type { EventBase, EventBus } from '@endora-commerce/platform/events';
 import { HttpError } from '@endora-commerce/platform/http';
 import { effectiveState } from '@endora-commerce/platform/kernel';
-import { isOrgInScope } from '@endora-commerce/platform/tenancy';
+import { orgInScope } from '@endora-commerce/platform/tenancy';
 import { makeRetryInvoiceLedgerDeliveryCommand } from '../commands/retry-delivery.command.js';
 import type { InvoiceLedgerDeliveryService } from './invoice-ledger-delivery.service.js';
 import { mappedDeliveryError } from './mapped-delivery-error.js';
@@ -43,7 +43,8 @@ export class InvoiceLedgerDeliveryAdminService {
       ...(query.cursor ? { cursor: query.cursor } : {}),
     });
     const copies = await this.loadCopies(rows.map((row) => row.invoiceId));
-    const scoped = rows.filter((row) => this.visibleToActor(copies.get(row.invoiceId)));
+    const visible = await Promise.all(rows.map((row) => this.visibleToActor(copies.get(row.invoiceId))));
+    const scoped = rows.filter((_, index) => visible[index]);
     const hasMore = scoped.length > limit;
     const page = scoped.slice(0, limit);
     return {
@@ -72,7 +73,7 @@ export class InvoiceLedgerDeliveryAdminService {
       throw new HttpError(404, ERROR_CODES.NOT_FOUND, 'Delivery not found.');
     }
     const copies = await this.loadCopies([before.invoiceId]);
-    if (!this.visibleToActor(copies.get(before.invoiceId))) {
+    if (!(await this.visibleToActor(copies.get(before.invoiceId)))) {
       throw new HttpError(404, ERROR_CODES.NOT_FOUND, 'Delivery not found.');
     }
     if (before.status !== 'failed' && before.status !== 'dead') {
@@ -106,12 +107,12 @@ export class InvoiceLedgerDeliveryAdminService {
 
   /**
    * Delivery is transitively scoped through Invoice → Order. There is no org
-   * column on the row, so the ambient `isOrgInScope` check is the list/retry
+   * column on the row, so the ambient `orgInScope` check is the list/retry
    * guard — same as invoices' admin list. A missing copy (or invoices off)
    * attributes as `''`, which only an unrestricted admin may see.
    */
-  private visibleToActor(copy: InvoiceCopyRecord | undefined): boolean {
-    return isOrgInScope(copy?.organizationId ?? '');
+  private visibleToActor(copy: InvoiceCopyRecord | undefined): Promise<boolean> {
+    return orgInScope(copy?.organizationId ?? '');
   }
 
   private async loadCopies(invoiceIds: string[]): Promise<Map<string, InvoiceCopyRecord>> {

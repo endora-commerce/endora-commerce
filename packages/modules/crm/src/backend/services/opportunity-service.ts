@@ -35,7 +35,7 @@ import {
 import type { Command, CommandBus } from '@endora-commerce/platform/commands';
 import { HttpError } from '@endora-commerce/platform/http';
 import { SalesChannel } from '@endora-commerce/platform/kernel';
-import { getTenantContext, isOrgInScope } from '@endora-commerce/platform/tenancy';
+import { getTenantContext, orgInScope } from '@endora-commerce/platform/tenancy';
 import { randomUUID } from 'crypto';
 import { isDeepStrictEqual } from 'util';
 import { carryIntoOpportunityBestEffort, type OpportunityCarrySource } from './opportunity-custom-field-carry.js';
@@ -252,7 +252,7 @@ export class OpportunityService {
     // not tenant-filtered (it is the tenant), so reach is asked separately —
     // and the two answers are one refusal, so an out-of-scope id reads exactly
     // like one that does not exist.
-    const organization = isOrgInScope(input.organizationId)
+    const organization = (await orgInScope(input.organizationId))
       ? await organizations.findById(input.organizationId)
       : null;
     if (!organization) throw invalid('The organization does not exist.');

@@ -2,7 +2,7 @@ import { useCallback, useEffect, useMemo, useState, type ReactNode } from 'react
 import { Link, useParams } from 'react-router-dom';
 import { ArrowLeft } from 'lucide-react';
 import type { FulfilmentStrategy, OrganizationRoleRef, OrganizationRoleView, Warehouse } from '@endora-commerce/contracts';
-import { ApiError, apiClient, useSurfaceVisibility, useUnsavedChangesPrompt, formatDateTime } from '@endora-commerce/admin-kit/lib';
+import { ApiError, apiClient, useAuth, useSurfaceVisibility, useUnsavedChangesPrompt, formatDateTime } from '@endora-commerce/admin-kit/lib';
 import { FulfilmentStrategyPanel } from '../panels/FulfilmentStrategyPanel.js';
 import { OrganizationSalesRepsTab } from '../components/OrganizationSalesRepsTab.js';
 import { OrganizationRolesTab } from '../components/OrganizationRolesTab.js';
@@ -14,7 +14,7 @@ import { VatValidationPanel } from '../panels/VatValidationPanel.js';
 import { newestRegistrationRow } from '../panels/vat-validation-view.js';
 import { RestrictionsPanel } from '../panels/RestrictionsPanel.js';
 import { SalesChannelsPanel } from '../panels/SalesChannelsPanel.js';
-import { CustomFieldValuesPanel } from '@endora-commerce/admin-kit/components';
+import { CustomFieldValuesPanel, customFieldErrorsOf } from '@endora-commerce/admin-kit/components';
 import { AdminZone } from '@endora-commerce/admin-kit/zones';
 import { Alert, AlertDescription, Button, Card, CardContent, CardHeader, CardTitle, Input, Label, PageHeader, Select, Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from '@endora-commerce/admin-kit/ui';
 import { useTranslation } from '@endora-commerce/admin-kit/i18n';
@@ -69,6 +69,8 @@ interface OrgDetail {
 
 const STATUSES = ['pending_verification', 'active', 'blocked', 'rejected'] as const;
 const VAT_STATUSES = ['vat_payer', 'vat_exempt', 'reverse_charge'] as const;
+/** Feature 175 — the direct-create panel's starting bag: a new member has none. */
+const EMPTY_MEMBER_VALUES: Record<string, unknown> = {};
 
 /** Either code reads an Organization's roles (`contracts/operator-api.md` §2). */
 const READ_ROLES: [string, string] = ['organizations:read-roles', 'organizations:manage-roles'];
@@ -103,6 +105,12 @@ export function OrganizationDetail(): ReactNode {
   const [directLast, setDirectLast] = useState('');
   const [directPassword, setDirectPassword] = useState('');
   const [directRole, setDirectRole] = useState<string | null>(null);
+  // Feature 175 (FR-018) — the new member's custom fields, sent with the create.
+  const { hasPermission } = useAuth();
+  const [directValues, setDirectValues] = useState<Record<string, unknown>>({});
+  const [directValueErrors, setDirectValueErrors] = useState<Record<string, string>>({});
+  /** Re-keys the embedded panel after a create, so the next member starts empty. */
+  const [directFormKey, setDirectFormKey] = useState(0);
   const [roleList, setRoleList] = useState<OrganizationRoleView[] | null>(null);
 
   const [editMember, setEditMember] = useState<OrgMember | null>(null);
@@ -256,6 +264,7 @@ export function OrganizationDetail(): ReactNode {
 
   const directAdd = useCallback(async (): Promise<void> => {
     setError(null);
+    setDirectValueErrors({});
     try {
       await apiClient.post(`/api/v1/admin/organizations/${id}/members`, {
         email: directEmail.trim(),
@@ -263,17 +272,21 @@ export function OrganizationDetail(): ReactNode {
         lastName: directLast.trim(),
         password: directPassword,
         ...(directRoleValue ? { roleId: directRoleValue } : {}),
+        ...(Object.keys(directValues).length > 0 ? { customFieldValues: directValues } : {}),
       });
       setInfo(t('organizations.detail.info.memberCreated'));
       setDirectEmail('');
       setDirectFirst('');
       setDirectLast('');
       setDirectPassword('');
+      setDirectValues({});
+      setDirectFormKey((n) => n + 1);
       await refresh();
     } catch (err) {
+      setDirectValueErrors(customFieldErrorsOf(err) ?? {});
       setError(err instanceof ApiError ? err.envelope.error.message : t('organizations.detail.error.create'));
     }
-  }, [id, directEmail, directFirst, directLast, directPassword, directRoleValue, refresh, t]);
+  }, [id, directEmail, directFirst, directLast, directPassword, directRoleValue, directValues, refresh, t]);
 
   const changeMemberRole = useCallback(
     async (memberId: string, roleId: string, expectedUpdatedAt?: string): Promise<void> => {
@@ -574,6 +587,18 @@ export function OrganizationDetail(): ReactNode {
               ))}
             </Select>
           </div>
+          {/* Feature 175 — the `customer` custom fields of the account being created. */}
+          {hasPermission('custom_fields:read') ? (
+            <div className="md:col-span-2">
+              <CustomFieldValuesPanel
+                key={directFormKey}
+                entityType="customer"
+                values={EMPTY_MEMBER_VALUES}
+                onChange={setDirectValues}
+                fieldErrors={directValueErrors}
+              />
+            </div>
+          ) : null}
           <div className="md:col-span-2">
             <Button type="button" onClick={() => void directAdd()}>
               {t('organizations.detail.createMember')}

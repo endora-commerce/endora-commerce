@@ -87,6 +87,7 @@ export type {
 } from './custom-field-filters/useCustomFieldListFilterFields.js';
 export { CustomFieldValuesPanel } from './custom-field-values/CustomFieldValuesPanel.js';
 export type { CustomFieldValuesPanelProps } from './custom-field-values/CustomFieldValuesPanel.js';
+export { customFieldErrorsOf } from './custom-field-values/custom-field-errors.js';
 export { CustomerGroupPicker } from './customer-group-picker/CustomerGroupPicker.js';
 export type { CustomerGroupPickerProps } from './customer-group-picker/CustomerGroupPicker.js';
 export { CustomerPicker } from './customer-picker/CustomerPicker.js';

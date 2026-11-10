@@ -2,6 +2,7 @@ import type { ReactNode } from 'react';
 import type { Metadata } from 'next';
 import { Hook } from '../../../components/Hook';
 import { RegisterForm } from '../../../components/auth/RegisterForm';
+import { getRegistrationCustomFields } from '../../../lib/api/custom-field-input';
 import { getRegistrationOptions } from '../../../lib/api/registry-lookup';
 import { LocalizedLink } from '../../../lib/i18n/localized-link';
 import { getServerContext } from '../../../lib/server-context';
@@ -19,8 +20,9 @@ export const metadata: Metadata = { robots: { index: false, follow: false } };
  * Storefront register page (T150 / FR-039). A Server Component shell around
  * the client {@link RegisterForm}: it reads the server context and whether the
  * company registry lookup is on (feature 173 — the options read fails closed,
- * so any error renders the manual form). Success redirects to a "check your
- * inbox" acknowledgement. A refused registration comes back as the form's
+ * so any error renders the manual form) and the custom fields open on
+ * registration (feature 175 — that read fails closed too: any error renders the
+ * form without them). Success redirects to a "check your inbox" acknowledgement. A refused registration comes back as the form's
  * state, not in the URL; an old `?error=` link is ignored.
  */
 
@@ -53,7 +55,10 @@ export default async function RegisterPage({
     );
   }
 
-  const options = await getRegistrationOptions();
+  const [options, customFields] = await Promise.all([
+    getRegistrationOptions(),
+    getRegistrationCustomFields({ locale }),
+  ]);
 
   return (
     <>
@@ -64,6 +69,7 @@ export default async function RegisterPage({
         <RegisterForm
           locale={locale}
           lookupEnabled={options.enabled}
+          customFields={customFields}
           action={registerFormAction}
           lookupAction={lookupCompanyAction}
         />

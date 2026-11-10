@@ -11,7 +11,7 @@ import type {
   RecordDocumentLookupResponse,
 } from '@endora-commerce/contracts';
 import { ModuleDisabledError } from '@endora-commerce/platform/kernel';
-import { isOrgInScope } from '@endora-commerce/platform/tenancy';
+import { orgInScope } from '@endora-commerce/platform/tenancy';
 import type { CrmProjects } from './crm-projects.js';
 import type { CrmQuoteRequests } from './crm-quote-requests.js';
 import type { CrmTasks } from './crm-tasks.js';
@@ -71,7 +71,7 @@ export class CrmDocumentLookupService {
   ): Promise<OpportunityQuoteRequestOption[]> {
     if (!this.deps.quoteRequestPresence.isPresent()) throw new ModuleDisabledError('quote_requests');
     await assertMayReadQuoteRequests(this.deps.mayRead.quoteRequests);
-    if (!isOrgInScope(query.organizationId)) return [];
+    if (!(await orgInScope(query.organizationId))) return [];
     return (await this.quoteRequestRecords(query.organizationId, query.q ?? '', query.limit)).map((record) => ({
       id: record.id,
       number: record.businessId,
@@ -102,7 +102,7 @@ export class CrmDocumentLookupService {
   async documents(query: OpportunityDocumentLookupQuery): Promise<RecordDocumentLookupResponse> {
     const organizationId = await this.organizationOf(query);
     const q = (query.q ?? '').trim();
-    const withOrganization = organizationId !== null && isOrgInScope(organizationId);
+    const withOrganization = organizationId !== null && (await orgInScope(organizationId));
     const quoteRequestsPresent = this.deps.quoteRequestPresence.isPresent();
     const tasksPresent = this.deps.tasks.isPresent();
     const projectsPresent = this.deps.projects.isPresent();

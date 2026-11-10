@@ -52,6 +52,8 @@ function definitionRecord(id: string): CustomFieldDefinitionWithOptions {
       config: {},
       listFilter: false,
       carryTo: [],
+      customerInput: [],
+      adminAccess: 'edit',
       createdAt: NOW,
       updatedAt: NOW,
     },

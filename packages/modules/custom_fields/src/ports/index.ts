@@ -28,7 +28,9 @@
 import type { EntityManager } from '@mikro-orm/postgresql';
 import type {
   CreateCustomFieldDefinitionRequest,
+  CustomFieldAdminAccess,
   CustomFieldDefinitionRecord,
+  CustomFieldInputSurface,
   CustomFieldOptionDto,
   CustomFieldOptionRecord,
   SupportedEntityType,
@@ -39,10 +41,16 @@ import type {
  * What {@link CustomFieldDefinitionApplyApi.applyCreate} takes: the create
  * request with `carryTo` optional (feature 162). A host-managed type's registry
  * entry offers no carry target, so a host never names one; an absent `carryTo`
- * is stored as none.
+ * is stored as none. Likewise `customerInput` and `adminAccess` (feature 175):
+ * absent is no surface and `edit`.
  */
-export type CustomFieldDefinitionApplyCreateInput = Omit<CreateCustomFieldDefinitionRequest, 'carryTo'> & {
+export type CustomFieldDefinitionApplyCreateInput = Omit<
+  CreateCustomFieldDefinitionRequest,
+  'carryTo' | 'customerInput' | 'adminAccess'
+> & {
   carryTo?: SupportedEntityType[];
+  customerInput?: CustomFieldInputSurface[];
+  adminAccess?: CustomFieldAdminAccess;
 };
 
 /**

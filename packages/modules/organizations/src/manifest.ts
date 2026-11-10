@@ -1,6 +1,7 @@
 import {
   defineModuleManifest,
   defineModuleSettingsManifest,
+  type CustomFieldWriteDeclaration,
   type ModuleDemoManifest,
 } from '@endora-commerce/contracts';
 import type { ModuleContext } from '@endora-commerce/platform/kernel';
@@ -119,6 +120,72 @@ const settings = defineModuleSettingsManifest({
  * extended by feature 026 with two settings keys (moderation mode + new
  * registration email recipients).
  */
+/**
+ * Feature 175 (`specs/175-buyer-input-custom-fields/` research R-11) — every
+ * write of this module's two custom-field hosts, for `check:custom-field-writes`:
+ * the Organization create and update, the member direct-create (the `customer`
+ * create; its values are `customers`' values patch), the member profile update
+ * (a `customer` update without values, which that values patch covers), the
+ * invitation exemption, and the buyer input surface `organization.register` for
+ * both groups. Read as a literal by the check: keep every entry a literal object.
+ */
+export const customFieldWrites = [
+  {
+    entityType: 'organization',
+    kind: 'create',
+    method: 'POST',
+    path: '/api/v1/admin/organizations',
+    body: 'AdminOrganizationCreateBodySchema',
+  },
+  {
+    entityType: 'organization',
+    kind: 'update',
+    method: 'PATCH',
+    path: '/api/v1/admin/organizations/:id',
+    body: 'adminPatchOrganizationRequestSchema',
+  },
+  {
+    entityType: 'customer',
+    kind: 'create',
+    method: 'POST',
+    path: '/api/v1/admin/organizations/:id/members',
+    body: 'adminDirectMemberToRoleRequestSchema',
+  },
+  {
+    entityType: 'customer',
+    kind: 'update',
+    method: 'PATCH',
+    path: '/api/v1/admin/organizations/:id/members/:customerAccountId',
+    body: 'adminPatchMemberProfileRequestSchema',
+  },
+  {
+    entityType: 'customer',
+    kind: 'create',
+    exempt:
+      'POST /api/v1/admin/organizations/:id/members/invite creates no account; the invited person creates it on acceptance, a buyer action.',
+  },
+  {
+    entityType: 'organization',
+    kind: 'buyer-input',
+    surface: 'organization.register',
+    method: 'POST',
+    path: '/api/v1/organizations/register',
+    body: 'registerOrganizationRequestSchema',
+    at: 'organization.customFieldValues',
+    test: 'backend/test/contract/organizations/register-custom-fields.contract.test.ts',
+  },
+  {
+    entityType: 'customer',
+    kind: 'buyer-input',
+    surface: 'organization.register',
+    method: 'POST',
+    path: '/api/v1/organizations/register',
+    body: 'registerOrganizationRequestSchema',
+    at: 'firstUser.customFieldValues',
+    test: 'backend/test/contract/organizations/register-custom-fields.contract.test.ts',
+  },
+] satisfies CustomFieldWriteDeclaration[];
+
 export const manifest = defineModuleManifest({
   id: 'organizations',
   name: 'Organizations',

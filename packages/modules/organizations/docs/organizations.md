@@ -19,7 +19,7 @@ organization's Administrator role, checked server-side through
 
 | Verb + Path | Audience | Purpose |
 | --- | --- | --- |
-| `POST /api/v1/organizations/register` | anon | Register Org + first member, email verification dispatched |
+| `POST /api/v1/organizations/register` | anon | Register Org + first member, email verification dispatched; carries the custom fields open at registration (see *Custom fields at registration* below) |
 | `POST /api/v1/auth/email-verification/verify` | anon | Redeem verification token |
 | `POST /api/v1/auth/customer/login` | anon | Customer login → sets `b2b_session` cookie; merges anonymous cart |
 | `POST /api/v1/auth/customer/logout` | customer | Destroy session |
@@ -39,14 +39,14 @@ organization's Administrator role, checked server-side through
 | `PATCH /api/v1/organizations/mine/addresses/:id` | customer (`addresses.manage`) | Update |
 | `DELETE /api/v1/organizations/mine/addresses/:id` | customer (`addresses.manage`) | Remove |
 | `GET /api/v1/admin/organizations` | admin | List with `filter[status]` / `filter[vatStatus]` / `q`. A sales representative sees only the Organizations they reach (see below the table) |
-| `POST /api/v1/admin/organizations` | admin (`customers:manage`) | Create an Organization with its sales channels (see *Sales channels* below) |
+| `POST /api/v1/admin/organizations` | admin (`customers:manage`) | Create an Organization with its sales channels (see *Sales channels* below) and its custom-field values (`customFieldValues`) |
 | `GET /api/v1/admin/organizations/sales-channel-options` | admin (`customers:manage`) | The channels the create form offers |
 | `GET /api/v1/admin/organizations/:id/sales-channels` | admin (`customers:read` or `customers:manage`) | The channels assigned to the Organization, and the channels it could be assigned. `404 NOT_FOUND` for an Organization outside a sales representative's reach (see below the table), as for one that does not exist |
 | `PUT /api/v1/admin/organizations/:id/sales-channels` | admin (`customers:manage`) | Replace the assigned channels (`{ salesChannelIds }`, at least one); `404 NOT_FOUND` outside a sales representative's reach, as for the read |
 | `GET /api/v1/admin/organizations/:id` | admin | Org + member roster (`updatedAt`, members include `lastLoginAt` and `organizationRole`; `predefinedRoles` names the Administrator and Member roles) |
 | `PATCH /api/v1/admin/organizations/:id` | admin | Update name / `status` / `vatStatus`; optional `expectedUpdatedAt` → `409 VERSION_CONFLICT` when stale |
 | `POST /api/v1/admin/organizations/:id/members/invite` | admin | Invite by email (`{ email, roleId? }`, Member by default; platform-scope) |
-| `POST /api/v1/admin/organizations/:id/members` | admin | Direct-create member with password (`roleId?`, Member by default) |
+| `POST /api/v1/admin/organizations/:id/members` | admin | Direct-create member with password (`roleId?`, Member by default) and the account's custom-field values (`customFieldValues`) |
 | `PATCH /api/v1/admin/organizations/:id/members/:customerAccountId/role` | admin | Assign a role (`{ roleId, expectedUpdatedAt? }`) |
 | `DELETE /api/v1/admin/organizations/:id/members/:customerAccountId` | admin | Soft-remove member (last-administrator guard) |
 | `POST /api/v1/admin/organizations/:id/recover-admin-access` | admin | Break-glass — give an existing member the Administrator role |
@@ -413,6 +413,166 @@ field.
 | `GET /api/v1/organizations/registration-options` | Whether the lookup is on, and for which countries (cached by the storefront for up to 5 minutes, refreshed when the setting changes) |
 | `POST /api/v1/organizations/registry-lookup` | One lookup (`{ taxId, country }`); answers `found`, `not_found`, `unavailable`, `invalid_tax_id` or `unsupported_country` with a `lookupId` |
 | `POST /api/v1/organizations/register` | Accepts an optional top-level `registryLookupId`; the snapshot is read from the platform's own store, never from the request |
+
+### Custom fields at registration
+
+An administrator can ask a registering business for more than the platform's
+own fields — how they heard about the shop, their industry, a phone number —
+without a code change: they define the field on **Custom Fields** for
+*Organizations* or *Customers* and tick **Collect from the buyer at
+registration**. The registration form then shows it, labelled in the shop's
+language and marked when required: Organization fields in the company section,
+Customer fields in the personal section. What is filled in is stored on the new
+Organization and on the account of the person registering, with the
+registration itself; a moderator reads it in the *Custom fields* panels of the
+Organization and of the customer.
+
+- **Only the fields ticked for registration are accepted.** A value for any
+  other field — an internal one, one of the other record type, one that does not
+  exist — is refused, never ignored, and so is a value of the wrong type or
+  shape. Text is at most 1 000 characters, and at most 50 fields of each record
+  type may be sent.
+- **A refused registration creates nothing**: no Organization, no account, no
+  sales-channel binding. Every refusal is said beside its field, in the buyer's
+  language, and the form comes back with everything typed except the password.
+- **A required field ticked for registration must be filled in**; a required
+  field that is not ticked is not asked for at registration.
+- The registration's audit entry records **which** fields were filled in,
+  never their values.
+
+The *New organization* form and the member direct-create form show the same
+fields, every one an administrator may edit, and send them with the create; a
+required field must be filled in there too, and a refusal is shown at the field.
+The admin creates validate with the administrator's rules — any field of the
+record type may be filled in, not only the ones open at registration.
+
+**The request.** `POST /api/v1/organizations/register` takes two optional
+groups, each a map of field key to value, and a request without them behaves
+exactly as before:
+
+```json
+{
+  "organization": {
+    "name": "Acme Sp. z o.o.",
+    "taxId": "PL5260250274",
+    "registeredAddress": { "street": "ul. Prosta 1", "city": "Warszawa", "postalCode": "00-001", "country": "PL" },
+    "customFieldValues": { "acquisition_source": "trade_fair" }
+  },
+  "firstUser": {
+    "email": "anna@acme.example",
+    "password": "…",
+    "firstName": "Anna",
+    "lastName": "Nowak",
+    "customFieldValues": { "phone": "+48 600 000 000" }
+  },
+  "acceptedTermsVersion": "2025-01"
+}
+```
+
+`organization.customFieldValues` holds the Organization's fields,
+`firstUser.customFieldValues` the person's. A *Yes / No* field is `true` or
+`false`, a number a JSON number, a date `YYYY-MM-DD`, a choice the option's
+stored value, a multiple choice an array of them.
+
+**The refusal.** `422` `CUSTOM_FIELD_VALUE_INVALID`, one `details` entry per
+refused field. `field` names the group and the key (`organization.<key>`,
+`firstUser.<key>`; the group alone when it carried more than 50 fields),
+`code` is the reason and `message` is a sentence for the buyer in the request's
+language that names neither the key nor the value:
+
+```json
+{ "error": { "code": "CUSTOM_FIELD_VALUE_INVALID", "message": "Some fields are missing or invalid. Correct them and try again.", "details": [
+  { "field": "organization.acquisition_source", "code": "missing_required", "message": "This field is required.", "path": "organization.acquisition_source", "issue": "This field is required." },
+  { "field": "firstUser.credit_tier", "code": "not_open_for_input", "message": "This field cannot be filled in here.", "path": "firstUser.credit_tier", "issue": "This field cannot be filled in here." }
+] } }
+```
+
+The codes are `not_open_for_input`, `too_many_keys`, `missing_required`,
+`wrong_type`, `out_of_range`, `unknown_option` and `duplicate_option`. Show the
+`message`; branch on the `code` if you need to.
+
+#### Adding the fields to a storefront scaffolded before this release
+
+The reference storefront renders the open fields itself. A storefront created
+from an earlier release keeps its own copy of the registration page and needs
+three changes, all against the API above.
+
+1. **Read the open fields** on the registration page, server-side:
+   `GET /api/v1/custom-fields/input-surfaces/organization.register`, with the
+   page's language in `Accept-Language`. It needs no session and answers on a
+   store closed to anonymous visitors. `data.entities.organization` and
+   `data.entities.customer` are the fields of the two sections, each
+   `{ key, valueType, required, label, options: [{ value, label }], sortOrder }`
+   in display order; a type with no open field is absent or `[]`, and an
+   unknown surface answers `200` with `entities: {}`. Cache it (five minutes is
+   what the reference storefront uses) and treat **any** failure as "no extra
+   fields", so the page never fails because of them.
+2. **Render one control per field** in its section, with its `label`, marked
+   when `required`: text and number inputs, a date input, a checkbox for
+   *Yes / No* (send `false` when it is not ticked), a select or radio group for a
+   single choice, a checkbox group for a multiple choice.
+3. **Send and show back.** Put the values in `organization.customFieldValues`
+   and `firstUser.customFieldValues`, leaving out a field left empty. On `422`
+   `CUSTOM_FIELD_VALUE_INVALID`, place each `details` entry's `message` beside
+   the field its `field` names, and show the form again with what was typed —
+   never in the page address.
+
+A minimal Server Component for step 1 and the first section of step 2 (Next.js
+App Router; `API_URL` is the backend's address):
+
+```tsx
+type OpenField = {
+  key: string;
+  valueType: 'text' | 'number' | 'boolean' | 'date' | 'select' | 'multiselect';
+  required: boolean;
+  label: string;
+  options: { value: string; label: string }[];
+};
+
+async function openRegistrationFields(language: string): Promise<{ organization: OpenField[]; customer: OpenField[] }> {
+  try {
+    const response = await fetch(`${process.env.API_URL}/api/v1/custom-fields/input-surfaces/organization.register`, {
+      headers: { 'Accept-Language': language },
+      next: { revalidate: 300 },
+    });
+    if (!response.ok) return { organization: [], customer: [] };
+    const { data } = (await response.json()) as { data: { entities: Record<string, OpenField[]> } };
+    return { organization: data.entities.organization ?? [], customer: data.entities.customer ?? [] };
+  } catch {
+    return { organization: [], customer: [] };
+  }
+}
+
+export async function CompanyExtraFields({ language }: { language: string }) {
+  const { organization } = await openRegistrationFields(language);
+  return organization.map((field) => (
+    <label key={field.key}>
+      {field.label}
+      {field.required ? ' *' : null}
+      {field.valueType === 'select' ? (
+        <select name={`cf.organization.${field.key}`} required={field.required}>
+          <option value="" />
+          {field.options.map((option) => (
+            <option key={option.value} value={option.value}>{option.label}</option>
+          ))}
+        </select>
+      ) : (
+        <input
+          name={`cf.organization.${field.key}`}
+          type={field.valueType === 'date' ? 'date' : 'text'}
+          required={field.required}
+        />
+      )}
+    </label>
+  ));
+}
+```
+
+The server action then reads every `cf.organization.<key>` form value into
+`organization.customFieldValues` (and `cf.customer.<key>` into
+`firstUser.customFieldValues`), converting a number field with `Number(...)`.
+The example leaves out the boolean and multiple-choice controls and the error
+placement of step 3.
 
 ### Picker primitive + diacritic-insensitive search
 

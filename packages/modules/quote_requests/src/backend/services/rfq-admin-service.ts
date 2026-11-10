@@ -67,6 +67,7 @@ import {
   type HistoryEventInput,
   type HistoryRevisionInput,
 } from './history/history-projection.js';
+import { cancelAuditState, prepareBasketAuditState } from './quote-request-audit-state.js';
 
 /**
  * Admin-facing Quote Requests service — feature 008 workflow.
@@ -167,6 +168,28 @@ export interface RfqAdminServiceDeps {
 
 export class RfqAdminService {
   constructor(private readonly deps: RfqAdminServiceDeps) {}
+
+  /**
+   * Feature 175 — a new request's bag: the values sent, validated with the
+   * administrator's rules onto an empty record. `{}` without the value port,
+   * as before. The refusal is the 422 every admin custom-field write answers.
+   */
+  async #newCustomFieldValues(values: Record<string, unknown> | undefined): Promise<Record<string, unknown>> {
+    if (!this.deps.customFieldValues) return {};
+    try {
+      return await this.deps.customFieldValues.validateAndMerge('quote_request', {}, values ?? {});
+    } catch (err) {
+      if (isCustomFieldValidationFailure(err)) {
+        throw new HttpError(
+          422,
+          ERROR_CODES.CUSTOM_FIELD_VALUE_INVALID,
+          'One or more custom fields are invalid.',
+          err.errors.map((e) => ({ path: e.field, issue: e.message })),
+        );
+      }
+      throw err;
+    }
+  }
 
   /** Feature 054 — co-transactional RFQ audit on `em` (actor from context). */
   #audit(
@@ -591,11 +614,13 @@ export class RfqAdminService {
       salesChannelId: rfq.salesChannelId ?? fallbackChannelId,
     };
     const seeded = await this.deps.rfqService.seedBasketFromApproved(em, rfq, owner);
-    this.#audit(em, 'quote_request.prepare_customer_basket', rfq.id, null, {
-      cartId: seeded.cartId,
-      customerAccountId: owner.customerAccountId,
-      itemCount: seeded.itemCount,
-    });
+    this.#audit(
+      em,
+      'quote_request.prepare_customer_basket',
+      rfq.id,
+      null,
+      prepareBasketAuditState({ cartId: seeded.cartId, customerAccountId: owner.customerAccountId, itemCount: seeded.itemCount }),
+    );
     await em.flush();
     return { cartId: seeded.cartId, customerAccountId: owner.customerAccountId, itemCount: seeded.itemCount };
   }
@@ -625,7 +650,7 @@ export class RfqAdminService {
       if (reason) rfq.cancellationReason = reason;
       rfq.assignedAdminUserId = ctx.adminUserId;
       rfq.version += 1;
-      this.#audit(em, 'quote_request.cancel', rfq.id, null, { status: 'Canceled', reason: reason ?? null });
+      this.#audit(em, 'quote_request.cancel', rfq.id, null, cancelAuditState(reason));
       await em.flush();
     });
 
@@ -1013,6 +1038,13 @@ export class RfqAdminService {
       body.items.map((it) => it.productId),
     );
 
+    // Feature 175 (FR-015, FR-019) — the request's custom-field values,
+    // validated as a merge onto an empty bag before anything is numbered or
+    // written: a refusal creates nothing, a `required` definition is refused
+    // even when no value is sent, and the creation's audit row below names
+    // what was stored.
+    const customFieldValues = await this.#newCustomFieldValues(body.customFieldValues);
+
     const businessId = await this.deps.rfqService.generateBusinessId(em);
     const rfq = em.create(QuoteRequest, {
       ...(businessId ? { businessId } : {}),
@@ -1038,6 +1070,7 @@ export class RfqAdminService {
         body.expiresInDays !== undefined
           ? new Date(Date.now() + body.expiresInDays * 86_400_000)
           : null,
+      customFieldValues,
     });
     await em.persistAndFlush(rfq);
 
@@ -1081,6 +1114,11 @@ export class RfqAdminService {
       itemCount: items.length,
       salesChannelId: rfq.salesChannelId ?? null,
       groups: plan.after,
+      // Feature 175 (FR-021) — the keys stored, never their values
+      // (`specs/conventions/audit-state.md`, D-288).
+      ...(Object.keys(rfq.customFieldValues ?? {}).length > 0
+        ? { changedCustomFields: Object.keys(rfq.customFieldValues ?? {}).sort() }
+        : {}),
     });
     await em.persistAndFlush(items);
 

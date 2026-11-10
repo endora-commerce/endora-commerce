@@ -53,7 +53,7 @@ afterAll(async () => {
  *
  * It is explicit about the trap the suite sets: `test/tenancy-setup.ts` enters
  * `mode: 'system'` in a global `beforeAll` **and** `beforeEach`, under which
- * `isOrgInScope` answers `true` for everything and every assertion here would
+ * `orgInScope` answers `true` for everything and every assertion here would
  * pass while proving nothing. Every flush below therefore runs inside
  * `runWithTenantContext(scopedToOrgA, …)`, and the two non-refusal cases are
  * here to prove the block is not passing because the flush fails for some

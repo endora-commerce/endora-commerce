@@ -19,7 +19,7 @@ import {
 } from '@endora-commerce/contracts';
 import { Invoice } from '../entities/invoice.entity.js';
 import { InvoiceLine } from '../entities/invoice-line.entity.js';
-import { isOrgInScope } from '@endora-commerce/platform/tenancy';
+import { orgInScope } from '@endora-commerce/platform/tenancy';
 import { rethrowIfModuleDisabled } from '@endora-commerce/platform/kernel';
 import { refuseDuplicateInvoiceNumber } from './duplicate-number-refusal.js';
 import type { InvoiceNumberGenerator } from './invoice-number-generator.js';
@@ -167,7 +167,7 @@ export class InvoiceService {
     const em = this.emFactory();
     const order = await this.orders.findById(orderId);
     // Feature 050 — Invoice is transitively scoped through its Order's org.
-    if (!order || !isOrgInScope(order.organizationId ?? '')) {
+    if (!order || !(await orgInScope(order.organizationId ?? ''))) {
       throw new HttpError(404, ERROR_CODES.ORDER_NOT_FOUND, 'Order not found.');
     }
 
@@ -518,10 +518,10 @@ export class InvoiceService {
     if (!inv) throw new HttpError(404, ERROR_CODES.NOT_FOUND, 'Invoice not found.');
     const order = inv.orderId ? await this.orders.findById(inv.orderId) : null;
     if (inv.origin === 'erp_import') {
-      if (!isOrgInScope(inv.organizationId ?? '')) {
+      if (!(await orgInScope(inv.organizationId ?? ''))) {
         throw new HttpError(404, ERROR_CODES.NOT_FOUND, 'Invoice not found.');
       }
-    } else if (!order || !isOrgInScope(order.organizationId ?? '')) {
+    } else if (!order || !(await orgInScope(order.organizationId ?? ''))) {
       throw new HttpError(404, ERROR_CODES.NOT_FOUND, 'Invoice not found.');
     }
     const lineRows = await em.find(InvoiceLine, { invoiceId }, { orderBy: { ordinal: 'asc' } });

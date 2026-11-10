@@ -85,9 +85,12 @@ another representative (issue #305): the ones assigned to them (with
 `organizations:rollup`, their subtrees, nearest assignment winning) and every
 organization nobody is assigned to — personal (B2C) organizations included,
 which can never be assigned. `organizations` answers that reach on
-`adminTenantScopePort` as `{ reach: 'excluding', excludedOrganizationIds,
-assignedOrganizationIds, excludedOrganizationsQuery }`, and the guard filters
-by it. The reach is read from `organization_reach_governor` — each
+`adminTenantScopePort` as `{ reach: 'excluding', excludedOrganizationsQuery,
+loadReach }`, and the guard filters by the query (owner ruling of 2026-11-10,
+which amends the 2026-08-24 exit (a′) ruling to allow it). The lists of
+excluded and assigned organizations are not computed while the scope is
+resolved: `loadReach` loads them on demand, at most once per request, for the
+single-organization helpers and the ranking. The reach is read from `organization_reach_governor` — each
 organization's nearest assigned ancestor-or-self — which statement-level
 triggers keep current inside the transaction of every write that can change it
 (issue #955). Nothing is cached.
@@ -117,13 +120,18 @@ triggers keep current inside the transaction of every write that can change it
   request logs one `warn` naming it (ruling Q1 on PR #954). An empty
   excluded set is a real answer — nobody else holds an assignment — and is never
   produced by an error.
-- **Writes take the same arm.** The write guard and `isOrgInScope` refuse a
+- **Writes take the same arm.** The write guard and `orgInScope` refuse a
   write carrying an excluded organization, so a representative writes only
   where they read.
 - **Modules never read the ids.** A module reads its scope through the
   derived-scope helpers — `orgScopeWhere`, `orgScopeSql` (for raw SQL: the same
-  subquery, with its parameters bound beside the caller's), `isOrgInScope`, `ruleVisibleForScope`, `reachesNoOrganization`
-  and `assignedOrganizationIdsForRanking` (ranking and "mine" filters only).
+  subquery, with its parameters bound beside the caller's), `reachesNoOrganization`
+  and the async `orgInScope`, `ruleInScope`, `orgScopeTest` (a synchronous
+  predicate taken once) and `assignedOrganizationIdsForRanking` (ranking and
+  "mine" filters only). The synchronous `isOrgInScope` and `ruleVisibleForScope`
+  were removed rather than made async, because a promise in an `if` is always
+  truthy; `no-floating-promises` and `no-misused-promises` hold the files that
+  ask the question (issue #955).
   `OrgConstraint` names the arms `all`, `single`, `allowed` and `excluded`; the
   former `set` arm was removed rather than kept beside them, so that no
   consumer could read a representative's scope as "no restriction".
