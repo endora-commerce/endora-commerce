@@ -4515,6 +4515,9 @@ see, so it now names what a task's change touched and nothing more.
 - A task's **History** tab is unchanged: it still shows the values, now read from a store the Tasks
   module keeps beside the task (`task_value_changes`, created by this release's migration), and only
   to a reader who may see that task.
+- A task's history now shows custom field values, and the names of the custom fields a change
+  touched, only to a reader who also holds `custom_fields:read`, as opportunity and project
+  histories already do. A role holding `tasks:read` without it no longer reads them there.
 - Entries recorded before the upgrade are not rewritten: they keep their values, on the Audit log
   screen and in the history.
 

@@ -4729,6 +4729,10 @@ względu na to, co widzi, dlatego teraz mówi tylko, czego dotyczyła zmiana zad
 - Karta **Historia** zadania się nie zmienia: nadal pokazuje wartości, teraz odczytywane z
   magazynu, który moduł Zadania prowadzi przy zadaniu (`task_value_changes`, tworzonego przez
   migrację tego wydania), i tylko czytającemu, który może zobaczyć to zadanie.
+- Historia zadania pokazuje teraz wartości pól niestandardowych i nazwy pól niestandardowych,
+  których dotyczyła zmiana, tylko czytającemu, który ma także `custom_fields:read`, tak jak już
+  robią to historie szans sprzedażowych i projektów. Rola z `tasks:read` bez tego uprawnienia nie
+  odczytuje ich już tam.
 - Wpisy zapisane przed aktualizacją nie są przepisywane: zachowują swoje wartości, na ekranie
   Dziennik audytu i w historii.
 

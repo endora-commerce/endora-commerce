@@ -282,6 +282,12 @@ describe('tasks — the fields of a Task (US1)', () => {
           (changed!.stateAfter as { valueChangeId: string }).valueChangeId,
         ])) as Array<{ before: unknown; after: unknown }>;
       expect(stored).toEqual({ before: { customFieldValues: { [key]: 3 } }, after: { customFieldValues: { [key]: 4 } } });
+      // The history serves them to a custom_fields:read holder only (owner ruling 2026-11-10, #470).
+      const full = await call('GET', `/${task.id}/history?limit=50`);
+      expect(full.body).toContain(key);
+      const reader = await call('GET', `/${task.id}/history?limit=50`, undefined, second.cookies);
+      expect(reader.statusCode, reader.body).toBe(200);
+      expect(reader.body).not.toContain(key);
     });
   });
 

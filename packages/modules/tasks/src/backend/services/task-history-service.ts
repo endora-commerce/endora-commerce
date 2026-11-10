@@ -52,6 +52,24 @@ export interface TaskHistoryServiceDeps {
   auditLog: Pick<AuditPort, 'query'>;
   /** `admin_users`' read port — lazy, resolved per call. */
   adminUsers: AdminUserReadPort;
+  /**
+   * Whether the reader holds `custom_fields:read` (owner ruling 2026-11-10,
+   * #470; feature 162 P2 = a, as CRM and Projects). Without it no entry serves
+   * a Task's custom-field values, nor the names of the changed ones.
+   */
+  mayReadCustomFields: () => Promise<boolean>;
+}
+
+/** The keys of a state that belong to `custom_fields`: the values, and the names of the changed ones. */
+const CUSTOM_FIELD_KEYS = ['customFieldValues', 'changedCustomFields'] as const;
+
+/** An audited state without its custom fields, for a reader who may not read them. */
+export function withoutCustomFields(state: unknown): unknown {
+  const record = asRecord(state);
+  if (!record || !CUSTOM_FIELD_KEYS.some((key) => Object.hasOwn(record, key))) return state;
+  const out = { ...record };
+  for (const key of CUSTOM_FIELD_KEYS) delete out[key];
+  return out;
 }
 
 /**
@@ -244,7 +262,9 @@ export class TaskHistoryService {
       }
       return out;
     };
-    const served = (state: unknown): unknown => {
+    const mayReadCustomFields = page.length > 0 ? await this.deps.mayReadCustomFields() : true;
+    const served = (raw: unknown): unknown => {
+      const state = mayReadCustomFields ? raw : withoutCustomFields(raw);
       const context = contextOf(state);
       if (!context || seen.get(`${context.contextType}:${context.contextId}`)) return withoutHiddenTasks(state ?? null);
       return withoutHiddenTasks(withoutContext(state as Record<string, unknown>));

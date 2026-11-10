@@ -332,6 +332,11 @@ zobaczyć. Dziennik audytu całej platformy, który czyta każdy z
 Wpisy zapisane przed tą zmianą zachowują swoje wartości i są pokazywane tak, jak
 zostały zapisane.
 
+Wartości pól niestandardowych — i to, których pól niestandardowych dotyczyła
+zmiana — historia pokazuje tylko temu, kto ma także `custom_fields:read`, tak
+jak przy szansach sprzedażowych i projektach; dla każdego innego są pomijane w
+każdym wpisie.
+
 ## Konfiguracja zadań
 
 Posiadacze *Configure tasks* docierają do tych ekranów z **Ustawień zadań**

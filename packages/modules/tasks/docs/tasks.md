@@ -301,6 +301,10 @@ see, names what changed (`changedFields`, `changedCustomFields`) and holds none
 of those values. Entries recorded before this change keep their values and are
 shown as they were recorded.
 
+Custom field values — and which custom fields a change touched — are shown in the
+history only to somebody who also holds `custom_fields:read`, as on opportunities
+and projects; for anybody else they are left out of every entry.
+
 ## Configuring Tasks
 
 Holders of *Configure tasks* reach these screens from **Task settings** in the

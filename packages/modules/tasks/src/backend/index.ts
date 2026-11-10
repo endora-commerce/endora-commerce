@@ -406,7 +406,7 @@ export function registerModule(ctx: ModuleContext): void {
     // `auditLogService` is a platform service, not a module's port.
     tasksHistoryService: ctx
       .asFunction(
-        ({ emFactory, tasksTaskService, auditLogService, tasksVisibility, tasksAccess }: TasksCradle) =>
+        ({ emFactory, tasksTaskService, auditLogService, tasksVisibility, tasksAccess, tasksOwnerReadChecks }: TasksCradle) =>
           new TaskHistoryService({
             emFactory,
             tasks: tasksTaskService,
@@ -414,6 +414,8 @@ export function registerModule(ctx: ModuleContext): void {
             access: tasksAccess,
             auditLog: auditLogService,
             adminUsers: lazyPort<AdminUserReadPort>(ctx, 'adminUserReadPort'),
+            // Custom-field values only for `custom_fields:read` (#470; feature 162 P2 = a).
+            mayReadCustomFields: tasksOwnerReadChecks.customFields,
           }),
       )
       .singleton(),
