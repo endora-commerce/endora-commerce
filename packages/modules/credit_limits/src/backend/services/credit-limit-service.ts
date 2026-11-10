@@ -147,11 +147,9 @@ export class CreditLimitService {
         const limit = this.#applyGrant(em, input);
         return {
           result: limit,
-          after: {
-            organizationId: input.organizationId,
-            grantedAmount: limit.grantedAmount,
-            currency: input.currency,
-          },
+          // Names, never values (#470, D-288): the amount and the Organization
+          // are the tenant's; the audit log is read without Organization reach.
+          after: { changedFields: ['currency', 'grantedAmount'] },
         };
       },
       event: () => ({
@@ -276,10 +274,11 @@ export class CreditLimitService {
     if (!input.allowOverAllocation && compareDecimals(input.grantedAmount, reservedSum) < 0) {
       return { result: { ok: false, code: 'ADJUSTMENT_BELOW_ACTIVE' } };
     }
-    const before = { organizationId: input.organizationId, grantedAmount: limit.grantedAmount };
+    const previous = limit.grantedAmount;
     limit.grantedAmount = creditAmount(input.grantedAmount);
-    const after = { organizationId: input.organizationId, grantedAmount: limit.grantedAmount };
-    return { result: { ok: true, limit }, before, after };
+    // Names, never values (#470): which field changed, not from what to what.
+    const after = { changedFields: previous === limit.grantedAmount ? [] : ['grantedAmount'] };
+    return { result: { ok: true, limit }, after };
   }
 
   /**
@@ -403,7 +402,6 @@ export class CreditLimitService {
     // records `pending_manual` and an operator settles it out of band.
     if (!limit) return { result: { applied: false, alreadyApplied: false } };
 
-    const before = { organizationId: input.organizationId, grantedAmount: limit.grantedAmount };
     const newAmount = Number(moneySum([limit.grantedAmount, input.amount]));
     limit.grantedAmount = creditAmount(newAmount);
     em.persist(
@@ -416,12 +414,8 @@ export class CreditLimitService {
     );
     return {
       result: { applied: true, alreadyApplied: false, availableAmountAfter: newAmount },
-      before,
-      after: {
-        organizationId: input.organizationId,
-        grantedAmount: limit.grantedAmount,
-        returnCaseId: input.returnCaseId,
-      },
+      // Names, never values (#470): the return case is an id, the amount is not recorded.
+      after: { changedFields: ['grantedAmount'], returnCaseId: input.returnCaseId },
     };
   }
 

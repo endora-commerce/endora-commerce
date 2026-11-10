@@ -4932,6 +4932,25 @@ dotyczyła zmiana zapytania.
 dziennika audytu, odczytuje je z historii zapytania
 (`GET /api/v1/admin/quote-requests/:id/history`).
 
+### Kwoty limitów kredytowych znikają z dziennika audytu platformy {#credit-limits-audit-names-only}
+
+Wydanie z tą zmianą przestaje zapisywać kwoty limitów kredytowych w dzienniku audytu całej
+platformy (zgłoszenie #470). Ten dziennik to jedna tabela, czytana przez każdego, kto ma
+`audit_log:read`, bez względu na to, które organizacje widzi.
+
+**Zmiana zachowania po aktualizacji:**
+
+- Na ekranie **Dziennik audytu** i w `audit_logs read` nowy wpis `credit_limit.grant`,
+  `credit_limit.adjust` albo `credit_limit.credit_from_return` nie zawiera już przyznanej kwoty,
+  waluty ani identyfikatora organizacji. Mówi, co się zmieniło (`changedFields`, na przykład
+  `['grantedAmount']`), a zaliczenie ze zwrotu zachowuje identyfikator sprawy zwrotu. Wpis jest
+  nadal zapisywany dla organizacji.
+- Sam limit i ekran limitu kredytowego organizacji się nie zmieniają.
+- Wpisy zapisane przed aktualizacją nie są przepisywane: zachowują swoje kwoty.
+
+**Po aktualizacji** nie trzeba nic robić. Raport, który odczytywał przyznane kwoty z dziennika
+audytu, odczytuje je z samego limitu kredytowego.
+
 ## Instancja niespójna od początku
 
 Instalator `0.101.x` lub starszy zapisywał każdy pakiet wydania z `^` poza
