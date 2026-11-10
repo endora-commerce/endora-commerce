@@ -4500,6 +4500,28 @@ compares against `ERROR_CODES.ASSET_ACCESS_DENIED` no longer compiles: drop the 
 compare against `ERROR_CODES.ASSET_NOT_FOUND`. With cloud storage, add `X-Content-Type-Options:
 nosniff` in front of the bucket, as the assets library page describes.
 
+### Customer account values leave the platform audit log {#customer-accounts-audit-names-only}
+
+The release that ships this change stops writing a customer account's values into the
+platform-wide audit log (issue #470). That log is one table, read by everybody holding
+`audit_log:read` whichever organizations they may see, so it now names what an account's change
+touched and nothing more.
+
+**Behaviour change on upgrade:**
+
+- On the **Audit log** screen, and in `audit_logs read`, a new `customer_account.*` entry no
+  longer carries the account's e-mail, first or last name, its organization, a block's reason or a
+  custom organization role's name, and `customer.custom_fields.update` no longer carries custom
+  field values.
+- Instead, a profile change, an account's creation and a move between organizations name the
+  fields as `changedFields`. A custom-field change names the keys as `changedCustomFields`. A block
+  records `hasBlockReason`. A role change records the role's id and kind.
+- Entries recorded before the upgrade are not rewritten. The erasure of a deleted customer
+  (`customers.deletion_retention_days`) still redacts them, as before.
+
+**After upgrading,** nothing has to be done. A report or an export that read these values out of
+the audit log reads them from the account (`GET /api/v1/admin/customers/:id`) instead.
+
 ## An instance that is mixed from the start
 
 The installer of `0.101.x` or earlier wrote every package of the release with a `^` except

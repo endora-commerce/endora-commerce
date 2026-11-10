@@ -35,7 +35,12 @@ import {
 } from './customer-account-ports.js';
 import type { TwoFactorEnrolmentReader } from './two-factor-enrolments.js';
 import { anyRowExists, type WorkRows } from './scheduled-work-probe.js';
-import { accountCreatedAuditState } from './customer-account-audit-state.js';
+import {
+  accountCreatedAuditState,
+  blockAuditState,
+  changedKeys,
+  organizationMoveAuditState,
+} from './customer-account-audit-state.js';
 
 /**
  * The account lifecycle `customers` runs over this module's table
@@ -103,14 +108,6 @@ function dueForAnonymization(cutoff: Date): WorkRows {
       'from "customer_accounts" where ("deleted_at" is not null and "deleted_at" < ? and "anonymized_at" is null)' +
       ` or ("anonymized_at" is not null and ("block_reason" is not null or "custom_field_values" <> '{}'::jsonb))`,
     params: [cutoff],
-  };
-}
-
-function blockSnapshot(account: CustomerAccount): Record<string, unknown> {
-  return {
-    blockedAt: account.blockedAt ? account.blockedAt.toISOString() : null,
-    blockSource: account.blockSource ?? null,
-    blockReason: account.blockReason ?? null,
   };
 }
 
@@ -262,7 +259,7 @@ export class CustomerAccountLifecycleWriteService implements CustomerAccountLife
     const account = await this.#loadLive(em, customerAccountId);
     if (account.blockedAt) return toOneCustomerAccountRecord(this.twoFactorEnrolments, account);
 
-    const before = blockSnapshot(account);
+    const before = blockAuditState(account);
     account.blockedAt = new Date();
     account.blockSource = 'staff';
     account.blockedByAdminUserId = input.actorAdminUserId;
@@ -274,7 +271,7 @@ export class CustomerAccountLifecycleWriteService implements CustomerAccountLife
       account.id,
       input.actorAdminUserId,
       before,
-      blockSnapshot(account),
+      blockAuditState(account),
       input.audit,
     );
     return toOneCustomerAccountRecord(this.twoFactorEnrolments, account);
@@ -290,7 +287,7 @@ export class CustomerAccountLifecycleWriteService implements CustomerAccountLife
       return toOneCustomerAccountRecord(this.twoFactorEnrolments, account);
     }
 
-    const before = blockSnapshot(account);
+    const before = blockAuditState(account);
     account.blockedAt = null;
     account.blockSource = null;
     account.blockedByAdminUserId = null;
@@ -302,7 +299,7 @@ export class CustomerAccountLifecycleWriteService implements CustomerAccountLife
       account.id,
       input.actorAdminUserId,
       before,
-      blockSnapshot(account),
+      blockAuditState(account),
       input.audit,
     );
     return toOneCustomerAccountRecord(this.twoFactorEnrolments, account);
@@ -418,10 +415,12 @@ export class CustomerAccountLifecycleWriteService implements CustomerAccountLife
     account.organizationId = organizationId;
     account.organizationRoleId = input.organizationRoleId;
     await em.flush();
-    await this.#record(action, account.id, input.actorAdminUserId, before, {
+    // A tenant move by name: the Organization ids stay out of the audit log (D-288).
+    const { stateBefore, stateAfter } = organizationMoveAuditState(before, {
       organizationId,
       organizationRoleId: input.organizationRoleId,
     });
+    await this.#record(action, account.id, input.actorAdminUserId, stateBefore, stateAfter);
     return toOneCustomerAccountRecord(this.twoFactorEnrolments, account);
   }
 
@@ -464,10 +463,6 @@ export class CustomerAccountLifecycleWriteService implements CustomerAccountLife
       action: 'customer.custom_fields.update',
       objectType: 'customer_account',
       objectId: customerAccountId,
-      capture: async ({ em }) => {
-        const account = await em.findOne(CustomerAccount, { id: customerAccountId });
-        return account ? { customFieldValues: account.customFieldValues ?? {} } : null;
-      },
       run: async ({ em }) => {
         if (!isUuidShape(customerAccountId)) {
           throw new HttpError(404, ERROR_CODES.NOT_FOUND, 'Customer not found.');
@@ -476,10 +471,13 @@ export class CustomerAccountLifecycleWriteService implements CustomerAccountLife
         if (!account) {
           throw new HttpError(404, ERROR_CODES.NOT_FOUND, 'Customer not found.');
         }
-        account.customFieldValues = await merge(account.customFieldValues ?? {});
+        const current = { ...(account.customFieldValues ?? {}) };
+        account.customFieldValues = await merge(current);
+        // The entry names the keys whose value changed, never the values (D-288).
         return {
           result: toCustomerAccountRecord(account, enrolled.has(account.id)),
-          after: { customFieldValues: account.customFieldValues },
+          before: null,
+          after: { changedCustomFields: changedKeys(current, account.customFieldValues ?? {}) },
         };
       },
     };

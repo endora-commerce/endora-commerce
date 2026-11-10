@@ -4714,6 +4714,28 @@ Kod porównujący z `ERROR_CODES.ASSET_ACCESS_DENIED` przestaje się kompilować
 porównuj z `ERROR_CODES.ASSET_NOT_FOUND`. Przy magazynie w chmurze dodaj nagłówek
 `X-Content-Type-Options: nosniff` przed bucketem, jak opisuje strona biblioteki zasobów.
 
+### Wartości kont klientów znikają z dziennika audytu platformy {#customer-accounts-audit-names-only}
+
+Wydanie z tą zmianą przestaje zapisywać wartości konta klienta w dzienniku audytu całej platformy
+(zgłoszenie #470). Ten dziennik to jedna tabela, czytana przez każdego, kto ma `audit_log:read`, bez
+względu na to, które organizacje widzi, dlatego teraz mówi tylko, czego dotyczyła zmiana konta.
+
+**Zmiana zachowania po aktualizacji:**
+
+- Na ekranie **Dziennik audytu** i w `audit_logs read` nowy wpis `customer_account.*` nie zawiera
+  już adresu e-mail konta, imienia ani nazwiska, jego organizacji, powodu blokady ani nazwy
+  niestandardowej roli w organizacji, a `customer.custom_fields.update` nie zawiera już wartości
+  pól niestandardowych.
+- Zamiast tego zmiana profilu, utworzenie konta i przeniesienie między organizacjami wymieniają
+  pola jako `changedFields`. Zmiana pól niestandardowych wymienia klucze jako
+  `changedCustomFields`. Blokada zapisuje `hasBlockReason`. Zmiana roli zapisuje identyfikator i
+  rodzaj roli.
+- Wpisy zapisane przed aktualizacją nie są przepisywane. Usunięcie danych klienta po jego
+  skasowaniu (`customers.deletion_retention_days`) nadal je redaguje, jak dotąd.
+
+**Po aktualizacji** nie trzeba nic robić. Raport lub eksport, który odczytywał te wartości z
+dziennika audytu, odczytuje je z samego konta (`GET /api/v1/admin/customers/:id`).
+
 ## Instancja niespójna od początku
 
 Instalator `0.101.x` lub starszy zapisywał każdy pakiet wydania z `^` poza

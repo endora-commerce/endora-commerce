@@ -292,7 +292,7 @@ describe('customer_accounts audit state carries names, never values (#470)', () 
       'customer_account.update_profile',
       'customer_account.attach_organization',
     ]);
-    expect(h.entries[1]?.stateAfter).toEqual({ changedFields: ['email', 'emailVerifiedAt', 'firstName'] });
+    expect(h.entries[1]?.stateAfter).toEqual({ changedFields: ['email', 'firstName'] });
     expect(h.entries[2]?.stateAfter).toMatchObject({ changedFields: ['organizationId', 'organizationRoleId'] });
     expectOnlyAllowedKeys(h.entries);
   });
