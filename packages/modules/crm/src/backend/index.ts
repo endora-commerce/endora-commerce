@@ -119,6 +119,7 @@ import {
 } from './workers/value-recalculation-worker.js';
 import { CrmOpportunity } from './entities/crm-opportunity.entity.js';
 import { CrmOpportunityAttachment } from './entities/crm-opportunity-attachment.entity.js';
+import { CrmOpportunityValueChange } from './entities/crm-opportunity-value-change.entity.js';
 import { CrmOpportunityComment } from './entities/crm-opportunity-comment.entity.js';
 import { CrmOpportunityEvent } from './entities/crm-opportunity-event.entity.js';
 import { CrmMessageReadBaseline } from './entities/crm-message-read-baseline.entity.js';
@@ -1402,14 +1403,16 @@ function readOrderStatusChange(payload: unknown): OrderStatusChange | null {
  * the package is installed; a missing array is answered with zero entities
  * registered and no error anywhere.
  *
- * Sixteen classes, the whole schema of the module: the Opportunity
- * (`@OrgScoped`), its nine children (`@TransitivelyScoped` through it) and
+ * Seventeen classes, the whole schema of the module: the Opportunity
+ * (`@OrgScoped`), its ten children (`@TransitivelyScoped` through it) and
  * six global tables (`@GlobalEntity`). Thirteen were here before the
  * first user story, so that no story changed a generated registry; the
  * fourteenth, `CrmOpportunityEvent`, came with User Stories 21 and 22. The
  * fifteenth and sixteenth came with the unread count of the Messages tab: a
  * ninth child, `CrmOpportunityMessageRead`, and a sixth global table of one
- * row, `CrmMessageReadBaseline`.
+ * row, `CrmMessageReadBaseline`. The seventeenth, a tenth child,
+ * `CrmOpportunityValueChange`, holds the values the platform audit log no
+ * longer carries (issue #470).
  */
 export const entities = [
   CrmMessageReadBaseline,
@@ -1424,6 +1427,7 @@ export const entities = [
   CrmOpportunityStatusHistory,
   CrmOpportunityStatusTransition,
   CrmOpportunityTag,
+  CrmOpportunityValueChange,
   CrmOrderStatusMapping,
   CrmStatusPropagation,
   CrmTag,

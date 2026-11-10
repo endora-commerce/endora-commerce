@@ -20,6 +20,7 @@ import { CrmOpportunity } from '../entities/crm-opportunity.entity.js';
 import { CrmOpportunityLink } from '../entities/crm-opportunity-link.entity.js';
 import type { CrmQuoteRequestDocument, CrmQuoteRequests } from './crm-quote-requests.js';
 import { isUuid, loadOpportunity } from './opportunity-access.js';
+import { recordValueChange } from './opportunity-audit-state.js';
 import { carryIntoOpportunityBestEffort, type OpportunityCarrySource } from './opportunity-custom-field-carry.js';
 import { assertMayReadQuoteRequests, type OwnerReadChecks } from './owner-read-permissions.js';
 
@@ -268,12 +269,19 @@ export class OpportunityLinkService {
                   ),
               )
             : null;
+          const customFieldsBefore = { ...(parent.customFieldValues ?? {}) };
           if (carry && carry.carried.length > 0) {
             parent.customFieldValues = { ...carry.values };
             // A write to the Opportunity, as an edit is: a client holding the
             // previous version must learn that it is stale.
             parent.version += 1;
           }
+          // The carried values go to the Opportunity's own store; the entry
+          // names the fields (#470).
+          const values = recordValueChange(em, parent.id, {
+            before: { customFieldValues: customFieldsBefore },
+            after: { customFieldValues: { ...(parent.customFieldValues ?? {}) } },
+          });
           return {
             result: { organizationId: parent.organizationId },
             before: null,
@@ -283,8 +291,8 @@ export class OpportunityLinkService {
               documentId: created.documentId,
               syncStatus: created.syncStatus,
               linkSource: created.linkSource,
-              ...(carry && carry.carried.length > 0 ? { customFieldValues: { ...carry.values } } : {}),
               ...(carry?.after ?? {}),
+              ...values,
             },
           };
         },

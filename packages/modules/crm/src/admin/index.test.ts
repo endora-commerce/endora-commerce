@@ -365,20 +365,23 @@ function literalKeys(text: string, open: number): string[] {
 }
 
 /**
- * Every key a `crm.opportunity.*` Command can put in `before` or `after`: the
- * literals assigned to either name, and the snapshot they spread.
+ * Every key the history can show of a `crm.opportunity.*` Command: the
+ * literals assigned to `before` or `after` — in an audit state, or in what a
+ * Command hands the Opportunity's value store (#470) — and the snapshot and
+ * the values they spread (`opportunity-audit-state.ts`).
  */
+const AUDIT_STATE_FILE = 'opportunity-audit-state.ts';
 function auditedStateKeys(): string[] {
   const keys = new Set<string>();
   for (const file of readdirSync(SERVICES_ROOT)) {
     if (!file.endsWith('.ts') || file.endsWith('.test.ts')) continue;
     const source = readFileSync(new URL(file, SERVICES_ROOT), 'utf8');
-    if (!source.includes("'crm.opportunity.")) continue;
+    if (!source.includes("'crm.opportunity.") && file !== AUDIT_STATE_FILE) continue;
     // Comments carry commas and braces of their own.
     const text = source.replace(/\/\*[\s\S]*?\*\//g, '').replace(/^\s*\/\/.*$/gm, '');
     const starts = [
       ...text.matchAll(/\b(?:before|after)(?::| =)[^,;{}\n]*\{/g),
-      ...text.matchAll(/function auditSnapshot\([^)]*\)[^{]*\{\s*return \{/g),
+      ...text.matchAll(/function (?:auditSnapshot|opportunityValues)\([^)]*\)[^{]*\{\s*return \{/g),
     ];
     for (const match of starts) {
       for (const key of literalKeys(text, match.index + match[0].length - 1)) keys.add(key);

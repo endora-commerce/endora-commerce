@@ -39,7 +39,18 @@ function entry(index: number, before: unknown, after: unknown): StubEntry {
   };
 }
 
-function build(entries: StubEntry[], mayReadCustomFields: () => Promise<boolean> = async () => true) {
+interface StubValueChange {
+  id: string;
+  opportunityId: string;
+  before: Record<string, unknown> | null;
+  after: Record<string, unknown> | null;
+}
+
+function build(
+  entries: StubEntry[],
+  mayReadCustomFields: () => Promise<boolean> = async () => true,
+  stored: StubValueChange[] = [],
+) {
   const query = vi.fn(async (filter: { limit?: number }) =>
     // As the port does: newest first, never more than its cap.
     entries.slice(0, Math.min(filter.limit ?? 100, 500)),
@@ -50,14 +61,19 @@ function build(entries: StubEntry[], mayReadCustomFields: () => Promise<boolean>
       ...((text ?? '').includes(ANNA) ? [person(ANNA, 'Anna Żak')] : []),
     ]),
   );
+  // The value store, read as the scoped EntityManager reads it: by the
+  // Opportunity's id and the ids the page points at.
+  const find = vi.fn(async (_entity: unknown, where: { opportunityId: string; id: { $in: string[] } }) =>
+    stored.filter((row) => row.opportunityId === where.opportunityId && where.id.$in.includes(row.id)),
+  );
   const service = new OpportunityHistoryService({
-    emFactory: () => ({ findOne: async () => ({ id: OPPORTUNITY }) }) as never,
+    emFactory: () => ({ findOne: async () => ({ id: OPPORTUNITY }), find }) as never,
     auditLog: { query } as never,
     adminUsers: { findByIds: async () => [] } as never,
     references: { resolveMany },
     mayReadCustomFields,
   });
-  return { service, query, resolveMany };
+  return { service, query, resolveMany, find };
 }
 
 /** The audit port's own cap (`AuditPort.query`): it never answers more, whatever is asked. */
@@ -199,5 +215,95 @@ describe('OpportunityHistoryService — custom-field values and custom_fields:re
     const { service } = build(entries, check);
     await service.list(OPPORTUNITY, { limit: 50 });
     expect(check).toHaveBeenCalledTimes(1);
+  });
+});
+
+/**
+ * Issue #470 (D-288) — an entry names what a write changed and points at the
+ * Opportunity's own value store; the history serves the values from there.
+ */
+describe('OpportunityHistoryService — values from the Opportunity’s own store (#470)', () => {
+  const V1 = '00000000-0000-4000-8000-0000000004f1';
+  const V2 = '00000000-0000-4000-8000-0000000004f2';
+  const OTHER_OPPORTUNITY = '00000000-0000-4000-8000-0000000000d2';
+  const named = (changed: Record<string, unknown>, pointer: string) => ({
+    number: 'OPP-000001',
+    statusCode: 'new',
+    ...changed,
+    valueChangeId: pointer,
+  });
+
+  it('serves the stored values in place of the names, as entries before #470 carried them', async () => {
+    const { service, find } = build(
+      [entry(0, { number: 'OPP-000001', statusCode: 'new' }, named({ changedFields: ['title'] }, V1))],
+      async () => true,
+      [{ id: V1, opportunityId: OPPORTUNITY, before: { title: 'Fleet' }, after: { title: 'Fleet renewal' } }],
+    );
+    const page = await service.list(OPPORTUNITY, { limit: 50 });
+    expect(page.data[0]?.before).toEqual({ number: 'OPP-000001', statusCode: 'new', title: 'Fleet' });
+    expect(page.data[0]?.after).toEqual({ number: 'OPP-000001', statusCode: 'new', title: 'Fleet renewal' });
+    expect(find).toHaveBeenCalledTimes(1);
+    expect(find.mock.calls[0]?.[1]).toEqual({ opportunityId: OPPORTUNITY, id: { $in: [V1] } });
+  });
+
+  it('reads only this Opportunity’s rows: a pointer to another one’s serves the names, never its values', async () => {
+    const { service } = build(
+      [entry(0, null, named({ changedFields: ['title'] }, V2))],
+      async () => true,
+      [{ id: V2, opportunityId: OTHER_OPPORTUNITY, before: null, after: { title: 'Not yours' } }],
+    );
+    const page = await service.list(OPPORTUNITY, { limit: 50 });
+    expect(page.data[0]?.after).toEqual({ number: 'OPP-000001', statusCode: 'new', changedFields: ['title'] });
+  });
+
+  it('follows a pointer on the side that has one — a removed Event names itself before', async () => {
+    const { service } = build(
+      [entry(0, { eventId: 'e', changedFields: ['eventName'], valueChangeId: V1 }, { eventId: 'e', deleted: true })],
+      async () => true,
+      [{ id: V1, opportunityId: OPPORTUNITY, before: { eventName: 'Kick-off' }, after: null }],
+    );
+    const page = await service.list(OPPORTUNITY, { limit: 50 });
+    expect(page.data[0]?.before).toEqual({ eventId: 'e', eventName: 'Kick-off' });
+    expect(page.data[0]?.after).toEqual({ eventId: 'e', deleted: true });
+  });
+
+  it('resolves the references of a stored description', async () => {
+    const { service } = build(
+      [entry(0, null, named({ changedFields: ['description'] }, V1))],
+      async () => true,
+      [{ id: V1, opportunityId: OPPORTUNITY, before: null, after: { description: `Ask [[admin_user:${TOMASZ}]]` } }],
+    );
+    const page = await service.list(OPPORTUNITY, { limit: 50 });
+    expect(page.data[0]?.references).toEqual([person(TOMASZ, 'Tomasz Nowak')]);
+  });
+
+  it('serves stored custom-field values, and their names, only to a caller who may read custom fields', async () => {
+    const entries = [entry(0, null, named({ changedFields: ['title'], changedCustomFields: ['risk'] }, V1))];
+    const stored = [
+      { id: V1, opportunityId: OPPORTUNITY, before: null, after: { title: 'A', customFieldValues: { risk: 'high' } } },
+    ];
+    const hidden = await build(entries, async () => false, stored).service.list(OPPORTUNITY, { limit: 50 });
+    expect(hidden.data[0]?.after).toEqual({ number: 'OPP-000001', statusCode: 'new', title: 'A' });
+    const shown = await build(entries, async () => true, stored).service.list(OPPORTUNITY, { limit: 50 });
+    expect(shown.data[0]?.after).toEqual({
+      number: 'OPP-000001',
+      statusCode: 'new',
+      title: 'A',
+      customFieldValues: { risk: 'high' },
+    });
+  });
+
+  it('hides the names of changed custom fields from a caller who may not read them, when no row is found', async () => {
+    const { service } = build([entry(0, null, named({ changedCustomFields: ['risk'] }, V1))], async () => false);
+    const page = await service.list(OPPORTUNITY, { limit: 50 });
+    expect(page.data[0]?.after).toEqual({ number: 'OPP-000001', statusCode: 'new' });
+  });
+
+  it('reads no store for a page that points at none', async () => {
+    const { service, find } = build([entry(0, null, { title: 'Before #470' })]);
+    const page = await service.list(OPPORTUNITY, { limit: 50 });
+    expect(find).not.toHaveBeenCalled();
+    // An entry written before #470 keeps its audited values: nothing rewrites it (O-4).
+    expect(page.data[0]?.after).toEqual({ title: 'Before #470' });
   });
 });
