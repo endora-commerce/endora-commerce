@@ -157,7 +157,7 @@ describe('organizations — M2: the tax-ID scope foundation', () => {
       `select to_regclass('organization_tax_id_policy') is not null as "table",
               exists (select 1 from information_schema.columns
                        where table_name = 'organizations' and column_name = 'root_id') as "column"`,
-    )) as Array<{ table: boolean; column: boolean }>;
+    )) as [{ table: boolean; column: boolean }];
     expect({ table, column }).toEqual({ table: false, column: false });
 
     await run('up');

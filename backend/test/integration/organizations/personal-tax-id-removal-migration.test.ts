@@ -149,7 +149,7 @@ describe('organizations — M1: personal organizations lose the synthetic tax ID
     expect(notice).toBeDefined();
     const [{ unlinked }] = (await em.execute(
       `select count(*)::int as "unlinked" from "organizations" where "is_personal" and "personal_account_id" is null`,
-    )) as Array<{ unlinked: number }>;
+    )) as [{ unlinked: number }];
     expect(notice).toContain(`${unlinked} personal organization`);
   });
 
@@ -199,7 +199,7 @@ describe('organizations — M1: personal organizations lose the synthetic tax ID
     await run('up');
     const [{ scope }] = (await em.execute(
       'select "scope" from "organization_tax_id_policy"',
-    )) as Array<{ scope: string }>;
+    )) as [{ scope: string }];
     if (scope !== 'global') return; // per-tree-root: the exclusion constraint's, WP-3's matrix
     const taxId = `PL${randomUUID().slice(0, 10)}`;
     await insertOrganization({ taxId, isPersonal: false });
@@ -243,7 +243,7 @@ describe('organizations — M1: personal organizations lose the synthetic tax ID
     const [{ nullable }] = (await em.execute(
       `select is_nullable as "nullable" from information_schema.columns
         where table_name = 'organizations' and column_name = 'tax_id'`,
-    )) as Array<{ nullable: string }>;
+    )) as [{ nullable: string }];
     expect(nullable).toBe('NO');
   });
 
@@ -306,7 +306,7 @@ describe('organizations — M1: personal organizations lose the synthetic tax ID
       const [{ applied }] = (await em.execute(
         'select count(*)::int as "applied" from "mikro_orm_migrations" where "name" = ?',
         [OLD_MIGRATION],
-      )) as Array<{ applied: number }>;
+      )) as [{ applied: number }];
       expect(applied).toBe(1);
       await insertOrganization({ taxId: `PL${randomUUID().slice(0, 10)}`, isPersonal: false });
 
@@ -318,7 +318,7 @@ describe('organizations — M1: personal organizations lose the synthetic tax ID
       await em.execute('delete from "mikro_orm_migrations" where "name" = ?', [OLD_MIGRATION]);
       const [{ count }] = (await em.execute(
         'select count(*)::int as "count" from "organizations"',
-      )) as Array<{ count: number }>;
+      )) as [{ count: number }];
       expect(count).toBe(0);
 
       expect(await upError()).toBeUndefined();
