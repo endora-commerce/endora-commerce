@@ -24,7 +24,9 @@ export type SchemaExtensionRule =
   | 'not-offered-yet'
   | 'not-a-declaration'
   | 'workspace-module'
-  | 'overlay-module';
+  | 'overlay-module'
+  /** Two modules' declarations resolve to one physical column or index name (review finding 4). */
+  | 'physical-name-collision';
 
 /** `schema_extension_invalid` — a declaration the platform refuses, naming module, key and rule. */
 export class SchemaExtensionInvalidError extends Error {

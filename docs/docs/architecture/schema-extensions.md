@@ -47,6 +47,12 @@ and the message lists the tables that are.
   `timestamptz` and `jsonb` are always nullable. `index: true` builds a btree index,
   `index: 'unique'` a unique partial index over the non-null values (nullable columns only).
   At most 32 columns per declaration; a physical name over 63 bytes is refused.
+- **Two keys are reserved**: `id` and `organizationId` are the host's own columns as the
+  platform maps them for you, and a declaration naming either is refused (`key`).
+- **Physical names are unique across modules.** `x_<moduleId>_<snake_case(key)>` can come out the
+  same for two modules (`acme` + `erpCode` and `acme_erp` + `code` are both `x_acme_erp_code`);
+  discovery refuses the second with `physical-name-collision`, naming both modules. A back-fill
+  may set only the exact columns your module declares.
 - **Changing a column is not offered.** Changing a key's type, nullability or default is refused
   (`non-additive-change`) — declare a new key instead. Removing a key marks its column
   orphaned; it is not dropped.
@@ -125,6 +131,12 @@ export function syncErpCode(organizationId: string, erpCode: string): Command<vo
 Every accessor method is gated on your module being present: while it is switched off, every
 call throws `ModuleDisabledError` and the columns keep their values.
 
+**The accessor does no authorisation.** On `organizations`, which is a global table, `load`,
+`get` and `set` reach any organization by id: there is no tenant filter to narrow them and no
+check of the caller's reach. Authorise in your own route or Command before you call it — as
+the host's admin reads do, which attach extension values only to records they already
+authorised.
+
 ### Back-filling, from your own migration
 
 The generated step runs at the head of your module's migration block, so your own migrations run
@@ -201,10 +213,14 @@ columns. Uninstalling the host while your module is installed is refused with
 Declaring is the only route onto a core table. Every migration an installed package ships runs
 inside the platform's foreign-schema guard, which refuses — and rolls the `migrate` run back —
 any statement that writes a table your module does not own: an `alter table "organizations"`,
-an index on it, an `insert` into `orders`. It reads every write path a migration has: what it
-hands to `addSql` and `execute`, `do $$ … $$` blocks, the bodies of functions it creates, the
-strings a PL/pgSQL `execute` runs, and `getEntityManager()` — its flush and its `insert*`,
-`upsert*`, `native*` and `execute` shortcuts.
+an index on it, an `insert` into `orders`, a policy on it. It reads every write path a
+migration has: what it hands to `addSql` and `execute`, `do $$ … $$` blocks, the bodies of
+functions it creates, the strings a PL/pgSQL `execute` runs, and `getEntityManager()` — its
+flush, its `insert*`, `upsert*`, `native*` and `execute` shortcuts, its query builders, its
+connection and its forks. A PL/pgSQL `execute` of a computed string (`format(…)`, a variable) and
+the entity manager's raw `getKnex()` cannot be attributed to a table and are refused. A
+`create table if not exists` on a table another module's entity maps creates nothing you may
+then alter.
 
 A table is yours when one of your entities maps it, or one of your migrations creates it and no
 other module's entity maps it. **The guard fails closed**: a table it cannot attribute to you is

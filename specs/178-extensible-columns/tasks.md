@@ -171,6 +171,19 @@ D-291 addendum tasks (architect, 2026-11-10; release-blocking with B + C):
 - [x] T070 Update the developer page (`docs/docs/architecture/schema-extensions.md` + PL) for R-A1
   (what the guard reads) and R-A5 (vanished packages are orphaned at migrate) [FR-093]
 
+Review fixes (2026-11-10, `feat/178-extensible-columns-c`), each with a test seen failing first:
+instance `migrate.ts` scaffold and acceptance probe use `migrateUpVerified`; reserved keys `id` /
+`organizationId`; exact declared columns in the guard and `physical-name-collision` at discovery;
+policies, unattributable dynamic SQL, query builders, connection, forks, `transactional` and raw
+`getKnex()` on the migration entity manager; dry runs cannot reach the database; locked re-check
+in `drop --confirm` and a marker-based audit back-link; orphan marking only on a context that
+describes the ORM; named verifier causes. Finding 3 was narrowed rather than applied as worded: a
+foreign-mapped `create table if not exists` licenses no DDL in `up()`, but is itself allowed and
+`down()` keeps reverting it, because `inventory`'s D-226 bridge migration
+(`Migration20260912T125716InventoryOrganizationWarehouses`) has exactly that shape — refusing it would
+break every upgraded instance and inventory's hard uninstall. The residual (a package's own `down()`
+dropping such a table on its hard uninstall) needs a ruling.
+
 ## Phase D — Remaining eight hosts (later release — OD-178-4, ruled D-291; out of this release)
 
 - [ ] T080 Delete the rollout constant; T004 asserts all 9 hosts [FR-011]

@@ -39,7 +39,10 @@ let db: ThrowawayDatabase;
 let orm: MikroORM;
 let declared: readonly ColumnExtension[] = [declaration];
 
-function runtime(): SchemaExtensionsRuntime & { stdout: string[]; stderr: string[] } {
+function runtime(): { -readonly [K in keyof SchemaExtensionsRuntime]: SchemaExtensionsRuntime[K] } & {
+  stdout: string[];
+  stderr: string[];
+} {
   const stdout: string[] = [];
   const stderr: string[] = [];
   return {
@@ -113,6 +116,29 @@ describe('module:schema-extensions', () => {
     expect(text).toContain('x178_hosts.x_acme_erp_erp_code: 1 row(s) hold a value');
     expect(text).toContain('Nothing was changed');
     expect(Object.values(await ledger()).every((row) => row.status === 'orphaned')).toBe(true);
+  });
+
+  // Review finding 7 — the status is re-read under a row lock inside the
+  // Command: a row that stopped being orphaned between the plan and the drop
+  // (a package re-attached it) aborts the drop and nothing is touched.
+  it('aborts when a row stops being orphaned between the plan and the Command', async () => {
+    const rt = runtime();
+    const commandBus = rt.commandBus;
+    rt.commandBus = async () => {
+      await db.query(`update schema_extensions set status = 'applied' where physical_name = 'x_acme_erp_credit_tier'`);
+      return commandBus();
+    };
+    expect(await runSchemaExtensionsCommand(['drop', DECLARING_MODULE, '--confirm'], rt)).toBe(
+      SCHEMA_EXTENSIONS_EXIT.refused,
+    );
+    expect(rt.stderr.join('')).toContain('not-orphaned');
+    const columns = await db.query(
+      `select column_name from information_schema.columns where table_name = 'x178_hosts' and column_name like 'x\\_%'`,
+    );
+    expect(columns.length).toBeGreaterThan(0);
+    const audits = await db.query(`select 1 from audit_log_entries where action = 'schema_extension.drop'`);
+    expect(audits).toEqual([]);
+    await db.query(`update schema_extensions set status = 'orphaned' where physical_name = 'x_acme_erp_credit_tier'`);
   });
 
   it('drops with --confirm: columns gone, rows dropped, one audit entry without values', async () => {

@@ -152,6 +152,7 @@ export {
 export {
   ForeignSchemaWriteError,
   auditForeignSchemaWrites,
+  declaredColumnsByHost,
   dryRunStatements,
   guardExternalMigration,
   queryText,

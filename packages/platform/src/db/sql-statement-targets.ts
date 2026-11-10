@@ -42,7 +42,15 @@ export type SqlWriteVerb =
   | 'update'
   | 'delete'
   | 'truncate'
-  | 'merge';
+  | 'merge'
+  /** `create|alter|drop policy … on <t>` — row-level security on the table. */
+  | 'policy'
+  /**
+   * A PL/pgSQL `execute` of a string this reader cannot see — `format(…)`, a
+   * variable, a concatenation. Its table is unattributable, so a caller judging
+   * writes must refuse it (fail closed, review finding 5).
+   */
+  | 'dynamic';
 
 export interface SqlWriteTarget {
   /** The table, lower-cased, schema qualifier stripped. `null` for `drop index`. */
@@ -56,6 +64,8 @@ export interface SqlWriteTarget {
    * a caller must treat as "not provably its own".
    */
   readonly setColumns?: readonly string[] | null;
+  /** For `create`: whether it is `create table if not exists`, a no-op on an existing table. */
+  readonly ifNotExists?: boolean;
   /** The statement's head, whitespace collapsed, for a message. */
   readonly statement: string;
 }
@@ -101,7 +111,7 @@ const RECOGNISERS: readonly Recogniser[] = [
   {
     verb: 'create',
     pattern: re(
-      String.raw`\bcreate\s+(?:(?:global\s+|local\s+)?(?:temporary|temp|unlogged)\s+)?table\s+(?:if\s+not\s+exists\s+)?(${QUALIFIED})`,
+      String.raw`\bcreate\s+(?:(?:global\s+|local\s+)?(?:temporary|temp|unlogged)\s+)?table\s+(if\s+not\s+exists\s+)?(${QUALIFIED})`,
     ),
   },
   { verb: 'insert', pattern: re(String.raw`\binsert\s+into\s+(${QUALIFIED})`) },
@@ -115,6 +125,14 @@ const RECOGNISERS: readonly Recogniser[] = [
   // `(?!on\b)`: `create trigger … after truncate on <t>` names an event, not a statement.
   { verb: 'truncate', pattern: re(String.raw`\btruncate\s+(?:table\s+)?(?:only\s+)?(?!on\b)(${LIST})`) },
   { verb: 'merge', pattern: re(String.raw`\bmerge\s+into\s+(?:only\s+)?(${QUALIFIED})`) },
+  {
+    verb: 'policy',
+    pattern: re(String.raw`\b(?:create|alter|drop)\s+policy\s+(?:if\s+exists\s+)?${IDENT}\s+on\s+(${QUALIFIED})`),
+  },
+  // What is left of `execute` once the literal strings it runs were inlined
+  // (see `normalise`): a computed string. `execute function|procedure` is a
+  // trigger's action and `grant execute on` a privilege.
+  { verb: 'dynamic', pattern: re(String.raw`\bexecute\s+(?!function\b|procedure\b|on\b)()`) },
 ];
 
 /** `"Public"."Orgs"` → `orgs`; `a.b` → `b`. */
@@ -160,10 +178,13 @@ function splitTopLevel(text: string): string[] {
  */
 function normalise(sql: string): string {
   return sql
+    // `execute $tag$ … $tag$` runs a dollar-quoted literal: inline it like a
+    // single-quoted one, before anything else reads the text.
+    .replace(/\bexecute\s+(\$[a-z_]*\$)([\s\S]*?)\1/gi, (_match, _tag: string, body: string) => ` ${body} ;`)
     .replace(/\/\*[\s\S]*?\*\//g, ' ')
     .replace(/--[^\n]*/g, ' ')
     .replace(/(\bexecute\s+)?'((?:[^']|'')*)'/gi, (_match, execute: string | undefined, body: string) =>
-      execute === undefined ? "''" : `${execute} ${body.replace(/''/g, "'")} ;`,
+      execute === undefined ? "''" : ` ${body.replace(/''/g, "'")} ;`,
     );
 }
 
@@ -222,6 +243,9 @@ export function sqlWriteTargets(sql: string): SqlWriteTarget[] {
         case 'truncate':
           for (const table of splitList(match[1]!)) found.push({ at, table, verb, statement });
           break;
+        case 'dynamic':
+          found.push({ at, table: null, verb, statement });
+          break;
         case 'drop-index':
           found.push({ at, table: null, index: lastPart(match[1]!), verb, statement });
           break;
@@ -240,6 +264,9 @@ export function sqlWriteTargets(sql: string): SqlWriteTarget[] {
             setColumns: setColumnsAt(text, at + match[0].length),
             statement,
           });
+          break;
+        case 'create':
+          found.push({ at, table: lastPart(match[2]!), verb, ifNotExists: match[1] !== undefined, statement });
           break;
         default:
           found.push({ at, table: lastPart(match[1]!), verb, statement });

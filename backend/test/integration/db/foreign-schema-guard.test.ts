@@ -140,4 +140,36 @@ describe('the foreign-schema guard on a real migrate', () => {
     expect(error).toBeNull();
     expect(await columnsOf('acme_rows')).toEqual(['id']);
   });
+
+  // Review finding 5 — the entity manager's other write paths.
+  it.each([
+    [
+      'createQueryBuilder().update().execute()',
+      async (self: Migration) => {
+        await self.getEntityManager().createQueryBuilder(X178Host).update({ name: 'x' }).execute();
+      },
+    ],
+    [
+      'getConnection().execute()',
+      async (self: Migration) => {
+        await self.getEntityManager().getConnection().execute(`delete from "${HOST_TABLE}"`);
+      },
+    ],
+    [
+      'fork().nativeDelete()',
+      async (self: Migration) => {
+        await self.getEntityManager().fork().nativeDelete(X178Host, {});
+      },
+    ],
+    [
+      'getKnex()',
+      async (self: Migration) => {
+        await self.getEntityManager().getKnex()(HOST_TABLE).delete();
+      },
+    ],
+  ])('refuses a foreign write through %s', async (_label, up) => {
+    const error = await migrate(packageMigration('Migration20261201T100006AcmeErpRogue', up));
+    expect(error).toBeInstanceOf(ForeignSchemaWriteError);
+  });
 });
+

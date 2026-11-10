@@ -18,12 +18,13 @@ import {
   mergeByIdentity,
 } from './platform-schema.js';
 import {
+  declaredColumnsByHost,
   guardExternalMigration,
   type ForeignSchemaGuardContext,
   type ForeignWriteExemption,
   type MigrationClass as GuardedMigrationClass,
 } from './foreign-schema-guard.js';
-import { physicalColumnPrefix } from '../kernel/schema-extensions/naming.js';
+import { resolvedColumnExtension } from '../kernel/schema-extensions/define.js';
 import { schemaExtensionEntries } from './schema-extension-migration.js';
 import {
   rolledOutExtensibleHosts,
@@ -252,6 +253,36 @@ export function configuredMigrationsFrom(inputs: {
       }
     }
   }
+  // Review finding 4 — `x_<module>_<snake(key)>` can resolve to one name for
+  // two modules; refuse before any DDL rather than meet a raw unique violation
+  // (or a silent adoption) in the reconcile. Index names are schema-wide.
+  const columnOwners = new Map<string, string>();
+  const indexOwners = new Map<string, string>();
+  for (const contribution of inputs.packages) {
+    for (const declaration of contribution.schemaExtensions ?? []) {
+      const resolved = resolvedColumnExtension(declaration);
+      for (const column of resolved.columns) {
+        const claims: Array<[Map<string, string>, string, string]> = [
+          [columnOwners, `${resolved.host}.${column.physicalName}`, `column "${resolved.host}"."${column.physicalName}"`],
+        ];
+        if (column.indexName !== null) claims.push([indexOwners, column.indexName, `index "${column.indexName}"`]);
+        for (const [owners, name, what] of claims) {
+          const other = owners.get(name);
+          if (other !== undefined && other !== resolved.module) {
+            throw new SchemaExtensionInvalidError(
+              'physical-name-collision',
+              resolved.module,
+              column.key,
+              `${what} is declared by both "${other}" and "${resolved.module}" (declared in ` +
+                `${contribution.packageName}). Physical names are x_<module>_<snake_case(key)>, which two ` +
+                `module ids can share; rename the key in one of the declarations.`,
+            );
+          }
+          owners.set(name, resolved.module);
+        }
+      }
+    }
+  }
   const generated = schemaExtensionEntries(
     inputs.packages.map((contribution) => ({
       moduleId: contribution.id,
@@ -270,11 +301,7 @@ export function configuredMigrationsFrom(inputs: {
       packageName: contribution.packageName,
       entities: contribution.entities,
       platformEntities: PLATFORM_ENTITIES,
-      declaredHosts: new Map(
-        (contribution.schemaExtensions ?? []).map(
-          (declaration) => [declaration.host, physicalColumnPrefix(declaration.module)] as const,
-        ),
-      ),
+      declaredHosts: declaredColumnsByHost(contribution.schemaExtensions ?? []),
       exemptions: exemptions.filter((exemption) => exemption.moduleId === contribution.id),
       moduleMigrations: () => contribution.migrations.map((entry) => entry.cls as unknown as GuardedMigrationClass),
     };

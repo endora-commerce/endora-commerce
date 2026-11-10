@@ -184,4 +184,39 @@ describe('T069 — the ledger of a vanished package (R-A5)', () => {
     );
     expect(Object.values(await ledger()).every((status) => status === 'applied')).toBe(true);
   });
+
+  // Review finding 8 — the declarations are a process-global; a context that
+  // disagrees with the ORM's own generated steps (another configuration wrote
+  // it last, or none ever did) must not orphan a module that still declares.
+  it('marks nothing when the context disagrees with the ORM it migrates', async () => {
+    const { orm } = await migrate([declaration]);
+    const info: string[] = [];
+    await migrateUpVerified(orm, { declarations: [], hosts: new Map(), ownership: null }, () => {}, (line) => void info.push(line));
+    expect(Object.values(await ledger()).every((status) => status === 'applied')).toBe(true);
+  });
+});
+
+
+/** Review cleanups — what the boot verifier says. */
+describe('the boot verifier names the cause', () => {
+  const execOf = (orm: MikroORM) => (sql: string, params: unknown[] = []) =>
+    orm.em.getConnection().execute(sql, params, 'all') as Promise<Record<string, unknown>[]>;
+
+  it('on a database not migrated yet: a named drift error saying to migrate, not a missing relation', async () => {
+    const orm = await openFixtureOrm(db.url, [declaration], { platform: true });
+    opened.push(orm);
+    const error = await verifySchemaExtensions(execOf(orm), activeSchemaExtensionContext(), () => {}).catch((e) => e);
+    expect((error as Error).name).toBe('SchemaExtensionDriftError');
+    expect((error as Error).message).not.toMatch(/does not exist.*relation|relation .* does not exist/);
+    expect((error as Error).message).toMatch(/migrate up/);
+  });
+
+  it('for an applied element dropped by hand: names the restoring statement', async () => {
+    const { orm } = await migrate([declaration]);
+    await db.query(`alter table "x178_hosts" drop column "x_acme_erp_credit_tier"`);
+    const error = await verifySchemaExtensions(execOf(orm), activeSchemaExtensionContext(), () => {}).catch((e) => e);
+    expect((error as Error).name).toBe('SchemaExtensionDriftError');
+    expect((error as Error).message).toMatch(/recorded as applied/);
+    expect((error as Error).message).toMatch(/alter table "x178_hosts" add column "x_acme_erp_credit_tier"/);
+  });
 });

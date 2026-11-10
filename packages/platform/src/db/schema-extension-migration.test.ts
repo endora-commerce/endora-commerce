@@ -100,3 +100,41 @@ describe('configuredMigrationsFrom — generated entries', () => {
     expect(configured.ownership.migrationNamesFor('acme_erp')).toEqual([name]);
   });
 });
+
+/**
+ * Review finding 4 — `x_<module>_<snake(key)>` is ambiguous across modules
+ * (`acme` + `erpCode` and `acme_erp` + `code` are both `x_acme_erp_code`), so
+ * discovery refuses a physical name another installed declaration already uses.
+ */
+describe('configuredMigrationsFrom — physical-name collisions between modules', () => {
+  const hosts = new Set(['x178_hosts']);
+  const pkg = (id: string, columns: Record<string, unknown>): PackageSchemaContribution => ({
+    id,
+    packageName: `@acme/${id}`,
+    version: '1.0.0',
+    migrationsDirectory: null,
+    migrations: [],
+    entities: [],
+    dependencies: ['fixture_host'],
+    schemaExtensions: [createColumnExtension({ host: 'x178_hosts', module: id, columns }, hosts)],
+  });
+
+  it('refuses two modules declaring the same physical column, naming both', () => {
+    let thrown: unknown;
+    try {
+      configuredMigrationsFrom({
+        coreEntries: [],
+        coreModuleDependencies: new Map([['core', []], ['fixture_host', []]]),
+        packages: [
+          pkg('acme', { erpCode: { type: 'text', nullable: true } }),
+          pkg('acme_erp', { code: { type: 'text', nullable: true } }),
+        ],
+        extensibleHosts: new Map([['x178_hosts', { table: 'x178_hosts', ownerModuleId: 'fixture_host' }]]),
+      });
+    } catch (error) {
+      thrown = error;
+    }
+    expect((thrown as { rule?: string }).rule).toBe('physical-name-collision');
+    expect(String((thrown as Error).message)).toMatch(/x_acme_erp_code.*acme.*acme_erp|x_acme_erp_code.*acme_erp.*acme/s);
+  });
+});

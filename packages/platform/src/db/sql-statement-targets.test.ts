@@ -138,3 +138,35 @@ describe('sqlWriteTargets — PL/pgSQL', () => {
     ).toEqual(['orders']);
   });
 });
+
+/** Review finding 5 — shapes the classifier missed. */
+describe('sqlWriteTargets — dynamic SQL and policies', () => {
+  it('reports a PL/pgSQL execute of a computed string as unattributable dynamic SQL', () => {
+    expect(
+      sqlWriteTargets(`do $$ begin execute format('drop table %I', 'organizations'); end $$;`).map((t) => t.verb),
+    ).toContain('dynamic');
+    expect(sqlWriteTargets(`do $$ declare q text := 'x'; begin execute q; end $$;`).map((t) => t.verb)).toContain(
+      'dynamic',
+    );
+  });
+
+  it('does not read `execute function` in a trigger as dynamic SQL', () => {
+    expect(
+      sqlWriteTargets('create trigger t after insert on "acme_rows" for each row execute function f()').map((t) => t.verb),
+    ).toEqual(['trigger']);
+  });
+
+  it('reads create / alter / drop policy … on <t>', () => {
+    expect(tables('create policy p on "organizations" using (true)')).toEqual(['organizations']);
+    expect(tables('alter policy p on organizations using (false)')).toEqual(['organizations']);
+    expect(tables('drop policy if exists p on "organizations"')).toEqual(['organizations']);
+  });
+});
+
+describe('sqlWriteTargets — a dollar-quoted execute string is a literal', () => {
+  it('reads execute $sql$ … $sql$ as the statement it runs, not as dynamic SQL', () => {
+    const targets = sqlWriteTargets(`do $$ begin execute $sql$ update "customer_accounts" a set "x" = 1 $sql$; end $$;`);
+    expect(targets.map((t) => t.verb)).not.toContain('dynamic');
+    expect(targets.map((t) => t.table)).toEqual(['customer_accounts']);
+  });
+});

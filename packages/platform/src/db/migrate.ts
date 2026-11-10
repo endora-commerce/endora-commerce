@@ -2,8 +2,10 @@ import type { MikroORM } from '@mikro-orm/postgresql';
 import type { UmzugMigration } from '@mikro-orm/migrations';
 import {
   activeSchemaExtensionContext,
+  schemaExtensionContextRecorded,
   type SchemaExtensionContext,
 } from '../kernel/schema-extensions/registry.js';
+import { schemaExtensionMigrationName } from './schema-extension-migration.js';
 import { GENERATED_STAMP } from './migration-order.js';
 import { verifySchemaExtensions, type SchemaExtensionExec } from './schema-extension-verifier.js';
 import { platformLogger } from '../kernel/logging.js';
@@ -33,8 +35,13 @@ import { platformLogger } from '../kernel/logging.js';
  *   - **R-A5** — the `applied` ledger rows of a module with **no discovered
  *     declaration at all** (a package removed without `uninstall --hard`) become
  *     `orphaned`, so `module:schema-extensions drop` can clean up after it. A
- *     module that still declares something is left to its generated step. Boot
- *     stays read-only: the verifier only warns (FR-026).
+ *     module that still declares something is left to its generated step. Only
+ *     when the context describes this ORM (its declarations name exactly the
+ *     generated steps in the list) — never on a stale or unrecorded global.
+ *
+ * Boot never writes the ledger: `composeApp` runs the same verifier read-only,
+ * where drift is fatal (`SchemaExtensionDriftError`) and orphaned or unledgered
+ * `x_*` columns are logged at `warn` (FR-026).
  *
  * With no declaration and nothing of the kind to clean up it is a bare
  * `migrator.up()`: a deployment that declares nothing migrates exactly as it did
@@ -53,6 +60,28 @@ export async function migrateUpVerified(
     .map((migration) => migration.name)
     .filter((name) => name.startsWith(`Migration${GENERATED_STAMP}`));
   const declaringModules = [...new Set(context.declarations.map((declaration) => declaration.module))];
+  // Review finding 8 — the context is a process-global. It may act on "this
+  // module declares nothing" only when it describes the ORM it is migrating:
+  // its declarations must name exactly the generated steps in this ORM's list,
+  // and the default context must have been recorded by a configuration at all.
+  const expected = new Set(
+    declaringModules.map((moduleId) =>
+      schemaExtensionMigrationName(
+        moduleId,
+        context.declarations.filter((declaration) => declaration.module === moduleId),
+      ),
+    ),
+  );
+  const describesThisOrm =
+    expected.size === current.length &&
+    current.every((name) => expected.has(name)) &&
+    (context !== activeSchemaExtensionContext() || schemaExtensionContextRecorded());
+  if (!describesThisOrm) {
+    (log ?? ((message: string) => console.warn(message)))(
+      '[schema-extensions] the declaration context does not describe the ORM being migrated, so no ledger ' +
+        'row is marked orphaned in this run (D-291 R-A5 needs the declarations of this configuration).',
+    );
+  }
   const exec = (trx?: unknown): SchemaExtensionExec => (sql, params = []) =>
     connection.execute(sql, params, 'all', trx as never) as Promise<Record<string, unknown>[]>;
 
@@ -76,9 +105,10 @@ export async function migrateUpVerified(
       [migrationsTable],
     )) as { history: boolean; ledger: boolean }[];
     const stale = state?.history ? await exec()(staleSql, staleParams) : [];
-    const vanished = state?.ledger
-      ? await exec()(`select 1 from schema_extensions where ${vanishedWhere} limit 1`, declaringModules)
-      : [];
+    const vanished =
+      state?.ledger && describesThisOrm
+        ? await exec()(`select 1 from schema_extensions where ${vanishedWhere} limit 1`, declaringModules)
+        : [];
     if (stale.length === 0 && vanished.length === 0) return migrator.up();
   }
 
@@ -98,7 +128,7 @@ export async function migrateUpVerified(
     const [ledger] = (await run(`select to_regclass('schema_extensions') as present`)) as {
       present: string | null;
     }[];
-    if (ledger?.present != null) {
+    if (ledger?.present != null && describesThisOrm) {
       const orphaned = (await run(
         `update schema_extensions set status = 'orphaned', orphaned_at = now() where ${vanishedWhere} ` +
           `returning module_id, physical_name`,

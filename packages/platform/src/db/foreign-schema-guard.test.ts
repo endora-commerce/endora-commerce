@@ -18,7 +18,7 @@ import {
 class AcmeRow {}
 class AuditLogEntryLike {}
 
-function fakeDriver(indexes: Record<string, string> = {}) {
+function fakeDriver(indexes: Record<string, string> = {}, existing: readonly string[] = []) {
   const executed: string[] = [];
   return {
     executed,
@@ -36,6 +36,9 @@ function fakeDriver(indexes: Record<string, string> = {}) {
     }),
     execute: vi.fn(async (sql: string, params?: unknown[]) => {
       executed.push(sql);
+      if (sql.includes('to_regclass')) {
+        return [{ present: existing.includes(String(params?.[0])) ? String(params?.[0]) : null }];
+      }
       if (sql.includes('pg_indexes')) {
         const table = indexes[String(params?.[0])];
         return table === undefined ? [] : [{ tablename: table }];
@@ -51,7 +54,7 @@ function context(overrides: Partial<ForeignSchemaGuardContext> = {}): ForeignSch
     packageName: '@acme/mod-acme-erp',
     entities: [AcmeRow],
     platformEntities: [AuditLogEntryLike],
-    declaredHosts: new Map([['organizations', 'x_acme_erp_']]),
+    declaredHosts: new Map([['organizations', new Set(['x_acme_erp_credit_tier', 'x_acme_erp_note'])]]),
     exemptions: [],
     moduleMigrations: () => [],
     ...overrides,
@@ -147,6 +150,49 @@ describe('guardExternalMigration — refusals', () => {
   });
 });
 
+describe('guardExternalMigration — a create does not license DDL on a foreign table (review finding 3)', () => {
+  it('refuses `create table if not exists` on a table another module’s entity maps, then a drop', async () => {
+    const cls = migration('Migration20261201T100011AcmeErpRogue', (self) => {
+      self.addSql('create table if not exists "organizations" ("id" uuid primary key)');
+      self.addSql('drop table "organizations"');
+    });
+    expect((await refusal(run(cls))).table).toBe('organizations');
+  });
+
+  it('refuses `create table if not exists` followed by an alter in up()', async () => {
+    const cls = migration('Migration20261201T100012AcmeErpRogue', (self) => {
+      self.addSql('create table if not exists "organizations" ("id" uuid primary key)');
+      self.addSql('alter table "organizations" add column "foo" text');
+    });
+    expect((await refusal(run(cls))).table).toBe('organizations');
+  });
+
+  it('lets the `if not exists` create alone through — the shape of inventory’s bridge migration (D-226)', async () => {
+    const cls = migration('Migration20261201T100014AcmeErpBridge', (self) =>
+      self.addSql('create table if not exists "organizations" ("id" uuid primary key)'),
+    );
+    await expect(run(cls)).resolves.toBeDefined();
+  });
+
+  it('still lets a migration create a foreign-mapped table that does not exist yet (a pre-split init)', async () => {
+    const cls = migration('Migration20261201T100013AcmeErpInit', (self) => {
+      self.addSql('create table "organizations" ("id" uuid primary key)');
+      self.addSql('create index "organizations_id_index" on "organizations" ("id")');
+    });
+    await expect(run(cls)).resolves.toBeDefined();
+  });
+});
+
+describe('guardExternalMigration — exact declared columns (review finding 4)', () => {
+  it('refuses a back-fill of an x_ column the module does not declare, even with its prefix', async () => {
+    const ctx = context({ moduleId: 'acme', declaredHosts: new Map([['organizations', new Set(['x_acme_tier'])]]) });
+    const cls = migration('Migration20261201T100015AcmeBackfill', (self) =>
+      self.addSql(`update "organizations" set "x_acme_erp_code" = 'stolen'`),
+    );
+    expect((await refusal(run(cls, ctx))).table).toBe('organizations');
+  });
+});
+
 describe('guardExternalMigration — fails closed (D-291 R-A2)', () => {
   it('refuses a table no entity maps and none of the module’s migrations creates', async () => {
     const cls = migration('Migration20261201T100007AcmeErpMystery', (self) =>
@@ -227,5 +273,75 @@ describe('dryRunStatements', () => {
     expect(error).toBeNull();
     expect(statements).toEqual(['update "orders" set "x" = 1', 'alter table "organizations" add column "y" text']);
     expect(driver.execute).not.toHaveBeenCalled();
+  });
+});
+
+describe('guardExternalMigration — unattributable dynamic SQL fails closed (review finding 5)', () => {
+  it('refuses execute format(…) in a do block', async () => {
+    const cls = migration('Migration20261201T100016AcmeErpDynamic', (self) =>
+      self.addSql(`do $$ begin execute format('drop table %I', 'organizations'); end $$;`),
+    );
+    const error = await refusal(run(cls));
+    expect(error.table).toBe('(dynamic SQL)');
+  });
+});
+
+/** Review finding 6 — a dry run must not reach the database by any route. */
+describe('dryRunStatements — fails closed on every database handle', () => {
+  function spyingDriver() {
+    const ran: string[] = [];
+    const driver = {
+      ...fakeDriver(),
+      execute: vi.fn(async (sql: string) => {
+        ran.push(sql);
+        return [];
+      }),
+      getConnection: () => ({
+        execute: async (sql: string) => {
+          ran.push(sql);
+          return [];
+        },
+        getKnex: () => ({
+          raw: (sql: string) => {
+            ran.push(sql);
+            return Promise.resolve([]);
+          },
+        }),
+      }),
+    };
+    return { ran, driver };
+  }
+
+  it('does not run SQL through this.getKnex()', async () => {
+    const { ran, driver } = spyingDriver();
+    const cls = migration('Migration20261201T100041AcmeErpKnex', async (self) => {
+      await (self.getKnex() as unknown as { raw: (sql: string) => Promise<unknown> }).raw('delete from "organizations"');
+    });
+    const { error } = await dryRunStatements(cls, driver, {});
+    expect(ran).toEqual([]);
+    expect(error).not.toBeNull();
+  });
+
+  it('does not run SQL through this.driver', async () => {
+    const { ran, driver } = spyingDriver();
+    const cls = migration('Migration20261201T100042AcmeErpDriver', async (self) => {
+      await (self as unknown as { driver: { execute: (sql: string) => Promise<unknown> } }).driver.execute(
+        'delete from "organizations"',
+      );
+    });
+    const { error } = await dryRunStatements(cls, driver, {});
+    expect(ran).toEqual([]);
+    expect(error).not.toBeNull();
+  });
+
+  it('still lets a migration build SQL with knex for addSql', async () => {
+    const { driver } = spyingDriver();
+    const cls = migration('Migration20261201T100043AcmeErpBuilds', (self) => {
+      const knex = self.getKnex() as unknown as { schema: { createTable: (t: string, f: (b: { uuid: (c: string) => void }) => void) => unknown } };
+      self.addSql(knex.schema.createTable('acme_built', (table) => table.uuid('id')) as never);
+    });
+    const { statements, error } = await dryRunStatements(cls, driver, {});
+    expect(error).toBeNull();
+    expect(statements.join('\n')).toMatch(/create table "acme_built"/);
   });
 });

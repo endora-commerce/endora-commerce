@@ -163,10 +163,21 @@ function isIntegerIn(value: unknown, min: number, max: number): value is number 
   return typeof value === 'number' && Number.isInteger(value) && value >= min && value <= max;
 }
 
+/**
+ * Property names the projection maps itself — the host's primary key and its
+ * tenant key. A declared key of the same name would overwrite one of them in
+ * the projection: a broken PK, or the `org` filter moved onto an `x_*` column
+ * (Principle XI). Review of 2026-11-10, finding 2.
+ */
+export const RESERVED_COLUMN_KEYS: ReadonlySet<string> = new Set(['id', 'organizationId']);
+
 /** V3 – V8 and V12 on one column; returns its normalised spec. */
 function normaliseColumn(at: ShapeContext, raw: unknown): NormalisedColumnSpec {
   if (!KEY_RE.test(at.key)) {
     refuse('key', at, 'a key matches ^[a-z][a-zA-Z0-9]*$ (camelCase, starting with a letter)');
+  }
+  if (RESERVED_COLUMN_KEYS.has(at.key)) {
+    refuse('key', at, `\`${at.key}\` is reserved: the projection maps it to the host's own column`);
   }
   if (!isRecord(raw)) refuse('type', at, 'a column spec is an object with a `type`');
   for (const key of NOT_OFFERED_COLUMN_KEYS) {

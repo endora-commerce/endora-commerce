@@ -50,9 +50,22 @@ export function projectionEntityNameOf(declaration: ColumnExtension): string {
   return name;
 }
 
+let recorded = false;
+
 /** Recorded by the ORM configuration: every declaration it validated and projected. */
 export function recordActiveSchemaExtensions(context: SchemaExtensionContext): void {
   active = { ...context, declarations: [...context.declarations] };
+  recorded = true;
+}
+
+/**
+ * Whether any ORM configuration of this process recorded its declarations. The
+ * initial empty context is not a statement that nothing is declared, so a
+ * reader that would *act* on "nothing declared" asks this first (review
+ * finding 8).
+ */
+export function schemaExtensionContextRecorded(): boolean {
+  return recorded;
 }
 
 /** Every declaration the ORM configuration of this process registered. */

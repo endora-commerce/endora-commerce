@@ -1,6 +1,21 @@
 import type { EntityManager, EntityName } from '@mikro-orm/core';
+import { knex } from '@mikro-orm/postgresql';
 import type { Migration } from '@mikro-orm/migrations';
 import { sqlWriteTargets, type SqlWriteTarget } from './sql-statement-targets.js';
+import { resolvedColumnExtension } from '../kernel/schema-extensions/define.js';
+import type { ColumnExtension } from '../kernel/schema-extensions/types.js';
+
+/** host → the exact physical column names `declarations` declare there. */
+export function declaredColumnsByHost(declarations: readonly ColumnExtension[]): Map<string, ReadonlySet<string>> {
+  const out = new Map<string, Set<string>>();
+  for (const declaration of declarations) {
+    const resolved = resolvedColumnExtension(declaration);
+    const set = out.get(resolved.host) ?? new Set<string>();
+    for (const column of resolved.columns) set.add(column.physicalName);
+    out.set(resolved.host, set);
+  }
+  return out;
+}
 
 /**
  * The runtime refusal of foreign schema writes by installed packages
@@ -52,8 +67,12 @@ export interface ForeignSchemaGuardContext {
   readonly entities: readonly unknown[];
   /** The platform's entity classes — their tables are allowed (R2's kernel exclusion). */
   readonly platformEntities: readonly unknown[];
-  /** Hosts the module declares extension columns on → its own column prefix. */
-  readonly declaredHosts: ReadonlyMap<string, string>;
+  /**
+   * Hosts the module declares extension columns on → the exact physical names
+   * it declares there. Exact, not a prefix: `x_<module>_` is ambiguous across
+   * modules (`acme` + `erpCode` vs `acme_erp` + `code`), review finding 4.
+   */
+  readonly declaredHosts: ReadonlyMap<string, ReadonlySet<string>>;
   readonly exemptions: readonly ForeignWriteExemption[];
   /** Every migration class of the module, raw — the dry run's population. */
   readonly moduleMigrations: () => readonly MigrationClass[];
@@ -157,15 +176,42 @@ export async function dryRunStatements(
   method: 'up' | 'down' = 'up',
 ): Promise<{ readonly statements: readonly string[]; readonly error: unknown }> {
   const Ctor = cls as unknown as new (driver: unknown, config: unknown) => Migration;
-  const instance = new Ctor(driver, config);
+  // Review finding 6 — no route to the database: the driver the instance holds
+  // answers metadata and platform questions and refuses everything that could
+  // run SQL, and `getKnex()` is a connectionless query builder, so building SQL
+  // for `addSql` works and running it fails (fail closed).
+  const denied = (what: string) => (): never => {
+    throw new Error(`[foreign-schema-guard] ${what} is not available in a dry run`);
+  };
+  const realDriver = driver as Record<string, unknown>;
+  const guardedDriver = new Proxy(realDriver, {
+    get(target, property, receiver) {
+      if (property === 'execute' || property === 'getConnection' || property === 'createEntityManager') {
+        return denied(`driver.${String(property)}()`);
+      }
+      const value = Reflect.get(target, property, receiver) as unknown;
+      return typeof value === 'function' ? (value as (...a: unknown[]) => unknown).bind(target) : value;
+    },
+  });
+  const instance = new Ctor(guardedDriver, config);
+  let builder: unknown;
   const executed: string[] = [];
   Object.assign(instance, {
     execute: async (sql: unknown) => {
       executed.push(queryText(sql));
       return [];
     },
-    getEntityManager: () => {
-      throw new Error('[foreign-schema-guard] the entity manager is not available in a dry run');
+    getEntityManager: denied('the entity manager'),
+    getKnex: () => {
+      if (builder === undefined) {
+        const built = knex({ client: 'pg' });
+        // Builds SQL, never connects: a client with no connection would still
+        // fall back to the libpq environment defaults.
+        (built as unknown as { client: { acquireConnection: () => Promise<never> } }).client.acquireConnection = () =>
+          Promise.reject(new Error('[foreign-schema-guard] a dry run does not connect'));
+        builder = built;
+      }
+      return builder;
     },
   });
   let error: unknown = null;
@@ -196,7 +242,10 @@ function stateOf(context: ForeignSchemaGuardContext): ModuleState {
 }
 
 /** The verbs that change a table's schema rather than its rows. */
-const DDL_VERBS = new Set(['alter', 'index', 'drop', 'drop-index', 'comment', 'trigger', 'rule']);
+const DDL_VERBS = new Set(['alter', 'index', 'drop', 'drop-index', 'comment', 'trigger', 'rule', 'policy']);
+
+/** The table a refusal names when the statement's target cannot be read. */
+const DYNAMIC_SQL = '(dynamic SQL)';
 
 /**
  * The verdict on one write target; `null` is allowed.
@@ -219,14 +268,14 @@ function verdictOn(
   const table = target.table;
   if (own.has(table) || platform.has(table) || table === MIGRATIONS_TABLE) return null;
   if (DDL_VERBS.has(target.verb) && createdHere.has(table)) return null;
-  const prefix = context.declaredHosts.get(table);
+  const declared = context.declaredHosts.get(table);
   if (
-    prefix !== undefined &&
+    declared !== undefined &&
     target.verb === 'update' &&
     target.setColumns !== null &&
     target.setColumns !== undefined &&
     target.setColumns.length > 0 &&
-    target.setColumns.every((column) => column.startsWith(prefix))
+    target.setColumns.every((column) => declared.has(column))
   ) {
     return null;
   }
@@ -253,6 +302,7 @@ export function guardExternalMigration<T extends MigrationClass>(cls: T, context
     #platform: Set<string> | null = null;
     #createdIndexes = new Map<string, string>();
     #createdHere = new Set<string>();
+    #reverting = false;
 
     async #own(): Promise<Set<string>> {
       const state = stateOf(context);
@@ -301,8 +351,20 @@ export function guardExternalMigration<T extends MigrationClass>(cls: T, context
         if (target.verb === 'create') {
           const state = stateOf(context);
           if (target.table !== null) {
-            this.#createdHere.add(target.table);
-            if (adopts(target.table, state.mine, state.mapped)) own.add(target.table);
+            if (adopts(target.table, state.mine, state.mapped)) {
+              own.add(target.table);
+              this.#createdHere.add(target.table);
+            } else if (target.ifNotExists !== true || this.#reverting) {
+              // A plain create of a table another module's entity maps either
+              // creates it (a pre-split init) or fails in PostgreSQL itself.
+              this.#createdHere.add(target.table);
+            }
+            // `create table if not exists` on a table another module's entity
+            // maps may be a no-op on a table that is already there, so in `up()`
+            // it declares nothing and licenses no DDL on it (review finding 3).
+            // The create itself is let through: this repository's own
+            // `inventory` bridge migration has exactly that shape (D-226).
+            continue;
           }
           continue;
         }
@@ -311,6 +373,9 @@ export function guardExternalMigration<T extends MigrationClass>(cls: T, context
             target.statement,
           );
           if (named !== null) this.#createdIndexes.set(named[1]!.toLowerCase(), target.table);
+        }
+        if (target.verb === 'dynamic') {
+          throw new ForeignSchemaWriteError(context.packageName, context.moduleId, migrationName, DYNAMIC_SQL, target.statement);
         }
         const table = target.table ?? (target.index === undefined ? null : await this.#indexTable(target.index));
         if (table === null) continue;
@@ -338,9 +403,15 @@ export function guardExternalMigration<T extends MigrationClass>(cls: T, context
       const queued = this.getQueries().map(queryText);
       // The whole migration's `create table`s first: R2 reads "the same source
       // creates" over the file, not up to the statement.
+      await this.#own();
+      const state = stateOf(context);
       for (const sql of queued) {
         for (const target of sqlWriteTargets(sql)) {
-          if (target.verb === 'create' && target.table !== null) this.#createdHere.add(target.table);
+          if (target.verb !== 'create' || target.table === null) continue;
+          if (!this.#reverting && target.ifNotExists === true && !adopts(target.table, state.mine, state.mapped)) {
+            continue;
+          }
+          this.#createdHere.add(target.table);
         }
       }
       for (const sql of queued) await this.#judge(sql);
@@ -364,6 +435,7 @@ export function guardExternalMigration<T extends MigrationClass>(cls: T, context
           if (target.verb === 'create' && target.table !== null) this.#createdHere.add(target.table);
         }
       }
+      this.#reverting = true;
       await this.#judgeQueued();
     }
 
@@ -376,7 +448,14 @@ export function guardExternalMigration<T extends MigrationClass>(cls: T, context
       const em = super.getEntityManager();
       const guarded = em as unknown as { [GUARDED]?: true };
       if (guarded[GUARDED] === true) return em;
-      guardEntityManager(em as unknown as EntityManager, (target) => this.#judgeTarget(target), (sql) => this.#judge(sql));
+      guardEntityManager(
+        em as unknown as EntityManager,
+        (target) => this.#judgeTarget(target),
+        (sql) => this.#judge(sql),
+        (what) => {
+          throw new ForeignSchemaWriteError(context.packageName, context.moduleId, migrationName, what, `${what} is not offered`);
+        },
+      );
       guarded[GUARDED] = true;
       return em;
     }
@@ -417,7 +496,15 @@ type TargetJudge = (target: {
  * Hold a migration's entity manager to the statement verdict (OD-178-3): its
  * flush, by change set, and the shortcuts that bypass the unit of work.
  */
-function guardEntityManager(em: EntityManager, judge: TargetJudge, judgeSql: (sql: string) => Promise<void>): void {
+function guardEntityManager(
+  em: EntityManager,
+  judge: TargetJudge,
+  judgeSql: (sql: string) => Promise<void>,
+  deny: (what: string) => never,
+): void {
+  const marked = em as unknown as { [GUARDED]?: true };
+  if (marked[GUARDED] === true) return;
+  marked[GUARDED] = true;
   const metaOf = (entityName: EntityName<object> | object): MetadataLike => {
     // `em.insert(entity)` names no entity: the instance carries its class.
     const name =
@@ -485,6 +572,82 @@ function guardEntityManager(em: EntityManager, judge: TargetJudge, judgeSql: (sq
       },
     });
   }
+
+  // Review finding 5 — every other way the entity manager reaches SQL.
+  const raw = em as unknown as Record<string, (...args: unknown[]) => unknown>;
+  const createQueryBuilder = raw['createQueryBuilder'];
+  if (typeof createQueryBuilder === 'function') {
+    const wrap = (qb: Record<string, unknown>): unknown => {
+      const text = (): string => String((qb['getFormattedQuery'] as () => string).call(qb));
+      const execute = qb['execute'] as ((...a: unknown[]) => Promise<unknown>) | undefined;
+      if (typeof execute === 'function') {
+        qb['execute'] = async (...args: unknown[]) => {
+          await judgeSql(text());
+          return execute.apply(qb, args);
+        };
+      }
+      const then = qb['then'] as ((...a: unknown[]) => unknown) | undefined;
+      if (typeof then === 'function') {
+        qb['then'] = (onFulfilled?: unknown, onRejected?: (reason: unknown) => unknown) =>
+          judgeSql(text()).then(() => then.call(qb, onFulfilled, onRejected), onRejected);
+      }
+      return qb;
+    };
+    for (const name of ['createQueryBuilder', 'qb']) {
+      const original = raw[name];
+      if (typeof original !== 'function') continue;
+      Object.assign(em, { [name]: (...args: unknown[]) => wrap(original.apply(em, args) as Record<string, unknown>) });
+    }
+  }
+  const getConnection = raw['getConnection'];
+  if (typeof getConnection === 'function') {
+    Object.assign(em, {
+      getConnection: (...args: unknown[]) => {
+        const connection = getConnection.apply(em, args) as Record<string, unknown>;
+        return new Proxy(connection, {
+          get(target, property, receiver) {
+            if (property === 'getKnex') return () => deny('getConnection().getKnex()');
+            const value = Reflect.get(target, property, receiver) as unknown;
+            if (property === 'execute' && typeof value === 'function') {
+              return async (sql: unknown, ...rest: unknown[]) => {
+                await judgeSql(queryText(sql));
+                return (value as (...a: unknown[]) => unknown).call(target, sql, ...rest);
+              };
+            }
+            return typeof value === 'function' ? (value as (...a: unknown[]) => unknown).bind(target) : value;
+          },
+        });
+      },
+    });
+  }
+  // A raw knex handle runs SQL nothing here can judge: not offered (fail closed).
+  Object.assign(em, { getKnex: () => deny('getEntityManager().getKnex()') });
+  // A fork, and the entity manager a `transactional` callback receives, are
+  // guarded the same way.
+  const fork = raw['fork'];
+  if (typeof fork === 'function') {
+    Object.assign(em, {
+      fork: (...args: unknown[]) => {
+        const forked = fork.apply(em, args) as EntityManager;
+        guardEntityManager(forked, judge, judgeSql, deny);
+        return forked;
+      },
+    });
+  }
+  const transactional = raw['transactional'];
+  if (typeof transactional === 'function') {
+    Object.assign(em, {
+      transactional: (callback: (inner: EntityManager) => unknown, ...rest: unknown[]) =>
+        transactional.call(
+          em,
+          (inner: EntityManager) => {
+            guardEntityManager(inner, judge, judgeSql, deny);
+            return callback(inner);
+          },
+          ...rest,
+        ),
+    });
+  }
 }
 
 /** One would-be refusal of {@link auditForeignSchemaWrites}. */
@@ -503,7 +666,7 @@ export interface AuditedPackage {
   readonly packageName: string;
   readonly entities: readonly unknown[];
   readonly migrations: readonly { readonly cls: unknown }[];
-  readonly schemaExtensions?: readonly { readonly host: string; readonly module: string }[];
+  readonly schemaExtensions?: readonly ColumnExtension[];
 }
 
 export interface ForeignWriteAudit {
@@ -590,20 +753,31 @@ export async function auditForeignSchemaWrites(input: {
       packageName: pkg.packageName,
       entities: pkg.entities,
       platformEntities: input.platformEntities,
-      declaredHosts: new Map((pkg.schemaExtensions ?? []).map((d) => [d.host, `x_${d.module}_`] as const)),
+      declaredHosts: declaredColumnsByHost(pkg.schemaExtensions ?? []),
       exemptions: input.exemptions,
       moduleMigrations: () => [],
     };
-    // Both halves of one migration are "the same source" (R2's reading).
+    // Both halves of one migration are "the same source" (R2's reading) — except
+    // that in `up()` a `create table if not exists` on a table another module's
+    // entity maps licenses nothing (review finding 3), as in the guard.
     const createdHere = new Set(
       runs
-        .filter((other) => other.pkg === pkg && other.migration === migration)
+        .filter((other) => other.pkg === pkg && other.migration === migration && (method === 'down' || other.method === 'up'))
         .flatMap((other) => other.targets)
-        .filter((target) => target.verb === 'create' && target.table !== null)
+        .filter(
+          (target) =>
+            target.verb === 'create' &&
+            target.table !== null &&
+            (method === 'down' || target.ifNotExists !== true || adopts(target.table, mine, mapped)),
+        )
         .map((target) => target.table!),
     );
     for (const target of targets) {
       if (target.verb === 'create') continue;
+      if (target.verb === 'dynamic') {
+        findings.push({ packageName: pkg.packageName, moduleId: pkg.id, migration, method, table: DYNAMIC_SQL, statement: target.statement });
+        continue;
+      }
       let table = target.table;
       if (table === null && target.index !== undefined) {
         table = indexTables.get(target.index) ?? null;

@@ -50,6 +50,13 @@ platforma wykrywa pakiet, a komunikat wymienia tabele otwarte.
   `index: 'unique'` — unikalny indeks częściowy po wartościach różnych od `null` (tylko dla kolumn
   dopuszczających `null`). Najwyżej 32 kolumny w deklaracji; nazwa fizyczna dłuższa niż 63 bajty
   jest odrzucana.
+- **Dwa klucze są zarezerwowane**: `id` i `organizationId` to własne kolumny gospodarza, które
+  platforma mapuje za ciebie; deklaracja z którymkolwiek z nich jest odrzucana (`key`).
+- **Nazwy fizyczne są unikalne między modułami.** `x_<moduleId>_<snake_case(klucz)>` może wyjść
+  taka sama dla dwóch modułów (`acme` + `erpCode` i `acme_erp` + `code` to w obu przypadkach
+  `x_acme_erp_code`); wykrywanie odrzuca drugą deklarację z `physical-name-collision`, podając
+  oba moduły. Uzupełnianie danych może ustawiać wyłącznie dokładnie te kolumny, które twój moduł
+  deklaruje.
 - **Zmiana kolumny nie jest oferowana.** Zmiana typu, dopuszczalności `null` albo wartości
   domyślnej klucza jest odrzucana (`non-additive-change`) — zadeklaruj nowy klucz. Usunięcie
   klucza oznacza jego kolumnę jako osieroconą; kolumna nie jest usuwana.
@@ -122,6 +129,12 @@ export function syncErpCode(organizationId: string, erpCode: string): Command<vo
 
 Każda metoda akcesora jest uzależniona od obecności twojego modułu: gdy jest wyłączony, każde
 wywołanie rzuca `ModuleDisabledError`, a kolumny zachowują wartości.
+
+**Akcesor nie sprawdza uprawnień.** W `organizations`, która jest tabelą globalną, `load`, `get`
+i `set` sięgają każdej organizacji po identyfikatorze: nie ma filtra dzierżawy, który by je
+zawężał, ani sprawdzenia zasięgu wywołującego. Sprawdź uprawnienia we własnej trasie albo
+poleceniu, zanim go wywołasz — tak jak robią to odczyty gospodarza w panelu administracyjnym,
+które dołączają wartości rozszerzeń wyłącznie do rekordów, do których już sprawdziły dostęp.
 
 ### Uzupełnianie z własnej migracji
 
@@ -196,10 +209,14 @@ Odinstalowanie gospodarza, gdy twój moduł jest zainstalowany, jest odrzucane z
 Deklaracja to jedyna droga do tabeli rdzenia. Każda migracja dostarczana przez zainstalowany
 pakiet wykonuje się wewnątrz strażnika obcego schematu platformy, który odrzuca — i wycofuje
 przebieg `migrate` — każdą instrukcję zapisującą tabelę, której właścicielem nie jest twój moduł:
-`alter table "organizations"`, indeks na niej, `insert` do `orders`. Strażnik czyta każdą drogę
-zapisu, jaką ma migracja: to, co przekazuje do `addSql` i `execute`, bloki `do $$ … $$`, ciała
-tworzonych przez nią funkcji, ciągi wykonywane przez `execute` w PL/pgSQL oraz
-`getEntityManager()` — jego `flush` i skróty `insert*`, `upsert*`, `native*` i `execute`.
+`alter table "organizations"`, indeks na niej, `insert` do `orders`, politykę na niej. Strażnik
+czyta każdą drogę zapisu, jaką ma migracja: to, co przekazuje do `addSql` i `execute`, bloki
+`do $$ … $$`, ciała tworzonych przez nią funkcji, ciągi wykonywane przez `execute` w PL/pgSQL oraz
+`getEntityManager()` — jego `flush`, skróty `insert*`, `upsert*`, `native*` i `execute`, buildery
+zapytań, połączenie i rozwidlenia. `execute` w PL/pgSQL na obliczanym ciągu (`format(…)`, zmienna)
+i surowe `getKnex()` menedżera encji nie dają się przypisać tabeli i są odrzucane.
+`create table if not exists` na tabeli mapowanej przez encję innego modułu nie tworzy niczego, co
+wolno ci potem zmieniać.
 
 Tabela jest twoja, gdy mapuje ją jedna z twoich encji albo tworzy ją jedna z twoich migracji i nie
 mapuje jej encja żadnego innego modułu. **Strażnik działa w trybie odmowy domyślnej**: tabela,

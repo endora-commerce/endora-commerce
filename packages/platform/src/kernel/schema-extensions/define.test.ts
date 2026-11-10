@@ -1,6 +1,7 @@
 import { describe, expect, expectTypeOf, it } from 'vitest';
 import { z } from 'zod';
 import { defineColumnExtension, isColumnExtension, resolvedColumnExtension } from './define.js';
+import { SchemaExtensionInvalidError } from './errors.js';
 import { columnExtensionPatchSchema, columnExtensionSchema } from './zod.js';
 import type { ColumnExtensionPatch, ColumnExtensionValues } from './types.js';
 
@@ -136,5 +137,24 @@ describe('columnExtensionSchema / columnExtensionPatchSchema', () => {
   it('accepts null only for nullable columns', () => {
     expect(patch.safeParse({ note: null }).success).toBe(true);
     expect(patch.safeParse({ code: null }).success).toBe(false);
+  });
+});
+
+/** Review finding 2 — a key the projection itself maps would overwrite the PK or the tenant key. */
+describe('defineColumnExtension — reserved keys', () => {
+  it.each(['id', 'organizationId'])('refuses the key %s', (key) => {
+    let thrown: unknown;
+    try {
+      defineColumnExtension({
+        host: 'organizations',
+        module: 'acme_erp',
+        columns: { [key]: { type: 'uuid', nullable: true } },
+      });
+    } catch (error) {
+      thrown = error;
+    }
+    expect(thrown).toBeInstanceOf(SchemaExtensionInvalidError);
+    expect((thrown as SchemaExtensionInvalidError).rule).toBe('key');
+    expect((thrown as Error).message).toMatch(/reserved/);
   });
 });

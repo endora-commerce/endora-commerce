@@ -1,3 +1,4 @@
+import { randomUUID } from 'node:crypto';
 import type { MikroORM } from '@mikro-orm/postgresql';
 import type { CommandBus } from '../../commands/command-bus.js';
 import { withSystemScope } from '../../tenancy/escape-hatch.js';
@@ -41,6 +42,14 @@ export interface SchemaExtensionsRuntime {
 }
 
 export const SCHEMA_EXTENSIONS_EXIT = { ok: 0, usage: 64, refused: 65, failed: 70 } as const;
+
+/** The planned elements changed between the plan and the Command — the drop aborts. */
+class DropPlanChangedError extends Error {
+  constructor(readonly changed: readonly string[]) {
+    super('[schema-extensions] the drop plan changed');
+    this.name = 'DropPlanChangedError';
+  }
+}
 
 interface LedgerRow {
   readonly id: string;
@@ -211,7 +220,11 @@ async function drop(rt: SchemaExtensionsRuntime, args: Parsed): Promise<number> 
 
   const bus = await rt.commandBus();
   const ids = targets.map((row) => row.id);
-  await withSystemScope('schema-extensions drop', () =>
+  // The audit entry's own marker: the bus returns no entry id, so the entry is
+  // found afterwards by this value, never by "the latest drop of this module".
+  const dropId = randomUUID();
+  try {
+    await withSystemScope('schema-extensions drop', () =>
     bus.run({
       action: 'schema_extension.drop',
       objectType: 'schema_extension',
@@ -219,6 +232,21 @@ async function drop(rt: SchemaExtensionsRuntime, args: Parsed): Promise<number> 
       async run({ em }) {
         const tx = em.getConnection();
         const ctx = em.getTransactionContext();
+        // Review finding 7 — the plan was read outside this transaction; hold
+        // the rows and read them again before dropping anything.
+        const locked = (await tx.execute(
+          `select id, host_table, physical_name, status from schema_extensions ` +
+            `where id in (${ids.map(() => '?').join(', ')}) for update`,
+          ids,
+          'all',
+          ctx,
+        )) as { id: string; host_table: string; physical_name: string; status: string }[];
+        const changed = locked.filter((row) => row.status !== 'orphaned');
+        if (locked.length !== ids.length || changed.length > 0) {
+          throw new DropPlanChangedError(
+            changed.map((row) => `${row.host_table}.${row.physical_name} (${row.status})`),
+          );
+        }
         for (const statement of statements) await tx.execute(statement, [], 'run', ctx);
         await tx.execute(
           `update schema_extensions set status = 'dropped', dropped_at = now() ` +
@@ -239,18 +267,26 @@ async function drop(rt: SchemaExtensionsRuntime, args: Parsed): Promise<number> 
             })),
             nonNullRows: nonNull,
           },
-          after: { dropped: targets.map((row) => `${row.host_table}.${row.physical_name}`) },
+          after: { dropId, dropped: targets.map((row) => `${row.host_table}.${row.physical_name}`) },
         };
       },
     }),
-  );
-  // The audit entry is written by the bus inside the Command's transaction, so
-  // its id is known only once that commits; link it to the rows it dropped.
+    );
+  } catch (error) {
+    if (!(error instanceof DropPlanChangedError)) throw error;
+    rt.err(
+      `[schema-extensions] not-orphaned: ${error.changed.join(', ') || 'the planned elements changed'} since the ` +
+        `plan was printed; nothing was dropped. Re-run to see the current plan.\n`,
+    );
+    return SCHEMA_EXTENSIONS_EXIT.refused;
+  }
+  // The audit entry is written by the bus inside the Command's transaction and
+  // the bus returns no id, so it is found by this drop's own marker.
   await connection.execute(
     `update schema_extensions set drop_audit_id = (` +
-      `select id from audit_log_entries where action = 'schema_extension.drop' and object_id = ? ` +
-      `order by acted_at desc limit 1) where id in (${ids.map(() => '?').join(', ')})`,
-    [moduleId, ...ids],
+      `select id from audit_log_entries where action = 'schema_extension.drop' and state_after ->> 'dropId' = ?) ` +
+      `where id in (${ids.map(() => '?').join(', ')})`,
+    [dropId, ...ids],
   );
   rt.out(`Dropped ${targets.length} element(s) of "${moduleId}".\n`);
   return SCHEMA_EXTENSIONS_EXIT.ok;
