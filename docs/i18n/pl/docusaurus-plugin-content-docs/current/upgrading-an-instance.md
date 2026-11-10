@@ -4840,6 +4840,32 @@ względu na to, które organizacje widzi, dlatego teraz mówi tylko, czego dotyc
 **Po aktualizacji** nie trzeba nic robić. Raport lub eksport, który odczytywał te wartości z
 dziennika audytu, odczytuje je z samego zamówienia (`GET /api/v1/admin/orders/:id`).
 
+### Wartości zadań znikają z dziennika audytu platformy {#tasks-audit-names-only}
+
+Wydanie z tą zmianą przestaje zapisywać wartości zadania w dzienniku audytu całej platformy
+(zgłoszenie #470). Ten dziennik to jedna tabela, czytana przez każdego, kto ma `audit_log:read`, bez
+względu na to, co widzi, dlatego teraz mówi tylko, czego dotyczyła zmiana zadania.
+
+**Zmiana zachowania po aktualizacji:**
+
+- Na ekranie **Dziennik audytu** i w `audit_logs read` nowy wpis `tasks.*` nie zawiera już tytułu
+  zadania, jego notatki z rekordu, dla którego zostało utworzone, wartości pól niestandardowych ani
+  nazwy pliku załącznika. Zawiera numer zadania, status, daty, typ i identyfikator kontekstu oraz
+  `changedFields` / `changedCustomFields`, czyli nazwy tego, co się zmieniło.
+- Karta **Historia** zadania się nie zmienia: nadal pokazuje wartości, teraz odczytywane z
+  magazynu, który moduł Zadania prowadzi przy zadaniu (`task_value_changes`, tworzonego przez
+  migrację tego wydania), i tylko czytającemu, który może zobaczyć to zadanie.
+- Historia zadania pokazuje teraz wartości pól niestandardowych i nazwy pól niestandardowych,
+  których dotyczyła zmiana, tylko czytającemu, który ma także `custom_fields:read`, tak jak już
+  robią to historie szans sprzedażowych i projektów. Rola z `tasks:read` bez tego uprawnienia nie
+  odczytuje ich już tam.
+- Wpisy zapisane przed aktualizacją nie są przepisywane: zachowują swoje wartości, na ekranie
+  Dziennik audytu i w historii.
+
+**Po aktualizacji** nie trzeba nic robić. Raport lub eksport, który odczytywał wartości zadania z
+dziennika audytu, odczytuje je z samego zadania albo z jego historii
+(`GET /api/v1/admin/tasks/:id/history`).
+
 ## Instancja niespójna od początku
 
 Instalator `0.101.x` lub starszy zapisywał każdy pakiet wydania z `^` poza

@@ -53,13 +53,23 @@ describe('tasks schema (163 init + 165 task management)', () => {
     return (await orm.em.getConnection().execute(sql, params)) as T[];
   }
 
+  /**
+   * Replay the Task management migration in place — and, around it, the
+   * module's own migrations that came after it and build on its tables
+   * (`task_value_changes`, issue #470): down from the newest, up from the
+   * oldest, so the replay is the module's history and not half of it.
+   */
   async function run(direction: 'up' | 'down'): Promise<void> {
-    const Migration = taskManagementMigration();
-    const migration = new Migration(orm.em.getDriver(), orm.config);
-    await migration[direction]();
+    const target = taskManagementMigration();
+    const later = migrations.slice(migrations.indexOf(target) + 1);
+    const sequence = direction === 'down' ? [...later].reverse().concat(target) : [target, ...later];
     const connection = orm.em.getConnection();
-    for (const query of migration.getQueries()) await connection.execute(query as string);
-    migration.reset();
+    for (const Migration of sequence) {
+      const migration = new Migration(orm.em.getDriver(), orm.config);
+      await migration[direction]();
+      for (const query of migration.getQueries()) await connection.execute(query as string);
+      migration.reset();
+    }
   }
 
   async function indexDefinitions(table: string): Promise<string[]> {
@@ -101,7 +111,7 @@ describe('tasks schema (163 init + 165 task management)', () => {
   }
 
   describe('the schema after every migration', () => {
-    it('creates the sixteen tables of the module', async () => {
+    it('creates the seventeen tables of the module', async () => {
       const found = await rows<{ table_name: string }>(
         `select table_name from information_schema.tables
           where table_schema = current_schema() and (table_name = 'tasks' or table_name like 'task\\_%')
@@ -123,6 +133,8 @@ describe('tasks schema (163 init + 165 task management)', () => {
         'task_statuses',
         'task_tag_assignments',
         'task_tags',
+        // Issue #470 — the values the platform audit log no longer carries.
+        'task_value_changes',
         'tasks',
       ]);
     });
@@ -343,6 +355,7 @@ describe('tasks schema (163 init + 165 task management)', () => {
         'task_references',
         'task_attachments',
         'task_record_links',
+        'task_value_changes',
       ]) {
         const [count] = await rows<{ n: number }>(`select count(*)::int as "n" from "${table}" where "task_id" = ?`, [task]);
         expect(count?.n, table).toBe(0);

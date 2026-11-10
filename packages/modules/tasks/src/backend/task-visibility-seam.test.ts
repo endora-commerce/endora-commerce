@@ -223,6 +223,7 @@ const RULE_SCOPED_READ_LEDGER: Readonly<Record<string, number>> = {
   'services/task-access.ts': 3,
   'services/task-asset-references.ts': 5,
   'services/task-commands.ts': 9,
+  'services/task-history-service.ts': 1,
   'services/task-service.ts': 21,
   'services/task-visibility.ts': 0,
   'services/task-reassignment.ts': 1,
@@ -245,6 +246,8 @@ describe('the Task visibility seam (R-3, R-21)', () => {
         'task_reminder_deliveries',
         'task_reminders',
         'task_tag_assignments',
+        // Issue #470 — what a Task's writes changed, with the values.
+        'task_value_changes',
         'tasks',
       ].sort(),
     );
