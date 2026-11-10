@@ -25,6 +25,10 @@
       "types": "./dist/support/index.d.ts",
       "default": "./dist/support/index.js"
     },
+    "./audit": {
+      "types": "./dist/audit/index.d.ts",
+      "default": "./dist/audit/index.js"
+    },
     "./package.json": "./package.json"
   },
   "files": [

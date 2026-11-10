@@ -4714,6 +4714,64 @@ Kod porównujący z `ERROR_CODES.ASSET_ACCESS_DENIED` przestaje się kompilować
 porównuj z `ERROR_CODES.ASSET_NOT_FOUND`. Przy magazynie w chmurze dodaj nagłówek
 `X-Content-Type-Options: nosniff` przed bucketem, jak opisuje strona biblioteki zasobów.
 
+### Ostatni drugi składnik zostaje, gdy weryfikacja dwuetapowa jest wymagana {#last-factor-required}
+
+Wydanie z tą zmianą zamyka lukę w wymaganiach weryfikacji dwuetapowej (zgłoszenie #935).
+Administrator albo klient, od którego polityka wymagała drugiego składnika, mógł wyłączyć jedyny,
+jaki miał, na własnym ekranie bezpieczeństwa; przy następnym logowaniu był proszony o ponowną
+konfigurację.
+
+**Zmiana zachowania po aktualizacji:**
+
+- `POST /api/v1/admin/account/mfa/disable` i `POST /api/v1/account/mfa/disable` odmawiają usunięcia
+  ostatniego drugiego składnika konta, dopóki obowiązuje wobec niego wymaganie:
+  `409 MFA_LAST_FACTOR_REQUIRED`. Odmowa pada przed sprawdzeniem kodu albo hasła, więc nie zużywa
+  ani jednego, ani drugiego.
+- Liczy się każde źródło wymagania, i to dokładnie tak, jak przy logowaniu: dla administratora
+  ustawienie **Admin UI — enforce two-step verification** (`mfa.admin.totp_enforced`) oraz rola z
+  opcją *Wymaga weryfikacji dwuetapowej od przypisanych użytkowników*; dla klienta ustawienie
+  **Storefront — enforce two-step verification** (`mfa.storefront.totp_enforced`) w kanale
+  sprzedaży, z którego przyszło żądanie, oraz polityka organizacji.
+- Bez `MFA_SECRET_ENCRYPTION_KEY` żadne wymaganie nie obowiązuje, a te ścieżki nie są udostępniane,
+  więc tam nic się nie zmienia.
+- `GET …/mfa/status` zwraca dwa nowe pola, `canDisable` i `disableBlockedReason`
+  (`'factor_required'` albo `null`). Ekran **Bezpieczeństwo konta** w panelu administracyjnym i
+  strona bezpieczeństwa konta w sklepie ukrywają formularz wyłączenia, gdy jest ono odrzucane, i
+  wyjaśniają dlaczego.
+- Reset weryfikacji dwuetapowej innej osoby przez administratora działa bez zmian: to droga powrotu
+  po utracie urządzenia.
+
+**Po aktualizacji** nic nie trzeba robić. Klient API, który oferuje wyłączenie weryfikacji
+dwuetapowej, powinien odczytywać `canDisable` zamiast zgadywać i obsługiwać
+`409 MFA_LAST_FACTOR_REQUIRED`.
+
+### Wartości szans sprzedażowych znikają z dziennika audytu platformy {#crm-audit-names-only}
+
+Wydanie z tą zmianą przestaje zapisywać wartości szansy sprzedażowej w dzienniku audytu całej
+platformy (zgłoszenie #470). Ten dziennik to jedna tabela, czytana przez każdego, kto ma
+`audit_log:read`, bez względu na to, które organizacje widzi, dlatego teraz mówi tylko, czego
+dotyczyła zmiana szansy.
+
+**Zmiana zachowania po aktualizacji:**
+
+- Na ekranie **Dziennik audytu** i w `audit_logs read` nowy wpis `crm.opportunity.*` nie zawiera
+  już tytułu szansy, opisu, wartości, waluty, osoby kontaktowej, organizacji, nazw etykiet,
+  wartości pól niestandardowych, powodu zmiany statusu, nazwy wydarzenia ani nazwy pliku
+  załącznika. Zawiera numer szansy, jej status i inne kody, identyfikatory przypisanej osoby i
+  kanału sprzedaży, daty oraz `changedFields` / `changedCustomFields`, czyli nazwy tego, co się
+  zmieniło.
+- Karta **Historia zmian** szansy się nie zmienia: nadal pokazuje wartości sprzed zmiany i po
+  niej, teraz odczytywane z magazynu, który moduł CRM prowadzi przy szansie
+  (`crm_opportunity_value_changes`, tworzonego przez migrację tego wydania), i tylko
+  czytającemu, który może czytać tę szansę. Wartości pól niestandardowych nadal wymagają
+  `custom_fields:read`.
+- Wpisy zapisane przed aktualizacją nie są przepisywane: zachowują swoje wartości, na ekranie
+  Dziennik audytu i w historii zmian.
+
+**Po aktualizacji** nie trzeba nic robić. Raport lub eksport, który odczytywał wartości szansy z
+dziennika audytu, odczytuje je z samej szansy albo z jej historii zmian
+(`GET /api/v1/admin/crm/opportunities/:id/history`).
+
 ### Wartości zadań znikają z dziennika audytu platformy {#tasks-audit-names-only}
 
 Wydanie z tą zmianą przestaje zapisywać wartości zadania w dzienniku audytu całej platformy

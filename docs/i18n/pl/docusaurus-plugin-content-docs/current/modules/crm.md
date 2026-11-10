@@ -1639,6 +1639,17 @@ rozminąć się z tym, co się wydarzyło — a **każdy, kto może czytać szan
 czytać jej historię**. Uprawnienie otwierające dziennik audytu całej platformy
 nie jest potrzebne.
 
+**Wartości pochodzą z samej szansy, nie z dziennika audytu.** Dziennik audytu
+całej platformy czyta każdy, kto ma `audit_log:read`, bez względu na to, które
+organizacje widzi, dlatego wpis szansy w nim mówi, co się zmieniło, i nie
+zawiera żadnych wartości: tytułu, opisu, wartości, waluty, osoby kontaktowej,
+organizacji, nazwy etykiety, wartości pola niestandardowego, powodu, nazwy
+wydarzenia ani nazwy pliku. Są one przechowywane przy szansie, zapisywane w tym
+samym kroku co wpis, a historia zmian wstawia je z powrotem do `before` i
+`after` dla czytającego, który może czytać szansę. Wpisy zapisane przed tą
+zmianą nadal mają wartości w dzienniku audytu i historia pokazuje je tak, jak
+zostały zapisane.
+
 Sześć rzeczy, o których warto wiedzieć:
 
 - **Wartości pól niestandardowych wymagają `custom_fields:read`.** `before` i
@@ -1667,7 +1678,9 @@ Sześć rzeczy, o których warto wiedzieć:
   to, że jest następna strona, o którą można zapytać.
 
 Na ekranie **Dziennik audytu** całej platformy te same wpisy są pokazywane
-wśród wszystkich pozostałych, jako te same zdania.
+wśród wszystkich pozostałych, jako te same zdania, z nazwami zmienionych pól
+(`changedFields`, `changedCustomFields`) tam, gdzie historia zmian pokazuje
+wartości. Szansa jest tam nazywana swoim numerem.
 
 W Admin UI historia to karta **Historia zmian** szansy sprzedażowej. Każdy
 wpis jest zdaniem — *Zmieniono status szansy sprzedażowej*, *Dodano notatkę* —

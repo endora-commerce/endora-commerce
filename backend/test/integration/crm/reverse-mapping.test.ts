@@ -19,6 +19,7 @@ import {
   seedCrmOrder,
   setCrmMappings,
   transitionCrmOpportunity,
+  crmValueChangeOf,
 } from '../../helpers/seed-crm.js';
 import {
   CrmOpportunityStatusHistory,
@@ -396,8 +397,13 @@ describe('crm reverse mapping — an Order moves its Opportunity', () => {
         orderId: order.id,
         skippedStatus: 'qualified',
         outcome: 'failed',
-        reason: 'guard dependency unavailable',
+        changedFields: ['reason'],
       },
+    });
+    // The sentence is the Opportunity's to keep, not the global audit log's (#470).
+    expect(await crmValueChangeOf(h, audit[0]!)).toMatchObject({
+      opportunityId: opportunity.id,
+      after: { reason: 'guard dependency unavailable' },
     });
   });
 });

@@ -2,6 +2,7 @@
   "adminRoles.permission.mfa:reset": "Resetowanie weryfikacji dwuetapowej użytkownika",
   "adminRoles.permission.mfa:manage": "Zarządzanie politykami weryfikacji dwuetapowej i wymuszaniem w Organizacji",
   "errors.MFA_SOCIAL_LAST_CREDENTIAL": "To ostatnia tożsamość logowania powiązana z kontem, a konto nie ma zapisanego hasła — usunięcie jej mogłoby trwale odciąć dostęp do konta. Najpierw ustaw hasło do konta, a potem to powiązanie będzie można usunąć.",
+  "errors.MFA_LAST_FACTOR_REQUIRED": "Weryfikacji dwuetapowej nie można wyłączyć na tym koncie, bo jest tu wymagana — przez ustawienie bezpieczeństwa, Twoją rolę albo Twoją organizację. Pozostaje włączona, dopóki to wymaganie obowiązuje; jeśli ma zostać zniesione, zapytaj administratora.",
   "errors.MFA_ALREADY_ENROLLED": "Weryfikacja dwuetapowa jest już skonfigurowana na tym koncie i nie ma nic więcej do ustawienia. Aby przenieść ją do innej aplikacji uwierzytelniającej, najpierw ją wyłącz, a potem skonfiguruj od nowa.",
   "errors.MFA_INVALID_CHALLENGE": "Ten krok logowania nie jest już ważny — wygasł albo został już zakończony. Zaloguj się ponownie, aby rozpocząć nowy.",
   "errors.MFA_INVALID_CODE": "Ten kod nie został przyjęty. Kod z aplikacji uwierzytelniającej jest ważny tylko przez około pół minuty, więc poczekaj na kolejny i wpisz go bez spacji; kodu odzyskiwania można użyć tylko raz.",
@@ -26,6 +27,8 @@
   "actions.openSecurity.description": "Skonfiguruj lub zmień własną weryfikację dwuetapową",
   "security.setup.qrAlt": "Kod QR do zeskanowania aplikacją uwierzytelniającą",
   "security.setup.qrHint": "Zeskanuj ten kod QR aplikacją uwierzytelniającą albo wpisz poniższy klucz ręcznie.",
+  "security.disableBlocked.title": "Weryfikacja dwuetapowa jest wymagana",
+  "security.disableBlocked.body": "Nie można jej wyłączyć na Twoim koncie, dopóki wymaga jej ustawienie bezpieczeństwa albo Twoja rola. Jeśli wymaganie ma zostać zniesione, zapytaj administratora, który zarządza ustawieniami bezpieczeństwa lub rolami.",
   "actions.openSecurity.keywords": "bezpieczeństwo, dwuskładnikowe, weryfikacja dwuetapowa",
   "settingGroups.mfa.name": "Bezpieczeństwo / MFA"
 }
