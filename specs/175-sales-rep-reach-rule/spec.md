@@ -2,7 +2,7 @@
 
 **Feature Branch**: `fix/305-sales-rep-reach-rule`
 **Created**: 2026-11-08
-**Status**: Implemented. FR-006 met at load < 6 (lists 1.27–1.39×, reach ≤ 4.4 ms); a quiet-host re-measure is owed before the release (`research.md` R-7)
+**Status**: Implemented. FR-006's list ratio met after Phase 2 (1.14–1.48× at load < 5); roll-up `reachOf` at the 5 ms budget (4.3–5.5 ms, off the list hot path); a quiet-host re-measure is owed before the release (`research.md` R-7)
 **Input**: GitHub issue #305, and the owner's rulings on it of 2026-11-07 ("one rule, every
 surface, do it now") and 2026-11-08 (E-305-1 confirmed; E-305-2: no cache unless the governor
 table fails the budget).
