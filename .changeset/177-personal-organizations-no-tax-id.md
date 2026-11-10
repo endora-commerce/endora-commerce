@@ -1,0 +1,16 @@
+---
+'@endora-commerce/contracts': minor
+'@endora-commerce/mod-organizations': minor
+---
+
+**Breaking: an organization's `taxId` is `string | null`.** A personal (B2C) organization has no tax ID; it used to carry a 32-character placeholder derived from its account id. `organizationSchema.taxId` is `z.string().nullable()` and `OrganizationRecord.taxId` is `string | null`. Was `organization.taxId.trim()`; now `organization.taxId?.trim() ?? ''`, or better `organizationCompanyTaxId(organization)`, which already answered `null` for a personal organization and now also accepts a `null` tax ID. Orders, invoices, quote documents and audit entries written before the upgrade are not rewritten.
+
+- **Upgrade.** The migration `Migration20261110T135922OrganizationsPersonalTaxIdRemoval` clears the tax ID of every personal organization and records the customer account it was provisioned for in a new column, `organizations.personal_account_id` (taken from the old placeholder). A check, `organizations_tax_id_presence`, now refuses a personal organization with a tax ID and a company organization without one. A personal organization whose stored tax ID was not the placeholder (hand-made data) is cleared too and left without the link; the migration reports how many as a notice. Code that inserts personal organizations with a tax ID — fixtures, seeds, overlay modules — must write `null`.
+- **Provisioning** is idempotent by that link instead of the tax ID (`PersonalOrganizationProvisionApi.provisionFor`, `PersonalOrganizationPort.provisionPersonalOrganization`); the unassign destination is still the account's own personal organization.
+- **Tax-ID scope foundation.** `Migration20261110T135941OrganizationsTaxIdScope` adds a stored generated column `organizations.root_id` (the tree's root, from `path`) and the single-row table `organization_tax_id_policy`, seeded `global` — today's rule, unchanged. Adding the stored column rewrites `organizations` under an exclusive lock while it runs. Nothing switches the scope yet.
+- **Lookups.** `OrganizationDetailsPort` gains `findByTaxId(taxId, { includeDeleted? })` — every organization holding the tax ID, the tree's root first — and `resolveByTaxId(taxId)` → `{ kind: 'none' | 'one' | 'ambiguous' }`. Both normalise the input with the new `normalizeTaxId` (whitespace and dashes stripped, upper-cased). An implementation or test double of `OrganizationDetailsPort` must add both methods.
+- **New contract shapes** for the coming tax-ID scope screen and personal → company conversion: `TaxIdScope` / `taxIdScopeSchema`, `adminTaxIdScopeSetBodySchema`, `adminTaxIdScopeResponseSchema`, `TaxIdResolution`, `adminOrganizationConvertToCompanyBodySchema` / `OrganizationConvertToCompanyInput`, `OrganizationConvertedToCompanyEvent`, `OrganizationRecord.convertedToCompanyAt`, and `AdminOrganizationCreateBodySchema.parentId` (optional). No route serves them yet.
+- **Returns.** `OrderReturnContext` gains a required `placedAt: Date` — an implementation of `OrderReturnContextPort` must fill it.
+- **VAT validation** of an organization with no tax ID is refused `422 VALIDATION_FAILED` before any provider is called.
+
+An operator who wants to review orders placed by personal organizations before the placeholder was hidden can find them with `select id from orders where billing_address->>'taxId' ~ '^[0-9a-f]{32}$'`.
