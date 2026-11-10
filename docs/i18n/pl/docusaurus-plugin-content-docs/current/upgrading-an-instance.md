@@ -4772,6 +4772,25 @@ dotyczyła zmiana szansy.
 dziennika audytu, odczytuje je z samej szansy albo z jej historii zmian
 (`GET /api/v1/admin/crm/opportunities/:id/history`).
 
+### Adresy subskrybentów znikają z dziennika audytu platformy {#newsletter-audit-names-only}
+
+Wydanie z tą zmianą przestaje zapisywać adresy e-mail subskrybentów newslettera i powody wypisania
+w dzienniku audytu całej platformy (zgłoszenie #470). Ten dziennik to jedna tabela, czytana przez
+każdego, kto ma `audit_log:read`, bez względu na to, co widzi.
+
+**Zmiana zachowania po aktualizacji:**
+
+- Na ekranie **Dziennik audytu** i w `audit_logs read` nowy wpis `newsletter_subscribe`,
+  `newsletter_resubscribe`, `newsletter_bounce`, `newsletter_complaint` albo `newsletter_delete`
+  nie zawiera już adresu e-mail, a nowy wpis `newsletter_unsubscribe` nie zawiera już powodu;
+  zapisuje `hasReason`. Wpisy nazywają subskrybenta identyfikatorem. Zablokowanie adresu, który nie
+  ma subskrybenta, jest nadal zapisywane dla samego adresu.
+- Subskrybenci, ich powody wypisania i lista blokad się nie zmieniają.
+- Wpisy zapisane przed aktualizacją nie są przepisywane: zachowują swoje adresy i powody.
+
+**Po aktualizacji** nie trzeba nic robić. Raport, który wyszukiwał subskrybentów po adresie w
+dzienniku audytu, wyszukuje ich na ekranie **Newsletter**.
+
 ## Instancja niespójna od początku
 
 Instalator `0.101.x` lub starszy zapisywał każdy pakiet wydania z `^` poza

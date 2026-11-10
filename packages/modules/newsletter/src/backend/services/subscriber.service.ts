@@ -293,7 +293,9 @@ export class NewsletterSubscriberService {
       action: isNew ? 'newsletter_subscribe' : 'newsletter_resubscribe',
       objectType: 'newsletter_subscriber',
       objectId: subscriber.id,
-      stateAfter: { email, status: subscriber.status, source: input.source ?? null },
+      // No address (#470, D-288): the subscriber is the customer's, and the
+      // audit log is read without that reach. The entry names it by id.
+      stateAfter: { status: subscriber.status, source: input.source ?? null },
     });
     this.deps.emitEvent?.('newsletter.subscribed.v1', {
       subscriberId: subscriber.id,
@@ -348,7 +350,8 @@ export class NewsletterSubscriberService {
         action: 'newsletter_unsubscribe',
         objectType: 'newsletter_subscriber',
         objectId: subscriber.id,
-        stateAfter: { status: 'unsubscribed', reason: reason ?? null },
+        // That a reason was given, never its text (#470): it is on the subscriber.
+        stateAfter: { status: 'unsubscribed', hasReason: Boolean(reason) },
       });
       this.deps.emitEvent?.('newsletter.unsubscribed.v1', {
         subscriberId: subscriber.id,
@@ -385,7 +388,8 @@ export class NewsletterSubscriberService {
       action: `newsletter_${reason}`,
       objectType: 'newsletter_subscriber',
       objectId: subscriber?.id ?? normalized,
-      stateAfter: { email: normalized, reason },
+      // The suppression's reason code, never the address (#470).
+      stateAfter: { reason },
     });
   }
 
