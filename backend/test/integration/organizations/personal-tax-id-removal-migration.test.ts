@@ -316,6 +316,11 @@ describe('organizations — M1: personal organizations lose the synthetic tax ID
 
     it('applies on an empty organizations table without the ledger row (a fresh database)', async () => {
       await em.execute('delete from "mikro_orm_migrations" where "name" = ?', [OLD_MIGRATION]);
+      // A fresh database's table is empty; the worker's clone holds whatever
+      // earlier files committed. So the table is set aside for an empty one of
+      // the same shape, inside this test's transaction, which rolls both back.
+      await em.execute('alter table "organizations" rename to "organizations_m1_aside"');
+      await em.execute('create table "organizations" (like "organizations_m1_aside" including all)');
       const [{ count }] = (await em.execute(
         'select count(*)::int as "count" from "organizations"',
       )) as [{ count: number }];
