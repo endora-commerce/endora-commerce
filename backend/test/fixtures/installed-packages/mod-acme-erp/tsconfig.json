@@ -1,0 +1,11 @@
+{
+  // The worked example's sources, type-checked as their author would compile them
+  // (`specs/178-extensible-columns/` T031): the developer page reproduces them, and
+  // `test/unit/fixtures/mod-acme-erp-source.test.ts` runs `tsc --noEmit` over this.
+  "extends": "../../../../../tsconfig.base.json",
+  "compilerOptions": {
+    "noEmit": true,
+    "types": ["node"]
+  },
+  "include": ["src/**/*"]
+}

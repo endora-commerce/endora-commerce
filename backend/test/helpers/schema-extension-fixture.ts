@@ -5,6 +5,7 @@ import { Migration } from '@mikro-orm/migrations';
 import { MikroORM, type Options } from '@mikro-orm/postgresql';
 import { Client } from 'pg';
 import {
+  PLATFORM_ENTITIES,
   PLATFORM_MIGRATION_ENTRIES,
   configuredMigrationsFrom,
   createColumnExtension,
@@ -139,6 +140,11 @@ export interface FixtureOptions {
   readonly logger?: (message: string) => void;
   /** More `fixture_host` migrations — a host release that rebuilds its table, say. */
   readonly hostMigrations?: readonly (new (...args: never[]) => Migration)[];
+  /**
+   * Every platform migration and entity rather than the ledger alone — what the
+   * lifecycle orchestrator needs (registrations, settings, the audit log).
+   */
+  readonly platform?: boolean;
 }
 
 export function fixtureConfig(
@@ -163,7 +169,9 @@ export function fixtureConfig(
         ];
   const migrations = configuredMigrationsFrom({
     coreEntries: [
-      ...PLATFORM_MIGRATION_ENTRIES.filter((entry) => entry.cls.name.endsWith('CoreSchemaExtensionsLedger')),
+      ...(options.platform
+        ? PLATFORM_MIGRATION_ENTRIES
+        : PLATFORM_MIGRATION_ENTRIES.filter((entry) => entry.cls.name.endsWith('CoreSchemaExtensionsLedger'))),
       { moduleId: FIXTURE_HOST_MODULE, cls: Migration20261110T000001FixtureHostInit as never },
       ...(options.hostMigrations ?? []).map((cls) => ({ moduleId: FIXTURE_HOST_MODULE, cls: cls as never })),
     ],
@@ -177,7 +185,9 @@ export function fixtureConfig(
     extensibleHosts: FIXTURE_HOSTS,
   });
   const config = mikroOrmConfigFrom({
-    entities: [SchemaExtensionElement, X178Host, X178OrgHost],
+    entities: options.platform
+      ? [...PLATFORM_ENTITIES, X178Host, X178OrgHost]
+      : [SchemaExtensionElement, X178Host, X178OrgHost],
     migrations,
     extensibleHosts: FIXTURE_HOSTS,
   });
@@ -195,4 +205,11 @@ export async function openFixtureOrm(
   options: FixtureOptions = {},
 ): Promise<MikroORM> {
   return MikroORM.init(fixtureConfig(url, declarations, options));
+}
+
+/** The ownership the fixture configuration computed — what the orchestrator reverts by. */
+export function fixtureMigrations(declarations: readonly ColumnExtension[], options: FixtureOptions = {}) {
+  return (fixtureConfig('postgresql://unused/unused', declarations, options).migrations?.migrationsList ?? []).map(
+    (migration) => migration.name,
+  );
 }

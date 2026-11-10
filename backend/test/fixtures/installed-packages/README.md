@@ -1,8 +1,9 @@
 # Installed-package fixtures for the owner-map checks (feature 080, T034)
 
-Four synthetic module packages, in the shape a **published** one has: compiled
-JavaScript behind an `exports` map, no TypeScript sources, and nothing that names
-this repository. They exist so the red proofs of
+Synthetic module packages (the table below lists them), in the shape a
+**published** one has: compiled JavaScript behind an `exports` map, no TypeScript
+sources — `mod-acme-erp` keeps its `src/` beside `lib/` as documentation, never as
+what is installed — and nothing that names this repository. They exist so the red proofs of
 
 - `backend/scripts/check-entity-tenant-classification.ts`,
 - `backend/scripts/check-module-boundary.ts`,
@@ -30,3 +31,4 @@ fixture that is not committed is a red proof nobody else can run.
 | `mod-schema-without-entities` | `fixture_schema_only` | Ships `./migrations` and a `./backend` that declares no `entities`. Unreadable: its tables would be in no map and its persisted classes in no classification. |
 | `mod-bundled` | `fixture_bundled` | Exports a `registerModule` its own source does not name. Unreadable for the container-name half only. |
 | `mod-instance-surfaces` | `fixture_instance_surfaces` | The **instance** case (`specs/110-instance-repository/` T101, T102). Ships an admin layer behind `./admin` and a `docs/` page at the package root, so the two artefacts a client's instance generates can be rendered over an installed population instead of over workspace members. Read by `backend/test/unit/scripts/instance-artefact-population.test.ts`. |
+| `mod-acme-erp` | `acme_erp` | The worked example of declared extension columns (`specs/178-extensible-columns/quickstart.md`). Ships `src/` beside `lib/` — the TypeScript an author writes, type-checked by `backend/test/unit/fixtures/mod-acme-erp-source.test.ts`, which also installs `lib/` and observes Phase A refusing it (`host-not-extensible`, no host rolled out). |

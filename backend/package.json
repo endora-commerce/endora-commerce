@@ -89,6 +89,7 @@
     "module:disable": "tsx --env-file-if-exists=.env src/lifecycle/scripts/disable.ts",
     "module:enable": "tsx --env-file-if-exists=.env src/lifecycle/scripts/enable.ts",
     "module:install": "tsx --env-file-if-exists=.env src/lifecycle/scripts/install.ts",
+    "module:schema-extensions": "tsx --env-file-if-exists=.env src/lifecycle/scripts/schema-extensions.ts",
     "module:status": "tsx --env-file-if-exists=.env src/lifecycle/scripts/status.ts",
     "module:uninstall": "tsx --env-file-if-exists=.env src/lifecycle/scripts/uninstall.ts",
     "overlay:check": "tsx scripts/check-overlay-determinism.ts",
