@@ -4757,6 +4757,28 @@ request. Nobody's reach changes, and nothing is cached.
 follow the compile errors. Nothing else needs doing: the migration that ships with the reach change
 (`organization_reach_governor`) is unchanged.
 
+### Return amounts and reasons leave the platform audit log {#returns-audit-names-only}
+
+The release that ships this change stops writing return amounts and free-text reasons into the
+platform-wide audit log (issue #470). That log is one table, read by everybody holding
+`audit_log:read` whatever Organizations they may see.
+
+**Behaviour change on upgrade:**
+
+- A new `return.settled` entry no longer carries `amount`, `charges` (each charge's maximum and
+  approved amount), `recomputedDefaults` or `lineCeilings`. It names what they concerned instead:
+  `refundedCharges` (charge kinds), `recomputedDefaultItemIds` and `ceilingBoundItemIds` (line ids).
+  The resolution, currency, settlement state and correction outcome stay.
+- A new `return.status_changed` entry no longer carries the `reason` typed with the change; it
+  records `hasReason: true | false`. The reason is still passed to the status events of that
+  change, but **it is no longer stored anywhere**: if your operators read transition reasons back
+  from the audit log, ask them to put the reason in a case comment instead.
+- Return cases, refunds and their amounts are unchanged. Entries recorded before the upgrade are not
+  rewritten: they keep their amounts and reasons.
+
+**After upgrading,** check whether anybody relies on reading transition reasons from the Audit log
+screen (see above).
+
 ## An instance that is mixed from the start
 
 The installer of `0.101.x` or earlier wrote every package of the release with a `^` except

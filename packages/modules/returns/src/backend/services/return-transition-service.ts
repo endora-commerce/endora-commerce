@@ -127,7 +127,9 @@ export class ReturnTransitionService {
           objectType: 'return_case',
           objectId: rc.id,
           stateBefore: { statusCode: from },
-          stateAfter: { statusCode: to, reason: opts?.reason ?? null },
+          // That there was a reason, never its text (#470, D-288): free text is the
+          // Organization's, and the audit log is read without its reach.
+          stateAfter: { statusCode: to, hasReason: Boolean(opts?.reason) },
         });
       } catch {
         // ignore audit failures
