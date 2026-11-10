@@ -67,6 +67,7 @@ Rendered from the module's own manifest, and from nothing written by hand. What 
 
 | Action | Opens | Permission |
 | --- | --- | --- |
+| `convert-personal-organization` | `/organizations/convert-to-company` | `organizations:convert-to-company` |
 | `new-organization` | `/organizations/new` | `customers:manage` |
 | `open-organizations` | `/organizations` | `customers:read` |
 | `open-registration-registry-lookup-settings` | `/settings` | `settings:read` |

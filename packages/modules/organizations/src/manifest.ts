@@ -492,6 +492,19 @@ export const manifest = defineModuleManifest({
       keywordsKey: 'actions.openTaxIdScope.keywords',
       weight: 190,
     },
+    // `specs/177-tax-id-scope/` (`contracts/admin-surfaces.md` §2) — the
+    // personal → company conversion screen, gated on the code its route and API enforce.
+    {
+      id: 'convert-personal-organization',
+      labelKey: 'actions.convertPersonalOrganization.label',
+      descriptionKey: 'actions.convertPersonalOrganization.description',
+      icon: 'Building2',
+      targetRoute: '/organizations/convert-to-company',
+      requiredPermission: 'organizations:convert-to-company',
+      keywords: ['convert', 'personal', 'company', 'b2c', 'b2b'],
+      keywordsKey: 'actions.convertPersonalOrganization.keywords',
+      weight: 185,
+    },
     // Feature 173 (`contracts/admin-surfaces.md` §5, Principle XVI) — the three
     // registration-lookup settings. The generic Settings screen has no
     // per-group address (the cms / google_tag_manager precedent), so the action

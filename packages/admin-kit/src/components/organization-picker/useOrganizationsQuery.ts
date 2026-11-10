@@ -43,13 +43,23 @@ interface AdminOrganizationListResponse {
   pagination: { cursor: string | null; hasMore: boolean; limit: number };
 }
 
+/**
+ * Which organizations a picker lists (`specs/177-tax-id-scope/` T063): companies
+ * only — the list endpoint's default, and every picker's behaviour before the
+ * option existed — personal (B2C) organizations only, or both.
+ */
+export type OrganizationPickerKind = 'company' | 'personal' | 'any';
+
 async function listOrganizationsForPicker(options: {
   q?: string;
   status?: OrganizationStatus[];
+  kind?: OrganizationPickerKind;
   limit?: number;
   signal?: AbortSignal;
 }): Promise<OrganizationPickerPage> {
   const qs = new URLSearchParams();
+  if (options.kind === 'personal' || options.kind === 'any') qs.set('includePersonal', 'true');
+  if (options.kind === 'personal') qs.set('filter[isPersonal]', 'true');
   if (options.q !== undefined && options.q.length > 0) qs.set('q', options.q);
   if (options.status && options.status.length > 0) {
     qs.set('filter[status]', options.status[0]!);
@@ -85,6 +95,8 @@ export interface UseOrganizationsQueryOptions {
    * the defect register instead.
    */
   salesRepAdminUserId?: string;
+  /** Which organizations to list; defaults to `'company'`. */
+  kind?: OrganizationPickerKind;
   /** Defaults to 25. Capped at 100 server-side. */
   limit?: number;
   /** Debounce delay in ms. Defaults to 200. */
@@ -108,7 +120,7 @@ export interface UseOrganizationsQueryResult {
 export function useOrganizationsQuery(
   options: UseOrganizationsQueryOptions,
 ): UseOrganizationsQueryResult {
-  const { query, statusFilter, salesRepAdminUserId, limit = 25, debounceMs = 200 } = options;
+  const { query, statusFilter, salesRepAdminUserId, kind = 'company', limit = 25, debounceMs = 200 } = options;
   const [items, setItems] = useState<OrganizationPickerListItem[]>([]);
   const [loading, setLoading] = useState(false);
   const [error, setError] = useState<string | null>(null);
@@ -135,6 +147,7 @@ export function useOrganizationsQuery(
 
       const listOptions: Parameters<typeof listOrganizationsForPicker>[0] = {
         q: query.trim(),
+        kind,
         limit,
         signal: controller.signal,
       };
@@ -161,7 +174,7 @@ export function useOrganizationsQuery(
       if (debounceRef.current) clearTimeout(debounceRef.current);
       if (abortRef.current) abortRef.current.abort();
     };
-  }, [query, statusKey, salesRepAdminUserId, limit, debounceMs]);
+  }, [query, statusKey, salesRepAdminUserId, kind, limit, debounceMs]);
 
   return { items, loading, error };
 }

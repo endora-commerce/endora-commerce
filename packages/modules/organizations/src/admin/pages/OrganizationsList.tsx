@@ -31,6 +31,8 @@ export function OrganizationsList(): ReactNode {
   // installation-wide screens, each under its own code. The routes and the
   // backend also refuse a scoped administrator; the menu shows what the code allows.
   const canManageTaxIdScope = hasPermission('organizations:manage-tax-id-scope');
+  const canConvert = hasPermission('organizations:convert-to-company');
+  const hasMenu = canManageTaxIdScope || canConvert;
   const [rows, setRows] = useState<AdminOrganization[]>([]);
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState<string | null>(null);
@@ -65,18 +67,25 @@ export function OrganizationsList(): ReactNode {
         title={t('organizations.page.title')}
         description={t('organizations.page.description')}
         actions={
-          canCreate || canManageTaxIdScope ? (
+          canCreate || hasMenu ? (
             <div className="flex items-center gap-2">
               {canCreate ? (
                 <Button asChild>
                   <Link to="/organizations/new">{own('list.newOrganization')}</Link>
                 </Button>
               ) : null}
-              {canManageTaxIdScope ? (
+              {hasMenu ? (
                 <RowActionMenu label={own('list.menu.label')}>
-                  <RowActionMenuItem asChild>
-                    <Link to="/organizations/tax-id-scope">{own('list.menu.taxIdScope')}</Link>
-                  </RowActionMenuItem>
+                  {canManageTaxIdScope ? (
+                    <RowActionMenuItem asChild>
+                      <Link to="/organizations/tax-id-scope">{own('list.menu.taxIdScope')}</Link>
+                    </RowActionMenuItem>
+                  ) : null}
+                  {canConvert ? (
+                    <RowActionMenuItem asChild>
+                      <Link to="/organizations/convert-to-company">{own('list.menu.convertPersonal')}</Link>
+                    </RowActionMenuItem>
+                  ) : null}
                 </RowActionMenu>
               ) : null}
             </div>

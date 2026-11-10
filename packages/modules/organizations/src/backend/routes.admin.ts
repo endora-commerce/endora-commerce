@@ -105,6 +105,9 @@ const listQuerySchema = z.object({
   // `includePersonal=true` to see them (string compare — z.coerce.boolean would
   // treat the string "false" as true).
   includePersonal: z.string().optional(),
+  // `specs/177-tax-id-scope/` — one kind only (the conversion screen's picker
+  // asks for personal organizations); with `includePersonal=true`.
+  'filter[isPersonal]': z.enum(['true', 'false']).optional(),
 });
 
 export interface AdminOrgsDeps {
@@ -324,6 +327,7 @@ export async function registerOrganizationsAdminRoutes(
       const where: Record<string, unknown> = { deletedAt: null, ...orgScopeWhere('id') };
       // Feature 051 — exclude personal (B2C) orgs from the B2B admin list by default.
       if (query.includePersonal !== 'true') where['isPersonal'] = false;
+      else if (query['filter[isPersonal]']) where['isPersonal'] = query['filter[isPersonal]'] === 'true';
       if (query['filter[status]']) where['status'] = query['filter[status]'];
       if (query['filter[vatStatus]']) where['vatStatus'] = query['filter[vatStatus]'];
       if (query.q) {

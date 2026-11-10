@@ -6,6 +6,7 @@ import { ApiError, apiClient, useSurfaceVisibility, useUnsavedChangesPrompt, for
 import { FulfilmentStrategyPanel } from '../panels/FulfilmentStrategyPanel.js';
 import { OrganizationSalesRepsTab } from '../components/OrganizationSalesRepsTab.js';
 import { OrganizationRolesTab } from '../components/OrganizationRolesTab.js';
+import { ConvertToCompanyForm, type ConvertToCompanyResult } from '../components/ConvertToCompanyForm.js';
 import { organizationRolesClient } from '../api/roles.js';
 import { ModerationActionsPanel } from '../panels/ModerationActionsPanel.js';
 import { ApplicablePriceListsPanel } from '../panels/ApplicablePriceListsPanel.js';
@@ -14,7 +15,7 @@ import { VatValidationPanel } from '../panels/VatValidationPanel.js';
 import { newestRegistrationRow } from '../panels/vat-validation-view.js';
 import { RestrictionsPanel } from '../panels/RestrictionsPanel.js';
 import { SalesChannelsPanel } from '../panels/SalesChannelsPanel.js';
-import { CustomFieldValuesPanel } from '@endora-commerce/admin-kit/components';
+import { CustomFieldValuesPanel, ModalDialog } from '@endora-commerce/admin-kit/components';
 import { AdminZone } from '@endora-commerce/admin-kit/zones';
 import { Alert, AlertDescription, Button, Card, CardContent, CardHeader, CardTitle, Input, Label, PageHeader, Select, Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from '@endora-commerce/admin-kit/ui';
 import { useTranslation } from '@endora-commerce/admin-kit/i18n';
@@ -86,6 +87,9 @@ export function OrganizationDetail(): ReactNode {
   const own = useTranslation('organizations');
   const isVisible = useSurfaceVisibility();
   const canReadRoles = isVisible({ module: 'organizations', requiredPermission: READ_ROLES });
+  // `specs/177-tax-id-scope/` (`contracts/admin-surfaces.md` §4.2).
+  const canConvert = isVisible({ module: 'organizations', requiredPermission: 'organizations:convert-to-company' });
+  const [converting, setConverting] = useState(false);
   const { id = '' } = useParams<{ id: string }>();
   const [org, setOrg] = useState<OrgDetail | null>(null);
   // Feature 173 — the newest registration-time lookup's differing fields, as
@@ -372,12 +376,19 @@ export function OrganizationDetail(): ReactNode {
           </span>
         }
         actions={
-          <Button asChild variant="outline">
-            <Link to="/organizations">
-              <ArrowLeft />
-              {t('organizations.detail.back')}
-            </Link>
-          </Button>
+          <div className="flex flex-wrap items-center gap-2">
+            <Button asChild variant="outline">
+              <Link to="/organizations">
+                <ArrowLeft />
+                {t('organizations.detail.back')}
+              </Link>
+            </Button>
+            {org.isPersonal && canConvert ? (
+              <Button type="button" variant="secondary" onClick={(): void => setConverting(true)}>
+                {own('convertToCompany.button')}
+              </Button>
+            ) : null}
+          </div>
         }
       />
 
@@ -706,6 +717,25 @@ export function OrganizationDetail(): ReactNode {
         </CardContent>
       </Card>
 
+      {converting ? (
+        <ModalDialog
+          title={own('convertToCompany.dialogTitle')}
+          onClose={(): void => setConverting(false)}
+          widthClassName="max-w-2xl"
+        >
+          <ConvertToCompanyForm
+            organizationId={org.id}
+            defaultCountry={org.registeredAddress?.country ?? null}
+            onCancel={(): void => setConverting(false)}
+            onConverted={(result: ConvertToCompanyResult): void => {
+              setConverting(false);
+              setInfo(conversionMessage(own, result));
+              void refresh({ quiet: true });
+            }}
+          />
+        </ModalDialog>
+      ) : null}
+
       {/* Feature 170 — the Organization's roles (US 7). Mounted for a company
           Organization and an operator holding a role code; it hides itself
           otherwise and requests nothing. */}
@@ -822,3 +852,11 @@ export function OrganizationDetail(): ReactNode {
  * the spelling this module's own code and its tests use.
  */
 export default OrganizationDetail;
+
+/** The page's success line after a conversion: the VAT validation's outcome when one ran. */
+function conversionMessage(own: (key: string) => string, result: ConvertToCompanyResult): string {
+  const outcome = result.vatValidation?.outcome;
+  if (!outcome) return own('convertToCompany.success.plain');
+  const known = ['validated', 'invalid', 'deferred', 'failed'];
+  return own(`convertToCompany.success.${known.includes(outcome) ? outcome : 'failed'}`);
+}

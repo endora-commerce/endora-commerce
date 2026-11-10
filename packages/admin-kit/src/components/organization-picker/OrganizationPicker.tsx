@@ -3,6 +3,7 @@ import type { OrganizationStatus } from '@endora-commerce/contracts';
 import { Combobox, type ComboboxOption } from '../../ui/combobox.js';
 import {
   useOrganizationsQuery,
+  type OrganizationPickerKind,
   type UseOrganizationsQueryOptions,
 } from './useOrganizationsQuery.js';
 import { OrganizationStatusBadge } from './OrganizationStatusBadge.js';
@@ -13,6 +14,12 @@ export interface OrganizationPickerProps {
   /** When provided, the initially-selected item's name is shown in the input even before the first fetch lands. */
   selectedLabel?: string;
   statusFilter?: OrganizationStatus[];
+  /**
+   * Which organizations to list (`specs/177-tax-id-scope/`): `'company'` — the
+   * default, and the only behaviour before this prop — `'personal'` (B2C
+   * organizations only) or `'any'`.
+   */
+  kind?: OrganizationPickerKind;
   salesRepAdminUserId?: string;
   placeholder?: string;
   emptyMessage?: string;
@@ -41,8 +48,9 @@ export function OrganizationPicker(props: OrganizationPickerProps): React.ReactE
       query,
       ...(props.statusFilter ? { statusFilter: props.statusFilter } : {}),
       ...(props.salesRepAdminUserId ? { salesRepAdminUserId: props.salesRepAdminUserId } : {}),
+      ...(props.kind ? { kind: props.kind } : {}),
     }),
-    [query, props.statusFilter, props.salesRepAdminUserId],
+    [query, props.statusFilter, props.salesRepAdminUserId, props.kind],
   );
 
   const { items, loading } = useOrganizationsQuery(queryOptions);

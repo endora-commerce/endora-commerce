@@ -116,9 +116,9 @@ Rows refer to `contracts/personal-tax-id-removal.md` §3.
 
 ## WP-6 — Conversion admin UI (US3; after T053)
 
-- [ ] T061 [WP-6] [US3] [test] Detail dialog: button only for a personal org and the permission; form validation linked with `aria-describedby`; tax ID normalised on blur; 409 tax ID on the field; refusal as an alert; `aria-busy` submit; success refreshes and the Roles tab renders; axe clean (FR-042) — `admin/test/modules/organizations/convert-to-company-dialog.test.tsx` — T053
-- [ ] T062 [WP-6] [US3] `ConvertToCompanyForm.tsx`, the dialog in `OrganizationDetail.tsx`, i18n en/pl — `org/src/admin/` — T061
-- [ ] T063 [WP-6] [US3] [test → impl] `ConvertToCompanyPage` with steps; `OrganizationPicker` `kind` prop (default unchanged) and the list endpoint's `filter[isPersonal]`; empty state; palette action `convert-personal-organization`; list header menu entry — `admin/test/modules/organizations/convert-to-company-page.test.tsx`, `packages/admin-kit/src/components/organization-picker/`, `org/src/admin/`, `routes.admin.ts`, `manifest.ts` — T062
+- [x] T061 [WP-6] [US3] [test] Detail dialog: button only for a personal org and the permission; form validation linked with `aria-describedby`; tax ID normalised on blur; 409 tax ID on the field; refusal as an alert; `aria-busy` submit; success refreshes and the Roles tab renders; axe clean (FR-042) — `admin/test/modules/organizations/convert-to-company-dialog.test.tsx` — T053
+- [x] T062 [WP-6] [US3] `ConvertToCompanyForm.tsx`, the dialog in `OrganizationDetail.tsx`, i18n en/pl — `org/src/admin/` — T061
+- [x] T063 [WP-6] [US3] [test → impl] `ConvertToCompanyPage` with steps; `OrganizationPicker` `kind` prop (default unchanged) and the list endpoint's `filter[isPersonal]`; empty state; palette action `convert-personal-organization`; list header menu entry — `admin/test/modules/organizations/convert-to-company-page.test.tsx`, `packages/admin-kit/src/components/organization-picker/`, `org/src/admin/`, `routes.admin.ts`, `manifest.ts` — T062
 - [ ] T063v [WP-6] Verify incl. `palette-coverage.test.ts`, `registered-bundles-shape.test.ts`, `check:action-route-permissions`; PR — T061–T063
 
 ## WP-R — Registration on 176's Command (after 176 is on `master` and merged into the integration branch)
