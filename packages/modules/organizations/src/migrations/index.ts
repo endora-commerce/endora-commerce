@@ -39,6 +39,7 @@ import { Migration20261105T121034OrganizationsRegistryLookupProvenance } from '.
 import { Migration20261109T144721OrganizationsReachGovernor } from './20261109T144721_organizations_reach_governor.js';
 import { Migration20261110T135922OrganizationsPersonalTaxIdRemoval } from './20261110T135922_organizations_personal_tax_id_removal.js';
 import { Migration20261110T135941OrganizationsTaxIdScope } from './20261110T135941_organizations_tax_id_scope.js';
+import { Migration20261110T173752OrganizationsTaxIdWriteLock } from './20261110T173752_organizations_tax_id_write_lock.js';
 
 export const migrations = [
   Migration20260424T205317OrganizationsInit,
@@ -58,6 +59,7 @@ export const migrations = [
   Migration20261109T144721OrganizationsReachGovernor,
   Migration20261110T135922OrganizationsPersonalTaxIdRemoval,
   Migration20261110T135941OrganizationsTaxIdScope,
+  Migration20261110T173752OrganizationsTaxIdWriteLock,
 ];
 
 export {
@@ -78,4 +80,5 @@ export {
   Migration20261109T144721OrganizationsReachGovernor,
   Migration20261110T135922OrganizationsPersonalTaxIdRemoval,
   Migration20261110T135941OrganizationsTaxIdScope,
+  Migration20261110T173752OrganizationsTaxIdWriteLock,
 };

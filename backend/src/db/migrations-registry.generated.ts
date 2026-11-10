@@ -323,6 +323,7 @@ import { Migration20261105T121034OrganizationsRegistryLookupProvenance } from '@
 import { Migration20261109T144721OrganizationsReachGovernor } from '@endora-commerce/mod-organizations/migrations';
 import { Migration20261110T135922OrganizationsPersonalTaxIdRemoval } from '@endora-commerce/mod-organizations/migrations';
 import { Migration20261110T135941OrganizationsTaxIdScope } from '@endora-commerce/mod-organizations/migrations';
+import { Migration20261110T173752OrganizationsTaxIdWriteLock } from '@endora-commerce/mod-organizations/migrations';
 
 // ── payment_methods ─────────────────────────────────────────────────────────
 import { Migration20260611T140353PaymentMethodsAdapter } from '@endora-commerce/mod-payment-methods/migrations';
@@ -741,6 +742,7 @@ export const MIGRATION_REGISTRY: readonly MigrationRegistryEntry[] = [
   migration('organizations', Migration20261109T144721OrganizationsReachGovernor),
   migration('organizations', Migration20261110T135922OrganizationsPersonalTaxIdRemoval),
   migration('organizations', Migration20261110T135941OrganizationsTaxIdScope),
+  migration('organizations', Migration20261110T173752OrganizationsTaxIdWriteLock),
 
   // ── payment_methods ─────────────────────────────────────────────────────────
   migration('payment_methods', Migration20260611T140353PaymentMethodsAdapter),
