@@ -516,8 +516,9 @@ Opiekun handlowy to administrator platformy z rolą `sales_representative`. Regu
 skupia w jednym miejscu predykat
 `SalesRepAssignmentService.canSeeOrganization(adminUserId, organizationId)`:
 
-1. Rola `platform_admin` → widzi każdą organizację.
-2. W przeciwnym razie administrator widzi organizację wtedy i tylko wtedy, gdy łączy ich wiersz w
+1. Każda rola poza `sales_representative` (`platform_admin` albo rola niestandardowa
+   z uprawnieniem `rfqs:handle`) → widzi każdą organizację (zgłoszenie #957).
+2. Rola `sales_representative` widzi organizację wtedy i tylko wtedy, gdy łączy ich wiersz w
    `organization_sales_rep_assignments` LUB organizacja nie ma w tej tabeli żadnych wierszy
    (reguła zastępcza dla organizacji bez opiekuna — taką organizację widzi każdy opiekun handlowy).
    Z uprawnieniem `organizations:rollup` rozstrzyga zamiast tego najbliższa organizacja w łańcuchu
@@ -673,9 +674,10 @@ pozycja to **— Wybierz widok —**, a obok niej dwa przyciski: **Zapisz widok*
   zacznie polegać na udostępnionych widokach. Opiekun handlowy może usuwać tylko własne widoki, a
   prywatnego widoku innego administratora nikt nie widzi i nikt nie może go usunąć.
 - **Dwa znaczenia „administratora platformy” na tej liście.** Powyższa zasada nie jest tą, którą
-  stosuje *Model widoczności*: domyślny zakres listy i widoczność wszystkich organizacji nadal
-  zależą od dosłownej roli `platform_admin`. Administrator z rolą niestandardową może więc usunąć
-  udostępniony widok kolegi, a mimo to otwiera listę w zakresie *Moje organizacje*.
+  stosuje domyślny zakres listy: ten nadal zależy od dosłownej roli `platform_admin`.
+  Administrator z rolą niestandardową może więc usunąć udostępniony widok kolegi i widzi zapytania
+  wszystkich organizacji (*Model widoczności*), a mimo to otwiera listę w zakresie
+  *Moje organizacje*.
 - **Tylko zapis, wczytanie i usunięcie.** Panel administracyjny nie zmienia nazwy widoku, nie
   zmienia tego, czy jest udostępniony, i nie nadpisuje go bieżącym ustawieniem; zamiast tego zapisz
   nowy widok i usuń stary. Liczba widoków nie jest ograniczona.
@@ -722,7 +724,7 @@ pozycja to **— Wybierz widok —**, a obok niej dwa przyciski: **Zapisz widok*
   Listy zamówień, produktów i zapytań ofertowych wyznaczają go tak samo, a w razie wątpliwości
   odmawiają: administrator, którego zasięgu nie da się ustalić, nie jest administratorem platformy.
   To celowo nie jest własny test modułu `role.code === 'platform_admin'`, którego używa
-  widoczność listy.
+  domyślny zakres listy.
 - **Odmowy.** Nieistniejący widok i prywatny widok innego administratora to `404 NOT_FOUND` —
   nie da się ich odróżnić. Udostępniony widok, którego wywołujący nie jest właścicielem i którego
   nie może zmienić jako administrator platformy, to `403 FORBIDDEN`. Nazwa, której klucza

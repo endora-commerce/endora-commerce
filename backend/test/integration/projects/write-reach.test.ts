@@ -6,7 +6,7 @@ import {
   teardownBackendServer,
   type BackendServerHandle,
 } from '../../helpers/test-server.js';
-import { seedCrmOrganization, seedCrmSalesRep } from '../../helpers/seed-crm.js';
+import { removeCrmAssets, seedCrmAsset, seedCrmOrganization, seedCrmSalesRep } from '../../helpers/seed-crm.js';
 import { callProjects, createProject, deleteProjects, errorShape, moveProject, stageNamed } from './helpers.js';
 
 /**
@@ -21,6 +21,10 @@ import { callProjects, createProject, deleteProjects, errorShape, moveProject, s
  * timing race: the other administrator's write is made by a hook on the shared
  * `projectsAccess` singleton, between the load and the lock, or between the
  * commit and the answer.
+ *
+ * The same holds for the writes under a Project — its notes, its messages and
+ * its attachments (issue #471): each starts from `loadVisible` and locks the
+ * Project in its Command, so it refuses the same way and writes nothing.
  */
 describe('projects — a write and an Organization added out of the writer’s reach (T144 F3)', () => {
   let h: BackendServerHandle;
@@ -35,6 +39,7 @@ describe('projects — a write and an Organization added out of the writer’s r
   const orgBName = `Out of reach ${randomUUID().slice(0, 8)}`;
   let rep: { cookies: { b2b_session: string }; adminUserId: string; undo: () => void };
   const created: string[] = [];
+  const assets: string[] = [];
 
   async function addOrgB(projectId: string): Promise<void> {
     await h
@@ -63,7 +68,7 @@ describe('projects — a write and an Organization added out of the writer’s r
     original.rowAfterWrite = access.rowAfterWrite;
     orgA = await seedCrmOrganization(h.em(), `Reach A ${randomUUID().slice(0, 8)}`);
     orgB = await seedCrmOrganization(h.em(), orgBName);
-    rep = await seedCrmSalesRep(h.em(), [orgA], ['projects:read', 'projects:write']);
+    rep = await seedCrmSalesRep(h.em(), [orgA], ['projects:read', 'projects:write', 'assets.read']);
   });
 
   afterEach(() => {
@@ -74,6 +79,7 @@ describe('projects — a write and an Organization added out of the writer’s r
   afterAll(async () => {
     rep.undo();
     await deleteProjects(h, created);
+    await removeCrmAssets(h.em(), assets);
     await teardownBackendServer(h);
   });
 
@@ -127,6 +133,116 @@ describe('projects — a write and an Organization added out of the writer’s r
     });
     expect(refused.statusCode, refused.body).toBe(404);
     expect(errorShape(refused.body)).toMatchObject({ code: 'PROJECT_NOT_FOUND' });
+  });
+
+  async function commentRow(commentId: string): Promise<{ body: string; deleted_at: Date | null } | undefined> {
+    const [row] = (await h
+      .em()
+      .getConnection()
+      .execute(`select "body", "deleted_at" from "project_comments" where "id" = ?`, [commentId])) as Array<{
+      body: string;
+      deleted_at: Date | null;
+    }>;
+    return row;
+  }
+
+  async function commentCount(projectId: string): Promise<number> {
+    const [row] = (await h
+      .em()
+      .getConnection()
+      .execute(`select count(*)::int as "n" from "project_comments" where "project_id" = ?`, [projectId])) as Array<{
+      n: number;
+    }>;
+    return row!.n;
+  }
+
+  async function attachmentIds(projectId: string): Promise<string[]> {
+    const rows = (await h
+      .em()
+      .getConnection()
+      .execute(`select "id" from "project_attachments" where "project_id" = ?`, [projectId])) as Array<{ id: string }>;
+    return rows.map((row) => row.id);
+  }
+
+  /** A note the representative wrote, before anybody adds Organization B. */
+  async function repNote(projectId: string, body: string): Promise<string> {
+    const response = await callProjects(h, 'POST', `/${projectId}/comments`, {
+      cookies: rep.cookies,
+      payload: { kind: 'note', body },
+    });
+    expect(response.statusCode, response.body).toBe(201);
+    return (response.json() as { data: { id: string } }).data.id;
+  }
+
+  async function privateFile(): Promise<string> {
+    const seeded = await seedCrmAsset(h.em(), { visibility: 'private' });
+    assets.push(seeded.id);
+    return seeded.id;
+  }
+
+  it('a message refuses under its lock the same way, and writes nothing', async () => {
+    const project = await projectOfA('Messaged while B is added');
+    orgBAddedAfterLoad();
+    const refused = await callProjects(h, 'POST', `/${project.id}/comments`, {
+      cookies: rep.cookies,
+      payload: { kind: 'message', body: 'Should not land' },
+    });
+    expect(refused.statusCode, refused.body).toBe(404);
+    expect(errorShape(refused.body)).toMatchObject({ code: 'PROJECT_NOT_FOUND' });
+    expect(await commentCount(project.id)).toBe(0);
+  });
+
+  it('a note edit refuses under its lock the same way, and leaves the note as it was', async () => {
+    const project = await projectOfA('Note edited while B is added');
+    const noteId = await repNote(project.id, 'As written');
+    orgBAddedAfterLoad();
+    const refused = await callProjects(h, 'PATCH', `/${project.id}/comments/${noteId}`, {
+      cookies: rep.cookies,
+      payload: { body: 'Should not land' },
+    });
+    expect(refused.statusCode, refused.body).toBe(404);
+    expect(errorShape(refused.body)).toMatchObject({ code: 'PROJECT_NOT_FOUND' });
+    expect(await commentRow(noteId)).toMatchObject({ body: 'As written', deleted_at: null });
+  });
+
+  it('a note deletion refuses under its lock the same way, and keeps the note listed', async () => {
+    const project = await projectOfA('Note deleted while B is added');
+    const noteId = await repNote(project.id, 'Kept');
+    orgBAddedAfterLoad();
+    const refused = await callProjects(h, 'DELETE', `/${project.id}/comments/${noteId}`, { cookies: rep.cookies });
+    expect(refused.statusCode, refused.body).toBe(404);
+    expect(errorShape(refused.body)).toMatchObject({ code: 'PROJECT_NOT_FOUND' });
+    expect(await commentRow(noteId)).toMatchObject({ body: 'Kept', deleted_at: null });
+  });
+
+  it('attaching a file refuses under its lock the same way, and attaches nothing', async () => {
+    const project = await projectOfA('Attached while B is added');
+    const assetId = await privateFile();
+    orgBAddedAfterLoad();
+    const refused = await callProjects(h, 'POST', `/${project.id}/attachments`, {
+      cookies: rep.cookies,
+      payload: { assetId },
+    });
+    expect(refused.statusCode, refused.body).toBe(404);
+    expect(errorShape(refused.body)).toMatchObject({ code: 'PROJECT_NOT_FOUND' });
+    expect(await attachmentIds(project.id)).toEqual([]);
+  });
+
+  it('removing an attachment refuses under its lock the same way, and keeps it', async () => {
+    const project = await projectOfA('Detached while B is added');
+    const attached = await callProjects(h, 'POST', `/${project.id}/attachments`, {
+      cookies: rep.cookies,
+      payload: { assetId: await privateFile() },
+    });
+    expect(attached.statusCode, attached.body).toBe(201);
+    const attachmentId = (attached.json() as { data: { id: string } }).data.id;
+    orgBAddedAfterLoad();
+    const refused = await callProjects(h, 'DELETE', `/${project.id}/attachments/${attachmentId}`, {
+      cookies: rep.cookies,
+    });
+    expect(refused.statusCode, refused.body).toBe(404);
+    expect(errorShape(refused.body)).toMatchObject({ code: 'PROJECT_NOT_FOUND' });
+    expect(await attachmentIds(project.id)).toEqual([attachmentId]);
   });
 
   it('the answer after a committed write carries nothing of an Organization out of reach', async () => {

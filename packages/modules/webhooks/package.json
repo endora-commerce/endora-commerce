@@ -63,7 +63,8 @@
     "fastify": "^5.11.0",
     "ioredis": "^5",
     "lucide-react": "^1",
-    "react": "^19"
+    "react": "^19",
+    "zod": "^4"
   },
   "peerDependenciesMeta": {
     "@endora-commerce/admin-kit": {
@@ -92,6 +93,7 @@
     "lucide-react": "^1.11.0",
     "react": "^19.2.5",
     "typescript": "^5.9.3",
-    "vitest": "^4.1.12"
+    "vitest": "^4.1.12",
+    "zod": "^4.2.0"
   }
 }

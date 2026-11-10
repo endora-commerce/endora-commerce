@@ -157,6 +157,15 @@ export const NO_SCOPE_NEEDED: Readonly<Record<string, string>> = {
     'an asset reference resolver, queries a tenant-scoped entity through the ' +
     'EntityManager.',
 
+  'packages/modules/webhooks/src/backend/services/delivery-retention-worker.ts:buildWebhookDeliveryRetentionWorker:new Worker':
+    'Issue #928 — the delivery-history retention tick. It runs one `nativeDelete` ' +
+    'over `WebhookDelivery`, which is `@GlobalEntity()` and not touched by the ' +
+    'tenancy filter, after one platform-wide settings read (`null` channel). A ' +
+    'scope would buy only an escape-hatch audit row per daily tick, about a ' +
+    'delivery log nobody\'s tenant owns. Falsified the day the purge reads or ' +
+    'writes a tenant-scoped entity — for example, joining a subscription\'s ' +
+    'Organization — which would need `enterSystemScope` here.',
+
   'src/db/migrate.ts:<file>:program':
     "The migration runner. MikroORM's migrator executes each migration through " +
     'the connection as SQL and builds no entity query, so no global tenant ' +

@@ -884,6 +884,18 @@ export type AdminTenantScope =
        * and "mine" filters only; never a filter input.
        */
       readonly assignedOrganizationIds: string[];
+      /**
+       * Issue #955 (architect ruling, Q2) — the excluded organizations as one
+       * uncorrelated SELECT of a single non-null uuid column, read live in each
+       * statement's own snapshot. Built by the owner from the authenticated
+       * admin's identity and permissions only — never from request input. The
+       * platform renders it on the filtered row's own organization column as
+       * `col is not null and col not in (<sql>)`; no module reads it.
+       */
+      readonly excludedOrganizationsQuery: {
+        readonly sql: string;
+        readonly params: readonly (string | boolean)[];
+      };
       readonly unresolved?: Error;
     };
 

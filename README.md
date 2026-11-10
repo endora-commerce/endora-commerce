@@ -186,23 +186,29 @@ catalogue), Mailpit ~20 MB, and ~500–800 MB for each of the three Node.js proc
 Target workload: a single supplier with a catalogue of hundreds of thousands of products, and
 hundreds of quote requests and hundreds of orders per month.
 
-| Resource | Minimum | Recommended |
-| --- | --- | --- |
-| CPU | 4 vCPU | 8 vCPU |
-| RAM | 8 GB | 16 GB |
-| Disk | 40 GB SSD | 100 GB NVMe SSD (with daily database backups) |
-| OS | Linux LTS (Ubuntu 22.04+ / Debian 12+) | — |
-| Network | Static public IPv4, HTTPS terminator (nginx / Caddy / Cloudflare) | — |
-| PostgreSQL | 16.x | — |
-| Redis | 7.x | — |
-| Meilisearch | 1.11.x | — |
-| Node.js | 22.x LTS (minimum 22.18) | — |
+| Resource | Minimum | Recommended | Large catalogue |
+| --- | --- | --- | --- |
+| Fits | up to tens of thousands of products | the target workload above | above 300k SKUs, or sustained traffic above one order per minute |
+| CPU | 2 vCPU | 4 vCPU | 8 vCPU |
+| RAM | 4 GB | 8 GB | 16 GB, or Meilisearch on its own node |
+| Disk | 40 GB SSD | 100 GB NVMe SSD (with daily database backups) | 100 GB+ NVMe SSD (with daily database backups) |
+| OS | Linux LTS (Ubuntu 22.04+ / Debian 12+) | — | — |
+| Network | Static public IPv4, HTTPS terminator (nginx / Caddy / Cloudflare) | — | — |
+| PostgreSQL | 16.x | — | — |
+| Redis | 7.x | — | — |
+| Meilisearch | 1.11.x | — | — |
+| Node.js | 22.x LTS (minimum 22.18) | — | — |
+
+The images are built in CI, so these figures cover the running stack only; building on the VPS
+itself needs more memory. Measured on 2026-11-09 with the production backend build and all modules
+installed on an empty catalogue: the backend settles at about 520 MB resident (about 600 MB at
+start-up), PostgreSQL about 200 MB, Meilisearch about 140 MB and Redis under 20 MB. The backend
+does not start with a V8 heap below about 384 MB (`--max-old-space-size`). Memory then grows with
+the catalogue, mostly in Meilisearch and PostgreSQL rather than in the Node.js processes.
 
 Container orchestration (Kubernetes, Docker Swarm, Nomad) is an operational choice, not a
 requirement; running each service directly on the VPS under systemd, with PostgreSQL, Redis and
-Meilisearch from distribution packages, is an equally valid target. Catalogues above 300k SKUs or
-sustained traffic above one order per minute should use the Recommended tier or move Meilisearch
-to its own node. Queues run on Redis (BullMQ).
+Meilisearch from distribution packages, is an equally valid target. Queues run on Redis (BullMQ).
 
 ## 🔧 Developing Endora Commerce
 

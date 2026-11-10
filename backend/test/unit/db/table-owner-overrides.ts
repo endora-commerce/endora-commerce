@@ -41,6 +41,11 @@ export const TABLE_OWNER_OVERRIDES: Readonly<Record<string, string>> = {
   gallery_item_channel_labels: 'catalog',
   product_attachment_channel_hidden: 'catalog',
 
+  // Issue #955 — the sales-rep reach governor table: written by its own
+  // triggers and read through raw SQL by `SalesRepAssignmentService`, so no
+  // entity class maps it.
+  organization_reach_governor: 'organizations',
+
   // Legacy outbound-integration table, read through the webhooks module.
   external_integrations: 'webhooks',
 

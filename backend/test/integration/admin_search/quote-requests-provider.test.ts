@@ -69,7 +69,8 @@ describe('admin global search — Quote Request provider (spec 150)', () => {
       await rfq('scopeC', orgC.id, custA.id, `SR${T}-c`);
     });
     // The representative reaches orgA; the custom-role admin is assigned orgB,
-    // so the list shows it orgB (assigned) and orgC (nobody's) but not orgA.
+    // which does not narrow it: only a sales representative is reach-scoped
+    // (issue #957), so the custom role sees orgA, orgB and orgC.
     cleanupSalesRep = await ensureSalesRep(h, [ids['orgA']!], ['rfqs:handle']);
     await ensureAdminWithRole(h, GS_RESTRICTED_ID, 'global_search_rfq_handler', ['rfqs:handle']);
     await withSystemScope('test seed: global search rfq assignment', async () => {
@@ -143,12 +144,12 @@ describe('admin global search — Quote Request provider (spec 150)', () => {
     expect(found).toEqual(await listed(cookies));
   });
 
-  // PR #954, ruling Q3 — the list's own per-organization pass runs only for a
-  // role the tenant filter leaves unrestricted. The custom role keeps being
-  // narrowed by it (issue #957 holds the question whether it should be); the
-  // representative, whom the tenant filter already narrows, gets the same rows.
-  it('narrows the quote request list of a custom role holding rfqs:handle by the assignment rule', async () => {
-    expect(await listed(GS_COOKIES.restricted)).toEqual([ids['scopeB'], ids['scopeC']].sort());
+  // Issue #957 (product-owner ruling 2026-11-08, option A) — only the
+  // `sales_representative` role is reach-scoped. A custom role holding
+  // `rfqs:handle` is platform-wide, as on every other surface, whatever
+  // assignments it happens to carry; the representative's rows are unchanged.
+  it('does not narrow the quote request list of a custom role holding rfqs:handle (#957)', async () => {
+    expect(await listed(GS_COOKIES.restricted)).toEqual([ids['scopeA'], ids['scopeB'], ids['scopeC']].sort());
   });
 
   it('gives the sales representative the same list rows as before the per-organization pass was skipped for them', async () => {
@@ -157,13 +158,13 @@ describe('admin global search — Quote Request provider (spec 150)', () => {
 
   // Issue #305 — one reach rule: the representative reaches their assigned
   // organization and every organization nobody is assigned to (orgC), never
-  // another's (orgB).
+  // another's (orgB). The custom role reaches every one (issue #957).
   it('confines the sales representative to the organizations they reach', async () => {
     expect((await searchIds(h, GS_COOKIES.salesRep, `SR${T}`, 'quote_requests.quote_request')).sort()).toEqual(
       [ids['scopeA'], ids['scopeC']].sort(),
     );
     expect((await searchIds(h, GS_COOKIES.restricted, `SR${T}`, 'quote_requests.quote_request')).sort()).toEqual(
-      [ids['scopeB'], ids['scopeC']].sort(),
+      [ids['scopeA'], ids['scopeB'], ids['scopeC']].sort(),
     );
   });
 });

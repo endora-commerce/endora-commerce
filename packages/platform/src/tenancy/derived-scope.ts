@@ -1,8 +1,10 @@
 import type { AdminScopeInput } from './resolve-tenant-context.js';
+import { excludedOrganizationsPredicate, excludedOrganizationsSql, pgTextArray } from './excluded-predicate.js';
 import {
   getTenantContext,
   MissingTenantContextError,
   throwIfScopeUnresolved,
+  type ExcludedOrganizationsQuery,
   type TenantContext,
 } from './tenant-context.js';
 
@@ -40,6 +42,8 @@ export type OrgConstraint =
       readonly excludedOrganizationIds: readonly string[];
       /** The representative's own assignments: ranking and "mine" filters only. */
       readonly assignedOrganizationIds: readonly string[];
+      /** Issue #955 — what the predicates render: the owner's SELECT of the excluded organizations. */
+      readonly excludedOrganizationsQuery: ExcludedOrganizationsQuery;
     };
 
 /** Compute the org constraint from a context (defaults to the ambient one). */
@@ -64,8 +68,17 @@ export function orgConstraintFor(ctx: TenantContext | undefined = getTenantConte
         kind: 'excluded',
         excludedOrganizationIds: ctx.excludedOrganizationIds ?? [],
         assignedOrganizationIds: ctx.assignedOrganizationIds ?? [],
+        excludedOrganizationsQuery: requireExcludedQuery(ctx.excludedOrganizationsQuery),
       };
   }
+}
+
+/** An `excluded` constraint without its query has no predicate: refuse, never widen (issue #955). */
+function requireExcludedQuery(query: ExcludedOrganizationsQuery | undefined): ExcludedOrganizationsQuery {
+  if (query === undefined) {
+    throw new Error('An `excluded` organization constraint must carry its excludedOrganizationsQuery (issue #955).');
+  }
+  return query;
 }
 
 /**
@@ -84,6 +97,7 @@ export function orgConstraintForAdminScope(scope: AdminScopeInput): OrgConstrain
       kind: 'excluded',
       excludedOrganizationIds: scope.excludedOrganizationIds ?? [],
       assignedOrganizationIds: scope.assignedOrganizationIds ?? [],
+      excludedOrganizationsQuery: requireExcludedQuery(scope.excludedOrganizationsQuery),
     };
   }
   return { kind: 'allowed', organizationIds: scope.allowedOrganizationIds ?? [] };
@@ -128,9 +142,8 @@ function constraintOf(source: OrgScopeSource): OrgConstraint {
  * `'organizationId'`). Returns `{}` (no restriction) for platform-admin /
  * system scope.
  *
- * The `excluded` arm also refuses a null organization — see
- * `excludedSetPredicate` in `filters.ts` for why an empty `$nin` alone would
- * not.
+ * The `excluded` arm is the global filter's own predicate — one array
+ * parameter, and never a null organization (`excluded-predicate.ts`).
  */
 export function orgScopeWhere(field: string, ctx?: OrgScopeSource): Record<string, unknown> {
   const constraint = constraintOf(ctx);
@@ -142,12 +155,7 @@ export function orgScopeWhere(field: string, ctx?: OrgScopeSource): Record<strin
     case 'allowed':
       return { [field]: { $in: [...constraint.organizationIds] } };
     case 'excluded':
-      return {
-        [field]:
-          constraint.excludedOrganizationIds.length === 0
-            ? { $ne: null }
-            : { $ne: null, $nin: [...constraint.excludedOrganizationIds] },
-      };
+      return { [field]: excludedOrganizationsPredicate(constraint.excludedOrganizationsQuery) };
   }
 }
 
@@ -163,10 +171,12 @@ export interface OrgScopeSql {
  * entity manager — catalog, analytics, search availability, customer search.
  *
  * `columnSql` is the caller's own SQL (a column reference, never input). The
- * id list travels as **one** array parameter, `?::uuid[]`, so its length never
- * meets PostgreSQL's 65 535-bind ceiling. A null organization never matches:
- * `= any(…)` and `<> all(…)` are both `NULL` for it, and the excluded arm
- * spells the null out because `<> all('{}')` is true.
+ * allowed list travels as **one** array parameter, `?::uuid[]`, so its length
+ * never meets PostgreSQL's 65 535-bind ceiling; the excluded arm is the owner's
+ * uncorrelated subquery, `(col is not null and col not in (<S>))`, with its own
+ * parameters (issue #955). A null organization never matches: `= any(…)` is
+ * `NULL` for it, and the excluded arm spells the null out because
+ * `null not in (<an empty set>)` is true.
  */
 export function orgScopeSql(columnSql: string, ctx?: OrgScopeSource): OrgScopeSql {
   const constraint = constraintOf(ctx);
@@ -178,17 +188,10 @@ export function orgScopeSql(columnSql: string, ctx?: OrgScopeSource): OrgScopeSq
     case 'allowed':
       return { sql: `${columnSql} = any(?::uuid[])`, params: [pgTextArray(constraint.organizationIds)] };
     case 'excluded':
-      return {
-        sql: `(${columnSql} is not null and ${columnSql} <> all(?::uuid[]))`,
-        params: [pgTextArray(constraint.excludedOrganizationIds)],
-      };
+      return excludedOrganizationsSql(columnSql, constraint.excludedOrganizationsQuery);
   }
 }
 
-/** A PostgreSQL array literal, every element quoted, for one bind parameter. */
-function pgTextArray(values: readonly string[]): string {
-  return `{${values.map((v) => `"${v.replace(/[\\"]/g, (c) => `\\${c}`)}"`).join(',')}}`;
-}
 
 /**
  * Whether the ambient scope may act on `organizationId`. Platform-admin/system

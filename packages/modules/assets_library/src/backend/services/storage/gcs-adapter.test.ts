@@ -12,6 +12,7 @@ interface RecordedFile {
 
 const files = new Map<string, RecordedFile>();
 let failCopy = false;
+const signed: Array<{ name: string; options: Record<string, unknown> }> = [];
 
 function fileNamed(name: string) {
   const record = files.get(name) ?? { name, copies: [] };
@@ -25,6 +26,10 @@ function fileNamed(name: string) {
           callback();
         },
       });
+    },
+    async getSignedUrl(options: Record<string, unknown>) {
+      signed.push({ name, options });
+      return ['https://storage.example.test/signed'];
     },
     async copy(dest: { record: RecordedFile }, options: Record<string, unknown>) {
       if (failCopy) throw Object.assign(new Error('Forbidden'), { code: 403 });
@@ -57,6 +62,7 @@ function adapter() {
 
 beforeEach(() => {
   files.clear();
+  signed.length = 0;
   failCopy = false;
 });
 
@@ -137,5 +143,34 @@ describe('GcsStorageAdapter.copy', () => {
     await expect(
       adapter().copy({ from, to, visibility: 'public', mimeType: 'application/pdf' }),
     ).rejects.toBeInstanceOf(BackendUnavailableError);
+  });
+});
+
+// Issue #815 — the GCS counterpart of S3's response overrides.
+describe('GcsStorageAdapter.resolveUrl — response overrides on a signed URL', () => {
+  it('signs responseType and responseDisposition when given', async () => {
+    const out = await adapter().resolveUrl({
+      locator: `aa/bb/${ID}.pdf`,
+      visibility: 'private',
+      responseHeaders: {
+        contentType: 'application/pdf',
+        contentDisposition: 'attachment; filename="scan.pdf"',
+      },
+    });
+    expect(out.url).toBe('https://storage.example.test/signed');
+    expect(signed).toHaveLength(1);
+    expect(signed[0]!.name).toBe(`aa/bb/${ID}.pdf`);
+    expect(signed[0]!.options).toMatchObject({
+      version: 'v4',
+      action: 'read',
+      responseType: 'application/pdf',
+      responseDisposition: 'attachment; filename="scan.pdf"',
+    });
+  });
+
+  it('signs without them otherwise', async () => {
+    await adapter().resolveUrl({ locator: `aa/bb/${ID}.pdf`, visibility: 'private' });
+    expect(signed[0]!.options).not.toHaveProperty('responseType');
+    expect(signed[0]!.options).not.toHaveProperty('responseDisposition');
   });
 });

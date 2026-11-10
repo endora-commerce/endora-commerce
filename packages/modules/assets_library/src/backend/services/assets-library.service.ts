@@ -26,7 +26,7 @@ import type { AssetReferenceRegistry } from './reference-registry.js';
 import { UploadPipeline, type UploadInput, type UploadPolicy } from './upload-pipeline.js';
 import { LegacyAssetCannotHardenError } from './storage/errors.js';
 import { recordAuditFromContext } from '@endora-commerce/platform/commands';
-import { permalinkUrl, versionedAssetUrl } from './asset-urls.js';
+import { permalinkUrl, signedResponseHeaders, versionedAssetUrl } from './asset-urls.js';
 import {
   isReplaceableInPlace,
   replaceAssetFile,
@@ -342,7 +342,7 @@ export class AssetsLibraryService {
 
   async resolveUrl(
     assetId: string,
-    opts: { ttlSec?: number } = {},
+    opts: { ttlSec?: number; download?: boolean } = {},
   ): Promise<{ url: string; expiresAt: Date | null }> {
     const em = this.deps.emFactory();
     if (!isUuidShape(assetId)) throw assetNotFound(assetId);
@@ -355,6 +355,7 @@ export class AssetsLibraryService {
       locator: a.storageLocator || a.storageUrl,
       visibility: a.visibility,
       ...(opts.ttlSec !== undefined ? { ttlSec: opts.ttlSec } : {}),
+      responseHeaders: signedResponseHeaders(a, opts.download === true),
     });
   }
 

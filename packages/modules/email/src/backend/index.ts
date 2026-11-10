@@ -1,15 +1,17 @@
 import type { EntityManager } from '@mikro-orm/postgresql';
 import type {
   EmailBlockRendererRegistryPort,
+  EmailDeliveryAnonymizationPort,
   EmailDeliveryRecorder,
   EmailMailerPort,
 } from '@endora-commerce/contracts';
-import { effectiveState, type ModuleContext } from '@endora-commerce/platform/kernel';
+import { effectiveState, type AuditPort, type ModuleContext } from '@endora-commerce/platform/kernel';
 
 import { resolveSmtpUrlFromEnv } from './resolve-smtp-url.js';
 import { EmailBlockRendererRegistry } from './services/email-block-renderer-registry.js';
 import { ConsoleMailer } from './services/mailer.js';
 import { PersistentEmailDeliveryRecorder } from './services/email-delivery-recorder.js';
+import { EmailDeliveryAnonymizationService } from './services/email-delivery-anonymization-service.js';
 import { RecordingMailer } from './services/recording-mailer.js';
 import { SmtpMailer } from './services/smtp-mailer.js';
 import { EmailDelivery } from './entities/email-delivery.entity.js';
@@ -39,6 +41,8 @@ export interface EmailCradle {
    */
   readonly emailSmtpUrl: string | null;
   readonly emFactory: () => EntityManager;
+  /** The platform's audit writer: the anonymisation step records what it changed. */
+  readonly auditLogService: AuditPort;
   /**
    * The driver — SMTP or console. Separated from `emailMailer` by D-59 so the
    * delivery record wraps *the driver*, which is what makes the record
@@ -48,6 +52,12 @@ export interface EmailCradle {
   readonly emailTransport: EmailMailerPort;
   /** Where every delivery decision is written (D-59). */
   readonly emailDeliveryRecorder: EmailDeliveryRecorder;
+  /**
+   * This module's step in `customers`' anonymisation sweep (issue #928): the
+   * records of the e-mails sent to the anonymised address lose what they hold
+   * about the person.
+   */
+  readonly emailDeliveryAnonymizationPort: EmailDeliveryAnonymizationPort;
   /**
    * The platform's transactional mailer. Consumed by every sending module,
    * against the `EmailMailerPort` contract since feature 075's Phase P.
@@ -90,6 +100,15 @@ export function registerModule(ctx: ModuleContext): void {
       .asFunction(
         ({ emFactory }: EmailCradle): EmailDeliveryRecorder =>
           new PersistentEmailDeliveryRecorder(emFactory),
+      )
+      .singleton(),
+
+    // Issue #928 — and a plain registration for the same reason: `email` is
+    // non-deactivatable, so a gate over the anonymisation step could never close.
+    emailDeliveryAnonymizationPort: ctx
+      .asFunction(
+        ({ emFactory, auditLogService }: EmailCradle): EmailDeliveryAnonymizationPort =>
+          new EmailDeliveryAnonymizationService(emFactory, auditLogService),
       )
       .singleton(),
 
