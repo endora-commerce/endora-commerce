@@ -69,6 +69,8 @@ import { PersonalOrganizationService } from './services/personal-organization-se
 import type { PersonalOrganizationProvisionApi } from '../ports/index.js';
 import { OrganizationRestrictionService } from './services/organization-restriction-service.js';
 import { OrganizationTreeService } from './services/organization-tree-service.js';
+import { TaxIdScopeService } from './services/tax-id-scope-service.js';
+import { probeTaxIdScope } from './services/tax-id-scope-probe.js';
 import { OrganizationInheritanceService } from './services/organization-inheritance-service.js';
 import { OrganizationModerationService } from './services/organization-moderation-service.js';
 import { OrganizationEffectivePriceListsService } from './services/organization-effective-pricelists-service.js';
@@ -566,6 +568,16 @@ export function registerModule(ctx: ModuleContext): void {
   ctx.onBoot(async () => {
     const { organizationRoleCache, redisSubscriber } = ctx.cradle<OrganizationsCradle>();
     await organizationRoleCache.start(redisSubscriber);
+  });
+
+  /**
+   * `specs/177-tax-id-scope/` (`contracts/tax-id-scope.md` §7) — say so at boot
+   * when the stored tax-ID scope and the database constraint disagree. Logged,
+   * never fatal; no presence probe, as above (non-deactivatable module).
+   */
+  ctx.onBoot(async () => {
+    const { emFactory } = ctx.cradle<OrganizationsCradle>();
+    await probeTaxIdScope(new TaxIdScopeService(emFactory), ctx.log);
   });
 
   /**
