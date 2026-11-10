@@ -735,6 +735,7 @@
   "defaultPreferences.title": "Default ordering preferences",
   "errors.AMOUNT_PRECISION_EXCEEDED": "An amount may have at most two decimal places.",
   "errors.UNIT_PRICE_PRECISION_EXCEEDED": "A unit price may have at most four decimal places.",
+  "errors.LINE_QUANTITY_EXCEEDED": "A line quantity may be at most 1,000,000.",
   "errors.CURRENT_PASSWORD_INVALID": "The current password is incorrect.",
   "errors.EMAIL_ALREADY_REGISTERED": "An account with this email address already exists.",
   "errors.FORBIDDEN": "You do not have permission to perform this action.",

@@ -124,6 +124,8 @@ import type { OrganizationSalesRepAssignment as OrganizationSalesRepAssignmentRo
 import type { PriceList as PriceListRow } from '../../../packages/modules/price_lists/src/backend/entities/price-list.entity.js';
 import type { PriceListMatrixEntry as PriceListMatrixEntryRow } from '../../../packages/modules/price_lists/src/backend/entities/price-list-matrix-entry.entity.js';
 import type { PriceDisplayModeOverride as PriceDisplayModeOverrideRow } from '../../../packages/modules/price_lists/src/backend/entities/price-display-mode-override.entity.js';
+import type { PriceListValueChange as PriceListValueChangeRow } from '../../../packages/modules/price_lists/src/backend/entities/price-list-value-change.entity.js';
+import type { PriceListRowValueChange as PriceListRowValueChangeRow } from '../../../packages/modules/price_lists/src/backend/entities/price-list-row-value-change.entity.js';
 import type { Order as OrderRow } from '../../../packages/modules/orders/src/backend/entities/order.entity.js';
 import type { OrderItem as OrderItemRow } from '../../../packages/modules/orders/src/backend/entities/order-item.entity.js';
 import type { OrderComment as OrderCommentRow } from '../../../packages/modules/orders/src/backend/entities/order-comment.entity.js';
@@ -1020,6 +1022,16 @@ export const PriceDisplayModeOverride = classNamed<PriceDisplayModeOverrideRow>(
   'price_lists',
   'PriceDisplayModeOverride',
 );
+export const PriceListValueChange = classNamed<PriceListValueChangeRow>(
+  installedModuleEntities,
+  'price_lists',
+  'PriceListValueChange',
+);
+export const PriceListRowValueChange = classNamed<PriceListRowValueChangeRow>(
+  installedModuleEntities,
+  'price_lists',
+  'PriceListRowValueChange',
+);
 
 /**
  * The names the test tree also uses as a **type**, aliased.
@@ -1044,6 +1056,8 @@ export type OrganizationSalesRepAssignment = OrganizationSalesRepAssignmentRow;
 export type PriceList = PriceListRow;
 export type PriceListMatrixEntry = PriceListMatrixEntryRow;
 export type PriceDisplayModeOverride = PriceDisplayModeOverrideRow;
+export type PriceListValueChange = PriceListValueChangeRow;
+export type PriceListRowValueChange = PriceListRowValueChangeRow;
 export type CustomerAccount = CustomerAccountRow;
 export type CustomerGroup = CustomerGroupRow;
 export type PasswordResetToken = PasswordResetTokenRow;

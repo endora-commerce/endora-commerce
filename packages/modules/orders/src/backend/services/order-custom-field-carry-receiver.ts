@@ -81,11 +81,12 @@ function receiveCarriedValuesCommand(
         buildCarrySkipNote(em, { orderId: order.id, source, skipped: receipt.skipped });
       }
       await em.flush();
+      // The entry names the carried keys, never their values (D-288, #470).
       return {
         result: receipt,
-        before: { customFieldValues: current },
+        before: null,
         after: {
-          customFieldValues: { ...(order.customFieldValues ?? {}) },
+          ...(receipt.carried.length > 0 ? { changedCustomFields: [...receipt.carried].sort() } : {}),
           customFieldCarry: { source, carried: receipt.carried, skipped: receipt.skipped },
         },
       };

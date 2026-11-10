@@ -1,6 +1,7 @@
 import { beforeEach, describe, expect, it, vi } from 'vitest';
 import { screen, waitFor } from '@testing-library/react';
 import userEvent from '@testing-library/user-event';
+import { LINE_QUANTITY_MAX } from '@endora-commerce/contracts';
 import {
   CHANNEL_ID,
   CUSTOMER_ID,
@@ -94,6 +95,12 @@ describe('RfqDetail Modify — reference, proposal, live difference, payload', (
 
     await userEvent.clear(input);
     expect(line).not.toHaveTextContent('%');
+  });
+
+  it('bounds the quantity input at LINE_QUANTITY_MAX, the bound the API refuses past (issue #351)', async () => {
+    await openModify({}, 'reject');
+    const quantity = screen.getByRole('spinbutton', { name: /rfq\.detail\.modify\.quantity$/ }) as HTMLInputElement;
+    expect(quantity.max).toBe(String(LINE_QUANTITY_MAX));
   });
 
   it('labels the reference the way Overview does — no "per base unit" on a line without a packaging unit (review fix N4)', async () => {
