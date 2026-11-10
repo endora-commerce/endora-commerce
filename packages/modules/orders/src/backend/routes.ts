@@ -53,7 +53,7 @@ import { HttpError } from '@endora-commerce/platform/http';
 import { isOrgInScope } from '@endora-commerce/platform/tenancy';
 import { getResolvedChannel, rethrowIfModuleDisabled } from '@endora-commerce/platform/kernel';
 import type { SalesChannelMembershipPort } from '@endora-commerce/platform/kernel';
-import type { Command, CommandBus } from '@endora-commerce/platform/commands';
+import type { CommandBus } from '@endora-commerce/platform/commands';
 import { orderTotalsMoney } from './services/order-money.js';
 import type { OrderService } from './services/order-service.js';
 import { assertMethodsOfferedInChannel } from './services/method-channel-gate.js';
@@ -78,6 +78,7 @@ import { assertChannelAllowedForOrganization } from './services/organization-cha
 import type { CustomerOrderCancellationService } from './services/order-cancellation-service.js';
 import type { PurchaseConversionService } from './services/purchase-conversion-service.js';
 import { Order } from './entities/order.entity.js';
+import { orderCustomFieldsUpdateCommand } from './services/order-audit-state.js';
 import { replyAfterCommittedWrite } from './services/committed-write-reply.js';
 import { serializeOrderForAdmin, serializeOrderForCustomer } from './order-response.js';
 import { OrderTransitionEffect } from './entities/order-transition-effect.entity.js';
@@ -263,26 +264,7 @@ export async function registerOrderRoutes(
         const patch = customFieldValuesSchema.parse(request.body);
         const orderId = request.params.id;
         if (!isUuidShape(orderId)) throw new HttpError(404, ERROR_CODES.NOT_FOUND, 'Order not found.');
-        const command: Command<Order> = {
-          action: 'order.custom_fields.update',
-          objectType: 'order',
-          objectId: orderId,
-          capture: async ({ em }) => {
-            const o = await em.findOne(Order, { id: orderId });
-            return o ? { customFieldValues: o.customFieldValues ?? {} } : null;
-          },
-          run: async ({ em }) => {
-            if (!isUuidShape(orderId)) throw new HttpError(404, ERROR_CODES.NOT_FOUND, 'Order not found.');
-            const order = await em.findOne(Order, { id: orderId });
-            if (!order) throw new HttpError(404, ERROR_CODES.NOT_FOUND, 'Order not found.');
-            order.customFieldValues = await customFieldValues.validateAndMerge(
-              'order',
-              order.customFieldValues ?? {},
-              patch,
-            );
-            return { result: order, after: { customFieldValues: order.customFieldValues } };
-          },
-        };
+        const command = orderCustomFieldsUpdateCommand(orderId, patch, customFieldValues);
         try {
           const order = await commandBus.run(command);
           return { data: await serializeOrderForAdmin(emFactory(), order) };
