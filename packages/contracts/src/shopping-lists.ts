@@ -1,5 +1,6 @@
 import { z } from 'zod';
 import { isoDateTimeSchema, uuidSchema } from './common.js';
+import { lineQuantitySchema } from './line-bounds.js';
 
 /**
  * Shopping list contracts (T202 / FR-031..FR-033).
@@ -88,14 +89,14 @@ export type RenameShoppingListRequest = z.infer<typeof renameShoppingListRequest
 export const addShoppingListItemRequestSchema = z.object({
   productId: uuidSchema,
   variantId: uuidSchema.optional(),
-  quantity: z.number().int().positive(),
+  quantity: lineQuantitySchema,
   note: z.string().max(2000).optional(),
 });
 export type AddShoppingListItemRequest = z.infer<typeof addShoppingListItemRequestSchema>;
 
 export const updateShoppingListItemRequestSchema = z
   .object({
-    quantity: z.number().int().positive().optional(),
+    quantity: lineQuantitySchema.optional(),
     note: z.string().max(2000).nullable().optional(),
   })
   .strict();

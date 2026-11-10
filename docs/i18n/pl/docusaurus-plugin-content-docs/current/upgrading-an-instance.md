@@ -4772,6 +4772,166 @@ dotyczyła zmiana szansy.
 dziennika audytu, odczytuje je z samej szansy albo z jej historii zmian
 (`GET /api/v1/admin/crm/opportunities/:id/history`).
 
+### Ograniczenie ilości w pozycji i liczby pozycji {#line-quantity-bound}
+
+Wydanie z tą zmianą ogranicza ilość w pozycji żądania do **1 000 000** — tyle samo, ile wynosi
+górna granica minimów zamówienia — na każdej ścieżce, która ją przyjmuje, a listy pozycji
+zapytania ofertowego tworzonego przez operatora i zwrotu do **200**, tak jak już były ograniczone
+koszyk, szybkie zamówienie, przyjmowanie zamówień i zapytanie ofertowe klienta (zgłoszenie #351).
+Większa ilość przechodziła wcześniej walidację i kończyła się błędem bazy danych z odpowiedzią
+`500 INTERNAL`.
+
+**Zmiana zachowania po aktualizacji:**
+
+- Ilość w pozycji większa niż 1 000 000 jest odrzucana z nowym kodem błędu,
+  `400 LINE_QUANTITY_EXCEEDED`, z przetłumaczonym komunikatem, a `details` wskazują pole. Dotyczy
+  to dodawania do koszyka i zmiany pozycji koszyka, tworzenia i edycji zapytania ofertowego przez
+  klienta i przez operatora, tworzenia zamówienia przez operatora i jego podglądu, szybkiego
+  zamówienia (budowanie i zakup jednym kliknięciem), list zakupowych (dodawanie i zmiana), zwrotów,
+  podglądu promocji oraz ilości bazowej jednostki opakowania. Żądanie, które jest błędne także pod
+  innym względem, dostaje `400 VALIDATION_FAILED`, a `LINE_QUANTITY_EXCEEDED` jest jednym z
+  elementów `details`.
+- W zewnętrznym API `POST /api/v1/external/orders` i `POST /api/v1/external/catalog/prices`
+  odpowiadają `422 VALIDATION_FAILED`, tak jak na każde niepoprawne żądanie; `issue` w elemencie
+  `details` to `LINE_QUANTITY_EXCEEDED`.
+- Dodanie do koszyka jest odrzucane z `422 LINE_QUANTITY_EXCEEDED`,
+  `details: { quantity, maximum }`, gdy pozycja, do której dodaje, przekroczyłaby 1 000 000, albo
+  gdy przekroczyłaby tę granicę liczba sztuk jednostki opakowania (ilość bazowa jednostki razy
+  zamówiona liczba jednostek). Nic nie jest zapisywane. Dotyczy to też dodawania kilku produktów
+  naraz, ponownego zamówienia i przeniesienia listy zakupowej do koszyka. Gdy przy logowaniu koszyk
+  anonimowy jest sumowany z koszykiem klienta, zsumowana pozycja zostaje zatrzymana na 1 000 000.
+- Zmiana ilości w pozycji koszyka przyjmuje każdą ilość do 1 000 000; wcześniej kończyła się na 999.
+- `POST /api/v1/admin/quote-requests`, `PATCH /api/v1/admin/quote-requests/:id` i
+  `POST /api/v1/returns` odrzucają więcej niż 200 pozycji z `400 VALIDATION_FAILED`. Granica to te
+  same 200 co gdzie indziej, ale odpowiedź nie jest ta sama: przyjmowanie zamówień i szybkie
+  zamówienie nadal odpowiadają `422 VALIDATION_FAILED` z `details.code: 'too_many_items'`, a koszyk
+  `422 CART_LINE_CAP_EXCEEDED`.
+- Wiersz pliku szybkiego zamówienia z ilością większą niż 1 000 000, a także każdy wiersz
+  powtórzonego produktu, którego wiersze sumują się do większej ilości, trafia na listę
+  odrzuconych z powodu ilości, zamiast zostać rozpoznany.
+- W panelu administracyjnym ekrany tworzenia zamówienia i zapytania ofertowego oznaczają taką
+  pozycję jako niepoprawną. W sklepie pola ilości szybkiego zamówienia, koszyka, szkicu zapytania
+  ofertowego i mobilnego paska zakupu zatrzymują się na tej granicy, a wpisana większa wartość jest
+  pokazywana jako 1 000 000.
+- Zapisane dane się nie zmieniają: pozycja albo jednostka opakowania, która już przekracza granicę,
+  zostaje bez zmian. Dodanie do koszyka w takiej jednostce jest odrzucane.
+
+**Po aktualizacji** integracja, która wysyła większe ilości albo więcej niż 200 pozycji do
+zapytania ofertowego operatora lub do zwrotów, musi podzielić żądanie, a integracja rozróżniająca
+kody błędów powinna obsłużyć `LINE_QUANTITY_EXCEEDED`.
+
+### Wartości zamówień znikają z dziennika audytu platformy {#orders-audit-names-only}
+
+Wydanie z tą zmianą przestaje zapisywać wartości zamówienia w dzienniku audytu całej platformy
+(zgłoszenie #470). Ten dziennik to jedna tabela, czytana przez każdego, kto ma `audit_log:read`, bez
+względu na to, które organizacje widzi, dlatego teraz mówi tylko, czego dotyczyła zmiana zamówienia.
+
+**Zmiana zachowania po aktualizacji:**
+
+- Na ekranie **Dziennik audytu** i w `audit_logs read` nowy wpis `order.custom_fields.update` lub
+  `order.custom_fields.carry` nie zawiera już wartości pól niestandardowych. Wymienia zmienione
+  klucze jako `changedCustomFields`.
+- Nowy wpis `order.place_on_behalf` nie zawiera już sumy i waluty zamówienia, a jego `groups` podają
+  liczbę pozycji każdej grupy bez jej nazwy.
+- Nowy wpis `order.place_via_api_key` nie zawiera już organizacji ani klienta, w imieniu których
+  klucz składa zamówienia. Zachowuje identyfikator klucza API i numer zamówienia.
+- Wpisy zapisane przed aktualizacją nie są przepisywane.
+
+**Po aktualizacji** nie trzeba nic robić. Raport lub eksport, który odczytywał te wartości z
+dziennika audytu, odczytuje je z samego zamówienia (`GET /api/v1/admin/orders/:id`).
+
+### Wartości zadań znikają z dziennika audytu platformy {#tasks-audit-names-only}
+
+Wydanie z tą zmianą przestaje zapisywać wartości zadania w dzienniku audytu całej platformy
+(zgłoszenie #470). Ten dziennik to jedna tabela, czytana przez każdego, kto ma `audit_log:read`, bez
+względu na to, co widzi, dlatego teraz mówi tylko, czego dotyczyła zmiana zadania.
+
+**Zmiana zachowania po aktualizacji:**
+
+- Na ekranie **Dziennik audytu** i w `audit_logs read` nowy wpis `tasks.*` nie zawiera już tytułu
+  zadania, jego notatki z rekordu, dla którego zostało utworzone, wartości pól niestandardowych ani
+  nazwy pliku załącznika. Zawiera numer zadania, status, daty, typ i identyfikator kontekstu oraz
+  `changedFields` / `changedCustomFields`, czyli nazwy tego, co się zmieniło.
+- Karta **Historia** zadania się nie zmienia: nadal pokazuje wartości, teraz odczytywane z
+  magazynu, który moduł Zadania prowadzi przy zadaniu (`task_value_changes`, tworzonego przez
+  migrację tego wydania), i tylko czytającemu, który może zobaczyć to zadanie.
+- Historia zadania pokazuje teraz wartości pól niestandardowych i nazwy pól niestandardowych,
+  których dotyczyła zmiana, tylko czytającemu, który ma także `custom_fields:read`, tak jak już
+  robią to historie szans sprzedażowych i projektów. Rola z `tasks:read` bez tego uprawnienia nie
+  odczytuje ich już tam.
+- Wpisy zapisane przed aktualizacją nie są przepisywane: zachowują swoje wartości, na ekranie
+  Dziennik audytu i w historii.
+
+**Po aktualizacji** nie trzeba nic robić. Raport lub eksport, który odczytywał wartości zadania z
+dziennika audytu, odczytuje je z samego zadania albo z jego historii
+(`GET /api/v1/admin/tasks/:id/history`).
+
+### Wartości kont klientów znikają z dziennika audytu platformy {#customer-accounts-audit-names-only}
+
+Wydanie z tą zmianą przestaje zapisywać wartości konta klienta w dzienniku audytu całej platformy
+(zgłoszenie #470). Ten dziennik to jedna tabela, czytana przez każdego, kto ma `audit_log:read`, bez
+względu na to, które organizacje widzi, dlatego teraz mówi tylko, czego dotyczyła zmiana konta.
+
+**Zmiana zachowania po aktualizacji:**
+
+- Na ekranie **Dziennik audytu** i w `audit_logs read` nowy wpis `customer_account.*` nie zawiera
+  już adresu e-mail konta, imienia ani nazwiska, jego organizacji, powodu blokady ani nazwy
+  niestandardowej roli w organizacji, a `customer.custom_fields.update` nie zawiera już wartości
+  pól niestandardowych.
+- Zamiast tego zmiana profilu, utworzenie konta i przeniesienie między organizacjami wymieniają
+  pola jako `changedFields`. Zmiana pól niestandardowych wymienia klucze jako
+  `changedCustomFields`. Blokada zapisuje `hasBlockReason`. Zmiana roli zapisuje identyfikator i
+  rodzaj roli.
+- Wpisy zapisane przed aktualizacją nie są przepisywane. Usunięcie danych klienta po jego
+  skasowaniu (`customers.deletion_retention_days`) nadal je redaguje, jak dotąd.
+
+**Po aktualizacji** nie trzeba nic robić. Raport lub eksport, który odczytywał te wartości z
+dziennika audytu, odczytuje je z samego konta (`GET /api/v1/admin/customers/:id`).
+
+### Tytuły projektów znikają z dziennika audytu platformy {#projects-title-out-of-audit}
+
+Wydanie z tą zmianą przestaje zapisywać tytuł projektu w dzienniku audytu całej platformy
+(zgłoszenie #470, decyzja właściciela z 2026-11-10: tytuł jest wartością). Wartość i wartości pól
+niestandardowych projekty już wcześniej trzymały poza nim.
+
+**Zmiana zachowania po aktualizacji:**
+
+- Na ekranie **Dziennik audytu** i w `audit_logs read` nowy wpis `projects.project.*` nazywa projekt
+  jego numerem i nie zawiera już tytułu. Zmiana tytułu jest zapisywana jako
+  `changedFields: ['title']`.
+- Karta **Historia zmian** projektu się nie zmienia: tytuł przed zmianą i po niej jest odczytywany z
+  własnej tabeli projektu `project_value_changes`, i tylko dla czytającego, który może zobaczyć
+  projekt. Migracja nie jest potrzebna: tabela już istnieje.
+- Wpisy zapisane przed aktualizacją nie są przepisywane: zachowują tytuł, z którym zostały zapisane.
+
+**Po aktualizacji** nie trzeba nic robić.
+
+### Wartości zapytań ofertowych znikają z dziennika audytu platformy {#quote-requests-audit-names-only}
+
+Wydanie z tą zmianą przestaje zapisywać wartości zapytania ofertowego w dzienniku audytu całej
+platformy (zgłoszenie #470). Ten dziennik to jedna tabela, czytana przez każdego, kto ma
+`audit_log:read`, bez względu na to, które organizacje widzi, dlatego teraz mówi tylko, czego
+dotyczyła zmiana zapytania.
+
+**Zmiana zachowania po aktualizacji:**
+
+- Na ekranie **Dziennik audytu** i w `audit_logs read` nowy wpis `quote_request.cancel` zapisuje
+  `hasReason` zamiast powodu.
+- `quote_request.modify` i `quote_request.create_on_behalf` zapisują liczbę pozycji każdej grupy
+  bez jej nazwy.
+- `quote_request.send_document` zapisuje `recipientCount` i `failedRecipientCount` zamiast
+  adresów.
+- `quote_request.prepare_customer_basket` nie zapisuje już klienta.
+- `quote_request.custom_fields.carry` wymienia przeniesione klucze jako `changedCustomFields` zamiast
+  wartości pól niestandardowych.
+- Karta **Historia** zapytania się nie zmienia. Nadal pokazuje powód, nazwy grup i adresy,
+  odczytywane z rewizji i zdarzeń samego zapytania.
+- Wpisy zapisane przed aktualizacją nie są przepisywane.
+
+**Po aktualizacji** nie trzeba nic robić. Raport lub eksport, który odczytywał te wartości z
+dziennika audytu, odczytuje je z historii zapytania
+(`GET /api/v1/admin/quote-requests/:id/history`).
+
 ### Kwoty limitów kredytowych znikają z dziennika audytu platformy {#credit-limits-audit-names-only}
 
 Wydanie z tą zmianą przestaje zapisywać kwoty limitów kredytowych w dzienniku audytu całej

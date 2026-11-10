@@ -165,7 +165,9 @@ describe('MFA US4 — customer social login', () => {
         objectId: created!.id,
       });
     expect(audit).toHaveLength(1);
-    expect((audit[0]!.stateAfter as { email?: string } | null)?.email).toBe(email);
+    // Names and structure only: the address is the account's, not the audit log's (D-288, #470).
+    expect(audit[0]!.stateAfter).toMatchObject({ changedFields: expect.arrayContaining(['email', 'organizationId']) });
+    expect(JSON.stringify(audit[0]!.stateAfter)).not.toContain(email);
   });
 
   it('refuses to auto-create while org-less registration is off', async () => {

@@ -1,5 +1,6 @@
 import { describe, expect, it } from 'vitest';
 import { renderToString } from 'react-dom/server';
+import { LINE_QUANTITY_MAX } from '@endora-commerce/contracts';
 import { CartLine, type CartLineViewModel } from '../../components/CartLine';
 
 /**
@@ -102,6 +103,23 @@ describe('CartLine — SSR rendering', () => {
     expect(html).not.toMatch(/15,38\s*zł/);
     expect(html).not.toMatch(/46,13\s*zł/);
     expect(html).not.toContain('gross');
+  });
+
+  // Issue #351, ruling R3 (c) / R4 — the line edit takes up to the bound, and the
+  // browser refuses more on submit.
+  it('bounds the quantity input at LINE_QUANTITY_MAX', () => {
+    const html = renderToString(
+      <CartLine
+        line={LINE}
+        updateAction={noopAction}
+        removeAction={noopAction}
+        saveToListAction={noopAction}
+        locale="en-US"
+        strings={STRINGS}
+      />,
+    );
+    const input = html.match(/<input[^>]*name="quantity"[^>]*>/)?.[0] ?? '';
+    expect(input).toContain(`max="${LINE_QUANTITY_MAX}"`);
   });
 
   it('renders three forms (qty / remove / save-to-list) so SSR/no-JS still works', () => {
