@@ -4962,6 +4962,22 @@
         }
       }
     },
+    "/api/v1/admin/organizations/tax-id-scope": {
+      "get": {
+        "responses": {
+          "200": {
+            "description": "OK"
+          }
+        }
+      },
+      "put": {
+        "responses": {
+          "200": {
+            "description": "OK"
+          }
+        }
+      }
+    },
     "/api/v1/admin/organizations/{id}": {
       "delete": {
         "responses": {
