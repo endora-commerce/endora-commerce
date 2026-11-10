@@ -39,7 +39,11 @@ function scopeBlindMigrations(files: ReadonlyArray<{ name: string; source: strin
   });
 }
 
-const directory = dirname(fileURLToPath(import.meta.url));
+/**
+ * This file sits beside the backend, not in `migrations/`: that directory holds
+ * migration classes and their barrel only (`backend/test/unit/db/migrations-registry.test.ts`).
+ */
+const directory = join(dirname(fileURLToPath(import.meta.url)), '..', 'migrations');
 
 describe('tax-ID scope — later migrations branch on the policy [unit]', () => {
   it('no migration of this module after the scope migration names a scope constraint blindly', () => {
