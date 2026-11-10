@@ -13,6 +13,7 @@ import { CrmOpportunity } from '../entities/crm-opportunity.entity.js';
 import { CrmOpportunityAttachment } from '../entities/crm-opportunity-attachment.entity.js';
 import { asDownloadLink, refuseActiveContent } from './attachment-active-content.js';
 import { isUuid, loadOpportunity } from './opportunity-access.js';
+import { recordValueChange } from './opportunity-audit-state.js';
 import { actingAdminUserId } from './opportunity-assignment-service.js';
 
 export interface OpportunityAttachmentServiceDeps {
@@ -138,10 +139,12 @@ export class OpportunityAttachmentService {
             fileName: asset.filename.slice(0, 255),
             uploadedByAdminUserId: uploader,
           });
+          // A file's name is free text: it goes to the Opportunity's own store (#470).
+          const values = recordValueChange(tx, opportunity.id, { before: null, after: { fileName: created.fileName } });
           return {
             result: created,
             before: null,
-            after: { attachmentId: created.id, assetId, fileName: created.fileName },
+            after: { attachmentId: created.id, assetId, ...values },
           };
         },
       });
@@ -172,7 +175,8 @@ export class OpportunityAttachmentService {
           opportunityId: opportunity.id,
         });
         if (!row) throw attachmentNotFound();
-        const before = { attachmentId: row.id, assetId: row.assetId, fileName: row.fileName };
+        const values = recordValueChange(em, opportunity.id, { before: { fileName: row.fileName }, after: null });
+        const before = { attachmentId: row.id, assetId: row.assetId, ...values };
         em.remove(row);
         return { result: undefined, before, after: null };
       },

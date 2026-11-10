@@ -151,6 +151,15 @@ describe('MFA — audit coverage', () => {
       cookies: CUSTOMER,
       payload: { code: totp(secret) },
     });
+    // The case above leaves the organization requiring a second factor, and
+    // the last one cannot be switched off while it does (issue #935).
+    const lifted = await h.app.inject({
+      method: 'PUT',
+      url: '/api/v1/account/organization/mfa-policy',
+      cookies: ORG_ADMIN,
+      payload: { enforceTotp: false },
+    });
+    expect(lifted.statusCode, lifted.body).toBe(200);
     await h.app.inject({
       method: 'POST',
       url: '/api/v1/account/mfa/disable',

@@ -71,7 +71,11 @@ export default async function SecurityPage({
       {recoveryFlash ? <RecoveryCodes codes={recoveryFlash} t={t} /> : null}
 
       {status.totpActive ? (
-        <ActivePanel remaining={formatCount(status.recoveryCodesRemaining, locale)} t={t} />
+        <ActivePanel
+          remaining={formatCount(status.recoveryCodesRemaining, locale)}
+          canDisable={status.canDisable}
+          t={t}
+        />
       ) : params.step === 'confirm' ? (
         await ConfirmPanel({ t })
       ) : (
@@ -136,20 +140,37 @@ async function ConfirmPanel({ t }: { t: Translate }): Promise<ReactNode> {
   );
 }
 
-function ActivePanel({ remaining, t }: { remaining: string; t: Translate }): ReactNode {
+/**
+ * `canDisable` is the server's verdict (issue #935): while the factor is the
+ * account's last one and the store or the organization requires it, the form
+ * is replaced by the reason, so the refusal is not discovered on the click.
+ */
+function ActivePanel({
+  remaining,
+  canDisable,
+  t,
+}: {
+  remaining: string;
+  canDisable: boolean;
+  t: Translate;
+}): ReactNode {
   return (
     <section>
       <h2>{t('auth.security.active.heading')}</h2>
       <p>{format(t('auth.security.active.remaining'), { count: remaining })}</p>
-      <form action={disableAction} className="b2b-auth__form">
-        <div className="b2b-auth__field">
-          <label htmlFor="disable-code">{t('auth.security.active.disableLabel')}</label>
-          <input id="disable-code" name="code" autoComplete="one-time-code" required placeholder="123456" />
-        </div>
-        <div className="b2b-auth__actions">
-          <button type="submit">{t('auth.security.active.disable')}</button>
-        </div>
-      </form>
+      {canDisable ? (
+        <form action={disableAction} className="b2b-auth__form">
+          <div className="b2b-auth__field">
+            <label htmlFor="disable-code">{t('auth.security.active.disableLabel')}</label>
+            <input id="disable-code" name="code" autoComplete="one-time-code" required placeholder="123456" />
+          </div>
+          <div className="b2b-auth__actions">
+            <button type="submit">{t('auth.security.active.disable')}</button>
+          </div>
+        </form>
+      ) : (
+        <p className="b2b-auth__notice">{t('auth.security.active.disableBlocked')}</p>
+      )}
       <form action={regenerateAction} className="b2b-auth__form">
         <div className="b2b-auth__field">
           <label htmlFor="regen-code">{t('auth.security.active.regenerateLabel')}</label>

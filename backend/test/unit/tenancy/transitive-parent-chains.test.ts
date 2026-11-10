@@ -29,7 +29,7 @@ import {
  * `transitive-parent-resolution.test.ts`, which makes no claim about the real
  * platform.
  */
-/** The nine child tables of a Sales Opportunity, each scoped through it. */
+/** The ten child tables of a Sales Opportunity, each scoped through it. */
 const CRM_OPPORTUNITY_CHILDREN = [
   'CrmOpportunityAttachment',
   'CrmOpportunityComment',
@@ -39,6 +39,8 @@ const CRM_OPPORTUNITY_CHILDREN = [
   'CrmOpportunityReference',
   'CrmOpportunityStatusHistory',
   'CrmOpportunityTag',
+  // Issue #470 — the values the platform audit log no longer carries.
+  'CrmOpportunityValueChange',
   'CrmStatusPropagation',
 ] as const;
 
