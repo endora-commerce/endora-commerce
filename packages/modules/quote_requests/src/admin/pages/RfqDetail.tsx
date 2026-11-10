@@ -26,7 +26,13 @@ import {
   canSplitLine,
   splitLineInto,
 } from '@endora-commerce/admin-kit/components';
-import { arrangeLineGroups, lineAmountHalfUp, unitPriceDisplayText, type LineGroup } from '@endora-commerce/contracts';
+import {
+  arrangeLineGroups,
+  LINE_QUANTITY_MAX,
+  lineAmountHalfUp,
+  unitPriceDisplayText,
+  type LineGroup,
+} from '@endora-commerce/contracts';
 import { useTranslation } from '@endora-commerce/admin-kit/i18n';
 import { AdminZone } from '@endora-commerce/admin-kit/zones';
 import { deadlineForDays, isValidityDaysInvalid, rfqValidity } from '../validity.js';
@@ -1445,6 +1451,7 @@ function ModifyCard({
                     <Input
                       type="number"
                       min={1}
+                      max={LINE_QUANTITY_MAX}
                       aria-label={t('rfq.detail.modify.quantity')}
                       aria-describedby={orig?.minimumWarning ? `rfq-line-${i}-minimum` : undefined}
                       value={l.quantity}

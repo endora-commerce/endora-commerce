@@ -1,5 +1,5 @@
 import type { ReactNode } from 'react';
-import type { DisplayMode } from '@endora-commerce/contracts';
+import { LINE_QUANTITY_MAX, type DisplayMode } from '@endora-commerce/contracts';
 import { grossUnitPriceFromNet, moneyByModeWithGross } from '../lib/i18n/money';
 import { tForLocale } from '../lib/i18n/messages';
 import {
@@ -304,6 +304,7 @@ export function CartLine({
               type="number"
               name="quantity"
               min={floor}
+              max={LINE_QUANTITY_MAX}
               defaultValue={editError?.typed ?? line.quantity}
               aria-label={strings.qtyLabel}
               {...(belowText || editError ? { 'aria-invalid': true } : {})}
