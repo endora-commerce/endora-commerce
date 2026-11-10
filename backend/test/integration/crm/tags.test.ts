@@ -19,6 +19,7 @@ import {
   restoreDefaultCrmWorkflow,
   seedCrmOrganization,
   seedCrmSalesRep,
+  crmValueChangeOf,
 } from '../../helpers/seed-crm.js';
 
 /**
@@ -111,7 +112,7 @@ describe('crm tags', () => {
     expect((await tags()).filter((row) => row.name.toLowerCase() === 'distributor')).toHaveLength(1);
   });
 
-  it('replaces an Opportunity\'s tag set, and audits it on the Opportunity with the names', async () => {
+  it('replaces an Opportunity\'s tag set, and audits it on the Opportunity — the names in its own store', async () => {
     const first = await createCrmTag(h, 'Set first');
     const second = await createCrmTag(h, 'Set second');
     const third = await createCrmTag(h, 'Set third');
@@ -125,11 +126,14 @@ describe('crm tags', () => {
 
     const audit = await h.auditLogService.query({ action: 'crm.opportunity.tag_set', objectId: opportunity.id });
     expect(audit).toHaveLength(2);
-    const latest = audit.find((entry) => (entry.stateAfter as { tags: string[] }).tags.includes('Set third'));
+    // The entry names the field; the tag names are the Opportunity's to keep (#470).
+    for (const entry of audit) expect(entry).toMatchObject({ objectType: 'crm_opportunity', stateAfter: { changedFields: ['tags'] } });
+    const changes = await Promise.all(audit.map((entry) => crmValueChangeOf(h, entry)));
+    const latest = changes.find((change) => (change?.after?.tags as string[] | undefined)?.includes('Set third'));
     expect(latest).toMatchObject({
-      objectType: 'crm_opportunity',
-      stateBefore: { tags: ['Set first', 'Set second'] },
-      stateAfter: { tags: ['Set second', 'Set third'] },
+      opportunityId: opportunity.id,
+      before: { tags: ['Set first', 'Set second'] },
+      after: { tags: ['Set second', 'Set third'] },
     });
 
     // Setting the set it already has writes nothing.
