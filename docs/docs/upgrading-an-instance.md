@@ -4529,6 +4529,32 @@ on their own security screen; the next sign-in then asked them to set it up agai
 verification off should read `canDisable` instead of guessing, and handle
 `409 MFA_LAST_FACTOR_REQUIRED`.
 
+### Opportunity values leave the platform audit log {#crm-audit-names-only}
+
+The release that ships this change stops writing a sales opportunity's values into the
+platform-wide audit log (issue #470). That log is one table, read by everybody holding
+`audit_log:read` whichever organizations they may see, so it now names what an opportunity's
+change touched and nothing more.
+
+**Behaviour change on upgrade:**
+
+- On the **Audit log** screen, and in `audit_logs read`, a new `crm.opportunity.*` entry no
+  longer carries the opportunity's title, description, value, currency, contact person,
+  organization, tag names, custom field values, a status change's reason, an event's name or an
+  attachment's file name. It carries the opportunity's number, its status and other codes, the
+  assignee and sales channel ids, dates, and `changedFields` / `changedCustomFields`, the names of
+  what changed.
+- An opportunity's **Change history** tab is unchanged: it still shows the values as they were and
+  as they are, now read from a store the CRM module keeps beside the opportunity
+  (`crm_opportunity_value_changes`, created by this release's migration), and only to a reader
+  who may read that opportunity. Custom field values still need `custom_fields:read`.
+- Entries recorded before the upgrade are not rewritten: they keep their values, on the Audit log
+  screen and in the history.
+
+**After upgrading,** nothing has to be done. A report or an export that read an opportunity's
+values out of the audit log reads them from the opportunity, or from its history
+(`GET /api/v1/admin/crm/opportunities/:id/history`), instead.
+
 ### Order values leave the platform audit log {#orders-audit-names-only}
 
 The release that ships this change stops writing an order's values into the platform-wide audit
