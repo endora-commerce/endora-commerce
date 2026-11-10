@@ -57,6 +57,9 @@ export function makeReparentCommand(
       const beforePath = node.path;
 
       deps.tree.assertNoCycle(node, newParent);
+      // D-290 / OD-10 — the subtree's tax-ID locks, ascending, before anything
+      // reads or rewrites it (the lock order is on the tree service).
+      await deps.tree.lockSubtreeTaxIds(em, node);
       await deps.tree.assertMaxDepth(em, node, newParent);
       // `specs/177-tax-id-scope/` FR-020 — the readable refusal; the deferred
       // constraint is the backstop at commit (`runOrganizationWrite`).

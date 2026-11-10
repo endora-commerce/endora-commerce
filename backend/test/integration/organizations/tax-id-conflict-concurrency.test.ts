@@ -46,7 +46,7 @@ describe('tax-ID conflicts under concurrency', () => {
   async function uniquifySharedTaxIds(): Promise<void> {
     // Every row of this file's prefix that shares its tax ID gets one of its own.
     await h.em().fork().getConnection().execute(
-      `update "organizations" o set "tax_id" = 'R' || substr(replace(o."id"::text, '-', ''), 1, 31)
+      `update "organizations" o set "tax_id" = 'R' || upper(substr(replace(o."id"::text, '-', ''), 1, 31))
         where o."tax_id" like 'CC%'
           and exists (select 1 from "organizations" d where d."tax_id" = o."tax_id" and d."id" <> o."id")`,
     );
@@ -194,5 +194,71 @@ describe('tax-ID conflicts under concurrency', () => {
       )) as Array<{ parent_id: string | null }>;
       expect(row!.parent_id).toBe(headData.id);
     });
+  });
+
+  /**
+   * T041c (D-290 / OD-10) — moves take part in the lock order too. A move
+   * rewrites `path`, which moves `root_id` and takes the reach governor's lock
+   * without touching `tax_id`; the tree Command therefore locks its subtree's
+   * tax IDs, ascending, before the rewrite.
+   */
+  describe('moves racing other writers', () => {
+    const reparent = (id: string, parentId: string | null) =>
+      h.app.inject({
+        method: 'POST',
+        url: `/api/v1/admin/organizations/${id}/parent`,
+        cookies: { b2b_session: 'stub-admin-session' },
+        payload: { parentId },
+      });
+    const idOf = (res: { json(): unknown }) => (res.json() as { data: { id: string } }).data.id;
+    const codeOf = (res: { json(): unknown }) => (res.json() as { error?: { code: string } }).error?.code;
+
+    for (const scope of ['global', 'per-tree-root'] as const) {
+      it(`${scope}: ${PAIRS} racing pairs of (create X in tree A) × (move a subtree holding X into tree B) — never a 500`, async () => {
+        await setScope(scope);
+        for (let i = 0; i < PAIRS; i += 1) {
+          const taxId = ccTaxId();
+          const rootA = idOf(await adminCreate(createBody(ccTaxId())));
+          const holder = await adminCreate(createBody(taxId, rootA));
+          expect(holder.statusCode, holder.body).toBe(201);
+          const rootB = idOf(await adminCreate(createBody(ccTaxId())));
+          const [create, move] = await Promise.all([
+            adminCreate(createBody(taxId, rootA)),
+            reparent(idOf(holder), rootB),
+          ]);
+          const statuses = [create.statusCode, move.statusCode];
+          expect(statuses, `${create.body} | ${move.body}`).not.toContain(500);
+          if (scope === 'global') {
+            // X is already held: the creation is refused whatever the move does.
+            expect(create.statusCode).toBe(409);
+            expect(codeOf(create)).toBe(ERROR_CODES.ORGANIZATION_TAX_ID_EXISTS);
+            expect(move.statusCode).toBe(200);
+          } else {
+            // Exactly one of the two may land; the loser answers its own path's 409.
+            expect(statuses.filter((status) => status === 409)).toHaveLength(1);
+            if (create.statusCode === 409) expect(codeOf(create)).toBe(ERROR_CODES.ORGANIZATION_TAX_ID_EXISTS);
+            if (move.statusCode === 409) expect(codeOf(move)).toBe(ERROR_CODES.ORGANIZATION_TREE_INVALID);
+          }
+        }
+      }, 600_000);
+    }
+
+    // Two moves sharing two tax IDs need a tree that shares them, which only
+    // `per-tree-root` allows; in `global` the state does not exist.
+    it(`per-tree-root: ${PAIRS} racing pairs of moves inside one tree whose subtrees hold the same two tax IDs in opposite order — never a 500`, async () => {
+      await setScope('per-tree-root');
+      for (let i = 0; i < PAIRS; i += 1) {
+        const [x, y] = [ccTaxId(), ccTaxId()].sort();
+        const root = idOf(await adminCreate(createBody(ccTaxId())));
+        const p = idOf(await adminCreate(createBody(x!, root)));
+        await adminCreate(createBody(y!, p));
+        const q = idOf(await adminCreate(createBody(y!, root)));
+        await adminCreate(createBody(x!, q));
+        const m = idOf(await adminCreate(createBody(ccTaxId(), root)));
+        const n = idOf(await adminCreate(createBody(ccTaxId(), root)));
+        const results = await Promise.all([reparent(p, m), reparent(q, n)]);
+        expect(results.map((res) => res.statusCode), results.map((res) => res.body).join(' | ')).toEqual([200, 200]);
+      }
+    }, 600_000);
   });
 });

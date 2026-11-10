@@ -47,9 +47,9 @@ describe('organizations — the tax-ID write lock', () => {
     await db.rollbackTx();
   });
 
-  it('is installed by the migration chain: before insert or update of tax_id, for each row', async () => {
+  it('is installed by the migration chain: before insert or update of tax_id or path, for each row', async () => {
     const [row] = await trigger();
-    expect(row?.definition).toMatch(/BEFORE INSERT OR UPDATE OF tax_id ON public\.organizations FOR EACH ROW/);
+    expect(row?.definition).toMatch(/BEFORE INSERT OR UPDATE OF tax_id, path ON public\.organizations FOR EACH ROW/);
   });
 
   it('down() removes the trigger and its function; up() puts them back, twice over', async () => {

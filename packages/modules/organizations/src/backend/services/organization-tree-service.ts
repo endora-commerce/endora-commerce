@@ -310,6 +310,40 @@ export class OrganizationTreeService {
   }
 
   /**
+   * `specs/177-tax-id-scope/` D-290 / OD-10 — takes the tax-ID write lock of
+   * every tax ID in `node`'s subtree, in ascending order, on `em`'s
+   * transaction.
+   *
+   * **The lock order every writer keeps:** tax-ID locks before the reach
+   * governor's, and tax-ID locks in ascending order. The path rewrite fires
+   * `organizations_tax_id_write_lock` once per row, in whatever order the
+   * update visits them, and then the governor's statement trigger; two moves
+   * sharing two tax IDs could take them in opposite orders and deadlock. Taken
+   * here first, in one order, the trigger's re-acquisitions are re-entrant
+   * no-ops. Same key as the trigger (`20261110T173752`). Called before the
+   * pre-check, so the pre-check reads what the writer it waited for committed.
+   */
+  async lockSubtreeTaxIds(em: EntityManager, node: Organization): Promise<void> {
+    this.#assertReadable(node);
+    const rows = (await em.getConnection().execute(
+      `select distinct "tax_id" from "organizations"
+        where "path" like ? and "tax_id" is not null
+        order by "tax_id"`,
+      [`${node.path}%`],
+      'all',
+      em.getTransactionContext(),
+    )) as Array<{ tax_id: string }>;
+    for (const { tax_id: taxId } of rows) {
+      await em.getConnection().execute(
+        `select pg_advisory_xact_lock(hashtextextended('organizations.tax_id:' || ?, 0))`,
+        [taxId],
+        'all',
+        em.getTransactionContext(),
+      );
+    }
+  }
+
+  /**
    * `specs/177-tax-id-scope/` FR-020 (research R-7) — in `per-tree-root`,
    * refuses a re-parent of `node`'s subtree S to the tree rooted at R′ when a
    * tax ID of S is also held outside S by a row whose root is not R′: after
