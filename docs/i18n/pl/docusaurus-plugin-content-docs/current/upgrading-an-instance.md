@@ -4745,6 +4745,24 @@ konfigurację.
 dwuetapowej, powinien odczytywać `canDisable` zamiast zgadywać i obsługiwać
 `409 MFA_LAST_FACTOR_REQUIRED`.
 
+### Kwoty faktur znikają z dziennika audytu platformy {#invoices-audit-names-only}
+
+Wydanie z tą zmianą przestaje zapisywać kwoty faktur w dzienniku audytu całej platformy
+(zgłoszenie #470). Ten dziennik to jedna tabela, czytana przez każdego, kto ma `audit_log:read`,
+bez względu na to, które organizacje widzi.
+
+**Zmiana zachowania po aktualizacji:**
+
+- Na ekranie **Dziennik audytu** i w `audit_logs read` nowy wpis `invoice.issued` nie zawiera już
+  `grossTotal`, a nowy wpis `invoice.corrected` nie zawiera już `credited` ani kwot skorygowanych
+  opłat (`charges`). Korekta wymienia teraz rodzaje skorygowanych opłat w `chargeKinds`. Numer,
+  rodzaj, zamówienie, kanał sprzedaży i faktura pierwotna zostają.
+- Faktury, korekty, ich pliki PDF i kwoty się nie zmieniają.
+- Wpisy zapisane przed aktualizacją nie są przepisywane: zachowują swoje kwoty.
+
+**Po aktualizacji** nie trzeba nic robić. Raport, który odczytywał kwoty faktur z dziennika
+audytu, odczytuje je z samych faktur.
+
 ## Instancja niespójna od początku
 
 Instalator `0.101.x` lub starszy zapisywał każdy pakiet wydania z `^` poza

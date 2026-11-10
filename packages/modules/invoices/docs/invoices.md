@@ -218,6 +218,17 @@ A deployment that is already configured into a collision is reported at boot,
 once per colliding pair, and is **not** blocked: a fixable invoicing
 misconfiguration must not become a storefront outage.
 
+## In the audit log
+
+Issuing an invoice and issuing a correction are each one entry in the
+platform-wide audit log (`invoice.issued`, `invoice.corrected`). That log is read
+by everybody holding `audit_log:read` whatever Organizations they may see, so an
+entry names the document and holds no amount: its number, kind, order, sales
+channel and — for a correction — the original invoice, how many lines reduced a
+price and which kinds of charges were credited (`chargeKinds`). The totals are on
+the invoice itself. Entries recorded before this change keep the amounts they
+were written with.
+
 ## Extension points
 
 - **Numbering scheme** — `services/invoice-number-generator.ts` renders the

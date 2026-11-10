@@ -4529,6 +4529,24 @@ on their own security screen; the next sign-in then asked them to set it up agai
 verification off should read `canDisable` instead of guessing, and handle
 `409 MFA_LAST_FACTOR_REQUIRED`.
 
+### Invoice amounts leave the platform audit log {#invoices-audit-names-only}
+
+The release that ships this change stops writing invoice amounts into the platform-wide audit log
+(issue #470). That log is one table, read by everybody holding `audit_log:read` whatever
+Organizations they may see.
+
+**Behaviour change on upgrade:**
+
+- On the **Audit log** screen, and in `audit_logs read`, a new `invoice.issued` entry no longer
+  carries `grossTotal`, and a new `invoice.corrected` entry no longer carries `credited` or the
+  amounts of credited charges (`charges`). A correction now names the kinds of charges it credited
+  in `chargeKinds`. The number, kind, order, sales channel and original invoice stay.
+- Invoices, corrections, their PDFs and their totals are unchanged.
+- Entries recorded before the upgrade are not rewritten: they keep their amounts.
+
+**After upgrading,** nothing has to be done. A report that read invoice totals out of the audit log
+reads them from the invoices instead.
+
 ## An instance that is mixed from the start
 
 The installer of `0.101.x` or earlier wrote every package of the release with a `^` except
