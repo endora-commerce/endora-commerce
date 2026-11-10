@@ -4567,7 +4567,8 @@ everybody holding `audit_log:read` whatever they may see.
   `newsletter_resubscribe`, `newsletter_bounce`, `newsletter_complaint` or `newsletter_delete` entry
   no longer carries the e-mail address, and a new `newsletter_unsubscribe` entry no longer carries
   the reason; it records `hasReason`. Entries name the subscriber by id. A suppression of an address
-  that has no subscriber is still recorded against the address itself.
+  that has no subscriber is recorded against its suppression row (`newsletter_suppression` and the
+  row's id), not against the address.
 - Subscribers, their unsubscribe reasons and the suppression list are unchanged.
 - Entries recorded before the upgrade are not rewritten: they keep their addresses and reasons.
 

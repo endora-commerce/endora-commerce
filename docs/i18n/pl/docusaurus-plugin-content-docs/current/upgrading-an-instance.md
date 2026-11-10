@@ -4784,7 +4784,8 @@ każdego, kto ma `audit_log:read`, bez względu na to, co widzi.
   `newsletter_resubscribe`, `newsletter_bounce`, `newsletter_complaint` albo `newsletter_delete`
   nie zawiera już adresu e-mail, a nowy wpis `newsletter_unsubscribe` nie zawiera już powodu;
   zapisuje `hasReason`. Wpisy nazywają subskrybenta identyfikatorem. Zablokowanie adresu, który nie
-  ma subskrybenta, jest nadal zapisywane dla samego adresu.
+  ma subskrybenta, jest zapisywane dla wiersza blokady (`newsletter_suppression` i identyfikator
+  wiersza), a nie dla samego adresu.
 - Subskrybenci, ich powody wypisania i lista blokad się nie zmieniają.
 - Wpisy zapisane przed aktualizacją nie są przepisywane: zachowują swoje adresy i powody.
 

@@ -372,11 +372,13 @@ export class NewsletterSubscriberService {
     const em = this.deps.emFactory();
     const normalized = email.trim().toLowerCase();
     const existing = await em.findOne(NewsletterSuppression, { email: normalized });
+    let suppression: NewsletterSuppression;
     if (existing) {
       existing.reason = reason;
       if (detail) existing.detail = detail;
+      suppression = existing;
     } else {
-      em.create(NewsletterSuppression, { email: normalized, reason, detail: detail ?? null });
+      suppression = em.create(NewsletterSuppression, { email: normalized, reason, detail: detail ?? null });
     }
     const subscriber = await em.findOne(NewsletterSubscriber, { email: normalized });
     if (subscriber && subscriber.status === 'active') {
@@ -386,8 +388,10 @@ export class NewsletterSubscriberService {
     await em.flush();
     await this.deps.auditLog?.record({
       action: `newsletter_${reason}`,
-      objectType: 'newsletter_subscriber',
-      objectId: subscriber?.id ?? normalized,
+      // An address with no subscriber is audited under its suppression row:
+      // the address itself is a value and never becomes an objectId (#470).
+      objectType: subscriber ? 'newsletter_subscriber' : 'newsletter_suppression',
+      objectId: subscriber?.id ?? suppression.id,
       // The suppression's reason code, never the address (#470).
       stateAfter: { reason },
     });
