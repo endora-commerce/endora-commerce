@@ -242,8 +242,10 @@ jest podłączone przez wymagany argument konstruktora `resolveOrganizationStatu
 handlowców z organizacjami. Gdy rola administratora wywołującego to `sales_representative`, każdy
 ekran panelu jest ograniczany do organizacji z zasięgu tego handlowca (zob. *Do których organizacji
 sięga przedstawiciel handlowy*): zakresem tenanta każdego żądania panelu jest „każda organizacja
-oprócz prowadzonych przez innego przedstawiciela”, obliczany raz na żądanie z tej tabeli.
-Administratorzy platformy widzą wszystko.
+oprócz prowadzonych przez innego przedstawiciela”, obliczany raz na żądanie z tej tabeli i z tabeli
+`organization_reach_governor`, która dla każdej organizacji przechowuje najbliższego przodka (lub ją samą)
+z przypisanym handlowcem i jest aktualizowana w transakcji każdego zapisu, który może to zmienić. Nic nie
+jest buforowane. Administratorzy platformy widzą wszystko.
 
 Tę relację obsługują trzy endpointy, należące do tego modułu i przez niego rejestrowane:
 
@@ -431,6 +433,16 @@ edycji.
 - `20261105T121034_organizations_registry_lookup_provenance.ts` — dodaje do `organization_tax_id_validations`
   kolumny `origin` (`admin` dla każdego istniejącego wiersza), `registry_details` i `submitted_values` oraz dopuszcza
   dostawcę `gus_pl` (zobacz „Pobieranie danych firmy z rejestru przy rejestracji” wyżej).
+- `20261109T144721_organizations_reach_governor.ts` — tworzy `organization_reach_governor` (dla każdej organizacji
+  najbliższy przodek lub ona sama z przypisanym handlowcem), wypełnia ją i dodaje wyzwalacze na `organizations` i
+  `organization_sales_rep_assignments`, które utrzymują ją aktualną w transakcji zapisu (zobacz „Przypisanie
+  handlowców” wyżej).
+
+  **Odtwarzanie danych z wyłączonymi wyzwalaczami.** Odtworzenie samych danych przez
+  `pg_restore --disable-triggers` (albo każdy inny zapis tych dwóch tabel przy wyłączonych
+  wyzwalaczach) pozostawia `organization_reach_governor` nieaktualną, a nieaktualny wiersz poszerza
+  zasięg przedstawiciela handlowego. Po odtworzeniu uruchom
+  `select organizations_reach_governor_rebuild(null);`.
 
 ### Organizacje prywatne (B2C)
 

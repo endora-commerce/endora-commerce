@@ -319,6 +319,7 @@ import { Migration20261018T104644OrganizationsChannelAccessBackfill } from '@end
 import { Migration20261103T173304OrganizationsOrganizationRoles } from '@endora-commerce/mod-organizations/migrations';
 import { Migration20261104T094535OrganizationsDropLegacyRoleColumns } from '@endora-commerce/mod-organizations/migrations';
 import { Migration20261105T121034OrganizationsRegistryLookupProvenance } from '@endora-commerce/mod-organizations/migrations';
+import { Migration20261109T144721OrganizationsReachGovernor } from '@endora-commerce/mod-organizations/migrations';
 
 // ── payment_methods ─────────────────────────────────────────────────────────
 import { Migration20260611T140353PaymentMethodsAdapter } from '@endora-commerce/mod-payment-methods/migrations';
@@ -733,6 +734,7 @@ export const MIGRATION_REGISTRY: readonly MigrationRegistryEntry[] = [
   migration('organizations', Migration20261103T173304OrganizationsOrganizationRoles),
   migration('organizations', Migration20261104T094535OrganizationsDropLegacyRoleColumns),
   migration('organizations', Migration20261105T121034OrganizationsRegistryLookupProvenance),
+  migration('organizations', Migration20261109T144721OrganizationsReachGovernor),
 
   // ── payment_methods ─────────────────────────────────────────────────────────
   migration('payment_methods', Migration20260611T140353PaymentMethodsAdapter),

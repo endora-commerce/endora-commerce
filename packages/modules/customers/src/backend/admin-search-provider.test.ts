@@ -149,7 +149,7 @@ describe('searchCustomersForAdmin', () => {
     // Issue #305 — a sales representative: every organization nobody else governs.
     const rep = {
       isPlatformAdmin: false,
-      reach: { kind: 'excluded', excludedOrganizationIds: ['org-b'], assignedOrganizationIds: [] },
+      reach: { kind: 'excluded', excludedOrganizationIds: ['org-b'], assignedOrganizationIds: [], excludedOrganizationsQuery: { sql: 'select x from "reach"(?::uuid) as x', params: ['rep'] } },
     } as const;
     expect((await searchCustomersForAdmin(deps(record({ id: uuid, organizationId: 'org-u' })), q, rep)).rows).toHaveLength(1);
     expect((await searchCustomersForAdmin(deps(record({ id: uuid, organizationId: 'org-b' })), q, rep)).rows).toHaveLength(0);

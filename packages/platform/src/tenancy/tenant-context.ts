@@ -28,6 +28,16 @@ import { AsyncLocalStorage } from 'async_hooks';
  * unscoped rows.
  */
 
+/**
+ * Issue #955 — an uncorrelated SELECT of one non-null uuid column, with its
+ * parameters, supplied by the module that owns the reach (`organizations`) on
+ * `adminTenantScopePort`. The platform renders it and never names what it reads.
+ */
+export interface ExcludedOrganizationsQuery {
+  readonly sql: string;
+  readonly params: readonly (string | boolean)[];
+}
+
 export type TenantScopeMode = 'single-org' | 'allowed-set' | 'excluded-set' | 'all' | 'system';
 
 export interface TenantActor {
@@ -84,6 +94,12 @@ export interface TenantContext {
    * (`assignedOrganizationIdsForRanking`).
    */
   readonly assignedOrganizationIds?: readonly string[];
+  /**
+   * Present for `excluded-set` (issue #955): the owner's uncorrelated SELECT of
+   * the excluded organizations — what the filters actually render. Read by the
+   * platform's tenancy directory only.
+   */
+  readonly excludedOrganizationsQuery?: ExcludedOrganizationsQuery;
   /** Present for customer actors — drives the `customerAccount` filter. */
   readonly customerAccountId?: string | null;
   readonly actor: TenantActor;

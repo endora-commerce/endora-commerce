@@ -31,10 +31,10 @@ describe('visibleProjectSqlFor', () => {
   // Issue #305 — a sales representative reaches every Organization nobody else
   // governs: a Project is out of reach when one of its Organizations is excluded.
   it('binds a sales representative’s excluded set, and never lets a NULL predicate count as in reach', () => {
-    const reach = orgReachOf({ kind: 'excluded', excludedOrganizationIds: [A], assignedOrganizationIds: [] });
+    const reach = orgReachOf({ kind: 'excluded', excludedOrganizationIds: [A], assignedOrganizationIds: [], excludedOrganizationsQuery: { sql: 'select x from "reach"(?::uuid) as x', params: ['rep'] } });
     const fragment = visibleProjectSqlFor({ adminUserId: ME, canRead: true, seeAll: true, reach }, 'everyone');
-    expect(fragment?.params).toEqual([`{"${A}"}`]);
-    expect(fragment?.sql).toContain('<> all(?::uuid[])');
+    expect(fragment?.params).toEqual(['rep']);
+    expect(fragment?.sql).toContain('not in (select x from "reach"(?::uuid) as x)');
     expect(fragment?.sql).toContain('not coalesce(');
   });
 
