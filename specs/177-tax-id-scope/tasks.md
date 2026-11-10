@@ -1,7 +1,7 @@
 # Tasks: Tax-ID scope, personal organizations without a tax ID, personal → company conversion
 
-**Input**: [spec.md](./spec.md), [plan.md](./plan.md) (work packages, merge order, open decisions
-OD-1 … OD-8), [research.md](./research.md) (R-1 … R-18), [data-model.md](./data-model.md),
+**Input**: [spec.md](./spec.md), [plan.md](./plan.md) (work packages, merge order, decisions
+OD-1 … OD-8, resolved by the owner 2026-11-10 as D-290), [research.md](./research.md) (R-1 … R-18), [data-model.md](./data-model.md),
 [contracts/](./contracts/).
 
 **Scope**: the whole feature, one release, on the integration branch `feat/177-tax-id-scope`.

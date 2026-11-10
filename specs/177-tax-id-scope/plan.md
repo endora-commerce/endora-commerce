@@ -206,27 +206,30 @@ T084.
 | 176 and WP-R / T039 conflict in `registration-service.ts` | Recommended order (176 first); the two lines to carry are named in this plan |
 | Concurrency tests flaky under CI load | Paired writes on two dedicated connections with a barrier, not timing; 50 pairs per path |
 
-## Open decisions (recommendation in bold; none blocks WP-1)
+## Decisions — resolved (owner, 2026-11-10, **D-290**)
 
-- **OD-1** `findByTaxId`/`resolveByTaxId` on the read port (`organizationDetailsPort`) rather than on
-  `organizationCommandPort` as the owner's working doc sketched. **Read port** — a read beside
-  `findById`; the command port stays writes-only (R-8).
-- **OD-2** VAT validation at conversion **after commit**, as a separate audited write, rather than
-  inside the conversion transaction (R-13). **After commit.**
+The owner accepted every recommendation below on 2026-11-10; the ruling is recorded as **D-290**
+(176 is D-289, 178 is D-291). Nothing here is open any more.
+
+- **OD-1** `findByTaxId`/`resolveByTaxId` live on the read port (`organizationDetailsPort`), not on
+  `organizationCommandPort` as the owner's working doc sketched — a read beside `findById`; the
+  command port stays writes-only (R-8). **Resolved: read port.**
+- **OD-2** VAT validation (VIES / MF) at conversion runs **after the conversion commits**, as a
+  separate audited write, never inside the conversion transaction (R-13). **Resolved: after commit.**
 - **OD-3** Historical orders, invoices, quote documents and audit entries that hold a personal
-  placeholder are **not rewritten**; the upgrade note gives the query (R-18).
-- **OD-4** Fold #990's `organizationCustomFieldWritePort` into `organizationCommandPort`?
-  **Not in this release** — a rename of a just-published port is a second break for no consumer; add
-  `setCustomFieldValues` to the command port later as an alias if the e1 port family is pursued.
-- **OD-5** `returns` keeps consumer-withdrawal rights for orders placed before a conversion (FR-040).
-  **In scope** — otherwise a conversion silently removes a statutory right.
-- **OD-6** Record the owner's 2026-11-10 ruling under a `D-nnn`. **The orchestrator allocates it
-  centrally**: 176, 177 and 178 are written in parallel and would each take D-289 (highest in the tree
-  is D-288; floor D-283).
+  placeholder are left as they are; the upgrade note gives the query (R-18). **Resolved: not
+  rewritten.**
+- **OD-4** #990's `organizationCustomFieldWritePort` is **not** folded into `organizationCommandPort`
+  in this release — a rename of a just-published port is a second break for no consumer; a later
+  release may add `setCustomFieldValues` to the command port as an alias. **Resolved: not folded.**
+- **OD-5** The `returns` withdrawal-right fix — `convertedToCompanyAt` compared with the order's
+  placement time (FR-040) — is in scope. **Resolved: in scope.**
+- **OD-6** The owner's 2026-11-10 ruling is recorded as **D-290**, allocated centrally by the
+  orchestrator because 176, 177 and 178 were written in parallel. **Resolved.**
 - **OD-7** Conversion keeps the organization's status and stamps the operator's approval; it does not
-  route through moderation even under `moderation_mode = manual` (R-11). **Keep status.**
-- **OD-8** Soft-deleted organizations keep holding their tax ID for uniqueness (today's behaviour).
-  **Keep** — a deleted company's tax ID is not silently reusable.
+  route through moderation even under `moderation_mode = manual` (R-11). **Resolved: keep status.**
+- **OD-8** Soft-deleted organizations keep holding their tax ID for uniqueness (today's behaviour) —
+  a deleted company's tax ID is not silently reusable. **Resolved: keep.**
 
 ## Complexity Tracking
 
@@ -257,4 +260,4 @@ no dependency; the only non-`organizations` writes are each owner's code adaptin
    (`ORGANIZATIONS_TAX_ID_SCOPE=per-tree-root`), and paste the output into each PR.
 6. At close-out: `composer:generate`, `manifests:generate` + `pnpm install --lockfile-only`, the
    changesets, docs EN + PL, label `breaking change`; the orchestrator runs
-   `update-agent-context.sh` once for 176/177/178 and allocates the D-number (OD-6).
+   `update-agent-context.sh` once for 176/177/178 (the D-number is D-290, OD-6).

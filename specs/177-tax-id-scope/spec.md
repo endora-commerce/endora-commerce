@@ -5,6 +5,8 @@
 **Status**: Draft — scope accepted by the owner on 2026-11-10 (instance-extensibility rulings: tax-ID
 scope option in core, removal of the synthetic personal tax ID in the same release, operator-only
 personal → company conversion). One release, labelled **breaking change**.
+Plan decisions OD-1 … OD-8 accepted as recommended by the owner on 2026-11-10 (**D-290**, `plan.md`
+*Decisions — resolved*).
 **Input**: "Tax-ID uniqueness modes `global` (default) and `per-tree-root`, enforced by the database
 and chosen by an audited operator command; lookups by tax ID that return every match; personal
 organizations stop carrying a synthetic tax ID; an operator can convert a personal organization into
