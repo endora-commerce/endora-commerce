@@ -214,11 +214,25 @@ export const mfaSocialUnlinkResponseSchema = z.object({
 });
 export type MfaSocialUnlinkResponse = z.infer<typeof mfaSocialUnlinkResponseSchema>;
 
+/**
+ * Why the account may not switch its second factor off (issue #935).
+ *
+ * `factor_required` — it is the account's last second factor, and a
+ * requirement is in force for it: a setting, an administrator's role or a
+ * customer's organization. The same verdict refuses `POST …/mfa/disable` with
+ * `409 MFA_LAST_FACTOR_REQUIRED`.
+ */
+export const mfaDisableBlockedReasonSchema = z.enum(['factor_required']);
+export type MfaDisableBlockedReason = z.infer<typeof mfaDisableBlockedReasonSchema>;
+
 export const mfaStatusResponseSchema = z.object({
   totpActive: z.boolean(),
   recoveryCodesRemaining: z.number().int().nonnegative(),
   totpEnabledForScope: z.boolean(),
   totpEnforcedForScope: z.boolean(),
+  /** The surface renders the disable control from this, never from its own guess (issue #935). */
+  canDisable: z.boolean(),
+  disableBlockedReason: mfaDisableBlockedReasonSchema.nullable(),
   socialLinks: z.array(mfaSocialLinkSummarySchema),
 });
 export type MfaStatusResponse = z.infer<typeof mfaStatusResponseSchema>;

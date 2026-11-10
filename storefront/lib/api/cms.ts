@@ -1,7 +1,7 @@
 import { CMS_STOREFRONT_CACHE_TAGS } from '@endora-commerce/contracts';
 import type {
   CmsPageIndexResponse,
-  CmsResolvedBlock,
+  CmsResolvedBlockByCode,
   CmsResolvedHook,
   CmsResolvedPage,
 } from '@endora-commerce/contracts';
@@ -24,11 +24,11 @@ import { isModuleDisabled } from './module-absence';
 export async function getCmsBlockByCode(
   code: string,
   ctx: RequestContext,
-): Promise<CmsResolvedBlock | null> {
+): Promise<CmsResolvedBlockByCode | null> {
   const qs = new URLSearchParams({ code });
   if (ctx.locale) qs.set('language', ctx.locale);
   try {
-    const res = await apiGet<{ data: CmsResolvedBlock }>(
+    const res = await apiGet<{ data: CmsResolvedBlockByCode }>(
       `/api/v1/cms/blocks/by-code?${qs.toString()}`,
       ctx,
       {
