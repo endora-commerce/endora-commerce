@@ -98,15 +98,18 @@ out-of-reach reader gets a 404 indistinguishable from a missing record; custom-f
 only a `custom_fields:read` holder. The global `GET /api/v1/admin/audit-log` gets one contract
 assertion per module: a row written by the module's update Command carries no sentinel.
 
-## What is still open
+## Owner rulings (2026-11-10, #470)
 
-These are the owner's to rule (`#470`); until they are, do not decide them in code:
-
-- **O-1 titles.** The ruling recommends that a record's title is a value (list 2). Projects and
-  Tasks still record `title`.
-- **O-2 the tenant root.** `Organization` is `@GlobalEntity`, so this rule does not yet cover its
-  `name`, `taxId`, `blockedReason` or `rejectedReason`.
-- **O-3 price books.** RuleScoped, so covered in principle; the price-change history is staged
-  D-287 work.
-- **O-4 historical rows.** The rule applies from now on. Values already in `audit_log_entries`
-  stay; nothing scrubs them.
+- **O-1 — a title is a value.** A record's title (and any name, label or subject of a tenant-scoped
+  record) is free text and goes in list 2: it is never recorded in audit state. A history that
+  shows it reads it from the module's value store. The global audit screen names a record by its
+  number or id.
+- **O-2 — the Organization record is covered.** `Organization` is `@GlobalEntity` because it *is*
+  the tenant, but its `name`, `taxId`, `blockedReason` and `rejectedReason` are that tenant's values
+  and follow this rule: `changedFields: ['taxId']`, never the tax id.
+- **O-3 — price books follow the rule.** Price-book rows are `@RuleScoped`, so their amounts,
+  multipliers and per-currency rows leave the audit state; `price_lists` keeps a price-change
+  history of its own, read under the book's rule scope. Delivered in this release, staged.
+- **O-4 — historical rows stay as they are (option a).** The rule applies from the release that
+  ships it. Values already in `audit_log_entries` are not scrubbed or rewritten; a history serves a
+  pre-change entry as it is stored.
