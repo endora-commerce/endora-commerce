@@ -256,6 +256,84 @@ describe('organizations — M1: personal organizations lose the synthetic tax ID
     expect(await row(personal)).toEqual(after);
   });
 
+  /**
+   * T005a — D-290 / OD-9. `customer_accounts`' 0825 migration INSERTs personal
+   * organizations with the placeholder and links accounts by it; run after M1
+   * it would fail M1's presence check. Topological order puts M1 first on a
+   * database that has not applied it, so M1 refuses a populated one.
+   */
+  describe('upgrade precondition: minimum upgrade-from version 0.100.0 (D-290 / OD-9)', () => {
+    const OLD_MIGRATION = 'Migration20260825T141659CustomerAccountsOrganizationRequired';
+    const M1 = 'Migration20261110T135922OrganizationsPersonalTaxIdRemoval';
+
+    async function columnState(): Promise<{ taxIdNullable: string; personalAccountColumn: number }> {
+      const [state] = (await em.execute(
+        `select (select is_nullable from information_schema.columns
+                  where table_name = 'organizations' and column_name = 'tax_id') as "taxIdNullable",
+                (select count(*)::int from information_schema.columns
+                  where table_name = 'organizations' and column_name = 'personal_account_id') as "personalAccountColumn"`,
+      )) as Array<{ taxIdNullable: string; personalAccountColumn: number }>;
+      return state!;
+    }
+
+    async function upError(): Promise<string | undefined> {
+      await em.execute('savepoint m1_precondition');
+      try {
+        await run('up');
+      } catch (err) {
+        await em.execute('rollback to savepoint m1_precondition');
+        return (err as Error).message;
+      }
+      await em.execute('release savepoint m1_precondition');
+      return undefined;
+    }
+
+    it('refuses, and changes nothing, on a populated database that never applied the customer_accounts migration', async () => {
+      await insertOrganization({ taxId: `PL${randomUUID().slice(0, 10)}`, isPersonal: false });
+      await em.execute('delete from "mikro_orm_migrations" where "name" = ?', [OLD_MIGRATION]);
+
+      const message = await upError();
+
+      expect(message).toBeDefined();
+      expect(message).toContain(OLD_MIGRATION);
+      expect(message).toContain(M1);
+      expect(message).toContain('0.100.0');
+      expect(message).toMatch(/0\.100\.x.0\.110\.x/);
+      expect(await columnState()).toEqual({ taxIdNullable: 'NO', personalAccountColumn: 0 });
+    });
+
+    it('applies on a populated database that has applied the customer_accounts migration', async () => {
+      const [{ applied }] = (await em.execute(
+        'select count(*)::int as "applied" from "mikro_orm_migrations" where "name" = ?',
+        [OLD_MIGRATION],
+      )) as Array<{ applied: number }>;
+      expect(applied).toBe(1);
+      await insertOrganization({ taxId: `PL${randomUUID().slice(0, 10)}`, isPersonal: false });
+
+      expect(await upError()).toBeUndefined();
+      expect(await columnState()).toEqual({ taxIdNullable: 'YES', personalAccountColumn: 1 });
+    });
+
+    it('applies on an empty organizations table without the ledger row (a fresh database)', async () => {
+      await em.execute('delete from "mikro_orm_migrations" where "name" = ?', [OLD_MIGRATION]);
+      const [{ count }] = (await em.execute(
+        'select count(*)::int as "count" from "organizations"',
+      )) as Array<{ count: number }>;
+      expect(count).toBe(0);
+
+      expect(await upError()).toBeUndefined();
+      expect(await columnState()).toEqual({ taxIdNullable: 'YES', personalAccountColumn: 1 });
+    });
+
+    it('the fixture database ran the whole chain from empty: M1, then the customer_accounts migration', async () => {
+      const rows = (await em.execute(
+        'select "name" from "mikro_orm_migrations" where "name" in (?, ?) order by "id"',
+        [OLD_MIGRATION, M1],
+      )) as Array<{ name: string }>;
+      expect(rows.map((r) => r.name)).toEqual([M1, OLD_MIGRATION]);
+    });
+  });
+
   async function insertPersonalLinked(account: string): Promise<string> {
     const id = randomUUID();
     await em.execute(
