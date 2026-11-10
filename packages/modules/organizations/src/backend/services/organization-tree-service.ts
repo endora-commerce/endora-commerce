@@ -2,6 +2,7 @@ import type { EntityManager } from '@mikro-orm/postgresql';
 import { ERROR_CODES, type OrganizationTreeNode } from '@endora-commerce/contracts';
 import { HttpError } from '@endora-commerce/platform/http';
 import type { Organization, OrganizationStatus } from '../entities/organization.entity.js';
+import { TaxIdScopeService, SHARED_TAX_ID_EXAMPLE_LIMIT } from './tax-id-scope-service.js';
 
 /**
  * OrganizationTreeService (feature 056 US1) — the organizations-owned tree
@@ -129,6 +130,26 @@ export function unreadablePathRefusal(organizationId: string): HttpError {
     ERROR_CODES.ORGANIZATION_TREE_INVALID,
     `Organization ${organizationId} has a stored tree position that cannot be read, so it cannot be moved or chosen as a parent until that is repaired.`,
     { code: 'path_unreadable', organizationId },
+  );
+}
+
+/**
+ * A move refused because it would put one tax ID into two trees
+ * (`specs/177-tax-id-scope/` FR-020; `contracts/tax-id-scope.md` §5).
+ *
+ * Only in `per-tree-root`, where a head office and its branches share a tax
+ * ID: moving or detaching a sharer — or a subtree holding one — would leave the
+ * tax ID in the tree it came from and in the one it goes to. 409, as the
+ * unreadable-path refusal: the request is well-formed and the stored state
+ * refuses it. `taxIds` (at most 20, sorted) names what is shared; an array, so
+ * the sentence carries no placeholder for it.
+ */
+export function taxIdSharedAcrossTreesRefusal(taxIds: readonly string[]): HttpError {
+  return new HttpError(
+    409,
+    ERROR_CODES.ORGANIZATION_TREE_INVALID,
+    'The move would put a tax ID shared inside this organization tree into a second tree. Move the organizations sharing it together, or not at all.',
+    { code: 'tax_id_shared_across_trees', taxIds: [...taxIds] },
   );
 }
 
@@ -286,6 +307,38 @@ export class OrganizationTreeService {
     if (newDeepestSegs > MAX_TREE_DEPTH_SEGMENTS) {
       throw maxDepthRefusal();
     }
+  }
+
+  /**
+   * `specs/177-tax-id-scope/` FR-020 (research R-7) — in `per-tree-root`,
+   * refuses a re-parent of `node`'s subtree S to the tree rooted at R′ when a
+   * tax ID of S is also held outside S by a row whose root is not R′: after
+   * the move it would sit in two trees. Rows outside S keep their roots, so one
+   * statement over `root_id` and the subtree prefix answers it. Soft-deleted
+   * rows count, as the database constraint counts them. In `global` no tax ID
+   * is shared, so nothing is read past the scope.
+   *
+   * Reads the scope on `em`, inside the Command's transaction (FR-026).
+   */
+  async assertTaxIdsStayInOneTree(
+    em: EntityManager,
+    node: Organization,
+    newParent: Organization | null,
+  ): Promise<void> {
+    this.#assertReadable(node, newParent);
+    if ((await new TaxIdScopeService(() => em).scope(em)) !== 'per-tree-root') return;
+    const newRoot = newParent ? pathSegments(newParent.path)[0]! : node.id;
+    const rows = (await em.getConnection().execute(
+      `select distinct s."tax_id" from "organizations" s
+         join "organizations" o on o."tax_id" = s."tax_id" and o."path" not like ?
+        where s."path" like ? and s."tax_id" is not null
+          and o."root_id" is distinct from ?::uuid
+        order by s."tax_id" limit ?`,
+      [`${node.path}%`, `${node.path}%`, newRoot, SHARED_TAX_ID_EXAMPLE_LIMIT],
+      'all',
+      em.getTransactionContext(),
+    )) as Array<{ tax_id: string }>;
+    if (rows.length > 0) throw taxIdSharedAcrossTreesRefusal(rows.map((row) => row.tax_id));
   }
 
   /**

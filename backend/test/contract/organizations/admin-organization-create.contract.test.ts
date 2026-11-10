@@ -231,4 +231,132 @@ describe('POST /api/v1/admin/organizations', () => {
       audited.filter((row) => (row.stateAfter as { taxId?: string } | null)?.taxId === payload['taxId']),
     ).toHaveLength(0);
   });
+
+  /**
+   * `specs/177-tax-id-scope/` T034 (FR-018, FR-019; `contracts/tax-id-scope.md`
+   * §5, §6) — a branch created under its head office, and which tax IDs each
+   * scope lets it carry. The scope-specific cases set the scope themselves
+   * through the route and put back the one they found, after giving their
+   * branches tax IDs of their own: `global`'s constraint cannot return over a
+   * shared one.
+   */
+  describe('parentId and the tax-ID scope', () => {
+    const SCOPED = `stub-orgcreate-rep-${stamp}`;
+    let repRolePermissions: string[] | null = null;
+    let initialScope: 'global' | 'per-tree-root';
+    const sharing: string[] = [];
+
+    const putScope = async (scope: 'global' | 'per-tree-root') => {
+      const res = await h.app.inject({
+        method: 'PUT',
+        url: '/api/v1/admin/organizations/tax-id-scope',
+        cookies: { b2b_session: 'stub-admin-session' },
+        payload: { scope },
+      });
+      expect(res.statusCode, res.body).toBe(200);
+    };
+
+    const created = (res: { json(): unknown }) =>
+      (res.json() as { data: { id: string; parentId: string | null; path: string; taxId: string } }).data;
+
+    beforeAll(async () => {
+      const em = h.em();
+      let rep = await em.findOne(AdminRole, { code: 'sales_representative' });
+      if (rep) {
+        repRolePermissions = [...rep.permissions];
+        rep.permissions = [...new Set([...rep.permissions, 'customers:manage'])];
+      } else {
+        rep = em.create(AdminRole, { code: 'sales_representative', name: 'Sales Representative', permissions: ['customers:manage'] });
+      }
+      await em.persistAndFlush(rep);
+      const user = em.create(AdminUser, {
+        email: `orgcreate-rep-${stamp}@example.test`,
+        passwordHash: 'x'.repeat(60),
+        firstName: 'Org',
+        lastName: 'Rep',
+        adminRoleId: rep.id,
+      });
+      await em.persistAndFlush(user);
+      ADMIN_COOKIES[SCOPED] = { adminUserId: user.id };
+      const res = await h.app.inject({
+        method: 'GET',
+        url: '/api/v1/admin/organizations/tax-id-scope',
+        cookies: { b2b_session: 'stub-admin-session' },
+      });
+      initialScope = (res.json() as { data: { scope: 'global' | 'per-tree-root' } }).data.scope;
+    });
+
+    afterEach(async () => {
+      if (sharing.length > 0) {
+        await h.em().execute(
+          `update "organizations" set "tax_id" = 'R' || substr(replace("id"::text, '-', ''), 1, 31)
+            where "id" = any(?::uuid[])`,
+          [`{${sharing.join(',')}}`],
+        );
+        sharing.length = 0;
+      }
+      await putScope(initialScope);
+    });
+
+    afterAll(async () => {
+      delete ADMIN_COOKIES[SCOPED];
+      const em = h.em();
+      const rep = await em.findOne(AdminRole, { code: 'sales_representative' });
+      if (rep && repRolePermissions) {
+        rep.permissions = repRolePermissions;
+        await em.flush();
+      }
+    });
+
+    it('creates a branch under the parent, with the parent path, audited with parentId', async () => {
+      const parent = created(await post(body()));
+      const res = await post(body({ parentId: parent.id }));
+      expect(res.statusCode, res.body).toBe(201);
+      const child = created(res);
+      expect(child.parentId).toBe(parent.id);
+      expect(child.path).toBe(`${parent.path}${child.id}/`);
+      const [entry] = await h.em().fork().find(AuditLogEntry, { action: 'organization.create', objectId: child.id });
+      expect(entry!.stateAfter).toMatchObject({ parentId: parent.id });
+    });
+
+    it('refuses a parent from a scoped administrator, and an unknown parent', async () => {
+      const parent = created(await post(body()));
+      const scoped = await post(body({ parentId: parent.id }), SCOPED);
+      expect(scoped.statusCode, scoped.body).toBe(403);
+      expect(scoped.json().error.code).toBe(ERROR_CODES.FORBIDDEN);
+      const unknown = await post(body({ parentId: '00000000-0000-4000-8000-00000000dead' }));
+      expect(unknown.statusCode).toBe(404);
+    });
+
+    it('global: a tax ID held anywhere is refused, under the holder too', async () => {
+      await putScope('global');
+      const holder = created(await post(body()));
+      for (const extra of [{}, { parentId: holder.id }]) {
+        const res = await post(body({ taxId: holder.taxId, ...extra }));
+        expect(res.statusCode, res.body).toBe(409);
+        expect(res.json().error.code).toBe(ERROR_CODES.ORGANIZATION_TAX_ID_EXISTS);
+      }
+    });
+
+    it('per-tree-root: the tree may share its tax ID; a new root or another tree may not', async () => {
+      await putScope('per-tree-root');
+      const head = created(await post(body()));
+      const branchRes = await post(body({ taxId: head.taxId, parentId: head.id }));
+      expect(branchRes.statusCode, branchRes.body).toBe(201);
+      const branch = created(branchRes);
+      sharing.push(branch.id);
+      // Deeper in the same tree, too.
+      const deeper = await post(body({ taxId: head.taxId, parentId: branch.id }));
+      expect(deeper.statusCode, deeper.body).toBe(201);
+      sharing.push(created(deeper).id);
+
+      const asRoot = await post(body({ taxId: head.taxId }));
+      expect(asRoot.statusCode, asRoot.body).toBe(409);
+      expect(asRoot.json().error.code).toBe(ERROR_CODES.ORGANIZATION_TAX_ID_EXISTS);
+      const elsewhere = created(await post(body()));
+      const otherTree = await post(body({ taxId: head.taxId, parentId: elsewhere.id }));
+      expect(otherTree.statusCode, otherTree.body).toBe(409);
+      expect(otherTree.json().error.code).toBe(ERROR_CODES.ORGANIZATION_TAX_ID_EXISTS);
+    });
+  });
 });

@@ -155,6 +155,9 @@ export const ERROR_CODES = {
 
   // Organizations / customer accounts
   ORGANIZATION_TAX_ID_EXISTS: 'ORGANIZATION_TAX_ID_EXISTS',
+  // `specs/177-tax-id-scope/` — switching the tax-ID scope to `global` while a
+  // tax ID is on more than one organization (409, `details.code = 'shared_tax_ids'`).
+  ORGANIZATION_TAX_ID_SCOPE_DUPLICATES: 'ORGANIZATION_TAX_ID_SCOPE_DUPLICATES',
   // Feature 056 — deletion of a parent with children is blocked (reassign /
   // remove children first). Backed by the `parent_id ON DELETE RESTRICT` FK.
   ORGANIZATION_HAS_CHILDREN: 'ORGANIZATION_HAS_CHILDREN',

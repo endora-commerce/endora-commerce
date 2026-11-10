@@ -58,6 +58,9 @@ export function makeReparentCommand(
 
       deps.tree.assertNoCycle(node, newParent);
       await deps.tree.assertMaxDepth(em, node, newParent);
+      // `specs/177-tax-id-scope/` FR-020 — the readable refusal; the deferred
+      // constraint is the backstop at commit (`runOrganizationWrite`).
+      await deps.tree.assertTaxIdsStayInOneTree(em, node, newParent);
       const { affected } = await deps.tree.applyReparentPaths(em, node, newParent);
       await em.flush();
 

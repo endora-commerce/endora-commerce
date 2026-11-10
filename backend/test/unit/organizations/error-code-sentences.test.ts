@@ -8,8 +8,10 @@ import {
   cycleRefusal,
   hasChildrenRefusal,
   maxDepthRefusal,
+  taxIdSharedAcrossTreesRefusal,
   unreadablePathRefusal,
 } from '../../../../packages/modules/organizations/src/backend/services/organization-tree-service.js';
+import { scopeDuplicatesRefusal } from '../../../../packages/modules/organizations/src/backend/commands/set-tax-id-scope.command.js';
 import { permissionRequiredRefusal } from '../../../../packages/modules/organizations/src/backend/services/organization-role-permission-port.js';
 
 /**
@@ -63,7 +65,7 @@ function tokenOf(details: unknown): unknown {
   return (details as Record<string, unknown> | undefined)?.['code'];
 }
 
-describe('the two always-tokened organizations codes', () => {
+describe('the always-tokened organizations codes', () => {
   /**
    * Every raise of both codes passes a `details.code`, measured by balancing
    * each `HttpError` call's own parentheses and reading `details` as the
@@ -106,6 +108,27 @@ describe('the two always-tokened organizations codes', () => {
       status: 409,
       contains: '00000000-0000-4000-8000-0000000000aa',
     },
+    // `specs/177-tax-id-scope/` FR-020 — `taxIds` is an array, so the sentence names none.
+    {
+      code: 'ORGANIZATION_TREE_INVALID',
+      name: 'a move that would put a shared tax ID into a second tree',
+      refusal: taxIdSharedAcrossTreesRefusal(['PL5260250274']),
+      token: 'tax_id_shared_across_trees',
+      status: 409,
+      contains: null,
+    },
+    // `specs/177-tax-id-scope/` FR-015 — the count is the one scalar it fills.
+    {
+      code: 'ORGANIZATION_TAX_ID_SCOPE_DUPLICATES',
+      name: 'a switch to the global tax-ID scope over shared tax IDs',
+      refusal: scopeDuplicatesRefusal({
+        sharedTaxIdCount: 3,
+        examples: [{ taxId: 'PL5260250274', organizationIds: ['00000000-0000-4000-8000-0000000000ab'] }],
+      }),
+      token: 'shared_tax_ids',
+      status: 409,
+      contains: '3',
+    },
   ] as const;
 
   for (const { code, name, refusal, token, status, contains } of cases) {
@@ -139,7 +162,7 @@ describe('the two always-tokened organizations codes', () => {
     }
   }
 
-  for (const code of ['ORGANIZATION_HAS_CHILDREN', 'ORGANIZATION_TREE_INVALID'] as const) {
+  for (const code of ['ORGANIZATION_HAS_CHILDREN', 'ORGANIZATION_TREE_INVALID', 'ORGANIZATION_TAX_ID_SCOPE_DUPLICATES'] as const) {
     for (const language of LANGUAGES) {
       it(`keeps ${code}'s unreachable base sentence (${language})`, () => {
         // **This key renders for nobody, and it is load-bearing anyway** —
@@ -171,7 +194,9 @@ describe('the two always-tokened organizations codes', () => {
       'cycle',
       'max_depth_exceeded',
       'path_unreadable',
+      'tax_id_shared_across_trees',
     ]);
+    expect(produced.get('ORGANIZATION_TAX_ID_SCOPE_DUPLICATES')).toEqual(['shared_tax_ids']);
   });
 });
 

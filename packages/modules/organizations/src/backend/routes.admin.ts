@@ -24,6 +24,8 @@ import {
   type OrganizationRoleReadPort,
   type OrganizationRoleRef,
   AdminOrganizationCreateBodySchema,
+  adminTaxIdScopeSetBodySchema,
+  type AdminTaxIdScopeResponse,
   DictionaryReferenceError,
   OrganizationSalesChannelsUpdateBodySchema,
   type DictionaryValidator,
@@ -40,6 +42,10 @@ import { makeSetParentCommand } from './commands/set-parent.command.js';
 import { makeMoveCommand } from './commands/move.command.js';
 import { makeSetCreditModeCommand } from './commands/set-credit-mode.command.js';
 import { makeCreateOrganizationCommand } from './commands/create-organization.command.js';
+import { makeSetTaxIdScopeCommand } from './commands/set-tax-id-scope.command.js';
+import { TaxIdScopeService } from './services/tax-id-scope-service.js';
+import { runOrganizationWrite, taxIdExistsRefusal } from './services/organization-write.js';
+import { taxIdSharedAcrossTreesRefusal } from './services/organization-tree-service.js';
 import { Organization } from './entities/organization.entity.js';
 import { adminActorOf, organizationInReach as organizationInReachPreHandler } from './organization-reach.js';
 import { OrganizationRole } from './entities/organization-role.entity.js';
@@ -253,6 +259,48 @@ export async function registerOrganizationsAdminRoutes(
       );
     }
   };
+
+  /** D-260 — refuses unless the acting administrator is unscoped (`mode === 'all'`). */
+  const assertUnscoped = (message: string): void => {
+    const ctx = getTenantContext();
+    if (!ctx || ctx.mode !== 'all') throw new HttpError(403, ERROR_CODES.FORBIDDEN, message);
+  };
+
+  // ── Tax-ID scope (`specs/177-tax-id-scope/`, FR-014 … FR-017) ──────────────
+  // A static segment, registered before the `/:id` routes. The code alone is
+  // not enough: the scope is installation-wide, so a scoped administrator —
+  // whose reach is a subset of the installation — is refused (D-260's idiom).
+  const taxIdScopes = new TaxIdScopeService(emFactory);
+  const manageTaxIdScope = requireAdmin('organizations:manage-tax-id-scope');
+  const taxIdScopeResponse = async (): Promise<AdminTaxIdScopeResponse> => {
+    const status = await taxIdScopes.status();
+    return {
+      data: {
+        scope: status.scope,
+        updatedAt: status.updatedAt.toISOString(),
+        updatedByAdminUserId: status.updatedByAdminUserId,
+        sharedTaxIdCount: status.sharedTaxIdCount,
+        enforcement: status.enforcement,
+      },
+    };
+  };
+  const unscopedMessage = 'Only a platform administrator can read or change the tax-ID scope.';
+
+  app.get('/api/v1/admin/organizations/tax-id-scope', { preHandler: manageTaxIdScope }, async () => {
+    assertUnscoped(unscopedMessage);
+    return taxIdScopeResponse();
+  });
+
+  app.put(
+    '/api/v1/admin/organizations/tax-id-scope',
+    { preHandler: manageTaxIdScope, schema: { body: adminTaxIdScopeSetBodySchema } },
+    async (request) => {
+      assertUnscoped(unscopedMessage);
+      const body = adminTaxIdScopeSetBodySchema.parse(request.body);
+      await deps.commandBus.run(makeSetTaxIdScopeCommand({ scopes: taxIdScopes }, { scope: body.scope }));
+      return taxIdScopeResponse();
+    },
+  );
 
   app.get(
     '/api/v1/admin/organizations',
@@ -535,9 +583,20 @@ export async function registerOrganizationsAdminRoutes(
         },
         async (request, reply) => {
           const body = AdminOrganizationCreateBodySchema.parse(request.body);
+          // `specs/177-tax-id-scope/` FR-018 — naming a parent is parentage, the
+          // tenancy graph: an unscoped administrator only (D-260, as the parent
+          // route below).
+          if (body.parentId !== undefined) assertUnscoped('Only a platform administrator can create an organization under a parent.');
           await assertCountryAvailable(dictionaryValidator, body.registeredAddress.country);
           await assertSalesChannelsExist(emFactory(), body.salesChannelIds);
-          const org = await commandBus.run(makeCreateOrganizationCommand({ membership }, body));
+          const org = await runOrganizationWrite(
+            commandBus,
+            makeCreateOrganizationCommand(
+              { membership, ...(deps.treeService ? { tree: deps.treeService } : {}) },
+              body,
+            ),
+            () => taxIdExistsRefusal(),
+          );
           reply.status(201);
           return { data: serializeOrg(org) };
         },
@@ -1068,7 +1127,11 @@ export async function registerOrganizationsAdminRoutes(
           wasChild && body.parentId !== null
             ? makeMoveCommand({ tree: treeService }, input)
             : makeSetParentCommand({ tree: treeService }, input);
-        const updated = await commandBus.run(command);
+        // The deferred `per-tree-root` constraint answers at commit, as the
+        // pre-check would have (`specs/177-tax-id-scope/` FR-021).
+        const updated = await runOrganizationWrite(commandBus, command, () =>
+          taxIdSharedAcrossTreesRefusal([]),
+        );
         return { data: serializeOrg(updated) };
       },
     );

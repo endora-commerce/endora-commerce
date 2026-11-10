@@ -1,11 +1,15 @@
 import { randomUUID } from 'node:crypto';
 import { afterAll, beforeAll, describe, expect, it } from 'vitest';
-import type { OrganizationDetailsPort, TaxIdResolution } from '@endora-commerce/contracts';
+import type { EntityManager } from '@mikro-orm/postgresql';
+import type { OrganizationDetailsPort, TaxIdResolution, TaxIdScope } from '@endora-commerce/contracts';
+import type { Command } from '@endora-commerce/platform/commands';
 import {
   setupBackendServer,
   teardownBackendServer,
   type BackendServerHandle,
 } from '../../helpers/test-server.js';
+import { TaxIdScopeService } from '../../../../packages/modules/organizations/src/backend/services/tax-id-scope-service.js';
+import { makeSetTaxIdScopeCommand } from '../../../../packages/modules/organizations/src/backend/commands/set-tax-id-scope.command.js';
 
 /**
  * `specs/177-tax-id-scope/` T013 (FR-023, US4) — `findByTaxId` /
@@ -13,12 +17,11 @@ import {
  * table in both scopes.
  *
  * The port reads through its own `EntityManager`, so the fixtures are committed
- * with tax IDs no other test uses. The `per-tree-root` block installs that
- * scope's database enforcement the way the scope Command will (WP-3) — the
- * exclusion constraint in, the unique constraint out, the policy row updated —
- * and puts the database back as it found it afterwards: its fixtures are
- * deleted first, because the unique constraint cannot return over shared tax
- * IDs. Each worker owns its database clone, so no other file sees the swap.
+ * with tax IDs no other test uses. The `per-tree-root` block switches to that
+ * scope through `organization.tax_id_scope.set` and puts back the scope it
+ * found afterwards: its fixtures are deleted first, because the unique
+ * constraint cannot return over shared tax IDs. Each worker owns its database
+ * clone, so no other file sees the swap.
  */
 describe('organizationDetailsPort — lookups by tax ID', () => {
   let h: BackendServerHandle;
@@ -139,23 +142,15 @@ describe('organizationDetailsPort — lookups by tax ID', () => {
   describe('in per-tree-root', () => {
     let swapped = false;
 
+    const setScope = (scope: TaxIdScope) =>
+      (h.container.cradle as unknown as { commandBus: { run<T>(command: Command<T>): Promise<T> } }).commandBus.run(
+        makeSetTaxIdScopeCommand({ scopes: new TaxIdScopeService(() => h.em().fork() as EntityManager) }, { scope }),
+      );
+
     beforeAll(async () => {
       if ((await currentScope()) === 'per-tree-root') return;
       swapped = true;
-      await sql(`
-        do $$
-        begin
-          lock table "organizations" in share row exclusive mode;
-          if not exists (select 1 from pg_constraint where conrelid = 'organizations'::regclass
-                           and conname = 'organizations_tax_id_one_tree') then
-            alter table "organizations" add constraint "organizations_tax_id_one_tree"
-              exclude using gist ("tax_id" with =, "root_id" with <>) deferrable initially deferred;
-          end if;
-          alter table "organizations" drop constraint if exists "organizations_tax_id_unique";
-          update "organization_tax_id_policy" set "scope" = 'per-tree-root', "updated_at" = now() where "id";
-        end
-        $$;
-      `);
+      await setScope('per-tree-root');
     });
 
     afterAll(async () => {
@@ -163,32 +158,16 @@ describe('organizationDetailsPort — lookups by tax ID', () => {
       try {
         // Leaves first, level by level: `parent_id` is ON DELETE RESTRICT.
         for (let depth = 0; depth < 5; depth += 1) {
-        await sql(
-          `delete from "organizations" o where o."id" = any(?::uuid[])
-             and not exists (select 1 from "organizations" c where c."parent_id" = o."id")`,
+          await sql(
+            `delete from "organizations" o where o."id" = any(?::uuid[])
+               and not exists (select 1 from "organizations" c where c."parent_id" = o."id")`,
             [`{${created.join(',')}}`],
           );
         }
       } finally {
-        await restoreGlobal();
+        await setScope('global');
       }
     });
-
-    async function restoreGlobal(): Promise<void> {
-      await sql(`
-        do $$
-        begin
-          lock table "organizations" in share row exclusive mode;
-          if not exists (select 1 from pg_constraint where conrelid = 'organizations'::regclass
-                           and conname = 'organizations_tax_id_unique') then
-            alter table "organizations" add constraint "organizations_tax_id_unique" unique ("tax_id");
-          end if;
-          alter table "organizations" drop constraint if exists "organizations_tax_id_one_tree";
-          update "organization_tax_id_policy" set "scope" = 'global', "updated_at" = now() where "id";
-        end
-        $$;
-      `);
-    }
 
     it('lists the root first, then by depth, creation time and id; resolves to the root (US4 #3)', async () => {
       const taxId = uniqueTaxId();
