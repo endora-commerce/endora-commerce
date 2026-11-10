@@ -95,8 +95,12 @@ export interface MigrationRegistryEntry {
   moduleId: string;
   /** The migration class. `cls.name` IS the migration name persisted in the DB. */
   cls: MigrationObject['class'];
-  /** Absent means `'core'`; a producer outside the committed registry sets `'external'`. */
-  origin?: 'core' | 'external';
+  /**
+   * Absent means `'core'`; a producer outside the committed registry sets
+   * `'external'`, and the platform's generated schema-extension step
+   * `'generated'` (`specs/178-extensible-columns/` FR-020).
+   */
+  origin?: 'core' | 'external' | 'generated';
 }
 
 /** An installed package's manifest plus where on disk it came from. */

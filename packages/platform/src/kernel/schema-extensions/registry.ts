@@ -1,4 +1,6 @@
 import type { ColumnExtension } from './types.js';
+import type { ExtensibleHostSet } from './extensible-hosts.js';
+import type { MigrationOwnership } from '../../lifecycle/services/migration-ownership.js';
 
 /**
  * What the platform's ORM configuration resolved about declared extensions, for
@@ -14,7 +16,15 @@ import type { ColumnExtension } from './types.js';
  */
 
 const projectionNames = new WeakMap<ColumnExtension, string>();
-let active: readonly ColumnExtension[] = [];
+
+/** What the verifier needs beside the declarations: who owns each host, and their chains. */
+export interface SchemaExtensionContext {
+  readonly declarations: readonly ColumnExtension[];
+  readonly hosts: ExtensibleHostSet;
+  readonly ownership: MigrationOwnership | null;
+}
+
+let active: SchemaExtensionContext = { declarations: [], hosts: new Map(), ownership: null };
 
 /** Recorded by the projection builder. */
 export function recordProjectionEntityName(declaration: ColumnExtension, entityName: string): void {
@@ -41,11 +51,16 @@ export function projectionEntityNameOf(declaration: ColumnExtension): string {
 }
 
 /** Recorded by the ORM configuration: every declaration it validated and projected. */
-export function recordActiveSchemaExtensions(declarations: readonly ColumnExtension[]): void {
-  active = [...declarations];
+export function recordActiveSchemaExtensions(context: SchemaExtensionContext): void {
+  active = { ...context, declarations: [...context.declarations] };
 }
 
 /** Every declaration the ORM configuration of this process registered. */
 export function activeSchemaExtensions(): readonly ColumnExtension[] {
+  return active.declarations;
+}
+
+/** The declarations plus the host and ownership facts the verifier reads. */
+export function activeSchemaExtensionContext(): SchemaExtensionContext {
   return active;
 }

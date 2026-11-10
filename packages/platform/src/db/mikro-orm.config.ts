@@ -139,7 +139,11 @@ export function mikroOrmConfigFrom(inputs: OrmConfigurationInputs): Options {
   // only sometimes would be two configurations to reason about.
   const declarations = projectedDeclarations(inputs);
   const projections = schemaExtensionProjections(declarations, inputs.entities);
-  recordActiveSchemaExtensions(declarations);
+  recordActiveSchemaExtensions({
+    declarations,
+    hosts: inputs.extensibleHosts ?? rolledOutExtensibleHosts(),
+    ownership: inputs.migrations.ownership,
+  });
 
   return defineConfig({
     clientUrl: databaseUrl(),

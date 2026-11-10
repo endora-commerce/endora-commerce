@@ -2,6 +2,7 @@ import { dirname } from 'node:path';
 import type { EntityManager, MikroORM } from '@mikro-orm/postgresql';
 import type { IMigrator } from '@mikro-orm/core';
 import type { Redis } from 'ioredis';
+import { migrateUpVerified } from '../../db/migrate.js';
 import { settingsManifestWithRecentActivity } from '@endora-commerce/contracts';
 import type {
   ModuleInstallHook,
@@ -278,7 +279,13 @@ export class ModuleLifecycleOrchestrator {
         const migrator = await this.migrator();
         const pendingBefore = await migrator.getPendingMigrations();
         if (pendingBefore.length > 0) {
-          const applied = await migrator.up();
+          // `specs/178-extensible-columns/` FR-025 — verified against the
+          // declared extension columns inside the run's own transaction. A
+          // substituted migrator (`migratorFor`, a test seam) is driven as given.
+          const applied =
+            this.deps.migratorFor === undefined
+              ? await migrateUpVerified(this.deps.orm)
+              : await migrator.up();
           appliedMigrations = applied.map((m) => m.name);
         }
 

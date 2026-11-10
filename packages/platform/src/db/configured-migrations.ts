@@ -16,6 +16,12 @@ import {
   PLATFORM_MIGRATION_ENTRIES,
   mergeByIdentity,
 } from './platform-schema.js';
+import { schemaExtensionEntries } from './schema-extension-migration.js';
+import {
+  rolledOutExtensibleHosts,
+  type ExtensibleHostSet,
+} from '../kernel/schema-extensions/extensible-hosts.js';
+import { SchemaExtensionInvalidError } from '../kernel/schema-extensions/errors.js';
 
 /**
  * The migration order this platform runs, as a value — with no database in it.
@@ -205,10 +211,42 @@ export function configuredMigrationsFrom(inputs: {
    * instead of becoming a sentence in a doc block.
    */
   readonly baseline?: readonly string[];
+  /**
+   * The extensible hosts in force for the generated schema-extension steps.
+   * Defaults to the rolled-out list (`specs/178-extensible-columns/` FR-011); a
+   * test passes a throwaway host here.
+   */
+  readonly extensibleHosts?: ExtensibleHostSet;
 }): ConfiguredMigrations {
+  // `specs/178-extensible-columns/` FR-020 — one generated step per installed
+  // module that declares extension columns, at the head of that module's block.
+  // V2 is asked here, before any DDL can be generated for a host that is not
+  // rolled out; the ORM configuration asks it again of the same packages.
+  const hosts = inputs.extensibleHosts ?? rolledOutExtensibleHosts();
+  for (const contribution of inputs.packages) {
+    for (const declaration of contribution.schemaExtensions) {
+      if (!hosts.has(declaration.host)) {
+        throw new SchemaExtensionInvalidError(
+          'host-not-extensible',
+          declaration.module,
+          null,
+          `"${declaration.host}" is not extensible on this platform; extensible hosts: ` +
+            `${[...hosts.keys()].sort().join(', ') || '(none)'} (declared in ${contribution.packageName})`,
+        );
+      }
+    }
+  }
+  const generated = schemaExtensionEntries(
+    inputs.packages.map((contribution) => ({
+      moduleId: contribution.id,
+      version: contribution.version,
+      declarations: contribution.schemaExtensions,
+    })),
+  );
   const entries: MigrationRegistryEntry[] = [
     ...inputs.coreEntries,
     ...inputs.packages.flatMap((contribution) => contribution.migrations),
+    ...generated,
   ];
   const moduleDependencies = new Map(inputs.coreModuleDependencies);
   // A package's own module is a node in the graph like any other, so its chain
