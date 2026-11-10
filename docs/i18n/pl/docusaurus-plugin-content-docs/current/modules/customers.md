@@ -46,7 +46,8 @@ zamiast być wyłączane jako przypadek szczególny.
   administrator platformy może działać na każdym kliencie; poza nim uprawniony jest handlowiec
   przypisany do organizacji klienta. Organizacja prywatna nigdy nie ma przypisanego handlowca, więc
   reguła dla nieprzypisanych organizacji sprawia, że samodzielnym klientem może zająć się dowolny
-  handlowiec. Zabezpieczenie odmawia zablokowania, usunięcia lub odłączenia ostatniego aktywnego
+  handlowiec — na liście klientów, na ekranie klienta i przy każdym odczycie objętym izolacją, a nie
+  tylko przy tych akcjach, bo reguła zasięgu jest jedna na wszystkich ekranach (zgłoszenie #305). Zabezpieczenie odmawia zablokowania, usunięcia lub odłączenia ostatniego aktywnego
   członka z rolą Administrator organizacji firmowej (`409 ORG_OWNER_DEPLETION`);
   zablokowani administratorzy się nie liczą. Nie dotyczy
   organizacji prywatnej, której jedyny członek ma rolę Administrator: zablokowanie lub usunięcie
@@ -103,6 +104,15 @@ usunięta.
 Zadanie usuwa też uzasadnienia, które operatorzy i osoby akceptujące podali, odrzucając koszyki tego
 konta; każdy koszyk zachowuje swój status. Co jest usuwane, a co zostaje, opisuje moduł koszyków
 (*Przechowywanie historii zmian*).
+
+Zadanie czyści też zapis, który platforma prowadzi o każdym e-mailu wysłanym na adres tego konta.
+W każdym takim zapisie usuwane są adres, temat, kontekst wiadomości (który może zawierać powód
+odrzucenia) oraz treść błędu serwera pocztowego. Zapis zachowuje informację, który to był e-mail,
+kiedy próbowano go wysłać i czy został wysłany, więc operator nadal może sprawdzić, czy wiadomość
+wyszła. Każdy zmieniony zapis otrzymuje jeden wpis audytu `email_delivery.anonymized`, zapisany
+przez system, bez żadnych innych danych. Adres jest porównywany bez względu na wielkość liter.
+Zapisy e-maili wysłanych do konta zanonimizowanego przed tym wydaniem nie są objęte, bo adres
+takiego konta jest już usunięty.
 
 Zadanie uruchamia się raz dziennie w procesie workera i tylko wtedy, gdy moduł jest włączony, więc
 konto zostaje zanonimizowane najpóźniej dzień po upływie okresu. Gdy moduł jest wyłączony, zadanie

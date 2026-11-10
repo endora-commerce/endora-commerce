@@ -47,12 +47,12 @@ describe('decideFileResponse — refusals', () => {
     });
   });
 
-  it.each(['local', 's3', 'gcs'] as const)('private by id without a valid signature → 403 on %s, no Location', (backend) => {
+  // Issue #542: by id too, an existing private asset is indistinguishable from
+  // a missing one — the same status, code, body and headers.
+  it.each(['local', 's3', 'gcs'] as const)('private by id without a valid signature → exactly the no-row answer (%s), no Location', (backend) => {
     const d = decide({ row: row({ visibility: 'private', storageBackend: backend }) });
-    expect(d.status).toBe(403);
+    expect(d).toEqual(decide({ row: null }));
     expect(d).not.toHaveProperty('location');
-    expect(d.headers).toEqual(REFUSAL);
-    expect(d.body).toMatchObject({ code: 'ASSET_ACCESS_DENIED' });
   });
 
   it.each(['local', 's3', 'gcs'] as const)('private by permalink without a valid signature → exactly the no-row answer (%s)', (backend) => {
@@ -60,9 +60,9 @@ describe('decideFileResponse — refusals', () => {
     expect(d).toEqual(decide({ form: 'permalink', row: null }));
   });
 
-  it('a soft-deleted private asset: 403 by id and 404 by permalink without a signature, 410 with one', () => {
+  it('a soft-deleted private asset: the no-row 404 by id and by permalink without a signature, 410 with one', () => {
     const deleted = row({ visibility: 'private', deletedAt: new Date() });
-    expect(decide({ row: deleted }).status).toBe(403);
+    expect(decide({ row: deleted })).toEqual(decide({ row: null }));
     expect(decide({ row: deleted, form: 'permalink' })).toEqual(decide({ row: null }));
     expect(decide({ row: deleted, signatureValid: true }).status).toBe(410);
     expect(decide({ row: deleted, form: 'permalink', signatureValid: true }).status).toBe(410);
@@ -84,7 +84,7 @@ describe('decideFileResponse — refusals', () => {
   it('an unsigned request on a private asset carrying its current ETag is refused, never 304', () => {
     const priv = row({ visibility: 'private' });
     const etag = `"${ID}-${CV}"`;
-    expect(decide({ row: priv, ifNoneMatch: etag }).status).toBe(403);
+    expect(decide({ row: priv, ifNoneMatch: etag }).status).toBe(404);
     expect(decide({ row: priv, ifNoneMatch: etag, form: 'permalink' }).status).toBe(404);
   });
 });
@@ -95,11 +95,30 @@ describe('decideFileResponse — private with a valid signature', () => {
     expect(d.status).toBe(200);
     expect(d.headers['Cache-Control']).toBe('private, no-store, max-age=0');
     expect(d.headers).not.toHaveProperty('Cross-Origin-Resource-Policy');
+    const conditional = decide({ row: row({ visibility: 'private' }), signatureValid: true, ifNoneMatch: `"${ID}-${CV}"` });
+    expect(conditional.status).toBe(304);
+    expect(conditional.headers).not.toHaveProperty('Cross-Origin-Resource-Policy');
   });
 
   it.each(['s3', 'gcs'] as const)('%s → 302 to the time-limited URL, no-store', (backend) => {
     const d = decide({ row: row({ visibility: 'private', storageBackend: backend }), signatureValid: true });
-    expect(d).toEqual({ status: 302, headers: REFUSAL, body: 'none', location: { kind: 'private-signed' } });
+    expect(d).toEqual({
+      status: 302,
+      headers: REFUSAL,
+      body: 'none',
+      location: { kind: 'private-signed', download: false },
+    });
+  });
+
+  // Issue #815: the signed URL is asked for an attachment exactly when a local
+  // response would be one by request.
+  it.each(['s3', 'gcs'] as const)('%s with download=1 → the signed URL is asked for an attachment', (backend) => {
+    const d = decide({
+      row: row({ visibility: 'private', storageBackend: backend }),
+      signatureValid: true,
+      query: { download: '1' },
+    });
+    expect(d).toMatchObject({ status: 302, location: { kind: 'private-signed', download: true } });
   });
 });
 
@@ -140,6 +159,7 @@ describe('decideFileResponse — public, local', () => {
     const conditional = decide({ ifNoneMatch: `"${ID}-${CV}"` });
     expect(conditional.status).toBe(304);
     expect(conditional.headers['Content-Security-Policy']).toBe(SANDBOX_CSP);
+    expect(conditional.headers['Cross-Origin-Resource-Policy']).toBe('cross-origin');
   });
 
   it('current v → immutable for a year', () => {
@@ -193,7 +213,7 @@ describe('decideFileResponse — If-None-Match forms', () => {
 
   it('still never answers 304 to an unsigned request on a private asset', () => {
     const priv = row({ visibility: 'private' });
-    expect(decide({ row: priv, ifNoneMatch: `W/${etag}` }).status).toBe(403);
+    expect(decide({ row: priv, ifNoneMatch: `W/${etag}` }).status).toBe(404);
     expect(decide({ row: priv, ifNoneMatch: '*', form: 'permalink' }).status).toBe(404);
   });
 });

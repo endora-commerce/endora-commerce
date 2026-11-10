@@ -7,6 +7,7 @@ import {
   type CmsPageIndexEntry,
   type CmsPageTranslations,
   type CmsResolvedBlock,
+  type CmsResolvedBlockByCode,
   type CmsResolvedHook,
   type CmsResolvedPage,
   type CmsResolvedTemplate,
@@ -487,7 +488,7 @@ export class StorefrontResolver {
     resolvedChannel: ResolvedChannel;
     language?: string | undefined;
     code: string;
-  }): Promise<CmsResolvedBlock | null> {
+  }): Promise<CmsResolvedBlockByCode | null> {
     const em = this.emFactory();
     const channel = toChannelRow(input.resolvedChannel);
 
@@ -513,13 +514,13 @@ export class StorefrontResolver {
     const language = this.resolveLanguage(block, input.language, channel.default_language);
     if (!language) return null;
 
-    const resolved: CmsResolvedBlock = {
+    const data = block.content.languages?.[language] ?? {};
+    const resolved: CmsResolvedBlockByCode = {
       id: block.id,
       code: block.code,
       language,
-      content: {
-        data: block.content.languages?.[language] ?? {},
-      },
+      content: { data },
+      assets: await this.resolveAssetsForTrees([data]),
     };
     if (this.cache) {
       await this.cache.setBlock(input.code, channel.code, cacheLanguage, resolved);
@@ -595,7 +596,9 @@ export class StorefrontResolver {
       });
     }
 
-    const resolved: CmsResolvedHook = { hookCode: hook.code, blocks };
+    // One batch for every block's tree (issue #685), never a read per block or per image.
+    const assets = await this.resolveAssetsForTrees(blocks.map((block) => block.content.data));
+    const resolved: CmsResolvedHook = { hookCode: hook.code, blocks, assets };
     if (this.cache) {
       await this.cache.setHook(input.code, channel.code, cacheLanguage, resolved);
     }

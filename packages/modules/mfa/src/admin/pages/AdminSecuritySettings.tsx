@@ -26,6 +26,12 @@ interface MfaStatus {
   totpActive: boolean;
   recoveryCodesRemaining: number;
   totpEnabledForScope: boolean;
+  /**
+   * Issue #935 — the server's verdict on switching the factor off: refused
+   * while it is the last one and a setting or the admin's role requires it.
+   */
+  canDisable: boolean;
+  disableBlockedReason: 'factor_required' | null;
 }
 
 const BASE = '/api/v1/admin/account/mfa';
@@ -155,13 +161,21 @@ export default function AdminSecuritySettings(): ReactNode {
               <p className="text-sm">
                 Two-step verification is <strong>enabled</strong>. Unused recovery codes: {status.recoveryCodesRemaining}.
               </p>
-              <form className="space-y-2" onSubmit={disable}>
-                <Label htmlFor="disable-code">Enter a current code to disable two-step verification</Label>
-                <Input id="disable-code" value={code} onChange={(e): void => setCode(e.target.value)} required />
-                <Button type="submit" variant="destructive" disabled={busy}>
-                  Disable two-step verification
-                </Button>
-              </form>
+              {status.canDisable ? (
+                <form className="space-y-2" onSubmit={disable}>
+                  <Label htmlFor="disable-code">Enter a current code to disable two-step verification</Label>
+                  <Input id="disable-code" value={code} onChange={(e): void => setCode(e.target.value)} required />
+                  <Button type="submit" variant="destructive" disabled={busy}>
+                    Disable two-step verification
+                  </Button>
+                </form>
+              ) : (
+                <Alert data-testid="mfa-disable-blocked">
+                  <ShieldCheck className="size-4" />
+                  <AlertTitle>{t('security.disableBlocked.title')}</AlertTitle>
+                  <AlertDescription>{t('security.disableBlocked.body')}</AlertDescription>
+                </Alert>
+              )}
               <form className="space-y-2" onSubmit={regenerate}>
                 <Label htmlFor="regen-code">Enter a current code to regenerate recovery codes</Label>
                 <Input id="regen-code" value={code} onChange={(e): void => setCode(e.target.value)} required />

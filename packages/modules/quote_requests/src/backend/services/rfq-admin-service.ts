@@ -33,7 +33,7 @@ import { HttpError } from '@endora-commerce/platform/http';
 import { recordAuditFromContext } from '@endora-commerce/platform/commands';
 import type { AuditPort } from '@endora-commerce/platform/kernel';
 import type { SalesChannelMembershipPort } from '@endora-commerce/platform/kernel';
-import { orgConstraintFor } from '@endora-commerce/platform/tenancy';
+import { orgConstraintFor, orgScopeSql, reachesNoOrganization } from '@endora-commerce/platform/tenancy';
 import type {
   QuoteRequestAdminSearchQuery,
   QuoteRequestAdminSearchRow,
@@ -48,6 +48,7 @@ import type { RfqEventService } from './rfq-event-service.js';
 import type { RfqRevisionService } from './rfq-revision-service.js';
 import type { RfqNotificationService } from './rfq-notification-service.js';
 import { raisedOnChannelId } from './raised-on-channel.js';
+import { adminCanSeeOrganization } from './admin-org-visibility.js';
 import { hasUnpricedLine, quoteIncompleteError, unitPriceText } from './agreed-price.js';
 import { listTotal } from './summarize.js';
 import { quoteRequestAmount } from './quote-amount.js';
@@ -80,7 +81,12 @@ import {
  *   - createOnBehalf       (US4)
  *
  * Visibility scoping is centralised in `SalesRepAssignmentService.canSeeOrganization`
- * (research §R2). Platform admins skip the predicate.
+ * (research §R2), and only a `sales_representative` is narrowed by it (issue
+ * #957): every other role — `platform_admin` or a custom role — resolves a
+ * platform-wide tenant scope and sees every organization, as on every other
+ * surface. The reads apply it through the tenant filter, which for a
+ * representative *is* that rule (issue #305); the checks that name an
+ * organization directly use `adminCanSeeOrganization`.
  */
 
 /**
@@ -91,6 +97,10 @@ export const HISTORY_EVENT_WINDOW = QUOTE_REQUEST_HISTORY_EVENT_WINDOW;
 
 export interface AdminContext {
   adminUserId: string;
+  /**
+   * The literal `platform_admin` role. It no longer decides what this service
+   * lets the actor see — the tenant scope does (issue #957).
+   */
   isPlatformAdmin: boolean;
   /** Display label embedded in event records ('Sales representative', 'Platform administrator', …) */
   roleLabel: string;
@@ -231,19 +241,12 @@ export class RfqAdminService {
       });
     }
 
+    // Visibility is the tenant filter's: a sales representative's scope is
+    // the `canSeeOrganization` rule, every other role's is every organization
+    // (issue #957).
     let rfqs: QuoteRequest[] = await em.find(QuoteRequest, where, {
       orderBy: { createdAt: 'desc' },
     });
-
-    // Visibility scoping (skipped for platform admin)
-    if (!ctx.isPlatformAdmin) {
-      const visible = await Promise.all(
-        rfqs.map((r) =>
-          this.deps.salesRepAssignment.canSeeOrganization(ctx.adminUserId, r.organizationId),
-        ),
-      );
-      rfqs = rfqs.filter((_, i) => visible[i]);
-    }
 
     if (filter.scope === 'mine') {
       const assigned = new Set(
@@ -322,24 +325,17 @@ export class RfqAdminService {
   /**
    * Global search over quote requests (`specs/150-admin-global-search/`, T032).
    *
-   * The list's visibility, **in the statement** — not `listAll`'s shape, which
-   * loads every row and filters the organization scope in memory. Two layers,
-   * the same two the list applies:
-   *
-   *  1. the request's tenant scope (`orgConstraintFor()`), the reach
-   *     `adminTenantScopePort` derives for this admin;
-   *  2. for any role other than the platform administrator, the sales
-   *     representative rule (`canSeeOrganization`: assigned, or an organization
-   *     nobody is assigned to). It is asked of the **distinct organizations
-   *     that have a matching quote request** — a bounded set — and the page is
-   *     then read with `organization_id in (visible)`.
+   * The list's visibility, **in the statement**: the request's tenant scope
+   * (`orgConstraintFor()`), the reach `adminTenantScopePort` derives for this
+   * admin. For a sales representative that is the `canSeeOrganization` rule
+   * (issue #305); every other role — `platform_admin` or a custom one —
+   * reaches every organization (issue #957).
    *
    * Matching, ranking and the `limit + 1` page follow the other providers:
    * literal `likeEscaped` patterns, exact → prefix → rest on the number, then
    * most recent change, then id.
    */
   async searchForAdmin(
-    ctx: AdminContext,
     query: QuoteRequestAdminSearchQuery,
   ): Promise<{ rows: QuoteRequestAdminSearchRow[]; hasMore: boolean }> {
     const fields = new Set(query.fields);
@@ -358,40 +354,21 @@ export class RfqAdminService {
     if (matches.length === 0) return { rows: [], hasMore: false };
 
     const constraint = orgConstraintFor();
-    const tenantOrgIds =
-      constraint.kind === 'all'
-        ? null
-        : constraint.kind === 'set'
-          ? [...constraint.organizationIds]
-          : constraint.organizationId === null
-            ? []
-            : [constraint.organizationId];
-    if (tenantOrgIds !== null && tenantOrgIds.length === 0) return { rows: [], hasMore: false };
+    if (reachesNoOrganization(constraint)) return { rows: [], hasMore: false };
+    // The platform's predicate for the reach (issue #305): a sales
+    // representative's is every organization nobody else governs.
+    const tenantReach = constraint.kind === 'all' ? null : orgScopeSql('organization_id', constraint);
 
     const em = this.deps.emFactory();
     const knex = em.getKnex();
-    const matching = (extraOrgIds: readonly string[] | null) =>
-      knex('quote_requests').where((qb) => {
-        if (tenantOrgIds !== null) qb.whereIn('organization_id', tenantOrgIds);
-        if (extraOrgIds !== null) qb.whereIn('organization_id', [...extraOrgIds]);
+    const builder = knex('quote_requests')
+      .where((qb) => {
+        if (tenantReach !== null) qb.whereRaw(tenantReach.sql, [...tenantReach.params] as Knex.RawBinding[]);
         qb.andWhere((or) => {
           for (const match of matches) match(or);
         });
-      });
-
-    let visibleOrgIds: string[] | null = null;
-    if (!ctx.isPlatformAdmin) {
-      const candidates = (
-        (await em.execute(matching(null).distinct('organization_id'))) as Array<{ organization_id: string }>
-      ).map((r) => r.organization_id);
-      const visible = await Promise.all(
-        candidates.map((id) => this.deps.salesRepAssignment.canSeeOrganization(ctx.adminUserId, id)),
-      );
-      visibleOrgIds = candidates.filter((_, i) => visible[i]);
-      if (visibleOrgIds.length === 0) return { rows: [], hasMore: false };
-    }
-
-    const builder = matching(visibleOrgIds).select('id');
+      })
+      .select('id');
     const exact: string[] = [];
     const bindings: unknown[] = [];
     if (query.isUuid) {
@@ -982,11 +959,9 @@ export class RfqAdminService {
   ): Promise<RfqDto> {
     const em = this.deps.emFactory();
 
-    // Visibility on the target organization (platform_admin always passes).
-    if (
-      !ctx.isPlatformAdmin &&
-      !(await this.deps.salesRepAssignment.canSeeOrganization(ctx.adminUserId, body.organizationId))
-    ) {
+    // Visibility on the target organization: only a sales representative is
+    // narrowed (issue #957).
+    if (!(await adminCanSeeOrganization(this.deps.salesRepAssignment, ctx.adminUserId, body.organizationId))) {
       throw new HttpError(403, ERROR_CODES.FORBIDDEN, 'Not authorized for this organization.');
     }
 
@@ -1204,10 +1179,7 @@ export class RfqAdminService {
     if (!isUuidShape(rfqId)) throw notFound();
     const rfq = await em.findOne(QuoteRequest, { id: rfqId });
     if (!rfq) throw notFound();
-    if (
-      !ctx.isPlatformAdmin &&
-      !(await this.deps.salesRepAssignment.canSeeOrganization(ctx.adminUserId, rfq.organizationId))
-    ) {
+    if (!(await adminCanSeeOrganization(this.deps.salesRepAssignment, ctx.adminUserId, rfq.organizationId))) {
       throw notFound();
     }
     return rfq;

@@ -475,7 +475,6 @@ export const ERROR_CODES = {
   ASSET_LEGACY_LOCATOR_CANNOT_HARDEN: 'ASSET_LEGACY_LOCATOR_CANNOT_HARDEN',
   ASSET_FILE_MISSING: 'ASSET_FILE_MISSING',
   ASSET_GONE: 'ASSET_GONE',
-  ASSET_ACCESS_DENIED: 'ASSET_ACCESS_DENIED',
   // Assets Library — stable asset URLs (specs/156-asset-stable-url/)
   ASSET_REPLACE_KIND_MISMATCH: 'ASSET_REPLACE_KIND_MISMATCH',
   ASSET_LEGACY_CANNOT_REPLACE: 'ASSET_LEGACY_CANNOT_REPLACE',
@@ -660,6 +659,14 @@ export const ERROR_CODES = {
   // credential is refused: an account created by a social sign-in holds a
   // random password nobody knows, so the link is the way back in.
   MFA_SOCIAL_LAST_CREDENTIAL: 'MFA_SOCIAL_LAST_CREDENTIAL',
+  /**
+   * Issue #935 — removing the account's last second factor is refused while
+   * a requirement is in force: `mfa.admin.totp_enforced` or a role's
+   * `requiresTwoFactor` for an administrator, `mfa.storefront.totp_enforced`
+   * at the request's sales channel or the organization's policy for a
+   * customer. Raised by the self-service `POST …/mfa/disable`.
+   */
+  MFA_LAST_FACTOR_REQUIRED: 'MFA_LAST_FACTOR_REQUIRED',
   // Feature 055 — Custom Fields Layer.
   CUSTOM_FIELD_NOT_FOUND: 'CUSTOM_FIELD_NOT_FOUND',
   CUSTOM_FIELD_KEY_CONFLICT: 'CUSTOM_FIELD_KEY_CONFLICT',

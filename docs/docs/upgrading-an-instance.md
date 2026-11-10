@@ -4378,6 +4378,183 @@ earlier, by the pull requests that made each change. No instance had been upgrad
 `pnpm run upgrade 0.110.0` when it was written; the order of the steps and the storefront edits are
 untried.
 
+### One sales-representative reach rule on every surface {#sales-rep-reach-one-rule}
+
+The release that ships this change applies one reach rule for sales representatives on every admin
+surface (issue #305). A sales representative reaches every Organization **not governed by another
+representative**: the ones assigned to them (with `organizations:rollup`, their subtrees, the nearest
+assignment winning) and every Organization nobody is assigned to. Until now the Organization screens
+followed that rule while the tenant-scoped reads — members, customers, orders, invoices, carts,
+returns, quote requests — followed only the assignments, and the Organizations list and admin search
+showed every Organization. Two things change for every sales representative:
+
+- **They gain the tenant data of every unassigned Organization**, personal (B2C) Organizations
+  included: no representative can be assigned to a personal Organization, so every representative now
+  reads and acts on every B2C customer's orders, invoices, carts and returns. The owner confirmed this
+  on 2026-11-08.
+- **The Organizations list, its pickers and admin search lose the Organizations assigned to other
+  representatives.** They used to show them, and opening one answered `404`.
+
+Nothing is migrated and nothing needs configuring; platform administrators see no change.
+
+**After upgrading:**
+
+1. **See what changes for each representative.** Run this read-only query. Per sales representative,
+   `gains_tenant_data_of` counts the Organizations whose members, orders, invoices, carts, returns and
+   quote requests they now reach (`of_which_personal` of them B2C), and `leaves_list_and_search` the
+   business Organizations the list and admin search no longer show them:
+
+   ```sql
+   with reps as (
+     select au.id, au.email,
+            (ar.permissions ? 'organizations:rollup' or ar.permissions ? '*') as rollup
+     from admin_users au
+     join admin_roles ar on ar.id = au.admin_role_id
+     where ar.code = 'sales_representative' and au.deleted_at is null
+   ),
+   gov as (
+     select a.organization_id as id, o.path, array_agg(a.admin_user_id) as reps
+     from organization_sales_rep_assignments a
+     join organizations o on o.id = a.organization_id
+     group by a.organization_id, o.path
+   ),
+   orgs as (
+     select o.id, o.is_personal,
+            (select g.reps from gov g where g.id = o.id) as own_reps,
+            (select g.reps from gov g
+              where o.path like g.path || '%'
+              order by length(g.path) desc limit 1) as nearest_reps
+     from organizations o
+     where o.deleted_at is null
+   ),
+   decided as (
+     select r.email, o.is_personal,
+            case when r.rollup then o.nearest_reps else o.own_reps end as governed_by,
+            r.id as rep_id
+     from reps r cross join orgs o
+   )
+   select email as sales_representative,
+          count(*) filter (where governed_by is null) as gains_tenant_data_of,
+          count(*) filter (where governed_by is null and is_personal) as of_which_personal,
+          count(*) filter (where governed_by is not null and not is_personal
+                             and not (rep_id = any (governed_by))) as leaves_list_and_search
+   from decided
+   group by email
+   order by email;
+   ```
+
+2. **If a representative must not reach an unassigned Organization**, assign it to the
+   representative who looks after it: it is then governed, and every other representative loses it.
+   A personal Organization cannot be assigned; keeping B2C data from representatives would be a
+   different rule, and is not configurable.
+
+### Customer two-step verification requirements without an encryption key {#customer-two-step-without-key}
+
+The release that ships this change extends to the customer requirements what
+[Enforced two-step verification without an encryption key](#admin-two-step-without-key) did for the
+administrator one (issue #947). Without `MFA_SECRET_ENCRYPTION_KEY` customers are already not asked
+for a second factor; the requirements could still be turned on, though, and nothing said they were
+not in force.
+
+**Behaviour change on upgrade:**
+
+- Turning **Storefront — enforce two-step verification** (`mfa.storefront.totp_enforced`) on, for
+  every sales channel or for some of them, is refused while the key is not set:
+  `409 MFA_ENFORCEMENT_UNAVAILABLE`, with `details.reason: 'encryption_key_missing'`. So is an
+  organization's policy requiring two-step verification of its members, whether its administrator
+  sets it on the storefront or an operator sets it through the Admin API. Turning either off is
+  always allowed, and so is saving it again when it is already on.
+- Before, neither organization-policy write existed without the key, so a policy set while the key
+  was configured could not be lifted. Both writes now exist without the key.
+- While the storefront setting is on, **Settings** shows *Not in force: no encryption key* under
+  it. The backend logs an error at every start for the setting, naming the sales channels it is on
+  for, and another with how many organizations require two-step verification.
+- Nothing changes on an instance that has the key.
+
+**After upgrading,** if the notice or a logged error appears, either set `MFA_SECRET_ENCRYPTION_KEY`
+(see the [first deployment checklist](./deployment/first-deployment-checklist.md)) and restart, so
+that the requirements apply again, or turn the storefront setting off in **Settings** and lift the
+organizations' policies. Set the key the enrolments were made with: an enrolment made with another
+key cannot be checked with this one.
+
+### A private asset's file route answers 404 without a signature {#private-asset-file-404}
+
+The release that ships this change stops the public file route from telling a private asset apart
+from one that does not exist (issue #542).
+
+**Behaviour change on upgrade:**
+
+- `GET /assets/file/<asset id>` answers a request for a **private** asset that carries no
+  signature, or an expired or invalid one, with `404 ASSET_NOT_FOUND`: the same status, body and
+  headers as an id that names nothing. It used to answer `403 ASSET_ACCESS_DENIED`, which let anyone
+  holding an id confirm that a private asset exists. The permalink form already answered `404`.
+- `ERROR_CODES.ASSET_ACCESS_DENIED` is removed from `@endora-commerce/contracts`, because nothing
+  raises it any more.
+- A signed link to a private file in S3 or GCS storage now carries the file's type and its
+  inline or attachment disposition (issue #815), and `?download=1` asks for an attachment there as
+  it already did on local storage.
+
+**After upgrading,** if a client or an integration treats `403` from the file route as "exists but
+needs a signed link", make it treat `404` the same way and fetch a signed URL as before. Code that
+compares against `ERROR_CODES.ASSET_ACCESS_DENIED` no longer compiles: drop the comparison, or
+compare against `ERROR_CODES.ASSET_NOT_FOUND`. With cloud storage, add `X-Content-Type-Options:
+nosniff` in front of the bucket, as the assets library page describes.
+
+### The last second factor stays while two-step verification is required {#last-factor-required}
+
+The release that ships this change closes a gap in the two-step requirements (issue #935). An
+administrator or a customer whose policy required a second factor could switch their only one off
+on their own security screen; the next sign-in then asked them to set it up again.
+
+**Behaviour change on upgrade:**
+
+- `POST /api/v1/admin/account/mfa/disable` and `POST /api/v1/account/mfa/disable` refuse to remove
+  the account's last second factor while a requirement is in force for it:
+  `409 MFA_LAST_FACTOR_REQUIRED`. The refusal comes before the code or password is checked, so it
+  spends neither.
+- Every source of the requirement counts, and each counts exactly as it does at sign-in: for an
+  administrator, **Admin UI — enforce two-step verification** (`mfa.admin.totp_enforced`) and a
+  role with *Requires two-step verification on assigned users*; for a customer,
+  **Storefront — enforce two-step verification** (`mfa.storefront.totp_enforced`) on the sales
+  channel of the request, and the organization's policy.
+- Without `MFA_SECRET_ENCRYPTION_KEY` no requirement is in force, and these routes are not served,
+  so nothing changes there.
+- `GET …/mfa/status` answers two new fields, `canDisable` and `disableBlockedReason`
+  (`'factor_required'` or `null`). The Admin UI's **Account security** screen and the storefront's
+  account security page hide the switch-off form while it is refused and say why.
+- An administrator's reset of somebody else's two-step verification is unchanged: it is the way
+  back in for a lost device.
+
+**After upgrading,** nothing has to be done. A client of the API that offers switching two-step
+verification off should read `canDisable` instead of guessing, and handle
+`409 MFA_LAST_FACTOR_REQUIRED`.
+
+### Opportunity values leave the platform audit log {#crm-audit-names-only}
+
+The release that ships this change stops writing a sales opportunity's values into the
+platform-wide audit log (issue #470). That log is one table, read by everybody holding
+`audit_log:read` whichever organizations they may see, so it now names what an opportunity's
+change touched and nothing more.
+
+**Behaviour change on upgrade:**
+
+- On the **Audit log** screen, and in `audit_logs read`, a new `crm.opportunity.*` entry no
+  longer carries the opportunity's title, description, value, currency, contact person,
+  organization, tag names, custom field values, a status change's reason, an event's name or an
+  attachment's file name. It carries the opportunity's number, its status and other codes, the
+  assignee and sales channel ids, dates, and `changedFields` / `changedCustomFields`, the names of
+  what changed.
+- An opportunity's **Change history** tab is unchanged: it still shows the values as they were and
+  as they are, now read from a store the CRM module keeps beside the opportunity
+  (`crm_opportunity_value_changes`, created by this release's migration), and only to a reader
+  who may read that opportunity. Custom field values still need `custom_fields:read`.
+- Entries recorded before the upgrade are not rewritten: they keep their values, on the Audit log
+  screen and in the history.
+
+**After upgrading,** nothing has to be done. A report or an export that read an opportunity's
+values out of the audit log reads them from the opportunity, or from its history
+(`GET /api/v1/admin/crm/opportunities/:id/history`), instead.
+
 ## An instance that is mixed from the start
 
 The installer of `0.101.x` or earlier wrote every package of the release with a `^` except

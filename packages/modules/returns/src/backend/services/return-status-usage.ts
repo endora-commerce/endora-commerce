@@ -1,4 +1,4 @@
-import type { OrgConstraint } from '@endora-commerce/platform/tenancy';
+import { orgScopeSql, reachesNoOrganization, type OrgConstraint } from '@endora-commerce/platform/tenancy';
 
 /**
  * The statement behind the per-status "in use" count on the return status
@@ -8,8 +8,9 @@ import type { OrgConstraint } from '@endora-commerce/platform/tenancy';
  * connection as SQL, which the entity filter never sees — so the tenant
  * predicate is written here, from the constraint the ambient context implies
  * (`orgConstraintFor`). A reader who reaches every organization gets no
- * predicate; a reader confined to a set gets `in (…)` over it; a reader who
- * reaches none gets `null`, and no statement is run.
+ * predicate; any other reader gets the platform's predicate for its reach
+ * (`orgScopeSql`); a reader who reaches none gets `null`, and no statement is
+ * run.
  */
 export function returnStatusUsageQuery(
   scope: OrgConstraint,
@@ -17,15 +18,9 @@ export function returnStatusUsageQuery(
   const select = 'select "status_code" as status, count(*) as count from "return_cases"';
   const groupBy = 'group by "status_code"';
   if (scope.kind === 'all') return { sql: `${select} ${groupBy}`, params: [] };
-  const allowed =
-    scope.kind === 'single'
-      ? scope.organizationId === null
-        ? []
-        : [scope.organizationId]
-      : [...scope.organizationIds];
-  if (allowed.length === 0) return null;
-  return {
-    sql: `${select} where "organization_id" in (${allowed.map(() => '?').join(', ')}) ${groupBy}`,
-    params: allowed,
-  };
+  if (reachesNoOrganization(scope)) return null;
+  // The platform's predicate for the reach (issue #305): a sales
+  // representative's is every organization nobody else governs.
+  const reach = orgScopeSql('"organization_id"', scope);
+  return { sql: `${select} where ${reach.sql} ${groupBy}`, params: [...reach.params] as string[] };
 }

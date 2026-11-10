@@ -71,5 +71,13 @@ export {
   orgConstraintFor,
   isOrgInScope,
   ruleVisibleForScope,
+  /** Issue #305 — the sanctioned readers of a scope, for every constraint arm. */
+  orgScopeWhere,
+  orgScopeSql,
+  assignedOrganizationIdsForRanking,
+  orgConstraintForAdminScope,
+  reachesNoOrganization,
   type OrgConstraint,
+  type OrgScopeSql,
+  type OrgScopeSource,
 } from './derived-scope.js';

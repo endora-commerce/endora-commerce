@@ -22,7 +22,7 @@ vi.mock('@endora-commerce/platform/tenancy', async () => {
   );
   // A sales representative's scope: never platform-wide, so the
   // `canSeeOrganization` answer below decides.
-  return { ...actual, orgConstraintFor: () => ({ kind: 'set', organizationIds: [] }) };
+  return { ...actual, orgConstraintFor: () => ({ kind: 'allowed', organizationIds: [] }) };
 });
 
 const { registerOrganizationsAdminRoutes } = await import('./routes.admin.js');

@@ -4,7 +4,7 @@ import type {
   AnalyticsSummaryQuery,
   AnalyticsSummaryResponse,
 } from '@endora-commerce/contracts';
-import { orgConstraintFor, type OrgConstraint } from '@endora-commerce/platform/tenancy';
+import { orgConstraintFor, orgScopeSql, type OrgConstraint } from '@endora-commerce/platform/tenancy';
 
 /**
  * AnalyticsQueryService (T237 / FR-111).
@@ -46,13 +46,12 @@ export class AnalyticsQueryService {
     query: AnalyticsSummaryQuery,
     scope: OrgConstraint = orgConstraintFor(),
   ): Promise<AnalyticsSummaryResponse> {
-    const allowed = allowedOrganizationIds(scope);
-    if (allowed !== 'all' && allowed.length === 0) return { totalsByType: [], daily: [] };
+    if (reachesNothing(scope)) return { totalsByType: [], daily: [] };
 
     const em = this.emFactory();
     const conn = em.getConnection();
 
-    const params: Array<string | undefined> = [query.from, query.to];
+    const params: unknown[] = [query.from, query.to];
     // One suffix for every statement below. A statement that does not end its
     // `where` with it reads across organizations.
     let channelClause = '';
@@ -60,9 +59,13 @@ export class AnalyticsQueryService {
       channelClause = ' and sales_channel_id = ?';
       params.push(query.salesChannelId);
     }
-    if (allowed !== 'all') {
-      channelClause += ` and organization_id in (${allowed.map(() => '?').join(', ')})`;
-      params.push(...allowed);
+    // The reader's reach, as the platform states it (issue #305): a sales
+    // representative's is "every organization but those governed by somebody
+    // else", which no list of allowed ids can express.
+    if (scope.kind !== 'all') {
+      const reach = orgScopeSql('organization_id', scope);
+      channelClause += ` and ${reach.sql}`;
+      params.push(...reach.params);
     }
 
     const totalsRows = await conn.execute<Array<{ type: string; count: string }>>(
@@ -102,19 +105,22 @@ export class AnalyticsQueryService {
 }
 
 /**
- * The organizations a constraint names, or `'all'` when it names no limit.
+ * Whether a constraint reaches no organization at all, so the statements need
+ * not run.
  *
  * A single-organization reader with a null organization reaches nothing — the
  * same answer `carts`' admin list gives, and for the same reason: it must not
- * turn into "the rows that belong to nobody".
+ * turn into "the rows that belong to nobody". The SQL predicate gives the same
+ * answer; this only skips the round trip.
  */
-function allowedOrganizationIds(scope: OrgConstraint): 'all' | string[] {
+function reachesNothing(scope: OrgConstraint): boolean {
   switch (scope.kind) {
-    case 'all':
-      return 'all';
     case 'single':
-      return scope.organizationId === null ? [] : [scope.organizationId];
-    case 'set':
-      return [...scope.organizationIds];
+      return scope.organizationId === null;
+    case 'allowed':
+      return scope.organizationIds.length === 0;
+    case 'all':
+    case 'excluded':
+      return false;
   }
 }

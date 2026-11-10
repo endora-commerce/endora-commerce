@@ -92,6 +92,42 @@ export interface EmailDeliveryRecorder {
   record(input: EmailDeliveryRecordInput): Promise<string | null>;
 }
 
+/**
+ * The value an anonymised delivery record's `recipient` holds (issue #928).
+ * The column is not nullable, and `.invalid` is reserved (RFC 2606), so the
+ * marker can never be an address anything is delivered to.
+ */
+export const ANONYMIZED_EMAIL_RECIPIENT = 'erased@anonymized.invalid';
+
+/**
+ * Container name: `emailDeliveryAnonymizationPort`. Owner: `email`.
+ *
+ * `email`'s step in the customer-account anonymisation sweep (issue #928),
+ * which `customers` runs before it writes the account's `anonymizedAt`. Every
+ * delivery record addressed to `recipient` (compared case-insensitively) loses
+ * what it holds about the person: `recipient` becomes
+ * {@link ANONYMIZED_EMAIL_RECIPIENT}, and `subject`, `context` (the sender's
+ * `meta` envelope, which can carry a rejection reason) and `detail` (the
+ * transport's error text, which commonly quotes the address) become `null`.
+ * The message id, the kind, the status and reason, the channel, the document
+ * reference and the time stay: they are what "did this leave the building"
+ * is answered with.
+ *
+ * Each record it changed gets one `email_delivery.anonymized` audit entry,
+ * with a null actor and no payload. No event is published.
+ *
+ * Answers how many records it changed. Idempotent: a changed record no longer
+ * carries the address, so a repeat call finds nothing, writes nothing and
+ * records nothing. Run under the system scope the sweep's tick enters.
+ *
+ * **Owner off:** there is no such state. `email` declares
+ * `activation.nonDeactivatable`, which is why this name is an ordinary
+ * `ctx.di.register`, like {@link EmailDeliveryRecorder}'s.
+ */
+export interface EmailDeliveryAnonymizationPort {
+  anonymizeForRecipient(recipient: string): Promise<number>;
+}
+
 // --- ports -------------------------------------------------------------------
 //
 // Plain TypeScript rather than Zod from here down: these describe in-process

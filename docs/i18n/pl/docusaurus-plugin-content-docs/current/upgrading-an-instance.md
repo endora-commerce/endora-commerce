@@ -4585,6 +4585,193 @@ wcześniej, przez pull requesty, które wprowadziły każdą zmianę. W chwili j
 nie była zaktualizowana poleceniem `pnpm run upgrade 0.110.0`; kolejność kroków i zmiany w
 storefroncie nie zostały wypróbowane.
 
+### Jedna reguła zasięgu przedstawiciela handlowego na wszystkich ekranach {#sales-rep-reach-one-rule}
+
+Wydanie z tą zmianą stosuje jedną regułę zasięgu przedstawicieli handlowych na każdym ekranie panelu
+(zgłoszenie #305). Przedstawiciel handlowy sięga do każdej organizacji, której **nie prowadzi inny
+przedstawiciel**: do przypisanych mu organizacji (z `organizations:rollup` — do ich poddrzew, przy
+czym wygrywa najbliższe przypisanie) i do każdej organizacji, do której nikt nie jest przypisany.
+Dotąd ekrany organizacji stosowały tę regułę, odczyty objęte izolacją tenantów — członkowie, klienci,
+zamówienia, faktury, koszyki, zwroty, zapytania ofertowe — uwzględniały tylko przypisania, a lista
+organizacji i wyszukiwarka panelu pokazywały każdą organizację. Dla każdego przedstawiciela
+handlowego zmieniają się dwie rzeczy:
+
+- **Zyskuje dostęp do danych każdej nieprzypisanej organizacji**, łącznie z organizacjami
+  prywatnymi (B2C): do organizacji prywatnej nie można przypisać przedstawiciela, więc każdy
+  przedstawiciel czyta teraz zamówienia, faktury, koszyki i zwroty każdego klienta B2C i może na nich
+  działać. Właściciel potwierdził to 2026-11-08.
+- **Lista organizacji, jej pola wyboru i wyszukiwarka panelu przestają pokazywać organizacje
+  przypisane innym przedstawicielom.** Dotąd je pokazywały, a otwarcie takiej organizacji kończyło się
+  odpowiedzią `404`.
+
+Nic nie jest migrowane i nic nie trzeba konfigurować; administratorzy platformy nie widzą zmian.
+
+**Po aktualizacji:**
+
+1. **Sprawdź, co zmienia się dla każdego przedstawiciela.** Uruchom to zapytanie tylko do odczytu.
+   Dla każdego przedstawiciela handlowego `gains_tenant_data_of` liczy organizacje, do których
+   członków, zamówień, faktur, koszyków, zwrotów i zapytań ofertowych teraz sięga (z tego
+   `of_which_personal` to organizacje B2C), a `leaves_list_and_search` — organizacje firmowe, których
+   lista i wyszukiwarka panelu już mu nie pokazują:
+
+   ```sql
+   with reps as (
+     select au.id, au.email,
+            (ar.permissions ? 'organizations:rollup' or ar.permissions ? '*') as rollup
+     from admin_users au
+     join admin_roles ar on ar.id = au.admin_role_id
+     where ar.code = 'sales_representative' and au.deleted_at is null
+   ),
+   gov as (
+     select a.organization_id as id, o.path, array_agg(a.admin_user_id) as reps
+     from organization_sales_rep_assignments a
+     join organizations o on o.id = a.organization_id
+     group by a.organization_id, o.path
+   ),
+   orgs as (
+     select o.id, o.is_personal,
+            (select g.reps from gov g where g.id = o.id) as own_reps,
+            (select g.reps from gov g
+              where o.path like g.path || '%'
+              order by length(g.path) desc limit 1) as nearest_reps
+     from organizations o
+     where o.deleted_at is null
+   ),
+   decided as (
+     select r.email, o.is_personal,
+            case when r.rollup then o.nearest_reps else o.own_reps end as governed_by,
+            r.id as rep_id
+     from reps r cross join orgs o
+   )
+   select email as sales_representative,
+          count(*) filter (where governed_by is null) as gains_tenant_data_of,
+          count(*) filter (where governed_by is null and is_personal) as of_which_personal,
+          count(*) filter (where governed_by is not null and not is_personal
+                             and not (rep_id = any (governed_by))) as leaves_list_and_search
+   from decided
+   group by email
+   order by email;
+   ```
+
+2. **Jeśli przedstawiciel nie powinien sięgać do nieprzypisanej organizacji**, przypisz ją
+   przedstawicielowi, który się nią opiekuje: wtedy jest prowadzona, a każdy inny przedstawiciel traci
+   do niej dostęp. Organizacji prywatnej nie można przypisać; ukrycie danych B2C przed
+   przedstawicielami byłoby inną regułą i nie da się go skonfigurować.
+
+### Wymagania weryfikacji dwuetapowej klientów bez klucza szyfrowania {#customer-two-step-without-key}
+
+Wydanie z tą zmianą rozszerza na wymagania wobec klientów to, co
+[Wymuszona weryfikacja dwuetapowa bez klucza szyfrowania](#admin-two-step-without-key) wprowadziła
+dla wymagania wobec administratorów (zgłoszenie #947). Bez `MFA_SECRET_ENCRYPTION_KEY` klienci już
+teraz nie są proszeni o drugi składnik; wymagania dało się jednak nadal włączyć i nic nie mówiło,
+że nie obowiązują.
+
+**Zmiana zachowania po aktualizacji:**
+
+- Włączenie ustawienia **Storefront — enforce two-step verification**
+  (`mfa.storefront.totp_enforced`), dla wszystkich kanałów sprzedaży albo dla części z nich, jest
+  odrzucane, dopóki klucz nie jest ustawiony: `409 MFA_ENFORCEMENT_UNAVAILABLE`, z
+  `details.reason: 'encryption_key_missing'`. Tak samo odrzucana jest polityka organizacji, która
+  wymaga weryfikacji dwuetapowej od jej członków, niezależnie od tego, czy ustawia ją administrator
+  organizacji w sklepie, czy operator przez Admin API. Wyłączenie każdego z nich jest zawsze
+  dozwolone, podobnie jak ponowne zapisanie, gdy jest już włączone.
+- Wcześniej bez klucza nie istniał żaden z dwóch zapisów polityki organizacji, więc polityki
+  ustawionej, gdy klucz był skonfigurowany, nie dało się zdjąć. Teraz oba zapisy działają także bez
+  klucza.
+- Gdy ustawienie sklepu jest włączone, **Ustawienia** pokazują pod nim komunikat *Nie obowiązuje:
+  brak klucza szyfrowania*. Backend przy każdym starcie zapisuje w logu błąd dotyczący ustawienia,
+  z nazwami kanałów sprzedaży, dla których jest włączone, oraz drugi błąd z liczbą organizacji,
+  które wymagają weryfikacji dwuetapowej.
+- Na instancji, która ma klucz, nic się nie zmienia.
+
+**Po aktualizacji,** jeśli pojawi się komunikat albo błąd w logu, ustaw `MFA_SECRET_ENCRYPTION_KEY`
+(zobacz [listę kontrolną pierwszego wdrożenia](./deployment/first-deployment-checklist.md)) i
+uruchom backend ponownie, aby wymagania znów obowiązywały, albo wyłącz ustawienie sklepu w
+**Ustawieniach** i zdejmij polityki organizacji. Ustaw ten klucz, z którym utworzono rejestracje:
+rejestracji utworzonej innym kluczem nie da się nim sprawdzić.
+
+### Trasa pliku prywatnego zasobu odpowiada 404 bez podpisu {#private-asset-file-404}
+
+Wydanie z tą zmianą sprawia, że publiczna trasa plików nie odróżnia już prywatnego zasobu od
+zasobu, który nie istnieje (zgłoszenie #542).
+
+**Zmiana zachowania po aktualizacji:**
+
+- `GET /assets/file/<asset id>` odpowiada na żądanie **prywatnego** zasobu bez podpisu albo z
+  podpisem wygasłym lub nieprawidłowym kodem `404 ASSET_NOT_FOUND`: z tym samym statusem, treścią i
+  nagłówkami co dla identyfikatora, który niczego nie wskazuje. Dotąd odpowiadała
+  `403 ASSET_ACCESS_DENIED`, przez co każdy, kto znał identyfikator, mógł potwierdzić, że prywatny
+  zasób istnieje. Odnośnik stały (permalink) już wcześniej odpowiadał `404`.
+- `ERROR_CODES.ASSET_ACCESS_DENIED` zostaje usunięty z `@endora-commerce/contracts`, bo nic go już
+  nie zgłasza.
+- Podpisany odnośnik do prywatnego pliku w magazynie S3 lub GCS niesie teraz typ pliku i sposób
+  jego wyświetlenia — w przeglądarce albo jako załącznik (zgłoszenie #815) — a `?download=1` prosi
+  tam o załącznik, tak jak już wcześniej w magazynie lokalnym.
+
+**Po aktualizacji,** jeśli klient lub integracja traktuje `403` z trasy pliku jako „istnieje, ale
+wymaga podpisanego odnośnika”, niech tak samo traktuje `404` i pobiera podpisany adres jak dotąd.
+Kod porównujący z `ERROR_CODES.ASSET_ACCESS_DENIED` przestaje się kompilować: usuń porównanie albo
+porównuj z `ERROR_CODES.ASSET_NOT_FOUND`. Przy magazynie w chmurze dodaj nagłówek
+`X-Content-Type-Options: nosniff` przed bucketem, jak opisuje strona biblioteki zasobów.
+
+### Ostatni drugi składnik zostaje, gdy weryfikacja dwuetapowa jest wymagana {#last-factor-required}
+
+Wydanie z tą zmianą zamyka lukę w wymaganiach weryfikacji dwuetapowej (zgłoszenie #935).
+Administrator albo klient, od którego polityka wymagała drugiego składnika, mógł wyłączyć jedyny,
+jaki miał, na własnym ekranie bezpieczeństwa; przy następnym logowaniu był proszony o ponowną
+konfigurację.
+
+**Zmiana zachowania po aktualizacji:**
+
+- `POST /api/v1/admin/account/mfa/disable` i `POST /api/v1/account/mfa/disable` odmawiają usunięcia
+  ostatniego drugiego składnika konta, dopóki obowiązuje wobec niego wymaganie:
+  `409 MFA_LAST_FACTOR_REQUIRED`. Odmowa pada przed sprawdzeniem kodu albo hasła, więc nie zużywa
+  ani jednego, ani drugiego.
+- Liczy się każde źródło wymagania, i to dokładnie tak, jak przy logowaniu: dla administratora
+  ustawienie **Admin UI — enforce two-step verification** (`mfa.admin.totp_enforced`) oraz rola z
+  opcją *Wymaga weryfikacji dwuetapowej od przypisanych użytkowników*; dla klienta ustawienie
+  **Storefront — enforce two-step verification** (`mfa.storefront.totp_enforced`) w kanale
+  sprzedaży, z którego przyszło żądanie, oraz polityka organizacji.
+- Bez `MFA_SECRET_ENCRYPTION_KEY` żadne wymaganie nie obowiązuje, a te ścieżki nie są udostępniane,
+  więc tam nic się nie zmienia.
+- `GET …/mfa/status` zwraca dwa nowe pola, `canDisable` i `disableBlockedReason`
+  (`'factor_required'` albo `null`). Ekran **Bezpieczeństwo konta** w panelu administracyjnym i
+  strona bezpieczeństwa konta w sklepie ukrywają formularz wyłączenia, gdy jest ono odrzucane, i
+  wyjaśniają dlaczego.
+- Reset weryfikacji dwuetapowej innej osoby przez administratora działa bez zmian: to droga powrotu
+  po utracie urządzenia.
+
+**Po aktualizacji** nic nie trzeba robić. Klient API, który oferuje wyłączenie weryfikacji
+dwuetapowej, powinien odczytywać `canDisable` zamiast zgadywać i obsługiwać
+`409 MFA_LAST_FACTOR_REQUIRED`.
+
+### Wartości szans sprzedażowych znikają z dziennika audytu platformy {#crm-audit-names-only}
+
+Wydanie z tą zmianą przestaje zapisywać wartości szansy sprzedażowej w dzienniku audytu całej
+platformy (zgłoszenie #470). Ten dziennik to jedna tabela, czytana przez każdego, kto ma
+`audit_log:read`, bez względu na to, które organizacje widzi, dlatego teraz mówi tylko, czego
+dotyczyła zmiana szansy.
+
+**Zmiana zachowania po aktualizacji:**
+
+- Na ekranie **Dziennik audytu** i w `audit_logs read` nowy wpis `crm.opportunity.*` nie zawiera
+  już tytułu szansy, opisu, wartości, waluty, osoby kontaktowej, organizacji, nazw etykiet,
+  wartości pól niestandardowych, powodu zmiany statusu, nazwy wydarzenia ani nazwy pliku
+  załącznika. Zawiera numer szansy, jej status i inne kody, identyfikatory przypisanej osoby i
+  kanału sprzedaży, daty oraz `changedFields` / `changedCustomFields`, czyli nazwy tego, co się
+  zmieniło.
+- Karta **Historia zmian** szansy się nie zmienia: nadal pokazuje wartości sprzed zmiany i po
+  niej, teraz odczytywane z magazynu, który moduł CRM prowadzi przy szansie
+  (`crm_opportunity_value_changes`, tworzonego przez migrację tego wydania), i tylko
+  czytającemu, który może czytać tę szansę. Wartości pól niestandardowych nadal wymagają
+  `custom_fields:read`.
+- Wpisy zapisane przed aktualizacją nie są przepisywane: zachowują swoje wartości, na ekranie
+  Dziennik audytu i w historii zmian.
+
+**Po aktualizacji** nie trzeba nic robić. Raport lub eksport, który odczytywał wartości szansy z
+dziennika audytu, odczytuje je z samej szansy albo z jej historii zmian
+(`GET /api/v1/admin/crm/opportunities/:id/history`).
+
 ## Instancja niespójna od początku
 
 Instalator `0.101.x` lub starszy zapisywał każdy pakiet wydania z `^` poza

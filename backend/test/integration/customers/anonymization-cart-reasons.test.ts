@@ -70,6 +70,20 @@ describe('Anonymization sweep — reasons written about the subject’s carts (i
   const after = (ms: number) => new Date(Date.now() + ms);
   const unique = (): string => `${Date.now()}-${Math.floor(performance.now() * 1000)}-${Math.random()}`;
 
+  /**
+   * Issue #960 — runs a sweep and answers which of `subjects` it anonymised,
+   * in order. The work list is the whole database's, so a soft-deleted account
+   * another file committed is swept here too; asserting the run's total would
+   * make that account this file's failure.
+   */
+  async function sweepFor(subjects: readonly string[], now: Date): Promise<string[]> {
+    const from = anonymizedEvents.length;
+    await svc.sweep(0, now);
+    return anonymizedEvents.slice(from).filter((id) => subjects.includes(id));
+  }
+  /** `anonymizedEvents`, narrowed to `subjects` (issue #960). */
+  const announcedFor = (...subjects: string[]): string[] => anonymizedEvents.filter((id) => subjects.includes(id));
+
   function personalOrganizationPortOver(orgs: PersonalOrganizationService): PersonalOrganizationPort {
     return {
       ensureForCustomerAccount: async (id) => toOrganizationRecord(await orgs.ensureForCustomerAccountId(id)),
@@ -105,6 +119,8 @@ describe('Anonymization sweep — reasons written about the subject’s carts (i
       // Issue #927 — the retired personal book; this file seeds no row of it.
       { anonymizeForAccount: async () => 0 },
       carts,
+      // Issue #928 — `email`'s step; this file seeds no delivery record.
+      { anonymizeForRecipient: async () => 0 },
       // Issue #844 — the subject's audit history; not what this file is about.
       {
         redaction: { redact: async () => ({ rowsInScope: 0, rowsChanged: 0, markerWritten: false }) },
@@ -296,7 +312,7 @@ describe('Anonymization sweep — reasons written about the subject’s carts (i
     const othersBefore = await reasonsOf(othersCart.id);
 
     await accountWrites.softDelete(subject.id, DELETED_BY);
-    expect(await svc.sweep(0, after(60_000))).toBe(1);
+    expect(await sweepFor([subject.id], after(60_000))).toEqual([subject.id]);
 
     expect(await reasonsOf(byOperator.id)).toEqual({ cart: null, history: [null, null] });
     expect(await snapshot(byOperator.id)).toEqual(before);
@@ -335,7 +351,7 @@ describe('Anonymization sweep — reasons written about the subject’s carts (i
     const cleanUpdatedAt = (await em.findOneOrFail(Cart, { id: clean.id }, { filters: false })).updatedAt.toISOString();
 
     await accountWrites.softDelete(subject.id, DELETED_BY);
-    expect(await svc.sweep(0, after(60_000))).toBe(1);
+    expect(await sweepFor([subject.id], after(60_000))).toEqual([subject.id]);
 
     expect(await reasonsOf(historyOnly.id)).toEqual({ cart: null, history: [null, null] });
     expect((await anonymizedRows([historyOnly.id])).map((r) => r.stateBefore)).toEqual([{ hadRejectedReason: false }]);
@@ -356,7 +372,8 @@ describe('Anonymization sweep — reasons written about the subject’s carts (i
         get(target, key) {
           if (key === 'anonymize') {
             return async (id: string) => {
-              if (!crashed) {
+              // The subject's step, not whichever due account the run reaches first (issue #960).
+              if (!crashed && id === subject.id) {
                 crashed = true;
                 throw new Error('simulated crash');
               }
@@ -374,12 +391,12 @@ describe('Anonymization sweep — reasons written about the subject’s carts (i
 
     em.clear();
     const updatedAt = (await em.findOneOrFail(Cart, { id: cart.id }, { filters: false })).updatedAt.toISOString();
-    expect(await svc.sweep(0, after(120_000))).toBe(1);
+    expect(await sweepFor([subject.id], after(120_000))).toEqual([subject.id]);
 
     em.clear();
     expect((await em.findOneOrFail(Cart, { id: cart.id }, { filters: false })).updatedAt.toISOString()).toBe(updatedAt);
     expect(await anonymizedRows([cart.id])).toHaveLength(1);
-    expect(anonymizedEvents).toEqual([subject.id]);
+    expect(announcedFor(subject.id)).toEqual([subject.id]);
 
     // And the step itself, called again, finds nothing left.
     const auditCount = await em.count(AuditLogEntry, {});
@@ -396,7 +413,7 @@ describe('Anonymization sweep — reasons written about the subject’s carts (i
     const colleagueBefore = await reasonsOf(colleaguesCart.id);
 
     await accountWrites.softDelete(subject.id, DELETED_BY);
-    expect(await svc.sweep(0, after(60_000))).toBe(1);
+    expect(await sweepFor([subject.id], after(60_000))).toEqual([subject.id]);
 
     expect(await reasonsOf(ownCart.id)).toEqual({ cart: null, history: [null, null] });
     em.clear();

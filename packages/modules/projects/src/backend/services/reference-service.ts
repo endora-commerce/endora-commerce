@@ -8,7 +8,7 @@ import {
   type RecordReferenceToken,
   type RecordReferenceType,
 } from '@endora-commerce/contracts';
-import { actingAdminUserId, type ProjectAccess } from './project-access.js';
+import type { ProjectAccess } from './project-access.js';
 import type { LinkedRecordOwners } from './linked-records.js';
 import type { OwnerReadChecks } from './owner-read-permissions.js';
 import type { ProjectTasks } from './project-tasks.js';
@@ -62,8 +62,6 @@ export interface ProjectReferenceServiceDeps {
   mayRead: Pick<OwnerReadChecks, 'orders' | 'products' | 'quoteRequests' | 'tasks' | 'opportunities'>;
 }
 
-const FALLBACK_LANGUAGE = 'en';
-
 /** Where a chip leads. A person leads nowhere: an administrator's screen is `admin_users`'. */
 function adminUrl(token: RecordReferenceToken): string | null {
   switch (token.type) {
@@ -85,7 +83,6 @@ function adminUrl(token: RecordReferenceToken): string | null {
   }
 }
 
-/** A Product's name in the reader's language, then any name of that language, then any name, then its SKU. */
 function isActive(person: { status: string; deletedAt: Date | null }): boolean {
   return person.status === 'active' && person.deletedAt === null;
 }
@@ -161,7 +158,7 @@ export class ProjectReferenceService {
         : Promise.resolve(new Map()),
       projectIds.length > 0 ? this.deps.projects.findVisibleMany(projectIds) : Promise.resolve([]),
     ]);
-    const [products, orders, people, quoteRequests, tasks, _language] = await Promise.all([
+    const [products, orders, people, quoteRequests, tasks] = await Promise.all([
       mayReadProducts ? this.deps.products.findByIds(productIds, { liveOnly: true }) : Promise.resolve([]),
       mayReadOrders ? this.deps.orders.findByIds(orderIds) : Promise.resolve([]),
       personIds.length > 0 ? this.deps.adminUsers.findByIds(personIds) : Promise.resolve([]),
@@ -169,7 +166,6 @@ export class ProjectReferenceService {
         ? this.deps.quoteRequests.findMany('quote_request', quoteRequestIds)
         : Promise.resolve(new Map()),
       mayReadTasks ? this.deps.tasks.read.findByIds(taskIds) : Promise.resolve([]),
-      mayReadProducts ? this.#viewerLanguage() : Promise.resolve(FALLBACK_LANGUAGE),
     ]);
 
     const labels = new Map<string, string>();
@@ -209,13 +205,5 @@ export class ProjectReferenceService {
         };
       }),
     );
-  }
-
-  /** The reader's stored language — what the Admin UI renders in — or English. */
-  async #viewerLanguage(): Promise<string> {
-    const reader = actingAdminUserId();
-    if (reader === null) return FALLBACK_LANGUAGE;
-    const admin = await this.deps.adminUsers.findById(reader);
-    return admin?.preferredLanguage ?? FALLBACK_LANGUAGE;
   }
 }

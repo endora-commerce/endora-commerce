@@ -20,10 +20,15 @@ function role(code: string): AdminRoleRecord {
   };
 }
 
-function portOver(resolution: AdminRoleResolution, assigned: string[] = []) {
+function portOver(
+  resolution: AdminRoleResolution,
+  assigned: string[] = [],
+  excluded: string[] = [],
+  reachOf?: () => Promise<{ excludedOrganizationIds: string[]; assignedOrganizationIds: string[]; rollup: boolean }>,
+) {
   return createAdminTenantScopePort(
     { resolveRole: async () => resolution },
-    { listAssignedOrganizationIds: async () => assigned },
+    { reachOf: reachOf ?? (async () => ({ excludedOrganizationIds: excluded, assignedOrganizationIds: assigned, rollup: true })) },
   );
 }
 
@@ -33,14 +38,47 @@ describe('adminTenantScopePort', () => {
     expect(scope).toEqual({ allowAll: true });
   });
 
-  it('confines a sales representative to the organizations assigned to them', async () => {
-    const scope = await portOver({ role: role('sales_representative') }, ['o1', 'o2']).resolveForAdmin('a1');
-    expect(scope).toEqual({ allowAll: false, allowedOrganizationIds: ['o1', 'o2'] });
+  // Issue #305 — one reach rule: every organization but those governed by
+  // somebody else, described by its complement.
+  it('gives a sales representative every organization but those governed by somebody else', async () => {
+    const scope = await portOver({ role: role('sales_representative') }, ['o1', 'o2'], ['f1']).resolveForAdmin('a1');
+    expect(scope).toEqual({
+      allowAll: false,
+      reach: 'excluding',
+      excludedOrganizationIds: ['f1'],
+      assignedOrganizationIds: ['o1', 'o2'],
+      // Issue #955 — what the tenant filter renders: the owner's live SELECT,
+      // carrying the roll-up flag the reach was answered under.
+      excludedOrganizationsQuery: {
+        sql: 'select x from "organizations_reach_excluded"(?::uuid, ?::boolean) as x',
+        params: ['a1', true],
+      },
+    });
   });
 
-  it('gives a sales representative with no assignment nothing', async () => {
-    const scope = await portOver({ role: role('sales_representative') }).resolveForAdmin('a1');
-    expect(scope).toEqual({ allowAll: false, allowedOrganizationIds: [] });
+  it('gives a sales representative with no assignment every organization nobody else governs', async () => {
+    const scope = await portOver({ role: role('sales_representative') }, [], ['f1']).resolveForAdmin('a1');
+    expect(scope).toEqual({
+      allowAll: false,
+      reach: 'excluding',
+      excludedOrganizationIds: ['f1'],
+      assignedOrganizationIds: [],
+      excludedOrganizationsQuery: {
+        sql: 'select x from "organizations_reach_excluded"(?::uuid, ?::boolean) as x',
+        params: ['a1', true],
+      },
+    });
+  });
+
+  // Ruling Q1 on PR #954: a reach statement that throws answers `unresolved`
+  // — no organization, the refusal deferred to the first tenant-scoped read —
+  // so the session-only routes keep answering and nothing widens.
+  it('answers a failure of the reach as unresolved, holding no organization', async () => {
+    const down = new Error('connection lost');
+    const scope = await portOver({ role: role('sales_representative') }, [], [], async () => {
+      throw down;
+    }).resolveForAdmin('a1');
+    expect(scope).toEqual({ allowAll: false, allowedOrganizationIds: [], unresolved: down });
   });
 
   it('gives an admin without a role no organization, and carries the refusal', async () => {

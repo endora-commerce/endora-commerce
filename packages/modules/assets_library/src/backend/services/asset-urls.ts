@@ -63,3 +63,21 @@ export function cloudContentDisposition(mimeType: string, filename: string): str
   const inline = servingPolicyFor(mimeType).inline && !isSvg({ filename, mimeType });
   return contentDispositionHeader(inline ? 'inline' : 'attachment', filename);
 }
+
+/**
+ * The headers a cloud signed URL makes the bucket answer with (issue #815): the
+ * stored type and the disposition {@link cloudContentDisposition} chooses, or an
+ * attachment when the caller asked for a download. A bucket response cannot
+ * carry `X-Content-Type-Options`, so pinning these two is what the URL can do.
+ */
+export function signedResponseHeaders(
+  asset: { mimeType: string; filename: string },
+  download = false,
+): { contentType: string; contentDisposition: string } {
+  return {
+    contentType: asset.mimeType,
+    contentDisposition: download
+      ? contentDispositionHeader('attachment', asset.filename)
+      : cloudContentDisposition(asset.mimeType, asset.filename),
+  };
+}

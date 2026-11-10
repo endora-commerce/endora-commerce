@@ -19,20 +19,27 @@ describe('orderStatusUsageQuery', () => {
   });
 
   it('counts only the reader\'s organizations for a confined reader', () => {
-    const scope: OrgConstraint = { kind: 'set', organizationIds: ['o1', 'o2'] };
+    const scope: OrgConstraint = { kind: 'allowed', organizationIds: ['o1', 'o2'] };
     const query = orderStatusUsageQuery(scope);
-    expect(query?.sql).toContain('where "organization_id" in (?, ?)');
-    expect(query?.params).toEqual(['o1', 'o2']);
+    expect(query?.sql).toContain('where "organization_id" = any(?::uuid[])');
+    expect(query?.params).toEqual(['{"o1","o2"}']);
   });
 
   it('confines a single-organization reader to that organization', () => {
     const query = orderStatusUsageQuery({ kind: 'single', organizationId: 'o1' });
-    expect(query?.sql).toContain('where "organization_id" in (?)');
+    expect(query?.sql).toContain('where "organization_id" = ?');
     expect(query?.params).toEqual(['o1']);
   });
 
+  // Issue #305 — a sales representative reaches every organization nobody else governs.
+  it('confines a sales representative to every organization nobody else governs', () => {
+    const query = orderStatusUsageQuery({ kind: 'excluded', excludedOrganizationIds: ['f1'], assignedOrganizationIds: [], excludedOrganizationsQuery: { sql: 'select x from "reach"(?::uuid) as x', params: ['rep'] } });
+    expect(query?.sql).toContain('where ("organization_id" is not null and "organization_id" not in (select x from "reach"(?::uuid) as x))');
+    expect(query?.params).toEqual(['rep']);
+  });
+
   it('asks nothing for a reader who reaches no organization', () => {
-    expect(orderStatusUsageQuery({ kind: 'set', organizationIds: [] })).toBeNull();
+    expect(orderStatusUsageQuery({ kind: 'allowed', organizationIds: [] })).toBeNull();
     expect(orderStatusUsageQuery({ kind: 'single', organizationId: null })).toBeNull();
   });
 });

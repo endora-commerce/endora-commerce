@@ -1,8 +1,5 @@
-import type {
-  AdminTenantScopePort,
-  PermissionReadPort,
-  SalesRepAssignmentPort,
-} from '@endora-commerce/contracts';
+import type { AdminTenantScopePort, PermissionReadPort } from '@endora-commerce/contracts';
+import type { SalesRepReach } from './sales-rep-reach.js';
 
 /** The role code that confines an admin to the organizations assigned to them. */
 const SALES_REPRESENTATIVE_ROLE_CODE = 'sales_representative';
@@ -10,11 +7,17 @@ const SALES_REPRESENTATIVE_ROLE_CODE = 'sales_representative';
 /**
  * The tenant reach of an authenticated admin (`adminTenantScopePort`).
  *
- * The same decision `orders`, `customers` and `quote_requests` make for their
- * own admin lists: an admin whose role is the sales-representative one reaches
- * the organizations assigned to them — subtree-expanded when they hold
- * `organizations:rollup`, which the assignment port decides — and an admin
- * holding any other role reaches every organization.
+ * An admin whose role is the sales-representative one reaches every
+ * organization **not governed by somebody else** — the one reach rule of
+ * `canSeeOrganization` (assigned, roll-up when they hold `organizations:rollup`,
+ * and the unassigned fallback), applied to every surface since issue #305 —
+ * and an admin holding any other role reaches every organization.
+ *
+ * The reach is answered by its complement (`reach: 'excluding'`): the
+ * reachable set includes every unassigned, and so every personal, organization
+ * and grows with the customer base; the excluded one is bounded by the B2B
+ * book. The platform turns it into `organization_id NOT IN (excluded)` on the
+ * row's own column.
  *
  * **An admin with no role reaches none, and is refused.** The role is where the
  * reach is read from, so an admin without one — or an id that names no live
@@ -32,7 +35,7 @@ const SALES_REPRESENTATIVE_ROLE_CODE = 'sales_representative';
  */
 export function createAdminTenantScopePort(
   permissions: Pick<PermissionReadPort, 'resolveRole'>,
-  salesRepScope: Pick<SalesRepAssignmentPort, 'listAssignedOrganizationIds'>,
+  salesRepReach: { reachOf(adminUserId: string): Promise<SalesRepReach> },
 ): AdminTenantScopePort {
   return {
     resolveForAdmin: async (adminUserId) => {
@@ -41,10 +44,47 @@ export function createAdminTenantScopePort(
         return { allowAll: false, allowedOrganizationIds: [], unresolved: refusal };
       }
       if (role.code !== SALES_REPRESENTATIVE_ROLE_CODE) return { allowAll: true };
+      // A reach that cannot be computed is refused, never widened (ruling Q1 on
+      // PR #954): the scope holds no organization and carries the error, which
+      // the tenant guard raises on the first tenant-scoped read — as for a
+      // missing role, so the session-only routes keep answering.
+      let reach: SalesRepReach;
+      try {
+        reach = await salesRepReach.reachOf(adminUserId);
+      } catch (error) {
+        return {
+          allowAll: false,
+          allowedOrganizationIds: [],
+          unresolved: error instanceof Error ? error : new Error(String(error)),
+        };
+      }
       return {
         allowAll: false,
-        allowedOrganizationIds: await salesRepScope.listAssignedOrganizationIds(adminUserId),
+        reach: 'excluding',
+        excludedOrganizationIds: reach.excludedOrganizationIds,
+        assignedOrganizationIds: reach.assignedOrganizationIds,
+        excludedOrganizationsQuery: reachExcludedQuery(adminUserId, reach.rollup),
       };
     },
+  };
+}
+
+/**
+ * Issue #955 (architect ruling, Q2) — the excluded organizations of one
+ * representative as the uncorrelated SELECT the tenant filter renders on the
+ * row's own column (`col is not null and col not in (<sql>)`). It reads
+ * `organizations_reach_excluded`, the same function `reachOf`'s excluded half
+ * reads, live in each statement's snapshot — so no cache, and no list to ship.
+ * Built from the authenticated admin's id and their roll-up permission only,
+ * never from request input. This file is its only producer (a static pin holds
+ * that); the platform never names the function.
+ */
+export function reachExcludedQuery(
+  adminUserId: string,
+  rollup: boolean,
+): { readonly sql: string; readonly params: readonly (string | boolean)[] } {
+  return {
+    sql: 'select x from "organizations_reach_excluded"(?::uuid, ?::boolean) as x',
+    params: [adminUserId, rollup],
   };
 }

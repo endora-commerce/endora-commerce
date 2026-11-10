@@ -22,6 +22,7 @@ import {
 } from '../events/opportunity-status-events.js';
 import { effectiveOpportunityValue } from '../domain/effective-value.js';
 import { loadOpportunity } from './opportunity-access.js';
+import { recordValueChange } from './opportunity-audit-state.js';
 import type { OpportunityTransitionGuardRegistry } from './opportunity-transition-guard-registry.js';
 import type { OrderStatusPropagationService } from './order-status-propagation-service.js';
 import type { WorkflowReadService } from './workflow-read-service.js';
@@ -256,6 +257,7 @@ export class OpportunityTransitionService {
                 statusHistoryId: history.id,
               }).id,
           );
+          const reasonKeys = reason ? recordValueChange(em, locked.id, { before: null, after: { reason } }) : {};
           return {
             result: {
               number: locked.number,
@@ -266,11 +268,13 @@ export class OpportunityTransitionService {
             before: { status: from },
             // The Order that caused the move is named in the audit entry too:
             // the Opportunity's change history is read from the audit trail.
+            // The reason is free text, so it goes to the Opportunity's own
+            // store and the entry names it (#470).
             after: {
               status: to,
               cause,
               ...(request.causeOrderId ? { causeOrderId: request.causeOrderId } : {}),
-              ...(reason ? { reason } : {}),
+              ...reasonKeys,
             },
           };
         },

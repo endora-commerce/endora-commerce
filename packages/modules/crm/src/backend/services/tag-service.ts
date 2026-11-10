@@ -9,7 +9,7 @@ import {
 } from '@endora-commerce/contracts';
 import type { CommandBus } from '@endora-commerce/platform/commands';
 import { HttpError } from '@endora-commerce/platform/http';
-import { orgConstraintFor, type OrgConstraint } from '@endora-commerce/platform/tenancy';
+import { orgConstraintFor, orgScopeSql, reachesNoOrganization, type OrgConstraint } from '@endora-commerce/platform/tenancy';
 import { randomUUID } from 'crypto';
 import type { CrmOpportunity } from '../entities/crm-opportunity.entity.js';
 import { CrmOpportunityTag } from '../entities/crm-opportunity-tag.entity.js';
@@ -49,17 +49,11 @@ export function tagUsageQuery(scope: OrgConstraint): { sql: string; params: stri
     'join "crm_opportunities" o on o."id" = t."opportunity_id"';
   const groupBy = 'group by t."tag_id"';
   if (scope.kind === 'all') return { sql: `${select} ${groupBy}`, params: [] };
-  const allowed =
-    scope.kind === 'single'
-      ? scope.organizationId === null
-        ? []
-        : [scope.organizationId]
-      : [...scope.organizationIds];
-  if (allowed.length === 0) return null;
-  return {
-    sql: `${select} where o."organization_id" in (${allowed.map(() => '?').join(', ')}) ${groupBy}`,
-    params: allowed,
-  };
+  if (reachesNoOrganization(scope)) return null;
+  // The platform's predicate for the reach (issue #305): a sales
+  // representative's is every Organization nobody else governs.
+  const reach = orgScopeSql('o."organization_id"', scope);
+  return { sql: `${select} where ${reach.sql} ${groupBy}`, params: [...reach.params] as string[] };
 }
 
 /**

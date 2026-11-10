@@ -15,6 +15,7 @@ import { SEED_PRODUCT_101_ID } from '../../helpers/seed-catalog.js';
 import { TEST_ORGANIZATION_ID } from '../../helpers/test-actors.js';
 import { CrmOpportunity, QuoteRequest } from '../../helpers/package-entities.js';
 import {
+  assignToCrmBook,
   changeOrderStatusAsOperator,
   CRM_ADMIN,
   CRM_API,
@@ -210,6 +211,9 @@ describe('crm computed value and Quote Request links (US8)', () => {
         [otherOrganizationId],
         ['crm:read', 'crm:write', 'orders:read', 'rfqs:handle'],
       );
+      // #305 — the test Organization is another representative's: one nobody
+      // is assigned to is in every representative's reach.
+      const undoBook = await assignToCrmBook(h.em(), [TEST_ORGANIZATION_ID]);
       try {
         const own = await createCrmOpportunity(h, { organizationId: otherOrganizationId });
         const rfq = await submitCrmQuoteRequest(h);
@@ -221,6 +225,7 @@ describe('crm computed value and Quote Request links (US8)', () => {
         const asAdmin = await linkCrmQuoteRequest(h, own.id, rfq.id);
         expect(asAdmin.statusCode, asAdmin.body).toBe(422);
       } finally {
+        await undoBook();
         rep.undo();
       }
     });

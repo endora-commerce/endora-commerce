@@ -11,7 +11,7 @@ import {
 } from '@endora-commerce/contracts';
 import { rethrowIfModuleDisabled } from '@endora-commerce/platform/kernel';
 import { Asset } from '../entities/asset.entity.js';
-import { versionedAssetUrl } from './asset-urls.js';
+import { signedResponseHeaders, versionedAssetUrl } from './asset-urls.js';
 import type { AssetVisibility } from './asset-visibility.js';
 import type { StorageResolveUrlInput, StorageResolveUrlOutput } from './storage/storage-adapter.js';
 
@@ -186,6 +186,7 @@ export class AssetReadService implements AssetReadPort {
       const resolved = await adapter.resolveUrl({
         locator: asset.storageLocator || asset.storageUrl,
         visibility: asset.visibility,
+        responseHeaders: signedResponseHeaders(asset),
       });
       out.set(asset.id, versionedAssetUrl(resolved.url, asset.contentVersion, asset.storageBackend));
     }

@@ -88,6 +88,13 @@ export interface MfaStatus {
   recoveryCodesRemaining: number;
   totpEnabledForScope: boolean;
   totpEnforcedForScope: boolean;
+  /**
+   * Issue #935 — the server's verdict on turning the factor off: refused
+   * (`409 MFA_LAST_FACTOR_REQUIRED`) while it is the last one and the store's
+   * setting on this channel or the organization's policy requires it.
+   */
+  canDisable: boolean;
+  disableBlockedReason: 'factor_required' | null;
   socialLinks: MfaSocialLink[];
 }
 

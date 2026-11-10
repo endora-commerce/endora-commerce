@@ -284,8 +284,14 @@ describe('crm opportunities (contract)', () => {
       expect(response.headers['etag']).toBe(`"${data.version}"`);
       const entries = await h.auditLogService.query({ action: 'crm.opportunity.update', objectId: created.id });
       expect(entries).toHaveLength(1);
-      expect(entries[0]?.stateBefore).toMatchObject({ title: 'Before' });
-      expect(entries[0]?.stateAfter).toMatchObject({ title: 'After' });
+      // Names and structure only; the values are the Opportunity's own store's (#470).
+      expect(entries[0]?.stateBefore).not.toHaveProperty('title');
+      expect(entries[0]?.stateAfter).toMatchObject({
+        expectedCloseDate: '2027-01-15',
+        // The description was empty and stays empty: not a change.
+        changedFields: ['manualValue', 'title'],
+        valueChangeId: expect.any(String),
+      });
     });
 
     it('refuses a stale version — 409 VERSION_CONFLICT, nothing written', async () => {
@@ -338,7 +344,9 @@ describe('crm opportunities (contract)', () => {
       expect((await call('GET', `/opportunities/${created.id}`)).statusCode).toBe(404);
       const entries = await h.auditLogService.query({ action: 'crm.opportunity.delete', objectId: created.id });
       expect(entries).toHaveLength(1);
-      expect(entries[0]?.stateBefore).toMatchObject({ title: 'Doomed' });
+      // By its number: the title is a value, and the audit log holds none (#470).
+      expect(entries[0]?.stateBefore).toMatchObject({ number: created.number });
+      expect(entries[0]?.stateBefore).not.toHaveProperty('title');
     });
   });
 

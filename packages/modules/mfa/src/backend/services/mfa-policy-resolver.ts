@@ -39,9 +39,14 @@ import { MfaOrganizationPolicy } from '../entities/mfa-organization-policy.entit
  * — for the setting, the whole Admin UI locked out. Both writes refuse to turn
  * the requirement on in that state, every boot reports it at error level while
  * it is set, and the Settings and Roles screens say it is not in force, so
- * this branch is reached only by a value set before the key went. Storefront
- * and organization enforcement are untouched here; `MfaLoginService` asks for
- * no second step of anybody without the key.
+ * this branch is reached only by a value set before the key went.
+ *
+ * **Nor is a customer requirement** (issue #947): neither
+ * `mfa.storefront.totp_enforced` nor an organization's policy is applied
+ * there, on the same terms — both writes refuse off → on, the Settings screen
+ * says the setting is not in force, and every boot reports either at error
+ * level. `MfaLoginService` independently asks for no second step of anybody
+ * without the key (issue #948).
  */
 export interface MfaResolvedPolicy {
   totpEnabled: boolean;
@@ -122,14 +127,17 @@ export class MfaPolicyResolver {
         this.readBool(codes.microsoft, channelId),
       ]);
 
-    // Organization enforcement is additive (customers only).
+    // Issues #930, #948 and #947 — no requirement is applied where nothing can
+    // meet it: not the surface's setting, not a role's flag, not an
+    // organization's policy.
+    const requirementApplies = this.canEnrolSecondFactor;
+
+    // Organization enforcement is additive (customers only). Without a key the
+    // policy is not read at all.
     let orgEnforced = false;
-    if (!isAdmin && ctx.organizationId) {
+    if (!isAdmin && requirementApplies && ctx.organizationId) {
       orgEnforced = await this.readOrgEnforcement(ctx.organizationId);
     }
-    // Issues #930 and #948 — no administrator requirement is applied where
-    // nothing can meet it: neither the platform-wide setting nor a role's flag.
-    const adminRequirementApplies = !isAdmin || this.canEnrolSecondFactor;
 
     // Role enforcement is additive (administrators only). The federated
     // provider list and its start step resolve with no subject — nobody has
@@ -137,10 +145,10 @@ export class MfaPolicyResolver {
     // role to read. Without a key the role is not read at all, so its
     // fail-closed read cannot bring the requirement back.
     const roleEnforced =
-      isAdmin && adminRequirementApplies && subject.subjectId !== ''
+      isAdmin && requirementApplies && subject.subjectId !== ''
         ? await this.readRoleEnforcement(subject.subjectId)
         : false;
-    const settingEnforced = adminRequirementApplies ? totpEnforcedRaw : false;
+    const settingEnforced = requirementApplies ? totpEnforcedRaw : false;
     const totpEnforced = settingEnforced || orgEnforced || roleEnforced;
     // Invariant FR-016: enforcement implies enablement.
     const totpEnabled = totpEnabledRaw || totpEnforced;

@@ -75,6 +75,20 @@ describe('Anonymization sweep — address rows the customer deleted, and the ret
   const after = (ms: number) => new Date(Date.now() + ms);
   const unique = (): string => `${Date.now()}-${Math.floor(performance.now() * 1000)}-${Math.random()}`;
 
+  /**
+   * Issue #960 — runs a sweep and answers which of `subjects` it anonymised,
+   * in order. The work list is the whole database's, so a soft-deleted account
+   * another file committed is swept here too; asserting the run's total would
+   * make that account this file's failure.
+   */
+  async function sweepFor(subjects: readonly string[], now: Date): Promise<string[]> {
+    const from = anonymizedEvents.length;
+    await svc.sweep(0, now);
+    return anonymizedEvents.slice(from).filter((id) => subjects.includes(id));
+  }
+  /** `anonymizedEvents`, narrowed to `subjects` (issue #960). */
+  const announcedFor = (...subjects: string[]): string[] => anonymizedEvents.filter((id) => subjects.includes(id));
+
   function personalOrganizationPortOver(orgs: PersonalOrganizationService): PersonalOrganizationPort {
     return {
       ensureForCustomerAccount: async (id) => toOrganizationRecord(await orgs.ensureForCustomerAccountId(id)),
@@ -140,6 +154,8 @@ describe('Anonymization sweep — address rows the customer deleted, and the ret
       retiredBook,
       // Issue #920 — `carts`' step; this file seeds no cart.
       { anonymizeForCustomerAccount: async () => 0 },
+      // Issue #928 — `email`'s step; this file seeds no delivery record.
+      { anonymizeForRecipient: async () => 0 },
       // Issue #844 — the subject's audit history; not what this file is about.
       {
         redaction: { redact: async () => ({ rowsInScope: 0, rowsChanged: 0, markerWritten: false }) },
@@ -254,7 +270,7 @@ describe('Anonymization sweep — address rows the customer deleted, and the ret
     expect(removedAt).toBeInstanceOf(Date);
 
     await accountWrites.softDelete(c.id, DELETED_BY);
-    expect(await svc.sweep(0, after(60_000))).toBe(1);
+    expect(await sweepFor([c.id], after(60_000))).toEqual([c.id]);
 
     em.clear();
     const liveRow = await em.findOneOrFail(Address, { id: live.id });
@@ -287,7 +303,7 @@ describe('Anonymization sweep — address rows the customer deleted, and the ret
     const ids = [moved, deletedEarlier, refused];
 
     await accountWrites.softDelete(c.id, DELETED_BY);
-    expect(await svc.sweep(0, after(60_000))).toBe(1);
+    expect(await sweepFor([c.id], after(60_000))).toEqual([c.id]);
 
     em.clear();
     for (const id of ids) expectBlanked(await em.findOneOrFail(CustomerAddress, { id }));
@@ -308,7 +324,7 @@ describe('Anonymization sweep — address rows the customer deleted, and the ret
     const serialised = JSON.stringify(entries.map((e) => [e.stateBefore, e.stateAfter]));
     for (const value of SEEDED) expect(serialised).not.toContain(value);
 
-    expect(anonymizedEvents).toEqual([c.id]);
+    expect(announcedFor(c.id)).toEqual([c.id]);
   });
 
   it('I-927-3 — a second sweep changes no row, writes no audit entry and announces nothing', async () => {
@@ -323,7 +339,7 @@ describe('Anonymization sweep — address rows the customer deleted, and the ret
     const objectIds = [c.id, c.organizationId, live.id, removed.id, ...retired];
 
     await accountWrites.softDelete(c.id, DELETED_BY);
-    expect(await svc.sweep(0, after(60_000))).toBe(1);
+    expect(await sweepFor([c.id], after(60_000))).toEqual([c.id]);
     em.clear();
     const snapshot = async () => ({
       addresses: (await em.find(Address, { id: { $in: [live.id, removed.id] } }, { orderBy: { id: 'asc' } })).map((a) => ({
@@ -339,13 +355,13 @@ describe('Anonymization sweep — address rows the customer deleted, and the ret
     expect(
       (await auditRowsFor(objectIds)).filter((e) => e.action.endsWith('.anonymized')).map((e) => e.objectId).sort(),
     ).toEqual([...objectIds].sort());
-    expect(anonymizedEvents).toEqual([c.id]);
+    expect(announcedFor(c.id)).toEqual([c.id]);
 
-    expect(await svc.sweep(0, after(120_000))).toBe(0);
+    expect(await sweepFor([c.id], after(120_000))).toEqual([]);
     em.clear();
     expect(await snapshot()).toEqual(first);
     expect((await auditRowsFor(objectIds)).map((e) => e.id)).toEqual(firstAudit);
-    expect(anonymizedEvents).toEqual([c.id]);
+    expect(announcedFor(c.id)).toEqual([c.id]);
   });
 
   it("I-927-4 — a company member's retired rows are blanked; the company's own addresses are not touched", async () => {
@@ -356,7 +372,7 @@ describe('Anonymization sweep — address rows the customer deleted, and the ret
     const retired = await retiredRow(account.id, { deletedAt: new Date('2025-01-02T03:04:05.000Z') });
 
     await accountWrites.softDelete(account.id, DELETED_BY);
-    expect(await svc.sweep(0, after(60_000))).toBe(1);
+    expect(await sweepFor([account.id], after(60_000))).toEqual([account.id]);
 
     em.clear();
     expectBlanked(await em.findOneOrFail(CustomerAddress, { id: retired }));

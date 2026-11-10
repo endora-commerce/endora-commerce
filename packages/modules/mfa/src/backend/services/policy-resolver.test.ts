@@ -212,13 +212,46 @@ describe('MfaPolicyResolver — no second factor can be enrolled (issue #930)', 
     expect(p.totpEnabled).toBe(true);
   });
 
-  it('leaves storefront and organization enforcement as they are', async () => {
+  // Issue #947 — the same predicate for customers: neither the storefront
+  // setting nor an organization's policy is applied without a key.
+  it('does not enforce mfa.storefront.totp_enforced on a customer', async () => {
     const resolver = new MfaPolicyResolver(
       fakeSettings({ [MFA_SETTING_CODES.STOREFRONT_TOTP_ENFORCED]: true }),
+      fakeEmFactory(null),
+      roleOf(false),
+      noDefaultChannel,
+      false,
+    );
+    const p = await resolver.resolve(
+      { subjectType: 'customer', subjectId: 'c1' },
+      { salesChannelId: 'ch1', organizationId: 'org1' },
+    );
+    expect(p.totpEnforced).toBe(false);
+    expect(p.totpEnabled).toBe(false);
+  });
+
+  it("does not enforce an organization's policy on its members either", async () => {
+    const resolver = new MfaPolicyResolver(
+      fakeSettings({}),
       fakeEmFactory(true),
       roleOf(false),
       noDefaultChannel,
       false,
+    );
+    const p = await resolver.resolve(
+      { subjectType: 'customer', subjectId: 'c1' },
+      { salesChannelId: 'ch1', organizationId: 'org1' },
+    );
+    expect(p.totpEnforced).toBe(false);
+  });
+
+  it('still enforces storefront and organization requirements where a factor can be enrolled', async () => {
+    const resolver = new MfaPolicyResolver(
+      fakeSettings({ [MFA_SETTING_CODES.STOREFRONT_TOTP_ENFORCED]: false }),
+      fakeEmFactory(true),
+      roleOf(false),
+      noDefaultChannel,
+      true,
     );
     const p = await resolver.resolve(
       { subjectType: 'customer', subjectId: 'c1' },

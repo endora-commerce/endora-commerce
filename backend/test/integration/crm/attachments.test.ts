@@ -29,6 +29,7 @@ import {
   seedCrmAsset,
   seedCrmOrganization,
   seedCrmSalesRep,
+  crmValueChangeOf,
 } from '../../helpers/seed-crm.js';
 
 /**
@@ -128,7 +129,14 @@ describe('crm attachments', () => {
     expect(added).toHaveLength(1);
     expect(added[0]).toMatchObject({
       objectType: 'crm_opportunity',
-      stateAfter: { attachmentId: attached.id, assetId: file.id, fileName: 'technical-drawing.pdf' },
+      stateAfter: { attachmentId: attached.id, assetId: file.id, changedFields: ['fileName'] },
+    });
+    // The file name is the Opportunity's to keep, not the global audit log's (#470).
+    expect(added[0]?.stateAfter).not.toHaveProperty('fileName');
+    expect(await crmValueChangeOf(h, added[0]!)).toMatchObject({
+      opportunityId: opportunity.id,
+      before: null,
+      after: { fileName: 'technical-drawing.pdf' },
     });
     expect(gone).toHaveLength(1);
     expect(gone[0]).toMatchObject({ stateBefore: { attachmentId: attached.id, assetId: file.id } });

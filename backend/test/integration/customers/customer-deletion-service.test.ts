@@ -51,7 +51,9 @@ import {
 } from '../../../../packages/modules/addresses/src/backend/services/address-ports.js';
 import { AuditRedactionService } from '@endora-commerce/platform/composition';
 import { AUDIT_ERASED_MARKER } from '@endora-commerce/contracts';
-import { CustomerAddress } from '../../helpers/package-entities.js';
+import { CustomerAddress, EmailDelivery } from '../../helpers/package-entities.js';
+import { ANONYMIZED_EMAIL_RECIPIENT } from '@endora-commerce/contracts';
+import { EmailDeliveryAnonymizationService } from '../../../../packages/modules/email/src/backend/services/email-delivery-anonymization-service.js';
 
 /** Step 3 (issue #844) as a no-op, for the cases about the other steps. */
 const NO_HISTORY: AnonymizedHistoryDeps = {
@@ -145,6 +147,9 @@ describe('CustomerDeletionService', () => {
       // Issue #920 — `carts`' step; this file seeds no cart. Its behaviour is
       // `anonymization-cart-reasons.test.ts`.
       { anonymizeForCustomerAccount: async () => 0 },
+      // Issue #928 — `email`'s step, over the real owner. Its own behaviour is
+      // `test/integration/email/delivery-anonymization.test.ts`.
+      new EmailDeliveryAnonymizationService(() => em, audit),
       // Issue #844 — the subject's audit history; the cases about it pass the
       // real redaction, the rest a no-op.
       overrides.history ?? NO_HISTORY,
@@ -244,6 +249,50 @@ describe('CustomerDeletionService', () => {
     const reloaded = await em.findOne(CustomerAccount, { id: c.id });
     expect(reloaded!.deletedAt).toBeNull();
     expect(await em.find(AuditLogEntry, { action: 'customer_account.restored', objectId: c.id })).toHaveLength(1);
+  });
+
+  /** Issue #928 — one e-mail's record, as the recording mailer writes it. */
+  async function deliveryTo(recipient: string): Promise<string> {
+    const row = em.create(EmailDelivery, {
+      messageId: `customer-deletion.${randomUUID()}`,
+      recipient,
+      kind: 'organization_rejected',
+      status: 'sent',
+      subject: 'Your registration was rejected',
+      context: { reason: 'Forged registration documents' },
+    });
+    await em.persistAndFlush(row);
+    return row.id;
+  }
+
+  it('I-928 — the sweep scrubs the delivery records of the e-mails sent to the subject, and only theirs', async () => {
+    const c = await makePersonalCustomer();
+    const colleague = await makeCustomer();
+    // Sent before the address was case-folded: the match ignores case.
+    const own = await deliveryTo(c.email.toUpperCase());
+    const other = await deliveryTo(colleague.email);
+    await svc.softDelete(c.id, actor);
+
+    await svc.sweep(0, new Date(Date.now() + 60_000));
+
+    em.clear();
+    const ownRow = await em.findOneOrFail(EmailDelivery, { id: own });
+    expect({ recipient: ownRow.recipient, subject: ownRow.subject ?? null, context: ownRow.context ?? null }).toEqual({
+      recipient: ANONYMIZED_EMAIL_RECIPIENT,
+      subject: null,
+      context: null,
+    });
+    const otherRow = await em.findOneOrFail(EmailDelivery, { id: other });
+    expect({ recipient: otherRow.recipient, subject: otherRow.subject }).toEqual({
+      recipient: colleague.email,
+      subject: 'Your registration was rejected',
+    });
+    expect(await em.find(AuditLogEntry, { action: 'email_delivery.anonymized', objectId: own })).toHaveLength(1);
+
+    // A second run finds nothing left: no row, no audit entry.
+    await svc.sweep(0, new Date(Date.now() + 60_000));
+    em.clear();
+    expect(await em.find(AuditLogEntry, { action: 'email_delivery.anonymized', objectId: own })).toHaveLength(1);
   });
 
   it('sweep does not anonymize within the retention window', async () => {
@@ -1623,7 +1672,7 @@ describe('CustomerDeletionService', () => {
       expect(await rowsAbout([elsewhere, other.id])).toEqual(untouched);
       // Scope, said once: these stores keep their own copies and are follow-ups
       // of #844, one per owner. Widening the scope is a change to this list.
-      expect(['email_deliveries', 'webhook_deliveries', 'cart_audit_entries', 'return_*', 'newsletter_*', 'form_entries']).toHaveLength(6);
+      expect(['webhook_deliveries', 'cart_audit_entries', 'return_*', 'newsletter_*', 'form_entries']).toHaveLength(5);
     });
 
     it('I-844-4 — the organization.anonymized and address.anonymized rows the same sweep wrote are left as their owners wrote them', async () => {
@@ -1694,6 +1743,26 @@ describe('CustomerDeletionService', () => {
 });
 
 /**
+ * Issue #960 — the two HTTP describes below commit through the server's own
+ * `EntityManager`, outside any rolled-back transaction, and soft-delete what
+ * they commit. A soft-deleted account is on every later `sweep()`'s work list,
+ * so one left behind turns another file's exact sweep count in the same
+ * database into its own count plus this file's. Each describe therefore
+ * records what it seeds and removes it in `afterAll`: the accounts first,
+ * then their Organizations, whose roles and channel bindings cascade.
+ */
+async function removeSeeded(em: EntityManager, seeded: { accounts: string[]; organizations: string[] }): Promise<void> {
+  if (seeded.accounts.length > 0) {
+    await em.nativeDelete(CustomerAccount, { id: { $in: seeded.accounts } }, { filters: false });
+  }
+  if (seeded.organizations.length > 0) {
+    await em.nativeDelete(Organization, { id: { $in: seeded.organizations } }, { filters: false });
+  }
+  seeded.accounts.length = 0;
+  seeded.organizations.length = 0;
+}
+
+/**
  * I-5 over the wire — the refusal is a sentence in the reader's language.
  *
  * The code is `customer_accounts`' (D-186 §1) and is raised by `customers` as
@@ -1714,6 +1783,7 @@ describe('I-5 over HTTP — CUSTOMER_RESTORE_WINDOW_ELAPSED in the admin languag
   const EN_WINDOW_ELAPSED =
     'The restore window for this account has elapsed, so it can no longer be restored. ' +
     'Its personal data has been, or will shortly be, permanently anonymized.';
+  const seeded = { accounts: [] as string[], organizations: [] as string[] };
 
   beforeAll(async () => {
     h = await setupBackendServer();
@@ -1725,6 +1795,7 @@ describe('I-5 over HTTP — CUSTOMER_RESTORE_WINDOW_ELAPSED in the admin languag
     const admin = await h.em().findOneOrFail(AdminUser, { id: TEST_ADMIN_ID });
     admin.preferredLanguage = previousLanguage;
     await h.em().flush();
+    await removeSeeded(h.em(), seeded);
     await teardownBackendServer(h);
   });
 
@@ -1740,6 +1811,8 @@ describe('I-5 over HTTP — CUSTOMER_RESTORE_WINDOW_ELAPSED in the admin languag
       lastName: 'Elapsed',
     });
     await em.persistAndFlush(c);
+    seeded.organizations.push(org.id);
+    seeded.accounts.push(c.id);
     const deleted = await h.app.inject({
       method: 'DELETE',
       url: `/api/v1/admin/customers/${c.id}`,
@@ -1799,6 +1872,7 @@ describe('CUSTOMER_ALREADY_DELETED over HTTP — in the admin language', () => {
   const EN_ALREADY_DELETED =
     'This customer account has already been deleted, so this action is not available for it. ' +
     'A deleted account can be restored until its restore window elapses.';
+  const seeded = { accounts: [] as string[], organizations: [] as string[] };
 
   beforeAll(async () => {
     h = await setupBackendServer();
@@ -1810,6 +1884,7 @@ describe('CUSTOMER_ALREADY_DELETED over HTTP — in the admin language', () => {
     const admin = await h.em().findOneOrFail(AdminUser, { id: TEST_ADMIN_ID });
     admin.preferredLanguage = previousLanguage;
     await h.em().flush();
+    await removeSeeded(h.em(), seeded);
     await teardownBackendServer(h);
   });
 
@@ -1827,6 +1902,8 @@ describe('CUSTOMER_ALREADY_DELETED over HTTP — in the admin language', () => {
       lastName: 'Deleted',
     });
     await em.persistAndFlush(c);
+    seeded.organizations.push(org.id);
+    seeded.accounts.push(c.id);
     const del = () =>
       h.app.inject({
         method: 'DELETE',

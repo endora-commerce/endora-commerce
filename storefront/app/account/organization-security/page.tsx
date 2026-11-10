@@ -37,7 +37,13 @@ export default async function OrganizationSecurityPage({
       <p>{t('auth.organizationSecurity.intro')}</p>
       {params.error ? (
         <div className="b2b-auth__error" role="alert">
-          {t(params.error === 'FORBIDDEN' ? 'auth.organizationSecurity.forbidden' : 'auth.organizationSecurity.failed')}
+          {t(
+            params.error === 'FORBIDDEN'
+              ? 'auth.organizationSecurity.forbidden'
+              : params.error === 'UNAVAILABLE'
+                ? 'auth.organizationSecurity.unavailable'
+                : 'auth.organizationSecurity.failed',
+          )}
         </div>
       ) : null}
       {params.done ? <p>{t('auth.organizationSecurity.done')}</p> : null}

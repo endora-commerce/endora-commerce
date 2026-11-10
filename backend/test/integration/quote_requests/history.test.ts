@@ -389,11 +389,15 @@ describe('146 — readable history: authority and bounds [integration]', () => {
       const own = newOrganization(em, 'O');
       await em.persistAndFlush([stranger, own]);
       strangerOrgId = stranger.id;
-      const role = em.create(AdminRole, {
-        code: `history-rep-${stamp}`,
-        name: '146 history rep',
-        permissions: ['rfqs:handle'],
-      });
+      // The `sales_representative` role itself: only it is reach-scoped
+      // (issue #957); a custom role holding `rfqs:handle` sees every
+      // organization.
+      let role = await em.findOne(AdminRole, { code: 'sales_representative' });
+      if (!role) {
+        role = em.create(AdminRole, { code: 'sales_representative', name: 'Sales Representative', permissions: ['rfqs:handle'] });
+      } else {
+        role.permissions = Array.from(new Set([...role.permissions, 'rfqs:handle']));
+      }
       await em.persistAndFlush(role);
       const owner = em.create(AdminUser, {
         email: `146-history-owner-${stamp}@h.local`,

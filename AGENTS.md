@@ -153,6 +153,7 @@ the *Subject* column, which keeps the section names this file used to carry.
 | Adding or changing an admin permission code, a `requireAdmin(...)` gate, a command-palette action or an AppShell nav entry | Admin permissions, Command palette | `specs/conventions/module-admin-surfaces.md` |
 | Gating anything on a module's presence — routes, workers, subscribers, timers, boot hooks, cross-module calls, admin or storefront surfaces — or writing an off-state test | Module enable/disable | `specs/conventions/module-activation.md` |
 | Writing a migration, adding an `@Entity()` class, or wondering which number to use (there is none) | Migrations | `specs/conventions/module-migrations.md` |
+| Writing a Command's audit state (`before` / `after`, `stateBefore` / `stateAfter`) or a record history that reads audit entries back | Audit state | `specs/conventions/audit-state.md` |
 | Writing or moving a module's documentation page | Documentation | `specs/conventions/module-documentation.md` |
 | Shipping any user-facing string, or deciding whether the backend or the consumer translates it | i18n | `specs/conventions/module-i18n.md` |
 | Adding or changing a `check-*` script, re-recording a read size, or meeting a check's obligations | Static checks and their escape hatches | `specs/conventions/check-estate.md` |

@@ -18,7 +18,10 @@ service forgets an explicit filter.
   request body, query string, or headers.
   - Customer → `single-org` (their organization + customer account).
   - Platform admin → `all` (no restriction).
-  - Scoped sales-rep admin → `allowed-set` (their assigned organizations).
+  - Sales-representative admin → `excluded-set`: every organization **except**
+    those governed by another representative (see *The `excluded-set` mode*
+    below).
+  - Customer with a roll-up subtree → `allowed-set` (the named subtree).
   - Worker / migration / escape hatch → `system`.
   - API key bound to an organization → `single-org` (its organization + service
     account); an unbound key and anonymous traffic → `system`.
@@ -44,7 +47,8 @@ service forgets an explicit filter.
   `ComposeAppOptions.buildTenantContext`
   replaces the mapping for a deployment that needs to, and a replacement is
   refused — the request fails — when it answers a customer or a bound API key
-  with a `system` or `all` context, or an admin with a `system` one.
+  with a `system`, `all` or `excluded-set` context, or an admin with a `system`
+  one.
 
   **The route decides whose request it is, not which cookies are present.** One
   browser can hold an admin session and a customer session at once — an operator
@@ -72,6 +76,57 @@ service forgets an explicit filter.
 - **Fail-closed** — a query against a tenant-scoped entity with **no** ambient
   context raises `MissingTenantContextError`. A forgotten context is a loud error,
   never a silent cross-tenant read.
+
+
+## The `excluded-set` mode
+
+A sales representative reaches every organization that is not governed by
+another representative (issue #305): the ones assigned to them (with
+`organizations:rollup`, their subtrees, nearest assignment winning) and every
+organization nobody is assigned to — personal (B2C) organizations included,
+which can never be assigned. `organizations` answers that reach on
+`adminTenantScopePort` as `{ reach: 'excluding', excludedOrganizationIds,
+assignedOrganizationIds, excludedOrganizationsQuery }`, and the guard filters
+by it. The reach is read from `organization_reach_governor` — each
+organization's nearest assigned ancestor-or-self — which statement-level
+triggers keep current inside the transaction of every write that can change it
+(issue #955). Nothing is cached.
+
+- **Why the complement.** The reachable set includes every unassigned, and so
+  every personal, organization: it grows with the customer base, and as an
+  `IN (…)` list it would be paid on every admin request. The excluded set holds
+  only organizations that carry an assignment, plus their subtrees under
+  roll-up, so it is bounded by the B2B book. The predicate is
+  `organization_id NOT IN (<excludedOrganizationsQuery>)` on the filtered row's
+  own column: an uncorrelated subquery owned by `organizations`, which the
+  platform renders without naming what it reads; no join. Shipping the list
+  itself cost every tenant-scoped statement a literal the size of the list; the
+  subquery is a hashed SubPlan over the governor table (architect ruling on
+  #955, 2026-11-09, which narrowly revises the former "no subquery" rule: an
+  uncorrelated subquery on the row's own column is allowed, a correlated one or
+  a join is not).
+- **A null organization never matches.** The predicate is also
+  `organization_id IS NOT NULL`, spelled out, because `NULL NOT IN (<an empty
+  set>)` is true: an empty excluded set does not become "every row", the ones
+  with no organization included.
+- **Fail closed.** The set is derived server-side from `organizations`' tables,
+  never from the request. If its statement fails, the request fails. A
+  governing organization whose stored tree position cannot be read under
+  roll-up does not refuse the reach: it is resolved by the one-id rule — it
+  governs itself, and its descendants are found by their own paths — and the
+  request logs one `warn` naming it (ruling Q1 on PR #954). An empty
+  excluded set is a real answer — nobody else holds an assignment — and is never
+  produced by an error.
+- **Writes take the same arm.** The write guard and `isOrgInScope` refuse a
+  write carrying an excluded organization, so a representative writes only
+  where they read.
+- **Modules never read the ids.** A module reads its scope through the
+  derived-scope helpers — `orgScopeWhere`, `orgScopeSql` (for raw SQL: the same
+  subquery, with its parameters bound beside the caller's), `isOrgInScope`, `ruleVisibleForScope`, `reachesNoOrganization`
+  and `assignedOrganizationIdsForRanking` (ranking and "mine" filters only).
+  `OrgConstraint` names the arms `all`, `single`, `allowed` and `excluded`; the
+  former `set` arm was removed rather than kept beside them, so that no
+  consumer could read a representative's scope as "no restriction".
 
 ## Classifying an entity
 

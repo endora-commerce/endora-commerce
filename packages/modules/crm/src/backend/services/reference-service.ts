@@ -7,7 +7,6 @@ import type {
   OpportunityReferenceToken,
   OrderReadPort,
 } from '@endora-commerce/contracts';
-import { getTenantContext } from '@endora-commerce/platform/tenancy';
 import { referenceTokensOf } from '../domain/reference-tokens.js';
 import type {
   CrmReferenceSourceKind,
@@ -62,8 +61,6 @@ export interface ReferenceSource {
   sourceId: string | null;
 }
 
-const FALLBACK_LANGUAGE = 'en';
-
 /**
  * Where a chip leads in the Admin UI. A person leads nowhere: the screen of an
  * administrator is `admin_users`', behind the right to manage administrators.
@@ -88,11 +85,6 @@ function adminUrl(token: OpportunityReferenceToken): string | null {
   }
 }
 
-/**
- * A Product's name in the reader's language: the exact locale, then any locale
- * of the same language (`pl` reads `pl-PL`), then whatever name there is, then
- * the SKU — a Product always has something to be called by.
- */
 /**
  * References to Products, Orders, people, Quote Requests and Tasks in an
  * Opportunity's free text (`specs/143-crm-sales-opportunities/research.md`
@@ -193,7 +185,7 @@ export class ReferenceService {
       opportunityIds.length > 0 ? this.deps.opportunities.findByIds(opportunityIds) : Promise.resolve([]),
       mayReadProjects ? this.deps.projects.findByIds(projectIds) : Promise.resolve([]),
     ]);
-    const [products, orders, people, quoteRequests, tasks, _language] = await Promise.all([
+    const [products, orders, people, quoteRequests, tasks] = await Promise.all([
       // Live products only: one that was deleted is gone for the reader.
       mayReadProducts ? this.deps.products.findByIds(productIds, { liveOnly: true }) : Promise.resolve([]),
       mayReadOrders ? this.deps.orders.findByIds(orderIds) : Promise.resolve([]),
@@ -203,7 +195,6 @@ export class ReferenceService {
         ? Promise.all(quoteRequestIds.map((id) => this.deps.quoteRequests.findRecord(id)))
         : Promise.resolve([]),
       mayReadTasks ? this.deps.tasks.findByIds(taskIds) : Promise.resolve([]),
-      mayReadProducts ? this.#viewerLanguage() : Promise.resolve(FALLBACK_LANGUAGE),
     ]);
     const labels = new Map<string, string>();
     const orderFacts = new Map<string, OpportunityReferenceOrder>();
@@ -250,13 +241,5 @@ export class ReferenceService {
             };
       }),
     );
-  }
-
-  /** The acting administrator's stored language — what the Admin UI renders in — or English. */
-  async #viewerLanguage(): Promise<string> {
-    const actor = getTenantContext()?.actor;
-    if (actor?.kind !== 'admin' || !actor.id) return FALLBACK_LANGUAGE;
-    const admin = await this.deps.adminUsers.findById(actor.id);
-    return admin?.preferredLanguage ?? FALLBACK_LANGUAGE;
   }
 }

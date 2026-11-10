@@ -16,6 +16,7 @@ export const MFA_API_ERROR_KEYS = {
   MFA_NOT_ENABLED: 'auth.mfa.error.MFA_NOT_ENABLED',
   MFA_REAUTH_REQUIRED: 'auth.mfa.error.MFA_REAUTH_REQUIRED',
   MFA_SOCIAL_LAST_CREDENTIAL: 'auth.mfa.error.MFA_SOCIAL_LAST_CREDENTIAL',
+  MFA_LAST_FACTOR_REQUIRED: 'auth.mfa.error.MFA_LAST_FACTOR_REQUIRED',
 } as const;
 
 /** `/account/security?error=<code>`. */

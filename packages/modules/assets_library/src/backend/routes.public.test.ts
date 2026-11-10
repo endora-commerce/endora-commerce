@@ -34,7 +34,7 @@ const SANDBOX_CSP = "default-src 'none'; style-src 'unsafe-inline'; sandbox";
 let app: FastifyInstance;
 let baseDir: string;
 const assets = new Map<string, FakeAsset>();
-const resolveUrl = vi.fn(async (id: string) => ({
+const resolveUrl = vi.fn(async (id: string, _opts?: { download?: boolean }) => ({
   url: `https://bucket.example.test/${id}?X-Signature=abc`,
   expiresAt: null,
 }));
@@ -189,6 +189,9 @@ describe('GET /assets/file/:assetId — response headers by stored type', () => 
     });
     expect(r.statusCode).toBe(304);
     expect(r.headers['x-content-type-options']).toBe('nosniff');
+    // The browser merges a 304's headers into the cached response: without this
+    // the host's default `same-origin` replaces the 200's and blocks the embed.
+    expect(r.headers['cross-origin-resource-policy']).toBe('cross-origin');
   });
 });
 
@@ -202,8 +205,8 @@ describe('GET /assets/file/:assetId — private assets on every storage backend'
         storageBackend: backend,
       });
       const r = await app.inject({ method: 'GET', url: `/assets/file/${a.id}` });
-      expect(r.statusCode).toBe(403);
-      expect(r.json()).toMatchObject({ error: { code: 'ASSET_ACCESS_DENIED' } });
+      expect(r.statusCode).toBe(404);
+      expect(r.json()).toMatchObject({ error: { code: 'ASSET_NOT_FOUND' } });
       expect(resolveUrl).not.toHaveBeenCalled();
     },
   );
@@ -219,7 +222,7 @@ describe('GET /assets/file/:assetId — private assets on every storage backend'
       method: 'GET',
       url: `/assets/file/${a.id}?token=${'0'.repeat(64)}&exp=${exp}`,
     });
-    expect(r.statusCode).toBe(403);
+    expect(r.statusCode).toBe(404);
     expect(resolveUrl).not.toHaveBeenCalled();
   });
 
@@ -232,6 +235,23 @@ describe('GET /assets/file/:assetId — private assets on every storage backend'
     const r = await app.inject({ method: 'GET', url: `/assets/file/${a.id}?${signedQuery(a.id)}` });
     expect(r.statusCode).toBe(302);
     expect(r.headers['location']).toBe(`https://bucket.example.test/${a.id}?X-Signature=abc`);
+    expect(resolveUrl).toHaveBeenCalledWith(a.id, { download: false });
+  });
+
+  // Issue #815: the signed URL pins the bucket's answer to the asset's type and
+  // disposition, and `?download=1` asks for an attachment as it does locally.
+  it('asks for an attachment-signed URL when a private s3 asset is requested with download=1', async () => {
+    resolveUrl.mockClear();
+    const a = await addAsset('secret.pdf', 'application/pdf', {
+      visibility: 'private',
+      storageBackend: 's3',
+    });
+    const r = await app.inject({
+      method: 'GET',
+      url: `/assets/file/${a.id}?${signedQuery(a.id)}&download=1`,
+    });
+    expect(r.statusCode).toBe(302);
+    expect(resolveUrl).toHaveBeenCalledWith(a.id, { download: true });
   });
 
   it('redirects a public s3 asset without a token', async () => {
@@ -243,7 +263,7 @@ describe('GET /assets/file/:assetId — private assets on every storage backend'
   it('refuses a private local asset without a token and serves it with one', async () => {
     const a = await addAsset('secret.pdf', 'application/pdf', { visibility: 'private' });
     const denied = await app.inject({ method: 'GET', url: `/assets/file/${a.id}` });
-    expect(denied.statusCode).toBe(403);
+    expect(denied.statusCode).toBe(404);
     const ok = await app.inject({ method: 'GET', url: `/assets/file/${a.id}?${signedQuery(a.id)}` });
     expect(ok.statusCode).toBe(200);
     expect(ok.headers['cache-control']).toContain('no-store');
@@ -280,15 +300,45 @@ describe('GET /assets/file — permalinks and the private answer by form (featur
     },
   );
 
-  it('a soft-deleted private asset by id answers 403 without a token and 410 with one', async () => {
+  // Issue #542: by id as by permalink, a private asset without a valid
+  // signature answers byte-for-byte what an id that names nothing answers.
+  it.each(['local', 's3', 'gcs'] as const)(
+    'a private %s asset by id without a token, or with a forged one, answers exactly like an unknown id',
+    async (backend) => {
+      resolveUrl.mockClear();
+      const a = await addAsset('secret.pdf', 'application/pdf', {
+        visibility: 'private',
+        storageBackend: backend,
+      });
+      const unknown = await app.inject({
+        method: 'GET',
+        url: '/assets/file/aabbccdd-ffff-ffff-ffff-ffffffffffff',
+      });
+      expect(unknown.statusCode).toBe(404);
+      const exp = Math.floor(Date.now() / 1000) + 300;
+      for (const url of [
+        `/assets/file/${a.id}`,
+        `/assets/file/${a.id}?token=${'0'.repeat(64)}&exp=${exp}`,
+        `/assets/file/${a.id}?v=${a.contentVersion}`,
+      ]) {
+        const hidden = await app.inject({ method: 'GET', url });
+        sameRefusal(hidden, unknown);
+        expect(hidden.headers['location']).toBeUndefined();
+        expect(hidden.headers['etag']).toBeUndefined();
+      }
+      expect(resolveUrl).not.toHaveBeenCalled();
+    },
+  );
+
+  it('a soft-deleted private asset by id answers 404 without a token and 410 with one', async () => {
     const a = await addAsset('secret.pdf', 'application/pdf', { visibility: 'private', deletedAt: new Date() });
     const without = await app.inject({ method: 'GET', url: `/assets/file/${a.id}` });
-    expect(without.statusCode).toBe(403);
+    expect(without.statusCode).toBe(404);
     const withToken = await app.inject({ method: 'GET', url: `/assets/file/${a.id}?${signedQuery(a.id)}` });
     expect(withToken.statusCode).toBe(410);
   });
 
-  it('302, 403, 404 and 410 all carry nosniff, the sandbox policy and no-store', async () => {
+  it('302, 404 (unknown and hidden) and 410 all carry nosniff, the sandbox policy and no-store', async () => {
     const pub = await addAsset('photo.png', 'image/png');
     const priv = await addAsset('secret.pdf', 'application/pdf', { visibility: 'private' });
     const gone = await addAsset('gone.pdf', 'application/pdf', { deletedAt: new Date() });
@@ -298,7 +348,7 @@ describe('GET /assets/file — permalinks and the private answer by form (featur
       await app.inject({ method: 'GET', url: '/assets/file/no-such-name.pdf' }),
       await app.inject({ method: 'GET', url: `/assets/file/${gone.id}` }),
     ];
-    expect(answers.map((r) => r.statusCode)).toEqual([302, 403, 404, 410]);
+    expect(answers.map((r) => r.statusCode)).toEqual([302, 404, 404, 410]);
     for (const r of answers) {
       expect(r.headers['x-content-type-options']).toBe('nosniff');
       expect(r.headers['content-security-policy']).toBe(SANDBOX_CSP);
@@ -322,5 +372,6 @@ describe('GET /assets/file — permalinks and the private answer by form (featur
     expect(conditional.statusCode).toBe(304);
     expect(conditional.headers['content-security-policy']).toBe(byId.headers['content-security-policy']);
     expect(conditional.headers['x-content-type-options']).toBe('nosniff');
+    expect(conditional.headers['cross-origin-resource-policy']).toBe('cross-origin');
   });
 });

@@ -19,6 +19,7 @@ import {
   type CrmPropagationOutcome,
 } from '../entities/crm-status-propagation.entity.js';
 import { isUuid, loadOpportunity } from './opportunity-access.js';
+import { recordValueChange } from './opportunity-audit-state.js';
 import { isClosedToOrderCausedMove } from './opportunity-transition-service.js';
 import type { OwnerReadCheck } from './owner-read-permissions.js';
 
@@ -377,6 +378,9 @@ export class OrderStatusPropagationService {
           detail: skipped.detail,
           resolvedAt: new Date(),
         });
+        // Why it did not follow is a sentence, so it goes to the
+        // Opportunity's own store and the entry names it (#470).
+        const reasonKeys = recordValueChange(em, opportunityId, { before: null, after: { reason: skipped.detail } });
         return {
           result: undefined,
           before: { status: skipped.from },
@@ -387,7 +391,7 @@ export class OrderStatusPropagationService {
             orderStatusCode: skipped.orderStatusCode,
             skippedStatus: skipped.opportunityStatusCode,
             outcome: skipped.outcome,
-            reason: skipped.detail,
+            ...reasonKeys,
           },
         };
       },
