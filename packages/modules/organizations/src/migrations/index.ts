@@ -36,6 +36,7 @@ import { Migration20261018T104644OrganizationsChannelAccessBackfill } from './20
 import { Migration20261103T173304OrganizationsOrganizationRoles } from './20261103T173304_organizations_organization_roles.js';
 import { Migration20261104T094535OrganizationsDropLegacyRoleColumns } from './20261104T094535_organizations_drop_legacy_role_columns.js';
 import { Migration20261105T121034OrganizationsRegistryLookupProvenance } from './20261105T121034_organizations_registry_lookup_provenance.js';
+import { Migration20261109T144721OrganizationsReachGovernor } from './20261109T144721_organizations_reach_governor.js';
 
 export const migrations = [
   Migration20260424T205317OrganizationsInit,
@@ -52,6 +53,7 @@ export const migrations = [
   Migration20261103T173304OrganizationsOrganizationRoles,
   Migration20261104T094535OrganizationsDropLegacyRoleColumns,
   Migration20261105T121034OrganizationsRegistryLookupProvenance,
+  Migration20261109T144721OrganizationsReachGovernor,
 ];
 
 export {
@@ -69,4 +71,5 @@ export {
   Migration20261103T173304OrganizationsOrganizationRoles,
   Migration20261104T094535OrganizationsDropLegacyRoleColumns,
   Migration20261105T121034OrganizationsRegistryLookupProvenance,
+  Migration20261109T144721OrganizationsReachGovernor,
 };

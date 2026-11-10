@@ -49,6 +49,7 @@ import type {
   PaymentMethodReadPort,
 } from '@endora-commerce/contracts';
 import type { EntityManager } from '@mikro-orm/postgresql';
+import { LockMode } from '@mikro-orm/core';
 import { HttpError } from '@endora-commerce/platform/http';
 import { isOrgInScope } from '@endora-commerce/platform/tenancy';
 import { getResolvedChannel, rethrowIfModuleDisabled } from '@endora-commerce/platform/kernel';
@@ -255,6 +256,14 @@ export async function registerOrderRoutes(
   // Narrow admin write for Order custom-field values. The write runs through
   // the Command Bus (audited by construction, Principle XIII); validation may
   // reject with a per-field 422. Only mounted when both deps are provided.
+  //
+  // Issue #399: the request names only the keys it changes — `validateAndMerge`
+  // keeps every key the request leaves out and clears one it sends empty — and
+  // the merge is made over the bag **read under the row lock**, held until the
+  // Command commits. Orders carry no `version`, so without the lock another
+  // writer of the bag (the system carry that fills empty fields right after an
+  // order is created, which locks the row itself) could commit between this
+  // read and this write and have its value overwritten by the stale bag.
   if (customFieldValues && commandBus) {
     app.patch<{ Params: { id: string } }>(
       '/api/v1/admin/orders/:id/custom-fields',
@@ -267,20 +276,22 @@ export async function registerOrderRoutes(
           action: 'order.custom_fields.update',
           objectType: 'order',
           objectId: orderId,
-          capture: async ({ em }) => {
-            const o = await em.findOne(Order, { id: orderId });
-            return o ? { customFieldValues: o.customFieldValues ?? {} } : null;
-          },
           run: async ({ em }) => {
-            if (!isUuidShape(orderId)) throw new HttpError(404, ERROR_CODES.NOT_FOUND, 'Order not found.');
-            const order = await em.findOne(Order, { id: orderId });
+            // The one read of the row, `for update`: the audit's before-state
+            // and the merge are both made over the bag this transaction holds.
+            const order = await em.findOne(
+              Order,
+              { id: orderId },
+              { lockMode: LockMode.PESSIMISTIC_WRITE, refresh: true },
+            );
             if (!order) throw new HttpError(404, ERROR_CODES.NOT_FOUND, 'Order not found.');
+            const before = { customFieldValues: { ...(order.customFieldValues ?? {}) } };
             order.customFieldValues = await customFieldValues.validateAndMerge(
               'order',
               order.customFieldValues ?? {},
               patch,
             );
-            return { result: order, after: { customFieldValues: order.customFieldValues } };
+            return { result: order, before, after: { customFieldValues: order.customFieldValues } };
           },
         };
         try {
