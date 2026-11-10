@@ -295,6 +295,12 @@ export {
  */
 export { defineColumnExtension } from './schema-extensions/define.js';
 export { columnExtensionPatchSchema, columnExtensionSchema } from './schema-extensions/zod.js';
+export { extensionColumns, type ExtensionColumnsAccessor } from './schema-extensions/accessor.js';
+export type {
+  ExtensionAttributeMap,
+  ExtensionJsonValue,
+  SchemaExtensionReads,
+} from './schema-extensions/reads.js';
 export {
   ExtensionHostRowNotFoundError,
   ExtensionProjectionWriteError,

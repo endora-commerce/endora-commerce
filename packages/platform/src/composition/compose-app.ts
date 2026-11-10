@@ -102,7 +102,11 @@ import { effectiveState } from '../kernel/lifecycle/effective-state.js';
 import { publishStateChanged, registryCache } from '../kernel/lifecycle/registry-cache.js';
 import { requiredModulesFrom } from '../kernel/lifecycle/required-modules.js';
 import { platformLogger } from '../kernel/logging.js';
-import { activeSchemaExtensionContext } from '../kernel/schema-extensions/registry.js';
+import {
+  activeSchemaExtensionContext,
+  activeSchemaExtensions,
+} from '../kernel/schema-extensions/registry.js';
+import { createSchemaExtensionReads } from '../kernel/schema-extensions/reads.js';
 import { verifySchemaExtensions } from '../db/schema-extension-verifier.js';
 import { createRegistrationOwnership } from '../kernel/module-context.js';
 import {
@@ -730,6 +734,13 @@ export async function composeApp(options: ComposeAppOptions): Promise<ComposeApp
     // Issue #844 — the one non-append write on the audit table, platform-owned
     // beside its writer; the customers retention sweep is its caller.
     auditRedactionService: new AuditRedactionService(em, auditLogService),
+    // `specs/178-extensible-columns/` FR-051 — extension attributes on the
+    // admin reads of an extensible host, over the declarations this platform's
+    // ORM registered and the effective module state.
+    schemaExtensionReads: createSchemaExtensionReads({
+      declarations: activeSchemaExtensions,
+      state: effectiveState,
+    }),
     storefrontBaseUrl: process.env['STOREFRONT_BASE_URL'] ?? 'http://localhost:3000',
     // No verification-token probe outside a harness.
     organizationsExposeTestProbe: false,

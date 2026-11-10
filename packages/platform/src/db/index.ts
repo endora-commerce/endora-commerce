@@ -134,3 +134,8 @@ export {
   activeSchemaExtensionContext,
   type SchemaExtensionContext,
 } from '../kernel/schema-extensions/registry.js';
+export {
+  extensionColumnsWithPresence,
+  type ModulePresenceReader,
+} from '../kernel/schema-extensions/accessor.js';
+export { createSchemaExtensionReads } from '../kernel/schema-extensions/reads.js';
