@@ -29,6 +29,12 @@ export const SILENT_HISTORY_FIELDS: ReadonlySet<string> = new Set([
   'cause',
   'causeOrderId',
   'status',
+  // Issue #470 — what an entry says in place of the values the Opportunity's
+  // own store keeps. The history serves those values instead; the names reach
+  // the tab only if the store row were gone.
+  'valueChangeId',
+  'changedFields',
+  'changedCustomFields',
 ]);
 
 /** The fields with a label under `history.field.<field>` in both bundles. */

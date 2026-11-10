@@ -1567,6 +1567,17 @@ disagree with what happened — and **anybody who may read the opportunity may
 read its history**. The permission that opens the platform-wide audit log is
 not needed.
 
+**The values come from the opportunity itself, not from the audit log.** The
+platform-wide audit log is read by everybody who holds `audit_log:read`,
+whichever organizations they may see, so an opportunity's entry there names
+what changed and holds none of the values: no title, description, value,
+currency, contact person, organization, tag name, custom field value, reason,
+event name or file name. Those are kept beside the opportunity, written in the
+same step as the entry, and the history puts them back in `before` and
+`after` for a reader who may read the opportunity. Entries recorded before
+this change still carry their values in the audit log, and the history shows
+them as they were recorded.
+
 Six things to know:
 
 - **Custom field values need `custom_fields:read`.** An entry's `before` and
@@ -1594,7 +1605,9 @@ Six things to know:
   a next page to ask for.
 
 On the platform-wide **Audit log** screen the same entries appear among
-everybody else's, as the same sentences.
+everybody else's, as the same sentences, with the names of the changed fields
+(`changedFields`, `changedCustomFields`) where the history shows values. An
+opportunity is named there by its number.
 
 In the Admin UI the history is the **Change history** tab of an opportunity.
 Each entry is a sentence — *Opportunity status changed*, *Note added* — with
