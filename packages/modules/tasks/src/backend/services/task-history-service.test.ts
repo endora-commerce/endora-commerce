@@ -19,7 +19,12 @@ interface StoredRow {
   after: Record<string, unknown> | null;
 }
 
-function build(entries: Array<{ before: unknown; after: unknown }>, stored: StoredRow[] = [], canSeeContext = true) {
+function build(
+  entries: Array<{ before: unknown; after: unknown }>,
+  stored: StoredRow[] = [],
+  canSeeContext = true,
+  mayReadCustomFields = true,
+) {
   const execute = vi.fn(async (_sql: string, [taskId, ids]: [string, string]) =>
     stored.filter((row) => row.taskId === taskId && ids.includes(row.id)),
   );
@@ -40,7 +45,8 @@ function build(entries: Array<{ before: unknown; after: unknown }>, stored: Stor
         })) as never,
     },
     adminUsers: { findByIds: async () => [] } as never,
-  });
+    mayReadCustomFields: async () => mayReadCustomFields,
+  } as never);
   const list = () => withSystemScopeActingFor(ADMIN, 'test: task history', () => service.list(TASK, { limit: 50 }));
   return { list, execute };
 }
@@ -91,5 +97,37 @@ describe('TaskHistoryService — values from the Task’s own store (#470)', () 
       before: null,
       after: { changedFields: ['title'] },
     });
+  });
+});
+
+/**
+ * Owner ruling (2026-11-10, #470; feature 162 P2 = a, as CRM and Projects): a
+ * Task's custom-field values — and the names of the changed ones — are served
+ * in its history only to a reader holding `custom_fields:read`.
+ */
+describe('TaskHistoryService — custom fields need custom_fields:read', () => {
+  const entries = [
+    { before: null, after: { number: 'TASK-1', changedCustomFields: ['risk'], valueChangeId: V1 } },
+    // Written before #470: the values are in the audit row itself (O-4).
+    { before: { customFieldValues: { risk: 'low' } }, after: { customFieldValues: { risk: 'high' } } },
+  ];
+  const stored = [{ id: V1, taskId: TASK, before: null, after: { customFieldValues: { risk: 'S470-CF' } } }];
+
+  it('serves them to a reader who may read custom fields', async () => {
+    const page = await build(entries, stored, true, true).list();
+    expect(page.data[0]?.after).toEqual({ number: 'TASK-1', customFieldValues: { risk: 'S470-CF' } });
+    expect(page.data[1]).toMatchObject({ before: { customFieldValues: { risk: 'low' } } });
+  });
+
+  it('serves neither the values nor the names to one who may not — new entries and old alike', async () => {
+    const page = await build(entries, stored, true, false).list();
+    expect(JSON.stringify(page.data)).not.toContain('risk');
+    expect(page.data[0]?.after).toEqual({ number: 'TASK-1' });
+    expect(page.data[1]).toMatchObject({ before: {}, after: {} });
+  });
+
+  it('still hides the names when no row is found', async () => {
+    const page = await build([{ before: null, after: { changedCustomFields: ['risk'] } }], [], true, false).list();
+    expect(page.data[0]?.after).toEqual({});
   });
 });
