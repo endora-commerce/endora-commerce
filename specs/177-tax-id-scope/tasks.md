@@ -94,9 +94,9 @@ Rows refer to `contracts/personal-tax-id-removal.md` §3.
 
 ## WP-4 — Tax-ID scope admin UI (US1; after T033)
 
-- [ ] T042 [WP-4] [US1] [test] `TaxIdScopePage`: loading skeleton; current scope badge; Apply disabled on the current scope with a hint; confirm dialog; success in a pre-mounted `role="status"`; duplicates alert with ≤ 20 links; mismatch alert; 403 state; axe clean (FR-025) — `admin/test/modules/organizations/tax-id-scope-page.test.tsx` — T033
-- [ ] T043 [WP-4] [US1] Page, admin route, list header menu entry, palette action `open-tax-id-scope`, i18n keys en/pl (`contracts/admin-surfaces.md` §2–§4.1, §6); run `registered-bundles-shape.test.ts`, `check:action-route-permissions`, `palette-coverage.test.ts` — `org/src/admin/`, `org/src/manifest.ts`, `org/i18n/` — T042
-- [ ] T044 [WP-4] [US1] [test → impl] Admin create parent picker (unscoped admins only) and the shared-tax-ID hint (inventory O15, §4.4) — `admin/test/modules/organizations/organization-create-parent.test.tsx`, `org/src/admin/pages/OrganizationCreate.tsx` — T035, T043
+- [x] T042 [WP-4] [US1] [test] `TaxIdScopePage`: loading skeleton; current scope badge; Apply disabled on the current scope with a hint; confirm dialog; success in a pre-mounted `role="status"`; duplicates alert with ≤ 20 links; mismatch alert; 403 state; axe clean (FR-025) — `admin/test/modules/organizations/tax-id-scope-page.test.tsx` — T033
+- [x] T043 [WP-4] [US1] Page, admin route, list header menu entry, palette action `open-tax-id-scope`, i18n keys en/pl (`contracts/admin-surfaces.md` §2–§4.1, §6); run `registered-bundles-shape.test.ts`, `check:action-route-permissions`, `palette-coverage.test.ts` — `org/src/admin/`, `org/src/manifest.ts`, `org/i18n/` — T042
+- [x] T044 [WP-4] [US1] [test → impl] Admin create parent picker (unscoped admins only) and the shared-tax-ID hint (inventory O15, §4.4) — `admin/test/modules/organizations/organization-create-parent.test.tsx`, `org/src/admin/pages/OrganizationCreate.tsx` — T035, T043 *(the admin session carries no tenant reach, so "unscoped" is read as the backend reads it — the role is not `sales_representative`; the hint shows once a parent is chosen, since the scope itself is readable only under `organizations:manage-tax-id-scope`)*
 - [ ] T044v [WP-4] Verify; PR — T042–T044
 
 ## WP-5 — Conversion backend (US3; after WP-1 and T031)

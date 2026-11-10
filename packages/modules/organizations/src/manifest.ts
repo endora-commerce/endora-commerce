@@ -479,6 +479,19 @@ export const manifest = defineModuleManifest({
       keywordsKey: 'actions.newOrganization.keywords',
       weight: 210,
     },
+    // `specs/177-tax-id-scope/` (`contracts/admin-surfaces.md` §2, Principle XVI) —
+    // the Tax-ID scope screen, gated on the code its route and its API enforce.
+    {
+      id: 'open-tax-id-scope',
+      labelKey: 'actions.openTaxIdScope.label',
+      descriptionKey: 'actions.openTaxIdScope.description',
+      icon: 'Settings',
+      targetRoute: '/organizations/tax-id-scope',
+      requiredPermission: 'organizations:manage-tax-id-scope',
+      keywords: ['tax', 'nip', 'vat', 'scope', 'unique', 'branch'],
+      keywordsKey: 'actions.openTaxIdScope.keywords',
+      weight: 190,
+    },
     // Feature 173 (`contracts/admin-surfaces.md` §5, Principle XVI) — the three
     // registration-lookup settings. The generic Settings screen has no
     // per-group address (the cms / google_tag_manager precedent), so the action

@@ -75,6 +75,13 @@ export const contributions: AdminContributions = {
       requiredPermission: CREATE_PERMISSION,
     },
     {
+      // `specs/177-tax-id-scope/` (`contracts/admin-surfaces.md` §3) — the
+      // installation's tax-ID scope; static, so ahead of `/:id`.
+      path: `${ROUTE_PATH}/tax-id-scope`,
+      component: () => import('./pages/TaxIdScopePage.js'),
+      requiredPermission: 'organizations:manage-tax-id-scope',
+    },
+    {
       path: `${ROUTE_PATH}/:id`,
       component: () => import('./pages/OrganizationDetail.js'),
       requiredPermission: [...READ_PERMISSION],

@@ -70,6 +70,7 @@ Rendered from the module's own manifest, and from nothing written by hand. What 
 | `new-organization` | `/organizations/new` | `customers:manage` |
 | `open-organizations` | `/organizations` | `customers:read` |
 | `open-registration-registry-lookup-settings` | `/settings` | `settings:read` |
+| `open-tax-id-scope` | `/organizations/tax-id-scope` | `organizations:manage-tax-id-scope` |
 
 ## Settings
 
