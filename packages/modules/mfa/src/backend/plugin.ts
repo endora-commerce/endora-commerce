@@ -196,7 +196,7 @@ export function mfaModule(options: MfaModuleOptions): {
   // Issue #947 — without a cipher, requiring a second factor is refused.
   const orgPolicyService = new MfaOrgPolicyService(
     options.emFactory,
-    options.auditLogService,
+    options.commandBus,
     cipher !== null,
   );
   // Deliberately not behind the `oauthProvider` check below: the links an
@@ -217,14 +217,12 @@ export function mfaModule(options: MfaModuleOptions): {
     // requiring one.
     await registerMfaOrgRoutes(app, {
       orgPolicyService,
-      auditLogService: options.auditLogService,
       requireCustomer: options.requireCustomer,
       resolveOrgAdmin: options.resolveOrgAdmin,
     });
     if (options.requireAdmin) {
       await registerMfaAdminOrgPolicyRoutes(app, {
         orgPolicyService,
-        auditLogService: options.auditLogService,
         requireAdmin: options.requireAdmin,
         resolveAdminActor: options.resolveAdminActor,
       });
