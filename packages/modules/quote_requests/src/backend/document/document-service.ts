@@ -29,6 +29,7 @@ import { QuoteRequestEvent } from '../entities/quote-request-event.entity.js';
 import { loadArrangedQuoteLines, toLineGroup } from '../services/line-order.js';
 import type { AdminContext } from '../services/rfq-admin-service.js';
 import { submissionRecordProposals } from '../services/draft-guard.js';
+import { adminCanSeeOrganization } from '../services/admin-org-visibility.js';
 import { formatQuoteDate } from './blocks/types.js';
 import type { QuoteDocumentDataBuilder } from './data-builder.js';
 
@@ -79,7 +80,8 @@ export class QuoteRequestDocumentService {
     if (!isUuidShape(id)) throw notFound();
     const quote = await em.findOne(QuoteRequest, { id });
     if (!quote) throw notFound();
-    if (!ctx.isPlatformAdmin && !(await this.deps.salesRepScope.canSeeOrganization(ctx.adminUserId, quote.organizationId))) {
+    // Only a sales representative is narrowed (issue #957), as on the detail.
+    if (!(await adminCanSeeOrganization(this.deps.salesRepScope, ctx.adminUserId, quote.organizationId))) {
       throw notFound();
     }
     return quote;
