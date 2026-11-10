@@ -262,11 +262,14 @@ export function planAdminLineGrouping(
   };
 }
 
-/** The layout's shape — `stateAfter.groups` of the `order.place_on_behalf` audit entry (FR-081). */
-export function layoutShape(layout: OrderLineLayout): Array<{ name: string; lineCount: number }> {
+/**
+ * The layout's shape — `stateAfter.groups` of the `order.place_on_behalf` audit
+ * entry (FR-081): each group's line count, in display order. Never its name: a
+ * group name is free text, and the audit log carries no tenant value (D-288).
+ */
+export function layoutShape(layout: OrderLineLayout): Array<{ lineCount: number }> {
   const lines = [...layout.lines.values()];
   return layout.groups.map((group) => ({
-    name: group.name,
     lineCount: lines.filter((line) => line.groupSourceId === group.sourceId).length,
   }));
 }

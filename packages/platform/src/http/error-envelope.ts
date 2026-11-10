@@ -1,5 +1,5 @@
 import type { FastifyInstance, FastifyReply, FastifyRequest } from 'fastify';
-import { CustomerSessionRequiredError, ERROR_CODES, isAmountPrecisionIssue, isUnitPricePrecisionIssue, type ErrorCode, type ErrorEnvelope, type ModuleErrorCode, type SupportedLanguage } from '@endora-commerce/contracts';
+import { CustomerSessionRequiredError, ERROR_CODES, isAmountPrecisionIssue, isLineQuantityExceededIssue, isUnitPricePrecisionIssue, LINE_QUANTITY_MAX, type ErrorCode, type ErrorEnvelope, type ModuleErrorCode, type SupportedLanguage } from '@endora-commerce/contracts';
 import { ZodError, type core as zodCore } from 'zod';
 import { hasZodFastifySchemaValidationErrors } from '@fastify/type-provider-zod';
 import { OrgWriteOutOfScopeError } from '../tenancy/tenant-context.js';
@@ -551,6 +551,10 @@ async function localizeErrorEnvelope(
  * one with more is `UNIT_PRICE_PRECISION_EXCEEDED`, a sibling code whose
  * sentence says four. A request refused for both kinds at once has no one
  * sentence that is true, so it keeps the generic code.
+ *
+ * A line quantity past `LINE_QUANTITY_MAX` is `LINE_QUANTITY_EXCEEDED`, on the
+ * same terms (issue #351, architect ruling R1 on PR #1009): only when every
+ * issue is that one.
  */
 function validationCode(issues: readonly unknown[]): { code: ErrorCode; message: string } {
   if (issues.length > 0 && issues.every(isAmountPrecisionIssue)) {
@@ -558,6 +562,12 @@ function validationCode(issues: readonly unknown[]): { code: ErrorCode; message:
   }
   if (issues.length > 0 && issues.every(isUnitPricePrecisionIssue)) {
     return { code: ERROR_CODES.UNIT_PRICE_PRECISION_EXCEEDED, message: 'A unit price has more than four decimal places.' };
+  }
+  if (issues.length > 0 && issues.every(isLineQuantityExceededIssue)) {
+    return {
+      code: ERROR_CODES.LINE_QUANTITY_EXCEEDED,
+      message: `A line quantity may be at most ${LINE_QUANTITY_MAX.toLocaleString('en-US')}.`,
+    };
   }
   return { code: ERROR_CODES.VALIDATION_FAILED, message: 'Request failed validation.' };
 }

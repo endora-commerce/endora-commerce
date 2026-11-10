@@ -51,12 +51,11 @@ describe('PATCH /admin/organizations/:id/credit-limit — audited via Command Bu
     expect(rows).toHaveLength(1);
     expect(rows[0]?.objectType).toBe('credit_limit');
     expect(rows[0]?.actorAdminUserId).toBeTruthy(); // an admin performed it (server-derived)
-    expect((rows[0]?.stateAfter as { grantedAmount?: string } | null)?.grantedAmount).toBe(
-      '8000.00',
-    );
-    expect((rows[0]?.stateBefore as { grantedAmount?: string } | null)?.grantedAmount).toBe(
-      '10000.00',
-    );
+    // Names, never values (#470, D-288): the entry says the amount changed,
+    // not from what to what, and not whose it is.
+    expect(rows[0]?.stateAfter).toEqual({ changedFields: ['grantedAmount'] });
+    expect(rows[0]?.stateBefore ?? null).toBeNull();
+    expect(JSON.stringify([rows[0]?.stateBefore, rows[0]?.stateAfter])).not.toMatch(/8000|10000/);
   });
 
   it('writes NO audit row for a refused (no-op) adjust', async () => {
