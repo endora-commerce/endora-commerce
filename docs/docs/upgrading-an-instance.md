@@ -4599,6 +4599,26 @@ validation and fail at the database with `500 INTERNAL`.
 operator's quote request or to returns, has to split the request, and one that branches on error
 codes should handle `LINE_QUANTITY_EXCEEDED`.
 
+### Order values leave the platform audit log {#orders-audit-names-only}
+
+The release that ships this change stops writing an order's values into the platform-wide audit
+log (issue #470). That log is one table, read by everybody holding `audit_log:read` whichever
+organizations they may see, so it now names what an order's change touched and nothing more.
+
+**Behaviour change on upgrade:**
+
+- On the **Audit log** screen, and in `audit_logs read`, a new `order.custom_fields.update` or
+  `order.custom_fields.carry` entry no longer carries custom field values. It names the keys that
+  changed as `changedCustomFields`.
+- A new `order.place_on_behalf` entry no longer carries the order's total and currency, and its
+  `groups` give each group's line count without the group's name.
+- A new `order.place_via_api_key` entry no longer carries the organization and the customer the
+  key places for. It keeps the API key's id and the order number.
+- Entries recorded before the upgrade are not rewritten.
+
+**After upgrading,** nothing has to be done. A report or an export that read these values out of
+the audit log reads them from the order (`GET /api/v1/admin/orders/:id`) instead.
+
 ## An instance that is mixed from the start
 
 The installer of `0.101.x` or earlier wrote every package of the release with a `^` except

@@ -558,6 +558,13 @@ klucze jako `carriedCustomFieldKeys`. Zamówienie złożone przez samego klienta
 wpisu audytu. Przeniesione wartości są w zamówieniu od początku, więc odczytują je subskrybenci
 `order.created.v1`.
 
+**Co zawiera dziennik audytu.** Dziennik audytu platformy czyta każdy, kto ma `audit_log:read`, bez
+względu na to, które organizacje widzi, dlatego wpisy zamówienia zawierają nazwy i strukturę, nigdy
+jego wartości. Zmiana pól niestandardowych (`order.custom_fields.update`) i przeniesienie z szansy
+sprzedażowej (`order.custom_fields.carry`) wymieniają zmienione klucze jako `changedCustomFields`,
+bez ich wartości. Ani `order.place_on_behalf`, ani `order.place_via_api_key` nie zapisują sumy
+zamówienia, waluty, organizacji ani klienta. Wartości przechowuje samo zamówienie.
+
 ### Notatka systemowa
 
 Gdy wartość zostanie pominięta, karta **Komentarze** zamówienia zawiera jedną notatkę autorstwa
@@ -757,8 +764,8 @@ kilku pozycjach** — w dwóch różnych grupach albo dwa razy w jednej: każda 
 osobną pozycją zamówienia, we własnej grupie, wycenioną według własnej ilości (minimalna ilość
 zamówienia produktu jest nadal oceniana na sumie jego pozycji). `POST /api/v1/admin/orders` przyjmuje opcjonalną listę `groups` (`{ key, name }`, w
 kolejności wyświetlania, najwyżej 50, nazwy od 1 do 120 znaków) i dla każdej pozycji opcjonalny
-`groupKey`. Grupowanie jest utrwalane we wpisie audytu `order.place_on_behalf` (nazwa i liczba
-pozycji każdej grupy); własne złożenie zamówienia przez kupującego, jak dotąd, nie trafia do audytu.
+`groupKey`. Grupowanie jest utrwalane we wpisie audytu `order.place_on_behalf` (liczba pozycji
+każdej grupy, w kolejności; bez nazwy, która jest wartością i nie trafia do dziennika audytu); własne złożenie zamówienia przez kupującego, jak dotąd, nie trafia do audytu.
 
 **Gdzie są pokazywane.** Ekran zamówienia w panelu administracyjnym i strona zamówienia kupującego
 pokazują każdą grupę jako sekcję z nagłówkiem, pozycjami i podsumowaniem — liczba pozycji, netto,
