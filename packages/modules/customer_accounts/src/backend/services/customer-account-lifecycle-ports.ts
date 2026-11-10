@@ -35,6 +35,7 @@ import {
 } from './customer-account-ports.js';
 import type { TwoFactorEnrolmentReader } from './two-factor-enrolments.js';
 import { anyRowExists, type WorkRows } from './scheduled-work-probe.js';
+import { accountCreatedAuditState } from './customer-account-audit-state.js';
 
 /**
  * The account lifecycle `customers` runs over this module's table
@@ -221,7 +222,7 @@ export class CustomerAccountLifecycleWriteService implements CustomerAccountLife
         objectType: 'customer_account',
         objectId: account.id,
         stateBefore: null,
-        stateAfter: { email: account.email },
+        stateAfter: accountCreatedAuditState(account),
       });
       try {
         await tem.flush();
