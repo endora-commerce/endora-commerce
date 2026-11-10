@@ -144,6 +144,7 @@ import type { CrmOpportunityStatusHistory as CrmOpportunityStatusHistoryRow } fr
 import type { CrmOpportunityStatusTransition as CrmOpportunityStatusTransitionRow } from '../../../packages/modules/crm/src/backend/entities/crm-opportunity-status-transition.entity.js';
 import type { CrmOpportunityTag as CrmOpportunityTagRow } from '../../../packages/modules/crm/src/backend/entities/crm-opportunity-tag.entity.js';
 import type { CrmOrderStatusMapping as CrmOrderStatusMappingRow } from '../../../packages/modules/crm/src/backend/entities/crm-order-status-mapping.entity.js';
+import type { CrmOpportunityValueChange as CrmOpportunityValueChangeRow } from '../../../packages/modules/crm/src/backend/entities/crm-opportunity-value-change.entity.js';
 import type { CrmStatusPropagation as CrmStatusPropagationRow } from '../../../packages/modules/crm/src/backend/entities/crm-status-propagation.entity.js';
 import type { CrmTag as CrmTagRow } from '../../../packages/modules/crm/src/backend/entities/crm-tag.entity.js';
 import type { CrmValueCountingStatus as CrmValueCountingStatusRow } from '../../../packages/modules/crm/src/backend/entities/crm-value-counting-status.entity.js';
@@ -1080,6 +1081,7 @@ export const CrmOpportunityStatusHistory = classNamed<CrmOpportunityStatusHistor
 export const CrmOpportunityStatusTransition = classNamed<CrmOpportunityStatusTransitionRow>(installedModuleEntities, 'crm', 'CrmOpportunityStatusTransition');
 export const CrmOpportunityTag = classNamed<CrmOpportunityTagRow>(installedModuleEntities, 'crm', 'CrmOpportunityTag');
 export const CrmOrderStatusMapping = classNamed<CrmOrderStatusMappingRow>(installedModuleEntities, 'crm', 'CrmOrderStatusMapping');
+export const CrmOpportunityValueChange = classNamed<CrmOpportunityValueChangeRow>(installedModuleEntities, 'crm', 'CrmOpportunityValueChange');
 export const CrmStatusPropagation = classNamed<CrmStatusPropagationRow>(installedModuleEntities, 'crm', 'CrmStatusPropagation');
 export const CrmTag = classNamed<CrmTagRow>(installedModuleEntities, 'crm', 'CrmTag');
 export const CrmValueCountingStatus = classNamed<CrmValueCountingStatusRow>(installedModuleEntities, 'crm', 'CrmValueCountingStatus');
@@ -1117,6 +1119,7 @@ export type CrmOpportunityStatusHistory = CrmOpportunityStatusHistoryRow;
 export type CrmOpportunityStatusTransition = CrmOpportunityStatusTransitionRow;
 export type CrmOpportunityTag = CrmOpportunityTagRow;
 export type CrmOrderStatusMapping = CrmOrderStatusMappingRow;
+export type CrmOpportunityValueChange = CrmOpportunityValueChangeRow;
 export type CrmStatusPropagation = CrmStatusPropagationRow;
 export type CrmTag = CrmTagRow;
 export type CrmValueCountingStatus = CrmValueCountingStatusRow;
