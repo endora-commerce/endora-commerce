@@ -49,7 +49,8 @@ describe('M3 — customer_accounts.organization_role_id', () => {
       [
         id,
         `Assignment ${id.slice(0, 8)}`,
-        `${options.isPersonal ? 'personal' : 'assign'}-${id.slice(0, 13)}`,
+        // A personal organization has no tax ID (specs/177-tax-id-scope/).
+        options.isPersonal ? null : `assign-${id.slice(0, 13)}`,
         `/${id}/`,
         options.isPersonal ?? false,
       ],

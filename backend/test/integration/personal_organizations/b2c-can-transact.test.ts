@@ -34,6 +34,7 @@ describe('B2C (personal-org) customer can transact (feature 051 US1)', () => {
     const em = h.em();
     const org = await em.findOne(Organization, { id: TEST_ORGANIZATION_ID });
     org!.isPersonal = true;
+    org!.taxId = null; // a personal organization has no tax ID (specs/177-tax-id-scope/)
     org!.status = 'active';
     await em.flush();
     await seedCartForStubCustomer(h.em());

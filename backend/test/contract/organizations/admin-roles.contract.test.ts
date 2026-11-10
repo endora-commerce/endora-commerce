@@ -74,8 +74,8 @@ describe('operator organization roles', () => {
     await h.em().getConnection().execute(
       `insert into "organizations"
          ("id","name","tax_id","status","vat_status","registered_address","path","is_personal","created_at","updated_at")
-       values (?, 'Personal operator roles test', ?, 'active', 'vat_payer', '{}'::jsonb, ?, true, now(), now())`,
-      [personalOrganizationId, `personal-${personalOrganizationId.slice(0, 13)}`, `/${personalOrganizationId}/`],
+       values (?, 'Personal operator roles test', null, 'active', 'vat_payer', '{}'::jsonb, ?, true, now(), now())`,
+      [personalOrganizationId, `/${personalOrganizationId}/`],
     );
   }, 90_000);
 

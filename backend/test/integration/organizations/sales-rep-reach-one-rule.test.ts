@@ -102,7 +102,7 @@ describe('#305 — one sales-representative reach rule on every surface', () => 
         } as Organization);
       const o1 = organization('o1');
       const u = organization('u');
-      const p = organization('p', { isPersonal: true });
+      const p = organization('p', { isPersonal: true, taxId: null }); // no tax ID (specs/177)
       const f = organization('f');
       await em.persistAndFlush([o1, u, p, f]);
       for (const o of [o1, u, p, f]) o.path = `/${o.id}/`;

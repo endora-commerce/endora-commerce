@@ -49,8 +49,8 @@ describe('a personal Organization’s administrator (PR-3)', () => {
     await h.em().execute(
       `insert into "organizations"
          ("id","name","tax_id","status","vat_status","registered_address","path","is_personal","created_at","updated_at")
-       values (?, 'Personal administrator test', ?, 'active', 'vat_payer', '{}'::jsonb, ?, true, now(), now())`,
-      [personalOrganizationId, `personal-${personalOrganizationId.slice(0, 13)}`, `/${personalOrganizationId}/`],
+       values (?, 'Personal administrator test', null, 'active', 'vat_payer', '{}'::jsonb, ?, true, now(), now())`,
+      [personalOrganizationId, `/${personalOrganizationId}/`],
     );
     await h.em().execute(
       `insert into "customer_accounts"

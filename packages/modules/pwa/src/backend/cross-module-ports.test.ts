@@ -119,6 +119,7 @@ function organizationRecord(
     createdAt: new Date('2026-01-01T00:00:00.000Z'),
     updatedAt: new Date('2026-01-01T00:00:00.000Z'),
     deletedAt: null,
+    convertedToCompanyAt: null,
     ...overrides,
   };
 }
@@ -214,6 +215,8 @@ describe('pwa — the Rule Builder pickers read published ports', () => {
           ];
         },
         searchIdsByName: async () => [],
+        findByTaxId: async () => [],
+        resolveByTaxId: async () => ({ kind: 'none' }),
       },
       customerGroups: unusedPort as CustomerGroupReadPort,
     });

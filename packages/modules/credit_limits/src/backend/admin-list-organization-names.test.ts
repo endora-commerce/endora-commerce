@@ -55,6 +55,8 @@ describe('GET /api/v1/admin/credit-limits — the organisation name', () => {
       countByIds: async () => 0,
       searchByName: async () => [],
       searchIdsByName: async () => [],
+      findByTaxId: async () => [],
+      resolveByTaxId: async () => ({ kind: 'none' }),
     };
 
     const creditLimitService = {

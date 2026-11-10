@@ -88,7 +88,7 @@ describe.skipIf(!shouldRun)('#305 — the sales-representative reach at 50 000 o
     const db = h.em().getConnection();
     await db.execute(
       `insert into organizations (id, name, name_search, tax_id, status, vat_status, registered_address, is_personal, path, created_at, updated_at)
-       select md5('r305-p-${stamp}-' || g)::uuid, 'R305 Person ' || g, 'r305 person ' || g, 'R305P${stamp}' || g, 'active',
+       select md5('r305-p-${stamp}-' || g)::uuid, 'R305 Person ' || g, 'r305 person ' || g, null, 'active',
               'vat_exempt', '{"street":"x","city":"Kraków","postalCode":"30-001","country":"PL"}'::jsonb, true,
               '/' || md5('r305-p-${stamp}-' || g)::uuid || '/', now(), now()
          from generate_series(1, ${PERSONAL}) g`,
