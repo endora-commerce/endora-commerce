@@ -106,6 +106,39 @@ describe('Admin customer block/unblock (US3)', () => {
     expect(relogin.statusCode).toBe(200);
   });
 
+  it('leaves no e-mail, name, block reason or organization in the platform audit log (D-288, #470)', async () => {
+    const c = await registerCustomer();
+    const reason = `S470-REASON-${Date.now()}`;
+    const block = await h.app.inject({
+      method: 'POST',
+      url: `/api/v1/admin/customers/${c.id}/block`,
+      cookies: { b2b_session: 'stub-admin-session' },
+      payload: { reason },
+    });
+    expect(block.statusCode).toBe(200);
+    const account = await h.em().fork().findOneOrFail(CustomerAccount, { id: c.id });
+
+    const read = await h.app.inject({
+      method: 'GET',
+      url: `/api/v1/admin/audit-log?filter[objectId]=${c.id}`,
+      cookies: { b2b_session: 'stub-admin-session' },
+    });
+    expect(read.statusCode, read.body).toBe(200);
+    const rows = (read.json() as { data: Array<{ action: string; stateBefore: unknown; stateAfter: unknown }> }).data;
+    expect(rows.map((row) => row.action)).toEqual(
+      expect.arrayContaining(['customer_account.register_standalone', 'customer_account.blocked']),
+    );
+    const recorded = JSON.stringify(rows.map((row) => [row.stateBefore, row.stateAfter]));
+    // The names as recorded JSON strings: `Block` alone is part of a key name.
+    for (const sentinel of [c.email, '"Block"', '"Me"', reason, account.organizationId]) {
+      expect(recorded, sentinel).not.toContain(sentinel);
+    }
+    expect(rows.find((row) => row.action === 'customer_account.blocked')?.stateAfter).toMatchObject({
+      blockSource: 'staff',
+      hasBlockReason: true,
+    });
+  });
+
   it('returns 404 for an unknown customer', async () => {
     const res = await h.app.inject({
       method: 'POST',
