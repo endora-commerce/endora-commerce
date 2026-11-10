@@ -35,7 +35,8 @@ import { Migration } from '@mikro-orm/migrations';
  * accounts by it. Migration order is topological, so on a database that has not
  * applied it this migration runs first, and the old INSERT would then fail
  * `organizations_tax_id_presence`. The first statement therefore refuses a
- * database whose `organizations` holds rows while the platform's ledger
+ * database whose `organizations` holds rows — or whose `customer_accounts`
+ * holds an account with no organization — while the platform's ledger
  * (`mikro_orm_migrations`, no module's table) lacks that migration, before
  * anything changes. A fresh database passes: its `organizations` is empty, and
  * the old INSERT then selects no account.
@@ -46,8 +47,20 @@ export class Migration20261110T135922OrganizationsPersonalTaxIdRemoval extends M
   override async up(): Promise<void> {
     this.addSql(`
       do $$
+      declare
+        v_orphan_accounts boolean := false;
       begin
-        if exists (select 1 from "organizations")
+        -- An account with no organization is what the old migration provisions
+        -- a placeholder organization for, even while the organizations table is empty.
+        -- Dynamic, so a database without the table or the column plans nothing.
+        if to_regclass('customer_accounts') is not null and exists (
+          select 1 from information_schema.columns
+           where table_name = 'customer_accounts' and column_name = 'organization_id'
+        ) then
+          execute 'select exists (select 1 from "customer_accounts" where "organization_id" is null)'
+            into v_orphan_accounts;
+        end if;
+        if (exists (select 1 from "organizations") or v_orphan_accounts)
            and (
              to_regclass('mikro_orm_migrations') is null
              or not exists (

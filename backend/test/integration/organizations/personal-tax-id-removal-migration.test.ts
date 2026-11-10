@@ -338,6 +338,26 @@ describe('organizations — M1: personal organizations lose the synthetic tax ID
       expect(await columnState()).toEqual({ taxIdNullable: 'YES', personalAccountColumn: 1 });
     });
 
+    // Review finding 4 — a pre-0.100.0 database whose accounts have no
+    // organization yet: `organizations` is empty, and the old migration would
+    // still insert placeholder rows after M1.
+    it('refuses an empty organizations table when accounts without an organization exist', async () => {
+      await em.execute('delete from "mikro_orm_migrations" where "name" = ?', [OLD_MIGRATION]);
+      await em.execute('alter table "organizations" rename to "organizations_m1_aside"');
+      await em.execute('create table "organizations" (like "organizations_m1_aside" including all)');
+      // The pre-0.100.0 shape: no organization, and so no organization role.
+      await em.execute('alter table "customer_accounts" alter column "organization_id" drop not null');
+      await em.execute('alter table "customer_accounts" alter column "organization_role_id" drop not null');
+      await em.execute('alter table "customer_accounts" disable trigger user');
+      await em.execute(
+        `insert into "customer_accounts" ("id","organization_id","email","password_hash","first_name","last_name","created_at","updated_at")
+         values (?, null, ?, 'x', 'Pre', 'Hundred', now(), now())`,
+        [randomUUID(), `pre-0100-${randomUUID().slice(0, 8)}@m1.example`],
+      );
+      const message = await upError();
+      expect(message).toContain(OLD_MIGRATION);
+    });
+
     it('the fixture database ran the whole chain from empty: M1, then the customer_accounts migration', async () => {
       const rows = (await em.execute(
         'select "name" from "mikro_orm_migrations" where "name" in (?, ?) order by "id"',

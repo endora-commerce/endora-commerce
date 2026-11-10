@@ -3,6 +3,7 @@ import { afterAll, afterEach, beforeAll, beforeEach, describe, expect, it } from
 import type { EntityManager } from '@mikro-orm/postgresql';
 import { Migration20261110T173752OrganizationsTaxIdWriteLock } from '@endora-commerce/mod-organizations/migrations';
 import { setupTestDb, type TestDb } from '../../helpers/test-db.js';
+import { OrganizationTreeService } from '../../../../packages/modules/organizations/src/backend/services/organization-tree-service.js';
 
 /**
  * `specs/177-tax-id-scope/` FR-021 — the tax-ID write lock, a `before insert or
@@ -64,7 +65,7 @@ describe('organizations — the tax-ID write lock', () => {
     expect(await trigger()).toHaveLength(1);
   });
 
-  it('takes the advisory lock keyed on the tax ID it writes', async () => {
+  it('takes the advisory lock of the tax ID\'s bucket', async () => {
     const id = randomUUID();
     await em.execute(
       `insert into "organizations"
@@ -75,8 +76,51 @@ describe('organizations — the tax-ID write lock', () => {
     const [held] = (await em.execute(
       `select count(*)::int as "count" from pg_locks
         where locktype = 'advisory' and pid = pg_backend_pid()
-          and ((classid::bigint << 32) | objid::bigint) = hashtextextended('organizations.tax_id:WL177LOCKED01', 0)`,
+          and classid = 177 and objid = (hashtext('WL177LOCKED01') & 255)`,
     )) as [{ count: number }];
     expect(held.count).toBe(1);
+  });
+
+  async function heldAdvisoryLocks(): Promise<number> {
+    const [row] = (await em.execute(
+      `select count(*)::int as "count" from pg_locks where locktype = 'advisory' and pid = pg_backend_pid()`,
+    )) as [{ count: number }];
+    return row.count;
+  }
+
+  // Review finding 1 — the locks a transaction takes are bounded however many
+  // tax IDs it writes: keyed by a bucket of the tax ID, not the tax ID itself.
+  it('takes at most 256 locks however many tax IDs one transaction writes', async () => {
+    await em.execute(
+      `insert into "organizations"
+         ("id","name","tax_id","status","vat_status","is_personal","registered_address","path","created_at","updated_at")
+       select g.id, 'Many', 'WLM' || lpad(g.n::text, 6, '0'), 'active', 'vat_payer', false, '{}'::jsonb,
+              '/' || g.id || '/', now(), now()
+         from (select gen_random_uuid() as id, n from generate_series(1, 600) as n) g`,
+    );
+    expect(await heldAdvisoryLocks()).toBeLessThanOrEqual(256);
+  });
+
+  it('a move locks a large subtree in at most 256 locks', async () => {
+    const root = randomUUID();
+    await em.execute(
+      `insert into "organizations"
+         ("id","name","tax_id","status","vat_status","is_personal","registered_address","path","created_at","updated_at")
+       values (?, 'Big root', 'WLROOT0001', 'active', 'vat_payer', false, '{}'::jsonb, ?, now(), now())`,
+      [root, `/${root}/`],
+    );
+    await em.execute('alter table "organizations" disable trigger user');
+    await em.execute(
+      `insert into "organizations"
+         ("id","name","tax_id","status","vat_status","is_personal","registered_address","parent_id","path","created_at","updated_at")
+       select g.id, 'Big child', 'WLS' || lpad(g.n::text, 6, '0'), 'active', 'vat_payer', false, '{}'::jsonb, ?,
+              ? || g.id || '/', now(), now()
+         from (select gen_random_uuid() as id, n from generate_series(1, 600) as n) g`,
+      [root, `/${root}/`],
+    );
+    await em.execute('alter table "organizations" enable trigger user');
+    const before = await heldAdvisoryLocks();
+    await new OrganizationTreeService(() => em).lockSubtreeTaxIds(em, { id: root, path: `/${root}/` } as never);
+    expect((await heldAdvisoryLocks()) - before).toBeLessThanOrEqual(256);
   });
 });

@@ -7,6 +7,7 @@ import {
   normalizeTaxId,
   organizationCompanyTaxId,
   organizationSchema,
+  registerOrganizationRequestSchema,
   taxIdScopeSchema,
   type OrganizationRecord,
   type TaxIdResolution,
@@ -165,5 +166,30 @@ describe('AdminOrganizationCreateBodySchema.parentId (FR-018)', () => {
     expect(AdminOrganizationCreateBodySchema.safeParse({ ...create, parentId: 'head-office' }).success).toBe(
       false,
     );
+  });
+});
+
+// Review finding 5 — a tax ID is held to its stored length after normalisation,
+// wherever it enters.
+describe('registration and admin create validate the normalised tax ID', () => {
+  const organization = {
+    name: 'Acme',
+    registeredAddress: { street: 's', city: 'c', postalCode: '00-001', country: 'PL' },
+  };
+  it.each([
+    ['--------', false],
+    ['  - -  - -', false],
+    ['1'.repeat(33), false],
+    ['pl 526-025-09-95', true],
+  ])('%j accepted: %s', (taxId, ok) => {
+    const register = registerOrganizationRequestSchema.shape.organization.safeParse({ ...organization, taxId });
+    expect(register.success).toBe(ok);
+    const create = AdminOrganizationCreateBodySchema.safeParse({
+      ...organization,
+      taxId,
+      salesChannelIds: ['00000000-0000-4000-8000-000000000001'],
+    });
+    expect(create.success).toBe(ok);
+    if (ok) expect(register.success && register.data.taxId).toBe('PL5260250995');
   });
 });

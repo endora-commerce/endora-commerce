@@ -25,10 +25,18 @@ import { Migration } from '@mikro-orm/migrations';
  * takes one; the tree Command, which rewrites a subtree holding several, takes
  * them all in ascending order before its path rewrite
  * (`OrganizationTreeService.lockSubtreeTaxIds`), so the trigger's per-row
- * re-acquisitions are re-entrant no-ops. A hash collision only makes two
- * writers of different tax IDs wait for each other. Writers of different tax IDs do not wait for each other here. In
+ * re-acquisitions are re-entrant no-ops. Writers of different tax IDs do not wait for each other here. In
  * `global` the unique index already serialises them; the lock costs nothing
  * there and keeps one rule for both scopes.
+ *
+ * **Keyed by a bucket of the tax ID, not the tax ID itself** — the two-key
+ * lock `(177, hashtext(tax_id) & 255)`, 256 buckets. A transaction holds at
+ * most 256 such locks however many rows it writes: keyed per tax ID, a bulk
+ * write (M4's normalisation, a large subtree's move, an import) took one per
+ * row and exhausted the shared lock table (`out of shared memory`) at a few
+ * thousand rows. Two writers of different tax IDs in one bucket wait for each
+ * other; that costs a little concurrency on rare writes and never correctness.
+ * `OrganizationTreeService.lockSubtreeTaxIds` takes the same keys.
  *
  * Every object is this module's own. Repeatable: `create or replace`, and the
  * trigger dropped before it is created.
@@ -42,7 +50,7 @@ export class Migration20261110T173752OrganizationsTaxIdWriteLock extends Migrati
       returns trigger language plpgsql as $$
       begin
         if new."tax_id" is not null then
-          perform pg_advisory_xact_lock(hashtextextended('organizations.tax_id:' || new."tax_id", 0));
+          perform pg_advisory_xact_lock(177, hashtext(new."tax_id") & 255);
         end if;
         return new;
       end

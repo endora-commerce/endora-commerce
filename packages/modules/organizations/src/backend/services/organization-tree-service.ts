@@ -311,11 +311,13 @@ export class OrganizationTreeService {
 
   /**
    * `specs/177-tax-id-scope/` D-290 / OD-10 — takes the tax-ID write lock of
-   * every tax ID in `node`'s subtree, in ascending order, on `em`'s
-   * transaction.
+   * every tax ID in `node`'s subtree, by bucket, in ascending order, on `em`'s
+   * transaction. At most 256 locks whatever the subtree's size — a lock per tax
+   * ID exhausted the shared lock table on large moves (review finding 1); the
+   * buckets bound it, and an unrelated writer that shares a bucket only waits.
    *
    * **The lock order every writer keeps:** tax-ID locks before the reach
-   * governor's, and tax-ID locks in ascending order. The path rewrite fires
+   * governor's, and tax-ID bucket locks in ascending order. The path rewrite fires
    * `organizations_tax_id_write_lock` once per row, in whatever order the
    * update visits them, and then the governor's statement trigger; two moves
    * sharing two tax IDs could take them in opposite orders and deadlock. Taken
@@ -325,18 +327,20 @@ export class OrganizationTreeService {
    */
   async lockSubtreeTaxIds(em: EntityManager, node: Organization): Promise<void> {
     this.#assertReadable(node);
+    // The write lock's keys (`20261110T173752`): one of 256 buckets per tax
+    // ID, so a subtree of any size takes at most 256 locks.
     const rows = (await em.getConnection().execute(
-      `select distinct "tax_id" from "organizations"
+      `select distinct (hashtext("tax_id") & 255) as "bucket" from "organizations"
         where "path" like ? and "tax_id" is not null
-        order by "tax_id"`,
+        order by 1`,
       [`${node.path}%`],
       'all',
       em.getTransactionContext(),
-    )) as Array<{ tax_id: string }>;
-    for (const { tax_id: taxId } of rows) {
+    )) as Array<{ bucket: number }>;
+    for (const { bucket } of rows) {
       await em.getConnection().execute(
-        `select pg_advisory_xact_lock(hashtextextended('organizations.tax_id:' || ?, 0))`,
-        [taxId],
+        'select pg_advisory_xact_lock(177, ?::int)',
+        [bucket],
         'all',
         em.getTransactionContext(),
       );

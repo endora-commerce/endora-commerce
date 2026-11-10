@@ -15,8 +15,7 @@ import type { EventBase, EventBus } from '@endora-commerce/platform/events';
 import { HttpError } from '@endora-commerce/platform/http';
 import { Organization } from '../entities/organization.entity.js';
 import { TaxIdLookupService } from './tax-id-lookup-service.js';
-import { taxIdConflictOf } from './tax-id-conflict.js';
-import { taxIdExistsRefusal } from './organization-write.js';
+import { organizationWriteError, taxIdExistsRefusal } from './organization-write.js';
 import { EmailVerificationToken } from '../entities/email-verification-token.entity.js';
 import { recordAuditFromContext } from '@endora-commerce/platform/commands';
 import type { AuditPort, SalesChannelMembershipPort } from '@endora-commerce/platform/kernel';
@@ -202,8 +201,7 @@ export class RegistrationService {
       // `specs/177-tax-id-scope/` Phase A (research R-15) — either scope's
       // constraint: `global`'s unique one at the statement, `per-tree-root`'s
       // deferred one at this flush's own commit (no transaction is open here).
-      if (taxIdConflictOf(err) !== null) throw taxIdExistsRefusal();
-      throw err;
+      throw organizationWriteError(err, () => taxIdExistsRefusal());
     }
     // Feature 154 — on this `EntityManager`, right after the Organization row,
     // so "no Organization without a channel" holds by construction.

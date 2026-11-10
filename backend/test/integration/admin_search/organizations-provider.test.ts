@@ -96,6 +96,13 @@ describe('admin global search — Organization provider (spec 150, owner Q2)', (
     expect(await hitIds(ids['personal']!, ['name'])).toEqual([]);
   });
 
+  // Review finding 3 — a tax ID typed with spaces and dashes finds the stored,
+  // normalised one.
+  it('finds a tax ID typed with dashes and in lower case', async () => {
+    const typed = `tx-${T.toLowerCase()}-9`;
+    expect(await hitIds(typed, ['taxId'])).toContain(ids['assigned']);
+  });
+
   it('maps to the organization screen with tax ID, city and status', async () => {
     const [hit] = (await searchAsPlatform(provider(), providerQuery(`TX${T}9`, ['taxId'], { language: 'pl' }))).hits;
     expect(hit).toMatchObject({

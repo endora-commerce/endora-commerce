@@ -111,12 +111,17 @@ export class TaxIdScopeService {
   }
 
   /**
-   * Blocks writes to `organizations` — inserts, tax-ID and path updates — for
-   * the rest of the transaction, so the duplicate report and the constraint
-   * build see one table. Readers are not blocked.
+   * Blocks every access to `organizations` for the rest of the transaction, so
+   * the duplicate report and the constraint build see one table. Held for the
+   * few seconds a constraint build takes; the screen's confirmation says so.
    */
   async lockOrganizations(em: EntityManager): Promise<void> {
-    await em.execute(`lock table "organizations" in share row exclusive mode`);
+    // `access exclusive` up front, the mode the constraint DDL needs: taking a
+    // weaker lock first and upgrading it at the `ALTER TABLE` deadlocked with a
+    // concurrent writer (review finding 2). Bounded, so a long writer makes the
+    // swap answer a retryable 409 (`55P03`) instead of hanging.
+    await em.execute(`set local lock_timeout = '5s'`);
+    await em.execute(`lock table "organizations" in access exclusive mode`);
   }
 
   /**

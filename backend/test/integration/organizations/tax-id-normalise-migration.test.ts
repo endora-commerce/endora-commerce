@@ -129,4 +129,29 @@ describe('organizations — M4: tax IDs stored normalised', () => {
     expect(message).toContain(one.id);
     expect(message).toContain(other.id);
   });
+
+  // Review finding 1 — the update runs in the one migration transaction. With
+  // the write lock keyed per tax ID that was one advisory lock per row, and a
+  // few thousand rows exhausted the shared lock table (`out of shared memory`).
+  it('normalises thirty thousand dash-formatted tax IDs in one transaction', async () => {
+    await em.execute('alter table "organizations" disable trigger user');
+    await em.execute(
+      `insert into "organizations"
+         ("id","name","tax_id","status","vat_status","is_personal","registered_address","path","created_at","updated_at")
+       select g.id, 'M4 bulk', 'bk-' || lpad(g.n::text, 9, '0'), 'active', 'vat_payer', false, '{}'::jsonb,
+              '/' || g.id || '/', now(), now()
+         from (select gen_random_uuid() as id, n from generate_series(1, 30000) as n) g`,
+    );
+    await em.execute('alter table "organizations" enable trigger user');
+
+    expect(await upError()).toBeUndefined();
+    const [{ left }] = (await em.execute(
+      `select count(*)::int as "left" from "organizations" where "tax_id" like 'bk-%'`,
+    )) as [{ left: number }];
+    expect(left).toBe(0);
+    const [{ held }] = (await em.execute(
+      `select count(*)::int as "held" from pg_locks where locktype = 'advisory' and pid = pg_backend_pid()`,
+    )) as [{ held: number }];
+    expect(held).toBeLessThanOrEqual(256);
+  }, 300_000);
 });

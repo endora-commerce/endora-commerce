@@ -26,6 +26,7 @@ import {
   AdminOrganizationCreateBodySchema,
   adminTaxIdScopeSetBodySchema,
   adminOrganizationConvertToCompanyBodySchema,
+  normalizeTaxId,
   type AdminTaxIdScopeResponse,
   DictionaryReferenceError,
   OrganizationSalesChannelsUpdateBodySchema,
@@ -309,7 +310,7 @@ export async function registerOrganizationsAdminRoutes(
     async (request) => {
       assertUnscoped(unscopedMessage);
       const body = adminTaxIdScopeSetBodySchema.parse(request.body);
-      await deps.commandBus.run(makeSetTaxIdScopeCommand({ scopes: taxIdScopes }, { scope: body.scope }));
+      await runOrganizationWrite(deps.commandBus, makeSetTaxIdScopeCommand({ scopes: taxIdScopes }, { scope: body.scope }));
       return taxIdScopeResponse();
     },
   );
@@ -337,9 +338,12 @@ export async function registerOrganizationsAdminRoutes(
         // entity. Falls back to taxId ILIKE so admins can also paste a
         // tax-id fragment.
         const normalized = normalizeOrganizationName(query.q);
+        // Stored tax IDs are normalised (`specs/177-tax-id-scope/` OD-11), so
+        // the tax-ID branch matches the normalised text.
+        const taxIdText = normalizeTaxId(query.q);
         where['$or'] = [
           { nameSearch: { $ilike: `%${normalized}%` } },
-          { taxId: { $ilike: `%${query.q}%` } },
+          ...(taxIdText ? [{ taxId: { $ilike: `%${taxIdText}%` } }] : []),
         ];
       }
       const orgs = await em.find(Organization, where, {
@@ -624,7 +628,18 @@ export async function registerOrganizationsAdminRoutes(
   app.post<{ Params: { id: string } }>(
     '/api/v1/admin/organizations/:id/convert-to-company',
     {
-      preHandler: [requireAdmin('organizations:convert-to-company'), organizationInReach],
+      preHandler: [
+        requireAdmin('organizations:convert-to-company'),
+        organizationInReach,
+        // `validateTaxId` runs a VAT validation, a `customers:manage` write
+        // (`POST …/vat-validations`); the conversion code alone does not
+        // carry it (review finding 6).
+        async (request, reply) => {
+          if ((request.body as { validateTaxId?: unknown } | undefined)?.validateTaxId === true) {
+            await requireAdmin('customers:manage')(request, reply);
+          }
+        },
+      ],
       schema: { body: adminOrganizationConvertToCompanyBodySchema },
     },
     async (request) => {
@@ -641,7 +656,11 @@ export async function registerOrganizationsAdminRoutes(
         ),
         () => taxIdExistsRefusal(),
       );
-      await deps.roleCache?.dropAndAnnounce(org.id);
+      // The conversion has committed; a cache that cannot be dropped is the
+      // role cache's own expiry to repair, not a failed request (review finding 7).
+      await deps.roleCache?.dropAndAnnounce(org.id).catch((err: unknown) => {
+        request.log.warn({ err, organizationId: org.id }, 'organizations: role cache not dropped after a conversion');
+      });
       let vatValidation: { outcome: string; provider: string | null } | null = null;
       if (validateTaxId && taxIdValidationService) {
         try {

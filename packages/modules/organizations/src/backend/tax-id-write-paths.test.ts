@@ -66,6 +66,6 @@ describe('the writes of organizations.tax_id and path', () => {
   it('registration maps either constraint at its own flush (Phase A)', () => {
     const text = readFileSync(join(BACKEND, 'services', 'registration-service.ts'), 'utf8');
     expect(text).toMatch(WRITES);
-    expect(text).toContain('taxIdConflictOf(err)');
+    expect(text).toContain('organizationWriteError(err');
   });
 });

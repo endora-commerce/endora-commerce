@@ -206,9 +206,6 @@ export type Address = z.infer<typeof addressSchema>;
 
 // --- Requests --------------------------------------------------------------
 
-/** Polish NIP or a generic tax-id string; exact validation lives in the backend. */
-const taxIdSchema = z.string().min(8).max(32);
-
 /**
  * `specs/177-tax-id-scope/` — the one normalisation a tax ID gets before it is
  * stored or looked up: whitespace and dashes stripped, upper-cased. It is the
@@ -226,7 +223,9 @@ const normalizedTaxIdSchema = z.string().transform(normalizeTaxId).pipe(z.string
 export const registerOrganizationRequestSchema = z.object({
   organization: z.object({
     name: z.string().min(1).max(255),
-    taxId: taxIdSchema,
+    // `specs/177-tax-id-scope/` — normalised, then held to the stored length,
+    // so `--------` is refused instead of storing an empty tax ID.
+    taxId: normalizedTaxIdSchema,
     registeredAddress: z.object({
       street: z.string().min(1).max(255),
       city: z.string().min(1).max(120),
@@ -627,6 +626,9 @@ export type OrganizationConvertToCompanyInput = Omit<
  * (`specs/177-tax-id-scope/` `contracts/convert-to-company.md` §4).
  *
  * Server-side writes on the Organization aggregate, each one audited Command.
+ * **No permission is checked here** — the caller is the gate: an admin route
+ * behind `organizations:convert-to-company` and the reach rule, or
+ * operator-run server code. Never resolve it for a customer-facing route.
  */
 export interface OrganizationCommandPort {
   /**

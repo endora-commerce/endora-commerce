@@ -142,6 +142,23 @@ describe('a personal Organization’s administrator (PR-3)', () => {
     expect(companies.every((o) => !o.isPersonal)).toBe(true);
   });
 
+  // Review finding 3 — the list's tax-ID match normalises what was typed.
+  it('the admin list q finds a company tax ID typed with dashes', async () => {
+    const id = randomUUID();
+    await h.em().execute(
+      `insert into "organizations"
+         ("id","name","tax_id","status","vat_status","registered_address","path","is_personal","created_at","updated_at")
+       values (?, 'Dash search', 'PL7771234567', 'active', 'vat_payer', '{}'::jsonb, ?, false, now(), now())`,
+      [id, `/${id}/`],
+    );
+    const res = await h.app.inject({
+      method: 'GET',
+      url: '/api/v1/admin/organizations?q=pl-777-123',
+      cookies: { b2b_admin_session: 'stub-admin-session' },
+    });
+    expect((res.json() as { data: Array<{ id: string }> }).data.map((o) => o.id)).toContain(id);
+  });
+
   it('lists the members — only themself (PR-10)', async () => {
     const res = await inject({ method: 'GET', url: '/api/v1/organizations/mine/members' });
     expect(res.statusCode, res.body).toBe(200);

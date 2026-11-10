@@ -15,6 +15,11 @@ import { toOrganizationRecord } from './organization-details-port.js';
  * §4, research R-10) — server-side writes on the Organization aggregate, for
  * admin routes and server code, never for a customer-facing route.
  *
+ * **It checks no permission.** The caller is the gate: an admin route behind
+ * `requireAdmin('organizations:convert-to-company')` and the reach rule, or
+ * operator-run server code (an import, a worker under `withSystemScope`). A
+ * module that exposes it to anybody else exposes the conversion.
+ *
  * Each method is one Command on the bus with the ambient actor, run through
  * `runOrganizationWrite` so a deferred tax-ID refusal at commit is the same
  * 409 as the pre-check's. No VAT validation: the caller triggers one after the
@@ -38,7 +43,10 @@ export class OrganizationCommandService implements OrganizationCommandPort {
       makeConvertToCompanyCommand({ accounts: this.deps.accounts }, { organizationId, input }),
       () => taxIdExistsRefusal(),
     );
-    await this.deps.roleCache?.dropAndAnnounce(organization.id);
+    // Committed by now: a cache that cannot be dropped is logged, not a failure.
+    await this.deps.roleCache?.dropAndAnnounce(organization.id).catch((err: unknown) => {
+      console.warn(`organizations: role cache not dropped after converting ${organization.id}`, err);
+    });
     return toOrganizationRecord(organization);
   }
 }

@@ -693,6 +693,8 @@ export const manifest = defineModuleManifest({
     // `specs/177-tax-id-scope/` FR-015 — `{sharedTaxIdCount}` is always filled.
     { code: 'ORGANIZATION_TAX_ID_SCOPE_DUPLICATES', tokens: ['shared_tax_ids'] },
     // `specs/177-tax-id-scope/` FR-033 — every raise carries one of the three tokens.
+    // `specs/177-tax-id-scope/` review finding 2 — a lost lock, retryable.
+    { code: 'ORGANIZATION_WRITE_CONTENDED' },
     {
       code: 'ORGANIZATION_CONVERSION_REFUSED',
       tokens: ['not_personal', 'deleted', 'owner_not_administrator'],

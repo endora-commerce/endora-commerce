@@ -161,6 +161,9 @@ export const ERROR_CODES = {
   // `specs/177-tax-id-scope/` — a personal → company conversion refused (409,
   // `details.code` = `not_personal` | `deleted` | `owner_not_administrator`).
   ORGANIZATION_CONVERSION_REFUSED: 'ORGANIZATION_CONVERSION_REFUSED',
+  // `specs/177-tax-id-scope/` — a write of organizations lost a lock to a
+  // concurrent one (the tax-ID scope swap, or a racing writer); retry (409).
+  ORGANIZATION_WRITE_CONTENDED: 'ORGANIZATION_WRITE_CONTENDED',
   // Feature 056 — deletion of a parent with children is blocked (reassign /
   // remove children first). Backed by the `parent_id ON DELETE RESTRICT` FK.
   ORGANIZATION_HAS_CHILDREN: 'ORGANIZATION_HAS_CHILDREN',

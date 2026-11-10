@@ -9,6 +9,7 @@
   "errors.ORGANIZATION_HAS_CHILDREN.has_children": "This organization has sub-organizations, so it cannot be deleted. Reassign or delete them first.",
   "errors.ORGANIZATION_SUSPENDED": "This organization is not active, so orders cannot be placed. Contact your sales representative to have it reactivated.",
   "errors.ORGANIZATION_TAX_ID_EXISTS": "An organization with this tax ID is already registered. Sign in instead, or ask its administrator to invite you.",
+  "errors.ORGANIZATION_WRITE_CONTENDED": "Another change to organizations was in progress. Try again in a moment.",
   "errors.ORGANIZATION_TAX_ID_SCOPE_DUPLICATES": "The tax-ID scope cannot be set to global while tax IDs are shared by more than one organization.",
   "errors.ORGANIZATION_TAX_ID_SCOPE_DUPLICATES.shared_tax_ids": "The tax-ID scope cannot be set to global: {sharedTaxIdCount} tax ID(s) are shared by more than one organization. Give each organization its own tax ID, or remove the extra organizations, and try again.",
   "errors.ORGANIZATION_CONVERSION_REFUSED": "This organization cannot be converted to a company.",

@@ -1,5 +1,5 @@
 import { randomUUID } from 'node:crypto';
-import { afterAll, beforeAll, describe, expect, it } from 'vitest';
+import { afterAll, beforeAll, describe, expect, it, vi } from 'vitest';
 import { ERROR_CODES } from '@endora-commerce/contracts';
 import { AdminRole, AdminUser } from '../../helpers/package-entities.js';
 import {
@@ -128,6 +128,30 @@ describe('POST /api/v1/admin/organizations/:id/convert-to-company', () => {
       { is_personal: boolean },
     ];
     expect(row.is_personal).toBe(false);
+  });
+
+  // Review finding 6 — the VAT validation the option runs is a
+  // `customers:manage` write; the conversion code alone does not carry it.
+  it('refuses validateTaxId without customers:manage, and converts nothing', async () => {
+    const id = await personal();
+    const res = await convert(id, body({ validateTaxId: true }), CONVERTER);
+    expect(res.statusCode, res.body).toBe(403);
+    const [row] = (await h.em().execute('select "is_personal" from "organizations" where "id" = ?', [id])) as [
+      { is_personal: boolean },
+    ];
+    expect(row.is_personal).toBe(true);
+  });
+
+  // Review finding 7 — the conversion has committed; a cache that cannot be
+  // dropped is logged, not answered as a failure.
+  it('answers 200 when the role cache cannot be dropped after the commit', async () => {
+    const cache = (h.container.cradle as unknown as { organizationRoleCache: { dropAndAnnounce(id: string): Promise<void> } })
+      .organizationRoleCache;
+    const spy = vi.spyOn(cache, 'dropAndAnnounce').mockRejectedValueOnce(new Error('redis down'));
+    const id = await personal();
+    const res = await convert(id, body());
+    spy.mockRestore();
+    expect(res.statusCode, res.body).toBe(200);
   });
 
   it('answers the refusals with their codes', async () => {

@@ -229,6 +229,8 @@ describe('the six untokened organizations codes', () => {
     'ORGANIZATION_SUSPENDED',
     'ORGANIZATION_TAX_ID_EXISTS',
     'ORG_OWNER_DEPLETION',
+    // `specs/177-tax-id-scope/` — raised without details.
+    'ORGANIZATION_WRITE_CONTENDED',
   ] as const;
 
   for (const code of codes) {

@@ -261,4 +261,35 @@ describe('tax-ID conflicts under concurrency', () => {
       }
     }, 600_000);
   });
+
+  /**
+   * Review finding 2 — the scope swap took `share row exclusive` and then needed
+   * `access exclusive` for its `ALTER TABLE`: a lock upgrade a concurrent writer
+   * could deadlock (`40P01`), answered 500. Every party now answers a 2xx or a
+   * 409, whichever loses.
+   */
+  it('scope swaps racing creations answer 2xx or 409, never 500', async () => {
+    const put = (scope: TaxIdScope) =>
+      h.app.inject({
+        method: 'PUT',
+        url: '/api/v1/admin/organizations/tax-id-scope',
+        cookies: { b2b_session: 'stub-admin-session' },
+        payload: { scope },
+      });
+    const statuses: number[] = [];
+    for (let i = 0; i < 30; i += 1) {
+      const target: TaxIdScope = i % 2 === 0 ? 'per-tree-root' : 'global';
+      const results = await Promise.all([
+        adminCreate(createBody(ccTaxId())),
+        put(target),
+        adminCreate(createBody(ccTaxId())),
+        register(ccTaxId(), i),
+      ]);
+      for (const res of results) {
+        statuses.push(res.statusCode);
+        expect(res.statusCode, res.body).not.toBeGreaterThanOrEqual(500);
+      }
+    }
+    expect(statuses.every((status) => status < 300 || status === 409)).toBe(true);
+  }, 600_000);
 });
