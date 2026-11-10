@@ -182,7 +182,9 @@ foreign-mapped `create table if not exists` licenses no DDL in `up()`, but is it
 `down()` keeps reverting it, because `inventory`'s D-226 bridge migration
 (`Migration20260912T125716InventoryOrganizationWarehouses`) has exactly that shape — refusing it would
 break every upgraded instance and inventory's hard uninstall. The residual (a package's own `down()`
-dropping such a table on its hard uninstall) needs a ruling.
+dropping such a table on its hard uninstall) needs a ruling. **Ruled D-291 R-A6 (2026-11-10): not acceptable — see T071.**
+
+- [ ] T071 Test: a package whose `up()` runs `create table if not exists <table mapped by another module>` and whose `down()` drops it → `uninstall --hard` is refused with `foreign-schema-write` (direction `down`) and the table survives; same for `truncate` / `alter … drop`; `inventory`'s D-226 bridge migration migrates on an upgraded instance and reverts on inventory's hard uninstall through a derived `bridge` exemption; the exemption artefact holds exactly the bridges `check:module-boundary` accepts (two-way) — then implement (guard + `composer:generate` + freshness in `overlay:check`). Release-blocking with B + C [FR-070, FR-071, D-291 R-A6]
 
 ## Phase D — Remaining eight hosts (later release — OD-178-4, ruled D-291; out of this release)
 
