@@ -108,7 +108,6 @@ export async function registerMfaAdminRoutes(
 
 export interface MfaAdminOrgPolicyDeps {
   orgPolicyService: MfaOrgPolicyService;
-  auditLogService: AuditPort;
   requireAdmin: RequireAdminFactory;
   resolveAdminActor: (req: FastifyRequest) => { adminUserId: string };
 }
@@ -123,7 +122,7 @@ export async function registerMfaAdminOrgPolicyRoutes(
   app: FastifyInstance,
   deps: MfaAdminOrgPolicyDeps,
 ): Promise<void> {
-  const { auditLogService, requireAdmin, resolveAdminActor } = deps;
+  const { requireAdmin, resolveAdminActor } = deps;
   app.post<{ Params: { organizationId: string } }>(
     '/api/v1/admin/organizations/:organizationId/mfa-policy',
     { preHandler: requireAdmin('mfa:manage'), schema: { body: mfaOrgPolicyRequestSchema } },
@@ -150,14 +149,6 @@ export async function registerMfaAdminOrgPolicyRoutes(
       }
       const actor = resolveAdminActor(request).adminUserId;
       const res = await deps.orgPolicyService.setEnforcement(organizationId, body.enforceTotp, actor);
-      await auditLogService.record({
-        actorAdminUserId: actor,
-        action: 'mfa.org_enforced',
-        objectType: 'organization',
-        objectId: organizationId,
-        stateAfter: { enforceTotp: body.enforceTotp },
-        ...(request.ip ? { ipAddress: request.ip } : {}),
-      });
       return { data: res };
     },
   );

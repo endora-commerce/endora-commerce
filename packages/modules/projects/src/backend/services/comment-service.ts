@@ -12,13 +12,14 @@ import { ProjectComment } from '../entities/project-comment.entity.js';
 import { ProjectReference } from '../entities/project-reference.entity.js';
 import { newlyMentioned, type ProjectMentionService, type SavedProjectMentions } from './mention-service.js';
 import { actingAdminUserId, isUuid, type ProjectAccess } from './project-access.js';
+import { lockProject } from './project-service.js';
 import { projectNotificationText, tellAfterCommit, type ProjectNotifier } from './project-notifier.js';
 import { storedReferencesOf, type ProjectReferenceService, type ProjectReferenceSource } from './reference-service.js';
 
 export interface ProjectCommentServiceDeps {
   emFactory: () => EntityManager;
   commandBus: CommandBus;
-  access: Pick<ProjectAccess, 'loadVisible' | 'canSeeAs'>;
+  access: Pick<ProjectAccess, 'loadVisible' | 'canSeeAs' | 'assertVisibleUnderLock'>;
   /** `admin_users`' port — lazy, resolved per call, never captured. */
   adminUsers: AdminUserReadPort;
   notifier: ProjectNotifier;
@@ -50,6 +51,10 @@ function commentNotFound(): HttpError {
  *
  * Every read and write starts from `ProjectAccess.loadVisible`; comments,
  * Members and read markers are then read by that Project's id only. Every write
+ * locks the Project in its Command and asks again there whether the caller may
+ * still see it (`lockProject`, T144 F3; issue #471), so a visibility change
+ * between the check and the write is refused as if the Project did not exist.
+ * The read marker is not a write on the Project and takes no lock. Every write
  * is a Command recorded against `project` — **without the text**: the audit
  * trail is not tenant-scoped, so it says that something was written, by whom
  * and how long it was. Both kinds are internal: no storefront route reads them.
@@ -109,6 +114,7 @@ export class ProjectCommentService {
       objectId: project.id,
       run: async ({ em }) => {
         const tx = em as EntityManager;
+        await lockProject(tx, this.deps.access, project.id);
         const comment = tx.create(ProjectComment, {
           projectId: project.id,
           kind: input.kind,
@@ -166,6 +172,7 @@ export class ProjectCommentService {
       objectId: project.id,
       run: async ({ em }) => {
         const tx = em as EntityManager;
+        await lockProject(tx, this.deps.access, project.id);
         const row = await this.#loadOwnNote(tx, project.id, commentId, 'edited');
         if (row.body === body) return { result: row, skipAudit: true };
         const before = { commentId: row.id, length: row.body.length };
@@ -193,6 +200,7 @@ export class ProjectCommentService {
       objectId: project.id,
       run: async ({ em }) => {
         const tx = em as EntityManager;
+        await lockProject(tx, this.deps.access, project.id);
         const row = await this.#loadOwnNote(tx, project.id, commentId, 'deleted');
         row.deletedAt = new Date();
         await this.#saveReferences(tx, { projectId: project.id, kind: 'comment', sourceId: row.id }, null);

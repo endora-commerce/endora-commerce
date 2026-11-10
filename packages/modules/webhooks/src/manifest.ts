@@ -33,6 +33,20 @@ export const manifest = defineModuleManifest({
         valueType: 'boolean',
         defaultValue: true,
       },
+      {
+        // Issue #928 — delivery rows keep each event's payload verbatim, which
+        // can hold personal data; they are a delivery log, so they get a
+        // retention window instead of a scrub. Platform-wide. The default is
+        // `customers.deletion_retention_days`' default; the reader holds a
+        // stored value to 1–3650 whole days.
+        code: 'webhooks.delivery_retention_days',
+        name: 'Delivery history retention (days)',
+        description:
+          'Number of days a finished webhook delivery (succeeded, failed or dead-lettered), with its event payload and the receiver’s response, is kept before it is deleted. Checked once a day. Pending deliveries are never deleted. Default 365 (1 year); a value outside 1–3650 whole days is read as the default.',
+        groupCode: 'webhooks',
+        valueType: 'number',
+        defaultValue: 365,
+      },
     ],
   },
   // Issue #213 — `integrations:manage` is a **shared** gate: it guards this

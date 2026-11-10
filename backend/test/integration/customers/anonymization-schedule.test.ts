@@ -2,7 +2,11 @@ import { randomUUID } from 'node:crypto';
 import { Queue, type Worker } from 'bullmq';
 import { Redis } from 'ioredis';
 import { afterAll, beforeAll, describe, expect, it } from 'vitest';
-import { AUDIT_ERASED_MARKER, CUSTOMER_ACCOUNT_ANONYMIZED_EVENT } from '@endora-commerce/contracts';
+import {
+  ANONYMIZED_EMAIL_RECIPIENT,
+  AUDIT_ERASED_MARKER,
+  CUSTOMER_ACCOUNT_ANONYMIZED_EVENT,
+} from '@endora-commerce/contracts';
 import {
   setupBackendServer,
   teardownBackendServer,
@@ -10,7 +14,7 @@ import {
 } from '../../helpers/test-server.js';
 import { withModuleOff, type OffStateAxis } from '../../helpers/off-state.js';
 import { AuditLogEntry } from '@endora-commerce/platform/kernel';
-import { Cart, CustomerAccount, Organization } from '../../helpers/package-entities.js';
+import { Cart, CustomerAccount, EmailDelivery, Organization } from '../../helpers/package-entities.js';
 import { seedCrmOrganization } from '../../helpers/seed-crm.js';
 import { ManifestReconciler } from '../../../src/kernel/settings/manifest-reconciler.js';
 import { defineModuleWorker } from '../../../src/kernel/lifecycle/plugin-helpers.js';
@@ -63,6 +67,7 @@ describe('customers — the anonymization sweep runs on its schedule (#677)', ()
   const prefix = `customers-anonymization-test-${randomUUID().slice(0, 8)}`;
   const RUN = randomUUID().slice(0, 8);
   const accounts: string[] = [];
+  const deliveries: string[] = [];
   const completed: string[] = [];
   const announced: string[] = [];
 
@@ -175,6 +180,27 @@ describe('customers — the anonymization sweep runs on its schedule (#677)', ()
     return cart.id;
   }
 
+  /** Issue #928 — the record of one e-mail sent to `recipient`, as the recording mailer writes it. */
+  async function deliveryTo(recipient: string, subject: string): Promise<string> {
+    const em = h.em().fork();
+    const row = em.create(EmailDelivery, {
+      messageId: `anonymization-schedule.${randomUUID()}`,
+      recipient,
+      kind: 'organization_rejected',
+      status: 'sent',
+      subject,
+      context: { reason: subject },
+    });
+    await em.persistAndFlush(row);
+    deliveries.push(row.id);
+    return row.id;
+  }
+
+  async function deliveryOf(id: string): Promise<{ recipient: string; subject: string | null; context: unknown }> {
+    const row = await h.em().fork().findOneOrFail(EmailDelivery, { id });
+    return { recipient: row.recipient, subject: row.subject ?? null, context: row.context ?? null };
+  }
+
   async function cartReasonOf(id: string): Promise<{ status: string; rejectedReason: string | null }> {
     const row = await h.em().fork().findOneOrFail(Cart, { id }, { filters: false });
     return { status: row.status, rejectedReason: row.rejectedReason ?? null };
@@ -206,6 +232,12 @@ describe('customers — the anonymization sweep runs on its schedule (#677)', ()
     await queue?.close();
     redis?.disconnect();
     if (h) {
+      if (deliveries.length > 0) {
+        await h
+          .em()
+          .getConnection()
+          .execute(`delete from "email_deliveries" where "id" = any(?::uuid[])`, [`{${deliveries.join(',')}}`]);
+      }
       if (accounts.length > 0) {
         await h
           .em()
@@ -283,6 +315,8 @@ describe('customers — the anonymization sweep runs on its schedule (#677)', ()
       const residual = await earlierScrubbedSubject(`off-${axis}`);
       // Issue #844 — a row of the subject's history that holds its e-mail.
       const dueEmail = `off-${axis}-${RUN}@anonymization-schedule.test`;
+      // Issue #928 — and `email`'s: the record of a message sent to the subject.
+      const mail = await deliveryTo(dueEmail, `Rejected: note about ${due}`);
       await h.auditLogService.record({
         actorCustomerAccountId: due,
         action: 'customer_account.profile_updated',
@@ -299,6 +333,11 @@ describe('customers — the anonymization sweep runs on its schedule (#677)', ()
         expect(await isAnonymized(due)).toBe(false);
         expect(announced).not.toContain(due);
         expect(await cartReasonOf(cart)).toEqual({ status: 'rejected', rejectedReason: `Operator note about ${due}` });
+        expect(await deliveryOf(mail)).toEqual({
+          recipient: dueEmail,
+          subject: `Rejected: note about ${due}`,
+          context: { reason: `Rejected: note about ${due}` },
+        });
         // Issue #923 — nor is an earlier scrub finished: the residue stays,
         // and nothing is recorded.
         expect(await organizationResidue(residual.organizationId)).toEqual({
@@ -315,6 +354,8 @@ describe('customers — the anonymization sweep runs on its schedule (#677)', ()
       expect(announced).toContain(due);
       // The composed `customers` reached `carts` through its port: the reason is gone, the status kept.
       expect(await cartReasonOf(cart)).toEqual({ status: 'rejected', rejectedReason: null });
+      // And `email` through its own: the record keeps no trace of the address, the subject or the envelope.
+      expect(await deliveryOf(mail)).toEqual({ recipient: ANONYMIZED_EMAIL_RECIPIENT, subject: null, context: null });
       // And the earlier scrub is finished in the same tick, with one audit row
       // and no second announcement.
       expect(await until(() => isFinished(residual.organizationId), 60_000)).toBe(true);

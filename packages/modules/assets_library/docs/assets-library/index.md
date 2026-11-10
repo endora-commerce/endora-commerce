@@ -102,18 +102,23 @@ other stored type is served as an `attachment`, whatever the request asks for;
 `?download=1` asks for an attachment. An SVG opened directly therefore runs no
 script, and embedding it through `<img>` is unaffected.
 
-Redirects and error answers (`302`, `403`, `404`, `410`) carry `no-store` and
+Redirects and error answers (`302`, `404`, `410`) carry `no-store` and
 the fixed sandbox policy above, whatever the stored type.
 
 The route decides in this order:
 
 1. An unknown id or name answers `404 ASSET_NOT_FOUND`.
-2. A **private** asset is checked for a valid signature first. Without one it
-   answers `403 ASSET_ACCESS_DENIED` by id — also when it is soft-deleted —
-   and `404` by permalink, byte-for-byte the answer an unused name gets.
+2. A **private** asset is checked for a valid signature first. Without one —
+   or with an expired or forged one — it answers `404 ASSET_NOT_FOUND`, by id
+   and by permalink, also when it is soft-deleted: byte-for-byte the answer an
+   unknown id or an unused name gets, so a caller without a signature cannot
+   tell that a private asset exists.
 3. A soft-deleted asset answers `410 ASSET_GONE`.
 4. A private asset with a valid signature is streamed (local) or redirected to
-   a time-limited bucket URL (S3, GCS), always `no-store`.
+   a time-limited bucket URL (S3, GCS), always `no-store`. The time-limited URL
+   is signed with the asset's stored type and the disposition described above
+   (`attachment` with `?download=1`), so the bucket answers with those headers
+   whatever the object's own metadata says.
 5. A public cloud asset is redirected (`302`, `no-store`) to its stable bucket
    URL — with `?v=<current>` when the request carried a `v`.
 6. A public local asset is streamed; see [Caching](#caching).
@@ -141,7 +146,8 @@ For **S3** and **GCS**, private URLs are V4-signed through the vendor SDK;
 nothing in the backend needs to be configured beyond the credentials.
 `GET /assets/file/:assetId` redirects a cloud asset to its resolved URL, but
 for a `private` asset only after the same HMAC token check a local asset
-gets; without a valid token it answers `403 ASSET_ACCESS_DENIED`. Admin
+gets; without a valid token it answers `404 ASSET_NOT_FOUND`, as for a
+missing asset. Admin
 screens obtain private URLs from `GET /api/v1/admin/assets/:id/url` and are
 unaffected.
 
@@ -281,8 +287,8 @@ is changed or removed.
   `400 ASSET_PERMALINK_INVALID` with `details.code` naming the rule.
 - **Unique case-insensitively**, and matched case-insensitively when served.
   A name another asset holds answers `409 ASSET_PERMALINK_TAKEN`.
-- **Private assets.** A private asset's permalink answers `404` without a valid
-  signature, exactly as an unused name does, while its id URL answers `403`,
+- **Private assets.** A private asset's permalink and its id URL answer `404`
+  without a valid signature, exactly as an unused name or an unknown id does,
   live or soft-deleted. A soft-deleted private asset answers `410` only to a
   valid signature.
 - **Change or removal** takes effect at once: the old name answers `404` from
@@ -343,7 +349,7 @@ What the file route answers, by request:
 | Public S3 / GCS | `302` to the stable bucket URL | `no-store` |
 | Private, valid signature, local | `200` / `304` | `private, no-store, max-age=0` |
 | Private, valid signature, S3 / GCS | `302` to a time-limited URL | `no-store` |
-| Refusals (`403`, `404`, `410`) | — | `no-store` |
+| Refusals (`404`, `410`) | — | `no-store` |
 
 - **Freshness.** A replace is visible on the next request to the file URL or
   the permalink: both are revalidated every time, and the embed URLs the
@@ -382,7 +388,22 @@ in [issue #363](https://github.com/endora-commerce/endora-commerce/issues/363).
 - **A stale `v`** on a bucket URL serves the current file; the bucket does not
   version by query string.
 - **Private assets** are served through the API only with a valid platform
-  signature, which redirects to a time-limited bucket URL.
+  signature, which redirects to a time-limited bucket URL. That URL carries the
+  stored type and the serving policy's disposition as signed response
+  overrides (S3 `response-content-type` / `response-content-disposition`, GCS
+  the same through its signed-URL parameters), so a private object answers
+  with them even when its metadata was written by an earlier version.
+- **`X-Content-Type-Options: nosniff`** is not something a bucket object or a
+  signed URL can carry; the API's own answers always send it. Add it to bucket
+  responses at a CDN or load balancer in front of the bucket — on S3 a
+  CloudFront response-headers policy, on GCS a custom response header on the
+  load balancer's backend bucket — see [Operating a CDN](#operating-a-cdn). A
+  time-limited URL is issued on the bucket's own endpoint, so it reaches the
+  bucket without that header.
+- **A separate origin.** Serve the bucket, and any CDN in front of it, from a
+  host that shares no cookies with the API or the admin — not a subdomain of
+  the domain the admin session cookie is set for — so a file opened from the
+  bucket never runs with a session.
 - **Previous and staging objects** have random names and private ACLs. **A
   bucket policy must not grant public read beyond the objects the module makes
   public.**

@@ -63,7 +63,28 @@ export function createAdminTenantScopePort(
         reach: 'excluding',
         excludedOrganizationIds: reach.excludedOrganizationIds,
         assignedOrganizationIds: reach.assignedOrganizationIds,
+        excludedOrganizationsQuery: reachExcludedQuery(adminUserId, reach.rollup),
       };
     },
+  };
+}
+
+/**
+ * Issue #955 (architect ruling, Q2) — the excluded organizations of one
+ * representative as the uncorrelated SELECT the tenant filter renders on the
+ * row's own column (`col is not null and col not in (<sql>)`). It reads
+ * `organizations_reach_excluded`, the same function `reachOf`'s excluded half
+ * reads, live in each statement's snapshot — so no cache, and no list to ship.
+ * Built from the authenticated admin's id and their roll-up permission only,
+ * never from request input. This file is its only producer (a static pin holds
+ * that); the platform never names the function.
+ */
+export function reachExcludedQuery(
+  adminUserId: string,
+  rollup: boolean,
+): { readonly sql: string; readonly params: readonly (string | boolean)[] } {
+  return {
+    sql: 'select x from "organizations_reach_excluded"(?::uuid, ?::boolean) as x',
+    params: [adminUserId, rollup],
   };
 }

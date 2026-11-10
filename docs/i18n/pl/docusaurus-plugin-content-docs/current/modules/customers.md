@@ -105,6 +105,15 @@ Zadanie usuwa też uzasadnienia, które operatorzy i osoby akceptujące podali, 
 konta; każdy koszyk zachowuje swój status. Co jest usuwane, a co zostaje, opisuje moduł koszyków
 (*Przechowywanie historii zmian*).
 
+Zadanie czyści też zapis, który platforma prowadzi o każdym e-mailu wysłanym na adres tego konta.
+W każdym takim zapisie usuwane są adres, temat, kontekst wiadomości (który może zawierać powód
+odrzucenia) oraz treść błędu serwera pocztowego. Zapis zachowuje informację, który to był e-mail,
+kiedy próbowano go wysłać i czy został wysłany, więc operator nadal może sprawdzić, czy wiadomość
+wyszła. Każdy zmieniony zapis otrzymuje jeden wpis audytu `email_delivery.anonymized`, zapisany
+przez system, bez żadnych innych danych. Adres jest porównywany bez względu na wielkość liter.
+Zapisy e-maili wysłanych do konta zanonimizowanego przed tym wydaniem nie są objęte, bo adres
+takiego konta jest już usunięty.
+
 Zadanie uruchamia się raz dziennie w procesie workera i tylko wtedy, gdy moduł jest włączony, więc
 konto zostaje zanonimizowane najpóźniej dzień po upływie okresu. Gdy moduł jest wyłączony, zadanie
 się nie uruchamia; konta, którym okres upłynął w tym czasie, anonimizuje pierwszy przebieg po

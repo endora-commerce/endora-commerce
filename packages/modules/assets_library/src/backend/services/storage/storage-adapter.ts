@@ -46,6 +46,20 @@ export interface StorageResolveUrlInput {
   visibility: AssetVisibility;
   /** TTL for private signed URLs. Ignored for public assets. */
   ttlSec?: number;
+  /**
+   * What a cloud signed URL makes the bucket answer with (issue #815): S3's
+   * `response-content-type` / `response-content-disposition`, GCS's
+   * `responseType` / `responseDisposition`. Signed into the URL, so the
+   * bucket's answer follows the serving policy whatever the object's metadata
+   * says. Ignored for public assets and on local storage, which serves its own
+   * headers.
+   */
+  responseHeaders?: StorageResponseHeaders;
+}
+
+export interface StorageResponseHeaders {
+  contentType: string;
+  contentDisposition: string;
 }
 
 export interface StorageResolveUrlOutput {

@@ -52,6 +52,7 @@ This is exactly `canSeeOrganization` (`packages/modules/organizations/src/backen
 - **Size.** The visible set includes every personal organization, so it grows with the customer base (100 000 B2C customers means 100 000 ids in every admin request's `IN`). The excluded set contains only organizations that carry an assignment, plus their subtrees under roll-up. Those are company organizations and, by `assign()`'s refusal, never personal ones. It is bounded by the B2B book, not by B2C volume.
 - **Same rule.** The complement of `canSeeOrganization` is exactly the excluded set. There is no second rule to drift (#305's complaint).
 - **Same filter shape.** It stays a predicate on the filtered row's own column, with no join and no subquery. That keeps the FR-002 / exit (a′) constraint recorded in `filters.ts:86-89`.
+  **Amended 2026-11-09 (architect ruling on #955, Q2):** still a predicate on the row's own column, now against an uncorrelated subquery owned by `organizations` (`col is not null and col not in (select x from organizations_reach_excluded(rep, rollup) as x)`), supplied as `excludedOrganizationsQuery` on the port. FR-002's "no subquery" is revised narrowly to allow exactly that shape; joins and correlated subqueries stay forbidden.
 
 **Principle XI holds, and here is how each clause is met:**
 - *Server-derived.* The set comes from `organizations`' tables for the authenticated admin, never from request input.
@@ -62,6 +63,7 @@ This is exactly `canSeeOrganization` (`packages/modules/organizations/src/backen
 **Rejected alternatives**
 - *Materialise the visible set (assigned ∪ unassigned) as an `allowed-set`.* Its size is O(customers) per admin request, it can exceed PostgreSQL's 65 535 bind-parameter limit, and the cost lands on every admin request, because the scope hook runs before every route.
 - *A subquery in the filter (`organization_id NOT IN (SELECT … FROM organization_sales_rep_assignments …)`).* The platform's filter would name a module's table (Principle I, `check:module-boundary`). It breaks the "no join, no subquery" ruling. The roll-up rule would need a recursive or path query inside every filtered statement.
+  **Amended 2026-11-09 (architect ruling on #955, Q2):** adopted in a fixed shape. Each of the three reasons is answered: the platform names no module table, because the fragment arrives through the port; the "no subquery" ruling is revised for an uncorrelated subquery on the row's own column; and the governor table removes the recursion (one indexed set, no path query per statement).
 - *Drop the fallback from `canSeeOrganization` instead.* That is the other #305 option, and the owner rejected it.
 - *A denormalised `governing_rep_ids` column on every tenant table.* That is a migration in every module that owns an `@OrgScoped` table, for a fact `organizations` owns.
 
@@ -166,6 +168,7 @@ where not (                        -- the nearest governing node decides (FR-011
 - **Rationale.** A stale **excluded** set *widens* reach. For example, a new child of another rep's governed node, created after the cache was filled, would be visible to everyone until the cache is refreshed. The cache would therefore need invalidation that is synchronous and post-commit on every assignment change, tree move and organization creation. That is new machinery, it exists only for a cost that has not been measured, and computing the set per request bounds staleness to one request.
 - **If the performance budget fails (§3), the fallback, in this order:**
   1. **A materialised `organization_reach_governor (organization_id, governor_id)` table, owned by `organizations`.** `assign`, `unassign`, move and create maintain it inside their own Command transactions. The excluded set then becomes an indexed join.
+     **Amended 2026-11-09:** maintained by statement-level triggers on the two source tables (ruling on #955, 2026-11-09), inside the writing transaction, rather than by a call in each Command.
   2. **Only if that is still not enough, a per-process cache keyed by a governance generation.** The generation is bumped after commit by those Commands and announced on a Redis channel, following the pricing-generation pattern described in `specs/conventions/pricing.md`. It has a short TTL, and a lost announcement is bounded by that TTL. This step needs an owner ruling, because staleness widens reach.
 
 ---

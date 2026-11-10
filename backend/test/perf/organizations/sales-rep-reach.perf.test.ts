@@ -31,8 +31,12 @@ import { SalesRepAssignmentService } from '../../../../packages/modules/organiza
  * organizations in trees of 10 (a binary tree, depth ≤ 4) — and 3 000
  * assignment rows over 40 representatives, roll-up on for half of them.
  *
- * If this fails, the fallback the design names is the materialised
- * `organization_reach_governor` table, not a cache; report the measurement.
+ * Issue #955: the roll-up reach is one scan of the materialised
+ * `organization_reach_governor` table (design D5.1), and the excluded list
+ * travels into every tenant-scoped statement as one array parameter. The seed
+ * below writes through raw SQL, which the table's triggers maintain exactly as
+ * they do for the Commands. There is still no cache (E-305-2); if this fails,
+ * report the measurement rather than move a threshold.
  *
  * Tuning knobs (env):
  *   PERF_RUN            — set to 'true' to run; otherwise skipped.
@@ -180,10 +184,46 @@ describe.skipIf(!shouldRun)('#305 — the sales-representative reach at 50 000 o
     expect(reachP95, `reachOf ${label} p95`).toBeLessThanOrEqual(reachBudget);
   }, 600_000);
 
-  // Known failure, issue #955 (ruling Q5 on PR #954): measured 7.7× and 22.7×
-  // on 2026-11-08 (`specs/175-sales-rep-reach-rule/research.md` R-3). The
-  // threshold stays; `it.fails` turns red the day the governor table makes it
-  // pass, which is when this marker is removed.
+  // Architect ruling Q3 on #955: every tenant-scoped statement of a
+  // representative's list carries the reach exactly once — the orders list
+  // used to spell the ambient reach a second time beside the global filter.
+  it.each([
+    ['/api/v1/admin/orders?pageSize=50', 'orders'],
+    ['/api/v1/admin/customers?pageSize=50', 'customer_accounts'],
+  ])('%s carries the excluded predicate once per statement', async (url, table) => {
+    const connection = h.em().getConnection() as unknown as object;
+    const proto = Object.getPrototypeOf(Object.getPrototypeOf(connection)) as {
+      execute: (...args: unknown[]) => Promise<unknown>;
+    };
+    const original = proto.execute;
+    const statements: string[] = [];
+    proto.execute = async function (this: unknown, ...args: unknown[]) {
+      const query = args[0] as string | { toSQL(): { sql: string } };
+      statements.push(typeof query === 'string' ? query : query.toSQL().sql);
+      return original.apply(this, args);
+    };
+    try {
+      const res = await h.app.inject({ method: 'GET', url, cookies: { b2b_session: REP_SESSION } });
+      expect(res.statusCode, res.body).toBe(200);
+    } finally {
+      proto.execute = original;
+    }
+    const onTable = statements.filter((sql) => new RegExp(`from "${table}"`).test(sql));
+    expect(onTable.length).toBeGreaterThan(0);
+    for (const sql of onTable) {
+      expect(sql.match(/organizations_reach_excluded/g)?.length ?? 0, sql.slice(0, 300)).toBe(1);
+    }
+  }, 120_000);
+
+  // Known failure, issue #955 — borderline since the architect's ruling of
+  // 2026-11-09 (the reach as an organizations-owned subquery, and the orders
+  // list carrying it once). Measured 2026-11-09 at load average 4–7, p95:
+  // customers 23.1 vs 15.4 ms (1.50×) and 27.5 vs 18.8 ms (1.46×); orders
+  // 21.3 vs 14.7 ms (1.45×) and 24.6 vs 11.9 ms (2.07×). The ratio is met in
+  // some runs and missed in others, so this marker flips with the host; what
+  // is left is the per-request reach statement the scope hook still runs
+  // (Phase 2 of the ruling, a breaking platform change awaiting the owner).
+  // The threshold stays; remove the marker when the ratio holds reliably.
   it.fails.each(['/api/v1/admin/customers?pageSize=50', '/api/v1/admin/orders?pageSize=50'])(
     '%s for a roll-up representative is within the ratio of the platform administrator’s',
     async (url) => {

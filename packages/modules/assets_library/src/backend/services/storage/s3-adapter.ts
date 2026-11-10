@@ -138,7 +138,16 @@ export class S3StorageAdapter implements StorageAdapter {
     }
     const url = await getSignedUrl(
       this.client,
-      new GetObjectCommand({ Bucket: this.cfg.bucket, Key: input.locator }),
+      new GetObjectCommand({
+        Bucket: this.cfg.bucket,
+        Key: input.locator,
+        ...(input.responseHeaders
+          ? {
+              ResponseContentType: input.responseHeaders.contentType,
+              ResponseContentDisposition: input.responseHeaders.contentDisposition,
+            }
+          : {}),
+      }),
       { expiresIn: ttl },
     );
     return { url, expiresAt: new Date(Date.now() + ttl * 1000) };

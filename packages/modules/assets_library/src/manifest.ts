@@ -295,7 +295,6 @@ export const manifest = defineModuleManifest({
    * version at all.
    */
   errorCodes: [
-    { code: 'ASSET_ACCESS_DENIED' },
     { code: 'ASSET_FILE_MISSING' },
     { code: 'ASSET_FOLDER_CYCLE' },
     { code: 'ASSET_FOLDER_NAME_CONFLICT' },

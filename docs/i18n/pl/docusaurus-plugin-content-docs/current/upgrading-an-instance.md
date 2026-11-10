@@ -4690,6 +4690,30 @@ uruchom backend ponownie, aby wymagania znów obowiązywały, albo wyłącz usta
 **Ustawieniach** i zdejmij polityki organizacji. Ustaw ten klucz, z którym utworzono rejestracje:
 rejestracji utworzonej innym kluczem nie da się nim sprawdzić.
 
+### Trasa pliku prywatnego zasobu odpowiada 404 bez podpisu {#private-asset-file-404}
+
+Wydanie z tą zmianą sprawia, że publiczna trasa plików nie odróżnia już prywatnego zasobu od
+zasobu, który nie istnieje (zgłoszenie #542).
+
+**Zmiana zachowania po aktualizacji:**
+
+- `GET /assets/file/<asset id>` odpowiada na żądanie **prywatnego** zasobu bez podpisu albo z
+  podpisem wygasłym lub nieprawidłowym kodem `404 ASSET_NOT_FOUND`: z tym samym statusem, treścią i
+  nagłówkami co dla identyfikatora, który niczego nie wskazuje. Dotąd odpowiadała
+  `403 ASSET_ACCESS_DENIED`, przez co każdy, kto znał identyfikator, mógł potwierdzić, że prywatny
+  zasób istnieje. Odnośnik stały (permalink) już wcześniej odpowiadał `404`.
+- `ERROR_CODES.ASSET_ACCESS_DENIED` zostaje usunięty z `@endora-commerce/contracts`, bo nic go już
+  nie zgłasza.
+- Podpisany odnośnik do prywatnego pliku w magazynie S3 lub GCS niesie teraz typ pliku i sposób
+  jego wyświetlenia — w przeglądarce albo jako załącznik (zgłoszenie #815) — a `?download=1` prosi
+  tam o załącznik, tak jak już wcześniej w magazynie lokalnym.
+
+**Po aktualizacji,** jeśli klient lub integracja traktuje `403` z trasy pliku jako „istnieje, ale
+wymaga podpisanego odnośnika”, niech tak samo traktuje `404` i pobiera podpisany adres jak dotąd.
+Kod porównujący z `ERROR_CODES.ASSET_ACCESS_DENIED` przestaje się kompilować: usuń porównanie albo
+porównuj z `ERROR_CODES.ASSET_NOT_FOUND`. Przy magazynie w chmurze dodaj nagłówek
+`X-Content-Type-Options: nosniff` przed bucketem, jak opisuje strona biblioteki zasobów.
+
 ### Katalog odczytuje cały nagłówek `Accept-Language` {#catalog-accept-language}
 
 Wydanie z tą zmianą sprawia, że katalog odczytuje `Accept-Language` zgodnie z definicją tego
