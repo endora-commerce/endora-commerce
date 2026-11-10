@@ -4772,6 +4772,28 @@ dotyczyła zmiana szansy.
 dziennika audytu, odczytuje je z samej szansy albo z jej historii zmian
 (`GET /api/v1/admin/crm/opportunities/:id/history`).
 
+### Kwoty i powody zwrotów znikają z dziennika audytu platformy {#returns-audit-names-only}
+
+Wydanie z tą zmianą przestaje zapisywać kwoty zwrotów i powody wpisywane wolnym tekstem w dzienniku
+audytu całej platformy (zgłoszenie #470). Ten dziennik to jedna tabela, czytana przez każdego, kto
+ma `audit_log:read`, bez względu na to, które organizacje widzi.
+
+**Zmiana zachowania po aktualizacji:**
+
+- Nowy wpis `return.settled` nie zawiera już `amount`, `charges` (maksimum i zatwierdzonej kwoty
+  każdej opłaty), `recomputedDefaults` ani `lineCeilings`. Zamiast nich wymienia, czego dotyczyły:
+  `refundedCharges` (rodzaje opłat), `recomputedDefaultItemIds` i `ceilingBoundItemIds`
+  (identyfikatory pozycji). Sposób rozliczenia, waluta, stan rozliczenia i wynik korekty zostają.
+- Nowy wpis `return.status_changed` nie zawiera już `reason` wpisanego przy zmianie; zapisuje
+  `hasReason: true | false`. Powód nadal trafia do zdarzeń statusu tej zmiany, ale **nie jest już
+  nigdzie przechowywany**: jeśli operatorzy odczytują powody zmian statusu z dziennika audytu,
+  poproś ich o wpisywanie powodu w komentarzu sprawy.
+- Sprawy zwrotów, zwroty pieniędzy i ich kwoty się nie zmieniają. Wpisy zapisane przed
+  aktualizacją nie są przepisywane: zachowują swoje kwoty i powody.
+
+**Po aktualizacji** sprawdź, czy ktoś nie polega na odczytywaniu powodów zmian statusu z ekranu
+Dziennik audytu (patrz wyżej).
+
 ## Instancja niespójna od początku
 
 Instalator `0.101.x` lub starszy zapisywał każdy pakiet wydania z `^` poza

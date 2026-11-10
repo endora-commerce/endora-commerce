@@ -417,7 +417,8 @@ describe('returns — the default refund recomputed at settlement (#874, #875)',
       // The stored default stays the goods' value; the refund is the effective default, carrying the full discount.
       expect(await stored(a)).toEqual([['22.05', '2.58', '22.04']]);
       expect(await refundOf(a)).toBe('22.04');
-      expect((await settledAudit(a)).lineCeilings).toEqual([{ itemId: a.items[0]!.id, default: '22.05', ceiling: '22.04' }]);
+      // Which line the ceiling bound, never the amounts (#470, D-288).
+      expect((await settledAudit(a)).ceilingBoundItemIds).toEqual([a.items[0]!.id]);
 
       const b = await openCase(o.orderId, [{ orderItemId: o.items[1]!, quantity: 2 }]);
       await receive(b);
@@ -456,7 +457,7 @@ describe('returns — the default refund recomputed at settlement (#874, #875)',
       await settled(ret, { amounts: [4.88] });
       expect(await refundOf(ret)).toBe('4.88');
       expect(await stored(ret)).toEqual([['11.03', '1.29', '4.88']]);
-      expect((await settledAudit(ret)).lineCeilings).toBeUndefined();
+      expect((await settledAudit(ret)).ceilingBoundItemIds).toBeUndefined();
       const left = await leftPaid(o.orderId, o.total);
       expect(left).toBe(moneyDifference(o.total, moneySum(['6.15', '4.88'])));
       expect(await keptGross(o.orderId)).toBe(left);
