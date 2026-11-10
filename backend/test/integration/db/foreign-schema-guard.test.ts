@@ -10,6 +10,7 @@ import {
   X178Host,
   declare,
   openFixtureOrm,
+  revertMigration,
   throwawayDatabase,
   type ThrowawayDatabase,
 } from '../../helpers/schema-extension-fixture.js';
@@ -170,6 +171,32 @@ describe('the foreign-schema guard on a real migrate', () => {
   ])('refuses a foreign write through %s', async (_label, up) => {
     const error = await migrate(packageMigration('Migration20261201T100006AcmeErpRogue', up));
     expect(error).toBeInstanceOf(ForeignSchemaWriteError);
+  });
+
+  // D-291 R-A6 (T071) — the down() a hard uninstall runs may not destroy a table
+  // another module's entity maps, even one its up() created if not exists.
+  it('refuses the revert that would drop another module’s table, and the table survives', async () => {
+    class Migration20261201T100059AcmeErpBridge extends Migration {
+      override async up(): Promise<void> {
+        this.addSql(`create table if not exists "${ORG_HOST_TABLE}" ("id" uuid primary key)`);
+      }
+      override async down(): Promise<void> {
+        this.addSql(`drop table if exists "${ORG_HOST_TABLE}" cascade`);
+      }
+    }
+    const orm = await openFixtureOrm(db.url, [onHost], { packageMigrations: [Migration20261201T100059AcmeErpBridge] });
+    try {
+      await migrateUpVerified(orm);
+      const error = await revertMigration(orm, 'Migration20261201T100059AcmeErpBridge').then(
+        () => null,
+        (caught: unknown) => (caught as { cause?: unknown }).cause ?? caught,
+      );
+      expect(error).toBeInstanceOf(ForeignSchemaWriteError);
+      expect(error).toMatchObject({ table: ORG_HOST_TABLE, direction: 'down' });
+      expect(await db.query(`select to_regclass('${ORG_HOST_TABLE}') as t`)).toEqual([{ t: ORG_HOST_TABLE }]);
+    } finally {
+      await orm.close(true);
+    }
   });
 });
 

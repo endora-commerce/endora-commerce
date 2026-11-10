@@ -58,6 +58,13 @@ export interface ForeignWriteExemption {
   readonly moduleId: string;
   readonly migration: string;
   readonly table: string;
+  /**
+   * `write` (the default) — an R2 ledger write. `bridge` — a first-party D-226
+   * bridge whose migration may destroy the table another module's entity maps,
+   * in `direction` only (D-291 R-A6). Both are rendered by `composer:generate`.
+   */
+  readonly kind?: 'write' | 'bridge';
+  readonly direction?: 'up' | 'down';
 }
 
 export interface ForeignSchemaGuardContext {
@@ -88,6 +95,7 @@ export class ForeignSchemaWriteError extends Error {
     readonly migration: string,
     readonly table: string,
     readonly statement: string,
+    readonly direction?: 'up' | 'down',
   ) {
     super(
       `[foreign-schema-write] ${packageName} (module "${moduleId}"), migration ${migration}, writes ` +
@@ -282,12 +290,51 @@ function verdictOn(
   if (
     context.exemptions.some(
       (exemption) =>
-        exemption.moduleId === context.moduleId && exemption.migration === migration && exemption.table === table,
+        (exemption.kind ?? 'write') === 'write' &&
+        exemption.moduleId === context.moduleId &&
+        exemption.migration === migration &&
+        exemption.table === table,
     )
   ) {
     return null;
   }
   return table;
+}
+
+/** Statements that destroy a table or part of it. */
+function destroys(target: { readonly verb: string; readonly destructive?: boolean }): boolean {
+  return (
+    target.verb === 'drop' ||
+    target.verb === 'truncate' ||
+    target.verb === 'drop-index' ||
+    (target.verb === 'alter' && target.destructive === true)
+  );
+}
+
+/**
+ * D-291 R-A6 — a package may not destroy a table another module's entity maps,
+ * in `up()` or `down()`, whatever the same migration created; only a derived
+ * first-party bridge exemption, in its own direction, lets one through.
+ * `null` is allowed.
+ */
+function destructionRefused(
+  context: ForeignSchemaGuardContext,
+  migration: string,
+  mine: ReadonlySet<string>,
+  mapped: ReadonlySet<string>,
+  target: { readonly table: string; readonly verb: string; readonly destructive?: boolean },
+  direction: 'up' | 'down',
+): string | null {
+  if (!destroys(target) || !mapped.has(target.table) || mine.has(target.table)) return null;
+  const bridged = context.exemptions.some(
+    (exemption) =>
+      exemption.kind === 'bridge' &&
+      exemption.direction === direction &&
+      exemption.moduleId === context.moduleId &&
+      exemption.migration === migration &&
+      exemption.table === target.table,
+  );
+  return bridged ? null : target.table;
 }
 
 /**
@@ -379,6 +426,19 @@ export function guardExternalMigration<T extends MigrationClass>(cls: T, context
         }
         const table = target.table ?? (target.index === undefined ? null : await this.#indexTable(target.index));
         if (table === null) continue;
+        const state = stateOf(context);
+        const direction = this.#reverting ? 'down' : 'up';
+        const destroyed = destructionRefused(context, migrationName, state.mine, state.mapped, { ...target, table }, direction);
+        if (destroyed !== null) {
+          throw new ForeignSchemaWriteError(
+            context.packageName,
+            context.moduleId,
+            migrationName,
+            destroyed,
+            target.statement,
+            direction,
+          );
+        }
         const refused = verdictOn(
           context,
           migrationName,
@@ -425,6 +485,7 @@ export function guardExternalMigration<T extends MigrationClass>(cls: T, context
     }
 
     override async down(): Promise<void> {
+      this.#reverting = true;
       await super.down();
       // "The same source" is the migration, both halves: the tables its `up()`
       // creates are the ones its `down()` may drop (R2's reading).
@@ -784,6 +845,11 @@ export async function auditForeignSchemaWrites(input: {
         if (table === null) unresolvedIndexes.add(target.index);
       }
       if (table === null) continue;
+      const destroyed = destructionRefused(context, migration, mine, mapped, { ...target, table }, method);
+      if (destroyed !== null) {
+        findings.push({ packageName: pkg.packageName, moduleId: pkg.id, migration, method, table: destroyed, statement: target.statement });
+        continue;
+      }
       const refused = verdictOn(context, migration, own, platform, { ...target, table }, createdHere);
       if (refused !== null) {
         findings.push({ packageName: pkg.packageName, moduleId: pkg.id, migration, method, table: refused, statement: target.statement });

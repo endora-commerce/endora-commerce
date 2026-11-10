@@ -216,7 +216,10 @@ czyta każdą drogę zapisu, jaką ma migracja: to, co przekazuje do `addSql` i 
 zapytań, połączenie i rozwidlenia. `execute` w PL/pgSQL na obliczanym ciągu (`format(…)`, zmienna)
 i surowe `getKnex()` menedżera encji nie dają się przypisać tabeli i są odrzucane.
 `create table if not exists` na tabeli mapowanej przez encję innego modułu nie tworzy niczego, co
-wolno ci potem zmieniać.
+wolno ci potem zmieniać, a **żadna twoja migracja nie może usunąć, wyczyścić (`truncate`) ani
+`alter … drop` tabeli mapowanej przez encję innego modułu — ani w `up()`, ani w `down()`,
+niezależnie od tego, co sama utworzyła** — więc twardo odinstalowany pakiet nigdy nie zabierze ze
+sobą tabeli innego modułu.
 
 Tabela jest twoja, gdy mapuje ją jedna z twoich encji albo tworzy ją jedna z twoich migracji i nie
 mapuje jej encja żadnego innego modułu. **Strażnik działa w trybie odmowy domyślnej**: tabela,

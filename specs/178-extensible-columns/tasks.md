@@ -184,7 +184,16 @@ foreign-mapped `create table if not exists` licenses no DDL in `up()`, but is it
 break every upgraded instance and inventory's hard uninstall. The residual (a package's own `down()`
 dropping such a table on its hard uninstall) needs a ruling. **Ruled D-291 R-A6 (2026-11-10): not acceptable — see T071.**
 
-- [ ] T071 Test: a package whose `up()` runs `create table if not exists <table mapped by another module>` and whose `down()` drops it → `uninstall --hard` is refused with `foreign-schema-write` (direction `down`) and the table survives; same for `truncate` / `alter … drop`; `inventory`'s D-226 bridge migration migrates on an upgraded instance and reverts on inventory's hard uninstall through a derived `bridge` exemption; the exemption artefact holds exactly the bridges `check:module-boundary` accepts (two-way) — then implement (guard + `composer:generate` + freshness in `overlay:check`). Release-blocking with B + C [FR-070, FR-071, D-291 R-A6]
+- [x] T071 Test: a package whose `up()` runs `create table if not exists <table mapped by another module>` and whose `down()` drops it → `uninstall --hard` is refused with `foreign-schema-write` (direction `down`) and the table survives; same for `truncate` / `alter … drop`; `inventory`'s D-226 bridge migration migrates on an upgraded instance and reverts on inventory's hard uninstall through a derived `bridge` exemption; the exemption artefact holds exactly the bridges `check:module-boundary` accepts (two-way) — then implement (guard + `composer:generate` + freshness in `overlay:check`). Release-blocking with B + C [FR-070, FR-071, D-291 R-A6]
+
+T071 notes (2026-11-10): the bridge derivation is `backend/scripts/lib/first-party-bridges.ts` — a module
+W's migration creates a table another module O's entity maps, O is in W's dependency closure, and the
+table references a table of W and a table of O — and yields exactly one entry today, `inventory`'s
+`organization_warehouses` (direction `down`). Consequence measured by T065: in an instance, the `down()`
+of 12 first-party modules' migrations destroys a table another module's entity maps (pre-split inits and
+R2-ledgered column additions on foreign tables) and is now refused, so their hard uninstall is refused:
+`_i18n`, `admin_users`, `assets_library`, `carts`, `delivery_methods`, `dictionaries`, `languages`,
+`organizations`, `payment_methods`, `price_lists`, `quote_requests`, `taxes`.
 
 ## Phase D — Remaining eight hosts (later release — OD-178-4, ruled D-291; out of this release)
 

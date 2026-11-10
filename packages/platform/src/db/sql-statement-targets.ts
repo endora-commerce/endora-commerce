@@ -64,6 +64,8 @@ export interface SqlWriteTarget {
    * a caller must treat as "not provably its own".
    */
   readonly setColumns?: readonly string[] | null;
+  /** For `alter`: whether the statement drops something (a column, a constraint) — D-291 R-A6. */
+  readonly destructive?: boolean;
   /** For `create`: whether it is `create table if not exists`, a no-op on an existing table. */
   readonly ifNotExists?: boolean;
   /** The statement's head, whitespace collapsed, for a message. */
@@ -268,6 +270,12 @@ export function sqlWriteTargets(sql: string): SqlWriteTarget[] {
         case 'create':
           found.push({ at, table: lastPart(match[2]!), verb, ifNotExists: match[1] !== undefined, statement });
           break;
+        case 'alter': {
+          const end = text.indexOf(';', at);
+          const whole = text.slice(at, end === -1 ? undefined : end);
+          found.push({ at, table: lastPart(match[1]!), verb, destructive: /\bdrop\b/i.test(whole), statement });
+          break;
+        }
         default:
           found.push({ at, table: lastPart(match[1]!), verb, statement });
       }

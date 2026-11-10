@@ -452,7 +452,10 @@ it and no other module's entity maps it. Also allowed:
 
 - the platform's own tables and `mikro_orm_migrations`;
 - DDL on a table the same migration creates — indexing it beside its `create table`, dropping it
-  in `down()`;
+  in `down()` — **unless another module's entity maps it**: dropping, truncating or
+  `alter … drop`-ing such a table is refused in `up()` and `down()` alike, the only exemption being
+  a first-party D-226 bridge, which `composer:generate` derives into the exemption list as a
+  `bridge` entry;
 - `update "<host>" set "x_<moduleId>_…" = …` on a host the module declares extension columns
   on, every set column its own — its back-fill;
 - the first-party writes recorded in `check:module-boundary`'s R2 ledger, which is what lets an

@@ -345,3 +345,79 @@ describe('dryRunStatements — fails closed on every database handle', () => {
     expect(statements.join('\n')).toMatch(/create table "acme_built"/);
   });
 });
+
+/** D-291 R-A6 (T071) — a package may not drop another module's table, in either direction. */
+describe('guardExternalMigration — destroying a table another module maps (R-A6)', () => {
+  const both = (name: string, up: string[], down: string[]) => {
+    const cls = class extends Migration {
+      override async up(): Promise<void> {
+        for (const sql of up) this.addSql(sql);
+      }
+      override async down(): Promise<void> {
+        for (const sql of down) this.addSql(sql);
+      }
+    };
+    Object.defineProperty(cls, 'name', { value: name });
+    return cls as MigrationClass;
+  };
+  const revert = async (cls: MigrationClass, ctx = context()) => {
+    const Guarded = guardExternalMigration(cls, ctx) as unknown as new (d: unknown, c: unknown) => Migration;
+    await new Guarded(fakeDriver(), {}).down();
+  };
+
+  it('refuses down() dropping a foreign-mapped table its up() created if not exists', async () => {
+    const cls = both(
+      'Migration20261201T100050AcmeErpBridge',
+      ['create table if not exists "organizations" ("id" uuid primary key)'],
+      ['drop table if exists "organizations" cascade'],
+    );
+    const error = await refusal(revert(cls));
+    expect(error).toMatchObject({ table: 'organizations', direction: 'down' });
+  });
+
+  it('refuses down() dropping a foreign-mapped table its up() created outright', async () => {
+    const cls = both(
+      'Migration20261201T100051AcmeErpInit',
+      ['create table "organizations" ("id" uuid primary key)'],
+      ['drop table "organizations"'],
+    );
+    expect((await refusal(revert(cls))).table).toBe('organizations');
+  });
+
+  it.each([
+    ['truncate', 'truncate table "organizations"'],
+    ['alter … drop', 'alter table "organizations" drop column "name"'],
+    ['drop index', 'drop index "organizations_pkey_x"'],
+  ])('refuses %s in up() even on a table the same migration created', async (_label, sql) => {
+    const cls = migration('Migration20261201T100052AcmeErpInit', (self) => {
+      self.addSql('create table "organizations" ("id" uuid primary key)');
+      self.addSql('create index "organizations_pkey_x" on "organizations" ("id")');
+      self.addSql(sql);
+    });
+    expect((await refusal(run(cls))).table).toBe('organizations');
+  });
+
+  it('lets a derived bridge exemption through, in its own direction only', async () => {
+    const cls = both(
+      'Migration20261201T100053AcmeErpBridge',
+      ['create table if not exists "organizations" ("id" uuid primary key)'],
+      ['drop table if exists "organizations" cascade'],
+    );
+    const bridge = (direction: 'up' | 'down') =>
+      context({
+        exemptions: [
+          { moduleId: 'acme_erp', migration: 'Migration20261201T100053AcmeErpBridge', table: 'organizations', kind: 'bridge', direction },
+        ],
+      });
+    await expect(revert(cls, bridge('down'))).resolves.toBeUndefined();
+    await refusal(revert(cls, bridge('up')));
+  });
+
+  it('a write exemption does not license destroying the table', async () => {
+    const cls = both('Migration20261201T100054AcmeErpInit', ['select 1'], ['drop table "organizations"']);
+    const ctx = context({
+      exemptions: [{ moduleId: 'acme_erp', migration: 'Migration20261201T100054AcmeErpInit', table: 'organizations' }],
+    });
+    await refusal(revert(cls, ctx));
+  });
+});

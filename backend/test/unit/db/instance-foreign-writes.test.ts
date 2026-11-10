@@ -69,20 +69,45 @@ describe('an instance of every first-party module, through the foreign-schema gu
     expect(audit.statements).toBeGreaterThan(audit.migrations);
   });
 
-  it('meets no refusal beyond the R2 exemptions', () => {
+  it('meets no refusal in up() beyond the R2 exemptions — every client can migrate', () => {
     expect(
-      audit.findings.map(
-        (finding) => `${finding.moduleId} ${finding.migration}.${finding.method}() → ${finding.table}: ${finding.statement}`,
-      ),
+      audit.findings
+        .filter((finding) => finding.method === 'up')
+        .map((finding) => `${finding.moduleId} ${finding.migration}.up() → ${finding.table}: ${finding.statement}`),
     ).toEqual([]);
   });
 
+  /**
+   * D-291 R-A6 — a migration may not destroy a table another module's entity
+   * maps, in `down()` either, whatever it created; only a derived D-226 bridge
+   * is exempt. What is left refused is exactly that: `down()`s that drop a
+   * pre-split table or a column they once added to another module's table, so
+   * a hard uninstall of those modules is refused in an instance rather than
+   * destroying another module's schema.
+   */
+  it('refuses in down() only the destruction of a table another module maps, never a bridge', () => {
+    const destructive = /^(drop\s+table|drop\s+index|truncate|alter\s+table\s+\S+\s.*\bdrop\b)/i;
+    const left = audit.findings.filter((finding) => finding.method === 'down');
+    expect(left.filter((finding) => !destructive.test(finding.statement))).toEqual([]);
+    expect(left.some((finding) => finding.table === 'organization_warehouses')).toBe(false);
+    expect(
+      unexempted.findings.some(
+        (finding) => finding.table === 'organization_warehouses' && finding.method === 'down',
+      ),
+    ).toBe(true);
+  });
+
   it('refuses, without the exemptions, exactly the writes R2 records — the list is neither short nor stale', () => {
+    const destructive = /^(drop\s+table|drop\s+index|truncate|alter\s+table\s+\S+\s.*\bdrop\b)/i;
     const refused = new Set(
-      unexempted.findings.map((finding) => `${finding.moduleId} ${finding.migration} ${finding.table}`),
+      unexempted.findings
+        .filter((finding) => finding.method === 'up' || !destructive.test(finding.statement))
+        .map((finding) => `${finding.moduleId} ${finding.migration} ${finding.table}`),
     );
     const exempted = new Set(
-      FIRST_PARTY_FOREIGN_WRITE_EXEMPTIONS.map((row) => `${row.moduleId} ${row.migration} ${row.table}`),
+      FIRST_PARTY_FOREIGN_WRITE_EXEMPTIONS.filter((row) => (row.kind ?? 'write') === 'write').map(
+        (row) => `${row.moduleId} ${row.migration} ${row.table}`,
+      ),
     );
     expect([...refused].sort()).toEqual([...exempted].sort());
   });

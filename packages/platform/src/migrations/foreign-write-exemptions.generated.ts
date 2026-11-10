@@ -8,11 +8,18 @@
 // migration class and table — rendered from R2's ledger,
 // backend/scripts/ledgers/migration-foreign-writes/, where each entry carries its
 // reason and its retirement. It shrinks as that ledger drains.
+//
+// Entries of kind `bridge` (D-291 R-A6) are derived, not ledgered: the D-226
+// bridges — a table a module's migration creates while another module's entity
+// maps it, bridging a table of each — whose migration may destroy that table in
+// `direction` (backend/scripts/lib/first-party-bridges.ts).
 
 export const FIRST_PARTY_FOREIGN_WRITE_EXEMPTIONS: readonly {
   readonly moduleId: string;
   readonly migration: string;
   readonly table: string;
+  readonly kind?: 'write' | 'bridge';
+  readonly direction?: 'up' | 'down';
 }[] = [
   { moduleId: '_i18n', migration: 'Migration20260507T091405I18nAdminI18nInit', table: 'admin_users' },
   { moduleId: 'assets_library', migration: 'Migration20260505T102206AssetsLibraryInit', table: 'categories' },
@@ -26,4 +33,5 @@ export const FIRST_PARTY_FOREIGN_WRITE_EXEMPTIONS: readonly {
   { moduleId: 'organizations', migration: 'Migration20260717T151403OrganizationsPersonalOrganizations', table: 'customer_accounts' },
   { moduleId: 'payment_methods', migration: 'Migration20260611T140353PaymentMethodsAdapter', table: 'payments' },
   { moduleId: 'price_lists', migration: 'Migration20260426T075235PriceListsPricingInit', table: 'organizations' },
+  { moduleId: 'inventory', migration: 'Migration20260912T125716InventoryOrganizationWarehouses', table: 'organization_warehouses', kind: 'bridge', direction: 'down' },
 ];

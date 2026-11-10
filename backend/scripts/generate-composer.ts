@@ -85,6 +85,7 @@ import {
 import { barrelKeyOf, parseBarrel, type BarrelParse } from './lib/platform-surface.js';
 import { entityDeclarations, entityDecoratorMentionLine } from './lib/entity-declarations.js';
 import { schemaExtensionDeclarationSites } from './lib/schema-extension-declarations.js';
+import { firstPartyBridges } from './lib/first-party-bridges.js';
 import { declaresRegisterModule } from './lib/module-roots.js';
 import { BASELINE_THROUGH } from '@endora-commerce/platform/db';
 import { BASELINE_MIGRATION_INVENTORY } from '@endora-commerce/platform/migrations';
@@ -2157,6 +2158,9 @@ export interface ForeignWriteExemptionRow {
   readonly moduleId: string;
   readonly migration: string;
   readonly table: string;
+  /** Absent for an R2 write; `bridge` for a derived D-226 bridge (D-291 R-A6). */
+  readonly kind?: 'bridge';
+  readonly direction?: 'up' | 'down';
 }
 
 /**
@@ -2201,19 +2205,30 @@ export async function foreignWriteExemptionRows(
 
 /** Pure emit — the published exemption list. */
 export function emitForeignWriteExemptions(rows: readonly ForeignWriteExemptionRow[]): string {
+  const line = (row: ForeignWriteExemptionRow): string =>
+    `  { moduleId: '${row.moduleId}', migration: '${row.migration}', table: '${row.table}'` +
+    (row.kind === undefined ? '' : `, kind: '${row.kind}', direction: '${row.direction}'`) +
+    ' },';
   return `${HEADER('generate-composer.ts')}//
 // The first-party migrations the runtime foreign-schema guard lets write a table
 // another module owns (specs/178-extensible-columns/ FR-071), by module,
 // migration class and table — rendered from R2's ledger,
 // backend/scripts/ledgers/migration-foreign-writes/, where each entry carries its
 // reason and its retirement. It shrinks as that ledger drains.
+//
+// Entries of kind \`bridge\` (D-291 R-A6) are derived, not ledgered: the D-226
+// bridges — a table a module's migration creates while another module's entity
+// maps it, bridging a table of each — whose migration may destroy that table in
+// \`direction\` (backend/scripts/lib/first-party-bridges.ts).
 
 export const FIRST_PARTY_FOREIGN_WRITE_EXEMPTIONS: readonly {
   readonly moduleId: string;
   readonly migration: string;
   readonly table: string;
+  readonly kind?: 'write' | 'bridge';
+  readonly direction?: 'up' | 'down';
 }[] = [
-${rows.map((row) => `  { moduleId: '${row.moduleId}', migration: '${row.migration}', table: '${row.table}' },`).join('\n')}
+${rows.map(line).join('\n')}
 ];
 `;
 }
@@ -2222,7 +2237,12 @@ ${rows.map((row) => `  { moduleId: '${row.moduleId}', migration: '${row.migratio
 export async function renderForeignWriteExemptions(): Promise<{ outputPath: string; content: string }> {
   return {
     outputPath: foreignWriteExemptionsOutputPath(),
-    content: emitForeignWriteExemptions(await foreignWriteExemptionRows()),
+    content: emitForeignWriteExemptions([
+      ...(await foreignWriteExemptionRows()),
+      // D-291 R-A6 — derived from `check:module-boundary`'s owner map and the
+      // manifests, never hand-listed.
+      ...(await firstPartyBridges()),
+    ]),
   };
 }
 

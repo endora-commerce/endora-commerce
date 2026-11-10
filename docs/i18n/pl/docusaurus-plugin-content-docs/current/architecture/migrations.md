@@ -450,7 +450,10 @@ nie mapuje jej encja żadnego innego modułu. Dozwolone są ponadto:
 
 - własne tabele platformy i `mikro_orm_migrations`;
 - DDL na tabeli, którą tworzy ta sama migracja — indeks obok jej `create table`, usunięcie w
-  `down()`;
+  `down()` — **chyba że mapuje ją encja innego modułu**: usunięcie, wyczyszczenie albo
+  `alter … drop` takiej tabeli jest odrzucane zarówno w `up()`, jak i w `down()`, a jedynym wyjątkiem
+  jest własny most platformy według D-226, który `composer:generate` wyprowadza na listę wyjątków
+  jako wpis `bridge`;
 - `update "<gospodarz>" set "x_<moduleId>_…" = …` na gospodarzu, w którym moduł deklaruje kolumny
   rozszerzeń, o ile każda ustawiana kolumna jest jego własna — czyli jego uzupełnianie danych;
 - zapisy własnych modułów platformy zapisane w rejestrze R2 `check:module-boundary`, dzięki czemu
