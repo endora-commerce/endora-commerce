@@ -1,14 +1,15 @@
-import { describe, expect, it } from 'vitest';
+import { describe, expect, it, vi } from 'vitest';
+import * as tenancyBarrel from './index.js';
 import { resolveTenantContext } from './resolve-tenant-context.js';
 import { runWithTenantContext, type TenantContext } from './tenant-context.js';
 import { customerFilterCond, orgFilterCond } from './filters.js';
 import {
   assignedOrganizationIdsForRanking,
-  isOrgInScope,
   orgConstraintFor,
+  orgInScope,
   orgScopeSql,
   orgScopeWhere,
-  ruleVisibleForScope,
+  ruleInScope,
 } from './derived-scope.js';
 
 /**
@@ -21,12 +22,19 @@ import {
  * filter arms, and every derived-scope helper's new arm.
  */
 const EXCLUDED_QUERY = { sql: 'select x from "reach_source"(?::uuid, ?::boolean) as x', params: ['rep', true] } as const;
+/**
+ * Issue #955 Phase 2 (owner ruling of 2026-11-10) — the id lists are no longer
+ * part of the scope: the owner hands a lazy loader, and the platform memoises
+ * it once per tenant context. Nothing on a request's hot path loads it; only a
+ * single-id question or the ranking does.
+ */
+const REACH = { excludedOrganizationIds: ['org-F'], assignedOrganizationIds: ['org-A'] } as const;
+const loader = () => vi.fn(async () => REACH);
 const REP_SCOPE = {
   allowAll: false,
   reach: 'excluding',
-  excludedOrganizationIds: ['org-F'],
-  assignedOrganizationIds: ['org-A'],
   excludedOrganizationsQuery: EXCLUDED_QUERY,
+  loadReach: async () => REACH,
 } as const;
 
 const repContext = (scope: Parameters<typeof resolveTenantContext>[1] = REP_SCOPE): TenantContext =>
@@ -59,11 +67,13 @@ const EXCLUDING_SUBQUERY = {
 };
 
 describe('resolveTenantContext — the `excluding` reach (#305)', () => {
-  it('maps to the excluded-set mode, carrying both id lists', () => {
-    const ctx = repContext();
+  it('maps to the excluded-set mode, carrying the query and a loader it does not call', () => {
+    const load = loader();
+    const ctx = repContext({ ...REP_SCOPE, loadReach: load });
     expect(ctx.mode).toBe('excluded-set');
-    expect(ctx.excludedOrganizationIds).toEqual(['org-F']);
-    expect(ctx.assignedOrganizationIds).toEqual(['org-A']);
+    expect(ctx.excludedOrganizationsQuery).toEqual(EXCLUDED_QUERY);
+    // Lazy (#955 Phase 2): resolving the scope — every admin request — loads nothing.
+    expect(load).not.toHaveBeenCalled();
     expect(ctx.allowedOrganizationIds).toBeUndefined();
     expect(ctx.notices).toEqual({ organizationAttributionRefused: false });
     expect(ctx.scopeUnresolved).toBeUndefined();
@@ -74,7 +84,7 @@ describe('resolveTenantContext — the `excluding` reach (#305)', () => {
     const ctx = repContext({ ...REP_SCOPE, unresolved: refusal });
     expect(ctx.mode).toBe('allowed-set');
     expect(ctx.allowedOrganizationIds).toEqual([]);
-    expect(ctx.excludedOrganizationIds).toBeUndefined();
+    expect(ctx.excludedOrganizationsQuery).toBeUndefined();
     expect(ctx.scopeUnresolved).toBe(refusal);
   });
 });
@@ -90,7 +100,7 @@ describe('filter conds — the excluded-set arm (#305)', () => {
   it('@OrgScoped: the filter reads the query, not the list — an empty list renders the same predicate', async () => {
     // The list is the one `reachOf` answered when the scope was resolved; the
     // query is read live in each statement's snapshot. Only the query filters.
-    const ctx = repContext({ ...REP_SCOPE, excludedOrganizationIds: [] });
+    const ctx = repContext({ ...REP_SCOPE, loadReach: async () => ({ excludedOrganizationIds: [], assignedOrganizationIds: [] }) });
     const cond = await inRep(() => orgFilterCond(), ctx);
     expect(excludingSubquery(cond['organizationId'])).toEqual(EXCLUDING_SUBQUERY);
   });
@@ -128,9 +138,8 @@ describe('derived-scope helpers — one case per arm', () => {
     expect(orgConstraintFor(allowed)).toEqual({ kind: 'allowed', organizationIds: ['org-A'] });
     expect(orgConstraintFor(excluded)).toEqual({
       kind: 'excluded',
-      excludedOrganizationIds: ['org-F'],
-      assignedOrganizationIds: ['org-A'],
       excludedOrganizationsQuery: EXCLUDED_QUERY,
+      loadReach: expect.any(Function),
     });
   });
 
@@ -143,28 +152,56 @@ describe('derived-scope helpers — one case per arm', () => {
     expect(excludingSubquery(where['id'])).toEqual(EXCLUDING_SUBQUERY);
   });
 
-  it('isOrgInScope', () => {
-    expect(isOrgInScope('org-F', platform)).toBe(true);
-    expect(isOrgInScope('org-A', single)).toBe(true);
-    expect(isOrgInScope('org-U', single)).toBe(false);
-    expect(isOrgInScope('org-A', allowed)).toBe(true);
-    expect(isOrgInScope('org-U', allowed)).toBe(false);
+  it('orgInScope answers every arm, asynchronously', async () => {
+    expect(await orgInScope('org-F', platform)).toBe(true);
+    expect(await orgInScope('org-A', single)).toBe(true);
+    expect(await orgInScope('org-U', single)).toBe(false);
+    expect(await orgInScope('org-A', allowed)).toBe(true);
+    expect(await orgInScope('org-U', allowed)).toBe(false);
     // The unassigned organization is in reach; the one governed by another rep is not.
-    expect(isOrgInScope('org-U', excluded)).toBe(true);
-    expect(isOrgInScope('org-A', excluded)).toBe(true);
-    expect(isOrgInScope('org-F', excluded)).toBe(false);
+    expect(await orgInScope('org-U', excluded)).toBe(true);
+    expect(await orgInScope('org-A', excluded)).toBe(true);
+    expect(await orgInScope('org-F', excluded)).toBe(false);
     // `?? ''` is how callers spell "no organization": never in a reach that is a complement.
-    expect(isOrgInScope('', excluded)).toBe(false);
-    expect(isOrgInScope('', allowed)).toBe(false);
+    expect(await orgInScope('', excluded)).toBe(false);
+    expect(await orgInScope('', allowed)).toBe(false);
   });
 
-  it('ruleVisibleForScope', () => {
-    expect(ruleVisibleForScope(['org-F'], platform)).toBe(true);
-    expect(ruleVisibleForScope([], excluded)).toBe(true);
-    expect(ruleVisibleForScope(['org-F'], excluded)).toBe(false);
-    expect(ruleVisibleForScope(['org-F', 'org-U'], excluded)).toBe(true);
-    expect(ruleVisibleForScope(['org-U'], allowed)).toBe(false);
-    expect(ruleVisibleForScope(['org-A'], allowed)).toBe(true);
+  it('ruleInScope answers every arm, asynchronously', async () => {
+    expect(await ruleInScope(['org-F'], platform)).toBe(true);
+    expect(await ruleInScope([], excluded)).toBe(true);
+    expect(await ruleInScope(['org-F'], excluded)).toBe(false);
+    expect(await ruleInScope(['org-F', 'org-U'], excluded)).toBe(true);
+    expect(await ruleInScope(['org-U'], allowed)).toBe(false);
+    expect(await ruleInScope(['org-A'], allowed)).toBe(true);
+  });
+
+  it('loads the reach at most once per tenant context, however many questions it answers', async () => {
+    const load = loader();
+    const ctx = repContext({ ...REP_SCOPE, loadReach: load });
+    await orgInScope('org-F', ctx);
+    await orgInScope('org-U', ctx);
+    await ruleInScope(['org-A'], ctx);
+    await assignedOrganizationIdsForRanking(ctx);
+    await Promise.all([orgInScope('org-F', ctx), orgInScope('org-U', ctx)]);
+    expect(load).toHaveBeenCalledTimes(1);
+  });
+
+  it('a loader that fails refuses every question that needs it — never answers "in reach"', async () => {
+    const down = new Error('reach statement failed');
+    const ctx = repContext({ ...REP_SCOPE, loadReach: async () => { throw down; } });
+    await expect(orgInScope('org-U', ctx)).rejects.toBe(down);
+    await expect(ruleInScope(['org-U'], ctx)).rejects.toBe(down);
+    await expect(assignedOrganizationIdsForRanking(ctx)).rejects.toBe(down);
+    // The filter predicate does not need the loader, so a list still renders.
+    expect(excludingSubquery((await inRep(() => orgFilterCond(), ctx))['organizationId'])).toEqual(EXCLUDING_SUBQUERY);
+  });
+
+  it('the synchronous helpers are gone from the published surface (a Promise in an `if` is always truthy)', () => {
+    expect('isOrgInScope' in tenancyBarrel).toBe(false);
+    expect('ruleVisibleForScope' in tenancyBarrel).toBe(false);
+    expect(typeof tenancyBarrel.orgInScope).toBe('function');
+    expect(typeof tenancyBarrel.ruleInScope).toBe('function');
   });
 
   it('orgScopeSql gives one array parameter per arm, and never matches a null organization', () => {
@@ -180,10 +217,10 @@ describe('derived-scope helpers — one case per arm', () => {
     });
   });
 
-  it('assignedOrganizationIdsForRanking answers the assignments only, and never the excluded set', () => {
-    expect(assignedOrganizationIdsForRanking(platform)).toEqual([]);
-    expect(assignedOrganizationIdsForRanking(single)).toEqual([]);
-    expect(assignedOrganizationIdsForRanking(allowed)).toEqual(['org-A']);
-    expect(assignedOrganizationIdsForRanking(excluded)).toEqual(['org-A']);
+  it('assignedOrganizationIdsForRanking answers the assignments only, and never the excluded set', async () => {
+    expect(await assignedOrganizationIdsForRanking(platform)).toEqual([]);
+    expect(await assignedOrganizationIdsForRanking(single)).toEqual([]);
+    expect(await assignedOrganizationIdsForRanking(allowed)).toEqual(['org-A']);
+    expect(await assignedOrganizationIdsForRanking(excluded)).toEqual(['org-A']);
   });
 });
