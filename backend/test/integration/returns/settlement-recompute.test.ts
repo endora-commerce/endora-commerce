@@ -263,12 +263,17 @@ describe('returns — the default refund recomputed at settlement (#874, #875)',
       await settled(c2);
       expect(await stored(c2)).toEqual([['12.32', '0.00', '12.32']]);
       expect(await refundOf(c2)).toBe('12.32');
-      expect((await settledAudit(c2)).recomputedDefaults).toEqual([{ itemId: c2.items[0]!.id, from: '12.31', to: '12.32' }]);
+      // Which line's default moved, never from what to what (#470, D-288).
+      const audited = await settledAudit(c2);
+      expect(audited.recomputedDefaultItemIds).toEqual([c2.items[0]!.id]);
+      expect(audited).not.toHaveProperty('recomputedDefaults');
+      expect(audited).not.toHaveProperty('amount');
+      expect(JSON.stringify(audited)).not.toMatch(/12\.3[12]/);
 
       expect(await prefill(c1)).toEqual([expect.objectContaining({ defaultRefundAmount: 12.31, approvedRefundAmount: 12.31 })]);
       await settled(c1);
       expect(await stored(c1)).toEqual([['12.31', '0.00', '12.31']]);
-      expect((await settledAudit(c1)).recomputedDefaults).toEqual([{ itemId: c1.items[0]!.id, from: '12.32', to: '12.31' }]);
+      expect((await settledAudit(c1)).recomputedDefaultItemIds).toEqual([c1.items[0]!.id]);
       // The one unit kept is 10.01 + 2.30.
       expect(await leftPaid(o.orderId, o.total)).toBe('12.31');
     });
