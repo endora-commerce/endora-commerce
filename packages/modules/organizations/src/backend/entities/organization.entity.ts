@@ -8,6 +8,7 @@ import {
   Property,
   type EventArgs,
 } from '@mikro-orm/core';
+import { normalizeTaxId } from '@endora-commerce/contracts';
 import { GlobalEntity } from '@endora-commerce/platform/tenancy';
 import { randomUUID } from 'crypto';
 import { normalizeOrganizationName } from '../services/normalize-name.js';
@@ -291,6 +292,19 @@ export class Organization {
    * stored generated column, which this class deliberately does not map
    * (`specs/177-tax-id-scope/` research R-2).
    */
+  /**
+   * `specs/177-tax-id-scope/` D-290 / OD-11 — the tax ID is stored in its
+   * canonical form (`normalizeTaxId`: whitespace and dashes removed,
+   * upper-cased), whichever creator wrote it, because the scope's constraints
+   * compare stored text. `organizations_tax_id_normalised` refuses any other
+   * form from a writer that bypasses the entity.
+   */
+  @BeforeCreate()
+  @BeforeUpdate()
+  normalizeTaxIdForStorage(_args?: EventArgs<Organization>): void {
+    if (typeof this.taxId === 'string') this.taxId = normalizeTaxId(this.taxId);
+  }
+
   @BeforeCreate()
   assignRootPath(_args?: EventArgs<Organization>): void {
     if (this.path === '' && (this.parentId === undefined || this.parentId === null)) {

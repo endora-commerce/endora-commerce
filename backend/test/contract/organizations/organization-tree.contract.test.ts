@@ -234,7 +234,7 @@ describe('organization tree HTTP contract (US1)', () => {
     afterEach(async () => {
       if (sharing.length > 0) {
         await h.em().execute(
-          `update "organizations" set "tax_id" = 'R' || substr(replace("id"::text, '-', ''), 1, 31)
+          `update "organizations" set "tax_id" = 'R' || upper(substr(replace("id"::text, '-', ''), 1, 31))
             where "id" = any(?::uuid[])`,
           [`{${sharing.join(',')}}`],
         );

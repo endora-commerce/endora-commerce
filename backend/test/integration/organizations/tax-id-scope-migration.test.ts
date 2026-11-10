@@ -35,7 +35,7 @@ describe('organizations — M2: the tax-ID scope foundation', () => {
       `insert into "organizations"
          ("id","name","tax_id","status","vat_status","registered_address","parent_id","path","created_at","updated_at")
        values (?, ?, ?, 'active', 'vat_payer', '{}'::jsonb, ?, ?, now(), now())`,
-      [id, `M2 ${id.slice(0, 8)}`, `M2${id.replace(/-/g, '').slice(0, 20)}`, parentId, path(id)],
+      [id, `M2 ${id.slice(0, 8)}`, `M2${id.replace(/-/g, '').slice(0, 20).toUpperCase()}`, parentId, path(id)],
     );
     return id;
   }

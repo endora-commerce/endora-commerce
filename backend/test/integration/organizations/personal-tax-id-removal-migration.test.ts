@@ -1,7 +1,10 @@
 import { randomUUID } from 'node:crypto';
 import { afterAll, afterEach, beforeAll, beforeEach, describe, expect, it } from 'vitest';
 import type { EntityManager } from '@mikro-orm/postgresql';
-import { Migration20261110T135922OrganizationsPersonalTaxIdRemoval } from '@endora-commerce/mod-organizations/migrations';
+import {
+  Migration20261110T135922OrganizationsPersonalTaxIdRemoval,
+  Migration20261110T183238OrganizationsTaxIdNormalise,
+} from '@endora-commerce/mod-organizations/migrations';
 import { setupTestDb, type TestDb } from '../../helpers/test-db.js';
 
 /**
@@ -105,6 +108,11 @@ describe('organizations — M1: personal organizations lose the synthetic tax ID
   beforeEach(async () => {
     em = await db.beginTx();
     notices = [];
+    // M4 (`organizations_tax_id_normalised`) refuses the lower-case
+    // placeholders M1's pre-feature shape holds; a rollback drops it first.
+    const normalise = new Migration20261110T183238OrganizationsTaxIdNormalise(em.getDriver(), em.config);
+    await normalise.down();
+    for (const query of normalise.getQueries()) await em.execute(query as string);
     await run('down');
   });
 

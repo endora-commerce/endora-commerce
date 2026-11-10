@@ -92,7 +92,7 @@ describe('personal organizations — provisioning by the account link', () => {
       `insert into "organizations"
          ("id","name","tax_id","status","vat_status","is_personal","registered_address","path","created_at","updated_at")
        values (?, 'Link company', ?, 'active', 'vat_payer', false, '{"street":"-","city":"-","postalCode":"-","country":"PL"}'::jsonb, ?, now(), now())`,
-      [companyId, `LINK${companyId.replace(/-/g, '').slice(0, 12)}`, `/${companyId}/`],
+      [companyId, `LINK${companyId.replace(/-/g, '').slice(0, 12).toUpperCase()}`, `/${companyId}/`],
     );
     await sql(`update "customer_accounts" set "organization_id" = ?, "organization_role_id" = ? where "id" = ?`, [
       companyId,

@@ -100,7 +100,8 @@ describe('admin global search — Organization provider (spec 150, owner Q2)', (
     const [hit] = (await searchAsPlatform(provider(), providerQuery(`TX${T}9`, ['taxId'], { language: 'pl' }))).hits;
     expect(hit).toMatchObject({
       title: `Q2${T} Zeta`,
-      subtitle: `TX${T}9 · Kraków`,
+      // Stored normalised (`specs/177-tax-id-scope/` OD-11).
+      subtitle: `TX${T.toUpperCase()}9 · Kraków`,
       targetRoute: `/organizations/${ids['assigned']}`,
       status: { code: 'active', label: 'Aktywna' },
     });

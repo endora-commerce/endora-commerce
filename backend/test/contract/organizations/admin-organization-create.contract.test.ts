@@ -175,6 +175,18 @@ describe('POST /api/v1/admin/organizations', () => {
     });
   });
 
+  // `specs/177-tax-id-scope/` T041d (D-290 / OD-11) — stored normalised, and a
+  // second spelling of one tax ID is the same tax ID.
+  it('stores the tax ID normalised and refuses another spelling of it', async () => {
+    const digits = `${stamp}77`;
+    const res = await post(body({ taxId: `pl ${digits.slice(0, 3)}-${digits.slice(3)}` }));
+    expect(res.statusCode, res.body).toBe(201);
+    expect((res.json() as { data: { taxId: string } }).data.taxId).toBe(`PL${digits}`);
+    const again = await post(body({ taxId: `PL-${digits}` }));
+    expect(again.statusCode, again.body).toBe(409);
+    expect(again.json().error.code).toBe(ERROR_CODES.ORGANIZATION_TAX_ID_EXISTS);
+  });
+
   it('may start an Organization pending verification', async () => {
     const res = await post(body({ status: 'pending_verification' }));
     expect(res.statusCode).toBe(201);
@@ -289,7 +301,7 @@ describe('POST /api/v1/admin/organizations', () => {
     afterEach(async () => {
       if (sharing.length > 0) {
         await h.em().execute(
-          `update "organizations" set "tax_id" = 'R' || substr(replace("id"::text, '-', ''), 1, 31)
+          `update "organizations" set "tax_id" = 'R' || upper(substr(replace("id"::text, '-', ''), 1, 31))
             where "id" = any(?::uuid[])`,
           [`{${sharing.join(',')}}`],
         );

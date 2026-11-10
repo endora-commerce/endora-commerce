@@ -79,7 +79,7 @@ describe('Default shopping list — eager provisioning on customer create', () =
       `insert into "organizations"
          ("id","name","tax_id","status","vat_status","registered_address","path","created_at","updated_at")
        values (?, 'Lists without create', ?, 'active', 'vat_payer', '{}'::jsonb, ?, now(), now())`,
-      [organizationId, `lists-${organizationId.slice(0, 13)}`, `/${organizationId}/`],
+      [organizationId, `LISTS${organizationId.slice(0, 13).replace(/-/g, '').toUpperCase()}`, `/${organizationId}/`],
     );
     const memberRoleId = await predefinedRoleIdOf(em, organizationId, 'member');
     await em.getConnection().execute(

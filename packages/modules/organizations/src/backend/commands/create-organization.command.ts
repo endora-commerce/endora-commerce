@@ -55,14 +55,14 @@ export interface CreateOrganizationCommandDeps {
  */
 export async function taxIdAvailableFor(em: EntityManager, taxId: string, rootId: string): Promise<boolean> {
   const scope = await new TaxIdScopeService(() => em).scope(em);
-  // As typed and normalised: the constraint compares the stored text, and the
-  // lookups the normalised form (`normalizeTaxId`).
-  const candidates = [taxId, normalizeTaxId(taxId)];
+  // Stored values are normalised (`organizations_tax_id_normalised`, OD-11), so
+  // one form is compared.
+  const normalised = normalizeTaxId(taxId);
   const rows = (await em.execute(
     `select 1 from "organizations"
-      where "tax_id" in (?, ?)${scope === 'per-tree-root' ? ' and "root_id" is distinct from ?::uuid' : ''}
+      where "tax_id" = ?${scope === 'per-tree-root' ? ' and "root_id" is distinct from ?::uuid' : ''}
       limit 1`,
-    scope === 'per-tree-root' ? [...candidates, rootId] : candidates,
+    scope === 'per-tree-root' ? [normalised, rootId] : [normalised],
   )) as unknown[];
   return rows.length === 0;
 }
@@ -85,12 +85,14 @@ export function makeCreateOrganizationCommand(
       }
       // A branch joins its parent's tree; anything else roots a tree of its own.
       const rootId = parent ? parent.path.split('/').filter(Boolean)[0]! : organizationId;
-      if (!(await taxIdAvailableFor(em, input.taxId, rootId))) throw taxIdExistsRefusal();
+      // D-290 / OD-11 — the canonical form is what is checked and stored.
+      const taxId = normalizeTaxId(input.taxId);
+      if (!(await taxIdAvailableFor(em, taxId, rootId))) throw taxIdExistsRefusal();
       const now = new Date();
       const organization = em.create(Organization, {
         id: organizationId,
         name: input.name,
-        taxId: input.taxId,
+        taxId,
         status: input.status,
         vatStatus: input.vatStatus ?? 'vat_payer',
         registeredAddress: {

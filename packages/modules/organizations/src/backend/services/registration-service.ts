@@ -3,6 +3,7 @@ import type { EntityManager } from '@mikro-orm/postgresql';
 import {
   DictionaryReferenceError,
   ERROR_CODES,
+  normalizeTaxId,
   type CustomerAccountMemberWritePort,
   type CustomerAccountReadPort,
   type CustomerAccountRecord,
@@ -153,10 +154,9 @@ export class RegistrationService {
     // is computed inside `create` below, after both checks have passed).
     // `specs/177-tax-id-scope/` FR-024 — through the one tax-ID lookup, which
     // normalises the input (`contracts/tax-id-scope.md` §5).
-    const existingByTaxId = await new TaxIdLookupService(this.emFactory).resolveByTaxId(
-      req.organization.taxId,
-      { em },
-    );
+    // D-290 / OD-11 — stored, checked and echoed in the canonical form.
+    const taxId = normalizeTaxId(req.organization.taxId);
+    const existingByTaxId = await new TaxIdLookupService(this.emFactory).resolveByTaxId(taxId, { em });
     if (existingByTaxId.kind !== 'none') {
       throw new HttpError(
         409,
@@ -179,7 +179,7 @@ export class RegistrationService {
 
     const organization = em.create(Organization, {
       name: req.organization.name,
-      taxId: req.organization.taxId,
+      taxId,
       status: 'pending_verification',
       vatStatus: req.organization.vatStatus ?? 'vat_payer',
       registeredAddress: {
@@ -237,7 +237,8 @@ export class RegistrationService {
     const lookupRow = ticket
       ? registrationValidationRow(ticket, {
           name: req.organization.name,
-          taxId: req.organization.taxId,
+          // The stored form, so the validation row names the tax ID the organization holds.
+          taxId,
           registeredAddress: req.organization.registeredAddress,
         })
       : null;

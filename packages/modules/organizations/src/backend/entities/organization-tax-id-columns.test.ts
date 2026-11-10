@@ -61,3 +61,27 @@ describe('OrganizationTaxIdPolicy [unit]', () => {
     expect(new OrganizationTaxIdPolicy().scope).toBe('global');
   });
 });
+
+/**
+ * `specs/177-tax-id-scope/` T041d (D-290 / OD-11) — every ORM writer stores
+ * the canonical tax ID: the entity normalises it before an insert or update,
+ * as it fills `nameSearch`. The database check refuses any other form from a
+ * writer that bypasses the entity.
+ */
+describe('Organization — the tax ID is stored normalised', () => {
+  it.each([
+    ['pl 526-025-09-95', 'PL5260250995'],
+    ['5260250995', '5260250995'],
+    [' de 123 456 789 ', 'DE123456789'],
+  ])('%j is stored as %j', (typed, stored) => {
+    const organization = Object.assign(new Organization(), { name: 'N', taxId: typed });
+    organization.normalizeTaxIdForStorage();
+    expect(organization.taxId).toBe(stored);
+  });
+
+  it('leaves a personal organization without a tax ID', () => {
+    const organization = Object.assign(new Organization(), { name: 'N', taxId: null });
+    organization.normalizeTaxIdForStorage();
+    expect(organization.taxId).toBeNull();
+  });
+});

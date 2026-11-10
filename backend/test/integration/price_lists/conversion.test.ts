@@ -177,7 +177,7 @@ describe('price_lists — the conversion (feature 160, SC-006)', () => {
     await sql(
       `insert into "organizations" ("id", "name", "tax_id", "status", "vat_status", "registered_address", "path", "created_at", "updated_at")
        values (?, ?, ?, 'active', 'vat_payer', '{"street":"T 1","city":"W","postalCode":"00-001","country":"PL"}'::jsonb, ?, now(), now())`,
-      [ids.org, `Conversion org ${stamp}`, `PLCONV${stamp}`, `/${ids.org}/`],
+      [ids.org, `Conversion org ${stamp}`, `PLCONV${stamp.toUpperCase()}`, `/${ids.org}/`],
     );
     await sql(
       `insert into "categories" ("id", "name", "slug", "created_at", "updated_at") values (?, '{"en-US":"Conv"}'::jsonb, ?, now(), now())`,
