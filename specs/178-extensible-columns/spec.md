@@ -478,3 +478,27 @@ Taken by the architect on questions the developer raised from `feat/178-extensib
   `Migration20260912T125716InventoryOrganizationWarehouses` (`organization_warehouses`, mapped by
   `organizations`). No hand-written list; a third-party bridge is not offered in this release (own an
   S1 table instead). Task T071.
+- **R-A7 — first-party `down()` destruction: one derived predicate, not a ledger and not an author
+  test.** Measured over the 23 refused `down()` sites of the 12 modules (2026-11-10): every one is
+  safe **unless** the table's owner can still be present when the site runs. So a `down()`
+  destruction by module W of a table owned by O is exempt iff (a) O has W in its dependency closure
+  — `dependents-block` removes O before W can be reverted, so the drop only clears residue
+  (`assets_library`→`categories`, `delivery_methods`→`shipments`, `organizations`→`addresses` /
+  `customer_accounts`, `payment_methods`→`payments`, `taxes`→`promotions`); or (b) W is `core`; or
+  (c) W and O are both in the required set derived from `activation.nonDeactivatable` — D-69 refuses
+  W's uninstall before any revert, so the site is unreachable (`_i18n`, `admin_users`, `carts`,
+  `dictionaries`, `languages`, `price_lists`). This is exactly the acceptance predicate of
+  `backend/test/unit/db/foreign-column-ddl.test.ts`; the guard and that test MUST share one
+  implementation. It is safe for any author (a core owner never depends on a third-party package;
+  a package that declares itself non-deactivatable cannot be reverted), so it applies uniformly and
+  re-reds on its own if a lock is withdrawn. Rejected: extending the R2 ledger to `down()` (a list
+  that would license the next such site), and exempting all first-party code (trusts authorship,
+  not safety).
+  **One latent data-loss bug, filed separately and fixed in this release:** `quote_requests` is
+  deactivatable, and `Migration20260503T141344QuoteRequestsWorkflow.down()` drops
+  `organization_sales_rep_assignments`, which `organizations` maps and which survives
+  `quote_requests`' removal — `module:uninstall quote_requests --hard` destroys a live
+  `organizations` table **today, in this repository too**. Fix: remove the drop from that `down()`
+  (editing a `down()` body changes no applied history); the creation side (the table is created by
+  `quote_requests`, not by its owner) goes to `organizations`' own migration with `if not exists`
+  under a separate issue. With R-A7 and that fix no first-party module's hard uninstall is refused.

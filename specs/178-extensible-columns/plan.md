@@ -138,7 +138,10 @@ unmapped tables via the lazy dry run, failing closed; R-A3 178 merges first at 4
 `up` transaction, logged, tested (T068); R-A5 migrate marks rows of modules with no declaration
 `orphaned` — fixed in this release (T069), blocking with B + C; R-A6 refuse a package dropping a
 table another module's entity maps in `up()` and `down()`, exempting only first-party D-226 bridges
-through a derived `bridge` entry in the exemption artefact (T071).
+through a derived `bridge` entry in the exemption artefact (T071); R-A7 exempt a `down()`
+destruction by the shared derived predicate of `foreign-column-ddl.test.ts` (owner depends on the
+writer, writer is core, or both locked), and fix the one latent data-loss site, `quote_requests`'
+drop of `organization_sales_rep_assignments` (T072, T073).
 
 ## Test plan (FR → test)
 
