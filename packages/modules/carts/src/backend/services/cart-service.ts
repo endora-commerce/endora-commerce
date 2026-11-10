@@ -11,6 +11,7 @@ import {
   type OrganizationPermissionPort,
   type ProductAudience,
   isUuidShape,
+  LINE_QUANTITY_MAX,
 } from '@endora-commerce/contracts';
 import { HttpError } from '@endora-commerce/platform/http';
 import { Cart } from '../entities/cart.entity.js';
@@ -109,6 +110,24 @@ export interface CartActor {
  * cap"). The 201st distinct line is refused with HTTP 422.
  */
 export const CART_MAX_LINES = 200;
+
+/**
+ * Issue #351 (architect ruling R3 on PR #1009) — a line a request would take
+ * past `LINE_QUANTITY_MAX` (an add onto an existing line, a packaging unit's
+ * pieces) is refused, not clamped: `422 LINE_QUANTITY_EXCEEDED` with the
+ * quantity the line would have held and the bound. Every request schema in front
+ * of the cart already bounds a single quantity, so this is the case where each
+ * part is in range and their product or sum is not.
+ */
+function refuseLineQuantityPastBound(quantity: number): void {
+  if (quantity <= LINE_QUANTITY_MAX) return;
+  throw new HttpError(
+    422,
+    ERROR_CODES.LINE_QUANTITY_EXCEEDED,
+    `A line quantity may be at most ${LINE_QUANTITY_MAX.toLocaleString('en-US')}.`,
+    { quantity, maximum: LINE_QUANTITY_MAX },
+  );
+}
 
 /**
  * The smallest quantity a cart line may hold. Carried in the refusal's
@@ -903,6 +922,7 @@ export class CartService {
       // that quantity — a quantity-tier bracket the old quantity reached does
       // not carry over, and an agreed price holds only at the agreed quantity.
       const quantity = existing.quantity + effectiveQuantity;
+      refuseLineQuantityPastBound(quantity);
       const price = await this.#orderablePriceOrRefuse(pricingCtx, {
         product,
         variantId: existing.variantId ?? null,
@@ -1064,6 +1084,8 @@ export class CartService {
     const effectiveQuantity = packagingUnit
       ? packagingUnit.baseQuantity * input.quantity
       : input.quantity;
+    // Issue #351 — the pieces, not the units, are what the line stores.
+    refuseLineQuantityPastBound(effectiveQuantity);
     // Feature 163 (FR-079, T138; owner decision 2026-10-26) — the snapshot takes the
     // unit's name in the basket's language; a placed line keeps it, never re-resolved.
     // An operator naming the channel has no request language: the name is taken at
@@ -1377,7 +1399,11 @@ export class CartService {
         variantId: item.variantId ?? null,
       });
       if (existing) {
-        existing.quantity += item.quantity;
+        // Issue #351 (architect ruling R3) — the one clamp: two lines each within
+        // the bound can sum past it, and there is no request to refuse here —
+        // failing the sign-in over it would be worse. The summed line is repriced
+        // below at the quantity it holds.
+        existing.quantity = Math.min(existing.quantity + item.quantity, LINE_QUANTITY_MAX);
         summedLineCount += 1;
         repriced.push(existing);
       } else {

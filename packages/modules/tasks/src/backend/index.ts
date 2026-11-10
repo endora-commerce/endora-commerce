@@ -42,6 +42,7 @@ import { TASK_REMINDER_DEFAULT, TASK_REMINDER_EMAIL_CODE } from './email-templat
 import { Task } from './entities/task.entity.js';
 import { TaskAssignee } from './entities/task-assignee.entity.js';
 import { TaskAttachment } from './entities/task-attachment.entity.js';
+import { TaskValueChange } from './entities/task-value-change.entity.js';
 import { TaskComment } from './entities/task-comment.entity.js';
 import { TaskDigestSubscription } from './entities/task-digest-subscription.entity.js';
 import { TaskListSavedView } from './entities/task-list-saved-view.entity.js';
@@ -405,13 +406,16 @@ export function registerModule(ctx: ModuleContext): void {
     // `auditLogService` is a platform service, not a module's port.
     tasksHistoryService: ctx
       .asFunction(
-        ({ tasksTaskService, auditLogService, tasksVisibility, tasksAccess }: TasksCradle) =>
+        ({ emFactory, tasksTaskService, auditLogService, tasksVisibility, tasksAccess, tasksOwnerReadChecks }: TasksCradle) =>
           new TaskHistoryService({
+            emFactory,
             tasks: tasksTaskService,
             visibility: tasksVisibility,
             access: tasksAccess,
             auditLog: auditLogService,
             adminUsers: lazyPort<AdminUserReadPort>(ctx, 'adminUserReadPort'),
+            // Custom-field values only for `custom_fields:read` (#470; feature 162 P2 = a).
+            mayReadCustomFields: tasksOwnerReadChecks.customFields,
           }),
       )
       .singleton(),
@@ -858,6 +862,8 @@ export const entities = [
   TaskTag,
   TaskListSavedView,
   TaskDigestSubscription,
+  // Issue #470 — the values the platform audit log no longer carries.
+  TaskValueChange,
 ];
 
 /**

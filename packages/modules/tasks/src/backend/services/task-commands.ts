@@ -26,6 +26,7 @@ import { dueMomentOf, followDueMoment } from './reminder-schedule.js';
 import { referenceRowsFor } from './reference-service.js';
 import { taskAlreadyPublished, taskAssigneeInvalid, taskNotFound } from './task-errors.js';
 import { nextTaskNumber } from './task-number.js';
+import { recordTaskValueChange } from './task-audit-state.js';
 
 /**
  * The Commands every write of a Task runs (`specs/165-task-management/`
@@ -120,10 +121,14 @@ function isoOrNull(value: Date | string | null | undefined): string | null {
   return value ? new Date(value).toISOString() : null;
 }
 
+/**
+ * The audit snapshot of a Task: names and structure only (#470,
+ * `TASKS_AUDIT_KEYS`). The title and the context note are values — they go to
+ * the Task's value store ({@link taskValues}).
+ */
 export function auditSnapshot(task: Task): Record<string, unknown> {
   return {
     number: task.number,
-    title: task.title,
     descriptionLength: task.description.length,
     status: task.status,
     dueOn: task.dueOn ?? null,
@@ -133,8 +138,12 @@ export function auditSnapshot(task: Task): Record<string, unknown> {
     contextType: task.contextType ?? null,
     contextId: task.contextId ?? null,
     contextGroupId: task.contextGroupId ?? null,
-    contextNote: task.contextNote ?? null,
   };
+}
+
+/** The values of a Task its history shows and the audit log may not hold (#470). */
+export function taskValues(task: Task): Record<string, unknown> {
+  return { title: task.title, contextNote: task.contextNote ?? null };
 }
 
 /** An event's `eventId` / `occurredAt` envelope. */
@@ -249,6 +258,14 @@ export function createTaskCommand(context: TaskContext | null, input: NewTaskFie
         }
       }
       created = task;
+      // The values go to the Task's own store; the entry names them (#470).
+      // The row names the Task by value, so the Task is written first, as
+      // for the other child rows above.
+      await scoped.flush();
+      const values = recordTaskValueChange(scoped, id, {
+        before: null,
+        after: { ...taskValues(task), customFieldValues: { ...task.customFieldValues } },
+      });
       return {
         result: id,
         before: null,
@@ -261,7 +278,7 @@ export function createTaskCommand(context: TaskContext | null, input: NewTaskFie
           tagIds,
           ...(parentTaskId !== null ? { parentTaskId } : {}),
           ...(links.length > 0 ? { links: links.map((link) => ({ kind: link.kind, recordId: link.id })) } : {}),
-          ...(Object.keys(task.customFieldValues).length > 0 ? { customFieldValues: task.customFieldValues } : {}),
+          ...values,
         },
       };
     },
@@ -353,6 +370,7 @@ export function updateTaskCommand(
       const scoped = em as EntityManager;
       const task = await lockedTask(scoped, id);
       const before = auditSnapshot(task);
+      const valuesBefore = taskValues(task);
       let mentioned: string[] = [];
       if (changes.title !== undefined) task.title = changes.title;
       if (changes.description !== undefined && changes.description !== task.description) {
@@ -373,7 +391,8 @@ export function updateTaskCommand(
         task.contextId = changes.context?.contextId ?? null;
         task.contextGroupId = changes.context?.contextGroupId ?? null;
       }
-      return { result: { mentioned }, before, after: auditSnapshot(task) };
+      const values = recordTaskValueChange(scoped, task.id, { before: valuesBefore, after: taskValues(task) });
+      return { result: { mentioned }, before, after: { ...auditSnapshot(task), ...values } };
     },
   };
 }
@@ -458,7 +477,8 @@ export function changeTaskTagsCommand(id: string, tagIds: readonly string[]): Co
 
 /**
  * `tasks.task.custom_fields_change` — the bag `custom_fields` validated and
- * merged; the audit row holds the keys that changed, before and after.
+ * merged; the audit row names the keys that changed, and the Task's value
+ * store holds them before and after (#470).
  * `false` when nothing changed.
  */
 export function changeTaskCustomFieldsCommand(id: string, merged: Record<string, unknown>): Command<boolean> {
@@ -473,9 +493,13 @@ export function changeTaskCustomFieldsCommand(id: string, merged: Record<string,
         (key) => !isDeepStrictEqual(current[key], merged[key]),
       );
       if (keys.length === 0) return { result: false, skipAudit: true };
-      const side = (bag: Record<string, unknown>) => Object.fromEntries(keys.map((key) => [key, bag[key] ?? null]));
       task.customFieldValues = merged;
-      return { result: true, before: { customFieldValues: side(current) }, after: { customFieldValues: side(merged) } };
+      // The values go to the Task's own store; the entry names the keys (#470).
+      const values = recordTaskValueChange(em as EntityManager, task.id, {
+        before: { customFieldValues: { ...current } },
+        after: { customFieldValues: { ...merged } },
+      });
+      return { result: true, before: null, after: { ...values } };
     },
   };
 }
