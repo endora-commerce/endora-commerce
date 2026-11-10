@@ -114,4 +114,4 @@ Initial declarations:
 - Registration request: `organization.customFieldValues?`, `firstUser.customFieldValues?`.
 - Five admin create bodies gain `customFieldValues?`.
 - Public read: `InputSurfaceFieldsResponse`.
-- Audit: `organization.register` gains `customFieldKeys`.
+- Audit: `organization.register` gains `changedCustomFields` (keys, never values; D-288).

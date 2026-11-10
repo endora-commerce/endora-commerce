@@ -25,7 +25,7 @@ import {
  * validates both custom-field groups **before its first write**, merges their
  * refusals into one 422 whose entries are prefixed by group, stores the
  * Organization's bag on the row and hands the person's bag to the account
- * owner, and audits the keys it stored — never a value.
+ * owner, and audits the keys it stored (`changedCustomFields`) — never a value.
  */
 
 const ORGANIZATION_ID = '00000000-0000-4000-8000-0000000c1781';
@@ -213,16 +213,23 @@ describe('RegistrationService — custom-field values (feature 175)', () => {
     ]);
   });
 
-  it('audits the stored keys per group and no value', async () => {
+  it('audits the stored keys, prefixed by group and sorted, and no value', async () => {
     const values = stubValues((entityType) =>
-      entityType === 'organization' ? { source: 'fair-2026' } : { phone: '+48 600 175 041' },
+      entityType === 'organization' ? { source: 'fair-2026', employees: 470470 } : { phone: '+48 600 175 041' },
     );
     const h = harness(values);
 
-    await h.service.registerOrganization(request({ source: 'fair-2026' }, { phone: '+48 600 175 041' }));
+    await h.service.registerOrganization(
+      request({ source: 'fair-2026', employees: 470470 }, { phone: '+48 600 175 041' }),
+    );
 
     const entry = h.audits.find((a) => a.action === 'organization.register')!;
-    expect(entry.stateAfter).toMatchObject({ customFieldKeys: { organization: ['source'], customer: ['phone'] } });
+    // `specs/conventions/audit-state.md` (D-288): names in `changedCustomFields`, never values.
+    expect(entry.stateAfter).toMatchObject({
+      changedCustomFields: ['firstUser.phone', 'organization.employees', 'organization.source'],
+    });
+    expect(entry.stateAfter).not.toHaveProperty('customFieldKeys');
+    expect(JSON.stringify(entry)).not.toContain('470470');
     expect(JSON.stringify(entry)).not.toContain('fair-2026');
     expect(JSON.stringify(entry)).not.toContain('+48 600 175 041');
   });
@@ -273,7 +280,7 @@ describe('RegistrationService — custom-field values (feature 175)', () => {
     expect(org.data['customFieldValues']).toEqual({});
     expect(h.accountInputs[0]!.customFieldValues).toEqual({});
     const entry = h.audits.find((a) => a.action === 'organization.register')!;
-    expect(entry.stateAfter).toMatchObject({ customFieldKeys: { organization: [], customer: [] } });
+    expect(entry.stateAfter).toMatchObject({ changedCustomFields: [] });
   });
 
   it('re-throws anything that is not a validation failure', async () => {

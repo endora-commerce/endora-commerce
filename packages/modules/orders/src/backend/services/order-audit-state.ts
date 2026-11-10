@@ -58,13 +58,20 @@ export function placeOnBehalfAuditState(input: {
   order: Pick<Order, 'status'>;
   layout: OrderLineLayout;
   carriedCustomFieldKeys: readonly string[];
+  /**
+   * Feature 175 (FR-021) — the values the administrator set on the admin
+   * create. Only their keys are recorded, sorted, as `changedCustomFields`.
+   */
+  adminCustomFieldValues?: Readonly<Record<string, unknown>> | undefined;
 }): Record<string, unknown> {
+  const adminKeys = Object.keys(input.adminCustomFieldValues ?? {}).sort();
   return {
     status: input.order.status,
     // Feature 159 (FR-081, research R-22) — the grouping's shape, when the order has one.
     ...(input.layout.groups.length > 0 ? { groups: layoutShape(input.layout) } : {}),
     // Feature 162 (US1-5) — the custom-field values carried from the request.
     ...(input.carriedCustomFieldKeys.length > 0 ? { carriedCustomFieldKeys: [...input.carriedCustomFieldKeys] } : {}),
+    ...(adminKeys.length > 0 ? { changedCustomFields: adminKeys } : {}),
   };
 }
 

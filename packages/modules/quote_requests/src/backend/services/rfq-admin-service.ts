@@ -1038,7 +1038,7 @@ export class RfqAdminService {
     // Feature 175 (FR-015, FR-019) — the request's custom-field values,
     // validated as a merge onto an empty bag before anything is numbered or
     // written: a refusal creates nothing, a `required` definition is refused
-    // even when no value is sent, and the creation's audit row below carries
+    // even when no value is sent, and the creation's audit row below names
     // what was stored.
     const customFieldValues = await this.#newCustomFieldValues(body.customFieldValues);
 
@@ -1111,7 +1111,11 @@ export class RfqAdminService {
       itemCount: items.length,
       salesChannelId: rfq.salesChannelId ?? null,
       groups: plan.after,
-      customFieldValues: rfq.customFieldValues,
+      // Feature 175 (FR-021) — the keys stored, never their values
+      // (`specs/conventions/audit-state.md`, D-288).
+      ...(Object.keys(rfq.customFieldValues ?? {}).length > 0
+        ? { changedCustomFields: Object.keys(rfq.customFieldValues ?? {}).sort() }
+        : {}),
     });
     await em.persistAndFlush(items);
 

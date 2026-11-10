@@ -307,12 +307,12 @@ export class RegistrationService {
           status: organization.status,
           ...(lookupRow ? { registryLookup: { provider: lookupRow.provider, outcome: lookupRow.outcome } } : {}),
           // Feature 175 (FR-028) — the keys a buyer supplied, never their
-          // values: the entry is written for an anonymous actor and a value
-          // may be personal data.
-          customFieldKeys: {
-            organization: Object.keys(customFieldValues.organization),
-            customer: Object.keys(customFieldValues.customer),
-          },
+          // values (`specs/conventions/audit-state.md`, D-288): sorted, each
+          // prefixed by its request group as a refusal names it.
+          changedCustomFields: [
+            ...Object.keys(customFieldValues.organization).map((key) => `organization.${key}`),
+            ...Object.keys(customFieldValues.customer).map((key) => `firstUser.${key}`),
+          ].sort(),
         },
       });
     }

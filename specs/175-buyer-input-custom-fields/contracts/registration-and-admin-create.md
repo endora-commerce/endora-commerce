@@ -36,7 +36,8 @@ registerOrganizationRequestSchema = z.object({
 5. channel binding (unchanged);
 6. `accounts.write.create({ …, customFieldValues })` (FR-025);
 7. lookup row, token, audit `organization.register` with
-   `customFieldKeys: { organization: string[], customer: string[] }`, never values (FR-028).
+   `changedCustomFields: string[]` — the supplied keys prefixed `organization.` / `firstUser.`,
+   sorted — never values (FR-028, D-288).
 
 ## 3. Registration refusal
 
@@ -67,7 +68,8 @@ customFieldValues?: Record<string, unknown>;
 
 Each gains `customFieldValues: customFieldValuesSchema.optional()`; the host validates with
 `validateAndMerge(<type>, {}, values)` **inside its create Command**, assigns the bag to the row
-before the flush, and the Command's audit row carries it (FR-021). A refusal rolls the Command back
+before the flush, and the Command's audit row names its keys as `changedCustomFields`, never the
+values of a tenant-scoped record (FR-021, D-288; a global category's row may carry them). A refusal rolls the Command back
 (nothing created) and answers the existing per-field 422.
 
 | Schema | File:line | Entity type | Host |

@@ -882,7 +882,9 @@ export async function registerOrganizationsAdminRoutes(
           organizationId: org.id,
           email: customer.email,
           organizationRoleId: customer.organizationRoleId,
-          customFieldValues: memberValues,
+          // Feature 175 (FR-021) — the keys stored, never their values
+          // (`specs/conventions/audit-state.md`, D-288).
+          changedCustomFields: Object.keys(memberValues).sort(),
         },
       );
       reply.status(201);

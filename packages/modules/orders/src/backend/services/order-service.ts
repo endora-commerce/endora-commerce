@@ -1742,8 +1742,10 @@ export class OrderService {
       /**
        * Feature 175 (FR-017) — custom-field values the admin create has
        * ALREADY VALIDATED (`validateAndMerge('order', {}, …)`), stored on the
-       * new order over anything carried from a quote request and recorded in
-       * the on-behalf audit row. This module's own admin create path only.
+       * new order over anything carried from a quote request; the on-behalf
+       * audit row names their keys (`changedCustomFields`), never the values
+       * (`specs/conventions/audit-state.md`). This module's own admin create
+       * path only.
        */
       customFieldValues?: Record<string, unknown> | undefined;
     },
@@ -2847,6 +2849,8 @@ export class OrderService {
             order,
             layout: lineLayout,
             carriedCustomFieldKeys: carry?.carried ?? [],
+            // Feature 175 (FR-021) — the keys the administrator set on the create.
+            adminCustomFieldValues: options?.customFieldValues,
           }),
         });
       }
