@@ -37,6 +37,8 @@ import { Migration20261103T173304OrganizationsOrganizationRoles } from './202611
 import { Migration20261104T094535OrganizationsDropLegacyRoleColumns } from './20261104T094535_organizations_drop_legacy_role_columns.js';
 import { Migration20261105T121034OrganizationsRegistryLookupProvenance } from './20261105T121034_organizations_registry_lookup_provenance.js';
 import { Migration20261109T144721OrganizationsReachGovernor } from './20261109T144721_organizations_reach_governor.js';
+import { Migration20261110T135922OrganizationsPersonalTaxIdRemoval } from './20261110T135922_organizations_personal_tax_id_removal.js';
+import { Migration20261110T135941OrganizationsTaxIdScope } from './20261110T135941_organizations_tax_id_scope.js';
 
 export const migrations = [
   Migration20260424T205317OrganizationsInit,
@@ -54,6 +56,8 @@ export const migrations = [
   Migration20261104T094535OrganizationsDropLegacyRoleColumns,
   Migration20261105T121034OrganizationsRegistryLookupProvenance,
   Migration20261109T144721OrganizationsReachGovernor,
+  Migration20261110T135922OrganizationsPersonalTaxIdRemoval,
+  Migration20261110T135941OrganizationsTaxIdScope,
 ];
 
 export {
@@ -72,4 +76,6 @@ export {
   Migration20261104T094535OrganizationsDropLegacyRoleColumns,
   Migration20261105T121034OrganizationsRegistryLookupProvenance,
   Migration20261109T144721OrganizationsReachGovernor,
+  Migration20261110T135922OrganizationsPersonalTaxIdRemoval,
+  Migration20261110T135941OrganizationsTaxIdScope,
 };

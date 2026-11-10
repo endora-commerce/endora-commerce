@@ -131,6 +131,7 @@ import { OrganizationInvitation } from './entities/organization-invitation.entit
 import { OrganizationPaymentMethodLink } from './entities/organization-payment-method-link.entity.js';
 import { OrganizationSalesRepAssignment } from './entities/organization-sales-rep-assignment.entity.js';
 import { OrganizationTaxIdValidation } from './entities/organization-tax-id-validation.entity.js';
+import { OrganizationTaxIdPolicy } from './entities/organization-tax-id-policy.entity.js';
 import { OrganizationWarehouseLink } from './entities/organization-warehouse-link.entity.js';
 
 /**
@@ -1326,6 +1327,7 @@ export const entities = [
   OrganizationTaxIdValidation,
   OrganizationWarehouseLink,
   Organization,
+  OrganizationTaxIdPolicy,
 ];
 
 /**
