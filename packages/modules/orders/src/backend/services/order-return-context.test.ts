@@ -133,3 +133,31 @@ describe('returnContextFrom — the completing anchor (issue #905)', () => {
     expect(source).not.toMatch(/\bShipment\b/);
   });
 });
+
+/**
+ * `specs/177-tax-id-scope/` FR-040 — the context reports when the order was
+ * placed, so `returns` can keep a consumer's withdrawal right for an order
+ * placed before its organization was converted to a company.
+ */
+describe('returnContextFrom — the placement time', () => {
+  it('reports placedAt as the order stored it', () => {
+    const placedAt = new Date('2026-09-15T09:00:00Z');
+    const ctx = returnContextFrom(
+      {
+        salesChannelId: 'ch',
+        placedByCustomerAccountId: 'acc',
+        organizationId: 'org',
+        currency: 'PLN',
+        status: 'completed',
+        completedAt: new Date('2026-09-20T09:00:00Z'),
+        placedAt,
+        vatMethod: 'per_rate',
+        subtotal: '10.00',
+        taxTotal: '0.00',
+        discountTotal: '0.00',
+      } as never,
+      [],
+    );
+    expect(ctx.placedAt).toEqual(placedAt);
+  });
+});
