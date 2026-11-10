@@ -67,7 +67,7 @@ describe('New organization — parent', () => {
     render();
     await waitFor(() => screen.getByRole('checkbox', { name: /Retail/ }));
     expect(screen.queryByText(en['create.hint.sharedTaxId']!)).toBeNull();
-    await user.click(screen.getByRole('combobox', { name: en['create.field.parent'] }));
+    await user.click(screen.getByRole('combobox', { name: en['create.field.parent']! }));
     await user.click(await screen.findByRole('option', { name: /Head Office/ }));
     expect(await screen.findByText(en['create.hint.sharedTaxId']!)).toBeInTheDocument();
 
@@ -102,7 +102,7 @@ describe('New organization — parent', () => {
   it('is not offered to a sales representative, whose reach is scoped', async () => {
     render('sales_representative');
     await waitFor(() => screen.getByRole('checkbox', { name: /Retail/ }));
-    expect(screen.queryByRole('combobox', { name: en['create.field.parent'] })).toBeNull();
+    expect(screen.queryByRole('combobox', { name: en['create.field.parent']! })).toBeNull();
   });
 
   it('has its keys in both bundles', () => {

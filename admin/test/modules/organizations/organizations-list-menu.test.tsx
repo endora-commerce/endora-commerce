@@ -46,14 +46,14 @@ beforeEach(() => {
 describe('Organizations list — header menu', () => {
   it('offers the Tax-ID scope screen to a holder of organizations:manage-tax-id-scope', async () => {
     render(['customers:read', 'organizations:manage-tax-id-scope']);
-    fireEvent.pointerDown(await screen.findByRole('button', { name: EN['list.menu.label'] }), { button: 0, ctrlKey: false });
-    const item = await screen.findByRole('menuitem', { name: EN['list.menu.taxIdScope'] });
+    fireEvent.pointerDown(await screen.findByRole('button', { name: EN['list.menu.label']! }), { button: 0, ctrlKey: false });
+    const item = await screen.findByRole('menuitem', { name: EN['list.menu.taxIdScope']! });
     expect(item.getAttribute('href')).toBe('/organizations/tax-id-scope');
   });
 
   it('shows no menu without any of its permissions', async () => {
     render(['customers:read']);
     await screen.findByText(CORE['organizations.page.title']!);
-    expect(screen.queryByRole('button', { name: EN['list.menu.label'] })).not.toBeInTheDocument();
+    expect(screen.queryByRole('button', { name: EN['list.menu.label']! })).not.toBeInTheDocument();
   });
 });

@@ -77,7 +77,7 @@ function render(): ReturnType<typeof renderWithI18n> {
 }
 
 const radio = (key: string): HTMLInputElement => screen.getByRole('radio', { name: new RegExp(EN[key]!) }) as HTMLInputElement;
-const apply = (): HTMLButtonElement => screen.getByRole('button', { name: EN['taxIdScope.apply'] }) as HTMLButtonElement;
+const apply = (): HTMLButtonElement => screen.getByRole('button', { name: EN['taxIdScope.apply']! }) as HTMLButtonElement;
 
 beforeEach(() => {
   getSpy.mockReset();
@@ -117,7 +117,7 @@ describe('Tax-ID scope page', () => {
     const dialog = await screen.findByRole('dialog');
     expect(within(dialog).getByText(EN['taxIdScope.confirm.body']!)).toBeInTheDocument();
     putSpy.mockResolvedValue({ data: { ...STATUS, scope: 'per-tree-root' } });
-    fireEvent.click(within(dialog).getByRole('button', { name: EN['taxIdScope.confirm.submit'] }));
+    fireEvent.click(within(dialog).getByRole('button', { name: EN['taxIdScope.confirm.submit']! }));
     await waitFor(() => expect(status).toHaveTextContent(EN['taxIdScope.success']!));
     expect(putSpy).toHaveBeenCalledWith('/api/v1/admin/organizations/tax-id-scope', { scope: 'per-tree-root' });
   });
@@ -142,7 +142,7 @@ describe('Tax-ID scope page', () => {
     );
     fireEvent.click(radio('taxIdScope.scope.global.label'));
     fireEvent.click(apply());
-    fireEvent.click(within(await screen.findByRole('dialog')).getByRole('button', { name: EN['taxIdScope.confirm.submit'] }));
+    fireEvent.click(within(await screen.findByRole('dialog')).getByRole('button', { name: EN['taxIdScope.confirm.submit']! }));
     const alert = await screen.findByTestId('duplicates-alert');
     expect(alert).toHaveTextContent('2 tax IDs are shared.');
     const links = within(alert).getAllByRole('link');
@@ -153,7 +153,7 @@ describe('Tax-ID scope page', () => {
     answer({ ...STATUS, enforcement: 'mismatch' });
     render();
     expect(await screen.findByText(EN['taxIdScope.mismatch']!)).toBeInTheDocument();
-    const again = screen.getByRole('button', { name: EN['taxIdScope.applyAgain'] });
+    const again = screen.getByRole('button', { name: EN['taxIdScope.applyAgain']! });
     expect(again).toBeEnabled();
   });
 
