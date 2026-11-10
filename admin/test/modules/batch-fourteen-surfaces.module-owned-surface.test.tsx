@@ -210,6 +210,8 @@ const SUBJECTS: readonly Subject[] = [
       ['/organizations', ['customers:read', 'customers:manage']],
       // Feature 154 — *New organization*, on the code its write enforces.
       ['/organizations/new', 'customers:manage'],
+      // `specs/177-tax-id-scope/` — the installation's tax-ID scope.
+      ['/organizations/tax-id-scope', 'organizations:manage-tax-id-scope'],
       ['/organizations/:id', ['customers:read', 'customers:manage']],
     ],
     navTargets: ['/organizations'],
@@ -446,7 +448,13 @@ describe.each(SUBJECTS)('$module owns its admin surface', (subject) => {
     // the whole surface moving, and a registry that dropped a route would leave
     // the landing screen answering and the rest on the admin's not-found page.
     presentModules = new Set([subject.module]);
-    permissions = new Set([...codesFor(subject), subject.nearMiss]);
+    // Every code a route of the module asks for: a screen gated on its own
+    // code (`specs/177-tax-id-scope/`'s tax-ID scope) is the module's too.
+    permissions = new Set([
+      ...codesFor(subject),
+      subject.nearMiss,
+      ...subject.routes.flatMap(([, code]) => (typeof code === 'string' ? [code] : [...code])),
+    ]);
     for (const [pattern] of subject.routes) {
       const rendered = renderAt(concreteUrl(pattern));
       // The screen's own content is behind a `React.lazy` boundary and a
