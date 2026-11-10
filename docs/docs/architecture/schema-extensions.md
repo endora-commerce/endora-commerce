@@ -186,7 +186,14 @@ pnpm --filter backend run module:schema-extensions drop acme_erp --confirm # dro
 
 Uninstalling your module keeps its columns and their values; only an explicit, audited
 `drop … --confirm` removes them, and only for elements that are orphaned and no longer
-declared. Uninstalling the host while your module is installed is refused with
+declared.
+
+**A package removed without `module:uninstall --hard`** — deleted from the instance's
+dependencies — is handled at the next `migrate`: its ledger rows are marked orphaned (and its
+generated step is forgotten from the migration history), so `drop … --confirm` can clean up after
+it. Nothing is dropped by that `migrate`, and if the same package comes back its columns are
+re-attached. Starting the backend never changes the ledger; it only warns about orphaned
+columns. Uninstalling the host while your module is installed is refused with
 `dependents-block`.
 
 ## What a package migration may not do
@@ -194,7 +201,15 @@ declared. Uninstalling the host while your module is installed is refused with
 Declaring is the only route onto a core table. Every migration an installed package ships runs
 inside the platform's foreign-schema guard, which refuses — and rolls the `migrate` run back —
 any statement that writes a table your module does not own: an `alter table "organizations"`,
-an index on it, an `insert` into `orders`, and the same through `getEntityManager()`. Your own
+an index on it, an `insert` into `orders`. It reads every write path a migration has: what it
+hands to `addSql` and `execute`, `do $$ … $$` blocks, the bodies of functions it creates, the
+strings a PL/pgSQL `execute` runs, and `getEntityManager()` — its flush and its `insert*`,
+`upsert*`, `native*` and `execute` shortcuts.
+
+A table is yours when one of your entities maps it, or one of your migrations creates it and no
+other module's entity maps it. **The guard fails closed**: a table it cannot attribute to you is
+refused, never allowed — so map your tables with entities, and create every table you use in your
+own migrations. Your own
 tables, the platform's tables and the back-fill of your own `x_<moduleId>_*` columns on a host
 you declare are allowed; the rules are on [Migrations](./migrations.md), under *The
 foreign-schema guard*.

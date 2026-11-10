@@ -182,6 +182,12 @@ pnpm --filter backend run module:schema-extensions drop acme_erp --confirm # usu
 
 Odinstalowanie twojego modułu zachowuje jego kolumny wraz z wartościami; usuwa je wyłącznie jawne,
 audytowane `drop … --confirm`, i to tylko dla elementów osieroconych i już niedeklarowanych.
+
+**Pakiet usunięty bez `module:uninstall --hard`** — skasowany z zależności instancji — jest
+obsługiwany przy następnym `migrate`: jego wiersze w rejestrze są oznaczane jako osierocone (a jego
+generowany krok znika z historii migracji), więc `drop … --confirm` może po nim posprzątać. Ten
+`migrate` niczego nie usuwa, a jeśli ten sam pakiet wróci, jego kolumny zostaną ponownie dołączone.
+Start backendu nigdy nie zmienia rejestru; jedynie ostrzega o osieroconych kolumnach.
 Odinstalowanie gospodarza, gdy twój moduł jest zainstalowany, jest odrzucane z
 `dependents-block`.
 
@@ -190,8 +196,15 @@ Odinstalowanie gospodarza, gdy twój moduł jest zainstalowany, jest odrzucane z
 Deklaracja to jedyna droga do tabeli rdzenia. Każda migracja dostarczana przez zainstalowany
 pakiet wykonuje się wewnątrz strażnika obcego schematu platformy, który odrzuca — i wycofuje
 przebieg `migrate` — każdą instrukcję zapisującą tabelę, której właścicielem nie jest twój moduł:
-`alter table "organizations"`, indeks na niej, `insert` do `orders`, a także to samo przez
-`getEntityManager()`. Dozwolone są własne tabele, tabele platformy i uzupełnianie własnych kolumn
+`alter table "organizations"`, indeks na niej, `insert` do `orders`. Strażnik czyta każdą drogę
+zapisu, jaką ma migracja: to, co przekazuje do `addSql` i `execute`, bloki `do $$ … $$`, ciała
+tworzonych przez nią funkcji, ciągi wykonywane przez `execute` w PL/pgSQL oraz
+`getEntityManager()` — jego `flush` i skróty `insert*`, `upsert*`, `native*` i `execute`.
+
+Tabela jest twoja, gdy mapuje ją jedna z twoich encji albo tworzy ją jedna z twoich migracji i nie
+mapuje jej encja żadnego innego modułu. **Strażnik działa w trybie odmowy domyślnej**: tabela,
+której nie da się przypisać twojemu modułowi, jest odrzucana, a nie dopuszczana — mapuj więc swoje
+tabele encjami i twórz każdą używaną tabelę we własnych migracjach. Dozwolone są własne tabele, tabele platformy i uzupełnianie własnych kolumn
 `x_<moduleId>_*` w zadeklarowanym gospodarzu; reguły są na stronie [Migracje](./migrations.md), w
 sekcji *Strażnik obcego schematu*.
 

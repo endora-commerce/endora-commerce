@@ -147,6 +147,25 @@ describe('guardExternalMigration — refusals', () => {
   });
 });
 
+describe('guardExternalMigration — fails closed (D-291 R-A2)', () => {
+  it('refuses a table no entity maps and none of the module’s migrations creates', async () => {
+    const cls = migration('Migration20261201T100007AcmeErpMystery', (self) =>
+      self.addSql('alter table "acme_unseen" add column "x" text'),
+    );
+    expect((await refusal(run(cls, context({ moduleMigrations: () => [cls] })))).table).toBe('acme_unseen');
+  });
+
+  it('refuses when the dry run of an earlier migration throws before it queues the create', async () => {
+    const init = migration('Migration20261201T100008AcmeErpInit', () => {
+      throw new Error('cannot dry-run');
+    });
+    const later = migration('Migration20261201T100009AcmeErpLater', (self) =>
+      self.addSql('alter table "acme_hidden" add column "x" text'),
+    );
+    expect((await refusal(run(later, context({ moduleMigrations: () => [init, later] })))).table).toBe('acme_hidden');
+  });
+});
+
 describe('guardExternalMigration — what it allows', () => {
   it('allows the module’s entity tables, its own new tables, platform tables and the migrations table', async () => {
     const cls = migration('Migration20261201T100010AcmeErpInit', (self) => {
