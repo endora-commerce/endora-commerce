@@ -48,8 +48,12 @@ export interface PlannedLine {
 }
 
 /** The grouping's shape as the audit entry records it (FR-081). */
+/**
+ * One group of an audit entry's `groups`: its line count, in display order.
+ * Never its name — a group name is free text, and the audit log carries no
+ * tenant value (D-288, issue #470); the revisions keep the names.
+ */
 export interface GroupingShapeEntry {
-  readonly name: string;
   readonly lineCount: number;
 }
 
@@ -119,7 +123,6 @@ export function planLineGrouping(input: {
   });
 
   const after = groups.map((group) => ({
-    name: group.name,
     lineCount: nextPosition.get(group.kind === 'create' ? `key:${group.key}` : `id:${group.id}`) ?? 0,
   }));
   return { groups, deleteGroupIds, lines, after };
@@ -132,5 +135,5 @@ export function groupingShape(
 ): GroupingShapeEntry[] {
   return [...storedGroups]
     .sort((a, b) => a.position - b.position)
-    .map((group) => ({ name: group.name, lineCount: lineGroupIds.filter((id) => id === group.id).length }));
+    .map((group) => ({ lineCount: lineGroupIds.filter((id) => id === group.id).length }));
 }

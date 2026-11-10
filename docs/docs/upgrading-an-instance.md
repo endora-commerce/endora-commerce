@@ -4500,6 +4500,32 @@ compares against `ERROR_CODES.ASSET_ACCESS_DENIED` no longer compiles: drop the 
 compare against `ERROR_CODES.ASSET_NOT_FOUND`. With cloud storage, add `X-Content-Type-Options:
 nosniff` in front of the bucket, as the assets library page describes.
 
+### Quote request values leave the platform audit log {#quote-requests-audit-names-only}
+
+The release that ships this change stops writing a quote request's values into the platform-wide
+audit log (issue #470). That log is one table, read by everybody holding `audit_log:read`
+whichever organizations they may see, so it now names what a quote request's change touched and
+nothing more.
+
+**Behaviour change on upgrade:**
+
+- On the **Audit log** screen, and in `audit_logs read`, a new `quote_request.cancel` entry
+  records `hasReason` instead of the reason.
+- `quote_request.modify` and `quote_request.create_on_behalf` record each group's line count
+  without the group's name.
+- `quote_request.send_document` records `recipientCount` and `failedRecipientCount` instead of the
+  addresses.
+- `quote_request.prepare_customer_basket` no longer records the customer.
+- `quote_request.custom_fields.carry` names the carried keys as `changedCustomFields` instead of
+  the custom field values.
+- A quote request's **History** tab is unchanged. It still shows the reason, the group names and
+  the addresses, read from the request's own revisions and events.
+- Entries recorded before the upgrade are not rewritten.
+
+**After upgrading,** nothing has to be done. A report or an export that read these values out of
+the audit log reads them from the quote request's history
+(`GET /api/v1/admin/quote-requests/:id/history`) instead.
+
 ## An instance that is mixed from the start
 
 The installer of `0.101.x` or earlier wrote every package of the release with a `^` except

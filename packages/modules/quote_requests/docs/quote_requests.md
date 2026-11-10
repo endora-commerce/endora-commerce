@@ -311,6 +311,17 @@ English and Polish:
 Requests raised before this history existed are described from the data
 already stored; nothing is backfilled.
 
+**The history, not the audit log, holds the values.** The platform audit log is
+read by everybody holding `audit_log:read`, whichever organizations they may
+see, so a request's audit entries carry names and structure only. A
+cancellation records `hasReason`, never the reason. A grouping records each
+group's line count, never its name. A PDF send records how many addresses it
+went to, never the addresses. A preparation of the customer's basket records
+the basket and its size, not the customer. A carry from a sales opportunity
+names the carried fields as `changedCustomFields`, without their values. The
+values stay on the request, its revisions and this history, which is read
+under the request's own visibility.
+
 ## Customer draft edits
 
 A customer edits a `Pending` request with `PATCH /api/v1/quote-requests/:id`
@@ -387,8 +398,8 @@ item count and the net.
 **Saving.** The grouping is saved by the button that saves the lines — **Save
 revision** or **Create** — in the same write, under the same concurrency check,
 and recorded in that write's audit entry (`quote_request.modify` or
-`quote_request.create_on_behalf`, with the groups' names and line counts
-before and after). **A save that changes only the grouping is a revision like
+`quote_request.create_on_behalf`, with each group's line count before and
+after; the names are in the revisions, not the audit log). **A save that changes only the grouping is a revision like
 any other**: the customer is notified and asked to accept it. The **History**
 tab lists the grouping changes of each revision (see *History*).
 
@@ -912,7 +923,7 @@ e-mail switched off, under **E-mail templates**; its variables are
 A successful send adds a **PDF sent** entry to the quote's **History** (who
 sent it, to which addresses, with which template, in which language, and the
 message) and one `quote_request.send_document` row to the audit log — never the
-PDF itself. Customers do not see it in their own history. When the mail server
+PDF itself, and only how many addresses it went to, not which. Customers do not see it in their own history. When the mail server
 refuses one address and accepts another, the PDF stays sent to the accepted
 ones, the dialog names the refused ones, and only the accepted ones are
 recorded. A send is refused, with nothing recorded, when:
