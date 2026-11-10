@@ -132,6 +132,65 @@ describe('storefront CMS asset embed contract (T118c)', () => {
     return slug;
   }
 
+  const adminCookie = { b2b_session: 'stub-admin-session' };
+
+  /** An active block on the default channel whose en-US tree carries one `assetId` prop. */
+  async function createBlockEmbedding(assetId: string): Promise<{ id: string; code: string }> {
+    const code = `asset-embed-block-${randomUUID().slice(0, 8)}`;
+    const created = await h.app.inject({
+      method: 'POST',
+      url: '/api/v1/admin/cms/blocks',
+      headers: { 'content-type': 'application/json' },
+      cookies: adminCookie,
+      payload: JSON.stringify({
+        name: `Block ${code}`,
+        code,
+        active: true,
+        salesChannelIds: [defaultChannel.id],
+        languages: ['en-US'],
+      }),
+    });
+    expect(created.statusCode).toBe(201);
+    const block = (created.json() as { data: { id: string; version: number } }).data;
+    const put = await h.app.inject({
+      method: 'PUT',
+      url: `/api/v1/admin/cms/blocks/${block.id}/content/en-US`,
+      headers: { 'content-type': 'application/json' },
+      cookies: adminCookie,
+      payload: JSON.stringify({
+        data: { root: { props: {} }, content: [{ type: 'cms.Image', props: { id: 'img-1', assetId } }] },
+        version: block.version,
+      }),
+    });
+    expect(put.statusCode).toBe(200);
+    return { id: block.id, code };
+  }
+
+  /** An active hook on the default channel with the given blocks attached, in order. */
+  async function createHookWith(blockIds: string[]): Promise<string> {
+    const code = `asset.embed.hook.${randomUUID().slice(0, 8)}`;
+    const created = await h.app.inject({
+      method: 'POST',
+      url: '/api/v1/admin/cms/hooks',
+      headers: { 'content-type': 'application/json' },
+      cookies: adminCookie,
+      payload: JSON.stringify({ name: `Hook ${code}`, code, active: true, salesChannelIds: [defaultChannel.id] }),
+    });
+    expect(created.statusCode).toBe(201);
+    const hookId = (created.json() as { data: { id: string } }).data.id;
+    for (const [position, blockId] of blockIds.entries()) {
+      const res = await h.app.inject({
+        method: 'POST',
+        url: `/api/v1/admin/cms/hooks/${hookId}/attachments`,
+        headers: { 'content-type': 'application/json' },
+        cookies: adminCookie,
+        payload: JSON.stringify({ blockId, position }),
+      });
+      expect(res.statusCode).toBe(201);
+    }
+    return code;
+  }
+
   async function getBySlug(slug: string) {
     return h.app.inject({
       method: 'GET',
@@ -181,5 +240,47 @@ describe('storefront CMS asset embed contract (T118c)', () => {
 
     expect(res.statusCode).toBe(200);
     expect((res.json() as { data: { assets: Record<string, unknown> } }).data.assets).toEqual({});
+  });
+
+  /**
+   * A hook and a block carry the same map a page does. Without it the storefront
+   * builds `/assets/file/<id>` with no `?v=` for every library image a hook or a
+   * block embeds — a footer logo, say — which is `public, no-cache` and so
+   * revalidated on every visit instead of `immutable` for a year.
+   */
+  it('a hook carries the details of the assets its blocks embed, in one map', async () => {
+    const first = await seedAsset();
+    const second = await seedAsset();
+    const a = await createBlockEmbedding(first.id);
+    const b = await createBlockEmbedding(second.id);
+    const code = await createHookWith([a.id, b.id]);
+
+    const res = await h.app.inject({
+      method: 'GET',
+      url: `/api/v1/cms/hooks/by-code?code=${encodeURIComponent(code)}&language=en-US`,
+      headers: { 'x-sales-channel': defaultChannel.code },
+    });
+
+    expect(res.statusCode).toBe(200);
+    const assets = (res.json() as { data: { assets?: Record<string, { url: string }> } }).data.assets ?? {};
+    expect(Object.keys(assets).sort()).toEqual([first.id, second.id].sort());
+    expect(assets[first.id]?.url).toBe(first.url);
+    expect(assets[second.id]?.url).toBe(second.url);
+  });
+
+  it('a block by code carries the details of the assets it embeds', async () => {
+    const asset = await seedAsset();
+    const block = await createBlockEmbedding(asset.id);
+
+    const res = await h.app.inject({
+      method: 'GET',
+      url: `/api/v1/cms/blocks/by-code?code=${encodeURIComponent(block.code)}&language=en-US`,
+      headers: { 'x-sales-channel': defaultChannel.code },
+    });
+
+    expect(res.statusCode).toBe(200);
+    const assets = (res.json() as { data: { assets?: Record<string, { url: string }> } }).data.assets ?? {};
+    expect(Object.keys(assets)).toEqual([asset.id]);
+    expect(assets[asset.id]?.url).toBe(asset.url);
   });
 });

@@ -63,6 +63,22 @@ Większość zapisów w modułach korzysta z małej prywatnej metody pomocniczej
 `#audit(em, action, objectId, before, after)`, delegującej do `recordAuditFromContext`, dzięki
 czemu wywołanie audytu zajmuje w każdym miejscu zapisu jeden wiersz.
 
+## Co zawiera wpis audytu
+
+Dziennik audytu to jedna tabela całej platformy, czytana z jednym uprawnieniem
+(`audit_log:read`) bez względu na to, które Organizacje czytający widzi. Dlatego dla **rekordu
+o zakresie dzierżawcy** (encji `@OrgScoped`, `@CustomerScoped`, `@TransitivelyScoped` lub
+`@RuleScoped`) stan przed i po zapisany przez polecenie zawiera **nazwy i strukturę, nigdy
+wartości**: identyfikatory, numery dokumentów, kody statusów i inne kody, wartości logiczne,
+liczniki, daty oraz `changedFields` / `changedCustomFields`, czyli listę tego, co się zmieniło.
+Tytuły, opisy, kwoty, wartości pól własnych, dane osobowe ani identyfikator Organizacji lub Konta
+klienta, do którego rekord należy, do niego nie trafiają. Moduł, którego historia rekordu pokazuje
+wartości, trzyma je we własnym magazynie, zapisywanym w tym samym poleceniu i czytanym wyłącznie
+przez ścieżkę dostępu rekordu z jego zakresem; wpis audytu wskazuje ten wiersz przez
+`valueChangeId`. Rekordy globalne platformy (katalog, ustawienia, słowniki) nadal mogą zapisywać
+wartości. Regułę i obowiązek testowy opisuje w repozytorium `specs/conventions/audit-state.md`
+(zgłoszenie #470).
+
 ## Cofanie zmian
 
 Polecenie może zapisać stan przed zmianą i po niej dla każdego rekordu, aby operator mógł je
