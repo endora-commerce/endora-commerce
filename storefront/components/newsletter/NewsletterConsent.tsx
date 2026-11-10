@@ -2,7 +2,7 @@ import type { ReactNode } from 'react';
 import type { RequestContext } from '../../lib/api/client';
 import { getCmsBlockByCode } from '../../lib/api/cms';
 import { getNewsletterStatus } from '../../lib/api/newsletter';
-import { PageBuilderRender } from '../PageBuilderRender';
+import { CmsStandaloneBlock } from '../CmsStandaloneBlock';
 import { LocalizedLink } from '../../lib/i18n/localized-link';
 import { tForLocale } from '../../lib/i18n/messages';
 
@@ -36,7 +36,7 @@ export async function NewsletterConsent({
       <input type="checkbox" name="newsletterConsent" value="on" style={{ marginTop: '0.25rem' }} />
       <span className="b2b-auth__consent-text">
         {block ? (
-          <PageBuilderRender data={block.content.data} />
+          <CmsStandaloneBlock block={block} />
         ) : (
           <>
             {before}
