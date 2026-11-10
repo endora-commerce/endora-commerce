@@ -4906,6 +4906,32 @@ niestandardowych projekty już wcześniej trzymały poza nim.
 
 **Po aktualizacji** nie trzeba nic robić.
 
+### Wartości zapytań ofertowych znikają z dziennika audytu platformy {#quote-requests-audit-names-only}
+
+Wydanie z tą zmianą przestaje zapisywać wartości zapytania ofertowego w dzienniku audytu całej
+platformy (zgłoszenie #470). Ten dziennik to jedna tabela, czytana przez każdego, kto ma
+`audit_log:read`, bez względu na to, które organizacje widzi, dlatego teraz mówi tylko, czego
+dotyczyła zmiana zapytania.
+
+**Zmiana zachowania po aktualizacji:**
+
+- Na ekranie **Dziennik audytu** i w `audit_logs read` nowy wpis `quote_request.cancel` zapisuje
+  `hasReason` zamiast powodu.
+- `quote_request.modify` i `quote_request.create_on_behalf` zapisują liczbę pozycji każdej grupy
+  bez jej nazwy.
+- `quote_request.send_document` zapisuje `recipientCount` i `failedRecipientCount` zamiast
+  adresów.
+- `quote_request.prepare_customer_basket` nie zapisuje już klienta.
+- `quote_request.custom_fields.carry` wymienia przeniesione klucze jako `changedCustomFields` zamiast
+  wartości pól niestandardowych.
+- Karta **Historia** zapytania się nie zmienia. Nadal pokazuje powód, nazwy grup i adresy,
+  odczytywane z rewizji i zdarzeń samego zapytania.
+- Wpisy zapisane przed aktualizacją nie są przepisywane.
+
+**Po aktualizacji** nie trzeba nic robić. Raport lub eksport, który odczytywał te wartości z
+dziennika audytu, odczytuje je z historii zapytania
+(`GET /api/v1/admin/quote-requests/:id/history`).
+
 ## Instancja niespójna od początku
 
 Instalator `0.101.x` lub starszy zapisywał każdy pakiet wydania z `^` poza

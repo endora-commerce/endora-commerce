@@ -165,13 +165,25 @@ describe('quote request PDF — Send PDF to customer, route Q4 (spec 153, owner 
 
     const audits = await sendAudits();
     expect(audits).toHaveLength(1);
+    // How many it went to, never the addresses: the History keeps those (D-288, #470).
     expect(audits[0]!.stateAfter).toEqual({
       templateId: null,
       language: 'pl-PL',
-      recipients: ['buyer@example.com', 'Second@Example.com'],
-      failedRecipients: [],
+      recipientCount: 2,
+      failedRecipientCount: 0,
     });
     expect(JSON.stringify(audits[0])).not.toContain('As agreed');
+
+    // The platform audit log, as `audit_log:read` reads it: no address.
+    const read = await h.app.inject({
+      method: 'GET',
+      url: `/api/v1/admin/audit-log?filter[objectId]=${quote}&filter[action]=quote_request.send_document`,
+      cookies: ADMIN,
+    });
+    expect(read.statusCode, read.body).toBe(200);
+    const rows = (read.json() as { data: Array<{ stateBefore: unknown; stateAfter: unknown }> }).data;
+    expect(rows).toHaveLength(1);
+    expect(JSON.stringify(rows.map((row) => [row.stateBefore, row.stateAfter])).toLowerCase()).not.toContain('example.com');
     expect(await versionOf()).toBe(versionBefore);
   });
 
