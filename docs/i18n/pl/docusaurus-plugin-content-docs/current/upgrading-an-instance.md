@@ -4745,6 +4745,33 @@ konfigurację.
 dwuetapowej, powinien odczytywać `canDisable` zamiast zgadywać i obsługiwać
 `409 MFA_LAST_FACTOR_REQUIRED`.
 
+### Wartości szans sprzedażowych znikają z dziennika audytu platformy {#crm-audit-names-only}
+
+Wydanie z tą zmianą przestaje zapisywać wartości szansy sprzedażowej w dzienniku audytu całej
+platformy (zgłoszenie #470). Ten dziennik to jedna tabela, czytana przez każdego, kto ma
+`audit_log:read`, bez względu na to, które organizacje widzi, dlatego teraz mówi tylko, czego
+dotyczyła zmiana szansy.
+
+**Zmiana zachowania po aktualizacji:**
+
+- Na ekranie **Dziennik audytu** i w `audit_logs read` nowy wpis `crm.opportunity.*` nie zawiera
+  już tytułu szansy, opisu, wartości, waluty, osoby kontaktowej, organizacji, nazw etykiet,
+  wartości pól niestandardowych, powodu zmiany statusu, nazwy wydarzenia ani nazwy pliku
+  załącznika. Zawiera numer szansy, jej status i inne kody, identyfikatory przypisanej osoby i
+  kanału sprzedaży, daty oraz `changedFields` / `changedCustomFields`, czyli nazwy tego, co się
+  zmieniło.
+- Karta **Historia zmian** szansy się nie zmienia: nadal pokazuje wartości sprzed zmiany i po
+  niej, teraz odczytywane z magazynu, który moduł CRM prowadzi przy szansie
+  (`crm_opportunity_value_changes`, tworzonego przez migrację tego wydania), i tylko
+  czytającemu, który może czytać tę szansę. Wartości pól niestandardowych nadal wymagają
+  `custom_fields:read`.
+- Wpisy zapisane przed aktualizacją nie są przepisywane: zachowują swoje wartości, na ekranie
+  Dziennik audytu i w historii zmian.
+
+**Po aktualizacji** nie trzeba nic robić. Raport lub eksport, który odczytywał wartości szansy z
+dziennika audytu, odczytuje je z samej szansy albo z jej historii zmian
+(`GET /api/v1/admin/crm/opportunities/:id/history`).
+
 ### Ograniczenie ilości w pozycji i liczby pozycji {#line-quantity-bound}
 
 Wydanie z tą zmianą ogranicza ilość w pozycji żądania do **1 000 000** — tyle samo, ile wynosi

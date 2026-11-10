@@ -62,6 +62,8 @@ const CRM_ROW_TABLES = [
   'crm_opportunity_events',
   'crm_opportunity_links',
   'crm_opportunity_message_reads',
+  // Issue #470 — written only by Commands, which the demo does not run; a reset leaves none behind.
+  'crm_opportunity_value_changes',
   'crm_tags',
 ] as const;
 
@@ -223,6 +225,8 @@ describe('the demo sales pipeline while CRM is switched off', () => {
         crm_opportunity_links: 0,
         // Nobody has opened a conversation in a shop that was only seeded.
         crm_opportunity_message_reads: 0,
+        // The demo writes its rows directly, through no Command (#470).
+        crm_opportunity_value_changes: 0,
         crm_tags: 3,
       });
       expect(shopAfterOnSeed).toEqual(shopAfterOffSeed);
