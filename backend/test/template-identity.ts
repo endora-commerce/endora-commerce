@@ -36,6 +36,7 @@ import { platformSourceRootAt } from '../scripts/lib/platform-root.js';
 import type { RegisteredMigration } from '../src/db/configured-migrations.js';
 import type { MigrationOrigin } from '@endora-commerce/platform/db';
 import { templateDigest, type TemplateInputs, type TemplateSource } from '@endora-commerce/test-kit/database';
+import { TAX_ID_SCOPE_ENV, templateTaxIdScope } from './template-seed.js';
 
 /** `backend/`, the root every recorded path is relative to. */
 const BACKEND_ROOT = fileURLToPath(new URL('..', import.meta.url));
@@ -218,6 +219,8 @@ function isMigrationSource(name: string, extension: '.ts' | '.js'): boolean {
 export const TEMPLATE_SEED_SOURCES = [
   'test/template-seed.ts',
   '../packages/platform/src/kernel/sales-channels/default-channel-reconciler.ts',
+  // `specs/177-tax-id-scope/` — the statements `establishTaxIdScope` runs.
+  '../packages/modules/organizations/src/backend/services/tax-id-scope-service.ts',
 ] as const;
 
 /** One file read out of a migration root. */
@@ -479,6 +482,17 @@ export async function templateIdentity(
           `identify one without it — fix the path in test/template-identity.ts.`,
       );
     }
+  }
+
+  // `specs/177-tax-id-scope/` R-16 — a template built in `per-tree-root` is a
+  // different template. Recorded only when set, so a `global` run's identity is
+  // its files' alone, as before.
+  const taxIdScope = templateTaxIdScope();
+  if (taxIdScope !== 'global') {
+    sources.push({
+      path: `env:${TAX_ID_SCOPE_ENV}`,
+      sha256: createHash('sha256').update(taxIdScope).digest('hex'),
+    });
   }
 
   const inputs: TemplateInputs = { migrations: registered.map((entry) => entry.name), sources };
