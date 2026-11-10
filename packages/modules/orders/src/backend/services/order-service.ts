@@ -470,8 +470,8 @@ function cartApprovalRequired(cart: { id: string; approvalStatus: CartApprovalSt
  * Issue #759 — the company data an order's billing snapshot carries. What the
  * buyer typed wins; otherwise a company Organization contributes its legal (or
  * display) name and tax id. A personal (B2C) Organization contributes nothing:
- * its tax id is an internal 32-hex placeholder and its name is the person's,
- * so the order is billed to the person. An absent key, not an empty string, is
+ * it has no tax id (`specs/177-tax-id-scope/`; an internal 32-hex placeholder
+ * before) and its name is the person's, so the order is billed to the person. An absent key, not an empty string, is
  * what every renderer (invoice, PDF, e-mail, admin) reads as "no company".
  */
 export function billingCompanyData(

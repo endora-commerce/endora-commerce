@@ -210,8 +210,8 @@ describe('pwa — the Rule Builder pickers read published ports', () => {
           asked.push([query, limit]);
           return [
             organizationRecord('org-1'),
-            // Issue #767 — a personal Organization's tax id is a placeholder.
-            organizationRecord('org-2', { isPersonal: true, taxId: '79963f233e3843bd84e144a8fcdd37f8' }),
+            // A personal Organization has no tax ID (`specs/177-tax-id-scope/` X6).
+            organizationRecord('org-2', { isPersonal: true, taxId: null }),
           ];
         },
         searchIdsByName: async () => [],

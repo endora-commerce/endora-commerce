@@ -35,7 +35,8 @@ export interface CurrentOrganization {
   id: string;
   name: string;
   legalName?: string | null;
-  taxId: string;
+  /** `null` for a personal Organization (`specs/177-tax-id-scope/`). */
+  taxId: string | null;
   status: OrganizationLifecycleStatus | string;
   vatStatus: string;
   /**
