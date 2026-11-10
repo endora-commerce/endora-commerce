@@ -13,11 +13,12 @@ import { HttpError } from '@endora-commerce/platform/http';
 import { ProjectAttachment } from '../entities/project-attachment.entity.js';
 import { asDownloadLink, refuseActiveContent } from './attachment-active-content.js';
 import { actingAdminUserId, isUuid, type ProjectAccess } from './project-access.js';
+import { lockProject } from './project-service.js';
 
 export interface ProjectAttachmentServiceDeps {
   emFactory: () => EntityManager;
   commandBus: CommandBus;
-  access: Pick<ProjectAccess, 'loadVisible' | 'visibleIds'>;
+  access: Pick<ProjectAccess, 'loadVisible' | 'visibleIds' | 'assertVisibleUnderLock'>;
   /** Ports of other modules — lazy, resolved per call, never captured. */
   assets: AssetReadPort;
   assetsLibrary: AssetsLibraryPort;
@@ -73,7 +74,11 @@ function adminName(admin: { firstName: string; lastName: string; email: string }
  *
  * Every read and write starts from `ProjectAccess.loadVisible`; attachments
  * are read by that Project's id, or by asset to ask which Projects hold a file
- * (answered through `visibleIds`). Every write is a Command against `project`.
+ * (answered through `visibleIds`). Every write is a Command against `project`
+ * that locks the Project and asks again, under the lock, whether the caller may
+ * still see it (`lockProject`, T144 F3; issue #471): a visibility change between
+ * the check and the write is refused as if the Project did not exist (for an
+ * upload, the stored file is then taken back, as for any failed attach).
  */
 export class ProjectAttachmentService {
   constructor(private readonly deps: ProjectAttachmentServiceDeps) {}
@@ -123,6 +128,7 @@ export class ProjectAttachmentService {
         objectType: 'project',
         objectId: project.id,
         run: async ({ em: tx }) => {
+          await lockProject(tx as EntityManager, this.deps.access, project.id);
           const created = (tx as EntityManager).create(ProjectAttachment, {
             projectId: project.id,
             assetId,
@@ -158,6 +164,7 @@ export class ProjectAttachmentService {
       objectId: project.id,
       run: async ({ em }) => {
         const tx = em as EntityManager;
+        await lockProject(tx, this.deps.access, project.id);
         if (!isUuid(attachmentId)) throw attachmentNotFound();
         const row = await tx.findOne(ProjectAttachment, {
           id: attachmentId,
