@@ -5,7 +5,8 @@ import type { QuickOrderPreferenceScope } from '@endora-commerce/contracts';
  * Pure authorization for managing default ordering preferences (feature 039,
  * FR-018). The actor's identity + (for a customer-scoped target) the target
  * customer's organization are resolved by the service from the DB; this
- * function only applies the rule, so it is unit-testable.
+ * function only applies the rule, so it is unit-testable. Async since issue
+ * #955 Phase 2: a salesperson's reach is answered on demand.
  *
  *   - Customer        → only their own customer scope.
  *   - Organization administrator (the *Administrator* role, a reserved
@@ -32,11 +33,11 @@ export interface PreferenceTarget {
  *   organization that customer belongs to (null if none). Ignored for an
  *   organization-scoped target.
  */
-export function canManagePreference(
+export async function canManagePreference(
   actor: PreferenceActor,
   target: PreferenceTarget,
   targetCustomerOrganizationId: string | null,
-): boolean {
+): Promise<boolean> {
   switch (actor.kind) {
     case 'platform_admin':
       return true;
@@ -49,13 +50,8 @@ export function canManagePreference(
       return targetCustomerOrganizationId === actor.organizationId;
 
     case 'salesperson':
-      if (target.scope === 'organization') {
-        return actor.assignedOrganizationIds.includes(target.scopeId);
-      }
-      return (
-        targetCustomerOrganizationId !== null &&
-        actor.assignedOrganizationIds.includes(targetCustomerOrganizationId)
-      );
+      if (target.scope === 'organization') return actor.reaches(target.scopeId);
+      return targetCustomerOrganizationId !== null && actor.reaches(targetCustomerOrganizationId);
 
     default:
       return false;

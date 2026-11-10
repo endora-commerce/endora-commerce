@@ -52,6 +52,9 @@ import { redactAuditState } from './audit-redaction.js';
 /** Rows per chunk — one `UPDATE` each. */
 export const AUDIT_REDACTION_CHUNK_SIZE = 500;
 
+/** Object ids per lookup of a target's rows — the call splits by it (issue #959). */
+export const AUDIT_REDACTION_IDS_PER_LOOKUP = 1000;
+
 const TABLE = '"audit_log_entries"';
 
 interface StoredRow {
@@ -168,17 +171,24 @@ export class AuditRedactionService implements AuditRedactionPort {
     return { rowsInScope: tally.seen.size, rowsChanged: tally.changed, markerWritten };
   }
 
-  /** The ids of every in-scope row, the markers excepted, in id order. */
+  /**
+   * The ids of every in-scope row, the markers excepted, in id order within
+   * each lookup. A target's object ids are looked up
+   * {@link AUDIT_REDACTION_IDS_PER_LOOKUP} at a time (issue #959).
+   */
   private async listIds(em: EntityManager, targets: readonly PreparedTarget[]): Promise<string[]> {
     const ids: string[] = [];
     for (const target of targets) {
-      const rows = await em.execute<Array<{ id: string }>>(
-        `select "id" from ${TABLE} where "object_type" = ? ` +
-          `and "object_id" in (${target.objectIds.map(() => '?').join(', ')}) ` +
-          `and "action" <> '${AUDIT_REDACTED_ACTION}' order by "id"`,
-        [target.objectType, ...target.objectIds],
-      );
-      for (const row of rows) ids.push(row.id);
+      for (let offset = 0; offset < target.objectIds.length; offset += AUDIT_REDACTION_IDS_PER_LOOKUP) {
+        const objectIds = target.objectIds.slice(offset, offset + AUDIT_REDACTION_IDS_PER_LOOKUP);
+        const rows = await em.execute<Array<{ id: string }>>(
+          `select "id" from ${TABLE} where "object_type" = ? ` +
+            `and "object_id" in (${objectIds.map(() => '?').join(', ')}) ` +
+            `and "action" <> '${AUDIT_REDACTED_ACTION}' order by "id"`,
+          [target.objectType, ...objectIds],
+        );
+        for (const row of rows) ids.push(row.id);
+      }
     }
     return [...new Set(ids)];
   }

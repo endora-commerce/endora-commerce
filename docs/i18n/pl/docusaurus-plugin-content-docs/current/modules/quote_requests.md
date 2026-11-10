@@ -282,6 +282,15 @@ angielsku:
 Zapytania złożone, zanim ta historia powstała, są opisywane na podstawie już zapisanych danych;
 niczego się nie uzupełnia wstecz.
 
+**Wartości są w historii, nie w dzienniku audytu.** Dziennik audytu platformy czyta każdy, kto ma
+`audit_log:read`, bez względu na to, które organizacje widzi, dlatego wpisy audytu zapytania
+zawierają tylko nazwy i strukturę. Anulowanie zapisuje `hasReason`, nigdy sam powód. Grupowanie
+zapisuje liczbę pozycji każdej grupy, nigdy jej nazwę. Wysyłka PDF zapisuje, na ile adresów poszła,
+nigdy same adresy. Przygotowanie koszyka klienta zapisuje koszyk i jego wielkość, bez klienta.
+Przeniesienie z szansy sprzedażowej wymienia przeniesione pola jako `changedCustomFields`, bez ich
+wartości. Wartości zostają w zapytaniu, jego rewizjach i tej historii, czytanej zgodnie z
+widocznością samego zapytania.
+
 ## Edycja szkicu przez klienta
 
 Klient może edytować zapytanie w statusie `Pending` przez `PATCH /api/v1/quote-requests/:id` tyle
@@ -351,7 +360,8 @@ tworzenia nie pokazuje VAT, więc jego sekcje pokazują liczbę pozycji i warto�
 **Zapis.** Grupowanie zapisuje ten sam przycisk, który zapisuje pozycje — **Zapisz rewizję** albo
 przycisk tworzenia — w tym samym zapisie, z tym samym sprawdzeniem współbieżności, i jest ono
 utrwalane we wpisie audytu tego zapisu (`quote_request.modify` albo
-`quote_request.create_on_behalf`, z nazwami grup i liczbą ich pozycji przed zmianą i po niej).
+`quote_request.create_on_behalf`, z liczbą pozycji każdej grupy przed zmianą i po niej; nazwy są w
+rewizjach, nie w dzienniku audytu).
 **Zapis, który zmienia tylko grupowanie, jest rewizją jak każda inna**: klient dostaje powiadomienie
 i prośbę o jej akceptację. Zakładka **Historia** wymienia zmiany grupowania w każdej rewizji (zob.
 *Historia*).
@@ -502,10 +512,8 @@ dla ról z `customers:read`; zmiana wartości wymaga `customers:manage`, a bez n
 jest nieaktywna. Rola, która ma `customers:manage`, ale **nie** ma `customers:read`, nie widzi
 panelu. Opiekun handlowy sięga tylko do organizacji, które może widzieć; każdy inny identyfikator
 dostaje `404`. Organizacja bez przypisanego opiekuna handlowego jest widoczna dla każdego opiekuna
-(zob. *Model widoczności*), więc każdy opiekun może zmienić jej blokadę; samą tę regułę opisuje
-zgłoszenie #305. Nie dotyczy to kont jej klientów: podlegają filtrowi przypisanych
-organizacji, więc żądanie opiekuna o panel konta — odczyt lub zmiana — dostaje `404`, a nadpisania
-tych kont pozostają w gestii administratora platformy. Każda zmiana jest audytowanym zapisem, który zapisuje administratora, organizację
+(zob. *Model widoczności*), więc każdy opiekun może zmienić jej blokadę — a od zgłoszenia #305 także
+nadpisania kont jej klientów: konta podlegają tej samej regule co ich organizacja. Każda zmiana jest audytowanym zapisem, który zapisuje administratora, organizację
 lub konto oraz starą i nową wartość.
 
 **Moduł wyłączony.** Gdy ten moduł jest wyłączony, panele, cztery endpointy administracyjne, odczyt
@@ -518,10 +526,18 @@ Opiekun handlowy to administrator platformy z rolą `sales_representative`. Regu
 skupia w jednym miejscu predykat
 `SalesRepAssignmentService.canSeeOrganization(adminUserId, organizationId)`:
 
-1. Rola `platform_admin` → widzi każdą organizację.
-2. W przeciwnym razie administrator widzi organizację wtedy i tylko wtedy, gdy łączy ich wiersz w
+1. Każda rola poza `sales_representative` (`platform_admin` albo rola niestandardowa
+   z uprawnieniem `rfqs:handle`) → widzi każdą organizację (zgłoszenie #957).
+2. Rola `sales_representative` widzi organizację wtedy i tylko wtedy, gdy łączy ich wiersz w
    `organization_sales_rep_assignments` LUB organizacja nie ma w tej tabeli żadnych wierszy
    (reguła zastępcza dla organizacji bez opiekuna — taką organizację widzi każdy opiekun handlowy).
+   Z uprawnieniem `organizations:rollup` rozstrzyga zamiast tego najbliższa organizacja w łańcuchu
+   „ona sama i jej organizacje nadrzędne”, która ma jakikolwiek wiersz.
+
+To jedna reguła na wszystkich ekranach (zgłoszenie #305): filtr tenanta, pod którym działa każdy
+odczyt zapytań ofertowych w panelu, jest właśnie tą regułą — każda organizacja oprócz prowadzonych
+przez innego opiekuna — więc lista, szczegóły, historia i wyszukiwarka panelu są zgodne, a zapytania
+organizacji nieprzypisanej każdy opiekun widzi na liście i może otworzyć.
 
 Opiekun handlowy, który wskaże zapytanie ofertowe organizacji, której nie może widzieć, dostaje ten
 sam `404` co dla nieistniejącego identyfikatora, na każdym endpoincie administracyjnym zapytań
@@ -668,9 +684,10 @@ pozycja to **— Wybierz widok —**, a obok niej dwa przyciski: **Zapisz widok*
   zacznie polegać na udostępnionych widokach. Opiekun handlowy może usuwać tylko własne widoki, a
   prywatnego widoku innego administratora nikt nie widzi i nikt nie może go usunąć.
 - **Dwa znaczenia „administratora platformy” na tej liście.** Powyższa zasada nie jest tą, którą
-  stosuje *Model widoczności*: domyślny zakres listy i widoczność wszystkich organizacji nadal
-  zależą od dosłownej roli `platform_admin`. Administrator z rolą niestandardową może więc usunąć
-  udostępniony widok kolegi, a mimo to otwiera listę w zakresie *Moje organizacje*.
+  stosuje domyślny zakres listy: ten nadal zależy od dosłownej roli `platform_admin`.
+  Administrator z rolą niestandardową może więc usunąć udostępniony widok kolegi i widzi zapytania
+  wszystkich organizacji (*Model widoczności*), a mimo to otwiera listę w zakresie
+  *Moje organizacje*.
 - **Tylko zapis, wczytanie i usunięcie.** Panel administracyjny nie zmienia nazwy widoku, nie
   zmienia tego, czy jest udostępniony, i nie nadpisuje go bieżącym ustawieniem; zamiast tego zapisz
   nowy widok i usuń stary. Liczba widoków nie jest ograniczona.
@@ -717,7 +734,7 @@ pozycja to **— Wybierz widok —**, a obok niej dwa przyciski: **Zapisz widok*
   Listy zamówień, produktów i zapytań ofertowych wyznaczają go tak samo, a w razie wątpliwości
   odmawiają: administrator, którego zasięgu nie da się ustalić, nie jest administratorem platformy.
   To celowo nie jest własny test modułu `role.code === 'platform_admin'`, którego używa
-  widoczność listy.
+  domyślny zakres listy.
 - **Odmowy.** Nieistniejący widok i prywatny widok innego administratora to `404 NOT_FOUND` —
   nie da się ich odróżnić. Udostępniony widok, którego wywołujący nie jest właścicielem i którego
   nie może zmienić jako administrator platformy, to `403 FORBIDDEN`. Nazwa, której klucza
@@ -815,7 +832,8 @@ zmienne to `quote.number`, `quote.validUntil`, `customer.name`, `salesRep.name`,
 
 Udana wysyłka dodaje do **Historii** oferty wpis **Wysłano PDF** (kto wysłał, na jakie adresy, z
 jakim szablonem, w jakim języku i z jaką wiadomością) oraz jeden wiersz
-`quote_request.send_document` w dzienniku audytu — nigdy sam PDF. Klienci nie widzą go we własnej
+`quote_request.send_document` w dzienniku audytu — nigdy sam PDF, a tylko liczba adresów, nie
+same adresy. Klienci nie widzą go we własnej
 historii. Gdy serwer poczty odrzuci jeden adres, a przyjmie inny, PDF pozostaje wysłany na
 przyjęte adresy, okno wymienia odrzucone, a zapisywane są tylko przyjęte. Wysyłka jest odrzucana,
 bez żadnego zapisu, gdy:

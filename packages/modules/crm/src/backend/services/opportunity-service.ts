@@ -35,7 +35,7 @@ import {
 import type { Command, CommandBus } from '@endora-commerce/platform/commands';
 import { HttpError } from '@endora-commerce/platform/http';
 import { SalesChannel } from '@endora-commerce/platform/kernel';
-import { getTenantContext, isOrgInScope } from '@endora-commerce/platform/tenancy';
+import { getTenantContext, orgInScope } from '@endora-commerce/platform/tenancy';
 import { randomUUID } from 'crypto';
 import { isDeepStrictEqual } from 'util';
 import { carryIntoOpportunityBestEffort, type OpportunityCarrySource } from './opportunity-custom-field-carry.js';
@@ -66,6 +66,7 @@ import { nextOpportunityNumber } from './opportunity-number.js';
 import { storedReferencesOf, type ReferenceService, type ReferenceSource } from './reference-service.js';
 import type { TagService } from './tag-service.js';
 import { mergeOpportunityCustomFields } from './opportunity-custom-fields.js';
+import { auditSnapshot, opportunityValues, recordValueChange } from './opportunity-audit-state.js';
 import type { WorkflowReadService } from './workflow-read-service.js';
 
 export interface OpportunityServiceDeps {
@@ -222,28 +223,6 @@ function decodeCursor(cursor: string | undefined): number {
   throw new HttpError(400, ERROR_CODES.VALIDATION_FAILED, 'The cursor is not one this list issued.');
 }
 
-function auditSnapshot(opportunity: CrmOpportunity): Record<string, unknown> {
-  return {
-    number: opportunity.number,
-    title: opportunity.title,
-    description: opportunity.description ?? null,
-    organizationId: opportunity.organizationId,
-    customerAccountId: opportunity.customerAccountId ?? null,
-    salesChannelId: opportunity.salesChannelId ?? null,
-    statusCode: opportunity.statusCode,
-    assignedAdminUserId: opportunity.assignedAdminUserId ?? null,
-    valueMode: opportunity.valueMode,
-    manualValue: opportunity.manualValue ?? null,
-    currency: opportunity.currency,
-    expectedCloseDate: opportunity.expectedCloseDate ?? null,
-    // Only once there is something to say: an Opportunity with no custom
-    // values audits exactly as it did before the fields existed.
-    ...(Object.keys(opportunity.customFieldValues ?? {}).length > 0
-      ? { customFieldValues: { ...opportunity.customFieldValues } }
-      : {}),
-  };
-}
-
 /**
  * Opportunities — create, list, read, edit, delete
  * (`specs/143-crm-sales-opportunities/contracts/admin-api.md` §1).
@@ -273,7 +252,7 @@ export class OpportunityService {
     // not tenant-filtered (it is the tenant), so reach is asked separately —
     // and the two answers are one refusal, so an out-of-scope id reads exactly
     // like one that does not exist.
-    const organization = isOrgInScope(input.organizationId)
+    const organization = (await orgInScope(input.organizationId))
       ? await organizations.findById(input.organizationId)
       : null;
     if (!organization) throw invalid('The organization does not exist.');
@@ -495,17 +474,22 @@ export class OpportunityService {
             linkedByAdminUserId: null,
           });
         }
+        // The values go to the Opportunity's own store; the entry names them (#470).
+        const values = recordValueChange(em, id, {
+          before: null,
+          after: opportunityValues(opportunity, tags.map((tag) => tag.name)),
+        });
         return {
           result: { id, organizationId: opportunity.organizationId, number: opportunity.number },
           before: null,
           after: {
             ...auditSnapshot(opportunity),
             source: options.source,
-            ...(tags.length > 0 ? { tags: tags.map((tag) => tag.name) } : {}),
             ...(options.document
               ? { linkedDocument: { documentKind: options.document.kind, documentId: options.document.id } }
               : {}),
             ...(options.carryAfter ?? {}),
+            ...values,
           },
         };
       },
@@ -839,6 +823,7 @@ export class OpportunityService {
         // Absent means "leave the tags as they are"; present replaces the set.
         const tagChange =
           patch.tagIds === undefined ? null : await this.#replaceTags(em, opportunity.id, patch.tagIds);
+        const valuesBefore = opportunityValues(opportunity, tagChange ? tagChange.before : null);
         if (patch.title !== undefined) opportunity.title = patch.title;
         if (patch.description !== undefined) {
           // Who this edit adds, against the text it replaces — worked out from
@@ -869,6 +854,11 @@ export class OpportunityService {
         opportunity.version += 1;
         // An edit that changes the assignee is an assignment too: announced
         // with the previous one, and the new assignee is told.
+        // What changed among the values goes to the Opportunity's own store (#470).
+        const values = recordValueChange(em, opportunity.id, {
+          before: valuesBefore,
+          after: opportunityValues(opportunity, tagChange ? tagChange.after : null),
+        });
         const previousAdminUserId = (before.assignedAdminUserId as string | null) ?? null;
         const assignedAdminUserId = opportunity.assignedAdminUserId ?? null;
         if (before.valueMode !== 'computed' && opportunity.valueMode === 'computed') custom.onBecameComputed();
@@ -884,10 +874,8 @@ export class OpportunityService {
                   assignedAdminUserId,
                   previousAdminUserId,
                 },
-          before: tagChange ? { ...before, tags: tagChange.before } : before,
-          after: tagChange
-            ? { ...auditSnapshot(opportunity), tags: tagChange.after }
-            : auditSnapshot(opportunity),
+          before,
+          after: { ...auditSnapshot(opportunity), ...values },
         };
       },
       event: (result) => (result ? assignedEvent(result) : undefined),
@@ -912,8 +900,9 @@ export class OpportunityService {
 
   /**
    * Replace an Opportunity's whole tag set (`PUT …/tags`). One Command against
-   * the Opportunity, with the tag names before and after; setting the set it
-   * already has writes nothing.
+   * the Opportunity; the tag names before and after go to the Opportunity's
+   * value store and the entry names `tags` (#470). Setting the set it already
+   * has writes nothing.
    */
   async setTags(id: string, tagIds: readonly string[]): Promise<OpportunityDetail> {
     // The parent first: an Opportunity the caller cannot see is a 404 before
@@ -928,7 +917,11 @@ export class OpportunityService {
         const change = await this.#replaceTags(em, opportunity.id, tagIds);
         if (!change.changed) return { result: undefined, skipAudit: true };
         opportunity.version += 1;
-        return { result: undefined, before: { tags: change.before }, after: { tags: change.after } };
+        const values = recordValueChange(em, opportunity.id, {
+          before: { tags: change.before },
+          after: { tags: change.after },
+        });
+        return { result: undefined, before: null, after: { ...values } };
       },
     });
     return this.get(id);

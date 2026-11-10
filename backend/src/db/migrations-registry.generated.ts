@@ -180,6 +180,7 @@ import { Migration20261008T135701CrmOpportunityEvents } from '@endora-commerce/m
 import { Migration20261009T163307CrmOpportunityMessageReads } from '@endora-commerce/mod-crm/migrations';
 import { Migration20261027T020030CrmOpportunityReferenceDocuments } from '@endora-commerce/mod-crm/migrations';
 import { Migration20261028T143444CrmOpportunityReferenceKinds } from '@endora-commerce/mod-crm/migrations';
+import { Migration20261109T163616CrmOpportunityValueChanges } from '@endora-commerce/mod-crm/migrations';
 
 // ── custom_fields ───────────────────────────────────────────────────────────
 import { Migration20260718T200338CustomFieldsInit } from '@endora-commerce/mod-custom-fields/migrations';
@@ -320,6 +321,7 @@ import { Migration20261018T104644OrganizationsChannelAccessBackfill } from '@end
 import { Migration20261103T173304OrganizationsOrganizationRoles } from '@endora-commerce/mod-organizations/migrations';
 import { Migration20261104T094535OrganizationsDropLegacyRoleColumns } from '@endora-commerce/mod-organizations/migrations';
 import { Migration20261105T121034OrganizationsRegistryLookupProvenance } from '@endora-commerce/mod-organizations/migrations';
+import { Migration20261109T144721OrganizationsReachGovernor } from '@endora-commerce/mod-organizations/migrations';
 
 // ── payment_methods ─────────────────────────────────────────────────────────
 import { Migration20260611T140353PaymentMethodsAdapter } from '@endora-commerce/mod-payment-methods/migrations';
@@ -344,6 +346,7 @@ import { Migration20261022T012134PriceListsPriceSurfaceGenerations } from '@endo
 import { Migration20261022T111815PriceListsPriceBooksConversion } from '@endora-commerce/mod-price-lists/migrations';
 import { Migration20261022T182527PriceListsProductLines } from '@endora-commerce/mod-price-lists/migrations';
 import { Migration20261023T152351PriceListsPriceSurfaceTargetedMarks } from '@endora-commerce/mod-price-lists/migrations';
+import { Migration20261110T073922PriceListsValueChanges } from '@endora-commerce/mod-price-lists/migrations';
 
 // ── product_feeds ───────────────────────────────────────────────────────────
 import { Migration20260802T073547ProductFeedsInit } from '@endora-commerce/mod-product-feeds/migrations';
@@ -425,6 +428,7 @@ import { Migration20260611T140418ShoppingListsDefault } from '@endora-commerce/m
 // ── tasks ───────────────────────────────────────────────────────────────────
 import { Migration20261026T133731TasksInit } from '@endora-commerce/mod-tasks/migrations';
 import { Migration20261028T140002TasksTaskManagement } from '@endora-commerce/mod-tasks/migrations';
+import { Migration20261110T054810TasksValueChanges } from '@endora-commerce/mod-tasks/migrations';
 
 // ── taxes ───────────────────────────────────────────────────────────────────
 import { Migration20260426T081516TaxesPromotionsInit } from '@endora-commerce/mod-taxes/migrations';
@@ -595,6 +599,7 @@ export const MIGRATION_REGISTRY: readonly MigrationRegistryEntry[] = [
   migration('crm', Migration20261009T163307CrmOpportunityMessageReads),
   migration('crm', Migration20261027T020030CrmOpportunityReferenceDocuments),
   migration('crm', Migration20261028T143444CrmOpportunityReferenceKinds),
+  migration('crm', Migration20261109T163616CrmOpportunityValueChanges),
 
   // ── custom_fields ───────────────────────────────────────────────────────────
   migration('custom_fields', Migration20260718T200338CustomFieldsInit),
@@ -735,6 +740,7 @@ export const MIGRATION_REGISTRY: readonly MigrationRegistryEntry[] = [
   migration('organizations', Migration20261103T173304OrganizationsOrganizationRoles),
   migration('organizations', Migration20261104T094535OrganizationsDropLegacyRoleColumns),
   migration('organizations', Migration20261105T121034OrganizationsRegistryLookupProvenance),
+  migration('organizations', Migration20261109T144721OrganizationsReachGovernor),
 
   // ── payment_methods ─────────────────────────────────────────────────────────
   migration('payment_methods', Migration20260611T140353PaymentMethodsAdapter),
@@ -759,6 +765,7 @@ export const MIGRATION_REGISTRY: readonly MigrationRegistryEntry[] = [
   migration('price_lists', Migration20261022T111815PriceListsPriceBooksConversion),
   migration('price_lists', Migration20261022T182527PriceListsProductLines),
   migration('price_lists', Migration20261023T152351PriceListsPriceSurfaceTargetedMarks),
+  migration('price_lists', Migration20261110T073922PriceListsValueChanges),
 
   // ── product_feeds ───────────────────────────────────────────────────────────
   migration('product_feeds', Migration20260802T073547ProductFeedsInit),
@@ -840,6 +847,7 @@ export const MIGRATION_REGISTRY: readonly MigrationRegistryEntry[] = [
   // ── tasks ───────────────────────────────────────────────────────────────────
   migration('tasks', Migration20261026T133731TasksInit),
   migration('tasks', Migration20261028T140002TasksTaskManagement),
+  migration('tasks', Migration20261110T054810TasksValueChanges),
 
   // ── taxes ───────────────────────────────────────────────────────────────────
   migration('taxes', Migration20260426T081516TaxesPromotionsInit),

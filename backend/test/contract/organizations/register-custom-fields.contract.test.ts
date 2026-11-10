@@ -1,6 +1,8 @@
 import { randomUUID } from 'node:crypto';
 import { afterAll, beforeAll, describe, expect, it } from 'vitest';
 import { ERROR_CODES } from '@endora-commerce/contracts';
+import { AuditLogEntry } from '@endora-commerce/platform/kernel';
+import { expectNoAuditValues } from '@endora-commerce/test-kit/audit';
 import {
   setupBackendServer,
   teardownBackendServer,
@@ -206,6 +208,21 @@ describe('POST /api/v1/organizations/register — custom-field values (feature 1
       expect(res.statusCode, res.body).toBe(201);
       const row = await h.em().getKnex()('customer_accounts').where({ email }).first('custom_field_values');
       expect(row.custom_field_values).toEqual({ cf175r_phone: '+48 600 175 042' });
+    });
+
+    it('names the supplied fields in the registration audit row and records no value (FR-028, D-288)', async () => {
+      // `specs/conventions/audit-state.md` §6 — sentinel values, then the keys only.
+      const { res } = await register({ cf175r_employees: 470470, cf175r_source: 'web' }, { cf175r_phone: 'S470-CF' });
+      expect(res.statusCode, res.body).toBe(201);
+      const organizationId = (res.json().data as { organization: { id: string } }).organization.id;
+
+      h.em().clear();
+      const entries = await h.em().find(AuditLogEntry, { action: 'organization.register', objectId: organizationId });
+      expectNoAuditValues(entries, ['S470-CF', 470470]);
+      expect(entries[0]?.stateAfter).toMatchObject({
+        changedCustomFields: ['firstUser.cf175r_phone', 'organization.cf175r_employees', 'organization.cf175r_source'],
+      });
+      expect(entries[0]?.stateAfter).not.toHaveProperty('customFieldKeys');
     });
 
     it('refuses an empty required open field beside it and creates nothing (US1-4)', async () => {

@@ -60,7 +60,7 @@ import {
 import { createAdminTenantScopePort } from './services/admin-tenant-scope.js';
 import { createOrganizationAdminSearchProvider } from './admin-search-provider.js';
 import { OrganizationAdminSearchService } from './services/organization-admin-search.service.js';
-import { orgConstraintFor, withSystemScope } from '@endora-commerce/platform/tenancy';
+import { assignedOrganizationIdsForRanking, withSystemScope } from '@endora-commerce/platform/tenancy';
 import { OrganizationContextService } from './services/organization-context-service.js';
 import {
   OrganizationDetailsService,
@@ -1095,17 +1095,7 @@ export function registerModule(ctx: ModuleContext): void {
     'organizationSalesRepScopePort',
     ctx
       .asFunction(({ emFactory, auditLogService }: OrganizationsCradle): SalesRepAssignmentPort => {
-        const assignments = new SalesRepAssignmentService(emFactory, auditLogService, {
-          treeService: lazyPort<OrganizationTreeService>(ctx, 'organizationTreeService'),
-          hasRollupCapability: (adminUserId: string) =>
-            // `organizations:rollup` is a core `PERMISSION_CATALOGUE` code
-            // rather than another module's private string, so naming it here
-            // crosses no boundary — the same call `quote_requests` makes.
-            lazyPort<OrganizationsCradle['permissionService']>(
-              ctx,
-              'permissionService',
-            ).hasPermission(adminUserId, 'organizations:rollup'),
-        });
+        const assignments = salesRepAssignmentServiceFor(ctx, emFactory, auditLogService);
         return {
           canSeeOrganization: (adminUserId, organizationId) =>
             assignments.canSeeOrganization(adminUserId, organizationId),
@@ -1144,10 +1134,13 @@ export function registerModule(ctx: ModuleContext): void {
     'adminTenantScopePort',
     ctx
       .asFunction(
-        (): AdminTenantScopePort =>
+        ({ emFactory, auditLogService }: OrganizationsCradle): AdminTenantScopePort =>
           createAdminTenantScopePort(
             lazyPort<PermissionReadPort>(ctx, 'permissionService'),
-            lazyPort<SalesRepAssignmentPort>(ctx, 'organizationSalesRepScopePort'),
+            // Issue #305 — the reach in one statement, from the same
+            // service, built by the same function, as the visibility port:
+            // the rule has one implementation, roll-up deps included (#108).
+            salesRepAssignmentServiceFor(ctx, emFactory, auditLogService),
           ),
       )
       .singleton(),
@@ -1283,22 +1276,45 @@ export function registerModule(ctx: ModuleContext): void {
    * pushes an inert provider into `admin_search`'s ungated registry and does
    * nothing else, so it carries no presence probe (D-67/D-68).
    *
-   * The rows are the Organizations list's; the request's scope only ranks them
-   * (owner answer to spec Q2): a scoped admin's allowed set — their assigned
-   * organizations — comes first.
+   * The rows are the Organizations list's, which narrow to the reach rule
+   * (issue #305, superseding the owner's answer to spec Q2); a sales
+   * representative's assigned organizations come first (FR-015a).
    */
   ctx.onBoot(() => {
     const i18n = lazyPort<AdminI18nTranslatePort>(ctx, 'adminI18nService');
     const service = new OrganizationAdminSearchService(() => ctx.cradle<OrganizationsCradle>().emFactory());
     lazyPort<AdminSearchProviderRegistryPort>(ctx, 'adminSearchProviderRegistry').register(
       createOrganizationAdminSearchProvider({
-        search: (query) => {
-          const constraint = orgConstraintFor();
-          return service.search(query, constraint.kind === 'set' ? constraint.organizationIds : null);
-        },
+        // Issue #305 — the rows narrow to the reach rule inside the service
+        // (`orgScopeWhere('id')`); the assignments only rank them.
+        search: async (query) => service.search(query, await assignedOrganizationIdsForRanking()),
         translate: (key, language) => i18n.translate('organizations', key, language),
       }),
     );
+  });
+}
+
+/**
+ * The one construction of `SalesRepAssignmentService` (issue #108, #305): the
+ * roll-up deps are not optional at this seam, so no port built over the
+ * service can apply the flat rule by omission.
+ */
+function salesRepAssignmentServiceFor(
+  ctx: ModuleContext,
+  emFactory: OrganizationsCradle['emFactory'],
+  auditLogService: OrganizationsCradle['auditLogService'],
+): SalesRepAssignmentService {
+  return new SalesRepAssignmentService(emFactory, auditLogService, {
+    treeService: lazyPort<OrganizationTreeService>(ctx, 'organizationTreeService'),
+    hasRollupCapability: (adminUserId: string) =>
+      // `organizations:rollup` is a core `PERMISSION_CATALOGUE` code
+      // rather than another module's private string, so naming it here
+      // crosses no boundary — the same call `quote_requests` makes.
+      lazyPort<OrganizationsCradle['permissionService']>(
+        ctx,
+        'permissionService',
+      ).hasPermission(adminUserId, 'organizations:rollup'),
+    warn: (fields, message) => ctx.log.warn(fields, message),
   });
 }
 

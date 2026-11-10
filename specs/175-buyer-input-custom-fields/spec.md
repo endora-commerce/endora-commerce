@@ -463,8 +463,11 @@ named in each heading).
   accept values.
 - **FR-020** *(`crm`, `projects`, `tasks`)*: Their create and update endpoints already satisfy
   FR-015; they MUST be declared to the check of FR-043 and MUST keep satisfying it.
-- **FR-021** *(audit)*: An admin create carrying values MUST record them in its creation audit
-  entry as an admin update already does for its changes (Principle XIII).
+- **FR-021** *(audit)*: An admin create carrying values MUST name them in its creation audit
+  entry — their keys, sorted, as `changedCustomFields` — as an admin update already does for its
+  changes (Principle XIII). For a tenant-scoped record (Order, Organization, account, quote
+  request) the entry MUST NOT record the values (D-288, `specs/conventions/audit-state.md`); a
+  platform-global record (category) may (§5 there).
 
 **D. Registration (`organizations`, `customer_accounts`, `@endora-commerce/contracts`)**
 
@@ -488,7 +491,8 @@ named in each heading).
   refused (FR-011's rule, with every key unknown), not written and not dropped; the same holds for
   an admin create or update carrying values.
 - **FR-028**: The registration's audit entry MUST record which extra fields were supplied (their
-  keys, per entity type) and MUST NOT record their values.
+  keys, prefixed by request group, `organization.` / `firstUser.`, sorted, as
+  `changedCustomFields`) and MUST NOT record their values.
 
 **E. Public list of open fields and storefront (`custom_fields`, reference storefront)**
 

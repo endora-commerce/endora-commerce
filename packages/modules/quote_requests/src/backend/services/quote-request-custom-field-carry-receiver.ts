@@ -95,11 +95,12 @@ function receiveCarriedValuesCommand(
         );
       }
       await em.flush();
+      // The entry names the carried keys, never their values (D-288, #470).
       return {
         result: receipt,
-        before: { customFieldValues: current },
+        before: null,
         after: {
-          customFieldValues: { ...(quote.customFieldValues ?? {}) },
+          ...(receipt.carried.length > 0 ? { changedCustomFields: [...receipt.carried].sort() } : {}),
           customFieldCarry: { source, carried: receipt.carried, skipped: receipt.skipped },
         },
       };

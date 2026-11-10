@@ -23,6 +23,7 @@ import type {
   AuthSessionReadPort,
   CartAnonymizationPort,
   CartQueryPort,
+  EmailDeliveryAnonymizationPort,
   CustomFieldValuePort,
   CustomerAccountAdminSearchPort,
   CustomerAccountLifecycleWritePort,
@@ -214,6 +215,11 @@ export interface CustomersModuleOptions {
    * operators and approvers wrote about the account's carts are erased.
    */
   cartAnonymizationPort: CartAnonymizationPort;
+  /**
+   * `email`'s step in the anonymisation sweep (issue #928): the records of the
+   * e-mails sent to the account lose the address, the subject and the envelope.
+   */
+  emailDeliveryAnonymizationPort: EmailDeliveryAnonymizationPort;
   /** Base URL for the storefront set-password link in reset emails. */
   storefrontBaseUrl: string;
   /** Feature 167 — the channel admin-sent storefront links are composed for (system default). */
@@ -312,6 +318,7 @@ export function customersModule(options: CustomersModuleOptions): {
     options.resolveDeletionRetentionDays,
     addressBookRetirement,
     options.cartAnonymizationPort,
+    options.emailDeliveryAnonymizationPort,
     {
       redaction: options.auditRedactionService,
       addressReads: options.addressReadPort,

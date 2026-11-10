@@ -1,5 +1,6 @@
 import type { EntityManager, MikroORM } from '@mikro-orm/postgresql';
 import type { AuditPort } from '../kernel/ports/audit.js';
+import { currentRequestMeta } from '../kernel/scope.js';
 import { forkScopedEm } from '../tenancy/scoped-em.js';
 import type { EventBus } from '../events/bus.js';
 import { resolveCommandActor } from './actor.js';
@@ -34,7 +35,13 @@ export interface CommandBusOptions {
   /**
    * Resolves ambient request metadata (X-Request-Id, client IP/UA) for the audit
    * row, when a Command runs inside an HTTP request. Returns `undefined` for
-   * worker/system runs. Kept injectable so the core layer imports no HTTP code.
+   * worker/system runs.
+   *
+   * Defaults to the metadata of the current platform scope (issue #997), which
+   * the request-scope hook fills from the request and every non-HTTP scope
+   * leaves empty. Both composition roots rely on that default; a bus composed
+   * without it recorded every entry with no IP, user agent or request id.
+   * Injectable only so a test can supply its own.
    */
   getRequestMeta?: () => CommandRequestMeta | undefined;
 }
@@ -51,7 +58,7 @@ export class CommandBus {
   async run<TResult>(command: Command<TResult>): Promise<TResult> {
     // Fail-closed: no ambient TenantContext ⇒ throws before any write (Principle XI).
     const actor = resolveCommandActor();
-    const meta = this.options.getRequestMeta?.() ?? {};
+    const meta = (this.options.getRequestMeta ?? currentRequestMeta)() ?? {};
 
     return this.events.run(async () => {
       const scoped: EntityManager = forkScopedEm(this.orm);

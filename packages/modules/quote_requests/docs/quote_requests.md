@@ -311,6 +311,17 @@ English and Polish:
 Requests raised before this history existed are described from the data
 already stored; nothing is backfilled.
 
+**The history, not the audit log, holds the values.** The platform audit log is
+read by everybody holding `audit_log:read`, whichever organizations they may
+see, so a request's audit entries carry names and structure only. A
+cancellation records `hasReason`, never the reason. A grouping records each
+group's line count, never its name. A PDF send records how many addresses it
+went to, never the addresses. A preparation of the customer's basket records
+the basket and its size, not the customer. A carry from a sales opportunity
+names the carried fields as `changedCustomFields`, without their values. The
+values stay on the request, its revisions and this history, which is read
+under the request's own visibility.
+
 ## Customer draft edits
 
 A customer edits a `Pending` request with `PATCH /api/v1/quote-requests/:id`
@@ -387,8 +398,8 @@ item count and the net.
 **Saving.** The grouping is saved by the button that saves the lines — **Save
 revision** or **Create** — in the same write, under the same concurrency check,
 and recorded in that write's audit entry (`quote_request.modify` or
-`quote_request.create_on_behalf`, with the groups' names and line counts
-before and after). **A save that changes only the grouping is a revision like
+`quote_request.create_on_behalf`, with each group's line count before and
+after; the names are in the revisions, not the audit log). **A save that changes only the grouping is a revision like
 any other**: the customer is notified and asked to accept it. The **History**
 tab lists the grouping changes of each revision (see *History*).
 
@@ -554,10 +565,8 @@ holds `customers:manage` but **not** `customers:read` sees no panel. A sales
 representative reaches only the organizations they may see; any other id
 answers `404`. An organization with no assigned sales representative is visible
 to every representative (see *Visibility model*), so any representative may
-change its lock; issue #305 tracks that rule itself. Its customer accounts are
-not reachable that way: they sit behind the assigned-organization filter, so a
-representative's request for an account's panel — read or change — answers
-`404`, and its overrides stay with a platform administrator. Every change is an audited write that records the
+change its lock — and, since issue #305, its customer accounts' overrides too:
+the accounts are reached by the same rule as their organization. Every change is an audited write that records the
 administrator, the organization or account and the old and new value.
 
 **Switched off.** While this module is off, the panels, the four admin routes,
@@ -571,11 +580,19 @@ A sales representative is a platform administrator with the
 `SalesRepAssignmentService.canSeeOrganization(adminUserId, organizationId)`
 predicate centralises the visibility rule:
 
-1. `platform_admin` role → sees every organization.
-2. Otherwise the admin sees an organization iff a row in
+1. Any role other than `sales_representative` (`platform_admin`, or a custom
+   role holding `rfqs:handle`) → sees every organization (issue #957).
+2. A `sales_representative` sees an organization iff a row in
    `organization_sales_rep_assignments` ties them together, OR the
    organization has zero rows in that table (the "unassigned-org
-   fallback" — visible to every sales rep).
+   fallback" — visible to every sales rep). With `organizations:rollup`
+   the nearest ancestor-or-self carrying any row decides instead.
+
+It is the one rule on every surface (issue #305): the tenant filter every
+admin quote-request read runs under is that rule — every organization except
+those governed by another representative — so the list, the detail, the
+history and the global search all agree, and an unassigned organization's
+requests are listed and readable by every representative.
 
 A sales representative who names a quote request of an organization they may
 not see gets the same `404` as for an id that does not exist, on every admin
@@ -733,10 +750,10 @@ and **Delete view**.
   representative can delete only their own views, and nobody can see or delete
   another admin's private view.
 - **Two meanings of "platform admin" on this list.** The rule above is not the
-  one *Visibility model* applies: the list's default scope and its
-  every-organization visibility still key on the literal `platform_admin` role.
-  So an admin with a custom role may delete a colleague's shared view yet opens
-  the list on *My organizations*.
+  one the list's default scope applies: that still keys on the literal
+  `platform_admin` role. So an admin with a custom role may delete a colleague's
+  shared view, and sees every organization's requests (*Visibility model*), yet
+  opens the list on *My organizations*.
 - **Only save, load and delete.** The Admin UI does not rename a view, change
   whether it is shared, or overwrite it with the current setup; save a new view
   and delete the old one instead. There is no limit on the number of views.
@@ -788,7 +805,7 @@ and **Delete view**.
   product and quote request lists derive it the same way, and it fails closed:
   an admin whose reach cannot be resolved is not a platform admin.
   It is deliberately not the module's own `role.code === 'platform_admin'`
-  test, which the list's visibility uses.
+  test, which the list's default scope uses.
 - **Refusals.** An absent view, or another admin's private view, is
   `404 NOT_FOUND` — the two are indistinguishable. A shared view the caller
   neither owns nor may modify as a platform admin is `403 FORBIDDEN`. A name
@@ -906,7 +923,7 @@ e-mail switched off, under **E-mail templates**; its variables are
 A successful send adds a **PDF sent** entry to the quote's **History** (who
 sent it, to which addresses, with which template, in which language, and the
 message) and one `quote_request.send_document` row to the audit log — never the
-PDF itself. Customers do not see it in their own history. When the mail server
+PDF itself, and only how many addresses it went to, not which. Customers do not see it in their own history. When the mail server
 refuses one address and accepts another, the PDF stays sent to the accepted
 ones, the dialog names the refused ones, and only the accepted ones are
 recorded. A send is refused, with nothing recorded, when:

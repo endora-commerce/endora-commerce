@@ -73,10 +73,10 @@ describe('POST /api/v1/admin/assets/:id/replace — edge cases (feature 156 QA)'
     expect(after.contentVersion).not.toBe(asset.contentVersion);
 
     const unsigned = await get(`/assets/file/${asset.id}`);
-    expect(unsigned.statusCode).toBe(403);
-    expect(unsigned.json()).toMatchObject({ error: { code: 'ASSET_ACCESS_DENIED' } });
+    expect(unsigned.statusCode).toBe(404);
+    expect(unsigned.json()).toMatchObject({ error: { code: 'ASSET_NOT_FOUND' } });
     const unsignedVersioned = await get(`/assets/file/${asset.id}?v=${after.contentVersion}`);
-    expect(unsignedVersioned.statusCode).toBe(403);
+    expect(unsignedVersioned.statusCode).toBe(404);
 
     const signed = await get(`/assets/file/${asset.id}${await signedQuery(asset.id)}`);
     expect(signed.statusCode).toBe(200);

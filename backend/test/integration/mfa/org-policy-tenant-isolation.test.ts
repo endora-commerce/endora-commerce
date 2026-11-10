@@ -1,3 +1,4 @@
+import { randomUUID } from 'node:crypto';
 import { afterAll, beforeAll, describe, expect, it } from 'vitest';
 import {
   AdminRole,
@@ -50,6 +51,7 @@ import { withSystemScope } from '../../../src/tenancy/escape-hatch.js';
 const POLICY_URL = (orgId: string) => `/api/v1/admin/organizations/${orgId}/mfa-policy`;
 
 describe('mfa — org policy tenant isolation [D-260]', () => {
+  const OTHER_REP_ID = randomUUID();
   let h: BackendServerHandle;
   let scopedCookie = '';
   const platformAdmin = { cookies: { b2b_session: 'stub-admin-session' } };
@@ -87,12 +89,15 @@ describe('mfa — org policy tenant isolation [D-260]', () => {
         lastName: 'MfaRep',
       });
       await em.persistAndFlush(rep);
-      await em.persistAndFlush(
+      await em.persistAndFlush([
         em.create(OrganizationSalesRepAssignment, {
           organizationId: TEST_ORGANIZATION_ID,
           adminUserId: rep.id,
         }),
-      );
+        // #305 — the foreign organization is another representative's: an
+        // unassigned organization is in every representative's reach.
+        em.create(OrganizationSalesRepAssignment, { organizationId: OTHER_TEST_ORGANIZATION_ID, adminUserId: OTHER_REP_ID }),
+      ]);
 
       scopedCookie = `stub-d260-mfa-policy-${Date.now()}`;
       ADMIN_COOKIES[scopedCookie] = { adminUserId: rep.id };
@@ -100,6 +105,7 @@ describe('mfa — org policy tenant isolation [D-260]', () => {
   }, 60_000);
 
   afterAll(async () => {
+    await h.em().getConnection().execute('delete from organization_sales_rep_assignments where admin_user_id = ?', [OTHER_REP_ID]);
     await teardownBackendServer(h);
   });
 

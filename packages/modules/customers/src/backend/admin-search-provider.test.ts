@@ -108,13 +108,15 @@ describe('searchCustomersForAdmin', () => {
         organizations: { findByIds: async () => [{ id: 'org-a', name: 'ACME' }] as never },
       },
       { text: 'a@', likeEscaped: 'a@', isUuid: false, fields: ['email'], limit: 5 },
-      { isPlatformAdmin: false, allowedOrganizationIds: ['org-a'] },
+      { isPlatformAdmin: false, reach: { kind: 'allowed', organizationIds: ['org-a'] } },
     );
+    // Issue #305 — the owner's read is narrowed by the tenant filter, which is
+    // the reach rule; no list of ids is passed beside it.
     expect(search).toHaveBeenCalledWith({
       q: 'a@',
       qFields: ['email'],
       excludeDeleted: true,
-      allowedOrganizationIds: ['org-a'],
+      allowedOrganizationIds: null,
       page: 1,
       pageSize: 6,
     });
@@ -129,7 +131,7 @@ describe('searchCustomersForAdmin', () => {
     });
     const uuid = '0b8f6a3e-6a1f-4c1e-9d5b-1e2f3a4b5c6d';
     const q = { text: uuid, likeEscaped: uuid, isUuid: true, fields: ['name'], limit: 5 };
-    const inScope = { isPlatformAdmin: false, allowedOrganizationIds: ['org-a'] };
+    const inScope = { isPlatformAdmin: false, reach: { kind: 'allowed', organizationIds: ['org-a'] } } as const;
     expect((await searchCustomersForAdmin(deps(record({ id: uuid })), q, inScope)).rows).toHaveLength(1);
     expect(
       (await searchCustomersForAdmin(deps(record({ id: uuid, organizationId: 'org-b' })), q, inScope)).rows,
@@ -141,9 +143,15 @@ describe('searchCustomersForAdmin', () => {
       (
         await searchCustomersForAdmin(deps(record({ id: uuid, organizationId: 'org-b' })), q, {
           isPlatformAdmin: true,
-          allowedOrganizationIds: [],
         })
       ).rows,
     ).toHaveLength(1);
+    // Issue #305 — a sales representative: every organization nobody else governs.
+    const rep = {
+      isPlatformAdmin: false,
+      reach: { kind: 'excluded', excludedOrganizationsQuery: { sql: 'select x from "reach"(?::uuid) as x', params: ['rep'] }, loadReach: async () => ({ excludedOrganizationIds: ['org-b'], assignedOrganizationIds: [] }) },
+    } as const;
+    expect((await searchCustomersForAdmin(deps(record({ id: uuid, organizationId: 'org-u' })), q, rep)).rows).toHaveLength(1);
+    expect((await searchCustomersForAdmin(deps(record({ id: uuid, organizationId: 'org-b' })), q, rep)).rows).toHaveLength(0);
   });
 });

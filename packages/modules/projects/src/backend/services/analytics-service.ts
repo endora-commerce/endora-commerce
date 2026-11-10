@@ -12,6 +12,7 @@ import {
   type ProjectAnalyticsValueSchema,
   type ProjectCurrencyAmount,
 } from '@endora-commerce/contracts';
+import { reachesNoOrganization } from '@endora-commerce/platform/tenancy';
 import type { z } from 'zod';
 import { analyticsRange, completionRate, secondsToDays, shareOf } from '../domain/analytics-range.js';
 import { VISIBLE_PROJECT_COLUMNS, type ProjectAccess, type SqlFragment, type VisibleProjectRow } from './project-access.js';
@@ -395,7 +396,7 @@ export class ProjectAnalyticsService {
     // Days are the reporting time zone's (issue #465): `analytics`', or UTC without it.
     const { start, end } = analyticsRange(query, await this.deps.reportingTimeZone());
     const viewer = await this.deps.access.currentViewer();
-    if (!viewer.reach.all && viewer.reach.organizationIds.size === 0) return null;
+    if (reachesNoOrganization(viewer.reach.constraint)) return null;
     const visible = await this.deps.access.visibleProjectSql(viewer);
     const where: SqlFragment = { sql: '', params: [] };
     if (visible) {

@@ -9,6 +9,7 @@ import { CustomerAccount } from '../../helpers/package-entities.js';
 import { withSystemScope } from '../../../src/tenancy/escape-hatch.js';
 import {
   GS_COOKIES,
+  assignToAnotherRepresentative,
   ensureSalesRep,
   runToken,
   searchIds,
@@ -25,6 +26,7 @@ import {
 describe('admin global search — Customer provider and search criteria (spec 150)', () => {
   let h: BackendServerHandle;
   let cleanupSalesRep: () => Promise<void>;
+  let cleanupOtherRep: (() => Promise<void>) | undefined;
   const T = runToken();
   const ids: Record<string, string> = {};
 
@@ -35,6 +37,7 @@ describe('admin global search — Customer provider and search criteria (spec 15
       const orgA = await seedOrganization(em, { name: `Alpha ${T}` });
       const orgB = await seedOrganization(em, { name: `Beta ${T}` });
       ids['orgA'] = orgA.id;
+      ids['orgB'] = orgB.id;
       ids['byEmail'] = (await seedCustomer(em, orgA.id, { email: `mail${T}@example.com`, lastName: 'Plain' })).id;
       ids['byName'] = (await seedCustomer(em, orgA.id, { email: `x-${T}@example.com`, lastName: `NAME${T}` })).id;
       ids['deleted'] = (await seedCustomer(em, orgA.id, { email: `gone${T}@example.com` })).id;
@@ -45,9 +48,13 @@ describe('admin global search — Customer provider and search criteria (spec 15
       await em.nativeUpdate(CustomerAccount, { id: ids['anonymized'] }, { anonymizedAt: new Date() });
     });
     cleanupSalesRep = await ensureSalesRep(h, [ids['orgA']!], ['customers:read']);
+    // #305 — the other organizations are another representative's: one nobody
+    // is assigned to is in every representative's reach.
+    cleanupOtherRep = await assignToAnotherRepresentative(h, [ids['orgB']!]);
   });
 
   afterAll(async () => {
+    await cleanupOtherRep?.();
     await cleanupSalesRep?.();
     await teardownBackendServer(h);
   });

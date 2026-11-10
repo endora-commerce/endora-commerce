@@ -1,4 +1,4 @@
-import type { TenantContext, TenantScopeNotices } from './tenant-context.js';
+import { memoiseReach, type ExcludedOrganizationsQuery, type ExcludedReach, type TenantContext, type TenantScopeNotices } from './tenant-context.js';
 
 /**
  * Actor → TenantContext derivation (feature 050, FR-002 / data-model §1).
@@ -83,18 +83,34 @@ export type TenantActorInput = CustomerActorInput | AdminActorInput | ApiKeyActo
 
 /**
  * A scoped admin's reach. `allowAll: true` ⇒ platform admin (no restriction).
- * Otherwise the admin is confined to `allowedOrganizationIds`. Mirrors the
- * shape `organizations`' `adminTenantScopePort` answers with.
+ * `reach: 'excluding'` ⇒ every organization but `excludedOrganizationIds`
+ * (issue #305, a sales representative). Otherwise the admin is confined to
+ * `allowedOrganizationIds`. Mirrors the shape `organizations`'
+ * `adminTenantScopePort` answers with.
  */
 export interface AdminScopeInput {
   readonly allowAll: boolean;
   readonly allowedOrganizationIds?: readonly string[];
+  /** Issue #305 — the reach is described by its complement. */
+  readonly reach?: 'excluding';
+  /**
+   * With `reach: 'excluding'` (issue #955 Phase 2): the excluded and assigned
+   * lists, loaded on demand. Required beside the query; the platform memoises
+   * it once per tenant context and never calls it while resolving the scope.
+   */
+  readonly loadReach?: () => Promise<ExcludedReach>;
+  /**
+   * With `reach: 'excluding'` (issue #955): the owner's uncorrelated SELECT of
+   * the excluded organizations, which the filters render as
+   * `col is not null and col not in (<sql>)`. Required beside the list.
+   */
+  readonly excludedOrganizationsQuery?: ExcludedOrganizationsQuery;
   /**
    * Set when the scope is the **fallback** for a question nobody could answer
    * — the module that decides an admin's reach, or one it reads, is absent. It
    * is carried onto the context as `scopeUnresolved` and never widens it: a
-   * scope that names it holds **no organization**, whatever `allowAll` and
-   * `allowedOrganizationIds` say beside it. An unanswered question has no
+   * scope that names it holds **no organization**, whatever `allowAll`,
+   * `reach` and the id lists say beside it. An unanswered question has no
    * partial answer to keep.
    */
   readonly unresolved?: Error;
@@ -166,6 +182,26 @@ export function resolveTenantContext(actor: TenantActorInput, adminScope?: Admin
       scopeUnresolved: adminScope.unresolved,
     };
   }
+  if (adminScope.reach === 'excluding') {
+    // Issue #305 — every organization but those governed by somebody else.
+    // Issue #955 — the filter reads the query, never a list; a scope without
+    // one has no predicate to give and is refused rather than read as
+    // "nothing excluded". Phase 2: the lists are a loader, called by nothing
+    // here — resolving the scope runs on every admin request.
+    if (adminScope.excludedOrganizationsQuery === undefined) {
+      throw new Error('An `excluding` admin scope must carry its excludedOrganizationsQuery (issue #955).');
+    }
+    if (adminScope.loadReach === undefined) {
+      throw new Error('An `excluding` admin scope must carry its loadReach (issue #955).');
+    }
+    return {
+      mode: 'excluded-set',
+      excludedOrganizationsQuery: adminScope.excludedOrganizationsQuery,
+      loadExcludedReach: memoiseReach(adminScope.loadReach),
+      notices: newScopeNotices(),
+      actor: { kind: 'admin', id: actor.adminUserId },
+    };
+  }
   return {
     mode: 'allowed-set',
     allowedOrganizationIds: adminScope.allowedOrganizationIds ?? [],
@@ -175,8 +211,8 @@ export function resolveTenantContext(actor: TenantActorInput, adminScope?: Admin
 }
 
 /**
- * A fresh observation sink for one execution (feature 087). Attached to the two
- * `allowed-set` branches above and to nothing else: `all` and `system` refuse
+ * A fresh observation sink for one execution (feature 087). Attached to the
+ * `allowed-set` and `excluded-set` branches above and to nothing else: `all` and `system` refuse
  * nothing, and `single-org` refuses per row rather than per table, so neither
  * has an emptiness to explain. One object per call, so a context can never
  * carry another request's observation — `resolveTenantContext` is called once

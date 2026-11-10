@@ -1,4 +1,5 @@
 import { describe, expect, it } from 'vitest';
+import { orgReachOf } from '../domain/visibility-rule.js';
 import {
   auditedTexts,
   decodeHistoryCursor,
@@ -27,11 +28,11 @@ describe('project history helpers', () => {
     expect(visibleAuditState({ changedCustomFields: ['budget'] }, true)).toEqual({ changedCustomFields: ['budget'] });
   });
 
-  it('serves no Organization out of the reader’s reach, nor the record of a link that named one (T144 F4)', () => {
+  it('serves no Organization out of the reader’s reach, nor the record of a link that named one (T144 F4)', async () => {
     const A = '00000000-0000-4000-8000-00000000000a';
     const B = '00000000-0000-4000-8000-00000000000b';
     const R = '00000000-0000-4000-8000-0000000000r1'.replace('r1', 'c1');
-    const reachA = { all: false, organizationIds: new Set([A]) };
+    const reachA = await orgReachOf({ kind: 'allowed', organizationIds: [A] });
     expect(withinReach({ title: 'x', organizationIds: [A, B] }, reachA)).toEqual({ title: 'x', organizationIds: [A] });
     expect(withinReach({ organizationId: B }, reachA)).toEqual({ organizationId: null });
     expect(withinReach({ organizationId: A }, reachA)).toEqual({ organizationId: A });
@@ -41,7 +42,7 @@ describe('project history helpers', () => {
       recordId: null,
       organizationId: null,
     });
-    const all = { all: true, organizationIds: new Set<string>() };
+    const all = await orgReachOf({ kind: 'all' });
     const state = { organizationIds: [A, B] };
     expect(withinReach(state, all)).toBe(state);
     expect(withinReach(null, reachA)).toBeNull();

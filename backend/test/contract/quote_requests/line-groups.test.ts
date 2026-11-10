@@ -51,6 +51,7 @@ interface Reply {
 }
 
 describe('159 — quote request line groups [contract]', () => {
+  const OTHER_REP_ID = randomUUID();
   let h: BackendServerHandle;
 
   const sql = async <T extends object>(query: string, params: unknown[] = []): Promise<T[]> =>
@@ -119,11 +120,15 @@ describe('159 — quote request line groups [contract]', () => {
       });
       await fork.persistAndFlush([org, rep]);
       await fork.persistAndFlush(fork.create(OrganizationSalesRepAssignment, { organizationId: org.id, adminUserId: rep.id }));
+      // #305 — the seeded organization is another representative's: an
+      // unassigned organization is in every representative's reach.
+      await fork.persistAndFlush(fork.create(OrganizationSalesRepAssignment, { organizationId: TEST_ORGANIZATION_ID, adminUserId: OTHER_REP_ID }));
       ADMIN_COOKIES[REP_SESSION] = { adminUserId: rep.id };
     });
   }, 90_000);
 
   afterAll(async () => {
+    await h.em().getConnection().execute('delete from organization_sales_rep_assignments where admin_user_id = ?', [OTHER_REP_ID]);
     delete ADMIN_COOKIES[REP_SESSION];
     await teardownBackendServer(h);
   });
@@ -411,19 +416,12 @@ describe('159 — quote request line groups [contract]', () => {
       const audits = await modifyAudits(quote.id);
       expect(audits).toHaveLength(2);
       expect(audits[0]!.stateBefore).toMatchObject({ groups: [] });
-      expect(audits[0]!.stateAfter).toMatchObject({
-        groups: [
-          { name: 'A', lineCount: 2 },
-          { name: 'Empty', lineCount: 0 },
-        ],
-      });
-      expect(audits[1]!.stateBefore).toMatchObject({
-        groups: [
-          { name: 'A', lineCount: 2 },
-          { name: 'Empty', lineCount: 0 },
-        ],
-      });
-      expect(audits[1]!.stateAfter).toMatchObject({ groups: [{ name: 'Renamed', lineCount: 1 }] });
+      // Line counts in order, never a group's name (D-288, #470).
+      expect(audits[0]!.stateAfter).toMatchObject({ groups: [{ lineCount: 2 }, { lineCount: 0 }] });
+      expect(audits[1]!.stateBefore).toMatchObject({ groups: [{ lineCount: 2 }, { lineCount: 0 }] });
+      expect(audits[1]!.stateAfter).toMatchObject({ groups: [{ lineCount: 1 }] });
+      const recorded = JSON.stringify(audits.map((entry) => [entry.stateBefore, entry.stateAfter]));
+      for (const name of ['"A"', 'Empty', 'Renamed']) expect(recorded, name).not.toContain(name);
     });
 
     it('creates a quote on behalf with groups (POST)', async () => {
@@ -456,12 +454,8 @@ describe('159 — quote request line groups [contract]', () => {
         objectId: created.id,
         action: 'quote_request.create_on_behalf',
       });
-      expect(audits[0]!.stateAfter).toMatchObject({
-        groups: [
-          { name: 'Hall A', lineCount: 1 },
-          { name: 'Unused', lineCount: 0 },
-        ],
-      });
+      expect(audits[0]!.stateAfter).toMatchObject({ groups: [{ lineCount: 1 }, { lineCount: 0 }] });
+      expect(JSON.stringify(audits[0]!.stateAfter)).not.toContain('Hall A');
     });
 
     it('a representative of another organisation gets 404 and no group data (FR-082)', async () => {

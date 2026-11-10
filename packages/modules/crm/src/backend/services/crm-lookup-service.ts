@@ -13,7 +13,7 @@ import {
   type OrganizationDetailsPort,
 } from '@endora-commerce/contracts';
 import { SalesChannel } from '@endora-commerce/platform/kernel';
-import { isOrgInScope, orgConstraintFor } from '@endora-commerce/platform/tenancy';
+import { orgInScope, orgConstraintFor } from '@endora-commerce/platform/tenancy';
 
 export interface CrmLookupServiceDeps {
   emFactory: () => EntityManager;
@@ -49,7 +49,7 @@ function personName(person: { firstName: string; lastName: string; email: string
  *
  * **Tenant scope is applied here, by name.** `Organization` is the tenant, not
  * a tenant-scoped row, so its port answers whoever asks (research N-14); the
- * caller's reach is `orgConstraintFor()` / `isOrgInScope()`, the platform's own
+ * caller's reach is `orgConstraintFor()` / `orgInScope()`, the platform's own
  * answer, and an Organization out of reach is not listed, not labelled, and has
  * no contact persons to offer.
  */
@@ -64,7 +64,7 @@ export class CrmLookupService {
       name: row.name,
     });
     if (query.id !== undefined) {
-      if (!isOrgInScope(query.id)) return [];
+      if (!(await orgInScope(query.id))) return [];
       const found = await this.deps.organizations.findById(query.id);
       return found ? [option(found)] : [];
     }
@@ -72,11 +72,24 @@ export class CrmLookupService {
     if (constraint.kind === 'all') {
       return (await this.deps.organizations.searchByName(query.q ?? '', query.limit)).map(option);
     }
+    if (constraint.kind === 'excluded') {
+      // A sales representative (issue #305) reaches every Organization nobody
+      // else governs, so the population is the platform's and the search pages
+      // through it — widening the window until a page holds `limit` in reach
+      // or the matches run out. The excluded set is bounded by the B2B book,
+      // so the window grows rarely and never far.
+      for (let window = query.limit * 2; ; window *= 2) {
+        const page = await this.deps.organizations.searchByName(query.q ?? '', window);
+        const reached = await Promise.all(page.map((row) => orgInScope(row.id, constraint)));
+        const inReach = page.filter((_, index) => reached[index]);
+        if (inReach.length >= query.limit || page.length < window) return inReach.slice(0, query.limit).map(option);
+      }
+    }
     // A confined administrator: the allowed set is the population, and the
     // search narrows it — never the other way round, where a page of matches
     // taken platform-wide could hold none of the caller's Organizations.
     const allowed =
-      constraint.kind === 'set'
+      constraint.kind === 'allowed'
         ? [...constraint.organizationIds]
         : constraint.organizationId
           ? [constraint.organizationId]
@@ -117,7 +130,7 @@ export class CrmLookupService {
 
   /** The members of one Organization the caller may reach; of any other, none. */
   async contacts(query: OpportunityContactLookupQuery): Promise<OpportunityContactOption[]> {
-    if (!isOrgInScope(query.organizationId)) return [];
+    if (!(await orgInScope(query.organizationId))) return [];
     return (
       await this.deps.customerAccounts.listByOrganization(query.organizationId, { activeOnly: true })
     )

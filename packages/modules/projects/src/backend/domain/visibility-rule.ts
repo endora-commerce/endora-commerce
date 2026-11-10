@@ -1,4 +1,5 @@
 import type { ProjectVisibility, ProjectVisibilitySetting } from '@endora-commerce/contracts';
+import { orgScopeTest, type OrgConstraint } from '@endora-commerce/platform/tenancy';
 
 /**
  * Who sees a Project — the pure rules (`specs/163-projects-and-tasks/research.md`
@@ -14,11 +15,31 @@ import type { ProjectVisibility, ProjectVisibilitySetting } from '@endora-commer
  * Project's own visibility act inside that, never around it (Constitution XI).
  */
 
-/** An administrator's Organization reach: unrestricted, or a set. */
+/**
+ * An administrator's Organization reach: unrestricted, or the platform's
+ * constraint — a named set, or (a sales representative, issue #305) every
+ * Organization nobody else governs. Read through {@link reaches} and the
+ * platform's helpers, never through the constraint's ids.
+ */
 export interface OrgReach {
   readonly all: boolean;
-  /** The Organizations reached when `all` is false. */
-  readonly organizationIds: ReadonlySet<string>;
+  readonly constraint: OrgConstraint;
+  /**
+   * The reach as a synchronous test, loaded once when the reach is taken
+   * (issue #955 Phase 2: a representative's reach loads on demand, so taking
+   * it is async and the pure rules below stay synchronous).
+   */
+  readonly inScope: (organizationId: string) => boolean;
+}
+
+/** The reach a constraint gives. */
+export async function orgReachOf(constraint: OrgConstraint): Promise<OrgReach> {
+  return { all: constraint.kind === 'all', constraint, inScope: await orgScopeTest(constraint) };
+}
+
+/** Whether the reach includes one Organization. */
+export function reaches(reach: OrgReach, organizationId: string): boolean {
+  return reach.all || reach.inScope(organizationId);
 }
 
 /** Whoever is reading: an administrator, or the system (`adminUserId: null`, sees all, reaches all). */
@@ -54,7 +75,7 @@ export interface ProjectVisibilityFacts {
  */
 export function projectOrgRule(reach: OrgReach, organizationIds: readonly string[]): boolean {
   if (reach.all) return true;
-  return organizationIds.length > 0 && organizationIds.every((id) => reach.organizationIds.has(id));
+  return organizationIds.length > 0 && organizationIds.every((id) => reaches(reach, id));
 }
 
 /** R-3: a Project set to `inherit` follows the module setting (`members` meaning members and listed people). */

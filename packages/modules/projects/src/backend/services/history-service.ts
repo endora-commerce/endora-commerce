@@ -8,7 +8,7 @@ import {
 import type { EntityManager } from '@mikro-orm/postgresql';
 import { HttpError } from '@endora-commerce/platform/http';
 import type { AuditPort } from '@endora-commerce/platform/kernel';
-import type { OrgReach } from '../domain/visibility-rule.js';
+import { reaches, type OrgReach } from '../domain/visibility-rule.js';
 import { ambientReach, isUuid, uuidArray, type ProjectAccess } from './project-access.js';
 import type { ProjectReferenceService } from './reference-service.js';
 
@@ -66,10 +66,10 @@ export function withinReach(state: unknown, reach: OrgReach): unknown {
   const out: Record<string, unknown> = { ...record };
   if (Array.isArray(record.organizationIds)) {
     out.organizationIds = record.organizationIds.filter(
-      (id) => typeof id === 'string' && reach.organizationIds.has(id),
+      (id) => typeof id === 'string' && reaches(reach, id),
     );
   }
-  if (typeof record.organizationId === 'string' && !reach.organizationIds.has(record.organizationId)) {
+  if (typeof record.organizationId === 'string' && !reaches(reach, record.organizationId)) {
     out.organizationId = null;
     if (Object.hasOwn(record, 'recordId')) out.recordId = null;
   }
@@ -208,7 +208,7 @@ export class ProjectHistoryService {
     const resolved = await this.deps.references.resolveMany(texts);
     const referencesOf = (index: number): RecordReference[] => resolved[index] ?? [];
     const mayReadCustomFields = page.length > 0 ? await this.deps.mayReadCustomFields() : true;
-    const reach = ambientReach();
+    const reach = await ambientReach();
     const served = (state: unknown): unknown => withinReach(visibleAuditState(state ?? null, mayReadCustomFields), reach);
     const changes = await this.#valueChanges(
       project.id,

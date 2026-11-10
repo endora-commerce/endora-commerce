@@ -43,19 +43,33 @@ describe('AnalyticsQueryService.summary — tenant confinement', () => {
 
   it('confines every statement to the reader\'s organizations', async () => {
     const { service, statements } = serviceOver();
-    const scope: OrgConstraint = { kind: 'set', organizationIds: ['o1', 'o2'] };
+    const scope: OrgConstraint = { kind: 'allowed', organizationIds: ['o1', 'o2'] };
     await service.summary({ ...WINDOW, salesChannelId: 'c1' }, scope);
 
     expect(statements).toHaveLength(2);
     for (const { sql, params } of statements) {
-      expect(sql).toContain('organization_id in (?, ?)');
-      expect(params).toEqual([WINDOW.from, WINDOW.to, 'c1', 'o1', 'o2']);
+      expect(sql).toContain('organization_id = any(?::uuid[])');
+      expect(params).toEqual([WINDOW.from, WINDOW.to, 'c1', '{"o1","o2"}']);
+    }
+  });
+
+  // Issue #305 — a sales representative reaches every organization but those
+  // governed by somebody else.
+  it('confines a sales representative to every organization nobody else governs', async () => {
+    const { service, statements } = serviceOver();
+    const scope: OrgConstraint = { kind: 'excluded', excludedOrganizationsQuery: { sql: 'select x from "reach"(?::uuid) as x', params: ['rep'] }, loadReach: async () => ({ excludedOrganizationIds: ['f1'], assignedOrganizationIds: ['o1'] }) };
+    await service.summary(WINDOW, scope);
+
+    expect(statements).toHaveLength(2);
+    for (const { sql, params } of statements) {
+      expect(sql).toContain('(organization_id is not null and organization_id not in (select x from "reach"(?::uuid) as x))');
+      expect(params).toEqual([WINDOW.from, WINDOW.to, 'rep']);
     }
   });
 
   it('reads nothing for a reader who reaches no organization', async () => {
     const { service, statements } = serviceOver();
-    const summary = await service.summary(WINDOW, { kind: 'set', organizationIds: [] });
+    const summary = await service.summary(WINDOW, { kind: 'allowed', organizationIds: [] });
 
     expect(summary).toEqual({ totalsByType: [], daily: [] });
     expect(statements).toEqual([]);
@@ -66,14 +80,14 @@ describe('AnalyticsQueryService.summary — tenant confinement', () => {
     await service.summary(WINDOW, { kind: 'single', organizationId: 'o1' });
 
     for (const { sql, params } of statements) {
-      expect(sql).toContain('organization_id in (?)');
+      expect(sql).toContain('organization_id = ?');
       expect(params).toEqual([WINDOW.from, WINDOW.to, 'o1']);
     }
   });
 
   it('never matches events that belong to no organization for a confined reader', async () => {
     const { service, statements } = serviceOver();
-    await service.summary(WINDOW, { kind: 'set', organizationIds: ['o1'] });
+    await service.summary(WINDOW, { kind: 'allowed', organizationIds: ['o1'] });
     for (const { sql } of statements) expect(sql).not.toMatch(/organization_id\s+is\s+null/i);
 
     const none = await service.summary(WINDOW, { kind: 'single', organizationId: null });

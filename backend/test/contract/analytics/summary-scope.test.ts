@@ -130,12 +130,15 @@ describe('GET /api/v1/admin/analytics/summary — tenant scope', () => {
     await teardownBackendServer(h);
   });
 
-  it('shows a sales representative the events of their organizations only, in both series', async () => {
-    expect(await totalFor(ASSIGNED_REP)).toEqual({ status: 200, total: 2, days: 2 });
+  // Issue #305 — one reach rule: a sales representative reaches their own
+  // organizations and every organization nobody is assigned to (`other`), and
+  // never an event that belongs to no organization at all.
+  it('shows a sales representative the events of the organizations they reach, in both series', async () => {
+    expect(await totalFor(ASSIGNED_REP)).toEqual({ status: 200, total: 5, days: 5 });
   });
 
-  it('shows a sales representative with no assignment nothing', async () => {
-    expect(await totalFor(UNASSIGNED_REP)).toEqual({ status: 200, total: 0, days: 0 });
+  it('shows a sales representative with no assignment the unassigned organizations’ events, not another representative’s', async () => {
+    expect(await totalFor(UNASSIGNED_REP)).toEqual({ status: 200, total: 3, days: 3 });
   });
 
   it('shows a platform administrator every event, the unattributed ones included', async () => {

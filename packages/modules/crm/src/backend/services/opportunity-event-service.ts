@@ -15,6 +15,7 @@ import { randomUUID } from 'crypto';
 import { allDayDateOf, checkEventTime } from '../domain/event-time.js';
 import { CrmOpportunityEvent } from '../entities/crm-opportunity-event.entity.js';
 import { isUuid, loadOpportunity } from './opportunity-access.js';
+import { recordValueChange } from './opportunity-audit-state.js';
 import { actingAdminUserId } from './opportunity-assignment-service.js';
 import type { WorkflowReadService } from './workflow-read-service.js';
 
@@ -50,10 +51,11 @@ const RULE_SENTENCES: Record<Exclude<OpportunityEventRule, 'reminder_in_past'>, 
 };
 
 /**
- * What the change history says of an Event: which one, what it is called and
- * when it is — and of its description only how long it is. The audit trail is
- * not tenant-scoped, and a description is read only under its Opportunity
- * (FR-135; research N-R6, the rule a note's text is held to).
+ * What the audit entry says of an Event: which one and when it is — and of its
+ * description only how long it is. The audit trail is not tenant-scoped, and a
+ * description is read only under its Opportunity (FR-135; research N-R6, the
+ * rule a note's text is held to). Its name is free text too: it goes to the
+ * Opportunity's own value store, and the history shows it from there (#470).
  *
  * The literal is assigned to a name on purpose: `src/admin/index.test.ts`
  * reads the keys of every audited state off the literals assigned to `before`
@@ -63,7 +65,6 @@ const RULE_SENTENCES: Record<Exclude<OpportunityEventRule, 'reminder_in_past'>, 
 function eventAuditState(event: CrmOpportunityEvent): Record<string, unknown> {
   const after = {
     eventId: event.id,
-    eventName: event.name,
     allDay: event.allDay,
     startsAt: event.startsAt.toISOString(),
     endsAt: event.endsAt.toISOString(),
@@ -177,10 +178,11 @@ export class OpportunityEventService {
           remindAt,
           createdByAdminUserId: author,
         });
+        const values = recordValueChange(em, opportunity.id, { before: null, after: { eventName: event.name } });
         return {
           result: { event, statusCode: opportunity.statusCode },
           before: null,
-          after: eventAuditState(event),
+          after: { ...eventAuditState(event), ...values },
         };
       },
     });
@@ -207,6 +209,7 @@ export class OpportunityEventService {
         const event = await this.#load(em, opportunity.id, eventId);
         const before = eventAuditState(event);
         const descriptionBefore = event.description ?? null;
+        const nameBefore = event.name;
 
         const next = {
           allDay: patch.allDay ?? event.allDay,
@@ -230,9 +233,15 @@ export class OpportunityEventService {
         const unchanged =
           JSON.stringify(before) === JSON.stringify(after) &&
           descriptionBefore === (event.description ?? null) &&
+          nameBefore === event.name &&
           !timeChanged;
         const result = { event, statusCode: opportunity.statusCode };
-        return unchanged ? { result, skipAudit: true } : { result, before, after };
+        if (unchanged) return { result, skipAudit: true };
+        const values = recordValueChange(em, opportunity.id, {
+          before: { eventName: nameBefore },
+          after: { eventName: event.name },
+        });
+        return { result, before, after: { ...after, ...values } };
       },
     });
     return this.#renderOne(written.event, written.statusCode);
@@ -246,7 +255,8 @@ export class OpportunityEventService {
       run: async ({ em }) => {
         const opportunity = await loadOpportunity(em, opportunityId);
         const event = await this.#load(em, opportunity.id, eventId);
-        const before = eventAuditState(event);
+        const values = recordValueChange(em, opportunity.id, { before: { eventName: event.name }, after: null });
+        const before = { ...eventAuditState(event), ...values };
         em.remove(event);
         return { result: undefined, before, after: { eventId: event.id, deleted: true } };
       },

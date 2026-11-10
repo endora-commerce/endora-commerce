@@ -50,9 +50,10 @@ import type {
 } from '@endora-commerce/contracts';
 import type { EntityManager } from '@mikro-orm/postgresql';
 import { HttpError } from '@endora-commerce/platform/http';
+import { orgInScope } from '@endora-commerce/platform/tenancy';
 import { getResolvedChannel, rethrowIfModuleDisabled } from '@endora-commerce/platform/kernel';
 import type { SalesChannelMembershipPort } from '@endora-commerce/platform/kernel';
-import type { Command, CommandBus } from '@endora-commerce/platform/commands';
+import type { CommandBus } from '@endora-commerce/platform/commands';
 import { orderTotalsMoney } from './services/order-money.js';
 import type { OrderService } from './services/order-service.js';
 import { assertMethodsOfferedInChannel } from './services/method-channel-gate.js';
@@ -64,7 +65,7 @@ import {
 import { assertWithinAdminOrderItemBound } from './services/request-minimums.js';
 import type { OrderStatusGraphService } from './services/order-status-graph-service.js';
 import type { OrderTransitionService } from './services/order-transition-service.js';
-import type { OrderListService, OrderListScope } from './services/order-list-service.js';
+import { orderListScopeFor, type OrderListService, type OrderListScope } from './services/order-list-service.js';
 import type { OrderListViewService } from './services/order-list-view-service.js';
 import { savedViewActor } from './saved-view-actor.js';
 import type { OrderExportService } from './services/order-export-service.js';
@@ -77,6 +78,7 @@ import { assertChannelAllowedForOrganization } from './services/organization-cha
 import type { CustomerOrderCancellationService } from './services/order-cancellation-service.js';
 import type { PurchaseConversionService } from './services/purchase-conversion-service.js';
 import { Order } from './entities/order.entity.js';
+import { orderCustomFieldsUpdateCommand } from './services/order-audit-state.js';
 import { replyAfterCommittedWrite } from './services/committed-write-reply.js';
 import { serializeOrderForAdmin, serializeOrderForCustomer } from './order-response.js';
 import { OrderTransitionEffect } from './entities/order-transition-effect.entity.js';
@@ -148,14 +150,12 @@ export interface OrdersDeps {
    */
   assertOrganizationCanTransact?: (organizationId: string) => Promise<void>;
   /**
-   * Feature 026 US6 — resolves admin visibility scope for the orders list.
-   * `{ allowAll: true }` ⇒ platform admin (no filter); otherwise the list
-   * is intersected with `allowedOrganizationIds` (sales-rep ownership).
+   * Feature 026 US6 — whether the admin orders list is scoped at all.
+   * `{ allowAll: true }` ⇒ platform admin (no filter); otherwise the list is
+   * confined to the ambient tenant reach (issue #305: a sales representative
+   * reaches every organization nobody else governs).
    */
-  resolveAdminOrdersScope?: (req: FastifyRequest) => Promise<
-    | { allowAll: true }
-    | { allowAll: false; allowedOrganizationIds: string[] }
-  >;
+  resolveAdminOrdersScope?: (req: FastifyRequest) => Promise<{ allowAll: boolean }>;
   /**
    * The read models this surface resolves from the modules that own the rows
    * (feature 075). Each is a `lazyPort` handed down by `backend.ts`, so a
@@ -256,6 +256,14 @@ export async function registerOrderRoutes(
   // Narrow admin write for Order custom-field values. The write runs through
   // the Command Bus (audited by construction, Principle XIII); validation may
   // reject with a per-field 422. Only mounted when both deps are provided.
+  //
+  // Issue #399: the request names only the keys it changes — `validateAndMerge`
+  // keeps every key the request leaves out and clears one it sends empty — and
+  // the merge is made over the bag **read under the row lock**, held until the
+  // Command commits. Orders carry no `version`, so without the lock another
+  // writer of the bag (the system carry that fills empty fields right after an
+  // order is created, which locks the row itself) could commit between this
+  // read and this write and have its value overwritten by the stale bag.
   if (customFieldValues && commandBus) {
     app.patch<{ Params: { id: string } }>(
       '/api/v1/admin/orders/:id/custom-fields',
@@ -264,26 +272,7 @@ export async function registerOrderRoutes(
         const patch = customFieldValuesSchema.parse(request.body);
         const orderId = request.params.id;
         if (!isUuidShape(orderId)) throw new HttpError(404, ERROR_CODES.NOT_FOUND, 'Order not found.');
-        const command: Command<Order> = {
-          action: 'order.custom_fields.update',
-          objectType: 'order',
-          objectId: orderId,
-          capture: async ({ em }) => {
-            const o = await em.findOne(Order, { id: orderId });
-            return o ? { customFieldValues: o.customFieldValues ?? {} } : null;
-          },
-          run: async ({ em }) => {
-            if (!isUuidShape(orderId)) throw new HttpError(404, ERROR_CODES.NOT_FOUND, 'Order not found.');
-            const order = await em.findOne(Order, { id: orderId });
-            if (!order) throw new HttpError(404, ERROR_CODES.NOT_FOUND, 'Order not found.');
-            order.customFieldValues = await customFieldValues.validateAndMerge(
-              'order',
-              order.customFieldValues ?? {},
-              patch,
-            );
-            return { result: order, after: { customFieldValues: order.customFieldValues } };
-          },
-        };
+        const command = orderCustomFieldsUpdateCommand(orderId, patch, customFieldValues);
         try {
           const order = await commandBus.run(command);
           return { data: await serializeOrderForAdmin(emFactory(), order) };
@@ -550,12 +539,14 @@ export async function registerOrderRoutes(
 
   // --- Admin surface ----------------------------------------------------
 
-  // Resolve the sales-rep org scope (feature 026 US6). `null` ⇒ no scoping
-  // (platform admin sees all).
+  // Resolve the sales-rep org scope (feature 026 US6). `undefined` ⇒ no
+  // scoping (platform admin sees all). Whether to scope is the resolver's
+  // answer; *what* the scope is, the ambient tenant context's (issue #305): a
+  // sales representative reaches every organization nobody else governs.
   const resolveListScope = async (request: FastifyRequest): Promise<OrderListScope | undefined> => {
     if (!deps.resolveAdminOrdersScope) return undefined;
     const scope = await deps.resolveAdminOrdersScope(request);
-    return scope.allowAll ? undefined : { allowedOrganizationIds: scope.allowedOrganizationIds };
+    return scope.allowAll ? undefined : orderListScopeFor();
   };
 
   /**
@@ -635,10 +626,7 @@ export async function registerOrderRoutes(
     const scope = await resolveListScope(request);
     if (!scope) return;
     const customer = await deps.customerAccountRead.findById(customerAccountId);
-    if (
-      !customer?.organizationId ||
-      !scope.allowedOrganizationIds.includes(customer.organizationId)
-    ) {
+    if (!customer?.organizationId || !(await orgInScope(customer.organizationId))) {
       throw new HttpError(
         403,
         ERROR_CODES.FORBIDDEN,

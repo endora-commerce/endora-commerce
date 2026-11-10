@@ -44,6 +44,7 @@ import type { PersonalOrganizationProvisionApi } from '@endora-commerce/mod-orga
 import { CustomerAccount } from './entities/customer-account.entity.js';
 import { CustomerGroup } from './entities/customer-group.entity.js';
 import { PasswordResetToken } from './entities/password-reset-token.entity.js';
+import { accountCreatedAuditState } from './services/customer-account-audit-state.js';
 import { registerCustomerGroupAdminRoutes } from './routes.admin.js';
 import {
   CustomerAccountMemberWriteService,
@@ -693,7 +694,7 @@ export function registerModule(ctx: ModuleContext): void {
                 objectType: 'customer_account',
                 objectId: account.id,
                 stateBefore: null,
-                stateAfter: { email: account.email },
+                stateAfter: accountCreatedAuditState(account),
               });
               await em.flush();
               return { id: account.id, organizationId: organization.id };

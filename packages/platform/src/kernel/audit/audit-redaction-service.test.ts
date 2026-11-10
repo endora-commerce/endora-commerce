@@ -3,7 +3,11 @@ import { describe, expect, it, vi } from 'vitest';
 import type { EntityManager } from '@mikro-orm/postgresql';
 import { AUDIT_ERASED_MARKER } from '@endora-commerce/contracts';
 import type { AuditPort, RecordAuditInput } from '../ports/audit.js';
-import { AUDIT_REDACTED_ACTION, type AuditRedactionInput } from '../ports/audit-redaction.js';
+import {
+  AUDIT_REDACTED_ACTION,
+  AUDIT_REDACTION_MAX_IDS_PER_TARGET,
+  type AuditRedactionInput,
+} from '../ports/audit-redaction.js';
 import { AuditRedactionService, buildRedactionUpdate } from './audit-redaction-service.js';
 
 /**
@@ -144,8 +148,12 @@ describe('AuditRedactionService — guards', () => {
     ['a target with no id', { targets: [{ objectType: 'organization', objectIds: [] }] }],
     ['an id that is not UUID-shaped', { targets: [{ objectType: 'organization', objectIds: ['org-1'] }] }],
     [
-      'more than 1,000 ids in one target',
-      { targets: [{ objectType: 'address', objectIds: Array.from({ length: 1001 }, () => randomUUID()) }] },
+      'more ids in one target than the sanity limit',
+      {
+        targets: [
+          { objectType: 'address', objectIds: Array.from({ length: AUDIT_REDACTION_MAX_IDS_PER_TARGET + 1 }, () => randomUUID()) },
+        ],
+      },
     ],
     ['a reason it does not know', { reason: 'cleanup' as never }],
     ['a subject that is not UUID-shaped', { subject: { objectType: 'customer_account' as const, objectId: 'x' } }],
@@ -270,6 +278,38 @@ describe('AuditRedactionService — the rewrite', () => {
     expect(h.rows.filter((r) => r.action === AUDIT_REDACTED_ACTION)).toHaveLength(1);
     expect(h.rows.filter((r) => r.object_id === SUBJECT && r.action !== AUDIT_REDACTED_ACTION).every((r) => r.state_after?.['email'] === ERASED)).toBe(true);
   });
+});
+
+// Issue #959 — a subject with more than 1,000 addresses, in its personal
+// organisation or in the retired personal book, is finished by one call: the
+// ids are split into lookups of at most 1,000 inside it, and one marker row is
+// written.
+describe('AuditRedactionService — a target with more than 1,000 ids', () => {
+  it.each([['address'], ['customer_address']])(
+    'redacts 1,001 %s ids in one call, with one marker row',
+    async (objectType) => {
+      const ids = Array.from({ length: 1001 }, () => randomUUID());
+      const h = harness(ids.map((id) => row({ object_type: objectType, object_id: id })));
+
+      const result = await h.service.redact(
+        input({
+          targets: [
+            { objectType: 'customer_account', objectIds: [SUBJECT] },
+            { objectType, objectIds: ids },
+          ],
+        }),
+      );
+
+      expect(result).toEqual({ rowsInScope: 1001, rowsChanged: 1001, markerWritten: true });
+      expect(h.rows.filter((r) => r.object_type === objectType).every((r) => r.state_after?.['email'] === ERASED)).toBe(true);
+      expect(h.recorded).toHaveLength(1);
+      expect(h.rows.filter((r) => r.action === AUDIT_REDACTED_ACTION)).toHaveLength(1);
+      expect((h.recorded[0]!.stateAfter as { objectIds: Record<string, string[]> }).objectIds[objectType]).toEqual(ids);
+      // No lookup names more than 1,000 ids.
+      const lookups = h.execute.mock.calls.filter(([sql]) => sql.startsWith('select "id" from'));
+      expect(Math.max(...lookups.map(([, params]) => (params as unknown[]).length - 1))).toBeLessThanOrEqual(1000);
+    },
+  );
 });
 
 describe('AuditRedactionService — the audit.redacted row', () => {

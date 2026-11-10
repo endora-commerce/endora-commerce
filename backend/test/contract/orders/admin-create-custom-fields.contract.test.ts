@@ -2,6 +2,7 @@ import { randomUUID } from 'node:crypto';
 import { afterAll, beforeAll, describe, expect, it } from 'vitest';
 import { ERROR_CODES } from '@endora-commerce/contracts';
 import { AuditLogEntry } from '@endora-commerce/platform/kernel';
+import { expectNoAuditValues } from '@endora-commerce/test-kit/audit';
 import {
   setupBackendServer,
   teardownBackendServer,
@@ -17,7 +18,7 @@ import { TEST_CUSTOMER_ID, TEST_ORGANIZATION_ID } from '../../helpers/test-actor
  * FR-021, contracts/registration-and-admin-create.md §5) — the admin order
  * create accepts the order's custom-field values: validated with the
  * administrator's rules before anything is written, stored on the new order by
- * the placement, carried by the placement's audit row, and a refused value
+ * the placement, named (never valued) by the placement's audit row, and a refused value
  * creates no order.
  */
 const ADMIN = { cookies: { b2b_session: 'stub-admin-session' } };
@@ -99,8 +100,8 @@ describe('POST /api/v1/admin/orders — custom-field values (feature 175)', () =
     return Number(row?.n);
   };
 
-  it('stores the values, answers them and carries them in the audit row', async () => {
-    const values = { [key('ref')]: 'PO-17', [key('pallets')]: 3 };
+  it('stores the values, answers them and names them — never their values — in the audit row', async () => {
+    const values = { [key('ref')]: 'S470-CF', [key('pallets')]: 470470 };
     const res = await createOrder({ customFieldValues: values });
     expect(res.statusCode, res.body).toBe(201);
     const order = res.json().data as { id: string; customFieldValues: Record<string, unknown> };
@@ -110,8 +111,11 @@ describe('POST /api/v1/admin/orders — custom-field values (feature 175)', () =
     expect(row.custom_field_values).toEqual(values);
 
     h.em().clear();
-    const [entry] = await h.em().find(AuditLogEntry, { action: 'order.place_on_behalf', objectId: order.id });
-    expect(entry?.stateAfter).toMatchObject({ customFieldValues: values });
+    const entries = await h.em().find(AuditLogEntry, { action: 'order.place_on_behalf', objectId: order.id });
+    // `specs/conventions/audit-state.md` (D-288): the keys, never the values.
+    expectNoAuditValues(entries, ['S470-CF', 470470]);
+    expect(entries[0]?.stateAfter).not.toHaveProperty('customFieldValues');
+    expect(entries[0]?.stateAfter).toMatchObject({ changedCustomFields: [key('pallets'), key('ref')].sort() });
   });
 
   it('refuses an invalid value with the per-field 422 and creates no order', async () => {

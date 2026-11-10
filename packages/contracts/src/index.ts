@@ -17,6 +17,8 @@ export * from './scope-notice.js';
 export * from './catalog.js';
 // Feature 155 — the minimum-order rule (specs/155-catalog-order-constraints/).
 export * from './order-minimums.js';
+// Issue #351 — the line quantity and line count bounds every line-carrying request shares.
+export * from './line-bounds.js';
 export * from './localized-name.js';
 // Feature 163, T196 — the product card's summary, shared by the catalogue and the page editor's preview.
 export * from './product-summary-text.js';
@@ -111,6 +113,7 @@ export {
   putCmsColorPaletteRequestSchema,
   cmsAssetEmbedResolutionSchema,
   cmsResolvedBlockSchema,
+  cmsResolvedBlockByCodeSchema,
   cmsResolvedTemplateSchema,
   cmsResolvedPageSchema,
   cmsResolvedHookSchema,
@@ -183,6 +186,7 @@ export {
   type PutCmsColorPaletteRequest,
   type CmsAssetEmbedResolution,
   type CmsResolvedBlock,
+  type CmsResolvedBlockByCode,
   type CmsResolvedTemplate,
   type CmsResolvedPage,
   type CmsResolvedHook,

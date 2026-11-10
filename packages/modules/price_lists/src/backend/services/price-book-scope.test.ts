@@ -14,8 +14,8 @@ import {
  * everyone and customer-group books are visible and read-only; a platform
  * administrator reaches everything.
  */
-const ALL: PriceBookScope = { all: true, organizationIds: new Set() };
-const REP: PriceBookScope = { all: false, organizationIds: new Set(['a']) };
+const ALL: PriceBookScope = { all: true, constraint: { kind: 'all' }, inScope: () => true };
+const REP: PriceBookScope = { all: false, constraint: { kind: 'allowed', organizationIds: ['a'] }, inScope: (id) => id === 'a' };
 
 const book = (audienceKind: 'everyone' | 'customer_groups' | 'organizations', organizationIds: string[] = [], isSystem = false) => ({
   audienceKind,
@@ -57,5 +57,23 @@ describe('price-book scope (feature 160)', () => {
   it('the list predicate is absent for a platform administrator and binds the scope otherwise', () => {
     expect(visibleBookSql(ALL)).toBeNull();
     expect(visibleBookSql(REP)).toMatchObject({ params: ['{"a"}'] });
+  });
+
+  // Issue #305 — a sales representative reaches every organization nobody
+  // else governs, so a book is theirs when no member is another rep's.
+  const REP_305: PriceBookScope = {
+    all: false,
+    constraint: { kind: 'excluded', excludedOrganizationsQuery: { sql: 'select x from "reach"(?::uuid) as x', params: ['rep'] }, loadReach: async () => ({ excludedOrganizationIds: ['f'], assignedOrganizationIds: ['a'] }) },
+    inScope: (id) => id !== '' && id !== 'f',
+  };
+
+  it('#305 — a representative sees a book over their own and unassigned organizations, never one naming another rep’s', () => {
+    expect(bookVisible(REP_305, book('organizations', ['a', 'u']))).toBe(true);
+    expect(bookVisible(REP_305, book('organizations', ['a', 'f']))).toBe(false);
+    expect(bookVisible(REP_305, book('organizations', []))).toBe(false);
+    expect(organizationInScope(REP_305, 'u')).toBe(true);
+    expect(organizationInScope(REP_305, 'f')).toBe(false);
+    expect(visibleBookSql(REP_305)).toMatchObject({ params: ['rep'] });
+    expect(visibleBookSql(REP_305)?.sql).toContain('not in (select x from "reach"(?::uuid) as x)');
   });
 });

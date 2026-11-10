@@ -157,6 +157,9 @@ export const auth = defineMessages({
     'auth.security.active.remaining': 'Unused recovery codes remaining: {count}',
     'auth.security.active.disableLabel': 'Enter a current code to turn off two-step verification',
     'auth.security.active.disable': 'Turn off two-step verification',
+    // Issue #935 — shown instead of the form while a requirement keeps the last factor.
+    'auth.security.active.disableBlocked':
+      'Two-step verification is required for your account, so it cannot be turned off here. The store or your organization requires it; if it should be lifted, ask your organization’s administrator.',
     'auth.security.active.regenerateLabel': 'Enter a current code to regenerate recovery codes',
     'auth.security.active.regenerate': 'Regenerate recovery codes',
     'auth.security.recovery.heading': 'Save your recovery codes',
@@ -172,6 +175,8 @@ export const auth = defineMessages({
     'auth.organizationSecurity.stop': 'Stop requiring two-step verification',
     'auth.organizationSecurity.failed': 'Could not update enforcement.',
     'auth.organizationSecurity.forbidden': 'Only the organization’s administrators can change this setting.',
+    'auth.organizationSecurity.unavailable':
+      'Two-step verification cannot be required yet, because this store does not offer it. Contact the store if you need it.',
     // The sign-out button (account sidebar; callers may pass their own label).
     'auth.signOut.button': 'Sign out',
     // ── issue #745: the two-step verification codes the sign-in and security pages
@@ -196,6 +201,8 @@ export const auth = defineMessages({
       'Switching two-step verification off has to be confirmed by you. Enter a current code from your authenticator app, or the password for this account.',
     'auth.mfa.error.MFA_SOCIAL_LAST_CREDENTIAL':
       'This is the last sign-in identity linked to the account, and the account has no password on record — removing it could lock its holder out for good. Set a password for the account first, then this link can be removed.',
+    'auth.mfa.error.MFA_LAST_FACTOR_REQUIRED':
+      'Two-step verification cannot be turned off, because the store or your organization requires it for your account.',
     // ── issue #745: what the sign-in, registration and password-reset pages'
     // `?error=` codes say (`lib/auth/sign-in-errors.ts`, `lib/auth/auth-errors.ts`).
     'auth.error.INVALID_CREDENTIALS': 'Invalid email or password. Please try again.',
@@ -350,6 +357,8 @@ export const auth = defineMessages({
     'auth.security.active.remaining': 'Pozostałe niewykorzystane kody odzyskiwania: {count}',
     'auth.security.active.disableLabel': 'Wpisz aktualny kod, aby wyłączyć weryfikację dwuetapową',
     'auth.security.active.disable': 'Wyłącz weryfikację dwuetapową',
+    'auth.security.active.disableBlocked':
+      'Weryfikacja dwuetapowa jest wymagana na Twoim koncie, więc nie można jej tu wyłączyć. Wymaga jej sklep albo Twoja organizacja; jeśli wymaganie ma zostać zniesione, zapytaj administratora organizacji.',
     'auth.security.active.regenerateLabel':
       'Wpisz aktualny kod, aby wygenerować nowe kody odzyskiwania',
     'auth.security.active.regenerate': 'Wygeneruj nowe kody odzyskiwania',
@@ -365,6 +374,8 @@ export const auth = defineMessages({
     'auth.organizationSecurity.stop': 'Wyłącz wymóg weryfikacji dwuetapowej',
     'auth.organizationSecurity.failed': 'Nie udało się zaktualizować wymogu.',
     'auth.organizationSecurity.forbidden': 'To ustawienie mogą zmieniać tylko administratorzy organizacji.',
+    'auth.organizationSecurity.unavailable':
+      'Nie można jeszcze wymagać weryfikacji dwuetapowej, bo ten sklep jej nie oferuje. Jeśli jej potrzebujesz, skontaktuj się ze sklepem.',
     'auth.signOut.button': 'Wyloguj się',
     // ── issue #745
     'auth.mfa.error.MFA_INVALID_CODE':
@@ -387,6 +398,8 @@ export const auth = defineMessages({
       'Wyłączenie weryfikacji dwuetapowej musi zostać przez Ciebie potwierdzone. Podaj aktualny kod z aplikacji uwierzytelniającej albo hasło do tego konta.',
     'auth.mfa.error.MFA_SOCIAL_LAST_CREDENTIAL':
       'To ostatnia tożsamość logowania powiązana z kontem, a konto nie ma zapisanego hasła — usunięcie jej mogłoby trwale odciąć dostęp do konta. Najpierw ustaw hasło do konta, a potem to powiązanie będzie można usunąć.',
+    'auth.mfa.error.MFA_LAST_FACTOR_REQUIRED':
+      'Nie można wyłączyć weryfikacji dwuetapowej, bo sklep albo Twoja organizacja wymaga jej na Twoim koncie.',
     // ── issue #745
     'auth.error.INVALID_CREDENTIALS': 'Nieprawidłowy e-mail lub hasło. Spróbuj ponownie.',
     'auth.error.ACCOUNT_BLOCKED': 'To konto zostało zablokowane. Skontaktuj się z obsługą.',

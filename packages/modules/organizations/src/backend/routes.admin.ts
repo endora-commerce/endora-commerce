@@ -33,7 +33,7 @@ import {
 } from '@endora-commerce/contracts';
 import type { CommandBus } from '@endora-commerce/platform/commands';
 import { HttpError } from '@endora-commerce/platform/http';
-import { getTenantContext } from '@endora-commerce/platform/tenancy';
+import { getTenantContext, orgScopeWhere } from '@endora-commerce/platform/tenancy';
 import type { OrganizationTreeService } from './services/organization-tree-service.js';
 import { hasChildrenRefusal } from './services/organization-tree-service.js';
 import { makeSetParentCommand } from './commands/set-parent.command.js';
@@ -285,7 +285,11 @@ export async function registerOrganizationsAdminRoutes(
     async (request) => {
       const query = listQuerySchema.parse(request.query);
       const em = emFactory();
-      const where: Record<string, unknown> = { deletedAt: null };
+      // Issue #305 (owner ruling 2026-11-07) — the list narrows to the reach
+      // rule the `/:id` routes answer by, so no row opens a 404. `Organization`
+      // is global, so it is filtered explicitly on its own key; a platform
+      // administrator's fragment is empty.
+      const where: Record<string, unknown> = { deletedAt: null, ...orgScopeWhere('id') };
       // Feature 051 — exclude personal (B2C) orgs from the B2B admin list by default.
       if (query.includePersonal !== 'true') where['isPersonal'] = false;
       if (query['filter[status]']) where['status'] = query['filter[status]'];
@@ -867,7 +871,9 @@ export async function registerOrganizationsAdminRoutes(
           organizationId: org.id,
           email: customer.email,
           organizationRoleId: customer.organizationRoleId,
-          customFieldValues: memberValues,
+          // Feature 175 (FR-021) — the keys stored, never their values
+          // (`specs/conventions/audit-state.md`, D-288).
+          changedCustomFields: Object.keys(memberValues).sort(),
         },
       );
       reply.status(201);

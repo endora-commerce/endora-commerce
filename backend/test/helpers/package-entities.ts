@@ -124,6 +124,8 @@ import type { OrganizationSalesRepAssignment as OrganizationSalesRepAssignmentRo
 import type { PriceList as PriceListRow } from '../../../packages/modules/price_lists/src/backend/entities/price-list.entity.js';
 import type { PriceListMatrixEntry as PriceListMatrixEntryRow } from '../../../packages/modules/price_lists/src/backend/entities/price-list-matrix-entry.entity.js';
 import type { PriceDisplayModeOverride as PriceDisplayModeOverrideRow } from '../../../packages/modules/price_lists/src/backend/entities/price-display-mode-override.entity.js';
+import type { PriceListValueChange as PriceListValueChangeRow } from '../../../packages/modules/price_lists/src/backend/entities/price-list-value-change.entity.js';
+import type { PriceListRowValueChange as PriceListRowValueChangeRow } from '../../../packages/modules/price_lists/src/backend/entities/price-list-row-value-change.entity.js';
 import type { Order as OrderRow } from '../../../packages/modules/orders/src/backend/entities/order.entity.js';
 import type { OrderItem as OrderItemRow } from '../../../packages/modules/orders/src/backend/entities/order-item.entity.js';
 import type { OrderComment as OrderCommentRow } from '../../../packages/modules/orders/src/backend/entities/order-comment.entity.js';
@@ -144,6 +146,7 @@ import type { CrmOpportunityStatusHistory as CrmOpportunityStatusHistoryRow } fr
 import type { CrmOpportunityStatusTransition as CrmOpportunityStatusTransitionRow } from '../../../packages/modules/crm/src/backend/entities/crm-opportunity-status-transition.entity.js';
 import type { CrmOpportunityTag as CrmOpportunityTagRow } from '../../../packages/modules/crm/src/backend/entities/crm-opportunity-tag.entity.js';
 import type { CrmOrderStatusMapping as CrmOrderStatusMappingRow } from '../../../packages/modules/crm/src/backend/entities/crm-order-status-mapping.entity.js';
+import type { CrmOpportunityValueChange as CrmOpportunityValueChangeRow } from '../../../packages/modules/crm/src/backend/entities/crm-opportunity-value-change.entity.js';
 import type { CrmStatusPropagation as CrmStatusPropagationRow } from '../../../packages/modules/crm/src/backend/entities/crm-status-propagation.entity.js';
 import type { CrmTag as CrmTagRow } from '../../../packages/modules/crm/src/backend/entities/crm-tag.entity.js';
 import type { CrmValueCountingStatus as CrmValueCountingStatusRow } from '../../../packages/modules/crm/src/backend/entities/crm-value-counting-status.entity.js';
@@ -1019,6 +1022,16 @@ export const PriceDisplayModeOverride = classNamed<PriceDisplayModeOverrideRow>(
   'price_lists',
   'PriceDisplayModeOverride',
 );
+export const PriceListValueChange = classNamed<PriceListValueChangeRow>(
+  installedModuleEntities,
+  'price_lists',
+  'PriceListValueChange',
+);
+export const PriceListRowValueChange = classNamed<PriceListRowValueChangeRow>(
+  installedModuleEntities,
+  'price_lists',
+  'PriceListRowValueChange',
+);
 
 /**
  * The names the test tree also uses as a **type**, aliased.
@@ -1043,6 +1056,8 @@ export type OrganizationSalesRepAssignment = OrganizationSalesRepAssignmentRow;
 export type PriceList = PriceListRow;
 export type PriceListMatrixEntry = PriceListMatrixEntryRow;
 export type PriceDisplayModeOverride = PriceDisplayModeOverrideRow;
+export type PriceListValueChange = PriceListValueChangeRow;
+export type PriceListRowValueChange = PriceListRowValueChangeRow;
 export type CustomerAccount = CustomerAccountRow;
 export type CustomerGroup = CustomerGroupRow;
 export type PasswordResetToken = PasswordResetTokenRow;
@@ -1080,6 +1095,7 @@ export const CrmOpportunityStatusHistory = classNamed<CrmOpportunityStatusHistor
 export const CrmOpportunityStatusTransition = classNamed<CrmOpportunityStatusTransitionRow>(installedModuleEntities, 'crm', 'CrmOpportunityStatusTransition');
 export const CrmOpportunityTag = classNamed<CrmOpportunityTagRow>(installedModuleEntities, 'crm', 'CrmOpportunityTag');
 export const CrmOrderStatusMapping = classNamed<CrmOrderStatusMappingRow>(installedModuleEntities, 'crm', 'CrmOrderStatusMapping');
+export const CrmOpportunityValueChange = classNamed<CrmOpportunityValueChangeRow>(installedModuleEntities, 'crm', 'CrmOpportunityValueChange');
 export const CrmStatusPropagation = classNamed<CrmStatusPropagationRow>(installedModuleEntities, 'crm', 'CrmStatusPropagation');
 export const CrmTag = classNamed<CrmTagRow>(installedModuleEntities, 'crm', 'CrmTag');
 export const CrmValueCountingStatus = classNamed<CrmValueCountingStatusRow>(installedModuleEntities, 'crm', 'CrmValueCountingStatus');
@@ -1117,6 +1133,7 @@ export type CrmOpportunityStatusHistory = CrmOpportunityStatusHistoryRow;
 export type CrmOpportunityStatusTransition = CrmOpportunityStatusTransitionRow;
 export type CrmOpportunityTag = CrmOpportunityTagRow;
 export type CrmOrderStatusMapping = CrmOrderStatusMappingRow;
+export type CrmOpportunityValueChange = CrmOpportunityValueChangeRow;
 export type CrmStatusPropagation = CrmStatusPropagationRow;
 export type CrmTag = CrmTagRow;
 export type CrmValueCountingStatus = CrmValueCountingStatusRow;

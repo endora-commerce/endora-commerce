@@ -100,7 +100,7 @@ export interface PriceBookServiceDeps {
 export const DEFAULT_BASE_BOOK_ID = '00000000-0000-4000-8000-00000000d51b';
 
 /** Every book: what an internal caller (worker, fixture) acts with. */
-export const ALL_BOOKS_SCOPE: PriceBookScope = { all: true, organizationIds: new Set() };
+export const ALL_BOOKS_SCOPE: PriceBookScope = { all: true, constraint: { kind: 'all' }, inScope: () => true };
 
 export interface PriceBookView {
   id: string;

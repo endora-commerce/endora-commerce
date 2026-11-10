@@ -21,6 +21,10 @@ export const ERROR_CODES = {
   // Owner ruling of 2026-10-25 — a typed unit price with more than four decimal
   // places (`money-input.ts`). Refused, never rounded.
   UNIT_PRICE_PRECISION_EXCEEDED: 'UNIT_PRICE_PRECISION_EXCEEDED',
+  // Issue #351 — a line quantity past `LINE_QUANTITY_MAX` (`line-bounds.ts`):
+  // a request schema's tagged issue (400), or a line a merge or a packaging unit
+  // would take past the bound (422). Refused, never clamped.
+  LINE_QUANTITY_EXCEEDED: 'LINE_QUANTITY_EXCEEDED',
 
   // Catalog
   FILTER_NOT_ALLOWED: 'FILTER_NOT_ALLOWED',
@@ -475,7 +479,6 @@ export const ERROR_CODES = {
   ASSET_LEGACY_LOCATOR_CANNOT_HARDEN: 'ASSET_LEGACY_LOCATOR_CANNOT_HARDEN',
   ASSET_FILE_MISSING: 'ASSET_FILE_MISSING',
   ASSET_GONE: 'ASSET_GONE',
-  ASSET_ACCESS_DENIED: 'ASSET_ACCESS_DENIED',
   // Assets Library — stable asset URLs (specs/156-asset-stable-url/)
   ASSET_REPLACE_KIND_MISMATCH: 'ASSET_REPLACE_KIND_MISMATCH',
   ASSET_LEGACY_CANNOT_REPLACE: 'ASSET_LEGACY_CANNOT_REPLACE',
@@ -660,6 +663,14 @@ export const ERROR_CODES = {
   // credential is refused: an account created by a social sign-in holds a
   // random password nobody knows, so the link is the way back in.
   MFA_SOCIAL_LAST_CREDENTIAL: 'MFA_SOCIAL_LAST_CREDENTIAL',
+  /**
+   * Issue #935 — removing the account's last second factor is refused while
+   * a requirement is in force: `mfa.admin.totp_enforced` or a role's
+   * `requiresTwoFactor` for an administrator, `mfa.storefront.totp_enforced`
+   * at the request's sales channel or the organization's policy for a
+   * customer. Raised by the self-service `POST …/mfa/disable`.
+   */
+  MFA_LAST_FACTOR_REQUIRED: 'MFA_LAST_FACTOR_REQUIRED',
   // Feature 055 — Custom Fields Layer.
   CUSTOM_FIELD_NOT_FOUND: 'CUSTOM_FIELD_NOT_FOUND',
   CUSTOM_FIELD_KEY_CONFLICT: 'CUSTOM_FIELD_KEY_CONFLICT',

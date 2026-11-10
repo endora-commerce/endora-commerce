@@ -13,7 +13,13 @@ import { AsyncLocalStorage } from 'async_hooks';
  *
  * Modes:
  *  - `single-org`   — a customer (or an org-pinned job); confined to one org.
- *  - `allowed-set`  — a scoped sales-rep admin; confined to an assigned set.
+ *  - `allowed-set`  — a roll-up customer (or an API key's set); confined to a
+ *                     named set.
+ *  - `excluded-set` — a sales-representative admin (issue #305): every
+ *                     organization except those governed by another
+ *                     representative. Described by its complement because the
+ *                     reachable set includes every unassigned — and so every
+ *                     personal — organization.
  *  - `all`          — a platform admin; no org restriction (still explicit).
  *  - `system`       — worker / migration / escape hatch; crosses all orgs.
  *
@@ -22,7 +28,36 @@ import { AsyncLocalStorage } from 'async_hooks';
  * unscoped rows.
  */
 
-export type TenantScopeMode = 'single-org' | 'allowed-set' | 'all' | 'system';
+/**
+ * Issue #955 — an uncorrelated SELECT of one non-null uuid column, with its
+ * parameters, supplied by the module that owns the reach (`organizations`) on
+ * `adminTenantScopePort`. The platform renders it and never names what it reads.
+ */
+export interface ExcludedOrganizationsQuery {
+  readonly sql: string;
+  readonly params: readonly (string | boolean)[];
+}
+
+/** Issue #955 Phase 2 — a representative's reach as lists, for the single-id helpers and ranking. */
+export interface ExcludedReach {
+  /** Governed by another representative: never in reach. */
+  readonly excludedOrganizationIds: readonly string[];
+  /** The representative's own assignments, roll-up expanded: ranking and "mine" filters only. */
+  readonly assignedOrganizationIds: readonly string[];
+}
+
+/**
+ * Issue #955 Phase 2 — one load per tenant context, however many questions it
+ * answers and however concurrently they are asked: the first call's promise is
+ * kept, rejection included, so a failed load refuses every later question too
+ * rather than being retried into a different answer within one request.
+ */
+export function memoiseReach(load: () => Promise<ExcludedReach>): () => Promise<ExcludedReach> {
+  let pending: Promise<ExcludedReach> | undefined;
+  return () => (pending ??= load());
+}
+
+export type TenantScopeMode = 'single-org' | 'allowed-set' | 'excluded-set' | 'all' | 'system';
 
 export interface TenantActor {
   /** `api_key` (feature 062) = a bound distributor key acting as the tenant principal. */
@@ -66,6 +101,18 @@ export interface TenantContext {
   readonly organizationId?: string | null;
   /** Present for `allowed-set`. */
   readonly allowedOrganizationIds?: readonly string[];
+  /**
+   * Present for `excluded-set` (issue #955): the owner's uncorrelated SELECT of
+   * the excluded organizations — what the filters actually render. Read by the
+   * platform's tenancy directory only.
+   */
+  readonly excludedOrganizationsQuery?: ExcludedOrganizationsQuery;
+  /**
+   * Present for `excluded-set` (issue #955 Phase 2): the excluded and assigned
+   * lists, loaded on demand and memoised for this context. Read by the
+   * platform's tenancy directory only, through the async helpers.
+   */
+  readonly loadExcludedReach?: () => Promise<ExcludedReach>;
   /** Present for customer actors — drives the `customerAccount` filter. */
   readonly customerAccountId?: string | null;
   readonly actor: TenantActor;
@@ -74,7 +121,8 @@ export interface TenantContext {
   readonly reason?: string;
   /**
    * Per-request observation sink. Attached by `resolveTenantContext` to the
-   * contexts whose predicates can refuse wholesale (`allowed-set`), absent
+   * contexts whose predicates can refuse wholesale (`allowed-set`,
+   * `excluded-set`), absent
    * everywhere else — a mode that never refuses has nothing to disclose.
    */
   readonly notices?: TenantScopeNotices;
@@ -105,8 +153,8 @@ export function throwIfScopeUnresolved(ctx: TenantContext): void {
 
 /**
  * Record that the ambient execution was refused a whole table for want of an
- * organization column. A context with no sink (every mode but `allowed-set`,
- * and any context a caller built by hand) drops the observation, which is the
+ * organization column. A context with no sink (every mode but `allowed-set`
+ * and `excluded-set`, and any context a caller built by hand) drops the observation, which is the
  * right failure: the disclosure goes missing, never the refusal.
  */
 export function noteOrganizationAttributionRefusal(ctx: TenantContext): void {

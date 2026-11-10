@@ -11,7 +11,7 @@ import type {
   OrganizationDetailsPort,
 } from '@endora-commerce/contracts';
 import { HttpError } from '@endora-commerce/platform/http';
-import { orgConstraintFor } from '@endora-commerce/platform/tenancy';
+import { orgConstraintFor, orgInScope, orgScopeWhere } from '@endora-commerce/platform/tenancy';
 import { Cart } from '../entities/cart.entity.js';
 import { CartItem } from '../entities/cart-item.entity.js';
 import { CartAuditEntry } from '../entities/cart-audit-entry.entity.js';
@@ -81,7 +81,7 @@ export class CartAdminService {
    * NULL — so the list needs no separate clause for it and the per-row check
    * below states it explicitly.
    */
-  #orgScopeWhere(requested?: string): Record<string, unknown> | 'refuse' {
+  async #orgScopeWhere(requested?: string): Promise<Record<string, unknown> | 'refuse'> {
     const constraint = orgConstraintFor();
     if (constraint.kind === 'all') {
       return requested ? { organizationId: requested } : {};
@@ -100,17 +100,17 @@ export class CartAdminService {
     // still did, `orgFilterCond`'s `{ organizationId: null }` would start
     // matching real data, and the two semantics would begin disagreeing about
     // rows a buyer can see rather than about an empty set.
-    const allowed =
-      constraint.kind === 'single'
-        ? constraint.organizationId === null
-          ? []
-          : [constraint.organizationId]
-        : [...constraint.organizationIds];
+    if (constraint.kind === 'single' && constraint.organizationId === null) {
+      return requested ? 'refuse' : { organizationId: { $in: [] } };
+    }
     // A caller-supplied filter narrows within the scope; it never widens it,
     // and asking for an organization outside the scope is answered as an empty
     // page rather than as an error, so the filter is no existence oracle.
-    if (requested) return allowed.includes(requested) ? { organizationId: requested } : 'refuse';
-    return { organizationId: { $in: allowed } };
+    // The helpers state the scope for every arm — a sales representative's is
+    // every organization nobody else governs (issue #305) — and never match a
+    // cart with no organization.
+    if (requested) return (await orgInScope(requested, constraint)) ? { organizationId: requested } : 'refuse';
+    return orgScopeWhere('organizationId', constraint);
   }
 
   /**
@@ -120,7 +120,7 @@ export class CartAdminService {
    * gets: an out-of-scope cart must not be distinguishable from one that does
    * not exist.
    */
-  #assertCartInScope(cart: Cart): void {
+  async #assertCartInScope(cart: Cart): Promise<void> {
     const constraint = orgConstraintFor();
     if (constraint.kind === 'all') return;
     // The cart's own organisation is still nullable — an anonymous visitor's
@@ -129,10 +129,7 @@ export class CartAdminService {
     // whose organisation is null, which is why the `single` arm can no longer
     // match one of those carts by having a null of its own.
     const organizationId = cart.organizationId ?? null;
-    const allowed =
-      constraint.kind === 'single'
-        ? constraint.organizationId === organizationId
-        : organizationId !== null && constraint.organizationIds.includes(organizationId);
+    const allowed = organizationId !== null && (await orgInScope(organizationId, constraint));
     if (!allowed) {
       throw new HttpError(404, ERROR_CODES.NOT_FOUND, 'cart_not_found');
     }
@@ -149,7 +146,7 @@ export class CartAdminService {
     if (query.approvalStatus && query.approvalStatus.length > 0) {
       where['approvalStatus'] = { $in: query.approvalStatus };
     }
-    const orgWhere = this.#orgScopeWhere(query.organizationId);
+    const orgWhere = await this.#orgScopeWhere(query.organizationId);
     if (orgWhere === 'refuse') {
       const emptyPage = query.page ?? 1;
       const emptySize = Math.min(query.pageSize ?? 50, 200);
@@ -236,7 +233,7 @@ export class CartAdminService {
     if (!cart) {
       throw new HttpError(404, ERROR_CODES.NOT_FOUND, 'cart_not_found');
     }
-    this.#assertCartInScope(cart);
+    await this.#assertCartInScope(cart);
     const items = await em.find(CartItem, { cartId });
     const cust = cart.customerAccountId
       ? await this.customerAccounts.findById(cart.customerAccountId)
@@ -345,7 +342,7 @@ export class CartAdminService {
     if (!cart) {
       throw new HttpError(404, ERROR_CODES.NOT_FOUND, 'cart_not_found');
     }
-    this.#assertCartInScope(cart);
+    await this.#assertCartInScope(cart);
     const capped = Math.min(pageSize, 200);
     const [rows, totalCount] = await em.findAndCount(
       CartAuditEntry,
@@ -391,7 +388,7 @@ export class CartAdminService {
     if (!cart) {
       throw new HttpError(404, ERROR_CODES.NOT_FOUND, 'cart_not_found');
     }
-    this.#assertCartInScope(cart);
+    await this.#assertCartInScope(cart);
     if (cart.status === 'completed' || cart.status === 'rejected') {
       // Issue #86 — its own code, not `VALIDATION_FAILED` with the token
       // `already_terminal` as the message the operator read.

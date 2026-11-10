@@ -2,6 +2,15 @@ import { describe, expect, it, vi } from 'vitest';
 import type { AdminUserRecord } from '@endora-commerce/contracts';
 import { ReferenceService } from './reference-service.js';
 
+const scope = vi.hoisted(() => ({ actor: { kind: 'system' } as { kind: string; id?: string } }));
+
+vi.mock('@endora-commerce/platform/tenancy', async () => {
+  const actual = await vi.importActual<typeof import('@endora-commerce/platform/tenancy')>(
+    '@endora-commerce/platform/tenancy',
+  );
+  return { ...actual, getTenantContext: () => ({ mode: 'all', actor: scope.actor }) };
+});
+
 /**
  * A person as the third thing a text refers to (User Story 18), against stub
  * ports: what is stored for a text, and what a reader is shown of it.
@@ -207,5 +216,38 @@ describe('ReferenceService — a Quote Request and a Task (specs/163-projects-an
     expect((await denied.service.resolve(text)).map((reference) => reference.label)).toEqual([null, null]);
     expect(denied.find).not.toHaveBeenCalled();
     expect(denied.findTasks).not.toHaveBeenCalled();
+  });
+});
+
+describe('ReferenceService — a mentioned Product (issue #963)', () => {
+  const PRODUCT = '00000000-0000-4000-8000-0000000000b1';
+
+  it('is named by its Global name, without reading the acting administrator', async () => {
+    scope.actor = { kind: 'admin', id: TOMASZ };
+    try {
+      const findById = vi.fn(async () => admin(TOMASZ, { preferredLanguage: 'pl' }));
+      const service = new ReferenceService({
+        products: { findByIds: vi.fn(async () => [{ id: PRODUCT, name: 'Wiertarka' }]) } as never,
+        orders: { findByIds: vi.fn(async () => []) } as never,
+        adminUsers: { findByIds: vi.fn(async () => []), findById } as never,
+        quoteRequests: { isPresent: () => false, findRecord: vi.fn(async () => null) },
+        tasks: { isPresent: () => false, findByIds: vi.fn(async () => []) },
+        opportunities: { findByIds: vi.fn(async () => []) },
+        projects: { isPresent: () => false, findByIds: vi.fn(async () => []) },
+        mayRead: {
+          orders: async () => false,
+          products: async () => true,
+          quoteRequests: async () => false,
+          tasks: async () => false,
+          projects: async () => false,
+        },
+      });
+      expect(await service.resolve(`[[product:${PRODUCT}]]`)).toEqual([
+        { type: 'product', id: PRODUCT, available: true, label: 'Wiertarka', url: `/catalog/products/${PRODUCT}` },
+      ]);
+      expect(findById).not.toHaveBeenCalled();
+    } finally {
+      scope.actor = { kind: 'system' };
+    }
   });
 });

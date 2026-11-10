@@ -7,6 +7,7 @@ import type { SalesRepAssignmentPort, SalesRepAssignmentRow } from '@endora-comm
 import { recordAuditFromContext } from '@endora-commerce/platform/commands';
 import type { AuditPort } from '@endora-commerce/platform/kernel';
 import type { OrganizationTreeService } from './organization-tree-service.js';
+import { reachFromAggregate, type ReachAggregateRow, type SalesRepReach } from './sales-rep-reach.js';
 
 /**
  * Feature 056 US2 — optional roll-up wiring. When present, a sales-rep whose
@@ -18,6 +19,13 @@ import type { OrganizationTreeService } from './organization-tree-service.js';
 export interface SalesRepSubtreeDeps {
   readonly treeService: OrganizationTreeService;
   readonly hasRollupCapability: (adminUserId: string) => Promise<boolean>;
+  /**
+   * Issue #305 (ruling Q1 on PR #954) — told once per `reachOf` that met a
+   * governing organization whose stored tree path cannot be read, naming them.
+   * The reach is still answered, by the one-id rule; this is how the data
+   * defect gets found.
+   */
+  readonly warn?: (fields: { organizationIds: string[] }, message: string) => void;
 }
 
 /**
@@ -53,6 +61,12 @@ export type { SalesRepAssignmentPort, SalesRepAssignmentRow };
  *   - An admin user with an explicit assignment row sees that org.
  *   - An organization with ZERO assignment rows is in
  *     "unassigned-org fallback" mode and is visible to every sales rep.
+ *
+ * Issue #305 (owner ruling 2026-11-07): this is the **one** reach rule, on
+ * every surface. `canSeeOrganization` answers it for one id; {@link reachOf}
+ * answers it for the whole platform as its complement — the organizations
+ * governed by somebody else — which is what the tenant scope filters by. An
+ * integration property holds the two equal for every node.
  */
 export class SalesRepAssignmentService implements SalesRepAssignmentPort {
   constructor(
@@ -100,45 +114,88 @@ export class SalesRepAssignmentService implements SalesRepAssignmentPort {
   }
 
   /**
-   * Returns the list of organization IDs the admin user can act on.
+   * The organizations the representative is assigned, roll-up expanded: each
+   * assigned node's subtree minus any descendant governed by its own (nearer)
+   * assignment (FR-011). Without the capability, the flat assigned rows.
    *
-   * Feature 056 — when the actor holds the roll-up capability, each assigned
-   * node expands to its subtree MINUS any descendant subtree governed by its
-   * own (nearer) assignment (FR-011). Without the capability, returns the flat
-   * assigned rows (pre-feature behavior).
+   * Since issue #305 this is **not** the representative's reach — an
+   * unassigned organization is in reach too — but "mine": ranking, `scope=mine`
+   * filters, the assignment report. It is the `assignedOrganizationIds` half of
+   * {@link reachOf}, from the same statement.
    */
   async listAssignedOrganizationIds(adminUserId: string): Promise<string[]> {
-    const em = this.emFactory();
     if (!isUuidShape(adminUserId)) return [];
-    const rows = await em.find(OrganizationSalesRepAssignment, { adminUserId });
-    const rawAssigned = rows.map((r) => r.organizationId);
-    if (!this.subtree || rawAssigned.length === 0) return rawAssigned;
-    if (!(await this.subtree.hasRollupCapability(adminUserId))) return rawAssigned;
+    return (await this.reachOf(adminUserId)).assignedOrganizationIds;
+  }
 
-    // All assignment rows (small table) → org → set of reps, for the override rule.
-    const allRows = await em.find(OrganizationSalesRepAssignment, {});
-    const repsByOrg = this.#repsByOrg(allRows);
+  /**
+   * Issue #305 — the representative's reach for the tenant scope, in one
+   * statement: the organizations governed by somebody else
+   * (`excludedOrganizationIds`, never reachable) and the ones the
+   * representative governs (`assignedOrganizationIds`). An organization in
+   * neither list is governed by nobody and is in every representative's reach.
+   *
+   * Not on `SalesRepAssignmentPort`: its one consumer is this module's
+   * `adminTenantScopePort`. It does not catch: a failure of the statement
+   * reaches the port, which answers `unresolved` (no organization, the refusal
+   * deferred to the first tenant-scoped read). An empty excluded list is a real answer — nobody else holds an
+   * assignment — and is never produced by an error.
+   */
+  /**
+   * Whether the representative's reach is answered under roll-up
+   * (`organizations:rollup`) — the flag `adminTenantScopePort` puts into the
+   * tenant filter's subquery without computing the reach (issue #955 Phase 2).
+   * The same question `reachOf` asks, through the same dependency.
+   */
+  async hasRollupCapability(adminUserId: string): Promise<boolean> {
+    return this.subtree !== undefined && (await this.subtree.hasRollupCapability(adminUserId));
+  }
 
-    const result = new Set<string>();
-    for (const nodeId of new Set(rawAssigned)) {
-      const nodes = await this.subtree.treeService.subtreeNodes(nodeId);
-      const parentOf = new Map<string, string | null>();
-      for (const n of nodes) parentOf.set(n.id, n.parentId);
-      for (const n of nodes) {
-        // Walk up to the nearest ancestor-or-self carrying an assignment; the
-        // assigned root (nodeId, assigned to this rep) always terminates it.
-        let cur: string | null = n.id;
-        while (cur) {
-          const reps = repsByOrg.get(cur);
-          if (reps) {
-            if (reps.has(adminUserId)) result.add(n.id);
-            break;
-          }
-          cur = parentOf.get(cur) ?? null;
-        }
-      }
+  async reachOf(adminUserId: string): Promise<SalesRepReach> {
+    // `em.execute`, not the bare connection: the statement must see the rows of
+    // the transaction the caller is in, as every other read of this service does.
+    const em = this.emFactory();
+    // An id that is not uuid-shaped is nobody's: bound as null, it matches no row.
+    const rep = isUuidShape(adminUserId) ? adminUserId : null;
+    const rollup = await this.hasRollupCapability(adminUserId);
+    // Issue #955 (architect ruling, Q2) — both lists come from
+    // `organizations_reach_split`, in one scan; the tenant filter's subquery
+    // reads `organizations_reach_excluded`, which is that split's `not mine`
+    // half, so the list and the filter cannot drift. Both halves read the
+    // materialised governor table (each organization's nearest assigned
+    // ancestor-or-self, maintained in the transaction of every write that can
+    // move it — migration `20261109T144721`); flat reads its self-rows, since an
+    // organization governs itself exactly when it carries an assignment. The
+    // roll-up reach used to be one path probe per governing organization, ~73 ms
+    // at 3 000 of them.
+    //
+    // The third column, roll-up only, names the governing organizations whose
+    // own stored path cannot be read: the `materialized` CTE pins it to a scan
+    // of a partial index that is empty unless the data is damaged (left to
+    // itself the planner probed that index once per assignment, 10 ms at 3 000).
+    const rows = (await em.execute(
+      `with "unreadable" as materialized (
+         select "o"."id" from "organizations" "o"
+          where ?::boolean and not "organizations_tree_path_readable"("o"."path", "o"."id")
+       )
+       select string_agg("s"."organization_id"::text, ',') filter (where not "s"."mine") as "excluded",
+              string_agg("s"."organization_id"::text, ',') filter (where "s"."mine") as "assigned",
+              (select string_agg("u"."id"::text, ',')
+                 from "unreadable" "u"
+                where exists (select 1 from "organization_sales_rep_assignments" "a" where "a"."organization_id" = "u"."id")
+              ) as "unreadable"
+         from "organizations_reach_split"(?::uuid, ?::boolean) "s"`,
+      [rollup, rep, rollup],
+    )) as Array<ReachAggregateRow & { unreadable: string | null }>;
+    const row = rows[0];
+    if (row?.unreadable) {
+      this.subtree?.warn?.(
+        { organizationIds: row.unreadable.split(',') },
+        'organizations: a governing organization has a stored tree position that cannot be read; ' +
+          'the sales-representative reach resolves it by its own assignments and the paths that name it',
+      );
     }
-    return [...result];
+    return reachFromAggregate(row, rollup);
   }
 
   #repsByOrg(rows: readonly OrganizationSalesRepAssignment[]): Map<string, Set<string>> {

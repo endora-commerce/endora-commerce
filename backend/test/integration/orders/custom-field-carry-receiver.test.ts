@@ -132,7 +132,9 @@ describe('orders — custom-field values received from a Sales Opportunity', () 
     const entries = await audit(order.id);
     expect(entries).toHaveLength(1);
     expect(entries[0]!.actorAdminUserId ?? null).toBeNull();
-    expect(entries[0]!.stateAfter).toMatchObject({ customFieldValues: { [key]: 'fair' } });
+    // The entry names the carried key, never its value (D-288, #470).
+    expect(entries[0]!.stateAfter).toMatchObject({ changedCustomFields: [key] });
+    expect(JSON.stringify(entries[0]!.stateAfter)).not.toContain('fair');
   });
 
   it('keeps a value the Order already holds, and writes no entry (US3-3)', async () => {

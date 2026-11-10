@@ -51,7 +51,9 @@ switched off by a special case.
   Platform Administrator may act on anyone; otherwise the authorized salesperson
   is the one inherited from the customer's Organization. A personal organization
   never carries a sales-rep assignment, so the unassigned-organization fallback
-  leaves a standalone customer open to any salesperson. An org-owner depletion
+  leaves a standalone customer open to any salesperson — on the customer list,
+  the customer screen and every tenant-scoped read as well as for these actions,
+  since the reach rule is one rule on every surface (issue #305). An org-owner depletion
   guard refuses blocking, deleting or detaching the last active holder of a
   company organization's Administrator role (`409 ORG_OWNER_DEPLETION`);
   blocked administrators do not count. It
@@ -116,6 +118,16 @@ counts as anonymized only once its history is erased too.
 The sweep also erases the reasons operators and approvers gave for rejecting
 the account's carts, keeping each cart's status; the carts module documents
 what it erases and what it keeps (*Audit retention*).
+
+It also scrubs the platform's record of every e-mail sent to the account's
+address. On each record the address, the subject, the message context (which
+can hold a rejection reason) and the mail server's error text are erased. The
+record keeps which e-mail it was, when it was attempted and whether it was sent,
+so an operator can still answer whether a message went out. Each record changed
+gets one `email_delivery.anonymized` audit entry, written by the system, with
+nothing else in it. The address is matched without regard to letter case.
+Records of e-mails sent to an account anonymized before this release are not
+reached, because that account's address is already erased.
 
 The sweep runs once a day, in the worker process and only while this module is
 on, so an account is anonymized up to a day after its window elapses. While the

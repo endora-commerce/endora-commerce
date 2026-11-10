@@ -1,6 +1,7 @@
 import { z } from 'zod';
 import { uuidSchema } from './common.js';
 import { nextActionSchema } from './orders.js';
+import { lineQuantitySchema, REQUEST_LINE_ITEMS_MAX } from './line-bounds.js';
 
 /**
  * Quick-order contracts (feature 039). The quick-order page lets buyers
@@ -198,7 +199,7 @@ export type QuickOrderTarget = z.infer<typeof quickOrderTargetSchema>;
 export const quickOrderBuildLineSchema = z.object({
   productId: uuidSchema,
   variantId: uuidSchema.nullable().optional(),
-  quantity: z.number().int().positive(),
+  quantity: lineQuantitySchema,
 });
 export type QuickOrderBuildLine = z.infer<typeof quickOrderBuildLineSchema>;
 
@@ -208,7 +209,7 @@ export type QuickOrderBuildLine = z.infer<typeof quickOrderBuildLineSchema>;
  * `details: { code: 'too_many_items', maximum }`), deliberately not by a schema `.max()`,
  * which would answer 400.
  */
-export const QUICK_ORDER_BUILD_MAX_ITEMS = 200;
+export const QUICK_ORDER_BUILD_MAX_ITEMS = REQUEST_LINE_ITEMS_MAX;
 
 export const quickOrderBuildRequestSchema = z.object({
   target: quickOrderTargetSchema,
@@ -342,7 +343,7 @@ export type QuickOrderOneClickEligibility = z.infer<typeof quickOrderOneClickEli
 export const quickOrderOneClickRequestSchema = z.object({
   productId: uuidSchema,
   variantId: uuidSchema.nullable().optional(),
-  quantity: z.number().int().positive().optional(),
+  quantity: lineQuantitySchema.optional(),
   idempotencyKey: z.string().max(200).optional(),
 });
 export type QuickOrderOneClickRequest = z.infer<typeof quickOrderOneClickRequestSchema>;
@@ -382,7 +383,7 @@ export interface PreferenceAuditContext {
  *
  * A discriminated union, not a bag of optional ids, and that is the point: a
  * buyer editing their own defaults, an Organization administrator editing a member's, a
- * salesperson editing an assigned organisation's and a platform admin editing
+ * salesperson editing an organisation in their reach and a platform admin editing
  * anybody's are four different authorisations, and each carries exactly the
  * one identifier its rule needs. A shape with four optional fields has twelve
  * states the rules cannot answer for.
@@ -398,7 +399,12 @@ export type PreferenceActor =
    * asked of `organizationPermissionPort.isAdministrator`.
    */
   | { kind: 'administrator'; organizationId: string }
-  | { kind: 'salesperson'; assignedOrganizationIds: string[] }
+  /**
+   * A sales representative. Issue #305: their reach is every organisation
+   * nobody else governs — assigned, roll-up and unassigned — which no list of
+   * ids names, so the actor carries the question rather than an answer.
+   */
+  | { kind: 'salesperson'; reaches: (organizationId: string) => Promise<boolean> }
   | { kind: 'platform_admin' };
 
 /**

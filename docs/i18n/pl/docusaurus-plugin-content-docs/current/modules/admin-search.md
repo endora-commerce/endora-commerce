@@ -71,9 +71,12 @@ panelu ukryłaby przed tym samym administratorem:
   `customers:manage`) dla organizacji, `customers:read` dla klientów oraz
   `catalog:read` dla produktów i kategorii.
 - Przedstawiciel handlowy widzi tylko zamówienia, zapytania ofertowe, szanse
-  sprzedażowe i klientów organizacji, które zostały mu przypisane.
+  sprzedażowe i klientów organizacji ze swojego zasięgu: przypisanych mu oraz
+  każdej organizacji, do której nie przypisano żadnego przedstawiciela
+  (zgłoszenie #305 — jedna reguła zasięgu modułu `organizations`).
 - Organizacje są widoczne dokładnie tak jak na liście organizacji:
-  przedstawiciel handlowy widzi każdą organizację, którą pokazuje mu ta lista, a
+  przedstawiciel handlowy widzi każdą organizację, którą pokazuje mu ta lista —
+  ten sam zasięg, nigdy organizacji przypisanej innemu przedstawicielowi — a
   przypisane mu organizacje są wyświetlane na początku.
 
 ## Paleta poleceń

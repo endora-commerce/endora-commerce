@@ -12,6 +12,7 @@ import {
   seedCrmAdmin,
   seedCrmAsset,
   seedCrmSalesRep,
+  CRM_BOOK_REP_ID,
 } from '../../helpers/seed-crm.js';
 import { multipartBody, TINY_PNG, useTemporaryAssetStore } from '../../helpers/crm-attachment-upload.js';
 import { deleteProjects } from '../projects/helpers.js';
@@ -192,6 +193,16 @@ describe('assets library — reference visibility (feature 166)', () => {
     ];
     A = await seedCrmAdmin(h.em(), 'rv-a', [...B_PERMISSIONS, 'tasks:see_private']);
     B = await seedCrmSalesRep(h.em(), [OTHER_TEST_ORGANIZATION_ID], B_PERMISSIONS);
+    // #305 — O1 is another representative's: an Organization nobody is
+    // assigned to is in every representative's reach, B's included.
+    await h
+      .em()
+      .getConnection()
+      .execute(
+        `insert into "organization_sales_rep_assignments" ("id", "organization_id", "admin_user_id", "created_at")
+         values (gen_random_uuid(), ?, ?, now())`,
+        [TEST_ORGANIZATION_ID, CRM_BOOK_REP_ID],
+      );
     S = await seedCrmAdmin(h.em(), 'rv-s', [...B_PERMISSIONS, 'tasks:see_private']);
     N = await seedCrmAdmin(h.em(), 'rv-n', ['assets.read', 'assets.write']);
 
@@ -244,6 +255,13 @@ describe('assets library — reference visibility (feature 166)', () => {
   });
 
   afterAll(async () => {
+    await h
+      ?.em()
+      .getConnection()
+      .execute('delete from organization_sales_rep_assignments where admin_user_id = ? and organization_id = ?', [
+        CRM_BOOK_REP_ID,
+        TEST_ORGANIZATION_ID,
+      ]);
     const conn = h.em().getConnection();
     const any = (ids: readonly string[]) => `{${ids.join(',')}}`;
     await conn.execute(`delete from gallery_items where id = any(?::uuid[])`, [any(contentRows.galleryItems)]);

@@ -131,8 +131,8 @@ When the port is not composed (`customFieldValues` undefined in the deps,
 `organizations/src/backend/plugin.ts:173`) and either group is non-empty, the route answers 422
 `not_open_for_input` for every key (FR-027); empty groups pass.
 
-The audit entry `organization.register` gains `customFieldKeys: { organization: string[], customer:
-string[] }` and no values (FR-028).
+The audit entry `organization.register` gains `changedCustomFields` — the supplied keys prefixed
+`organization.` / `firstUser.`, sorted — and no values (FR-028, D-288).
 
 **Rationale.** FR-024 — the pre-existing non-atomic write (Organization flushed before the account)
 must not get a new trigger; validating first makes every refusal of this feature land before the
@@ -193,7 +193,8 @@ but the storefront fetch is a network hop per render.
 **Decision.** FR-015 as written, with SD-1. Each gap host extends its create request schema with
 `customFieldValues: customFieldValuesSchema.optional()` and, inside the **same Command** that creates
 the record, calls `validateAndMerge(<type>, {}, values)` and assigns the result to the new row before
-its flush, so the creation audit entry carries the values (FR-021, Principle XIII):
+its flush, so the creation audit entry names them (FR-021, Principle XIII; keys only for a
+tenant-scoped record, D-288):
 
 | WP | Host | Schema | Create path |
 | --- | --- | --- | --- |

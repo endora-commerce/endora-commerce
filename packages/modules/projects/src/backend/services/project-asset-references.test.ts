@@ -37,7 +37,7 @@ function restrictionDeps(options: { canRead?: boolean; predicate?: SqlFragment |
     adminUserId: '00000000-0000-4000-8000-00000000000b',
     canRead: options.canRead ?? true,
     seeAll: false,
-    reach: { all: true, organizationIds: new Set() },
+    reach: { all: true, constraint: { kind: 'all' }, inScope: () => true },
   };
   const deps: ProjectAssetRestrictionDeps = {
     access: () => {

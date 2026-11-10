@@ -1,5 +1,6 @@
 import { beforeEach, describe, expect, it, vi } from 'vitest';
 import { ERROR_CODES } from '@endora-commerce/contracts';
+import { withSystemScope } from '@endora-commerce/platform/tenancy';
 
 /** The channel the admin request resolved, as the kernel's request scope answers it. */
 const channelState: { current: { id: string } | null } = { current: null };
@@ -34,6 +35,14 @@ const CUSTOMER_ID = '00000000-0000-4000-8000-0000000000c1';
 const PRODUCT_ID = '00000000-0000-4000-8000-0000000000a1';
 const B2C = '00000000-0000-4000-8000-0000000000d1';
 const ADMIN = { adminUserId: 'admin-1', isPlatformAdmin: true, roleLabel: 'Platform administrator' };
+
+/**
+ * The create, as a platform administrator's request runs it: under a
+ * platform-wide tenant scope, which is what lets it past the organization
+ * visibility check (issue #957 — the scope decides, not `isPlatformAdmin`).
+ */
+const createAsPlatformAdmin = (svc: InstanceType<typeof RfqAdminService>, b: never) =>
+  withSystemScope('test: a platform-wide administrator', () => svc.createOnBehalf(ADMIN, b));
 
 const record = {
   id: PRODUCT_ID,
@@ -107,7 +116,7 @@ describe('163 — the channel an operator raises a quote request on', () => {
       }),
     };
     const { svc } = service(em);
-    await expect(svc.createOnBehalf(ADMIN, body({ salesChannelId: B2C }))).rejects.toThrow('reached the write');
+    await expect(createAsPlatformAdmin(svc, body({ salesChannelId: B2C }))).rejects.toThrow('reached the write');
     expect(create.mock.calls[0]?.[1]).toMatchObject({ salesChannelId: B2C });
   });
 
@@ -117,7 +126,7 @@ describe('163 — the channel an operator raises a quote request on', () => {
   ])('refuses a channel that is %s, before anything is numbered or created (security M1)', async (_what, channelId) => {
     const create = vi.fn();
     const { svc, generateBusinessId, listChannelsForEntity } = service({ create });
-    const caught = (await svc.createOnBehalf(ADMIN, body({ salesChannelId: channelId })).then(
+    const caught = (await createAsPlatformAdmin(svc, body({ salesChannelId: channelId })).then(
       () => null,
       (error: unknown) => error,
     )) as { statusCode?: number; code?: string } | null;
@@ -129,7 +138,7 @@ describe('163 — the channel an operator raises a quote request on', () => {
 
   /** The refusal `createOnBehalf` answers, or `null` when it reached the write. */
   async function outcomeOf(svc: InstanceType<typeof RfqAdminService>, b: never) {
-    return (await svc.createOnBehalf(ADMIN, b).then(
+    return (await createAsPlatformAdmin(svc, b).then(
       () => null,
       (error: unknown) => error,
     )) as { statusCode?: number; code?: string; message?: string; details?: unknown } | null;
@@ -162,7 +171,7 @@ describe('163 — the channel an operator raises a quote request on', () => {
       }),
     };
     const { svc, listChannelsForEntity } = service(em);
-    await expect(svc.createOnBehalf(ADMIN, body())).rejects.toThrow('reached the write');
+    await expect(createAsPlatformAdmin(svc, body())).rejects.toThrow('reached the write');
     expect(listChannelsForEntity).toHaveBeenCalledWith('organization', ORG_ID);
     expect(create.mock.calls[0]?.[1]).toMatchObject({ salesChannelId: B2C });
   });
@@ -193,7 +202,7 @@ describe('163 — the channel an operator raises a quote request on', () => {
       }),
     };
     const { svc } = service(em);
-    await expect(svc.createOnBehalf(ADMIN, body({ salesChannelId: B2C }))).rejects.toThrow('reached the write');
+    await expect(createAsPlatformAdmin(svc, body({ salesChannelId: B2C }))).rejects.toThrow('reached the write');
     expect(create.mock.calls[0]?.[1]).toMatchObject({ salesChannelId: B2C });
   });
 });

@@ -253,7 +253,7 @@ describe('price surface — targeted refresh per trigger', () => {
 
   it('a buyer book header change refreshes its products in the profiles containing it, and only there', async () => {
     const before = await profiles();
-    const book = await f.books.read(A, { all: true, organizationIds: new Set() });
+    const book = await f.books.read(A, { all: true, constraint: { kind: 'all' }, inScope: () => true });
     await f.system(() => f.books.patchBook(A, { priority: 5 }, { expectedVersion: book.version }));
     expect(await pending()).toEqual({ 'CH1/PLN/[A0,V]': ['P2', 'P5'], 'CH1/PLN/[A1,V]': ['P2', 'P5'] });
     expect(await settleAndDiff(before)).toEqual({ 'CH1/PLN/[A0,V]': 'refresh', 'CH1/PLN/[A1,V]': 'refresh' });
@@ -261,7 +261,7 @@ describe('price surface — targeted refresh per trigger', () => {
   });
 
   it('a name-only patch marks nothing', async () => {
-    const book = await f.books.read(A, { all: true, organizationIds: new Set() });
+    const book = await f.books.read(A, { all: true, constraint: { kind: 'all' }, inScope: () => true });
     await f.system(() => f.books.patchBook(A, { name: 'A renamed' }, { expectedVersion: book.version }));
     expect(await pending()).toEqual({});
   });

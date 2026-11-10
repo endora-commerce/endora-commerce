@@ -9,11 +9,12 @@
 //
 // What it answers is decided by `services/file-response.ts`; in short:
 //   private assets  → a valid HMAC signature (?token=&exp=) is checked first, on
-//                     every backend: without one, 403 by id and 404 by permalink
-//                     (identical to a name that resolves to nothing)
+//                     every backend: without one, 404 by id and by permalink,
+//                     identical to an identifier that resolves to nothing (#542)
 //   soft-deleted    → 410 ASSET_GONE (after the signature check)
 //   cloud assets    → a `no-store` redirect: to the time-limited URL when
-//                     private, to the stable bucket URL when public
+//                     private (signed with the stored type and the policy's
+//                     disposition, #815), to the stable bucket URL when public
 //   local, public   → bare URL `public, no-cache`; `?v=<current>` immutable for a
 //                     year; a stale `v` redirects to the current one
 //   every response  → `X-Content-Type-Options: nosniff` and a restrictive
@@ -106,7 +107,6 @@ export async function registerAssetsLibraryPublicRoutes(
 
     applyHeaders(reply, decision);
     switch (decision.status) {
-      case 403:
       case 404:
       case 410:
         // The headers are on the reply already; the error envelope keeps them.
@@ -117,7 +117,7 @@ export async function registerAssetsLibraryPublicRoutes(
         if (target.kind === 'url') {
           url = target.url;
         } else if (target.kind === 'private-signed') {
-          url = (await deps.service.resolveUrl((row as Asset).id)).url;
+          url = (await deps.service.resolveUrl((row as Asset).id, { download: target.download })).url;
         } else {
           const asset = row as Asset;
           const adapter = await deps.adapters.getForBackend(asset.storageBackend);

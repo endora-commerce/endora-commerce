@@ -4585,6 +4585,423 @@ wcześniej, przez pull requesty, które wprowadziły każdą zmianę. W chwili j
 nie była zaktualizowana poleceniem `pnpm run upgrade 0.110.0`; kolejność kroków i zmiany w
 storefroncie nie zostały wypróbowane.
 
+### Jedna reguła zasięgu przedstawiciela handlowego na wszystkich ekranach {#sales-rep-reach-one-rule}
+
+Wydanie z tą zmianą stosuje jedną regułę zasięgu przedstawicieli handlowych na każdym ekranie panelu
+(zgłoszenie #305). Przedstawiciel handlowy sięga do każdej organizacji, której **nie prowadzi inny
+przedstawiciel**: do przypisanych mu organizacji (z `organizations:rollup` — do ich poddrzew, przy
+czym wygrywa najbliższe przypisanie) i do każdej organizacji, do której nikt nie jest przypisany.
+Dotąd ekrany organizacji stosowały tę regułę, odczyty objęte izolacją tenantów — członkowie, klienci,
+zamówienia, faktury, koszyki, zwroty, zapytania ofertowe — uwzględniały tylko przypisania, a lista
+organizacji i wyszukiwarka panelu pokazywały każdą organizację. Dla każdego przedstawiciela
+handlowego zmieniają się dwie rzeczy:
+
+- **Zyskuje dostęp do danych każdej nieprzypisanej organizacji**, łącznie z organizacjami
+  prywatnymi (B2C): do organizacji prywatnej nie można przypisać przedstawiciela, więc każdy
+  przedstawiciel czyta teraz zamówienia, faktury, koszyki i zwroty każdego klienta B2C i może na nich
+  działać. Właściciel potwierdził to 2026-11-08.
+- **Lista organizacji, jej pola wyboru i wyszukiwarka panelu przestają pokazywać organizacje
+  przypisane innym przedstawicielom.** Dotąd je pokazywały, a otwarcie takiej organizacji kończyło się
+  odpowiedzią `404`.
+
+Nic nie jest migrowane i nic nie trzeba konfigurować; administratorzy platformy nie widzą zmian.
+
+**Po aktualizacji:**
+
+1. **Sprawdź, co zmienia się dla każdego przedstawiciela.** Uruchom to zapytanie tylko do odczytu.
+   Dla każdego przedstawiciela handlowego `gains_tenant_data_of` liczy organizacje, do których
+   członków, zamówień, faktur, koszyków, zwrotów i zapytań ofertowych teraz sięga (z tego
+   `of_which_personal` to organizacje B2C), a `leaves_list_and_search` — organizacje firmowe, których
+   lista i wyszukiwarka panelu już mu nie pokazują:
+
+   ```sql
+   with reps as (
+     select au.id, au.email,
+            (ar.permissions ? 'organizations:rollup' or ar.permissions ? '*') as rollup
+     from admin_users au
+     join admin_roles ar on ar.id = au.admin_role_id
+     where ar.code = 'sales_representative' and au.deleted_at is null
+   ),
+   gov as (
+     select a.organization_id as id, o.path, array_agg(a.admin_user_id) as reps
+     from organization_sales_rep_assignments a
+     join organizations o on o.id = a.organization_id
+     group by a.organization_id, o.path
+   ),
+   orgs as (
+     select o.id, o.is_personal,
+            (select g.reps from gov g where g.id = o.id) as own_reps,
+            (select g.reps from gov g
+              where o.path like g.path || '%'
+              order by length(g.path) desc limit 1) as nearest_reps
+     from organizations o
+     where o.deleted_at is null
+   ),
+   decided as (
+     select r.email, o.is_personal,
+            case when r.rollup then o.nearest_reps else o.own_reps end as governed_by,
+            r.id as rep_id
+     from reps r cross join orgs o
+   )
+   select email as sales_representative,
+          count(*) filter (where governed_by is null) as gains_tenant_data_of,
+          count(*) filter (where governed_by is null and is_personal) as of_which_personal,
+          count(*) filter (where governed_by is not null and not is_personal
+                             and not (rep_id = any (governed_by))) as leaves_list_and_search
+   from decided
+   group by email
+   order by email;
+   ```
+
+2. **Jeśli przedstawiciel nie powinien sięgać do nieprzypisanej organizacji**, przypisz ją
+   przedstawicielowi, który się nią opiekuje: wtedy jest prowadzona, a każdy inny przedstawiciel traci
+   do niej dostęp. Organizacji prywatnej nie można przypisać; ukrycie danych B2C przed
+   przedstawicielami byłoby inną regułą i nie da się go skonfigurować.
+
+### Wymagania weryfikacji dwuetapowej klientów bez klucza szyfrowania {#customer-two-step-without-key}
+
+Wydanie z tą zmianą rozszerza na wymagania wobec klientów to, co
+[Wymuszona weryfikacja dwuetapowa bez klucza szyfrowania](#admin-two-step-without-key) wprowadziła
+dla wymagania wobec administratorów (zgłoszenie #947). Bez `MFA_SECRET_ENCRYPTION_KEY` klienci już
+teraz nie są proszeni o drugi składnik; wymagania dało się jednak nadal włączyć i nic nie mówiło,
+że nie obowiązują.
+
+**Zmiana zachowania po aktualizacji:**
+
+- Włączenie ustawienia **Storefront — enforce two-step verification**
+  (`mfa.storefront.totp_enforced`), dla wszystkich kanałów sprzedaży albo dla części z nich, jest
+  odrzucane, dopóki klucz nie jest ustawiony: `409 MFA_ENFORCEMENT_UNAVAILABLE`, z
+  `details.reason: 'encryption_key_missing'`. Tak samo odrzucana jest polityka organizacji, która
+  wymaga weryfikacji dwuetapowej od jej członków, niezależnie od tego, czy ustawia ją administrator
+  organizacji w sklepie, czy operator przez Admin API. Wyłączenie każdego z nich jest zawsze
+  dozwolone, podobnie jak ponowne zapisanie, gdy jest już włączone.
+- Wcześniej bez klucza nie istniał żaden z dwóch zapisów polityki organizacji, więc polityki
+  ustawionej, gdy klucz był skonfigurowany, nie dało się zdjąć. Teraz oba zapisy działają także bez
+  klucza.
+- Gdy ustawienie sklepu jest włączone, **Ustawienia** pokazują pod nim komunikat *Nie obowiązuje:
+  brak klucza szyfrowania*. Backend przy każdym starcie zapisuje w logu błąd dotyczący ustawienia,
+  z nazwami kanałów sprzedaży, dla których jest włączone, oraz drugi błąd z liczbą organizacji,
+  które wymagają weryfikacji dwuetapowej.
+- Na instancji, która ma klucz, nic się nie zmienia.
+
+**Po aktualizacji,** jeśli pojawi się komunikat albo błąd w logu, ustaw `MFA_SECRET_ENCRYPTION_KEY`
+(zobacz [listę kontrolną pierwszego wdrożenia](./deployment/first-deployment-checklist.md)) i
+uruchom backend ponownie, aby wymagania znów obowiązywały, albo wyłącz ustawienie sklepu w
+**Ustawieniach** i zdejmij polityki organizacji. Ustaw ten klucz, z którym utworzono rejestracje:
+rejestracji utworzonej innym kluczem nie da się nim sprawdzić.
+
+### Trasa pliku prywatnego zasobu odpowiada 404 bez podpisu {#private-asset-file-404}
+
+Wydanie z tą zmianą sprawia, że publiczna trasa plików nie odróżnia już prywatnego zasobu od
+zasobu, który nie istnieje (zgłoszenie #542).
+
+**Zmiana zachowania po aktualizacji:**
+
+- `GET /assets/file/<asset id>` odpowiada na żądanie **prywatnego** zasobu bez podpisu albo z
+  podpisem wygasłym lub nieprawidłowym kodem `404 ASSET_NOT_FOUND`: z tym samym statusem, treścią i
+  nagłówkami co dla identyfikatora, który niczego nie wskazuje. Dotąd odpowiadała
+  `403 ASSET_ACCESS_DENIED`, przez co każdy, kto znał identyfikator, mógł potwierdzić, że prywatny
+  zasób istnieje. Odnośnik stały (permalink) już wcześniej odpowiadał `404`.
+- `ERROR_CODES.ASSET_ACCESS_DENIED` zostaje usunięty z `@endora-commerce/contracts`, bo nic go już
+  nie zgłasza.
+- Podpisany odnośnik do prywatnego pliku w magazynie S3 lub GCS niesie teraz typ pliku i sposób
+  jego wyświetlenia — w przeglądarce albo jako załącznik (zgłoszenie #815) — a `?download=1` prosi
+  tam o załącznik, tak jak już wcześniej w magazynie lokalnym.
+
+**Po aktualizacji,** jeśli klient lub integracja traktuje `403` z trasy pliku jako „istnieje, ale
+wymaga podpisanego odnośnika”, niech tak samo traktuje `404` i pobiera podpisany adres jak dotąd.
+Kod porównujący z `ERROR_CODES.ASSET_ACCESS_DENIED` przestaje się kompilować: usuń porównanie albo
+porównuj z `ERROR_CODES.ASSET_NOT_FOUND`. Przy magazynie w chmurze dodaj nagłówek
+`X-Content-Type-Options: nosniff` przed bucketem, jak opisuje strona biblioteki zasobów.
+
+### Ostatni drugi składnik zostaje, gdy weryfikacja dwuetapowa jest wymagana {#last-factor-required}
+
+Wydanie z tą zmianą zamyka lukę w wymaganiach weryfikacji dwuetapowej (zgłoszenie #935).
+Administrator albo klient, od którego polityka wymagała drugiego składnika, mógł wyłączyć jedyny,
+jaki miał, na własnym ekranie bezpieczeństwa; przy następnym logowaniu był proszony o ponowną
+konfigurację.
+
+**Zmiana zachowania po aktualizacji:**
+
+- `POST /api/v1/admin/account/mfa/disable` i `POST /api/v1/account/mfa/disable` odmawiają usunięcia
+  ostatniego drugiego składnika konta, dopóki obowiązuje wobec niego wymaganie:
+  `409 MFA_LAST_FACTOR_REQUIRED`. Odmowa pada przed sprawdzeniem kodu albo hasła, więc nie zużywa
+  ani jednego, ani drugiego.
+- Liczy się każde źródło wymagania, i to dokładnie tak, jak przy logowaniu: dla administratora
+  ustawienie **Admin UI — enforce two-step verification** (`mfa.admin.totp_enforced`) oraz rola z
+  opcją *Wymaga weryfikacji dwuetapowej od przypisanych użytkowników*; dla klienta ustawienie
+  **Storefront — enforce two-step verification** (`mfa.storefront.totp_enforced`) w kanale
+  sprzedaży, z którego przyszło żądanie, oraz polityka organizacji.
+- Bez `MFA_SECRET_ENCRYPTION_KEY` żadne wymaganie nie obowiązuje, a te ścieżki nie są udostępniane,
+  więc tam nic się nie zmienia.
+- `GET …/mfa/status` zwraca dwa nowe pola, `canDisable` i `disableBlockedReason`
+  (`'factor_required'` albo `null`). Ekran **Bezpieczeństwo konta** w panelu administracyjnym i
+  strona bezpieczeństwa konta w sklepie ukrywają formularz wyłączenia, gdy jest ono odrzucane, i
+  wyjaśniają dlaczego.
+- Reset weryfikacji dwuetapowej innej osoby przez administratora działa bez zmian: to droga powrotu
+  po utracie urządzenia.
+
+**Po aktualizacji** nic nie trzeba robić. Klient API, który oferuje wyłączenie weryfikacji
+dwuetapowej, powinien odczytywać `canDisable` zamiast zgadywać i obsługiwać
+`409 MFA_LAST_FACTOR_REQUIRED`.
+
+### Wartości szans sprzedażowych znikają z dziennika audytu platformy {#crm-audit-names-only}
+
+Wydanie z tą zmianą przestaje zapisywać wartości szansy sprzedażowej w dzienniku audytu całej
+platformy (zgłoszenie #470). Ten dziennik to jedna tabela, czytana przez każdego, kto ma
+`audit_log:read`, bez względu na to, które organizacje widzi, dlatego teraz mówi tylko, czego
+dotyczyła zmiana szansy.
+
+**Zmiana zachowania po aktualizacji:**
+
+- Na ekranie **Dziennik audytu** i w `audit_logs read` nowy wpis `crm.opportunity.*` nie zawiera
+  już tytułu szansy, opisu, wartości, waluty, osoby kontaktowej, organizacji, nazw etykiet,
+  wartości pól niestandardowych, powodu zmiany statusu, nazwy wydarzenia ani nazwy pliku
+  załącznika. Zawiera numer szansy, jej status i inne kody, identyfikatory przypisanej osoby i
+  kanału sprzedaży, daty oraz `changedFields` / `changedCustomFields`, czyli nazwy tego, co się
+  zmieniło.
+- Karta **Historia zmian** szansy się nie zmienia: nadal pokazuje wartości sprzed zmiany i po
+  niej, teraz odczytywane z magazynu, który moduł CRM prowadzi przy szansie
+  (`crm_opportunity_value_changes`, tworzonego przez migrację tego wydania), i tylko
+  czytającemu, który może czytać tę szansę. Wartości pól niestandardowych nadal wymagają
+  `custom_fields:read`.
+- Wpisy zapisane przed aktualizacją nie są przepisywane: zachowują swoje wartości, na ekranie
+  Dziennik audytu i w historii zmian.
+
+**Po aktualizacji** nie trzeba nic robić. Raport lub eksport, który odczytywał wartości szansy z
+dziennika audytu, odczytuje je z samej szansy albo z jej historii zmian
+(`GET /api/v1/admin/crm/opportunities/:id/history`).
+
+### Ograniczenie ilości w pozycji i liczby pozycji {#line-quantity-bound}
+
+Wydanie z tą zmianą ogranicza ilość w pozycji żądania do **1 000 000** — tyle samo, ile wynosi
+górna granica minimów zamówienia — na każdej ścieżce, która ją przyjmuje, a listy pozycji
+zapytania ofertowego tworzonego przez operatora i zwrotu do **200**, tak jak już były ograniczone
+koszyk, szybkie zamówienie, przyjmowanie zamówień i zapytanie ofertowe klienta (zgłoszenie #351).
+Większa ilość przechodziła wcześniej walidację i kończyła się błędem bazy danych z odpowiedzią
+`500 INTERNAL`.
+
+**Zmiana zachowania po aktualizacji:**
+
+- Ilość w pozycji większa niż 1 000 000 jest odrzucana z nowym kodem błędu,
+  `400 LINE_QUANTITY_EXCEEDED`, z przetłumaczonym komunikatem, a `details` wskazują pole. Dotyczy
+  to dodawania do koszyka i zmiany pozycji koszyka, tworzenia i edycji zapytania ofertowego przez
+  klienta i przez operatora, tworzenia zamówienia przez operatora i jego podglądu, szybkiego
+  zamówienia (budowanie i zakup jednym kliknięciem), list zakupowych (dodawanie i zmiana), zwrotów,
+  podglądu promocji oraz ilości bazowej jednostki opakowania. Żądanie, które jest błędne także pod
+  innym względem, dostaje `400 VALIDATION_FAILED`, a `LINE_QUANTITY_EXCEEDED` jest jednym z
+  elementów `details`.
+- W zewnętrznym API `POST /api/v1/external/orders` i `POST /api/v1/external/catalog/prices`
+  odpowiadają `422 VALIDATION_FAILED`, tak jak na każde niepoprawne żądanie; `issue` w elemencie
+  `details` to `LINE_QUANTITY_EXCEEDED`.
+- Dodanie do koszyka jest odrzucane z `422 LINE_QUANTITY_EXCEEDED`,
+  `details: { quantity, maximum }`, gdy pozycja, do której dodaje, przekroczyłaby 1 000 000, albo
+  gdy przekroczyłaby tę granicę liczba sztuk jednostki opakowania (ilość bazowa jednostki razy
+  zamówiona liczba jednostek). Nic nie jest zapisywane. Dotyczy to też dodawania kilku produktów
+  naraz, ponownego zamówienia i przeniesienia listy zakupowej do koszyka. Gdy przy logowaniu koszyk
+  anonimowy jest sumowany z koszykiem klienta, zsumowana pozycja zostaje zatrzymana na 1 000 000.
+- Zmiana ilości w pozycji koszyka przyjmuje każdą ilość do 1 000 000; wcześniej kończyła się na 999.
+- `POST /api/v1/admin/quote-requests`, `PATCH /api/v1/admin/quote-requests/:id` i
+  `POST /api/v1/returns` odrzucają więcej niż 200 pozycji z `400 VALIDATION_FAILED`. Granica to te
+  same 200 co gdzie indziej, ale odpowiedź nie jest ta sama: przyjmowanie zamówień i szybkie
+  zamówienie nadal odpowiadają `422 VALIDATION_FAILED` z `details.code: 'too_many_items'`, a koszyk
+  `422 CART_LINE_CAP_EXCEEDED`.
+- Wiersz pliku szybkiego zamówienia z ilością większą niż 1 000 000, a także każdy wiersz
+  powtórzonego produktu, którego wiersze sumują się do większej ilości, trafia na listę
+  odrzuconych z powodu ilości, zamiast zostać rozpoznany.
+- W panelu administracyjnym ekrany tworzenia zamówienia i zapytania ofertowego oznaczają taką
+  pozycję jako niepoprawną. W sklepie pola ilości szybkiego zamówienia, koszyka, szkicu zapytania
+  ofertowego i mobilnego paska zakupu zatrzymują się na tej granicy, a wpisana większa wartość jest
+  pokazywana jako 1 000 000.
+- Zapisane dane się nie zmieniają: pozycja albo jednostka opakowania, która już przekracza granicę,
+  zostaje bez zmian. Dodanie do koszyka w takiej jednostce jest odrzucane.
+
+**Po aktualizacji** integracja, która wysyła większe ilości albo więcej niż 200 pozycji do
+zapytania ofertowego operatora lub do zwrotów, musi podzielić żądanie, a integracja rozróżniająca
+kody błędów powinna obsłużyć `LINE_QUANTITY_EXCEEDED`.
+
+### Wartości zamówień znikają z dziennika audytu platformy {#orders-audit-names-only}
+
+Wydanie z tą zmianą przestaje zapisywać wartości zamówienia w dzienniku audytu całej platformy
+(zgłoszenie #470). Ten dziennik to jedna tabela, czytana przez każdego, kto ma `audit_log:read`, bez
+względu na to, które organizacje widzi, dlatego teraz mówi tylko, czego dotyczyła zmiana zamówienia.
+
+**Zmiana zachowania po aktualizacji:**
+
+- Na ekranie **Dziennik audytu** i w `audit_logs read` nowy wpis `order.custom_fields.update` lub
+  `order.custom_fields.carry` nie zawiera już wartości pól niestandardowych. Wymienia zmienione
+  klucze jako `changedCustomFields`.
+- Nowy wpis `order.place_on_behalf` nie zawiera już sumy i waluty zamówienia, a jego `groups` podają
+  liczbę pozycji każdej grupy bez jej nazwy.
+- Nowy wpis `order.place_via_api_key` nie zawiera już organizacji ani klienta, w imieniu których
+  klucz składa zamówienia. Zachowuje identyfikator klucza API i numer zamówienia.
+- Wpisy zapisane przed aktualizacją nie są przepisywane.
+
+**Po aktualizacji** nie trzeba nic robić. Raport lub eksport, który odczytywał te wartości z
+dziennika audytu, odczytuje je z samego zamówienia (`GET /api/v1/admin/orders/:id`).
+
+### Wartości zadań znikają z dziennika audytu platformy {#tasks-audit-names-only}
+
+Wydanie z tą zmianą przestaje zapisywać wartości zadania w dzienniku audytu całej platformy
+(zgłoszenie #470). Ten dziennik to jedna tabela, czytana przez każdego, kto ma `audit_log:read`, bez
+względu na to, co widzi, dlatego teraz mówi tylko, czego dotyczyła zmiana zadania.
+
+**Zmiana zachowania po aktualizacji:**
+
+- Na ekranie **Dziennik audytu** i w `audit_logs read` nowy wpis `tasks.*` nie zawiera już tytułu
+  zadania, jego notatki z rekordu, dla którego zostało utworzone, wartości pól niestandardowych ani
+  nazwy pliku załącznika. Zawiera numer zadania, status, daty, typ i identyfikator kontekstu oraz
+  `changedFields` / `changedCustomFields`, czyli nazwy tego, co się zmieniło.
+- Karta **Historia** zadania się nie zmienia: nadal pokazuje wartości, teraz odczytywane z
+  magazynu, który moduł Zadania prowadzi przy zadaniu (`task_value_changes`, tworzonego przez
+  migrację tego wydania), i tylko czytającemu, który może zobaczyć to zadanie.
+- Historia zadania pokazuje teraz wartości pól niestandardowych i nazwy pól niestandardowych,
+  których dotyczyła zmiana, tylko czytającemu, który ma także `custom_fields:read`, tak jak już
+  robią to historie szans sprzedażowych i projektów. Rola z `tasks:read` bez tego uprawnienia nie
+  odczytuje ich już tam.
+- Wpisy zapisane przed aktualizacją nie są przepisywane: zachowują swoje wartości, na ekranie
+  Dziennik audytu i w historii.
+
+**Po aktualizacji** nie trzeba nic robić. Raport lub eksport, który odczytywał wartości zadania z
+dziennika audytu, odczytuje je z samego zadania albo z jego historii
+(`GET /api/v1/admin/tasks/:id/history`).
+
+### Wartości kont klientów znikają z dziennika audytu platformy {#customer-accounts-audit-names-only}
+
+Wydanie z tą zmianą przestaje zapisywać wartości konta klienta w dzienniku audytu całej platformy
+(zgłoszenie #470). Ten dziennik to jedna tabela, czytana przez każdego, kto ma `audit_log:read`, bez
+względu na to, które organizacje widzi, dlatego teraz mówi tylko, czego dotyczyła zmiana konta.
+
+**Zmiana zachowania po aktualizacji:**
+
+- Na ekranie **Dziennik audytu** i w `audit_logs read` nowy wpis `customer_account.*` nie zawiera
+  już adresu e-mail konta, imienia ani nazwiska, jego organizacji, powodu blokady ani nazwy
+  niestandardowej roli w organizacji, a `customer.custom_fields.update` nie zawiera już wartości
+  pól niestandardowych.
+- Zamiast tego zmiana profilu, utworzenie konta i przeniesienie między organizacjami wymieniają
+  pola jako `changedFields`. Zmiana pól niestandardowych wymienia klucze jako
+  `changedCustomFields`. Blokada zapisuje `hasBlockReason`. Zmiana roli zapisuje identyfikator i
+  rodzaj roli.
+- Wpisy zapisane przed aktualizacją nie są przepisywane. Usunięcie danych klienta po jego
+  skasowaniu (`customers.deletion_retention_days`) nadal je redaguje, jak dotąd.
+
+**Po aktualizacji** nie trzeba nic robić. Raport lub eksport, który odczytywał te wartości z
+dziennika audytu, odczytuje je z samego konta (`GET /api/v1/admin/customers/:id`).
+
+### Tytuły projektów znikają z dziennika audytu platformy {#projects-title-out-of-audit}
+
+Wydanie z tą zmianą przestaje zapisywać tytuł projektu w dzienniku audytu całej platformy
+(zgłoszenie #470, decyzja właściciela z 2026-11-10: tytuł jest wartością). Wartość i wartości pól
+niestandardowych projekty już wcześniej trzymały poza nim.
+
+**Zmiana zachowania po aktualizacji:**
+
+- Na ekranie **Dziennik audytu** i w `audit_logs read` nowy wpis `projects.project.*` nazywa projekt
+  jego numerem i nie zawiera już tytułu. Zmiana tytułu jest zapisywana jako
+  `changedFields: ['title']`.
+- Karta **Historia zmian** projektu się nie zmienia: tytuł przed zmianą i po niej jest odczytywany z
+  własnej tabeli projektu `project_value_changes`, i tylko dla czytającego, który może zobaczyć
+  projekt. Migracja nie jest potrzebna: tabela już istnieje.
+- Wpisy zapisane przed aktualizacją nie są przepisywane: zachowują tytuł, z którym zostały zapisane.
+
+**Po aktualizacji** nie trzeba nic robić.
+
+### Wartości zapytań ofertowych znikają z dziennika audytu platformy {#quote-requests-audit-names-only}
+
+Wydanie z tą zmianą przestaje zapisywać wartości zapytania ofertowego w dzienniku audytu całej
+platformy (zgłoszenie #470). Ten dziennik to jedna tabela, czytana przez każdego, kto ma
+`audit_log:read`, bez względu na to, które organizacje widzi, dlatego teraz mówi tylko, czego
+dotyczyła zmiana zapytania.
+
+**Zmiana zachowania po aktualizacji:**
+
+- Na ekranie **Dziennik audytu** i w `audit_logs read` nowy wpis `quote_request.cancel` zapisuje
+  `hasReason` zamiast powodu.
+- `quote_request.modify` i `quote_request.create_on_behalf` zapisują liczbę pozycji każdej grupy
+  bez jej nazwy.
+- `quote_request.send_document` zapisuje `recipientCount` i `failedRecipientCount` zamiast
+  adresów.
+- `quote_request.prepare_customer_basket` nie zapisuje już klienta.
+- `quote_request.custom_fields.carry` wymienia przeniesione klucze jako `changedCustomFields` zamiast
+  wartości pól niestandardowych.
+- Karta **Historia** zapytania się nie zmienia. Nadal pokazuje powód, nazwy grup i adresy,
+  odczytywane z rewizji i zdarzeń samego zapytania.
+- Wpisy zapisane przed aktualizacją nie są przepisywane.
+
+**Po aktualizacji** nie trzeba nic robić. Raport lub eksport, który odczytywał te wartości z
+dziennika audytu, odczytuje je z historii zapytania
+(`GET /api/v1/admin/quote-requests/:id/history`).
+
+### Kwoty limitów kredytowych znikają z dziennika audytu platformy {#credit-limits-audit-names-only}
+
+Wydanie z tą zmianą przestaje zapisywać kwoty limitów kredytowych w dzienniku audytu całej
+platformy (zgłoszenie #470). Ten dziennik to jedna tabela, czytana przez każdego, kto ma
+`audit_log:read`, bez względu na to, które organizacje widzi.
+
+**Zmiana zachowania po aktualizacji:**
+
+- Na ekranie **Dziennik audytu** i w `audit_logs read` nowy wpis `credit_limit.grant`,
+  `credit_limit.adjust` albo `credit_limit.credit_from_return` nie zawiera już przyznanej kwoty,
+  waluty ani identyfikatora organizacji. Mówi, co się zmieniło (`changedFields`, na przykład
+  `['grantedAmount']`), a zaliczenie ze zwrotu zachowuje identyfikator sprawy zwrotu. Wpis jest
+  nadal zapisywany dla organizacji.
+- Sam limit i ekran limitu kredytowego organizacji się nie zmieniają.
+- Wpisy zapisane przed aktualizacją nie są przepisywane: zachowują swoje kwoty.
+
+**Po aktualizacji** nie trzeba nic robić. Raport, który odczytywał przyznane kwoty z dziennika
+audytu, odczytuje je z samego limitu kredytowego.
+
+### Zasięg przedstawiciela handlowego jest wczytywany na żądanie; funkcje pomocnicze zakresu są asynchroniczne {#sales-rep-reach-async-helpers}
+
+Wydanie z tą zmianą przestaje wyznaczać zasięg przedstawiciela handlowego przy każdym żądaniu panelu
+(issue #955; rozstrzygnięcie właściciela z 2026-11-10). Filtr izolacji już teraz odczytuje zasięg jako
+podzapytanie należące do modułu `organizations`; listy wykluczonych i przypisanych organizacji są
+wczytywane dopiero wtedy, gdy żądanie zadaje pytanie o pojedynczą organizację albo układa kolejność
+wyników wyszukiwania, i najwyżej raz na żądanie. Niczyj zasięg się nie zmienia i nic nie jest
+buforowane.
+
+**Zmiana niezgodna wstecz dla kodu opartego na platformie:**
+
+- `isOrgInScope(id, ctx?)` i `ruleVisibleForScope(ids, ctx?)` zostały usunięte z
+  `@endora-commerce/platform/tenancy`. Używaj `await orgInScope(id, ctx?)` i
+  `await ruleInScope(ids, ctx?)`. Dla sprawdzenia powtarzanego na wierszach, które już masz, pobierz
+  raz predykat synchroniczny: `const inScope = await orgScopeTest(ctx?)`, a potem `inScope(id)`.
+- `assignedOrganizationIdsForRanking(ctx?)` zwraca obietnicę (promise).
+- Gałąź `excluding` typu `AdminTenantScope` (`@endora-commerce/contracts`) nie zawiera już
+  `excludedOrganizationIds` / `assignedOrganizationIds`; zawiera `excludedOrganizationsQuery` i
+  `loadReach()`. Tak samo zmieniła się gałąź `excluded` typu `OrgConstraint`, a
+  `salesperson.reaches(id)` w `PreferenceActor` zwraca obietnicę.
+- Funkcje usunięto, zamiast zmienić ich typ, celowo: `if (!isOrgInScope(x))` na obietnicy jest zawsze
+  fałszem, więc zabezpieczenie zostawione przy starej pisowni przestałoby odmawiać. Kod, który wciąż
+  ich używa, się nie skompiluje. Włącz `@typescript-eslint/no-floating-promises` i
+  `@typescript-eslint/no-misused-promises` dla plików, które zadają to pytanie.
+
+**Po aktualizacji** przebuduj każdy pakiet rozszerzenia i moduł nakładkowy, który importuje te funkcje,
+i popraw błędy kompilacji. Nic więcej nie trzeba robić: migracja dostarczona ze zmianą zasięgu
+(`organization_reach_governor`) się nie zmienia.
+
+### Kwoty i powody zwrotów znikają z dziennika audytu platformy {#returns-audit-names-only}
+
+Wydanie z tą zmianą przestaje zapisywać kwoty zwrotów i powody wpisywane wolnym tekstem w dzienniku
+audytu całej platformy (zgłoszenie #470). Ten dziennik to jedna tabela, czytana przez każdego, kto
+ma `audit_log:read`, bez względu na to, które organizacje widzi.
+
+**Zmiana zachowania po aktualizacji:**
+
+- Nowy wpis `return.settled` nie zawiera już `amount`, `charges` (maksimum i zatwierdzonej kwoty
+  każdej opłaty), `recomputedDefaults` ani `lineCeilings`. Zamiast nich wymienia, czego dotyczyły:
+  `refundedCharges` (rodzaje opłat), `recomputedDefaultItemIds` i `ceilingBoundItemIds`
+  (identyfikatory pozycji). Sposób rozliczenia, waluta, stan rozliczenia i wynik korekty zostają.
+- Nowy wpis `return.status_changed` nie zawiera już `reason` wpisanego przy zmianie; zapisuje
+  `hasReason: true | false`. Powód nadal trafia do zdarzeń statusu tej zmiany, ale **nie jest już
+  nigdzie przechowywany**: jeśli operatorzy odczytują powody zmian statusu z dziennika audytu,
+  poproś ich o wpisywanie powodu w komentarzu sprawy.
+- Sprawy zwrotów, zwroty pieniędzy i ich kwoty się nie zmieniają. Wpisy zapisane przed
+  aktualizacją nie są przepisywane: zachowują swoje kwoty i powody.
+
+**Po aktualizacji** sprawdź, czy ktoś nie polega na odczytywaniu powodów zmian statusu z ekranu
+Dziennik audytu (patrz wyżej).
+
 ## Instancja niespójna od początku
 
 Instalator `0.101.x` lub starszy zapisywał każdy pakiet wydania z `^` poza

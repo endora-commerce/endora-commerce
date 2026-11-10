@@ -1,7 +1,18 @@
 import { describe, expect, it, vi } from 'vitest';
 import { ERROR_CODES } from '@endora-commerce/contracts';
+import { withSystemScope } from '@endora-commerce/platform/tenancy';
 import { RfqAdminService } from './rfq-admin-service.js';
 import { RfqService } from './rfq-service.js';
+
+/**
+ * The operator's create, as a platform administrator's request runs it: under a
+ * platform-wide tenant scope, which is what lets it past the organization
+ * visibility check (issue #957 — the scope decides, not `isPlatformAdmin`).
+ */
+const createAsPlatformAdmin = (service: RfqAdminService, body: never) =>
+  withSystemScope('test: a platform-wide administrator', () =>
+    service.createOnBehalf({ adminUserId: 'admin-1', isPlatformAdmin: true, roleLabel: 'Platform administrator' }, body),
+  );
 
 /**
  * Feature 163, owner decision P-3 = A (2026-10-26) — a quote request refuses a
@@ -74,8 +85,8 @@ describe('163 P-3 — a quote request refuses an archived product', () => {
     } as never);
 
     const refusal = await refusalOf(
-      service.createOnBehalf(
-        { adminUserId: 'admin-1', isPlatformAdmin: true, roleLabel: 'Platform administrator' },
+      createAsPlatformAdmin(
+        service,
         {
           organizationId: ORG_ID,
           customerAccountId: CUSTOMER_ID,
@@ -102,8 +113,8 @@ describe('163 P-3 — a quote request refuses an archived product', () => {
       rfqService: { generateBusinessId },
     } as never);
     const refusal = await refusalOf(
-      service.createOnBehalf(
-        { adminUserId: 'admin-1', isPlatformAdmin: true, roleLabel: 'Platform administrator' },
+      createAsPlatformAdmin(
+        service,
         { organizationId: ORG_ID, customerAccountId: CUSTOMER_ID, salesChannelId: CHANNEL_ID, items: [{ productId: ARCHIVED_ID, quantity: 1 }] } as never,
       ),
     );
@@ -125,8 +136,8 @@ describe('163 P-3 — a quote request refuses an archived product', () => {
       rfqService: { generateBusinessId },
     } as never);
     await expect(
-      service.createOnBehalf(
-        { adminUserId: 'admin-1', isPlatformAdmin: true, roleLabel: 'Platform administrator' },
+      createAsPlatformAdmin(
+        service,
         { organizationId: ORG_ID, customerAccountId: CUSTOMER_ID, salesChannelId: CHANNEL_ID, items: [{ productId: LIVE_ID, quantity: 1 }] } as never,
       ),
     ).rejects.toThrow('reached the write');

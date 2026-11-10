@@ -1223,16 +1223,6 @@ export async function setupBackendServer(
       }
     ).customerSocialLoginPort;
 
-  const salesRepScope = (): {
-    listAssignedOrganizationIds(adminUserId: string): Promise<string[]>;
-  } =>
-    (
-      container.cradle as never as {
-        organizationSalesRepScopePort: {
-          listAssignedOrganizationIds(adminUserId: string): Promise<string[]>;
-        };
-      }
-    ).organizationSalesRepScopePort;
 
   /**
    * Feature 026 US6 — admin orders/RFQ scope for the test harness. Mirrors
@@ -1241,7 +1231,7 @@ export async function setupBackendServer(
    */
   const resolveTestAdminOrdersScope = async (
     request: FastifyRequest,
-  ): Promise<{ allowAll: true } | { allowAll: false; allowedOrganizationIds: string[] }> => {
+  ): Promise<{ allowAll: boolean }> => {
     const actor = request.testActor;
     if (!actor || actor.kind !== 'admin') return { allowAll: true };
     const knex = em().getKnex();
@@ -1251,10 +1241,9 @@ export async function setupBackendServer(
     )) as { rows: Array<{ code: string | null }> };
     const roleCode = roleRow.rows[0]?.code ?? null;
     if (roleCode !== 'sales_representative') return { allowAll: true };
-    return {
-      allowAll: false,
-      allowedOrganizationIds: await salesRepScope().listAssignedOrganizationIds(actor.adminUserId),
-    };
+    // Issue #305 — what the representative reaches is the ambient tenant
+    // context's (one reach rule), not a list this resolver reads.
+    return { allowAll: false };
   };
 
   const promptActionsCradle = (): PromptActionsCradle =>
@@ -2593,10 +2582,7 @@ export async function setupBackendServer(
             ? await ports.adminRolePort.getById(adminUser.adminRoleId)
             : null;
           const isPlatformAdmin = role?.code !== 'sales_representative';
-          const allowedOrganizationIds = isPlatformAdmin
-            ? []
-            : await salesRepScope().listAssignedOrganizationIds(adminUserId);
-          return { adminUserId, isPlatformAdmin, allowedOrganizationIds };
+          return { adminUserId, isPlatformAdmin };
         },
       });
 

@@ -37,7 +37,7 @@ export interface CreateOrganizationCommandDeps {
   /**
    * Feature 175 (FR-015, FR-018) — `custom_fields`' value port. The
    * Organization's values are validated with the administrator's rules inside
-   * this Command, so a refusal rolls the create back and the audit row carries
+   * this Command, so a refusal rolls the create back and the audit row names
    * what was stored. Without it the values are not written, as before.
    */
   customFieldValues?: Pick<CustomFieldValuePort, 'validateAndMerge'>;
@@ -111,7 +111,9 @@ export function makeCreateOrganizationCommand(
           vatStatus: organization.vatStatus,
           registeredAddress: organization.registeredAddress,
           salesChannelIds: [...new Set(input.salesChannelIds)].sort(),
-          customFieldValues: organization.customFieldValues,
+          // Feature 175 (FR-021) — the keys stored, never their values
+          // (`specs/conventions/audit-state.md`, D-288).
+          changedCustomFields: Object.keys(organization.customFieldValues ?? {}).sort(),
         },
       };
     },

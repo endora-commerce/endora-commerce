@@ -33,6 +33,8 @@ export class ProjectValueChange {
 
 /** The changed values of one side of a write — only the keys that changed. */
 export interface ProjectValueState {
+  /** Owner ruling O-1 (2026-11-10, #470): a title is a value. */
+  title?: string | null;
   valueAmount?: string | null;
   valueCurrency?: string | null;
   customFieldValues?: Record<string, unknown>;

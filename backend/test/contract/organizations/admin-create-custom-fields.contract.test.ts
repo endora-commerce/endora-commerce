@@ -2,6 +2,7 @@ import { randomUUID } from 'node:crypto';
 import { afterAll, beforeAll, describe, expect, it } from 'vitest';
 import { ERROR_CODES } from '@endora-commerce/contracts';
 import { AuditLogEntry, SalesChannel } from '@endora-commerce/platform/kernel';
+import { expectNoAuditValues } from '@endora-commerce/test-kit/audit';
 import {
   setupBackendServer,
   teardownBackendServer,
@@ -13,8 +14,9 @@ import {
  * FR-021, FR-023, contracts/registration-and-admin-create.md §5) — the admin
  * Organization create and the admin member direct-create accept the record's
  * custom-field values: validated with the administrator's rules inside the
- * create, stored on the new row, carried by its audit row, and a refused value
- * creates nothing. The administrator's rules are not the buyer's: an internal
+ * create, stored on the new row, named (never valued) by its audit row
+ * (`specs/conventions/audit-state.md`, D-288), and a refused value creates
+ * nothing. The administrator's rules are not the buyer's: an internal
  * field that is not open on registration is accepted here and refused there.
  */
 const ADMIN = { cookies: { b2b_session: 'stub-admin-session' } };
@@ -97,18 +99,20 @@ describe('admin creates — custom-field values (feature 175)', () => {
   const knex = () => h.em().getKnex();
 
   describe('POST /api/v1/admin/organizations', () => {
-    it('stores the values, answers them and carries them in the audit row', async () => {
-      const res = await createOrganization({ customFieldValues: { cf175a_note: 'VIP' } });
+    it('stores the values, answers them and names them — never their values — in the audit row', async () => {
+      const res = await createOrganization({ customFieldValues: { cf175a_note: 'S470-CF' } });
       expect(res.statusCode, res.body).toBe(201);
       const org = res.json().data as { id: string; customFieldValues: Record<string, unknown> };
-      expect(org.customFieldValues).toEqual({ cf175a_note: 'VIP' });
+      expect(org.customFieldValues).toEqual({ cf175a_note: 'S470-CF' });
 
       const row = await knex()('organizations').where({ id: org.id }).first('custom_field_values');
-      expect(row.custom_field_values).toEqual({ cf175a_note: 'VIP' });
+      expect(row.custom_field_values).toEqual({ cf175a_note: 'S470-CF' });
 
       h.em().clear();
-      const [entry] = await h.em().find(AuditLogEntry, { action: 'organization.create', objectId: org.id });
-      expect(entry?.stateAfter).toMatchObject({ customFieldValues: { cf175a_note: 'VIP' } });
+      const entries = await h.em().find(AuditLogEntry, { action: 'organization.create', objectId: org.id });
+      expectNoAuditValues(entries, ['S470-CF']);
+      expect(entries[0]?.stateAfter).not.toHaveProperty('customFieldValues');
+      expect(entries[0]?.stateAfter).toMatchObject({ changedCustomFields: ['cf175a_note'] });
     });
 
     it('refuses a missing required field and creates nothing', async () => {
@@ -159,17 +163,19 @@ describe('admin creates — custom-field values (feature 175)', () => {
       organizationId = (res.json().data as { id: string }).id;
     });
 
-    it('stores the values on the account and carries them in the audit row', async () => {
+    it('stores the values on the account and names them — never their values — in the audit row', async () => {
       const email = `cf175a-${randomUUID().slice(0, 8)}@example.test`;
-      const res = await addMember(organizationId, { customFieldValues: { cf175a_badge: 'B-17' } }, email);
+      const res = await addMember(organizationId, { customFieldValues: { cf175a_badge: 'S470-CF' } }, email);
       expect(res.statusCode, res.body).toBe(201);
 
       const row = await knex()('customer_accounts').where({ email }).first('id', 'custom_field_values');
-      expect(row.custom_field_values).toEqual({ cf175a_badge: 'B-17' });
+      expect(row.custom_field_values).toEqual({ cf175a_badge: 'S470-CF' });
 
       h.em().clear();
-      const [entry] = await h.em().find(AuditLogEntry, { action: 'customer_account.admin_create', objectId: row.id });
-      expect(entry?.stateAfter).toMatchObject({ customFieldValues: { cf175a_badge: 'B-17' } });
+      const entries = await h.em().find(AuditLogEntry, { action: 'customer_account.admin_create', objectId: row.id });
+      expectNoAuditValues(entries, ['S470-CF']);
+      expect(entries[0]?.stateAfter).not.toHaveProperty('customFieldValues');
+      expect(entries[0]?.stateAfter).toMatchObject({ changedCustomFields: ['cf175a_badge'] });
     });
 
     it('refuses a missing required field and creates no account', async () => {

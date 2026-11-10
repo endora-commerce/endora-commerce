@@ -23,7 +23,7 @@ import {
   SEED_DELIVERY_METHOD_ID,
   SEED_PAYMENT_METHOD_ID,
 } from '../../helpers/seed-commerce.js';
-import { ADMIN_COOKIES, TEST_CUSTOMER_ID } from '../../helpers/test-actors.js';
+import { ADMIN_COOKIES, TEST_CUSTOMER_ID, TEST_ORGANIZATION_ID } from '../../helpers/test-actors.js';
 import { deepStrict, disagreements } from '../../helpers/strict-schema.js';
 
 const ADMIN = { b2b_session: 'stub-admin-session' };
@@ -44,6 +44,7 @@ interface OrderReply {
  * FR-063, FR-080, FR-081).
  */
 describe('159 — POST /api/v1/admin/orders with line groups [contract]', () => {
+  const OTHER_REP_ID = randomUUID();
   let h: BackendServerHandle;
   let channelId = '';
   const stamp = Date.now();
@@ -118,11 +119,15 @@ describe('159 — POST /api/v1/admin/orders with line groups [contract]', () => 
       });
       await fork.persistAndFlush([org, rep]);
       await fork.persistAndFlush(fork.create(OrganizationSalesRepAssignment, { organizationId: org.id, adminUserId: rep.id }));
+      // #305 — the seeded organization is another representative's: an
+      // unassigned organization is in every representative's reach.
+      await fork.persistAndFlush(fork.create(OrganizationSalesRepAssignment, { organizationId: TEST_ORGANIZATION_ID, adminUserId: OTHER_REP_ID }));
       ADMIN_COOKIES[REP_SESSION] = { adminUserId: rep.id };
     });
   }, 90_000);
 
   afterAll(async () => {
+    await h.em().getConnection().execute('delete from organization_sales_rep_assignments where admin_user_id = ?', [OTHER_REP_ID]);
     delete ADMIN_COOKIES[REP_SESSION];
     await teardownBackendServer(h);
   });
@@ -307,11 +312,11 @@ describe('159 — POST /api/v1/admin/orders with line groups [contract]', () => 
     expect(await groupsNamed(name)).toBe(0);
   });
 
-  it('records the grouping shape on the order.place_on_behalf audit entry (FR-081)', async () => {
+  it('records the grouping shape on the order.place_on_behalf audit entry (FR-081) — line counts, never a value (D-288)', async () => {
     const res = await create({
       groups: [
-        { key: 'a', name: 'Hall A' },
-        { key: 'b', name: 'Hall B' },
+        { key: 'a', name: `S470-HALL-A-${stamp}` },
+        { key: 'b', name: `S470-HALL-B-${stamp}` },
       ],
       items: [
         { productId: SEED_PRODUCT_101_ID, quantity: 1, groupKey: 'a' },
@@ -320,18 +325,29 @@ describe('159 — POST /api/v1/admin/orders with line groups [contract]', () => 
       ],
     });
     expect(res.statusCode, res.body).toBe(201);
-    const orderId = (res.json() as { data: OrderReply }).data.id;
+    const order = (res.json() as { data: OrderReply }).data;
+    const orderId = order.id;
     const audits = await h
       .em()
       .fork()
       .find(AuditLogEntry, { objectType: 'order', objectId: orderId, action: 'order.place_on_behalf' });
     expect(audits).toHaveLength(1);
-    expect(audits[0]!.stateAfter).toMatchObject({
-      groups: [
-        { name: 'Hall A', lineCount: 2 },
-        { name: 'Hall B', lineCount: 1 },
-      ],
+    expect(audits[0]!.stateAfter).toMatchObject({ groups: [{ lineCount: 2 }, { lineCount: 1 }] });
+
+    // The platform audit log, as `audit_log:read` reads it: no group name, no
+    // amount, no currency and no tenant anchor of the order (#470).
+    const read = await h.app.inject({
+      method: 'GET',
+      url: `/api/v1/admin/audit-log?filter[objectId]=${orderId}&filter[action]=order.place_on_behalf`,
+      cookies: ADMIN,
     });
+    expect(read.statusCode, read.body).toBe(200);
+    const rows = (read.json() as { data: Array<{ stateBefore: unknown; stateAfter: unknown }> }).data;
+    expect(rows).toHaveLength(1);
+    const recorded = JSON.stringify(rows.map((row) => [row.stateBefore, row.stateAfter]));
+    for (const sentinel of ['S470-HALL', order.total, TEST_ORGANIZATION_ID, TEST_CUSTOMER_ID, '"currency"', '"total"']) {
+      expect(recorded, sentinel).not.toContain(sentinel);
+    }
 
     // An ungrouped creation records no `groups` at all.
     const plain = await create({ items: [{ productId: SEED_PRODUCT_101_ID, quantity: 1 }] });
