@@ -29,10 +29,41 @@ import { Migration } from '@mikro-orm/migrations';
  * `down()` restores the placeholder from the link — or from the organization's
  * own id for an unlinked personal row — and the old `not null`.
  *
+ * **Minimum upgrade-from version 0.100.0** (D-290 / OD-9). `customer_accounts`'
+ * `Migration20260825T141659CustomerAccountsOrganizationRequired` (first shipped
+ * in v0.100.0) INSERTs personal organizations with the placeholder and links
+ * accounts by it. Migration order is topological, so on a database that has not
+ * applied it this migration runs first, and the old INSERT would then fail
+ * `organizations_tax_id_presence`. The first statement therefore refuses a
+ * database whose `organizations` holds rows while the platform's ledger
+ * (`mikro_orm_migrations`, no module's table) lacks that migration, before
+ * anything changes. A fresh database passes: its `organizations` is empty, and
+ * the old INSERT then selects no account.
+ *
  * Registration is a regeneration: `pnpm --filter backend run composer:generate`.
  */
 export class Migration20261110T135922OrganizationsPersonalTaxIdRemoval extends Migration {
   override async up(): Promise<void> {
+    this.addSql(`
+      do $$
+      begin
+        if exists (select 1 from "organizations")
+           and (
+             to_regclass('mikro_orm_migrations') is null
+             or not exists (
+               select 1 from "mikro_orm_migrations"
+                where "name" = 'Migration20260825T141659CustomerAccountsOrganizationRequired'
+             )
+           ) then
+          raise exception using
+            message = 'organizations: Migration20261110T135922OrganizationsPersonalTaxIdRemoval cannot run before '
+              || 'Migration20260825T141659CustomerAccountsOrganizationRequired (customer_accounts), which this '
+              || 'database has not applied. The minimum version to upgrade from is 0.100.0: upgrade to a '
+              || '0.100.x-0.110.x release first, run migrate, then upgrade to this release.';
+        end if;
+      end
+      $$;
+    `);
     this.addSql(`
       alter table "organizations"
         add column if not exists "personal_account_id" uuid null,
