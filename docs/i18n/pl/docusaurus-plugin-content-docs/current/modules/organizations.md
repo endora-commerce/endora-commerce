@@ -37,8 +37,11 @@ platformy (`/api/v1/admin/*`) są chronione przez `customers:manage`.
 | `POST /api/v1/organizations/mine/addresses` | klient (`addresses.manage`) | Utworzenie adresu |
 | `PATCH /api/v1/organizations/mine/addresses/:id` | klient (`addresses.manage`) | Aktualizacja |
 | `DELETE /api/v1/organizations/mine/addresses/:id` | klient (`addresses.manage`) | Usunięcie |
-| `GET /api/v1/admin/organizations` | administrator | Lista z `filter[status]` / `filter[vatStatus]` / `q`. Przedstawiciel handlowy widzi tylko organizacje ze swojego zasięgu (zob. pod tabelą) |
-| `POST /api/v1/admin/organizations` | administrator (`customers:manage`) | Utworzenie organizacji z jej kanałami sprzedaży (zob. *Kanały sprzedaży* niżej) i wartościami pól niestandardowych (`customFieldValues`) |
+| `GET /api/v1/admin/organizations` | administrator | Lista z `filter[status]` / `filter[vatStatus]` / `q` (nazwa albo NIP, zob. *Numery podatkowe* niżej). Organizacje prywatne są pomijane, chyba że podano `includePersonal=true`; wtedy `filter[isPersonal]=true\|false` zostawia jeden rodzaj. Przedstawiciel handlowy widzi tylko organizacje ze swojego zasięgu (zob. pod tabelą) |
+| `POST /api/v1/admin/organizations` | administrator (`customers:manage`) | Utworzenie organizacji z jej kanałami sprzedaży (zob. *Kanały sprzedaży* niżej) i wartościami pól niestandardowych (`customFieldValues`). Opcjonalne `parentId` tworzy ją jako oddział (tylko administrator platformy, zob. *Numery podatkowe* niżej) |
+| `GET /api/v1/admin/organizations/tax-id-scope` | administrator (`organizations:manage-tax-id-scope`, administrator platformy) | Obowiązujący zakres unikalności NIP, kiedy i przez kogo został ustawiony, ile numerów jest współdzielonych i czy baza danych go egzekwuje (zob. *Zakres unikalności NIP* niżej) |
+| `PUT /api/v1/admin/organizations/tax-id-scope` | administrator (`organizations:manage-tax-id-scope`, administrator platformy) | Zmiana zakresu unikalności NIP (`{ scope: 'global' \| 'per-tree-root' }`) |
+| `POST /api/v1/admin/organizations/:id/convert-to-company` | administrator (`organizations:convert-to-company`; z `validateTaxId: true` także `customers:manage`) | Zamiana organizacji prywatnej na firmową (zob. *Zamiana organizacji prywatnej na firmową* niżej) |
 | `GET /api/v1/admin/organizations/sales-channel-options` | administrator (`customers:manage`) | Kanały oferowane w formularzu tworzenia |
 | `GET /api/v1/admin/organizations/:id/sales-channels` | administrator (`customers:read` lub `customers:manage`) | Kanały przypisane do organizacji i kanały, które można jej przypisać. `404 NOT_FOUND` dla organizacji spoza zasięgu przedstawiciela handlowego (zob. pod tabelą), jak dla organizacji, która nie istnieje |
 | `PUT /api/v1/admin/organizations/:id/sales-channels` | administrator (`customers:manage`) | Zastąpienie przypisanych kanałów (`{ salesChannelIds }`, co najmniej jeden); `404 NOT_FOUND` poza zasięgiem przedstawiciela handlowego, jak przy odczycie |
@@ -59,13 +62,19 @@ konsoli.
 
 ## Encje
 
-`Organization`, `OrganizationInvitation`, `EmailVerificationToken`. Unikalności NIP pilnuje baza
-danych; powtórna rejestracja zwraca `409 ORGANIZATION_TAX_ID_EXISTS`.
+`Organization`, `OrganizationInvitation`, `EmailVerificationToken` oraz jednowierszowa
+`OrganizationTaxIdPolicy` (tabela `organization_tax_id_policy`), w której zapisany jest zakres
+unikalności NIP instalacji. Organizacja firmowa zawsze ma NIP, a prywatna nigdy; to, gdzie ten sam
+NIP może się powtórzyć, rozstrzyga zakres unikalności NIP, a egzekwuje baza danych (zob. *Numery
+podatkowe* niżej).
 
 ## Emitowane zdarzenia
 
 `organization.registered.v1`, `organization.verified.v1`, `organization.suspended.v1`,
-`organization.member_invited.v1`, `organization.member_role_changed.v1`.
+`organization.member_invited.v1`, `organization.member_role_changed.v1`,
+`organization.converted_to_company.v1` (`OrganizationConvertedToCompanyEvent`: `{ eventId,
+occurredAt, organizationId, convertedAt }` — bez nazwy i bez NIP; wysyłane raz, po zatwierdzeniu
+zamiany).
 
 ## Punkty rozszerzenia
 
@@ -123,7 +132,10 @@ każdy kanał, w którym miała już zamówienia.
 - **Nowa organizacja** — przycisk na liście organizacji i akcja w palecie poleceń (⌘K / Ctrl+K),
   widoczne z uprawnieniem `customers:manage`. Formularz pyta o nazwę, NIP, adres siedziby, status
   (*Aktywna* lub *Oczekuje na weryfikację*) i kanały sprzedaży, z domyślnym kanałem systemowym
-  zaznaczonym na starcie. Utworzenie to jedno polecenie zapisywane w dzienniku audytu; po zapisie
+  zaznaczonym na starcie. Administrator platformy (nie przedstawiciel handlowy) dostaje też
+  opcjonalną *organizację nadrzędną*, pod którą organizacja powstaje jako oddział; po jej wybraniu
+  pole NIP podpowiada, że oddział może mieć NIP centrali, gdy zakres unikalności NIP to *Jedno
+  drzewo na numer*. Utworzenie to jedno polecenie zapisywane w dzienniku audytu; po zapisie
   otwiera się strona nowej organizacji. Członków zaprasza się z tej strony, gdy organizacja już
   istnieje.
 
@@ -611,6 +623,27 @@ edycji.
   wyzwalaczach) pozostawia `organization_reach_governor` nieaktualną, a nieaktualny wiersz poszerza
   zasięg przedstawiciela handlowego. Po odtworzeniu uruchom
   `select organizations_reach_governor_rebuild(null);`.
+- `20261110T135922_organizations_personal_tax_id_removal.ts` — czyści NIP każdej organizacji
+  prywatnej, zapisuje jej konto w `personal_account_id` (odczytane z dawnego zastępczego numeru;
+  wiersz prywatny, którego NIP nie był takim numerem, jest czyszczony i pozostaje bez powiązania, a
+  ich liczba jest zgłaszana jako komunikat) i dodaje `organizations_tax_id_presence`. **Odmawia
+  uruchomienia i niczego nie zmienia w bazie, która ma organizacje, ale nie zastosowała migracji
+  `20260825T141659_customer_accounts_organization_required` modułu `customer_accounts`
+  (0.100.0)**: najpierw zaktualizuj do wydania 0.100.x–0.110.x.
+- `20261110T135941_organizations_tax_id_scope.ts` — dodaje zapisaną kolumnę generowaną
+  `organizations.root_id` (pierwszy segment `path`; jej dodanie przepisuje tabelę pod wyłączną
+  blokadą), rozszerzenie `btree_gist` i jednowierszową tabelę `organization_tax_id_policy`
+  z wartością `global` (zob. „Numery podatkowe” niżej).
+- `20261110T173752_organizations_tax_id_write_lock.ts` — wyzwalacz wierszowy
+  `organizations_tax_id_write_lock` przy wstawianiu i przy zmianie `tax_id` lub `path`: dwie
+  transakcje zapisujące ten sam NIP wykonują się po kolei, więc druga dostaje 409 zamiast
+  zakleszczenia.
+- `20261110T183238_organizations_tax_id_normalise.ts` — przepisuje każdy NIP do postaci
+  znormalizowanej i dodaje `organizations_tax_id_normalised`. **Odmawia uruchomienia i niczego nie
+  zmienia, gdy po normalizacji dwie organizacje miałyby ten sam NIP** tam, gdzie zakres tego
+  zabrania, i wypisuje do 50 takich grup; przed aktualizacją znajdziesz je zapytaniem
+  `select upper(regexp_replace(tax_id, '[[:space:]-]', '', 'g')), array_agg(id) from organizations where tax_id is not null group by 1 having count(*) > 1;`
+  i nadaj każdej organizacji własny NIP.
 
 ### Organizacje prywatne (B2C)
 
@@ -628,9 +661,10 @@ przy samodzielnej rejestracji i przy logowaniu przez zewnętrznego dostawcę to�
   prywatną jako osobnego tenanta — dwóch klientów B2C nigdy nie widzi swoich danych, bez żadnego
   szczególnego przypadku dla braku organizacji.
 - **Wartości domyślne dla osób fizycznych.** `status = active`, `vat_status = vat_exempt`, `name` z
-  imienia i nazwiska klienta (albo z części adresu e-mail przed `@`) oraz syntetyczny 32-znakowy
-  szesnastkowy `tax_id` utworzony z identyfikatora konta (kolumna ma globalne `UNIQUE`, a osoba
-  fizyczna nie ma firmowego NIP).
+  imienia i nazwiska klienta (albo z części adresu e-mail przed `@`) i **brak NIP** (`tax_id` ma
+  wartość `NULL`, a każde API odpowiada `taxId: null`). Konto, dla którego organizację utworzono,
+  jest zapisane w `personal_account_id` — dzięki temu tworzenie jest idempotentne i zawsze
+  odnajduje „własną organizację prywatną klienta”.
 - **Niewidoczne na ekranach B2B w panelu.** Organizacje prywatne są domyślnie pomijane na listach i
   listach wyboru w panelu, nie można przypisać do nich handlowca i nie trafiają do kolejki moderacji
   (powstają jako `active`). Lista organizacji w panelu przyjmuje `?includePersonal=true`, aby je w
@@ -644,9 +678,189 @@ przy samodzielnej rejestracji i przy logowaniu przez zewnętrznego dostawcę to�
   w panelu zapisywało kiedyś `organization_id = NULL`; teraz tworzy (albo odnajduje) organizację
   prywatną klienta i przenosi go do niej, zachowując w audycie akcję
   `customer_account.organization_unassigned`.
+- **Bez walidacji VAT.** Walidacja NIP organizacji prywatnej jest odrzucana
+  `422 VALIDATION_FAILED` (*„This organization has no tax ID.”*), zanim zostanie zapytany
+  jakikolwiek rejestr, a strona organizacji nie pokazuje dla niej panelu walidacji VAT.
+
+Do tego wydania organizacja prywatna miała syntetyczny, 32-znakowy szesnastkowy NIP utworzony z
+identyfikatora konta. Migracja aktualizacyjna go czyści i przenosi powiązanie do
+`personal_account_id`. **Dokumenty zapisane przed aktualizacją nie są przepisywane**: zamówienie,
+faktura, dokument oferty czy wpis audytu utworzony wcześniej dla organizacji prywatnej nadal
+pokazuje ten zastępczy numer tam, gdzie pokazywał go wtedy. Zamówienia, które go zawierają, można
+znaleźć zapytaniem
+`select id from orders where billing_address->>'taxId' ~ '^[0-9a-f]{32}$'`.
 
 Organizacje firmowe (B2B) pozostają bez zmian — reguła jednoosobowości (`assertMembershipAllowed`)
 odrzuca tylko dodanie drugiego członka do organizacji prywatnej.
+
+### Zamiana organizacji prywatnej na firmową
+
+Klient, który kupował jako osoba prywatna, a potem założył firmę, może zachować swoją historię:
+operator zamienia jego organizację prywatną na firmową **w miejscu**. Klient nie może zrobić tego
+sam — żadna trasa storefrontu, klienta ani publiczna nie prowadzi do tej zamiany.
+
+**Kto i gdzie.** Operator z uprawnieniem `organizations:convert-to-company` (*Zamiana organizacji
+osobistych na firmowe*) widzi na stronie organizacji prywatnej przycisk **Zamień na firmę**; na
+organizacji firmowej go nie ma. Ten sam formularz jest dostępny z palety poleceń (⌘K / Ctrl+K,
+*Zamień organizację osobistą*) i z menu w nagłówku listy organizacji, pod adresem
+`/organizations/convert-to-company`: najpierw wybierasz organizację prywatną (wyszukiwaną po
+nazwisku klienta), potem wpisujesz dane firmy.
+
+**Formularz** pyta o nazwę firmy, opcjonalną nazwę prawną, numer podatkowy (spacje i myślniki są
+usuwane po wyjściu z pola; od 8 do 32 znaków), adres siedziby, status VAT (domyślnie *Czynny
+podatnik VAT*) i *Zweryfikuj numer podatkowy po zamianie* (domyślnie zaznaczone). Weryfikacja
+wymaga też uprawnienia `customers:manage`, czyli uprawnienia samej walidacji VAT: operator bez
+niego musi odznaczyć to pole, inaczej całe żądanie jest odrzucane `403`.
+
+**Co się zmienia** — w jednej transakcji zapisywanej w dzienniku audytu
+(`organization.convert_to_company`):
+
+- Organizacja staje się firmową, z wpisaną nazwą, nazwą prawną, NIP, adresem siedziby i statusem
+  VAT. **Jej identyfikator się nie zmienia**, a zamówienia, koszyki, adresy, ceny i kanały
+  sprzedaży pozostają przy niej.
+- Jej członek zachowuje rolę *Administrator*, więc może teraz zapraszać współpracowników i
+  zarządzać rolami; strona organizacji pokazuje zakładki członków i ról, a storefront przy
+  następnej stronie oferuje członkowi ekrany firmowe.
+- **Status jest zachowany** (aktywny klient pozostaje aktywny; zamiana nie wysyła organizacji do
+  kolejki moderacji). Jeśli organizacja nigdy nie została zatwierdzona, zostaje oznaczona jako
+  zatwierdzona przez operatora, który ją zamienił.
+- Powiązanie z kontem klienta jest usuwane, a czas zamiany zapisywany. Jeśli ten członek zostanie
+  później odłączony od firmy, dostaje **nową** organizację prywatną; zamieniona firma zachowuje
+  swój identyfikator. Ponieważ jedyny członek zamienionej firmy jest jej ostatnim administratorem,
+  jego odłączenie wymaga najpierw drugiego administratora — jak w każdej firmie.
+- Zwrot zamówienia złożonego **przed** zamianą nadal jest traktowany jako odstąpienie od umowy
+  przez konsumenta; zamówienia złożone później należą do firmy.
+- Wpis audytu zapisuje, które pola się zmieniły, czy dopisano zatwierdzenie, i zakres unikalności
+  NIP — nigdy nazwy, NIP ani adresu.
+- Po zatwierdzeniu transakcji raz wysyłane jest zdarzenie `organization.converted_to_company.v1`.
+
+**Weryfikacja NIP.** Gdy pole jest zaznaczone, walidacja VAT uruchamia się **po** zatwierdzeniu
+zamiany, tą samą ścieżką co *Zweryfikuj teraz* (Biała lista Ministerstwa Finansów dla polskiego
+NIP, VIES dla innego prefiksu UE, w pozostałych przypadkach tylko sprawdzenie formatu). Jej wynik
+jest pokazany w potwierdzeniu; awaria rejestru ani negatywny wynik nigdy nie cofają zamiany —
+ponów weryfikację w panelu walidacji VAT.
+
+**Odmowy.** Gdy zamiana zostaje odrzucona, nic się nie zmienia:
+
+| Odpowiedź | Kiedy |
+| --- | --- |
+| `409 ORGANIZATION_TAX_ID_EXISTS` | NIP należy już do innej organizacji tam, gdzie zakres unikalności NIP zabrania go współdzielić (zob. *Zakres unikalności NIP*) |
+| `409 ORGANIZATION_CONVERSION_REFUSED` `not_personal` | Organizacja już jest firmowa |
+| `409 ORGANIZATION_CONVERSION_REFUSED` `deleted` | Organizacja jest usunięta albo jej klient został zanonimizowany przez proces retencji |
+| `409 ORGANIZATION_CONVERSION_REFUSED` `owner_not_administrator` | Członek nie ma roli *Administrator* — to błąd danych do zgłoszenia, a nie błąd operatora |
+| `409 ORGANIZATION_WRITE_CONTENDED` | Równoległa zmiana organizacji (na przykład zmiana zakresu unikalności NIP) trzymała blokadę; spróbuj ponownie |
+| `404 NOT_FOUND` | Nieznana albo poza zasięgiem przedstawiciela handlowego |
+
+**Zamiany nie można cofnąć**; nie ma operacji, która zamienia firmę z powrotem na organizację
+prywatną.
+
+**Dla kodu serwerowego.** Wpis kontenera `organizationCommandPort`
+(`OrganizationCommandPort.convertToCompany(organizationId, input)` w
+`@endora-commerce/contracts`) uruchamia to samo polecenie z bieżącym aktorem — na przykład w
+imporcie z ERP albo w module nakładki. **Nie sprawdza żadnego uprawnienia i nie uruchamia walidacji
+VAT**: bramką jest wywołujący, więc nigdy nie pobieraj go w trasie dostępnej dla klienta.
+
+## Numery podatkowe
+
+### Jak zapisywany jest NIP
+
+NIP jest zapisywany w jednej, kanonicznej postaci: **bez spacji i myślników, wielkimi literami**
+(`normalizeTaxId` w `@endora-commerce/contracts`), więc `pl 526-025-09-95` zostaje zapisany jako
+`PL5260250995`. Rejestracja, tworzenie w panelu i zamiana normalizują wpisaną wartość, a potem
+wymagają **od 8 do 32 znaków**; krótsza albo dłuższa wartość jest odrzucana `400` (więc `--------`
+zostaje odrzucone, a nie zapisane jako pusty numer). Kropki i inne znaki interpunkcyjne **nie** są
+usuwane — to osobne, szersze czyszczenie wyszukiwania w rejestrze, które nie zmienia tego, co
+zostaje zapisane. Ograniczenie bazy danych `organizations_tax_id_normalised` odrzuca każdą inną
+postać od każdego zapisującego, w tym od danych testowych, seedów i kodu nakładek.
+
+Organizacja firmowa zawsze ma NIP, a prywatna nigdy; ograniczenie `organizations_tax_id_presence`
+odrzuca wiersz, który łamie którąkolwiek z tych reguł.
+
+NIP wpisuje się przy tworzeniu (albo zamianie) organizacji i później nie można go zmienić w
+panelu: `PATCH /api/v1/admin/organizations/:id` go nie przyjmuje.
+
+### Zakres unikalności NIP
+
+Niektóre firmy rejestrują każdy oddział jako osobną organizację pod centralą, a oddziały prawnie
+mają NIP centrali. **Zakres unikalności NIP** rozstrzyga, gdzie ten sam NIP może wystąpić więcej
+niż raz:
+
+| Zakres | Na ekranie | Reguła | Egzekwuje |
+| --- | --- | --- | --- |
+| `global` (domyślny) | *Globalny* — każdy numer podatkowy należy do jednej organizacji | NIP ma co najwyżej jedna organizacja, łącznie z usuniętymi (soft delete) | ograniczenie unikalności `organizations_tax_id_unique` |
+| `per-tree-root` | *Jedno drzewo na numer* — centrala i jej oddziały mogą mieć ten sam numer podatkowy; niepowiązane organizacje nie mogą | Organizacje mogą mieć ten sam NIP tylko wtedy, gdy mają ten sam korzeń (centralę na szczycie drzewa, zob. *Hierarchia organizacji*) | odroczone ograniczenie wykluczające `organizations_tax_id_one_tree` na zapisanej kolumnie `organizations.root_id` |
+
+Każda nowa i zaktualizowana instalacja zaczyna w zakresie `global`, czyli z regułą, którą platforma
+miała zawsze. Zakres **nie jest ustawieniem**: jest zapisany w wierszu `organization_tax_id_policy`
+i zmienia go wyłącznie polecenie `organization.tax_id_scope.set`, zapisywane w dzienniku audytu,
+które zmienia wiersz i ograniczenie bazy danych razem, w jednej transakcji. Każdy zapis odczytuje
+zakres z bazy danych we własnej transakcji, więc żaden serwer nie działa według nieaktualnego
+zakresu.
+
+**Zmiana zakresu.** *Organizacje → Zakres unikalności NIP* (`/organizations/tax-id-scope`; także
+*Zakres unikalności NIP* w palecie poleceń, ⌘K / Ctrl+K, i w menu w nagłówku listy organizacji)
+pokazuje obowiązujący zakres, czas ostatniej zmiany, znaczenie każdego zakresu i liczbę obecnie
+współdzielonych numerów. Wybierz drugi zakres, kliknij **Zastosuj** i potwierdź.
+
+- **Kto.** Uprawnienie `organizations:manage-tax-id-scope` (*Zarządzanie zakresem unikalności
+  NIP*), u administratora, którego zasięg obejmuje całą platformę. Przedstawiciel handlowy dostaje
+  `403` nawet z tym uprawnieniem, bo zakres dotyczy wszystkich organizacji.
+- **Zmiana wstrzymuje zapisy organizacji na kilka sekund.** Na czas budowania nowego ograniczenia
+  bierze wyłączną blokadę tabeli `organizations`, czekając na nią najwyżej 5 sekund. Zmiana
+  organizacji, która trafi na tę operację — albo inny zapis, który przegra z nią blokadę —
+  dostaje odpowiedź `409 ORGANIZATION_WRITE_CONTENDED` (*„W tym samym czasie trwała inna zmiana
+  organizacji. Spróbuj ponownie za chwilę.”*); ponowienie się udaje.
+- **Na *Jedno drzewo na numer*** można przejść zawsze.
+- **Powrót do *Globalny*** jest odrzucany `409 ORGANIZATION_TAX_ID_SCOPE_DUPLICATES`, dopóki
+  jakiś NIP ma więcej niż jedna organizacja (`details: { code: 'shared_tax_ids',
+  sharedTaxIdCount, examples }`, najwyżej 20 przykładów, każdy z NIP i identyfikatorami
+  organizacji). Ekran podaje, ile numerów jest współdzielonych, linkuje organizacje i niczego nie
+  zmienia. **Organizacje usunięte (soft delete) też się liczą**, a NIP nie da się zmienić w
+  panelu, więc gdy oddział ma już NIP centrali, powrót do zakresu *Globalny* nie jest dziś możliwy
+  z poziomu panelu.
+- **Zastosowanie zakresu, który już obowiązuje,** niczego nie zmienia i nie zapisuje wpisu audytu;
+  odtwarza ograniczenie zakresu, jeśli usunięto je ręcznie. Ekran proponuje **Zastosuj ponownie**,
+  gdy wykryje, że baza danych nie egzekwuje obowiązującego zakresu, a serwer przy starcie zapisuje
+  w logu jeden błąd z nazwą zakresu i znalezionych ograniczeń.
+- Wpis audytu zapisuje dwa kody zakresu, przed zmianą i po niej.
+
+**Na co wpływa zakres.**
+
+- **Tworzenie.** Rejestracja i tworzenie w panelu są odrzucane `409 ORGANIZATION_TAX_ID_EXISTS`,
+  gdy NIP istnieje tam, gdzie zakres tego zabrania. W `per-tree-root` oznacza to, że nowa
+  organizacja **główna** — każda samodzielna rejestracja i utworzenie w panelu bez organizacji
+  nadrzędnej — nie może mieć NIP, który ma jakiekolwiek drzewo, a organizacja tworzona w panelu
+  **pod** centralą (albo pod którymkolwiek z jej potomków) może mieć NIP tego drzewa. Rejestracja z
+  NIP, który ma oddział, też jest odrzucana; dołączenie do istniejącej firmy przy rejestracji nie
+  jest oferowane.
+- **Przenoszenie.** W `per-tree-root` przypisanie, przeniesienie albo odłączenie organizacji, po
+  którym jeden NIP znalazłby się w dwóch drzewach, jest odrzucane (zob. *Hierarchia organizacji*).
+- **Równoległe zapisy**, które razem złamałyby regułę, rozstrzyga baza danych: jeden się udaje, a
+  drugi dostaje ten sam kod 409, który dałoby sprawdzenie — nigdy 500.
+
+### Wyszukiwanie po NIP
+
+Pole wyszukiwania na liście organizacji w panelu (`q`) i wyszukiwanie globalne (⌘K) dopasowują NIP
+tak samo jak nazwę. Zapytanie jest normalizowane tak jak zapisana wartość, więc `pl 526-025`
+znajduje `PL526025…`. Organizacja prywatna nie ma NIP i nigdy nie zostanie po nim znaleziona — ani
+po swoim dawnym zastępczym numerze.
+
+### Wyszukiwanie organizacji po NIP (kod serwerowy)
+
+`organizationDetailsPort` (`OrganizationDetailsPort` w `@endora-commerce/contracts`) poprawnie
+odpowiada na pytanie „która organizacja ma ten NIP?” w obu zakresach. Obie funkcje najpierw
+normalizują wejście.
+
+- `findByTaxId(taxId, { includeDeleted? })` — każda organizacja z tym NIP, **najpierw korzeń
+  drzewa**, potem według głębokości, czasu utworzenia i identyfikatora. Organizacje usunięte tylko z
+  `includeDeleted: true`. Brak dopasowania to `[]`.
+- `resolveByTaxId(taxId)` — `{ kind: 'none' }` albo `{ kind: 'one', organization }` wskazujące
+  korzeń (a gdy korzeń jest usunięty — najstarsze żywe dopasowanie), albo
+  `{ kind: 'ambiguous', organizations }`, na które nie pozwala ograniczenie żadnego z zakresów i
+  które istnieje z myślą o przyszłych zakresach.
+
+Rejestracja, tworzenie w panelu oraz seed i reset danych demonstracyjnych korzystają z tych dwóch
+funkcji zamiast odpytywać kolumnę — integracje powinny robić tak samo.
 
 ## Role
 
@@ -733,7 +947,7 @@ od jego roli i od rodzaju organizacji:
   odsyła go do `/account`, a `/organization/addresses` do jego własnej książki adresowej,
   `/addresses`, na której adresy organizacji nadal są widoczne obok jego własnych. Profil nie ma
   dla niego wiersza *Organizacja*, a pole NIP w danych firmy do rozliczenia przy składaniu
-  zamówienia jest puste zamiast wypełnione syntetycznym NIP-em organizacji prywatnej. Każdy inny, kto otworzy taką stronę,
+  zamówienia jest puste, bo organizacja prywatna nie ma NIP. Każdy inny, kto otworzy taką stronę,
   dowiaduje się, kto może z niej korzystać — na przykład *„Rolami mogą zarządzać tylko
   administratorzy organizacji.”*
 - **Role** (`/organization/roles`) to lista wszystkich ról z rodzajem (*Wbudowana* albo
@@ -830,4 +1044,4 @@ Wyszukiwanie globalne w panelu administracyjnym (paleta poleceń, ⌘K / Ctrl+K)
 | NIP | tak |
 | Nazwa prawna | nie |
 
-Nazwy są dopasowywane bez względu na polskie znaki diakrytyczne, więc `lodz` znajduje *Łódź*. Wynikami są organizacje, które administratorowi pokazuje lista organizacji — organizacje firmowe, które nie zostały usunięte — dla roli z uprawnieniem `customers:read` lub `customers:manage`. Przedstawicielowi handlowemu są to organizacje z jego zasięgu; przypisane mu organizacje są pokazywane jako pierwsze, a pozostałe po nich.
+Nazwy są dopasowywane bez względu na polskie znaki diakrytyczne, więc `lodz` znajduje *Łódź*; NIP jest dopasowywany w postaci znormalizowanej (bez spacji i myślników, wielkimi literami), więc `pl 526-025` znajduje `PL526025…`. Wynikami są organizacje, które administratorowi pokazuje lista organizacji — organizacje firmowe, które nie zostały usunięte — dla roli z uprawnieniem `customers:read` lub `customers:manage`. Przedstawicielowi handlowemu są to organizacje z jego zasięgu; przypisane mu organizacje są pokazywane jako pierwsze, a pozostałe po nich.
