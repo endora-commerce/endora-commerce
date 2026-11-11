@@ -229,6 +229,30 @@ export const MINTED_ERROR_CODES: MintedErrorCodes = {
       '`PUT /admin-roles/:code`; it is raised while `mfa` may be absent, so `mfa`\'s bundle ' +
       'could not be the one that translates it.',
   },
+  ORGANIZATION_TAX_ID_SCOPE_DUPLICATES: {
+    to: 'organizations',
+    reason:
+      'Minted by `specs/177-tax-id-scope/` (D-290) for the refusal a switch of the tax-ID scope ' +
+      'to `global` earns while a tax ID is on more than one organization. The noun is the ' +
+      'installation\'s tax-ID scope, the policy row `organizations` owns, and the one raise ' +
+      'site is its `organization.tax_id_scope.set` Command.',
+  },
+  ORGANIZATION_WRITE_CONTENDED: {
+    to: 'organizations',
+    reason:
+      'Minted by `specs/177-tax-id-scope/` (review fix 2) for a write of organizations that ' +
+      'loses a lock to a concurrent one: the tax-ID scope swap or a racing writer (`40P01`, ' +
+      '`55P03`), answered 409 so that a retry succeeds. The noun is the organization row, and ' +
+      'every raise site is `organizations`\' own write wrapper.',
+  },
+  ORGANIZATION_CONVERSION_REFUSED: {
+    to: 'organizations',
+    reason:
+      'Minted by `specs/177-tax-id-scope/` (WP-5) for the refusal a personal-to-company ' +
+      'conversion earns: the organization is not personal, is deleted, or its member is not ' +
+      'its Administrator. The noun is the organization, and the one raise site is ' +
+      '`organizations`\' `organization.convert_to_company` Command.',
+  },
   ADMIN_USER_ROLE_REQUIRED: {
     to: 'admin_users',
     reason:

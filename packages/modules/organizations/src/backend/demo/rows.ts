@@ -2,9 +2,9 @@
  * The organisation this module's demo data creates (feature 113, T222).
  *
  * One place holding the data, imported by both bodies: `seed.ts` creates this
- * row and `reset.ts` withdraws exactly it, by the `taxId` it is keyed on
- * (contract §2.5) — the column the installation declares unique, and the one the
- * instance composition already resolves the demo organisation by.
+ * row and `reset.ts` withdraws exactly it — the row found by the `taxId` it is
+ * keyed on (contract §2.5), the tree's root first, deleted by its id — the key
+ * the instance composition already resolves the demo organisation by.
  *
  * The values are the host seed's verbatim, moved rather than rewritten. The
  * frozen copy the parity comparison read them against is deleted with that

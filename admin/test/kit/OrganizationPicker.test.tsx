@@ -127,3 +127,21 @@ describe('OrganizationPicker — interaction', () => {
     expect(onChange).toHaveBeenCalledWith('org-1');
   });
 });
+
+/**
+ * `specs/177-tax-id-scope/` T063 (`contracts/admin-surfaces.md` §4.3) — `kind`
+ * narrows the picker to personal organizations (the conversion screen) or
+ * widens it to both; the default is today's companies-only list, unchanged.
+ */
+describe('OrganizationPicker — kind', () => {
+  it.each([
+    [undefined, '/api/v1/admin/organizations?limit=25'],
+    ['company', '/api/v1/admin/organizations?limit=25'],
+    ['personal', '/api/v1/admin/organizations?includePersonal=true&filter%5BisPersonal%5D=true&limit=25'],
+    ['any', '/api/v1/admin/organizations?includePersonal=true&limit=25'],
+  ] as const)('kind %s asks %s', async (kind, url) => {
+    getSpy.mockResolvedValue(envelope([]));
+    renderWithI18n(<OrganizationPicker value={null} onChange={vi.fn()} {...(kind ? { kind } : {})} />, {});
+    await waitFor(() => expect(getSpy.mock.calls.at(-1)?.[0]).toBe(url));
+  });
+});

@@ -244,7 +244,8 @@ describe('organization roles — the upgrade replay (170 WP-13a, WP-13)', () => 
           org.id,
           org.name,
           normalizeOrganizationName(org.name),
-          org.taxId,
+          // A personal organization has no tax ID (specs/177-tax-id-scope/).
+          org.isPersonal ? null : org.taxId,
           org.isPersonal ? 'vat_exempt' : 'vat_payer',
           org.isPersonal,
           org.requiresCartApproval,

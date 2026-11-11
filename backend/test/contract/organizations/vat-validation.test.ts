@@ -137,6 +137,36 @@ describe('VAT validation (feature 026 US7)', () => {
     expect(body.errorKind).toBe('not_found');
   });
 
+  it('refuses 422 for a personal organization, which has no tax ID, and writes no row (specs/177 FR-006)', async () => {
+    const em = h.em();
+    const org = em.create(Organization, {
+      name: 'VAT Test Personal',
+      taxId: null,
+      personalAccountId: crypto.randomUUID(),
+      isPersonal: true,
+      status: 'active',
+      vatStatus: 'vat_exempt',
+      registeredAddress: { street: '-', city: '-', postalCode: '-', country: 'PL' },
+    });
+    await em.persistAndFlush(org);
+
+    const res = await h.app.inject({
+      method: 'POST',
+      url: `/api/v1/admin/organizations/${org.id}/vat-validations`,
+      cookies: { b2b_session: 'stub-admin-session' },
+      payload: { providerHint: 'auto', applyAutoFill: true },
+    });
+    expect(res.statusCode, res.body).toBe(422);
+    expect((res.json() as { error: { code: string } }).error.code).toBe('VALIDATION_FAILED');
+
+    const list = await h.app.inject({
+      method: 'GET',
+      url: `/api/v1/admin/organizations/${org.id}/vat-validations`,
+      cookies: { b2b_session: 'stub-admin-session' },
+    });
+    expect((list.json() as { items: unknown[] }).items).toEqual([]);
+  });
+
   it('GET returns history newest-first', async () => {
     const orgId = await seedOrg('1111100000');
 

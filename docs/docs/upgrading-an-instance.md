@@ -4797,6 +4797,45 @@ Organizations they may see.
 **After upgrading,** nothing has to be done. A report that read invoice totals out of the audit log
 reads them from the invoices instead.
 
+### The schema-extension commands run in the instance {#schema-extensions-instance-command}
+
+The release that ships this change adds `module:schema-extensions` to the instance scaffold, beside
+the five `module:*` commands (issue #1036). In the instance root:
+
+```bash
+pnpm run module:schema-extensions list                      # declared extension columns, and orphaned ones
+pnpm run module:schema-extensions drop <moduleId>           # prints the plan
+pnpm run module:schema-extensions drop <moduleId> --confirm # drops orphaned elements, one audit entry
+pnpm run module:schema-extensions audit-packages            # what migrate would refuse, executing nothing
+```
+
+`drop` removes only elements that are orphaned and that no installed package declares any more;
+it is the only way the columns an uninstalled module left behind are ever removed.
+`audit-packages` reads every installed package's migrations without executing them and lists each
+statement the foreign-schema guard refuses at `migrate` (exit 65 while one remains). `migrate`
+stops at the first such statement and rolls the whole run back; `audit-packages` names all of them.
+
+**An instance created before this release** has no such command: `pnpm run upgrade` changes no
+file of your tree. Add it by hand, then run `pnpm run build:backend`:
+
+1. `backend/src/module-commands/schema-extensions.ts`:
+
+   ```ts
+   import { runInstanceSchemaExtensionsCommand } from '@endora-commerce/platform/lifecycle';
+   import config from '../mikro-orm.config.js';
+
+   await runInstanceSchemaExtensionsCommand({ ormConfig: config });
+   ```
+
+2. In `backend/package.json`, under `scripts`:
+   `"module:schema-extensions": "node --env-file-if-exists=../.env dist/module-commands/schema-extensions.js"`.
+3. In the instance's root `package.json`, under `scripts`:
+   `"module:schema-extensions": "pnpm -C backend run module:schema-extensions"`.
+
+**After upgrading,** if `migrate` was refused with `foreign-schema-write`, run
+`pnpm run module:schema-extensions audit-packages` to see every statement it would refuse, and ask
+the package's author for a release that declares its columns instead.
+
 ### The catalogue reads the whole `Accept-Language` header {#catalog-accept-language}
 
 The release that ships this change makes the catalogue read `Accept-Language` as the weighted
@@ -4818,6 +4857,50 @@ including any `;q=` weight.
 **After upgrading,** check integrations that call the catalogue API with their own
 `Accept-Language`. One that needs a particular language must ask for a language the sales
 channel offers. Add the language to the channel in **Sales channels** if it is missing.
+
+### Subscriber addresses leave the platform audit log {#newsletter-audit-names-only}
+
+The release that ships this change stops writing newsletter subscribers' e-mail addresses and
+unsubscribe reasons into the platform-wide audit log (issue #470). That log is one table, read by
+everybody holding `audit_log:read` whatever they may see.
+
+**Behaviour change on upgrade:**
+
+- On the **Audit log** screen, and in `audit_logs read`, a new `newsletter_subscribe`,
+  `newsletter_resubscribe`, `newsletter_bounce`, `newsletter_complaint` or `newsletter_delete` entry
+  no longer carries the e-mail address, and a new `newsletter_unsubscribe` entry no longer carries
+  the reason; it records `hasReason`. Entries name the subscriber by id. A suppression of an address
+  that has no subscriber is recorded against its suppression row (`newsletter_suppression` and the
+  row's id), not against the address.
+- Subscribers, their unsubscribe reasons and the suppression list are unchanged.
+- Entries recorded before the upgrade are not rewritten: they keep their addresses and reasons.
+
+**After upgrading,** nothing has to be done. A report that looked subscribers up by address in the
+audit log looks them up on the **Newsletter** screen instead.
+
+### An Organization edit's values leave the platform audit log {#organization-admin-patch-audit-names-only}
+
+The release that ships this change stops writing an Organization's values into the platform-wide
+audit log when an operator edits it (issue #470, owner ruling O-2: the Organization's name, tax ID
+and reasons are the tenant's values). That log is one table, read by everybody holding
+`audit_log:read` whatever Organizations they may see.
+
+**Behaviour change on upgrade:**
+
+- On the **Audit log** screen, and in `audit_logs read`, a new `organization.admin_patch` entry
+  (`PATCH /api/v1/admin/organizations/:id`) no longer carries the Organization's snapshot: no name,
+  legal name, tax ID, registered address, order-confirmation e-mails, block or rejection reason or
+  custom field values.
+- Instead, it records the status, VAT status and fulfilment-strategy codes before and after, and
+  names what changed: the fields as `changedFields`, the custom field keys as
+  `changedCustomFields`.
+- The Organization and its values are unchanged.
+- Entries recorded before the upgrade are not rewritten: they keep the snapshot they were written
+  with.
+
+**After upgrading,** nothing has to be done. A report or an export that read an Organization's
+values out of the audit log reads them from the Organization (`GET /api/v1/admin/organizations/:id`)
+instead.
 
 ## An instance that is mixed from the start
 

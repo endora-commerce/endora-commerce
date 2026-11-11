@@ -162,9 +162,9 @@ export class CustomerAccountLifecycleWriteService implements CustomerAccountLife
    * the old order would fail at the insert rather than leave a bad row.
    *
    * The account id is generated here rather than by the entity default because
-   * the organisation has to exist first — its `taxId` is derived from that id,
-   * which is what makes the provisioning re-runnable — and the account's foreign
-   * key has to point at it.
+   * the organisation has to exist first — it records that id as its account
+   * link, which is what makes the provisioning re-runnable — and the account's
+   * foreign key has to point at it.
    */
   async createStandalone(
     input: CustomerAccountStandaloneCreateInput,

@@ -101,7 +101,11 @@ export type { OrganizationPickerMultiProps } from './organization-picker/Organiz
 export { OrganizationStatusBadge } from './organization-picker/OrganizationStatusBadge.js';
 export type { OrganizationStatusBadgeProps } from './organization-picker/OrganizationStatusBadge.js';
 export { useOrganizationsQuery } from './organization-picker/useOrganizationsQuery.js';
-export type { UseOrganizationsQueryOptions, UseOrganizationsQueryResult } from './organization-picker/useOrganizationsQuery.js';
+export type {
+  OrganizationPickerKind,
+  UseOrganizationsQueryOptions,
+  UseOrganizationsQueryResult,
+} from './organization-picker/useOrganizationsQuery.js';
 export { useFocusTrap } from './hooks/useFocusTrap.js';
 export type { FocusTrapOptions } from './hooks/useFocusTrap.js';
 export { ModalDialog } from './modal-dialog/ModalDialog.js';

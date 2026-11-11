@@ -75,7 +75,9 @@ describe('returns — a consumer withdrawal refunds the delivery and the surchar
     const orgId = await makeOrganization(em, 'Consumer');
     await withSystemScope('test: make the organization personal', async () => {
       const fork = h.em().fork();
-      (await fork.findOneOrFail(Organization, { id: orgId })).isPersonal = true;
+      const org = await fork.findOneOrFail(Organization, { id: orgId });
+      org.isPersonal = true;
+      org.taxId = null; // a personal organization has no tax ID (specs/177-tax-id-scope/)
       await fork.flush();
     });
     consumer = await makeMember(h.em().fork(), orgId, 'administrator', { label: 'Consumer' });

@@ -3,7 +3,7 @@ import { Link, useNavigate } from 'react-router-dom';
 import { ArrowLeft } from 'lucide-react';
 import type { OrganizationSalesChannelOption } from '@endora-commerce/contracts';
 import { ApiError, useAuth } from '@endora-commerce/admin-kit/lib';
-import { CustomFieldValuesPanel, customFieldErrorsOf } from '@endora-commerce/admin-kit/components';
+import { CustomFieldValuesPanel, OrganizationPicker, customFieldErrorsOf } from '@endora-commerce/admin-kit/components';
 import {
   Alert,
   AlertDescription,
@@ -43,6 +43,15 @@ import { SalesChannelChecklist } from '../components/SalesChannelChecklist.js';
 const EMPTY_VALUES: Record<string, unknown> = {};
 
 const STATUSES = ['active', 'pending_verification'] as const;
+
+/**
+ * The role whose reach is a subset of the installation — the backend's own rule
+ * (`services/admin-tenant-scope.ts`). Naming a parent is parentage, the tenancy
+ * graph, so it is an unscoped administrator's alone (D-260); the route refuses
+ * anybody else with 403, and the form does not offer it to them
+ * (`specs/177-tax-id-scope/` FR-018).
+ */
+const SCOPED_ROLE_CODE = 'sales_representative';
 type Status = (typeof STATUSES)[number];
 
 export function OrganizationCreate(): ReactNode {
@@ -54,6 +63,8 @@ export function OrganizationCreate(): ReactNode {
   const [postalCode, setPostalCode] = useState('');
   const [city, setCity] = useState('');
   const [country, setCountry] = useState('');
+  const [parentId, setParentId] = useState<string | null>(null);
+  const canNameParent = (useAuth().me?.role?.code ?? SCOPED_ROLE_CODE) !== SCOPED_ROLE_CODE;
   const [status, setStatus] = useState<Status>('active');
   const [options, setOptions] = useState<OrganizationSalesChannelOption[] | null>(null);
   const [channels, setChannels] = useState<string[]>([]);
@@ -104,6 +115,7 @@ export function OrganizationCreate(): ReactNode {
         },
         status,
         salesChannelIds: channels,
+        ...(parentId ? { parentId } : {}),
         ...(Object.keys(customFieldValues).length > 0 ? { customFieldValues } : {}),
       });
       navigate(`/organizations/${res.data.id}`, { replace: true });
@@ -152,9 +164,30 @@ export function OrganizationCreate(): ReactNode {
                   minLength={8}
                   maxLength={32}
                   required
+                  {...(parentId ? { 'aria-describedby': 'org-new-tax-id-hint' } : {})}
                 />
+                {parentId ? (
+                  <p id="org-new-tax-id-hint" className="text-xs text-muted-foreground">
+                    {t('create.hint.sharedTaxId')}
+                  </p>
+                ) : null}
               </div>
             </div>
+
+            {canNameParent ? (
+              <div className="grid gap-2 md:max-w-md">
+                <Label htmlFor="org-new-parent">{t('create.field.parent')}</Label>
+                <OrganizationPicker
+                  id="org-new-parent"
+                  ariaLabel={t('create.field.parent')}
+                  value={parentId}
+                  onChange={setParentId}
+                  clearable
+                  disabled={saving}
+                />
+                <p className="text-xs text-muted-foreground">{t('create.field.parentHelp')}</p>
+              </div>
+            ) : null}
 
             <fieldset className="grid gap-2">
               <legend className="mb-2 text-sm font-medium">{t('create.field.registeredAddress')}</legend>

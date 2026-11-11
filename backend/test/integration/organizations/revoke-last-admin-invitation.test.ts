@@ -35,7 +35,7 @@ describe('revoking the last administrator invitation', () => {
       `insert into "organizations"
          ("id","name","tax_id","status","vat_status","registered_address","path","is_personal","created_at","updated_at")
        values (?, ?, ?, 'active', 'vat_payer', '{}'::jsonb, ?, false, now(), now())`,
-      [id, `Revoke ${id.slice(0, 8)}`, `rev-${id.slice(0, 13)}`, `/${id}/`],
+      [id, `Revoke ${id.slice(0, 8)}`, `REV${id.slice(0, 13).replace(/-/g, '').toUpperCase()}`, `/${id}/`],
     );
     return id;
   }

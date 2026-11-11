@@ -58,6 +58,7 @@
  * whole in one transaction. The withdrawal deletes by those ids and the
  * children go through the foreign keys of `crm`'s own schema.
  */
+import { findDemoOrganization } from './demo-organization.js';
 import type { Opt } from '@mikro-orm/postgresql';
 import {
   formatOpportunityReferenceToken,
@@ -718,7 +719,7 @@ export const demoSalesPipelineStep: CompositionStep = {
     const [crm, neighbours] = await Promise.all([crmRows(), neighbourRows()]);
     const { Organization, AdminUser, CustomerAccount, Product } = neighbours;
 
-    const organization = await em.findOne(Organization, { taxId: DEMO_ORG_TAX_ID });
+    const organization = await findDemoOrganization(em, Organization, DEMO_ORG_TAX_ID);
     // No demo organisation, no pipeline: an Opportunity without an Organization
     // is not a state the schema has (Principle XI).
     if (organization === null) return;

@@ -11,21 +11,21 @@ import { TEST_ORGANIZATION_ID } from '../../helpers/test-actors.js';
 /**
  * Issue #767 — `GET /api/v1/admin/orders/:id` enriches the order with its
  * Organization for the detail page's Organization panel. A personal (B2C)
- * Organization's tax id is an internal 32-hex placeholder, so the reply carries
+ * Organization has no tax id (`specs/177-tax-id-scope/`; it carried an internal
+ * 32-hex placeholder before), so the reply carries
  * `taxId: null` and `isPersonal: true` for it (the panel labels it an
  * individual customer, owner ruling of 2026-11-05); a company Organization's tax id is carried as before.
  */
-const PLACEHOLDER_TAX_ID = '79963f233e3843bd84e144a8fcdd37f8';
 
 describe('GET /api/v1/admin/orders/:id — Organization tax id (#767)', () => {
   let h: BackendServerHandle;
-  let original: { name: string; legalName: string | null; taxId: string; isPersonal: boolean };
+  let original: { name: string; legalName: string | null; taxId: string | null; isPersonal: boolean };
 
   beforeAll(async () => {
     h = await setupBackendServer();
     await seedShippedOrder(h.em());
     const org = await h.em().findOneOrFail(Organization, { id: TEST_ORGANIZATION_ID });
-    original = { name: org.name, legalName: org.legalName ?? null, taxId: org.taxId, isPersonal: org.isPersonal };
+    original = { name: org.name, legalName: org.legalName ?? null, taxId: org.taxId ?? null, isPersonal: org.isPersonal };
   });
 
   afterAll(async () => {
@@ -38,7 +38,7 @@ describe('GET /api/v1/admin/orders/:id — Organization tax id (#767)', () => {
       Organization,
       { id: TEST_ORGANIZATION_ID },
       kind === 'personal'
-        ? { name: 'Jan Kowalski', legalName: null, taxId: PLACEHOLDER_TAX_ID, isPersonal: true }
+        ? { name: 'Jan Kowalski', legalName: null, taxId: null, isPersonal: true }
         : { name: 'Acme', legalName: 'Acme Sp. z o.o.', taxId: '5260250274', isPersonal: false },
     );
     const res = await h.app.inject({

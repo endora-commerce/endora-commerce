@@ -33,7 +33,8 @@ describe('customers — depletion guards are for company Organizations only (PR-
       `insert into "organizations"
          ("id","name","tax_id","status","vat_status","registered_address","path","is_personal","created_at","updated_at")
        values (?, ?, ?, 'active', 'vat_payer', '{}'::jsonb, ?, ?, now(), now())`,
-      [id, `Depletion ${id.slice(0, 8)}`, `depl-${id.slice(0, 13)}`, `/${id}/`, isPersonal],
+      // A personal organization has no tax ID (specs/177-tax-id-scope/).
+      [id, `Depletion ${id.slice(0, 8)}`, isPersonal ? null : `DEPL${id.slice(0, 13).replace(/-/g, '').toUpperCase()}`, `/${id}/`, isPersonal],
     );
     return id;
   }

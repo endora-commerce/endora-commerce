@@ -16,13 +16,6 @@ export const organizationStatusSchema = z.enum([
 ]);
 export type OrganizationStatusInput = z.infer<typeof organizationStatusSchema>;
 
-/** Tax ID — uppercased + stripped of whitespace and dashes at the Zod boundary. */
-export const taxIdSchema = z
-  .string()
-  .min(1)
-  .max(64)
-  .transform((s) => s.replace(/[\s-]+/g, '').toUpperCase());
-
 // ── Moderation ────────────────────────────────────────────────────────────
 
 export const approveOrganizationSchema = z.object({

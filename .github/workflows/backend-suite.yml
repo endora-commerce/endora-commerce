@@ -197,3 +197,73 @@ jobs:
       - run: pnpm run build:packages
       - run: pnpm --filter backend run overlay:check
       - run: pnpm --filter backend exec vitest run test/overlay test/integration/overlay test/contract/admin_users/permission-inventory.test.ts
+
+  test-backend-organizations-per-tree-root:
+    # `.gitlab-ci.yml`'s `test:backend:organizations-per-tree-root`
+    # (`specs/177-tax-id-scope/` FR-027, research R-16): the organizations
+    # suites against a template built in the `per-tree-root` tax-ID scope. The
+    # shards above run them in `global`, the scope every installation starts in.
+    name: test:backend:organizations-per-tree-root
+    runs-on: ubuntu-24.04
+    timeout-minutes: 60
+    permissions:
+      contents: read
+    services:
+      postgres:
+        image: postgres:16-alpine
+        env:
+          POSTGRES_USER: b2b
+          POSTGRES_PASSWORD: b2b
+          POSTGRES_DB: b2b
+        ports:
+          - 5432:5432
+        options: >-
+          --health-cmd "pg_isready -U b2b -d b2b"
+          --health-interval 5s --health-timeout 5s --health-retries 10
+      redis:
+        image: redis:7-alpine
+        ports:
+          - 6379:6379
+        options: >-
+          --health-cmd "redis-cli ping"
+          --health-interval 5s --health-timeout 3s --health-retries 10
+      meilisearch:
+        image: getmeili/meilisearch:v1.11
+        env:
+          MEILI_MASTER_KEY: devMasterKeyChangeMe
+          MEILI_ENV: development
+          MEILI_NO_ANALYTICS: 'true'
+        ports:
+          - 7700:7700
+        options: >-
+          --health-cmd "wget --quiet --spider http://127.0.0.1:7700/health"
+          --health-interval 5s --health-timeout 3s --health-retries 10
+    env:
+      ORGANIZATIONS_TAX_ID_SCOPE: per-tree-root
+      NODE_OPTIONS: --max-old-space-size=2048
+      TEST_DATABASE_URL: postgresql://b2b:b2b@localhost:5432/b2b_test
+      REDIS_URL: redis://localhost:6379
+      MEILISEARCH_URL: http://localhost:7700
+      MEILISEARCH_API_KEY: devMasterKeyChangeMe
+    steps:
+      # actions/checkout v7.0.1
+      - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1
+        with:
+          persist-credentials: false
+      # actions/setup-node v7.0.0
+      - uses: actions/setup-node@820762786026740c76f36085b0efc47a31fe5020
+        with:
+          node-version: '22.18'
+      - run: corepack enable && corepack prepare pnpm@9.15.0 --activate
+      - id: pnpm-store
+        run: echo "path=$(pnpm store path --silent)" >> "$GITHUB_OUTPUT"
+      # actions/cache v6.1.0
+      - uses: actions/cache@55cc8345863c7cc4c66a329aec7e433d2d1c52a9
+        with:
+          path: ${{ steps.pnpm-store.outputs.path }}
+          key: pnpm-store-${{ hashFiles('pnpm-lock.yaml') }}
+          restore-keys: pnpm-store-
+      - run: pnpm install --frozen-lockfile
+      - run: pnpm run build:packages
+      - run: pnpm --filter backend exec vitest run test/contract/organizations test/integration/organizations
+      - run: pnpm --filter @endora-commerce/mod-organizations exec vitest run

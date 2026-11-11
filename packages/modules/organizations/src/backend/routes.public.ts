@@ -341,7 +341,8 @@ function setSessionCookie(reply: FastifyReply, value: string, expiresAt: Date): 
 function serializeOrganization(o: {
   id: string;
   name: string;
-  taxId: string;
+  /** `null` for a personal organization (`specs/177-tax-id-scope/`); registration creates companies. */
+  taxId?: string | null;
   status: string;
   vatStatus: string;
   registeredAddress: { street: string; city: string; postalCode: string; country: string };
@@ -351,7 +352,7 @@ function serializeOrganization(o: {
   return {
     id: o.id,
     name: o.name,
-    taxId: o.taxId,
+    taxId: o.taxId ?? null,
     status: o.status,
     vatStatus: o.vatStatus,
     registeredAddress: o.registeredAddress,

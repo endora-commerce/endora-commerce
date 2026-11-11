@@ -18,11 +18,10 @@ import { TEST_ORGANIZATION_ID } from '../../helpers/test-actors.js';
  * to the person unless the buyer typed company data explicitly (owner ruling
  * of 2026-11-05: the "I need a company invoice" checkbox at checkout).
  */
-const PLACEHOLDER_TAX_ID = '79963f233e3843bd84e144a8fcdd37f8';
 
 describe('placeOrder — billing company data for personal and company Organizations (#759)', () => {
   let h: BackendServerHandle;
-  let original: { name: string; legalName: string | null; taxId: string; isPersonal: boolean };
+  let original: { name: string; legalName: string | null; taxId: string | null; isPersonal: boolean };
 
   beforeAll(async () => {
     h = await setupBackendServer();
@@ -30,7 +29,7 @@ describe('placeOrder — billing company data for personal and company Organizat
     original = {
       name: org.name,
       legalName: org.legalName ?? null,
-      taxId: org.taxId,
+      taxId: org.taxId ?? null,
       isPersonal: org.isPersonal,
     };
   });
@@ -49,7 +48,7 @@ describe('placeOrder — billing company data for personal and company Organizat
       Organization,
       { id: TEST_ORGANIZATION_ID },
       kind === 'personal'
-        ? { name: 'Jan Kowalski', legalName: null, taxId: PLACEHOLDER_TAX_ID, isPersonal: true }
+        ? { name: 'Jan Kowalski', legalName: null, taxId: null, isPersonal: true }
         : { name: 'Acme', legalName: 'Acme Sp. z o.o.', taxId: '5260250274', isPersonal: false },
     );
   }

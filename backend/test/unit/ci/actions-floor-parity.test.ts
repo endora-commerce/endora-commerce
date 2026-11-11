@@ -160,7 +160,8 @@ describe('the floor parsed a population that looks like both hosts', () => {
     ]);
     expect(TRANCHE_ONE_JOBS.map((job) => job.name)).toEqual(['pack-gate', 'boot-gate', 'build:docs']);
     expect(DOCS_PUBLICATION_JOBS).toHaveLength(2);
-    expect(BACKEND_SUITE_JOBS).toHaveLength(2);
+    // The shards, the deployment overlays and the per-tree-root organizations run (177).
+    expect(BACKEND_SUITE_JOBS).toHaveLength(3);
     expect(QUALITY_JOBS.map((job) => job.name)).toEqual([...FLOOR]);
     expect(PUBLISH_JOBS.map((job) => job.name)).toEqual(['publish:packages']);
     expect(

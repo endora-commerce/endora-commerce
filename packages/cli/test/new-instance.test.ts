@@ -784,6 +784,50 @@ describe('the tree (§1, §2)', () => {
     );
   });
 
+  /**
+   * Issue #1036 — `module:schema-extensions` is the sixth operator command.
+   *
+   * `specs/178-extensible-columns/` shipped `list`, `drop` (the only sanctioned
+   * removal of orphaned `x_<module>_*` columns, OD-29) and `audit-packages`
+   * (the pre-upgrade run of the foreign-schema guard) with an entry point in
+   * this repository's `backend/` alone, so an instance — which is where the
+   * declared columns live — could run none of them. The instance form has the
+   * same three hops as the five `module:*` commands: a root script delegating
+   * to the member, a member script running the compiled entry, and a rendered
+   * entry that is one call into `<scope>platform/lifecycle`.
+   */
+  it('issue #1036 — wires `module:schema-extensions` like the five `module:*` commands', () => {
+    const plan = planInstance(planInput({ name: 'acme-shop' }));
+    const scriptsOf = (path: string): Record<string, string> =>
+      (
+        JSON.parse(plan.files.find((file) => file.path === path)!.content) as {
+          scripts: Record<string, string>;
+        }
+      ).scripts;
+    expect(scriptsOf('package.json')['module:schema-extensions']).toBe(
+      'pnpm -C backend run module:schema-extensions',
+    );
+    expect(scriptsOf('backend/package.json')['module:schema-extensions']).toBe(
+      'node --env-file-if-exists=../.env dist/module-commands/schema-extensions.js',
+    );
+    const entry = plan.files.find(
+      (file) => file.path === 'backend/src/module-commands/schema-extensions.ts',
+    );
+    expect(entry?.kind).toBe('wiring');
+    expect(entry?.member).toBe('backend');
+    // The platform runs the grammar, the refusals and the audited drop; the
+    // instance supplies its own ORM configuration and nothing else.
+    expect(entry!.content).toContain(
+      `import { runInstanceSchemaExtensionsCommand } from '${SCOPE}platform/lifecycle';`,
+    );
+    expect(entry!.content).toContain("import config from '../mikro-orm.config.js';");
+    expect(entry!.content).toContain(
+      'await runInstanceSchemaExtensionsCommand({ ormConfig: config });',
+    );
+    const readme = plan.files.find((file) => file.path === 'README.md')!.content;
+    expect(readme).toContain('pnpm run module:schema-extensions list');
+  });
+
   it('R1.4 — the wiring is under the bound, measured on the plan', () => {
     expect(wiringLineCount(planInstance(planInput()))).toBeLessThan(250);
   });

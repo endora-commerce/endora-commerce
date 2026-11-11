@@ -44,7 +44,7 @@ describe('two administrators stepping down at once', () => {
       `insert into "organizations"
          ("id","name","tax_id","status","vat_status","registered_address","path","created_at","updated_at")
        values (?, 'Two admins', ?, 'active', 'vat_payer', '{}'::jsonb, ?, now(), now())`,
-      [organizationId, `lock-${organizationId.slice(0, 13)}`, `/${organizationId}/`],
+      [organizationId, `LOCK${organizationId.slice(0, 13).replace(/-/g, '').toUpperCase()}`, `/${organizationId}/`],
     );
     const admins: string[] = [];
     for (let i = 0; i < 2; i += 1) {

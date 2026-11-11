@@ -78,6 +78,7 @@
  * The presence oracle is a **parameter**: the dispatcher passes
  * `effectiveState.isPresent`, the conjunction of both presence axes.
  */
+import { findDemoOrganization } from './demo-organization.js';
 import type { EntityManager, Opt } from '@mikro-orm/postgresql';
 import type {
   DemoComposition,
@@ -1080,7 +1081,7 @@ const STEPS: readonly CompositionStep[] = [
         { fields: ['id', 'sku'] },
       );
       const screws = (await categoriesBySlug(em)).get('screws');
-      const organization = await em.findOne(Organization, { taxId: DEMO_ORG_TAX_ID });
+      const organization = await findDemoOrganization(em, Organization, DEMO_ORG_TAX_ID);
       const [group] = await em.execute<Array<{ id: string }>>(
         `select id from customer_groups where code = ?`,
         [DEMO_VIP_GROUP_CODE],
@@ -1234,7 +1235,7 @@ const STEPS: readonly CompositionStep[] = [
         organizationRows(),
         customerAccountRows(),
       ]);
-      const organization = await em.findOne(Organization, { taxId: DEMO_ORG_TAX_ID });
+      const organization = await findDemoOrganization(em, Organization, DEMO_ORG_TAX_ID);
       if (organization === null) return;
       // Feature 154 — a buyer may shop only on the sales channels its
       // Organization is assigned, so the demo organisation is assigned the
@@ -1285,7 +1286,7 @@ const STEPS: readonly CompositionStep[] = [
       // demo organisation since, and everything any of its accounts was used
       // to create, is withdrawn before any step (`demo-usage.ts`).
       const { Organization } = await organizationRows();
-      const organization = await em.findOne(Organization, { taxId: DEMO_ORG_TAX_ID });
+      const organization = await findDemoOrganization(em, Organization, DEMO_ORG_TAX_ID);
       if (organization !== null) {
         await em.execute(
           `delete from sales_channel_organizations where organization_id = ?`,
@@ -1585,7 +1586,7 @@ const STEPS: readonly CompositionStep[] = [
         organizationRows(),
         creditLimitRows(),
       ]);
-      const organization = await em.findOne(Organization, { taxId: DEMO_ORG_TAX_ID });
+      const organization = await findDemoOrganization(em, Organization, DEMO_ORG_TAX_ID);
       if (organization === null) return;
       const existing = await em.findOne(CreditLimit, { organizationId: organization.id });
       // One row per organisation is a unique index on that table, so a second

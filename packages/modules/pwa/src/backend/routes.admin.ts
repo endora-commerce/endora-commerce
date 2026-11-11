@@ -364,7 +364,7 @@ export async function registerPwaAdminRoutes(
       // owner maintains, so "lodz" now finds "Łódź" — the local `$ilike` on
       // `name` never did.
       const rows = await deps.organizationDetails.searchByName(search, limit);
-      // A personal Organization's tax id is a placeholder, never a hint (#767).
+      // A personal Organization has no tax ID (`specs/177-tax-id-scope/`), so no hint.
       return { data: { items: rows.map((r) => ({ id: r.id, name: r.name, taxId: organizationCompanyTaxId(r) })) } };
     },
   );

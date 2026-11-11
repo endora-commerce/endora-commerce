@@ -12,6 +12,7 @@ import {
   templateIdentity,
   type MigrationSourceRoot,
 } from '../../template-identity.js';
+import { templateTaxIdScope } from '../../template-seed.js';
 import {
   configuredMigrations,
   type RegisteredMigration,
@@ -161,7 +162,13 @@ describe('the migration set this run has', () => {
     // Every registered migration has a file, so the walk is never short of the
     // registry — that reconciliation is the refusal proven below.
     expect(identity.migrationFiles).toBeGreaterThanOrEqual(MIGRATION_NAMES.length);
-    expect(identity.sources.length).toBe(identity.migrationFiles + TEMPLATE_SEED_SOURCES.length);
+    // `specs/177-tax-id-scope/` R-16: a `per-tree-root` run also records the
+    // scope as one `env:` source, proven by the scope case below.
+    const envSources = identity.sources.filter((source) => source.path.startsWith('env:')).length;
+    expect(envSources).toBe(templateTaxIdScope() === 'global' ? 0 : 1);
+    expect(identity.sources.length).toBe(
+      identity.migrationFiles + TEMPLATE_SEED_SOURCES.length + envSources,
+    );
   });
 
   it('floors every origin the registry names, on its own', async () => {
@@ -211,6 +218,30 @@ describe('the migration set this run has', () => {
     const identity = await templateIdentity();
     for (const declared of TEMPLATE_SEED_SOURCES) {
       expect(identity.sources.map((source) => source.path)).toContain(declared);
+    }
+  });
+
+  /**
+   * `specs/177-tax-id-scope/` R-16 — `ORGANIZATIONS_TAX_ID_SCOPE=per-tree-root`
+   * builds a template in that scope, so it must be a template of its own: a
+   * clone of the `global` one would run the per-tree-root job in `global`.
+   */
+  it('moves with the tax-ID scope the template is built in, and refuses an unknown one', async () => {
+    const previous = process.env['ORGANIZATIONS_TAX_ID_SCOPE'];
+    try {
+      delete process.env['ORGANIZATIONS_TAX_ID_SCOPE'];
+      const unset = await templateIdentity();
+      process.env['ORGANIZATIONS_TAX_ID_SCOPE'] = 'global';
+      expect((await templateIdentity()).digest).toBe(unset.digest);
+      process.env['ORGANIZATIONS_TAX_ID_SCOPE'] = 'per-tree-root';
+      const perTreeRoot = await templateIdentity();
+      expect(perTreeRoot.digest).not.toBe(unset.digest);
+      expect(perTreeRoot.sources.map((source) => source.path)).toContain('env:ORGANIZATIONS_TAX_ID_SCOPE');
+      process.env['ORGANIZATIONS_TAX_ID_SCOPE'] = 'per-branch';
+      await expect(templateIdentity()).rejects.toThrow(/not a tax-ID scope/);
+    } finally {
+      if (previous === undefined) delete process.env['ORGANIZATIONS_TAX_ID_SCOPE'];
+      else process.env['ORGANIZATIONS_TAX_ID_SCOPE'] = previous;
     }
   });
 });

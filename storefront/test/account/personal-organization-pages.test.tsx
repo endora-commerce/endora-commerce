@@ -25,9 +25,11 @@ const PLACEHOLDER_TAX_ID = '79963f233e3843bd84e144a8fcdd37f8';
 let locale = 'en-US';
 let isPersonal = false;
 let meFails = false;
+/** `specs/177-tax-id-scope/` — overrides the Organization's tax ID when set. */
+let taxIdOverride: { value: string | null } | undefined;
 
 function me(): MeResult {
-  return {
+  const result: MeResult = {
     customerAccount: {
       id: '79963f23-3e38-43bd-84e1-44a8fcdd37f8',
       organizationId: 'org-1',
@@ -60,6 +62,8 @@ function me(): MeResult {
         },
     impersonation: null,
   };
+  if (taxIdOverride && result.organization) result.organization.taxId = taxIdOverride.value;
+  return result;
 }
 
 const address: AddressSummary = {
@@ -152,6 +156,7 @@ beforeEach(() => {
   locale = 'en-US';
   isPersonal = false;
   meFails = false;
+  taxIdOverride = undefined;
 });
 
 describe.each(LOCALES)('a personal Organization is not shown as a company ($code, issue #757)', (l) => {
@@ -222,6 +227,15 @@ describe.each(LOCALES)('a company Organization keeps its pages ($code, issue #75
     expect(text).toContain('1234567890');
   });
 
+  // `specs/177-tax-id-scope/` T025 (X9) — `taxId` is `string | null`; a row
+  // without one has no tax-ID row rather than an empty cell.
+  it('/organization renders no tax-ID row when the Organization has no tax ID', async () => {
+    taxIdOverride = { value: null };
+    const html = await render(summary());
+    expect(visibleText(html)).toContain('Acme');
+    expect(html).not.toMatch(/<th scope="row">[^<]*<\/th><td><\/td>/);
+  });
+
   it('/organization/addresses renders the list', async () => {
     expect(visibleText(await render(orgAddresses()))).toContain('Acme Billing');
   });
@@ -251,6 +265,12 @@ describe('the checkout billing tax-id default (issues #757, #767)', () => {
 
   it('is empty for a personal Organization', () => {
     isPersonal = true;
+    expect(organizationCompanyTaxId(me().organization!)).toBeNull();
+  });
+
+  it('is empty for a personal Organization with no tax ID (`specs/177-tax-id-scope/` X8)', () => {
+    isPersonal = true;
+    taxIdOverride = { value: null };
     expect(organizationCompanyTaxId(me().organization!)).toBeNull();
   });
 

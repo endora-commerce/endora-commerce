@@ -207,7 +207,8 @@ describe('forms — erasure of an anonymised customer account (FR-047)', () => {
     const org = em.create(Organization, {
       name: 'Deleted customer',
       legalName: `Erasure ${RUN} Handel`,
-      taxId: id.replace(/-/g, ''),
+      taxId: null, // a personal organization has no tax ID (specs/177-tax-id-scope/)
+      personalAccountId: id,
       status: 'active',
       vatStatus: 'vat_exempt',
       isPersonal: true,

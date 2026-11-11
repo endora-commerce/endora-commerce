@@ -36,6 +36,22 @@ import {
   returnableVerdict,
 } from './return-eligibility.js';
 
+/**
+ * `specs/177-tax-id-scope/` FR-040 — whether the order's organization was a
+ * consumer when the order was placed: personal now, or personal until a
+ * conversion to a company that came after the order. The withdrawal right
+ * follows the order, not the organization's current kind.
+ */
+export function organizationWasConsumerAt(
+  organization: { isPersonal: boolean; convertedToCompanyAt?: Date | null } | null | undefined,
+  placedAt: Date,
+): boolean {
+  if (!organization) return false;
+  if (organization.isPersonal) return true;
+  const convertedAt = organization.convertedToCompanyAt;
+  return convertedAt != null && placedAt.getTime() < new Date(convertedAt).getTime();
+}
+
 export interface ReturnCaseServiceDeps {
   emFactory: () => EntityManager;
   graphService: ReturnStatusGraphService;
@@ -61,7 +77,7 @@ export interface ReturnCaseServiceDeps {
    * `organizations`' port (issue #876): a consumer's withdrawal refunds the
    * delivery and the payment surcharge. Absent: no Organization is.
    */
-  isPersonalOrganization?: (organizationId: string | null) => Promise<boolean>;
+  isPersonalOrganization?: (organizationId: string | null, placedAt?: Date) => Promise<boolean>;
   /**
    * `returns.time_zone` for a sales channel (issue #905): the IANA zone the
    * free-return window counts calendar days in. Always a zone the runtime
@@ -244,7 +260,7 @@ export class ReturnCaseService {
         basis: 'provisional',
         kind: input.kind,
         current,
-        isPersonal: (await this.deps.isPersonalOrganization?.(ctx.organizationId)) ?? false,
+        isPersonal: (await this.deps.isPersonalOrganization?.(ctx.organizationId, ctx.placedAt)) ?? false,
         withinWindow: isWithinWithdrawalWindow({
           freeReturnEligible,
           submittedAt: now,
@@ -417,8 +433,9 @@ export class ReturnCaseService {
 
   /**
    * Whether a case of `kind` filed at `at` for this order is a consumer
-   * withdrawal (issue #905, design §2): a `return`, a personal Organization,
-   * and the withdrawal function still available for the order.
+   * withdrawal (issue #905, design §2): a `return`, an Organization that was a
+   * consumer when the order was placed (`organizationWasConsumerAt`), and the
+   * withdrawal function still available for the order.
    */
   private async isConsumerWithdrawal(
     kind: CreateReturnCaseRequest['kind'],
@@ -427,7 +444,8 @@ export class ReturnCaseService {
   ): Promise<boolean> {
     if (kind !== 'return' || !ctx.organizationId) return false;
     const organization = await this.deps.organizationDetails.findById(ctx.organizationId);
-    if (organization?.isPersonal !== true) return false;
+    // A consumer when the order was placed — also after a later conversion (FR-040).
+    if (!organizationWasConsumerAt(organization, ctx.placedAt)) return false;
     const [freeReturnDays, timeZone] = await Promise.all([
       this.deps.resolveFreeReturnDays(ctx.salesChannelId),
       this.deps.resolveTimeZone(ctx.salesChannelId),

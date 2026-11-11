@@ -21,7 +21,9 @@ import type {
   DictionaryValidator,
   EmailDefaultsRegistryPort,
   EmailMailerPort,
+  OrganizationCustomFieldWritePort,
   OrganizationDetailsPort,
+  OrganizationCommandPort,
   OrganizationInheritancePort,
   OrganizationPermissionPort,
   OrganizationRestrictionPort,
@@ -69,10 +71,14 @@ import {
   OrganizationDetailsService,
   toOrganizationRecord,
 } from './services/organization-details-port.js';
+import { OrganizationCustomFieldWriteService } from './services/organization-custom-field-write-port.js';
 import { PersonalOrganizationService } from './services/personal-organization-service.js';
 import type { PersonalOrganizationProvisionApi } from '../ports/index.js';
 import { OrganizationRestrictionService } from './services/organization-restriction-service.js';
 import { OrganizationTreeService } from './services/organization-tree-service.js';
+import { TaxIdScopeService } from './services/tax-id-scope-service.js';
+import { OrganizationCommandService } from './services/organization-command-port.js';
+import { probeTaxIdScope } from './services/tax-id-scope-probe.js';
 import { OrganizationInheritanceService } from './services/organization-inheritance-service.js';
 import { OrganizationModerationService } from './services/organization-moderation-service.js';
 import { OrganizationEffectivePriceListsService } from './services/organization-effective-pricelists-service.js';
@@ -135,6 +141,7 @@ import { OrganizationInvitation } from './entities/organization-invitation.entit
 import { OrganizationPaymentMethodLink } from './entities/organization-payment-method-link.entity.js';
 import { OrganizationSalesRepAssignment } from './entities/organization-sales-rep-assignment.entity.js';
 import { OrganizationTaxIdValidation } from './entities/organization-tax-id-validation.entity.js';
+import { OrganizationTaxIdPolicy } from './entities/organization-tax-id-policy.entity.js';
 import { OrganizationWarehouseLink } from './entities/organization-warehouse-link.entity.js';
 
 /**
@@ -578,6 +585,16 @@ export function registerModule(ctx: ModuleContext): void {
   });
 
   /**
+   * `specs/177-tax-id-scope/` (`contracts/tax-id-scope.md` §7) — say so at boot
+   * when the stored tax-ID scope and the database constraint disagree. Logged,
+   * never fatal; no presence probe, as above (non-deactivatable module).
+   */
+  ctx.onBoot(async () => {
+    const { emFactory } = ctx.cradle<OrganizationsCradle>();
+    await probeTaxIdScope(new TaxIdScopeService(emFactory), ctx.log);
+  });
+
+  /**
    * Feature 173 — one White List client and one VIES client per composition,
    * shared by the admin "Validate now" (`organizationsTaxIdClients`) and the
    * registration lookup (`organizationsRegistryClients`): two instances would
@@ -817,6 +834,7 @@ export function registerModule(ctx: ModuleContext): void {
               cradle().customerContextResolver(req),
             onLogin: (input) => cradle().organizationsLoginHook(input),
             roleService: cradle().organizationRoleService,
+            roleCache: cradle().organizationRoleCache,
             organizationPermissions: () =>
               lazyPort<OrganizationPermissionPort>(ctx, 'organizationPermissionPort'),
             // WP-03 — the role every member response names, and the member
@@ -884,10 +902,44 @@ export function registerModule(ctx: ModuleContext): void {
    * reason. Eleven modules read the row itself, and between them they touch
    * nearly every column; that is this port.
    */
+  /**
+   * `specs/177-tax-id-scope/` (`contracts/convert-to-company.md` §4) — writes
+   * on the Organization aggregate for admin routes and server code; today the
+   * personal → company conversion.
+   */
+  ctx.di.providePort<OrganizationCommandPort>(
+    'organizationCommandPort',
+    ctx
+      .asFunction(
+        ({ commandBus, organizationRoleCache }: OrganizationsCradle) =>
+          new OrganizationCommandService({
+            commandBus,
+            accounts: lazyPort<CustomerAccountReadPort>(ctx, 'customerAccountReadPort'),
+            roleCache: organizationRoleCache,
+          }),
+      )
+      .singleton(),
+  );
+
   ctx.di.providePort<OrganizationDetailsPort>(
     'organizationDetailsPort',
     ctx
       .asFunction(({ emFactory }: OrganizationsCradle) => new OrganizationDetailsService(emFactory))
+      .singleton(),
+  );
+
+  /**
+   * The server-side custom-field write — for a subscriber on
+   * `organization.registered.v1`, an overlay or an integration worker, which
+   * otherwise had the admin HTTP API or a native UPDATE of this module's table.
+   * A port of its own beside the read model above, which stays read-only; the
+   * semantics (the caller's merge and validation, one Command, the ambient
+   * actor) are on `OrganizationCustomFieldWritePort` in the contracts.
+   */
+  ctx.di.providePort<OrganizationCustomFieldWritePort>(
+    'organizationCustomFieldWritePort',
+    ctx
+      .asFunction(({ commandBus }: OrganizationsCradle) => new OrganizationCustomFieldWriteService(commandBus))
       .singleton(),
   );
 
@@ -1342,6 +1394,7 @@ export const entities = [
   OrganizationTaxIdValidation,
   OrganizationWarehouseLink,
   Organization,
+  OrganizationTaxIdPolicy,
 ];
 
 /**

@@ -42,7 +42,7 @@ describe('customer_accounts — anonymize under concurrency (#857)', () => {
       `insert into "organizations"
          ("id","name","tax_id","status","vat_status","registered_address","path","created_at","updated_at")
        values (?, 'Anonymize lock', ?, 'active', 'vat_payer', '{}'::jsonb, ?, now(), now())`,
-      [organizationId, `anon-${organizationId.slice(0, 13)}`, `/${organizationId}/`],
+      [organizationId, `ANON${organizationId.slice(0, 13).replace(/-/g, '').toUpperCase()}`, `/${organizationId}/`],
     );
     const id = randomUUID();
     await sql(

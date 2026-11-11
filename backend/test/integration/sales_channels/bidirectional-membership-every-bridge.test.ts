@@ -142,7 +142,7 @@ describe('bidirectional membership: every bridge (T043)', () => {
     await rawExec(
       `insert into "organizations" ("id","name","tax_id","status","vat_status","registered_address","created_at","updated_at") ` +
         `values (?, ?, ?, 'active', 'vat_payer', '{}'::jsonb, now(), now())`,
-      [id, `T043 Org ${id.slice(0, 8)}`, `t043-tax-${id.slice(0, 8)}`],
+      [id, `T043 Org ${id.slice(0, 8)}`, `T043TAX${id.slice(0, 8).toUpperCase()}`],
     );
     return id;
   }
@@ -152,7 +152,7 @@ describe('bidirectional membership: every bridge (T043)', () => {
     await rawExec(
       `insert into "taxes" ("id","code","name","rate","applies_to_vat_statuses","created_at","updated_at") ` +
         `values (?, ?, 'T043 Tax', 0.23, '[]'::jsonb, now(), now())`,
-      [id, `t043-tax-${id.slice(0, 8)}`],
+      [id, `T043TAX${id.slice(0, 8).toUpperCase()}`],
     );
     return id;
   }

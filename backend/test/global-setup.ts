@@ -81,7 +81,7 @@ function resolveTestDatabaseUrl(): string {
 
 async function applyMigrations(): Promise<void> {
   const { initOrm, closeOrm } = await import('../src/db/index.js');
-  const { establishPlatformInvariants } = await import('./template-seed.js');
+  const { establishPlatformInvariants, establishTaxIdScope } = await import('./template-seed.js');
   const orm = await initOrm();
   try {
     const migrator = orm.getMigrator();
@@ -90,6 +90,7 @@ async function applyMigrations(): Promise<void> {
       process.stdout.write(`[test-setup] applied ${applied.length} migration(s)\n`);
     }
     await establishPlatformInvariants(orm);
+    await establishTaxIdScope(orm);
   } finally {
     await closeOrm();
   }

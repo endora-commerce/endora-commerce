@@ -58,16 +58,20 @@ Strona wygenerowana z manifestu modułu, bez żadnych ręcznych zmian. Co moduł
 | `customers:manage` | Manage customer organizations | — |
 | `customers:read` | View customers | — |
 | `organizations:assign-sales-rep` | Assign sales representatives to organizations | — |
+| `organizations:convert-to-company` | Convert personal organizations to companies | `customers:read` |
 | `organizations:manage-roles` | Manage organization roles | `organizations:read-roles` |
+| `organizations:manage-tax-id-scope` | Manage the tax-ID scope | `customers:read` |
 | `organizations:read-roles` | View organization roles | — |
 
 ## Paleta poleceń
 
 | Akcja | Otwiera | Uprawnienie |
 | --- | --- | --- |
+| `convert-personal-organization` | `/organizations/convert-to-company` | `organizations:convert-to-company` |
 | `new-organization` | `/organizations/new` | `customers:manage` |
 | `open-organizations` | `/organizations` | `customers:read` |
 | `open-registration-registry-lookup-settings` | `/settings` | `settings:read` |
+| `open-tax-id-scope` | `/organizations/tax-id-scope` | `organizations:manage-tax-id-scope` |
 
 ## Ustawienia
 

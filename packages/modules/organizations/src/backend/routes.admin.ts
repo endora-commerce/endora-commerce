@@ -24,6 +24,10 @@ import {
   type OrganizationRoleReadPort,
   type OrganizationRoleRef,
   AdminOrganizationCreateBodySchema,
+  adminTaxIdScopeSetBodySchema,
+  adminOrganizationConvertToCompanyBodySchema,
+  normalizeTaxId,
+  type AdminTaxIdScopeResponse,
   DictionaryReferenceError,
   OrganizationSalesChannelsUpdateBodySchema,
   type DictionaryValidator,
@@ -41,6 +45,13 @@ import { makeSetParentCommand } from './commands/set-parent.command.js';
 import { makeMoveCommand } from './commands/move.command.js';
 import { makeSetCreditModeCommand } from './commands/set-credit-mode.command.js';
 import { makeCreateOrganizationCommand } from './commands/create-organization.command.js';
+import { makeSetTaxIdScopeCommand } from './commands/set-tax-id-scope.command.js';
+import { makeConvertToCompanyCommand } from './commands/convert-to-company.command.js';
+import type { OrganizationRoleCache } from './services/organization-role-cache.js';
+import { TaxIdScopeService } from './services/tax-id-scope-service.js';
+import { runOrganizationWrite, taxIdExistsRefusal } from './services/organization-write.js';
+import { taxIdSharedAcrossTreesRefusal } from './services/organization-tree-service.js';
+import { makeAdminPatchOrganizationCommand } from './commands/admin-patch-organization.command.js';
 import { Organization } from './entities/organization.entity.js';
 import { adminActorOf, organizationInReach as organizationInReachPreHandler } from './organization-reach.js';
 import { OrganizationRole } from './entities/organization-role.entity.js';
@@ -97,6 +108,9 @@ const listQuerySchema = z.object({
   // `includePersonal=true` to see them (string compare — z.coerce.boolean would
   // treat the string "false" as true).
   includePersonal: z.string().optional(),
+  // `specs/177-tax-id-scope/` — one kind only (the conversion screen's picker
+  // asks for personal organizations); with `includePersonal=true`.
+  'filter[isPersonal]': z.enum(['true', 'false']).optional(),
   // `specs/178-extensible-columns/` FR-051 — extension attributes on request.
   ...ExtensionsQuerySchema.shape,
 });
@@ -181,6 +195,12 @@ export interface AdminOrgsDeps {
    * `organizationSalesRepScopePort`, built with the roll-up deps (#108).
    */
   salesRepScope: Pick<SalesRepAssignmentPort, 'canSeeOrganization'>;
+  /**
+   * `specs/177-tax-id-scope/` — the role cache entry a conversion drops and
+   * announces after it commits: role management now applies to the
+   * Organization. Absent: nothing is cached to drop.
+   */
+  roleCache?: Pick<OrganizationRoleCache, 'dropAndAnnounce'>;
   /**
    * `specs/178-extensible-columns/` FR-051 — the platform's extension-attribute
    * reader. `organizations` is an extensible host: an installed module may
@@ -317,6 +337,48 @@ export async function registerOrganizationsAdminRoutes(
     }
   };
 
+  /** D-260 — refuses unless the acting administrator is unscoped (`mode === 'all'`). */
+  const assertUnscoped = (message: string): void => {
+    const ctx = getTenantContext();
+    if (!ctx || ctx.mode !== 'all') throw new HttpError(403, ERROR_CODES.FORBIDDEN, message);
+  };
+
+  // ── Tax-ID scope (`specs/177-tax-id-scope/`, FR-014 … FR-017) ──────────────
+  // A static segment, registered before the `/:id` routes. The code alone is
+  // not enough: the scope is installation-wide, so a scoped administrator —
+  // whose reach is a subset of the installation — is refused (D-260's idiom).
+  const taxIdScopes = new TaxIdScopeService(emFactory);
+  const manageTaxIdScope = requireAdmin('organizations:manage-tax-id-scope');
+  const taxIdScopeResponse = async (): Promise<AdminTaxIdScopeResponse> => {
+    const status = await taxIdScopes.status();
+    return {
+      data: {
+        scope: status.scope,
+        updatedAt: status.updatedAt.toISOString(),
+        updatedByAdminUserId: status.updatedByAdminUserId,
+        sharedTaxIdCount: status.sharedTaxIdCount,
+        enforcement: status.enforcement,
+      },
+    };
+  };
+  const unscopedMessage = 'Only a platform administrator can read or change the tax-ID scope.';
+
+  app.get('/api/v1/admin/organizations/tax-id-scope', { preHandler: manageTaxIdScope }, async () => {
+    assertUnscoped(unscopedMessage);
+    return taxIdScopeResponse();
+  });
+
+  app.put(
+    '/api/v1/admin/organizations/tax-id-scope',
+    { preHandler: manageTaxIdScope, schema: { body: adminTaxIdScopeSetBodySchema } },
+    async (request) => {
+      assertUnscoped(unscopedMessage);
+      const body = adminTaxIdScopeSetBodySchema.parse(request.body);
+      await runOrganizationWrite(deps.commandBus, makeSetTaxIdScopeCommand({ scopes: taxIdScopes }, { scope: body.scope }));
+      return taxIdScopeResponse();
+    },
+  );
+
   app.get(
     '/api/v1/admin/organizations',
     { preHandler: customersRead },
@@ -330,6 +392,7 @@ export async function registerOrganizationsAdminRoutes(
       const where: Record<string, unknown> = { deletedAt: null, ...orgScopeWhere('id') };
       // Feature 051 — exclude personal (B2C) orgs from the B2B admin list by default.
       if (query.includePersonal !== 'true') where['isPersonal'] = false;
+      else if (query['filter[isPersonal]']) where['isPersonal'] = query['filter[isPersonal]'] === 'true';
       if (query['filter[status]']) where['status'] = query['filter[status]'];
       if (query['filter[vatStatus]']) where['vatStatus'] = query['filter[vatStatus]'];
       if (query.q) {
@@ -339,9 +402,12 @@ export async function registerOrganizationsAdminRoutes(
         // entity. Falls back to taxId ILIKE so admins can also paste a
         // tax-id fragment.
         const normalized = normalizeOrganizationName(query.q);
+        // Stored tax IDs are normalised (`specs/177-tax-id-scope/` OD-11), so
+        // the tax-ID branch matches the normalised text.
+        const taxIdText = normalizeTaxId(query.q);
         where['$or'] = [
           { nameSearch: { $ilike: `%${normalized}%` } },
-          { taxId: { $ilike: `%${query.q}%` } },
+          ...(taxIdText ? [{ taxId: { $ilike: `%${taxIdText}%` } }] : []),
         ];
       }
       const orgs = await em.find(Organization, where, {
@@ -435,59 +501,47 @@ export async function registerOrganizationsAdminRoutes(
       schema: { body: adminPatchOrganizationRequestSchema },
     },
     async (request) => {
-      const em = emFactory();
       const body = adminPatchOrganizationRequestSchema.parse(request.body);
-      if (!isUuidShape(request.params.id)) {
-        throw new HttpError(404, ERROR_CODES.NOT_FOUND, 'Organization not found.');
-      }
-      const org = await em.findOne(Organization, { id: request.params.id, deletedAt: null });
-      if (!org) {
-        throw new HttpError(404, ERROR_CODES.NOT_FOUND, 'Organization not found.');
-      }
-      assertVersion(org.updatedAt, body.expectedUpdatedAt);
-      const before = serializeOrg(org);
-      if (body.name !== undefined) org.name = body.name;
-      if (body.vatStatus !== undefined) org.vatStatus = body.vatStatus;
-      if (body.status !== undefined) org.status = body.status;
-      if (body.orderConfirmationEmails !== undefined) org.orderConfirmationEmails = body.orderConfirmationEmails;
-      if (body.fulfilmentStrategy !== undefined) org.fulfilmentStrategy = body.fulfilmentStrategy;
-      if (body.fulfilmentStrategyWarehouseOrder !== undefined) {
-        org.fulfilmentStrategyWarehouseOrder = body.fulfilmentStrategyWarehouseOrder;
-      }
-      // Feature 055 — validate + merge custom-field values; the org module owns
-      // the write, the value service only validates (Principle XIV).
-      if (body.customFieldValues !== undefined && customFieldValues) {
-        try {
-          org.customFieldValues = await customFieldValues.validateAndMerge(
-            'organization',
-            org.customFieldValues ?? {},
-            body.customFieldValues,
-          );
-        } catch (err) {
-          // Narrowed structurally rather than by `instanceof`: the constructor
-          // is a file in `custom_fields`' directory, and the guard is what
-          // `@endora-commerce/contracts` publishes in its place. `customFieldValueService`
-          // is a gated port, so this re-throws anything that is not the
-          // validation failure — a `ModuleDisabledError` included.
-          if (isCustomFieldValidationFailure(err)) {
-            throw new HttpError(
-              422,
-              ERROR_CODES.CUSTOM_FIELD_VALUE_INVALID,
-              'One or more custom fields are invalid.',
-              err.errors.map((e) => ({ path: e.field, issue: e.message })),
-            );
-          }
-          throw err;
-        }
-      }
-      await em.flush();
-      await audit(
-        request,
-        'organization.admin_patch',
-        'organization',
-        org.id,
-        before,
-        serializeOrg(org) as Record<string, unknown>,
+      const { customFieldValues: patchValues, expectedUpdatedAt, ...changes } = body;
+      // One Command, `organization.admin_patch`: the version check, the column
+      // changes and the custom-field merge on one transaction, with the one
+      // audit entry this edit has always recorded — naming what changed, never
+      // a value (D-288, #470 O-2). The merge is the step
+      // `organizationCustomFieldWritePort` runs, so the two writes of the bag
+      // cannot drift. Feature 055 — the value service only validates; this
+      // module owns the write (Principle XIV).
+      const valueService = customFieldValues;
+      const mergeCustomFieldValues =
+        patchValues !== undefined && valueService
+          ? async (current: Record<string, unknown>): Promise<Record<string, unknown>> => {
+              try {
+                return await valueService.validateAndMerge('organization', current, patchValues);
+              } catch (err) {
+                // Narrowed structurally rather than by `instanceof`: the
+                // constructor is a file in `custom_fields`' directory, and the
+                // guard is what `@endora-commerce/contracts` publishes in its
+                // place. `customFieldValueService` is a gated port, so this
+                // re-throws anything that is not the validation failure — a
+                // `ModuleDisabledError` included.
+                if (isCustomFieldValidationFailure(err)) {
+                  throw new HttpError(
+                    422,
+                    ERROR_CODES.CUSTOM_FIELD_VALUE_INVALID,
+                    'One or more custom fields are invalid.',
+                    err.errors.map((e) => ({ path: e.field, issue: e.message })),
+                  );
+                }
+                throw err;
+              }
+            }
+          : undefined;
+      const org = await deps.commandBus.run(
+        makeAdminPatchOrganizationCommand({
+          organizationId: request.params.id,
+          changes,
+          assertCurrent: (current) => assertVersion(current.updatedAt, expectedUpdatedAt),
+          mergeCustomFieldValues,
+        }),
       );
       return { data: serializeOrg(org) };
     },
@@ -605,13 +659,23 @@ export async function registerOrganizationsAdminRoutes(
         },
         async (request, reply) => {
           const body = AdminOrganizationCreateBodySchema.parse(request.body);
+          // `specs/177-tax-id-scope/` FR-018 — naming a parent is parentage, the
+          // tenancy graph: an unscoped administrator only (D-260, as the parent
+          // route below).
+          if (body.parentId !== undefined) assertUnscoped('Only a platform administrator can create an organization under a parent.');
           await assertCountryAvailable(dictionaryValidator, body.registeredAddress.country);
           await assertSalesChannelsExist(emFactory(), body.salesChannelIds);
-          const org = await commandBus.run(
+          const org = await runOrganizationWrite(
+            commandBus,
             makeCreateOrganizationCommand(
-              { membership, ...(customFieldValues ? { customFieldValues } : {}) },
+              {
+                membership,
+                ...(deps.treeService ? { tree: deps.treeService } : {}),
+                ...(customFieldValues ? { customFieldValues } : {}),
+              },
               body,
             ),
+            () => taxIdExistsRefusal(),
           );
           reply.status(201);
           return { data: serializeOrg(org) };
@@ -619,6 +683,64 @@ export async function registerOrganizationsAdminRoutes(
       );
     }
   }
+
+  // ── Personal → company conversion (`specs/177-tax-id-scope/`, FR-030 … FR-041) ──
+  // The gate is the preHandler (`module-admin-surfaces.md` item 3); the VAT
+  // validation, when asked for, runs after the conversion committed and never
+  // rolls it back (D-290 / OD-2). No reverse route exists (FR-041).
+  app.post<{ Params: { id: string } }>(
+    '/api/v1/admin/organizations/:id/convert-to-company',
+    {
+      preHandler: [
+        requireAdmin('organizations:convert-to-company'),
+        organizationInReach,
+        // `validateTaxId` runs a VAT validation, a `customers:manage` write
+        // (`POST …/vat-validations`); the conversion code alone does not
+        // carry it (review finding 6).
+        async (request, reply) => {
+          if ((request.body as { validateTaxId?: unknown } | undefined)?.validateTaxId === true) {
+            await requireAdmin('customers:manage')(request, reply);
+          }
+        },
+      ],
+      schema: { body: adminOrganizationConvertToCompanyBodySchema },
+    },
+    async (request) => {
+      if (!isUuidShape(request.params.id)) {
+        throw new HttpError(404, ERROR_CODES.NOT_FOUND, 'Organization not found.');
+      }
+      const { validateTaxId, ...input } = adminOrganizationConvertToCompanyBodySchema.parse(request.body);
+      await assertCountryAvailable(deps.dictionaryValidator, input.registeredAddress.country);
+      const org = await runOrganizationWrite(
+        deps.commandBus,
+        makeConvertToCompanyCommand(
+          { accounts: deps.customerAccountRead },
+          { organizationId: request.params.id, input },
+        ),
+        () => taxIdExistsRefusal(),
+      );
+      // The conversion has committed; a cache that cannot be dropped is the
+      // role cache's own expiry to repair, not a failed request (review finding 7).
+      await deps.roleCache?.dropAndAnnounce(org.id).catch((err: unknown) => {
+        request.log.warn({ err, organizationId: org.id }, 'organizations: role cache not dropped after a conversion');
+      });
+      let vatValidation: { outcome: string; provider: string | null } | null = null;
+      if (validateTaxId && taxIdValidationService) {
+        try {
+          const result = await taxIdValidationService.trigger(org.id, {
+            providerHint: 'auto',
+            actorAdminUserId: resolveAdminUserId(request),
+          });
+          vatValidation = { outcome: result.record.outcome, provider: result.record.provider ?? null };
+        } catch (err) {
+          request.log.warn({ err, organizationId: org.id }, 'organizations: VAT validation after a conversion failed');
+          vatValidation = { outcome: 'failed', provider: null };
+        }
+      }
+      const fresh = await emFactory().findOneOrFail(Organization, { id: org.id });
+      return { data: serializeOrg(fresh), vatValidation };
+    },
+  );
 
   // ── Moderation lifecycle (feature 026) ─────────────────────────────────
   // Approve / Reject / Block / Unblock. Mounted only when the moderation
@@ -1155,7 +1277,11 @@ export async function registerOrganizationsAdminRoutes(
           wasChild && body.parentId !== null
             ? makeMoveCommand({ tree: treeService }, input)
             : makeSetParentCommand({ tree: treeService }, input);
-        const updated = await commandBus.run(command);
+        // The deferred `per-tree-root` constraint answers at commit, as the
+        // pre-check would have (`specs/177-tax-id-scope/` FR-021).
+        const updated = await runOrganizationWrite(commandBus, command, () =>
+          taxIdSharedAcrossTreesRefusal([]),
+        );
         return { data: serializeOrg(updated) };
       },
     );
@@ -1266,7 +1392,8 @@ function serializeOrg(o: Organization): Record<string, unknown> {
     id: o.id,
     name: o.name,
     legalName: o.legalName ?? null,
-    taxId: o.taxId,
+    // `null` for a personal organization (`specs/177-tax-id-scope/` O7).
+    taxId: o.taxId ?? null,
     status: o.status,
     vatStatus: o.vatStatus,
     isPersonal: o.isPersonal,

@@ -252,7 +252,8 @@ function serializeOrganization(o: Organization, moderationMessage: string | null
     id: o.id,
     name: o.name,
     legalName: o.legalName ?? null,
-    taxId: o.taxId,
+    // `null` for a personal organization (`specs/177-tax-id-scope/` O8).
+    taxId: o.taxId ?? null,
     status: o.status,
     vatStatus: o.vatStatus,
     isPersonal: o.isPersonal,

@@ -170,8 +170,11 @@ export class PersonalOrganizationService {
    * and the name components it already holds. Nothing here reads
    * `customer_accounts` and nothing here writes it.
    *
-   * Idempotent by `taxId`, which is derived from the account id — a retry after
-   * a rolled-back attempt re-finds the row rather than creating a second one.
+   * Idempotent by the account link (`personalAccountId`,
+   * `specs/177-tax-id-scope/` FR-003) — a retry after a rolled-back attempt
+   * re-finds the row rather than creating a second one, and the partial unique
+   * index `organizations_personal_account_id_unique` refuses a concurrent second
+   * insert. A personal organization has no tax ID.
    *
    * command-coverage-ignore: idempotent auto-provisioning of a customer's
    * personal (B2C) organization — a system invariant the constitution mandates
@@ -192,13 +195,14 @@ export class PersonalOrganizationService {
       salesChannelId?: string | null;
     },
   ): Promise<Organization> {
-    const taxId = personalTaxId(input.customerAccountId);
-    const existingByTaxId = await em.findOne(Organization, { taxId });
-    if (existingByTaxId) {
-      await this.channelMembership?.bindToDefaultIfEmpty('organization', existingByTaxId.id, {
+    const existing = await em.findOne(Organization, {
+      personalAccountId: input.customerAccountId,
+    });
+    if (existing) {
+      await this.channelMembership?.bindToDefaultIfEmpty('organization', existing.id, {
         em,
       });
-      return existingByTaxId;
+      return existing;
     }
     const org = em.create(Organization, {
       name: PersonalOrganizationService.personalName({
@@ -206,7 +210,8 @@ export class PersonalOrganizationService {
         lastName: input.lastName ?? '',
         email: input.email,
       }),
-      taxId,
+      taxId: null,
+      personalAccountId: input.customerAccountId,
       status: 'active',
       vatStatus: 'vat_exempt',
       isPersonal: true,
@@ -448,13 +453,4 @@ export class PersonalOrganizationService {
   #accounts(): PersonalOrganizationAccountPorts {
     return this.accounts;
   }
-}
-
-/**
- * `tax_id` is globally unique (varchar(32)); an individual has no company tax
- * id, so the account's UUID without dashes is used — 32 hex chars, unique, and
- * derived, which is what makes the provisioning re-runnable.
- */
-function personalTaxId(customerAccountId: string): string {
-  return customerAccountId.replace(/-/g, '');
 }

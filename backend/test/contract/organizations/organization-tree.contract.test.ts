@@ -1,6 +1,8 @@
-import { afterAll, beforeAll, describe, expect, it } from 'vitest';
+import { randomUUID } from 'node:crypto';
+import { afterAll, afterEach, beforeAll, describe, expect, it } from 'vitest';
 import { Organization } from '../../helpers/package-entities.js';
 import {
+  ERROR_CODES,
   organizationSubtreeResponseSchema,
   organizationAncestorsResponseSchema,
 } from '@endora-commerce/contracts';
@@ -182,5 +184,111 @@ describe('organization tree HTTP contract (US1)', () => {
       cookies: { b2b_session: 'stub-admin-session' },
     });
     expect(delChild.statusCode).toBe(204);
+  });
+
+  /**
+   * `specs/177-tax-id-scope/` T036 (FR-020) — in `per-tree-root` a tax ID
+   * shared inside a tree may not be split across two by a move; in `global`
+   * nothing is shared, so moves behave as before. The scope is set through the
+   * route and the one found put back after, once the shared tax IDs are made
+   * unique again (`global`'s constraint cannot return over them).
+   */
+  describe('moves and the tax-ID scope', () => {
+    let initialScope: 'global' | 'per-tree-root';
+    const sharing: string[] = [];
+    const admin = { b2b_session: 'stub-admin-session' };
+
+    const putScope = async (scope: 'global' | 'per-tree-root') => {
+      const res = await h.app.inject({
+        method: 'PUT',
+        url: '/api/v1/admin/organizations/tax-id-scope',
+        cookies: admin,
+        payload: { scope },
+      });
+      expect(res.statusCode, res.body).toBe(200);
+    };
+
+    /** A company row; under `parent` when given, sharing `taxId` when given. */
+    async function org(input: { taxId?: string; parent?: { id: string; path: string } } = {}): Promise<{ id: string; path: string; taxId: string }> {
+      const id = randomUUID();
+      const taxId = input.taxId ?? `TR${id.replace(/-/g, '').slice(0, 14).toUpperCase()}`;
+      const path = `${input.parent?.path ?? '/'}${id}/`;
+      await h.em().execute(
+        `insert into "organizations"
+           ("id","name","tax_id","status","vat_status","is_personal","registered_address","parent_id","path","created_at","updated_at")
+         values (?, ?, ?, 'active', 'vat_payer', false, '{}'::jsonb, ?, ?, now(), now())`,
+        [id, `Tree scope ${id.slice(0, 8)}`, taxId, input.parent?.id ?? null, path],
+      );
+      if (input.taxId) sharing.push(id);
+      return { id, path, taxId };
+    }
+
+    const reparent = (id: string, parentId: string | null) =>
+      h.app.inject({ method: 'POST', url: `/api/v1/admin/organizations/${id}/parent`, cookies: admin, payload: { parentId } });
+
+    beforeAll(async () => {
+      const res = await h.app.inject({ method: 'GET', url: '/api/v1/admin/organizations/tax-id-scope', cookies: admin });
+      initialScope = (res.json() as { data: { scope: 'global' | 'per-tree-root' } }).data.scope;
+    });
+
+    afterEach(async () => {
+      if (sharing.length > 0) {
+        await h.em().execute(
+          `update "organizations" set "tax_id" = 'R' || upper(substr(replace("id"::text, '-', ''), 1, 31))
+            where "id" = any(?::uuid[])`,
+          [`{${sharing.join(',')}}`],
+        );
+        sharing.length = 0;
+      }
+      await putScope(initialScope);
+    });
+
+    it('per-tree-root: detaching or moving a sharer out of its tree is refused with the tax IDs', async () => {
+      await putScope('per-tree-root');
+      const head = await org();
+      const branch = await org({ taxId: head.taxId, parent: head });
+      const other = await org();
+
+      for (const target of [null, other.id]) {
+        const res = await reparent(branch.id, target);
+        expect(res.statusCode, res.body).toBe(409);
+        const error = (res.json() as { error: { code: string; details: { code: string; taxIds: string[] } } }).error;
+        expect(error.code).toBe(ERROR_CODES.ORGANIZATION_TREE_INVALID);
+        expect(error.details).toEqual({ code: 'tax_id_shared_across_trees', taxIds: [head.taxId] });
+      }
+    });
+
+    it('per-tree-root: a subtree holding a shared tax ID cannot leave the tree either', async () => {
+      await putScope('per-tree-root');
+      const head = await org();
+      const middle = await org({ parent: head });
+      await org({ taxId: head.taxId, parent: middle });
+      const other = await org();
+      const res = await reparent(middle.id, other.id);
+      expect(res.statusCode, res.body).toBe(409);
+      expect((res.json() as { error: { details: { taxIds: string[] } } }).error.details.taxIds).toEqual([head.taxId]);
+    });
+
+    it('per-tree-root: the whole sharing tree may move, and a sharer may move inside its tree', async () => {
+      await putScope('per-tree-root');
+      const head = await org();
+      const left = await org({ parent: head });
+      const branch = await org({ taxId: head.taxId, parent: head });
+      const inside = await reparent(branch.id, left.id);
+      expect(inside.statusCode, inside.body).toBe(200);
+
+      const elsewhere = await org();
+      const whole = await reparent(head.id, elsewhere.id);
+      expect(whole.statusCode, whole.body).toBe(200);
+    });
+
+    it('global: moves are unaffected by tax IDs', async () => {
+      await putScope('global');
+      const head = await org();
+      const branch = await org({ parent: head });
+      const other = await org();
+      expect((await reparent(branch.id, other.id)).statusCode).toBe(200);
+      expect((await reparent(branch.id, null)).statusCode).toBe(200);
+    });
   });
 });

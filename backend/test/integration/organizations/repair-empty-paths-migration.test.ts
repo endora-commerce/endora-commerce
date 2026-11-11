@@ -38,7 +38,7 @@ describe('organizations — repairing rows stored with an empty path', () => {
       `insert into "organizations"
          ("id","name","tax_id","status","vat_status","registered_address","parent_id","path","created_at","updated_at")
        values (?, ?, ?, 'active', 'vat_payer', '{}'::jsonb, ?, ?, now(), now())`,
-      [id, `Repair ${id.slice(0, 8)}`, `repair-${id.slice(0, 13)}`, parentId, path],
+      [id, `Repair ${id.slice(0, 8)}`, `REPAIR${id.slice(0, 13).replace(/-/g, '').toUpperCase()}`, parentId, path],
     );
     return id;
   }
@@ -109,7 +109,7 @@ describe('organizations — repairing rows stored with an empty path', () => {
       `insert into "organizations"
          ("id","name","tax_id","status","vat_status","registered_address","parent_id","path","created_at","updated_at")
        values (?, 'Well-formed root', ?, 'active', 'vat_payer', '{}'::jsonb, null, ?, now(), now())`,
-      [rootId, `repair-ok-${rootId.slice(0, 8)}`, `/${rootId}/`],
+      [rootId, `REPAIROK${rootId.slice(0, 8).replace(/-/g, '').toUpperCase()}`, `/${rootId}/`],
     );
     const child = await insertOrganization('', rootId);
     await em.execute('update "organizations" set "path" = ? where "id" = ?', [

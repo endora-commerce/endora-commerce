@@ -197,6 +197,17 @@ stored one renders nothing, and the handler answers `404`.
 separate **Newsletter signup** form, `cms.NewsletterSignup`, which posts to any
 external endpoint for a newsletter service outside the platform.
 
+## In the audit log
+
+Subscribing, resubscribing, confirming, unsubscribing, a bounce or complaint
+suppression and deleting a subscriber are each an entry in the platform-wide
+audit log. That log is read by everybody holding `audit_log:read` whatever they
+may see, so an entry names the subscriber by id and holds no e-mail address and
+no free text: the status, the source, a suppression's reason code, and whether an
+unsubscribe gave a reason (`hasReason`). The address is on the subscriber, the
+reason on the subscriber and its suppression. Entries recorded before this change
+keep what they were written with.
+
 ## Schema
 
 Migration `20260629T200954_newsletter_init.ts` creates `newsletter_subscribers`,

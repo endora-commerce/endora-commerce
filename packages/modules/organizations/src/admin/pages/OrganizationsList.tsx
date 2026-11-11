@@ -3,13 +3,14 @@ import { Link } from 'react-router-dom';
 import { ArrowRight } from 'lucide-react';
 import { ApiError, apiClient, formatDateTime, useAuth } from '@endora-commerce/admin-kit/lib';
 import { Alert, AlertDescription, Button, Card, CardContent, Input, Label, PageHeader, Select } from '@endora-commerce/admin-kit/ui';
-import { OrganizationStatusBadge, ResponsiveTable } from '@endora-commerce/admin-kit/components';
+import { OrganizationStatusBadge, ResponsiveTable, RowActionMenu, RowActionMenuItem } from '@endora-commerce/admin-kit/components';
 import { useTranslation } from '@endora-commerce/admin-kit/i18n';
 
 interface AdminOrganization {
   id: string;
   name: string;
-  taxId: string;
+  /** `null` for a personal Organization (`specs/177-tax-id-scope/`). */
+  taxId: string | null;
   isPersonal?: boolean;
   status: 'pending_verification' | 'active' | 'blocked' | 'rejected';
   vatStatus: 'vat_payer' | 'vat_exempt' | 'reverse_charge';
@@ -24,7 +25,14 @@ export function OrganizationsList(): ReactNode {
   // Feature 154 — creating an Organization is `customers:manage`, as the
   // `/organizations/new` route is; a read-only operator is not shown a button
   // that would open a screen they cannot use.
-  const canCreate = useAuth().hasPermission('customers:manage');
+  const { hasPermission } = useAuth();
+  const canCreate = hasPermission('customers:manage');
+  // `specs/177-tax-id-scope/` (`contracts/admin-surfaces.md` §4.5) — the
+  // installation-wide screens, each under its own code. The routes and the
+  // backend also refuse a scoped administrator; the menu shows what the code allows.
+  const canManageTaxIdScope = hasPermission('organizations:manage-tax-id-scope');
+  const canConvert = hasPermission('organizations:convert-to-company');
+  const hasMenu = canManageTaxIdScope || canConvert;
   const [rows, setRows] = useState<AdminOrganization[]>([]);
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState<string | null>(null);
@@ -59,10 +67,28 @@ export function OrganizationsList(): ReactNode {
         title={t('organizations.page.title')}
         description={t('organizations.page.description')}
         actions={
-          canCreate ? (
-            <Button asChild>
-              <Link to="/organizations/new">{own('list.newOrganization')}</Link>
-            </Button>
+          canCreate || hasMenu ? (
+            <div className="flex items-center gap-2">
+              {canCreate ? (
+                <Button asChild>
+                  <Link to="/organizations/new">{own('list.newOrganization')}</Link>
+                </Button>
+              ) : null}
+              {hasMenu ? (
+                <RowActionMenu label={own('list.menu.label')}>
+                  {canManageTaxIdScope ? (
+                    <RowActionMenuItem asChild>
+                      <Link to="/organizations/tax-id-scope">{own('list.menu.taxIdScope')}</Link>
+                    </RowActionMenuItem>
+                  ) : null}
+                  {canConvert ? (
+                    <RowActionMenuItem asChild>
+                      <Link to="/organizations/convert-to-company">{own('list.menu.convertPersonal')}</Link>
+                    </RowActionMenuItem>
+                  ) : null}
+                </RowActionMenu>
+              ) : null}
+            </div>
           ) : null
         }
       />
@@ -113,13 +139,13 @@ export function OrganizationsList(): ReactNode {
                   header: t('organizations.column.name'),
                   primary: true,
                   render: (o) => <span className="font-medium">{o.name}</span>,
-                  // A personal Organization's tax id is an internal placeholder (#767).
+                  // A personal Organization has no tax ID (`specs/177-tax-id-scope/`).
                   meta: (o) =>
                     o.isPersonal ? (
                       <span className="text-xs text-muted-foreground">{t('organizations.personalAccount')}</span>
-                    ) : (
+                    ) : o.taxId ? (
                       <span className="font-mono text-xs text-muted-foreground">{o.taxId}</span>
-                    ),
+                    ) : null,
                 },
                 {
                   id: 'status',
