@@ -223,6 +223,10 @@ describe('POST /api/v1/organizations/register — custom-field values (feature 1
         changedCustomFields: ['firstUser.cf175r_phone', 'organization.cf175r_employees', 'organization.cf175r_source'],
       });
       expect(entries[0]?.stateAfter).not.toHaveProperty('customFieldKeys');
+      // The Organization's name and tax ID by name only (D-288, #470 O-2).
+      expect(entries[0]?.stateAfter).toMatchObject({ changedFields: expect.arrayContaining(['name', 'taxId']) });
+      expect(entries[0]?.stateAfter).not.toHaveProperty('name');
+      expect(entries[0]?.stateAfter).not.toHaveProperty('taxId');
     });
 
     it('refuses an empty required open field beside it and creates nothing (US1-4)', async () => {

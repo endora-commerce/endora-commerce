@@ -102,16 +102,16 @@ export function protectedRole(message: string): HttpError {
   return new HttpError(409, ERROR_CODES.ORGANIZATION_ROLE_PROTECTED, message);
 }
 
-/** The audit snapshot of a role, permission list sorted (R-32). */
-export function auditRole(
-  role: Pick<OrganizationRoleRow, 'id' | 'kind' | 'name' | 'description'>,
-  permissions: readonly string[],
-): AuditState {
+/**
+ * The audit snapshot of a role (R-32): its id, its kind and its sorted
+ * permission codes. A custom role's name and description are the
+ * Organization's free text and are never recorded — an update names them in
+ * `changedFields` (`specs/conventions/audit-state.md`, D-288, O-1).
+ */
+export function auditRole(role: Pick<OrganizationRoleRow, 'id' | 'kind'>, permissions: readonly string[]): AuditState {
   return {
     id: role.id,
     kind: role.kind,
-    name: role.name ?? null,
-    description: role.description ?? null,
     permissions: [...permissions],
   };
 }

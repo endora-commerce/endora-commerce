@@ -1094,7 +1094,9 @@ entry as soon as any process announces a change.
 Every role change is a Command — `organization_role.create`,
 `organization_role.update`, `organization_role.delete` — audited against the
 organization, naming the member or the operator who made it, with the role's
-name, kind and sorted permission list before and after. Saving a role without
+id, kind and sorted permission list before and after and, for an update, the
+names of what changed (`changedFields`: `name`, `description`, `permissions`).
+A custom role's name and description are never recorded. Saving a role without
 changing it records nothing.
 
 | Verb + Path | Audience | Purpose |
@@ -1230,6 +1232,43 @@ run the `customer_account.change_role` / `customer_account.remove_member`
 Commands of `customer_accounts`; creating and revoking an invitation run
 `organization_invitation.create` / `organization_invitation.revoke`. Each is
 audited against the organization, naming the member or the operator who acted.
+
+## Audit entries
+
+The platform audit log is one table read by every operator with
+`audit_log:read`, whatever organizations they may reach, so every entry this
+module writes records **names and structure, never values**: ids, status and other codes, booleans,
+counts, dates, and the sorted names of the fields that changed
+(`changedFields`, `changedCustomFields`). Never an organization's name, legal
+name, tax ID, address, order-confirmation e-mails, block or rejection reason or
+custom-field values; never a member's or invitee's e-mail address or names;
+never a custom role's name or description.
+
+- **`organization.create`**, **`organization.register`** — the status (and VAT
+  status for a create), the sales channels and parent by id, and the names of
+  the fields it was created with (`changedFields`, e.g. `name`, `taxId`,
+  `registeredAddress`) and of the custom fields stored.
+- **`organization.admin_patch`**, **`organization.set_custom_field_values`**,
+  **`organization.convert_to_company`** — the codes before and after and the
+  names of what changed.
+- **`organization.delete`** — the status, VAT status, whether it is personal,
+  its parent by id and its version.
+- **`organization.approved`**, **`.rejected`**, **`.blocked`**, **`.unblocked`**
+  — the status, the moderation dates, the approving operator by id, the version,
+  and whether a block or rejection reason is set (`hasBlockedReason`,
+  `hasRejectedReason`); the reason itself is on the organization's page.
+- **`customer_account.admin_create`**, **`.admin_profile_update`**,
+  **`.admin_rollup_change`**, **`.admin_remove`** — the member's role by id, its
+  roll-up, e-mail-confirmed and two-factor flags and, after a change, the names
+  of what changed (`email`, `firstName`, `lastName`, …).
+- **`organization_invitation.create`**, **`.revoke`** — the invitation's id and
+  its role by id and kind. **`organization.invite_accept`** — the new account
+  and its role by id.
+- **`organization_role.create`**, **`.update`**, **`.delete`** — as described
+  under the roles above.
+
+Entries written before an instance was upgraded to the release that made this
+change are kept as they were stored.
 
 ## Global search
 

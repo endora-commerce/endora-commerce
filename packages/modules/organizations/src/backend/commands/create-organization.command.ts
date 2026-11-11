@@ -15,6 +15,7 @@ import type { OrganizationTreeService } from '../services/organization-tree-serv
 import { taxIdConflictOf } from '../services/tax-id-conflict.js';
 import { TaxIdScopeService } from '../services/tax-id-scope-service.js';
 import { taxIdExistsRefusal } from '../services/organization-write.js';
+import { ORGANIZATION_CREATED_FIELDS, presentFields } from '../services/organization-audit-state.js';
 
 /**
  * `organization.create` — an operator creates a customer Organization and
@@ -141,15 +142,14 @@ export function makeCreateOrganizationCommand(
         result: organization,
         before: null,
         after: {
-          name: organization.name,
-          taxId: organization.taxId,
+          // Names, not values (`specs/conventions/audit-state.md`, D-288, O-2):
+          // the name, tax id and address are the tenant's own.
           status: organization.status,
           vatStatus: organization.vatStatus,
-          registeredAddress: organization.registeredAddress,
+          changedFields: presentFields(organization, ORGANIZATION_CREATED_FIELDS),
           salesChannelIds: [...new Set(input.salesChannelIds)].sort(),
           ...(parent ? { parentId: parent.id } : {}),
-          // Feature 175 (FR-021) — the keys stored, never their values
-          // (`specs/conventions/audit-state.md`, D-288).
+          // Feature 175 (FR-021) — the keys stored, never their values.
           changedCustomFields: Object.keys(organization.customFieldValues ?? {}).sort(),
         },
       };

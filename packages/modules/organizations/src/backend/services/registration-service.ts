@@ -28,6 +28,7 @@ import type { AuditPort, SalesChannelMembershipPort } from '@endora-commerce/pla
 import { withSystemScope } from '@endora-commerce/platform/tenancy';
 import { predefinedRoleIdOn } from './organization-role-store.js';
 import { OrganizationTaxIdValidation } from '../entities/organization-tax-id-validation.entity.js';
+import { ORGANIZATION_CREATED_FIELDS, presentFields } from './organization-audit-state.js';
 import type { RegistryLookupSnapshot } from '../registry-lookup/company-registry-port.js';
 import {
   registrationValidationRow,
@@ -319,9 +320,9 @@ export class RegistrationService {
         objectId: organization.id,
         stateBefore: null,
         stateAfter: {
-          name: organization.name,
-          taxId: organization.taxId,
+          // Names, not values (`specs/conventions/audit-state.md`, D-288, O-2).
           status: organization.status,
+          changedFields: presentFields(organization, ORGANIZATION_CREATED_FIELDS),
           ...(lookupRow ? { registryLookup: { provider: lookupRow.provider, outcome: lookupRow.outcome } } : {}),
           // Feature 175 (FR-028) — the keys a buyer supplied, never their
           // values (`specs/conventions/audit-state.md`, D-288): sorted, each

@@ -52,8 +52,8 @@ Jak dopasowywany jest tekst:
   znajduje ten rekord niezależnie od konfiguracji pól.
 - Wersje robocze, rekordy nieaktywne i zablokowane oraz anulowane zamówienia są
   znajdowane i pokazują swój status. Rekordy usunięte, zanonimizowani klienci i
-  organizacje prywatne (B2C) nie są znajdowane; osoby stojące za organizacjami
-  prywatnymi można znaleźć jako klientów.
+  organizacje osobiste (B2C) nie są znajdowane; osoby stojące za organizacjami
+  osobistymi można znaleźć jako klientów.
 - Nazwy produktów i kategorii są dopasowywane we wszystkich językach i
   wyświetlane w języku administratora.
 

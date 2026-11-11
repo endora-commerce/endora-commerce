@@ -32,8 +32,9 @@ export interface CreatedOrganizationInvitation {
  * invitation for the same address is the partial unique index's `409
  * EMAIL_ALREADY_IN_ORGANIZATION`.
  *
- * Audited against the Organization (R-32) with the invitation, its address and
- * its role in the after-state; the actor is the bus's, so the storefront
+ * Audited against the Organization (R-32) with the invitation's id and its role
+ * by id and kind in the after-state — never the invitee's address or a custom
+ * role's name (`specs/conventions/audit-state.md`, D-288, O-1); the actor is the bus's, so the storefront
  * administrator and the operator are both recorded by the one Command. The
  * caller sends the e-mail after the bus resolves, never for a rolled-back
  * invitation.
@@ -80,7 +81,6 @@ export function makeCreateOrganizationInvitationCommand(
         before: null,
         after: {
           invitationId: invitation.id,
-          email: invitation.email,
           role: invitationRoleSnapshot(role),
         },
       };
@@ -88,9 +88,14 @@ export function makeCreateOrganizationInvitationCommand(
   };
 }
 
-/** The audit snapshot of an invitation's role (R-32): `name` is `null` for a predefined role, whose label is translated. */
-export function invitationRoleSnapshot(
-  role: Pick<OrganizationRole, 'id' | 'kind' | 'name'>,
-): { id: string; kind: OrganizationRole['kind']; name: string | null } {
-  return { id: role.id, kind: role.kind, name: role.kind === 'custom' ? (role.name ?? null) : null };
+/**
+ * The audit snapshot of an invitation's role (R-32): its id and kind. A custom
+ * role's name is free text of the Organization and is never recorded
+ * (`specs/conventions/audit-state.md`, D-288, O-1).
+ */
+export function invitationRoleSnapshot(role: Pick<OrganizationRole, 'id' | 'kind'>): {
+  id: string;
+  kind: OrganizationRole['kind'];
+} {
+  return { id: role.id, kind: role.kind };
 }

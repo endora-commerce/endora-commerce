@@ -167,12 +167,15 @@ describe('POST /api/v1/admin/organizations', () => {
     expect(rows).toHaveLength(1);
     expect(rows[0]!.actorAdminUserId).toBe(ADMIN_COOKIES[MANAGER]!.adminUserId);
     expect(rows[0]!.stateBefore ?? null).toBeNull();
+    // Names, not values (`specs/conventions/audit-state.md`, D-288, #470 O-2).
     expect(rows[0]!.stateAfter).toMatchObject({
-      name: payload['name'],
-      taxId: payload['taxId'],
       status: 'active',
       salesChannelIds: [channelA, channelB].sort(),
+      changedFields: ['name', 'registeredAddress', 'taxId'],
     });
+    const stored = JSON.stringify(rows[0]!.stateAfter);
+    expect(stored).not.toContain(payload['name'] as string);
+    expect(stored).not.toContain(payload['taxId'] as string);
   });
 
   // `specs/177-tax-id-scope/` T041d (D-290 / OD-11) — stored normalised, and a
@@ -239,14 +242,14 @@ describe('POST /api/v1/admin/organizations', () => {
       new Error('assignment failed'),
     );
     const payload = body();
+    // The tax ID is never in an entry's state (D-288), so "no entry for the
+    // rolled-back create" is counted rather than looked up by its tax ID.
+    const entriesBefore = await h.em().fork().count(AuditLogEntry, { action: 'organization.create' });
     const res = await post(payload);
     expect(res.statusCode).toBe(500);
     const em = h.em().fork();
     expect(await em.findOne(Organization, { taxId: payload['taxId'] as string })).toBeNull();
-    const audited = await em.find(AuditLogEntry, { action: 'organization.create' });
-    expect(
-      audited.filter((row) => (row.stateAfter as { taxId?: string } | null)?.taxId === payload['taxId']),
-    ).toHaveLength(0);
+    expect(await em.count(AuditLogEntry, { action: 'organization.create' })).toBe(entriesBefore);
   });
 
   /**

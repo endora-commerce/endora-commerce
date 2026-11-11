@@ -145,7 +145,7 @@ organizacji, a po odrzuceniu wskazuje *osobę zatwierdzającą w Twojej organiza
 
 Akceptujący działa w sekcji **Koszyki do akceptacji** w nawigacji konta (widocznej dla osób z
 uprawnieniem *Akceptowanie i odrzucanie koszyków współpracowników*, z liczbą oczekujących koszyków;
-nigdy w organizacji prywatnej), która otwiera `/organization/carts` na koszykach oczekujących na
+nigdy w organizacji osobistej), która otwiera `/organization/carts` na koszykach oczekujących na
 akceptację. Listę można zawęzić do koszyków oczekujących na akceptację, a każdy koszyk otwiera się na własnej stronie
 (`/organization/carts/<id>`) z właścicielem, pozycjami, sumą i czasem przesłania. Oczekujący koszyk
 oferuje **Zaakceptuj koszyk** oraz — za rozwijanym przełącznikiem — **Odrzuć koszyk**, które wymaga

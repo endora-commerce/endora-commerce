@@ -1,4 +1,5 @@
 import { isDeepStrictEqual } from 'node:util';
+import type { CustomerAccountRecord } from '@endora-commerce/contracts';
 import type { Organization } from '../entities/organization.entity.js';
 
 /**
@@ -19,26 +20,198 @@ import type { Organization } from '../entities/organization.entity.js';
  */
 
 /**
- * Every top-level key an `organization.admin_patch`,
- * `organization.set_custom_field_values` or `organization.tax_id.change` audit
- * state may hold. Anything else
- * is a value until somebody classifies it on purpose —
- * `admin-patch-organization.command.test.ts` holds the recorded state to this
- * list.
+ * Every top-level key an organizations audit state may hold — the
+ * `organization.*`, `organization_role.*` and `organization_invitation.*`
+ * entries and the `customer_account.admin_*` member writes this module records
+ * — plus the keys of a nested `role` snapshot. Anything else is a value until
+ * somebody classifies it on purpose: `admin-patch-organization.command.test.ts`
+ * and `organization-audit-sentinels.test.ts` hold the recorded states to this
+ * list. The writes not covered there (allow lists, sales reps, hierarchy,
+ * credit mode, VAT validation, anonymisation, e-mail verification) record ids,
+ * codes, booleans, counts and dates, and are listed for completeness.
  */
 export const ORGANIZATION_AUDIT_KEYS: ReadonlySet<string> = new Set([
   // Codes from a closed set.
   'status',
   'vatStatus',
   'fulfilmentStrategy',
+  'isPersonal',
+  'creditInheritanceMode',
+  'scope',
+  'taxIdScope',
+  'kind',
+  'provider',
+  'outcome',
+  'registryLookup',
   // What changed, by name.
   'changedFields',
   'changedCustomFields',
-  // Issue #1040 — `organization.tax_id.change`: a boolean (the VAT validation
-  // summary was cleared) and the tax-ID scope code in force.
+  'customFieldKeys',
+  // Booleans: whether a reason, a legal name, a confirmed address was there.
+  'hasBlockedReason',
+  'hasRejectedReason',
+  'hadBlockedReason',
+  'hadRejectedReason',
+  'hadLegalName',
+  'wasDeleted',
+  'approvalStamped',
+  'appliedAutoFill',
+  'emailVerified',
+  'twoFactorEnabled',
+  'subtreeRollupEnabled',
+  // Counts and the optimistic-lock version.
+  'version',
+  'memberCount',
+  'invitationCount',
+  'orderConfirmationEmailCount',
+  // Dates.
+  'approvedAt',
+  'blockedAt',
+  'rejectedAt',
+  'anonymizedAt',
+  // Ids of other records: the parent, channels, admin users, accounts, roles,
+  // invitations, methods and warehouses; a hierarchy path is a chain of ids.
+  'parentId',
+  'path',
+  'subtreePaths',
+  'salesChannelIds',
+  'approvedByAdminUserId',
+  'adminUserId',
+  'customerAccountId',
+  'organizationRoleId',
+  'invitationId',
+  'deletedRoleId',
+  'replacementRoleId',
+  'reassignedInvitations',
+  'paymentMethodIds',
+  'deliveryMethodIds',
+  'warehouseIds',
+  'add',
+  'remove',
+  // A role snapshot (`role`): its id, its kind and its sorted permission codes.
+  'role',
+  'id',
+  'permissions',
+  // Issue #1040 — `organization.tax_id.change`: whether the VAT validation
+  // summary was cleared (its scope code `taxIdScope` is listed above).
   'vatStatusReset',
-  'taxIdScope',
 ]);
+
+/**
+ * The names of the columns in `fields` that hold a value on `record` — what a
+ * row that came into being was created with, for its `changedFields`.
+ */
+export function presentFields<T extends object>(record: T, fields: ReadonlyArray<keyof T & string>): string[] {
+  return fields
+    .filter((field) => {
+      const value = record[field];
+      return value !== null && value !== undefined && value !== '' && !(Array.isArray(value) && value.length === 0);
+    })
+    .sort();
+}
+
+/** The columns an Organization is created with, by an operator or by self-registration. */
+export const ORGANIZATION_CREATED_FIELDS = [
+  'name',
+  'legalName',
+  'taxId',
+  'registeredAddress',
+  'orderConfirmationEmails',
+] as const satisfies ReadonlyArray<keyof Organization>;
+
+/**
+ * What `organization.delete` records about the row it soft-deletes: codes, the
+ * parent's id and the version — never the name, tax id, address, reasons or
+ * custom-field values `serializeOrg` answers with.
+ */
+export function organizationDeletedAuditState(org: Organization): Record<string, unknown> {
+  return {
+    status: org.status,
+    vatStatus: org.vatStatus,
+    isPersonal: org.isPersonal,
+    parentId: org.parentId ?? null,
+    version: org.version,
+  };
+}
+
+/**
+ * A moderation transition's snapshot (`organization.approved|rejected|blocked|unblocked`):
+ * the status, its dates and approving admin, the version, and whether a block
+ * or rejection reason is set — never the reason.
+ */
+export function moderationAuditState(org: Organization): Record<string, unknown> {
+  return {
+    status: org.status,
+    approvedAt: org.approvedAt ? org.approvedAt.toISOString() : null,
+    approvedByAdminUserId: org.approvedByAdminUserId ?? null,
+    blockedAt: org.blockedAt ? org.blockedAt.toISOString() : null,
+    hasBlockedReason: hasText(org.blockedReason),
+    rejectedAt: org.rejectedAt ? org.rejectedAt.toISOString() : null,
+    hasRejectedReason: hasText(org.rejectedReason),
+    version: org.version,
+  };
+}
+
+function hasText(value: string | null | undefined): boolean {
+  return value !== null && value !== undefined && value !== '';
+}
+
+/** The member columns the admin member writes are compared on, to name what changed. */
+type MemberSnapshot = Pick<
+  CustomerAccountRecord,
+  'email' | 'firstName' | 'lastName' | 'organizationRoleId' | 'subtreeRollupEnabled' | 'twoFactorEnabled'
+> & { emailVerifiedAt: Date | null };
+
+/**
+ * A member as a `customer_account.admin_*` entry records it: its role by id
+ * and its flags. Never its e-mail, names or Organization (the tenant anchor).
+ */
+export function memberAuditState(member: MemberSnapshot): Record<string, unknown> {
+  return {
+    organizationRoleId: member.organizationRoleId,
+    subtreeRollupEnabled: member.subtreeRollupEnabled ?? false,
+    emailVerified: member.emailVerifiedAt != null,
+    twoFactorEnabled: member.twoFactorEnabled ?? false,
+  };
+}
+
+/**
+ * `customer_account.admin_create`: the names of the fields the member was
+ * created with, its role by id, whether the address is confirmed, and the
+ * custom-field keys stored.
+ */
+export function memberCreatedAuditState(
+  member: MemberSnapshot & { organizationId: string },
+  customFieldKeys: readonly string[],
+): Record<string, unknown> {
+  return {
+    changedFields: presentFields(member, ['email', 'firstName', 'lastName', 'organizationId', 'organizationRoleId']),
+    organizationRoleId: member.organizationRoleId,
+    emailVerified: member.emailVerifiedAt != null,
+    changedCustomFields: [...customFieldKeys].sort(),
+  };
+}
+
+/**
+ * `customer_account.admin_profile_update` / `.admin_rollup_change`: the
+ * member's snapshot on both sides and, after, the sorted names of what
+ * changed — `email`, `firstName`, `lastName` by name only.
+ */
+export function memberUpdatedAuditState(
+  before: MemberSnapshot,
+  after: MemberSnapshot,
+): { before: Record<string, unknown>; after: Record<string, unknown> } {
+  const compared = (m: MemberSnapshot) => ({
+    email: m.email,
+    firstName: m.firstName,
+    lastName: m.lastName,
+    ...memberAuditState(m),
+  });
+  return {
+    before: memberAuditState(before),
+    after: { ...memberAuditState(after), changedFields: changedKeys(compared(before), compared(after)) },
+  };
+}
 
 /** The columns `organization.admin_patch` may set, compared to name what changed. */
 type PatchableField =

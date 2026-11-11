@@ -33,8 +33,9 @@ export interface RevokeOrganizationInvitationDeps {
  * CANNOT_REVOKE_LAST_ADMIN_INVITE`). Administrator is the role, not the legacy
  * enum, since this package (`contracts/organization-permission-port.md` §3).
  *
- * Audited against the Organization with the invitation's address and role in
- * the before-state.
+ * Audited against the Organization with the invitation's id and its role by id
+ * and kind in the before-state — never the address or a custom role's name
+ * (`specs/conventions/audit-state.md`, D-288, O-1).
  */
 export function makeRevokeOrganizationInvitationCommand(
   deps: RevokeOrganizationInvitationDeps,
@@ -88,8 +89,7 @@ export function makeRevokeOrganizationInvitationCommand(
       });
       const before = {
         invitationId: invitation.id,
-        email: invitation.email,
-        role: role ? invitationRoleSnapshot(role) : { id: invitation.organizationRoleId, kind: null, name: null },
+        role: role ? invitationRoleSnapshot(role) : { id: invitation.organizationRoleId, kind: null },
       };
       invitation.revokedAt = new Date();
       await em.flush();

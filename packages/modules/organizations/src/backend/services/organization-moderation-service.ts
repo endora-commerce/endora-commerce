@@ -7,6 +7,7 @@ import { withSystemScope } from '@endora-commerce/platform/tenancy';
 import type { OrganizationEventBus } from './registration-service.js';
 import { noopOrgTemplateEmail, type OrgTemplateEmail } from './org-template-email.js';
 import { predefinedRoleIdOn } from './organization-role-store.js';
+import { moderationAuditState } from './organization-audit-state.js';
 import { isUuidShape } from '@endora-commerce/contracts';
 
 /**
@@ -391,30 +392,14 @@ interface TransitionInput {
   afterCommit?: (org: Organization) => Promise<void>;
 }
 
-interface OrgSnapshot {
-  id: string;
-  status: OrganizationStatus;
-  approvedAt: string | null;
-  approvedByAdminUserId: string | null;
-  blockedAt: string | null;
-  blockedReason: string | null;
-  rejectedAt: string | null;
-  rejectedReason: string | null;
-  version: number;
-}
+/**
+ * A transition's audit snapshot — names and structure, never the block or
+ * rejection reason (`specs/conventions/audit-state.md`, D-288, O-2).
+ */
+type OrgSnapshot = Record<string, unknown>;
 
 function snapshot(org: Organization): OrgSnapshot {
-  return {
-    id: org.id,
-    status: org.status,
-    approvedAt: org.approvedAt ? org.approvedAt.toISOString() : null,
-    approvedByAdminUserId: org.approvedByAdminUserId ?? null,
-    blockedAt: org.blockedAt ? org.blockedAt.toISOString() : null,
-    blockedReason: org.blockedReason ?? null,
-    rejectedAt: org.rejectedAt ? org.rejectedAt.toISOString() : null,
-    rejectedReason: org.rejectedReason ?? null,
-    version: org.version,
-  };
+  return moderationAuditState(org);
 }
 
 export class OrganizationNotFoundError extends Error {

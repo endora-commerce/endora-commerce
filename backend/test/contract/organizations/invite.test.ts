@@ -128,7 +128,10 @@ describe('POST /api/v1/organizations/mine/invitations', () => {
       actor_admin_user_id: null,
       actor_customer_account_id: CUSTOMER_COOKIES['stub-customer-session']!.customerAccountId,
     });
-    expect(entries[0]!.state_after).toMatchObject({ email, role: { kind: 'member' } });
+    // The role by id and kind; never the invitee's address (D-288, #470).
+    expect(entries[0]!.state_after).toMatchObject({ invitationId, role: { kind: 'member' } });
+    expect(entries[0]!.state_after).not.toHaveProperty('email');
+    expect(JSON.stringify(entries[0]!.state_after)).not.toContain(email);
   });
 
   it("answers another Organization's role as not found (FR-005)", async () => {
