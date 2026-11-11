@@ -81,6 +81,22 @@ describe('POST /api/v1/organizations/register — duplicate taxId', () => {
     expect((res.json() as { error: { code: string } }).error.code).toBe(ERROR_CODES.ORGANIZATION_TAX_ID_EXISTS);
   });
 
+  // `specs/177-tax-id-scope/` review finding 5 — normalised first, then held to
+  // 8 to 32 characters: dashes alone and an over-long value are refused with 400.
+  it.each(['--------', '  - -  - -', '1'.repeat(33)])('refuses the tax ID %j once normalised', async (taxId) => {
+    const res = await h.app.inject({
+      method: 'POST',
+      url: '/api/v1/organizations/register',
+      payload: {
+        ...payload,
+        organization: { ...payload.organization, taxId },
+        firstUser: { ...payload.firstUser, email: 'normalised-length@example.com' },
+      },
+    });
+    expect(res.statusCode, res.body).toBe(400);
+    expect((res.json() as { error: { code: string } }).error.code).toBe(ERROR_CODES.VALIDATION_FAILED);
+  });
+
   // `specs/177-tax-id-scope/` T041d (D-290 / OD-11) — stored, and echoed, normalised.
   it('stores and answers the normalised tax ID', async () => {
     const res = await h.app.inject({

@@ -1,5 +1,4 @@
 import { z } from 'zod';
-import { normalizeTaxId } from '@endora-commerce/contracts';
 
 /**
  * Zod schemas used by feature 026 — moderation, restrictions, and VAT
@@ -16,18 +15,6 @@ export const organizationStatusSchema = z.enum([
   'rejected',
 ]);
 export type OrganizationStatusInput = z.infer<typeof organizationStatusSchema>;
-
-/**
- * Tax ID — stripped of whitespace and dashes and upper-cased at the Zod
- * boundary (`normalizeTaxId`), then held to the stored length, 8 to 32
- * characters (`specs/177-tax-id-scope/`): a longer value reached
- * `varchar(32)` and answered 500.
- */
-export const taxIdSchema = z
-  .string()
-  .max(255)
-  .transform(normalizeTaxId)
-  .pipe(z.string().min(8).max(32));
 
 // ── Moderation ────────────────────────────────────────────────────────────
 
