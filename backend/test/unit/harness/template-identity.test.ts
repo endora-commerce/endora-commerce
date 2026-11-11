@@ -12,6 +12,7 @@ import {
   templateIdentity,
   type MigrationSourceRoot,
 } from '../../template-identity.js';
+import { templateTaxIdScope } from '../../template-seed.js';
 import {
   configuredMigrations,
   type RegisteredMigration,
@@ -161,7 +162,13 @@ describe('the migration set this run has', () => {
     // Every registered migration has a file, so the walk is never short of the
     // registry — that reconciliation is the refusal proven below.
     expect(identity.migrationFiles).toBeGreaterThanOrEqual(MIGRATION_NAMES.length);
-    expect(identity.sources.length).toBe(identity.migrationFiles + TEMPLATE_SEED_SOURCES.length);
+    // `specs/177-tax-id-scope/` R-16: a `per-tree-root` run also records the
+    // scope as one `env:` source, proven by the scope case below.
+    const envSources = identity.sources.filter((source) => source.path.startsWith('env:')).length;
+    expect(envSources).toBe(templateTaxIdScope() === 'global' ? 0 : 1);
+    expect(identity.sources.length).toBe(
+      identity.migrationFiles + TEMPLATE_SEED_SOURCES.length + envSources,
+    );
   });
 
   it('floors every origin the registry names, on its own', async () => {

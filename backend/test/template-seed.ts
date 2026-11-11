@@ -135,4 +135,46 @@ export async function withdrawPlatformInvariants(client: {
     );
   }
   await client.query(`delete from sales_channels where code = 'default' and system_default`);
+  await withdrawTaxIdScope(client);
+}
+
+/**
+ * The inverse of {@link establishTaxIdScope}. The migrations leave the
+ * installation in `global` (`organizations_tax_id_unique`, policy row
+ * `global`); a template built under `ORGANIZATIONS_TAX_ID_SCOPE=per-tree-root`
+ * holds the swapped constraint and row, so a clone that must be a migrated
+ * database swaps them back — the statements `applyEnforcement` and
+ * `writePolicy` run for `global`. A clone holds no organizations, so the unique
+ * constraint cannot be refused; a policy that is neither of the two scopes is
+ * refused rather than overwritten.
+ */
+async function withdrawTaxIdScope(client: {
+  query: (sql: string) => Promise<{ rowCount: number | null; rows: unknown[] }>;
+}): Promise<void> {
+  const policy = await client.query(`select scope from organization_tax_id_policy`);
+  const scopes = (policy.rows as { scope: string }[]).map((row) => row.scope);
+  if (scopes.length === 1 && scopes[0] === 'global') return;
+  if (scopes.length !== 1 || scopes[0] !== 'per-tree-root') {
+    throw new Error(
+      `[test-setup] a clone of the migration template was expected to hold one tax-ID policy row ` +
+        `in "global" or "per-tree-root", and holds ${JSON.stringify(scopes)}. Withdrawing anything ` +
+        `else would not leave a migrated database.`,
+    );
+  }
+  await client.query(`
+    do $$
+    begin
+      if not exists (
+        select 1 from pg_constraint
+         where conrelid = 'organizations'::regclass and conname = 'organizations_tax_id_unique'
+      ) then
+        alter table "organizations" add constraint "organizations_tax_id_unique" unique ("tax_id");
+      end if;
+      alter table "organizations" drop constraint if exists "organizations_tax_id_one_tree";
+    end
+    $$;
+  `);
+  await client.query(
+    `update "organization_tax_id_policy" set "scope" = 'global', "updated_at" = now(), "updated_by_admin_user_id" = null where "id"`,
+  );
 }
