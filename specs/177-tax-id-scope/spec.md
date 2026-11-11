@@ -177,6 +177,10 @@ returns three records, root first; `resolveByTaxId(X)` returns `one` with the ro
   first segment, deleted or not.
 - **Moving a whole subtree** whose members share X into another tree that has no X is allowed; the
   check is per tax ID, across the whole moved subtree, not per node.
+- **Switching back to `global` after a tax ID was shared** is refused for as long as the sharing
+  exists, soft-deleted organizations included; the admin offers no way to change or release a tax ID,
+  so the refusal states that it cannot be resolved from the admin rather than asking the operator to
+  give each organization its own tax ID (FR-015a).
 - **Switching to `per-tree-root` twice** is a no-op the second time (no audit entry, enforcement
   re-asserted).
 - **The scope command fails half-way** (DDL error, lost connection): the policy row and the database
@@ -232,6 +236,15 @@ returns three records, root first; `resolveByTaxId(X)` returns `one` with the ro
 - **FR-015**: Switching to `global` MUST be refused while any tax ID belongs to more than one
   organization; the refusal MUST carry the number of shared tax IDs and up to 20 of them with their
   organizations.
+- **FR-015a**: Once any tax ID is shared — by a live or a soft-deleted organization — switching back
+  to `global` is not available from the admin, because a tax ID cannot be changed and soft-deleted
+  organizations keep theirs (D-290 / OD-8). The admin MUST say so before the switch to
+  `per-tree-root` is confirmed, and every refusal and warning MUST NOT suggest a remedy the admin does
+  not offer.
+  *Amended by issue #1040* (`organization.tax_id.change`): a live company's tax ID can now be
+  corrected from the admin, so the refusal, the warning and the confirmation name *Change tax ID* as
+  the remedy for a tax ID shared by mistake; a tax ID shared with a soft-deleted organization still
+  cannot be released from the admin (OD-8 unchanged).
 - **FR-016**: Setting the scope already in force MUST change nothing, record no audit entry, and
   re-assert the database enforcement for that scope.
 - **FR-017**: Only an unscoped platform administrator holding `organizations:manage-tax-id-scope` MAY

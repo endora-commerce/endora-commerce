@@ -809,8 +809,10 @@ the customer's name), then fill in the company details.
 (spaces and dashes are removed when the field is left; 8 to 32 characters), the
 registered address, the VAT status (*VAT payer* by default) and *Validate the tax
 ID after converting* (ticked by default). Validating needs `customers:manage`
-as well, the permission of the VAT validation itself: an operator without it
-must untick the box, or the whole request is refused `403`.
+as well, the permission of the VAT validation itself, so the box is shown only
+to an operator holding it; without it the form converts without a validation.
+Through the API, `validateTaxId: true` without `customers:manage` refuses the
+whole request `403`.
 
 **What changes**, in one audited transaction (`organization.convert_to_company`):
 
@@ -983,7 +985,11 @@ shared. Choose the other scope, **Apply**, and confirm.
   or any other write it loses a lock to — is answered
   `409 ORGANIZATION_WRITE_CONTENDED` (*"Another change to organizations was in
   progress. Try again in a moment."*); retrying succeeds.
-- **To *One tree per tax ID*** is always allowed.
+- **To *One tree per tax ID*** is always allowed. Once a tax ID is shared, the
+  way back is open only after every shared tax ID is gone: a live organization's
+  tax ID can be corrected with **Change tax ID**, but a soft-deleted
+  organization keeps its own, so a tax ID shared with one cannot be released
+  from the admin. The confirmation says so before you confirm.
 - **Back to *Global*** is refused `409 ORGANIZATION_TAX_ID_SCOPE_DUPLICATES`
   while any tax ID is on more than one organization (`details: { code:
   'shared_tax_ids', sharedTaxIdCount, examples }`, at most 20 examples, each a
