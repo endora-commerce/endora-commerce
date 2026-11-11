@@ -564,6 +564,8 @@ export function backendScripts(input: PlanInput): Record<string, string> {
     'module:enable': `${node} dist/module-commands/enable.js`,
     'module:disable': `${node} dist/module-commands/disable.js`,
     'module:status': `${node} dist/module-commands/status.js`,
+    // Issue #1036 — the sixth operator command, its own entry beside the five.
+    'module:schema-extensions': `${node} dist/module-commands/schema-extensions.js`,
     // The operator CLI (`specs/123-oss-install-experience/` G2, T2-D).
     // `cli` is the generic pass-through, so a module this instance installed
     // which declares a `cliCommands` entry is addressable with no file in this
@@ -1009,6 +1011,7 @@ export function planInstance(input: PlanInput): InstancePlan {
     'module:enable': 'pnpm -C backend run module:enable',
     'module:disable': 'pnpm -C backend run module:disable',
     'module:status': 'pnpm -C backend run module:status',
+    'module:schema-extensions': 'pnpm -C backend run module:schema-extensions',
     // The operator CLI (`specs/123-oss-install-experience/` G2, T2-D). `cli` is
     // the generic pass-through, so a module this instance installed which
     // declares a `cliCommands` entry is addressable with no file in this tree
@@ -1594,6 +1597,24 @@ await runOperatorCommand(${runner});
     });
   }
 
+  // Issue #1036 — the sixth operator command: `list`, `drop` (the only
+  // sanctioned removal of the columns an uninstalled package left orphaned,
+  // `specs/178-extensible-columns/` OD-29) and `audit-packages`. Not over
+  // `runtime.ts`: the five share an `OperatorRuntime` that opens Redis and
+  // resolves the manifest set, and this command needs neither — what it needs
+  // from this tree is the ORM configuration, whose discovery is also what
+  // tells `drop` which extensions are still declared.
+  files.push({
+    path: 'backend/src/module-commands/schema-extensions.ts',
+    kind: 'wiring',
+    member: 'backend',
+    content: `import { runInstanceSchemaExtensionsCommand } from '${scope}platform/lifecycle';
+import config from '../mikro-orm.config.js';
+
+await runInstanceSchemaExtensionsCommand({ ormConfig: config });
+`,
+  });
+
   return files;
 }
 
@@ -1637,6 +1658,9 @@ const README_COMMANDS: readonly (readonly [script: string, argument: string, not
   ['module:enable', ' <id>', 'whether this deployment offers a module. One that is off\nbehaves as though it were never installed'],
   ['module:disable', ' <id>', ''],
   ['module:uninstall', ' <id>', 'the reverse of `module:install`'],
+  // Issue #1036. The argument is the verb an operator reaches for first;
+  // `drop` and `audit-packages` are named in the note.
+  ['module:schema-extensions', ' list', 'the extension columns your modules declared, and the ones an\nuninstalled module left orphaned. `drop <id> [--confirm]` removes\norphaned ones, audited; `audit-packages` checks your packages\nbefore an upgrade'],
   // `specs/123-oss-install-experience/` G2. `admin:create` is conditional on
   // `admin_users` being installed, which the filter below already handles: this
   // table is annotations, and which of them survive is the manifest's answer.

@@ -4797,6 +4797,45 @@ Organizations they may see.
 **After upgrading,** nothing has to be done. A report that read invoice totals out of the audit log
 reads them from the invoices instead.
 
+### The schema-extension commands run in the instance {#schema-extensions-instance-command}
+
+The release that ships this change adds `module:schema-extensions` to the instance scaffold, beside
+the five `module:*` commands (issue #1036). In the instance root:
+
+```bash
+pnpm run module:schema-extensions list                      # declared extension columns, and orphaned ones
+pnpm run module:schema-extensions drop <moduleId>           # prints the plan
+pnpm run module:schema-extensions drop <moduleId> --confirm # drops orphaned elements, one audit entry
+pnpm run module:schema-extensions audit-packages            # what migrate would refuse, executing nothing
+```
+
+`drop` removes only elements that are orphaned and that no installed package declares any more;
+it is the only way the columns an uninstalled module left behind are ever removed.
+`audit-packages` reads every installed package's migrations without executing them and lists each
+statement the foreign-schema guard refuses at `migrate` (exit 65 while one remains). `migrate`
+stops at the first such statement and rolls the whole run back; `audit-packages` names all of them.
+
+**An instance created before this release** has no such command: `pnpm run upgrade` changes no
+file of your tree. Add it by hand, then run `pnpm run build:backend`:
+
+1. `backend/src/module-commands/schema-extensions.ts`:
+
+   ```ts
+   import { runInstanceSchemaExtensionsCommand } from '@endora-commerce/platform/lifecycle';
+   import config from '../mikro-orm.config.js';
+
+   await runInstanceSchemaExtensionsCommand({ ormConfig: config });
+   ```
+
+2. In `backend/package.json`, under `scripts`:
+   `"module:schema-extensions": "node --env-file-if-exists=../.env dist/module-commands/schema-extensions.js"`.
+3. In the instance's root `package.json`, under `scripts`:
+   `"module:schema-extensions": "pnpm -C backend run module:schema-extensions"`.
+
+**After upgrading,** if `migrate` was refused with `foreign-schema-write`, run
+`pnpm run module:schema-extensions audit-packages` to see every statement it would refuse, and ask
+the package's author for a release that declares its columns instead.
+
 ### The catalogue reads the whole `Accept-Language` header {#catalog-accept-language}
 
 The release that ships this change makes the catalogue read `Accept-Language` as the weighted

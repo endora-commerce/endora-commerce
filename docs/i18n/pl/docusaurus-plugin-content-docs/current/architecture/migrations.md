@@ -468,17 +468,17 @@ nie mapuje jej encja żadnego innego modułu. Dozwolone są ponadto:
 zmian, a skróty `insert*`, `upsert*`, `native*` i `execute` również. Odczyty nigdy nie są
 oceniane.
 
-**Przed aktualizacją do wydania, które odmawia**, operator może zobaczyć, czego by odmówiło — w tym
-wydaniu z klonu repozytorium Endora Commerce, bo szkielet instancji nie udostępnia jeszcze
-`module:schema-extensions`:
+**Przed aktualizacją do wydania, które odmawia**, operator może zobaczyć, czego by odmówiło. W
+katalogu głównym instancji
 
 ```bash
-pnpm --filter backend run module:schema-extensions audit-packages
+pnpm run module:schema-extensions audit-packages
 ```
 
 wykonuje tę samą klasyfikację na migracjach wszystkich zainstalowanych pakietów, nie wykonując
 żadnej z nich, wypisuje każdą instrukcję, która zostałaby odrzucona, i kończy się kodem 65, gdy
-taka istnieje.
+taka istnieje. W klonie repozytorium Endora Commerce to samo polecenie ma postać
+`pnpm --filter backend run module:schema-extensions audit-packages`.
 
 
 ## Reguły kolejności
