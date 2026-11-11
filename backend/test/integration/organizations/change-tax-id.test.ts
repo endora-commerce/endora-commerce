@@ -377,10 +377,10 @@ describe('organization.tax_id.change', () => {
     const org = await company();
     const next = tx();
     await expect(port.changeTaxId(org.id, { taxId: next })).resolves.toMatchObject({ id: org.id, taxId: next });
-    const [{ count }] = await sql<Array<{ count: number }>>(
+    const validations = await sql<Array<{ count: number }>>(
       'select count(*)::int as "count" from "organization_tax_id_validations" where "organization_id" = ?',
       [org.id],
     );
-    expect(count).toBe(0);
+    expect(validations[0]!.count).toBe(0);
   });
 });
