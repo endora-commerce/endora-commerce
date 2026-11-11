@@ -61,8 +61,11 @@ z treścią. Najpierw pokazuje zwykły opis, a potem każdy atrybut treści w ko
 atrybutów. Nad dokumentem nie jest wyświetlany żaden nagłówek ani etykieta — dokument ma własne
 nagłówki.
 
-Każdy dokument jest dobierany do jednego języka w tej kolejności: język klienta, domyślny język
-kanału sprzedaży, angielski, a następnie dowolny język, który ma treść. Język, którego dokument nie
+Każdy dokument jest dobierany do jednego języka w tej kolejności: język klienta w postaci oferowanej przez kanał
+sprzedaży, a jeśli kanał go nie oferuje — domyślny język kanału; dalej domyślny język kanału,
+angielski, a następnie dowolny język, który ma treść. Językiem klienta jest pierwszy wpis
+`Accept-Language` według wagi, który kanał oferuje (`pl` pasuje do `pl-PL` kanału); język, którego
+kanał nie oferuje, nigdy nie jest używany, nawet jeśli zapisano w nim dokument. Język, którego dokument nie
 zawiera żadnego bloku, jest pomijany. Treść należy do produktu, więc jest taka sama niezależnie od
 wybranego wariantu.
 
