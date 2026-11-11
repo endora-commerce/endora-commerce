@@ -211,6 +211,10 @@ uninstall is refused. **Issue to file** (not filed from this branch): "Move the 
 `organization_sales_rep_assignments` into an `organizations` migration (`create table if not exists`,
 same columns, indexes and constraints as `quote_requests`' 20260503 workflow), so its owner creates it;
 spec 178 D-291 R-A7."
+Filed as issue #1033 and fixed there (2026-11-11, D-291 addendum R-A8 in `spec.md`): `organizations`'
+`Migration20261109T144721OrganizationsReachGovernor.up()` creates the table with `if not exists`, and
+`Migration20260503T141344QuoteRequestsWorkflow.up()` guards its `create table` the same way and no
+longer creates the two indexes, which the owner's migration creates.
 
 ## Phase D — Remaining eight hosts (later release — OD-178-4, ruled D-291; out of this release)
 

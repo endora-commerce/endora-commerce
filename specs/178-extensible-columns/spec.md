@@ -501,4 +501,39 @@ Taken by the architect on questions the developer raised from `feat/178-extensib
   `organizations` table **today, in this repository too**. Fix: remove the drop from that `down()`
   (editing a `down()` body changes no applied history); the creation side (the table is created by
   `quote_requests`, not by its owner) goes to `organizations`' own migration with `if not exists`
-  under a separate issue. With R-A7 and that fix no first-party module's hard uninstall is refused.
+  under a separate issue (#1033, ruled as R-A8 below). With R-A7 and that fix no first-party module's hard uninstall is refused.
+- **R-A8 — the creation side of R-A7: both creators guarded, the historical one kept (2026-11-11,
+  issue #1033; owner decision on the issue's open point, on the architect's recommendation).**
+  `organization_sales_rep_assignments` is created by its owner: `organizations`' released
+  `Migration20261109T144721OrganizationsReachGovernor.up()` — the first `organizations` migration
+  that needs the table — begins with `create table if not exists` and `create index if not exists`
+  for both indexes, with exactly the columns, constraint names and index names of
+  `quote_requests`' step 7; its `down()` drops nothing, because on an upgraded database the table
+  and its rows predate that migration. In `Migration20260503T141344QuoteRequestsWorkflow.up()`
+  the `create table` becomes `create table if not exists`, and its two `create index` statements
+  are removed: the owner's migration creates both indexes. They are not merely guarded because, in
+  an instance, the foreign-schema guard refuses them (review finding 3 in
+  `packages/platform/src/db/foreign-schema-guard.ts`): after a `create table if not exists` on a
+  table another module's entity maps — a create that may have been a no-op — DDL on that table is
+  a foreign write. Measured: guarding them turned
+  `backend/test/unit/db/instance-foreign-writes.test.ts` red on both indexes, which would have
+  refused `migrate` on every fresh instance. Keeping them and adding an R2 ledger entry was
+  rejected because it would license a foreign write that nothing needs. The index half was found
+  during implementation, after the owner's decision on the table half, and the pull request asks
+  for its confirmation. This is a second edit to a
+  released body after R-A7's `down()` edit. It is ruled here because it changes no database that
+  exists: applied migrations never re-run. On a fresh database with both modules the table is
+  created by `20260503` as before and its indexes by `20261109`, which leaves the same shape; the
+  unique constraint `orgsa_unique` is still created with the table. What it changes is the one
+  case that was red — `organizations` migrated first and `quote_requests` installed later, where a
+  plain `create table` fails with `relation already exists`. Step 1 alone would have made that
+  case red (measured: `42P07` in
+  `backend/test/integration/organizations/sales-rep-assignments-owner.test.ts`). Rejected: a new
+  `organizations` migration (`migration:new` stamps it after `20261109T144721`, so the reach
+  governor still fails first; hand-backdating it breaks the scaffolder rule and leaves an
+  out-of-order pending migration on every existing database); deleting the create from `20260503`
+  (it moves creation out of the baseline block on a fresh database with both modules, and proving
+  that harmless across the pre-065 block costs more than the guard, which changes nothing on that
+  path). No migration class name, `BASELINE_MIGRATION_INVENTORY` entry, R2 ledger entry or
+  foreign-write exemption changes: `check:module-boundary` and the foreign-schema guard already
+  resolve the table to `organizations` from its entity.
