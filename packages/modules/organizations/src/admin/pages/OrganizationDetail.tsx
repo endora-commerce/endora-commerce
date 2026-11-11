@@ -7,6 +7,7 @@ import { FulfilmentStrategyPanel } from '../panels/FulfilmentStrategyPanel.js';
 import { OrganizationSalesRepsTab } from '../components/OrganizationSalesRepsTab.js';
 import { OrganizationRolesTab } from '../components/OrganizationRolesTab.js';
 import { ConvertToCompanyForm, type ConvertToCompanyResult } from '../components/ConvertToCompanyForm.js';
+import { ChangeTaxIdForm, taxIdChangeMessage, type ChangeTaxIdResult } from '../components/ChangeTaxIdForm.js';
 import { organizationRolesClient } from '../api/roles.js';
 import { ModerationActionsPanel } from '../panels/ModerationActionsPanel.js';
 import { ApplicablePriceListsPanel } from '../panels/ApplicablePriceListsPanel.js';
@@ -92,6 +93,10 @@ export function OrganizationDetail(): ReactNode {
   // `specs/177-tax-id-scope/` (`contracts/admin-surfaces.md` §4.2).
   const canConvert = isVisible({ module: 'organizations', requiredPermission: 'organizations:convert-to-company' });
   const [converting, setConverting] = useState(false);
+  // Issue #1040 — the tax-ID correction; its VAT validation is a `customers:manage` write.
+  const canChangeTaxId = isVisible({ module: 'organizations', requiredPermission: 'organizations:change-tax-id' });
+  const canValidateTaxId = isVisible({ module: 'organizations', requiredPermission: 'customers:manage' });
+  const [changingTaxId, setChangingTaxId] = useState(false);
   const { id = '' } = useParams<{ id: string }>();
   const [org, setOrg] = useState<OrgDetail | null>(null);
   // Feature 173 — the newest registration-time lookup's differing fields, as
@@ -399,6 +404,11 @@ export function OrganizationDetail(): ReactNode {
             {org.isPersonal && canConvert ? (
               <Button type="button" variant="secondary" onClick={(): void => setConverting(true)}>
                 {own('convertToCompany.button')}
+              </Button>
+            ) : null}
+            {!org.isPersonal && canChangeTaxId ? (
+              <Button type="button" variant="secondary" onClick={(): void => setChangingTaxId(true)}>
+                {own('changeTaxId.button')}
               </Button>
             ) : null}
           </div>
@@ -755,6 +765,22 @@ export function OrganizationDetail(): ReactNode {
             onConverted={(result: ConvertToCompanyResult): void => {
               setConverting(false);
               setInfo(conversionMessage(own, result));
+              void refresh({ quiet: true });
+            }}
+          />
+        </ModalDialog>
+      ) : null}
+
+      {changingTaxId ? (
+        <ModalDialog title={own('changeTaxId.dialogTitle')} onClose={(): void => setChangingTaxId(false)} widthClassName="max-w-lg">
+          <ChangeTaxIdForm
+            organizationId={org.id}
+            currentTaxId={org.taxId ?? null}
+            canValidate={canValidateTaxId}
+            onCancel={(): void => setChangingTaxId(false)}
+            onChanged={(result: ChangeTaxIdResult): void => {
+              setChangingTaxId(false);
+              setInfo(taxIdChangeMessage(own, result));
               void refresh({ quiet: true });
             }}
           />
