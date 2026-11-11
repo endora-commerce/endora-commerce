@@ -43,7 +43,7 @@ platformy (`/api/v1/admin/*`) są chronione przez `customers:manage`.
 | `GET /api/v1/admin/organizations/:id/sales-channels` | administrator (`customers:read` lub `customers:manage`) | Kanały przypisane do organizacji i kanały, które można jej przypisać. `404 NOT_FOUND` dla organizacji spoza zasięgu przedstawiciela handlowego (zob. pod tabelą), jak dla organizacji, która nie istnieje |
 | `PUT /api/v1/admin/organizations/:id/sales-channels` | administrator (`customers:manage`) | Zastąpienie przypisanych kanałów (`{ salesChannelIds }`, co najmniej jeden); `404 NOT_FOUND` poza zasięgiem przedstawiciela handlowego, jak przy odczycie |
 | `GET /api/v1/admin/organizations/:id` | administrator | Organizacja z listą członków (`updatedAt`, członkowie z `lastLoginAt` i `organizationRole`; `predefinedRoles` podaje role Administrator i Członek) |
-| `PATCH /api/v1/admin/organizations/:id` | administrator | Zmiana nazwy, `status` lub `vatStatus`; opcjonalne `expectedUpdatedAt` → `409 VERSION_CONFLICT`, gdy dane są nieaktualne |
+| `PATCH /api/v1/admin/organizations/:id` | administrator | Zmiana nazwy, `status` lub `vatStatus` i scalenie wartości pól niestandardowych (`customFieldValues`); opcjonalne `expectedUpdatedAt` → `409 VERSION_CONFLICT`, gdy dane są nieaktualne. Jeden wpis audytu, `organization.admin_patch`, zapisywany razem ze zmianą |
 | `POST /api/v1/admin/organizations/:id/members/invite` | administrator | Zaproszenie e-mailem (`{ email, roleId? }`, domyślnie rola Członek; z poziomu platformy) |
 | `POST /api/v1/admin/organizations/:id/members` | administrator | Bezpośrednie utworzenie członka z hasłem (`roleId?`, domyślnie rola Członek) i wartościami pól niestandardowych konta (`customFieldValues`) |
 | `PATCH /api/v1/admin/organizations/:id/members/:customerAccountId/role` | administrator | Przypisanie roli (`{ roleId, expectedUpdatedAt? }`) |
@@ -75,6 +75,9 @@ danych; powtórna rejestracja zwraca `409 ORGANIZATION_TAX_ID_EXISTS`.
 - **Ochrona ostatniego administratora** — zapisana w `role-service.ts#changeRole` i
   `invitation-service.ts#revoke`; nowe miejsca, w których „musi zostać co najmniej jeden
   administrator”, dodawaj właśnie tam.
+- **Wartości pól niestandardowych z kodu po stronie serwera** — publikowany port
+  `organizationCustomFieldWritePort` (zob. *Ustawianie wartości pól
+  niestandardowych z kodu po stronie serwera* poniżej).
 - **Zadeklarowane kolumny rozszerzeń** — `organizations` to rozszerzalna tabela: zainstalowany
   pakiet modułu zależny od tego modułu może zadeklarować w niej własne kolumny `x_<moduleId>_*`, a
   odczyty szczegółów i listy w panelu administracyjnym (`GET /api/v1/admin/organizations/:id`,
@@ -555,6 +558,65 @@ do `organization.customFieldValues` (a `cf.customer.<key>` do
 `firstUser.customFieldValues`), zamieniając pole liczbowe przez `Number(...)`.
 Przykład pomija kontrolki *Tak / Nie* i wielokrotnego wyboru oraz rozmieszczenie
 błędów z kroku 3.
+
+### Ustawianie wartości pól niestandardowych z kodu po stronie serwera
+
+Niektórych wartości nikt nie wpisuje: źródło pozyskania, które integracja
+ustala po rejestracji firmy, segment wyliczany przez moduł nakładki,
+identyfikator, który worker przynosi z zewnętrznego systemu. Takie pole jest
+zwykle *wewnętrzne*, więc rejestracja nie przyjmie go od kupującego, a kod,
+który zna wartość, nie ma żądania administratora, z którym mógłby ją wysłać.
+
+Taki kod zapisuje przez port publikowany przez ten moduł,
+`organizationCustomFieldWritePort` (kontrakt `OrganizationCustomFieldWritePort`
+w `@endora-commerce/contracts`), pobierany przez
+`lazyPort<OrganizationCustomFieldWritePort>(ctx, 'organizationCustomFieldWritePort')`,
+z `organizations` w `dependencies` manifestu modułu wywołującego. Ma jedną
+metodę:
+
+```ts
+setCustomFieldValues(
+  organizationId: string,
+  merge: (current: Record<string, unknown>) => Promise<Record<string, unknown>>,
+): Promise<OrganizationRecord>;
+```
+
+- **Scalasz i walidujesz ty.** Port wczytuje organizację, przekazuje `merge`
+  jej bieżące wartości i zapisuje to, co `merge` zwróci — odczyt, scalenie i
+  zapis w jednej transakcji, więc równoległa zmiana nie ginie. Port nie
+  waliduje: wywołaj `CustomFieldValuePort.validateAndMerge` wewnątrz `merge`.
+  Stosuje ono reguły administratora, więc pole wewnętrzne jest przyjmowane,
+  nieznane klucze są pomijane, a każde pole wymagane jest sprawdzane:
+
+  ```ts
+  ctx.subscribe('organization.registered.v1', async (payload) => {
+    const { organizationId } = payload as unknown as { organizationId: string };
+    await organizationWrites.setCustomFieldValues(organizationId, (current) =>
+      customFieldValues.validateAndMerge('organization', current, { acquisition_source: 'trade_fair' }),
+    );
+  });
+  ```
+
+- **Błąd niczego nie zmienia.** Gdy `merge` rzuci wyjątek — także błąd
+  walidacji — nic nie zostaje zapisane ani zarejestrowane w audycie, a wyjątek
+  dociera do ciebie w niezmienionej postaci. Nieznana albo usunięta organizacja
+  daje `404 NOT_FOUND`, zanim `merge` zostanie wywołane.
+- **Jeden wpis audytu**, `organization.set_custom_field_values`, z nazwami
+  kluczy, których wartość się zmieniła (`changedCustomFields`), nigdy z samymi
+  wartościami: dziennik audytu platformy jest globalny, więc wartości klienta
+  do niego nie trafiają. Wykonawcą jest ten, w czyim imieniu działa wywołanie:
+  nikt (system) w subskrybencie albo workerze, administrator wewnątrz jego
+  żądania. Subskrybent `organization.registered.v1` działa jako system, bo
+  rejestracja jest anonimowa. Kod działający poza jakimkolwiek żądaniem czy
+  zadaniem, na przykład zwykły timer, najpierw otwiera zakres przez
+  `enterSystemScope`.
+- **Po rejestracji, nie razem z nią.** Subskrybent `organization.registered.v1`
+  działa, gdy rejestracja jest już zatwierdzona. Jeśli jego zapis się nie uda,
+  organizacja pozostaje zarejestrowana bez tej wartości; błąd trafia do logu i
+  nigdy nie dociera do kupującego.
+
+Nigdy nie zapisuj kolumny `organizations.custom_field_values` bezpośrednio.
+Bezpośredni zapis omija walidację, wpis audytu i granicę modułu.
 
 ### Lista wyboru i wyszukiwanie bez polskich znaków
 

@@ -4858,6 +4858,26 @@ including any `;q=` weight.
 `Accept-Language`. One that needs a particular language must ask for a language the sales
 channel offers. Add the language to the channel in **Sales channels** if it is missing.
 
+### Subscriber addresses leave the platform audit log {#newsletter-audit-names-only}
+
+The release that ships this change stops writing newsletter subscribers' e-mail addresses and
+unsubscribe reasons into the platform-wide audit log (issue #470). That log is one table, read by
+everybody holding `audit_log:read` whatever they may see.
+
+**Behaviour change on upgrade:**
+
+- On the **Audit log** screen, and in `audit_logs read`, a new `newsletter_subscribe`,
+  `newsletter_resubscribe`, `newsletter_bounce`, `newsletter_complaint` or `newsletter_delete` entry
+  no longer carries the e-mail address, and a new `newsletter_unsubscribe` entry no longer carries
+  the reason; it records `hasReason`. Entries name the subscriber by id. A suppression of an address
+  that has no subscriber is recorded against its suppression row (`newsletter_suppression` and the
+  row's id), not against the address.
+- Subscribers, their unsubscribe reasons and the suppression list are unchanged.
+- Entries recorded before the upgrade are not rewritten: they keep their addresses and reasons.
+
+**After upgrading,** nothing has to be done. A report that looked subscribers up by address in the
+audit log looks them up on the **Newsletter** screen instead.
+
 ## An instance that is mixed from the start
 
 The installer of `0.101.x` or earlier wrote every package of the release with a `^` except
