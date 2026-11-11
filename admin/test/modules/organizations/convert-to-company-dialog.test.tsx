@@ -215,6 +215,25 @@ describe('Convert to company — on the organization page', () => {
     expect(screen.getByText(EN['convertToCompany.success.validated']!)).toBeInTheDocument();
   });
 
+  it('hides the validation box and sends it unticked to an operator without customers:manage', async () => {
+    // The route refuses `validateTaxId: true` without `customers:manage` with a
+    // 403 for the whole conversion, so the default form must not ask for it.
+    postSpy.mockResolvedValue({ data: COMPANY, vatValidation: null });
+    render(['customers:read', 'organizations:convert-to-company']);
+    const dialog = await openDialog();
+    expect(within(dialog).queryByLabelText(EN['convertToCompany.field.validate']!)).toBeNull();
+    fillValid(dialog);
+    submit(dialog);
+    await waitFor(() => expect(postSpy).toHaveBeenCalledTimes(1));
+    expect(postSpy.mock.calls[0]![1]).toMatchObject({ validateTaxId: false });
+  });
+
+  it('shows the validation box, ticked, to an operator holding customers:manage', async () => {
+    render(['customers:read', 'customers:manage', 'organizations:convert-to-company']);
+    const dialog = await openDialog();
+    expect(within(dialog).getByLabelText(EN['convertToCompany.field.validate']!)).toBeChecked();
+  });
+
   it('has no axe violations in the dialog', async () => {
     render();
     const dialog = await openDialog();

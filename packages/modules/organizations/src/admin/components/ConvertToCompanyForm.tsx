@@ -1,5 +1,5 @@
 import { useId, useState, type FormEvent, type ReactNode } from 'react';
-import { ApiError, apiClient } from '@endora-commerce/admin-kit/lib';
+import { ApiError, apiClient, useAuth } from '@endora-commerce/admin-kit/lib';
 import { Alert, AlertDescription, Button, Checkbox, Input, Label, Select } from '@endora-commerce/admin-kit/ui';
 import { CountrySelect } from '@endora-commerce/admin-kit/components';
 import { useTranslation } from '@endora-commerce/admin-kit/i18n';
@@ -19,7 +19,10 @@ import { useTranslation } from '@endora-commerce/admin-kit/i18n';
  *   on the tax-ID field; a refusal of the conversion itself is an alert above
  *   the actions.
  * - The VAT validation runs after the conversion commits, so its checkbox is on
- *   by default and its outcome never undoes the conversion (D-290 / OD-2).
+ *   by default and its outcome never undoes the conversion (D-290 / OD-2). It is
+ *   a `customers:manage` write, and the route refuses the whole conversion with
+ *   a 403 when it is asked for without that code — so an operator without it
+ *   sees no checkbox and the request asks for no validation.
  */
 
 export type ConversionVatOutcome = { outcome: string; provider: string | null } | null;
@@ -49,6 +52,8 @@ function normalizeTaxIdInput(value: string): string {
 
 export function ConvertToCompanyForm(props: ConvertToCompanyFormProps): ReactNode {
   const t = useTranslation('organizations');
+  const { hasPermission } = useAuth();
+  const canValidate = hasPermission('customers:manage');
   const prefix = useId();
   const [name, setName] = useState('');
   const [legalName, setLegalName] = useState('');
@@ -99,7 +104,7 @@ export function ConvertToCompanyForm(props: ConvertToCompanyFormProps): ReactNod
           taxId: normalizeTaxIdInput(taxId),
           registeredAddress: { street: street.trim(), city: city.trim(), postalCode: postalCode.trim(), country: country! },
           vatStatus,
-          validateTaxId,
+          validateTaxId: canValidate && validateTaxId,
         },
       );
       setSaving(false);
@@ -189,14 +194,16 @@ export function ConvertToCompanyForm(props: ConvertToCompanyFormProps): ReactNod
           ))}
         </Select>
       </div>
-      <label htmlFor={id('validate')} className="flex min-h-11 cursor-pointer items-center gap-2 text-sm">
-        <Checkbox
-          id={id('validate')}
-          checked={validateTaxId}
-          onChange={(e): void => setValidateTaxId((e.target as HTMLInputElement).checked)}
-        />
-        {t('convertToCompany.field.validate')}
-      </label>
+      {canValidate ? (
+        <label htmlFor={id('validate')} className="flex min-h-11 cursor-pointer items-center gap-2 text-sm">
+          <Checkbox
+            id={id('validate')}
+            checked={validateTaxId}
+            onChange={(e): void => setValidateTaxId((e.target as HTMLInputElement).checked)}
+          />
+          {t('convertToCompany.field.validate')}
+        </label>
+      ) : null}
       {refusal ? (
         <Alert variant="destructive">
           <AlertDescription>{refusal}</AlertDescription>
