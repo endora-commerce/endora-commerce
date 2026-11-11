@@ -85,8 +85,8 @@ describe('storefront organization roles', () => {
     await em.getConnection().execute(
       `insert into "organizations"
          ("id","name","tax_id","status","vat_status","registered_address","path","is_personal","created_at","updated_at")
-       values (?, 'Personal roles test', ?, 'active', 'vat_payer', '{}'::jsonb, ?, true, now(), now())`,
-      [personalOrg, `personal-${personalOrg.slice(0, 13)}`, `/${personalOrg}/`],
+       values (?, 'Personal roles test', null, 'active', 'vat_payer', '{}'::jsonb, ?, true, now(), now())`,
+      [personalOrg, `/${personalOrg}/`],
     );
     await em.getConnection().execute(
       `insert into "customer_accounts"

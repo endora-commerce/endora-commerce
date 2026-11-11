@@ -102,7 +102,8 @@ describe('customers — the anonymization sweep runs on its schedule (#677)', ()
     const org = em.create(Organization, {
       name: 'Deleted customer',
       legalName: `Sweep ${label} Handel`,
-      taxId: accountId.replace(/-/g, ''),
+      taxId: null, // a personal organization has no tax ID (specs/177-tax-id-scope/)
+      personalAccountId: accountId,
       status: 'blocked',
       vatStatus: 'vat_exempt',
       isPersonal: true,

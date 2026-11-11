@@ -108,6 +108,15 @@ export const ACTION_PERMISSION_DISAGREEMENTS: Readonly<Record<string, string>> =
     '`import_export:open-import-export-center` (the `entities` landing route and the feature 174 ' +
     '`profiles` route at one depth). The products import itself is `catalog:write`. Retire on the ' +
     'same terms.',
+  'organizations:convert-personal-organization':
+    '"Convert personal organization" declares `organizations:convert-to-company`, the code its route ' +
+    '(/organizations/convert-to-company) and its one write (POST ' +
+    '/api/v1/admin/organizations/:id/convert-to-company) are gated on; the screen\'s first step lists ' +
+    'personal organizations through GET /api/v1/admin/organizations, the roster\'s ' +
+    '`customers:read` / `customers:manage` gate. The permission declares `requires: customers:read`, so ' +
+    'a holder of the action\'s code can open the list (`specs/177-tax-id-scope/` ' +
+    '`contracts/admin-surfaces.md` §2). Declaring the read code would advertise the conversion to every ' +
+    'roster reader. Retire this entry if the picker reads a route gated on the conversion code.',
   'megamenu:edit-megamenu':
     '"Edit megamenu" declares `megamenu.write`; the screen it opens is gated by ' +
     '`megamenu.read` (GET /api/v1/admin/megamenu/menus). Retire this entry by ' +

@@ -49,8 +49,8 @@ describe('a personal Organization’s administrator (PR-3)', () => {
     await h.em().execute(
       `insert into "organizations"
          ("id","name","tax_id","status","vat_status","registered_address","path","is_personal","created_at","updated_at")
-       values (?, 'Personal administrator test', ?, 'active', 'vat_payer', '{}'::jsonb, ?, true, now(), now())`,
-      [personalOrganizationId, `personal-${personalOrganizationId.slice(0, 13)}`, `/${personalOrganizationId}/`],
+       values (?, 'Personal administrator test', null, 'active', 'vat_payer', '{}'::jsonb, ?, true, now(), now())`,
+      [personalOrganizationId, `/${personalOrganizationId}/`],
     );
     await h.em().execute(
       `insert into "customer_accounts"
@@ -90,6 +90,73 @@ describe('a personal Organization’s administrator (PR-3)', () => {
       id: await predefinedRoleIdOf(h.em(), personalOrganizationId, 'administrator'),
       kind: 'administrator',
     });
+  });
+
+  // `specs/177-tax-id-scope/` T015 (O7, O8, O6) — a personal organization has no tax ID.
+  it('/me answers the personal organization with taxId null', async () => {
+    const res = await inject({ method: 'GET', url: '/api/v1/me' });
+    expect(res.statusCode, res.body).toBe(200);
+    expect((res.json() as { data: { organization: { taxId: unknown } } }).data.organization.taxId).toBeNull();
+  });
+
+  it('the admin detail answers taxId null for the personal organization', async () => {
+    const res = await h.app.inject({
+      method: 'GET',
+      url: `/api/v1/admin/organizations/${personalOrganizationId}`,
+      cookies: { b2b_admin_session: 'stub-admin-session' },
+    });
+    expect(res.statusCode, res.body).toBe(200);
+    const body = res.json() as { data: { id: string; taxId: unknown; isPersonal: boolean } };
+    expect(body.data).toMatchObject({ id: personalOrganizationId, isPersonal: true });
+    expect(body.data.taxId).toBeNull();
+  });
+
+  it('the admin list q never matches the personal organization by its former placeholder', async () => {
+    const res = await h.app.inject({
+      method: 'GET',
+      url: `/api/v1/admin/organizations?includePersonal=true&q=${personalAccountId.replace(/-/g, '')}`,
+      cookies: { b2b_admin_session: 'stub-admin-session' },
+    });
+    expect(res.statusCode, res.body).toBe(200);
+    const ids = (res.json() as { data: Array<{ id: string }> }).data.map((o) => o.id);
+    expect(ids).not.toContain(personalOrganizationId);
+  });
+
+  // `specs/177-tax-id-scope/` T063 — the conversion screen's picker asks for
+  // personal organizations only.
+  it('the admin list filters by kind with filter[isPersonal]', async () => {
+    const list = async (query: string) =>
+      (
+        (
+          await h.app.inject({
+            method: 'GET',
+            url: `/api/v1/admin/organizations?${query}`,
+            cookies: { b2b_admin_session: 'stub-admin-session' },
+          })
+        ).json() as { data: Array<{ id: string; isPersonal: boolean }> }
+      ).data;
+    const personal = await list('includePersonal=true&filter[isPersonal]=true&limit=200');
+    expect(personal.length).toBeGreaterThan(0);
+    expect(personal.every((o) => o.isPersonal)).toBe(true);
+    const companies = await list('includePersonal=true&filter[isPersonal]=false&limit=200');
+    expect(companies.every((o) => !o.isPersonal)).toBe(true);
+  });
+
+  // Review finding 3 — the list's tax-ID match normalises what was typed.
+  it('the admin list q finds a company tax ID typed with dashes', async () => {
+    const id = randomUUID();
+    await h.em().execute(
+      `insert into "organizations"
+         ("id","name","tax_id","status","vat_status","registered_address","path","is_personal","created_at","updated_at")
+       values (?, 'Dash search', 'PL7771234567', 'active', 'vat_payer', '{}'::jsonb, ?, false, now(), now())`,
+      [id, `/${id}/`],
+    );
+    const res = await h.app.inject({
+      method: 'GET',
+      url: '/api/v1/admin/organizations?q=pl-777-123',
+      cookies: { b2b_admin_session: 'stub-admin-session' },
+    });
+    expect((res.json() as { data: Array<{ id: string }> }).data.map((o) => o.id)).toContain(id);
   });
 
   it('lists the members — only themself (PR-10)', async () => {

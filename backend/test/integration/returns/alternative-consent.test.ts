@@ -54,7 +54,7 @@ describe('returns — consumer withdrawal: classification and recorded consent (
     const personal = em.create(Organization, {
       id: personalId,
       name: `905 Consumer ${personalId.slice(0, 8)}`,
-      taxId: personalId.replace(/-/g, ''),
+      taxId: null, // a personal organization has no tax ID (specs/177-tax-id-scope/)
       status: 'active',
       vatStatus: 'vat_payer',
       isPersonal: true,

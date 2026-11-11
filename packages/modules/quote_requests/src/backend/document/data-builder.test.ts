@@ -222,6 +222,20 @@ describe('QuoteDocumentDataBuilder', () => {
         customerEmail: 'ola@example.com',
       });
     });
+
+    // `specs/177-tax-id-scope/` T022 (X3) — since 177 a personal Organization has no tax ID at all.
+    it('prints no tax ID for a personal Organization whose taxId is null', async () => {
+      const d = deps({
+        organizations: {
+          findById: vi.fn(async () => ({
+            id: 'org-1', name: 'Ola Buyer', legalName: null, taxId: null, isPersonal: true,
+            registeredAddress: { street: '-', city: '-', postalCode: '-', country: 'PL' },
+          })),
+        } as never,
+      });
+      const data = await new QuoteDocumentDataBuilder(d).build({ quote: quote(), lines: [line()], language: 'en-US' });
+      expect(data.buyer?.taxId).toBeNull();
+    });
   });
 
   it('suggests the channel’s default language, or the system default channel’s for a quote with none', async () => {

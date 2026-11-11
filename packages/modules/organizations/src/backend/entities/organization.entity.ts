@@ -6,9 +6,9 @@ import {
   OptionalProps,
   PrimaryKey,
   Property,
-  Unique,
   type EventArgs,
 } from '@mikro-orm/core';
+import { normalizeTaxId } from '@endora-commerce/contracts';
 import { GlobalEntity } from '@endora-commerce/platform/tenancy';
 import { randomUUID } from 'crypto';
 import { normalizeOrganizationName } from '../services/normalize-name.js';
@@ -18,8 +18,13 @@ import { normalizeOrganizationName } from '../services/normalize-name.js';
  * Addresses, and (via FKs that land with later US) Quote Requests, Orders,
  * and Credit Limits.
  *
- * `taxId` is globally unique in the installation (Polish NIP by default; the
- * exact format is spec-validated at the Zod boundary).
+ * `taxId` is a company's tax ID (Polish NIP by default; the exact format is
+ * spec-validated at the Zod boundary) and `null` for a personal organization
+ * (`specs/177-tax-id-scope/`). Where the same tax ID may appear twice is the
+ * installation's tax-ID scope: in `global` (the default) nowhere, in
+ * `per-tree-root` only inside one organization tree. Both are enforced by the
+ * database — `organizations_tax_id_unique` or `organizations_tax_id_one_tree`,
+ * whichever the scope Command installed — never by this class.
  *
  * Status lifecycle (feature 026):
  *   pending_verification -> active   (moderation approve, or auto-approve)
@@ -69,6 +74,9 @@ export class Organization {
     | 'parentId'
     | 'path'
     | 'creditInheritanceMode'
+    | 'taxId'
+    | 'personalAccountId'
+    | 'convertedToCompanyAt'
     | 'version';
 
   @PrimaryKey({ type: 'uuid' })
@@ -81,9 +89,31 @@ export class Organization {
   @Property({ type: 'string', length: 255, nullable: true })
   legalName?: string | null;
 
-  @Property({ type: 'string', length: 32 })
-  @Unique()
-  taxId!: string;
+  /**
+   * `null` iff `isPersonal` — the `organizations_tax_id_presence` check holds
+   * it (FR-001). No `@Unique()`: the constraint is the scope's, and a unique
+   * declared here would be wrong in `per-tree-root`.
+   */
+  @Property({ type: 'string', length: 32, nullable: true })
+  taxId?: string | null;
+
+  /**
+   * `specs/177-tax-id-scope/` (FR-002, FR-003) — the customer account a personal
+   * organization was provisioned for: what makes provisioning idempotent and
+   * finds "the account's own personal organization" even while the account
+   * belongs to a company. A correlation id, not a foreign key
+   * (`customer_accounts` depends on this module). Personal rows only
+   * (`organizations_personal_account_link`), unique; cleared on conversion.
+   */
+  @Property({ type: 'uuid', nullable: true })
+  personalAccountId?: string | null;
+
+  /**
+   * `specs/177-tax-id-scope/` (FR-039) — when `organization.convert_to_company`
+   * turned this personal organization into a company. Set once, never cleared.
+   */
+  @Property({ type: 'datetime', nullable: true })
+  convertedToCompanyAt?: Date | null;
 
   @Property({ type: 'string', length: 32 })
   @Index()
@@ -257,7 +287,24 @@ export class Organization {
    * Only an empty path is filled, so a creator that knows better is left alone,
    * and only for a row with no parent: a child's path depends on its parent's,
    * which is the tree Commands' to compute (`applyReparentPaths`).
+   *
+   * The database derives `root_id` (the path's first segment) from it as a
+   * stored generated column, which this class deliberately does not map
+   * (`specs/177-tax-id-scope/` research R-2).
    */
+  /**
+   * `specs/177-tax-id-scope/` D-290 / OD-11 — the tax ID is stored in its
+   * canonical form (`normalizeTaxId`: whitespace and dashes removed,
+   * upper-cased), whichever creator wrote it, because the scope's constraints
+   * compare stored text. `organizations_tax_id_normalised` refuses any other
+   * form from a writer that bypasses the entity.
+   */
+  @BeforeCreate()
+  @BeforeUpdate()
+  normalizeTaxIdForStorage(_args?: EventArgs<Organization>): void {
+    if (typeof this.taxId === 'string') this.taxId = normalizeTaxId(this.taxId);
+  }
+
   @BeforeCreate()
   assignRootPath(_args?: EventArgs<Organization>): void {
     if (this.path === '' && (this.parentId === undefined || this.parentId === null)) {

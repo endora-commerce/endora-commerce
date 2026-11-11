@@ -1,13 +1,14 @@
 import { createHash, randomBytes } from 'crypto';
 import type { EntityManager } from '@mikro-orm/postgresql';
-import { UniqueConstraintViolationException } from '@mikro-orm/core';
 import {
   DictionaryReferenceError,
   ERROR_CODES,
   isCustomFieldValidationFailure,
+  normalizeTaxId,
   type CustomFieldInputSurface,
   type CustomFieldValidationError,
   type CustomFieldValuePort,
+  type OrganizationConvertedToCompanyEvent,
   type CustomerAccountMemberWritePort,
   type CustomerAccountReadPort,
   type CustomerAccountRecord,
@@ -18,6 +19,8 @@ import {
 import type { EventBase, EventBus } from '@endora-commerce/platform/events';
 import { HttpError } from '@endora-commerce/platform/http';
 import { Organization } from '../entities/organization.entity.js';
+import { TaxIdLookupService } from './tax-id-lookup-service.js';
+import { organizationWriteError, taxIdExistsRefusal } from './organization-write.js';
 import { EmailVerificationToken } from '../entities/email-verification-token.entity.js';
 import { recordAuditFromContext } from '@endora-commerce/platform/commands';
 import type { AuditPort, SalesChannelMembershipPort } from '@endora-commerce/platform/kernel';
@@ -49,6 +52,12 @@ export interface OrganizationEvents extends Record<string, EventBase> {
   'organization.registered.v1': EventBase & { organizationId: string };
   'organization.verified.v1': EventBase & { organizationId: string; customerAccountId: string };
   'organization.status_changed.v1': EventBase & { organizationId: string; newStatus: string };
+  /**
+   * `specs/177-tax-id-scope/` FR-039 — a personal organization became a company
+   * (`organization.convert_to_company`), dispatched once on commit. No
+   * subscriber in core; for overlays and connectors (research R-12).
+   */
+  'organization.converted_to_company.v1': EventBase & OrganizationConvertedToCompanyEvent;
   /**
    * A CustomerAccount belonging to an Organization was created (self-service
    * registration, admin direct-create, or invitation accept). Consumed by the
@@ -183,8 +192,12 @@ export class RegistrationService {
     // Pre-check the easy cases so we can return the right error code before
     // hashing the password (avoids a wasted ~50 ms of argon2 work — the hash
     // is computed inside `create` below, after both checks have passed).
-    const existingByTaxId = await em.findOne(Organization, { taxId: req.organization.taxId });
-    if (existingByTaxId) {
+    // `specs/177-tax-id-scope/` FR-024 — through the one tax-ID lookup, which
+    // normalises the input (`contracts/tax-id-scope.md` §5).
+    // D-290 / OD-11 — stored, checked and echoed in the canonical form.
+    const taxId = normalizeTaxId(req.organization.taxId);
+    const existingByTaxId = await new TaxIdLookupService(this.emFactory).resolveByTaxId(taxId, { em });
+    if (existingByTaxId.kind !== 'none') {
       throw new HttpError(
         409,
         ERROR_CODES.ORGANIZATION_TAX_ID_EXISTS,
@@ -211,7 +224,7 @@ export class RegistrationService {
 
     const organization = em.create(Organization, {
       name: req.organization.name,
-      taxId: req.organization.taxId,
+      taxId,
       status: 'pending_verification',
       vatStatus: req.organization.vatStatus ?? 'vat_payer',
       registeredAddress: {
@@ -225,14 +238,10 @@ export class RegistrationService {
     try {
       await em.persistAndFlush(organization);
     } catch (err) {
-      if (err instanceof UniqueConstraintViolationException) {
-        throw new HttpError(
-          409,
-          ERROR_CODES.ORGANIZATION_TAX_ID_EXISTS,
-          'An organization with this taxId already exists.',
-        );
-      }
-      throw err;
+      // `specs/177-tax-id-scope/` Phase A (research R-15) — either scope's
+      // constraint: `global`'s unique one at the statement, `per-tree-root`'s
+      // deferred one at this flush's own commit (no transaction is open here).
+      throw organizationWriteError(err, () => taxIdExistsRefusal());
     }
     // Feature 154 — on this `EntityManager`, right after the Organization row,
     // so "no Organization without a channel" holds by construction.
@@ -275,7 +284,8 @@ export class RegistrationService {
     const lookupRow = ticket
       ? registrationValidationRow(ticket, {
           name: req.organization.name,
-          taxId: req.organization.taxId,
+          // The stored form, so the validation row names the tax ID the organization holds.
+          taxId,
           registeredAddress: req.organization.registeredAddress,
         })
       : null;

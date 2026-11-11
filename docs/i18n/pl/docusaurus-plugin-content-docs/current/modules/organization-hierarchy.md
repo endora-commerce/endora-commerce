@@ -41,6 +41,42 @@ oddział dziedziczy jej warunki.
 Panel administracyjny ma na stronie szczegółów organizacji wybór organizacji nadrzędnej oraz widok
 poddrzewa i organizacji nadrzędnych.
 
+- **Utworzenie oddziału od razu** — *Nowa organizacja* (`POST /api/v1/admin/organizations` z
+  `parentId`) tworzy organizację pod organizacją nadrzędną w tym samym poleceniu zapisywanym w
+  dzienniku audytu, z zachowaniem limitu głębokości. Wskazanie organizacji nadrzędnej jest
+  zarezerwowane dla administratora platformy: przedstawiciel handlowy dostaje `403`, a formularz
+  nie pokazuje mu tego pola. Nieznana organizacja nadrzędna to `404`.
+
+## Oddziały z tym samym NIP
+
+Domyślnie każdy NIP należy do jednej organizacji, więc oddział potrzebuje własnego numeru.
+Instalacja, w której oddziały prawnie mają NIP centrali, przełącza **zakres unikalności NIP** na
+*Jedno drzewo na numer* (`per-tree-root`) w *Organizacje → Zakres unikalności NIP*; strona
+*Organizacje* opisuje ten ekran, jego uprawnienie i powrót do zakresu globalnego.
+
+W `per-tree-root` ten sam NIP może mieć kilka organizacji **tylko w jednym drzewie** — z tym samym
+korzeniem:
+
+- **Tworzenie.** Oddział utworzony pod centralą albo pod którymkolwiek z jej potomków może mieć
+  NIP drzewa; zamówienia, faktury i dokumenty ofert oddziału drukują wtedy ten numer. Nowa
+  organizacja główna (utworzenie w panelu bez organizacji nadrzędnej albo każda samodzielna
+  rejestracja) nie może mieć NIP, który ma jakiekolwiek drzewo: `409 ORGANIZATION_TAX_ID_EXISTS`.
+- **Przenoszenie.** Przypisanie, przeniesienie albo odłączenie organizacji nadrzędnej jest
+  odrzucane `409 ORGANIZATION_TREE_INVALID` z `details.code = 'tax_id_shared_across_trees'` i
+  `details.taxIds`, gdy w wyniku ten sam NIP znalazłby się w dwóch drzewach — na przykład po
+  odłączeniu do korzenia oddziału z NIP centrali albo po przeniesieniu go pod inne drzewo. Nic się
+  wtedy nie zmienia. Sprawdzenie obejmuje całe przenoszone poddrzewo: przeniesienie oddziału
+  **razem ze wszystkimi** organizacjami o tym samym NIP do drzewa, które takiego NIP nie ma, jest
+  dozwolone.
+- **Decyduje korzeń.** Korzeń to pierwsza organizacja w zapisanej ścieżce `path`, zapisana w
+  kolumnie generowanej `organizations.root_id`. Oddział, którego centrala została usunięta (soft
+  delete), nadal należy do jej drzewa.
+- **Wyszukiwanie** po NIP zwraca najpierw korzeń drzewa
+  (`organizationDetailsPort.findByTaxId` / `resolveByTaxId`).
+
+W domyślnym zakresie `global` przenoszenie działa jak wcześniej: żaden NIP nie może należeć do
+dwóch organizacji, więc przeniesienie nigdy nie trafia na tę odmowę.
+
 ## Wgląd w strukturę
 
 Widoczność organizacji podrzędnych wymaga uprawnienia `organizations:rollup` („Act across

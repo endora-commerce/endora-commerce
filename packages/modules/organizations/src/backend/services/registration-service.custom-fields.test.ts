@@ -70,6 +70,9 @@ function harness(values?: RegistrationCustomFieldValues, steps: string[] = []) {
       if (entity === OrganizationRole) return { id: ROLE_ID };
       return null;
     },
+    // `specs/177-tax-id-scope/` FR-024 — the tax-ID pre-check reads through
+    // `TaxIdLookupService.resolveByTaxId`, a raw select: no organization holds it.
+    execute: async () => [],
     create: (entity: unknown, data: Record<string, unknown>) => {
       steps.push(`create:${entity === Organization ? 'Organization' : 'other'}`);
       created.push({ entity, data });

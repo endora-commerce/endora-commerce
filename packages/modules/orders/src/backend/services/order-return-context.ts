@@ -55,6 +55,7 @@ export function returnContextFrom(
     | 'currency'
     | 'status'
     | 'completedAt'
+    | 'placedAt'
     | 'paymentMethodId'
     | 'subtotal'
     | 'taxTotal'
@@ -83,6 +84,9 @@ export function returnContextFrom(
     organizationId: order.organizationId ?? null,
     currency: order.currency,
     completingStatusEnteredAt: completing ? (order.completedAt ?? null) : null,
+    // `specs/177-tax-id-scope/` FR-040 — `returns` compares it with the
+    // organization's `convertedToCompanyAt`.
+    placedAt: order.placedAt,
     // Issue #905 — the refund of a consumer's withdrawal proposes it.
     paymentMethodId: order.paymentMethodId ?? null,
     vatMethod: order.vatMethod ?? null,

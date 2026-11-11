@@ -75,6 +75,20 @@ export const contributions: AdminContributions = {
       requiredPermission: CREATE_PERMISSION,
     },
     {
+      // `specs/177-tax-id-scope/` (`contracts/admin-surfaces.md` §3) — the
+      // installation's tax-ID scope; static, so ahead of `/:id`.
+      path: `${ROUTE_PATH}/tax-id-scope`,
+      component: () => import('./pages/TaxIdScopePage.js'),
+      requiredPermission: 'organizations:manage-tax-id-scope',
+    },
+    {
+      // `specs/177-tax-id-scope/` (`contracts/admin-surfaces.md` §3, §4.3) — the
+      // ⌘K action's screen; static, so ahead of `/:id`.
+      path: `${ROUTE_PATH}/convert-to-company`,
+      component: () => import('./pages/ConvertToCompanyPage.js'),
+      requiredPermission: 'organizations:convert-to-company',
+    },
+    {
       path: `${ROUTE_PATH}/:id`,
       component: () => import('./pages/OrganizationDetail.js'),
       requiredPermission: [...READ_PERMISSION],

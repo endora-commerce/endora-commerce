@@ -58,6 +58,8 @@ describe('POST /api/v1/admin/organizations/:id/credit-limit — the acting admin
       countByIds: async () => 1,
       searchByName: async () => [],
       searchIdsByName: async () => [],
+      findByTaxId: async () => [],
+      resolveByTaxId: async () => ({ kind: 'none' }),
     };
 
     app = Fastify();

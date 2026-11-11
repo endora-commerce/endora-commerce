@@ -1,7 +1,9 @@
 /**
  * Withdraw `organizations`' demo data (feature 113, T222 — contract §2.5).
  *
- * By the fixed tax id `seed` assigns, never by a predicate over the table. This
+ * The organisation `seed` finds by the fixed tax id it assigns, deleted by its
+ * id — never by a predicate over the table, and never by the tax id itself: in
+ * the `per-tree-root` scope a branch may share it (`specs/177-tax-id-scope/` O5). This
  * is the withdrawal that replaces `organizations`' line in the host's
  * `truncate … cascade`, and the replacement is a repair rather than a
  * relocation: an organisation is the tenant every buyer, address, cart, quote
@@ -31,6 +33,7 @@ import type { EntityManager } from '@mikro-orm/postgresql';
 import { OrganizationInvitation } from '../entities/organization-invitation.entity.js';
 import { OrganizationSalesRepAssignment } from '../entities/organization-sales-rep-assignment.entity.js';
 import { Organization } from '../entities/organization.entity.js';
+import { TaxIdLookupService } from '../services/tax-id-lookup-service.js';
 import { DEMO_ORGANIZATION } from './rows.js';
 
 interface OrganizationsDemoCradle {
@@ -44,20 +47,20 @@ export async function resetDemo(
   // entry point, same `mustBeNonProduction()` guard, same absence of an
   // operator to attribute the write to (contract §2.7).
   const em = context.ctx.cradle<OrganizationsDemoCradle>().emFactory();
-  const organizations = await em.find(
-    Organization,
-    { taxId: DEMO_ORGANIZATION.taxId },
-    { fields: ['id'] },
-  );
-  const organizationIds = organizations.map((organization) => organization.id);
+  // The row `seed` would find: the tree's root first, deleted rows included.
+  const [demo] = await new TaxIdLookupService(() => em).findByTaxId(DEMO_ORGANIZATION.taxId, {
+    includeDeleted: true,
+    em,
+  });
   let invitations = 0;
   let assignments = 0;
-  if (organizationIds.length > 0) {
-    const ofTheDemoOrganization = { organizationId: { $in: organizationIds } };
+  let removed = 0;
+  if (demo) {
+    const ofTheDemoOrganization = { organizationId: { $in: [demo.id] } };
     invitations = await em.nativeDelete(OrganizationInvitation, ofTheDemoOrganization);
     assignments = await em.nativeDelete(OrganizationSalesRepAssignment, ofTheDemoOrganization);
+    removed = await em.nativeDelete(Organization, { id: demo.id });
   }
-  const removed = await em.nativeDelete(Organization, { taxId: DEMO_ORGANIZATION.taxId });
   return {
     removed: [
       { entity: 'Organization', count: removed },

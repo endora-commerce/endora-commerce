@@ -49,7 +49,8 @@ describe('CustomerModerationService', () => {
     const org = em.create(Organization, {
       isPersonal,
       name: 'Mod Org',
-      taxId: `PL${String(Math.floor(performance.now() * 1000)).slice(-10).padStart(10, '0')}`,
+      // A personal organization has no tax ID (specs/177-tax-id-scope/).
+      taxId: isPersonal ? null : `PL${String(Math.floor(performance.now() * 1000)).slice(-10).padStart(10, '0')}`,
       status: 'active',
       vatStatus: 'vat_payer',
       registeredAddress: { street: 'ul. Testowa 1', city: 'Warszawa', postalCode: '00-001', country: 'PL' },

@@ -122,7 +122,7 @@ describe('#955 — the reach governor table and the subquery that reads it', () 
       client.query(
         `insert into organizations (id, name, name_search, tax_id, status, vat_status, registered_address, is_personal, parent_id, path, created_at, updated_at)
          values ($1, 'R955C', 'r955c', $2, 'active', 'vat_payer', '{"street":"x","city":"x","postalCode":"x","country":"PL"}'::jsonb, false, $3, $4, now(), now())`,
-        [id, `PL955C${id.slice(0, 8)}`, x.id, `${x.path}${id}/`],
+        [id, `PL955C${id.slice(0, 8).toUpperCase()}`, x.id, `${x.path}${id}/`],
       );
     const moveUnder = (client: pg.Client, d: { id: string; path: string }, x: { id: string; path: string }) =>
       client.query(`update organizations set path = $1::text || substring(path from $2::int), parent_id = case when id = $3::uuid then $4::uuid else parent_id end where path like $5::text`, [

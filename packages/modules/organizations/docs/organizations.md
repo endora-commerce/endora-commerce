@@ -38,8 +38,11 @@ organization's Administrator role, checked server-side through
 | `POST /api/v1/organizations/mine/addresses` | customer (`addresses.manage`) | Create address |
 | `PATCH /api/v1/organizations/mine/addresses/:id` | customer (`addresses.manage`) | Update |
 | `DELETE /api/v1/organizations/mine/addresses/:id` | customer (`addresses.manage`) | Remove |
-| `GET /api/v1/admin/organizations` | admin | List with `filter[status]` / `filter[vatStatus]` / `q`. A sales representative sees only the Organizations they reach (see below the table) |
-| `POST /api/v1/admin/organizations` | admin (`customers:manage`) | Create an Organization with its sales channels (see *Sales channels* below) and its custom-field values (`customFieldValues`) |
+| `GET /api/v1/admin/organizations` | admin | List with `filter[status]` / `filter[vatStatus]` / `q` (name or tax ID, see *Tax IDs* below). Personal Organizations are left out unless `includePersonal=true`; with it, `filter[isPersonal]=true\|false` keeps one kind. A sales representative sees only the Organizations they reach (see below the table) |
+| `POST /api/v1/admin/organizations` | admin (`customers:manage`) | Create an Organization with its sales channels (see *Sales channels* below) and its custom-field values (`customFieldValues`). An optional `parentId` creates it as a branch (platform administrators only, see *Tax IDs* below) |
+| `GET /api/v1/admin/organizations/tax-id-scope` | admin (`organizations:manage-tax-id-scope`, platform administrator) | The tax-ID scope in force, when and by whom it was set, how many tax IDs are shared, and whether the database enforces it (see *Tax-ID scope* below) |
+| `PUT /api/v1/admin/organizations/tax-id-scope` | admin (`organizations:manage-tax-id-scope`, platform administrator) | Change the tax-ID scope (`{ scope: 'global' \| 'per-tree-root' }`) |
+| `POST /api/v1/admin/organizations/:id/convert-to-company` | admin (`organizations:convert-to-company`; `customers:manage` too with `validateTaxId: true`) | Convert a personal Organization into a company (see *Converting a personal organization to a company* below) |
 | `GET /api/v1/admin/organizations/sales-channel-options` | admin (`customers:manage`) | The channels the create form offers |
 | `GET /api/v1/admin/organizations/:id/sales-channels` | admin (`customers:read` or `customers:manage`) | The channels assigned to the Organization, and the channels it could be assigned. `404 NOT_FOUND` for an Organization outside a sales representative's reach (see below the table), as for one that does not exist |
 | `PUT /api/v1/admin/organizations/:id/sales-channels` | admin (`customers:manage`) | Replace the assigned channels (`{ salesChannelIds }`, at least one); `404 NOT_FOUND` outside a sales representative's reach, as for the read |
@@ -59,15 +62,20 @@ Configure **`SMTP_URL`** in the backend environment so outbound mail uses SMTP i
 
 ## Entities
 
-`Organization`, `OrganizationInvitation`, `EmailVerificationToken`. Tax-ID
-uniqueness is enforced at the DB level; duplicate registrations return
-`409 ORGANIZATION_TAX_ID_EXISTS`.
+`Organization`, `OrganizationInvitation`, `EmailVerificationToken`, and the
+single-row `OrganizationTaxIdPolicy` (table `organization_tax_id_policy`) that
+holds the installation's tax-ID scope. A company Organization always has a tax
+ID and a personal one never does; where a tax ID may repeat is decided by the
+tax-ID scope and enforced by the database (see *Tax IDs* below).
 
 ## Events emitted
 
 `organization.registered.v1`, `organization.verified.v1`,
 `organization.suspended.v1`, `organization.member_invited.v1`,
-`organization.member_role_changed.v1`.
+`organization.member_role_changed.v1`, `organization.converted_to_company.v1`
+(`OrganizationConvertedToCompanyEvent`: `{ eventId, occurredAt, organizationId,
+convertedAt }` — no name and no tax ID; dispatched once, after the conversion
+commits).
 
 ## Extension points
 
@@ -111,7 +119,7 @@ When this rule was introduced, every existing Organization was assigned the syst
 ### In the admin
 
 - **Sales channels panel** — on an Organization's page. With `customers:manage` it is a multi-select with **Save sales channels**; without it, a read-only list. Inactive channels are marked *(inactive)* and the system-default channel is badged. Saving an empty selection is refused: *"An organization must be assigned at least one sales channel."* Each added or removed channel writes one audit row. A change applies at once on the server that saved it and on every other server within 30 seconds.
-- **New organization** — a button on the Organizations list and an action in the command palette (⌘K / Ctrl+K), both shown with `customers:manage`. The form asks for the name, tax ID, registered address, status (*Active* or *Pending verification*) and the sales channels, with the system-default channel pre-selected. The creation is one audited command; the new Organization's page opens when it is saved. Members are invited from that page once the Organization exists.
+- **New organization** — a button on the Organizations list and an action in the command palette (⌘K / Ctrl+K), both shown with `customers:manage`. The form asks for the name, tax ID, registered address, status (*Active* or *Pending verification*) and the sales channels, with the system-default channel pre-selected. A platform administrator (not a sales representative) also gets an optional *parent organization*, which creates the Organization as a branch of it; once a parent is chosen, the tax-ID field notes that a branch may use its head office's tax ID when the tax-ID scope is *One tree per tax ID*. The creation is one audited command; the new Organization's page opens when it is saved. Members are invited from that page once the Organization exists.
 
 ## Commercial party and moderation
 
@@ -699,6 +707,27 @@ so it is a migration of `name_search`, not an edit.
   their triggers off) leaves `organization_reach_governor` stale, and a stale row
   widens a sales representative's reach. Run
   `select organizations_reach_governor_rebuild(null);` afterwards.
+- `20261110T135922_organizations_personal_tax_id_removal.ts` — clears the tax ID of every
+  personal organization, records its account in `personal_account_id` (taken from the old
+  placeholder; a personal row whose tax ID was not the placeholder is cleared and left
+  unlinked, and the count is reported as a notice) and adds `organizations_tax_id_presence`.
+  **It refuses to run, and changes nothing, on a database that has organizations but has
+  not applied `customer_accounts`' `20260825T141659_customer_accounts_organization_required`
+  (0.100.0)**: upgrade to a 0.100.x–0.110.x release first.
+- `20261110T135941_organizations_tax_id_scope.ts` — adds the stored generated column
+  `organizations.root_id` (the first segment of `path`; adding it rewrites the table under an
+  exclusive lock), the `btree_gist` extension and the single-row `organization_tax_id_policy`,
+  seeded `global` (see "Tax IDs" below).
+- `20261110T173752_organizations_tax_id_write_lock.ts` — the row trigger
+  `organizations_tax_id_write_lock` on inserts and on updates of `tax_id` or `path`: two
+  transactions writing one tax ID take turns, so the second is refused with a 409 instead of
+  deadlocking.
+- `20261110T183238_organizations_tax_id_normalise.ts` — rewrites every tax ID into the
+  normalised form and adds `organizations_tax_id_normalised`. **It refuses to run, and
+  changes nothing, when two organizations would hold one tax ID once normalised** where the
+  scope forbids it, listing up to 50 such groups; find them before upgrading with
+  `select upper(regexp_replace(tax_id, '[[:space:]-]', '', 'g')), array_agg(id) from organizations where tax_id is not null group by 1 having count(*) > 1;`
+  and give each organization its own tax ID.
 
 ### Personal organizations (B2C)
 
@@ -719,8 +748,10 @@ This means:
   other's data, with zero null-org special-casing.
 - **Individual defaults.** `status = active`, `vat_status = vat_exempt`,
   `name` from the customer's name (falling back to the email local-part),
-  and a synthetic 32-hex `tax_id` derived from the account id (the column
-  is globally `UNIQUE`; an individual has no company tax id).
+  and **no tax ID** (`tax_id` is `NULL`; every API answers `taxId: null`).
+  The account the organization was provisioned for is recorded in
+  `personal_account_id`, which is what makes provisioning idempotent and what
+  finds "the customer's own personal organization".
 - **Invisible in B2B admin.** Personal orgs are excluded by default from
   the admin org list/pickers, cannot receive a sales rep, and never enter
   the moderation queue (they are created `active`). The admin org list
@@ -738,10 +769,210 @@ This means:
   `organization_id = NULL`; it now provisions (or re-finds) the
   customer's own personal organization and moves them into it, keeping the
   `customer_account.organization_unassigned` audit verb.
+- **No VAT validation.** Validating the tax ID of a personal organization is
+  refused `422 VALIDATION_FAILED` (*"This organization has no tax ID."*)
+  before any registry is asked, and the organization page shows no VAT
+  validation panel for it.
+
+Until this release a personal organization carried a synthetic 32-character
+hexadecimal tax ID derived from its account id. The upgrade migration clears it
+and moves the link into `personal_account_id`. **Documents written before the
+upgrade are not rewritten**: an order, invoice, quote document or audit entry
+made for a personal organization earlier still shows the placeholder where it
+showed it then. Orders that carry one can be listed with
+`select id from orders where billing_address->>'taxId' ~ '^[0-9a-f]{32}$'`.
 
 Company (B2B) organizations are unaffected — the single-member invariant
 (`assertMembershipAllowed`) only rejects adding a second member to a
 personal org.
+
+### Converting a personal organization to a company
+
+A customer who shopped as an individual and then starts a business can keep
+their history: an operator converts their personal organization into a company
+organization **in place**. Customers cannot do this themselves — no storefront,
+customer or public route reaches the conversion.
+
+**Who and where.** An operator holding `organizations:convert-to-company`
+(*Convert personal organizations to companies*) sees **Convert to company** on a
+personal organization's page; it is not shown on a company organization. The
+same form is reachable from the command palette (⌘K / Ctrl+K, *Convert personal
+organization*) and from the Organizations list's header menu, at
+`/organizations/convert-to-company`: pick the personal organization (searched by
+the customer's name), then fill in the company details.
+
+**The form** asks for the company name, an optional legal name, the tax ID
+(spaces and dashes are removed when the field is left; 8 to 32 characters), the
+registered address, the VAT status (*VAT payer* by default) and *Validate the tax
+ID after converting* (ticked by default). Validating needs `customers:manage`
+as well, the permission of the VAT validation itself, so the box is shown only
+to an operator holding it; without it the form converts without a validation.
+Through the API, `validateTaxId: true` without `customers:manage` refuses the
+whole request `403`.
+
+**What changes**, in one audited transaction (`organization.convert_to_company`):
+
+- The organization becomes a company with the name, legal name, tax ID,
+  registered address and VAT status entered. **Its id does not change**, and
+  its orders, carts, addresses, prices and sales channels stay attached.
+- Its member keeps the *Administrator* role, so they can now invite colleagues
+  and manage roles; the organization page shows the Members and Roles tabs, and
+  the storefront offers the company screens on the member's next page.
+- **Its status is kept** (an active customer stays active; conversion does not
+  put it into the moderation queue). If the organization was never approved, it
+  is stamped approved by the operator who converted it.
+- The link to the customer account is cleared and the conversion time is
+  recorded. If that member is later detached from the company, they get a
+  **new** personal organization; the converted company keeps its id. Because the
+  converted company's only member is its last Administrator, detaching them
+  needs a second Administrator first, as for any company.
+- A return of an order placed **before** the conversion is still treated as a
+  consumer's withdrawal; orders placed afterwards are the company's.
+- The audit entry records which fields changed, whether the approval was
+  stamped and the tax-ID scope — never the name, tax ID or address.
+- After the commit, `organization.converted_to_company.v1` is emitted once.
+
+**Validating the tax ID.** When the box is ticked, a VAT validation runs
+**after** the conversion has committed, through the same flow as *Validate now*
+(the Ministry of Finance White List for a Polish NIP, VIES for another EU
+prefix, a format check otherwise). Its outcome is shown in the confirmation; a
+registry outage or a failed check never undoes the conversion — retry from the
+VAT validation panel.
+
+**Refusals.** Nothing changes when the conversion is refused:
+
+| Answer | When |
+| --- | --- |
+| `409 ORGANIZATION_TAX_ID_EXISTS` | The tax ID already belongs to another organization where the tax-ID scope forbids sharing it (see *Tax-ID scope*) |
+| `409 ORGANIZATION_CONVERSION_REFUSED` `not_personal` | The organization is already a company |
+| `409 ORGANIZATION_CONVERSION_REFUSED` `deleted` | The organization is deleted, or its customer was erased by the retention sweep |
+| `409 ORGANIZATION_CONVERSION_REFUSED` `owner_not_administrator` | The member does not hold *Administrator* — a data fault to report, not an operator's error |
+| `409 ORGANIZATION_WRITE_CONTENDED` | A concurrent change to organizations (for example a tax-ID scope switch) held the lock; try again |
+| `404 NOT_FOUND` | Unknown, or outside a sales representative's reach |
+
+**The conversion cannot be undone**; there is no operation that turns a company
+back into a personal organization.
+
+**For server code.** The `organizationCommandPort` container entry
+(`OrganizationCommandPort.convertToCompany(organizationId, input)` in
+`@endora-commerce/contracts`) runs the same Command with the ambient actor — an
+ERP import, an overlay module. **It checks no permission and runs no VAT
+validation**: the caller is the gate, so never resolve it from a
+customer-facing route.
+
+## Tax IDs
+
+### How a tax ID is stored
+
+A tax ID is stored in one canonical form: **spaces and dashes removed and
+letters upper-cased** (`normalizeTaxId` in `@endora-commerce/contracts`), so
+`pl 526-025-09-95` is stored as `PL5260250995`. Registration, the admin create
+and the conversion normalise what is typed and then require **8 to 32
+characters**; a shorter or longer value is refused `400` (so `--------` is
+refused rather than stored empty). Dots and other punctuation are **not**
+removed — that is the registry lookup's own, wider clean-up, which does not
+change what is stored. The database check `organizations_tax_id_normalised`
+refuses any other form from any writer, fixtures, seeds and overlay code
+included.
+
+A company organization always has a tax ID and a personal one never does; the
+check `organizations_tax_id_presence` refuses a row breaking either half.
+
+The tax ID is entered when the organization is created (or converted) and is
+not editable afterwards in the admin: `PATCH /api/v1/admin/organizations/:id`
+does not accept it.
+
+### Tax-ID scope
+
+Some businesses register each branch as its own organization under the head
+office, and the branches legally share the head office's tax ID. The **tax-ID
+scope** decides where one tax ID may appear more than once:
+
+| Scope | Shown as | Rule | Enforced by |
+| --- | --- | --- | --- |
+| `global` (default) | *Global* — every tax ID belongs to one organization | A tax ID is on at most one organization, soft-deleted ones included | the unique constraint `organizations_tax_id_unique` |
+| `per-tree-root` | *One tree per tax ID* — head offices and their branches may share a tax ID; unrelated organizations may not | Organizations may share a tax ID only when they have the same root (the head office at the top of their tree, see *Organization hierarchy*) | the deferred exclusion constraint `organizations_tax_id_one_tree` over the stored column `organizations.root_id` |
+
+Every fresh and upgraded installation starts in `global`, which is the rule the
+platform always had. The scope is **not a setting**: it lives in the
+`organization_tax_id_policy` row and is changed only by the audited Command
+`organization.tax_id_scope.set`, which changes the row and the database
+constraint together, in one transaction. Every write reads the scope from the
+database inside its own transaction, so no server acts on a stale scope.
+
+**Switching the scope.** *Organizations → Tax-ID scope*
+(`/organizations/tax-id-scope`; also *Tax-ID scope* in the command palette, ⌘K /
+Ctrl+K, and in the Organizations list's header menu) shows the scope in force,
+when it last changed, what each scope means and how many tax IDs are currently
+shared. Choose the other scope, **Apply**, and confirm.
+
+- **Who.** The permission `organizations:manage-tax-id-scope` (*Manage the
+  tax-ID scope*), held by an administrator whose reach is the whole platform. A
+  sales representative is refused `403` even with the permission, because the
+  scope applies to every organization.
+- **The switch pauses organization writes for a few seconds.** It takes an
+  exclusive lock on `organizations` while the new constraint is built, waiting
+  at most 5 seconds for it. A change to organizations that meets the switch —
+  or any other write it loses a lock to — is answered
+  `409 ORGANIZATION_WRITE_CONTENDED` (*"Another change to organizations was in
+  progress. Try again in a moment."*); retrying succeeds.
+- **To *One tree per tax ID*** is always allowed, and cannot be undone from the
+  admin once any tax ID is shared. The confirmation says so before you confirm.
+- **Back to *Global*** is refused `409 ORGANIZATION_TAX_ID_SCOPE_DUPLICATES`
+  while any tax ID is on more than one organization (`details: { code:
+  'shared_tax_ids', sharedTaxIdCount, examples }`, at most 20 examples, each a
+  tax ID with its organization ids). The screen says how many are shared and
+  links the organizations, and nothing changes. **Soft-deleted organizations
+  count**, and a tax ID cannot be edited in the admin, so once a branch shares
+  its head office's tax ID the way back to *Global* is not available from the
+  admin today.
+- **Applying the scope already in force** changes nothing and writes no audit
+  entry; it re-creates the scope's constraint if it was dropped by hand. The
+  screen offers **Apply again** when it detects that the database does not
+  enforce the scope in force, and the server logs one error at boot naming the
+  scope and the constraints it found.
+- The audit entry records the two scope codes, before and after.
+
+**What the scope changes.**
+
+- **Creating.** Registration and the admin create are refused
+  `409 ORGANIZATION_TAX_ID_EXISTS` when the tax ID exists where the scope
+  forbids it. In `per-tree-root` that means a new **root** organization — any
+  self-registration, and an admin create without a parent — may not use a tax ID
+  any tree holds, while an admin create **under** a head office (or any of its
+  descendants) may use the tree's tax ID. Registration with a tax ID a branch
+  holds is refused too; joining an existing company at registration is not
+  offered.
+- **Moving.** In `per-tree-root`, attaching, detaching or moving an
+  organization so that one tax ID would end up in two trees is refused (see
+  *Organization hierarchy*).
+- **Concurrent writes** that would together break the rule are decided by the
+  database: one succeeds and the other receives the same 409 the check would
+  have given, never a 500.
+
+### Searching by tax ID
+
+The admin Organizations list's search box (`q`) and the global search (⌘K)
+match the tax ID as well as the name. The query is normalised the same way as
+the stored value, so `pl 526-025` finds `PL526025…`. A personal organization
+has no tax ID and is never found by one — nor by its former placeholder.
+
+### Looking up an organization by tax ID (server code)
+
+`organizationDetailsPort` (`OrganizationDetailsPort` in
+`@endora-commerce/contracts`) answers "which organization has this tax ID?"
+correctly in both scopes. Both functions normalise the input first.
+
+- `findByTaxId(taxId, { includeDeleted? })` — every organization holding the
+  tax ID, the tree's **root first**, then by depth, creation time and id.
+  Soft-deleted organizations only with `includeDeleted: true`. No match is `[]`.
+- `resolveByTaxId(taxId)` — `{ kind: 'none' }`, or `{ kind: 'one',
+  organization }` naming the root (or, when the root is deleted, the oldest live
+  match), or `{ kind: 'ambiguous', organizations }`, which neither scope's
+  constraint lets happen and which exists for scopes still to come.
+
+Registration, the admin create and the demo seed and reset use these two
+functions rather than querying the column, and so should an integration.
 
 ## Roles
 
@@ -826,8 +1057,7 @@ member is offered follows their role, and the Organization's kind:
   `/account` and `/organization/addresses` to their own address book,
   `/addresses`, which still lists the Organization's addresses beside theirs.
   The profile has no *Organization* row for them, and the checkout's billing
-  tax-id field starts empty rather than with the personal Organization's
-  synthetic tax id.
+  tax-id field starts empty, as the personal Organization has no tax ID.
   Anyone else who opens one is told who may use it — for example *"Only the
   organization's administrators can manage roles."*
 - **Roles** (`/organization/roles`) lists every role with its type (*Built-in*
@@ -925,4 +1155,4 @@ The admin's global search (the command palette, ⌘K / Ctrl+K) finds organizatio
 | Tax ID | yes |
 | Legal name | no |
 
-Names are matched without regard to Polish diacritics, so `lodz` finds *Łódź*. Results are the organizations the Organizations list shows the admin — business organizations that are not deleted — for a role holding `customers:read` or `customers:manage`. For a sales representative that is the Organizations they reach; the ones assigned to them are listed first, then the others.
+Names are matched without regard to Polish diacritics, so `lodz` finds *Łódź*; a tax ID is matched in its normalised form (spaces and dashes removed, upper-cased), so `pl 526-025` finds `PL526025…`. Results are the organizations the Organizations list shows the admin — business organizations that are not deleted — for a role holding `customers:read` or `customers:manage`. For a sales representative that is the Organizations they reach; the ones assigned to them are listed first, then the others.

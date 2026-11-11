@@ -67,7 +67,8 @@ describe('M2 — organization_roles', () => {
       [
         id,
         `Roles ${id.slice(0, 8)}`,
-        `${options.isPersonal ? 'personal' : 'roles'}-${id.slice(0, 13)}`,
+        // A personal organization has no tax ID (specs/177-tax-id-scope/).
+        options.isPersonal ? null : `ROLES${id.slice(0, 13).replace(/-/g, '').toUpperCase()}`,
         options.status ?? 'active',
         `/${id}/`,
         options.isPersonal ?? false,

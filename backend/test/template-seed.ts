@@ -64,6 +64,44 @@ export async function establishPlatformInvariants(orm: MikroORM): Promise<void> 
 }
 
 /**
+ * The tax-ID scope the template starts in (`specs/177-tax-id-scope/`, research
+ * R-16): `ORGANIZATIONS_TAX_ID_SCOPE=per-tree-root` builds a template in that
+ * scope, so every clone of it — and every organizations suite run against one
+ * — starts there; unset or `global`, the migrations' own `global` stands.
+ *
+ * The swap is the scope Command's own statements (`TaxIdScopeService`), run
+ * without the Command: there is no operator and nothing to audit in a template.
+ * The variable is part of the template's identity (`template-identity.ts`), so
+ * a run in one scope never clones a template built in the other.
+ */
+export const TAX_ID_SCOPE_ENV = 'ORGANIZATIONS_TAX_ID_SCOPE';
+
+export function templateTaxIdScope(env: NodeJS.ProcessEnv = process.env): 'global' | 'per-tree-root' {
+  const value = env[TAX_ID_SCOPE_ENV]?.trim();
+  if (value === undefined || value === '' || value === 'global') return 'global';
+  if (value === 'per-tree-root') return value;
+  throw new Error(
+    `[test-setup] ${TAX_ID_SCOPE_ENV}="${value}" is not a tax-ID scope: use "global" (the default) or "per-tree-root".`,
+  );
+}
+
+export async function establishTaxIdScope(orm: MikroORM): Promise<void> {
+  const scope = templateTaxIdScope();
+  if (scope === 'global') return;
+  const { TaxIdScopeService } = await import(
+    '../../packages/modules/organizations/src/backend/services/tax-id-scope-service.js'
+  );
+  // `organization_tax_id_policy` and `organizations` are `@GlobalEntity`
+  // tables: a plain fork, no tenant filter to stamp.
+  await (orm.em.fork() as EntityManager).transactional(async (em) => {
+    const scopes = new TaxIdScopeService(() => em);
+    await scopes.applyEnforcement(em, scope);
+    await scopes.writePolicy(em, scope, null);
+  });
+  process.stdout.write(`[test-setup] the template's tax-ID scope is ${scope}\n`);
+}
+
+/**
  * The inverse of {@link establishPlatformInvariants}, for a clone of the
  * template that has to be exactly what `migration:up` from empty leaves.
  *
@@ -97,4 +135,46 @@ export async function withdrawPlatformInvariants(client: {
     );
   }
   await client.query(`delete from sales_channels where code = 'default' and system_default`);
+  await withdrawTaxIdScope(client);
+}
+
+/**
+ * The inverse of {@link establishTaxIdScope}. The migrations leave the
+ * installation in `global` (`organizations_tax_id_unique`, policy row
+ * `global`); a template built under `ORGANIZATIONS_TAX_ID_SCOPE=per-tree-root`
+ * holds the swapped constraint and row, so a clone that must be a migrated
+ * database swaps them back — the statements `applyEnforcement` and
+ * `writePolicy` run for `global`. A clone holds no organizations, so the unique
+ * constraint cannot be refused; a policy that is neither of the two scopes is
+ * refused rather than overwritten.
+ */
+async function withdrawTaxIdScope(client: {
+  query: (sql: string) => Promise<{ rowCount: number | null; rows: unknown[] }>;
+}): Promise<void> {
+  const policy = await client.query(`select scope from organization_tax_id_policy`);
+  const scopes = (policy.rows as { scope: string }[]).map((row) => row.scope);
+  if (scopes.length === 1 && scopes[0] === 'global') return;
+  if (scopes.length !== 1 || scopes[0] !== 'per-tree-root') {
+    throw new Error(
+      `[test-setup] a clone of the migration template was expected to hold one tax-ID policy row ` +
+        `in "global" or "per-tree-root", and holds ${JSON.stringify(scopes)}. Withdrawing anything ` +
+        `else would not leave a migrated database.`,
+    );
+  }
+  await client.query(`
+    do $$
+    begin
+      if not exists (
+        select 1 from pg_constraint
+         where conrelid = 'organizations'::regclass and conname = 'organizations_tax_id_unique'
+      ) then
+        alter table "organizations" add constraint "organizations_tax_id_unique" unique ("tax_id");
+      end if;
+      alter table "organizations" drop constraint if exists "organizations_tax_id_one_tree";
+    end
+    $$;
+  `);
+  await client.query(
+    `update "organization_tax_id_policy" set "scope" = 'global', "updated_at" = now(), "updated_by_admin_user_id" = null where "id"`,
+  );
 }

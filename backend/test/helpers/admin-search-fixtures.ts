@@ -83,7 +83,10 @@ export async function seedOrganization(
 ): Promise<Organization> {
   const org = em.create(Organization, {
     name: over.name,
-    taxId: over.taxId ?? `PL${randomUUID().replace(/\D/g, '').slice(0, 10).padEnd(10, '7')}`,
+    // A personal organization has no tax ID (specs/177-tax-id-scope/).
+    taxId: over.isPersonal
+      ? null
+      : (over.taxId ?? `PL${randomUUID().replace(/\D/g, '').slice(0, 10).padEnd(10, '7')}`),
     status: (over.status ?? 'active') as never,
     vatStatus: 'vat_payer',
     ...(over.legalName !== undefined ? { legalName: over.legalName } : {}),

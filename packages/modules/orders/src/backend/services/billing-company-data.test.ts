@@ -19,6 +19,15 @@ describe('billingCompanyData (#759)', () => {
     expect(billingCompanyData(personal, { billingCompanyName: '  ', billingTaxId: '' })).toEqual({});
   });
 
+  // `specs/177-tax-id-scope/` T021 (X1) — since 177 a personal Organization has no tax ID at all.
+  it('gives a personal Organization whose taxId is null no company data', () => {
+    expect(billingCompanyData({ ...personal, taxId: null }, {})).toEqual({});
+  });
+
+  it('gives a company Organization without a tax ID its name and no taxId key', () => {
+    expect(billingCompanyData({ ...company, taxId: null }, {})).toEqual({ companyName: 'Acme Sp. z o.o.' });
+  });
+
   it('keeps what a personal buyer typed', () => {
     expect(
       billingCompanyData(personal, { billingCompanyName: ' Kowalski Usługi ', billingTaxId: '7740001454' }),

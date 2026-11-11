@@ -482,6 +482,20 @@ export const manifest = defineModuleManifest({
       label: 'Manage organization roles',
       requires: ['organizations:read-roles'],
     },
+    // `specs/177-tax-id-scope/` FR-017 — the installation's tax-ID scope. The
+    // routes also refuse a scoped administrator holding it (D-260).
+    {
+      code: 'organizations:manage-tax-id-scope',
+      label: 'Manage the tax-ID scope',
+      requires: ['customers:read'],
+    },
+    // `specs/177-tax-id-scope/` FR-031 — the personal → company conversion,
+    // an operator's action only (admin route, its screen and the detail button).
+    {
+      code: 'organizations:convert-to-company',
+      label: 'Convert personal organizations to companies',
+      requires: ['customers:read'],
+    },
   ],
   settings,
   /**
@@ -531,6 +545,32 @@ export const manifest = defineModuleManifest({
       keywords: ['organization', 'new', 'create'],
       keywordsKey: 'actions.newOrganization.keywords',
       weight: 210,
+    },
+    // `specs/177-tax-id-scope/` (`contracts/admin-surfaces.md` §2, Principle XVI) —
+    // the Tax-ID scope screen, gated on the code its route and its API enforce.
+    {
+      id: 'open-tax-id-scope',
+      labelKey: 'actions.openTaxIdScope.label',
+      descriptionKey: 'actions.openTaxIdScope.description',
+      icon: 'Settings',
+      targetRoute: '/organizations/tax-id-scope',
+      requiredPermission: 'organizations:manage-tax-id-scope',
+      keywords: ['tax', 'nip', 'vat', 'scope', 'unique', 'branch'],
+      keywordsKey: 'actions.openTaxIdScope.keywords',
+      weight: 190,
+    },
+    // `specs/177-tax-id-scope/` (`contracts/admin-surfaces.md` §2) — the
+    // personal → company conversion screen, gated on the code its route and API enforce.
+    {
+      id: 'convert-personal-organization',
+      labelKey: 'actions.convertPersonalOrganization.label',
+      descriptionKey: 'actions.convertPersonalOrganization.description',
+      icon: 'Building2',
+      targetRoute: '/organizations/convert-to-company',
+      requiredPermission: 'organizations:convert-to-company',
+      keywords: ['convert', 'personal', 'company', 'b2c', 'b2b'],
+      keywordsKey: 'actions.convertPersonalOrganization.keywords',
+      weight: 185,
     },
     // Feature 173 (`contracts/admin-surfaces.md` §5, Principle XVI) — the three
     // registration-lookup settings. The generic Settings screen has no
@@ -717,7 +757,19 @@ export const manifest = defineModuleManifest({
     { code: 'ORGANIZATION_HAS_CHILDREN', tokens: ['has_children'] },
     { code: 'ORGANIZATION_SUSPENDED' },
     { code: 'ORGANIZATION_TAX_ID_EXISTS' },
-    { code: 'ORGANIZATION_TREE_INVALID', tokens: ['cycle', 'max_depth_exceeded', 'path_unreadable'] },
+    // `specs/177-tax-id-scope/` FR-015 — `{sharedTaxIdCount}` is always filled.
+    { code: 'ORGANIZATION_TAX_ID_SCOPE_DUPLICATES', tokens: ['shared_tax_ids'] },
+    // `specs/177-tax-id-scope/` FR-033 — every raise carries one of the three tokens.
+    // `specs/177-tax-id-scope/` review finding 2 — a lost lock, retryable.
+    { code: 'ORGANIZATION_WRITE_CONTENDED' },
+    {
+      code: 'ORGANIZATION_CONVERSION_REFUSED',
+      tokens: ['not_personal', 'deleted', 'owner_not_administrator'],
+    },
+    {
+      code: 'ORGANIZATION_TREE_INVALID',
+      tokens: ['cycle', 'max_depth_exceeded', 'path_unreadable', 'tax_id_shared_across_trees'],
+    },
     { code: 'ORG_OWNER_DEPLETION' },
     // Feature 170 (`contracts/organization-permission-port.md` §3). The first is
     // raised by this module's permission port on behalf of every module that

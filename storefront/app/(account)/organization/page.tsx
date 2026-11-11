@@ -34,10 +34,12 @@ export default async function OrganizationPage(): Promise<ReactNode> {
       <h2>{o.name}</h2>
       <table className="b2b-account__table">
         <tbody>
-          <tr>
-            <th scope="row">{t('account.organization.taxId')}</th>
-            <td>{o.taxId}</td>
-          </tr>
+          {o.taxId ? (
+            <tr>
+              <th scope="row">{t('account.organization.taxId')}</th>
+              <td>{o.taxId}</td>
+            </tr>
+          ) : null}
           <tr>
             <th scope="row">{t('account.common.status')}</th>
             <td>{codeLabel(t, 'account.organizationStatus', o.status)}</td>

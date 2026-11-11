@@ -6,6 +6,7 @@ import { ApiError, apiClient, useAuth, useSurfaceVisibility, useUnsavedChangesPr
 import { FulfilmentStrategyPanel } from '../panels/FulfilmentStrategyPanel.js';
 import { OrganizationSalesRepsTab } from '../components/OrganizationSalesRepsTab.js';
 import { OrganizationRolesTab } from '../components/OrganizationRolesTab.js';
+import { ConvertToCompanyForm, type ConvertToCompanyResult } from '../components/ConvertToCompanyForm.js';
 import { organizationRolesClient } from '../api/roles.js';
 import { ModerationActionsPanel } from '../panels/ModerationActionsPanel.js';
 import { ApplicablePriceListsPanel } from '../panels/ApplicablePriceListsPanel.js';
@@ -14,7 +15,7 @@ import { VatValidationPanel } from '../panels/VatValidationPanel.js';
 import { newestRegistrationRow } from '../panels/vat-validation-view.js';
 import { RestrictionsPanel } from '../panels/RestrictionsPanel.js';
 import { SalesChannelsPanel } from '../panels/SalesChannelsPanel.js';
-import { CustomFieldValuesPanel, customFieldErrorsOf } from '@endora-commerce/admin-kit/components';
+import { CustomFieldValuesPanel, ModalDialog, customFieldErrorsOf } from '@endora-commerce/admin-kit/components';
 import { AdminZone } from '@endora-commerce/admin-kit/zones';
 import { Alert, AlertDescription, Button, Card, CardContent, CardHeader, CardTitle, Input, Label, PageHeader, Select, Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from '@endora-commerce/admin-kit/ui';
 import { useTranslation } from '@endora-commerce/admin-kit/i18n';
@@ -39,7 +40,8 @@ interface OrgDetail {
   id: string;
   name: string;
   legalName?: string | null;
-  taxId: string;
+  /** `null` for a personal Organization (`specs/177-tax-id-scope/`). */
+  taxId: string | null;
   status: 'pending_verification' | 'active' | 'blocked' | 'rejected';
   vatStatus: 'vat_payer' | 'vat_exempt' | 'reverse_charge';
   /** A B2C customer's own Organization: no role management there (PR-3). */
@@ -87,6 +89,9 @@ export function OrganizationDetail(): ReactNode {
   const own = useTranslation('organizations');
   const isVisible = useSurfaceVisibility();
   const canReadRoles = isVisible({ module: 'organizations', requiredPermission: READ_ROLES });
+  // `specs/177-tax-id-scope/` (`contracts/admin-surfaces.md` §4.2).
+  const canConvert = isVisible({ module: 'organizations', requiredPermission: 'organizations:convert-to-company' });
+  const [converting, setConverting] = useState(false);
   const { id = '' } = useParams<{ id: string }>();
   const [org, setOrg] = useState<OrgDetail | null>(null);
   // Feature 173 — the newest registration-time lookup's differing fields, as
@@ -366,14 +371,14 @@ export function OrganizationDetail(): ReactNode {
         title={org.name}
         description={
           <span>
-            {/* A personal Organization's tax id is an internal placeholder (#767). */}
+            {/* A personal Organization has no tax ID (`specs/177-tax-id-scope/`). */}
             {org.isPersonal ? (
               <span>{t('organizations.personalAccount')}</span>
-            ) : (
+            ) : org.taxId ? (
               <>
                 {t('organizations.detail.taxIdLabel')} <code className="font-mono text-xs">{org.taxId}</code>
               </>
-            )}
+            ) : null}
             {org.updatedAt ? (
               <>
                 {' '}
@@ -384,12 +389,19 @@ export function OrganizationDetail(): ReactNode {
           </span>
         }
         actions={
-          <Button asChild variant="outline">
-            <Link to="/organizations">
-              <ArrowLeft />
-              {t('organizations.detail.back')}
-            </Link>
-          </Button>
+          <div className="flex flex-wrap items-center gap-2">
+            <Button asChild variant="outline">
+              <Link to="/organizations">
+                <ArrowLeft />
+                {t('organizations.detail.back')}
+              </Link>
+            </Button>
+            {org.isPersonal && canConvert ? (
+              <Button type="button" variant="secondary" onClick={(): void => setConverting(true)}>
+                {own('convertToCompany.button')}
+              </Button>
+            ) : null}
+          </div>
         }
       />
 
@@ -730,6 +742,25 @@ export function OrganizationDetail(): ReactNode {
         </CardContent>
       </Card>
 
+      {converting ? (
+        <ModalDialog
+          title={own('convertToCompany.dialogTitle')}
+          onClose={(): void => setConverting(false)}
+          widthClassName="max-w-2xl"
+        >
+          <ConvertToCompanyForm
+            organizationId={org.id}
+            defaultCountry={org.registeredAddress?.country ?? null}
+            onCancel={(): void => setConverting(false)}
+            onConverted={(result: ConvertToCompanyResult): void => {
+              setConverting(false);
+              setInfo(conversionMessage(own, result));
+              void refresh({ quiet: true });
+            }}
+          />
+        </ModalDialog>
+      ) : null}
+
       {/* Feature 170 — the Organization's roles (US 7). Mounted for a company
           Organization and an operator holding a role code; it hides itself
           otherwise and requests nothing. */}
@@ -781,22 +812,25 @@ export function OrganizationDetail(): ReactNode {
         />
       </div>
 
-      {/* Feature 026 US7 — VAT-ID / NIP validation history + retrigger. */}
-      <div className="mt-4">
-        <VatValidationPanel
-          organizationId={org.id}
-          summary={{
-            outcome: org.vatValidation?.outcome ?? null,
-            provider: org.vatValidation?.provider ?? null,
-            validatedAt: org.vatValidation?.validatedAt ?? null,
-          }}
-          headingId={VAT_VALIDATION_HEADING_ID}
-          onHistoryLoaded={(items) =>
-            setRegistryDivergenceCount(newestRegistrationRow(items)?.divergence?.length ?? 0)
-          }
-          onChanged={refresh}
-        />
-      </div>
+      {/* Feature 026 US7 — VAT-ID / NIP validation history + retrigger. A personal
+          Organization has no tax ID to validate (`specs/177-tax-id-scope/` O14). */}
+      {org.isPersonal ? null : (
+        <div className="mt-4">
+          <VatValidationPanel
+            organizationId={org.id}
+            summary={{
+              outcome: org.vatValidation?.outcome ?? null,
+              provider: org.vatValidation?.provider ?? null,
+              validatedAt: org.vatValidation?.validatedAt ?? null,
+            }}
+            headingId={VAT_VALIDATION_HEADING_ID}
+            onHistoryLoaded={(items) =>
+              setRegistryDivergenceCount(newestRegistrationRow(items)?.divergence?.length ?? 0)
+            }
+            onChanged={refresh}
+          />
+        </div>
+      )}
 
       {/* Org-level warehouse-picking (fulfilment) strategy override. */}
       <div className="mt-4">
@@ -843,3 +877,11 @@ export function OrganizationDetail(): ReactNode {
  * the spelling this module's own code and its tests use.
  */
 export default OrganizationDetail;
+
+/** The page's success line after a conversion: the VAT validation's outcome when one ran. */
+function conversionMessage(own: (key: string) => string, result: ConvertToCompanyResult): string {
+  const outcome = result.vatValidation?.outcome;
+  if (!outcome) return own('convertToCompany.success.plain');
+  const known = ['validated', 'invalid', 'deferred', 'failed'];
+  return own(`convertToCompany.success.${known.includes(outcome) ? outcome : 'failed'}`);
+}

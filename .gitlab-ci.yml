@@ -1238,6 +1238,59 @@ test:backend:deployment:
         - tsconfig.base.json
         - .gitlab-ci.yml
 
+# The organizations suites in the `per-tree-root` tax-ID scope
+# (`specs/177-tax-id-scope/` FR-027, research R-16). `test:backend` runs them in
+# `global`, the scope every installation starts in; this job builds its
+# template with ORGANIZATIONS_TAX_ID_SCOPE=per-tree-root (`test/template-seed.ts`
+# swaps the constraint, `test/template-identity.ts` keys the template on the
+# variable) and runs the two organizations directories and the module's own
+# tests against it. Unsharded and narrow, as `test:backend:deployment` is.
+test:backend:organizations-per-tree-root:
+  stage: test
+  image: node:22.18-slim
+  services:
+    - name: postgres:16-alpine
+      alias: postgres
+    - name: redis:7-alpine
+      alias: redis
+    - name: getmeili/meilisearch:v1.11
+      alias: meilisearch
+  variables:
+    ORGANIZATIONS_TAX_ID_SCOPE: per-tree-root
+    NODE_OPTIONS: --max-old-space-size=2048
+    POSTGRES_USER: b2b
+    POSTGRES_PASSWORD: b2b
+    POSTGRES_DB: b2b
+    MEILI_MASTER_KEY: devMasterKeyChangeMe
+    MEILI_ENV: development
+    MEILI_NO_ANALYTICS: 'true'
+    TEST_DATABASE_URL: postgresql://b2b:b2b@postgres:5432/b2b_test
+    REDIS_URL: redis://redis:6379
+    MEILISEARCH_URL: http://meilisearch:7700
+    MEILISEARCH_API_KEY: devMasterKeyChangeMe
+  before_script:
+    - corepack enable && corepack prepare pnpm@9.15.0 --activate
+    - pnpm install --frozen-lockfile
+    - pnpm run build:packages
+  script:
+    - pnpm --filter backend exec vitest run test/contract/organizations test/integration/organizations
+    - pnpm --filter @endora-commerce/mod-organizations exec vitest run
+  cache:
+    key:
+      files:
+        - pnpm-lock.yaml
+    paths:
+      - .pnpm-store
+  rules:
+    # Default branch only, as `test:backend:deployment` (D-198).
+    - if: '$CI_COMMIT_BRANCH == $CI_DEFAULT_BRANCH'
+      changes:
+        - backend/**/*
+        - packages/**/*
+        - pnpm-lock.yaml
+        - tsconfig.base.json
+        - .gitlab-ci.yml
+
 # The fast `overlay:check` (determinism + resolver guards) also runs for every
 # push in the `quality` stage above, bare core.
 #

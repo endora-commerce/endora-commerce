@@ -18,7 +18,7 @@ import { RETURNS_SETTING_CODES, RETURNS_DEFAULT_TIME_ZONE } from '../manifest.js
 import { isKnownTimeZone } from './services/time-zone-validator.js';
 import { ReturnStatusGraphService } from './services/return-status-graph-service.js';
 import { ReturnTransitionService } from './services/return-transition-service.js';
-import { ReturnCaseService } from './services/return-case-service.js';
+import { ReturnCaseService, organizationWasConsumerAt } from './services/return-case-service.js';
 import { ReturnCaseScope } from './services/return-case-scope.js';
 import { ReturnCommentService } from './services/return-comment-service.js';
 import { ReturnSettlementService } from './services/return-settlement-service.js';
@@ -149,8 +149,13 @@ export function returnsModule(
   };
 
   // Issue #876 — a consumer (B2C) is a personal Organization; an order without one is not a consumer's.
-  const isPersonalOrganization = async (organizationId: string | null): Promise<boolean> =>
-    organizationId ? ((await options.organizationDetails.findById(organizationId))?.isPersonal ?? false) : false;
+  // `specs/177-tax-id-scope/` FR-040 — given the order's placement time, an Organization converted
+  // to a company after it still counts as the consumer it was.
+  const isPersonalOrganization = async (organizationId: string | null, placedAt?: Date): Promise<boolean> => {
+    if (!organizationId) return false;
+    const organization = await options.organizationDetails.findById(organizationId);
+    return placedAt ? organizationWasConsumerAt(organization, placedAt) : (organization?.isPersonal ?? false);
+  };
 
   const caseService = new ReturnCaseService({
     emFactory,

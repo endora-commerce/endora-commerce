@@ -546,7 +546,6 @@ async function loadPicker(type: PushAudienceCriterionType): Promise<PickerOption
       return res.data.items.map((i) => ({ value: i.id, label: flattenName(i.name, i.code), hint: i.code }));
     }
     case 'organization': {
-      // `taxId` is `null` for a personal Organization, whose tax id is a placeholder (#767).
       const res = await apiClient.get<{ data: { items: { id: string; name: LocalisedName; taxId: string | null }[] } }>(
         '/api/v1/admin/pwa/rule-targets/organizations?limit=200',
       );

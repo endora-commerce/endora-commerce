@@ -25,7 +25,8 @@ describe('Personal orgs excluded from B2B admin surfaces (feature 051 US3)', () 
       isPersonal: false, registeredAddress: { street: '-', city: '-', postalCode: '-', country: 'PL' },
     });
     const personal = em.create(Organization, {
-      name: '051 Individual', taxId: randomUUID().replace(/-/g, ''), status: 'active', vatStatus: 'vat_exempt',
+      // A personal organization has no tax ID (specs/177-tax-id-scope/).
+      name: '051 Individual', taxId: null, personalAccountId: randomUUID(), status: 'active', vatStatus: 'vat_exempt',
       isPersonal: true, registeredAddress: { street: '-', city: '-', postalCode: '-', country: 'PL' },
     });
     await em.persistAndFlush([company, personal]);

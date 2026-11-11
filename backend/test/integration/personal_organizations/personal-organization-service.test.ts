@@ -75,7 +75,9 @@ describe('PersonalOrganizationService', () => {
     expect(org.status).toBe('active');
     expect(org.name).toBe('Jan Kowalski');
     expect(org.vatStatus).toBe('vat_exempt');
-    expect(org.taxId).toHaveLength(32);
+    // No tax ID since `specs/177-tax-id-scope/`; the account link replaces it.
+    expect(org.taxId ?? null).toBeNull();
+    expect(org.personalAccountId).toBe(account.id);
   });
 
   it('provisionFor is idempotent by account id — never a second org', async () => {
@@ -85,7 +87,7 @@ describe('PersonalOrganizationService', () => {
     const second = await svc.provisionFor(em, input);
 
     expect(second.id).toBe(first.id);
-    expect(await em.count(Organization, { taxId: id.replace(/-/g, '') })).toBe(1);
+    expect(await em.count(Organization, { personalAccountId: id })).toBe(1);
   });
 
   it('ensureForCustomerAccountId returns the org the account already stands in', async () => {

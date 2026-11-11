@@ -135,7 +135,8 @@ export class OrgRegistrationNotifier {
       this.deps.translate,
       'notifications.newRegistration.email.body',
       language,
-      { name: org.name, taxId: org.taxId, status: statusLabel, linkPath: `/organizations/${org.id}` },
+      // A registration creates a company, which always has a tax ID.
+      { name: org.name, taxId: org.taxId ?? '', status: statusLabel, linkPath: `/organizations/${org.id}` },
     );
     for (const to of recipients) {
       const messageId = `organization.registered.${org.id}.${to.toLowerCase()}`;
@@ -146,7 +147,7 @@ export class OrgRegistrationNotifier {
           messageId,
           variables: {
             organizationName: org.name,
-            taxId: org.taxId,
+            taxId: org.taxId ?? '',
             statusLabel,
             linkPath: `/organizations/${org.id}`,
           },
