@@ -701,10 +701,22 @@ so it is a migration of `name_search`, not an edit.
   (`admin` for every existing row), `registry_details` and `submitted_values` to
   `organization_tax_id_validations`, and admits the `gus_pl` provider (see
   "Registry lookup at registration" above).
-- `20261109T144721_organizations_reach_governor.ts` — creates `organization_reach_governor`
+- `20261109T144721_organizations_reach_governor.ts` — creates `organization_sales_rep_assignments`
+  if it does not exist yet, then creates `organization_reach_governor`
   (each Organization's nearest ancestor-or-self carrying a sales-rep assignment), backfills it,
   and adds the triggers on `organizations` and `organization_sales_rep_assignments` that keep it
   current in the writing transaction (see "Sales-rep ownership" above).
+
+  **Who creates the assignment table.** This module owns `organization_sales_rep_assignments`,
+  and this is the first of its migrations that needs it, so it creates it here. Before
+  issue #1033 only the `quote_requests` module's `20260503T141344_quote_requests_workflow.ts`
+  created it, so a platform that composed this module without `quote_requests` stopped at this
+  migration. Both migrations now create the table with `if not exists`, with the same columns
+  and constraint names, and only this migration creates its two indexes, `orgsa_admin_user_idx`
+  and `orgsa_organization_idx`. Whichever migration runs first creates the table, and the other
+  one does not change it. On a database that has already applied both migrations nothing runs again and
+  nothing changes. Installing `quote_requests` after this module leaves the table and its
+  rows as they are. This migration's `down()` never drops the table.
 
   **Restoring data with triggers disabled.** A data-only restore run with
   `pg_restore --disable-triggers` (or anything else that writes these two tables with

@@ -678,10 +678,21 @@ edycji.
 - `20261105T121034_organizations_registry_lookup_provenance.ts` — dodaje do `organization_tax_id_validations`
   kolumny `origin` (`admin` dla każdego istniejącego wiersza), `registry_details` i `submitted_values` oraz dopuszcza
   dostawcę `gus_pl` (zobacz „Pobieranie danych firmy z rejestru przy rejestracji” wyżej).
-- `20261109T144721_organizations_reach_governor.ts` — tworzy `organization_reach_governor` (dla każdej organizacji
+- `20261109T144721_organizations_reach_governor.ts` — tworzy `organization_sales_rep_assignments`, jeśli ta tabela
+  jeszcze nie istnieje, a potem tworzy `organization_reach_governor` (dla każdej organizacji
   najbliższy przodek lub ona sama z przypisanym handlowcem), wypełnia ją i dodaje wyzwalacze na `organizations` i
   `organization_sales_rep_assignments`, które utrzymują ją aktualną w transakcji zapisu (zobacz „Przypisanie
   handlowców” wyżej).
+
+  **Kto tworzy tabelę przypisań.** Właścicielem `organization_sales_rep_assignments` jest ten moduł, a to
+  pierwsza z jego migracji, która jej potrzebuje, więc tworzy ją tutaj. Przed zgłoszeniem #1033 tworzyła ją
+  wyłącznie migracja `20260503T141344_quote_requests_workflow.ts` modułu `quote_requests`, więc platforma
+  składająca ten moduł bez `quote_requests` zatrzymywała się na tej migracji. Teraz obie migracje tworzą tabelę
+  z `if not exists`, z tymi samymi kolumnami i nazwami ograniczeń, a jej dwa indeksy, `orgsa_admin_user_idx`
+  i `orgsa_organization_idx`, tworzy wyłącznie ta migracja. Tabelę tworzy migracja, która uruchomi się
+  pierwsza, a druga jej nie zmienia. W bazie, która zastosowała już obie migracje, nic nie uruchamia
+  się ponownie i nic się nie zmienia. Zainstalowanie `quote_requests` po tym module pozostawia tabelę i jej
+  wiersze bez zmian. Metoda `down()` tej migracji nigdy nie usuwa tabeli.
 
   **Odtwarzanie danych z wyłączonymi wyzwalaczami.** Odtworzenie samych danych przez
   `pg_restore --disable-triggers` (albo każdy inny zapis tych dwóch tabel przy wyłączonych

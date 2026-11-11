@@ -1097,6 +1097,18 @@ is **not** one of them: it is owned by the `organizations` module,
 which qualifies the organization with it, and this module reaches it
 through that module's `organizationSalesRepScopePort`.
 
+This module's `20260503T141344_quote_requests_workflow.ts` migration
+still creates the table, for historical reasons: it was the first
+migration to need it. Since issue #1033 the statement is
+`create table if not exists`, and the owner's own
+`20261109T144721_organizations_reach_governor.ts` creates the table
+with the same shape. The table's two indexes are created only by the
+owner's migration. So a platform can migrate `organizations` without
+this module, and installing this module later leaves the table and its
+rows as they are. A database that has already applied the migration
+does not run it again. `module:uninstall quote_requests --hard` never
+drops the table, its rows or the triggers `organizations` puts on it.
+
 The canonical `quote_requests` row carries the current state plus
 `current_revision_number`, `last_customer_seen_revision_number`, and
 `awaiting_customer_revision_acceptance`. The customer's "what changed
