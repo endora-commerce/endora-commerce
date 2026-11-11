@@ -192,14 +192,18 @@ W katalogu głównym instancji:
 pnpm run module:uninstall acme_erp --hard       # kolumny zostają, rejestr: orphaned
 ```
 
-Wypisywanie i usuwanie elementów to `module:schema-extensions`, które w tym wydaniu działa w klonie
-repozytorium Endora Commerce:
+Wypisywanie i usuwanie elementów to `module:schema-extensions`, w tym samym katalogu głównym
+instancji:
 
 ```bash
-pnpm --filter backend run module:schema-extensions list
-pnpm --filter backend run module:schema-extensions drop acme_erp           # wypisuje plan
-pnpm --filter backend run module:schema-extensions drop acme_erp --confirm # usuwa, jeden wpis audytu
+pnpm run module:schema-extensions list                        # każdy element i jego status
+pnpm run module:schema-extensions drop acme_erp               # wypisuje plan
+pnpm run module:schema-extensions drop acme_erp --confirm     # usuwa, jeden wpis audytu
+pnpm run module:schema-extensions drop acme_erp --key erpCode --confirm  # tylko elementy jednego klucza
 ```
+
+`list --json` i `list --module <id>` zawężają listę. W klonie repozytorium Endora Commerce to samo
+polecenie ma postać `pnpm --filter backend run module:schema-extensions …`.
 
 Odinstalowanie twojego modułu zachowuje jego kolumny wraz z wartościami; usuwa je wyłącznie jawne,
 audytowane `drop … --confirm`, i to tylko dla elementów osieroconych i już niedeklarowanych.
@@ -238,12 +242,14 @@ tabele encjami i twórz każdą używaną tabelę we własnych migracjach. Dozwo
 `x_<moduleId>_*` w zadeklarowanym gospodarzu; reguły są na stronie [Migracje](./migrations.md), w
 sekcji *Strażnik obcego schematu*.
 
-Aby przed aktualizacją sprawdzić, czego wydanie by odmówiło (w tym wydaniu z klonu repozytorium
-Endora Commerce):
+Aby przed aktualizacją sprawdzić, czego wydanie by odmówiło, w katalogu głównym instancji:
 
 ```bash
-pnpm --filter backend run module:schema-extensions audit-packages
+pnpm run module:schema-extensions audit-packages
 ```
+
+Polecenie czyta migracje wszystkich zainstalowanych pakietów, nie wykonując żadnej z nich, wypisuje
+każdą instrukcję, której strażnik by odmówił, i kończy się kodem 65, gdy taka istnieje.
 
 ## Pakowanie
 

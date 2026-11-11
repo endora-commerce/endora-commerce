@@ -57,6 +57,9 @@ const OPERATOR_SCRIPTS: readonly OperatorScript[] = [
   { repository: 'module:enable', instance: 'pnpm run module:enable' },
   { repository: 'module:disable', instance: 'pnpm run module:disable' },
   { repository: 'module:status', instance: 'pnpm run module:status' },
+  // Issue #1036 — the sixth operator command, wired into the scaffold beside
+  // the five above.
+  { repository: 'module:schema-extensions', instance: 'pnpm run module:schema-extensions' },
   // A module command behind the `cli` pass-through: the scaffold writes no
   // root alias for either, and needs none.
   { repository: 'cart:abandonment-sweep', instance: 'pnpm run cli carts abandonment-sweep' },
