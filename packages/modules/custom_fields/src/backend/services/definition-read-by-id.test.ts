@@ -85,6 +85,9 @@ describe('CustomFieldDefinitionReadPort.getById', () => {
       config: { filterable: true },
       listFilter: true,
       carryTo: ['opportunity'],
+      // Feature 175 — a row read without the two attributes answers their defaults.
+      customerInput: [],
+      adminAccess: 'edit',
       createdAt: NOW,
       updatedAt: NOW,
     });

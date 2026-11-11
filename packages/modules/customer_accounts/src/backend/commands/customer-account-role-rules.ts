@@ -64,8 +64,9 @@ export function memberNotFound(): HttpError {
 }
 
 /**
- * The audit snapshot of the account's role (R-32): `{ id, name, kind }`, with
- * `name` and `kind` `null` for a role the lookup no longer finds.
+ * The account's role as the lookup finds it (R-32): `{ id, name, kind }`, with
+ * `name` and `kind` `null` for a role the lookup no longer finds. The audit
+ * state keeps the id and the kind only ({@link memberState}).
  */
 export async function roleSnapshot(
   roles: OrganizationRoleLookup,
@@ -76,11 +77,16 @@ export async function roleSnapshot(
   return { id: roleId, name: role?.name ?? null, kind: role?.kind ?? null };
 }
 
+/**
+ * A member's audit state: the account and its role by id and kind. Never the
+ * role's name — a custom role's name is free text an Organization chose, and
+ * the audit log carries no tenant value (D-288, issue #470).
+ */
 export function memberState(
   customerAccountId: string,
-  role: { id: string; name: string | null; kind: OrganizationRoleSummary['kind'] | null },
+  role: { id: string; name?: string | null; kind: OrganizationRoleSummary['kind'] | null },
 ): AuditState {
-  return { customerAccountId, role };
+  return { customerAccountId, role: { id: role.id, kind: role.kind } };
 }
 
 /**

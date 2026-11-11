@@ -5,7 +5,7 @@ import {
   mfaOrgPolicyRequestSchema,
 } from '@endora-commerce/contracts';
 import { HttpError } from '@endora-commerce/platform/http';
-import { isOrgInScope } from '@endora-commerce/platform/tenancy';
+import { orgInScope } from '@endora-commerce/platform/tenancy';
 import type { AuditPort } from '@endora-commerce/platform/kernel';
 import type { MfaEnrolmentService } from './services/mfa-enrolment-service.js';
 import type { MfaOrgPolicyService } from './services/mfa-org-policy-service.js';
@@ -144,7 +144,7 @@ export async function registerMfaAdminOrgPolicyRoutes(
       // a write that changes the *actor's* own authority, and this one changes
       // an organization's login policy while leaving `allowedOrganizationIds`
       // untouched. A scoped admin keeps the capability for its own assignments.
-      if (!isOrgInScope(organizationId)) {
+      if (!(await orgInScope(organizationId))) {
         throw new HttpError(404, ERROR_CODES.NOT_FOUND, 'Organization not found.');
       }
       const actor = resolveAdminActor(request).adminUserId;

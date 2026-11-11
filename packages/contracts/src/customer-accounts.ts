@@ -302,6 +302,12 @@ export interface CustomerAccountCreateInput {
    * the admin direct-create do not.
    */
   emailVerified?: boolean;
+  /**
+   * Feature 175 — the account's custom-field values, ALREADY VALIDATED by the
+   * caller through custom_fields' value port (the caller owns the surface and
+   * must validate before its first write). Stored as given; `{}` when absent.
+   */
+  customFieldValues?: Record<string, unknown>;
 }
 
 /** Absent fields are left unchanged. */

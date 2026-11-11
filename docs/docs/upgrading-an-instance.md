@@ -4555,6 +4555,248 @@ change touched and nothing more.
 values out of the audit log reads them from the opportunity, or from its history
 (`GET /api/v1/admin/crm/opportunities/:id/history`), instead.
 
+### Line quantities and line counts are bounded {#line-quantity-bound}
+
+The release that ships this change bounds the quantity of a request line at **1 000 000** — the
+same ceiling as the order minimums — on every route that takes one, and bounds the line lists of
+an operator's quote request and of a return at **200**, as the basket, quick order, the order
+intake and the customer's quote request already were (issue #351). A larger quantity used to pass
+validation and fail at the database with `500 INTERNAL`.
+
+**Behaviour change on upgrade:**
+
+- A line quantity above 1 000 000 is refused with a new error code, `400 LINE_QUANTITY_EXCEEDED`,
+  whose message is translated and whose `details` name the field. This applies to adding to the
+  basket and editing a basket line, the customer's and the operator's quote request create and
+  edit, the operator's order creation and its preview, quick order (build and one-click),
+  shopping lists (add and update), returns, the promotion preview, and a packaging unit's base
+  quantity. A request that is wrong in another way as well answers `400 VALIDATION_FAILED`, with
+  `LINE_QUANTITY_EXCEEDED` among its `details`.
+- On the external API, `POST /api/v1/external/orders` and `POST /api/v1/external/catalog/prices`
+  answer `422 VALIDATION_FAILED`, as they do for every malformed body; the `details` entry's
+  `issue` is `LINE_QUANTITY_EXCEEDED`.
+- Adding to the basket is refused with `422 LINE_QUANTITY_EXCEEDED`,
+  `details: { quantity, maximum }`, when the line it adds to would pass 1 000 000, or when a
+  packaging unit's pieces (the unit's base quantity times the units ordered) would. Nothing is
+  written. This covers adding several products at once, reordering and moving a shopping list to
+  the basket. When signing in sums the anonymous basket into the customer's, a summed line is kept
+  at 1 000 000 instead.
+- Editing a basket line accepts any quantity up to 1 000 000; it used to stop at 999.
+- `POST /api/v1/admin/quote-requests`, `PATCH /api/v1/admin/quote-requests/:id` and
+  `POST /api/v1/returns` refuse more than 200 lines with `400 VALIDATION_FAILED`. The value is the
+  same 200 as elsewhere, but the refusal is not: the order intake and quick order keep answering
+  `422 VALIDATION_FAILED` with `details.code: 'too_many_items'`, and the basket
+  `422 CART_LINE_CAP_EXCEEDED`.
+- A quick-order file row with a quantity above 1 000 000, and every row of a repeated product whose
+  rows add up to more, is listed as rejected for its quantity instead of being recognised.
+- In the admin, the order and quote request create screens mark such a line invalid. In the
+  storefront, the quick-order, basket, quote draft and mobile buy-bar quantity inputs stop at the
+  bound, and a value typed past it is shown as 1 000 000.
+- Nothing stored changes: a line or a packaging unit already above the bound stays as it is. Adding
+  by such a unit is refused.
+
+**After upgrading,** an integration that sends larger quantities, or more than 200 lines to the
+operator's quote request or to returns, has to split the request, and one that branches on error
+codes should handle `LINE_QUANTITY_EXCEEDED`.
+
+### Order values leave the platform audit log {#orders-audit-names-only}
+
+The release that ships this change stops writing an order's values into the platform-wide audit
+log (issue #470). That log is one table, read by everybody holding `audit_log:read` whichever
+organizations they may see, so it now names what an order's change touched and nothing more.
+
+**Behaviour change on upgrade:**
+
+- On the **Audit log** screen, and in `audit_logs read`, a new `order.custom_fields.update` or
+  `order.custom_fields.carry` entry no longer carries custom field values. It names the keys that
+  changed as `changedCustomFields`.
+- A new `order.place_on_behalf` entry no longer carries the order's total and currency, and its
+  `groups` give each group's line count without the group's name.
+- A new `order.place_via_api_key` entry no longer carries the organization and the customer the
+  key places for. It keeps the API key's id and the order number.
+- Entries recorded before the upgrade are not rewritten.
+
+**After upgrading,** nothing has to be done. A report or an export that read these values out of
+the audit log reads them from the order (`GET /api/v1/admin/orders/:id`) instead.
+
+### Task values leave the platform audit log {#tasks-audit-names-only}
+
+The release that ships this change stops writing a task's values into the platform-wide audit log
+(issue #470). That log is one table, read by everybody holding `audit_log:read` whatever they may
+see, so it now names what a task's change touched and nothing more.
+
+**Behaviour change on upgrade:**
+
+- On the **Audit log** screen, and in `audit_logs read`, a new `tasks.*` entry no longer carries the
+  task's title, its note from the record it was created for, its custom field values or an
+  attachment's file name. It carries the task's number, status, dates, context type and id, and
+  `changedFields` / `changedCustomFields`, the names of what changed.
+- A task's **History** tab is unchanged: it still shows the values, now read from a store the Tasks
+  module keeps beside the task (`task_value_changes`, created by this release's migration), and only
+  to a reader who may see that task.
+- A task's history now shows custom field values, and the names of the custom fields a change
+  touched, only to a reader who also holds `custom_fields:read`, as opportunity and project
+  histories already do. A role holding `tasks:read` without it no longer reads them there.
+- Entries recorded before the upgrade are not rewritten: they keep their values, on the Audit log
+  screen and in the history.
+
+**After upgrading,** nothing has to be done. A report or an export that read a task's values out of
+the audit log reads them from the task, or from its history (`GET /api/v1/admin/tasks/:id/history`),
+instead.
+
+### Customer account values leave the platform audit log {#customer-accounts-audit-names-only}
+
+The release that ships this change stops writing a customer account's values into the
+platform-wide audit log (issue #470). That log is one table, read by everybody holding
+`audit_log:read` whichever organizations they may see, so it now names what an account's change
+touched and nothing more.
+
+**Behaviour change on upgrade:**
+
+- On the **Audit log** screen, and in `audit_logs read`, a new `customer_account.*` entry no
+  longer carries the account's e-mail, first or last name, its organization, a block's reason or a
+  custom organization role's name, and `customer.custom_fields.update` no longer carries custom
+  field values.
+- Instead, a profile change, an account's creation and a move between organizations name the
+  fields as `changedFields`. A custom-field change names the keys as `changedCustomFields`. A block
+  records `hasBlockReason`. A role change records the role's id and kind.
+- Entries recorded before the upgrade are not rewritten. The erasure of a deleted customer
+  (`customers.deletion_retention_days`) still redacts them, as before.
+
+**After upgrading,** nothing has to be done. A report or an export that read these values out of
+the audit log reads them from the account (`GET /api/v1/admin/customers/:id`) instead.
+
+### Project titles leave the platform audit log {#projects-title-out-of-audit}
+
+The release that ships this change stops writing a project's title into the platform-wide audit log
+(issue #470, owner ruling of 2026-11-10: a title is a value). Projects already kept the value and the
+custom field values out of it.
+
+**Behaviour change on upgrade:**
+
+- On the **Audit log** screen, and in `audit_logs read`, a new `projects.project.*` entry names a
+  project by its number and no longer carries its title. A change of the title is recorded as
+  `changedFields: ['title']`.
+- A project's **Change history** tab is unchanged: the title before and after a change is read from
+  the project's own `project_value_changes`, and only for a reader who may see the project. No
+  migration is needed: the table already exists.
+- Entries recorded before the upgrade are not rewritten: they keep the title they were written with.
+
+**After upgrading,** nothing has to be done.
+
+### Quote request values leave the platform audit log {#quote-requests-audit-names-only}
+
+The release that ships this change stops writing a quote request's values into the platform-wide
+audit log (issue #470). That log is one table, read by everybody holding `audit_log:read`
+whichever organizations they may see, so it now names what a quote request's change touched and
+nothing more.
+
+**Behaviour change on upgrade:**
+
+- On the **Audit log** screen, and in `audit_logs read`, a new `quote_request.cancel` entry
+  records `hasReason` instead of the reason.
+- `quote_request.modify` and `quote_request.create_on_behalf` record each group's line count
+  without the group's name.
+- `quote_request.send_document` records `recipientCount` and `failedRecipientCount` instead of the
+  addresses.
+- `quote_request.prepare_customer_basket` no longer records the customer.
+- `quote_request.custom_fields.carry` names the carried keys as `changedCustomFields` instead of
+  the custom field values.
+- A quote request's **History** tab is unchanged. It still shows the reason, the group names and
+  the addresses, read from the request's own revisions and events.
+- Entries recorded before the upgrade are not rewritten.
+
+**After upgrading,** nothing has to be done. A report or an export that read these values out of
+the audit log reads them from the quote request's history
+(`GET /api/v1/admin/quote-requests/:id/history`) instead.
+
+### Credit-limit amounts leave the platform audit log {#credit-limits-audit-names-only}
+
+The release that ships this change stops writing credit-limit amounts into the platform-wide audit
+log (issue #470). That log is one table, read by everybody holding `audit_log:read` whatever
+Organizations they may see.
+
+**Behaviour change on upgrade:**
+
+- On the **Audit log** screen, and in `audit_logs read`, a new `credit_limit.grant`,
+  `credit_limit.adjust` or `credit_limit.credit_from_return` entry no longer carries the granted
+  amount, the currency or the Organization's id. It says what changed (`changedFields`, for example
+  `['grantedAmount']`), and a credit from a return keeps the return case's id. The entry is still
+  recorded against the Organization.
+- The limit itself, and the Organization's credit-limit screen, are unchanged.
+- Entries recorded before the upgrade are not rewritten: they keep their amounts.
+
+**After upgrading,** nothing has to be done. A report that read granted amounts out of the audit log
+reads them from the credit limit instead.
+
+### A sales representative's reach loads on demand; the scope helpers are async {#sales-rep-reach-async-helpers}
+
+The release that ships this change stops computing a sales representative's reach on every admin
+request (issue #955; owner ruling of 2026-11-10). The tenant filter already reads the reach as a
+subquery owned by `organizations`; the lists of excluded and assigned Organizations are now loaded
+only when a request asks a single-Organization question or ranks search results, and at most once per
+request. Nobody's reach changes, and nothing is cached.
+
+**Breaking change for code that builds on the platform:**
+
+- `isOrgInScope(id, ctx?)` and `ruleVisibleForScope(ids, ctx?)` are removed from
+  `@endora-commerce/platform/tenancy`. Use `await orgInScope(id, ctx?)` and
+  `await ruleInScope(ids, ctx?)`. For a check repeated over rows you already hold, take the
+  synchronous predicate once: `const inScope = await orgScopeTest(ctx?)`, then `inScope(id)`.
+- `assignedOrganizationIdsForRanking(ctx?)` returns a promise.
+- `AdminTenantScope`'s `excluding` member (`@endora-commerce/contracts`) no longer carries
+  `excludedOrganizationIds` / `assignedOrganizationIds`; it carries
+  `excludedOrganizationsQuery` and `loadReach()`. The `excluded` arm of `OrgConstraint` changed the
+  same way, and `PreferenceActor`'s `salesperson.reaches(id)` returns a promise.
+- The helpers were removed rather than retyped on purpose: `if (!isOrgInScope(x))` over a promise is
+  always false, so a gate kept on the old spelling would have stopped refusing. Code that still names
+  them fails to compile. Turn on `@typescript-eslint/no-floating-promises` and
+  `@typescript-eslint/no-misused-promises` for the files that ask the question.
+
+**After upgrading,** rebuild any extension package or overlay module that imports these helpers and
+follow the compile errors. Nothing else needs doing: the migration that ships with the reach change
+(`organization_reach_governor`) is unchanged.
+
+### Return amounts and reasons leave the platform audit log {#returns-audit-names-only}
+
+The release that ships this change stops writing return amounts and free-text reasons into the
+platform-wide audit log (issue #470). That log is one table, read by everybody holding
+`audit_log:read` whatever Organizations they may see.
+
+**Behaviour change on upgrade:**
+
+- A new `return.settled` entry no longer carries `amount`, `charges` (each charge's maximum and
+  approved amount), `recomputedDefaults` or `lineCeilings`. It names what they concerned instead:
+  `refundedCharges` (charge kinds), `recomputedDefaultItemIds` and `ceilingBoundItemIds` (line ids).
+  The resolution, currency, settlement state and correction outcome stay.
+- A new `return.status_changed` entry no longer carries the `reason` typed with the change; it
+  records `hasReason: true | false`. The reason is still passed to the status events of that
+  change, but **it is no longer stored anywhere**: if your operators read transition reasons back
+  from the audit log, ask them to put the reason in a case comment instead.
+- Return cases, refunds and their amounts are unchanged. Entries recorded before the upgrade are not
+  rewritten: they keep their amounts and reasons.
+
+**After upgrading,** check whether anybody relies on reading transition reasons from the Audit log
+screen (see above).
+
+### Invoice amounts leave the platform audit log {#invoices-audit-names-only}
+
+The release that ships this change stops writing invoice amounts into the platform-wide audit log
+(issue #470). That log is one table, read by everybody holding `audit_log:read` whatever
+Organizations they may see.
+
+**Behaviour change on upgrade:**
+
+- On the **Audit log** screen, and in `audit_logs read`, a new `invoice.issued` entry no longer
+  carries `grossTotal`, and a new `invoice.corrected` entry no longer carries `credited` or the
+  amounts of credited charges (`charges`). A correction now names the kinds of charges it credited
+  in `chargeKinds`. The number, kind, order, sales channel and original invoice stay.
+- Invoices, corrections, their PDFs and their totals are unchanged.
+- Entries recorded before the upgrade are not rewritten: they keep their amounts.
+
+**After upgrading,** nothing has to be done. A report that read invoice totals out of the audit log
+reads them from the invoices instead.
+
 ### Subscriber addresses leave the platform audit log {#newsletter-audit-names-only}
 
 The release that ships this change stops writing newsletter subscribers' e-mail addresses and

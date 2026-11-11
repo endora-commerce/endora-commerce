@@ -77,6 +77,19 @@ describe('price_lists — a fresh install is on price books (T116)', () => {
     expect(rows[0]!.cells.slice(0, 2)).toEqual(['org.variant', 'org.product']);
   });
 
+  it('has the price-change history tables, empty: installing writes no price change (#470)', async () => {
+    const { rows } = await db.query<{ table_name: string; n: number }>(
+      `select 'price_list_value_changes' as "table_name", count(*)::int as "n" from "price_list_value_changes"
+       union all
+       select 'price_list_row_value_changes', count(*)::int from "price_list_row_value_changes"
+       order by 1`,
+    );
+    expect(rows).toEqual([
+      { table_name: 'price_list_row_value_changes', n: 0 },
+      { table_name: 'price_list_value_changes', n: 0 },
+    ]);
+  });
+
   it('holds nothing of the old model', async () => {
     const { rows: tables } = await db.query<{ table_name: string }>(
       `select "table_name" from information_schema.tables where "table_schema" = 'public'

@@ -2,14 +2,16 @@ import { useId, type ReactNode, type Ref } from 'react';
 import { Checkbox, Input, Label, Select } from '@endora-commerce/admin-kit/ui';
 import { useTranslation } from '@endora-commerce/admin-kit/i18n';
 import type {
+  CustomFieldAdminAccess,
   CustomFieldAudience,
   CustomFieldDefinitionDto,
   CustomFieldEntityTypeInfo,
+  CustomFieldInputSurface,
   CustomFieldOptionDto,
   CustomFieldValueType,
   SupportedEntityType,
 } from '@endora-commerce/contracts';
-import { hasOptions, type OptionIssues } from '../lib/definition-draft.js';
+import { ADMIN_ACCESS_LEVELS, adminAccessAllowed, hasOptions, type OptionIssues } from '../lib/definition-draft.js';
 import { DefinitionBehaviourFields, type DefinitionBehaviourValue } from './DefinitionBehaviourFields.js';
 import { DefinitionOptionsEditor, type CarryDriftGuard } from './DefinitionOptionsEditor.js';
 import { LABEL_LANGUAGES, useLanguageName } from './localized-label.js';
@@ -36,6 +38,10 @@ export interface DefinitionFormValue {
   audience: CustomFieldAudience;
   listFilter: boolean;
   carryTo: SupportedEntityType[];
+  /** Feature 175 — the buyer input surfaces the field is open on. */
+  customerInput: CustomFieldInputSurface[];
+  /** Feature 175 — how the admin panel offers the field; not access control. */
+  adminAccess: CustomFieldAdminAccess;
   /** The draft options of a field being created; an existing field's options are edited live. */
   options: CustomFieldOptionDto[];
 }
@@ -90,8 +96,10 @@ export type DefinitionFormProps = CommonProps &
  * 2. **Labels** — the default label and one per label language.
  * 3. **Options** (choice types) — a local draft list on create, sent with the
  *    field; saved one action at a time on edit.
- * 4. **Rules** — required (with its notice on edit) and who can see the value.
- * 5. **Behaviour** — list filter and carry targets.
+ * 4. **Rules** — required (with its notice on edit), who can see the value and
+ *    the admin access (feature 175; `read`/`hidden` and required exclude each
+ *    other, SD-2).
+ * 5. **Behaviour** — list filter, carry targets and buyer input.
  *
  * The form holds no state of its own beyond ids: the dialog owns the value,
  * the checks and the save, so both views refuse the same things the same way.
@@ -114,6 +122,11 @@ export function DefinitionForm(props: DefinitionFormProps): ReactNode {
     ) : null;
 
   const offersCarry = (entityTypeInfo.carryTargets ?? []).length > 0;
+  const offersCustomerInput = (entityTypeInfo.customerInputSurfaces ?? []).length > 0;
+  const adminAccessHelpId = `${id}-admin-access-help`;
+  const adminAccessReasonId = `${id}-admin-access-reason`;
+  const requiredReasonId = `${id}-required-reason`;
+  const requiredBlocked = value.adminAccess !== 'edit';
   const showRequiredNotice = props.mode === 'edit' && value.required && !props.storedRequired;
   const requiredNoticeId = `${id}-required-notice`;
   const audienceHelpId = `${id}-audience-help`;
@@ -276,12 +289,19 @@ export function DefinitionForm(props: DefinitionFormProps): ReactNode {
             <Checkbox
               id={`${id}-required`}
               checked={value.required}
-              disabled={busy}
-              aria-describedby={showRequiredNotice ? requiredNoticeId : undefined}
+              // A read-only or hidden field cannot be required (SD-2) — unless it
+              // already is, so the operator can still untick it.
+              disabled={busy || (requiredBlocked && !value.required)}
+              aria-describedby={describedBy(showRequiredNotice && requiredNoticeId, requiredBlocked && requiredReasonId)}
               onChange={(event): void => onChange({ required: event.target.checked })}
             />
             {t('customFields.form.required')}
           </label>
+          {requiredBlocked ? (
+            <p id={requiredReasonId} className="break-words text-sm text-muted-foreground">
+              {t('customFields.form.requiredAccessReason')}
+            </p>
+          ) : null}
           {editing ? (
             // A live region mounted before it has anything to say, so the notice is announced.
             <p
@@ -318,18 +338,57 @@ export function DefinitionForm(props: DefinitionFormProps): ReactNode {
             {t('customFields.audience.help')}
           </p>
         </div>
+        <div className="space-y-1">
+          <Label htmlFor={`${id}-admin-access`}>{t('customFields.adminAccess.label')}</Label>
+          <Select
+            id={`${id}-admin-access`}
+            data-field="adminAccess"
+            value={value.adminAccess}
+            disabled={busy}
+            aria-describedby={describedBy(adminAccessHelpId, value.required && adminAccessReasonId)}
+            onChange={(event): void => onChange({ adminAccess: event.target.value as CustomFieldAdminAccess })}
+          >
+            {ADMIN_ACCESS_LEVELS.map((level) => (
+              <option
+                key={level}
+                value={level}
+                disabled={!adminAccessAllowed(level, value.required) && level !== value.adminAccess}
+              >
+                {t(`customFields.adminAccess.${level}`)}
+              </option>
+            ))}
+          </Select>
+          <p id={adminAccessHelpId} className="break-words text-sm text-muted-foreground">
+            {t('customFields.adminAccess.help')}
+          </p>
+          {value.required ? (
+            <p id={adminAccessReasonId} className="break-words text-sm text-muted-foreground">
+              {t('customFields.adminAccess.requiredReason')}
+            </p>
+          ) : null}
+        </div>
       </fieldset>
 
       <DefinitionBehaviourFields
         definition={
           props.mode === 'edit'
-            ? props.definition
+            ? // The audience is the form's, not the stored one: the buyer-input
+              // option follows the select above as the operator changes it.
+              { ...props.definition, audience: value.audience }
             : { key: value.key.trim(), valueType: value.valueType, options: value.options, audience: value.audience }
         }
         entityTypeInfo={entityTypeInfo}
-        value={offersCarry ? { listFilter: value.listFilter, carryTo: value.carryTo } : { listFilter: value.listFilter }}
+        value={{
+          listFilter: value.listFilter,
+          ...(offersCarry ? { carryTo: value.carryTo } : {}),
+          ...(offersCustomerInput ? { customerInput: value.customerInput } : {}),
+        }}
         onChange={(next: DefinitionBehaviourValue): void =>
-          onChange({ listFilter: next.listFilter, ...(next.carryTo !== undefined ? { carryTo: next.carryTo } : {}) })
+          onChange({
+            listFilter: next.listFilter,
+            ...(next.carryTo !== undefined ? { carryTo: next.carryTo } : {}),
+            ...(next.customerInput !== undefined ? { customerInput: next.customerInput } : {}),
+          })
         }
         entityTypes={entityTypes}
         disabled={busy}

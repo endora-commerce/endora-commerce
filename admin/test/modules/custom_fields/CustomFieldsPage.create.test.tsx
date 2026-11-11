@@ -17,8 +17,8 @@ import coreEn from '../../../../packages/modules/_i18n/i18n/en.json';
  */
 
 const ENTITY_TYPES: CustomFieldEntityTypeInfo[] = [
-  { entityType: 'order', labelKey: 'customFields.entity.order', listFilter: true, carryTargets: [] },
-  { entityType: 'organization', labelKey: 'customFields.entity.organization', listFilter: false, carryTargets: [] },
+  { entityType: 'order', labelKey: 'customFields.entity.order', listFilter: true, carryTargets: [], customerInputSurfaces: [] },
+  { entityType: 'organization', labelKey: 'customFields.entity.organization', listFilter: false, carryTargets: [], customerInputSurfaces: [] },
 ];
 
 const EXISTING: CustomFieldDefinitionDto = {
@@ -34,6 +34,8 @@ const EXISTING: CustomFieldDefinitionDto = {
   config: {},
   listFilter: false,
   carryTo: [],
+  customerInput: [],
+  adminAccess: 'edit',
   options: [],
   createdAt: '2026-01-01T00:00:00.000Z',
   updatedAt: '2026-01-01T00:00:00.000Z',

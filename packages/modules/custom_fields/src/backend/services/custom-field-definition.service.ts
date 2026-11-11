@@ -31,10 +31,12 @@ import {
   applyRenameDefinitionKey,
   applyUpdateDefinition,
   applyUpdateOption,
+  assertCustomerInputAndAdminAccess,
   assertListFilterSupported,
   assertOptionsRule,
   assertValueTypeOffered,
   CustomFieldDefinitionError,
+  normaliseCustomerInput,
 } from './custom-field-definition-apply.js';
 import {
   toCustomFieldDefinitionRecord,
@@ -95,6 +97,12 @@ export class CustomFieldDefinitionService implements DefinitionSource, CustomFie
     private readonly emFactory: () => EntityManager,
     private readonly cache: CustomFieldDefinitionsCache,
     private readonly commandBus: CommandBus,
+    /**
+     * Feature 175 — told the entity type of every committed definition or
+     * option change, after the cache fan-out: the storefront's cached copy of
+     * an input surface's open fields is dropped from here (research R-7).
+     */
+    private readonly onDefinitionsChanged?: (entityType: SupportedEntityType) => void,
   ) {}
 
   setValueService(v: CustomFieldValueService): void {
@@ -192,6 +200,13 @@ export class CustomFieldDefinitionService implements DefinitionSource, CustomFie
     if (!isSupportedEntityType(input.entityType)) {
       throw new CustomFieldDefinitionError('entity_type_unknown', `Unknown entity type "${input.entityType}".`);
     }
+    // Feature 175 — refused before anything is read or written; the create
+    // Command judges the same predicate again on its own transaction.
+    assertCustomerInputAndAdminAccess({
+      ...input,
+      customerInput: normaliseCustomerInput(input.customerInput),
+      adminAccess: input.adminAccess ?? 'edit',
+    });
     assertValueTypeOffered(input.entityType, input.valueType);
     assertOptionsRule(input.valueType, input.options);
     assertListFilterSupported(input.entityType, input.listFilter);
@@ -203,7 +218,7 @@ export class CustomFieldDefinitionService implements DefinitionSource, CustomFie
       throw new CustomFieldDefinitionError('duplicate_key', `A field "${input.key}" already exists on ${input.entityType}.`);
     }
     const def = await this.commandBus.run(createDefinitionCommand(input, this.valueService));
-    await this.cache.publishInvalidate(input.entityType);
+    await this.definitionsChanged(input.entityType);
     return def;
   }
 
@@ -227,7 +242,7 @@ export class CustomFieldDefinitionService implements DefinitionSource, CustomFie
     const def = await this.commandBus.run(
       updateDefinitionCommand(id, retainHiddenCarryTargets(patch, current), this.valueService),
     );
-    await this.cache.publishInvalidate(current.entityType);
+    await this.definitionsChanged(current.entityType);
     return def;
   }
 
@@ -236,7 +251,7 @@ export class CustomFieldDefinitionService implements DefinitionSource, CustomFie
     const current = await this.emFactory().findOne(CustomFieldDefinition, { id });
     if (!current) throw new CustomFieldDefinitionError('not_found', `Custom field ${id} not found.`);
     await this.commandBus.run(deleteDefinitionCommand(id));
-    await this.cache.publishInvalidate(current.entityType);
+    await this.definitionsChanged(current.entityType);
   }
 
   async createOption(definitionId: string, input: CustomFieldOptionDto): Promise<CustomFieldOption> {
@@ -247,7 +262,7 @@ export class CustomFieldDefinitionService implements DefinitionSource, CustomFie
       throw new CustomFieldDefinitionError('options_forbidden', `Field "${def.key}" does not take options.`);
     }
     const opt = await this.commandBus.run(createOptionCommand(definitionId, input));
-    await this.cache.publishInvalidate(def.entityType);
+    await this.definitionsChanged(def.entityType);
     return opt;
   }
 
@@ -260,7 +275,7 @@ export class CustomFieldDefinitionService implements DefinitionSource, CustomFie
     const def = await this.emFactory().findOne(CustomFieldDefinition, { id: definitionId });
     if (!def) throw new CustomFieldDefinitionError('not_found', `Custom field ${definitionId} not found.`);
     const opt = await this.commandBus.run(updateOptionCommand(definitionId, optionId, patch));
-    await this.cache.publishInvalidate(def.entityType);
+    await this.definitionsChanged(def.entityType);
     return opt;
   }
 
@@ -288,7 +303,7 @@ export class CustomFieldDefinitionService implements DefinitionSource, CustomFie
       }
     }
     await this.commandBus.run(deleteOptionCommand(definitionId, optionId, this.valueService));
-    await this.cache.publishInvalidate(def.entityType);
+    await this.definitionsChanged(def.entityType);
   }
 
   // ---- Transactional apply seam (feature 061, CustomFieldDefinitionApplyApi)
@@ -348,6 +363,12 @@ export class CustomFieldDefinitionService implements DefinitionSource, CustomFie
 
   /** Post-commit cache fan-out for apply-seam callers (also used internally after every command). */
   async publishInvalidate(entityType: SupportedEntityType): Promise<void> {
+    await this.definitionsChanged(entityType);
+  }
+
+  /** Every committed definition or option change: the cache fan-out, then the change hook (feature 175). */
+  private async definitionsChanged(entityType: SupportedEntityType): Promise<void> {
     await this.cache.publishInvalidate(entityType);
+    this.onDefinitionsChanged?.(entityType);
   }
 }

@@ -272,7 +272,9 @@ describe('CustomFieldValuesPanel — a cleared field is reported as `null`, neve
   ] as const;
 
   for (const { valueType, stored, clear } of cases) {
-    it(`hands \`save\` a null for a cleared ${valueType}, beside the untouched keys`, async () => {
+    // `other` has no definition, so the panel never rendered it as editable and
+    // — since feature 175 (FR-038) — does not send it: the server's merge keeps it.
+    it(`hands \`save\` a null for a cleared ${valueType}, and no key it did not render as editable`, async () => {
       getSpy.mockResolvedValue({
         data: [definition({ key: 'field', label: { en: 'Field' }, labelDefault: 'Field', valueType, options: [option] })],
       });
@@ -288,8 +290,8 @@ describe('CustomFieldValuesPanel — a cleared field is reported as `null`, neve
 
       await waitFor(() => expect(save).toHaveBeenCalledTimes(1));
       const bag = save.mock.calls[0]?.[0] as Record<string, unknown>;
-      expect(bag).toStrictEqual({ field: null, other: 'kept' });
-      expect(JSON.parse(JSON.stringify(bag))).toStrictEqual({ field: null, other: 'kept' });
+      expect(bag).toStrictEqual({ field: null });
+      expect(JSON.parse(JSON.stringify(bag))).toStrictEqual({ field: null });
     });
 
     it(`tells an embedding host a null for a cleared ${valueType}`, async () => {
@@ -402,7 +404,7 @@ describe('CustomFieldValuesPanel — an empty entity type and a failed load are 
 });
 
 describe('CustomFieldValuesPanel — embedded in a form of the host\'s own (feature 143)', () => {
-  it('renders the fields and no button, and tells the host the whole bag on every change', async () => {
+  it('renders the fields and no button, and tells the host the editable bag on every change', async () => {
     getSpy.mockResolvedValue({ data: [definition()] });
     const onChange = vi.fn();
 
@@ -414,7 +416,8 @@ describe('CustomFieldValuesPanel — embedded in a form of the host\'s own (feat
     const input = await screen.findByLabelText('Loyalty tier');
     expect(screen.queryByRole('button', { name: COPY.save })).toBeNull();
     await userEvent.type(input, 'go');
-    expect(onChange).toHaveBeenLastCalledWith({ other: 1, loyalty_tier: 'go' });
+    // `other` has no definition and is not sent (feature 175, FR-038).
+    expect(onChange).toHaveBeenLastCalledWith({ loyalty_tier: 'go' });
   });
 
   it('shows a refusal at the field it names, in either mode', async () => {
@@ -468,5 +471,157 @@ describe('CustomFieldValuesPanel — embedded in a form of the host\'s own (feat
     expect(await screen.findByLabelText('Poziom lojalności')).toBeTruthy();
     expect(screen.getByLabelText('Segment')).toBeTruthy();
     expect(screen.getByRole('option', { name: 'MŚP' })).toBeTruthy();
+  });
+});
+
+describe('CustomFieldValuesPanel — admin access (feature 175, FR-037, FR-038)', () => {
+  /**
+   * `read` and `hidden` are a convenience of this panel, not access control
+   * (OD-8): the API still accepts both. What the panel owes is to render a
+   * `read` field without an input, to omit a `hidden` one, and — the half that
+   * fixes a real overwrite race — to hand `save` / `onChange` only the keys it
+   * rendered as editable, so the server's merge keeps every other stored value,
+   * including one an integration wrote after the page was loaded.
+   */
+  const READ_COPY = {
+    read: copy('customFields.adminAccess.read'),
+    hidden: copy('customFields.adminAccess.hidden'),
+  };
+
+  const editable = definition();
+  const readOnly = definition({
+    id: '00000000-0000-4000-8000-00000000d175',
+    key: 'erp_code',
+    label: { en: 'ERP code' },
+    labelDefault: 'ERP code',
+    adminAccess: 'read',
+  });
+  const hidden = definition({
+    id: '00000000-0000-4000-8000-00000000d176',
+    key: 'sync_checksum',
+    label: { en: 'Sync checksum' },
+    labelDefault: 'Sync checksum',
+    adminAccess: 'hidden',
+  });
+  const stored = { loyalty_tier: 'gold', erp_code: 'ERP-001', sync_checksum: 'abc123' };
+
+  it('carries the access-level words in the shipped `core` bundle', () => {
+    expect(MISSING).toEqual([]);
+    expect(READ_COPY.read).toBeTruthy();
+    expect(READ_COPY.hidden).toBeTruthy();
+  });
+
+  it('renders a `read` field as its value with no input, and does not render a `hidden` one', async () => {
+    getSpy.mockResolvedValue({ data: [editable, readOnly, hidden] });
+
+    renderWithI18n(
+      <CustomFieldValuesPanel entityType="customer" values={stored} save={async (): Promise<void> => {}} />,
+      bundle,
+    );
+
+    await screen.findByLabelText('Loyalty tier');
+    expect(screen.getByText('ERP code')).toBeTruthy();
+    expect(screen.getByText('ERP-001')).toBeTruthy();
+    expect(screen.queryByLabelText('ERP code')).toBeNull();
+    expect(screen.getAllByRole('textbox')).toHaveLength(1);
+    expect(screen.queryByText('Sync checksum')).toBeNull();
+    expect(screen.queryByText('abc123')).toBeNull();
+  });
+
+  it('shows a dash for a `read` field with no stored value', async () => {
+    getSpy.mockResolvedValue({ data: [readOnly] });
+
+    renderWithI18n(
+      <CustomFieldValuesPanel entityType="customer" values={{}} onChange={(): void => {}} />,
+      bundle,
+    );
+
+    expect(await screen.findByText('ERP code')).toBeTruthy();
+    expect(screen.getByText('—')).toBeTruthy();
+  });
+
+  it('hands `save` only the `edit` keys — a stored `read` or `hidden` value is not in the bag', async () => {
+    getSpy.mockResolvedValue({ data: [editable, readOnly, hidden] });
+    const save = vi.fn().mockResolvedValue(undefined);
+
+    renderWithI18n(<CustomFieldValuesPanel entityType="customer" values={stored} save={save} />, bundle);
+
+    const input = await screen.findByLabelText('Loyalty tier');
+    await userEvent.clear(input);
+    await userEvent.type(input, 'silver');
+    await userEvent.click(screen.getByRole('button', { name: COPY.save }));
+
+    await waitFor(() => expect(save).toHaveBeenCalledTimes(1));
+    expect(save.mock.calls[0]?.[0]).toStrictEqual({ loyalty_tier: 'silver' });
+  });
+
+  it('tells an embedding host only the `edit` keys on every change', async () => {
+    getSpy.mockResolvedValue({ data: [editable, readOnly, hidden] });
+    const onChange = vi.fn();
+
+    renderWithI18n(<CustomFieldValuesPanel entityType="customer" values={stored} onChange={onChange} />, bundle);
+
+    await userEvent.type(await screen.findByLabelText('Loyalty tier'), '!');
+    expect(onChange.mock.lastCall?.[0]).toStrictEqual({ loyalty_tier: 'gold!' });
+  });
+
+  it('names a refusal of a non-`edit` field with its label and level, and points to the Custom fields screen', async () => {
+    getSpy.mockResolvedValue({ data: [editable, readOnly, hidden] });
+
+    renderWithI18n(
+      <CustomFieldValuesPanel
+        entityType="customer"
+        values={stored}
+        onChange={(): void => {}}
+        fieldErrors={{ sync_checksum: 'Value is too long.' }}
+      />,
+      bundle,
+    );
+
+    await screen.findByLabelText('Loyalty tier');
+    const refusal = screen.getByRole('alert');
+    expect(refusal).toHaveTextContent('Sync checksum');
+    expect(refusal).toHaveTextContent(READ_COPY.hidden);
+    expect(refusal).toHaveTextContent('Value is too long.');
+    expect(refusal).toHaveTextContent('Custom fields screen');
+  });
+
+  it('names a refusal of a non-`edit` field the host\'s own `save` answered with', async () => {
+    getSpy.mockResolvedValue({ data: [editable, readOnly] });
+    const { ApiError } = await vi.importActual<typeof import('@endora-commerce/admin-kit/lib')>(
+      '@endora-commerce/admin-kit/lib',
+    );
+    const save = vi.fn().mockRejectedValue(
+      new ApiError(422, {
+        error: {
+          code: 'CUSTOM_FIELD_VALUE_INVALID',
+          message: 'Custom field validation failed.',
+          requestId: 'r',
+          // The entry shape every host's custom-field 422 carries.
+          details: [{ path: 'erp_code', issue: 'Not a valid code.' }],
+        },
+      } as never),
+    );
+
+    renderWithI18n(<CustomFieldValuesPanel entityType="customer" values={stored} save={save} />, bundle);
+
+    await userEvent.click(await screen.findByRole('button', { name: COPY.save }));
+    await waitFor(() => expect(screen.getByText(/Not a valid code\./)).toBeTruthy());
+    const refusal = screen.getByText(/Not a valid code\./);
+    expect(refusal).toHaveTextContent('ERP code');
+    expect(refusal).toHaveTextContent(READ_COPY.read);
+    expect(refusal).toHaveTextContent('Custom fields screen');
+  });
+
+  it('renders nothing when every definition is `hidden`', async () => {
+    getSpy.mockResolvedValue({ data: [hidden] });
+
+    const { container } = renderWithI18n(
+      <CustomFieldValuesPanel entityType="customer" values={stored} save={async (): Promise<void> => {}} />,
+      bundle,
+    );
+
+    await waitFor(() => expect(getSpy).toHaveBeenCalled());
+    expect(container.textContent).toBe('');
   });
 });

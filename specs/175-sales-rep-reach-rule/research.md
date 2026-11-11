@@ -273,6 +273,57 @@ the platform administrator's whole orders request) — Phase 2 of the ruling, wh
 the hot path, is a breaking platform-API change and waits for the owner. The reach budget is still
 to be re-measured on a quiet host (load < 2) before the release.
 
+## R-7. Phase 2 — the reach off the hot path (owner ruling 2026-11-10)
+
+The owner allowed the uncorrelated `organizations`-owned subquery in the tenant filter — this amends
+the FR-002 / exit (a′) ruling of 2026-08-24 for that shape — and ordered Phase 2 into the same
+release.
+
+- **Lazy, memoised reach.** `adminTenantScopePort` no longer calls `reachOf`: the `excluding` scope
+  carries `excludedOrganizationsQuery` (what the filter renders) and `loadReach()`, which the
+  port memoises and `resolveTenantContext` memoises again per tenant context. A request that only
+  lists pays the role read and the roll-up permission, never the reach statement. A failed load
+  rejects every helper awaiting it — a refusal, never a widening.
+- **Async helpers.** `isOrgInScope` / `ruleVisibleForScope` were removed and replaced by
+  `orgInScope` / `ruleInScope`; `assignedOrganizationIdsForRanking` is async. Where a caller judges
+  many rows it already holds, `orgScopeTest()` gives a synchronous predicate taken once (price books,
+  projects' reach, page filters). This replaces the ruling's "one statement per check" with one
+  memoised load per request over the same `organizations_reach_split` definition: fewer statements,
+  same rule.
+- **Call sites:** carts, credit_limits, crm (7 files), customers, invoice_ledger, invoices (3),
+  mfa, orders, organizations, price_lists (scope taken async, checks sync), projects (reach taken
+  async), quick_order (`canManagePreference` and `PreferenceActor.reaches` async), and the
+  platform's write guard (`beforeCreate` / `beforeUpdate` awaited by MikroORM's flush).
+- **Lint.** `@typescript-eslint/no-floating-promises` and `no-misused-promises`, with
+  `projectService`, on every touched source file (root `eslint.config.js`); a canary
+  (`if (orgInScope(x))` and an unawaited call) fails both rules.
+
+### Result (perf seed, p95, runs started at load < 6)
+
+| Measurement | Budget | Run 1 (load 4.8) | Run 2 (load 3.5) | Run 3 (load 4.1 → 7.5) |
+| --- | --- | --- | --- | --- |
+| `reachOf`, flat | 5 ms | 3.3 ms | 3.1 ms | 3.6 ms |
+| `reachOf`, roll-up | 5 ms | 4.3 ms | 4.4 ms | 5.5 ms |
+| customers, rep vs admin | ≤ 1.5× | 23.0 / 17.9 ms (1.28×) | 20.7 / 16.3 ms (1.27×) | 22.7 / 18.0 ms (1.26×) |
+| orders, rep vs admin | ≤ 1.5× | 14.6 / 10.6 ms (1.39×) | 14.6 / 10.6 ms (1.38×) | 19.2 / 12.6 ms (1.53×) |
+
+After rebuilding every package (runs 1–3 above had stale builds of modules this change does not
+touch), two more runs, started at load < 5:
+
+| Measurement | Budget | Run 4 (load 2.9) | Run 5 (load 2.2 → 2.0) |
+| --- | --- | --- | --- |
+| `reachOf`, flat | 5 ms | 4.3 ms | 3.7 ms |
+| `reachOf`, roll-up | 5 ms | **5.08 ms** | 4.9 ms |
+| customers, rep vs admin | ≤ 1.5× | 23.2 / 18.7 ms (1.24×) | 23.4 / 20.5 ms (1.14×) |
+| orders, rep vs admin | ≤ 1.5× | 16.1 / 11.8 ms (1.37×) | 18.0 / 12.1 ms (1.48×) |
+
+The list assertions are plain `it` now, and every list measurement after Phase 2 but one passes
+(run 3's 1.53× was taken while the shared host's load rose to 7.5). Roll-up `reachOf` sits at the
+budget: 4.3–5.5 ms, over it in two of five runs. It no longer runs on a list request (Phase 2 took
+it off the hot path); it bounds the single-id helpers and the ranking. The quiet-host (load < 2)
+measurement the architect asked for before the release is still owed: the host never went below 2
+while this ran.
+
 ## R-4. Choices the design left open
 
 - **Consumers that took an `AdminTenantScope` of another administrator** (`crm` assignee and

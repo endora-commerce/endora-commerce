@@ -1,5 +1,10 @@
 import type { EntityManager } from '@mikro-orm/postgresql';
-import type { CustomFieldValidationError as CustomFieldValidationErrorDto, SupportedEntityType } from '@endora-commerce/contracts';
+import type {
+  CustomFieldInputSurface,
+  CustomFieldValidationError as CustomFieldValidationErrorDto,
+  SupportedEntityType,
+  SupportedLanguage,
+} from '@endora-commerce/contracts';
 import type { CachedDefinition } from './custom-field-definitions-cache.js';
 import { hostStorageBinding } from './host-storage-binding.js';
 
@@ -24,6 +29,39 @@ export class CustomFieldValidationError extends Error {
 const DEFAULT_TEXT_MAX = 10_000;
 
 /**
+ * Feature 175 (FR-013) — the longest text a BUYER may supply, after trimming.
+ * Tighter than {@link DEFAULT_TEXT_MAX}: the writer is anonymous.
+ */
+const CUSTOMER_INPUT_TEXT_MAX = 1_000;
+
+/** Feature 175 (FR-013) — the most keys one buyer-supplied group may carry. */
+const CUSTOMER_INPUT_MAX_KEYS = 50;
+
+/**
+ * Feature 175 — a sentence from this module's bundle, in `language`, or `null`
+ * when the bundle has none. Injected by the composition (`_i18n`'s
+ * `adminI18nService`), so the service stays testable with a stub.
+ */
+export type ValueMessageTranslate = (key: string, language: SupportedLanguage) => Promise<string | null>;
+
+/**
+ * Feature 175 — what a BUYER reads beside a refused field, per code, when no
+ * bundle sentence answers. The same sentences as `customFields.valueError.*`
+ * in `i18n/en.json`. None names the definition key or echoes the typed value:
+ * the storefront places each refusal under its field, and a key is not words
+ * a buyer knows (`specs/conventions/module-i18n.md`, case 1).
+ */
+const BUYER_MESSAGES: Readonly<Record<CustomFieldValidationErrorDto['code'], string>> = {
+  missing_required: 'This field is required.',
+  wrong_type: 'Enter a valid value.',
+  out_of_range: 'This value is too long.',
+  unknown_option: 'Choose one of the options.',
+  duplicate_option: 'Choose each option only once.',
+  not_open_for_input: 'This field cannot be filled in here.',
+  too_many_keys: 'Too many additional fields were sent at once.',
+};
+
+/**
  * CustomFieldValueService (feature 055) — validates a host record's custom-field
  * bag against its definitions and strips dormant keys on read.
  *
@@ -33,7 +71,11 @@ const DEFAULT_TEXT_MAX = 10_000;
  * (Principle I) and avoiding double-audit (Principle XIII / XIV).
  */
 export class CustomFieldValueService {
-  constructor(private readonly definitions: DefinitionSource) {}
+  constructor(
+    private readonly definitions: DefinitionSource,
+    /** Feature 175 — words a buyer's refusals; absent, the English sentences stand. */
+    private readonly translate?: ValueMessageTranslate,
+  ) {}
 
   /**
    * Validate an incoming patch against the entity's definitions and return the
@@ -74,6 +116,106 @@ export class CustomFieldValueService {
 
     if (errors.length > 0) throw new CustomFieldValidationError(errors);
     return merged;
+  }
+
+  /**
+   * Feature 175 — values a BUYER supplies on an input surface, for a record
+   * being created (`specs/175-buyer-input-custom-fields/` research R-3). Not
+   * {@link validateAndMerge}: that one drops unknown keys and enforces
+   * `required` across every definition, which is the administrator's rule set.
+   *
+   * In order: more than 50 keys is refused with `too_many_keys` before any
+   * definition is read (its `field` is the entity type; a caller naming its
+   * groups otherwise replaces it); every key must be a live definition open
+   * on `surface` — `customer` audience, not `page_builder`, `customerInput`
+   * naming the surface — or it is refused with `not_open_for_input`; each open
+   * definition is then judged: a string is trimmed and a whitespace-only one is
+   * empty, an empty required field is `missing_required`, a text over 1 000
+   * characters is `out_of_range`, and anything else goes through {@link coerce}
+   * exactly as the administrator's values do. Every refusal is collected into
+   * one {@link CustomFieldValidationError}. Answers a fresh bag holding only
+   * the supplied open keys — there is no stored bag on a record being created.
+   *
+   * Every refusal's `message` is a sentence a buyer can read beside the field
+   * — never the key, never the typed value — and, given `language`, it is this
+   * module's bundle sentence for the code in that language
+   * (`customFields.valueError.<code>`). The code stays the machine token.
+   */
+  async validateForCustomerInput(
+    entityType: SupportedEntityType,
+    values: Record<string, unknown> | undefined,
+    surface: CustomFieldInputSurface,
+    language?: SupportedLanguage,
+  ): Promise<Record<string, unknown>> {
+    const supplied = values ?? {};
+    const keys = Object.keys(supplied);
+    if (keys.length > CUSTOMER_INPUT_MAX_KEYS) {
+      throw new CustomFieldValidationError(
+        await this.worded([{ field: entityType, code: 'too_many_keys', message: BUYER_MESSAGES.too_many_keys }], language),
+      );
+    }
+
+    const defs = await this.definitions.listForEntity(entityType);
+    const open = defs.filter(
+      ({ definition }) =>
+        definition.audience === 'customer' &&
+        definition.valueType !== 'page_builder' &&
+        (definition.customerInput ?? []).includes(surface),
+    );
+    const openKeys = new Set(open.map(({ definition }) => definition.key));
+    const errors: CustomFieldValidationErrorDto[] = [];
+    for (const key of keys) {
+      if (!openKeys.has(key)) {
+        errors.push({ field: key, code: 'not_open_for_input', message: BUYER_MESSAGES.not_open_for_input });
+      }
+    }
+
+    const bag: Record<string, unknown> = {};
+    for (const { definition, options } of open) {
+      const key = definition.key;
+      const given = Object.prototype.hasOwnProperty.call(supplied, key) ? supplied[key] : undefined;
+      const raw = typeof given === 'string' ? given.trim() : given;
+      if (isEmpty(raw)) {
+        if (definition.required) {
+          errors.push({ field: key, code: 'missing_required', message: BUYER_MESSAGES.missing_required });
+        }
+        continue;
+      }
+      if (definition.valueType === 'text' && typeof raw === 'string' && raw.length > CUSTOMER_INPUT_TEXT_MAX) {
+        errors.push({ field: key, code: 'out_of_range', message: BUYER_MESSAGES.out_of_range });
+        continue;
+      }
+      const result = coerce(definition.valueType, raw, options);
+      // `coerce`'s own sentence echoes the value; the buyer reads the code's.
+      if ('code' in result) errors.push({ field: key, code: result.code, message: BUYER_MESSAGES[result.code] });
+      else bag[key] = result.value;
+    }
+
+    if (errors.length > 0) throw new CustomFieldValidationError(await this.worded(errors, language));
+    return bag;
+  }
+
+  /**
+   * The refusals with each message in `language`, where this module's bundle
+   * has the sentence. A miss, or a translator that fails, keeps the English
+   * sentence: wording a refusal may never replace it.
+   */
+  private async worded(
+    errors: CustomFieldValidationErrorDto[],
+    language: SupportedLanguage | undefined,
+  ): Promise<CustomFieldValidationErrorDto[]> {
+    const translate = this.translate;
+    if (language === undefined || translate === undefined) return errors;
+    return Promise.all(
+      errors.map(async (error) => {
+        try {
+          const sentence = await translate(`customFields.valueError.${error.code}`, language);
+          return sentence ? { ...error, message: sentence } : error;
+        } catch {
+          return error;
+        }
+      }),
+    );
   }
 
   /**

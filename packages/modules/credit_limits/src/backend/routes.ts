@@ -9,7 +9,7 @@ import {
   type OrganizationPermissionPort,
 } from '@endora-commerce/contracts';
 import { HttpError } from '@endora-commerce/platform/http';
-import { isOrgInScope } from '@endora-commerce/platform/tenancy';
+import { orgInScope } from '@endora-commerce/platform/tenancy';
 import type { CreditLimitService } from './services/credit-limit-service.js';
 import { availableCredit } from './services/credit-money.js';
 import type { CreditLimit } from './entities/credit-limit.entity.js';
@@ -178,7 +178,7 @@ export async function registerCreditLimitsRoutes(
       const body = grantCreditLimitRequestSchema.parse(request.body);
       // Feature 050 — inserts are not reachable by the org column filter, so gate
       // the target org explicitly; out-of-scope responds as "not granted" (FR-008).
-      if (!isOrgInScope(request.params.id)) {
+      if (!(await orgInScope(request.params.id))) {
         throw new HttpError(
           404,
           ERROR_CODES.CREDIT_LIMIT_NOT_GRANTED,
@@ -232,7 +232,7 @@ export async function registerCreditLimitsRoutes(
     async (request) => {
       const body = adjustCreditLimitRequestSchema.parse(request.body);
       // Feature 050 — gate the target org (see POST grant above).
-      if (!isOrgInScope(request.params.id)) {
+      if (!(await orgInScope(request.params.id))) {
         throw new HttpError(
           404,
           ERROR_CODES.CREDIT_LIMIT_NOT_GRANTED,

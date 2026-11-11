@@ -199,6 +199,15 @@ Wdrożenie, które już ma kolidującą konfigurację, jest zgłaszane przy star
 kolidującej pary, i **nie jest blokowane**: dającą się naprawić pomyłkę w konfiguracji faktur nie
 można zamieniać w awarię storefrontu.
 
+## W dzienniku audytu
+
+Wystawienie faktury i wystawienie korekty to każde jeden wpis w dzienniku audytu całej
+platformy (`invoice.issued`, `invoice.corrected`). Ten dziennik czyta każdy, kto ma
+`audit_log:read`, bez względu na to, które organizacje widzi, dlatego wpis nazywa dokument i nie
+zawiera żadnej kwoty: jego numer, rodzaj, zamówienie, kanał sprzedaży, a przy korekcie — fakturę
+pierwotną, liczbę pozycji obniżających cenę i rodzaje skorygowanych opłat (`chargeKinds`). Kwoty
+są na samej fakturze. Wpisy zapisane przed tą zmianą zachowują kwoty, z którymi zostały zapisane.
+
 ## Punkty rozszerzenia
 
 - **Schemat numeracji** — `services/invoice-number-generator.ts` zamienia wzorzec na numer

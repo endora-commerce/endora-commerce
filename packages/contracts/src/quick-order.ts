@@ -1,6 +1,7 @@
 import { z } from 'zod';
 import { uuidSchema } from './common.js';
 import { nextActionSchema } from './orders.js';
+import { lineQuantitySchema, REQUEST_LINE_ITEMS_MAX } from './line-bounds.js';
 
 /**
  * Quick-order contracts (feature 039). The quick-order page lets buyers
@@ -198,7 +199,7 @@ export type QuickOrderTarget = z.infer<typeof quickOrderTargetSchema>;
 export const quickOrderBuildLineSchema = z.object({
   productId: uuidSchema,
   variantId: uuidSchema.nullable().optional(),
-  quantity: z.number().int().positive(),
+  quantity: lineQuantitySchema,
 });
 export type QuickOrderBuildLine = z.infer<typeof quickOrderBuildLineSchema>;
 
@@ -208,7 +209,7 @@ export type QuickOrderBuildLine = z.infer<typeof quickOrderBuildLineSchema>;
  * `details: { code: 'too_many_items', maximum }`), deliberately not by a schema `.max()`,
  * which would answer 400.
  */
-export const QUICK_ORDER_BUILD_MAX_ITEMS = 200;
+export const QUICK_ORDER_BUILD_MAX_ITEMS = REQUEST_LINE_ITEMS_MAX;
 
 export const quickOrderBuildRequestSchema = z.object({
   target: quickOrderTargetSchema,
@@ -342,7 +343,7 @@ export type QuickOrderOneClickEligibility = z.infer<typeof quickOrderOneClickEli
 export const quickOrderOneClickRequestSchema = z.object({
   productId: uuidSchema,
   variantId: uuidSchema.nullable().optional(),
-  quantity: z.number().int().positive().optional(),
+  quantity: lineQuantitySchema.optional(),
   idempotencyKey: z.string().max(200).optional(),
 });
 export type QuickOrderOneClickRequest = z.infer<typeof quickOrderOneClickRequestSchema>;
@@ -403,7 +404,7 @@ export type PreferenceActor =
    * nobody else governs — assigned, roll-up and unassigned — which no list of
    * ids names, so the actor carries the question rather than an answer.
    */
-  | { kind: 'salesperson'; reaches: (organizationId: string) => boolean }
+  | { kind: 'salesperson'; reaches: (organizationId: string) => Promise<boolean> }
   | { kind: 'platform_admin' };
 
 /**

@@ -1,5 +1,6 @@
 import {
   evaluateOrderMinimums,
+  LINE_QUANTITY_MAX,
   type OrderMinimumLine,
   type OrderMinimumProduct,
   type ProductAudience,
@@ -291,7 +292,7 @@ export class QuickOrderImportPipeline {
       rejected.push({ line: c.line, raw: c.raw, reason: 'product_not_found' });
     }
 
-    const { recognized: merged, mergedCount } = this.mergeDuplicates(resolvedLines);
+    const { recognized: merged, mergedCount } = this.mergeDuplicates(resolvedLines, rejected);
 
     // Feature 155 (P1, R12.1) — the minimum rules of every product a
     // recognised row resolved to, from the records already loaded above.
@@ -368,7 +369,7 @@ export class QuickOrderImportPipeline {
     return operator ? { recognized, rejected, warningCount } : { recognized, rejected };
   }
 
-  /** Validate sku + integer quantity, rejecting malformed rows with a reason. */
+  /** Validate sku + integer quantity (1…`LINE_QUANTITY_MAX`), rejecting malformed rows with a reason. */
   private toCandidates(rows: NormalizedRow[], rejected: RejectedQuickOrderItem[]): Candidate[] {
     const candidates: Candidate[] = [];
     for (const row of rows) {
@@ -377,7 +378,14 @@ export class QuickOrderImportPipeline {
         continue;
       }
       const quantity = Number.parseInt(row.quantityRaw, 10);
-      if (!Number.isFinite(quantity) || quantity < 1 || String(quantity) !== row.quantityRaw) {
+      // Issue #351 — past the line bound the build would refuse the row, so it is
+      // refused here, by row, instead of being recognised into a failing build.
+      if (
+        !Number.isFinite(quantity) ||
+        quantity < 1 ||
+        quantity > LINE_QUANTITY_MAX ||
+        String(quantity) !== row.quantityRaw
+      ) {
         rejected.push({ line: row.rowNumber, raw: row.raw, reason: 'quantity_invalid' });
         continue;
       }
@@ -393,19 +401,28 @@ export class QuickOrderImportPipeline {
   }
 
   /** Merge duplicate (productId, variantId) lines, summing quantity (FR-009). */
-  private mergeDuplicates(lines: ResolvedLine[]): {
+  /**
+   * Issue #351 (architect ruling R3 on PR #1009) — a duplicate whose sum passes
+   * `LINE_QUANTITY_MAX` is not recognised: every one of its rows is rejected as
+   * `quantity_invalid`, the outcome a single row past the bound already has. The
+   * import report is per row, so the rest of the file is still recognised.
+   */
+  private mergeDuplicates(
+    lines: ResolvedLine[],
+    rejected: RejectedQuickOrderItem[],
+  ): {
     recognized: Array<RecognizedQuickOrderItem & { raw: string }>;
     mergedCount: number;
   } {
-    const byKey = new Map<string, RecognizedQuickOrderItem & { raw: string; mergedFromLines: number[] }>();
-    let mergedCount = 0;
+    type Merged = RecognizedQuickOrderItem & { raw: string; mergedFromLines: number[]; sources: ResolvedLine[] };
+    const byKey = new Map<string, Merged>();
     for (const line of lines) {
       const key = `${line.productId}::${line.variantId ?? ''}`;
       const existing = byKey.get(key);
       if (existing) {
         existing.quantity += line.quantity;
         existing.mergedFromLines.push(line.line);
-        mergedCount += 1;
+        existing.sources.push(line);
       } else {
         byKey.set(key, {
           line: line.line,
@@ -416,13 +433,21 @@ export class QuickOrderImportPipeline {
           resolvedVariantSku: line.resolvedVariantSku,
           quantity: line.quantity,
           mergedFromLines: [],
+          sources: [line],
         });
       }
     }
-    const recognized = Array.from(byKey.values()).map((item) => {
-      const { mergedFromLines, ...rest } = item;
-      return mergedFromLines.length > 0 ? { ...rest, mergedFromLines } : rest;
-    });
+    let mergedCount = 0;
+    const recognized: Array<RecognizedQuickOrderItem & { raw: string }> = [];
+    for (const item of byKey.values()) {
+      const { mergedFromLines, sources, ...rest } = item;
+      if (rest.quantity > LINE_QUANTITY_MAX) {
+        for (const source of sources) rejected.push({ line: source.line, raw: source.raw, reason: 'quantity_invalid' });
+        continue;
+      }
+      mergedCount += mergedFromLines.length;
+      recognized.push(mergedFromLines.length > 0 ? { ...rest, mergedFromLines } : rest);
+    }
     return { recognized, mergedCount };
   }
 

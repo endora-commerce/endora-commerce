@@ -312,11 +312,11 @@ describe('159 — POST /api/v1/admin/orders with line groups [contract]', () => 
     expect(await groupsNamed(name)).toBe(0);
   });
 
-  it('records the grouping shape on the order.place_on_behalf audit entry (FR-081)', async () => {
+  it('records the grouping shape on the order.place_on_behalf audit entry (FR-081) — line counts, never a value (D-288)', async () => {
     const res = await create({
       groups: [
-        { key: 'a', name: 'Hall A' },
-        { key: 'b', name: 'Hall B' },
+        { key: 'a', name: `S470-HALL-A-${stamp}` },
+        { key: 'b', name: `S470-HALL-B-${stamp}` },
       ],
       items: [
         { productId: SEED_PRODUCT_101_ID, quantity: 1, groupKey: 'a' },
@@ -325,18 +325,29 @@ describe('159 — POST /api/v1/admin/orders with line groups [contract]', () => 
       ],
     });
     expect(res.statusCode, res.body).toBe(201);
-    const orderId = (res.json() as { data: OrderReply }).data.id;
+    const order = (res.json() as { data: OrderReply }).data;
+    const orderId = order.id;
     const audits = await h
       .em()
       .fork()
       .find(AuditLogEntry, { objectType: 'order', objectId: orderId, action: 'order.place_on_behalf' });
     expect(audits).toHaveLength(1);
-    expect(audits[0]!.stateAfter).toMatchObject({
-      groups: [
-        { name: 'Hall A', lineCount: 2 },
-        { name: 'Hall B', lineCount: 1 },
-      ],
+    expect(audits[0]!.stateAfter).toMatchObject({ groups: [{ lineCount: 2 }, { lineCount: 1 }] });
+
+    // The platform audit log, as `audit_log:read` reads it: no group name, no
+    // amount, no currency and no tenant anchor of the order (#470).
+    const read = await h.app.inject({
+      method: 'GET',
+      url: `/api/v1/admin/audit-log?filter[objectId]=${orderId}&filter[action]=order.place_on_behalf`,
+      cookies: ADMIN,
     });
+    expect(read.statusCode, read.body).toBe(200);
+    const rows = (read.json() as { data: Array<{ stateBefore: unknown; stateAfter: unknown }> }).data;
+    expect(rows).toHaveLength(1);
+    const recorded = JSON.stringify(rows.map((row) => [row.stateBefore, row.stateAfter]));
+    for (const sentinel of ['S470-HALL', order.total, TEST_ORGANIZATION_ID, TEST_CUSTOMER_ID, '"currency"', '"total"']) {
+      expect(recorded, sentinel).not.toContain(sentinel);
+    }
 
     // An ungrouped creation records no `groups` at all.
     const plain = await create({ items: [{ productId: SEED_PRODUCT_101_ID, quantity: 1 }] });

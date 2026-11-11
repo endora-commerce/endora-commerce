@@ -510,6 +510,14 @@ quality:
     # a read code to open and a write code to use — a single field cannot say
     # both, and the choice is the owner's.
     - pnpm --filter backend run check:action-route-permissions
+    # Feature 175 — every custom-field host declares its admin create and update
+    # (or values endpoint) and its buyer input surfaces in a literal
+    # `customFieldWrites` export beside its manifest, and each declaration agrees
+    # with the route the module registers and the contract that route validates
+    # with. An undeclared write is found only at a declared create's path or its
+    # `/:id` child — the discovery scope accepted on 2026-11-06; the rest is the
+    # author's obligation (`specs/conventions/custom-field-writes.md`).
+    - pnpm --filter backend run check:custom-field-writes
     # Issue #111 — a test releases a harness-owned resource through
     # `teardownBackendServer`, never by closing it itself. Seventy-seven files had
     # copied the same three lines (`app.close`, `redis.disconnect`, `orm.close`)

@@ -11,6 +11,7 @@ import type { CommandBus } from '@endora-commerce/platform/commands';
 import { HttpError } from '@endora-commerce/platform/http';
 import { rethrowIfModuleDisabled } from '@endora-commerce/platform/kernel';
 import { TaskAttachment } from '../entities/task-attachment.entity.js';
+import { recordTaskValueChange } from './task-audit-state.js';
 import { asDownloadLink, refuseActiveContent } from './attachment-active-content.js';
 import { actingAdminUserId, isUuid, type TaskAccess } from './task-access.js';
 
@@ -127,10 +128,15 @@ export class TaskAttachmentService {
             assetId,
             addedByAdminUserId: uploader,
           });
+          // A file's name is free text: it goes to the Task's own store (#470).
+          const values = recordTaskValueChange(tx as EntityManager, task.id, {
+            before: null,
+            after: { fileName: asset.filename },
+          });
           return {
             result: created,
             before: null,
-            after: { attachmentId: created.id, assetId, fileName: asset.filename },
+            after: { attachmentId: created.id, assetId, ...values },
           };
         },
       });

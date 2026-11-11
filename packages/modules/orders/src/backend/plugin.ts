@@ -641,6 +641,7 @@ export function commerceModule(options: OrdersModuleOptions) {
       options.catalogProductRead,
       options.mailer,
       options.getTransactionalEmailSender,
+      options.customFieldValues,
     );
 
     if (options.exposeOrderService) options.exposeOrderService(orderService);

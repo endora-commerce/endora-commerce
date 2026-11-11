@@ -69,9 +69,15 @@ describe('invoices — audit logging (FR-035)', () => {
       cookies: ADMIN_COOKIE,
       payload: { kind: 'invoice' },
     });
-    const id = (res.json() as { data: { id: string } }).data.id;
+    const issued = (res.json() as { data: { id: string; grossTotal: string | number } }).data;
+    const id = issued.id;
     const row = await h.em().findOne(AuditLogEntry, { action: 'invoice.issued', objectId: id });
     expect(row).not.toBeNull();
+    // Names and structure, never values (#470, D-288): the invoice is the
+    // Organization's, the audit log is read without its reach.
+    expect(row?.stateAfter).not.toHaveProperty('grossTotal');
+    expect(JSON.stringify(row?.stateAfter)).not.toContain(String(Number(issued.grossTotal)));
+    expect(row?.stateAfter).toMatchObject({ kind: 'invoice', orderId });
   });
 
   it('records invoice.corrected on a correction', async () => {
@@ -97,5 +103,9 @@ describe('invoices — audit logging (FR-035)', () => {
     if (!result.issued) throw new Error(`Expected a correction: ${result.reason}`);
     const row = await h.em().findOne(AuditLogEntry, { action: 'invoice.corrected', objectId: result.invoiceId });
     expect(row).not.toBeNull();
+    // Names and structure, never values (#470): what was credited, by count and kind, not by amount.
+    expect(row?.stateAfter).not.toHaveProperty('credited');
+    expect(row?.stateAfter).not.toHaveProperty('charges');
+    expect(row?.stateAfter).toMatchObject({ orderId, priceReductionLines: 0 });
   });
 });
