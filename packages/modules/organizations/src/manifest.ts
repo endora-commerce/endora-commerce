@@ -496,6 +496,13 @@ export const manifest = defineModuleManifest({
       label: 'Convert personal organizations to companies',
       requires: ['customers:read'],
     },
+    // Issue #1040 — correcting a live company's tax ID (admin route, its screen
+    // and the detail button); an operator's action only.
+    {
+      code: 'organizations:change-tax-id',
+      label: "Change a company organization's tax ID",
+      requires: ['customers:read'],
+    },
   ],
   settings,
   /**
@@ -571,6 +578,19 @@ export const manifest = defineModuleManifest({
       keywords: ['convert', 'personal', 'company', 'b2c', 'b2b'],
       keywordsKey: 'actions.convertPersonalOrganization.keywords',
       weight: 185,
+    },
+    // Issue #1040 (Principle XVI) — the tax-ID correction screen, gated on the
+    // code its route and API enforce.
+    {
+      id: 'change-organization-tax-id',
+      labelKey: 'actions.changeOrganizationTaxId.label',
+      descriptionKey: 'actions.changeOrganizationTaxId.description',
+      icon: 'Edit',
+      targetRoute: '/organizations/change-tax-id',
+      requiredPermission: 'organizations:change-tax-id',
+      keywords: ['tax', 'nip', 'vat', 'change', 'correct', 'fix', 'company'],
+      keywordsKey: 'actions.changeOrganizationTaxId.keywords',
+      weight: 180,
     },
     // Feature 173 (`contracts/admin-surfaces.md` §5, Principle XVI) — the three
     // registration-lookup settings. The generic Settings screen has no
@@ -766,6 +786,8 @@ export const manifest = defineModuleManifest({
       code: 'ORGANIZATION_CONVERSION_REFUSED',
       tokens: ['not_personal', 'deleted', 'owner_not_administrator'],
     },
+    // Issue #1040 — every raise carries one of the two tokens.
+    { code: 'ORGANIZATION_TAX_ID_CHANGE_REFUSED', tokens: ['not_company', 'deleted'] },
     {
       code: 'ORGANIZATION_TREE_INVALID',
       tokens: ['cycle', 'max_depth_exceeded', 'path_unreadable', 'tax_id_shared_across_trees'],

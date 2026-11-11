@@ -21,7 +21,8 @@ import { describe, expect, it } from 'vitest';
  *
  * `personal-organization-service.ts` inserts too, but only personal rows,
  * whose `tax_id` is null and outside both constraints. The conversion Command
- * (WP-5) and registration's Command (WP-R) join the first list when they land.
+ * (WP-5), the tax-ID correction (issue #1040) and registration's Command (WP-R)
+ * join the first list when they land.
  */
 const BACKEND = fileURLToPath(new URL('.', import.meta.url));
 
@@ -34,7 +35,7 @@ function sources(dir: string): string[] {
 }
 
 const WRITES = /em\.create\(Organization\b|applyReparentPaths\(|\borg\.taxId = /;
-const FACTORIES = /\bmake(CreateOrganization|SetParent|Move|ConvertToCompany)Command\b/;
+const FACTORIES = /\bmake(CreateOrganization|SetParent|Move|ConvertToCompany|ChangeTaxId)Command\b/;
 
 describe('the writes of organizations.tax_id and path', () => {
   it('are the create and re-parent Commands', () => {
@@ -43,6 +44,7 @@ describe('the writes of organizations.tax_id and path', () => {
       .map((path) => relative(BACKEND, path))
       .sort();
     expect(commands).toEqual([
+      'commands/change-tax-id.command.ts',
       'commands/convert-to-company.command.ts',
       'commands/create-organization.command.ts',
       'commands/set-parent.command.ts',
@@ -58,7 +60,7 @@ describe('the writes of organizations.tax_id and path', () => {
     for (const path of callers) {
       const text = readFileSync(path, 'utf8');
       expect(text, relative(BACKEND, path)).toContain('runOrganizationWrite(');
-      expect(text).not.toMatch(/\.run\(\s*make(CreateOrganization|SetParent|Move|ConvertToCompany)Command\(/);
+      expect(text).not.toMatch(/\.run\(\s*make(CreateOrganization|SetParent|Move|ConvertToCompany|ChangeTaxId)Command\(/);
       expect(text).not.toMatch(/commandBus\.run\(\s*command\s*\)/);
     }
   });

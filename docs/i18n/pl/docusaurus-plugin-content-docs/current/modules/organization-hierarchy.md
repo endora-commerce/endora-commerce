@@ -77,6 +77,12 @@ korzeniem:
 W domyślnym zakresie `global` przenoszenie działa jak wcześniej: żaden NIP nie może należeć do
 dwóch organizacji, więc przeniesienie nigdy nie trafia na tę odmowę.
 
+Oddział, któremu przez pomyłkę nadano NIP centrali — a w rzeczywistości jest osobnym podatnikiem —
+zostaje na swoim miejscu w drzewie i dostaje własny NIP przyciskiem **Zmień numer podatkowy** na
+swojej stronie (strona *Organizacje*, *Korekta NIP*). Gdy nie ma już wspólnego NIP, można go odłączyć
+albo przenieść, a gdy żaden NIP nie jest współdzielony, zakres można przełączyć z powrotem na
+*Globalny*.
+
 ## Wgląd w strukturę
 
 Widoczność organizacji podrzędnych wymaga uprawnienia `organizations:rollup` („Act across

@@ -253,6 +253,14 @@ export const MINTED_ERROR_CODES: MintedErrorCodes = {
       'its Administrator. The noun is the organization, and the one raise site is ' +
       '`organizations`\' `organization.convert_to_company` Command.',
   },
+  ORGANIZATION_TAX_ID_CHANGE_REFUSED: {
+    to: 'organizations',
+    reason:
+      'Minted by issue #1040 (follow-up to `specs/177-tax-id-scope/`) for the refusal an ' +
+      'operator\'s tax-ID correction earns: the organization is personal or deleted. The noun is ' +
+      'the organization, and the one raise site is `organizations`\' `organization.tax_id.change` ' +
+      'Command.',
+  },
   ADMIN_USER_ROLE_REQUIRED: {
     to: 'admin_users',
     reason:

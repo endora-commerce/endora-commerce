@@ -19,8 +19,9 @@ import type { Organization } from '../entities/organization.entity.js';
  */
 
 /**
- * Every top-level key an `organization.admin_patch` or
- * `organization.set_custom_field_values` audit state may hold. Anything else
+ * Every top-level key an `organization.admin_patch`,
+ * `organization.set_custom_field_values` or `organization.tax_id.change` audit
+ * state may hold. Anything else
  * is a value until somebody classifies it on purpose —
  * `admin-patch-organization.command.test.ts` holds the recorded state to this
  * list.
@@ -33,6 +34,10 @@ export const ORGANIZATION_AUDIT_KEYS: ReadonlySet<string> = new Set([
   // What changed, by name.
   'changedFields',
   'changedCustomFields',
+  // Issue #1040 — `organization.tax_id.change`: a boolean (the VAT validation
+  // summary was cleared) and the tax-ID scope code in force.
+  'vatStatusReset',
+  'taxIdScope',
 ]);
 
 /** The columns `organization.admin_patch` may set, compared to name what changed. */

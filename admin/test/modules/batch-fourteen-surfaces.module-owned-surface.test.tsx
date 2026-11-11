@@ -214,6 +214,8 @@ const SUBJECTS: readonly Subject[] = [
       ['/organizations/tax-id-scope', 'organizations:manage-tax-id-scope'],
       // `specs/177-tax-id-scope/` — the personal → company conversion screen.
       ['/organizations/convert-to-company', 'organizations:convert-to-company'],
+      // Issue #1040 — the tax-ID correction screen.
+      ['/organizations/change-tax-id', 'organizations:change-tax-id'],
       ['/organizations/:id', ['customers:read', 'customers:manage']],
     ],
     navTargets: ['/organizations'],

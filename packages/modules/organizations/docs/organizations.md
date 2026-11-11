@@ -43,6 +43,7 @@ organization's Administrator role, checked server-side through
 | `GET /api/v1/admin/organizations/tax-id-scope` | admin (`organizations:manage-tax-id-scope`, platform administrator) | The tax-ID scope in force, when and by whom it was set, how many tax IDs are shared, and whether the database enforces it (see *Tax-ID scope* below) |
 | `PUT /api/v1/admin/organizations/tax-id-scope` | admin (`organizations:manage-tax-id-scope`, platform administrator) | Change the tax-ID scope (`{ scope: 'global' \| 'per-tree-root' }`) |
 | `POST /api/v1/admin/organizations/:id/convert-to-company` | admin (`organizations:convert-to-company`; `customers:manage` too with `validateTaxId: true`) | Convert a personal Organization into a company (see *Converting a personal organization to a company* below) |
+| `POST /api/v1/admin/organizations/:id/change-tax-id` | admin (`organizations:change-tax-id`; `customers:manage` too with `validateTaxId: true`) | Correct a company Organization's tax ID (`{ taxId, validateTaxId? }` → `{ data, changed, vatValidation }`; see *Correcting a tax ID* below) |
 | `GET /api/v1/admin/organizations/sales-channel-options` | admin (`customers:manage`) | The channels the create form offers |
 | `GET /api/v1/admin/organizations/:id/sales-channels` | admin (`customers:read` or `customers:manage`) | The channels assigned to the Organization, and the channels it could be assigned. `404 NOT_FOUND` for an Organization outside a sales representative's reach (see below the table), as for one that does not exist |
 | `PUT /api/v1/admin/organizations/:id/sales-channels` | admin (`customers:manage`) | Replace the assigned channels (`{ salesChannelIds }`, at least one); `404 NOT_FOUND` outside a sales representative's reach, as for the read |
@@ -75,7 +76,10 @@ tax-ID scope and enforced by the database (see *Tax IDs* below).
 `organization.member_role_changed.v1`, `organization.converted_to_company.v1`
 (`OrganizationConvertedToCompanyEvent`: `{ eventId, occurredAt, organizationId,
 convertedAt }` — no name and no tax ID; dispatched once, after the conversion
-commits).
+commits), `organization.tax_id_changed.v1` (`OrganizationTaxIdChangedEvent`:
+`{ eventId, occurredAt, organizationId, changedAt }` — neither the old nor the
+new tax ID; dispatched once, after a tax-ID correction commits, and not for a
+correction to the value already stored).
 
 ## Extension points
 
@@ -890,9 +894,74 @@ included.
 A company organization always has a tax ID and a personal one never does; the
 check `organizations_tax_id_presence` refuses a row breaking either half.
 
-The tax ID is entered when the organization is created (or converted) and is
-not editable afterwards in the admin: `PATCH /api/v1/admin/organizations/:id`
-does not accept it.
+The tax ID is entered when the organization is created (or converted).
+`PATCH /api/v1/admin/organizations/:id` does not accept it; a wrong one is
+corrected with **Change tax ID** (see *Correcting a tax ID* below), an audited
+operation of its own.
+
+### Correcting a tax ID
+
+A tax ID typed wrongly at creation, or a branch given its head office's tax ID
+although it is in fact a separate taxpayer, is corrected **in place**: the
+organization keeps its id, members, roles, orders and history. Customers cannot
+do this themselves — no storefront, customer or public route reaches it.
+
+**Who and where.** An operator holding `organizations:change-tax-id` (*Change a
+company organization's tax ID*) sees **Change tax ID** on a company
+organization's page; it is not shown on a personal organization, which has no
+tax ID (convert it to a company instead). The same form is reachable from the
+command palette (⌘K / Ctrl+K, *Change an organization's tax ID*), at
+`/organizations/change-tax-id`: pick the company organization, then correct the
+tax ID.
+
+**The form** starts on the stored tax ID. Spaces and dashes are removed when the
+field is left, and 8 to 32 characters are required, as on creation. *Validate
+the new tax ID after the change* is offered, ticked, to an operator who also
+holds `customers:manage`, the permission of the VAT validation itself.
+
+**What changes**, in one audited transaction (`organization.tax_id.change`):
+
+- The tax ID is normalised and checked against the **tax-ID scope in force**,
+  exactly as on creation: in *Global* no other organization may hold it,
+  soft-deleted ones included; in *One tree per tax ID* no organization of
+  another tree may hold it (one of the same tree may).
+- The organization's VAT validation starts again as **unverified** — the last
+  validation's date, provider and outcome are cleared, because they were about
+  the old tax ID. Its VAT status (*VAT payer*, *VAT exempt*, *Reverse charge*)
+  is kept.
+- **Documents already issued are not rewritten.** An order keeps the billing tax
+  ID it was placed with; invoices, quote documents and earlier audit entries
+  keep what they hold. Documents issued afterwards carry the new tax ID.
+- Entering the tax ID already stored (after normalisation) changes nothing,
+  writes no audit entry and emits no event; the answer says `changed: false`.
+- The audit entry records `changedFields: ['taxId']`, that the VAT validation
+  was reset (`vatStatusReset: true`) and the tax-ID scope — never the old or the
+  new tax ID.
+- After the commit, `organization.tax_id_changed.v1` is emitted once.
+
+**Validating the new tax ID.** When the box is ticked, a VAT validation runs
+**after** the change has committed, through the same flow as *Validate now*. Its
+outcome is shown in the confirmation; a registry outage or a failed check never
+undoes the change — retry from the VAT validation panel.
+
+**Refusals.** Nothing changes when the correction is refused:
+
+| Answer | When |
+| --- | --- |
+| `409 ORGANIZATION_TAX_ID_EXISTS` | The tax ID already belongs to an organization where the tax-ID scope forbids sharing it — a soft-deleted one included |
+| `409 ORGANIZATION_TAX_ID_CHANGE_REFUSED` `not_company` | The organization is personal (server code only; the admin does not offer it) |
+| `409 ORGANIZATION_TAX_ID_CHANGE_REFUSED` `deleted` | The organization is soft-deleted (server code only; the admin route answers `404`) |
+| `409 ORGANIZATION_WRITE_CONTENDED` | A concurrent change to organizations (for example a tax-ID scope switch) held the lock; try again |
+| `404 NOT_FOUND` | Unknown, deleted, or outside a sales representative's reach |
+
+Two operators correcting two organizations to one tax ID at the same moment are
+decided by the database: one succeeds, the other receives
+`409 ORGANIZATION_TAX_ID_EXISTS`, never a 500.
+
+**For server code.** `OrganizationCommandPort.changeTaxId(organizationId, {
+taxId })` on the `organizationCommandPort` container entry runs the same Command
+with the ambient actor. Like `convertToCompany`, **it checks no permission and
+runs no VAT validation**: never resolve it from a customer-facing route.
 
 ### Tax-ID scope
 
@@ -928,16 +997,21 @@ shared. Choose the other scope, **Apply**, and confirm.
   or any other write it loses a lock to — is answered
   `409 ORGANIZATION_WRITE_CONTENDED` (*"Another change to organizations was in
   progress. Try again in a moment."*); retrying succeeds.
-- **To *One tree per tax ID*** is always allowed, and cannot be undone from the
-  admin once any tax ID is shared. The confirmation says so before you confirm.
+- **To *One tree per tax ID*** is always allowed. Once a tax ID is shared, the
+  way back is open only after every shared tax ID is gone: a live organization's
+  tax ID can be corrected with **Change tax ID**, but a soft-deleted
+  organization keeps its own, so a tax ID shared with one cannot be released
+  from the admin. The confirmation says so before you confirm.
 - **Back to *Global*** is refused `409 ORGANIZATION_TAX_ID_SCOPE_DUPLICATES`
   while any tax ID is on more than one organization (`details: { code:
   'shared_tax_ids', sharedTaxIdCount, examples }`, at most 20 examples, each a
   tax ID with its organization ids). The screen says how many are shared and
-  links the organizations, and nothing changes. **Soft-deleted organizations
-  count**, and a tax ID cannot be edited in the admin, so once a branch shares
-  its head office's tax ID the way back to *Global* is not available from the
-  admin today.
+  links the organizations, and nothing changes. An organization that holds a
+  shared tax ID **by mistake** — it is in fact a separate taxpayer — is given
+  its own with **Change tax ID** (see *Correcting a tax ID*); once no tax ID is
+  shared, the switch back succeeds. **Soft-deleted organizations count**, so a
+  branch that shares its head office's tax ID **by right**, a deleted one
+  included, keeps the installation on *One tree per tax ID*.
 - **Applying the scope already in force** changes nothing and writes no audit
   entry; it re-creates the scope's constraint if it was dropped by hand. The
   screen offers **Apply again** when it detects that the database does not

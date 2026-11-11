@@ -42,6 +42,7 @@ platformy (`/api/v1/admin/*`) są chronione przez `customers:manage`.
 | `GET /api/v1/admin/organizations/tax-id-scope` | administrator (`organizations:manage-tax-id-scope`, administrator platformy) | Obowiązujący zakres unikalności NIP, kiedy i przez kogo został ustawiony, ile numerów jest współdzielonych i czy baza danych go egzekwuje (zob. *Zakres unikalności NIP* niżej) |
 | `PUT /api/v1/admin/organizations/tax-id-scope` | administrator (`organizations:manage-tax-id-scope`, administrator platformy) | Zmiana zakresu unikalności NIP (`{ scope: 'global' \| 'per-tree-root' }`) |
 | `POST /api/v1/admin/organizations/:id/convert-to-company` | administrator (`organizations:convert-to-company`; z `validateTaxId: true` także `customers:manage`) | Zamiana organizacji osobistej na firmową (zob. *Zamiana organizacji osobistej na firmową* niżej) |
+| `POST /api/v1/admin/organizations/:id/change-tax-id` | administrator (`organizations:change-tax-id`; z `validateTaxId: true` także `customers:manage`) | Korekta NIP organizacji firmowej (`{ taxId, validateTaxId? }` → `{ data, changed, vatValidation }`; zob. *Korekta NIP* niżej) |
 | `GET /api/v1/admin/organizations/sales-channel-options` | administrator (`customers:manage`) | Kanały oferowane w formularzu tworzenia |
 | `GET /api/v1/admin/organizations/:id/sales-channels` | administrator (`customers:read` lub `customers:manage`) | Kanały przypisane do organizacji i kanały, które można jej przypisać. `404 NOT_FOUND` dla organizacji spoza zasięgu przedstawiciela handlowego (zob. pod tabelą), jak dla organizacji, która nie istnieje |
 | `PUT /api/v1/admin/organizations/:id/sales-channels` | administrator (`customers:manage`) | Zastąpienie przypisanych kanałów (`{ salesChannelIds }`, co najmniej jeden); `404 NOT_FOUND` poza zasięgiem przedstawiciela handlowego, jak przy odczycie |
@@ -74,7 +75,9 @@ podatkowe* niżej).
 `organization.member_invited.v1`, `organization.member_role_changed.v1`,
 `organization.converted_to_company.v1` (`OrganizationConvertedToCompanyEvent`: `{ eventId,
 occurredAt, organizationId, convertedAt }` — bez nazwy i bez NIP; wysyłane raz, po zatwierdzeniu
-zamiany).
+zamiany), `organization.tax_id_changed.v1` (`OrganizationTaxIdChangedEvent`: `{ eventId,
+occurredAt, organizationId, changedAt }` — bez starego i bez nowego NIP; wysyłane raz, po
+zatwierdzeniu korekty NIP, i nie dla korekty na wartość, która jest już zapisana).
 
 ## Punkty rozszerzenia
 
@@ -850,8 +853,70 @@ postać od każdego zapisującego, w tym od danych testowych, seedów i kodu nak
 Organizacja firmowa zawsze ma NIP, a osobista nigdy; ograniczenie `organizations_tax_id_presence`
 odrzuca wiersz, który łamie którąkolwiek z tych reguł.
 
-NIP wpisuje się przy tworzeniu (albo zamianie) organizacji i później nie można go zmienić w
-panelu: `PATCH /api/v1/admin/organizations/:id` go nie przyjmuje.
+NIP wpisuje się przy tworzeniu (albo zamianie) organizacji. `PATCH /api/v1/admin/organizations/:id`
+go nie przyjmuje; błędny NIP poprawia się przyciskiem **Zmień numer podatkowy** (zob. *Korekta NIP*
+niżej) — osobną operacją zapisywaną w dzienniku audytu.
+
+### Korekta NIP
+
+NIP błędnie wpisany przy tworzeniu albo oddział, któremu nadano NIP centrali, choć w
+rzeczywistości jest osobnym podatnikiem, poprawia się **w miejscu**: organizacja zachowuje
+identyfikator, członków, role, zamówienia i historię. Klient nie może zrobić tego sam — żadna trasa
+storefrontu, klienta ani publiczna nie prowadzi do tej operacji.
+
+**Kto i gdzie.** Operator z uprawnieniem `organizations:change-tax-id` (*Zmiana numeru podatkowego
+organizacji firmowej*) widzi na stronie organizacji firmowej przycisk **Zmień numer podatkowy**; na
+organizacji osobistej go nie ma, bo nie ma ona NIP (zamień ją najpierw na firmową). Ten sam
+formularz jest dostępny z palety poleceń (⌘K / Ctrl+K, *Zmień numer podatkowy organizacji*), pod
+adresem `/organizations/change-tax-id`: najpierw wybierasz organizację firmową, potem poprawiasz
+NIP.
+
+**Formularz** zaczyna od zapisanego NIP. Spacje i myślniki są usuwane po wyjściu z pola i, jak przy
+tworzeniu, wymagane jest od 8 do 32 znaków. Pole *Zweryfikuj nowy numer podatkowy po zmianie* jest
+oferowane (domyślnie zaznaczone) operatorowi, który ma też uprawnienie `customers:manage`, czyli
+uprawnienie samej walidacji VAT.
+
+**Co się zmienia** — w jednej transakcji zapisywanej w dzienniku audytu
+(`organization.tax_id.change`):
+
+- NIP jest normalizowany i sprawdzany według **obowiązującego zakresu unikalności NIP**, dokładnie
+  tak jak przy tworzeniu: w zakresie *Globalny* nie może go mieć żadna inna organizacja, łącznie z
+  usuniętymi (soft delete); w zakresie *Jedno drzewo na numer* nie może go mieć żadna organizacja z
+  innego drzewa (z tego samego drzewa — może).
+- Weryfikacja VAT organizacji zaczyna się od nowa jako **niezweryfikowana** — data, dostawca i wynik
+  ostatniej walidacji są czyszczone, bo dotyczyły starego NIP. Status VAT (*Czynny podatnik VAT*,
+  *Zwolniony z VAT*, *Odwrotne obciążenie*) zostaje bez zmian.
+- **Wystawione już dokumenty nie są przepisywane.** Zamówienie zachowuje NIP nabywcy, z którym je
+  złożono; faktury, dokumenty ofert i wcześniejsze wpisy audytu zachowują to, co zawierają.
+  Dokumenty wystawione później mają nowy NIP.
+- Wpisanie NIP, który jest już zapisany (po normalizacji), niczego nie zmienia, nie zapisuje wpisu
+  audytu i nie wysyła zdarzenia; odpowiedź zawiera `changed: false`.
+- Wpis audytu zapisuje `changedFields: ['taxId']`, informację o wyzerowaniu weryfikacji VAT
+  (`vatStatusReset: true`) i zakres unikalności NIP — nigdy starego ani nowego NIP.
+- Po zatwierdzeniu transakcji raz wysyłane jest zdarzenie `organization.tax_id_changed.v1`.
+
+**Weryfikacja nowego NIP.** Gdy pole jest zaznaczone, walidacja VAT uruchamia się **po**
+zatwierdzeniu zmiany, tą samą ścieżką co *Zweryfikuj teraz*. Jej wynik jest pokazany w
+potwierdzeniu; awaria rejestru ani negatywny wynik nigdy nie cofają zmiany — ponów weryfikację w
+panelu walidacji VAT.
+
+**Odmowy.** Gdy korekta zostaje odrzucona, nic się nie zmienia:
+
+| Odpowiedź | Kiedy |
+| --- | --- |
+| `409 ORGANIZATION_TAX_ID_EXISTS` | NIP należy już do organizacji tam, gdzie zakres unikalności NIP zabrania go współdzielić — także do usuniętej |
+| `409 ORGANIZATION_TAX_ID_CHANGE_REFUSED` `not_company` | Organizacja jest osobista (tylko kod serwerowy; panel tego nie oferuje) |
+| `409 ORGANIZATION_TAX_ID_CHANGE_REFUSED` `deleted` | Organizacja jest usunięta (tylko kod serwerowy; trasa panelu odpowiada `404`) |
+| `409 ORGANIZATION_WRITE_CONTENDED` | Równoległa zmiana organizacji (na przykład zmiana zakresu unikalności NIP) trzymała blokadę; spróbuj ponownie |
+| `404 NOT_FOUND` | Nieznana, usunięta albo poza zasięgiem przedstawiciela handlowego |
+
+Gdy dwóch operatorów w tej samej chwili poprawia dwie organizacje na ten sam NIP, rozstrzyga baza
+danych: jedna zmiana się udaje, druga dostaje `409 ORGANIZATION_TAX_ID_EXISTS`, nigdy 500.
+
+**Dla kodu serwerowego.** `OrganizationCommandPort.changeTaxId(organizationId, { taxId })` we wpisie
+kontenera `organizationCommandPort` uruchamia to samo polecenie z bieżącym aktorem. Tak jak
+`convertToCompany`, **nie sprawdza żadnego uprawnienia i nie uruchamia walidacji VAT**: nigdy nie
+pobieraj go w trasie dostępnej dla klienta.
 
 ### Zakres unikalności NIP
 
@@ -884,15 +949,20 @@ współdzielonych numerów. Wybierz drugi zakres, kliknij **Zastosuj** i potwier
   organizacji, która trafi na tę operację — albo inny zapis, który przegra z nią blokadę —
   dostaje odpowiedź `409 ORGANIZATION_WRITE_CONTENDED` (*„W tym samym czasie trwała inna zmiana
   organizacji. Spróbuj ponownie za chwilę.”*); ponowienie się udaje.
-- **Na *Jedno drzewo na numer*** można przejść zawsze, a gdy choć jeden NIP jest współdzielony,
-  tej zmiany nie można cofnąć z poziomu panelu. Okno potwierdzenia mówi o tym, zanim ją potwierdzisz.
+- **Na *Jedno drzewo na numer*** można przejść zawsze. Gdy choć jeden NIP jest współdzielony,
+  powrót jest możliwy dopiero wtedy, gdy żaden numer nie jest już współdzielony: NIP aktywnej
+  organizacji można poprawić przyciskiem **Zmień numer podatkowy**, ale usunięta organizacja
+  zachowuje swój, więc NIP współdzielonego z usuniętą organizacją nie da się zwolnić z poziomu
+  panelu. Okno potwierdzenia mówi o tym, zanim ją potwierdzisz.
 - **Powrót do *Globalny*** jest odrzucany `409 ORGANIZATION_TAX_ID_SCOPE_DUPLICATES`, dopóki
   jakiś NIP ma więcej niż jedna organizacja (`details: { code: 'shared_tax_ids',
   sharedTaxIdCount, examples }`, najwyżej 20 przykładów, każdy z NIP i identyfikatorami
   organizacji). Ekran podaje, ile numerów jest współdzielonych, linkuje organizacje i niczego nie
-  zmienia. **Organizacje usunięte (soft delete) też się liczą**, a NIP nie da się zmienić w
-  panelu, więc gdy oddział ma już NIP centrali, powrót do zakresu *Globalny* nie jest dziś możliwy
-  z poziomu panelu.
+  zmienia. Organizacja, która ma współdzielony NIP **przez pomyłkę** — w rzeczywistości jest
+  osobnym podatnikiem — dostaje własny przyciskiem **Zmień numer podatkowy** (zob. *Korekta NIP*);
+  gdy żaden NIP nie jest już współdzielony, powrót się udaje. **Organizacje usunięte (soft delete)
+  też się liczą**, więc oddział, który **słusznie** ma NIP centrali, także usunięty, utrzymuje
+  instalację w zakresie *Jedno drzewo na numer*.
 - **Zastosowanie zakresu, który już obowiązuje,** niczego nie zmienia i nie zapisuje wpisu audytu;
   odtwarza ograniczenie zakresu, jeśli usunięto je ręcznie. Ekran proponuje **Zastosuj ponownie**,
   gdy wykryje, że baza danych nie egzekwuje obowiązującego zakresu, a serwer przy starcie zapisuje

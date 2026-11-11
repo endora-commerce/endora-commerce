@@ -165,6 +165,9 @@ export const ERROR_CODES = {
   // `specs/177-tax-id-scope/` — a personal → company conversion refused (409,
   // `details.code` = `not_personal` | `deleted` | `owner_not_administrator`).
   ORGANIZATION_CONVERSION_REFUSED: 'ORGANIZATION_CONVERSION_REFUSED',
+  // Issue #1040 — an operator's tax-ID correction refused (409, `details.code` =
+  // `not_company` | `deleted`).
+  ORGANIZATION_TAX_ID_CHANGE_REFUSED: 'ORGANIZATION_TAX_ID_CHANGE_REFUSED',
   // `specs/177-tax-id-scope/` — a write of organizations lost a lock to a
   // concurrent one (the tax-ID scope swap, or a racing writer); retry (409).
   ORGANIZATION_WRITE_CONTENDED: 'ORGANIZATION_WRITE_CONTENDED',
