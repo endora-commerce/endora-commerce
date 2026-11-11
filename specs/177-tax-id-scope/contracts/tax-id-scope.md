@@ -26,6 +26,13 @@ Personal organizations have `tax_id = null` and are outside both rules.
   (≤ 20 examples, ordered by tax ID). The admin screen renders the examples as links; the envelope's
   sentence names the count (`{sharedTaxIdCount}`).
 
+- **Transition rules** (FR-015, FR-015a): to `per-tree-root` is always allowed; back to `global` is
+  refused while any tax ID is on more than one organization, soft-deleted ones included. A tax ID
+  cannot be changed from the admin and a soft-deleted organization keeps its own, so once a tax ID is
+  shared the way back is not available from the admin (D-290 / OD-8). The confirmation of a switch to
+  `per-tree-root` says so before it is confirmed; the refusal sentence and the screen's shared-tax-ID
+  warning name no remedy the admin does not offer.
+
 ## 3. Admin HTTP API
 
 Both routes: `preHandler: requireAdmin('organizations:manage-tax-id-scope')`, then an unscoped tenant

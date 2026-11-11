@@ -37,11 +37,11 @@ platformy (`/api/v1/admin/*`) są chronione przez `customers:manage`.
 | `POST /api/v1/organizations/mine/addresses` | klient (`addresses.manage`) | Utworzenie adresu |
 | `PATCH /api/v1/organizations/mine/addresses/:id` | klient (`addresses.manage`) | Aktualizacja |
 | `DELETE /api/v1/organizations/mine/addresses/:id` | klient (`addresses.manage`) | Usunięcie |
-| `GET /api/v1/admin/organizations` | administrator | Lista z `filter[status]` / `filter[vatStatus]` / `q` (nazwa albo NIP, zob. *Numery podatkowe* niżej). Organizacje prywatne są pomijane, chyba że podano `includePersonal=true`; wtedy `filter[isPersonal]=true\|false` zostawia jeden rodzaj. Przedstawiciel handlowy widzi tylko organizacje ze swojego zasięgu (zob. pod tabelą) |
+| `GET /api/v1/admin/organizations` | administrator | Lista z `filter[status]` / `filter[vatStatus]` / `q` (nazwa albo NIP, zob. *Numery podatkowe* niżej). Organizacje osobiste są pomijane, chyba że podano `includePersonal=true`; wtedy `filter[isPersonal]=true\|false` zostawia jeden rodzaj. Przedstawiciel handlowy widzi tylko organizacje ze swojego zasięgu (zob. pod tabelą) |
 | `POST /api/v1/admin/organizations` | administrator (`customers:manage`) | Utworzenie organizacji z jej kanałami sprzedaży (zob. *Kanały sprzedaży* niżej) i wartościami pól niestandardowych (`customFieldValues`). Opcjonalne `parentId` tworzy ją jako oddział (tylko administrator platformy, zob. *Numery podatkowe* niżej) |
 | `GET /api/v1/admin/organizations/tax-id-scope` | administrator (`organizations:manage-tax-id-scope`, administrator platformy) | Obowiązujący zakres unikalności NIP, kiedy i przez kogo został ustawiony, ile numerów jest współdzielonych i czy baza danych go egzekwuje (zob. *Zakres unikalności NIP* niżej) |
 | `PUT /api/v1/admin/organizations/tax-id-scope` | administrator (`organizations:manage-tax-id-scope`, administrator platformy) | Zmiana zakresu unikalności NIP (`{ scope: 'global' \| 'per-tree-root' }`) |
-| `POST /api/v1/admin/organizations/:id/convert-to-company` | administrator (`organizations:convert-to-company`; z `validateTaxId: true` także `customers:manage`) | Zamiana organizacji prywatnej na firmową (zob. *Zamiana organizacji prywatnej na firmową* niżej) |
+| `POST /api/v1/admin/organizations/:id/convert-to-company` | administrator (`organizations:convert-to-company`; z `validateTaxId: true` także `customers:manage`) | Zamiana organizacji osobistej na firmową (zob. *Zamiana organizacji osobistej na firmową* niżej) |
 | `GET /api/v1/admin/organizations/sales-channel-options` | administrator (`customers:manage`) | Kanały oferowane w formularzu tworzenia |
 | `GET /api/v1/admin/organizations/:id/sales-channels` | administrator (`customers:read` lub `customers:manage`) | Kanały przypisane do organizacji i kanały, które można jej przypisać. `404 NOT_FOUND` dla organizacji spoza zasięgu przedstawiciela handlowego (zob. pod tabelą), jak dla organizacji, która nie istnieje |
 | `PUT /api/v1/admin/organizations/:id/sales-channels` | administrator (`customers:manage`) | Zastąpienie przypisanych kanałów (`{ salesChannelIds }`, co najmniej jeden); `404 NOT_FOUND` poza zasięgiem przedstawiciela handlowego, jak przy odczycie |
@@ -53,7 +53,7 @@ platformy (`/api/v1/admin/*`) są chronione przez `customers:manage`.
 | `DELETE /api/v1/admin/organizations/:id/members/:customerAccountId` | administrator | Usunięcie miękkie członka (z ochroną ostatniego administratora) |
 | `POST /api/v1/admin/organizations/:id/recover-admin-access` | administrator | Procedura awaryjna — nadanie istniejącemu członkowi roli Administrator |
 
-**Do których organizacji sięga przedstawiciel handlowy.** Reguła jest jedna i stosuje ją każdy ekran panelu: przedstawiciel handlowy sięga do każdej organizacji, której **nie prowadzi inny przedstawiciel**. O tym, kto prowadzi organizację, decydują jej własne przypisania; z `organizations:rollup` — najbliższa organizacja w łańcuchu „ona sama i jej organizacje nadrzędne”, która ma jakiekolwiek przypisanie. Przedstawiciel sięga więc do organizacji przypisanych do niego (z roll-upem także do poddrzewa poniżej, bez gałęzi przypisanych komuś innemu) i do każdej organizacji, do której nie przypisano żadnego przedstawiciela — rejestracji oczekującej na zatwierdzenie oraz każdej organizacji prywatnej (B2C), do której nie można nikogo przypisać.
+**Do których organizacji sięga przedstawiciel handlowy.** Reguła jest jedna i stosuje ją każdy ekran panelu: przedstawiciel handlowy sięga do każdej organizacji, której **nie prowadzi inny przedstawiciel**. O tym, kto prowadzi organizację, decydują jej własne przypisania; z `organizations:rollup` — najbliższa organizacja w łańcuchu „ona sama i jej organizacje nadrzędne”, która ma jakiekolwiek przypisanie. Przedstawiciel sięga więc do organizacji przypisanych do niego (z roll-upem także do poddrzewa poniżej, bez gałęzi przypisanych komuś innemu) i do każdej organizacji, do której nie przypisano żadnego przedstawiciela — rejestracji oczekującej na zatwierdzenie oraz każdej organizacji osobistej (B2C), do której nie można nikogo przypisać.
 
 Ta sama reguła rozstrzyga na każdym ekranie: na każdej trasie `/api/v1/admin/organizations/:id` (odczyty i zapisy, także zagnieżdżone), na liście organizacji i w polach wyboru, w wyszukiwarce panelu oraz przy każdym odczycie i zapisie objętym izolacją tenantów — członkowie, klienci, zamówienia, faktury, koszyki, zwroty, zapytania ofertowe i ustawienia na poziomie klienta. Organizacja spoza zasięgu odpowiada `404 NOT_FOUND`, dokładnie tak jak organizacja, która nie istnieje, i nie pojawia się na żadnej liście; nieznany identyfikator odpowiada tak samo każdemu administratorowi. Każda inna rola administratora sięga do wszystkich organizacji. Przed zgłoszeniem #305 odczyty objęte izolacją uwzględniały tylko przypisania, więc organizacja nieprzypisana otwierała się na swoim ekranie, ale nie pokazywała członków ani zapytań, a lista pokazywała organizacje, których ekran odpowiadał potem `404`.
 
@@ -64,7 +64,7 @@ konsoli.
 
 `Organization`, `OrganizationInvitation`, `EmailVerificationToken` oraz jednowierszowa
 `OrganizationTaxIdPolicy` (tabela `organization_tax_id_policy`), w której zapisany jest zakres
-unikalności NIP instalacji. Organizacja firmowa zawsze ma NIP, a prywatna nigdy; to, gdzie ten sam
+unikalności NIP instalacji. Organizacja firmowa zawsze ma NIP, a osobista nigdy; to, gdzie ten sam
 NIP może się powtórzyć, rozstrzyga zakres unikalności NIP, a egzekwuje baza danych (zob. *Numery
 podatkowe* niżej).
 
@@ -115,7 +115,7 @@ zachowuje co najmniej jeden kanał.
 | Jak powstaje organizacja | Przypisane kanały |
 | --- | --- |
 | Rejestracja firmy w storefroncie (`POST /api/v1/organizations/register`) | dokładnie kanał sklepu, w którym się zarejestrowała — także w sklepie zamkniętym dla niezalogowanych odwiedzających, gdzie o wejściu firmy decyduje moderacja |
-| Samodzielna rejestracja klienta indywidualnego (organizacja prywatna) | dokładnie kanał sklepu, w którym się zarejestrował; w sklepie zamkniętym dla niezalogowanych odwiedzających odrzucana |
+| Samodzielna rejestracja klienta indywidualnego (organizacja osobista) | dokładnie kanał sklepu, w którym się zarejestrował; w sklepie zamkniętym dla niezalogowanych odwiedzających odrzucana |
 | *Nowa organizacja* w panelu administracyjnym | kanały wybrane w formularzu |
 | Każda inna ścieżka — logowanie przez zewnętrznego dostawcę tożsamości, które zakłada nowe konto, importy, dane demonstracyjne | domyślny kanał systemowy |
 
@@ -664,10 +664,10 @@ edycji.
   `admin_notification_reads` dla każdego administratora.
 - `20260611T140351_customer_accounts_organization_optional.ts` (należy do `customer_accounts`) — dopuściła `NULL` w
   `customer_accounts.organization_id` dla kont gościnnych. **To rozwiązanie jest martwe**: zastąpiły
-  je organizacje prywatne, a kolumnę ponownie zaostrzono — zobacz
+  je organizacje osobiste, a kolumnę ponownie zaostrzono — zobacz
   `20260825T141659_customer_accounts_organization_required` w `customer_accounts`.
-- `20260717T151403_organizations_personal_organizations.ts` — dodaje `organizations.is_personal` i tworzy organizację prywatną
-  dla każdego wcześniej istniejącego konta bez organizacji (zobacz „Organizacje prywatne” niżej).
+- `20260717T151403_organizations_personal_organizations.ts` — dodaje `organizations.is_personal` i tworzy organizację osobistą
+  dla każdego wcześniej istniejącego konta bez organizacji (zobacz „Organizacje osobiste” niżej).
 - `20261103T173304_organizations_organization_roles.ts` — tworzy `organization_roles`, daje każdej organizacji role
   Administrator i Członek (oraz wyzwalacz, który robi to dla każdej nowej), odbiera roli Członek dwa kody akceptacji
   koszyka tam, gdzie organizacja wymagała akceptacji koszyków, i daje każdemu zaproszeniu odwołanie do roli (zobacz
@@ -686,8 +686,8 @@ edycji.
   zasięg przedstawiciela handlowego. Po odtworzeniu uruchom
   `select organizations_reach_governor_rebuild(null);`.
 - `20261110T135922_organizations_personal_tax_id_removal.ts` — czyści NIP każdej organizacji
-  prywatnej, zapisuje jej konto w `personal_account_id` (odczytane z dawnego zastępczego numeru;
-  wiersz prywatny, którego NIP nie był takim numerem, jest czyszczony i pozostaje bez powiązania, a
+  osobistej, zapisuje jej konto w `personal_account_id` (odczytane z dawnego zastępczego numeru;
+  wiersz osobisty, którego NIP nie był takim numerem, jest czyszczony i pozostaje bez powiązania, a
   ich liczba jest zgłaszana jako komunikat) i dodaje `organizations_tax_id_presence`. **Odmawia
   uruchomienia i niczego nie zmienia w bazie, która ma organizacje, ale nie zastosowała migracji
   `20260825T141659_customer_accounts_organization_required` modułu `customer_accounts`
@@ -707,11 +707,11 @@ edycji.
   `select upper(regexp_replace(tax_id, '[[:space:]-]', '', 'g')), array_agg(id) from organizations where tax_id is not null group by 1 having count(*) > 1;`
   i nadaj każdej organizacji własny NIP.
 
-### Organizacje prywatne (B2C)
+### Organizacje osobiste (B2C)
 
 Organizacja jest jedynym pojęciem tenanta w platformie. Klient B2C, czyli osoba fizyczna, **nie** jest
 przypadkiem „bez organizacji”: każda samodzielna rejestracja klienta tworzy jednoosobową
-**organizację prywatną** (`is_personal = true`). Organizacja i konto są zapisywane **w jednej
+**organizację osobistą** (`is_personal = true`). Organizacja i konto są zapisywane **w jednej
 transakcji**, przez moduł, który jest właścicielem wiersza konta, na obu ścieżkach tworzenia konta —
 przy samodzielnej rejestracji i przy logowaniu przez zewnętrznego dostawcę tożsamości. Oznacza to, że:
 
@@ -720,59 +720,60 @@ przy samodzielnej rejestracji i przy logowaniu przez zewnętrznego dostawcę to�
   zapewnia kolumna, a nie zabezpieczenie w kodzie: MikroORM stosuje filtr tenanta do `SELECT` /
   `UPDATE` / `DELETE`, ale nie do `INSERT`.
 - **Izolacja wynika ze struktury.** Zabezpieczenie izolacji tenantów traktuje każdą organizację
-  prywatną jako osobnego tenanta — dwóch klientów B2C nigdy nie widzi swoich danych, bez żadnego
+  osobistą jako osobnego tenanta — dwóch klientów B2C nigdy nie widzi swoich danych, bez żadnego
   szczególnego przypadku dla braku organizacji.
 - **Wartości domyślne dla osób fizycznych.** `status = active`, `vat_status = vat_exempt`, `name` z
   imienia i nazwiska klienta (albo z części adresu e-mail przed `@`) i **brak NIP** (`tax_id` ma
   wartość `NULL`, a każde API odpowiada `taxId: null`). Konto, dla którego organizację utworzono,
   jest zapisane w `personal_account_id` — dzięki temu tworzenie jest idempotentne i zawsze
-  odnajduje „własną organizację prywatną klienta”.
-- **Niewidoczne na ekranach B2B w panelu.** Organizacje prywatne są domyślnie pomijane na listach i
+  odnajduje „własną organizację osobistą klienta”.
+- **Niewidoczne na ekranach B2B w panelu.** Organizacje osobiste są domyślnie pomijane na listach i
   listach wyboru w panelu, nie można przypisać do nich handlowca i nie trafiają do kolejki moderacji
   (powstają jako `active`). Lista organizacji w panelu przyjmuje `?includePersonal=true`, aby je w
   razie potrzeby pokazać. Ponieważ nie można do nich przypisać handlowca, każdy przedstawiciel
-  handlowy sięga do każdej organizacji prywatnej oraz do jej zamówień, faktur, koszyków i zwrotów.
+  handlowy sięga do każdej organizacji osobistej oraz do jej zamówień, faktur, koszyków i zwrotów.
 - **Dostępność zależna od kanału.** Samodzielną rejestrację (B2C) w każdym kanale sprzedaży włącza
   ustawienie `customers.allow_registration_without_organization`; kanał tylko dla B2B odrzuca
   rejestrację i niczego nie tworzy. Nazwa ustawienia to pozostałość po wcześniejszym rozwiązaniu —
   dotyczy rejestracji poza organizacją *firmową*, a nie rejestracji bez organizacji.
 - **Odłączenie członka od firmy przenosi go tutaj.** `DELETE /api/v1/admin/customers/:id/organization`
   w panelu zapisywało kiedyś `organization_id = NULL`; teraz tworzy (albo odnajduje) organizację
-  prywatną klienta i przenosi go do niej, zachowując w audycie akcję
+  osobistą klienta i przenosi go do niej, zachowując w audycie akcję
   `customer_account.organization_unassigned`.
-- **Bez walidacji VAT.** Walidacja NIP organizacji prywatnej jest odrzucana
+- **Bez walidacji VAT.** Walidacja NIP organizacji osobistej jest odrzucana
   `422 VALIDATION_FAILED` (*„This organization has no tax ID.”*), zanim zostanie zapytany
   jakikolwiek rejestr, a strona organizacji nie pokazuje dla niej panelu walidacji VAT.
 
-Do tego wydania organizacja prywatna miała syntetyczny, 32-znakowy szesnastkowy NIP utworzony z
+Do tego wydania organizacja osobista miała syntetyczny, 32-znakowy szesnastkowy NIP utworzony z
 identyfikatora konta. Migracja aktualizacyjna go czyści i przenosi powiązanie do
 `personal_account_id`. **Dokumenty zapisane przed aktualizacją nie są przepisywane**: zamówienie,
-faktura, dokument oferty czy wpis audytu utworzony wcześniej dla organizacji prywatnej nadal
+faktura, dokument oferty czy wpis audytu utworzony wcześniej dla organizacji osobistej nadal
 pokazuje ten zastępczy numer tam, gdzie pokazywał go wtedy. Zamówienia, które go zawierają, można
 znaleźć zapytaniem
 `select id from orders where billing_address->>'taxId' ~ '^[0-9a-f]{32}$'`.
 
 Organizacje firmowe (B2B) pozostają bez zmian — reguła jednoosobowości (`assertMembershipAllowed`)
-odrzuca tylko dodanie drugiego członka do organizacji prywatnej.
+odrzuca tylko dodanie drugiego członka do organizacji osobistej.
 
-### Zamiana organizacji prywatnej na firmową
+### Zamiana organizacji osobistej na firmową
 
 Klient, który kupował jako osoba prywatna, a potem założył firmę, może zachować swoją historię:
-operator zamienia jego organizację prywatną na firmową **w miejscu**. Klient nie może zrobić tego
+operator zamienia jego organizację osobistą na firmową **w miejscu**. Klient nie może zrobić tego
 sam — żadna trasa storefrontu, klienta ani publiczna nie prowadzi do tej zamiany.
 
 **Kto i gdzie.** Operator z uprawnieniem `organizations:convert-to-company` (*Zamiana organizacji
-osobistych na firmowe*) widzi na stronie organizacji prywatnej przycisk **Zamień na firmę**; na
+osobistych na firmowe*) widzi na stronie organizacji osobistej przycisk **Zamień na firmę**; na
 organizacji firmowej go nie ma. Ten sam formularz jest dostępny z palety poleceń (⌘K / Ctrl+K,
 *Zamień organizację osobistą*) i z menu w nagłówku listy organizacji, pod adresem
-`/organizations/convert-to-company`: najpierw wybierasz organizację prywatną (wyszukiwaną po
+`/organizations/convert-to-company`: najpierw wybierasz organizację osobistą (wyszukiwaną po
 nazwisku klienta), potem wpisujesz dane firmy.
 
 **Formularz** pyta o nazwę firmy, opcjonalną nazwę prawną, numer podatkowy (spacje i myślniki są
 usuwane po wyjściu z pola; od 8 do 32 znaków), adres siedziby, status VAT (domyślnie *Czynny
 podatnik VAT*) i *Zweryfikuj numer podatkowy po zamianie* (domyślnie zaznaczone). Weryfikacja
-wymaga też uprawnienia `customers:manage`, czyli uprawnienia samej walidacji VAT: operator bez
-niego musi odznaczyć to pole, inaczej całe żądanie jest odrzucane `403`.
+wymaga też uprawnienia `customers:manage`, czyli uprawnienia samej walidacji VAT, więc pole jest
+widoczne tylko dla operatora, który je ma; bez niego formularz zamienia organizację bez weryfikacji.
+Przez API `validateTaxId: true` bez `customers:manage` powoduje odrzucenie całego żądania `403`.
 
 **Co się zmienia** — w jednej transakcji zapisywanej w dzienniku audytu
 (`organization.convert_to_company`):
@@ -787,7 +788,7 @@ niego musi odznaczyć to pole, inaczej całe żądanie jest odrzucane `403`.
   kolejki moderacji). Jeśli organizacja nigdy nie została zatwierdzona, zostaje oznaczona jako
   zatwierdzona przez operatora, który ją zamienił.
 - Powiązanie z kontem klienta jest usuwane, a czas zamiany zapisywany. Jeśli ten członek zostanie
-  później odłączony od firmy, dostaje **nową** organizację prywatną; zamieniona firma zachowuje
+  później odłączony od firmy, dostaje **nową** organizację osobistą; zamieniona firma zachowuje
   swój identyfikator. Ponieważ jedyny członek zamienionej firmy jest jej ostatnim administratorem,
   jego odłączenie wymaga najpierw drugiego administratora — jak w każdej firmie.
 - Zwrot zamówienia złożonego **przed** zamianą nadal jest traktowany jako odstąpienie od umowy
@@ -814,7 +815,7 @@ ponów weryfikację w panelu walidacji VAT.
 | `404 NOT_FOUND` | Nieznana albo poza zasięgiem przedstawiciela handlowego |
 
 **Zamiany nie można cofnąć**; nie ma operacji, która zamienia firmę z powrotem na organizację
-prywatną.
+osobistą.
 
 **Dla kodu serwerowego.** Wpis kontenera `organizationCommandPort`
 (`OrganizationCommandPort.convertToCompany(organizationId, input)` w
@@ -835,7 +836,7 @@ usuwane — to osobne, szersze czyszczenie wyszukiwania w rejestrze, które nie 
 zostaje zapisane. Ograniczenie bazy danych `organizations_tax_id_normalised` odrzuca każdą inną
 postać od każdego zapisującego, w tym od danych testowych, seedów i kodu nakładek.
 
-Organizacja firmowa zawsze ma NIP, a prywatna nigdy; ograniczenie `organizations_tax_id_presence`
+Organizacja firmowa zawsze ma NIP, a osobista nigdy; ograniczenie `organizations_tax_id_presence`
 odrzuca wiersz, który łamie którąkolwiek z tych reguł.
 
 NIP wpisuje się przy tworzeniu (albo zamianie) organizacji i później nie można go zmienić w
@@ -872,7 +873,8 @@ współdzielonych numerów. Wybierz drugi zakres, kliknij **Zastosuj** i potwier
   organizacji, która trafi na tę operację — albo inny zapis, który przegra z nią blokadę —
   dostaje odpowiedź `409 ORGANIZATION_WRITE_CONTENDED` (*„W tym samym czasie trwała inna zmiana
   organizacji. Spróbuj ponownie za chwilę.”*); ponowienie się udaje.
-- **Na *Jedno drzewo na numer*** można przejść zawsze.
+- **Na *Jedno drzewo na numer*** można przejść zawsze, a gdy choć jeden NIP jest współdzielony,
+  tej zmiany nie można cofnąć z poziomu panelu. Okno potwierdzenia mówi o tym, zanim ją potwierdzisz.
 - **Powrót do *Globalny*** jest odrzucany `409 ORGANIZATION_TAX_ID_SCOPE_DUPLICATES`, dopóki
   jakiś NIP ma więcej niż jedna organizacja (`details: { code: 'shared_tax_ids',
   sharedTaxIdCount, examples }`, najwyżej 20 przykładów, każdy z NIP i identyfikatorami
@@ -904,7 +906,7 @@ współdzielonych numerów. Wybierz drugi zakres, kliknij **Zastosuj** i potwier
 
 Pole wyszukiwania na liście organizacji w panelu (`q`) i wyszukiwanie globalne (⌘K) dopasowują NIP
 tak samo jak nazwę. Zapytanie jest normalizowane tak jak zapisana wartość, więc `pl 526-025`
-znajduje `PL526025…`. Organizacja prywatna nie ma NIP i nigdy nie zostanie po nim znaleziona — ani
+znajduje `PL526025…`. Organizacja osobista nie ma NIP i nigdy nie zostanie po nim znaleziona — ani
 po swoim dawnym zastępczym numerze.
 
 ### Wyszukiwanie organizacji po NIP (kod serwerowy)
@@ -948,7 +950,7 @@ nie mieszają.
   roli predefiniowanej w żadnym z dostarczanych języków) i opcjonalnym opisem.
 
 Obie role predefiniowane powstają razem z organizacją, niezależnie od tego,
-która ścieżka ją tworzy (wyzwalacz w bazie danych). Organizacja prywatna (B2C)
+która ścieżka ją tworzy (wyzwalacz w bazie danych). Organizacja osobista (B2C)
 także ma obie role, ale nie ma zarządzania rolami: jej jedyny członek jest jej
 Administratorem.
 
@@ -981,7 +983,7 @@ Zapisanie roli bez zmian niczego nie rejestruje.
 
 Każde ciało żądania jest ścisłe: ciało, które wciąż wysyła dawne pole `role`, jest
 odrzucane z `400 VALIDATION_FAILED`. Rola innej organizacji oraz każda ścieżka ról
-organizacji prywatnej odpowiada `404`. Odmowy to
+organizacji osobistej odpowiada `404`. Odmowy to
 `409 ORGANIZATION_ROLE_NAME_TAKEN`, `409 ORGANIZATION_ROLE_STALE` (rola zmieniła
 się od chwili odczytu), `422 ORGANIZATION_ROLE_LIMIT_REACHED`,
 `409 ORGANIZATION_ROLE_PROTECTED`, `422 ORGANIZATION_ROLE_REPLACEMENT_REQUIRED`
@@ -1003,13 +1005,13 @@ od jego roli i od rodzaju organizacji:
 - **Nawigacja konta.** *Członkowie* i *Role* są widoczne dla członków z rolą *Administrator*;
   *Koszyki do akceptacji* — dla członków, których rola ma uprawnienie *Akceptowanie i odrzucanie
   koszyków współpracowników* (`carts.approve`), z liczbą oczekujących koszyków. Członek
-  organizacji prywatnej (B2C) nie widzi żadnej z tych trzech pozycji, choć ma rolę
-  *Administrator*, a te strony odsyłają go do `/account`. Organizacja prywatna nie jest firmą,
+  organizacji osobistej (B2C) nie widzi żadnej z tych trzech pozycji, choć ma rolę
+  *Administrator*, a te strony odsyłają go do `/account`. Organizacja osobista nie jest firmą,
   więc taki członek nie widzi też pozycji *Organizacja* ani *Adresy organizacji*: `/organization`
   odsyła go do `/account`, a `/organization/addresses` do jego własnej książki adresowej,
   `/addresses`, na której adresy organizacji nadal są widoczne obok jego własnych. Profil nie ma
   dla niego wiersza *Organizacja*, a pole NIP w danych firmy do rozliczenia przy składaniu
-  zamówienia jest puste, bo organizacja prywatna nie ma NIP. Każdy inny, kto otworzy taką stronę,
+  zamówienia jest puste, bo organizacja osobista nie ma NIP. Każdy inny, kto otworzy taką stronę,
   dowiaduje się, kto może z niej korzystać — na przykład *„Rolami mogą zarządzać tylko
   administratorzy organizacji.”*
 - **Role** (`/organization/roles`) to lista wszystkich ról z rodzajem (*Wbudowana* albo
@@ -1032,12 +1034,12 @@ od jego roli i od rodzaju organizacji:
 - **Strona konta** pokazuje członkowi jego rolę w podsumowaniu profilu. Obok niej odnośnik *Na
   co pozwala Twoja rola* otwiera okno dialogowe ze zrozumiałą listą tego, na co rola pozwala,
   przetłumaczoną przez API; rola, która na nic nie pozwala, mówi o tym wprost. Członek
-  organizacji prywatnej nie widzi ani roli, ani listy.
+  organizacji osobistej nie widzi ani roli, ani listy.
 
 ### Role w panelu administracyjnym
 
 Ekran szczegółów organizacji ma zakładkę **Role**. Widzi ją operator z uprawnieniem
-`organizations:read-roles` lub `organizations:manage-roles`, i nigdy dla organizacji prywatnej.
+`organizations:read-roles` lub `organizations:manage-roles`, i nigdy dla organizacji osobistej.
 Z uprawnieniem do odczytu zakładka jest tylko do odczytu; z `organizations:manage-roles` operator
 tworzy, edytuje i usuwa role według tych samych reguł co w storefroncie — formularz tworzenia
 również otwiera się z odznaczonymi wszystkimi uprawnieniami, a rolę, którą ktoś ma, można usunąć
@@ -1078,11 +1080,11 @@ faktycznie ma — aby sklep mógł ukryć to, czego członek nie może zrobić. 
 - **Adresy.** Tworzenie, edycja i usuwanie wspólnych adresów organizacji wymaga
   uprawnienia `addresses.manage` (deklarowanego przez `addresses`, domyślnie
   w roli Członek); ich odczyt — nie.
-- **Organizacje prywatne.** Jedyny członek organizacji prywatnej ma jej rolę
+- **Organizacje osobiste.** Jedyny członek organizacji osobistej ma jej rolę
   Administrator. Trasy członków i zaproszeń odpowiadają mu jak każdemu
   administratorowi (lista członków zawiera tylko jego, lista zaproszeń jest
   pusta); zaproszenie jest odrzucane z `422 VALIDATION_FAILED`, bo organizacja
-  jest prywatna, zanim rola zostanie sprawdzona. Sklep ukrywa tam ekrany
+  jest osobista, zanim rola zostanie sprawdzona. Sklep ukrywa tam ekrany
   organizacji na podstawie `organization.isPersonal`, nigdy roli.
 - **Logowanie i koszyk gościa.** Gdy loguje się członek, którego rola nie ma
   uprawnienia *Tworzenie i edycja koszyków*, jego koszyk gościa nie jest łączony:
