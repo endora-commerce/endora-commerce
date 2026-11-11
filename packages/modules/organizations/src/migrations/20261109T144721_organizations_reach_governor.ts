@@ -56,6 +56,32 @@ import { Migration } from '@mikro-orm/migrations';
  */
 export class Migration20261109T144721OrganizationsReachGovernor extends Migration {
   override async up(): Promise<void> {
+    // Issue #1033: the assignment table this migration reads and puts triggers
+    // on is `organizations`' own, and this is the first migration of the module
+    // that needs it — so the owner creates it here. Until then only
+    // `quote_requests`' `Migration20260503T141344QuoteRequestsWorkflow` did, and
+    // a platform composing `organizations` without `quote_requests` stopped on
+    // the triggers below. The shape is exactly that migration's — columns,
+    // constraint and index names — so every database ends up with one table,
+    // whichever of the two ran first; both are `if not exists`
+    // (`specs/178-extensible-columns/` D-291 R-A8). On a database that already
+    // ran this migration nothing re-runs; on one where `quote_requests` created
+    // the table first, these are no-ops. Not dropped in `down()`: on an upgraded
+    // database the table and its rows predate this migration.
+    this.addSql(`
+      create table if not exists "organization_sales_rep_assignments" (
+        "id" uuid not null,
+        "organization_id" uuid not null,
+        "admin_user_id" uuid not null,
+        "assigned_by_admin_user_id" uuid null,
+        "created_at" timestamptz not null,
+        constraint "organization_sales_rep_assignments_pkey" primary key ("id"),
+        constraint "orgsa_unique" unique ("organization_id", "admin_user_id")
+      );
+    `);
+    this.addSql(`create index if not exists "orgsa_admin_user_idx" on "organization_sales_rep_assignments" ("admin_user_id");`);
+    this.addSql(`create index if not exists "orgsa_organization_idx" on "organization_sales_rep_assignments" ("organization_id");`);
+
     this.addSql(`
       create table if not exists "organization_reach_governor" (
         "organization_id" uuid not null,
