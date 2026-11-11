@@ -123,6 +123,10 @@ Rows refer to `contracts/personal-tax-id-removal.md` §3.
 
 ## WP-R — Registration on 176's Command (after 176 is on `master` and merged into the integration branch)
 
+**Deferred (2026-11-11): not in this feature's pull request.** Spec 176's registration Command is not on
+`master`, so Phase A (T039) is what ships; T070 and T071 wait for spec 176 and land in a follow-up
+pull request after it merges.
+
 - [ ] T070 [WP-R] [US1] [test] 176's registration Command in both scopes: pre-check through `resolveByTaxId` and `registrationConflictPolicy` (`refuse`); a deferred `23P01`/`23505` at commit → `409 ORGANIZATION_TAX_ID_EXISTS`; 50 concurrent pairs; a `beforeCommit` hook throwing after the organization insert leaves no row (FR-021, FR-022) — `bt/contract/organizations/register.test.ts`, `tax-id-conflict-concurrency.test.ts` — 176, T014v
 - [ ] T071 [WP-R] [US1] Move the pre-check and policy into the Command; wrap its `commandBus.run` call site with `runOrganizationWrite`; remove T039's patch if it landed; if 176 ships policy chains, declare `registrationConflictPolicy` as a participant with `refuse` as the deepest default; update `tax-id-write-paths.test.ts` — `org/src/backend/` — T070
 
