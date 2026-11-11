@@ -3,6 +3,7 @@ import { afterAll, beforeAll, describe, expect, it, vi } from 'vitest';
 import { ERROR_CODES } from '@endora-commerce/contracts';
 import type { Command, CommandBus } from '@endora-commerce/platform/commands';
 import { AuditLogEntry, SalesChannel } from '@endora-commerce/platform/kernel';
+import { expectNoAuditValues } from '@endora-commerce/test-kit/audit';
 import {
   setupBackendServer,
   teardownBackendServer,
@@ -17,6 +18,10 @@ import {
  * `expectedUpdatedAt`, the fields it accepts, one audit entry per PATCH — and
  * what changed is underneath: the write and its entry share one transaction on
  * the Command Bus instead of an audit recorded after the flush.
+ *
+ * The entry names what changed and quotes no value
+ * (`specs/conventions/audit-state.md`, D-288, issue #470 ruling O-2): neither
+ * the name, the tax id nor a custom-field value reaches the global audit log.
  */
 const ADMIN = { cookies: { b2b_session: 'stub-admin-session' } };
 const DEFINITIONS_URL = '/api/v1/admin/custom-fields/definitions';
@@ -82,7 +87,7 @@ describe('PATCH /api/v1/admin/organizations/:id — custom-field values through 
     definitions.splice(definitions.indexOf(id), 1);
   }
 
-  async function createOrganization(values: Record<string, unknown>): Promise<{ id: string; updatedAt: string }> {
+  async function createOrganization(values: Record<string, unknown>): Promise<{ id: string; taxId: string; updatedAt: string }> {
     const res = await h.app.inject({
       method: 'POST',
       url: '/api/v1/admin/organizations',
@@ -96,7 +101,7 @@ describe('PATCH /api/v1/admin/organizations/:id — custom-field values through 
       },
     });
     expect(res.statusCode, res.body).toBe(201);
-    return res.json().data as { id: string; updatedAt: string };
+    return res.json().data as { id: string; taxId: string; updatedAt: string };
   }
 
   const patch = (id: string, payload: Record<string, unknown>) =>
@@ -113,21 +118,22 @@ describe('PATCH /api/v1/admin/organizations/:id — custom-field values through 
   it('merges the values, answers them, and records one entry through the Command Bus', async () => {
     const note = `cfp_note_${stamp}`;
     const tier = `cfp_tier_${stamp}`;
-    const org = await createOrganization({ [tier]: 'gold' });
+    const org = await createOrganization({ [tier]: 'S470-CF-KEPT' });
 
     const run = vi.spyOn(commandBus(), 'run');
     const record = vi.spyOn(h.auditLogService, 'record');
     try {
       const res = await patch(org.id, {
-        name: `CF patch renamed ${stamp}`,
-        customFieldValues: { [note]: 'VIP' },
+        name: `S470-RENAMED ${stamp}`,
+        vatStatus: 'vat_exempt',
+        customFieldValues: { [note]: 'S470-CF' },
         expectedUpdatedAt: org.updatedAt,
       });
       expect(res.statusCode, res.body).toBe(200);
       const data = res.json().data as { name: string; customFieldValues: Record<string, unknown> };
-      expect(data.name).toBe(`CF patch renamed ${stamp}`);
+      expect(data.name).toBe(`S470-RENAMED ${stamp}`);
       // An absent key is kept: the panel sends only the keys it shows.
-      expect(data.customFieldValues).toEqual({ [tier]: 'gold', [note]: 'VIP' });
+      expect(data.customFieldValues).toEqual({ [tier]: 'S470-CF-KEPT', [note]: 'S470-CF' });
 
       const actions = run.mock.calls.map(([command]) => (command as Command).action);
       expect(actions).toContain('organization.admin_patch');
@@ -142,10 +148,15 @@ describe('PATCH /api/v1/admin/organizations/:id — custom-field values through 
     const entries = await entriesFor(org.id);
     expect(entries).toHaveLength(1);
     expect(entries[0]?.actorAdminUserId).not.toBeNull();
-    expect(entries[0]?.stateBefore).toMatchObject({ name: `CF patch ${stamp}`, customFieldValues: { [tier]: 'gold' } });
-    expect(entries[0]?.stateAfter).toMatchObject({
-      name: `CF patch renamed ${stamp}`,
-      customFieldValues: { [tier]: 'gold', [note]: 'VIP' },
+    // Names, never values (D-288, #470 O-2).
+    expectNoAuditValues(entries, ['S470-CF', 'S470-RENAMED', `CF patch ${stamp}`, org.taxId, org.id]);
+    expect(entries[0]?.stateBefore).toEqual({ status: 'active', vatStatus: 'vat_payer', fulfilmentStrategy: null });
+    expect(entries[0]?.stateAfter).toEqual({
+      status: 'active',
+      vatStatus: 'vat_exempt',
+      fulfilmentStrategy: null,
+      changedFields: ['name', 'vatStatus'],
+      changedCustomFields: [note],
     });
   });
 

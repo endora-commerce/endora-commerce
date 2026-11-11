@@ -440,7 +440,8 @@ export async function registerOrganizationsAdminRoutes(
       const { customFieldValues: patchValues, expectedUpdatedAt, ...changes } = body;
       // One Command, `organization.admin_patch`: the version check, the column
       // changes and the custom-field merge on one transaction, with the one
-      // audit entry this edit has always recorded. The merge is the step
+      // audit entry this edit has always recorded — naming what changed, never
+      // a value (D-288, #470 O-2). The merge is the step
       // `organizationCustomFieldWritePort` runs, so the two writes of the bag
       // cannot drift. Feature 055 — the value service only validates; this
       // module owns the write (Principle XIV).
@@ -475,7 +476,6 @@ export async function registerOrganizationsAdminRoutes(
           changes,
           assertCurrent: (current) => assertVersion(current.updatedAt, expectedUpdatedAt),
           mergeCustomFieldValues,
-          snapshot: serializeOrg,
         }),
       );
       return { data: serializeOrg(org) };

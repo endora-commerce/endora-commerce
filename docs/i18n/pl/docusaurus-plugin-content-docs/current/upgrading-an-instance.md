@@ -5063,6 +5063,29 @@ każdego, kto ma `audit_log:read`, bez względu na to, co widzi.
 **Po aktualizacji** nie trzeba nic robić. Raport, który wyszukiwał subskrybentów po adresie w
 dzienniku audytu, wyszukuje ich na ekranie **Newsletter**.
 
+### Wartości edytowanej organizacji znikają z dziennika audytu platformy {#organization-admin-patch-audit-names-only}
+
+Wydanie z tą zmianą przestaje zapisywać wartości organizacji w dzienniku audytu całej platformy,
+gdy operator ją edytuje (zgłoszenie #470, decyzja właściciela O-2: nazwa organizacji, jej NIP i
+powody to wartości klienta). Ten dziennik to jedna tabela, czytana przez każdego, kto ma
+`audit_log:read`, bez względu na to, które organizacje widzi.
+
+**Zmiana zachowania po aktualizacji:**
+
+- Na ekranie **Dziennik audytu** i w `audit_logs read` nowy wpis `organization.admin_patch`
+  (`PATCH /api/v1/admin/organizations/:id`) nie zawiera już migawki organizacji: nazwy, nazwy
+  prawnej, NIP-u, adresu rejestrowego, adresów e-mail do potwierdzeń zamówień, powodu blokady ani
+  odrzucenia ani wartości pól niestandardowych.
+- Zamiast tego zapisuje kody statusu, statusu VAT i strategii realizacji przed zmianą i po niej
+  oraz nazywa to, co się zmieniło: pola jako `changedFields`, klucze pól niestandardowych jako
+  `changedCustomFields`.
+- Organizacja i jej wartości się nie zmieniają.
+- Wpisy zapisane przed aktualizacją nie są przepisywane: zachowują migawkę, z którą zostały
+  zapisane.
+
+**Po aktualizacji** nie trzeba nic robić. Raport albo eksport, który odczytywał wartości
+organizacji z dziennika audytu, odczytuje je z organizacji (`GET /api/v1/admin/organizations/:id`).
+
 ## Instancja niespójna od początku
 
 Instalator `0.101.x` lub starszy zapisywał każdy pakiet wydania z `^` poza
