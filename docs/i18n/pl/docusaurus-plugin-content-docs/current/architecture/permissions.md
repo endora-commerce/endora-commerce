@@ -217,12 +217,12 @@ nie należą: każdy deklaruje moduł, którego działanie kupującego ten kod c
 Obie role predefiniowane tworzy razem z organizacją wyzwalacz w bazie danych, niezależnie od tego,
 która ścieżka tworzy organizację.
 
-**Jedyny członek organizacji prywatnej (B2C) ma rolę *Administrator***, na każdej ścieżce, która
+**Jedyny członek organizacji osobistej (B2C) ma rolę *Administrator***, na każdej ścieżce, która
 umieszcza tam konto — samodzielna rejestracja, logowanie przez zewnętrznego dostawcę tożsamości,
 `ensureForCustomerAccount` i odłączenie konta przez operatora. Dzięki temu kupujący B2C może
-zrobić wszystko, co może kupujący, bez drugiej reguły. To, czego organizacja prywatna nie może
+zrobić wszystko, co może kupujący, bez drugiej reguły. To, czego organizacja osobista nie może
 pokazywać — *Członkowie*, *Role*, *Koszyki do akceptacji*, wiersz z rolą na stronie konta — jest
-ukryte, bo organizacja jest prywatna (`organization.isPersonal`), **nigdy na podstawie roli**. Jej
+ukryte, bo organizacja jest osobista (`organization.isPersonal`), **nigdy na podstawie roli**. Jej
 trasy członków i zaproszeń odpowiadają jak każdemu administratorowi; tylko jej trasy ról
 odpowiadają `404`.
 

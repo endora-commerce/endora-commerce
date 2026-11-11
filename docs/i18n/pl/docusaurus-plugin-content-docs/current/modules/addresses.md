@@ -8,7 +8,7 @@ description: Adresy pocztowe klientów, z najwyżej jednym adresem domyślnym ka
 Adresy pocztowe klientów, przypisane do organizacji. Każdy adres ma rodzaj `kind` (`shipping`,
 `billing`, `delivery`) oraz flagę adresu domyślnego dla tego rodzaju.
 
-To **jedyna książka adresowa każdego klienta**: książka firmy albo organizacji prywatnej klienta
+To **jedyna książka adresowa każdego klienta**: książka firmy albo organizacji osobistej klienta
 indywidualnego. Kasa proponuje adresy z niej i do niej zapisuje nowe, a sklep pokazuje ją klientowi
 indywidualnemu jako *Moje adresy* (`/addresses`), a członkowi firmy jako *Adresy organizacji*
 (`/organization/addresses`). Osobna, osobista książka adresowa, którą prowadził moduł `customers`,
@@ -31,7 +31,7 @@ organizacja odbiera je, edytując rolę.
 
 W storefroncie obie strony adresów to ta sama książka adresowa. Pokazują listę adresów każdemu
 członkowi, a formularz dodawania i przyciski *Ustaw jako domyślny* i *Usuń* tylko członkowi, którego
-rola ma to uprawnienie. Klient indywidualny jest administratorem swojej organizacji prywatnej i
+rola ma to uprawnienie. Klient indywidualny jest administratorem swojej organizacji osobistej i
 zawsze je ma. Pozostali widzą zamiast formularza jedno zdanie: *Twoja rola nie pozwala dodawać ani
 usuwać adresów. Możesz je przeglądać i używać przy składaniu zamówienia.* Odrzucone pole jest
 opisane własnym zdaniem, na przykład *Wpisz ulicę i numer.*
@@ -44,7 +44,7 @@ domyślny; kraj zostaje), miękko go usuwa (usunięty adres zachowuje datę usun
 wpis audytu `address.anonymized` na adres, bez autora. Wpis odnotowuje tylko organizację, rodzaj
 adresu i to, czy adres był już usunięty. Adres już wyczyszczony jest pomijany, więc ponowne
 wywołanie niczego nie zmienia. Wywołuje ją zadanie anonimizacji modułu `customers`, gdy anonimizuje
-organizację prywatną klienta indywidualnego. Zamówienia zachowują własne kopie adresów.
+organizację osobistą klienta indywidualnego. Zamówienia zachowują własne kopie adresów.
 
 `addressReadPort.listIdsForOrganization(organizationId, { includeDeleted })` zwraca identyfikatory
 adresów organizacji, a gdy `includeDeleted` ma wartość `true`, także adresów usuniętych.

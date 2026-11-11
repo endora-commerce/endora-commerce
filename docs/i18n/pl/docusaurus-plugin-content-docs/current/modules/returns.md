@@ -167,7 +167,7 @@ trafia do dziennika audytu — z informacją, czy podano powód (`hasReason`), n
 - **Odstąpienie konsumenta od umowy zwraca koszt dostawy i dopłatę za płatność**
   (art. 13 ust. 1 dyrektywy 2011/83/UE, art. 32 ust. 1 ustawy o prawach konsumenta).
   Sprawa, z którą wraca ostatnia zwracana sztuka zamówienia B2C (organizacja zamówienia jest
-  organizacją prywatną), zwraca oprócz towaru również koszt dostawy i dopłatę za płatność.
+  organizacją osobistą), zwraca oprócz towaru również koszt dostawy i dopłatę za płatność.
   Muszą być spełnione wszystkie warunki:
   - sprawa jest zwrotem, a nie reklamacją;
   - z tą sprawą wróciła każda sztuka każdej pozycji zamówienia, w zwrotach rozliczonych zwrotem
@@ -384,7 +384,7 @@ importy wnętrza innych modułów:
   składaniu zamówienia, `null` dla zamówienia złożonego, zanim zaczęto je zapisywać). Moduł Orders
   podaje fakt; zasada dla `null` — podlega zwrotowi — należy do tego modułu. Port podaje też koszt
   dostawy i dopłatę za płatność zamówienia.
-- `OrganizationDetailsPort` (organizations) — czy organizacja zamówienia jest organizacją prywatną
+- `OrganizationDetailsPort` (organizations) — czy organizacja zamówienia jest organizacją osobistą
   (B2C), od czego zależy, czy odstąpienie zwraca dostawę i dopłatę.
 - `PaymentRefundPort` (payments) — wykonanie zwrotu, odpowiedź `pending_manual`, gdy nie ma
   integracji z operatorem płatności, albo odmowa, gdy bramka, która przyjęła płatność, jest

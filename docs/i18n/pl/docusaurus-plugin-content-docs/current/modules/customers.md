@@ -1,12 +1,12 @@
 ---
 title: Klienci
-description: Cykl życia klienta na bazie `customer_accounts` — organizacje firmowe i prywatne, przypisanie handlowca i obsługa klientów w panelu administracyjnym
+description: Cykl życia klienta na bazie `customer_accounts` — organizacje firmowe i osobiste, przypisanie handlowca i obsługa klientów w panelu administracyjnym
 ---
 
 # Klienci (`customers`)
 
 Logika biznesowa cyklu życia klienta, zbudowana na module danych `customer_accounts`. **Każdy klient
-należy do organizacji** — firmowej w przypadku B2B albo jednoosobowej *organizacji prywatnej* w
+należy do organizacji** — firmowej w przypadku B2B albo jednoosobowej *organizacji osobistej* w
 przypadku osoby fizycznej — a `customer_accounts.organization_id` ma ograniczenie `NOT NULL`.
 „Samodzielny” oznacza w tym dokumencie *poza organizacją firmową*, a nigdy *bez organizacji*: taki
 klient jest osobnym tenantem, a funkcje związane z organizacją, które oferuje firma (zaproszenia,
@@ -20,7 +20,7 @@ zamiast być wyłączane jako przypadek szczególny.
 - Samodzielna rejestracja, dostępna zależnie od ustawienia
   `customers.allow_registration_without_organization` w danym kanale sprzedaży: obowiązuje wartość
   ustawiona dla kanału, do którego należy żądanie, a w jej braku wartość dla wszystkich kanałów. Po
-  udanej rejestracji konto i jego organizacja prywatna są zapisywane w jednej transakcji, a nowe
+  udanej rejestracji konto i jego organizacja osobista są zapisywane w jednej transakcji, a nowe
   konto jest automatycznie logowane. Gdy
   ustawienie jest wyłączone, strona `/register-customer` w sklepie zamiast formularza pokazuje
   komunikat z linkiem do rejestracji organizacji, więc odwiedzający nie wypełnia formularza, który
@@ -44,13 +44,13 @@ zamiast być wyłączane jako przypadek szczególny.
   utworzenia, grupą klientów, organizacją, stanem blokady i ostatnim logowaniem.
 - Blokowanie i odblokowanie oraz usunięcie miękkie i przywrócenie, z uprawnieniami zależnymi od roli:
   administrator platformy może działać na każdym kliencie; poza nim uprawniony jest handlowiec
-  przypisany do organizacji klienta. Organizacja prywatna nigdy nie ma przypisanego handlowca, więc
+  przypisany do organizacji klienta. Organizacja osobista nigdy nie ma przypisanego handlowca, więc
   reguła dla nieprzypisanych organizacji sprawia, że samodzielnym klientem może zająć się dowolny
   handlowiec — na liście klientów, na ekranie klienta i przy każdym odczycie objętym izolacją, a nie
   tylko przy tych akcjach, bo reguła zasięgu jest jedna na wszystkich ekranach (zgłoszenie #305). Zabezpieczenie odmawia zablokowania, usunięcia lub odłączenia ostatniego aktywnego
   członka z rolą Administrator organizacji firmowej (`409 ORG_OWNER_DEPLETION`);
   zablokowani administratorzy się nie liczą. Nie dotyczy
-  organizacji prywatnej, której jedyny członek ma rolę Administrator: zablokowanie lub usunięcie
+  organizacji osobistej, której jedyny członek ma rolę Administrator: zablokowanie lub usunięcie
   takiego klienta jest dozwolone.
 - Logowanie jako klient; audytowane jako `impersonation.start` / `impersonation.end`. Odpowiedź
   podaje `organizationRole` klienta, a logowanie jako klient działa dokładnie z jego uprawnieniami
@@ -58,7 +58,7 @@ zamiast być wyłączane jako przypadek szczególny.
 - Reset hasła z poziomu panelu (e-mail z linkiem do ustawienia hasła).
 - Walidacja NIP/VAT (VIES, port Białej listy).
 - Przypisanie do organizacji i odłączenie od organizacji, które przenosi klienta do jego własnej
-  organizacji prywatnej, zamiast zostawiać go bez organizacji. Bezpośrednie przypisanie grupy
+  organizacji osobistej, zamiast zostawiać go bez organizacji. Bezpośrednie przypisanie grupy
   klientów (zastępuje grupę organizacji przy wyznaczaniu cen i promocji).
 - Panele zamówień, zapytań ofertowych i koszyków (bieżących i porzuconych), tylko do odczytu.
 - Widok „klienci online” oparty na ostatniej aktywności sesji.
@@ -72,7 +72,7 @@ jego upływie zadanie anonimizacji (`AnonymizationSweepWorker`) nieodwracalnie u
 przywrócenie nie jest już możliwe: od chwili upływu okresu przywrócenie kończy się odpowiedzią
 `409 CUSTOMER_RESTORE_WINDOW_ELAPSED`, nawet jeśli zadanie nie dotarło jeszcze do tego konta. Konto
 traci adres e-mail, imię i nazwisko, hasło oraz wszystkie wartości pól niestandardowych. W
-przypadku klienta indywidualnego zadanie anonimizuje też jego organizację prywatną: czyści jej
+przypadku klienta indywidualnego zadanie anonimizuje też jego organizację osobistą: czyści jej
 nazwę, adres rejestrowy, nazwę prawną, adresy e-mail do potwierdzeń zamówień i wszystkie wartości
 pól niestandardowych, a wszystkie jej zapisane adresy, także te, które klient wcześniej usunął,
 są czyszczone (`-`, bez telefonu, kraj zostaje) i miękko usuwane (usunięty adres zachowuje datę
@@ -82,13 +82,13 @@ anonimizacji odnotowują, że dane usunięto, ale nie przechowują samych danych
 
 Usuwane są też uzasadnienia, które operatorzy zapisali o kliencie: powód zablokowania konta, a w
 przypadku klienta indywidualnego także powody zablokowania i odrzucenia jego organizacji
-prywatnej. Organizacja firmowa zachowuje swoje powody. Sama blokada lub odrzucenie zostaje, więc
+osobistej. Organizacja firmowa zachowuje swoje powody. Sama blokada lub odrzucenie zostaje, więc
 ekrany klienta nadal pokazują status i jego datę, ale bez powodu. Wpisy audytu anonimizacji
 odnotowują jedynie, że powód istniał.
 
 Wcześniejsza historia audytu dotycząca klienta również jest usuwana w miejscu. Obejmuje to wpis
 samej blokady wraz z powodem, zmiany profilu i zmiany adresów. Dotyczy to wpisów o koncie, a w
-przypadku klienta indywidualnego także o jego organizacji prywatnej, adresach tej organizacji (w
+przypadku klienta indywidualnego także o jego organizacji osobistej, adresach tej organizacji (w
 tym tych, które klient wcześniej usunął) oraz o jego wycofanych adresach osobistych. Każdy wpis
 zachowuje akcję, wykonawców, czas i obiekt, a każde zapisane pole zachowuje swoją nazwę. Imiona i
 nazwiska, adresy e-mail, adresy, dowolny tekst i każda wartość pola niestandardowego zmieniają się
@@ -122,14 +122,14 @@ jakaś wcześniejsza anonimizacja pozostała do dokończenia; jeśli nie, nic ni
 wpisu audytu. Gdy tego nie da się sprawdzić, przebieg i tak się odbywa. Dwa nakładające się przebiegi anonimizują konto
 tylko raz.
 
-Zadanie najpierw anonimizuje organizację prywatną i jej adresy, a konto na końcu. Jeśli przebieg
+Zadanie najpierw anonimizuje organizację osobistą i jej adresy, a konto na końcu. Jeśli przebieg
 zostanie przerwany, konto zostanie podjęte ponownie w następnym przebiegu, który dokończy brakujące
 kroki bez powtarzania wpisów audytu kroków już wykonanych. Konto, którego nie da się
 zanonimizować, nie wstrzymuje pozostałych: przebieg anonimizuje resztę, a następnie zgłasza
 identyfikatory kont, których nie udało się przetworzyć.
 
 Tak samo jest, gdy zakres usuwanych danych się poszerza. Wszystko, co przebieg z wcześniejszej
-wersji pozostawił na zanonimizowanym koncie lub w jego organizacji prywatnej, na przykład wartości
+wersji pozostawił na zanonimizowanym koncie lub w jego organizacji osobistej, na przykład wartości
 pól niestandardowych, nazwę prawną, adresy e-mail do potwierdzeń zamówień albo powód zablokowania
 lub odrzucenia, usuwa następny przebieg, niezależnie od obecnego ustawienia okresu przechowywania.
 Ten przebieg zapisuje po jednym dodatkowym wpisie audytu dla każdego zmienionego rekordu, zachowuje
@@ -146,10 +146,10 @@ wszystkich, w dwóch wydaniach:
 - **Wydanie 1 (to).** Każdy dawny punkt końcowy osobistej książki odpowiada `410 Gone` z kodem
   `CUSTOMER_ADDRESS_BOOK_RETIRED`, po polsku lub po angielsku. Jednorazowe zadanie w tle,
   uruchamiane przez proces workera, gdy ten moduł jest włączony, przetwarza pozostałe wiersze:
-  - wiersze klienta indywidualnego są **przenoszone** do książki jego organizacji prywatnej. Adres,
+  - wiersze klienta indywidualnego są **przenoszone** do książki jego organizacji osobistej. Adres,
     który już w niej jest, nie jest kopiowany drugi raz, a istniejący adres domyślny pozostaje
     domyślny. Każdy wiersz ma wpis audytu `customer_address.merge`;
-  - każdy inny wiersz (członka firmy, klienta indywidualnego, którego organizacja prywatna została już
+  - każdy inny wiersz (członka firmy, klienta indywidualnego, którego organizacja osobista została już
     zanonimizowana, albo konta, którego organizacji nie da się znaleźć) jest **usuwany**: czyszczony, miękko usuwany i audytowany jako `customer_address.erased`;
   - wiersz, którego książka adresowa nie przyjmuje — na przykład z krajem, który nie jest już
     aktywny — zostaje, oznaczony powodem (`customer_address.merge_refused`). Widzi go tylko

@@ -43,7 +43,7 @@ platformy, a nie tego, co akurat zostało opisane.
 | [Waluty](./currencies.md) | Lista akceptowanych kodów walut ISO 4217 i waluta domyślna | @endora-commerce/mod-currencies |
 | [Pola niestandardowe](./custom_fields.md) | Typowane pola, które operator dodaje do zamówień, zapytań ofertowych, szans sprzedażowych i innych rekordów bez zmiany kodu, edytowane na jednym ekranie, dostępne jako filtry list w panelu i przenoszone z jednego rekordu do rekordu z niego utworzonego. | @endora-commerce/mod-custom-fields |
 | [Konta klientów](./customer_accounts.md) | Logowanie klientów, reset hasła, weryfikacja dwuetapowa, przypisanie roli | @endora-commerce/mod-customer-accounts |
-| [Klienci](./customers.md) | Cykl życia klienta na bazie `customer_accounts` — organizacje firmowe i prywatne, przypisanie handlowca i obsługa klientów w panelu administracyjnym | @endora-commerce/mod-customers |
+| [Klienci](./customers.md) | Cykl życia klienta na bazie `customer_accounts` — organizacje firmowe i osobiste, przypisanie handlowca i obsługa klientów w panelu administracyjnym | @endora-commerce/mod-customers |
 | [Metody dostawy](./delivery_methods.md) | Skonfigurowane metody dostawy | @endora-commerce/mod-delivery-methods |
 | [Słowniki](./dictionaries/index.md) | Dane słownikowe tworzone przy instalacji — kraje, waluty, języki — z możliwością zmiany kolejności w panelu | @endora-commerce/mod-dictionaries |
 | [Szablony dokumentów](./document-templates.md) | Projektowanie dokumentów PDF generowanych przez platformę — porównania produktów, faktury i zapytania ofertowego — w Page Builderze, dla każdego rodzaju dokumentu, języka i kanału sprzedaży | @endora-commerce/mod-document-templates |
