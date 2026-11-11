@@ -786,6 +786,58 @@ export interface CustomerAccountRoleCommandPort {
   holdersOf(organizationId: string, roleId: string): Promise<string[]>;
 }
 
+/**
+ * `customer_account.create` as the platform's Command Bus runs it, named
+ * structurally for the reason {@link CustomerAccountRoleChangeCommand} is: the
+ * platform's `Command<CustomerAccountRecord>` is assignable to it and it to
+ * that, so a caller hands it to `commandBus.run` or, as a child, to `ctx.run`
+ * unchanged. Its `run` belongs to the bus.
+ */
+export interface CustomerAccountCreateCommand {
+  readonly action: string;
+  readonly objectType: string;
+  readonly objectId: string;
+  run(ctx: never): Promise<{ readonly result: CustomerAccountRecord }>;
+}
+
+/**
+ * What {@link CustomerAccountMemberCommandPort.prepareCreate} takes: an account's
+ * creation input without the two ids a caller may only know inside its own
+ * transaction — a registration learns its Organization's *Administrator* role
+ * id from the row the Organization's insert wrote.
+ */
+export type CustomerAccountCreatePreparation = Omit<CustomerAccountCreateInput, 'organizationId' | 'organizationRoleId'>;
+
+/** A prepared account creation: the password is hashed, the Command not yet built. */
+export interface PreparedCustomerAccountCreate {
+  /** The `customer_account.create` Command for that Organization and role. */
+  command(target: { organizationId: string; organizationRoleId: string }): CustomerAccountCreateCommand;
+}
+
+/**
+ * Container name: `customerAccountMemberCommandPort`. Owner: `customer_accounts`.
+ *
+ * The account creation as a **Command factory** (`specs/176-command-hooks-outbox/`
+ * FR-002, FR-005, `contracts/registration-command.md`): `organizations` creates
+ * a registration's first account as a **child** of `organization.register`
+ * through `ctx.run`, so the Organization and its administrator commit together
+ * or not at all, each with its own audit entry. No `EntityManager` crosses.
+ *
+ * `prepareCreate` hashes the password **now**, outside any transaction — the
+ * hash's cost is deliberate and must never run while a transaction holds the
+ * caller's rows — and the Command it later builds only writes. The Command
+ * refuses `409 EMAIL_ALREADY_REGISTERED` from its pre-check and from the unique
+ * index, inside its run.
+ *
+ * {@link CustomerAccountMemberWritePort.create} runs this same Command,
+ * top-level, so the creation has one implementation (FR-004).
+ *
+ * **Owner off:** the seam fails closed, as {@link CustomerAccountRoleCommandPort} does.
+ */
+export interface CustomerAccountMemberCommandPort {
+  prepareCreate(input: CustomerAccountCreatePreparation): Promise<PreparedCustomerAccountCreate>;
+}
+
 // --- the lifecycle surface `customers` runs ----------------------------------
 
 /**

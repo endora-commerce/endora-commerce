@@ -35,8 +35,15 @@ import { twoFactorEnrolmentsFor } from './two-factor-enrolments.js';
  * the same write path the composed one does. What the container adds on top is
  * the effective-state gate, and a test that wants the 503 flips the module
  * state against the shared harness instead of substituting a fake here.
+ *
+ * `write.create` runs the `customer_account.create` Command since
+ * `specs/176-command-hooks-outbox/` (FR-004), so a test that creates an account
+ * through it passes the bus; without one the creation refuses.
  */
-export function customerAccountPortsFor(emFactory: () => EntityManager): {
+export function customerAccountPortsFor(
+  emFactory: () => EntityManager,
+  commandBus?: CommandBus,
+): {
   read: CustomerAccountReadPort;
   write: CustomerAccountMemberWritePort;
 } {
@@ -45,6 +52,8 @@ export function customerAccountPortsFor(emFactory: () => EntityManager): {
     write: new CustomerAccountMemberWriteService(
       emFactory,
       twoFactorEnrolmentsFor(emFactory, 'customer'),
+      undefined,
+      commandBus ? { commandBus } : undefined,
     ),
   };
 }

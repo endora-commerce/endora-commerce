@@ -56,6 +56,10 @@ read stay before `commandBus.run`; the tax-id and e-mail checks move **inside** 
 transaction); ticket deletion runs after `run` resolves.
 **Rationale.** Nothing slow or remote inside the transaction; the pre-checks that guard writes read
 the same snapshot the writes see.
+**Amended (P1, 2026-11-11).** The tax-ID and e-mail checks run **both** outside, as fast
+pre-checks before the hash, in the order the endpoint always answered them (FR-008: a request with
+several faults keeps its code), **and** inside the transaction (the Command's tax-ID check, the
+account Command's e-mail check). The constraints and the unique index answer the race.
 
 ## R-4 Registration audit state follows `audit-state.md` now
 
@@ -67,6 +71,10 @@ name, tax id, address.
 organizations #470 batch a regression to fix.
 **Rejected.** Keep today's payload for continuity: O-4 only protects *historical rows*, not new
 writes.
+**Superseded (P1, 2026-11-11).** #1044 made the hand-written `organization.register` entry
+names-only before P1 started: `{ status, changedFields, registryLookup?, changedCustomFields }`,
+held by the module-wide `ORGANIZATION_AUDIT_KEYS`. The Command keeps that state unchanged, so
+history stays continuous; the shape above was not built.
 
 ## R-5 Hooks are a declared seam, not decoration (D-176 Q3)
 

@@ -37,6 +37,7 @@ Strona wygenerowana z manifestu modułu, bez żadnych ręcznych zmian. Co moduł
 | `settings` | tak | ten moduł instaluje się i migruje po nim, a operator nie może go wyłączyć, dopóki ten moduł działa |
 | `transactional_emails` | tak | ten moduł instaluje się i migruje po nim, a operator nie może go wyłączyć, dopóki ten moduł działa |
 | `addresses` | tylko bramkowanie | rozwiązuje `addressServicePort`; pominięty w `dependencies`, bo kolejność instalacji nie może nieść tej krawędzi |
+| `customer_accounts` | tylko bramkowanie | rozwiązuje `customerAccountMemberCommandPort`; pominięty w `dependencies`, bo kolejność instalacji nie może nieść tej krawędzi |
 | `customer_accounts` | tylko bramkowanie | rozwiązuje `customerAccountMemberWritePort`; pominięty w `dependencies`, bo kolejność instalacji nie może nieść tej krawędzi |
 | `customer_accounts` | tylko bramkowanie | rozwiązuje `customerAccountReadPort`; pominięty w `dependencies`, bo kolejność instalacji nie może nieść tej krawędzi |
 | `customer_accounts` | tylko bramkowanie | rozwiązuje `customerAccountRoleCommandPort`; pominięty w `dependencies`, bo kolejność instalacji nie może nieść tej krawędzi |

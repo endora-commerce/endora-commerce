@@ -1,5 +1,4 @@
 import type { EntityManager } from '@mikro-orm/postgresql';
-import { UniqueConstraintViolationException } from '@mikro-orm/core';
 import {
   ERROR_CODES,
   normalizeEmailAddress,
@@ -13,18 +12,20 @@ import {
   type CustomerPasswordStatePort,
   type CustomerPasswordVerificationPort,
   type CustomerAccountRoleCommandPort,
+  type CustomerAccountMemberCommandPort,
   type CustomerRolePort,
   isUuidShape,
 } from '@endora-commerce/contracts';
 import { recordAuditFromContext, type CommandBus } from '@endora-commerce/platform/commands';
 import { HttpError } from '@endora-commerce/platform/http';
 import type { AuditPort } from '@endora-commerce/platform/kernel';
-import { hashPassword, verifyPassword } from '@endora-commerce/platform/kernel';
+import { verifyPassword } from '@endora-commerce/platform/kernel';
 import { CustomerAccount } from '../entities/customer-account.entity.js';
 import type { CustomerAuthService } from './customer-auth-service.js';
 import { makeChangeCustomerAccountRoleCommand } from '../commands/customer-account-change-role.command.js';
 import { makePromoteOrganizationAdminCommand } from '../commands/customer-account-promote-admin.command.js';
 import { makeRemoveMemberCommand } from '../commands/customer-account-remove-member.command.js';
+import { prepareCustomerAccountCreate } from '../commands/customer-account-create.command.js';
 import {
   entityManagerAccountRoleStore,
   type CustomerAccountRoleCommandDeps,
@@ -32,7 +33,6 @@ import {
 } from '../commands/customer-account-role-rules.js';
 import type { TwoFactorEnrolmentReader } from './two-factor-enrolments.js';
 import {
-  accountCreatedAuditState,
   changedKeys,
   organizationMoveAuditState,
 } from './customer-account-audit-state.js';
@@ -354,59 +354,28 @@ export class CustomerAccountMemberWriteService implements CustomerAccountMemberW
     private readonly twoFactorEnrolments: TwoFactorEnrolmentReader,
     private readonly auditLog?: AuditPort,
     /**
-     * The bus and the role lookup {@link promoteToOrganizationAdmin} runs its
-     * Command with (`specs/170-organization-roles/` WP-02b). Optional so the
-     * hand-built test services that never promote need not wire them; the
-     * method refuses without them.
+     * The bus {@link create} and {@link promoteToOrganizationAdmin} run their
+     * Commands with, and the role lookup the promotion needs
+     * (`specs/170-organization-roles/` WP-02b; `specs/176-command-hooks-outbox/`
+     * FR-004). Optional so the hand-built test services that never write
+     * through them need not wire them; each method refuses without them.
      */
-    private readonly roleCommands?: { commandBus: CommandBus; roles: OrganizationRoleLookup },
+    private readonly commands?: { commandBus: CommandBus; roles?: OrganizationRoleLookup },
   ) {}
 
+  /**
+   * `specs/176-command-hooks-outbox/` FR-004 — the `customer_account.create`
+   * Command, top-level: the same implementation a registration runs as its
+   * child, so the bus writes the one audit entry and nothing here does.
+   */
   async create(input: CustomerAccountCreateInput): Promise<CustomerAccountRecord> {
-    const em = this.emFactory();
-    const email = normalizeEmailAddress(input.email);
-    const existing = await em.findOne(CustomerAccount, { email });
-    if (existing) {
-      throw new HttpError(
-        409,
-        ERROR_CODES.EMAIL_ALREADY_REGISTERED,
-        'An account with this email already exists.',
-      );
+    const commandBus = this.commands?.commandBus;
+    if (!commandBus) {
+      throw new Error('CustomerAccountMemberWriteService: the creation runs a Command; construct the service with its bus.');
     }
-    const account = em.create(CustomerAccount, {
-      organizationId: input.organizationId,
-      email,
-      passwordHash: await hashPassword(input.password),
-      // Issue #222 — a password somebody supplied, so the account has one on
-      // record from its first moment. This is the write both organisation
-      // registration (the holder typed it) and the member admin surface (an
-      // operator set it and hands it over) go through.
-      passwordSetAt: new Date(),
-      firstName: input.firstName,
-      lastName: input.lastName,
-      organizationRoleId: input.organizationRoleId,
-      // Feature 175 (research R-5) — already validated by the caller through
-      // custom_fields' value port; stored as given, never re-validated here.
-      customFieldValues: input.customFieldValues ?? {},
-      ...(input.emailVerified ? { emailVerifiedAt: new Date() } : {}),
-    });
-    this.#audit(em, 'customer_account.create', account.id, null, accountCreatedAuditState(account));
-    try {
-      await em.persistAndFlush(account);
-    } catch (err) {
-      // The unique index is the real arbiter; the pre-check above only buys a
-      // better message for the common case. Two registrations racing on one
-      // address must both answer 409 rather than one answering 500.
-      if (err instanceof UniqueConstraintViolationException) {
-        throw new HttpError(
-          409,
-          ERROR_CODES.EMAIL_ALREADY_REGISTERED,
-          'An account with this email already exists.',
-        );
-      }
-      throw err;
-    }
-    return toOneCustomerAccountRecord(this.twoFactorEnrolments, account);
+    const { organizationId, organizationRoleId, ...rest } = input;
+    const prepared = await prepareCustomerAccountCreate(rest, NEW_ACCOUNT_RECORD);
+    return commandBus.run(prepared.command({ organizationId, organizationRoleId }));
   }
 
   async updateProfile(
@@ -472,8 +441,8 @@ export class CustomerAccountMemberWriteService implements CustomerAccountMemberW
    * its legacy value, and the bus records its one audit entry.
    */
   async promoteToOrganizationAdmin(customerAccountId: string): Promise<CustomerAccountRecord> {
-    const roleCommands = this.roleCommands;
-    if (!roleCommands) {
+    const roleCommands = this.commands;
+    if (!roleCommands?.roles) {
       throw new Error(
         'CustomerAccountMemberWriteService: the promotion runs a Command; construct the service with its bus and role lookup.',
       );
@@ -603,6 +572,29 @@ export function createCustomerAuthPort(
     changePassword: (customerAccountId, currentPassword, newPassword, context) =>
       getService().changePassword(customerAccountId, currentPassword, newPassword, context),
     logout: (sessionId) => getService().logout(sessionId),
+  };
+}
+
+/**
+ * `specs/176-command-hooks-outbox/` — what {@link prepareCustomerAccountCreate}
+ * maps a just-written account with. A brand-new account holds no second factor,
+ * so the record says so without asking `mfa`: the Command runs inside its
+ * caller's transaction, and a read on another connection there would be a
+ * remote call holding it open for an answer that is known.
+ */
+const NEW_ACCOUNT_RECORD = {
+  toRecord: (account: CustomerAccount): CustomerAccountRecord => toCustomerAccountRecord(account, false),
+};
+
+/**
+ * `customerAccountMemberCommandPort` — the account creation as a Command
+ * factory, for `organizations`' registration to run as a child of
+ * `organization.register` (`specs/176-command-hooks-outbox/` FR-002, FR-005).
+ * The password is hashed by `prepareCreate`, before the caller's transaction.
+ */
+export function createCustomerAccountMemberCommandPort(): CustomerAccountMemberCommandPort {
+  return {
+    prepareCreate: (input) => prepareCustomerAccountCreate(input, NEW_ACCOUNT_RECORD),
   };
 }
 

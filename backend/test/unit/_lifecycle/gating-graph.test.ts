@@ -99,6 +99,11 @@ describe('acknowledgedPortEdgesFrom — the withheld edges, from the manifests',
     // session acts under through `organizations`' `organizationRoleReadPort`,
     // and `organizations` declares `admin_users`.
     //
+    // And one with `specs/176-command-hooks-outbox/` P1, in the same mutual
+    // pair: a registration creates its first account as a child
+    // `customer_account.create` of `organization.register`, resolved as
+    // `customerAccountMemberCommandPort`.
+    //
     // And one with issue #332: `assets_library` pushes its retention-days write
     // validator into `settings`' `settingWriteValidatorRegistry`, and `settings`
     // declares `assets_library`.
@@ -130,6 +135,7 @@ describe('acknowledgedPortEdgesFrom — the withheld edges, from the manifests',
       'orders:cartReadPort',
       'orders:cartWritePort',
       'organizations:addressServicePort',
+      'organizations:customerAccountMemberCommandPort',
       'organizations:customerAccountMemberWritePort',
       'organizations:customerAccountReadPort',
       'organizations:customerAccountRoleCommandPort',

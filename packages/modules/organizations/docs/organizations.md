@@ -326,6 +326,32 @@ below). A registration row also carries `registryDetails`, `submittedValues`
 and `divergence`; an administrator's row has `null` in all three. The shape is
 `organizationTaxIdValidationRecordSchema` in `@endora-commerce/contracts`.
 
+### Self-registration is all or nothing
+
+A business registering on the storefront creates five things at once: the
+Organization (in `pending_verification`), its sales-channel binding, its first
+user — the Organization's *Administrator* — the registry-lookup snapshot when
+the buyer used the lookup, and the e-mail verification token. They are written
+in **one transaction**: either all of them exist afterwards, or none does. A
+registration that fails at any step — an e-mail address another registration
+took a moment earlier, a database error, a crash — leaves no Organization
+without an administrator behind, so the buyer can simply try again with the
+same tax ID.
+
+The checks that write nothing run first, before anything is written: the
+country, whether the tax ID or the e-mail address is already registered, the
+registry ticket and the custom-field values. The password is hashed before the
+transaction too. `organization.registered.v1` and
+`customer_account.created.v1` are dispatched once each, after the registration
+committed.
+
+For a developer: the write is the `organization.register` Command
+(`commands/register-organization.command.ts`), run through the Command Bus.
+The first account is `customer_accounts`' `customer_account.create`, prepared
+through `customerAccountMemberCommandPort` and run as a **child** Command
+through `ctx.run`. The public endpoint, its body, its answers and its error
+codes are unchanged.
+
 ### Registry lookup at registration
 
 A business registering on the storefront can fetch its company data from the
@@ -1244,10 +1270,19 @@ name, tax ID, address, order-confirmation e-mails, block or rejection reason or
 custom-field values; never a member's or invitee's e-mail address or names;
 never a custom role's name or description.
 
-- **`organization.create`**, **`organization.register`** — the status (and VAT
-  status for a create), the sales channels and parent by id, and the names of
-  the fields it was created with (`changedFields`, e.g. `name`, `taxId`,
-  `registeredAddress`) and of the custom fields stored.
+- **`organization.create`** — the status and VAT status, the sales channels and
+  parent by id, and the names of the fields it was created with
+  (`changedFields`, e.g. `name`, `taxId`, `registeredAddress`) and of the
+  custom fields stored.
+- **`organization.register`** — one entry for the whole self-registration: the
+  status, the names of the fields the Organization was created with
+  (`changedFields`), the keys of the custom fields the buyer filled in for the
+  Organization and for its first user (`changedCustomFields`, as
+  `organization.<key>` and `firstUser.<key>`), and the registry lookup's
+  provider and outcome codes when one was used. The first user's account has its
+  own `customer_account.create` entry (see the `customer_accounts` module).
+  Both are written in the registration's transaction and carry the same
+  request id.
 - **`organization.admin_patch`**, **`organization.set_custom_field_values`**,
   **`organization.convert_to_company`** — the codes before and after and the
   names of what changed.

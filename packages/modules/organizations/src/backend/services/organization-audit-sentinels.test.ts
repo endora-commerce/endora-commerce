@@ -8,7 +8,7 @@
  *
  * The Commands run through the **real** `CommandBus` over an in-memory
  * EntityManager with a recording audit port. The writes that are not Commands
- * (self-registration, moderation, the invitation accept) record through the
+ * (moderation, the invitation accept) record through the
  * audit port as they always have, and are held to the same sentinels. The
  * admin route writes (`organization.delete`, the `customer_account.admin_*`
  * member writes) record the state the snapshot helpers build, so the helpers
@@ -22,9 +22,7 @@ import { describe, expect, it, vi } from 'vitest';
 import type { EntityManager, MikroORM } from '@mikro-orm/postgresql';
 import type {
   AdminOrganizationCreateBody,
-  CustomerAccountCreateInput,
   CustomerAccountRecord,
-  RegisterOrganizationRequest,
 } from '@endora-commerce/contracts';
 import { CommandBus } from '@endora-commerce/platform/commands';
 import { EventBus, type EventBase } from '@endora-commerce/platform/events';
@@ -51,7 +49,7 @@ import {
 import { OrganizationModerationService } from './organization-moderation-service.js';
 import { OrganizationRoleCatalogue } from './organization-role-catalogue.js';
 import type { NewOrganizationRole, OrganizationRoleRow, OrganizationRoleStore } from './organization-role-store.js';
-import { RegistrationService, type OrganizationEventBus } from './registration-service.js';
+import type { OrganizationEventBus } from './registration-service.js';
 
 // ---------------------------------------------------------------------------
 // The sentinel assertion. A local copy of `expectNoAuditValues` from
@@ -266,61 +264,8 @@ describe('organization.create — audit state (D-288, O-2)', () => {
   });
 });
 
-describe('organization.register — audit state (D-288, O-2)', () => {
-  it('names the fields the buyer registered with, records no value and no member e-mail', async () => {
-    const { audits, audit } = recordingAudit();
-    const em = {
-      findOne: async (entity: unknown) => (entity === OrganizationRole ? { id: ADMIN_ROLE } : null),
-      execute: async () => [],
-      create: (entity: unknown, data: Record<string, unknown>) => ({ id: entity === Organization ? ORG : 'token', ...data }),
-      persistAndFlush: async () => {},
-      flush: async () => {},
-    } as unknown as EntityManager;
-    const accounts = {
-      read: { findByEmail: async () => null },
-      write: {
-        create: async (input: CustomerAccountCreateInput) =>
-          sentinelMember({ email: input.email, organizationRoleId: ADMIN_ROLE }),
-      },
-    };
-    const service = new RegistrationService(
-      () => em,
-      { emit: vi.fn() } as unknown as OrganizationEventBus,
-      accounts as never,
-      undefined,
-      audit,
-      undefined,
-      undefined,
-      {
-        validateForCustomerInput: async (_entityType, values) => ({ ...(values ?? {}) }),
-      },
-    );
-    await service.registerOrganization({
-      organization: {
-        name: S.name,
-        taxId: S.taxId,
-        registeredAddress: { street: S.street, city: S.city, postalCode: '47-047', country: 'PL' },
-        customFieldValues: { tier: S.customField },
-      },
-      firstUser: {
-        email: S.email,
-        password: 'correct horse battery staple',
-        firstName: S.firstName,
-        lastName: S.lastName,
-        customFieldValues: { phone: S.customField },
-      },
-      acceptedTermsVersion: '1',
-    } as RegisterOrganizationRequest);
-
-    const entries = audits.filter((entry) => entry['action'] === 'organization.register');
-    expectNoAuditValues(entries, SENTINELS);
-    expectClassifiedKeys(entries);
-    expect(entries[0]!['stateAfter']).toMatchObject({
-      changedFields: ['name', 'registeredAddress', 'taxId'],
-      changedCustomFields: ['firstUser.phone', 'organization.tier'],
-    });
-  });
-});
+// `organization.register` is a Command since `specs/176-command-hooks-outbox/`
+// P1: its sentinel case is `commands/register-organization.audit.test.ts`.
 
 describe('organization.delete — audit state (D-288, O-2)', () => {
   it('records codes, the parent id and the version, and no value', () => {

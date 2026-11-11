@@ -11,6 +11,7 @@ import type {
   CustomerAccountMemberWritePort,
   CustomerAccountReadPort,
   CustomerAccountRoleCommandPort,
+  CustomerAccountMemberCommandPort,
   CustomerAuthPort,
   CustomerAuthenticationThrottlePort,
   CustomerGroupReadPort,
@@ -52,6 +53,7 @@ import {
   CustomerPasswordStateService,
   CustomerPasswordVerificationService,
   createCustomerAccountRoleCommandPort,
+  createCustomerAccountMemberCommandPort,
   createCustomerAuthPort,
   createCustomerRolePort,
 } from './services/customer-account-ports.js';
@@ -419,6 +421,18 @@ export function registerModule(ctx: ModuleContext): void {
         createCustomerAccountRoleCommandPort({ emFactory, roles: organizationRoles }),
       )
       .singleton(),
+  );
+
+  /**
+   * `specs/176-command-hooks-outbox/` FR-002 — the account creation as a
+   * Command factory (`contracts/registration-command.md`). `organizations`
+   * runs `customer_account.create` as the child of `organization.register`
+   * through `ctx.run`, so a registration's Organization and administrator
+   * commit together; the password is hashed before that transaction opens.
+   */
+  ctx.di.providePort<CustomerAccountMemberCommandPort>(
+    'customerAccountMemberCommandPort',
+    ctx.asFunction(() => createCustomerAccountMemberCommandPort()).singleton(),
   );
 
   /**

@@ -17,59 +17,72 @@ fails for the stated reason first. `[FR-…]` is the trace.
 
 ## Phase 1 — US1: Registration is one Command (P1) — **mergeable alone**
 
-**Precondition**: #987, #990 and #1016 merged. Branch `feat/176-p1-registration-command` off
-`origin/master`.
+**Precondition**: #987, #990 and #1016 merged. Branch `feat/176-registration-command` off
+`origin/master`. *(All three, and 177 (#1034, #1040), 178 and #1044 were on `master` when P1 was
+implemented on 2026-11-11; the contract was reconciled with them — see the amendment block at the
+top of `contracts/registration-command.md`.)*
 
 ### Contracts first
 
-- [ ] T001 [US1] Add `CustomerAccountMemberCommandPort` and `CustomerAccountCreateCommand` to
+- [x] T001 [US1] Add `CustomerAccountMemberCommandPort` and `CustomerAccountCreateCommand` to
   `packages/contracts/src/customer-accounts.ts` (`contracts/registration-command.md`), plus a
-  type-level test in `packages/contracts/src/customer-accounts.command-port.test.ts` showing
-  `Command<CustomerAccountRecord>` is assignable both ways. [FR-002]
+  type-level test showing `Command<CustomerAccountRecord>` is assignable both ways. [FR-002]
+  *(The port is `prepareCreate(input)` → `PreparedCustomerAccountCreate.command({ organizationId,
+  organizationRoleId })`, with `CustomerAccountCreatePreparation`: the role id is known only inside
+  the transaction. The type-level check is in `customer-account-create.command.test.ts`, since
+  `@endora-commerce/contracts` depends on no platform code.)*
 
 ### Tests (RED)
 
-- [ ] T002 [P] [US1] `packages/modules/customer_accounts/src/backend/commands/customer-account-create.command.test.ts`:
+- [x] T002 [P] [US1] `packages/modules/customer_accounts/src/backend/commands/customer-account-create.command.test.ts`:
   on a real `CommandBus` over a fake ORM, this checks one entry with `customer_account.create`, a
   `409 EMAIL_ALREADY_REGISTERED` from the pre-check and from a simulated unique violation, the state
   keys limited to the #1016 allowlist, and that it runs as a child on the parent's em. [FR-002]
-- [ ] T003 [P] [US1] `customer_accounts/src/backend/services/customer-account-ports.test.ts`:
+- [x] T003 [P] [US1] `customer_accounts/src/backend/services/customer-account-ports.test.ts`:
   `create()` runs the Command through the bus and writes no hand-written audit call. [FR-004]
-- [ ] T004 [P] [US1] `organizations/src/backend/commands/register-organization.command.test.ts`:
+- [x] T004 [P] [US1] `organizations/src/backend/commands/register-organization.command.test.ts`:
   the child runs via `ctx.run`; the hash spy is called before `transactional` opens; there is one
   `transactional` call; `organization.registered.v1` and `customer_account.created.v1` are each
   dispatched once after commit and none on a thrown child. [FR-001, FR-002, FR-005, FR-006]
-- [ ] T005 [P] [US1] `organizations/src/backend/commands/register-organization.audit.test.ts`:
+- [x] T005 [P] [US1] `organizations/src/backend/commands/register-organization.audit.test.ts`:
   sentinel test with `expectNoAuditValues` (name, tax id, address, e-mail, a custom-field value)
-  and the `ORGANIZATIONS_REGISTER_AUDIT_KEYS` allowlist. [FR-007]
-- [ ] T006 [P] [US1] `organizations/src/backend/services/registration-service.test.ts`: country,
+  and the allowlist. [FR-007] *(The allowlist is the module-wide `ORGANIZATION_AUDIT_KEYS` from
+  #1044, not a separate `ORGANIZATIONS_REGISTER_AUDIT_KEYS`; the case moved here from
+  `organization-audit-sentinels.test.ts`.)*
+- [x] T006 [P] [US1] `organizations/src/backend/services/registration-service.test.ts`: country,
   custom-field and ticket reads run before `commandBus.run`, the ticket is deleted only after
   success, and the service never calls `recordAuditFromContext`. [FR-007, FR-009]
-- [ ] T007 [US1] `backend/test/integration/organizations/registration-atomic.test.ts`: fault
+- [x] T007 [US1] `backend/test/integration/organizations/registration-atomic.test.ts`: fault
   injection at the org flush, channel binding, account insert (a racing e-mail), lookup row and token.
   Each fault leaves zero rows across all five tables and no audit entries. A clean run writes one
   entry each for `organization.register` and `customer_account.create` with the same request id.
-  [FR-001, FR-003, SC-001]
-- [ ] T008 [P] [US1] `backend/test/contract/organizations/register-unchanged.contract.test.ts`: the
+  [FR-001, FR-003, SC-001] *(Faults are injected by triggers keyed to a marker in the
+  Organization's name; the account step raises `unique_violation`.)*
+- [x] T008 [P] [US1] `backend/test/contract/organizations/register-unchanged.contract.test.ts`: the
   response shape and the 201/409/422 codes match pre-change fixtures, including
-  `409 ORGANIZATION_TAX_ID_EXISTS` via the unique index (race). [FR-008]
+  `409 ORGANIZATION_TAX_ID_EXISTS` via the constraint (race). [FR-008] *(Fixtures recorded as inline
+  snapshots against `master` before the change; run in both tax-ID scopes.)*
 
 ### Implementation (GREEN)
 
-- [ ] T009 [US1] `customer_accounts/src/backend/commands/customer-account-create.command.ts` and an
+- [x] T009 [US1] `customer_accounts/src/backend/commands/customer-account-create.command.ts` and an
   async factory that hashes first. Register `providePort('customerAccountMemberCommandPort', …)` in
   `customer_accounts/src/backend/index.ts`. Rewrite `CustomerAccountMemberWritePort.create` to run
   it and delete its `#audit` call for create. [FR-002, FR-004, FR-005]
-- [ ] T010 [US1] `organizations/src/backend/commands/register-organization.command.ts` per the
-  contract, with the names-only audit state and an exported allowlist. [FR-001, FR-006, FR-007]
-- [ ] T011 [US1] Thin `RegistrationService` (commandBus injected; `lazyPort` for the command port,
+- [x] T010 [US1] `organizations/src/backend/commands/register-organization.command.ts` per the
+  contract, with the names-only audit state. [FR-001, FR-006, FR-007] *(The state is #1044's,
+  unchanged.)*
+- [x] T011 [US1] Thin `RegistrationService` (commandBus injected; `lazyPort` for the command port,
   edge declared as `customerAccountMemberWritePort` is) and update `plugin.ts` wiring. Remove
-  `recordAuditFromContext`. [FR-001, FR-007, FR-009]
-- [ ] T012 [US1] Run `check:command-coverage --strict`, `check:port-dependencies`,
-  `check:port-catches` and `check:module-boundary`. Add changesets: `mod-customer-accounts` minor
-  (new port) and `mod-organizations` patch with an upgrade note that registration audit entries no
-  longer carry name or tax id (OD-4). Update `packages/modules/organizations/docs/organizations.md`
-  plus pl if the registration section describes audit.
+  `recordAuditFromContext`. [FR-001, FR-007, FR-009] *(The call site runs the Command through
+  `runOrganizationWrite`, which is 177's T071; `tax-id-write-paths.test.ts`,
+  `organization-creation-binds-channel.test.ts` and `gating-graph.test.ts` re-derived.)*
+- [x] T012 [US1] Run `check:command-coverage --strict`, `check:port-dependencies`,
+  `check:port-catches` and `check:module-boundary`. Add changesets: `contracts` minor,
+  `mod-customer-accounts` minor (new port) and `mod-organizations` patch with an upgrade note.
+  Update `packages/modules/organizations/docs/organizations.md` plus pl. *(OD-4's names-only
+  note was overtaken by #1044; the note says the entry is now bus-written. Also updated:
+  `customer_accounts.md` and `architecture/command-bus.md`, EN and PL.)*
 
 **Checkpoint**: P1 merges alone. Spec 177 can rebase its registration changes on it.
 

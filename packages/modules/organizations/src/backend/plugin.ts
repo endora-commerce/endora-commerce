@@ -5,6 +5,7 @@ import type {
   AddressServicePort,
   CartMergeOutcome,
   CustomFieldValuePort,
+  CustomerAccountMemberCommandPort,
   CustomerAccountMemberWritePort,
   CustomerAccountReadPort,
   CustomerAuthPort,
@@ -72,6 +73,12 @@ export interface OrganizationsModuleOptions {
    */
   customerAccountRead: CustomerAccountReadPort;
   customerAccountWrite: CustomerAccountMemberWritePort;
+  /**
+   * `customer_accounts`' account creation as a Command factory
+   * (`specs/176-command-hooks-outbox/` FR-002): registration's first account
+   * is a child of its `organization.register` Command.
+   */
+  customerAccountCommands: CustomerAccountMemberCommandPort;
   /**
    * Feature 170 (`specs/170-organization-roles/` WP-02a) — role management and
    * this module's own permission port, behind the storefront and operator role
@@ -236,17 +243,19 @@ export function organizationsModule(options: OrganizationsModuleOptions) {
       read: options.customerAccountRead,
       write: options.customerAccountWrite,
     };
-    const registrationService = new RegistrationService(
-      options.emFactory,
-      options.eventBus as OrganizationEventBus,
-      accountPorts,
-      options.dictionaryValidator,
-      options.auditLogService,
-      options.salesChannelMembership,
-      options.registryLookup,
+    // `specs/176-command-hooks-outbox/` — registration is one
+    // `organization.register` Command; the first account is its child.
+    const registrationService = new RegistrationService({
+      emFactory: options.emFactory,
+      commandBus: options.commandBus,
+      events: options.eventBus as OrganizationEventBus,
+      accounts: { read: options.customerAccountRead, commands: options.customerAccountCommands },
+      ...(options.dictionaryValidator ? { dictionaryValidator: options.dictionaryValidator } : {}),
+      ...(options.salesChannelMembership ? { channelMembership: options.salesChannelMembership } : {}),
+      ...(options.registryLookup ? { registryLookup: options.registryLookup } : {}),
       // Feature 175 — the buyer's custom-field values (research R-5).
-      options.customFieldValues,
-    );
+      ...(options.customFieldValues ? { customFieldValues: options.customFieldValues } : {}),
+    });
     const verificationService = new EmailVerificationService(
       options.emFactory,
       options.eventBus as OrganizationEventBus,

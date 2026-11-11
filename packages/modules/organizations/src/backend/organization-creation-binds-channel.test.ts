@@ -27,9 +27,13 @@ const BOUND_ELSEWHERE: Readonly<Record<string, string>> = {
     'demo data only; `packages/demo-composition` binds the demo Organization to the default channel in its "demo buyer joins the demo organisation" step and withdraws the row on reset (T025)',
 };
 
-/** Present when this guard was written: business registration, personal provisioning, demo seed. */
+/**
+ * Present when this guard was written: business registration (the
+ * `organization.register` Command since `specs/176-command-hooks-outbox/`),
+ * personal provisioning, demo seed.
+ */
 const KNOWN_SITES = [
-  'services/registration-service.ts',
+  'commands/register-organization.command.ts',
   'services/personal-organization-service.ts',
   'demo/seed.ts',
 ] as const;

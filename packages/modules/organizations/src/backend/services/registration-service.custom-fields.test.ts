@@ -1,15 +1,19 @@
-import type { EntityManager } from '@mikro-orm/postgresql';
+import type { EntityManager, MikroORM } from '@mikro-orm/postgresql';
 import { describe, expect, it, vi } from 'vitest';
 import {
   ERROR_CODES,
   type CustomFieldInputSurface,
   type CustomFieldValidationError,
   type CustomerAccountCreateInput,
+  type CustomerAccountMemberCommandPort,
   type CustomerAccountRecord,
   type RegisterOrganizationRequest,
   type SupportedEntityType,
 } from '@endora-commerce/contracts';
 import type { AuditPort } from '@endora-commerce/platform/kernel';
+import { CommandBus, type Command } from '@endora-commerce/platform/commands';
+import { EventBus } from '@endora-commerce/platform/events';
+import { withSystemScope } from '@endora-commerce/platform/tenancy';
 import { HttpError } from '@endora-commerce/platform/http';
 import { Organization } from '../entities/organization.entity.js';
 import { OrganizationRole } from '../entities/organization-role.entity.js';
@@ -85,32 +89,50 @@ function harness(values?: RegistrationCustomFieldValues, steps: string[] = []) {
       steps.push('flush');
     },
   } as unknown as EntityManager;
+  (em as unknown as Record<string, unknown>)['transactional'] = async <T>(fn: (inner: EntityManager) => Promise<T>): Promise<T> =>
+    fn(em);
   const auditLog = {
     recordWithin: (_em: unknown, entry: { action: string; stateAfter?: unknown }) => {
       audits.push(entry);
     },
   } as unknown as AuditPort;
-  const accounts = {
-    read: { findByEmail: async () => null },
-    write: {
-      create: async (input: CustomerAccountCreateInput) => {
-        steps.push('account.create');
-        accountInputs.push(input);
-        return { id: ACCOUNT_ID, organizationId: ORGANIZATION_ID, customFieldValues: input.customFieldValues ?? {} } as CustomerAccountRecord;
+  // `specs/176-command-hooks-outbox/` — registration is a Command on the bus;
+  // the first account is the child the account port prepares.
+  const commandBus = new CommandBus({ em: { fork: () => em } } as unknown as MikroORM, auditLog, new EventBus());
+  const commands: CustomerAccountMemberCommandPort = {
+    prepareCreate: async (input) => ({
+      command: (target) => {
+        const command: Command<CustomerAccountRecord> = {
+          action: 'customer_account.create',
+          objectType: 'customer_account',
+          objectId: ACCOUNT_ID,
+          run: async () => {
+            steps.push('account.create');
+            accountInputs.push({ ...input, ...target });
+            return {
+              result: { id: ACCOUNT_ID, organizationId: ORGANIZATION_ID, customFieldValues: input.customFieldValues ?? {} } as CustomerAccountRecord,
+              skipAudit: true,
+            };
+          },
+        };
+        return command;
       },
-    },
+    }),
   };
   const events = { emit: vi.fn() } as unknown as OrganizationEventBus;
-  const service = new RegistrationService(
-    () => em,
+  const registration = new RegistrationService({
+    emFactory: () => em,
+    commandBus,
     events,
-    accounts as never,
-    undefined,
-    auditLog,
-    undefined,
-    undefined,
-    values,
-  );
+    accounts: { read: { findByEmail: async () => null } as never, commands },
+    ...(values ? { customFieldValues: values } : {}),
+  });
+  const service = {
+    registerOrganization: (...args: Parameters<RegistrationService['registerOrganization']>) =>
+      withSystemScope('organizations unit test: registration custom-field values', () =>
+        registration.registerOrganization(...args),
+      ),
+  };
   return { service, steps, audits, accountInputs, created };
 }
 

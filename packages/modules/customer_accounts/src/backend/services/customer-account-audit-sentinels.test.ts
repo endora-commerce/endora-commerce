@@ -169,7 +169,9 @@ function harness() {
     provision,
     commandBus,
   );
-  const members = new CustomerAccountMemberWriteService(() => em as never, noEnrolments, audit as never);
+  // `customer_account.create` is a Command since `specs/176-command-hooks-outbox/`
+  // (FR-004): the member write runs it through the same bus.
+  const members = new CustomerAccountMemberWriteService(() => em as never, noEnrolments, audit as never, { commandBus });
   return { em, entries, commandBus, lifecycle, members };
 }
 

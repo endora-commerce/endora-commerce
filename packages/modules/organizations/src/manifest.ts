@@ -311,6 +311,15 @@ export const manifest = defineModuleManifest({
     },
     {
       moduleId: 'customer_accounts',
+      port: 'customerAccountMemberCommandPort',
+      reason:
+        '`specs/176-command-hooks-outbox/` FR-002: a registration creates its first account ' +
+        "as a child `customer_account.create` Command of this module's `organization.register`, " +
+        'so the Organization and its administrator commit in one transaction; the Command and ' +
+        "the table are that module's. Same mutual pair, same trade.",
+    },
+    {
+      moduleId: 'customer_accounts',
       port: 'customerAccountRoleCommandPort',
       reason:
         '`specs/170-organization-roles/` WP-02b: deleting a role its members hold moves ' +

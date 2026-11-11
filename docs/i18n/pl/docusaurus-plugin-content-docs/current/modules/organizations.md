@@ -318,6 +318,31 @@ danych z rejestru, które przyniosła samodzielna rejestracja (zobacz niżej). W
 `registryDetails`, `submittedValues` i `divergence`; wpis administratora ma we wszystkich trzech `null`.
 Kształt opisuje `organizationTaxIdValidationRecordSchema` w `@endora-commerce/contracts`.
 
+### Samodzielna rejestracja: wszystko albo nic
+
+Firma rejestrująca się w storefroncie tworzy naraz pięć rzeczy: Organizację
+(w stanie `pending_verification`), jej powiązanie z kanałem sprzedaży, jej
+pierwszego użytkownika — *Administratora* Organizacji — dane z rejestru, gdy
+kupujący z nich skorzystał, oraz token weryfikacji adresu e-mail. Są zapisywane
+w **jednej transakcji**: po rejestracji istnieją albo wszystkie, albo żadna. Gdy
+rejestracja nie powiedzie się na którymkolwiek etapie — adres e-mail zajęła
+przed chwilą inna rejestracja, wystąpił błąd bazy danych, proces się przerwał —
+nie zostaje po niej Organizacja bez administratora, więc kupujący może po prostu
+spróbować ponownie z tym samym NIP-em.
+
+Sprawdzenia, które niczego nie zapisują, odbywają się najpierw, zanim cokolwiek
+zostanie zapisane: kraj, to, czy NIP albo adres e-mail są już zarejestrowane,
+dane z rejestru i wartości pól niestandardowych. Hasło również jest haszowane
+przed transakcją. `organization.registered.v1` i `customer_account.created.v1`
+są wysyłane po jednym razie, po zatwierdzeniu rejestracji.
+
+Dla programisty: zapis to polecenie `organization.register`
+(`commands/register-organization.command.ts`) uruchamiane przez Command Bus.
+Pierwsze konto tworzy polecenie `customer_account.create` modułu
+`customer_accounts`, przygotowane przez `customerAccountMemberCommandPort`
+i uruchomione jako polecenie **podrzędne** przez `ctx.run`. Publiczny endpoint,
+jego treść żądania, odpowiedzi i kody błędów pozostają bez zmian.
+
 ### Pobieranie danych firmy z rejestru przy rejestracji
 
 Firma rejestrująca się w sklepie może pobrać swoje dane z publicznego rejestru po numerze podatkowym,
@@ -1194,11 +1219,18 @@ potwierdzeń zamówień, powodu zablokowania lub odrzucenia ani wartości pól
 niestandardowych; nigdy adresu e-mail ani imienia i nazwiska członka czy
 zaproszonej osoby; nigdy nazwy ani opisu roli niestandardowej.
 
-- **`organization.create`**, **`organization.register`** — status (a przy
-  utworzeniu także status VAT), kanały sprzedaży i organizacja nadrzędna jako
-  identyfikatory oraz nazwy pól, z którymi organizację utworzono
-  (`changedFields`, np. `name`, `taxId`, `registeredAddress`), i zapisanych pól
-  niestandardowych.
+- **`organization.create`** — status i status VAT, kanały sprzedaży
+  i organizacja nadrzędna jako identyfikatory oraz nazwy pól, z którymi
+  organizację utworzono (`changedFields`, np. `name`, `taxId`,
+  `registeredAddress`), i zapisanych pól niestandardowych.
+- **`organization.register`** — jeden wpis dla całej samodzielnej rejestracji:
+  status, nazwy pól, z którymi Organizację utworzono (`changedFields`), klucze
+  pól niestandardowych wypełnionych przez kupującego dla Organizacji i dla jej
+  pierwszego użytkownika (`changedCustomFields`, jako `organization.<klucz>`
+  i `firstUser.<klucz>`) oraz kody dostawcy i wyniku sprawdzenia w rejestrze,
+  jeśli z niego skorzystano. Konto pierwszego użytkownika ma własny wpis
+  `customer_account.create` (zobacz moduł `customer_accounts`). Oba są
+  zapisywane w transakcji rejestracji i mają ten sam identyfikator żądania.
 - **`organization.admin_patch`**, **`organization.set_custom_field_values`**,
   **`organization.convert_to_company`** — kody przed zmianą i po niej oraz
   nazwy tego, co się zmieniło.

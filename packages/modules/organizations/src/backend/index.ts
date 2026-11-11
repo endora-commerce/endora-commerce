@@ -12,6 +12,7 @@ import type {
   CredentialsPort,
   CreditLimitReadPort,
   CustomFieldValuePort,
+  CustomerAccountMemberCommandPort,
   CustomerAccountMemberWritePort,
   CustomerAccountReadPort,
   CustomerAccountRoleCommandPort,
@@ -795,6 +796,12 @@ export function registerModule(ctx: ModuleContext): void {
             customerAccountWrite: lazyPort<CustomerAccountMemberWritePort>(
               ctx,
               'customerAccountMemberWritePort',
+            ),
+            // `specs/176-command-hooks-outbox/` FR-002 — registration's first
+            // account, a child Command of `organization.register`.
+            customerAccountCommands: lazyPort<CustomerAccountMemberCommandPort>(
+              ctx,
+              'customerAccountMemberCommandPort',
             ),
             customFieldValues: lazyPort<CustomFieldValuePort>(ctx, 'customFieldValueService'),
             // `specs/178-extensible-columns/` FR-051 — `?extensions=` on the

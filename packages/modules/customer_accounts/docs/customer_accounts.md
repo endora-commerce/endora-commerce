@@ -100,6 +100,24 @@ Organization:
 A role change also announces `customer_account.organization_role_changed.v1`
 once it is committed.
 
+### Creating an account from another module
+
+`customer_account.create` has one implementation, published two ways:
+
+- `customerAccountMemberWritePort.create(input)` creates the account in a
+  transaction of its own — the member direct-create and the invitation accept
+  use it;
+- `customerAccountMemberCommandPort.prepareCreate(input)` hashes the password
+  and returns a builder; `.command({ organizationId, organizationRoleId })`
+  is the Command, which a caller runs as a **child** of its own Command through
+  `ctx.run`, so the account commits or rolls back with the caller's write.
+  `organizations`' self-registration uses it. Prepare it before your own
+  Command runs: the hash is slow by design and must not run inside a
+  transaction.
+
+Both refuse an address already registered with **409
+`EMAIL_ALREADY_REGISTERED`**, from the pre-check and from the unique index.
+
 ### What the audit log holds
 
 The platform audit log is read by everybody holding `audit_log:read`, whichever
@@ -110,7 +128,10 @@ never its values:
   changed as `changedFields`, without the e-mail or the names;
 - an account's creation (`customer_account.create`, `.register_standalone`,
   `.register_social`) names the fields it was created with, its role by id and
-  whether its address was confirmed;
+  whether its address was confirmed. `customer_account.create` is a Command:
+  the first user of a business registration is created by it inside the
+  registration's transaction, so its entry is written with the
+  `organization.register` entry and carries the same request id;
 - a move between Organizations (`customer_account.organization_assigned`,
   `.organization_unassigned`, `.attach_organization`) is recorded as
   `changedFields: ['organizationId', 'organizationRoleId']`, with the role ids

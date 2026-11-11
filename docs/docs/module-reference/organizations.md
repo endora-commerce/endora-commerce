@@ -38,6 +38,7 @@ Rendered from the module's own manifest, and from nothing written by hand. What 
 | `settings` | yes | installs and migrates after it, and an operator cannot switch it off underneath this module |
 | `transactional_emails` | yes | installs and migrates after it, and an operator cannot switch it off underneath this module |
 | `addresses` | gating only | resolves `addressServicePort`; withheld from `dependencies` because the install order cannot carry the edge |
+| `customer_accounts` | gating only | resolves `customerAccountMemberCommandPort`; withheld from `dependencies` because the install order cannot carry the edge |
 | `customer_accounts` | gating only | resolves `customerAccountMemberWritePort`; withheld from `dependencies` because the install order cannot carry the edge |
 | `customer_accounts` | gating only | resolves `customerAccountReadPort`; withheld from `dependencies` because the install order cannot carry the edge |
 | `customer_accounts` | gating only | resolves `customerAccountRoleCommandPort`; withheld from `dependencies` because the install order cannot carry the edge |

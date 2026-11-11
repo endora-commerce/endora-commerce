@@ -251,6 +251,8 @@ trap).
 - **OD-4 — the registration audit payload goes names-only in P1.** It is a behaviour change visible
   in the audit screen. **Recommendation: yes** (O-2 and `audit-state.md` §2 already require it for
   new code). It needs an upgrade note in the changeset.
+  *Overtaken (2026-11-11):* #1044 shipped the names-only payload before P1. P1 keeps it as it is;
+  its changeset notes only that the entry is now written by the bus, so it carries the request id.
 - **OD-5 — handler context.** The handler runs as `system` pinned to the Organization, with the
   original actor passed as data rather than restored. **Recommendation: yes** (R-16). Restoring a
   past admin's or sales rep's reach is unsafe.
