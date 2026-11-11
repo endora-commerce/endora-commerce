@@ -403,6 +403,9 @@ describe('the platform is one copy (feature 080, the relocation)', () => {
     // replaced the synchronous `isOrgInScope` / `ruleVisibleForScope` with the
     // async `orgInScope` / `ruleInScope` (two out, two in) and added
     // `orgScopeTest`, the synchronous predicate a caller takes once.
+    // **63 -> 72 is the same event, on `./kernel`:** declared extension columns
+    // (`specs/178-extensible-columns/`) published `defineColumnExtension`, the
+    // two Zod schema builders, `extensionColumns` and its five errors.
     //
     // It is summed over the **five published** subpaths and not over every
     // comparison, which is what preserves that provenance: no host-internal
@@ -413,7 +416,7 @@ describe('the platform is one copy (feature 080, the relocation)', () => {
     const total = comparisons
       .filter((entry) => published.has(entry.subpath))
       .reduce((sum, entry) => sum + entry.shared.length, 0);
-    expect(total).toBe(63);
+    expect(total).toBe(72);
   });
 
   /**

@@ -204,6 +204,10 @@ export const PLATFORM_OWNED_NAMES: ReadonlySet<string> = new Set([
   // own table, so no module owns the name and there is no owner to switch off.
   // The customers retention sweep reads it.
   'auditRedactionService',
+  // `specs/178-extensible-columns/` FR-051 — the reader of declared extension
+  // columns an extensible host's admin reads attach. Built by both roots over
+  // the ORM's declarations and the effective state; no module owns the name.
+  'schemaExtensionReads',
   'commandBus',
   // Who an admin actor is, resolved differently by production and the harness
   // — which is exactly the difference a composition root exists to hold.

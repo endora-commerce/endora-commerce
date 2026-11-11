@@ -107,6 +107,7 @@ function classifyError(error: unknown): never {
 
 async function phaseSchema(): Promise<AssertionResult[]> {
   const { initOrm, closeOrm } = await import('../../src/db/index.js');
+  const { migrateUpVerified } = await import('@endora-commerce/platform/db');
   const results: AssertionResult[] = [];
 
   let orm: Awaited<ReturnType<typeof initOrm>>;
@@ -117,9 +118,10 @@ async function phaseSchema(): Promise<AssertionResult[]> {
   }
 
   try {
-    const migrator = orm.getMigrator();
+    // As the instance's own migrate entry does (`specs/178-extensible-columns/`
+    // FR-025): the verified run, never a bare `migrator.up()`.
     try {
-      await migrator.up();
+      await migrateUpVerified(orm);
     } catch (error) {
       classifyError(error);
     }

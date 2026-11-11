@@ -704,6 +704,37 @@ export const ESTATE: readonly EstateEntry[] = [
     tier: 'A',
   },
   {
+    id: 'check:extensible-tables',
+    script: 'backend/scripts/check-extensible-tables.ts',
+    scope: 'package',
+    /**
+     * `specs/178-extensible-columns/` FR-072. The subject is an extensible table
+     * the package's module owns — derived from the custom-field bindings
+     * `@endora-commerce/contracts` publishes, never declared by the package — and
+     * the population is that module's own migration sources. A third-party
+     * package owns no extensible table, so for it the verdict is the auditable
+     * `not-applicable`; a first-party module package that owns one is judged.
+     */
+    host: 'built',
+    partial: [
+      {
+        signal: 'binding-owner-mismatch',
+        reason:
+          'whether a binding names its table\'s real owner is a question about the entity ' +
+          'owner map over every installed module, which one package does not hold; the ' +
+          'repository host reconciles it over the whole tree',
+      },
+    ],
+    subjectDeclaration: {
+      kind: 'manifest-block',
+      declaration:
+        'extensible table owned by this module — a `CUSTOM_FIELD_HOST_BINDINGS` entry in ' +
+        '`@endora-commerce/contracts` naming its id',
+    },
+    readsArtefact: false,
+    tier: 'A',
+  },
+  {
     id: 'check:fixture-substitution',
     script: 'backend/scripts/check-fixture-substitution.ts',
     scope: 'repository-only',

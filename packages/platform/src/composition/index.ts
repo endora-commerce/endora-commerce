@@ -192,6 +192,11 @@ export { requiredModulesFrom } from '../kernel/lifecycle/required-modules.js';
 // already — to the same spelling, so this single export is what let all six
 // become bare specifiers and all six shims go.
 export { ModuleRegistration } from '../kernel/lifecycle/module-registration.entity.js';
+// The `schema_extensions` ledger row (`specs/178-extensible-columns/` FR-022) —
+// here for `ModuleRegistration`'s reason: the generated entity registry has to
+// name it, and no module may (the ledger is written by the generated migration
+// step and the audited drop command only).
+export { SchemaExtensionElement } from '../kernel/schema-extensions/schema-extension-element.entity.js';
 
 // --- kernel: the sub-kernels a root composes ------------------------------
 export { composeSettingsKernel, type SettingsKernel } from '../kernel/settings/compose.js';

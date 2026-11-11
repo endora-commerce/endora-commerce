@@ -3,7 +3,7 @@ import {
   discoverPackageSchema,
   type PackageSchemaContribution,
 } from '../packages/package-runtime.js';
-import { BASELINE_MIGRATIONS } from '../migrations/index.js';
+import { BASELINE_MIGRATIONS, FIRST_PARTY_FOREIGN_WRITE_EXEMPTIONS } from '../migrations/index.js';
 import type { DiscoveredManifestEntry } from '../lifecycle/manifest-registry.js';
 import {
   orderMigrations,
@@ -13,9 +13,25 @@ import {
 } from './migration-order.js';
 import {
   CORE_MODULE_ID,
+  PLATFORM_ENTITIES,
   PLATFORM_MIGRATION_ENTRIES,
   mergeByIdentity,
 } from './platform-schema.js';
+import {
+  declaredColumnsByHost,
+  guardExternalMigration,
+  type ForeignSchemaGuardContext,
+  type ForeignWriteExemption,
+  type MigrationClass as GuardedMigrationClass,
+} from './foreign-schema-guard.js';
+import { resolvedColumnExtension } from '../kernel/schema-extensions/define.js';
+import { requiredModulesOf, reverseEdgeClause } from './reverse-edge.js';
+import { schemaExtensionEntries } from './schema-extension-migration.js';
+import {
+  rolledOutExtensibleHosts,
+  type ExtensibleHostSet,
+} from '../kernel/schema-extensions/extensible-hosts.js';
+import { SchemaExtensionInvalidError } from '../kernel/schema-extensions/errors.js';
 
 /**
  * The migration order this platform runs, as a value — with no database in it.
@@ -205,11 +221,118 @@ export function configuredMigrationsFrom(inputs: {
    * instead of becoming a sentence in a doc block.
    */
   readonly baseline?: readonly string[];
+  /**
+   * The extensible hosts in force for the generated schema-extension steps.
+   * Defaults to the rolled-out list (`specs/178-extensible-columns/` FR-011); a
+   * test passes a throwaway host here.
+   */
+  readonly extensibleHosts?: ExtensibleHostSet;
+  /**
+   * The first-party writes the foreign-schema guard lets through
+   * (`specs/178-extensible-columns/` FR-071). Defaults to the list
+   * `composer:generate` renders from R2's ledger; a test passes its own.
+   */
+  readonly foreignWriteExemptions?: readonly ForeignWriteExemption[];
+  /**
+   * The required set (`activation.nonDeactivatable`) of the committed manifests,
+   * for D-291 R-A7's clause (c); the packages' own flags are added to it.
+   */
+  readonly requiredModules?: ReadonlySet<string>;
 }): ConfiguredMigrations {
-  const entries: MigrationRegistryEntry[] = [
-    ...inputs.coreEntries,
-    ...inputs.packages.flatMap((contribution) => contribution.migrations),
-  ];
+  // `specs/178-extensible-columns/` FR-020 — one generated step per installed
+  // module that declares extension columns, at the head of that module's block.
+  // V2 is asked here, before any DDL can be generated for a host that is not
+  // rolled out; the ORM configuration asks it again of the same packages.
+  const hosts = inputs.extensibleHosts ?? rolledOutExtensibleHosts();
+  // `?? []`: a contribution built by hand before the field existed — a test
+  // harness, an older host's shim — declares nothing, and must keep merging.
+  for (const contribution of inputs.packages) {
+    for (const declaration of contribution.schemaExtensions ?? []) {
+      if (!hosts.has(declaration.host)) {
+        throw new SchemaExtensionInvalidError(
+          'host-not-extensible',
+          declaration.module,
+          null,
+          `"${declaration.host}" is not extensible on this platform; extensible hosts: ` +
+            `${[...hosts.keys()].sort().join(', ') || '(none)'} (declared in ${contribution.packageName})`,
+        );
+      }
+    }
+  }
+  // Review finding 4 — `x_<module>_<snake(key)>` can resolve to one name for
+  // two modules; refuse before any DDL rather than meet a raw unique violation
+  // (or a silent adoption) in the reconcile. Index names are schema-wide.
+  const columnOwners = new Map<string, string>();
+  const indexOwners = new Map<string, string>();
+  for (const contribution of inputs.packages) {
+    for (const declaration of contribution.schemaExtensions ?? []) {
+      const resolved = resolvedColumnExtension(declaration);
+      for (const column of resolved.columns) {
+        const claims: Array<[Map<string, string>, string, string]> = [
+          [columnOwners, `${resolved.host}.${column.physicalName}`, `column "${resolved.host}"."${column.physicalName}"`],
+        ];
+        if (column.indexName !== null) claims.push([indexOwners, column.indexName, `index "${column.indexName}"`]);
+        for (const [owners, name, what] of claims) {
+          const other = owners.get(name);
+          if (other !== undefined && other !== resolved.module) {
+            throw new SchemaExtensionInvalidError(
+              'physical-name-collision',
+              resolved.module,
+              column.key,
+              `${what} is declared by both "${other}" and "${resolved.module}" (declared in ` +
+                `${contribution.packageName}). Physical names are x_<module>_<snake_case(key)>, which two ` +
+                `module ids can share; rename the key in one of the declarations.`,
+            );
+          }
+          owners.set(name, resolved.module);
+        }
+      }
+    }
+  }
+  const generated = schemaExtensionEntries(
+    inputs.packages.map((contribution) => ({
+      moduleId: contribution.id,
+      version: contribution.version,
+      declarations: contribution.schemaExtensions ?? [],
+    })),
+  );
+  // `specs/178-extensible-columns/` FR-070 (OR-5) — every installed package's
+  // migration runs through the foreign-schema guard: a statement writing a table
+  // the package's module does not own is refused and the run rolls back. The
+  // wrapper keeps the class name, so ordering and history see the package's own.
+  const exemptions = inputs.foreignWriteExemptions ?? FIRST_PARTY_FOREIGN_WRITE_EXEMPTIONS;
+  // D-291 R-A7 — who owns which table at run time (each package's entities) and
+  // the merged dependency graph and required set the clause reads. Evaluated
+  // lazily, at migrate, so the graph below is complete by then.
+  const entitiesByModule = new Map(inputs.packages.map((contribution) => [contribution.id, contribution.entities] as const));
+  const required = new Set<string>([
+    ...(inputs.requiredModules ?? []),
+    ...inputs.packages.filter((contribution) => contribution.nonDeactivatable === true).map((c) => c.id),
+  ]);
+  const guarded = inputs.packages.flatMap((contribution) => {
+    const context: ForeignSchemaGuardContext = {
+      moduleId: contribution.id,
+      packageName: contribution.packageName,
+      entities: contribution.entities,
+      platformEntities: PLATFORM_ENTITIES,
+      declaredHosts: declaredColumnsByHost(contribution.schemaExtensions ?? []),
+      exemptions: exemptions.filter((exemption) => exemption.moduleId === contribution.id),
+      moduleMigrations: () => contribution.migrations.map((entry) => entry.cls as unknown as GuardedMigrationClass),
+      reverseEdges: {
+        entitiesByModule,
+        clause: (owner) =>
+          reverseEdgeClause({ writer: contribution.id, owner, dependencies: moduleDependencies, required }),
+      },
+    };
+    // Only a real class can be subclassed; a stand-in a test registers to drive
+    // the ordering alone is not a migration anything runs.
+    return contribution.migrations.map((entry) =>
+      (entry.origin ?? 'core') === 'external' && typeof entry.cls === 'function'
+        ? { ...entry, cls: guardExternalMigration(entry.cls as unknown as GuardedMigrationClass, context) as never }
+        : entry,
+    );
+  });
+  const entries: MigrationRegistryEntry[] = [...inputs.coreEntries, ...guarded, ...generated];
   const moduleDependencies = new Map(inputs.coreModuleDependencies);
   // A package's own module is a node in the graph like any other, so its chain
   // lands at its topological position. Its `dependencies` are read from the
@@ -328,5 +451,6 @@ export async function discoverConfiguredMigrations(
     ),
     coreModuleDependencies: committedModuleDependencies(sources.manifests),
     packages: await discoverPackageSchema(env),
+    requiredModules: requiredModulesOf(sources.manifests),
   });
 }
