@@ -91,14 +91,21 @@ function missingElements(table: string, rows: readonly CatalogRow[]): string[] {
     }
     if (row.data_type !== column.dataType) missing.push(`column ${column.name} type (${row.data_type})`);
     if ((row.is_nullable === 'YES') !== column.nullable) missing.push(`column ${column.name} nullability`);
-    if (column.defaultPrefix !== null && !(row.column_default ?? '').startsWith(column.defaultPrefix)) {
-      missing.push(`column ${column.name} default (${row.column_default ?? 'none'})`);
+    if (column.defaultPrefix !== null) {
+      const declared = row.column_default;
+      if (declared === null || !declared.startsWith(column.defaultPrefix)) {
+        missing.push(`column ${column.name} default (${declared === null ? 'none' : declared})`);
+      }
     }
   }
   const index = rows.find((r) => r.kind === 'index' && r.table_name === table);
   if (index === undefined) missing.push(`index ${fixtureIndexName(table)}`);
-  else if (!/unique/i.test(index.column_default ?? '') || !/where/i.test(index.column_default ?? '')) {
-    missing.push(`index ${fixtureIndexName(table)} shape`);
+  else {
+    // `column_default` carries `indexdef` for an index row (see CATALOG_SQL).
+    const definition = index.column_default;
+    if (definition === null || !/unique/i.test(definition) || !/where/i.test(definition)) {
+      missing.push(`index ${fixtureIndexName(table)} shape`);
+    }
   }
   return missing;
 }

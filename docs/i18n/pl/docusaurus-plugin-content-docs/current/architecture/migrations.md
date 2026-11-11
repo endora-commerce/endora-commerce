@@ -468,7 +468,9 @@ nie mapuje jej encja żadnego innego modułu. Dozwolone są ponadto:
 zmian, a skróty `insert*`, `upsert*`, `native*` i `execute` również. Odczyty nigdy nie są
 oceniane.
 
-**Przed aktualizacją do wydania, które odmawia**, operator może zobaczyć, czego by odmówiło:
+**Przed aktualizacją do wydania, które odmawia**, operator może zobaczyć, czego by odmówiło — w tym
+wydaniu z klonu repozytorium Endora Commerce, bo szkielet instancji nie udostępnia jeszcze
+`module:schema-extensions`:
 
 ```bash
 pnpm --filter backend run module:schema-extensions audit-packages

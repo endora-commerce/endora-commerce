@@ -189,9 +189,17 @@ PostgreSQL. Building an index takes a lock on the table for the length of the bu
 
 ## Uninstalling and dropping
 
+In an instance root:
+
+```bash
+pnpm run module:uninstall acme_erp --hard       # columns kept, ledger: orphaned
+```
+
+Listing and dropping the elements is `module:schema-extensions`, which in this release runs in a
+checkout of the Endora Commerce repository:
+
 ```bash
 pnpm --filter backend run module:schema-extensions list
-pnpm --filter backend run module:uninstall acme_erp --hard                 # columns kept, ledger: orphaned
 pnpm --filter backend run module:schema-extensions drop acme_erp           # prints the plan
 pnpm --filter backend run module:schema-extensions drop acme_erp --confirm # drops, one audit entry
 ```
@@ -234,7 +242,8 @@ tables, the platform's tables and the back-fill of your own `x_<moduleId>_*` col
 you declare are allowed; the rules are on [Migrations](./migrations.md), under *The
 foreign-schema guard*.
 
-To see what a release would refuse before upgrading to it:
+To see what a release would refuse before upgrading to it (in this release, from a checkout of the
+Endora Commerce repository):
 
 ```bash
 pnpm --filter backend run module:schema-extensions audit-packages

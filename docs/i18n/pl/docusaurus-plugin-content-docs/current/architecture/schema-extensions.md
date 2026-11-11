@@ -186,9 +186,17 @@ zmienia w PostgreSQL wyłącznie katalog. Budowa indeksu blokuje tabelę na czas
 
 ## Odinstalowanie i usunięcie
 
+W katalogu głównym instancji:
+
+```bash
+pnpm run module:uninstall acme_erp --hard       # kolumny zostają, rejestr: orphaned
+```
+
+Wypisywanie i usuwanie elementów to `module:schema-extensions`, które w tym wydaniu działa w klonie
+repozytorium Endora Commerce:
+
 ```bash
 pnpm --filter backend run module:schema-extensions list
-pnpm --filter backend run module:uninstall acme_erp --hard                 # kolumny zostają, rejestr: orphaned
 pnpm --filter backend run module:schema-extensions drop acme_erp           # wypisuje plan
 pnpm --filter backend run module:schema-extensions drop acme_erp --confirm # usuwa, jeden wpis audytu
 ```
@@ -230,7 +238,8 @@ tabele encjami i twórz każdą używaną tabelę we własnych migracjach. Dozwo
 `x_<moduleId>_*` w zadeklarowanym gospodarzu; reguły są na stronie [Migracje](./migrations.md), w
 sekcji *Strażnik obcego schematu*.
 
-Aby przed aktualizacją sprawdzić, czego wydanie by odmówiło:
+Aby przed aktualizacją sprawdzić, czego wydanie by odmówiło (w tym wydaniu z klonu repozytorium
+Endora Commerce):
 
 ```bash
 pnpm --filter backend run module:schema-extensions audit-packages

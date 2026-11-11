@@ -89,7 +89,7 @@ describe('the foreign-schema guard on a real migrate', () => {
   it('refuses foreign DML through execute', async () => {
     const error = await migrate(
       packageMigration('Migration20261201T100001AcmeErpRogue', async (self) => {
-        await self.execute(`delete from "${HOST_TABLE}"`);
+        await self.execute(`delete from "${HOST_TABLE}" where "name" = 'rogue'`);
       }),
     );
     expect(error).toBeInstanceOf(ForeignSchemaWriteError);
@@ -153,19 +153,19 @@ describe('the foreign-schema guard on a real migrate', () => {
     [
       'getConnection().execute()',
       async (self: Migration) => {
-        await self.getEntityManager().getConnection().execute(`delete from "${HOST_TABLE}"`);
+        await self.getEntityManager().getConnection().execute(`delete from "${HOST_TABLE}" where "name" = 'rogue'`);
       },
     ],
     [
       'fork().nativeDelete()',
       async (self: Migration) => {
-        await self.getEntityManager().fork().nativeDelete(X178Host, {});
+        await self.getEntityManager().fork().nativeDelete(X178Host, { name: 'rogue' });
       },
     ],
     [
       'getKnex()',
       async (self: Migration) => {
-        await self.getEntityManager().getKnex()(HOST_TABLE).delete();
+        await self.getEntityManager().getKnex()(HOST_TABLE).where({ name: 'rogue' }).delete();
       },
     ],
   ])('refuses a foreign write through %s', async (_label, up) => {

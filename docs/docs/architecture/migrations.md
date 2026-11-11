@@ -469,7 +469,9 @@ it and no other module's entity maps it. Also allowed:
 and its `insert*`, `upsert*`, `native*` and `execute` shortcuts are checked as well. Reads are
 never judged.
 
-**Before upgrading to the release that refuses**, an operator can see what it would refuse:
+**Before upgrading to the release that refuses**, an operator can see what it would refuse — in this
+release from a checkout of the Endora Commerce repository, since the instance scaffold does not yet
+wire `module:schema-extensions`:
 
 ```bash
 pnpm --filter backend run module:schema-extensions audit-packages
