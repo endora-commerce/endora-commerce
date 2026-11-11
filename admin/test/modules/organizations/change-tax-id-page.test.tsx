@@ -107,6 +107,21 @@ describe('Change tax ID — screen', () => {
     expect(await screen.findByText('detail page')).toBeInTheDocument();
   });
 
+  // `specs/177-tax-id-scope/` FR-015a as amended by #1040 — the scope screen's
+  // refusal, warning and confirmation name the action as the remedy for a tax ID
+  // shared by mistake, and still say a soft-deleted holder cannot be released.
+  it('points the tax-ID scope copy to Change tax ID in both languages', () => {
+    for (const bundle of [EN, PL]) {
+      for (const key of [
+        'taxIdScope.sharedWarning',
+        'taxIdScope.confirm.bodyToPerTreeRoot',
+        'errors.ORGANIZATION_TAX_ID_SCOPE_DUPLICATES.shared_tax_ids',
+      ]) {
+        expect(bundle[key], key).toContain(bundle['changeTaxId.button']!);
+      }
+    }
+  });
+
   it('has no axe violations', async () => {
     const { container } = render();
     await expectNoAxeViolations(container);
