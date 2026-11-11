@@ -15,7 +15,7 @@ import { HttpError } from '@endora-commerce/platform/http';
 import type { SettingsReadPort } from '@endora-commerce/platform/kernel';
 import {
   getTenantContext,
-  isOrgInScope,
+  orgInScope,
   orgConstraintFor,
   orgConstraintForAdminScope,
   orgScopeSql,
@@ -32,7 +32,7 @@ import { orgReachOf, type OrgReach, type ProjectViewer } from '../domain/visibil
  * entity's rule lives in its owning service. The rule here is the module's
  * own — a Project of several Organizations is visible only with **every** one
  * in reach (owner ruling Q1 = C), and inside that the visibility rule of R-3 —
- * and the platform's published `ruleVisibleForScope` states the opposite
+ * and the platform's published `ruleInScope` states the opposite
  * semantics (any-of, no Organization visible to all). So this file states the
  * rule once, as one SQL predicate over `projects p`, and every list, count,
  * search, panel and port of the module either composes that predicate or
@@ -229,7 +229,7 @@ export function visibleProjectSqlFor(viewer: ProjectViewer, setting: ProjectVisi
 }
 
 /** The reach the ambient tenant context gives the caller — throws without one (fail-closed). */
-export function ambientReach(): OrgReach {
+export function ambientReach(): Promise<OrgReach> {
   return orgReachOf(orgConstraintFor());
 }
 
@@ -284,7 +284,7 @@ export class ProjectAccess {
    * theirs to show to somebody who may not read Projects (T144 F1).
    */
   async currentViewer(): Promise<ProjectViewer> {
-    const reach = ambientReach();
+    const reach = await ambientReach();
     const adminUserId = actingAdminUserId();
     if (adminUserId === null) {
       return isSystemActor()
@@ -548,7 +548,7 @@ export class ProjectAccess {
     const held = await this.deps.permissions.listPermissions(adminUserId);
     if (!holds(held, PROJECTS_READ_PERMISSION)) return false;
     const scope = await this.deps.tenantScopes.resolveForAdmin(adminUserId);
-    const reach: OrgReach = orgReachOf(orgConstraintForAdminScope(scope));
+    const reach: OrgReach = await orgReachOf(orgConstraintForAdminScope(scope));
     const visible = visibleProjectSqlFor(
       { adminUserId, canRead: true, seeAll: holds(held, PROJECTS_SEE_ALL_PERMISSION), reach },
       await this.visibilitySetting(),
@@ -574,7 +574,7 @@ export class ProjectAccess {
   }
 
   /** Whether the caller may name this Organization on a Project they write (FR-004). */
-  isOrgInScope(organizationId: string): boolean {
-    return isOrgInScope(organizationId);
+  orgInScope(organizationId: string): Promise<boolean> {
+    return orgInScope(organizationId);
   }
 }

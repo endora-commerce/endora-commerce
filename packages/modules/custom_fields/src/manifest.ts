@@ -15,7 +15,9 @@ export const manifest = defineModuleManifest({
   description: 'Entity-agnostic runtime custom fields for core entities.',
   version: '1.0.0',
   // `auth` owns the `requireAdmin` port the admin routes are gated by.
-  dependencies: ['auth'],
+  // `_i18n` owns `adminI18nService`, through which a buyer's custom-field
+  // refusals are worded in the request's language (feature 175).
+  dependencies: ['_i18n', 'auth'],
   i18n: { bundlesDir: 'i18n' },
   docs: { dir: 'docs' },
   /**
@@ -94,8 +96,19 @@ export const manifest = defineModuleManifest({
       ],
     },
     // Feature 172 — a value type the entity type does not offer (`page_builder`
-    // off `product`) is the one refusal of this code that names its reason.
-    { code: 'CUSTOM_FIELD_DEFINITION_INVALID', tokens: ['value_type_unsupported'] },
+    // off `product`). Feature 175 (research R-4) — the four buyer-input and
+    // admin-access refusals, each with `details.code` (and `details.reason`,
+    // the contract's name for the same token) and `details.key`.
+    {
+      code: 'CUSTOM_FIELD_DEFINITION_INVALID',
+      tokens: [
+        'value_type_unsupported',
+        'customer_input_unsupported',
+        'customer_input_audience',
+        'customer_input_value_type',
+        'admin_access_required',
+      ],
+    },
     { code: 'CUSTOM_FIELD_FILTER_UNAVAILABLE' },
     { code: 'CUSTOM_FIELD_HOST_MANAGED' },
     { code: 'CUSTOM_FIELD_KEY_CONFLICT' },

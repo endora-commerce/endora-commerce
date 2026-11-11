@@ -44,7 +44,7 @@ export interface OrganizationInReachDeps {
  *
  * The rule is the existing sales-representative visibility rule,
  * `SalesRepAssignmentPort.canSeeOrganization`, not the tenant reach
- * (`isOrgInScope`): an Organization assigned to the representative (or, under
+ * (`orgInScope`): an Organization assigned to the representative (or, under
  * `organizations:rollup`, whose nearest assigned ancestor is theirs), **or one
  * nobody is assigned to** — the fallback a pending registration is moderated
  * under (D-87) and that `customers` FR-037 and owner ruling D-3W apply

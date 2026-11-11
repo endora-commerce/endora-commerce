@@ -1,7 +1,7 @@
 import { useCallback, useEffect, useId, useRef, useState, type ReactNode } from 'react';
 import { useNavigate, useSearchParams } from 'react-router-dom';
 import { Trash2 } from 'lucide-react';
-import { ApiError, apiClient } from '@endora-commerce/admin-kit/lib';
+import { ApiError, apiClient, useAuth } from '@endora-commerce/admin-kit/lib';
 import {
   Alert,
   AlertDescription,
@@ -23,6 +23,8 @@ import {
 } from '@endora-commerce/admin-kit/ui';
 import {
   adminLanguageToLocale,
+  CustomFieldValuesPanel,
+  customFieldErrorsOf,
   LineGroupsEditor,
   pickCategoryDisplayName,
   ProductBrowserDialog,
@@ -275,9 +277,21 @@ function productLine(item: ProductBrowserItem, groupKey: string | null, key: str
   };
 }
 
+/** The panel's starting bag: a new quote request has none. */
+const EMPTY_VALUES: Record<string, unknown> = {};
+
 export function RfqCreatePage(): ReactNode {
   const t = useTranslation('core');
-  const locale = adminLanguageToLocale(useTranslationContext().language);
+  const { language } = useTranslationContext();
+  const locale = adminLanguageToLocale(language);
+  // Feature 175 (FR-019, FR-039) — the request's custom fields, embedded in the
+  // form: their bag travels as `customFieldValues` in the create and a refusal
+  // is said at the field it names. Their definitions are `custom_fields:read`'s,
+  // so without that code the panel is not shown and the create carries none.
+  const { hasPermission } = useAuth();
+  const canSeeCustomFields = hasPermission('custom_fields:read');
+  const [customFieldValues, setCustomFieldValues] = useState<Record<string, unknown>>({});
+  const [customFieldErrors, setCustomFieldErrors] = useState<Record<string, string>>({});
   const tGroups = useTranslation('quote_requests');
   const groupLabels = useQuoteLineGroupLabels();
   const summaryText = useSectionSummaryText();
@@ -586,6 +600,7 @@ export function RfqCreatePage(): ReactNode {
     if (!customer?.organizationId || !allLinesComplete || !groupsNamed || !channelChosen || created) return;
     setBusy(true);
     setError(null);
+    setCustomFieldErrors({});
     try {
       const trimmedExpiry = expiresInDays.trim();
       const res = await apiClient.post<{ data: { id: string }; warnings?: AdminQuoteRequestWarning[] }>('/api/v1/admin/quote-requests', {
@@ -605,6 +620,7 @@ export function RfqCreatePage(): ReactNode {
             : {}),
         })),
         ...(openedWith.origin ? { origin: openedWith.origin } : {}),
+        ...(canSeeCustomFields && Object.keys(customFieldValues).length > 0 ? { customFieldValues } : {}),
       });
       // Feature 163 (FR-018) — accepted, but some lines are not available to
       // the customer on the chosen channel: named here before the operator leaves.
@@ -614,6 +630,7 @@ export function RfqCreatePage(): ReactNode {
         leaveFor(res.data.id);
       }
     } catch (err) {
+      setCustomFieldErrors(customFieldErrorsOf(err) ?? {});
       setError(err instanceof ApiError ? err.envelope.error.message : t('rfqCreate.error'));
     } finally {
       setBusy(false);
@@ -901,6 +918,18 @@ export function RfqCreatePage(): ReactNode {
           </div>
         </CardContent>
       </Card>
+
+      {canSeeCustomFields ? (
+        <div className="mb-4">
+          <CustomFieldValuesPanel
+            entityType="quote_request"
+            values={EMPTY_VALUES}
+            onChange={setCustomFieldValues}
+            fieldErrors={customFieldErrors}
+            language={language}
+          />
+        </div>
+      ) : null}
 
       {created ? (
         <Alert variant="warning" className="mb-4">

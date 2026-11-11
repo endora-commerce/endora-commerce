@@ -4951,6 +4951,75 @@ platformy (zgłoszenie #470). Ten dziennik to jedna tabela, czytana przez każde
 **Po aktualizacji** nie trzeba nic robić. Raport, który odczytywał przyznane kwoty z dziennika
 audytu, odczytuje je z samego limitu kredytowego.
 
+### Zasięg przedstawiciela handlowego jest wczytywany na żądanie; funkcje pomocnicze zakresu są asynchroniczne {#sales-rep-reach-async-helpers}
+
+Wydanie z tą zmianą przestaje wyznaczać zasięg przedstawiciela handlowego przy każdym żądaniu panelu
+(issue #955; rozstrzygnięcie właściciela z 2026-11-10). Filtr izolacji już teraz odczytuje zasięg jako
+podzapytanie należące do modułu `organizations`; listy wykluczonych i przypisanych organizacji są
+wczytywane dopiero wtedy, gdy żądanie zadaje pytanie o pojedynczą organizację albo układa kolejność
+wyników wyszukiwania, i najwyżej raz na żądanie. Niczyj zasięg się nie zmienia i nic nie jest
+buforowane.
+
+**Zmiana niezgodna wstecz dla kodu opartego na platformie:**
+
+- `isOrgInScope(id, ctx?)` i `ruleVisibleForScope(ids, ctx?)` zostały usunięte z
+  `@endora-commerce/platform/tenancy`. Używaj `await orgInScope(id, ctx?)` i
+  `await ruleInScope(ids, ctx?)`. Dla sprawdzenia powtarzanego na wierszach, które już masz, pobierz
+  raz predykat synchroniczny: `const inScope = await orgScopeTest(ctx?)`, a potem `inScope(id)`.
+- `assignedOrganizationIdsForRanking(ctx?)` zwraca obietnicę (promise).
+- Gałąź `excluding` typu `AdminTenantScope` (`@endora-commerce/contracts`) nie zawiera już
+  `excludedOrganizationIds` / `assignedOrganizationIds`; zawiera `excludedOrganizationsQuery` i
+  `loadReach()`. Tak samo zmieniła się gałąź `excluded` typu `OrgConstraint`, a
+  `salesperson.reaches(id)` w `PreferenceActor` zwraca obietnicę.
+- Funkcje usunięto, zamiast zmienić ich typ, celowo: `if (!isOrgInScope(x))` na obietnicy jest zawsze
+  fałszem, więc zabezpieczenie zostawione przy starej pisowni przestałoby odmawiać. Kod, który wciąż
+  ich używa, się nie skompiluje. Włącz `@typescript-eslint/no-floating-promises` i
+  `@typescript-eslint/no-misused-promises` dla plików, które zadają to pytanie.
+
+**Po aktualizacji** przebuduj każdy pakiet rozszerzenia i moduł nakładkowy, który importuje te funkcje,
+i popraw błędy kompilacji. Nic więcej nie trzeba robić: migracja dostarczona ze zmianą zasięgu
+(`organization_reach_governor`) się nie zmienia.
+
+### Kwoty i powody zwrotów znikają z dziennika audytu platformy {#returns-audit-names-only}
+
+Wydanie z tą zmianą przestaje zapisywać kwoty zwrotów i powody wpisywane wolnym tekstem w dzienniku
+audytu całej platformy (zgłoszenie #470). Ten dziennik to jedna tabela, czytana przez każdego, kto
+ma `audit_log:read`, bez względu na to, które organizacje widzi.
+
+**Zmiana zachowania po aktualizacji:**
+
+- Nowy wpis `return.settled` nie zawiera już `amount`, `charges` (maksimum i zatwierdzonej kwoty
+  każdej opłaty), `recomputedDefaults` ani `lineCeilings`. Zamiast nich wymienia, czego dotyczyły:
+  `refundedCharges` (rodzaje opłat), `recomputedDefaultItemIds` i `ceilingBoundItemIds`
+  (identyfikatory pozycji). Sposób rozliczenia, waluta, stan rozliczenia i wynik korekty zostają.
+- Nowy wpis `return.status_changed` nie zawiera już `reason` wpisanego przy zmianie; zapisuje
+  `hasReason: true | false`. Powód nadal trafia do zdarzeń statusu tej zmiany, ale **nie jest już
+  nigdzie przechowywany**: jeśli operatorzy odczytują powody zmian statusu z dziennika audytu,
+  poproś ich o wpisywanie powodu w komentarzu sprawy.
+- Sprawy zwrotów, zwroty pieniędzy i ich kwoty się nie zmieniają. Wpisy zapisane przed
+  aktualizacją nie są przepisywane: zachowują swoje kwoty i powody.
+
+**Po aktualizacji** sprawdź, czy ktoś nie polega na odczytywaniu powodów zmian statusu z ekranu
+Dziennik audytu (patrz wyżej).
+
+### Kwoty faktur znikają z dziennika audytu platformy {#invoices-audit-names-only}
+
+Wydanie z tą zmianą przestaje zapisywać kwoty faktur w dzienniku audytu całej platformy
+(zgłoszenie #470). Ten dziennik to jedna tabela, czytana przez każdego, kto ma `audit_log:read`,
+bez względu na to, które organizacje widzi.
+
+**Zmiana zachowania po aktualizacji:**
+
+- Na ekranie **Dziennik audytu** i w `audit_logs read` nowy wpis `invoice.issued` nie zawiera już
+  `grossTotal`, a nowy wpis `invoice.corrected` nie zawiera już `credited` ani kwot skorygowanych
+  opłat (`charges`). Korekta wymienia teraz rodzaje skorygowanych opłat w `chargeKinds`. Numer,
+  rodzaj, zamówienie, kanał sprzedaży i faktura pierwotna zostają.
+- Faktury, korekty, ich pliki PDF i kwoty się nie zmieniają.
+- Wpisy zapisane przed aktualizacją nie są przepisywane: zachowują swoje kwoty.
+
+**Po aktualizacji** nie trzeba nic robić. Raport, który odczytywał kwoty faktur z dziennika
+audytu, odczytuje je z samych faktur.
+
 ### Katalog odczytuje cały nagłówek `Accept-Language` {#catalog-accept-language}
 
 Wydanie z tą zmianą sprawia, że katalog odczytuje `Accept-Language` zgodnie z definicją tego

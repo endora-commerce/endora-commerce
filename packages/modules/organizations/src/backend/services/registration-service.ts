@@ -4,11 +4,16 @@ import { UniqueConstraintViolationException } from '@mikro-orm/core';
 import {
   DictionaryReferenceError,
   ERROR_CODES,
+  isCustomFieldValidationFailure,
+  type CustomFieldInputSurface,
+  type CustomFieldValidationError,
+  type CustomFieldValuePort,
   type CustomerAccountMemberWritePort,
   type CustomerAccountReadPort,
   type CustomerAccountRecord,
   type DictionaryValidator,
   type RegisterOrganizationRequest,
+  type SupportedLanguage,
 } from '@endora-commerce/contracts';
 import type { EventBase, EventBus } from '@endora-commerce/platform/events';
 import { HttpError } from '@endora-commerce/platform/http';
@@ -112,6 +117,30 @@ export interface RegistrationRegistryLookup {
   logger?: { info(obj: object, msg: string): void };
 }
 
+/**
+ * Feature 175 — the one method of `custom_fields`' value port registration
+ * uses. Optional: without it a registration carrying values is refused
+ * `not_open_for_input` for every key (FR-027), one carrying none is unchanged.
+ */
+export type RegistrationCustomFieldValues = Pick<CustomFieldValuePort, 'validateForCustomerInput'>;
+
+/** The buyer input surface this service owns (feature 175, research R-2). */
+const REGISTRATION_SURFACE: CustomFieldInputSurface = 'organization.register';
+
+/**
+ * A refused registration value. `field`, `code` and `message` are the
+ * feature-175 contract (`field` prefixed by its group); `path` and `issue`
+ * repeat `field` and `message` in the envelope's own entry shape, the one every
+ * other custom-field refusal carries.
+ */
+interface RegistrationValueRefusal {
+  field: string;
+  code: CustomFieldValidationError['code'];
+  message: string;
+  path: string;
+  issue: string;
+}
+
 export class RegistrationService {
   constructor(
     private readonly emFactory: () => EntityManager,
@@ -130,6 +159,8 @@ export class RegistrationService {
       'bindToDefaultIfEmpty' | 'replaceChannelsForEntity'
     >,
     private readonly registryLookup?: RegistrationRegistryLookup,
+    /** Feature 175 — validates the buyer's custom-field values before the first write. */
+    private readonly customFieldValues?: RegistrationCustomFieldValues,
   ) {}
 
   /**
@@ -138,10 +169,13 @@ export class RegistrationService {
    *   decision D6): the new Organization gets exactly that channel, also on a
    *   store closed to anonymous visitors, where registering is how a business
    *   applies. `null` (no request channel) binds the system default.
+   * @param context.language the request's response language — feature 175: a
+   *   refused custom-field value is worded in it by `custom_fields`
+   *   (`specs/conventions/module-i18n.md`, case 1). Absent, in English.
    */
   async registerOrganization(
     req: RegisterOrganizationRequest,
-    context: { salesChannelId: string | null } = { salesChannelId: null },
+    context: { salesChannelId: string | null; language?: SupportedLanguage } = { salesChannelId: null },
   ): Promise<RegistrationResult> {
     const em = this.emFactory();
     await this.validateCountry(req.organization.registeredAddress.country);
@@ -170,6 +204,11 @@ export class RegistrationService {
     // failing Redis costs the registration nothing but this one read (FR-021).
     const ticket = await this.readRegistryTicket(req.registryLookupId);
 
+    // Feature 175 (research R-5, FR-024) — both custom-field groups are
+    // validated here, before the first write, so no refusal of theirs can
+    // leave an Organization without its account behind.
+    const customFieldValues = await this.validateCustomFieldGroups(req, context.language);
+
     const organization = em.create(Organization, {
       name: req.organization.name,
       taxId: req.organization.taxId,
@@ -181,6 +220,7 @@ export class RegistrationService {
         postalCode: req.organization.registeredAddress.postalCode,
         country: req.organization.registeredAddress.country,
       },
+      customFieldValues: customFieldValues.organization,
     });
     try {
       await em.persistAndFlush(organization);
@@ -220,6 +260,8 @@ export class RegistrationService {
       // (`specs/170-organization-roles/` WP-02b). Read on this `em`: the role
       // row was written by the Organization's own insert trigger.
       organizationRoleId: await predefinedRoleIdOn(em, organization.id, 'administrator'),
+      // Feature 175 — validated above; the account's owner stores it as given.
+      customFieldValues: customFieldValues.customer,
     });
 
     // Feature 173 — one validation row for the lookup this registration carried,
@@ -264,6 +306,13 @@ export class RegistrationService {
           taxId: organization.taxId,
           status: organization.status,
           ...(lookupRow ? { registryLookup: { provider: lookupRow.provider, outcome: lookupRow.outcome } } : {}),
+          // Feature 175 (FR-028) — the keys a buyer supplied, never their
+          // values (`specs/conventions/audit-state.md`, D-288): sorted, each
+          // prefixed by its request group as a refusal names it.
+          changedCustomFields: [
+            ...Object.keys(customFieldValues.organization).map((key) => `organization.${key}`),
+            ...Object.keys(customFieldValues.customer).map((key) => `firstUser.${key}`),
+          ].sort(),
         },
       });
     }
@@ -284,6 +333,66 @@ export class RegistrationService {
     emitCustomerAccountCreated(this.events, customerAccount.id, organization.id);
 
     return { organization, customerAccount, verificationToken: rawToken };
+  }
+
+  /**
+   * Feature 175 — the buyer's two groups, validated on the registration
+   * surface: `organization` for the Organization, `firstUser` for its first
+   * account. Every refusal of both is collected into **one** 422 whose entries
+   * name the field under its group (`organization.<key>`, `firstUser.<key>`;
+   * the group alone for `too_many_keys`), so a storefront can place each.
+   */
+  private async validateCustomFieldGroups(
+    req: RegisterOrganizationRequest,
+    language: SupportedLanguage | undefined,
+  ): Promise<{ organization: Record<string, unknown>; customer: Record<string, unknown> }> {
+    const groups = [
+      { prefix: 'organization', entityType: 'organization', values: req.organization.customFieldValues },
+      { prefix: 'firstUser', entityType: 'customer', values: req.firstUser.customFieldValues },
+    ] as const;
+    const refusals: RegistrationValueRefusal[] = [];
+    const refuse = (field: string, code: RegistrationValueRefusal['code'], message: string): void => {
+      refusals.push({ field, code, message, path: field, issue: message });
+    };
+    const bags: Array<Record<string, unknown>> = [];
+    for (const group of groups) {
+      if (!this.customFieldValues) {
+        // No value port composed: nothing is open, so every key is refused
+        // (FR-027). The sentence names no key: a buyer reads it beside the field.
+        for (const key of Object.keys(group.values ?? {})) {
+          refuse(`${group.prefix}.${key}`, 'not_open_for_input', 'This field cannot be filled in here.');
+        }
+        bags.push({});
+        continue;
+      }
+      try {
+        bags.push(
+          await this.customFieldValues.validateForCustomerInput(
+            group.entityType,
+            group.values,
+            REGISTRATION_SURFACE,
+            language,
+          ),
+        );
+      } catch (err) {
+        // Structural, as on the admin path: the error class is `custom_fields`'.
+        // Anything else — a disabled module included — is not a refusal.
+        if (!isCustomFieldValidationFailure(err)) throw err;
+        for (const entry of err.errors) {
+          refuse(entry.code === 'too_many_keys' ? group.prefix : `${group.prefix}.${entry.field}`, entry.code, entry.message);
+        }
+        bags.push({});
+      }
+    }
+    if (refusals.length > 0) {
+      throw new HttpError(
+        422,
+        ERROR_CODES.CUSTOM_FIELD_VALUE_INVALID,
+        'One or more custom fields are invalid.',
+        refusals,
+      );
+    }
+    return { organization: bags[0] ?? {}, customer: bags[1] ?? {} };
   }
 
   /** The ticket behind a reference, or `null`: switch off, unknown, expired, or Redis failing. */

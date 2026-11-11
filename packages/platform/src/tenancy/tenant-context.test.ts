@@ -11,7 +11,7 @@ import {
 } from './tenant-context.js';
 import { orgFilterCond, customerFilterCond } from './filters.js';
 import { withSystemScope, withOrgScope, setEscapeHatchAuditSink } from './escape-hatch.js';
-import { orgConstraintFor, ruleVisibleForScope } from './derived-scope.js';
+import { orgConstraintFor, ruleInScope } from './derived-scope.js';
 
 describe('resolveTenantContext', () => {
   it('customer → single-org confined to their organization + account', () => {
@@ -293,7 +293,7 @@ describe('rule-scoped visibility', () => {
   it('platform admin sees every rule', async () => {
     const ctx = resolveTenantContext({ kind: 'admin', adminUserId: 'a' }, { allowAll: true });
     await runWithTenantContext(ctx, async () => {
-      expect(ruleVisibleForScope(['org-B'])).toBe(true);
+      expect(await ruleInScope(['org-B'])).toBe(true);
     });
   });
 
@@ -303,9 +303,9 @@ describe('rule-scoped visibility', () => {
       { allowAll: false, allowedOrganizationIds: ['org-A'] },
     );
     await runWithTenantContext(ctx, async () => {
-      expect(ruleVisibleForScope(['org-B'])).toBe(false);
-      expect(ruleVisibleForScope(['org-A', 'org-B'])).toBe(true);
-      expect(ruleVisibleForScope([])).toBe(true);
+      expect(await ruleInScope(['org-B'])).toBe(false);
+      expect(await ruleInScope(['org-A', 'org-B'])).toBe(true);
+      expect(await ruleInScope([])).toBe(true);
     });
   });
 });

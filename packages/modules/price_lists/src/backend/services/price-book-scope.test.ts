@@ -14,8 +14,8 @@ import {
  * everyone and customer-group books are visible and read-only; a platform
  * administrator reaches everything.
  */
-const ALL: PriceBookScope = { all: true, constraint: { kind: 'all' } };
-const REP: PriceBookScope = { all: false, constraint: { kind: 'allowed', organizationIds: ['a'] } };
+const ALL: PriceBookScope = { all: true, constraint: { kind: 'all' }, inScope: () => true };
+const REP: PriceBookScope = { all: false, constraint: { kind: 'allowed', organizationIds: ['a'] }, inScope: (id) => id === 'a' };
 
 const book = (audienceKind: 'everyone' | 'customer_groups' | 'organizations', organizationIds: string[] = [], isSystem = false) => ({
   audienceKind,
@@ -63,7 +63,8 @@ describe('price-book scope (feature 160)', () => {
   // else governs, so a book is theirs when no member is another rep's.
   const REP_305: PriceBookScope = {
     all: false,
-    constraint: { kind: 'excluded', excludedOrganizationIds: ['f'], assignedOrganizationIds: ['a'], excludedOrganizationsQuery: { sql: 'select x from "reach"(?::uuid) as x', params: ['rep'] } },
+    constraint: { kind: 'excluded', excludedOrganizationsQuery: { sql: 'select x from "reach"(?::uuid) as x', params: ['rep'] }, loadReach: async () => ({ excludedOrganizationIds: ['f'], assignedOrganizationIds: ['a'] }) },
+    inScope: (id) => id !== '' && id !== 'f',
   };
 
   it('#305 — a representative sees a book over their own and unassigned organizations, never one naming another rep’s', () => {

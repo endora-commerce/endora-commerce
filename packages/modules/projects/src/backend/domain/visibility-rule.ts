@@ -1,5 +1,5 @@
 import type { ProjectVisibility, ProjectVisibilitySetting } from '@endora-commerce/contracts';
-import { isOrgInScope, type OrgConstraint } from '@endora-commerce/platform/tenancy';
+import { orgScopeTest, type OrgConstraint } from '@endora-commerce/platform/tenancy';
 
 /**
  * Who sees a Project — the pure rules (`specs/163-projects-and-tasks/research.md`
@@ -24,16 +24,22 @@ import { isOrgInScope, type OrgConstraint } from '@endora-commerce/platform/tena
 export interface OrgReach {
   readonly all: boolean;
   readonly constraint: OrgConstraint;
+  /**
+   * The reach as a synchronous test, loaded once when the reach is taken
+   * (issue #955 Phase 2: a representative's reach loads on demand, so taking
+   * it is async and the pure rules below stay synchronous).
+   */
+  readonly inScope: (organizationId: string) => boolean;
 }
 
 /** The reach a constraint gives. */
-export function orgReachOf(constraint: OrgConstraint): OrgReach {
-  return { all: constraint.kind === 'all', constraint };
+export async function orgReachOf(constraint: OrgConstraint): Promise<OrgReach> {
+  return { all: constraint.kind === 'all', constraint, inScope: await orgScopeTest(constraint) };
 }
 
 /** Whether the reach includes one Organization. */
 export function reaches(reach: OrgReach, organizationId: string): boolean {
-  return reach.all || isOrgInScope(organizationId, reach.constraint);
+  return reach.all || reach.inScope(organizationId);
 }
 
 /** Whoever is reading: an administrator, or the system (`adminUserId: null`, sees all, reaches all). */

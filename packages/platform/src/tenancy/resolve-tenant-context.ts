@@ -1,4 +1,4 @@
-import type { ExcludedOrganizationsQuery, TenantContext, TenantScopeNotices } from './tenant-context.js';
+import { memoiseReach, type ExcludedOrganizationsQuery, type ExcludedReach, type TenantContext, type TenantScopeNotices } from './tenant-context.js';
 
 /**
  * Actor → TenantContext derivation (feature 050, FR-002 / data-model §1).
@@ -93,10 +93,12 @@ export interface AdminScopeInput {
   readonly allowedOrganizationIds?: readonly string[];
   /** Issue #305 — the reach is described by its complement. */
   readonly reach?: 'excluding';
-  /** With `reach: 'excluding'`: organizations governed by somebody else. */
-  readonly excludedOrganizationIds?: readonly string[];
-  /** With `reach: 'excluding'`: the admin's own assignments, for ranking only. */
-  readonly assignedOrganizationIds?: readonly string[];
+  /**
+   * With `reach: 'excluding'` (issue #955 Phase 2): the excluded and assigned
+   * lists, loaded on demand. Required beside the query; the platform memoises
+   * it once per tenant context and never calls it while resolving the scope.
+   */
+  readonly loadReach?: () => Promise<ExcludedReach>;
   /**
    * With `reach: 'excluding'` (issue #955): the owner's uncorrelated SELECT of
    * the excluded organizations, which the filters render as
@@ -181,24 +183,21 @@ export function resolveTenantContext(actor: TenantActorInput, adminScope?: Admin
     };
   }
   if (adminScope.reach === 'excluding') {
-    // Issue #305 — every organization but those governed by somebody else. A
-    // missing list is not "nothing excluded" by default: the port that answers
-    // `excluding` always names both, and an empty list it names is the honest
-    // answer for a platform where nobody else holds an assignment.
-    if (adminScope.excludedOrganizationIds === undefined) {
-      throw new Error('An `excluding` admin scope must name its excluded organizations (issue #305).');
-    }
-    // Issue #955 — the filter reads the query, never the list; a scope without
-    // one has no predicate to give and is refused rather than read as "nothing
-    // excluded".
+    // Issue #305 — every organization but those governed by somebody else.
+    // Issue #955 — the filter reads the query, never a list; a scope without
+    // one has no predicate to give and is refused rather than read as
+    // "nothing excluded". Phase 2: the lists are a loader, called by nothing
+    // here — resolving the scope runs on every admin request.
     if (adminScope.excludedOrganizationsQuery === undefined) {
       throw new Error('An `excluding` admin scope must carry its excludedOrganizationsQuery (issue #955).');
     }
+    if (adminScope.loadReach === undefined) {
+      throw new Error('An `excluding` admin scope must carry its loadReach (issue #955).');
+    }
     return {
       mode: 'excluded-set',
-      excludedOrganizationIds: [...adminScope.excludedOrganizationIds],
-      assignedOrganizationIds: [...(adminScope.assignedOrganizationIds ?? [])],
       excludedOrganizationsQuery: adminScope.excludedOrganizationsQuery,
+      loadExcludedReach: memoiseReach(adminScope.loadReach),
       notices: newScopeNotices(),
       actor: { kind: 'admin', id: actor.adminUserId },
     };

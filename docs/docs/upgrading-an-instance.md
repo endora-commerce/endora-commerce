@@ -4729,6 +4729,74 @@ Organizations they may see.
 **After upgrading,** nothing has to be done. A report that read granted amounts out of the audit log
 reads them from the credit limit instead.
 
+### A sales representative's reach loads on demand; the scope helpers are async {#sales-rep-reach-async-helpers}
+
+The release that ships this change stops computing a sales representative's reach on every admin
+request (issue #955; owner ruling of 2026-11-10). The tenant filter already reads the reach as a
+subquery owned by `organizations`; the lists of excluded and assigned Organizations are now loaded
+only when a request asks a single-Organization question or ranks search results, and at most once per
+request. Nobody's reach changes, and nothing is cached.
+
+**Breaking change for code that builds on the platform:**
+
+- `isOrgInScope(id, ctx?)` and `ruleVisibleForScope(ids, ctx?)` are removed from
+  `@endora-commerce/platform/tenancy`. Use `await orgInScope(id, ctx?)` and
+  `await ruleInScope(ids, ctx?)`. For a check repeated over rows you already hold, take the
+  synchronous predicate once: `const inScope = await orgScopeTest(ctx?)`, then `inScope(id)`.
+- `assignedOrganizationIdsForRanking(ctx?)` returns a promise.
+- `AdminTenantScope`'s `excluding` member (`@endora-commerce/contracts`) no longer carries
+  `excludedOrganizationIds` / `assignedOrganizationIds`; it carries
+  `excludedOrganizationsQuery` and `loadReach()`. The `excluded` arm of `OrgConstraint` changed the
+  same way, and `PreferenceActor`'s `salesperson.reaches(id)` returns a promise.
+- The helpers were removed rather than retyped on purpose: `if (!isOrgInScope(x))` over a promise is
+  always false, so a gate kept on the old spelling would have stopped refusing. Code that still names
+  them fails to compile. Turn on `@typescript-eslint/no-floating-promises` and
+  `@typescript-eslint/no-misused-promises` for the files that ask the question.
+
+**After upgrading,** rebuild any extension package or overlay module that imports these helpers and
+follow the compile errors. Nothing else needs doing: the migration that ships with the reach change
+(`organization_reach_governor`) is unchanged.
+
+### Return amounts and reasons leave the platform audit log {#returns-audit-names-only}
+
+The release that ships this change stops writing return amounts and free-text reasons into the
+platform-wide audit log (issue #470). That log is one table, read by everybody holding
+`audit_log:read` whatever Organizations they may see.
+
+**Behaviour change on upgrade:**
+
+- A new `return.settled` entry no longer carries `amount`, `charges` (each charge's maximum and
+  approved amount), `recomputedDefaults` or `lineCeilings`. It names what they concerned instead:
+  `refundedCharges` (charge kinds), `recomputedDefaultItemIds` and `ceilingBoundItemIds` (line ids).
+  The resolution, currency, settlement state and correction outcome stay.
+- A new `return.status_changed` entry no longer carries the `reason` typed with the change; it
+  records `hasReason: true | false`. The reason is still passed to the status events of that
+  change, but **it is no longer stored anywhere**: if your operators read transition reasons back
+  from the audit log, ask them to put the reason in a case comment instead.
+- Return cases, refunds and their amounts are unchanged. Entries recorded before the upgrade are not
+  rewritten: they keep their amounts and reasons.
+
+**After upgrading,** check whether anybody relies on reading transition reasons from the Audit log
+screen (see above).
+
+### Invoice amounts leave the platform audit log {#invoices-audit-names-only}
+
+The release that ships this change stops writing invoice amounts into the platform-wide audit log
+(issue #470). That log is one table, read by everybody holding `audit_log:read` whatever
+Organizations they may see.
+
+**Behaviour change on upgrade:**
+
+- On the **Audit log** screen, and in `audit_logs read`, a new `invoice.issued` entry no longer
+  carries `grossTotal`, and a new `invoice.corrected` entry no longer carries `credited` or the
+  amounts of credited charges (`charges`). A correction now names the kinds of charges it credited
+  in `chargeKinds`. The number, kind, order, sales channel and original invoice stay.
+- Invoices, corrections, their PDFs and their totals are unchanged.
+- Entries recorded before the upgrade are not rewritten: they keep their amounts.
+
+**After upgrading,** nothing has to be done. A report that read invoice totals out of the audit log
+reads them from the invoices instead.
+
 ### The catalogue reads the whole `Accept-Language` header {#catalog-accept-language}
 
 The release that ships this change makes the catalogue read `Accept-Language` as the weighted

@@ -114,7 +114,8 @@ The case lifecycle is **admin-configurable** (`return_statuses` +
 
 Transitions are enforced; the initial status is immutable; terminal statuses
 have no outgoing edges. Each transition emits templated `return.status.*`
-before/after events and is written to the audit log.
+before/after events and is written to the audit log — whether it had a reason
+(`hasReason`), never the reason's text.
 
 ## Key behaviours
 
@@ -170,8 +171,8 @@ before/after events and is written to the audit log.
   amount equal to a default the case showed settles at the recomputed default,
   a lower amount is kept as typed, and a higher one is refused with
   `422 VALIDATION_FAILED` (`code: refund_exceeds_paid`) with nothing written:
-  reload the form and confirm. The `return.settled` audit entry records a
-  default that moved (`recomputedDefaults`).
+  reload the form and confirm. The `return.settled` audit entry names the
+  lines whose default moved (`recomputedDefaultItemIds`), not the amounts.
 - **No line refunds more than it was paid** — a complaint refund counts against
   the line it names, and the unabsorbed part of it counts against what is left
   paid for the order: once a return of the line has been cut by the complaint,
@@ -179,7 +180,7 @@ before/after events and is written to the audit log.
   return of that line still gets its full default, until the line's refunds,
   the complaint included, reach what the line was paid; from then on the
   case shows, and the settlement form offers, at most what is left of it, and
-  the audit entry records the bound (`lineCeilings`). The platform cannot tell which unit came
+  the audit entry names the line the bound held (`ceilingBoundItemIds`). The platform cannot tell which unit came
   back. Before settling a return, check the order's other cases for an earlier
   complaint on the same line: if the defective unit the complaint compensated
   is the one coming back, lower the amount by hand.
@@ -213,8 +214,8 @@ before/after events and is written to the audit log.
   above the maximum by then, and is refused. The settlement form sends only an
   amount you changed. The case's `totalRefundAmount` then includes the
   charges, so it is more than the sum of the lines. The case detail reports
-  them as `chargeRefunds`, and the `return.settled` audit entry records each
-  one's maximum and the approved amount (`charges`). A business customer's
+  them as `chargeRefunds`, and the `return.settled` audit entry names the
+  charges that were refunded (`refundedCharges`), not the amounts. A business customer's
   return and every complaint are unchanged.
 
   On an invoiced order, the correction credits the delivery and the surcharge on
@@ -411,6 +412,19 @@ product is marked returnable in the catalogue — select the products on the
 product list and use **Bulk edit → Returnable → Yes — returnable**. Orders
 placed before the release are unaffected: their lines carry no recorded value
 and stay returnable.
+
+## In the audit log
+
+A return case is an Organization's record, and the platform-wide audit log is read
+by everybody holding `audit_log:read` whatever Organizations they may see. So the
+case's entries name and count, and hold no amount and no free text:
+`return.settled` records the resolution, the currency, the settlement state and
+the correction's outcome, with the lines and charges it concerns by id or kind;
+`return.status_changed` records the status and whether a reason was given. The
+amounts are on the case and its refund. A reason given with a status change is
+passed to the status events that change emits and
+is not recorded anywhere else. Entries recorded before this change keep what they
+were written with.
 
 ## Cross-module interfaces
 

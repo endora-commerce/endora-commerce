@@ -147,24 +147,28 @@ describe('custom_fields — a host type follows its owner module', () => {
       labelKey: 'customFields.entity.task',
       listFilter: true,
       carryTargets: [],
+      customerInputSurfaces: [],
     });
     expect(rows.find((row) => row.entityType === 'project')).toEqual({
       entityType: 'project',
       labelKey: 'customFields.entity.project',
       listFilter: true,
       carryTargets: [],
+      customerInputSurfaces: [],
     });
     expect(rows.find((row) => row.entityType === 'opportunity')).toEqual({
       entityType: 'opportunity',
       labelKey: 'customFields.entity.opportunity',
       listFilter: true,
       carryTargets: ['quote_request', 'order'],
+      customerInputSurfaces: [],
     });
     expect(rows.find((row) => row.entityType === 'quote_request')).toEqual({
       entityType: 'quote_request',
       labelKey: 'customFields.entity.quoteRequest',
       listFilter: true,
       carryTargets: ['order', 'opportunity'],
+      customerInputSurfaces: [],
     });
   });
 

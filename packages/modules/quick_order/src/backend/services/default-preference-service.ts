@@ -96,7 +96,7 @@ export class DefaultPreferenceService {
 
     const targetCustomerOrgId =
       input.scope === 'customer' ? await this.customerOrganizationId(input.scopeId) : null;
-    if (!canManagePreference(actor, { scope: input.scope, scopeId: input.scopeId }, targetCustomerOrgId)) {
+    if (!(await canManagePreference(actor, { scope: input.scope, scopeId: input.scopeId }, targetCustomerOrgId))) {
       throw new HttpError(403, ERROR_CODES.FORBIDDEN, 'Not allowed to manage these defaults.');
     }
 

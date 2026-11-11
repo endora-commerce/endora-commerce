@@ -256,6 +256,9 @@ export function createAttributeCommand(
           sortOrder: input.sortOrder,
           config: {},
           options,
+          // Feature 175 (FR-036) — the admin panel's affordance; the apply
+          // seam refuses a required attribute that is not `edit` (SD-2).
+          ...(req.adminAccess !== undefined ? { adminAccess: req.adminAccess } : {}),
         });
         definitionId = def.id;
         // The extension references the definition by plain uuid (no ORM
@@ -411,6 +414,7 @@ export function updateAttributeCommand(
       if (req.label !== undefined) patch['label'] = req.label;
       if (req.labelDefault !== undefined) patch['labelDefault'] = req.labelDefault;
       if (req.isRequired !== undefined) patch['required'] = req.isRequired;
+      if (req.adminAccess !== undefined) patch['adminAccess'] = req.adminAccess;
       if (triple.cfValueType !== def.valueType) patch['valueType'] = triple.cfValueType;
       if (Object.keys(patch).length > 0) {
         try {

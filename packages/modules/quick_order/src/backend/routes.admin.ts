@@ -6,7 +6,7 @@ import {
   type CustomerAccountReadPort,
 } from '@endora-commerce/contracts';
 import { HttpError } from '@endora-commerce/platform/http';
-import { isOrgInScope } from '@endora-commerce/platform/tenancy';
+import { orgInScope } from '@endora-commerce/platform/tenancy';
 import type { QuickOrderImportPipeline } from './services/import-pipeline.js';
 import type { QuickOrderBuildService } from './services/quick-order-build-service.js';
 import { parseImportRequest } from './services/import-from-request.js';
@@ -73,7 +73,7 @@ export async function registerQuickOrderAdminRoutes(
     const refuse = (): never => {
       throw new HttpError(404, ERROR_CODES.NOT_FOUND, 'Customer account not found.');
     };
-    if (!isOrgInScope(onBehalfOf.organizationId)) refuse();
+    if (!(await orgInScope(onBehalfOf.organizationId))) refuse();
     const account = await customerAccounts.findById(onBehalfOf.customerAccountId);
     if (!account) refuse();
   };

@@ -50,7 +50,7 @@ import type {
 } from '@endora-commerce/contracts';
 import type { EntityManager } from '@mikro-orm/postgresql';
 import { HttpError } from '@endora-commerce/platform/http';
-import { isOrgInScope } from '@endora-commerce/platform/tenancy';
+import { orgInScope } from '@endora-commerce/platform/tenancy';
 import { getResolvedChannel, rethrowIfModuleDisabled } from '@endora-commerce/platform/kernel';
 import type { SalesChannelMembershipPort } from '@endora-commerce/platform/kernel';
 import type { CommandBus } from '@endora-commerce/platform/commands';
@@ -626,7 +626,7 @@ export async function registerOrderRoutes(
     const scope = await resolveListScope(request);
     if (!scope) return;
     const customer = await deps.customerAccountRead.findById(customerAccountId);
-    if (!customer?.organizationId || !isOrgInScope(customer.organizationId)) {
+    if (!customer?.organizationId || !(await orgInScope(customer.organizationId))) {
       throw new HttpError(
         403,
         ERROR_CODES.FORBIDDEN,

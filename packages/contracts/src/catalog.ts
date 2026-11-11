@@ -8,6 +8,11 @@ import {
   type ProductVisibility,
 } from './common.js';
 import type { FulfilmentStrategy } from './inventory.js';
+import {
+  customFieldAdminAccessSchema,
+  customFieldValuesSchema,
+  type CustomFieldAdminAccess,
+} from './custom-fields.js';
 import type { BulkImportReport } from './import-export.js';
 import type { AttributeScope } from './product-value-resolver.js';
 import { ORDER_MINIMUM_MAX } from './order-minimums.js';
@@ -1259,6 +1264,12 @@ const baseCreateAttributeObject = z.object({
   /** Feature 039 — values participate in Quick Order search. Default false. */
   quickSearchable: z.boolean().optional(),
   /**
+   * Feature 175 (FR-036) — how the admin panel offers the attribute's backing
+   * custom-field definition: `edit` (default), `read` or `hidden`. A panel
+   * convenience, not access control; a required attribute stays `edit`.
+   */
+  adminAccess: customFieldAdminAccessSchema.optional(),
+  /**
    * Feature 012 — rich option list for select / enum / multiselect types.
    * When supplied alongside the legacy `enumValues`, this wins. The
    * service layer creates corresponding `custom_field_options` rows
@@ -1334,6 +1345,8 @@ export const updateAttributeRequestSchema = z
     massEditable: z.boolean().optional(),
     /** Feature 039 — values participate in Quick Order search. */
     quickSearchable: z.boolean().optional(),
+    /** Feature 175 — see `baseCreateAttributeObject.adminAccess`. */
+    adminAccess: customFieldAdminAccessSchema.optional(),
   })
   .strict()
   .refine(
@@ -1386,6 +1399,11 @@ export const adminAttributeResponseSchema = z.object({
    */
   scopable: z.boolean().optional(),
   scopeLevels: z.array(z.enum(['G', 'C', 'CL'])).optional(),
+  /**
+   * Feature 175 — the backing definition's admin access. Optional so other
+   * builders of the DTO keep compiling; `catalog` always emits it.
+   */
+  adminAccess: customFieldAdminAccessSchema.optional(),
   createdAt: isoDateTimeSchema,
   updatedAt: isoDateTimeSchema,
 });
@@ -1407,6 +1425,11 @@ export const createCategoryRequestSchema = z.object({
    * first import never exposes a source hierarchy to customers.
    */
   isActive: z.boolean().optional(),
+  /**
+   * Feature 175 (FR-016) — the category's custom-field values, validated with
+   * the administrator's rules inside the creating Command.
+   */
+  customFieldValues: customFieldValuesSchema.optional(),
 });
 export type CreateCategoryRequest = z.infer<typeof createCategoryRequestSchema>;
 
@@ -3055,6 +3078,11 @@ export interface CatalogAttributeView {
   scopable: boolean;
   scopeLevels: readonly ScopeLevel[];
   massEditable: boolean;
+  /**
+   * Feature 175 — the backing definition's admin access (`edit` when absent).
+   * Optional so the hand-built views of other modules keep compiling.
+   */
+  adminAccess?: CustomFieldAdminAccess;
 
   createdAt: Date;
   updatedAt: Date;

@@ -1,6 +1,11 @@
 import { useCallback, useContext, useEffect, useId, useMemo, useState, type FormEvent, type ReactNode } from 'react';
 import { Pencil, Trash2 } from 'lucide-react';
-import { getAttributeScope, isSystemAttributeKey, type AdminAttributeUsage } from '@endora-commerce/contracts';
+import {
+  getAttributeScope,
+  isSystemAttributeKey,
+  type AdminAttributeUsage,
+  type CustomFieldAdminAccess as AdminAccess,
+} from '@endora-commerce/contracts';
 import { ApiError, apiClient, useAuth } from '@endora-commerce/admin-kit/lib';
 import { Alert, AlertDescription, Button, Card, CardContent, CardHeader, CardTitle, Checkbox, Input, Label, PageHeader, Select, Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from '@endora-commerce/admin-kit/ui';
 import { ModalDialog } from '@endora-commerce/admin-kit/components';
@@ -64,7 +69,14 @@ interface AdminAttribute {
    * channel and language). Optional: the form shows it only when the answer carries it.
    */
   scopable?: boolean;
+  /**
+   * Feature 175 (FR-036) — how the admin panel offers the backing custom-field
+   * definition. Optional: an answer from an older server carries none (`edit`).
+   */
+  adminAccess?: AdminAccess;
 }
+
+const ADMIN_ACCESS_LEVELS: readonly AdminAccess[] = ['edit', 'read', 'hidden'];
 
 /** A narrowing waiting for the operator's confirmation (FR-090). */
 interface PendingNarrowing {
@@ -174,6 +186,7 @@ export function AttributesManager(): ReactNode {
         ? { displayAsSlider: input.displayAsSlider }
         : {}),
       ...(input.scopable !== null ? { scopable: input.scopable } : {}),
+      adminAccess: input.adminAccess,
     };
   };
 
@@ -633,6 +646,8 @@ interface AttributeFormValues {
   isPriceRule: boolean;
   /** Feature 174 (R15) — `null` when the form does not show the flag. */
   scopable: boolean | null;
+  /** Feature 175 (FR-036) — the backing definition's admin access. */
+  adminAccess: AdminAccess;
 }
 
 interface AttributeFormProps {
@@ -668,6 +683,11 @@ function AttributeForm({ mode, attribute, onSubmit, onCancel }: AttributeFormPro
   const [quickSearchable, setQuickSearchable] = useState(attribute?.quickSearchable ?? false);
   const [isPromoRule, setIsPromoRule] = useState(attribute?.isPromoRule ?? false);
   const [isPriceRule, setIsPriceRule] = useState(attribute?.isPriceRule ?? false);
+  const [adminAccess, setAdminAccess] = useState<AdminAccess>(attribute?.adminAccess ?? 'edit');
+  // A required attribute stays editable in the admin (SD-2); the form has no
+  // required control of its own, so the stored flag decides.
+  const accessLocked = attribute?.isRequired ?? false;
+  const adminAccessId = useId();
   const [busy, setBusy] = useState(false);
   const isNumeric = valueType === 'number' || valueType === 'price';
   const { hasPermission } = useAuth();
@@ -705,6 +725,7 @@ function AttributeForm({ mode, attribute, onSubmit, onCancel }: AttributeFormPro
     isPromoRule: isContent ? false : isPromoRule,
     isPriceRule: isContent ? false : isPriceRule,
     scopable: scopeEditable && !isContent ? scopable : null,
+    adminAccess,
   });
 
   const reset = (): void => {
@@ -722,6 +743,7 @@ function AttributeForm({ mode, attribute, onSubmit, onCancel }: AttributeFormPro
     setIsPromoRule(false);
     setIsPriceRule(false);
     setScopable(false);
+    setAdminAccess('edit');
   };
 
   return (
@@ -871,6 +893,30 @@ function AttributeForm({ mode, attribute, onSubmit, onCancel }: AttributeFormPro
           </p>
         </fieldset>
       ) : null}
+      <div className="space-y-2">
+        <Label htmlFor={adminAccessId}>{t('attributes.adminAccess.label')}</Label>
+        <Select
+          id={adminAccessId}
+          value={adminAccess}
+          disabled={!canWrite}
+          aria-describedby={`${adminAccessId}-help${accessLocked ? ` ${adminAccessId}-reason` : ''}`}
+          onChange={(e): void => setAdminAccess(e.target.value as AdminAccess)}
+        >
+          {ADMIN_ACCESS_LEVELS.map((level) => (
+            <option key={level} value={level} disabled={accessLocked && level !== 'edit' && level !== adminAccess}>
+              {t(`attributes.adminAccess.${level}`)}
+            </option>
+          ))}
+        </Select>
+        <p id={`${adminAccessId}-help`} className="text-xs text-muted-foreground">
+          {t('attributes.adminAccess.help')}
+        </p>
+        {accessLocked ? (
+          <p id={`${adminAccessId}-reason`} className="text-xs text-muted-foreground">
+            {t('attributes.adminAccess.requiredReason')}
+          </p>
+        ) : null}
+      </div>
       <div className="flex gap-2">
         {/* Disabled and announced as busy while the save — or a narrowing's preview — runs (D18). */}
         <Button type="submit" disabled={busy} aria-busy={busy || undefined}>
