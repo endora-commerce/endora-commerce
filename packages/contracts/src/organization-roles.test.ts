@@ -27,6 +27,10 @@ import {
   type OrganizationPermissionPort,
   type OrganizationPermissionSubject,
 } from './organization-roles.js';
+// Loaded statically, not with `await import()` inside the test: the barrel
+// loads every contract schema, and a cold load inside a test body counts
+// against the per-test timeout. Module collection has none.
+import * as contractsBarrel from './index.js';
 
 /**
  * `specs/170-organization-roles/` WP-01 (T007) — the role contracts, and the
@@ -303,8 +307,8 @@ describe('cart merge outcome on sign-in (PR-12)', () => {
 describe('the legacy role is removed (R-23, WP-12)', () => {
   const organizationRole = { id: ROLE_ID, name: 'Administrator', kind: 'administrator' as const };
 
-  it('the package exports none of the legacy role symbols', async () => {
-    const contracts: Record<string, unknown> = await import('./index.js');
+  it('the package exports none of the legacy role symbols', () => {
+    const contracts: Record<string, unknown> = contractsBarrel;
     for (const name of [
       'organizationRoleSchema',
       'setCartApprovalPolicySchema',

@@ -31,3 +31,32 @@ describe('OrganizationCommandService.convertToCompany', () => {
     warn.mockRestore();
   });
 });
+
+/**
+ * Issue #1040 — `changeTaxId` runs `organization.tax_id.change` through the bus
+ * and answers the record, whether the value changed or not.
+ */
+describe('OrganizationCommandService.changeTaxId', () => {
+  it('runs the Command on the bus and answers the record', async () => {
+    const organization = {
+      id: 'org-2', name: 'Co', legalName: null, taxId: 'PL1234567890', status: 'active', vatStatus: 'vat_payer',
+      isPersonal: false, customerGroupId: null, registeredAddress: { street: '-', city: '-', postalCode: '-', country: 'PL' },
+      convertedToCompanyAt: null, parentId: null, path: '/org-2/', createdAt: new Date(), updatedAt: new Date(),
+    };
+    const actions: string[] = [];
+    const service = new OrganizationCommandService({
+      commandBus: {
+        run: async (command) => {
+          actions.push(command.action);
+          return { organization, changed: true } as never;
+        },
+      },
+      accounts: { listByOrganization: async () => [] },
+    });
+    await expect(service.changeTaxId('org-2', { taxId: 'PL1234567890' })).resolves.toMatchObject({
+      id: 'org-2',
+      taxId: 'PL1234567890',
+    });
+    expect(actions).toEqual(['organization.tax_id.change']);
+  });
+});

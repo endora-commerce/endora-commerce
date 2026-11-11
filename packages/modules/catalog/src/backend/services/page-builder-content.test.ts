@@ -7,6 +7,10 @@ import {
   resolvePageBuilderLanguage,
   summarisePageBuilderDocument,
 } from './page-builder-content.js';
+// Loaded statically, not with `await import()` inside the test: the service is
+// large, and a cold load inside a test body counts against the per-test
+// timeout, which it overran on loaded CI runners. Module collection has none.
+import { hasPageBuilderBlocks as legacyHasPageBuilderBlocks } from './catalog-query.service.js';
 
 /**
  * Feature 172 — the pure Page Builder helpers shared by category and product
@@ -32,9 +36,8 @@ describe('hasPageBuilderBlocks', () => {
     expect(hasPageBuilderBlocks({})).toBe(false);
   });
 
-  it('stays importable from its former home', async () => {
-    const legacy = await import('./catalog-query.service.js');
-    expect(legacy.hasPageBuilderBlocks).toBe(hasPageBuilderBlocks);
+  it('stays importable from its former home', () => {
+    expect(legacyHasPageBuilderBlocks).toBe(hasPageBuilderBlocks);
   });
 });
 

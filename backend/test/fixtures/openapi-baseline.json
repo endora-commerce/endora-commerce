@@ -5046,6 +5046,15 @@
         }
       }
     },
+    "/api/v1/admin/organizations/{id}/change-tax-id": {
+      "post": {
+        "responses": {
+          "200": {
+            "description": "OK"
+          }
+        }
+      }
+    },
     "/api/v1/admin/organizations/{id}/convert-to-company": {
       "post": {
         "responses": {

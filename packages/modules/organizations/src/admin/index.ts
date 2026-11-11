@@ -89,6 +89,13 @@ export const contributions: AdminContributions = {
       requiredPermission: 'organizations:convert-to-company',
     },
     {
+      // Issue #1040 — the ⌘K action's screen for a tax-ID correction; static,
+      // so ahead of `/:id`.
+      path: `${ROUTE_PATH}/change-tax-id`,
+      component: () => import('./pages/ChangeTaxIdPage.js'),
+      requiredPermission: 'organizations:change-tax-id',
+    },
+    {
       path: `${ROUTE_PATH}/:id`,
       component: () => import('./pages/OrganizationDetail.js'),
       requiredPermission: [...READ_PERMISSION],

@@ -668,6 +668,51 @@ export interface OrganizationCommandPort {
    * `409 ORGANIZATION_CONVERSION_REFUSED`, `409 ORGANIZATION_TAX_ID_EXISTS`.
    */
   convertToCompany(organizationId: string, input: OrganizationConvertToCompanyInput): Promise<OrganizationRecord>;
+  /**
+   * Issue #1040 — runs `organization.tax_id.change` as one Command with the
+   * ambient actor: corrects a live company organization's tax ID in place (same
+   * id, members, roles and orders). The value is normalised and checked in the
+   * active tax-ID scope inside the write; the organization's VAT validation is
+   * reset to unverified. The same value after normalisation changes nothing and
+   * is not audited. No VAT validation runs: trigger one after it resolves if you
+   * need it. Refusals: `404 NOT_FOUND`, `409 ORGANIZATION_TAX_ID_CHANGE_REFUSED`
+   * (`not_company` | `deleted`), `409 ORGANIZATION_TAX_ID_EXISTS`,
+   * `409 ORGANIZATION_WRITE_CONTENDED`.
+   */
+  changeTaxId(organizationId: string, input: OrganizationChangeTaxIdInput): Promise<OrganizationRecord>;
+}
+
+// --- Tax-ID correction (issue #1040, follow-up to specs/177-tax-id-scope/) ----
+
+/**
+ * `POST /api/v1/admin/organizations/:id/change-tax-id`. The tax ID is
+ * normalised exactly as the admin boundary normalises it on creation.
+ * `validateTaxId` is the route's own switch — a VAT validation after the change
+ * commits, whose failure never undoes it — and is not part of the Command's
+ * input.
+ */
+export const adminOrganizationChangeTaxIdBodySchema = z.object({
+  taxId: normalizedTaxIdSchema,
+  validateTaxId: z.boolean().default(false),
+});
+export type AdminOrganizationChangeTaxIdBody = z.infer<typeof adminOrganizationChangeTaxIdBodySchema>;
+export type OrganizationChangeTaxIdInput = Omit<AdminOrganizationChangeTaxIdBody, 'validateTaxId'>;
+
+/**
+ * `organization.tax_id_changed.v1` — emitted once, after the change commits,
+ * never on rollback and never for a same-value no-op. Carries neither the old
+ * nor the new tax ID (the precedent of
+ * {@link OrganizationConvertedToCompanyEvent}): a tax ID is personal data for a
+ * sole trader, and a subscriber that needs the current value reads it through
+ * {@link OrganizationDetailsPort}.
+ */
+export interface OrganizationTaxIdChangedEvent {
+  eventId: string;
+  /** ISO-8601. */
+  occurredAt: string;
+  organizationId: string;
+  /** ISO-8601 — when the change committed its write. */
+  changedAt: string;
 }
 
 /**

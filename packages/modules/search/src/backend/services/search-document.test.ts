@@ -7,6 +7,11 @@ import {
   indexLanguagesOf,
   sortableAttributesFor,
 } from './search-document.js';
+// Loaded statically, not with `await import()` inside the tests: the query
+// service pulls in the Meilisearch client and the platform kernel, and a cold
+// load inside a test body counts against the per-test timeout. Module
+// collection has none.
+import { queryLanguageOf } from './search-query.service.js';
 
 /**
  * Feature 174 (`specs/174-product-editor-scope-switcher/contracts/search-index.md` §1–§3, FR-033)
@@ -119,15 +124,13 @@ describe('sortableAttributesFor', () => {
 });
 
 describe('queryLanguageOf (R21)', () => {
-  it('answers a language the channel offers', async () => {
-    const { queryLanguageOf } = await import('./search-query.service.js');
+  it('answers a language the channel offers', () => {
     const channel = { id: 'c', code: 'c', defaultCurrency: 'PLN', defaultLanguage: 'pl-PL', languages: ['pl-PL', 'en-US'] };
     expect(queryLanguageOf(channel, 'en-US')).toBe('en-US');
     expect(queryLanguageOf(channel, 'de-DE')).toBe('pl-PL');
   });
 
-  it('refuses a language that is not a tag before it reaches a field path', async () => {
-    const { queryLanguageOf } = await import('./search-query.service.js');
+  it('refuses a language that is not a tag before it reaches a field path', () => {
     for (const defaultLanguage of ['pl-PL.name:asc', 'x"y', 'pl PL']) {
       const channel = { id: 'c', code: 'c', defaultCurrency: 'PLN', defaultLanguage, languages: [] };
       expect(() => queryLanguageOf(channel, undefined), defaultLanguage).toThrow();
