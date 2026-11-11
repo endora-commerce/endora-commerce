@@ -82,6 +82,24 @@ number", never pick a number, never edit an execution list.
    switchable: that makes the owner's activation control a dead switch (`module-composition.md`
    item 4a), and it is the case that produced the feature.
    `specs/097-migration-sql-boundary/contracts/migration-cross-module-sql.md` is normative.
+
+   **R2's one exception is column-granular** (`specs/178-extensible-columns/`, Constitution I as
+   amended to 4.2.0): an installed package that declares extension columns on an extensible host
+   owns its `x_<moduleId>_*` columns, so its own migration may `update "<host>" set` them — every
+   set column its own, and nothing else in the statement a write. The columns themselves are never
+   created by a hand-written migration: the platform generates that DDL from the declaration, as a
+   step at the head of the declaring module's block, and records it in the `schema_extensions`
+   ledger. A module of this repository does not declare extensions at all (the composer refuses a
+   `schemaExtensions` export from a workspace module package); it owns its tables or uses a side
+   table. And the owner of an extensible table owes the other side: a migration that rebuilds one
+   (`drop table`, `rename to`, a `create table … as select` copy) loses every extension's columns,
+   which `check:extensible-tables` refuses on the merge request and the preservation test in
+   `test:backend` catches after the merge. In an **instance** every module arrives as an installed
+   package, and there R2 is not a review finding but a refusal: the platform's foreign-schema guard
+   wraps every package migration and refuses a write to a table the module does not own at
+   `migrate`, letting through only R2's ledger entries (`composer:generate` renders them into
+   `FIRST_PARTY_FOREIGN_WRITE_EXEMPTIONS`). So a new R2 write in this tree is also a broken
+   `migrate` for every client until it is ledgered or repaired.
 5. **Renaming an applied migration class costs a database rebuild.** Since feature 072 there
    is no frozen name map and nothing in the repository forbids the rename — but
    `mikro_orm_migrations` stores the **class name**, so every database that already ran the

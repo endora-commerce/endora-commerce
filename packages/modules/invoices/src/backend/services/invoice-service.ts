@@ -381,7 +381,8 @@ export class InvoiceService {
             kind: invoice.kind,
             orderId,
             salesChannelId: order.salesChannelId,
-            grossTotal: Number(built.grossTotal),
+            // No amount (#470, D-288): the invoice is the Organization's, and the
+            // audit log is read without its reach. The total is on the invoice.
           },
         })
         .catch(() => undefined);

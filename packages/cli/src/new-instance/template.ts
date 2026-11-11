@@ -1508,18 +1508,20 @@ export default async function config() {
     // configuration is built from the installed packages and never looks at
     // `apps/`, so without it a `migrations/` directory under an overlay module
     // is applied by nothing and reported by nothing (`overlay-schema.ts`).
-    content: `// The schema, in the order the installed manifests compute. MikroORM's own
-// migrator over the configuration beside this file — no second ordering here.
+    content: `// The schema, in the order the installed manifests compute — no second
+// ordering here. Verified: one transaction, the declared extension columns
+// checked before commit (specs/178-extensible-columns/ FR-025).
 import { fileURLToPath } from 'node:url';
 import { MikroORM } from '@mikro-orm/postgresql';
 import { refuseOverlaySchema } from '${scope}platform/composition';
+import { migrateUpVerified } from '${scope}platform/db';
 import config from './mikro-orm.config.js';
 
 // An overlay module ships no schema: said here, before anything is migrated.
 refuseOverlaySchema(fileURLToPath(new URL('../..', import.meta.url)));
 const orm = await MikroORM.init(await config());
 try {
-  await orm.getMigrator().up();
+  await migrateUpVerified(orm);
 } finally {
   await orm.close(true);
 }

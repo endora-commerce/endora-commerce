@@ -4779,6 +4779,46 @@ platform-wide audit log (issue #470). That log is one table, read by everybody h
 **After upgrading,** check whether anybody relies on reading transition reasons from the Audit log
 screen (see above).
 
+### Invoice amounts leave the platform audit log {#invoices-audit-names-only}
+
+The release that ships this change stops writing invoice amounts into the platform-wide audit log
+(issue #470). That log is one table, read by everybody holding `audit_log:read` whatever
+Organizations they may see.
+
+**Behaviour change on upgrade:**
+
+- On the **Audit log** screen, and in `audit_logs read`, a new `invoice.issued` entry no longer
+  carries `grossTotal`, and a new `invoice.corrected` entry no longer carries `credited` or the
+  amounts of credited charges (`charges`). A correction now names the kinds of charges it credited
+  in `chargeKinds`. The number, kind, order, sales channel and original invoice stay.
+- Invoices, corrections, their PDFs and their totals are unchanged.
+- Entries recorded before the upgrade are not rewritten: they keep their amounts.
+
+**After upgrading,** nothing has to be done. A report that read invoice totals out of the audit log
+reads them from the invoices instead.
+
+### The catalogue reads the whole `Accept-Language` header {#catalog-accept-language}
+
+The release that ships this change makes the catalogue read `Accept-Language` as the weighted
+list it is (issue #397). The public catalogue API (`/api/v1/catalog/*`) and the external
+catalogue API (`/api/v1/external/catalog/*`) used to take the first entry of the header as written,
+including any `;q=` weight.
+
+**Behaviour change on upgrade:**
+
+- The tags are read in order of their `q` weight, highest first. The catalogue answers in the first
+  language the sales channel offers, matched exactly or by language alone, so `pl` matches a
+  channel's `pl-PL`. If the channel offers none of them, it answers in the channel's default
+  language. `en;q=0.1, pl-PL;q=0.9` is now answered in Polish. Before, the answer was English.
+- A language the channel does not offer is not served any more, even where a category name or
+  an attribute label still has text in it. The response uses the channel's default language.
+- The storefront sends the language it resolved for the channel, so it is normally not affected.
+  Neither is a request without the header.
+
+**After upgrading,** check integrations that call the catalogue API with their own
+`Accept-Language`. One that needs a particular language must ask for a language the sales
+channel offers. Add the language to the channel in **Sales channels** if it is missing.
+
 ## An instance that is mixed from the start
 
 The installer of `0.101.x` or earlier wrote every package of the release with a `^` except

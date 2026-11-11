@@ -36,8 +36,11 @@ Strona kategorii wyświetla treść między nagłówkiem kategorii a paskiem nar
 na **pierwszej stronie** listy — klient przeglądający kolejne strony produktów nie widzi
 wprowadzenia ponownie nad każdą z nich.
 
-Dokument jest dobierany do jednego języka w tej kolejności: język klienta, domyślny język kanału
-sprzedaży, angielski, a następnie dowolny język, który ma treść. Język, którego dokument nie
+Dokument jest dobierany do jednego języka w tej kolejności: język klienta w postaci oferowanej przez kanał
+sprzedaży, a jeśli kanał go nie oferuje — domyślny język kanału; dalej domyślny język kanału,
+angielski, a następnie dowolny język, który ma treść. Językiem klienta jest pierwszy wpis
+`Accept-Language` według wagi, który kanał oferuje (`pl` pasuje do `pl-PL` kanału); język, którego
+kanał nie oferuje, nigdy nie jest używany, nawet jeśli zapisano w nim dokument. Język, którego dokument nie
 zawiera żadnego bloku, jest pomijany.
 
 Treść podlega widoczności kategorii: kategoria nieaktywna albo znajdująca się pod nieaktywną

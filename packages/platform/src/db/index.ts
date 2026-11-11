@@ -92,4 +92,82 @@ export {
 
 export { createOrmBootstrap, type OrmBootstrap } from './orm.js';
 
-export { runMigrationCommand, type MigrationCommandIo } from './migrate.js';
+export { migrateUpVerified, runMigrationCommand, type MigrationCommandIo } from './migrate.js';
+
+// Declared extension columns (`specs/178-extensible-columns/`) — the host half.
+// A module declares through `defineColumnExtension` on `./kernel`; what is here
+// is what a composition root, an operator command and the platform's own tests
+// need: the generated migration step's identity, the verified migrate, the
+// verifier, and `createColumnExtension`, which declares on a host set of the
+// caller's choosing so the mechanism can be proved without a rolled-out host.
+export { PLATFORM_MIGRATION_ENTRIES, PLATFORM_ENTITIES } from './platform-schema.js';
+export { GENERATED_STAMP } from './migration-order.js';
+export {
+  SCHEMA_EXTENSION_STAMP,
+  schemaExtensionEntries,
+  schemaExtensionHash,
+  schemaExtensionMigrationName,
+  type DeclaringModule,
+} from './schema-extension-migration.js';
+export { createColumnExtension } from '../kernel/schema-extensions/define.js';
+export {
+  EXTENSIBLE_HOSTS,
+  SCHEMA_EXTENSION_ROLLOUT,
+  rolledOutExtensibleHosts,
+  type ExtensibleHost,
+  type ExtensibleHostSet,
+} from '../kernel/schema-extensions/extensible-hosts.js';
+export {
+  DuplicateTableMappingError,
+  SchemaExtensionDriftError,
+  SchemaExtensionReconcileError,
+  type SchemaExtensionDrift,
+  type SchemaExtensionRule,
+} from '../kernel/schema-extensions/errors.js';
+export {
+  inspectSchemaExtensions,
+  verifySchemaExtensions,
+  type SchemaExtensionExec,
+  type SchemaExtensionReport,
+} from './schema-extension-verifier.js';
+export {
+  activeSchemaExtensionContext,
+  type SchemaExtensionContext,
+} from '../kernel/schema-extensions/registry.js';
+export {
+  extensionColumnsWithPresence,
+  type ModulePresenceReader,
+} from '../kernel/schema-extensions/accessor.js';
+export { createSchemaExtensionReads } from '../kernel/schema-extensions/reads.js';
+
+// The runtime refusal of foreign schema writes (`specs/178-extensible-columns/`
+// FR-070, FR-073): the statement classifier, the guard `configuredMigrationsFrom`
+// wraps every installed package's migration in, and the dry run
+// `module:schema-extensions audit-packages` reports with.
+export {
+  sqlWriteTargets,
+  type SqlWriteTarget,
+  type SqlWriteVerb,
+} from './sql-statement-targets.js';
+export {
+  ForeignSchemaWriteError,
+  auditForeignSchemaWrites,
+  declaredColumnsByHost,
+  dryRunStatements,
+  guardExternalMigration,
+  queryText,
+  type AuditedPackage,
+  type ForeignSchemaGuardContext,
+  type ForeignWriteAudit,
+  type ForeignWriteExemption,
+  type ForeignWriteFinding,
+  type ReverseEdges,
+} from './foreign-schema-guard.js';
+
+// D-291 R-A7 — the one predicate for a module acting on what another owns.
+export {
+  dependencyClosureOf,
+  requiredModulesOf,
+  reverseEdgeClause,
+  type ReverseEdgeClause,
+} from './reverse-edge.js';

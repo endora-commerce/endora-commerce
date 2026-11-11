@@ -78,6 +78,12 @@ danych; powtórna rejestracja zwraca `409 ORGANIZATION_TAX_ID_EXISTS`.
 - **Wartości pól niestandardowych z kodu po stronie serwera** — publikowany port
   `organizationCustomFieldWritePort` (zob. *Ustawianie wartości pól
   niestandardowych z kodu po stronie serwera* poniżej).
+- **Zadeklarowane kolumny rozszerzeń** — `organizations` to rozszerzalna tabela: zainstalowany
+  pakiet modułu zależny od tego modułu może zadeklarować w niej własne kolumny `x_<moduleId>_*`, a
+  odczyty szczegółów i listy w panelu administracyjnym (`GET /api/v1/admin/organizations/:id`,
+  `GET /api/v1/admin/organizations`) przyjmują `?extensions=<moduleId>[,…]` i dołączają te
+  wartości jako `extensions`. Bez parametru odpowiedzi się nie zmieniają. Zobacz *Zadeklarowane
+  kolumny rozszerzeń* w przewodniku po architekturze.
 
 ## Kanały sprzedaży
 

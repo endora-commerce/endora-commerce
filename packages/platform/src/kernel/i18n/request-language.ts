@@ -2,6 +2,7 @@ import type { FastifyRequest } from 'fastify';
 import {
   LANGUAGE_FALLBACK,
   SUPPORTED_LANGUAGES,
+  parseAcceptLanguage,
   type Actor,
   type SupportedLanguage,
 } from '@endora-commerce/contracts';
@@ -22,7 +23,7 @@ import { currentSalesChannel } from '../sales-channels/sales-channel-resolver.mi
  *
  * otherwise (anonymous | customer | api_key)
  *   0. [reserved] a stored per-customer preference — see below
- *   1. Accept-Language, q-sorted, first tag that normalises
+ *   1. Accept-Language, q-sorted (`parseAcceptLanguage`, contracts), first tag that normalises
  *   2. the resolved sales channel's `defaultLanguage`
  *   3. LANGUAGE_FALLBACK
  * ```
@@ -42,11 +43,6 @@ import { currentSalesChannel } from '../sales-channels/sales-channel-resolver.mi
  * one kernel file now: the roots keep one line each, the admin lookup, which is
  * the only rung that reads a module's table.
  */
-
-/** Bound on the header read — the parse half of the security bound (D-139 § 8.1). */
-const MAX_HEADER_LENGTH = 512;
-/** Bound on how many tags are considered, applied **after** q-sorting. */
-const MAX_TAGS = 10;
 
 export interface RequestLanguageDeps {
   /**
@@ -99,50 +95,6 @@ export function normalise(tag: string | null | undefined): SupportedLanguage | n
   return (SUPPORTED_LANGUAGES as readonly string[]).includes(primary)
     ? (primary as SupportedLanguage)
     : null;
-}
-
-/**
- * `Accept-Language` as an ordered list of tags, heaviest `q` first.
- *
- * RFC 9110 makes the header a q-weighted list, and three sites in the tree read
- * it as `split(',')[0]` — so `en;q=0.2,pl;q=0.9` is read as English by every
- * one of them. Exported for their conversion (T024); nothing else in this
- * feature reads it.
- *
- * Bounded twice, because the header is attacker-controlled on every request:
- * to {@link MAX_HEADER_LENGTH} characters and, after weighting, to
- * {@link MAX_TAGS} tags. Exceeding either is not an error — the remainder is
- * simply not read. A malformed `q` drops its tag rather than guessing a weight.
- * `*` is returned as an ordinary tag and never normalises.
- */
-export function parseAcceptLanguage(header: string | string[] | undefined): string[] {
-  const raw = Array.isArray(header) ? header[0] : header;
-  if (!raw) return [];
-  const weighted: Array<{ tag: string; weight: number; order: number }> = [];
-  for (const part of raw.slice(0, MAX_HEADER_LENGTH).split(',')) {
-    const [tagPart, ...parameters] = part.split(';');
-    const tag = tagPart?.trim() ?? '';
-    if (tag.length === 0) continue;
-    const weight = readWeight(parameters);
-    if (weight === null) continue;
-    weighted.push({ tag, weight, order: weighted.length });
-  }
-  weighted.sort((a, b) => b.weight - a.weight || a.order - b.order);
-  return weighted.slice(0, MAX_TAGS).map((entry) => entry.tag);
-}
-
-/** The `q` parameter of one list element: its weight, `1` by default, or `null` if malformed. */
-function readWeight(parameters: string[]): number | null {
-  for (const parameter of parameters) {
-    const separator = parameter.indexOf('=');
-    if (separator < 0) continue;
-    if (parameter.slice(0, separator).trim().toLowerCase() !== 'q') continue;
-    const value = parameter.slice(separator + 1).trim();
-    const parsed = Number(value);
-    if (value.length === 0 || !Number.isFinite(parsed)) return null;
-    return parsed;
-  }
-  return 1;
 }
 
 /**

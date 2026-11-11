@@ -828,6 +828,17 @@ describe('the tree (§1, §2)', () => {
     expect(migrate.indexOf('refuseOverlaySchema(fileURLToPath(')).toBeLessThan(migrate.indexOf('MikroORM.init'));
   });
 
+  // `specs/178-extensible-columns/` FR-025, D-291 R-A4/R-A5 — `pnpm run setup`
+  // migrates before `module:install` runs, so the instance's migrate entry is
+  // where the verified run (one transaction, the verifier, history pruning and
+  // orphan marking) has to happen; a bare `migrator.up()` skips all of it.
+  it('migrates through migrateUpVerified, never a bare migrator.up()', () => {
+    const migrate = planInstance(planInput()).files.find((file) => file.path === 'backend/src/migrate.ts')!.content;
+    expect(migrate).toContain("import { migrateUpVerified } from '@endora-commerce/platform/db';");
+    expect(migrate).toContain('await migrateUpVerified(orm);');
+    expect(migrate).not.toMatch(/getMigrator\(\)\.up\(/);
+  });
+
   /**
    * R1.4 again, over the plan a **complete** `--registry` run writes — which is
    * a different plan from the one above, and was measured by nothing.

@@ -80,6 +80,13 @@ uniqueness is enforced at the DB level; duplicate registrations return
 - **Custom-field values from server-side code** — the published
   `organizationCustomFieldWritePort` (see *Setting custom-field values from
   server-side code* below).
+- **Declared extension columns** — `organizations` is an extensible table: an
+  installed module package that depends on this module may declare its own
+  `x_<moduleId>_*` columns on it, and the admin detail and list reads
+  (`GET /api/v1/admin/organizations/:id`, `GET /api/v1/admin/organizations`)
+  accept `?extensions=<moduleId>[,…]` and attach those values as `extensions`.
+  Without the parameter the responses are unchanged. See *Declared extension
+  columns* in the architecture guide.
 
 ## Sales channels
 

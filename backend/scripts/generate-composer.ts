@@ -84,6 +84,8 @@ import {
 } from './lib/platform-root.js';
 import { barrelKeyOf, parseBarrel, type BarrelParse } from './lib/platform-surface.js';
 import { entityDeclarations, entityDecoratorMentionLine } from './lib/entity-declarations.js';
+import { schemaExtensionDeclarationSites } from './lib/schema-extension-declarations.js';
+import { firstPartyBridges, firstPartyDerivedDowns } from './lib/first-party-bridges.js';
 import { declaresRegisterModule } from './lib/module-roots.js';
 import { BASELINE_THROUGH } from '@endora-commerce/platform/db';
 import { BASELINE_MIGRATION_INVENTORY } from '@endora-commerce/platform/migrations';
@@ -200,6 +202,7 @@ export function generatedArtifactPaths(): readonly string[] {
     entitiesRegistryOutputPath,
     migrationsRegistryOutputPath,
     baselineListOutputPath(),
+    foreignWriteExemptionsOutputPath(),
     adminRegistryOutputPathIn(repoRoot),
     tailwindRegistryOutputPathIn(repoRoot),
     // The entity index (`specs/109-backend-test-kit/` T065). It belongs here for
@@ -1602,6 +1605,47 @@ export function collectEntities(sources: SourceTree): DiscoveredEntity[] {
   return found;
 }
 
+/**
+ * Refuses a declared extension column anywhere the composer walks
+ * (`specs/178-extensible-columns/` FR-008, FR-064; tasks.md T011).
+ *
+ * Declared columns on another module's table are an **installed** package's
+ * mechanism (research R-7): the platform reads them at runtime from the
+ * package's `./backend` export, exactly as it reads that package's entities.
+ * Nothing this generator walks may declare one. A **workspace module package**
+ * owns its own tables, so it adds a column to a table it owns with a migration,
+ * or keeps its data on a side table of its own; an **overlay module** ships no
+ * schema at all (D-106). The application tree is refused on the same terms.
+ */
+export function assertNoSchemaExtensionDeclarations(sources: SourceTree): void {
+  for (const [file, { text, owner }] of [...sources].sort(([a], [b]) => a.localeCompare(b))) {
+    const sites = schemaExtensionDeclarationSites(text, file);
+    if (sites.length === 0) continue;
+    const site = sites[0]!;
+    const what =
+      site.kind === 'call' ? 'calls defineColumnExtension' : "exports 'schemaExtensions'";
+    const where =
+      owner !== null
+        ? `the workspace module package ${owner.name} (module "${owner.moduleId}")`
+        : file.startsWith('apps/')
+          ? 'a deployment overlay module'
+          : "the application's own tree";
+    const remedy =
+      owner !== null
+        ? 'A first-party module owns its tables: add the column to a table it owns with a ' +
+          'migration, or keep the data on a side table of its own.'
+        : file.startsWith('apps/')
+          ? 'An overlay module ships no schema (D-106); ship the extension from an installed ' +
+            'module package.'
+          : 'Ship the extension from an installed module package.';
+    throw new Error(
+      `[composer] ${file}:${String(site.line)} ${what} in ${where}. Declared extension columns ` +
+        `are an installed package's mechanism, read at runtime from its ./backend export ` +
+        `(specs/178-extensible-columns/ FR-008, FR-064). ${remedy}`,
+    );
+  }
+}
+
 function emitEntitiesHeader(): string {
   return `${HEADER('generate-composer.ts')}//
 // The entity registry \`mikro-orm.config.ts\` discovers through.
@@ -1744,6 +1788,7 @@ export function renderEntitiesRegistry(sources: SourceTree = readSourceTree()): 
   outputPath: string;
   content: string;
 } {
+  assertNoSchemaExtensionDeclarations(sources);
   return {
     outputPath: entitiesRegistryOutputPath,
     content: emitEntitiesRegistry(collectEntities(sources)),
@@ -2088,6 +2133,131 @@ export function renderBaselineList(_sources: SourceTree = readSourceTree()): {
 }
 
 
+// ── the first-party foreign-write exemptions ────────────────────────────────
+//
+// `specs/178-extensible-columns/` FR-071, `contracts/foreign-schema-guard.md` §3.
+// An installed package's migration that writes another module's table is
+// refused at `migrate` (FR-070). This repository's modules are installed as
+// packages in an instance, and some of their migrations write a table another
+// module owns — each one recorded, with its reason and its retirement, in R2's
+// ledger (`scripts/ledgers/migration-foreign-writes/`). The guard lets exactly
+// those through, by (module, migration class, table), and this artefact is how
+// it knows them: rendered from the ledger, published on the platform's
+// `./migrations` subpath, and held fresh by `overlay:check` like the baseline
+// list beside it. An entry retired from the ledger leaves this list in the same
+// merge request.
+
+/** R2's ledger directory — `check:module-boundary`'s own. */
+const FOREIGN_WRITE_LEDGER_ROOT = join(here, 'ledgers', 'migration-foreign-writes');
+
+function foreignWriteExemptionsOutputPath(): string {
+  return join(dirname(baselineListOutputPath()), 'foreign-write-exemptions.generated.ts');
+}
+
+export interface ForeignWriteExemptionRow {
+  readonly moduleId: string;
+  readonly migration: string;
+  readonly table: string;
+  /**
+   * Absent for an R2 write; `bridge` for a derived D-226 bridge (D-291 R-A6);
+   * `derived-down` for a `down()` destruction R-A7's predicate exempts.
+   */
+  readonly kind?: 'bridge' | 'derived-down';
+  readonly direction?: 'up' | 'down';
+  readonly clause?: string;
+}
+
+/**
+ * The ledger's entries as (module, class, table). The class name is read off
+ * the migration file the key names rather than derived from its file name: the
+ * file is in this tree, and a derivation would be a second author of the
+ * naming convention.
+ */
+export async function foreignWriteExemptionRows(
+  ledgerRoot: string = FOREIGN_WRITE_LEDGER_ROOT,
+): Promise<ForeignWriteExemptionRow[]> {
+  if (!existsSync(ledgerRoot)) {
+    throw new Error(`[composer] R2's ledger directory is missing (${ledgerRoot}); refusing to render no exemptions`);
+  }
+  const rows: ForeignWriteExemptionRow[] = [];
+  for (const name of readdirSync(ledgerRoot).sort()) {
+    if (!name.endsWith('.ts')) continue;
+    const moduleId = name.replace(/\.ts$/, '');
+    const shard = (await import(pathToFileURL(join(ledgerRoot, name)).href)) as {
+      entries?: Readonly<Record<string, unknown>>;
+    };
+    for (const key of Object.keys(shard.entries ?? {})) {
+      const split = key.lastIndexOf(':');
+      const file = key.slice(0, split);
+      const table = key.slice(split + 1);
+      const path = join(repoRoot, file);
+      const declared = existsSync(path) ? /export class (Migration\w+)/.exec(readFileSync(path, 'utf8')) : null;
+      if (declared === null) {
+        throw new Error(
+          `[composer] R2 ledger entry "${key}" (${moduleId}) names no migration class — the file is gone ` +
+            'or declares none. Retire the entry in the same merge request that moved the migration.',
+        );
+      }
+      rows.push({ moduleId, migration: declared[1]!, table });
+    }
+  }
+  return rows.sort(
+    (a, b) =>
+      a.moduleId.localeCompare(b.moduleId) || a.migration.localeCompare(b.migration) || a.table.localeCompare(b.table),
+  );
+}
+
+/** Pure emit — the published exemption list. */
+export function emitForeignWriteExemptions(rows: readonly ForeignWriteExemptionRow[]): string {
+  const line = (row: ForeignWriteExemptionRow): string =>
+    `  { moduleId: '${row.moduleId}', migration: '${row.migration}', table: '${row.table}'` +
+    (row.kind === undefined ? '' : `, kind: '${row.kind}', direction: '${row.direction}'`) +
+    (row.clause === undefined ? '' : `, clause: '${row.clause}'`) +
+    ' },';
+  return `${HEADER('generate-composer.ts')}//
+// The first-party migrations the runtime foreign-schema guard lets write a table
+// another module owns (specs/178-extensible-columns/ FR-071), by module,
+// migration class and table — rendered from R2's ledger,
+// backend/scripts/ledgers/migration-foreign-writes/, where each entry carries its
+// reason and its retirement. It shrinks as that ledger drains.
+//
+// Entries of kind \`bridge\` (D-291 R-A6) are derived, not ledgered: the D-226
+// bridges — a table a module's migration creates while another module's entity
+// maps it, bridging a table of each — whose migration may destroy that table in
+// \`direction\` (backend/scripts/lib/first-party-bridges.ts). Entries of kind
+// \`derived-down\` (D-291 R-A7) are the first-party \`down()\` destructions of a
+// table another module owns that the shared predicate exempts — the owner
+// depends on the writer, the writer is core, or both are non-deactivatable —
+// with the clause recorded.
+
+export const FIRST_PARTY_FOREIGN_WRITE_EXEMPTIONS: readonly {
+  readonly moduleId: string;
+  readonly migration: string;
+  readonly table: string;
+  readonly kind?: 'write' | 'bridge' | 'derived-down';
+  readonly direction?: 'up' | 'down';
+  readonly clause?: 'owner-depends-on-writer' | 'writer-is-core' | 'both-required';
+}[] = [
+${rows.map(line).join('\n')}
+];
+`;
+}
+
+/** Pure render — the target path + expected content of the exemption list. */
+export async function renderForeignWriteExemptions(): Promise<{ outputPath: string; content: string }> {
+  return {
+    outputPath: foreignWriteExemptionsOutputPath(),
+    content: emitForeignWriteExemptions([
+      ...(await foreignWriteExemptionRows()),
+      // D-291 R-A6 — derived from `check:module-boundary`'s owner map and the
+      // manifests, never hand-listed.
+      ...(await firstPartyBridges()),
+      // D-291 R-A7 — the shared predicate's verdicts, with their clause.
+      ...(await firstPartyDerivedDowns()),
+    ]),
+  };
+}
+
 // ── the admin contribution registry ─────────────────────────────────────────
 //
 // The fifth artefact (feature 091, Phase 2). Its three siblings under
@@ -2304,6 +2474,14 @@ export async function renderAll(): Promise<
     // registry agree is R1.7, and it is asserted where it can be: over both
     // committed artefacts, in test/unit/db/instance-migration-order.test.ts.
     { label: 'baseline-migrations', ...renderBaselineList(sources), entryKind: 'none' as const },
+    // `specs/178-extensible-columns/` FR-071 — the first-party R2 writes the
+    // runtime foreign-schema guard lets through. It names migration classes and
+    // tables, not files, so it has no containment population either.
+    {
+      label: 'foreign-write-exemptions',
+      ...(await renderForeignWriteExemptions()),
+      entryKind: 'none' as const,
+    },
     { label: 'admin-registry', ...renderAdminRegistry(population) },
     { label: 'admin-tailwind', ...renderTailwindRegistry(population), entryKind: 'css-specifier' as const },
     { label: 'entity-index', ...renderEntityIndex(population) },

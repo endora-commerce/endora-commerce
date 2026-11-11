@@ -965,11 +965,10 @@ export class CorrectiveInvoiceProvider implements CorrectiveInvoicePort {
             number: invoice.number,
             orderId: input.orderId,
             originalInvoiceId: original.id,
-            credited: Number(creditedTotal),
+            // Counts and kinds, never amounts (#470, D-288): what was credited is
+            // on the corrective invoice itself.
             priceReductionLines: input.lines.filter((l) => l.basis === 'price_reduction').length,
-            ...(chargeSnapshots.length > 0
-              ? { charges: Object.fromEntries(chargeSnapshots.map((c) => [c.kind, Number(c.gross)])) }
-              : {}),
+            ...(chargeSnapshots.length > 0 ? { chargeKinds: [...new Set(chargeSnapshots.map((c) => c.kind))].sort() } : {}),
           },
         })
         .catch(() => undefined);

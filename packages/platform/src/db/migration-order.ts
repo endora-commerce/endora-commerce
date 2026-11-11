@@ -38,8 +38,18 @@ import {
 /** A migration class as MikroORM instantiates it. */
 export type MigrationClass = MigrationObject['class'];
 
-/** Where a registry entry came from. Absent means `'core'`. */
-export type MigrationOrigin = 'core' | 'external';
+/**
+ * Where a registry entry came from. Absent means `'core'`. `'generated'` is the
+ * platform's own schema-extension step (`specs/178-extensible-columns/` FR-020)
+ * — the one origin allowed the reserved stamp {@link GENERATED_STAMP}.
+ */
+export type MigrationOrigin = 'core' | 'external' | 'generated';
+
+/**
+ * The stamp of a generated schema-extension step: a real instant that sorts
+ * first in its module's block, so the step runs at the head of it (OD-178-1).
+ */
+export const GENERATED_STAMP = '10000101T000000';
 
 export interface MigrationRegistryEntry {
   /**
@@ -71,7 +81,8 @@ export type MigrationOrderErrorCode =
   | 'duplicate-name'
   | 'duplicate-timestamp'
   | 'unknown-module'
-  | 'unscoped-name';
+  | 'unscoped-name'
+  | 'reserved-stamp';
 
 export class MigrationOrderError extends Error {
   readonly code: MigrationOrderErrorCode;
@@ -236,6 +247,14 @@ function parseEntries(
     }
     const timestamp = match[1]!;
     assertRealInstant(name, timestamp);
+    if (timestamp === GENERATED_STAMP && entry.origin !== 'generated') {
+      throw new MigrationOrderError(
+        'reserved-stamp',
+        `[migration-order] migration "${name}" (module "${entry.moduleId}") carries the stamp ` +
+          `${GENERATED_STAMP}, which is reserved for the platform's generated schema-extension ` +
+          `step (specs/178-extensible-columns/ FR-020). Re-stamp it with \`migration:new\`.`,
+      );
+    }
 
     const duplicateName = byName.get(name);
     if (duplicateName) {
