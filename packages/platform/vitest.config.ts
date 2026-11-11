@@ -4,8 +4,7 @@
 // sources, which is `specs/106-module-owned-tests/`'s convention applied to the
 // one package in this tree that had a `src/` and no tests. It is not a
 // tidying: inside the package a test names a **relative** path, so an internal
-// the barrels deliberately do not publish — `normalise`, `parseAcceptLanguage`,
-// `SETTINGS_LRU_TTL_MS`, `duplicateModuleIds`, `validateRegistrations`,
+// the barrels deliberately do not publish — `normalise`, `SETTINGS_LRU_TTL_MS`, `duplicateModuleIds`, `validateRegistrations`,
 // `withScopeNotice`, `makePreDispatchOnRoute` — stops being a surface question
 // altogether rather than being given an address it should not have (D-160.8).
 //

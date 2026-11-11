@@ -1,5 +1,6 @@
 import { describe, it, expect, beforeAll, afterAll, beforeEach, afterEach } from 'vitest';
 import type { z } from 'zod';
+import type { AuditPort, RecordAuditInput } from '@endora-commerce/platform/kernel';
 import { setupTestDb, type TestDb } from '../../helpers/test-db.js';
 import { customerAccountPortsFor } from '../../helpers/customer-account-ports.js';
 import { NewsletterTokenHelper } from '../../../../packages/modules/newsletter/src/backend/services/token.helper.js';
@@ -21,6 +22,7 @@ describe('newsletter suppression + events (US3/US6 edge cases)', () => {
   let db: TestDb;
   let events: Array<{ name: string; payload: Record<string, unknown> }>;
   let service: NewsletterSubscriberService;
+  let deps: ConstructorParameters<typeof NewsletterSubscriberService>[0];
   let audience: NewsletterAudienceResolver;
 
   beforeAll(async () => {
@@ -33,7 +35,7 @@ describe('newsletter suppression + events (US3/US6 edge cases)', () => {
     await db.beginTx();
     events = [];
     const optIn = new NewsletterOptInService(new FakeSettings() as unknown as SettingsService, new NewsletterTokenHelper('s'));
-    service = new NewsletterSubscriberService({
+    deps = {
       emFactory: () => db.em(),
       optIn,
       resolveDefaultChannelId: async () => null,
@@ -45,7 +47,8 @@ describe('newsletter suppression + events (US3/US6 edge cases)', () => {
       customerAccounts: customerAccountPortsFor(() => db.em()).read,
       links: { confirm: (t) => `c?${t}`, unsubscribe: (t) => `u?${t}` },
       emitEvent: (name, payload) => events.push({ name, payload }),
-    });
+    };
+    service = new NewsletterSubscriberService(deps);
     audience = new NewsletterAudienceResolver(() => db.em());
   });
   afterEach(async () => {
@@ -89,5 +92,26 @@ describe('newsletter suppression + events (US3/US6 edge cases)', () => {
     const suppression = await db.em().findOne(NewsletterSuppression, { email: 'c@x.test' });
     expect(suppression).not.toBeNull();
     expect(suppression?.reason).toBe('complaint');
+  });
+  it('a suppression with no subscriber is audited under the suppression row, never the address (#470)', async () => {
+    const recorded: RecordAuditInput[] = [];
+    // `suppress` only ever calls `record`; the rest of the port is never reached.
+    const auditLog = {
+      record: async (entry: RecordAuditInput) => {
+        recorded.push(entry);
+      },
+    } as unknown as AuditPort;
+    const audited = new NewsletterSubscriberService({ ...deps, auditLog });
+
+    await audited.suppress('S470-Nobody@X.test', 'bounce');
+
+    const suppression = await db.em().findOneOrFail(NewsletterSuppression, { email: 's470-nobody@x.test' });
+    expect(recorded).toHaveLength(1);
+    expect(recorded[0]).toMatchObject({
+      action: 'newsletter_bounce',
+      objectType: 'newsletter_suppression',
+      objectId: suppression.id,
+    });
+    expect(JSON.stringify(recorded).toLowerCase()).not.toContain('s470-nobody');
   });
 });

@@ -5020,6 +5020,49 @@ bez względu na to, które organizacje widzi.
 **Po aktualizacji** nie trzeba nic robić. Raport, który odczytywał kwoty faktur z dziennika
 audytu, odczytuje je z samych faktur.
 
+### Katalog odczytuje cały nagłówek `Accept-Language` {#catalog-accept-language}
+
+Wydanie z tą zmianą sprawia, że katalog odczytuje `Accept-Language` zgodnie z definicją tego
+nagłówka, jako listę języków z wagami (zgłoszenie #397). Publiczne API katalogu (`/api/v1/catalog/*`) i zewnętrzne API katalogu
+(`/api/v1/external/catalog/*`) brały dotąd pierwszy wpis nagłówka dosłownie, razem z ewentualną
+wagą `;q=`.
+
+**Zmiana zachowania po aktualizacji:**
+
+- Tagi są odczytywane według wagi `q`, od najwyższej. Katalog odpowiada w pierwszym języku, który
+  oferuje kanał sprzedaży, dopasowanym dokładnie albo po samym języku, więc `pl` pasuje do `pl-PL`
+  kanału. Jeśli kanał nie oferuje żadnego z nich, odpowiada w domyślnym języku kanału.
+  `en;q=0.1, pl-PL;q=0.9` dostaje teraz odpowiedź po polsku. Wcześniej odpowiedź była po
+  angielsku.
+- Język, którego kanał nie oferuje, nie jest już serwowany, nawet jeśli nazwa kategorii albo
+  etykieta atrybutu ma w nim tekst. Odpowiedź jest w domyślnym języku kanału.
+- Sklep wysyła język, który ustalił dla kanału, więc zwykle zmiana go nie dotyczy. Nie dotyczy też
+  żądania bez tego nagłówka.
+
+**Po aktualizacji** sprawdź integracje, które wywołują API katalogu z własnym `Accept-Language`.
+Integracja, która potrzebuje konkretnego języka, musi prosić o język oferowany przez kanał
+sprzedaży. Jeśli go brakuje, dodaj go do kanału na ekranie **Kanały sprzedaży**.
+
+### Adresy subskrybentów znikają z dziennika audytu platformy {#newsletter-audit-names-only}
+
+Wydanie z tą zmianą przestaje zapisywać adresy e-mail subskrybentów newslettera i powody wypisania
+w dzienniku audytu całej platformy (zgłoszenie #470). Ten dziennik to jedna tabela, czytana przez
+każdego, kto ma `audit_log:read`, bez względu na to, co widzi.
+
+**Zmiana zachowania po aktualizacji:**
+
+- Na ekranie **Dziennik audytu** i w `audit_logs read` nowy wpis `newsletter_subscribe`,
+  `newsletter_resubscribe`, `newsletter_bounce`, `newsletter_complaint` albo `newsletter_delete`
+  nie zawiera już adresu e-mail, a nowy wpis `newsletter_unsubscribe` nie zawiera już powodu;
+  zapisuje `hasReason`. Wpisy nazywają subskrybenta identyfikatorem. Zablokowanie adresu, który nie
+  ma subskrybenta, jest zapisywane dla wiersza blokady (`newsletter_suppression` i identyfikator
+  wiersza), a nie dla samego adresu.
+- Subskrybenci, ich powody wypisania i lista blokad się nie zmieniają.
+- Wpisy zapisane przed aktualizacją nie są przepisywane: zachowują swoje adresy i powody.
+
+**Po aktualizacji** nie trzeba nic robić. Raport, który wyszukiwał subskrybentów po adresie w
+dzienniku audytu, wyszukuje ich na ekranie **Newsletter**.
+
 ## Instancja niespójna od początku
 
 Instalator `0.101.x` lub starszy zapisywał każdy pakiet wydania z `^` poza

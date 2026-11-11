@@ -38,9 +38,12 @@ The category page renders the content between the category heading and the
 listing toolbar, on the **first page** of the listing only — a visitor paging
 through products is not shown the introduction again above every page.
 
-The document is resolved to one language in this order: the visitor's language,
-the sales channel's default language, English, then any language that has
-content. A language whose document holds no block is skipped.
+The document is resolved to one language in this order: the visitor's language
+as the sales channel offers it, else the channel's default language; then the
+channel's default language, English, and any language that has content. The
+visitor's language is the first `Accept-Language` entry, by weight, that the
+channel offers (`pl` matches the channel's `pl-PL`); a language the channel does
+not offer is never used, even where a document is stored in it. A language whose document holds no block is skipped.
 
 The content follows the category's visibility: an inactive category, or one
 under an inactive parent, has no page and its content is not served.

@@ -51,6 +51,7 @@ import type { OrganizationRoleCache } from './services/organization-role-cache.j
 import { TaxIdScopeService } from './services/tax-id-scope-service.js';
 import { runOrganizationWrite, taxIdExistsRefusal } from './services/organization-write.js';
 import { taxIdSharedAcrossTreesRefusal } from './services/organization-tree-service.js';
+import { makeAdminPatchOrganizationCommand } from './commands/admin-patch-organization.command.js';
 import { Organization } from './entities/organization.entity.js';
 import { adminActorOf, organizationInReach as organizationInReachPreHandler } from './organization-reach.js';
 import { OrganizationRole } from './entities/organization-role.entity.js';
@@ -500,59 +501,47 @@ export async function registerOrganizationsAdminRoutes(
       schema: { body: adminPatchOrganizationRequestSchema },
     },
     async (request) => {
-      const em = emFactory();
       const body = adminPatchOrganizationRequestSchema.parse(request.body);
-      if (!isUuidShape(request.params.id)) {
-        throw new HttpError(404, ERROR_CODES.NOT_FOUND, 'Organization not found.');
-      }
-      const org = await em.findOne(Organization, { id: request.params.id, deletedAt: null });
-      if (!org) {
-        throw new HttpError(404, ERROR_CODES.NOT_FOUND, 'Organization not found.');
-      }
-      assertVersion(org.updatedAt, body.expectedUpdatedAt);
-      const before = serializeOrg(org);
-      if (body.name !== undefined) org.name = body.name;
-      if (body.vatStatus !== undefined) org.vatStatus = body.vatStatus;
-      if (body.status !== undefined) org.status = body.status;
-      if (body.orderConfirmationEmails !== undefined) org.orderConfirmationEmails = body.orderConfirmationEmails;
-      if (body.fulfilmentStrategy !== undefined) org.fulfilmentStrategy = body.fulfilmentStrategy;
-      if (body.fulfilmentStrategyWarehouseOrder !== undefined) {
-        org.fulfilmentStrategyWarehouseOrder = body.fulfilmentStrategyWarehouseOrder;
-      }
-      // Feature 055 — validate + merge custom-field values; the org module owns
-      // the write, the value service only validates (Principle XIV).
-      if (body.customFieldValues !== undefined && customFieldValues) {
-        try {
-          org.customFieldValues = await customFieldValues.validateAndMerge(
-            'organization',
-            org.customFieldValues ?? {},
-            body.customFieldValues,
-          );
-        } catch (err) {
-          // Narrowed structurally rather than by `instanceof`: the constructor
-          // is a file in `custom_fields`' directory, and the guard is what
-          // `@endora-commerce/contracts` publishes in its place. `customFieldValueService`
-          // is a gated port, so this re-throws anything that is not the
-          // validation failure — a `ModuleDisabledError` included.
-          if (isCustomFieldValidationFailure(err)) {
-            throw new HttpError(
-              422,
-              ERROR_CODES.CUSTOM_FIELD_VALUE_INVALID,
-              'One or more custom fields are invalid.',
-              err.errors.map((e) => ({ path: e.field, issue: e.message })),
-            );
-          }
-          throw err;
-        }
-      }
-      await em.flush();
-      await audit(
-        request,
-        'organization.admin_patch',
-        'organization',
-        org.id,
-        before,
-        serializeOrg(org) as Record<string, unknown>,
+      const { customFieldValues: patchValues, expectedUpdatedAt, ...changes } = body;
+      // One Command, `organization.admin_patch`: the version check, the column
+      // changes and the custom-field merge on one transaction, with the one
+      // audit entry this edit has always recorded. The merge is the step
+      // `organizationCustomFieldWritePort` runs, so the two writes of the bag
+      // cannot drift. Feature 055 — the value service only validates; this
+      // module owns the write (Principle XIV).
+      const valueService = customFieldValues;
+      const mergeCustomFieldValues =
+        patchValues !== undefined && valueService
+          ? async (current: Record<string, unknown>): Promise<Record<string, unknown>> => {
+              try {
+                return await valueService.validateAndMerge('organization', current, patchValues);
+              } catch (err) {
+                // Narrowed structurally rather than by `instanceof`: the
+                // constructor is a file in `custom_fields`' directory, and the
+                // guard is what `@endora-commerce/contracts` publishes in its
+                // place. `customFieldValueService` is a gated port, so this
+                // re-throws anything that is not the validation failure — a
+                // `ModuleDisabledError` included.
+                if (isCustomFieldValidationFailure(err)) {
+                  throw new HttpError(
+                    422,
+                    ERROR_CODES.CUSTOM_FIELD_VALUE_INVALID,
+                    'One or more custom fields are invalid.',
+                    err.errors.map((e) => ({ path: e.field, issue: e.message })),
+                  );
+                }
+                throw err;
+              }
+            }
+          : undefined;
+      const org = await deps.commandBus.run(
+        makeAdminPatchOrganizationCommand({
+          organizationId: request.params.id,
+          changes,
+          assertCurrent: (current) => assertVersion(current.updatedAt, expectedUpdatedAt),
+          mergeCustomFieldValues,
+          snapshot: serializeOrg,
+        }),
       );
       return { data: serializeOrg(org) };
     },

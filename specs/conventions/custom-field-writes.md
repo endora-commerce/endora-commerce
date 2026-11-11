@@ -73,6 +73,30 @@ declared. **Declaring a new admin create or update of a custom-field host is the
 author's obligation**, in the merge request that adds the route — not something the check will
 remind you of.
 
+## Server-side writes
+
+**Code with no admin request to ride on — a subscriber, an overlay module, an integration worker —
+writes a host's values through the owner's published write port, never a native `UPDATE` of the
+host's `custom_field_values`** (Principle I; the column is the host's, whatever module knows the
+value). Today the two hosts that publish one are:
+
+- `customer_accounts` — `customerAccountLifecycleWritePort.setCustomFieldValues(customerAccountId, merge)`;
+- `organizations` — `organizationCustomFieldWritePort.setCustomFieldValues(organizationId, merge)`.
+
+Both have the same shape, and a host that adds one copies it: **the merge is the caller's**, a
+callback over the current bag that the owner runs between its own load and its own write, as one
+Command with one audit row; **the owner does not validate**, so the caller calls
+`CustomFieldValuePort.validateAndMerge` inside `merge` (the administrator's rules: an `internal`
+field is accepted), and a refusal propagates unchanged and writes nothing; the actor is the
+ambient one, never a parameter. The full statement is each contract's JSDoc.
+
+**The ports are not `customFieldWrites` declarations, and `check:custom-field-writes` does not
+know them.** Its subject is an HTTP write: a route it can hold to the module's registration and to
+a request contract. A port has neither, and it adds no input surface a buyer reaches — the caller
+validates with the administrator's rules, which the check has no way to observe at a call site.
+Widening the check to ports would buy a declaration nothing can verify; the contract's JSDoc and
+this section are the obligation instead.
+
 ## Admin access
 
 A definition carries an admin access level — `edit` (the default), `read` or `hidden` — for

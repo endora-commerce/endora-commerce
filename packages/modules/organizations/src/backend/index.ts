@@ -21,6 +21,7 @@ import type {
   DictionaryValidator,
   EmailDefaultsRegistryPort,
   EmailMailerPort,
+  OrganizationCustomFieldWritePort,
   OrganizationDetailsPort,
   OrganizationCommandPort,
   OrganizationInheritancePort,
@@ -70,6 +71,7 @@ import {
   OrganizationDetailsService,
   toOrganizationRecord,
 } from './services/organization-details-port.js';
+import { OrganizationCustomFieldWriteService } from './services/organization-custom-field-write-port.js';
 import { PersonalOrganizationService } from './services/personal-organization-service.js';
 import type { PersonalOrganizationProvisionApi } from '../ports/index.js';
 import { OrganizationRestrictionService } from './services/organization-restriction-service.js';
@@ -923,6 +925,21 @@ export function registerModule(ctx: ModuleContext): void {
     'organizationDetailsPort',
     ctx
       .asFunction(({ emFactory }: OrganizationsCradle) => new OrganizationDetailsService(emFactory))
+      .singleton(),
+  );
+
+  /**
+   * The server-side custom-field write — for a subscriber on
+   * `organization.registered.v1`, an overlay or an integration worker, which
+   * otherwise had the admin HTTP API or a native UPDATE of this module's table.
+   * A port of its own beside the read model above, which stays read-only; the
+   * semantics (the caller's merge and validation, one Command, the ambient
+   * actor) are on `OrganizationCustomFieldWritePort` in the contracts.
+   */
+  ctx.di.providePort<OrganizationCustomFieldWritePort>(
+    'organizationCustomFieldWritePort',
+    ctx
+      .asFunction(({ commandBus }: OrganizationsCradle) => new OrganizationCustomFieldWriteService(commandBus))
       .singleton(),
   );
 
