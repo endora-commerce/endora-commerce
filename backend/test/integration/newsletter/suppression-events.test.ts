@@ -1,5 +1,6 @@
 import { describe, it, expect, beforeAll, afterAll, beforeEach, afterEach } from 'vitest';
 import type { z } from 'zod';
+import type { AuditPort, RecordAuditInput } from '@endora-commerce/platform/kernel';
 import { setupTestDb, type TestDb } from '../../helpers/test-db.js';
 import { customerAccountPortsFor } from '../../helpers/customer-account-ports.js';
 import { NewsletterTokenHelper } from '../../../../packages/modules/newsletter/src/backend/services/token.helper.js';
@@ -93,15 +94,14 @@ describe('newsletter suppression + events (US3/US6 edge cases)', () => {
     expect(suppression?.reason).toBe('complaint');
   });
   it('a suppression with no subscriber is audited under the suppression row, never the address (#470)', async () => {
-    const recorded: Array<Record<string, unknown>> = [];
-    const audited = new NewsletterSubscriberService({
-      ...deps,
-      auditLog: {
-        record: async (entry) => {
-          recorded.push(entry as unknown as Record<string, unknown>);
-        },
+    const recorded: RecordAuditInput[] = [];
+    // `suppress` only ever calls `record`; the rest of the port is never reached.
+    const auditLog = {
+      record: async (entry: RecordAuditInput) => {
+        recorded.push(entry);
       },
-    });
+    } as unknown as AuditPort;
+    const audited = new NewsletterSubscriberService({ ...deps, auditLog });
 
     await audited.suppress('S470-Nobody@X.test', 'bounce');
 
