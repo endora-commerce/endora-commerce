@@ -2,6 +2,13 @@ import type { ComponentConfig, Fields } from '@puckeditor/core';
 import { describe, expect, it } from 'vitest';
 import { PB_RESPONSIVE_METADATA } from '@endora-commerce/page-builder-core';
 import { Row } from './Row.js';
+// Loaded statically, not with `await import()` inside the tests: the product
+// blocks are the heaviest graph here (over 2 s cold on a quiet machine), and a
+// cold load inside a test body counts against the per-test timeout, which the
+// ProductGrid case overran under load. Module collection has none; the
+// `load` thunks below that still import them dynamically hit the cache.
+import { ProductGrid } from './ProductGrid.js';
+import { ProductSlider, productSliderFromLegacy } from './ProductSlider.js';
 
 /**
  * `specs/163-page-builder-marketing-pages/` plan § *Extend, don't narrow*
@@ -1391,12 +1398,12 @@ const PRODUCT_SLIDER_PARITY: Record<keyof typeof PRODUCT_SLIDER_ON_ORIGIN, strin
 /** The fields contracts/blocks.md adds to both blocks. */
 const PRODUCT_LISTING_ADDITIONS = ['header', 'cardVariant', 'ctaLabel', 'footerButton'];
 
-async function productGridBlock(): Promise<ComponentConfig> {
-  return (await import('./ProductGrid.js')).ProductGrid as unknown as ComponentConfig;
+function productGridBlock(): ComponentConfig {
+  return ProductGrid as unknown as ComponentConfig;
 }
 
-async function productSliderBlock(): Promise<ComponentConfig> {
-  return (await import('./ProductSlider.js')).ProductSlider as unknown as ComponentConfig;
+function productSliderBlock(): ComponentConfig {
+  return ProductSlider as unknown as ComponentConfig;
 }
 
 describe('option parity — catalog.ProductGrid (T071)', () => {
@@ -1405,7 +1412,7 @@ describe('option parity — catalog.ProductGrid (T071)', () => {
   });
 
   it('offers each counterpart at the top level and nested, with today\'s ranges, plus the additions', async () => {
-    const grid = await productGridBlock();
+    const grid = productGridBlock();
     for (const position of ['top', 'nested'] as const) {
       // The query field shows for a query source, the category for a category source, as today.
       for (const source of ['manual', 'category', 'query']) {
@@ -1439,7 +1446,7 @@ describe('option parity — catalog.ProductGrid (T071)', () => {
   });
 
   it('keeps today\'s defaults, so a new grid looks as it does today', async () => {
-    const grid = await productGridBlock();
+    const grid = productGridBlock();
     expect(grid.defaultProps).toMatchObject({
       source: 'manual',
       productSlugs: [],
@@ -1461,7 +1468,7 @@ describe('option parity — catalog.ProductSlider, now with the Carousel options
   });
 
   it('offers each counterpart at the top level and nested, plus the additions and the Carousel options', async () => {
-    const slider = await productSliderBlock();
+    const slider = productSliderBlock();
     for (const position of ['top', 'nested'] as const) {
       const fields = await fieldsAt(slider, position, { source: 'manual', gap: 'custom' });
       for (const [field, target] of Object.entries(PRODUCT_SLIDER_PARITY)) {
@@ -1477,7 +1484,7 @@ describe('option parity — catalog.ProductSlider, now with the Carousel options
   });
 
   it('keeps today\'s ranges: 1 to 8 slides per view, the px gap, the 2–15 s interval, every yes/no', async () => {
-    const fields = await fieldsAt(await productSliderBlock(), 'nested', { gap: 'custom' });
+    const fields = await fieldsAt(productSliderBlock(), 'nested', { gap: 'custom' });
     const perView = fields['slidesPerView'] as { min?: number; max?: number; metadata?: unknown };
     expect(perView.metadata).toEqual(PB_RESPONSIVE_METADATA);
     expect(perView.min).toBeLessThanOrEqual(1);
@@ -1493,7 +1500,6 @@ describe('option parity — catalog.ProductSlider, now with the Carousel options
   });
 
   it('carries a slider stored on origin/master into the new shape, value for value, so it renders as today', async () => {
-    const { productSliderFromLegacy } = await import('./ProductSlider.js');
     const stored = {
       source: 'category',
       productSlugs: [],
@@ -1530,7 +1536,7 @@ describe('option parity — catalog.ProductSlider, now with the Carousel options
   });
 
   it('keeps today\'s defaults, so a new slider looks as it does today', async () => {
-    const slider = await productSliderBlock();
+    const slider = productSliderBlock();
     expect(slider.defaultProps).toMatchObject({
       source: 'manual',
       limit: 12,
