@@ -17,6 +17,10 @@ import { TEST_ORGANIZATION_ID } from '../../helpers/test-actors.js';
  * which no type can express, so it is asked twice: of the running server
  * (every non-admin route, with a customer session and without one, under a
  * recording bus) and of the source (no customer-facing file names it).
+ *
+ * Issue #1040 — the same holds, in the same sweep, for the tax-ID correction
+ * `organization.tax_id.change` (FR-031's rule applied to the second write of
+ * `organizationCommandPort`).
  */
 const REPO = fileURLToPath(new URL('../../../../', import.meta.url));
 const CUSTOMER_COOKIE = 'stub-customer-session';
@@ -40,7 +44,7 @@ describe('the personal → company conversion is not customer-reachable', () => 
     await teardownBackendServer(h);
   });
 
-  it('runs no conversion from any non-admin route, with or without a customer session', async () => {
+  it('runs no conversion and no tax-ID change from any non-admin route, with or without a customer session', async () => {
     const document = (
       await h.app.inject({ method: 'GET', url: '/api/v1/_openapi.json', cookies: { b2b_session: 'stub-admin-session' } })
     ).json() as { paths: Record<string, Record<string, unknown>> };
@@ -59,6 +63,7 @@ describe('the personal → company conversion is not customer-reachable', () => 
     expect(
       routes.filter((route) => /convert[^/]*(company|organi[sz]ation)|organizations?\/[^/]+\/convert/i.test(route.path)).map((route) => route.path),
     ).toEqual([]);
+    expect(routes.filter((route) => /change-tax-id|tax-id\/change/i.test(route.path)).map((route) => route.path)).toEqual([]);
 
     for (const route of routes) {
       for (const cookies of [{ b2b_session: CUSTOMER_COOKIE }, undefined]) {
@@ -71,6 +76,7 @@ describe('the personal → company conversion is not customer-reachable', () => 
       }
     }
     expect(actions.filter((action) => action === 'organization.convert_to_company')).toEqual([]);
+    expect(actions.filter((action) => action === 'organization.tax_id.change')).toEqual([]);
   }, 600_000);
 
   it('is named by no customer-facing source', () => {
@@ -92,6 +98,7 @@ describe('the personal → company conversion is not customer-reachable', () => 
     for (const file of [...customerFacing, ...storefront(join(REPO, 'storefront'))]) {
       const text = readFileSync(file, 'utf8');
       expect(text, file).not.toMatch(/convertToCompany|makeConvertToCompanyCommand|convert-to-company/);
+      expect(text, file).not.toMatch(/changeTaxId|makeChangeTaxIdCommand|change-tax-id|tax_id\.change/);
     }
   });
 });

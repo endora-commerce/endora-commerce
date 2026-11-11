@@ -9,6 +9,7 @@ import {
   type CustomFieldValidationError,
   type CustomFieldValuePort,
   type OrganizationConvertedToCompanyEvent,
+  type OrganizationTaxIdChangedEvent,
   type CustomerAccountMemberWritePort,
   type CustomerAccountReadPort,
   type CustomerAccountRecord,
@@ -59,6 +60,12 @@ export interface OrganizationEvents extends Record<string, EventBase> {
    * subscriber in core; for overlays and connectors (research R-12).
    */
   'organization.converted_to_company.v1': EventBase & OrganizationConvertedToCompanyEvent;
+  /**
+   * Issue #1040 — a company organization's tax ID was corrected
+   * (`organization.tax_id.change`), dispatched once on commit and never for a
+   * same-value no-op. Carries no tax ID. No subscriber in core.
+   */
+  'organization.tax_id_changed.v1': EventBase & OrganizationTaxIdChangedEvent;
   /**
    * A CustomerAccount belonging to an Organization was created (self-service
    * registration, admin direct-create, or invitation accept). Consumed by the

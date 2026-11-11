@@ -995,6 +995,16 @@ administratorami, z której korzysta opisany wyżej model widoczności — **nie
 jej właścicielem jest moduł `organizations`, dla którego opisuje ona organizację, a moduł zapytań
 ofertowych sięga po nią przez port `organizationSalesRepScopePort` modułu `organizations`.
 
+Migracja `20260503T141344_quote_requests_workflow.ts` tego modułu nadal tworzy tę tabelę ze względów
+historycznych: była pierwszą migracją, która jej potrzebowała. Od zgłoszenia #1033 ta instrukcja ma
+postać `create table if not exists`, a własna migracja właściciela,
+`20261109T144721_organizations_reach_governor.ts`, tworzy tabelę o tym samym kształcie. Oba indeksy
+tej tabeli tworzy wyłącznie migracja właściciela. Dzięki temu
+platforma może zmigrować `organizations` bez tego modułu, a zainstalowanie tego modułu później
+pozostawia tabelę i jej wiersze bez zmian. Baza, która zastosowała już tę migrację, nie uruchamia jej
+ponownie. `module:uninstall quote_requests --hard` nigdy nie usuwa tabeli, jej wierszy ani wyzwalaczy,
+które zakłada na niej moduł `organizations`.
+
 Główny wiersz `quote_requests` przechowuje bieżący stan oraz `current_revision_number`,
 `last_customer_seen_revision_number` i `awaiting_customer_revision_acceptance`. Zestawienie dla
 klienta „co się zmieniło od ostatniej wizyty” jest liczone przy odczycie przez porównanie wersji

@@ -21,9 +21,22 @@ import { Migration } from '@mikro-orm/migrations';
  *      desired_unit_price, line_currency, product_slug.
  *   6. Creates quote_request_revisions, quote_request_events,
  *      quote_request_notification_events.
- *   7. Creates organization_sales_rep_assignments (lives in the organizations
- *      module logically — research.md §R9 — but the migration itself is
- *      colocated here for atomicity).
+ *   7. Creates organization_sales_rep_assignments **if it does not exist**.
+ *      The table's owner is `organizations` (it maps, writes and documents it),
+ *      and since issue #1033 `organizations`' own
+ *      `Migration20261109T144721OrganizationsReachGovernor` creates it with the
+ *      same shape. This statement is historical: it was colocated here for
+ *      atomicity (research.md §R9), it still creates the table on a fresh
+ *      database composing both modules, and it is a no-op on an instance that
+ *      ran `organizations` first and installs this module later — which a plain
+ *      `create table` refused with `relation already exists`. Its two indexes
+ *      are no longer created here: `organizations` creates them in the same
+ *      migration, and in an instance the foreign-schema guard refuses DDL on a
+ *      table another module maps when the only create before it is
+ *      `if not exists`, which may have been a no-op. The guard and the dropped
+ *      index statements are the second edit to this released body, ruled as
+ *      `specs/178-extensible-columns/` D-291 R-A8. Applied migrations never
+ *      re-run, so no database that already ran it changes.
  *
  * The down() path is best-effort: it restores the legacy schema enough that
  * a clean rebuild does not crash, but does NOT round-trip data written under
@@ -212,10 +225,11 @@ export class Migration20260503T141344QuoteRequestsWorkflow extends Migration {
     `);
 
     // ============================================================
-    // organization_sales_rep_assignments (organizations module — research §R9)
+    // organization_sales_rep_assignments — owned by organizations, which
+    // creates it too (issue #1033, D-291 R-A8): historical, guarded
     // ============================================================
     this.addSql(`
-      create table "organization_sales_rep_assignments" (
+      create table if not exists "organization_sales_rep_assignments" (
         "id" uuid not null,
         "organization_id" uuid not null,
         "admin_user_id" uuid not null,
@@ -225,8 +239,10 @@ export class Migration20260503T141344QuoteRequestsWorkflow extends Migration {
         constraint "orgsa_unique" unique ("organization_id", "admin_user_id")
       );
     `);
-    this.addSql(`create index "orgsa_admin_user_idx" on "organization_sales_rep_assignments" ("admin_user_id");`);
-    this.addSql(`create index "orgsa_organization_idx" on "organization_sales_rep_assignments" ("organization_id");`);
+    // `orgsa_admin_user_idx` and `orgsa_organization_idx` were created here as
+    // well. They are `organizations`' now, created by its reach-governor
+    // migration (R-A8): an index on a table another module maps, after a create
+    // that may have been a no-op, is a foreign write the guard refuses.
   }
 
   override async down(): Promise<void> {
@@ -236,8 +252,8 @@ export class Migration20260503T141344QuoteRequestsWorkflow extends Migration {
     // D-291 R-A7): `up()` created it, but `organizations` maps it and outlives this
     // module, so `module:uninstall quote_requests --hard` dropping it destroyed a
     // live `organizations` table. Editing a `down()` body changes no applied
-    // history; moving the creation into `organizations`' own migration is a
-    // separate issue.
+    // history. `organizations`' own migration creates the table as well since
+    // issue #1033 (D-291 R-A8), so it is its owner's on every database.
     this.addSql(`drop table if exists "quote_request_notification_events" cascade;`);
     this.addSql(`drop table if exists "quote_request_events" cascade;`);
     this.addSql(`drop table if exists "quote_request_revisions" cascade;`);

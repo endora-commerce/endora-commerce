@@ -241,6 +241,10 @@ returns three records, root first; `resolveByTaxId(X)` returns `one` with the ro
   organizations keep theirs (D-290 / OD-8). The admin MUST say so before the switch to
   `per-tree-root` is confirmed, and every refusal and warning MUST NOT suggest a remedy the admin does
   not offer.
+  *Amended by issue #1040* (`organization.tax_id.change`): a live company's tax ID can now be
+  corrected from the admin, so the refusal, the warning and the confirmation name *Change tax ID* as
+  the remedy for a tax ID shared by mistake; a tax ID shared with a soft-deleted organization still
+  cannot be released from the admin (OD-8 unchanged).
 - **FR-016**: Setting the scope already in force MUST change nothing, record no audit entry, and
   re-assert the database enforcement for that scope.
 - **FR-017**: Only an unscoped platform administrator holding `organizations:manage-tax-id-scope` MAY

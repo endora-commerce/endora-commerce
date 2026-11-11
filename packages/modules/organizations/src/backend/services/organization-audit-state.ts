@@ -92,6 +92,9 @@ export const ORGANIZATION_AUDIT_KEYS: ReadonlySet<string> = new Set([
   'role',
   'id',
   'permissions',
+  // Issue #1040 — `organization.tax_id.change`: whether the VAT validation
+  // summary was cleared (its scope code `taxIdScope` is listed above).
+  'vatStatusReset',
 ]);
 
 /**
