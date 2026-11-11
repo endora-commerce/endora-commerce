@@ -26,6 +26,7 @@ import {
   AdminOrganizationCreateBodySchema,
   adminTaxIdScopeSetBodySchema,
   adminOrganizationConvertToCompanyBodySchema,
+  adminOrganizationChangeTaxIdBodySchema,
   normalizeTaxId,
   type AdminTaxIdScopeResponse,
   DictionaryReferenceError,
@@ -47,6 +48,7 @@ import { makeSetCreditModeCommand } from './commands/set-credit-mode.command.js'
 import { makeCreateOrganizationCommand } from './commands/create-organization.command.js';
 import { makeSetTaxIdScopeCommand } from './commands/set-tax-id-scope.command.js';
 import { makeConvertToCompanyCommand } from './commands/convert-to-company.command.js';
+import { makeChangeTaxIdCommand } from './commands/change-tax-id.command.js';
 import type { OrganizationRoleCache } from './services/organization-role-cache.js';
 import { TaxIdScopeService } from './services/tax-id-scope-service.js';
 import { runOrganizationWrite, taxIdExistsRefusal } from './services/organization-write.js';
@@ -739,6 +741,51 @@ export async function registerOrganizationsAdminRoutes(
       }
       const fresh = await emFactory().findOneOrFail(Organization, { id: org.id });
       return { data: serializeOrg(fresh), vatValidation };
+    },
+  );
+
+  // ── Tax-ID correction (issue #1040, follow-up to `specs/177-tax-id-scope/`) ──
+  // A live company's tax ID, corrected in place. The gate is the preHandler
+  // (`module-admin-surfaces.md` item 3); the VAT validation, when asked for,
+  // runs after the change committed and never rolls it back (D-290 / OD-2).
+  app.post<{ Params: { id: string } }>(
+    '/api/v1/admin/organizations/:id/change-tax-id',
+    {
+      preHandler: [
+        requireAdmin('organizations:change-tax-id'),
+        organizationInReach,
+        // As the conversion: `validateTaxId` runs a VAT validation, a
+        // `customers:manage` write the change-tax-id code alone does not carry.
+        async (request, reply) => {
+          if ((request.body as { validateTaxId?: unknown } | undefined)?.validateTaxId === true) {
+            await requireAdmin('customers:manage')(request, reply);
+          }
+        },
+      ],
+      schema: { body: adminOrganizationChangeTaxIdBodySchema },
+    },
+    async (request) => {
+      const { validateTaxId, ...input } = adminOrganizationChangeTaxIdBodySchema.parse(request.body);
+      const { organization, changed } = await runOrganizationWrite(
+        deps.commandBus,
+        makeChangeTaxIdCommand({ organizationId: request.params.id, input }),
+        () => taxIdExistsRefusal(),
+      );
+      let vatValidation: { outcome: string; provider: string | null } | null = null;
+      if (validateTaxId && taxIdValidationService) {
+        try {
+          const result = await taxIdValidationService.trigger(organization.id, {
+            providerHint: 'auto',
+            actorAdminUserId: resolveAdminUserId(request),
+          });
+          vatValidation = { outcome: result.record.outcome, provider: result.record.provider ?? null };
+        } catch (err) {
+          request.log.warn({ err, organizationId: organization.id }, 'organizations: VAT validation after a tax-ID change failed');
+          vatValidation = { outcome: 'failed', provider: null };
+        }
+      }
+      const fresh = await emFactory().findOneOrFail(Organization, { id: organization.id });
+      return { data: serializeOrg(fresh), changed, vatValidation };
     },
   );
 

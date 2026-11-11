@@ -117,6 +117,15 @@ export const ACTION_PERMISSION_DISAGREEMENTS: Readonly<Record<string, string>> =
     'a holder of the action\'s code can open the list (`specs/177-tax-id-scope/` ' +
     '`contracts/admin-surfaces.md` §2). Declaring the read code would advertise the conversion to every ' +
     'roster reader. Retire this entry if the picker reads a route gated on the conversion code.',
+  'organizations:change-organization-tax-id':
+    '"Change an organization\'s tax ID" declares `organizations:change-tax-id`, the code its route ' +
+    '(/organizations/change-tax-id) and its one write (POST ' +
+    '/api/v1/admin/organizations/:id/change-tax-id) are gated on; the screen\'s first step lists ' +
+    'company organizations through GET /api/v1/admin/organizations, the roster\'s ' +
+    '`customers:read` / `customers:manage` gate. The permission declares `requires: customers:read`, so ' +
+    'a holder of the action\'s code can open the list (issue #1040, the conversion\'s precedent). ' +
+    'Declaring the read code would advertise the correction to every roster reader. Retire this entry ' +
+    'if the picker reads a route gated on the change code.',
   'megamenu:edit-megamenu':
     '"Edit megamenu" declares `megamenu.write`; the screen it opens is gated by ' +
     '`megamenu.read` (GET /api/v1/admin/megamenu/menus). Retire this entry by ' +
