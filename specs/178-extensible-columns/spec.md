@@ -519,8 +519,11 @@ Taken by the architect on questions the developer raised from `feat/178-extensib
   `backend/test/unit/db/instance-foreign-writes.test.ts` red on both indexes, which would have
   refused `migrate` on every fresh instance. Keeping them and adding an R2 ledger entry was
   rejected because it would license a foreign write that nothing needs. The index half was found
-  during implementation, after the owner's decision on the table half, and the pull request asks
-  for its confirmation. This is a second edit to a
+  during implementation, after the owner's decision on the table half, and it was confirmed by
+  the architect on 2026-11-11: migration identity is the class name and its position in the
+  order, not the body, so no applied database changes. A database that ran `20260503` keeps both
+  indexes, and `20261109` makes no change there. On a fresh database the indexes are absent only
+  between the two migrations, while `orgsa_unique` is in place throughout. This is a second edit to a
   released body after R-A7's `down()` edit. It is ruled here because it changes no database that
   exists: applied migrations never re-run. On a fresh database with both modules the table is
   created by `20260503` as before and its indexes by `20261109`, which leaves the same shape; the
