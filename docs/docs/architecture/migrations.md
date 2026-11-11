@@ -303,9 +303,15 @@ migration, by your module's install hook, or through the owning module's port at
 the platform itself owns need no declaration — the platform is always present and cannot
 appear in a `dependencies` array.
 
+**One exception, and it is column-granular:** a module that declares extension columns on an
+extensible host (see *Declaring columns on a core table* below) owns those `x_<moduleId>_*`
+columns, so its own migration may back-fill them — `update "<host>" set "x_<moduleId>_…" = …`,
+every column it sets being its own. Setting any other column of the host is still a write to a
+table another module owns.
+
 In this repository both rules are enforced by `pnpm --filter backend run check:module-boundary`,
-beside the foreign-key validator described below. As with the `./migrations` array, nothing in
-the host reads an installed package's migration SQL, so in a package they are yours to keep.
+beside the foreign-key validator described below. **For an installed package the host enforces
+the write rule itself, at `migrate`**: see *The foreign-schema guard* below.
 
 There is no other lever. Moving your timestamp cannot do it (see below), and there is no
 per-migration ordering edge.
@@ -387,6 +393,92 @@ A package may ship entities and migrations. A **per-deployment overlay module** 
 costs nothing but a directory: own the table from a core module and read it through that
 module's port. A third-party author has no core module, which is why the answer differs. See
 `docs/docs/architecture/overlay-pattern.md`.
+
+### Declaring columns on a core table
+
+A package that needs a few fields **on** a core row rather than beside it declares them; it
+never writes the `alter table` itself. The declaration is code, exported from the package's
+`./backend` subpath as `schemaExtensions`:
+
+```ts
+export const acmeOrganizationColumns = defineColumnExtension({
+  host: 'organizations',
+  module: 'acme_erp',
+  columns: { erpCode: { type: 'varchar', length: 64, nullable: true, index: 'unique' } },
+});
+export const schemaExtensions = [acmeOrganizationColumns];
+```
+
+From that the platform derives **one generated migration step per declaring module**:
+
+- **Its name** is `Migration10000101T000000<ModulePrefix>SchemaExtensions<hash12>`, where
+  `hash12` digests the normalised declarations. The step is pending exactly when the
+  declarations changed, and the reserved stamp is refused on any migration a package writes.
+- **It runs at the head of the declaring module's block** — after every module it depends on,
+  the host included, and before the module's own migrations, so they can back-fill the new
+  columns on a fresh database.
+- **It reconciles, additively.** It adds missing columns and indexes, re-attaches an orphaned
+  element whose spec is unchanged, marks an element that is no longer declared `orphaned`, and
+  refuses any non-additive change (type, nullability, default). Every element is recorded in
+  the platform's `schema_extensions` ledger.
+- **It is verified.** `migrate up`, `migrate fresh` and lifecycle `install` run inside one
+  transaction and check every declared column and index before commit, so a run that loses one
+  rolls back; boot runs the same check read-only and refuses to start on drift, naming the
+  module, the column, the table and the last executed migration of the table's owner.
+- **Its `down()` drops nothing.** `module:uninstall --hard` of the declaring module marks its
+  elements `orphaned` and keeps the columns and their values;
+  `module:schema-extensions drop <moduleId> --confirm` drops orphaned elements as an audited
+  Command. Uninstalling the host while the declaring module is installed is refused
+  (`dependents-block`).
+
+The rules, the column types and the worked example are on
+[Declared extension columns](./schema-extensions.md). Core keeps its side of the promise in CI:
+an integration test applies the whole core migration order with sample `x_fixture_*` columns
+on every open extensible table and fails when a core migration loses one, and
+`check:extensible-tables` refuses, on every merge request, a migration of an extensible table's
+owner that rebuilds it (`drop table`, `rename to`, a `create table … as select` copy).
+
+### The foreign-schema guard
+
+Every migration an installed package ships runs inside a platform guard. It reads each statement
+the migration hands to `addSql` or `execute` — a knex builder by the SQL it renders, a
+`do $$ … $$` block and a function body by their text, the string a PL/pgSQL `execute` runs as
+SQL — and **refuses** DDL or DML on a table the package's module does not own. The refusal is
+`foreign-schema-write`, naming the package, the migration, the table and the statement, and the
+whole `migrate` run rolls back.
+
+A table is the module's own when one of its entities maps it, or one of its migrations creates
+it and no other module's entity maps it. Also allowed:
+
+- the platform's own tables and `mikro_orm_migrations`;
+- DDL on a table the same migration creates — indexing it beside its `create table`, dropping it
+  in `down()` — **unless another module's entity maps it**: dropping, truncating or
+  `alter … drop`-ing such a table is refused in `up()` and `down()` alike. Two exemptions, both
+  derived: a first-party D-226 bridge (`bridge` entries), and a `down()` whose target's owner cannot
+  be present when it runs — the owner depends on the writer, the writer is core, or both are
+  non-deactivatable (one predicate, shared with `foreign-column-ddl.test.ts`, applied at run time
+  to every author and rendered for first-party migrations as `derived-down` entries);
+- `update "<host>" set "x_<moduleId>_…" = …` on a host the module declares extension columns
+  on, every set column its own — its back-fill;
+- the first-party writes recorded in `check:module-boundary`'s R2 ledger, which is what lets an
+  instance install this platform's own modules as packages. `composer:generate` renders them
+  into `FIRST_PARTY_FOREIGN_WRITE_EXEMPTIONS` on `@endora-commerce/platform/migrations`, and
+  `overlay:check` holds the list to the ledger.
+
+`this.getEntityManager()` is no way around it: its flush is checked change set by change set,
+and its `insert*`, `upsert*`, `native*` and `execute` shortcuts are checked as well. Reads are
+never judged.
+
+**Before upgrading to the release that refuses**, an operator can see what it would refuse — in this
+release from a checkout of the Endora Commerce repository, since the instance scaffold does not yet
+wire `module:schema-extensions`:
+
+```bash
+pnpm --filter backend run module:schema-extensions audit-packages
+```
+
+runs the same classification over every installed package's migrations without executing any of
+them, prints each statement that would be refused, and exits 65 when there is one.
 
 
 ## Ordering rules

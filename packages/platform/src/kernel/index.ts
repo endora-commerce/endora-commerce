@@ -283,3 +283,38 @@ export {
   type SalesChannelMembershipPort,
   type SalesChannelResolutionPort,
 } from './ports/sales-channel.js';
+
+/**
+ * Declared extension columns on core tables (`specs/178-extensible-columns/`).
+ *
+ * An installed module package declares additive `x_<moduleId>_*` columns on an
+ * extensible host table with `defineColumnExtension`, exports the declaration
+ * from its `./backend` subpath as `schemaExtensions`, and reads and writes the
+ * columns only through `extensionColumns` — inside a Command or a command hook.
+ * The platform generates the DDL, records it in its ledger and verifies it.
+ */
+export { defineColumnExtension } from './schema-extensions/define.js';
+export { columnExtensionPatchSchema, columnExtensionSchema } from './schema-extensions/zod.js';
+export { extensionColumns, type ExtensionColumnsAccessor } from './schema-extensions/accessor.js';
+export type {
+  ExtensionAttributeMap,
+  ExtensionJsonValue,
+  SchemaExtensionReads,
+} from './schema-extensions/reads.js';
+export {
+  ExtensionHostRowNotFoundError,
+  ExtensionProjectionWriteError,
+  ExtensionValueCorruptError,
+  ExtensionWriteOutsideCommandError,
+  SchemaExtensionInvalidError,
+} from './schema-extensions/errors.js';
+export type {
+  ColumnExtension,
+  ColumnExtensionInput,
+  ColumnExtensionPatch,
+  ColumnExtensionValues,
+  ColumnIndex,
+  ColumnSpec,
+  ColumnType,
+  ExtensibleHostTable,
+} from './schema-extensions/types.js';

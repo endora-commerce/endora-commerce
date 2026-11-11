@@ -3,6 +3,7 @@ import { z } from 'zod';
 import {
   catalogBulkPriceRequestSchema,
   ERROR_CODES,
+  requestScopeLanguage,
   type ProductAudience,
 } from '@endora-commerce/contracts';
 import { HttpError } from '@endora-commerce/platform/http';
@@ -193,9 +194,10 @@ function readContext(request: FastifyRequest): {
   preferredLanguage?: string | undefined;
 } {
   const channel = getResolvedChannel(request);
+  // Issue #397 — resolved as the public catalogue resolves it (`readContext` there).
   const acceptLanguage = request.headers['accept-language'];
   const preferredLanguage =
-    typeof acceptLanguage === 'string' ? acceptLanguage.split(',')[0]?.trim() : undefined;
+    typeof acceptLanguage === 'string' ? requestScopeLanguage(channel, acceptLanguage) : undefined;
   return {
     resolvedChannel: {
       id: channel.id,

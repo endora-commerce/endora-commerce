@@ -166,6 +166,13 @@ export interface SqlTableAccess {
   readonly line: number;
   /** The head of the statement, or of the builder chain, for the message. */
   readonly statement: string;
+  /**
+   * `true` for an access inside a PL/pgSQL block — a `do $$ … $$` body or a
+   * `create function|procedure` body. PL/pgSQL plans a statement when its code
+   * path runs, so such an access is a write for R2 but not a reference a fresh
+   * database fails on (`instance-migration-order`'s G3 leaves it out).
+   */
+  readonly block?: true;
 }
 
 /** Where a table name was declared — the two owner-map sources. */
@@ -306,15 +313,24 @@ function statementAccesses(
     }
 
     const statement = literal.text.replace(/\s+/g, ' ').trim().slice(0, 80);
-    const seen = new Set<string>();
+    // table → its index in `found`. A table the statement names twice is one
+    // access, and it is a **write** if either naming writes: `with r as (select
+    // … from "t") update "t" …` read `t` first and was recorded as a read only,
+    // which is what `test/unit/db/sql-write-targets-parity.test.ts` measured
+    // (`specs/178-extensible-columns/` T062).
+    const seen = new Map<string, number>();
     for (const match of literal.text.matchAll(TABLE_REFERENCE)) {
       const keyword = (match[1] ?? '').toLowerCase();
       const table = (match[2] ?? '').toLowerCase();
       if (table === '' || NOT_A_TABLE.has(table) || bound.has(table)) continue;
-      if (seen.has(table)) continue;
-      seen.add(table);
       const write =
         keyword === 'into' || keyword === 'update' || (verb === 'delete' && keyword === 'from');
+      const at = seen.get(table);
+      if (at !== undefined) {
+        if (write && found[at]!.direction === 'read') found[at] = { ...found[at]!, direction: 'write' };
+        continue;
+      }
+      seen.set(table, found.length);
       found.push({
         table,
         direction: write ? 'write' : 'read',
@@ -322,6 +338,39 @@ function statementAccesses(
         line: literal.line,
         statement,
       });
+    }
+  }
+  found.push(...anonymousBlockWrites(all));
+  return found;
+}
+
+/**
+ * `do $$ … $$` — a PL/pgSQL block, whose head is `do` and which the statement
+ * path therefore never read — and `create [or replace] function|procedure`, whose
+ * body is the same language and writes when a trigger or a later statement calls
+ * it. A migration wraps conditional DML in one as a
+ * matter of course, so the rows it writes were invisible to R2 while the
+ * runtime guard, which reads the same text, saw them
+ * (`specs/178-extensible-columns/` T062). Only the **writes** are read here —
+ * `insert into`, `update … set`, `delete from` — because PL/pgSQL's
+ * `select … into <variable>` is an assignment, not an insert.
+ */
+const DO_BLOCK_HEAD =
+  /^\s*(?:--[^\n]*\n|\s)*(?:do\b|create\s+(?:or\s+replace\s+)?(?:function|procedure)\b)/i;
+const DO_BLOCK_WRITE =
+  /\b(?:insert\s+into|delete\s+from)\s+(?:only\s+)?(?:"?[a-z_][a-z0-9_]*"?\.)?"?([a-z_][a-z0-9_]*)"?|\bupdate\s+(?:only\s+)?(?:"?[a-z_][a-z0-9_]*"?\.)?"?([a-z_][a-z0-9_]*)"?(?:\s+(?:as\s+)?"?[a-z_][a-z0-9_]*"?)?\s+set\b/gi;
+
+function anonymousBlockWrites(all: ReadonlyArray<{ text: string; line: number }>): SqlTableAccess[] {
+  const found: SqlTableAccess[] = [];
+  for (const literal of all) {
+    if (!DO_BLOCK_HEAD.test(literal.text)) continue;
+    const statement = literal.text.replace(/\s+/g, ' ').trim().slice(0, 80);
+    const seen = new Set<string>();
+    for (const match of literal.text.matchAll(DO_BLOCK_WRITE)) {
+      const table = (match[1] ?? match[2] ?? '').toLowerCase();
+      if (table === '' || NOT_A_TABLE.has(table) || seen.has(table)) continue;
+      seen.add(table);
+      found.push({ table, direction: 'write', syntax: 'statement', line: literal.line, statement, block: true });
     }
   }
   return found;

@@ -298,9 +298,15 @@ innego modułu zasila albo poprawia własna migracja tego modułu, hook instalac
 albo port modułu-właściciela podczas startu. Tabele należące do samej platformy nie wymagają
 deklaracji — platforma jest zawsze obecna i nie może wystąpić w tablicy `dependencies`.
 
+**Jest jeden wyjątek i dotyczy pojedynczych kolumn:** moduł, który deklaruje kolumny rozszerzeń w
+rozszerzalnej tabeli gospodarza (zobacz niżej *Deklarowanie kolumn w tabeli rdzenia*), jest
+właścicielem tych kolumn `x_<moduleId>_*`, więc jego własna migracja może je uzupełnić —
+`update "<gospodarz>" set "x_<moduleId>_…" = …`, o ile każda ustawiana kolumna jest jego własna.
+Ustawienie dowolnej innej kolumny gospodarza nadal jest zapisem do tabeli innego modułu.
+
 W tym repozytorium obie reguły egzekwuje `pnpm --filter backend run check:module-boundary`, obok
-opisanego niżej walidatora kluczy obcych. Tak jak w przypadku tablicy `./migrations`, nic w hoście
-nie czyta SQL migracji zainstalowanego pakietu, więc w pakiecie pilnujesz ich samodzielnie.
+opisanego niżej walidatora kluczy obcych. **W przypadku zainstalowanego pakietu regułę zapisu
+egzekwuje sam host, przy `migrate`**: zobacz niżej *Strażnik obcego schematu*.
 
 Nie ma innej dźwigni. Przesunięcie znacznika czasu tego nie zrobi (zobacz niżej), a krawędzi
 kolejności dla pojedynczej migracji nie ma.
@@ -382,6 +388,97 @@ może (generator odrzuca jedno i drugie) — jego rozwiązanie jest zawsze dost�
 jeden katalog: utwórz tabelę w module rdzenia i odczytuj ją przez port tego modułu. Autor zewnętrzny
 nie ma modułu rdzenia i dlatego odpowiedź jest inna. Zobacz
 `docs/docs/architecture/overlay-pattern.md`.
+
+### Deklarowanie kolumn w tabeli rdzenia
+
+Pakiet, który potrzebuje kilku pól **w** wierszu rdzenia, a nie obok niego, deklaruje je; nigdy nie
+pisze samodzielnie `alter table`. Deklaracja to kod eksportowany z podścieżki `./backend` pakietu
+jako `schemaExtensions`:
+
+```ts
+export const acmeOrganizationColumns = defineColumnExtension({
+  host: 'organizations',
+  module: 'acme_erp',
+  columns: { erpCode: { type: 'varchar', length: 64, nullable: true, index: 'unique' } },
+});
+export const schemaExtensions = [acmeOrganizationColumns];
+```
+
+Na tej podstawie platforma wyprowadza **jeden generowany krok migracji na każdy deklarujący moduł**:
+
+- **Jego nazwa** to `Migration10000101T000000<PrefiksModułu>SchemaExtensions<hash12>`, gdzie
+  `hash12` jest skrótem znormalizowanych deklaracji. Krok oczekuje na wykonanie dokładnie wtedy,
+  gdy deklaracje się zmieniły, a zarezerwowany znacznik czasu jest odrzucany w każdej migracji
+  napisanej przez pakiet.
+- **Wykonuje się na początku bloku modułu deklarującego** — po każdym module, od którego ten moduł
+  zależy, łącznie z gospodarzem, i przed własnymi migracjami modułu, więc mogą one uzupełnić nowe
+  kolumny także na świeżej bazie danych.
+- **Uzgadnia stan wyłącznie addytywnie.** Dodaje brakujące kolumny i indeksy, ponownie dołącza
+  osierocony element o niezmienionej specyfikacji, oznacza jako `orphaned` element, który nie jest
+  już deklarowany, i odrzuca każdą zmianę nieaddytywną (typ, dopuszczalność `null`, wartość
+  domyślna). Każdy element jest zapisywany w rejestrze platformy `schema_extensions`.
+- **Jest weryfikowany.** `migrate up`, `migrate fresh` i `install` cyklu życia wykonują się w jednej
+  transakcji i przed zatwierdzeniem sprawdzają każdą zadeklarowaną kolumnę i indeks, więc
+  przebieg, który którąś utraci, jest wycofywany; start platformy wykonuje to samo sprawdzenie w
+  trybie tylko do odczytu i odmawia uruchomienia przy rozjeździe, podając moduł, kolumnę, tabelę i
+  ostatnią wykonaną migrację właściciela tabeli.
+- **Jego `down()` niczego nie usuwa.** `module:uninstall --hard` modułu deklarującego oznacza jego
+  elementy jako `orphaned` i zachowuje kolumny wraz z wartościami;
+  `module:schema-extensions drop <moduleId> --confirm` usuwa osierocone elementy jako audytowane
+  polecenie. Odinstalowanie gospodarza, gdy moduł deklarujący jest zainstalowany, jest odrzucane
+  (`dependents-block`).
+
+Reguły, typy kolumn i pełny przykład są na stronie
+[Zadeklarowane kolumny rozszerzeń](./schema-extensions.md). Rdzeń dotrzymuje swojej strony
+obietnicy w CI: test integracyjny wykonuje całą kolejność migracji rdzenia z przykładowymi
+kolumnami `x_fixture_*` w każdej otwartej rozszerzalnej tabeli i kończy się błędem, gdy migracja
+rdzenia którąś z nich utraci, a `check:extensible-tables` odrzuca w każdym merge requeście
+migrację właściciela rozszerzalnej tabeli, która ją przebudowuje (`drop table`, `rename to`,
+kopia przez `create table … as select`).
+
+### Strażnik obcego schematu
+
+Każda migracja dostarczana przez zainstalowany pakiet wykonuje się wewnątrz strażnika platformy.
+Strażnik czyta każdą instrukcję, którą migracja przekazuje do `addSql` albo `execute` — builder
+knex po SQL, który generuje, blok `do $$ … $$` i ciało funkcji po ich tekście, a ciąg wykonywany
+przez `execute` w PL/pgSQL jako SQL — i **odrzuca** DDL albo DML na tabeli, której moduł pakietu
+nie jest właścicielem. Odmowa to `foreign-schema-write` z nazwą pakietu, migracji, tabeli i
+instrukcji, a cały przebieg `migrate` jest wycofywany.
+
+Tabela należy do modułu, gdy mapuje ją jedna z jego encji albo tworzy ją jedna z jego migracji i
+nie mapuje jej encja żadnego innego modułu. Dozwolone są ponadto:
+
+- własne tabele platformy i `mikro_orm_migrations`;
+- DDL na tabeli, którą tworzy ta sama migracja — indeks obok jej `create table`, usunięcie w
+  `down()` — **chyba że mapuje ją encja innego modułu**: usunięcie, wyczyszczenie albo
+  `alter … drop` takiej tabeli jest odrzucane zarówno w `up()`, jak i w `down()`. Są dwa wyjątki, oba
+  wyprowadzane: własny most platformy według D-226 (wpisy `bridge`) oraz `down()`, którego właściciel
+  celu nie może być obecny w chwili wykonania — właściciel zależy od piszącego, piszący jest rdzeniem
+  albo oba moduły są niewyłączalne (jeden predykat, wspólny z `foreign-column-ddl.test.ts`,
+  stosowany w czasie działania do każdego autora i zapisywany dla migracji platformy jako wpisy
+  `derived-down`);
+- `update "<gospodarz>" set "x_<moduleId>_…" = …` na gospodarzu, w którym moduł deklaruje kolumny
+  rozszerzeń, o ile każda ustawiana kolumna jest jego własna — czyli jego uzupełnianie danych;
+- zapisy własnych modułów platformy zapisane w rejestrze R2 `check:module-boundary`, dzięki czemu
+  instancja może zainstalować moduły samej platformy jako pakiety. `composer:generate` zapisuje je
+  w `FIRST_PARTY_FOREIGN_WRITE_EXEMPTIONS` w `@endora-commerce/platform/migrations`, a
+  `overlay:check` pilnuje zgodności tej listy z rejestrem.
+
+`this.getEntityManager()` nie jest obejściem: jego `flush` jest sprawdzany zbiór zmian po zbiorze
+zmian, a skróty `insert*`, `upsert*`, `native*` i `execute` również. Odczyty nigdy nie są
+oceniane.
+
+**Przed aktualizacją do wydania, które odmawia**, operator może zobaczyć, czego by odmówiło — w tym
+wydaniu z klonu repozytorium Endora Commerce, bo szkielet instancji nie udostępnia jeszcze
+`module:schema-extensions`:
+
+```bash
+pnpm --filter backend run module:schema-extensions audit-packages
+```
+
+wykonuje tę samą klasyfikację na migracjach wszystkich zainstalowanych pakietów, nie wykonując
+żadnej z nich, wypisuje każdą instrukcję, która zostałaby odrzucona, i kończy się kodem 65, gdy
+taka istnieje.
 
 
 ## Reguły kolejności

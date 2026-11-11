@@ -35,6 +35,52 @@ export const supportedEntityTypeSchema = z.enum([
 ]);
 export type SupportedEntityType = z.infer<typeof supportedEntityTypeSchema>;
 
+/** Where one host entity type keeps its custom-field values, and which module owns that table. */
+export interface CustomFieldHostBinding {
+  /** The host table. For `product` the value bag is a column, so the table is `products` itself. */
+  readonly table: string;
+  /** The column on {@link table} that holds the value bag. */
+  readonly valueColumn: string;
+  /** The module whose entity maps {@link table}. */
+  readonly ownerModuleId: string;
+}
+
+/**
+ * The one custom-field host binding registry (`specs/178-extensible-columns/`
+ * FR-010, research R-8).
+ *
+ * Moved here from `custom_fields`' module-internal storage binding so that two
+ * readers can share one answer: `custom_fields` reads it for the table and the
+ * value column its host probes and list filters build against, and the platform
+ * derives its extensible host list from it — every custom-field host table is
+ * extensible (OD-15), so a second list of them would be a second answer waiting
+ * to disagree. Purely a storage binding: no host logic lives here, and neither
+ * the table nor the column ever comes from a caller.
+ */
+export const CUSTOM_FIELD_HOST_BINDINGS = {
+  category: { table: 'categories', valueColumn: 'custom_field_values', ownerModuleId: 'catalog' },
+  order: { table: 'orders', valueColumn: 'custom_field_values', ownerModuleId: 'orders' },
+  organization: {
+    table: 'organizations',
+    valueColumn: 'custom_field_values',
+    ownerModuleId: 'organizations',
+  },
+  customer: {
+    table: 'customer_accounts',
+    valueColumn: 'custom_field_values',
+    ownerModuleId: 'customer_accounts',
+  },
+  quote_request: {
+    table: 'quote_requests',
+    valueColumn: 'custom_field_values',
+    ownerModuleId: 'quote_requests',
+  },
+  product: { table: 'products', valueColumn: 'attribute_values', ownerModuleId: 'catalog' },
+  opportunity: { table: 'crm_opportunities', valueColumn: 'custom_field_values', ownerModuleId: 'crm' },
+  project: { table: 'projects', valueColumn: 'custom_field_values', ownerModuleId: 'projects' },
+  task: { table: 'tasks', valueColumn: 'custom_field_values', ownerModuleId: 'tasks' },
+} as const satisfies Record<SupportedEntityType, CustomFieldHostBinding>;
+
 /**
  * The set of runtime value types. `text` is stored as a string; `select` stores one option value; `multiselect` an array.
  *
