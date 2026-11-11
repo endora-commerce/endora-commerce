@@ -1,3 +1,4 @@
+import { randomUUID } from 'node:crypto';
 import { AuditLogEntry } from '@endora-commerce/platform/kernel';
 import { afterAll, beforeAll, describe, expect, it } from 'vitest';
 
@@ -51,11 +52,26 @@ describe('category page content — contract', () => {
   let h: BackendServerHandle;
   let serial = 0;
 
+  // Issue #397 — the storefront read answers in a language the request's channel offers, so the
+  // file reads on its own channel offering both languages it asks for.
+  const channelId = randomUUID();
+  const channelCode = `cc-${channelId.slice(0, 8)}`;
+
   beforeAll(async () => {
     h = await setupBackendServer();
+    await h
+      .em()
+      .getConnection()
+      .execute(
+        `insert into sales_channels (id, code, name, default_language, languages, currencies, default_currency,
+                                     active, created_at, updated_at)
+         values (?, ?, ?::jsonb, 'en-US', '["en-US","pl-PL"]'::jsonb, '["PLN"]'::jsonb, 'PLN', true, now(), now())`,
+        [channelId, channelCode, JSON.stringify({ 'en-US': 'Category content' })],
+      );
   });
 
   afterAll(async () => {
+    if (h) await h.em().getConnection().execute(`delete from sales_channels where id = ?`, [channelId]);
     await teardownBackendServer(h);
   });
 
@@ -87,7 +103,7 @@ describe('category page content — contract', () => {
     return h.app.inject({
       method: 'GET',
       url: `/api/v1/catalog/categories/${id}/content`,
-      ...(language ? { headers: { 'accept-language': language } } : {}),
+      headers: { 'x-sales-channel': channelCode, ...(language ? { 'accept-language': language } : {}) },
     });
   }
 

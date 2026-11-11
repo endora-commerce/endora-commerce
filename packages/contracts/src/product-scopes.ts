@@ -7,6 +7,7 @@ import {
   uuidSchema,
   type ProductVisibility,
 } from './common.js';
+import { parseAcceptLanguage } from './accept-language.js';
 import { isProductVisibleTo, productStatusSchema, type ProductAudience } from './catalog.js';
 import { ORDER_MINIMUM_MAX } from './order-minimums.js';
 import type { UrlKeyWriteOutcome } from './product-url-keys.js';
@@ -273,13 +274,18 @@ function statusOnAt(snapshot: ScopeSnapshot, channelId: string, languageCode: st
  */
 export function resolveScopeLanguage(channel: ScopeChannel, requestedTag: string | null | undefined): string {
   // An `Accept-Language` pick may carry its quality parameter (`de;q=0.9`).
-  const tag = requestedTag?.split(';')[0]?.trim().toLowerCase() ?? '';
-  if (tag === '') return channel.defaultLanguage;
-  const exact = channel.languages.find((language) => language.toLowerCase() === tag);
+  const tag = requestedTag?.split(';')[0]?.trim() ?? '';
+  return matchChannelLanguage(channel.languages, tag) ?? channel.defaultLanguage;
+}
+
+/** The channel language `tag` names — exactly, else by base language — or `undefined`. */
+function matchChannelLanguage(languages: readonly string[], requestedTag: string): string | undefined {
+  const tag = requestedTag.toLowerCase();
+  if (tag === '') return undefined;
+  const exact = languages.find((language) => language.toLowerCase() === tag);
   if (exact !== undefined) return exact;
   const base = baseLanguage(tag);
-  const sameBase = channel.languages.find((language) => baseLanguage(language.toLowerCase()) === base);
-  return sameBase ?? channel.defaultLanguage;
+  return languages.find((language) => baseLanguage(language.toLowerCase()) === base);
 }
 
 export { sameLanguage } from './product-scope-model.js';
@@ -311,6 +317,30 @@ export function scopeLanguageOf(
   requestedTag: string | null | undefined,
 ): string {
   return resolveScopeLanguage(toScopeChannel(channel), requestedTag);
+}
+
+/**
+ * The scope language L of a buyer request on `channel` from its whole
+ * `Accept-Language` header (issue #397): the tags in descending `q`
+ * ({@link parseAcceptLanguage}), each matched against the channel's languages as
+ * {@link resolveScopeLanguage} matches one — exactly, then by base language
+ * (`pl` → `pl-PL`) — and the first tag the channel serves wins; with none served,
+ * the channel's default. Always spelled as the channel spells it.
+ *
+ * The header form of {@link scopeLanguageOf}; prefer it to
+ * `scopeLanguageOf(channel, firstLanguageTag(header))`, which ignores the weights
+ * and stops at the first tag whether or not the channel serves it.
+ */
+export function requestScopeLanguage(
+  channel: { id: string; languages?: readonly string[] | undefined; defaultLanguage: string },
+  header: string | readonly string[] | undefined,
+): string {
+  const { languages, defaultLanguage } = toScopeChannel(channel);
+  for (const tag of parseAcceptLanguage(header)) {
+    const match = matchChannelLanguage(languages, tag);
+    if (match !== undefined) return match;
+  }
+  return defaultLanguage;
 }
 
 /**
