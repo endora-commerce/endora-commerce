@@ -44,7 +44,7 @@ organization's Administrator role, checked server-side through
 | `GET /api/v1/admin/organizations/:id/sales-channels` | admin (`customers:read` or `customers:manage`) | The channels assigned to the Organization, and the channels it could be assigned. `404 NOT_FOUND` for an Organization outside a sales representative's reach (see below the table), as for one that does not exist |
 | `PUT /api/v1/admin/organizations/:id/sales-channels` | admin (`customers:manage`) | Replace the assigned channels (`{ salesChannelIds }`, at least one); `404 NOT_FOUND` outside a sales representative's reach, as for the read |
 | `GET /api/v1/admin/organizations/:id` | admin | Org + member roster (`updatedAt`, members include `lastLoginAt` and `organizationRole`; `predefinedRoles` names the Administrator and Member roles) |
-| `PATCH /api/v1/admin/organizations/:id` | admin | Update name / `status` / `vatStatus`; optional `expectedUpdatedAt` → `409 VERSION_CONFLICT` when stale |
+| `PATCH /api/v1/admin/organizations/:id` | admin | Update name / `status` / `vatStatus` and merge custom-field values (`customFieldValues`); optional `expectedUpdatedAt` → `409 VERSION_CONFLICT` when stale. One audit entry, `organization.admin_patch`, written with the change |
 | `POST /api/v1/admin/organizations/:id/members/invite` | admin | Invite by email (`{ email, roleId? }`, Member by default; platform-scope) |
 | `POST /api/v1/admin/organizations/:id/members` | admin | Direct-create member with password (`roleId?`, Member by default) and the account's custom-field values (`customFieldValues`) |
 | `PATCH /api/v1/admin/organizations/:id/members/:customerAccountId/role` | admin | Assign a role (`{ roleId, expectedUpdatedAt? }`) |
@@ -77,6 +77,9 @@ uniqueness is enforced at the DB level; duplicate registrations return
 - **Last-admin guard** — codified in `role-service.ts#changeRole` and
   `invitation-service.ts#revoke`; add new "must keep at least one admin"
   call sites here.
+- **Custom-field values from server-side code** — the published
+  `organizationCustomFieldWritePort` (see *Setting custom-field values from
+  server-side code* below).
 - **Declared extension columns** — `organizations` is an extensible table: an
   installed module package that depends on this module may declare its own
   `x_<moduleId>_*` columns on it, and the admin detail and list reads
@@ -573,6 +576,64 @@ The server action then reads every `cf.organization.<key>` form value into
 `firstUser.customFieldValues`), converting a number field with `Number(...)`.
 The example leaves out the boolean and multiple-choice controls and the error
 placement of step 3.
+
+### Setting custom-field values from server-side code
+
+Some values are not typed by anyone: an acquisition source an integration
+derives after a business registers, a segment an overlay module computes, an
+identifier a worker brings back from an external system. Such a field is
+usually *internal*, so registration cannot accept it from the buyer, and the
+code that knows the value has no administrator's request to send it with.
+
+That code writes through the port this module publishes,
+`organizationCustomFieldWritePort` (contract `OrganizationCustomFieldWritePort`
+in `@endora-commerce/contracts`), resolved with
+`lazyPort<OrganizationCustomFieldWritePort>(ctx, 'organizationCustomFieldWritePort')`
+and with `organizations` in the calling module's manifest `dependencies`. It
+has one method:
+
+```ts
+setCustomFieldValues(
+  organizationId: string,
+  merge: (current: Record<string, unknown>) => Promise<Record<string, unknown>>,
+): Promise<OrganizationRecord>;
+```
+
+- **You merge, and you validate.** The port loads the Organization, hands
+  `merge` its current values and stores what `merge` returns — read, merge and
+  write in one transaction, so a concurrent change is not lost. It does not
+  validate: call `CustomFieldValuePort.validateAndMerge` inside `merge`. That
+  applies the administrator's rules, so an internal field is accepted, unknown
+  keys are dropped and every required field is checked:
+
+  ```ts
+  ctx.subscribe('organization.registered.v1', async (payload) => {
+    const { organizationId } = payload as unknown as { organizationId: string };
+    await organizationWrites.setCustomFieldValues(organizationId, (current) =>
+      customFieldValues.validateAndMerge('organization', current, { acquisition_source: 'trade_fair' }),
+    );
+  });
+  ```
+
+- **A failure changes nothing.** If `merge` throws — a validation failure
+  included — nothing is stored or recorded, and the error reaches you as it was
+  thrown. An unknown or deleted Organization answers `404 NOT_FOUND` before
+  `merge` is called.
+- **One audit entry**, `organization.set_custom_field_values`, naming the
+  keys whose value changed (`changedCustomFields`), never the values
+  themselves: the platform audit log is global, so a tenant's values stay out
+  of it. The actor is the one the call runs as: none (the system)
+  in a subscriber or a worker, the administrator inside an admin request. A
+  subscriber on `organization.registered.v1` runs as the system, because
+  registration is anonymous. Code that runs outside any request or job, such as
+  a bare timer, opens a scope first with `enterSystemScope`.
+- **After registration, not with it.** A subscriber on
+  `organization.registered.v1` runs once the registration has been committed.
+  If its write fails, the Organization stays registered without the value; the
+  failure is logged and never reaches the buyer.
+
+Never write the `organizations.custom_field_values` column directly. A direct
+write bypasses the validation, the audit entry and the module boundary.
 
 ### Picker primitive + diacritic-insensitive search
 

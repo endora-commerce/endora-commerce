@@ -587,6 +587,73 @@ export interface OrganizationDetailsPort {
 }
 
 /**
+ * Container name: `organizationCustomFieldWritePort`. Owner: `organizations`.
+ *
+ * The server-side write of an Organization's custom-field values — for code
+ * with no admin request to ride on: a subscriber on
+ * `organization.registered.v1`, an overlay module, an integration worker. The
+ * case it was published for is an `audience: internal` field (an acquisition
+ * source, say) set after self-registration, which by design cannot travel
+ * through the buyer's registration input. Before it the only ways were the
+ * admin HTTP API or a native `UPDATE organizations SET custom_field_values`,
+ * and the second breaks Principle I.
+ *
+ * A port of its own rather than a method on the read-only
+ * {@link OrganizationDetailsPort}, mirroring
+ * `CustomerAccountLifecycleWritePort.setCustomFieldValues` on the account side.
+ *
+ * **The merge is the caller's.** The owner loads the Organization, calls
+ * `merge` with its current bag and stores what `merge` returns — inside **one
+ * transaction, as one Command (`organization.set_custom_field_values`) with one
+ * audit row** naming the keys that changed (`changedCustomFields`), never
+ * their values (`specs/conventions/audit-state.md`). It is a callback rather
+ * than a pre-merged bag because the read, the validation and the write have
+ * to share that transaction, or a concurrent write is silently lost.
+ *
+ * **The owner does not validate.** Whatever `merge` returns is stored, so the
+ * caller validates inside it through `CustomFieldValuePort.validateAndMerge`
+ * (the administrator's rules — an `internal` field is accepted, unknown keys
+ * are dropped, every `required` definition is enforced):
+ *
+ * ```ts
+ * await organizationCustomFieldWritePort.setCustomFieldValues(organizationId, (current) =>
+ *   customFieldValueService.validateAndMerge('organization', current, { acquisition_source: 'trade_fair' }),
+ * );
+ * ```
+ *
+ * **Failures propagate unchanged.** A throwing `merge` — `custom_fields`'
+ * validation failure included — rolls the transaction back, stores nothing,
+ * records nothing, and reaches the caller as it was thrown. An unknown or
+ * soft-deleted Organization (or an id that is not a uuid) throws the platform's
+ * `404 NOT_FOUND` HTTP error before `merge` is called, as the account port does.
+ *
+ * **The actor is the ambient one.** The Command Bus records the actor of the
+ * caller's tenant context, never one passed in: an administrator inside an
+ * admin request, and a null actor (system) for a subscriber or a worker. A
+ * subscriber runs in its emitter's context, and `organization.registered.v1` is
+ * emitted by the anonymous registration request, which the platform scopes as
+ * system — so the entry records no actor. With no tenant context at all the bus
+ * refuses before `merge` runs (`MissingTenantContextError`); a detached caller
+ * (a timer, a script) opens one with `enterSystemScope`.
+ *
+ * **It is not transactional with registration.** Called from an
+ * `organization.registered.v1` subscriber it runs after the registration
+ * committed, in a transaction of its own: best effort. A failure leaves the
+ * Organization registered without the value, and the event bus logs a
+ * subscriber's error rather than surfacing it to the buyer.
+ *
+ * When `organizations` is off the method fails closed (503 `MODULE_DISABLED`);
+ * the module is the platform's one tenant concept, so in practice the gate
+ * cannot close.
+ */
+export interface OrganizationCustomFieldWritePort {
+  setCustomFieldValues(
+    organizationId: string,
+    merge: (current: Record<string, unknown>) => Promise<Record<string, unknown>>,
+  ): Promise<OrganizationRecord>;
+}
+
+/**
  * The tax id a reader may print or hand out for an Organization: a company's,
  * never a personal (B2C) Organization's, whose `taxId` is an internal 32-hex
  * placeholder derived from the account id (issue #767). `null` — not an empty
