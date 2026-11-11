@@ -108,7 +108,16 @@ const SUBJECTS: readonly Subject[] = [
   },
   {
     module: 'organizations',
-    actions: ['new-organization', 'open-organizations', 'open-registration-registry-lookup-settings'],
+    // `specs/177-tax-id-scope/` (`contracts/admin-surfaces.md` §3) added the
+    // scope screen and the personal-to-company conversion, each with its own
+    // route in the module's admin layer.
+    actions: [
+      'convert-personal-organization',
+      'new-organization',
+      'open-organizations',
+      'open-registration-registry-lookup-settings',
+      'open-tax-id-scope',
+    ],
     axis: 'platform-unavailable',
     admin: organizationsAdmin,
   },

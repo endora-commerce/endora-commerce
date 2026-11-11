@@ -1,6 +1,7 @@
 import { describe, expect, it } from 'vitest';
 import { ERROR_CODES } from '@endora-commerce/contracts';
 import type { CommandContext } from '@endora-commerce/platform/commands';
+import { ORGANIZATION_AUDIT_KEYS } from '../services/organization-audit-state.js';
 import {
   ORGANIZATION_TAX_ID_CHANGED,
   makeChangeTaxIdCommand,
@@ -90,6 +91,8 @@ describe('organization.tax_id.change', () => {
     expect(outcome.before).toBeNull();
     expect(outcome.after).toEqual({ changedFields: ['taxId'], vatStatusReset: true, taxIdScope: 'global' });
     expect(JSON.stringify([outcome.before, outcome.after])).not.toMatch(/PL5260250995|PL1234567890|1234567890/);
+    // `audit-state.md` §6 — the recorded keys are the module's allowlist.
+    for (const key of Object.keys(outcome.after ?? {})) expect(ORGANIZATION_AUDIT_KEYS.has(key), key).toBe(true);
   });
 
   it('emits organization.tax_id_changed.v1 with the id and no tax ID', async () => {
