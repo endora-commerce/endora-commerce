@@ -222,6 +222,15 @@ rather than counting them:
 Switching a module off is **not** uninstalling: it drops no data, configuration, bundles,
 permissions or schema.
 
+**That includes the extension columns a module declares on a core table**
+(`specs/178-extensible-columns/`). While the declaring module is off its `x_<moduleId>_*` columns
+are **inert and kept**: the platform's accessor fails closed (`ModuleDisabledError`) on every read
+and write, the host's admin reads omit the module from `?extensions=` exactly as if it were not
+installed, and the host's own writes, responses and audit rows are byte-identical in every
+presence state — no core path ever reads those columns. Nothing about them is per-module gating to
+write: the gate is the accessor's and the reads service's. Even a hard uninstall keeps them
+(orphaned in the ledger) until an audited `module:schema-extensions drop`.
+
 **The two therefore differ on the operator's activation choice, and the difference is
 deliberate.** `disable` → `enable` is a pause: the platform row flips, nothing else moves,
 and the choice comes back. A soft `uninstall` → `install` is taking the module off the

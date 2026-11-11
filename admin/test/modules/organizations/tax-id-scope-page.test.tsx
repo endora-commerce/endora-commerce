@@ -115,7 +115,10 @@ describe('Tax-ID scope page', () => {
     expect(apply()).toBeEnabled();
     fireEvent.click(apply());
     const dialog = await screen.findByRole('dialog');
-    expect(within(dialog).getByText(EN['taxIdScope.confirm.body']!)).toBeInTheDocument();
+    // FR-015a — the switch to per-tree-root says, before it is confirmed, that
+    // it cannot be undone from the admin once any tax ID is shared.
+    expect(within(dialog).getByText(EN['taxIdScope.confirm.bodyToPerTreeRoot']!)).toBeInTheDocument();
+    expect(within(dialog).queryByText(EN['taxIdScope.confirm.body']!)).toBeNull();
     putSpy.mockResolvedValue({ data: { ...STATUS, scope: 'per-tree-root' } });
     fireEvent.click(within(dialog).getByRole('button', { name: EN['taxIdScope.confirm.submit']! }));
     await waitFor(() => expect(status).toHaveTextContent(EN['taxIdScope.success']!));
@@ -142,7 +145,11 @@ describe('Tax-ID scope page', () => {
     );
     fireEvent.click(radio('taxIdScope.scope.global.label'));
     fireEvent.click(apply());
-    fireEvent.click(within(await screen.findByRole('dialog')).getByRole('button', { name: EN['taxIdScope.confirm.submit']! }));
+    const dialog = await screen.findByRole('dialog');
+    // FR-015a — the irreversibility warning belongs to the switch to per-tree-root only.
+    expect(within(dialog).getByText(EN['taxIdScope.confirm.body']!)).toBeInTheDocument();
+    expect(within(dialog).queryByText(EN['taxIdScope.confirm.bodyToPerTreeRoot']!)).toBeNull();
+    fireEvent.click(within(dialog).getByRole('button', { name: EN['taxIdScope.confirm.submit']! }));
     const alert = await screen.findByTestId('duplicates-alert');
     expect(alert).toHaveTextContent('2 tax IDs are shared.');
     const links = within(alert).getAllByRole('link');

@@ -237,22 +237,38 @@ załatwiłby stopień 2.
 
 ---
 
-## Nigdy nie jest stopniem: schemat
+## Drabina danych: gdzie trafiają nowe dane
 
-**Encji i migracji rdzenia nigdy się nie nadpisuje.** Własne tabele należą do modułu, którego
-jesteś właścicielem; dodatkowe pole w encji rdzenia dodaje się przez pola niestandardowe
-definiowane w czasie działania. Moduł nakładkowy wdrożenia nie zawiera ani klas encji, ani
-migracji, a generator odrzuca jedno i drugie.
+Stopnie powyżej zmieniają **zachowanie**. Nowe **dane** mają własną drabinę, uporządkowaną tak
+samo: zacznij od dołu.
+
+| Stopień | Mechanizm | Kto | Przetrwa aktualizacje, bo |
+| --- | --- | --- | --- |
+| D0 | **Pola niestandardowe definiowane w czasie działania** — operator definiuje pole encji gospodarza w panelu administracyjnym | operator, w czasie działania | to dane: wiersz definicji i wartość we własnym zbiorze wartości gospodarza |
+| D1 | **Tabela poboczna**, której właścicielem jest twój moduł, kluczowana identyfikatorem wiersza rdzenia i odczytywana przez port twojego modułu | dowolny twój moduł, zainstalowany pakiet | tabela jest twoja; rdzeń jej nie dotyka |
+| D2 | **Zadeklarowane kolumny rozszerzeń** — addytywne kolumny `x_<moduleId>_*` w rozszerzalnej tabeli rdzenia, deklarowane przez `defineColumnExtension` | zainstalowany pakiet modułu zależny od gospodarza | platforma generuje DDL, zapisuje je w rejestrze, weryfikuje przy każdej migracji i każdym starcie, a CI rdzenia pilnuje, by każda otwarta rozszerzalna tabela je zachowała |
+| D3 | **Wariant zapewniany przez moduł-właściciela** — typ, status, konfigurowalny kształt, który właściciel już modeluje | decyduje właściciel; ty konfigurujesz | to własny schemat właściciela |
+
+**D2 jest celowo wąski.** Rozszerzalne tabele to dokładnie tabele gospodarzy pól
+niestandardowych — wyprowadzane z rejestru powiązań pól niestandardowych, nigdy z drugiej listy —
+a w tym wydaniu otwarta jest tylko `organizations` (pozostałe osiem dojdzie w późniejszym
+wydaniu). Moduł deklarujący jest właścicielem swoich kolumn `x_<moduleId>_*` i tylko jego kod je
+zapisuje, przez akcesor platformy, wewnątrz polecenia (Command) albo haka polecenia; gospodarz
+zachowuje tabelę, jej ograniczenia i wszystkie niezadeklarowane kolumny. Odinstalowanie modułu
+pozostawia kolumny (rejestr oznacza je jako osierocone), dopóki operator nie usunie ich
+audytowanym poleceniem. Przykład i wszystkie reguły są na stronie
+[Zadeklarowane kolumny rozszerzeń](./schema-extensions.md).
+
+**Nigdy nie jest stopniem: nadpisywanie schematu rdzenia.** Kolumny, ograniczenia, indeksu ani
+klasy encji rdzenia nigdy nie zmienia się spoza ich modułu, a migracja pakietu zapisująca tabelę
+innego modułu jest odrzucana przy `migrate` — przez platformę, nie przez przegląd kodu. Moduł
+nakładkowy wdrożenia nie zawiera ani klas encji, ani migracji, a generator odrzuca jedno i drugie:
+utwórz tabelę we własnym module (D1) i odczytuj ją z nakładki przez port tego modułu.
 
 Powodem **nie** jest kolejność migracji — ten argument sprawdzono pomiarem, okazał się fałszywy i
 został wycofany. Powód jest taki, że wspólny schemat rdzenia to jedyne, co w ogóle umożliwia
-aktualizacje, a nakładka znajduje się w tym samym repozytorium i w tym samym buildzie co rdzeń,
-więc rozwiązanie kosztuje tylko jeden katalog: utwórz tabelę we własnym module i odczytuj ją z
-nakładki przez port tego modułu.
-
-**Zainstalowany pakiet rozszerzenia** to przypadek odwrotny i może zawierać jedno i drugie: autor
-zewnętrzny nie ma modułu rdzenia, więc ta sama reguła byłaby dla pakietów rozszerzeń zakazem, a nie
-ograniczeniem, które da się obejść projektem.
+aktualizacje: D1 i D2 to dwa sposoby dodania schematu, których aktualizacja rdzenia ma obowiązek
+— sprawdzany — nie zepsuć.
 
 ---
 

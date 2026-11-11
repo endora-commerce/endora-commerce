@@ -100,6 +100,12 @@ export { runUninstallCommand } from './commands/uninstall.js';
 export { runEnableCommand } from './commands/enable.js';
 export { runDisableCommand } from './commands/disable.js';
 export { runStatusCommand } from './commands/status.js';
+// `specs/178-extensible-columns/` FR-081 — the ledger list and the audited drop.
+export {
+  SCHEMA_EXTENSIONS_EXIT,
+  runSchemaExtensionsCommand,
+  type SchemaExtensionsRuntime,
+} from './commands/schema-extensions.js';
 // The entry point itself, since `fix/instance-wiring-operator-runtime`. An
 // instance's five files were five lines each over a **90-line** `runtime.ts`
 // that named nothing but platform symbols, and R1.4 bounds the wiring a client
@@ -118,6 +124,11 @@ export { runStatusCommand } from './commands/status.js';
 // stay exported from their own file, one relative import away, for the merge
 // request that first gives one of them a consumer out here.
 export { runInstanceOperatorCommand } from './commands/operator-entry.js';
+// Issue #1036 — the instance's sixth operator command, `module:schema-extensions`.
+// One name for the same reason as the one above: it is what the rendered
+// `backend/src/module-commands/schema-extensions.ts` imports, and the runtime
+// builder behind it has no consumer out here.
+export { runInstanceSchemaExtensionsCommand } from './commands/schema-extensions-entry.js';
 // The persistent escape-hatch audit sink, for an application's own `module:*`
 // entry points — the ones that build their runtime by hand rather than through
 // `runInstanceOperatorCommand`, which attaches it itself. `composeApp` attaches

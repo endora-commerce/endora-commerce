@@ -197,6 +197,11 @@ describe('POST /api/v1/admin/organizations', () => {
     for (const payload of [
       body({ name: '' }),
       body({ taxId: '1' }),
+      // `specs/177-tax-id-scope/` review finding 5 — the length is held after
+      // normalisation: dashes alone are empty, and an over-long value is a
+      // 400 rather than reaching `varchar(32)`.
+      body({ taxId: '--------' }),
+      body({ taxId: '1'.repeat(33) }),
       body({ salesChannelIds: [] }),
       body({ salesChannelIds: [channelA, channelA] }),
       body({ status: 'blocked' }),

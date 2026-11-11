@@ -44,6 +44,45 @@ inherits the new parent's terms.
 The admin UI exposes a parent picker plus a subtree/ancestor view on the
 organization detail page.
 
+- **Create a branch directly** — *New organization* (`POST
+  /api/v1/admin/organizations` with `parentId`) creates the organization under
+  a parent in the same audited command, within the depth limit. Naming a parent
+  is reserved to a platform administrator: a sales representative is refused
+  `403`, and the form does not offer the field to them. An unknown parent is
+  `404`.
+
+## Branches sharing a tax ID
+
+By default every tax ID belongs to one organization, so a branch needs a tax ID
+of its own. An installation whose branches legally share the head office's tax
+ID switches the **tax-ID scope** to *One tree per tax ID* (`per-tree-root`) on
+*Organizations → Tax-ID scope*; the *Organizations* page describes the screen,
+its permission and how to switch back.
+
+In `per-tree-root` a tax ID may be held by several organizations **only when
+they are in one tree** — the same root:
+
+- **Creating.** A branch created under the head office, or under any of its
+  descendants, may carry the tree's tax ID; the branch's orders, invoices and
+  quote documents then print it. A new root organization (an admin create
+  without a parent, or any self-registration) may not use a tax ID that any
+  tree holds: `409 ORGANIZATION_TAX_ID_EXISTS`.
+- **Moving.** Assigning, moving or detaching a parent is refused
+  `409 ORGANIZATION_TREE_INVALID` with `details.code =
+  'tax_id_shared_across_trees'` and `details.taxIds` when the result would put
+  one tax ID into two trees — detaching a branch that shares its head office's
+  tax ID to a root, or moving it under another tree. Nothing changes. The check
+  covers the whole moved subtree: moving a branch **together with** everything
+  that shares its tax ID into a tree that has no such tax ID is allowed.
+- **The root decides.** The root is the first organization on the stored
+  `path`, recorded in the generated column `organizations.root_id`. A branch
+  whose head office is soft-deleted still belongs to that tree.
+- **Lookups** by tax ID answer the tree's root first
+  (`organizationDetailsPort.findByTaxId` / `resolveByTaxId`).
+
+In the default `global` scope moves behave as before: no tax ID can be on two
+organizations, so a move never meets this refusal.
+
 ## Roll-up scope
 
 Visibility across descendants is **permission-gated** by the

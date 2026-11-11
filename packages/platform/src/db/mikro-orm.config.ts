@@ -4,6 +4,15 @@ import { PluralizingNamingStrategy } from './pluralizing-naming-strategy.js';
 import { OrgWriteGuardSubscriber } from '../tenancy/org-write-guard.js';
 import type { ConfiguredEntity } from './configured-entities.js';
 import type { ConfiguredMigrations } from './configured-migrations.js';
+import { schemaExtensionProjections } from './schema-extension-projection.js';
+import { schemaExtensionDiscovery } from './table-mapping-rule.js';
+import {
+  rolledOutExtensibleHosts,
+  type ExtensibleHostSet,
+} from '../kernel/schema-extensions/extensible-hosts.js';
+import { SchemaExtensionInvalidError } from '../kernel/schema-extensions/errors.js';
+import { recordActiveSchemaExtensions } from '../kernel/schema-extensions/registry.js';
+import type { ColumnExtension } from '../kernel/schema-extensions/types.js';
 
 /**
  * MikroORM configuration for an Endora platform.
@@ -51,6 +60,45 @@ export interface OrmConfigurationInputs {
   readonly entities: readonly ConfiguredEntity[];
   /** The merged execution order — `configuredMigrations`' answer. */
   readonly migrations: ConfiguredMigrations;
+  /**
+   * The declared extension columns to project (`specs/178-extensible-columns/`
+   * FR-030). Defaults to every declaration the installed packages the order was
+   * merged from contribute — the same packages, so the ORM and the migration
+   * order can never disagree about which declarations exist.
+   */
+  readonly schemaExtensions?: readonly ColumnExtension[];
+  /**
+   * The extensible hosts in force. Defaults to the rolled-out list (FR-011);
+   * the platform's own tests pass a throwaway host table here.
+   */
+  readonly extensibleHosts?: ExtensibleHostSet;
+}
+
+/**
+ * The declarations to project, held to V2 against the hosts in force.
+ *
+ * V9 – V11 were asked when the package was read; V2 is asked here as well as
+ * in the migration merge because both are the platform's statement of which
+ * hosts are rolled out, and either one alone could be bypassed by a caller that
+ * built the other's input by hand.
+ */
+function projectedDeclarations(inputs: OrmConfigurationInputs): readonly ColumnExtension[] {
+  const declarations =
+    inputs.schemaExtensions ??
+    inputs.migrations.packages.flatMap((contribution) => contribution.schemaExtensions ?? []);
+  const hosts = inputs.extensibleHosts ?? rolledOutExtensibleHosts();
+  for (const declaration of declarations) {
+    if (!hosts.has(declaration.host)) {
+      throw new SchemaExtensionInvalidError(
+        'host-not-extensible',
+        declaration.module,
+        null,
+        `"${declaration.host}" is not extensible on this platform; extensible hosts: ` +
+          `${[...hosts.keys()].sort().join(', ') || '(none)'}`,
+      );
+    }
+  }
+  return declarations;
 }
 
 /**
@@ -84,6 +132,19 @@ export function mikroOrmConfigFrom(inputs: OrmConfigurationInputs): Options {
     console.warn(diagnostic.message);
   }
 
+  // `specs/178-extensible-columns/` FR-030, FR-031. One projection per declared
+  // extension, on its host's own table, and the duplicate-table rule that lets
+  // exactly those through. The pair is set with no declaration too: MikroORM's
+  // own check is never off without the rule, and a configuration that set it
+  // only sometimes would be two configurations to reason about.
+  const declarations = projectedDeclarations(inputs);
+  const projections = schemaExtensionProjections(declarations, inputs.entities);
+  recordActiveSchemaExtensions({
+    declarations,
+    hosts: inputs.extensibleHosts ?? rolledOutExtensibleHosts(),
+    ownership: inputs.migrations.ownership,
+  });
+
   return defineConfig({
     clientUrl: databaseUrl(),
     namingStrategy: PluralizingNamingStrategy,
@@ -92,7 +153,8 @@ export function mikroOrmConfigFrom(inputs: OrmConfigurationInputs): Options {
     // transform and which breaks under Vitest. See
     // backend/src/db/entities-registry.generated.ts for the rationale and for
     // what emits it, and ./configured-entities.ts for the package half.
-    entities: [...inputs.entities],
+    entities: [...inputs.entities, ...projections.schemas],
+    discovery: schemaExtensionDiscovery(projections.allowed),
     // The tenant guard on the write side (D-260/A). One subscriber, over the
     // classification registry the `@OrgScoped()` decorators already write, so
     // there is nothing per entity and nothing per module to declare here as

@@ -153,8 +153,12 @@ describe('/api/v1/admin/organizations/tax-id-scope', () => {
       const res = await request('PUT', 'stub-admin-session', { scope: 'global' });
       expect(res.statusCode, res.body).toBe(409);
       const error = (res.json() as {
-        error: { code: string; details: { code: string; sharedTaxIdCount: number; examples: unknown[] } };
+        error: { code: string; message: string; details: { code: string; sharedTaxIdCount: number; examples: unknown[] } };
       }).error;
+      // FR-015a — the sentence keyed by `details.code` says the sharing cannot
+      // be resolved from the admin, and suggests no remedy the admin lacks.
+      expect(error.message).toMatch(/cannot be resolved from the admin/);
+      expect(error.message).not.toMatch(/give each|remove the extra/i);
       expect(error.code).toBe(ERROR_CODES.ORGANIZATION_TAX_ID_SCOPE_DUPLICATES);
       expect(error.details.code).toBe('shared_tax_ids');
       expect(error.details.sharedTaxIdCount).toBeGreaterThanOrEqual(1);

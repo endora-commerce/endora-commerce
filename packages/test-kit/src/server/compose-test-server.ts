@@ -81,7 +81,13 @@ import {
   type SettingsKernel,
 } from '@endora-commerce/platform/composition';
 import { CommandBus } from '@endora-commerce/platform/commands';
+import {
+  activeSchemaExtensionContext,
+  createSchemaExtensionReads,
+  verifySchemaExtensions,
+} from '@endora-commerce/platform/db';
 import { EventBus } from '@endora-commerce/platform/events';
+import { effectiveState } from '@endora-commerce/platform/kernel';
 import type { TenantContext } from '@endora-commerce/platform/tenancy';
 
 import { mergeTestSupportRegistrations } from '../support/index.js';
@@ -302,6 +308,15 @@ export async function composeTestServer(
   const manifests = composition.manifests.map((entry) => entry.manifest);
 
   const orm = await composition.orm.open();
+  // As `composeApp` does (`specs/178-extensible-columns/` FR-026): the declared
+  // extension columns are held to the database before anything composes over
+  // it. With no declaration — every composition this kit serves today — it
+  // issues no statement.
+  await verifySchemaExtensions(
+    (sql, params = []) =>
+      orm.em.getConnection().execute(sql, params, 'all') as Promise<Record<string, unknown>[]>,
+    activeSchemaExtensionContext(),
+  );
   // Mirror the production seam: forks stamp the tenant filter from the ambient
   // `TenantContext`, which the request-scope hook below establishes.
   const em = (): EntityManager => forkScopedEm(orm);
@@ -425,6 +440,12 @@ export async function composeTestServer(
       auditLogService,
       // Issue #844 — as `composeApp` registers it.
       auditRedactionService: new AuditRedactionService(em, auditLogService),
+      // `specs/178-extensible-columns/` FR-051 — as `composeApp` registers it, so
+      // a host route's `?extensions=` resolves in a test composition too.
+      schemaExtensionReads: createSchemaExtensionReads({
+        declarations: () => activeSchemaExtensionContext().declarations,
+        state: effectiveState,
+      }),
       apiInterceptors,
       resolvedModuleRegistry: composition.manifests,
       // Whether this process runs queue consumers — the platform's one

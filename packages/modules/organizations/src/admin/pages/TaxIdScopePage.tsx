@@ -258,7 +258,13 @@ export function TaxIdScopePage(): ReactNode {
             </>
           }
         >
-          <p className="text-sm">{t('taxIdScope.confirm.body')}</p>
+          {/* FR-015a — a switch to per-tree-root cannot be undone from the admin
+              once any tax ID is shared, so it says so before it is confirmed. */}
+          <p className="text-sm">
+            {selected === 'per-tree-root' && status?.scope !== 'per-tree-root'
+              ? t('taxIdScope.confirm.bodyToPerTreeRoot')
+              : t('taxIdScope.confirm.body')}
+          </p>
         </ModalDialog>
       ) : null}
     </>

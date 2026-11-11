@@ -1,14 +1,12 @@
 import { describe, expect, it } from 'vitest';
+import { requiredModulesOf, reverseEdgeClause } from '@endora-commerce/platform/db';
 import { existsSync, readdirSync, readFileSync } from 'node:fs';
 import { join } from 'node:path';
 import {
   buildTableOwners,
   scanModuleBoundaryTree,
 } from '../../../scripts/check-module-boundary.js';
-import {
-  closureOf,
-  type DeclaredDependencies,
-} from '../../../scripts/lib/manifest-dependencies.js';
+import { type DeclaredDependencies } from '../../../scripts/lib/manifest-dependencies.js';
 import { requireModuleLayout } from '../../../scripts/lib/module-roots.js';
 import { DISCOVERED_MANIFESTS } from '../../../src/manifest-index.generated.js';
 import { coreMigrationDirs } from '../../helpers/fk-graph.js';
@@ -140,16 +138,13 @@ function columnDdlSites(migration: MigrationText): ColumnDdlSite[] {
   return sites;
 }
 
-/** The locked set, derived — never written down. */
+/**
+ * The locked set, derived — never written down. The platform's implementation,
+ * the one the foreign-schema guard and `composer:generate` read too
+ * (`specs/178-extensible-columns/` D-291 R-A7).
+ */
 function requiredSetOf(manifests: readonly ManifestFacts[]): ReadonlySet<string> {
-  return new Set(
-    manifests
-      .filter((entry) => {
-        const activation = entry.manifest.activation as { nonDeactivatable?: unknown } | undefined;
-        return activation?.nonDeactivatable === true;
-      })
-      .map((entry) => entry.id),
-  );
+  return requiredModulesOf(manifests as never);
 }
 
 interface ReverseEdgeResult {
@@ -187,9 +182,8 @@ function reverseEdgeAnalysis(input: {
 
   const grouped = new Map<string, ForeignColumnFinding & { subcommands: string[] }>();
   for (const site of foreignSites) {
-    if (site.writer === CORE_WRITER) continue;
-    if (closureOf(site.owner, dependencies).has(site.writer)) continue;
-    if (required.has(site.writer) && required.has(site.owner)) continue;
+    // D-291 R-A7 — one predicate, shared with the guard and `composer:generate`.
+    if (reverseEdgeClause({ writer: site.writer, owner: site.owner, dependencies, required }) !== null) continue;
     const key = JSON.stringify([site.file, site.table, site.column]);
     const existing = grouped.get(key);
     if (existing === undefined) {

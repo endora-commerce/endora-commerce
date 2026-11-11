@@ -40,6 +40,7 @@ import type { EntityClassLike } from '../packages/package-runtime.js';
 import { AuditLogEntry } from '@endora-commerce/platform/kernel';
 import { ModuleRegistration } from '@endora-commerce/platform/composition';
 import { SalesChannel } from '@endora-commerce/platform/kernel';
+import { SchemaExtensionElement } from '@endora-commerce/platform/composition';
 import { SettingGroup } from '@endora-commerce/platform/kernel';
 import { SettingValue } from '@endora-commerce/platform/kernel';
 import { Setting } from '@endora-commerce/platform/kernel';
@@ -109,6 +110,7 @@ export const ALL_ENTITIES = [
   AuditLogEntry,
   ModuleRegistration,
   SalesChannel,
+  SchemaExtensionElement,
   SettingGroup,
   SettingValue,
   Setting,

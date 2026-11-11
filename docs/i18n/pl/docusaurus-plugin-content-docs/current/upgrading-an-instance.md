@@ -5020,6 +5020,112 @@ bez względu na to, które organizacje widzi.
 **Po aktualizacji** nie trzeba nic robić. Raport, który odczytywał kwoty faktur z dziennika
 audytu, odczytuje je z samych faktur.
 
+### Polecenia rozszerzeń schematu działają w instancji {#schema-extensions-instance-command}
+
+Wydanie z tą zmianą dodaje `module:schema-extensions` do szkieletu instancji, obok pięciu poleceń
+`module:*` (zgłoszenie #1036). W katalogu głównym instancji:
+
+```bash
+pnpm run module:schema-extensions list                      # zadeklarowane kolumny rozszerzeń i osierocone
+pnpm run module:schema-extensions drop <moduleId>           # wypisuje plan
+pnpm run module:schema-extensions drop <moduleId> --confirm # usuwa osierocone elementy, jeden wpis audytu
+pnpm run module:schema-extensions audit-packages            # czego migrate by odmówiło, nic nie wykonując
+```
+
+`drop` usuwa wyłącznie elementy osierocone, których żaden zainstalowany pakiet już nie deklaruje;
+to jedyny sposób usunięcia kolumn pozostawionych przez odinstalowany moduł. `audit-packages` czyta
+migracje wszystkich zainstalowanych pakietów, nie wykonując żadnej z nich, i wypisuje każdą
+instrukcję, której strażnik obcego schematu odmawia przy `migrate` (kod wyjścia 65, dopóki taka
+istnieje). `migrate` zatrzymuje się na pierwszej takiej instrukcji i wycofuje cały przebieg;
+`audit-packages` wymienia wszystkie.
+
+**Instancja utworzona przed tym wydaniem** nie ma tego polecenia: `pnpm run upgrade` nie zmienia
+żadnego pliku twojego drzewa. Dodaj je ręcznie, a następnie uruchom `pnpm run build:backend`:
+
+1. `backend/src/module-commands/schema-extensions.ts`:
+
+   ```ts
+   import { runInstanceSchemaExtensionsCommand } from '@endora-commerce/platform/lifecycle';
+   import config from '../mikro-orm.config.js';
+
+   await runInstanceSchemaExtensionsCommand({ ormConfig: config });
+   ```
+
+2. W `backend/package.json`, w `scripts`:
+   `"module:schema-extensions": "node --env-file-if-exists=../.env dist/module-commands/schema-extensions.js"`.
+3. W głównym `package.json` instancji, w `scripts`:
+   `"module:schema-extensions": "pnpm -C backend run module:schema-extensions"`.
+
+**Po aktualizacji**, jeśli `migrate` zostało odrzucone z `foreign-schema-write`, uruchom
+`pnpm run module:schema-extensions audit-packages`, aby zobaczyć każdą instrukcję, której by
+odmówiło, i poproś autora pakietu o wydanie, które zamiast tego deklaruje swoje kolumny.
+
+### Katalog odczytuje cały nagłówek `Accept-Language` {#catalog-accept-language}
+
+Wydanie z tą zmianą sprawia, że katalog odczytuje `Accept-Language` zgodnie z definicją tego
+nagłówka, jako listę języków z wagami (zgłoszenie #397). Publiczne API katalogu (`/api/v1/catalog/*`) i zewnętrzne API katalogu
+(`/api/v1/external/catalog/*`) brały dotąd pierwszy wpis nagłówka dosłownie, razem z ewentualną
+wagą `;q=`.
+
+**Zmiana zachowania po aktualizacji:**
+
+- Tagi są odczytywane według wagi `q`, od najwyższej. Katalog odpowiada w pierwszym języku, który
+  oferuje kanał sprzedaży, dopasowanym dokładnie albo po samym języku, więc `pl` pasuje do `pl-PL`
+  kanału. Jeśli kanał nie oferuje żadnego z nich, odpowiada w domyślnym języku kanału.
+  `en;q=0.1, pl-PL;q=0.9` dostaje teraz odpowiedź po polsku. Wcześniej odpowiedź była po
+  angielsku.
+- Język, którego kanał nie oferuje, nie jest już serwowany, nawet jeśli nazwa kategorii albo
+  etykieta atrybutu ma w nim tekst. Odpowiedź jest w domyślnym języku kanału.
+- Sklep wysyła język, który ustalił dla kanału, więc zwykle zmiana go nie dotyczy. Nie dotyczy też
+  żądania bez tego nagłówka.
+
+**Po aktualizacji** sprawdź integracje, które wywołują API katalogu z własnym `Accept-Language`.
+Integracja, która potrzebuje konkretnego języka, musi prosić o język oferowany przez kanał
+sprzedaży. Jeśli go brakuje, dodaj go do kanału na ekranie **Kanały sprzedaży**.
+
+### Adresy subskrybentów znikają z dziennika audytu platformy {#newsletter-audit-names-only}
+
+Wydanie z tą zmianą przestaje zapisywać adresy e-mail subskrybentów newslettera i powody wypisania
+w dzienniku audytu całej platformy (zgłoszenie #470). Ten dziennik to jedna tabela, czytana przez
+każdego, kto ma `audit_log:read`, bez względu na to, co widzi.
+
+**Zmiana zachowania po aktualizacji:**
+
+- Na ekranie **Dziennik audytu** i w `audit_logs read` nowy wpis `newsletter_subscribe`,
+  `newsletter_resubscribe`, `newsletter_bounce`, `newsletter_complaint` albo `newsletter_delete`
+  nie zawiera już adresu e-mail, a nowy wpis `newsletter_unsubscribe` nie zawiera już powodu;
+  zapisuje `hasReason`. Wpisy nazywają subskrybenta identyfikatorem. Zablokowanie adresu, który nie
+  ma subskrybenta, jest zapisywane dla wiersza blokady (`newsletter_suppression` i identyfikator
+  wiersza), a nie dla samego adresu.
+- Subskrybenci, ich powody wypisania i lista blokad się nie zmieniają.
+- Wpisy zapisane przed aktualizacją nie są przepisywane: zachowują swoje adresy i powody.
+
+**Po aktualizacji** nie trzeba nic robić. Raport, który wyszukiwał subskrybentów po adresie w
+dzienniku audytu, wyszukuje ich na ekranie **Newsletter**.
+
+### Wartości edytowanej organizacji znikają z dziennika audytu platformy {#organization-admin-patch-audit-names-only}
+
+Wydanie z tą zmianą przestaje zapisywać wartości organizacji w dzienniku audytu całej platformy,
+gdy operator ją edytuje (zgłoszenie #470, decyzja właściciela O-2: nazwa organizacji, jej NIP i
+powody to wartości klienta). Ten dziennik to jedna tabela, czytana przez każdego, kto ma
+`audit_log:read`, bez względu na to, które organizacje widzi.
+
+**Zmiana zachowania po aktualizacji:**
+
+- Na ekranie **Dziennik audytu** i w `audit_logs read` nowy wpis `organization.admin_patch`
+  (`PATCH /api/v1/admin/organizations/:id`) nie zawiera już migawki organizacji: nazwy, nazwy
+  prawnej, NIP-u, adresu rejestrowego, adresów e-mail do potwierdzeń zamówień, powodu blokady ani
+  odrzucenia ani wartości pól niestandardowych.
+- Zamiast tego zapisuje kody statusu, statusu VAT i strategii realizacji przed zmianą i po niej
+  oraz nazywa to, co się zmieniło: pola jako `changedFields`, klucze pól niestandardowych jako
+  `changedCustomFields`.
+- Organizacja i jej wartości się nie zmieniają.
+- Wpisy zapisane przed aktualizacją nie są przepisywane: zachowują migawkę, z którą zostały
+  zapisane.
+
+**Po aktualizacji** nie trzeba nic robić. Raport albo eksport, który odczytywał wartości
+organizacji z dziennika audytu, odczytuje je z organizacji (`GET /api/v1/admin/organizations/:id`).
+
 ## Instancja niespójna od początku
 
 Instalator `0.101.x` lub starszy zapisywał każdy pakiet wydania z `^` poza

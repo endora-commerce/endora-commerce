@@ -15,20 +15,27 @@
 import type { LedgerEntry } from '../../check-module-boundary.js';
 
 export const entries: Readonly<Record<string, LedgerEntry>> = {
-  'packages/modules/organizations/src/migrations/20260717T151403_organizations_personal_organizations.ts:customer_accounts':
-    'The `down()` half of feature 051\'s personal-organization backfill: it clears ' +
-    '`customer_accounts.organization_id` on the accounts this migration re-parented, then ' +
-    'removes the organizations it created. The `up()` half only **reads** the table and is ' +
-    'therefore not an R2 finding — a cross-module read is legitimate under a declaration, ' +
-    'and only a write is not made legitimate by one.\n\n' +
-    '**Seam: `customer_accounts`\' own migration**, or rather its absence of one — the ' +
-    'honest shape here is that a rollback which un-does a two-module change has to touch ' +
-    'both modules\' rows, and this repository has never decided how a `down()` spanning two ' +
-    'owners is written. Neither of `specs/097-migration-sql-boundary/research.md` §8\'s two adapter seams applies: an ' +
-    '`installHook` has no uninstall-time twin that runs during a migration rollback, and ' +
-    'the owner cannot write a `down()` for a migration it does not own.\n\n' +
-    'Retired by: an owner ruling on cross-module `down()`, which nobody has taken and which ' +
-    'this entry holds open rather than pre-empting. Note that `20260717T151403` is below ' +
-    '`BASELINE_THROUGH` and applied everywhere, so whatever is ruled has to be a no-op for a ' +
-    'database that already ran it.',
+  'packages/modules/organizations/src/migrations/20260717T151403_organizations_personal_organizations.ts:customer_accounts': {
+    sites: 2,
+    reason:
+      'Both halves of feature 051\'s personal-organization backfill write the table. The `up()` ' +
+      're-parents every no-organization customer account onto the personal organization it ' +
+      'creates (`with created as (insert into "organizations" … select … from "customer_accounts") ' +
+      'update "customer_accounts" … set "organization_id"`), and the `down()` clears ' +
+      '`customer_accounts.organization_id` on those accounts again before removing the ' +
+      'organizations. This entry read "the `up()` half only **reads** the table" until ' +
+      '`specs/178-extensible-columns/` T062: `sqlTableAccesses` recorded a table a statement ' +
+      'reads before it writes as a read only, and the parity test with the runtime ' +
+      'foreign-schema guard\'s classifier is what measured it.\n\n' +
+      '**Seam: `customer_accounts`\' own migration**, or rather its absence of one — the ' +
+      'honest shape here is that a rollback which un-does a two-module change has to touch ' +
+      'both modules\' rows, and this repository has never decided how a `down()` spanning two ' +
+      'owners is written. Neither of `specs/097-migration-sql-boundary/research.md` §8\'s two adapter seams applies: an ' +
+      '`installHook` has no uninstall-time twin that runs during a migration rollback, and ' +
+      'the owner cannot write a `down()` for a migration it does not own.\n\n' +
+      'Retired by: an owner ruling on cross-module `down()`, which nobody has taken and which ' +
+      'this entry holds open rather than pre-empting. Note that `20260717T151403` is below ' +
+      '`BASELINE_THROUGH` and applied everywhere, so whatever is ruled has to be a no-op for a ' +
+      'database that already ran it.',
+  },
 };

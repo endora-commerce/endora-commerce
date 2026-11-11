@@ -29,7 +29,11 @@ import {
 import { EmailVerificationService } from './services/email-verification-service.js';
 import { InvitationService } from './services/invitation-service.js';
 import { noopOrgTemplateEmail, type OrgTemplateEmail } from './services/org-template-email.js';
-import type { AuditPort, SalesChannelMembershipPort } from '@endora-commerce/platform/kernel';
+import type {
+  AuditPort,
+  SalesChannelMembershipPort,
+  SchemaExtensionReads,
+} from '@endora-commerce/platform/kernel';
 import { registerOrganizationsPublicRoutes } from './routes.public.js';
 import { registerOrganizationsCustomerRoutes } from './routes.customer.js';
 import { registerOrganizationsStorefrontRoutes } from './routes.storefront.js';
@@ -183,6 +187,11 @@ export interface OrganizationsModuleOptions {
    * the values of the admin Organization and member creates.
    */
   customFieldValues?: CustomFieldValuePort;
+  /**
+   * `specs/178-extensible-columns/` FR-051 — the platform's reader of declared
+   * extension columns, for `?extensions=` on the admin detail and list reads.
+   */
+  schemaExtensionReads?: SchemaExtensionReads;
   /**
    * The Command Bus (Principle XIII): the org-hierarchy tree mutations
    * (`organization.set_parent` / `organization.move`, feature 056) and, since
@@ -355,6 +364,7 @@ export function organizationsModule(options: OrganizationsModuleOptions) {
           ? { taxIdValidationService: options.taxIdValidationService }
           : {}),
         ...(options.customFieldValues ? { customFieldValues: options.customFieldValues } : {}),
+        ...(options.schemaExtensionReads ? { schemaExtensionReads: options.schemaExtensionReads } : {}),
         // Feature 154 — the Organization's *Sales channels* endpoints and the
         // admin create.
         ...(options.salesChannelMembership

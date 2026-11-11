@@ -172,6 +172,7 @@ T084.
 | FR-007 | WP-1 | migration test asserts `orders`/audit untouched (row counts and a sample) |
 | FR-010, FR-011, FR-012, FR-013 | WP-1, WP-3 | `backend/test/integration/organizations/tax-id-scope-migration.test.ts`; `tax-id-scope-command.test.ts` |
 | FR-014, FR-015, FR-016 | WP-3 | `backend/test/integration/organizations/tax-id-scope-command.test.ts` |
+| FR-015a | WP-8 | `backend/test/contract/organizations/tax-id-scope-routes.contract.test.ts`, `admin/test/modules/organizations/tax-id-scope-page.test.tsx` |
 | FR-017 | WP-3 | `backend/test/contract/organizations/tax-id-scope-routes.contract.test.ts` |
 | FR-018, FR-019 | WP-3 | `backend/test/contract/organizations/admin-organization-create.contract.test.ts` (extended) |
 | FR-020 | WP-3 | `backend/test/contract/organizations/organization-tree.contract.test.ts` (extended) |

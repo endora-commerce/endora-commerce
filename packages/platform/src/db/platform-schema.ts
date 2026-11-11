@@ -57,6 +57,7 @@ import { SalesChannel } from '../kernel/sales-channels/sales-channel.entity.js';
 import { Setting } from '../kernel/settings/setting.entity.js';
 import { SettingGroup } from '../kernel/settings/setting-group.entity.js';
 import { SettingValue } from '../kernel/settings/setting-value.entity.js';
+import { SchemaExtensionElement } from '../kernel/schema-extensions/schema-extension-element.entity.js';
 import {
   Migration20260424T165847CoreFoundationInit,
   Migration20260425T050720CoreCommerceInit,
@@ -76,6 +77,7 @@ import {
   Migration20261028T173317CoreSalesChannelsRetireIsPublic,
   Migration20261029T152922CoreSalesChannelsPrefixDefaultLanguage,
   Migration20261103T162518CoreAuditActorCustomerAccount,
+  Migration20261110T140633CoreSchemaExtensionsLedger,
 } from '../migrations/index.js';
 import type { MigrationRegistryEntry } from './migration-order.js';
 
@@ -106,6 +108,7 @@ export const PLATFORM_ENTITIES: readonly EntityClassLike[] = [
   Setting,
   SettingGroup,
   SettingValue,
+  SchemaExtensionElement,
 ];
 
 /**
@@ -141,6 +144,7 @@ export const PLATFORM_MIGRATION_ENTRIES: readonly MigrationRegistryEntry[] = [
   Migration20261028T173317CoreSalesChannelsRetireIsPublic,
   Migration20261029T152922CoreSalesChannelsPrefixDefaultLanguage,
   Migration20261103T162518CoreAuditActorCustomerAccount,
+  Migration20261110T140633CoreSchemaExtensionsLedger,
 ].map((cls) => ({ moduleId: CORE_MODULE_ID, cls }));
 
 /**

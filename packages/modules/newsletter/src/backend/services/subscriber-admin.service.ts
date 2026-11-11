@@ -129,7 +129,8 @@ export class NewsletterSubscriberAdminService {
       action: 'newsletter_delete',
       objectType: 'newsletter_subscriber',
       objectId: sub.id,
-      stateBefore: { email: sub.email },
+      // Which subscriber by id (`objectId`), never the address (#470, D-288).
+      stateBefore: { status: sub.status },
     });
     await em.removeAndFlush(sub); // bridges cascade via FK
   }

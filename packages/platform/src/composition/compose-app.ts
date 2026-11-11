@@ -102,6 +102,12 @@ import { effectiveState } from '../kernel/lifecycle/effective-state.js';
 import { publishStateChanged, registryCache } from '../kernel/lifecycle/registry-cache.js';
 import { requiredModulesFrom } from '../kernel/lifecycle/required-modules.js';
 import { platformLogger } from '../kernel/logging.js';
+import {
+  activeSchemaExtensionContext,
+  activeSchemaExtensions,
+} from '../kernel/schema-extensions/registry.js';
+import { createSchemaExtensionReads } from '../kernel/schema-extensions/reads.js';
+import { verifySchemaExtensions } from '../db/schema-extension-verifier.js';
 import { createRegistrationOwnership } from '../kernel/module-context.js';
 import {
   assertPublicApiBaseUrlConfigured,
@@ -522,6 +528,17 @@ export async function composeApp(options: ComposeAppOptions): Promise<ComposeApp
   const ormLifecycle = supplied.orm ?? (fallback?.orm as AppOrmLifecycle);
 
   const orm = await ormLifecycle.open();
+  // `specs/178-extensible-columns/` FR-026 — the declared extension columns are
+  // held to the database before anything is composed over it: a column dropped
+  // by hand, or lost to an upgrade, fails the boot naming the module, the key,
+  // the column, the host and its owner's last executed migration. Read-only,
+  // and with no declaration it issues no statement at all.
+  await verifySchemaExtensions(
+    (sql, params = []) =>
+      orm.em.getConnection().execute(sql, params, 'all') as Promise<Record<string, unknown>[]>,
+    activeSchemaExtensionContext(),
+    (message) => platformLogger().warn({}, message),
+  );
   // Feature 050 — the single EM-injection seam. `forkScopedEm` is a bare
   // `orm.em.fork()`: it stamps NOTHING, because the tenant filters read the
   // ambient TenantContext from AsyncLocalStorage **when the query is built**
@@ -717,6 +734,13 @@ export async function composeApp(options: ComposeAppOptions): Promise<ComposeApp
     // Issue #844 — the one non-append write on the audit table, platform-owned
     // beside its writer; the customers retention sweep is its caller.
     auditRedactionService: new AuditRedactionService(em, auditLogService),
+    // `specs/178-extensible-columns/` FR-051 — extension attributes on the
+    // admin reads of an extensible host, over the declarations this platform's
+    // ORM registered and the effective module state.
+    schemaExtensionReads: createSchemaExtensionReads({
+      declarations: activeSchemaExtensions,
+      state: effectiveState,
+    }),
     storefrontBaseUrl: process.env['STOREFRONT_BASE_URL'] ?? 'http://localhost:3000',
     // No verification-token probe outside a harness.
     organizationsExposeTestProbe: false,

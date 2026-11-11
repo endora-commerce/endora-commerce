@@ -231,7 +231,13 @@ export class Migration20260503T141344QuoteRequestsWorkflow extends Migration {
 
   override async down(): Promise<void> {
     // Best-effort rollback. Loses all data written under the new schema.
-    this.addSql(`drop table if exists "organization_sales_rep_assignments" cascade;`);
+    //
+    // `organization_sales_rep_assignments` is NOT dropped (`specs/178-extensible-columns/`
+    // D-291 R-A7): `up()` created it, but `organizations` maps it and outlives this
+    // module, so `module:uninstall quote_requests --hard` dropping it destroyed a
+    // live `organizations` table. Editing a `down()` body changes no applied
+    // history; moving the creation into `organizations`' own migration is a
+    // separate issue.
     this.addSql(`drop table if exists "quote_request_notification_events" cascade;`);
     this.addSql(`drop table if exists "quote_request_events" cascade;`);
     this.addSql(`drop table if exists "quote_request_revisions" cascade;`);
