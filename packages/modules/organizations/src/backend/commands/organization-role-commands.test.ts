@@ -186,12 +186,11 @@ describe('organization_role.create', () => {
       version: 1,
     });
     expect(outcome.before ?? null).toBeNull();
+    // The name and description are the Organization's free text: never in the audit state (D-288, O-1).
     expect(outcome.after).toEqual({
       role: {
         id: outcome.result.id,
         kind: 'custom',
-        name: 'Buyers',
-        description: 'People who buy',
         permissions: ['carts.create', 'orders.view_organization'],
       },
     });
@@ -310,12 +309,13 @@ describe('organization_role.update', () => {
       role: {
         id: role.id,
         kind: 'custom',
-        name: 'Buyers',
-        description: null,
         permissions: ['carts.create', 'legacy.gone', 'quick_order.one_click'],
       },
     });
-    expect(outcome.after).toMatchObject({ role: { permissions: ['carts.approve', 'quick_order.one_click'] } });
+    expect(outcome.after).toEqual({
+      role: { id: role.id, kind: 'custom', permissions: ['carts.approve', 'quick_order.one_click'] },
+      changedFields: ['permissions'],
+    });
     const event = command.event?.(outcome.result);
     expect(event?.eventName).toBe('organization_role.permissions_changed.v1');
     expect(event?.payload).toMatchObject({
@@ -415,7 +415,7 @@ describe('organization_role.delete', () => {
     expect(outcome.result).toEqual({ reassignedMembers: 0, reassignedInvitations: 0 });
     expect(store.rows.has(role.id)).toBe(false);
     expect(outcome.before).toEqual({
-      role: { id: role.id, kind: 'custom', name: 'Buyers', description: null, permissions: ['carts.create'] },
+      role: { id: role.id, kind: 'custom', permissions: ['carts.create'] },
       memberCount: 0,
       invitationCount: 0,
     });

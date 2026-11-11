@@ -93,6 +93,12 @@ import {
   triggerVatValidationSchema,
 } from './schemas/organization.js';
 import { normalizeOrganizationName } from './services/normalize-name.js';
+import {
+  memberAuditState,
+  memberCreatedAuditState,
+  memberUpdatedAuditState,
+  organizationDeletedAuditState,
+} from './services/organization-audit-state.js';
 import type { RequireAdminFactory, SchemaExtensionReads } from '@endora-commerce/platform/kernel';
 
 /**
@@ -1046,14 +1052,10 @@ export async function registerOrganizationsAdminRoutes(
         'customer_account',
         customer.id,
         null,
-        {
-          organizationId: org.id,
-          email: customer.email,
-          organizationRoleId: customer.organizationRoleId,
-          // Feature 175 (FR-021) — the keys stored, never their values
-          // (`specs/conventions/audit-state.md`, D-288).
-          changedCustomFields: Object.keys(memberValues).sort(),
-        },
+        // The names of what it was created with, never the address, the
+        // names or the Organization (`specs/conventions/audit-state.md`,
+        // D-288); feature 175 (FR-021) — the custom-field keys stored.
+        memberCreatedAuditState(customer, Object.keys(memberValues)),
       );
       reply.status(201);
       return { data: await memberDetail(customer, await request.responseLanguage()) };
@@ -1112,19 +1114,12 @@ export async function registerOrganizationsAdminRoutes(
         throw new HttpError(404, ERROR_CODES.NOT_FOUND, 'Member not found.');
       }
       assertVersion(member.updatedAt, body.expectedUpdatedAt);
-      const before = memberAuditState(member);
       const updated = await deps.customerAccountWrite.setSubtreeRollup(
         member.id,
         body.subtreeRollupEnabled,
       );
-      await audit(
-        request,
-        'customer_account.admin_rollup_change',
-        'customer_account',
-        updated.id,
-        before as Record<string, unknown>,
-        memberAuditState(updated),
-      );
+      const state = memberUpdatedAuditState(member, updated);
+      await audit(request, 'customer_account.admin_rollup_change', 'customer_account', updated.id, state.before, state.after);
       return { data: await memberDetail(updated, await request.responseLanguage()) };
     },
   );
@@ -1146,7 +1141,6 @@ export async function registerOrganizationsAdminRoutes(
         throw new HttpError(404, ERROR_CODES.NOT_FOUND, 'Member not found.');
       }
       assertVersion(member.updatedAt, body.expectedUpdatedAt);
-      const before = memberAuditState(member);
       // The uniqueness check, the lower-casing and the "a changed address is
       // no longer verified" rule all went with the write: they are properties
       // of the column, not of this screen.
@@ -1155,14 +1149,9 @@ export async function registerOrganizationsAdminRoutes(
         ...(body.firstName !== undefined ? { firstName: body.firstName } : {}),
         ...(body.lastName !== undefined ? { lastName: body.lastName } : {}),
       });
-      await audit(
-        request,
-        'customer_account.admin_profile_update',
-        'customer_account',
-        updated.id,
-        before as Record<string, unknown>,
-        memberAuditState(updated),
-      );
+      // The names of what changed, never the address or the names (D-288).
+      const state = memberUpdatedAuditState(member, updated);
+      await audit(request, 'customer_account.admin_profile_update', 'customer_account', updated.id, state.before, state.after);
       return { data: await memberDetail(updated, await request.responseLanguage()) };
     },
   );
@@ -1186,7 +1175,7 @@ export async function registerOrganizationsAdminRoutes(
         'customer_account.admin_remove',
         'customer_account',
         member.id,
-        before as Record<string, unknown>,
+        before,
         null,
       );
       return reply.status(204).send();
@@ -1377,7 +1366,8 @@ export async function registerOrganizationsAdminRoutes(
         if (childCount > 0) {
           throw hasChildrenRefusal();
         }
-        const before = serializeOrg(org);
+        // Names and structure, never the record's values (D-288, O-2).
+        const before = organizationDeletedAuditState(org);
         org.deletedAt = new Date();
         await em.flush();
         await audit(request, 'organization.delete', 'organization', org.id, before, null);
@@ -1443,10 +1433,6 @@ function serializeMemberDetail(m: CustomerAccountRecord, organizationRole: Organ
   return { ...memberFields(m), organizationRole };
 }
 
-/** A member as an audit snapshot records it: the role by id, which needs no translation. */
-function memberAuditState(m: CustomerAccountRecord): Record<string, unknown> {
-  return { ...memberFields(m), organizationRoleId: m.organizationRoleId };
-}
 
 /**
  * Reads the admin user id from whichever actor decoration is available.

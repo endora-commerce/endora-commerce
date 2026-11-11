@@ -4902,6 +4902,40 @@ and reasons are the tenant's values). That log is one table, read by everybody h
 values out of the audit log reads them from the Organization (`GET /api/v1/admin/organizations/:id`)
 instead.
 
+### Every other organizations entry leaves its values out of the audit log {#organizations-audit-names-only}
+
+The release that ships this change stops writing values into the platform-wide audit log from
+every remaining `organizations` write (issue #470, owner rulings O-1 and O-2: an Organization's
+name, tax ID and reasons and a custom role's name are the tenant's values). That log is one table,
+read by everybody holding `audit_log:read` whatever Organizations they may see.
+
+**Behaviour change on upgrade:**
+
+- On the **Audit log** screen, and in `audit_logs read`, a new `organization.create` or
+  `organization.register` entry no longer carries the Organization's name, tax ID or registered
+  address; it names them as `changedFields`. An `organization.delete` entry records the status,
+  VAT status, whether the Organization is personal, its parent and its version instead of the whole
+  Organization.
+- `organization.approved`, `.rejected`, `.blocked` and `.unblocked` record whether a reason was
+  given (`hasBlockedReason`, `hasRejectedReason`), never the reason, and no longer repeat the
+  Organization's id in their state.
+- The member writes on an Organization's page (`customer_account.admin_create`,
+  `.admin_profile_update`, `.admin_rollup_change`, `.admin_remove`) no longer carry the member's
+  e-mail, first or last name or the Organization's id; they record the role by id, the member's
+  flags and, after a change, the names of what changed as `changedFields`.
+- `organization_invitation.create`, `.revoke` and `organization.invite_accept` no longer carry the
+  invitee's e-mail. The invitation's role is recorded by id and kind, without a custom role's name.
+- `organization_role.create`, `.update` and `.delete` no longer carry a custom role's name or
+  description: the role is recorded by id, kind and permission codes, and an update names what
+  changed as `changedFields` (`name`, `description`, `permissions`).
+- The Organizations, members, invitations and roles themselves are unchanged.
+- Entries recorded before the upgrade are not rewritten: they keep the values they were written
+  with.
+
+**After upgrading,** nothing has to be done. A report or an export that read these values out of
+the audit log reads them from the Organization (`GET /api/v1/admin/organizations/:id`), its members
+and its roles instead.
+
 ## An instance that is mixed from the start
 
 The installer of `0.101.x` or earlier wrote every package of the release with a `^` except

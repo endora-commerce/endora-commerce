@@ -4171,7 +4171,7 @@ wtedy, gdy moduł `customers` jest włączony:
 - wiersze klienta indywidualnego są **przenoszone** do książki jego organizacji osobistej. Adres,
   który już w niej jest, nie jest kopiowany drugi raz, a istniejący adres domyślny pozostaje
   domyślny;
-- każdy inny wiersz — członka firmy, klienta indywidualnego, którego organizacja prywatna została
+- każdy inny wiersz — członka firmy, klienta indywidualnego, którego organizacja osobista została
   już zanonimizowana, albo konta, którego organizacji nie da się znaleźć — jest **usuwany**: czyszczony i miękko usuwany;
 - wiersz, którego książka adresowa nie przyjmuje, na przykład z krajem, który nie jest już aktywny,
   zostaje, oznaczony powodem, i jest widoczny tylko na karcie w panelu administracyjnym.
@@ -4231,7 +4231,7 @@ okresie przechowywania, które wcześniejsze wydania zbudowały, ale nigdy nie u
 od `customers.deletion_retention_days`. Od tego wydania konto usunięte dawniej niż okres
 przechowywania (domyślnie 365 dni) jest trwale anonimizowane: usuwane są jego adres e-mail, imię i
 nazwisko, hasło oraz wartości pól niestandardowych, a w przypadku klienta indywidualnego także jego
-organizacja prywatna i jej zapisane adresy. Złożone zamówienia zachowują swoje kopie adresów. Dla
+organizacja osobista i jej zapisane adresy. Złożone zamówienia zachowują swoje kopie adresów. Dla
 każdego konta wysyłane jest zdarzenie `customer_account.anonymized.v1`, więc moduły, które go
 nasłuchują, na przykład `forms`, usuwają dane, które dla niego przechowują.
 
@@ -4246,7 +4246,7 @@ przywrócić (`409 CUSTOMER_RESTORE_WINDOW_ELAPSED`), niezależnie od tego, czy 
 dotarło.
 
 **Usuwana jest też historia audytu każdego zanonimizowanego konta** (zgłoszenie #844). Dotyczy to
-wpisów o koncie, a w przypadku klienta indywidualnego także o jego organizacji prywatnej i jej
+wpisów o koncie, a w przypadku klienta indywidualnego także o jego organizacji osobistej i jej
 adresach. Każdy wpis zachowuje akcję, wykonawców, czas i obiekt, ale zapisane wartości osobowe
 zmieniają się w `[erased]`, podobnie jak adres IP i identyfikator przeglądarki (user agent) we
 wpisach, które klient zapisał sam. Tego również nie da się cofnąć. Każde konto otrzymuje jeden wpis
@@ -4428,7 +4428,7 @@ w sklepie i na fakturze (zgłoszenie #876).
 
 Od tego wydania zwrot, z którym wraca ostatnia sztuka zamówienia B2C, zwraca też koszt dostawy
 i dopłatę za płatność zamówienia. Zamówienie B2C to zamówienie, którego organizacja jest organizacją
-prywatną. Formularz rozliczenia wypełnia obie kwoty w całości, gdy sprawę otwarto w ciągu 14 dni od
+osobistą. Formularz rozliczenia wypełnia obie kwoty w całości, gdy sprawę otwarto w ciągu 14 dni od
 zakończenia realizacji zamówienia albo w terminie `returns.free_return_days` kanału, jeśli ten jest
 dłuższy. Po tym terminie kwoty zaczynają się od 0 i możesz je podnieść do tego, co zapłacono.
 Zwrot częściowy, reklamacja i zwrot klienta firmowego działają bez zmian.
@@ -4597,7 +4597,7 @@ organizacji i wyszukiwarka panelu pokazywały każdą organizację. Dla każdego
 handlowego zmieniają się dwie rzeczy:
 
 - **Zyskuje dostęp do danych każdej nieprzypisanej organizacji**, łącznie z organizacjami
-  prywatnymi (B2C): do organizacji prywatnej nie można przypisać przedstawiciela, więc każdy
+  osobistymi (B2C): do organizacji osobistej nie można przypisać przedstawiciela, więc każdy
   przedstawiciel czyta teraz zamówienia, faktury, koszyki i zwroty każdego klienta B2C i może na nich
   działać. Właściciel potwierdził to 2026-11-08.
 - **Lista organizacji, jej pola wyboru i wyszukiwarka panelu przestają pokazywać organizacje
@@ -4655,7 +4655,7 @@ Nic nie jest migrowane i nic nie trzeba konfigurować; administratorzy platformy
 
 2. **Jeśli przedstawiciel nie powinien sięgać do nieprzypisanej organizacji**, przypisz ją
    przedstawicielowi, który się nią opiekuje: wtedy jest prowadzona, a każdy inny przedstawiciel traci
-   do niej dostęp. Organizacji prywatnej nie można przypisać; ukrycie danych B2C przed
+   do niej dostęp. Organizacji osobistej nie można przypisać; ukrycie danych B2C przed
    przedstawicielami byłoby inną regułą i nie da się go skonfigurować.
 
 ### Wymagania weryfikacji dwuetapowej klientów bez klucza szyfrowania {#customer-two-step-without-key}
@@ -5125,6 +5125,42 @@ powody to wartości klienta). Ten dziennik to jedna tabela, czytana przez każde
 
 **Po aktualizacji** nie trzeba nic robić. Raport albo eksport, który odczytywał wartości
 organizacji z dziennika audytu, odczytuje je z organizacji (`GET /api/v1/admin/organizations/:id`).
+
+### Pozostałe wpisy organizacji nie zapisują wartości w dzienniku audytu {#organizations-audit-names-only}
+
+Wydanie, które wprowadza tę zmianę, przestaje zapisywać wartości w ogólnoplatformowym dzienniku
+audytu ze wszystkich pozostałych zapisów modułu `organizations` (zgłoszenie #470, decyzje
+właściciela O-1 i O-2: nazwa organizacji, jej numer identyfikacji podatkowej i powody oraz nazwa
+roli niestandardowej to wartości klienta). Ten dziennik to jedna tabela, którą czyta każdy
+z uprawnieniem `audit_log:read`, niezależnie od tego, które organizacje widzi.
+
+**Zmiana zachowania po aktualizacji:**
+
+- Na ekranie **Dziennik audytu** i w `audit_logs read` nowy wpis `organization.create` lub
+  `organization.register` nie zawiera już nazwy organizacji, numeru identyfikacji podatkowej ani
+  adresu siedziby; podaje je jako nazwy w `changedFields`. Wpis `organization.delete` zapisuje
+  status, status VAT, informację, czy to organizacja osobista, organizację nadrzędną i wersję
+  zamiast całej organizacji.
+- `organization.approved`, `.rejected`, `.blocked` i `.unblocked` zapisują, czy podano powód
+  (`hasBlockedReason`, `hasRejectedReason`), nigdy sam powód, i nie powtarzają już identyfikatora
+  organizacji w swoim stanie.
+- Zapisy członków na stronie organizacji (`customer_account.admin_create`,
+  `.admin_profile_update`, `.admin_rollup_change`, `.admin_remove`) nie zawierają już adresu
+  e-mail, imienia ani nazwiska członka ani identyfikatora organizacji; zapisują identyfikator roli,
+  flagi członka, a po zmianie — nazwy tego, co się zmieniło, w `changedFields`.
+- `organization_invitation.create`, `.revoke` i `organization.invite_accept` nie zawierają już
+  adresu e-mail zaproszonej osoby. Rola zaproszenia jest zapisywana jako identyfikator i rodzaj,
+  bez nazwy roli niestandardowej.
+- `organization_role.create`, `.update` i `.delete` nie zawierają już nazwy ani opisu roli
+  niestandardowej: rola jest zapisywana jako identyfikator, rodzaj i kody uprawnień, a edycja
+  podaje nazwy tego, co się zmieniło, w `changedFields` (`name`, `description`, `permissions`).
+- Same organizacje, członkowie, zaproszenia i role się nie zmieniają.
+- Wpisy zapisane przed aktualizacją nie są przepisywane: zachowują wartości, z którymi zostały
+  zapisane.
+
+**Po aktualizacji** nie trzeba nic robić. Raport albo eksport, który odczytywał te wartości
+z dziennika audytu, odczytuje je z organizacji (`GET /api/v1/admin/organizations/:id`), jej
+członków i jej ról.
 
 ## Instancja niespójna od początku
 

@@ -173,7 +173,8 @@ describe('admin creates — custom-field values (feature 175)', () => {
 
       h.em().clear();
       const entries = await h.em().find(AuditLogEntry, { action: 'customer_account.admin_create', objectId: row.id });
-      expectNoAuditValues(entries, ['S470-CF']);
+      // Nor the address or the Organization, the tenant anchor (D-288, #470).
+      expectNoAuditValues(entries, ['S470-CF', email, organizationId]);
       expect(entries[0]?.stateAfter).not.toHaveProperty('customFieldValues');
       expect(entries[0]?.stateAfter).toMatchObject({ changedCustomFields: ['cf175a_badge'] });
     });

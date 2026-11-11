@@ -91,6 +91,11 @@ export function makeUpdateOrganizationRoleCommand(
       if (unchanged) return { result: role, skipAudit: true };
 
       const beforeState = { role: auditRole(role, before) };
+      const changedFields = [
+        ...((name ?? null) === (role.name ?? null) ? [] : ['name']),
+        ...((description ?? null) === (role.description ?? null) ? [] : ['description']),
+        ...(added.length === 0 && removed.length === 0 ? [] : ['permissions']),
+      ].sort();
       role.name = name;
       role.nameNormalized = nameNormalized;
       role.description = description;
@@ -100,7 +105,11 @@ export function makeUpdateOrganizationRoleCommand(
       role.updatedAt = new Date();
       await store.save(role);
       diff = { added, removed };
-      return { result: role, before: beforeState, after: { role: auditRole(role, role.permissions) } };
+      return {
+        result: role,
+        before: beforeState,
+        after: { role: auditRole(role, role.permissions), changedFields },
+      };
     },
     event: (result) =>
       diff.added.length === 0 && diff.removed.length === 0

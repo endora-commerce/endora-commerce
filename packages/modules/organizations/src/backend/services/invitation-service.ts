@@ -346,8 +346,8 @@ export class InvitationService {
         objectType: 'organization',
         objectId: invitation.organizationId,
         stateBefore: null,
+        // The account and the role by id, never the address (D-288).
         stateAfter: {
-          email: invitation.email,
           organizationRoleId: invitation.organizationRoleId,
           customerAccountId: customer.id,
         },

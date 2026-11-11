@@ -963,8 +963,10 @@ proces ogłosi zmianę.
 Każda zmiana roli to Komenda — `organization_role.create`,
 `organization_role.update`, `organization_role.delete` — audytowana na
 organizacji, ze wskazaniem członka lub operatora, który jej dokonał, oraz z
-nazwą, rodzajem i posortowaną listą uprawnień roli przed zmianą i po niej.
-Zapisanie roli bez zmian niczego nie rejestruje.
+identyfikatorem, rodzajem i posortowaną listą uprawnień roli przed zmianą i po
+niej, a przy edycji — z nazwami tego, co się zmieniło (`changedFields`: `name`,
+`description`, `permissions`). Nazwa i opis roli niestandardowej nigdy nie są
+zapisywane. Zapisanie roli bez zmian niczego nie rejestruje.
 
 | Metoda + ścieżka | Kto | Cel |
 | --- | --- | --- |
@@ -1097,6 +1099,49 @@ uruchamiają polecenia `customer_account.change_role` /
 i unieważnienie zaproszenia — `organization_invitation.create` /
 `organization_invitation.revoke`. Każde jest audytowane względem organizacji,
 z członkiem lub operatorem, który działał.
+
+## Wpisy audytu
+
+Dziennik audytu platformy to jedna tabela, którą czyta każdy operator z
+uprawnieniem `audit_log:read`, niezależnie od tego, do których organizacji ma
+dostęp, dlatego każdy wpis tego modułu zapisuje **nazwy i strukturę, nigdy
+wartości**: identyfikatory, statusy i inne
+kody, wartości logiczne, liczności, daty oraz posortowane nazwy zmienionych pól
+(`changedFields`, `changedCustomFields`). Nigdy nazwy organizacji, nazwy
+prawnej, numeru identyfikacji podatkowej, adresu, adresów e-mail do
+potwierdzeń zamówień, powodu zablokowania lub odrzucenia ani wartości pól
+niestandardowych; nigdy adresu e-mail ani imienia i nazwiska członka czy
+zaproszonej osoby; nigdy nazwy ani opisu roli niestandardowej.
+
+- **`organization.create`**, **`organization.register`** — status (a przy
+  utworzeniu także status VAT), kanały sprzedaży i organizacja nadrzędna jako
+  identyfikatory oraz nazwy pól, z którymi organizację utworzono
+  (`changedFields`, np. `name`, `taxId`, `registeredAddress`), i zapisanych pól
+  niestandardowych.
+- **`organization.admin_patch`**, **`organization.set_custom_field_values`**,
+  **`organization.convert_to_company`** — kody przed zmianą i po niej oraz
+  nazwy tego, co się zmieniło.
+- **`organization.delete`** — status, status VAT, informacja, czy to
+  organizacja osobista, organizacja nadrzędna jako identyfikator i wersja.
+- **`organization.approved`**, **`.rejected`**, **`.blocked`**,
+  **`.unblocked`** — status, daty moderacji, identyfikator zatwierdzającego
+  operatora, wersja oraz informacja, czy podano powód zablokowania lub
+  odrzucenia (`hasBlockedReason`, `hasRejectedReason`); sam powód widać na
+  stronie organizacji.
+- **`customer_account.admin_create`**, **`.admin_profile_update`**,
+  **`.admin_rollup_change`**, **`.admin_remove`** — identyfikator roli członka,
+  jego flagi zbiorczego widoku, potwierdzenia adresu e-mail i weryfikacji
+  dwuetapowej, a po zmianie — nazwy tego, co się zmieniło (`email`,
+  `firstName`, `lastName`, …).
+- **`organization_invitation.create`**, **`.revoke`** — identyfikator
+  zaproszenia oraz identyfikator i rodzaj jego roli.
+  **`organization.invite_accept`** — nowe konto i jego rola jako
+  identyfikatory.
+- **`organization_role.create`**, **`.update`**, **`.delete`** — jak opisano
+  przy rolach powyżej.
+
+Wpisy zapisane, zanim instancję zaktualizowano do wydania, które wprowadziło tę
+zmianę, pozostają takie, jakie zostały zapisane.
 
 ## Wyszukiwanie globalne
 
