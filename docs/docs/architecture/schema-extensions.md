@@ -195,14 +195,17 @@ In an instance root:
 pnpm run module:uninstall acme_erp --hard       # columns kept, ledger: orphaned
 ```
 
-Listing and dropping the elements is `module:schema-extensions`, which in this release runs in a
-checkout of the Endora Commerce repository:
+Listing and dropping the elements is `module:schema-extensions`, in the same instance root:
 
 ```bash
-pnpm --filter backend run module:schema-extensions list
-pnpm --filter backend run module:schema-extensions drop acme_erp           # prints the plan
-pnpm --filter backend run module:schema-extensions drop acme_erp --confirm # drops, one audit entry
+pnpm run module:schema-extensions list                        # every element, its status
+pnpm run module:schema-extensions drop acme_erp               # prints the plan
+pnpm run module:schema-extensions drop acme_erp --confirm     # drops, one audit entry
+pnpm run module:schema-extensions drop acme_erp --key erpCode --confirm  # one key's elements only
 ```
+
+`list --json` and `list --module <id>` narrow the listing. In a checkout of the Endora Commerce
+repository the same command is `pnpm --filter backend run module:schema-extensions …`.
 
 Uninstalling your module keeps its columns and their values; only an explicit, audited
 `drop … --confirm` removes them, and only for elements that are orphaned and no longer
@@ -242,12 +245,14 @@ tables, the platform's tables and the back-fill of your own `x_<moduleId>_*` col
 you declare are allowed; the rules are on [Migrations](./migrations.md), under *The
 foreign-schema guard*.
 
-To see what a release would refuse before upgrading to it (in this release, from a checkout of the
-Endora Commerce repository):
+To see what a release would refuse before upgrading to it, in the instance root:
 
 ```bash
-pnpm --filter backend run module:schema-extensions audit-packages
+pnpm run module:schema-extensions audit-packages
 ```
+
+It reads every installed package's migrations without executing any of them, prints each
+statement the guard would refuse, and exits 65 when there is one.
 
 ## Packaging
 

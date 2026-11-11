@@ -469,16 +469,17 @@ it and no other module's entity maps it. Also allowed:
 and its `insert*`, `upsert*`, `native*` and `execute` shortcuts are checked as well. Reads are
 never judged.
 
-**Before upgrading to the release that refuses**, an operator can see what it would refuse — in this
-release from a checkout of the Endora Commerce repository, since the instance scaffold does not yet
-wire `module:schema-extensions`:
+**Before upgrading to the release that refuses**, an operator can see what it would refuse. In the
+instance root,
 
 ```bash
-pnpm --filter backend run module:schema-extensions audit-packages
+pnpm run module:schema-extensions audit-packages
 ```
 
 runs the same classification over every installed package's migrations without executing any of
-them, prints each statement that would be refused, and exits 65 when there is one.
+them, prints each statement that would be refused, and exits 65 when there is one. In a checkout of
+the Endora Commerce repository the same command is
+`pnpm --filter backend run module:schema-extensions audit-packages`.
 
 
 ## Ordering rules

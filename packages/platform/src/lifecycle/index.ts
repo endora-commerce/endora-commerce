@@ -124,6 +124,11 @@ export {
 // stay exported from their own file, one relative import away, for the merge
 // request that first gives one of them a consumer out here.
 export { runInstanceOperatorCommand } from './commands/operator-entry.js';
+// Issue #1036 — the instance's sixth operator command, `module:schema-extensions`.
+// One name for the same reason as the one above: it is what the rendered
+// `backend/src/module-commands/schema-extensions.ts` imports, and the runtime
+// builder behind it has no consumer out here.
+export { runInstanceSchemaExtensionsCommand } from './commands/schema-extensions-entry.js';
 // The persistent escape-hatch audit sink, for an application's own `module:*`
 // entry points — the ones that build their runtime by hand rather than through
 // `runInstanceOperatorCommand`, which attaches it itself. `composeApp` attaches
