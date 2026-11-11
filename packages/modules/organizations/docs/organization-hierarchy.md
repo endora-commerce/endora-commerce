@@ -83,6 +83,12 @@ they are in one tree** — the same root:
 In the default `global` scope moves behave as before: no tax ID can be on two
 organizations, so a move never meets this refusal.
 
+A branch that was given its head office's tax ID by mistake — it is in fact a
+separate taxpayer — keeps its place in the tree and gets its own tax ID with
+**Change tax ID** on its page (the *Organizations* page, *Correcting a tax ID*).
+Once it no longer shares the tax ID it can be detached or moved, and once no tax
+ID is shared at all the scope can be switched back to *Global*.
+
 ## Roll-up scope
 
 Visibility across descendants is **permission-gated** by the
