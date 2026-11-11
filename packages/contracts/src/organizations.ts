@@ -591,9 +591,10 @@ export interface OrganizationDetailsPort {
  * **The merge is the caller's.** The owner loads the Organization, calls
  * `merge` with its current bag and stores what `merge` returns — inside **one
  * transaction, as one Command (`organization.set_custom_field_values`) with one
- * audit row** carrying the bag before and after. It is a callback rather than
- * a pre-merged bag because the read, the validation and the write have to share
- * that transaction, or a concurrent write is silently lost.
+ * audit row** naming the keys that changed (`changedCustomFields`), never
+ * their values (`specs/conventions/audit-state.md`). It is a callback rather
+ * than a pre-merged bag because the read, the validation and the write have
+ * to share that transaction, or a concurrent write is silently lost.
  *
  * **The owner does not validate.** Whatever `merge` returns is stored, so the
  * caller validates inside it through `CustomFieldValuePort.validateAndMerge`

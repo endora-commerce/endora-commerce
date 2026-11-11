@@ -612,8 +612,10 @@ setCustomFieldValues(
   included — nothing is stored or recorded, and the error reaches you as it was
   thrown. An unknown or deleted Organization answers `404 NOT_FOUND` before
   `merge` is called.
-- **One audit entry**, `organization.set_custom_field_values`, with the values
-  before and after. The actor is the one the call runs as: none (the system)
+- **One audit entry**, `organization.set_custom_field_values`, naming the
+  keys whose value changed (`changedCustomFields`), never the values
+  themselves: the platform audit log is global, so a tenant's values stay out
+  of it. The actor is the one the call runs as: none (the system)
   in a subscriber or a worker, the administrator inside an admin request. A
   subscriber on `organization.registered.v1` runs as the system, because
   registration is anonymous. Code that runs outside any request or job, such as

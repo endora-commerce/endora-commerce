@@ -1,3 +1,4 @@
+import { isDeepStrictEqual } from 'node:util';
 import type { EntityManager } from '@mikro-orm/postgresql';
 import { ERROR_CODES, isUuidShape } from '@endora-commerce/contracts';
 import type { Command } from '@endora-commerce/platform/commands';
@@ -30,8 +31,8 @@ export async function loadLiveOrganization(em: EntityManager, organizationId: st
  * The one step that writes an Organization's custom-field bag: the caller's
  * `merge` over a **copy** of the current bag, its answer stored on the entity.
  * The copy keeps a merge that mutates its argument from rewriting the
- * before-state the audit row records. `merge` may throw; nothing is assigned
- * then, and the Command's transaction rolls back.
+ * before-state its caller compares the answer with. `merge` may throw; nothing
+ * is assigned then, and the Command's transaction rolls back.
  *
  * Both `organization.set_custom_field_values` and the admin PATCH
  * (`organization.admin_patch`) run their custom-field write through this.
@@ -41,6 +42,19 @@ export async function applyCustomFieldMerge(
   merge: OrganizationCustomFieldMerge,
 ): Promise<void> {
   org.customFieldValues = await merge({ ...(org.customFieldValues ?? {}) });
+}
+
+/**
+ * The sorted keys whose value differs between two custom-field bags — a key
+ * added, removed or changed. What an audit entry may say of a custom-field
+ * write (`changedCustomFields`, `specs/conventions/audit-state.md`, D-288).
+ */
+function changedCustomFieldKeys(
+  before: Readonly<Record<string, unknown>>,
+  after: Readonly<Record<string, unknown>>,
+): string[] {
+  const keys = new Set([...Object.keys(before), ...Object.keys(after)]);
+  return [...keys].filter((key) => !isDeepStrictEqual(before[key] ?? null, after[key] ?? null)).sort();
 }
 
 /**
@@ -63,13 +77,13 @@ export function makeSetCustomFieldValuesCommand(input: {
     objectId: input.organizationId,
     run: async ({ em }) => {
       const org = await loadLiveOrganization(em, input.organizationId);
-      const before = { customFieldValues: { ...(org.customFieldValues ?? {}) } };
+      const current = { ...(org.customFieldValues ?? {}) };
       await applyCustomFieldMerge(org, input.merge);
       await em.flush();
       return {
         result: org,
-        before,
-        after: { customFieldValues: org.customFieldValues },
+        before: null,
+        after: { changedCustomFields: changedCustomFieldKeys(current, org.customFieldValues ?? {}) },
       };
     },
   };

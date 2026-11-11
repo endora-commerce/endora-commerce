@@ -1,3 +1,4 @@
+import { AssertionError } from 'node:assert';
 import { describe, expect, it } from 'vitest';
 import type { EntityManager, MikroORM } from '@mikro-orm/postgresql';
 import { ERROR_CODES } from '@endora-commerce/contracts';
@@ -19,6 +20,44 @@ import { OrganizationCustomFieldWriteService } from './organization-custom-field
  * the database's question, asked by
  * `backend/test/integration/organizations/custom-field-write-port.test.ts`.
  */
+
+// ---------------------------------------------------------------------------
+// The sentinel assertion. A local copy of `expectNoAuditValues` from
+// `@endora-commerce/test-kit/audit`, as the other modules' sentinel tests keep
+// it: this package does not depend on the test kit.
+// ---------------------------------------------------------------------------
+type Sentinel = string | number;
+
+function expectNoAuditValues(entries: ReadonlyArray<Record<string, unknown>>, sentinels: readonly Sentinel[]): void {
+  if (entries.length === 0) throw new AssertionError({ message: 'no audit entry to inspect' });
+  const leaks: string[] = [];
+  const hit = (text: string, sentinel: Sentinel) =>
+    typeof sentinel === 'number' ? text.includes(String(sentinel)) : text.toLowerCase().includes(sentinel.toLowerCase());
+  const walk = (value: unknown, path: string): void => {
+    if (value === null || value === undefined || value instanceof Date) return;
+    if (Array.isArray(value)) return value.forEach((item, index) => walk(item, `${path}[${index}]`));
+    if (typeof value === 'object') {
+      for (const [key, child] of Object.entries(value as Record<string, unknown>)) {
+        for (const sentinel of sentinels) if (typeof sentinel === 'string' && hit(key, sentinel)) leaks.push(`${path}{${key}}`);
+        walk(child, `${path}.${key}`);
+      }
+      return;
+    }
+    for (const sentinel of sentinels) {
+      if (typeof value === 'number' ? value === sentinel : hit(String(value), sentinel)) {
+        leaks.push(`${path} = ${JSON.stringify(value)}`);
+      }
+    }
+  };
+  entries.forEach((entry, index) => {
+    walk(entry['stateBefore'], `[${index}] ${String(entry['action'])} stateBefore`);
+    walk(entry['stateAfter'], `[${index}] ${String(entry['action'])} stateAfter`);
+  });
+  if (leaks.length > 0) {
+    throw new AssertionError({ message: `the audit log carries tenant-scoped values:\n  ${leaks.join('\n  ')}` });
+  }
+}
+// ---------------------------------------------------------------------------
 
 const ORG = '00000000-0000-4000-8000-0000000c0f01';
 const DELETED_ORG = '00000000-0000-4000-8000-0000000c0f02';
@@ -132,10 +171,31 @@ describe('OrganizationCustomFieldWriteService.setCustomFieldValues', () => {
       // A subscriber has no administrator: the system actor records none.
       actorAdminUserId: null,
       actorCustomerAccountId: null,
-      stateBefore: { customFieldValues: { tier: 'gold' } },
-      stateAfter: { customFieldValues: { tier: 'gold', acquisition_source: 'trade_fair' } },
+      // Names, never values (`specs/conventions/audit-state.md`, D-288).
+      stateBefore: null,
+      stateAfter: { changedCustomFields: ['acquisition_source'] },
       inTransaction: true,
     });
+  });
+
+  it('records the keys it changed and none of the values (D-288 sentinel)', async () => {
+    const h = harness();
+    h.rows.get(ORG)!.customFieldValues = { tier: 'S470-CF-OLD', region: 'S470-CF-KEPT', legacy: 'S470-CF-GONE' };
+
+    await asSystem(() =>
+      h.port.setCustomFieldValues(ORG, async (current) => {
+        const next: Record<string, unknown> = { ...current, tier: 'S470-CF', acquisition_source: 'S470-CF-NEW' };
+        delete next['legacy'];
+        return next;
+      }),
+    );
+
+    expectNoAuditValues(h.audits, ['S470-CF', 'Acme', 'PL0000000000', ORG]);
+    expect(h.audits[0]).toMatchObject({
+      stateBefore: null,
+      stateAfter: { changedCustomFields: ['acquisition_source', 'legacy', 'tier'] },
+    });
+    expect(Object.keys((h.audits[0]?.['stateAfter'] ?? {}) as object)).toEqual(['changedCustomFields']);
   });
 
   it('keeps the before-state honest when the merge mutates the bag it was given', async () => {
@@ -147,8 +207,8 @@ describe('OrganizationCustomFieldWriteService.setCustomFieldValues', () => {
       }),
     );
     expect(h.audits[0]).toMatchObject({
-      stateBefore: { customFieldValues: { tier: 'gold' } },
-      stateAfter: { customFieldValues: { tier: 'platinum' } },
+      stateBefore: null,
+      stateAfter: { changedCustomFields: ['tier'] },
     });
   });
 

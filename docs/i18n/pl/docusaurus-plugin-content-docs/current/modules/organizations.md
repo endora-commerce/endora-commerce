@@ -595,8 +595,10 @@ setCustomFieldValues(
   walidacji — nic nie zostaje zapisane ani zarejestrowane w audycie, a wyjątek
   dociera do ciebie w niezmienionej postaci. Nieznana albo usunięta organizacja
   daje `404 NOT_FOUND`, zanim `merge` zostanie wywołane.
-- **Jeden wpis audytu**, `organization.set_custom_field_values`, z wartościami
-  przed zmianą i po niej. Wykonawcą jest ten, w czyim imieniu działa wywołanie:
+- **Jeden wpis audytu**, `organization.set_custom_field_values`, z nazwami
+  kluczy, których wartość się zmieniła (`changedCustomFields`), nigdy z samymi
+  wartościami: dziennik audytu platformy jest globalny, więc wartości klienta
+  do niego nie trafiają. Wykonawcą jest ten, w czyim imieniu działa wywołanie:
   nikt (system) w subskrybencie albo workerze, administrator wewnątrz jego
   żądania. Subskrybent `organization.registered.v1` działa jako system, bo
   rejestracja jest anonimowa. Kod działający poza jakimkolwiek żądaniem czy

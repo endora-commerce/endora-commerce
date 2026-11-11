@@ -118,7 +118,7 @@ describe('organizationCustomFieldWritePort — a registration subscriber sets an
     return row.id as string;
   }
 
-  it('stores the value, audits it with a null actor, and keeps it out of the buyer projection', async () => {
+  it('stores the value, audits its key alone with a null actor, and keeps it out of the buyer projection', async () => {
     const port = resolve<OrganizationCustomFieldWritePort>('organizationCustomFieldWritePort');
     const values = resolve<CustomFieldValuePort>('customFieldValueService');
 
@@ -151,9 +151,11 @@ describe('organizationCustomFieldWritePort — a registration subscriber sets an
     expect(entries[0]?.impersonatedCustomerAccountId ?? null).toBeNull();
     expect(entries[0]).toMatchObject({
       objectType: 'organization',
-      stateBefore: { customFieldValues: {} },
-      stateAfter: { customFieldValues: { [key]: 'trade_fair' } },
+      // Names, never values (`specs/conventions/audit-state.md`, D-288).
+      stateAfter: { changedCustomFields: [key] },
     });
+    expect(entries[0]?.stateBefore ?? null).toBeNull();
+    expect(JSON.stringify(entries[0]?.stateAfter)).not.toContain('trade_fair');
 
     expect(await values.projectForCustomer('organization', row.custom_field_values)).toEqual({});
   });
