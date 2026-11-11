@@ -5020,6 +5020,46 @@ bez względu na to, które organizacje widzi.
 **Po aktualizacji** nie trzeba nic robić. Raport, który odczytywał kwoty faktur z dziennika
 audytu, odczytuje je z samych faktur.
 
+### Polecenia rozszerzeń schematu działają w instancji {#schema-extensions-instance-command}
+
+Wydanie z tą zmianą dodaje `module:schema-extensions` do szkieletu instancji, obok pięciu poleceń
+`module:*` (zgłoszenie #1036). W katalogu głównym instancji:
+
+```bash
+pnpm run module:schema-extensions list                      # zadeklarowane kolumny rozszerzeń i osierocone
+pnpm run module:schema-extensions drop <moduleId>           # wypisuje plan
+pnpm run module:schema-extensions drop <moduleId> --confirm # usuwa osierocone elementy, jeden wpis audytu
+pnpm run module:schema-extensions audit-packages            # czego migrate by odmówiło, nic nie wykonując
+```
+
+`drop` usuwa wyłącznie elementy osierocone, których żaden zainstalowany pakiet już nie deklaruje;
+to jedyny sposób usunięcia kolumn pozostawionych przez odinstalowany moduł. `audit-packages` czyta
+migracje wszystkich zainstalowanych pakietów, nie wykonując żadnej z nich, i wypisuje każdą
+instrukcję, której strażnik obcego schematu odmawia przy `migrate` (kod wyjścia 65, dopóki taka
+istnieje). `migrate` zatrzymuje się na pierwszej takiej instrukcji i wycofuje cały przebieg;
+`audit-packages` wymienia wszystkie.
+
+**Instancja utworzona przed tym wydaniem** nie ma tego polecenia: `pnpm run upgrade` nie zmienia
+żadnego pliku twojego drzewa. Dodaj je ręcznie, a następnie uruchom `pnpm run build:backend`:
+
+1. `backend/src/module-commands/schema-extensions.ts`:
+
+   ```ts
+   import { runInstanceSchemaExtensionsCommand } from '@endora-commerce/platform/lifecycle';
+   import config from '../mikro-orm.config.js';
+
+   await runInstanceSchemaExtensionsCommand({ ormConfig: config });
+   ```
+
+2. W `backend/package.json`, w `scripts`:
+   `"module:schema-extensions": "node --env-file-if-exists=../.env dist/module-commands/schema-extensions.js"`.
+3. W głównym `package.json` instancji, w `scripts`:
+   `"module:schema-extensions": "pnpm -C backend run module:schema-extensions"`.
+
+**Po aktualizacji**, jeśli `migrate` zostało odrzucone z `foreign-schema-write`, uruchom
+`pnpm run module:schema-extensions audit-packages`, aby zobaczyć każdą instrukcję, której by
+odmówiło, i poproś autora pakietu o wydanie, które zamiast tego deklaruje swoje kolumny.
+
 ### Katalog odczytuje cały nagłówek `Accept-Language` {#catalog-accept-language}
 
 Wydanie z tą zmianą sprawia, że katalog odczytuje `Accept-Language` zgodnie z definicją tego
