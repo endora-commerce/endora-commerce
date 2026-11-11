@@ -223,6 +223,11 @@ export class CategoryAdminService {
     const id = randomUUID();
     const cat = await this.#audited('category.create', id, async (em) => {
       if (input.parentCategoryId) await this.#assertParentExists(em, input.parentCategoryId);
+      // Feature 175 (FR-015, FR-016) — validated as a merge onto an empty bag,
+      // inside this Command: a refusal rolls the create back, a `required`
+      // definition is refused even when no value is sent, and the audit row
+      // below carries what was stored.
+      const customFieldValues = await this.#mergeCustomFields({}, input.customFieldValues ?? {});
       const created = em.create(Category, {
         id,
         ...(input.parentCategoryId !== undefined
@@ -233,6 +238,7 @@ export class CategoryAdminService {
         sortOrder: input.sortOrder ?? 0,
         // Feature 068 — omitted means active (the column default).
         ...(input.isActive !== undefined ? { isActive: input.isActive } : {}),
+        customFieldValues,
       });
       try {
         await em.flush();
@@ -255,6 +261,7 @@ export class CategoryAdminService {
           parentCategoryId: created.parentCategoryId ?? null,
           sortOrder: created.sortOrder,
           isActive: created.isActive,
+          customFieldValues: created.customFieldValues,
         },
       };
     });

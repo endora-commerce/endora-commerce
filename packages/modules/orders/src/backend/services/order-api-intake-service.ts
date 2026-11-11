@@ -27,6 +27,7 @@ import type { OrderService } from './order-service.js';
 import { rethrowIfModuleDisabled } from '@endora-commerce/platform/kernel';
 import { assertWithinAdminOrderItemBound } from './request-minimums.js';
 import { assertChannelAllowedForOrganization } from './organization-channel-gate.js';
+import { apiKeyPlacementAuditState } from './order-audit-state.js';
 
 /**
  * OrderApiIntakeService — feature 062 (research §R8, contracts/orders-api-key-intake.md §1).
@@ -463,12 +464,7 @@ export class OrderApiIntakeService {
         objectType: 'order',
         objectId: order.id,
         stateBefore: null,
-        stateAfter: {
-          apiKeyId: binding.apiKeyId,
-          organizationId: binding.organizationId,
-          customerAccountId: binding.customerAccountId,
-          businessId: order.businessId,
-        },
+        stateAfter: apiKeyPlacementAuditState(binding, order),
       });
     } catch {
       // Attribution is best-effort; the order itself is already committed.

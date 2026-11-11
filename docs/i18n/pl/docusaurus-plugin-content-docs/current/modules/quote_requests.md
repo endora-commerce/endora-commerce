@@ -282,6 +282,15 @@ angielsku:
 Zapytania złożone, zanim ta historia powstała, są opisywane na podstawie już zapisanych danych;
 niczego się nie uzupełnia wstecz.
 
+**Wartości są w historii, nie w dzienniku audytu.** Dziennik audytu platformy czyta każdy, kto ma
+`audit_log:read`, bez względu na to, które organizacje widzi, dlatego wpisy audytu zapytania
+zawierają tylko nazwy i strukturę. Anulowanie zapisuje `hasReason`, nigdy sam powód. Grupowanie
+zapisuje liczbę pozycji każdej grupy, nigdy jej nazwę. Wysyłka PDF zapisuje, na ile adresów poszła,
+nigdy same adresy. Przygotowanie koszyka klienta zapisuje koszyk i jego wielkość, bez klienta.
+Przeniesienie z szansy sprzedażowej wymienia przeniesione pola jako `changedCustomFields`, bez ich
+wartości. Wartości zostają w zapytaniu, jego rewizjach i tej historii, czytanej zgodnie z
+widocznością samego zapytania.
+
 ## Edycja szkicu przez klienta
 
 Klient może edytować zapytanie w statusie `Pending` przez `PATCH /api/v1/quote-requests/:id` tyle
@@ -351,7 +360,8 @@ tworzenia nie pokazuje VAT, więc jego sekcje pokazują liczbę pozycji i warto�
 **Zapis.** Grupowanie zapisuje ten sam przycisk, który zapisuje pozycje — **Zapisz rewizję** albo
 przycisk tworzenia — w tym samym zapisie, z tym samym sprawdzeniem współbieżności, i jest ono
 utrwalane we wpisie audytu tego zapisu (`quote_request.modify` albo
-`quote_request.create_on_behalf`, z nazwami grup i liczbą ich pozycji przed zmianą i po niej).
+`quote_request.create_on_behalf`, z liczbą pozycji każdej grupy przed zmianą i po niej; nazwy są w
+rewizjach, nie w dzienniku audytu).
 **Zapis, który zmienia tylko grupowanie, jest rewizją jak każda inna**: klient dostaje powiadomienie
 i prośbę o jej akceptację. Zakładka **Historia** wymienia zmiany grupowania w każdej rewizji (zob.
 *Historia*).
@@ -822,7 +832,8 @@ zmienne to `quote.number`, `quote.validUntil`, `customer.name`, `salesRep.name`,
 
 Udana wysyłka dodaje do **Historii** oferty wpis **Wysłano PDF** (kto wysłał, na jakie adresy, z
 jakim szablonem, w jakim języku i z jaką wiadomością) oraz jeden wiersz
-`quote_request.send_document` w dzienniku audytu — nigdy sam PDF. Klienci nie widzą go we własnej
+`quote_request.send_document` w dzienniku audytu — nigdy sam PDF, a tylko liczba adresów, nie
+same adresy. Klienci nie widzą go we własnej
 historii. Gdy serwer poczty odrzuci jeden adres, a przyjmie inny, PDF pozostaje wysłany na
 przyjęte adresy, okno wymienia odrzucone, a zapisywane są tylko przyjęte. Wysyłka jest odrzucana,
 bez żadnego zapisu, gdy:

@@ -162,7 +162,8 @@ describe('projects — history (US7)', () => {
       expect(text).not.toContain('valueAmount');
       const create = rows.find((row) => row.action === 'projects.project.create');
       const update = rows.find((row) => row.action === 'projects.project.update');
-      expect(create?.state_after).toMatchObject({ changedFields: ['value'] });
+      // The title is a value too (owner ruling O-1, 2026-11-10).
+      expect(create?.state_after).toMatchObject({ changedFields: ['title', 'value'] });
       expect(update?.state_after).toMatchObject({ changedFields: ['value'] });
     });
 
@@ -178,6 +179,31 @@ describe('projects — history (US7)', () => {
       // The store's values replace the names: no bookkeeping key reaches the reader.
       expect(response.body).not.toContain('changedFields');
       expect(response.body).not.toContain('valueChangeId');
+    });
+
+    it('the platform audit log holds no title — the history serves it from the Project’s own store (O-1)', async () => {
+      const titled = await createProject(h, { title: 'S470-PRJ-TITLE', organizationIds: [orgA], visibility: 'everyone' });
+      created.push(titled.id);
+      const renamed = await callProjects(h, 'PATCH', `/${titled.id}`, {
+        payload: { title: 'S470-PRJ-TITLE-NEW', version: titled.version },
+      });
+      expect(renamed.statusCode, renamed.body).toBe(200);
+      const rows = (await h
+        .em()
+        .getConnection()
+        .execute(`select "action", "state_before", "state_after" from "audit_log_entries" where "object_id" = ?`, [
+          titled.id,
+        ])) as Array<{ action: string; state_before: unknown; state_after: unknown }>;
+      expect(JSON.stringify(rows)).not.toContain('S470');
+      expect(rows.find((row) => row.action === 'projects.project.update')?.state_after).toMatchObject({
+        changedFields: ['title'],
+      });
+      const response = await callProjects(h, 'GET', `/${titled.id}/history?limit=50`, { cookies: rep.cookies });
+      expect(response.statusCode, response.body).toBe(200);
+      const update = RecordHistoryPageSchema.parse(response.json()).data.find(
+        (entry) => entry.action === 'projects.project.update',
+      );
+      expect(update).toMatchObject({ before: { title: 'S470-PRJ-TITLE' }, after: { title: 'S470-PRJ-TITLE-NEW' } });
     });
 
     it('keeps an amount as the Project stores it — two places — not as it was typed (T145)', async () => {

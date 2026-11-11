@@ -76,8 +76,7 @@ describe('#955 — the reach governor table and the subquery that reads it', () 
       {
         allowAll: false,
         reach: 'excluding',
-        excludedOrganizationIds: reach.excludedOrganizationIds,
-        assignedOrganizationIds: reach.assignedOrganizationIds,
+        loadReach: async () => reach,
         excludedOrganizationsQuery: reachExcludedQuery(rep, rollup.has(rep)),
       },
     );
@@ -277,8 +276,7 @@ describe('#955 — the reach governor table and the subquery that reads it', () 
         {
           allowAll: false,
           reach: 'excluding',
-          excludedOrganizationIds: [],
-          assignedOrganizationIds: [],
+          loadReach: async () => ({ excludedOrganizationIds: [], assignedOrganizationIds: [] }),
           excludedOrganizationsQuery: { sql: 'select e.x from (select null::uuid as x where false) e', params: [] },
         },
       );

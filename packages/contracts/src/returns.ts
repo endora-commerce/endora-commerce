@@ -1,6 +1,7 @@
 import { z } from 'zod';
 import { isoDateTimeSchema, uuidSchema } from './common.js';
 import { twoDecimalAmount } from './money-input.js';
+import { lineQuantitySchema, REQUEST_LINE_ITEMS_MAX } from './line-bounds.js';
 
 /**
  * Returns & Complaints (Refunds, RMA) — feature 046.
@@ -292,12 +293,13 @@ export const createReturnCaseRequestSchema = z.object({
     .array(
       z.object({
         orderItemId: uuidSchema,
-        quantity: z.number().int().positive(),
+        quantity: lineQuantitySchema,
         reasonId: uuidSchema,
         description: z.string().max(2000).optional(),
       }),
     )
-    .min(1),
+    .min(1)
+    .max(REQUEST_LINE_ITEMS_MAX),
   attachmentAssetIds: z.array(uuidSchema).optional(),
   comment: z.string().max(2000).optional(),
 });

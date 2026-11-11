@@ -2,6 +2,7 @@ import { z } from 'zod';
 import type { Actor } from './actor.js';
 import { isoDateTimeSchema, uuidSchema } from './common.js';
 import { ERROR_CODES } from './errors.js';
+import { customFieldValuesSchema } from './custom-fields.js';
 
 /**
  * Organization roles and organization permissions — the buyer's side of
@@ -181,6 +182,12 @@ export const adminDirectMemberToRoleRequestSchema = z
     lastName: z.string().min(1).max(120),
     password: z.string().min(12).max(256),
     roleId: uuidSchema.optional(),
+    /**
+     * Feature 175 (FR-018) — the new account's custom-field values (entity
+     * type `customer`), validated with the administrator's rules before the
+     * account is created.
+     */
+    customFieldValues: customFieldValuesSchema.optional(),
   })
   .strict();
 export type AdminDirectMemberToRoleRequest = z.infer<typeof adminDirectMemberToRoleRequestSchema>;

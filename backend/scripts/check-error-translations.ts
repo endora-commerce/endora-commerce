@@ -381,12 +381,13 @@ export const UNTRANSLATED_ERROR_CODES: ReadonlySet<string> = new Set([
   // they are not here. This one is unraised: nothing in the tree throws it, so
   // there was no refusal to describe.
   'ACTIVE_RESERVATIONS_EXIST',
-  // custom_fields (5) — re-homed from `_i18n` by D-129's sweep, MR 3 (Tier A),
+  // custom_fields (4) — re-homed from `_i18n` by D-129's sweep, MR 3 (Tier A),
   // on the same terms as MR 2's two families: none of the five had a sentence
   // in either language before the move and none has one after, so what moved is
-  // which module owes it.
+  // which module owes it. Feature 175 gave the fifth, `CUSTOM_FIELD_VALUE_INVALID`,
+  // its sentence: a buyer's registration is refused with it.
   'CUSTOM_FIELD_DEFINITION_INVALID', 'CUSTOM_FIELD_HOST_MANAGED', 'CUSTOM_FIELD_KEY_CONFLICT',
-  'CUSTOM_FIELD_NOT_FOUND', 'CUSTOM_FIELD_VALUE_INVALID',
+  'CUSTOM_FIELD_NOT_FOUND',
   // customer_accounts (3) — MR 4, same terms. The batch's other two
   // `customer_accounts` codes, `CANNOT_DEMOTE_LAST_ADMIN` and
   // `CANNOT_REMOVE_LAST_ADMIN`, carried placeholders and arrive with prose, so

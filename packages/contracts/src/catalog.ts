@@ -8,9 +8,15 @@ import {
   type ProductVisibility,
 } from './common.js';
 import type { FulfilmentStrategy } from './inventory.js';
+import {
+  customFieldAdminAccessSchema,
+  customFieldValuesSchema,
+  type CustomFieldAdminAccess,
+} from './custom-fields.js';
 import type { BulkImportReport } from './import-export.js';
 import type { AttributeScope } from './product-value-resolver.js';
 import { ORDER_MINIMUM_MAX } from './order-minimums.js';
+import { lineQuantitySchema, REQUEST_LINE_ITEMS_MAX } from './line-bounds.js';
 import { productPagePathsSchema } from './product-url-keys.js';
 import type { FieldPath, ScopeLevel } from './product-scope-model.js';
 import type { ProductScopedWriteCell } from './product-scopes.js';
@@ -623,11 +629,11 @@ export const catalogBulkPriceRequestSchema = z.object({
     .array(
       z.object({
         sku: z.string().min(1),
-        quantity: z.number().int().min(1),
+        quantity: lineQuantitySchema,
       }),
     )
     .min(1)
-    .max(200),
+    .max(REQUEST_LINE_ITEMS_MAX),
 });
 export type CatalogBulkPriceRequest = z.infer<typeof catalogBulkPriceRequestSchema>;
 
@@ -1258,6 +1264,12 @@ const baseCreateAttributeObject = z.object({
   /** Feature 039 — values participate in Quick Order search. Default false. */
   quickSearchable: z.boolean().optional(),
   /**
+   * Feature 175 (FR-036) — how the admin panel offers the attribute's backing
+   * custom-field definition: `edit` (default), `read` or `hidden`. A panel
+   * convenience, not access control; a required attribute stays `edit`.
+   */
+  adminAccess: customFieldAdminAccessSchema.optional(),
+  /**
    * Feature 012 — rich option list for select / enum / multiselect types.
    * When supplied alongside the legacy `enumValues`, this wins. The
    * service layer creates corresponding `custom_field_options` rows
@@ -1333,6 +1345,8 @@ export const updateAttributeRequestSchema = z
     massEditable: z.boolean().optional(),
     /** Feature 039 — values participate in Quick Order search. */
     quickSearchable: z.boolean().optional(),
+    /** Feature 175 — see `baseCreateAttributeObject.adminAccess`. */
+    adminAccess: customFieldAdminAccessSchema.optional(),
   })
   .strict()
   .refine(
@@ -1385,6 +1399,11 @@ export const adminAttributeResponseSchema = z.object({
    */
   scopable: z.boolean().optional(),
   scopeLevels: z.array(z.enum(['G', 'C', 'CL'])).optional(),
+  /**
+   * Feature 175 — the backing definition's admin access. Optional so other
+   * builders of the DTO keep compiling; `catalog` always emits it.
+   */
+  adminAccess: customFieldAdminAccessSchema.optional(),
   createdAt: isoDateTimeSchema,
   updatedAt: isoDateTimeSchema,
 });
@@ -1406,6 +1425,11 @@ export const createCategoryRequestSchema = z.object({
    * first import never exposes a source hierarchy to customers.
    */
   isActive: z.boolean().optional(),
+  /**
+   * Feature 175 (FR-016) — the category's custom-field values, validated with
+   * the administrator's rules inside the creating Command.
+   */
+  customFieldValues: customFieldValuesSchema.optional(),
 });
 export type CreateCategoryRequest = z.infer<typeof createCategoryRequestSchema>;
 
@@ -1997,7 +2021,8 @@ export type PackagingUnitDto = z.infer<typeof packagingUnitSchema>;
 export const createPackagingUnitRequestSchema = z
   .object({
     name: z.string().trim().min(1).max(160),
-    baseQuantity: z.number().int().positive(),
+    /** Issue #351 — a unit's pieces are a line quantity: at most `LINE_QUANTITY_MAX`. */
+    baseQuantity: lineQuantitySchema,
     isDefault: z.boolean().optional(),
     position: z.number().int().nonnegative().optional(),
     /** Feature 155 — minimum number of this unit per order of the product; `null` clears. */
@@ -2013,7 +2038,7 @@ export type CreatePackagingUnitRequest = z.infer<typeof createPackagingUnitReque
  */
 export const updatePackagingUnitRequestSchema = z
   .object({
-    baseQuantity: z.number().int().positive().optional(),
+    baseQuantity: lineQuantitySchema.optional(),
     isDefault: z.boolean().optional(),
     position: z.number().int().nonnegative().optional(),
     /** Feature 155 — minimum number of this unit per order of the product; `null` clears. */
@@ -3053,6 +3078,11 @@ export interface CatalogAttributeView {
   scopable: boolean;
   scopeLevels: readonly ScopeLevel[];
   massEditable: boolean;
+  /**
+   * Feature 175 — the backing definition's admin access (`edit` when absent).
+   * Optional so the hand-built views of other modules keep compiling.
+   */
+  adminAccess?: CustomFieldAdminAccess;
 
   createdAt: Date;
   updatedAt: Date;

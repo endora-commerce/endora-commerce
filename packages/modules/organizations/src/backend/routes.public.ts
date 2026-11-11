@@ -105,6 +105,8 @@ export async function registerOrganizationsPublicRoutes(
       // Feature 154 (D6) — the store registered on becomes the Organization's channel.
       const result = await registrationService.registerOrganization(body, {
         salesChannelId: currentSalesChannel()?.id ?? null,
+        // Feature 175 — a refused custom-field value is worded in the buyer's language.
+        language: await request.responseLanguage(),
       });
       // Stash the raw token for the test-only probe so integration tests can
       // complete the verify step without reading the mail.

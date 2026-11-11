@@ -54,6 +54,19 @@ function toHttp(err: unknown): never {
           code: err.code,
           ...err.details,
         });
+      // Feature 175 (research R-4) — the buyer-input and admin-access
+      // invariants. `reason` is the contract's name for the refusal; `code`
+      // carries the same token because it is the member the error envelope
+      // reads to pick the translated sentence (`refusalToken`).
+      case 'customer_input_unsupported':
+      case 'customer_input_audience':
+      case 'customer_input_value_type':
+      case 'admin_access_required':
+        throw new HttpError(422, ERROR_CODES.CUSTOM_FIELD_DEFINITION_INVALID, err.message, {
+          code: err.code,
+          reason: err.code,
+          ...err.details,
+        });
       default:
         throw new HttpError(422, ERROR_CODES.CUSTOM_FIELD_DEFINITION_INVALID, err.message);
     }
@@ -122,6 +135,9 @@ function serialize({ definition, options }: CachedDefinition): Record<string, un
     // Feature 162 — a carry to a type whose owner module is off is not
     // offered; the row keeps it, and serves it again with the owner.
     carryTo: definition.carryTo.filter((target) => isEntityTypeServed(target)),
+    // Feature 175 — read by the admin screens only (FR-009); no route acts on them.
+    customerInput: [...(definition.customerInput ?? [])],
+    adminAccess: definition.adminAccess ?? 'edit',
     options: options.map((o) => ({
       id: o.id,
       value: o.value,
@@ -173,6 +189,8 @@ export async function registerCustomFieldsAdminRoutes(
         listFilter: meta.listFilter === true,
         // The types its definitions may carry to, while their owner is present (feature 162).
         carryTargets: (meta.carryTargets ?? []).filter((target) => isEntityTypeServed(target)),
+        // The buyer input surfaces its definitions may be opened on (feature 175).
+        customerInputSurfaces: [...(meta.customerInputSurfaces ?? [])],
         ...(meta.managedBy
           ? {
               managedBy: {

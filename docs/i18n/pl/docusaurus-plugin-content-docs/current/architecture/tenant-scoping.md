@@ -78,8 +78,11 @@ Handlowiec ma dostęp do każdej organizacji, której nie prowadzi inny handlowi
 do organizacji przypisanych jemu (z uprawnieniem `organizations:rollup` — do ich poddrzew, przy czym
 wygrywa najbliższe przypisanie) i do każdej organizacji, do której nikt nie jest przypisany — łącznie
 z organizacjami osobistymi (B2C), do których nie można nikogo przypisać. Moduł `organizations`
-zwraca ten zakres przez `adminTenantScopePort` jako `{ reach: 'excluding', excludedOrganizationIds,
-assignedOrganizationIds, excludedOrganizationsQuery }`, a zabezpieczenie filtruje według niego.
+zwraca ten zakres przez `adminTenantScopePort` jako `{ reach: 'excluding', excludedOrganizationsQuery,
+loadReach }`, a zabezpieczenie filtruje według zapytania (rozstrzygnięcie właściciela z 2026-11-10,
+które zmienia rozstrzygnięcie exit (a′) z 2026-08-24, dopuszczając je). Listy wykluczonych i przypisanych
+organizacji nie są wyznaczane przy ustalaniu zakresu: `loadReach` wczytuje je na żądanie, najwyżej raz na
+żądanie, dla funkcji pomocniczych dotyczących pojedynczej organizacji i dla kolejności wyników.
 Zakres jest odczytywany z tabeli `organization_reach_governor` — dla każdej organizacji najbliższy
 przodek (lub ona sama) z przypisanym handlowcem — którą wyzwalacze na poziomie instrukcji utrzymują
 aktualną w transakcji każdego zapisu, który może ją zmienić (issue #955). Nic nie jest buforowane.
@@ -106,12 +109,16 @@ aktualną w transakcji każdego zapisu, który może ją zmienić (issue #955). 
   ostrzeżenie (`warn`) z jej identyfikatorem (rozstrzygnięcie Q1 w PR #954). Pusty
   zbiór wykluczony jest prawdziwą odpowiedzią — nikt inny nie ma przypisań — i nigdy nie powstaje
   w wyniku błędu.
-- **Zapisy przechodzą przez tę samą gałąź.** Zabezpieczenie zapisu i `isOrgInScope` odrzucają zapis
+- **Zapisy przechodzą przez tę samą gałąź.** Zabezpieczenie zapisu i `orgInScope` odrzucają zapis
   z wykluczoną organizacją, więc handlowiec zapisuje tylko tam, gdzie może czytać.
 - **Moduły nigdy nie czytają identyfikatorów.** Moduł odczytuje swój zakres przez funkcje
   pomocnicze zakresu pochodnego — `orgScopeWhere`, `orgScopeSql` (dla surowego SQL: to samo
-  podzapytanie, z parametrami dołączonymi do parametrów wywołującego), `isOrgInScope`, `ruleVisibleForScope`, `reachesNoOrganization` oraz
-  `assignedOrganizationIdsForRanking` (wyłącznie do kolejności i filtrów „moje”). `OrgConstraint`
+  podzapytanie, z parametrami dołączonymi do parametrów wywołującego), `reachesNoOrganization` oraz
+  asynchroniczne `orgInScope`, `ruleInScope`, `orgScopeTest` (predykat synchroniczny pobierany raz) i
+  `assignedOrganizationIdsForRanking` (wyłącznie do kolejności i filtrów „moje”). Synchroniczne
+  `isOrgInScope` i `ruleVisibleForScope` usunięto, zamiast uczynić je asynchronicznymi, ponieważ
+  obietnica w `if` jest zawsze prawdziwa; pliki zadające to pytanie pilnują reguły
+  `no-floating-promises` i `no-misused-promises` (issue #955). `OrgConstraint`
   ma gałęzie `all`, `single`, `allowed` i `excluded`; dawna gałąź `set` została usunięta, a nie
   pozostawiona obok, aby żaden konsument nie odczytał zakresu handlowca jako „bez ograniczeń”.
 

@@ -2,6 +2,7 @@ import {
   defineModuleManifest,
   defineModuleSettingsManifest,
   TASK_BOARD_DEFAULT_CARD_FIELDS,
+  type CustomFieldWriteDeclaration,
 } from '@endora-commerce/contracts';
 
 /**
@@ -60,6 +61,28 @@ const settings = defineModuleSettingsManifest({
     },
   ],
 });
+
+/**
+ * Feature 175 (`specs/175-buyer-input-custom-fields/` research R-11) — the
+ * admin writes of this module's custom-field host, for `check:custom-field-writes`.
+ * Read as a literal by the check: keep every entry a literal object.
+ */
+export const customFieldWrites = [
+  {
+    entityType: 'task',
+    kind: 'create',
+    method: 'POST',
+    path: '/api/v1/admin/tasks',
+    body: 'CreateTaskBodySchema',
+  },
+  {
+    entityType: 'task',
+    kind: 'update',
+    method: 'PATCH',
+    path: '/api/v1/admin/tasks/:id',
+    body: 'UpdateTaskBodySchema',
+  },
+] satisfies CustomFieldWriteDeclaration[];
 
 export const manifest = defineModuleManifest({
   id: 'tasks',

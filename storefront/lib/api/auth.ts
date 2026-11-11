@@ -23,12 +23,16 @@ export interface RegisterOrganizationPayload {
     taxId: string;
     registeredAddress: { street: string; city: string; postalCode: string; country: string };
     vatStatus?: 'vat_payer' | 'vat_exempt' | 'flat_rate';
+    /** Feature 175 — the Organization's custom fields open on `organization.register`. */
+    customFieldValues?: Record<string, unknown>;
   };
   firstUser: {
     email: string;
     password: string;
     firstName: string;
     lastName: string;
+    /** Feature 175 — the account owner's custom fields open on `organization.register`. */
+    customFieldValues?: Record<string, unknown>;
   };
   acceptedTermsVersion: string;
   /**

@@ -1,6 +1,7 @@
 import {
   defineModuleManifest,
   defineModuleSettingsManifest,
+  type CustomFieldWriteDeclaration,
   type ModuleCliCommand,
 } from '@endora-commerce/contracts';
 import type { ModuleContext } from '@endora-commerce/platform/kernel';
@@ -77,6 +78,30 @@ const settings = defineModuleSettingsManifest({
     },
   ],
 });
+
+/**
+ * Feature 175 (`specs/175-buyer-input-custom-fields/` research R-11) — the
+ * admin writes of this module's custom-field host, for
+ * `check:custom-field-writes`: the order create, and the values patch (an order
+ * has no general update). Read as a literal by the check: keep every entry a
+ * literal object.
+ */
+export const customFieldWrites = [
+  {
+    entityType: 'order',
+    kind: 'create',
+    method: 'POST',
+    path: '/api/v1/admin/orders',
+    body: 'adminCreateOrderRequestSchema',
+  },
+  {
+    entityType: 'order',
+    kind: 'values',
+    method: 'PATCH',
+    path: '/api/v1/admin/orders/:id/custom-fields',
+    body: 'customFieldValuesSchema',
+  },
+] satisfies CustomFieldWriteDeclaration[];
 
 export const manifest = defineModuleManifest({
   id: 'orders',

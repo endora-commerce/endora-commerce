@@ -215,16 +215,11 @@ describe.skipIf(!shouldRun)('#305 — the sales-representative reach at 50 000 o
     }
   }, 120_000);
 
-  // Known failure, issue #955 — borderline since the architect's ruling of
-  // 2026-11-09 (the reach as an organizations-owned subquery, and the orders
-  // list carrying it once). Measured 2026-11-09 at load average 4–7, p95:
-  // customers 23.1 vs 15.4 ms (1.50×) and 27.5 vs 18.8 ms (1.46×); orders
-  // 21.3 vs 14.7 ms (1.45×) and 24.6 vs 11.9 ms (2.07×). The ratio is met in
-  // some runs and missed in others, so this marker flips with the host; what
-  // is left is the per-request reach statement the scope hook still runs
-  // (Phase 2 of the ruling, a breaking platform change awaiting the owner).
-  // The threshold stays; remove the marker when the ratio holds reliably.
-  it.fails.each(['/api/v1/admin/customers?pageSize=50', '/api/v1/admin/orders?pageSize=50'])(
+  // Issue #955 Phase 2 (owner ruling of 2026-11-10): the scope hook no longer
+  // computes the reach on every admin request — the lists load lazily, once
+  // per request, and only for the single-id questions and the ranking. The
+  // threshold is the design's and is never moved.
+  it.each(['/api/v1/admin/customers?pageSize=50', '/api/v1/admin/orders?pageSize=50'])(
     '%s for a roll-up representative is within the ratio of the platform administrator’s',
     async (url) => {
       const read = (cookie: string) => async () => {

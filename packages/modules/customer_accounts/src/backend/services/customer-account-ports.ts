@@ -31,6 +31,11 @@ import {
   type OrganizationRoleLookup,
 } from '../commands/customer-account-role-rules.js';
 import type { TwoFactorEnrolmentReader } from './two-factor-enrolments.js';
+import {
+  accountCreatedAuditState,
+  changedKeys,
+  organizationMoveAuditState,
+} from './customer-account-audit-state.js';
 
 /**
  * The published face of `customer_accounts` (feature 075, Phase P).
@@ -380,13 +385,12 @@ export class CustomerAccountMemberWriteService implements CustomerAccountMemberW
       firstName: input.firstName,
       lastName: input.lastName,
       organizationRoleId: input.organizationRoleId,
+      // Feature 175 (research R-5) — already validated by the caller through
+      // custom_fields' value port; stored as given, never re-validated here.
+      customFieldValues: input.customFieldValues ?? {},
       ...(input.emailVerified ? { emailVerifiedAt: new Date() } : {}),
     });
-    this.#audit(em, 'customer_account.create', account.id, null, {
-      organizationId: account.organizationId ?? null,
-      email: account.email,
-      organizationRoleId: account.organizationRoleId,
-    });
+    this.#audit(em, 'customer_account.create', account.id, null, accountCreatedAuditState(account));
     try {
       await em.persistAndFlush(account);
     } catch (err) {
@@ -415,6 +419,7 @@ export class CustomerAccountMemberWriteService implements CustomerAccountMemberW
       email: account.email,
       firstName: account.firstName,
       lastName: account.lastName,
+      emailVerifiedAt: account.emailVerifiedAt ?? null,
     };
     if (patch.email !== undefined) {
       const nextEmail = normalizeEmailAddress(patch.email);
@@ -433,10 +438,14 @@ export class CustomerAccountMemberWriteService implements CustomerAccountMemberW
     }
     if (patch.firstName !== undefined) account.firstName = patch.firstName;
     if (patch.lastName !== undefined) account.lastName = patch.lastName;
-    this.#audit(em, 'customer_account.update_profile', account.id, before, {
-      email: account.email,
-      firstName: account.firstName,
-      lastName: account.lastName,
+    // The names of what changed, never the e-mail or the names (D-288).
+    this.#audit(em, 'customer_account.update_profile', account.id, null, {
+      changedFields: changedKeys(before, {
+        email: account.email,
+        firstName: account.firstName,
+        lastName: account.lastName,
+        emailVerifiedAt: account.emailVerifiedAt ?? null,
+      }),
     });
     await em.flush();
     return toOneCustomerAccountRecord(this.twoFactorEnrolments, account);
@@ -526,10 +535,9 @@ export class CustomerAccountMemberWriteService implements CustomerAccountMemberW
     // the previous Organization's role (`specs/170-organization-roles/` R-34).
     account.organizationId = organizationId;
     account.organizationRoleId = organizationRoleId;
-    this.#audit(em, 'customer_account.attach_organization', account.id, before, {
-      organizationId,
-      organizationRoleId,
-    });
+    // A tenant move by name: the Organization ids stay out of the audit log (D-288).
+    const move = organizationMoveAuditState(before, { organizationId, organizationRoleId });
+    this.#audit(em, 'customer_account.attach_organization', account.id, move.stateBefore, move.stateAfter);
     await em.flush();
     return toOneCustomerAccountRecord(this.twoFactorEnrolments, account);
   }

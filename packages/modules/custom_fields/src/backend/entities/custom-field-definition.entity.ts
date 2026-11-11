@@ -1,7 +1,13 @@
 import { Entity, Index, OptionalProps, PrimaryKey, Property, Unique } from '@mikro-orm/core';
 import { GlobalEntity } from '@endora-commerce/platform/tenancy';
 import { randomUUID } from 'crypto';
-import type { CustomFieldAudience, CustomFieldValueType, SupportedEntityType } from '@endora-commerce/contracts';
+import type {
+  CustomFieldAdminAccess,
+  CustomFieldAudience,
+  CustomFieldInputSurface,
+  CustomFieldValueType,
+  SupportedEntityType,
+} from '@endora-commerce/contracts';
 
 /**
  * CustomFieldDefinition — an operator-defined field for one host entity type
@@ -34,7 +40,9 @@ export class CustomFieldDefinition {
     | 'label'
     | 'config'
     | 'listFilter'
-    | 'carryTo';
+    | 'carryTo'
+    | 'customerInput'
+    | 'adminAccess';
 
   @PrimaryKey({ type: 'uuid' })
   id: string = randomUUID();
@@ -92,6 +100,23 @@ export class CustomFieldDefinition {
    */
   @Property({ type: 'json' })
   carryTo: SupportedEntityType[] = [];
+
+  /**
+   * The buyer input surfaces this field's value may be supplied on
+   * (`specs/175-buyer-input-custom-fields/`). Only surfaces the registry entry
+   * offers; non-empty only with the `customer` audience and never for
+   * `page_builder`. Stored deduplicated and sorted.
+   */
+  @Property({ type: 'json' })
+  customerInput: CustomFieldInputSurface[] = [];
+
+  /**
+   * How the admin custom-field panel offers the field: `edit`, `read` or
+   * `hidden` (feature 175). A panel convenience, not access control — no API
+   * endpoint reads it. A `required` field is always `edit`.
+   */
+  @Property({ type: 'string', length: 16 })
+  adminAccess: CustomFieldAdminAccess = 'edit';
 
   @Property({ type: 'datetime', onCreate: () => new Date() })
   createdAt: Date = new Date();

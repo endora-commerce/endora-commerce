@@ -53,6 +53,10 @@ that later edits it, with the same sections in the same order:
    - **Required** — a record cannot be saved without a value.
    - **Who can see the value** — *Internal* (administrators only, the default) or *Customer* (also
      returned to the customer in the storefront and to integrations using the external API).
+   - **Admin access** — *Editable* (the default), *Read-only* or *Hidden*: how the field appears in
+     the admin panels where records are edited. See [Admin access](#admin-access).
+   - **Collect from the buyer at registration** — offered for Organization and Customer fields
+     only. See [Collecting a field from the buyer](#collecting-a-field-from-the-buyer).
 5. **Behaviour**
    - **Use as list filter** — offered only for orders, quote requests and opportunities. See
      [List filters](#list-filters).
@@ -94,6 +98,8 @@ The record type, the key and the type are shown as fixed text; the rest can be c
   fields are edited. Nothing is filled in for you.
 - **Who can see the value** — the same choice the table's *Visible to* column offers. A change that
   would stop a carry from working asks first, as it does from the table.
+- **Admin access** and **Collect from the buyer at registration**, with the same rules as when the
+  field is created.
 - **Use as list filter**, where the record type offers it.
 - **Carry value to …**, where the record type offers it — one checkbox per target, each with its
   own help line.
@@ -106,6 +112,76 @@ change to the field.
 **What cannot change.** The key, the record type and the type are fixed once the field exists. To change
 them, create a new field. An option still in use cannot be removed. No edit ever changes a value a
 record already holds.
+
+## Admin access
+
+Some fields are maintained by an integration or by the instance's own code — a sync checksum, an
+external customer number — and an administrator should not change them by accident. **Admin
+access** says how such a field appears in the admin panels where records are edited (an order,
+an organization, a customer, a category, a quote request):
+
+| Admin access | In the admin panel |
+| --- | --- |
+| *Editable* (the default) | an input, as for every field |
+| *Read-only* | the label and the stored value (a dash when there is none), without an input |
+| *Hidden* | not shown |
+
+Saving a panel sends only the editable fields, so a read-only or hidden value is never overwritten
+from the panel — also one an integration wrote after the page was opened. If a save is refused
+because of a read-only or hidden field (its stored value no longer fits the field, for example),
+the panel says which field and that it is changed on **Custom Fields**.
+
+**Admin access is a convenience of the admin panel, not access control.** Read-only and hidden
+fields stay readable and writable through the API, can still be list filters, and are exported and
+recorded in the audit log exactly like editable ones. Whoever may edit a record through the API may
+change these values; to keep a value away from someone, use permissions, not admin access.
+
+**A required field must stay editable.** A field cannot be both required and read-only or hidden:
+every save of a record checks every required field, so a required field nobody can fill in the
+panel would make every record without a value impossible to save there. The form makes *Read-only*
+and *Hidden* unavailable while **Required** is ticked, and **Required** unavailable while the field
+is not editable, each with the reason. The definitions table shows every field whatever its admin
+access, with a *Read-only* or *Hidden* badge.
+
+Product attributes have the same setting, on **Catalog → Attributes**.
+
+## Collecting a field from the buyer
+
+A field can be filled in by the buyer on the storefront's registration form, so that information
+you need about a new business customer — how they heard about you, their industry, a phone number
+— arrives with the registration rather than in a later e-mail. Tick **Collect from the buyer at
+registration** on the field:
+
+- **Organization** fields appear in the company section of the B2B registration form and are stored
+  on the new Organization; **Customer** fields appear in the personal section and are stored on the
+  account of the person registering.
+- The storefront shows the fields that are ticked, each with its label in the shop's language,
+  required ones marked, without a code change; a change on **Custom Fields** reaches the form within
+  minutes.
+- **Only fields visible to customers can be collected.** The option is unavailable, with the reason,
+  while *Who can see the value* is *Internal* — a buyer is never asked for a value they could not
+  read back — and for a Page Builder field. Changing a collected field to *Internal* is refused
+  until the option is unticked.
+- A collected field may be read-only or hidden in the admin panel, unless it is required.
+- The definitions table marks collected fields with a *Registration* badge.
+
+**What the buyer may send, and what is refused.** The registration accepts values only for fields
+ticked for it — any other key, an internal field, a field of the other record type or one that
+does not exist is **refused, never ignored**, and the registration is not made. A required
+collected field must be filled in; a required field that is not collected is not asked for at
+registration. Every value is checked like a value an administrator types (type, options, dates,
+numbers), plus three limits for an anonymous writer: text is at most 1 000 characters after
+surrounding spaces are removed, text of spaces only counts as empty, and at most 50 fields per
+record type may be sent at once. Each refusal is said beside its field, in the buyer's language; a
+refused registration creates nothing.
+
+A collected value is personal data like the rest of the account: anonymising a customer clears
+their custom-field values, and the registration's audit entry records which fields were filled in,
+never their values.
+
+Collecting from the buyer is offered on one form today, the B2B registration. A storefront
+scaffolded before this option existed needs a small change to show the fields; the `organizations`
+module documentation describes it.
 
 ## List filters
 
@@ -280,11 +356,16 @@ with it names the field by its key — the field's current definition is not loo
 
 | Verb + Path | Permission | Purpose |
 | --- | --- | --- |
-| `GET /api/v1/admin/custom-fields/entity-types` | `custom_fields:read` | The entity types offered now, each with `listFilter`: whether its fields may be list filters, and `carryTargets`: the types its fields may carry to, leaving out a type whose module is switched off. |
+| `GET /api/v1/admin/custom-fields/entity-types` | `custom_fields:read` | The entity types offered now, each with `listFilter`: whether its fields may be list filters, `carryTargets`: the types its fields may carry to, leaving out a type whose module is switched off, and `customerInputSurfaces`: the buyer input surfaces its fields may be opened on (`organization.register` for `organization` and `customer`, `[]` otherwise). |
 | `GET /api/v1/admin/custom-fields/definitions?entityType=…` | `custom_fields:read` | The fields of a type, each with `listFilter` and `carryTo`, the types it carries to (a type whose module is switched off is left out). |
-| `POST /api/v1/admin/custom-fields/definitions` | `custom_fields:write` | Create a field; `listFilter` is optional and refused with `422` for a type that does not offer it; `carryTo` is optional (default `[]`). |
-| `PATCH /api/v1/admin/custom-fields/definitions/:id` | `custom_fields:write` | Change `labelDefault`, `label`, `required`, `audience`, `listFilter` or `carryTo` (the whole new list); absent members are left as they are. Only a **newly added** `carryTo` entry is judged, so re-sending a carry that has since become incompatible is accepted, and an entry naming a switched-off module is kept whatever the list sent. |
+| `POST /api/v1/admin/custom-fields/definitions` | `custom_fields:write` | Create a field; `listFilter` is optional and refused with `422` for a type that does not offer it; `carryTo` is optional (default `[]`); `customerInput` (the surfaces the field is open on, default `[]`) and `adminAccess` (`edit`, `read` or `hidden`, default `edit`) are optional. |
+| `PATCH /api/v1/admin/custom-fields/definitions/:id` | `custom_fields:write` | Change `labelDefault`, `label`, `required`, `audience`, `listFilter`, `carryTo` (the whole new list), `customerInput` (the whole new list) or `adminAccess`; absent members are left as they are. Only a **newly added** `carryTo` entry is judged, so re-sending a carry that has since become incompatible is accepted, and an entry naming a switched-off module is kept whatever the list sent. |
 | `POST`, `PATCH`, `DELETE …/definitions/:id/options[/:optionId]` | `custom_fields:write` | Add, change (labels, `isDefault`, `sortOrder` — never `value`) or remove an option. `409` for an option in use. |
+| `GET /api/v1/custom-fields/input-surfaces/:surface` | none — anonymous, also on a store closed to anonymous visitors | The fields open on a buyer input surface, per entity type in their order: `key`, `valueType`, `required`, `label` and option `label`s in the request's language (falling back to the default label), `options` and `sortOrder`. Never a stored value, the audience, the admin access or an internal field. An unknown surface answers `200` with `entities: {}`. |
+
+Every definition answers `customerInput` and `adminAccess`. `adminAccess` is read by the admin
+panels only: no endpoint accepts, answers, filters, exports or audits a value differently because of
+it.
 
 The definition and option routes refuse with these codes:
 
@@ -293,7 +374,7 @@ The definition and option routes refuse with these codes:
 | `409` | `CUSTOM_FIELD_OPTION_IN_USE` | removing an option that a record still holds | `value`, `label` — the option's stored value and default label |
 | `409` | `CUSTOM_FIELD_VALUE_TYPE_LOCKED` | changing the value type of a field while records hold values | `key` |
 | `409` | `CUSTOM_FIELD_STORED_VALUES_EXIST` | creating a *Customer*-visible field under a key whose values a deleted field left on records — create it as internal first | `key` |
-| `422` | `CUSTOM_FIELD_DEFINITION_INVALID` | an invalid definition, among them `listFilter` on a record type that does not offer it (`list_filter_unsupported`) | — |
+| `422` | `CUSTOM_FIELD_DEFINITION_INVALID` | an invalid definition, among them `listFilter` on a record type that does not offer it (`list_filter_unsupported`), and four about buyer input and admin access: `customer_input_unsupported` (a surface the record type does not offer), `customer_input_audience` (open on a surface while *Internal*), `customer_input_value_type` (a Page Builder field opened on a surface) and `admin_access_required` (required while read-only or hidden) | `code` and `reason` for those four, and `key` |
 | `422` | `CUSTOM_FIELD_CARRY_INCOMPATIBLE` | turning on a `carryTo` entry the target cannot take | `code` — `target_missing`, `value_type_mismatch`, `options_missing`, `audience_mismatch`, `pair_unsupported` (a pair that is not offered, the field's own type included) or `target_unavailable` (the target's module is switched off); `targetEntityType`, `key`; `sourceValueType` and `targetValueType` for a type mismatch; `missingOptionValues` (a comma-separated string) and `missingOptionValueList` (an array) for missing options |
 
 The three lists take the filters as a request parameter:
@@ -313,3 +394,12 @@ filter of that list answers `400` `CUSTOM_FIELD_FILTER_UNAVAILABLE`, with the re
 `details.key`. An inverted range — `min` above `max`, `from` after `to` — and an operator that does
 not apply to the field's type (`contains` on a number, say) answer `400` `VALIDATION_FAILED`
 naming the field and operator: neither is ignored.
+
+A value a buyer sends on an input surface is refused with the platform's custom-field refusal,
+`422` `CUSTOM_FIELD_VALUE_INVALID`, one `details` entry per field with its `code` and a `message`
+worded for the buyer in the request's language — which never names the key or repeats the value. Two
+codes exist only there: `not_open_for_input` (the field is not open on the surface, or does not
+exist) and `too_many_keys` (more than 50 fields of one record type). The others — `missing_required`,
+`wrong_type`, `out_of_range`, `unknown_option`, `duplicate_option` — are the ones an administrator's
+values are refused with. Which route carries the values, and how it names each field in `details`,
+is the host's: for registration, the `organizations` module documentation.

@@ -441,23 +441,25 @@ export class ReturnSettlementService {
     // What the money moves: the goods, plus the charges (issue #876) — so on a
     // consumer's completing withdrawal it is more than the sum of the lines.
     const total = sumApproved([...items.map(approvedOf), deliveryRefund, surchargeRefund]);
-    const chargesAudited =
-      [charges.delivery.cap, charges.surcharge.cap, deliveryRefund, surchargeRefund].some((v) => compareDecimals(v, 0) > 0)
-        ? {
-            charges: {
-              delivery: { cap: charges.delivery.cap, approved: deliveryRefund },
-              surcharge: { cap: charges.surcharge.cap, approved: surchargeRefund },
-            },
-          }
-        : {};
-    // What the audit entry records of the recompute: a default that moved, and
-    // a line the ceiling bound.
-    const recomputedDefaults = items
+    // Which charges were refunded, by kind — never how much (#470, D-288: the
+    // audit log is read without the Organization's reach).
+    const refundedCharges = (
+      [
+        ['delivery', deliveryRefund],
+        ['surcharge', surchargeRefund],
+      ] as const
+    )
+      .filter(([, approved]) => compareDecimals(approved, 0) > 0)
+      .map(([kind]) => kind);
+    const chargesAudited = refundedCharges.length > 0 ? { refundedCharges } : {};
+    // What the audit entry records of the recompute: which line's default
+    // moved, and which line the ceiling bound — by id, never by amount (#470).
+    const recomputedDefaultItemIds = items
       .filter((it) => compareDecimals(defaultOf(it).refund, it.defaultRefundAmount) !== 0)
-      .map((it) => ({ itemId: it.id, from: roundHalfUp(it.defaultRefundAmount), to: defaultOf(it).refund }));
-    const lineCeilings = items
+      .map((it) => it.id);
+    const ceilingBoundItemIds = items
       .filter((it) => compareDecimals(defaultOf(it).effective, defaultOf(it).refund) < 0)
-      .map((it) => ({ itemId: it.id, default: defaultOf(it).refund, ceiling: defaultOf(it).effective }));
+      .map((it) => it.id);
 
     const movesMoney = input.resolutionType === 'refund' || input.resolutionType === 'credit';
 
@@ -679,7 +681,7 @@ export class ReturnSettlementService {
             objectId: rc.id,
             stateAfter: {
               resolutionType: input.resolutionType,
-              amount: approvedAmount(total),
+              // No amount (#470): what was refunded is on the refund and the case.
               currency: rc.currency,
               settlementState: refundFields?.settlementState ?? null,
               // Says which of the three happened — issued, not due, or never
@@ -691,8 +693,8 @@ export class ReturnSettlementService {
                   : result.correctiveInvoice.reason
                 : 'not_requested',
               ...withdrawalAudit,
-              ...(recomputedDefaults.length > 0 ? { recomputedDefaults } : {}),
-              ...(lineCeilings.length > 0 ? { lineCeilings } : {}),
+              ...(recomputedDefaultItemIds.length > 0 ? { recomputedDefaultItemIds } : {}),
+              ...(ceilingBoundItemIds.length > 0 ? { ceilingBoundItemIds } : {}),
               ...chargesAudited,
             },
           });

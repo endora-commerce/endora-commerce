@@ -12,10 +12,10 @@ import type {
 
 /** The registry's pairs: a Quote Request carries to an Order and an Opportunity; an Order never to a Quote Request. */
 export const CARRY_ENTITY_TYPES: CustomFieldEntityTypeInfo[] = [
-  { entityType: 'quote_request', labelKey: 'customFields.entity.quoteRequest', listFilter: false, carryTargets: ['order', 'opportunity'] },
-  { entityType: 'order', labelKey: 'customFields.entity.order', listFilter: true, carryTargets: ['opportunity'] },
-  { entityType: 'opportunity', labelKey: 'customFields.entity.opportunity', listFilter: false, carryTargets: ['order', 'quote_request'] },
-  { entityType: 'category', labelKey: 'customFields.entity.category', listFilter: false, carryTargets: [] },
+  { entityType: 'quote_request', labelKey: 'customFields.entity.quoteRequest', listFilter: false, carryTargets: ['order', 'opportunity'], customerInputSurfaces: [] },
+  { entityType: 'order', labelKey: 'customFields.entity.order', listFilter: true, carryTargets: ['opportunity'], customerInputSurfaces: [] },
+  { entityType: 'opportunity', labelKey: 'customFields.entity.opportunity', listFilter: false, carryTargets: ['order', 'quote_request'], customerInputSurfaces: [] },
+  { entityType: 'category', labelKey: 'customFields.entity.category', listFilter: false, carryTargets: [], customerInputSurfaces: [] },
 ];
 
 let sequence = 0;
@@ -50,6 +50,8 @@ export function carryDefinition(
     config: {},
     listFilter: false,
     carryTo: [],
+    customerInput: [],
+    adminAccess: 'edit',
     options: optionValues.map((value, index) => option(value, index)),
     createdAt: '2026-01-01T00:00:00.000Z',
     updatedAt: '2026-01-01T00:00:00.000Z',

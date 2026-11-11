@@ -73,7 +73,7 @@ describe('planLineGrouping — a body carrying groups', () => {
     });
     expect(plan.groups).toEqual([{ kind: 'update', id: G2, key: 'g2', name: 'First floor', position: 0 }]);
     expect(plan.deleteGroupIds).toEqual([G1]);
-    expect(plan.after).toEqual([{ name: 'First floor', lineCount: 0 }]);
+    expect(plan.after).toEqual([{ lineCount: 0 }]);
   });
 
   it('refuses an id that is not a group of this quote, at its path, with 422', () => {
@@ -121,7 +121,7 @@ describe('planLineGrouping — a body without groups (research R-14)', () => {
   });
 });
 
-describe('the audit shape', () => {
+describe('the audit shape — line counts, never a group name (D-288)', () => {
   it('after: every resulting group in order with its line count', () => {
     const plan = planLineGrouping({
       storedGroups: STORED,
@@ -135,15 +135,15 @@ describe('the audit shape', () => {
       pairedRows: [null, null, null, null],
     });
     expect(plan.after).toEqual([
-      { name: 'First floor', lineCount: 2 },
-      { name: 'Options', lineCount: 1 },
+      { lineCount: 2 },
+      { lineCount: 1 },
     ]);
   });
 
   it('before: the stored groups with their stored lines counted', () => {
     expect(groupingShape(STORED, [G1, G1, null, G2])).toEqual([
-      { name: 'Ground floor', lineCount: 2 },
-      { name: 'First floor', lineCount: 1 },
+      { lineCount: 2 },
+      { lineCount: 1 },
     ]);
     expect(groupingShape([], [null])).toEqual([]);
   });

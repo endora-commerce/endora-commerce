@@ -9,6 +9,7 @@ import { organizationRoleRefSchema } from './organization-roles.js';
 import { SalesChannelOptionSchema } from './sales-channels.js';
 import { foldDiacritics } from './text-normalization.js';
 import { registryLookupIdSchema } from './organization-registry-lookup.js';
+import { customFieldValuesSchema } from './custom-fields.js';
 
 /**
  * Organizations, customer accounts, addresses, invitations — Source of truth
@@ -233,12 +234,25 @@ export const registerOrganizationRequestSchema = z.object({
       country: z.string().length(2),
     }),
     vatStatus: vatStatusSchema.optional(),
+    /**
+     * Feature 175 — the Organization's custom-field values (entity type
+     * `organization`). On registration they are validated as BUYER input on
+     * the `organization.register` surface; on the admin create, which derives
+     * from this member (`AdminOrganizationCreateBodySchema`), with the
+     * administrator's rules — the two routes never share a validator (FR-023).
+     */
+    customFieldValues: customFieldValuesSchema.optional(),
   }),
   firstUser: z.object({
     email: z.string().email(),
     password: z.string().min(12).max(256),
     firstName: z.string().min(1).max(120),
     lastName: z.string().min(1).max(120),
+    /**
+     * Feature 175 — the registering person's custom-field values (entity type
+     * `customer`), validated as buyer input on `organization.register`.
+     */
+    customFieldValues: customFieldValuesSchema.optional(),
   }),
   acceptedTermsVersion: z.string(),
   /**
@@ -1034,15 +1048,8 @@ export type AdminTenantScope =
        */
       readonly allowAll: false;
       readonly reach: 'excluding';
-      /** Organizations governed by another representative: never reachable. */
-      readonly excludedOrganizationIds: string[];
       /**
-       * The representative's own assignments, roll-up expanded. For ranking
-       * and "mine" filters only; never a filter input.
-       */
-      readonly assignedOrganizationIds: string[];
-      /**
-       * Issue #955 (architect ruling, Q2) — the excluded organizations as one
+       * Issue #955 (architect ruling, Q2; owner ruling of 2026-11-10) — the excluded organizations as one
        * uncorrelated SELECT of a single non-null uuid column, read live in each
        * statement's own snapshot. Built by the owner from the authenticated
        * admin's identity and permissions only — never from request input. The
@@ -1053,6 +1060,19 @@ export type AdminTenantScope =
         readonly sql: string;
         readonly params: readonly (string | boolean)[];
       };
+      /**
+       * Issue #955 Phase 2 (owner ruling of 2026-11-10) — the lists, on demand:
+       * the organizations governed by another representative, and the
+       * representative's own assignments (roll-up expanded; ranking and "mine"
+       * filters only, never a filter input). They replaced the
+       * `excludedOrganizationIds` / `assignedOrganizationIds` fields, which made
+       * every admin request compute them. The owner memoises the call once per
+       * answered scope; a failure rejects, which refuses rather than widens.
+       */
+      readonly loadReach: () => Promise<{
+        readonly excludedOrganizationIds: readonly string[];
+        readonly assignedOrganizationIds: readonly string[];
+      }>;
       readonly unresolved?: Error;
     };
 

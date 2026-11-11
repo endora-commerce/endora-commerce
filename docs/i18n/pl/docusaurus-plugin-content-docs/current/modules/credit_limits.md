@@ -73,6 +73,16 @@ w całości; ścisły schemat to `CreditLimitAdjustedEventV1Schema` w `@endora-c
   odrzucana; zapisane subskrypcje zostają i nic nie dostają, dopóki moduł nie zostanie włączony
   ponownie.
 
+## W dzienniku audytu
+
+Przyznanie, zmiana i zaliczenie limitu ze zwrotu to każde jeden wpis w dzienniku audytu całej
+platformy (`credit_limit.grant`, `credit_limit.adjust`, `credit_limit.credit_from_return`),
+zapisany dla organizacji. Dziennik audytu czyta każdy, kto ma `audit_log:read`, bez względu na
+to, które organizacje widzi, dlatego wpis mówi, co się zmieniło — `changedFields: ['grantedAmount']`,
+a przy zaliczeniu identyfikator sprawy zwrotu — i nie zawiera żadnej kwoty. Bieżący limit jest na
+ekranie limitu kredytowego organizacji. Wpisy zapisane przed tą zmianą zachowują kwoty, z którymi
+zostały zapisane.
+
 ## Punkty rozszerzenia
 
 - **Powody zwolnienia** — `releaseByOrder(reason)` przyjmuje dziś `'invoice_paid'` i

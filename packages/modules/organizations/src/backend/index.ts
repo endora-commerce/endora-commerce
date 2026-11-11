@@ -1305,7 +1305,7 @@ export function registerModule(ctx: ModuleContext): void {
       createOrganizationAdminSearchProvider({
         // Issue #305 — the rows narrow to the reach rule inside the service
         // (`orgScopeWhere('id')`); the assignments only rank them.
-        search: (query) => service.search(query, assignedOrganizationIdsForRanking()),
+        search: async (query) => service.search(query, await assignedOrganizationIdsForRanking()),
         translate: (key, language) => i18n.translate('organizations', key, language),
       }),
     );

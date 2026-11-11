@@ -98,6 +98,30 @@ audytu przy Organizacji:
 Po zatwierdzeniu zmiany roli ogłaszane jest też zdarzenie
 `customer_account.organization_role_changed.v1`.
 
+### Co zawiera dziennik audytu
+
+Dziennik audytu platformy czyta każdy, kto ma `audit_log:read`, bez względu na
+to, które organizacje widzi, dlatego wpisy konta zawierają nazwy i strukturę,
+nigdy jego wartości:
+
+- zmiana profilu (`customer_account.update_profile`) wymienia zmienione pola
+  jako `changedFields`, bez adresu e-mail i bez imienia i nazwiska;
+- utworzenie konta (`customer_account.create`, `.register_standalone`,
+  `.register_social`) wymienia pola, z którymi konto powstało, jego rolę przez
+  identyfikator i to, czy adres został potwierdzony;
+- przeniesienie między Organizacjami (`customer_account.organization_assigned`,
+  `.organization_unassigned`, `.attach_organization`) jest zapisywane jako
+  `changedFields: ['organizationId', 'organizationRoleId']`, z identyfikatorami
+  ról, ale bez Organizacji;
+- blokada (`customer_account.blocked`, `.unblocked`) zapisuje moment, źródło i
+  `hasBlockReason`, nigdy sam powód;
+- zmiana pól niestandardowych (`customer.custom_fields.update`) wymienia
+  zmienione klucze jako `changedCustomFields`;
+- zmiana roli zapisuje rolę przez identyfikator i rodzaj, nigdy nazwę roli
+  niestandardowej.
+
+Wartości przechowuje samo konto.
+
 ## Encje
 
 `CustomerAccount` (e-mail, passwordHash, organizationRoleId), `PasswordResetToken`.

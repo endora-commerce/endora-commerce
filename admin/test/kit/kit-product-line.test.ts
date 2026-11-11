@@ -1,4 +1,5 @@
 import { describe, expect, it } from 'vitest';
+import { LINE_QUANTITY_MAX } from '@endora-commerce/contracts';
 import { parsePositiveInt, productDisplayName } from '@endora-commerce/admin-kit/components';
 
 /**
@@ -33,5 +34,13 @@ describe('parsePositiveInt', () => {
 
   it.each(['', '0', '-1', '1.5', '1e3', 'abc', '9007199254740993'])('refuses %j', (input) => {
     expect(parsePositiveInt(input)).toBeNull();
+  });
+
+  // Issue #351 — the API refuses a line quantity past `LINE_QUANTITY_MAX`, so the
+  // line is invalid on the form before it is sent, not after.
+  it('accepts LINE_QUANTITY_MAX and refuses one more', () => {
+    expect(parsePositiveInt(String(LINE_QUANTITY_MAX))).toBe(LINE_QUANTITY_MAX);
+    expect(parsePositiveInt(String(LINE_QUANTITY_MAX + 1))).toBeNull();
+    expect(parsePositiveInt('2147483648')).toBeNull();
   });
 });

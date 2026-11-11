@@ -3,6 +3,7 @@ import { Link, useNavigate } from 'react-router-dom';
 import { ArrowLeft } from 'lucide-react';
 import type { OrganizationSalesChannelOption } from '@endora-commerce/contracts';
 import { ApiError, useAuth } from '@endora-commerce/admin-kit/lib';
+import { CustomFieldValuesPanel, OrganizationPicker, customFieldErrorsOf } from '@endora-commerce/admin-kit/components';
 import {
   Alert,
   AlertDescription,
@@ -14,7 +15,6 @@ import {
   PageHeader,
   Select,
 } from '@endora-commerce/admin-kit/ui';
-import { OrganizationPicker } from '@endora-commerce/admin-kit/components';
 import { useTranslation } from '@endora-commerce/admin-kit/i18n';
 import { organizationSalesChannelsClient } from '../api/sales-channels.js';
 import { SalesChannelChecklist } from '../components/SalesChannelChecklist.js';
@@ -31,7 +31,16 @@ import { SalesChannelChecklist } from '../components/SalesChannelChecklist.js';
  * cannot be submitted with none, because an Organization with no channel may
  * shop nowhere. On success it opens the new Organization, where members are
  * invited.
+ *
+ * Feature 175 (FR-018, FR-039) — the Organization's custom fields are part of
+ * the form: the shared panel, embedded, its bag sent as `customFieldValues` in
+ * the create and a refusal said at the field it names. Its definitions are
+ * `custom_fields:read`'s, so without that code the panel is not shown and the
+ * create carries no values, as before.
  */
+
+/** The panel's starting bag: a new Organization has none. */
+const EMPTY_VALUES: Record<string, unknown> = {};
 
 const STATUSES = ['active', 'pending_verification'] as const;
 
@@ -63,6 +72,9 @@ export function OrganizationCreate(): ReactNode {
   const [attempt, setAttempt] = useState(0);
   const [saving, setSaving] = useState(false);
   const [error, setError] = useState<string | null>(null);
+  const { hasPermission } = useAuth();
+  const [customFieldValues, setCustomFieldValues] = useState<Record<string, unknown>>({});
+  const [customFieldErrors, setCustomFieldErrors] = useState<Record<string, string>>({});
 
   useEffect(() => {
     let cancelled = false;
@@ -90,6 +102,7 @@ export function OrganizationCreate(): ReactNode {
     if (cannotSubmit) return;
     setSaving(true);
     setError(null);
+    setCustomFieldErrors({});
     try {
       const res = await organizationSalesChannelsClient.create({
         name: name.trim(),
@@ -103,9 +116,11 @@ export function OrganizationCreate(): ReactNode {
         status,
         salesChannelIds: channels,
         ...(parentId ? { parentId } : {}),
+        ...(Object.keys(customFieldValues).length > 0 ? { customFieldValues } : {}),
       });
       navigate(`/organizations/${res.data.id}`, { replace: true });
     } catch (err) {
+      setCustomFieldErrors(customFieldErrorsOf(err) ?? {});
       setError(err instanceof ApiError ? err.envelope.error.message : t('create.error'));
       setSaving(false);
     }
@@ -288,6 +303,15 @@ export function OrganizationCreate(): ReactNode {
                 </p>
               ) : null}
             </div>
+
+            {hasPermission('custom_fields:read') ? (
+              <CustomFieldValuesPanel
+                entityType="organization"
+                values={EMPTY_VALUES}
+                onChange={setCustomFieldValues}
+                fieldErrors={customFieldErrors}
+              />
+            ) : null}
 
             <div className="flex justify-end gap-2">
               <Button type="button" variant="ghost" onClick={() => navigate('/organizations')} disabled={saving}>

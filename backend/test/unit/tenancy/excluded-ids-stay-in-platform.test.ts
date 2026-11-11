@@ -15,8 +15,8 @@ import { describe, expect, it } from 'vitest';
  * meant `$nin` — would confine a representative to exactly the organizations
  * they may *not* see; a module branching on the tenant **mode** and treating
  * an unknown one as "no filter" would widen them to everything. Both are
- * silent. So the helpers (`orgScopeWhere`, `orgScopeSql`, `isOrgInScope`,
- * `ruleVisibleForScope`, `assignedOrganizationIdsForRanking`) are the only way
+ * silent. So the helpers (`orgScopeWhere`, `orgScopeSql`, `orgInScope`,
+ * `ruleInScope`, `orgScopeTest`, `assignedOrganizationIdsForRanking`) are the only way
  * in, and this file holds that:
  *
  *  - no source file under `packages/modules/<id>/src` names

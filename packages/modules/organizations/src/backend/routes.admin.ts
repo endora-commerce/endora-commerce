@@ -261,6 +261,30 @@ export async function registerOrganizationsAdminRoutes(
     });
   };
 
+  /**
+   * Feature 175 (FR-018) — a new member's custom-field bag, validated as a
+   * merge onto an empty account so a `required` definition is enforced at
+   * creation. `{}` without the value port, as before the feature.
+   */
+  const validatedCustomerValues = async (
+    values: Record<string, unknown> | undefined,
+  ): Promise<Record<string, unknown>> => {
+    if (!customFieldValues) return {};
+    try {
+      return await customFieldValues.validateAndMerge('customer', {}, values ?? {});
+    } catch (err) {
+      if (isCustomFieldValidationFailure(err)) {
+        throw new HttpError(
+          422,
+          ERROR_CODES.CUSTOM_FIELD_VALUE_INVALID,
+          'One or more custom fields are invalid.',
+          err.errors.map((e) => ({ path: e.field, issue: e.message })),
+        );
+      }
+      throw err;
+    }
+  };
+
   const assertVersion = (current: Date, expectedIso?: string): void => {
     if (!expectedIso) return;
     const expected = new Date(expectedIso);
@@ -609,7 +633,11 @@ export async function registerOrganizationsAdminRoutes(
           const org = await runOrganizationWrite(
             commandBus,
             makeCreateOrganizationCommand(
-              { membership, ...(deps.treeService ? { tree: deps.treeService } : {}) },
+              {
+                membership,
+                ...(deps.treeService ? { tree: deps.treeService } : {}),
+                ...(customFieldValues ? { customFieldValues } : {}),
+              },
               body,
             ),
             () => taxIdExistsRefusal(),
@@ -956,6 +984,10 @@ export async function registerOrganizationsAdminRoutes(
       if (!role) {
         throw new HttpError(404, ERROR_CODES.NOT_FOUND, 'Organization role not found.');
       }
+      // Feature 175 (FR-018) — the member's values, validated with the
+      // administrator's rules **before** the account write, so a refusal
+      // creates nothing; `customer_accounts` stores the result as given.
+      const memberValues = await validatedCustomerValues(body.customFieldValues);
       // The duplicate check and the argon2 hash both moved to the owner's side
       // of the port with the write; `create` raises the same 409
       // `EMAIL_ALREADY_REGISTERED`.
@@ -968,6 +1000,7 @@ export async function registerOrganizationsAdminRoutes(
         firstName: body.firstName,
         lastName: body.lastName,
         organizationRoleId: role.id,
+        customFieldValues: memberValues,
       });
       if (deps.eventBus) {
         emitCustomerAccountCreated(deps.eventBus, customer.id, org.id);
@@ -978,7 +1011,14 @@ export async function registerOrganizationsAdminRoutes(
         'customer_account',
         customer.id,
         null,
-        { organizationId: org.id, email: customer.email, organizationRoleId: customer.organizationRoleId },
+        {
+          organizationId: org.id,
+          email: customer.email,
+          organizationRoleId: customer.organizationRoleId,
+          // Feature 175 (FR-021) — the keys stored, never their values
+          // (`specs/conventions/audit-state.md`, D-288).
+          changedCustomFields: Object.keys(memberValues).sort(),
+        },
       );
       reply.status(201);
       return { data: await memberDetail(customer, await request.responseLanguage()) };

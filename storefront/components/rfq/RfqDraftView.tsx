@@ -3,7 +3,7 @@
 import { useRouter } from 'next/navigation';
 import { useLocalizedPath } from '../../lib/i18n/localized-link';
 import { useEffect, useMemo, useState, type ReactNode } from 'react';
-import { lineAmountHalfUp, moneySum, unitPriceDisplayText } from '@endora-commerce/contracts';
+import { LINE_QUANTITY_MAX, lineAmountHalfUp, moneySum, unitPriceDisplayText } from '@endora-commerce/contracts';
 import { formatMoney as formatMoneyShared, type FormatMoneyOptions } from '../../lib/i18n/money';
 import {
   clampDraftQuantity,
@@ -492,6 +492,7 @@ export function DraftLine({
         <input
           type="number"
           min={floor}
+          max={LINE_QUANTITY_MAX}
           value={qtyText ?? line.quantity}
           aria-label={t.qtyLabel}
           {...(belowText ? { 'aria-invalid': true, 'aria-describedby': belowId } : {})}
@@ -499,8 +500,10 @@ export function DraftLine({
             // What was typed is kept as typed — "15" over a floor of 10 is not rewritten on the
             // "1" — and saved as soon as it is a whole quantity at or above the floor; anything
             // else is normalised on blur (Postel's Law).
-            setQtyText(e.target.value);
             const typed = draftQuantityOnType(e.target.value, minimum);
+            // Issue #351 (ruling R4) — a value past LINE_QUANTITY_MAX is saved at the bound,
+            // and the field shows the bound at once rather than the number that was typed.
+            setQtyText(Number(e.target.value) > LINE_QUANTITY_MAX ? String(LINE_QUANTITY_MAX) : e.target.value);
             if (typed !== null) onQty(typed);
           }}
           onBlur={(e): void => {

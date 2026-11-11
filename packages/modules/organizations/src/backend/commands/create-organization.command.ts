@@ -1,6 +1,12 @@
 import { randomUUID } from 'node:crypto';
 import type { EntityManager } from '@mikro-orm/postgresql';
-import { ERROR_CODES, normalizeTaxId, type AdminOrganizationCreateBody } from '@endora-commerce/contracts';
+import {
+  ERROR_CODES,
+  isCustomFieldValidationFailure,
+  normalizeTaxId,
+  type AdminOrganizationCreateBody,
+  type CustomFieldValuePort,
+} from '@endora-commerce/contracts';
 import type { Command } from '@endora-commerce/platform/commands';
 import { HttpError } from '@endora-commerce/platform/http';
 import type { SalesChannelMembershipPort } from '@endora-commerce/platform/kernel';
@@ -45,6 +51,13 @@ export interface CreateOrganizationCommandDeps {
   membership: Pick<SalesChannelMembershipPort, 'replaceChannelsForEntity'>;
   /** The depth bound for a branch; required when the input names a parent. */
   tree?: Pick<OrganizationTreeService, 'assertMaxDepth'>;
+  /**
+   * Feature 175 (FR-015, FR-018) — `custom_fields`' value port. The
+   * Organization's values are validated with the administrator's rules inside
+   * this Command, so a refusal rolls the create back and the audit row names
+   * what was stored. Without it the values are not written, as before.
+   */
+  customFieldValues?: Pick<CustomFieldValuePort, 'validateAndMerge'>;
 }
 
 /**
@@ -88,6 +101,7 @@ export function makeCreateOrganizationCommand(
       // D-290 / OD-11 — the canonical form is what is checked and stored.
       const taxId = normalizeTaxId(input.taxId);
       if (!(await taxIdAvailableFor(em, taxId, rootId))) throw taxIdExistsRefusal();
+      const customFieldValues = await validatedValues(deps, input);
       const now = new Date();
       const organization = em.create(Organization, {
         id: organizationId,
@@ -107,6 +121,7 @@ export function makeCreateOrganizationCommand(
         ...(input.status === 'active'
           ? { approvedAt: now, approvedByAdminUserId: actor.actorAdminUserId }
           : {}),
+        customFieldValues,
       });
       if (parent) await deps.tree!.assertMaxDepth(em, organization, parent);
       try {
@@ -133,8 +148,38 @@ export function makeCreateOrganizationCommand(
           registeredAddress: organization.registeredAddress,
           salesChannelIds: [...new Set(input.salesChannelIds)].sort(),
           ...(parent ? { parentId: parent.id } : {}),
+          // Feature 175 (FR-021) — the keys stored, never their values
+          // (`specs/conventions/audit-state.md`, D-288).
+          changedCustomFields: Object.keys(organization.customFieldValues ?? {}).sort(),
         },
       };
     },
   };
+}
+
+/**
+ * The new Organization's bag: the values sent, validated as a merge onto an
+ * empty record — so a `required` definition with no value is refused here, at
+ * creation (FR-015). The refusal is the 422 every admin custom-field write
+ * answers.
+ */
+async function validatedValues(
+  deps: CreateOrganizationCommandDeps,
+  input: AdminOrganizationCreateBody,
+): Promise<Record<string, unknown>> {
+  if (!deps.customFieldValues) return {};
+  try {
+    return await deps.customFieldValues.validateAndMerge('organization', {}, input.customFieldValues ?? {});
+  } catch (err) {
+    // Structural, as on the admin edit path; anything else is re-thrown.
+    if (isCustomFieldValidationFailure(err)) {
+      throw new HttpError(
+        422,
+        ERROR_CODES.CUSTOM_FIELD_VALUE_INVALID,
+        'One or more custom fields are invalid.',
+        err.errors.map((e) => ({ path: e.field, issue: e.message })),
+      );
+    }
+    throw err;
+  }
 }

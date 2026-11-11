@@ -57,7 +57,7 @@ describe('AnalyticsQueryService.summary — tenant confinement', () => {
   // governed by somebody else.
   it('confines a sales representative to every organization nobody else governs', async () => {
     const { service, statements } = serviceOver();
-    const scope: OrgConstraint = { kind: 'excluded', excludedOrganizationIds: ['f1'], assignedOrganizationIds: ['o1'], excludedOrganizationsQuery: { sql: 'select x from "reach"(?::uuid) as x', params: ['rep'] } };
+    const scope: OrgConstraint = { kind: 'excluded', excludedOrganizationsQuery: { sql: 'select x from "reach"(?::uuid) as x', params: ['rep'] }, loadReach: async () => ({ excludedOrganizationIds: ['f1'], assignedOrganizationIds: ['o1'] }) };
     await service.summary(WINDOW, scope);
 
     expect(statements).toHaveLength(2);

@@ -1,5 +1,9 @@
 import { describe, expect, it } from 'vitest';
-import { SUPPORTED_ENTITIES, SUPPORTED_ENTITY_TYPES } from './custom-field-registry.js';
+import {
+  customerInputSurfacesOf,
+  SUPPORTED_ENTITIES,
+  SUPPORTED_ENTITY_TYPES,
+} from './custom-field-registry.js';
 
 /**
  * The registry markers of `specs/157-custom-fields-list-filters/` (data-model
@@ -42,5 +46,18 @@ describe('custom-field registry', () => {
 
   it('keeps product host-managed', () => {
     expect(SUPPORTED_ENTITIES.product.managedBy?.moduleId).toBe('catalog');
+  });
+  // `specs/175-buyer-input-custom-fields/` research R-2, FR-002.
+  it('offers the organization.register input surface on organization and customer only', () => {
+    expect(customerInputSurfacesOf('organization')).toEqual(['organization.register']);
+    expect(customerInputSurfacesOf('customer')).toEqual(['organization.register']);
+    for (const type of SUPPORTED_ENTITY_TYPES) {
+      if (type === 'organization' || type === 'customer') continue;
+      expect(customerInputSurfacesOf(type)).toEqual([]);
+    }
+  });
+
+  it('answers no input surface for a type the registry does not hold', () => {
+    expect(customerInputSurfacesOf('invoice')).toEqual([]);
   });
 });

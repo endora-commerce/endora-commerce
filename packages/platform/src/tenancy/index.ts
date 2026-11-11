@@ -69,8 +69,10 @@ export { withSystemScope, withSystemScopeActingFor } from './escape-hatch.js';
 /** Row 28, plus `orgConstraintFor`'s return shape. */
 export {
   orgConstraintFor,
-  isOrgInScope,
-  ruleVisibleForScope,
+  /** Issue #955 Phase 2 — async; they replaced the synchronous `isOrgInScope` / `ruleVisibleForScope`. */
+  orgInScope,
+  ruleInScope,
+  orgScopeTest,
   /** Issue #305 — the sanctioned readers of a scope, for every constraint arm. */
   orgScopeWhere,
   orgScopeSql,

@@ -125,6 +125,14 @@ const CHECKS: readonly MovedTreeCheck[] = [
   { script: 'check-channel-resolution.ts', args: ['--enforce'], prefix: '[channel-resolution]' },
   { script: 'check-command-coverage.ts', args: ['--strict'], prefix: '[command-coverage]' },
   { script: 'check-container-imports.ts', args: [], prefix: '[container-imports]' },
+  // Feature 175. Its walk is each registered module's own directory — the
+  // manifest a host declares its custom-field writes in, and the route sources
+  // those declarations are held to. Over a moved tree the index still registers
+  // every module and none of their directories is there, so a check that asked
+  // "did I read a declaration?" would find none, report every entity type
+  // undeclared and send its reader after nine host modules that are fine.
+  // The floor is per module and refuses first.
+  { script: 'check-custom-field-writes.ts', args: [], prefix: '[custom-field-writes]' },
   {
     script: 'check-entity-tenant-classification.ts',
     args: [],

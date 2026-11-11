@@ -177,7 +177,11 @@ export interface OrganizationsModuleOptions {
    * when provided.
    */
   taxIdValidationService?: OrganizationTaxIdValidationService;
-  /** Feature 055 — validates + reads organization custom-field values on the admin edit path. */
+  /**
+   * Feature 055 — validates + reads organization custom-field values on the
+   * admin edit path; feature 175 — and the buyer's values at registration and
+   * the values of the admin Organization and member creates.
+   */
   customFieldValues?: CustomFieldValuePort;
   /**
    * The Command Bus (Principle XIII): the org-hierarchy tree mutations
@@ -231,6 +235,8 @@ export function organizationsModule(options: OrganizationsModuleOptions) {
       options.auditLogService,
       options.salesChannelMembership,
       options.registryLookup,
+      // Feature 175 — the buyer's custom-field values (research R-5).
+      options.customFieldValues,
     );
     const verificationService = new EmailVerificationService(
       options.emFactory,

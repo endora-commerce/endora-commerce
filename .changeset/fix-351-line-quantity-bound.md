@@ -1,0 +1,21 @@
+---
+'@endora-commerce/contracts': minor
+'@endora-commerce/platform': minor
+'@endora-commerce/admin-kit': minor
+'@endora-commerce/mod-i18n': minor
+'@endora-commerce/mod-carts': minor
+'@endora-commerce/mod-quick-order': minor
+'@endora-commerce/mod-quote-requests': minor
+---
+
+**Behaviour change: a line quantity has an upper bound, refused with a new error code, `LINE_QUANTITY_EXCEEDED`; and the quote request and return line arrays have a line-count bound** (issue #351). A quantity past the integer column it is stored in used to pass validation and answer `500`; it is now refused, in the reader's language.
+
+New in `@endora-commerce/contracts`: `LINE_QUANTITY_MAX` (`1 000 000`, the same value as `ORDER_MINIMUM_MAX`, so the largest minimum stays orderable), `lineQuantitySchema` (a whole number in 1…`LINE_QUANTITY_MAX`), `boundedLineQuantity(schema)`, `isLineQuantityExceededIssue(issue)`, `LINE_QUANTITY_EXCEEDED` (also in `ERROR_CODES`) and `REQUEST_LINE_ITEMS_MAX` (`200`). `ADMIN_ORDER_MAX_ITEMS` and `QUICK_ORDER_BUILD_MAX_ITEMS` are now that constant under their own names; their value does not change.
+
+**The new code.** Every request schema carrying a line quantity uses `lineQuantitySchema`: `addCartItemRequestSchema`, `updateCartItemRequestStrictSchema`, `createQuoteRequestSchema` / `patchQuoteRequestSchema` lines, `adminCreateQuoteRequestSchema` / `adminPatchQuoteRequestSchema` lines, `adminCreateOrderRequestSchema` / `adminOrderPreviewRequestSchema` items, `apiPlaceOrderRequestSchema` lines, `quickOrderBuildRequestSchema` items, `quickOrderOneClickRequestSchema`, `addShoppingListItemRequestSchema`, `updateShoppingListItemRequestSchema`, `createReturnCaseRequestSchema` lines, `catalogBulkPriceRequestSchema` lines, `cartSnapshotSchema` lines, and the packaging unit's `baseQuantity` in `createPackagingUnitRequestSchema` / `updatePackagingUnitRequestSchema`. A quantity past the bound is a Zod issue tagged `LINE_QUANTITY_EXCEEDED`. The error envelope in `@endora-commerce/platform` answers a request whose only failures are that issue with `400 LINE_QUANTITY_EXCEEDED` and a translated sentence (`@endora-commerce/mod-i18n` ships it in English and Polish), with `details` naming the field. A request that fails anything else as well stays `400 VALIDATION_FAILED`, with the issue among its details. `POST /api/v1/external/orders` and `POST /api/v1/external/catalog/prices` parse their bodies themselves and keep answering `422 VALIDATION_FAILED`; the detail's `issue` there is `LINE_QUANTITY_EXCEEDED`.
+
+`@endora-commerce/mod-carts`: two cases are refused with `422 LINE_QUANTITY_EXCEEDED`, `details: { quantity, maximum }`, and write nothing: an add onto an existing basket line whose sum would pass the bound, and a packaging-unit add whose pieces (`baseQuantity × units`) would pass it. This covers the single and batch add, reorder and shopping list to cart. Signing in sums the anonymous basket into the customer's and keeps a summed line at the bound instead of failing the sign-in. `updateCartItemRequestSchema` (the line edit) now accepts any quantity from `0` (remove) to the bound; it stopped at `999`.
+
+**Line counts.** The line arrays of `adminCreateQuoteRequestSchema`, `adminPatchQuoteRequestSchema` and `createReturnCaseRequestSchema` are bounded at `REQUEST_LINE_ITEMS_MAX`, as the customer's quote request create and edit already were: one line more is `400 VALIDATION_FAILED`. The value is shared but the refusal is not. The order intakes (admin create and preview, `POST /api/v1/external/orders`) and the quick-order build keep refusing more than 200 items with `422 VALIDATION_FAILED`, `details: { code: 'too_many_items', maximum: 200 }`, and the basket's own cap stays `422 CART_LINE_CAP_EXCEEDED`.
+
+`@endora-commerce/admin-kit`: `parsePositiveInt` returns `null` past `LINE_QUANTITY_MAX`, so the admin order and quote request create screens mark such a line invalid before sending it. `@endora-commerce/mod-quick-order`: an imported row past the bound, and every row of a duplicate whose sum passes it, is rejected as `quantity_invalid` instead of being recognised into a build that would be refused. `@endora-commerce/mod-quote-requests`: the Modify tab's quantity input carries the bound as its `max`.

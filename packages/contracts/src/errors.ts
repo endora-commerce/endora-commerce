@@ -21,6 +21,10 @@ export const ERROR_CODES = {
   // Owner ruling of 2026-10-25 — a typed unit price with more than four decimal
   // places (`money-input.ts`). Refused, never rounded.
   UNIT_PRICE_PRECISION_EXCEEDED: 'UNIT_PRICE_PRECISION_EXCEEDED',
+  // Issue #351 — a line quantity past `LINE_QUANTITY_MAX` (`line-bounds.ts`):
+  // a request schema's tagged issue (400), or a line a merge or a packaging unit
+  // would take past the bound (422). Refused, never clamped.
+  LINE_QUANTITY_EXCEEDED: 'LINE_QUANTITY_EXCEEDED',
 
   // Catalog
   FILTER_NOT_ALLOWED: 'FILTER_NOT_ALLOWED',

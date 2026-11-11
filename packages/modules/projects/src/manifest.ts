@@ -1,4 +1,8 @@
-import { defineModuleManifest, defineModuleSettingsManifest } from '@endora-commerce/contracts';
+import {
+  defineModuleManifest,
+  defineModuleSettingsManifest,
+  type CustomFieldWriteDeclaration,
+} from '@endora-commerce/contracts';
 
 /**
  * Projects — Projects for zero or more Organizations, run through per-Project
@@ -64,6 +68,28 @@ const settings = defineModuleSettingsManifest({
     },
   ],
 });
+
+/**
+ * Feature 175 (`specs/175-buyer-input-custom-fields/` research R-11) — the
+ * admin writes of this module's custom-field host, for `check:custom-field-writes`.
+ * Read as a literal by the check: keep every entry a literal object.
+ */
+export const customFieldWrites = [
+  {
+    entityType: 'project',
+    kind: 'create',
+    method: 'POST',
+    path: '/api/v1/admin/projects',
+    body: 'CreateProjectBodySchema',
+  },
+  {
+    entityType: 'project',
+    kind: 'update',
+    method: 'PATCH',
+    path: '/api/v1/admin/projects/:id',
+    body: 'UpdateProjectBodySchema',
+  },
+] satisfies CustomFieldWriteDeclaration[];
 
 export const manifest = defineModuleManifest({
   id: 'projects',

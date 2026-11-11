@@ -8922,6 +8922,15 @@
         }
       }
     },
+    "/api/v1/custom-fields/input-surfaces/{surface}": {
+      "get": {
+        "responses": {
+          "200": {
+            "description": "OK"
+          }
+        }
+      }
+    },
     "/api/v1/customers/register": {
       "post": {
         "responses": {
