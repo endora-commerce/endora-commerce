@@ -4878,6 +4878,30 @@ everybody holding `audit_log:read` whatever they may see.
 **After upgrading,** nothing has to be done. A report that looked subscribers up by address in the
 audit log looks them up on the **Newsletter** screen instead.
 
+### An Organization edit's values leave the platform audit log {#organization-admin-patch-audit-names-only}
+
+The release that ships this change stops writing an Organization's values into the platform-wide
+audit log when an operator edits it (issue #470, owner ruling O-2: the Organization's name, tax ID
+and reasons are the tenant's values). That log is one table, read by everybody holding
+`audit_log:read` whatever Organizations they may see.
+
+**Behaviour change on upgrade:**
+
+- On the **Audit log** screen, and in `audit_logs read`, a new `organization.admin_patch` entry
+  (`PATCH /api/v1/admin/organizations/:id`) no longer carries the Organization's snapshot: no name,
+  legal name, tax ID, registered address, order-confirmation e-mails, block or rejection reason or
+  custom field values.
+- Instead, it records the status, VAT status and fulfilment-strategy codes before and after, and
+  names what changed: the fields as `changedFields`, the custom field keys as
+  `changedCustomFields`.
+- The Organization and its values are unchanged.
+- Entries recorded before the upgrade are not rewritten: they keep the snapshot they were written
+  with.
+
+**After upgrading,** nothing has to be done. A report or an export that read an Organization's
+values out of the audit log reads them from the Organization (`GET /api/v1/admin/organizations/:id`)
+instead.
+
 ## An instance that is mixed from the start
 
 The installer of `0.101.x` or earlier wrote every package of the release with a `^` except

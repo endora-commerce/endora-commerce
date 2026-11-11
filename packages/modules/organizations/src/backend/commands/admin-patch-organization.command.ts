@@ -2,6 +2,7 @@ import type { z } from 'zod';
 import type { adminPatchOrganizationRequestSchema } from '@endora-commerce/contracts';
 import type { Command } from '@endora-commerce/platform/commands';
 import type { Organization } from '../entities/organization.entity.js';
+import { organizationPatchAuditState, organizationPatchBaseline } from '../services/organization-audit-state.js';
 import {
   applyCustomFieldMerge,
   loadLiveOrganization,
@@ -21,8 +22,13 @@ export type AdminOrganizationPatch = Omit<
  * It used to mutate the entity on the request's `em`, flush, and record the
  * audit row afterwards, outside the write. Now the version check, the column
  * changes and the custom-field merge run on the bus's one transaction, and the
- * entry — the same action and the same before/after snapshot an operator's
- * history already reads — commits with them or not at all.
+ * entry commits with them or not at all.
+ *
+ * **The entry names, it does not quote** (`specs/conventions/audit-state.md`,
+ * D-288, issue #470 ruling O-2): the status, VAT and fulfilment-strategy codes
+ * before and after, and the sorted names of the columns (`changedFields`) and
+ * custom fields (`changedCustomFields`) whose value differs — never the name,
+ * the order e-mails or a custom-field value ({@link organizationPatchAuditState}).
  *
  * **The custom-field step is the port's.** It runs through
  * {@link applyCustomFieldMerge}, the step `organization.set_custom_field_values`
@@ -41,7 +47,6 @@ export function makeAdminPatchOrganizationCommand(input: {
   changes: AdminOrganizationPatch;
   assertCurrent: (org: Organization) => void;
   mergeCustomFieldValues?: OrganizationCustomFieldMerge | undefined;
-  snapshot: (org: Organization) => Record<string, unknown>;
 }): Command<Organization> {
   return {
     action: 'organization.admin_patch',
@@ -50,7 +55,7 @@ export function makeAdminPatchOrganizationCommand(input: {
     run: async ({ em }) => {
       const org = await loadLiveOrganization(em, input.organizationId);
       input.assertCurrent(org);
-      const before = input.snapshot(org);
+      const baseline = organizationPatchBaseline(org);
       const { changes } = input;
       if (changes.name !== undefined) org.name = changes.name;
       if (changes.vatStatus !== undefined) org.vatStatus = changes.vatStatus;
@@ -62,7 +67,7 @@ export function makeAdminPatchOrganizationCommand(input: {
       }
       if (input.mergeCustomFieldValues) await applyCustomFieldMerge(org, input.mergeCustomFieldValues);
       await em.flush();
-      return { result: org, before, after: input.snapshot(org) };
+      return { result: org, ...organizationPatchAuditState(baseline, org) };
     },
   };
 }

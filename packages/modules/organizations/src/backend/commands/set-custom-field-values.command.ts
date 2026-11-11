@@ -1,9 +1,9 @@
-import { isDeepStrictEqual } from 'node:util';
 import type { EntityManager } from '@mikro-orm/postgresql';
 import { ERROR_CODES, isUuidShape } from '@endora-commerce/contracts';
 import type { Command } from '@endora-commerce/platform/commands';
 import { HttpError } from '@endora-commerce/platform/http';
 import { Organization } from '../entities/organization.entity.js';
+import { changedKeys } from '../services/organization-audit-state.js';
 
 /** The caller's read-modify-write over an Organization's custom-field bag. */
 export type OrganizationCustomFieldMerge = (
@@ -45,19 +45,6 @@ export async function applyCustomFieldMerge(
 }
 
 /**
- * The sorted keys whose value differs between two custom-field bags — a key
- * added, removed or changed. What an audit entry may say of a custom-field
- * write (`changedCustomFields`, `specs/conventions/audit-state.md`, D-288).
- */
-function changedCustomFieldKeys(
-  before: Readonly<Record<string, unknown>>,
-  after: Readonly<Record<string, unknown>>,
-): string[] {
-  const keys = new Set([...Object.keys(before), ...Object.keys(after)]);
-  return [...keys].filter((key) => !isDeepStrictEqual(before[key] ?? null, after[key] ?? null)).sort();
-}
-
-/**
  * `organization.set_custom_field_values` — the Command behind
  * `organizationCustomFieldWritePort.setCustomFieldValues` (Principle XIII).
  *
@@ -83,7 +70,7 @@ export function makeSetCustomFieldValuesCommand(input: {
       return {
         result: org,
         before: null,
-        after: { changedCustomFields: changedCustomFieldKeys(current, org.customFieldValues ?? {}) },
+        after: { changedCustomFields: changedKeys(current, org.customFieldValues ?? {}) },
       };
     },
   };
