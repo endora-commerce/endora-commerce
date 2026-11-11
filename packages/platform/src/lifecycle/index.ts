@@ -100,6 +100,12 @@ export { runUninstallCommand } from './commands/uninstall.js';
 export { runEnableCommand } from './commands/enable.js';
 export { runDisableCommand } from './commands/disable.js';
 export { runStatusCommand } from './commands/status.js';
+// `specs/178-extensible-columns/` FR-081 — the ledger list and the audited drop.
+export {
+  SCHEMA_EXTENSIONS_EXIT,
+  runSchemaExtensionsCommand,
+  type SchemaExtensionsRuntime,
+} from './commands/schema-extensions.js';
 // The entry point itself, since `fix/instance-wiring-operator-runtime`. An
 // instance's five files were five lines each over a **90-line** `runtime.ts`
 // that named nothing but platform symbols, and R1.4 bounds the wiring a client

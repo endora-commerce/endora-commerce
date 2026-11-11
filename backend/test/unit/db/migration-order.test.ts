@@ -759,3 +759,54 @@ describe('orderMigrations — J14 real registry', () => {
     }
   });
 });
+
+/**
+ * `specs/178-extensible-columns/` FR-020, `contracts/generated-ddl-and-ledger.md`
+ * §1 — the generated schema-extension step of a declaring module runs at the
+ * **head** of that module's block (OD-178-1, ruled D-291): after every module it
+ * depends on, the host included, and before its own migrations. The reserved
+ * stamp is refused on any entry the platform did not generate.
+ */
+describe('generated schema-extension entries', () => {
+  const generated = (moduleId: string, tail: string): MigrationRegistryEntry => ({
+    moduleId,
+    cls: migrationClass(`Migration10000101T000000${pascal(moduleId)}SchemaExtensions${tail}`),
+    origin: 'generated',
+  });
+
+  it('places the generated entry at the head of its module block, after the host', () => {
+    const result = orderMigrations({
+      entries: [
+        entry('acme_erp', '20261201T090000', 'backfill', 'external'),
+        generated('acme_erp', 'a1b2c3d4e5f6'),
+        entry('organizations', '20260901T090000', 'init'),
+        entry('organizations', '20261101T090000', 'later'),
+      ],
+      moduleDependencies: deps({ core: [], organizations: [], acme_erp: ['organizations'] }),
+      baseline: [],
+    });
+    expect(result.migrations.map((m) => m.name)).toEqual([
+      'Migration20260901T090000OrganizationsInit',
+      'Migration20261101T090000OrganizationsLater',
+      'Migration10000101T000000AcmeErpSchemaExtensionsa1b2c3d4e5f6',
+      'Migration20261201T090000AcmeErpBackfill',
+    ]);
+  });
+
+  it('refuses the reserved stamp on an entry that is not generated', () => {
+    for (const origin of ['core', 'external'] as const) {
+      const spoof: MigrationRegistryEntry = {
+        moduleId: 'acme_erp',
+        cls: migrationClass('Migration10000101T000000AcmeErpSchemaExtensionsSpoof'),
+        origin,
+      };
+      expect(() =>
+        orderMigrations({
+          entries: [spoof],
+          moduleDependencies: deps({ acme_erp: [] }),
+          baseline: [],
+        }),
+      ).toThrow(expect.objectContaining({ code: 'reserved-stamp' }));
+    }
+  });
+});

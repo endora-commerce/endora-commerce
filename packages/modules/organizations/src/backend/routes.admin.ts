@@ -34,6 +34,7 @@ import {
   type OrganizationSalesChannelsResponse,
   type SalesRepAssignmentPort,
   isUuidShape,
+  ExtensionsQuerySchema,
 } from '@endora-commerce/contracts';
 import type { CommandBus } from '@endora-commerce/platform/commands';
 import { HttpError } from '@endora-commerce/platform/http';
@@ -91,7 +92,7 @@ import {
   triggerVatValidationSchema,
 } from './schemas/organization.js';
 import { normalizeOrganizationName } from './services/normalize-name.js';
-import type { RequireAdminFactory } from '@endora-commerce/platform/kernel';
+import type { RequireAdminFactory, SchemaExtensionReads } from '@endora-commerce/platform/kernel';
 
 /**
  * Admin /admin/organizations — platform staff operations (003).
@@ -109,7 +110,14 @@ const listQuerySchema = z.object({
   // `specs/177-tax-id-scope/` — one kind only (the conversion screen's picker
   // asks for personal organizations); with `includePersonal=true`.
   'filter[isPersonal]': z.enum(['true', 'false']).optional(),
+  // `specs/178-extensible-columns/` FR-051 — extension attributes on request.
+  ...ExtensionsQuerySchema.shape,
 });
+
+/** The module ids `?extensions=` names, in order, or none. */
+function requestedExtensions(raw: string | undefined): string[] {
+  return raw === undefined ? [] : raw.split(',');
+}
 
 export interface AdminOrgsDeps {
   emFactory: () => EntityManager;
@@ -192,6 +200,15 @@ export interface AdminOrgsDeps {
    * Organization. Absent: nothing is cached to drop.
    */
   roleCache?: Pick<OrganizationRoleCache, 'dropAndAnnounce'>;
+  /**
+   * `specs/178-extensible-columns/` FR-051 — the platform's extension-attribute
+   * reader. `organizations` is an extensible host: an installed module may
+   * declare `x_<module>_*` columns on its table, and the detail and list reads
+   * attach them when the request names that module in `?extensions=`. Optional
+   * so a composition without it serves the reads unchanged; the platform
+   * registers it in every composition it builds.
+   */
+  schemaExtensionReads?: SchemaExtensionReads;
 }
 
 export async function registerOrganizationsAdminRoutes(
@@ -225,6 +242,28 @@ export async function registerOrganizationsAdminRoutes(
     salesRepScope: deps.salesRepScope,
     param: 'id',
   });
+
+  /**
+   * `specs/178-extensible-columns/` FR-051, FR-052 — attach the requested
+   * modules' extension attributes to records this route already authorised.
+   * Without the parameter the records are returned as they are, so the
+   * response is byte-identical to a platform without the feature; with it,
+   * every record carries `extensions`, holding only the modules that declare
+   * this host with `adminReads` and are present (one query per module).
+   */
+  const withExtensions = async (
+    em: EntityManager,
+    orgs: readonly Organization[],
+    serialized: readonly Record<string, unknown>[],
+    requested: readonly string[],
+  ): Promise<readonly Record<string, unknown>[]> => {
+    if (requested.length === 0) return serialized;
+    const attributes =
+      deps.schemaExtensionReads === undefined
+        ? new Map<string, Record<string, unknown>>()
+        : await deps.schemaExtensionReads.attach(em, 'organizations', orgs, requested);
+    return serialized.map((record, index) => ({ ...record, extensions: attributes.get(orgs[index]!.id) ?? {} }));
+  };
 
   /** A member as the operator's screens show it: its role, not the legacy enum (FR-008, FR-073). */
   const memberDetail = async (member: CustomerAccountRecord, language: string): Promise<Record<string, unknown>> =>
@@ -375,7 +414,7 @@ export async function registerOrganizationsAdminRoutes(
         orderBy: { createdAt: 'desc' },
       });
       return {
-        data: orgs.map(serializeOrg),
+        data: await withExtensions(em, orgs, orgs.map(serializeOrg), requestedExtensions(query.extensions)),
         pagination: { cursor: null, hasMore: false, limit: query.limit },
       };
     },
@@ -385,6 +424,7 @@ export async function registerOrganizationsAdminRoutes(
     '/api/v1/admin/organizations/:id',
     { preHandler: [customersRead, organizationInReach] },
     async (request) => {
+      const { extensions } = ExtensionsQuerySchema.parse(request.query);
       const em = emFactory();
       if (!isUuidShape(request.params.id)) {
         throw new HttpError(404, ERROR_CODES.NOT_FOUND, 'Organization not found.');
@@ -410,13 +450,19 @@ export async function registerOrganizationsAdminRoutes(
           ),
         ),
       );
-      return {
-        data: {
-          ...serializeOrg(org),
-          members: await Promise.all(members.map((member) => memberDetail(member, language))),
-          predefinedRoles,
-        },
-      };
+      const [data] = await withExtensions(
+        em,
+        [org],
+        [
+          {
+            ...serializeOrg(org),
+            members: await Promise.all(members.map((member) => memberDetail(member, language))),
+            predefinedRoles,
+          },
+        ],
+        requestedExtensions(extensions),
+      );
+      return { data };
     },
   );
 

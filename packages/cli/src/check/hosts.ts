@@ -42,6 +42,7 @@ import {
   PREFIX as BLOCK_RENDERERS_PREFIX,
 } from '../rules/block-renderers.js';
 import { checkBundlePairing, type ModuleUnderCheck } from '../rules/bundle-pairing.js';
+import { checkExtensibleTables, publishedBindings } from '../rules/extensible-tables.js';
 import {
   analyzeSource as commandCoverageAnalyse,
   collectScannedFiles,
@@ -1757,6 +1758,65 @@ function ownProvidedNames(sources: ReadonlyMap<string, string>): ReadonlySet<str
   return names;
 }
 
+/* -------------------------------------------------------- extensible-tables */
+
+/**
+ * `specs/178-extensible-columns/` FR-072 over one module package: no migration
+ * of a module owning an extensible table rebuilds it. The subject is derived
+ * from the published bindings, so a package whose module owns none is
+ * `not-applicable` with the sentence saying why; one that owns some and ships
+ * no migration source is `unreadable` — every extensible table is created by a
+ * migration of its owner.
+ */
+const extensibleTables: PackageRuleHost = (layout) => {
+  const id = 'check:extensible-tables';
+  const entry = entryOf(id);
+  const bindings = publishedBindings().filter((binding) => binding.ownerModuleId === layout.moduleId);
+  if (bindings.length === 0) return notApplicable(id, absentDeclaration(entry));
+
+  const directory = join(layout.sourceRoot, 'migrations');
+  let names: string[] = [];
+  try {
+    names = readdirSync(directory).sort();
+  } catch {
+    names = [];
+  }
+  const files = names
+    .filter((name) => name.endsWith('.ts') && !name.endsWith('.test.ts') && name !== 'index.ts')
+    .map((name) => join(directory, name));
+  if (files.length === 0) {
+    return unreadable(
+      id,
+      `module "${layout.moduleId}" owns ${bindings.map((binding) => `"${binding.table}"`).join(', ')}, which ` +
+        `every instance creates from its migrations, and no migration source was found under ` +
+        `${layout.keyOf(directory)}. Supply the sources, or this rule has nothing to judge.`,
+      null,
+    );
+  }
+  const result = checkExtensibleTables({
+    migrations: new Map(
+      files.map((file) => [layout.keyOf(file), { moduleId: layout.moduleId, text: readFileSync(file, 'utf8') }]),
+    ),
+    bindings,
+    owners: null,
+  });
+  const readSize: ReadSizeInput = {
+    prefix: '[extensible-tables]',
+    files: result.files,
+    sites: result.sites,
+    coverage: [{ source: 'extensible-owners', expected: result.owners.expected, covered: result.owners.covered }],
+  };
+  const short = readSizeOrShortWalk(id, readSize);
+  if (!short.ok) return short.result;
+  const findings: Finding[] = result.findings.map((finding) => ({
+    rule: id,
+    key: `${finding.location.replace(/:\d+$/, '')}:${finding.table}`,
+    location: finding.location,
+    message: finding.message,
+  }));
+  return ran(id, readSize, findings);
+};
+
 export const PACKAGE_HOSTS: ReadonlyMap<string, PackageRuleHost> = new Map<
   string,
   PackageRuleHost
@@ -1771,6 +1831,7 @@ export const PACKAGE_HOSTS: ReadonlyMap<string, PackageRuleHost> = new Map<
   ['check:entry-presence', entryPresence],
   ['check:diacritic-folds', diacriticFolds],
   ['check:entry-scope', entryScope],
+  ['check:extensible-tables', extensibleTables],
   ['check:kernel-boundary', kernelBoundary],
   ['check:nul-bytes', nulBytes],
   ['check:platform-surface', platformSurface],

@@ -1,0 +1,13 @@
+{
+  "name": "@acme/mod-acme-erp",
+  "version": "1.0.0",
+  "private": true,
+  "type": "module",
+  "endora": { "type": "module", "id": "acme_erp", "platform": "0.x" },
+  "exports": {
+    ".": "./lib/manifest.js",
+    "./backend": "./lib/backend/index.js",
+    "./migrations": "./lib/migrations/index.js",
+    "./package.json": "./package.json"
+  }
+}

@@ -198,3 +198,38 @@ describe('declaredIndexes', () => {
     expect(declaredIndexes('// create index "x" on "orders" ("id");', MIGRATION)).toEqual([]);
   });
 });
+
+/**
+ * `specs/178-extensible-columns/` T062 — two writes the statement path did not
+ * see, measured by the parity test with the platform's runtime classifier.
+ */
+describe('sqlTableAccesses — writes the parity test found', () => {
+  const writes = (source: string): string[] =>
+    sqlTableAccesses(source, 'm.ts')
+      .filter((access) => access.direction === 'write')
+      .map((access) => access.table);
+
+  it('records a table read before it is written in one statement as a write', () => {
+    expect(
+      writes('const q = `with r as (select "id" from "admin_users") update "admin_users" a set "email" = 1 from r`;'),
+    ).toEqual(['admin_users']);
+  });
+
+  it('reads the writes inside a do $$ block', () => {
+    expect(
+      writes(
+        'const q = `do $$ begin if true then insert into "setting_values" ("id") values (1); ' +
+          'update "carts" c set "x" = 1; delete from "orders"; end if; end $$;`;',
+      ),
+    ).toEqual(['setting_values', 'carts', 'orders']);
+  });
+
+  it('reads the writes inside a function body, and not a PL/pgSQL select into a variable', () => {
+    expect(
+      writes(
+        'const q = `create or replace function f() returns void language plpgsql as $$ declare n int; ' +
+          'begin select count(*) into n from "orders"; delete from "organization_reach_governor"; end $$;`;',
+      ),
+    ).toEqual(['organization_reach_governor']);
+  });
+});

@@ -36,7 +36,11 @@ import type {
   VatValidator,
   DictionaryReferenceRegistryPort,
 } from '@endora-commerce/contracts';
-import type { AuditPort, SalesChannelMembershipPort } from '@endora-commerce/platform/kernel';
+import type {
+  AuditPort,
+  SalesChannelMembershipPort,
+  SchemaExtensionReads,
+} from '@endora-commerce/platform/kernel';
 import type { CommandBus } from '@endora-commerce/platform/commands';
 import type { EventBus } from '@endora-commerce/platform/events';
 import type { ModuleContext } from '@endora-commerce/platform/kernel';
@@ -263,6 +267,12 @@ export interface OrganizationsCradle {
   readonly customerAccountMemberWritePort: CustomerAccountMemberWritePort;
   readonly addressService: AddressServicePort;
   readonly customFieldValueService: CustomFieldValuePort;
+  /**
+   * `specs/178-extensible-columns/` FR-051 — the platform's extension-attribute
+   * reader, registered by the composition root beside `effectiveState`; read at
+   * the point of use, like every kernel name this module does not capture.
+   */
+  readonly schemaExtensionReads: SchemaExtensionReads;
   readonly dictionaryValidator: DictionaryValidator;
   readonly emailMailer: EmailMailerPort;
   readonly adminNotificationRecordPort: AdminNotificationRecordPort;
@@ -785,6 +795,12 @@ export function registerModule(ctx: ModuleContext): void {
               'customerAccountMemberWritePort',
             ),
             customFieldValues: lazyPort<CustomFieldValuePort>(ctx, 'customFieldValueService'),
+            // `specs/178-extensible-columns/` FR-051 — `?extensions=` on the
+            // admin reads; resolved per call from the kernel registration.
+            schemaExtensionReads: {
+              attach: (em, host, records, requested) =>
+                cradle().schemaExtensionReads.attach(em, host, records, requested),
+            },
             // Passed for the first time by any composition — see the note above
             // on `validateCountry`.
             dictionaryValidator: lazyPort<DictionaryValidator>(ctx, 'dictionaryValidator'),

@@ -152,6 +152,7 @@ export function instanceContributions(
       migrations,
       entities: [],
       dependencies: moduleDependencies?.get(id) ?? [],
+      schemaExtensions: [],
     }))
     .sort((left, right) => left.id.localeCompare(right.id));
 }
@@ -286,7 +287,13 @@ export function migrationSourceOf(input: {
   const references = new Set<string>(
     [...input.text.matchAll(ON_TABLE)].map((match) => match[1]!),
   );
-  for (const access of sqlTableAccesses(input.text, input.file)) references.add(access.table);
+  // A write inside a PL/pgSQL block is planned only when its code path runs —
+  // `if to_regclass(…) is not null then execute 'delete from …'` — so it is not
+  // a reference a fresh database fails on (`specs/178-extensible-columns/` T062
+  // taught `sqlTableAccesses` to read them, for R2).
+  for (const access of sqlTableAccesses(input.text, input.file)) {
+    if (access.block !== true) references.add(access.table);
+  }
   // The union (FR-003): G3's two arms — `on "<t>"` and `sqlTableAccesses` —
   // plus the two DDL shapes neither of them matches.
   //

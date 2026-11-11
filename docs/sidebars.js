@@ -31,6 +31,7 @@ const sidebars = {
         'architecture/custom-fields',
         'architecture/overlay-pattern',
         'architecture/customisation-ladder',
+        'architecture/schema-extensions',
         'architecture/permissions',
         'architecture/pim-connector',
       ],

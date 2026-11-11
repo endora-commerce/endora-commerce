@@ -2,6 +2,8 @@ import { dirname } from 'node:path';
 import type { EntityManager, MikroORM } from '@mikro-orm/postgresql';
 import type { IMigrator } from '@mikro-orm/core';
 import type { Redis } from 'ioredis';
+import { migrateUpVerified } from '../../db/migrate.js';
+import { activeSchemaExtensionContext } from '../../kernel/schema-extensions/registry.js';
 import { settingsManifestWithRecentActivity } from '@endora-commerce/contracts';
 import type {
   ModuleInstallHook,
@@ -278,7 +280,13 @@ export class ModuleLifecycleOrchestrator {
         const migrator = await this.migrator();
         const pendingBefore = await migrator.getPendingMigrations();
         if (pendingBefore.length > 0) {
-          const applied = await migrator.up();
+          // `specs/178-extensible-columns/` FR-025 — verified against the
+          // declared extension columns inside the run's own transaction. A
+          // substituted migrator (`migratorFor`, a test seam) is driven as given.
+          const applied =
+            this.deps.migratorFor === undefined
+              ? await migrateUpVerified(this.deps.orm)
+              : await migrator.up();
           appliedMigrations = applied.map((m) => m.name);
         }
 
@@ -563,6 +571,12 @@ export class ModuleLifecycleOrchestrator {
       let revertedMigrations: string[] = [];
       if (opts.hard) {
         revertedMigrations = await this.revertMigrationsFor(moduleId);
+        // `specs/178-extensible-columns/` FR-034 — the host's table went with
+        // its migrations, and the declared extension columns on it with the
+        // table, so their ledger rows are `dropped`. (A declaring module's own
+        // hard uninstall needs nothing here: its generated step's `down()`,
+        // reverted above, marked its rows `orphaned` and dropped nothing.)
+        await this.markHostedExtensionsDropped(moduleId);
         // Hard uninstall deletes the row; soft preserves it as 'uninstalled'.
         await em.removeAndFlush(row);
         // Hard-uninstall drops every projection of this module's manifest —
@@ -1198,6 +1212,25 @@ export class ModuleLifecycleOrchestrator {
       );
     }
     return participants as readonly LoadedLifecycleParticipant<EntityManager>[];
+  }
+
+  /**
+   * Mark the ledger rows of every extension declared on a table `moduleId` owns
+   * as `dropped`. Issues nothing when the module owns no extensible host the
+   * platform has rolled out — every module, while no host is (Phase A).
+   */
+  private async markHostedExtensionsDropped(moduleId: string): Promise<void> {
+    const tables = [...activeSchemaExtensionContext().hosts.values()]
+      .filter((host) => host.ownerModuleId === moduleId)
+      .map((host) => host.table);
+    if (tables.length === 0) return;
+    await this.operationEm()
+      .getConnection()
+      .execute(
+        `update schema_extensions set status = 'dropped', dropped_at = now() ` +
+          `where status <> 'dropped' and host_table in (${tables.map(() => '?').join(', ')})`,
+        tables,
+      );
   }
 
   private async revertMigrationsFor(moduleId: string): Promise<string[]> {

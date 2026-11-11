@@ -247,22 +247,39 @@ highest price on this list for something rung 2 would have done.
 
 ---
 
-## Never a rung: schema
+## The data ladder: where new data lives
 
-**Core entities and migrations are never overridden.** Your own tables belong to
-a module you own; an extra field on a core entity goes through runtime custom
-fields. A per-deployment overlay module ships no entity class and no migration at
-all, and the generator refuses both.
+The rungs above change **behaviour**. New **data** has a ladder of its own, and
+it is ordered the same way: start at the bottom.
+
+| Rung | Mechanism | Who | Survives upgrades because |
+| --- | --- | --- | --- |
+| D0 | **Runtime custom fields** — an operator defines a field on a host entity in the admin | an operator, at run time | it is data: a definition row and a value in the host's own value bag |
+| D1 | **A side table** your module owns, keyed by the core row's id and read through your module's port | any module you own, an installed package | the table is yours; core never touches it |
+| D2 | **Declared extension columns** — additive `x_<moduleId>_*` columns on an extensible core table, declared with `defineColumnExtension` | an installed module package that depends on the host | the platform generates the DDL, records it in a ledger, verifies it at every migrate and boot, and core CI holds every open extensible table to keeping them |
+| D3 | **A variant the owning module provides** — a type, a status, a configurable shape the owner already models | the owner decides; you configure it | it is the owner's own schema |
+
+**D2 is narrow on purpose.** The extensible tables are exactly the custom-field
+host tables — derived from the custom-field binding registry, never a second
+list — and in this release only `organizations` is open (the other eight follow
+in a later release). The declaring module owns its `x_<moduleId>_*` columns and
+only its code writes them, through the platform's accessor, inside a Command or a
+command hook; the host keeps the table, its constraints and every undeclared
+column. Uninstalling the module keeps the columns (the ledger marks them
+orphaned) until an operator drops them with an audited command. The worked
+example and every rule are on [Declared extension columns](./schema-extensions.md).
+
+**Never a rung: overriding core schema.** A core column, constraint, index or
+entity class is never changed from outside its module, and a package migration
+that writes another module's table is refused at `migrate` — by the platform, not
+by review. A per-deployment overlay module ships no entity class and no migration
+at all, and the generator refuses both: own the table from a module of yours (D1)
+and read it from the overlay through that module's port.
 
 The reason is **not** migration ordering — that argument was measured false and
 is retired. The reason is that a shared core schema is the only thing that makes
-upgrades feasible, and that an overlay lives in the same repository and the same
-build as core, so the remedy costs nothing but a directory: own the table from a
-module of yours and read it from the overlay through that module's port.
-
-An **installed extension package** is the opposite case and may ship both: a
-third-party author has no core module, so the same rule would be a prohibition on
-extension packages rather than a constraint to design around.
+upgrades feasible: D1 and D2 are the two ways to add schema that a core upgrade
+is obliged, and checked, not to break.
 
 ---
 

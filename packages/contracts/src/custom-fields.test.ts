@@ -361,3 +361,50 @@ describe('updateCustomFieldOptionSchema', () => {
     expect(cf.updateCustomFieldOptionSchema.parse({ value: 'renamed', isDefault: true })).toEqual({ isDefault: true });
   });
 });
+
+/**
+ * `specs/178-extensible-columns/` FR-010, research R-8 — the one custom-field
+ * host binding registry. `custom_fields`' storage binding reads it and the
+ * platform derives its extensible host list from it, so there is no second list.
+ */
+describe('CUSTOM_FIELD_HOST_BINDINGS', () => {
+  it('binds every supported entity type, and nothing else', () => {
+    expect(Object.keys(cf.CUSTOM_FIELD_HOST_BINDINGS).sort()).toEqual(
+      [...cf.supportedEntityTypeSchema.options].sort(),
+    );
+    expect(Object.keys(cf.CUSTOM_FIELD_HOST_BINDINGS)).toHaveLength(9);
+  });
+
+  it('carries the table, the value column and the owning module of each host', () => {
+    for (const binding of Object.values(cf.CUSTOM_FIELD_HOST_BINDINGS)) {
+      expect(binding.table).toMatch(/^[a-z][a-z_]*$/);
+      expect(binding.valueColumn).toMatch(/^[a-z][a-z_]*$/);
+      expect(binding.ownerModuleId).toMatch(/^[a-z][a-z_]*$/);
+    }
+  });
+
+  it('binds products to the products table, whose value bag is a column', () => {
+    expect(cf.CUSTOM_FIELD_HOST_BINDINGS.product).toEqual({
+      table: 'products',
+      valueColumn: 'attribute_values',
+      ownerModuleId: 'catalog',
+    });
+  });
+
+  it('names the module that maps each table', () => {
+    const owners = Object.fromEntries(
+      Object.values(cf.CUSTOM_FIELD_HOST_BINDINGS).map((b) => [b.table, b.ownerModuleId]),
+    );
+    expect(owners).toEqual({
+      categories: 'catalog',
+      orders: 'orders',
+      organizations: 'organizations',
+      customer_accounts: 'customer_accounts',
+      quote_requests: 'quote_requests',
+      products: 'catalog',
+      crm_opportunities: 'crm',
+      projects: 'projects',
+      tasks: 'tasks',
+    });
+  });
+});
