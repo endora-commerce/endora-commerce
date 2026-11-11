@@ -293,7 +293,9 @@ export class NewsletterSubscriberService {
       action: isNew ? 'newsletter_subscribe' : 'newsletter_resubscribe',
       objectType: 'newsletter_subscriber',
       objectId: subscriber.id,
-      stateAfter: { email, status: subscriber.status, source: input.source ?? null },
+      // No address (#470, D-288): the subscriber is the customer's, and the
+      // audit log is read without that reach. The entry names it by id.
+      stateAfter: { status: subscriber.status, source: input.source ?? null },
     });
     this.deps.emitEvent?.('newsletter.subscribed.v1', {
       subscriberId: subscriber.id,
@@ -348,7 +350,8 @@ export class NewsletterSubscriberService {
         action: 'newsletter_unsubscribe',
         objectType: 'newsletter_subscriber',
         objectId: subscriber.id,
-        stateAfter: { status: 'unsubscribed', reason: reason ?? null },
+        // That a reason was given, never its text (#470): it is on the subscriber.
+        stateAfter: { status: 'unsubscribed', hasReason: Boolean(reason) },
       });
       this.deps.emitEvent?.('newsletter.unsubscribed.v1', {
         subscriberId: subscriber.id,
@@ -369,11 +372,13 @@ export class NewsletterSubscriberService {
     const em = this.deps.emFactory();
     const normalized = email.trim().toLowerCase();
     const existing = await em.findOne(NewsletterSuppression, { email: normalized });
+    let suppression: NewsletterSuppression;
     if (existing) {
       existing.reason = reason;
       if (detail) existing.detail = detail;
+      suppression = existing;
     } else {
-      em.create(NewsletterSuppression, { email: normalized, reason, detail: detail ?? null });
+      suppression = em.create(NewsletterSuppression, { email: normalized, reason, detail: detail ?? null });
     }
     const subscriber = await em.findOne(NewsletterSubscriber, { email: normalized });
     if (subscriber && subscriber.status === 'active') {
@@ -383,9 +388,12 @@ export class NewsletterSubscriberService {
     await em.flush();
     await this.deps.auditLog?.record({
       action: `newsletter_${reason}`,
-      objectType: 'newsletter_subscriber',
-      objectId: subscriber?.id ?? normalized,
-      stateAfter: { email: normalized, reason },
+      // An address with no subscriber is audited under its suppression row:
+      // the address itself is a value and never becomes an objectId (#470).
+      objectType: subscriber ? 'newsletter_subscriber' : 'newsletter_suppression',
+      objectId: subscriber?.id ?? suppression.id,
+      // The suppression's reason code, never the address (#470).
+      stateAfter: { reason },
     });
   }
 

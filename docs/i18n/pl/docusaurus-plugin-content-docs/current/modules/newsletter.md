@@ -194,6 +194,15 @@ nie wyświetla, a handler odpowiada `404`.
 formularz **Zapis do newslettera**, `cms.NewsletterSignup`, który wysyła dane do
 dowolnego zewnętrznego endpointu, dla usługi newslettera spoza platformy.
 
+## W dzienniku audytu
+
+Zapis, ponowny zapis, potwierdzenie, wypisanie, zablokowanie po odbiciu lub skardze i usunięcie
+subskrybenta to każde wpis w dzienniku audytu całej platformy. Ten dziennik czyta każdy, kto ma
+`audit_log:read`, bez względu na to, co widzi, dlatego wpis nazywa subskrybenta identyfikatorem i
+nie zawiera adresu e-mail ani wolnego tekstu: status, źródło, kod powodu blokady i to, czy przy
+wypisaniu podano powód (`hasReason`). Adres jest przy subskrybencie, powód przy subskrybencie i
+jego blokadzie. Wpisy zapisane przed tą zmianą zachowują to, z czym zostały zapisane.
+
 ## Schemat
 
 Migracja `20260629T200954_newsletter_init.ts` tworzy `newsletter_subscribers`, `newsletter_tags`,
