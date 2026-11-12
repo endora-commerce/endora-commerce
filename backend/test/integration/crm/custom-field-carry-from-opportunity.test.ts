@@ -15,6 +15,7 @@ import {
 } from '../../helpers/seed-commerce.js';
 import { TEST_ADMIN_ID, TEST_CUSTOMER_ID, TEST_ORGANIZATION_ID } from '../../helpers/test-actors.js';
 import {
+  assignToCrmBook,
   CRM_ADMIN,
   createCrmOpportunity,
   restoreDefaultCrmWorkflow,
@@ -201,6 +202,11 @@ describe('crm — custom-field values carried from a Sales Opportunity into the 
   it('an administrator who cannot reach the Opportunity’s Organization: created, not linked, nothing carried (US3-2)', async () => {
     const { key } = await fields('out_of_reach');
     const outsider = await seedCrmSalesRep(h.em(), [foreignOrganizationId], ['rfqs:handle', 'crm:read', 'crm:write']);
+    // #305 — the test Organization is another representative's: one nobody is
+    // assigned to is in every representative's reach, so without this the case
+    // passes only after an earlier file in the same database left an assignment
+    // on it (issue #1019).
+    const undoBook = await assignToCrmBook(h.em(), [TEST_ORGANIZATION_ID]);
     try {
       const opportunity = await createCrmOpportunity(h, { customFieldValues: { [key]: 'fair' } });
       const rfq = await createQuoteRequest();
@@ -208,6 +214,7 @@ describe('crm — custom-field values carried from a Sales Opportunity into the 
       expect(await isLinked(rfq.id)).toBe(false);
       expect(Object.hasOwn(await values('quote_requests', rfq.id), key)).toBe(false);
     } finally {
+      await undoBook();
       outsider.undo();
     }
   });
