@@ -665,21 +665,47 @@ export interface OrganizationCommandPort {
    * `withSystemScope` in a worker). For admin routes and server code — an ERP
    * import — and never for a customer-facing route. No VAT validation: trigger
    * one after it resolves if you need it. Refusals: `404 NOT_FOUND`,
-   * `409 ORGANIZATION_CONVERSION_REFUSED`, `409 ORGANIZATION_TAX_ID_EXISTS`.
+   * `409 ORGANIZATION_CONVERSION_REFUSED`, `409 ORGANIZATION_TAX_ID_EXISTS`,
+   * and whatever a command hook on the action vetoes with. `options.extensions`
+   * reaches those hooks (issue #1057).
    */
-  convertToCompany(organizationId: string, input: OrganizationConvertToCompanyInput): Promise<OrganizationRecord>;
+  convertToCompany(
+    organizationId: string,
+    input: OrganizationConvertToCompanyInput,
+    options?: OrganizationCommandPortOptions,
+  ): Promise<OrganizationRecord>;
   /**
    * Issue #1040 — runs `organization.tax_id.change` as one Command with the
    * ambient actor: corrects a live company organization's tax ID in place (same
    * id, members, roles and orders). The value is normalised and checked in the
    * active tax-ID scope inside the write; the organization's VAT validation is
    * reset to unverified. The same value after normalisation changes nothing and
-   * is not audited. No VAT validation runs: trigger one after it resolves if you
+   * is not audited, unless a command hook on the action noted a write of its
+   * own; `options.extensions` reaches those hooks (issue #1057). No VAT validation runs: trigger one after it resolves if you
    * need it. Refusals: `404 NOT_FOUND`, `409 ORGANIZATION_TAX_ID_CHANGE_REFUSED`
    * (`not_company` | `deleted`), `409 ORGANIZATION_TAX_ID_EXISTS`,
    * `409 ORGANIZATION_WRITE_CONTENDED`.
    */
-  changeTaxId(organizationId: string, input: OrganizationChangeTaxIdInput): Promise<OrganizationRecord>;
+  changeTaxId(
+    organizationId: string,
+    input: OrganizationChangeTaxIdInput,
+    options?: OrganizationCommandPortOptions,
+  ): Promise<OrganizationRecord>;
+}
+
+/**
+ * What a server-side caller may hand either {@link OrganizationCommandPort}
+ * method besides its input (issue #1057, as `OrganizationCustomFieldWriteOptions`
+ * for the custom-field port).
+ *
+ * `extensions` is extension input for the command-hook modules on
+ * `organization.convert_to_company` / `organization.tax_id.change`, keyed by
+ * module id; each hook sees only its own module's key. A key no present hook
+ * module claims is refused `422 COMMAND_EXTENSION_UNCLAIMED` before anything is
+ * written. No HTTP body carries it — that field is spec 178's.
+ */
+export interface OrganizationCommandPortOptions {
+  readonly extensions?: Readonly<Record<string, unknown>>;
 }
 
 // --- Tax-ID correction (issue #1040, follow-up to specs/177-tax-id-scope/) ----

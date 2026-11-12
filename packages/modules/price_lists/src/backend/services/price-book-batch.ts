@@ -183,6 +183,13 @@ export function planBatch(input: {
   upsertCount: number;
   lookups: BatchLookups;
   newId: () => string;
+  /**
+   * Stored rows a batch row may not replace by its selection and start (issue
+   * #1028): a row with that natural key is then a new row beside the kept one,
+   * which the overlap rule refuses naming it — never an overwrite. The admin
+   * batch passes none.
+   */
+  keepIds?: ReadonlySet<string>;
 }): BatchPlan {
   const errors: PriceBookRowError[] = [...input.parseErrors];
   const resolved: Array<StoredRow | null> = Array.from({ length: input.upsertCount }, () => null);
@@ -225,7 +232,8 @@ export function planBatch(input: {
       amount: price.type === 'percent' ? null : price.amount,
       percent: price.type === 'percent' ? price.percent : null,
     };
-    const replaces = row.id ? storedById.get(row.id) : storedByKey.get(`${selectionKey(planned)}#${planned.minQuantity}`);
+    const byKey = row.id ? undefined : storedByKey.get(`${selectionKey(planned)}#${planned.minQuantity}`);
+    const replaces = row.id ? storedById.get(row.id) : byKey && !input.keepIds?.has(byKey.id) ? byKey : undefined;
     resolved[index] = { id: row.id ?? replaces?.id ?? input.newId(), ...planned };
   }
 

@@ -125,6 +125,80 @@ export const orderPendingEffectSchema = z.object({
 });
 export type OrderPendingEffect = z.infer<typeof orderPendingEffectSchema>;
 
+// --- External references (issue #1030) ----------------------------------------
+
+/**
+ * Where an external system — an ERP, a WMS, a fulfilment connector — stands
+ * with an order, as that system's integration last reported it: handed over
+ * and not answered yet, accepted, or refused.
+ */
+export const ORDER_EXTERNAL_REFERENCE_STATES = ['pending', 'synced', 'error'] as const;
+export type OrderExternalReferenceState = (typeof ORDER_EXTERNAL_REFERENCE_STATES)[number];
+
+/** The longest message an integration may record, in characters. */
+export const ORDER_EXTERNAL_REFERENCE_MESSAGE_MAX = 1000;
+
+/** The longest external reference (the other system's number), in characters. */
+export const ORDER_EXTERNAL_REFERENCE_MAX = 255;
+
+/**
+ * The stable key a writer records its references under — normally its own
+ * module id. Lower-case, starting with a letter, then letters, digits, `_`,
+ * `-` or `.`, at most 64 characters: it is shown to the operator as written
+ * and it is half of the row's identity, so it is a key and not a label.
+ */
+export const orderExternalReferenceSystemSchema = z
+  .string()
+  .max(64)
+  .regex(/^[a-z][a-z0-9_.-]*$/, 'A system key is lower-case letters, digits, "_", "-" or "." and starts with a letter.');
+
+/**
+ * Plain text: any character but a control character other than tab, line feed
+ * and carriage return. The admin renders it as text, never as markup.
+ */
+const CONTROL_CHARACTER = /[\u0000-\u0008\u000B\u000C\u000E-\u001F\u007F]/;
+
+/**
+ * What a writer records through {@link OrderExternalReferencePort.set}.
+ *
+ * - `reference` — the other system's number for the order. **Omitted keeps
+ *   the stored one** (a writer that only reports a new state need not repeat
+ *   it); `null` clears it.
+ * - `message` — the other system's own words, normally on `error`. **Omitted
+ *   means none**: the message describes the state being recorded, so a writer
+ *   reporting `synced` after an `error` does not leave the refusal standing.
+ */
+export const orderExternalReferenceWriteSchema = z.object({
+  reference: z
+    .string()
+    .max(ORDER_EXTERNAL_REFERENCE_MAX)
+    .refine((value) => value.trim().length > 0, 'An external reference is not empty.')
+    .refine((value) => !CONTROL_CHARACTER.test(value), 'An external reference is plain text.')
+    .nullable()
+    .optional(),
+  state: z.enum(ORDER_EXTERNAL_REFERENCE_STATES),
+  message: z
+    .string()
+    .max(ORDER_EXTERNAL_REFERENCE_MESSAGE_MAX)
+    .refine((value) => !CONTROL_CHARACTER.test(value), 'A message is plain text.')
+    .nullable()
+    .optional(),
+});
+export type OrderExternalReferenceWrite = z.infer<typeof orderExternalReferenceWriteSchema>;
+
+/**
+ * One external system's reference on an order, as the admin order detail
+ * carries it (`GET /api/v1/admin/orders/:id`, `externalReferences`).
+ */
+export const adminOrderExternalReferenceSchema = z.object({
+  system: z.string(),
+  reference: z.string().nullable(),
+  state: z.enum(ORDER_EXTERNAL_REFERENCE_STATES),
+  message: z.string().nullable(),
+  updatedAt: isoDateTimeSchema,
+});
+export type AdminOrderExternalReference = z.infer<typeof adminOrderExternalReferenceSchema>;
+
 /**
  * Issue #904 — the VAT method an order was placed under, as `orders.vat_method`
  * stores it (`null`: placed before 0.108.0). `per_rate`: VAT per rate on the
@@ -329,6 +403,12 @@ export const adminOrderDetailSchema = orderSchema.extend({
       email: z.string(),
     })
     .nullable(),
+  /**
+   * Issue #1030 — what each external system has reported about this order,
+   * one entry per system, ordered by system key. Empty when none has; a reply
+   * from a server older than the field parses as empty.
+   */
+  externalReferences: z.array(adminOrderExternalReferenceSchema).default([]),
 });
 export type AdminOrderDetail = z.infer<typeof adminOrderDetailSchema>;
 
@@ -1649,6 +1729,70 @@ export interface OrderTransitionPort {
    * own words instead of guessing.
    */
   isTerminal(orderId: string): Promise<boolean | null>;
+}
+
+/** The container name {@link OrderExternalReferencePort} is registered under. */
+export const ORDER_EXTERNAL_REFERENCE_PORT = 'orderExternalReferencePort' as const;
+
+/**
+ * One external system's reference on an order, as
+ * {@link OrderExternalReferencePort} answers it (issue #1030).
+ */
+export interface OrderExternalReference {
+  orderId: string;
+  /** The writer's stable key, e.g. its module id ({@link orderExternalReferenceSystemSchema}). */
+  system: string;
+  /** The external system's number for the order, once known. */
+  reference: string | null;
+  state: OrderExternalReferenceState;
+  /** The external system's own words, plain text, at most 1000 characters. */
+  message: string | null;
+  /** When this system's entry last changed. A write that changed nothing does not move it. */
+  updatedAt: Date;
+}
+
+/**
+ * Container name: `orderExternalReferencePort`. Owner: `orders`
+ * ({@link ORDER_EXTERNAL_REFERENCE_PORT}; issue #1030).
+ *
+ * What an integration that hands orders to another system — an ERP, a WMS, a
+ * fulfilment connector — records **on the order**: that system's number for
+ * it, where the hand-over stands, and the other system's words when it
+ * refused. One entry per order and system. The operator reads them on the
+ * admin order page, and the admin order list's search finds an order by its
+ * reference. Buyer-facing reads never carry them.
+ *
+ * **Writes are audited Commands** (`order.external_reference.set`), each
+ * recorded with the calling actor — so call it inside a tenant context, as a
+ * worker does under `enterSystemScope`. A write that changes nothing records
+ * nothing and does not move `updatedAt`, because a sync loop resends.
+ *
+ * **Refusals are thrown**, as the admin API's are: an order the caller cannot
+ * see is `404 ORDER_NOT_FOUND`, and a write that fails
+ * {@link orderExternalReferenceWriteSchema} or a system key that fails
+ * {@link orderExternalReferenceSystemSchema} is `400 VALIDATION_FAILED`.
+ * The reads answer an unknown order with `null` / `[]`.
+ *
+ * An entry outlives its writer: a system whose module is uninstalled leaves
+ * its entries in place, as history. Every read and write is confined to the
+ * orders the caller's tenant context can see.
+ *
+ * **Owner off:** the seam fails closed — resolving this port throws
+ * `ModuleDisabledError` and the call answers 503 `MODULE_DISABLED`, so nothing
+ * half-executes. Resolve it per use with `lazyPort`, and do not wrap the call
+ * in a bare `catch`. Whether `orders` has an off state at all is its
+ * manifest's `activation` to say, not this line's: a module declaring
+ * `nonDeactivatable` never enters one.
+ */
+export interface OrderExternalReferencePort {
+  /** Upsert this system's entry for the order: one Command, one audit row per actual change. */
+  set(orderId: string, system: string, value: OrderExternalReferenceWrite): Promise<OrderExternalReference>;
+  /** This system's entry for the order, or `null`. */
+  get(orderId: string, system: string): Promise<OrderExternalReference | null>;
+  /** Every system's entry for the order, ordered by system key. */
+  listForOrder(orderId: string): Promise<OrderExternalReference[]>;
+  /** The orders whose reference in `system` equals `reference` exactly (normally 0 or 1). */
+  findOrderIds(system: string, reference: string): Promise<string[]>;
 }
 
 /**

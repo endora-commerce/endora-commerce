@@ -822,21 +822,23 @@ export const manifest = defineModuleManifest({
    * The Organization writes an instance may take part in through a command
    * hook (`specs/176-command-hooks-outbox/` FR-024,
    * `contracts/organization-hookable-actions.md`): the operator's create, the
-   * storefront self-registration, the operator's edit and the custom-field
-   * write. The refs are published in `@endora-commerce/contracts`, so this list
+   * storefront self-registration, the operator's edit, the custom-field
+   * write, and — since issue #1057 — the personal → company conversion and the
+   * tax-ID correction. The refs are published in `@endora-commerce/contracts`, so this list
    * and every hook author name one constant, and each Command's tests hold it
    * to its ref with `expectHookableCommand`.
    *
-   * None of the four is reversible, and each `run` is the complete write whose
-   * one audit entry a hook's noted changes merge into. The later Organization
-   * Commands — `organization.convert_to_company`, `organization.tax_id.change`
-   * and the hierarchy moves — are not declared: a declaration is a public
-   * contract, so each is added when something needs it.
+   * None of the six is reversible, and each `run` is the complete write whose
+   * one audit entry a hook's noted changes merge into. The hierarchy moves are
+   * not declared: a declaration is a public contract, so each is added when
+   * something needs it.
    */
   hookableActions: [
     ORGANIZATION_HOOKABLE_ACTIONS.create,
     ORGANIZATION_HOOKABLE_ACTIONS.register,
     ORGANIZATION_HOOKABLE_ACTIONS.adminPatch,
     ORGANIZATION_HOOKABLE_ACTIONS.setCustomFieldValues,
+    ORGANIZATION_HOOKABLE_ACTIONS.convertToCompany,
+    ORGANIZATION_HOOKABLE_ACTIONS.changeTaxId,
   ].map(toHookableActionDeclaration),
 });

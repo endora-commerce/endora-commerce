@@ -4,7 +4,9 @@ import {
   normalizeTaxId,
   type CustomerAccountReadPort,
   type OrganizationConvertedToCompanyEvent,
+  type OrganizationConvertToCompanyHookData,
   type OrganizationConvertToCompanyInput,
+  type OrganizationConvertToCompanyOutbox,
 } from '@endora-commerce/contracts';
 import type { Command } from '@endora-commerce/platform/commands';
 import { HttpError } from '@endora-commerce/platform/http';
@@ -61,16 +63,42 @@ const CONVERTED_FIELDS = ['isPersonal', 'legalName', 'name', 'registeredAddress'
  * The audit carries names only (`audit-state.md`): the fields that changed,
  * whether the approval was stamped, the scope. No VAT validation runs here —
  * a network call does not belong inside the transaction (D-290 / OD-2).
+ *
+ * Hookable (issue #1057, `ORGANIZATION_HOOKABLE_ACTIONS.convertToCompany`): a
+ * hook is handed the id, the kept status, the VAT classification, the names of
+ * the converted fields and whether the approval was stamped — never the tax ID,
+ * the name or the address.
  */
 export function makeConvertToCompanyCommand(
   deps: ConvertToCompanyCommandDeps,
-  params: { organizationId: string; input: OrganizationConvertToCompanyInput },
+  params: {
+    organizationId: string;
+    input: OrganizationConvertToCompanyInput;
+    /** Extension input for the hook modules on this action, keyed by module id (176 FR-018). */
+    extensions?: Readonly<Record<string, unknown>>;
+  },
 ): Command<Organization> {
   const { organizationId, input } = params;
+  // What `run` changed, for the hook and outbox data — set before the hooks run.
+  let changedFields: string[] = [];
+  let approvalStamped = false;
   return {
     action: 'organization.convert_to_company',
     objectType: 'organization',
     objectId: organizationId,
+    ...(params.extensions ? { extensions: params.extensions } : {}),
+    hookData: (org): OrganizationConvertToCompanyHookData => ({
+      organizationId: org.id,
+      status: org.status,
+      vatStatus: org.vatStatus,
+      changedFields,
+      approvalStamped,
+    }),
+    outboxData: (org): OrganizationConvertToCompanyOutbox => ({
+      organizationId: org.id,
+      status: org.status,
+      changedFields,
+    }),
     run: async ({ em, actor }) => {
       const locked = (await em.execute('select "id" from "organizations" where "id" = ? for update', [
         organizationId,
@@ -107,7 +135,7 @@ export function makeConvertToCompanyCommand(
         vatStatus: org.vatStatus,
       };
       const now = new Date();
-      const approvalStamped = !org.approvedAt;
+      approvalStamped = !org.approvedAt;
       org.isPersonal = false;
       org.taxId = taxId;
       org.name = input.name;
@@ -140,7 +168,7 @@ export function makeConvertToCompanyCommand(
         taxId: org.taxId,
         vatStatus: org.vatStatus,
       };
-      const changedFields = CONVERTED_FIELDS.filter((field) => before[field] !== after[field]);
+      changedFields = CONVERTED_FIELDS.filter((field) => before[field] !== after[field]);
       return {
         result: org,
         before: { isPersonal: true },

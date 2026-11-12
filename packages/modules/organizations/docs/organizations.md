@@ -99,7 +99,7 @@ correction to the value already stored).
   accept `?extensions=<moduleId>[,…]` and attach those values as `extensions`.
   Without the parameter the responses are unchanged. See *Declared extension
   columns* in the architecture guide.
-- **Command hooks** — four Organization writes are declared hookable, so another
+- **Command hooks** — six Organization writes are declared hookable, so another
   module can take part in them inside their transaction (see *Hookable actions*
   below).
 
@@ -108,8 +108,8 @@ correction to the value already stored).
 Another module — a deployment's overlay module or an installed package — may run
 a `beforeCommit` command hook inside these writes, register it against the ref in
 `ORGANIZATION_HOOKABLE_ACTIONS` (`@endora-commerce/contracts`), and must list
-`organizations` in its manifest `dependencies`. The hook sees the uncommitted
-Organization, may write its own tables or run a Command through `ctx.run`, and
+`organizations` in its manifest `dependencies`. The hook sees the write on the
+uncommitted transaction, may write its own tables or run a Command through `ctx.run`, and
 may refuse the write with a code of its own, which rolls the whole write back.
 How hooks run, are ordered and are refused is on the *Command Bus* architecture
 page.
@@ -120,19 +120,27 @@ page.
 | `organization.register` | `ORGANIZATION_HOOKABLE_ACTIONS.register` | `POST /api/v1/organizations/register` | `organization`, `customerAccountId`, `salesChannelId`, `registryLookupOutcome` |
 | `organization.admin_patch` | `ORGANIZATION_HOOKABLE_ACTIONS.adminPatch` | `PATCH /api/v1/admin/organizations/:id` | `organization`, `changedFields`, `changedCustomFields` |
 | `organization.set_custom_field_values` | `ORGANIZATION_HOOKABLE_ACTIONS.setCustomFieldValues` | `organizationCustomFieldWritePort` | `organization`, `changedFields`, `changedCustomFields` |
+| `organization.convert_to_company` | `ORGANIZATION_HOOKABLE_ACTIONS.convertToCompany` | `POST /api/v1/admin/organizations/:id/convert-to-company`, `organizationCommandPort.convertToCompany` | `organizationId`, `status`, `vatStatus`, `changedFields`, `approvalStamped` |
+| `organization.tax_id.change` | `ORGANIZATION_HOOKABLE_ACTIONS.changeTaxId` | `POST /api/v1/admin/organizations/:id/change-tax-id`, `organizationCommandPort.changeTaxId` | `organizationId`, `changedFields`, `vatValidationReset` |
 
-All four offer both phases. An `afterCommit` handler is delivered through the
+All six offer both phases. An `afterCommit` handler is delivered through the
 platform's outbox after the write commits, at least once and in a context pinned
 to the Organization; its `data` carries ids and codes only — `organizationId`,
-plus `customerAccountId` and `status` on registration, `status` on create, and
-`changedFields` / `changedCustomFields` on the two updates. A
+plus `customerAccountId` and `status` on registration, `status` on create,
+`changedFields` / `changedCustomFields` on the two updates, `status` and
+`changedFields` on a conversion, and `changedFields` on a tax-ID correction. A
 hook's noted changes appear in the Organization's single audit entry as names,
 under `extensions.<moduleId>.changedFields`. The registration hook never sees
-the e-mail verification token. Extension input (`extensions`) can be passed by
-server-side callers only — `organizationCustomFieldWritePort.setCustomFieldValues`
-takes it as `{ extensions }` — and no HTTP body carries it yet. The later Organization
-Commands — converting a personal organization, correcting a tax ID, moving in
-the hierarchy — are not declared hookable.
+the e-mail verification token. The conversion and tax-ID hooks are handed ids,
+codes and field names only — never the tax ID, the name or the address. A
+tax-ID correction to the same value changes nothing, and its hooks still run
+with an empty `changedFields`: no audit entry is recorded unless a hook noted a
+write, and then the one entry names only the hook's fields. Extension input
+(`extensions`) can be passed by server-side callers only —
+`organizationCustomFieldWritePort.setCustomFieldValues` takes it as
+`{ extensions }`, and `organizationCommandPort.convertToCompany` and
+`changeTaxId` as a third argument `{ extensions }` — and no HTTP body carries it
+yet. Moving an Organization in the hierarchy is not declared hookable.
 
 ## Sales channels
 

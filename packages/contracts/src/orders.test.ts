@@ -14,6 +14,11 @@ import {
   orderSavedViewSchema,
   orderSchema,
   updateOrderSavedViewRequestSchema,
+  ORDER_EXTERNAL_REFERENCE_MESSAGE_MAX,
+  ORDER_EXTERNAL_REFERENCE_PORT,
+  ORDER_EXTERNAL_REFERENCE_STATES,
+  orderExternalReferenceSystemSchema,
+  orderExternalReferenceWriteSchema,
 } from './orders.js';
 
 const ADDRESS = {
@@ -484,5 +489,75 @@ describe('feature 162 — the order comment system note', () => {
     expect(orderCommentSchema.parse({ ...COMMENT, systemNote: NOTE }).systemNote).toEqual(NOTE);
     expect(orderCommentSchema.parse({ ...COMMENT, systemNote: null }).systemNote).toBeNull();
     expect(Object.hasOwn(orderCommentSchema.parse(COMMENT), 'systemNote')).toBe(false);
+  });
+});
+
+describe('order external references (issue #1030)', () => {
+  const REFERENCE = {
+    system: 'erp_connector',
+    reference: 'ZS/2026/1042',
+    state: 'synced',
+    message: null,
+    updatedAt: '2026-11-10T10:00:00.000Z',
+  };
+
+  it('publishes the container name as a constant', () => {
+    expect(ORDER_EXTERNAL_REFERENCE_PORT).toBe('orderExternalReferencePort');
+  });
+
+  it('carries the references on the admin detail, and an older reply parses as none', () => {
+    const parsed = adminOrderDetailSchema.parse({
+      ...ORDER,
+      organization: ORGANIZATION,
+      customer: CUSTOMER,
+      externalReferences: [REFERENCE],
+    });
+    expect(parsed.externalReferences).toEqual([REFERENCE]);
+    const older = adminOrderDetailSchema.parse({ ...ORDER, organization: null, customer: null });
+    expect(older.externalReferences).toEqual([]);
+  });
+
+  it('is not carried by the plain order schema', () => {
+    const parsed = orderSchema.parse({ ...ORDER, externalReferences: [REFERENCE] });
+    expect(parsed).not.toHaveProperty('externalReferences');
+  });
+
+  it('accepts the three states and nothing else', () => {
+    expect(ORDER_EXTERNAL_REFERENCE_STATES).toEqual(['pending', 'synced', 'error']);
+    for (const state of ORDER_EXTERNAL_REFERENCE_STATES) {
+      expect(orderExternalReferenceWriteSchema.safeParse({ state }).success).toBe(true);
+    }
+    expect(orderExternalReferenceWriteSchema.safeParse({ state: 'failed' }).success).toBe(false);
+  });
+
+  it('keys a system by a lower-case identifier of at most 64 characters', () => {
+    for (const ok of ['erp', 'erp_connector', 'wms-2', 'acme.erp', 'a'.repeat(64)]) {
+      expect(orderExternalReferenceSystemSchema.safeParse(ok).success, ok).toBe(true);
+    }
+    for (const bad of ['', 'ERP', '1erp', 'erp connector', 'erp/1', '_erp', 'a'.repeat(65)]) {
+      expect(orderExternalReferenceSystemSchema.safeParse(bad).success, bad).toBe(false);
+    }
+  });
+
+  it('bounds the message at 1000 characters of plain text', () => {
+    const longest = 'x'.repeat(ORDER_EXTERNAL_REFERENCE_MESSAGE_MAX);
+    expect(ORDER_EXTERNAL_REFERENCE_MESSAGE_MAX).toBe(1000);
+    const accepts = (message: string) =>
+      orderExternalReferenceWriteSchema.safeParse({ state: 'error', message }).success;
+    expect(accepts(longest)).toBe(true);
+    expect(accepts(`${longest}x`)).toBe(false);
+    expect(accepts('Item 1042\nis blocked\tfor sale')).toBe(true);
+    expect(accepts('nul\u0000')).toBe(false);
+    expect(accepts('bell\u0007')).toBe(false);
+  });
+
+  it('refuses an empty or overlong reference, and admits null', () => {
+    const accepts = (reference: string | null) =>
+      orderExternalReferenceWriteSchema.safeParse({ state: 'synced', reference }).success;
+    expect(accepts(null)).toBe(true);
+    expect(accepts('ZS/2026/1042')).toBe(true);
+    expect(accepts('')).toBe(false);
+    expect(accepts('   ')).toBe(false);
+    expect(accepts('r'.repeat(256))).toBe(false);
   });
 });

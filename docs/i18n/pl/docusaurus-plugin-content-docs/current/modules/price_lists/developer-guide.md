@@ -420,7 +420,8 @@ oznacza powierzchnię cen — w chwili początku; szkic i cennik wygasły zachow
 `CommandBus.run` z jednym wpisem audytu na `objectType: 'price_list'`, zawierającym stan przed zmianą
 i po niej; audytowane akcje to `price_list.create`, `update`, `channels_replace`, `activate`,
 `draftify`, `expire`, `duplicate`, `delete`, `rows_replace`, `base_prices_set` i
-`show_list_price_set`.
+`show_list_price_set`, a także `book_rows_set` i `book_rows_remove`, które zapisuje wyłącznie
+`priceBookRowWritePort`.
 
 | Metoda i ścieżka | Do czego służy |
 | --- | --- |
@@ -502,6 +503,7 @@ wywołuje `resolved-price` dla każdej karty.
 | `priceListReadPort` | `PriceListReadPort` — `findById`, `findByIds`, `listAll`, `listActive`, `listForOrganization({ organizationChain, customerGroupId })` | nagłówki cenników; cenniki obowiązujące organizację przez jej własne członkostwo, członkostwo przodka albo jej grupę, każdy z `reason` i `depth` w łańcuchu |
 | `productDisplayModePort` | `ProductDisplayModePort.resolveDisplayMode` | tryb prezentacji produktu dla kupującego |
 | `priceBookWritePort` | `PriceBookWritePort` | **ceny bazowe** produktu, dla importu cen z innego modułu |
+| `priceBookRowWritePort` | `PriceBookRowWritePort` | wiersze produktu w jednym cenniku **innym niż cennik cen bazowych** — cena grupy klientów, organizacji, katalogowa albo promocyjna — dla importu cen z innego modułu |
 
 ### `priceBookWritePort`
 
@@ -533,7 +535,66 @@ interface PriceBookWritePort {
   `ModuleDisabledError` (`503 MODULE_DISABLED`). Rozwiązuj go przy każdym użyciu przez `lazyPort`,
   nigdy nie przechowuj instancji.
 
-Wiersze cenników innych niż cenniki cen bazowych zapisuje się wyłącznie przez API administracyjne.
+Wiersze cenników innych niż cenniki cen bazowych zapisuje się przez `priceBookRowWritePort`, opisany
+niżej.
+
+### `priceBookRowWritePort`
+
+Port wewnątrzprocesowy, przez który inny moduł — konektor ERP albo PIM, który mapuje zewnętrzny
+cennik na cennik wybrany przez administratora — zapisuje wiersze **jednego produktu w jednym
+cenniku innym niż cennik cen bazowych**: cenę grupy klientów, organizacji, katalogową albo
+promocyjną. Nazwa w kontenerze jest eksportowana jako `PRICE_BOOK_ROW_WRITE_PORT`.
+
+```ts
+interface PriceBookRowWritePort {
+  replaceBookRows(
+    bookId: string,
+    productId: string,
+    write: { product: readonly BasePriceTier[]; variants?: Readonly<Record<string, VariantRowWrite | null>> },
+  ): Promise<BookProductRows>;
+  removeBookRows(bookId: string, productId: string): Promise<void>;
+  bookRows(bookId: string, productId: string): Promise<BookProductRows | null>;
+}
+```
+
+- **Tylko wiersze.** Port nie tworzy cenników i nie zmienia nagłówka — waluty, zestawu kanałów,
+  odbiorców, okresu obowiązywania ani statusu. To administrator decyduje, jakie cenniki istnieją
+  i kogo wyceniają; moduł wskazuje cennik po jego id.
+- `replaceBookRows` zastępuje progi produktu (kwoty stałe, najwyżej 50, w jedynej walucie cennika)
+  oraz, dla każdego wariantu wskazanego w `variants`, wiersze tego wariantu: jego własne progi stałe
+  albo korektę procentową lub kwotową ceny odniesienia przy każdej ilości; `null` usuwa wiersze
+  wariantu, a wariant niewskazany zachowuje swoje. Pozostałe wiersze cennika — inne produkty,
+  kategorie, atrybuty — zostają bez zmian. `removeBookRows` usuwa te wiersze produktu i jego
+  wariantów, które port potrafi wyrazić, a gdy ich nie ma, nic nie robi. `bookRows` zwraca wiersze
+  w kształcie zapisu albo `null`, gdy produkt nie ma w cenniku żadnego wiersza.
+- **Wiersze, których kształt zapisu nie wyraża, nigdy nie należą do portu.** Wiersz wprowadzony
+  przez administratora, który nie jest ani progiem stałym, ani korektą wariantu przy każdej ilości —
+  procent albo kwota na poziomie produktu, korekta ograniczona do przedziału ilości — nie jest ani
+  zastępowany przez `replaceBookRows`, ani usuwany przez `removeBookRows` i nadal wycenia.
+  `bookRows` sygnalizuje go przez `complete: false`. Próg, który nachodziłby na taki wiersz
+  w przedziale ilości — także próg zaczynający się od tej samej ilości — jest odrzucany
+  (`409 PRICE_BOOK_ROW_OVERLAP`, ze wskazaniem zachowanego wiersza), tak jak partia z panelu odrzuca
+  nakładające się wiersze; port nigdy nie nadpisuje takiego wiersza.
+- Każdy zapis to partia wierszy z panelu (`PUT …/:id/rows`, planowanie i polecenie
+  `PriceBookService.writeRows`): te same reguły wierszy, jedno wykonanie Command Bus audytowane jako
+  `price_list.book_rows_set` albo `price_list.book_rows_remove`, z wykonawcą, którego Command Bus
+  ustala w zakresie wywołującego, zmiana wersji cennika oraz jedno
+  podbicie generacji cen po zatwierdzeniu, którego zmiana powierzchni cen wskazuje cennik i produkt.
+  Zapis, który niczego by nie zmienił, niczego nie zapisuje — bez wpisu audytu i bez podbicia.
+- **Wpis audytu zawiera nazwy, nie wartości** (`specs/conventions/audit-state.md`, decyzja
+  właściciela O-3): id produktu, id dotkniętych wariantów, `changedFields: ['rows']`, liczby
+  wierszy dodanych, zmienionych i usuniętych, wersję oraz `valueChangeId`. Ceny i przedziały ilości
+  trafiają do własnej historii zmian cen cennika (`price_list_value_changes` i jej wiersze),
+  zapisywanej w tym samym poleceniu.
+- Odmowy, zanim cokolwiek zostanie zapisane: nieznany cennik albo produkt — `404 NOT_FOUND`; cennik
+  cen bazowych — `409 PRICE_BOOK_BASE_BOOK` (jego wiersze to ceny bazowe — użyj
+  `priceBookWritePort`); cennik wygasły — `409 PRICE_BOOK_EXPIRED`; błędny zapis —
+  `400 VALIDATION_FAILED`; progi łamiące reguły cennika — tak jak odmawia partia z panelu
+  (`409 PRICE_BOOK_ROW_OVERLAP`, `400 PRICE_BOOK_ROW_SHAPE`, `400 PRICE_BOOK_ROW_LIMIT`), ze
+  ścieżką każdego błędu w zapisie w `details.errors[].field` (`product.1.minQuantity`). Konektor może
+  pominąć wartość, zgłaszając problem, i iść dalej.
+- Odmawia w razie wątpliwości tak jak `priceBookWritePort`: rozwiązuj go przy każdym użyciu przez
+  `lazyPort`.
 
 ## Stan wyłączenia, kanały i izolacja
 
@@ -622,5 +683,6 @@ jego zamiennikiem.
 | Zgodność wszystkich powierzchni; partia = pojedyncze wywołanie; porządek sortowania = karty | `backend/test/integration/price_lists/pricing-surfaces-agree.test.ts`, `listing-prices-batch.test.ts`, `line-prices-batch.test.ts`, `price-surface-identity.test.ts` |
 | Odczyt koszyka = składanie zamówienia | `backend/test/integration/carts/cart-read-equals-placement.test.ts` |
 | API administracyjne, zakres, wersje, podgląd bez zapisu, usunięte trasy | `backend/test/contract/price_lists/` |
+| Porty zapisu dla modułów | `backend/test/integration/price_lists/price-book-write-port.test.ts`, `price-book-row-write-port.test.ts`, `src/backend/services/price-book-row-write.test.ts` |
 | Konwersja; świeża instalacja; scenariusze demonstracyjne | `backend/test/integration/price_lists/conversion.test.ts`, `fresh-install.test.ts`, `demo-scenarios.test.ts` |
 | Wydajność (`PERF_RUN=true`) | `backend/test/perf/price_lists/price-surface.bench.ts`, `book-resolver.bench.ts`, `book-lines-page.bench.ts`, `editor-import-save.bench.ts` |

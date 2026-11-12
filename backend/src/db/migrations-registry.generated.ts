@@ -307,6 +307,7 @@ import { Migration20261024T145147OrdersVatMethod } from '@endora-commerce/mod-or
 import { Migration20261025T031732OrdersUnitPriceFourPlaces } from '@endora-commerce/mod-orders/migrations';
 import { Migration20261108T000543OrdersCompletedAt } from '@endora-commerce/mod-orders/migrations';
 import { Migration20261108T073238OrdersChargeLines } from '@endora-commerce/mod-orders/migrations';
+import { Migration20261110T143322OrdersOrderExternalReferences } from '@endora-commerce/mod-orders/migrations';
 
 // ── organizations ───────────────────────────────────────────────────────────
 import { Migration20260424T205317OrganizationsInit } from '@endora-commerce/mod-organizations/migrations';
@@ -732,6 +733,7 @@ export const MIGRATION_REGISTRY: readonly MigrationRegistryEntry[] = [
   migration('orders', Migration20261025T031732OrdersUnitPriceFourPlaces),
   migration('orders', Migration20261108T000543OrdersCompletedAt),
   migration('orders', Migration20261108T073238OrdersChargeLines),
+  migration('orders', Migration20261110T143322OrdersOrderExternalReferences),
 
   // ── organizations ───────────────────────────────────────────────────────────
   migration('organizations', Migration20260424T205317OrganizationsInit),

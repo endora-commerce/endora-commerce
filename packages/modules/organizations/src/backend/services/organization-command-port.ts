@@ -2,6 +2,7 @@ import type {
   CustomerAccountReadPort,
   OrganizationChangeTaxIdInput,
   OrganizationCommandPort,
+  OrganizationCommandPortOptions,
   OrganizationConvertToCompanyInput,
   OrganizationRecord,
 } from '@endora-commerce/contracts';
@@ -41,10 +42,16 @@ export class OrganizationCommandService implements OrganizationCommandPort {
   async convertToCompany(
     organizationId: string,
     input: OrganizationConvertToCompanyInput,
+    options: OrganizationCommandPortOptions = {},
   ): Promise<OrganizationRecord> {
+    // Extension input for the hook modules on the action (176 FR-018, #1057),
+    // passed through to the Command; the bus refuses a key nobody claims.
     const organization = await runOrganizationWrite(
       this.deps.commandBus,
-      makeConvertToCompanyCommand({ accounts: this.deps.accounts }, { organizationId, input }),
+      makeConvertToCompanyCommand(
+        { accounts: this.deps.accounts },
+        { organizationId, input, ...(options.extensions ? { extensions: options.extensions } : {}) },
+      ),
       () => taxIdExistsRefusal(),
     );
     // Committed by now: a cache that cannot be dropped is logged, not a failure.
@@ -56,12 +63,17 @@ export class OrganizationCommandService implements OrganizationCommandPort {
 
   /**
    * Issue #1040 — `organization.tax_id.change`. A same-value call answers the
-   * record unchanged; nothing is audited or emitted for it.
+   * record unchanged; nothing is emitted for it, and nothing is audited unless a
+   * command hook noted a write of its own.
    */
-  async changeTaxId(organizationId: string, input: OrganizationChangeTaxIdInput): Promise<OrganizationRecord> {
+  async changeTaxId(
+    organizationId: string,
+    input: OrganizationChangeTaxIdInput,
+    options: OrganizationCommandPortOptions = {},
+  ): Promise<OrganizationRecord> {
     const { organization } = await runOrganizationWrite(
       this.deps.commandBus,
-      makeChangeTaxIdCommand({ organizationId, input }),
+      makeChangeTaxIdCommand({ organizationId, input, ...(options.extensions ? { extensions: options.extensions } : {}) }),
       () => taxIdExistsRefusal(),
     );
     return toOrganizationRecord(organization);

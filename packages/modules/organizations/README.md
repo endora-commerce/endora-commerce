@@ -20,6 +20,7 @@ A module is not imported by application code. The platform discovers the extensi
 | `@endora-commerce/mod-organizations/migrations` | the module’s own schema migrations, in the order the platform runs them |
 | `@endora-commerce/mod-organizations/ports` | type-only — the port interfaces other modules resolve this one through |
 | `@endora-commerce/mod-organizations/tailwind.css` | the Tailwind source declaration for the admin code above |
+| `@endora-commerce/mod-organizations/test-support` | development-only — the test doubles, fixtures and volatile tables this module’s own tests need |
 
 ## Depends on
 

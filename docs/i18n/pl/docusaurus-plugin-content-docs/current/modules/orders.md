@@ -381,7 +381,7 @@ modułu.
 
 `Order`, `OrderItem`, `Payment`, `OrderStatus`, `OrderStatusTransition`, `OrderTransitionEffect`,
 `OrderComment`, `OrderListSavedView`, `OrderItemGroup` (grupy pozycji zamówienia — zob. *Grupy
-pozycji*) oraz kolumna `organizations.order_confirmation_emails` (właściciel:
+pozycji*), `OrderExternalReference` (zob. *Numery z systemów zewnętrznych*) oraz kolumna `organizations.order_confirmation_emails` (właściciel:
 `organizations`, odczyt przez port). `OrderItem` zapisuje kopię produktu, wariantu, ceny
 jednostkowej i stawki podatku z chwili złożenia zamówienia, aby historyczne zamówienia nie zmieniały
 się po zmianach cen i katalogu. Kopiuje też `price_source` pozycji koszyka — `agreed`, `base`,
@@ -426,7 +426,9 @@ złożenie zamówienia niczego nie ogłasza.
   `salesChannelId` do wstępnego wyboru oraz `returnTo`, czyli ścieżkę w Admin UI, do której wraca
   się po utworzeniu zamówienia.
 - **Lista** — `GET /api/v1/admin/orders` filtruje, sortuje i wyszukuje po stronie serwera, z
-  licznikami dla każdego statusu; `GET …/export` zwraca CSV strumieniowo; zapisane widoki przez
+  licznikami dla każdego statusu. Wyszukiwanie (`q`) dopasowuje numer zamówienia, nazwę
+  Organizacji, klienta oraz numer nadany zamówieniu przez system zewnętrzny (zob. *Numery z
+  systemów zewnętrznych*); `GET …/export` zwraca CSV strumieniowo; zapisane widoki przez
   `…/list-views` — zob. *Zapisane widoki* niżej.
 - **Operacje masowe** — `POST …/bulk/status` (zamówienia, które się kwalifikują, zmieniają status;
   pominięte są zgłaszane z powodem — pominięte zamówienie nie zmieniło statusu) oraz
@@ -909,6 +911,55 @@ złożone. Panel *Organizacja* na ekranie zamówienia w panelu administracyjnym
 również nie pokazuje NIP Organizacji osobistej, tylko etykietę *Klient
 indywidualny*: odpowiedź administracyjna zamówienia zawiera dla niej
 `organization.taxId: null` i `organization.isPersonal: true`.
+
+## Numery z systemów zewnętrznych
+
+Moduł, który przekazuje zamówienia do innego systemu — ERP, systemu magazynowego, integracji
+fulfilmentu — zapisuje na zamówieniu, co ten system odpowiedział: jego własny numer zamówienia, stan
+przekazania oraz własne słowa tego systemu, gdy zamówienie odrzucił. Operator widzi to na stronie
+zamówienia, tam gdzie odbiera telefon od kupującego, a nie na ekranach samej integracji.
+
+Zamówienie ma **jeden wpis na system**. Wpis zawiera:
+
+| Pole | Znaczenie |
+| --- | --- |
+| System | Stały klucz piszącego, zwykle identyfikator jego modułu — małe litery, cyfry, `_`, `-` lub `.`, zaczyna się literą, najwyżej 64 znaki. |
+| Numer | Numer zamówienia w drugim systemie, gdy już go nadał (najwyżej 255 znaków). |
+| Stan | `pending` (przekazane, bez odpowiedzi), `synced` (przyjęte) albo `error` (odrzucone). |
+| Komunikat | Własne słowa drugiego systemu, zwykle przy `error` — zwykły tekst, najwyżej 1000 znaków. |
+| Zaktualizowano | Kiedy wpis ostatnio się zmienił. |
+
+**Na stronie zamówienia** sekcja *Systemy zewnętrzne* pokazuje każdy wpis ze stanem w postaci
+plakietki, a gdy żaden system jeszcze nic nie przekazał — mówi o tym. Komunikat jest wyświetlany
+jako tekst, nigdy jako znaczniki. Widzi go każdy, kto może otworzyć zamówienie: odczyt wynika z
+`orders:read`, a przedstawiciel handlowy widzi wpisy zamówień, które sam widzi. Kupujący nigdy ich
+nie widzą.
+
+**Na liście zamówień** wyszukiwanie znajduje zamówienie po numerze z systemu zewnętrznego tak, jak
+po numerze zamówienia: po fragmencie, bez rozróżniania wielkości liter, niezależnie od tego, który
+system go zapisał. Komunikat nie jest przeszukiwany.
+
+**Dla autora modułu** punktem styku jest port `orderExternalReferencePort`
+(`OrderExternalReferencePort` w `@endora-commerce/contracts`; nazwa w kontenerze jest też
+eksportowana jako `ORDER_EXTERNAL_REFERENCE_PORT`). Rozwiązuj go przy każdym użyciu przez
+`lazyPort`; nie ma on trasy HTTP w panelu administracyjnym.
+
+- `set(orderId, system, { state, reference?, message? })` tworzy lub aktualizuje wpis systemu.
+  Pominięty `reference` zachowuje zapisany numer, a `null` go czyści; pominięty `message` oznacza
+  brak komunikatu, więc zgłoszenie `synced` po `error` nie zostawia starego odrzucenia.
+- `get(orderId, system)` i `listForOrder(orderId)` odczytują wpisy, a
+  `findOrderIds(system, reference)` znajduje zamówienia o dokładnie tym numerze — zwykle jedno.
+
+Każda zmiana to jedna komenda, `order.external_reference.set`, zapisywana w dzienniku audytu z
+wywołującym aktorem, więc wywołuj ją w kontekście dzierżawcy — worker w `enterSystemScope`. Zapis,
+który niczego nie zmienia, niczego nie rejestruje i nie przesuwa pola *Zaktualizowano*, bo pętla
+synchronizacji wysyła dane ponownie. Zamówienie, którego wywołujący nie widzi, jest odrzucane z
+`404 ORDER_NOT_FOUND`, a błędny klucz systemu, stan, numer lub komunikat z `400 VALIDATION_FAILED`,
+zanim cokolwiek zostanie zapisane.
+
+Wpis przeżywa swojego autora: odinstalowanie modułu, który go zapisał, zostawia wpis na zamówieniu
+jako historię. Migracja `20261110T143322_orders_order_external_references.ts` tworzy pustą tabelę
+(`order_external_references`, unikalną dla pary zamówienie i system).
 
 ## Punkty rozszerzenia
 

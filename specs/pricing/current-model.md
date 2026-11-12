@@ -257,12 +257,15 @@ price never — cards are always resolved live. Measured in
    account, so a customer's own group is not applied there.
 5. **Next.js `pricing:*` cache tags are never revalidated**, and short price-sorted and search
    pages (#235) remain, as in P0.
-6. **The in-process write port covers base prices only.** `priceListAdminPort` — through which
-   the PIM connectors' price import wrote brackets — was removed with the old model and replaced by
-   `priceBookWritePort` (FR-049, owner ruling 2026-10-22,
-   `specs/160-pricing-model-v2/contracts/price-book-write-port.md`): base tiers per currency, read,
-   replace, and the G1 list of books pricing a product. Rows of non-base books are written through
-   the admin API only.
+6. ~~**The in-process write port covers base prices only.**~~ **Resolved by issue #1028.**
+   `priceListAdminPort` — through which the PIM connectors' price import wrote brackets — was
+   removed with the old model and replaced by `priceBookWritePort` (FR-049, owner ruling
+   2026-10-22, `specs/160-pricing-model-v2/contracts/price-book-write-port.md`): base tiers per
+   currency, read, replace, and the G1 list of books pricing a product. One product's rows of a
+   non-base book are written by `priceBookRowWritePort` (`replaceBookRows`, `removeBookRows`,
+   `bookRows`), through the admin row batch's planning and command
+   (`price_list.book_rows_set` / `book_rows_remove`); base and expired books are refused. What
+   remains: no port creates a book or changes a header — an administrator owns those.
 7. ~~**The price surface is rebuilt whole.**~~ **Resolved 2026-10-23** (owner ruling; research
    R17): writers describe their change and the worker refreshes the marked (profile, product) pairs
    in place; measured at 202 profiles in `read-paths-and-performance.md` §7. What remains: a change
