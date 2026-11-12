@@ -5,7 +5,9 @@ import {
   teardownBackendServer,
   type BackendServerHandle,
 } from '../../helpers/test-server.js';
+import { TEST_ORGANIZATION_ID } from '../../helpers/test-actors.js';
 import {
+  assignToCrmBook,
   CRM_ADMIN,
   CRM_API,
   createCrmOpportunity,
@@ -223,7 +225,14 @@ describe('crm Opportunities list — custom-field filters', () => {
     });
 
     it('never shows a sales representative another Organization’s Opportunities', async () => {
-      expect(await listed({ [`custom:${A}`]: { in: ['x'] } }, '', rep.cookies)).toEqual(['other-org']);
+      // #305 — the test Organization is another representative's: one nobody
+      // is assigned to is in every representative's reach.
+      const undoBook = await assignToCrmBook(h.em(), [TEST_ORGANIZATION_ID]);
+      try {
+        expect(await listed({ [`custom:${A}`]: { in: ['x'] } }, '', rep.cookies)).toEqual(['other-org']);
+      } finally {
+        await undoBook();
+      }
     });
 
     it.each([
