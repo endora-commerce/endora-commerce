@@ -87,6 +87,11 @@ import {
   loadManifestLocations,
   ManifestIndexUnreadableError,
 } from './switchable-modules.js';
+import {
+  checkEmittedFreshness,
+  emittingPackages,
+  refuseStaleEmittedArtefacts,
+} from './emitted-freshness.js';
 import { moduleIdOf } from './module-population.js';
 import { platformPackageNameOf, platformSourceRootOf } from './platform-root.js';
 
@@ -769,8 +774,11 @@ export async function resolveModuleLayout(
  * guard is subtly wrong is invisible by construction.
  */
 export async function requireModuleLayout(prefix: string): Promise<ModuleTreeLayout> {
+  let layout: ModuleTreeLayout;
+  let manifestLocations: ReadonlyMap<string, string>;
   try {
-    return await resolveModuleLayout();
+    layout = await resolveModuleLayout();
+    manifestLocations = await loadManifestLocations(layout.manifestIndexPath);
   } catch (error: unknown) {
     const detail =
       error instanceof ModuleLayoutUnresolvableError || error instanceof ManifestIndexUnreadableError
@@ -783,6 +791,23 @@ export async function requireModuleLayout(prefix: string): Promise<ModuleTreeLay
     );
     process.exit(2);
   }
+  // The layout was read out of the generated index, which imports every module
+  // package's **emitted** manifest (D-164): a check resolving it has read those
+  // artefacts whether or not it reads anything else out of them. So the
+  // staleness refusal lives here, in the one loader every check goes through,
+  // rather than in each check that remembers to call it (issue #104) — six did
+  // and the rest answered an author who had not rebuilt about the previous
+  // build. Exit 2, naming the stale package: the tree is not in violation, the
+  // run could not see it (issue #113).
+  refuseStaleEmittedArtefacts(
+    prefix,
+    checkEmittedFreshness({
+      read: [...manifestLocations.values()],
+      packages: emittingPackages(layout.repoRoot),
+    }),
+    layout.displayOf,
+  );
+  return layout;
 }
 
 /**
