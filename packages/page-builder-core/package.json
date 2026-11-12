@@ -63,7 +63,8 @@
   },
   "files": [
     "dist",
-    "tailwind.css"
+    "tailwind.css",
+    "!dist/**/*.map"
   ],
   "sideEffects": false,
   "engines": {

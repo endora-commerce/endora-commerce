@@ -51,6 +51,7 @@ import {
   checkPlatformSurface,
   checkSharedNames,
   collectPlatformSurfaceSources as walk,
+  collectPlatformSurfaceTestSources as walkTests,
   hostDependentCoverage,
   hostReachCoverage,
   isPackageToolingConfig,
@@ -99,7 +100,40 @@ const DEPLOYMENT_FILE =
   'modules, and none of them is ever packaged (D-104). Ledgered rather than filtered so a ' +
   'module file the attribution loses cannot hide among them.';
 
+/**
+ * A module test that composes the module by hand, through the host-internal
+ * `./composition` subpath (issue #114).
+ *
+ * Each of these builds a root container, registers the ports it fakes, and runs
+ * the module's `registerModule` against a `createModuleContext` — the composition
+ * a module's own unit test needs, with no server and no database. The test kit
+ * publishes `composeTestServer`, which boots a platform, and nothing smaller; so
+ * there is no published spelling of this to move to, and these packages cannot be
+ * tested outside this repository as they stand. What would retire every entry is
+ * a test-kit subpath composing one module over supplied values — the
+ * `createRootContainer` / `registerValues` / `createModuleContext` /
+ * `createModuleRegistrationSink` sequence, plus `registryCache` for the two that
+ * subscribe, and `registerRequestScopeHook` / `resolveTenantContext` /
+ * `systemTenantContext` for `auth`'s request-scope proof. That is a published API
+ * decision and not this check's to take, so the gap is ledgered here, named, and
+ * not hidden by leaving tests out of the walk.
+ */
+const TEST_KIT_GAP =
+  'a module test composing its module through `@endora-commerce/platform/composition`, ' +
+  'which no module may name: `@endora-commerce/test-kit` publishes a whole-server ' +
+  'composition and no single-module one, so there is no published spelling to move to ' +
+  'yet (issue #114). Retired by a test-kit subpath that composes one module over ' +
+  'supplied values.';
+
 export const UNPUBLISHED_PLATFORM_REACHES: Readonly<Record<string, LedgeredReach>> = {
+  // === TEST_KIT_GAP (6) ===
+  'packages/modules/auth/src/backend/route-actor-scope.test.ts|@endora-commerce/platform/composition': { symbols: ['?'], reason: TEST_KIT_GAP },
+  'packages/modules/cms/src/backend/storefront-revalidation.test.ts|@endora-commerce/platform/composition': { symbols: ['?'], reason: TEST_KIT_GAP },
+  'packages/modules/customers/src/backend/moderation-actor.test.ts|@endora-commerce/platform/composition': { symbols: ['?'], reason: TEST_KIT_GAP },
+  'packages/modules/megamenu/src/backend/cms-content-subscription.test.ts|@endora-commerce/platform/composition': { symbols: ['?'], reason: TEST_KIT_GAP },
+  'packages/modules/orders/src/backend/admin-scope-resolver.test.ts|@endora-commerce/platform/composition': { symbols: ['?'], reason: TEST_KIT_GAP },
+  'packages/modules/quote_requests/src/backend/actor-resolvers.test.ts|@endora-commerce/platform/composition': { symbols: ['?'], reason: TEST_KIT_GAP },
+
   // === DEPLOYMENT_FILE (4) ===
   'backend/src/apps/acceptance/divergence.ts|(unattributed)': { symbols: ['?'], reason: DEPLOYMENT_FILE },
   'backend/src/apps/acceptance/divergence.generated.ts|(unattributed)': { symbols: ['?'], reason: DEPLOYMENT_FILE },
@@ -603,9 +637,13 @@ async function main(): Promise<void> {
   const repoKeyOf = (absolutePath: string): string =>
     relative(layout.repoRoot, absolutePath).split('\\').join('/');
 
-  const moduleFiles = layout.moduleWalkRoots.flatMap((root) =>
-    walk(root).filter((file) => !isPackageToolingConfig(root, file)),
-  );
+  // A module's test files are in the population too, and are asked only which
+  // host subpaths they name (issue #114): a module whose tests reach the host's
+  // internals cannot be tested outside this repository.
+  const moduleFiles = layout.moduleWalkRoots.flatMap((root) => [
+    ...walk(root).filter((file) => !isPackageToolingConfig(root, file)),
+    ...walkTests(root),
+  ]);
   const sources = new Map<string, string>();
   for (const file of moduleFiles) sources.set(repoKeyOf(file), readFileSync(file, 'utf8'));
 

@@ -13,7 +13,7 @@
  *
  * `pnpm run build:packages` and `pnpm -r run typecheck` both read the **source**
  * tree. Nothing in this repository reads what a consumer actually receives, and
- * the four things below are all invisible until an install somewhere else fails:
+ * the things below are all invisible until an install somewhere else fails:
  *
  *   * a `dist` that is present and **empty**, which a type-check cannot see
  *     because the type-check is what would have written it;
@@ -33,6 +33,8 @@
  *     written: run with *no* `node_modules` at all, `endora --help` prints a
  *     1115-byte `ERR_MODULE_NOT_FOUND` stack trace, which satisfies a rule that
  *     only asks for output. A proof that a crash passes is not a proof.
+ *   * a source map (`.js.map`, `.d.ts.map`) in a tarball that carries `dist`
+ *     and not `src`, so it points at files no consumer has (issue #107).
  *
  * It is deliberately **not** a `check-*` script, on the boot gate's reasoning:
  * `check-read-size.test.ts` spawns every one of those, and packing 79 packages
@@ -96,7 +98,8 @@ export type PackFindingKind =
   | 'unresolvable-export'
   | 'missing-packed-manifest'
   | 'bin-does-not-run'
-  | 'silent-bin';
+  | 'silent-bin'
+  | 'source-map-shipped';
 
 export interface PackFinding {
   readonly kind: PackFindingKind;
@@ -279,6 +282,25 @@ export function judgePackedPackage(packed: PackedPackage): PackResult {
           'module rather than an error.',
       });
     }
+  }
+
+  // 2b — a source map nothing can use (issue #107). Every package publishes
+  // `dist` and not `src`, so a `.js.map` or `.d.ts.map` points a consumer's
+  // debugger and editor at sources the tarball does not carry. The maps stay on
+  // in `tsconfig.base.json` — local stack traces through the D-164 `./dist`
+  // resolution need them — and `files` excludes them with `!dist/**/*.map`.
+  // One finding per package: the cause is one `files` list.
+  const maps = packed.entries.filter((entry) => entry.path.endsWith('.map'));
+  if (maps.length > 0) {
+    findings.push({
+      kind: 'source-map-shipped',
+      subject: packed.name,
+      message:
+        `(${packed.dir}) packed ${String(maps.length)} source map(s), the first ` +
+        `\`${maps[0]!.path}\`. The tarball carries \`dist\` and not \`src\`, so every map ` +
+        'points at a file no consumer has. Add `"!dist/**/*.map"` to `files` — for a module ' +
+        'package through `manifests:generate`, never by hand.',
+    });
   }
 
   // 3 — a range that resolves in this workspace and nowhere else.

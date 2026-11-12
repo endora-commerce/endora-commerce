@@ -194,9 +194,12 @@
  * `cms_pages` — is the admin application's and is judged as nobody's: right for
  * the directory, and it leaves the reach unrecorded.
  *
- * Nine files under `admin/src/components` reach a module's admin code that way,
- * and `admin/src/components/IdleLogout.tsx` — which takes `settings`' admin API
- * client — was in no ledger at all. That is the admin application asking a
+ * When this was written, nine files under `admin/src/components` reached a
+ * module's admin code that way, and `IdleLogout.tsx` — then a file of that
+ * directory, which took `settings`' admin API client — was in no ledger at all.
+ * (The component is `packages/admin-shell/src/components/IdleLogout.tsx` now and
+ * reads its timeout off the session, so it reaches no module; the directory is
+ * gone.) That is the admin application asking a
  * module for something, and it is the shape with the worse failure mode: a
  * *ledgered* reach rewritten as a package specifier goes stale loudly, while an
  * **unrecorded** one is rewritten and nothing goes red, because there was no
@@ -1094,10 +1097,12 @@ const NO_ADMIN_SURFACES = null;
  *
  * `check:module-boundary`'s admin population judges a reach between two
  * *modules*, so a file the module root does not hold is judged as nobody's —
- * right for the file, and it leaves the reach unrecorded. Nine files under
- * `admin/src/components` import a module's admin API client or component;
- * `admin/src/components/IdleLogout.tsx` takes `settings`' client and is in no
- * ledger at all. That is a real coupling — the admin application asking a module
+ * right for the file, and it leaves the reach unrecorded. At feature 091, nine
+ * files under `admin/src/components` imported a module's admin API client or
+ * component, and `IdleLogout.tsx` there took `settings`' client and was in no
+ * ledger at all (it has since moved to
+ * `packages/admin-shell/src/components/IdleLogout.tsx` and reaches no module).
+ * That is a real coupling — the admin application asking a module
  * for something — and it is the coupling with the *worse* failure mode: a
  * ledgered reach rewritten as a package specifier goes stale loudly
  * (`specs/084-small-f4-package-layout/contracts/module-package-layout.md` §0),

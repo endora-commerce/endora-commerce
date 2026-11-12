@@ -44,6 +44,14 @@
  * spelling *can* be wrong about is the **subpath**, and that is the finding it
  * gets.
  *
+ * **A module's test files are in the population for the subpath question only**
+ * (issue #114). Which subpaths of the host a test names decides whether the
+ * package can be tested outside this repository; which symbols it takes, and
+ * whether it reaches its own module's internals by relative path, is a test's
+ * business. So a test file can be `host-internal-subpath` or
+ * `unpublished-subpath` and nothing else, and it contributes nothing to
+ * {@link hostDependentCoverage}, whose floor is about production sources.
+ *
  * Every specifier shape `scripts/lib/specifiers.ts` knows is read, `import type`
  * and the one type-position `import('…')` included (§0b: a `from '…'`-only scan
  * does not see it, and a module would move with an unrewritten specifier that
@@ -564,13 +572,27 @@ export function scanPlatformSurface(input: PlatformSurfaceInput): PlatformSurfac
     // platform by relative path within one package — see `platformSourceRoot`.
     if (withinPlatform(file)) continue;
 
+    // A module's test file is asked the subpath question and only that one
+    // (issue #114). Which subpaths of the host it names decides whether the
+    // module can be tested outside this repository at all; which symbols it
+    // takes, and whether it reaches the module's own internals by relative
+    // path, is a test's business. It contributes nothing to `hostReachModules`
+    // either: that floor is about the production walk, and a package whose
+    // only host reaches were in its tests must not satisfy it.
+    const isTest = isPlatformSurfaceTestSource(file);
+
     for (const specifier of namedSpecifiers(text, file)) {
       // A bare specifier into the host package is the same reach a module in
       // the application tree writes relatively (feature 080, T060). Asked
       // first, because a specifier that names the host is never a relative one
       // and the two answers must not both be consulted.
       const hostReach = resolveHostSpecifier(specifier.text, host);
-      if (hostReach !== null) hostReachModules.add(moduleId);
+      if (isTest) {
+        if (hostReach === null) continue;
+        reaches += 1;
+      } else if (hostReach !== null) {
+        hostReachModules.add(moduleId);
+      }
       if (hostReach?.kind === 'undeclared-subpath' || hostReach?.kind === 'host-internal-subpath') {
         findings.push({
           // The two are one branch and two verdicts on purpose: both are about
@@ -589,6 +611,7 @@ export function scanPlatformSurface(input: PlatformSurfaceInput): PlatformSurfac
         });
         continue;
       }
+      if (isTest) continue;
       // Someone else's package: `zod`, `@mikro-orm/core`, another module's.
       if (hostReach === null && !specifier.text.startsWith('.')) continue;
       const resolved =
@@ -1019,6 +1042,34 @@ export function platformSurfaceRefusal(input: {
   return null;
 }
 
+/** `x.test.ts` / `x.test.tsx` — a test file, judged on the subpaths it names only. */
+export function isPlatformSurfaceTestSource(path: string): boolean {
+  return path.endsWith('.test.ts') || path.endsWith('.test.tsx');
+}
+
+/**
+ * Every test file under `dir`, with the same prunes as
+ * {@link collectPlatformSurfaceSources} — the module-test population (issue
+ * #114).
+ *
+ * A separate walk rather than a flag on the other one, because that walk is
+ * also the population of the barrels, the resolution set and the application
+ * scan, none of which asks anything of a test.
+ */
+export function collectPlatformSurfaceTestSources(dir: string, out: string[] = []): string[] {
+  if (!existsSync(dir)) return out;
+  for (const name of readdirSync(dir)) {
+    const full = join(dir, name);
+    if (statSync(full).isDirectory()) {
+      if (name === 'node_modules' || name === 'dist') continue;
+      collectPlatformSurfaceTestSources(full, out);
+    } else if (isPlatformSurfaceTestSource(name)) {
+      out.push(full);
+    }
+  }
+  return out;
+}
+
 /**
  * Every TypeScript source under `dir`, with the rule's own prunes applied.
  *
@@ -1038,8 +1089,7 @@ export function collectPlatformSurfaceSources(dir: string, out: string[] = []): 
       // components, and a walk that cannot see them reports every relative
       // reach into one as `unresolvable-reach` — a finding about the walk.
       (name.endsWith('.ts') || name.endsWith('.tsx')) &&
-      !name.endsWith('.test.ts') &&
-      !name.endsWith('.test.tsx') &&
+      !isPlatformSurfaceTestSource(name) &&
       !name.endsWith('.d.ts')
     ) {
       out.push(full);
