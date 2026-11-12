@@ -162,7 +162,9 @@ export const CRM_BOOK_REP_ID = randomUUID();
 /**
  * Issue #305 — put an Organization the harness seeds (`TEST_ORGANIZATION_ID`,
  * `OTHER_TEST_ORGANIZATION_ID`) into the book of {@link CRM_BOOK_REP_ID}, so a
- * representative not given it does not reach it. Returns the undo.
+ * representative not given it does not reach it. Returns the undo, which a case
+ * runs in `finally` so the assignment does not stand for the rest of its file;
+ * the next file starts with none either way (issue #1056).
  */
 export async function assignToCrmBook(
   em: EntityManager,
@@ -227,6 +229,15 @@ export async function seedCrmAdmin(
  * A Sales Representative confined to `organizationIds` — the allowed-set tenant
  * context — holding `permissions` on top of whatever the role already carries.
  * The role's code is the platform's own: it is what makes the scope narrow.
+ *
+ * **The assignments last until the end of the file, and the harness owns their
+ * cleanup** (issue #1056): `organizations` declares
+ * `organization_sales_rep_assignments` volatile, so the next file's
+ * `setupBackendServer` starts with none. Inside one file they do stand for
+ * every later case — and since a representative reaches every Organization
+ * nobody is assigned to, they narrow what *other* representatives reach too. A
+ * case that needs an assignment the rest of its file must not see takes
+ * {@link assignToCrmBook}'s undo in a `finally` instead.
  */
 export async function seedCrmSalesRep(
   em: EntityManager,

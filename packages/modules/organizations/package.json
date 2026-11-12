@@ -38,6 +38,10 @@
       "types": "./dist/admin/index.d.ts",
       "default": "./dist/admin/index.js"
     },
+    "./test-support": {
+      "types": "./dist/test-support/index.d.ts",
+      "default": "./dist/test-support/index.js"
+    },
     "./tailwind.css": "./tailwind.css",
     "./package.json": "./package.json"
   },

@@ -74,6 +74,14 @@ nothing. See `backend/test/README.md` § *One database per invocation*.
 comment on that statement in `backend/test/helpers/test-server.ts`: a leaked setting can make a
 later file *skip* work and pass.
 
+**A table reaches the per-file truncate only by being named or by a foreign key.** The one
+statement covers `SEEDED_TABLES`, the `volatileTables` each composed module declares in its own
+`src/test-support/index.ts`, and whatever those cascade into; a table hanging off none of them
+keeps its rows for the rest of the worker's files. A module-owned table goes in its module's
+`volatileTables`, never into `SEEDED_TABLES`. `organization_sales_rep_assignments` was such a
+table until issue #1056: an assignment one file seeded narrowed every later file's sales-rep
+reach, and a case passed only because of the file before it (#1019).
+
 ## Running the complete suite locally: workers, the test Postgres and the serial project
 
 **The operation.**
