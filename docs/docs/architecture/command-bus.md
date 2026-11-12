@@ -273,8 +273,9 @@ auditable event is captured elsewhere, and always with a one-line reason.
 `scripts/check-command-coverage.ts` statically flags, per method **and per route
 handler**, in every `.ts` file under a root a module's source can live in — every module
 package, the application tree and the overlay tree, derived by `resolveModuleLayout()` — a sensitive mutation
-(`persist*`, `nativeUpdate`, `nativeDelete`, `remove*`, `flush`) that is neither audited
-nor escape-hatched, and the **double-audit** shape (a unit that both runs a Command and
+(`persist*`, `nativeUpdate`, `nativeDelete`, `remove*`, `flush`, `create`, `upsert`,
+`upsertMany` — the last four only off an EntityManager, since `remove`, `create` and
+`upsert` are also ordinary service method names) that is neither audited nor escape-hatched, and the **double-audit** shape (a unit that both runs a Command and
 audits by hand). A unit counts as covered when it runs a Command, defines a Command
 literal, records audit (`auditLog.record`/`recordWithin`, `recordAuditFromContext`, or a
 `.audit` recorder), delegates to such a unit (`this.<runner>()`, a module-level helper, or
