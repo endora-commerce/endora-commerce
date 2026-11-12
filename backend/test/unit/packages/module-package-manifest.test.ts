@@ -1254,10 +1254,136 @@ describe('module package manifests are generated (feature 080, T041)', () => {
         render(
           widgets({
             ...BACKEND_ONLY,
-            'src/storefront/index.ts': 'export const x = 1;\n',
+            'src/widgets/index.ts': 'export const x = 1;\n',
           }),
         ),
-      ).toThrow(/storefront/);
+      ).toThrow(/src\/widgets\/ is a layer no exports subpath covers/);
+    });
+
+    /**
+     * The three block-renderer layers of `specs/141-module-block-renderers/`
+     * (issue #124). A package outside this repository declares them by hand; a
+     * workspace module's manifest is this generator's, so until it knew them a
+     * first-party renderer could not move into its owning module at all — the
+     * layer was refused as one no subpath covers.
+     */
+    describe('the block-renderer layers (specs/141-module-block-renderers, issue #124)', () => {
+      const STOREFRONT = {
+        'src/storefront/index.ts':
+          "import { createElement } from 'react';\n" +
+          'export const contributions = { blocks: { widgets_x: createElement } };\n',
+      };
+      const EMAIL = {
+        'src/email/index.ts': 'export const emailBlocks = {};\n',
+      };
+      const STYLESHEET = {
+        [`${ROOT}/packages/modules/widgets/blocks.css`]: '.widgets-badge { color: var(--fg, #000); }\n',
+      };
+
+      it('emits ./storefront, ./email and ./blocks.css, and ships the stylesheet', () => {
+        const manifest = manifestOf(
+          widgets({ ...BACKEND_ONLY, ...STOREFRONT, ...EMAIL }, STYLESHEET),
+        );
+        const exportsMap = manifest['exports'] as Record<string, unknown>;
+        expect(Object.keys(exportsMap)).toEqual([
+          '.',
+          './backend',
+          './storefront',
+          './email',
+          './blocks.css',
+          './package.json',
+        ]);
+        // R1.2a — the storefront's generated registry imports the layer from
+        // TypeScript, so it publishes a `types` condition like every layer.
+        expect(exportsMap['./storefront']).toEqual({
+          types: './dist/storefront/index.d.ts',
+          default: './dist/storefront/index.js',
+        });
+        expect(exportsMap['./email']).toEqual({
+          types: './dist/email/index.d.ts',
+          default: './dist/email/index.js',
+        });
+        // A finished CSS file at the package root: a plain path, no conditions,
+        // and a `files` entry, because it sits outside `dist`.
+        expect(exportsMap['./blocks.css']).toBe('./blocks.css');
+        expect(manifest['files']).toContain('blocks.css');
+      });
+
+      it('emits none of the three for a package that ships none', () => {
+        const manifest = manifestOf(widgets(BACKEND_ONLY));
+        const exportsMap = manifest['exports'] as Record<string, unknown>;
+        expect(exportsMap).not.toHaveProperty('./storefront');
+        expect(exportsMap).not.toHaveProperty('./email');
+        expect(exportsMap).not.toHaveProperty('./blocks.css');
+        expect(manifest['files']).not.toContain('blocks.css');
+      });
+
+      it('treats each layer independently (R1.1)', () => {
+        const emailOnly = manifestOf(widgets({ ...BACKEND_ONLY, ...EMAIL }));
+        expect(Object.keys(emailOnly['exports'] as object)).toEqual([
+          '.',
+          './backend',
+          './email',
+          './package.json',
+        ]);
+        const stylesheetOnly = manifestOf(widgets(BACKEND_ONLY, STYLESHEET));
+        expect(Object.keys(stylesheetOnly['exports'] as object)).toEqual([
+          '.',
+          './backend',
+          './blocks.css',
+          './package.json',
+        ]);
+      });
+
+      it('compiles the storefront layer under the UI program, and the e-mail layer under the backend one', () => {
+        // The storefront layer is React (`jsx`, the DOM lib, no Node types), which
+        // is exactly the pair `tsconfig.ui.json` declares and the backend program
+        // must not have. The e-mail layer is React-free string rendering (R3.2),
+        // so it compiles where every non-UI layer does and adds no step.
+        const withStorefront = manifestOf(widgets({ ...BACKEND_ONLY, ...STOREFRONT }))[
+          'scripts'
+        ] as Record<string, string>;
+        expect(withStorefront['build']).toMatch(/&& tsc -p tsconfig\.ui\.build\.json$/);
+        expect(withStorefront['typecheck']).toBe(
+          'tsc -p tsconfig.json && tsc -p tsconfig.ui.json --noEmit',
+        );
+        const withEmail = manifestOf(widgets({ ...BACKEND_ONLY, ...EMAIL }))['scripts'] as Record<
+          string,
+          string
+        >;
+        expect(withEmail['build']).not.toContain('tsconfig.ui.build.json');
+        expect(withEmail['typecheck']).toBe('tsc -p tsconfig.json');
+      });
+
+      it('marks a peer only the storefront layer reaches as optional', () => {
+        // An instance composing the backend alone never imports `./storefront`,
+        // so React is no more owed for it than for `./admin` (FR-022).
+        const manifest = manifestOf(widgets({ ...BACKEND_ONLY, ...STOREFRONT }));
+        expect(manifest['peerDependencies']).toMatchObject({ react: '^19' });
+        expect(manifest['peerDependenciesMeta']).toMatchObject({ react: { optional: true } });
+      });
+
+      it('leaves a peer the e-mail layer reaches required', () => {
+        // `./email` is imported by the module's own `./backend` at boot (§5.3),
+        // so it is on the path of every consumer that composes the module.
+        const manifest = manifestOf(
+          widgets({
+            ...BACKEND_ONLY,
+            'src/email/index.ts': "import { z } from 'zod';\nexport const emailBlocks = { z };\n",
+          }),
+        );
+        expect(manifest['peerDependencies']).toMatchObject({ zod: '^4' });
+        expect(manifest['peerDependenciesMeta'] ?? {}).not.toHaveProperty('zod');
+      });
+
+      it('gives the storefront layer no admin stylesheet — it is not an admin surface', () => {
+        // `./tailwind.css` is the admin's `@source` declaration (R1.1 of
+        // `admin-stylesheet-composition.md`); storefront React is styled by
+        // `./blocks.css` and by the storefront's own build, never by the admin's.
+        const manifest = manifestOf(widgets({ ...BACKEND_ONLY, ...STOREFRONT }));
+        expect(manifest['exports']).not.toHaveProperty('./tailwind.css');
+        expect(manifest['files']).not.toContain('tailwind.css');
+      });
     });
 
     it('refuses a layer directory with no entry point', () => {
@@ -1794,8 +1920,19 @@ describe('module package manifests are generated (feature 080, T041)', () => {
           [`${ROOT}/packages/modules/widgets/i18n/en.json`]: '{}',
         }),
       );
-      expect(withI18n['files']).toEqual(['dist', 'i18n']);
-      expect(manifestOf(widgets(BACKEND_ONLY))['files']).toEqual(['dist']);
+      expect(withI18n['files']).toEqual(['dist', 'i18n', '!dist/**/*.map']);
+      expect(manifestOf(widgets(BACKEND_ONLY))['files']).toEqual(['dist', '!dist/**/*.map']);
+    });
+
+    /**
+     * Issue #107: the tarball carries `dist` and not `src`, so a source map
+     * points at files no consumer has. The maps stay on in
+     * `tsconfig.base.json` for local stack traces; `files` excludes them. The
+     * exclusion is last, so no entry after it can re-include a map.
+     */
+    it('excludes every source map from the tarball, last', () => {
+      const files = manifestOf(widgets(BACKEND_ONLY))['files'] as readonly string[];
+      expect(files.at(-1)).toBe('!dist/**/*.map');
     });
 
     it("takes the node engine from the workspace root's own declaration", () => {

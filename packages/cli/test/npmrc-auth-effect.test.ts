@@ -38,15 +38,19 @@
  */
 import { spawn } from 'node:child_process';
 import { createHash } from 'node:crypto';
-import { existsSync, mkdirSync, mkdtempSync, writeFileSync } from 'node:fs';
+import { existsSync, mkdirSync, mkdtempSync, readFileSync, writeFileSync } from 'node:fs';
 import { createServer, type Server } from 'node:http';
 import { tmpdir } from 'node:os';
 import { join } from 'node:path';
+import { fileURLToPath } from 'node:url';
 import { gzipSync } from 'node:zlib';
 
 import { afterAll, beforeAll, describe, expect, it } from 'vitest';
 
 import { npmrcContent, TOKEN_VARIABLE } from '../src/new-storefront/npmrc.js';
+
+/** The repository root, whose `packageManager` is the pnpm every spawn here must run. */
+const REPO_ROOT = fileURLToPath(new URL('../../../', import.meta.url));
 
 const PACKAGE_NAME = '@endora-commerce/fixture-package';
 const PACKAGE_VERSION = '1.0.0';
@@ -155,6 +159,24 @@ interface Attempt {
 }
 
 /**
+ * The consumer the install runs in — pinned to the repository's pnpm, because
+ * the temporary directory is outside every project and the field is what a
+ * version-resolving shim on `PATH` reads (issue #131).
+ */
+function consumerManifest(): Record<string, unknown> {
+  const { packageManager } = JSON.parse(readFileSync(join(REPO_ROOT, 'package.json'), 'utf8')) as {
+    packageManager?: string;
+  };
+  return {
+    name: 'consumer',
+    version: '0.0.0',
+    private: true,
+    ...(packageManager === undefined ? {} : { packageManager }),
+    dependencies: { [PACKAGE_NAME]: `^${PACKAGE_VERSION}` },
+  };
+}
+
+/**
  * The install is **asynchronous**, and that is not a style choice.
  *
  * The fixture registry is an `http.Server` in this same process, so a
@@ -167,19 +189,7 @@ async function install(npmrc: string): Promise<Attempt> {
   const dir = mkdtempSync(join(tmpdir(), 'endora-npmrc-effect-'));
   const store = join(dir, '.store');
   mkdirSync(store, { recursive: true });
-  writeFileSync(
-    join(dir, 'package.json'),
-    `${JSON.stringify(
-      {
-        name: 'consumer',
-        version: '0.0.0',
-        private: true,
-        dependencies: { [PACKAGE_NAME]: `^${PACKAGE_VERSION}` },
-      },
-      null,
-      2,
-    )}\n`,
-  );
+  writeFileSync(join(dir, 'package.json'), `${JSON.stringify(consumerManifest(), null, 2)}\n`);
   // `ignore-workspace` for the acceptance criterion's reason: the temporary
   // directory must not be adopted by any workspace above it.
   writeFileSync(join(dir, '.npmrc'), `${npmrc}ignore-workspace=true\n`);
@@ -214,6 +224,23 @@ async function install(npmrc: string): Promise<Attempt> {
     requests: [...requests],
   };
 }
+
+/**
+ * Issue #131 — the install runs in a temporary directory, and a directory with
+ * no `packageManager` field leaves the choice of pnpm to whatever is first on
+ * `PATH`. With Corepack's shim there, that was a different major than this
+ * repository pins, and both cases below failed on a missing `pnpm.cjs` rather
+ * than on anything about the auth lines.
+ */
+describe('the consumer the install runs in', () => {
+  it('is pinned to the pnpm this repository declares', () => {
+    const pinned = (
+      JSON.parse(readFileSync(join(REPO_ROOT, 'package.json'), 'utf8')) as { packageManager?: string }
+    ).packageManager;
+    expect(pinned, 'the root package.json declares no packageManager').toMatch(/^pnpm@/);
+    expect(consumerManifest().packageManager).toBe(pinned);
+  });
+});
 
 describe('the auth lines, measured by an install against a registry shaped like GitLab', () => {
   it('is the control: the endpoint key alone leaves the tarball fetch unauthenticated', async () => {

@@ -91,6 +91,7 @@ import {
 import {
   checkPlatformSurface,
   collectPlatformSurfaceSources,
+  collectPlatformSurfaceTestSources,
   keyOf as platformSurfaceKeyOf,
   remedyOf as platformSurfaceRemedy,
 } from '../rules/platform-surface.js';
@@ -945,7 +946,15 @@ const platformSurface: PackageRuleHost = (layout) => {
     );
   }
 
-  const sources = new Map(files.map((file) => [layout.keyOf(file), readFileSync(file, 'utf8')]));
+  // The package's tests join the population after the coverage floor, which is
+  // about its production sources: a test is judged on the host subpaths it
+  // names and on nothing else (issue #114).
+  const sources = new Map(
+    [...files, ...collectPlatformSurfaceTestSources(layout.sourceRoot)].map((file) => [
+      layout.keyOf(file),
+      readFileSync(file, 'utf8'),
+    ]),
+  );
   const readSize: ReadSizeInput = {
     prefix: '[platform-surface]',
     files: sources.size,

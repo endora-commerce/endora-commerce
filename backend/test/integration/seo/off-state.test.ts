@@ -4,7 +4,7 @@ import {
   teardownBackendServer,
   type BackendServerHandle,
 } from '../../helpers/test-server.js';
-import { expectModuleAbsent, withModuleOff, type OffStateAxis } from '../../helpers/off-state.js';
+import { expectModuleAbsent, withModuleOff } from '../../helpers/off-state.js';
 
 /**
  * `seo` off-state — Constitution XVII item 6.
@@ -21,9 +21,9 @@ import { expectModuleAbsent, withModuleOff, type OffStateAxis } from '../../help
  *    regeneration write. Both halves are named because a listing that keeps
  *    answering renders a screen an operator can believe is live, while a write
  *    that lands republishes a document for a capability they withdrew;
- *  * **storefront absence** — `GET /api/v1/catalog/sitemap.xml`, asserted in
- *    the second test below rather than through the harness, for a reason given
- *    there;
+ *  * **storefront absence** — `GET /api/v1/catalog/sitemap.xml`, an ordinary
+ *    harness probe declared `successBody: 'non-json'` because it answers XML
+ *    (issue #102; it was hand-asserted beside the harness until then);
  *  * **admin absence** — the presence projection both frontends gate on, plus
  *    the `/admin-roles` permission catalogue the harness sweeps unasked;
  *  * **restoration** — asserted by the harness after both axes. Off is
@@ -104,54 +104,17 @@ describe('seo off-state (Constitution XVII)', () => {
           cookies: admin,
           payload: {},
         },
+        // The storefront sitemap answers `application/xml` on every path it
+        // takes, its own no-channel 503 included, so it is declared non-JSON
+        // (issue #102): while on it is held to answering XML rather than any
+        // JSON envelope, and while off to the platform's `MODULE_DISABLED`
+        // envelope — which is what tells this 503 apart from the empty
+        // `<urlset/>` one a request without a channel gets.
+        { url: '/api/v1/catalog/sitemap.xml', headers: channel, successBody: 'non-json' },
       ],
       adminPresence: { cookies: admin },
     });
   });
-
-  /**
-   * The storefront surface, asserted here rather than in the harness's `routes`
-   * list — and the reason is a property of the route, not a preference.
-   *
-   * `GET /api/v1/catalog/sitemap.xml` answers `application/xml` on **every**
-   * path it takes, including its own no-channel path, which is a 503 carrying
-   * an empty `<urlset/>`. The harness reads `res.json()` on each probe in every
-   * phase, so an XML body would throw a parse error before any assertion ran,
-   * and a 503 that means "no channel resolved" is indistinguishable by status
-   * code from the 503 that means "the module is off". So this asserts on the
-   * **body**: XML while the module is on, the JSON `MODULE_DISABLED` envelope
-   * the platform's error handler produces while it is off.
-   *
-   * Both axes are driven, and the operator one first — the same order and the
-   * same reason as the harness's.
-   */
-  it.each<OffStateAxis>(['deactivated', 'platform-unavailable'])(
-    'stops serving the storefront sitemap while off (%s), and serves it again after',
-    async (axis) => {
-      const sitemap = async () =>
-        h.app.inject({ method: 'GET', url: '/api/v1/catalog/sitemap.xml', headers: channel });
-
-      // Positive control: without it an always-broken route would read as a
-      // successful absence.
-      const before = await sitemap();
-      expect(String(before.headers['content-type'])).toContain('xml');
-      expect(before.body.startsWith('<?xml')).toBe(true);
-
-      await withModuleOff('seo', axis, async () => {
-        const off = await sitemap();
-        expect(off.statusCode, 'the sitemap must refuse while seo is off').toBe(503);
-        expect(
-          (JSON.parse(off.body) as { error?: { code?: string } }).error?.code,
-          'the sitemap must carry the MODULE_DISABLED envelope, not an empty urlset',
-        ).toBe('MODULE_DISABLED');
-        expect(off.headers['retry-after']).toBe('60');
-      });
-
-      const after = await sitemap();
-      expect(String(after.headers['content-type'])).toContain('xml');
-      expect(after.body.startsWith('<?xml')).toBe(true);
-    },
-  );
 
   /**
    * *Default robots* while the module is off, and after

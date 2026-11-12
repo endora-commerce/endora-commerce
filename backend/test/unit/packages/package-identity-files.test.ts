@@ -269,12 +269,38 @@ describe('every published package ships a LICENSE and a README (FR-020, FR-021)'
       const files = checkoutWith(
         libraryMember('mod-alpha', {
           endora: { type: 'module', id: 'alpha' },
-          exports: { '.': './dist/manifest.js', './storefront': './dist/storefront/index.js' },
+          exports: { '.': './dist/manifest.js', './widgets': './dist/widgets/index.js' },
         }),
       );
       expect(() => renderPackageIdentityFiles(ROOT, fixtureFs(files))).toThrow(
         /MODULE_SUBPATH_MEANINGS/,
       );
+    });
+
+    it('gives the three block-renderer layers a meaning (issue #124)', () => {
+      // `manifests:generate` renders `./storefront`, `./email` and `./blocks.css`
+      // for a workspace module that ships them, so the README of such a package
+      // has to be renderable too — the refusal above would otherwise stop the
+      // same run that wrote the manifest.
+      const files = checkoutWith(
+        libraryMember('mod-alpha', {
+          description: 'Alpha draws a block.',
+          endora: { type: 'module', id: 'alpha' },
+          exports: {
+            '.': './dist/manifest.js',
+            './storefront': './dist/storefront/index.js',
+            './email': './dist/email/index.js',
+            './blocks.css': './blocks.css',
+          },
+          files: ['dist', 'blocks.css'],
+        }),
+      );
+      const [readme] = renderPackageIdentityFiles(ROOT, fixtureFs(files)).readmes;
+      const content = readme!.content;
+      expect(content).toMatch(/`@endora-commerce\/mod-alpha\/storefront` \| \S/);
+      expect(content).toMatch(/`@endora-commerce\/mod-alpha\/email` \| \S/);
+      expect(content).toMatch(/`@endora-commerce\/mod-alpha\/blocks\.css` \| \S/);
+      expect(content).toMatch(/`blocks\.css` — \S/);
     });
 
     it('names the module id, the entry points and the peers', () => {
@@ -302,6 +328,19 @@ describe('every published package ships a LICENSE and a README (FR-020, FR-021)'
       // at publish time, so printing it would be printing a build artefact.
       expect(content).not.toContain('workspace:');
       expect(content).toContain('`en`, `pl`');
+    });
+
+    /**
+     * Issue #107: a `!`-prefixed entry is an exclusion, so listing it under "What
+     * the tarball carries" would say the opposite of what it does.
+     */
+    it('does not list a negated `files` entry as something the tarball carries', () => {
+      const files = checkoutWith(
+        libraryMember('alpha', { files: ['dist', '!dist/**/*.map'] }),
+      );
+      const [readme] = renderPackageIdentityFiles(ROOT, fixtureFs(files)).readmes;
+      expect(readme!.content).toContain('`dist/`');
+      expect(readme!.content).not.toContain('.map');
     });
 
     it('describes a package that installs an executable as one', () => {

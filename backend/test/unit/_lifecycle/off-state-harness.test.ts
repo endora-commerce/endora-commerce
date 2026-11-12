@@ -151,6 +151,78 @@ describe('expectModuleAbsent', () => {
 });
 
 /**
+ * Issue #102 — a route whose success body is not JSON.
+ *
+ * The harness used to read `res.json()` on every probe in every phase, so a
+ * route answering XML threw a parse error in the on-phase before any assertion
+ * ran, and `seo` had to hand-assert its sitemap beside the harness. A probe now
+ * declares `successBody: 'non-json'`; the on-phases then hold the route to
+ * answering a non-JSON body of its own, and the off-phases to the JSON
+ * `MODULE_DISABLED` envelope exactly as for every other probe.
+ */
+describe('expectModuleAbsent — non-JSON success bodies', () => {
+  const XML_OWNER = 'fixture_xml';
+  const XML_UNGATED = 'fixture_xml_ungated';
+  const JSON_AS_XML = 'fixture_xml_mislabelled';
+  const SITEMAP = '<?xml version="1.0" encoding="UTF-8"?><urlset/>';
+  let app: FastifyInstance;
+
+  beforeAll(async () => {
+    app = Fastify();
+    app.setValidatorCompiler(validatorCompiler);
+    app.setSerializerCompiler(serializerCompiler);
+    registerErrorEnvelope(app);
+    const owner = defineModuleRoutes(XML_OWNER, async (scoped) => {
+      scoped.get('/fixture-xml/sitemap.xml', async (_request, reply) =>
+        reply.type('application/xml').send(SITEMAP),
+      );
+    });
+    await owner(app);
+    const mislabelled = defineModuleRoutes(JSON_AS_XML, async (scoped) => {
+      scoped.get('/fixture-xml-mislabelled/sitemap.xml', async () => ({ ok: true }));
+    });
+    await mislabelled(app);
+    app.get('/fixture-xml-ungated/sitemap.xml', async (_request, reply) =>
+      reply.type('application/xml').send(SITEMAP),
+    );
+    await app.ready();
+  });
+
+  afterEach(() => {
+    registryCache.__setEnabledForTesting([]);
+  });
+
+  afterAll(async () => {
+    await app.close();
+  });
+
+  it('passes for a gated route that answers XML while on', async () => {
+    registryCache.__setEnabledForTesting([XML_OWNER]);
+    await expectModuleAbsent({ app }, XML_OWNER, {
+      routes: [{ url: '/fixture-xml/sitemap.xml', successBody: 'non-json' }],
+    });
+  });
+
+  it('still fails for an XML route that bypasses the wrapper', async () => {
+    registryCache.__setEnabledForTesting([XML_UNGATED]);
+    await expect(
+      expectModuleAbsent({ app }, XML_UNGATED, {
+        routes: [{ url: '/fixture-xml-ungated/sitemap.xml', successBody: 'non-json' }],
+      }),
+    ).rejects.toThrow(/should refuse while "fixture_xml_ungated" is off/);
+  });
+
+  it('fails when a probe declared non-JSON answers JSON while on — the positive control', async () => {
+    registryCache.__setEnabledForTesting([JSON_AS_XML]);
+    await expect(
+      expectModuleAbsent({ app }, JSON_AS_XML, {
+        routes: [{ url: '/fixture-xml-mislabelled/sitemap.xml', successBody: 'non-json' }],
+      }),
+    ).rejects.toThrow(/\[off-state:before\][\s\S]*non-JSON body/);
+  });
+});
+
+/**
  * Issue #141 — the seeded off state has to be shown to have taken.
  *
  * Every case below is about the same defect from a different side: a test can
