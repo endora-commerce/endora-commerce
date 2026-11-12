@@ -132,6 +132,15 @@ const MODULE_SUBPATH_MEANINGS: ReadonlyMap<string, string> = new Map([
   ],
   ['./admin', 'the Admin UI contribution: the screens, navigation and palette actions it adds'],
   ['./admin-ui', 'React components this module publishes for another module’s admin screens'],
+  [
+    './storefront',
+    'the storefront renderers of this module’s own Page Builder blocks, imported by the storefront’s generated block registry',
+  ],
+  [
+    './email',
+    'the e-mail renderers of this module’s own Page Builder blocks — React-free functions writing a block into an outgoing e-mail',
+  ],
+  ['./blocks.css', 'the finished stylesheet those blocks render with, on the storefront and in the admin editors'],
   ['./tailwind.css', 'the Tailwind source declaration for the admin code above'],
   [
     './test-support',
@@ -144,6 +153,7 @@ const FILES_MEANINGS: ReadonlyMap<string, string> = new Map([
   ['dist', 'the compiled JavaScript and its type declarations'],
   ['docs', 'the package’s own pages in the Endora Commerce documentation site'],
   ['tailwind.css', 'the Tailwind source declaration'],
+  ['blocks.css', 'the finished stylesheet of this module’s Page Builder blocks'],
   ['theme.css', 'the host design system every admin renderer resolves against'],
 ]);
 

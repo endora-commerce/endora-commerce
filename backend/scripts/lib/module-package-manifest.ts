@@ -235,6 +235,49 @@ export interface PackageLayer {
  */
 const INSTALL_SURFACE_LAYER_DIRECTORY = 'install';
 
+/**
+ * The two **code** layers of a module's own Page Builder renderers
+ * (`specs/141-module-block-renderers/contracts/block-renderers.md` §1, issue
+ * #124): React the storefront draws a block with, and the React-free functions
+ * that write the same block into an outgoing e-mail.
+ *
+ * Named here rather than in `ui-layer.ts` because neither is an *admin* UI
+ * layer, and `UI_LAYER_DIRECTORIES` means exactly that to every other reader —
+ * the admin's Tailwind `@source` scan and the checks that skip admin screens
+ * among them. What this file needs to know about the storefront layer is
+ * narrower, and is {@link UI_PROGRAM_LAYER_DIRECTORIES}.
+ */
+const STOREFRONT_LAYER_DIRECTORY = 'storefront';
+const EMAIL_LAYER_DIRECTORY = 'email';
+
+/**
+ * The block stylesheet (`block-renderers.md` §6): a **finished** CSS file at the
+ * package root, published on `./blocks.css`. A file rather than a directory under
+ * `src/`, because it is what both surfaces `@import` as it stands — nothing
+ * compiles it — and so it is read off the package root, beside `package.json`,
+ * exactly where the hand-written packages of that contract keep it.
+ */
+const BLOCK_STYLESHEET_FILE = 'blocks.css';
+const BLOCK_STYLESHEET_SUBPATH = `./${BLOCK_STYLESHEET_FILE}`;
+
+/**
+ * The layers compiled by the UI program (`tsconfig.ui.json`: `jsx`, the DOM lib,
+ * no Node types) and **declinable by a consumer** — the two questions have the
+ * same answer, because both are "is this layer React that some runtime other
+ * than the backend imports".
+ *
+ * The admin layers, plus the storefront layer: storefront React needs the same
+ * `jsx`/`lib` pair a screen does and must not see `process` any more than a
+ * screen may, and an instance composing the backend alone never imports
+ * `./storefront`. The e-mail layer is deliberately **not** here — it is plain
+ * string rendering (R3.2) that the module's own `./backend` imports at boot
+ * (§5.3), so it compiles with the backend and what it reaches is owed.
+ */
+const UI_PROGRAM_LAYER_DIRECTORIES: readonly string[] = [
+  ...UI_LAYER_DIRECTORIES,
+  STOREFRONT_LAYER_DIRECTORY,
+];
+
 const LAYER_SUBPATHS: ReadonlyArray<readonly [directory: string, subpath: string]> = [
   ['backend', './backend'],
   ['migrations', './migrations'],
@@ -288,6 +331,15 @@ const LAYER_SUBPATHS: ReadonlyArray<readonly [directory: string, subpath: string
   // — the emitted module exports runtime bindings — which is D-191's own
   // condition and needs no change to that check.
   ['admin-ui', './admin-ui'],
+  // The block-renderer layers of `specs/141-module-block-renderers/` (issue
+  // #124), in the order `block-renderers.md` §1 lists them. Both export an
+  // **object** (`contributions`, `emailBlocks`), so a reach into either from
+  // another module is a counted boundary reach under D-171 like `./admin` (R1.3)
+  // — and neither is a member of {@link FOREIGN_CONSUMPTION_SUBPATHS}: the
+  // storefront's generated registry and the module's own `./backend` are their
+  // consumers, never another module.
+  [STOREFRONT_LAYER_DIRECTORY, `./${STOREFRONT_LAYER_DIRECTORY}`],
+  [EMAIL_LAYER_DIRECTORY, `./${EMAIL_LAYER_DIRECTORY}`],
   // `specs/109-backend-test-kit/contracts/test-kit-package.md` R4.1, scheduled
   // as T014 and T015 of `specs/134-paid-module-extraction/`. A module's own test
   // doubles, fixtures and the tables its tests require emptied — the things that
@@ -396,6 +448,11 @@ export interface LayerInventory {
   readonly layers: readonly PackageLayer[];
   readonly hasI18n: boolean;
   readonly hasDocs: boolean;
+  /**
+   * Whether the package ships {@link BLOCK_STYLESHEET_FILE} at its root, which
+   * earns it the `./blocks.css` subpath and a `files` entry (issue #124).
+   */
+  readonly hasBlockStylesheet: boolean;
   readonly hasTests: boolean;
   readonly hasVitestConfig: boolean;
   /**
@@ -509,10 +566,13 @@ export function layerInventoryOf(packageDir: string, fs: ManifestFs): LayerInven
     );
   }
   const hasUiTestConfig = fs.readText(join(packageDir, UI_TEST_TSCONFIG)) !== null;
-  if (hasUiTestConfig && !layers.some((layer) => UI_LAYER_DIRECTORIES.includes(layer.directory))) {
+  if (
+    hasUiTestConfig &&
+    !layers.some((layer) => UI_PROGRAM_LAYER_DIRECTORIES.includes(layer.directory))
+  ) {
     throw new ModulePackageManifestError(
       `${packageDir}: declares ${UI_TEST_TSCONFIG} and has no UI layer ` +
-        `(${UI_LAYER_DIRECTORIES.map((layer) => `src/${layer}/`).join(', ')}). The \`typecheck\` ` +
+        `(${UI_PROGRAM_LAYER_DIRECTORIES.map((layer) => `src/${layer}/`).join(', ')}). The \`typecheck\` ` +
         `script builds that program only beside the UI layer's own, so here it would be a ` +
         `configuration no script names and no \`tsc\` invocation reads. Delete it.`,
     );
@@ -521,6 +581,9 @@ export function layerInventoryOf(packageDir: string, fs: ManifestFs): LayerInven
     layers,
     assets: assetsUnder(srcDir, fs, packageDir),
     hasI18n: fs.listFiles(join(packageDir, 'i18n')).length > 0,
+    // Listed rather than opened: the generator writes nothing derived from the
+    // stylesheet's content — `check:block-renderers` is what judges that (§6).
+    hasBlockStylesheet: fs.listFiles(packageDir).includes(BLOCK_STYLESHEET_FILE),
     // Directories count, exactly as they do for `test/` two lines below. A
     // module's `docs/` is its fragment of the site's modules category
     // (`module-documentation-layer.md` §1), so a module whose single page is a
@@ -823,11 +886,13 @@ export function reachLayerOf(file: string): string {
  *     a co-located test and never of the runtime, and `@fastify/type-provider-zod`
  *     was required by eight packages for exactly the same reason.
  *   * **`optional`** — every non-test reach is in a UI layer.
- *     {@link UI_LAYER_DIRECTORIES} are the only layers a consumer can decline
- *     to resolve: they publish on `./admin` and `./admin-ui`, and an instance
- *     composing the backend and no admin imports neither. Everything else —
- *     `src/backend/`, `src/migrations/`, `src/ports/` and the root manifest —
- *     is on the path of every consumer that composes the module at all.
+ *     {@link UI_PROGRAM_LAYER_DIRECTORIES} are the only layers a consumer can
+ *     decline to resolve: they publish on `./admin`, `./admin-ui` and
+ *     `./storefront`, and an instance composing the backend alone imports none
+ *     of them. Everything else — `src/backend/`, `src/migrations/`,
+ *     `src/ports/`, `src/email/` (imported by the module's own backend) and the
+ *     root manifest — is on the path of every consumer that composes the module
+ *     at all.
  *   * **`required`** — anything else, including a name reached from a UI layer
  *     *and* from a runtime one. Optionality is a property of the whole set of
  *     reaches, so one runtime import is enough to make the peer owed.
@@ -849,7 +914,7 @@ export function peerRequirementOf(reaches: readonly PackageReach[]): PeerRequire
     (layer) => layer !== 'test',
   );
   if (published.length === 0) return 'build-only';
-  return published.every((layer) => UI_LAYER_DIRECTORIES.includes(layer))
+  return published.every((layer) => UI_PROGRAM_LAYER_DIRECTORIES.includes(layer))
     ? 'optional'
     : 'required';
 }
@@ -2035,6 +2100,12 @@ export function renderManifest(input: RenderInput): string {
   //
   // A CSS file, so it carries **no conditions**: `types` and `default` are for
   // a module a consumer imports, and this one is imported by a stylesheet.
+  // The block stylesheet (issue #124), before the admin's `@source` file so the
+  // order is the one `block-renderers.md` §1 and the hand-written packages of
+  // that contract use. Finished CSS, so a plain path and no conditions.
+  if (input.layers.hasBlockStylesheet) {
+    exportsMap[BLOCK_STYLESHEET_SUBPATH] = `./${BLOCK_STYLESHEET_FILE}`;
+  }
   if (tailwindLayersOf(input).length > 0) {
     exportsMap[TAILWIND_SOURCE_SUBPATH] = `./${TAILWIND_SOURCE_FILE}`;
   }
@@ -2271,7 +2342,10 @@ export function renderManifest(input: RenderInput): string {
   // `jsx`/`lib` pair is declared. The predicate is `UI_LAYER_DIRECTORIES` and
   // not `ADMIN_LAYER_DIRECTORY`, so a package that publishes a component and
   // contributes no screen — which is what an installed extension package
-  // reaching D-191's exit looks like — still gets its build step.
+  // reaching D-191's exit looks like — still gets its build step. The storefront
+  // layer joins them for the same pair (issue #124): its React needs `jsx` and
+  // the DOM lib and must not see Node, so it is
+  // {@link UI_PROGRAM_LAYER_DIRECTORIES} that decides, not the admin set alone.
   //
   // The emit names `tsconfig.ui.build.json`, which extends `tsconfig.ui.json`
   // and adds nothing but the test exclusion (issue #81): `tsconfig.ui.json` is
@@ -2280,7 +2354,7 @@ export function renderManifest(input: RenderInput): string {
   // `vitest` into `dist`. No compiler option is restated, so the `jsx`/`lib`
   // pair is still declared once.
   const hasUiLayer = input.layers.layers.some((layer) =>
-    UI_LAYER_DIRECTORIES.includes(layer.directory),
+    UI_PROGRAM_LAYER_DIRECTORIES.includes(layer.directory),
   );
   const uiBuild = hasUiLayer ? ' && tsc -p tsconfig.ui.build.json' : '';
   // `tsc` deletes nothing, so without a clean the output of a deleted source
@@ -2329,6 +2403,9 @@ export function renderManifest(input: RenderInput): string {
   // `dist`, so `files` has to name it: a subpath declared over a file the
   // tarball omits is M9 — ERR_PACKAGE_PATH_NOT_EXPORTED at the first consumer,
   // which `pack-gate` refuses as `unresolvable-export`.
+  // The block stylesheet sits at the root for the same reason and needs the
+  // same entry (issue #124); listed first, in the `exports` order.
+  if (input.layers.hasBlockStylesheet) files.push(BLOCK_STYLESHEET_FILE);
   if (tailwindLayersOf(input).length > 0) files.push(TAILWIND_SOURCE_FILE);
 
   const manifest = {
