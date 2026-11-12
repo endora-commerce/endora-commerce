@@ -118,6 +118,12 @@ const PUBLISHED_KERNEL_SURFACE: Readonly<Record<string, readonly string[]>> = {
     'configuredPublicApiBaseUrl',
     'resolvePublicApiBaseUrl',
   ],
+  /**
+   * Issue #185 — the Admin UI's base address, the platform's input every module
+   * that mails an administrator links into the admin through. The boot-time
+   * warning beside it, `adminBaseUrlProblem`, is the host's and not published.
+   */
+  'admin-base-url.js': ['configuredAdminBaseUrl'],
   /** Row 11. */
   'lifecycle/effective-state.js': ['effectiveState', 'toModulePresenceDto'],
   /**

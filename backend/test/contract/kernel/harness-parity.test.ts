@@ -890,6 +890,10 @@ describe('T076 — the drift between the roots is an exact ledger', () => {
    * was written to hold; recording the blind spot is the honest half of it.
    */
   const PRODUCTION_ONLY_BOOT_STEPS: Readonly<Record<string, string>> = {
+    adminBaseUrlProblem:
+      'Production logs one warning when ADMIN_BASE_URL is set but malformed (issue #185); the ' +
+      'harness does not call it, so the boot-time line itself is seen by nothing here. ' +
+      '`packages/platform/src/kernel/admin-base-url.test.ts` covers the message over its inputs.',
     assertPublicApiBaseUrlConfigured:
       'Production refuses to boot without PUBLIC_API_BASE_URL; the harness supplies its own ' +
       'base URL, so the refusal itself — the message an operator sees on a misconfigured ' +
