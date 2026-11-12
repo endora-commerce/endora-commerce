@@ -1,6 +1,7 @@
 /**
- * `organizations`' four hookable actions (`specs/176-command-hooks-outbox/`
- * T028, FR-024, `contracts/organization-hookable-actions.md`).
+ * `organizations`' six hookable actions (`specs/176-command-hooks-outbox/`
+ * T028, FR-024, `contracts/organization-hookable-actions.md`; issue #1057 for
+ * `organization.convert_to_company` and `organization.tax_id.change`).
  *
  * Each Command is held to its ref with `expectHookableCommand`, and each is run
  * on a real `CommandBus` with a sealed hook registry, so what is checked is what
@@ -14,7 +15,9 @@ import type { EntityManager, MikroORM } from '@mikro-orm/postgresql';
 import {
   ORGANIZATION_HOOKABLE_ACTIONS as ORG,
   type CustomerAccountRecord,
+  type OrganizationConvertToCompanyHookData,
   type OrganizationCreateHookData,
+  type OrganizationTaxIdChangeHookData,
   type OrganizationUpdateHookData,
 } from '@endora-commerce/contracts';
 import { CommandBus, type Command, type CommandHookEntry } from '@endora-commerce/platform/commands';
@@ -23,10 +26,15 @@ import type { AuditPort } from '@endora-commerce/platform/kernel';
 import { withSystemScope } from '@endora-commerce/platform/tenancy';
 import { expectHookableCommand, recordingCommandHooks, sealedCommandHookRegistry } from '@endora-commerce/test-kit/command-hooks';
 import { manifest } from '../../manifest.js';
+import { Organization as OrganizationEntity } from '../entities/organization.entity.js';
 import type { Organization } from '../entities/organization.entity.js';
+import { OrganizationRole } from '../entities/organization-role.entity.js';
 import { ORGANIZATION_AUDIT_KEYS } from '../services/organization-audit-state.js';
+import { OrganizationCommandService } from '../services/organization-command-port.js';
 import { OrganizationCustomFieldWriteService } from '../services/organization-custom-field-write-port.js';
 import { makeAdminPatchOrganizationCommand } from './admin-patch-organization.command.js';
+import { makeChangeTaxIdCommand } from './change-tax-id.command.js';
+import { makeConvertToCompanyCommand } from './convert-to-company.command.js';
 import { makeCreateOrganizationCommand } from './create-organization.command.js';
 import { makeRegisterOrganizationCommand } from './register-organization.command.js';
 import { makeSetCustomFieldValuesCommand } from './set-custom-field-values.command.js';
@@ -101,10 +109,10 @@ function expectNamesOnly(entries: ReadonlyArray<Record<string, unknown>>): void 
   }
 }
 
-describe('organizations declares four hookable actions (176 T028, FR-024)', () => {
-  it('lists the four refs in its manifest, for both phases', () => {
+describe('organizations declares six hookable actions (176 T028, FR-024; #1057)', () => {
+  it('lists the six refs in its manifest, for both phases', () => {
     expect(manifest.hookableActions).toEqual(
-      [ORG.create, ORG.register, ORG.adminPatch, ORG.setCustomFieldValues].map((ref) => ({
+      [ORG.create, ORG.register, ORG.adminPatch, ORG.setCustomFieldValues, ORG.convertToCompany, ORG.changeTaxId].map((ref) => ({
         action: ref.action,
         objectType: ref.objectType,
         phases: ['beforeCommit', 'afterCommit'],
@@ -307,4 +315,284 @@ describe('organizationCustomFieldWritePort forwards extension input (architect r
     expect(merged).toBe(false);
     expect(h.audits).toEqual([]);
   });
+});
+
+// ---------------------------------------------------------------------------
+// Issue #1057 — the conversion and the tax-ID correction
+// ---------------------------------------------------------------------------
+
+const ADMIN_ROLE = '00000000-0000-4000-8000-000000176b05';
+/** Tax IDs and names a hook must never be handed nor the audit entry carry. */
+const TAX_SENTINELS = ['S176-', 'PL5260250995', 'PL1234567890', 'S1057'];
+
+function personal(): Organization {
+  return {
+    ...organization(),
+    name: 'S176-PERSONAL',
+    taxId: null,
+    isPersonal: true,
+    approvedAt: null,
+    personalAccountId: ACCOUNT_ID,
+    vatStatus: 'vat_exempt',
+  } as unknown as Organization;
+}
+
+function company(): Organization {
+  return {
+    ...organization(),
+    taxId: 'PL5260250995',
+    vatValidatedAt: new Date('2026-11-01T10:00:00Z'),
+    vatValidationProvider: 'mf_pl',
+    vatValidationOutcome: 'validated',
+  } as unknown as Organization;
+}
+
+/**
+ * A fake EM for the two tax-ID writers: the row lock answers the stored
+ * Organization, the scope row answers `global`, no other holder has the tax ID,
+ * the predefined Administrator role exists. `flushes` counts the writes.
+ */
+function taxIdHarness(
+  stored: Organization,
+  hooks: ReadonlyArray<{ moduleId: string; entries: readonly CommandHookEntry[] }>,
+) {
+  const audits: Array<Record<string, unknown>> = [];
+  let flushes = 0;
+  const em: Record<string, unknown> = {
+    execute: async (sql: string) => {
+      if (sql.includes('for update') && sql.includes('"organizations"')) return [{ id: stored.id }];
+      if (sql.includes('organization_tax_id_policy')) {
+        return [{ scope: 'global', updated_at: new Date(), updated_by_admin_user_id: null }];
+      }
+      return [];
+    },
+    findOne: async (entity: unknown) =>
+      entity === OrganizationEntity ? stored : entity === OrganizationRole ? { id: ADMIN_ROLE } : null,
+    flush: async () => {
+      flushes += 1;
+    },
+  };
+  em['transactional'] = async <T>(fn: (inner: EntityManager) => Promise<T>): Promise<T> => fn(em as unknown as EntityManager);
+  const orm = { em: { fork: () => em } } as unknown as MikroORM;
+  const audit = {
+    recordWithin: (_em: unknown, entry: Record<string, unknown>) => {
+      audits.push(entry);
+      return {} as never;
+    },
+  } as unknown as AuditPort;
+  const registry = sealedCommandHookRegistry({
+    hookableActions: (manifest.hookableActions ?? []).map((declaration) => ({ moduleId: 'organizations', ...declaration })),
+    moduleDependencies: { acme_erp: ['organizations'] },
+    hooks,
+  });
+  const bus = new CommandBus(orm, audit, new EventBus<Record<string, EventBase>>(), { hooks: registry });
+  const accounts = { listByOrganization: async () => [{ id: ACCOUNT_ID, organizationRoleId: ADMIN_ROLE }] as never };
+  return { bus, audits, accounts, stored, flushes: () => flushes };
+}
+
+const conversionInput = {
+  name: 'S176-COMPANY',
+  legalName: 'S176-LEGAL',
+  taxId: 'pl 526-025-09-95',
+  registeredAddress: { street: 'S176-STREET-2', city: 'Warsaw', postalCode: '00-002', country: 'PL' },
+  vatStatus: 'vat_payer' as const,
+};
+
+/** Neither tax ID, name nor address reaches what a hook is handed. */
+function expectNoValuesHanded(data: unknown): void {
+  const serialised = JSON.stringify(data);
+  for (const sentinel of TAX_SENTINELS) expect(serialised, sentinel).not.toContain(sentinel);
+}
+
+describe('organization.convert_to_company is hookable (#1057)', () => {
+  const deps = { accounts: { listByOrganization: async () => [] } };
+
+  it('supplies hookData and list-1 outboxData', () => {
+    const converted = { ...company(), convertedToCompanyAt: new Date() } as unknown as Organization;
+    const command = makeConvertToCompanyCommand(deps, { organizationId: ORG_ID, input: conversionInput });
+    expectHookableCommand(command, ORG.convertToCompany, { result: converted, sentinels: TAX_SENTINELS });
+    expectNoValuesHanded(command.hookData!(converted));
+  });
+
+  it('hands a hook ids, codes and the names of what changed — never the tax ID — and merges its notes', async () => {
+    const recording = recordingCommandHooks();
+    const h = taxIdHarness(personal(), [
+      {
+        moduleId: 'acme_erp',
+        entries: [recording.on(ORG.convertToCompany, { then: (ctx) => ctx.noteAuditChanges(['kyc_status']) })],
+      },
+    ]);
+
+    await asSystem(() =>
+      h.bus.run(
+        makeConvertToCompanyCommand(
+          { accounts: h.accounts },
+          { organizationId: ORG_ID, input: conversionInput, extensions: { acme_erp: { creditLimitCode: 'C-1' } } },
+        ),
+      ),
+    );
+
+    expect(recording.calls).toHaveLength(1);
+    const data = recording.calls[0]!.data as OrganizationConvertToCompanyHookData;
+    expect(data).toEqual({
+      organizationId: ORG_ID,
+      status: 'active',
+      vatStatus: 'vat_payer',
+      changedFields: ['isPersonal', 'legalName', 'name', 'registeredAddress', 'taxId', 'vatStatus'],
+      approvalStamped: true,
+    });
+    expectNoValuesHanded(data);
+    expect(recording.calls[0]!.extension).toEqual({ creditLimitCode: 'C-1' });
+    expect(h.audits).toHaveLength(1);
+    expect(h.audits[0]!['stateAfter']).toMatchObject({ extensions: { acme_erp: { changedFields: ['kyc_status'] } } });
+    expectNamesOnly(h.audits);
+    expect(JSON.stringify(h.audits)).not.toContain('PL5260250995');
+  });
+
+  it('a veto from the hook refuses the conversion with its own error', async () => {
+    const vetoed = Object.assign(new Error('KYC pending'), { statusCode: 409, code: 'ACME_KYC_PENDING' });
+    const h = taxIdHarness(personal(), [
+      {
+        moduleId: 'acme_erp',
+        entries: [recordingCommandHooks().on(ORG.convertToCompany, { then: () => { throw vetoed; } })],
+      },
+    ]);
+
+    const err = await asSystem(() =>
+      h.bus.run(makeConvertToCompanyCommand({ accounts: h.accounts }, { organizationId: ORG_ID, input: conversionInput })),
+    ).catch((e: unknown) => e);
+
+    expect(err).toBe(vetoed);
+    expect(h.audits).toEqual([]);
+  });
+});
+
+describe('organization.tax_id.change is hookable (#1057)', () => {
+  it('supplies hookData and list-1 outboxData', () => {
+    const command = makeChangeTaxIdCommand({ organizationId: ORG_ID, input: { taxId: 'PL1234567890' } });
+    const result = { organization: company(), changed: true };
+    expectHookableCommand(command, ORG.changeTaxId, { result, sentinels: TAX_SENTINELS });
+    expectNoValuesHanded(command.hookData!(result));
+  });
+
+  it('hands a hook the id and the changed field by name — never the old or new tax ID', async () => {
+    const recording = recordingCommandHooks();
+    const h = taxIdHarness(company(), [{ moduleId: 'acme_erp', entries: [recording.on(ORG.changeTaxId)] }]);
+
+    await asSystem(() =>
+      h.bus.run(
+        makeChangeTaxIdCommand({
+          organizationId: ORG_ID,
+          input: { taxId: 'PL1234567890' },
+          extensions: { acme_erp: { erpSync: true } },
+        }),
+      ),
+    );
+
+    expect(recording.calls).toHaveLength(1);
+    const data = recording.calls[0]!.data as OrganizationTaxIdChangeHookData;
+    expect(data).toEqual({ organizationId: ORG_ID, changedFields: ['taxId'], vatValidationReset: true });
+    expectNoValuesHanded(data);
+    expect(recording.calls[0]!.extension).toEqual({ erpSync: true });
+    expect(h.audits).toHaveLength(1);
+    expectNamesOnly(h.audits);
+    expect(JSON.stringify(h.audits)).not.toMatch(/PL5260250995|PL1234567890/);
+  });
+
+  describe('the same value (the owner answers skipAudit)', () => {
+    it("records no entry when no hook noted a write — the hook still sees an empty change", async () => {
+      const recording = recordingCommandHooks();
+      const h = taxIdHarness(company(), [{ moduleId: 'acme_erp', entries: [recording.on(ORG.changeTaxId)] }]);
+
+      await asSystem(() =>
+        h.bus.run(makeChangeTaxIdCommand({ organizationId: ORG_ID, input: { taxId: 'pl 526-025-09-95' } })),
+      );
+
+      expect(h.flushes()).toBe(0);
+      expect(recording.calls.map((call) => call.data)).toEqual([
+        { organizationId: ORG_ID, changedFields: [], vatValidationReset: false },
+      ]);
+      expect(h.audits).toEqual([]);
+    });
+
+    it("records exactly one entry, the hook's names alone, when a hook noted a write", async () => {
+      const recording = recordingCommandHooks();
+      const h = taxIdHarness(company(), [
+        {
+          moduleId: 'acme_erp',
+          entries: [recording.on(ORG.changeTaxId, { then: (ctx) => ctx.noteAuditChanges(['erp_synced_at']) })],
+        },
+      ]);
+
+      await asSystem(() =>
+        h.bus.run(makeChangeTaxIdCommand({ organizationId: ORG_ID, input: { taxId: 'PL5260250995' } })),
+      );
+
+      expect(h.flushes()).toBe(0);
+      expect(h.audits).toHaveLength(1);
+      expect(h.audits[0]).toMatchObject({
+        action: 'organization.tax_id.change',
+        objectId: ORG_ID,
+        stateBefore: null,
+        stateAfter: { extensions: { acme_erp: { changedFields: ['erp_synced_at'] } } },
+      });
+      expect(Object.keys(h.audits[0]!['stateAfter'] as object)).toEqual(['extensions']);
+      expectNamesOnly(h.audits);
+    });
+  });
+});
+
+describe('organizationCommandPort forwards extension input (#1057, as #1055 Q2 did for the custom-field port)', () => {
+
+  it("convertToCompany hands a claimed key to its module's hook", async () => {
+    const recording = recordingCommandHooks();
+    const h = taxIdHarness(personal(), [{ moduleId: 'acme_erp', entries: [recording.on(ORG.convertToCompany)] }]);
+    const port = new OrganizationCommandService({ commandBus: h.bus, accounts: h.accounts });
+
+    await asSystem(() =>
+      port.convertToCompany(ORG_ID, conversionInput, { extensions: { acme_erp: { creditLimitCode: 'C-2' } } }),
+    );
+
+    expect(recording.calls.map((call) => call.extension)).toEqual([{ creditLimitCode: 'C-2' }]);
+  });
+
+  it("changeTaxId hands a claimed key to its module's hook", async () => {
+    const recording = recordingCommandHooks();
+    const h = taxIdHarness(company(), [{ moduleId: 'acme_erp', entries: [recording.on(ORG.changeTaxId)] }]);
+    const port = new OrganizationCommandService({ commandBus: h.bus, accounts: h.accounts });
+
+    await asSystem(() => port.changeTaxId(ORG_ID, { taxId: 'PL1234567890' }, { extensions: { acme_erp: { erpSync: true } } }));
+
+    expect(recording.calls.map((call) => call.extension)).toEqual([{ erpSync: true }]);
+  });
+
+  it.each([
+    ['convertToCompany', personal, (port: OrganizationCommandService) =>
+      port.convertToCompany(ORG_ID, conversionInput, { extensions: { acme_typo: { code: 'x' } } })],
+    ['changeTaxId', company, (port: OrganizationCommandService) =>
+      port.changeTaxId(ORG_ID, { taxId: 'PL1234567890' }, { extensions: { acme_typo: { code: 'x' } } })],
+  ] as const)(
+    '%s answers 422 COMMAND_EXTENSION_UNCLAIMED for a key no present hook module claims — no write, no entry',
+    async (_name, seed, call) => {
+      const recording = recordingCommandHooks();
+      const stored = seed();
+      const h = taxIdHarness(stored, [
+        { moduleId: 'acme_erp', entries: [recording.on(ORG.convertToCompany), recording.on(ORG.changeTaxId)] },
+      ]);
+      const before = { taxId: stored.taxId, isPersonal: stored.isPersonal, name: stored.name };
+      const port = new OrganizationCommandService({ commandBus: h.bus, accounts: h.accounts });
+
+      const err = await asSystem(() => call(port)).catch((e: unknown) => e);
+
+      expect(err).toMatchObject({
+        statusCode: 422,
+        code: 'COMMAND_EXTENSION_UNCLAIMED',
+        details: [{ path: 'extensions.acme_typo' }],
+      });
+      expect(h.flushes()).toBe(0);
+      expect({ taxId: stored.taxId, isPersonal: stored.isPersonal, name: stored.name }).toEqual(before);
+      expect(recording.calls).toEqual([]);
+      expect(h.audits).toEqual([]);
+    },
+  );
 });

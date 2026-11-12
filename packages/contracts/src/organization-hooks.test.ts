@@ -3,7 +3,7 @@ import { ORGANIZATION_HOOKABLE_ACTIONS } from './organization-hooks.js';
 import { toHookableActionDeclaration } from './command-hooks.js';
 
 describe('ORGANIZATION_HOOKABLE_ACTIONS (176 T021, FR-024)', () => {
-  it('declares the four Organization writes for both phases', () => {
+  it('declares the six Organization writes for both phases', () => {
     expect(Object.values(ORGANIZATION_HOOKABLE_ACTIONS).map(toHookableActionDeclaration)).toEqual([
       { action: 'organization.create', objectType: 'organization', phases: ['beforeCommit', 'afterCommit'] },
       { action: 'organization.register', objectType: 'organization', phases: ['beforeCommit', 'afterCommit'] },
@@ -13,6 +13,12 @@ describe('ORGANIZATION_HOOKABLE_ACTIONS (176 T021, FR-024)', () => {
         objectType: 'organization',
         phases: ['beforeCommit', 'afterCommit'],
       },
+      {
+        action: 'organization.convert_to_company',
+        objectType: 'organization',
+        phases: ['beforeCommit', 'afterCommit'],
+      },
+      { action: 'organization.tax_id.change', objectType: 'organization', phases: ['beforeCommit', 'afterCommit'] },
     ]);
   });
 });

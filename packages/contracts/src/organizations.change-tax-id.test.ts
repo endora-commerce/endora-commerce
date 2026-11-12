@@ -4,6 +4,7 @@ import {
   adminOrganizationChangeTaxIdBodySchema,
   type OrganizationChangeTaxIdInput,
   type OrganizationCommandPort,
+  type OrganizationCommandPortOptions,
   type OrganizationRecord,
   type OrganizationTaxIdChangedEvent,
 } from './organizations.js';
@@ -37,7 +38,20 @@ describe('adminOrganizationChangeTaxIdBodySchema', () => {
 describe('the port, the event and the refusal', () => {
   it('publishes changeTaxId on organizationCommandPort', () => {
     expectTypeOf<OrganizationCommandPort['changeTaxId']>().toEqualTypeOf<
-      (organizationId: string, input: OrganizationChangeTaxIdInput) => Promise<OrganizationRecord>
+      (
+        organizationId: string,
+        input: OrganizationChangeTaxIdInput,
+        options?: OrganizationCommandPortOptions,
+      ) => Promise<OrganizationRecord>
+    >();
+  });
+
+  it('forwards extension input to the hook modules on both of its Commands (issue #1057)', () => {
+    expectTypeOf<OrganizationCommandPortOptions>().toEqualTypeOf<{
+      readonly extensions?: Readonly<Record<string, unknown>>;
+    }>();
+    expectTypeOf<Parameters<OrganizationCommandPort['convertToCompany']>[2]>().toEqualTypeOf<
+      OrganizationCommandPortOptions | undefined
     >();
   });
 

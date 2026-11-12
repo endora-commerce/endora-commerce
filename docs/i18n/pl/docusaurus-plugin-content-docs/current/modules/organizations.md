@@ -96,7 +96,7 @@ zatwierdzeniu korekty NIP, i nie dla korekty na wartość, która jest już zapi
   `GET /api/v1/admin/organizations`) przyjmują `?extensions=<moduleId>[,…]` i dołączają te
   wartości jako `extensions`. Bez parametru odpowiedzi się nie zmieniają. Zobacz *Zadeklarowane
   kolumny rozszerzeń* w przewodniku po architekturze.
-- **Haki poleceń** — cztery zapisy organizacji są zadeklarowane jako dostępne dla haków, więc inny
+- **Haki poleceń** — sześć zapisów organizacji są zadeklarowane jako dostępne dla haków, więc inny
   moduł może brać w nich udział wewnątrz ich transakcji (zob. *Akcje dostępne dla haków* poniżej).
 
 ### Akcje dostępne dla haków
@@ -104,7 +104,7 @@ zatwierdzeniu korekty NIP, i nie dla korekty na wartość, która jest już zapi
 Inny moduł — moduł nakładki wdrożenia albo zainstalowany pakiet — może uruchomić wewnątrz tych
 zapisów hak poleceń `beforeCommit`. Rejestruje go wobec referencji z
 `ORGANIZATION_HOOKABLE_ACTIONS` (`@endora-commerce/contracts`) i musi wymienić `organizations` w
-`dependencies` swojego manifestu. Hak widzi niezatwierdzoną organizację, może zapisywać własne
+`dependencies` swojego manifestu. Hak widzi zapis w niezatwierdzonej transakcji, może zapisywać własne
 tabele albo uruchomić polecenie przez `ctx.run` i może odrzucić zapis własnym kodem błędu, co
 wycofuje cały zapis. Jak haki są uruchamiane, porządkowane i odrzucane, opisuje strona
 architektury *Command Bus*.
@@ -115,14 +115,20 @@ architektury *Command Bus*.
 | `organization.register` | `ORGANIZATION_HOOKABLE_ACTIONS.register` | `POST /api/v1/organizations/register` | `organization`, `customerAccountId`, `salesChannelId`, `registryLookupOutcome` |
 | `organization.admin_patch` | `ORGANIZATION_HOOKABLE_ACTIONS.adminPatch` | `PATCH /api/v1/admin/organizations/:id` | `organization`, `changedFields`, `changedCustomFields` |
 | `organization.set_custom_field_values` | `ORGANIZATION_HOOKABLE_ACTIONS.setCustomFieldValues` | `organizationCustomFieldWritePort` | `organization`, `changedFields`, `changedCustomFields` |
+| `organization.convert_to_company` | `ORGANIZATION_HOOKABLE_ACTIONS.convertToCompany` | `POST /api/v1/admin/organizations/:id/convert-to-company`, `organizationCommandPort.convertToCompany` | `organizationId`, `status`, `vatStatus`, `changedFields`, `approvalStamped` |
+| `organization.tax_id.change` | `ORGANIZATION_HOOKABLE_ACTIONS.changeTaxId` | `POST /api/v1/admin/organizations/:id/change-tax-id`, `organizationCommandPort.changeTaxId` | `organizationId`, `changedFields`, `vatValidationReset` |
 
-Wszystkie cztery oferują obie fazy; faza `afterCommit` nie jest jeszcze dostarczana. Zmiany
+Wszystkie sześć oferuje obie fazy; faza `afterCommit` nie jest jeszcze dostarczana. Zmiany
 zgłoszone przez hak trafiają do jedynego wpisu audytu organizacji jako nazwy, w
 `extensions.<moduleId>.changedFields`. Hak rejestracji nigdy nie widzi tokenu weryfikacji e-mail.
-Dane rozszerzeń (`extensions`) może przekazać tylko kod po stronie serwera —
-`organizationCustomFieldWritePort.setCustomFieldValues` przyjmuje je jako `{ extensions }` — a żadne
-ciało żądania HTTP ich jeszcze nie przenosi. Późniejsze polecenia organizacji — zamiana organizacji osobistej, korekta
-NIP, przenoszenie w hierarchii — nie są zadeklarowane jako dostępne dla haków.
+Haki zamiany na firmę i korekty NIP dostają wyłącznie identyfikatory, kody i nazwy pól — nigdy
+NIP-u, nazwy ani adresu. Korekta NIP-u na tę samą wartość niczego nie zmienia, a jej haki i tak
+są uruchamiane z pustym `changedFields`: wpis audytu powstaje tylko wtedy, gdy hak zgłosił zapis, i
+wtedy ten jeden wpis wymienia wyłącznie pola haka. Dane rozszerzeń (`extensions`) może przekazać
+tylko kod po stronie serwera — `organizationCustomFieldWritePort.setCustomFieldValues` przyjmuje je
+jako `{ extensions }`, a `organizationCommandPort.convertToCompany` i `changeTaxId` jako trzeci
+argument `{ extensions }` — a żadne ciało żądania HTTP ich jeszcze nie przenosi. Przenoszenie
+organizacji w hierarchii nie jest zadeklarowane jako dostępne dla haków.
 
 ## Kanały sprzedaży
 
