@@ -103,13 +103,13 @@
  *     and the honest repairs are to widen the harness or to widen the resolver —
  *     never a ledger entry, whose reason would belong to the harness rather than
  *     to the module.
- *   * **A stale emitted manifest.** The population is read out of the generated
- *     index, which resolves a module package through its `exports` map at its
- *     build output; a module whose activation control was added in source and
- *     not built is not yet in the population. That exposure is the estate's
- *     rather than this check's — 19 backend checks import a package's
- *     `dist/manifest.js` and one is wired to `emitted-freshness` — and it is in
- *     the defect register rather than repaired here.
+ *   * **A stale emitted manifest** is not this check's to see, and is not
+ *     missed: the population is read out of the generated index, which resolves
+ *     a module package through its `exports` map at its build output, so a
+ *     module whose activation control was added in source and not built would
+ *     not yet be in it. `requireModuleLayout` refuses that tree with exit 2
+ *     before this check reads anything (issue #104), for every check that
+ *     resolves the layout rather than for the few that remembered to ask.
  *   * **The admin and storefront halves** of an off-state proof. They are
  *     asserted inside the harness and in each batch's paired admin file.
  *

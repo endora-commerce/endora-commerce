@@ -39,6 +39,10 @@ const SCRIPT = join(REPO_ROOT, 'backend', 'scripts', 'check-lock-claims.ts');
  * specifier no staged tree can resolve (see {@link CHECK_LIB_ROOT}).
  */
 const LIBS: readonly string[] = [
+  // `module-roots.ts` refuses a stale emitted manifest itself (issue #104), so
+  // the freshness derivation and the package reader it rests on come with it.
+  'emitted-freshness.ts',
+  'module-packages.ts',
   'module-population.ts',
   'module-roots.ts',
   'platform-root.ts',
