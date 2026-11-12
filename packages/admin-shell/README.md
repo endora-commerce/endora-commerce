@@ -32,7 +32,7 @@ Everything below is a **peer** dependency, so the application resolves exactly o
 - `react-dom` ^19.0.0
 - `react-router-dom` ^7.18.2
 - `tailwindcss` ^4.2.4 — *optional*
-- `vite` ^7.3.7 — *optional*
+- `vite` ^7.3.7 || ^8.0.0 — *optional*
 
 ## What the tarball carries
 
