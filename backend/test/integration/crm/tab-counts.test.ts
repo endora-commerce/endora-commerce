@@ -283,6 +283,44 @@ describe('crm opportunity tab counts', () => {
       expect(await unread(opportunity.id, anna)).toBe(1);
     });
 
+    it('never un-reads what the baseline settled: a marker older than it raises nothing (#222)', async () => {
+      const opportunity = await createCrmOpportunity(h, { title: 'Unread: marker before the baseline' });
+      const oldest = await comment(opportunity.id, 'message', 'Old one.');
+      const middle = await comment(opportunity.id, 'message', 'Old two.');
+      const newest = await comment(opportunity.id, 'message', 'Old three.');
+      // All three before the instant unread messages started being counted, in their order.
+      for (const [id, days] of [[oldest.id, 3], [middle.id, 2], [newest.id, 1]] as const) {
+        await h.orm.em
+          .getConnection()
+          .execute(
+            `update "crm_opportunity_comments"
+                set "created_at" = (select "unread_since" - (? * interval '1 day') from "crm_message_read_baselines" where "id" = 1)
+              where "id" = ?`,
+            [days, id],
+          );
+      }
+      expect(await unread(opportunity.id, anna)).toBe(0);
+
+      const marked = await markRead(opportunity.id, oldest.id, anna);
+      expect(marked.statusCode, marked.body).toBe(200);
+      expect(OpportunityUnreadMessagesResponseSchema.parse(marked.json()).data).toEqual({ unreadMessageCount: 0 });
+      expect(await unread(opportunity.id, anna)).toBe(0);
+    });
+
+    it('counts no message the Messages tab does not list: a soft-deleted row is not unread (#222)', async () => {
+      const opportunity = await createCrmOpportunity(h, { title: 'Unread: deleted row' });
+      const listed = await comment(opportunity.id, 'message', 'Listed.');
+      const gone = await comment(opportunity.id, 'message', 'Not listed any more.');
+      // Nothing soft-deletes a message today; a row may still carry the mark.
+      await h.orm.em
+        .getConnection()
+        .execute(`update "crm_opportunity_comments" set "deleted_at" = now() where "id" = ?`, [gone.id]);
+      expect(await unread(opportunity.id, anna)).toBe(1);
+
+      const marked = await markRead(opportunity.id, listed.id, anna);
+      expect(OpportunityUnreadMessagesResponseSchema.parse(marked.json()).data).toEqual({ unreadMessageCount: 0 });
+    });
+
     it('refuses a marker that names no message of this Opportunity — a note, another Opportunity’s message, nothing', async () => {
       const opportunity = await createCrmOpportunity(h, { title: 'Unread: wrong message' });
       const other = await createCrmOpportunity(h, { title: 'Unread: the other one' });

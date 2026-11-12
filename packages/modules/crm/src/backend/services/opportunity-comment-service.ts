@@ -93,10 +93,14 @@ export class OpportunityCommentService {
 
   /**
    * The messages of an Opportunity the administrator asking has not read:
-   * written by somebody else, after the point they have read up to — their
-   * marker, or, having none, the instant unread messages started being counted
-   * on this installation (`CrmMessageReadBaseline`). A message one wrote
-   * oneself is never unread. `0` for a caller that is no administrator.
+   * the ones `list` answers (no row marked deleted), written by somebody else,
+   * after the point they have read up to — the later of their marker and the
+   * instant unread messages started being counted on this installation
+   * (`CrmMessageReadBaseline`). A marker older than that instant therefore
+   * un-reads nothing, and reading only ever lowers the number (#222);
+   * `greatest` skips a null, so having no marker counts from the baseline. A
+   * message one wrote oneself is never unread. `0` for a caller that is no
+   * administrator.
    *
    * For the detail read, which has loaded the Opportunity through the scoped
    * EntityManager already. One statement, compared in the database: a marker
@@ -114,8 +118,9 @@ export class OpportunityCommentService {
            from "crm_opportunity_comments" c
           where c."opportunity_id" = ?
             and c."kind" = 'message'
+            and c."deleted_at" is null
             and c."author_admin_user_id" <> ?
-            and c."created_at" > coalesce(
+            and c."created_at" > greatest(
                   (select r."last_read_at" from "crm_opportunity_message_reads" r
                     where r."opportunity_id" = ? and r."admin_user_id" = ?),
                   (select b."unread_since" from "crm_message_read_baselines" b where b."id" = 1),
