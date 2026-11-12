@@ -365,7 +365,11 @@ export function renderPackageReadme(input: ReadmeInput): string {
   }
 
   const files = manifest['files'];
-  const shipped = Array.isArray(files) ? files.filter((f): f is string => typeof f === 'string') : [];
+  // A `!`-prefixed entry is an exclusion (`!dist/**/*.map`, issue #107), so it
+  // is not something the tarball carries and is not listed as one.
+  const shipped = Array.isArray(files)
+    ? files.filter((f): f is string => typeof f === 'string' && !f.startsWith('!'))
+    : [];
   if (shipped.length > 0) {
     const locales = localesOf(input.dir, input.listFiles);
     const lines = shipped.map((entry) => {

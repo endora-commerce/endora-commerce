@@ -304,6 +304,59 @@ describe('pack-gate — a binary that runs and says nothing', () => {
   });
 });
 
+describe('pack-gate — a source map nothing can use', () => {
+  /**
+   * Issue #107. Every package publishes `dist` and not `src`, so a `.js.map`
+   * or `.d.ts.map` points a consumer's debugger and editor at source files the
+   * tarball does not carry — a third of the unpacked size for nothing. Both
+   * spellings are reported, because `declarationMap` and `sourceMap` are two
+   * compiler options and dropping one would leave the other shipping.
+   */
+  it('reports a packed `.js.map`', () => {
+    expect(
+      kinds({ ...HEALTHY, entries: [...HEALTHY.entries, { path: 'dist/index.js.map', size: 800 }] }),
+    ).toContain('source-map-shipped');
+  });
+
+  it('reports a packed `.d.ts.map`', () => {
+    expect(
+      kinds({
+        ...HEALTHY,
+        entries: [...HEALTHY.entries, { path: 'dist/sub/index.d.ts.map', size: 200 }],
+      }),
+    ).toContain('source-map-shipped');
+  });
+
+  /**
+   * One finding per package rather than per file: the cause is one `files`
+   * list, and mod-quick_order alone packed 62 maps, which would bury every
+   * other finding in the run under one defect.
+   */
+  it('reports once per package and names the count and a sample path', () => {
+    const found = judgePackedPackage({
+      ...HEALTHY,
+      entries: [
+        ...HEALTHY.entries,
+        { path: 'dist/index.js.map', size: 800 },
+        { path: 'dist/index.d.ts.map', size: 200 },
+      ],
+    }).findings.filter((finding) => finding.kind === 'source-map-shipped');
+    expect(found).toHaveLength(1);
+    expect(found[0]?.message).toContain('2 source map(s)');
+    expect(found[0]?.message).toContain('dist/index.js.map');
+  });
+
+  /** The discrimination: a file merely *named* like a map is not one. */
+  it('does not report a file whose name only contains `map`', () => {
+    expect(
+      kinds({
+        ...HEALTHY,
+        entries: [...HEALTHY.entries, { path: 'dist/sitemap.js', size: 300 }],
+      }),
+    ).not.toContain('source-map-shipped');
+  });
+});
+
 describe('pack-gate — a tarball with no manifest', () => {
   /**
    * Reported once and judged no further, because every other rule reads that

@@ -1920,8 +1920,19 @@ describe('module package manifests are generated (feature 080, T041)', () => {
           [`${ROOT}/packages/modules/widgets/i18n/en.json`]: '{}',
         }),
       );
-      expect(withI18n['files']).toEqual(['dist', 'i18n']);
-      expect(manifestOf(widgets(BACKEND_ONLY))['files']).toEqual(['dist']);
+      expect(withI18n['files']).toEqual(['dist', 'i18n', '!dist/**/*.map']);
+      expect(manifestOf(widgets(BACKEND_ONLY))['files']).toEqual(['dist', '!dist/**/*.map']);
+    });
+
+    /**
+     * Issue #107: the tarball carries `dist` and not `src`, so a source map
+     * points at files no consumer has. The maps stay on in
+     * `tsconfig.base.json` for local stack traces; `files` excludes them. The
+     * exclusion is last, so no entry after it can re-include a map.
+     */
+    it('excludes every source map from the tarball, last', () => {
+      const files = manifestOf(widgets(BACKEND_ONLY))['files'] as readonly string[];
+      expect(files.at(-1)).toBe('!dist/**/*.map');
     });
 
     it("takes the node engine from the workspace root's own declaration", () => {

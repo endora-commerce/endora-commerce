@@ -330,6 +330,19 @@ describe('every published package ships a LICENSE and a README (FR-020, FR-021)'
       expect(content).toContain('`en`, `pl`');
     });
 
+    /**
+     * Issue #107: a `!`-prefixed entry is an exclusion, so listing it under "What
+     * the tarball carries" would say the opposite of what it does.
+     */
+    it('does not list a negated `files` entry as something the tarball carries', () => {
+      const files = checkoutWith(
+        libraryMember('alpha', { files: ['dist', '!dist/**/*.map'] }),
+      );
+      const [readme] = renderPackageIdentityFiles(ROOT, fixtureFs(files)).readmes;
+      expect(readme!.content).toContain('`dist/`');
+      expect(readme!.content).not.toContain('.map');
+    });
+
     it('describes a package that installs an executable as one', () => {
       const files = checkoutWith(
         libraryMember('tooling', { bin: { endora: './dist/bin/endora.js' } }),
