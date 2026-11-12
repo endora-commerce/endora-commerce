@@ -11,14 +11,20 @@
  * module reads it through, on the `./kernel` barrel beside
  * `configuredPublicApiBaseUrl`.
  *
- * **Absent or malformed is `null`, and a consumer omits the link.** The admin's
- * address is optional — an instance with no admin, or one whose operator never
- * answered, still runs — and a link built on a guess (`http://localhost:3002`)
- * or on a scheme-less value (`admin.example.com`) opens nothing from an e-mail
- * client. A mail with no link still says what to open; a mail with a broken one
- * sends the reader somewhere that is not their installation. A malformed value
- * is not a refusal to boot: the composition root logs
- * {@link adminBaseUrlProblem} once, and everything else carries on.
+ * **Absent is `null`, and a consumer omits the link.** The admin's address is
+ * optional — an instance with no admin, or one whose operator never answered,
+ * still runs — and a link built on a guess (`http://localhost:3002`) opens
+ * nothing from an e-mail client. A mail with no link still says what to open;
+ * a mail with a broken one sends the reader somewhere that is not their
+ * installation.
+ *
+ * **Set but malformed refuses the boot, in every environment** (architect
+ * ruling on #1078). A scheme-less value (`admin.example.com`) is an operator
+ * who meant an address and wrote it wrong; booting on it would leave every
+ * admin link silently missing. `composeApp()` calls
+ * {@link assertAdminBaseUrlWellFormed} beside the public-origin refusal, before
+ * anything is opened, so the operator reads the rule instead of an e-mail with
+ * no link.
  *
  * **What is well formed:** an absolute `http:` or `https:` URL with no query
  * and no fragment, because every consumer appends a path to it. A base path is
@@ -43,7 +49,8 @@ function wellFormed(trimmed: string): boolean {
 
 /**
  * The configured Admin UI base address without trailing slashes, or `null` when
- * it is unset, blank or not an absolute http(s) URL.
+ * it is unset or blank. A malformed value is also `null` here, though a process
+ * holding one never boots ({@link assertAdminBaseUrlWellFormed}).
  *
  * The parameter exists for tests; production callers pass nothing and the
  * variable is read here, which is the read `check:env-inputs` reconciles the
@@ -57,20 +64,33 @@ export function configuredAdminBaseUrl(
   return trimmed.replace(/\/+$/, '');
 }
 
+const RULE =
+  'an absolute http(s) URL with a host, and no query or fragment — for example ' +
+  'https://admin.example.com or https://shop.example.com/admin';
+
+/** Refusal to boot on an `ADMIN_BASE_URL` that is set but not well formed. */
+export class AdminBaseUrlMalformedError extends Error {
+  constructor(value: string) {
+    super(
+      `${VARIABLE}=${JSON.stringify(value)} is not ${RULE}. It is the address every link ` +
+        'into the admin panel is built on, so a malformed value would leave those links ' +
+        `broken or missing. Set ${VARIABLE} to the address the admin panel is served at, ` +
+        'or unset it: without it, e-mails to administrators carry no link into the panel.',
+    );
+    this.name = 'AdminBaseUrlMalformedError';
+  }
+}
+
 /**
- * The sentence the composition root logs when `ADMIN_BASE_URL` is set but
- * ignored as malformed, or `null` when there is nothing to say. Host-internal:
- * not on the `./kernel` barrel.
+ * Refuse a process whose `ADMIN_BASE_URL` is set but malformed. Unset or blank
+ * passes: the input is optional. Host-internal — called at the top of
+ * `composeApp()`, and not on the `./kernel` barrel.
  */
-export function adminBaseUrlProblem(
+export function assertAdminBaseUrlWellFormed(
   raw: string | undefined = process.env['ADMIN_BASE_URL'],
-): string | null {
+): void {
   const trimmed = raw?.trim() ?? '';
-  if (trimmed === '' || configuredAdminBaseUrl(trimmed) !== null) return null;
-  return (
-    `${VARIABLE}=${JSON.stringify(trimmed)} is not an absolute http(s) URL without a query or ` +
-    'fragment, so it is ignored: links into the admin panel are left out of every e-mail and ' +
-    `two-step sign-in falls back to its development address. Set ${VARIABLE} to the address ` +
-    'the admin panel is served at, for example https://admin.example.com.'
-  );
+  if (trimmed !== '' && configuredAdminBaseUrl(trimmed) === null) {
+    throw new AdminBaseUrlMalformedError(trimmed);
+  }
 }

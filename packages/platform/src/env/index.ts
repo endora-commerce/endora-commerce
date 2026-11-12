@@ -169,8 +169,8 @@ export const PLATFORM_ENVIRONMENT_INPUTS: readonly EnvironmentInput[] = [
     requirement: {
       kind: 'optional',
       without: {
-        en: 'e-mails to administrators carry no link into the admin panel, and a sign-in or recovery redirect points at the development address — which matters most when the panel is on a host of its own.',
-        pl: 'e-maile do administratorów nie zawierają linku do panelu, a przekierowanie logowania lub odzyskiwania prowadzi pod adres deweloperski — co ma największe znaczenie, gdy panel stoi na osobnym hoście.',
+        en: 'e-mails to administrators carry no link into the admin panel, and a sign-in redirect to the panel carries no absolute address — which matters most when the panel is on a host of its own. A value that is set but malformed refuses the boot.',
+        pl: 'e-maile do administratorów nie zawierają linku do panelu, a przekierowanie logowania do panelu nie zawiera bezwzględnego adresu — co ma największe znaczenie, gdy panel stoi na osobnym hoście. Wartość ustawiona, ale niepoprawna, blokuje start.',
       },
     },
     secret: false,

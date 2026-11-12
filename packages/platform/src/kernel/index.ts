@@ -81,8 +81,8 @@ export {
 /**
  * The Admin UI's base address (issue #185): `null` when unset or malformed, so
  * a module that mails an administrator omits the link rather than breaking it.
- * The boot-time warning, `adminBaseUrlProblem`, is the host's and is not
- * published.
+ * The boot-time refusal of a malformed value, `assertAdminBaseUrlWellFormed`,
+ * is the host's and is not published.
  */
 export { configuredAdminBaseUrl } from './admin-base-url.js';
 

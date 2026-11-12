@@ -119,7 +119,7 @@ import {
   assertPublicApiBaseUrlConfigured,
   resolvePublicApiBaseUrl,
 } from '../kernel/public-api-base-url.js';
-import { adminBaseUrlProblem } from '../kernel/admin-base-url.js';
+import { assertAdminBaseUrlWellFormed } from '../kernel/admin-base-url.js';
 import { tenantContextMappingFor } from '../kernel/actor-tenant-context.js';
 import { registerRequestScopeHook } from '../kernel/request-scope-hook.js';
 import {
@@ -528,12 +528,10 @@ export async function composeApp(options: ComposeAppOptions): Promise<ComposeApp
   // configuration problem" message plus `exit(1)`.
   assertPublicApiBaseUrlConfigured();
 
-  // Issue #185 — the admin's address is optional, so a malformed one is not a
-  // refused boot: it reads as absent, and every link into the admin is left
-  // out. Said once here, so an operator who set it learns why the links are
-  // missing instead of meeting an e-mail with none.
-  const adminAddressProblem = adminBaseUrlProblem();
-  if (adminAddressProblem !== null) platformLogger().warn({}, adminAddressProblem);
+  // Issue #185 — the admin's address is optional, but one that is set and
+  // malformed refuses the boot in every environment (architect ruling on
+  // #1078): it would leave every link into the admin broken or missing.
+  assertAdminBaseUrlWellFormed();
 
   // Resolved once, and only for the members the caller did not supply: the
   // default builds an ORM bootstrap and scans `node_modules`, and doing that

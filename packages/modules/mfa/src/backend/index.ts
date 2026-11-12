@@ -146,9 +146,9 @@ export interface MfaBaseUrls {
 /**
  * The environment's answer to {@link MfaBaseUrls}, which `mfaBaseUrls`
  * defaults to. The admin's address is the platform's input since issue #185
- * and is read through the platform's accessor: a malformed value is absent
- * here as everywhere, so the plugin's development fallback applies rather than
- * a broken link.
+ * and is read through the platform's accessor. A malformed value never gets
+ * here (the platform refuses the boot); an unset one is `undefined`, and the
+ * plugin's `adminRedirectBase` decides what the redirect is built on.
  */
 export function mfaBaseUrlsFromEnvironment(): MfaBaseUrls {
   return {

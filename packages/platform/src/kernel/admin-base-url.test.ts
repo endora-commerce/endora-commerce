@@ -1,6 +1,11 @@
-import { describe, expect, it } from 'vitest';
+import { afterEach, describe, expect, it } from 'vitest';
 import { PLATFORM_ENVIRONMENT_INPUTS } from '../env/index.js';
-import { adminBaseUrlProblem, configuredAdminBaseUrl } from './admin-base-url.js';
+import { composeApp } from '../composition/compose-app.js';
+import {
+  AdminBaseUrlMalformedError,
+  assertAdminBaseUrlWellFormed,
+  configuredAdminBaseUrl,
+} from './admin-base-url.js';
 
 /**
  * The Admin UI's base address has one owner, the platform (issue #185).
@@ -10,10 +15,10 @@ import { adminBaseUrlProblem, configuredAdminBaseUrl } from './admin-base-url.js
  * rather than declaring it again. CRM, Tasks and the RFQ notifications all
  * mail an administrator, so the address is read through this one accessor.
  *
- * The rule a consumer builds on: an address that is absent **or malformed** is
- * `null`, so a link into the admin is omitted rather than broken. A relative or
- * scheme-less value would produce a link that opens nothing from an e-mail
- * client, which is worse than no link.
+ * The rule a consumer builds on: an absent address is `null`, so a link into
+ * the admin is omitted rather than broken. A set but malformed one refuses the
+ * boot (architect ruling on #1078): a relative or scheme-less value would
+ * produce links that open nothing, and an operator who set it meant something.
  */
 describe('configuredAdminBaseUrl', () => {
   it('is null when the variable is unset or blank — never a localhost guess', () => {
@@ -48,17 +53,44 @@ describe('configuredAdminBaseUrl', () => {
   });
 });
 
-describe('adminBaseUrlProblem', () => {
-  it('says nothing when the address is unset or well formed', () => {
-    expect(adminBaseUrlProblem(undefined)).toBeNull();
-    expect(adminBaseUrlProblem('')).toBeNull();
-    expect(adminBaseUrlProblem('https://admin.example.com/')).toBeNull();
+describe('assertAdminBaseUrlWellFormed', () => {
+  it('accepts an unset, blank or well-formed address', () => {
+    expect(() => assertAdminBaseUrlWellFormed(undefined)).not.toThrow();
+    expect(() => assertAdminBaseUrlWellFormed('')).not.toThrow();
+    expect(() => assertAdminBaseUrlWellFormed('https://admin.example.com/')).not.toThrow();
   });
 
-  it('names the variable and the value when a set address is ignored as malformed', () => {
-    const message = adminBaseUrlProblem('admin.example.com');
-    expect(message).toContain('ADMIN_BASE_URL');
-    expect(message).toContain('admin.example.com');
+  it.each(['admin.example.com', '/admin', 'https://admin.example.com/?x=1'])(
+    'refuses %s, naming the variable, the value and the rule',
+    (raw) => {
+      let thrown: unknown;
+      try {
+        assertAdminBaseUrlWellFormed(raw);
+      } catch (error) {
+        thrown = error;
+      }
+      expect(thrown).toBeInstanceOf(AdminBaseUrlMalformedError);
+      const message = (thrown as Error).message;
+      expect(message).toContain('ADMIN_BASE_URL');
+      expect(message).toContain(raw);
+      expect(message).toContain('absolute http(s) URL');
+      expect(message).toContain('no query or fragment');
+    },
+  );
+});
+
+describe('composeApp and a malformed ADMIN_BASE_URL', () => {
+  const original = process.env['ADMIN_BASE_URL'];
+  afterEach(() => {
+    if (original === undefined) delete process.env['ADMIN_BASE_URL'];
+    else process.env['ADMIN_BASE_URL'] = original;
+  });
+
+  it('refuses to boot in every environment, before anything is opened', async () => {
+    process.env['ADMIN_BASE_URL'] = 'admin.example.com';
+    await expect(
+      composeApp({ deploymentRoot: '/nonexistent-deployment-root' }),
+    ).rejects.toBeInstanceOf(AdminBaseUrlMalformedError);
   });
 });
 

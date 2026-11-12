@@ -158,6 +158,25 @@ export interface MfaModuleHandle {
   enrolmentService: MfaEnrolmentService | null;
 }
 
+/**
+ * The base the admin-surface sign-in redirects are built on.
+ *
+ * The configured admin address when there is one. Without it, the development
+ * address `http://localhost:3002` — but only outside production (architect
+ * ruling on #1078): a production redirect to localhost sends an administrator
+ * to their own machine. In production the base is empty, so the redirect is a
+ * path on the host that served the callback (`/#mfa-challenge=…`, `/login?…`)
+ * and names no absolute admin address at all, as every other caller omits an
+ * admin link when the platform has none.
+ */
+export function adminRedirectBase(
+  configured: string | undefined,
+  nodeEnv: string | undefined = process.env['NODE_ENV'],
+): string {
+  if (configured !== undefined) return configured;
+  return nodeEnv === 'production' ? '' : 'http://localhost:3002';
+}
+
 export function mfaModule(options: MfaModuleOptions): {
   plugin: ModuleAttach;
   handle: () => MfaModuleHandle;
@@ -274,7 +293,7 @@ export function mfaModule(options: MfaModuleOptions): {
         sessionService: options.sessionService,
         backendBaseUrl: options.backendBaseUrl ?? 'http://localhost:8080',
         storefrontBaseUrl: options.storefrontBaseUrl ?? 'http://localhost:3000',
-        adminBaseUrl: options.adminBaseUrl ?? 'http://localhost:3002',
+        adminBaseUrl: adminRedirectBase(options.adminBaseUrl),
         customerChannelAccess: options.customerChannelAccess,
         ...(options.channelUrlFactsFor ? { channelUrlFactsFor: options.channelUrlFactsFor } : {}),
       });

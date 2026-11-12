@@ -178,10 +178,12 @@ portal. Publish a category change and confirm it appears on the storefront witho
 admin panel is served at, with its path when it has one (`https://shop.example.com/admin`), and
 every e-mail the platform sends an administrator links into the panel from it.
 `compose.prod.yml` derives it from `ADMIN_DOMAIN`; a scaffolded instance's `.env` asks for it.
-It is optional: unset, those e-mails carry no link to the panel, and a sign-in or recovery
-redirect points at the development address. A value that is not an absolute `http`/`https`
-address, or that has a query or a fragment (`admin.example.com`, `/admin`), is treated as unset
-and the backend logs one warning naming it at boot (`packages/platform/src/kernel/admin-base-url.ts`).
+It is optional: unset, those e-mails carry no link to the panel, and a sign-in redirect to the
+panel carries no absolute address (outside production it falls back to `http://localhost:3002`).
+A value that is set but is not an absolute `http`/`https` address with a host, or that has a query
+or a fragment (`admin.example.com`, `/admin`), **refuses the boot** in every environment, with
+an error naming the variable and that rule (`packages/platform/src/kernel/admin-base-url.ts`,
+called first thing in `composeApp()`).
 Confirm `ADMIN_DOMAIN` is the real admin domain, or set `ADMIN_BASE_URL` to the panel's address
 when the panel is served somewhere else.
 
