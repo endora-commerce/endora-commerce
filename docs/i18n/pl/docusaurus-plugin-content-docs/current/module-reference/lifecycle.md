@@ -38,6 +38,8 @@ Strona wygenerowana z manifestu modułu, bez żadnych ręcznych zmian. Co moduł
 | Kod | Etykieta | Wymaga też |
 | --- | --- | --- |
 | `platform.api_description.read` | Read the API description | — |
+| `platform.command_outbox.manage` | Retry failed command outbox deliveries | `platform.command_outbox.read` |
+| `platform.command_outbox.read` | View the command outbox | — |
 | `platform.modules.activate` | Switch modules on and off | — |
 | `platform.modules.read` | View module lifecycle status | — |
 
@@ -46,6 +48,7 @@ Strona wygenerowana z manifestu modułu, bez żadnych ręcznych zmian. Co moduł
 | Akcja | Otwiera | Uprawnienie |
 | --- | --- | --- |
 | `open-api-description` | `/api-description` | `platform.api_description.read` |
+| `open-command-hooks` | `/platform/command-hooks` | `platform.modules.read` |
 | `open-platform-modules` | `/platform/modules` | `platform.modules.read` |
 
 ## Ustawienia

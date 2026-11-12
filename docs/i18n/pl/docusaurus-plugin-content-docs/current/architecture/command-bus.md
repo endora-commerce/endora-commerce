@@ -243,6 +243,37 @@ uporządkowane — każda to osobny wiersz, dostarczany osobno — i nie potrzeb
 `commandHookOrder`. Wewnątrzprocesowy `EventBus` i jego subskrybenci pozostają bez zmian; outbox to
 druga, trwała ścieżka tylko dla tych procedur.
 
+## Podgląd: ekran *Haki poleceń* {#command-hooks-screen}
+
+**System → Haki poleceń** w panelu administracyjnym (`/platform/command-hooks` albo ⌘K / CTRL+K
+*haki poleceń*) pokazuje obie połowy. To ekran samej platformy, a nie żadnego modułu.
+
+- **Plan wykonania** — za uprawnieniem `platform.modules.read`, z
+  `GET /api/v1/admin/command-hooks`. Jedna karta na każdą zadeklarowaną akcję z jej właścicielem,
+  hakami `beforeCommit` jako listą numerowaną w kolejności wykonania i procedurami `afterCommit` jako
+  listą nienumerowaną: w odpowiedzi mają `position: null`, bo outbox nie obiecuje kolejności między
+  wierszami, a kolejność listy (identyfikator modułu, potem kolejność rejestracji) służy tylko
+  stabilnemu widokowi. Przy każdym haku widać, czy jego moduł jest włączony; wyłączony jest pomijany.
+- **Kolejka outbox** — za uprawnieniem `platform.command_outbox.read`, z
+  `GET /api/v1/admin/command-outbox?status=dead|pending|in_flight&limit=&cursor=` (domyślnie martwe;
+  stronicowanie po kluczu `sequence` wiersza, od najnowszych). Wiersz pokazuje akcję, typ
+  i identyfikator obiektu, procedurę (`moduł#id`), liczbę prób, ostatni błąd i daty — i nic więcej:
+  `data` wiersza nigdy nie jest zwracane, a błąd zapisano tylko jako kod i klasę.
+- **Ponowienie** — za uprawnieniem `platform.command_outbox.manage`, dostępne tylko przy martwym
+  wierszu. `POST /api/v1/admin/command-outbox/:id/retry` uruchamia polecenie `command_outbox.retry`,
+  które przywraca wiersz do stanu `pending`, gotowy od razu, bez zużytych prób, i zapisuje w audycie
+  `{ status: 'dead' } → { status: 'pending' }`. Nieznany identyfikator daje `404`; wiersz, który nie
+  jest martwy, daje `409 COMMAND_OUTBOX_NOT_DEAD`.
+
+**Przetłumacz swoje kody błędów.** Ekran pokazuje kod błędu w zapisanej postaci, a obok zdanie, jeśli
+istnieje: najpierw w paczce tłumaczeń modułu **procedury**, potem platformy, pod kluczem
+`errors.<kod>`, a następnie `commandOutbox.failure.<kod>`. Kod `HttpError` zadeklarowany
+w `errorCodes` ma już swoje zdanie `errors.<KOD>`; kodowi `PermanentOutboxFailure`
+(`acme-erp-rejected`) daj wpis `commandOutbox.failure.<kod>` we własnych `i18n/en.json` i `pl.json` —
+rodzina `errors.*` należy do koperty błędu i przyjmuje wyłącznie kody SCREAMING_SNAKE. Platforma
+tłumaczy swoje trzy: `hook-unregistered`, `permanent-failure` i `handler-failed`. Kod, którego nikt nie
+tłumaczy, jest pokazywany bez zmian.
+
 ## Cofanie zmian
 
 Polecenie może zapisać stan przed zmianą i po niej dla każdego rekordu, aby operator mógł je

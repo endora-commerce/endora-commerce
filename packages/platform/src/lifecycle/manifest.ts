@@ -147,6 +147,23 @@ export const manifest = defineModuleManifest({
       keywordsKey: 'actions.openApiDescription.keywords',
       weight: 310,
     },
+    /**
+     * The command-hook screen (`specs/176-command-hooks-outbox/` FR-041): the
+     * execution plan and the outbox. Kernel-served, because hooks span every
+     * module that declares or registers one. Gated on the code the plan route
+     * enforces; the outbox tab asks for its own.
+     */
+    {
+      id: 'open-command-hooks',
+      labelKey: 'actions.openCommandHooks.label',
+      descriptionKey: 'actions.openCommandHooks.description',
+      icon: 'Webhook',
+      targetRoute: '/platform/command-hooks',
+      requiredPermission: 'platform.modules.read',
+      keywords: ['command hooks', 'hooks', 'outbox', 'dead letter', 'retry', 'extensions'],
+      keywordsKey: 'actions.openCommandHooks.keywords',
+      weight: 320,
+    },
   ],
   permissions: [
     {
@@ -170,6 +187,22 @@ export const manifest = defineModuleManifest({
       code: 'platform.api_description.read',
       module: 'platform',
       label: 'Read the API description',
+    },
+    /**
+     * The command outbox (`specs/176-command-hooks-outbox/` FR-040): reading
+     * its rows, and retrying a dead one through the audited
+     * `command_outbox.retry` Command. Platform-owned, like the table.
+     */
+    {
+      code: 'platform.command_outbox.read',
+      module: 'platform',
+      label: 'View the command outbox',
+    },
+    {
+      code: 'platform.command_outbox.manage',
+      module: 'platform',
+      label: 'Retry failed command outbox deliveries',
+      requires: ['platform.command_outbox.read'],
     },
   ],
 });

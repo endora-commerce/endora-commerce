@@ -151,6 +151,26 @@ bieżącej wyceny, gdy są zawężone do najwyżej 5 000 produktów (kategoria, 
 przeciwnym razie podawane w domyślnym porządku katalogu, z poprawnymi cenami na kartach. Uruchamiaj
 workera wszędzie tam, gdzie sortowanie według ceny ma znaczenie.
 
+### Outbox poleceń — `command_outbox.drain`
+
+Dostarcza procedury `afterCommit`, które zainstalowane moduły rejestrują na zapisie innego modułu —
+na przykład powiadomienie ERP o rejestracji organizacji. Dostarczenie każdej procedury to wiersz
+zapisany w tej samej transakcji co zapis, więc zatwierdzony zapis nigdy go nie gubi. Harmonogram
+zadań opróżnia wiersze co 10 sekund, a zapis, który utworzył wiersze, od razu budzi opróżnianie.
+Nieudane dostarczenie jest ponawiane z rosnącym odstępem, do 10 prób, a potem staje się
+**martwe**; procedura może też od razu zrezygnować z dostarczenia.
+
+Martwe dostarczenia widać w panelu w **System → Haki poleceń → Kolejka outbox**
+(`platform.command_outbox.read`), z procedurą, liczbą prób i kodem błędu — nigdy z danymi, które
+niosło dostarczenie. Administrator z uprawnieniem `platform.command_outbox.manage` może je tam
+ponowić, a ponowienie trafia do dziennika audytu. Dostarczenie, którego moduł procedury jest
+wyłączony, czeka, nie zużywając próby, aż moduł zostanie ponownie włączony. Dostarczone wiersze są
+usuwane po 7 dniach, martwe po 90. Kontrakt dostarczania opisuje
+[Command Bus](../architecture/command-bus.md#aftercommit-outbox).
+
+**Jeśli żaden worker nie obsługuje tej kolejki**, nic nie ginie: wiersze czekają w bazie danych
+i zostaną dostarczone, gdy worker zacznie działać.
+
 ## Inne zadania w tle (jeszcze nie na wspólnej kolejce)
 
 Kilka zadań okresowych i porządkowych nadal działa jako timery w procesie albo skrypty uruchamiane

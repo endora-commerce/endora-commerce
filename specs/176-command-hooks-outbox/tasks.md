@@ -279,30 +279,51 @@ May be folded into Phase 3's MR (OD-2).
 
 ### Tests (RED)
 
-- [ ] T060 [US4] `backend/test/contract/platform/command-outbox-admin.contract.test.ts`:
+- [x] T060 [US4] `backend/test/contract/platform/command-outbox-admin.contract.test.ts`:
   - the list is filtered by status and keyset-paginated, and never returns `data`;
   - the list answers 403 without `platform.command_outbox.read`;
   - a retry moves a dead row to pending and writes a `command_outbox.retry` audit entry;
   - a retry answers 403 without `.manage`, 404 for an unknown id and `409 COMMAND_OUTBOX_NOT_DEAD`
     for a row that is not dead.
-  [FR-040]
-- [ ] T061 [P] [US4] Admin screen test (admin-shell): both tabs render in pl and en, the retry
+  [FR-040] *(Seen red with the routes unmounted: all 10 cases answered 404. Also: `status` defaults
+  to `dead`, an unknown status or a malformed cursor or id is 400, a holder of `.read` alone is
+  served the list and refused the retry. The plan's contract test now expects `position: null` for
+  the fixture's two `afterCommit` handlers, and `registry.test.ts` holds the ruling at unit level.)*
+- [x] T061 [P] [US4] Admin screen test (admin-shell): both tabs render in pl and en, the retry
   button is hidden without the permission, and the empty, loading and error states are covered. A
-  palette test checks that `open-command-hooks` reaches the screen. [FR-041]
-- [ ] T062 [P] [US4] Permission inventory and palette checks pass for `_lifecycle`
-  (`check:permissions` / the `module-admin-surfaces.md` instruments). [FR-041]
+  palette test checks that `open-command-hooks` reaches the screen. [FR-041] *(In
+  `admin/test/modules/platform/CommandHooksPage.test.tsx`, over the shipped `core` bundles, and
+  `admin/test/components/AppShell.palette-command-hooks.test.tsx`, over `_lifecycle`'s manifest and
+  bundles. Also covered: the outbox tab hidden without `.read`, the failure-label fallback order,
+  a refused retry, the status filter and the cursor. `host-admin-registrations.test.tsx` counts the
+  two new host routes and the nav entry.)*
+- [x] T062 [P] [US4] Permission inventory and palette checks pass for `_lifecycle`
+  (`check:permissions` / the `module-admin-surfaces.md` instruments). [FR-041] *(There is no
+  `check:permissions`; the instruments are `permission-inventory.test.ts`,
+  `registered-bundles-shape.test.ts` and `check:action-route-permissions`. `palette-coverage.test.ts`
+  reads module admin layers only, and this screen is the host's.)*
 
 ### Implementation (GREEN)
 
-- [ ] T063 [US4] Contracts (response schemas in `command-hooks.ts`), the routes in
-  `lifecycle/routes.admin.ts`, and the `command_outbox.retry` Command. [FR-040]
-- [ ] T064 [US4] Add the permissions and the palette action to `lifecycle/manifest.ts`, and the i18n
-  keys to `lifecycle/i18n/{en,pl}.json` and the admin bundle. [FR-041]
+- [x] T063 [US4] Contracts (response schemas in `command-hooks.ts`), the routes in
+  `lifecycle/routes.admin.ts`, and the `command_outbox.retry` Command. [FR-040] *(The Command and
+  the list query are `commands/outbox/admin.ts`; `COMMAND_OUTBOX_NOT_DEAD` is declared and translated
+  by `_i18n`, beside the hook codes. The OpenAPI baseline gains the two paths.)*
+- [x] T064 [US4] Add the permissions and the palette action to `lifecycle/manifest.ts`, and the i18n
+  keys to `lifecycle/i18n/{en,pl}.json` and the admin bundle. [FR-041] *(The failure labels are
+  `commandOutbox.failure.<code>` in `_i18n`, not `errors.<code>`: see amendment 12 in
+  `contracts/outbox-and-admin-api.md`.)*
 - [ ] T065 [US4] The admin screen in admin-shell, built from admin-kit primitives. Get it reviewed
-  by `endora-commerce-designer` (UX laws, WCAG 2.2 AA). [FR-041]
-- [ ] T066 [US4] Constitution amendment (XIII outbox wording, XV surface list), with the version and
+  by `endora-commerce-designer` (UX laws, WCAG 2.2 AA). [FR-041] *(Built: `CommandHooksPage.tsx`,
+  `command-hooks-api.ts`, two routes in `App.tsx`, one System nav entry. Self-checked against
+  `ux-laws/SKILL.md` §4 and §7; the `endora-commerce-designer` review is still open.)*
+- [x] T066 [US4] Constitution amendment (XIII outbox wording, XV surface list), with the version and
   date bumped in `.specify/memory/constitution.md` and flagged in the MR for owner ratification.
-  Update `kernel.md` (the contribution seam row). [FR-042, FR-043]
+  Update `kernel.md` (the contribution seam row). [FR-042, FR-043] *(4.2.0 → 4.3.0, pending owner
+  ratification. `kernel.md` gains a paragraph after its *Two shapes* table rather than a third row,
+  since `specs/141-module-block-renderers/` cites the section by that name. Docs: `command-bus.md`
+  § the Command hooks screen, `operations/queue-consumers.md` § command outbox and the generated
+  `_lifecycle` reference page, EN+PL, pinned.)*
 
 ---
 

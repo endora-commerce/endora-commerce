@@ -20,6 +20,7 @@ import {
   PinOff,
   Search,
   Sparkles,
+  Webhook,
   type LucideIcon,
 } from 'lucide-react';
 import {
@@ -325,6 +326,17 @@ const NAV: NavSection[] = [
         labelKey: 'appShell.nav.platformApiDescription',
         icon: BookOpen,
         requiredPermission: 'platform.api_description.read',
+        module: null,
+      },
+      // `module: null` for the same reason (`specs/176-command-hooks-outbox/`
+      // FR-041): a command hook spans the module that declares an action and
+      // every module that hooks it. Gated on the code the plan route enforces;
+      // the outbox tab asks for its own.
+      {
+        to: '/platform/command-hooks',
+        labelKey: 'appShell.nav.platformCommandHooks',
+        icon: Webhook,
+        requiredPermission: 'platform.modules.read',
         module: null,
       },
       // `/admin-users`, `/admin-roles` and `/audit-log` are declared by the

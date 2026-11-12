@@ -199,9 +199,13 @@ describe('CommandHookRegistry — what it serves once sealed', () => {
     expect(registry.declaration('gadget.create')).toBeUndefined();
   });
 
-  it('lists the plan with positions and live presence', () => {
+  it('lists the plan with beforeCommit positions, unpositioned afterCommit handlers and live presence', () => {
     const present = new Set(['acme_a']);
     const registry = new CommandHookRegistry({ isPresent: (moduleId) => present.has(moduleId) });
+    // acme_c registers its handler first: afterCommit handlers are listed by
+    // module id, then registration order, and carry no position — the outbox
+    // promises no order across rows (176 P4 architect ruling).
+    registry.register('acme_c', [{ id: 'audit-archive', on: ARCHIVE, phase: 'afterCommit', handler: async () => undefined }]);
     registry.register('acme_a', [
       { id: 'first', on: CREATE, phase: 'beforeCommit', handler: noop },
       { id: 'second', on: CREATE, phase: 'beforeCommit', handler: noop },
@@ -215,7 +219,8 @@ describe('CommandHookRegistry — what it serves once sealed', () => {
         { action: 'widget.create', objectType: 'widget', owner: 'widgets', phases: ['beforeCommit', 'afterCommit'] },
       ],
       items: [
-        { action: 'widget.archive', phase: 'afterCommit', position: 1, module: 'acme_a', id: 'notify-erp', moduleEnabled: true },
+        { action: 'widget.archive', phase: 'afterCommit', position: null, module: 'acme_a', id: 'notify-erp', moduleEnabled: true },
+        { action: 'widget.archive', phase: 'afterCommit', position: null, module: 'acme_c', id: 'audit-archive', moduleEnabled: false },
         { action: 'widget.create', phase: 'beforeCommit', position: 1, module: 'acme_a', id: 'first', moduleEnabled: true },
         { action: 'widget.create', phase: 'beforeCommit', position: 2, module: 'acme_a', id: 'second', moduleEnabled: true },
         { action: 'widget.create', phase: 'beforeCommit', position: 3, module: 'acme_c', id: 'third', moduleEnabled: false },
