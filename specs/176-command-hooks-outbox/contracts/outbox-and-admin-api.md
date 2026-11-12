@@ -26,6 +26,11 @@
 8. **The wake-up** builds its producer queue on first use, is never awaited by the bus, and never
    rejects. Both roots build it (`compose-app.ts`, `packages/test-kit/src/server/compose-test-server.ts`).
 9. **`command_outbox.sequence` is not mapped on the entity**: the database assigns it.
+10. **Architect rulings on #1060 (2026-11-12).** The guard also refuses `@` (an e-mail address is the
+    one personal datum shaped like a code). A batch is delivered under the lease its claim took: a
+    claimed row whose turn comes after that lease ran out is skipped — no handler run, no status write —
+    and left for the next reclaim, so rows behind slow handlers are never run twice concurrently. One
+    handler that by itself runs past the lease remains the at-least-once case `messageId` covers.
 
 ## Delivery
 

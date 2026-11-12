@@ -206,7 +206,8 @@ zakończy się wcześniej.
 **Tylko identyfikatory i kody.** Wiersz przechowuje `outboxData` właściciela, czyli listę 1 z
 `audit-state.md`: identyfikatory, kody, wartości logiczne, liczniki, daty i nazwy pól. Tabela jest
 globalna dla platformy, więc szyna odrzuca dane outboxu z zagnieżdżonym obiektem albo z ciągiem
-dłuższym niż kod lub zawierającym białe znaki — podaje klucz, nigdy wartość. Wszystko inne procedura
+dłuższym niż kod lub zawierającym białe znaki albo `@` (adres e-mail to jedyna dana osobowa o kształcie
+kodu) — podaje klucz, nigdy wartość. Wszystko inne procedura
 odczytuje ponownie przez porty właściciela.
 
 **Dostarczane co najmniej raz.** Tabelę opróżnia proces roboczy: harmonogram zadań BullMQ uruchamia
@@ -214,8 +215,11 @@ się co 10 sekund, a zatwierdzenie, które zapisało wiersze, dodaje jeszcze jed
 wybudzenie, na które szyna nie czeka. Jeśli w chwili zatwierdzenia Redis nie działa, ginie
 wybudzenie, a nie wiersz: dostarczy go następny cykl. Wiersze są pobierane przez
 `for update skip locked` z pięciominutową dzierżawą, więc dwa procesy robocze nigdy nie przekażą
-jednego wiersza dwóm procedurom naraz. Wygasła dzierżawa jest odzyskiwana, więc procedura może
-zostać uruchomiona dwa razy: deduplikuj po `messageId`, czyli identyfikatorze wiersza, stałym
+jednego wiersza dwóm procedurom naraz. Partia jest dostarczana wiersz po wierszu w ramach dzierżawy
+uzyskanej przy pobraniu, a wiersz, na który kolej przychodzi po jej wygaśnięciu, zostaje dla
+następnego odzyskania, zamiast być dostarczony z opóźnieniem. Pojedyncza procedura, która sama działa
+dłużej niż dzierżawa, może jednak zobaczyć swój wiersz odzyskany i dostarczony ponownie, zanim
+skończy, więc procedura może zostać uruchomiona dwa razy: deduplikuj po `messageId`, czyli identyfikatorze wiersza, stałym
 między ponownymi próbami.
 
 **W kontekście organizacji.** Każdy wiersz jest dostarczany w zakresie przypiętym do organizacji,

@@ -109,3 +109,12 @@ describe('outboxDataViolations (176 P3, FR-031)', () => {
     expect(JSON.stringify(violations)).not.toContain('Acme');
   });
 });
+
+describe('outboxDataViolations — e-mail (176 P3, architect ruling on #1060)', () => {
+  it('refuses an @ in a string: an e-mail is the one personal datum that has a code’s shape', () => {
+    expect(outboxDataViolations({ contact: 'jan.kowalski@example.com', ids: ['ok', 'a@b'] })).toEqual([
+      { key: 'contact', issue: 'not-code-shaped' },
+      { key: 'ids', issue: 'not-code-shaped' },
+    ]);
+  });
+});

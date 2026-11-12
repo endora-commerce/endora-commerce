@@ -70,7 +70,6 @@ function observe(hookId: string, marked: Set<string>) {
   return async (ctx: CommandHookContext<ObservedOrganization>): Promise<void> => {
     const { organization } = ctx.data;
     if (!organization.name.startsWith(COMMAND_HOOK_FIXTURE_MARKER)) return;
-    marked.add(organization.id);
     await ctx.run(observeCommand(organization.id, hookId));
     ctx.noteAuditChanges(['x_command_hook_fixture_observed']);
     if (organization.name.includes(COMMAND_HOOK_FIXTURE_VETO)) {
@@ -80,6 +79,9 @@ function observe(hookId: string, marked: Set<string>) {
         'The command hook fixture refused this Organization.',
       );
     }
+    // After the veto: a refused Organization is never written, so there is no
+    // row to deliver and nothing to remember.
+    marked.add(organization.id);
   };
 }
 

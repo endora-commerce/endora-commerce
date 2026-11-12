@@ -69,7 +69,7 @@ export async function runCommandOutboxDrainTick(deps: CommandOutboxDrainTickDeps
         ...(deps.now !== undefined ? { now: deps.now } : {}),
       });
       const did =
-        result.delivered + result.retried + result.dead + result.released + result.reclaimed +
+        result.delivered + result.retried + result.dead + result.released + result.reclaimed + result.skippedExpiredLease +
         result.purged.delivered + result.purged.dead;
       if (did > 0) {
         deps.log.info(

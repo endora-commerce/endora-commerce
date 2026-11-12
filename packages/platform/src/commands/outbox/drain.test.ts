@@ -360,6 +360,26 @@ describe('drainCommandOutbox — presence and registration (176 T041, FR-036)', 
 });
 
 describe('drainCommandOutbox — leases and retention (176 T041, FR-032, FR-037)', () => {
+  it('skips a claimed row whose lease ran out while earlier rows were delivered: no handler run, no status write', async () => {
+    const delivered: string[] = [];
+    const rows = [row(), row(), row()];
+    const h = harness(rows, async (ctx) => {
+      delivered.push(ctx.messageId);
+      // A slow handler: the first delivery alone outlives the batch's lease.
+      h.advance(COMMAND_OUTBOX_LEASE_MS + 1);
+    });
+    const result = await drainCommandOutbox(h.deps);
+    expect(delivered).toEqual([rows[0]!.id]);
+    expect(result.delivered).toBe(1);
+    expect(result.skippedExpiredLease).toBe(2);
+    // Still in flight under the lapsed lease, attempt unchanged: the next reclaim
+    // returns them to pending, and nothing ran them twice in the meantime.
+    expect(h.store.rows.slice(1).map((r) => [r.status, r.attempts])).toEqual([
+      ['in_flight', 1],
+      ['in_flight', 1],
+    ]);
+  });
+
   it('reclaims an expired lease and delivers the row', async () => {
     const handler = vi.fn(async () => undefined);
     const h = harness(

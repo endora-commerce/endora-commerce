@@ -199,16 +199,18 @@ that process dies first.
 **Ids and codes only.** A row stores the owner's `outboxData`, which is `audit-state.md`
 list 1: ids, codes, booleans, counts, dates and field names. The table is platform-global, so
 the bus refuses outbox data with a nested object or a string that is longer than a code or has
-whitespace in it, naming the key and never the value. A handler re-reads anything else through
+whitespace or an `@` in it (an e-mail address is the one personal datum shaped like a code), naming the key and never the value. A handler re-reads anything else through
 the owner's ports.
 
 **Delivered at least once.** A worker drains the table: a BullMQ job scheduler ticks every
 10 seconds, and a commit that wrote rows also enqueues one deduplicated wake-up, which the bus
 does not wait for. If Redis is down at commit, the wake-up is lost and the row is not: the next
 tick delivers it. Rows are claimed with `for update skip locked` under a five-minute lease, so
-two worker processes never hand one row to two handlers at once. A lease that runs out is
-reclaimed, so a handler can run twice: dedupe on `messageId`, which is the row's id and is
-stable across retries.
+two worker processes never hand one row to two handlers at once. A batch is delivered row by row
+under the lease its claim took, and a row whose turn comes after that lease ran out is left for
+the next reclaim rather than delivered late. A single handler that by itself runs longer than the
+lease can still have its row reclaimed and delivered again while it is running, so a handler can
+run twice: dedupe on `messageId`, which is the row's id and is stable across retries.
 
 **In the Organization's context.** Each row is delivered in a scope pinned to the
 Organization it concerns (`single-org`, the system as actor), or in the drain's system scope

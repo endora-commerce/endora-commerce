@@ -51,9 +51,11 @@ import type { ClaimedOutboxRow, OutboxFailure, OutboxStore } from './store.js';
  * `causation`, and never re-entered: a past operator's reach is not something
  * a background job may resume.
  *
- * Rows are delivered one at a time. A handler is at-least-once: a lease that
- * runs out under a slow handler is reclaimed and the row delivered again, and
- * `messageId` is what the handler dedupes on.
+ * Rows are delivered one at a time, under the lease their batch was claimed
+ * with; a row whose turn comes after that lease ran out is skipped untouched,
+ * for the next reclaim. A handler is still at-least-once: one handler that by
+ * itself runs past the lease can have its row reclaimed and delivered again
+ * while it is still running, and `messageId` is what it dedupes on.
  */
 
 /** What the drain asks of the composed command-hook registry. */
@@ -81,6 +83,12 @@ export interface OutboxDrainResult {
   retried: number;
   dead: number;
   released: number;
+  /**
+   * Claimed rows not delivered because the batch's lease had run out before
+   * their turn: another drain may already have reclaimed them, so this one
+   * neither runs their handler nor writes their status.
+   */
+  skippedExpiredLease: number;
   purged: { delivered: number; dead: number };
   /** The tick stopped at its batch bound with rows still due; the next tick continues. */
   reachedBatchLimit: boolean;
@@ -155,11 +163,22 @@ export async function drainCommandOutbox(deps: OutboxDrainDeps): Promise<OutboxD
     retried: 0,
     dead: 0,
     released: 0,
+    skippedExpiredLease: 0,
     purged: { delivered: 0, dead: 0 },
     reachedBatchLimit: false,
   };
 
-  const deliver = async (row: ClaimedOutboxRow): Promise<void> => {
+  const deliver = async (row: ClaimedOutboxRow, leaseUntil: Date): Promise<void> => {
+    // A batch is claimed under one lease and delivered row by row, so slow
+    // handlers early in it can outlive the lease for the rows behind them. Once
+    // it has run out, another drain's reclaim may hand the row to a second
+    // handler at any moment; delivering it here as well would run it twice
+    // concurrently. The row is left as it is — in flight, under a lapsed lease —
+    // and the next reclaim returns it to pending (FR-032).
+    if (clock().getTime() >= leaseUntil.getTime()) {
+      result.skippedExpiredLease += 1;
+      return;
+    }
     if (!handlers.isPresent(row.hookModule)) {
       await store.release(row, after(COMMAND_OUTBOX_ABSENT_MODULE_DELAY_MS));
       result.released += 1;
@@ -214,8 +233,9 @@ export async function drainCommandOutbox(deps: OutboxDrainDeps): Promise<OutboxD
 
   result.reclaimed = await store.reclaimExpiredLeases(clock());
   for (let batch = 1; batch <= COMMAND_OUTBOX_MAX_BATCHES_PER_TICK; batch += 1) {
-    const rows = await store.claim(clock(), COMMAND_OUTBOX_BATCH_SIZE, after(COMMAND_OUTBOX_LEASE_MS));
-    for (const row of rows) await deliver(row);
+    const leaseUntil = after(COMMAND_OUTBOX_LEASE_MS);
+    const rows = await store.claim(clock(), COMMAND_OUTBOX_BATCH_SIZE, leaseUntil);
+    for (const row of rows) await deliver(row, leaseUntil);
     if (rows.length < COMMAND_OUTBOX_BATCH_SIZE) break;
     if (batch === COMMAND_OUTBOX_MAX_BATCHES_PER_TICK) result.reachedBatchLimit = true;
   }

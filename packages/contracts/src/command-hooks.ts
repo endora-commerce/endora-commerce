@@ -35,8 +35,12 @@ export type OutboxData = Readonly<Record<string, OutboxScalar | readonly OutboxS
  */
 export const OUTBOX_STRING_MAX_LENGTH = 128;
 
-/** Printable ASCII without a space: what an id, a code, a date and a field name are made of. */
-const OUTBOX_STRING_RE = /^[\x21-\x7e]*$/;
+/**
+ * Printable ASCII without a space and without `@`: what an id, a code, a date
+ * and a field name are made of. `@` is refused because an e-mail address is the
+ * one personal datum that otherwise has a code's shape.
+ */
+const OUTBOX_STRING_RE = /^[\x21-\x3f\x41-\x7e]*$/;
 
 /** One outbox data key that is not `audit-state.md` list 1, and why. Never carries the value. */
 export interface OutboxDataViolation {
@@ -58,7 +62,7 @@ function scalarIssue(value: unknown): OutboxDataViolation['issue'] | null {
 /**
  * The keys of `data` that an outbox row may not store (FR-031): a nested
  * object, a string longer than {@link OUTBOX_STRING_MAX_LENGTH} or with
- * whitespace in it, a non-finite number, anything that is not a scalar. An
+ * whitespace or an `@` in it, a non-finite number, anything that is not a scalar. An
  * array is allowed when every member is. Sorted by key, and the value is never
  * repeated: the answer is what an error message may print.
  *
