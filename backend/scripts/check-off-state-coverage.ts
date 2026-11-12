@@ -96,10 +96,11 @@
  *   * **Whether a proof is any good.** `expectModuleAbsent` asserts item 6's
  *     five things and refuses an empty `routes` declaration; this check asks
  *     only that a module is its subject.
- *   * **A module proved by a bespoke `it`.** `seo`'s sitemap answers XML and
- *     the harness reads every body as JSON, so it was hand-asserted for a
- *     while; it carries an ordinary `expectModuleAbsent` today over its JSON
- *     routes. A module that ships *only* a bespoke proof is `uncovered-module`,
+ *   * **A module proved by a bespoke `it`.** `seo`'s sitemap answers XML, and
+ *     while the harness read every body as JSON it was hand-asserted beside an
+ *     ordinary `expectModuleAbsent`; since issue #102 it is an ordinary probe
+ *     declared `successBody: 'non-json'`. A module that ships *only* a bespoke
+ *     proof is `uncovered-module`,
  *     and the honest repairs are to widen the harness or to widen the resolver —
  *     never a ledger entry, whose reason would belong to the harness rather than
  *     to the module.
