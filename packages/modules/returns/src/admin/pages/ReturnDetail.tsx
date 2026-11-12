@@ -1,4 +1,4 @@
-import { useCallback, useEffect, useId, useState, type ReactNode } from 'react';
+import { useCallback, useEffect, useId, useRef, useState, type ReactNode } from 'react';
 import { Link, useParams } from 'react-router-dom';
 import { ArrowLeft } from 'lucide-react';
 import { ApiError, formatDateTime } from '@endora-commerce/admin-kit/lib';
@@ -6,6 +6,7 @@ import { Alert, AlertDescription, Badge, Button, Card, CardContent, CardHeader, 
 import { useTranslation, useTranslationContext } from '@endora-commerce/admin-kit/i18n';
 import { returnsClient, type RefundPaymentMethodOption } from '../api/returns-client.js';
 import { ResolutionRadioGroup } from '../components/ResolutionRadioGroup.js';
+import { RejectReturnDialog } from '../components/RejectReturnDialog.js';
 import { CONSUMER_WITHDRAWAL_PANEL_ID, ConsumerWithdrawalPanel } from './ConsumerWithdrawalPanel.js';
 
 import type {
@@ -76,6 +77,9 @@ export function ReturnDetail(): ReactNode {
   const [prefill, setPrefill] = useState<SettlementPrefill | null>(null);
   const [error, setError] = useState<string | null>(null);
   const [info, setInfo] = useState<string | null>(null);
+  // Issue #311 — the rejection reason is asked for in a dialog, not `window.prompt()`.
+  const [rejecting, setRejecting] = useState(false);
+  const rejectButtonRef = useRef<HTMLButtonElement>(null);
 
   const [commentBody, setCommentBody] = useState('');
   const [commentVisible, setCommentVisible] = useState(true);
@@ -252,15 +256,8 @@ export function ReturnDetail(): ReactNode {
               Authorize (assign RMA)
             </Button>
           )}
-          <Button
-            variant="destructive"
-            size="sm"
-            onClick={() => {
-              const reason = window.prompt('Rejection reason');
-              if (reason) void run(() => returnsClient.reject(id, reason), 'Rejected.');
-            }}
-          >
-            Reject
+          <Button ref={rejectButtonRef} variant="destructive" size="sm" onClick={() => setRejecting(true)}>
+            {tr('reject.action')}
           </Button>
           {transitions.map((t) => (
             <Button
@@ -274,6 +271,20 @@ export function ReturnDetail(): ReactNode {
           ))}
         </CardContent>
       </Card>
+
+      {rejecting && (
+        <RejectReturnDialog
+          returnFocusRef={rejectButtonRef}
+          onClose={() => setRejecting(false)}
+          onReject={async (reason) => {
+            await returnsClient.reject(id, reason);
+            setRejecting(false);
+            setError(null);
+            setInfo(tr('reject.rejectedInfo'));
+            await refresh();
+          }}
+        />
+      )}
 
       {rc.consumerWithdrawal === true && (
         <ConsumerWithdrawalPanel
