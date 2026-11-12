@@ -78,6 +78,10 @@ class FakeEm {
   create(_entity: unknown, payload: FakeRow): FakeRow {
     return payload;
   }
+  /** A hard uninstall's `command_outbox` purge (176 P3) is a raw statement. */
+  async execute(): Promise<unknown[]> {
+    return [];
+  }
 }
 
 class FakeRedis {

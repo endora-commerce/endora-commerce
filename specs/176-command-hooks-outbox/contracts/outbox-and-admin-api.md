@@ -1,5 +1,37 @@
 # Contract: the command outbox and its operator API (P3, P4)
 
+**Amended (P3, 2026-11-12)** — reconciled with `master` and the conventions while implementing
+§ Delivery; master won where they conflicted, and each remaining choice is listed:
+
+1. **The list-1 guard is structural and shared.** `outboxDataViolations` in
+   `@endora-commerce/contracts` refuses a nested object, a non-finite number, and a string over 128
+   characters or with whitespace in it; arrays are allowed when every member passes. The bus raises a
+   plain `500` naming the keys (never the values) and test-kit's `expectHookableCommand` applies the
+   same guard. A hooked Command with a present handler and no `outboxData` answers
+   `500 COMMAND_HOOK_DATA_MISSING`, the code `hookData` already used. No new error code.
+2. **`organizationId` stays in `data`** — every organization outbox type carries it — and is also the
+   row's routing column.
+3. **No order between `afterCommit` handlers.** The table above promises none across rows, so two
+   unrelated modules' handlers on one action are not refused as unordered and need no
+   `commandHookOrder` entry. The registry lists them by module id, then registration order.
+4. **Failure codes.** `last_error_code` is the error's own code when it is code-shaped
+   (`[A-Za-z0-9_.:-]{1,64}`: an `HttpError`'s, a `PermanentOutboxFailure`'s, a Node `code`), and
+   `handler-failed` otherwise; a `PermanentOutboxFailure` whose code is not code-shaped is stored as
+   `permanent-failure`. A `ModuleDisabledError` thrown by the handler counts as an absent module.
+5. **Dead rows are purged after 90 days**, as research R-17 and data-model §4 say; the table above
+   named only the delivered retention.
+6. **A tick is bounded**: at most 20 batches of 50; the next tick continues.
+7. **A row with no Organization** runs in the tick's system scope, re-entered so the recorded request
+   id is the scope's too.
+8. **The wake-up** builds its producer queue on first use, is never awaited by the bus, and never
+   rejects. Both roots build it (`compose-app.ts`, `packages/test-kit/src/server/compose-test-server.ts`).
+9. **`command_outbox.sequence` is not mapped on the entity**: the database assigns it.
+10. **Architect rulings on #1060 (2026-11-12).** The guard also refuses `@` (an e-mail address is the
+    one personal datum shaped like a code). A batch is delivered under the lease its claim took: a
+    claimed row whose turn comes after that lease ran out is skipped — no handler run, no status write —
+    and left for the next reclaim, so rows behind slow handlers are never run twice concurrently. One
+    handler that by itself runs past the lease remains the at-least-once case `messageId` covers.
+
 ## Delivery
 
 | Aspect | Contract |

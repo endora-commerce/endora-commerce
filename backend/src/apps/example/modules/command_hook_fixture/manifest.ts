@@ -57,7 +57,7 @@ export const manifest = defineModuleManifest({
   id: 'command_hook_fixture',
   name: 'Command hook fixture',
   description:
-    'Example-deployment fixture: beforeCommit hooks on organization.create and organization.register, so the command-hook seam has a hook module in this repository.',
+    'Example-deployment fixture: beforeCommit hooks and afterCommit handlers on organization.create and organization.register, so the command-hook seam and the outbox have a hook module in this repository.',
   version: '1.0.0',
   // The hooks attach to `organizations`' actions, so `organizations` is a
   // dependency — composition refuses a hook module whose dependencies do not

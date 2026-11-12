@@ -13,6 +13,7 @@ import type { Redis } from 'ioredis';
 
 import { buildServer, type ModulePlugin } from '@endora-commerce/platform/composition';
 import type { ApiInterceptorRegistry } from '@endora-commerce/platform/composition';
+import type { CommandHookRegistry } from '@endora-commerce/platform/composition';
 import { publishStateChanged, registryCache } from '@endora-commerce/platform/composition';
 import { effectiveState, getResolvedChannel } from '@endora-commerce/platform/kernel';
 import { type TenantContext } from '@endora-commerce/platform/tenancy';
@@ -400,6 +401,12 @@ export interface BackendServerHandle {
   eventBus: EventBus;
   /** Feature 060 — the sealed API interceptor registry (execution plan via `.list()`). */
   apiInterceptors: ApiInterceptorRegistry;
+  /**
+   * `specs/176-command-hooks-outbox/` P3 — the sealed command-hook registry, so
+   * a test can drive the outbox drain over this composition's `afterCommit`
+   * handlers: the harness runs no worker.
+   */
+  commandHookRegistry: CommandHookRegistry;
   redis: Redis;
   /** Feature 072 (T073) — the module-state pub/sub client, disconnected at teardown. */
   redisSubscriber: Redis;
@@ -2852,6 +2859,8 @@ export async function setupBackendServer(
     em,
     eventBus,
     apiInterceptors,
+    commandHookRegistry: (container.cradle as never as { commandHookRegistry: CommandHookRegistry })
+      .commandHookRegistry,
     redis,
     redisSubscriber: handle.redisSubscriber,
     pubSubArmed: handle.pubSubArmed,

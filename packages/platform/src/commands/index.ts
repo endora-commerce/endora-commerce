@@ -76,9 +76,8 @@ export {
  * `contracts/command-hooks-api.md` §2) — the shapes a hook author writes
  * against: the entry `ctx.commandHooks` takes, the context a hook receives, the
  * veto class and the origin accessor spec 178's owner-side check reads. The
- * `afterCommit` shapes travel with them because a hookable-action ref names
- * both phases; the registry refuses an `afterCommit` registration until the
- * transactional outbox (P3) delivers it.
+ * `afterCommit` shapes travel with them: a handler registered through the same
+ * seam is delivered by the transactional outbox (P3).
  *
  * The composition refusals are here because they are what a hook module's
  * author meets when a deployment will not boot, and a `@throws` a reader
@@ -103,3 +102,8 @@ export {
   CommandHookOrderContradictionError,
 } from './hooks/errors.js';
 export { currentCommandHookOrigin, type CommandHookOrigin } from './hooks/origin.js';
+/**
+ * `afterCommit` delivery (176 P3): what a handler throws to dead-letter its
+ * row at once instead of being retried.
+ */
+export { PermanentOutboxFailure } from './outbox/errors.js';

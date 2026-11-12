@@ -12,7 +12,8 @@ import {
   hookLabel,
 } from './errors.js';
 import { orderCommandHooks, type CommandHookRegistration } from './ordering.js';
-import type { BeforeCommitHook, CommandHookEntry } from './types.js';
+import type { OutboxData } from '@endora-commerce/contracts';
+import type { AfterCommitHandler, BeforeCommitHook, CommandHookEntry } from './types.js';
 
 /**
  * The command-hook registry (`specs/176-command-hooks-outbox/` FR-011 –
@@ -53,6 +54,15 @@ export interface ResolvedBeforeCommitHook extends CommandHookRegistration {
   readonly handler: BeforeCommitHook<unknown>;
 }
 
+/**
+ * A registered `afterCommit` handler, as the bus writes rows for it and the
+ * outbox drain delivers to it (176 P3).
+ */
+export interface ResolvedAfterCommitHandler extends CommandHookRegistration {
+  readonly phase: 'afterCommit';
+  readonly handler: AfterCommitHandler<OutboxData>;
+}
+
 export interface CommandHookRegistryOptions {
   /**
    * Whether a hook module is present on the effective state, asked per call.
@@ -64,6 +74,7 @@ export interface CommandHookRegistryOptions {
 
 const HOOK_ID_RE = /^[a-z0-9]+(-[a-z0-9]+)*$/;
 const EMPTY: readonly ResolvedBeforeCommitHook[] = Object.freeze([]);
+const EMPTY_AFTER: readonly ResolvedAfterCommitHandler[] = Object.freeze([]);
 
 export class CommandHookRegistry {
   readonly #isPresent: (moduleId: string) => boolean;
@@ -72,6 +83,8 @@ export class CommandHookRegistry {
   #sealed = false;
   #declarations = new Map<string, HookableActionOwnership>();
   #beforeCommit = new Map<string, readonly ResolvedBeforeCommitHook[]>();
+  #afterCommit = new Map<string, readonly ResolvedAfterCommitHandler[]>();
+  #afterCommitByKey = new Map<string, ResolvedAfterCommitHandler>();
   #claimants = new Map<string, ReadonlySet<string>>();
   #seq = 0;
 
@@ -96,18 +109,6 @@ export class CommandHookRegistry {
         throw new Error(
           `[command-hooks] module '${moduleId}' registers a hook with id '${entry.id}' on ` +
             `'${entry.on.action}'; a hook id is kebab-case (e.g. 'refuse-unserved-country').`,
-        );
-      }
-      if (entry.phase === 'afterCommit') {
-        // 176 P2 ships `beforeCommit` only. An `afterCommit` handler is delivered
-        // by the transactional outbox (P3); accepting one now would register a
-        // handler nothing ever calls, which is silent loss with a green boot.
-        throw new Error(
-          `[command-hooks] afterCommit handlers are not delivered by this platform release: ` +
-            `module '${moduleId}' registers '${entry.id}' on '${entry.on.action}'. The ` +
-            'transactional outbox that delivers them is the next phase of ' +
-            'specs/176-command-hooks-outbox. Use a beforeCommit hook, or ctx.subscribe on the ' +
-            "owner's event for best-effort post-commit work.",
         );
       }
       const key = `${moduleId}\0${entry.id}`;
@@ -183,6 +184,8 @@ export class CommandHookRegistry {
 
     const order = input.commandHookOrder ?? {};
     const beforeCommit = new Map<string, readonly ResolvedBeforeCommitHook[]>();
+    const afterCommit = new Map<string, readonly ResolvedAfterCommitHandler[]>();
+    const afterCommitByKey = new Map<string, ResolvedAfterCommitHandler>();
     const claimants = new Map<string, Set<string>>();
     for (const action of new Set(this.#registrations.map((registration) => registration.action))) {
       const onAction = this.#registrations.filter((registration) => registration.action === action);
@@ -197,10 +200,24 @@ export class CommandHookRegistry {
         order[action],
       ) as ResolvedBeforeCommitHook[];
       beforeCommit.set(action, Object.freeze(ordered));
+      // `afterCommit` handlers are not ordered against each other: each one is a
+      // row of its own, delivered on its own, and the outbox promises no order
+      // across rows (contracts/outbox-and-admin-api.md). Asking two independent
+      // modules to rank handlers whose order nothing observes would be a
+      // refusal with no effect. The list is deterministic — module id, then
+      // registration order — only so the bus writes rows and the plan lists
+      // them the same way every boot.
+      const handlers = onAction
+        .filter((registration) => registration.phase === 'afterCommit')
+        .sort((left, right) => left.moduleId.localeCompare(right.moduleId) || left.seq - right.seq) as ResolvedAfterCommitHandler[];
+      afterCommit.set(action, Object.freeze(handlers));
+      for (const handler of handlers) afterCommitByKey.set(`${handler.moduleId}\0${handler.id}`, handler);
     }
 
     this.#declarations = declarations;
     this.#beforeCommit = beforeCommit;
+    this.#afterCommit = afterCommit;
+    this.#afterCommitByKey = afterCommitByKey;
     this.#claimants = claimants;
     this.#sealed = true;
   }
@@ -213,6 +230,24 @@ export class CommandHookRegistry {
   /** `action`'s `beforeCommit` hooks in execution order, presence not applied. Empty before sealing. */
   beforeCommit(action: string): readonly ResolvedBeforeCommitHook[] {
     return this.#beforeCommit.get(action) ?? EMPTY;
+  }
+
+  /**
+   * `action`'s `afterCommit` handlers, presence not applied: the bus writes one
+   * outbox row per present one. Empty before sealing.
+   */
+  afterCommit(action: string): readonly ResolvedAfterCommitHandler[] {
+    return this.#afterCommit.get(action) ?? EMPTY_AFTER;
+  }
+
+  /**
+   * The registered `afterCommit` handler `moduleId#hookId`, whatever its
+   * action — the drain's lookup for a row, which records both. `undefined`
+   * when the module no longer registers it (the row is then dead-lettered
+   * `hook-unregistered`).
+   */
+  afterCommitHandler(moduleId: string, hookId: string): ResolvedAfterCommitHandler | undefined {
+    return this.#afterCommitByKey.get(`${moduleId}\0${hookId}`);
   }
 
   /** The modules with any hook on `action` (either phase), presence not applied. */
@@ -239,16 +274,20 @@ export class CommandHookRegistry {
         phases: [...declaration.phases] as CommandHookPhase[],
       }))
       .sort((left, right) => left.action.localeCompare(right.action));
-    const items = [...this.#beforeCommit.keys()].sort().flatMap((action) =>
-      this.beforeCommit(action).map((hook, index) => ({
+    const position = <H extends CommandHookRegistration>(action: string, list: readonly H[]) =>
+      list.map((hook, index) => ({
         action,
         phase: hook.phase,
         position: index + 1,
         module: hook.moduleId,
         id: hook.id,
         moduleEnabled: this.#isPresent(hook.moduleId),
-      })),
-    );
+      }));
+    const hooked = [...new Set([...this.#beforeCommit.keys(), ...this.#afterCommit.keys()])].sort();
+    const items = hooked.flatMap((action) => [
+      ...position(action, this.beforeCommit(action)),
+      ...position(action, this.afterCommit(action)),
+    ]);
     return { actions, items };
   }
 }

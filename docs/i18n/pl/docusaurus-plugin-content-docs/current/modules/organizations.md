@@ -118,7 +118,12 @@ architektury *Command Bus*.
 | `organization.convert_to_company` | `ORGANIZATION_HOOKABLE_ACTIONS.convertToCompany` | `POST /api/v1/admin/organizations/:id/convert-to-company`, `organizationCommandPort.convertToCompany` | `organizationId`, `status`, `vatStatus`, `changedFields`, `approvalStamped` |
 | `organization.tax_id.change` | `ORGANIZATION_HOOKABLE_ACTIONS.changeTaxId` | `POST /api/v1/admin/organizations/:id/change-tax-id`, `organizationCommandPort.changeTaxId` | `organizationId`, `changedFields`, `vatValidationReset` |
 
-Wszystkie sześć oferuje obie fazy; faza `afterCommit` nie jest jeszcze dostarczana. Zmiany
+Wszystkie sześć oferuje obie fazy. Procedura `afterCommit` jest dostarczana przez outbox platformy
+po zatwierdzeniu zapisu, co najmniej raz i w kontekście przypiętym do organizacji; jej `data` zawiera
+tylko identyfikatory i kody — `organizationId`, a do tego `customerAccountId` i `status` przy
+rejestracji, `status` przy utworzeniu, `changedFields` / `changedCustomFields` przy obu
+aktualizacjach, `status` i `changedFields` przy zamianie na firmę oraz `changedFields` przy korekcie
+NIP-u. Zmiany
 zgłoszone przez hak trafiają do jedynego wpisu audytu organizacji jako nazwy, w
 `extensions.<moduleId>.changedFields`. Hak rejestracji nigdy nie widzi tokenu weryfikacji e-mail.
 Haki zamiany na firmę i korekty NIP dostają wyłącznie identyfikatory, kody i nazwy pól — nigdy

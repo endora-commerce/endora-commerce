@@ -83,6 +83,15 @@ class FakeEm {
   create(_entity: unknown, payload: FakeRow): FakeRow {
     return payload;
   }
+  /**
+   * Raw statements the orchestrator issues on the operation's manager — the
+   * `command_outbox` purge of a hard uninstall (176 P3) is the one there is.
+   */
+  executed: Array<{ sql: string; params: unknown[] }> = [];
+  async execute(sql: string, params: unknown[] = []): Promise<unknown[]> {
+    this.executed.push({ sql, params });
+    return [];
+  }
 }
 
 class FakeMigrator {
@@ -597,6 +606,23 @@ describe('ModuleLifecycleOrchestrator (unit)', () => {
       await orchestrator.uninstall('demo', { hard: true });
 
       expect(seen).toEqual([false, true]);
+    });
+
+    it('deletes the module’s command_outbox rows on a hard uninstall, and keeps them on a soft one (176 T045)', async () => {
+      const reg = buildRegistry([{ id: 'demo' }]);
+      const { orchestrator, em } = buildOrchestrator({
+        registry: reg,
+        em: new FakeEm([installedRow('demo')]),
+      });
+
+      await orchestrator.uninstall('demo', { hard: false });
+      expect(em.executed.filter((statement) => statement.sql.includes('command_outbox'))).toEqual([]);
+
+      em.rows = [installedRow('demo')];
+      await orchestrator.uninstall('demo', { hard: true });
+      expect(em.executed.filter((statement) => statement.sql.includes('command_outbox'))).toEqual([
+        { sql: 'delete from "command_outbox" where "hook_module" = ?', params: ['demo'] },
+      ]);
     });
 
     /**

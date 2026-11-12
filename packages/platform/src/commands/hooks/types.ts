@@ -34,9 +34,10 @@ export interface CommandHookContext<TData> {
 export type BeforeCommitHook<TData> = (ctx: CommandHookContext<TData>) => Promise<void> | void;
 
 /**
- * What an `afterCommit` handler will receive once the transactional outbox
- * delivers it (176 P3). Declared now so the ref's `TOutbox` has a reader; the
- * registry refuses an `afterCommit` registration until the outbox ships.
+ * What an `afterCommit` handler receives when the transactional outbox
+ * delivers its row (176 P3, FR-032 – FR-034): after the owner's commit, at
+ * least once, in a scope pinned to `organizationId` when the row has one.
+ * Dedupe on `messageId`; re-read anything beyond `data` through the owner.
  */
 export interface AfterCommitContext<TOutbox extends OutboxData> {
   /** `command_outbox.id` — the idempotency key. */

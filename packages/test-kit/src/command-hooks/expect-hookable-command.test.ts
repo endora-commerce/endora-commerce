@@ -60,6 +60,13 @@ describe('expectHookableCommand (176 T027)', () => {
     expect(() => expectHookableCommand(nested, BOTH, { result: { id: 'w-1' } })).toThrow(/owner/);
   });
 
+  it('fails outbox data the bus would refuse: free text, or a string longer than a code (176 P3)', () => {
+    const spaced = widgetCommand({ outboxData: () => ({ widgetId: 'w-1', note: 'two words' }) });
+    expect(() => expectHookableCommand(spaced, BOTH, { result: { id: 'w-1' } })).toThrow(/note[\s\S]*not-code-shaped/);
+    const long = widgetCommand({ outboxData: () => ({ widgetId: 'w-1', blob: 'x'.repeat(200) }) });
+    expect(() => expectHookableCommand(long, BOTH, { result: { id: 'w-1' } })).toThrow(/blob[\s\S]*too-long/);
+  });
+
   it('fails outbox data that carries a sentinel value', () => {
     const leaking = widgetCommand({ outboxData: () => ({ widgetId: 'w-1', name: 'S176-NAME' }) });
     expect(() =>

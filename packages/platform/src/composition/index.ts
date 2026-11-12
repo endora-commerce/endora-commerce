@@ -185,6 +185,18 @@ export {
   hookableActionsFrom,
   moduleDependencyClosureFrom,
 } from '../kernel/lifecycle/command-hook-inputs.js';
+// `specs/176-command-hooks-outbox/` P3 — the outbox's host half. The wake-up
+// is what both roots hand their `CommandBus`; the entity class is here for
+// `ModuleRegistration`'s reason (the generated entity registry names it, and no
+// module may); the store, the drain and one tick are what a test drives
+// against Postgres without a worker, which is how the shared test server runs.
+// `PermanentOutboxFailure`, the one name a handler author needs, is on
+// `./commands`.
+export { createCommandOutboxWake } from '../commands/outbox/wake.js';
+export { CommandOutboxEntry } from '../commands/outbox/command-outbox-entry.entity.js';
+export { PostgresOutboxStore } from '../commands/outbox/store.js';
+export { drainCommandOutbox } from '../commands/outbox/drain.js';
+export { runCommandOutboxDrainTick } from '../commands/outbox/drain-worker.js';
 // `specs/110-instance-repository/` T119c. The platform-availability row itself —
 // the entity class `module_registrations` is mapped by. It is here and **not** on
 // `./kernel`, and that is `host-package.md` §1.3's **A** classification applied

@@ -123,7 +123,12 @@ page.
 | `organization.convert_to_company` | `ORGANIZATION_HOOKABLE_ACTIONS.convertToCompany` | `POST /api/v1/admin/organizations/:id/convert-to-company`, `organizationCommandPort.convertToCompany` | `organizationId`, `status`, `vatStatus`, `changedFields`, `approvalStamped` |
 | `organization.tax_id.change` | `ORGANIZATION_HOOKABLE_ACTIONS.changeTaxId` | `POST /api/v1/admin/organizations/:id/change-tax-id`, `organizationCommandPort.changeTaxId` | `organizationId`, `changedFields`, `vatValidationReset` |
 
-All six offer both phases; the `afterCommit` phase is not delivered yet. A
+All six offer both phases. An `afterCommit` handler is delivered through the
+platform's outbox after the write commits, at least once and in a context pinned
+to the Organization; its `data` carries ids and codes only — `organizationId`,
+plus `customerAccountId` and `status` on registration, `status` on create,
+`changedFields` / `changedCustomFields` on the two updates, `status` and
+`changedFields` on a conversion, and `changedFields` on a tax-ID correction. A
 hook's noted changes appear in the Organization's single audit entry as names,
 under `extensions.<moduleId>.changedFields`. The registration hook never sees
 the e-mail verification token. The conversion and tax-ID hooks are handed ids,

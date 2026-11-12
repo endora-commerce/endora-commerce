@@ -11,7 +11,7 @@
  */
 
 import { AssertionError } from 'node:assert';
-import type { HookableActionRef, OutboxData } from '@endora-commerce/contracts';
+import { outboxDataViolations, type HookableActionRef, type OutboxData } from '@endora-commerce/contracts';
 import type { Command, CommandHookContext, CommandHookEntry } from '@endora-commerce/platform/commands';
 import { CommandHookRegistry } from '@endora-commerce/platform/composition';
 
@@ -66,17 +66,16 @@ export function expectHookableCommand<TResult>(
   if (command.hookData) command.hookData(result);
   if (!command.outboxData) return;
   const data = command.outboxData(result);
-  const scalar = (value: unknown): boolean =>
-    value === null || ['string', 'number', 'boolean'].includes(typeof value);
-  for (const [key, value] of Object.entries(data)) {
-    const ok = Array.isArray(value) ? value.every(scalar) : scalar(value);
-    if (!ok) {
-      fail(
-        `expectHookableCommand: '${ref.action}' outbox data '${key}' is not a scalar or an array of ` +
-          'scalars. Outbox rows carry ids, codes, booleans, counts, dates and field names ' +
-          '(specs/conventions/audit-state.md list 1); a handler re-reads anything else through the owner.',
-      );
-    }
+  // The bus's own guard (FR-031), so an owner whose test is green is an owner
+  // whose hooked Command the bus does not refuse.
+  const violations = outboxDataViolations(data);
+  if (violations.length > 0) {
+    fail(
+      `expectHookableCommand: '${ref.action}' outbox data is not list 1: ` +
+        violations.map((violation) => `'${violation.key}' (${violation.issue})`).join(', ') +
+        '. Outbox rows carry ids, codes, booleans, counts, dates and field names ' +
+        '(specs/conventions/audit-state.md list 1); a handler re-reads anything else through the owner.',
+    );
   }
   const serialised = JSON.stringify(data);
   for (const sentinel of options.sentinels ?? []) {

@@ -152,11 +152,44 @@ describe('CommandHookRegistry — what it serves once sealed', () => {
     ).toThrow(/sealed[\s\S]*acme_a[\s\S]*late/);
   });
 
-  it('refuses an afterCommit handler: the outbox that delivers it is not in this release', () => {
+  it('accepts an afterCommit handler and serves it by action and by (module, id) (176 P3)', () => {
     const registry = new CommandHookRegistry();
-    expect(() =>
-      registry.register('acme_a', [{ id: 'notify', on: CREATE, phase: 'afterCommit', handler: async () => undefined }]),
-    ).toThrow(/afterCommit[\s\S]*acme_a[\s\S]*notify/);
+    const notify = async (): Promise<void> => undefined;
+    registry.register('acme_a', [{ id: 'notify', on: CREATE, phase: 'afterCommit', handler: notify }]);
+    registry.seal(input());
+    expect(registry.afterCommit('widget.create').map((hook) => [hook.moduleId, hook.id])).toEqual([['acme_a', 'notify']]);
+    expect(registry.afterCommitHandler('acme_a', 'notify')).toMatchObject({ action: 'widget.create', handler: notify });
+    expect(registry.afterCommitHandler('acme_a', 'gone')).toBeUndefined();
+    // A beforeCommit hook is not a handler the drain may deliver to.
+    expect(registry.beforeCommit('widget.create')).toEqual([]);
+    expect(registry.claimants('widget.create')).toEqual(new Set(['acme_a']));
+  });
+
+  it('does not ask two unrelated modules to order their afterCommit handlers: rows are delivered unordered', () => {
+    const registry = new CommandHookRegistry();
+    registry.register('acme_b', [{ id: 'notify-b', on: CREATE, phase: 'afterCommit', handler: async () => undefined }]);
+    registry.register('acme_a', [{ id: 'notify-a', on: CREATE, phase: 'afterCommit', handler: async () => undefined }]);
+    registry.seal(input());
+    // Deterministic, by module id then registration order — and refused by nothing.
+    expect(registry.afterCommit('widget.create').map((hook) => hook.id)).toEqual(['notify-a', 'notify-b']);
+  });
+
+  it('still refuses an afterCommit handler on an action that does not offer the phase', () => {
+    const registry = new CommandHookRegistry();
+    const NOTE = hookableAction<{ id: string }>('widget.note', 'widget', ['beforeCommit']);
+    registry.register('acme_a', [{ id: 'notify', on: NOTE, phase: 'afterCommit', handler: async () => undefined }]);
+    const err = refusal(() =>
+      registry.seal(
+        input({
+          hookableActions: [
+            ...input().hookableActions,
+            { moduleId: 'widgets', action: 'widget.note', objectType: 'widget', phases: ['beforeCommit'] },
+          ],
+        }),
+      ),
+    );
+    expect(err).toBeInstanceOf(HookPhaseNotOfferedError);
+    expect(err.message).toContain('afterCommit');
   });
 
   it('answers the owner of a declared action, and nothing for another', () => {
@@ -174,6 +207,7 @@ describe('CommandHookRegistry — what it serves once sealed', () => {
       { id: 'second', on: CREATE, phase: 'beforeCommit', handler: noop },
     ]);
     registry.register('acme_c', [{ id: 'third', on: CREATE, phase: 'beforeCommit', handler: noop }]);
+    registry.register('acme_a', [{ id: 'notify-erp', on: ARCHIVE, phase: 'afterCommit', handler: async () => undefined }]);
     registry.seal(input());
     expect(registry.plan()).toEqual({
       actions: [
@@ -181,6 +215,7 @@ describe('CommandHookRegistry — what it serves once sealed', () => {
         { action: 'widget.create', objectType: 'widget', owner: 'widgets', phases: ['beforeCommit', 'afterCommit'] },
       ],
       items: [
+        { action: 'widget.archive', phase: 'afterCommit', position: 1, module: 'acme_a', id: 'notify-erp', moduleEnabled: true },
         { action: 'widget.create', phase: 'beforeCommit', position: 1, module: 'acme_a', id: 'first', moduleEnabled: true },
         { action: 'widget.create', phase: 'beforeCommit', position: 2, module: 'acme_a', id: 'second', moduleEnabled: true },
         { action: 'widget.create', phase: 'beforeCommit', position: 3, module: 'acme_c', id: 'third', moduleEnabled: false },

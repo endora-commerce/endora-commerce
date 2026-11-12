@@ -265,8 +265,10 @@ permission, and that the palette action reaches the screen.
   - an action declared hookable by two modules;
   - a duplicate `(module, id)`;
   - a hook module whose manifest `dependencies` do not reach the owning module;
-  - two hook modules on one action and phase with no dependency path between them and no deployment
-    declaration ordering them.
+  - two hook modules with `beforeCommit` hooks on one action and no dependency path between them and
+    no deployment declaration ordering them. `afterCommit` handlers are not ordered against each other
+    — each is its own outbox row, delivered on its own — so this refusal does not apply to them
+    (`contracts/outbox-and-admin-api.md`, amendment 3).
   Each failure MUST name the modules, the hook id and the action.
 - **FR-013**: The order of `beforeCommit` hooks on one action MUST be derived from the manifest
   dependency graph: a module's hooks run after the hooks of every module it transitively depends on.
