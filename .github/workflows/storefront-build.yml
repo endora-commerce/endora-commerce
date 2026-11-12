@@ -1,0 +1,80 @@
+# The storefront build, on every pull request (issue #109).
+#
+# `check:themes` judges the stylesheet `next build` emits, not the source — a
+# third-party theme's block exists in no source file of this repository, it
+# arrives through an `@import` and the CSS pipeline — so it runs as the last
+# step of `storefront`'s own `build` script and nowhere else. The only workflow
+# that built the storefront before this one was `demo.yml`, which runs on
+# `master` pushes and on dispatch, so a pull request that broke a theme was
+# found after it had merged. This job builds the storefront the way a developer
+# does, which runs `themes:generate`, `next build` and `check:themes` in that
+# order, and fails the pull request when any of them fails.
+#
+# ## Not a port of a GitLab job
+#
+# The GitLab pipeline built the storefront only inside `build:storefront`'s
+# image build, a `master`-only stage, so there is no floor job this mirrors and
+# `actions-floor-parity.test.ts` lists this file beside the other
+# canonical-host-only workflows. `backend/test/unit/ci/storefront-themes-gate.test.ts`
+# holds it: a `pull_request`-triggered job runs the storefront script that
+# carries `check:themes`, after the install and the package build, with no
+# `paths` filter.
+#
+# ## No paths filter, deliberately
+#
+# A job filtered away by `paths` reports no status at all, and a required check
+# that never reports blocks a pull request permanently — the reason `quality.yml`
+# ported no `changes:` ladder. A theme is also a package outside `storefront/`,
+# so no short path list would be the right one.
+#
+# ## The build inputs
+#
+# `next.config.js` refuses to build without `NEXT_PUBLIC_API_BASE_URL`, because
+# Next inlines it into the browser bundle. Nothing here is deployed, so the
+# values are placeholders on the loopback address: what this job asserts is that
+# the storefront builds and that its emitted stylesheet carries every declared
+# theme, neither of which depends on where the backend is.
+
+name: storefront-build
+
+on:
+  pull_request:
+    branches: [master]
+  push:
+    branches: [master]
+
+concurrency:
+  group: storefront-build-${{ github.ref }}
+  cancel-in-progress: ${{ github.event_name == 'pull_request' }}
+
+permissions:
+  contents: read
+
+jobs:
+  build-storefront:
+    name: build:storefront
+    runs-on: ubuntu-24.04
+    timeout-minutes: 30
+    permissions:
+      contents: read
+    env:
+      NEXT_PUBLIC_API_BASE_URL: http://127.0.0.1:4000
+      NEXT_PUBLIC_SITE_URL: http://127.0.0.1:3000
+      BACKEND_BASE_URL: http://127.0.0.1:4000
+      NEXT_TELEMETRY_DISABLED: '1'
+    steps:
+      - uses: actions/checkout@v7
+      - uses: actions/setup-node@v7
+        with:
+          node-version: '22.18'
+      - run: corepack enable && corepack prepare pnpm@9.15.0 --activate
+      - id: pnpm-store
+        run: echo "path=$(pnpm store path --silent)" >> "$GITHUB_OUTPUT"
+      - uses: actions/cache@v6
+        with:
+          path: ${{ steps.pnpm-store.outputs.path }}
+          key: pnpm-store-${{ hashFiles('pnpm-lock.yaml') }}
+          restore-keys: pnpm-store-
+      - run: pnpm install --frozen-lockfile
+      - run: pnpm run build:packages
+      - run: pnpm --filter storefront run build

@@ -16,7 +16,8 @@
     "create-endora-commerce": "./dist/bin/create-endora-commerce.js"
   },
   "files": [
-    "dist"
+    "dist",
+    "!dist/**/*.map"
   ],
   "engines": {
     "node": ">=22.18.0"

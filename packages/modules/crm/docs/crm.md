@@ -773,8 +773,10 @@ numbers. Marking messages read moves only your own marker, and never backwards;
 404. How far each administrator has read is stored in the table
 `crm_opportunity_message_reads`, one row per administrator and opportunity, and
 goes with the opportunity when it is deleted. `crm_message_read_baselines` holds
-the one instant from which unread messages are counted for somebody with no
-marker.
+the one instant from which unread messages are counted at all: a message is
+unread when it is newer than both that instant and your marker, so a marker
+older than the instant makes nothing unread again. The count takes the messages
+the *Messages* tab lists and no others.
 
 ## Attachments
 

@@ -31,7 +31,8 @@
   },
   "files": [
     "dist",
-    "tailwind.css"
+    "tailwind.css",
+    "!dist/**/*.map"
   ],
   "engines": {
     "node": ">=22.18.0"
