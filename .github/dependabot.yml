@@ -19,6 +19,13 @@ updates:
     commit-message:
       prefix: chore(deps)
       include: scope
+    ignore:
+      # MikroORM majors move every @mikro-orm/* package and every module's
+      # peer range together; that is a planned migration (#1073), not a bump.
+      # Remove this entry when #1073 is done.
+      - dependency-name: "@mikro-orm/*"
+        update-types:
+          - version-update:semver-major
     groups:
       production:
         dependency-type: production
