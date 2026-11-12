@@ -530,9 +530,10 @@ Corrections to this section's first version, as built:
 - A write that changes nothing writes no entry: naming the assignee already there, a note
   saved with the text it has, a tag set equal to the current one.
 - **A note's or a message's text is never in an audited state** — the entries carry the
-  comment's id, kind, author and the text's length (research N-R6). The Opportunity's own
-  entries do carry its title and description, a transition's its optional `reason`, an
-  attachment's the file name.
+  comment's id, kind, author and the text's length (research N-R6). *Since issue #470
+  (2026-11-09)* the Opportunity's own entries carry names and structure only — no title,
+  description, transition `reason` or attachment file name; those values are in
+  `crm_opportunity_value_changes`, which the change history reads (`specs/conventions/audit-state.md`).
 
 `crm.opportunity.assigned`, `crm.opportunity.message` and `crm.opportunity.mention` are not
 audit actions: they are the *kinds* of the three notification-bell entries
