@@ -367,7 +367,8 @@ describe('T6-C — a publishable package like every other, public since N3 (D-26
     expect(manifest.license).toBe('MIT');
     expect(manifest.repository?.directory).toBe('packages/create-endora-commerce');
     expect(manifest.publishConfig?.access).toBe('public');
-    expect(manifest.files).toEqual(['dist']);
+    // The source maps stay out of the tarball (issue #107).
+    expect(manifest.files).toEqual(['dist', '!dist/**/*.map']);
     expect(existsSync(join(PACKAGE_DIR, 'LICENSE'))).toBe(true);
     expect(existsSync(join(PACKAGE_DIR, 'README.md'))).toBe(true);
     // npmjs holds `0.0.1` of this name as the owner's placeholder (D-267), so

@@ -33,6 +33,14 @@ import baseConfig from '../../vitest.config.base.js';
 export default mergeConfig(
   baseConfig,
   defineConfig({
+    // The tests' transform reads `tsconfig.test.json`, not `tsconfig.json`. Vite 8
+    // transpiles through Oxc, which takes `experimentalDecorators` from the tsconfig
+    // that *includes* the file — and `tsconfig.json` excludes every `*.test.ts` (see
+    // `tsconfig.test.json`'s header). Without this, a test declaring a decorated entity
+    // (`src/tenancy/org-write-guard.test.ts`'s `@OrgScoped()`) reaches Node with the
+    // decorator untransformed and fails as `SyntaxError: Invalid or unexpected token`.
+    // Vite 7's esbuild took the nearest `tsconfig.json` whatever its `exclude`.
+    tsconfig: './tsconfig.test.json',
     test: {
       name: 'platform',
       environment: 'node',

@@ -34,7 +34,8 @@
   },
   "files": [
     "dist",
-    "docs"
+    "docs",
+    "!dist/**/*.map"
   ],
   "engines": {
     "node": ">=22.18.0"

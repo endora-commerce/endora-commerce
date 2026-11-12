@@ -5,7 +5,7 @@
  * The subject is the **artefact**, not the source tree, and this is the only
  * gate in this pipeline whose subject is that. `quality` type-checks sources,
  * `test:backend` runs vitest against sources, `overlay:check` renders generated
- * files from sources. Every one of the four defects
+ * files from sources. Every one of the defects
  * `backend/scripts/lib/pack-assert.ts` refuses is a property of the tarball and
  * is invisible in this checkout by construction — a workspace link resolves an
  * `exports` subpath against the *source* directory, and a `workspace:` range
