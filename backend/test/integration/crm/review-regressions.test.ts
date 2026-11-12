@@ -388,14 +388,18 @@ describe('crm review regressions', () => {
       }
     });
 
-    // Open, and not CRM's to close: `audit_logs` answers every entry to anybody
-    // holding `audit_log:read`, and the Opportunity's own audited state — which
-    // its change history is read from — carries the title (research N-R6).
-    it.fails('keeps the Opportunity’s title from that auditor too', async () => {
+    // `audit_logs` still answers every entry to anybody holding `audit_log:read`,
+    // but since issue #470 an Opportunity's entries carry names, never values: the
+    // title is in the CRM-owned value store the change history reads
+    // (specs/conventions/audit-state.md).
+    it('keeps the Opportunity’s title from that auditor too', async () => {
       const auditor = await seedCrmSalesRep(h.em(), [organizationA], ['crm:read', 'audit_log:read']);
       try {
         const secret = await createCrmOpportunity(h, { title: 'AUDIT-SECRET-TITLE', organizationId: organizationB });
         const audit = await asAuditor(secret.id, auditor.cookies);
+        expect(audit.statusCode, audit.body).toBe(200);
+        // The control: the entry is there to be read.
+        expect(audit.body).toContain('crm.opportunity.create');
         expect(audit.body).not.toContain('AUDIT-SECRET-TITLE');
       } finally {
         auditor.undo();

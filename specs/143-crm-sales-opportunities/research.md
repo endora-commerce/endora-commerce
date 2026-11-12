@@ -3004,6 +3004,11 @@ when it was measured, and what was done about it.
   sentence. Those are the Opportunity's change history (R-16 reads it from the audit trail),
   so removing them is a design change to that story rather than a fix; whether
   `audit_logs` should scope a read by the entry's subject is a question for its owner.
+  *Superseded 2026-11-09 (issue #470, D-288, `specs/conventions/audit-state.md`).* Every
+  `crm.opportunity.*` entry now carries names and structure only; the title, description,
+  reason, file name and the guard's sentence went to the CRM-owned
+  `crm_opportunity_value_changes`, from which the change history reads them. The `it.fails`
+  that pinned the title in `review-regressions.test.ts` is now a normal case (issue #1041).
 - **N-R7 (2026-10-06, review finding 7) — a date the calendar does not have is refused by
   the contract.** `calendarDateSchema` was the shape `YYYY-MM-DD` and nothing more, so
   `2026-13-45` reached `new Date(…)` in the list and the board (an `Invalid Date` bound into

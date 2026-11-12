@@ -117,8 +117,13 @@ describe('crm attachment upload', () => {
     const downloaded = await h.app.inject({ method: 'GET', url: `${link.pathname}${link.search}` });
     expect(downloaded.statusCode, downloaded.body).toBe(200);
     expect(downloaded.rawPayload.equals(bytes)).toBe(true);
+    // Without the signature the private file answers exactly like an id that
+    // names nothing — 404 ASSET_NOT_FOUND, not 403 — so holding the id does not
+    // confirm the file exists (issue #542; specs/156-asset-stable-url/contracts/
+    // file-serving.md, rule 2, amended 2026-11-09).
     const unsigned = await h.app.inject({ method: 'GET', url: link.pathname });
-    expect(unsigned.statusCode, 'a private file is not served without its signature').toBe(403);
+    expect(unsigned.statusCode, 'a private file is not served without its signature').toBe(404);
+    expect(unsigned.json().error.code).toBe(ERROR_CODES.ASSET_NOT_FOUND);
 
     const removed = await h.app.inject({
       method: 'DELETE',
