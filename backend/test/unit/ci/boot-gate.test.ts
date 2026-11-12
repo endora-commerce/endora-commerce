@@ -184,6 +184,33 @@ describe('overlays — D-165.3 second silence', () => {
     expect(findings[0]).toContain('67');
   });
 
+  it('lists the ids the platform did enumerate, sorted, on the one finding line (issue #111)', () => {
+    // An `overlay-missing` verdict once appeared on an unchanged commit and could
+    // not be diagnosed, because the finding said how many modules the platform
+    // enumerated and not which. Sorted, so two runs' findings compare as text;
+    // on one line, so a reader matching `overlay-missing:` still gets one record.
+    const path = fixture(
+      'presence.json',
+      presenceBody([
+        ['orders', true],
+        ['catalog', true],
+        ['ksef', false],
+      ]),
+    );
+    const findings = judge(`boot_gate_overlay_findings "${path}" example_overlay`);
+    expect(findings).toHaveLength(1);
+    expect(kinds(findings)).toEqual(['overlay-missing']);
+    expect(findings[0]).toContain('catalog,ksef,orders');
+  });
+
+  it('says so when the platform enumerated no module at all, rather than printing an empty list', () => {
+    const path = fixture('presence.json', '{"modules":[]}');
+    const findings = judge(`boot_gate_overlay_findings "${path}" example_overlay`);
+    expect(kinds(findings)).toEqual(['overlay-missing']);
+    expect(findings[0]).toContain('enumerates 0 modules');
+    expect(findings[0]).toContain('(none)');
+  });
+
   it('an overlay an operator switched off is not a finding — this gate asserts composition, not activation (D-165.6)', () => {
     // The fixture is the legitimate operator state the gate used to report: the
     // overlay is composed and its activation setting is off. `erp_incumbent_fixture`
