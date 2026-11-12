@@ -96,6 +96,32 @@ zatwierdzeniu korekty NIP, i nie dla korekty na wartość, która jest już zapi
   `GET /api/v1/admin/organizations`) przyjmują `?extensions=<moduleId>[,…]` i dołączają te
   wartości jako `extensions`. Bez parametru odpowiedzi się nie zmieniają. Zobacz *Zadeklarowane
   kolumny rozszerzeń* w przewodniku po architekturze.
+- **Haki poleceń** — cztery zapisy organizacji są zadeklarowane jako dostępne dla haków, więc inny
+  moduł może brać w nich udział wewnątrz ich transakcji (zob. *Akcje dostępne dla haków* poniżej).
+
+### Akcje dostępne dla haków
+
+Inny moduł — moduł nakładki wdrożenia albo zainstalowany pakiet — może uruchomić wewnątrz tych
+zapisów hak poleceń `beforeCommit`. Rejestruje go wobec referencji z
+`ORGANIZATION_HOOKABLE_ACTIONS` (`@endora-commerce/contracts`) i musi wymienić `organizations` w
+`dependencies` swojego manifestu. Hak widzi niezatwierdzoną organizację, może zapisywać własne
+tabele albo uruchomić polecenie przez `ctx.run` i może odrzucić zapis własnym kodem błędu, co
+wycofuje cały zapis. Jak haki są uruchamiane, porządkowane i odrzucane, opisuje strona
+architektury *Command Bus*.
+
+| Akcja | Referencja | Zapisywana przez | Dane haka |
+| --- | --- | --- | --- |
+| `organization.create` | `ORGANIZATION_HOOKABLE_ACTIONS.create` | `POST /api/v1/admin/organizations` | `organization`, `salesChannelIds` |
+| `organization.register` | `ORGANIZATION_HOOKABLE_ACTIONS.register` | `POST /api/v1/organizations/register` | `organization`, `customerAccountId`, `salesChannelId`, `registryLookupOutcome` |
+| `organization.admin_patch` | `ORGANIZATION_HOOKABLE_ACTIONS.adminPatch` | `PATCH /api/v1/admin/organizations/:id` | `organization`, `changedFields`, `changedCustomFields` |
+| `organization.set_custom_field_values` | `ORGANIZATION_HOOKABLE_ACTIONS.setCustomFieldValues` | `organizationCustomFieldWritePort` | `organization`, `changedFields`, `changedCustomFields` |
+
+Wszystkie cztery oferują obie fazy; faza `afterCommit` nie jest jeszcze dostarczana. Zmiany
+zgłoszone przez hak trafiają do jedynego wpisu audytu organizacji jako nazwy, w
+`extensions.<moduleId>.changedFields`. Hak rejestracji nigdy nie widzi tokenu weryfikacji e-mail.
+Dane rozszerzeń (`extensions`) może przekazać tylko kod po stronie serwera: żadne ciało żądania HTTP
+ich jeszcze nie przenosi. Późniejsze polecenia organizacji — zamiana organizacji osobistej, korekta
+NIP, przenoszenie w hierarchii — nie są zadeklarowane jako dostępne dla haków.
 
 ## Kanały sprzedaży
 

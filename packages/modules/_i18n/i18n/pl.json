@@ -2520,5 +2520,8 @@
   "scopedField.setPerChannel": "Ustawiane osobno dla kanału",
   "scopedField.sameEverywhere": "Takie samo w każdym zakresie.",
   "scopedField.notAtThisScope": "{levels} — nie dla poszczególnych języków.",
-  "scopedField.editAt": "Edytuj w zakresie: {scope}"
+  "scopedField.editAt": "Edytuj w zakresie: {scope}",
+  "errors.COMMAND_EXTENSION_UNCLAIMED": "To żądanie zawiera dane rozszerzenia, których żaden aktywny moduł nie przyjmuje dla tej operacji, więc nic nie zostało zapisane.",
+  "errors.COMMAND_HOOK_CYCLE": "Ta zmiana została odrzucona, ponieważ rozszerzenie próbowało powtórzyć ją wewnątrz niej samej. Nic nie zostało zapisane; skontaktuj się z administratorem zainstalowanych rozszerzeń.",
+  "errors.COMMAND_HOOK_DATA_MISSING": "Tej zmiany nie udało się przekazać zainstalowanym rozszerzeniom, więc nic nie zostało zapisane. Skontaktuj się z administratorem zainstalowanych rozszerzeń."
 }

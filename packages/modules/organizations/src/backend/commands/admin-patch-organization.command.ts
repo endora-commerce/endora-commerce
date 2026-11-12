@@ -1,8 +1,13 @@
 import type { z } from 'zod';
-import type { adminPatchOrganizationRequestSchema } from '@endora-commerce/contracts';
+import type {
+  adminPatchOrganizationRequestSchema,
+  OrganizationUpdateHookData,
+  OrganizationUpdateOutbox,
+} from '@endora-commerce/contracts';
 import type { Command } from '@endora-commerce/platform/commands';
 import type { Organization } from '../entities/organization.entity.js';
 import { organizationPatchAuditState, organizationPatchBaseline } from '../services/organization-audit-state.js';
+import { toOrganizationRecord } from '../services/organization-details-port.js';
 import {
   applyCustomFieldMerge,
   loadLiveOrganization,
@@ -47,11 +52,20 @@ export function makeAdminPatchOrganizationCommand(input: {
   changes: AdminOrganizationPatch;
   assertCurrent: (org: Organization) => void;
   mergeCustomFieldValues?: OrganizationCustomFieldMerge | undefined;
+  /** Extension input for the hook modules on this action, keyed by module id (176 FR-018). */
+  extensions?: Readonly<Record<string, unknown>> | undefined;
 }): Command<Organization> {
+  // The names the audit state computes, kept for the hook data: a hook is
+  // handed what changed exactly as the entry will name it.
+  let changed: { changedFields: string[]; changedCustomFields: string[] } = { changedFields: [], changedCustomFields: [] };
   return {
     action: 'organization.admin_patch',
     objectType: 'organization',
     objectId: input.organizationId,
+    // Hookable (176 FR-024, `ORGANIZATION_HOOKABLE_ACTIONS.adminPatch`).
+    ...(input.extensions ? { extensions: input.extensions } : {}),
+    hookData: (org): OrganizationUpdateHookData => ({ organization: toOrganizationRecord(org), ...changed }),
+    outboxData: (org): OrganizationUpdateOutbox => ({ organizationId: org.id, ...changed }),
     run: async ({ em }) => {
       const org = await loadLiveOrganization(em, input.organizationId);
       input.assertCurrent(org);
@@ -67,7 +81,12 @@ export function makeAdminPatchOrganizationCommand(input: {
       }
       if (input.mergeCustomFieldValues) await applyCustomFieldMerge(org, input.mergeCustomFieldValues);
       await em.flush();
-      return { result: org, ...organizationPatchAuditState(baseline, org) };
+      const state = organizationPatchAuditState(baseline, org);
+      changed = {
+        changedFields: state.after['changedFields'] as string[],
+        changedCustomFields: state.after['changedCustomFields'] as string[],
+      };
+      return { result: org, ...state };
     },
   };
 }

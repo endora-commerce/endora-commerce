@@ -1,5 +1,6 @@
 import type { EventBus } from '../events/bus.js';
 import type { ApiInterceptorRegistry } from '../http/interceptors/index.js';
+import type { CommandHookCompositionInput, CommandHookRegistry } from '../commands/hooks/registry.js';
 import { registerValues, type KernelContainer } from './container.js';
 import { effectiveState } from './lifecycle/effective-state.js';
 import {
@@ -167,6 +168,26 @@ export interface ComposeModulesOptions {
   readonly log: PlatformLogger;
   /** Absent in composition roots that mount no interceptor surface. */
   readonly interceptorRegistry?: ApiInterceptorRegistry | undefined;
+  /**
+   * The command-hook registry the root also handed its `CommandBus`
+   * (`specs/176-command-hooks-outbox/` P2). Every module's `ctx.commandHooks`
+   * registers into it, and this call **seals** it once the last module has
+   * registered — after the decoration drain, before the boot phase — which is
+   * where every composition refusal of FR-012 is raised. Absent in a
+   * composition root that wires no hooks; `ctx.commandHooks` then refuses.
+   */
+  readonly commandHookRegistry?: CommandHookRegistry | undefined;
+  /**
+   * What the registry is sealed against, as data the root derives — the same
+   * shape `requiredModules` has, for the same reason: the composer may not read
+   * a manifest. `hookableActionsFrom(manifests)` and
+   * `moduleDependencyClosureFrom(manifests)`, plus the deployment's
+   * `commandHookOrder` from its `divergence.ts`.
+   *
+   * Omitted with a registry present, the registry is sealed against nothing:
+   * no action is hookable, so any registered hook refuses the composition.
+   */
+  readonly commandHooks?: CommandHookCompositionInput | undefined;
   /**
    * Share one ledger across several `composeModules` calls — which is what a
    * root does while modules are converted one batch at a time, so a converted
@@ -369,6 +390,9 @@ export function composeModules(
         ...(options.interceptorRegistry
           ? { interceptorRegistry: options.interceptorRegistry }
           : {}),
+        ...(options.commandHookRegistry
+          ? { commandHookRegistry: options.commandHookRegistry }
+          : {}),
       });
 
       try {
@@ -416,6 +440,20 @@ export function composeModules(
       if (alreadyNamesTheModule(err)) throw err;
       throw new ModuleCompositionError(pending.moduleId, 'decorate', err);
     }
+  }
+
+  // ---- Sealing the command-hook registry (176 P2) ------------------------
+  //
+  // After the drain for the drain's own reason: registration order is
+  // meaningless, so what a hook may attach to is decided only once every
+  // module has registered. Before the boot phase, so a composition that hooks
+  // an undeclared action, or that cannot order two hook modules, refuses
+  // before any hook resolves anything. The errors name the modules, the hook
+  // and the action already, so they propagate unwrapped.
+  if (options.commandHookRegistry) {
+    options.commandHookRegistry.seal(
+      options.commandHooks ?? { hookableActions: [], moduleDependencies: {}, commandHookOrder: {} },
+    );
   }
 
   // The report is emitted, not merely available: a deployment running a client
@@ -475,6 +513,11 @@ export function composeModules(
         ...(entry.overlay === undefined ? {} : { overlay: entry.overlay }),
         ...(options.interceptorRegistry
           ? { interceptorRegistry: options.interceptorRegistry }
+          : {}),
+        // Sealed by now, so a hook registered from a command's context refuses
+        // with the registry's own message rather than "no registry mounted".
+        ...(options.commandHookRegistry
+          ? { commandHookRegistry: options.commandHookRegistry }
           : {}),
       });
     },

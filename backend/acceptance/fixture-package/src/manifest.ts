@@ -26,6 +26,12 @@ export const ACCEPTANCE_PROBE_PERMISSION = 'acceptance_probe:manage';
 /** The table the migration creates and the entity maps. */
 export const ACCEPTANCE_PROBE_TABLE = 'acceptance_probe_rows';
 
+/** The error code the package's command hook refuses a registration with (A11). */
+export const ACCEPTANCE_PROBE_REFUSED = 'ACCEPTANCE_PROBE_REFUSED';
+
+/** A registering Organization's name the hook acts on starts with this; one it refuses also contains `VETO`. */
+export const ACCEPTANCE_PROBE_HOOK_MARKER = 'ACCEPTANCE-HOOK ';
+
 export const manifest = {
   id: 'acceptance_probe',
   name: 'Acceptance Probe',
@@ -33,8 +39,10 @@ export const manifest = {
     'Synthetic third-party module. It exists to prove that a package installed from a tarball reaches the database, the composition, the permission catalogue and the command palette.',
   version: '1.0.0',
   // `backend/index.ts` resolves `requireAdmin`, which `auth` owns. A package
-  // declares that edge exactly as a core module does.
-  dependencies: ['auth'],
+  // declares that edge exactly as a core module does. `organizations` is the
+  // owner of the action its command hook runs inside (assertion A11, spec 176):
+  // composition refuses a hook module whose dependencies do not reach the owner.
+  dependencies: ['auth', 'organizations'],
   activation: {
     settingCode: ACCEPTANCE_PROBE_ACTIVATION_SETTING,
     default: true,
@@ -74,6 +82,9 @@ export const manifest = {
       label: 'Manage the acceptance probe module',
     },
   ],
+  // The code the package's command hook vetoes with (A11), translated in its
+  // own `i18n/` bundles like every code a module owns.
+  errorCodes: [{ code: ACCEPTANCE_PROBE_REFUSED }],
 };
 
 /**

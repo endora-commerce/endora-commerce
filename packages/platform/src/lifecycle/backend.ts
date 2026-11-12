@@ -2,11 +2,13 @@ import type { MfaDeactivationGuardPort, MfaEnrolmentCountPort } from '@endora-co
 import type { ModuleContext } from '../kernel/index.js';
 import { lazyPort } from '../kernel/index.js';
 import type { ApiInterceptorRegistry } from '../http/interceptors/index.js';
+import type { CommandHookRegistry } from '../commands/hooks/registry.js';
 import { registerApiDescriptionRoutes } from './routes.api-description.js';
 import { registerPlatformInfoRoutes } from '../http/platform-info.js';
 import type { RequireAdminFactory } from '../kernel/ports/require-admin.js';
 import {
   registerApiInterceptorAdminRoutes,
+  registerCommandHookAdminRoutes,
   registerLifecycleAdminRoutes,
   registerModulePresenceRoutes,
   type LifecycleAdminDeps,
@@ -49,6 +51,12 @@ export interface LifecycleCradle {
   readonly requireAdmin: RequireAdminFactory;
   readonly apiInterceptors: ApiInterceptorRegistry;
   /**
+   * The composition's command-hook registry (176 P2), registered by both roots
+   * beside `commandBus`. Read only when the root registered it: a composition
+   * that wires no hooks serves no execution plan.
+   */
+  readonly commandHookRegistry?: CommandHookRegistry;
+  /**
    * How a committed activation flip reaches the rest of the deployment:
    * refreshing local state, publishing to other processes, dropping the
    * storefront's cache. Root-shaped because the harness refreshes through the
@@ -86,6 +94,15 @@ export function registerModule(ctx: ModuleContext): void {
         registry: cradle.apiInterceptors,
         requireAdmin: cradle.requireAdmin,
       });
+
+      // `'commandHookRegistry' in cradle` asks the container rather than
+      // resolving: a root that wires no hooks registers no registry.
+      if ('commandHookRegistry' in cradle) {
+        registerCommandHookAdminRoutes(app, {
+          registry: cradle.commandHookRegistry as CommandHookRegistry,
+          requireAdmin: cradle.requireAdmin,
+        });
+      }
 
       registerModulePresenceRoutes(app, {
         requireAdmin: cradle.requireAdmin,

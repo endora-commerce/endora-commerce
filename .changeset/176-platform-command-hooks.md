@@ -1,0 +1,13 @@
+---
+'@endora-commerce/platform': minor
+---
+
+**`beforeCommit` command hooks** (`specs/176-command-hooks-outbox/` P2, `contracts/command-hooks-api.md`).
+
+- **`ModuleContext.commandHooks(entries)`** registers hooks on actions another module declared hookable; each entry's `data` is typed by the ref it names. The module id is stamped by the context; registration resolves nothing and refuses once composition is sealed.
+- **`CommandBus`** runs the present hooks of a declared action after the owner's `run` and before its audit entry, on the same transaction, actor and `em`. A hook may run children through `ctx.run`, veto by throwing an `HttpError` (the whole Command rolls back), and name what it wrote with `ctx.noteAuditChanges(fields)` — merged as names into the owner's one entry under `stateAfter.extensions.<moduleId>.changedFields`. A hook whose module is switched off is skipped per call. New refusals: `422 COMMAND_EXTENSION_UNCLAIMED` for an `extensions` key no present hook module claims (before any write), `500 COMMAND_HOOK_CYCLE` for an action reappearing in its own hook chain or a ninth level, `500 COMMAND_HOOK_DATA_MISSING` for a hooked Command without `hookData`.
+- **`Command`** gains optional `hookData(result)`, `outboxData(result)` and `extensions`. A Command whose action nobody hooks behaves exactly as before.
+- **`./commands`** publishes `CommandHookContext`, `BeforeCommitHook`, `CommandHookEntry`, `AfterCommitContext`, `AfterCommitHandler`, `CommandHookRefusal`, `currentCommandHookOrigin` / `CommandHookOrigin`, and the seven composition refusals (`UndeclaredHookableActionError`, `HookPhaseNotOfferedError`, `DuplicateHookableActionError`, `DuplicateCommandHookError`, `HookOwnerNotDependedOnError`, `UnorderedCommandHooksError`, `CommandHookOrderContradictionError`).
+- **Composition** (`./composition`): `CommandHookRegistry`, `hookableActionsFrom(manifests)` and `moduleDependencyClosureFrom(manifests)`. `composeModules` takes `commandHookRegistry` and `commandHooks` and seals the registry after the decoration drain, before boot hooks; `composeApp` wires both and takes `commandHookOrder` from the deployment's declaration. A root that passes no registry runs no hooks, and `ctx.commandHooks` refuses there.
+- **`GET /api/v1/admin/command-hooks`** (`_lifecycle`, behind `platform.modules.read`): every declared action and every hook at its position, with live module presence.
+- **`afterCommit` is not delivered yet.** The types ship so a ref names both phases, but registering an `afterCommit` handler is refused until the transactional outbox lands, rather than accepting a handler nothing would call.

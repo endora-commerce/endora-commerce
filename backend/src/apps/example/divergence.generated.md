@@ -15,6 +15,7 @@ sentence this deployment wrote when it made the change.
 | Overlay module |
 | --- |
 | `carrier_fixture` |
+| `command_hook_fixture` |
 | `erp_challenger_fixture` |
 | `erp_incumbent_fixture` |
 | `example_overlay` |
@@ -28,13 +29,22 @@ sentence this deployment wrote when it made the change.
 
 ### Endpoints this deployment intercepts
 
-rung 2 — run before or after what the owner already serves. Costs a coupling to an endpoint identity, which is versioned public API.
+rung 2 — run before or after what the owner already serves, or inside a write it declared hookable. Costs a coupling to an endpoint identity or a hookable action, both versioned public API.
 
 | What | Changed by | Owned by | Why |
 | --- | --- | --- | --- |
 | `GET /api/v1/admin/example-overlay/ping` (post) | `example_overlay` | `example_overlay` | Core serves nothing on this endpoint: the route is this deployment’s own, and the interceptor stamps its response so that the reference deployment demonstrates the rung-2 seam end to end. It runs after the handler and adds a field; it vetoes nothing and writes nothing, which is what a `post` interceptor may do. |
 | `POST /api/v1/admin/modules/:id/activation` (pre) | `ledger_challenger_fixture` | `_lifecycle` | The same enforcement `ledger_vendor_fixture` carries, for this member: it runs before the kernel’s activation handler and vetoes only a request switching this module on while a sibling vendor is active. Every other activation, and every deactivation, passes through untouched. |
 | `POST /api/v1/admin/modules/:id/activation` (pre) | `ledger_vendor_fixture` | `_lifecycle` | The exclusive capability’s enforcement, which is each member’s own. It runs before the kernel’s activation handler, asks `invoice_ledger` whether a sibling vendor is already active, and refuses with the owner’s code when one is. It vetoes only a request naming this module and only when that request switches it on; every other activation, and every deactivation, passes through untouched. |
+
+### Writes this deployment takes part in
+
+rung 2 — run before or after what the owner already serves, or inside a write it declared hookable. Costs a coupling to an endpoint identity or a hookable action, both versioned public API.
+
+| What | Changed by | Owned by | Why |
+| --- | --- | --- | --- |
+| `organization.create` (beforeCommit, `observe-create`) | `command_hook_fixture` | `organizations` | Core creates an Organization in one audited Command. This fixture takes part in that write only for an Organization whose name carries its marker: inside the same transaction it records an audit entry of its own, names what it wrote in the core entry, and refuses with its own translated code when the name also carries its veto word. It is the reference hook module the command-hook contract tests compose, and it changes nothing for any other name. |
+| `organization.register` (beforeCommit, `observe-register`) | `command_hook_fixture` | `organizations` | The same hook on storefront self-registration, which is one Command since spec 176 P1. On a marked name it writes its own audit entry inside the registration transaction and may refuse the registration with its own code, so the whole registration — Organization, first account, token — rolls back; any other name passes through untouched. |
 
 ### Ports this deployment consumes
 

@@ -32,7 +32,10 @@ A closed list. The **shape** decides, not the business meaning:
   dictionary codes (not their labels);
 - booleans, `version`, counts and lengths (`itemCount`, `lineCount`, `descriptionLength`);
 - dates and timestamps;
-- `changedFields` / `changedCustomFields`: the sorted names of what changed;
+- `changedFields` / `changedCustomFields`: the sorted names of what changed — including
+  `extensions.<moduleId>.changedFields`, the names a command hook noted it wrote, which the
+  Command Bus merges into the owner's entry and refuses unless each is a field name
+  (`specs/176-command-hooks-outbox/` FR-020);
 - an opaque id pointing to a row in the module's own value store (`valueChangeId`).
 
 ### 2. Must not be recorded

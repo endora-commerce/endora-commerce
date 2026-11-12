@@ -93,7 +93,16 @@ describe('collectRuntimeAssets — what a compiled tree is missing', () => {
   it('finds every translation bundle this application compiles, and no other kind', () => {
     const { assets } = collectRuntimeAssets(SRC_ROOT);
 
-    const bundles = assets.filter((path) => /\/i18n\/(en|pl)\.json$/.test(path));
+    // A deployment's overlay module ships its bundles beside its manifest under
+    // `src/apps/<deployment>/modules/<id>/i18n/` (spec 176's `command_hook_fixture`
+    // is the first), and the copier carries them, because a compiled deployment
+    // reconciles them from there. They are no registered module's, so they are
+    // held apart: every one sits in an overlay module directory, in pairs.
+    const allBundles = assets.filter((path) => /\/i18n\/(en|pl)\.json$/.test(path));
+    const overlayBundles = allBundles.filter((path) => /(^|\/)apps\/[^/]+\/modules\/[^/]+\/i18n\//.test(path));
+    const overlayModules = new Set(overlayBundles.map((path) => path.replace(/\/i18n\/(en|pl)\.json$/, '')));
+    expect(overlayBundles).toHaveLength(overlayModules.size * 2);
+    const bundles = allBundles.filter((path) => !overlayBundles.includes(path));
     // One per shipped language, for every module that declares bundles **and
     // whose sources this build compiles**. Derived from the registry rather than
     // written down, so a module that starts or stops shipping translations moves

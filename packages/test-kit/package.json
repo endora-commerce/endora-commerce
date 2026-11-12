@@ -29,6 +29,10 @@
       "types": "./dist/audit/index.d.ts",
       "default": "./dist/audit/index.js"
     },
+    "./command-hooks": {
+      "types": "./dist/command-hooks/index.d.ts",
+      "default": "./dist/command-hooks/index.js"
+    },
     "./package.json": "./package.json"
   },
   "files": [

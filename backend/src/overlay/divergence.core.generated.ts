@@ -13,6 +13,7 @@ export const DIVERGENCE_REPORT: DivergenceReport = {
   "entries": [],
   "boundary": {
     "recorded": [
+      "command-hook",
       "decoration",
       "interceptor",
       "omission",

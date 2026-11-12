@@ -1,5 +1,6 @@
 {
   "actions.openAcceptanceProbe.label": "Open acceptance probe",
   "actions.openAcceptanceProbe.description": "Open the acceptance probe screen shipped by the fixture package.",
-  "activity.verb.acceptance_probe.execute": "ran the acceptance probe"
+  "activity.verb.acceptance_probe.execute": "ran the acceptance probe",
+  "errors.ACCEPTANCE_PROBE_REFUSED": "The acceptance probe refused this registration."
 }

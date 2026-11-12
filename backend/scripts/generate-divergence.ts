@@ -146,6 +146,8 @@ export interface DivergenceEnvironment {
   readonly rootSupplied: ReadonlySet<string>;
   readonly routes: ReadonlyMap<string, string | null>;
   readonly seams: readonly string[];
+  /** Hookable action → the module whose manifest declares it (176), the owner of a `command-hook` entry. */
+  readonly actionOwners: ReadonlyMap<string, string>;
   /** Files opened building all of the above — the run's `files`, half of it. */
   readonly filesRead: number;
   /** Every module source the walk opened — issue #215's floor, as its input. */
@@ -335,11 +337,22 @@ async function buildEnvironment(): Promise<DivergenceEnvironment> {
   // emitted-artefact freshness refusal is computed over, because the owner map's
   // third source reads a package's build output.
   const index = (await import(pathToFileURL(layout.manifestIndexPath).href)) as {
-    DISCOVERED_MANIFESTS?: ReadonlyArray<{ manifestPath?: string }>;
+    DISCOVERED_MANIFESTS?: ReadonlyArray<{
+      manifestPath?: string;
+      manifest?: { id?: string; hookableActions?: ReadonlyArray<{ action: string }> };
+    }>;
   };
   const manifestLocations = (index.DISCOVERED_MANIFESTS ?? [])
     .map((entry) => entry.manifestPath)
     .filter((path): path is string => path !== undefined);
+  // `specs/176-command-hooks-outbox/` — who declares each hookable action, from
+  // the same generated index: the owner a `command-hook` entry names.
+  const actionOwners = new Map<string, string>();
+  for (const entry of index.DISCOVERED_MANIFESTS ?? []) {
+    const moduleId = entry.manifest?.id;
+    if (moduleId === undefined) continue;
+    for (const declaration of entry.manifest?.hookableActions ?? []) actionOwners.set(declaration.action, moduleId);
+  }
 
   return {
     layout,
@@ -347,6 +360,7 @@ async function buildEnvironment(): Promise<DivergenceEnvironment> {
     rootSupplied: rootSuppliedNames({ rootNames, kernelNames, owners }),
     routes: routeIdentities(routeSources),
     seams: moduleContextSeams(seamSource),
+    actionOwners,
     filesRead: routeSources.length,
     moduleFiles,
     moduleIdOfFile: (file) => moduleOf(file, layout.hostResidentModules),
@@ -447,6 +461,7 @@ export async function renderDivergence(
       routes: shared.routes,
       owners: shared.owners,
       rootSupplied: shared.rootSupplied,
+      actionOwners: shared.actionOwners,
       declaration: await loadDeclaration(deployment),
       seams: shared.seams,
     },

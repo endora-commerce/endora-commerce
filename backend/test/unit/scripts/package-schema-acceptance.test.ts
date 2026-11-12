@@ -866,11 +866,13 @@ describe('the runner spawns exactly the phases the probe implements', () => {
     // `overlay-decoration` (A10) sits between the install and the gates: it needs
     // the package fully present, and it must not run after the activation flips
     // have moved its Setting or after the hard uninstall has taken its
-    // registration away.
+    // registration away. `command-hook` (A11, spec 176) needs the same: the
+    // package installed and on, so its hook is composed and present.
     expect(spawned).toEqual([
       'schema',
       'boot',
       'install',
+      'command-hook',
       'overlay-decoration',
       'gate-off',
       'gate-on',

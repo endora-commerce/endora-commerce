@@ -18,6 +18,17 @@ export const ORGANIZATION_HOOKABLE_ACTIONS = {
 
 `adminPatch` and `setCustomFieldValues` are declared in the change that lands after #990 (OD-3).
 
+**Amended (P2, 2026-11-12).** #990 was on `master` when P2 started, so OD-3's condition for the
+two-action fallback did not arise and all four are declared, in `organization-hooks.ts` (re-exported
+from the package root). The later Commands on `master` — 177's `organization.convert_to_company`
+and #1045's `organization.tax_id.change` — are **not** declared: whether they should be is an open
+design question, and a declaration is a public contract. `extensions` reaches
+`makeCreateOrganizationCommand` as a third `options` argument rather than inside the request body,
+so nothing an HTTP body carries can become extension input; the other three take it in their input
+object. `register`'s `registryLookupOutcome` is the matched lookup row's outcome code, `null`
+without one. A hook's noted changes are names under `extensions.<moduleId>.changedFields`, and
+`ORGANIZATION_AUDIT_KEYS` lists `extensions`.
+
 ## Data shapes
 
 `OrganizationRecord` is the existing published record (`toOrganizationRecord`). In a hook it

@@ -2,6 +2,8 @@ import { createHash, randomBytes, randomUUID } from 'node:crypto';
 import type { EntityManager } from '@mikro-orm/postgresql';
 import type {
   CustomerAccountRecord,
+  OrganizationRegisterHookData,
+  OrganizationRegisterOutbox,
   PreparedCustomerAccountCreate,
   RegisterOrganizationRequest,
 } from '@endora-commerce/contracts';
@@ -13,6 +15,7 @@ import { Organization } from '../entities/organization.entity.js';
 import { OrganizationTaxIdValidation } from '../entities/organization-tax-id-validation.entity.js';
 import type { RegistrationValidationRow } from '../registry-lookup/registration-snapshot.js';
 import { ORGANIZATION_CREATED_FIELDS, presentFields } from '../services/organization-audit-state.js';
+import { toOrganizationRecord } from '../services/organization-details-port.js';
 import { predefinedRoleIdOn } from '../services/organization-role-store.js';
 import { organizationWriteError, taxIdExistsRefusal } from '../services/organization-write.js';
 import { TaxIdLookupService } from '../services/tax-id-lookup-service.js';
@@ -81,6 +84,12 @@ export interface RegisterOrganizationCommandInput {
   lookupRow: RegistrationValidationRow | null;
   /** The first account, its password already hashed. */
   account: PreparedCustomerAccountCreate;
+  /**
+   * Extension input for the hook modules on `organization.register`, keyed by
+   * module id (`specs/176-command-hooks-outbox/` FR-018). No HTTP field carries
+   * it yet; spec 178 decides that.
+   */
+  extensions?: Readonly<Record<string, unknown>>;
 }
 
 export interface RegisterOrganizationResult {
@@ -102,6 +111,21 @@ export function makeRegisterOrganizationCommand(
     action: 'organization.register',
     objectType: 'organization',
     objectId: organizationId,
+    // `organization.register` is hookable (176 FR-024). A hook sees the new
+    // Organization and its first account on this transaction — never the raw
+    // verification token, which only the caller's result carries.
+    ...(input.extensions ? { extensions: input.extensions } : {}),
+    hookData: (result): OrganizationRegisterHookData => ({
+      organization: toOrganizationRecord(result.organization),
+      customerAccountId: result.customerAccount.id,
+      salesChannelId: input.salesChannelId,
+      registryLookupOutcome: input.lookupRow?.outcome ?? null,
+    }),
+    outboxData: (result): OrganizationRegisterOutbox => ({
+      organizationId: result.organization.id,
+      customerAccountId: result.customerAccount.id,
+      status: result.organization.status,
+    }),
     run: async (ctx) => {
       const { em } = ctx;
       if (!ctx.run) throw new Error('organization.register runs its account as a child Command; run it on the bus.');

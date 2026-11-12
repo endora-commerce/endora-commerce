@@ -94,27 +94,31 @@ Branch `feat/176-p2-command-hooks`.
 
 ### Contracts first
 
-- [ ] T020 [US2] `packages/contracts/src/command-hooks.ts`: `hookableAction`,
+- [x] T020 [US2] `packages/contracts/src/command-hooks.ts`: `hookableAction`,
   `HookableActionRef`, `HookableActionDeclarationSchema`, `toHookableActionDeclaration`, the error
   code constants, and the `OutboxData` types. In `modules.ts`, add `hookableActions` to
   `ModuleManifestSchema` (refusing duplicates), `'command-hook'` to `DivergenceKind`, and
   `commandHookOrder` to `DeploymentDivergenceDeclarationSchema`. Tests go in
-  `command-hooks.test.ts` and `modules.test.ts`. [FR-010, FR-014, FR-026]
-- [ ] T021 [US2] `ORGANIZATION_HOOKABLE_ACTIONS` and the data types in `packages/contracts/src/organizations.ts`
-  (`contracts/organization-hookable-actions.md`). [FR-024]
+  `command-hooks.test.ts` and `modules.test.ts`. [FR-010, FR-014, FR-026] *(`commandHookOrder` is
+  optional, not defaulted, so an instance's typed `divergence.ts` keeps compiling; the three codes are
+  also in `ERROR_CODES`; the plan response schema `CommandHookPlanResponseSchema` lands here because
+  T037's route needs it.)*
+- [x] T021 [US2] `ORGANIZATION_HOOKABLE_ACTIONS` and the data types in `packages/contracts/src/organizations.ts`
+  (`contracts/organization-hookable-actions.md`). [FR-024] *(In the sibling `organization-hooks.ts`,
+  re-exported from the root, as the contract allows.)*
 
 ### Tests (RED)
 
-- [ ] T022 [P] [US2] `packages/platform/src/commands/hooks/registry.test.ts`: one test per
+- [x] T022 [P] [US2] `packages/platform/src/commands/hooks/registry.test.ts`: one test per
   composition refusal: undeclared action, phase not offered, duplicate declaration, duplicate
   `(module, id)`, owner not depended on, unordered pair, order contradiction. Each test also checks
   that the message names the modules, the id and the action. [FR-012]
-- [ ] T023 [P] [US2] `hooks/ordering.test.ts`: transitive dependency order, intra-module
+- [x] T023 [P] [US2] `hooks/ordering.test.ts`: transitive dependency order, intra-module
   registration order, `commandHookOrder` tie-break, determinism (shuffled input gives the same
   order). [FR-013, FR-014]
-- [ ] T024 [P] [US2] `packages/platform/src/kernel/module-context.commandhooks.test.ts`: the module
+- [x] T024 [P] [US2] `packages/platform/src/kernel/module-context.commandhooks.test.ts`: the module
   id is stamped; registration after sealing throws; registration resolves nothing. [FR-011]
-- [ ] T025 [US2] `packages/platform/src/commands/command-bus.hooks.test.ts`:
+- [x] T025 [US2] `packages/platform/src/commands/command-bus.hooks.test.ts`:
   - the hook sees the same em and actor;
   - a child run through `ctx.run` audits inside the transaction;
   - an `HttpError` veto propagates with no rows and no entries;
@@ -126,47 +130,63 @@ Branch `feat/176-p2-command-hooks`.
   - a cycle and depth 9 give `COMMAND_HOOK_CYCLE`;
   - missing `hookData` gives `COMMAND_HOOK_DATA_MISSING`.
   [FR-015 to FR-020, FR-022, FR-023, SC-002]
-- [ ] T026 [P] [US2] `hooks/origin.test.ts`: `currentCommandHookOrigin()` is set inside the hook and
+- [x] T026 [P] [US2] `hooks/origin.test.ts`: `currentCommandHookOrigin()` is set inside the hook and
   its child Commands, and is undefined outside. [FR-021]
-- [ ] T027 [P] [US2] `packages/test-kit/src/command-hooks/expect-hookable-command.test.ts`: the
+- [x] T027 [P] [US2] `packages/test-kit/src/command-hooks/expect-hookable-command.test.ts`: the
   helper fails for a Command without `hookData` or `outboxData` for its declared phases. [FR-023]
-- [ ] T028 [US2] Organizations Command tests (`create-organization.command.test.ts`,
+- [x] T028 [US2] Organizations Command tests (`create-organization.command.test.ts`,
   `register-organization.command.test.ts`, and the #990 `admin-patch` / `set-custom-field-values`
   tests) call `expectHookableCommand` with the matching ref. `manifest.test.ts` asserts four
-  declarations (two if OD-3 falls back). [FR-024]
-- [ ] T029 [US2] `backend/test/contract/organizations/organization-hooks.contract.test.ts`: a
+  declarations (two if OD-3 falls back). [FR-024] *(One file,
+  `organizations/src/backend/commands/organization-hookable-actions.test.ts`, holds all four Commands
+  to their refs on a real bus with a sealed registry, and asserts the four manifest declarations:
+  `create` and `set_custom_field_values` had no Command test file to extend. OD-3 did not fall back —
+  #990 was merged.)*
+- [x] T029 [US2] `backend/test/contract/organizations/organization-hooks.contract.test.ts`: a
   fixture module hooks `organization.create` and `organization.register`. The test checks that the
   hook's row commits with the core row, that a veto answers the fixture's declared code translated
   pl/en, and an **off-state** case where the fixture is deactivated and responses equal those of a
-  composition without it. [FR-015, FR-016, FR-017, SC-005]
-- [ ] T030 [US2] `backend/scripts/acceptance/instance-probe.ts`: a new phase `command-hook`. An
+  composition without it. [FR-015, FR-016, FR-017, SC-005] *(The fixture is the `example`
+  deployment's overlay module `command_hook_fixture`. An overlay may own no table (D-106), so its
+  "row" is an audit entry of its own Command run through `ctx.run`. The operator's create is answered
+  in the operator's stored language (D-132), so Polish is asserted on the anonymous registration.
+  Writing it found a harness gap: `test-server.ts` reconciled bundles from bare core even for a
+  deployment, so an overlay's error sentences were never translated in tests; the registry is
+  deployment-aware now, as `composeApp`'s is.)*
+- [x] T030 [US2] `backend/scripts/acceptance/instance-probe.ts`: a new phase `command-hook`. An
   installed-package fixture hooks `organization.create`, and the probe asserts that it ran and that
-  a veto works. [FR-025]
-- [ ] T031 [P] [US2] `packages/cli` divergence tests: a hook registration is reported as
+  a veto works. [FR-025] *(It hooks `organization.register` instead: the probe process has no
+  operator session for the admin create, and the storefront registration is the anonymous write.
+  New assertion A11, recorded `pass` in `expected-state.json`.)*
+- [x] T031 [P] [US2] `packages/cli` divergence tests: a hook registration is reported as
   `command-hook:<module>:<action>#<id>`. [FR-026]
 
 ### Implementation (GREEN)
 
-- [ ] T032 [US2] `packages/platform/src/commands/hooks/` (registry, ordering, origin ALS, errors).
+- [x] T032 [US2] `packages/platform/src/commands/hooks/` (registry, ordering, origin ALS, errors).
   Extend `Command` with `hookData`, `outboxData` and `extensions`, and add dispatch to
   `CommandBus.execute` per `contracts/command-hooks-api.md` §4. Export the symbols from
   `commands/index.ts` and update `published-surface.test.ts`. [FR-011 to FR-023]
-- [ ] T033 [US2] `ctx.commandHooks` in `kernel/module-context.ts`, and registry sealing in
+- [x] T033 [US2] `ctx.commandHooks` in `kernel/module-context.ts`, and registry sealing in
   `kernel/compose.ts` (new option `commandHooks` with `hookableActions`, `moduleDependencies` and
   `commandHookOrder` as data). Wire `composition/compose-app.ts` and `backend/test/test-server.ts`
   identically, and keep `harness-parity.test.ts` green. [FR-011 to FR-014]
-- [ ] T034 [US2] Root derivation helpers `hookableActionsFrom(manifests)` and
+- [x] T034 [US2] Root derivation helpers `hookableActionsFrom(manifests)` and
   `moduleDependencyClosureFrom(manifests)`, beside `requiredModulesFrom`. [FR-012, FR-013]
-- [ ] T035 [US2] `organizations`: list the refs in `manifest.ts` `hookableActions`, and add
+- [x] T035 [US2] `organizations`: list the refs in `manifest.ts` `hookableActions`, and add
   `hookData` / `outboxData` / `extensions` pass-through to the four Commands. [FR-024]
-- [ ] T036 [US2] `packages/test-kit/src/command-hooks/` (`expectHookableCommand` and a recording
+- [x] T036 [US2] `packages/test-kit/src/command-hooks/` (`expectHookableCommand` and a recording
   hook fixture), plus `_lifecycle` error codes and pl/en translations for the three new codes.
-  [FR-016, FR-019, FR-022, FR-023]
-- [ ] T037 [US2] `packages/cli/src/generate/divergence.ts` `command-hook` kind. Regenerate the
+  [FR-016, FR-019, FR-022, FR-023] *(The codes are declared and translated by `_i18n`, the
+  platform-vocabulary owner on `master`, not by `_lifecycle`. The kit also exports
+  `sealedCommandHookRegistry`, because a module's test may not name `./composition`.)*
+- [x] T037 [US2] `packages/cli/src/generate/divergence.ts` `command-hook` kind. Regenerate the
   divergence artefacts, and `GET /api/v1/admin/command-hooks` in `lifecycle/routes.admin.ts` with
   its contract test `backend/test/contract/platform/command-hooks-plan.contract.test.ts` (RED first
-  within this task). [FR-026, FR-040]
-- [ ] T038 [US2] Changesets (contracts, platform, mod-organizations, test-kit, cli: minor). Docs:
+  within this task). [FR-026, FR-040] *(The kind is rung 2, beside interceptors (ladder 2a/2b),
+  rather than a new rung between 2 and 3 that would renumber 3–5 in every report. An instance's
+  report does not attribute a hooked action's owner and says so in its boundary.)*
+- [x] T038 [US2] Changesets (contracts, platform, mod-organizations, test-kit, cli: minor). Docs:
   the `command-bus.md` hooks section, the ladder seam with the stale note removed, the
   `organizations.md` hookable-actions table, all EN+PL with the translation cache. [FR-043]
 

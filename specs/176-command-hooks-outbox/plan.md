@@ -248,6 +248,8 @@ trap).
   `register`, and the two update actions follow in the MR after #990. **Recommendation: merge #990
   first.** It already converts the admin PATCH to a Command, and duplicating that here would
   conflict.
+  *Resolved by its own condition (2026-11-12):* #990 was merged when P2 started, so P2 declares
+  all four. No separate owner ruling is recorded.
 - **OD-4 — the registration audit payload goes names-only in P1.** It is a behaviour change visible
   in the audit screen. **Recommendation: yes** (O-2 and `audit-state.md` §2 already require it for
   new code). It needs an upgrade note in the changeset.

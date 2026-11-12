@@ -35,6 +35,9 @@ interface Command<TResult> {
   capture?(ctx): Promise<AuditState>;                 // optional pre-state
   run(ctx): Promise<{ result: TResult; before?; after?; skipAudit? }>;
   event?(result): CommandEvent | undefined;           // dispatched once on commit
+  hookData?(result): unknown;                         // required when the action is hookable
+  outboxData?(result): OutboxData;                    // afterCommit data, ids and codes only
+  extensions?: Record<string, unknown>;               // caller input for hook modules, by module id
 }
 ```
 
@@ -80,6 +83,95 @@ przez ścieżkę dostępu rekordu z jego zakresem; wpis audytu wskazuje ten wier
 `valueChangeId`. Rekordy globalne platformy (katalog, ustawienia, słowniki) nadal mogą zapisywać
 wartości. Regułę i obowiązek testowy opisuje w repozytorium `specs/conventions/audit-state.md`
 (zgłoszenie #470).
+
+## Haki poleceń (`beforeCommit`) {#command-hooks-beforecommit}
+
+Moduł może brać udział w **zapisie innego modułu** bez jego forkowania, ale tylko w zapisie, który
+moduł-właściciel otworzył dla haków. Właściciel **deklaruje** akcję polecenia jako dostępną dla
+haków: publikuje typowaną referencję w `@endora-commerce/contracts` i wymienia ją w
+`hookableActions` swojego manifestu. `organizations` deklaruje cztery (zob. stronę modułu). Każdy
+moduł — moduł rdzenia, moduł nakładki wdrożenia albo zainstalowany pakiet — rejestruje wtedy hak:
+
+```ts
+import { ORGANIZATION_HOOKABLE_ACTIONS as ORG } from '@endora-commerce/contracts';
+import { CommandHookRefusal } from '@endora-commerce/platform/commands';
+
+export function registerModule(ctx: ModuleContext): void {
+  ctx.commandHooks([
+    {
+      id: 'refuse-unserved-country',
+      on: ORG.register,
+      phase: 'beforeCommit',
+      handler: ({ data }) => {
+        if (!SERVED.has(data.organization.registeredAddress.country)) {
+          throw new CommandHookRefusal(409, ACME_COUNTRY_NOT_SERVED, 'We do not serve this country.');
+        }
+      },
+    },
+  ]);
+}
+```
+
+**Kiedy działa.** Wewnątrz transakcji polecenia, po `run` właściciela i przed jego wpisem audytu:
+`capture → run → haki → wpis audytu → zdarzenie → commit`. Hak dostaje zadeklarowane przez
+właściciela `data` (typowane przez referencję, odzwierciedlające niezatwierdzony zapis), to samo
+`em` i tego samego aktora oraz `ctx.run(child)`, by uruchomić w tej samej transakcji własne
+polecenie albo polecenie innego właściciela, z jego własnym wpisem audytu.
+
+**Weto.** Hak odmawia, rzucając `HttpError` z kodem, który jego moduł deklaruje i tłumaczy
+(`CommandHookRefusal` to czytelniejsza podklasa). Całe polecenie jest wycofywane — wiersz
+właściciela, każde polecenie potomne, każdy wpis i zdarzenie — a wywołujący dostaje ten status i
+kod. Każdy inny wyjątek również wycofuje zapis i daje odpowiedź `500`.
+
+**To, co hak zapisał, jest nazwane w jedynym wpisie właściciela.** Hak zapisujący własne tabele
+wywołuje `ctx.noteAuditChanges(['x_acme_erp_code'])`, a wpis właściciela dostaje
+`stateAfter.extensions.<moduleId>.changedFields`. Tylko nazwy: szyna odrzuca wszystko, co nie jest
+nazwą pola, więc reguła „nazwy, nie wartości” w audycie obowiązuje także haki.
+
+**Dane rozszerzeń.** Wywołujący może przekazać w poleceniu `extensions: { <moduleId>: … }`. Każdy
+hak widzi tylko fragment własnego modułu jako `ctx.extension` i sam go waliduje. Klucz, którego nie
+przejmuje żaden obecny moduł z hakiem na tej akcji, jest odrzucany kodem
+`422 COMMAND_EXTENSION_UNCLAIMED`, zanim cokolwiek zostanie zapisane, więc literówka albo wyłączony
+moduł nigdy nie gubią danych po cichu. `currentCommandHookOrigin()` mówi kodowi na ścieżce
+asynchronicznej haka, który hak właśnie działa.
+
+**Wyłączony znaczy wyłączony.** Hak, którego moduł jest wyłączony — na dowolnej z dwóch osi
+obecności — jest pomijany dla danego polecenia; decyzja zapada przy każdym wywołaniu, bez
+restartu. Zapis zachowuje się tak, jakby modułu nie zainstalowano.
+
+**Kompozycja odrzuca to, czego nie da się uporządkować albo co nie jest oferowane.** Przy starcie,
+po rejestracji wszystkich modułów i przed jakimkolwiek hakiem startowym, platforma odrzuca: hak na
+akcji, której nie deklaruje żaden moduł; fazę, której właściciel nie oferuje; jedną akcję
+zadeklarowaną przez dwa moduły; powtórzony identyfikator haka w module; moduł z hakiem, którego
+`dependencies` w manifeście nie sięgają właściciela; oraz dwa moduły z hakami na jednej akcji bez
+ścieżki zależności między nimi. Haki działają w kolejności zależności (moduł po każdym module, od
+którego zależy; haki jednego modułu w kolejności rejestracji). Gdy dwa moduły są niezależne,
+kolejność ustala wdrożenie w swoim `divergence.ts`:
+
+```ts
+commandHookOrder: { 'organization.register': ['acme_erp', 'acme_crm'] }, // first runs first
+```
+
+Wpis sprzeczny z zależnością jest odrzucany. Haki pojawiają się w raporcie rozbieżności wdrożenia
+jako `command-hook`, a `GET /api/v1/admin/command-hooks` (za uprawnieniem `platform.modules.read`)
+zwraca bieżący plan wykonania.
+
+**Zasady dla autorów haków.** Zapisuj tylko tabele własnego modułu albo uruchamiaj polecenie
+właściciela przez `ctx.run` — nigdy tabelę innego modułu. Nie wywołuj usług zdalnych: transakcja
+jest otwarta, a wolny hak trzyma blokady wierszy właściciela. Hak zagnieżdżający polecenia, które
+powtarzają się we własnym łańcuchu, albo zagnieżdżający głębiej niż osiem poziomów, jest
+odrzucany kodem `500 COMMAND_HOOK_CYCLE`.
+
+**Zasady dla właścicieli.** Deklaruj tylko polecenie, którego `run` jest kompletny i które nie jest
+odwracalne (cofnięcie przywraca tylko to, co zapisał właściciel). Dostarcz `hookData` — szyna
+odrzuca polecenie z hakami bez niego (`500 COMMAND_HOOK_DATA_MISSING`) — oraz `outboxData` dla fazy
+`afterCommit` i sprawdzaj każde zadeklarowane polecenie wobec jego referencji funkcją
+`expectHookableCommand` z `@endora-commerce/test-kit/command-hooks`. Nazwa akcji, fazy i typy danych
+są publicznym kontraktem.
+
+Procedury `afterCommit` są zadeklarowane w API, ale jeszcze nie są dostarczane: ich transakcyjny
+outbox to następny etap tej pracy, a dopóki go nie ma, platforma odmawia rejestracji takiej
+procedury, zamiast przyjąć coś, czego nic nie wywoła.
 
 ## Cofanie zmian
 

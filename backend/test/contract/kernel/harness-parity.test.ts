@@ -561,6 +561,13 @@ describe('T075 — a converted module costs no test-helper edit', () => {
       expect(source, `${root} does not pass decorationOrder`).toContain(
         'decorationOrder: divergenceDeclaration.decorationOrder',
       );
+      // `specs/176-command-hooks-outbox/` FR-014 — the command-hook tie-break
+      // comes from the same declaration and has to reach both roots for the
+      // same reason: a deployment that orders two hook modules in production
+      // and not in its tests meets `UnorderedCommandHooksError` in every test.
+      expect(source, `${root} does not pass commandHookOrder`).toContain(
+        'commandHookOrder: divergenceDeclaration.commandHookOrder',
+      );
       // Read once and used twice, never loaded twice: two `import()`s of one
       // file answering one question is how the omissions and the order come to
       // disagree about which declaration this deployment wrote.

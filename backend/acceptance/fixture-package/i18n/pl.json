@@ -1,5 +1,6 @@
 {
   "actions.openAcceptanceProbe.label": "Otwórz sondę akceptacyjną",
   "actions.openAcceptanceProbe.description": "Otwórz ekran sondy akceptacyjnej dostarczany przez pakiet testowy.",
-  "activity.verb.acceptance_probe.execute": "uruchomił sondę akceptacyjną"
+  "activity.verb.acceptance_probe.execute": "uruchomił sondę akceptacyjną",
+  "errors.ACCEPTANCE_PROBE_REFUSED": "Sonda akceptacyjna odrzuciła tę rejestrację."
 }

@@ -1,4 +1,5 @@
 import type { EntityManager } from '@mikro-orm/postgresql';
+import type { OutboxData } from '@endora-commerce/contracts';
 import type { EventBase } from '../events/bus.js';
 
 /**
@@ -120,4 +121,28 @@ export interface Command<TResult = unknown> {
 
   /** Optional domain event, dispatched exactly once after commit (dropped on rollback). */
   event?(result: TResult): CommandEvent | undefined;
+
+  /**
+   * The data a `beforeCommit` hook receives (`specs/176-command-hooks-outbox/`
+   * FR-018, FR-023). Required when `action` is declared hookable: the bus
+   * refuses a hooked Command without it (`500 COMMAND_HOOK_DATA_MISSING`).
+   * Called after `run`, so it reads the uncommitted result. Held in memory and
+   * never stored, so it may carry values.
+   */
+  hookData?(result: TResult): unknown;
+
+  /**
+   * The data an `afterCommit` row stores (176 P3): `audit-state.md` list 1
+   * only — ids, codes, booleans, counts, dates, field names. Declared now and
+   * read by nothing until the outbox ships.
+   */
+  outboxData?(result: TResult): OutboxData & { readonly organizationId?: string | null };
+
+  /**
+   * Caller-supplied extension input, keyed by module id (FR-018, FR-019). Each
+   * hook sees only its own module's key; a key no present hook module on this
+   * action claims is refused `422 COMMAND_EXTENSION_UNCLAIMED` before any
+   * write.
+   */
+  readonly extensions?: Readonly<Record<string, unknown>>;
 }

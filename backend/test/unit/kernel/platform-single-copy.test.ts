@@ -406,6 +406,10 @@ describe('the platform is one copy (feature 080, the relocation)', () => {
     // **63 -> 72 is the same event, on `./kernel`:** declared extension columns
     // (`specs/178-extensible-columns/`) published `defineColumnExtension`, the
     // two Zod schema builders, `extensionColumns` and its five errors.
+    // **72 -> 81 is the same event, on `./commands`:** command hooks
+    // (`specs/176-command-hooks-outbox/` P2) published `CommandHookRefusal`,
+    // `currentCommandHookOrigin` and the seven composition refusals; the other
+    // new names are types and carry no identity.
     //
     // It is summed over the **five published** subpaths and not over every
     // comparison, which is what preserves that provenance: no host-internal
@@ -416,7 +420,7 @@ describe('the platform is one copy (feature 080, the relocation)', () => {
     const total = comparisons
       .filter((entry) => published.has(entry.subpath))
       .reduce((sum, entry) => sum + entry.shared.length, 0);
-    expect(total).toBe(72);
+    expect(total).toBe(81);
   });
 
   /**

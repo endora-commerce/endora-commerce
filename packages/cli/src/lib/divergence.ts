@@ -68,6 +68,7 @@ import { realpathSync } from 'node:fs';
 
 import ts from 'typescript';
 
+import * as publishedContracts from '@endora-commerce/contracts';
 import type {
   DivergenceBoundary,
   DivergenceDetail,
@@ -116,6 +117,11 @@ export const SEAM_CLASSIFICATION: Readonly<Record<string, SeamClassification>> =
   'di.decorate': { verdict: 'divergence', kind: 'decoration', rung: 4 },
   subscribe: { verdict: 'divergence', kind: 'subscription', rung: 1 },
   interceptors: { verdict: 'divergence', kind: 'interceptor', rung: 2 },
+  // `specs/176-command-hooks-outbox/` P2 — rung 2's second mechanism: an
+  // interceptor runs around an endpoint the owner serves, a command hook runs
+  // inside a write the owner declared hookable. Both are a published identity
+  // the owner versions, and both may veto.
+  commandHooks: { verdict: 'divergence', kind: 'command-hook', rung: 2 },
   rootPlugin: { verdict: 'divergence', kind: 'root-plugin', rung: 4 },
   worker: { verdict: 'divergence', kind: 'worker', rung: null },
 
@@ -226,6 +232,11 @@ export interface SeamSite {
   readonly interceptor?: {
     readonly phase: 'pre' | 'post';
     readonly order: number;
+    readonly id: string;
+  };
+  /** A command hook's phase and id (176); its subject is the hooked action. */
+  readonly commandHook?: {
+    readonly phase: 'beforeCommit' | 'afterCommit';
     readonly id: string;
   };
   readonly declaredReason?: string;
@@ -440,6 +451,79 @@ function workerBindings(sf: ts.SourceFile, bindings: ReadonlyMap<string, string>
   return workers;
 }
 
+/**
+ * Every hookable-action ref `@endora-commerce/contracts` publishes, keyed
+ * `<export>.<member>` — how a hook author spells one
+ * (`ORGANIZATION_HOOKABLE_ACTIONS.register`). Read off the package's runtime
+ * exports rather than written down, so a ref an owner adds is resolvable the
+ * day it is published (D-100).
+ */
+let publishedRefs: ReadonlyMap<string, string> | null = null;
+function publishedHookableActions(): ReadonlyMap<string, string> {
+  if (publishedRefs !== null) return publishedRefs;
+  const refs = new Map<string, string>();
+  for (const [exportName, value] of Object.entries(publishedContracts as Record<string, unknown>)) {
+    if (value === null || typeof value !== 'object' || Array.isArray(value)) continue;
+    for (const [member, candidate] of Object.entries(value as Record<string, unknown>)) {
+      if (candidate === null || typeof candidate !== 'object') continue;
+      const ref = candidate as { action?: unknown; objectType?: unknown; phases?: unknown };
+      if (typeof ref.action === 'string' && typeof ref.objectType === 'string' && Array.isArray(ref.phases)) {
+        refs.set(`${exportName}.${member}`, ref.action);
+      }
+    }
+  }
+  publishedRefs = refs;
+  return refs;
+}
+
+/** Local name → export name, for every binding this file imports from `@endora-commerce/contracts`. */
+function contractsImports(sf: ts.SourceFile): Map<string, string> {
+  const imports = new Map<string, string>();
+  for (const statement of sf.statements) {
+    if (
+      !ts.isImportDeclaration(statement) ||
+      !ts.isStringLiteral(statement.moduleSpecifier) ||
+      statement.moduleSpecifier.text !== '@endora-commerce/contracts'
+    ) {
+      continue;
+    }
+    const bindings = statement.importClause?.namedBindings;
+    if (bindings === undefined || !ts.isNamedImports(bindings)) continue;
+    for (const element of bindings.elements) {
+      imports.set(element.name.text, (element.propertyName ?? element.name).text);
+    }
+  }
+  return imports;
+}
+
+/**
+ * The action a command hook's `on:` names, or `null`. Three spellings resolve
+ * and nothing else does: a published ref (`ORG.register`, through the file's
+ * own import), a `hookableAction('<action>', …)` call, and a literal
+ * `{ action: '<action>', … }` — the last is how a package with no runtime
+ * dependency on `@endora-commerce/contracts` writes one. A ref bound to a local
+ * is a `computed-subject`, never a skip.
+ */
+function hookedActionOf(
+  node: ts.Expression | undefined,
+  bindings: ReadonlyMap<string, string>,
+  imports: ReadonlyMap<string, string>,
+): string | null {
+  if (node === undefined) return null;
+  if (ts.isPropertyAccessExpression(node) && ts.isIdentifier(node.expression)) {
+    const exported = imports.get(node.expression.text);
+    if (exported === undefined) return null;
+    return publishedHookableActions().get(`${exported}.${node.name.text}`) ?? null;
+  }
+  if (ts.isCallExpression(node) && ts.isIdentifier(node.expression) && node.expression.text === 'hookableAction') {
+    return resolveSubject(node.arguments[0], bindings);
+  }
+  if (ts.isObjectLiteralExpression(node)) {
+    return resolveSubject(propertyOf(node, 'action'), bindings);
+  }
+  return null;
+}
+
 const CALL_TEXT_LIMIT = 120;
 
 function callText(node: ts.Node, sf: ts.SourceFile): string {
@@ -462,6 +546,7 @@ export function deriveSeamSites(sources: readonly OverlaySource[]): SeamSite[] {
     const contexts = contextBindings(sf);
     const bindings = literalBindings(sf);
     const workers = workerBindings(sf, bindings);
+    const imports = contractsImports(sf);
     const lineOf = (node: ts.Node): number =>
       sf.getLineAndCharacterOfPosition(node.getStart(sf)).line + 1;
 
@@ -555,6 +640,36 @@ export function deriveSeamSites(sources: readonly OverlaySource[]): SeamSite[] {
                     interceptor: {
                       phase: phaseText === 'post' ? 'post' : 'pre',
                       order,
+                      id: idText,
+                    },
+                  });
+                }
+                if (first.elements.length === 0) push(node, seam, { subject: null });
+              } else {
+                push(node, seam, { subject: null });
+              }
+              break;
+            }
+            case 'commandHooks': {
+              if (first !== undefined && ts.isArrayLiteralExpression(first)) {
+                for (const element of first.elements) {
+                  if (!ts.isObjectLiteralExpression(element)) {
+                    push(element, seam, { subject: null });
+                    continue;
+                  }
+                  const action = hookedActionOf(propertyOf(element, 'on'), bindings, imports);
+                  const phaseText = resolveSubject(propertyOf(element, 'phase'), bindings);
+                  const idText = resolveSubject(propertyOf(element, 'id'), bindings);
+                  // The key carries the id, so an unreadable one is a
+                  // `computed-subject` exactly as an unreadable action is.
+                  if (action === null || phaseText === null || idText === null) {
+                    push(element, seam, { subject: null });
+                    continue;
+                  }
+                  push(element, seam, {
+                    subject: action,
+                    commandHook: {
+                      phase: phaseText === 'afterCommit' ? 'afterCommit' : 'beforeCommit',
                       id: idText,
                     },
                   });
@@ -868,6 +983,12 @@ export interface DivergenceInput {
   readonly owners: ReadonlyMap<string, string>;
   /** Names a composition root supplies, which no module owns. */
   readonly rootSupplied: ReadonlySet<string>;
+  /**
+   * Hookable action → the module that declares it (176). The owner of a
+   * `command-hook` entry; absent or missing a key, the entry's owner is `null`
+   * — a host that cannot attribute it says so in `hostNotRecorded`.
+   */
+  readonly actionOwners?: ReadonlyMap<string, string>;
   /** The deployment's declaration. */
   readonly declaration: {
     readonly omittedModules: ReadonlyArray<{ readonly moduleId: string; readonly reason: string }>;
@@ -899,15 +1020,24 @@ export interface DivergenceResult {
   readonly sites: readonly SeamSite[];
 }
 
-/** `<kind>:<module>:<subject>`, with an interceptor's `#<phase>`. */
+/**
+ * `<kind>:<module>:<subject>`, with an interceptor's `#<phase>` and a command
+ * hook's `#<id>` — one module may register several hooks on one action, and
+ * each is a divergence with its own reason.
+ */
 export function divergenceKeyOf(entry: {
   kind: DivergenceKind;
   module: string;
   subject: string;
   detail: DivergenceDetail;
 }): string {
-  const phase = entry.detail.kind === 'interceptor' ? `#${entry.detail.phase}` : '';
-  return `${entry.kind}:${entry.module}:${entry.subject}${phase}`;
+  const suffix =
+    entry.detail.kind === 'interceptor'
+      ? `#${entry.detail.phase}`
+      : entry.detail.kind === 'command-hook'
+        ? `#${entry.detail.id}`
+        : '';
+  return `${entry.kind}:${entry.module}:${entry.subject}${suffix}`;
 }
 
 const SEAM_TO_KIND = (
@@ -1007,6 +1137,8 @@ export function deriveDivergence(input: DivergenceInput): DivergenceResult {
       owner = input.routes.get(site.subject) ?? null;
     } else if (kind === 'subscription') {
       owner = null;
+    } else if (kind === 'command-hook') {
+      owner = input.actionOwners?.get(site.subject) ?? null;
     } else {
       owner = input.owners.get(site.subject) ?? null;
     }
@@ -1171,6 +1303,10 @@ function detailFor(
       return { kind: 'registration' };
     case 'worker':
       return { kind: 'worker' };
+    case 'command-hook': {
+      const facts = site.commandHook ?? { phase: 'beforeCommit' as const, id: '' };
+      return { kind: 'command-hook', phase: facts.phase, id: facts.id };
+    }
     case 'omission':
       return { kind: 'omission' };
   }
@@ -1196,6 +1332,8 @@ export function describeEntry(entry: DivergenceEntry): string {
       return `'${entry.module}' mounts a plugin at the server root`;
     case 'worker':
       return `'${entry.module}' consumes the queue '${entry.subject}'`;
+    case 'command-hook':
+      return `'${entry.module}' runs ${entry.detail.kind === 'command-hook' ? `'${entry.detail.id}' ${entry.detail.phase}` : ''} inside '${entry.subject}'${entry.owner === null ? '' : `, which ${owner} declares hookable`}`;
     case 'omission':
       return `this deployment does not ship '${entry.subject}'`;
   }

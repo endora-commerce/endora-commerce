@@ -235,6 +235,9 @@ export * from './storefront-cache-tags.js';
 export * from './blog.js';
 export * from './dictionary.js';
 export * from './modules.js';
+// `specs/176-command-hooks-outbox/` P2 — command-hook refs, and `organizations`' first four.
+export * from './command-hooks.js';
+export * from './organization-hooks.js';
 export * from './platform-info.js';
 export * from './admin-feedback.js';
 export * from './admin-actions.js';

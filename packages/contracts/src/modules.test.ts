@@ -1,6 +1,7 @@
 import { describe, expect, it } from 'vitest';
 import { CAPABILITY_KEYS } from './capabilities.js';
 import {
+  DeploymentDivergenceDeclarationSchema,
   ORGANIZATION_PERMISSION_CODE,
   defineModuleManifest,
   moduleOrganizationPermissionDeclarationSchema,
@@ -266,5 +267,48 @@ describe('defineModuleManifest — organization permission declarations (feature
     expect(moduleOrganizationPermissionDeclarationSchema.safeParse({ ...valid, description: '' }).success).toBe(false);
     const { memberDefault: _omitted, ...withoutDefault } = valid;
     expect(moduleOrganizationPermissionDeclarationSchema.safeParse(withoutDefault).success).toBe(false);
+  });
+});
+
+describe('defineModuleManifest — hookable actions (176 T020, FR-010)', () => {
+  const declaration = { action: 'widget.create', objectType: 'widget', phases: ['beforeCommit' as const] };
+
+  it('accepts a list of declarations and keeps it', () => {
+    const m = manifest({ id: 'widgets', hookableActions: [declaration] });
+    expect(m.hookableActions).toEqual([declaration]);
+  });
+
+  it('refuses one action declared twice in one manifest, naming the module and the action', () => {
+    expect(() => manifest({ id: 'widgets', hookableActions: [declaration, declaration] })).toThrow(
+      /widgets.*widget\.create/,
+    );
+  });
+
+  it('refuses a malformed action through the schema', () => {
+    expect(() =>
+      manifest({
+        id: 'widgets',
+        hookableActions: [{ action: 'widget', objectType: 'widget', phases: ['beforeCommit'] }],
+      }),
+    ).toThrow();
+  });
+});
+
+describe('DeploymentDivergenceDeclarationSchema — commandHookOrder (176 T020, FR-014, OD-1)', () => {
+  it('is optional, so an existing declaration still parses and types', () => {
+    expect(DeploymentDivergenceDeclarationSchema.parse({}).commandHookOrder).toBeUndefined();
+  });
+
+  it('accepts an order of two or more modules per action', () => {
+    const parsed = DeploymentDivergenceDeclarationSchema.parse({
+      commandHookOrder: { 'organization.create': ['acme_erp', 'acme_crm'] },
+    });
+    expect(parsed.commandHookOrder).toEqual({ 'organization.create': ['acme_erp', 'acme_crm'] });
+  });
+
+  it('refuses an entry naming one module, which orders nothing', () => {
+    expect(() =>
+      DeploymentDivergenceDeclarationSchema.parse({ commandHookOrder: { 'organization.create': ['acme_erp'] } }),
+    ).toThrow();
   });
 });

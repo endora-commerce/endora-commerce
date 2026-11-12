@@ -47,13 +47,15 @@ describe('the derivation covers every seam a deployment can use (SC-008)', () =>
     // the fixture and must contribute nothing: they are a module acting on its
     // own surface, which is not a divergence from core.
     expect([...byKind.keys()].sort()).toEqual([...divergenceBoundary().recorded].sort());
-    expect(derived.report.entries).toHaveLength(9);
+    expect(derived.report.entries).toHaveLength(10);
   });
 
   it('stamps the rung the ladder gives each seam', () => {
     const rungOf = new Map(derived.report.entries.map((e) => [e.kind, e.rung] as const));
     expect(rungOf.get('subscription')).toBe(1);
     expect(rungOf.get('interceptor')).toBe(2);
+    // 176 — a command hook is rung 2's second mechanism.
+    expect(rungOf.get('command-hook')).toBe(2);
     expect(rungOf.get('port-provided')).toBe(3);
     expect(rungOf.get('port-consumed')).toBe(3);
     expect(rungOf.get('decoration')).toBe(4);

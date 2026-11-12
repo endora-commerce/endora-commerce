@@ -411,6 +411,31 @@ const PUBLISHED_COMMANDS_SURFACE: Readonly<Record<string, readonly string[]>> = 
   'command-bus.js': ['CommandBus'],
   /** Row 5's "+5" — the undo helper, its parameters and its return. */
   'reversible.js': ['applyUndo', 'RevertRecord', 'RevertHandlers', 'UndoResult'],
+  /**
+   * `specs/176-command-hooks-outbox/` P2 (`contracts/command-hooks-api.md` §2) —
+   * what a hook author writes against: the entry `ctx.commandHooks` takes, the
+   * context it is handed, and the `afterCommit` shapes a ref names.
+   */
+  'hooks/types.js': [
+    'CommandHookContext',
+    'BeforeCommitHook',
+    'CommandHookEntry',
+    'AfterCommitContext',
+    'AfterCommitHandler',
+  ],
+  /** The veto class and the composition refusals a hook author meets at boot. */
+  'hooks/errors.js': [
+    'CommandHookRefusal',
+    'UndeclaredHookableActionError',
+    'HookPhaseNotOfferedError',
+    'DuplicateHookableActionError',
+    'DuplicateCommandHookError',
+    'HookOwnerNotDependedOnError',
+    'UnorderedCommandHooksError',
+    'CommandHookOrderContradictionError',
+  ],
+  /** The running hook, for an owner-side accessor (spec 178). */
+  'hooks/origin.js': ['currentCommandHookOrigin', 'CommandHookOrigin'],
 };
 
 /** `src/http/index.ts` — the `./http` subpath, as MR !880 built it. */
@@ -722,6 +747,12 @@ const HOST_COMPOSITION_SURFACE: Readonly<Record<string, readonly string[]>> = {
   'kernel/lifecycle/registry-cache.ts': ['registryCache', 'publishStateChanged'],
   'kernel/lifecycle/activation-resolver.ts': ['activationDeclarationsFrom'],
   'kernel/lifecycle/required-modules.ts': ['requiredModulesFrom'],
+  // `specs/176-command-hooks-outbox/` P2 — the registry a root builds once and
+  // hands its `CommandBus` and `composeModules`, and the two derivations it is
+  // sealed against. Beside `requiredModulesFrom` for its reason; the test kit's
+  // `composeTestServer` and its `command-hooks` helper are the consumers.
+  'commands/hooks/registry.ts': ['CommandHookRegistry'],
+  'kernel/lifecycle/command-hook-inputs.ts': ['hookableActionsFrom', 'moduleDependencyClosureFrom'],
   // Feature 132. The derivation and its refusal sit beside the two above for the
   // same reason: a root calls them once, before the first module registers, and a
   // module never does — it reads the result through `effectiveState`, which is on
