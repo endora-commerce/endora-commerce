@@ -436,6 +436,8 @@ const PUBLISHED_COMMANDS_SURFACE: Readonly<Record<string, readonly string[]>> = 
   ],
   /** The running hook, for an owner-side accessor (spec 178). */
   'hooks/origin.js': ['currentCommandHookOrigin', 'CommandHookOrigin'],
+  /** 176 P3 — what an `afterCommit` handler throws to dead-letter its row at once. */
+  'outbox/errors.js': ['PermanentOutboxFailure'],
 };
 
 /** `src/http/index.ts` — the `./http` subpath, as MR !880 built it. */
@@ -753,6 +755,16 @@ const HOST_COMPOSITION_SURFACE: Readonly<Record<string, readonly string[]>> = {
   // `composeTestServer` and its `command-hooks` helper are the consumers.
   'commands/hooks/registry.ts': ['CommandHookRegistry'],
   'kernel/lifecycle/command-hook-inputs.ts': ['hookableActionsFrom', 'moduleDependencyClosureFrom'],
+  // `specs/176-command-hooks-outbox/` P3 — the outbox's host half. Both roots
+  // build the wake-up they hand their `CommandBus`; the generated entity
+  // registry names the entity class (`ModuleRegistration`'s reason, below);
+  // the store, the drain and one tick are what the integration tests drive
+  // against Postgres, since the shared test server runs no worker.
+  'commands/outbox/wake.ts': ['createCommandOutboxWake'],
+  'commands/outbox/command-outbox-entry.entity.ts': ['CommandOutboxEntry'],
+  'commands/outbox/store.ts': ['PostgresOutboxStore'],
+  'commands/outbox/drain.ts': ['drainCommandOutbox'],
+  'commands/outbox/drain-worker.ts': ['runCommandOutboxDrainTick'],
   // Feature 132. The derivation and its refusal sit beside the two above for the
   // same reason: a root calls them once, before the first module registers, and a
   // module never does — it reads the result through `effectiveState`, which is on

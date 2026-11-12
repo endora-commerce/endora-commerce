@@ -132,9 +132,14 @@ export interface Command<TResult = unknown> {
   hookData?(result: TResult): unknown;
 
   /**
-   * The data an `afterCommit` row stores (176 P3): `audit-state.md` list 1
-   * only — ids, codes, booleans, counts, dates, field names. Declared now and
-   * read by nothing until the outbox ships.
+   * The data an `afterCommit` row stores (176 P3, FR-030, FR-031):
+   * `audit-state.md` list 1 only — ids, codes, booleans, counts, dates, field
+   * names. Required when `action` is declared hookable with `afterCommit` and a
+   * present handler is registered (`500 COMMAND_HOOK_DATA_MISSING` otherwise);
+   * called after `run`, once per Command, and refused with a 500 that names the
+   * offending keys when a value is nested, longer than a code or has
+   * whitespace in it. `organizationId`, when present, is also the row's routing:
+   * the handler runs in a scope pinned to that Organization.
    */
   outboxData?(result: TResult): OutboxData & { readonly organizationId?: string | null };
 

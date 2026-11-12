@@ -172,10 +172,10 @@ export function hookCycle(action: string, chain: readonly string[]): HttpError {
   );
 }
 
-export function hookDataMissing(action: string): HttpError {
+export function hookDataMissing(action: string, member: 'hookData' | 'outboxData' = 'hookData'): HttpError {
   return new HttpError(
     500,
     ERROR_CODES.COMMAND_HOOK_DATA_MISSING,
-    `The Command '${action}' is declared hookable and supplies no hookData.`,
+    `The Command '${action}' is declared hookable and supplies no ${member}.`,
   );
 }

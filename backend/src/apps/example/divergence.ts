@@ -52,6 +52,17 @@ export const divergence: DeploymentDivergenceDeclaration = {
       'a marked name it writes its own audit entry inside the registration transaction and may ' +
       'refuse the registration with its own code, so the whole registration — Organization, ' +
       'first account, token — rolls back; any other name passes through untouched.',
+    // 176 P3 — the fixture's two `afterCommit` handlers, delivered through the
+    // transactional outbox.
+    'command-hook:command_hook_fixture:organization.create#deliver-create':
+      'After an Organization is created, the outbox delivers this handler one row of ids and codes, ' +
+      'at least once and in a context pinned to that Organization. For an Organization its ' +
+      'beforeCommit hook saw marked, in the same process, it records what it was handed in an ' +
+      'audit entry of its own, which the outbox integration tests read; for any other it does nothing.',
+    'command-hook:command_hook_fixture:organization.register#deliver-register':
+      'The same handler on storefront self-registration: its row is written in the registration ' +
+      'transaction, so a registration that rolls back leaves none, and delivery restores the new ' +
+      "Organization's context and the registration's request id. It acts only on a marked name.",
     // `ledger_vendor_fixture` — D-256's wave-4 prologue. Twelve entries, and the
     // count is the point rather than an accident: a ledger vendor is the widest
     // consumer surface `invoice_ledger` and `invoices` publish, and after wave 4

@@ -71,6 +71,7 @@ import type {
 
 import { CommandBus } from '../commands/index.js';
 import { CommandHookRegistry } from '../commands/hooks/registry.js';
+import { createCommandOutboxWake } from '../commands/outbox/wake.js';
 import { configuredEntitiesFrom } from '../db/configured-entities.js';
 import { discoverConfiguredMigrations } from '../db/configured-migrations.js';
 import { mikroOrmConfigFrom } from '../db/mikro-orm.config.js';
@@ -683,7 +684,15 @@ export async function composeApp(options: ComposeAppOptions): Promise<ComposeApp
   const commandHookRegistry = new CommandHookRegistry({
     isPresent: (moduleId) => effectiveState.isPresent(moduleId),
   });
-  const commandBus = new CommandBus(orm, auditLogService, eventBus, { hooks: commandHookRegistry });
+  // P3 — the outbox drain's post-commit wake-up, on this process's Redis
+  // connection. Every process gets one, an API-only process included: the
+  // process that commits is the one that knows rows were written, and the
+  // drain itself runs wherever `_lifecycle` finds `processRunsWorkers`.
+  const commandOutboxWake = createCommandOutboxWake(redis);
+  const commandBus = new CommandBus(orm, auditLogService, eventBus, {
+    hooks: commandHookRegistry,
+    outboxWake: commandOutboxWake,
+  });
 
   // Feature 060 — API interceptor registry. Modules register pre/post
   // interceptors against endpoints owned by other modules; execution is
@@ -1478,6 +1487,8 @@ export async function composeApp(options: ComposeAppOptions): Promise<ComposeApp
       // scope — and before the ORM closes, so the last records are written
       // rather than printed as unpersisted.
       await escapeHatchAudit.detach();
+      // The wake-up's producer queue shares `redis`; close it first.
+      await commandOutboxWake.close();
       redis.disconnect();
       redisSubscriber.disconnect();
       await ormLifecycle.close();

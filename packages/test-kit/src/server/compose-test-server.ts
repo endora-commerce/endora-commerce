@@ -57,6 +57,7 @@ import {
   ApiInterceptorRegistry,
   AuditLogService,
   CommandHookRegistry,
+  createCommandOutboxWake,
   AuditRedactionService,
   activationDeclarationsFrom,
   capabilityRegistryFrom,
@@ -309,6 +310,8 @@ export interface TestServerHandle {
   readonly composed: ComposedModules;
   /** The composition's own closer, kept so teardown needs no second reference. */
   readonly closeOrm: () => Promise<void>;
+  /** Closes the outbox wake-up's producer queue, if a commit ever built it (176 P3). */
+  readonly closeOutboxWake: () => Promise<void>;
 }
 
 export async function composeTestServer(
@@ -372,7 +375,9 @@ export async function composeTestServer(
   // Everything from here is disposable, and a failure between here and the
   // handle has to give it back. The re-throw is unconditional: this catch
   // releases resources and decides nothing.
+  let closeOutboxWake = async (): Promise<void> => undefined;
   const release = async (): Promise<void> => {
+    await closeOutboxWake();
     redis.disconnect();
     realSubscriber?.disconnect();
     await composition.orm.close();
@@ -394,7 +399,16 @@ export async function composeTestServer(
     const commandHookRegistry = new CommandHookRegistry({
       isPresent: (moduleId) => effectiveState.isPresent(moduleId),
     });
-    const commandBus = new CommandBus(orm, auditLogService, eventBus, { hooks: commandHookRegistry });
+    // P3 — the outbox wake-up, as `composeApp` builds it: on this root's Redis,
+    // closed before the connection goes. It enqueues only after a commit that
+    // wrote outbox rows, and no worker consumes it here — a test drives the
+    // drain itself.
+    const commandOutboxWake = createCommandOutboxWake(redis);
+    closeOutboxWake = () => commandOutboxWake.close();
+    const commandBus = new CommandBus(orm, auditLogService, eventBus, {
+      hooks: commandHookRegistry,
+      outboxWake: commandOutboxWake,
+    });
 
     const salesChannels = composeSalesChannelsKernel({
       emFactory: em,
@@ -613,6 +627,7 @@ export async function composeTestServer(
       salesChannels,
       composed,
       closeOrm: () => composition.orm.close(),
+      closeOutboxWake,
     };
   } catch (error) {
     await release();
@@ -633,6 +648,8 @@ export async function teardownTestServer(handle: TestServerHandle): Promise<void
   // Runs every registration's disposer and drops the resolution cache, so a
   // file's composed services do not outlive its server.
   await handle.container.dispose();
+  // The outbox wake-up's producer queue shares `redis`; it goes first.
+  await handle.closeOutboxWake();
   handle.redis.disconnect();
   // Unsubscribe and drop listeners **before** disconnecting. A subscribed
   // client that is merely disconnected keeps its subscription set, and ioredis

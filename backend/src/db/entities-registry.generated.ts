@@ -37,6 +37,7 @@
 // `composer:generate`.
 
 import type { EntityClassLike } from '../packages/package-runtime.js';
+import { CommandOutboxEntry } from '@endora-commerce/platform/composition';
 import { AuditLogEntry } from '@endora-commerce/platform/kernel';
 import { ModuleRegistration } from '@endora-commerce/platform/composition';
 import { SalesChannel } from '@endora-commerce/platform/kernel';
@@ -107,6 +108,7 @@ import { entities as i18nEntities } from '@endora-commerce/mod-i18n/backend';
 import { entities as webhooksEntities } from '@endora-commerce/mod-webhooks/backend';
 
 export const ALL_ENTITIES = [
+  CommandOutboxEntry,
   AuditLogEntry,
   ModuleRegistration,
   SalesChannel,

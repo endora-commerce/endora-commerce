@@ -16,6 +16,9 @@ master won in each case:
 3. **`afterCommit` is types only in P2.** `AfterCommitContext` / `AfterCommitHandler` ship and a ref
    names both phases, but registering an `afterCommit` handler throws until P3's outbox delivers it
    — accepting one would be a handler nothing calls. `PermanentOutboxFailure` is P3's.
+   *Superseded by P3 (2026-11-12):* registration is accepted and delivered through the outbox, and
+   `PermanentOutboxFailure` is on `./commands`. `CommandBusOptions` gains `outboxWake`. See the
+   amendment block in `outbox-and-admin-api.md`.
 4. **§4.3 reads "present", not "registered".** `COMMAND_HOOK_DATA_MISSING` is raised when at least
    one hook whose module is present would run: with every hook module off, the Command behaves as
    if they were not installed (Principle XVII). `expectHookableCommand` is what makes a missing
