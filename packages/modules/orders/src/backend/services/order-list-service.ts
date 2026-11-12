@@ -16,6 +16,7 @@ import {
   type OrgScopeSql,
 } from '@endora-commerce/platform/tenancy';
 import { Order } from '../entities/order.entity.js';
+import { OrderExternalReference } from '../entities/order-external-reference.entity.js';
 import { SalesChannel } from '@endora-commerce/platform/kernel';
 import type { OrderStatusGraphService } from './order-status-graph-service.js';
 import type { OrderAdminSearchQuery, OrderAdminSearchRow } from '../admin-search-provider.js';
@@ -142,7 +143,8 @@ const SORTABLE = new Set(['placedAt', 'businessId', 'total', 'status']);
  *
  * Server-side filter / sort / search / pagination for the admin orders list,
  * plus per-status counts. Search `q` matches the business Order ID, the
- * Organization name, and the customer (email / first / last name).
+ * Organization name, the customer (email / first / last name) and an external
+ * system's reference for the order (issue #1030).
  */
 export class OrderListService {
   constructor(
@@ -201,15 +203,17 @@ export class OrderListService {
     if (query.q && query.q.trim()) {
       const q = query.q.trim();
       const like = `%${q}%`;
-      const [orgIds, customerIds] = await Promise.all([
+      const [orgIds, customerIds, externallyReferencedIds] = await Promise.all([
         this.organizationDetails.searchIdsByName(q),
         this.customerAccountRead.searchIdsByName(q),
+        this.orderIdsByExternalReference(like),
       ]);
       and.push({
         $or: [
           { businessId: { $ilike: like } },
           { organizationId: { $in: orgIds } },
           { placedByCustomerAccountId: { $in: customerIds } },
+          { id: { $in: externallyReferencedIds } },
         ],
       });
     }
@@ -267,6 +271,25 @@ export class OrderListService {
 
     const rows = await this.toRows(em, orders);
     return { rows, total, counts, paymentStatusCounts };
+  }
+
+  /**
+   * Issue #1030 — the orders an external system's reference matches, for the
+   * list's `q`: matched the way the order number is, a case-insensitive
+   * fragment, whichever system recorded it. The message is not searched; it
+   * is the other system's words, not a number an operator is given.
+   *
+   * The entries are org-scoped, so the ambient tenant filter already confines
+   * this to the caller's organizations, and the list's own `scope` still
+   * applies to the orders the ids come back as.
+   */
+  private async orderIdsByExternalReference(like: string): Promise<string[]> {
+    const rows = await this.emFactory().find(
+      OrderExternalReference,
+      { reference: { $ilike: like } },
+      { fields: ['orderId'] },
+    );
+    return [...new Set(rows.map((row) => row.orderId))];
   }
 
   /**

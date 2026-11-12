@@ -80,6 +80,10 @@ import type { PurchaseConversionService } from './services/purchase-conversion-s
 import { Order } from './entities/order.entity.js';
 import { orderCustomFieldsUpdateCommand } from './services/order-audit-state.js';
 import { replyAfterCommittedWrite } from './services/committed-write-reply.js';
+import {
+  listExternalReferenceRows,
+  toAdminExternalReference,
+} from './services/order-external-reference-service.js';
 import { serializeOrderForAdmin, serializeOrderForCustomer } from './order-response.js';
 import { OrderTransitionEffect } from './entities/order-transition-effect.entity.js';
 import { SalesChannel } from '@endora-commerce/platform/kernel';
@@ -1223,6 +1227,10 @@ export async function registerOrderRoutes(
               email: customer.email,
             }
           : null,
+        // Issue #1030 — what each external system reported about the order.
+        // The order was read through the tenant filter above; the entries are
+        // org-scoped too, so a scoped admin reads only their own.
+        externalReferences: (await listExternalReferenceRows(em, order.id)).map(toAdminExternalReference),
       };
       return { data };
     },

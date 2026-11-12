@@ -15,6 +15,7 @@ import { Alert, AlertDescription, Badge, Button, Card, CardContent, Label, PageH
 import { CustomFieldValuesPanel, resolveCustomFieldLabel } from '@endora-commerce/admin-kit/components';
 import { useTranslation, useTranslationContext } from '@endora-commerce/admin-kit/i18n';
 import { AdminZone, useAdminZone } from '@endora-commerce/admin-kit/zones';
+import { OrderExternalReferences } from '../components/OrderExternalReferences.js';
 import { OrderPendingEffectsNotice } from '../components/OrderPendingEffectsNotice.js';
 import { OrderShipmentsTab } from '../components/OrderShipmentsTab.js';
 import {
@@ -27,6 +28,7 @@ import {
   customFieldCarrySkipReasonSchema,
   lineAmountHalfUp,
   orderCommentSystemNoteSchema,
+  type AdminOrderExternalReference,
   type IssueInvoiceEmailOutcome,
   type LineGroup,
   type OrderCommentSystemNote,
@@ -109,6 +111,8 @@ interface OrderDetail {
    * Present only when something is outstanding.
    */
   pendingEffects?: OrderPendingEffect[];
+  /** Issue #1030 — what each external system reported; absent from an older server. */
+  externalReferences?: AdminOrderExternalReference[];
 }
 
 interface StatusDef {
@@ -614,6 +618,8 @@ export function OrderDetail(): ReactNode {
                   </div>
                 </div>
               </Section>
+
+              <OrderExternalReferences references={order.externalReferences} />
 
               <div className="grid gap-6 md:grid-cols-2">
                 <Section title={t('orderDetail.sections.organization')}>

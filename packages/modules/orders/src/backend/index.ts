@@ -25,6 +25,7 @@ import type {
   InventoryStockReadPort,
   InvoicePdfPort,
   InvoiceReadPort,
+  OrderExternalReferencePort,
   OrderListPort,
   OrderPlacementPort,
   OrderQuoteSourcePort,
@@ -93,6 +94,7 @@ import { emitOrderStatusAfter } from './events/order-status-events.js';
 import { OrderPaymentStatusApplyService } from './services/order-payment-status-apply-port.js';
 import { OrderReadService, toOrderRecord } from './services/order-read-port.js';
 import { OrderReturnContextProvider } from './services/order-return-context.js';
+import { OrderExternalReferenceService } from './services/order-external-reference-service.js';
 import { registerOrderSalesChannelAttributions } from './services/sales-channel-attributions.js';
 import type { OrderService } from './services/order-service.js';
 import { orderListScopeFor, type OrderListService } from './services/order-list-service.js';
@@ -123,6 +125,7 @@ import { OrderListSavedView } from './entities/order-list-saved-view.entity.js';
 import { OrderPlacementIntent } from './entities/order-placement-intent.entity.js';
 import { OrderStatusTransition } from './entities/order-status-transition.entity.js';
 import { OrderTransitionEffect } from './entities/order-transition-effect.entity.js';
+import { OrderExternalReference } from './entities/order-external-reference.entity.js';
 import { OrderStatus } from './entities/order-status.entity.js';
 import { Order } from './entities/order.entity.js';
 
@@ -1060,6 +1063,23 @@ export function registerModule(ctx: ModuleContext): void {
       .singleton(),
   );
 
+  /**
+   * Issue #1030 — what an integration records on an order about the external
+   * system it hands the order to: that system's number, the hand-over's state
+   * and its words on a refusal. Each change is one audited Command; the reads
+   * are this module's own org-scoped entity. Registered with `providePort`, so
+   * a caller resolving it per use is refused while this module is absent.
+   */
+  ctx.di.providePort<OrderExternalReferencePort>(
+    'orderExternalReferencePort',
+    ctx
+      .asFunction(
+        ({ emFactory, commandBus }: OrdersCradle) =>
+          new OrderExternalReferenceService({ emFactory, commandBus }),
+      )
+      .singleton(),
+  );
+
   ctx.routes(async (app) => {
     await cradle().orders(app);
 
@@ -1234,6 +1254,7 @@ export const entities = [
   OrderPlacementIntent,
   OrderStatusTransition,
   OrderTransitionEffect,
+  OrderExternalReference,
   OrderStatus,
   Order,
 ];

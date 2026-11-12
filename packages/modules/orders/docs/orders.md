@@ -401,7 +401,7 @@ once the module is back on.
 `Order`, `OrderItem`, `Payment`, `OrderStatus`,
 `OrderStatusTransition`, `OrderTransitionEffect`, `OrderComment`,
 `OrderListSavedView`, `OrderItemGroup` (an order's line groups — see *Line
-groups*), and the
+groups*), `OrderExternalReference` (see *External system references*), and the
 `organizations.order_confirmation_emails` column (owned by `organizations`,
 read via a port). `OrderItem` snapshots the product + variant + unit price +
 tax rate at placement so historical orders survive pricing / catalog changes.
@@ -452,7 +452,9 @@ that fails announces nothing.
   `customerAccountId` and `salesChannelId` to preselect, and `returnTo`, a path
   inside the Admin UI to go back to once the order exists.
 - **List** — `GET /api/v1/admin/orders` server-side filter/sort/search +
-  per-status counts; `GET …/export` streams CSV; saved views via
+  per-status counts. The search (`q`) matches the order number, the
+  Organization's name, the customer, and an external system's reference for the
+  order (see *External system references*); `GET …/export` streams CSV; saved views via
   `…/list-views` — see *Saved views* below.
 - **Bulk** — `POST …/bulk/status` (eligible orders move; skipped reported with
   reason — a skipped order has not moved) and `…/bulk/print-invoices`.
@@ -973,6 +975,59 @@ keeps the snapshot it was placed with. The admin order screen's *Organization*
 panel likewise prints no tax ID for a personal Organization and labels it
 *Individual customer* instead: the admin order reply carries
 `organization.taxId: null` and `organization.isPersonal: true` for it.
+
+## External system references
+
+A module that hands orders over to another system — an ERP, a warehouse system,
+a fulfilment connector — records on the order what that system answered: its
+own number for the order, where the hand-over stands, and the other system's
+own words when it refused. The operator reads it on the order page, where a
+buyer's call is answered, instead of in the connector's own screens.
+
+Each order holds **one entry per system**. An entry has:
+
+| Field | Meaning |
+| --- | --- |
+| System | The writer's stable key, normally its module id — lower-case letters, digits, `_`, `-` or `.`, starting with a letter, at most 64 characters. |
+| Reference | The other system's number for the order, once it has one (at most 255 characters). |
+| State | `pending` (handed over, no answer yet), `synced` (accepted) or `error` (refused). |
+| Message | The other system's own words, normally on `error` — plain text, at most 1000 characters. |
+| Updated | When the entry last changed. |
+
+**On the order page** the *External systems* section lists each entry with its
+state as a badge, and says so when no system has reported yet. The message is
+shown as text, never as markup. Anyone who can open the order sees it: reading
+follows `orders:read`, and a sales representative sees the entries of the orders
+they can see. Buyers never see them.
+
+**In the orders list** the search finds an order by its reference, as it finds
+an order number: a fragment, matched case-insensitively, whichever system
+recorded it. The message is not searched.
+
+**For a module author**, the seam is the port `orderExternalReferencePort`
+(`OrderExternalReferencePort` in `@endora-commerce/contracts`, container name
+also exported as `ORDER_EXTERNAL_REFERENCE_PORT`). Resolve it per use with
+`lazyPort`; it has no admin HTTP route.
+
+- `set(orderId, system, { state, reference?, message? })` creates or updates the
+  system's entry. An omitted `reference` keeps the stored one and `null` clears
+  it; an omitted `message` means none, so reporting `synced` after an `error`
+  does not leave the refusal standing.
+- `get(orderId, system)`, `listForOrder(orderId)` read entries back, and
+  `findOrderIds(system, reference)` finds the orders carrying an exact reference
+  — normally one.
+
+Every change is one Command, `order.external_reference.set`, audited with the
+calling actor, so call it inside a tenant context — a worker under
+`enterSystemScope`. A write that changes nothing records nothing and leaves
+*Updated* where it was, because a sync loop resends. An order the caller cannot
+see is refused `404 ORDER_NOT_FOUND`, and a malformed system key, state,
+reference or message `400 VALIDATION_FAILED`, before anything is written.
+
+An entry outlives its writer: uninstalling the module that wrote it leaves the
+entry on the order, as history. Migration
+`20261110T143322_orders_order_external_references.ts` creates the table
+(`order_external_references`, unique on order and system), empty.
 
 ## Extension points
 
