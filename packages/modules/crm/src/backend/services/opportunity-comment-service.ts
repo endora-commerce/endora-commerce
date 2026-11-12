@@ -102,6 +102,11 @@ export class OpportunityCommentService {
    * message one wrote oneself is never unread. `0` for a caller that is no
    * administrator.
    *
+   * Accepted limitation (#222): `created_at` is stamped before commit, so a
+   * message that commits after a later-stamped one was already read through
+   * is never counted unread for that reader. Closing it would need a
+   * commit-ordered sequence or per-message read rows.
+   *
    * For the detail read, which has loaded the Opportunity through the scoped
    * EntityManager already. One statement, compared in the database: a marker
    * read into a `Date` would lose the microseconds a stored instant may carry,
