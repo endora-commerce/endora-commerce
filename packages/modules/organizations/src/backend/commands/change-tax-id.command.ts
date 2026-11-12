@@ -4,6 +4,8 @@ import {
   normalizeTaxId,
   type OrganizationChangeTaxIdInput,
   type OrganizationTaxIdChangedEvent,
+  type OrganizationTaxIdChangeHookData,
+  type OrganizationTaxIdChangeOutbox,
 } from '@endora-commerce/contracts';
 import type { Command } from '@endora-commerce/platform/commands';
 import { HttpError } from '@endora-commerce/platform/http';
@@ -68,17 +70,36 @@ export interface ChangeTaxIdResult {
  * invoice and a quote document keep what they were issued with (FR-007).
  * No VAT validation runs here; a network call does not belong inside the
  * transaction (D-290 / OD-2).
+ *
+ * Hookable (issue #1057, `ORGANIZATION_HOOKABLE_ACTIONS.changeTaxId`): a hook
+ * is handed the id and `changedFields` — never the old or the new tax ID. The
+ * same-value no-op runs the hooks too, with `changedFields: []`; it records no
+ * entry unless a hook noted a write, and then the bus records one naming only
+ * the hook's fields (`contracts/command-hooks-api.md` §4.5).
  */
 export function makeChangeTaxIdCommand(params: {
   organizationId: string;
   input: OrganizationChangeTaxIdInput;
+  /** Extension input for the hook modules on this action, keyed by module id (176 FR-018). */
+  extensions?: Readonly<Record<string, unknown>>;
 }): Command<ChangeTaxIdResult> {
   const { organizationId, input } = params;
   let changedAt: Date | null = null;
+  const changedFieldsOf = (changed: boolean): string[] => (changed ? ['taxId'] : []);
   return {
     action: 'organization.tax_id.change',
     objectType: 'organization',
     objectId: organizationId,
+    ...(params.extensions ? { extensions: params.extensions } : {}),
+    hookData: ({ organization, changed }): OrganizationTaxIdChangeHookData => ({
+      organizationId: organization.id,
+      changedFields: changedFieldsOf(changed),
+      vatValidationReset: changed,
+    }),
+    outboxData: ({ organization, changed }): OrganizationTaxIdChangeOutbox => ({
+      organizationId: organization.id,
+      changedFields: changedFieldsOf(changed),
+    }),
     run: async ({ em }) => {
       const locked = (await em.execute('select "id" from "organizations" where "id" = ? for update', [
         organizationId,

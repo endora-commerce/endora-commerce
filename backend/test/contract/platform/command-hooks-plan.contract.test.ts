@@ -31,15 +31,17 @@ describe('GET /api/v1/admin/command-hooks (176 T037)', () => {
     await teardownBackendServer(h);
   });
 
-  it("lists organizations' four declarations and the fixture's two hooks, in execution order", async () => {
+  it("lists organizations' six declarations and the fixture's two hooks, in execution order", async () => {
     const res = await h.app.inject({ method: 'GET', url: PLAN, cookies: { b2b_session: 'stub-admin-session' } });
     expect(res.statusCode).toBe(200);
     const body = CommandHookPlanResponseSchema.parse(res.json());
     expect(body.actions.filter((action) => action.owner === 'organizations').map((action) => action.action)).toEqual([
       'organization.admin_patch',
+      'organization.convert_to_company',
       'organization.create',
       'organization.register',
       'organization.set_custom_field_values',
+      'organization.tax_id.change',
     ]);
     expect(body.items.filter((item) => item.module === FIXTURE)).toEqual([
       { action: 'organization.create', phase: 'beforeCommit', position: 1, module: FIXTURE, id: 'observe-create', moduleEnabled: true },

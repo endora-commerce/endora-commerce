@@ -29,6 +29,34 @@ object. `register`'s `registryLookupOutcome` is the matched lookup row's outcome
 without one. A hook's noted changes are names under `extensions.<moduleId>.changedFields`, and
 `ORGANIZATION_AUDIT_KEYS` lists `extensions`.
 
+**Amended (#1057, 2026-11-12).** The architect ruled both later Commands legitimate hook points —
+veto or enrich a company conversion, sync an ERP on a tax-ID change — and neither is reversible, so
+§6 permits declaring them. `ORGANIZATION_HOOKABLE_ACTIONS` gains `convertToCompany`
+(`organization.convert_to_company`) and `changeTaxId` (`organization.tax_id.change`), both phases.
+Their hook data carries **ids, codes and field names only** (audit-state list 1), never the tax ID,
+name or address, so it does not reuse `OrganizationRecord`. The tax-ID correction's same-value
+no-op (`skipAudit`) still runs its hooks, with `changedFields: []`; a hook that notes a write then
+forces the one entry with `stateBefore: null` and `stateAfter: { extensions }` (amendment 7 of
+`command-hooks-api.md`). `organizationCommandPort`'s two methods take a third
+`options?: OrganizationCommandPortOptions` (`{ extensions? }`) and forward it.
+
+```ts
+interface OrganizationConvertToCompanyHookData {
+  readonly organizationId: string;
+  readonly status: OrganizationStatus;          // kept by the conversion
+  readonly vatStatus: VatStatus;
+  readonly changedFields: readonly string[];    // sorted column names
+  readonly approvalStamped: boolean;
+}
+interface OrganizationTaxIdChangeHookData {
+  readonly organizationId: string;
+  readonly changedFields: readonly string[];    // ['taxId'], or [] for the same value
+  readonly vatValidationReset: boolean;
+}
+type OrganizationConvertToCompanyOutbox = { organizationId: string; status: string; changedFields: string[] };
+type OrganizationTaxIdChangeOutbox      = { organizationId: string; changedFields: string[] };
+```
+
 ## Data shapes
 
 `OrganizationRecord` is the existing published record (`toOrganizationRecord`). In a hook it
@@ -71,16 +99,16 @@ forwards extension input: `organizationCustomFieldWritePort.setCustomFieldValues
 merge, { extensions })` (`OrganizationCustomFieldWriteOptions`), and an unclaimed key answers
 `422 COMMAND_EXTENSION_UNCLAIMED` through it before the merge runs.
 `organizationCommandPort`'s methods (`convertToCompany`, `changeTaxId`) reach
-`organization.convert_to_company` and `organization.tax_id.change`, which are not declared
-hookable (issue #1057), so they take no `extensions` yet: with nothing able to claim a key, every
-key would be refused. #1057 adds the field when it declares those actions.
+`organization.convert_to_company` and `organization.tax_id.change`; since #1057 declared those
+hookable, each takes `{ extensions }` as a third argument (`OrganizationCommandPortOptions`), and an
+unclaimed key answers `422 COMMAND_EXTENSION_UNCLAIMED` before anything is written.
 
 ## Who else declares
 
 - 177 declares `organization.convert_to_company` with this API, and optionally
-  `organization.set_parent` / `organization.move`. These are additive. Declaring
-  `organization.convert_to_company` and `organization.tax_id.change` hookable after P2 merges is
-  tracked as issue #1057.
+  `organization.set_parent` / `organization.move`. These are additive. `organization.convert_to_company` and
+  `organization.tax_id.change` were declared hookable after P2 merged, in issue #1057 (amendment
+  above).
 - Owners of the other custom-field hosts (`customer_accounts`, `orders`, `quote_requests`,
   `catalog`, `crm_opportunities`, `projects`, `tasks`) declare their own actions when 178 needs them.
   None is declared in 176.
