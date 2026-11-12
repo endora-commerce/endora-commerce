@@ -114,6 +114,12 @@ export interface CmsModuleHandle {
   brandTokensService: CmsBrandTokensService;
   /** Storefront read-through cache — `undefined` when no Redis was wired. */
   cache: CmsCache | undefined;
+  /**
+   * Issue #363 — an asset a cached answer may embed was written: drop every
+   * cached answer, then publish the change so the storefront's Data Cache goes
+   * too. `registerModule` calls it from its `ASSET_CHANGED_EVENT` subscription.
+   */
+  assetsChanged: (assetIds: readonly string[]) => Promise<void>;
   /** Idempotent reconciler — called by composition before HTTP starts. */
   reconcile: () => Promise<{ inserted: number; preservedExisting: number }>;
   /** Late-bound resolver for breakpoint settings (wired from composition after Settings module boots). */
@@ -222,6 +228,7 @@ export function cmsModule(options: CmsModuleOptions): {
     translation,
     brandTokensService,
     cache,
+    assetsChanged: (assetIds) => invalidator.assetsChanged(assetIds),
     reconcile: () => reconcileSeededHooks(options.emFactory),
     setPageBuilderBreakpointsResolver: (resolver) => {
       pageBuilderRegistry.setBreakpointsResolver(resolver);
