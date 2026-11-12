@@ -9,11 +9,14 @@ import {
   type Resolver,
 } from 'awilix';
 import type { FastifyInstance } from 'fastify';
+import type { HookableActionRef } from '@endora-commerce/contracts';
 import type { Worker } from 'bullmq';
 import type { ModulePlugin } from '../http/server.js';
 import type { EventBus } from '../events/bus.js';
 import type { ApiInterceptorRegistry } from '../http/interceptors/index.js';
 import type { InterceptorRegistration } from '../http/interceptors/types.js';
+import type { CommandHookRegistry } from '../commands/hooks/registry.js';
+import type { CommandHookEntry } from '../commands/hooks/types.js';
 import {
   defineModuleRoutes,
   defineModuleWorker,
@@ -562,6 +565,10 @@ export function createRegistrationOwnership(): RegistrationOwnership {
   };
 }
 
+/** Any hookable-action ref, whatever its data types — the bound `commandHooks` infers each entry's from. */
+// eslint-disable-next-line @typescript-eslint/no-explicit-any -- a ref's data types are inferred per entry.
+type HookableActionRefAny = HookableActionRef<any, any>;
+
 export interface ModuleContext {
   readonly module: { readonly id: string; readonly version: string };
 
@@ -689,6 +696,30 @@ export interface ModuleContext {
   interceptors(entries: readonly Omit<InterceptorRegistration, 'module'>[]): void;
 
   /**
+   * Command hooks owned by this module (`specs/176-command-hooks-outbox/`
+   * FR-011, `contracts/command-hooks-api.md` §3): code that runs **inside**
+   * another module's write, on an action its owner declared hookable.
+   *
+   * The module id is stamped here, never taken from the entry. Registration
+   * resolves nothing — the bus runs the handler later, per Command, and skips it
+   * while this module is switched off. Composition validates every entry when
+   * it seals the registry: an action nobody declares, a phase the owner does
+   * not offer, an owner missing from this module's `dependencies`, or two
+   * unordered hook modules on one action all refuse the boot. Calling this
+   * after composition throws.
+   *
+   * ```ts
+   * ctx.commandHooks([
+   *   { id: 'refuse-unserved-country', on: ORGANIZATION_HOOKABLE_ACTIONS.register,
+   *     phase: 'beforeCommit', handler: ({ data }) => { … } },
+   * ]);
+   * ```
+   */
+  commandHooks<const T extends readonly HookableActionRefAny[]>(
+    entries: { readonly [K in keyof T]: CommandHookEntry<T[K]> },
+  ): void;
+
+  /**
    * The explicit boot phase (FR-021). Runs once every module has registered,
    * inside `enterSystemScope('boot: <module id>')`, so it may resolve.
    *
@@ -757,6 +788,12 @@ export interface ModuleContextOptions {
   /** Absent in composition roots that mount no interceptor surface (unit tests). */
   readonly interceptorRegistry?: ApiInterceptorRegistry;
   /**
+   * The composition's command-hook registry (176 P2). Absent in a composition
+   * root that wires no hooks into its Command Bus (unit tests); `commandHooks`
+   * then refuses, as `interceptors` does without a registry.
+   */
+  readonly commandHookRegistry?: CommandHookRegistry;
+  /**
    * Shared across every module of one composition, so a name registered twice
    * is caught naming both modules (T042). Absent for a hand-built context — a
    * single module cannot collide with itself.
@@ -812,7 +849,7 @@ export interface ModuleContextOptions {
 }
 
 export function createModuleContext(options: ModuleContextOptions): ModuleContext {
-  const { module, container, eventBus, sink, log, interceptorRegistry, ownership } = options;
+  const { module, container, eventBus, sink, log, interceptorRegistry, commandHookRegistry, ownership } = options;
   const isRegistering = options.isRegistering ?? ((): boolean => false);
   const isDeploymentOverlay = options.overlay === true;
   const decorationQueue = options.decorationQueue;
@@ -1112,6 +1149,23 @@ export function createModuleContext(options: ModuleContextOptions): ModuleContex
       for (const entry of entries) {
         interceptorRegistry.register({ ...entry, module: module.id } as InterceptorRegistration);
       }
+    },
+
+    commandHooks(entries) {
+      if (!commandHookRegistry) {
+        throw new Error(
+          `[kernel] module '${module.id}' registered a command hook, but this composition root ` +
+            `mounts no command-hook registry.`,
+        );
+      }
+      // Rebuilt rather than spread, so nothing an entry carries besides the four
+      // fields — a `moduleId` in particular — reaches the registry.
+      commandHookRegistry.register(
+        module.id,
+        (entries as readonly CommandHookEntry[]).map(
+          (entry) => ({ id: entry.id, on: entry.on, phase: entry.phase, handler: entry.handler }) as CommandHookEntry,
+        ),
+      );
     },
 
     onBoot(hook) {

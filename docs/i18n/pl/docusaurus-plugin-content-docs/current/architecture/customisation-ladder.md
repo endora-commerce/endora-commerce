@@ -89,14 +89,20 @@ i nie została jeszcze zbudowana. **Ten stopień istnieje, ale trudno go odkryć
 to wprost, zamiast zostawiać to do samodzielnego odkrycia.
 :::
 
-:::note Nie na tym stopniu: Command Bus
-`CommandBus.run(command)` przyjmuje obiekt polecenia i wykonuje je w transakcji. Nie ma rejestru
-handlerów i nie ma się do czego podpiąć. To jednolita ścieżka zapisu, a nie punkt rozszerzenia.
+:::note Nie na tym stopniu: udział w samym zapisie
+Subskrybent działa po zatwierdzeniu transakcji i nie może zmienić ani odrzucić tego, co zostało
+zapisane. Aby działać **wewnątrz** zapisu właściciela — dodać własny wiersz w tej samej transakcji
+albo zapis odrzucić — użyj haka polecenia, czyli stopnia 2 (2b poniżej).
 :::
 
 ---
 
 ## Stopień 2 — kod przed tym, co właściciel już obsługuje, albo po tym
+
+Dwa mechanizmy, jeden stopień: wokół endpointu (2a) albo wewnątrz zapisu (2b). Oba są
+opublikowanym identyfikatorem, który właściciel wersjonuje, i oba mogą odmówić.
+
+### 2a — interceptor API
 
 **Mechanizm.** `ctx.interceptors([{ id, target, phase, order, handler }])`. Celem jest stały
 identyfikator endpointu `"<METHOD> <route pattern>"` — wzorzec dokładnie taki, jaki rejestruje
@@ -122,6 +128,32 @@ Rejestr przyjmuje taki cel bez słowa. W czasie działania nic cię o tym nie po
 rozbieżności twojego wdrożenia porównuje każdy cel z tabelą tras i przerywa build błędem
 `unmatched-interceptor-target` — i tylko ona to wychwyci.
 :::
+
+### 2b — hak polecenia
+
+**Mechanizm.** `ctx.commandHooks([{ id, on, phase: 'beforeCommit', handler }])`, gdzie `on` to
+referencja, którą właściciel publikuje w `@endora-commerce/contracts` dla polecenia zadeklarowanego
+jako dostępne dla haków (`ORGANIZATION_HOOKABLE_ACTIONS.register`). Hak działa wewnątrz transakcji
+właściciela, po jego zapisie i przed jego wpisem audytu. Szczegóły są na stronie
+[Command Bus](./command-bus.md#command-hooks-beforecommit).
+
+**Koszt.** Powiązanie z akcją dostępną dla haków i kształtem jej danych — to publiczne API, które
+właściciel wersjonuje — oraz zależność od właściciela w twoim manifeście. Hak trzyma otwartą
+transakcję właściciela przez cały czas działania, więc nie wywołuje usług zdalnych.
+
+**Co się traci.** Nic strukturalnie. Zapis właściciela, jego jedyny wpis audytu i sama szyna
+poleceń pozostają właściciela: hak może dodać własne wiersze (we własnych tabelach albo przez
+polecenie uruchomione `ctx.run`) i odrzucić cały zapis — nic więcej.
+
+**Kto.** Każdy, również wobec cudzych modułów — moduły rdzenia, moduły nakładki twojego wdrożenia i
+zainstalowane pakiety — ale tylko na akcjach, które właściciel zadeklarował. Hak na niezadeklarowanej
+akcji, dwa nieuporządkowane moduły z hakami na jednej akcji albo moduł z hakiem, który nie zależy od
+właściciela, przerywają kompozycję przy starcie. Kolejność dwóch niezależnych modułów z hakami
+ustala twoje wdrożenie w `divergence.ts` (`commandHookOrder`).
+
+**Kiedy to jest odpowiedź.** Własna reguła, która musi obowiązywać przy każdym zapisie rekordu,
+niezależnie od endpointu czy portu, przez który przyszedł; własne dane, które muszą zostać
+zatwierdzone razem z wierszem rdzenia albo wcale.
 
 ---
 
@@ -296,9 +328,10 @@ repozytorium, generowanych ponownie z twojego drzewa i porównywanych bajt po ba
 | `backend/src/apps/<deployment>/divergence.generated.ts` | program i kontrola deterministyczności |
 
 Obok nich jest jedyny plik, który piszesz ręcznie, `backend/src/apps/<deployment>/divergence.ts`.
-Zawiera trzy rzeczy, których nie da się wyprowadzić z drzewa plików: moduły, których nie
-dostarczasz, kolejność opakowywania, gdy dwa twoje moduły nakładkowe dekorują tę samą nazwę, oraz
-**po jednym zdaniu uzasadnienia dla każdej rozbieżności**.
+Zawiera to, czego nie da się wyprowadzić z drzewa plików: moduły, których nie dostarczasz,
+kolejność opakowywania, gdy dwa twoje moduły nakładkowe dekorują tę samą nazwę, kolejność dwóch
+modułów z hakami poleceń, których nie porządkuje żadna zależność, oraz **po jednym zdaniu
+uzasadnienia dla każdej rozbieżności**.
 
 Oba zestawy są porównywane w obie strony. Build kończy się błędem zarówno przy rozbieżności bez
 uzasadnienia, jak i przy uzasadnieniu rozbieżności, której już nie ma — bo właśnie tak wdrożenie po

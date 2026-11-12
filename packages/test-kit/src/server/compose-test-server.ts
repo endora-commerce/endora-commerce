@@ -56,6 +56,7 @@ import { Redis } from 'ioredis';
 import {
   ApiInterceptorRegistry,
   AuditLogService,
+  CommandHookRegistry,
   AuditRedactionService,
   activationDeclarationsFrom,
   capabilityRegistryFrom,
@@ -68,6 +69,8 @@ import {
   createRootContainer,
   forkScopedEm,
   healthRoutePlugin,
+  hookableActionsFrom,
+  moduleDependencyClosureFrom,
   platformLogger,
   registerOrm,
   registerRequestScopeHook,
@@ -263,6 +266,13 @@ export interface ComposeTestServerOptions {
    */
   readonly decorationOrder?: Readonly<Record<string, readonly string[]>> | undefined;
   /**
+   * The order the deployment declares for command-hook modules no manifest
+   * dependency ranks (`specs/176-command-hooks-outbox/` FR-014), forwarded to
+   * `composeModules` as `composeApp` forwards it. An option for
+   * `decorationOrder`'s reason: a composition that declares none still composes.
+   */
+  readonly commandHookOrder?: Readonly<Record<string, readonly string[]>> | undefined;
+  /**
    * Which module ids presence reports as enabled.
    *
    * Defaults to every module the composition's manifests declare, which is what
@@ -378,7 +388,13 @@ export async function composeTestServer(
     });
     const auditLogService = new AuditLogService(em);
     const eventBus = new EventBus();
-    const commandBus = new CommandBus(orm, auditLogService, eventBus);
+    // `specs/176-command-hooks-outbox/` P2 — as `composeApp` builds it: one
+    // registry, shared by the bus and every module context, sealed by
+    // `composeModules`, presence asked per Command from the effective state.
+    const commandHookRegistry = new CommandHookRegistry({
+      isPresent: (moduleId) => effectiveState.isPresent(moduleId),
+    });
+    const commandBus = new CommandBus(orm, auditLogService, eventBus, { hooks: commandHookRegistry });
 
     const salesChannels = composeSalesChannelsKernel({
       emFactory: em,
@@ -437,6 +453,8 @@ export async function composeTestServer(
       redisSubscriber,
       eventBus,
       commandBus,
+      // 176 P2 — as `composeApp` registers it, for the execution-plan route.
+      commandHookRegistry,
       auditLogService,
       // Issue #844 — as `composeApp` registers it.
       auditRedactionService: new AuditRedactionService(em, auditLogService),
@@ -472,6 +490,13 @@ export async function composeTestServer(
       // that resolves an ambiguity in production and not in its tests composes
       // a different platform on the one axis a deployment can change.
       decorationOrder: options.decorationOrder,
+      // 176 P2 — sealed at the end of the call, against the same manifest set.
+      commandHookRegistry,
+      commandHooks: {
+        hookableActions: hookableActionsFrom(manifests),
+        moduleDependencies: moduleDependencyClosureFrom(manifests),
+        commandHookOrder: options.commandHookOrder,
+      },
     });
 
     const composedContext: ComposedPlatformContext = { ...platform, composed };

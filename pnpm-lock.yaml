@@ -3170,6 +3170,9 @@ importers:
       '@endora-commerce/platform':
         specifier: workspace:*
         version: link:../../platform
+      '@endora-commerce/test-kit':
+        specifier: workspace:*
+        version: link:../../test-kit
       '@fastify/cookie':
         specifier: ^11.0.2
         version: 11.0.2

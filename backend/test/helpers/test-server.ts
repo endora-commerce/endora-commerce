@@ -966,6 +966,27 @@ async function loadTestSupport(
  * file that edits a bundle from leaking into the next one.
  */
 let cachedManifestRegistry: LoadedManifestRegistry | undefined;
+/**
+ * A deployment's registry, once per deployment and process
+ * (`specs/176-command-hooks-outbox/` T029). Bare core keeps the committed index
+ * above; a test composing `deployment: '<name>'` hands `_i18n` the deployment's
+ * resolved set — core plus its overlay modules — which is what `composeApp`
+ * hands it in production. Without it an overlay module's own bundle was never
+ * reconciled, so its declared error codes reached the envelope untranslated in
+ * every test, and only in tests.
+ */
+const cachedDeploymentRegistries = new Map<string, LoadedManifestRegistry>();
+function deploymentManifestRegistry(
+  deployment: string,
+  resolved: Parameters<typeof buildStaticRegistry>[0],
+): LoadedManifestRegistry {
+  let registry = cachedDeploymentRegistries.get(deployment);
+  if (registry === undefined) {
+    registry = buildStaticRegistry(resolved);
+    cachedDeploymentRegistries.set(deployment, registry);
+  }
+  return registry;
+}
 function harnessManifestRegistry(): LoadedManifestRegistry {
   // Handed over unmapped (feature 080, T036a): this map dropped both install
   // hooks and, once it existed, would have dropped the lifecycle participant —
@@ -1408,6 +1429,9 @@ export async function setupBackendServer(
     // drains decorations once; this asserts the resulting order was the intended
     // one and refuses when the two disagree.
     decorationOrder: divergenceDeclaration.decorationOrder,
+    // `specs/176-command-hooks-outbox/` FR-014 — and the command-hook tie-break
+    // from the same declaration, which the composer seals the hook registry against.
+    commandHookOrder: divergenceDeclaration.commandHookOrder,
     // Feature 072 (T073) — the real subscriber client only where a test asks for
     // it. One armed subscription per composition, across ~225 files, is how this
     // harness accumulated ~1 GB of retention (task #32); the kit registers an
@@ -2190,7 +2214,10 @@ export async function setupBackendServer(
         // overwrite the root — which is exactly what happened, and the sitemap
         // silently fell through to `http://localhost:3000`.
         sitemapOptions: { staleAfterMs: 0, baseUrl: 'http://test.local' },
-        lifecycleManifestRegistry: () => harnessManifestRegistry(),
+        lifecycleManifestRegistry: () =>
+          options.deployment === undefined
+            ? harnessManifestRegistry()
+            : deploymentManifestRegistry(options.deployment, resolvedRegistry),
         // Feature 072 (T121) — the gate is the port's own now: `adminUserService`
         // is provided by `admin_users` and raises `ModuleDisabledError` when that
         // module is off, so no root hard-codes `isPresent('admin_users')` here.

@@ -95,6 +95,11 @@ export const ORGANIZATION_AUDIT_KEYS: ReadonlySet<string> = new Set([
   // Issue #1040 — `organization.tax_id.change`: whether the VAT validation
   // summary was cleared (its scope code `taxIdScope` is listed above).
   'vatStatusReset',
+  // `specs/176-command-hooks-outbox/` FR-020 — what a command hook on one of
+  // this module's hookable actions noted it wrote on its own tables, merged by
+  // the bus as `extensions.<moduleId>.changedFields`: module ids and field
+  // names, never values (the bus refuses anything that is not a field name).
+  'extensions',
 ]);
 
 /**

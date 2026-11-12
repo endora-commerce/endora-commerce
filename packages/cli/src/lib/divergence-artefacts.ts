@@ -94,7 +94,7 @@ import {
 export const RUNG_COSTS: Readonly<Record<number, string>> = {
   0: 'rung 0 — configuration. Costs nothing and survives every upgrade, because it is data.',
   1: 'rung 1 — subscribe to what the owner already emits. Costs nothing at the seam; you observe, you do not change what the owner did.',
-  2: 'rung 2 — run before or after what the owner already serves. Costs a coupling to an endpoint identity, which is versioned public API.',
+  2: 'rung 2 — run before or after what the owner already serves, or inside a write it declared hookable. Costs a coupling to an endpoint identity or a hookable action, both versioned public API.',
   3: 'rung 3 — a strategy port the owner published. Costs a dependency edge in your manifest; the owner keeps the seam and keeps fixing it behind you.',
   4: 'rung 4 — change what the container hands out. Costs a contract-version coupling to a shape nothing checks for you: `ctx.di.decorate<T>` asserts `T` at the call site and compares it to nothing.',
   5: 'rung 5 — fork. Costs everything, permanently.',
@@ -108,6 +108,7 @@ const KIND_HEADINGS: Readonly<Record<DivergenceKind, string>> = {
   'port-consumed': 'Ports this deployment consumes',
   subscription: 'Events this deployment subscribes to',
   interceptor: 'Endpoints this deployment intercepts',
+  'command-hook': 'Writes this deployment takes part in',
   decoration: 'Registrations this deployment wraps',
   'root-plugin': 'Plugins this deployment mounts at the server root',
   worker: 'Queues this deployment consumes',
@@ -119,6 +120,7 @@ const KIND_ORDER: readonly DivergenceKind[] = [
   'omission',
   'subscription',
   'interceptor',
+  'command-hook',
   'port-provided',
   'port-consumed',
   'decoration',
@@ -187,6 +189,9 @@ function ownerCell(entry: DivergenceEntry): string {
 function subjectCell(entry: DivergenceEntry): string {
   if (entry.kind === 'interceptor' && entry.detail.kind === 'interceptor') {
     return `\`${entry.subject}\` (${entry.detail.phase})`;
+  }
+  if (entry.kind === 'command-hook' && entry.detail.kind === 'command-hook') {
+    return `\`${entry.subject}\` (${entry.detail.phase}, \`${entry.detail.id}\`)`;
   }
   return `\`${entry.subject}\``;
 }
@@ -488,6 +493,7 @@ export function overlayTreeSpellsASeamCall(sources: readonly OverlaySource[]): b
     'di.decorate(',
     '.subscribe(',
     '.interceptors(',
+    '.commandHooks(',
     '.rootPlugin(',
     '.worker(',
     'lazyPort(',
@@ -541,6 +547,15 @@ export const INSTANCE_BOUNDARY_NOTES: ReadonlyArray<{
       'artefact, which is the module version this instance installed. That is the composition ' +
       'this deployment actually runs; it is not the module’s source tree, and a name reachable ' +
       'only from a layer the package does not publish is in no owner map',
+  },
+  {
+    seam: 'the module that declares a hooked action hookable',
+    why:
+      'a `command-hook` entry names the action it hooks, and this repository attributes it to ' +
+      'the module whose manifest declares the action. An instance reads no module manifest — ' +
+      'that would execute an installed package’s code at generate time — so the owner is shown ' +
+      'as a composition root’s; the composition itself refuses a hook on an action no installed ' +
+      'module declares, at boot',
   },
 ];
 

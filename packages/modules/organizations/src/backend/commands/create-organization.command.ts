@@ -6,6 +6,8 @@ import {
   normalizeTaxId,
   type AdminOrganizationCreateBody,
   type CustomFieldValuePort,
+  type OrganizationCreateHookData,
+  type OrganizationCreateOutbox,
 } from '@endora-commerce/contracts';
 import type { Command } from '@endora-commerce/platform/commands';
 import { HttpError } from '@endora-commerce/platform/http';
@@ -16,6 +18,7 @@ import { taxIdConflictOf } from '../services/tax-id-conflict.js';
 import { TaxIdScopeService } from '../services/tax-id-scope-service.js';
 import { taxIdExistsRefusal } from '../services/organization-write.js';
 import { ORGANIZATION_CREATED_FIELDS, presentFields } from '../services/organization-audit-state.js';
+import { toOrganizationRecord } from '../services/organization-details-port.js';
 
 /**
  * `organization.create` — an operator creates a customer Organization and
@@ -81,15 +84,37 @@ export async function taxIdAvailableFor(em: EntityManager, taxId: string, rootId
   return rows.length === 0;
 }
 
+/**
+ * What a caller may hand the Command besides the body
+ * (`specs/176-command-hooks-outbox/` FR-018): extension input for the hook
+ * modules on `organization.create`, keyed by module id. A server-side caller's
+ * only — no HTTP field carries it yet (spec 178 decides that).
+ */
+export interface OrganizationCommandOptions {
+  readonly extensions?: Readonly<Record<string, unknown>>;
+}
+
 export function makeCreateOrganizationCommand(
   deps: CreateOrganizationCommandDeps,
   input: AdminOrganizationCreateBody,
+  options: OrganizationCommandOptions = {},
 ): Command<Organization> {
   const organizationId = randomUUID();
+  const salesChannelIds = [...new Set(input.salesChannelIds)].sort();
   return {
     action: 'organization.create',
     objectType: 'organization',
     objectId: organizationId,
+    // `organization.create` is hookable (176 FR-024, `ORGANIZATION_HOOKABLE_ACTIONS.create`).
+    ...(options.extensions ? { extensions: options.extensions } : {}),
+    hookData: (organization): OrganizationCreateHookData => ({
+      organization: toOrganizationRecord(organization),
+      salesChannelIds,
+    }),
+    outboxData: (organization): OrganizationCreateOutbox => ({
+      organizationId: organization.id,
+      status: organization.status,
+    }),
     run: async ({ em, actor }) => {
       let parent: Organization | null = null;
       if (input.parentId !== undefined) {
@@ -147,7 +172,7 @@ export function makeCreateOrganizationCommand(
           status: organization.status,
           vatStatus: organization.vatStatus,
           changedFields: presentFields(organization, ORGANIZATION_CREATED_FIELDS),
-          salesChannelIds: [...new Set(input.salesChannelIds)].sort(),
+          salesChannelIds,
           ...(parent ? { parentId: parent.id } : {}),
           // Feature 175 (FR-021) — the keys stored, never their values.
           changedCustomFields: Object.keys(organization.customFieldValues ?? {}).sort(),

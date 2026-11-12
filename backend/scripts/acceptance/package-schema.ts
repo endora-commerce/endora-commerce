@@ -606,6 +606,9 @@ async function main(): Promise<void> {
       'schema',
       'boot',
       'install',
+      // A11 (176 FR-025) — the installed package's command hook, while the
+      // package is installed and on, composing bare core plus the package.
+      'command-hook',
       'overlay-decoration',
       'gate-off',
       'gate-on',

@@ -34,6 +34,9 @@ interface Command<TResult> {
   capture?(ctx): Promise<AuditState>;                 // optional pre-state
   run(ctx): Promise<{ result: TResult; before?; after?; skipAudit? }>;
   event?(result): CommandEvent | undefined;           // dispatched once on commit
+  hookData?(result): unknown;                         // required when the action is hookable
+  outboxData?(result): OutboxData;                    // afterCommit data, ids and codes only
+  extensions?: Record<string, unknown>;               // caller input for hook modules, by module id
 }
 ```
 
@@ -76,6 +79,95 @@ keeps them in a store of its own, written in the same Command and read only thro
 scoped access path; the audit entry points at that row by `valueChangeId`. Platform-global
 records (catalog, settings, dictionaries) may still record values. The rule and its test
 obligation are `specs/conventions/audit-state.md` in the repository (issue #470).
+
+## Command hooks (`beforeCommit`) {#command-hooks-beforecommit}
+
+A module can take part in **another module's write** without forking it, but only in a write
+the owning module has opened to hooks. The owner **declares** a Command action hookable: it
+publishes a typed reference in `@endora-commerce/contracts` and lists it in its manifest's
+`hookableActions`. `organizations` declares four (see its module page). Any module — a core
+module, a deployment's overlay module or an installed package — then registers a hook:
+
+```ts
+import { ORGANIZATION_HOOKABLE_ACTIONS as ORG } from '@endora-commerce/contracts';
+import { CommandHookRefusal } from '@endora-commerce/platform/commands';
+
+export function registerModule(ctx: ModuleContext): void {
+  ctx.commandHooks([
+    {
+      id: 'refuse-unserved-country',
+      on: ORG.register,
+      phase: 'beforeCommit',
+      handler: ({ data }) => {
+        if (!SERVED.has(data.organization.registeredAddress.country)) {
+          throw new CommandHookRefusal(409, ACME_COUNTRY_NOT_SERVED, 'We do not serve this country.');
+        }
+      },
+    },
+  ]);
+}
+```
+
+**When it runs.** Inside the Command's transaction, after the owner's `run` and before the
+owner's audit entry: `capture → run → hooks → audit entry → event → commit`. The hook gets the
+owner's declared `data` (typed by the ref, reflecting the uncommitted write), the same `em`
+and actor, and `ctx.run(child)` to run a Command of its own or another owner's on the same
+transaction, with that child's own audit entry.
+
+**Veto.** A hook refuses by throwing an `HttpError` with a code its own module declares and
+translates (`CommandHookRefusal` is a readable subclass). The whole Command rolls back — the
+owner's row, every child, every entry and the event — and the caller gets that status and
+code. Any other throw rolls back too and answers `500`.
+
+**What a hook writes is named in the owner's one entry.** A hook that writes its own tables
+calls `ctx.noteAuditChanges(['x_acme_erp_code'])`, and the owner's entry gains
+`stateAfter.extensions.<moduleId>.changedFields`. Names only: the bus refuses anything that
+is not a field name, so the names-only audit rule holds for hooks too. Notes force the entry: if
+the owner answered `skipAudit` but a hook noted a write, one entry is still recorded, with
+`stateBefore: null` and `stateAfter: { extensions }`.
+
+**Extension input.** A caller may pass `extensions: { <moduleId>: … }` on the Command. Each
+hook sees only its own module's slice as `ctx.extension` and validates it itself. A key no
+present hook module on that action claims is refused `422 COMMAND_EXTENSION_UNCLAIMED` before
+anything is written, so a misspelt or switched-off module never loses data silently.
+`currentCommandHookOrigin()` tells code on the hook's async path which hook is running.
+
+**Off means off.** A hook whose module is switched off — on either presence axis — is skipped
+for that Command, decided per call, with no restart. The write behaves as if the module were
+not installed.
+
+**Composition refuses what cannot be ordered or is not offered.** At boot, after every module
+has registered and before any boot hook, the platform refuses: a hook on an action no module
+declares; a phase the owner does not offer; one action declared by two modules; a duplicate
+hook id within a module; a hook module whose manifest `dependencies` do not reach the owner;
+and two hook modules on one action with no dependency path between them. Hooks run in
+dependency order (a module after every module it depends on, a module's own hooks in
+registration order). When two modules are unrelated, the deployment orders them in its
+`divergence.ts`:
+
+```ts
+commandHookOrder: { 'organization.register': ['acme_erp', 'acme_crm'] }, // first runs first
+```
+
+An entry that contradicts a dependency is refused. Hooks appear in the deployment's divergence
+report as `command-hook`, and `GET /api/v1/admin/command-hooks` (behind
+`platform.modules.read`) serves the live execution plan.
+
+**Rules for hook authors.** Write only your own module's tables, or run the owner's Command
+through `ctx.run` — never another module's table. Make no remote call: the transaction is
+open and a slow hook holds the owner's row locks. A hook nesting Commands that reappear in
+their own chain, or nesting deeper than eight, is refused `500 COMMAND_HOOK_CYCLE`.
+
+**Rules for owners.** Declare only a Command whose `run` is complete and which is not
+reversible (undo restores only what the owner captured). Supply `hookData` — the bus refuses a
+hooked Command without it (`500 COMMAND_HOOK_DATA_MISSING`) — and `outboxData` for the
+`afterCommit` phase, and hold each declared Command to its ref with `expectHookableCommand`
+from `@endora-commerce/test-kit/command-hooks`. The action string, the phases and the data
+types are a public contract.
+
+`afterCommit` handlers are declared in the API and are not delivered yet: their transactional
+outbox is the next phase of this work, and until it ships the platform refuses to register
+one rather than accept a handler nothing calls.
 
 ## Reversibility & undo
 

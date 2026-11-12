@@ -189,6 +189,11 @@ export const PLATFORM_OWNED_NAMES: ReadonlySet<string> = new Set([
   'eventBus',
   'commandBus',
   'apiInterceptors',
+  // `specs/176-command-hooks-outbox/` P2 — the command-hook registry the root
+  // builds beside `commandBus` and hands to it and to `composeModules`, which
+  // seals it. Platform infrastructure as `apiInterceptors` is: `_lifecycle`
+  // reads it for the execution plan, and no module owns it.
+  'commandHookRegistry',
   'settingsReadPort',
   // The same kernel object as `settingsReadPort`, seen from the writing side:
   // `composeSettingsKernel` builds one `SettingsCache` and a root contributes

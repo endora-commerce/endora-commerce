@@ -17,8 +17,11 @@ import { realpathSync, lstatSync, readlinkSync } from 'node:fs';
 import { dirname, isAbsolute, relative, resolve, sep } from 'node:path';
 
 /**
- * The assertions, in order: A1 … A9 are the ones the contract states, A10 is
- * this repository's own and is ahead of it.
+ * The assertions, in order: A1 … A9 are the ones the contract states, A10 and
+ * A11 are this repository's own and are ahead of it. A11 (spec 176 FR-025) asks
+ * whether an installed package can take part in another package's write
+ * through a command hook — the same reason A10 is here: this harness is the one
+ * place an installed package exists.
  *
  * **A10 is not a schema assertion, and it is here rather than in a test of its
  * own for the reason T053(c) gives**: the thing it needs is an installed
@@ -56,6 +59,7 @@ export const ASSERTION_IDS = [
   'A8',
   'A9',
   'A10',
+  'A11',
 ] as const;
 export type AssertionId = (typeof ASSERTION_IDS)[number];
 
@@ -349,6 +353,10 @@ export const ASSERTION_CATALOGUE: Readonly<
   A10: {
     title: "a deployment's overlay is refused a registration the installed package owns",
     refuses: 'a deployment wrapping a container name the package publishes through no export',
+  },
+  A11: {
+    title: "an installed package's command hook runs inside another package's write",
+    refuses: 'an instance that can extend a core write only by forking it',
   },
 };
 

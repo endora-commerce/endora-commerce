@@ -25,6 +25,7 @@ import { capabilityKeyRe } from './capabilities.js';
 import { transactionalEmailManifestEntrySchema } from './transactional-emails.js';
 import { BlockCategorySchema, BlockDefinitionSchema, blockNameRe } from './cms.js';
 import { EnvironmentInputSchema } from './environment-inputs.js';
+import { HookableActionDeclarationSchema, hookableActionRe } from './command-hooks.js';
 
 // ---------------------------------------------------------------------------
 // Identifier / version regexes
@@ -524,10 +525,10 @@ export type OmittedModule = z.infer<typeof OmittedModuleSchema>;
  * report's, so neither belongs here
  * (`specs/107-override-report-and-ladder/contracts/deployment-declaration.md` §5).
  *
- * Every field defaults to empty, so a declaration that leaves one out means
+ * Every field defaults to empty (or is optional), so a declaration that leaves one out means
  * "none of these" rather than "unparseable" — the reading an absent file already
  * gets. A deployment that diverges by nothing still ships the file with all
- * three written out, because the mechanism is easier to find than to remember.
+ * fields written out, because the mechanism is easier to find than to remember.
  */
 export const DeploymentDivergenceDeclarationSchema = z.object({
   /** The modules this deployment does not ship. D-101, unchanged in substance. */
@@ -569,8 +570,29 @@ export const DeploymentDivergenceDeclarationSchema = z.object({
    * `specs/107-override-report-and-ladder/`.
    */
   reasons: z.record(z.string().min(1), z.string().min(20).max(800)).default({}),
+  /**
+   * Execution order, per hookable action, for command-hook modules that no
+   * manifest dependency orders (`specs/176-command-hooks-outbox/` FR-014, OD-1).
+   *
+   * Two hook modules on one action and phase with no dependency path between
+   * them refuse composition (`UnorderedCommandHooksError`) unless the
+   * deployment names both here, first runs first. An entry that contradicts a
+   * dependency path is refused too (`CommandHookOrderContradictionError`): the
+   * dependency graph is the order, and this only breaks ties it leaves open.
+   * It is the deployment's to own because two independent instance packages
+   * must not be made to depend on each other just to be ordered.
+   *
+   * Optional rather than defaulted, unlike the three fields above: it arrived
+   * after instances had scaffolded a typed `divergence.ts`, and a defaulted
+   * field is a required member of the inferred type — an upgrade would have
+   * turned every such file into a type error for a field it does not need.
+   * Absent means `{}`.
+   */
+  commandHookOrder: z
+    .record(z.string().regex(hookableActionRe), z.array(z.string().regex(moduleIdRe)).min(2))
+    .optional(),
 })
-  // Three fields are the whole vocabulary, so a fourth is a typo — and a
+  // Four fields are the whole vocabulary, so a fifth is a typo — and a
   // mistyped field name under a lenient object is silently stripped, which
   // reads as "this deployment declares nothing" for a file whose author wrote
   // a declaration. Refusing it names the key.
@@ -583,7 +605,7 @@ export type DeploymentDivergenceDeclaration = z.infer<
  * One kind of divergence a deployment's tree can hold
  * (`specs/107-override-report-and-ladder/data-model.md` §2.3).
  *
- * Nine, and every one of them is one seam of `ModuleContext` — seven read off
+ * Ten, and every one of them is one seam of `ModuleContext` — eight read off
  * the members themselves, plus `port-consumed` (which is `lazyPort` over the
  * cradle rather than a member) and `omission` (which comes from the declaration
  * and from no seam at all). `routes`, `ungatedRoutes`, `onBoot` and the manifest
@@ -601,7 +623,8 @@ export type DivergenceKind =
   | 'interceptor'
   | 'decoration'
   | 'root-plugin'
-  | 'worker';
+  | 'worker'
+  | 'command-hook';
 
 /**
  * `<kind>:<module>:<subject>` — the three facts that identify a divergence
@@ -648,6 +671,13 @@ export type DivergenceDetail =
   | { readonly kind: 'registration' }
   | { readonly kind: 'worker' }
   | { readonly kind: 'root-plugin'; readonly declaredReason: string }
+  | {
+      readonly kind: 'command-hook';
+      /** `beforeCommit` or `afterCommit`. */
+      readonly phase: 'beforeCommit' | 'afterCommit';
+      /** The hook's id, unique within its module. */
+      readonly id: string;
+    }
   | { readonly kind: 'omission' };
 
 /** One divergence: what, who wrote it, who owns it, at what cost, and why. */
@@ -1042,6 +1072,25 @@ export const ModuleManifestSchema = z.object({
    * is true of most modules and is not a finding.
    */
   env: z.array(EnvironmentInputSchema).optional(),
+  /**
+   * The Command actions this module opens to command hooks, and for which
+   * phases (`specs/176-command-hooks-outbox/` FR-010,
+   * `contracts/command-hooks-api.md` §1).
+   *
+   * Each entry is derived from a typed ref the module publishes in
+   * `@endora-commerce/contracts` (`toHookableActionDeclaration(ref)`), so the
+   * manifest and every hook author name one constant. The declaration is a
+   * public contract: a composition refuses a hook on an action no composed
+   * module declares, or for a phase this list does not offer. Declare only a
+   * Command whose `run` is complete and that is not reversible.
+   *
+   * {@link defineModuleManifest} refuses one action listed twice; two modules
+   * declaring one action is the composer's refusal, because it needs both.
+   *
+   * Absent means "nothing in this module is hookable", which is true of most
+   * modules and is not a finding.
+   */
+  hookableActions: z.array(HookableActionDeclarationSchema).optional(),
 });
 export type ModuleManifest = z.infer<typeof ModuleManifestSchema>;
 
@@ -1537,6 +1586,24 @@ function assertEnvironmentInputRules(m: ModuleManifest): void {
 }
 
 /**
+ * `specs/176-command-hooks-outbox/` FR-010 — one action is declared once per
+ * manifest. A second entry would offer the union of two phase lists nobody
+ * wrote as one, so it is refused with the module and the action named.
+ */
+function assertHookableActionRules(m: ModuleManifest): void {
+  const seen = new Set<string>();
+  for (const declaration of m.hookableActions ?? []) {
+    if (seen.has(declaration.action)) {
+      throw new Error(
+        `[contracts/modules] manifest "${m.id}" declares hookable action "${declaration.action}" ` +
+          'twice. List each action once, with every phase it offers.',
+      );
+    }
+    seen.add(declaration.action);
+  }
+}
+
+/**
  * Identity-with-validation helper for module authors. Modules export a
  * single `manifest` constant via this helper so TypeScript inference is
  * preserved and the loader can ingest the validated payload directly.
@@ -1585,6 +1652,7 @@ export function defineModuleManifest(m: ModuleManifest): ModuleManifest {
   assertBlockRules(m);
   assertDemoRules(m);
   assertEnvironmentInputRules(m);
+  assertHookableActionRules(m);
   return ModuleManifestSchema.parse(m);
 }
 

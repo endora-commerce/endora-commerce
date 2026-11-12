@@ -175,6 +175,16 @@ export { activationDeclarationsFrom } from '../kernel/lifecycle/activation-resol
 // belongs on it no more than a name nobody published.
 export { capabilityRegistryFrom } from '../kernel/lifecycle/capability-registry.js';
 export { requiredModulesFrom } from '../kernel/lifecycle/required-modules.js';
+// `specs/176-command-hooks-outbox/` P2 — the command-hook registry a root builds
+// once, hands its `CommandBus` and `composeModules`, and the two derivations it
+// seals the registry against. Beside `requiredModulesFrom` for its reason: a
+// root derives them from the manifests it resolved, and a module never does —
+// it registers through `ctx.commandHooks`.
+export { CommandHookRegistry } from '../commands/hooks/registry.js';
+export {
+  hookableActionsFrom,
+  moduleDependencyClosureFrom,
+} from '../kernel/lifecycle/command-hook-inputs.js';
 // `specs/110-instance-repository/` T119c. The platform-availability row itself —
 // the entity class `module_registrations` is mapped by. It is here and **not** on
 // `./kernel`, and that is `host-package.md` §1.3's **A** classification applied

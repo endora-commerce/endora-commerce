@@ -2520,5 +2520,8 @@
   "scopedField.setPerChannel": "Set per channel",
   "scopedField.sameEverywhere": "Same in every scope.",
   "scopedField.notAtThisScope": "{levels} — not per language.",
-  "scopedField.editAt": "Edit at {scope}"
+  "scopedField.editAt": "Edit at {scope}",
+  "errors.COMMAND_EXTENSION_UNCLAIMED": "This request carries extension data that no active module accepts for this action, so nothing was saved.",
+  "errors.COMMAND_HOOK_CYCLE": "This change was refused because an extension tried to repeat it inside itself. Nothing was saved; ask the administrator of the installed extensions.",
+  "errors.COMMAND_HOOK_DATA_MISSING": "This change could not be passed to the installed extensions, so nothing was saved. Ask the administrator of the installed extensions."
 }

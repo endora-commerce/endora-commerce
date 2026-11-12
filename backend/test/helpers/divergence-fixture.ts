@@ -58,6 +58,7 @@ export interface ModuleContext {
   worker<W extends Worker>(worker: W): W;
   subscribe(event: string, handler: (payload: unknown) => void): void;
   interceptors(entries: readonly InterceptorRegistration[]): void;
+  commandHooks(entries: readonly CommandHookEntry[]): void;
   onBoot(hook: ModuleBootHook): void;
   readonly log: PlatformLogger;
 }
@@ -66,7 +67,7 @@ export interface ModuleContext {
 /**
  * The fixture deployment's overlay module — every recorded seam, once.
  *
- * Nine kinds; seven of them appear here (`omission` comes from the declaration
+ * Ten kinds; eight of them appear here (`omission` comes from the declaration
  * and `port-consumed` from the `lazyPort` call below, which is in this same
  * file). The three `own-surface` seams are here too, deliberately: they must
  * produce **no** entry, and a fixture without them cannot prove that.
@@ -74,6 +75,7 @@ export interface ModuleContext {
 export const FIXTURE_OVERLAY = `
 import type { ModuleContext } from '../../../../kernel/index.js';
 import { lazyPort } from '../../../../kernel/lazy-port.js';
+import { ORGANIZATION_HOOKABLE_ACTIONS } from '@endora-commerce/contracts';
 import { Worker } from 'bullmq';
 
 const REBATE_EVENT = 'orders.placed';
@@ -98,6 +100,15 @@ export function registerModule(ctx: ModuleContext): void {
       phase: 'pre',
       order: 10,
       handler: async (input) => input,
+    },
+  ]);
+
+  ctx.commandHooks([
+    {
+      id: 'stamp-erp-code',
+      on: ORGANIZATION_HOOKABLE_ACTIONS.create,
+      phase: 'beforeCommit',
+      handler: async (hook) => stamp(hook),
     },
   ]);
 
@@ -130,7 +141,7 @@ export function registerModule(ctx: ModuleContext): void {
 }
 `;
 
-/** The nine keys the fixture's own tree derives, with a sentence each. */
+/** The ten keys the fixture's own tree derives, with a sentence each. */
 export const FIXTURE_REASONS: Readonly<Record<string, string>> = {
   'registration:acme_overlay:acmeRebateService':
     'Core registers no rebate service; this one is Acme’s own and exists to hold the ' +
@@ -147,6 +158,9 @@ export const FIXTURE_REASONS: Readonly<Record<string, string>> = {
   'interceptor:acme_overlay:POST /api/v1/orders#pre':
     'Core accepts an order with no purchase-order number; Acme’s finance system cannot, so ' +
     'the interceptor refuses such a submission before the handler runs.',
+  'command-hook:acme_overlay:organization.create#stamp-erp-code':
+    'Core creates an Organization with no ERP code; Acme writes its own code into its own table ' +
+    'inside the same transaction, so an Organization never exists without one.',
   'root-plugin:acme_overlay:Acme stamps every response with its contract id.':
     'Core stamps no contract id; Acme’s gateway requires one on every response, and a root ' +
     'plugin is the only seam that reaches every module’s routes at once.',
@@ -203,6 +217,7 @@ export function fixtureDivergence(options: FixtureOptions = {}): DivergenceResul
     routes: routeIdentities(routeSources),
     owners: options.owners ?? DEFAULT_OWNERS,
     rootSupplied: options.rootSupplied ?? new Set(['commandBus', 'auditLogService']),
+    actionOwners: new Map([['organization.create', 'organizations']]),
     declaration: {
       omittedModules: options.omittedModules ?? [
         { moduleId: 'blog', reason: FIXTURE_REASONS['omission:core:blog'] as string },

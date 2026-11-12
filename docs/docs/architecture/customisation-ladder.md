@@ -92,15 +92,20 @@ built. **This rung is real and undiscoverable**, and that is stated here rather
 than left for you to find out.
 :::
 
-:::note Not on this rung: the Command Bus
-`CommandBus.run(command)` takes a command object and executes it in a
-transaction. There is no handler registry and nothing to hook. It is the uniform
-write path, not an extension point.
+:::note Not on this rung: taking part in the write itself
+A subscriber runs after the commit and cannot change or refuse what was written.
+To act **inside** an owner's write — add your own row in the same transaction,
+or refuse it — use a command hook, which is rung 2 (2b below).
 :::
 
 ---
 
 ## Rung 2 — run before or after what the owner already serves
+
+Two mechanisms, one rung: around an endpoint (2a) or inside a write (2b). Both
+are a published identity the owner versions, and both may refuse.
+
+### 2a — an API interceptor
 
 **Mechanism.** `ctx.interceptors([{ id, target, phase, order, handler }])`. The
 target is the stable endpoint identity `"<METHOD> <route pattern>"` — the pattern
@@ -127,6 +132,33 @@ deployment's divergence check reconciles every target against the route table an
 fails the build with `unmatched-interceptor-target`, which is the only thing that
 will.
 :::
+
+### 2b — a command hook
+
+**Mechanism.** `ctx.commandHooks([{ id, on, phase: 'beforeCommit', handler }])`,
+where `on` is a ref the owner publishes in `@endora-commerce/contracts` for a
+Command it declared hookable (`ORGANIZATION_HOOKABLE_ACTIONS.register`). The hook
+runs inside the owner's transaction, after its write and before its audit entry.
+The details are on [Command Bus](./command-bus.md#command-hooks-beforecommit).
+
+**Costs.** A coupling to the hookable action and its data shape, which are public
+API the owner versions, and a dependency edge in your manifest on the owner. A
+hook holds the owner's transaction open while it runs, so it makes no remote call.
+
+**Loses.** Nothing structural. The owner's write, its single audit entry and the
+bus itself stay the owner's: a hook can add its own rows (through its own tables
+or a Command run with `ctx.run`) and refuse the whole write, and nothing else.
+
+**Who.** Everyone, across owners — core modules, your deployment's overlay modules
+and installed packages alike — but only on actions the owner declared. A hook on
+an undeclared action, two unordered hook modules on one action, or a hook module
+that does not depend on the owner refuses the composition at boot. Your
+deployment orders two unrelated hook modules in its `divergence.ts`
+(`commandHookOrder`).
+
+**When it is the answer.** A rule of your own that must hold for every write of a
+record, whichever endpoint or port it came through; data of your own that must
+commit with the core row or not at all.
 
 ---
 
@@ -308,10 +340,10 @@ repository, regenerated from your tree and byte-compared in CI:
 | `backend/src/apps/<deployment>/divergence.generated.ts` | a program, and the determinism gate |
 
 Beside them sits the one file you write by hand,
-`backend/src/apps/<deployment>/divergence.ts`, which carries the three things no
-walk can produce: the modules you do not ship, the wrapping order where two of
-your overlay modules decorate one name, and **one sentence per divergence saying
-why**.
+`backend/src/apps/<deployment>/divergence.ts`, which carries the things no walk
+can produce: the modules you do not ship, the wrapping order where two of your
+overlay modules decorate one name, the order of two command-hook modules no
+dependency ranks, and **one sentence per divergence saying why**.
 
 The two are reconciled both ways. A divergence with no sentence fails the build,
 and so does a sentence describing a divergence that is gone — which is how a

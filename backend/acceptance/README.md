@@ -8,7 +8,10 @@ resolution path.**
 That sentence is D-110 (`specs/080-f4-real-scope/README.md` §6); the normative form, with the
 nine assertions, is `specs/080-f4-real-scope/contracts/package-schema-acceptance.md`.
 
-**A10 is a tenth and is not in that contract** (T053(c)) — see *The tenth assertion* below.
+**A10 is a tenth and is not in that contract** (T053(c)) — see *The tenth assertion* below. **A11 is an
+eleventh** (`specs/176-command-hooks-outbox/` T030): the fixture package registers a command hook on
+`organizations`' `organization.register`, and the `command-hook` phase asserts that its write commits
+inside the registration and that its veto rolls the registration back.
 
 ```bash
 # locally, against a disposable database (the name must contain "test")
@@ -34,8 +37,8 @@ leaves: `pnpm pack` → `pnpm add ./x.tgz` into `os.tmpdir()` → boot this plat
 | `block-renderers-fixture/` | `@endora-commerce/mod-acceptance-blocks` — a synthetic third-party module that draws its own Page Builder block: `./storefront`, `./email`, `blocks` in `./admin`, `./blocks.css`, and a backend that registers the e-mail renderer (`specs/141-module-block-renderers/`). **Not a `pnpm-workspace.yaml` member.** It belongs to a separate criterion, `acceptance:block-renderers` (`../scripts/acceptance/block-renderers.ts`, ratchet `block-renderers-expected-state.json`), which builds and packs it outside the repository and stands it up on all three surfaces: a scaffolded storefront built with `next build`, the composed platform booted against the tarball with the module switched on, off and on again (`../scripts/acceptance/block-renderers-probe.ts`), and an instance scaffolded by `endora new instance`, installed from a local registry and built with Vite. It needs `ACCEPTANCE_DATABASE_URL` and `REDIS_URL` and takes about twenty minutes; all sixteen assertions pass. `check:block-renderers` reads this package on every `quality` run — it is the one package in the repository that ships all three renderer layers. |
 | `fixture-package/` | `@endora-commerce/mod-acceptance-probe` — a synthetic third-party module: one entity, one migration, one permission, an activation block, one palette action, flat `en`/`pl` bundles. **Not a `pnpm-workspace.yaml` member**, so pnpm cannot link it. Publishes `dist` + `i18n` with comments stripped, so a source-text probe for `@Entity(` finds nothing. |
 | `expected-state.json` | The two-way ratchet: what the criterion answers on this tree today, per assertion, with a reason for every entry. |
-| `../scripts/acceptance/package-schema.ts` | The runner: build, pack, install, A8/A9, database, seven probe phases, report. |
-| `../scripts/acceptance/instance-probe.ts` | One platform process per phase — `schema`, `boot`, `install`, `overlay-decoration`, `gate-off`, `gate-on`, `uninstall`. It boots the real composition root and answers A1 … A7 and A10. |
+| `../scripts/acceptance/package-schema.ts` | The runner: build, pack, install, A8/A9, database, eight probe phases, report. |
+| `../scripts/acceptance/instance-probe.ts` | One platform process per phase — `schema`, `boot`, `install`, `command-hook`, `overlay-decoration`, `gate-off`, `gate-on`, `uninstall`. It boots the real composition root and answers A1 … A7, A10 and A11. |
 | `../../src/apps/acceptance/` | The deployment the `overlay-decoration` phase composes: one overlay module whose whole content is a decoration over a registration the fixture **package** owns — the reach that makes the refusal measurable. |
 | `../scripts/acceptance/assertions.ts` | Every judgement, pure. Unit-tested in `test/unit/scripts/package-schema-acceptance.test.ts`. |
 
@@ -45,7 +48,7 @@ Three exit codes, and the third is the point: **0** the criterion is met, **1** 
 could not be measured (no PostgreSQL, no `pnpm`, a database name the guard refuses, a phase that
 threw). "The services were missing" is not spellable as either colour.
 
-Today the run prints ten `PASS` — the **schema** criterion is met, and so is the tenth assertion,
+Today the run prints eleven `PASS` — the **schema** criterion is met, and so is the tenth assertion,
 which since T059 asserts a **refusal** rather than a capability (see *The tenth assertion*). What
 CI enforces is unchanged and is still drift against `expected-state.json` in **both** directions —
 the ratchet was never "is it red", it was "does it answer what this repository says it answers".

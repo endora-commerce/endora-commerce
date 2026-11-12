@@ -1,9 +1,15 @@
 import type { EntityManager } from '@mikro-orm/postgresql';
-import { ERROR_CODES, isUuidShape } from '@endora-commerce/contracts';
+import {
+  ERROR_CODES,
+  isUuidShape,
+  type OrganizationUpdateHookData,
+  type OrganizationUpdateOutbox,
+} from '@endora-commerce/contracts';
 import type { Command } from '@endora-commerce/platform/commands';
 import { HttpError } from '@endora-commerce/platform/http';
 import { Organization } from '../entities/organization.entity.js';
 import { changedKeys } from '../services/organization-audit-state.js';
+import { toOrganizationRecord } from '../services/organization-details-port.js';
 
 /** The caller's read-modify-write over an Organization's custom-field bag. */
 export type OrganizationCustomFieldMerge = (
@@ -57,20 +63,37 @@ export async function applyCustomFieldMerge(
 export function makeSetCustomFieldValuesCommand(input: {
   organizationId: string;
   merge: OrganizationCustomFieldMerge;
+  /** Extension input for the hook modules on this action, keyed by module id (176 FR-018). */
+  extensions?: Readonly<Record<string, unknown>>;
 }): Command<Organization> {
+  // What `run` changed, for the hook data — set before the hooks run.
+  let changedCustomFields: string[] = [];
   return {
     action: 'organization.set_custom_field_values',
     objectType: 'organization',
     objectId: input.organizationId,
+    // Hookable (176 FR-024, `ORGANIZATION_HOOKABLE_ACTIONS.setCustomFieldValues`).
+    ...(input.extensions ? { extensions: input.extensions } : {}),
+    hookData: (org): OrganizationUpdateHookData => ({
+      organization: toOrganizationRecord(org),
+      changedFields: [],
+      changedCustomFields,
+    }),
+    outboxData: (org): OrganizationUpdateOutbox => ({
+      organizationId: org.id,
+      changedFields: [],
+      changedCustomFields,
+    }),
     run: async ({ em }) => {
       const org = await loadLiveOrganization(em, input.organizationId);
       const current = { ...(org.customFieldValues ?? {}) };
       await applyCustomFieldMerge(org, input.merge);
       await em.flush();
+      changedCustomFields = changedKeys(current, org.customFieldValues ?? {});
       return {
         result: org,
         before: null,
-        after: { changedCustomFields: changedKeys(current, org.customFieldValues ?? {}) },
+        after: { changedCustomFields },
       };
     },
   };

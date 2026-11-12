@@ -70,6 +70,7 @@ import type {
 } from '@endora-commerce/contracts';
 
 import { CommandBus } from '../commands/index.js';
+import { CommandHookRegistry } from '../commands/hooks/registry.js';
 import { configuredEntitiesFrom } from '../db/configured-entities.js';
 import { discoverConfiguredMigrations } from '../db/configured-migrations.js';
 import { mikroOrmConfigFrom } from '../db/mikro-orm.config.js';
@@ -101,6 +102,10 @@ import {
 import { effectiveState } from '../kernel/lifecycle/effective-state.js';
 import { publishStateChanged, registryCache } from '../kernel/lifecycle/registry-cache.js';
 import { requiredModulesFrom } from '../kernel/lifecycle/required-modules.js';
+import {
+  hookableActionsFrom,
+  moduleDependencyClosureFrom,
+} from '../kernel/lifecycle/command-hook-inputs.js';
 import { platformLogger } from '../kernel/logging.js';
 import {
   activeSchemaExtensionContext,
@@ -334,6 +339,13 @@ export interface ComposeAppOptions {
    * Forwarded to `composeModules` unchanged and **checked, never applied**.
    */
   readonly decorationOrder?: Readonly<Record<string, readonly string[]>> | undefined;
+  /**
+   * The order this deployment declares for command-hook modules no manifest
+   * dependency ranks (`specs/176-command-hooks-outbox/` FR-014), read from the
+   * same `divergence.ts` as `decorationOrder` and forwarded to `composeModules`,
+   * which seals the command-hook registry against it.
+   */
+  readonly commandHookOrder?: Readonly<Record<string, readonly string[]>> | undefined;
   /**
    * The modules this deployment declares it omits (D-101), from the same
    * declaration `decorationOrder` comes from.
@@ -654,7 +666,16 @@ export async function composeApp(options: ComposeAppOptions): Promise<ComposeApp
   // No `getRequestMeta`: the bus reads the request in flight from the ambient
   // platform scope by default, so an entry carries the same IP, user agent and
   // request id a direct `auditLogService.record` call takes (issue #997).
-  const commandBus = new CommandBus(orm, auditLogService, eventBus);
+  //
+  // `specs/176-command-hooks-outbox/` P2 — the command-hook registry, shared by
+  // the bus (which runs the hooks) and every module context (which registers
+  // them); `composeModules` seals it below. Presence is the live effective
+  // state, asked per Command, so a switched-off hook module stops running on
+  // the next write without a restart.
+  const commandHookRegistry = new CommandHookRegistry({
+    isPresent: (moduleId) => effectiveState.isPresent(moduleId),
+  });
+  const commandBus = new CommandBus(orm, auditLogService, eventBus, { hooks: commandHookRegistry });
 
   // Feature 060 — API interceptor registry. Modules register pre/post
   // interceptors against endpoints owned by other modules; execution is
@@ -725,6 +746,8 @@ export async function composeApp(options: ComposeAppOptions): Promise<ComposeApp
     // The audited write path (Principle XIII). A converted module resolves it
     // like any other platform service.
     commandBus,
+    // 176 P2 — so `_lifecycle` can serve the read-only execution plan over it.
+    commandHookRegistry,
     // The resolved registry — core manifests plus this deployment's overlay
     // modules plus every installed package. `admin_roles` builds the permission
     // catalogue from it and cannot see it itself: which modules a deployment
@@ -857,6 +880,14 @@ export async function composeApp(options: ComposeAppOptions): Promise<ComposeApp
     // emits in its own order and drains decorations once; this asserts that the
     // resulting order was the intended one and refuses when the two disagree.
     decorationOrder: options.decorationOrder,
+    // `specs/176-command-hooks-outbox/` P2 — sealed at the end of this call,
+    // against data derived from the same manifest set as `requiredModules`.
+    commandHookRegistry,
+    commandHooks: {
+      hookableActions: hookableActionsFrom(resolvedRegistry.map((entry) => entry.manifest)),
+      moduleDependencies: moduleDependencyClosureFrom(resolvedRegistry.map((entry) => entry.manifest)),
+      commandHookOrder: options.commandHookOrder,
+    },
   });
 
   const composedContext: ComposedAppContext = {

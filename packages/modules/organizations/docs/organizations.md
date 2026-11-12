@@ -99,6 +99,36 @@ correction to the value already stored).
   accept `?extensions=<moduleId>[,…]` and attach those values as `extensions`.
   Without the parameter the responses are unchanged. See *Declared extension
   columns* in the architecture guide.
+- **Command hooks** — four Organization writes are declared hookable, so another
+  module can take part in them inside their transaction (see *Hookable actions*
+  below).
+
+### Hookable actions
+
+Another module — a deployment's overlay module or an installed package — may run
+a `beforeCommit` command hook inside these writes, register it against the ref in
+`ORGANIZATION_HOOKABLE_ACTIONS` (`@endora-commerce/contracts`), and must list
+`organizations` in its manifest `dependencies`. The hook sees the uncommitted
+Organization, may write its own tables or run a Command through `ctx.run`, and
+may refuse the write with a code of its own, which rolls the whole write back.
+How hooks run, are ordered and are refused is on the *Command Bus* architecture
+page.
+
+| Action | Ref | Written by | Hook data |
+| --- | --- | --- | --- |
+| `organization.create` | `ORGANIZATION_HOOKABLE_ACTIONS.create` | `POST /api/v1/admin/organizations` | `organization`, `salesChannelIds` |
+| `organization.register` | `ORGANIZATION_HOOKABLE_ACTIONS.register` | `POST /api/v1/organizations/register` | `organization`, `customerAccountId`, `salesChannelId`, `registryLookupOutcome` |
+| `organization.admin_patch` | `ORGANIZATION_HOOKABLE_ACTIONS.adminPatch` | `PATCH /api/v1/admin/organizations/:id` | `organization`, `changedFields`, `changedCustomFields` |
+| `organization.set_custom_field_values` | `ORGANIZATION_HOOKABLE_ACTIONS.setCustomFieldValues` | `organizationCustomFieldWritePort` | `organization`, `changedFields`, `changedCustomFields` |
+
+All four offer both phases; the `afterCommit` phase is not delivered yet. A
+hook's noted changes appear in the Organization's single audit entry as names,
+under `extensions.<moduleId>.changedFields`. The registration hook never sees
+the e-mail verification token. Extension input (`extensions`) can be passed by
+server-side callers only — `organizationCustomFieldWritePort.setCustomFieldValues`
+takes it as `{ extensions }` — and no HTTP body carries it yet. The later Organization
+Commands — converting a personal organization, correcting a tax ID, moving in
+the hierarchy — are not declared hookable.
 
 ## Sales channels
 

@@ -10,7 +10,7 @@ import type { DeploymentDivergenceDeclaration } from '@endora-commerce/contracts
  * out for that same reason — a field an author never sees is a field they never
  * learn they have.
  *
- * Three things are declared here and only three, because they are the three no
+ * Four things are declared here and only four, because they are the four no
  * walk can produce:
  *
  *  - `omittedModules` — a module this deployment does not ship, with a reason
@@ -20,6 +20,9 @@ import type { DeploymentDivergenceDeclaration } from '@endora-commerce/contracts
  *    entry is how a deployment silently reacquires the hazard it once declared.
  *  - `decorationOrder` — the wrapping order for a registration more than one of
  *    this deployment's overlay modules decorates. Checked, never applied.
+ *  - `commandHookOrder` — the order of two command-hook modules on one action
+ *    that no manifest dependency ranks (spec 176). Optional; written out here
+ *    for the same reason the others are.
  *  - `reasons` — one sentence per divergence the platform derives, keyed by the
  *    derived entry's own key. It answers; it cannot enumerate.
  *
@@ -30,7 +33,25 @@ import type { DeploymentDivergenceDeclaration } from '@endora-commerce/contracts
 export const divergence: DeploymentDivergenceDeclaration = {
   omittedModules: [],
   decorationOrder: {},
+  // `specs/176-command-hooks-outbox/` FR-014 — the order of two hook modules on
+  // one action that no manifest dependency ranks. One hook module ships here, so
+  // there is nothing to order.
+  commandHookOrder: {},
   reasons: {
+    // `command_hook_fixture` — 176 P2. Two entries, one per hook, because a
+    // command hook is keyed by its id: one module may register several on one
+    // action and each is its own divergence.
+    'command-hook:command_hook_fixture:organization.create#observe-create':
+      'Core creates an Organization in one audited Command. This fixture takes part in that write ' +
+      'only for an Organization whose name carries its marker: inside the same transaction it ' +
+      'records an audit entry of its own, names what it wrote in the core entry, and refuses with ' +
+      'its own translated code when the name also carries its veto word. It is the reference hook ' +
+      'module the command-hook contract tests compose, and it changes nothing for any other name.',
+    'command-hook:command_hook_fixture:organization.register#observe-register':
+      'The same hook on storefront self-registration, which is one Command since spec 176 P1. On ' +
+      'a marked name it writes its own audit entry inside the registration transaction and may ' +
+      'refuse the registration with its own code, so the whole registration — Organization, ' +
+      'first account, token — rolls back; any other name passes through untouched.',
     // `ledger_vendor_fixture` — D-256's wave-4 prologue. Twelve entries, and the
     // count is the point rather than an accident: a ledger vendor is the widest
     // consumer surface `invoice_ledger` and `invoices` publish, and after wave 4

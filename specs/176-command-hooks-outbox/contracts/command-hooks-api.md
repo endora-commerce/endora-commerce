@@ -4,6 +4,37 @@
 `specs/178-extensible-columns/` may depend on. Changing one after P2 merges is a changeset on the
 owning package (minor while in `0.x`, with the old/new call in the body).
 
+**Amended (P2, 2026-11-12)** — reconciled with `master` and the conventions while implementing;
+master won in each case:
+
+1. **Error-code owner.** The three codes are declared by `_i18n`, the platform-vocabulary owner
+   (`packages/modules/_i18n/src/manifest.ts`, which records why `_lifecycle` was refused for that
+   role), not by `_lifecycle`. They are also in `ERROR_CODES`, so `HttpError` accepts them.
+2. **`commandHookOrder` is `.optional()`, not `.default({})`.** A defaulted field is a required
+   member of the inferred `DeploymentDivergenceDeclaration`, and every instance's typed
+   `divergence.ts` would stop compiling on upgrade. Absent means `{}`.
+3. **`afterCommit` is types only in P2.** `AfterCommitContext` / `AfterCommitHandler` ship and a ref
+   names both phases, but registering an `afterCommit` handler throws until P3's outbox delivers it
+   — accepting one would be a handler nothing calls. `PermanentOutboxFailure` is P3's.
+4. **§4.3 reads "present", not "registered".** `COMMAND_HOOK_DATA_MISSING` is raised when at least
+   one hook whose module is present would run: with every hook module off, the Command behaves as
+   if they were not installed (Principle XVII). `expectHookableCommand` is what makes a missing
+   `hookData` red in the owner's own suite.
+5. **The registry lives on `./composition`** (`CommandHookRegistry`, `hookableActionsFrom`,
+   `moduleDependencyClosureFrom`); a root builds it, a module never does. `composeModules` takes it
+   as `commandHookRegistry` (the field name the context option has, which `harness-parity.test.ts`
+   requires) plus the data as `commandHooks`. A module's unit test seals one through
+   `@endora-commerce/test-kit/command-hooks`' `sealedCommandHookRegistry`.
+6. **Cycle bound is for hook-induced nesting only**: an owner's own `ctx.run` children are not
+   limited, as before hooks existed; a chain that passed through a hook refuses a repeated action
+   or a ninth Command.
+7. **`noteAuditChanges` refuses a non-field-name** (`/^[A-Za-z_][A-Za-z0-9_]*(\.[A-Za-z_][A-Za-z0-9_]*)*$/`),
+   so the names-only rule (`specs/conventions/audit-state.md`, which now names the key) holds for
+   hooks. **A hook's notes force the entry** (architect ruling on #1055): when the owner answers
+   `skipAudit` and at least one hook noted a write, the bus still records the one entry, with
+   `stateBefore: null` and `stateAfter: { extensions }` — the hooks' names and nothing of the
+   owner's. With `skipAudit` and no notes, no entry is recorded, as before.
+
 ## 1. `@endora-commerce/contracts` — `src/command-hooks.ts` (platform-free)
 
 ```ts
@@ -137,7 +168,9 @@ composition is sealed throws (as interceptors do after ready). Registration reso
 4. A throw from a hook propagates unchanged (HttpError → its status/code; other → 500); the
    transaction rolls back.
 5. Then the owner's audit entry is recorded with `extensions.<moduleId>.changedFields` merged into
-   `stateAfter` (only when a hook noted changes; `stateAfter: null` becomes `{ extensions }`).
+   `stateAfter` (only when a hook noted changes; `stateAfter: null` becomes `{ extensions }`). The
+   entry is recorded when `!skipAudit || anyNotes`: an owner that answered `skipAudit` while a hook
+   noted a write gets one entry with `stateBefore: null` and `stateAfter: { extensions }`.
 6. Then one `command_outbox` row per present `afterCommit` handler is persisted on the same `em`.
 7. After commit the bus enqueues the deduplicated wake job if rows were written (failure ignored).
 8. Nesting: an action may not appear twice in the chain of Commands run from hooks; depth ≤ 8.

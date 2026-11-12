@@ -195,6 +195,29 @@ export const MINTED_ERROR_CODES: MintedErrorCodes = {
       'packaging unit would take past the bound. `VALIDATION_FAILED` is not reused: the envelope ' +
       'never translates that code.',
   },
+  // `specs/176-command-hooks-outbox/` P2 — the Command Bus's three answers to a
+  // misused command-hook seam. No module owns a Command's hook chain.
+  COMMAND_EXTENSION_UNCLAIMED: {
+    to: '_i18n',
+    reason:
+      'Minted by spec 176 P2 (FR-019) for a Command whose `extensions` carry a key no present ' +
+      'hook module on that action claims — refused 422 before any write so a misspelt or ' +
+      'switched-off module never loses its input silently. The raiser is the Command Bus.',
+  },
+  COMMAND_HOOK_CYCLE: {
+    to: '_i18n',
+    reason:
+      'Minted by spec 176 P2 (FR-022) for an action reappearing in its own hook chain, or ' +
+      'hook-induced nesting past eight Commands. A 500: the deployment composed hooks that recurse. ' +
+      'The raiser is the Command Bus.',
+  },
+  COMMAND_HOOK_DATA_MISSING: {
+    to: '_i18n',
+    reason:
+      'Minted by spec 176 P2 (FR-023) for a Command declared hookable that supplies no hook data ' +
+      'while a hook would run. A 500: the owner broke its own published contract. The raiser is ' +
+      'the Command Bus.',
+  },
   ADMIN_AUTHENTICATION_THROTTLED: {
     to: 'admin_users',
     reason:
@@ -2611,6 +2634,27 @@ export const PLATFORM_OWNED_ERROR_CODES: PlatformOwnedErrorCodes = {
       'shopping lists, returns, external pricing and the promotion preview. The noun is the ' +
       'request\'s line quantity, which no one module owns; the raisers are the error envelope reading ' +
       'the Zod issue `line-bounds.ts` tags and `carts` for a merged or packaging-unit line.',
+  },
+  // `specs/176-command-hooks-outbox/` P2 — a Command's hook chain is the
+  // platform's Command Bus, which no module owns.
+  COMMAND_EXTENSION_UNCLAIMED: {
+    tier: 'T3',
+    reason:
+      'Extension input on a Command that no present hook module on its action claims. The noun is ' +
+      'the Command\'s hook chain, which the platform\'s Command Bus runs for every module; the hook ' +
+      'module a key was meant for is named in the details, not owned by the code.',
+  },
+  COMMAND_HOOK_CYCLE: {
+    tier: 'T3',
+    reason:
+      'A hookable action reappearing in its own hook chain, or nesting past the bound. The noun is ' +
+      'the hook chain the Command Bus runs, which spans the owner and every hook module at once.',
+  },
+  COMMAND_HOOK_DATA_MISSING: {
+    tier: 'T3',
+    reason:
+      'A Command declared hookable that supplied no hook data. The refusal is the Command Bus\'s, ' +
+      'raised for whichever owner declared the action, so no one module owns it.',
   },
   UNAUTHORIZED: {
     tier: 'T3',

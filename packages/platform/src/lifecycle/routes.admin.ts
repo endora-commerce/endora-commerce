@@ -9,7 +9,9 @@ import {
   ModuleListQuerySchema,
   ModuleListResponseSchema,
   apiInterceptorListSchema,
+  CommandHookPlanResponseSchema,
   type AdminModulePresenceResponse,
+  type CommandHookPlanResponse,
   type ApiInterceptorList,
   type MfaDeactivationGuardPort,
   type MfaEnrolmentCountPort,
@@ -19,6 +21,7 @@ import {
 } from '@endora-commerce/contracts';
 import type { CommandBus } from '../commands/index.js';
 import type { ApiInterceptorRegistry } from '../http/interceptors/index.js';
+import type { CommandHookRegistry } from '../commands/hooks/registry.js';
 import { HttpError } from '../http/error-envelope.js';
 import type { ModuleLifecycleOrchestrator } from './services/orchestrator.js';
 import { effectiveState, toModulePresenceDto } from '../kernel/lifecycle/effective-state.js';
@@ -336,5 +339,29 @@ export function registerApiInterceptorAdminRoutes(
         moduleEnabled: deps.registry.isModuleEnabled(item.module),
       })),
     }),
+  );
+}
+
+export interface CommandHookAdminDeps {
+  registry: CommandHookRegistry;
+  requireAdmin: RequireAdminFactory;
+}
+
+/**
+ * `specs/176-command-hooks-outbox/` FR-026 — the read-only execution plan for
+ * command hooks, the interceptor screen's sibling: every action a composed
+ * module declares hookable, and every registered hook at its position, with
+ * `moduleEnabled` read live from the effective state. Hooks are shipped module
+ * code, so there is no write surface. Behind `platform.modules.read`, as the
+ * interceptor plan is.
+ */
+export function registerCommandHookAdminRoutes(app: FastifyInstance, deps: CommandHookAdminDeps): void {
+  app.get(
+    '/api/v1/admin/command-hooks',
+    {
+      preHandler: deps.requireAdmin('platform.modules.read'),
+      schema: { response: { 200: CommandHookPlanResponseSchema } },
+    },
+    async (): Promise<CommandHookPlanResponse> => deps.registry.plan(),
   );
 }

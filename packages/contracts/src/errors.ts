@@ -596,6 +596,12 @@ export const ERROR_CODES = {
   // Module Lifecycle (feature 018)
   MODULE_DISABLED: 'MODULE_DISABLED',
 
+  // Command hooks (`specs/176-command-hooks-outbox/` P2) — the platform's answer
+  // to a misused hook seam; `command-hooks.ts` documents each.
+  COMMAND_EXTENSION_UNCLAIMED: 'COMMAND_EXTENSION_UNCLAIMED',
+  COMMAND_HOOK_CYCLE: 'COMMAND_HOOK_CYCLE',
+  COMMAND_HOOK_DATA_MISSING: 'COMMAND_HOOK_DATA_MISSING',
+
   // Module Lifecycle (feature 073 — operator activation)
   /** No manifest and no registry row answer to this module id. */
   MODULE_NOT_FOUND: 'MODULE_NOT_FOUND',

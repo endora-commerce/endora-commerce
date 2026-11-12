@@ -215,6 +215,16 @@ export const manifest = defineModuleManifest({
     // it `core-block-home.md` §1.3's counter-example: an explicit T3 with one
     // raiser today. The noun is a request budget, which the platform imposes.
     { code: 'RATE_LIMITED' },
+
+    // T3 by noun (3) — `specs/176-command-hooks-outbox/` P2. The noun is a
+    // Command's hook chain, which the platform's Command Bus runs: no module
+    // owns it, and the hook module that misused it is named in the message,
+    // not in the code. `COMMAND_EXTENSION_UNCLAIMED` is a client error (422,
+    // refused before any write); the other two are 500s a deployment meets
+    // when a hook recursed or an owner forgot its hook data.
+    { code: 'COMMAND_EXTENSION_UNCLAIMED' },
+    { code: 'COMMAND_HOOK_CYCLE' },
+    { code: 'COMMAND_HOOK_DATA_MISSING' },
   ],
 });
 

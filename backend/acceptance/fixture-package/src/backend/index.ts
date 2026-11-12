@@ -22,9 +22,54 @@
 // refuse. A published package's bare specifier is not that: it resolves to an
 // installed artefact, and the instance owns the copy.
 
+import { randomUUID } from 'node:crypto';
+import { CommandHookRefusal, type CommandHookContext } from '@endora-commerce/platform/commands';
 import type { ModuleContext, RequireAdminFactory } from '@endora-commerce/platform/kernel';
 import { AcceptanceProbeRow } from './acceptance-probe-row.entity.js';
-import { ACCEPTANCE_PROBE_PERMISSION } from '../manifest.js';
+import {
+  ACCEPTANCE_PROBE_HOOK_MARKER,
+  ACCEPTANCE_PROBE_PERMISSION,
+  ACCEPTANCE_PROBE_REFUSED,
+  ACCEPTANCE_PROBE_TABLE,
+} from '../manifest.js';
+
+/**
+ * `organizations`' hookable registration, spelled as the plain object a ref is
+ * (assertion A11, `specs/176-command-hooks-outbox/` FR-025). A published package
+ * would import `ORGANIZATION_HOOKABLE_ACTIONS.register` from
+ * `@endora-commerce/contracts`; this one carries no runtime dependency on
+ * anything but its host, so it writes the same three facts the ref carries. The
+ * composition holds it to the owner's declaration either way.
+ */
+const ORGANIZATION_REGISTER = {
+  action: 'organization.register',
+  objectType: 'organization',
+  phases: ['beforeCommit', 'afterCommit'],
+} as const;
+
+/** The slice of `organization.register`'s hook data this hook reads. */
+interface RegisterHookData {
+  readonly organization: { readonly id: string; readonly name: string };
+}
+
+/**
+ * A11's hook: on a registration whose name carries the marker, write a row of
+ * this package's own table **inside the registration's transaction**, name it
+ * in the core entry, and — when the name also carries `VETO` — refuse with this
+ * package's own code, so the whole registration rolls back with the row.
+ */
+async function recordRegistration(ctx: CommandHookContext<unknown>): Promise<void> {
+  const { organization } = ctx.data as RegisterHookData;
+  if (!organization.name.startsWith(ACCEPTANCE_PROBE_HOOK_MARKER)) return;
+  await ctx.em.execute(
+    `insert into "${ACCEPTANCE_PROBE_TABLE}" ("id", "organization_id", "label") values (?, ?, ?)`,
+    [randomUUID(), organization.id, 'command-hook'],
+  );
+  ctx.noteAuditChanges(['organizationId', 'label']);
+  if (organization.name.includes('VETO')) {
+    throw new CommandHookRefusal(409, ACCEPTANCE_PROBE_REFUSED as never, 'The acceptance probe refused this registration.');
+  }
+}
 
 /**
  * Every entity this package owns — what a package-aware ORM config merges — and
@@ -72,6 +117,13 @@ export function registerModule(ctx: ModuleContext): void {
   ctx.di.register({
     acceptanceProbeGreeter: ctx.asClass(AcceptanceProbeGreeter).singleton(),
   });
+
+  // A command hook on another package's declared action (A11). Registration
+  // resolves nothing; the Command Bus runs it per registration while this
+  // module is present, and skips it while it is switched off.
+  ctx.commandHooks([
+    { id: 'record-registration', on: ORGANIZATION_REGISTER, phase: 'beforeCommit', handler: recordRegistration },
+  ]);
 
   // Through `ctx.routes`, so the lifecycle gate is applied at the registration
   // seam and the route answers 503 MODULE_DISABLED when an operator switches

@@ -11,6 +11,7 @@ export const DIVERGENCE_REPORT: DivergenceReport = {
   },
   "overlayModules": [
     "carrier_fixture",
+    "command_hook_fixture",
     "erp_challenger_fixture",
     "erp_incumbent_fixture",
     "example_overlay",
@@ -21,6 +22,34 @@ export const DIVERGENCE_REPORT: DivergenceReport = {
     "pim_incumbent_fixture"
   ],
   "entries": [
+    {
+      "key": "command-hook:command_hook_fixture:organization.create#observe-create",
+      "kind": "command-hook",
+      "module": "command_hook_fixture",
+      "subject": "organization.create",
+      "owner": "organizations",
+      "rung": 2,
+      "detail": {
+        "kind": "command-hook",
+        "phase": "beforeCommit",
+        "id": "observe-create"
+      },
+      "reason": "Core creates an Organization in one audited Command. This fixture takes part in that write only for an Organization whose name carries its marker: inside the same transaction it records an audit entry of its own, names what it wrote in the core entry, and refuses with its own translated code when the name also carries its veto word. It is the reference hook module the command-hook contract tests compose, and it changes nothing for any other name."
+    },
+    {
+      "key": "command-hook:command_hook_fixture:organization.register#observe-register",
+      "kind": "command-hook",
+      "module": "command_hook_fixture",
+      "subject": "organization.register",
+      "owner": "organizations",
+      "rung": 2,
+      "detail": {
+        "kind": "command-hook",
+        "phase": "beforeCommit",
+        "id": "observe-register"
+      },
+      "reason": "The same hook on storefront self-registration, which is one Command since spec 176 P1. On a marked name it writes its own audit entry inside the registration transaction and may refuse the registration with its own code, so the whole registration — Organization, first account, token — rolls back; any other name passes through untouched."
+    },
     {
       "key": "decoration:example_overlay:pricingService",
       "kind": "decoration",
@@ -301,6 +330,7 @@ export const DIVERGENCE_REPORT: DivergenceReport = {
   ],
   "boundary": {
     "recorded": [
+      "command-hook",
       "decoration",
       "interceptor",
       "omission",

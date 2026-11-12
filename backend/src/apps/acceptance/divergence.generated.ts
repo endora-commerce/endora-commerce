@@ -29,6 +29,7 @@ export const DIVERGENCE_REPORT: DivergenceReport = {
   ],
   "boundary": {
     "recorded": [
+      "command-hook",
       "decoration",
       "interceptor",
       "omission",
