@@ -143,8 +143,10 @@ packages/modules/pwa/src/backend/
 
 storefront/
 ├── lib/api/customer-notifications.ts
-├── app/(account)/account/notifications/{page.tsx,actions.ts}
-├── app/(account)/account/page.tsx     # Notifications entry
+├── app/(account)/account/notifications/{page.tsx,actions.ts,[id]/open/route.ts}
+├── app/(account)/layout.tsx           # Notifications nav entry
+├── app/(account)/account/page.tsx     # unread summary line
+├── app/globals.css                    # tab bar breakpoint → 877 px (WP-09a)
 ├── app/layout.tsx                     # unread count beside cart count
 ├── components/Header.tsx              # UserPill indicator
 ├── components/mobile/MobileTabBar.tsx, components/Megamenu/MegamenuMobileDrawer.tsx
@@ -169,12 +171,13 @@ alone closes #238's operator and e-mail halves.
 | | WP-06 | History `deliveries` (route + admin screen) | WP-02 |
 | **2 — Centre** (US3) | WP-07 | `customer_notifications` module (entity, migration, port, routes, retention, settings, i18n, docs, generated artefacts) | WP-01 |
 | | WP-08 | `customer_in_app` channel in `quote_requests` | WP-05, WP-07 |
-| | WP-09 | storefront page, actions, indicator, copy | WP-07 |
+| | WP-09a | tablet breakpoint alignment: tab bar and drawer switch at 877 px (research R-24 (c)) | — |
+| | WP-09 | storefront page, open route, actions, indicator, account nav + summary, copy | WP-07, WP-09a |
 | **3 — Push** (US4) | WP-10 | `pwa` `customerPushPort`, removal of `rfq.*` subscriptions and the quote branch, `customer_push` channel in `quote_requests` — **one MR**, so no window pushes twice or never | WP-05 |
 | **4 — Close** | WP-11 | documentation en+pl, changesets, upgrade note | all |
 | | WP-12 | off-state and end-to-end matrix tests (integration) | all |
 
-WP-06, WP-07 and WP-09 can run in parallel with WP-03 – WP-05. At most three agents at once.
+WP-06, WP-07, WP-09a and WP-09 can run in parallel with WP-03 – WP-05. At most three agents at once.
 
 ## Requirement → test traceability
 
@@ -189,7 +192,7 @@ WP-06, WP-07 and WP-09 can run in parallel with WP-03 – WP-05. At most three a
 | FR-020 – FR-024 | `quote-notification-defaults.test.ts` (11 codes × en/pl, variables resolve), `channel-adapters.test.ts` (language, link, no attachment, outcome mapping) |
 | FR-030 | `channel-adapters.test.ts` (bell input shape, number-only sentence, link) |
 | FR-040 – FR-048 | `customer_notifications/src/backend/**/*.test.ts` (port validation, idempotency, list/count scoping, translation on read, impersonation no-op, retention), `backend/test/contract/customer_notifications/storefront-api.test.ts`, off-state test |
-| FR-050 – FR-052 | `storefront/test/account/notifications-page.test.tsx`, `storefront/test/header-unread-indicator.test.tsx` (SSR markup, accessible name, no colour-only state), typecheck of `defineMessages` |
+| FR-050 – FR-052 | `storefront/test/account/notifications-page.test.tsx`, `notifications-open-route.test.ts`, `notifications-actions.test.ts`, `account-nav-notifications.test.tsx`, `storefront/test/header-unread-indicator.test.tsx` (SSR markup, hidden-text accessible name, no colour-only state, `9+`), `HeaderBreakpoint.test.tsx` (767/768/876/877 px), typecheck of `defineMessages` |
 | FR-060, FR-061 | `pwa/src/backend/services/customer-push-port.test.ts` (gate order, outcomes, idempotency), `pwa/src/backend/cross-module-ports.test.ts` (no `rfq.*` subscription remains) |
 | FR-070, FR-071 | `backend/test/contract/quote_requests/history-deliveries.test.ts`, customer projection test asserting no `deliveries` |
 | FR-080 | `check:module-docs` + review |

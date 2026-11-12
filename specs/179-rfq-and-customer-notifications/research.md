@@ -281,11 +281,14 @@ there; hiding it is "as if never installed", and it reappears when the module re
 ## R-15 — Storefront delivery: Server Components, server actions, no new cache
 
 **Decision.** `/account/notifications` is a Server Component page reading
-`GET /api/v1/storefront/notifications` with the buyer's session; *Open* and *Mark all as read* are
-server actions that call the write routes and redirect (to the entry's link, or back). The unread
-count is fetched server-side in `app/layout.tsx` next to the cart count, only for a signed-in buyer
-and only when the module is present, and passed to `Header` for the account pill and to the mobile
-account entries. Responses are `private, no-store`. No Redis cache for the count.
+`GET /api/v1/storefront/notifications` with the buyer's session. An entry opens through a `GET`
+route handler, `/account/notifications/<id>/open`, which marks it read and answers `303` to its
+link (R-24 (a)); *Mark as read* (entries without a link) and *Mark all as read* are server actions.
+Every write revalidates the root layout (`revalidatePath('/', 'layout')`) so the count re-renders
+in the same response. The unread count is fetched server-side in `app/layout.tsx` next to the cart
+count, only for a signed-in buyer and only when the module is present, and passed to `Header` for
+the account pill and to the mobile account entries. Responses are `private, no-store`. No Redis
+cache for the count, and no polling.
 
 **Rationale.** Constitution VII and the repository's storefront rules (Server Components first, the
 client boundary low). The count query is one indexed `count(*)` on `(customer_account_id, read_at)`
@@ -356,3 +359,41 @@ add to `contracts/notification-matrix.md`, and `orgWideViewerRoleIds` switches t
 ## R-23 — Dependencies
 
 No new runtime dependency. BullMQ, MikroORM, Zod, the e-mail and push transports already exist.
+
+## R-24 — Rulings on the designer review's open decisions (2026-11-12)
+
+The designer review of PR #1071 agreed with "no header bell" and left four decisions to the
+architect. All four are ruled here; none needs the owner.
+
+**(a) How an entry opens — a `GET` open route with `303`.** Rationale: the row must behave as a
+link (new tab, middle-click, copy link, Fitts' full-width surface), which a server-action button
+cannot. Marking read is idempotent, touches only the caller's own entry, and is a no-op under
+impersonation, so a `GET` with this side effect is safe: a forged link can at worst mark one of the
+victim's own notifications read. Prefetch is off (`prefetch={false}`) and `/account*` is already
+excluded from speculation rules, so nothing marks an entry the buyer did not open. Rejected: a
+server-action `<button>` in a `<form>` — gives up link behaviour for no safety gain.
+
+**(b) SC-006 — three interactions, plus a summary line on `/account`.** The pill keeps one
+destination (the account overview); the overview shows "You have N unread notifications" linking to
+the page, and the account navigation lists *Notifications* second. Rejected: pointing the pill at
+the notifications page while something is unread — one control with two destinations, which breaks
+the buyer's model of the pill.
+
+**(c) The 768–876 px gap — fixed inside this feature** (WP-09a). The header switches to its desktop
+rows at 877 px while the tab bar and the drawer hide from 768 px (`md`), so tablet widths have no
+account entry at all. FR-051 requires the indicator at every width and cannot be met without it.
+Aligning the two mobile breakpoints to 877 px is a small, contained change (one CSS breakpoint and
+two components) whose consequence — tablets get the bottom tab bar — is the intended mobile layout
+for a width that already renders the mobile header. It ships in its own MR ahead of WP-09, so it
+can be reviewed and reverted on its own; filing it as a separate issue would leave FR-051 blocked
+on work outside the plan.
+
+**(d) Badge cap — `9+`.** The badge sits on a 32 px avatar, where `99+` covers the initials; the
+exact count travels in the visually hidden text. The cart's `99+` stays as it is: a different
+control with a 44 px target.
+
+**Not applied from the review** (its "could" items): grouping rows into *Today* / *Earlier*, and an
+empty-state sentence about per-channel scoping. Both are deferred, not rejected on merit: with one
+producer and a 20-row page the list is short, and the channel sentence would explain a rule most
+buyers never meet (one channel per Organization is the common case). Revisit with the bell
+triggers in spec.md.

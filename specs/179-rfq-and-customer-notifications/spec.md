@@ -115,11 +115,12 @@ request; *Mark all as read* and assert zero.
 
 **Acceptance Scenarios**:
 
-1. **Given** two unread notifications, **When** the buyer loads any storefront page, **Then** the
-   account entry in the header shows an unread indicator with the count 2, announced to assistive
-   technology as part of the entry's name.
-2. **Given** the notifications page, **When** the buyer opens an entry, **Then** it is marked read
-   and the buyer lands on the linked request.
+1. **Given** two unread notifications, **When** the buyer loads any storefront page at **any
+   viewport width**, **Then** the account entry shows an unread indicator with the count 2, and the
+   entry's accessible name includes "Unread notifications: 2".
+2. **Given** the notifications page, **When** the buyer opens an entry, **Then** it is marked read,
+   the buyer lands on the linked request, and the account entry's count has dropped by one on that
+   same page.
 3. **Given** a buyer reading the page in Polish, **When** the list renders, **Then** every entry is
    in Polish, including entries recorded while the buyer was browsing in English.
 4. **Given** no notifications, **When** the buyer opens the page, **Then** an empty state explains
@@ -307,11 +308,36 @@ response and screen show each, with its reason.
 
 **Storefront**
 
-- **FR-050**: The account area MUST offer a *Notifications* page with loading, empty and error
-  states, an unread/read distinction that does not rely on colour alone, and *Mark all as read*.
+- **FR-050**: The account area MUST offer a *Notifications* page with an empty state, an error
+  state with a retry, an in-flight state on every submit (disabled, `aria-busy`, spinner), an
+  unread/read distinction that does not rely on colour alone, and *Mark all as read*. Page loads use
+  the storefront's existing navigation feedback; the page adds no `loading.tsx`. While the module is
+  off the page answers the shop's 404 (FR-048), with no bespoke "unavailable" message.
+- **FR-050a**: An entry with a link MUST be a real link (opens in a new tab, can be copied) to
+  `/account/notifications/<id>/open`, which marks the entry read (not under impersonation) and
+  redirects to the entry's target. A failed mark still redirects. An entry without a link MUST NOT
+  be a link surface; it offers a *Mark as read* button instead.
+- **FR-050b**: After *Mark all as read*, a status region that is always rendered beside the heading
+  MUST announce the result, and focus MUST move to the heading; a failure MUST show a specific error
+  with a retry. Under impersonation the button MUST be shown disabled with the reason.
 - **FR-051**: The header MUST NOT gain a separate bell; the existing account entry MUST carry the
-  unread indicator and count, on desktop and in the mobile account entry (*Header bell decision*).
-- **FR-052**: All new storefront copy MUST ship in English and Polish.
+  unread indicator and count (*Header bell decision*). The indicator MUST be visible **at every
+  viewport width**: the 768–876 px band, which today renders neither the desktop account pill nor
+  the mobile tab bar and drawer, MUST gain an account entry by aligning the tab bar's and the
+  drawer's breakpoint to the header's 877 px. No indicator appears in the minimal checkout header.
+- **FR-051a**: Opening an entry, marking one read and marking all read MUST re-render the account
+  entry's count in the same response. Otherwise the count updates on the next full render; there is
+  no polling and no live refresh.
+- **FR-051b**: The count MUST reach assistive technology as visually hidden text inside the account
+  entry, after its visible name ("Unread notifications: {count}"), never as an `aria-label` that
+  replaces the visible name. The indicator MUST have no live region. The badge shows at most `9+`;
+  the hidden text carries the exact count.
+- **FR-051c**: The account area's navigation MUST list *Notifications* second, after the profile,
+  with the unread count in text when above zero, and the account overview MUST show a one-line
+  summary ("You have 2 unread notifications") linking to the page when above zero. Both appear only
+  while the module is present.
+- **FR-052**: All new storefront copy MUST ship in English and Polish, and Polish labels MUST wrap
+  rather than truncate.
 
 **Push**
 
@@ -355,9 +381,10 @@ and the centre is a page of the account area. Rationale, against `.claude/skills
 - **Signal-to-noise.** Quote changes are rare events per buyer (a few per request, over days).
   A permanent header control for a rare signal competes with the cart and search on every page,
   including for every guest, who can never have a notification.
-- **Jakob's Law.** In commerce storefronts — unlike social and SaaS products — account-related
-  messages conventionally live under the account entry; the bell is not the pattern buyers bring.
-  A badge on the account avatar is.
+- **Jakob's Law, read narrowly.** With one producer, notifications are about the buyer's own
+  account, so the account entry is where buyers look for them. A bell is the convention once
+  notifications become a general inbox, which is the revisit trigger below. (B2B supplier portals do
+  often carry a bell; the claim is not that bells are unconventional.)
 - **Occam's Razor / Picture superiority.** The account entry is already a labelled, recognisable
   target; an indicator on it adds information without adding a control. The proactive alert is the
   e-mail and the push (US2, US4); the centre is the record.
@@ -365,10 +392,24 @@ and the centre is a page of the account area. Rationale, against `.claude/skills
   notifications"), shows a number and not a colour alone, and the page's unread state is marked by
   text and weight, not colour.
 
-**Revisit when** a second and third producer (orders, returns) make notifications frequent; that is
-the point at which a dedicated control may earn its place, and the indicator moves rather than
-duplicates. A designer pass on the spec pull request is **recommended for the visual treatment of
-the indicator and the page's states only**; the bell/no-bell decision does not depend on it.
+- **Flow.** No indicator appears in the minimal checkout header (`HeaderSwitch` `minimal`):
+  checkout is not interrupted.
+
+The account pill is a plain link to `/account` (the profile), so the badge leads to the account
+overview, whose summary line and navigation lead on to *Notifications* (FR-051c, SC-006). Pointing
+the pill at the notifications page while something is unread was rejected: one control with two
+destinations.
+
+**Revisit when any one of these holds**: (a) a second producer (orders or returns) writes to the
+centre; (b) a notification kind is time-critical (for example offer expiry within 48 h); (c)
+measured discovery is low (most unread entries are never opened from the storefront). The first
+step is then an account dropdown on the existing pill, which already draws a chevron, with
+*Notifications (n)* as its first item; a dedicated bell comes only after that. The indicator moves
+to the new control; it is never shown in two places.
+
+The designer review of 2026-11-12 agreed with this decision and its amendments are applied here
+and in `contracts/customer-notifications-storefront-api.md`; the four decisions it left to the
+architect are ruled in research R-24.
 
 ## Success Criteria *(mandatory)*
 
@@ -384,8 +425,9 @@ the indicator and the page's states only**; the bell/no-bell decision does not d
 - **SC-004**: Zero deliveries sent more than 24 hours after their change.
 - **SC-005**: An operator can answer "was the customer told, and how?" from the request's History
   alone, for 100% of deliveries.
-- **SC-006**: A signed-in buyer reaches the request from a notification in two interactions (open
-  the account entry's page, open the entry).
+- **SC-006**: A signed-in buyer reaches the request from a notification in at most three
+  interactions from any page (the account entry, *Notifications*, the entry), and in two from the
+  account overview's summary line.
 - **SC-007**: Switching any receiving module off leaves every other channel delivering, and no
   request transition fails because a notification channel is unavailable.
 
@@ -410,3 +452,13 @@ the indicator and the page's states only**; the bell/no-bell decision does not d
   (touches the platform's environment ledger and `mfa`). **Recommendation: A** — the bell is always
   delivered with a link (Q5), the promotion benefits three modules and deserves its own change, and
   it keeps this feature out of the platform package.
+- **OQ-2 — Confirm the architect's two readings of the rulings** (top of this spec; research R-3,
+  R-4). Q3: "members with the quote permission" = members who may open the request (today
+  *Administrator*, after 170 P3 `quote_requests.approve`), not every holder of
+  `quote_requests.create`. Q1: "status change" = the status as the buyer sees it, so an operator's
+  new offer notifies and *Completed* does not; the acting buyer gets the e-mail but no centre entry
+  or push. Options: **(A)** confirm both; **(B)** Q3 literal — every holder of
+  `quote_requests.create` is told, accepting that some are told about requests they cannot open;
+  **(C)** Q1 literal — only stored-status changes, so a new offer is not e-mailed.
+  **Recommendation: A** — B discloses requests to members who get a 404 on them, and C drops the
+  notification a buyer needs most.

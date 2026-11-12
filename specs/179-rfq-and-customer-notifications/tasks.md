@@ -91,13 +91,19 @@ Contract and integration files do not run on merge requests (D-198): run them lo
 - [ ] T070 [WP-08] [US3] Test: adapter calls `customerNotificationRecordPort.recordWithin` on the record's EM with `sourceModule 'quote_requests'`, `sourceKey <record id>`, the request's channel, `kind quote_requests.<change>`, `titleMessage customerNotifications.<change>.title`, link `/quote-requests/<id>`; centre absent → `skipped_module_off`; the matrix now writes `customer_in_app` rows — `channel-adapters.test.ts`, `notification-matrix.test.ts`
 - [ ] T071 [WP-08] Impl: adapter; `degrades-without customer_notifications` edge; `customerNotifications.<change>.title` keys en/pl in `qr/i18n`
 
+### WP-09a Tablet breakpoint alignment (`sf`) — own MR, before WP-09
+
+- [ ] T078 [WP-09a] [US3] Test (SSR/CSS): the tab bar and the drawer trigger render at widths below 877 px and the desktop header rows from 877 px — the class/breakpoint assertions at 767, 768, 876 and 877 px; `--m-tabbar-h` set below 877 px — `sf/test/HeaderBreakpoint.test.tsx` (extended)
+- [ ] T079 [WP-09a] Impl: align `.m-tabbar` (and the body spacer it drives) and `MegamenuMobileDrawer`'s `md:hidden` to `min-[877px]`; check sticky bars that read `--m-tabbar-h` (PDP, checkout); screenshot 800 px before/after in the MR
+
 ### WP-09 Storefront (`sf`)
 
-- [ ] T080 [P] [WP-09] [US3] Test (SSR): notifications page — list with unread label text, empty state with one action, error state with retry, *Show older* link when `nextCursor`, *Mark all as read* only when unread > 0 — `sf/test/account/notifications-page.test.tsx`
-- [ ] T081 [P] [WP-09] [US3] Test (SSR): account pill renders the count badge and the accessible name "{name}, {count} unread notifications"; `9+` above nine; nothing for 0, for a guest, or when the module is absent; mobile tab bar and drawer likewise — `sf/test/header-unread-indicator.test.tsx`
-- [ ] T082 [P] [WP-09] Test: server actions — `openNotification` marks read then redirects to the localised link, and still redirects when marking fails; `markAllRead` revalidates — `sf/test/account/notifications-actions.test.ts`
-- [ ] T083 [WP-09] Impl: `sf/lib/api/customer-notifications.ts`; `app/(account)/account/notifications/{page.tsx,actions.ts}`; account page entry; unread count in `app/layout.tsx` beside `cartItemCount`; `Header.tsx` `UserPill`, `MobileTabBar.tsx`, `MegamenuMobileDrawer.tsx`; copy in `lib/i18n/messages/account.ts` (`account.notifications.*`) and `chrome.ts` (`chrome.header.accountUnread`), en-US + pl-PL; tokens only
-- [ ] T084 [WP-09] Run the ux-laws §7 checklist over the page and the indicator and record it in the MR (designer pass on the visual treatment, if the orchestrator runs one)
+- [ ] T080 [P] [WP-09] [US3] Test (SSR): notifications page — unread label text + semibold row; read row; link rows point at `/account/notifications/<id>/open` with `prefetch={false}`; link-less rows render a *Mark as read* form, not a link; `<time dateTime>` relative under 7 days, absolute after; always-rendered `role="status"`; *Mark all as read* only when unread > 0, disabled with the reason under impersonation; empty state (icon, copy, action only with `quote_requests` + Organization); `?markError=1` error with retry; `Pagination` in cursor mode with "Show older"; push-management footer link; module off → `notFound()` — `sf/test/account/notifications-page.test.tsx`
+- [ ] T081 [P] [WP-09] [US3] Test (SSR): account pill reuses `.icon-btn__count`, shows `9+` above nine, carries visually hidden "Unread notifications: {count}" after the visible name, initials `aria-hidden`, no `aria-label` on the link, no live region; nothing for 0, a guest, the module absent, or the minimal checkout header; tab bar account tab reuses `.m-tabbar__badge` plus hidden text; drawer footer shows "Notifications (n)" row — `sf/test/header-unread-indicator.test.tsx`
+- [ ] T082 [P] [WP-09] Test: open route — marks read then `303` to the localised link; still redirects when marking fails; link-less or unknown id → the page; server actions `markRead` / `markAllRead` call `revalidatePath('/', 'layout')` and redirect with `?markError=1` on failure — `sf/test/account/notifications-open-route.test.ts`, `notifications-actions.test.ts`
+- [ ] T083 [P] [WP-09] Test (SSR): account sidebar lists *Notifications* second with "(n)" when unread > 0; overview summary line when unread > 0; neither when the module is absent — `sf/test/account/account-nav-notifications.test.tsx`
+- [ ] T084 [WP-09] Impl: `sf/lib/api/customer-notifications.ts`; `app/(account)/account/notifications/{page.tsx,actions.ts,[id]/open/route.ts}`; `app/(account)/layout.tsx` nav entry; `app/(account)/account/page.tsx` summary line; unread count in `app/layout.tsx`; `Header.tsx` `UserPill`, `MobileTabBar.tsx`, `MegamenuMobileDrawer.tsx`; copy in `lib/i18n/messages/account.ts` and `chrome.ts`, en-US + pl-PL; existing badge classes only
+- [ ] T085 [WP-09] Run the ux-laws §7 checklist over the page and the indicator, check the badge's contrast in light and in `:root.is-dark` (≥ 3:1 component, ≥ 4.5:1 text) and the Polish labels at 360 px, and record the results in the MR
 
 ---
 
@@ -130,5 +136,5 @@ Contract and integration files do not run on merge requests (D-198): run them lo
 ## Dependencies
 
 WP-01 → WP-02 → WP-03 → WP-04 → WP-05 → (WP-08 after WP-07) → WP-10 → WP-11/WP-12.
-WP-06 after WP-02; WP-07 after WP-01; WP-09 after WP-07. Parallel lanes: {WP-03…WP-05},
-{WP-06}, {WP-07, WP-09}.
+WP-06 after WP-02; WP-07 after WP-01; WP-09a any time; WP-09 after WP-07 and WP-09a. Parallel lanes: {WP-03…WP-05},
+{WP-06}, {WP-09a}, {WP-07, WP-09}.
