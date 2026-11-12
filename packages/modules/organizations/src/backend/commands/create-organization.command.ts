@@ -51,6 +51,15 @@ import { toOrganizationRecord } from '../services/organization-details-port.js';
  * Command trusts them, as the membership writer's foreign key would refuse an
  * unknown channel anyway (with a 500 rather than a field error).
  */
+/**
+ * What `organization.create` writes: the admin create's body, plus the legal
+ * name only `organizationWritePort.create` sets (issue #1029). Its audit entry
+ * names `legalName` among `changedFields` when one was stored.
+ */
+export type CreateOrganizationInput = AdminOrganizationCreateBody & {
+  readonly legalName?: string | null | undefined;
+};
+
 export interface CreateOrganizationCommandDeps {
   membership: Pick<SalesChannelMembershipPort, 'replaceChannelsForEntity'>;
   /** The depth bound for a branch; required when the input names a parent. */
@@ -96,7 +105,7 @@ export interface OrganizationCommandOptions {
 
 export function makeCreateOrganizationCommand(
   deps: CreateOrganizationCommandDeps,
-  input: AdminOrganizationCreateBody,
+  input: CreateOrganizationInput,
   options: OrganizationCommandOptions = {},
 ): Command<Organization> {
   const organizationId = randomUUID();
@@ -132,6 +141,7 @@ export function makeCreateOrganizationCommand(
       const organization = em.create(Organization, {
         id: organizationId,
         name: input.name,
+        ...(input.legalName !== undefined ? { legalName: input.legalName } : {}),
         taxId,
         status: input.status,
         vatStatus: input.vatStatus ?? 'vat_payer',

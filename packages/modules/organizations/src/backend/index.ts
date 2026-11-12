@@ -26,6 +26,7 @@ import type {
   OrganizationCustomFieldWritePort,
   OrganizationDetailsPort,
   OrganizationCommandPort,
+  OrganizationWritePort,
   OrganizationInheritancePort,
   OrganizationPermissionPort,
   OrganizationRestrictionPort,
@@ -75,6 +76,7 @@ import {
   toOrganizationRecord,
 } from './services/organization-details-port.js';
 import { OrganizationCustomFieldWriteService } from './services/organization-custom-field-write-port.js';
+import { OrganizationWriteService } from './services/organization-write-port.js';
 import { PersonalOrganizationService } from './services/personal-organization-service.js';
 import type { PersonalOrganizationProvisionApi } from '../ports/index.js';
 import { OrganizationRestrictionService } from './services/organization-restriction-service.js';
@@ -978,6 +980,34 @@ export function registerModule(ctx: ModuleContext): void {
     'organizationCustomFieldWritePort',
     ctx
       .asFunction(({ commandBus }: OrganizationsCradle) => new OrganizationCustomFieldWriteService(commandBus))
+      .singleton(),
+  );
+
+  /**
+   * Issue #1029 — find, create and update an Organization's identity and
+   * contact fields from another module (an ERP or CRM connector), which
+   * otherwise had the admin HTTP API or a native write to this module's table.
+   * A port of its own beside the read model above, which stays read-only; the
+   * semantics (two Commands, the ambient actor, typed refusals) are on
+   * `OrganizationWritePort` in the contracts.
+   */
+  ctx.di.providePort<OrganizationWritePort>(
+    'organizationWritePort',
+    ctx
+      .asFunction(
+        ({ commandBus, emFactory }: OrganizationsCradle) =>
+          new OrganizationWriteService({
+            commandBus,
+            emFactory,
+            membership: lazyPort<SalesChannelMembershipPort>(ctx, 'salesChannelMembershipPort'),
+            dictionaryValidator: lazyPort<DictionaryValidator>(ctx, 'dictionaryValidator'),
+            // The read model's own tax-ID lookup: one answer for both ports.
+            lookup: new OrganizationDetailsService(emFactory),
+            // As the admin create passes them (`routes.admin.ts`).
+            tree: lazyPort<OrganizationTreeService>(ctx, 'organizationTreeService'),
+            customFieldValues: lazyPort<CustomFieldValuePort>(ctx, 'customFieldValueService'),
+          }),
+      )
       .singleton(),
   );
 

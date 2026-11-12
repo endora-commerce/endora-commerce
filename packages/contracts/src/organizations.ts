@@ -921,6 +921,137 @@ export interface OrganizationCustomFieldWritePort {
   ): Promise<OrganizationRecord>;
 }
 
+/** Container name of {@link OrganizationWritePort}. */
+export const ORGANIZATION_WRITE_PORT = 'organizationWritePort' as const;
+
+/** What {@link OrganizationWritePort.create} writes — the admin create's fields, plus the legal name. */
+export interface OrganizationWriteCreateInput {
+  name: string;
+  legalName?: string | null;
+  /** Normalised with {@link normalizeTaxId} and stored in that form, as on every creation path. */
+  taxId: string;
+  /** Defaults to `vat_payer`, as on every other creation path. */
+  vatStatus?: VatStatus;
+  registeredAddress: OrganizationRegisteredAddress;
+  /** The stores its members may shop on, bound in the creating transaction. */
+  salesChannelIds: readonly [string, ...string[]];
+  /** The statuses an operator may create an Organization in. */
+  status: 'active' | 'pending_verification';
+  /**
+   * Create it as a branch under this live Organization, in the same Command.
+   * In the `per-tree-root` tax-ID scope a branch may carry the tax ID its tree
+   * already holds. No permission is checked: the caller is the gate.
+   */
+  parentId?: string;
+  /** Custom-field values, validated with the administrator's rules, as the admin create does. */
+  customFieldValues?: Record<string, unknown>;
+}
+
+/**
+ * The identity and contact fields {@link OrganizationWritePort.update} may
+ * change; an absent key is left as it is. The tax ID is not among them: a
+ * correction is `OrganizationCommandPort.changeTaxId`.
+ */
+export interface OrganizationWriteUpdatePatch {
+  name?: string;
+  /** `null` clears it. */
+  legalName?: string | null;
+  vatStatus?: VatStatus;
+  /** Replaces the whole address. */
+  registeredAddress?: OrganizationRegisteredAddress;
+  /** Replaces the whole list. */
+  orderConfirmationEmails?: string[];
+}
+
+export interface OrganizationWriteUpdateOptions {
+  /**
+   * The {@link OrganizationRecord.version} the caller read. When given and the
+   * row has moved on, the write is refused with `409 VERSION_CONFLICT`.
+   */
+  expectedVersion?: number;
+}
+
+/**
+ * Container name: `organizationWritePort` ({@link ORGANIZATION_WRITE_PORT}).
+ * Owner: `organizations`. Issue #1029.
+ *
+ * Find, create and update an Organization's own identity and contact fields
+ * from another module — the case it was published for is a connector that
+ * synchronises an external system's customer master (an ERP, a CRM): it looks
+ * an Organization up by tax ID, creates it when there is none, and applies a
+ * later change of name or address to the same row. Before it the only ways were
+ * the admin HTTP API or a native write to this module's table.
+ *
+ * **Scope.** Identity and contact fields. Moderation (approve, reject, block),
+ * re-parenting, roles, members, credit and sales-channel changes after
+ * creation stay with their existing owners and surfaces; a tax-ID correction
+ * and the personal-to-company conversion are {@link OrganizationCommandPort}'s;
+ * custom-field values after creation are {@link OrganizationCustomFieldWritePort}'s;
+ * addresses beyond the registered one are `addressServicePort`'s.
+ *
+ * **Each write is one Command with one audit entry.** `create` runs
+ * `organization.create` — the Command the admin create runs — and `update`
+ * runs `organization.update`. Both entries carry names and codes, never the
+ * Organization's values (`specs/conventions/audit-state.md`): `update` records
+ * the VAT status code and the sorted names of the fields it changed. An
+ * `update` that changes nothing writes nothing and records nothing. The actor
+ * is the ambient one, never passed in: an administrator inside an admin
+ * request, a null actor for a worker in `withSystemScope`, the administrator a
+ * worker acts for in `withSystemScopeActingFor`. With no tenant context the bus
+ * refuses before writing (`MissingTenantContextError`).
+ *
+ * **Refusals are the platform's `HttpError`, typed by `code`**, so a caller can
+ * record an issue for one record and go on to the next:
+ *
+ * - `422 VALIDATION_FAILED` — an input outside the admin API's own limits
+ *   (an empty name, a tax ID that is not 8–32 characters once normalised, a
+ *   country that is not two letters, an empty or duplicated channel list, an
+ *   invalid e-mail);
+ * - `409 DICTIONARY_ENTRY_NOT_FOUND` / `DICTIONARY_ENTRY_INACTIVE` — a country
+ *   an operator has not made available, checked as the admin create checks it
+ *   (on `update`, only when the country changes);
+ * - `409 ORGANIZATION_TAX_ID_EXISTS` — `create` with a tax ID the active scope
+ *   does not allow: in `global`, any other row holds it; in `per-tree-root`, a
+ *   row outside the new Organization's tree does. Soft-deleted rows count, so
+ *   `findByTaxId` may answer `[]` and `create` still refuse;
+ * - `422 UNKNOWN_SALES_CHANNEL` — `create` naming a channel that does not exist;
+ * - `422 CUSTOM_FIELD_VALUE_INVALID` — `create` with custom-field values the
+ *   administrator's rules refuse;
+ * - `404 NOT_FOUND` — `create` under an unknown or deleted parent; `update` of
+ *   an unknown or soft-deleted Organization, or an id that is not a uuid;
+ * - `422 ORGANIZATION_TREE_INVALID` — `create` under a parent at the depth bound;
+ * - `409 VERSION_CONFLICT` — `update` with an `expectedVersion` the row has
+ *   moved past, or a concurrent write that won the race;
+ * - `409 ORGANIZATION_WRITE_CONTENDED` — a lock lost to a concurrent write; retry.
+ *
+ * When `organizations` is off every method fails closed (503
+ * `MODULE_DISABLED`); the module is the platform's one tenant concept and
+ * declares itself non-deactivatable, so in practice the gate cannot close.
+ * Callers resolve it per use with `lazyPort`.
+ */
+export interface OrganizationWritePort {
+  /**
+   * Every live Organization holding this tax ID — exactly
+   * {@link OrganizationDetailsPort.findByTaxId}: the input normalised with
+   * {@link normalizeTaxId}, the tree's root first, then by depth, creation time
+   * and id; `[]` for none. A list because in the `per-tree-root` scope a head
+   * office and its branches share one tax ID; in `global` it holds at most one.
+   * A caller that needs the single match uses
+   * {@link OrganizationDetailsPort.resolveByTaxId}.
+   */
+  findByTaxId(taxId: string): Promise<OrganizationRecord[]>;
+
+  /** Runs `organization.create`, the same Command the admin create uses. */
+  create(input: OrganizationWriteCreateInput): Promise<OrganizationRecord>;
+
+  /** Updates identity and contact fields only, through the `organization.update` Command. */
+  update(
+    id: string,
+    patch: OrganizationWriteUpdatePatch,
+    options?: OrganizationWriteUpdateOptions,
+  ): Promise<OrganizationRecord>;
+}
+
 /**
  * What a server-side caller may hand `setCustomFieldValues` besides the merge
  * (`specs/176-command-hooks-outbox/` FR-018, architect ruling on #1055 Q2).
