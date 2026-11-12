@@ -50,7 +50,7 @@ Rules:
 | `customer_in_app` | `title` + `titleMessage` `{ scope: 'quote_requests', key: 'customerNotifications.<change>.title', params: { number } }`; no body | `/quote-requests/<id>` |
 | `customer_push` | same sentence as `customer_in_app`, resolved in the channel's default language (push is rendered once, on the device) | `/quote-requests/<id>` |
 | `admin_in_app` | `title` + `titleMessage` `{ scope: 'quote_requests', key: 'notifications.<change>.title', params: { number } }`; no body | `/quote-requests/<id>` (admin route) |
-| `admin_email` | template of §3, administrator's preferred language | none (spec OQ-1) |
+| `admin_email` | template of §3, administrator's preferred language | none in this feature; added after #185 (owner ruling OQ-1) |
 
 `number` is the business id (`QR-000153`), or the first eight characters of the id when the
 request has no business id. No product names, prices or Organization names travel in the in-app or

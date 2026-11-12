@@ -21,7 +21,8 @@ the admin bell, a new customer notification centre on the storefront, and PWA pu
 | Q7 | Is there an in-account notification for customers? | **(c)** Build a customer notification centre on the storefront in this feature, **including** PWA push when the customer has that notification type enabled. Whether the storefront header carries a bell is the architect's and designer's call (decided below, *Header bell decision*). |
 | Q8 | How late may a notification still go out? | **(a)** 24 hours. |
 
-Two terms in Q3 and Q1 needed a reading, and the architect ruled both (research R-3 and R-4):
+Two terms in Q3 and Q1 needed a reading. The architect proposed both (research R-3 and R-4) and
+the **owner confirmed both on 2026-11-12**; they are rulings:
 
 - **"Members who hold the quote permission"** means the members who may **open** the request — today
   the holders of the Organization's *Administrator* role, after `specs/170-organization-roles/` P3
@@ -438,27 +439,20 @@ architect are ruled in research R-24.
   is rendered per request and so follows the buyer's current language.
 - The operator e-mail carries no clickable admin link: an absolute admin URL needs `ADMIN_BASE_URL`,
   an environment input `mfa` owns, whose promotion to the platform is outside this feature (the
-  `crm` event-reminder precedent). The bell links. See open question OQ-1.
+  `crm` event-reminder precedent). The bell links. Owner answer OQ-1: the link follows in #185.
 - Organizations with very many *Administrator* members (hundreds) are not expected; the recipient
   set is resolved in one pass per change.
 - Orders and returns are **not** producers of the centre in this feature; they are follow-ups.
 
-## Open questions for the owner
+## Owner answers to the open questions *(2026-11-12)*
 
-- **OQ-1 — A clickable admin link in the operator e-mail.** Options: **(A)** no link in this
-  feature; the e-mail names the request number and the bell carries the link; a follow-up issue
-  promotes `ADMIN_BASE_URL` to a platform environment input, after which `quote_requests`, `crm`
-  and `tasks` e-mails gain links together. **(B)** Promote `ADMIN_BASE_URL` in this feature
-  (touches the platform's environment ledger and `mfa`). **Recommendation: A** — the bell is always
-  delivered with a link (Q5), the promotion benefits three modules and deserves its own change, and
-  it keeps this feature out of the platform package.
-- **OQ-2 — Confirm the architect's two readings of the rulings** (top of this spec; research R-3,
-  R-4). Q3: "members with the quote permission" = members who may open the request (today
-  *Administrator*, after 170 P3 `quote_requests.approve`), not every holder of
-  `quote_requests.create`. Q1: "status change" = the status as the buyer sees it, so an operator's
-  new offer notifies and *Completed* does not; the acting buyer gets the e-mail but no centre entry
-  or push. Options: **(A)** confirm both; **(B)** Q3 literal — every holder of
-  `quote_requests.create` is told, accepting that some are told about requests they cannot open;
-  **(C)** Q1 literal — only stored-status changes, so a new offer is not e-mailed.
-  **Recommendation: A** — B discloses requests to members who get a 404 on them, and C drops the
-  notification a buyer needs most.
+No owner question remains open.
+
+- **OQ-1 — resolved: A.** Operator e-mails carry no clickable admin link in this feature; they name
+  the request number and the bell carries the link. The owner requires the link in the very next
+  step: issue **#185** (promote `ADMIN_BASE_URL`, today owned by `mfa`, so any module can link into
+  the Admin UI from an e-mail) is the committed follow-up. Once #185 lands, the two RFQ operator
+  e-mails gain the link to the request, and so do the `crm` and `tasks` e-mails (plan *Follow-ups*,
+  tasks T104).
+- **OQ-2 — confirmed.** The architect's readings of Q1 and Q3 at the top of this spec are binding
+  rulings (see *Owner rulings*).

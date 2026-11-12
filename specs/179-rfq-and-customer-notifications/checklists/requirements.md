@@ -14,8 +14,7 @@
 
 ## Requirement Completeness
 
-- [x] No [NEEDS CLARIFICATION] markers remain — one owner question (OQ-1) is recorded with options
-  and a recommendation, and has a working default
+- [x] No [NEEDS CLARIFICATION] markers remain — both owner questions are answered (2026-11-12)
 - [x] Requirements are testable and unambiguous
 - [x] Success criteria are measurable
 - [x] Success criteria are technology-agnostic
@@ -34,4 +33,5 @@
 ## Notes
 
 - The architect ruled two readings of owner rulings (Q3 "quote permission" = may open the request;
-  Q1 "status change" = as the buyer sees it); both are stated in the spec and research R-3, R-4.
+  Q1 "status change" = as the buyer sees it); both are stated in the spec and research R-3, R-4,
+  and the owner confirmed both on 2026-11-12.

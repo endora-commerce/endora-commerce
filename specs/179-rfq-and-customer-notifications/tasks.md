@@ -127,6 +127,8 @@ Contract and integration files do not run on merge requests (D-198): run them lo
 - [ ] T102 [P] [WP-11] `pwa/docs/pwa.md` quote push paragraph en + pl
 - [ ] T103 [WP-11] Upgrade note (changeset body): old table dropped, rows discarded, eleven new e-mails switched on by default; run `check:module-docs`
 
+- [ ] T104 [WP-11] Follow-up note (not in this feature; owner ruling OQ-1 = A, 2026-11-12): once #185 promotes `ADMIN_BASE_URL`, add the admin link (`quote.adminUrl`) to `quote_request_operator_submitted` and `quote_request_operator_resubmitted`, and the equivalent links to the `crm` and `tasks` e-mails. Record this in the #185 issue and in the changeset's upgrade note
+
 ### WP-12 Off-state and end-to-end
 
 - [ ] T110 [WP-12] Integration: walk the full matrix (every change × side × channel) against a seeded Organization with requester, *Administrator* member, *Member*, assigned rep, admin without `rfqs:handle` — `backend/test/integration/quote_requests/notification-matrix-e2e.test.ts`

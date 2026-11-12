@@ -221,7 +221,7 @@ WP-06, WP-07, WP-09a and WP-09 can run in parallel with WP-03 – WP-05. At most
 
 1. Orders and returns as producers of the centre (and whether order pushes then move onto the same
    port, retiring `pwa`'s `order.status_changed.v1` subscription).
-2. Promote `ADMIN_BASE_URL` to the platform (OQ-1 option A).
+2. **Committed next step (owner, 2026-11-12):** issue #185 promotes `ADMIN_BASE_URL` to the platform; then the RFQ operator e-mails (`quote_request_operator_submitted`, `…_resubmitted`) gain a link to the request, as do the `crm` and `tasks` e-mails (tasks T104).
 3. Mark a request's centre entries read when the buyer opens the request page.
 4. Revisit the header bell when notifications become frequent (spec *Header bell decision*).
 

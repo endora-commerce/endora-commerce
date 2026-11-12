@@ -72,7 +72,7 @@ pattern.
 - *Put it in `pwa`.* Push is one channel of the centre, not its owner; a shop without the PWA
   module still wants the centre.
 
-## R-3 — Customer-side recipients are the people who may open the request
+## R-3 — Customer-side recipients are the people who may open the request (owner-confirmed 2026-11-12)
 
 **Decision.** Customer side = the requester ∪ every member of the request's Organization whose role
 is in `orgWideViewerRoleIds(organizationId)`, filtered to active, unblocked, non-anonymised accounts.
@@ -92,7 +92,7 @@ Writing the rule once keeps recipients and visibility from drifting when P3 chan
 **Rejected.** *Holders of `quote_requests.create`* (the literal reading): discloses requests to
 members who cannot open them. *Requester only*: contradicts Q3.
 
-## R-4 — Which changes notify whom; the actor rule
+## R-4 — Which changes notify whom; the actor rule (owner-confirmed 2026-11-12)
 
 **Decision.** The matrix is `contracts/notification-matrix.md`, one row per change. A "status
 change" is the status the buyer sees, so an operator's offer on a pending request counts (the
@@ -206,7 +206,7 @@ Customer e-mails: language = the request's channel default language (`en-US` fal
 `<channel.storefront_url>/quote-requests/<id>` when the channel has a storefront URL (the storefront
 applies its locale-path rule on arrival, `specs/167-storefront-locale-path/`), otherwise no link.
 Operator e-mails: language = the administrator's preferred language (English fallback); no link
-(OQ-1). The approval e-mail carries no attachment (Q2).
+in this feature (owner ruling OQ-1 = A; the link follows in #185). The approval e-mail carries no attachment (Q2).
 
 **Rationale.** "One manifest entry per transition, EN+PL" was the architect's scope; it gives the
 operator a switch per message (FR-024) and copy that can say exactly what happened ("approved by
