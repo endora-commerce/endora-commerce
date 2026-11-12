@@ -143,14 +143,21 @@ boot_gate_translation_findings() {
 boot_gate_overlay_findings() {
   local presence=$1
   shift
-  local composed id total
+  local composed id total listed
   composed=$(boot_gate_module_ids "$presence")
   total=$(printf '%s\n' "$composed" | grep -c '[^[:space:]]')
+  # The ids themselves, sorted and comma-joined onto the finding's one line
+  # (issue #111): an `overlay-missing` verdict once appeared on an unchanged
+  # commit and could not be diagnosed, because the finding carried the count and
+  # not what the platform did enumerate. Sorted so two runs compare as text; one
+  # line so a reader matching `overlay-missing:` still gets one record.
+  listed=$(printf '%s\n' "$composed" | grep '[^[:space:]]' | LC_ALL=C sort | paste -sd, -)
+  [ -n "$listed" ] || listed='(none)'
 
   for id in "$@"; do
     if ! printf '%s\n' "$composed" | grep -qx "$id"; then
-      printf 'overlay-missing: the deployment declares overlay module "%s" and the running platform does not compose it — it enumerates %s modules and that is not one of them. This is D-165.3'"'"'s second silence: the overlay vanishes from the compiled application with no error and no warning.\n' \
-        "$id" "$total"
+      printf 'overlay-missing: the deployment declares overlay module "%s" and the running platform does not compose it — it enumerates %s modules and that is not one of them: %s. This is D-165.3'"'"'s second silence: the overlay vanishes from the compiled application with no error and no warning.\n' \
+        "$id" "$total" "$listed"
     fi
   done
 }
