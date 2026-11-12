@@ -178,6 +178,18 @@ administracyjnym pokazuje adres powiadomień w tej domenie i to ten adres jest z
 portalu operatora płatności. Opublikuj zmianę kategorii i sprawdź, że od razu pojawia się w
 storefroncie.
 
+**Adres panelu administracyjnego, `ADMIN_BASE_URL`.** To bezwzględny adres `http`/`https`, pod
+którym działa panel administracyjny, ze ścieżką, jeśli ją ma (`https://shop.example.com/admin`);
+z niego budowany jest link do panelu w każdym e-mailu, który platforma wysyła administratorowi.
+`compose.prod.yml` wyprowadza go z `ADMIN_DOMAIN`; `.env` instancji utworzonej przez CLI pyta o
+niego. Jest opcjonalny: bez niego te e-maile nie zawierają linku do panelu, a przekierowanie
+logowania lub odzyskiwania prowadzi pod adres deweloperski. Wartość, która nie jest
+bezwzględnym adresem `http`/`https` albo zawiera zapytanie lub fragment (`admin.example.com`,
+`/admin`), jest traktowana jak nieustawiona, a backend przy starcie zapisuje w logu jedno
+ostrzeżenie z jej nazwą (`packages/platform/src/kernel/admin-base-url.ts`). Upewnij się, że
+`ADMIN_DOMAIN` to prawdziwa domena panelu, albo ustaw `ADMIN_BASE_URL` na adres panelu, gdy panel
+działa gdzie indziej.
+
 ### B3. Skieruj `SMTP_URL` na prawdziwy serwer pocztowy
 
 **Dlaczego.** `SMTP_URL` jest pusty w `deploy/.env.prod.example` i opisany jako opcjonalny: „unset

@@ -31,7 +31,7 @@ import type {
 } from '@endora-commerce/platform/kernel';
 import type { CommandBus } from '@endora-commerce/platform/commands';
 import type { ModuleContext } from '@endora-commerce/platform/kernel';
-import { effectiveState, lazyPort } from '@endora-commerce/platform/kernel';
+import { configuredAdminBaseUrl, effectiveState, lazyPort } from '@endora-commerce/platform/kernel';
 import type { RequireAdminFactory } from '@endora-commerce/platform/kernel';
 import type { SettingsReader } from './services/mfa-policy-resolver.js';
 import {
@@ -210,7 +210,10 @@ export function registerModule(ctx: ModuleContext): void {
         (): MfaBaseUrls => ({
           backend: process.env['BACKEND_PUBLIC_URL'],
           storefront: process.env['STOREFRONT_BASE_URL'],
-          admin: process.env['ADMIN_BASE_URL'],
+          // Issue #185 — the platform's input and the platform's reading of
+          // it: a malformed value is absent here as everywhere, so the
+          // plugin's development fallback applies rather than a broken link.
+          admin: configuredAdminBaseUrl() ?? undefined,
         }),
       )
       .singleton(),

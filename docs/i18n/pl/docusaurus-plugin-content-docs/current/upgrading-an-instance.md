@@ -5162,6 +5162,37 @@ z uprawnieniem `audit_log:read`, niezależnie od tego, które organizacje widzi.
 z dziennika audytu, odczytuje je z organizacji (`GET /api/v1/admin/organizations/:id`), jej
 członków i jej ról.
 
+### Adres panelu administracyjnego jest ustawieniem platformy {#admin-base-url-platform-input}
+
+Wydanie, które wprowadza tę zmianę, czyni `ADMIN_BASE_URL` — adres panelu administracyjnego —
+zmienną środowiskową platformy zamiast modułu `mfa` (zgłoszenie #185), dzięki czemu każdy moduł,
+który wysyła e-maile do administratora, a nie tylko `mfa`, może z niej budować linki do panelu.
+
+**Zmiana zachowania po aktualizacji:**
+
+- `.env.example` instancji wymienia `ADMIN_BASE_URL` niezależnie od tego, czy `mfa` jest
+  zainstalowany, a `endora install` wpisuje do niego adres panelu w tych samych przypadkach, w
+  których robił to już dla `mfa`.
+- Wartość musi być bezwzględnym adresem `http` lub `https`, ze ścieżką, jeśli panel ją ma
+  (`https://shop.example.com/admin`), bez zapytania i bez fragmentu. Wartość, która taka nie jest
+  (`admin.example.com`, `/admin`), jest traktowana jak nieustawiona, a backend przy starcie zapisuje
+  w logu jedno ostrzeżenie z jej nazwą. Do tej pory `mfa` używał takiej wartości bez zmian i
+  budował przekierowanie logowania, które niczego nie otwierało; teraz przechodzi na swój adres
+  deweloperski, tak jak przy wartości nieustawionej.
+- Poprawna wartość działa jak dotąd. Ukośnik na końcu jest pomijany.
+
+**Po aktualizacji:**
+
+1. Jeśli backend przy starcie zapisuje w logu `ADMIN_BASE_URL=… is not an absolute http(s) URL`,
+   ustaw pełny adres panelu, na przykład `https://admin.example.com`, i uruchom backend ponownie.
+2. Jeśli instancja nie ma `mfa` i nigdy nie ustawiała `ADMIN_BASE_URL`, ustaw go teraz, aby
+   e-maile do administratorów mogły zawierać link do panelu; bez niego linku nie ma.
+3. Własny moduł, który czytał `process.env['ADMIN_BASE_URL']`, czyta zamiast tego
+   `configuredAdminBaseUrl()` z `@endora-commerce/platform/kernel`. Funkcja zwraca adres bez
+   ukośnika na końcu albo `null`, gdy adres jest nieustawiony lub niepoprawny — wtedy pomiń link.
+   Własny moduł, który deklarował `ADMIN_BASE_URL` w polu `env` swojego manifestu, usuwa tę
+   deklarację: należy ona do platformy, a `check:env-inputs` zgłasza moduł, który ją deklaruje.
+
 ## Instancja niespójna od początku
 
 Instalator `0.101.x` lub starszy zapisywał każdy pakiet wydania z `^` poza

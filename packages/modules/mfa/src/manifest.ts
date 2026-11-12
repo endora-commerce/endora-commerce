@@ -117,31 +117,14 @@ export const manifest = defineModuleManifest({
   /**
    * What this module needs from the environment (`specs/117-instance-bring-up/`
    * FR-002). Only what it **owns**: its reads of platform-owned names are
-   * satisfied by `packages/platform/src/env/index.ts`.
+   * satisfied by `packages/platform/src/env/index.ts`. `ADMIN_BASE_URL` was
+   * declared here until issue #185 moved it to the platform, which every module
+   * now reads it through (`configuredAdminBaseUrl`).
    *
    * Why each of these is not a Setting is its entry in
    * `backend/scripts/ledgers/module-environment-inputs/mfa.ts`.
    */
   env: [
-    {
-      name: 'ADMIN_BASE_URL',
-      describes: {
-        en: 'Where the admin panel is, so that a link this instance mails an administrator opens their own installation.',
-        pl: 'Gdzie znajduje się panel administracyjny, aby link wysłany administratorowi otwierał jego własną instalację.',
-      },
-      requirement: {
-        kind: 'optional',
-        without: {
-          en: 'A sign-in or recovery link mailed to an administrator points nowhere they can open — which matters most when the panel is on a host of its own.',
-          pl: 'Link logowania lub odzyskiwania wysłany administratorowi prowadzi donikąd — co ma największe znaczenie, gdy panel stoi na osobnym hoście.',
-        },
-      },
-      secret: false,
-      generable: false,
-      owner: { kind: 'module', moduleId: 'mfa' },
-      consumers: ['backend'],
-      addressOf: 'admin',
-    },
     {
       name: 'MFA_SECRET_ENCRYPTION_KEY',
       describes: {
