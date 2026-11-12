@@ -118,7 +118,11 @@ export function kernelOwnedTables(
    * with no `@Entity()`, so the default would resolve an empty kernel table set
    * — which `kernel-migration-ownership.test.ts` refuses as a silent empty scan.
    */
-  kernelRoot: string = join(sourceRoot, '..', '..', 'packages', 'platform', 'src', 'kernel'),
+  // The platform's whole source tree, not only `kernel/`: the command outbox's
+  // entity (`specs/176-command-hooks-outbox/` P3) is `commands/outbox/`'s, beside
+  // the bus that writes it, and a walk of `kernel/` alone reported its table as
+  // owned by nobody.
+  kernelRoot: string = join(sourceRoot, '..', '..', 'packages', 'platform', 'src'),
 ): ReadonlySet<string> {
   const graph = deriveFkGraph(sourceRoot, {
     overrides: TABLE_OWNER_OVERRIDES,

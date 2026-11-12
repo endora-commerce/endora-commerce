@@ -47,7 +47,9 @@ const repositoryRoot = resolve(backendSrc, '../..');
  * `@endora-commerce/platform`'s. `backend/src/kernel` holds re-export shims that
  * carry no `@Entity()`, so a walk of them owns none of the six kernel tables.
  */
-const platformKernel = resolve(here, '../../../../packages/platform/src/kernel');
+// The platform's whole source, not `kernel/` alone: `command_outbox`'s entity
+// lives under `commands/outbox/` (`specs/176-command-hooks-outbox/` P3).
+const platformKernel = resolve(here, '../../../../packages/platform/src');
 
 /**
  * Every module, over both roots the tree now has (feature 080, T040b).

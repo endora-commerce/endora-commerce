@@ -410,6 +410,8 @@ describe('the platform is one copy (feature 080, the relocation)', () => {
     // (`specs/176-command-hooks-outbox/` P2) published `CommandHookRefusal`,
     // `currentCommandHookOrigin` and the seven composition refusals; the other
     // new names are types and carry no identity.
+    // **81 -> 82 is the same event, on `./commands`:** the command outbox
+    // (`specs/176-command-hooks-outbox/` P3) published `PermanentOutboxFailure`.
     //
     // It is summed over the **five published** subpaths and not over every
     // comparison, which is what preserves that provenance: no host-internal
@@ -420,7 +422,7 @@ describe('the platform is one copy (feature 080, the relocation)', () => {
     const total = comparisons
       .filter((entry) => published.has(entry.subpath))
       .reduce((sum, entry) => sum + entry.shared.length, 0);
-    expect(total).toBe(81);
+    expect(total).toBe(82);
   });
 
   /**

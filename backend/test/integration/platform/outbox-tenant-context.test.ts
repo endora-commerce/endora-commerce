@@ -10,7 +10,8 @@ import { Organization } from '../../helpers/package-entities.js';
  * to end on the composed platform.
  *
  * The handler is the `example` deployment's `command_hook_fixture`
- * (`deliver-register`, `deliver-create`). A real registration over HTTP writes
+ * (`deliver-register`, `deliver-create`), which acts on an Organization whose
+ * name carries its marker and delivers every other row as a no-op. A real registration over HTTP writes
  * its outbox row in the registration's own transaction; the drain then delivers
  * it, and the handler records what it saw by running a Command of its own,
  * `command_hook_fixture.deliver`, whose audit entry is what this file reads:
@@ -75,7 +76,7 @@ describe('afterCommit delivery restores the row’s tenant context (176 T044)', 
     seq += 1;
     const payload = {
       organization: {
-        name: `Outbox delivery ${stamp}`,
+        name: `CMDHOOK Outbox delivery ${stamp}`,
         taxId: taxId(),
         registeredAddress: { street: 'ul. Skrzynkowa 1', city: 'Gdańsk', postalCode: '80-001', country: 'PL' },
       },
@@ -144,9 +145,34 @@ describe('afterCommit delivery restores the row’s tenant context (176 T044)', 
     expect(delivered!.actorCustomerAccountId ?? null).toBeNull();
   }, 60_000);
 
+  it('writes and delivers the row of an unmarked registration too, where the fixture does nothing', async () => {
+    seq += 1;
+    const payload = {
+      organization: {
+        name: `Outbox unmarked ${stamp}`,
+        taxId: taxId(),
+        registeredAddress: { street: 'ul. Skrzynkowa 3', city: 'Gdańsk', postalCode: '80-003', country: 'PL' },
+      },
+      firstUser: {
+        email: `outbox-${stamp}-${seq}@example.test`,
+        password: 'a-very-strong-password-123!',
+        firstName: 'Ola',
+        lastName: 'Outbox',
+      },
+      acceptedTermsVersion: '1.0.0',
+    };
+    const res = await h.app.inject({ method: 'POST', url: '/api/v1/organizations/register', payload });
+    expect(res.statusCode).toBe(201);
+    const org = await h.em().fork().findOneOrFail(Organization, { taxId: payload.organization.taxId });
+    expect(await outboxRowsFor(org.id)).toEqual([expect.objectContaining({ hook_id: 'deliver-register', status: 'pending' })]);
+    await drain();
+    expect((await outboxRowsFor(org.id))[0]).toMatchObject({ status: 'delivered' });
+    expect((await entriesFor(org.id)).map((entry) => entry.action)).not.toContain('command_hook_fixture.deliver');
+  }, 60_000);
+
   it('hands an admin create’s handler the operator as recorded causation, while it runs as the system', async () => {
     const payload = {
-      name: `Outbox admin ${stamp}`,
+      name: `CMDHOOK Outbox admin ${stamp}`,
       taxId: taxId(),
       registeredAddress: { street: 'ul. Skrzynkowa 2', city: 'Gdańsk', postalCode: '80-002', country: 'PL' },
       salesChannelIds: [channel],

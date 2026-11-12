@@ -164,7 +164,8 @@ export function moduleOwnedTables(repoRoot: string): ReadonlyMap<string, string>
   const backendSrc = resolve(repoRoot, 'backend/src');
   const graph = deriveFkGraph(backendSrc, {
     overrides: TABLE_OWNER_OVERRIDES,
-    kernelRoot: resolve(repoRoot, 'packages/platform/src/kernel'),
+    // The platform's whole source: `command_outbox`'s entity is under `commands/` (176 P3).
+    kernelRoot: resolve(repoRoot, 'packages/platform/src'),
     moduleRoots: [
       coreModuleRoot(backendSrc),
       ...modulePackagePopulation(repoRoot).map((pkg) => ({

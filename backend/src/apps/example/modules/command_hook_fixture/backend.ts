@@ -36,9 +36,14 @@ import {
  * An unmarked name passes through untouched.
  *
  * Two `afterCommit` handlers (`specs/176-command-hooks-outbox/` P3, T044),
- * one per action, show the outbox end to end. The outbox row carries ids and
- * codes only, so a handler cannot see the marker; it acts on every row it is
- * delivered, and only a test that drives the drain ever delivers one. It
+ * one per action, show the outbox end to end, and they too act only on a
+ * marked Organization. The outbox row carries ids and codes only, so a handler
+ * cannot read the marker; the `beforeCommit` hook, which can, remembers the
+ * marked Organization's id in this composition's memory, and the handler acts
+ * on a row only when its Organization is remembered. Every other row is
+ * delivered as a no-op — as is every row delivered by a process other than the
+ * one that took the write, which is how a split `api` / `worker` deployment
+ * would run it, and is why this stays a fixture's trick. Acting, a handler
  * records what it was handed by running a Command of its own,
  * `command_hook_fixture.deliver`, whose audit entry is the evidence: the
  * context it ran in, the causation it was given, and — on the entry's own
@@ -61,10 +66,11 @@ function observeCommand(organizationId: string, hookId: string): Command<null> {
   };
 }
 
-function observe(hookId: string) {
+function observe(hookId: string, marked: Set<string>) {
   return async (ctx: CommandHookContext<ObservedOrganization>): Promise<void> => {
     const { organization } = ctx.data;
     if (!organization.name.startsWith(COMMAND_HOOK_FIXTURE_MARKER)) return;
+    marked.add(organization.id);
     await ctx.run(observeCommand(organization.id, hookId));
     ctx.noteAuditChanges(['x_command_hook_fixture_observed']);
     if (organization.name.includes(COMMAND_HOOK_FIXTURE_VETO)) {
@@ -103,23 +109,27 @@ function deliverCommand(ctx: AfterCommitContext<{ readonly organizationId: strin
 }
 
 export function registerModule(ctx: ModuleContext): void {
+  // The marked Organizations this composition's hooks saw — see the header.
+  const marked = new Set<string>();
   const deliver =
     (hookId: string) =>
     async (delivery: AfterCommitContext<{ readonly organizationId: string }>): Promise<void> => {
+      if (!marked.has(delivery.objectId)) return;
       await ctx.cradle<{ commandBus: CommandBus }>().commandBus.run(deliverCommand(delivery, hookId));
+      marked.delete(delivery.objectId);
     };
   ctx.commandHooks([
     {
       id: 'observe-create',
       on: ORGANIZATION_HOOKABLE_ACTIONS.create,
       phase: 'beforeCommit',
-      handler: observe('observe-create'),
+      handler: observe('observe-create', marked),
     },
     {
       id: 'observe-register',
       on: ORGANIZATION_HOOKABLE_ACTIONS.register,
       phase: 'beforeCommit',
-      handler: observe('observe-register'),
+      handler: observe('observe-register', marked),
     },
     {
       id: 'deliver-create',
