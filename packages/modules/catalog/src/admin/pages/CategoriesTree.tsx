@@ -3,7 +3,7 @@ import { Link, useSearchParams } from 'react-router-dom';
 import { Plus, Pencil, Trash2, Eye, EyeOff, FileText } from 'lucide-react';
 import { ApiError, apiClient, cn, useAuth } from '@endora-commerce/admin-kit/lib';
 import { Alert, AlertDescription, Badge, Button, Card, CardContent, Input, Label, PageHeader, Select, Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from '@endora-commerce/admin-kit/ui';
-import { AssetPicker, CustomFieldValuesPanel, adminLanguageToLocale, customFieldErrorsOf, buildCategoryTree, flattenCategoryTree, pickCategoryDisplayName } from '@endora-commerce/admin-kit/components';
+import { AssetPicker, CustomFieldValuesPanel, adminLanguageToLocale, customFieldErrorsOf, buildCategoryTree, flattenCategoryTree, pickCategoryDisplayName, useConfirmDialog } from '@endora-commerce/admin-kit/components';
 import type { CategoryTreePickerCategory } from '@endora-commerce/admin-kit/components';
 import { useTranslation, useTranslationContext } from '@endora-commerce/admin-kit/i18n';
 import { AdminZone, useAdminZone } from '@endora-commerce/admin-kit/zones';
@@ -50,6 +50,8 @@ const CONTENT_EDITOR_PROBE = {
 
 export function CategoriesTree(): ReactNode {
   const t = useTranslation('catalog');
+  const tc = useTranslation('core');
+  const { confirm, confirmDialog } = useConfirmDialog();
   // Whether a row offers **Content**: only while something contributes an
   // editor to the content screen. Without one the screen can show nothing but
   // the sentence saying so, and a link to that is a dead end.
@@ -208,7 +210,12 @@ export function CategoriesTree(): ReactNode {
 
   const handleDelete = useCallback(
     async (cat: CategoryTreePickerCategory): Promise<void> => {
-      if (!confirm(t('categories.deleteConfirm', { name: label(cat.name, cat.slug) }))) return;
+      const ok = await confirm({
+        message: t('categories.deleteConfirm', { name: label(cat.name, cat.slug) }),
+        confirmLabel: tc('common.action.delete'),
+        destructive: true,
+      });
+      if (!ok) return;
       try {
         await apiClient.delete<void>(`/api/v1/admin/catalog/categories/${cat.id}`);
         setInfo(t('categories.success.delete'));
@@ -217,7 +224,7 @@ export function CategoriesTree(): ReactNode {
         setError(err instanceof ApiError ? err.envelope.error.message : t('categories.error.delete'));
       }
     },
-    [refresh],
+    [refresh, t, tc, confirm],
   );
 
   return (
@@ -413,6 +420,7 @@ export function CategoriesTree(): ReactNode {
           )}
         </CardContent>
       </Card>
+      {confirmDialog}
     </>
   );
 }

@@ -3,6 +3,7 @@ import { screen, waitFor, within } from '@testing-library/react';
 import userEvent from '@testing-library/user-event';
 import { MemoryRouter, Route, Routes } from 'react-router-dom';
 import { renderWithI18n, passthroughBundle } from '../../helpers/render-with-i18n';
+import { answerConfirm } from '../../helpers/confirm-dialog';
 import { adminSession, modulePresence, withSession } from '../../helpers/render-with-session';
 
 const getSpy = vi.fn();
@@ -360,12 +361,12 @@ describe('RfqDetail — the operator sets and changes the validity deadline', ()
     postSpy.mockResolvedValue({
       data: { cartId: '00000000-0000-4000-8000-0000000000c1', customerAccountId: 'cust-1', itemCount: 1 },
     });
-    const confirm = vi.spyOn(window, 'confirm').mockReturnValue(true);
     renderDetail({ status: 'Approved', expiresAt: VALID_UNTIL, awaitingCustomerRevisionAcceptance: false });
 
     await userEvent.click(await screen.findByRole('button', { name: /rfq\.detail\.convert\.placeOrder/ }));
 
-    expect(confirm).toHaveBeenCalledWith('rfq.detail.convert.confirm');
+    const dialog = await answerConfirm(true);
+    expect(dialog).toHaveTextContent('rfq.detail.convert.confirm');
     // Not the storefront's `convert-to-order`: that route is customer-only and
     // answers an administrator with 401, which signs the operator out.
     await waitFor(() =>
@@ -379,10 +380,10 @@ describe('RfqDetail — the operator sets and changes the validity deadline', ()
 
   it('sends nothing when the operator does not confirm', async () => {
     const VALID_UNTIL = new Date(Date.now() + 30 * 86_400_000).toISOString();
-    vi.spyOn(window, 'confirm').mockReturnValue(false);
     renderDetail({ status: 'Approved', expiresAt: VALID_UNTIL, awaitingCustomerRevisionAcceptance: false });
 
     await userEvent.click(await screen.findByRole('button', { name: /rfq\.detail\.convert\.placeOrder/ }));
+    await answerConfirm(false);
 
     // Only the basket endpoint: the reference-price probe is itself a POST
     // (`/price-books/resolve`, feature 160), and it is a read, not a send.

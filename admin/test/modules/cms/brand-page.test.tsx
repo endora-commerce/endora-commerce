@@ -13,6 +13,7 @@ import {
 import { ApiError, apiClient } from '@endora-commerce/admin-kit/lib';
 import { AppLanguageContext } from '@endora-commerce/admin-kit/i18n';
 import { renderWithI18n } from '../../helpers/render-with-i18n';
+import { answerConfirm } from '../../helpers/confirm-dialog';
 import { adminSession, modulePresence, withSession } from '../../helpers/render-with-session';
 import { BrandPage } from '../../../../packages/modules/cms/src/admin/pages/BrandPage';
 
@@ -203,9 +204,10 @@ describe('BrandPage', () => {
     expect(await screen.findByText(copy('brand.scope.overriddenNotice'))).toBeTruthy();
     await waitFor(() => expect(colorTrigger(copy('brand.colors.primary')).textContent).toContain('#0f766e'));
 
-    vi.spyOn(window, 'confirm').mockReturnValue(true);
     const put = vi.spyOn(apiClient, 'put').mockResolvedValue({ data: { version: 0, warnings: [] } } as never);
     fireEvent.click(screen.getByRole('button', { name: copy('brand.scope.reset') }));
+    const dialog = await answerConfirm(true);
+    expect(dialog).toHaveTextContent(copy('brand.scope.resetConfirm'));
     await waitFor(() => expect(put).toHaveBeenCalledTimes(1));
     expect(put.mock.calls[0]![1]).toEqual({
       scope: { kind: 'channel', salesChannelId: CHANNEL_ID },

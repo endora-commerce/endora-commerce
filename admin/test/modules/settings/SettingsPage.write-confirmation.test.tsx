@@ -4,6 +4,7 @@ import { MemoryRouter } from 'react-router-dom';
 import type { ReactElement } from 'react';
 import type { SettingDto, SettingGroupDto } from '@endora-commerce/contracts';
 import { renderWithI18n, passthroughBundle } from '../../helpers/render-with-i18n';
+import { answerConfirm } from '../../helpers/confirm-dialog';
 
 /**
  * Issue #349, E-349-1 — switching `mfa.admin.totp_enforced` on signs out every
@@ -158,12 +159,12 @@ describe('SettingsPage — a write the owning module asks to confirm', () => {
     listSpy.mockResolvedValue(listOf(flag(CONFIRMATION)));
     // Between the screen's read and the save, two more administrators appeared.
     getByCodeSpy.mockResolvedValue(flag({ ...CONFIRMATION, params: { count: 4 } }));
-    const confirm = vi.spyOn(window, 'confirm').mockReturnValue(true);
     renderPage();
     await switchOnAndSave();
+    const dialog = await answerConfirm(true);
+    expect(dialog).toHaveTextContent('Wylogowani zostaną administratorzy: 4. Kontynuować?');
     await waitFor(() => expect(setValueSpy).toHaveBeenCalled());
     expect(getByCodeSpy).toHaveBeenCalledWith('fixture_mod.enforced');
-    expect(confirm).toHaveBeenCalledWith('Wylogowani zostaną administratorzy: 4. Kontynuować?');
     expect(
       await screen.findByText('Trwa wylogowywanie administratorów bez weryfikacji dwuetapowej.'),
     ).toBeTruthy();
@@ -172,11 +173,10 @@ describe('SettingsPage — a write the owning module asks to confirm', () => {
   it('saves without asking when the save-time read carries no confirmation', async () => {
     listSpy.mockResolvedValue(listOf(flag(CONFIRMATION)));
     getByCodeSpy.mockResolvedValue(flag());
-    const confirm = vi.spyOn(window, 'confirm').mockReturnValue(true);
     renderPage();
     await switchOnAndSave();
     await waitFor(() => expect(setValueSpy).toHaveBeenCalled());
-    expect(confirm).not.toHaveBeenCalled();
+    expect(screen.queryByRole('dialog')).toBeNull();
     expect(
       screen.queryByText('Trwa wylogowywanie administratorów bez weryfikacji dwuetapowej.'),
     ).toBeNull();
@@ -185,20 +185,18 @@ describe('SettingsPage — a write the owning module asks to confirm', () => {
   it('saves nothing when the operator declines', async () => {
     listSpy.mockResolvedValue(listOf(flag(CONFIRMATION)));
     getByCodeSpy.mockResolvedValue(flag(CONFIRMATION));
-    const confirm = vi.spyOn(window, 'confirm').mockReturnValue(false);
     renderPage();
     await switchOnAndSave();
-    await waitFor(() => expect(confirm).toHaveBeenCalled());
+    await answerConfirm(false);
     expect(setValueSpy).not.toHaveBeenCalled();
   });
 
   it('asks nothing, and reads nothing more, when the screen read carries no confirmation', async () => {
     listSpy.mockResolvedValue(listOf(flag()));
-    const confirm = vi.spyOn(window, 'confirm').mockReturnValue(true);
     renderPage();
     await switchOnAndSave();
     await waitFor(() => expect(setValueSpy).toHaveBeenCalled());
-    expect(confirm).not.toHaveBeenCalled();
+    expect(screen.queryByRole('dialog')).toBeNull();
     expect(getByCodeSpy).not.toHaveBeenCalled();
   });
 });

@@ -7,7 +7,7 @@ import type {
   UpdateConfiguration,
 } from '@endora-commerce/contracts';
 import { Badge, Button, PageHeader } from '@endora-commerce/admin-kit/ui';
-import { ResponsiveTable, type ResponsiveColumn } from '@endora-commerce/admin-kit/components';
+import { ResponsiveTable, type ResponsiveColumn, useConfirmDialog } from '@endora-commerce/admin-kit/components';
 import { ApiError } from '@endora-commerce/admin-kit/lib';
 import { useTranslation } from '@endora-commerce/admin-kit/i18n';
 import { credentialsClient } from '../api/credentials-client.js';
@@ -30,6 +30,7 @@ export interface CredentialsPageProps {
 
 export function CredentialsPage({ initialMode = 'list' }: CredentialsPageProps = {}): ReactNode {
   const t = useTranslation('credentials');
+  const { confirm, confirmDialog } = useConfirmDialog();
   const navigate = useNavigate();
   const [types, setTypes] = useState<ConfigurationTypeDescriptor[]>([]);
   const [items, setItems] = useState<ConfigurationDto[]>([]);
@@ -123,7 +124,8 @@ export function CredentialsPage({ initialMode = 'list' }: CredentialsPageProps =
   };
 
   const onDelete = async (row: ConfigurationDto): Promise<void> => {
-    if (!window.confirm(t('page.deleteConfirm'))) return;
+    const ok = await confirm({ message: t('page.deleteConfirm'), confirmLabel: t('action.delete'), destructive: true });
+    if (!ok) return;
     try {
       await credentialsClient.delete(row.code);
       await reload();
@@ -222,6 +224,7 @@ export function CredentialsPage({ initialMode = 'list' }: CredentialsPageProps =
         configuration={preview}
         onClose={() => setPreview(null)}
       />
+      {confirmDialog}
     </div>
   );
 }
