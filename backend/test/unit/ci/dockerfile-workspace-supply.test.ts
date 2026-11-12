@@ -379,7 +379,16 @@ describe('scripts/collect-workspace-manifests.sh enumerates the workspace', () =
       'packages:\n  - app\n  - packages/*\n  - packages/modules/*\n',
     );
     writeFileSync(join(root, 'pnpm-lock.yaml'), "lockfileVersion: '9.0'\n");
-    writeFileSync(join(root, 'package.json'), JSON.stringify({ name: 'fixture-root', version: '0.0.0' }));
+    // Pinned to the repository's pnpm: the collector runs `pnpm ls` here, and a
+    // directory outside every project leaves a version-resolving shim on `PATH`
+    // to pick one of its own (issue #131).
+    const { packageManager } = JSON.parse(readFileSync(join(REPO_ROOT, 'package.json'), 'utf8')) as {
+      packageManager?: string;
+    };
+    writeFileSync(
+      join(root, 'package.json'),
+      JSON.stringify({ name: 'fixture-root', version: '0.0.0', packageManager }),
+    );
     for (const directory of directories) {
       mkdirSync(join(root, directory), { recursive: true });
       writeFileSync(
@@ -418,6 +427,29 @@ describe('scripts/collect-workspace-manifests.sh enumerates the workspace', () =
     walk('');
     return { status, output, collected: collected.sort() };
   }
+
+  /**
+   * Issue #131 — the collector runs `pnpm ls` with the fixture as its working
+   * directory, and a directory with no `packageManager` field leaves the choice
+   * of pnpm to whatever is first on `PATH`. With Corepack's shim there, that
+   * was a different major than this repository pins, and the run failed on a
+   * missing `pnpm.cjs` rather than on anything the collector does.
+   */
+  it('pins the fixture to the pnpm this repository declares', () => {
+    const root = fixtureWorkspace([]);
+    try {
+      const pinned = (JSON.parse(readFileSync(join(REPO_ROOT, 'package.json'), 'utf8')) as {
+        packageManager?: string;
+      }).packageManager;
+      expect(pinned, 'the root package.json declares no packageManager').toMatch(/^pnpm@/);
+      expect(
+        (JSON.parse(readFileSync(join(root, 'package.json'), 'utf8')) as { packageManager?: string })
+          .packageManager,
+      ).toBe(pinned);
+    } finally {
+      rmSync(root, { recursive: true, force: true });
+    }
+  });
 
   it('collects every member, however deeply the workspace globs nest it', () => {
     const root = fixtureWorkspace(['app', 'packages/one', 'packages/modules/deep']);
