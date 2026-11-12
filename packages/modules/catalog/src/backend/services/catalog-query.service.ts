@@ -54,6 +54,7 @@ import { findCurrentKeyHolder, loadEffectiveKeys } from './url-key-resolution.se
 import {
   ANONYMOUS_PRODUCT_AUDIENCE,
   ERROR_CODES,
+  type DisplayMode,
   compareDecimal,
   productDefaultPath,
   productPath,
@@ -224,6 +225,15 @@ export interface CatalogQueryContext {
    * so a page cannot be priced in one currency and ordered in another.
    */
   currency?: string | undefined;
+  /**
+   * Issue #420 — the page-level display mode the caller has **already**
+   * resolved for this viewer, when it has one. The public listing route asks
+   * it to decide whether to offer the price controls at all and hands the
+   * answer on, so a price request does not resolve it twice. Absent, the
+   * service resolves it itself before a price sort or a price range — the
+   * refusal never depends on a caller remembering to ask.
+   */
+  pageDisplayMode?: DisplayMode | undefined;
 }
 
 /**
@@ -841,10 +851,12 @@ export class CatalogQueryService {
    * inferred the prices the page withholds. Resolved for the viewer the page's
    * prices and order are resolved for ({@link #viewerPricingContext}).
    */
-  async #refusePriceControlsWherePricesHidden(ctx: CatalogQueryContext): Promise<void> {
-    const mode = await this.#requireListingPriceOrder().pageDisplayMode({
-      context: await this.#viewerPricingContext(ctx),
-    });
+  async #refusePriceControlsWherePricesHidden(ctx: CatalogQueryContext): Promise<CatalogQueryContext> {
+    const mode =
+      ctx.pageDisplayMode ??
+      (await this.#requireListingPriceOrder().pageDisplayMode({
+        context: await this.#viewerPricingContext(ctx),
+      }));
     if (mode === 'none') {
       throw new HttpError(
         400,
@@ -852,6 +864,7 @@ export class CatalogQueryService {
         'Prices are not displayed on this page, so the catalogue cannot be ordered or filtered by price.',
       );
     }
+    return ctx.pageDisplayMode === mode ? ctx : { ...ctx, pageDisplayMode: mode };
   }
 
   #requireOrganizationDetails(): OrganizationDetailsPort {
@@ -1084,9 +1097,11 @@ export class CatalogQueryService {
     params: ListProductsParams,
     ctx: CatalogQueryContext,
   ): Promise<ListResult<ProductSummary>> {
-    // Issue #420 — refused before anything is read, the cursor included.
+    // Issue #420 — refused before anything is read, the cursor included. The
+    // answer travels on with the context, so a walk that re-enters this method
+    // (`#listUnordered`) does not resolve it again.
     if (isPriceSort(params.sort) || params.minPrice !== undefined || params.maxPrice !== undefined) {
-      await this.#refusePriceControlsWherePricesHidden(ctx);
+      ctx = await this.#refusePriceControlsWherePricesHidden(ctx);
     }
     // A price walk that began in the default order, for want of a price order,
     // continues in it to its end — the default listing's page, so nothing the

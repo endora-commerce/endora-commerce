@@ -86,6 +86,20 @@ describe('CatalogQueryService.listProducts refuses price controls on a page that
     expect(pageDisplayMode).not.toHaveBeenCalled();
   });
 
+  it('uses the display mode its caller already resolved, and refuses on it', async () => {
+    // The public route resolves the mode to decide whether to offer the
+    // controls, and hands it on so a price request does not ask twice.
+    const { service, pageDisplayMode } = build('gross_only');
+
+    await expect(
+      service.listProducts({ limit: 20, sort: 'price' }, { ...CTX, pageDisplayMode: 'none' }),
+    ).rejects.toMatchObject({ statusCode: 400, code: ERROR_CODES.PRICE_ORDERING_UNAVAILABLE });
+    await expect(
+      service.listProducts({ limit: 20, minPrice: 10 }, { ...CTX, pageDisplayMode: 'both' }),
+    ).rejects.toThrow('the refusal comes before any read');
+    expect(pageDisplayMode).not.toHaveBeenCalled();
+  });
+
   it('lets a price control through when the page shows prices', async () => {
     const { service, pageDisplayMode } = build('gross_only');
 
