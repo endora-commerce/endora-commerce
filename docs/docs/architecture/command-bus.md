@@ -161,13 +161,74 @@ their own chain, or nesting deeper than eight, is refused `500 COMMAND_HOOK_CYCL
 **Rules for owners.** Declare only a Command whose `run` is complete and which is not
 reversible (undo restores only what the owner captured). Supply `hookData` — the bus refuses a
 hooked Command without it (`500 COMMAND_HOOK_DATA_MISSING`) — and `outboxData` for the
-`afterCommit` phase, and hold each declared Command to its ref with `expectHookableCommand`
+`afterCommit` phase (refused the same way), and hold each declared Command to its ref with `expectHookableCommand`
 from `@endora-commerce/test-kit/command-hooks`. The action string, the phases and the data
 types are a public contract.
 
-`afterCommit` handlers are declared in the API and are not delivered yet: their transactional
-outbox is the next phase of this work, and until it ships the platform refuses to register
-one rather than accept a handler nothing calls.
+## After the commit: `afterCommit` handlers and the outbox {#aftercommit-outbox}
+
+Work that must happen **after** an owner's write — telling an ERP that an Organization
+registered, say — goes in an `afterCommit` handler on the same declared action. It is
+registered through the same `ctx.commandHooks` call, and it is never run inside the write:
+
+```ts
+import { ORGANIZATION_HOOKABLE_ACTIONS as ORG } from '@endora-commerce/contracts';
+import { PermanentOutboxFailure } from '@endora-commerce/platform/commands';
+
+ctx.commandHooks([
+  {
+    id: 'notify-erp',
+    on: ORG.register,
+    phase: 'afterCommit',
+    handler: async ({ messageId, data, causation }) => {
+      const answer = await erp.registered(data.organizationId, { idempotencyKey: messageId });
+      if (answer.rejected) throw new PermanentOutboxFailure('acme-erp-rejected', answer.reason);
+    },
+  },
+]);
+```
+
+**Written in the owner's transaction.** For each present `afterCommit` handler, the Command
+Bus writes one row into the platform's `command_outbox` table on the Command's own `em`,
+after the audit entry: `capture → run → hooks → audit entry → event → outbox rows → commit`.
+The rows commit with the write or not at all — a rolled-back Command leaves none — and a
+handler whose module is switched off gets no row. This is the difference from an event
+subscriber, which runs best-effort in the request's process after the commit and is lost if
+that process dies first.
+
+**Ids and codes only.** A row stores the owner's `outboxData`, which is `audit-state.md`
+list 1: ids, codes, booleans, counts, dates and field names. The table is platform-global, so
+the bus refuses outbox data with a nested object or a string that is longer than a code or has
+whitespace in it, naming the key and never the value. A handler re-reads anything else through
+the owner's ports.
+
+**Delivered at least once.** A worker drains the table: a BullMQ job scheduler ticks every
+10 seconds, and a commit that wrote rows also enqueues one deduplicated wake-up, which the bus
+does not wait for. If Redis is down at commit, the wake-up is lost and the row is not: the next
+tick delivers it. Rows are claimed with `for update skip locked` under a five-minute lease, so
+two worker processes never hand one row to two handlers at once. A lease that runs out is
+reclaimed, so a handler can run twice: dedupe on `messageId`, which is the row's id and is
+stable across retries.
+
+**In the Organization's context.** Each row is delivered in a scope pinned to the
+Organization it concerns (`single-org`, the system as actor), or in the drain's system scope
+when it has none. The actor and request id recorded at commit arrive as `causation`, and the
+request id is also the delivery scope's, so a Command the handler runs records the request that
+caused it. The original actor's reach is never restored.
+
+**Retries, then dead letters.** A failed delivery is retried after `min(30 s · 2^(n-1), 1 h)`,
+up to 10 attempts, and the row is then dead. A handler throws `PermanentOutboxFailure(code,
+message)` to dead-letter at once. A row stores the failure's code and the error's class, never
+its message. A row whose handler module is switched off waits without spending an attempt, and
+is delivered after the module is switched back on. A row whose module is present but no longer
+registers the handler is dead-lettered `hook-unregistered`. Delivered rows are purged after 7
+days, dead rows after 90. `module:uninstall --hard <module>` deletes that module's rows; a soft
+uninstall keeps them.
+
+Unlike `beforeCommit` hooks, `afterCommit` handlers on one action are not ordered against each
+other — each is its own row, delivered on its own — and need no `commandHookOrder` entry. The
+in-process `EventBus` and its subscribers are unchanged; the outbox is a second, durable path
+for these handlers only.
 
 ## Reversibility & undo
 

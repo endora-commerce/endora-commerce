@@ -43,7 +43,10 @@ describe('GET /api/v1/admin/command-hooks (176 T037)', () => {
     ]);
     expect(body.items.filter((item) => item.module === FIXTURE)).toEqual([
       { action: 'organization.create', phase: 'beforeCommit', position: 1, module: FIXTURE, id: 'observe-create', moduleEnabled: true },
+      // 176 P3 — the fixture's afterCommit handlers, after each action's beforeCommit hooks.
+      { action: 'organization.create', phase: 'afterCommit', position: 1, module: FIXTURE, id: 'deliver-create', moduleEnabled: true },
       { action: 'organization.register', phase: 'beforeCommit', position: 1, module: FIXTURE, id: 'observe-register', moduleEnabled: true },
+      { action: 'organization.register', phase: 'afterCommit', position: 1, module: FIXTURE, id: 'deliver-register', moduleEnabled: true },
     ]);
   });
 
@@ -54,7 +57,7 @@ describe('GET /api/v1/admin/command-hooks (176 T037)', () => {
       const res = await h.app.inject({ method: 'GET', url: PLAN, cookies: { b2b_session: 'stub-admin-session' } });
       const body = CommandHookPlanResponseSchema.parse(res.json());
       const fixture = body.items.filter((item) => item.module === FIXTURE);
-      expect(fixture).toHaveLength(2);
+      expect(fixture).toHaveLength(4);
       expect(fixture.every((item) => !item.moduleEnabled)).toBe(true);
     } finally {
       registryCache.__setEnabledForTesting([...before]);

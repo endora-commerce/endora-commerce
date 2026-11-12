@@ -577,6 +577,12 @@ export class ModuleLifecycleOrchestrator {
         // hard uninstall needs nothing here: its generated step's `down()`,
         // reverted above, marked its rows `orphaned` and dropped nothing.)
         await this.markHostedExtensionsDropped(moduleId);
+        // `specs/176-command-hooks-outbox/` FR-036 — the module's undelivered
+        // and delivered `afterCommit` rows go with it. `command_outbox` is a
+        // kernel table its migrations never name, so its rows are removed
+        // here, by the platform, rather than by any `down()`. A soft uninstall
+        // keeps them: a row waits for its handler module to come back.
+        await this.purgeCommandOutboxRows(moduleId);
         // Hard uninstall deletes the row; soft preserves it as 'uninstalled'.
         await em.removeAndFlush(row);
         // Hard-uninstall drops every projection of this module's manifest —
@@ -1212,6 +1218,15 @@ export class ModuleLifecycleOrchestrator {
       );
     }
     return participants as readonly LoadedLifecycleParticipant<EntityManager>[];
+  }
+
+  /**
+   * Delete every `command_outbox` row whose handler is `moduleId`'s, in every
+   * state. On the operation's manager, so it commits or rolls back with the
+   * rest of the uninstall.
+   */
+  private async purgeCommandOutboxRows(moduleId: string): Promise<void> {
+    await this.operationEm().execute(`delete from "command_outbox" where "hook_module" = ?`, [moduleId]);
   }
 
   /**

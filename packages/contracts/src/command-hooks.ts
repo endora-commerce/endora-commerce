@@ -29,6 +29,58 @@ export type OutboxScalar = string | number | boolean | null;
 export type OutboxData = Readonly<Record<string, OutboxScalar | readonly OutboxScalar[]>>;
 
 /**
+ * The longest string an outbox value may be. Long enough for a UUID, an ISO
+ * timestamp, a dictionary code and a dotted field name
+ * (`extensions.<moduleId>.changedFields`); short of anything a sentence needs.
+ */
+export const OUTBOX_STRING_MAX_LENGTH = 128;
+
+/** Printable ASCII without a space: what an id, a code, a date and a field name are made of. */
+const OUTBOX_STRING_RE = /^[\x21-\x7e]*$/;
+
+/** One outbox data key that is not `audit-state.md` list 1, and why. Never carries the value. */
+export interface OutboxDataViolation {
+  readonly key: string;
+  readonly issue: 'nested' | 'too-long' | 'not-code-shaped' | 'not-finite' | 'not-a-scalar';
+}
+
+function scalarIssue(value: unknown): OutboxDataViolation['issue'] | null {
+  if (value === null || typeof value === 'boolean') return null;
+  if (typeof value === 'number') return Number.isFinite(value) ? null : 'not-finite';
+  if (typeof value === 'string') {
+    if (value.length > OUTBOX_STRING_MAX_LENGTH) return 'too-long';
+    return OUTBOX_STRING_RE.test(value) ? null : 'not-code-shaped';
+  }
+  if (typeof value === 'object') return 'nested';
+  return 'not-a-scalar';
+}
+
+/**
+ * The keys of `data` that an outbox row may not store (FR-031): a nested
+ * object, a string longer than {@link OUTBOX_STRING_MAX_LENGTH} or with
+ * whitespace in it, a non-finite number, anything that is not a scalar. An
+ * array is allowed when every member is. Sorted by key, and the value is never
+ * repeated: the answer is what an error message may print.
+ *
+ * A **structural** guard — it cannot tell a one-word name from a code, and the
+ * owner's `outboxData` remains the place list 1 is decided. What it refuses is
+ * the shape free text, an address or a snapshot has, so the common mistake
+ * fails the Command (and the owner's `expectHookableCommand`) instead of
+ * landing in a platform-global table.
+ */
+export function outboxDataViolations(data: Readonly<Record<string, unknown>>): OutboxDataViolation[] {
+  const violations: OutboxDataViolation[] = [];
+  for (const key of Object.keys(data).sort()) {
+    const value = data[key];
+    const issue = Array.isArray(value)
+      ? (value.map(scalarIssue).find((found) => found !== null) ?? null)
+      : scalarIssue(value);
+    if (issue !== null) violations.push({ key, issue });
+  }
+  return violations;
+}
+
+/**
  * A hookable action, published by the module that owns the Command.
  *
  * `TData` is what a `beforeCommit` hook receives (in memory, never stored);

@@ -89,3 +89,4 @@ export { Migration20261028T173317CoreSalesChannelsRetireIsPublic } from './20261
 export { Migration20261029T152922CoreSalesChannelsPrefixDefaultLanguage } from './20261029T152922_core_sales_channels_prefix_default_language.js';
 export { Migration20261103T162518CoreAuditActorCustomerAccount } from './20261103T162518_core_audit_actor_customer_account.js';
 export { Migration20261110T140633CoreSchemaExtensionsLedger } from './20261110T140633_core_schema_extensions_ledger.js';
+export { Migration20261112T124348CoreCommandOutbox } from './20261112T124348_core_command_outbox.js';

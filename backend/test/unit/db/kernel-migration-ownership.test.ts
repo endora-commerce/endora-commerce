@@ -49,6 +49,9 @@ describe('kernel-owned schema is filed under the core migration group', () => {
   it('resolves a non-trivial kernel table set (guards against a silent empty scan)', () => {
     expect([...kernelTables].sort()).toEqual([
       'audit_log_entries',
+      // `specs/176-command-hooks-outbox/` FR-030 — the transactional outbox the
+      // Command Bus writes `afterCommit` rows into, created by a `core` migration.
+      'command_outbox',
       // D-37 absorbed the presence machinery, `ModuleRegistration` with it. The
       // migration was already filed under `core`, so only this guard moved.
       'module_registrations',

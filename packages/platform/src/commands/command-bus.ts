@@ -3,12 +3,14 @@ import type { AuditPort } from '../kernel/ports/audit.js';
 import { currentRequestMeta } from '../kernel/scope.js';
 import { forkScopedEm } from '../tenancy/scoped-em.js';
 import type { EventBus } from '../events/bus.js';
-import { COMMAND_HOOK_MAX_DEPTH } from '@endora-commerce/contracts';
+import { COMMAND_HOOK_MAX_DEPTH, outboxDataViolations } from '@endora-commerce/contracts';
 import { resolveCommandActor } from './actor.js';
 import type { AuditState, Command, CommandActor, CommandContext } from './command.js';
 import { extensionUnclaimed, hookCycle, hookDataMissing } from './hooks/errors.js';
 import { runWithCommandHookOrigin } from './hooks/origin.js';
 import type { CommandHookRegistry } from './hooks/registry.js';
+import { CommandOutboxEntry } from './outbox/command-outbox-entry.entity.js';
+import type { OutboxWakePort } from './outbox/wake.js';
 
 /**
  * CommandBus (feature 054 — Constitution Principle XIII).
@@ -36,6 +38,15 @@ import type { CommandHookRegistry } from './hooks/registry.js';
  * the bus does not catch, so the whole Command rolls back. What a hook noted
  * it wrote lands in the owner's one entry as names under
  * `stateAfter.extensions.<moduleId>.changedFields`.
+ *
+ * **`afterCommit` handlers** (P3, FR-030 – FR-033) are not run here at all.
+ * After the audit entry and the buffered event, the bus persists one
+ * `command_outbox` row per present handler on the same `em`, from the owner's
+ * `outboxData` held to `audit-state.md` list 1 — so the rows commit with the
+ * write or not at all — and once the transaction has committed, it asks the
+ * injected wake-up to enqueue the drain, without waiting and without failing
+ * the write if Redis does not answer. The drain delivers each row at least
+ * once, in a scope pinned to the row's Organization.
  */
 
 /** Optional per-request metadata (correlation id + client info) stamped onto audit rows. */
@@ -64,6 +75,18 @@ export interface CommandBusOptions {
    * refuses every `extensions` key, since nothing can claim it.
    */
   hooks?: CommandHookRegistry;
+  /**
+   * The drain's post-commit wake-up (176 P3), called once after a commit that
+   * wrote outbox rows. Both composition roots pass one built on their Redis
+   * connection; without one the rows still commit and the scheduled tick
+   * delivers them.
+   */
+  outboxWake?: OutboxWakePort;
+}
+
+/** What one `CommandBus.run` accumulates across its parent and children. */
+interface RunState {
+  outboxRows: number;
 }
 
 /**
@@ -96,10 +119,22 @@ export class CommandBus {
     const actor = resolveCommandActor();
     const meta = (this.options.getRequestMeta ?? currentRequestMeta)() ?? {};
 
-    return this.events.run(async () => {
+    const state: RunState = { outboxRows: 0 };
+    const result = await this.events.run(async () => {
       const scoped: EntityManager = forkScopedEm(this.orm);
-      return scoped.transactional(async (em) => this.execute(command, em, actor, meta));
+      return scoped.transactional(async (em) => this.execute(command, em, actor, meta, state));
     });
+    // Committed. A wake-up for rows that might still have rolled back would
+    // send the drain looking for nothing, so it is asked for only here — and
+    // neither awaited nor allowed to fail the write: the rows are in Postgres,
+    // and the scheduled tick delivers them if this never reaches Redis.
+    if (state.outboxRows > 0 && this.options.outboxWake) {
+      const wake = this.options.outboxWake;
+      void Promise.resolve()
+        .then(() => wake.wake())
+        .catch(() => undefined);
+    }
+    return result;
   }
 
   /**
@@ -112,6 +147,7 @@ export class CommandBus {
     em: EntityManager,
     actor: CommandActor,
     meta: CommandRequestMeta,
+    state: RunState,
     lineage: Lineage = ROOT_LINEAGE,
   ): Promise<TResult> {
     const hooks = this.options.hooks;
@@ -125,12 +161,14 @@ export class CommandBus {
     const ctx: CommandContext = {
       em,
       actor,
-      run: (child) => this.execute(child, em, actor, meta, below),
+      run: (child) => this.execute(child, em, actor, meta, state, below),
     };
     const captured = command.capture ? await command.capture(ctx) : null;
     const { result, before, after, skipAudit } = await command.run(ctx);
 
-    const noted = hooks ? await this.runBeforeCommitHooks(hooks, command, result, em, actor, meta, below) : undefined;
+    const noted = hooks
+      ? await this.runBeforeCommitHooks(hooks, command, result, em, actor, meta, state, below)
+      : undefined;
 
     // A hook's noted write is a write, and an entry names it even when the owner
     // decided its own part was a no-op (`skipAudit`): then the entry is the
@@ -155,7 +193,57 @@ export class CommandBus {
     const evt = command.event?.(result);
     if (evt) this.events.emit(evt.eventName, evt.payload);
 
+    if (hooks) state.outboxRows += this.writeOutboxRows(hooks, command, result, em, actor, meta);
+
     return result;
+  }
+
+  /**
+   * One `command_outbox` row per present `afterCommit` handler of `command`'s
+   * action, persisted on the Command's `em` (FR-030). The data is the owner's
+   * `outboxData`, refused unless it is `audit-state.md` list 1 (FR-031) — the
+   * refusal names the keys and never their values, and rolls the Command back.
+   * Returns how many rows it persisted.
+   */
+  private writeOutboxRows<TResult>(
+    hooks: CommandHookRegistry,
+    command: Command<TResult>,
+    result: TResult,
+    em: EntityManager,
+    actor: CommandActor,
+    meta: CommandRequestMeta,
+  ): number {
+    const present = hooks.afterCommit(command.action).filter((handler) => hooks.isPresent(handler.moduleId));
+    if (present.length === 0) return 0;
+    if (!command.outboxData) throw hookDataMissing(command.action, 'outboxData');
+    const data = command.outboxData(result);
+    const violations = outboxDataViolations(data);
+    if (violations.length > 0) {
+      throw new Error(
+        `[command-hooks] the owner of '${command.action}' returned outbox data that is not audit-state.md list 1: ` +
+          violations.map((violation) => `'${violation.key}' (${violation.issue})`).join(', ') +
+          '. An outbox row is platform-global and stores ids, codes, booleans, counts, dates and field names ' +
+          'only; a handler re-reads anything else through the owner after the commit.',
+      );
+    }
+    const organizationId = typeof data.organizationId === 'string' ? data.organizationId : null;
+    for (const handler of present) {
+      const row = new CommandOutboxEntry();
+      row.action = command.action;
+      row.objectType = command.objectType;
+      row.objectId = command.objectId;
+      row.organizationId = organizationId;
+      row.hookModule = handler.moduleId;
+      row.hookId = handler.id;
+      row.data = data;
+      row.actorKind = actor.kind;
+      row.actorAdminUserId = actor.actorAdminUserId;
+      row.impersonatedCustomerAccountId = actor.impersonatedCustomerAccountId;
+      row.actorCustomerAccountId = actor.actorCustomerAccountId ?? null;
+      row.requestId = meta.requestId ?? null;
+      em.persist(row);
+    }
+    return present.length;
   }
 
   /** Every `extensions` key belongs to a present hook module on this action, or 422. */
@@ -181,6 +269,7 @@ export class CommandBus {
     em: EntityManager,
     actor: CommandActor,
     meta: CommandRequestMeta,
+    state: RunState,
     below: Lineage,
   ): Promise<ReadonlyMap<string, ReadonlySet<string>> | undefined> {
     const present = hooks.beforeCommit(command.action).filter((hook) => hooks.isPresent(hook.moduleId));
@@ -200,7 +289,7 @@ export class CommandBus {
           em,
           actor,
           module: { id: hook.moduleId },
-          run: (child) => this.execute(child, em, actor, meta, viaHook),
+          run: (child) => this.execute(child, em, actor, meta, state, viaHook),
           noteAuditChanges: (fields) => {
             for (const field of fields) {
               if (typeof field !== 'string' || !NOTED_FIELD_RE.test(field)) {

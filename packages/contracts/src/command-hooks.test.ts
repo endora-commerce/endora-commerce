@@ -2,6 +2,8 @@ import { describe, expect, expectTypeOf, it } from 'vitest';
 import {
   COMMAND_HOOK_ERROR_CODES,
   HookableActionDeclarationSchema,
+  OUTBOX_STRING_MAX_LENGTH,
+  outboxDataViolations,
   hookableAction,
   toHookableActionDeclaration,
   type HookableActionRef,
@@ -68,5 +70,42 @@ describe('COMMAND_HOOK_ERROR_CODES', () => {
       'COMMAND_HOOK_CYCLE',
       'COMMAND_HOOK_DATA_MISSING',
     ]);
+  });
+});
+
+describe('outboxDataViolations (176 P3, FR-031)', () => {
+  it('passes ids, codes, booleans, counts, dates, field names and arrays of them', () => {
+    expect(
+      outboxDataViolations({
+        organizationId: '6f1c1f0e-9a3b-4c55-8f0e-1d2a3b4c5d6e',
+        status: 'pending_review',
+        isPersonal: false,
+        lineCount: 3,
+        committedAt: '2026-11-12T10:00:00.000Z',
+        changedFields: ['name', 'extensions.acme_erp.changedFields'],
+        parentId: null,
+      }),
+    ).toEqual([]);
+  });
+
+  it('names — never quotes — every key whose value is not list 1', () => {
+    const violations = outboxDataViolations({
+      nested: { name: 'Acme' } as never,
+      nestedInArray: [{ a: 1 }] as never,
+      name: 'Acme Trading Sp. z o.o.',
+      long: 'x'.repeat(OUTBOX_STRING_MAX_LENGTH + 1),
+      inArray: ['ok', 'two words'],
+      notFinite: Number.NaN,
+      ok: 'code',
+    });
+    expect(violations.map((violation) => violation.key)).toEqual([
+      'inArray',
+      'long',
+      'name',
+      'nested',
+      'nestedInArray',
+      'notFinite',
+    ]);
+    expect(JSON.stringify(violations)).not.toContain('Acme');
   });
 });

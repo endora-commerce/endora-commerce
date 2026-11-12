@@ -43,7 +43,9 @@ rung 2 — run before or after what the owner already serves, or inside a write 
 
 | What | Changed by | Owned by | Why |
 | --- | --- | --- | --- |
+| `organization.create` (afterCommit, `deliver-create`) | `command_hook_fixture` | `organizations` | After an Organization is created, the outbox delivers this handler one row of ids and codes, at least once and in a context pinned to that Organization. It records what it was handed in an audit entry of its own, which is what the outbox integration tests read; it writes nothing else and only a test drives its delivery. |
 | `organization.create` (beforeCommit, `observe-create`) | `command_hook_fixture` | `organizations` | Core creates an Organization in one audited Command. This fixture takes part in that write only for an Organization whose name carries its marker: inside the same transaction it records an audit entry of its own, names what it wrote in the core entry, and refuses with its own translated code when the name also carries its veto word. It is the reference hook module the command-hook contract tests compose, and it changes nothing for any other name. |
+| `organization.register` (afterCommit, `deliver-register`) | `command_hook_fixture` | `organizations` | The same handler on storefront self-registration: its row is written in the registration transaction, so a registration that rolls back leaves none, and delivery restores the new Organization's context and the registration's request id. |
 | `organization.register` (beforeCommit, `observe-register`) | `command_hook_fixture` | `organizations` | The same hook on storefront self-registration, which is one Command since spec 176 P1. On a marked name it writes its own audit entry inside the registration transaction and may refuse the registration with its own code, so the whole registration — Organization, first account, token — rolls back; any other name passes through untouched. |
 
 ### Ports this deployment consumes

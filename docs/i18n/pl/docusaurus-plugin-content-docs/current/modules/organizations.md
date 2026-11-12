@@ -116,7 +116,11 @@ architektury *Command Bus*.
 | `organization.admin_patch` | `ORGANIZATION_HOOKABLE_ACTIONS.adminPatch` | `PATCH /api/v1/admin/organizations/:id` | `organization`, `changedFields`, `changedCustomFields` |
 | `organization.set_custom_field_values` | `ORGANIZATION_HOOKABLE_ACTIONS.setCustomFieldValues` | `organizationCustomFieldWritePort` | `organization`, `changedFields`, `changedCustomFields` |
 
-Wszystkie cztery oferują obie fazy; faza `afterCommit` nie jest jeszcze dostarczana. Zmiany
+Wszystkie cztery oferują obie fazy. Procedura `afterCommit` jest dostarczana przez outbox platformy
+po zatwierdzeniu zapisu, co najmniej raz i w kontekście przypiętym do organizacji; jej `data` zawiera
+tylko identyfikatory i kody — `organizationId`, a do tego `customerAccountId` i `status` przy
+rejestracji, `status` przy utworzeniu oraz `changedFields` / `changedCustomFields` przy obu
+aktualizacjach. Zmiany
 zgłoszone przez hak trafiają do jedynego wpisu audytu organizacji jako nazwy, w
 `extensions.<moduleId>.changedFields`. Hak rejestracji nigdy nie widzi tokenu weryfikacji e-mail.
 Dane rozszerzeń (`extensions`) może przekazać tylko kod po stronie serwera —

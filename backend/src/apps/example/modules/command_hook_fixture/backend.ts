@@ -1,6 +1,13 @@
 import { ORGANIZATION_HOOKABLE_ACTIONS } from '@endora-commerce/contracts';
-import { CommandHookRefusal, type Command, type CommandHookContext } from '@endora-commerce/platform/commands';
+import {
+  CommandHookRefusal,
+  type AfterCommitContext,
+  type Command,
+  type CommandBus,
+  type CommandHookContext,
+} from '@endora-commerce/platform/commands';
 import type { ModuleContext } from '@endora-commerce/platform/kernel';
+import { getTenantContext } from '@endora-commerce/platform/tenancy';
 import {
   COMMAND_HOOK_FIXTURE_MARKER,
   COMMAND_HOOK_FIXTURE_VETO,
@@ -27,6 +34,15 @@ import {
  *    `409 COMMAND_HOOK_FIXTURE_REFUSED` in their language.
  *
  * An unmarked name passes through untouched.
+ *
+ * Two `afterCommit` handlers (`specs/176-command-hooks-outbox/` P3, T044),
+ * one per action, show the outbox end to end. The outbox row carries ids and
+ * codes only, so a handler cannot see the marker; it acts on every row it is
+ * delivered, and only a test that drives the drain ever delivers one. It
+ * records what it was handed by running a Command of its own,
+ * `command_hook_fixture.deliver`, whose audit entry is the evidence: the
+ * context it ran in, the causation it was given, and — on the entry's own
+ * columns — the request id the drain restored.
  */
 
 interface ObservedOrganization {
@@ -61,7 +77,37 @@ function observe(hookId: string) {
   };
 }
 
+/** What a delivery saw, as names, codes, booleans and ids only (`audit-state.md` list 1). */
+function deliverCommand(ctx: AfterCommitContext<{ readonly organizationId: string }>, hookId: string): Command<null> {
+  const tenant = getTenantContext();
+  return {
+    action: 'command_hook_fixture.deliver',
+    objectType: 'organization',
+    objectId: ctx.objectId,
+    async run() {
+      return {
+        result: null,
+        before: null,
+        after: {
+          hookId,
+          attempt: ctx.attempt,
+          tenantMode: tenant?.mode ?? null,
+          pinnedToRowOrganization: tenant?.mode === 'single-org' && tenant.organizationId === ctx.organizationId,
+          causationActorKind: ctx.causation.actor.kind,
+          causationAdminUserId: ctx.causation.actor.actorAdminUserId,
+          causationHasRequestId: (ctx.causation.requestId ?? null) !== null,
+        },
+      };
+    },
+  };
+}
+
 export function registerModule(ctx: ModuleContext): void {
+  const deliver =
+    (hookId: string) =>
+    async (delivery: AfterCommitContext<{ readonly organizationId: string }>): Promise<void> => {
+      await ctx.cradle<{ commandBus: CommandBus }>().commandBus.run(deliverCommand(delivery, hookId));
+    };
   ctx.commandHooks([
     {
       id: 'observe-create',
@@ -74,6 +120,18 @@ export function registerModule(ctx: ModuleContext): void {
       on: ORGANIZATION_HOOKABLE_ACTIONS.register,
       phase: 'beforeCommit',
       handler: observe('observe-register'),
+    },
+    {
+      id: 'deliver-create',
+      on: ORGANIZATION_HOOKABLE_ACTIONS.create,
+      phase: 'afterCommit',
+      handler: deliver('deliver-create'),
+    },
+    {
+      id: 'deliver-register',
+      on: ORGANIZATION_HOOKABLE_ACTIONS.register,
+      phase: 'afterCommit',
+      handler: deliver('deliver-register'),
     },
   ]);
 }

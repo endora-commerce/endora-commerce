@@ -200,11 +200,14 @@ Branch `feat/176-p3-command-outbox`.
 
 ### Tests (RED)
 
-- [ ] T040 [US3] `packages/platform/src/commands/command-bus.outbox.test.ts`: one row per present
+- [x] T040 [US3] `packages/platform/src/commands/command-bus.outbox.test.ts`: one row per present
   handler, written on the transaction em, and none on rollback. An absent handler module gets no row.
   The row's data passes a list-1 guard, so a string longer than a code or a nested object is refused.
-  [FR-030, FR-031]
-- [ ] T041 [P] [US3] `packages/platform/src/commands/outbox/drain.test.ts` (fake clock, fake
+  [FR-030, FR-031] *(The guard is `outboxDataViolations` in `@endora-commerce/contracts`, shared with
+  test-kit's `expectHookableCommand`: a scalar or an array of scalars, strings at most 128 printable
+  ASCII characters with no whitespace. The refusal is a plain 500 naming the keys, not a new code; a
+  missing `outboxData` reuses `COMMAND_HOOK_DATA_MISSING`. The wake-up cases are here too.)*
+- [x] T041 [P] [US3] `packages/platform/src/commands/outbox/drain.test.ts` (fake clock, fake
   store):
   - the backoff schedule;
   - a row goes dead after 10 attempts;
@@ -214,38 +217,56 @@ Branch `feat/176-p3-command-outbox`.
   - an unregistered handler gives `hook-unregistered`;
   - delivered rows are purged after 7 days;
   - an expired lease is reclaimed.
-  [FR-035, FR-036, FR-037]
-- [ ] T042 [P] [US3] `outbox/drain-worker.test.ts`: the scheduler upsert is idempotent, the wake job
+  [FR-035, FR-036, FR-037] *(Also: a `ModuleDisabledError` from the handler counts as absence; a
+  handler id now on another action is `hook-unregistered`; the delivery scope is pinned with the
+  recorded request id. Dead rows are purged after 90 days, per R-17 and data-model §4.)*
+- [x] T042 [P] [US3] `outbox/drain-worker.test.ts`: the scheduler upsert is idempotent, the wake job
   is deduplicated and enqueued only after a commit that wrote rows, a Redis failure on wake is
   swallowed, and an idle tick enters no scope. [FR-033]
-- [ ] T043 [US3] `backend/test/integration/platform/outbox-drain-concurrency.test.ts`: two drains
+- [x] T043 [US3] `backend/test/integration/platform/outbox-drain-concurrency.test.ts`: two drains
   over 200 rows deliver every row with no concurrent double handling (an assert inside the handler).
   A simulated crash after commit loses nothing. [FR-032, SC-003, SC-004]
-- [ ] T044 [US3] `backend/test/integration/platform/outbox-tenant-context.test.ts`: the handler for
+- [x] T044 [US3] `backend/test/integration/platform/outbox-tenant-context.test.ts`: the handler for
   an `organization.register` row runs with `single-org` mode on the row's Organization. A Command the
   handler runs records the original request id. The causation carries the recorded actor. [FR-034]
-- [ ] T045 [P] [US3] `packages/platform/src/lifecycle/services/orchestrator.test.ts`: `--hard`
-  uninstall deletes the module's outbox rows, and a soft uninstall keeps them. [FR-036]
-- [ ] T046 [P] [US3] `backend/test/integration/platform/migration-command-outbox.test.ts`: the table,
+  *(The handler is the `example` deployment's `command_hook_fixture`, which gains `deliver-create` and
+  `deliver-register`; it records what it saw in an audit entry of its own Command. The row is written
+  by a real registration over HTTP, and an admin create covers the operator causation.
+  `BackendServerHandle` gains `commandHookRegistry` so the test can drive the drain.)*
+- [x] T045 [P] [US3] `packages/platform/src/lifecycle/services/orchestrator.test.ts`: `--hard`
+  uninstall deletes the module's outbox rows, and a soft uninstall keeps them. [FR-036] *(Written as
+  `backend/test/integration/_lifecycle/uninstall-hard-purges-command-outbox.integration.test.ts`: the
+  orchestrator has no unit test and needs a database; every uninstall test is an integration test
+  in that directory, with the migrator stubbed through `migratorFor`.)*
+- [x] T046 [P] [US3] `backend/test/integration/platform/migration-command-outbox.test.ts`: the table,
   constraints and partial indexes exist after `db:fresh`. [FR-030]
 
 ### Implementation (GREEN)
 
-- [ ] T047 [US3] Scaffold the migration with
+- [x] T047 [US3] Scaffold the migration with
   `pnpm --filter backend run migration:new -- --module core --name command_outbox`
   (`data-model.md` §1). Add the entity `commands/outbox/command-outbox-entry.entity.ts`
   (`@GlobalEntity()`) registered with the kernel entities, then run `composer:generate` and commit the
-  registry. [FR-030]
-- [ ] T048 [US3] The outbox writer in `CommandBus.execute` (after the audit entry), and the post-commit
+  registry. [FR-030] *(`Migration20261112T124348CoreCommandOutbox`; the entity is in
+  `PLATFORM_ENTITIES` and on `./composition` for the generated registry. `sequence` is not mapped: the
+  database assigns it and nothing reads it through the entity.)*
+- [x] T048 [US3] The outbox writer in `CommandBus.execute` (after the audit entry), and the post-commit
   wake through an injected `OutboxWakePort`. The bus option is constructed in `compose-app.ts` and
-  `test-server.ts`. [FR-030, FR-031, FR-033]
-- [ ] T049 [US3] Drain, claim, deliver and backoff in `commands/outbox/`. The worker and scheduler
+  `test-server.ts`. [FR-030, FR-031, FR-033] *(The option is `outboxWake`; the harness root is
+  `packages/test-kit/src/server/compose-test-server.ts`. The rows are written after the buffered event,
+  per R-8. The wake-up builds its producer queue on first use, is not awaited and never rejects.
+  `organizationId` stays in `data`, where the organization outbox types put it, and is copied to the
+  routing column.)*
+- [x] T049 [US3] Drain, claim, deliver and backoff in `commands/outbox/`. The worker and scheduler
   are attached in `lifecycle/backend.ts` through `ctx.worker`, built only where `processRunsWorkers`
   holds and a queue connection is available (`rfq-expiry-sweep-worker.ts` shape). Add the tenant
-  pinning with `enterPlatformScope`. [FR-032 to FR-037]
-- [ ] T050 [US3] The orchestrator `--hard` purge, and `PermanentOutboxFailure` export with a
+  pinning with `enterPlatformScope`. [FR-032 to FR-037] *(Attached from a `ctx.routes` block, where
+  `app.log` exists, as every worker is. A tick drains at most 20 batches of 50 and the next tick
+  continues. `afterCommit` handlers on one action are not ordered and need no `commandHookOrder`:
+  the outbox promises no order across rows.)*
+- [x] T050 [US3] The orchestrator `--hard` purge, and `PermanentOutboxFailure` export with a
   published-surface update. [FR-035, FR-036]
-- [ ] T051 [US3] Verify the `EventBus` is untouched: `git diff` shows no change in `events/`, and
+- [x] T051 [US3] Verify the `EventBus` is untouched: `git diff` shows no change in `events/`, and
   `events/bus.test.ts` is green. Changesets (platform minor). Add the outbox section to
   `command-bus.md` (EN+PL). [FR-038, FR-043]
 

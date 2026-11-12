@@ -23,6 +23,20 @@ export const DIVERGENCE_REPORT: DivergenceReport = {
   ],
   "entries": [
     {
+      "key": "command-hook:command_hook_fixture:organization.create#deliver-create",
+      "kind": "command-hook",
+      "module": "command_hook_fixture",
+      "subject": "organization.create",
+      "owner": "organizations",
+      "rung": 2,
+      "detail": {
+        "kind": "command-hook",
+        "phase": "afterCommit",
+        "id": "deliver-create"
+      },
+      "reason": "After an Organization is created, the outbox delivers this handler one row of ids and codes, at least once and in a context pinned to that Organization. It records what it was handed in an audit entry of its own, which is what the outbox integration tests read; it writes nothing else and only a test drives its delivery."
+    },
+    {
       "key": "command-hook:command_hook_fixture:organization.create#observe-create",
       "kind": "command-hook",
       "module": "command_hook_fixture",
@@ -35,6 +49,20 @@ export const DIVERGENCE_REPORT: DivergenceReport = {
         "id": "observe-create"
       },
       "reason": "Core creates an Organization in one audited Command. This fixture takes part in that write only for an Organization whose name carries its marker: inside the same transaction it records an audit entry of its own, names what it wrote in the core entry, and refuses with its own translated code when the name also carries its veto word. It is the reference hook module the command-hook contract tests compose, and it changes nothing for any other name."
+    },
+    {
+      "key": "command-hook:command_hook_fixture:organization.register#deliver-register",
+      "kind": "command-hook",
+      "module": "command_hook_fixture",
+      "subject": "organization.register",
+      "owner": "organizations",
+      "rung": 2,
+      "detail": {
+        "kind": "command-hook",
+        "phase": "afterCommit",
+        "id": "deliver-register"
+      },
+      "reason": "The same handler on storefront self-registration: its row is written in the registration transaction, so a registration that rolls back leaves none, and delivery restores the new Organization's context and the registration's request id."
     },
     {
       "key": "command-hook:command_hook_fixture:organization.register#observe-register",

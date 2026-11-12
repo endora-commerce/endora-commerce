@@ -167,13 +167,77 @@ odrzucany kodem `500 COMMAND_HOOK_CYCLE`.
 **Zasady dla właścicieli.** Deklaruj tylko polecenie, którego `run` jest kompletny i które nie jest
 odwracalne (cofnięcie przywraca tylko to, co zapisał właściciel). Dostarcz `hookData` — szyna
 odrzuca polecenie z hakami bez niego (`500 COMMAND_HOOK_DATA_MISSING`) — oraz `outboxData` dla fazy
-`afterCommit` i sprawdzaj każde zadeklarowane polecenie wobec jego referencji funkcją
+`afterCommit` (odrzucane tak samo) i sprawdzaj każde zadeklarowane polecenie wobec jego referencji funkcją
 `expectHookableCommand` z `@endora-commerce/test-kit/command-hooks`. Nazwa akcji, fazy i typy danych
 są publicznym kontraktem.
 
-Procedury `afterCommit` są zadeklarowane w API, ale jeszcze nie są dostarczane: ich transakcyjny
-outbox to następny etap tej pracy, a dopóki go nie ma, platforma odmawia rejestracji takiej
-procedury, zamiast przyjąć coś, czego nic nie wywoła.
+## Po zatwierdzeniu: procedury `afterCommit` i outbox {#aftercommit-outbox}
+
+Praca, która musi się wykonać **po** zapisie właściciela — na przykład powiadomienie systemu ERP o
+rejestracji organizacji — trafia do procedury `afterCommit` na tej samej zadeklarowanej akcji.
+Rejestruje się ją tym samym wywołaniem `ctx.commandHooks` i nigdy nie jest uruchamiana wewnątrz
+zapisu:
+
+```ts
+import { ORGANIZATION_HOOKABLE_ACTIONS as ORG } from '@endora-commerce/contracts';
+import { PermanentOutboxFailure } from '@endora-commerce/platform/commands';
+
+ctx.commandHooks([
+  {
+    id: 'notify-erp',
+    on: ORG.register,
+    phase: 'afterCommit',
+    handler: async ({ messageId, data, causation }) => {
+      const answer = await erp.registered(data.organizationId, { idempotencyKey: messageId });
+      if (answer.rejected) throw new PermanentOutboxFailure('acme-erp-rejected', answer.reason);
+    },
+  },
+]);
+```
+
+**Zapisywane w transakcji właściciela.** Dla każdej obecnej procedury `afterCommit` szyna poleceń
+zapisuje jeden wiersz w platformowej tabeli `command_outbox`, na `em` samego polecenia, po wpisie
+audytu: `capture → run → haki → wpis audytu → zdarzenie → wiersze outboxu → zatwierdzenie`. Wiersze
+zatwierdzają się razem z zapisem albo wcale — wycofane polecenie nie zostawia żadnego — a procedura,
+której moduł jest wyłączony, nie dostaje wiersza. Na tym polega różnica wobec subskrybenta zdarzeń,
+który działa „w miarę możliwości” w procesie żądania po zatwierdzeniu i ginie, jeśli ten proces
+zakończy się wcześniej.
+
+**Tylko identyfikatory i kody.** Wiersz przechowuje `outboxData` właściciela, czyli listę 1 z
+`audit-state.md`: identyfikatory, kody, wartości logiczne, liczniki, daty i nazwy pól. Tabela jest
+globalna dla platformy, więc szyna odrzuca dane outboxu z zagnieżdżonym obiektem albo z ciągiem
+dłuższym niż kod lub zawierającym białe znaki — podaje klucz, nigdy wartość. Wszystko inne procedura
+odczytuje ponownie przez porty właściciela.
+
+**Dostarczane co najmniej raz.** Tabelę opróżnia proces roboczy: harmonogram zadań BullMQ uruchamia
+się co 10 sekund, a zatwierdzenie, które zapisało wiersze, dodaje jeszcze jedno zdeduplikowane
+wybudzenie, na które szyna nie czeka. Jeśli w chwili zatwierdzenia Redis nie działa, ginie
+wybudzenie, a nie wiersz: dostarczy go następny cykl. Wiersze są pobierane przez
+`for update skip locked` z pięciominutową dzierżawą, więc dwa procesy robocze nigdy nie przekażą
+jednego wiersza dwóm procedurom naraz. Wygasła dzierżawa jest odzyskiwana, więc procedura może
+zostać uruchomiona dwa razy: deduplikuj po `messageId`, czyli identyfikatorze wiersza, stałym
+między ponownymi próbami.
+
+**W kontekście organizacji.** Każdy wiersz jest dostarczany w zakresie przypiętym do organizacji,
+której dotyczy (`single-org`, z systemem jako aktorem), albo w systemowym zakresie procesu
+opróżniającego, gdy wiersz nie ma organizacji. Aktor i identyfikator żądania zapisane przy
+zatwierdzeniu trafiają do `causation`, a identyfikator żądania jest też identyfikatorem żądania
+zakresu dostarczenia, więc polecenie uruchomione przez procedurę zapisuje żądanie, które je
+spowodowało. Uprawnienia pierwotnego aktora nigdy nie są przywracane.
+
+**Ponowne próby, potem martwe wiersze.** Nieudane dostarczenie jest ponawiane po
+`min(30 s · 2^(n-1), 1 h)`, maksymalnie 10 razy, po czym wiersz staje się martwy. Procedura rzuca
+`PermanentOutboxFailure(code, message)`, aby od razu oznaczyć wiersz jako martwy. Wiersz przechowuje
+kod błędu i klasę błędu, nigdy jego komunikat. Wiersz, którego moduł procedury jest wyłączony, czeka,
+nie zużywając próby, i zostaje dostarczony po ponownym włączeniu modułu. Wiersz, którego moduł jest
+obecny, ale nie rejestruje już procedury, staje się martwy z kodem `hook-unregistered`. Dostarczone
+wiersze są usuwane po 7 dniach, martwe po 90. `module:uninstall --hard <moduł>` usuwa wiersze tego
+modułu; zwykła deinstalacja je zachowuje.
+
+W odróżnieniu od haków `beforeCommit` procedury `afterCommit` na jednej akcji nie są względem siebie
+uporządkowane — każda to osobny wiersz, dostarczany osobno — i nie potrzebują wpisu w
+`commandHookOrder`. Wewnątrzprocesowy `EventBus` i jego subskrybenci pozostają bez zmian; outbox to
+druga, trwała ścieżka tylko dla tych procedur.
 
 ## Cofanie zmian
 

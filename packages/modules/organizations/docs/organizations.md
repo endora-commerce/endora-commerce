@@ -121,7 +121,11 @@ page.
 | `organization.admin_patch` | `ORGANIZATION_HOOKABLE_ACTIONS.adminPatch` | `PATCH /api/v1/admin/organizations/:id` | `organization`, `changedFields`, `changedCustomFields` |
 | `organization.set_custom_field_values` | `ORGANIZATION_HOOKABLE_ACTIONS.setCustomFieldValues` | `organizationCustomFieldWritePort` | `organization`, `changedFields`, `changedCustomFields` |
 
-All four offer both phases; the `afterCommit` phase is not delivered yet. A
+All four offer both phases. An `afterCommit` handler is delivered through the
+platform's outbox after the write commits, at least once and in a context pinned
+to the Organization; its `data` carries ids and codes only — `organizationId`,
+plus `customerAccountId` and `status` on registration, `status` on create, and
+`changedFields` / `changedCustomFields` on the two updates. A
 hook's noted changes appear in the Organization's single audit entry as names,
 under `extensions.<moduleId>.changedFields`. The registration hook never sees
 the e-mail verification token. Extension input (`extensions`) can be passed by

@@ -1,0 +1,14 @@
+---
+'@endora-commerce/platform': minor
+---
+
+**`afterCommit` handlers, delivered through a transactional outbox** (`specs/176-command-hooks-outbox/` P3, `contracts/outbox-and-admin-api.md`).
+
+- **`ctx.commandHooks` now accepts `phase: 'afterCommit'`.** Registering one used to throw. A handler receives `AfterCommitContext` — `messageId` (its idempotency key), `attempt`, the action and object, `organizationId`, the owner's `data`, and `causation` (the actor and request id recorded at commit). It runs after the owner's commit, at least once, in a scope pinned to the row's Organization (`single-org`, the system as actor), with the recorded request id as the scope's, so a Command it runs records the request that caused it. Handlers on one action are not ordered against each other and need no `commandHookOrder` entry.
+- **`CommandBus`** writes one `command_outbox` row per present `afterCommit` handler on the Command's own transaction, after the audit entry and the buffered event; a rolled-back Command writes none, and a handler whose module is off gets none. The row's data is the owner's `outboxData`, refused with a 500 that names the offending keys (never the values) unless every value is a scalar or an array of scalars, with strings at most 128 characters and no whitespace. A hooked Command without `outboxData` is refused `500 COMMAND_HOOK_DATA_MISSING`, as one without `hookData` already was. After a commit that wrote rows, the bus enqueues a deduplicated wake-up and does not wait for it; a Redis failure there is swallowed.
+- **New core migration** `Migration20261112T124348CoreCommandOutbox` creates the kernel-owned, platform-global `command_outbox` table. Run `migrate` on upgrade.
+- **The drain** is a BullMQ job scheduler (`command_outbox.drain`, every 10 s) plus the wake-up, attached by `_lifecycle` through `ctx.worker` wherever the process runs workers. It claims with `for update skip locked` under a five-minute lease, retries with backoff `min(30 s · 2^(n-1), 1 h)`, and dead-letters after 10 attempts. A row whose handler module is off waits without spending an attempt; one whose module no longer registers the handler is dead-lettered `hook-unregistered`. A failure is stored as a code and a class, never its message. Delivered rows are purged after 7 days and dead rows after 90.
+- **`PermanentOutboxFailure`** (`./commands`): throw it from a handler to dead-letter the row at once with its code.
+- **`module:uninstall --hard <module>`** deletes that module's `command_outbox` rows. A soft uninstall keeps them.
+- **`./composition`** gains `createCommandOutboxWake`, `CommandOutboxEntry`, `PostgresOutboxStore`, `drainCommandOutbox` and `runCommandOutboxDrainTick` for composition roots and their tests. `CommandBusOptions` gains `outboxWake`.
+- The in-process `EventBus` and its subscribers are unchanged.
