@@ -234,10 +234,11 @@ Branch `feat/176-p3-command-outbox`.
   by a real registration over HTTP, and an admin create covers the operator causation.
   `BackendServerHandle` gains `commandHookRegistry` so the test can drive the drain.)*
 - [x] T045 [P] [US3] `packages/platform/src/lifecycle/services/orchestrator.test.ts`: `--hard`
-  uninstall deletes the module's outbox rows, and a soft uninstall keeps them. [FR-036] *(Written as
-  `backend/test/integration/_lifecycle/uninstall-hard-purges-command-outbox.integration.test.ts`: the
-  orchestrator has no unit test and needs a database; every uninstall test is an integration test
-  in that directory, with the migrator stubbed through `migratorFor`.)*
+  uninstall deletes the module's outbox rows, and a soft uninstall keeps them. [FR-036] *(The
+  orchestrator's unit tests live in `backend/test/unit/_lifecycle/orchestrator.test.ts`, where the case
+  is added; it is also held against Postgres by
+  `backend/test/integration/_lifecycle/uninstall-hard-purges-command-outbox.integration.test.ts`, with
+  the migrator stubbed through `migratorFor`, beside that directory's other uninstall tests.)*
 - [x] T046 [P] [US3] `backend/test/integration/platform/migration-command-outbox.test.ts`: the table,
   constraints and partial indexes exist after `db:fresh`. [FR-030]
 
