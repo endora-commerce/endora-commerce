@@ -143,6 +143,21 @@ export interface MfaBaseUrls {
   readonly admin: string | undefined;
 }
 
+/**
+ * The environment's answer to {@link MfaBaseUrls}, which `mfaBaseUrls`
+ * defaults to. The admin's address is the platform's input since issue #185
+ * and is read through the platform's accessor: a malformed value is absent
+ * here as everywhere, so the plugin's development fallback applies rather than
+ * a broken link.
+ */
+export function mfaBaseUrlsFromEnvironment(): MfaBaseUrls {
+  return {
+    backend: process.env['BACKEND_PUBLIC_URL'],
+    storefront: process.env['STOREFRONT_BASE_URL'],
+    admin: configuredAdminBaseUrl() ?? undefined,
+  };
+}
+
 export interface MfaCradle {
   readonly emFactory: () => EntityManager;
   readonly redis: Redis;
@@ -206,16 +221,7 @@ export function registerModule(ctx: ModuleContext): void {
       .asFunction(() => async (): Promise<string | null> => null)
       .singleton(),
     mfaBaseUrls: ctx
-      .asFunction(
-        (): MfaBaseUrls => ({
-          backend: process.env['BACKEND_PUBLIC_URL'],
-          storefront: process.env['STOREFRONT_BASE_URL'],
-          // Issue #185 — the platform's input and the platform's reading of
-          // it: a malformed value is absent here as everywhere, so the
-          // plugin's development fallback applies rather than a broken link.
-          admin: configuredAdminBaseUrl() ?? undefined,
-        }),
-      )
+      .asFunction((): MfaBaseUrls => mfaBaseUrlsFromEnvironment())
       .singleton(),
 
     mfa: ctx

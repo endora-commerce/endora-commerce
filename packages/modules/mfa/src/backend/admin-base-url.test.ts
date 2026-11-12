@@ -1,12 +1,6 @@
 import { afterEach, describe, expect, it } from 'vitest';
-import {
-  createModuleContext,
-  createModuleRegistrationSink,
-  createRootContainer,
-} from '@endora-commerce/platform/composition';
-import { EventBus } from '@endora-commerce/platform/events';
 import { manifest } from '../manifest.js';
-import { registerModule, type MfaBaseUrls } from './index.js';
+import { mfaBaseUrlsFromEnvironment, type MfaBaseUrls } from './index.js';
 
 /**
  * `mfa` reads the Admin UI's address from the platform and no longer owns it
@@ -29,16 +23,7 @@ afterEach(() => {
 function adminBaseUrl(raw: string | undefined): MfaBaseUrls['admin'] {
   if (raw === undefined) delete process.env['ADMIN_BASE_URL'];
   else process.env['ADMIN_BASE_URL'] = raw;
-  const container = createRootContainer();
-  const ctx = createModuleContext({
-    module: { id: 'mfa', version: '1.0.0' },
-    container,
-    eventBus: new EventBus(),
-    sink: createModuleRegistrationSink(),
-    log: { info: () => {}, warn: () => {}, error: () => {} },
-  });
-  registerModule(ctx);
-  return container.resolve<MfaBaseUrls>('mfaBaseUrls').admin;
+  return mfaBaseUrlsFromEnvironment().admin;
 }
 
 describe('mfa and the Admin UI base address', () => {
