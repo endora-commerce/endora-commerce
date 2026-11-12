@@ -64,8 +64,9 @@ Polish.
 - **Read a price only through `price_lists`' ports**, resolved per use with `lazyPort`
   (`pricingService` slices, `buyerLinePricePort`, `priceListReadPort`, `productDisplayModePort`).
   Never query `price_lists`' tables from another module. **Write** a price from another module only
-  through `priceBookWritePort` (base prices; it replaced `priceListAdminPort`); rows of other books
-  are written through the admin API.
+  through `priceBookWritePort` (base prices; it replaced `priceListAdminPort`), and one product's
+  rows of a non-base book only through `priceBookRowWritePort` (issue #1028), which never creates a
+  book or changes a header.
 - **Every write is one Command Bus run through `PriceBookService`**, with one audit entry and the
   book's `version` moved; an admin write names the version it was made against (`expectedVersion`
   or `If-Match`). A book's channel set is read and written only through

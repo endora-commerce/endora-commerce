@@ -2,10 +2,12 @@ import { randomUUID } from 'node:crypto';
 import type { EntityManager } from '@mikro-orm/postgresql';
 import {
   ERROR_CODES,
+  bookProductRowsWriteSchema,
   priceBookRowsWriteSchema,
   priceBookSelectionKind,
   type BasePricesWrite,
   type PriceBook,
+  type BookProductRows,
   type PriceBookAudience,
   type PriceBookCreate,
   type PriceBookDuplicate,
@@ -16,7 +18,7 @@ import {
   type PriceBookRowsWriteResult,
   isUuidShape,
 } from '@endora-commerce/contracts';
-import type { CommandBus } from '@endora-commerce/platform/commands';
+import type { CommandActor, CommandBus } from '@endora-commerce/platform/commands';
 import { HttpError } from '@endora-commerce/platform/http';
 import { SalesChannel, type SalesChannelMembershipPort } from '@endora-commerce/platform/kernel';
 import { PriceList } from '../entities/price-list.entity.js';
@@ -35,6 +37,17 @@ import {
   type StoredRow,
 } from './price-book-batch.js';
 import type { PriceBookReads } from './price-book-reads.js';
+import {
+  assertBookTakesModuleRows,
+  bookProductRowsOf,
+  expressibleByPort,
+  planBookProductRows,
+  rowValueLines,
+  writePathOf,
+  type RowValueLine,
+} from './price-book-row-write.js';
+import { PriceListValueChange } from '../entities/price-list-value-change.entity.js';
+import { PriceListRowValueChange } from '../entities/price-list-row-value-change.entity.js';
 import { reconcileProductLines, syncProductLines } from './price-book-product-lines.js';
 import {
   audienceKindWritable,
@@ -188,7 +201,10 @@ export class PriceBookService {
   async #command<T>(
     action: string,
     objectId: string,
-    write: (em: EntityManager) => Promise<{ result: T; before: Record<string, unknown> | null; after: Record<string, unknown> | null }>,
+    write: (
+      em: EntityManager,
+      actor: CommandActor,
+    ) => Promise<{ result: T; before: Record<string, unknown> | null; after: Record<string, unknown> | null }>,
     surface: SurfaceChange | (() => Promise<SurfaceChange>),
   ): Promise<T> {
     if (!this.deps.commandBus) {
@@ -201,7 +217,7 @@ export class PriceBookService {
       action,
       objectType: 'price_list',
       objectId,
-      run: async ({ em }) => write(em),
+      run: async ({ em, actor }) => write(em, actor),
     });
     let change: SurfaceChange;
     try {
@@ -743,7 +759,49 @@ export class PriceBookService {
     const { book, members } = await this.#visibleBook(em, bookId, scope);
     if (!bookWritable(scope, scopedOf(book, members))) readOnly();
     if (expectedVersion !== null && book.version !== expectedVersion) stale(book.version);
+    return this.#planAndWriteRows(em, book, body, {
+      action: 'price_list.rows_replace',
+      dryRun: options.dryRun,
+      expectedVersion,
+    });
+  }
 
+  /**
+   * The admin batch after its book was read and authorised: plan it against
+   * the stored rows it can affect, answer a dry run, refuse a failing row, or
+   * write it as **one** command under `action`. Shared by the admin route
+   * ({@link writeRows}) and a module's write of one product's rows
+   * ({@link replaceProductRows}, issue #1028), so both obey the same rules and
+   * the same write.
+   *
+   * `errorOf` renames a refused row in the caller's terms; `audit` adds
+   * context to both audit states; `skipUnchanged` writes nothing — no audit
+   * entry, no version, no bump — when the batch would change nothing.
+   */
+  async #planAndWriteRows(
+    em: EntityManager,
+    book: PriceList,
+    body: { mode: 'merge' | 'replace'; upsert: readonly unknown[]; delete: readonly string[] },
+    options: {
+      action: string;
+      dryRun: boolean;
+      expectedVersion: number | null;
+      errorOf?: (error: PriceBookRowError) => PriceBookRowError;
+      audit?: Record<string, unknown>;
+      skipUnchanged?: boolean;
+      /** Stored rows the batch may not replace by natural key (`planBatch`'s `keepIds`). */
+      keepIds?: ReadonlySet<string>;
+      /**
+       * Names-only audit (issue #470, D-288, owner ruling O-3): the entry names
+       * what changed and points by `valueChangeId` at the book's own
+       * price-change history, written in the same Command; no price and no
+       * quantity reaches `audit_log_entries`. `audit` must then hold ids only.
+       */
+      namesOnly?: boolean;
+    },
+  ): Promise<PriceBookRowsDryRun | (PriceBookRowsWriteResult & { stored: StoredRow[] })> {
+    const bookId = book.id;
+    const { expectedVersion } = options;
     const { parsed, errors: parseErrors } = parseBatchRows(body.upsert);
     const lookups = await this.#lookups(batchNeeds(parsed));
     // G18 of 161 — read what the batch is validated against, not the book: in
@@ -771,6 +829,7 @@ export class PriceBookService {
       upsertCount: body.upsert.length,
       lookups,
       newId: () => randomUUID(),
+      ...(options.keepIds ? { keepIds: options.keepIds } : {}),
     });
 
     // Natural keys of what the answer and the diff name — never of the untouched book.
@@ -792,7 +851,11 @@ export class PriceBookService {
         errors: plan.errors,
       };
     }
-    if (plan.errors.length > 0) refuseRows(plan.errors);
+    if (plan.errors.length > 0) refuseRows(options.errorOf ? plan.errors.map(options.errorOf) : plan.errors);
+    const written = plan.resolved.filter((r): r is StoredRow => r !== null);
+    if (options.skipUnchanged && plan.added.length + plan.changed.length + plan.removed.length === 0) {
+      return { version: book.version, rows: written.map((r) => diffRowOf(r, keyOf(r))), stored: written };
+    }
 
     const toDelete = [...plan.removed.map((r) => r.id), ...plan.changed.map((c) => c.before.id)];
     const toInsert = [...plan.added, ...plan.changed.map((c) => c.after)];
@@ -803,7 +866,7 @@ export class PriceBookService {
       categoryId: r.categoryId ?? null,
       attributeKey: r.attributeKey ?? null,
     }));
-    const result = await this.#command('price_list.rows_replace', bookId, async (txEm) => {
+    const result = await this.#command(options.action, bookId, async (txEm, actor) => {
       if (toDelete.length > 0) await txEm.nativeDelete(PriceListMatrixEntry, { priceListId: bookId, id: { $in: toDelete } });
       for (const row of toInsert) txEm.persist(txEm.create(PriceListMatrixEntry, { priceListId: bookId, ...row }));
       await txEm.flush();
@@ -814,18 +877,143 @@ export class PriceBookService {
         [...plan.removed, ...plan.changed.map((c) => c.before), ...toInsert].flatMap((r) => (r.productId ? [r.productId] : [])),
       );
       const version = await this.#bumpVersion(txEm, bookId, expectedVersion);
+      if (options.namesOnly) {
+        const valueChangeId = await recordValueChange(txEm, bookId, options.action, actor, rowValueLines(plan));
+        const variantIds = [
+          ...new Set([...plan.added, ...plan.removed, ...plan.changed.map((c) => c.after)].flatMap((r) => (r.variantId ? [r.variantId] : []))),
+        ].sort();
+        return {
+          result: { version },
+          before: { ...options.audit, version: book.version },
+          after: {
+            ...options.audit,
+            changedFields: ['rows'],
+            ...(variantIds.length > 0 ? { variantIds } : {}),
+            addedCount: plan.added.length,
+            changedCount: plan.changed.length,
+            removedCount: plan.removed.length,
+            version,
+            valueChangeId,
+          },
+        };
+      }
       return {
         result: { version },
-        before: { rows: [...plan.removed, ...plan.changed.map((c) => c.before)].map(rowState), version: book.version },
-        after: { rows: toInsert.map(rowState), deleted: plan.removed.map((r) => r.id), version },
+        before: { ...options.audit, rows: [...plan.removed, ...plan.changed.map((c) => c.before)].map(rowState), version: book.version },
+        after: { ...options.audit, rows: toInsert.map(rowState), deleted: plan.removed.map((r) => r.id), version },
       };
     }, { kind: 'books', books: [{ facts: [this.#facts(book)], selections: touched }] });
-    const written = plan.resolved.filter((r): r is StoredRow => r !== null);
     return {
       version: result.version,
       rows: written.map((r) => diffRowOf(r, keyOf(r))),
       stored: written,
     };
+  }
+
+  // ---- A module's rows of one product in a non-base book (issue #1028) -------
+
+  /**
+   * Replace one product's fixed tiers — and the rows of the variants the write
+   * names — in one non-base book, leaving every row the write shape cannot say
+   * as it is, as the admin row batch
+   * ({@link #planAndWriteRows}) under `price_list.book_rows_set`: one audited
+   * command naming the product, the book's version moved, one bump whose
+   * surface change names the book and the product. Refused, writing nothing,
+   * for a base or an expired book, an unknown book or product, and a tier that
+   * breaks the book's rules; a write that would change nothing writes nothing.
+   * `priceBookRowWritePort.replaceBookRows`.
+   */
+  async replaceProductRows(bookId: string, productId: string, rawWrite: unknown): Promise<void> {
+    const parsedWrite = bookProductRowsWriteSchema.safeParse(rawWrite);
+    if (!parsedWrite.success) {
+      validation(
+        parsedWrite.error.issues.map((i) => ({ path: i.path.map(String), message: `${i.path.join('.') || 'write'}: ${i.message}` })),
+        'The price rows were refused.',
+      );
+    }
+    const write = parsedWrite.data!;
+    const em = this.deps.emFactory();
+    const book = await this.#book(em, bookId);
+    assertBookTakesModuleRows(book, Date.now());
+    if (!isUuidShape(productId) || !(await this.deps.targetReads.catalogProductRead.findById(productId))) {
+      throw new HttpError(404, ERROR_CODES.NOT_FOUND, `Product ${productId} not found.`);
+    }
+    const variantIds = new Set(
+      (await this.deps.targetReads.catalogProductRead.listVariantsByProductIds([productId])).map((v) => v.id),
+    );
+    const stored = await this.#productRows(em, bookId, productId);
+    const plan = planBookProductRows({ productId, write, stored, variantIdsOfProduct: variantIds });
+    if (plan.issues.length > 0) {
+      refuseRows(
+        plan.issues.map((issue) => ({
+          field: issue.path.join('.'),
+          code: 'PRICE_BOOK_ROW_TARGET',
+          reason: issue.reason ?? 'variant_other_product',
+          message: issue.message,
+        })),
+      );
+    }
+    await this.#planAndWriteRows(em, book, { mode: 'merge', upsert: plan.upsert, delete: plan.delete }, {
+      action: 'price_list.book_rows_set',
+      dryRun: false,
+      expectedVersion: null,
+      errorOf: (error) => writePathOf(plan.paths, error),
+      audit: { productId },
+      skipUnchanged: true,
+      namesOnly: true,
+      // A row the port cannot say is never overwritten by a tier with its start: the overlap refuses it.
+      keepIds: new Set(stored.filter((row) => !expressibleByPort(row)).map((row) => row.id)),
+    });
+  }
+
+  /**
+   * Remove one product's rows that the port can express — its fixed tiers and
+   * its variants' fixed tiers or adjustments at every quantity — from one
+   * non-base book under `price_list.book_rows_remove`; rows the write shape
+   * cannot say (an administrator's product-level or quantity-limited
+   * adjustment) stay, as a replace leaves them. A no-op, writing nothing, when
+   * there are none. Refused as {@link replaceProductRows} is.
+   * `priceBookRowWritePort.removeBookRows`.
+   */
+  async removeProductRows(bookId: string, productId: string): Promise<void> {
+    const em = this.deps.emFactory();
+    const book = await this.#book(em, bookId);
+    assertBookTakesModuleRows(book, Date.now());
+    if (!isUuidShape(productId)) return;
+    // Only what the port can say: an administrator's adjustment the write shape cannot express stays.
+    const stored = (await this.#productRows(em, bookId, productId)).filter(expressibleByPort);
+    if (stored.length === 0) return;
+    await this.#planAndWriteRows(em, book, { mode: 'merge', upsert: [], delete: stored.map((r) => r.id) }, {
+      action: 'price_list.book_rows_remove',
+      dryRun: false,
+      expectedVersion: null,
+      audit: { productId },
+      skipUnchanged: true,
+      namesOnly: true,
+    });
+  }
+
+  /**
+   * One product's rows in one non-base book, in the port's write shape
+   * (`priceBookRowWritePort.bookRows`). A base book is refused as the writes
+   * refuse it — its rows are read through `priceBookWritePort.basePrices`; an
+   * expired book may still be read.
+   */
+  async productRows(bookId: string, productId: string): Promise<BookProductRows> {
+    const em = this.deps.emFactory();
+    const book = await this.#book(em, bookId);
+    if (book.isSystem) assertBookTakesModuleRows(book, Date.now());
+    const rows = isUuidShape(productId) ? await this.#productRows(em, bookId, productId) : [];
+    return bookProductRowsOf(
+      { bookId, productId, currencyCode: book.currency.trim().toUpperCase(), version: book.version },
+      rows,
+    );
+  }
+
+  /** Every stored row of a product (its own and its variants') in one book, on the `(price_list_id, product_id)` index. */
+  async #productRows(em: EntityManager, bookId: string, productId: string): Promise<StoredRow[]> {
+    const entries = await em.find(PriceListMatrixEntry, { priceListId: bookId, productId }, { orderBy: { minQuantity: 'asc' } });
+    return entries.map(plannedOfEntity);
   }
 
   /**
@@ -1163,6 +1351,35 @@ export class PriceBookService {
     });
     if (issues.length > 0) validation(issues, 'The channel set was refused.', ERROR_CODES.PRICE_BOOK_CHANNEL_CURRENCY);
   }
+}
+
+/**
+ * Write one price-change history row and its lines (issue #470, D-288) in the
+ * Command's transaction, and answer its id for the audit entry's
+ * `valueChangeId`. The values live here, under the book's rule scope, and never
+ * in `audit_log_entries`.
+ */
+async function recordValueChange(
+  txEm: EntityManager,
+  priceListId: string,
+  action: string,
+  actor: CommandActor,
+  lines: readonly RowValueLine[],
+): Promise<string> {
+  const change = txEm.create(PriceListValueChange, {
+    priceListId,
+    action,
+    actorKind: actor.kind,
+    actorAdminUserId: actor.actorAdminUserId,
+    lineCount: lines.length,
+  });
+  txEm.persist(change);
+  await txEm.flush();
+  lines.forEach((line, seq) => {
+    txEm.persist(txEm.create(PriceListRowValueChange, { changeId: change.id, seq, priceListId, at: change.at, ...line }));
+  });
+  await txEm.flush();
+  return change.id;
 }
 
 /** A refused batch: overlaps alone are a conflict (409); anything else is a bad request (400). */

@@ -988,3 +988,118 @@ export interface PriceBookWritePort {
   /** The books with a row naming the product (or the variant) directly — the admin G1 list, every page. */
   booksPricingProduct(productId: string, variantId?: string | null): Promise<PriceBookSummary[]>;
 }
+
+// --- Cross-module writes of non-base book rows (issue #1028) --------------------
+
+/** Container name of {@link PriceBookRowWritePort}. Owner: `price_lists`. */
+export const PRICE_BOOK_ROW_WRITE_PORT = 'priceBookRowWritePort' as const;
+
+/**
+ * A variant's row in a non-base book: its own fixed tiers, or a percentage or
+ * amount adjustment of the reference price the book's tier adjusts (the base
+ * price for a catalogue book, the catalogue price for a buyer or sale book) at
+ * every quantity. The shape of a base book's variant row, so one mapping serves
+ * both ports.
+ */
+export type VariantRowWrite = VariantBaseRow;
+
+/**
+ * What {@link PriceBookRowWritePort.replaceBookRows} writes for one product in
+ * one non-base book: the product's fixed tiers (the base-price tier type, at
+ * most 50) and, optionally, a row per named variant — `null` removes that
+ * variant's rows the port can say. A variant that is not named keeps its rows,
+ * and a row the shape cannot say (see {@link bookProductRowsSchema}) is never
+ * replaced or removed.
+ */
+export const bookProductRowsWriteSchema = z.object({
+  product: z.array(basePriceTierSchema).max(50),
+  variants: z.record(uuidSchema, variantBaseRowSchema.nullable()).optional(),
+});
+export type BookProductRowsWrite = z.infer<typeof bookProductRowsWriteSchema>;
+
+/**
+ * The rows one product holds in one non-base book, in the write's shape, so a
+ * writer can compare before it writes. `variants` names only the variants that
+ * have rows. `complete` is `false` when the book also holds rows of the product
+ * that this shape cannot say — a product-level percentage or amount, or an
+ * adjustment limited to a quantity range, entered in the admin. The port
+ * leaves such rows as they are: neither a replace nor a remove touches them.
+ */
+export const bookProductRowsSchema = z.object({
+  bookId: uuidSchema,
+  productId: uuidSchema,
+  currencyCode: CURRENCY,
+  /** The book's version after the write, as the admin API reports it. */
+  version: z.number().int().positive(),
+  product: z.array(basePriceTierSchema),
+  variants: z.record(uuidSchema, variantBaseRowSchema),
+  complete: z.boolean(),
+});
+export type BookProductRows = z.infer<typeof bookProductRowsSchema>;
+
+/**
+ * Container name: `priceBookRowWritePort` ({@link PRICE_BOOK_ROW_WRITE_PORT}).
+ * Owner: `price_lists` (issue #1028).
+ *
+ * What another module — an ERP or PIM connector that synchronises a
+ * customer-group, organization, catalogue or sale price — may do to the rows
+ * of **one product in one non-base book**: read them, replace them and remove
+ * them — only the rows its write shape can say (fixed tiers, and a variant's
+ * adjustment at every quantity); a row an administrator entered that the shape
+ * cannot say (a product-level adjustment, an adjustment limited to a quantity
+ * range) is never replaced or removed, and `complete: false` reports it. It
+ * does not create books or change a header (currency, channel set,
+ * audience, validity, status): an administrator owns which books exist and
+ * whom they price, and a module names a book by the id the administrator chose.
+ *
+ * Every write is the admin row batch's own write path
+ * (`PUT /api/v1/admin/price-books/:id/rows`): the same row rules and
+ * refusals, one audited Command Bus run with the caller's actor
+ * (`price_list.book_rows_set`, `price_list.book_rows_remove`) whose entry
+ * holds names and counts, never a price or a quantity (D-288: the values go
+ * to the book's own price-change history, by `valueChangeId`), the book's
+ * `version` moved, and one pricing-generation bump after the commit whose
+ * surface change names the book and the product. A write that would change
+ * nothing writes nothing (no audit entry, no bump).
+ *
+ * Refusals, each an `HttpError` with a code, written before anything is:
+ * an unknown book `404 NOT_FOUND`; a base book `409 PRICE_BOOK_BASE_BOOK`
+ * (write base prices through {@link PriceBookWritePort}); an expired book
+ * `409 PRICE_BOOK_EXPIRED`; an unknown product `404 NOT_FOUND`; a malformed
+ * write `400 VALIDATION_FAILED`; tiers that break the book's rules are refused
+ * as the admin row batch refuses them — `409 PRICE_BOOK_ROW_OVERLAP` when every
+ * failure is an overlap, `400 PRICE_BOOK_ROW_LIMIT` when the book would hold too
+ * many rows, `400 PRICE_BOOK_ROW_SHAPE` otherwise — with `details.errors[]`
+ * giving each failure's own code and reason and, as `field`, its path in the
+ * write (`product.1.minQuantity`, `variants.<id>.tiers.0.price.amount`).
+ *
+ * **Owner off:** the seam fails closed — resolving this port throws
+ * `ModuleDisabledError` (503 `MODULE_DISABLED`); resolve it per use with
+ * `lazyPort`.
+ */
+export interface PriceBookRowWritePort {
+  /**
+   * Replace the product's fixed tiers in one non-base book (in the book's one
+   * currency) and, optionally, the rows of the variants named in `variants`.
+   * Rows the write shape cannot say stay as they are; a tier that would overlap
+   * one — even one starting at the same quantity — is refused
+   * `409 PRICE_BOOK_ROW_OVERLAP` naming it, never written over it. Amounts are
+   * decimal strings.
+   */
+  replaceBookRows(
+    bookId: string,
+    productId: string,
+    write: {
+      product: readonly BasePriceTier[];
+      variants?: Readonly<Record<string, VariantRowWrite | null>>;
+    },
+  ): Promise<BookProductRows>;
+  /**
+   * Remove the product's (and its variants') rows the port can say from one
+   * non-base book — rows the write shape cannot say stay, as a replace leaves
+   * them; a no-op when there are none.
+   */
+  removeBookRows(bookId: string, productId: string): Promise<void>;
+  /** The product's rows in one non-base book, or `null` when it holds none at all. */
+  bookRows(bookId: string, productId: string): Promise<BookProductRows | null>;
+}
