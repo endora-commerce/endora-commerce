@@ -25,6 +25,7 @@ import { expectHookableCommand, recordingCommandHooks, sealedCommandHookRegistry
 import { manifest } from '../../manifest.js';
 import type { Organization } from '../entities/organization.entity.js';
 import { ORGANIZATION_AUDIT_KEYS } from '../services/organization-audit-state.js';
+import { OrganizationCustomFieldWriteService } from '../services/organization-custom-field-write-port.js';
 import { makeAdminPatchOrganizationCommand } from './admin-patch-organization.command.js';
 import { makeCreateOrganizationCommand } from './create-organization.command.js';
 import { makeRegisterOrganizationCommand } from './register-organization.command.js';
@@ -264,5 +265,46 @@ describe('organization.set_custom_field_values is hookable', () => {
     expect(data.changedFields).toEqual([]);
     expect(data.changedCustomFields).toEqual(['region']);
     expectNamesOnly(h.audits);
+  });
+});
+
+describe('organizationCustomFieldWritePort forwards extension input (architect ruling on #1055, Q2)', () => {
+  it("hands a claimed key to its module's hook through the port", async () => {
+    const recording = recordingCommandHooks();
+    const h = harness([{ moduleId: 'acme_erp', entries: [recording.on(ORG.setCustomFieldValues)] }]);
+    const port = new OrganizationCustomFieldWriteService(h.bus as never);
+
+    await asSystem(() =>
+      port.setCustomFieldValues(ORG_ID, async (current) => ({ ...current, region: 'S176-CF-REGION' }), {
+        extensions: { acme_erp: { code: 'E-3' } },
+      }),
+    );
+
+    expect(recording.calls.map((call) => call.extension)).toEqual([{ code: 'E-3' }]);
+  });
+
+  it('answers 422 COMMAND_EXTENSION_UNCLAIMED for a key no present hook module claims, before the merge runs', async () => {
+    const h = harness([{ moduleId: 'acme_erp', entries: [recordingCommandHooks().on(ORG.setCustomFieldValues)] }]);
+    const port = new OrganizationCustomFieldWriteService(h.bus as never);
+    let merged = false;
+
+    const err = await asSystem(() =>
+      port.setCustomFieldValues(
+        ORG_ID,
+        async (current) => {
+          merged = true;
+          return current;
+        },
+        { extensions: { acme_typo: { code: 'x' } } },
+      ),
+    ).catch((e: unknown) => e);
+
+    expect(err).toMatchObject({
+      statusCode: 422,
+      code: 'COMMAND_EXTENSION_UNCLAIMED',
+      details: [{ path: 'extensions.acme_typo' }],
+    });
+    expect(merged).toBe(false);
+    expect(h.audits).toEqual([]);
   });
 });

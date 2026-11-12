@@ -35,7 +35,9 @@ A closed list. The **shape** decides, not the business meaning:
 - `changedFields` / `changedCustomFields`: the sorted names of what changed — including
   `extensions.<moduleId>.changedFields`, the names a command hook noted it wrote, which the
   Command Bus merges into the owner's entry and refuses unless each is a field name
-  (`specs/176-command-hooks-outbox/` FR-020);
+  (`specs/176-command-hooks-outbox/` FR-020). A hook's notes force the entry: a Command that
+  answers `skipAudit` while a hook noted a write still records one, with `stateBefore: null`
+  and `stateAfter: { extensions }` only;
 - an opaque id pointing to a row in the module's own value store (`valueChangeId`).
 
 ### 2. Must not be recorded

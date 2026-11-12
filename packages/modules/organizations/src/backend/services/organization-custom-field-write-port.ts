@@ -1,4 +1,8 @@
-import type { OrganizationCustomFieldWritePort, OrganizationRecord } from '@endora-commerce/contracts';
+import type {
+  OrganizationCustomFieldWriteOptions,
+  OrganizationCustomFieldWritePort,
+  OrganizationRecord,
+} from '@endora-commerce/contracts';
 import type { CommandBus } from '@endora-commerce/platform/commands';
 import {
   makeSetCustomFieldValuesCommand,
@@ -20,8 +24,17 @@ export class OrganizationCustomFieldWriteService implements OrganizationCustomFi
   async setCustomFieldValues(
     organizationId: string,
     merge: OrganizationCustomFieldMerge,
+    options: OrganizationCustomFieldWriteOptions = {},
   ): Promise<OrganizationRecord> {
-    const org = await this.commandBus.run(makeSetCustomFieldValuesCommand({ organizationId, merge }));
+    // Extension input for the hook modules on this action (176 FR-018), passed
+    // through to the Command, which refuses a key nobody claims.
+    const org = await this.commandBus.run(
+      makeSetCustomFieldValuesCommand({
+        organizationId,
+        merge,
+        ...(options.extensions ? { extensions: options.extensions } : {}),
+      }),
+    );
     return toOrganizationRecord(org);
   }
 }

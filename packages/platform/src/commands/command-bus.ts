@@ -132,7 +132,11 @@ export class CommandBus {
 
     const noted = hooks ? await this.runBeforeCommitHooks(hooks, command, result, em, actor, meta, below) : undefined;
 
-    if (!skipAudit) {
+    // A hook's noted write is a write, and an entry names it even when the owner
+    // decided its own part was a no-op (`skipAudit`): then the entry is the
+    // hooks' alone — no owner state, only `{ extensions }`, names only.
+    const anyNotes = [...(noted?.values() ?? [])].some((fields) => fields.size > 0);
+    if (!skipAudit || anyNotes) {
       this.audit.recordWithin(em, {
         action: command.action,
         objectType: command.objectType,
@@ -140,8 +144,8 @@ export class CommandBus {
         actorAdminUserId: actor.actorAdminUserId,
         impersonatedCustomerAccountId: actor.impersonatedCustomerAccountId,
         actorCustomerAccountId: actor.actorCustomerAccountId ?? null,
-        stateBefore: before ?? captured ?? null,
-        stateAfter: withNotedChanges(after ?? null, noted),
+        stateBefore: skipAudit ? null : (before ?? captured ?? null),
+        stateAfter: withNotedChanges(skipAudit ? null : (after ?? null), noted),
         ipAddress: meta.ipAddress ?? null,
         userAgent: meta.userAgent ?? null,
         requestId: meta.requestId ?? null,

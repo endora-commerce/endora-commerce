@@ -119,8 +119,9 @@ architektury *Command Bus*.
 Wszystkie cztery oferują obie fazy; faza `afterCommit` nie jest jeszcze dostarczana. Zmiany
 zgłoszone przez hak trafiają do jedynego wpisu audytu organizacji jako nazwy, w
 `extensions.<moduleId>.changedFields`. Hak rejestracji nigdy nie widzi tokenu weryfikacji e-mail.
-Dane rozszerzeń (`extensions`) może przekazać tylko kod po stronie serwera: żadne ciało żądania HTTP
-ich jeszcze nie przenosi. Późniejsze polecenia organizacji — zamiana organizacji osobistej, korekta
+Dane rozszerzeń (`extensions`) może przekazać tylko kod po stronie serwera —
+`organizationCustomFieldWritePort.setCustomFieldValues` przyjmuje je jako `{ extensions }` — a żadne
+ciało żądania HTTP ich jeszcze nie przenosi. Późniejsze polecenia organizacji — zamiana organizacji osobistej, korekta
 NIP, przenoszenie w hierarchii — nie są zadeklarowane jako dostępne dla haków.
 
 ## Kanały sprzedaży

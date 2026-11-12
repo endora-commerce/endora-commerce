@@ -126,7 +126,9 @@ kod. Każdy inny wyjątek również wycofuje zapis i daje odpowiedź `500`.
 **To, co hak zapisał, jest nazwane w jedynym wpisie właściciela.** Hak zapisujący własne tabele
 wywołuje `ctx.noteAuditChanges(['x_acme_erp_code'])`, a wpis właściciela dostaje
 `stateAfter.extensions.<moduleId>.changedFields`. Tylko nazwy: szyna odrzuca wszystko, co nie jest
-nazwą pola, więc reguła „nazwy, nie wartości” w audycie obowiązuje także haki.
+nazwą pola, więc reguła „nazwy, nie wartości” w audycie obowiązuje także haki. Zgłoszone zmiany
+wymuszają wpis: jeśli właściciel odpowiedział `skipAudit`, a hak zgłosił zapis, wpis i tak powstaje,
+z `stateBefore: null` i `stateAfter: { extensions }`.
 
 **Dane rozszerzeń.** Wywołujący może przekazać w poleceniu `extensions: { <moduleId>: … }`. Każdy
 hak widzi tylko fragment własnego modułu jako `ctx.extension` i sam go waliduje. Klucz, którego nie

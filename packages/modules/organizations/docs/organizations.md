@@ -125,7 +125,8 @@ All four offer both phases; the `afterCommit` phase is not delivered yet. A
 hook's noted changes appear in the Organization's single audit entry as names,
 under `extensions.<moduleId>.changedFields`. The registration hook never sees
 the e-mail verification token. Extension input (`extensions`) can be passed by
-server-side callers only: no HTTP body carries it yet. The later Organization
+server-side callers only — `organizationCustomFieldWritePort.setCustomFieldValues`
+takes it as `{ extensions }` — and no HTTP body carries it yet. The later Organization
 Commands — converting a personal organization, correcting a tax ID, moving in
 the hierarchy — are not declared hookable.
 

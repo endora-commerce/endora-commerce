@@ -334,6 +334,51 @@ describe('CommandBus — beforeCommit hooks (176 T025)', () => {
     expect(h.committedAudit[0]!.stateAfter).toEqual({ extensions: { acme_erp: { changedFields: ['x_acme_erp_code'] } } });
   });
 
+  it('records exactly one entry when the owner skips its audit but a hook noted a write', async () => {
+    const h = makeHarness();
+    h.registry.register('acme_erp', [
+      { id: 'note', on: WIDGET_CREATE, phase: 'beforeCommit', handler: (ctx) => ctx.noteAuditChanges(['x_acme_erp_code']) },
+    ]);
+    h.registry.seal(composition());
+
+    await run(() =>
+      h.bus.run(
+        createWidget({
+          async run() {
+            return { result: { id: 'w-1', name: 'Gizmo' }, before: { status: 'S176-OWNER' }, after: { status: 'x' }, skipAudit: true };
+          },
+        }),
+      ),
+    );
+
+    expect(h.committedAudit).toHaveLength(1);
+    expect(h.committedAudit[0]).toMatchObject({
+      action: 'widget.create',
+      stateBefore: null,
+      stateAfter: { extensions: { acme_erp: { changedFields: ['x_acme_erp_code'] } } },
+    });
+  });
+
+  it('records no entry when the owner skips its audit and no hook noted anything', async () => {
+    const h = makeHarness();
+    let calls = 0;
+    h.registry.register('acme_erp', [{ id: 'read', on: WIDGET_CREATE, phase: 'beforeCommit', handler: () => void (calls += 1) }]);
+    h.registry.seal(composition());
+
+    await run(() =>
+      h.bus.run(
+        createWidget({
+          async run() {
+            return { result: { id: 'w-1', name: 'Gizmo' }, skipAudit: true };
+          },
+        }),
+      ),
+    );
+
+    expect(calls).toBe(1);
+    expect(h.committedAudit).toEqual([]);
+  });
+
   it('refuses a noted change that is not a field name — the entry carries names, never values', async () => {
     const h = makeHarness();
     h.registry.register('acme_erp', [

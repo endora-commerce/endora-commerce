@@ -122,7 +122,9 @@ code. Any other throw rolls back too and answers `500`.
 **What a hook writes is named in the owner's one entry.** A hook that writes its own tables
 calls `ctx.noteAuditChanges(['x_acme_erp_code'])`, and the owner's entry gains
 `stateAfter.extensions.<moduleId>.changedFields`. Names only: the bus refuses anything that
-is not a field name, so the names-only audit rule holds for hooks too.
+is not a field name, so the names-only audit rule holds for hooks too. Notes force the entry: if
+the owner answered `skipAudit` but a hook noted a write, one entry is still recorded, with
+`stateBefore: null` and `stateAfter: { extensions }`.
 
 **Extension input.** A caller may pass `extensions: { <moduleId>: … }` on the Command. Each
 hook sees only its own module's slice as `ctx.extension` and validates it itself. A key no

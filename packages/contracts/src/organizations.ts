@@ -848,7 +848,22 @@ export interface OrganizationCustomFieldWritePort {
   setCustomFieldValues(
     organizationId: string,
     merge: (current: Record<string, unknown>) => Promise<Record<string, unknown>>,
+    options?: OrganizationCustomFieldWriteOptions,
   ): Promise<OrganizationRecord>;
+}
+
+/**
+ * What a server-side caller may hand `setCustomFieldValues` besides the merge
+ * (`specs/176-command-hooks-outbox/` FR-018, architect ruling on #1055 Q2).
+ *
+ * `extensions` is extension input for the command-hook modules on
+ * `organization.set_custom_field_values`, keyed by module id; each hook sees only
+ * its own module's key. A key no present hook module claims is refused
+ * `422 COMMAND_EXTENSION_UNCLAIMED` before the merge runs. No HTTP body carries
+ * it — that field is spec 178's.
+ */
+export interface OrganizationCustomFieldWriteOptions {
+  readonly extensions?: Readonly<Record<string, unknown>>;
 }
 
 /**

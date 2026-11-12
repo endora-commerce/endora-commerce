@@ -63,13 +63,24 @@ Every outbox shape carries `organizationId`. The drain pins the handler's tenant
 
 All four Commands accept `extensions` from their caller. Spec 178 decides how
 `POST /api/v1/admin/organizations`, `POST /api/v1/organizations/register` and
-`PATCH /api/v1/admin/organizations/:id` carry an `extensions` body field. Until it does, only
-server-side callers (ports, overlays) can pass extensions. Spec 176 adds no HTTP field.
+`PATCH /api/v1/admin/organizations/:id` carry an `extensions` body field; that field is tracked
+there, and spec 176 adds no HTTP field. Until it lands, only server-side callers can pass extensions.
+
+**Ports (architect ruling on #1055, Q2).** The published port that reaches one of the four Commands
+forwards extension input: `organizationCustomFieldWritePort.setCustomFieldValues(organizationId,
+merge, { extensions })` (`OrganizationCustomFieldWriteOptions`), and an unclaimed key answers
+`422 COMMAND_EXTENSION_UNCLAIMED` through it before the merge runs.
+`organizationCommandPort`'s methods (`convertToCompany`, `changeTaxId`) reach
+`organization.convert_to_company` and `organization.tax_id.change`, which are not declared
+hookable (issue #1057), so they take no `extensions` yet: with nothing able to claim a key, every
+key would be refused. #1057 adds the field when it declares those actions.
 
 ## Who else declares
 
 - 177 declares `organization.convert_to_company` with this API, and optionally
-  `organization.set_parent` / `organization.move`. These are additive.
+  `organization.set_parent` / `organization.move`. These are additive. Declaring
+  `organization.convert_to_company` and `organization.tax_id.change` hookable after P2 merges is
+  tracked as issue #1057.
 - Owners of the other custom-field hosts (`customer_accounts`, `orders`, `quote_requests`,
   `catalog`, `crm_opportunities`, `projects`, `tasks`) declare their own actions when 178 needs them.
   None is declared in 176.

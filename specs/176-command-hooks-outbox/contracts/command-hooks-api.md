@@ -30,7 +30,10 @@ master won in each case:
    or a ninth Command.
 7. **`noteAuditChanges` refuses a non-field-name** (`/^[A-Za-z_][A-Za-z0-9_]*(\.[A-Za-z_][A-Za-z0-9_]*)*$/`),
    so the names-only rule (`specs/conventions/audit-state.md`, which now names the key) holds for
-   hooks. An owner that answers `skipAudit` records no entry, and a hook's notes go with it.
+   hooks. **A hook's notes force the entry** (architect ruling on #1055): when the owner answers
+   `skipAudit` and at least one hook noted a write, the bus still records the one entry, with
+   `stateBefore: null` and `stateAfter: { extensions }` — the hooks' names and nothing of the
+   owner's. With `skipAudit` and no notes, no entry is recorded, as before.
 
 ## 1. `@endora-commerce/contracts` — `src/command-hooks.ts` (platform-free)
 
@@ -165,7 +168,9 @@ composition is sealed throws (as interceptors do after ready). Registration reso
 4. A throw from a hook propagates unchanged (HttpError → its status/code; other → 500); the
    transaction rolls back.
 5. Then the owner's audit entry is recorded with `extensions.<moduleId>.changedFields` merged into
-   `stateAfter` (only when a hook noted changes; `stateAfter: null` becomes `{ extensions }`).
+   `stateAfter` (only when a hook noted changes; `stateAfter: null` becomes `{ extensions }`). The
+   entry is recorded when `!skipAudit || anyNotes`: an owner that answered `skipAudit` while a hook
+   noted a write gets one entry with `stateBefore: null` and `stateAfter: { extensions }`.
 6. Then one `command_outbox` row per present `afterCommit` handler is persisted on the same `em`.
 7. After commit the bus enqueues the deduplicated wake job if rows were written (failure ignored).
 8. Nesting: an action may not appear twice in the chain of Commands run from hooks; depth ≤ 8.
