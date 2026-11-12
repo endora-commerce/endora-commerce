@@ -98,6 +98,24 @@ audytu przy Organizacji:
 Po zatwierdzeniu zmiany roli ogłaszane jest też zdarzenie
 `customer_account.organization_role_changed.v1`.
 
+### Tworzenie konta z innego modułu
+
+`customer_account.create` ma jedną implementację, udostępnioną na dwa sposoby:
+
+- `customerAccountMemberWritePort.create(input)` tworzy konto we własnej
+  transakcji — korzystają z tego bezpośrednie dodanie członka i przyjęcie
+  zaproszenia;
+- `customerAccountMemberCommandPort.prepareCreate(input)` haszuje hasło
+  i zwraca obiekt budujący; `.command({ organizationId, organizationRoleId })`
+  to polecenie, które wywołujący uruchamia jako polecenie **podrzędne** swojego
+  polecenia przez `ctx.run`, więc konto zostaje zatwierdzone albo wycofane razem
+  z zapisem wywołującego. Korzysta z tego samodzielna rejestracja w module
+  `organizations`. Przygotuj je, zanim uruchomisz własne polecenie: haszowanie
+  jest celowo wolne i nie może odbywać się wewnątrz transakcji.
+
+Oba odrzucają adres, który jest już zarejestrowany, kodem **409
+`EMAIL_ALREADY_REGISTERED`** — ze wstępnego sprawdzenia i z unikalnego indeksu.
+
 ### Co zawiera dziennik audytu
 
 Dziennik audytu platformy czyta każdy, kto ma `audit_log:read`, bez względu na
@@ -108,7 +126,10 @@ nigdy jego wartości:
   jako `changedFields`, bez adresu e-mail i bez imienia i nazwiska;
 - utworzenie konta (`customer_account.create`, `.register_standalone`,
   `.register_social`) wymienia pola, z którymi konto powstało, jego rolę przez
-  identyfikator i to, czy adres został potwierdzony;
+  identyfikator i to, czy adres został potwierdzony. `customer_account.create`
+  jest poleceniem: pierwszego użytkownika rejestrującej się firmy tworzy ono
+  w transakcji rejestracji, więc jego wpis powstaje razem z wpisem
+  `organization.register` i ma ten sam identyfikator żądania;
 - przeniesienie między Organizacjami (`customer_account.organization_assigned`,
   `.organization_unassigned`, `.attach_organization`) jest zapisywane jako
   `changedFields: ['organizationId', 'organizationRoleId']`, z identyfikatorami

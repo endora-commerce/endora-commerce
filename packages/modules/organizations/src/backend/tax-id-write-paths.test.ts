@@ -16,13 +16,13 @@ import { describe, expect, it } from 'vitest';
  *   `organization.create` and the re-parent pair (`set_parent`, `move`, one
  *   factory) — a new one fails the first test until it is listed and wrapped;
  * - every call site of their factories runs them through `runOrganizationWrite`;
- * - registration (not a Command until spec 176, Phase A) flushes outside any
- *   transaction, so its catch sees both constraints and maps them itself.
+ * - registration is the `organization.register` Command since
+ *   `specs/176-command-hooks-outbox/` P1 (177's WP-R): it maps the flush's
+ *   refusal inside its run and the deferred one around `commandBus.run`, like
+ *   the others.
  *
  * `personal-organization-service.ts` inserts too, but only personal rows,
- * whose `tax_id` is null and outside both constraints. The conversion Command
- * (WP-5), the tax-ID correction (issue #1040) and registration's Command (WP-R)
- * join the first list when they land.
+ * whose `tax_id` is null and outside both constraints.
  */
 const BACKEND = fileURLToPath(new URL('.', import.meta.url));
 
@@ -35,7 +35,7 @@ function sources(dir: string): string[] {
 }
 
 const WRITES = /em\.create\(Organization\b|applyReparentPaths\(|\borg\.taxId = /;
-const FACTORIES = /\bmake(CreateOrganization|SetParent|Move|ConvertToCompany|ChangeTaxId)Command\b/;
+const FACTORIES = /\bmake(CreateOrganization|SetParent|Move|ConvertToCompany|ChangeTaxId|RegisterOrganization)Command\b/;
 
 describe('the writes of organizations.tax_id and path', () => {
   it('are the create and re-parent Commands', () => {
@@ -47,6 +47,7 @@ describe('the writes of organizations.tax_id and path', () => {
       'commands/change-tax-id.command.ts',
       'commands/convert-to-company.command.ts',
       'commands/create-organization.command.ts',
+      'commands/register-organization.command.ts',
       'commands/set-parent.command.ts',
     ]);
   });
@@ -56,18 +57,16 @@ describe('the writes of organizations.tax_id and path', () => {
       if (path.includes(`${join(BACKEND, 'commands')}/`)) return false;
       return FACTORIES.test(readFileSync(path, 'utf8'));
     });
-    expect(callers.map((path) => relative(BACKEND, path)).sort()).toEqual(['routes.admin.ts', 'services/organization-command-port.ts']);
+    expect(callers.map((path) => relative(BACKEND, path)).sort()).toEqual([
+      'routes.admin.ts',
+      'services/organization-command-port.ts',
+      'services/registration-service.ts',
+    ]);
     for (const path of callers) {
       const text = readFileSync(path, 'utf8');
       expect(text, relative(BACKEND, path)).toContain('runOrganizationWrite(');
-      expect(text).not.toMatch(/\.run\(\s*make(CreateOrganization|SetParent|Move|ConvertToCompany|ChangeTaxId)Command\(/);
+      expect(text).not.toMatch(/\.run\(\s*make(CreateOrganization|SetParent|Move|ConvertToCompany|ChangeTaxId|RegisterOrganization)Command\(/);
       expect(text).not.toMatch(/commandBus\.run\(\s*command\s*\)/);
     }
-  });
-
-  it('registration maps either constraint at its own flush (Phase A)', () => {
-    const text = readFileSync(join(BACKEND, 'services', 'registration-service.ts'), 'utf8');
-    expect(text).toMatch(WRITES);
-    expect(text).toContain('organizationWriteError(err');
   });
 });

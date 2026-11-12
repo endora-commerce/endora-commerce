@@ -28,12 +28,18 @@ describe('Organizations dictionary boundary', () => {
   beforeEach(async () => {
     em = await db.beginTx();
     validator = dictionaryValidatorFor(() => em);
-    service = new RegistrationService(
-      () => em,
-      new EventBus(),
-      customerAccountPortsFor(() => em),
-      validator,
-    );
+    // The country is refused before anything is prepared or written, so the
+    // bus and the account Command port are never reached.
+    const unreachable = (): never => {
+      throw new Error('a refused country reaches neither the bus nor the account port');
+    };
+    service = new RegistrationService({
+      emFactory: () => em,
+      commandBus: { run: unreachable },
+      events: new EventBus(),
+      accounts: { read: customerAccountPortsFor(() => em).read, commands: { prepareCreate: unreachable } },
+      dictionaryValidator: validator,
+    });
   });
 
   afterEach(async () => {

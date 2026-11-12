@@ -55,9 +55,11 @@ samej transakcji i ustalają użytkownika z bieżącego `TenantContext`:
   wywołujący już dysponuje, a zatwierdza go istniejące wywołanie `flush()`. Używaj go, gdy zapis
   już działa we własnej transakcji albo w `persistAndFlush(...)` i nie da się go objąć transakcją
   Command Busa bez przebudowy. Użytkownik jest tu ustalany w miarę możliwości: bez kontekstu (np.
-  przy samodzielnej rejestracji przed zalogowaniem albo w workerze) zapisuje puste identyfikatory
-  użytkownika zamiast rzucać wyjątek, więc zapisy w tle też są audytowane. Kod, który *musi* znać
-  użytkownika, używa Command Busa.
+  w workerze, który go nie otworzył) zapisuje puste identyfikatory użytkownika zamiast rzucać
+  wyjątek, więc zapisy w tle też są audytowane. Kod, który *musi* znać użytkownika, używa Command
+  Busa. Żądanie anonimowe nie jest takim przypadkiem: ma kontekst systemowy, więc zapis przed
+  zalogowaniem, na przykład samodzielna rejestracja w storefroncie, działa jako polecenie
+  (`organization.register`) z pustym użytkownikiem.
 
 Większość zapisów w modułach korzysta z małej prywatnej metody pomocniczej
 `#audit(em, action, objectId, before, after)`, delegującej do `recordAuditFromContext`, dzięki

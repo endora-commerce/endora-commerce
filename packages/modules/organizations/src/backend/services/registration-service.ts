@@ -1,4 +1,3 @@
-import { createHash, randomBytes } from 'crypto';
 import type { EntityManager } from '@mikro-orm/postgresql';
 import {
   DictionaryReferenceError,
@@ -10,45 +9,24 @@ import {
   type CustomFieldValuePort,
   type OrganizationConvertedToCompanyEvent,
   type OrganizationTaxIdChangedEvent,
-  type CustomerAccountMemberWritePort,
+  type CustomerAccountMemberCommandPort,
   type CustomerAccountReadPort,
-  type CustomerAccountRecord,
   type DictionaryValidator,
   type RegisterOrganizationRequest,
   type SupportedLanguage,
 } from '@endora-commerce/contracts';
+import type { CommandBus } from '@endora-commerce/platform/commands';
 import type { EventBase, EventBus } from '@endora-commerce/platform/events';
 import { HttpError } from '@endora-commerce/platform/http';
-import { Organization } from '../entities/organization.entity.js';
-import { TaxIdLookupService } from './tax-id-lookup-service.js';
-import { organizationWriteError, taxIdExistsRefusal } from './organization-write.js';
-import { EmailVerificationToken } from '../entities/email-verification-token.entity.js';
-import { recordAuditFromContext } from '@endora-commerce/platform/commands';
-import type { AuditPort, SalesChannelMembershipPort } from '@endora-commerce/platform/kernel';
-import { withSystemScope } from '@endora-commerce/platform/tenancy';
-import { predefinedRoleIdOn } from './organization-role-store.js';
-import { OrganizationTaxIdValidation } from '../entities/organization-tax-id-validation.entity.js';
-import { ORGANIZATION_CREATED_FIELDS, presentFields } from './organization-audit-state.js';
-import type { RegistryLookupSnapshot } from '../registry-lookup/company-registry-port.js';
+import type { SalesChannelMembershipPort } from '@endora-commerce/platform/kernel';
 import {
-  registrationValidationRow,
-  type RegistrationValidationRow,
-} from '../registry-lookup/registration-snapshot.js';
-
-/**
- * Registration flow (T117, FR-040).
- *
- * - Creates the Organization in `pending_verification`.
- * - Creates the first CustomerAccount holding the Organization's
- *   *Administrator* role, email unverified, argon2-hashed password.
- * - Issues an EmailVerificationToken; the raw token is returned so callers
- *   can dispatch the email. Only its sha256 hash is stored.
- * - Emits `organization.registered.v1`.
- *
- * Uniqueness conflicts raise:
- *   409 ORGANIZATION_TAX_ID_EXISTS if the taxId is taken.
- *   409 EMAIL_ALREADY_REGISTERED if the email is taken by another account.
- */
+  makeRegisterOrganizationCommand,
+  type RegisterOrganizationResult,
+} from '../commands/register-organization.command.js';
+import type { RegistryLookupSnapshot } from '../registry-lookup/company-registry-port.js';
+import { registrationValidationRow } from '../registry-lookup/registration-snapshot.js';
+import { TaxIdLookupService } from './tax-id-lookup-service.js';
+import { runOrganizationWrite, taxIdExistsRefusal } from './organization-write.js';
 
 export interface OrganizationEvents extends Record<string, EventBase> {
   'organization.registered.v1': EventBase & { organizationId: string };
@@ -96,29 +74,26 @@ export function emitCustomerAccountCreated(
   });
 }
 
-const TOKEN_TTL_HOURS = 48;
-
-export interface RegistrationResult {
-  organization: Organization;
-  customerAccount: CustomerAccountRecord;
-  /** Raw token to include in the verification email — shown once. */
-  verificationToken: string;
-}
+export type RegistrationResult = RegisterOrganizationResult;
 
 export interface RegistrationAccountPorts {
   /**
-   * `customer_accounts`' published read and write (feature 075, Phase C). The
-   * first user of a new Organization is a row in *that* module's table, and
-   * this service used to create it with `em.create(CustomerAccount, …)` and a
-   * `hashPassword` imported from `auth`. Both are on the owner's side of the
-   * port now, which is also why the plain password crosses and no hash does.
+   * `customer_accounts`' published read (feature 075, Phase C) — the fast
+   * e-mail pre-check, before the password is hashed.
+   */
+  read: Pick<CustomerAccountReadPort, 'findByEmail'>;
+  /**
+   * `customer_accounts`' account creation as a Command factory
+   * (`specs/176-command-hooks-outbox/` FR-002): the first user of a new
+   * Organization is a row in *that* module's table, written by its
+   * `customer_account.create` as a child of `organization.register`. The
+   * plain password crosses and the owner hashes it.
    *
    * With `customer_accounts` off registration fails closed. That is right: an
    * Organization whose administrator could not be created is not a
    * registration, and the module is in any case non-deactivatable.
    */
-  read: CustomerAccountReadPort;
-  write: CustomerAccountMemberWritePort;
+  commands: CustomerAccountMemberCommandPort;
 }
 
 /**
@@ -158,27 +133,40 @@ interface RegistrationValueRefusal {
   issue: string;
 }
 
+export interface RegistrationServiceDeps {
+  /** For the fast tax-ID pre-check, outside the Command. */
+  emFactory: () => EntityManager;
+  /** Runs `organization.register` (Principle XIII). */
+  commandBus: Pick<CommandBus, 'run'>;
+  events: OrganizationEventBus;
+  accounts: RegistrationAccountPorts;
+  dictionaryValidator?: DictionaryValidator;
+  channelMembership?: Pick<SalesChannelMembershipPort, 'bindToDefaultIfEmpty' | 'replaceChannelsForEntity'>;
+  registryLookup?: RegistrationRegistryLookup;
+  /** Feature 175 — validates the buyer's custom-field values before the Command. */
+  customFieldValues?: RegistrationCustomFieldValues;
+}
+
+/**
+ * Registration flow (T117, FR-040; `specs/176-command-hooks-outbox/` US1).
+ *
+ * Everything that does not write runs first, outside any transaction, so no
+ * slow or remote dependency holds one open (FR-009): the country dictionary,
+ * the fast tax-ID and e-mail pre-checks — which also answer the common
+ * duplicate before the password is hashed — the registry ticket read, the
+ * custom-field validation of both groups, and the hash itself (FR-005). Then
+ * one `organization.register` Command writes the whole registration on one
+ * transaction (FR-001), and the bus records its audit entry. The ticket is
+ * deleted after the commit, best effort.
+ *
+ * Uniqueness conflicts raise:
+ *   409 ORGANIZATION_TAX_ID_EXISTS if the taxId is taken — the pre-check, the
+ *       Command's own check, or either scope's constraint (FR-008).
+ *   409 EMAIL_ALREADY_REGISTERED if the email is taken by another account —
+ *       the pre-check, or the account Command's check and unique index.
+ */
 export class RegistrationService {
-  constructor(
-    private readonly emFactory: () => EntityManager,
-    private readonly events: OrganizationEventBus,
-    private readonly accounts: RegistrationAccountPorts,
-    private readonly dictionaryValidator?: DictionaryValidator,
-    private readonly auditLog?: AuditPort,
-    /**
-     * Feature 154 — the kernel's audited channel-membership writer. An
-     * Organization with no sales channel may shop nowhere, so a created one is
-     * bound in the creating step (FR-016, FR-019). Optional so a unit
-     * composition without it keeps working.
-     */
-    private readonly channelMembership?: Pick<
-      SalesChannelMembershipPort,
-      'bindToDefaultIfEmpty' | 'replaceChannelsForEntity'
-    >,
-    private readonly registryLookup?: RegistrationRegistryLookup,
-    /** Feature 175 — validates the buyer's custom-field values before the first write. */
-    private readonly customFieldValues?: RegistrationCustomFieldValues,
-  ) {}
+  constructor(private readonly deps: RegistrationServiceDeps) {}
 
   /**
    * @param context.salesChannelId the channel of the store the business
@@ -194,31 +182,22 @@ export class RegistrationService {
     req: RegisterOrganizationRequest,
     context: { salesChannelId: string | null; language?: SupportedLanguage } = { salesChannelId: null },
   ): Promise<RegistrationResult> {
-    const em = this.emFactory();
     await this.validateCountry(req.organization.registeredAddress.country);
 
-    // Pre-check the easy cases so we can return the right error code before
-    // hashing the password (avoids a wasted ~50 ms of argon2 work — the hash
-    // is computed inside `create` below, after both checks have passed).
+    // The fast pre-checks: the right code for the common duplicate, in the
+    // order the endpoint has always answered them, before the ~50 ms of argon2.
+    // The Command checks the tax ID again on its transaction, and the
+    // constraints and the account's unique index answer the race.
     // `specs/177-tax-id-scope/` FR-024 — through the one tax-ID lookup, which
-    // normalises the input (`contracts/tax-id-scope.md` §5).
-    // D-290 / OD-11 — stored, checked and echoed in the canonical form.
+    // normalises the input; D-290 / OD-11 — stored, checked and echoed in the
+    // canonical form.
     const taxId = normalizeTaxId(req.organization.taxId);
-    const existingByTaxId = await new TaxIdLookupService(this.emFactory).resolveByTaxId(taxId, { em });
-    if (existingByTaxId.kind !== 'none') {
-      throw new HttpError(
-        409,
-        ERROR_CODES.ORGANIZATION_TAX_ID_EXISTS,
-        'An organization with this taxId already exists.',
-      );
-    }
-    const existingByEmail = await this.accounts.read.findByEmail(req.firstUser.email);
-    if (existingByEmail) {
-      throw new HttpError(
-        409,
-        ERROR_CODES.EMAIL_ALREADY_REGISTERED,
-        'An account with this email already exists.',
-      );
+    const existingByTaxId = await new TaxIdLookupService(this.deps.emFactory).resolveByTaxId(taxId, {
+      em: this.deps.emFactory(),
+    });
+    if (existingByTaxId.kind !== 'none') throw taxIdExistsRefusal();
+    if (await this.deps.accounts.read.findByEmail(req.firstUser.email)) {
+      throw new HttpError(409, ERROR_CODES.EMAIL_ALREADY_REGISTERED, 'An account with this email already exists.');
     }
 
     // Feature 173 — the ticket is read before anything is written, so a slow or
@@ -226,69 +205,12 @@ export class RegistrationService {
     const ticket = await this.readRegistryTicket(req.registryLookupId);
 
     // Feature 175 (research R-5, FR-024) — both custom-field groups are
-    // validated here, before the first write, so no refusal of theirs can
-    // leave an Organization without its account behind.
+    // validated here, before the Command, so a refusal of theirs writes nothing.
     const customFieldValues = await this.validateCustomFieldGroups(req, context.language);
 
-    const organization = em.create(Organization, {
-      name: req.organization.name,
-      taxId,
-      status: 'pending_verification',
-      vatStatus: req.organization.vatStatus ?? 'vat_payer',
-      registeredAddress: {
-        street: req.organization.registeredAddress.street,
-        city: req.organization.registeredAddress.city,
-        postalCode: req.organization.registeredAddress.postalCode,
-        country: req.organization.registeredAddress.country,
-      },
-      customFieldValues: customFieldValues.organization,
-    });
-    try {
-      await em.persistAndFlush(organization);
-    } catch (err) {
-      // `specs/177-tax-id-scope/` Phase A (research R-15) — either scope's
-      // constraint: `global`'s unique one at the statement, `per-tree-root`'s
-      // deferred one at this flush's own commit (no transaction is open here).
-      throw organizationWriteError(err, () => taxIdExistsRefusal());
-    }
-    // Feature 154 — on this `EntityManager`, right after the Organization row,
-    // so "no Organization without a channel" holds by construction.
-    if (context.salesChannelId !== null) {
-      await this.channelMembership?.replaceChannelsForEntity(
-        'organization',
-        organization.id,
-        [context.salesChannelId],
-        { em },
-      );
-    } else {
-      await this.channelMembership?.bindToDefaultIfEmpty('organization', organization.id, { em });
-    }
-
-    // `create` raises the same 409 `EMAIL_ALREADY_REGISTERED` on the unique
-    // index that the `catch` here used to, so the translation moved with the
-    // write rather than being dropped.
-    const customerAccount = await this.accounts.write.create({
-      organizationId: organization.id,
-      email: req.firstUser.email,
-      password: req.firstUser.password,
-      firstName: req.firstUser.firstName,
-      lastName: req.firstUser.lastName,
-      // The registering user administers the new Organization
-      // (`specs/170-organization-roles/` WP-02b). Read on this `em`: the role
-      // row was written by the Organization's own insert trigger.
-      organizationRoleId: await predefinedRoleIdOn(em, organization.id, 'administrator'),
-      // Feature 175 — validated above; the account's owner stores it as given.
-      customFieldValues: customFieldValues.customer,
-    });
-
-    // Feature 173 — one validation row for the lookup this registration carried,
+    // Feature 173 — the validation row for the lookup this registration carried,
     // when the ticket was issued for the same normalised tax ID and country
-    // (FR-020). Written for the Organization being created, on this `em`. The
-    // actor is anonymous, so the write needs the sanctioned hatch; a module's is
-    // `withSystemScope` (ruling D-285 keeps `withOrgScope` host-only), and the
-    // row names the Organization explicitly, as `predefinedRoleIdOn` does. The
-    // summary is stamped as the admin trigger stamps it; the registry's legal
-    // name is **not** written (OD-7).
+    // (FR-020). Pure: the Command writes it.
     const lookupRow = ticket
       ? registrationValidationRow(ticket, {
           name: req.organization.name,
@@ -298,59 +220,41 @@ export class RegistrationService {
         })
       : null;
     if (ticket && !lookupRow) {
-      this.registryLookup?.logger?.info(
-        { organizationId: organization.id },
+      this.deps.registryLookup?.logger?.info(
+        {},
         'organizations: registry lookup reference ignored — issued for another tax ID',
       );
     }
-    if (lookupRow) await this.persistLookupRow(em, organization, lookupRow);
 
-    const rawToken = randomBytes(32).toString('base64url');
-    const token = em.create(EmailVerificationToken, {
-      customerAccountId: customerAccount.id,
-      tokenHash: sha256Hex(rawToken),
-      expiresAt: new Date(Date.now() + TOKEN_TTL_HOURS * 60 * 60 * 1_000),
+    // FR-005 — the hash, before the transaction opens.
+    const account = await this.deps.accounts.commands.prepareCreate({
+      email: req.firstUser.email,
+      password: req.firstUser.password,
+      firstName: req.firstUser.firstName,
+      lastName: req.firstUser.lastName,
+      // Feature 175 — validated above; the account's owner stores it as given.
+      customFieldValues: customFieldValues.customer,
     });
-    if (this.auditLog) {
-      // Self-registration is pre-auth (no ambient actor) — the entry records the
-      // organization creation with a null actor.
-      recordAuditFromContext(this.auditLog, em, {
-        action: 'organization.register',
-        objectType: 'organization',
-        objectId: organization.id,
-        stateBefore: null,
-        stateAfter: {
-          // Names, not values (`specs/conventions/audit-state.md`, D-288, O-2).
-          status: organization.status,
-          changedFields: presentFields(organization, ORGANIZATION_CREATED_FIELDS),
-          ...(lookupRow ? { registryLookup: { provider: lookupRow.provider, outcome: lookupRow.outcome } } : {}),
-          // Feature 175 (FR-028) — the keys a buyer supplied, never their
-          // values (`specs/conventions/audit-state.md`, D-288): sorted, each
-          // prefixed by its request group as a refusal names it.
-          changedCustomFields: [
-            ...Object.keys(customFieldValues.organization).map((key) => `organization.${key}`),
-            ...Object.keys(customFieldValues.customer).map((key) => `firstUser.${key}`),
-          ].sort(),
+
+    const result = await runOrganizationWrite(
+      this.deps.commandBus,
+      makeRegisterOrganizationCommand(
+        {
+          events: this.deps.events,
+          ...(this.deps.channelMembership ? { channelMembership: this.deps.channelMembership } : {}),
         },
-      });
-    }
-    await em.persistAndFlush(token);
+        { request: req, taxId, salesChannelId: context.salesChannelId, customFieldValues, lookupRow, account },
+      ),
+      () => taxIdExistsRefusal(),
+    );
 
     // After the commit, best effort: the ticket expires on its own anyway. A
     // refused registration never reaches this line, so its ticket stays usable
     // for the retry.
     if (lookupRow && req.registryLookupId) {
-      await this.registryLookup?.deleteTicket(req.registryLookupId).catch(() => undefined);
+      await this.deps.registryLookup?.deleteTicket(req.registryLookupId).catch(() => undefined);
     }
-
-    this.events.emit('organization.registered.v1', {
-      eventId: crypto.randomUUID(),
-      occurredAt: new Date().toISOString(),
-      organizationId: organization.id,
-    });
-    emitCustomerAccountCreated(this.events, customerAccount.id, organization.id);
-
-    return { organization, customerAccount, verificationToken: rawToken };
+    return result;
   }
 
   /**
@@ -374,7 +278,7 @@ export class RegistrationService {
     };
     const bags: Array<Record<string, unknown>> = [];
     for (const group of groups) {
-      if (!this.customFieldValues) {
+      if (!this.deps.customFieldValues) {
         // No value port composed: nothing is open, so every key is refused
         // (FR-027). The sentence names no key: a buyer reads it beside the field.
         for (const key of Object.keys(group.values ?? {})) {
@@ -385,7 +289,7 @@ export class RegistrationService {
       }
       try {
         bags.push(
-          await this.customFieldValues.validateForCustomerInput(
+          await this.deps.customFieldValues.validateForCustomerInput(
             group.entityType,
             group.values,
             REGISTRATION_SURFACE,
@@ -415,12 +319,12 @@ export class RegistrationService {
 
   /** The ticket behind a reference, or `null`: switch off, unknown, expired, or Redis failing. */
   private async readRegistryTicket(lookupId: string | undefined): Promise<RegistryLookupSnapshot | null> {
-    if (!lookupId || !this.registryLookup) return null;
+    if (!lookupId || !this.deps.registryLookup) return null;
     try {
-      if (!(await this.registryLookup.isEnabled())) return null;
-      return await this.registryLookup.readTicket(lookupId);
+      if (!(await this.deps.registryLookup.isEnabled())) return null;
+      return await this.deps.registryLookup.readTicket(lookupId);
     } catch (err) {
-      this.registryLookup.logger?.info(
+      this.deps.registryLookup.logger?.info(
         { err: err instanceof Error ? err.message : String(err) },
         'organizations: registry lookup ticket unreadable; registering without it',
       );
@@ -428,39 +332,10 @@ export class RegistrationService {
     }
   }
 
-  private async persistLookupRow(
-    em: EntityManager,
-    organization: Organization,
-    row: RegistrationValidationRow,
-  ): Promise<void> {
-    await withSystemScope(
-      'organizations: registration persists the registry lookup of the Organization it creates',
-      async () => {
-        em.create(OrganizationTaxIdValidation, {
-          organizationId: organization.id,
-          provider: row.provider,
-          outcome: row.outcome,
-          taxIdValue: row.taxIdValue,
-          legalNameReturned: row.legalNameReturned,
-          addressReturned: row.addressReturned,
-          errorKind: row.errorKind,
-          requestedByAdminUserId: null,
-          origin: row.origin,
-          registryDetails: row.registryDetails,
-          submittedValues: row.submittedValues,
-        });
-        organization.vatValidatedAt = new Date();
-        organization.vatValidationProvider = row.provider;
-        organization.vatValidationOutcome = row.outcome;
-        await em.flush();
-      },
-    );
-  }
-
   private async validateCountry(country: string): Promise<void> {
-    if (!this.dictionaryValidator) return;
+    if (!this.deps.dictionaryValidator) return;
     try {
-      await this.dictionaryValidator.validateCountryCode(country, 'create-or-change');
+      await this.deps.dictionaryValidator.validateCountryCode(country, 'create-or-change');
     } catch (err) {
       if (err instanceof DictionaryReferenceError) {
         throw new HttpError(
@@ -475,10 +350,6 @@ export class RegistrationService {
       throw err;
     }
   }
-}
-
-function sha256Hex(input: string): string {
-  return createHash('sha256').update(input, 'utf8').digest('hex');
 }
 
 // Polyfill for environments where crypto.randomUUID isn't on global (node < 19).

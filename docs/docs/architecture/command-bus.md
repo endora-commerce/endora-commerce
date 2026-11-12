@@ -53,9 +53,11 @@ co-transactional audit entry and derive the actor from the ambient `TenantContex
   `em` the caller already owns, committed by the caller's existing `flush()`. Use it
   when a write already runs inside its own transaction or `persistAndFlush(...)` and
   cannot be wrapped in the bus's transaction without restructuring. The actor is
-  best-effort here: with no ambient context (e.g. a pre-auth self-registration or a
-  worker path) it records null actor ids rather than throwing, so background writes
-  still audit. Callers that *must* have an actor use the bus.
+  best-effort here: with no ambient context (e.g. a worker path that opened none) it
+  records null actor ids rather than throwing, so background writes still audit.
+  Callers that *must* have an actor use the bus. An anonymous request is not such a
+  path: it carries the system context, so a pre-auth write such as a storefront
+  self-registration runs as a Command (`organization.register`) with a null actor.
 
 Most module writes use a small private `#audit(em, action, objectId, before, after)`
 helper that delegates to `recordAuditFromContext`, keeping the audit call one line at

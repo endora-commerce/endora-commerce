@@ -1,5 +1,7 @@
 import type { EntityManager } from '@mikro-orm/postgresql';
 import { describe, expect, it } from 'vitest';
+import { CommandBus } from '@endora-commerce/platform/commands';
+import { withSystemScope } from '@endora-commerce/platform/tenancy';
 import { CustomerAccount } from '../entities/customer-account.entity.js';
 import { CustomerAccountMemberWriteService } from './customer-account-ports.js';
 
@@ -31,8 +33,22 @@ function harness() {
       });
     },
     persistAndFlush: async () => undefined,
+    transactional: async <T>(fn: (inner: EntityManager) => Promise<T>): Promise<T> => fn(em),
+    fork: () => em,
   } as unknown as EntityManager;
-  const service = new CustomerAccountMemberWriteService(() => em, async () => new Set<string>());
+  // The creation is the `customer_account.create` Command since
+  // `specs/176-command-hooks-outbox/` (FR-004), so it runs on a bus.
+  const bus = new CommandBus({ em } as never, { recordWithin: () => ({}) } as never, {
+    run: async <T>(fn: () => Promise<T>) => fn(),
+    emit: () => undefined,
+  } as never);
+  const members = new CustomerAccountMemberWriteService(() => em, async () => new Set<string>(), undefined, {
+    commandBus: bus,
+  });
+  const service = {
+    create: (input: Parameters<typeof members.create>[0]) =>
+      withSystemScope('customer_accounts unit test: account custom-field values', () => members.create(input)),
+  };
   return { service, created };
 }
 
