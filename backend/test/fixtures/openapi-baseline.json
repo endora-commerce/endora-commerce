@@ -2030,6 +2030,15 @@
         }
       }
     },
+    "/api/v1/admin/command-hooks": {
+      "get": {
+        "responses": {
+          "200": {
+            "description": "OK"
+          }
+        }
+      }
+    },
     "/api/v1/admin/comparisons": {
       "get": {
         "responses": {
