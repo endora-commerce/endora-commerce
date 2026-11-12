@@ -12,6 +12,11 @@ import {
   priceSourceSchema,
   precedenceConfigSchema,
   basePricesWriteSchema,
+  bookProductRowsSchema,
+  bookProductRowsWriteSchema,
+  PRICE_BOOK_ROW_WRITE_PORT,
+  type BookProductRows,
+  type PriceBookRowWritePort,
 } from '../src/price-books.js';
 import * as barrel from '../src/index.js';
 import type * as Barrel from '../src/index.js';
@@ -193,6 +198,53 @@ describe('price books — base prices (FR-009)', () => {
     expect(basePricesWriteSchema.safeParse({ byCurrency: { pln: { product: [], variants: {} } } }).success).toBe(
       false,
     );
+  });
+});
+
+describe('price books — rows of a non-base book written by another module (issue #1028)', () => {
+  it('names the port in the container', () => {
+    expect(PRICE_BOOK_ROW_WRITE_PORT).toBe('priceBookRowWritePort');
+    expect((barrel as Record<string, unknown>)['PRICE_BOOK_ROW_WRITE_PORT']).toBe('priceBookRowWritePort');
+  });
+
+  it('takes the base-price tier type for the product and a variant row (or null) per named variant', () => {
+    const parsed = bookProductRowsWriteSchema.parse({
+      product: [
+        { minQuantity: 1, maxQuantity: 9, amount: '100.0000' },
+        { minQuantity: 10, amount: '90' },
+      ],
+      variants: {
+        [ID(11)]: { type: 'percent', percent: '-10' },
+        [ID(12)]: { type: 'amount', amount: '-7' },
+        [ID(13)]: { type: 'fixed', tiers: [{ minQuantity: 1, maxQuantity: null, amount: '85' }] },
+        [ID(14)]: null,
+      },
+    });
+    expect(parsed.product[1]).toEqual({ minQuantity: 10, maxQuantity: null, amount: '90' });
+    expect(Object.keys(parsed.variants ?? {})).toHaveLength(4);
+    expect(bookProductRowsWriteSchema.parse({ product: [] }).variants).toBeUndefined();
+  });
+
+  it('refuses more than 50 tiers, a negative fixed amount and a variant key that is not an id', () => {
+    const tier = (minQuantity: number) => ({ minQuantity, maxQuantity: minQuantity, amount: '1' });
+    expect(bookProductRowsWriteSchema.safeParse({ product: Array.from({ length: 51 }, (_, i) => tier(i + 1)) }).success).toBe(false);
+    expect(bookProductRowsWriteSchema.safeParse({ product: [{ minQuantity: 1, amount: '-1' }] }).success).toBe(false);
+    expect(bookProductRowsWriteSchema.safeParse({ product: [], variants: { nope: null } }).success).toBe(false);
+  });
+
+  it('answers the rows one product holds in one book, typed as the port declares', () => {
+    const answer = bookProductRowsSchema.parse({
+      bookId: ID(1),
+      productId: ID(2),
+      currencyCode: 'PLN',
+      version: 3,
+      product: [{ minQuantity: 1, maxQuantity: null, amount: '9.0000' }],
+      variants: { [ID(11)]: { type: 'percent', percent: '-5.00' } },
+      complete: true,
+    });
+    expectTypeOf(answer).toEqualTypeOf<BookProductRows>();
+    expectTypeOf<PriceBookRowWritePort['bookRows']>().returns.resolves.toEqualTypeOf<BookProductRows | null>();
+    expectTypeOf<PriceBookRowWritePort['replaceBookRows']>().returns.resolves.toEqualTypeOf<BookProductRows>();
   });
 });
 

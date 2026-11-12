@@ -403,7 +403,8 @@ Base path `/api/v1/admin/price-books`. Reads need `price_lists:read`, writes `pr
 Schemas are in `packages/contracts/src/price-books.ts`. Every write is one `CommandBus.run` with one
 audit entry on `objectType: 'price_list'` holding the state before and after; the audited actions
 are `price_list.create`, `update`, `channels_replace`, `activate`, `draftify`, `expire`,
-`duplicate`, `delete`, `rows_replace`, `base_prices_set` and `show_list_price_set`.
+`duplicate`, `delete`, `rows_replace`, `base_prices_set` and `show_list_price_set`, plus
+`book_rows_set` and `book_rows_remove`, which only `priceBookRowWritePort` writes.
 
 | Method and path | Purpose |
 | --- | --- |
@@ -483,6 +484,7 @@ does not call `resolved-price` per card.
 | `priceListReadPort` | `PriceListReadPort` — `findById`, `findByIds`, `listAll`, `listActive`, `listForOrganization({ organizationChain, customerGroupId })` | book headers; the books that apply to an organization through its own membership, an ancestor's or its group, each with its `reason` and chain `depth` |
 | `productDisplayModePort` | `ProductDisplayModePort.resolveDisplayMode` | the display mode of a product for a buyer |
 | `priceBookWritePort` | `PriceBookWritePort` | a product's **base prices**, for another module's price import |
+| `priceBookRowWritePort` | `PriceBookRowWritePort` | a product's rows in one **non-base** book — a customer-group, organization, catalogue or sale price — for another module's price import |
 
 ### `priceBookWritePort`
 
@@ -511,7 +513,62 @@ interface PriceBookWritePort {
 - It fails closed: resolving it while `price_lists` is absent throws `ModuleDisabledError`
   (`503 MODULE_DISABLED`). Resolve it per use with `lazyPort`, never hold an instance.
 
-Rows of non-base books are written through the admin API only.
+Rows of non-base books are written through `priceBookRowWritePort`, below.
+
+### `priceBookRowWritePort`
+
+The in-process port through which another module — an ERP or PIM connector that maps an external
+price list to a book an administrator chose — writes the rows of **one product in one non-base
+book**: a customer-group, organization, catalogue or sale price. The container name is exported as
+`PRICE_BOOK_ROW_WRITE_PORT`.
+
+```ts
+interface PriceBookRowWritePort {
+  replaceBookRows(
+    bookId: string,
+    productId: string,
+    write: { product: readonly BasePriceTier[]; variants?: Readonly<Record<string, VariantRowWrite | null>> },
+  ): Promise<BookProductRows>;
+  removeBookRows(bookId: string, productId: string): Promise<void>;
+  bookRows(bookId: string, productId: string): Promise<BookProductRows | null>;
+}
+```
+
+- **Rows only.** It neither creates a book nor changes a header — currency, channel set, audience,
+  validity, status. An administrator owns which books exist and whom they price; a module refers to
+  a book by its id.
+- `replaceBookRows` replaces the product's tiers (fixed amounts, at most 50, in the book's one
+  currency) and, for each variant named in `variants`, that variant's rows: its own fixed tiers, or
+  a percentage or amount adjustment of the reference price at every quantity; `null` removes the
+  variant's rows, and a variant that is not named keeps them. Every other row of the book — other
+  products, categories, attributes — is untouched. `removeBookRows` removes the product's and its
+  variants' rows the port can say and is a no-op when there are none. `bookRows` answers the rows
+  in the write's shape, or `null` when the product has none at all.
+- **Rows the write shape cannot say are never the port's.** A row an administrator entered that is
+  neither a fixed tier nor a variant's adjustment at every quantity — a product-level percentage or
+  amount, an adjustment limited to a quantity range — is neither replaced by `replaceBookRows` nor
+  removed by `removeBookRows`, and keeps pricing. `bookRows` reports it with `complete: false`. A
+  tier that would overlap such a row in its quantity range — one starting at the same quantity
+  included — is refused (`409 PRICE_BOOK_ROW_OVERLAP`, naming the kept row), as the admin batch
+  refuses overlaps; the port never overwrites the row in its place.
+- Each write is the admin row batch (`PUT …/:id/rows`, `PriceBookService.writeRows`' planning and
+  command): the same row rules, one Command Bus run audited as `price_list.book_rows_set` or
+  `price_list.book_rows_remove` with the actor the Command Bus resolves in the caller's scope, the
+  book's version moved, and one pricing-generation bump after the
+  commit whose surface change names the book and the product. A write that would change nothing
+  writes nothing — no audit entry, no bump.
+- **The audit entry holds names, not values** (`specs/conventions/audit-state.md`, owner ruling
+  O-3): the product id, the ids of the variants touched, `changedFields: ['rows']`, the counts of
+  rows added, changed and removed, the version, and `valueChangeId`. The prices and quantity
+  windows go to the book's own price-change history (`price_list_value_changes` and its lines),
+  written in the same Command.
+- Refusals, before anything is written: an unknown book or product `404 NOT_FOUND`; a base book
+  `409 PRICE_BOOK_BASE_BOOK` (its rows are base prices — use `priceBookWritePort`); an expired book
+  `409 PRICE_BOOK_EXPIRED`; a malformed write `400 VALIDATION_FAILED`; tiers that break the book's
+  rules as the admin batch refuses them (`409 PRICE_BOOK_ROW_OVERLAP`, `400 PRICE_BOOK_ROW_SHAPE`,
+  `400 PRICE_BOOK_ROW_LIMIT`), with each failure's path in the write as `details.errors[].field`
+  (`product.1.minQuantity`). A connector can skip the value with an issue and go on.
+- It fails closed like `priceBookWritePort`: resolve it per use with `lazyPort`.
 
 ## Off-state, channels and tenancy
 
@@ -596,5 +653,6 @@ replacement.
 | Every surface agrees; batch = single; sorted order = cards | `backend/test/integration/price_lists/pricing-surfaces-agree.test.ts`, `listing-prices-batch.test.ts`, `line-prices-batch.test.ts`, `price-surface-identity.test.ts` |
 | Cart read = placement | `backend/test/integration/carts/cart-read-equals-placement.test.ts` |
 | Admin API, scope, versions, dry run, removed routes | `backend/test/contract/price_lists/` |
+| The module write ports | `backend/test/integration/price_lists/price-book-write-port.test.ts`, `price-book-row-write-port.test.ts`, `src/backend/services/price-book-row-write.test.ts` |
 | Conversion; a fresh install; the demo scenarios | `backend/test/integration/price_lists/conversion.test.ts`, `fresh-install.test.ts`, `demo-scenarios.test.ts` |
 | Performance (`PERF_RUN=true`) | `backend/test/perf/price_lists/price-surface.bench.ts`, `book-resolver.bench.ts`, `book-lines-page.bench.ts`, `editor-import-save.bench.ts` |

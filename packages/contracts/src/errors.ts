@@ -780,6 +780,10 @@ export const ERROR_CODES = {
   PRICE_BOOK_ROW_LIMIT: 'PRICE_BOOK_ROW_LIMIT',
   /** Feature 160 — the book changed since the version the write was made against; `details.currentVersion`. */
   PRICE_BOOK_STALE: 'PRICE_BOOK_STALE',
+  /** Issue #1028 — a base book's rows are base prices, written through `priceBookWritePort` or the base-price API. */
+  PRICE_BOOK_BASE_BOOK: 'PRICE_BOOK_BASE_BOOK',
+  /** Issue #1028 — an expired book prices nothing and takes no row write from another module. */
+  PRICE_BOOK_EXPIRED: 'PRICE_BOOK_EXPIRED',
   /** Feature 160 — the precedence is read-only until the change flow ships (FR-023). */
   PRECEDENCE_CHANGE_UNAVAILABLE: 'PRECEDENCE_CHANGE_UNAVAILABLE',
 

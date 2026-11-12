@@ -265,6 +265,9 @@ export const manifest = defineModuleManifest({
     { code: 'PRICE_BOOK_ROW_TARGET' },
     { code: 'PRICE_BOOK_ROW_LIMIT' },
     { code: 'PRICE_BOOK_STALE' },
+    // Issue #1028 — `priceBookRowWritePort`'s refusals of a book it may not write.
+    { code: 'PRICE_BOOK_BASE_BOOK' },
+    { code: 'PRICE_BOOK_EXPIRED' },
     { code: 'PRECEDENCE_CHANGE_UNAVAILABLE' },
   ],
 });
@@ -347,6 +350,17 @@ export const recentActivity = defineModuleRecentActivity({
       action: 'price_list.rows_replace',
       icon: 'Edit',
       labelKey: 'activity.verb.price_list.rows_replace',
+    },
+    // Issue #1028 — a module's rows of one product in a non-base book.
+    {
+      action: 'price_list.book_rows_set',
+      icon: 'CircleDollarSign',
+      labelKey: 'activity.verb.price_list.book_rows_set',
+    },
+    {
+      action: 'price_list.book_rows_remove',
+      icon: 'Archive',
+      labelKey: 'activity.verb.price_list.book_rows_remove',
     },
     { action: 'price_list.delete', icon: 'Archive', labelKey: 'activity.verb.price_list.delete' },
   ],

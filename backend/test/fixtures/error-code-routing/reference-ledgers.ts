@@ -510,6 +510,20 @@ export const MINTED_ERROR_CODES: MintedErrorCodes = {
       'prefix chain was deleted: the refusal of a write made against an older version of the book (G5 of `specs/161-price-book-editor/`). ' +
       'The noun is a price book, the module\'s own entity (D-121 T1).',
   },
+  PRICE_BOOK_BASE_BOOK: {
+    to: 'price_lists',
+    reason:
+      'Minted with `priceBookRowWritePort` (issue #1028), long after the prefix chain was deleted: ' +
+      'the refusal of a module row write naming a base book, whose rows are base prices written through `priceBookWritePort`. ' +
+      'The noun is a price book, the module\'s own entity (D-121 T1).',
+  },
+  PRICE_BOOK_EXPIRED: {
+    to: 'price_lists',
+    reason:
+      'Minted with `priceBookRowWritePort` (issue #1028), long after the prefix chain was deleted: ' +
+      'the refusal of a module row write naming an expired book. ' +
+      'The noun is a price book, the module\'s own entity (D-121 T1).',
+  },
   PRECEDENCE_CHANGE_UNAVAILABLE: {
     to: 'price_lists',
     reason:

@@ -10,6 +10,7 @@ import type {
   CustomerAccountReadPort,
   CustomerGroupReadPort,
   OrganizationDetailsPort,
+  PriceBookRowWritePort,
   PriceBookWritePort,
   PriceListReadPort,
   ProductDisplayModePort,
@@ -39,6 +40,7 @@ import type {
 import type { SurfaceChange } from './services/surface-change.js';
 import { PriceListReadService } from './services/price-list-read-port.js';
 import { createPriceBookWritePort } from './services/price-book-write-port.js';
+import { createPriceBookRowWritePort } from './services/price-book-row-write-port.js';
 import type { PricingServiceContract } from './services/pricing-service.interface.js';
 import { registerPriceListCurrencyReferences } from './services/price-list-currency-reference.js';
 import { PriceDisplayModeOverride } from './entities/price-display-mode-override.entity.js';
@@ -327,6 +329,22 @@ export function registerModule(ctx: ModuleContext): void {
           priceBookService: priceLists.handle.priceBookService,
           reads: priceLists.handle.priceBookReads,
         }),
+      )
+      .singleton(),
+  );
+
+  // Issue #1028 — the seam through which a module (an ERP or PIM connector)
+  // writes one product's rows in one non-base book: a customer-group,
+  // organization, catalogue or sale price. Its writes are the admin row batch's
+  // planning and command (`PUT …/price-books/:id/rows`), audited as
+  // `price_list.book_rows_set` / `price_list.book_rows_remove`; base books are
+  // refused (they are `priceBookWritePort`'s). `providePort` makes it fail
+  // closed while this module is absent.
+  ctx.di.providePort<PriceBookRowWritePort>(
+    'priceBookRowWritePort',
+    ctx
+      .asFunction(({ priceLists }: PriceListsCradle) =>
+        createPriceBookRowWritePort({ priceBookService: priceLists.handle.priceBookService }),
       )
       .singleton(),
   );

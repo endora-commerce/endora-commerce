@@ -139,6 +139,40 @@ describe('price_lists — an absent owner refuses to price a cart line [integrat
     expect(await count()).toEqual(before);
   });
 
+  it('refuses the book-row write port while `price_lists` is absent (issue #1028)', async () => {
+    // As the base-price port: the gate is on resolution, so nothing executes.
+    const resolvePort = () =>
+      (h.container as unknown as { resolve<T>(name: string): T }).resolve<{
+        replaceBookRows(bookId: string, productId: string, write: { product: unknown[] }): Promise<unknown>;
+      }>('priceBookRowWritePort');
+    const bookId = await seedPriceBookSql(h.em(), { name: 'Absent-owner row book', audience: 'everyone', rows: [] });
+    const count = () =>
+      h
+        .em()
+        .getConnection()
+        .execute<Array<{ n: string }>>(`select count(*) as "n" from "price_list_matrix_entries" where "price_list_id" = ?`, [
+          bookId,
+        ]);
+    try {
+      registryCache.__setEnabledForTesting(ALL_IDS.filter((id) => id !== 'price_lists'));
+      let refusal: unknown;
+      try {
+        await resolvePort().replaceBookRows(bookId, SEED_PRODUCT_101_ID, {
+          product: [{ minQuantity: 1, maxQuantity: null, amount: '1.0000' }],
+        });
+      } catch (error) {
+        refusal = error;
+      }
+      expect(refusal).toMatchObject({ code: 'MODULE_DISABLED' });
+
+      registryCache.__setEnabledForTesting(ALL_IDS);
+      expect(Number((await count())[0]!.n)).toBe(0);
+    } finally {
+      registryCache.__setEnabledForTesting(ALL_IDS);
+      await h.em().getConnection().execute(`delete from "price_lists" where "id" = ?`, [bookId]);
+    }
+  });
+
   it('adds the line again once `price_lists` is back', async () => {
     const res = await addItem();
 

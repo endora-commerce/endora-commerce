@@ -334,3 +334,40 @@ describe('price-book batch planning — a reason code per rule (161)', () => {
     );
   });
 });
+
+describe('a batch row never replaces a kept stored row by its natural key (issue #1028)', () => {
+  const run = (keepIds?: ReadonlySet<string>) => {
+    const kept = { ...stored('00000000-0000-4000-8000-00000000aa01', P1, 1, null, '0'), priceType: 'percent' as const, amount: null, percent: '-10.00' };
+    const { parsed, errors } = parseBatchRows([{ selection: { productId: P1 }, minQuantity: 1, price: { type: 'fixed', amount: '80' } }]);
+    return {
+      kept,
+      plan: planBatch({
+        isBaseBook: false,
+        stored: [kept],
+        storedRowCount: 1,
+        mode: 'merge',
+        parsed,
+        parseErrors: errors,
+        deleteIds: [],
+        upsertCount: 1,
+        lookups,
+        newId,
+        ...(keepIds ? { keepIds } : {}),
+      }),
+    };
+  };
+
+  it('replaces a stored row with the same selection and start, as the admin batch always has', () => {
+    const { plan, kept } = run();
+    expect(plan.errors).toEqual([]);
+    expect(plan.changed.map((c) => c.before.id)).toEqual([kept.id]);
+  });
+
+  it('refuses the row as an overlap naming the kept row, instead of overwriting it', () => {
+    const { plan, kept } = run(new Set(['00000000-0000-4000-8000-00000000aa01']));
+    expect(plan.changed).toEqual([]);
+    expect(plan.errors).toEqual([
+      expect.objectContaining({ index: 0, rowId: kept.id, code: 'PRICE_BOOK_ROW_OVERLAP', reason: 'rows_overlap' }),
+    ]);
+  });
+});
