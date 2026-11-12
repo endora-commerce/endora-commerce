@@ -12,6 +12,7 @@ import {
 import { withModuleOff } from '../../helpers/off-state.js';
 import { TEST_ADMIN_ID, TEST_ORGANIZATION_ID } from '../../helpers/test-actors.js';
 import {
+  assignToCrmBook,
   CRM_ADMIN,
   CRM_API,
   createCrmOpportunity,
@@ -257,13 +258,22 @@ describe('crm document lookups — the @@ list (contract, FR-044)', () => {
     expect(kinds(await groups(url({ opportunityId: own.id }), everything.cookies))).toEqual(['order', 'quote_request', 'task', 'opportunity']);
   });
 
+  // Out of reach means somebody else's book (issue #305): an Organization
+  // nobody is assigned to is in every representative's reach. Both cases below
+  // put the test Organization in one for themselves (issue #1056) — they used
+  // to pass on the assignment the describe above leaves behind.
   it('answers an Opportunity out of the caller`s reach as one that does not exist', async () => {
-    const hidden = await get(url({ opportunityId: own.id }), outsider.cookies);
-    const missing = await get(url({ opportunityId: randomUUID() }), outsider.cookies);
-    expect(hidden.statusCode).toBe(404);
-    expect(missing.statusCode).toBe(404);
-    expect((hidden.json() as { error: { code: string } }).error.code).toBe('CRM_OPPORTUNITY_NOT_FOUND');
-    expect((missing.json() as { error: { code: string } }).error.code).toBe('CRM_OPPORTUNITY_NOT_FOUND');
+    const unassign = await assignToCrmBook(h.em(), [TEST_ORGANIZATION_ID]);
+    try {
+      const hidden = await get(url({ opportunityId: own.id }), outsider.cookies);
+      const missing = await get(url({ opportunityId: randomUUID() }), outsider.cookies);
+      expect(hidden.statusCode).toBe(404);
+      expect(missing.statusCode).toBe(404);
+      expect((hidden.json() as { error: { code: string } }).error.code).toBe('CRM_OPPORTUNITY_NOT_FOUND');
+      expect((missing.json() as { error: { code: string } }).error.code).toBe('CRM_OPPORTUNITY_NOT_FOUND');
+    } finally {
+      await unassign();
+    }
   });
 
   it('before an Opportunity exists: the chosen Organization`s documents, and Tasks alone without one', async () => {
@@ -272,7 +282,12 @@ describe('crm document lookups — the @@ list (contract, FR-044)', () => {
     expect(ids(chosen, 'order')).toContain(order.id);
     expect(kinds(await groups(url({}), everything.cookies))).toEqual(['task', 'opportunity']);
     // An Organization out of reach has no documents to offer, and is not told apart from none.
-    expect(kinds(await groups(url({ organizationId: TEST_ORGANIZATION_ID }), outsider.cookies))).toEqual(['task', 'opportunity']);
+    const unassign = await assignToCrmBook(h.em(), [TEST_ORGANIZATION_ID]);
+    try {
+      expect(kinds(await groups(url({ organizationId: TEST_ORGANIZATION_ID }), outsider.cookies))).toEqual(['task', 'opportunity']);
+    } finally {
+      await unassign();
+    }
   });
 
   it('refuses a malformed query', async () => {
