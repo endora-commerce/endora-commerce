@@ -110,8 +110,10 @@ const SUBJECTS: readonly Subject[] = [
     module: 'organizations',
     // `specs/177-tax-id-scope/` (`contracts/admin-surfaces.md` §3) added the
     // scope screen and the personal-to-company conversion, each with its own
-    // route in the module's admin layer.
+    // route in the module's admin layer. Issue #1040 added the tax-ID
+    // correction (`change-organization-tax-id`), targeting the details route.
     actions: [
+      'change-organization-tax-id',
       'convert-personal-organization',
       'new-organization',
       'open-organizations',
