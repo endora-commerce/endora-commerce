@@ -443,7 +443,7 @@ część **nie została jeszcze** dostarczona. Dziś jej jedynym wywołującym j
 `check-port-dependencies.ts`, w czasie budowania; okno potwierdzenia i odpowiedź 409
 `MODULE_DEACTIVATION_UNCONFIRMED` są jeszcze w przygotowaniu, a dzisiejsze okno to zwykłe
 `window.confirm`, które podaje nazwę modułu i nic więcej
-(`admin/src/modules/platform/ModuleActivationControl.tsx`). Ustalone z góry jest to, że będzie
+(`packages/admin-shell/src/modules/platform/ModuleActivationControl.tsx`). Ustalone z góry jest to, że będzie
 **jedna** funkcja wywoływana przez oba miejsca, aby po ich wprowadzeniu zbiór identyfikatorów w
 oknie i zbiór w `details.consequences` nie mogły się rozjechać: będą tym samym wyrażeniem
 obliczonym dwa razy, a nie dwiema listami, które ktoś utrzymuje w zgodności. Dwa niezależne

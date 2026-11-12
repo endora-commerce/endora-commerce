@@ -421,7 +421,7 @@ elementy storefrontu, nawet jeśli nikt o niego nie prosił.
 z czego klient nie korzysta. Wyłączenie niczego nie niszczy i jest odwracalne: nie usuwa danych,
 konfiguracji, uprawnień ani schematu. **Nie licz na to, że okno potwierdzenia powie, co kosztuje
 wyłączenie** — dziś podaje tylko nazwę modułu
-(`admin/src/modules/platform/ModuleActivationControl.tsx:88`). Co przestaje działać po wyłączeniu
+(`packages/admin-shell/src/modules/platform/ModuleActivationControl.tsx:109`). Co przestaje działać po wyłączeniu
 modułu, opisuje
 [rejestr skutków wyłączenia](../architecture/kernel.md#rejestr-skutków-wyłączenia); poproś
 inżyniera o odczytanie go dla każdego modułu, z którego klient na pewno nie będzie korzystał.
