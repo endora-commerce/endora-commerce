@@ -63,6 +63,15 @@ conventions; the first two are architect rulings on P4:
     `RouteTabs` of one kernel-served page in the System section. The outbox tab is shown only with
     `platform.command_outbox.read`; `platform.command_outbox.manage` declares `requires:
     ['platform.command_outbox.read']`.
+16. **Reachability (architect ruling 2 on #1080).** The nav entry is gated on either
+    `platform.modules.read` or `platform.command_outbox.read`. A tab the operator may not read is
+    hidden, a strip of one tab is not drawn, and `/platform/command-hooks` redirects an outbox-only
+    operator to `/platform/command-hooks/outbox`. A second palette action, `open-command-outbox`,
+    opens the outbox behind `platform.command_outbox.read`. `.read` does not `require`
+    `platform.modules.read`: an outbox-only role is degraded, not broken.
+17. **No lease column (architect ruling 4).** An `in_flight` row's `availableAt` is its past due
+    time, not its lease, and `lockedUntil` is not served: the in-flight list shows no date beyond
+    *Created*. Pending rows show *Next attempt*, dead rows *Failed at*.
 
 ## Delivery
 

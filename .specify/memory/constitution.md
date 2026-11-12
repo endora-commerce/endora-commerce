@@ -17,9 +17,12 @@ which is a material expansion of guidance rather than a clarification.
 Modified sections:
   - XIII. Uniform Write Auditing via Command Bus — a transactional outbox for
     post-commit delivery is durable event dispatch, not a bespoke command queue;
-    its rows are names-only and its operator actions are Commands.
+    its rows carry names-only values (`audit-state.md` list 1) and its operator
+    actions are Commands.
   - XV. Untouched Core & Per-Deployment Overlay — the bounded overridable
-    surface names declared command hooks, and says what bounds one.
+    surface names declared command hooks, and says what bounds one: a
+    `beforeCommit` hook's position is fixed by the dependency graph or
+    `commandHookOrder`, an `afterCommit` one runs after the commit.
 
 Added sections:
   - (none)
@@ -951,7 +954,7 @@ existed anywhere. The following are binding for every backend feature that perfo
   own transaction after its audit entry, and drained at least once on the durable queue path
   (Principle X) — is durable event dispatch, not the bespoke command queue the bullet above
   forbids. It never re-runs or defers the Command, which has already committed and audited; its
-  rows carry ids and codes only (the names-only audit state), never the write's values; and an
+  rows carry names-only values (`audit-state.md` list 1), never the write's values; and an
   operator action on it, such as retrying a dead delivery, is itself a Command.
 - **Incremental migration is bounded.** Rollout is module by module, starting with the
   highest-regret writes (bulk operations, catalog, pricing, credit limits). An un-migrated
@@ -1075,9 +1078,9 @@ capability meant to be per-deployment overridable:
   as core — an override swaps an **implementation**, never a guard seam.
 - **Bounded overridable surface (YAGNI).** The overridable surface is **services, routes, config,
   declared command hooks, and whole new modules**. A command hook runs only on an action its
-  owning module declares hookable, at a position the dependency graph — or the deployment's
-  declared `commandHookOrder` — fixes, inside or after the owner's own Command; it extends that
-  write and never replaces it. Overlay modules ship no schema. A deployment needing new schema ships it
+  owning module declares hookable: a `beforeCommit` hook at a position the dependency graph — or
+  the deployment's declared `commandHookOrder` — fixes, an `afterCommit` one after the Command
+  commits. It extends the owner's write and never replaces it. Overlay modules ship no schema. A deployment needing new schema ships it
   in an installed module package, on one of three rungs: a **side table** the package owns, **declared
   extension columns** on an extensible table (Principle I), or a **variant the owning module
   provides**. Schema, entity or migration overrides of existing core units — a core column, a

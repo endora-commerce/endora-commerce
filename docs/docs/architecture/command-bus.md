@@ -235,7 +235,10 @@ for these handlers only.
 ## Watching it: the *Command hooks* screen {#command-hooks-screen}
 
 **System → Command hooks** in the admin (`/platform/command-hooks`, or ⌘K / CTRL+K
-*command hooks*) shows both halves. It is the platform's own screen, not a module's.
+*command hooks*; *outbox* opens the second tab directly) shows both halves. It is the
+platform's own screen, not a module's. Either tab's permission opens it, and a tab the
+administrator may not read is not shown: someone holding only the outbox permission lands on
+the outbox.
 
 - **Execution plan** — behind `platform.modules.read`, from `GET /api/v1/admin/command-hooks`.
   One card per declared action with its owner, its `beforeCommit` hooks as a numbered list in
@@ -246,8 +249,9 @@ for these handlers only.
 - **Outbox** — behind `platform.command_outbox.read`, from
   `GET /api/v1/admin/command-outbox?status=dead|pending|in_flight&limit=&cursor=` (dead by
   default; keyset-paginated by the row's `sequence`, newest first). A row shows its action,
-  object type and id, handler (`module#id`), attempts, last failure and dates — and nothing
-  else: the row's `data` is never served, and a failure was stored as a code and a class only.
+  object type and id, handler (`module#id`), attempts, last failure, when it was created and —
+  for a dead row when it failed, for a waiting one its next attempt — and nothing else: the
+  row's `data` is never served, and a failure was stored as a code and a class only.
 - **Retry** — behind `platform.command_outbox.manage`, offered on a dead row only.
   `POST /api/v1/admin/command-outbox/:id/retry` runs the Command `command_outbox.retry`, which
   puts the row back to `pending`, due now, with no attempts spent, and audits

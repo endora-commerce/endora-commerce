@@ -95,6 +95,15 @@ async function loadActions(): Promise<{
  * retire it.
  */
 export const ACTION_PERMISSION_DISAGREEMENTS: Readonly<Record<string, string>> = {
+  '_lifecycle:open-command-outbox':
+    '"Command outbox" declares `platform.command_outbox.read`, the code its screen\'s one entry route, ' +
+    'GET /api/v1/admin/command-outbox, enforces (`specs/176-command-hooks-outbox/` FR-040, architect ' +
+    'ruling 2 on #1080). The SPA places the outbox as the second tab of /platform/command-hooks, so the ' +
+    'walk finds no API path under the target and falls back to the module level, where the shallowest ' +
+    'registration is the execution plan\'s GET /api/v1/admin/command-hooks (`platform.modules.read`) — ' +
+    'the other tab, which an outbox-only operator is redirected away from. Retire this entry if the ' +
+    'walk learns a target-to-entry-route declaration, or if the outbox API moves under ' +
+    '/api/v1/admin/platform/command-hooks/outbox.',
   'import_export:open-import-export-center':
     '"Import / export" declares `catalog:write`; the screen lands on GET ' +
     '/api/v1/admin/import-export/entities, gated by the any-of of every entity code, and feature 174 ' +

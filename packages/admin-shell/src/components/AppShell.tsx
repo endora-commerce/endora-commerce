@@ -330,13 +330,13 @@ const NAV: NavSection[] = [
       },
       // `module: null` for the same reason (`specs/176-command-hooks-outbox/`
       // FR-041): a command hook spans the module that declares an action and
-      // every module that hooks it. Gated on the code the plan route enforces;
-      // the outbox tab asks for its own.
+      // every module that hooks it. Either tab's code opens it (architect
+      // ruling 2 on #1080); an outbox-only operator lands on the outbox tab.
       {
         to: '/platform/command-hooks',
         labelKey: 'appShell.nav.platformCommandHooks',
         icon: Webhook,
-        requiredPermission: 'platform.modules.read',
+        requiredPermission: ['platform.modules.read', 'platform.command_outbox.read'],
         module: null,
       },
       // `/admin-users`, `/admin-roles` and `/audit-log` are declared by the

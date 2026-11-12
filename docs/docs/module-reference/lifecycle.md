@@ -49,6 +49,7 @@ Rendered from the module's own manifest, and from nothing written by hand. What 
 | --- | --- | --- |
 | `open-api-description` | `/api-description` | `platform.api_description.read` |
 | `open-command-hooks` | `/platform/command-hooks` | `platform.modules.read` |
+| `open-command-outbox` | `/platform/command-hooks/outbox` | `platform.command_outbox.read` |
 | `open-platform-modules` | `/platform/modules` | `platform.modules.read` |
 
 ## Settings

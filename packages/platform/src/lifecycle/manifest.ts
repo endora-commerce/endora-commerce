@@ -160,9 +160,26 @@ export const manifest = defineModuleManifest({
       icon: 'Webhook',
       targetRoute: '/platform/command-hooks',
       requiredPermission: 'platform.modules.read',
-      keywords: ['command hooks', 'hooks', 'outbox', 'dead letter', 'retry', 'extensions'],
+      keywords: ['command hooks', 'hooks', 'extensions', 'execution plan'],
       keywordsKey: 'actions.openCommandHooks.keywords',
       weight: 320,
+    },
+    /**
+     * The outbox tab on its own (architect ruling 2 on #1080): an operator who
+     * may read the outbox and not the plan is a degraded role, not a broken
+     * one, and reaches the deliveries directly. One code per action, so the
+     * outbox gets its own.
+     */
+    {
+      id: 'open-command-outbox',
+      labelKey: 'actions.openCommandOutbox.label',
+      descriptionKey: 'actions.openCommandOutbox.description',
+      icon: 'Webhook',
+      targetRoute: '/platform/command-hooks/outbox',
+      requiredPermission: 'platform.command_outbox.read',
+      keywords: ['outbox', 'dead letter', 'retry', 'failed deliveries'],
+      keywordsKey: 'actions.openCommandOutbox.keywords',
+      weight: 330,
     },
   ],
   permissions: [

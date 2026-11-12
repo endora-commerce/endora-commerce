@@ -83,6 +83,7 @@ const coreBundle = passthroughBundle('core', [
   'appShell.search.noMatches',
   'appShell.palette.group.navigate',
   'appShell.palette.group.actions',
+  'appShell.nav.platformCommandHooks',
 ]);
 
 async function openPalette(language: SupportedAdminLanguage, permissions: readonly string[]): Promise<HTMLElement> {
@@ -96,6 +97,7 @@ async function openPalette(language: SupportedAdminLanguage, permissions: readon
             <Route element={<AppShell />}>
               <Route index element={<div>Home content</div>} />
               <Route path="/platform/command-hooks" element={<div>Command hooks screen</div>} />
+              <Route path="/platform/command-hooks/outbox" element={<div>Command outbox screen</div>} />
             </Route>
           </Routes>
         </MemoryRouter>
@@ -131,8 +133,8 @@ describe('AppShell palette — the Command hooks screen is reachable (Constituti
   });
 
   it.each([
-    ['en', ['command hooks', 'hooks', 'outbox', 'dead letter']],
-    ['pl', ['haki poleceń', 'haki', 'outbox', 'nieudane']],
+    ['en', ['command hooks', 'hooks']],
+    ['pl', ['haki poleceń', 'haki']],
   ] as const)('finds the screen in a %s-language admin and opens it', async (language, queries) => {
     const label = BUNDLES[language]['actions.openCommandHooks.label'] as string;
     const dialog = await openPalette(language, ['*']);
@@ -145,5 +147,42 @@ describe('AppShell palette — the Command hooks screen is reachable (Constituti
     const row = rowsFor(dialog, queries[0]).find((el) => (el.textContent ?? '').includes(label));
     await userEvent.click(row!);
     expect(await screen.findByText('Command hooks screen')).toBeTruthy();
+  });
+
+  // Architect ruling 2 on #1080: an operator who may read the outbox and not the
+  // plan reaches the outbox directly — its own action, its own code.
+  it('declares open-command-outbox on the outbox tab behind platform.command_outbox.read, with the outbox words', () => {
+    const outbox = lifecycleManifest.actions?.find((candidate) => candidate.id === 'open-command-outbox');
+    expect(outbox).toMatchObject({
+      targetRoute: '/platform/command-hooks/outbox',
+      requiredPermission: 'platform.command_outbox.read',
+    });
+    expect(outbox?.keywords).toEqual(expect.arrayContaining(['outbox', 'dead letter', 'retry']));
+    const hooks = lifecycleManifest.actions?.find((candidate) => candidate.id === 'open-command-hooks');
+    for (const word of ['outbox', 'dead letter', 'retry']) expect(hooks?.keywords ?? []).not.toContain(word);
+  });
+
+  it.each([
+    ['en', ['outbox', 'dead letter', 'retry', 'failed deliveries']],
+    ['pl', ['outbox', 'nieudane', 'ponów', 'dostarczenia']],
+  ] as const)('finds the outbox in a %s-language admin and opens it', async (language, queries) => {
+    const label = BUNDLES[language]['actions.openCommandOutbox.label'] as string;
+    expect(label).toBeTruthy();
+    const dialog = await openPalette(language, ['platform.command_outbox.read']);
+    for (const query of queries) {
+      expect({ query, found: rowsFor(dialog, query).some((el) => (el.textContent ?? '').includes(label)) }).toEqual({
+        query,
+        found: true,
+      });
+    }
+    const row = rowsFor(dialog, queries[0]).find((el) => (el.textContent ?? '').includes(label));
+    await userEvent.click(row!);
+    expect(await screen.findByText('Command outbox screen')).toBeTruthy();
+  });
+
+  it('shows the System entry to an operator who holds only platform.command_outbox.read', async () => {
+    await openPalette('en', ['platform.command_outbox.read']);
+    await userEvent.keyboard('{Escape}');
+    expect(screen.getAllByText('appShell.nav.platformCommandHooks').length).toBeGreaterThan(0);
   });
 });

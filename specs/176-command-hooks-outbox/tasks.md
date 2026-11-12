@@ -313,10 +313,15 @@ May be folded into Phase 3's MR (OD-2).
   keys to `lifecycle/i18n/{en,pl}.json` and the admin bundle. [FR-041] *(The failure labels are
   `commandOutbox.failure.<code>` in `_i18n`, not `errors.<code>`: see amendment 12 in
   `contracts/outbox-and-admin-api.md`.)*
-- [ ] T065 [US4] The admin screen in admin-shell, built from admin-kit primitives. Get it reviewed
+- [x] T065 [US4] The admin screen in admin-shell, built from admin-kit primitives. Get it reviewed
   by `endora-commerce-designer` (UX laws, WCAG 2.2 AA). [FR-041] *(Built: `CommandHooksPage.tsx`,
-  `command-hooks-api.ts`, two routes in `App.tsx`, one System nav entry. Self-checked against
-  `ux-laws/SKILL.md` §4 and §7; the `endora-commerce-designer` review is still open.)*
+  `command-hooks-api.ts`, two routes in `App.tsx`, one System nav entry. Reviewed by
+  `endora-commerce-designer` on #1080: MUST 1–4, SHOULD 5–13, 15, 16 and COULD 19–21, 23 applied
+  (retry keeps focus and moves it to a neighbour, a 409 is an outcome, envelope sentences, a
+  counted live region, inline load-more errors, *Try again*, the manage hint, a caption, wrapping
+  ids, `li value`, module names from `GET /admin/modules` where readable). Item 14 waits for a
+  longer action list (architect ruling 3); item 17 is ruling 4 — no date beyond *Created* in
+  flight. Reachability is ruling 2 — amendment 16. The Polish vocabulary waits for the owner.)*
 - [x] T066 [US4] Constitution amendment (XIII outbox wording, XV surface list), with the version and
   date bumped in `.specify/memory/constitution.md` and flagged in the MR for owner ratification.
   Update `kernel.md` (the contribution seam row). [FR-042, FR-043] *(4.2.0 → 4.3.0, pending owner

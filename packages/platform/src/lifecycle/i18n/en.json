@@ -7,8 +7,11 @@
   "actions.openPlatformModules.keywords": "modules, enable, disable",
   "actions.openApiDescription.keywords": "documentation, api description",
   "actions.openCommandHooks.label": "Command hooks",
-  "actions.openCommandHooks.description": "Which modules hook other modules’ writes, and failed deliveries to retry",
-  "actions.openCommandHooks.keywords": "hooks, deliveries, failed deliveries",
+  "actions.openCommandHooks.description": "Which modules hook other modules’ writes, and in what order",
+  "actions.openCommandHooks.keywords": "hooks, execution plan",
   "adminRoles.permission.platform.command_outbox.read": "View the command outbox",
-  "adminRoles.permission.platform.command_outbox.manage": "Retry failed command outbox deliveries"
+  "adminRoles.permission.platform.command_outbox.manage": "Retry failed command outbox deliveries",
+  "actions.openCommandOutbox.label": "Command outbox",
+  "actions.openCommandOutbox.description": "Failed and waiting deliveries to other modules, and retrying them",
+  "actions.openCommandOutbox.keywords": "deliveries, failed deliveries, dead letter"
 }

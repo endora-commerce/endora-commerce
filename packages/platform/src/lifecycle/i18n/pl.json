@@ -7,8 +7,11 @@
   "actions.openPlatformModules.keywords": "moduły, włącz, wyłącz",
   "actions.openApiDescription.keywords": "dokumentacja, opis api",
   "actions.openCommandHooks.label": "Haki poleceń",
-  "actions.openCommandHooks.description": "Moduły podpięte pod zapisy innych modułów i nieudane dostarczenia do ponowienia",
-  "actions.openCommandHooks.keywords": "haki, haki poleceń, outbox, dostarczenia, nieudane, ponów",
+  "actions.openCommandHooks.description": "Moduły podpięte pod zapisy innych modułów i kolejność ich działania",
+  "actions.openCommandHooks.keywords": "haki, haki poleceń, plan wykonania",
   "adminRoles.permission.platform.command_outbox.read": "Podgląd kolejki outbox poleceń",
-  "adminRoles.permission.platform.command_outbox.manage": "Ponawianie nieudanych dostarczeń z kolejki outbox poleceń"
+  "adminRoles.permission.platform.command_outbox.manage": "Ponawianie nieudanych dostarczeń z kolejki outbox poleceń",
+  "actions.openCommandOutbox.label": "Kolejka outbox poleceń",
+  "actions.openCommandOutbox.description": "Nieudane i oczekujące dostarczenia do innych modułów oraz ich ponawianie",
+  "actions.openCommandOutbox.keywords": "outbox, dostarczenia, nieudane, ponów, ponowienie"
 }

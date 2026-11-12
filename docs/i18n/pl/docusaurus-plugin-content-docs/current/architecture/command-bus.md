@@ -246,7 +246,10 @@ druga, trwała ścieżka tylko dla tych procedur.
 ## Podgląd: ekran *Haki poleceń* {#command-hooks-screen}
 
 **System → Haki poleceń** w panelu administracyjnym (`/platform/command-hooks` albo ⌘K / CTRL+K
-*haki poleceń*) pokazuje obie połowy. To ekran samej platformy, a nie żadnego modułu.
+*haki poleceń*; *outbox* otwiera od razu drugą kartę) pokazuje obie połowy. To ekran samej
+platformy, a nie żadnego modułu. Otwiera go uprawnienie do dowolnej z kart, a karta, do której
+administrator nie ma dostępu, nie jest pokazywana: ktoś z samym uprawnieniem do kolejki trafia od razu
+na kolejkę.
 
 - **Plan wykonania** — za uprawnieniem `platform.modules.read`, z
   `GET /api/v1/admin/command-hooks`. Jedna karta na każdą zadeklarowaną akcję z jej właścicielem,
@@ -257,8 +260,9 @@ druga, trwała ścieżka tylko dla tych procedur.
 - **Kolejka outbox** — za uprawnieniem `platform.command_outbox.read`, z
   `GET /api/v1/admin/command-outbox?status=dead|pending|in_flight&limit=&cursor=` (domyślnie martwe;
   stronicowanie po kluczu `sequence` wiersza, od najnowszych). Wiersz pokazuje akcję, typ
-  i identyfikator obiektu, procedurę (`moduł#id`), liczbę prób, ostatni błąd i daty — i nic więcej:
-  `data` wiersza nigdy nie jest zwracane, a błąd zapisano tylko jako kod i klasę.
+  i identyfikator obiektu, procedurę (`moduł#id`), liczbę prób, ostatni błąd, datę utworzenia oraz —
+  dla martwego wiersza datę niepowodzenia, dla oczekującego następną próbę — i nic więcej: `data`
+  wiersza nigdy nie jest zwracane, a błąd zapisano tylko jako kod i klasę.
 - **Ponowienie** — za uprawnieniem `platform.command_outbox.manage`, dostępne tylko przy martwym
   wierszu. `POST /api/v1/admin/command-outbox/:id/retry` uruchamia polecenie `command_outbox.retry`,
   które przywraca wiersz do stanu `pending`, gotowy od razu, bez zużytych prób, i zapisuje w audycie
