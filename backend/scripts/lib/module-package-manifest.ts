@@ -167,6 +167,13 @@ import {
   type WorkspaceMember,
 } from './workspace-packages.js';
 
+/**
+ * The `files` entry that keeps source maps out of every tarball (issue #107).
+ * It covers `.js.map` and `.d.ts.map`; the hand-written published manifests
+ * carry the same string, and `pack-gate` refuses a packed map.
+ */
+export const SOURCE_MAP_EXCLUSION = '!dist/**/*.map';
+
 /** Raised when a manifest cannot be derived. Never a partial answer. */
 export class ModulePackageManifestError extends Error {
   override readonly name = 'ModulePackageManifestError';
@@ -2330,6 +2337,11 @@ export function renderManifest(input: RenderInput): string {
   // tarball omits is M9 — ERR_PACKAGE_PATH_NOT_EXPORTED at the first consumer,
   // which `pack-gate` refuses as `unresolvable-export`.
   if (tailwindLayersOf(input).length > 0) files.push(TAILWIND_SOURCE_FILE);
+  // The tarball carries `dist` and not `src`, so a source map points at files
+  // no consumer has (issue #107). The maps stay on in `tsconfig.base.json` —
+  // local stack traces through the D-164 `./dist` resolution need them — and
+  // the exclusion is last, so no entry after it can re-include one.
+  files.push(SOURCE_MAP_EXCLUSION);
 
   const manifest = {
     name: input.packageName,
