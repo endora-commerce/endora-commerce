@@ -831,6 +831,29 @@ export class CatalogQueryService {
     return this.listingPriceOrder;
   }
 
+  /**
+   * Issue #420 — a price sort or a price range on a page whose display mode is
+   * `none` for this viewer is a `400 PRICE_ORDERING_UNAVAILABLE`, here and not
+   * only at the public route (feature 086, FR-016). The route asks the same
+   * question to decide whether to offer the controls at all; this is the
+   * defence in depth that keeps a caller which skips the route — an internal
+   * one, a future one — from narrowing a range step by step until it has
+   * inferred the prices the page withholds. Resolved for the viewer the page's
+   * prices and order are resolved for ({@link #viewerPricingContext}).
+   */
+  async #refusePriceControlsWherePricesHidden(ctx: CatalogQueryContext): Promise<void> {
+    const mode = await this.#requireListingPriceOrder().pageDisplayMode({
+      context: await this.#viewerPricingContext(ctx),
+    });
+    if (mode === 'none') {
+      throw new HttpError(
+        400,
+        ERROR_CODES.PRICE_ORDERING_UNAVAILABLE,
+        'Prices are not displayed on this page, so the catalogue cannot be ordered or filtered by price.',
+      );
+    }
+  }
+
   #requireOrganizationDetails(): OrganizationDetailsPort {
     if (!this.organizationDetails) {
       throw new Error(
@@ -1061,6 +1084,10 @@ export class CatalogQueryService {
     params: ListProductsParams,
     ctx: CatalogQueryContext,
   ): Promise<ListResult<ProductSummary>> {
+    // Issue #420 — refused before anything is read, the cursor included.
+    if (isPriceSort(params.sort) || params.minPrice !== undefined || params.maxPrice !== undefined) {
+      await this.#refusePriceControlsWherePricesHidden(ctx);
+    }
     // A price walk that began in the default order, for want of a price order,
     // continues in it to its end — the default listing's page, so nothing the
     // price path would read first is read (review 2, finding 7).
