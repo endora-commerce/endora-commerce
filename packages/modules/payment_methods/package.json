@@ -49,7 +49,8 @@
     "dist",
     "i18n",
     "docs",
-    "tailwind.css"
+    "tailwind.css",
+    "!dist/**/*.map"
   ],
   "engines": {
     "node": ">=22.18.0"

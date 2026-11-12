@@ -41,6 +41,7 @@ import {
   planTailwindSourceProbes,
   readTailwindSourceVerdicts,
   removeTailwindSourceProbes,
+  sweepStaleTailwindSourceProbes,
   writeTailwindSourceProbes,
 } from '../../../scripts/tailwind-source-scan.js';
 
@@ -64,11 +65,13 @@ describe('admin Tailwind sources reach every package it composes', () => {
     // R2.2's population, from the generator's own derivation: probing a set of
     // our own would be a second answer to *"which directories does this package
     // ask the host to scan"*, and it would fail invisibly in both directions.
-    const probes = planTailwindSourceProbes(
-      repoRoot,
-      process.pid,
-      declaredSourceProbeTargets(repoRoot),
-    );
+    const targets = declaredSourceProbeTargets(repoRoot);
+    // A run killed before its `finally` left its probes behind, and nothing
+    // ignores them (issue #105). Swept first, by pid, so the other frontend's
+    // guard — which plants into the same directories, at the same time — keeps
+    // the probes it is still compiling.
+    sweepStaleTailwindSourceProbes(repoRoot, targets);
+    const probes = planTailwindSourceProbes(repoRoot, process.pid, targets);
     expect(probes.filter((probe) => probe.expected).length).toBeGreaterThan(0);
     // The control stays. Without it the assertion is satisfied by a build that
     // emits everything, and the guard agrees with itself.

@@ -47,7 +47,7 @@
  * packages are coming, and `packages/modules/*` written down here would be a
  * derived fact written down (D-100).
  */
-import { existsSync, mkdirSync, readFileSync, rmSync, writeFileSync } from 'node:fs';
+import { existsSync, mkdirSync, readdirSync, readFileSync, rmSync, writeFileSync } from 'node:fs';
 import { join } from 'node:path';
 
 import {
@@ -77,13 +77,79 @@ export const PROBE_EXTENSIONS: readonly string[] = ['ts', 'tsx'];
 export const EMITTED_PROBE_EXTENSIONS: readonly string[] = ['js'];
 
 /**
- * The filename stem every probe uses.
+ * The filename stem every probe uses; a probe is `<stem><pid>.<extension>`.
  *
- * Matched by a `.gitignore` rule at the repository root, so a run killed
- * between the write and the cleanup leaves nothing `git status` reports and
- * nothing a later commit can pick up by accident.
+ * **No `.gitignore` rule matches it, and none may.** Tailwind consults
+ * `.gitignore` for the descendants of an `@source` base, so an ignored probe is
+ * a probe the scanner never reads, and the guard would assert nothing (the
+ * rules were removed for that reason in feature 110; the root `.gitignore`
+ * says why where they used to be). A run killed between the write and the
+ * cleanup therefore leaves files `git status` shows, and the next run removes
+ * them — {@link sweepStaleTailwindSourceProbes} — before it plants its own.
+ *
+ * The pid in the name is what makes that safe: the admin and storefront guards
+ * run side by side under `pnpm --filter '!backend' run test` and plant into the
+ * same package directories, and a sweep keyed on the stem alone would delete
+ * the other run's probes mid-compile.
  */
 export const PROBE_STEM = '__tailwind-source-probe__';
+
+/** `<stem><pid>.<extension>` — the only names a sweep may remove. */
+const PROBE_FILE = new RegExp(`^${PROBE_STEM}(\\d+)\\.[a-z]+$`);
+
+/**
+ * Whether `pid` names a running process. `EPERM` is a process that exists and
+ * belongs to somebody else, which is alive; only `ESRCH` is gone.
+ */
+function pidIsLive(pid: number): boolean {
+  try {
+    process.kill(pid, 0);
+    return true;
+  } catch (error) {
+    return (error as NodeJS.ErrnoException).code === 'EPERM';
+  }
+}
+
+/**
+ * Remove the probes a run that is no longer alive left behind, in every
+ * directory `targets` would plant into and at `repoRoot` (the control).
+ *
+ * Issue #105. The probes are removed in a `finally`, which a killed run never
+ * reaches, and they cannot be ignored (see {@link PROBE_STEM}). So each guard
+ * sweeps first. A probe whose pid is still running belongs to a run in flight —
+ * the other frontend's guard — and is left alone; a file that does not have a
+ * probe's exact name is never touched; and no directory is created, so an
+ * emitted directory that is absent stays absent for the measurement.
+ *
+ * @returns the files removed, absolute.
+ */
+export function sweepStaleTailwindSourceProbes(
+  repoRoot: string,
+  targets: readonly TailwindProbeTarget[],
+  isLive: (pid: number) => boolean = pidIsLive,
+): readonly string[] {
+  const directories = new Set<string>([repoRoot]);
+  for (const target of targets) {
+    for (const directory of target.directories) directories.add(directory.path);
+  }
+  const removed: string[] = [];
+  for (const directory of directories) {
+    let names: string[];
+    try {
+      names = readdirSync(directory);
+    } catch {
+      continue;
+    }
+    for (const name of names) {
+      const match = PROBE_FILE.exec(name);
+      if (match === null || isLive(Number(match[1]))) continue;
+      const file = join(directory, name);
+      rmSync(file, { force: true });
+      removed.push(file);
+    }
+  }
+  return removed;
+}
 
 /** One file written, and what the compiled stylesheet must say about it. */
 export interface TailwindSourceProbe {
@@ -403,7 +469,7 @@ export function planTailwindSourceProbes(
 function contentsOf(probe: TailwindSourceProbe): string {
   return (
     '// Written by the Tailwind module-package source guard (feature 080, T044).\n' +
-    '// Deleted by the same test; a leftover is ignored by .gitignore.\n' +
+    '// Deleted by the same test; a leftover is removed by the next run.\n' +
     `export const tailwindSourceProbe = '${probe.utility}';\n`
   );
 }

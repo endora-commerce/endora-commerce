@@ -1,5 +1,6 @@
 import { spawnSync } from 'node:child_process';
-import { existsSync, readFileSync } from 'node:fs';
+import { existsSync, mkdirSync, mkdtempSync, readFileSync, rmSync, writeFileSync } from 'node:fs';
+import { tmpdir } from 'node:os';
 import { dirname, join } from 'node:path';
 import { fileURLToPath } from 'node:url';
 import { describe, expect, it } from 'vitest';
@@ -9,9 +10,12 @@ import {
   checkApplicationReaches,
   checkPlatformSurface,
   checkSharedNames,
+  collectPlatformSurfaceSources,
+  collectPlatformSurfaceTestSources,
   hostDependentCoverage,
   hostReachCoverage,
   isPackageToolingConfig,
+  isPlatformSurfaceTestSource,
   keyOf,
   NO_SYMBOL,
   platformSurfaceRefusal,
@@ -496,6 +500,83 @@ describe('a bare specifier into the host package', () => {
       kind: 'host-internal-subpath',
       subpath: 'demo',
     });
+  });
+
+  /**
+   * Issue #114 — a module's **test** files are judged on which subpaths of the
+   * host they name, and on nothing else. A module package whose tests need the
+   * host's internals cannot be tested outside this repository, so the subpath
+   * question is the one that matters for them; which *symbols* a test takes out
+   * of a published barrel is not this check's business, because a test may
+   * legitimately reach the module's own internals and fixtures.
+   */
+  describe('a module test file (issue #114)', () => {
+    const packagedTest = 'packages/modules/blog/src/backend.test.ts';
+
+    it('reports a host-internal subpath it names', () => {
+      const reach = {
+        [packagedTest]: "import { createRootContainer } from '@endora-commerce/platform/composition';",
+      };
+      const result = checkPlatformSurface(input(reach), {});
+      expect(kinds(result.violations)).toEqual(['host-internal-subpath']);
+      expect(result.violations[0]).toMatchObject({
+        file: packagedTest,
+        moduleId: 'blog',
+        target: '@endora-commerce/platform/composition',
+        symbol: NO_SYMBOL,
+      });
+    });
+
+    it('reports a subpath the host does not declare', () => {
+      const result = checkPlatformSurface(
+        input({ [packagedTest]: "import { x } from '@endora-commerce/platform/testing';" }),
+        {},
+      );
+      expect(kinds(result.violations)).toEqual(['unpublished-subpath']);
+    });
+
+    it('is not asked the symbol question, by either spelling', () => {
+      const result = checkPlatformSurface(
+        input({
+          [packagedTest]: [
+            "import { HttpError } from '@endora-commerce/platform/http';",
+            "import { NotOnTheBarrel } from '@endora-commerce/platform/kernel';",
+          ].join('\n'),
+          'backend/src/modules/blog/backend.test.ts':
+            "import { SettingsCache } from '../../kernel/settings/settings-cache.js';",
+        }),
+        {},
+      );
+      expect(result.violations).toEqual([]);
+    });
+
+    it('counts each host specifier it judged as a site, and none of them toward host coverage', () => {
+      // A package whose only host reaches were in its tests would otherwise
+      // satisfy `hostDependentCoverage` with no production source read at all.
+      const reach = { [packagedTest]: "import { HttpError } from '@endora-commerce/platform/http';" };
+      const scan = scanPlatformSurface(input(reach));
+      expect(scan.reaches).toBe(1);
+      expect([...scan.hostReachModules]).toEqual([]);
+    });
+  });
+
+  it('walks a module\'s test files as a population of their own', () => {
+    const dir = mkdtempSync(join(tmpdir(), 'platform-surface-walk-'));
+    try {
+      mkdirSync(join(dir, 'src', 'node_modules'), { recursive: true });
+      for (const name of ['a.ts', 'a.test.ts', 'b.test.tsx', 'c.d.ts']) {
+        writeFileSync(join(dir, 'src', name), '');
+      }
+      writeFileSync(join(dir, 'src', 'node_modules', 'x.test.ts'), '');
+      const names = (files: readonly string[]): string[] =>
+        files.map((file) => file.slice(dir.length + 1)).sort();
+      expect(names(collectPlatformSurfaceSources(dir))).toEqual(['src/a.ts']);
+      expect(names(collectPlatformSurfaceTestSources(dir))).toEqual(['src/a.test.ts', 'src/b.test.tsx']);
+      expect(isPlatformSurfaceTestSource('packages/modules/blog/src/x.test.ts')).toBe(true);
+      expect(isPlatformSurfaceTestSource('packages/modules/blog/src/x.ts')).toBe(false);
+    } finally {
+      rmSync(dir, { recursive: true, force: true });
+    }
   });
 
   it('tells the declared-and-unpublished subpath from the one that does not exist', () => {

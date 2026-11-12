@@ -801,8 +801,11 @@ wiadomość tej szansy, w przeciwnym razie odpowiedzią jest 404. To, jak daleko
 przeczytał każdy administrator, jest przechowywane w tabeli
 `crm_opportunity_message_reads` — jeden wiersz na administratora i szansę — i
 znika razem z szansą, gdy zostanie ona usunięta. Tabela
-`crm_message_read_baselines` przechowuje jedną chwilę, od której liczone są
-nieprzeczytane wiadomości dla osoby, która nie ma jeszcze znacznika.
+`crm_message_read_baselines` przechowuje jedną chwilę, od której w ogóle liczone
+są nieprzeczytane wiadomości: wiadomość jest nieprzeczytana, gdy jest nowsza
+zarówno od tej chwili, jak i od twojego znacznika, więc znacznik starszy od tej
+chwili nie sprawia, że cokolwiek znów staje się nieprzeczytane. Liczone są
+wyłącznie wiadomości, które pokazuje karta *Wiadomości*.
 
 ## Załączniki
 

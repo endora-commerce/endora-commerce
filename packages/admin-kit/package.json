@@ -54,7 +54,8 @@
   "files": [
     "dist",
     "tailwind.css",
-    "theme.css"
+    "theme.css",
+    "!dist/**/*.map"
   ],
   "engines": {
     "node": ">=22.18.0"
@@ -101,6 +102,6 @@
     "react-router-dom": "^7.18.2",
     "tailwind-merge": "^3.5.0",
     "typescript": "^5.9.3",
-    "vite": "^7.3.7"
+    "vite": "^8.3.8"
   }
 }

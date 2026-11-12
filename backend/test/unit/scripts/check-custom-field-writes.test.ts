@@ -1,4 +1,4 @@
-import { readFileSync, rmSync, writeFileSync } from 'node:fs';
+import { readFileSync, rmSync, utimesSync, writeFileSync } from 'node:fs';
 import { join } from 'node:path';
 
 import { describe, expect, it } from 'vitest';
@@ -52,6 +52,13 @@ describe('check-custom-field-writes — a finding is exit 1', () => {
       const text = readFileSync(manifest, 'utf8');
       expect(text).toContain("body: 'UpdateTaskBodySchema'");
       writeFileSync(manifest, text.replace("body: 'UpdateTaskBodySchema'", "body: 'CreateTaskBodySchema'"));
+      // This check reads the declaration out of the manifest **source**, but the
+      // module layout it resolves is read out of the emitted one, and that loader
+      // refuses an emitted manifest its source has outrun (issue #104). The edit
+      // changes nothing the layout reads, so the emitted file is stamped as
+      // rebuilt: the fixture stands for an author who ran the build.
+      const later = new Date(Date.now() + 60_000);
+      utimesSync(join(fixture.root, 'packages', 'modules', 'tasks', 'dist', 'manifest.js'), later, later);
 
       const result = fixture.run(SCRIPT);
       expect(result.status, result.output).toBe(1);

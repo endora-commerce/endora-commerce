@@ -116,6 +116,23 @@ export async function withModuleOff<T>(
   }
 }
 
+/**
+ * What a probed route answers with while its module is on (issue #102).
+ *
+ *  - `'json'` (the default) — the route speaks JSON, so whatever it answers can
+ *    be read for an error envelope, and the on-phases assert only that the
+ *    envelope is not `MODULE_DISABLED`.
+ *  - `'non-json'` — the route's own answer is XML, CSV, plain text or similar,
+ *    as `seo`'s storefront sitemap is. Its body is never parsed while the
+ *    module is on; the on-phases instead hold it to answering a body that does
+ *    not declare itself JSON, which is the positive control: the refusal is a
+ *    JSON envelope, so a route that answers JSON while on is not answering in
+ *    its own voice. Off, it is held to the `MODULE_DISABLED` envelope exactly
+ *    like every other probe — the platform's refusal is the same whatever the
+ *    route would have said.
+ */
+export type OffStateSuccessBody = 'json' | 'non-json';
+
 /** A request to make while the module is off. A bare string means `GET`. */
 export interface OffStateProbe {
   method?: InjectOptions['method'];
@@ -123,6 +140,8 @@ export interface OffStateProbe {
   headers?: Record<string, string>;
   cookies?: Record<string, string>;
   payload?: unknown;
+  /** Defaults to `'json'`. See {@link OffStateSuccessBody}. */
+  successBody?: OffStateSuccessBody;
 }
 
 export interface OffStateSurfaces {
@@ -167,6 +186,7 @@ interface ServerLike {
     inject(opts: InjectOptions): Promise<{
       statusCode: number;
       headers: Record<string, unknown>;
+      body: string;
       json(): { error?: { code?: string } };
     }>;
   };
@@ -199,6 +219,10 @@ function toInject(probe: string | OffStateProbe): InjectOptions {
   } as InjectOptions;
 }
 
+function successBodyOf(probe: string | OffStateProbe): OffStateSuccessBody {
+  return typeof probe === 'string' ? 'json' : (probe.successBody ?? 'json');
+}
+
 function label(probe: string | OffStateProbe): string {
   const p: OffStateProbe = typeof probe === 'string' ? { url: probe } : probe;
   return `${p.method ?? 'GET'} ${p.url}`;
@@ -216,8 +240,12 @@ async function expectRoutesRefused(
       res.statusCode,
       `[off-state:${phase}] ${label(probe)} should refuse while "${moduleId}" is off`,
     ).toBe(503);
+    // Parsed from the raw body rather than through `res.json()`, so a route
+    // whose own answer is not JSON (issue #102) fails here on the assertion —
+    // "no MODULE_DISABLED envelope" — and not on a parse error that names
+    // nothing.
     expect(
-      res.json().error?.code,
+      envelopeCodeOf(res.body),
       `[off-state:${phase}] ${label(probe)} should carry the MODULE_DISABLED envelope`,
     ).toBe('MODULE_DISABLED');
     expect(
@@ -235,12 +263,34 @@ async function expectRoutesAnswering(
 ): Promise<void> {
   for (const probe of surfaces.routes) {
     const res = await server.app.inject(toInject(probe));
+    if (successBodyOf(probe) === 'non-json') {
+      // Its body is not parsed: an XML or plain-text answer is the route
+      // speaking for itself, and a JSON one is not — whatever envelope it
+      // carries, it is not the answer this probe declared.
+      expect(
+        String(res.headers['content-type'] ?? ''),
+        `[off-state:${phase}] ${label(probe)} was declared to answer a non-JSON body ` +
+          `while "${moduleId}" is on, and answered JSON (${res.statusCode}): ${res.body.slice(0, 200)}`,
+      ).not.toMatch(/json/i);
+      continue;
+    }
     // The route may legitimately answer 401/404/422 for the probe's payload —
     // what it must not do is claim the module is absent.
     expect(
       res.json().error?.code,
       `[off-state:${phase}] ${label(probe)} should not report "${moduleId}" as disabled`,
     ).not.toBe('MODULE_DISABLED');
+  }
+}
+
+/** The error envelope's code, or `undefined` for a body that is not a JSON envelope. */
+function envelopeCodeOf(body: string): string | undefined {
+  try {
+    const parsed = JSON.parse(body) as { error?: { code?: unknown } } | null;
+    const code = parsed?.error?.code;
+    return typeof code === 'string' ? code : undefined;
+  } catch {
+    return undefined;
   }
 }
 
