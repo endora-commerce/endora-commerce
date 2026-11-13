@@ -2,7 +2,7 @@ import { useCallback, useEffect, useMemo, useState, type ReactNode } from 'react
 import { Bell, Search } from 'lucide-react';
 import { scopeNoticeOf, type ScopeNoticeCode } from '@endora-commerce/contracts';
 import { ApiError, apiClient, formatDateTime, cn, useSurfaceVisibility, normalize } from '@endora-commerce/admin-kit/lib';
-import { ScopeNotice } from '@endora-commerce/admin-kit/components';
+import { ScopeNotice, useConfirmDialog } from '@endora-commerce/admin-kit/components';
 import { useTranslation } from '@endora-commerce/admin-kit/i18n';
 interface NotificationRow {
   id: string;
@@ -36,6 +36,7 @@ interface ListResponse {
  */
 export function AvailabilityNotificationsPage(): ReactNode {
   const t = useTranslation('core');
+  const { confirm, confirmDialog } = useConfirmDialog();
   // The screen's own gate (2026-08-29) — see `InventoryPage` for the reasoning
   // in full. The cancel button is the write half: it was `catalog:write` while
   // the list beside it was `orders:read`.
@@ -92,9 +93,13 @@ export function AvailabilityNotificationsPage(): ReactNode {
 
 
   const handleCancel = async (id: string): Promise<void> => {
-    if (!window.confirm(t('inventory.availability.confirmCancel'))) {
-      return;
-    }
+    const ok = await confirm({
+      message: t('inventory.availability.confirmCancel'),
+      confirmLabel: t('inventory.availability.cancelSubscription'),
+      cancelLabel: t('inventory.availability.keepSubscription'),
+      destructive: true,
+    });
+    if (!ok) return;
     setBusyId(id);
     setError(null);
     setInfo(null);
@@ -262,6 +267,7 @@ export function AvailabilityNotificationsPage(): ReactNode {
           )}
         </div>
       </div>
+      {confirmDialog}
     </div>
   );
 }

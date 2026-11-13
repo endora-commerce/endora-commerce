@@ -96,5 +96,10 @@
   "list.badge.signInRequired": "Sign-in required",
   "actions.openSalesChannels.keywords": "channel, channels, sales",
   "actions.newSalesChannel.keywords": "channel, sales",
-  "settingGroups.sales_channels.name": "Sales channels"
+  "settingGroups.sales_channels.name": "Sales channels",
+  "membership.rebindConfirm": "Move this {entityType} to the system default channel and remove it from this one?",
+  "membership.action.rebind": "Move to the default channel",
+  "edit.deleteConfirm": "Delete sales channel “{code}”? This cannot be undone. If a product, customer or category would be left with no channel, the deletion is refused and you can choose to move them to the system default channel instead.",
+  "edit.rebindConfirm": "Move those records to the system default channel and delete this channel?",
+  "edit.action.rebindAndDelete": "Move and delete"
 }

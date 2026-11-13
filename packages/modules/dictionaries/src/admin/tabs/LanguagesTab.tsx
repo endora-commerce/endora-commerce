@@ -7,7 +7,7 @@ import {
   type ReactNode,
 } from 'react';
 import { ArrowDown, ArrowUp, Plus, Star, Trash2 } from 'lucide-react';
-import { PaginationFooter, TouchReorderButtons } from '@endora-commerce/admin-kit/components';
+import { PaginationFooter, TouchReorderButtons, useConfirmDialog } from '@endora-commerce/admin-kit/components';
 import type {
   Country,
   CreateDictionaryLanguageRequest,
@@ -54,6 +54,7 @@ const emptyLanguage: LanguageFormState = {
 
 export function LanguagesTab(): ReactNode {
   const t = useTranslation('dictionaries');
+  const { confirm, confirmDialog } = useConfirmDialog();
   const [rows, setRows] = useState<DictionaryLanguage[]>([]);
   const [countries, setCountries] = useState<Country[]>([]);
   const [translationCompleteness, setTranslationCompleteness] = useState<Record<string, boolean>>({});
@@ -220,7 +221,12 @@ export function LanguagesTab(): ReactNode {
   };
 
   const remove = async (code: string): Promise<void> => {
-    if (!confirm(`Delete language ${code}?`)) return;
+    const ok = await confirm({
+      message: t('language.deleteConfirm', { code }),
+      confirmLabel: t('action.delete'),
+      destructive: true,
+    });
+    if (!ok) return;
     try {
       await dictionaryClient.deleteLanguage(code);
       setInfo(`Language ${code} deleted.`);
@@ -484,6 +490,7 @@ export function LanguagesTab(): ReactNode {
         onSetAssociation={setAssociation}
         onMakePrimary={makePrimary}
       />
+      {confirmDialog}
     </div>
   );
 }

@@ -65,7 +65,7 @@
   "folders.root": "Nieposortowane (root)",
   "folders.namePlaceholder": "Nazwa folderu",
   "folders.newSubfolder": "Nowy podfolder",
-  "folders.deleteConfirm": "Usunąć ten folder?\n\nOK = przenieś zawartość do folderu nadrzędnego, a potem usuń.\nAnuluj = przerwij.",
+  "folders.deleteConfirm": "Usunąć ten folder? Jego zawartość zostanie najpierw przeniesiona do folderu nadrzędnego.",
   "folders.permalinkNotice": "Pliki w tym folderze ze stałym linkiem: {count}. Ich linki nadal działają: pliki trafiają do folderu nadrzędnego.",
   "folders.removed": "Usunięto folder ({id}).",
   "nav.assetsLibrary.label": "Biblioteka zasobów",

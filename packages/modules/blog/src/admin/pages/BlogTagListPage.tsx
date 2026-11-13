@@ -1,4 +1,5 @@
 import { useCallback, useEffect, useState, type ReactNode } from 'react';
+import { useConfirmDialog } from '@endora-commerce/admin-kit/components';
 import type { BlogTagDetail } from '@endora-commerce/contracts';
 import { Alert, AlertDescription, Badge, Button, Card, CardContent, CardHeader, CardTitle, Input, Label, PageHeader } from '@endora-commerce/admin-kit/ui';
 import { useTranslation } from '@endora-commerce/admin-kit/i18n';
@@ -29,6 +30,8 @@ const blankForm: FormState = { name: '', code: '', description: '' };
 
 export function BlogTagListPage(): ReactNode {
   const t = useTranslation('blog');
+  const tc = useTranslation('core');
+  const { confirm, confirmDialog } = useConfirmDialog();
   const [rows, setRows] = useState<BlogTagDetail[]>([]);
   const [q, setQ] = useState('');
   const [page, setPage] = useState(1);
@@ -118,22 +121,16 @@ export function BlogTagListPage(): ReactNode {
   const onDelete = useCallback(
     async (tag: BlogTagDetail) => {
       const probe = await blogClient.getTagInboundReferences(tag.id);
-      if (probe.totalPosts > 0) {
-        const slugs = probe.posts.map((p) => p.slug).join(', ');
-        if (
-          !window.confirm(
-            t('tagList.deleteConfirm.inUse', {
-              code: tag.code,
-              count: probe.totalPosts,
-              slugs,
-            }),
-          )
-        ) {
-          return;
-        }
-      } else if (!window.confirm(t('tagList.deleteConfirm.default', { code: tag.code }))) {
-        return;
-      }
+      const slugs = probe.posts.map((p) => p.slug).join(', ');
+      const ok = await confirm({
+        message:
+          probe.totalPosts > 0
+            ? t('tagList.deleteConfirm.inUse', { code: tag.code, count: probe.totalPosts, slugs })
+            : t('tagList.deleteConfirm.default', { code: tag.code }),
+        confirmLabel: tc('common.action.delete'),
+        destructive: true,
+      });
+      if (!ok) return;
       setSaving(true);
       setError(null);
       try {
@@ -146,7 +143,7 @@ export function BlogTagListPage(): ReactNode {
         setSaving(false);
       }
     },
-    [load],
+    [load, confirm, t, tc],
   );
 
   return (
@@ -321,6 +318,7 @@ export function BlogTagListPage(): ReactNode {
           )}
         </CardContent>
       </Card>
+      {confirmDialog}
     </div>
   );
 }

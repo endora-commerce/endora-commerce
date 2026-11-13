@@ -32,6 +32,7 @@ import {
   CustomerPicker,
   OrganizationPicker,
   SalesChannelPicker,
+  useConfirmDialog,
 } from '@endora-commerce/admin-kit/components';
 
 // Feature 062 — the scope catalog is the typed contract enum (research §R3);
@@ -56,6 +57,7 @@ interface CreateKeyInput {
 
 export default function ApiKeysPage(): ReactNode {
   const t = useTranslation('core');
+  const { confirm, confirmDialog } = useConfirmDialog();
   const [keys, setKeys] = useState<ApiKey[]>([]);
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState<string | null>(null);
@@ -138,7 +140,12 @@ export default function ApiKeysPage(): ReactNode {
 
   const handleRevoke = useCallback(
     async (id: string): Promise<void> => {
-      if (!confirm(t('apiKeys.action.revokeConfirm'))) return;
+      const ok = await confirm({
+        message: t('apiKeys.action.revokeConfirm'),
+        confirmLabel: t('apiKeys.action.revoke'),
+        destructive: true,
+      });
+      if (!ok) return;
       try {
         await apiClient.delete<void>(`/api/v1/admin/api-keys/${id}`);
         await refresh();
@@ -146,7 +153,7 @@ export default function ApiKeysPage(): ReactNode {
         setError(err instanceof ApiError ? err.envelope.error.message : t('apiKeys.error.revoke'));
       }
     },
-    [refresh, t],
+    [refresh, t, confirm],
   );
 
   return (
@@ -287,6 +294,7 @@ export default function ApiKeysPage(): ReactNode {
           )}
         </CardContent>
       </Card>
+      {confirmDialog}
     </>
   );
 }

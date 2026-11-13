@@ -1,4 +1,5 @@
 import { useCallback, useEffect, useState, type ReactNode } from 'react';
+import { useConfirmDialog } from '@endora-commerce/admin-kit/components';
 import { Link } from 'react-router-dom';
 import type { SalesChannelSummary } from '@endora-commerce/contracts';
 import { ApiError, useAuth } from '@endora-commerce/admin-kit/lib';
@@ -25,6 +26,7 @@ import { useTranslation } from '@endora-commerce/admin-kit/i18n';
  */
 export function SalesChannelsListPage(): ReactNode {
   const t = useTranslation('sales_channels');
+  const { confirm, confirmDialog } = useConfirmDialog();
   const { hasPermission } = useAuth();
   const canWrite = hasPermission('sales_channels:write');
   const [rows, setRows] = useState<SalesChannelSummary[]>([]);
@@ -57,13 +59,11 @@ export function SalesChannelsListPage(): ReactNode {
   const makeDefault = useCallback(
     async (channel: SalesChannelSummary): Promise<void> => {
       const previous = rows.find((c) => c.systemDefault)?.code ?? '—';
-      if (
-        !window.confirm(
-          t('list.action.makeDefault.confirm', { code: channel.code, previous }),
-        )
-      ) {
-        return;
-      }
+      const ok = await confirm({
+        message: t('list.action.makeDefault.confirm', { code: channel.code, previous }),
+        confirmLabel: t('list.action.makeDefault'),
+      });
+      if (!ok) return;
       setPromoting(channel.code);
       setError(null);
       try {
@@ -79,7 +79,7 @@ export function SalesChannelsListPage(): ReactNode {
         setPromoting(null);
       }
     },
-    [refresh, rows, t],
+    [refresh, rows, t, confirm],
   );
 
   return (
@@ -207,6 +207,7 @@ export function SalesChannelsListPage(): ReactNode {
           )}
         </CardContent>
       </Card>
+      {confirmDialog}
     </>
   );
 }

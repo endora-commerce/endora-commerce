@@ -1,4 +1,5 @@
 import { useCallback, useEffect, useState, type ReactNode } from 'react';
+import { useConfirmDialog } from '@endora-commerce/admin-kit/components';
 import type {
   AdminZoneProps,
   Warehouse,
@@ -60,6 +61,7 @@ export type ChannelWarehousesProps = AdminZoneProps<'sales_channel.editor.after'
 
 export function ChannelWarehouses({ channelId }: ChannelWarehousesProps): ReactNode {
   const t = useTranslation('core');
+  const { confirm, confirmDialog } = useConfirmDialog();
   const isVisible = useSurfaceVisibility();
   const canWrite = isVisible({ module: 'inventory', requiredPermission: 'inventory:write' });
   const [assignments, setAssignments] = useState<WarehouseChannelAssignment[]>([]);
@@ -134,10 +136,17 @@ export function ChannelWarehouses({ channelId }: ChannelWarehousesProps): ReactN
 
   const handleUnassign = async (id: string, isDefault: boolean): Promise<void> => {
     if (isDefault) {
-      window.alert(t('warehouses.channel.alert.promoteFirst'));
+      // Issue #313 — said on the panel, not in the browser's `alert()`.
+      setInfo(null);
+      setError(t('warehouses.channel.alert.promoteFirst'));
       return;
     }
-    if (!window.confirm(t('warehouses.channel.confirm.unassign'))) return;
+    const ok = await confirm({
+      message: t('warehouses.channel.confirm.unassign'),
+      confirmLabel: t('warehouses.channel.action.unassign'),
+      destructive: true,
+    });
+    if (!ok) return;
     setBusy(id);
     setError(null);
     try {
@@ -270,6 +279,7 @@ export function ChannelWarehouses({ channelId }: ChannelWarehousesProps): ReactN
           </div>
         </div>
       ) : null}
+      {confirmDialog}
     </div>
   );
 }

@@ -2,7 +2,7 @@ import { useCallback, useEffect, useState, type FormEvent, type ReactNode } from
 import { Trash2 } from 'lucide-react';
 import { ApiError, apiClient, useSurfaceVisibility } from '@endora-commerce/admin-kit/lib';
 import { Alert, AlertDescription, Badge, Button, Card, CardContent, CardHeader, CardTitle, Checkbox, Input, Label, PageHeader, Select, Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from '@endora-commerce/admin-kit/ui';
-import { CountryPicker } from '@endora-commerce/admin-kit/components';
+import { CountryPicker, useConfirmDialog } from '@endora-commerce/admin-kit/components';
 import { useTranslation } from '@endora-commerce/admin-kit/i18n';
 
 interface AdminTax {
@@ -22,6 +22,7 @@ const VAT_STATUSES = ['vat_payer', 'vat_exempt', 'reverse_charge'] as const;
 
 export function TaxesPage(): ReactNode {
   const t = useTranslation('core');
+  const { confirm, confirmDialog } = useConfirmDialog();
   /**
    * The screen's own gate (2026-08-28), on the codes its routes now enforce.
    *
@@ -105,7 +106,8 @@ export function TaxesPage(): ReactNode {
 
   const handleDelete = useCallback(
     async (id: string): Promise<void> => {
-      if (!confirm(t('taxes.deleteConfirm'))) return;
+      const ok = await confirm({ message: t('taxes.deleteConfirm'), confirmLabel: t('common.action.delete'), destructive: true });
+      if (!ok) return;
       try {
         await apiClient.delete<void>(`/api/v1/admin/taxes/${id}`);
         await refresh();
@@ -113,7 +115,7 @@ export function TaxesPage(): ReactNode {
         setError(err instanceof ApiError ? err.envelope.error.message : t('taxes.error.delete'));
       }
     },
-    [refresh, t],
+    [refresh, t, confirm],
   );
 
   if (!canRead) {
@@ -211,6 +213,7 @@ export function TaxesPage(): ReactNode {
           )}
         </CardContent>
       </Card>
+      {confirmDialog}
     </>
   );
 }

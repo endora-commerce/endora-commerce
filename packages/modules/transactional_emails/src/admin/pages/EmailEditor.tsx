@@ -1,4 +1,5 @@
 import { useCallback, useEffect, useState } from 'react';
+import { useConfirmDialog } from '@endora-commerce/admin-kit/components';
 import { useParams, useNavigate } from 'react-router-dom';
 import type { Data } from '@puckeditor/core';
 import type {
@@ -53,6 +54,7 @@ const emptyData: Data = { root: { props: {} }, content: [] };
  */
 export function EmailEditor(): React.ReactElement {
   const t = useTranslation('transactional_emails');
+  const { confirm, confirmDialog } = useConfirmDialog();
   const { code = '' } = useParams<{ code: string }>();
   const navigate = useNavigate();
   const { hasPermission } = useAuth();
@@ -131,7 +133,8 @@ export function EmailEditor(): React.ReactElement {
   };
 
   const reset = async (): Promise<void> => {
-    if (!window.confirm(t('editor.resetConfirm'))) return;
+    const ok = await confirm({ message: t('editor.resetConfirm'), confirmLabel: t('editor.reset'), destructive: true });
+    if (!ok) return;
     setBusy(true);
     setError(null);
     try {
@@ -271,6 +274,7 @@ export function EmailEditor(): React.ReactElement {
           />
         }
       />
+      {confirmDialog}
     </EmailVariablesProvider>
   );
 }

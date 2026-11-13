@@ -1,4 +1,4 @@
-import { useEffect, useState, type ReactNode } from 'react';
+import { useEffect, useRef, useState, type ReactNode } from 'react';
 import type { CmsColorPaletteEntry } from '@endora-commerce/contracts';
 import { Button, ColorPicker } from '@endora-commerce/admin-kit/ui';
 import { useTranslation } from '@endora-commerce/admin-kit/i18n';
@@ -137,10 +137,22 @@ export function ColorPaletteModal({
   const [localEntries, setLocalEntries] = useState(entries);
   const [saving, setSaving] = useState(false);
   const [error, setError] = useState<string | null>(null);
+  // Issue #313 — the colour whose removal is being confirmed, inline in its row
+  // rather than in the browser's `confirm()` (a second modal over this one).
+  const [confirmingId, setConfirmingId] = useState<string | null>(null);
+  const deleteButtons = useRef(new Map<string, HTMLButtonElement>());
+  const focusDeleteAfterCancel = useRef<string | null>(null);
+
+  useEffect(() => {
+    if (confirmingId !== null || focusDeleteAfterCancel.current === null) return;
+    deleteButtons.current.get(focusDeleteAfterCancel.current)?.focus();
+    focusDeleteAfterCancel.current = null;
+  }, [confirmingId]);
 
   useEffect(() => {
     if (open) {
       setLocalEntries(entries);
+      setConfirmingId(null);
       setError(null);
     }
   }, [open, entries]);
@@ -189,8 +201,13 @@ export function ColorPaletteModal({
   };
 
   const removeColor = async (id: string): Promise<void> => {
-    if (!window.confirm(t('pageBuilder.colorPalette.deleteConfirm'))) return;
+    setConfirmingId(null);
     await persist(localEntries.filter((entry) => entry.id !== id));
+  };
+
+  const cancelRemove = (id: string): void => {
+    focusDeleteAfterCancel.current = id;
+    setConfirmingId(null);
   };
 
   return (
@@ -247,13 +264,40 @@ export function ColorPaletteModal({
                     <span className="block font-mono text-xs uppercase text-muted-foreground">{entry.hex}</span>
                   </span>
                 </button>
-                {!pickMode ? (
+                {!pickMode && confirmingId === entry.id ? (
+                  <div role="group" aria-label={t('pageBuilder.colorPalette.deleteConfirm')} className="flex flex-wrap items-center justify-end gap-2">
+                    <span className="text-sm">{t('pageBuilder.colorPalette.deleteConfirm')}</span>
+                    <Button
+                      type="button"
+                      variant="outline"
+                      size="sm"
+                      autoFocus
+                      disabled={saving}
+                      onClick={(): void => cancelRemove(entry.id)}
+                    >
+                      {t('common.action.cancel')}
+                    </Button>
+                    <Button
+                      type="button"
+                      variant="destructive"
+                      size="sm"
+                      disabled={saving}
+                      onClick={(): void => void removeColor(entry.id)}
+                    >
+                      {t('pageBuilder.colorPalette.delete')}
+                    </Button>
+                  </div>
+                ) : !pickMode ? (
                   <Button
+                    ref={(node): void => {
+                      if (node) deleteButtons.current.set(entry.id, node);
+                      else deleteButtons.current.delete(entry.id);
+                    }}
                     type="button"
                     variant="outline"
                     size="sm"
                     disabled={saving}
-                    onClick={(): void => void removeColor(entry.id)}
+                    onClick={(): void => setConfirmingId(entry.id)}
                   >
                     {t('pageBuilder.colorPalette.delete')}
                   </Button>

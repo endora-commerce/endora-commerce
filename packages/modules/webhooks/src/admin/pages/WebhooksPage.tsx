@@ -28,7 +28,7 @@ import {
   TableHeader,
   TableRow,
 } from '@endora-commerce/admin-kit/ui';
-import { OrganizationPicker } from '@endora-commerce/admin-kit/components';
+import { OrganizationPicker, useConfirmDialog } from '@endora-commerce/admin-kit/components';
 
 /** `GET /api/v1/admin/webhooks/event-types` — the types other modules contribute. */
 interface ContributedEventTypesResponse {
@@ -45,6 +45,7 @@ interface DeliveriesListResponse {
 
 export default function WebhooksPage(): ReactNode {
   const t = useTranslation('core');
+  const { confirm, confirmDialog } = useConfirmDialog();
   const [webhooks, setWebhooks] = useState<Webhook[]>([]);
   const [deliveries, setDeliveries] = useState<WebhookDelivery[]>([]);
   const [loadingHooks, setLoadingHooks] = useState(true);
@@ -206,9 +207,12 @@ export default function WebhooksPage(): ReactNode {
 
   const handleDelete = useCallback(
     async (id: string): Promise<void> => {
-      if (!confirm(t('webhooks.action.deleteConfirm'))) {
-        return;
-      }
+      const ok = await confirm({
+        message: t('webhooks.action.deleteConfirm'),
+        confirmLabel: t('webhooks.action.delete'),
+        destructive: true,
+      });
+      if (!ok) return;
       try {
         await apiClient.delete<void>(`/api/v1/admin/webhooks/${id}`);
         await refreshWebhooks();
@@ -216,7 +220,7 @@ export default function WebhooksPage(): ReactNode {
         setError(err instanceof ApiError ? err.envelope.error.message : t('webhooks.error.delete'));
       }
     },
-    [refreshWebhooks, t],
+    [refreshWebhooks, t, confirm],
   );
 
   const handleReplay = useCallback(
@@ -489,6 +493,7 @@ export default function WebhooksPage(): ReactNode {
           )}
         </CardContent>
       </Card>
+      {confirmDialog}
     </>
   );
 }
