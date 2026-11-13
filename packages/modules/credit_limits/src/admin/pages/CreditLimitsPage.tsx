@@ -3,23 +3,7 @@ import { ApiError, apiClient, formatDateTime, formatMoney } from '@endora-commer
 import { Alert, AlertDescription, Button, Card, CardContent, CardHeader, CardTitle, Checkbox, Input, Label, PageHeader, Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from '@endora-commerce/admin-kit/ui';
 import { CurrencyPicker, OrganizationPicker } from '@endora-commerce/admin-kit/components';
 import { useTranslation } from '@endora-commerce/admin-kit/i18n';
-import { moneyDifference } from '@endora-commerce/contracts';
-
-interface ActiveReservation {
-  orderId: string;
-  amount: number;
-  createdAt: string;
-}
-
-interface CreditLimitView {
-  organizationId: string;
-  organizationName: string | null;
-  grantedAmount: number;
-  availableAmount: number;
-  currency: string;
-  activeReservations: ActiveReservation[];
-  grantedAt: string;
-}
+import { moneyDifference, type CreditLimitView } from '@endora-commerce/contracts';
 
 export function CreditLimitsPage(): ReactNode {
   const t = useTranslation('core');

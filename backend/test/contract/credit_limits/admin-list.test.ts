@@ -4,6 +4,8 @@ import {
   teardownBackendServer,
   type BackendServerHandle,
 } from '../../helpers/test-server.js';
+import { creditLimitListResponseSchema, creditLimitViewSchema } from '@endora-commerce/contracts';
+import { deepStrict, disagreements } from '../../helpers/strict-schema.js';
 
 /**
  * T218 — `GET /api/v1/admin/credit-limits` lists every granted credit
@@ -56,6 +58,23 @@ describe('GET /api/v1/admin/credit-limits', () => {
     expect(row).toBeDefined();
     expect(row!.grantedAmount).toBe(5000);
     expect(row!.currency).toBe('PLN');
+    // Issue #599 §6 — the roster is the published shape and nothing beside it.
+    expect(disagreements(deepStrict(creditLimitListResponseSchema), list.json())).toEqual([]);
+  });
+
+  it('the organization detail and the adjustment answer the published view', async () => {
+    const orgId = '00000000-0000-4000-8000-0000000000aa';
+    const url = `/api/v1/admin/organizations/${orgId}/credit-limit`;
+    const cookies = { b2b_session: 'stub-admin-session' };
+    const strictView = deepStrict(creditLimitViewSchema);
+
+    const detail = await h.app.inject({ method: 'GET', url, cookies });
+    expect(detail.statusCode, detail.body).toBe(200);
+    expect(disagreements(strictView, (detail.json() as { data: unknown }).data)).toEqual([]);
+
+    const adjusted = await h.app.inject({ method: 'PATCH', url, cookies, payload: { grantedAmount: 6000 } });
+    expect(adjusted.statusCode, adjusted.body).toBe(200);
+    expect(disagreements(strictView, (adjusted.json() as { data: unknown }).data)).toEqual([]);
   });
 
   it('rejects anonymous callers', async () => {
