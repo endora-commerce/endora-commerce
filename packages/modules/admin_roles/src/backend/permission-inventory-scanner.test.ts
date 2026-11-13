@@ -286,11 +286,14 @@ describe('permission gate scanner — admin shell data', () => {
       ].join('\n'),
     );
     const result = scanEnforcedPermissionGates([{ dir, moduleId: null, adminLayer: true }]);
-    // Calls first, then data, each in source order.
-    expect(result.sites.map((s) => [s.moduleId, s.surface, s.codes])).toEqual([
-      [null, 'admin-control', ['prompt_actions:use']],
-      [null, 'admin-control', ['platform.modules.read']],
-      [null, 'admin-control', ['platform.modules.read', 'platform.command_outbox.read']],
+    // Calls first, then data, each in source order. The forwarded value is the
+    // declaration written elsewhere, a runtime value (issue #1123); the type is
+    // not a site.
+    expect(result.sites.map((s) => [s.moduleId, s.surface, s.resolution, s.codes])).toEqual([
+      [null, 'admin-control', 'code', ['prompt_actions:use']],
+      [null, 'admin-control', 'code', ['platform.modules.read']],
+      [null, 'admin-control', 'code', ['platform.modules.read', 'platform.command_outbox.read']],
+      [null, 'admin-control', 'runtime-value', []],
     ]);
     expect(result.unresolved).toEqual([]);
   });
@@ -313,9 +316,162 @@ describe('permission gate scanner — admin shell data', () => {
     expect(result.sites.map((s) => [s.surface, s.codes])).toEqual([['admin-control', ['rfqs:handle']]]);
   });
 
-  it('does not read requiredPermission data outside an admin-layer root', () => {
+  it('does not read requiredPermission data outside an admin layer', () => {
     writeModule('lambda', 'index.ts', `export const nav = [{ to: '/l', requiredPermission: 'lambda:read' }];`);
     expect(codes()).toEqual([]);
+  });
+});
+
+/**
+ * Issue #1123 — a module's admin layer (`src/admin/**`) declares its nav
+ * entries, routes, zones and visibility checks with `requiredPermission` as
+ * data too, and mostly through a constant rather than a literal. Each
+ * declaration is one site; an array is one any-of; a spread of a constant
+ * array resolves to that array's members; anything else is `unresolved`.
+ */
+describe('permission gate scanner — module admin data', () => {
+  function adminModule(id: string, files: Record<string, string>): string {
+    const dir = join(root, id);
+    for (const [file, source] of Object.entries(files)) {
+      mkdirSync(join(dir, file, '..'), { recursive: true });
+      writeFileSync(join(dir, file), source, 'utf8');
+    }
+    return dir;
+  }
+
+  function sitesOf(dir: string, moduleId: string): Array<[string, string, string, string[]]> {
+    return scanEnforcedPermissionGates([{ dir, moduleId }]).sites.map((s) => [
+      s.surface,
+      s.resolution,
+      s.expression,
+      [...s.codes],
+    ]);
+  }
+
+  it('reads nav literals and module-local constants as control sites', () => {
+    const dir = adminModule('mu', {
+      'src/admin/index.ts': [
+        `const READ_PERMISSION = 'mu:read';`,
+        `const PERMS = { WRITE: 'mu:write' } as const;`,
+        `export const contributions = {`,
+        `  nav: [`,
+        `    { to: '/mu', requiredPermission: 'mu:read' },`,
+        `    { to: '/mu/a', requiredPermission: READ_PERMISSION },`,
+        `    { to: '/mu/b', requiredPermission: PERMS.WRITE },`,
+        `    { to: '/mu/c', requiredPermission: ['mu:read', 'orders:read'] },`,
+        `  ],`,
+        `};`,
+      ].join('\n'),
+    });
+    expect(sitesOf(dir, 'mu')).toEqual([
+      ['admin-control', 'code', `'mu:read'`, ['mu:read']],
+      ['admin-control', 'code', 'READ_PERMISSION', ['mu:read']],
+      ['admin-control', 'code', 'PERMS.WRITE', ['mu:write']],
+      ['admin-control', 'code', `['mu:read', 'orders:read']`, ['mu:read', 'orders:read']],
+    ]);
+  });
+
+  it('resolves a spread of a module-local constant array to one any-of site', () => {
+    const dir = adminModule('nu', {
+      'src/admin/index.ts': [
+        `const READ_PERMISSION: readonly [string, string] = ['customers:read', 'customers:manage'];`,
+        `const REQUIRED = [`,
+        `  'catalog:read',`,
+        `  'orders:read',`,
+        `] as const;`,
+        `export const contributions = {`,
+        `  nav: [{ to: '/nu', requiredPermission: [...READ_PERMISSION] }],`,
+        `  other: [{ to: '/nu/x', requiredPermission: [...REQUIRED, 'nu:read'] }],`,
+        `  ids: [{ to: '/nu/y', requiredPermission: REQUIRED }],`,
+        `};`,
+      ].join('\n'),
+    });
+    expect(sitesOf(dir, 'nu')).toEqual([
+      ['admin-control', 'code', '[...READ_PERMISSION]', ['customers:read', 'customers:manage']],
+      ['admin-control', 'code', `[...REQUIRED, 'nu:read']`, ['catalog:read', 'orders:read', 'nu:read']],
+      ['admin-control', 'code', 'REQUIRED', ['catalog:read', 'orders:read']],
+    ]);
+  });
+
+  it('resolves a spread of an imported constant array', () => {
+    const dir = adminModule('xi', {
+      'src/admin/permissions.ts': `export const READ_ANY = ['xi:read', 'xi:manage'] as const;\nexport const ONE = 'xi:one';`,
+      'src/admin/index.ts': [
+        `import { READ_ANY, ONE as SINGLE } from './permissions.js';`,
+        `export const contributions = {`,
+        `  nav: [{ to: '/xi', requiredPermission: [...READ_ANY] }, { to: '/xi/1', requiredPermission: SINGLE }],`,
+        `};`,
+      ].join('\n'),
+    });
+    expect(sitesOf(dir, 'xi')).toEqual([
+      ['admin-control', 'code', '[...READ_ANY]', ['xi:read', 'xi:manage']],
+      ['admin-control', 'code', 'SINGLE', ['xi:one']],
+    ]);
+  });
+
+  it('reports a spread or a constant it cannot resolve as unresolved, never drops it', () => {
+    const dir = adminModule('omicron', {
+      'src/admin/index.ts': [
+        `import { ELSEWHERE } from '@vendor/permissions';`,
+        `const MIXED = ['omicron:read', computeCode()];`,
+        `export const contributions = {`,
+        `  nav: [`,
+        `    { to: '/o', requiredPermission: [...ELSEWHERE] },`,
+        `    { to: '/o/a', requiredPermission: [...MIXED] },`,
+        `    { to: '/o/b', requiredPermission: ['omicron:read', ...ELSEWHERE] },`,
+        `    { to: '/o/c', requiredPermission: MISSING },`,
+        `  ],`,
+        `};`,
+      ].join('\n'),
+    });
+    expect(sitesOf(dir, 'omicron')).toEqual([
+      ['admin-control', 'unresolved', '[...ELSEWHERE]', []],
+      ['admin-control', 'unresolved', '[...MIXED]', []],
+      ['admin-control', 'unresolved', `['omicron:read', ...ELSEWHERE]`, []],
+      ['admin-control', 'unresolved', 'MISSING', []],
+    ]);
+  });
+
+  it('keeps a module route declaration an enforcement site and reads visibility checks as controls', () => {
+    const dir = adminModule('pi', {
+      'src/admin/index.ts': [
+        `const READ = 'pi:read';`,
+        `export const contributions = {`,
+        `  routes: [{ path: '/pi', component: () => import('./pages/Pi.js'), requiredPermission: READ }],`,
+        `  zones: [zoneComponent('order.detail.after', () => import('./zones/Z.js'), { requiredPermission: 'orders:read' })],`,
+        `};`,
+      ].join('\n'),
+      'src/admin/pages/Pi.tsx': `const canWrite = isVisible({ module: 'pi', requiredPermission: 'pi:write' });`,
+    });
+    expect(sitesOf(dir, 'pi').sort()).toEqual(
+      [
+        ['enforcement', 'code', 'READ', ['pi:read']],
+        ['admin-control', 'code', `'orders:read'`, ['orders:read']],
+        ['admin-control', 'code', `'pi:write'`, ['pi:write']],
+      ].sort(),
+    );
+  });
+
+  it('skips a type annotation and reports a forwarded declaration as a runtime value', () => {
+    const dir = adminModule('rho', {
+      'src/admin/index.ts': [
+        `import type { PermissionRequirement } from '@endora-commerce/admin-kit';`,
+        `interface Entry { requiredPermission: PermissionRequirement; other: string }`,
+        `function Route({ requiredPermission }: { requiredPermission: PermissionRequirement | undefined }) {}`,
+        `const forwarded = items.map((item) => ({ requiredPermission: item.requiredPermission }));`,
+      ].join('\n'),
+    });
+    expect(sitesOf(dir, 'rho')).toEqual([
+      ['admin-control', 'runtime-value', 'item.requiredPermission', []],
+    ]);
+  });
+
+  it('reads no requiredPermission data outside the admin layer', () => {
+    const dir = adminModule('sigma', {
+      'src/manifest.ts': `export const actions = [{ id: 's', requiredPermission: 'sigma:read' }];`,
+      'src/backend/index.ts': `export const nav = [{ to: '/s', requiredPermission: 'sigma:read' }];`,
+    });
+    expect(sitesOf(dir, 'sigma')).toEqual([]);
   });
 });
 

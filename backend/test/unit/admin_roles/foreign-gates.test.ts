@@ -576,6 +576,37 @@ describe('foreign-gate sweep — this build', () => {
     ]);
   });
 
+  /**
+   * Issue #1123 — a module's admin contributions are in the population too, and
+   * `requiredPermission: [...CONSTANT]` resolves to the constant's members: one
+   * any-of per declaration, a route an enforcement site and a nav entry a control.
+   */
+  it('reads module admin requiredPermission spreads as one any-of site each', async () => {
+    const { scan } = await findings;
+    const spreadSites = (moduleId: string, expression: string) =>
+      scan.sites
+        .filter((site) => site.moduleId === moduleId && /admin[\\/]index\.ts$/.test(site.file))
+        .filter((site) => site.expression === expression)
+        .map((site) => [site.surface, site.resolution, site.codes]);
+    const importExport = [
+      'catalog:read',
+      'catalog:write',
+      'customers:read',
+      'inventory:read',
+      'inventory:write',
+      'orders:read',
+    ];
+    expect(spreadSites('import_export', '[...REQUIRED_PERMISSION]')).toEqual([
+      ['enforcement', 'code', importExport],
+      ['admin-control', 'code', importExport],
+    ]);
+    expect(spreadSites('organizations', '[...READ_PERMISSION]')).toEqual([
+      ['enforcement', 'code', ['customers:read', 'customers:manage']],
+      ['enforcement', 'code', ['customers:read', 'customers:manage']],
+      ['admin-control', 'code', ['customers:read', 'customers:manage']],
+    ]);
+  });
+
   it('carries no ledger entry describing a finding that is gone', async () => {
     const { findings: found } = await findings;
     expect(staleForeignGateLedgerEntries(found)).toEqual([]);
