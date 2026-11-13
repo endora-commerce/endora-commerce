@@ -2,6 +2,7 @@ import type { ReactNode } from 'react';
 import { getSessionCookie, clearSessionCookie } from '../../lib/session';
 import { getMe } from '../../lib/api/account';
 import { listOrganizationCarts } from '../../lib/api/cart';
+import { getUnreadNotificationCount } from '../../lib/api/customer-notifications';
 import { logoutCustomer } from '../../lib/api/auth';
 import { StorefrontApiError } from '../../lib/api/client';
 import { ImpersonationBanner } from '../../components/ImpersonationBanner';
@@ -55,8 +56,12 @@ export default async function AccountLayout({
     throw err;
   }
 
-  const { locale, modules } = await getServerContext();
+  const { locale, ctx, modules } = await getServerContext();
   const t = tForLocale(locale);
+  // `specs/179-rfq-and-customer-notifications/` FR-051c — read only while the
+  // centre is present; the root layout reads the same count (one call, `cache`).
+  const notifications = modules.isPresent('customer_notifications');
+  const unread = notifications ? await getUnreadNotificationCount(session, ctx.salesChannelCode, ctx.locale) : 0;
   const company = organizationAreaAccess(me, 'summary') === 'allowed';
   const manages = organizationAreaAccess(me, 'members') === 'allowed';
   const approves = organizationAreaAccess(me, 'carts') === 'allowed';
@@ -77,6 +82,14 @@ export default async function AccountLayout({
           <span className="muted">{me.organization.name}</span>
         ) : null}
         <LocalizedLink href="/account">{t('account.nav.profile')}</LocalizedLink>
+        {/* Second, after the profile (Serial Position), with the unread count in text. */}
+        {notifications ? (
+          <LocalizedLink href="/account/notifications">
+            {unread > 0
+              ? format(t('account.nav.notificationsCount'), { count: unread.toLocaleString(locale) })
+              : t('account.nav.notifications')}
+          </LocalizedLink>
+        ) : null}
         {isPersonalOrganization(me.organization) ? (
           <LocalizedLink href="/addresses">{t('account.nav.addresses')}</LocalizedLink>
         ) : null}

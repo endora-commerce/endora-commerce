@@ -15,6 +15,8 @@ export function Pagination(props: {
   nextCursor: string | null;
   hasMore: boolean;
   locale: string;
+  /** The link's caption; "Next" when not given ("Show older" on a newest-first list). */
+  label?: string;
 }): ReactNode {
   const t = tForLocale(props.locale);
   if (!props.hasMore || !props.nextCursor) return null;
@@ -31,7 +33,7 @@ export function Pagination(props: {
           rel="next"
           className="btn btn--outline btn--sm"
         >
-          {t('pagination.next')} <ChevRightIcon />
+          {props.label ?? t('pagination.next')} <ChevRightIcon />
         </LocalizedLink>
       </div>
     </nav>
