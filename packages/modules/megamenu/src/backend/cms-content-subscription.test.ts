@@ -154,8 +154,7 @@ describe('megamenu follows CMS content changes', () => {
  */
 describe('megamenu follows asset changes', () => {
   it('drops its Redis entries, then revalidates its tag, when an embedded asset changes', async () => {
-    registryCache.__setEnabledForTesting([MODULE_ID]);
-    const { emitAssets, log } = build();
+    const { emitAssets, log } = build(true);
 
     emitAssets(['asset-1']);
     await settle();
@@ -168,8 +167,7 @@ describe('megamenu follows asset changes', () => {
   });
 
   it('ignores an announcement that names no asset', async () => {
-    registryCache.__setEnabledForTesting([MODULE_ID]);
-    const { emitAssets, log } = build();
+    const { emitAssets, log } = build(true);
 
     emitAssets([]);
     await settle();
@@ -178,8 +176,7 @@ describe('megamenu follows asset changes', () => {
   });
 
   it('does nothing while the module is off', async () => {
-    registryCache.__setEnabledForTesting([]);
-    const { emitAssets, log } = build();
+    const { emitAssets, log } = build(false);
 
     emitAssets(['asset-1']);
     await settle();

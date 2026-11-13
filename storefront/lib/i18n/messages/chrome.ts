@@ -91,6 +91,8 @@ export const chrome = defineMessages({
     'chrome.header.quoteRequestItems': 'Quote request · items: {count}',
     'chrome.header.compare': 'Compare products',
     'chrome.header.cartItems': 'Cart · items: {count}',
+    /** Visually hidden after the account entry's name (FR-051b); the exact count, never capped. */
+    'chrome.header.accountUnread': 'Unread notifications: {count}',
 
     'chrome.footer.about':
       'A B2B wholesaler of industrial components. Bearings, drives, automation, electrical, pneumatics and tools. Same-day shipping, invoices with deferred payment terms and full technical documentation.',
@@ -246,6 +248,7 @@ export const chrome = defineMessages({
     'chrome.header.quoteRequestItems': 'Zapytanie ofertowe · liczba pozycji: {count}',
     'chrome.header.compare': 'Porównaj produkty',
     'chrome.header.cartItems': 'Koszyk · liczba pozycji: {count}',
+    'chrome.header.accountUnread': 'Nieprzeczytane powiadomienia: {count}',
 
     'chrome.footer.about':
       'Hurtownia B2B komponentów przemysłowych. Łożyska, napędy, automatyka, elektryka, pneumatyka i narzędzia. Wysyłka tego samego dnia, faktura z odroczonym terminem płatności i pełna dokumentacja techniczna.',
