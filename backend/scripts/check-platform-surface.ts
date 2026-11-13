@@ -100,34 +100,7 @@ const DEPLOYMENT_FILE =
   'modules, and none of them is ever packaged (D-104). Ledgered rather than filtered so a ' +
   'module file the attribution loses cannot hide among them.';
 
-/**
- * A module test that composes the module by hand, through the host-internal
- * `./composition` subpath (issue #114).
- *
- * Six were ledgered here when the walk first saw module tests. Five of them
- * composed one module by hand — a root container, the ports they fake, the
- * module's `registerModule` against a `createModuleContext`, and `registryCache`
- * for the two that subscribe — and moved to `@endora-commerce/test-kit/module`'s
- * `composeModuleForTest` (issue #1072), which publishes that composition without
- * publishing the primitives it is built from.
- *
- * The one left is `auth`'s request-scope proof, which mounts the platform's real
- * scope hook on a Fastify app (`registerRequestScopeHook`) and maps actors with
- * `resolveTenantContext` / `systemTenantContext`. The kit publishes no spelling
- * of that yet, and which shape it takes is a published API decision rather than
- * this check's, so the entry stays ledgered, named, and not hidden by leaving
- * tests out of the walk.
- */
-const TEST_KIT_GAP =
-  'a module test composing its module through `@endora-commerce/platform/composition`, ' +
-  'which no module may name. `@endora-commerce/test-kit/module` publishes the ' +
-  'single-module composition (issue #1072) but no spelling of the platform\'s request-scope ' +
-  'hook yet, which is what this test mounts. Retired when the kit publishes one.';
-
 export const UNPUBLISHED_PLATFORM_REACHES: Readonly<Record<string, LedgeredReach>> = {
-  // === TEST_KIT_GAP (1) ===
-  'packages/modules/auth/src/backend/route-actor-scope.test.ts|@endora-commerce/platform/composition': { symbols: ['?'], reason: TEST_KIT_GAP },
-
   // === DEPLOYMENT_FILE (4) ===
   'backend/src/apps/acceptance/divergence.ts|(unattributed)': { symbols: ['?'], reason: DEPLOYMENT_FILE },
   'backend/src/apps/acceptance/divergence.generated.ts|(unattributed)': { symbols: ['?'], reason: DEPLOYMENT_FILE },
