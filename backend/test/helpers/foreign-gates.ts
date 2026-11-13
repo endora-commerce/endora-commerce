@@ -59,6 +59,12 @@ export type ForeignGateKind =
    * become un-grantable — see {@link classifyForeignGates}.
    */
   | 'sufficient-alternative'
+  /**
+   * The site decides whether an Admin UI **control** is shown — a button, a
+   * tile, a nav entry — not whether a request is served. See
+   * {@link classifyForeignGates}.
+   */
+  | 'admin-ui-control'
   /** Every owner is switchable and the consumer cannot be switched off with them. */
   | 'locked-consumer'
   /** Both sides switchable, and no manifest declares the edge. */
@@ -151,6 +157,30 @@ function declaredEdges(manifest: ModuleManifest): ReadonlySet<string> {
  * there, `dependencies` would make the orchestrator refuse to switch
  * `delivery_methods` off at all, and there is no ledger entry for a
  * `violation`.
+ *
+ * ## Admin UI controls (`admin-ui-control`, issue #1105)
+ *
+ * Since the inventory walks component files it reads the Admin UI's own
+ * checks — `hasPermission('mfa:reset')` deciding whether the customer list
+ * shows a *Reset MFA* button, `hasPermission('document_templates:read')`
+ * deciding whether a PDF dialog offers a template picker. A foreign code there
+ * gates a **control**, and the harm this sweep measures cannot follow from it:
+ * when the owner is switched off its code leaves `/admin-roles` and the control
+ * disappears together with the capability it reaches, which is the off-state
+ * Constitution XVII asks for, not a screen stranded behind an ungrantable code.
+ * The three repairs offered above would each be false here for the reasons the
+ * any-of paragraph gives, and the ledger stays empty.
+ *
+ * So a site the scanner marks `surface: 'admin-control'` is reported with this
+ * kind and passes — after the two kinds that pass on their own, so a control
+ * whose code is locked or has a sufficient alternative still says that. The
+ * permission inventory's two grantability sweeps read these sites unchanged.
+ *
+ * **The limit**: the kind is for a control. A foreign code gating a whole
+ * route — a `requireAdmin*` guard, a capability check in a service, or an Admin
+ * UI declaration deciding whether a route's element renders — is an
+ * `enforcement` site and is judged here exactly as before (D-173,
+ * `specs/conventions/module-admin-surfaces.md` § Admin permissions).
  */
 export function classifyForeignGates(input: ForeignGateInput): readonly ForeignGateFinding[] {
   const locked = lockedOwners(input.manifests.map((entry) => entry.manifest));
@@ -188,11 +218,13 @@ export function classifyForeignGates(input: ForeignGateInput): readonly ForeignG
         ? 'owner-locked'
         : hasSufficientAlternative
           ? 'sufficient-alternative'
-          : consumerLocked
-            ? 'locked-consumer'
-            : [...owners].some((owner) => edges?.has(owner) === true)
-              ? 'declared-owner'
-              : 'undeclared-owner';
+          : site.surface === 'admin-control'
+            ? 'admin-ui-control'
+            : consumerLocked
+              ? 'locked-consumer'
+              : [...owners].some((owner) => edges?.has(owner) === true)
+                ? 'declared-owner'
+                : 'undeclared-owner';
       byKey.set(key, {
         sites: 1,
         finding: {
@@ -202,7 +234,7 @@ export function classifyForeignGates(input: ForeignGateInput): readonly ForeignG
           owners: [...owners].sort(),
           file: site.file,
           verdict:
-            kind === 'owner-locked' || kind === 'sufficient-alternative'
+            kind === 'owner-locked' || kind === 'sufficient-alternative' || kind === 'admin-ui-control'
               ? 'pass'
               : kind === 'declared-owner'
                 ? 'ledgerable'
