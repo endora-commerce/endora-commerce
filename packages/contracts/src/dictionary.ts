@@ -249,6 +249,37 @@ export const dictionaryLanguagesPageResponseSchema = z.object({
 });
 export type DictionaryLanguagesPageResponse = z.infer<typeof dictionaryLanguagesPageResponseSchema>;
 
+/** `GET /api/v1/admin/dictionary/translations/:entryType/:entryCode` — every translation of one entry (issue #599). */
+export const dictionaryTranslationListResponseSchema = z.object({
+  data: z.array(dictionaryTranslationSchema),
+});
+export type DictionaryTranslationListResponse = z.infer<typeof dictionaryTranslationListResponseSchema>;
+
+/**
+ * One stored dictionary code no dictionary row answers for (feature 017
+ * FR-022): which consumer stores it, where, and how many times.
+ */
+export const dictionaryOrphanRowSchema = z.object({
+  dictionary: dictionaryEntryTypeSchema,
+  consumer: z.string(),
+  tableName: z.string(),
+  columnName: z.string(),
+  code: z.string(),
+  count: z.number().int().positive(),
+});
+export type DictionaryOrphanRow = z.infer<typeof dictionaryOrphanRowSchema>;
+
+/** `GET /api/v1/admin/dictionary/audit/orphans` — the orphan report (issue #599). */
+export const dictionaryOrphanReportResponseSchema = z.object({
+  data: z.array(dictionaryOrphanRowSchema),
+  meta: z.object({
+    generatedAt: isoDateTimeSchema,
+    /** The sum of every row's `count`. */
+    total: z.number().int().nonnegative(),
+  }),
+});
+export type DictionaryOrphanReportResponse = z.infer<typeof dictionaryOrphanReportResponseSchema>;
+
 // ---------------------------------------------------------------------------
 // Storefront read facade — locale-resolved labels
 // ---------------------------------------------------------------------------

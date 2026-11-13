@@ -8,7 +8,9 @@ import type {
   DictionaryCurrency,
   DictionaryLanguagesPageResponse,
   DictionaryLanguage,
+  DictionaryOrphanReportResponse,
   DictionaryTranslation,
+  DictionaryTranslationListResponse,
   DictionaryEntryType,
   LanguageCountry,
   UpdateCountryRequest,
@@ -25,23 +27,6 @@ export interface DictionaryListParams {
   pageSize?: number;
   sort?: 'sortOrder' | 'label' | 'code' | 'region';
   search?: string;
-}
-
-export interface DictionaryAuditRow {
-  dictionary: 'country' | 'currency' | 'language';
-  consumer: string;
-  tableName: string;
-  columnName: string;
-  code: string;
-  count: number;
-}
-
-export interface DictionaryAuditResponse {
-  data: DictionaryAuditRow[];
-  meta: {
-    generatedAt: string;
-    total: number;
-  };
 }
 
 function query(params: DictionaryListParams = {}): string {
@@ -130,7 +115,7 @@ export const dictionaryClient = {
   listTranslations(
     entryType: DictionaryEntryType,
     entryCode: string,
-  ): Promise<{ data: DictionaryTranslation[] }> {
+  ): Promise<DictionaryTranslationListResponse> {
     return apiClient.get(`${BASE}/translations/${enc(entryType)}/${enc(entryCode)}`);
   },
   upsertTranslation(
@@ -153,7 +138,7 @@ export const dictionaryClient = {
       `${BASE}/translations/${enc(entryType)}/${enc(entryCode)}/${enc(languageCode)}`,
     );
   },
-  getOrphanAudit(): Promise<DictionaryAuditResponse> {
+  getOrphanAudit(): Promise<DictionaryOrphanReportResponse> {
     return apiClient.get(`${BASE}/audit/orphans`);
   },
   invalidateCache(): Promise<{ data: { invalidated: boolean; invalidatedAt: string } }> {

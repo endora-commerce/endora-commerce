@@ -1,13 +1,30 @@
 import { afterAll, beforeAll, describe, expect, it } from 'vitest';
 import {
+  countrySchema,
   dictionaryCountriesPageResponseSchema,
+  dictionaryCurrenciesPageResponseSchema,
+  dictionaryCurrencySchema,
+  dictionaryLanguageSchema,
   dictionaryLanguagesPageResponseSchema,
+  dictionaryOrphanReportResponseSchema,
+  languageCountrySchema,
 } from '@endora-commerce/contracts';
 import {
   setupBackendServer,
   teardownBackendServer,
   type BackendServerHandle,
 } from '../../helpers/test-server.js';
+import { deepStrict, disagreements } from '../../helpers/strict-schema.js';
+
+/**
+ * Strict copies (issue #599 §6): a key a dictionary reply carries that the
+ * contract does not declare fails. `data` is the one envelope member checked
+ * for the single-row replies.
+ */
+const strictCountry = deepStrict(countrySchema);
+const strictCurrency = deepStrict(dictionaryCurrencySchema);
+const strictLanguage = deepStrict(dictionaryLanguageSchema);
+const dataOf = (res: { json: () => unknown }): unknown => (res.json() as { data: unknown }).data;
 
 describe('Dictionary admin routes (feature 017 / US1)', () => {
   let h: BackendServerHandle;
@@ -30,6 +47,7 @@ describe('Dictionary admin routes (feature 017 / US1)', () => {
     });
 
     expect(res.statusCode).toBe(200);
+    expect(disagreements(deepStrict(dictionaryCountriesPageResponseSchema), res.json())).toEqual([]);
     const body = dictionaryCountriesPageResponseSchema.parse(res.json());
     expect(body.data.length).toBeGreaterThan(0);
     expect(body.pagination.page).toBe(1);
@@ -52,6 +70,7 @@ describe('Dictionary admin routes (feature 017 / US1)', () => {
       cookies: adminCookie,
     });
     expect(create.statusCode).toBe(201);
+    expect(disagreements(strictCountry, dataOf(create))).toEqual([]);
     expect(create.json().data.code).toBe('AA');
 
     const update = await h.app.inject({
@@ -61,6 +80,7 @@ describe('Dictionary admin routes (feature 017 / US1)', () => {
       cookies: adminCookie,
     });
     expect(update.statusCode).toBe(200);
+    expect(disagreements(strictCountry, dataOf(update))).toEqual([]);
     expect(update.json().data.label).toBe('Admin Testland Updated');
     expect(update.json().data.isEuMember).toBe(true);
 
@@ -70,6 +90,7 @@ describe('Dictionary admin routes (feature 017 / US1)', () => {
       cookies: adminCookie,
     });
     expect(promote.statusCode).toBe(200);
+    expect(disagreements(strictCountry, dataOf(promote))).toEqual([]);
     expect(promote.json().data.isDefault).toBe(true);
 
     await h.app.inject({
@@ -94,6 +115,7 @@ describe('Dictionary admin routes (feature 017 / US1)', () => {
     });
 
     expect(res.statusCode).toBe(200);
+    expect(disagreements(deepStrict(dictionaryLanguagesPageResponseSchema), res.json())).toEqual([]);
     const body = dictionaryLanguagesPageResponseSchema.parse(res.json());
     // 183 ISO 639-1 languages beside the two regional ones the platform ships.
     expect(body.pagination.total).toBeGreaterThanOrEqual(185);
@@ -144,7 +166,26 @@ describe('Dictionary admin routes (feature 017 / US1)', () => {
       cookies: adminCookie,
     });
     expect(currency.statusCode).toBe(201);
+    expect(disagreements(strictCurrency, dataOf(currency))).toEqual([]);
     expect(currency.json().data.decimalPlaces).toBe(3);
+
+    const currencyUpdate = await h.app.inject({
+      method: 'PUT',
+      url: '/api/v1/admin/dictionary/currencies/XAA',
+      payload: { label: 'Test currency, renamed' },
+      cookies: adminCookie,
+    });
+    expect(currencyUpdate.statusCode, currencyUpdate.body).toBe(200);
+    expect(disagreements(strictCurrency, dataOf(currencyUpdate))).toEqual([]);
+
+    const currencies = await h.app.inject({
+      method: 'GET',
+      url: '/api/v1/admin/dictionary/currencies?search=XAA',
+      cookies: adminCookie,
+    });
+    expect(currencies.statusCode, currencies.body).toBe(200);
+    expect(currencies.json().data.map((row: { code: string }) => row.code)).toEqual(['XAA']);
+    expect(disagreements(deepStrict(dictionaryCurrenciesPageResponseSchema), currencies.json())).toEqual([]);
 
     const language = await h.app.inject({
       method: 'POST',
@@ -158,6 +199,7 @@ describe('Dictionary admin routes (feature 017 / US1)', () => {
       cookies: adminCookie,
     });
     expect(language.statusCode).toBe(201);
+    expect(disagreements(strictLanguage, dataOf(language))).toEqual([]);
     expect(language.json().data.fallbackCode).toBe('en-US');
 
     const assoc = await h.app.inject({
@@ -167,6 +209,7 @@ describe('Dictionary admin routes (feature 017 / US1)', () => {
       cookies: adminCookie,
     });
     expect(assoc.statusCode).toBe(200);
+    expect(disagreements(deepStrict(languageCountrySchema), dataOf(assoc))).toEqual([]);
     expect(assoc.json().data).toMatchObject({
       languageCode: 'aa-AA',
       countryCode: 'PL',
@@ -180,6 +223,15 @@ describe('Dictionary admin routes (feature 017 / US1)', () => {
     });
     expect(languages.statusCode).toBe(200);
     expect(languages.json().data[0].countries).toContain('PL');
+
+    const languageUpdate = await h.app.inject({
+      method: 'PUT',
+      url: '/api/v1/admin/dictionary/languages/aa-AA',
+      payload: { label: 'Test Language, renamed' },
+      cookies: adminCookie,
+    });
+    expect(languageUpdate.statusCode, languageUpdate.body).toBe(200);
+    expect(disagreements(strictLanguage, dataOf(languageUpdate))).toEqual([]);
 
     const assocDelete = await h.app.inject({
       method: 'DELETE',
@@ -205,6 +257,7 @@ describe('Dictionary admin routes (feature 017 / US1)', () => {
         cookies: adminCookie,
       });
       expect(res.statusCode).toBe(200);
+      expect(disagreements(deepStrict(dictionaryOrphanReportResponseSchema), res.json())).toEqual([]);
       expect(res.json().data).toContainEqual(
         expect.objectContaining({
           dictionary: 'language',
