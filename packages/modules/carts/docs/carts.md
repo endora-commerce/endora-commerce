@@ -58,6 +58,7 @@ The channel-access rule applies to baskets like to every storefront call: an ano
 
 [ working ]              ──(order placed)───────▶ [ completed; completed_order_id set ]
 [ working ]              ──(placement refused)──▶ (deleted)
+[ working ]              ──(sweep: created_at older than 1 hour)──▶ (deleted)
 ```
 
 **Working baskets.** Admin order creation, one-click buy and the external order
@@ -67,7 +68,11 @@ and place the order from it; the customer's active basket — including one
 filled from an accepted quote request — is not read, emptied or closed. A
 working basket ends `completed` with `completed_order_id` naming its order, or
 is deleted when the placement is refused. It never appears in a cart list, in
-the customer's carts panel or in the abandonment sweep.
+the customer's carts panel or among the baskets the abandonment sweep marks
+abandoned. A working basket is left behind only when the process stops between
+writing it and placing the order; the abandonment sweep deletes every working
+basket created more than an hour ago, with its lines, and touches no other
+basket. It does so even when the abandonment threshold is `0`.
 
 Re-arm rule: any buyer-driven content change (a line added or removed, a
 quantity changed, a coupon applied or removed) on a cart that is in approval

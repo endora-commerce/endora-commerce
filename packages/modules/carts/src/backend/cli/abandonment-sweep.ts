@@ -84,7 +84,8 @@ export async function abandonmentSweep({
   const result = await worker.sweep();
   out(
     `[cart abandonment-sweep] abandoned=${result.abandonedCount} ` +
-      `notified=${result.notifiedCount}`,
+      `notified=${result.notifiedCount} ` +
+      `working_baskets_removed=${result.workingBasketsRemoved}`,
   );
   return 0;
 }
