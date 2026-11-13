@@ -294,6 +294,17 @@ describe.each(LOCALES)('T-S1 — a B2C customer has one address book ($code)', (
     expect(text).toContain(l.add);
   });
 
+  it('renders Make default and Remove as design-system buttons, Remove marked apart (issue #663)', async () => {
+    const html = await render(myAddresses());
+    const table = html.slice(html.indexOf('<table'), html.indexOf('</table>'));
+    const buttons = table.match(/<button\b[^>]*>[^<]*<\/button>/g) ?? [];
+    // One "Make default" (the other address is the default) and two "Remove".
+    expect(buttons).toHaveLength(3);
+    for (const button of buttons) expect(button).toMatch(/class="btn btn--outline btn--sm min-h-11\b/);
+    const destructive = buttons.filter((b) => b.includes('text-bad')).map((b) => b.replace(/<[^>]+>/g, ''));
+    expect(destructive).toEqual([l.remove, l.remove]);
+  });
+
   it('adds an address through the Organization API', async () => {
     const result = await outcome(
       actions.createAddressAction(IDLE_ADDRESS_FORM, form({ ...TYPED, returnTo: '/addresses', isDefault: 'true' })),
