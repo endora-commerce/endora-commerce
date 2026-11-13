@@ -4,6 +4,8 @@ import {
   adjustCreditLimitRequestSchema,
   grantCreditLimitRequestSchema,
   moneySum,
+  type CreditLimitListResponse,
+  type CreditLimitView,
   type OrderReadPort,
   type OrganizationDetailsPort,
   type OrganizationPermissionPort,
@@ -136,7 +138,7 @@ export async function registerCreditLimitsRoutes(
   app.get(
     '/api/v1/me/credit-limit',
     { preHandler: requireCustomer },
-    async (request) => {
+    async (request): Promise<{ data: CreditLimitView }> => {
       const ctx = resolveCustomerContext(request);
       const limit = await creditLimitService.getForOrganization(ctx.organizationId);
       if (!limit) {
@@ -155,7 +157,7 @@ export async function registerCreditLimitsRoutes(
   app.get(
     '/api/v1/admin/credit-limits',
     { preHandler: requireAdmin('credit_limits:manage') },
-    async () => {
+    async (): Promise<CreditLimitListResponse> => {
       const rows = await creditLimitService.listAll();
       const names = await loadOrgNames(rows.map((l) => l.organizationId));
       const data = await Promise.all(
@@ -174,7 +176,7 @@ export async function registerCreditLimitsRoutes(
       preHandler: requireAdmin('credit_limits:manage'),
       schema: { body: grantCreditLimitRequestSchema },
     },
-    async (request, reply) => {
+    async (request, reply): Promise<{ data: CreditLimitView }> => {
       const body = grantCreditLimitRequestSchema.parse(request.body);
       // Feature 050 — inserts are not reachable by the org column filter, so gate
       // the target org explicitly; out-of-scope responds as "not granted" (FR-008).
@@ -208,7 +210,7 @@ export async function registerCreditLimitsRoutes(
   app.get<{ Params: { id: string } }>(
     '/api/v1/admin/organizations/:id/credit-limit',
     { preHandler: requireAdmin('credit_limits:manage') },
-    async (request) => {
+    async (request): Promise<{ data: CreditLimitView }> => {
       const limit = await creditLimitService.getForOrganization(request.params.id);
       if (!limit) {
         throw new HttpError(
@@ -229,7 +231,7 @@ export async function registerCreditLimitsRoutes(
       preHandler: requireAdmin('credit_limits:manage'),
       schema: { body: adjustCreditLimitRequestSchema },
     },
-    async (request) => {
+    async (request): Promise<{ data: CreditLimitView }> => {
       const body = adjustCreditLimitRequestSchema.parse(request.body);
       // Feature 050 — gate the target org (see POST grant above).
       if (!(await orgInScope(request.params.id))) {
@@ -281,14 +283,14 @@ const ORDERS_VIEW_ORGANIZATION = 'orders.view_organization';
 /**
  * `reservations` is every active reservation of the limit and drives the
  * totals; `listed` is the subset the caller may read, defaulting to all of
- * them (the admin views).
+ * them (the admin views). The published `creditLimitViewSchema` (issue #599).
  */
 function serializeView(
   limit: CreditLimit,
   reservations: CreditLimitReservation[],
   organizationName?: string | null,
   listed: CreditLimitReservation[] = reservations,
-): Record<string, unknown> {
+): CreditLimitView {
   // Exact decimal arithmetic (issue #417); each figure a two-place decimal read as a number.
   const reservedSum = moneySum(reservations.map((r) => r.amount));
   return {

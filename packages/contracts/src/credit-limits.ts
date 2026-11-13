@@ -21,6 +21,13 @@ export type CreditLimitReservationReleaseReason = z.infer<
 
 export const creditLimitViewSchema = z.object({
   organizationId: uuidSchema,
+  /**
+   * The organization's name, for the admin roster and detail; `null` when the
+   * organization cannot be read, and always `null` on the customer's own
+   * `GET /api/v1/me/credit-limit`. Answered since the admin roster shipped and
+   * declared here only by issue #599; optional for a client that predates it.
+   */
+  organizationName: z.string().nullable().optional(),
   grantedAmount: z.number().finite().nonnegative(),
   availableAmount: z.number().finite(),
   currency: z.string().length(3),
@@ -48,6 +55,12 @@ export const creditLimitViewSchema = z.object({
   grantedAt: isoDateTimeSchema,
 });
 export type CreditLimitView = z.infer<typeof creditLimitViewSchema>;
+
+/** `GET /api/v1/admin/credit-limits` — every granted credit limit (issue #599). */
+export const creditLimitListResponseSchema = z.object({
+  data: z.array(creditLimitViewSchema),
+});
+export type CreditLimitListResponse = z.infer<typeof creditLimitListResponseSchema>;
 
 export const grantCreditLimitRequestSchema = z.object({
   grantedAmount: twoDecimalAmount(z.number().finite().positive()),

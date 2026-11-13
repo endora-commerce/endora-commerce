@@ -1,10 +1,14 @@
 import { afterAll, beforeAll, describe, expect, it } from 'vitest';
-import { ERROR_CODES } from '@endora-commerce/contracts';
+import { ERROR_CODES, creditLimitViewSchema } from '@endora-commerce/contracts';
 import {
   setupBackendServer,
   teardownBackendServer,
   type BackendServerHandle,
 } from '../../helpers/test-server.js';
+import { deepStrict, disagreements } from '../../helpers/strict-schema.js';
+
+/** A strict copy: a key a credit-limit reply carries that the contract does not declare fails (issue #599 §6). */
+const strictView = deepStrict(creditLimitViewSchema);
 
 /**
  * T206 — Admin grants → Customer GET /me/credit-limit returns the right shape:
@@ -53,6 +57,7 @@ describe('GET /api/v1/me/credit-limit + admin grant', () => {
       cookies: { b2b_session: 'stub-admin-session' },
     });
     expect(grant.statusCode).toBe(201);
+    expect(disagreements(strictView, (grant.json() as { data: unknown }).data)).toEqual([]);
 
     const view = await h.app.inject({
       method: 'GET',
@@ -60,6 +65,7 @@ describe('GET /api/v1/me/credit-limit + admin grant', () => {
       cookies: { b2b_session: 'stub-customer-session' },
     });
     expect(view.statusCode).toBe(200);
+    expect(disagreements(strictView, (view.json() as { data: unknown }).data)).toEqual([]);
     const body = view.json() as { data: CreditLimitView };
     expect(body.data.grantedAmount).toBe(10000);
     expect(body.data.availableAmount).toBe(10000);
