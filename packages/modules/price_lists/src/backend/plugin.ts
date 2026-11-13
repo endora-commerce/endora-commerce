@@ -162,6 +162,8 @@ export interface PriceListsModuleOptions {
   settingsAdmin?: SettingsAdminPort;
   /** Feature 160 — ask the `price_lists.surface` worker for a rebuild (best effort). */
   requestSurfaceRebuild?: () => Promise<void>;
+  /** Issue #409 — ask for `VACUUM (ANALYZE)` of the row tables after a bulk row write (best effort). */
+  requestTableMaintenance?: () => Promise<unknown>;
 }
 
 export interface PriceListsModuleHandle {
@@ -269,6 +271,7 @@ export function priceListsModule(options: PriceListsModuleOptions): {
     ...(options.salesChannelMembership ? { channelMembership: options.salesChannelMembership } : {}),
     targetReads: options.targetReads,
     reads: priceBookReads,
+    ...(options.requestTableMaintenance ? { requestTableMaintenance: options.requestTableMaintenance } : {}),
   });
   const statusWorker = new PriceListStatusWorker(options.emFactory, pricingGeneration);
   // One engine instance behind the probe and the port alike: a quote's "price

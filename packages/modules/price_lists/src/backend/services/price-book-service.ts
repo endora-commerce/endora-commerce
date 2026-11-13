@@ -107,6 +107,12 @@ export interface PriceBookServiceDeps {
   >;
   /** The admin reads, for the answers of a write (the book, the labelled rows). */
   reads?: PriceBookReads;
+  /**
+   * Issue #409 — ask for `VACUUM (ANALYZE)` of the row tables after a write
+   * that grew them (the `price_lists.table-maintenance` queue). Absent in a
+   * composition with no queue; never throws.
+   */
+  requestTableMaintenance?: () => Promise<unknown>;
 }
 
 /** The platform default currency's base book keeps the id the old `Default` list had. */
@@ -206,6 +212,7 @@ export class PriceBookService {
       actor: CommandActor,
     ) => Promise<{ result: T; before: Record<string, unknown> | null; after: Record<string, unknown> | null }>,
     surface: SurfaceChange | (() => Promise<SurfaceChange>),
+    options: { rowsWritten?: boolean } = {},
   ): Promise<T> {
     if (!this.deps.commandBus) {
       throw new Error(
@@ -227,6 +234,10 @@ export class PriceBookService {
       change = { kind: 'all' };
     }
     await this.deps.pricingGeneration.invalidateAll(change);
+    // Issue #409 — a write that grew the book's rows asks for the background
+    // `VACUUM (ANALYZE)` of the row tables. After the commit, and best effort:
+    // the producer never throws, and the write has already landed.
+    if (options.rowsWritten) await this.deps.requestTableMaintenance?.();
     return result;
   }
 
@@ -406,7 +417,7 @@ export class PriceBookService {
         before: { productId, byCurrency: before },
         after: { productId, byCurrency: after, createdBaseBooks: toCreate, ...(keepVariantRows ? { variantRowsKept: true } : {}) },
       };
-    }, { kind: 'products', productIds: [productId], currencyCodes: currencies });
+    }, { kind: 'products', productIds: [productId], currencyCodes: currencies }, { rowsWritten: true });
   }
 
   /**
@@ -902,7 +913,7 @@ export class PriceBookService {
         before: { ...options.audit, rows: [...plan.removed, ...plan.changed.map((c) => c.before)].map(rowState), version: book.version },
         after: { ...options.audit, rows: toInsert.map(rowState), deleted: plan.removed.map((r) => r.id), version },
       };
-    }, { kind: 'books', books: [{ facts: [this.#facts(book)], selections: touched }] });
+    }, { kind: 'books', books: [{ facts: [this.#facts(book)], selections: touched }] }, { rowsWritten: true });
     return {
       version: result.version,
       rows: written.map((r) => diffRowOf(r, keyOf(r))),
@@ -1151,7 +1162,7 @@ export class PriceBookService {
         after: { ...view, sourceBookId: bookId, amountMultiplier: input.amountMultiplier, rowCount: rows.length, channelIds: [...input.channelIds] },
       };
       // The copy is a draft: it prices nowhere until it is activated.
-    }, { kind: 'none' });
+    }, { kind: 'none' }, { rowsWritten: true });
   }
 
   /**

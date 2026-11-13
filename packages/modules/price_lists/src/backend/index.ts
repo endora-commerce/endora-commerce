@@ -33,6 +33,11 @@ import {
   startPriceSurfaceWorker,
   type PriceSurfaceProducer,
 } from './workers/price-surface-worker.js';
+import {
+  createTableMaintenanceProducer,
+  startTableMaintenanceWorker,
+  type TableMaintenanceProducer,
+} from './workers/table-maintenance-worker.js';
 import type {
   PricingGenerationPublisher,
   PricingGenerationSubscriber,
@@ -144,6 +149,8 @@ export interface PriceListsCradle {
   /** Feature 160 — whether this process consumes queues (the API may not). */
   readonly processRunsWorkers: boolean;
   readonly priceListsSurfaceProducer: PriceSurfaceProducer;
+  /** Issue #409 — the `price_lists.table-maintenance` producer; a recorder in a test that asks. */
+  readonly priceListsTableMaintenance: TableMaintenanceProducer;
   readonly pricingService: PricingServiceContract;
   readonly priceListService: ReturnType<typeof priceListsModule>['handle']['priceListService'];
 }
@@ -164,6 +171,15 @@ export function registerModule(ctx: ModuleContext): void {
       .asFunction(({ moduleQueueRedis }: PriceListsCradle) => createPriceSurfaceProducer(moduleQueueRedis))
       .singleton(),
 
+    priceListsTableMaintenance: ctx
+      .asFunction(({ moduleQueueRedis }: PriceListsCradle) =>
+        createTableMaintenanceProducer({
+          redis: moduleQueueRedis,
+          onError: (err) => ctx.log.warn({ err }, 'price_lists: could not ask for the vacuum after a bulk write; autovacuum remains the fallback'),
+        }),
+      )
+      .singleton(),
+
     priceLists: ctx
       .asFunction(
         ({
@@ -173,11 +189,13 @@ export function registerModule(ctx: ModuleContext): void {
           priceListsEnableStatusSweeper,
           priceListsPricingCacheTtlMs,
           priceListsSurfaceProducer,
+          priceListsTableMaintenance,
         }: PriceListsCradle) =>
           priceListsModule({
             requestSurfaceRebuild: async () => {
               await priceListsSurfaceProducer.enqueue();
             },
+            requestTableMaintenance: () => priceListsTableMaintenance.request(),
             emFactory,
             commandBus,
             enableStatusSweeper: priceListsEnableStatusSweeper,
@@ -368,6 +386,23 @@ export function registerModule(ctx: ModuleContext): void {
       rebuildStale: () => cradle.priceLists.handle.pricingEngine.priceSurface.rebuildStale(),
       hasPendingWork: () => cradle.priceLists.handle.pricingEngine.priceSurface.hasPendingWork(),
       enqueue: () => cradle.priceListsSurfaceProducer.enqueue(),
+      log: ctx.log,
+      attach: (worker) => ctx.worker(worker, { logger: app.log }),
+    });
+  });
+
+  /**
+   * Issue #409 — the table-maintenance worker (`price_lists.table-maintenance`):
+   * `VACUUM (ANALYZE)` of the row tables after a bulk write, on a connection
+   * outside any transaction. Same gating as the surface worker above.
+   */
+  ctx.routes(async (app) => {
+    const cradle = ctx.cradle<PriceListsCradle>();
+    app.addHook('onClose', () => cradle.priceListsTableMaintenance.close());
+    startTableMaintenanceWorker({
+      processRunsWorkers: cradle.processRunsWorkers,
+      moduleQueueRedis: cradle.moduleQueueRedis,
+      connection: () => cradle.emFactory().getConnection(),
       log: ctx.log,
       attach: (worker) => ctx.worker(worker, { logger: app.log }),
     });

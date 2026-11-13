@@ -114,6 +114,11 @@ import {
   PublicationWindowSweep,
   startPublicationWindowSweep,
 } from './services/publication-window-sweep.js';
+import {
+  createTableMaintenanceProducer,
+  startTableMaintenanceWorker,
+  type TableMaintenanceProducer,
+} from './services/table-maintenance-queue.js';
 import { CategoryAdminService } from './services/category-admin.service.js';
 import { AttributeSetService } from './services/attribute-set.service.js';
 import { GalleryService } from './services/gallery.service.js';
@@ -213,6 +218,8 @@ export interface CatalogCradle {
    * server says no and drives the publication-window sweep directly.
    */
   readonly processRunsWorkers: boolean;
+  /** Issue #409 — the `catalog.table-maintenance` producer; a recorder in a test that asks. */
+  readonly catalogTableMaintenance: TableMaintenanceProducer;
   /**
    * The process connection, distinct from `moduleQueueRedis`: the assistant's
    * bulk tools delegate over the same queue in both compositions, which is a
@@ -500,6 +507,14 @@ export function registerModule(ctx: ModuleContext): void {
    * the shape a module writes for itself.
    */
   ctx.di.register({
+    catalogTableMaintenance: ctx
+      .asFunction(({ moduleQueueRedis }: CatalogCradle) =>
+        createTableMaintenanceProducer({
+          redis: moduleQueueRedis,
+          onError: (err) => ctx.log.warn({ err }, 'catalog: could not ask for the vacuum after an import; autovacuum remains the fallback'),
+        }),
+      )
+      .singleton(),
     /**
      * The availability band the external catalog namespace decorates a product
      * with. D-61: `catalog` declares `inventory` `degrades-without`, and the
@@ -942,7 +957,7 @@ export function registerModule(ctx: ModuleContext): void {
     'catalogBulkImportPort',
     ctx
       .asFunction(
-        ({ commandBus, emFactory, eventBus }: CatalogCradle) => {
+        ({ commandBus, emFactory, eventBus, catalogTableMaintenance }: CatalogCradle) => {
           const membership = lazyPort<SalesChannelMembershipPort>(ctx, 'salesChannelMembershipPort');
           const attributes = lazyPort<CatalogAttributeReadService>(ctx, 'catalogAttributeReadPort');
           const urlKeys = new UrlKeyService(emFactory, membership, commandBus);
@@ -954,6 +969,8 @@ export function registerModule(ctx: ModuleContext): void {
               eventBus,
               // Feature 174 (T084) — each product row through the scoped import's planner and writers.
               importDeps: { membership, listAttributes: () => attributes.listAll(), urlKeys: () => urlKeys },
+              // Issue #409 — a products import that wrote asks for the vacuum of the tables it rewrote.
+              requestTableMaintenance: () => catalogTableMaintenance.request(),
             },
             // Feature 172 (FR-041) — which keys are Page Builder content attributes.
             attributes,
@@ -1440,6 +1457,17 @@ export function registerModule(ctx: ModuleContext): void {
       onClose: (close) => {
         app.addHook('onClose', close);
       },
+    });
+
+    // Issue #409 — `VACUUM (ANALYZE)` of `products` / `product_variants` after
+    // an import, on a connection outside any transaction; same gating.
+    app.addHook('onClose', () => c.catalogTableMaintenance.close());
+    startTableMaintenanceWorker({
+      processRunsWorkers: c.processRunsWorkers,
+      moduleQueueRedis: c.moduleQueueRedis,
+      connection: () => c.emFactory().getConnection(),
+      log: ctx.log,
+      attach: (worker) => ctx.worker(worker, { logger: app.log }),
     });
   });
 

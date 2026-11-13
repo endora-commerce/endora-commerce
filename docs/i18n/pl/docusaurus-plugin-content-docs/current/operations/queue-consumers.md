@@ -151,6 +151,27 @@ bieżącej wyceny, gdy są zawężone do najwyżej 5 000 produktów (kategoria, 
 przeciwnym razie podawane w domyślnym porządku katalogu, z poprawnymi cenami na kartach. Uruchamiaj
 workera wszędzie tam, gdzie sortowanie według ceny ma znaczenie.
 
+### Porządkowanie tabel po zapisach masowych — `catalog.table-maintenance`, `price_lists.table-maintenance`
+
+Zaraz po zapisie masowym Postgres nie ma aktualnych statystyk ani mapy widoczności dla zapisanych
+wierszy, dopóki nie przejdzie po nich autovacuum — a przy zapisie poniżej progu autovacuum to
+przejście może nie nastąpić. Do tego czasu odczyty panelu oparte na samych indeksach (uporządkowany
+przegląd listy produktów, linie i wyszukiwanie cennika) czytają każdy wiersz z tabeli, co przy
+katalogu 50 000 produktów kosztuje najszersze wyszukiwania około 25 ms każde (zgłoszenie #409).
+Dlatego każdy moduł prosi o `VACUUM (ANALYZE)` własnych tabel, gdy zatwierdzi się ich zapis masowy:
+`catalog` dla `products` i `product_variants` po imporcie produktów (*Import / Eksport*,
+`catalogBulkImportPort`), a `price_lists` dla `price_list_matrix_entries` i
+`price_list_product_lines` po paczce wierszy cennika (zapis w edytorze, import CSV), zapisie cen
+bazowych (import cen z PIM) i duplikacji cennika. `VACUUM` nie może działać wewnątrz transakcji,
+więc jest zadaniem w kolejce, nigdy częścią zapisu.
+
+Każda prośba to zadanie **opóźnione o minutę i deduplikowane po tabeli**: każdy zapis w czasie
+oczekiwania zostaje wchłonięty (vacuum i tak wykona się po nim), a zapis w trakcie jego działania
+zostawia dokładnie jedno kolejne zadanie. Jeden konsument na moduł wykonuje je pojedynczo;
+nieudane zadanie jest logowane, ponawiane raz i porzucane. **Jeśli żaden worker nie obsługuje tych
+kolejek**, nic się nie psuje — autovacuum pozostaje zabezpieczeniem, a powyższe odczyty są wolniejsze
+do jego pierwszego przejścia.
+
 ## Inne zadania w tle (jeszcze nie na wspólnej kolejce)
 
 Kilka zadań okresowych i porządkowych nadal działa jako timery w procesie albo skrypty uruchamiane

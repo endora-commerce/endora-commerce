@@ -157,6 +157,25 @@ from a live resolution when they are narrowed to at most 5 000 products (a
 category, a search), and otherwise served in the catalogue's default order with
 correct prices on the cards. Run the worker wherever price sorting matters.
 
+### Table maintenance after bulk writes — `catalog.table-maintenance`, `price_lists.table-maintenance`
+
+Right after a bulk write, Postgres has no fresh statistics and no visibility map for the rows it
+wrote until autovacuum's first pass — and for a write below autovacuum's scale factor that pass may
+not come. Until then the admin's index-only reads (the product list's ordered walk, a price book's
+lines and searches) fetch every row from the table, which on a 50 000-product catalogue costs the
+broadest searches about 25 ms each (issue #409). So each module asks for `VACUUM (ANALYZE)` of its
+own tables once a bulk write of them has committed: `catalog` for `products` and
+`product_variants` after a products import (*Import / Export*, `catalogBulkImportPort`), and
+`price_lists` for `price_list_matrix_entries` and `price_list_product_lines` after a price-book row
+batch (the editor's save, a CSV import), a base-price write (the PIM price import) and a book
+duplicate. `VACUUM` cannot run inside a transaction, so it is a job, never part of the write.
+
+Each request is a job **delayed by one minute and deduplicated by its table**: every write while it
+waits is absorbed (the vacuum still runs after them), and a write while it runs keeps exactly one
+follow-up. One consumer per module runs them one at a time; a failed job is logged, retried once,
+and dropped. **If no worker consumes these queues**, nothing breaks — autovacuum remains the floor,
+and the reads above are slower until its first pass.
+
 ## Other background jobs (not yet on a shared queue)
 
 A few periodic/maintenance jobs still run as in-process timers or manual
