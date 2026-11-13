@@ -52,30 +52,6 @@ vi.mock('../../../../packages/admin-shell/src/components/IdleLogout', () => ({
   IdleLogout: () => null,
 }));
 
-/**
- * The shell mounts its own `TranslationProvider` with no initial bundle, and it
- * asks `/api/v1/admin/i18n/bundles` through the kit's internal client — a call
- * the `apiClient` mock below does not reach, so it hit the network guard of
- * `admin/test/setup.ts`. Answered here, and only that request: an empty bundle,
- * which is what the shell's provider held while the refused call left it
- * unanswered, so every screen renders as it did. Anything else still meets the
- * guard. Hoisted, because the kit's client takes `fetch` when it is created, at
- * import.
- */
-vi.hoisted(() => {
-  const refuseNetwork = globalThis.fetch;
-  globalThis.fetch = (async (input: RequestInfo | URL, init?: RequestInit): Promise<Response> => {
-    const url = typeof input === 'string' ? input : input instanceof URL ? input.href : input.url;
-    if (new URL(url, 'http://localhost').pathname === '/api/v1/admin/i18n/bundles') {
-      return new Response(JSON.stringify({ data: { language: 'en', version: 0, bundles: {} } }), {
-        status: 200,
-        headers: { 'content-type': 'application/json' },
-      });
-    }
-    return refuseNetwork(input, init);
-  }) as typeof fetch;
-});
-
 vi.mock('../../../../packages/admin-shell/src/lib/prompt-actions/api', () => ({
   getPromptCapability: vi.fn(async () => ({ status: 'disabled', bulkLimit: 0 })),
   listUnseenPromptRequests: vi.fn(async () => []),

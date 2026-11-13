@@ -238,7 +238,7 @@ function collectFromFile(
 ): void {
   const source = resolver.sourceOf(file);
   if (source === null) return;
-  if (!/requireAdmin|hasPermission/.test(source)) return;
+  if (!/requireAdmin|hasPermission|hasAnyPermission/.test(source)) return;
   const moduleId = moduleIdFor(file, root);
   const relFile = relative(base, file);
   for (const site of collectFromSource(source, file, resolver)) {
@@ -258,7 +258,18 @@ type PartialSite = Omit<EnforcedGateSite, 'file' | 'moduleId'>;
  * - a constant argument, resolved module-locally, through a relative import, or
  *   through `@endora-commerce/contracts`, including a member read of a permission map;
  * - `permissionService.hasPermission(actor, 'code')` — the capability check a
- *   service uses where there is no route to hang a `preHandler` on.
+ *   service uses where there is no route to hang a `preHandler` on;
+ * - `hasAnyPermission(['a', 'b'])` — the Admin UI's any-of (issue #458), read
+ *   like `requireAdminAny`: **one** site carrying every member, so the
+ *   foreign-gate sweep judges the members as alternatives of one another. It
+ *   replaced `codes.some((code) => hasPermission(code))`, which this scanner
+ *   could only call a `runtime-value` and never judged.
+ *
+ * An array argument is read from its **leading array literal** and nothing
+ * after it. A narrowing applied to the literal at runtime —
+ * `hasAnyPermission(['a', 'b'].filter(inScope))` — therefore reads as the
+ * widest set the gate can ask for: every member is still checked for
+ * grantability, and a string inside the narrowing is not a member.
  *
  * Comments and regular-expression literals are blanked first: a doc comment
  * quoting a gate is not a gate, several files quote one, and this file's own
@@ -271,7 +282,8 @@ function* collectFromSource(
 ): Generator<PartialSite> {
   const bound = collectRuntimeBindings(source);
 
-  const callRe = /(?:[\w$]+\s*\??\.\s*)*(requireAdmin(?:Any)?|hasPermission)\s*(?:\?\.)?\s*\(/g;
+  const callRe =
+    /(?:[\w$]+\s*\??\.\s*)*(requireAdmin(?:Any)?|hasAnyPermission|hasPermission)\s*(?:\?\.)?\s*\(/g;
   let m: RegExpExecArray | null;
   while ((m = callRe.exec(source)) !== null) {
     const callee = m[1] ?? '';
@@ -286,7 +298,7 @@ function* collectFromSource(
     const expression = argument.replace(/\s+/g, ' ');
 
     if (argument === '') {
-      if (callee === 'hasPermission') continue;
+      if (callee === 'hasPermission' || callee === 'hasAnyPermission') continue;
       yield { expression: '', resolution: 'authenticated-admin', codes: [] };
       continue;
     }
@@ -295,7 +307,9 @@ function* collectFromSource(
     const normalised = argument.replace(/\s*\?\?\s*(['"]).*?\1\s*$/, '').trim();
 
     if (/^['"[]/.test(normalised)) {
-      const codes = [...normalised.matchAll(/(['"])([^'"]*)\1/g)]
+      // An array is read up to its own closing bracket — see the note above.
+      const literal = normalised.startsWith('[') ? readBalanced(normalised, 0) : normalised;
+      const codes = [...literal.matchAll(/(['"])([^'"]*)\1/g)]
         .map((lit) => lit[2] ?? '')
         .filter((code) => code.length > 0);
       yield codes.length > 0

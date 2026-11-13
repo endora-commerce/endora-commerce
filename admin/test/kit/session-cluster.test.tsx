@@ -86,6 +86,39 @@ describe('AuthProvider — seeded by `initial`', () => {
     );
     expect(answers).toContain('taxes:write=true');
   });
+
+  /**
+   * Issue #458 — the any-of, written once in the kit so a module never spells it
+   * `codes.some((code) => hasPermission(code))`: that form hides its codes from
+   * the permission inventory, which reads only a literal argument.
+   */
+  it('answers hasAnyPermission true when any one code is held, false for none or an empty list', () => {
+    const answers: string[] = [];
+    function Probe(): ReactElement {
+      const { hasAnyPermission } = useAuth();
+      answers.push(`one-held=${hasAnyPermission(['taxes:write', 'taxes:read'])}`);
+      answers.push(`none-held=${hasAnyPermission(['taxes:write', 'orders:read'])}`);
+      answers.push(`empty=${hasAnyPermission([])}`);
+      return <span />;
+    }
+    render(
+      <AuthProvider initial={SESSION}>
+        <Probe />
+      </AuthProvider>,
+    );
+    expect(answers).toContain('one-held=true');
+    expect(answers).toContain('none-held=false');
+    expect(answers).toContain('empty=false');
+
+    answers.length = 0;
+    render(
+      <AuthProvider initial={adminSession({ permissions: ['*'] })}>
+        <Probe />
+      </AuthProvider>,
+    );
+    expect(answers).toContain('none-held=true');
+    expect(answers).toContain('empty=false');
+  });
 });
 
 describe('ModulePresenceProvider — seeded by `initial`', () => {

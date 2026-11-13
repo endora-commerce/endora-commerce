@@ -212,9 +212,9 @@
  *
  * **Source side only.** {@link ownerLocationOf} answers `host`; the target
  * position keeps asking {@link moduleLocationOf}, which answers `null` for a
- * host path. Asked at both ends this would turn every module→host reach in
- * `admin/src/modules` into a finding — roughly 1700 of them, into published kit
- * surface, which is `check:admin-surface`'s population and not a boundary
+ * host path. Asked at both ends this would have turned every module→host reach
+ * in `admin/src/modules` (which feature 091 has since emptied and removed) into a
+ * finding — roughly 1700 of them, into published kit surface, which is `check:admin-surface`'s population and not a boundary
  * question.
  *
  * **`_shared` stays out, deliberately**, and the reason is in
@@ -1026,8 +1026,9 @@ export interface AdminBoundarySurfaces {
    */
   readonly hostRoots: readonly string[];
   /**
-   * `admin/src/modules` — the directory holding the module surfaces — or `null`
-   * when the application has none left (feature 091, R16).
+   * The directory that held the module surfaces — `admin/src/modules` until
+   * feature 091 moved them into `packages/modules/<id>/src/admin/` — or `null`
+   * when the application has none left (feature 091, R16), as it now has none.
    *
    * The layout's own field, carried through unchanged. Every site below answers
    * the `null` the same trivial way: nothing is under a directory that does not
@@ -1180,8 +1181,9 @@ function adminLocationOf(
  *
  * The admin branch is consulted **first** and cannot be reached by a backend
  * path, because it keys on the admin module root's own prefix. It has to come
- * first: `moduleOf`'s `/src/modules/<id>/` regex matches inside any
- * `admin/src/modules/<directory>/` path and answers the **directory name**,
+ * first: `moduleOf`'s `/src/modules/<id>/` regex would match inside any
+ * `admin/src/modules/<directory>/` path (a directory that no longer exists)
+ * and answer the **directory name**,
  * which is not a module id. `warehouses` was the standing example — a
  * directory the nav attributes to `inventory` — until feature 091's Phase 4
  * batch 13 moved it into that module's package; the ordering is what makes the
@@ -1230,7 +1232,7 @@ function moduleLocationOf(
  * `host` can never be the target of a finding.
  *
  * Were it asked at both ends, every module→host reach in `admin/src/modules`
- * would become a boundary finding — that is `check:admin-surface`'s population,
+ * (while it existed) would have become a boundary finding — that is `check:admin-surface`'s population,
  * roughly 1700 reaches into published kit surface, and duplicating it here would
  * report the admin design system as cross-module debt.
  */
@@ -2608,8 +2610,8 @@ export function adminRegistryLayersWalked(input: AdminRegistryFloorInput): Admin
  *
  * **`.tsx` as well as `.ts`, and that is not symmetry for its own sake**
  * (feature 091, Phase 4). A module's admin screen is a `.tsx` file, and Story 3
- * moves it from `admin/src/modules/<id>/` — where {@link collectAdminFiles}
- * reads it — into `packages/modules/<id>/src/admin/`, which is a module walk
+ * moved it from `admin/src/modules/<id>/` — where {@link collectAdminFiles}
+ * read it — into `packages/modules/<id>/src/admin/`, which is a module walk
  * root. A `.ts`-only walk here would therefore make the move itself delete the
  * file from every boundary population in the repository: exactly the laundering
  * FR-017 exists to refuse, arriving one layer over, inside the instrument built
@@ -2924,7 +2926,7 @@ export async function scanModuleBoundaryTree(
   const adminHostFiles = collectAdminHostFiles(adminSurfaces, layout.repoRoot);
   // The two walks stay separable, because the backend floor is "one source per
   // registered module" and an admin directory produces a file for its module
-  // too: merging them first would let `admin/src/modules/blog/` satisfy the
+  // too: merging them first would let a module's admin directory satisfy the
   // floor for a `blog` whose backend sources had vanished, which is issue #215
   // re-opened by the repair for FR-017.
   const moduleFiles = collectModuleFiles(layout.moduleWalkRoots);

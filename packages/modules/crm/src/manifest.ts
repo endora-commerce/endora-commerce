@@ -501,6 +501,12 @@ export const manifest = defineModuleManifest({
         { key: 'event.name', label: 'Event name', sampleValue: 'Demo at the warehouse' },
         { key: 'event.when', label: 'When the event starts', sampleValue: 'October 12, 2026, 10:00 AM (Europe/Warsaw)' },
         { key: 'opportunity.number', label: 'Opportunity number', sampleValue: 'OPP-000042' },
+        {
+          key: 'event.adminUrl',
+          label: 'Link to the event in the admin panel (empty when ADMIN_BASE_URL is not set)',
+          sampleValue:
+            'https://admin.example.com/crm/opportunities/00000000-0000-4000-8000-000000000042?tab=events&event=00000000-0000-4000-8000-0000000000e1',
+        },
       ],
     },
   ],

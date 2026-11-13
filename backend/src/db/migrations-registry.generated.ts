@@ -205,6 +205,9 @@ import { Migration20260912T094701CustomerAccountsSalesChannelCustomerAccounts } 
 import { Migration20261103T190132CustomerAccountsOrganizationRoleAssignment } from '@endora-commerce/mod-customer-accounts/migrations';
 import { Migration20261104T094540CustomerAccountsDropLegacyRoleColumn } from '@endora-commerce/mod-customer-accounts/migrations';
 
+// ── customer_notifications ──────────────────────────────────────────────────
+import { Migration20261113T082045CustomerNotificationsInit } from '@endora-commerce/mod-customer-notifications/migrations';
+
 // ── customers ───────────────────────────────────────────────────────────────
 import { Migration20260611T140404CustomersCustomerAddressesInit } from '@endora-commerce/mod-customers/migrations';
 import { Migration20261105T180317CustomersAddressBookRetirement } from '@endora-commerce/mod-customers/migrations';
@@ -408,6 +411,7 @@ import { Migration20261018T122118QuoteRequestsItemPackagingUnitId } from '@endor
 import { Migration20261020T171341QuoteRequestsQuoteRequestItemGroups } from '@endora-commerce/mod-quote-requests/migrations';
 import { Migration20261021T164808QuoteRequestsQuoteRequestEventCarrySkipped } from '@endora-commerce/mod-quote-requests/migrations';
 import { Migration20261025T031736QuoteRequestsUnitPriceFourPlaces } from '@endora-commerce/mod-quote-requests/migrations';
+import { Migration20261113T081826QuoteRequestsNotificationsRedesign } from '@endora-commerce/mod-quote-requests/migrations';
 
 // ── returns ─────────────────────────────────────────────────────────────────
 import { Migration20260625T144227ReturnsInit } from '@endora-commerce/mod-returns/migrations';
@@ -631,6 +635,9 @@ export const MIGRATION_REGISTRY: readonly MigrationRegistryEntry[] = [
   migration('customer_accounts', Migration20261103T190132CustomerAccountsOrganizationRoleAssignment),
   migration('customer_accounts', Migration20261104T094540CustomerAccountsDropLegacyRoleColumn),
 
+  // ── customer_notifications ──────────────────────────────────────────────────
+  migration('customer_notifications', Migration20261113T082045CustomerNotificationsInit),
+
   // ── customers ───────────────────────────────────────────────────────────────
   migration('customers', Migration20260611T140404CustomersCustomerAddressesInit),
   migration('customers', Migration20261105T180317CustomersAddressBookRetirement),
@@ -834,6 +841,7 @@ export const MIGRATION_REGISTRY: readonly MigrationRegistryEntry[] = [
   migration('quote_requests', Migration20261020T171341QuoteRequestsQuoteRequestItemGroups),
   migration('quote_requests', Migration20261021T164808QuoteRequestsQuoteRequestEventCarrySkipped),
   migration('quote_requests', Migration20261025T031736QuoteRequestsUnitPriceFourPlaces),
+  migration('quote_requests', Migration20261113T081826QuoteRequestsNotificationsRedesign),
 
   // ── returns ─────────────────────────────────────────────────────────────────
   migration('returns', Migration20260625T144227ReturnsInit),

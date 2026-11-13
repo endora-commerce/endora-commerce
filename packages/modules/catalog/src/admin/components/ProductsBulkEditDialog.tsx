@@ -14,6 +14,7 @@ import { ApiError, apiClient } from '@endora-commerce/admin-kit/lib';
 import { CategoryTreePicker, ModalDialog } from '@endora-commerce/admin-kit/components';
 import { useTranslation } from '@endora-commerce/admin-kit/i18n';
 import { lookupProductLabels, type ProductLabel } from '../lib/product-labels.js';
+import { unchangedResultCount } from '../lib/bulk-result-outcome.js';
 
 /**
  * Feature 022 — Products Bulk Edit dialog.
@@ -991,7 +992,7 @@ function ScopedStatusFields(props: ScopedStatusFieldsProps): ReactNode {
           <option value="">{t('productsList.bulkEdit.scopedStatus.allLanguages')}</option>
           {codes.map((code) => (
             <option key={code} value={code}>
-              {code.toUpperCase()}
+              {code}
             </option>
           ))}
         </select>
@@ -1178,7 +1179,7 @@ interface BulkEditSummaryProps {
  * summary says how many, so "Succeeded" is not read as "all of them moved".
  */
 export function unchangedArchiveCount(results: readonly BulkUpdateResultRow[]): number {
-  return results.filter((r) => r.status === 'succeeded' && (r.changedFields?.length ?? 0) === 0).length;
+  return unchangedResultCount(results);
 }
 
 function BulkEditSummary(props: BulkEditSummaryProps): ReactNode {
@@ -1191,7 +1192,7 @@ function BulkEditSummary(props: BulkEditSummaryProps): ReactNode {
     ? props.scope.languageCode
       ? t('productsList.bulkEdit.scopedStatus.scopeLanguage', {
           channel: props.scope.channelName,
-          language: props.scope.languageCode.toUpperCase(),
+          language: props.scope.languageCode,
         })
       : t('productsList.bulkEdit.scopedStatus.scopeChannel', { channel: props.scope.channelName })
     : null;

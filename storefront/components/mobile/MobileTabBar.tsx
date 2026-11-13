@@ -9,8 +9,9 @@ import { stripLocalePrefix } from '../../lib/i18n/locale-path';
 /**
  * Feature 044 / US1 — fixed bottom tab bar (Industria Mobile design §01).
  *
- * The primary thumb-reachable navigation on phones; hidden at `md` and up
- * (the desktop header nav takes over). It is a leaf client island so the
+ * The primary thumb-reachable navigation on phones and narrow tablets; hidden
+ * from 877px, where the desktop header rows take over (the header's own
+ * boundary, not `md` — `specs/179-rfq-and-customer-notifications/` WP-09a). It is a leaf client island so the
  * data-loading layout stays a Server Component (Principle VII).
  *
  * The Cart tab carries a live count badge. Like {@link CartCounterBadge} the

@@ -705,6 +705,54 @@ describe('a mutation name only counts off an EntityManager when the name is ambi
       }`;
     expect(analyzeSource('src/modules/product_feeds/services/x.ts', src)).toEqual([]);
   });
+
+  // --- `upsert` / `upsertMany` join the vocabulary (issue #352) -------------
+
+  it('flags `em.upsert` and `em.upsertMany` alone, on every EntityManager spelling', () => {
+    // An upsert writes immediately — it is an INSERT … ON CONFLICT, not a
+    // queued change — so a unit whose only write is one was invisible to the
+    // check while writing as surely as a `nativeUpdate`.
+    for (const method of ['upsert', 'upsertMany']) {
+      for (const em of ['em', 'tx', 'tem', 'txEm', 'this.em()']) {
+        const src = `
+          export class Svc {
+            constructor(private em: () => any) {}
+            async keep(tx: any, tem: any, txEm: any, id: string) {
+              await ${em}.${method}('X', { id });
+            }
+          }`;
+        expect(
+          analyzeSource('src/modules/assets_library/services/x.ts', src).map((f) => f.kind),
+          `${em}.${method}`,
+        ).toEqual(['unaudited-sensitive-write']);
+      }
+    }
+  });
+
+  it('ignores `upsert` on a service receiver, like `create` and `remove`', () => {
+    // `deps.languageService.upsert(...)` is a call into an audited service, and
+    // `upsert` is a service-method name across the tree (currencies, languages,
+    // promotions, quick_order, dictionaries).
+    const src = `
+      export function registerAdminRoutes(app: any, deps: any) {
+        app.put('/api/v1/admin/languages/:code', {}, async (request: any, reply: any) => {
+          const row = await deps.languageService.upsert(request.body);
+          return reply.send({ data: row });
+        });
+      }`;
+    expect(analyzeSource('src/modules/languages/routes.ts', src)).toEqual([]);
+  });
+
+  it('keeps a marker over an `em.upsert` alive rather than calling it stale', () => {
+    const src = `
+      export class Ledger {
+        async record(em: any, id: string) {
+          // command-coverage-ignore: storage bookkeeping, nothing to undo
+          await em.upsert('Cleanup', { id });
+        }
+      }`;
+    expect(analyzeSource('src/modules/assets_library/services/x.ts', src)).toEqual([]);
+  });
 });
 
 /**

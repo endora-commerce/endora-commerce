@@ -13,6 +13,7 @@ import { Alert, AlertDescription, Badge, Card, CardContent, CardHeader, CardTitl
 import { useTranslation } from '@endora-commerce/admin-kit/i18n';
 import { lookupProductLabels, type ProductLabel } from '../lib/product-labels.js';
 import { bulkOperationLogText } from '../lib/bulk-operation-log-text.js';
+import { isUnchangedResult } from '../lib/bulk-result-outcome.js';
 
 /**
  * Bulk operation detail view — feature: bulk-operations detail.
@@ -361,9 +362,14 @@ export function BulkOperationDetailPage(): ReactNode {
                         })()}
                       </TableCell>
                       <TableCell>
-                        <Badge variant={OUTCOME_BADGE[r.status]}>
-                          {t(`bulkOperations.outcome.${r.status}`)}
-                        </Badge>
+                        {/* Succeeded with nothing changed — already in the requested state (issue #501). */}
+                        {isUnchangedResult(r) ? (
+                          <Badge variant="secondary">{t('bulkOperations.outcome.unchanged')}</Badge>
+                        ) : (
+                          <Badge variant={OUTCOME_BADGE[r.status]}>
+                            {t(`bulkOperations.outcome.${r.status}`)}
+                          </Badge>
+                        )}
                       </TableCell>
                       <TableCell className="text-sm text-muted-foreground">
                         {r.reason ?? r.details?.message ?? '—'}

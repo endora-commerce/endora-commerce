@@ -254,10 +254,10 @@ Reuse before you create (Constitution IX). The relevant primitives already exist
 
 | Need | Use |
 | --- | --- |
-| Admin buttons, inputs, cards, tables | `admin/src/components/ui/*` (shadcn/Radix + `cva` variants: `default`, `outline`, `secondary`, `ghost`, `destructive`, `link`) |
-| Admin app chrome, nav, command palette | `admin/src/components/AppShell.tsx` |
-| Admin sticky form actions | `admin/src/components/StickyFormActions.tsx`, `ui/save-button-group.tsx` |
-| Charts | `<EChart>` — `admin/src/components/charts/echart.tsx` (Apache ECharts) |
+| Admin buttons, inputs, cards, tables | `packages/admin-kit/src/ui/*` (shadcn/Radix + `cva` variants: `default`, `outline`, `secondary`, `ghost`, `destructive`, `link`) |
+| Admin app chrome, nav, command palette | `packages/admin-shell/src/components/AppShell.tsx` |
+| Admin sticky form actions | `packages/admin-kit/src/components/StickyFormActions.tsx`, `ui/save-button-group.tsx` |
+| Charts | `<EChart>` — `packages/admin-kit/src/components/charts/echart.tsx` (Apache ECharts) |
 | Storefront colours, radii, elevation, type | Tailwind 4 semantic tokens from `storefront/app/globals.css` `@theme inline`: `bg-surface`, `bg-surface-alt`, `text-fg`, `text-muted`, `text-subtle`, `border-line`, `border-line-strong`, `text-accent`, `*-ok`/`*-warn`/`*-bad` (+ `-soft`), `rounded-{sm,md,lg,xl}`, `shadow-{sm,md,lg}` |
 | Storefront mobile reach (Fitts) | `components/mobile/MobileTabBar.tsx`, `PdpStickyBuyBar.tsx`, `BottomSheet.tsx`, `MobileFilterSheet.tsx` |
 | Storefront commerce surfaces | `ProductCard`, `ProductGrid`, `FilterPanel`, `CartLine`, `CartTotals`, `components/checkout/*` |
@@ -274,9 +274,13 @@ Hard constraints that shape the design:
 - **B2B reality**: prices have net/gross modes, catalogue visibility and prices are
   organization- and sales-channel-scoped, and some products show a quote-request CTA instead
   of a price. Design every price and buy surface for all of those states.
-- Storefront component tests are **SSR-only** (`renderToString`, node env, no jsdom/RTL) —
+- Storefront **server** component tests are **SSR-only** (`renderToString`, node env) —
   design so meaningful output is assertable from rendered markup, and put logic in pure
-  exported functions.
+  exported functions. A `'use client'` component's **interaction** (what a click sends to a
+  server action, what an input does on blur) may be tested under
+  `// @vitest-environment jsdom` with raw `react-dom/client` + `act`, as the admin does —
+  still no Testing Library. `jsdom` is a storefront `devDependency`;
+  `storefront/test/test-environments-declared.test.ts` holds both halves.
 
 ---
 

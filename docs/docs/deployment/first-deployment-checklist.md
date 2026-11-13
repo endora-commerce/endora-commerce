@@ -435,7 +435,7 @@ storefront elements whether or not anyone asked for it.
 they are not using. Switching off is non-destructive and reversible: it drops no data,
 configuration, permissions or schema. **Do not rely on the confirmation prompt to tell you what
 a deactivation costs** — today it only names the module
-(`admin/src/modules/platform/ModuleActivationControl.tsx:88`). What breaks when a module goes
+(`packages/admin-shell/src/modules/platform/ModuleActivationControl.tsx:109`). What breaks when a module goes
 off is recorded in the
 [deactivation-consequence ledger](../architecture/kernel.md#the-deactivation-consequence-ledger);
 ask an engineer to read it for any module the client is not obviously done with. An instance has

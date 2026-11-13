@@ -1,7 +1,8 @@
 import type { TransactionalEmailSender } from '@endora-commerce/contracts';
-import { rethrowIfModuleDisabled } from '@endora-commerce/platform/kernel';
+import { configuredAdminBaseUrl, rethrowIfModuleDisabled } from '@endora-commerce/platform/kernel';
 import { TASK_DIGEST_EMAIL_CODE } from '../email-templates/digest-defaults.js';
 import { TASK_REMINDER_EMAIL_CODE } from '../email-templates/reminder-defaults.js';
+import { TASK_DIGEST_LINK_PATH, taskLinkPath } from './task-notifier.js';
 
 /**
  * Why a Task e-mail did not go out. Every one of them is logged and costs
@@ -50,6 +51,8 @@ export interface TaskReminderEmailInput extends TaskEmailRecipient {
 
 /** One line of a digest. */
 export interface TaskDigestEntry {
+  /** The Task's id — what its link into the admin panel addresses. */
+  taskId: string;
   number: string;
   title: string;
   /** `YYYY-MM-DD`. */
@@ -77,6 +80,21 @@ export interface TaskEmailDeps {
   sender: () => TransactionalEmailSender | undefined;
   /** Where a send that did not happen is reported. */
   log: (message: string, context: Record<string, unknown>) => void;
+  /**
+   * The Admin UI's base address, read per send; `null` when it is not
+   * configured, and the e-mail then carries no link. The platform's
+   * `configuredAdminBaseUrl` unless a test injects one.
+   */
+  adminBaseUrl?: () => string | null;
+}
+
+/**
+ * `{ adminUrl }` — the bell entry's address made absolute on `base` — or
+ * nothing at all: a link is left out rather than relative, which opens nothing
+ * from a mail client, and the template drops what it would have shown.
+ */
+function adminLink(base: string | null, path: string): { adminUrl?: string } {
+  return base === null ? {} : { adminUrl: `${base}${path}` };
 }
 
 /**
@@ -158,6 +176,8 @@ export function createTaskEmail(deps: TaskEmailDeps): TaskEmail {
     return { sent: false, reason };
   };
 
+  const adminBaseUrl = deps.adminBaseUrl ?? (() => configuredAdminBaseUrl());
+
   const send = async (
     recipient: TaskEmailRecipient,
     message: {
@@ -202,6 +222,7 @@ export function createTaskEmail(deps: TaskEmailDeps): TaskEmail {
             number: input.number,
             title: input.title.replace(/\s+/g, ' ').trim(),
             due: dueWords(input, language, input.timeZone) ?? '',
+            ...adminLink(adminBaseUrl(), taskLinkPath(input.taskId)),
           },
         }),
         context: { taskId: input.taskId, deliveryId: input.deliveryId },
@@ -213,9 +234,14 @@ export function createTaskEmail(deps: TaskEmailDeps): TaskEmail {
         messageId: `${TASK_DIGEST_EMAIL_CODE}:${input.adminUserId}:${input.date}`,
         document: null,
         variables: (language) => {
-          const tasks = input.tasks.map((entry) => digestItem(entry, input.date, language));
+          const base = adminBaseUrl();
+          const tasks = input.tasks.map((entry) => ({
+            ...digestItem(entry, input.date, language),
+            ...adminLink(base, taskLinkPath(entry.taskId)),
+          }));
           return {
             digest: {
+              ...adminLink(base, TASK_DIGEST_LINK_PATH),
               date: dayWords(input.date, language),
               taskCount: String(tasks.length),
               // One Task a line — the number, the title and the due date, no words around them.

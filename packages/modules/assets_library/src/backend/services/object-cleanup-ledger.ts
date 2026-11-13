@@ -37,8 +37,8 @@ export class ObjectCleanupLedger implements CleanupLedgerPort {
   constructor(private readonly emFactory: () => EntityManager) {}
 
   async record(entries: readonly CleanupEntry[], em?: EntityManager): Promise<void> {
-    // Storage bookkeeping with no operator intent and nothing to undo — the
-    // decision is the audited `asset.replace` Command.
+    // command-coverage-ignore: storage bookkeeping with no operator intent and
+    // nothing to undo — the decision is the audited `asset.replace` Command.
     if (entries.length === 0) return;
     const write = async (tx: EntityManager): Promise<void> => {
       for (const entry of entries) {

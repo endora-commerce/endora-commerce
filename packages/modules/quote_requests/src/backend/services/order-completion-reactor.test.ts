@@ -3,7 +3,6 @@ import type { EntityManager } from '@mikro-orm/postgresql';
 import type { OrderReadPort, OrderRecord } from '@endora-commerce/contracts';
 import { createOrderCompletionReactor } from './order-completion-reactor.js';
 import type { RfqEventService } from './rfq-event-service.js';
-import type { RfqNotificationService } from './rfq-notification-service.js';
 
 const ORG = '00000000-0000-4000-8000-0000000000aa';
 const OTHER_ORG = '00000000-0000-4000-8000-0000000000ab';
@@ -40,12 +39,10 @@ function rig(options: {
   /** What the composition's `defer` would have logged. */
   const logged: string[] = [];
   const append = vi.fn(async () => ({ id: 'event' }));
-  const enqueue = vi.fn(async () => undefined);
   const reactor = createOrderCompletionReactor({
     emFactory: () => ({ findOne: async () => quote, flush: async () => undefined }) as unknown as EntityManager,
     orders: { findById } as unknown as OrderReadPort,
     eventService: { append } as unknown as RfqEventService,
-    notificationService: { enqueue } as unknown as RfqNotificationService,
     // As the composition's: off the chain, never rejecting, a failure logged.
     defer: (work) =>
       work().catch((error: unknown) => {
@@ -56,7 +53,7 @@ function rig(options: {
       slept.push(milliseconds);
     },
   });
-  return { reactor, quote, findById, slept, logged, append, enqueue };
+  return { reactor, quote, findById, slept, logged, append };
 }
 
 describe('order completion reactor', () => {
@@ -65,8 +62,10 @@ describe('order completion reactor', () => {
     await r.reactor.onOrderCreated({ orderId: ORDER_ID });
     expect(r.quote).toMatchObject({ status: 'Completed', convertedOrderId: ORDER_ID, version: 4 });
     expect(r.slept).toEqual([]);
+    // The history entry, and no notification: the matrix has no row for a
+    // completed request (`specs/179-rfq-and-customer-notifications/`, Q1) and
+    // the reactor is not handed a notification service at all.
     expect(r.append).toHaveBeenCalledTimes(1);
-    expect(r.enqueue).toHaveBeenCalledTimes(1);
   });
 
   it('looks again for an order whose commit was still in flight, and completes when it appears', async () => {
@@ -113,7 +112,6 @@ describe('order completion reactor', () => {
     await r.reactor.onOrderCreated({ orderId: ORDER_ID });
     expect(r.quote).toMatchObject({ status: 'Completed', convertedOrderId: ORDER_ID, version: 4 });
     expect(r.append).toHaveBeenCalledTimes(1);
-    expect(r.enqueue).toHaveBeenCalledTimes(1);
   });
 
   it('leaves a completed request with the order that completed it, whatever a later order names', async () => {
@@ -135,6 +133,5 @@ describe('order completion reactor', () => {
     await r.reactor.onOrderCreated({ orderId: ORDER_ID });
     expect(r.quote).toMatchObject({ status: 'Approved', convertedOrderId: null });
     expect(r.append).not.toHaveBeenCalled();
-    expect(r.enqueue).not.toHaveBeenCalled();
   });
 });

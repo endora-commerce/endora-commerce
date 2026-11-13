@@ -43,6 +43,7 @@ of the platform, not of what happens to be written.
 | [Currencies](./currencies.md) | Pool of accepted ISO 4217 currencies + default | @endora-commerce/mod-currencies |
 | [Custom fields](./custom_fields.md) | Typed fields an operator adds to orders, quote requests, opportunities and other records without a code change, edited on one screen, offered as filters on the admin lists and carried from one record to the record created from it. | @endora-commerce/mod-custom-fields |
 | [Customer accounts](./customer_accounts.md) | Customer login, password reset, two-step verification, role assignment | @endora-commerce/mod-customer-accounts |
+| [Customer notifications](./customer-notifications.md) | A notification centre in the buyer's storefront account — entries other modules record for one customer account, read and marked read on the storefront, and deleted after a retention period | @endora-commerce/mod-customer-notifications |
 | [Customers](./customers.md) | Customer lifecycle over `customer_accounts` — company and personal Organizations, sales-rep assignment and the admin customer surface | @endora-commerce/mod-customers |
 | [Delivery methods](./delivery_methods.md) | Configured delivery options | @endora-commerce/mod-delivery-methods |
 | [Dictionary](./dictionaries/index.md) | Seeded reference data — Countries, Currencies, Languages — with admin reordering | @endora-commerce/mod-dictionaries |

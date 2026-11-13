@@ -296,6 +296,8 @@ export * from './admin-users.js';
 export * from './addresses.js';
 export * from './shipments.js';
 export * from './admin-notifications.js';
+// The buyer's notification centre (feature 179): port types + storefront API shapes.
+export * from './customer-notifications.js';
 // The audit-log reference registry (feature 075, D-87 drain). Not an API shape:
 // the in-process seam each module answers "what is this row of mine called, and
 // where does the admin app show it?" through.

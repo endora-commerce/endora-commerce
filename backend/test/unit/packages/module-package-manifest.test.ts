@@ -259,6 +259,14 @@ const BACKEND_ONLY = {
     'export const entities = [];\n',
 };
 
+/**
+ * The budget of one render of the real tree, and of anything that makes one —
+ * the render fixture below and the command's own run. Sized for the work under
+ * load, not for a unit case; see the render fixture's comment for the
+ * measurement.
+ */
+const RENDER_BUDGET_MS = 120_000;
+
 describe('module package manifests are generated (feature 080, T041)', () => {
   describe('it reproduces every hand-written manifest in this checkout', () => {
     // One render of the real tree is ~7.5 s with the machine to itself, and
@@ -269,7 +277,6 @@ describe('module package manifests are generated (feature 080, T041)', () => {
     // fixture: made once, before the cases, under a budget sized for the work
     // rather than for a unit case; only the idempotence case, whose subject is
     // a *second* render, makes another, under the same budget.
-    const RENDER_BUDGET_MS = 120_000;
     let realTreeRender: ReturnType<typeof renderModulePackageManifests> | undefined;
     function renderRealTree(): ReturnType<typeof renderModulePackageManifests> {
       return renderModulePackageManifests(repoRoot!, nodeManifestFs(), findManifestIndex(repoRoot!));
@@ -2068,15 +2075,29 @@ describe('module package manifests are generated (feature 080, T041)', () => {
   });
 
   describe('the command itself', () => {
+    // Issue #250 — each of these cases used to spawn the generator itself, and
+    // a spawn is a `pnpm` and a `tsx` start-up plus one whole render of the
+    // real tree, inside the 30 s unit-case budget: both timed out under a
+    // loaded `test:unit:fast` while the generator was right. The two cases ask
+    // two questions of the same run — what it said, and what it left on disk —
+    // so the command runs once, before them, under the render's budget.
     const backendRoot = join(repoRoot!, 'backend');
+    const subject = join(repoRoot!, 'packages', 'modules', 'blog', 'package.json');
+    let before: string;
+    let result: ReturnType<typeof spawnSync>;
+    let output: string;
 
-    it('reports the tree as up to date, and says what it read', () => {
-      const result = spawnSync(
+    beforeAll(() => {
+      before = readFileSync(subject, 'utf8');
+      result = spawnSync(
         'pnpm',
         ['exec', 'tsx', 'scripts/generate-module-manifests.ts', '--check'],
         { cwd: backendRoot, encoding: 'utf8' },
       );
-      const output = `${result.stdout}${result.stderr}`;
+      output = `${String(result.stdout)}${String(result.stderr)}`;
+    }, RENDER_BUDGET_MS);
+
+    it('reports the tree as up to date, and says what it read', () => {
       expect(result.status, output).toBe(0);
       const read = parseReadSize(output);
       expect(read, `no read line in:\n${output}`).not.toBeNull();
@@ -2095,18 +2116,8 @@ describe('module package manifests are generated (feature 080, T041)', () => {
     });
 
     it('writes nothing in --check mode', () => {
-      const subject = join(
-        repoRoot!,
-        'packages',
-        'modules',
-        'blog',
-        'package.json',
-      );
-      const before = readFileSync(subject, 'utf8');
-      spawnSync('pnpm', ['exec', 'tsx', 'scripts/generate-module-manifests.ts', '--check'], {
-        cwd: backendRoot,
-        encoding: 'utf8',
-      });
+      // Not vacuous: the run above has to have rendered the tree at all.
+      expect(result.status, output).toBe(0);
       expect(readFileSync(subject, 'utf8')).toBe(before);
     });
   });

@@ -77,7 +77,10 @@ export function MegamenuMobileDrawer({ megamenu, labels, account }: MegamenuMobi
   const atRoot = stack.length === 0;
 
   return (
-    <div className="md:hidden">
+    // Hidden where the desktop header rows take over (877px, the header's own
+    // boundary — `specs/179-rfq-and-customer-notifications/` WP-09a), not at
+    // `md`: the compact header that holds this trigger is shown up to 876px.
+    <div className="min-[877px]:hidden">
       <button type="button" className="icon-btn" onClick={() => setOpen(true)} aria-label={labels.open}>
         <MenuIcon />
       </button>

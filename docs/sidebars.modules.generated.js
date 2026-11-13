@@ -211,6 +211,14 @@ const modules = [
   },
   {
     type: 'category',
+    label: 'Customer notifications', key: 'customer_notifications',
+    link: { type: 'doc', id: 'modules/customer-notifications' },
+    items: [
+      'module-reference/customer-notifications',
+    ],
+  },
+  {
+    type: 'category',
     label: 'Customers', key: 'customers',
     link: { type: 'doc', id: 'modules/customers' },
     items: [

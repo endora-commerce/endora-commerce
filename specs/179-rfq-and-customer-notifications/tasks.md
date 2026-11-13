@@ -33,16 +33,23 @@ Contract and integration files do not run on merge requests (D-198): run them lo
 
 ### WP-01 Contracts (blocks everything)
 
-- [ ] T001 [P] [WP-01] Test: `customerNotificationListResponseSchema`, `customerNotificationSchema`, unread-count schema parse/strict cases — `contracts/customer-notifications.test.ts`
-- [ ] T002 [P] [WP-01] Test: `quoteRequestDeliverySchema` and an entry with and without `deliveries` — `contracts/quote-requests.test.ts`
-- [ ] T003 [WP-01] Impl: `contracts/customer-notifications.ts` (port types + schemas, `contracts/delivery-and-ports.md` §1, storefront API §2), `CustomerPushPort` types in `contracts/pwa.ts` (§2), `quoteRequestDeliverySchema` + optional `deliveries` in `contracts/quote-requests.ts` (§4); export from the barrel; changeset `@endora-commerce/contracts` minor
+- [x] T001 [P] [WP-01] Test: `customerNotificationListResponseSchema`, `customerNotificationSchema`, unread-count schema parse/strict cases — `contracts/customer-notifications.test.ts`
+- [x] T002 [P] [WP-01] Test: `quoteRequestDeliverySchema` and an entry with and without `deliveries` — `contracts/quote-requests.test.ts`
+- [x] T003 [WP-01] Impl: `contracts/customer-notifications.ts` (port types + schemas, `contracts/delivery-and-ports.md` §1, storefront API §2), `CustomerPushPort` types in `contracts/pwa.ts` (§2), `quoteRequestDeliverySchema` + optional `deliveries` in `contracts/quote-requests.ts` (§4); export from the barrel; changeset `@endora-commerce/contracts` minor
 
 ### WP-02 Table redesign (`qr`)
 
-- [ ] T010 [WP-02] Test: migration up creates `quote_request_notifications` with every constraint of data-model §1 and drops `quote_request_notification_events`; down reverses — `backend/test/integration/quote_requests/notifications-migration.test.ts`
-- [ ] T011 [WP-02] Test: `notification-matrix.ts` equals the table of `contracts/notification-matrix.md` §1 (rows, channels, actor rule, completed = none) — `qr/src/backend/services/notifications/notification-matrix.test.ts`
-- [ ] T012 [WP-02] Impl: scaffold the migration with `pnpm --filter backend run migration:new` in `qr`; entity `quote-request-notification.entity.ts` (`@OrgScoped`); delete `quote-request-notification-event.entity.ts`; `notification-matrix.ts`; rewrite `rfq-notification-service.ts` as `record(within, { change, sourceEvent, rfq, actor })` writing one row per matrix cell (no non-transactional path); `composer:generate`
-- [ ] T013 [WP-02] Grep `backend/test/**` and `packages/**` for `quote_request_notification_events` / `QuoteRequestNotificationEvent` and update every reference (docs excepted, WP-11)
+- [x] T010 [WP-02] Test: migration up creates `quote_request_notifications` with every constraint of data-model §1 and drops `quote_request_notification_events`; down reverses — `backend/test/integration/quote_requests/notifications-migration.test.ts`
+- [x] T011 [WP-02] Test: `notification-matrix.ts` equals the table of `contracts/notification-matrix.md` §1 (rows, channels, actor rule, completed = none) — `qr/src/backend/services/notifications/notification-matrix.test.ts`
+- [x] T012 [WP-02] Impl: scaffold the migration with `pnpm --filter backend run migration:new` in `qr`; entity `quote-request-notification.entity.ts` (`@OrgScoped`); delete `quote-request-notification-event.entity.ts`; `notification-matrix.ts`; rewrite `rfq-notification-service.ts` as `record(within, { change, sourceEvent, rfq, actor })` writing one row per matrix cell (no non-transactional path); `composer:generate`
+- [x] T013 [WP-02] Grep `backend/test/**` and `packages/**` for `quote_request_notification_events` / `QuoteRequestNotificationEvent` and update every reference (docs excepted, WP-11)
+  - *WP-02 as built (for WP-03/WP-04):* `record` resolves sides through an injected
+    `NotificationRecipientResolver`; until WP-03 it is `notifications/assignment-recipients.ts`,
+    the pre-179 rule unchanged (requester; assigned representatives, else every administrator).
+    The writers still call `record(em, …)` after `underRowLock` commits, on the request's own
+    EntityManager — WP-04 moves each call inside the lock. `RECORDED_CHANNELS` holds
+    `customer_in_app` (WP-08) and `customer_push` (WP-10) back; their matrix cells stand. The order
+    completion reactor no longer has a notification service (completed = none).
 
 ### WP-03 Recipients (`qr`)
 
@@ -79,12 +86,12 @@ Contract and integration files do not run on merge requests (D-198): run them lo
 
 ### WP-07 Module `customer_notifications` (`cn`)
 
-- [ ] T060 [WP-07] Test: port — `recordWithin` persists on the caller's EM without flush; refuses absolute / protocol-relative links, `bodyMessage` without `body`, non-scalar params; `record` with an existing `(sourceModule, sourceKey)` answers the existing entry — `cn/src/backend/services/customer-notification-port.test.ts`
-- [ ] T061 [WP-07] Test: list/count/read/read-all — own entries only; channel = resolved channel or null; producer absent hidden; keyset paging stable; translated in the request language with English fallback; impersonation writes nothing; `404` for another account's id — `cn/src/backend/services/customer-notification-service.test.ts` + `backend/test/contract/customer_notifications/storefront-api.test.ts`
-- [ ] T062 [WP-07] Test: retention sweep deletes entries older than the setting in batches; deletes entries of deleted/anonymised accounts; idle tick enters no scope — `cn/src/backend/workers/retention-sweep-worker.test.ts`
-- [ ] T063 [WP-07] Test: module off → routes `503 MODULE_DISABLED`, worker idle, port gate closed — `backend/test/integration/customer_notifications/off-state.test.ts`
-- [ ] T064 [WP-07] Impl: package scaffold (`package.json` `@endora-commerce/mod-customer-notifications`, tsconfigs, README, LICENSE, CHANGELOG), `manifest.ts` (activation, settings of data-model §3, dependencies `_i18n`, `auth`, `settings`, `customer_accounts`, `i18n`, `docs`), entity, init migration via `migration:new`, service, port provided with `ctx.di.providePort('customerNotificationRecordPort', …)`, `routes.storefront.ts` via `ctx.routes`, retention worker via `ctx.worker`, `i18n/{en,pl}.json` (settings group), `docs/customer-notifications.md` (en; pl in WP-11)
-- [ ] T065 [WP-07] Generated artefacts: `pnpm --filter backend run composer:generate`, `manifests:generate`, `pnpm install --lockfile-only`; commit all; changeset (initial)
+- [x] T060 [WP-07] Test: port — `recordWithin` persists on the caller's EM without flush; refuses absolute / protocol-relative links, `bodyMessage` without `body`, non-scalar params; `record` with an existing `(sourceModule, sourceKey)` answers the existing entry — `cn/src/backend/services/customer-notification-port.test.ts`
+- [x] T061 [WP-07] Test: list/count/read/read-all — own entries only; channel = resolved channel or null; producer absent hidden; keyset paging stable; translated in the request language with English fallback; impersonation writes nothing; `404` for another account's id — `cn/src/backend/services/customer-notification-service.test.ts` + `backend/test/contract/customer_notifications/storefront-api.test.ts`
+- [x] T062 [WP-07] Test: retention sweep deletes entries older than the setting in batches; deletes entries of deleted/anonymised accounts; idle tick enters no scope — `cn/src/backend/workers/retention-sweep-worker.test.ts`
+- [x] T063 [WP-07] Test: module off → routes `503 MODULE_DISABLED`, worker idle, port gate closed — `backend/test/integration/customer_notifications/off-state.test.ts`
+- [x] T064 [WP-07] Impl: package scaffold (`package.json` `@endora-commerce/mod-customer-notifications`, tsconfigs, README, LICENSE, CHANGELOG), `manifest.ts` (activation, settings of data-model §3, dependencies `_i18n`, `auth`, `settings`, `customer_accounts`, `i18n`, `docs`), entity, init migration via `migration:new`, service, port provided with `ctx.di.providePort('customerNotificationRecordPort', …)`, `routes.storefront.ts` via `ctx.routes`, retention worker via `ctx.worker`, `i18n/{en,pl}.json` (settings group), `docs/customer-notifications.md` (en; pl in WP-11); add the `Container name: \`customerNotificationRecordPort\`` marker to the port's doc block in `contracts/customer-notifications.ts` (WP-01 left it out: `check:port-shape` refuses a name nothing registers)
+- [x] T065 [WP-07] Generated artefacts: `pnpm --filter backend run composer:generate`, `manifests:generate`, `pnpm install --lockfile-only`; commit all; changeset (initial)
 
 ### WP-08 `customer_in_app` channel (`qr`)
 
@@ -93,8 +100,8 @@ Contract and integration files do not run on merge requests (D-198): run them lo
 
 ### WP-09a Tablet breakpoint alignment (`sf`) — own MR, before WP-09
 
-- [ ] T078 [WP-09a] [US3] Test (SSR/CSS): the tab bar and the drawer trigger render at widths below 877 px and the desktop header rows from 877 px — the class/breakpoint assertions at 767, 768, 876 and 877 px; `--m-tabbar-h` set below 877 px — `sf/test/HeaderBreakpoint.test.tsx` (extended)
-- [ ] T079 [WP-09a] Impl: align `.m-tabbar` (and the body spacer it drives) and `MegamenuMobileDrawer`'s `md:hidden` to `min-[877px]`; check sticky bars that read `--m-tabbar-h` (PDP, checkout); screenshot 800 px before/after in the MR
+- [x] T078 [WP-09a] [US3] Test (SSR/CSS): the tab bar and the drawer trigger render at widths below 877 px and the desktop header rows from 877 px — the class/breakpoint assertions at 767, 768, 876 and 877 px; `--m-tabbar-h` set below 877 px — `sf/test/HeaderBreakpoint.test.tsx` (extended)
+- [x] T079 [WP-09a] Impl: align `.m-tabbar` (and the body spacer it drives) and `MegamenuMobileDrawer`'s `md:hidden` to `min-[877px]`; check sticky bars that read `--m-tabbar-h` (PDP, checkout); screenshot 800 px before/after in the MR (done without the dev stack: a Chromium computed-style probe of the compiled CSS at 767/768/800/876/877 px before and after, recorded in the MR; no page screenshot)
 
 ### WP-09 Storefront (`sf`)
 
@@ -114,7 +121,7 @@ Contract and integration files do not run on merge requests (D-198): run them lo
 - [ ] T090 [WP-10] [US4] Test: port — gate order (channel → push on + quote category on → account live → preference → subscription → enqueue); each `skipped:*`; repeated `sourceKey` writes nothing and answers `enqueued` — `pwa/src/backend/services/customer-push-port.test.ts`
 - [ ] T091 [WP-10] [US4] Test: `pwa` subscribes to no `rfq.*` event; the composer has no quote branch; the `quoteRequestReadPort` edge is gone — `pwa/src/backend/cross-module-ports.test.ts`, `status-push-composer.test.ts`
 - [ ] T092 [WP-10] [US4] Test: `customer_push` adapter renders the sentence in the channel language and maps each outcome (`contracts/delivery-and-ports.md` §3); matrix writes `customer_push` rows; requester and an *Administrator* member both pushed, actor not — `qr/.../channel-adapters.test.ts`, integration `notification-delivery.test.ts`
-- [ ] T093 [WP-10] Impl: `pwa/src/backend/services/customer-push-port.ts`, provided as `customerPushPort`; remove quote branch, `QUOTE_STATUS_EVENTS`, the five subscriptions and the edge; update `pwa.push_quote_status_enabled` description; `qr` adapter and `degrades-without pwa` edge; changesets `mod-pwa` minor, `mod-quote-requests`
+- [ ] T093 [WP-10] Impl: `pwa/src/backend/services/customer-push-port.ts`, provided as `customerPushPort`; remove quote branch, `QUOTE_STATUS_EVENTS`, the five subscriptions and the edge; update `pwa.push_quote_status_enabled` description; `qr` adapter and `degrades-without pwa` edge; changesets `mod-pwa` minor, `mod-quote-requests`; add the `Container name: \`customerPushPort\`` marker to `CustomerPushPort`'s doc block in `contracts/pwa.ts` (left out in WP-01 for the same reason)
 
 ---
 

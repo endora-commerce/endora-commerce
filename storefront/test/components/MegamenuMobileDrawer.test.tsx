@@ -5,7 +5,8 @@ import { DrawerRows, MegamenuMobileDrawer, featuredRowText } from '../../compone
 
 /**
  * T074 — Mobile drawer renders the burger trigger and (closed) is
- * `md:hidden` so it doesn't bleed into the desktop layout. The drill-
+ * hidden from 877 px (`min-[877px]:hidden`, the header's own boundary since
+ * feature 179 WP-09a) so it doesn't bleed into the desktop layout. The drill-
  * down + back-stack interaction is end-state behaviour exercised on a
  * real device; this SSR test proves the structural skeleton renders.
  */
@@ -59,11 +60,12 @@ const labels = {
 };
 
 describe('MegamenuMobileDrawer — SSR initial render', () => {
-  it('renders the burger trigger (icon-button) and is marked md:hidden on the wrapper', () => {
+  it('renders the burger trigger (icon-button) and is marked min-[877px]:hidden on the wrapper', () => {
     const html = renderToString(<MegamenuMobileDrawer megamenu={fixture} labels={labels} />);
     expect(html).toContain('aria-label="Open menu"');
     expect(html).toContain('icon-btn');
-    expect(html).toContain('md:hidden');
+    expect(html).toContain('class="min-[877px]:hidden"');
+    expect(html).not.toContain('md:hidden');
   });
 
   it('does not render the drawer body in the closed initial state', () => {

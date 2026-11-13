@@ -270,6 +270,16 @@ listing your open tasks due that day and those overdue. On a day with none,
 nothing is sent; a task that becomes due later that day is in the next day's
 digest. The digest is off until you turn it on.
 
+**Links in the e-mails.** When the admin panel's address (`ADMIN_BASE_URL`) is
+set, the reminder e-mail has an **Open the task** button. In the digest each
+listed task links to its screen, and an **Open My tasks** button opens *My
+tasks*. Without that address the e-mails carry no links and no buttons, and they
+name each task by its number and title. A relative or guessed address is never
+sent. On the **Transactional emails** screen the variables are `task.adminUrl`
+(reminder) and `digest.adminUrl` (digest), plus `adminUrl` on each item of
+`digest.tasks`. A template edited before the links existed does not name them
+and renders as before.
+
 **Drafts and private tasks.** *Save as draft* keeps a new task to yourself:
 nobody is told about it, no reminder of it fires, and nobody else finds it
 anywhere — not even a holder of *See private tasks*. *Publish* makes it a normal

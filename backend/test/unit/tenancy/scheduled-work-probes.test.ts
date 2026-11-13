@@ -5,6 +5,7 @@ import { describe, expect, it, vi } from 'vitest';
 import { anyRowExists as assetsLibraryAnyRowExists } from '../../../../packages/modules/assets_library/src/backend/services/scheduled-work-probe.js';
 import { anyRowExists as catalogAnyRowExists } from '../../../../packages/modules/catalog/src/backend/services/scheduled-work-probe.js';
 import { anyRowExists as customerAccountsAnyRowExists } from '../../../../packages/modules/customer_accounts/src/backend/services/scheduled-work-probe.js';
+import { anyRowExists as customerNotificationsAnyRowExists } from '../../../../packages/modules/customer_notifications/src/backend/services/scheduled-work-probe.js';
 import { anyRowExists as crmAnyRowExists } from '../../../../packages/modules/crm/src/backend/services/scheduled-work-probe.js';
 import { anyRowExists as organizationsAnyRowExists } from '../../../../packages/modules/organizations/src/backend/services/scheduled-work-probe.js';
 import { anyRowExists as ordersAnyRowExists } from '../../../../packages/modules/orders/src/backend/services/scheduled-work-probe.js';
@@ -71,6 +72,8 @@ const PROBES = [
     file: 'services/personal-organization-service.ts',
     method: 'hasIncompletelyScrubbed',
   },
+  // `specs/179-rfq-and-customer-notifications/` R-16 — the centre's daily retention sweep.
+  { module: 'customer_notifications', file: 'services/retention-store.ts', method: 'hasWork' },
 ] as const;
 
 const HELPER = 'services/scheduled-work-probe.ts';
@@ -152,6 +155,7 @@ describe('scheduled work probes answer one bit (issue #120)', () => {
     ['catalog', catalogAnyRowExists],
     ['customer_accounts', customerAccountsAnyRowExists],
     ['organizations', organizationsAnyRowExists],
+    ['customer_notifications', customerNotificationsAnyRowExists],
   ] as const)('anyRowExists (%s)', (_module, anyRowExists) => {
     const emAnswering = (rows: unknown) => ({ execute: vi.fn(async () => rows) });
 

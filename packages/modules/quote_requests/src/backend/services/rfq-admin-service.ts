@@ -560,11 +560,11 @@ export class RfqAdminService {
       payload: { type: 'approved', approvedBy: 'admin' },
     });
 
-    await this.deps.notificationService.enqueue({
-      quoteRequestId: rfq.id,
-      sourceEventId: evt.id,
-      recipients: [{ customerAccountId: rfq.customerAccountId }],
-      channels: ['email', 'in_app'],
+    await this.deps.notificationService.record(em, {
+      change: 'approved',
+      sourceEvent: evt,
+      rfq,
+      actor: null,
     });
 
     this.deps.events.emit('rfq.approved.v1', {
@@ -661,11 +661,11 @@ export class RfqAdminService {
       payload: { type: 'canceled', canceledBy: 'admin', reason: reason ?? null },
     });
 
-    await this.deps.notificationService.enqueue({
-      quoteRequestId: rfq.id,
-      sourceEventId: evt.id,
-      recipients: [{ customerAccountId: rfq.customerAccountId }],
-      channels: ['email', 'in_app'],
+    await this.deps.notificationService.record(em, {
+      change: 'canceled',
+      sourceEvent: evt,
+      rfq,
+      actor: null,
     });
 
     this.deps.events.emit('rfq.canceled.v1', {
@@ -897,11 +897,11 @@ export class RfqAdminService {
       revisionId: revision.id,
     });
 
-    await this.deps.notificationService.enqueue({
-      quoteRequestId: rfq.id,
-      sourceEventId: evt.id,
-      recipients: [{ customerAccountId: rfq.customerAccountId }],
-      channels: ['email', 'in_app'],
+    await this.deps.notificationService.record(em, {
+      change: 'revised',
+      sourceEvent: evt,
+      rfq,
+      actor: null,
     });
 
     this.deps.events.emit('rfq.modified.v1', {
@@ -1129,7 +1129,7 @@ export class RfqAdminService {
       actor: { adminUserId: ctx.adminUserId },
     });
 
-    await this.deps.eventService.append({
+    const created = await this.deps.eventService.append({
       quoteRequestId: rfq.id,
       eventType: 'created',
       actor: { adminUserId: ctx.adminUserId, roleLabel: ctx.roleLabel },
@@ -1137,7 +1137,7 @@ export class RfqAdminService {
       revisionId: revision.id,
     });
 
-    const evt = await this.deps.eventService.append({
+    await this.deps.eventService.append({
       quoteRequestId: rfq.id,
       eventType: 'note-added',
       actor: { adminUserId: ctx.adminUserId, roleLabel: ctx.roleLabel },
@@ -1145,11 +1145,13 @@ export class RfqAdminService {
       revisionId: revision.id,
     });
 
-    await this.deps.notificationService.enqueue({
-      quoteRequestId: rfq.id,
-      sourceEventId: evt.id,
-      recipients: [{ customerAccountId: rfq.customerAccountId }],
-      channels: ['email', 'in_app'],
+    // The `created` entry is what the buyer is told about (`contracts/notification-matrix.md`
+    // §1, `prepared`); the automatic note beside it announces nothing (rule 6).
+    await this.deps.notificationService.record(em, {
+      change: 'prepared',
+      sourceEvent: created,
+      rfq,
+      actor: null,
     });
 
     // Announced last, once every row of the request is written: a subscriber

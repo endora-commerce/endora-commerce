@@ -1,0 +1,7 @@
+{
+  "settingGroups.customer_notifications.name": "Powiadomienia klientów",
+  "settingLabels.customer_notifications.enabled.name": "Powiadomienia klientów włączone",
+  "settingLabels.customer_notifications.enabled.description": "Włącza lub wyłącza centrum powiadomień na koncie kupującego w sklepie. Gdy jest wyłączone, nic nie jest zapisywane, sklep nie pokazuje ani strony powiadomień, ani liczby nieprzeczytanych, a jego API jest niedostępne. Nic nie jest usuwane — zapisane powiadomienia zostają zachowane i pojawiają się ponownie po ponownym włączeniu.",
+  "settingLabels.customer_notifications.retention_days.name": "Przechowuj powiadomienia przez (dni)",
+  "settingLabels.customer_notifications.retention_days.description": "Przez ile dni powiadomienie pozostaje na koncie kupującego, zanim zostanie usunięte. Od 7 do 730 dni."
+}

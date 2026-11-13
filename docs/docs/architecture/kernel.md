@@ -491,7 +491,7 @@ caller today is `check-port-dependencies.ts`, at build time; the confirmation
 dialog and the 409 `MODULE_DEACTIVATION_UNCONFIRMED` envelope are still in
 flight, and today's dialog is a bare
 `window.confirm` naming the module and nothing else
-(`admin/src/modules/platform/ModuleActivationControl.tsx`). What is settled ahead
+(`packages/admin-shell/src/modules/platform/ModuleActivationControl.tsx`). What is settled ahead
 of them is that there is **one** function for both to call, so that when they land
 the id set in the dialog and the id set in `details.consequences` cannot drift:
 they will be the same expression evaluated twice, not two lists somebody keeps in

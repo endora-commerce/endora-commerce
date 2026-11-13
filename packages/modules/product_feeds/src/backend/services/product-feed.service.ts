@@ -8,6 +8,7 @@ import {
   type PinnedPriceBookPublishability,
   type PinnedPriceBookUnpublishableReason,
   type PriceListReadPort,
+  type ProductFeedPriceBookOption,
   type UpdateProductFeedRequest,
   isUuidShape,
 } from '@endora-commerce/contracts';
@@ -370,6 +371,38 @@ export class ProductFeedService {
         pinnedPriceBookWarning: pinnedWarning.get(feed.id) ?? null,
       };
     });
+  }
+
+  /**
+   * Issue #414 — the price books a feed's settings offer to pin it to: every
+   * book in the feed's currency (a book in another one never prices it), plus
+   * the book the feed is pinned to whatever its currency, so the picker can
+   * show the current pin. Each carries why it would publish no prices for this
+   * feed now, from the same `namedListPublishability` a run and the feed row
+   * ask (feature 160 FR-029, owner ruling 2026-10-23). In `listAll`'s order:
+   * priority desc, then name.
+   */
+  async priceBookOptions(feedId: string): Promise<ProductFeedPriceBookOption[]> {
+    const feed = await this.getOrFail(feedId);
+    const currency = feed.currencyCode.toUpperCase();
+    const books = (await this.deps.priceLists.listAll()).filter(
+      (book) => book.currencyCode.trim().toUpperCase() === currency || book.id === feed.priceListId,
+    );
+    const options: ProductFeedPriceBookOption[] = [];
+    for (const book of books) {
+      const answer = await this.deps.pinnedPriceBookPublishability({
+        priceListId: book.id,
+        currencyCode: feed.currencyCode,
+        salesChannelId: feed.salesChannelId,
+      });
+      options.push({
+        id: book.id,
+        name: book.name,
+        isBase: book.isSystem,
+        unpublishableReason: answer.publishable ? null : answer.reason,
+      });
+    }
+    return options;
   }
 }
 

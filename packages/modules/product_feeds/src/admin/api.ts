@@ -169,6 +169,18 @@ export type PinnedPriceBookWarning =
   | 'not_on_channel'
   | 'audience_restricted';
 
+/**
+ * Issue #414 — one book the settings tab offers to pin the feed to; mirrors
+ * `productFeedPriceBookOptionSchema` in `@endora-commerce/contracts`.
+ * `unpublishableReason` is why it would publish no prices for this feed now.
+ */
+export interface FeedPriceBookOption {
+  id: string;
+  name: string;
+  isBase: boolean;
+  unpublishableReason: PinnedPriceBookWarning | null;
+}
+
 export interface IssuedFeedToken {
   token: string;
   url: string;
@@ -323,6 +335,11 @@ export const productFeedsClient = {
 
   update(id: string, body: UpdateFeedBody): Promise<{ data: ProductFeedDto }> {
     return apiClient.patch<{ data: ProductFeedDto }>(`${BASE}/${id}`, body);
+  },
+
+  /** Issue #414 — needs `price_lists:read` beside `product_feeds:read`. */
+  priceBookOptions(id: string): Promise<{ data: FeedPriceBookOption[] }> {
+    return apiClient.get<{ data: FeedPriceBookOption[] }>(`${BASE}/${id}/price-book-options`);
   },
 
   duplicate(

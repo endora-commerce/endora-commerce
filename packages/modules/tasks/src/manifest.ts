@@ -386,6 +386,11 @@ export const manifest = defineModuleManifest({
         { key: 'task.number', label: 'Task number', sampleValue: 'TSK-000042' },
         { key: 'task.title', label: 'Task title', sampleValue: 'Measure the showroom' },
         { key: 'task.due', label: 'Task due date', sampleValue: 'October 30, 2026 14:00' },
+        {
+          key: 'task.adminUrl',
+          label: 'Link to the task in the admin panel (empty when ADMIN_BASE_URL is not set)',
+          sampleValue: 'https://admin.example.com/tasks/00000000-0000-4000-8000-000000000042',
+        },
       ],
     },
     {
@@ -402,6 +407,11 @@ export const manifest = defineModuleManifest({
           label: 'The tasks, one per line',
           sampleValue:
             'TSK-000042 Measure the showroom — overdue since October 28\nTSK-000051 Call the installer — due today',
+        },
+        {
+          key: 'digest.adminUrl',
+          label: 'Link to My tasks in the admin panel (empty when ADMIN_BASE_URL is not set)',
+          sampleValue: 'https://admin.example.com/tasks/mine',
         },
       ],
     },

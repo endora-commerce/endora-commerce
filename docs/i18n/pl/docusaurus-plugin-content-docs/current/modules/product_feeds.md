@@ -175,10 +175,13 @@ Dotyczy to każdego feedu; nie ma na to ustawienia. Strona produktu w storefronc
 jednej sztuki; zasady Google dla opakowań zbiorczych wymagają, by strona docelowa pokazywała też cenę
 opakowania, więc obserwuj diagnostykę Merchant Center dla produktów publikowanych w ten sposób.
 
-Feed można zamiast tego **przypiąć do jednego cennika** — pole `priceListId` feedu, ustawiane przez
-API administracyjne przy tworzeniu albo zmianie feedu (`POST /api/v1/admin/product-feeds`,
-`PATCH /api/v1/admin/product-feeds/:id`); ekrany feedu pokazują opisane niżej ostrzeżenie, ale nie
-mają do tego kontrolki (zgłoszenie #414). Feed publikuje wtedy własne linie tego cennika — ceny stałe oraz procenty i
+Feed można zamiast tego **przypiąć do jednego cennika**: wybierz go w polu *Cennik* w sekcji *Ceny*
+na karcie *Ustawienia* feedu albo ustaw pole `priceListId` feedu przez API administracyjne
+(`POST /api/v1/admin/product-feeds`, `PATCH /api/v1/admin/product-feeds/:id`). Lista podpowiada
+cenniki w walucie feedu; te, które nie publikowałyby teraz dla feedu, są wyszarzone, z powodem obok
+nazwy, a *Bez cennika* odpina feed. Cennik, do którego feed jest już przypięty, pozostaje do wyboru
+niezależnie od swojego stanu. Wybór cennika wymaga uprawnienia do przeglądania cenników oraz do
+edycji feedów produktowych. Przypięty feed publikuje wtedy własne linie tego cennika — ceny stałe oraz procenty i
 korekty liczone od ceny katalogowej, jaką kanał naliczałby bez tego cennika — a **produkt, którego
 cennik nie wycenia, nie trafia do feedu**. Cennik cen bazowych publikuje swoje ceny bazowe.
 Przypięty cennik jest publikowany **tylko wtedy, gdy w chwili generowania obowiązuje kogokolwiek w

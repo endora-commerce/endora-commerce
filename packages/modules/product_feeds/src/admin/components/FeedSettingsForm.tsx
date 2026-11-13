@@ -5,6 +5,7 @@ import { useAuth } from '@endora-commerce/admin-kit/lib';
 import { useTranslation } from '@endora-commerce/admin-kit/i18n';
 import { productFeedsClient, type ProductFeedDto } from '../api.js';
 import { FeedCriteriaPanel } from './FeedCriteriaPanel.js';
+import { FeedPriceBookField } from './FeedPriceBookField.js';
 import { SchedulePresetField, type FeedScheduleValue } from './SchedulePresetField.js';
 
 /**
@@ -14,7 +15,10 @@ import { SchedulePresetField, type FeedScheduleValue } from './SchedulePresetFie
  * schedule presets with US3.
  *
  * The price region is the one with a real cross-field rule: gross prices need a
- * tax country, because a feed has no buyer to infer one from (FR-044).
+ * tax country, because a feed has no buyer to infer one from (FR-044). It also
+ * carries the price book the feed is pinned to (issue #414), sent only when
+ * the operator changed it — a pin to a book that no longer exists would
+ * otherwise refuse every save of the other fields.
  */
 
 export interface FeedSettingsFormProps {
@@ -33,6 +37,7 @@ export function FeedSettingsForm(props: FeedSettingsFormProps): ReactNode {
   const [enabled, setEnabled] = useState(feed.enabled);
   const [presentation, setPresentation] = useState(feed.pricePresentation);
   const [taxCountry, setTaxCountry] = useState(feed.taxCountry ?? '');
+  const [priceListId, setPriceListId] = useState<string | null>(feed.priceListId);
   const [selectionRule, setSelectionRule] = useState<ProductSelectionRule>(
     feed.selectionRule ?? { kind: 'all' },
   );
@@ -52,6 +57,7 @@ export function FeedSettingsForm(props: FeedSettingsFormProps): ReactNode {
         enabled,
         pricePresentation: presentation,
         taxCountry: presentation === 'gross' ? taxCountry.trim().toUpperCase() : null,
+        ...(priceListId !== feed.priceListId ? { priceListId } : {}),
         selectionRule,
         schedule,
       });
@@ -114,6 +120,14 @@ export function FeedSettingsForm(props: FeedSettingsFormProps): ReactNode {
           <CardTitle>{t('feeds.settings.prices')}</CardTitle>
         </CardHeader>
         <CardContent className="flex flex-col gap-4">
+          <FeedPriceBookField
+            feedId={feed.id}
+            pinnedId={feed.priceListId}
+            value={priceListId}
+            onChange={setPriceListId}
+            disabled={!canWrite}
+            disabledTitle={writeTitle}
+          />
           <div className="flex flex-col gap-1.5">
             <Label htmlFor="feed-price-presentation">{t('feeds.settings.prices')}</Label>
             <Select

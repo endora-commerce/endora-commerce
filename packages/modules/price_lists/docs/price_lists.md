@@ -367,8 +367,8 @@ administrator and the state before and after; *View history* on a book opens its
 - **The external catalogue API** prices the API key's organization with that organization's
   customer group, not the bound customer account's own group, and its bulk pricing request names
   product SKUs only.
-- **Product feeds price products, not variants**, at quantity 1, and a feed is pinned to a price
-  book only through the admin API — no feed screen sets it (issue #414).
+- **Product feeds price products, not variants**, at quantity 1; a feed is pinned to a price
+  book on the feed's *Settings* tab, which offers only the books that would publish for it.
 
 ## Upgrading from the old price lists (migration note)
 

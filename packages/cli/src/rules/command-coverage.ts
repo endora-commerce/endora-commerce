@@ -5,7 +5,8 @@
  *
  * Flags, **per method/function/route handler** in every file a module owns:
  *   1. an **unaudited sensitive write** — a method that performs a mutation call
- *      (`persist*`, `nativeUpdate`, `nativeDelete`, `remove*`, `flush`) but
+ *      (`persist*`, `nativeUpdate`, `nativeDelete`, `remove*`, `flush`,
+ *      `create`, `upsert*`) but
  *      neither runs a Command (`commandBus.run(...)`) nor writes audit
  *      (`.record*(...)`) in the same method;
  *   2. a **double-audit** — a method that BOTH runs a Command AND writes audit by
@@ -176,8 +177,17 @@ const ORM_MUTATIONS = new Set([
  * `em.create` was invisible to this check while being every bit as much a write
  * as the `persist` next door. That is the hole that let a CSV import rewrite
  * catalogue and stock unaudited for a year.
+ *
+ * `upsert` and `upsertMany` joined in issue #352, on the same axis as `create`.
+ * `em.upsert(Entity, …)` is an `INSERT … ON CONFLICT` sent at once, so a unit
+ * whose only write was an upsert was never reported, and a marker written on it
+ * was reported as stale. Both names are also service vocabulary —
+ * `deps.languageService.upsert(…)`, `promotionService.upsert(…)`,
+ * `scheduler.upsert(…)` — so the flagging half asks for an EntityManager here
+ * too. (`upsertJobScheduler` is a different name and stays in
+ * `NON_SQL_WRITE_METHODS`.)
  */
-const AMBIGUOUS_MUTATIONS = new Set(['remove', 'create']);
+const AMBIGUOUS_MUTATIONS = new Set(['remove', 'create', 'upsert', 'upsertMany']);
 
 const MUTATION_METHODS = new Set([...ORM_MUTATIONS, ...AMBIGUOUS_MUTATIONS]);
 

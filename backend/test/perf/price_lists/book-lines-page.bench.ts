@@ -10,6 +10,8 @@ import {
   seedProductTiersSql,
   seedVariantRowsSql,
 } from '../../helpers/price-book-bulk.js';
+import { vacuumAnalyzeTable as vacuumCatalogTable } from '../../../../packages/modules/catalog/src/backend/services/table-maintenance-queue.js';
+import { vacuumAnalyzeTable as vacuumPriceListsTable } from '../../../../packages/modules/price_lists/src/backend/workers/table-maintenance-worker.js';
 
 /**
  * Feature 161, G15 (`specs/161-price-book-editor/contracts/backend-gaps.md`,
@@ -30,13 +32,18 @@ import {
  *     broad `screw` (a name word, one product in seven), all-matching `sku` (a
  *     SKU prefix every product shares), two-character `cr` and no-match `zz`.
  *
- * Two states (`PERF_BOOK_LINES_STATE`):
+ * Three states (`PERF_BOOK_LINES_STATE`):
  *   - `steady` (default) — `VACUUM ANALYZE` after the seed: the state autovacuum
  *     leaves a catalogue in once it has run after an import (it analyses a table
  *     after 10 % + 50 rows change, so within minutes of a bulk import).
  *   - `fresh` — no vacuum, autovacuum held off on the four tables: the state
  *     right after a bulk import, before autovacuum's first pass.
- * Both are asserted, so a fresh run that misses the budget fails and says so.
+ *   - `maintained` — autovacuum held off as in `fresh`, then the statement of
+ *     each module's table-maintenance job (issue #409: `catalog.table-maintenance`
+ *     for `products` / `product_variants`, `price_lists.table-maintenance` for
+ *     the two row tables), which an import asks for once it wrote: the state a
+ *     completed import job leaves, a window after the import.
+ * All are asserted, so a run that misses the budget fails and says so.
  *
  * PERF_RUN=true to run.
  *
@@ -63,8 +70,8 @@ const lineCount = Number(process.env['PERF_BOOK_LINES'] ?? '50000');
 const iterations = Number(process.env['PERF_ITERATIONS'] ?? '50');
 const budget = Number(process.env['PERF_BOOK_LINES_P95_MS'] ?? '150');
 const shouldRun = process.env['PERF_RUN'] === 'true';
-/** `steady` (default): `VACUUM ANALYZE` after the seed. `fresh`: no vacuum, autovacuum held off. */
-const state = process.env['PERF_BOOK_LINES_STATE'] === 'fresh' ? 'fresh' : 'steady';
+/** `steady` (default): `VACUUM ANALYZE` after the seed. `fresh`: no vacuum, autovacuum held off. `maintained`: held off, then the import's maintenance job. */
+const state = ((value) => (value === 'fresh' || value === 'maintained' ? value : 'steady'))(process.env['PERF_BOOK_LINES_STATE']);
 const steady = state === 'steady';
 const PAGE_SIZE = 100;
 
@@ -97,6 +104,11 @@ describe.skipIf(!shouldRun)('price-book lines — every page within 150 ms p95 a
       // Steady: what autovacuum leaves a catalogue in once it has run after an
       // import. Fresh: the state right after the import, held there.
       await em.getConnection().execute(steady ? `vacuum analyze "${table}"` : `alter table "${table}" set (autovacuum_enabled = false)`);
+    }
+    if (state === 'maintained') {
+      // What the two modules' table-maintenance jobs run once the import asked (issue #409).
+      for (const table of ['products', 'product_variants']) await vacuumCatalogTable(em.getConnection(), table);
+      for (const table of ['price_list_matrix_entries', 'price_list_product_lines']) await vacuumPriceListsTable(em.getConnection(), table);
     }
   }, 15 * 60_000);
 

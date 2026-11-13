@@ -1,6 +1,7 @@
 import type { TransactionalEmailSender } from '@endora-commerce/contracts';
-import { rethrowIfModuleDisabled } from '@endora-commerce/platform/kernel';
+import { configuredAdminBaseUrl, rethrowIfModuleDisabled } from '@endora-commerce/platform/kernel';
 import { EVENT_REMINDER_EMAIL_CODE } from '../email-templates/event-reminder-defaults.js';
+import { opportunityLinkPath } from './crm-notifier.js';
 
 /**
  * Why the reminder e-mail did not go out. Every one of them is logged and
@@ -52,6 +53,12 @@ export interface EventReminderEmailDeps {
   sender: () => TransactionalEmailSender | undefined;
   /** Where a send that did not happen is reported. */
   log: (message: string, context: Record<string, unknown>) => void;
+  /**
+   * The Admin UI's base address, read per send; `null` when it is not
+   * configured, and the e-mail then carries no link. The platform's
+   * `configuredAdminBaseUrl` unless a test injects one.
+   */
+  adminBaseUrl?: () => string | null;
 }
 
 /**
@@ -99,9 +106,16 @@ export function createEventReminderEmail(deps: EventReminderEmailDeps): EventRem
     return { sent: false, reason };
   };
 
+  const adminBaseUrl = deps.adminBaseUrl ?? (() => configuredAdminBaseUrl());
+
   return {
     async send(input: EventReminderEmailInput): Promise<EventReminderEmailResult> {
       if (!input.to) return notSent(input, 'no_address');
+      // The bell entry's address, made absolute — or no link at all: never a
+      // relative one, which opens nothing from a mail client.
+      const base = adminBaseUrl();
+      const adminUrl =
+        base === null ? undefined : `${base}${opportunityLinkPath(input.opportunityId, { eventId: input.eventId })}`;
       const sender = deps.sender();
       if (!sender) return notSent(input, 'no_sender');
       try {
@@ -115,7 +129,7 @@ export function createEventReminderEmail(deps: EventReminderEmailDeps): EventRem
           messageId: `${EVENT_REMINDER_EMAIL_CODE}:${input.eventId}:${input.remindAt.getTime()}`,
           document: { type: 'crm_opportunity', id: input.opportunityId },
           variables: {
-            event: { name: input.name, when: input.when },
+            event: { name: input.name, when: input.when, ...(adminUrl === undefined ? {} : { adminUrl }) },
             opportunity: { number: input.number },
           },
           meta: { kind: EVENT_REMINDER_EMAIL_CODE, opportunityId: input.opportunityId, eventId: input.eventId },

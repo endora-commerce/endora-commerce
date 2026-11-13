@@ -76,6 +76,42 @@ describe('permission gate scanner — call shapes', () => {
     expect(codes()).toEqual(['delta:read', 'delta:write']);
   });
 
+  /**
+   * Issue #458 — the Admin UI's any-of. Its literal array is read like
+   * `requireAdminAny`'s, as **one** site carrying every member, so the
+   * foreign-gate sweep can judge the members as alternatives of each other.
+   * The file names no `hasPermission`, which is what the pre-filter used to
+   * require before a file was read at all.
+   */
+  it('reads the Admin UI any-of hasAnyPermission as one site with every member', () => {
+    writeModule(
+      'delta_ui',
+      'references.ts',
+      `const canDocuments = canWrite && hasAnyPermission(['orders:read', 'tasks:read']);`,
+    );
+    const result = scanEnforcedPermissionGates([root]);
+    expect(result.sites.map((s) => [s.resolution, s.codes])).toEqual([
+      ['code', ['orders:read', 'tasks:read']],
+    ]);
+  });
+
+  /**
+   * A narrowing applied to the literal at runtime (`.filter(...)`) leaves its
+   * members the widest set the gate can ask for; a string inside the narrowing
+   * is not a member.
+   */
+  it('reads only the array literal of an any-of narrowed at runtime', () => {
+    writeModule(
+      'delta_narrow',
+      'references.ts',
+      `const ok = hasAnyPermission(['orders:read', 'tasks:read'].filter((code) => scoped || code !== 'orders:read'));`,
+    );
+    const result = scanEnforcedPermissionGates([root]);
+    expect(result.sites.map((s) => [s.resolution, s.codes])).toEqual([
+      ['code', ['orders:read', 'tasks:read']],
+    ]);
+  });
+
   it('resolves a module-local constant', () => {
     writeModule(
       'epsilon',
