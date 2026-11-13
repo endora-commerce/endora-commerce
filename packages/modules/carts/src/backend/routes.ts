@@ -27,6 +27,7 @@ import {
   type PromotionApplication,
   type CartFullPayload,
   type CartMiniPayload,
+  type UpsellsResponse,
   type CouponDropReason,
 } from '@endora-commerce/contracts';
 import {
@@ -875,7 +876,7 @@ export async function registerCartRoutes(app: FastifyInstance, deps: CartsDeps):
    * `product_links` (kind = 'up_sell'); excludes products already in
    * the cart; ranks by match-count desc, tie-break oldest-first.
    */
-  app.get('/api/v1/cart/upsells', async (request) => {
+  app.get('/api/v1/cart/upsells', async (request): Promise<UpsellsResponse> => {
     if (!deps.cartUpsellService) {
       return { data: [] };
     }

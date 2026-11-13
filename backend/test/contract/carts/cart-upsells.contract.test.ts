@@ -1,4 +1,5 @@
 import { afterAll, afterEach, beforeAll, beforeEach, describe, expect, it } from 'vitest';
+import { upsellsResponseSchema } from '@endora-commerce/contracts';
 import {
   setupBackendServer,
   teardownBackendServer,
@@ -10,6 +11,7 @@ import {
   SEED_PRODUCT_102_ID,
   SEED_PRODUCT_103_ID,
 } from '../../helpers/seed-catalog.js';
+import { deepStrict, disagreements } from '../../helpers/strict-schema.js';
 
 /**
  * T028 (feature 027 US1) — GET /api/v1/cart/upsells full coverage.
@@ -82,6 +84,8 @@ describe('GET /api/v1/cart/upsells', () => {
     const body = res.json() as { data: Array<{ productId: string; matchCount: number }> };
     expect(body.data.find((d) => d.productId === SEED_PRODUCT_103_ID)).toBeDefined();
     expect(body.data.find((d) => d.productId === SEED_PRODUCT_103_ID)?.matchCount).toBe(1);
+    // The reply is the published shape and nothing beside it (issue #599 §3).
+    expect(disagreements(deepStrict(upsellsResponseSchema), body)).toEqual([]);
   });
 
   it('aggregates matchCount when two source lines point at the same target', async () => {

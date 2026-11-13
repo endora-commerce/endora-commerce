@@ -1,6 +1,10 @@
 import { randomUUID } from 'node:crypto';
 import { afterAll, beforeAll, describe, expect, it } from 'vitest';
-import { cartFullResponseSchema, orgCartDetailViewResponseSchema } from '@endora-commerce/contracts';
+import {
+  cartFullResponseSchema,
+  orgCartDetailViewResponseSchema,
+  orgCartsListResponseSchema,
+} from '@endora-commerce/contracts';
 import {
   setupBackendServer,
   teardownBackendServer,
@@ -37,6 +41,7 @@ const REASON = 'Over the quarterly budget';
 
 const strictFull = deepStrict(cartFullResponseSchema);
 const strictDetail = deepStrict(orgCartDetailViewResponseSchema);
+const strictList = deepStrict(orgCartsListResponseSchema);
 
 interface PreviousRejection {
   cartId: string;
@@ -143,6 +148,12 @@ describe('cart approval reads for the storefront (issue #650)', () => {
     const submit = await call(MEMBER, 'POST', '/api/v1/cart/submit-for-approval');
     expect(submit.statusCode, submit.body).toBe(200);
     rejectedCartId = (await readCart(MEMBER)).id;
+
+    // The list the detail is opened from (issue #599 §3 — parsed against nothing before).
+    const list = await call(ADMIN, 'GET', '/api/v1/organization/carts');
+    expect(list.statusCode, list.body).toBe(200);
+    expect((list.json() as { data: Array<{ id: string }> }).data.map((c) => c.id)).toContain(rejectedCartId);
+    expect(disagreements(strictList, list.json())).toEqual([]);
 
     const res = await call(ADMIN, 'GET', `/api/v1/organization/carts/${rejectedCartId}`);
     expect(res.statusCode, res.body).toBe(200);

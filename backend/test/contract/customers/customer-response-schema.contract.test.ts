@@ -1,7 +1,7 @@
 import { afterAll, beforeAll, describe, expect, it } from 'vitest';
 import {
   adminCustomerDetailSchema,
-  adminCustomerListItemSchema,
+  adminCustomerListResponseSchema,
   customerAddressBookSchema,
   customerDefaultsSchema,
   customerSelfProfileSchema,
@@ -56,11 +56,13 @@ describe('customer responses parse with the published customer schemas', () => {
     expect(disagreements(deepStrict(customerDefaultsSchema), defaults)).toEqual([]);
   });
 
-  it('GET /api/v1/admin/customers — every row of the admin list', async () => {
-    const rows = (await data('/api/v1/admin/customers?pageSize=100', ADMIN)) as unknown[];
-    expect(rows.length).toBeGreaterThan(0);
-    const strictRow = deepStrict(adminCustomerListItemSchema);
-    expect(rows.flatMap((row) => disagreements(strictRow, row))).toEqual([]);
+  it('GET /api/v1/admin/customers — the admin list: every row and the page envelope', async () => {
+    const res = await h.app.inject({ method: 'GET', url: '/api/v1/admin/customers?pageSize=100', ...ADMIN });
+    expect(res.statusCode, res.body).toBe(200);
+    const body = res.json() as { data: unknown[] };
+    expect(body.data.length).toBeGreaterThan(0);
+    // Issue #599 §4 — the rows were parsed; `meta` was described by no schema.
+    expect(disagreements(deepStrict(adminCustomerListResponseSchema), body)).toEqual([]);
   });
 
   it('GET /api/v1/admin/customers/:id — the admin detail', async () => {
