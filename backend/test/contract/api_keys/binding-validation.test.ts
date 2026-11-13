@@ -1,6 +1,10 @@
 import { afterAll, beforeAll, describe, expect, it } from 'vitest';
 import { Organization } from '../../helpers/package-entities.js';
-import { ERROR_CODES } from '@endora-commerce/contracts';
+import {
+  ERROR_CODES,
+  apiKeyListResponseSchema,
+  createApiKeyResponseSchema,
+} from '@endora-commerce/contracts';
 import {
   setupBackendServer,
   teardownBackendServer,
@@ -9,6 +13,11 @@ import {
 import { TEST_CUSTOMER_ID, TEST_ORGANIZATION_ID } from '../../helpers/test-actors.js';
 import { CustomerAccount } from '../../helpers/package-entities.js';
 import { AuditLogEntry } from '@endora-commerce/platform/kernel';
+import { deepStrict, disagreements } from '../../helpers/strict-schema.js';
+
+/** Strict copies: a key an API key reply carries that the contract does not declare fails (issue #599 §6). */
+const strictCreated = deepStrict(createApiKeyResponseSchema);
+const strictList = deepStrict(apiKeyListResponseSchema);
 
 /**
  * Feature 062 / T003 — API key creation binding rules B1–B5
@@ -266,6 +275,7 @@ describe('API key binding validation (062 / B1–B5)', () => {
       expiresAt,
     });
     expect(res.statusCode).toBe(201);
+    expect(disagreements(strictCreated, (res.json() as { data: unknown }).data)).toEqual([]);
     const { apiKey } = (res.json() as {
       data: { apiKey: Record<string, unknown>; bearerToken: string };
     }).data;
@@ -290,11 +300,22 @@ describe('API key binding validation (062 / B1–B5)', () => {
   it('legacy unbound create keeps working; binding fields serialize as null', async () => {
     const res = await createKey({ name: 'Legacy PIM key', scopes: ['catalog:read'] });
     expect(res.statusCode).toBe(201);
+    expect(disagreements(strictCreated, (res.json() as { data: unknown }).data)).toEqual([]);
     const { apiKey } = (res.json() as { data: { apiKey: Record<string, unknown> } }).data;
     expect(apiKey['organizationId']).toBeNull();
     expect(apiKey['salesChannelId']).toBeNull();
     expect(apiKey['customerAccountId']).toBeNull();
     expect(apiKey['expiresAt']).toBeNull();
+  });
+
+  it('GET /api/v1/admin/api-keys — the list, bound and unbound keys alike, is the published shape', async () => {
+    const res = await h.app.inject({ method: 'GET', url: '/api/v1/admin/api-keys', cookies: ADMIN_COOKIE });
+    expect(res.statusCode, res.body).toBe(200);
+    const body = res.json() as { data: Array<{ organizationId: string | null }> };
+    // The happy paths above created one bound and one unbound key.
+    expect(body.data.some((k) => k.organizationId === null)).toBe(true);
+    expect(body.data.some((k) => k.organizationId !== null)).toBe(true);
+    expect(disagreements(strictList, body)).toEqual([]);
   });
 
   it('revoke is unchanged — DELETE /:id returns 204', async () => {

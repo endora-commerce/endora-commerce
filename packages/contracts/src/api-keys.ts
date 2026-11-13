@@ -65,6 +65,12 @@ export const apiKeySchema = z.object({
 });
 export type ApiKey = z.infer<typeof apiKeySchema>;
 
+/** `GET /api/v1/admin/api-keys` — every key, revoked ones included, newest first (issue #599). */
+export const apiKeyListResponseSchema = z.object({
+  data: z.array(apiKeySchema),
+});
+export type ApiKeyListResponse = z.infer<typeof apiKeyListResponseSchema>;
+
 export const createApiKeyRequestSchema = z.object({
   name: z.string().min(1).max(160),
   scopes: z.array(apiKeyScopeSchema).min(1),
