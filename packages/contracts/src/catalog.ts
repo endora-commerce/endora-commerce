@@ -164,6 +164,12 @@ export const attributeOptionSchema = z.object({
 });
 export type AttributeOption = z.infer<typeof attributeOptionSchema>;
 
+/** `GET /api/v1/admin/catalog/attributes/:attributeId/options` — the attribute's options, in order (issue #599). */
+export const attributeOptionListResponseSchema = z.object({
+  data: z.object({ items: z.array(attributeOptionSchema) }),
+});
+export type AttributeOptionListResponse = z.infer<typeof attributeOptionListResponseSchema>;
+
 export const createAttributeOptionRequestSchema = z.object({
   value: z.string().regex(attributeOptionValueRegex),
   label: z.record(z.string().min(2), z.string().min(1).max(200)).optional(),

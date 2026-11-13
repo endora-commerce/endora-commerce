@@ -1,10 +1,16 @@
 import { afterAll, beforeAll, describe, expect, it } from 'vitest';
+import { attributeOptionListResponseSchema, attributeOptionSchema } from '@endora-commerce/contracts';
 
 import {
   setupBackendServer,
   teardownBackendServer,
   type BackendServerHandle,
 } from '../../helpers/test-server.js';
+import { deepStrict, disagreements } from '../../helpers/strict-schema.js';
+
+/** Strict copies: a key an option reply carries that the contract does not declare fails (issue #599 §6). */
+const strictOption = deepStrict(attributeOptionSchema);
+const strictOptionList = deepStrict(attributeOptionListResponseSchema);
 
 /**
  * Feature 012 / T033 — Attribute option-list CRUD contract (US4).
@@ -68,6 +74,7 @@ describe('Admin Attribute Options contract — feature 012 (T033)', () => {
     expect(body.data.items.length).toBeGreaterThanOrEqual(1);
     const matte = body.data.items.find((i) => i.value === 'matte');
     expect(matte?.isDefault).toBe(true);
+    expect(disagreements(strictOptionList, body)).toEqual([]);
   });
 
   it('POST appends a new option with auto-incremented sortOrder', async () => {
@@ -81,6 +88,7 @@ describe('Admin Attribute Options contract — feature 012 (T033)', () => {
     const body = res.json() as { data: { id: string; value: string; sortOrder: number } };
     expect(body.data.value).toBe('gloss');
     expect(body.data.sortOrder).toBeGreaterThan(0);
+    expect(disagreements(strictOption, body.data)).toEqual([]);
     optionId = body.data.id;
   });
 
@@ -125,6 +133,7 @@ describe('Admin Attribute Options contract — feature 012 (T033)', () => {
     const body = res.json() as { data: { labelDefault: string; sortOrder: number } };
     expect(body.data.labelDefault).toBe('High Gloss');
     expect(body.data.sortOrder).toBe(99);
+    expect(disagreements(strictOption, body.data)).toEqual([]);
   });
 
   it('DELETE removes an option that no product carries', async () => {
