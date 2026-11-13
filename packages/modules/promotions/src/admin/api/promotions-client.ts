@@ -2,6 +2,7 @@ import { apiClient } from '@endora-commerce/admin-kit/lib';
 import type {
   Promotion,
   PromotionAction,
+  PromotionCouponDto,
   PromotionRule,
   PromotionRuleRecord,
   PromotionStatsGroupBy,
@@ -136,12 +137,5 @@ export interface GenerateBatchRequest {
   limitScope: 'per_coupon' | 'shared_batch';
 }
 
-export interface Coupon {
-  id: string;
-  promotionId: string;
-  batchId: string | null;
-  code: string;
-  limitScope: 'per_coupon' | 'shared_batch';
-  isActive: boolean;
-  createdAt: string;
-}
+/** A coupon as the admin API answers it — the published `promotionCouponSchema` (issue #599). */
+export type Coupon = PromotionCouponDto;

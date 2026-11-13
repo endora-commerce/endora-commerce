@@ -1,9 +1,18 @@
 import { afterAll, beforeAll, beforeEach, describe, expect, it } from 'vitest';
 import {
+  promotionCouponListResponseSchema,
+  promotionCouponSchema,
+} from '@endora-commerce/contracts';
+import {
   setupBackendServer,
   teardownBackendServer,
   type BackendServerHandle,
 } from '../../helpers/test-server.js';
+import { deepStrict, disagreements } from '../../helpers/strict-schema.js';
+
+/** Strict copies: a key a promotions reply carries that the contract does not declare fails (issue #599 §6). */
+const strictCoupon = deepStrict(promotionCouponSchema);
+const strictCouponList = deepStrict(promotionCouponListResponseSchema);
 
 /**
  * Feature 045 (US3) — single coupon creation + redemption gating. A promotion
@@ -57,6 +66,7 @@ describe('Promotion coupons (feature 045)', () => {
       payload: { code: 'WELCOME10' },
     });
     expect(ok.statusCode).toBe(201);
+    expect(disagreements(strictCoupon, (ok.json() as { data: unknown }).data)).toEqual([]);
 
     const dup = await h.app.inject({
       method: 'POST',
@@ -72,6 +82,7 @@ describe('Promotion coupons (feature 045)', () => {
       cookies: adminCookie,
     });
     expect((list.json() as { data: unknown[] }).data).toHaveLength(1);
+    expect(disagreements(strictCouponList, list.json())).toEqual([]);
   });
 
   it('bulk-deactivates and re-activates selected coupons', async () => {
