@@ -164,9 +164,10 @@ describe('notifications page — rows', () => {
     expect(row).not.toContain('<button');
   });
 
-  it('carries the page cursor on the open link so the route reads the page the entry is on', async () => {
+  it('links to the open route without the page cursor: the route reads the entry by id', async () => {
     const row = rowOf(await page({ cursor: 'abc' }), ID_LINK);
-    expect(row).toContain(`href="/account/notifications/${ID_LINK}/open?cursor=abc"`);
+    expect(row).toContain(`href="/account/notifications/${ID_LINK}/open"`);
+    expect(row).not.toContain('/open?');
     expect(listCalls).toEqual([{ cursor: 'abc' }]);
   });
 

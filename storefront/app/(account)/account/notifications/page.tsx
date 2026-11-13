@@ -219,7 +219,7 @@ function NotificationRow({
     <li data-notification-id={item.id}>
       {item.linkPath ? (
         <LocalizedLink
-          href={`/account/notifications/${item.id}/open${cursor ? `?${new URLSearchParams({ cursor }).toString()}` : ''}`}
+          href={`/account/notifications/${item.id}/open`}
           prefetch={false}
           className={`${surface} hover:bg-surface-alt`}
         >

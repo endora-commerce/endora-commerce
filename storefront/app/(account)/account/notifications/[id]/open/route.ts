@@ -2,8 +2,9 @@ import type { NextRequest } from 'next/server';
 import { getSessionCookie } from '../../../../../../lib/session';
 import { getServerContext } from '../../../../../../lib/server-context';
 import { localizePath } from '../../../../../../lib/i18n/locale-path';
+import { StorefrontApiError } from '../../../../../../lib/api/client';
 import {
-  listCustomerNotifications,
+  getCustomerNotification,
   markCustomerNotificationRead,
 } from '../../../../../../lib/api/customer-notifications';
 
@@ -19,25 +20,22 @@ import {
  * `prefetch={false}` and `/account*` is outside the speculation rules, so
  * nothing opens an entry the buyer did not.
  *
- * The centre's API has no read of one entry, so the link is found in the list:
- * from the page cursor the row carried (`?cursor=`), on through at most a few pages —
- * newer entries only ever push an entry further down. The target is always the
- * stored link, never anything the URL says, and only a storefront-relative path
- * is followed (FR-047, checked again here). A failed mark still redirects; an
- * entry with no link, an unknown id, and the module being off all land on the
- * page — which answers the shop's 404 while the module is off (FR-048).
+ * The entry is read by id (`GET /api/v1/storefront/notifications/:id`, T086),
+ * under the list's own visibility, so wherever it sits in the list it is found
+ * in one call. The target is always the stored link, never anything the URL
+ * says, and only a storefront-relative path is followed (FR-047, checked again
+ * here). A failed mark still redirects; an entry with no link, an id the API
+ * refuses (`404` for an unknown or foreign one), a failed read, and the module
+ * being off all land on the page, marking nothing — the page answers the
+ * shop's 404 while the module is off (FR-048).
  */
 
 export const dynamic = 'force-dynamic';
 
 const PAGE = '/account/notifications';
-/** Read size of each list call while looking for the entry (the API's maximum). */
-const SCAN_PAGE_SIZE = 50;
-/** How many list pages are read before giving up and landing on the page. */
-const SCAN_MAX_PAGES = 5;
 
 export async function GET(
-  request: NextRequest,
+  _request: NextRequest,
   { params }: { params: Promise<{ id: string }> },
 ): Promise<Response> {
   const { id } = await params;
@@ -48,8 +46,7 @@ export async function GET(
   }
   if (!modules.isPresent('customer_notifications')) return seeOther(localizePath(PAGE, urlState));
 
-  const cursorHint = new URL(request.url).searchParams.get('cursor');
-  const linkPath = await findLinkPath(session, ctx, id, cursorHint || null);
+  const linkPath = await findLinkPath(session, ctx, id);
   if (linkPath === undefined) return seeOther(localizePath(PAGE, urlState));
 
   try {
@@ -63,27 +60,22 @@ export async function GET(
 
 /**
  * The entry's link: a path, `null` for an entry without one, `undefined` when
- * the entry is not found (or the list cannot be read).
+ * the entry cannot be read (refused as not the caller's, or any failure).
  */
 async function findLinkPath(
   session: string,
-  ctx: Parameters<typeof listCustomerNotifications>[1],
+  ctx: Parameters<typeof getCustomerNotification>[1],
   id: string,
-  cursor: string | null,
 ): Promise<string | null | undefined> {
-  let next = cursor;
   try {
-    for (let read = 0; read < SCAN_MAX_PAGES; read += 1) {
-      const page = await listCustomerNotifications(session, ctx, { cursor: next, limit: SCAN_PAGE_SIZE });
-      const found = page.items.find((item) => item.id === id);
-      if (found) return found.linkPath;
-      if (!page.nextCursor) return undefined;
-      next = page.nextCursor;
-    }
+    return (await getCustomerNotification(session, ctx, id)).linkPath;
   } catch (err) {
-    console.warn('[storefront] reading notifications to open one failed', err);
+    // A 404 is the expected answer for an id that is not the caller's; anything else is worth a line.
+    if (!(err instanceof StorefrontApiError && err.status === 404)) {
+      console.warn('[storefront] reading a notification to open it failed', err);
+    }
+    return undefined;
   }
-  return undefined;
 }
 
 /** A path on this storefront: rooted, not protocol-relative, no backslash or control character. */
