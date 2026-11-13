@@ -16,6 +16,7 @@ import {
   requestScopeLanguage,
   resolveListingCurrency,
   validateBundleConfigurationRequestSchema,
+  type DisplayMode,
   type ListingPriceOrderPort,
   type ProductAudience,
   type ProductListCapabilities,
@@ -212,7 +213,7 @@ export async function registerCatalogPublicRoutes(
    */
   async function priceControlsAvailable(
     ctx: ReturnType<typeof readContext>,
-  ): Promise<{ available: boolean; reason?: string }> {
+  ): Promise<{ available: boolean; reason?: string; mode?: DisplayMode }> {
     if (!deps.listingPriceOrder) return { available: true };
     const organization =
       ctx.audience.organizationId === null ? null : { id: ctx.audience.organizationId };
@@ -227,9 +228,10 @@ export async function registerCatalogPublicRoutes(
         available: false,
         reason:
           'Prices are not displayed on this page, so the catalogue cannot be ordered or filtered by price.',
+        mode,
       };
     }
-    return { available: true };
+    return { available: true, mode };
   }
 
   // GET /api/v1/catalog/products
@@ -341,9 +343,11 @@ export async function registerCatalogPublicRoutes(
       );
     }
 
+    // Issue #420 — the service refuses a price control on a page that hides
+    // prices by itself; handing it the mode resolved above spares it asking twice.
     const result = await queryService.listProducts(
       { q, ids, limit, cursor, sort, categorySlug, attributeFilters, changedSince, minPrice, maxPrice },
-      ctx,
+      priceControls.mode !== undefined ? { ...ctx, pageDisplayMode: priceControls.mode } : ctx,
     );
     reply.header('x-search-backend', 'postgres');
     const page = await withListPlaceholder(result, ctx.resolvedChannel.code);

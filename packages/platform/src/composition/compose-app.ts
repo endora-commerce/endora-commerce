@@ -119,6 +119,7 @@ import {
   assertPublicApiBaseUrlConfigured,
   resolvePublicApiBaseUrl,
 } from '../kernel/public-api-base-url.js';
+import { assertAdminBaseUrlWellFormed } from '../kernel/admin-base-url.js';
 import { tenantContextMappingFor } from '../kernel/actor-tenant-context.js';
 import { registerRequestScopeHook } from '../kernel/request-scope-hook.js';
 import {
@@ -526,6 +527,11 @@ export async function composeApp(options: ComposeAppOptions): Promise<ComposeApp
   // `index.ts` turns a throw from here into a "this is almost always a
   // configuration problem" message plus `exit(1)`.
   assertPublicApiBaseUrlConfigured();
+
+  // Issue #185 — the admin's address is optional, but one that is set and
+  // malformed refuses the boot in every environment (architect ruling on
+  // #1078): it would leave every link into the admin broken or missing.
+  assertAdminBaseUrlWellFormed();
 
   // Resolved once, and only for the members the caller did not supply: the
   // default builds an ORM bootstrap and scans `node_modules`, and doing that

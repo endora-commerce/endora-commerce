@@ -75,5 +75,15 @@
   "settlement.orderMethod": "{name} (metoda płatności zamówienia)",
   "settlement.orderMethodUnnamed": "Metoda płatności zamówienia",
   "settlement.chooseMethod": "Wybierz metodę płatności",
-  "settlement.paymentMethodIdHint": "Nie udało się wczytać listy metod płatności, więc wpisz identyfikator metody."
+  "settlement.paymentMethodIdHint": "Nie udało się wczytać listy metod płatności, więc wpisz identyfikator metody.",
+  "reject.action": "Odrzuć",
+  "reject.dialogTitle": "Odrzuć zwrot",
+  "reject.explanation": "Zgłoszenie zostanie zamknięte jako odrzucone. Klient zobaczy ten powód w szczegółach zwrotu i w e-mailu o odrzuceniu.",
+  "reject.reason": "Powód",
+  "reject.reasonHint": "Wymagane. Maksymalnie {max} znaków.",
+  "reject.confirm": "Odrzuć",
+  "reject.cancel": "Anuluj",
+  "reject.rejectedInfo": "Zwrot odrzucony.",
+  "reject.error.reasonMissing": "Podaj powód odrzucenia zwrotu.",
+  "reject.error.reasonTooLong": "Powód jest za długi. Skróć go do {max} znaków."
 }
