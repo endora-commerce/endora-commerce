@@ -6,6 +6,7 @@ import {
   useState,
   type ReactNode,
 } from 'react';
+import { useConfirmDialog } from '@endora-commerce/admin-kit/components';
 import { ChevronDown, ChevronRight, Search } from 'lucide-react';
 import type {
   SalesChannelListResponse,
@@ -61,6 +62,7 @@ function listSalesChannels(activeOnly: boolean, pageSize: number): Promise<Sales
  */
 export function SettingsPage(): ReactNode {
   const t = useTranslation('settings');
+  const { confirm, confirmDialog } = useConfirmDialog();
   const labels = useSettingLabels();
   const [groups, setGroups] = useState<SettingGroupDto[]>([]);
   const [allChannels, setAllChannels] = useState<SalesChannelSummary[]>([]);
@@ -339,7 +341,8 @@ export function SettingsPage(): ReactNode {
       }
       const question = labels.settingConfirmation(fresh);
       if (question === null) continue;
-      if (!window.confirm(question)) return;
+      const ok = await confirm({ message: question, confirmLabel: t('actions.saveAll') });
+      if (!ok) return;
       confirmed.push(fresh);
     }
     setSaving(true);
@@ -405,17 +408,21 @@ export function SettingsPage(): ReactNode {
     }
     await refresh();
     setSaving(false);
-  }, [allDirtySettings, channelContext, drafts, labels, refresh, t]);
+  }, [allDirtySettings, channelContext, drafts, labels, refresh, t, confirm]);
 
   const resetSetting = useCallback(
     async (code: string): Promise<void> => {
       const setting = findSetting(code);
       if (!setting) return;
       const isChannelMode = channelContext !== null;
-      const confirmMsg = isChannelMode
-        ? `Reset "${code}" override for channel "${channelContext}"?`
-        : `Reset all per-channel values for "${code}"?`;
-      if (!confirm(confirmMsg)) return;
+      const ok = await confirm({
+        message: isChannelMode
+          ? t('actions.resetConfirm.channel', { code, channel: channelContext ?? '' })
+          : t('actions.resetConfirm.global', { code }),
+        confirmLabel: t('actions.reset'),
+        destructive: true,
+      });
+      if (!ok) return;
       setResettingCode(code);
       setError(null);
       try {
@@ -430,7 +437,7 @@ export function SettingsPage(): ReactNode {
         setResettingCode(null);
       }
     },
-    [channelContext, findSetting, refresh],
+    [channelContext, findSetting, refresh, confirm, t],
   );
 
   return (
@@ -633,6 +640,7 @@ export function SettingsPage(): ReactNode {
           </Button>
         </div>
       )}
+      {confirmDialog}
     </>
   );
 }

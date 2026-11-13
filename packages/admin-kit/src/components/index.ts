@@ -110,6 +110,9 @@ export { useFocusTrap } from './hooks/useFocusTrap.js';
 export type { FocusTrapOptions } from './hooks/useFocusTrap.js';
 export { ModalDialog } from './modal-dialog/ModalDialog.js';
 export type { ModalDialogProps } from './modal-dialog/ModalDialog.js';
+// Issue #313 — the design-system replacement for the browser's `confirm()`.
+export { ConfirmDialog, useConfirmDialog } from './confirm-dialog/ConfirmDialog.js';
+export type { ConfirmDialogProps, ConfirmOptions, UseConfirmDialog } from './confirm-dialog/ConfirmDialog.js';
 export { useViewportTier } from './hooks/useViewportTier.js';
 export type { ViewportTier } from './hooks/useViewportTier.js';
 export { MethodAvailabilityCaption, MethodAvailabilityCell, MethodNotOfferedNotice } from './payment-method-availability/MethodAvailabilityCell.js';

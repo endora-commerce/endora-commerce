@@ -4,6 +4,7 @@ import { MemoryRouter } from 'react-router-dom';
 import type { ReactElement } from 'react';
 import type { SettingDto, SettingGroupDto } from '@endora-commerce/contracts';
 import { renderWithI18n, passthroughBundle } from '../../helpers/render-with-i18n';
+import { answerConfirm } from '../../helpers/confirm-dialog';
 
 /**
  * Issue #271 — a list response that lands after "Editing for" changed must not
@@ -140,14 +141,13 @@ describe('SettingsPage — a response from before a channel switch', () => {
         releaseLateList = resolve;
       }),
     );
-    vi.spyOn(window, 'confirm').mockReturnValue(true);
-
     renderPage();
     await screen.findByDisplayValue('global-text');
 
     // A refresh goes out under "All channels" — here the one a reset triggers —
     // and stays in flight while the administrator switches to `b2b`.
     fireEvent.click(screen.getByRole('button', { name: /actions\.reset/ }));
+    await answerConfirm(true);
     await waitFor(() => expect(listSpy).toHaveBeenCalledTimes(2));
     fireEvent.change(screen.getByLabelText(/context\.label/), { target: { value: 'b2b' } });
 

@@ -157,6 +157,29 @@ from a live resolution when they are narrowed to at most 5 000 products (a
 category, a search), and otherwise served in the catalogue's default order with
 correct prices on the cards. Run the worker wherever price sorting matters.
 
+### Command outbox — `command_outbox.drain`
+
+Delivers the `afterCommit` handlers that installed modules register on another
+module's write — telling an ERP that an Organization registered, say. Each
+handler's delivery is a row written in the same transaction as the write, so a
+committed write never loses it. A job scheduler drains the rows every 10
+seconds, and a write that produced rows also wakes the drain at once. A failed
+delivery is retried with a growing delay, up to 10 attempts, and is then
+**dead**; a handler may also give up on a delivery at once.
+
+Dead deliveries are listed in the admin under **System → Command hooks →
+Outbox** (`platform.command_outbox.read`), with the handler, the attempts and the
+failure's code — never the data the delivery carried. An administrator holding
+`platform.command_outbox.manage` retries one there, and the retry is recorded in
+the audit log. A delivery whose handler's module is switched off waits, without
+spending an attempt, until the module is switched back on. Delivered rows are
+removed after 7 days, dead ones after 90. See
+[the Command Bus](../architecture/command-bus.md#aftercommit-outbox) for the
+delivery contract.
+
+**If no worker consumes this queue**, nothing is lost: the rows wait in the
+database and are delivered once a worker runs.
+
 ## Other background jobs (not yet on a shared queue)
 
 A few periodic/maintenance jobs still run as in-process timers or manual

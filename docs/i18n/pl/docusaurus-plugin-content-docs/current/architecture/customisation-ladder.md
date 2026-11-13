@@ -92,7 +92,7 @@ to wprost, zamiast zostawiać to do samodzielnego odkrycia.
 :::note Nie na tym stopniu: udział w samym zapisie
 Subskrybent działa po zatwierdzeniu transakcji i nie może zmienić ani odrzucić tego, co zostało
 zapisane. Aby działać **wewnątrz** zapisu właściciela — dodać własny wiersz w tej samej transakcji
-albo zapis odrzucić — użyj haka polecenia, czyli stopnia 2 (2b poniżej).
+albo zapis odrzucić — użyj hooka polecenia, czyli stopnia 2 (2b poniżej).
 :::
 
 ---
@@ -129,26 +129,26 @@ rozbieżności twojego wdrożenia porównuje każdy cel z tabelą tras i przeryw
 `unmatched-interceptor-target` — i tylko ona to wychwyci.
 :::
 
-### 2b — hak polecenia
+### 2b — hook polecenia
 
 **Mechanizm.** `ctx.commandHooks([{ id, on, phase: 'beforeCommit', handler }])`, gdzie `on` to
 referencja, którą właściciel publikuje w `@endora-commerce/contracts` dla polecenia zadeklarowanego
-jako dostępne dla haków (`ORGANIZATION_HOOKABLE_ACTIONS.register`). Hak działa wewnątrz transakcji
+jako dostępne dla hooków (`ORGANIZATION_HOOKABLE_ACTIONS.register`). Hook działa wewnątrz transakcji
 właściciela, po jego zapisie i przed jego wpisem audytu. Szczegóły są na stronie
 [Command Bus](./command-bus.md#command-hooks-beforecommit).
 
-**Koszt.** Powiązanie z akcją dostępną dla haków i kształtem jej danych — to publiczne API, które
-właściciel wersjonuje — oraz zależność od właściciela w twoim manifeście. Hak trzyma otwartą
+**Koszt.** Powiązanie z akcją dostępną dla hooków i kształtem jej danych — to publiczne API, które
+właściciel wersjonuje — oraz zależność od właściciela w twoim manifeście. Hook trzyma otwartą
 transakcję właściciela przez cały czas działania, więc nie wywołuje usług zdalnych.
 
 **Co się traci.** Nic strukturalnie. Zapis właściciela, jego jedyny wpis audytu i sama szyna
-poleceń pozostają właściciela: hak może dodać własne wiersze (we własnych tabelach albo przez
+poleceń pozostają właściciela: hook może dodać własne wiersze (we własnych tabelach albo przez
 polecenie uruchomione `ctx.run`) i odrzucić cały zapis — nic więcej.
 
 **Kto.** Każdy, również wobec cudzych modułów — moduły rdzenia, moduły nakładki twojego wdrożenia i
-zainstalowane pakiety — ale tylko na akcjach, które właściciel zadeklarował. Hak na niezadeklarowanej
-akcji, dwa nieuporządkowane moduły z hakami na jednej akcji albo moduł z hakiem, który nie zależy od
-właściciela, przerywają kompozycję przy starcie. Kolejność dwóch niezależnych modułów z hakami
+zainstalowane pakiety — ale tylko na akcjach, które właściciel zadeklarował. Hook na niezadeklarowanej
+akcji, dwa nieuporządkowane moduły z hookami na jednej akcji albo moduł z hookiem, który nie zależy od
+właściciela, przerywają kompozycję przy starcie. Kolejność dwóch niezależnych modułów z hookami
 ustala twoje wdrożenie w `divergence.ts` (`commandHookOrder`).
 
 **Kiedy to jest odpowiedź.** Własna reguła, która musi obowiązywać przy każdym zapisie rekordu,
@@ -285,7 +285,7 @@ samo: zacznij od dołu.
 niestandardowych — wyprowadzane z rejestru powiązań pól niestandardowych, nigdy z drugiej listy —
 a w tym wydaniu otwarta jest tylko `organizations` (pozostałe osiem dojdzie w późniejszym
 wydaniu). Moduł deklarujący jest właścicielem swoich kolumn `x_<moduleId>_*` i tylko jego kod je
-zapisuje, przez akcesor platformy, wewnątrz polecenia (Command) albo haka polecenia; gospodarz
+zapisuje, przez akcesor platformy, wewnątrz polecenia (Command) albo hooka polecenia; gospodarz
 zachowuje tabelę, jej ograniczenia i wszystkie niezadeklarowane kolumny. Odinstalowanie modułu
 pozostawia kolumny (rejestr oznacza je jako osierocone), dopóki operator nie usunie ich
 audytowanym poleceniem. Przykład i wszystkie reguły są na stronie
@@ -330,7 +330,7 @@ repozytorium, generowanych ponownie z twojego drzewa i porównywanych bajt po ba
 Obok nich jest jedyny plik, który piszesz ręcznie, `backend/src/apps/<deployment>/divergence.ts`.
 Zawiera to, czego nie da się wyprowadzić z drzewa plików: moduły, których nie dostarczasz,
 kolejność opakowywania, gdy dwa twoje moduły nakładkowe dekorują tę samą nazwę, kolejność dwóch
-modułów z hakami poleceń, których nie porządkuje żadna zależność, oraz **po jednym zdaniu
+modułów z hookami poleceń, których nie porządkuje żadna zależność, oraz **po jednym zdaniu
 uzasadnienia dla każdej rozbieżności**.
 
 Oba zestawy są porównywane w obie strony. Build kończy się błędem zarówno przy rozbieżności bez

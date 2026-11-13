@@ -2,7 +2,7 @@ import { useEffect, useState, type ReactNode } from 'react';
 import { Link, useNavigate } from 'react-router-dom';
 import { Lock, Plus, Upload } from 'lucide-react';
 import { Alert, AlertDescription, Button, Card, CardContent, CardHeader, CardTitle, PageHeader } from '@endora-commerce/admin-kit/ui';
-import { ResponsiveTable, type ResponsiveColumn } from '@endora-commerce/admin-kit/components';
+import { ResponsiveTable, type ResponsiveColumn, useConfirmDialog } from '@endora-commerce/admin-kit/components';
 import { ApiError, useAuth } from '@endora-commerce/admin-kit/lib';
 import { useTranslation } from '@endora-commerce/admin-kit/i18n';
 import { productFeedsClient, type FeedTemplateSummary } from '../api.js';
@@ -28,6 +28,7 @@ const SKELETON_FIELD_CEILING = 7;
 
 export function FeedTemplatesListPage(): ReactNode {
   const t = useTranslation('product_feeds');
+  const { confirm, confirmDialog } = useConfirmDialog();
   const navigate = useNavigate();
   const { hasPermission } = useAuth();
   const canWrite = hasPermission('product_feeds:write');
@@ -62,8 +63,13 @@ export function FeedTemplatesListPage(): ReactNode {
       });
   };
 
-  const remove = (template: FeedTemplateSummary): void => {
-    if (!window.confirm(t('templates.delete.confirm'))) return;
+  const remove = async (template: FeedTemplateSummary): Promise<void> => {
+    const ok = await confirm({
+      message: t('templates.delete.confirm'),
+      confirmLabel: t('templates.delete'),
+      destructive: true,
+    });
+    if (!ok) return;
     void productFeedsClient
       .removeTemplate(template.id, template.version)
       .then(load)
@@ -147,7 +153,7 @@ export function FeedTemplatesListPage(): ReactNode {
             size="sm"
             disabled={!canWrite}
             title={!canWrite ? t('permission.needWrite') : undefined}
-            onClick={(): void => remove(row)}
+            onClick={(): void => void remove(row)}
           >
             {t('templates.delete')}
           </Button>
@@ -298,6 +304,7 @@ export function FeedTemplatesListPage(): ReactNode {
           );
         })}
       </div>
+      {confirmDialog}
     </div>
   );
 }

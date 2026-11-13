@@ -8,7 +8,7 @@ import {
   Button,
   PageHeader,
 } from '@endora-commerce/admin-kit/ui';
-import { ResponsiveTable, type ResponsiveColumn } from '@endora-commerce/admin-kit/components';
+import { ResponsiveTable, type ResponsiveColumn, useConfirmDialog } from '@endora-commerce/admin-kit/components';
 import { ApiError } from '@endora-commerce/admin-kit/lib';
 import { useTranslation } from '@endora-commerce/admin-kit/i18n';
 import { linkedInAdsClient, listSalesChannels } from '../api/linkedin-ads-client.js';
@@ -19,6 +19,7 @@ import { linkedInAdsClient, listSalesChannels } from '../api/linkedin-ads-client
  */
 export default function ConversionMappingsListPage(): ReactNode {
   const t = useTranslation('linkedin_ads');
+  const { confirm, confirmDialog } = useConfirmDialog();
   const [items, setItems] = useState<LinkedInConversionMapping[]>([]);
   const [channels, setChannels] = useState<SalesChannelSummary[]>([]);
   const [loading, setLoading] = useState(true);
@@ -59,7 +60,8 @@ export default function ConversionMappingsListPage(): ReactNode {
   };
 
   const onDelete = async (row: LinkedInConversionMapping): Promise<void> => {
-    if (!window.confirm(t('mappings.deleteConfirm'))) return;
+    const ok = await confirm({ message: t('mappings.deleteConfirm'), confirmLabel: t('mappings.delete'), destructive: true });
+    if (!ok) return;
     try {
       await linkedInAdsClient.remove(row.id);
       await reload();
@@ -129,6 +131,7 @@ export default function ConversionMappingsListPage(): ReactNode {
           )}
         />
       )}
+      {confirmDialog}
     </div>
   );
 }

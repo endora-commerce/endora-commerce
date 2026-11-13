@@ -1,7 +1,8 @@
 import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest';
-import { screen, waitFor } from '@testing-library/react';
+import { screen, waitFor, within } from '@testing-library/react';
 import userEvent from '@testing-library/user-event';
 import { en, renderDrawer } from './drawer-fixtures';
+import { answerConfirm } from '../../helpers/confirm-dialog';
 
 /**
  * `specs/156-asset-stable-url/` owner ruling S4 — the folder delete
@@ -51,32 +52,32 @@ async function clickDelete(): Promise<void> {
 describe('LibraryPage — folder delete confirmation', () => {
   it('names how many files in the folder have a shareable link, and Cancel deletes nothing', async () => {
     client.countFolderPermalinks.mockResolvedValue(3);
-    const confirm = vi.spyOn(window, 'confirm').mockReturnValue(false);
     renderDrawer(<LibraryPage />, ['assets.read', 'assets.write']);
     await clickDelete();
-    await waitFor(() => expect(confirm).toHaveBeenCalledTimes(1));
+    const dialog = await screen.findByRole('dialog');
     expect(client.countFolderPermalinks).toHaveBeenCalledWith(FOLDER.id);
-    const text = String(confirm.mock.calls[0]?.[0]);
-    expect(text).toContain(en('folders.deleteConfirm'));
-    expect(text).toContain(en('folders.permalinkNotice', { count: 3 }));
+    expect(within(dialog).getByText(en('folders.deleteConfirm'))).toBeInTheDocument();
+    expect(within(dialog).getByText(en('folders.permalinkNotice', { count: 3 }))).toBeInTheDocument();
+    await answerConfirm(false);
     expect(client.deleteFolder).not.toHaveBeenCalled();
   });
 
   it('says nothing about links when no file in the folder has one', async () => {
     client.countFolderPermalinks.mockResolvedValue(0);
-    const confirm = vi.spyOn(window, 'confirm').mockReturnValue(true);
     renderDrawer(<LibraryPage />, ['assets.read', 'assets.write']);
     await clickDelete();
+    const dialog = await answerConfirm(true);
+    expect(dialog).toHaveTextContent(en('folders.deleteConfirm'));
+    expect(dialog).not.toHaveTextContent(en('folders.permalinkNotice', { count: 0 }));
     await waitFor(() => expect(client.deleteFolder).toHaveBeenCalledTimes(1));
-    expect(String(confirm.mock.calls[0]?.[0])).toBe(en('folders.deleteConfirm'));
   });
 
   it('still asks, without the count, when the count cannot be read', async () => {
     client.countFolderPermalinks.mockRejectedValue(new Error('offline'));
-    const confirm = vi.spyOn(window, 'confirm').mockReturnValue(false);
     renderDrawer(<LibraryPage />, ['assets.read', 'assets.write']);
     await clickDelete();
-    await waitFor(() => expect(confirm).toHaveBeenCalledTimes(1));
-    expect(String(confirm.mock.calls[0]?.[0])).toBe(en('folders.deleteConfirm'));
+    const dialog = await answerConfirm(false);
+    expect(dialog).toHaveTextContent(en('folders.deleteConfirm'));
+    expect(client.deleteFolder).not.toHaveBeenCalled();
   });
 });

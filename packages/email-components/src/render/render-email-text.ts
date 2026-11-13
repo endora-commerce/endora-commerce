@@ -7,7 +7,7 @@ import {
   renderContributedBlock,
   type EmailBlockRenderingOptions,
 } from './block-renderers.js';
-import { footerLegalPlainText, renderEmailHtml } from './render-email-html.js';
+import { footerLegalPlainText, guardLoneVariableHref, renderEmailHtml } from './render-email-html.js';
 import { emailHtmlToPlainText } from './sanitize-email-html.js';
 
 export interface RenderEmailTextEmbeds {
@@ -80,7 +80,7 @@ function renderNode(node: PuckNode, ctx: Ctx): string {
       return `${emailHtmlToPlainText(str(p, 'html'))}\n`;
     case 'transactional_emails.EmailButton': {
       const href = str(p, 'href');
-      return `${str(p, 'label', 'Button')}${href ? `: ${href}` : ''}\n`;
+      return guardLoneVariableHref(href, `${str(p, 'label', 'Button')}${href ? `: ${href}` : ''}\n`);
     }
     case 'transactional_emails.EmailImage':
     case 'transactional_emails.EmailLogo': {

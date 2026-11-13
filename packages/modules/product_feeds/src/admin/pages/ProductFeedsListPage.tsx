@@ -2,7 +2,7 @@ import { useCallback, useEffect, useRef, useState, type ReactNode } from 'react'
 import { Link, useNavigate } from 'react-router-dom';
 import { Download, Play, Plus, Rss, Trash2 } from 'lucide-react';
 import { Alert, AlertDescription, Button, Card, CardContent, PageHeader } from '@endora-commerce/admin-kit/ui';
-import { ResponsiveTable, RowActionMenu, RowActionMenuItem, RowActionMenuSeparator, type ResponsiveColumn } from '@endora-commerce/admin-kit/components';
+import { ResponsiveTable, RowActionMenu, RowActionMenuItem, RowActionMenuSeparator, type ResponsiveColumn, useConfirmDialog } from '@endora-commerce/admin-kit/components';
 import { formatDateTime, useAuth } from '@endora-commerce/admin-kit/lib';
 import { useTranslation } from '@endora-commerce/admin-kit/i18n';
 import { productFeedsClient, type ProductFeedDto } from '../api.js';
@@ -29,6 +29,7 @@ const POLL_INTERVAL_MS = 5_000;
 
 export function ProductFeedsListPage(): ReactNode {
   const t = useTranslation('product_feeds');
+  const { confirm, confirmDialog } = useConfirmDialog();
   const navigate = useNavigate();
   const { hasPermission } = useAuth();
   const canWrite = hasPermission('product_feeds:write');
@@ -77,8 +78,12 @@ export function ProductFeedsListPage(): ReactNode {
   };
 
   const remove = async (feed: ProductFeedDto): Promise<void> => {
-    // eslint-disable-next-line no-alert
-    if (!window.confirm(t('feeds.delete.confirm'))) return;
+    const ok = await confirm({
+      message: t('feeds.delete.confirm'),
+      confirmLabel: t('feeds.action.delete'),
+      destructive: true,
+    });
+    if (!ok) return;
     setBusyId(feed.id);
     try {
       await productFeedsClient.remove(feed.id);
@@ -296,6 +301,7 @@ export function ProductFeedsListPage(): ReactNode {
           </CardContent>
         </Card>
       )}
+      {confirmDialog}
     </div>
   );
 }

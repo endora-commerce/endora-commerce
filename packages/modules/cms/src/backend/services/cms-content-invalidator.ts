@@ -83,6 +83,19 @@ export class CmsContentInvalidator {
     await this.publish({ kind: 'template' });
   }
 
+  /**
+   * An asset changed that a page, a block or a hook may embed (issue #363).
+   * Every resolved answer carries its assets' URLs, and nothing records which
+   * answer embeds which asset, so every entry goes — the broad drop a template
+   * takes, at the rate operators edit assets.
+   */
+  async assetsChanged(assetIds: Iterable<string>): Promise<void> {
+    const named = nonEmpty(assetIds);
+    if (named.length === 0) return;
+    await this.cache?.invalidateAll();
+    await this.publish({ kind: 'assets', assetIds: named });
+  }
+
   /** A hook, or what is attached to it, changed. */
   async hooksChanged(codes: Iterable<string>): Promise<void> {
     const named = nonEmpty(codes);
@@ -103,7 +116,8 @@ function nonEmpty(values: Iterable<string>): string[] {
  *
  * A page names its own slugs and the page index, which lists it. A block names
  * itself and the two broad tags of what may inline it. A template names every
- * page and nothing else: no reader fetches a template by code.
+ * page and nothing else: no reader fetches a template by code. An asset names
+ * every page, block and hook read, because each may embed it.
  */
 export function storefrontTagsFor(change: CmsContentChange): string[] {
   switch (change.kind) {
@@ -123,5 +137,11 @@ export function storefrontTagsFor(change: CmsContentChange): string[] {
       return [CMS_STOREFRONT_CACHE_TAGS.pages];
     case 'hook':
       return change.codes.map((code) => CMS_STOREFRONT_CACHE_TAGS.hook(code));
+    case 'assets':
+      return [
+        CMS_STOREFRONT_CACHE_TAGS.pages,
+        CMS_STOREFRONT_CACHE_TAGS.blocks,
+        CMS_STOREFRONT_CACHE_TAGS.hooks,
+      ];
   }
 }

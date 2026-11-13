@@ -8,9 +8,13 @@ import { simpleEmailBodyTree } from '@endora-commerce/email-components/defaults/
  * entry.
  *
  * Sent to one recipient who may see the Task at that moment, so it names the
- * Task by its number and its title, and says when it is due. **There is no
- * link**, for CRM's and Projects' reason: an absolute link needs the Admin
- * UI's address, which no module may read yet.
+ * Task by its number and its title, and says when it is due. **The link is a
+ * button, and only when there is an address**: `task.adminUrl` opens the Task
+ * on the platform's `ADMIN_BASE_URL` (`configuredAdminBaseUrl`, issue #185).
+ * Where that is not configured the variable is not sent and the button is
+ * dropped (`@endora-commerce/email-components` drops a button whose address is
+ * one empty variable); an operator's own template that does not name the
+ * variable renders as before.
  */
 
 export const TASK_REMINDER_EMAIL_CODE = 'tasks_task_reminder';
@@ -32,6 +36,8 @@ export const TASK_REMINDER_DEFAULT = {
           '{{if task.due}}Due: {{var task.due}}{{/if}}',
           'Open the task in the admin panel to see it.',
         ].join('\n'),
+        ctaLabel: 'Open the task',
+        ctaHref: '{{var task.adminUrl}}',
       }),
       'pl-PL': simpleEmailBodyTree({
         idPrefix: 'tasks-task-reminder',
@@ -42,6 +48,8 @@ export const TASK_REMINDER_DEFAULT = {
           '{{if task.due}}Termin: {{var task.due}}{{/if}}',
           'Otwórz zadanie w panelu administracyjnym, aby je zobaczyć.',
         ].join('\n'),
+        ctaLabel: 'Otwórz zadanie',
+        ctaHref: '{{var task.adminUrl}}',
       }),
     },
   },

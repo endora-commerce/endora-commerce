@@ -123,6 +123,24 @@ describe('CmsContentInvalidator', () => {
     expect(r.published).toEqual([{ kind: 'hook', codes: ['home.top'] }]);
   });
 
+  // Issue #363: a page, a block and a hook answer all carry the URLs of the
+  // assets they embed (`?v=<contentVersion>`), and nothing records which
+  // answer embeds which asset — so an asset write takes the broad drop.
+  it('drops every entry when an embedded asset changed, then publishes', async () => {
+    const r = recorder();
+    await new CmsContentInvalidator(r.cache, r.publish).assetsChanged(['a-1', 'a-1', 'a-2']);
+
+    expect(r.log).toEqual(['redis:all', 'publish:assets']);
+    expect(r.published).toEqual([{ kind: 'assets', assetIds: ['a-1', 'a-2'] }]);
+  });
+
+  it('says nothing when an asset notice names no asset', async () => {
+    const r = recorder();
+    await new CmsContentInvalidator(r.cache, r.publish).assetsChanged([]);
+
+    expect(r.log).toEqual([]);
+  });
+
   // R19C (T271): a write answers once the storefront has been told, so the next request is fresh.
   it('waits for the published change to be delivered before the write answers', async () => {
     const r = recorder();
@@ -185,6 +203,14 @@ describe('storefrontTagsFor', () => {
 
   it('names every page for a template', () => {
     expect(storefrontTagsFor({ kind: 'template' })).toEqual([CMS_STOREFRONT_CACHE_TAGS.pages]);
+  });
+
+  it('names every page, block and hook read for an asset change (issue #363)', () => {
+    expect(storefrontTagsFor({ kind: 'assets', assetIds: ['a-1'] })).toEqual([
+      CMS_STOREFRONT_CACHE_TAGS.pages,
+      CMS_STOREFRONT_CACHE_TAGS.blocks,
+      CMS_STOREFRONT_CACHE_TAGS.hooks,
+    ]);
   });
 
   it('names the hook for a hook', () => {

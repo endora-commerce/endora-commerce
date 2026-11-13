@@ -1,12 +1,14 @@
 import {
   useCallback,
   useEffect,
+  useId,
   useState,
   type FormEvent,
   type ReactNode,
 } from 'react';
+import { ModalDialog, useConfirmDialog } from '@endora-commerce/admin-kit/components';
 import { ApiError } from '@endora-commerce/admin-kit/lib';
-import { Alert, AlertDescription, Button, Card, CardContent, CardHeader, CardTitle, Input, PageHeader, Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from '@endora-commerce/admin-kit/ui';
+import { Alert, AlertDescription, Button, Card, CardContent, CardHeader, CardTitle, Input, Label, PageHeader, Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from '@endora-commerce/admin-kit/ui';
 import { settingsClient, type GroupRow } from '../api/settings-client.js';
 import { useTranslation } from '@endora-commerce/admin-kit/i18n';
 /**
@@ -19,6 +21,9 @@ import { useTranslation } from '@endora-commerce/admin-kit/i18n';
  */
 export function GroupsPage(): ReactNode {
   const t = useTranslation('settings');
+  const { confirm, confirmDialog } = useConfirmDialog();
+  // Issue #313 — the group being renamed, in a dialog rather than `prompt()`.
+  const [renaming, setRenaming] = useState<GroupRow | null>(null);
   const [rows, setRows] = useState<GroupRow[]>([]);
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState<string | null>(null);
@@ -60,28 +65,24 @@ export function GroupsPage(): ReactNode {
     [draftCode, draftName, refresh],
   );
 
+  /** Throws on a refused rename, so the dialog stays open and says why. */
   const onRename = useCallback(
-    async (code: string): Promise<void> => {
-      const name = prompt(`Rename group "${code}" to:`);
-      if (!name || !name.trim()) return;
-      try {
-        await settingsClient.updateGroup(code, { name: name.trim() });
-        await refresh();
-      } catch (err) {
-        setError(err instanceof ApiError ? err.envelope.error.message : 'Rename failed.');
-      }
+    async (code: string, name: string): Promise<void> => {
+      await settingsClient.updateGroup(code, { name });
+      setRenaming(null);
+      await refresh();
     },
     [refresh],
   );
 
   const onDelete = useCallback(
     async (code: string): Promise<void> => {
-      if (
-        !confirm(
-          `Delete group "${code}"? Its settings will be reassigned to "general"; their values are preserved.`,
-        )
-      )
-        return;
+      const ok = await confirm({
+        message: t('groups.deleteConfirm', { code }),
+        confirmLabel: t('groups.action.delete'),
+        destructive: true,
+      });
+      if (!ok) return;
       try {
         await settingsClient.deleteGroup(code);
         await refresh();
@@ -89,7 +90,7 @@ export function GroupsPage(): ReactNode {
         setError(err instanceof ApiError ? err.envelope.error.message : 'Delete failed.');
       }
     },
-    [refresh],
+    [refresh, confirm, t],
   );
 
   return (
@@ -149,7 +150,7 @@ export function GroupsPage(): ReactNode {
                       <Button
                         variant="ghost"
                         size="sm"
-                        onClick={() => void onRename(g.code)}
+                        onClick={() => setRenaming(g)}
                         disabled={g.isSystemProtected}
                       >
                         {t('groups.action.rename')}
@@ -170,7 +171,101 @@ export function GroupsPage(): ReactNode {
           )}
         </CardContent>
       </Card>
+      {renaming ? (
+        <RenameGroupDialog
+          group={renaming}
+          onClose={() => setRenaming(null)}
+          onRename={(name) => onRename(renaming.code, name)}
+        />
+      ) : null}
+      {confirmDialog}
     </>
+  );
+}
+
+/**
+ * Renames a setting group (issue #313, in place of the browser's `prompt()`):
+ * one required field prefilled with the current name, refused inline when
+ * blank, and the server's refusal shown inside the dialog with the typed name
+ * kept.
+ */
+function RenameGroupDialog(props: {
+  group: GroupRow;
+  onClose: () => void;
+  onRename: (name: string) => Promise<void>;
+}): ReactNode {
+  const { group, onClose, onRename } = props;
+  const t = useTranslation('settings');
+  const tc = useTranslation('core');
+  const [name, setName] = useState(group.name);
+  const [missing, setMissing] = useState(false);
+  const [error, setError] = useState<string | null>(null);
+  const [busy, setBusy] = useState(false);
+  const inputId = useId();
+  const missingId = useId();
+
+  const submit = async (e?: FormEvent): Promise<void> => {
+    e?.preventDefault();
+    if (busy) return;
+    const trimmed = name.trim();
+    if (!trimmed) {
+      setMissing(true);
+      return;
+    }
+    setError(null);
+    setBusy(true);
+    try {
+      await onRename(trimmed);
+    } catch (err) {
+      setError(err instanceof ApiError ? err.envelope.error.message : t('groups.renameDialog.failed'));
+      setBusy(false);
+    }
+  };
+
+  return (
+    <ModalDialog
+      title={t('groups.renameDialog.title', { code: group.code })}
+      onClose={onClose}
+      busy={busy}
+      dismissOnScrim={false}
+      footer={
+        <>
+          <Button type="button" variant="outline" onClick={onClose} disabled={busy}>
+            {tc('common.action.cancel')}
+          </Button>
+          <Button type="submit" form={`${inputId}-form`} disabled={busy} aria-busy={busy}>
+            {tc('common.action.save')}
+          </Button>
+        </>
+      }
+    >
+      <form id={`${inputId}-form`} noValidate className="space-y-3" onSubmit={(e) => void submit(e)}>
+        {error ? (
+          <Alert variant="destructive">
+            <AlertDescription>{error}</AlertDescription>
+          </Alert>
+        ) : null}
+        <div className="space-y-1">
+          <Label htmlFor={inputId}>{t('groups.renameDialog.name')}</Label>
+          <Input
+            id={inputId}
+            required
+            value={name}
+            aria-invalid={missing ? true : undefined}
+            aria-describedby={missing ? missingId : undefined}
+            onChange={(e) => {
+              setName(e.target.value);
+              if (e.target.value.trim()) setMissing(false);
+            }}
+          />
+          {missing ? (
+            <p id={missingId} className="text-xs text-destructive">
+              {t('groups.renameDialog.nameMissing')}
+            </p>
+          ) : null}
+        </div>
+      </form>
+    </ModalDialog>
   );
 }
 

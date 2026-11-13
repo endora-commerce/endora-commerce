@@ -1,4 +1,5 @@
 import { Fragment, useCallback, useEffect, useState, type FormEvent, type ReactNode } from 'react';
+import { useConfirmDialog } from '@endora-commerce/admin-kit/components';
 import { Link } from 'react-router-dom';
 import { KeyRound, Trash2 } from 'lucide-react';
 import { ApiError, apiClient, formatDateTime } from '@endora-commerce/admin-kit/lib';
@@ -41,6 +42,7 @@ interface AdminRole {
 
 export default function AdminUsersPage(): ReactNode {
   const t = useTranslation('core');
+  const { confirm, confirmDialog } = useConfirmDialog();
   const [users, setUsers] = useState<AdminUser[]>([]);
   const [roles, setRoles] = useState<AdminRole[]>([]);
   const [loading, setLoading] = useState(true);
@@ -152,7 +154,12 @@ export default function AdminUsersPage(): ReactNode {
 
   const handleRemove = useCallback(
     async (user: AdminUser): Promise<void> => {
-      if (!confirm(t('adminUsers.confirmRemove', { email: user.email }))) return;
+      const ok = await confirm({
+        message: t('adminUsers.confirmRemove', { email: user.email }),
+        confirmLabel: t('adminUsers.remove'),
+        destructive: true,
+      });
+      if (!ok) return;
       try {
         await apiClient.delete<void>(`/api/v1/admin/admin-users/${user.id}`);
         await refresh();
@@ -160,7 +167,7 @@ export default function AdminUsersPage(): ReactNode {
         setError(err instanceof ApiError ? err.envelope.error.message : t('adminUsers.error.remove'));
       }
     },
-    [refresh, t],
+    [refresh, t, confirm],
   );
 
   return (
@@ -299,6 +306,7 @@ export default function AdminUsersPage(): ReactNode {
           )}
         </CardContent>
       </Card>
+      {confirmDialog}
     </>
   );
 }

@@ -10,7 +10,7 @@ import type { CreateWarehouseRequest, Warehouse } from '@endora-commerce/contrac
 import { ArrowLeft, Trash2 } from 'lucide-react';
 import { ApiError, useSurfaceVisibility } from '@endora-commerce/admin-kit/lib';
 import { useTranslation } from '@endora-commerce/admin-kit/i18n';
-import { CountryPicker } from '@endora-commerce/admin-kit/components';
+import { CountryPicker, useConfirmDialog } from '@endora-commerce/admin-kit/components';
 import { warehousesClient } from '../api/warehouses-client.js';
 
 interface FormState {
@@ -95,6 +95,7 @@ function buildContact(s: FormState) {
  */
 export function WarehouseEditor(): ReactNode {
   const t = useTranslation('core');
+  const { confirm, confirmDialog } = useConfirmDialog();
   /**
    * The screen's own gate (2026-08-29) — see `InventoryPage` for the reasoning
    * in full. Both halves are asked here because this one screen is both: the
@@ -177,7 +178,12 @@ export function WarehouseEditor(): ReactNode {
 
   const handleDelete = async (): Promise<void> => {
     if (!loaded) return;
-    if (!window.confirm(t('warehouses.editor.deleteConfirm', { name: loaded.name }))) return;
+    const ok = await confirm({
+      message: t('warehouses.editor.deleteConfirm', { name: loaded.name }),
+      confirmLabel: t('warehouses.action.delete'),
+      destructive: true,
+    });
+    if (!ok) return;
     setSubmitting(true);
     setError(null);
     try {
@@ -400,6 +406,7 @@ export function WarehouseEditor(): ReactNode {
           ) : null}
         </div>
       </form>
+      {confirmDialog}
     </div>
   );
 }
