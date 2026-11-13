@@ -1,3 +1,6 @@
+import { mkdirSync, mkdtempSync, rmSync, writeFileSync } from 'node:fs';
+import { tmpdir } from 'node:os';
+import { join } from 'node:path';
 import { describe, expect, it } from 'vitest';
 import { defineModuleManifest, type ModuleManifest } from '@endora-commerce/contracts';
 import {
@@ -256,6 +259,40 @@ describe('foreign-gate sweep — the shapes it refuses', () => {
   });
 
   /**
+   * Issue #458 — the same narrowing, reached from an Admin UI any-of the
+   * scanner reads rather than a site the fixture builds. The `@@` document list
+   * used to be gated as `groups.some((group) => hasPermission(group.code))`,
+   * which the scanner could only call a `runtime-value`, so none of its codes
+   * was judged. Written as `hasAnyPermission([...])`, every member is judged,
+   * against every other.
+   */
+  it('judges the members of a scanned hasAnyPermission any-of as alternatives', () => {
+    const root = mkdtempSync(join(tmpdir(), 'foreign-gates-any-of-'));
+    try {
+      mkdirSync(join(root, 'crm'), { recursive: true });
+      writeFileSync(
+        join(root, 'crm', 'references.ts'),
+        `const ok = canWrite && hasAnyPermission(['orders:read', 'tasks:read']);`,
+        'utf8',
+      );
+      const scanned = scanEnforcedPermissionGates([{ dir: join(root, 'crm'), moduleId: 'crm' }]);
+      const found = classifyForeignGates(
+        input(scanned.sites, [
+          manifest('crm'),
+          locked('orders', { permissions: [{ code: 'orders:read', label: 'View orders' }] }),
+          manifest('tasks', { permissions: [{ code: 'tasks:read', label: 'View tasks' }] }),
+        ]),
+      );
+      expect(found.map((finding) => [finding.code, finding.kind])).toEqual([
+        ['orders:read', 'owner-locked'],
+        ['tasks:read', 'sufficient-alternative'],
+      ]);
+    } finally {
+      rmSync(root, { recursive: true, force: true });
+    }
+  });
+
+  /**
    * The alternative has to be one an operator cannot withdraw. Two switchable
    * foreign codes on one any-of strand the route exactly as one does, so the
    * narrowing must not reach them — otherwise every violation is escapable by
@@ -394,6 +431,26 @@ describe('foreign-gate sweep — this build', () => {
         'reach for last: a locked consumer declaring a switchable owner makes ' +
         'the orchestrator refuse to switch that owner off at all.',
     ).toEqual([]);
+  });
+
+  /**
+   * Issue #458 — the two `@@` document-list gates are judged, not passed over
+   * as runtime values: each is one site naming every group's code.
+   */
+  it('reads the @@ document-list any-ofs as codes it judges', async () => {
+    const scan = scanEnforcedPermissionGates(await permissionScanRoots());
+    const documentLists = scan.sites
+      .filter((site) => /admin[\\/]lib[\\/]references\.ts$/.test(site.file))
+      .filter((site) => site.codes.includes('orders:read'))
+      .map((site) => [site.moduleId, site.resolution, [...site.codes].sort()]);
+    expect(documentLists.sort()).toEqual([
+      ['crm', 'code', ['orders:read', 'projects:read', 'rfqs:handle', 'tasks:read']],
+      ['projects', 'code', ['crm:read', 'orders:read', 'rfqs:handle', 'tasks:read']],
+    ]);
+    const runtime = scan.runtimeValue
+      .filter((site) => /admin[\\/]lib[\\/]references\.ts$/.test(site.file))
+      .map((site) => `${site.file}: ${site.expression}`);
+    expect(runtime).toEqual([]);
   });
 
   it('carries no ledger entry describing a finding that is gone', async () => {
