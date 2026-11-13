@@ -113,7 +113,8 @@ stawki korekta wynika z tego, co faktura zatrzymuje:
   `delivery` albo `payment_surcharge`), nazwanej jak pozycja faktury i z jej stawką VAT (dziś 0 %),
   na kwotę zwróconą w rozliczeniu. Po odstąpieniu od całego zamówienia faktura po korekcie wynosi
   zero. Korekta, która uznałaby więcej z opłaty, niż faktura jeszcze za nią nalicza, jest odrzucana
-  z `422 VALIDATION_FAILED` (`code: correction_exceeds_charge_remaining`), zanim zostaną przekazane
+  z `422 INVOICE_CORRECTION_EXCEEDS_CHARGE_REMAINING` (`details.code` to opłata, `delivery` albo
+  `payment_surcharge`, wraz z `remaining` i `currency`), zanim zostaną przekazane
   jakiekolwiek pieniądze. Zwroty klientów firmowych nigdy ich nie uznają.
 
 **Reklamacja** rozliczona pieniędzmi jest **obniżką ceny**: kupujący zatrzymuje towary, więc obniża się
@@ -124,8 +125,17 @@ i nie zmniejsza ilości, od której liczony jest późniejszy zwrot tej samej po
 która czyta pozycje korekty: pozycja towarowa z ilością 0 to obniżka ceny.
 
 Korekta, która uznałaby w jednej stawce VAT więcej towarów, niż faktura nadal w niej nalicza, jest
-odrzucana z `422 VALIDATION_FAILED` (`code: correction_exceeds_rate_remaining`), zanim zostaną
-przeniesione jakiekolwiek pieniądze.
+odrzucana z `422 INVOICE_CORRECTION_EXCEEDS_RATE_REMAINING` (`details`: `taxRate`, `vatRatePercent`,
+`remaining`, `currency`), zanim zostaną przeniesione jakiekolwiek pieniądze.
+
+Pozostałe odmowy wystawienia faktury i korekty (zgłoszenie #633; każda była wcześniej
+`VALIDATION_FAILED`):
+
+| Odmowa | Kod | `details` |
+| --- | --- | --- |
+| NIP sprzedawcy i dane firmy nie są skonfigurowane | `422 INVOICE_SELLER_DATA_MISSING` | `setting` |
+| Korekta w innej walucie niż korygowana faktura | `422 INVOICE_CORRECTION_CURRENCY_MISMATCH` | `requestedCurrency`, `invoiceCurrency`, `originalInvoiceId` |
+| Suma korekty wyższa niż to, co uznają jej pozycje i opłaty, albo (`details.code: below_charges`) niższa niż same opłaty | `400 INVOICE_CORRECTION_TOTAL_EXCEEDS_LINES` | `total`, `linesTotal`, `currency` |
 
 **Kwota do zapłaty** to kwota brutto pomniejszona o to, co zapłacono, i nigdy nie jest ujemna. Gdy
 zapłacono więcej niż kwota brutto, do zapłaty jest 0, a faktura podaje różnicę jako **nadpłatę**

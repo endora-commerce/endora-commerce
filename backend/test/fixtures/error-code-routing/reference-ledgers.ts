@@ -190,6 +190,43 @@ export const MINTED_ERROR_CODES: MintedErrorCodes = {
       'invoiced: there is no sale left to document. The noun is the invoice, which `invoices` ' +
       'owns, and `invoices` raises it; the automatic issuance skips the order and logs the code.',
   },
+  INVOICE_SELLER_DATA_MISSING: {
+    to: 'invoices',
+    reason:
+      'Minted by issue #633 (#86) for invoice issuance before the seller\'s VAT number and ' +
+      'company data are configured. It was `VALIDATION_FAILED` with an English sentence the ' +
+      'envelope never replaces. The one raise site is `invoices`\' `SellerSettingsResolver`',
+  },
+  INVOICE_CORRECTION_CURRENCY_MISMATCH: {
+    to: 'invoices',
+    reason:
+      'Minted by issue #633 (#86) for a correction asked for in another currency than the ' +
+      'invoice it corrects, formerly `VALIDATION_FAILED` with `details.code = ' +
+      '\'correction_currency_mismatch\'`. The noun is the corrective invoice; `invoices` raises it',
+  },
+  INVOICE_CORRECTION_TOTAL_EXCEEDS_LINES: {
+    to: 'invoices',
+    reason:
+      'Minted by issue #633 (#86) for a correction total its lines and charges do not add up ' +
+      'to, formerly `400 VALIDATION_FAILED` with `details.code = ' +
+      '\'correction_total_exceeds_lines\'`; the token `below_charges` marks the total below the ' +
+      'charges alone. The noun is the corrective invoice; `invoices` raises it',
+  },
+  INVOICE_CORRECTION_EXCEEDS_RATE_REMAINING: {
+    to: 'invoices',
+    reason:
+      'Minted by issue #633 (#86) for a correction crediting more goods at one VAT rate than ' +
+      'the invoice still charges there (#885), formerly `VALIDATION_FAILED` with `details.code ' +
+      '= \'correction_exceeds_rate_remaining\'`. The noun is the corrective invoice',
+  },
+  INVOICE_CORRECTION_EXCEEDS_CHARGE_REMAINING: {
+    to: 'invoices',
+    reason:
+      'Minted by issue #633 (#86) for a correction crediting more of the delivery or the ' +
+      'payment surcharge than the invoice still charges for it (#876), formerly ' +
+      '`VALIDATION_FAILED` with `details.code = \'correction_exceeds_charge_remaining\'`; the ' +
+      'token is now the charge. The noun is the corrective invoice',
+  },
   AMOUNT_PRECISION_EXCEEDED: {
     to: '_i18n',
     reason:
