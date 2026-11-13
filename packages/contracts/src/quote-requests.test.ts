@@ -38,6 +38,8 @@ import {
   setQuoteRequestDocumentTemplateSchema,
   adminCreateQuoteRequestSchema,
   adminPatchQuoteRequestSchema,
+  quoteRequestDeliverySchema,
+  type QuoteRequestDelivery,
 } from './quote-requests.js';
 import { ERROR_CODES } from './errors.js';
 
@@ -886,5 +888,105 @@ describe('issue #456 — one rule for what a quote request is worth', () => {
     expect(quoteRequestSummarySchema.parse({ ...row, amount: null, agreement: 'none' }).amount).toBeNull();
     expect(quoteRequestSummarySchema.parse(row).amount).toBeUndefined();
     expect(() => quoteRequestSummarySchema.parse({ ...row, amount: '12.3', agreement: 'partial' })).toThrow();
+  });
+});
+
+describe('179 — notification deliveries under an admin history entry (contracts/delivery-and-ports.md §4)', () => {
+  const ENTRY = {
+    id: ID(60),
+    eventIds: [ID(60)],
+    kind: 'submitted',
+    occurredAt: AT,
+    actor: { kind: 'system' },
+    revisionNumber: null,
+    note: null,
+    reason: null,
+    changes: null,
+    relatedQuoteRequestId: null,
+    orderId: null,
+  };
+  const DELIVERY: QuoteRequestDelivery = {
+    id: ID(61),
+    channel: 'admin_email',
+    recipient: { kind: 'admin', id: ID(62), displayName: 'Anna Nowak' },
+    status: 'sent',
+    attempts: 1,
+    lastError: null,
+    closedAt: AT,
+  };
+
+  it('parses a delivery of every channel and every status', () => {
+    const channels = ['admin_in_app', 'admin_email', 'customer_email', 'customer_in_app', 'customer_push'] as const;
+    const statuses = [
+      'pending',
+      'sent',
+      'skipped_stale',
+      'skipped_module_off',
+      'skipped_deactivated',
+      'skipped_no_transport',
+      'skipped_logged',
+      'skipped_no_recipient',
+      'skipped_preference',
+      'skipped_no_subscription',
+      'failed',
+    ] as const;
+    for (const channel of channels) {
+      const kind = channel.startsWith('admin') ? 'admin' : 'customer';
+      expect(
+        quoteRequestDeliverySchema.parse({ ...DELIVERY, channel, recipient: { ...DELIVERY.recipient, kind } }).channel,
+      ).toBe(channel);
+    }
+    for (const status of statuses) {
+      expect(quoteRequestDeliverySchema.parse({ ...DELIVERY, status }).status).toBe(status);
+    }
+    expect(quoteRequestDeliverySchema.shape.channel.options).toEqual(channels);
+    expect(quoteRequestDeliverySchema.shape.status.options).toEqual(statuses);
+  });
+
+  it('carries a pending delivery (not closed) and a failed one with its last error', () => {
+    const pending = { ...DELIVERY, status: 'pending', attempts: 0, closedAt: null };
+    expect(quoteRequestDeliverySchema.parse(pending)).toEqual(pending);
+    const failed = { ...DELIVERY, status: 'failed', attempts: 5, lastError: 'SMTP 421' };
+    expect(quoteRequestDeliverySchema.parse(failed).lastError).toBe('SMTP 421');
+  });
+
+  it("accepts '' as the display name of a person who is gone", () => {
+    expect(
+      quoteRequestDeliverySchema.parse({ ...DELIVERY, recipient: { ...DELIVERY.recipient, displayName: '' } }).recipient
+        .displayName,
+    ).toBe('');
+  });
+
+  it('is strict and refuses an unknown channel, status, recipient kind or a negative attempt count', () => {
+    expect(quoteRequestDeliverySchema.safeParse({ ...DELIVERY, address: 'a@example.com' }).success).toBe(false);
+    expect(quoteRequestDeliverySchema.safeParse({ ...DELIVERY, channel: 'sms' }).success).toBe(false);
+    expect(quoteRequestDeliverySchema.safeParse({ ...DELIVERY, status: 'queued' }).success).toBe(false);
+    expect(
+      quoteRequestDeliverySchema.safeParse({ ...DELIVERY, recipient: { ...DELIVERY.recipient, kind: 'guest' } })
+        .success,
+    ).toBe(false);
+    expect(
+      quoteRequestDeliverySchema.safeParse({
+        ...DELIVERY,
+        recipient: { ...DELIVERY.recipient, email: 'a@example.com' },
+      }).success,
+    ).toBe(false);
+    expect(quoteRequestDeliverySchema.safeParse({ ...DELIVERY, attempts: -1 }).success).toBe(false);
+    expect(quoteRequestDeliverySchema.safeParse({ ...DELIVERY, attempts: 1.5 }).success).toBe(false);
+    expect(quoteRequestDeliverySchema.safeParse({ ...DELIVERY, closedAt: 'never' }).success).toBe(false);
+  });
+
+  it('is optional on a history entry: an entry without deliveries parses unchanged', () => {
+    const parsed = quoteRequestHistoryEntrySchema.parse(ENTRY);
+    expect(parsed).not.toHaveProperty('deliveries');
+  });
+
+  it('keeps the deliveries of an entry that carries them, and refuses an invalid one', () => {
+    const parsed = quoteRequestHistoryEntrySchema.parse({ ...ENTRY, deliveries: [DELIVERY] });
+    expect(parsed.deliveries).toEqual([DELIVERY]);
+    expect(quoteRequestHistoryEntrySchema.parse({ ...ENTRY, deliveries: [] }).deliveries).toEqual([]);
+    expect(
+      quoteRequestHistoryEntrySchema.safeParse({ ...ENTRY, deliveries: [{ ...DELIVERY, status: 'queued' }] }).success,
+    ).toBe(false);
   });
 });
