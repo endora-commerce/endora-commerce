@@ -259,6 +259,10 @@ export function ProductScopeOverview({ productId, links }: ProductScopeOverviewP
 
   /** Sticky row headers keep the channel in view while the languages scroll (D11). */
   const stickyRowHeader = { position: 'sticky', left: 0, background: 'var(--surface)', zIndex: 1 } as const;
+  // `.b2b-tbl tbody td` is `padding: 0 12px`, sized for one-line rows centred in `--row-h`.
+  // These cells are top-aligned and hold several lines, so they carry their own vertical
+  // padding — and the row header, which no `.b2b-tbl` rule styles, the same (issue #501).
+  const bodyCell = { verticalAlign: 'top', padding: '8px 12px' } as const;
 
   return (
     <section className="b2b-col" style={{ gap: 12 }} aria-labelledby={headingId} aria-busy={busy || undefined}>
@@ -321,7 +325,7 @@ export function ProductScopeOverview({ productId, links }: ProductScopeOverviewP
                   overview.channelRows.find((r) => r.channelId === channel.channelId)?.overriddenFields ?? [];
                 return (
                   <tr key={channel.channelId}>
-                    <th scope="row" style={{ ...stickyRowHeader, verticalAlign: 'top', textAlign: 'left' }}>
+                    <th scope="row" style={{ ...stickyRowHeader, ...bodyCell, textAlign: 'left' }}>
                       <span className="font-semibold">{name}</span>
                       {links && channel.isMember ? (
                         <>
@@ -340,7 +344,7 @@ export function ProductScopeOverview({ productId, links }: ProductScopeOverviewP
                         </>
                       ) : null}
                     </th>
-                    <td style={{ verticalAlign: 'top' }}>
+                    <td style={bodyCell}>
                       {rowFields.length > 0 ? (
                         <FieldList
                           fields={rowFields}
@@ -373,7 +377,7 @@ export function ProductScopeOverview({ productId, links }: ProductScopeOverviewP
                       const offered = channel.isMember && channel.languages.includes(code);
                       const scopeName = `${name} · ${code.toUpperCase()}`;
                       return (
-                        <td key={code} style={{ verticalAlign: 'top' }}>
+                        <td key={code} style={bodyCell}>
                           {cell && offered ? (
                             <OverviewCell
                               cell={cell}

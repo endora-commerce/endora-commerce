@@ -36,9 +36,9 @@ import {
   type ProductListTab,
 } from '../lib/resolve-product-selection.js';
 import { ApiError, apiClient, cn, useAuth, usePageSizePreference } from '@endora-commerce/admin-kit/lib';
-import { PaginationFooter, SavedViewsControl } from '@endora-commerce/admin-kit/components';
+import { PaginationFooter, SavedViewsControl, adminLanguageToLocale } from '@endora-commerce/admin-kit/components';
 import type { SavedViewState } from '@endora-commerce/admin-kit/components';
-import { useTranslation } from '@endora-commerce/admin-kit/i18n';
+import { useTranslation, useTranslationContext } from '@endora-commerce/admin-kit/i18n';
 
 interface AdminProduct {
   id: string;
@@ -123,6 +123,7 @@ function isTypeFilter(value: unknown): value is TypeFilter {
 
 export function ProductsList(): ReactNode {
   const t = useTranslation('catalog');
+  const { language } = useTranslationContext();
   const navigate = useNavigate();
   // The create route this screen links to takes the **write** code (D-221), so
   // both buttons that navigate there are gated on the same one. A link whose
@@ -519,7 +520,7 @@ export function ProductsList(): ReactNode {
           <Chip
             icon={<Package size={12} />}
             active={typeFilter !== 'all'}
-            label={typeFilter === 'all' ? t('productsList.chip.type') : t('productsList.chip.typeWithValue', { value: typeFilter })}
+            label={typeFilter === 'all' ? t('productsList.chip.type') : t('productsList.chip.typeWithValue', { value: t(`productEditor.type.${typeFilter}`) })}
             onClick={(): void => {
               const idx = TYPE_CYCLE.indexOf(typeFilter);
               setTypeFilter(TYPE_CYCLE[(idx + 1) % TYPE_CYCLE.length]!);
@@ -869,15 +870,15 @@ export function ProductsList(): ReactNode {
                       </span>
                     </td>
                     <td>
-                      <span style={{ fontSize: 12, textTransform: 'capitalize' }}>{r.type}</span>
+                      <span style={{ fontSize: 12 }}>{t(`productEditor.type.${r.type}`)}</span>
                     </td>
                     <td>
                       <span style={{ fontSize: 12, color: 'var(--fg-muted)' }}>
-                        {humanizeVisibility(r.visibility)}
+                        {t(`productEditor.visibility.${r.visibility}`)}
                       </span>
                     </td>
                     <td>
-                      <span className="b2b-muted" style={{ fontSize: 12 }}>{relTime(r.updatedAt)}</span>
+                      <span className="b2b-muted" style={{ fontSize: 12 }}>{relTime(r.updatedAt, t, language)}</span>
                     </td>
                     <td className="actions" onClick={(e): void => e.stopPropagation()}>
                       <button type="button" className="b2b-btn b2b-btn--ghost b2b-btn--icon b2b-btn--sm">
@@ -954,11 +955,6 @@ function Chip(props: {
   );
 }
 
-function humanizeVisibility(v: string): string {
-  if (v === 'logged_in_only') return 'Logged-in';
-  if (v === 'organization_restricted') return 'Org-restricted';
-  return v.charAt(0).toUpperCase() + v.slice(1);
-}
 
 /* Light fingerprint of an id → a stable Shopify-ish swatch for the
  * thumbnail placeholder. The real product page will swap this for the
@@ -978,14 +974,18 @@ function hashColor(id: string): string {
   return palette[idx]!;
 }
 
-function relTime(iso: string): string {
+/** The Updated cell, in the admin's language (issue #501: it was English in every language). */
+function relTime(iso: string, t: ReturnType<typeof useTranslation>, language: string): string {
   const d = new Date(iso);
   const diff = (Date.now() - d.getTime()) / 1000;
-  if (diff < 60) return 'just now';
-  if (diff < 3600) return `${Math.floor(diff / 60)}m ago`;
-  if (diff < 86400) return `${Math.floor(diff / 3600)}h ago`;
-  if (diff < 86400 * 7) return `${Math.floor(diff / 86400)}d ago`;
-  return d.toLocaleDateString('en-US', { month: 'short', day: 'numeric' });
+  if (diff < 60) return t('productsList.updated.justNow');
+  if (diff < 3600) return t('productsList.updated.minutesAgo', { count: Math.floor(diff / 60) });
+  if (diff < 86400) return t('productsList.updated.hoursAgo', { count: Math.floor(diff / 3600) });
+  // No plural rules in the catalogue: one day is its own word, and two to six
+  // days take the same Polish form ("dni"), as on the dashboard's activity feed.
+  if (diff < 86400 * 2) return t('productsList.updated.yesterday');
+  if (diff < 86400 * 7) return t('productsList.updated.daysAgo', { count: Math.floor(diff / 86400) });
+  return d.toLocaleDateString(adminLanguageToLocale(language), { month: 'short', day: 'numeric' });
 }
 
 // Suppress unused: passed through cn() calls, kept for future use.
