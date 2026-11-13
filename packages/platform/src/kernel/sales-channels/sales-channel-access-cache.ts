@@ -1,5 +1,6 @@
 import type { Redis } from 'ioredis';
 import { SharedDropMarks } from '../cache/shared-drop-marks.js';
+import { subscribeWhenReady } from '../cache/subscribe-when-ready.js';
 import type { InProcessCacheLayer } from '../cache/in-process-cache-registry.js';
 
 /**
@@ -178,7 +179,8 @@ export class SalesChannelAccessCache
       this.dropLocalFor(message);
     });
     try {
-      await subscriber.subscribe(SALES_CHANNEL_ACCESS_CHANGED_CHANNEL);
+      // Issue #1096 — never SUBSCRIBE mid-handshake.
+      await subscribeWhenReady(subscriber, SALES_CHANNEL_ACCESS_CHANGED_CHANNEL);
     } catch (err) {
       console.warn(
         `[sales-channel-access] could not subscribe to ${SALES_CHANNEL_ACCESS_CHANGED_CHANNEL} — ` +

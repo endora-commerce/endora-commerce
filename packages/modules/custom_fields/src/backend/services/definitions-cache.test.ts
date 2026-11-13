@@ -1,7 +1,10 @@
+import { EventEmitter } from 'node:events';
+import type { Redis } from 'ioredis';
 import { describe, expect, it } from 'vitest';
 import {
   CustomFieldDefinitionsCache,
   CUSTOM_FIELDS_CACHE_TTL_MS,
+  CUSTOM_FIELDS_CHANGED_CHANNEL,
   type CachedDefinition,
 } from './custom-field-definitions-cache.js';
 
@@ -104,5 +107,27 @@ describe('CustomFieldDefinitionsCache — a load overtaken by an invalidation', 
       return [];
     });
     expect(loads).toBe(2);
+  });
+
+  it('subscribes only once the subscriber connection is ready (issue #1096)', async () => {
+    // ioredis caught between TCP connect and its ready check: a SUBSCRIBE sent
+    // now can put the socket into subscriber mode before the check's INFO.
+    const subscriber = Object.assign(new EventEmitter(), {
+      status: 'connect',
+      subscribed: [] as string[],
+      async subscribe(...channels: string[]) {
+        subscriber.subscribed.push(...channels);
+        return channels.length;
+      },
+    });
+    const cache = new CustomFieldDefinitionsCache();
+    const starting = cache.start(subscriber as unknown as Redis);
+    await new Promise((resolve) => setImmediate(resolve));
+    expect(subscriber.subscribed).toEqual([]);
+
+    subscriber.status = 'ready';
+    subscriber.emit('ready');
+    await starting;
+    expect(subscriber.subscribed).toEqual([CUSTOM_FIELDS_CHANGED_CHANNEL]);
   });
 });

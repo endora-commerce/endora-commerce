@@ -1,4 +1,5 @@
 import type { Redis } from 'ioredis';
+import { subscribeWhenReady } from '@endora-commerce/platform/kernel';
 import type { CustomFieldDefinition } from '../entities/custom-field-definition.entity.js';
 import type { CustomFieldOption } from '../entities/custom-field-option.entity.js';
 
@@ -89,7 +90,8 @@ export class CustomFieldDefinitionsCache {
   async start(redisSubscriber: Redis): Promise<void> {
     if (this.subscriber) return;
     this.subscriber = redisSubscriber;
-    await this.subscriber.subscribe(CUSTOM_FIELDS_CHANGED_CHANNEL);
+    // Issue #1096 — never SUBSCRIBE mid-handshake.
+    await subscribeWhenReady(this.subscriber, CUSTOM_FIELDS_CHANGED_CHANNEL);
     this.subscriber.on('message', (channel, message) => {
       if (channel !== CUSTOM_FIELDS_CHANGED_CHANNEL) return;
       this.handleMessage(message);

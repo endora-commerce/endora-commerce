@@ -1,4 +1,5 @@
 import { randomUUID } from 'node:crypto';
+import { subscribeWhenReady, type HandshakeAwareSubscriber } from '@endora-commerce/platform/kernel';
 import type { SurfaceChange } from './surface-change.js';
 
 /**
@@ -19,9 +20,11 @@ export interface PricingGenerationPublisher {
   publish(channel: string, message: string): Promise<unknown>;
 }
 
-/** The two calls a subscriber needs — `ioredis`' subscriber mode, structurally. */
-export interface PricingGenerationSubscriber {
-  subscribe(channel: string): Promise<unknown>;
+/**
+ * What a subscriber needs — `ioredis`' subscriber mode, structurally: `on`, and
+ * the status and handshake events `subscribeWhenReady` waits on (issue #1096).
+ */
+export interface PricingGenerationSubscriber extends HandshakeAwareSubscriber {
   on(event: 'message', listener: (channel: string, message: string) => void): unknown;
 }
 
@@ -110,7 +113,8 @@ export class PricingGeneration {
   async start(subscriber: PricingGenerationSubscriber): Promise<void> {
     if (this.#subscribed) return;
     this.#subscribed = true;
-    await subscriber.subscribe(PRICING_GENERATION_CHANNEL);
+    // Issue #1096 — never SUBSCRIBE mid-handshake.
+    await subscribeWhenReady(subscriber, PRICING_GENERATION_CHANNEL);
     subscriber.on('message', (channel, message) => {
       if (channel !== PRICING_GENERATION_CHANNEL) return;
       this.handleMessage(message);

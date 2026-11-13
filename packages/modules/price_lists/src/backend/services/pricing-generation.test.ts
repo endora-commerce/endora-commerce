@@ -1,3 +1,4 @@
+import { EventEmitter } from 'node:events';
 import { describe, expect, it, vi } from 'vitest';
 import {
   PRICING_GENERATION_CHANNEL,
@@ -32,6 +33,9 @@ class FakeBus {
       on: (_event: 'message', listener: (channel: string, message: string) => void) => {
         this.listeners.push(listener);
       },
+      status: 'ready',
+      once: () => undefined,
+      removeListener: () => undefined,
     };
   }
 }
@@ -90,6 +94,28 @@ describe('PricingGeneration — cross-replica pricing cache invalidation', () =>
     const subscriber = bus.subscriber();
     await generation.start(subscriber);
     await generation.start(subscriber);
+    expect(subscriber.subscribed).toEqual([PRICING_GENERATION_CHANNEL]);
+  });
+
+  it('subscribes only once the subscriber connection is ready (issue #1096)', async () => {
+    // ioredis caught between TCP connect and its ready check: a SUBSCRIBE sent
+    // now can put the socket into subscriber mode before the check's INFO.
+    const subscriber = Object.assign(new EventEmitter(), {
+      status: 'connect',
+      subscribed: [] as string[],
+      async subscribe(channel: string) {
+        subscriber.subscribed.push(channel);
+        return 1;
+      },
+    });
+    const generation = new PricingGeneration({ invalidateAll: vi.fn() });
+    const starting = generation.start(subscriber);
+    await new Promise((resolve) => setImmediate(resolve));
+    expect(subscriber.subscribed).toEqual([]);
+
+    subscriber.status = 'ready';
+    subscriber.emit('ready');
+    await starting;
     expect(subscriber.subscribed).toEqual([PRICING_GENERATION_CHANNEL]);
   });
 });
