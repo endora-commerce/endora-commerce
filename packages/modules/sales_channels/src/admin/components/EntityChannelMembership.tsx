@@ -2,6 +2,7 @@ import { useCallback, useEffect, useMemo, useState, type ReactNode } from 'react
 import { useConfirmDialog } from '@endora-commerce/admin-kit/components';
 import type {
   ChannelMemberEntityType,
+  EntityMembershipListResponse,
   SalesChannelListResponse,
   SalesChannelSummary,
 } from '@endora-commerce/contracts';
@@ -70,12 +71,6 @@ export interface EntityChannelMembershipProps {
   onChanged?: () => void;
 }
 
-interface ChannelsForEntityResponse {
-  entityType: ChannelMemberEntityType;
-  entityId: string;
-  channels: SalesChannelSummary[];
-}
-
 const BASE = '/api/v1/admin/sales-channels';
 
 export function EntityChannelMembership({
@@ -98,7 +93,7 @@ export function EntityChannelMembership({
     setError(null);
     try {
       const [forEntity, all] = await Promise.all([
-        apiClient.get<ChannelsForEntityResponse>(
+        apiClient.get<EntityMembershipListResponse>(
           `${BASE}/by-entity/${entityType}/${encodeURIComponent(entityId)}`,
         ),
         apiClient.get<SalesChannelListResponse>(`${BASE}?activeOnly=true`),

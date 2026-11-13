@@ -1,5 +1,9 @@
 import { afterAll, beforeAll, beforeEach, describe, expect, it } from 'vitest';
-import { ERROR_CODES } from '@endora-commerce/contracts';
+import {
+  ERROR_CODES,
+  SalesChannelDetailSchema,
+  SalesChannelListResponseSchema,
+} from '@endora-commerce/contracts';
 import {
   setupBackendServer,
   teardownBackendServer,
@@ -9,6 +13,11 @@ import { AuditLogEntry, SalesChannel } from '@endora-commerce/platform/kernel';
 import { randomUUID } from 'node:crypto';
 import { AdminRole, AdminUser } from '../../helpers/package-entities.js';
 import { ADMIN_COOKIES } from '../../helpers/test-actors.js';
+import { deepStrict, disagreements } from '../../helpers/strict-schema.js';
+
+/** Strict copies: a key a channel reply carries that the contract does not declare fails (issue #599 §6). */
+const strictList = deepStrict(SalesChannelListResponseSchema);
+const strictDetail = deepStrict(SalesChannelDetailSchema);
 
 /**
  * T029-T033 — Admin HTTP contract for the Sales Channels module.
@@ -58,6 +67,7 @@ describe('admin sales-channels CRUD + lifecycle (T029-T033)', () => {
     const def = body.items.find((c) => c.code === 'default');
     expect(def).toBeDefined();
     expect(def?.systemDefault).toBe(true);
+    expect(disagreements(strictList, body)).toEqual([]);
   });
 
   it('GET /admin/sales-channels accepts pageSize=200 (SalesChannelPicker uses it)', async () => {
@@ -82,6 +92,7 @@ describe('admin sales-channels CRUD + lifecycle (T029-T033)', () => {
     expect(body['code']).toBe('default');
     expect(body['languages']).toContain('en-US');
     expect(body['currencies']).toContain('PLN');
+    expect(disagreements(strictDetail, body)).toEqual([]);
   });
 
   it('GET /admin/sales-channels/{unknown} returns 404 NOT_FOUND', async () => {
@@ -118,6 +129,7 @@ describe('admin sales-channels CRUD + lifecycle (T029-T033)', () => {
     expect(body['active']).toBe(true);
     expect(body['version']).toBe(1);
     expect(r.headers.etag).toMatch(/^W\/".+:1"$/);
+    expect(disagreements(strictDetail, body)).toEqual([]);
   });
 
   it('POST refuses defaultLanguage that is not in languages → VALIDATION_FAILED', async () => {
@@ -247,6 +259,7 @@ describe('admin sales-channels CRUD + lifecycle (T029-T033)', () => {
     expect(body['themeCode']).toBe('new-theme');
     expect(body['version']).toBe(2);
     expect(r.headers.etag).toMatch(/^W\/".+:2"$/);
+    expect(disagreements(strictDetail, body)).toEqual([]);
   });
 
   // -- T032: optimistic concurrency ----------------------------------------
@@ -378,6 +391,7 @@ describe('admin sales-channels CRUD + lifecycle (T029-T033)', () => {
     });
     expect(r.statusCode).toBe(200);
     expect((r.json() as { active: boolean }).active).toBe(false);
+    expect(disagreements(strictDetail, r.json())).toEqual([]);
 
     // Deactivating again is idempotent.
     r = await h.app.inject({
@@ -394,6 +408,7 @@ describe('admin sales-channels CRUD + lifecycle (T029-T033)', () => {
     });
     expect(r.statusCode).toBe(200);
     expect((r.json() as { active: boolean }).active).toBe(true);
+    expect(disagreements(strictDetail, r.json())).toEqual([]);
   });
 
   it('DELETE refuses the system-default channel → CANNOT_MODIFY_SYSTEM_DEFAULT', async () => {

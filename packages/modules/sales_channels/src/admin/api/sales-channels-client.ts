@@ -1,10 +1,10 @@
 import type {
   ChannelMemberEntityType,
+  EntityMembershipListResponse,
   SalesChannelCreateRequest,
   SalesChannelDetail,
   SalesChannelListResponse,
   SalesChannelSetDefaultResponse,
-  SalesChannelSummary,
   SalesChannelUpdateBody,
 } from '@endora-commerce/contracts';
 import { apiClient } from '@endora-commerce/admin-kit/lib';
@@ -120,11 +120,7 @@ export const salesChannelsClient = {
   listChannelsForEntity(
     entityType: ChannelMemberEntityType,
     entityId: string,
-  ): Promise<{
-    entityType: ChannelMemberEntityType;
-    entityId: string;
-    channels: SalesChannelSummary[];
-  }> {
+  ): Promise<EntityMembershipListResponse> {
     return apiClient.get(
       `/api/v1/admin/sales-channels/by-entity/${entityType}/${encodeURIComponent(entityId)}`,
     );
