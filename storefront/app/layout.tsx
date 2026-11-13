@@ -358,9 +358,10 @@ export default async function RootLayout({
             copyright={<Hook code="footer.copyright" />}
           />
           <Hook code="footer.after" />
-          {/* Feature 044 / US1 — fixed bottom tab bar (md:hidden). Renders on
-              every route; the body reserves its height on the mobile band so
-              it never covers content (globals.css). */}
+          {/* Feature 044 / US1 — fixed bottom tab bar, shown up to 876px like
+              the compact header (feature 179, WP-09a). Renders on every route;
+              the body reserves its height while it is shown so it never covers
+              content (globals.css). */}
           <MobileTabBar
             cartItemCount={cartItemCount}
             present={{

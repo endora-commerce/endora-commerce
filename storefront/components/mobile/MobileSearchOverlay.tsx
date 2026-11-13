@@ -13,8 +13,8 @@ const DEBOUNCE_MS = 200;
  * design §01). Tapping the header search field opens a full-screen, auto-
  * focused search that reuses the existing `getSuggestions` typeahead path and
  * shows product suggestions, category/brand shortcut pills, and a
- * "show all results" action. Shown only on phones (`.m-search-overlay` is
- * `md:hidden`).
+ * "show all results" action. Shown wherever the compact header is, up to
+ * 876px (`.m-search-overlay` is `min-[877px]:hidden`, feature 179 WP-09a).
  */
 export function MobileSearchOverlay(props: {
   apiBaseUrl: string;
