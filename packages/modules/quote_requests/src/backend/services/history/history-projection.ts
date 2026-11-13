@@ -22,6 +22,7 @@ import {
   type CatalogProductVariantRecord,
   type CustomerAccountRecord,
   type QuoteRequestHistoryActor,
+  type QuoteRequestDelivery,
   type QuoteRequestHistoryChange,
   type QuoteRequestHistoryEntry,
   type QuoteRequestHistoryEntryKind,
@@ -31,6 +32,7 @@ import type { QuoteRequestEventType } from '../../entities/quote-request-event.e
 import type { QuoteRequestRevisionLine } from '../../entities/quote-request-revision.entity.js';
 import { AUTOMATIC_ADMIN_CREATION_NOTE } from './constants.js';
 import { historyDiff } from './history-diff.js';
+import { compareDeliveries } from './history-deliveries.js';
 
 /** The part of a stored event the projection reads. */
 export interface HistoryEventInput {
@@ -157,10 +159,17 @@ const WRITE_ORDER: Partial<Record<QuoteRequestEventType, number>> = {
   'note-added': 1,
 };
 
+/**
+ * `deliveries` — `specs/179-rfq-and-customer-notifications/` FR-070: event id →
+ * the delivery records announcing it (`deliveriesByEvent`). An entry lists the
+ * records of every event it merged; an entry with none carries no
+ * `deliveries` key.
+ */
 export function projectHistory(
   events: readonly HistoryEventInput[],
   revisions: readonly HistoryRevisionInput[],
   directory: HistoryDirectory,
+  deliveries: ReadonlyMap<string, readonly QuoteRequestDelivery[]> = new Map(),
 ): QuoteRequestHistoryEntry[] {
   const ordered = events
     .map((event, index) => ({ event, index }))
@@ -183,7 +192,7 @@ export function projectHistory(
     const group = pairKind !== null ? [first, next!] : [first];
     if (pairKind !== null) index += 1;
     entries.push(
-      toEntry(group, pairKind ?? singleKind(first), { revisionById, revisionByNumber, directory }),
+      toEntry(group, pairKind ?? singleKind(first), { revisionById, revisionByNumber, directory, deliveries }),
     );
   }
   return entries;
@@ -193,6 +202,7 @@ interface ProjectionContext {
   revisionById: ReadonlyMap<string, HistoryRevisionInput>;
   revisionByNumber: ReadonlyMap<number, HistoryRevisionInput>;
   directory: HistoryDirectory;
+  deliveries: ReadonlyMap<string, readonly QuoteRequestDelivery[]>;
 }
 
 /** Research R8's pairing table; `null` = the two do not merge. */
@@ -252,6 +262,7 @@ function toEntry(
   ctx: ProjectionContext,
 ): QuoteRequestHistoryEntry {
   const first = group[0]!;
+  const deliveries = group.flatMap((event) => ctx.deliveries.get(event.id) ?? []).sort(compareDeliveries);
   return {
     id: first.id,
     eventIds: group.map((event) => event.id),
@@ -270,6 +281,7 @@ function toEntry(
     orderId: kind === 'completed' ? firstUuid(group, 'orderId') : null,
     delivery: kind === 'pdf_sent' ? deliveryOf(first) : null,
     customFieldCarry: kind === 'custom_field_carry_skipped' ? customFieldCarryOf(first) : null,
+    ...(deliveries.length > 0 ? { deliveries } : {}),
   };
 }
 
