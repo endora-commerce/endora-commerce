@@ -10,6 +10,12 @@ import { ADMIN_COOKIES } from '../../helpers/test-actors.js';
 import { withSystemScope } from '../../../src/tenancy/escape-hatch.js';
 import { seedInvoiceableOrder, setSellerSettings } from '../../integration/invoices/helpers.js';
 import { ensureSalesChannelId } from '../../helpers/sales-channel-fixtures.js';
+import { seedAdHocOrganization } from '../../helpers/seed-organizations.js';
+import {
+  ERP_SALE_DOCUMENT_WRITE_PORT,
+  type AdminInvoiceListResponse,
+  type ErpSaleDocumentWritePort,
+} from '@endora-commerce/contracts';
 
 /**
  * Feature 050 US1 — invoices are transitively scoped through their Order's org.
@@ -101,6 +107,62 @@ describe('Invoices — cross-tenant scoping (feature 050 US1)', () => {
     const ids = (res.json() as { data: Array<{ id: string }> }).data.map((r) => r.id);
     expect(ids).toContain(invoiceAId);
     expect(ids).not.toContain(invoiceBId);
+  });
+
+  // Issue #1120 — the scope is applied after the read, so a page is filled from
+  // the rows the caller may see: an out-of-scope row neither shortens a page,
+  // nor ends the walk early, nor names its id in a cursor.
+  it('scoped sales-rep pages by cursor over the assigned org only, a full page each time', async () => {
+    const day = `2092-0${1 + Math.floor(Math.random() * 9)}-1${Math.floor(Math.random() * 9)}`;
+    // An imported document scopes on its own `organizationId`, which is a key
+    // into `organizations`: these two are real rows, assigned as A and B are.
+    const { mineId, theirsId } = await withSystemScope('test seed', async () => {
+      const em = h.em();
+      const mine = await seedAdHocOrganization(em, 'Issue 1120 mine');
+      const theirs = await seedAdHocOrganization(em, 'Issue 1120 theirs');
+      const rep = await em.findOneOrFail(AdminUser, { id: ADMIN_COOKIES[repCookie]!.adminUserId });
+      await em.persistAndFlush([
+        em.create(OrganizationSalesRepAssignment, { organizationId: mine.id, adminUserId: rep.id }),
+        em.create(OrganizationSalesRepAssignment, { organizationId: theirs.id, adminUserId: OTHER_REP_ID }),
+      ]);
+      return { mineId: mine.id, theirsId: theirs.id };
+    });
+    const port = h.container.resolve<ErpSaleDocumentWritePort>(ERP_SALE_DOCUMENT_WRITE_PORT);
+    const orgARows: string[] = [];
+    // Newest first: B, A, B, B, A, B — every A row has a B row in front of it.
+    const owners = [theirsId, mineId, theirsId, theirsId, mineId, theirsId];
+    for (const [index, organizationId] of owners.entries()) {
+      const tag = randomUUID().slice(0, 8);
+      const imported = await port.upsertImportedDocument({
+        organizationId,
+        externalDocumentRef: { system: 'comarch_xl', externalId: `xl-1120-t-${tag}`, documentKind: 'wz' },
+        kind: 'wz',
+        number: `WZ/1120/T/${index}/${tag}`,
+        currency: 'PLN',
+        issuedAt: `${day}T${String(20 - index).padStart(2, '0')}:00:00.000Z`,
+        grossTotal: '10.00',
+      });
+      if (organizationId === mineId) orgARows.push(imported.invoiceId);
+    }
+    const window = `filter[issuedFrom]=${day}T00:00:00.000Z&filter[issuedTo]=${day}T23:59:59.999Z`;
+
+    const pages: AdminInvoiceListResponse[] = [];
+    let cursor: string | null = null;
+    do {
+      const res = await h.app.inject({
+        method: 'GET',
+        url: `/api/v1/admin/invoices?limit=1&${window}${cursor ? `&cursor=${encodeURIComponent(cursor)}` : ''}`,
+        cookies: { b2b_session: repCookie },
+      });
+      expect(res.statusCode, res.body).toBe(200);
+      const body = res.json() as AdminInvoiceListResponse;
+      pages.push(body);
+      cursor = body.pagination.cursor;
+      expect(pages.length).toBeLessThan(10);
+    } while (cursor !== null);
+
+    expect(pages.map((p) => p.data.map((row) => row.id))).toEqual([[orgARows[0]], [orgARows[1]]]);
+    expect(pages.map((p) => p.pagination.hasMore)).toEqual([true, false]);
   });
 
   it('scoped sales-rep cannot view an unassigned org invoice (404)', async () => {

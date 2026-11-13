@@ -15,7 +15,7 @@ Admin list is gated by `orders:read`.
 | Verb + Path | Audience | Purpose |
 | --- | --- | --- |
 | `GET /api/v1/orders/:id/invoice` | customer | Download invoice PDF (404 `INVOICE_NOT_READY` until status='ready'; binary Content-Type once ready). Admin uses the same endpoint via the storefront origin to re-download. |
-| `GET /api/v1/admin/invoices` | admin | List all invoices with `filter[status]` / `filter[orderId]`; default limit 50, capped at 200 |
+| `GET /api/v1/admin/invoices` | admin | List all invoices with `filter[status]` / `filter[orderId]`; default limit 50, capped at 200; newest first, paged by the opaque `pagination.cursor` passed back as `?cursor=` |
 
 ## Generation flow
 

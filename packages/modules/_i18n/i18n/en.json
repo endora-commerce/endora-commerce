@@ -967,6 +967,8 @@
   "invoices.kind.correction": "correction",
   "invoices.kind.invoice": "invoice",
   "invoices.kind.proforma": "proforma",
+  "invoices.kind.wz": "goods dispatch note",
+  "invoices.loadMore": "Load more",
   "invoices.pdfNotReady": "not ready",
   "invoices.resendEmail": "Resend email",
   "invoices.status.all": "All",

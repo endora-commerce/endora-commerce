@@ -15,6 +15,12 @@ import type { InvoiceService } from './services/invoice-service.js';
 import { renderInvoicePdf } from './document/render-invoice.js';
 import type { RequireAdminFactory } from '@endora-commerce/platform/kernel';
 import type { InvoiceEmailDispatchResult } from './services/invoice-email-dispatch.js';
+import {
+  afterPosition,
+  decodeInvoiceListCursor,
+  encodeInvoiceListCursor,
+  type InvoiceListPosition,
+} from './admin-list-cursor.js';
 
 /** Minimal email-dispatch seam — implemented by the US5 dispatcher. */
 export interface InvoiceEmailDispatcher {
@@ -64,6 +70,9 @@ export async function registerInvoicesAdminRoutes(
       // The page size asked for — what `pagination.limit` answers, an empty
       // page included (`paginationSchema`: 1–200; issue #599).
       const limit = Math.min(Math.max(Number.parseInt(q['limit'] ?? '50', 10) || 50, 1), 200);
+      // Issue #1120 — decoded before any read, so a forged cursor is a 400 and
+      // not an empty page.
+      const after = q['cursor'] ? decodeInvoiceListCursor(q['cursor']) : null;
       const where: Record<string, unknown> = {};
       if (q['filter[status]']) where['status'] = q['filter[status]'];
       if (q['filter[orderId]']) where['orderId'] = q['filter[orderId]'];
@@ -100,32 +109,67 @@ export async function registerInvoicesAdminRoutes(
         where['orderId'] = { $in: matchingOrderIds };
       }
 
-      const rows = await em.find(Invoice, where, { orderBy: { issuedAt: 'desc' }, limit });
-      const orderIds = [
-        ...new Set(rows.map((r) => r.orderId).filter((id): id is string => id != null)),
-      ];
-      // Feature 075, Phase C — the order number and the owning organisation are
-      // `orders`' fields, read over its port rather than out of its table.
-      const orders = await orderReadPort.findByIds(orderIds);
-      const byOrder = new Map(orders.map((o) => [o.id, o.businessId]));
-      const orgByOrder = new Map(orders.map((o) => [o.id, o.organizationId]));
-      // Feature 050 — Invoice is transitively scoped via its Order's org; hide
-      // invoices whose order is out of the ambient tenant scope. ERP-imported
-      // rows without an order scope directly on `organizationId` (feature 119).
-      const visible = await Promise.all(
-        rows.map((i) =>
-          i.origin === 'erp_import'
-            ? orgInScope(i.organizationId ?? '')
-            : orgInScope(orgByOrder.get(i.orderId ?? '') ?? ''),
-        ),
-      );
-      const scoped = rows.filter((_, index) => visible[index]);
+      // Issue #1120 — a page is `limit` rows the caller may see, newest first,
+      // and `hasMore` says whether one more exists. The tenant scope below is
+      // applied after the read (an invoice is scoped through its order's
+      // organisation, which `orders` owns), so the read walks forward in
+      // batches until it holds one visible row beyond the page or runs out: an
+      // out-of-scope row never shortens a page, never ends the walk early, and
+      // never becomes the cursor, which is always the last row answered.
+      const batch = limit + 1;
+      const visible: Invoice[] = [];
+      const businessIdByOrder = new Map<string, string>();
+      let position: InvoiceListPosition | null = after;
+      for (;;) {
+        const rows: Invoice[] = await em.find(
+          Invoice,
+          position ? { $and: [where, afterPosition(position)] } : where,
+          { orderBy: { issuedAt: 'desc', id: 'desc' }, limit: batch },
+        );
+        visible.push(...(await scoped(rows, businessIdByOrder)));
+        const last = rows[rows.length - 1];
+        if (visible.length > limit || rows.length < batch || !last) break;
+        position = { issuedAt: last.issuedAt, id: last.id };
+      }
+      const page = visible.slice(0, limit);
+      const hasMore = visible.length > limit;
+      const end = page[page.length - 1];
       return {
-        data: scoped.map((i) => serialize(i, i.orderId ? (byOrder.get(i.orderId) ?? null) : null)),
-        pagination: { cursor: null, hasMore: false, limit },
+        data: page.map((i) => serialize(i, i.orderId ? (businessIdByOrder.get(i.orderId) ?? null) : null)),
+        pagination: {
+          cursor: hasMore && end ? encodeInvoiceListCursor({ issuedAt: end.issuedAt, id: end.id }) : null,
+          hasMore,
+          limit,
+        },
       };
     },
   );
+
+  /**
+   * The rows of `rows` in the ambient tenant scope, in order. Records each
+   * order's business id into `businessIdByOrder` for the serializer.
+   */
+  async function scoped(rows: Invoice[], businessIdByOrder: Map<string, string>): Promise<Invoice[]> {
+    const orderIds = [
+      ...new Set(rows.map((r) => r.orderId).filter((id): id is string => id != null)),
+    ];
+    // Feature 075, Phase C — the order number and the owning organisation are
+    // `orders`' fields, read over its port rather than out of its table.
+    const orders = orderIds.length > 0 ? await orderReadPort.findByIds(orderIds) : [];
+    for (const o of orders) businessIdByOrder.set(o.id, o.businessId);
+    const orgByOrder = new Map(orders.map((o) => [o.id, o.organizationId]));
+    // Feature 050 — Invoice is transitively scoped via its Order's org; hide
+    // invoices whose order is out of the ambient tenant scope. ERP-imported
+    // rows without an order scope directly on `organizationId` (feature 119).
+    const inScope = await Promise.all(
+      rows.map((i) =>
+        i.origin === 'erp_import'
+          ? orgInScope(i.organizationId ?? '')
+          : orgInScope(orgByOrder.get(i.orderId ?? '') ?? ''),
+      ),
+    );
+    return rows.filter((_, index) => inScope[index]);
+  }
 
   // Detail ----------------------------------------------------------------
   app.get<{ Params: { id: string } }>(
