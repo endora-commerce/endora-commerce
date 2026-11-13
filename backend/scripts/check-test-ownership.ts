@@ -370,7 +370,7 @@ export interface HostComposer {
 /**
  * The host-composition set — the calls that make a test file the **host's**.
  *
- * **Three names, and the list is the one every instrument reads** (§1, D-262
+ * **Four names, and the list is the one every instrument reads** (§1, D-262
  * clause 1). It read one until 2026-09-21, while D-252 stated two and
  * `scripts/extract-paid-module.sh` grepped those two: the premise that the two
  * sides shared a predicate was false in both halves, and two instruments
@@ -380,6 +380,15 @@ export interface HostComposer {
  * which awaits `configuredEntities()` (`ALL_ENTITIES`, generated about **this**
  * tree) and `configuredMigrations()` — two of the three generated per-host
  * artefacts, where `setupBackendServer` reads all three.
+ *
+ * `setupMigratorTestDb` is the fourth (issue #496), for the same reason: it
+ * clones the run's migrated template and opens the clone with the same
+ * `mikroOrmConfig()`, and falls back to `setupTestDb` itself when there is no
+ * template. It is the seam `test/migrator-driving-tests.ts` requires of a file
+ * that drives the migrator, so leaving it out told every such file naming one
+ * module to move into a package that has neither the template nor the
+ * registries — and the forms and tasks migration tests carried retained ledger
+ * entries saying so.
  *
  * `declaredIn` is per member rather than per harness, because the members are
  * not all declared in one file: §7 case 6 requires each declaring file to be at
@@ -397,6 +406,7 @@ export const HOST_COMPOSERS: readonly HostComposer[] = [
   { name: 'setupBackendServer', declaredIn: 'backend/test/helpers/test-server.ts' },
   { name: 'composeTestServer', declaredIn: 'packages/test-kit/src/server/compose-test-server.ts' },
   { name: 'setupTestDb', declaredIn: 'backend/test/helpers/test-db.ts' },
+  { name: 'setupMigratorTestDb', declaredIn: 'backend/test/helpers/test-db.ts' },
 ];
 
 /**
@@ -786,7 +796,7 @@ export interface VacuousInput {
    *
    * A record and not one string: §7 case 6's refusal applies to **every** member
    * of {@link HOST_COMPOSERS} (D-262 clause 1), and the members are declared in
-   * different files, so one source could not be the subject of all three.
+   * different files, so one source could not be the subject of all four.
    */
   readonly composerSources: Readonly<Record<string, string | null>>;
 }
@@ -907,10 +917,10 @@ export function testFilesUnder(dir: string, out: string[] = []): string[] {
  * Modules able to host a server-bound test — 109 R5.1, derived and empty.
  *
  * The derivation, in full: a module package may host one when it can call a
- * member of {@link HOST_COMPOSERS} without an `outward-reach`. Two of the three
+ * member of {@link HOST_COMPOSERS} without an `outward-reach`. Three of the four
  * are declared under `backend/` — `test/helpers/test-server.ts` and
  * `test/helpers/test-db.ts` — and contract §3 refuses a package naming
- * `backend/`, so neither is reachable. The third, the kit's `composeTestServer`,
+ * `backend/`, so none is reachable. The fourth, the kit's `composeTestServer`,
  * is published surface and *is* nameable, and that is precisely the seam
  * `specs/109-backend-test-kit/`'s Phase 4 opens rather than a capability this
  * checkout has: until it lands no module package declares the kit, the set is
