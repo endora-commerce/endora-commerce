@@ -1,5 +1,5 @@
 import { afterAll, beforeAll, beforeEach, describe, expect, it } from 'vitest';
-import { ERROR_CODES } from '@endora-commerce/contracts';
+import { ERROR_CODES, EntityMembershipListResponseSchema } from '@endora-commerce/contracts';
 import { randomUUID } from 'crypto';
 import {
   setupBackendServer,
@@ -8,6 +8,10 @@ import {
 } from '../../helpers/test-server.js';
 import { SalesChannel } from '@endora-commerce/platform/kernel';
 import { Product, type ProductRow } from '../../helpers/package-entities.js';
+import { deepStrict, disagreements } from '../../helpers/strict-schema.js';
+
+/** A key the entity-side list carries that the contract does not declare fails (issue #599 §6). */
+const strictEntitySide = deepStrict(EntityMembershipListResponseSchema);
 
 /**
  * Phase 5b — Bidirectional membership HTTP contract.
@@ -116,6 +120,7 @@ describe('admin membership routes (Phase 5b)', () => {
       (c) => c.code,
     );
     expect(codes).toContain(channel.code);
+    expect(disagreements(strictEntitySide, entitySide.json())).toEqual([]);
   });
 
   it('DELETE refuses last-channel removal without fallbackToDefault', async () => {

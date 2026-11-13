@@ -7,6 +7,10 @@ import {
 } from '../../helpers/test-server.js';
 import { AuditLogEntry } from '@endora-commerce/platform/kernel';
 import { SalesChannel } from '@endora-commerce/platform/kernel';
+import { deepStrict, disagreements } from '../../helpers/strict-schema.js';
+
+/** A key the set-default reply carries that the contract does not declare fails (issue #599 §6). */
+const strictSetDefault = deepStrict(SalesChannelSetDefaultResponseSchema);
 
 /**
  * D-50 + D-51 — the two halves of the product owner's ruling, over HTTP.
@@ -160,6 +164,7 @@ describe('admin sales-channels set-default + code immutability (D-50/D-51)', () 
 
     const r = await setDefault('shop-b');
     expect(r.statusCode).toBe(200);
+    expect(disagreements(strictSetDefault, r.json())).toEqual([]);
     const body = SalesChannelSetDefaultResponseSchema.parse(r.json());
     expect(body.changed).toBe(true);
     expect(body.previousDefaultCode).toBe('default');
@@ -195,6 +200,7 @@ describe('admin sales-channels set-default + code immutability (D-50/D-51)', () 
   it('promoting the channel that is already the default is a no-op success', async () => {
     const r = await setDefault('default');
     expect(r.statusCode).toBe(200);
+    expect(disagreements(strictSetDefault, r.json())).toEqual([]);
     const body = SalesChannelSetDefaultResponseSchema.parse(r.json());
     expect(body.changed).toBe(false);
     expect(body.previousDefaultCode).toBe('default');
