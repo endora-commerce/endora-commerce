@@ -2,7 +2,13 @@ import type { FastifyInstance, FastifyRequest } from 'fastify';
 import {
   createWebhookRequestSchema,
   updateWebhookRequestSchema,
+  type CreateWebhookResponse,
+  type Webhook as WebhookView,
+  type WebhookDelivery as WebhookDeliveryView,
+  type WebhookDeliveryListResponse,
   type WebhookEventDescriptor,
+  type WebhookEventTypeListResponse,
+  type WebhookListResponse,
 } from '@endora-commerce/contracts';
 import type { WebhookService } from './services/webhook-service.js';
 import type { Webhook } from './entities/webhook.entity.js';
@@ -47,7 +53,7 @@ export async function registerWebhooksAdminRoutes(
   app.get(
     '/api/v1/admin/webhooks/event-types',
     { preHandler: requireAdmin('integrations:manage') },
-    async () => ({
+    async (): Promise<WebhookEventTypeListResponse> => ({
       data: eventTypes().map((descriptor) => ({
         ownerModuleId: descriptor.ownerModuleId,
         eventType: descriptor.eventType,
@@ -58,7 +64,7 @@ export async function registerWebhooksAdminRoutes(
   app.get(
     '/api/v1/admin/webhooks',
     { preHandler: requireAdmin('integrations:manage') },
-    async () => {
+    async (): Promise<WebhookListResponse> => {
       const rows = await webhookService.list();
       return { data: rows.map(serializeWebhook) };
     },
@@ -70,7 +76,7 @@ export async function registerWebhooksAdminRoutes(
       preHandler: requireAdmin('integrations:manage'),
       schema: { body: createWebhookRequestSchema },
     },
-    async (request, reply) => {
+    async (request, reply): Promise<CreateWebhookResponse> => {
       const body = createWebhookRequestSchema.parse(request.body);
       const w = await webhookService.create({
         name: body.name,
@@ -94,7 +100,7 @@ export async function registerWebhooksAdminRoutes(
       preHandler: requireAdmin('integrations:manage'),
       schema: { body: updateWebhookRequestSchema },
     },
-    async (request) => {
+    async (request): Promise<{ data: WebhookView }> => {
       const body = updateWebhookRequestSchema.parse(request.body);
       const w = await webhookService.update(request.params.id, body);
       return { data: serializeWebhook(w) };
@@ -113,7 +119,7 @@ export async function registerWebhooksAdminRoutes(
   app.get<{ Querystring: { webhookId?: string; status?: string; limit?: string } }>(
     '/api/v1/admin/webhooks/deliveries',
     { preHandler: requireAdmin('integrations:manage') },
-    async (request) => {
+    async (request): Promise<WebhookDeliveryListResponse> => {
       const { webhookId, status, limit } = request.query;
       const rows = await webhookService.listDeliveries({
         ...(webhookId ? { webhookId } : {}),
@@ -129,7 +135,7 @@ export async function registerWebhooksAdminRoutes(
   app.post<{ Params: { id: string } }>(
     '/api/v1/admin/webhooks/deliveries/:id/replay',
     { preHandler: requireAdmin('integrations:manage') },
-    async (request, reply) => {
+    async (request, reply): Promise<{ data: WebhookDeliveryView }> => {
       const copy = await webhookService.replay(request.params.id);
       reply.status(202);
       return { data: serializeDelivery(copy) };
@@ -137,7 +143,8 @@ export async function registerWebhooksAdminRoutes(
   );
 }
 
-function serializeWebhook(w: Webhook): Record<string, unknown> {
+/** The published `webhookSchema` (issue #599). */
+function serializeWebhook(w: Webhook): WebhookView {
   return {
     id: w.id,
     name: w.name,
@@ -150,7 +157,8 @@ function serializeWebhook(w: Webhook): Record<string, unknown> {
   };
 }
 
-function serializeDelivery(d: WebhookDelivery): Record<string, unknown> {
+/** The published `webhookDeliverySchema` (issue #599). */
+function serializeDelivery(d: WebhookDelivery): WebhookDeliveryView {
   return {
     id: d.id,
     webhookId: d.webhookId,

@@ -2,8 +2,12 @@ import { useCallback, useEffect, useState, type FormEvent, type ReactNode } from
 import { Check, Copy, Pause, Play, RefreshCw, Trash2 } from 'lucide-react';
 import {
   deliverableWebhookEventTypes,
+  type CreateWebhookResponse,
   type Webhook,
   type WebhookDelivery,
+  type WebhookDeliveryListResponse,
+  type WebhookEventTypeListResponse,
+  type WebhookListResponse,
 } from '@endora-commerce/contracts';
 import { ApiError, apiClient, formatDateTime } from '@endora-commerce/admin-kit/lib';
 import { useTranslation } from '@endora-commerce/admin-kit/i18n';
@@ -29,19 +33,6 @@ import {
   TableRow,
 } from '@endora-commerce/admin-kit/ui';
 import { OrganizationPicker, useConfirmDialog } from '@endora-commerce/admin-kit/components';
-
-/** `GET /api/v1/admin/webhooks/event-types` — the types other modules contribute. */
-interface ContributedEventTypesResponse {
-  data: Array<{ ownerModuleId: string; eventType: string }>;
-}
-
-interface WebhooksListResponse {
-  data: Webhook[];
-}
-
-interface DeliveriesListResponse {
-  data: WebhookDelivery[];
-}
 
 export default function WebhooksPage(): ReactNode {
   const t = useTranslation('core');
@@ -80,7 +71,7 @@ export default function WebhooksPage(): ReactNode {
     setLoadingHooks(true);
     setError(null);
     try {
-      const res = await apiClient.get<WebhooksListResponse>('/api/v1/admin/webhooks');
+      const res = await apiClient.get<WebhookListResponse>('/api/v1/admin/webhooks');
       setWebhooks(res.data);
     } catch (err) {
       setError(err instanceof ApiError ? err.envelope.error.message : t('webhooks.error.load'));
@@ -93,7 +84,7 @@ export default function WebhooksPage(): ReactNode {
     setLoadingDeliveries(true);
     try {
       const qs = filter === 'all' ? '?limit=50' : `?status=${filter}&limit=50`;
-      const res = await apiClient.get<DeliveriesListResponse>(
+      const res = await apiClient.get<WebhookDeliveryListResponse>(
         `/api/v1/admin/webhooks/deliveries${qs}`,
       );
       setDeliveries(res.data);
@@ -114,7 +105,7 @@ export default function WebhooksPage(): ReactNode {
     let cancelled = false;
     void (async () => {
       try {
-        const res = await apiClient.get<ContributedEventTypesResponse>(
+        const res = await apiClient.get<WebhookEventTypeListResponse>(
           '/api/v1/admin/webhooks/event-types',
         );
         if (!cancelled) setContributedEventTypes(res.data.map((descriptor) => descriptor.eventType));
@@ -170,7 +161,7 @@ export default function WebhooksPage(): ReactNode {
       organizationId: string | null;
     }): Promise<void> => {
       try {
-        const res = await apiClient.post<{ data: Webhook & { secret: string } }>(
+        const res = await apiClient.post<CreateWebhookResponse>(
           '/api/v1/admin/webhooks',
           {
             name: input.name,

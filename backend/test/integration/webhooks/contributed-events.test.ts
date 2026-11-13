@@ -1,12 +1,17 @@
 import { randomUUID } from 'node:crypto';
 import { afterAll, beforeAll, beforeEach, describe, expect, it } from 'vitest';
-import type { WebhookEventDescriptor, WebhookEventRegistryPort } from '@endora-commerce/contracts';
+import {
+  webhookEventTypeListResponseSchema,
+  type WebhookEventDescriptor,
+  type WebhookEventRegistryPort,
+} from '@endora-commerce/contracts';
 import {
   setupBackendServer,
   teardownBackendServer,
   type BackendServerHandle,
 } from '../../helpers/test-server.js';
 import { withModuleOff, type OffStateAxis } from '../../helpers/off-state.js';
+import { deepStrict, disagreements } from '../../helpers/strict-schema.js';
 import { TEST_ORGANIZATION_ID } from '../../helpers/test-actors.js';
 import { Organization, Webhook } from '../../helpers/package-entities.js';
 import { BRIDGED_EVENT_TYPES } from '../../../../packages/modules/webhooks/src/backend/index.js';
@@ -76,6 +81,8 @@ describe('webhooks — contributed event types [integration]', () => {
   const offeredTypes = async (): Promise<WebhookEventDescriptor[]> => {
     const response = await h.app.inject({ method: 'GET', url: '/api/v1/admin/webhooks/event-types', cookies: ADMIN });
     expect(response.statusCode, response.body).toBe(200);
+    // Issue #599 §6 — a strict copy: a key the reply carries that the contract does not declare fails.
+    expect(disagreements(deepStrict(webhookEventTypeListResponseSchema), response.json())).toEqual([]);
     return (response.json() as { data: WebhookEventDescriptor[] }).data;
   };
 

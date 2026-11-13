@@ -25,6 +25,21 @@ export const webhookSchema = z.object({
 });
 export type Webhook = z.infer<typeof webhookSchema>;
 
+/** `GET /api/v1/admin/webhooks` — every subscription (issue #599). The signing secret is never listed. */
+export const webhookListResponseSchema = z.object({
+  data: z.array(webhookSchema),
+});
+export type WebhookListResponse = z.infer<typeof webhookListResponseSchema>;
+
+/**
+ * `POST /api/v1/admin/webhooks` — the new subscription and, this once, its
+ * signing secret (issue #599). No other reply carries `secret`.
+ */
+export const createWebhookResponseSchema = z.object({
+  data: webhookSchema.extend({ secret: z.string().min(1) }),
+});
+export type CreateWebhookResponse = z.infer<typeof createWebhookResponseSchema>;
+
 /**
  * The event types `webhooks` bridges to the delivery queue of its own accord.
  *
@@ -97,6 +112,12 @@ export const webhookDeliverySchema = z.object({
 });
 export type WebhookDelivery = z.infer<typeof webhookDeliverySchema>;
 
+/** `GET /api/v1/admin/webhooks/deliveries` — the deliveries, newest first, as filtered (issue #599). */
+export const webhookDeliveryListResponseSchema = z.object({
+  data: z.array(webhookDeliverySchema),
+});
+export type WebhookDeliveryListResponse = z.infer<typeof webhookDeliveryListResponseSchema>;
+
 // ---------------------------------------------------------------------------
 // Contributed event types (specs/143-crm-sales-opportunities/, research R-27)
 // ---------------------------------------------------------------------------
@@ -108,6 +129,17 @@ export interface WebhookEventDescriptor {
   /** A versioned EventBus event name, e.g. `crm.opportunity.status_changed.v1`. */
   readonly eventType: string;
 }
+
+/**
+ * `GET /api/v1/admin/webhooks/event-types` — the contributed event types whose
+ * owner is present, each a {@link WebhookEventDescriptor} (issue #599). The
+ * built-in types are not listed: the client adds them through
+ * {@link deliverableWebhookEventTypes}.
+ */
+export const webhookEventTypeListResponseSchema = z.object({
+  data: z.array(z.object({ ownerModuleId: z.string(), eventType: z.string() })),
+});
+export type WebhookEventTypeListResponse = z.infer<typeof webhookEventTypeListResponseSchema>;
 
 /**
  * Container name: `webhookEventRegistry`. Owner: `webhooks`.

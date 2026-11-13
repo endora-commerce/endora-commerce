@@ -1,11 +1,16 @@
 import { afterAll, beforeAll, describe, expect, it } from 'vitest';
-import { ERROR_CODES } from '@endora-commerce/contracts';
+import {
+  ERROR_CODES,
+  webhookDeliveryListResponseSchema,
+  webhookDeliverySchema,
+} from '@endora-commerce/contracts';
 import {
   setupBackendServer,
   teardownBackendServer,
   type BackendServerHandle,
 } from '../../helpers/test-server.js';
 import { Webhook, WebhookDelivery } from '../../helpers/package-entities.js';
+import { deepStrict, disagreements } from '../../helpers/strict-schema.js';
 
 /**
  * T232 — failed-deliveries replay surface.
@@ -56,6 +61,8 @@ describe('POST /admin/webhooks/deliveries/:id/replay', () => {
       cookies: { b2b_session: 'stub-admin-session' },
     });
     expect(res.statusCode).toBe(202);
+    // Issue #599 §6 — a strict copy: a key the reply carries that the contract does not declare fails.
+    expect(disagreements(deepStrict(webhookDeliverySchema), (res.json() as { data: unknown }).data)).toEqual([]);
     const body = res.json() as { data: { id: string; status: string; attemptCount: number } };
     expect(body.data.id).not.toBe(dead.id);
     expect(body.data.status).toBe('pending');
@@ -64,6 +71,19 @@ describe('POST /admin/webhooks/deliveries/:id/replay', () => {
     const fresh = await h.em().findOne(WebhookDelivery, { id: body.data.id });
     expect(fresh?.eventId).toBe('evt_replay_1');
     expect(fresh?.eventType).toBe('order.created.v1');
+  });
+
+  it('GET /admin/webhooks/deliveries — the source and its replay alike are the published shape', async () => {
+    const res = await h.app.inject({
+      method: 'GET',
+      url: `/api/v1/admin/webhooks/deliveries?webhookId=${webhookId}`,
+      cookies: { b2b_session: 'stub-admin-session' },
+    });
+    expect(res.statusCode, res.body).toBe(200);
+    const body = res.json() as { data: Array<{ status: string }> };
+    // The case above left a dead-lettered source (completion stamps, an error) and a pending copy.
+    expect(body.data.map((d) => d.status)).toEqual(expect.arrayContaining(['dead_lettered', 'pending']));
+    expect(disagreements(deepStrict(webhookDeliveryListResponseSchema), body)).toEqual([]);
   });
 
   it('rejects replay of an already-pending delivery with WEBHOOK_DELIVERY_NOT_REPLAYABLE', async () => {
