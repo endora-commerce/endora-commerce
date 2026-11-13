@@ -23,6 +23,15 @@ export const languageSchema = z.object({
 });
 export type Language = z.infer<typeof languageSchema>;
 
+/**
+ * `GET /api/v1/admin/languages` — every language row, active or not, the
+ * available catalogue included (issue #599).
+ */
+export const languageListResponseSchema = z.object({
+  data: z.array(languageSchema),
+});
+export type LanguageListResponse = z.infer<typeof languageListResponseSchema>;
+
 export const upsertLanguageRequestSchema = z.object({
   label: z.string().min(1).max(64),
   isActive: z.boolean().optional(),
