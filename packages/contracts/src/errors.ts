@@ -814,6 +814,23 @@ export const ERROR_CODES = {
   // `INFAKT_CONNECTION_FAILED` and `INFAKT_WEBHOOK_UNAUTHORIZED` left with the
   // `infakt` module (feature 134, T069), which declares them as `infaktErrorCodes`.
 
+  // Delivery methods — a method shipments were created against (issue #632, #86).
+  // Raised as `VALIDATION_FAILED` with an English sentence until then. The
+  // `details.code` token names the write that was refused: `delete` or
+  // `change_adapter`.
+  /**
+   * 409 — shipments reference the method, so it cannot be deleted or rebound to
+   * another adapter (`details.deliveryMethodId`, `deliveryMethodCode`,
+   * `shipmentCount`; `adapter` for `change_adapter`).
+   */
+  DELIVERY_METHOD_IN_USE: 'DELIVERY_METHOD_IN_USE',
+  /**
+   * 409 — the `shipments` module is off, so nobody can count the shipments that
+   * may reference the method, and the delete or the adapter change is refused
+   * (`details.deliveryMethodId`, `module`).
+   */
+  DELIVERY_METHOD_USAGE_UNKNOWN: 'DELIVERY_METHOD_USAGE_UNKNOWN',
+
   // Shared ERP connector layer (feature 119).
   /** Another ERP connector is operator-active; activation refused (FR-006). */
   ERP_CONNECTOR_ALREADY_ACTIVE: 'ERP_CONNECTOR_ALREADY_ACTIVE',

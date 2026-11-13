@@ -1,6 +1,6 @@
 import { describe, expect, it, vi } from 'vitest';
 import type { EntityManager } from '@mikro-orm/postgresql';
-import type { ShipmentUsagePort } from '@endora-commerce/contracts';
+import { ERROR_CODES, type ShipmentUsagePort } from '@endora-commerce/contracts';
 import { HttpError } from '@endora-commerce/platform/http';
 import { makeShipmentUsageCounter } from '../../../../packages/modules/delivery_methods/src/backend/services/shipment-usage-guard.js';
 import {
@@ -62,10 +62,17 @@ async function runDelete(counter: ShipmentUsageCounter, row: DeliveryMethod | nu
 }
 
 describe('delivery-method delete guard — the shipment count comes from its owner', () => {
-  it('refuses the delete when a shipment references the method', async () => {
+  it('refuses the delete when a shipment references the method, with its own code', async () => {
     const counter: ShipmentUsageCounter = async () => 2;
     await expect(runDelete(counter, fakeMethod())).rejects.toMatchObject({
       statusCode: 409,
+      code: ERROR_CODES.DELIVERY_METHOD_IN_USE,
+      details: {
+        code: 'delete',
+        deliveryMethodId: METHOD_ID,
+        deliveryMethodCode: 'courier',
+        shipmentCount: 2,
+      },
     });
   });
 
@@ -106,6 +113,12 @@ describe('makeShipmentUsageCounter — presence is decided before the port is re
     const error = await count(METHOD_ID).catch((err: unknown) => err);
     expect(error).toBeInstanceOf(HttpError);
     expect((error as HttpError).statusCode).toBe(409);
+    expect((error as HttpError).code).toBe(ERROR_CODES.DELIVERY_METHOD_USAGE_UNKNOWN);
+    expect((error as HttpError).details).toEqual({
+      code: 'delete',
+      deliveryMethodId: METHOD_ID,
+      module: 'shipments',
+    });
     expect((error as HttpError).message).toContain('shipments');
     expect(resolve).not.toHaveBeenCalled();
   });

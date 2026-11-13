@@ -157,6 +157,11 @@ const MIGRATED_MODULES: readonly string[] = [
   // `d129-sweep.md` §5.4 keeps *writing* one available.
   'customer_accounts',
   'customers',
+  // Minted (issue #632): `DELIVERY_METHOD_IN_USE` and
+  // `DELIVERY_METHOD_USAGE_UNKNOWN` are this module's first codes and were
+  // created after the chain was deleted, so `MINTED_ERROR_CODES` accounts for
+  // them.
+  'delivery_methods',
   'dictionaries',
   // Minted with the modules (feature 119): neither `invoice_ledger` nor `infakt`
   // existed when the prefix chain was deleted, so the frozen capture holds none

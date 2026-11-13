@@ -1,6 +1,10 @@
 import { describe, expect, it, vi } from 'vitest';
 import type { EntityManager } from '@mikro-orm/postgresql';
-import type { DeliveryMethodUpsert, ShipmentUsagePort } from '@endora-commerce/contracts';
+import {
+  ERROR_CODES,
+  type DeliveryMethodUpsert,
+  type ShipmentUsagePort,
+} from '@endora-commerce/contracts';
 import { HttpError } from '@endora-commerce/platform/http';
 import { makeShipmentUsageCounter } from '../services/shipment-usage-guard.js';
 import {
@@ -83,6 +87,14 @@ describe('delivery-method upsert — rebinding the adapter', () => {
 
     expect(error).toBeInstanceOf(HttpError);
     expect((error as HttpError).statusCode).toBe(409);
+    expect((error as HttpError).code).toBe(ERROR_CODES.DELIVERY_METHOD_IN_USE);
+    expect((error as HttpError).details).toEqual({
+      code: 'change_adapter',
+      deliveryMethodId: METHOD_ID,
+      deliveryMethodCode: 'courier',
+      adapter: 'manual_courier',
+      shipmentCount: 3,
+    });
     expect((error as HttpError).message).toContain('3 shipment(s)');
     expect(counter).toHaveBeenCalledWith(METHOD_ID, 'change-adapter');
     expect(row.adapter).toBe('manual_courier');
@@ -155,6 +167,12 @@ describe('makeShipmentUsageCounter — the refusal names the write that asked', 
 
     expect(error).toBeInstanceOf(HttpError);
     expect((error as HttpError).statusCode).toBe(409);
+    expect((error as HttpError).code).toBe(ERROR_CODES.DELIVERY_METHOD_USAGE_UNKNOWN);
+    expect((error as HttpError).details).toEqual({
+      code: 'change_adapter',
+      deliveryMethodId: METHOD_ID,
+      module: 'shipments',
+    });
     expect((error as HttpError).message).toContain('Cannot change the adapter');
     expect((error as HttpError).message).toContain('shipments');
     expect(resolve).not.toHaveBeenCalled();
