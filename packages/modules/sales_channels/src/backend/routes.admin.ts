@@ -6,6 +6,7 @@ import {
   SalesChannelSetDefaultBodySchema,
   SalesChannelUpdateBodySchema,
   type ChannelMemberEntityType,
+  type ChannelMemberIdListResponse,
   type EntityMembershipListResponse,
   type SalesChannelDetail,
   type SalesChannelListResponse,
@@ -358,7 +359,7 @@ export async function registerSalesChannelsAdminRoutes(
   app.get<{ Params: { code: string; entityType: string } }>(
     '/api/v1/admin/sales-channels/:code/:entityType',
     { preHandler: requireAdmin(SC_READ) },
-    async (request) => {
+    async (request): Promise<ChannelMemberIdListResponse> => {
       const entityType = parseEntityType(request.params.entityType);
       const channel = await requireChannelByCode(request.params.code);
       const q = PageQuerySchema.parse(request.query ?? {});
