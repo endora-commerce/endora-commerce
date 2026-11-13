@@ -49,8 +49,17 @@ export function Header(props: {
    * header element (Constitution XVII item 5, issue #666).
    */
   modules: ModulePresenceSet;
+  /**
+   * The signed-in buyer's unread notification count
+   * (`specs/179-rfq-and-customer-notifications/` FR-051), shown on the account
+   * entry while `customer_notifications` is present. No separate bell.
+   */
+  unreadNotificationCount?: number;
 }): ReactNode {
   const t = tForLocale(props.locale);
+  const showNotifications = props.modules.isPresent('customer_notifications') && Boolean(props.user);
+  const unread = showNotifications ? (props.unreadNotificationCount ?? 0) : 0;
+  const unreadLabel = format(t('chrome.header.accountUnread'), { count: unread.toLocaleString(props.locale) });
   const showShoppingList = props.modules.isPresent('shopping_lists');
   const showQuoteRequest = props.modules.isPresent('quote_requests');
   const showCompare = props.modules.isPresent('comparisons');
@@ -83,6 +92,11 @@ export function Header(props: {
           `${props.user.customerAccount.firstName} ${props.user.customerAccount.lastName}`.trim() ||
           props.user.customerAccount.email,
         subtitle: props.user.organization?.name ?? props.user.customerAccount.email,
+        notifications: showNotifications
+          ? unread > 0
+            ? format(t('account.nav.notificationsCount'), { count: unread.toLocaleString(props.locale) })
+            : t('account.nav.notifications')
+          : null,
       }
     : null;
 
@@ -174,7 +188,11 @@ export function Header(props: {
               emptyAriaLabel={t('nav.cart')}
               itemsAriaLabelTemplate={t('chrome.header.cartItems')}
             />
-            <UserPill user={props.user ?? null} loginLabel={t('nav.login')} />
+            <UserPill
+              user={props.user ?? null}
+              loginLabel={t('nav.login')}
+              unread={unread > 0 ? { count: unread, label: unreadLabel } : null}
+            />
           </div>
         </div>
 
@@ -282,9 +300,12 @@ function initials(user: MeResult): string {
 function UserPill({
   user,
   loginLabel,
+  unread,
 }: {
   user: MeResult | null;
   loginLabel: string;
+  /** The unread notification count and its hidden sentence, or `null` for none. */
+  unread: { count: number; label: string } | null;
 }): ReactNode {
   if (!user) {
     return (
@@ -305,11 +326,21 @@ function UserPill({
 
   return (
     <LocalizedLink href="/account" className="industria-header__user">
-      <span className="industria-header__user__avatar">{initials(user)}</span>
+      {/* Decoration: the name says who it is, the hidden sentence what is unread. */}
+      <span className="industria-header__user__avatar relative" aria-hidden="true">
+        {initials(user)}
+        {unread ? (
+          // The cart's badge, pinned to the avatar's corner and offset outward,
+          // never over the name; `9+` on a 32 px avatar (research R-24 (d)). Static.
+          <span className="icon-btn__count -right-[7px] -top-[7px]">{unread.count > 9 ? '9+' : unread.count}</span>
+        ) : null}
+      </span>
       <span className="industria-header__user__name">
         <strong>{fullName}</strong>
         <em>{subtitle}</em>
       </span>
+      {/* After the visible name, never an `aria-label` replacing it (WCAG 2.5.3, FR-051b); no live region. */}
+      {unread ? <span className="sr-only">{unread.label}</span> : null}
       <ChevDownIcon />
     </LocalizedLink>
   );

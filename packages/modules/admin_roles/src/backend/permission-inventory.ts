@@ -60,6 +60,21 @@ export type GateResolution =
   /** An argument the scanner could not resolve — reported, never dropped. */
   | 'unresolved';
 
+/**
+ * What a gate site decides.
+ *
+ * - `enforcement` — the server refuses a request without the code (a
+ *   `requireAdmin*` guard, a capability check in a service), or an Admin UI
+ *   declaration that decides whether a whole route renders. This is the site
+ *   D-173's foreign-gate sweep judges.
+ * - `admin-control` — an Admin UI permission check (`hasPermission`,
+ *   `hasAnyPermission`) in an admin layer, which decides whether a **control**
+ *   is shown: a button, a tile, a nav entry (issue #1105). The inventory's
+ *   grantability checks still read its codes; the sweep reports a foreign code
+ *   here as `admin-ui-control` rather than judging it.
+ */
+export type GateSurface = 'enforcement' | 'admin-control';
+
 export interface EnforcedGateSite {
   /** Path relative to `backend/src`, for a failure message that can be acted on. */
   readonly file: string;
@@ -70,6 +85,7 @@ export interface EnforcedGateSite {
   readonly resolution: GateResolution;
   /** Codes this site enforces; empty unless `resolution === 'code'`. */
   readonly codes: readonly string[];
+  readonly surface: GateSurface;
 }
 
 export interface PermissionScanResult {
@@ -197,7 +213,10 @@ function* walkSources(dir: string, seen: Set<string>): Generator<string> {
       yield* walkSources(path, seen);
       continue;
     }
-    if (!entry.isFile() || !/\.(ts|js)$/.test(entry.name)) continue;
+    // `.tsx` since issue #1105: the Admin UI writes most of its gates —
+    // `hasPermission('x')`, `hasAnyPermission([...])` — in component files, and
+    // a code enforced only there read as enforced by no gate at all.
+    if (!entry.isFile() || !/\.(tsx?|js)$/.test(entry.name)) continue;
     // **A test is not an enforcement site, and this exclusion had no subject
     // until feature 106.** Every test used to live under `backend/test`, which
     // no scan root reaches, so the walk could not meet one; 106 moved the
@@ -210,7 +229,7 @@ function* walkSources(dir: string, seen: Set<string>): Generator<string> {
     // and never a test, whichever directory the test now sits in. The predicate
     // is the suffix and not the substring: a module legitimately named for test
     // infrastructure keeps its gates.
-    if (/\.(test|spec)\.(ts|js)$/.test(entry.name)) continue;
+    if (/\.(test|spec)\.(tsx?|js)$/.test(entry.name)) continue;
     if (seen.has(path)) continue;
     seen.add(path);
     yield path;
@@ -241,12 +260,21 @@ function collectFromFile(
   if (!/requireAdmin|hasPermission|hasAnyPermission/.test(source)) return;
   const moduleId = moduleIdFor(file, root);
   const relFile = relative(base, file);
-  for (const site of collectFromSource(source, file, resolver)) {
-    out.push({ ...site, file: relFile, moduleId });
+  const inAdminLayer = relative(root.dir, file).split(/[\\/]/).slice(0, -1).includes('admin');
+  for (const { uiCheck, ...site } of collectFromSource(source, file, resolver)) {
+    out.push({
+      ...site,
+      file: relFile,
+      moduleId,
+      surface: uiCheck && inAdminLayer ? 'admin-control' : 'enforcement',
+    });
   }
 }
 
-type PartialSite = Omit<EnforcedGateSite, 'file' | 'moduleId'>;
+/** A site before attribution; `uiCheck` marks the Admin UI's own permission checks. */
+type PartialSite = Omit<EnforcedGateSite, 'file' | 'moduleId' | 'surface'> & {
+  readonly uiCheck: boolean;
+};
 
 /**
  * The enforcement shapes this recognises, all of them present in the tree:
@@ -287,6 +315,9 @@ function* collectFromSource(
   let m: RegExpExecArray | null;
   while ((m = callRe.exec(source)) !== null) {
     const callee = m[1] ?? '';
+    // `hasPermission(actor, 'code')` on a service is a server check; the
+    // one-argument UI form is told apart by where the file sits.
+    const uiCheck = callee === 'hasPermission' || callee === 'hasAnyPermission';
     const open = source.indexOf('(', m.index + m[0].length - 1);
     if (open === -1) continue;
     const args = readBalanced(source, open);
@@ -299,7 +330,7 @@ function* collectFromSource(
 
     if (argument === '') {
       if (callee === 'hasPermission' || callee === 'hasAnyPermission') continue;
-      yield { expression: '', resolution: 'authenticated-admin', codes: [] };
+      yield { expression: '', resolution: 'authenticated-admin', codes: [], uiCheck };
       continue;
     }
 
@@ -313,9 +344,22 @@ function* collectFromSource(
         .map((lit) => lit[2] ?? '')
         .filter((code) => code.length > 0);
       yield codes.length > 0
-        ? { expression, resolution: 'code', codes }
-        : { expression, resolution: 'unresolved', codes: [] };
+        ? { expression, resolution: 'code', codes, uiCheck }
+        : { expression, resolution: 'unresolved', codes: [], uiCheck };
       continue;
+    }
+
+    // `OWNER[kind].readPermission` — a module-local map keyed at runtime. It is
+    // read as the widest set, like a narrowed any-of: one site per value the
+    // map holds for that property, each a single code, because the gate asks
+    // for the code of one entry and never for any of them (issue #1105).
+    const lookup = /^([A-Za-z_$][\w$]*)\s*\[[^\]]+\]\s*\.\s*([A-Za-z_$][\w$]*)$/.exec(normalised);
+    if (lookup?.[1] && lookup[2]) {
+      const values = mapPropertyValues(source, lookup[1], lookup[2]);
+      if (values.length > 0) {
+        for (const code of values) yield { expression, resolution: 'code', codes: [code], uiCheck };
+        continue;
+      }
     }
 
     // Resolve before classifying: a constant that happens to share a name with
@@ -328,15 +372,33 @@ function* collectFromSource(
         ? resolver.lookup(file, member[1], member[2])
         : null;
     if (value !== null) {
-      yield { expression, resolution: 'code', codes: [value] };
+      yield { expression, resolution: 'code', codes: [value], uiCheck };
       continue;
     }
 
     const rootName = identifier ?? member?.[1] ?? null;
     yield rootName !== null && bound.has(rootName)
-      ? { expression, resolution: 'runtime-value', codes: [] }
-      : { expression, resolution: 'unresolved', codes: [] };
+      ? { expression, resolution: 'runtime-value', codes: [], uiCheck }
+      : { expression, resolution: 'unresolved', codes: [], uiCheck };
   }
+}
+
+/**
+ * Every string literal `name`'s object initialiser holds under `property`, in
+ * source order and distinct — `{ a: { p: 'x' }, b: { p: 'y' } }` answers
+ * `['x', 'y']`. Empty when the file declares no such object.
+ */
+function mapPropertyValues(source: string, name: string, property: string): string[] {
+  const declaration = new RegExp(`(?:const|let)\\s+${name.replace(/\$/g, '\\$')}\\b[^=]*=\\s*\\{`).exec(source);
+  if (!declaration) return [];
+  const body = readBalanced(source, declaration.index + declaration[0].length - 1);
+  const values: string[] = [];
+  const re = new RegExp(`\\b${property}\\s*:\\s*(['"])([^'"]*)\\1`, 'g');
+  let m: RegExpExecArray | null;
+  while ((m = re.exec(body)) !== null) {
+    if (m[2] && !values.includes(m[2])) values.push(m[2]);
+  }
+  return values;
 }
 
 /** A leading `name:` or `name?:` marks a parameter list rather than arguments. */
@@ -515,7 +577,14 @@ export class ConstantResolver {
     if (specifier === '@endora-commerce/contracts') return this.#contractsSources();
     if (!specifier.startsWith('.')) return [];
     const base = resolve(dirname(from), specifier);
-    const candidates = [base.replace(/\.js$/, '.ts'), `${base}.ts`, join(base, 'index.ts'), base];
+    const candidates = [
+      base.replace(/\.js$/, '.ts'),
+      base.replace(/\.js$/, '.tsx'),
+      `${base}.ts`,
+      `${base}.tsx`,
+      join(base, 'index.ts'),
+      base,
+    ];
     return candidates.filter((c) => existsSync(c) && statSync(c).isFile());
   }
 
@@ -552,7 +621,10 @@ function blankComments(source: string): string {
   while (i < source.length) {
     const c = source[i];
     const next = source[i + 1];
-    if (c === '/' && next !== '/' && next !== '*' && startsExpression(out)) {
+    // A `/` straight after a `<` is a JSX closing tag (`</span>`), never a
+    // regular expression: blanking it as one would blank the rest of the line,
+    // and with it a gate written after the tag (issue #1105).
+    if (c === '/' && next !== '/' && next !== '*' && source[i - 1] !== '<' && startsExpression(out)) {
       const end = skipRegex(source, i);
       out += '/';
       for (let k = i + 1; k < end; k += 1) out += source[k] === '\n' ? '\n' : ' ';
