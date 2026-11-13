@@ -274,9 +274,13 @@ Hard constraints that shape the design:
 - **B2B reality**: prices have net/gross modes, catalogue visibility and prices are
   organization- and sales-channel-scoped, and some products show a quote-request CTA instead
   of a price. Design every price and buy surface for all of those states.
-- Storefront component tests are **SSR-only** (`renderToString`, node env, no jsdom/RTL) —
+- Storefront **server** component tests are **SSR-only** (`renderToString`, node env) —
   design so meaningful output is assertable from rendered markup, and put logic in pure
-  exported functions.
+  exported functions. A `'use client'` component's **interaction** (what a click sends to a
+  server action, what an input does on blur) may be tested under
+  `// @vitest-environment jsdom` with raw `react-dom/client` + `act`, as the admin does —
+  still no Testing Library. `jsdom` is a storefront `devDependency`;
+  `storefront/test/test-environments-declared.test.ts` holds both halves.
 
 ---
 
