@@ -30,8 +30,7 @@ describe('RfqExpiryWorker — each Quote Request expires as one unit of work', (
   let h: BackendServerHandle;
 
   interface Deps {
-    notificationService: { enqueue: (...args: never[]) => Promise<number> };
-    salesRepAssignment: { listForOrganization: (organizationId: string) => Promise<unknown[]> };
+    notificationService: { record: (...args: never[]) => Promise<number> };
     batchSize?: number;
     onRequestFailed?: (rfqId: string, error: unknown) => void;
   }
@@ -77,7 +76,7 @@ describe('RfqExpiryWorker — each Quote Request expires as one unit of work', (
       )[0]!.n,
     );
   const expiredHistoryRows = (id: string) => count('quote_request_events', id, `and "event_type" = 'expired'`);
-  const notificationRows = (id: string) => count('quote_request_notification_events', id);
+  const notificationRows = (id: string) => count('quote_request_notifications', id);
 
   /** Every `rfq.expired.v1` announced while `act` runs, for the given requests. */
   const announcedDuring = async <T>(ids: readonly string[], act: () => Promise<T>) => {
@@ -130,9 +129,9 @@ describe('RfqExpiryWorker — each Quote Request expires as one unit of work', (
 
     // The fan-out of the second request fails once.
     const deps = worker().deps;
-    const original = deps.notificationService.enqueue;
+    const original = deps.notificationService.record;
     let calls = 0;
-    deps.notificationService.enqueue = (async (...args: never[]) => {
+    deps.notificationService.record = (async (...args: never[]) => {
       calls += 1;
       if (calls === 2) throw new Error('expiry sweep test: the fan-out failed');
       return original.apply(deps.notificationService, args);
@@ -165,7 +164,7 @@ describe('RfqExpiryWorker — each Quote Request expires as one unit of work', (
       expect(await expiredHistoryRows(second)).toBe(1);
       expect(next.announced.map((event) => event.rfqId)).toEqual([second]);
     } finally {
-      deps.notificationService.enqueue = original;
+      deps.notificationService.record = original;
       delete deps.onRequestFailed;
     }
   });
@@ -173,7 +172,7 @@ describe('RfqExpiryWorker — each Quote Request expires as one unit of work', (
   /** A submission queues notifications of its own; the baseline for "expiry added none". */
   async function notificationRowsBeforeExpiry(id: string): Promise<number> {
     return count(
-      'quote_request_notification_events',
+      'quote_request_notifications',
       id,
       `and "source_event_id" not in (select "id" from "quote_request_events" where "event_type" = 'expired')`,
     );
@@ -302,7 +301,7 @@ describe('RfqExpiryWorker — each Quote Request expires as one unit of work', (
     expect(announced.map((event) => event.rfqId).sort()).toEqual([...all].sort());
     // Late news is not sent: no notification row, for the customer or anybody else.
     for (const id of stale) expect(await notificationRows(id)).toBe(before.get(id));
-    // Expiry within the grace period is: the customer and the sales side, by e-mail and in the app.
+    // Expiry within the grace period is: the customer by e-mail, the sales side on the bell.
     for (const id of recent) expect(await notificationRows(id)).toBeGreaterThan(before.get(id) ?? 0);
   });
 

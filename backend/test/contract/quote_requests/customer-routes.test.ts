@@ -318,7 +318,7 @@ describe('Customer Quote Requests routes (US1)', () => {
       await vi.waitFor(() => expect(emitted.length).toBeGreaterThanOrEqual(2), { timeout: 10_000, interval: 20 });
       expect(keyPaths(emitted, FORBIDDEN)).toEqual([]);
       const rows = (await conn.execute(
-        `select * from "quote_request_notification_events" where quote_request_id = ?`,
+        `select * from "quote_request_notifications" where quote_request_id = ?`,
         [id],
       )) as Array<Record<string, unknown>>;
       expect(rows.length).toBeGreaterThan(0);

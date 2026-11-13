@@ -41,6 +41,12 @@ export const TABLE_OWNER_OVERRIDES: Readonly<Record<string, string>> = {
   gallery_item_channel_labels: 'catalog',
   product_attachment_channel_hidden: 'catalog',
 
+  // Created by `quote_requests`' workflow migration and dropped by its
+  // `notifications_redesign` migration (`specs/179-rfq-and-customer-notifications/`
+  // data-model §5), whose `down()` re-creates it: its entity left with the table,
+  // so only this override still names the owner of the migrations that touch it.
+  quote_request_notification_events: 'quote_requests',
+
   // Issue #955 — the sales-rep reach governor table: written by its own
   // triggers and read through raw SQL by `SalesRepAssignmentService`, so no
   // entity class maps it.

@@ -39,10 +39,17 @@ Contract and integration files do not run on merge requests (D-198): run them lo
 
 ### WP-02 Table redesign (`qr`)
 
-- [ ] T010 [WP-02] Test: migration up creates `quote_request_notifications` with every constraint of data-model §1 and drops `quote_request_notification_events`; down reverses — `backend/test/integration/quote_requests/notifications-migration.test.ts`
-- [ ] T011 [WP-02] Test: `notification-matrix.ts` equals the table of `contracts/notification-matrix.md` §1 (rows, channels, actor rule, completed = none) — `qr/src/backend/services/notifications/notification-matrix.test.ts`
-- [ ] T012 [WP-02] Impl: scaffold the migration with `pnpm --filter backend run migration:new` in `qr`; entity `quote-request-notification.entity.ts` (`@OrgScoped`); delete `quote-request-notification-event.entity.ts`; `notification-matrix.ts`; rewrite `rfq-notification-service.ts` as `record(within, { change, sourceEvent, rfq, actor })` writing one row per matrix cell (no non-transactional path); `composer:generate`
-- [ ] T013 [WP-02] Grep `backend/test/**` and `packages/**` for `quote_request_notification_events` / `QuoteRequestNotificationEvent` and update every reference (docs excepted, WP-11)
+- [x] T010 [WP-02] Test: migration up creates `quote_request_notifications` with every constraint of data-model §1 and drops `quote_request_notification_events`; down reverses — `backend/test/integration/quote_requests/notifications-migration.test.ts`
+- [x] T011 [WP-02] Test: `notification-matrix.ts` equals the table of `contracts/notification-matrix.md` §1 (rows, channels, actor rule, completed = none) — `qr/src/backend/services/notifications/notification-matrix.test.ts`
+- [x] T012 [WP-02] Impl: scaffold the migration with `pnpm --filter backend run migration:new` in `qr`; entity `quote-request-notification.entity.ts` (`@OrgScoped`); delete `quote-request-notification-event.entity.ts`; `notification-matrix.ts`; rewrite `rfq-notification-service.ts` as `record(within, { change, sourceEvent, rfq, actor })` writing one row per matrix cell (no non-transactional path); `composer:generate`
+- [x] T013 [WP-02] Grep `backend/test/**` and `packages/**` for `quote_request_notification_events` / `QuoteRequestNotificationEvent` and update every reference (docs excepted, WP-11)
+  - *WP-02 as built (for WP-03/WP-04):* `record` resolves sides through an injected
+    `NotificationRecipientResolver`; until WP-03 it is `notifications/assignment-recipients.ts`,
+    the pre-179 rule unchanged (requester; assigned representatives, else every administrator).
+    The writers still call `record(em, …)` after `underRowLock` commits, on the request's own
+    EntityManager — WP-04 moves each call inside the lock. `RECORDED_CHANNELS` holds
+    `customer_in_app` (WP-08) and `customer_push` (WP-10) back; their matrix cells stand. The order
+    completion reactor no longer has a notification service (completed = none).
 
 ### WP-03 Recipients (`qr`)
 

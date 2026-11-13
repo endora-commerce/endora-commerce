@@ -22,6 +22,7 @@ import { RfqAdminService } from './services/rfq-admin-service.js';
 import { RfqEventService } from './services/rfq-event-service.js';
 import { RfqRevisionService } from './services/rfq-revision-service.js';
 import { RfqNotificationService } from './services/rfq-notification-service.js';
+import { createAssignmentRecipientResolver } from './services/notifications/assignment-recipients.js';
 import { RfqExpiryWorker, type RfqExpiryRule } from './services/rfq-expiry-worker.js';
 import { QuoteRequestListViewService } from './services/quote-request-list-view-service.js';
 import { createOrderCompletionReactor } from './services/order-completion-reactor.js';
@@ -189,7 +190,9 @@ export function quoteRequestsModule(options: QuoteRequestsModuleOptions): {
 } {
   const eventService = new RfqEventService(options.emFactory);
   const revisionService = new RfqRevisionService(options.emFactory);
-  const notificationService = new RfqNotificationService(options.emFactory);
+  const notificationService = new RfqNotificationService(
+    createAssignmentRecipientResolver({ salesRepAssignment: options.salesRepAssignment, adminUsers: options.adminUsers }),
+  );
   // `specs/147-saved-views/` (US3) — the Quote Request list's saved views.
   const listViewService = new QuoteRequestListViewService(options.emFactory, options.log);
   const salesRepAssignment = options.salesRepAssignment;
@@ -253,8 +256,6 @@ export function quoteRequestsModule(options: QuoteRequestsModuleOptions): {
     events: options.eventBus as RfqEventBus,
     eventService,
     notificationService,
-    salesRepAssignment,
-    adminUsers: options.adminUsers,
     resolveExpiryRule: options.resolveExpiryRule,
   });
 
@@ -264,7 +265,6 @@ export function quoteRequestsModule(options: QuoteRequestsModuleOptions): {
     emFactory: options.emFactory,
     orders: options.orders,
     eventService,
-    notificationService,
     defer: options.deferAfterCommit,
     stillPresent: options.isStillPresent,
   });

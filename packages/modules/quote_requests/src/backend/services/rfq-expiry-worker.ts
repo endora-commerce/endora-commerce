@@ -1,12 +1,11 @@
 import { randomUUID } from 'crypto';
 import type { EntityManager } from '@mikro-orm/postgresql';
-import type { AdminUserReadPort, SalesRepAssignmentPort } from '@endora-commerce/contracts';
 import { rethrowIfModuleDisabled } from '@endora-commerce/platform/kernel';
 import { withSystemScope } from '@endora-commerce/platform/tenancy';
 import { QuoteRequest } from '../entities/quote-request.entity.js';
 import type { RfqEventBus } from './rfq-service.js';
 import type { RfqEventService } from './rfq-event-service.js';
-import type { RfqNotificationService, NotificationRecipient } from './rfq-notification-service.js';
+import type { RfqNotificationService } from './rfq-notification-service.js';
 import { anyRowExists, type WorkRows } from './scheduled-work-probe.js';
 
 /**
@@ -160,13 +159,6 @@ export interface RfqExpiryWorkerDeps {
   events: RfqEventBus;
   eventService: RfqEventService;
   notificationService: RfqNotificationService;
-  salesRepAssignment: SalesRepAssignmentPort;
-  /**
-   * Feature 075, Phase C — the unassigned-organisation fan-out. It was
-   * `em.find(AdminUser, {})` against `admin_users`' table; `listAll` is the
-   * read that module published for exactly this, and its doc comment says so.
-   */
-  adminUsers: AdminUserReadPort;
   /** Resolves `quote_requests.expiry_days` for every sales channel — {@link RfqExpiryRule}. */
   resolveExpiryRule: () => Promise<RfqExpiryRule>;
   /** At most this many requests per pass. Defaults to {@link RFQ_EXPIRY_BATCH_SIZE}. */
@@ -403,19 +395,7 @@ export class RfqExpiryWorker {
       );
 
       if (notify) {
-        const recipients: NotificationRecipient[] = [{ customerAccountId: rfq.customerAccountId }];
-        const assignments = await this.deps.salesRepAssignment.listForOrganization(rfq.organizationId);
-        if (assignments.length > 0) {
-          for (const a of assignments) recipients.push({ adminUserId: a.adminUserId });
-        } else {
-          // Unassigned-org fallback — notify every active admin.
-          const everyAdmin = await this.deps.adminUsers.listAll();
-          for (const a of everyAdmin) recipients.push({ adminUserId: a.id });
-        }
-        await this.deps.notificationService.enqueue(
-          { quoteRequestId: rfq.id, sourceEventId: history.id, recipients, channels: ['email', 'in_app'] },
-          em,
-        );
+        await this.deps.notificationService.record(em, { change: 'expired', sourceEvent: history, rfq, actor: null });
       }
 
       return { organizationId: rfq.organizationId, notified: notify };

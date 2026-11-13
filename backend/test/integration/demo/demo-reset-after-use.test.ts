@@ -723,12 +723,14 @@ describe('demo reset on a demo that has been used (issue #143)', () => {
       quote_request_id: quoteRequestId,
       created_by_customer_account_id: customerAccountId,
     });
-    await add('quote_request_notification_events', {
+    await add('quote_request_notifications', {
+      organization_id: organizationId,
       quote_request_id: quoteRequestId,
       source_event_id: quoteEventId,
-      recipient_customer_account_id: customerAccountId,
-      channel: 'email',
-      status: 'queued',
+      change: 'submitted',
+      recipient_kind: 'customer',
+      recipient_id: customerAccountId,
+      channel: 'customer_email',
     });
     const cartId = await add('carts', {
       organization_id: organizationId,
