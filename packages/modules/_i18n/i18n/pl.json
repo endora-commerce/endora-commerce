@@ -967,6 +967,8 @@
   "invoices.kind.correction": "korekta",
   "invoices.kind.invoice": "faktura",
   "invoices.kind.proforma": "proforma",
+  "invoices.kind.wz": "dokument WZ",
+  "invoices.loadMore": "Wczytaj więcej",
   "invoices.pdfNotReady": "nie gotowe",
   "invoices.resendEmail": "Wyślij ponownie mailem",
   "invoices.status.all": "Wszystkie",

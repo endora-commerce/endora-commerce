@@ -1,16 +1,23 @@
-import { useCallback, useEffect, useState, type ReactNode } from 'react';
+import { useCallback, useEffect, useRef, useState, type ReactNode } from 'react';
 import { Link } from 'react-router-dom';
 import { FileDown, Mail } from 'lucide-react';
 import { apiBaseUrl, apiClient, ApiError, formatDateTime, formatMoney, sendInvoiceEmailMessage } from '@endora-commerce/admin-kit/lib';
 import { Alert, AlertDescription, Badge, Button, Card, CardContent, Input, Label, PageHeader, Select, Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from '@endora-commerce/admin-kit/ui';
 import { InvoiceSectionTabs } from '../components/InvoiceSectionTabs.js';
 import { useTranslation } from '@endora-commerce/admin-kit/i18n';
-import type { AdminInvoiceListItem, AdminInvoiceListResponse, SendInvoiceEmailResult } from '@endora-commerce/contracts';
+import {
+  invoiceKindSchema,
+  type AdminInvoiceListItem,
+  type AdminInvoiceListResponse,
+  type SendInvoiceEmailResult,
+} from '@endora-commerce/contracts';
+import { invoiceListPath } from '../lib/invoice-list-path.js';
 
 type AdminInvoice = AdminInvoiceListItem;
 
 const STATUSES = ['pending', 'ready', 'cancelled'] as const;
-const KINDS = ['proforma', 'invoice', 'correction'] as const;
+/** Every kind the list can answer, an ERP `wz` included (issue #1120). */
+const KINDS = invoiceKindSchema.options;
 
 const STATUS_VARIANT: Record<AdminInvoice['status'], 'default' | 'secondary' | 'success' | 'warning' | 'destructive'> = {
   pending: 'warning',
@@ -22,6 +29,12 @@ export function InvoicesList(): ReactNode {
   const t = useTranslation('core');
   const [rows, setRows] = useState<AdminInvoice[]>([]);
   const [loading, setLoading] = useState(true);
+  // Issue #1120 — the cursor the last page answered; `null` once the list is complete.
+  const [nextCursor, setNextCursor] = useState<string | null>(null);
+  const [loadingMore, setLoadingMore] = useState(false);
+  // Bumped by every first-page load, so a "load more" answering after the
+  // filters changed does not append rows of the old filter.
+  const generation = useRef(0);
   const [error, setError] = useState<string | null>(null);
   const [notice, setNotice] = useState<string | null>(null);
   const [status, setStatus] = useState<'' | (typeof STATUSES)[number]>('');
@@ -51,28 +64,44 @@ export function InvoicesList(): ReactNode {
     setTotalMax('');
   }, []);
 
+  const filters = { status, kind, orderNumber, issuedFrom, issuedTo, totalMin, totalMax };
+
   const refresh = useCallback(async (): Promise<void> => {
+    const current = ++generation.current;
     setLoading(true);
     setError(null);
     try {
-      const params = new URLSearchParams();
-      if (status) params.set('filter[status]', status);
-      if (kind) params.set('filter[kind]', kind);
-      if (orderNumber.trim()) params.set('filter[orderNumber]', orderNumber.trim());
-      if (issuedFrom) params.set('filter[issuedFrom]', `${issuedFrom}T00:00:00.000Z`);
-      if (issuedTo) params.set('filter[issuedTo]', `${issuedTo}T23:59:59.999Z`);
-      if (totalMin.trim()) params.set('filter[totalMin]', totalMin.trim());
-      if (totalMax.trim()) params.set('filter[totalMax]', totalMax.trim());
-      const path =
-        '/api/v1/admin/invoices' + (params.toString() ? `?${params.toString()}` : '');
-      const res = await apiClient.get<AdminInvoiceListResponse>(path);
+      const res = await apiClient.get<AdminInvoiceListResponse>(
+        invoiceListPath({ status, kind, orderNumber, issuedFrom, issuedTo, totalMin, totalMax }),
+      );
+      if (current !== generation.current) return;
       setRows(res.data);
+      setNextCursor(res.pagination.cursor);
     } catch (err) {
+      if (current !== generation.current) return;
       setError(err instanceof ApiError ? err.envelope.error.message : 'Failed to load.');
     } finally {
-      setLoading(false);
+      if (current === generation.current) setLoading(false);
     }
   }, [status, kind, orderNumber, issuedFrom, issuedTo, totalMin, totalMax]);
+
+  const loadMore = async (): Promise<void> => {
+    if (!nextCursor || loadingMore) return;
+    const current = generation.current;
+    setLoadingMore(true);
+    setError(null);
+    try {
+      const res = await apiClient.get<AdminInvoiceListResponse>(invoiceListPath(filters, nextCursor));
+      if (current !== generation.current) return;
+      setRows((previous) => [...previous, ...res.data]);
+      setNextCursor(res.pagination.cursor);
+    } catch (err) {
+      if (current !== generation.current) return;
+      setError(err instanceof ApiError ? err.envelope.error.message : 'Failed to load.');
+    } finally {
+      setLoadingMore(false);
+    }
+  };
 
   // Debounced so typing in the order-number / total inputs doesn't refetch
   // on every keystroke.
@@ -301,6 +330,19 @@ export function InvoicesList(): ReactNode {
               </TableBody>
             </Table>
           )}
+          {!loading && nextCursor ? (
+            <div className="mt-4 flex justify-center">
+              <Button
+                type="button"
+                variant="outline"
+                disabled={loadingMore}
+                aria-busy={loadingMore}
+                onClick={(): void => void loadMore()}
+              >
+                {t('invoices.loadMore')}
+              </Button>
+            </div>
+          ) : null}
         </CardContent>
       </Card>
     </>
