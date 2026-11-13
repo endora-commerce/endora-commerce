@@ -1,3 +1,4 @@
+import { once } from 'node:events';
 import { afterAll, beforeAll, describe, expect, it, vi } from 'vitest';
 import { Redis } from 'ioredis';
 import {
@@ -22,7 +23,9 @@ import { ModuleRegistration } from '@endora-commerce/platform/composition';
  * moment the answer is decided, and then asserts it. A notification that is
  * never delivered still fails, on the case's own timeout. That the refresh came
  * from the notification and not from the degraded-mode timer is asserted
- * directly: the cache is not degraded, so no such timer exists.
+ * directly: the cache is not degraded, so no such timer exists. The cache
+ * subscribes only on a client that has finished its handshake, see
+ * {@link ready}: one that had not could lose the notification outright.
  */
 
 describe('ModuleRegistryCache — pub/sub refresh between processes (integration)', () => {
@@ -55,6 +58,7 @@ describe('ModuleRegistryCache — pub/sub refresh between processes (integration
     // Feature 072 (D-38) — the two halves a process runs in order: `load()`
     // reads PostgreSQL and is fatal, `watch()` arms the pub/sub side and is not.
     await cacheB.load({ em: () => db.orm.em.fork() as never });
+    await Promise.all([ready(publisher), ready(subscriberRedis)]);
     await cacheB.watch({
       redisSubscriber: subscriberRedis,
       em: () => db.orm.em.fork() as never,
@@ -121,3 +125,21 @@ describe('ModuleRegistryCache — pub/sub refresh between processes (integration
     }
   }, 30_000);
 });
+
+/**
+ * Resolve once `client` has finished its handshake (issue #250).
+ *
+ * ioredis writes a `SUBSCRIBE` issued between the socket's `connect` and its
+ * `ready` straight to the wire, because Redis lets pub/sub run while it is
+ * loading. If the reply lands before the ready check's `INFO` is sent, the
+ * connection is already in subscriber mode, the `INFO` is refused ("Connection
+ * in subscriber mode, only subscriber commands may be used"), and ioredis
+ * drops and re-opens the socket. A notification published while it is
+ * reconnecting is delivered to nobody. On an idle machine the handshake is
+ * long over before the case subscribes; on a loaded one it is not, and the
+ * case went red with the code under test right.
+ */
+async function ready(client: Redis): Promise<void> {
+  if (client.status === 'ready') return;
+  await once(client, 'ready');
+}
