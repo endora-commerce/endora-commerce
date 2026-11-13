@@ -4,6 +4,7 @@ import {
   apiKeyScopeSchema,
   type ApiKey,
   type ApiKeyBinding,
+  type ApiKeyListResponse,
   type CreateApiKeyResponse,
 } from '@endora-commerce/contracts';
 import { ApiError, apiClient, formatDateTime } from '@endora-commerce/admin-kit/lib';
@@ -39,10 +40,6 @@ import {
 // `integrations:manage` is an admin permission, not an api-key scope.
 const KNOWN_SCOPES: readonly string[] = apiKeyScopeSchema.options;
 const ORDERS_SCOPES: ReadonlySet<string> = new Set(['orders:read', 'orders:write']);
-
-interface ApiKeyListResponse {
-  data: ApiKey[];
-}
 
 interface CreateApiKeyEnvelope {
   data: CreateApiKeyResponse;
