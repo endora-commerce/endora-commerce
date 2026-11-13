@@ -50,6 +50,8 @@ import {
   ERROR_CODES,
   productArchivedModeSchema,
   productStatusSchema,
+  type AttributeOption,
+  type AttributeOptionListResponse,
 } from '@endora-commerce/contracts';
 import { HttpError } from '@endora-commerce/platform/http';
 import { savedViewActor } from './saved-view-actor.js';
@@ -1125,7 +1127,8 @@ export async function registerCatalogAdminRoutes(
   // Feature 012 / US4 — option-list CRUD per contracts/attribute-options.contract.md.
   // Backed by `custom_field_options` since feature 061; `attributeId` stays the
   // attribute (extension) id the admin API has always exposed.
-  function serializeOption(o: AttributeOptionResult): Record<string, unknown> {
+  /** The published `attributeOptionSchema` (issue #599). */
+  function serializeOption(o: AttributeOptionResult): AttributeOption {
     return {
       id: o.id,
       attributeId: o.attributeId,
@@ -1142,7 +1145,7 @@ export async function registerCatalogAdminRoutes(
   app.get<{ Params: { attributeId: string } }>(
     '/api/v1/admin/catalog/attributes/:attributeId/options',
     { preHandler: requireAdmin('catalog:read') },
-    async (request) => {
+    async (request): Promise<AttributeOptionListResponse> => {
       const attr = await adminService.getAttributeByIdOrKey(request.params.attributeId);
       const options = await adminService.listAttributeOptions(attr.id);
       return { data: { items: options.map(serializeOption) } };
@@ -1161,7 +1164,7 @@ export async function registerCatalogAdminRoutes(
   }>(
     '/api/v1/admin/catalog/attributes/:attributeId/options',
     { preHandler: requireAdmin('catalog:write') },
-    async (request, reply) => {
+    async (request, reply): Promise<{ data: AttributeOption }> => {
       const row = await adminService.addAttributeOption(
         request.params.attributeId,
         request.body,
@@ -1182,7 +1185,7 @@ export async function registerCatalogAdminRoutes(
   }>(
     '/api/v1/admin/catalog/attributes/:attributeId/options/:optionId',
     { preHandler: requireAdmin('catalog:write') },
-    async (request) => {
+    async (request): Promise<{ data: AttributeOption }> => {
       const row = await adminService.patchAttributeOption(
         request.params.optionId,
         request.body,
