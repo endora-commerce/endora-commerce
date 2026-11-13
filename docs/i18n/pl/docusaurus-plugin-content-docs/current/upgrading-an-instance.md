@@ -5162,6 +5162,40 @@ z uprawnieniem `audit_log:read`, niezależnie od tego, które organizacje widzi.
 z dziennika audytu, odczytuje je z organizacji (`GET /api/v1/admin/organizations/:id`), jej
 członków i jej ról.
 
+### Adres panelu administracyjnego jest ustawieniem platformy {#admin-base-url-platform-input}
+
+Wydanie, które wprowadza tę zmianę, czyni `ADMIN_BASE_URL` — adres panelu administracyjnego —
+zmienną środowiskową platformy zamiast modułu `mfa` (zgłoszenie #185), dzięki czemu każdy moduł,
+który wysyła e-maile do administratora, a nie tylko `mfa`, może z niej budować linki do panelu.
+
+**Zmiana zachowania po aktualizacji:**
+
+- `.env.example` instancji wymienia `ADMIN_BASE_URL` niezależnie od tego, czy `mfa` jest
+  zainstalowany, a `endora install` wpisuje do niego adres panelu w tych samych przypadkach, w
+  których robił to już dla `mfa`.
+- Wartość musi być bezwzględnym adresem `http` lub `https` z hostem, ze ścieżką, jeśli panel ją
+  ma (`https://shop.example.com/admin`), bez zapytania i bez fragmentu. Wartość ustawiona, która
+  taka nie jest (`admin.example.com`, `/admin`), **blokuje start** backendu w każdym środowisku:
+  backend kończy pracę z komunikatem `ADMIN_BASE_URL="…" is not an absolute http(s) URL with a
+  host, and no query or fragment`. Do tej pory `mfa` używał takiej wartości bez zmian i budował
+  przekierowanie logowania, które niczego nie otwierało.
+- Bez tej wartości przekierowanie logowania `mfa` do panelu używa `http://localhost:3002` tylko
+  poza produkcją. W produkcji nie zawiera bezwzględnego adresu — to ścieżka na hoście, który
+  obsłużył powrót z logowania — i nigdy nie prowadzi na `localhost`.
+- Poprawna wartość działa jak dotąd. Ukośnik na końcu jest pomijany.
+
+**Po aktualizacji:**
+
+1. Jeśli backend nie startuje, wskazując `ADMIN_BASE_URL`, ustaw pełny adres panelu, na przykład
+   `https://admin.example.com`, albo usuń tę zmienną, i uruchom backend ponownie.
+2. Jeśli instancja nie ma `mfa` i nigdy nie ustawiała `ADMIN_BASE_URL`, ustaw go teraz, aby
+   e-maile do administratorów mogły zawierać link do panelu; bez niego linku nie ma.
+3. Własny moduł, który czytał `process.env['ADMIN_BASE_URL']`, czyta zamiast tego
+   `configuredAdminBaseUrl()` z `@endora-commerce/platform/kernel`. Funkcja zwraca adres bez
+   ukośnika na końcu albo `null`, gdy adres jest nieustawiony — wtedy pomiń link.
+   Własny moduł, który deklarował `ADMIN_BASE_URL` w polu `env` swojego manifestu, usuwa tę
+   deklarację: należy ona do platformy, a `check:env-inputs` zgłasza moduł, który ją deklaruje.
+
 ## Instancja niespójna od początku
 
 Instalator `0.101.x` lub starszy zapisywał każdy pakiet wydania z `^` poza

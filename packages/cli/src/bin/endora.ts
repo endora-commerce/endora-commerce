@@ -35,7 +35,7 @@ import { parseArgs } from 'node:util';
 // it: about two seconds of CPU before `endora dev` spawned its first layer, or
 // `--help` printed a line, for a compiler neither calls (issue #250).
 
-const USAGE = `endora — scaffolding and conformance tooling for Endora Commerce modules.
+const USAGE_TEMPLATE = `endora — scaffolding and conformance tooling for Endora Commerce modules.
 
 Usage:
   endora new module <id> --name <text> --description <text> [options]
@@ -78,10 +78,7 @@ Options for \`new module\`:
   --permission <code>=<label>   a permission code and its operator-facing label (repeatable)
   --action <id>=<route>         a command-palette action and the admin route it opens (repeatable)
   --icon <KnownIconName>        the icon for the emitted actions (default: Boxes)
-  --admin <navSection>          emit the ./admin layer: a gated screen and the sidebar entry
-                                that opens it, in the named section (main, sales, catalog,
-                                inventory, pricing, customers, channels, content, messaging,
-                                newsletter, analyticsAds, system). Needs a --permission
+\${adminOption}
   --entities                    own a table: an entity, a migration and the ./migrations subpath
   --tenant-scope <scope>        org-scoped | customer-scoped | global (default: org-scoped)
   --ports                       publish a type-only ./ports subpath other modules resolve
@@ -350,6 +347,38 @@ completely evaluated and there are findings; 2 the picture is incomplete — som
 rule could not be read, or has no host in this build. \`findings=<n>\` is on the
 arithmetic line whatever the code is.
 `;
+
+/**
+ * The usage text, with the sidebar sections `--admin` accepts read from
+ * `AdminNavSectionNameSchema` — the set `new module` validates against — so the
+ * help cannot drift from the refusal again (issue #444: a hand-written list
+ * omitted `crm` and `work`). Loaded on demand, like every verb, so a run that
+ * prints no help never imports the contracts.
+ */
+/** Where an option's description starts in the usage text, and how wide it runs. */
+const USAGE_DESCRIPTION_COLUMN = 32;
+const USAGE_DESCRIPTION_WIDTH = 60;
+
+async function usage(): Promise<string> {
+  const { AdminNavSectionNameSchema } = await import('@endora-commerce/contracts');
+  const text =
+    'emit the ./admin layer: a gated screen and the sidebar entry that opens it, in the ' +
+    `named section (${AdminNavSectionNameSchema.options.join(', ')}). Needs a --permission`;
+  const lines: string[] = [];
+  let line = '';
+  for (const word of text.split(' ')) {
+    if (line !== '' && line.length + 1 + word.length > USAGE_DESCRIPTION_WIDTH) {
+      lines.push(line);
+      line = word;
+    } else {
+      line = line === '' ? word : `${line} ${word}`;
+    }
+  }
+  lines.push(line);
+  const option = '  --admin <navSection>'.padEnd(USAGE_DESCRIPTION_COLUMN);
+  const indent = ' '.repeat(USAGE_DESCRIPTION_COLUMN);
+  return USAGE_TEMPLATE.replace('${adminOption}', option + lines.join(`\n${indent}`));
+}
 
 interface Parsed {
   readonly values: Record<string, string | boolean | string[] | undefined>;
@@ -1069,7 +1098,7 @@ export async function main(
 
   const [command, subject, ...rest] = parsed.positionals;
   if (asFlag(parsed.values['help']) || command === undefined) {
-    process.stdout.write(USAGE);
+    process.stdout.write(await usage());
     return command === undefined && !asFlag(parsed.values['help']) ? 1 : 0;
   }
 
