@@ -96,20 +96,20 @@ zatwierdzeniu korekty NIP, i nie dla korekty na wartość, która jest już zapi
   `GET /api/v1/admin/organizations`) przyjmują `?extensions=<moduleId>[,…]` i dołączają te
   wartości jako `extensions`. Bez parametru odpowiedzi się nie zmieniają. Zobacz *Zadeklarowane
   kolumny rozszerzeń* w przewodniku po architekturze.
-- **Haki poleceń** — sześć zapisów organizacji są zadeklarowane jako dostępne dla haków, więc inny
-  moduł może brać w nich udział wewnątrz ich transakcji (zob. *Akcje dostępne dla haków* poniżej).
+- **Hooki poleceń** — sześć zapisów organizacji są zadeklarowane jako dostępne dla hooków, więc inny
+  moduł może brać w nich udział wewnątrz ich transakcji (zob. *Akcje dostępne dla hooków* poniżej).
 
-### Akcje dostępne dla haków
+### Akcje dostępne dla hooków
 
 Inny moduł — moduł nakładki wdrożenia albo zainstalowany pakiet — może uruchomić wewnątrz tych
-zapisów hak poleceń `beforeCommit`. Rejestruje go wobec referencji z
+zapisów hook poleceń `beforeCommit`. Rejestruje go wobec referencji z
 `ORGANIZATION_HOOKABLE_ACTIONS` (`@endora-commerce/contracts`) i musi wymienić `organizations` w
-`dependencies` swojego manifestu. Hak widzi zapis w niezatwierdzonej transakcji, może zapisywać własne
+`dependencies` swojego manifestu. Hook widzi zapis w niezatwierdzonej transakcji, może zapisywać własne
 tabele albo uruchomić polecenie przez `ctx.run` i może odrzucić zapis własnym kodem błędu, co
-wycofuje cały zapis. Jak haki są uruchamiane, porządkowane i odrzucane, opisuje strona
+wycofuje cały zapis. Jak hooki są uruchamiane, porządkowane i odrzucane, opisuje strona
 architektury *Command Bus*.
 
-| Akcja | Referencja | Zapisywana przez | Dane haka |
+| Akcja | Referencja | Zapisywana przez | Dane hooka |
 | --- | --- | --- | --- |
 | `organization.create` | `ORGANIZATION_HOOKABLE_ACTIONS.create` | `POST /api/v1/admin/organizations` | `organization`, `salesChannelIds` |
 | `organization.register` | `ORGANIZATION_HOOKABLE_ACTIONS.register` | `POST /api/v1/organizations/register` | `organization`, `customerAccountId`, `salesChannelId`, `registryLookupOutcome` |
@@ -118,22 +118,22 @@ architektury *Command Bus*.
 | `organization.convert_to_company` | `ORGANIZATION_HOOKABLE_ACTIONS.convertToCompany` | `POST /api/v1/admin/organizations/:id/convert-to-company`, `organizationCommandPort.convertToCompany` | `organizationId`, `status`, `vatStatus`, `changedFields`, `approvalStamped` |
 | `organization.tax_id.change` | `ORGANIZATION_HOOKABLE_ACTIONS.changeTaxId` | `POST /api/v1/admin/organizations/:id/change-tax-id`, `organizationCommandPort.changeTaxId` | `organizationId`, `changedFields`, `vatValidationReset` |
 
-Wszystkie sześć oferuje obie fazy. Procedura `afterCommit` jest dostarczana przez outbox platformy
-po zatwierdzeniu zapisu, co najmniej raz i w kontekście przypiętym do organizacji; jej `data` zawiera
+Wszystkie sześć oferuje obie fazy. Odbiorca `afterCommit` jest obsługiwany przez kolejkę dostarczeń platformy
+po zatwierdzeniu zapisu, co najmniej raz i w kontekście przypiętym do organizacji; jego `data` zawiera
 tylko identyfikatory i kody — `organizationId`, a do tego `customerAccountId` i `status` przy
 rejestracji, `status` przy utworzeniu, `changedFields` / `changedCustomFields` przy obu
 aktualizacjach, `status` i `changedFields` przy zamianie na firmę oraz `changedFields` przy korekcie
 NIP-u. Zmiany
-zgłoszone przez hak trafiają do jedynego wpisu audytu organizacji jako nazwy, w
-`extensions.<moduleId>.changedFields`. Hak rejestracji nigdy nie widzi tokenu weryfikacji e-mail.
-Haki zamiany na firmę i korekty NIP dostają wyłącznie identyfikatory, kody i nazwy pól — nigdy
-NIP-u, nazwy ani adresu. Korekta NIP-u na tę samą wartość niczego nie zmienia, a jej haki i tak
-są uruchamiane z pustym `changedFields`: wpis audytu powstaje tylko wtedy, gdy hak zgłosił zapis, i
-wtedy ten jeden wpis wymienia wyłącznie pola haka. Dane rozszerzeń (`extensions`) może przekazać
+zgłoszone przez hook trafiają do jedynego wpisu audytu organizacji jako nazwy, w
+`extensions.<moduleId>.changedFields`. Hook rejestracji nigdy nie widzi tokenu weryfikacji e-mail.
+Hooki zamiany na firmę i korekty NIP dostają wyłącznie identyfikatory, kody i nazwy pól — nigdy
+NIP-u, nazwy ani adresu. Korekta NIP-u na tę samą wartość niczego nie zmienia, a jej hooki i tak
+są uruchamiane z pustym `changedFields`: wpis audytu powstaje tylko wtedy, gdy hook zgłosił zapis, i
+wtedy ten jeden wpis wymienia wyłącznie pola hooka. Dane rozszerzeń (`extensions`) może przekazać
 tylko kod po stronie serwera — `organizationCustomFieldWritePort.setCustomFieldValues` przyjmuje je
 jako `{ extensions }`, a `organizationCommandPort.convertToCompany` i `changeTaxId` jako trzeci
 argument `{ extensions }` — a żadne ciało żądania HTTP ich jeszcze nie przenosi. Przenoszenie
-organizacji w hierarchii nie jest zadeklarowane jako dostępne dla haków.
+organizacji w hierarchii nie jest zadeklarowane jako dostępne dla hooków.
 
 ## Kanały sprzedaży
 

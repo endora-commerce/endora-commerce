@@ -66,9 +66,9 @@ function codeOf(relativePath: string): string {
 }
 
 /**
- * The five routes `App.tsx` declares that belong to no module, in source order,
+ * The seven routes `App.tsx` declares that belong to no module, in source order,
  * each with the reason it is the admin application's own. Issue #859 added the
- * fifth, `/login`.
+ * fifth, `/login`; `specs/176-command-hooks-outbox/` P4 the two command-hook tabs.
  *
  * **It was four until feature 134's wave 1**, and losing one is the interesting
  * part rather than a tidy-up. `/settings/dhl-parcel` was a `<Navigate>` to a
@@ -101,12 +101,17 @@ const HOST_ROUTES = [
   // module's presence may decide whether the screen is there. Its backing
   // routes are kernel resident (`_lifecycle`), as `/platform/modules`' are.
   '/api-description',
+  // The command-hook screen's two tabs (176 P4): a hook spans the module that
+  // declares an action and every module that hooks it, so no one module's
+  // presence may decide it. Kernel resident backing routes, as above.
+  '/platform/command-hooks',
+  '/platform/command-hooks/outbox',
   // The signed-in admin's own profile.
   '/profile',
 ];
 
 /**
- * The four `AppShell.tsx` destinations that belong to no module, in source
+ * The five `AppShell.tsx` destinations that belong to no module, in source
  * order — which is `NAV`'s two sections and then `PALETTE_ITEMS`.
  */
 const HOST_NAV = [
@@ -117,6 +122,9 @@ const HOST_NAV = [
   // The API description, in the `system` section, for the reason its route is
   // the host's above.
   '/api-description',
+  // The command-hook screen, in the `system` section, for the reason its routes
+  // are the host's above.
+  '/platform/command-hooks',
   // The dashboard's command-palette row. `adminNavEntries` counted a palette
   // row beside a sidebar one — both are `{ to, module }` object literals — and
   // it is a second declaration of the same host-owned destination rather than a
@@ -125,7 +133,7 @@ const HOST_NAV = [
 ];
 
 describe('SC-007 — the admin application declares its own registrations and no module’s', () => {
-  it('declares exactly the five host routes, and those five', () => {
+  it('declares exactly the seven host routes, and those seven', () => {
     const app = codeOf('../packages/admin-shell/src/App.tsx');
     // Every `<Route` the host declares with a **literal** destination: `index`,
     // or a `path="…"` string. Three `<Route` elements in that file are not
@@ -150,7 +158,7 @@ describe('SC-007 — the admin application declares its own registrations and no
     expect(declared).toContain('*');
   });
 
-  it('declares exactly the four host nav entries, and those four', () => {
+  it('declares exactly the five host nav entries, and those five', () => {
     const shell = codeOf('../packages/admin-shell/src/components/AppShell.tsx');
     // `module: null` is the shell's own attribution for a destination no module
     // owns. It is read here rather than counted blind: the `to` beside each one

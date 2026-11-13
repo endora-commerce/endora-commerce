@@ -225,6 +225,10 @@ export const manifest = defineModuleManifest({
     { code: 'COMMAND_EXTENSION_UNCLAIMED' },
     { code: 'COMMAND_HOOK_CYCLE' },
     { code: 'COMMAND_HOOK_DATA_MISSING' },
+    // T3 by noun (1) — `specs/176-command-hooks-outbox/` P4. The noun is the
+    // command outbox, the platform's own table of afterCommit deliveries for
+    // every module: an operator retried a row that is not dead (409).
+    { code: 'COMMAND_OUTBOX_NOT_DEAD' },
   ],
 });
 

@@ -29,6 +29,7 @@ import type { SupportedAdminLanguage } from '@endora-commerce/admin-kit/i18n';
 import { HomePage } from './modules/home/HomePage.js';
 import { ModulesPage as PlatformModulesPage } from './modules/platform/ModulesPage.js';
 import { ApiDescriptionPage } from './modules/platform/ApiDescriptionPage.js';
+import { CommandHooksPage } from './modules/platform/CommandHooksPage.js';
 import { ProfilePage } from './modules/profile/ProfilePage.js';
 
 function NotFoundPage(): ReactNode {
@@ -313,6 +314,11 @@ export function App({ contributions, modulePresence }: AppProps): ReactNode {
             `onChange` back, so the consumer decides that it appears). */}
         <Route path="/platform/modules" element={<PlatformModulesPage />} />
         <Route path="/api-description" element={<ApiDescriptionPage />} />
+        {/* `specs/176-command-hooks-outbox/` FR-041 — the execution plan and the
+            outbox, two tabs of one kernel-served screen: hooks span every module
+            that declares or registers one, so no module's presence decides it. */}
+        <Route path="/platform/command-hooks" element={<CommandHooksPage tab="plan" />} />
+        <Route path="/platform/command-hooks/outbox" element={<CommandHooksPage tab="outbox" />} />
         {/*
           `/settings`, `/settings/groups`, `/settings/cache` and `/settings/pwa`
           are declared by the modules that own them since feature 091's Phase 4
