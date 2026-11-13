@@ -1,4 +1,5 @@
 import { useCallback, useEffect, useMemo, useState, type FormEvent, type ReactNode } from 'react';
+import { useConfirmDialog } from '@endora-commerce/admin-kit/components';
 import { Link } from 'react-router-dom';
 import { AlertTriangle, Info, Plus, ShieldAlert } from 'lucide-react';
 import { missingPermissionRequirements } from '@endora-commerce/contracts';
@@ -56,6 +57,7 @@ const NEW_ROLE_KEY = '__new__';
 export default function AdminRolesPage(): ReactNode {
   const t = useTranslation('core');
   const tu = useTranslation('admin_users');
+  const { confirm, confirmDialog } = useConfirmDialog();
   // Issue #349 — the two-factor flag is enforced by `mfa` at sign-in, so the
   // editor offers it only while `mfa` is present.
   const mfaPresent = useModulePresence().isPresent('mfa');
@@ -116,7 +118,12 @@ export default function AdminRolesPage(): ReactNode {
             `/api/v1/admin/admin-roles/${input.code}/two-factor-impact`,
           );
           const count = impact.data.unprotectedAdministrators ?? 0;
-          if (count > 0 && !confirm(tu('roles.twoFactor.confirmSignOut', { count }))) return;
+          if (
+            count > 0 &&
+            !(await confirm({ message: tu('roles.twoFactor.confirmSignOut', { count }), destructive: true }))
+          ) {
+            return;
+          }
         }
         const saved = await apiClient.put<{ data: AdminRole & { signedOutAdministrators: number } }>(
           `/api/v1/admin/admin-roles/${input.code}`,
@@ -139,12 +146,17 @@ export default function AdminRolesPage(): ReactNode {
         setError(err instanceof ApiError ? err.envelope.error.message : t('adminRoles.error.save'));
       }
     },
-    [refresh, t, tu, roles, mfaPresent],
+    [refresh, t, tu, roles, mfaPresent, confirm],
   );
 
   const handleDelete = useCallback(
     async (role: AdminRole): Promise<void> => {
-      if (!confirm(t('adminRoles.confirmDelete', { name: role.name }))) return;
+      const ok = await confirm({
+        message: t('adminRoles.confirmDelete', { name: role.name }),
+        confirmLabel: t('common.action.delete'),
+        destructive: true,
+      });
+      if (!ok) return;
       try {
         await apiClient.delete<void>(`/api/v1/admin/admin-roles/${role.id}`);
         setInfo(t('adminRoles.info.deleted', { code: role.code }));
@@ -154,7 +166,7 @@ export default function AdminRolesPage(): ReactNode {
         setError(err instanceof ApiError ? err.envelope.error.message : t('adminRoles.error.delete'));
       }
     },
-    [refresh, editingCode, t],
+    [refresh, editingCode, t, confirm],
   );
 
   return (
@@ -259,6 +271,7 @@ export default function AdminRolesPage(): ReactNode {
           )}
         </div>
       )}
+      {confirmDialog}
     </>
   );
 }

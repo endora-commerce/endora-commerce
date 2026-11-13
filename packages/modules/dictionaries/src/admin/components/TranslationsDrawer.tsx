@@ -1,4 +1,5 @@
 import { useEffect, useMemo, useState, type ReactNode } from 'react';
+import { useConfirmDialog } from '@endora-commerce/admin-kit/components';
 import type { DictionaryEntryType, DictionaryLanguage, DictionaryTranslation } from '@endora-commerce/contracts';
 import { ApiError } from '@endora-commerce/admin-kit/lib';
 import { Alert, AlertDescription, Button, Input } from '@endora-commerce/admin-kit/ui';
@@ -17,6 +18,7 @@ export function TranslationsDrawer({
   languages,
 }: TranslationsDrawerProps): ReactNode {
   const t = useTranslation('dictionaries');
+  const { confirm, confirmDialog } = useConfirmDialog();
   const [rows, setRows] = useState<DictionaryTranslation[]>([]);
   const [drafts, setDrafts] = useState<Record<string, string>>({});
   const [savingLanguage, setSavingLanguage] = useState<string | null>(null);
@@ -83,7 +85,12 @@ export function TranslationsDrawer({
   };
 
   const remove = async (languageCode: string): Promise<void> => {
-    if (!confirm(t('translations.confirmRemove', { languageCode }))) return;
+    const ok = await confirm({
+      message: t('translations.confirmRemove', { languageCode }),
+      confirmLabel: t('translations.remove'),
+      destructive: true,
+    });
+    if (!ok) return;
     setSavingLanguage(languageCode);
     setError(null);
     try {
@@ -149,6 +156,7 @@ export function TranslationsDrawer({
           <p className="text-sm text-muted-foreground">{t('translations.noLanguages')}</p>
         ) : null}
       </div>
+      {confirmDialog}
     </div>
   );
 }

@@ -36,7 +36,7 @@ import {
   type ProductListTab,
 } from '../lib/resolve-product-selection.js';
 import { ApiError, apiClient, cn, useAuth, usePageSizePreference } from '@endora-commerce/admin-kit/lib';
-import { PaginationFooter, SavedViewsControl } from '@endora-commerce/admin-kit/components';
+import { PaginationFooter, SavedViewsControl, useConfirmDialog } from '@endora-commerce/admin-kit/components';
 import type { SavedViewState } from '@endora-commerce/admin-kit/components';
 import { useTranslation } from '@endora-commerce/admin-kit/i18n';
 
@@ -123,6 +123,7 @@ function isTypeFilter(value: unknown): value is TypeFilter {
 
 export function ProductsList(): ReactNode {
   const t = useTranslation('catalog');
+  const { confirm, confirmDialog } = useConfirmDialog();
   const navigate = useNavigate();
   // The create route this screen links to takes the **write** code (D-221), so
   // both buttons that navigate there are gated on the same one. A link whose
@@ -417,9 +418,14 @@ export function ProductsList(): ReactNode {
     }
   };
 
-  const handleBulkDelete = (): void => {
+  const handleBulkDelete = async (): Promise<void> => {
     if (deleting || selectedCount === 0) return;
-    if (!confirm(t('productsList.bulk.deleteConfirm', { count: selectedCount }))) return;
+    const ok = await confirm({
+      message: t('productsList.bulk.deleteConfirm', { count: selectedCount }),
+      confirmLabel: t('productsList.bulk.delete'),
+      destructive: true,
+    });
+    if (!ok) return;
 
     setDeleting(true);
     setError(null);
@@ -689,7 +695,7 @@ export function ProductsList(): ReactNode {
                 type="button"
                 className="b2b-btn b2b-btn--danger"
                 disabled={deleting || resolvingSelection}
-                onClick={handleBulkDelete}
+                onClick={(): void => void handleBulkDelete()}
               >
                 <Trash2 size={13} /> {deleting ? '…' : t('productsList.bulk.delete')}
               </button>
@@ -901,6 +907,7 @@ export function ProductsList(): ReactNode {
           onNext={(): void => setPage((p) => p + 1)}
         />
       </div>
+      {confirmDialog}
     </div>
   );
 }

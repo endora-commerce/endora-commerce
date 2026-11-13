@@ -3,6 +3,7 @@ import { screen, waitFor } from '@testing-library/react';
 import userEvent from '@testing-library/user-event';
 import { MemoryRouter } from 'react-router-dom';
 import { renderWithI18n, passthroughBundle } from '../../helpers/render-with-i18n';
+import { answerConfirm } from '../../helpers/confirm-dialog';
 // The session provider arrives with D-221: `ProductsList` gates its two
 // *New product* affordances on `catalog:write` through `useAuth`, which throws
 // outside `<AuthProvider>`. The wildcard is deliberate — this file's subject is
@@ -123,7 +124,6 @@ describe('ProductsList — streamlined selection toolbar (T041)', () => {
     getSpy.mockReset();
     deleteSpy.mockReset();
     deleteSpy.mockResolvedValue(undefined);
-    vi.spyOn(window, 'confirm').mockReturnValue(true);
   });
 
   afterEach(() => {
@@ -274,6 +274,7 @@ describe('ProductsList — streamlined selection toolbar (T041)', () => {
     const user = userEvent.setup();
     await user.click(screen.getAllByRole('checkbox')[1]!);
     await user.click(await screen.findByText('productsList.bulk.delete'));
+    await answerConfirm(true);
 
     await waitFor(() => {
       expect(deleteSpy).toHaveBeenCalledWith(`/api/v1/admin/catalog/products/${id}`);

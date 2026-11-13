@@ -40,6 +40,8 @@
   "scope.channel": "Kanał sprzedaży",
   "blocks.title": "Bloki maili",
   "templates.title": "Szablony maili",
+  "blocks.deleteConfirm": "Usunąć ten blok?",
+  "templates.deleteConfirm": "Usunąć ten szablon?",
   "branding.title": "Branding",
   "branding.logo": "Logo nagłówka",
   "branding.accent": "Kolor akcentu",

@@ -5,7 +5,7 @@
 import { useCallback, useEffect, useRef, useState, type ReactNode } from 'react';
 import { Alert, AlertDescription, Button, Card, CardContent, CardHeader, CardTitle, Input, PageHeader } from '@endora-commerce/admin-kit/ui';
 import { useTranslation } from '@endora-commerce/admin-kit/i18n';
-import { AssetUploader } from '@endora-commerce/admin-kit/components';
+import { AssetUploader, useConfirmDialog } from '@endora-commerce/admin-kit/components';
 import { toAbsoluteAssetUrl } from '@endora-commerce/admin-kit/lib';
 import { FolderTree } from '../components/FolderTree.js';
 import { AssetDetailDrawer } from '../components/AssetDetailDrawer.js';
@@ -17,6 +17,8 @@ import {
 
 export function LibraryPage(): ReactNode {
   const t = useTranslation('assets_library');
+  const tc = useTranslation('core');
+  const { confirm, confirmDialog } = useConfirmDialog();
   const [folders, setFolders] = useState<AssetFolder[]>([]);
   const [folderId, setFolderId] = useState<string | null>(null); // null = Unsorted (root)
   const [items, setItems] = useState<AssetSummary[]>([]);
@@ -142,11 +144,16 @@ export function LibraryPage(): ReactNode {
       } catch {
         permalinked = 0;
       }
-      const choice = window.confirm(
-        permalinked > 0
-          ? `${t('folders.deleteConfirm')}\n\n${t('folders.permalinkNotice', { count: permalinked })}`
-          : t('folders.deleteConfirm'),
-      );
+      const choice = await confirm({
+        message: (
+          <>
+            <p>{t('folders.deleteConfirm')}</p>
+            {permalinked > 0 ? <p className="mt-2">{t('folders.permalinkNotice', { count: permalinked })}</p> : null}
+          </>
+        ),
+        confirmLabel: tc('common.action.delete'),
+        destructive: true,
+      });
       if (!choice) return;
       const out = await assetsLibraryClient.deleteFolder(id, {
         ifNonEmpty: 'moveContentsToParent',
@@ -291,6 +298,7 @@ export function LibraryPage(): ReactNode {
           </div>
         ) : null}
       </div>
+      {confirmDialog}
     </div>
   );
 }

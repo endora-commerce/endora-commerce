@@ -1,11 +1,16 @@
 import { useEffect, useState } from 'react';
+import { useConfirmDialog } from '@endora-commerce/admin-kit/components';
 import { Link } from 'react-router-dom';
 import type { EmailTemplateSummary } from '@endora-commerce/contracts';
 import { useAuth } from '@endora-commerce/admin-kit/lib';
+import { useTranslation } from '@endora-commerce/admin-kit/i18n';
 import { Alert, AlertDescription, Button, Card, CardContent, Input, PageHeader } from '@endora-commerce/admin-kit/ui';
 import { transactionalEmailsClient } from '../api/transactional-emails-client.js';
 
 export function EmailTemplatesPage(): React.ReactElement {
+  const t = useTranslation('transactional_emails');
+  const tc = useTranslation('core');
+  const { confirm, confirmDialog } = useConfirmDialog();
   const { hasPermission } = useAuth();
   const canWrite = hasPermission('transactional_emails:write');
   const [items, setItems] = useState<EmailTemplateSummary[]>([]);
@@ -34,7 +39,8 @@ export function EmailTemplatesPage(): React.ReactElement {
   };
 
   const remove = async (id: string): Promise<void> => {
-    if (!window.confirm('Delete this template?')) return;
+    const ok = await confirm({ message: t('templates.deleteConfirm'), confirmLabel: tc('common.action.delete'), destructive: true });
+    if (!ok) return;
     try {
       await transactionalEmailsClient.deleteTemplate(id);
       reload();
@@ -104,6 +110,7 @@ export function EmailTemplatesPage(): React.ReactElement {
           </table>
         </CardContent>
       </Card>
+      {confirmDialog}
     </div>
   );
 }

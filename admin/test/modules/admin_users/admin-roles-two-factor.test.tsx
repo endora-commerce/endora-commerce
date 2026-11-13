@@ -3,6 +3,7 @@ import { fireEvent, screen, waitFor } from '@testing-library/react';
 import { MemoryRouter } from 'react-router-dom';
 import { apiClient } from '@endora-commerce/admin-kit/lib';
 import { renderWithI18n, passthroughBundle } from '../../helpers/render-with-i18n';
+import { answerConfirm } from '../../helpers/confirm-dialog';
 import { adminSession, modulePresence, withSession } from '../../helpers/render-with-session';
 import AdminRolesPage from '../../../../packages/modules/admin_users/src/admin/pages/AdminRolesPage';
 
@@ -113,7 +114,6 @@ describe('AdminRolesPage — the two-factor requirement', () => {
   });
 
   it('explains the requirement and confirms the sign-out count before saving it on', async () => {
-    const confirm = vi.spyOn(window, 'confirm').mockReturnValue(true);
     const box = await renderPage(['admin_users', 'admin_roles', 'mfa']);
     expect(box.disabled).toBe(false);
     expect(screen.getByText('roles.twoFactor.help')).toBeTruthy();
@@ -121,20 +121,21 @@ describe('AdminRolesPage — the two-factor requirement', () => {
     fireEvent.click(box);
     fireEvent.click(screen.getByRole('button', { name: 'adminRoles.save' }));
 
+    const dialog = await answerConfirm(true);
+    expect(dialog).toHaveTextContent('roles.twoFactor.confirmSignOut');
     await waitFor(() => expect(apiClient.put).toHaveBeenCalled());
     expect(apiClient.get).toHaveBeenCalledWith('/api/v1/admin/admin-roles/accounting/two-factor-impact');
-    expect(confirm).toHaveBeenCalledWith('roles.twoFactor.confirmSignOut');
     expect(await screen.findByText('roles.twoFactor.signedOut')).toBeTruthy();
   });
 
   it('saves nothing when the operator declines the sign-out', async () => {
-    vi.spyOn(window, 'confirm').mockReturnValue(false);
     const box = await renderPage(['admin_users', 'admin_roles', 'mfa']);
     fireEvent.click(box);
     fireEvent.click(screen.getByRole('button', { name: 'adminRoles.save' }));
     await waitFor(() => expect(apiClient.get).toHaveBeenCalledWith(
       '/api/v1/admin/admin-roles/accounting/two-factor-impact',
     ));
+    await answerConfirm(false);
     expect(apiClient.put).not.toHaveBeenCalled();
   });
 

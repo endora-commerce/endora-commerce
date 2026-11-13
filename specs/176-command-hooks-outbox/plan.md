@@ -222,7 +222,7 @@ operator surface belongs to `_lifecycle`, the platform's resident admin module.
 ## Complexity Tracking
 
 No new runtime dependency. No constitution violation needs justifying. The two amendments (XIII
-wording, XV surface list) are FR-042 and are flagged for owner ratification.
+wording, XV surface list) are FR-042 and are flagged for owner ratification — ratified 2026-11-13 (#1080).
 
 ## Delivery and sequencing
 

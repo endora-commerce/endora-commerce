@@ -1,6 +1,56 @@
 <!--
 SYNC IMPACT REPORT
 ==================
+Version change: 4.2.0 → 4.3.0
+Rationale: MINOR. Principle XIII gains one bullet and Principle XV's bounded
+overridable surface names one more member, both specified by
+`specs/176-command-hooks-outbox/` (FR-042), and ratified by the owner on
+2026-11-13 in the merge request that ships them (#1080). OD-7 (2026-11-10) put
+command hooks and the outbox in scope; the wording is this amendment's.
+
+MINOR, not MAJOR. No compliant work becomes non-compliant: the Command Bus still
+writes exactly one audit entry per Command, and an outbox row is written inside
+the same transaction, so "one unit" holds. Not PATCH: XIII's "no bespoke command
+queue" could be read to forbid the outbox, and XV's surface list gains a member,
+which is a material expansion of guidance rather than a clarification.
+
+Modified sections:
+  - XIII. Uniform Write Auditing via Command Bus — a transactional outbox for
+    post-commit delivery is durable event dispatch, not a bespoke command queue;
+    its rows carry names-only values (`audit-state.md` list 1) and its operator
+    actions are Commands.
+  - XV. Untouched Core & Per-Deployment Overlay — the bounded overridable
+    surface names declared command hooks, and says what bounds one: a
+    `beforeCommit` hook's position is fixed by the dependency graph or
+    `commandHookOrder`, an `afterCommit` one runs after the commit.
+
+Added sections:
+  - (none)
+
+Removed sections:
+  - (none)
+
+Templates / artifacts requiring alignment:
+  - ✅ docs/docs/architecture/command-bus.md (+ Polish twin) — the hooks and
+       outbox sections (P2, P3) and the operator screen (P4).
+  - ✅ docs/docs/architecture/customisation-ladder.md (+ Polish twin) — the
+       command-hook seam (P2).
+  - ✅ docs/docs/architecture/kernel.md (+ Polish twin) — the contribution-seam
+       row for `ctx.commandHooks` (P4).
+  - ✅ AGENTS.md — its summaries of XIII ("admin/domain writes run through
+       `CommandBus.run`") and XV ("a deployment customises through an overlay
+       module") stay true; not edited.
+  - ✅ .specify/templates/* — none restates XIII's thin-layer bullet or XV's
+       surface list; verified by grep.
+
+Deferred items / TODOs:
+  - Spec 177 is on the same release train; whichever constitution amendment
+    merges second re-bumps the version (176 plan risk 7).
+
+--- The 4.2.0 report follows unchanged.
+
+SYNC IMPACT REPORT
+==================
 Version change: 4.1.0 → 4.2.0
 Rationale: MINOR. Principle I is materially expanded with column-granular
 ownership, Principle XV's bounded schema surface is restated, and Principle
@@ -899,6 +949,13 @@ existed anywhere. The following are binding for every backend feature that perfo
   infrastructure — **no CQRS, no separate read model, no bespoke command queue, no speculative
   redo** (Principle IV). Reversible bulk operations reuse the durable queue path (Principle X);
   large undos run through the separable worker entrypoint, never inline.
+- **The outbox is event dispatch, not a command queue.** A **transactional outbox** for
+  post-commit delivery — one row per `afterCommit` handler, written by the bus on the Command's
+  own transaction after its audit entry, and drained at least once on the durable queue path
+  (Principle X) — is durable event dispatch, not the bespoke command queue the bullet above
+  forbids. It never re-runs or defers the Command, which has already committed and audited; its
+  rows carry names-only values (`audit-state.md` list 1), never the write's values; and an
+  operator action on it, such as retrying a dead delivery, is itself a Command.
 - **Incremental migration is bounded.** Rollout is module by module, starting with the
   highest-regret writes (bulk operations, catalog, pricing, credit limits). An un-migrated
   module MAY retain hand-written audit calls, but each such write MUST still audit; the coverage
@@ -1020,7 +1077,10 @@ capability meant to be per-deployment overridable:
   (Principle XI), sales-channel scoping (Principle XII), and Command-Bus auditing (Principle XIII)
   as core — an override swaps an **implementation**, never a guard seam.
 - **Bounded overridable surface (YAGNI).** The overridable surface is **services, routes, config,
-  and whole new modules**. Overlay modules ship no schema. A deployment needing new schema ships it
+  declared command hooks, and whole new modules**. A command hook runs only on an action its
+  owning module declares hookable: a `beforeCommit` hook at a position the dependency graph — or
+  the deployment's declared `commandHookOrder` — fixes, an `afterCommit` one after the Command
+  commits. It extends the owner's write and never replaces it. Overlay modules ship no schema. A deployment needing new schema ships it
   in an installed module package, on one of three rungs: a **side table** the package owns, **declared
   extension columns** on an extensible table (Principle I), or a **variant the owning module
   provides**. Schema, entity or migration overrides of existing core units — a core column, a
@@ -1523,4 +1583,4 @@ corrective issues for any drift.
 to constitutional weight lives in `README.md` and the generated project
 documentation site.
 
-**Version**: 4.2.0 | **Ratified**: 2026-04-23 | **Last Amended**: 2026-11-10
+**Version**: 4.3.0 | **Ratified**: 2026-04-23 | **Last Amended**: 2026-11-12

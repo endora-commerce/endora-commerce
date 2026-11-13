@@ -2,7 +2,7 @@ import { useCallback, useEffect, useState, type FormEvent, type ReactNode } from
 import { Pencil, Trash2 } from 'lucide-react';
 import { ApiError, formatMoney, useSurfaceVisibility } from '@endora-commerce/admin-kit/lib';
 import { Alert, AlertDescription, Badge, Button, Card, CardContent, CardHeader, CardTitle, Input, Label, PageHeader, Select, Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from '@endora-commerce/admin-kit/ui';
-import { CurrencyPicker } from '@endora-commerce/admin-kit/components';
+import { CurrencyPicker, useConfirmDialog } from '@endora-commerce/admin-kit/components';
 import {
   MethodSalesChannelsCell,
   MethodSalesChannelsField,
@@ -40,6 +40,7 @@ const ADAPTER_LABEL_KEYS: Record<string, string> = {
 
 export function DeliveryMethodsPage(): ReactNode {
   const t = useTranslation('core');
+  const { confirm, confirmDialog } = useConfirmDialog();
   // The adapter picker's copy lives in this module's own bundle; the rest of the
   // screen still reads the shared `core` scope it was written against.
   const tm = useTranslation('delivery_methods');
@@ -189,7 +190,12 @@ export function DeliveryMethodsPage(): ReactNode {
 
   const handleDelete = useCallback(
     async (id: string): Promise<void> => {
-      if (!confirm(t('legacyMethods.delivery.deleteConfirm'))) return;
+      const ok = await confirm({
+        message: t('legacyMethods.delivery.deleteConfirm'),
+        confirmLabel: t('common.action.delete'),
+        destructive: true,
+      });
+      if (!ok) return;
       try {
         await deliveryMethodsClient.remove(id);
         await refresh();
@@ -197,7 +203,7 @@ export function DeliveryMethodsPage(): ReactNode {
         setError(err instanceof ApiError ? err.envelope.error.message : t('legacyMethods.errors.delete'));
       }
     },
-    [refresh],
+    [refresh, t, confirm],
   );
 
   if (!canRead) {
@@ -339,6 +345,7 @@ export function DeliveryMethodsPage(): ReactNode {
           )}
         </CardContent>
       </Card>
+      {confirmDialog}
     </>
   );
 }

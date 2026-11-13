@@ -1,4 +1,5 @@
 import { useCallback, useEffect, useState, type ReactNode } from 'react';
+import { useConfirmDialog } from '@endora-commerce/admin-kit/components';
 import { useNavigate } from 'react-router-dom';
 import { BarChart3, Pencil, Plus, Trash2 } from 'lucide-react';
 import { ApiError, apiClient, formatDateTime, useAuth } from '@endora-commerce/admin-kit/lib';
@@ -59,6 +60,7 @@ function describeEffect(p: AdminPromotion): string {
 
 export const PromotionsPage = (): ReactNode => {
   const t = useTranslation('core');
+  const { confirm, confirmDialog } = useConfirmDialog();
   const navigate = useNavigate();
   const { hasPermission } = useAuth();
   const canWrite = hasPermission('promotions:write');
@@ -87,7 +89,12 @@ export const PromotionsPage = (): ReactNode => {
 
   const handleDelete = useCallback(
     async (id: string): Promise<void> => {
-      if (!confirm(t('promotions.deleteConfirm'))) return;
+      const ok = await confirm({
+        message: t('promotions.deleteConfirm'),
+        confirmLabel: t('common.action.delete'),
+        destructive: true,
+      });
+      if (!ok) return;
       try {
         await apiClient.delete<void>(`/api/v1/admin/promotions/${id}`);
         setInfo(null);
@@ -96,7 +103,7 @@ export const PromotionsPage = (): ReactNode => {
         setError(err instanceof ApiError ? err.envelope.error.message : t('promotions.error.delete'));
       }
     },
-    [refresh, t],
+    [refresh, t, confirm],
   );
 
   return (
@@ -220,6 +227,7 @@ export const PromotionsPage = (): ReactNode => {
           )}
         </CardContent>
       </Card>
+      {confirmDialog}
     </>
   );
 };

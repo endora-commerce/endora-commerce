@@ -75,5 +75,15 @@
   "settlement.orderMethod": "{name} (the order's payment method)",
   "settlement.orderMethodUnnamed": "The order's payment method",
   "settlement.chooseMethod": "Choose a payment method",
-  "settlement.paymentMethodIdHint": "The list of payment methods could not be loaded, so enter the method's ID."
+  "settlement.paymentMethodIdHint": "The list of payment methods could not be loaded, so enter the method's ID.",
+  "reject.action": "Reject",
+  "reject.dialogTitle": "Reject return",
+  "reject.explanation": "The case is closed as rejected. The customer sees this reason on their return and in the rejection e-mail.",
+  "reject.reason": "Reason",
+  "reject.reasonHint": "Required. Up to {max} characters.",
+  "reject.confirm": "Reject",
+  "reject.cancel": "Cancel",
+  "reject.rejectedInfo": "Return rejected.",
+  "reject.error.reasonMissing": "Enter the reason for rejecting the return.",
+  "reject.error.reasonTooLong": "The reason is too long. Shorten it to {max} characters or fewer."
 }

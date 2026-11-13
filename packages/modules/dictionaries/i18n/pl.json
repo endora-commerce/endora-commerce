@@ -101,5 +101,8 @@
   "actions.openDictionaryAudit.label": "Audyt słownika",
   "actions.openDictionaryAudit.description": "Nierozwiązane referencje rejestrów",
   "actions.openDictionary.keywords": "słownik, kraje, waluty, języki",
-  "actions.openDictionaryAudit.keywords": "audyt, słownika"
+  "actions.openDictionaryAudit.keywords": "audyt, słownika",
+  "country.deleteConfirm": "Usunąć kraj {code}?",
+  "currency.deleteConfirm": "Usunąć walutę {code}?",
+  "language.deleteConfirm": "Usunąć język {code}?"
 }

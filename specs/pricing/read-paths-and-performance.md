@@ -286,7 +286,9 @@ Gaps still open (code-verified unless marked):
 ## 3. Sort by price / price range on listings
 
 - Route: `CAT/backend/routes.public.ts:219-226` refuses a price sort when the page shows no prices;
-  any price sort or range **forces Postgres**, never Meilisearch (`:256-275`).
+  any price sort or range **forces Postgres**, never Meilisearch (`:256-275`). Since issue #420
+  `CatalogQueryService.listProducts` refuses a price sort or range on such a page itself, before it
+  reads anything, so a caller that skips the route cannot narrow a range to infer withheld prices.
 - Implementation: `CatalogQueryService.#listByViewerPrice` (`CAT/backend/services/catalog-query.service.ts:924-1125`)
   → `PricingService.orderByUnitPrice` (`PL/backend/services/pricing-service.ts:791-883`) →
   SQL builder `PL/backend/services/unit-price-ordering.ts`.

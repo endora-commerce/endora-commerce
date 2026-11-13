@@ -25,6 +25,7 @@ import {
   SplitLineDialog,
   canSplitLine,
   splitLineInto,
+  useConfirmDialog,
 } from '@endora-commerce/admin-kit/components';
 import {
   arrangeLineGroups,
@@ -208,6 +209,7 @@ const STATUS_VARIANT: Record<
 
 export function RfqDetail(): ReactNode {
   const t = useTranslation('core');
+  const { confirm, confirmDialog } = useConfirmDialog();
   const format = useRfqNumberFormat();
   const { id } = useParams<{ id: string }>();
   const [searchParams] = useSearchParams();
@@ -311,7 +313,13 @@ export function RfqDetail(): ReactNode {
   // it replaces what that customer's basket holds.
   const convert = async (): Promise<void> => {
     if (!rfq) return;
-    if (!window.confirm(t('rfq.detail.convert.confirm'))) return;
+    const ok = await confirm({
+      title: t('rfq.detail.convert.title'),
+      message: t('rfq.detail.convert.confirm'),
+      confirmLabel: t('rfq.detail.convert.placeOrder'),
+      destructive: true,
+    });
+    if (!ok) return;
     setBusy(true);
     setError(null);
     setInfo(null);
@@ -844,6 +852,7 @@ export function RfqDetail(): ReactNode {
           busy={busy}
         />
       ) : null}
+      {confirmDialog}
     </>
   );
 }
