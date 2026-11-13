@@ -3,6 +3,7 @@ import { join, relative, sep } from 'node:path';
 import { fileURLToPath } from 'node:url';
 import { describe, expect, it, vi } from 'vitest';
 import { anyRowExists as assetsLibraryAnyRowExists } from '../../../../packages/modules/assets_library/src/backend/services/scheduled-work-probe.js';
+import { anyRowExists as cartsAnyRowExists } from '../../../../packages/modules/carts/src/backend/services/scheduled-work-probe.js';
 import { anyRowExists as catalogAnyRowExists } from '../../../../packages/modules/catalog/src/backend/services/scheduled-work-probe.js';
 import { anyRowExists as customerAccountsAnyRowExists } from '../../../../packages/modules/customer_accounts/src/backend/services/scheduled-work-probe.js';
 import { anyRowExists as customerNotificationsAnyRowExists } from '../../../../packages/modules/customer_notifications/src/backend/services/scheduled-work-probe.js';
@@ -74,6 +75,8 @@ const PROBES = [
   },
   // `specs/179-rfq-and-customer-notifications/` R-16 — the centre's daily retention sweep.
   { module: 'customer_notifications', file: 'services/retention-store.ts', method: 'hasWork' },
+  // Issue #1119 — the cart abandonment sweep, scheduled since that change.
+  { module: 'carts', file: 'services/cart-abandonment-worker.ts', method: 'hasSweepWork' },
 ] as const;
 
 const HELPER = 'services/scheduled-work-probe.ts';
@@ -156,6 +159,7 @@ describe('scheduled work probes answer one bit (issue #120)', () => {
     ['customer_accounts', customerAccountsAnyRowExists],
     ['organizations', organizationsAnyRowExists],
     ['customer_notifications', customerNotificationsAnyRowExists],
+    ['carts', cartsAnyRowExists],
   ] as const)('anyRowExists (%s)', (_module, anyRowExists) => {
     const emAnswering = (rows: unknown) => ({ execute: vi.fn(async () => rows) });
 

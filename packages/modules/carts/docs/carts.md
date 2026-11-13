@@ -393,6 +393,14 @@ Reactivation: any buyer activity (touch, add/remove/qty/coupon) on an
 `abandoned` cart returns it to `active` and clears
 `abandonment_notified_at` so the next abandonment cycle can re-notify.
 
+The sweep runs on its own: a BullMQ Job Scheduler, `carts.abandonment.sweep`,
+fires every 15 minutes in every process that runs queue consumers, and the
+consumer stops while `carts` is unavailable on the platform. A tick first asks
+whether any cart is due — an idle active cart past the threshold, or a working
+basket older than an hour — and runs a pass only when one is, so an idle
+instance writes no `tenant.escape_hatch` audit row for it. Repeated or
+concurrent passes are harmless: a pass takes only carts that are still due.
+
 ## Conversions
 
 - **Cart → Quote Request**: `RfqService.createForCustomer` is reused; the
@@ -542,10 +550,10 @@ surfaces `couponDroppedThisRead`. Wiring into the read path is a follow-up.
   e-mail is the `cartAbandonmentNotifier` contribution point, which a
   deployment supplies; without one the sweep flips the status and sends
   nothing.
-- **Abandonment scheduler** — the worker is constructed in production
-  composition but not yet wired to a cron / BullMQ schedule. The ops CLI
+- **Abandonment scheduler** — the sweep is a BullMQ repeatable job
+  (`cart-abandonment-sweep-worker.ts`, `startCartAbandonmentSweep`), attached through `ctx.worker` so it stops with the module. The ops CLI
   `pnpm run cli carts abandonment-sweep`, run in the root of an instance, runs
-  one tick by hand; in a checkout of the Endora Commerce repository it is
+  one extra pass by hand; in a checkout of the Endora Commerce repository it is
   `pnpm --filter backend run cart:abandonment-sweep`.
   It is a manifest-declared command the host runs, so it sweeps through the
   composition's own `cartAbandonmentWorker` — see

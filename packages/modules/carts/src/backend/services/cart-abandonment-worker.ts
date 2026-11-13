@@ -3,6 +3,7 @@ import { Cart } from '../entities/cart.entity.js';
 import { CartItem } from '../entities/cart-item.entity.js';
 import type { CartAuditService } from './cart-audit-service.js';
 import { withSystemScope } from '@endora-commerce/platform/tenancy';
+import { anyRowExists, type WorkRows } from './scheduled-work-probe.js';
 
 /**
  * CartAbandonmentWorker — feature 027 US5.
@@ -74,6 +75,16 @@ import { withSystemScope } from '@endora-commerce/platform/tenancy';
  * runs whether or not the abandonment threshold is enabled: that setting is a
  * business choice about buyers' baskets, and this is housekeeping of rows no
  * buyer can see.
+ *
+ * ## The clock (issue #1119)
+ *
+ * The sweep runs on a BullMQ Job Scheduler the module installs itself —
+ * `workers/cart-abandonment-sweep-worker.ts` — and the `carts abandonment-sweep`
+ * command stays for a manual pass. The scheduled tick asks
+ * {@link CartAbandonmentWorker.hasSweepWork} first, with no tenant context, and
+ * enters the system scope (and so writes its `tenant.escape_hatch` audit row)
+ * only when something is due; the pass it then runs is
+ * {@link CartAbandonmentWorker.sweepInScope}, which enters no second scope.
  */
 
 /**
@@ -126,82 +137,133 @@ export interface CartAbandonmentSweepResult {
 export class CartAbandonmentWorker {
   constructor(private readonly deps: CartAbandonmentWorkerDeps) {}
 
+  /**
+   * Whether a pass at `now` has anything to do — the scheduled tick's question,
+   * asked **outside any tenant scope** (issue #1119;
+   * `docs/docs/architecture/tenant-scoping.md` § *A scheduled tick with nothing
+   * to do enters no scope*).
+   *
+   * It stays legitimate by learning one bit: it goes through `anyRowExists`,
+   * which writes the statement itself and returns a boolean, so no row, id or
+   * count of any Organization's cart leaves it. The setting it reads first is
+   * platform configuration. Its answer is never handed to the pass, which
+   * re-reads everything inside the scope.
+   */
+  async hasSweepWork(now: Date = new Date()): Promise<boolean> {
+    const inactivityMinutes = await this.deps.resolveInactivityMinutes();
+    return anyRowExists(this.deps.emFactory(), this.dueRows(now, inactivityMinutes));
+  }
+
+  /**
+   * The carts a pass at `now` would act on, as row sources: orphaned working
+   * baskets always, and idle active carts while the threshold is enabled. The
+   * conditions are the pass's own — `removeOrphanedWorkingBaskets` and the
+   * eligibility filter in {@link sweepInScope} — and
+   * `cart-abandonment-worker.integration.test.ts` holds the two to the same
+   * answer.
+   */
+  dueRows(now: Date, inactivityMinutes: number): WorkRows[] {
+    const rows: WorkRows[] = [
+      {
+        from: `from "carts" where "status" = 'working' and "created_at" < ?`,
+        params: [new Date(now.getTime() - ORPHANED_WORKING_BASKET_MINUTES * 60_000)],
+      },
+    ];
+    if (Number.isFinite(inactivityMinutes) && inactivityMinutes > 0) {
+      rows.push({
+        from:
+          `from "carts" where "status" = 'active' and "last_activity_at" < ?` +
+          ` and "abandonment_notified_at" is null`,
+        params: [new Date(now.getTime() - inactivityMinutes * 60_000)],
+      });
+    }
+    return rows;
+  }
+
+  /** One pass under its own system scope — the CLI command's entry. */
   async sweep(now: Date = new Date()): Promise<CartAbandonmentSweepResult> {
     // Feature 050 — system-wide sweep across all customers; run under a system
     // scope so the Cart reads/writes carry a tenant context (fail-closed guard).
-    return withSystemScope('cart-abandonment sweep', async () => {
-      const em = this.deps.emFactory();
-      const workingBasketsRemoved = await this.removeOrphanedWorkingBaskets(em, now);
+    return withSystemScope('cart-abandonment sweep', () => this.sweepInScope(now));
+  }
 
-      const inactivityMinutes = await this.deps.resolveInactivityMinutes();
-      if (!Number.isFinite(inactivityMinutes) || inactivityMinutes <= 0) {
-        return { abandonedCount: 0, notifiedCount: 0, workingBasketsRemoved };
+  /**
+   * One pass, for a caller that has already entered a system scope — the
+   * scheduled consumer, which enters it as the queue's entry point. Entering a
+   * second one here would write a second escape-hatch audit row per tick.
+   */
+  async sweepInScope(now: Date = new Date()): Promise<CartAbandonmentSweepResult> {
+    const em = this.deps.emFactory();
+    const workingBasketsRemoved = await this.removeOrphanedWorkingBaskets(em, now);
+
+    const inactivityMinutes = await this.deps.resolveInactivityMinutes();
+    if (!Number.isFinite(inactivityMinutes) || inactivityMinutes <= 0) {
+      return { abandonedCount: 0, notifiedCount: 0, workingBasketsRemoved };
+    }
+
+    const cutoff = new Date(now.getTime() - inactivityMinutes * 60_000);
+    const batchSize = Math.max(1, this.deps.batchSize ?? DEFAULT_SWEEP_BATCH_SIZE);
+
+    let abandonedCount = 0;
+    let notifiedCount = 0;
+    /** Read once, on the first batch that has work — as it was per sweep. */
+    let recipient: string | null = null;
+
+    for (;;) {
+      const batch = await em.find(
+        Cart,
+        {
+          status: 'active',
+          lastActivityAt: { $lt: cutoff },
+          abandonmentNotifiedAt: null,
+        },
+        { limit: batchSize },
+      );
+      if (batch.length === 0) break;
+
+      if (recipient === null) recipient = await this.deps.resolveNotificationRecipient();
+      const shouldNotify =
+        recipient.trim().length > 0 && Boolean(this.deps.dispatchNotification);
+
+      const lineCounts = await this.countLines(
+        em,
+        batch.map((c) => c.id),
+      );
+
+      for (const cart of batch) {
+        cart.status = 'abandoned';
+        cart.abandonmentNotifiedAt = now;
+      }
+      this.deps.cartAuditService.recordWithin(
+        em,
+        batch.map((cart) => ({
+          cartId: cart.id,
+          actorType: 'sweep' as const,
+          action: 'abandonment_swept' as const,
+          fromState: 'active',
+          toState: 'abandoned',
+          metadata: { lineCount: lineCounts.get(cart.id) ?? 0, inactivityMinutes },
+        })),
+      );
+      // One flush, one transaction: the flip and the rows auditing it.
+      await em.flush();
+      abandonedCount += batch.length;
+
+      // Notification fan-out happens AFTER the batch is durable so a failure
+      // in the e-mail dispatch cannot leave status in a transient state.
+      if (shouldNotify && this.deps.dispatchNotification) {
+        notifiedCount += await this.dispatchFor(batch, recipient, lineCounts);
       }
 
-      const cutoff = new Date(now.getTime() - inactivityMinutes * 60_000);
-      const batchSize = Math.max(1, this.deps.batchSize ?? DEFAULT_SWEEP_BATCH_SIZE);
+      // The identity map is the other half of the old superlinear cost: every
+      // later flush walked the carts and audit rows of every earlier batch.
+      // Nothing above this line survives the batch, so dropping it is free.
+      em.clear();
 
-      let abandonedCount = 0;
-      let notifiedCount = 0;
-      /** Read once, on the first batch that has work — as it was per sweep. */
-      let recipient: string | null = null;
+      if (batch.length < batchSize) break;
+    }
 
-      for (;;) {
-        const batch = await em.find(
-          Cart,
-          {
-            status: 'active',
-            lastActivityAt: { $lt: cutoff },
-            abandonmentNotifiedAt: null,
-          },
-          { limit: batchSize },
-        );
-        if (batch.length === 0) break;
-
-        if (recipient === null) recipient = await this.deps.resolveNotificationRecipient();
-        const shouldNotify =
-          recipient.trim().length > 0 && Boolean(this.deps.dispatchNotification);
-
-        const lineCounts = await this.countLines(
-          em,
-          batch.map((c) => c.id),
-        );
-
-        for (const cart of batch) {
-          cart.status = 'abandoned';
-          cart.abandonmentNotifiedAt = now;
-        }
-        this.deps.cartAuditService.recordWithin(
-          em,
-          batch.map((cart) => ({
-            cartId: cart.id,
-            actorType: 'sweep' as const,
-            action: 'abandonment_swept' as const,
-            fromState: 'active',
-            toState: 'abandoned',
-            metadata: { lineCount: lineCounts.get(cart.id) ?? 0, inactivityMinutes },
-          })),
-        );
-        // One flush, one transaction: the flip and the rows auditing it.
-        await em.flush();
-        abandonedCount += batch.length;
-
-        // Notification fan-out happens AFTER the batch is durable so a failure
-        // in the e-mail dispatch cannot leave status in a transient state.
-        if (shouldNotify && this.deps.dispatchNotification) {
-          notifiedCount += await this.dispatchFor(batch, recipient, lineCounts);
-        }
-
-        // The identity map is the other half of the old superlinear cost: every
-        // later flush walked the carts and audit rows of every earlier batch.
-        // Nothing above this line survives the batch, so dropping it is free.
-        em.clear();
-
-        if (batch.length < batchSize) break;
-      }
-
-      return { abandonedCount, notifiedCount, workingBasketsRemoved };
-    });
+    return { abandonedCount, notifiedCount, workingBasketsRemoved };
   }
 
   /**

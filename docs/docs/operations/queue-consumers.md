@@ -199,6 +199,26 @@ delivery contract.
 **If no worker consumes this queue**, nothing is lost: the rows wait in the
 database and are delivered once a worker runs.
 
+### Cart abandonment sweep — `carts.abandonment.sweep`
+
+Marks active carts idle past `carts.abandonment.inactivity_minutes` as abandoned (and sends the
+abandonment notification a deployment supplies), and removes working baskets left behind by an
+order placement that never finished. A job scheduler runs it every 15 minutes. A tick first asks
+whether any cart is due and runs a pass only when one is, so an idle instance does no work and
+writes no audit row for it. A pass works in batches of 500, committing each batch's status flips
+together with the audit rows for them, so an interrupted pass leaves whole batches behind rather
+than a partial one; the next tick picks up the rest. Passes are idempotent, so a second worker
+instance is harmless. While `carts` is unavailable on the platform no tick runs.
+
+To run one pass by hand, use `pnpm run cli carts abandonment-sweep` in the root of an instance
+(`pnpm --filter backend run cart:abandonment-sweep` in a checkout of the Endora Commerce
+repository). The command reads module presence from `module_registrations` before it does anything
+and exits non-zero with `MODULE_DISABLED` when `carts` is not installed on the deployment.
+
+**If no worker consumes this queue**, carts are not marked abandoned and orphaned working baskets
+stay in the database — harmlessly, since nothing reads them — until a worker runs or the command is
+run by hand.
+
 ## Other background jobs (not yet on a shared queue)
 
 A few periodic/maintenance jobs still run as in-process timers or manual
@@ -207,14 +227,12 @@ to the same worker model; document and operate them as follows in the meantime:
 
 | Job | How it runs today | Invocation |
 | --- | --- | --- |
-| Cart abandonment sweep | Manual / cron script | `pnpm run cli carts abandonment-sweep` |
 | Full search re-index | Manual CLI | `pnpm run cli search reindex` |
 | Price-book status sweep (moves *Scheduled* books to *Active* and *Active* ones to *Expired* for the admin's display; prices follow a book's dates at the exact instant regardless) | In-process `setInterval` (every 5 min) | starts with the API process |
 | RFQ expiry | Service method, invoked on a schedule | `RfqExpiryWorker.sweep()` |
 
-The two commands are run in the root of an instance. In a checkout of the Endora Commerce
-repository they are `pnpm --filter backend run cart:abandonment-sweep` and
-`pnpm --filter backend run search:reindex`.
+The command is run in the root of an instance. In a checkout of the Endora Commerce repository it
+is `pnpm --filter backend run search:reindex`.
 
 :::note
 The in-process `setInterval` sweepers above are the legacy pattern the
@@ -222,13 +240,6 @@ scalable queue consumer rule replaces. New asynchronous, queue-backed work
 MUST use the durable-queue + separable-worker model described here, never a
 request-process timer.
 :::
-
-The cart abandonment sweep reads module presence from `module_registrations`
-before it does anything and exits non-zero with `MODULE_DISABLED` when `carts`
-is not installed on the deployment — the same answer an HTTP route would give,
-for an entry point that has no route to gate. It sweeps in batches of 500,
-committing each batch's status flips together with the audit rows for them, so
-an interrupted run leaves whole batches behind rather than a partial one.
 
 ## Monitoring & troubleshooting
 
