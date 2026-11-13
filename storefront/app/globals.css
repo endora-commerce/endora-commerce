@@ -1385,9 +1385,12 @@ select:focus-visible {
 /* Mobile UI (feature 044)                                              */
 /* ------------------------------------------------------------------ */
 /* Conventions for the phone experience (Industria Mobile, 390px ref): */
-/*   - "Mobile" = viewport < md (768px), the same boundary the megamenu */
-/*     drawer already pivots on. New mobile chrome is shown with        */
-/*     Tailwind `md:hidden` and hidden on desktop with `max-md:hidden`. */
+/*   - "Mobile" = viewport < md (768px). New mobile chrome is shown     */
+/*     with Tailwind `md:hidden` and hidden on desktop with             */
+/*     `max-md:hidden`. Exception (feature 179, WP-09a): the bottom tab */
+/*     bar and the megamenu drawer follow the header, which shows its   */
+/*     compact rows up to 876px — they are `min-[877px]:hidden`, so the */
+/*     768–876px band keeps an account entry.                           */
 /*   - Fixed top/bottom chrome MUST respect device safe-area insets and */
 /*     MUST reserve its own space so it never hides content (no CLS,    */
 /*     Principle VII). The bottom tab bar publishes its height into     */
@@ -1398,33 +1401,40 @@ select:focus-visible {
 /* ------------------------------------------------------------------ */
 :root {
   /* Height the bottom tab bar reserves at the page foot on mobile.
-     0 on desktop; the tab bar (md:hidden) sets the real value below. */
+     0 on desktop; the tab bar (min-[877px]:hidden) sets the real value
+     below. */
   --m-tabbar-h: 0px;
   /* Safe-area inset helpers (0 on browsers without env() support). */
   --m-safe-top: env(safe-area-inset-top, 0px);
   --m-safe-bottom: env(safe-area-inset-bottom, 0px);
 }
 
+/* The fixed bottom tab bar (min-[877px]:hidden) is ~56px tall; reserve
+   that much at the page foot wherever it is shown, so the last row + footer
+   stay reachable (SC-007). Its boundary is the header's (876/877), not `md`
+   (`specs/179-rfq-and-customer-notifications/` research R-24 (c)). */
+@media (max-width: 876px) {
+  :root { --m-tabbar-h: 56px; }
+  body { padding-bottom: calc(var(--m-tabbar-h) + var(--m-safe-bottom)); }
+}
+
 /* No horizontal page overflow anywhere on the mobile band (SC-001/002). */
 @media (max-width: 767px) {
-  /* The fixed bottom tab bar (md:hidden) is ~56px tall; reserve that much
-     at the page foot so the last row + footer stay reachable (SC-007). */
-  :root { --m-tabbar-h: 56px; }
   html, body { overflow-x: hidden; }
-  body { padding-bottom: calc(var(--m-tabbar-h) + var(--m-safe-bottom)); }
   /* Touch-target floor: header icon buttons are 40px on desktop; bump to the
      44px minimum on phones (FR-004 / SC-003). */
   .icon-btn { min-height: 44px; min-width: 44px; }
 }
 
 @layer components {
-  /* Fixed bottom tab bar — primary thumb navigation (design §01). On
-     desktop it is `md:hidden`; the wrapper sets --m-tabbar-h so the page
-     reserves matching bottom padding (rule above). One equal column per
+  /* Fixed bottom tab bar — primary thumb navigation (design §01). Hidden
+     from 877px, where the desktop header rows take over (the header's own
+     boundary); --m-tabbar-h makes the page reserve matching bottom padding
+     up to 876px (rule above). One equal column per
      rendered tab: a tab whose module is off is not rendered (issue #666), and
      the rest share the bar rather than leave a gap. */
   .m-tabbar {
-    @apply fixed inset-x-0 bottom-0 z-40 grid grid-flow-col auto-cols-fr border-t border-line bg-surface md:hidden;
+    @apply fixed inset-x-0 bottom-0 z-40 grid grid-flow-col auto-cols-fr border-t border-line bg-surface min-[877px]:hidden;
     padding-bottom: var(--m-safe-bottom);
   }
   .m-tabbar__item {

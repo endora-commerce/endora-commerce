@@ -93,8 +93,8 @@ Contract and integration files do not run on merge requests (D-198): run them lo
 
 ### WP-09a Tablet breakpoint alignment (`sf`) — own MR, before WP-09
 
-- [ ] T078 [WP-09a] [US3] Test (SSR/CSS): the tab bar and the drawer trigger render at widths below 877 px and the desktop header rows from 877 px — the class/breakpoint assertions at 767, 768, 876 and 877 px; `--m-tabbar-h` set below 877 px — `sf/test/HeaderBreakpoint.test.tsx` (extended)
-- [ ] T079 [WP-09a] Impl: align `.m-tabbar` (and the body spacer it drives) and `MegamenuMobileDrawer`'s `md:hidden` to `min-[877px]`; check sticky bars that read `--m-tabbar-h` (PDP, checkout); screenshot 800 px before/after in the MR
+- [x] T078 [WP-09a] [US3] Test (SSR/CSS): the tab bar and the drawer trigger render at widths below 877 px and the desktop header rows from 877 px — the class/breakpoint assertions at 767, 768, 876 and 877 px; `--m-tabbar-h` set below 877 px — `sf/test/HeaderBreakpoint.test.tsx` (extended)
+- [x] T079 [WP-09a] Impl: align `.m-tabbar` (and the body spacer it drives) and `MegamenuMobileDrawer`'s `md:hidden` to `min-[877px]`; check sticky bars that read `--m-tabbar-h` (PDP, checkout); screenshot 800 px before/after in the MR (done without the dev stack: a Chromium computed-style probe of the compiled CSS at 767/768/800/876/877 px before and after, recorded in the MR; no page screenshot)
 
 ### WP-09 Storefront (`sf`)
 
