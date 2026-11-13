@@ -57,13 +57,14 @@ function fileUnavailable(): HttpError {
  * `visibility: 'private'`. The port says nothing about what a file was
  * uploaded *for*, so that is all this module can hold it to.
  *
- * **The download link is resolved here**, through `assetsLibraryPort`, because
- * the library's own admin API is gated on the library's permissions and the
- * people working an Opportunity need not hold them. It is a signed link that
- * expires within minutes, so a screen reads the list again before it opens
- * one. It is handed out only under an Opportunity that was loaded through the
- * tenant-scoped EntityManager — and a file already attached to an Opportunity
- * the caller cannot see cannot be attached elsewhere to obtain one.
+ * **The download link is resolved here**, through `assetReadPort.resolveUrls`
+ * in one batch per list (issue #545), because the library's own admin API is
+ * gated on the library's permissions and the people working an Opportunity need
+ * not hold them. It is a signed link that expires within minutes, so a screen
+ * reads the list again before it opens one. It is handed out only under an
+ * Opportunity that was loaded through the tenant-scoped EntityManager — and a
+ * file already attached to an Opportunity the caller cannot see cannot be
+ * attached elsewhere to obtain one.
  *
  * Every write is a Command recorded against the Opportunity.
  */
@@ -220,12 +221,14 @@ export class OpportunityAttachmentService {
     const names = new Map(
       uploaders.map((admin) => [admin.id, `${admin.firstName} ${admin.lastName}`.trim() || admin.email]),
     );
-    // One call per file that is still there, and none for one that is gone —
-    // so the library is never asked for something it would have to refuse.
+    // One batched read for every file that is still there, and none for one
+    // that is gone. `resolveUrls` answers the URL the asset detail carries —
+    // signed and expiring for a private file — without the detail's "used by"
+    // list, which asked every reference descriptor about each file (#545).
+    const live = assets.map((asset) => asset.id);
+    const resolved = live.length > 0 ? await this.deps.assets.resolveUrls(live) : new Map<string, string>();
     const urls = new Map<string, string>();
-    for (const asset of assets) {
-      urls.set(asset.id, asDownloadLink((await this.deps.assetsLibrary.getAsset(asset.id)).url, asset.id));
-    }
+    for (const [assetId, url] of resolved) urls.set(assetId, asDownloadLink(url, assetId));
     return rows.map((row) => {
       const asset = assetById.get(row.assetId);
       const size = asset ? Number(asset.sizeBytes) : 0;

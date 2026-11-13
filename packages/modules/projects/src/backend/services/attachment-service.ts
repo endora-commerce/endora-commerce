@@ -63,10 +63,11 @@ function adminName(admin: { firstName: string; lastName: string; email: string }
  * has a stable address anybody can fetch, and an HTML or SVG file opened from
  * the API's origin runs with the reader's session.
  *
- * **The download link is resolved here**, through `assetsLibraryPort`, because
- * the library's own admin API is behind the library's permissions; it is handed
- * out only under a Project the caller may see — and a file attached to a
- * Project the caller may not see cannot be attached elsewhere to obtain one.
+ * **The download link is resolved here**, through `assetReadPort.resolveUrls`
+ * in one batch per list (issue #545), because the library's own admin API is
+ * behind the library's permissions; it is handed out only under a Project the
+ * caller may see — and a file attached to a Project the caller may not see
+ * cannot be attached elsewhere to obtain one.
  *
  * **The upload stores first and attaches second**, two writes in two modules
  * that cannot share a transaction: when attaching fails the stored file is
@@ -258,11 +259,14 @@ export class ProjectAttachmentService {
     ]);
     const assetById = new Map(assets.map((asset) => [asset.id, asset]));
     const names = new Map(uploaders.map((admin) => [admin.id, adminName(admin)]));
-    // One call per file that is still there, and none for one that is gone.
+    // One batched read for every file that is still there, and none for one
+    // that is gone. `resolveUrls` answers the URL the asset detail carries —
+    // signed and expiring for a private file — without the detail's "used by"
+    // list, which asked every reference descriptor about each file (#545).
+    const live = assets.map((asset) => asset.id);
+    const resolved = live.length > 0 ? await this.deps.assets.resolveUrls(live) : new Map<string, string>();
     const urls = new Map<string, string>();
-    for (const asset of assets) {
-      urls.set(asset.id, asDownloadLink((await this.deps.assetsLibrary.getAsset(asset.id)).url, asset.id));
-    }
+    for (const [assetId, url] of resolved) urls.set(assetId, asDownloadLink(url, assetId));
     return rows.map((row) => {
       const asset = assetById.get(row.assetId);
       const size = asset ? Number(asset.sizeBytes) : 0;
