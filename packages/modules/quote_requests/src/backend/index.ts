@@ -66,7 +66,7 @@ import { QuoteRequestEvent } from './entities/quote-request-event.entity.js';
 import { QuoteRequestItem } from './entities/quote-request-item.entity.js';
 import { QuoteRequestItemGroup } from './entities/quote-request-item-group.entity.js';
 import { QuoteRequestListSavedView } from './entities/quote-request-list-saved-view.entity.js';
-import { QuoteRequestNotificationEvent } from './entities/quote-request-notification-event.entity.js';
+import { QuoteRequestNotification } from './entities/quote-request-notification.entity.js';
 import { QuoteRequestRevision } from './entities/quote-request-revision.entity.js';
 import { QuoteRequestOrgPolicy } from './entities/quote-request-org-policy.entity.js';
 import { QuoteRequestAccountPolicy } from './entities/quote-request-account-policy.entity.js';
@@ -822,7 +822,7 @@ export const entities = [
   QuoteRequestItem,
   QuoteRequestItemGroup,
   QuoteRequestListSavedView,
-  QuoteRequestNotificationEvent,
+  QuoteRequestNotification,
   QuoteRequestRevision,
   QuoteRequestOrgPolicy,
   QuoteRequestAccountPolicy,

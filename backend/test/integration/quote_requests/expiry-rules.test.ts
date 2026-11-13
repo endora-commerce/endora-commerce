@@ -40,7 +40,7 @@ describe('quote_requests expiry sweep — which requests are due, and who wins a
     reachedBatchLimit: boolean;
   }
   interface WorkerDeps {
-    notificationService: { enqueue: (...args: never[]) => Promise<number> };
+    notificationService: { record: (...args: never[]) => Promise<number> };
     batchSize?: number;
     onRequestFailed?: (rfqId: string, error: unknown) => void;
   }
@@ -523,9 +523,9 @@ describe('quote_requests expiry sweep — which requests are due, and who wins a
       await quietFor(older, EXPIRY_DAYS + 0.5);
       await quietFor(younger, EXPIRY_DAYS + 0.25);
       const deps = worker().deps;
-      const original = deps.notificationService.enqueue;
+      const original = deps.notificationService.record;
       let accepted: number | undefined;
-      deps.notificationService.enqueue = (async (...args: never[]) => {
+      deps.notificationService.record = (async (...args: never[]) => {
         if (accepted === undefined) accepted = (await accept(younger)).statusCode;
         return original.apply(deps.notificationService, args);
       }) as never;
@@ -535,7 +535,7 @@ describe('quote_requests expiry sweep — which requests are due, and who wins a
         expect(result).toMatchObject({ expiredCount: 1, failedCount: 0 });
         expect(announced).toEqual([older]);
       } finally {
-        deps.notificationService.enqueue = original;
+        deps.notificationService.record = original;
       }
       expect(await statusOf(older)).toBe('Expired');
       const final = await row(younger);
@@ -558,10 +558,10 @@ describe('quote_requests expiry sweep — which requests are due, and who wins a
     await quietFor(healthy, EXPIRY_DAYS + 0.1);
 
     const deps = worker().deps;
-    const original = deps.notificationService.enqueue;
-    deps.notificationService.enqueue = (async (...args: never[]) => {
-      const input = (args as unknown as Array<{ quoteRequestId: string }>)[0]!;
-      if (input.quoteRequestId !== healthy) throw new Error('expiry rules test: this request always fails');
+    const original = deps.notificationService.record;
+    deps.notificationService.record = (async (...args: never[]) => {
+      const input = (args as unknown as [unknown, { rfq: { id: string } }])[1];
+      if (input.rfq.id !== healthy) throw new Error('expiry rules test: this request always fails');
       return original.apply(deps.notificationService, args);
     }) as never;
     deps.batchSize = 2;
@@ -580,7 +580,7 @@ describe('quote_requests expiry sweep — which requests are due, and who wins a
       expect(await worker().hasExpirable(later)).toBe(true);
       expect(await worker().sweep(later)).toMatchObject({ expiredCount: 0, failedCount: 2 });
     } finally {
-      deps.notificationService.enqueue = original;
+      deps.notificationService.record = original;
       delete deps.batchSize;
       delete deps.onRequestFailed;
     }

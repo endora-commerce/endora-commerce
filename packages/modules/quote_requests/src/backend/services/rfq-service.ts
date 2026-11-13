@@ -41,8 +41,7 @@ import {
 import type { QuoteRequestRevisionLine } from '../entities/quote-request-revision.entity.js';
 import type { RfqEventService } from './rfq-event-service.js';
 import type { RfqRevisionService } from './rfq-revision-service.js';
-import type { RfqNotificationService} from './rfq-notification-service.js';
-import { type NotificationRecipient } from './rfq-notification-service.js';
+import type { RfqNotificationService } from './rfq-notification-service.js';
 import type { QuoteRequestBusinessIdGenerator } from './quote-request-business-id-generator.js';
 import type { SalesChannelMembershipPort } from '@endora-commerce/platform/kernel';
 import { raisedInScopeLanguage, raisedOnChannelId } from './raised-on-channel.js';
@@ -667,7 +666,12 @@ export class RfqService {
       revisionId: revision.id,
     });
 
-    await this.notifyInternalSide(rfq.organizationId, submitted.id, rfq.id);
+    await this.deps.notificationService.record(em, {
+      change: 'submitted',
+      sourceEvent: submitted,
+      rfq,
+      actor: { customerAccountId: ctx.customerAccountId },
+    });
 
     this.deps.events.emit('rfq.created.v1', {
       eventId: randomUUID(),
@@ -1032,7 +1036,12 @@ export class RfqService {
       revisionId: revision.id,
     });
 
-    await this.notifyInternalSide(newRfq.organizationId, submittedEvt.id, newRfq.id);
+    await this.deps.notificationService.record(em, {
+      change: 'resubmitted',
+      sourceEvent: submittedEvt,
+      rfq: newRfq,
+      actor: { customerAccountId: ctx.customerAccountId },
+    });
 
     return this.serializeFull(em, newRfq, false);
   }
@@ -1166,7 +1175,12 @@ export class RfqService {
     });
     void revisionEvt;
 
-    await this.notifyInternalSide(rfq.organizationId, terminalEvt.id, rfq.id);
+    await this.deps.notificationService.record(em, {
+      change: decision === 'accept' ? 'offer_accepted' : 'offer_rejected',
+      sourceEvent: terminalEvt,
+      rfq,
+      actor: { customerAccountId: ctx.customerAccountId },
+    });
 
     if (decision === 'accept') {
       this.deps.events.emit('rfq.approved.v1', {
@@ -1381,45 +1395,6 @@ export class RfqService {
       throw new HttpError(404, ERROR_CODES.NOT_FOUND, 'Quote Request not found.');
     }
     return rfq;
-  }
-
-  // -------------------------------------------------------------------------
-  // Notification helpers
-  // -------------------------------------------------------------------------
-
-  private async notifyInternalSide(
-    organizationId: string,
-    sourceEventId: string,
-    quoteRequestId: string,
-  ): Promise<void> {
-    // Find every admin user assigned to the org. If the org is unassigned,
-    // fan out to every active admin user holding the sales_representative
-    // role plus every platform_admin (research §R4).
-    //
-    // Feature 075, Phase C — this asked the question twice: an `em.count` on
-    // `organizations`' assignment entity, reached through a dynamic `import()`
-    // with a comment apologising for it, and then the port. The count was a
-    // duplicate of `listForOrganization(…).length`, and its `.catch(() => 0)`
-    // silently answered "unassigned" — a fan-out to every admin — for any
-    // failure at all, `MODULE_DISABLED` included. One port call, no catch, and
-    // an absent `organizations` now stops the notification instead of
-    // broadcasting it.
-    const assignments = await this.deps.salesRepAssignment.listForOrganization(organizationId);
-
-    const recipients: NotificationRecipient[] = [];
-    if (assignments.length > 0) {
-      for (const a of assignments) recipients.push({ adminUserId: a.adminUserId });
-    } else {
-      const everyAdmin = await this.deps.adminUsers.listAll();
-      for (const a of everyAdmin) recipients.push({ adminUserId: a.id });
-    }
-
-    await this.deps.notificationService.enqueue({
-      quoteRequestId,
-      sourceEventId,
-      recipients,
-      channels: ['email', 'in_app'],
-    });
   }
 
   // -------------------------------------------------------------------------
