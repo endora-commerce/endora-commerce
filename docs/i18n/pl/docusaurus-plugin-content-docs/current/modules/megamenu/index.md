@@ -225,6 +225,12 @@ pamięci podręcznej. Unieważnianie:
 - Zapis bloku lub strony CMS (`cms.content_changed.v1`) → usunięcie wszystkich kluczy
   `megamenu:v2:*`, ponieważ odpowiedź menu zawiera drzewo każdego osadzonego bloku oraz nazwę i
   adres każdej strony, do której prowadzi pozycja.
+- Zapis pliku, który zmienia jego wygląd (`assets_library.asset_changed.v1` — podmiana pliku,
+  przywrócenie wersji, ustawienie lub usunięcie stałego linku, zmiana widoczności, usunięcie lub
+  przywrócenie, zmiana nazwy pliku, etykiety, tekstu alternatywnego lub typu MIME) → usunięcie
+  wszystkich kluczy `megamenu:v2:*`, ponieważ odpowiedź menu zawiera adres i etykietę każdej pozycji
+  typu plik oraz adres każdej ikony. Gdy modułu `assets_library` nie ma, nic nie jest ogłaszane, a
+  wyłączony moduł `megamenu` nie reaguje.
 
 Odpowiedź dla zalogowanego wywołującego ma nagłówek `Cache-Control: private, no-store`; odpowiedź
 anonimowa go nie ma. Storefront pobiera menu zalogowanego kupującego z jego sesją i nigdzie go nie
