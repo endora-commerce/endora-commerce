@@ -4,6 +4,7 @@ import type { EntityManager } from '@mikro-orm/postgresql';
 import type { RegistryState } from '@endora-commerce/contracts';
 import { ModuleRegistration } from './module-registration.entity.js';
 import { inProcessCaches } from '../cache/in-process-cache-registry.js';
+import { subscribeWhenReady } from '../cache/subscribe-when-ready.js';
 import { enterSystemScope } from '../scope.js';
 import {
   resolveActivation,
@@ -411,7 +412,9 @@ export class ModuleRegistryCache {
       this.enterDegradedMode(opts.em);
     });
     try {
-      await this.subscriber.subscribe(STATE_CHANGED_CHANNEL);
+      // Issue #1096 — never SUBSCRIBE mid-handshake: the ready check would be
+      // refused and the reconnect would drop a notification.
+      await subscribeWhenReady(this.subscriber, STATE_CHANGED_CHANNEL);
     } catch (err) {
       this.enterDegradedMode(opts.em);
       console.warn(

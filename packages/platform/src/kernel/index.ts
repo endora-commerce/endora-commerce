@@ -176,6 +176,11 @@ export {
 } from './cache/in-process-cache-registry.js';
 
 export {
+  subscribeWhenReady,
+  type HandshakeAwareSubscriber,
+} from './cache/subscribe-when-ready.js';
+
+export {
   hashPassword,
   verifyPassword,
   verifyPasswordOrDummy,
