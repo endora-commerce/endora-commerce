@@ -5,7 +5,9 @@ import {
   ERROR_CODES,
   type AssetsLibraryPort,
   type DocumentRenderPort,
+  type ErpSaleDocumentListResponse,
   type InvoiceAttachmentFetchPort,
+  type OrderInvoiceListResponse,
   type OrderReadPort,
   type OrderRecord,
   isUuidShape,
@@ -68,7 +70,7 @@ export async function registerInvoicesCustomerRoutes(
   app.get<{ Params: { id: string } }>(
     '/api/v1/orders/:id/invoices',
     { preHandler: requireCustomer },
-    async (request) => {
+    async (request): Promise<OrderInvoiceListResponse> => {
       await ownedOrderOr404(request, request.params.id);
       const em = emFactory();
       const rows = await em.find(
@@ -114,7 +116,7 @@ export async function registerInvoicesCustomerRoutes(
   app.get(
     '/api/v1/account/organization/invoices',
     { preHandler: requireCustomer },
-    async (request) => {
+    async (request): Promise<ErpSaleDocumentListResponse> => {
       const ctx = resolveCustomerContext(request);
       const em = emFactory();
       const rows = await em.find(

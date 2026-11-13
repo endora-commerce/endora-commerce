@@ -5,19 +5,9 @@ import { apiBaseUrl, apiClient, ApiError, formatDateTime, formatMoney, sendInvoi
 import { Alert, AlertDescription, Badge, Button, Card, CardContent, Input, Label, PageHeader, Select, Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from '@endora-commerce/admin-kit/ui';
 import { InvoiceSectionTabs } from '../components/InvoiceSectionTabs.js';
 import { useTranslation } from '@endora-commerce/admin-kit/i18n';
-import type { SendInvoiceEmailResult } from '@endora-commerce/contracts';
-interface AdminInvoice {
-  id: string;
-  orderId: string;
-  orderBusinessId: string | null;
-  kind: 'proforma' | 'invoice' | 'correction';
-  number: string;
-  issuedAt: string;
-  currency: string;
-  total: number;
-  status: 'pending' | 'ready' | 'cancelled';
-  pdfReady: boolean;
-}
+import type { AdminInvoiceListItem, AdminInvoiceListResponse, SendInvoiceEmailResult } from '@endora-commerce/contracts';
+
+type AdminInvoice = AdminInvoiceListItem;
 
 const STATUSES = ['pending', 'ready', 'cancelled'] as const;
 const KINDS = ['proforma', 'invoice', 'correction'] as const;
@@ -75,7 +65,7 @@ export function InvoicesList(): ReactNode {
       if (totalMax.trim()) params.set('filter[totalMax]', totalMax.trim());
       const path =
         '/api/v1/admin/invoices' + (params.toString() ? `?${params.toString()}` : '');
-      const res = await apiClient.get<{ data: AdminInvoice[] }>(path);
+      const res = await apiClient.get<AdminInvoiceListResponse>(path);
       setRows(res.data);
     } catch (err) {
       setError(err instanceof ApiError ? err.envelope.error.message : 'Failed to load.');
@@ -262,12 +252,17 @@ export function InvoicesList(): ReactNode {
                     <TableCell>{t(`invoices.kind.${i.kind}`)}</TableCell>
                     <TableCell>{formatDateTime(i.issuedAt)}</TableCell>
                     <TableCell>
-                      <Link
-                        to={`/orders/${i.orderId}`}
-                        className="font-mono text-xs underline underline-offset-2"
-                      >
-                        {i.orderBusinessId ?? i.orderId.slice(0, 8)}
-                      </Link>
+                      {i.orderId === null ? (
+                        // An ERP-imported sale document may have no order.
+                        <span className="text-muted-foreground">—</span>
+                      ) : (
+                        <Link
+                          to={`/orders/${i.orderId}`}
+                          className="font-mono text-xs underline underline-offset-2"
+                        >
+                          {i.orderBusinessId ?? i.orderId.slice(0, 8)}
+                        </Link>
+                      )}
                     </TableCell>
                     <TableCell className="tabular-nums">
                       {formatMoney(i.total, i.currency)}
