@@ -14,16 +14,11 @@ const PRODUCT_LIST_PERMISSION = 'catalog:read';
  * group needs an Organization of the Project. The server answers each group
  * only for its code and its present owner; the list is offered when any one
  * group could be answered, so a role that could never be keeps `@@` as typed.
+ *
+ * The codes are written at the `hasAnyPermission` call below, as one literal
+ * (issue #458); this set names the groups that need an Organization.
  */
-const DOCUMENT_GROUP_PERMISSIONS: ReadonlyArray<{ code: string; needsOrganization: boolean }> = [
-  { code: 'orders:read', needsOrganization: true },
-  { code: 'rfqs:handle', needsOrganization: true },
-  { code: 'tasks:read', needsOrganization: false },
-  // `specs/165-task-management/` R-5: the Opportunities group. This module's
-  // own Projects group is answered to every writer but does not open `@@` on
-  // its own — issue #498.
-  { code: 'crm:read', needsOrganization: false },
-];
+const ORGANIZATION_DOCUMENT_GROUPS: ReadonlySet<string> = new Set(['orders:read', 'rfqs:handle']);
 
 /** A Product's name in the language on screen, then any name it has, then its SKU. */
 function productLabel(name: Record<string, string>, sku: string, language: string): string {
@@ -56,7 +51,7 @@ export function useProjectReferences(scope: ProjectReferenceScope): {
   kinds: readonly ReferenceTriggerKind[];
   lookups: ReferenceLookups;
 } {
-  const { hasPermission } = useAuth();
+  const { hasPermission, hasAnyPermission } = useAuth();
   const { language } = useAppLanguage();
   const { projectId, hasOrganizations } = scope;
   // A stable key for the chosen Organizations, so the lookups change only when they do.
@@ -64,8 +59,15 @@ export function useProjectReferences(scope: ProjectReferenceScope): {
   const canWrite = hasPermission(WRITE_PERMISSION);
   const canDocuments =
     canWrite &&
-    DOCUMENT_GROUP_PERMISSIONS.some(
-      (group) => (hasOrganizations || !group.needsOrganization) && hasPermission(group.code),
+    // One literal any-of (issue #458), so the permission inventory reads every
+    // group's code; the narrowing drops the groups this text cannot answer.
+    // `specs/165-task-management/` R-5: `crm:read` is the Opportunities group.
+    // This module's own Projects group is answered to every writer but does
+    // not open `@@` on its own — issue #498.
+    hasAnyPermission(
+      ['orders:read', 'rfqs:handle', 'tasks:read', 'crm:read'].filter(
+        (code) => hasOrganizations || !ORGANIZATION_DOCUMENT_GROUPS.has(code),
+      ),
     );
   const canProducts = hasPermission(PRODUCT_LIST_PERMISSION);
 

@@ -124,6 +124,15 @@ interface AuthContextValue extends AuthState {
   cancelMfa(): void;
   logout(): Promise<void>;
   hasPermission(code: string): boolean;
+  /**
+   * Issue #458 — whether any one of `codes` is held; `false` for an empty list.
+   *
+   * The any-of a screen gates a control on. Write the codes as a literal array
+   * at the call: the permission inventory reads that literal, so every member is
+   * checked for grantability and judged against the others by the foreign-gate
+   * sweep — `codes.some((code) => hasPermission(code))` hides all of them.
+   */
+  hasAnyPermission(codes: readonly string[]): boolean;
   refresh(): Promise<void>;
 }
 
@@ -410,6 +419,11 @@ export function AuthProvider({ initial, children }: AuthProviderProps): ReactNod
       hasPermission: (code: string): boolean => {
         const perms = state.me?.permissions ?? [];
         return perms.includes('*') || perms.includes(code);
+      },
+      hasAnyPermission: (codes: readonly string[]): boolean => {
+        const perms = state.me?.permissions ?? [];
+        if (codes.length === 0) return false;
+        return perms.includes('*') || codes.some((code) => perms.includes(code));
       },
     }),
     [state, login, verifyMfa, cancelMfa, logout, refresh],

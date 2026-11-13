@@ -23,16 +23,11 @@ const WRITE_PERMISSION = 'crm:write';
  * any-of, deliberately: `orders:read` is a code no operator can withdraw, so
  * switching Quote Requests or Tasks off never leaves the list behind a code
  * nobody can be granted — it only empties that group.
+ *
+ * The codes are written at the `hasAnyPermission` call below, as one literal
+ * (issue #458); this set names the groups that need an Organization.
  */
-const DOCUMENT_GROUP_PERMISSIONS: ReadonlyArray<{ code: string; needsOrganization: boolean }> = [
-  { code: 'orders:read', needsOrganization: true },
-  { code: 'rfqs:handle', needsOrganization: true },
-  { code: 'tasks:read', needsOrganization: false },
-  // `specs/165-task-management/` R-5: the Projects group. CRM's own
-  // Opportunities group is answered to every writer but does not open `@@` on
-  // its own — issue #498.
-  { code: 'projects:read', needsOrganization: false },
-];
+const ORGANIZATION_DOCUMENT_GROUPS: ReadonlySet<string> = new Set(['orders:read', 'rfqs:handle']);
 
 /** A Product's Global name (feature 174, FR-031 — an operator screen has no channel), else its SKU. */
 function productLabel(name: string, sku: string): string {
@@ -60,15 +55,22 @@ export function useCrmReferences(scope: CrmReferenceScope): {
   kinds: readonly ReferenceTriggerKind[];
   lookups: ReferenceLookups;
 } {
-  const { hasPermission } = useAuth();
+  const { hasPermission, hasAnyPermission } = useAuth();
   const { organizationId } = scope;
   const opportunityId = scope.opportunityId ?? null;
   const canWrite = hasPermission(WRITE_PERMISSION);
   const withOrganization = organizationId !== null || opportunityId !== null;
   const canDocuments =
     canWrite &&
-    DOCUMENT_GROUP_PERMISSIONS.some(
-      (group) => (withOrganization || !group.needsOrganization) && hasPermission(group.code),
+    // One literal any-of (issue #458), so the permission inventory reads every
+    // group's code; the narrowing drops the groups this text cannot answer.
+    // `specs/165-task-management/` R-5: `projects:read` is the Projects group.
+    // CRM's own Opportunities group is answered to every writer but does not
+    // open `@@` on its own — issue #498.
+    hasAnyPermission(
+      ['orders:read', 'rfqs:handle', 'tasks:read', 'projects:read'].filter(
+        (code) => withOrganization || !ORGANIZATION_DOCUMENT_GROUPS.has(code),
+      ),
     );
   const canProducts = hasPermission(PRODUCT_LIST_PERMISSION);
 
