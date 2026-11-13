@@ -743,10 +743,12 @@ export const manifest = defineModuleManifest({
         // the first.
         'scope visibility per channel',
         'publication window',
-        // The Archived filter and the Archive / Restore actions live on the
-        // product list and editor: "archive", "archived" and "restore" find
-        // them, and the Polish words are under `keywordsKey` (issue #573).
-        'archived restore',
+        // The Archive / Restore actions live on the product list and editor:
+        // "archive" and "restore" find them, and the Polish words are under
+        // `keywordsKey` (issue #573). "archived" is deliberately not here: it
+        // names the archived list, which `open-archived-products` opens, and
+        // this row's lower weight would rank it first (issue #501).
+        'archive restore',
         // Feature 174 (FR-108) — the one scope switcher sets the editor's channel and language:
         // "language" and "translation" find it; the Polish words are under `keywordsKey`.
         'language translation',

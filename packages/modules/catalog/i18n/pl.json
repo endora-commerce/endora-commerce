@@ -1352,7 +1352,7 @@
   "bulkOperations.log.failed": "Operacja nie powiodła się: {message}",
   "bulkOperations.log.reindexed": "Przeindeksowano {documentCount} dokumentów we wszystkich indeksach.",
   "actions.newProduct.keywords": "produkt, nowy, dodaj",
-  "actions.openProducts.keywords": "produkty, katalog, zakres, archiwum, przywróć, kanał, język, tłumaczenie",
+  "actions.openProducts.keywords": "produkty, katalog, zakres, archiwizuj, przywróć, kanał, język, tłumaczenie",
   "actions.openArchivedProducts.keywords": "archiwum, zarchiwizowane, przywróć",
   "actions.openCategories.keywords": "kategorie",
   "actions.openAttributes.keywords": "atrybuty",
