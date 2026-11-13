@@ -110,6 +110,22 @@ describe('SeoMetaScopeEditor — a category override per language', () => {
     expect(getSpy).not.toHaveBeenCalledWith(expect.stringContaining('/category/../'));
   });
 
+  it('names the scope by its language tag as stored (de-DE), not upper-cased (#1102)', async () => {
+    getSpy.mockImplementation(() => Promise.resolve(metaAnswer({ title: 'Kategorie', description: null })));
+    const user = userEvent.setup();
+    render(wrap(<SeoMetaScopeEditor entityType="category" entityId={CATEGORY_ID} />));
+    const language = await screen.findByLabelText(seoEn['metaScope.language']);
+    await user.clear(language);
+    await user.type(language, 'de-DE{Enter}');
+    await waitFor(() =>
+      expect(getSpy).toHaveBeenCalledWith(`/api/v1/admin/seo/meta/category/${CATEGORY_ID}?locale=de-DE`),
+    );
+    await user.click(await screen.findByRole('button', { name: seoEn['metaScope.useInherited'] }));
+    const dialog = await screen.findByRole('dialog');
+    expect(dialog).toHaveTextContent('Use inherited for de-DE (every channel)?');
+    expect(dialog).not.toHaveTextContent('DE-DE');
+  });
+
   it('renders in Polish from the Polish bundles', async () => {
     render(wrap(<SeoMetaScopeEditor entityType="category" entityId={CATEGORY_ID} />, 'pl'));
     expect(await screen.findByLabelText(seoPl['metaScope.language'])).toBeInTheDocument();
