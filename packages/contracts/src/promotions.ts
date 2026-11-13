@@ -299,6 +299,12 @@ export const promotionSchema = z.object({
 });
 export type Promotion = z.infer<typeof promotionSchema>;
 
+/** `GET /api/v1/admin/promotions` — every promotion (issue #599). */
+export const promotionListResponseSchema = z.object({
+  data: z.array(promotionSchema),
+});
+export type PromotionListResponse = z.infer<typeof promotionListResponseSchema>;
+
 export const upsertPromotionRequestSchema = z
   .object({
     code: z.string().min(1).max(64).nullable().optional(),
@@ -429,6 +435,23 @@ export const promotionRuleRecordSchema = z.object({
 });
 export type PromotionRuleRecord = z.infer<typeof promotionRuleRecordSchema>;
 
+/** `GET /api/v1/admin/promotion-rules` — every named rule (issue #599). */
+export const promotionRuleListResponseSchema = z.object({
+  data: z.array(promotionRuleRecordSchema),
+});
+export type PromotionRuleListResponse = z.infer<typeof promotionRuleListResponseSchema>;
+
+/**
+ * `GET /api/v1/admin/promotion-rules/:id` — the rule, and beside the envelope's
+ * `data` the promotions that reference it, which is what refuses its deletion
+ * (issue #599).
+ */
+export const promotionRuleDetailResponseSchema = z.object({
+  data: promotionRuleRecordSchema,
+  usedBy: z.array(z.object({ id: uuidSchema, name: z.string() })),
+});
+export type PromotionRuleDetailResponse = z.infer<typeof promotionRuleDetailResponseSchema>;
+
 export const upsertPromotionRuleRequestSchema = z.object({
   name: z.string().min(1).max(160),
   description: z.string().max(2000).nullable().optional(),
@@ -454,6 +477,12 @@ export const promotionCouponSchema = z.object({
   createdAt: isoDateTimeSchema,
 });
 export type PromotionCouponDto = z.infer<typeof promotionCouponSchema>;
+
+/** `GET /api/v1/admin/promotions/:id/coupons` — a promotion's coupons (issue #599). */
+export const promotionCouponListResponseSchema = z.object({
+  data: z.array(promotionCouponSchema),
+});
+export type PromotionCouponListResponse = z.infer<typeof promotionCouponListResponseSchema>;
 
 export const generateCouponsRequestSchema = z.object({
   count: z.number().int().positive().max(100_000),

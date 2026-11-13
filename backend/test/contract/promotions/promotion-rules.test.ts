@@ -1,9 +1,20 @@
 import { afterAll, beforeAll, beforeEach, describe, expect, it } from 'vitest';
 import {
+  promotionRuleDetailResponseSchema,
+  promotionRuleListResponseSchema,
+  promotionRuleRecordSchema,
+} from '@endora-commerce/contracts';
+import {
   setupBackendServer,
   teardownBackendServer,
   type BackendServerHandle,
 } from '../../helpers/test-server.js';
+import { deepStrict, disagreements } from '../../helpers/strict-schema.js';
+
+/** Strict copies: a key a promotions reply carries that the contract does not declare fails (issue #599 §6). */
+const strictRule = deepStrict(promotionRuleRecordSchema);
+const strictRuleList = deepStrict(promotionRuleListResponseSchema);
+const strictRuleDetail = deepStrict(promotionRuleDetailResponseSchema);
 
 /**
  * Feature 045 (US6) — standalone named rules: CRUD, reuse by a promotion, and
@@ -33,10 +44,12 @@ describe('Promotion named rules (feature 045)', () => {
       payload: { name: 'VIP >= 1000', definition: RULE },
     });
     expect(create.statusCode).toBe(201);
+    expect(disagreements(strictRule, (create.json() as { data: unknown }).data)).toEqual([]);
     const ruleId = (create.json() as { data: { id: string } }).data.id;
 
     const list = await h.app.inject({ method: 'GET', url: '/api/v1/admin/promotion-rules', cookies: adminCookie });
     expect((list.json() as { data: unknown[] }).data).toHaveLength(1);
+    expect(disagreements(strictRuleList, list.json())).toEqual([]);
 
     // A promotion referencing the named rule.
     const promo = await h.app.inject({
@@ -50,6 +63,16 @@ describe('Promotion named rules (feature 045)', () => {
     // usedBy surfaces the dependency.
     const get = await h.app.inject({ method: 'GET', url: `/api/v1/admin/promotion-rules/${ruleId}`, cookies: adminCookie });
     expect((get.json() as { usedBy: unknown[] }).usedBy).toHaveLength(1);
+    expect(disagreements(strictRuleDetail, get.json())).toEqual([]);
+
+    const renamed = await h.app.inject({
+      method: 'PUT',
+      url: `/api/v1/admin/promotion-rules/${ruleId}`,
+      cookies: adminCookie,
+      payload: { name: 'VIP >= 1000 (renamed)', definition: RULE },
+    });
+    expect(renamed.statusCode).toBe(200);
+    expect(disagreements(strictRule, (renamed.json() as { data: unknown }).data)).toEqual([]);
 
     // Deletion is blocked while in use.
     const del = await h.app.inject({ method: 'DELETE', url: `/api/v1/admin/promotion-rules/${ruleId}`, cookies: adminCookie });
