@@ -1,7 +1,9 @@
 import type { FastifyInstance } from 'fastify';
 import {
   upsertCurrencyRequestSchema,
+  type Currency,
   type CurrencyAdminPort,
+  type CurrencyListResponse,
   type CurrencyReadPort,
   type CurrencyRecord,
 } from '@endora-commerce/contracts';
@@ -48,7 +50,7 @@ export async function registerCurrencyRoutes(
   app.get(
     '/api/v1/admin/currencies',
     { preHandler: requireAdmin('currencies:read') },
-    async () => {
+    async (): Promise<CurrencyListResponse> => {
       const rows = await currencyRead.list();
       return { data: rows.map(serializeCurrency) };
     },
@@ -60,7 +62,7 @@ export async function registerCurrencyRoutes(
       preHandler: requireAdmin('currencies:write'),
       schema: { body: upsertCurrencyRequestSchema },
     },
-    async (request) => {
+    async (request): Promise<{ data: Currency }> => {
       const body = upsertCurrencyRequestSchema.parse(request.body);
       const row = await currencyAdmin.upsert({
         code: request.params.code,
@@ -76,7 +78,7 @@ export async function registerCurrencyRoutes(
   app.post<{ Params: { code: string } }>(
     '/api/v1/admin/currencies/:code/default',
     { preHandler: requireAdmin('currencies:write') },
-    async (request) => {
+    async (request): Promise<{ data: Currency }> => {
       const row = await currencyAdmin.setDefault(request.params.code);
       return { data: serializeCurrency(row) };
     },
@@ -92,7 +94,8 @@ export async function registerCurrencyRoutes(
   );
 }
 
-function serializeCurrency(c: CurrencyRecord): Record<string, unknown> {
+/** The published `currencySchema` (issue #599). */
+function serializeCurrency(c: CurrencyRecord): Currency {
   return {
     code: c.code,
     label: c.label,

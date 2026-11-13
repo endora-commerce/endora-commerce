@@ -45,6 +45,16 @@ export const currencySchema = z.object({
 });
 export type Currency = z.infer<typeof currencySchema>;
 
+/**
+ * `GET /api/v1/admin/currencies` — every currency, active or not (issue #599).
+ * The rows are `currencySchema`: the catalogue's `symbolPosition` and
+ * `decimalPlaces` are `dictionaries`' admin screen to answer, not this one.
+ */
+export const currencyListResponseSchema = z.object({
+  data: z.array(currencySchema),
+});
+export type CurrencyListResponse = z.infer<typeof currencyListResponseSchema>;
+
 export const upsertCurrencyRequestSchema = z.object({
   label: z.string().min(1).max(64),
   symbol: z.string().min(1).max(8),
