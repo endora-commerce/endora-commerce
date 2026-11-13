@@ -129,7 +129,31 @@ describe('RfqNotificationService.record', () => {
     const r = rig();
     await r.service.record(r.em, { change: 'revised', sourceEvent: event('modified'), rfq, actor: null });
     expect(r.recipients.operatorSide).not.toHaveBeenCalled();
-    expect(r.persisted.map((row) => row.channel)).toEqual(['customer_email']);
+    expect(r.persisted.map((row) => row.channel)).toEqual(['customer_email', 'customer_in_app']);
+  });
+
+  it('records a centre entry for every member who may open the request, and none for the actor (WP-08, FR-007)', async () => {
+    const r = rig({ customer: [REQUESTER, COLLEAGUE], operator: [REP] });
+    await r.service.record(r.em, {
+      change: 'submitted',
+      sourceEvent: event('submitted'),
+      rfq,
+      actor: { customerAccountId: REQUESTER },
+    });
+    expect(r.persisted.filter((row) => row.channel === 'customer_in_app').map((row) => row.recipientId)).toEqual([
+      COLLEAGUE,
+    ]);
+    const approval = rig({ customer: [REQUESTER, COLLEAGUE] });
+    await approval.service.record(approval.em, {
+      change: 'approved',
+      sourceEvent: event('approved', { approvedBy: 'admin' }),
+      rfq,
+      actor: null,
+    });
+    expect(
+      approval.persisted.filter((row) => row.channel === 'customer_in_app').map((row) => row.recipientId).sort(),
+    ).toEqual([REQUESTER, COLLEAGUE].sort());
+    for (const row of approval.persisted) expect(row.recipientKind).toBe('customer');
   });
 
   it('records nothing, and does not flush, when nobody is to be told', async () => {
