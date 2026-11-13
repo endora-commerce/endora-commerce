@@ -24,7 +24,6 @@ import {
   type BuyerLinePricePort,
   type CreateForCustomerOptions,
   type OrderMinimumLine,
-  type OrganizationPermissionPort,
   withChannelOrderRules,
   isUuidShape,
 } from '@endora-commerce/contracts';
@@ -42,6 +41,7 @@ import type { QuoteRequestRevisionLine } from '../entities/quote-request-revisio
 import type { RfqEventService } from './rfq-event-service.js';
 import type { RfqRevisionService } from './rfq-revision-service.js';
 import type { RfqNotificationService } from './rfq-notification-service.js';
+import type { OrgWideViewerRoleIds } from './notifications/recipients.js';
 import type { QuoteRequestBusinessIdGenerator } from './quote-request-business-id-generator.js';
 import type { SalesChannelMembershipPort } from '@endora-commerce/platform/kernel';
 import { raisedInScopeLanguage, raisedOnChannelId } from './raised-on-channel.js';
@@ -208,12 +208,14 @@ export interface RfqServiceDeps {
    */
   log?: PlatformLogger;
   /**
-   * `organizations`' answer to "does this member hold the *Administrator*
-   * role?" — until P3, the one role that sees every quote request of its
-   * Organization (`specs/170-organization-roles/`, FR-041 in its P2 form,
-   * research R-30). A thunk resolved per call, never captured.
+   * The Organization roles whose holders see every quote request of that
+   * Organization — until P3 its *Administrator* role
+   * (`specs/170-organization-roles/`, FR-041 in its P2 form, research R-30).
+   * The **same** function decides the customer-side notification recipients
+   * (`specs/179-rfq-and-customer-notifications/` research R-3), so nobody is
+   * told about a request this service answers them `404` for.
    */
-  organizationPermissions: () => Pick<OrganizationPermissionPort, 'isAdministrator'>;
+  orgWideViewerRoleIds: OrgWideViewerRoleIds;
 }
 
 export class RfqService {
@@ -444,16 +446,20 @@ export class RfqService {
   }
 
   /**
-   * Whether the caller sees every quote request of its Organization: until P3,
-   * holding the *Administrator* role (research R-30) — asked of
-   * `organizationPermissionPort`, never of the legacy `role` column.
+   * Whether the caller sees every quote request of its Organization: its role
+   * is one of {@link orgWideViewerRoleIds} — until P3 the *Administrator* role
+   * (research R-30), never the legacy `role` column. The role is the one the
+   * actor carries; absent, the account's own role **in that Organization**,
+   * and an account that is not a member there sees nothing of it.
    */
   async #seesOrganization(ctx: CustomerContext): Promise<boolean> {
-    return this.deps.organizationPermissions().isAdministrator({
-      customerAccountId: ctx.customerAccountId,
-      organizationId: ctx.organizationId,
-      organizationRoleId: ctx.organizationRoleId ?? null,
-    });
+    const roleId =
+      ctx.organizationRoleId ??
+      (await this.deps.customerAccounts.findInOrganization(ctx.customerAccountId, ctx.organizationId))
+        ?.organizationRoleId ??
+      null;
+    if (roleId === null) return false;
+    return (await this.deps.orgWideViewerRoleIds(ctx.organizationId)).includes(roleId);
   }
 
   async #listSummaries(ctx: CustomerContext, seesOrganization: boolean): Promise<QuoteRequestSummary[]> {

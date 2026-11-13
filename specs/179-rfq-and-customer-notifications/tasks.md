@@ -53,10 +53,19 @@ Contract and integration files do not run on merge requests (D-198): run them lo
 
 ### WP-03 Recipients (`qr`)
 
-- [ ] T020 [P] [WP-03] [US2] Test: customer side — requester; *Administrator* member included; *Member* holding `quote_requests.create` excluded; blocked, deleted, anonymised excluded; requester who is also administrator counted once; personal Organization = requester only — `qr/src/backend/services/notifications/recipients.test.ts`
-- [ ] T021 [P] [WP-03] [US1] Test: operator side — assignee ∪ assigned representatives; one without `rfqs:handle` dropped; inactive dropped; empty → every active admin holding `rfqs:handle` (wildcard role included), none without it — same file
-- [ ] T022 [WP-03] Test: `#seesOrganization` and the recipient rule both call `orgWideViewerRoleIds` (one spy, two callers) — `qr/src/backend/services/rfq-scope-visibility.test.ts`
-- [ ] T023 [WP-03] Impl: `recipients.ts` (`customerSide`, `operatorSide`, `orgWideViewerRoleIds` via `organizationRoleReadPort.predefinedRoleId(org, 'administrator')`), `rfq-service.ts` `#seesOrganization` re-pointed; wire `organizationRoleReadPort`, `customerAccountReadPort.listByOrganization`, `permissionService` in `qr/src/backend/index.ts`
+- [x] T020 [P] [WP-03] [US2] Test: customer side — requester; *Administrator* member included; *Member* holding `quote_requests.create` excluded; blocked, deleted, anonymised excluded; requester who is also administrator counted once; personal Organization = requester only — `qr/src/backend/services/notifications/recipients.test.ts`
+- [x] T021 [P] [WP-03] [US1] Test: operator side — assignee ∪ assigned representatives; one without `rfqs:handle` dropped; inactive dropped; empty → every active admin holding `rfqs:handle` (wildcard role included), none without it — same file
+- [x] T022 [WP-03] Test: `#seesOrganization` and the recipient rule both call `orgWideViewerRoleIds` (one spy, two callers) — `qr/src/backend/services/rfq-scope-visibility.test.ts`
+- [x] T023 [WP-03] Impl: `recipients.ts` (`customerSide`, `operatorSide`, `orgWideViewerRoleIds` via `organizationRoleReadPort.predefinedRoleId(org, 'administrator')`), `rfq-service.ts` `#seesOrganization` re-pointed; wire `organizationRoleReadPort`, `customerAccountReadPort.listByOrganization`, `permissionService` in `qr/src/backend/index.ts`
+  - *WP-03 as built (for WP-04 and WP-12):* `notifications/recipients.ts` replaces
+    `assignment-recipients.ts`, which is deleted. `orgWideViewerRoleIds(roles, organizationId)`
+    is bound once in `plugin.ts` and handed to both `RfqService` (`#seesOrganization`) and
+    `createRecipientResolver`. `#seesOrganization` no longer asks
+    `organizationPermissionPort.isAdministrator`: it compares the role the actor carries (or, when
+    the context carries none, the account's role read with `customerAccountReadPort.findInOrganization`)
+    with that list. A requester who is no longer a member of the request's Organization is not
+    recorded. The operator side's fallback runs whenever no candidate survives the filter, not only
+    when nobody is assigned.
 
 ### WP-04 Recording inside the transaction (`qr`)
 
