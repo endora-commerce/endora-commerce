@@ -127,4 +127,12 @@ describe('mobile tab bar and drawer flip at the header boundary (877 px)', () =>
   it('pads the body by --m-tabbar-h in the same media block', () => {
     expect(tabbarHeightBlock().body).toContain('padding-bottom: calc(var(--m-tabbar-h) + var(--m-safe-bottom))');
   });
+  // The compact header (shown up to 876 px) holds the search field that opens
+  // MobileSearchOverlay; its panel must exist wherever the field does, or a tap
+  // at 768–876 px opens nothing visible.
+  const searchOverlayHiddenFrom = hiddenFrom(appliedClasses('.m-search-overlay'));
+
+  it.each(WIDTHS)('at %i px the search overlay panel is shown wherever its compact-header trigger is', (width) => {
+    expect(width < searchOverlayHiddenFrom).toBe(width < compactHiddenFrom);
+  });
 });

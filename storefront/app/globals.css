@@ -1388,9 +1388,10 @@ select:focus-visible {
 /*   - "Mobile" = viewport < md (768px). New mobile chrome is shown     */
 /*     with Tailwind `md:hidden` and hidden on desktop with             */
 /*     `max-md:hidden`. Exception (feature 179, WP-09a): the bottom tab */
-/*     bar and the megamenu drawer follow the header, which shows its   */
-/*     compact rows up to 876px — they are `min-[877px]:hidden`, so the */
-/*     768–876px band keeps an account entry.                           */
+/*     bar, the megamenu drawer and the search overlay follow the       */
+/*     header, which shows its compact rows up to 876px — they are      */
+/*     `min-[877px]:hidden`, so the 768–876px band keeps an account     */
+/*     entry and a working search.                                      */
 /*   - Fixed top/bottom chrome MUST respect device safe-area insets and */
 /*     MUST reserve its own space so it never hides content (no CLS,    */
 /*     Principle VII). The bottom tab bar publishes its height into     */
@@ -1473,9 +1474,10 @@ select:focus-visible {
   .m-sheet__body { @apply min-h-0 flex-1 overflow-y-auto px-[16px] pb-[12px]; }
   .m-sheet__foot { @apply flex items-center gap-2 border-t border-line px-[16px] py-[12px]; }
 
-  /* Full-screen mobile search overlay (design §01). */
+  /* Full-screen mobile search overlay (design §01). Hidden from 877px like
+     the compact header whose search field opens it (feature 179, WP-09a). */
   .m-search-overlay {
-    @apply fixed inset-0 z-[60] flex flex-col bg-surface md:hidden;
+    @apply fixed inset-0 z-[60] flex flex-col bg-surface min-[877px]:hidden;
     padding-top: var(--m-safe-top);
     animation: m-fade-slide 200ms ease;
   }
