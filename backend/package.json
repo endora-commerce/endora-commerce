@@ -143,6 +143,7 @@
     "@endora-commerce/mod-currencies": "workspace:*",
     "@endora-commerce/mod-custom-fields": "workspace:*",
     "@endora-commerce/mod-customer-accounts": "workspace:*",
+    "@endora-commerce/mod-customer-notifications": "workspace:*",
     "@endora-commerce/mod-customers": "workspace:*",
     "@endora-commerce/mod-delivery-methods": "workspace:*",
     "@endora-commerce/mod-dictionaries": "workspace:*",

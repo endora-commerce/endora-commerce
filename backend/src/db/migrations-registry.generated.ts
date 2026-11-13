@@ -205,6 +205,9 @@ import { Migration20260912T094701CustomerAccountsSalesChannelCustomerAccounts } 
 import { Migration20261103T190132CustomerAccountsOrganizationRoleAssignment } from '@endora-commerce/mod-customer-accounts/migrations';
 import { Migration20261104T094540CustomerAccountsDropLegacyRoleColumn } from '@endora-commerce/mod-customer-accounts/migrations';
 
+// ── customer_notifications ──────────────────────────────────────────────────
+import { Migration20261113T082045CustomerNotificationsInit } from '@endora-commerce/mod-customer-notifications/migrations';
+
 // ── customers ───────────────────────────────────────────────────────────────
 import { Migration20260611T140404CustomersCustomerAddressesInit } from '@endora-commerce/mod-customers/migrations';
 import { Migration20261105T180317CustomersAddressBookRetirement } from '@endora-commerce/mod-customers/migrations';
@@ -631,6 +634,9 @@ export const MIGRATION_REGISTRY: readonly MigrationRegistryEntry[] = [
   migration('customer_accounts', Migration20260912T094701CustomerAccountsSalesChannelCustomerAccounts),
   migration('customer_accounts', Migration20261103T190132CustomerAccountsOrganizationRoleAssignment),
   migration('customer_accounts', Migration20261104T094540CustomerAccountsDropLegacyRoleColumn),
+
+  // ── customer_notifications ──────────────────────────────────────────────────
+  migration('customer_notifications', Migration20261113T082045CustomerNotificationsInit),
 
   // ── customers ───────────────────────────────────────────────────────────────
   migration('customers', Migration20260611T140404CustomersCustomerAddressesInit),

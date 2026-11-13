@@ -67,6 +67,7 @@ import { entities as currenciesEntities } from '@endora-commerce/mod-currencies/
 import { entities as customFieldsEntities } from '@endora-commerce/mod-custom-fields/backend';
 import { entities as customerAccountsEntities } from '@endora-commerce/mod-customer-accounts/backend';
 import { entities as customersEntities } from '@endora-commerce/mod-customers/backend';
+import { entities as customerNotificationsEntities } from '@endora-commerce/mod-customer-notifications/backend';
 import { entities as deliveryMethodsEntities } from '@endora-commerce/mod-delivery-methods/backend';
 import { entities as documentTemplatesEntities } from '@endora-commerce/mod-document-templates/backend';
 import { entities as transactionalEmailsEntities } from '@endora-commerce/mod-transactional-emails/backend';
@@ -138,6 +139,7 @@ export const ALL_ENTITIES = [
   ...(customFieldsEntities as readonly EntityClassLike[]),
   ...(customerAccountsEntities as readonly EntityClassLike[]),
   ...(customersEntities as readonly EntityClassLike[]),
+  ...(customerNotificationsEntities as readonly EntityClassLike[]),
   ...(deliveryMethodsEntities as readonly EntityClassLike[]),
   ...(documentTemplatesEntities as readonly EntityClassLike[]),
   ...(transactionalEmailsEntities as readonly EntityClassLike[]),

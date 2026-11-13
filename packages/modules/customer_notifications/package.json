@@ -1,0 +1,75 @@
+{
+  "name": "@endora-commerce/mod-customer-notifications",
+  "version": "0.110.0",
+  "type": "module",
+  "sideEffects": false,
+  "description": "A notification centre in the buyer's storefront account: entries other modules record for one customer account, read, counted and marked read through the storefront API, and deleted after a retention period.",
+  "license": "MIT",
+  "endora": {
+    "type": "module",
+    "id": "customer_notifications"
+  },
+  "repository": {
+    "type": "git",
+    "url": "git+https://github.com/endora-commerce/endora-commerce.git",
+    "directory": "packages/modules/customer_notifications"
+  },
+  "publishConfig": {
+    "access": "public"
+  },
+  "exports": {
+    ".": {
+      "types": "./dist/manifest.d.ts",
+      "default": "./dist/manifest.js"
+    },
+    "./backend": {
+      "types": "./dist/backend/index.d.ts",
+      "default": "./dist/backend/index.js"
+    },
+    "./migrations": {
+      "types": "./dist/migrations/index.d.ts",
+      "default": "./dist/migrations/index.js"
+    },
+    "./package.json": "./package.json"
+  },
+  "files": [
+    "dist",
+    "i18n",
+    "docs",
+    "!dist/**/*.map"
+  ],
+  "engines": {
+    "node": ">=22.18.0"
+  },
+  "scripts": {
+    "build": "node ../../../scripts/clean-package-dist.mjs --src src --out dist && tsc -p tsconfig.build.json",
+    "typecheck": "tsc -p tsconfig.json",
+    "lint": "eslint src",
+    "test": "vitest run"
+  },
+  "peerDependencies": {
+    "@endora-commerce/contracts": "workspace:*",
+    "@endora-commerce/platform": "workspace:*",
+    "@mikro-orm/core": "^6",
+    "@mikro-orm/migrations": "^6",
+    "@mikro-orm/postgresql": "^6",
+    "bullmq": "^5",
+    "fastify": "^5.11.0",
+    "ioredis": "^5",
+    "zod": "^4"
+  },
+  "devDependencies": {
+    "@endora-commerce/contracts": "workspace:*",
+    "@endora-commerce/platform": "workspace:*",
+    "@mikro-orm/core": "^6.6.13",
+    "@mikro-orm/migrations": "^6.6.13",
+    "@mikro-orm/postgresql": "^6.6.13",
+    "@types/node": "^22.9.0",
+    "bullmq": "^5.76.1",
+    "fastify": "^5.12.8",
+    "ioredis": "^5.10.1",
+    "typescript": "^5.9.3",
+    "vitest": "^4.1.12",
+    "zod": "^4.2.0"
+  }
+}
