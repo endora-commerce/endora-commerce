@@ -161,6 +161,100 @@ describe('permission gate scanner — call shapes', () => {
   });
 });
 
+/**
+ * Issue #1105 — the Admin UI writes most of its gates in component files. A
+ * `.tsx` file was not part of the walk, so `hasPermission('x')` in a page or a
+ * dialog was never read, and a code enforced only there was reported as
+ * enforced by no gate.
+ */
+describe('permission gate scanner — component files', () => {
+  it('reads a hasPermission gate written in a .tsx component', () => {
+    writeModule(
+      'kappa_ui',
+      'KappaPage.tsx',
+      [
+        `export function KappaPage() {`,
+        `  const { hasPermission } = useAuth();`,
+        `  const canWrite = hasPermission('kappa:write');`,
+        `  return <div>{canWrite ? <Button>Save</Button> : null}</div>;`,
+        `}`,
+      ].join('\n'),
+    );
+    expect(codes()).toEqual(['kappa:write']);
+  });
+
+  it('reads a hasAnyPermission any-of in a .tsx component as one site', () => {
+    writeModule(
+      'kappa_any',
+      'KappaList.tsx',
+      `export const List = () => (hasAnyPermission(['kappa:read', 'kappa:write']) ? <ul /> : null);`,
+    );
+    const result = scanEnforcedPermissionGates([root]);
+    expect(result.sites.map((s) => [s.resolution, s.codes])).toEqual([
+      ['code', ['kappa:read', 'kappa:write']],
+    ]);
+  });
+
+  /**
+   * A JSX closing tag puts a `/` right after a `<`, where the comment blanker
+   * would otherwise start a regular-expression literal and blank the rest of
+   * the line — and with it a gate written after the tag.
+   */
+  it('reads a gate written after a JSX closing tag on the same line', () => {
+    writeModule(
+      'kappa_line',
+      'KappaRow.tsx',
+      `const row = <td><span>Name</span>{hasPermission('kappa:delete') && <DeleteButton />}</td>;`,
+    );
+    expect(codes()).toEqual(['kappa:delete']);
+  });
+
+  /**
+   * A permission looked up in a module-local map keyed at runtime —
+   * `hasPermission(OWNER[kind].readPermission)` — reads as the widest set: one
+   * site per value the map holds for that property, so every code is checked
+   * for grantability. One site each, not one any-of: the gate asks for the code
+   * of the row's kind, never for any of them.
+   */
+  it('reads a computed lookup in a local map as every value of that property', () => {
+    writeModule(
+      'kappa_map',
+      'LinkedRecords.tsx',
+      [
+        `const OWNER: Readonly<Record<Kind, { module: string; readPermission: string }>> = {`,
+        `  order: { module: 'orders', readPermission: 'orders:read' },`,
+        `  opportunity: { module: 'crm', readPermission: 'crm:read' },`,
+        `};`,
+        `const visible = kinds.filter((kind) => hasPermission(OWNER[kind].readPermission));`,
+      ].join('\n'),
+    );
+    const result = scanEnforcedPermissionGates([root]);
+    expect(result.sites.map((s) => [s.resolution, s.codes])).toEqual([
+      ['code', ['orders:read']],
+      ['code', ['crm:read']],
+    ]);
+  });
+
+  it('marks a UI permission check in an admin layer as a control, and nothing else', () => {
+    writeModule('kappa_surface/src/admin', 'Page.tsx', `const a = hasPermission('kappa:read');`);
+    writeModule('kappa_surface/src/backend', 'routes.ts', `requireAdmin('kappa:write');`);
+    writeModule('kappa_surface/src/backend', 'service.ts', `await permissionService.hasPermission(actor, 'kappa:rollup');`);
+    const result = scanEnforcedPermissionGates([root]);
+    expect(
+      result.sites.map((s) => [s.codes[0], s.surface]).sort(),
+    ).toEqual([
+      ['kappa:read', 'admin-control'],
+      ['kappa:rollup', 'enforcement'],
+      ['kappa:write', 'enforcement'],
+    ]);
+  });
+
+  it('ignores a gate written in a *.test.tsx', () => {
+    writeModule('kappa_test', 'KappaPage.test.tsx', `hasPermission('kappa:fixture');`);
+    expect(codes()).toEqual([]);
+  });
+});
+
 describe('permission gate scanner — a test is not an enforcement site', () => {
   // Feature 106 moved every co-located test into `packages/modules/<id>/src/`,
   // which is inside this scanner's walk. This file is one of them, and its
