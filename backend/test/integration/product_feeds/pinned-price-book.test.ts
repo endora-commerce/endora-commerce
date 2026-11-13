@@ -4,6 +4,7 @@ import {
   teardownBackendServer,
   type BackendServerHandle,
 } from '../../helpers/test-server.js';
+import { productFeedPriceBookOptionsResponseSchema } from '@endora-commerce/contracts';
 import { setupPricingFixture, type PricingFixture } from '../../helpers/pricing-fixture.js';
 
 /**
@@ -166,6 +167,45 @@ describe('product feeds — a feed pinned to a price book', () => {
       expect(await warningOf(await feedPinnedTo(live.id))).toEqual({ detail: null, list: null });
       expect(await warningOf(await feedPinnedTo(draft.id))).toEqual({ detail: 'not_active', list: 'not_active' });
       expect(await warningOf(await feedPinnedTo(acme.id))).toEqual({ detail: 'audience_restricted', list: 'audience_restricted' });
+    });
+
+    // Issue #414 — the feed's settings pick the book through these options.
+    const optionsOf = async (feedId: string) => {
+      const res = await h.app.inject({ method: 'GET', url: `/api/v1/admin/product-feeds/${feedId}/price-book-options`, ...ADMIN });
+      expect(res.statusCode, res.body).toBe(200);
+      return productFeedPriceBookOptionsResponseSchema.parse(res.json()).data;
+    };
+
+    it('offers the books of the feed’s currency, each with why it would not publish', async () => {
+      const rows = [{ product: f.products.P1, fixed: '77' }];
+      const live = await f.book({ audience: 'everyone', rows });
+      const draft = await f.book({ audience: 'everyone', rows, activate: false });
+      const acme = await f.book({ audience: { organizations: [f.orgs.Acme] }, rows });
+      const elsewhere = await f.book({ audience: 'everyone', rows, channels: [f.channels.CH2] });
+      const eur = await f.book({ audience: 'everyone', currency: 'EUR', channels: [f.channels.CH2], rows });
+
+      const options = await optionsOf(await feedPinnedTo(null));
+      const reasonOf = new Map(options.map((o) => [o.id, o.unpublishableReason]));
+      expect(reasonOf.get(live.id)).toBeNull();
+      expect(reasonOf.get(draft.id)).toBe('not_active');
+      expect(reasonOf.get(acme.id)).toBe('audience_restricted');
+      expect(reasonOf.get(elsewhere.id)).toBe('not_on_channel');
+      // A book in another currency can never price this feed: not offered at all.
+      expect(reasonOf.has(eur.id)).toBe(false);
+      const base = options.filter((o) => o.isBase);
+      expect(base).toHaveLength(1);
+      expect(base[0]!.unpublishableReason).toBeNull();
+    });
+
+    it('keeps the pinned book among the options even when it is in another currency', async () => {
+      const eur = await f.book({
+        audience: 'everyone',
+        currency: 'EUR',
+        channels: [f.channels.CH2],
+        rows: [{ product: f.products.P1, fixed: '9' }],
+      });
+      const options = await optionsOf(await feedPinnedTo(eur.id));
+      expect(options.find((o) => o.id === eur.id)?.unpublishableReason).toBe('currency_mismatch');
     });
   });
 });

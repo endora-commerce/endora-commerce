@@ -167,10 +167,13 @@ This applies to every feed; there is no setting for it. The storefront product p
 of one piece; Google's multipack rules ask the landing page to show the multipack's price too, so
 watch the Merchant Center diagnostics for products published this way.
 
-A feed can instead be **pinned to one price book** — the feed's `priceListId`, set through the
-admin API when the feed is created or updated (`POST /api/v1/admin/product-feeds`,
-`PATCH /api/v1/admin/product-feeds/:id`); the feed's screens show the warning below but have no
-control for it (issue #414). It then publishes that book's own lines — fixed prices, and percentages or
+A feed can instead be **pinned to one price book**: choose it under *Price book* in the *Prices*
+section of the feed's *Settings* tab, or set the feed's `priceListId` through the admin API
+(`POST /api/v1/admin/product-feeds`, `PATCH /api/v1/admin/product-feeds/:id`). The picker offers
+the price books in the feed's currency; the ones that would not publish for the feed now are listed
+disabled, with the reason beside their name, and *No price book* unpins the feed. The book the feed
+is already pinned to stays selectable whatever its state. Choosing a book needs the permission to
+view price lists as well as to edit product feeds. A pinned feed then publishes that book's own lines — fixed prices, and percentages or
 adjustments taken off the catalogue price the channel would charge without that book — and **a
 product the book does not price is absent from the feed**. A base price book publishes its base prices. The pinned book publishes **only
 while it applies to anyone on the feed's channel at generation time**:

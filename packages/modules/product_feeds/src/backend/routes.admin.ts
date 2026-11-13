@@ -49,6 +49,7 @@ import type { RequireAdminFactory } from '@endora-commerce/platform/kernel';
  *   GET    /api/v1/admin/product-feeds/:id/runs/:runId/issues/export
  *   GET    /api/v1/admin/product-feeds/:id/runs/:runId/artefact
  *   GET    /api/v1/admin/product-feeds/:id/artefact
+ *   GET    /api/v1/admin/product-feeds/:id/price-book-options
  *   POST   /api/v1/admin/feed-previews/selection
  *
  * The feed-template surface lives in `routes.templates.ts`.
@@ -242,6 +243,18 @@ export async function registerProductFeedsAdminRoutes(
     const row = await deps.feeds.row(id);
     return reply.send({ data: toFeedDto(row, deps.feeds) });
   });
+
+  // Issue #414 — the books the settings tab offers to pin the feed to. They
+  // name `price_lists`' books, so the caller must be allowed to read those too,
+  // as the selection preview asks for `catalog:read`.
+  app.get(
+    '/api/v1/admin/product-feeds/:id/price-book-options',
+    { preHandler: [deps.requireAdmin(PRODUCT_FEEDS_READ_PERMISSION), deps.requireAdmin('price_lists:read')] },
+    async (request, reply) => {
+      const { id } = parse(idParamsSchema, request.params);
+      return reply.send({ data: await deps.feeds.priceBookOptions(id) });
+    },
+  );
 
   app.patch('/api/v1/admin/product-feeds/:id', write, async (request, reply) => {
     const { id } = parse(idParamsSchema, request.params);

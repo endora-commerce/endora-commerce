@@ -376,8 +376,8 @@ administratorem i stanem przed zmianą i po niej; *Zobacz historię* w cenniku o
 - **Zewnętrzne API katalogu** wycenia organizację klucza API z grupą klientów tej organizacji, a nie
   z własną grupą powiązanego konta klienta, a jego zbiorcze żądanie cen wskazuje wyłącznie SKU
   produktów.
-- **Feedy produktowe wyceniają produkty, nie warianty**, dla ilości 1, a feed przypina się do
-  cennika tylko przez API administracyjne — żaden ekran feedu tego nie ustawia (zgłoszenie #414).
+- **Feedy produktowe wyceniają produkty, nie warianty**, dla ilości 1; feed przypina się do
+  cennika na karcie *Ustawienia* feedu, która podpowiada tylko cenniki publikujące dla niego.
 
 ## Aktualizacja ze starych cenników (uwaga migracyjna)
 
