@@ -1,3 +1,4 @@
+import type { CustomerGroup, CustomerGroupListResponse } from '@endora-commerce/contracts';
 import { apiClient } from '@endora-commerce/admin-kit/lib';
 
 /**
@@ -8,14 +9,8 @@ import { apiClient } from '@endora-commerce/admin-kit/lib';
  * `CustomerGroupPicker` has always made — plus the two writes, which had no
  * caller in the SPA at all until this screen.
  */
-export interface AdminCustomerGroup {
-  id: string;
-  code: string;
-  name: string;
-  description: string | null;
-  createdAt: string;
-  updatedAt: string;
-}
+/** A group as the admin API answers it — the published `customerGroupSchema` (issue #599). */
+export type AdminCustomerGroup = CustomerGroup;
 
 export interface CustomerGroupUpsertBody {
   code: string;
@@ -26,7 +21,7 @@ export interface CustomerGroupUpsertBody {
 export const customerGroupsClient = {
   list(): Promise<AdminCustomerGroup[]> {
     return apiClient
-      .get<{ data: AdminCustomerGroup[] }>('/api/v1/admin/customer-groups')
+      .get<CustomerGroupListResponse>('/api/v1/admin/customer-groups')
       .then((r) => r.data);
   },
   upsert(code: string, body: CustomerGroupUpsertBody): Promise<AdminCustomerGroup> {

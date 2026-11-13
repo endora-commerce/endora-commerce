@@ -59,6 +59,12 @@ export const customerGroupSchema = z.object({
 });
 export type CustomerGroup = z.infer<typeof customerGroupSchema>;
 
+/** `GET /api/v1/admin/customer-groups` — every group (issue #599). */
+export const customerGroupListResponseSchema = z.object({
+  data: z.array(customerGroupSchema),
+});
+export type CustomerGroupListResponse = z.infer<typeof customerGroupListResponseSchema>;
+
 export const upsertCustomerGroupRequestSchema = z.object({
   code: z.string().min(1).max(64),
   name: z.string().min(1).max(160),

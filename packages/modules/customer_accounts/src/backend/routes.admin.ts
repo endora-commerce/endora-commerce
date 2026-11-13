@@ -1,5 +1,9 @@
 import type { FastifyInstance } from 'fastify';
-import { upsertCustomerGroupRequestSchema } from '@endora-commerce/contracts';
+import {
+  upsertCustomerGroupRequestSchema,
+  type CustomerGroup as CustomerGroupView,
+  type CustomerGroupListResponse,
+} from '@endora-commerce/contracts';
 import type { RequireAdminFactory } from '@endora-commerce/platform/kernel';
 import type { CustomerGroup } from './entities/customer-group.entity.js';
 import type { CustomerGroupService } from './services/customer-group-service.js';
@@ -35,7 +39,7 @@ export async function registerCustomerGroupAdminRoutes(
   app.get(
     '/api/v1/admin/customer-groups',
     { preHandler: requireAdmin('customer_groups:read') },
-    async () => {
+    async (): Promise<CustomerGroupListResponse> => {
       const rows = await customerGroupService().list();
       return { data: rows.map(serializeCustomerGroup) };
     },
@@ -47,7 +51,7 @@ export async function registerCustomerGroupAdminRoutes(
       preHandler: requireAdmin('customer_groups:write'),
       schema: { body: upsertCustomerGroupRequestSchema },
     },
-    async (request) => {
+    async (request): Promise<{ data: CustomerGroupView }> => {
       const body = upsertCustomerGroupRequestSchema.parse(request.body);
       const row = await customerGroupService().upsertByCode({
         code: request.params.code,
@@ -68,7 +72,8 @@ export async function registerCustomerGroupAdminRoutes(
   );
 }
 
-function serializeCustomerGroup(row: CustomerGroup): Record<string, unknown> {
+/** The published `customerGroupSchema` (issue #599). */
+function serializeCustomerGroup(row: CustomerGroup): CustomerGroupView {
   return {
     id: row.id,
     code: row.code,
