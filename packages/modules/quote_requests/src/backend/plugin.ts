@@ -24,6 +24,7 @@ import { RfqAdminService } from './services/rfq-admin-service.js';
 import { RfqEventService } from './services/rfq-event-service.js';
 import { RfqRevisionService } from './services/rfq-revision-service.js';
 import { RfqNotificationService } from './services/rfq-notification-service.js';
+import type { NotificationKick } from './services/notifications/kick.js';
 import { createRecipientResolver, orgWideViewerRoleIds } from './services/notifications/recipients.js';
 import { RfqExpiryWorker, type RfqExpiryRule } from './services/rfq-expiry-worker.js';
 import { QuoteRequestListViewService } from './services/quote-request-list-view-service.js';
@@ -188,6 +189,12 @@ export interface QuoteRequestsModuleOptions {
    * recipients are kept only while they hold `rfqs:handle` (research R-5).
    */
   permissions: Pick<PermissionReadPort, 'listPermissions'>;
+  /**
+   * Wakes the notification delivery worker after a transition that recorded
+   * deliveries has committed (`specs/179-rfq-and-customer-notifications/`
+   * research R-8). Never throws. Absent: nothing is kicked.
+   */
+  notificationKick?: NotificationKick;
 }
 
 export interface QuoteRequestsModuleHandle {
@@ -239,6 +246,7 @@ export function quoteRequestsModule(options: QuoteRequestsModuleOptions): {
     eventService,
     revisionService,
     notificationService,
+    ...(options.notificationKick ? { notificationKick: options.notificationKick } : {}),
     salesRepAssignment,
     catalogProducts: options.catalogProducts,
     channelMembership: options.channelMembership,
@@ -264,6 +272,7 @@ export function quoteRequestsModule(options: QuoteRequestsModuleOptions): {
     eventService,
     revisionService,
     notificationService,
+    ...(options.notificationKick ? { notificationKick: options.notificationKick } : {}),
     salesRepAssignment,
     catalogProducts: options.catalogProducts,
     catalogAvailability: options.catalogAvailability,
@@ -280,6 +289,7 @@ export function quoteRequestsModule(options: QuoteRequestsModuleOptions): {
     events: options.eventBus as RfqEventBus,
     eventService,
     notificationService,
+    ...(options.notificationKick ? { notificationKick: options.notificationKick } : {}),
     resolveExpiryRule: options.resolveExpiryRule,
   });
 

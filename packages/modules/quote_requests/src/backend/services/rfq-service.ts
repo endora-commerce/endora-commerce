@@ -46,7 +46,8 @@ import type { QuoteRequestBusinessIdGenerator } from './quote-request-business-i
 import type { SalesChannelMembershipPort } from '@endora-commerce/platform/kernel';
 import { raisedInScopeLanguage, raisedOnChannelId } from './raised-on-channel.js';
 import { hasUnpricedLine, quoteIncompleteError, unitPriceText } from './agreed-price.js';
-import { underRowLock } from './transition-lock.js';
+import { inTransaction, underRowLock } from './transition-lock.js';
+import type { NotificationKick } from './notifications/kick.js';
 import { summarize } from './summarize.js';
 import { channelCurrencies, channelCurrency, requestLineCurrency } from './line-currency.js';
 import {
@@ -128,6 +129,13 @@ export interface RfqServiceDeps {
   eventService: RfqEventService;
   revisionService: RfqRevisionService;
   notificationService: RfqNotificationService;
+  /**
+   * Wakes the notification delivery worker once a transition that recorded
+   * deliveries has committed (`specs/179-rfq-and-customer-notifications/`
+   * research R-8). Never throws. Absent: nothing is kicked, and the worker's
+   * schedule reaches the records.
+   */
+  notificationKick?: NotificationKick;
   salesRepAssignment: SalesRepAssignmentPort;
   /**
    * Narrows a quote's custom-field values to the ones a customer may read
@@ -382,6 +390,14 @@ export class RfqService {
     );
   }
 
+  /**
+   * After a commit that recorded deliveries, and never before it: a kick for a
+   * transaction that then rolled back would wake the worker for nothing.
+   */
+  private kickNotificationDelivery(): void {
+    this.deps.notificationKick?.();
+  }
+
   /** Feature 054 — co-transactional RFQ audit on `em` (actor from context). */
   #audit(
     em: EntityManager,
@@ -592,92 +608,109 @@ export class RfqService {
     });
     const capturedAt = new Date();
 
-    const businessId = await this.generateBusinessId(em);
-    const rfq = em.create(QuoteRequest, {
-      ...(businessId ? { businessId } : {}),
-      organizationId: ctx.organizationId,
-      customerAccountId: ctx.customerAccountId,
-      salesChannelId,
-      status: 'Pending' satisfies QuoteRequestStatus,
-      headerNote: input.headerNote ?? null,
-      submittedAt: new Date(),
-      currentRevisionNumber: 1,
-      lastCustomerSeenRevisionNumber: 1,
-    });
-    await em.persistAndFlush(rfq);
-
-    const items: QuoteRequestItem[] = [];
     const lineNames = await this.lineNames([...productById.values()], salesChannelId, options.languageTag);
     // Issue #303 — decided here, once: the raised-on channel's currency.
     const lineCurrency = await channelCurrency(em, salesChannelId);
-    for (const [index, lineInput] of input.items.entries()) {
-      const product = productById.get(lineInput.productId)!;
-      const unit = packaging[index]!;
-      // Feature 043 — append the packaging-unit name to the snapshot name so
-      // RFQ views show "<name> (Paleta)", and persist the structured snapshot.
-      // Feature 155 (FR-026) — the name and base quantity are the catalogue
-      // unit's, beside its id; a line naming no unit stores plain pieces.
-      // Feature 163 (FR-017 d, N2) — the name is the one the buyer saw: the
-      // effective name at the request's (channel, language).
-      const baseName = lineNames.get(product.id) || product.name;
-      const productName = unit.packagingUnitName ? `${baseName} (${unit.packagingUnitName})` : baseName;
-      const item = em.create(QuoteRequestItem, {
-        quoteRequestId: rfq.id,
-        productId: product.id,
-        productName,
-        productSlug: product.slug,
-        variantId: lineInput.variantId ?? null,
-        quantity: lineInput.quantity,
-        packagingUnitId: unit.packagingUnitId,
-        packagingUnitName: unit.packagingUnitName,
-        packagingUnitBaseQuantity: unit.packagingUnitBaseQuantity,
-        desiredUnitPrice:
-          lineInput.desiredUnitPrice !== undefined ? unitPriceText(lineInput.desiredUnitPrice) : null,
-        lineNote: lineInput.lineNote ?? null,
-        lineCurrency,
-        ...referenceColumns(references[index] ?? null, capturedAt),
-        // Feature 159 — the request's order, stored (ungrouped: one section).
-        position: index,
+
+    const businessId = await this.generateBusinessId(em);
+    // `specs/179-rfq-and-customer-notifications/` FR-001 — the request, its
+    // lines, revision 1, its two history entries and the notification records
+    // naming `submitted` commit together, or none of them does.
+    const rfq = await inTransaction(em, async () => {
+      const rfq = em.create(QuoteRequest, {
+        ...(businessId ? { businessId } : {}),
+        organizationId: ctx.organizationId,
+        customerAccountId: ctx.customerAccountId,
+        salesChannelId,
+        status: 'Pending' satisfies QuoteRequestStatus,
+        headerNote: input.headerNote ?? null,
+        submittedAt: new Date(),
+        currentRevisionNumber: 1,
+        lastCustomerSeenRevisionNumber: 1,
       });
-      items.push(item);
-    }
-    this.#audit(em, 'quote_request.create', rfq.id, null, {
-      status: rfq.status,
-      itemCount: items.length,
-      salesChannelId: rfq.salesChannelId ?? null,
-    });
-    await em.persistAndFlush(items);
+      await em.persistAndFlush(rfq);
 
-    const revision = await this.deps.revisionService.record({
-      rfq,
-      items,
-      actor: { customerAccountId: ctx.customerAccountId },
-    });
-
-    const created = await this.deps.eventService.append({
-      quoteRequestId: rfq.id,
-      eventType: 'created',
-      actor: { customerAccountId: ctx.customerAccountId, roleLabel: 'Customer' },
-      payload: { type: 'created' },
-      revisionId: revision.id,
-    });
-    const submitted = await this.deps.eventService.append({
-      quoteRequestId: rfq.id,
-      eventType: 'submitted',
-      actor: { customerAccountId: ctx.customerAccountId, roleLabel: 'Customer' },
-      payload: {
-        type: 'submitted',
+      const items: QuoteRequestItem[] = [];
+      for (const [index, lineInput] of input.items.entries()) {
+        const product = productById.get(lineInput.productId)!;
+        const unit = packaging[index]!;
+        // Feature 043 — append the packaging-unit name to the snapshot name so
+        // RFQ views show "<name> (Paleta)", and persist the structured snapshot.
+        // Feature 155 (FR-026) — the name and base quantity are the catalogue
+        // unit's, beside its id; a line naming no unit stores plain pieces.
+        // Feature 163 (FR-017 d, N2) — the name is the one the buyer saw: the
+        // effective name at the request's (channel, language).
+        const baseName = lineNames.get(product.id) || product.name;
+        const productName = unit.packagingUnitName ? `${baseName} (${unit.packagingUnitName})` : baseName;
+        const item = em.create(QuoteRequestItem, {
+          quoteRequestId: rfq.id,
+          productId: product.id,
+          productName,
+          productSlug: product.slug,
+          variantId: lineInput.variantId ?? null,
+          quantity: lineInput.quantity,
+          packagingUnitId: unit.packagingUnitId,
+          packagingUnitName: unit.packagingUnitName,
+          packagingUnitBaseQuantity: unit.packagingUnitBaseQuantity,
+          desiredUnitPrice:
+            lineInput.desiredUnitPrice !== undefined ? unitPriceText(lineInput.desiredUnitPrice) : null,
+          lineNote: lineInput.lineNote ?? null,
+          lineCurrency,
+          ...referenceColumns(references[index] ?? null, capturedAt),
+          // Feature 159 — the request's order, stored (ungrouped: one section).
+          position: index,
+        });
+        items.push(item);
+      }
+      this.#audit(em, 'quote_request.create', rfq.id, null, {
+        status: rfq.status,
         itemCount: items.length,
-      },
-      revisionId: revision.id,
-    });
+        salesChannelId: rfq.salesChannelId ?? null,
+      });
+      await em.persistAndFlush(items);
 
-    await this.deps.notificationService.record(em, {
-      change: 'submitted',
-      sourceEvent: submitted,
-      rfq,
-      actor: { customerAccountId: ctx.customerAccountId },
+      const revision = await this.deps.revisionService.record(
+        {
+          rfq,
+          items,
+          actor: { customerAccountId: ctx.customerAccountId },
+        },
+        em,
+      );
+
+      await this.deps.eventService.append(
+        {
+          quoteRequestId: rfq.id,
+          eventType: 'created',
+          actor: { customerAccountId: ctx.customerAccountId, roleLabel: 'Customer' },
+          payload: { type: 'created' },
+          revisionId: revision.id,
+        },
+        em,
+      );
+      const submitted = await this.deps.eventService.append(
+        {
+          quoteRequestId: rfq.id,
+          eventType: 'submitted',
+          actor: { customerAccountId: ctx.customerAccountId, roleLabel: 'Customer' },
+          payload: {
+            type: 'submitted',
+            itemCount: items.length,
+          },
+          revisionId: revision.id,
+        },
+        em,
+      );
+
+      await this.deps.notificationService.record(em, {
+        change: 'submitted',
+        sourceEvent: submitted,
+        rfq,
+        actor: { customerAccountId: ctx.customerAccountId },
+      });
+      return rfq;
     });
+    this.kickNotificationDelivery();
 
     this.deps.events.emit('rfq.created.v1', {
       eventId: randomUUID(),
@@ -686,7 +719,6 @@ export class RfqService {
       organizationId: rfq.organizationId,
     });
 
-    void created; // referenced for ordering side-effect
     return this.serializeFull(em, rfq, false);
   }
 
@@ -986,68 +1018,83 @@ export class RfqService {
     });
     const capturedAt = new Date();
 
-    const newRfq = em.create(QuoteRequest, {
-      organizationId: ctx.organizationId,
-      customerAccountId: ctx.customerAccountId,
-      salesChannelId,
-      status: 'Pending' satisfies QuoteRequestStatus,
-      headerNote: body.headerNote ?? null,
-      submittedAt: new Date(),
-      currentRevisionNumber: 1,
-      lastCustomerSeenRevisionNumber: 1,
-    });
-    await em.persistAndFlush(newRfq);
+    // FR-001 — as `createForCustomer`: the new request and everything naming
+    // it commit together.
+    const newRfq = await inTransaction(em, async () => {
+      const newRfq = em.create(QuoteRequest, {
+        organizationId: ctx.organizationId,
+        customerAccountId: ctx.customerAccountId,
+        salesChannelId,
+        status: 'Pending' satisfies QuoteRequestStatus,
+        headerNote: body.headerNote ?? null,
+        submittedAt: new Date(),
+        currentRevisionNumber: 1,
+        lastCustomerSeenRevisionNumber: 1,
+      });
+      await em.persistAndFlush(newRfq);
 
-    const newItems: QuoteRequestItem[] = sourceItems.map((src, index) =>
-      em.create(QuoteRequestItem, {
-        quoteRequestId: newRfq.id,
-        productId: src.productId,
-        productName: src.productName,
-        productSlug: src.productSlug ?? null,
-        variantId: src.variantId ?? null,
-        quantity: src.quantity,
-        desiredUnitPrice: null,
-        lineNote: src.lineNote ?? null,
-        lineCurrency: src.lineCurrency,
-        ...referenceColumns(references[index] ?? null, capturedAt),
-        // Feature 159 — the order the buyer was shown, ungrouped (FR-026).
-        position: index,
-      }),
-    );
-    this.#audit(em, 'quote_request.resubmit', newRfq.id, null, {
-      status: newRfq.status,
-      itemCount: newItems.length,
-      salesChannelId: newRfq.salesChannelId ?? null,
-    });
-    await em.persistAndFlush(newItems);
+      const newItems: QuoteRequestItem[] = sourceItems.map((src, index) =>
+        em.create(QuoteRequestItem, {
+          quoteRequestId: newRfq.id,
+          productId: src.productId,
+          productName: src.productName,
+          productSlug: src.productSlug ?? null,
+          variantId: src.variantId ?? null,
+          quantity: src.quantity,
+          desiredUnitPrice: null,
+          lineNote: src.lineNote ?? null,
+          lineCurrency: src.lineCurrency,
+          ...referenceColumns(references[index] ?? null, capturedAt),
+          // Feature 159 — the order the buyer was shown, ungrouped (FR-026).
+          position: index,
+        }),
+      );
+      this.#audit(em, 'quote_request.resubmit', newRfq.id, null, {
+        status: newRfq.status,
+        itemCount: newItems.length,
+        salesChannelId: newRfq.salesChannelId ?? null,
+      });
+      await em.persistAndFlush(newItems);
 
-    const revision = await this.deps.revisionService.record({
-      rfq: newRfq,
-      items: newItems,
-      actor: { customerAccountId: ctx.customerAccountId },
-    });
+      const revision = await this.deps.revisionService.record(
+        {
+          rfq: newRfq,
+          items: newItems,
+          actor: { customerAccountId: ctx.customerAccountId },
+        },
+        em,
+      );
 
-    await this.deps.eventService.append({
-      quoteRequestId: newRfq.id,
-      eventType: 'created',
-      actor: { customerAccountId: ctx.customerAccountId, roleLabel: 'Customer' },
-      payload: { type: 'created', sourceRfqId: sourceRfq.id },
-      revisionId: revision.id,
-    });
-    const submittedEvt = await this.deps.eventService.append({
-      quoteRequestId: newRfq.id,
-      eventType: 're-submitted',
-      actor: { customerAccountId: ctx.customerAccountId, roleLabel: 'Customer' },
-      payload: { type: 're-submitted', sourceRfqId: sourceRfq.id, newRfqId: newRfq.id },
-      revisionId: revision.id,
-    });
+      await this.deps.eventService.append(
+        {
+          quoteRequestId: newRfq.id,
+          eventType: 'created',
+          actor: { customerAccountId: ctx.customerAccountId, roleLabel: 'Customer' },
+          payload: { type: 'created', sourceRfqId: sourceRfq.id },
+          revisionId: revision.id,
+        },
+        em,
+      );
+      const submittedEvt = await this.deps.eventService.append(
+        {
+          quoteRequestId: newRfq.id,
+          eventType: 're-submitted',
+          actor: { customerAccountId: ctx.customerAccountId, roleLabel: 'Customer' },
+          payload: { type: 're-submitted', sourceRfqId: sourceRfq.id, newRfqId: newRfq.id },
+          revisionId: revision.id,
+        },
+        em,
+      );
 
-    await this.deps.notificationService.record(em, {
-      change: 'resubmitted',
-      sourceEvent: submittedEvt,
-      rfq: newRfq,
-      actor: { customerAccountId: ctx.customerAccountId },
+      await this.deps.notificationService.record(em, {
+        change: 'resubmitted',
+        sourceEvent: submittedEvt,
+        rfq: newRfq,
+        actor: { customerAccountId: ctx.customerAccountId },
+      });
+      return newRfq;
     });
+    this.kickNotificationDelivery();
 
     return this.serializeFull(em, newRfq, false);
   }
@@ -1134,6 +1181,20 @@ export class RfqService {
     }
 
     const now = new Date();
+    const eventType: QuoteRequestEventType =
+      decision === 'accept' ? 'customer-accepted-revision' : 'customer-rejected-revision';
+    const eventPayload: Record<string, unknown> = {
+      type: eventType,
+      revisionNumber: rfq.currentRevisionNumber,
+    };
+    if (decision === 'reject' && reason) eventPayload['reason'] = reason;
+    const terminalEventType: QuoteRequestEventType = decision === 'accept' ? 'approved' : 'canceled';
+    const terminalPayload: Record<string, unknown> =
+      decision === 'accept'
+        ? { type: 'approved', approvedBy: 'customer' }
+        : { type: 'canceled', canceledBy: 'customer', reason: reason ?? null };
+    // FR-001 — the answer, its two history entries and the records naming the
+    // terminal one commit together.
     await underRowLock(em, rfq, async () => {
       if (decision === 'accept') {
         rfq.status = 'Approved';
@@ -1152,41 +1213,34 @@ export class RfqService {
         revisionNumber: rfq.currentRevisionNumber,
       });
       await em.flush();
-    });
 
-    const eventType: QuoteRequestEventType =
-      decision === 'accept' ? 'customer-accepted-revision' : 'customer-rejected-revision';
-    const eventPayload: Record<string, unknown> = {
-      type: eventType,
-      revisionNumber: rfq.currentRevisionNumber,
-    };
-    if (decision === 'reject' && reason) eventPayload['reason'] = reason;
-    const revisionEvt = await this.deps.eventService.append({
-      quoteRequestId: rfq.id,
-      eventType,
-      actor: { customerAccountId: ctx.customerAccountId, roleLabel: 'Customer' },
-      payload: eventPayload,
-    });
+      await this.deps.eventService.append(
+        {
+          quoteRequestId: rfq.id,
+          eventType,
+          actor: { customerAccountId: ctx.customerAccountId, roleLabel: 'Customer' },
+          payload: eventPayload,
+        },
+        em,
+      );
+      const terminalEvt = await this.deps.eventService.append(
+        {
+          quoteRequestId: rfq.id,
+          eventType: terminalEventType,
+          actor: { customerAccountId: ctx.customerAccountId, roleLabel: 'Customer' },
+          payload: terminalPayload,
+        },
+        em,
+      );
 
-    const terminalEventType: QuoteRequestEventType = decision === 'accept' ? 'approved' : 'canceled';
-    const terminalPayload: Record<string, unknown> =
-      decision === 'accept'
-        ? { type: 'approved', approvedBy: 'customer' }
-        : { type: 'canceled', canceledBy: 'customer', reason: reason ?? null };
-    const terminalEvt = await this.deps.eventService.append({
-      quoteRequestId: rfq.id,
-      eventType: terminalEventType,
-      actor: { customerAccountId: ctx.customerAccountId, roleLabel: 'Customer' },
-      payload: terminalPayload,
+      await this.deps.notificationService.record(em, {
+        change: decision === 'accept' ? 'offer_accepted' : 'offer_rejected',
+        sourceEvent: terminalEvt,
+        rfq,
+        actor: { customerAccountId: ctx.customerAccountId },
+      });
     });
-    void revisionEvt;
-
-    await this.deps.notificationService.record(em, {
-      change: decision === 'accept' ? 'offer_accepted' : 'offer_rejected',
-      sourceEvent: terminalEvt,
-      rfq,
-      actor: { customerAccountId: ctx.customerAccountId },
-    });
+    this.kickNotificationDelivery();
 
     if (decision === 'accept') {
       this.deps.events.emit('rfq.approved.v1', {

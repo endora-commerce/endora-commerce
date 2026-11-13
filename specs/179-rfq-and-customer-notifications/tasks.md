@@ -69,9 +69,18 @@ Contract and integration files do not run on merge requests (D-198): run them lo
 
 ### WP-04 Recording inside the transaction (`qr`)
 
-- [ ] T030 [WP-04] [US1] [US2] Test, one case per writer (submit, re-submit, accept offer, reject offer, operator approve, cancel, modify, create on behalf, expiry, order completion): the change, its source history entry and its records commit together; a failure injected after the records rolls back all three; completion writes no record — `backend/test/integration/quote_requests/notification-recording.test.ts`
-- [ ] T031 [WP-04] Test: a kick is added after commit; a failing `queue.add` logs and the transition still answers 200 — `qr/src/backend/services/notifications/kick.test.ts`
-- [ ] T032 [WP-04] Impl: in `rfq-service.ts` (`createForCustomer`, `resubmit`, `respondToRevision`), `rfq-admin-service.ts` (`approve`, `cancel`, `modify`, `createOnBehalf`) move the notifying `eventService.append(…, em)` and `notificationService.record(em, …)` inside the `underRowLock` change; `order-completion-reactor.ts` wraps status + history + records in `em.transactional`; `rfq-expiry-worker.ts` switches to `record`; update the header comment of `transition-lock.ts`; remove `notifyInternalSide`; add the kick
+- [x] T030 [WP-04] [US1] [US2] Test, one case per writer (submit, re-submit, accept offer, reject offer, operator approve, cancel, modify, create on behalf, expiry, order completion): the change, its source history entry and its records commit together; a failure injected after the records rolls back all three; completion writes no record — `backend/test/integration/quote_requests/notification-recording.test.ts`
+- [x] T031 [WP-04] Test: a kick is added after commit; a failing `queue.add` logs and the transition still answers 200 — `qr/src/backend/services/notifications/kick.test.ts`
+- [x] T032 [WP-04] Impl: in `rfq-service.ts` (`createForCustomer`, `resubmit`, `respondToRevision`), `rfq-admin-service.ts` (`approve`, `cancel`, `modify`, `createOnBehalf`) move the notifying `eventService.append(…, em)` and `notificationService.record(em, …)` inside the `underRowLock` change; `order-completion-reactor.ts` wraps status + history + records in `em.transactional`; `rfq-expiry-worker.ts` switches to `record`; update the header comment of `transition-lock.ts`; remove `notifyInternalSide`; add the kick
+  - *WP-04 as built (for WP-05):* `notifyInternalSide` and the expiry worker's switch to `record`
+    were already done in WP-02. Writes with no row to lock (`createForCustomer`, `resubmit`,
+    `createOnBehalf`) run in `inTransaction(em, …)` (`transition-lock.ts`); the revision moved in
+    with its history entry (`RfqRevisionService.record(input, within)`). The approval's note
+    moved in with it. The kick is `services/notifications/kick.ts`
+    (`createNotificationKickProducer`, cradle `quoteRequestNotificationKick`). It owns the queue
+    name `quote_requests.notifications.deliver` for WP-05's worker to import, and it is fire and
+    forget. The expiry sweep kicks once per pass that notified anybody. `patchDraft` (notifies
+    nobody) still appends its revision and history entry after the lock.
 
 ### WP-05 Worker, e-mail and bell (`qr`)
 

@@ -29,18 +29,27 @@ import type { QuoteRequest } from '../entities/quote-request.entity.js';
  * by the sweep, which finds it answered on its next pass; a sweep that got
  * there first has bumped the version, and the transition is refused.
  *
- * **`change` ends where the row's own write ends.** History rows, revisions and
- * notifications are written by services on connections of their own and
- * reference this row; written while the lock is held they would wait on it
- * forever. Every caller appends them after this returns.
+ * **Everything the change writes is written on `em`.** The history entry a
+ * transition announces, the revision it records and the notification records
+ * that name that entry are part of the change
+ * (`specs/179-rfq-and-customer-notifications/` FR-001, research R-6): they
+ * commit with it or not at all. Each is written by passing `em` as `within`
+ * (`RfqEventService.append`, `RfqRevisionService.record`,
+ * `RfqNotificationService.record`). A row written on a connection of its own
+ * instead would reference this row, and wait on its lock forever.
+ *
+ * What may not be inside is what cannot be taken back: an event announced on
+ * the bus, and the delivery kick. Both are the caller's, after this returns.
+ *
+ * (The customer's own draft edit, `RfqService.patchDraft`, notifies nobody and
+ * still appends its revision and history entry after the lock.)
  */
 export async function underRowLock<T>(
   em: EntityManager,
   rfq: QuoteRequest,
   change: () => Promise<T>,
 ): Promise<T> {
-  await em.begin();
-  try {
+  return inTransaction(em, async () => {
     const rows = await em.execute<Array<{ version: number | string }>>(
       `select "version" from "quote_requests" where "id" = ? for update`,
       [rfq.id],
@@ -48,6 +57,21 @@ export async function underRowLock<T>(
     if (rows.length !== 1 || Number(rows[0]!.version) !== rfq.version) {
       throw new HttpError(409, ERROR_CODES.VERSION_CONFLICT, 'Quote Request was updated concurrently.');
     }
+    return change();
+  });
+}
+
+/**
+ * Run `change` in one transaction on `em` itself — no fork, so the entities the
+ * caller holds are the ones written — and commit, or roll back and re-throw.
+ *
+ * For a write with no row to lock yet: a new request (`createForCustomer`,
+ * `resubmit`, `createOnBehalf`), whose row, lines, revision, history entries
+ * and notification records commit together.
+ */
+export async function inTransaction<T>(em: EntityManager, change: () => Promise<T>): Promise<T> {
+  await em.begin();
+  try {
     const result = await change();
     await em.commit();
     return result;

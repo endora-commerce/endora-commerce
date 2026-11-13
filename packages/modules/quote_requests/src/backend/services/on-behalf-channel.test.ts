@@ -87,6 +87,12 @@ function service(em: Record<string, unknown>, filterAvailable = vi.fn(async () =
   return { svc, generateBusinessId, filterAvailable, listChannelsForEntity };
 }
 
+
+/** `begin` / `commit` / `rollback` of an EntityManager double: the write never reaches the database. */
+function transactionStubs() {
+  return { begin: vi.fn(async () => undefined), commit: vi.fn(async () => undefined), rollback: vi.fn(async () => undefined) };
+}
+
 describe('163 — the channel an operator raises a quote request on', () => {
   beforeEach(() => {
     channelState.current = null;
@@ -114,6 +120,8 @@ describe('163 — the channel an operator raises a quote request on', () => {
       persistAndFlush: vi.fn(async () => {
         throw new Error('reached the write');
       }),
+      // The write runs in a transaction of its own (`specs/179-…` WP-04).
+      ...transactionStubs(),
     };
     const { svc } = service(em);
     await expect(createAsPlatformAdmin(svc, body({ salesChannelId: B2C }))).rejects.toThrow('reached the write');
@@ -169,6 +177,8 @@ describe('163 — the channel an operator raises a quote request on', () => {
       persistAndFlush: vi.fn(async () => {
         throw new Error('reached the write');
       }),
+      // The write runs in a transaction of its own (`specs/179-…` WP-04).
+      ...transactionStubs(),
     };
     const { svc, listChannelsForEntity } = service(em);
     await expect(createAsPlatformAdmin(svc, body())).rejects.toThrow('reached the write');
@@ -200,6 +210,8 @@ describe('163 — the channel an operator raises a quote request on', () => {
       persistAndFlush: vi.fn(async () => {
         throw new Error('reached the write');
       }),
+      // The write runs in a transaction of its own (`specs/179-…` WP-04).
+      ...transactionStubs(),
     };
     const { svc } = service(em);
     await expect(createAsPlatformAdmin(svc, body({ salesChannelId: B2C }))).rejects.toThrow('reached the write');
