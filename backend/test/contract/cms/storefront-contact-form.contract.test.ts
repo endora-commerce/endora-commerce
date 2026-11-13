@@ -166,6 +166,8 @@ describe('contact form — storefront endpoint (feature 169, contract §2)', () 
   });
 
   it('records each delivery with the fixed subject and no context, so nothing typed is stored', async () => {
+    // Sends its own submission rather than reading the rows an earlier case left (issue #1118).
+    expect((await post(VALID, withRecipients.code)).statusCode).toBe(200);
     const em = h.em();
     em.clear();
     const rows = await em.find(EmailDelivery, { recipient: { $in: RECIPIENTS } });
