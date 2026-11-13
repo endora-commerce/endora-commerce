@@ -31,6 +31,12 @@ export const taxSchema = z.object({
 });
 export type Tax = z.infer<typeof taxSchema>;
 
+/** `GET /api/v1/admin/taxes` — every tax rule (issue #599). */
+export const taxListResponseSchema = z.object({
+  data: z.array(taxSchema),
+});
+export type TaxListResponse = z.infer<typeof taxListResponseSchema>;
+
 export const upsertTaxRequestSchema = z.object({
   code: z.string().min(1).max(64),
   name: z.string().min(1).max(160),

@@ -23,6 +23,15 @@ export const languageSchema = z.object({
 });
 export type Language = z.infer<typeof languageSchema>;
 
+/**
+ * `GET /api/v1/admin/languages` — every language row, active or not, the
+ * available catalogue included (issue #599).
+ */
+export const languageListResponseSchema = z.object({
+  data: z.array(languageSchema),
+});
+export type LanguageListResponse = z.infer<typeof languageListResponseSchema>;
+
 export const upsertLanguageRequestSchema = z.object({
   label: z.string().min(1).max(64),
   isActive: z.boolean().optional(),
@@ -44,6 +53,16 @@ export const currencySchema = z.object({
   updatedAt: isoDateTimeSchema,
 });
 export type Currency = z.infer<typeof currencySchema>;
+
+/**
+ * `GET /api/v1/admin/currencies` — every currency, active or not (issue #599).
+ * The rows are `currencySchema`: the catalogue's `symbolPosition` and
+ * `decimalPlaces` are `dictionaries`' admin screen to answer, not this one.
+ */
+export const currencyListResponseSchema = z.object({
+  data: z.array(currencySchema),
+});
+export type CurrencyListResponse = z.infer<typeof currencyListResponseSchema>;
 
 export const upsertCurrencyRequestSchema = z.object({
   label: z.string().min(1).max(64),

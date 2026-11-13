@@ -2,6 +2,7 @@ import { describe, expect, it } from 'vitest';
 import {
   quoteRequestHistoryEntrySchema,
   type AdminUserRecord,
+  type QuoteRequestDelivery,
   type CatalogProductVariantRecord,
   type CustomerAccountRecord,
 } from '@endora-commerce/contracts';
@@ -506,3 +507,37 @@ describe('feature 162 — values a Sales Opportunity could not carry', () => {
   });
 });
 
+
+describe('projectHistory — deliveries (`specs/179-rfq-and-customer-notifications/` FR-070)', () => {
+  function delivery(id: string, displayName: string): QuoteRequestDelivery {
+    return {
+      id,
+      channel: 'customer_email',
+      recipient: { kind: 'customer', id: A, displayName },
+      status: 'sent',
+      attempts: 1,
+      lastError: null,
+      closedAt: '2026-11-12T10:00:00.000Z',
+    };
+  }
+
+  it('attaches the deliveries of every event of an entry, by `eventIds`', () => {
+    const created = event('created', { customer: A }, {}, REV1);
+    const submitted = event('submitted', { customer: A }, { itemCount: 1 }, REV1);
+    const first = delivery('d0000000-0000-4000-8000-000000000001', 'Alice Asker');
+    const entries = projectHistory([created, submitted], [revision(REV1, 1, [line()])], directory(), new Map([[submitted.id, [first]]]));
+    expect(entries).toHaveLength(1);
+    expect(entries[0]!.id).toBe(created.id);
+    expect(entries[0]!.deliveries).toEqual([first]);
+    expect(quoteRequestHistoryEntrySchema.safeParse(entries[0]).success).toBe(true);
+  });
+
+  it('an entry that notified nobody carries no `deliveries` key, and none without the map', () => {
+    const canceled = event('canceled', { admin: ADMIN }, { reason: 'x' });
+    const expired = event('expired', { role: 'System' });
+    const entries = projectHistory([canceled, expired], [], directory(), new Map([[expired.id, [delivery('d0000000-0000-4000-8000-000000000002', 'Alice Asker')]]]));
+    expect(entries[0]).not.toHaveProperty('deliveries');
+    expect(entries[1]!.deliveries).toHaveLength(1);
+    expect(projectHistory([canceled], [], directory())[0]).not.toHaveProperty('deliveries');
+  });
+});

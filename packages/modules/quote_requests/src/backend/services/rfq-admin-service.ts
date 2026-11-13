@@ -41,6 +41,7 @@ import type {
 import { QuoteRequest, type QuoteRequestStatus } from '../entities/quote-request.entity.js';
 import { QuoteRequestItem } from '../entities/quote-request-item.entity.js';
 import { QuoteRequestItemGroup } from '../entities/quote-request-item-group.entity.js';
+import { QuoteRequestNotification } from '../entities/quote-request-notification.entity.js';
 import { inTransaction, underRowLock } from './transition-lock.js';
 import type { NotificationKick } from './notifications/kick.js';
 import type { RfqService} from './rfq-service.js';
@@ -68,6 +69,7 @@ import {
   type HistoryEventInput,
   type HistoryRevisionInput,
 } from './history/history-projection.js';
+import { deliveriesByEvent, type HistoryDeliveryInput } from './history/history-deliveries.js';
 import { cancelAuditState, prepareBasketAuditState } from './quote-request-audit-state.js';
 
 /**
@@ -457,6 +459,11 @@ export class RfqAdminService {
    * revisions. One `findByIds` per actor port — customers `activeOnly`, so a
    * deleted account's PII is never read and its entries name an unknown user
    * (FR-018) — and one variant read for the labels.
+   *
+   * `specs/179-rfq-and-customer-notifications/` WP-06 (FR-070) — plus the
+   * notification delivery records of the window's events, one read on
+   * `(quote_request_id, source_event_id)`; their recipients join the actor
+   * reads, so each side is still one batched read.
    */
   async history(ctx: AdminContext, rfqId: string): Promise<QuoteRequestHistory> {
     const em = this.deps.emFactory();
@@ -488,10 +495,16 @@ export class RfqAdminService {
       ),
     );
 
-    const adminIds = unique(events.map((event) => event.actorAdminUserId));
-    const customerIds = unique(
-      events.filter((event) => !event.actorAdminUserId).map((event) => event.actorCustomerAccountId),
-    );
+    const deliveries = await this.#historyDeliveries(em, rfq.id, events.map((event) => event.id));
+
+    const adminIds = unique([
+      ...events.map((event) => event.actorAdminUserId),
+      ...deliveries.filter((d) => d.recipientKind === 'admin').map((d) => d.recipientId),
+    ]);
+    const customerIds = unique([
+      ...events.filter((event) => !event.actorAdminUserId).map((event) => event.actorCustomerAccountId),
+      ...deliveries.filter((d) => d.recipientKind === 'customer').map((d) => d.recipientId),
+    ]);
     const productIds = unique(
       revisions.flatMap((revision) =>
         revision.itemsSnapshot.filter((line) => line.variantId).map((line) => line.productId),
@@ -503,14 +516,38 @@ export class RfqAdminService {
       productIds.length > 0 ? this.deps.catalogProducts.listVariantsByProductIds(productIds) : [],
     ]);
 
+    const adminDirectory = adminActorDirectory(admins);
+    const customerDirectory = customerActorDirectory(customers);
     return {
-      entries: projectHistory(events, revisions, {
-        admins: adminActorDirectory(admins),
-        customers: customerActorDirectory(customers),
-        variantLabels: variantLabelDirectory(variants),
-      }),
+      entries: projectHistory(
+        events,
+        revisions,
+        {
+          admins: adminDirectory,
+          customers: customerDirectory,
+          variantLabels: variantLabelDirectory(variants),
+        },
+        deliveriesByEvent(deliveries, { admins: adminDirectory, customers: customerDirectory }),
+      ),
       truncated,
     };
+  }
+
+  /** The delivery records announcing any of `eventIds` — the History's window, never more. */
+  async #historyDeliveries(em: EntityManager, rfqId: string, eventIds: string[]): Promise<HistoryDeliveryInput[]> {
+    if (eventIds.length === 0) return [];
+    const records = await em.find(QuoteRequestNotification, { quoteRequestId: rfqId, sourceEventId: { $in: eventIds } });
+    return records.map((record) => ({
+      id: record.id,
+      sourceEventId: record.sourceEventId,
+      recipientKind: record.recipientKind,
+      recipientId: record.recipientId,
+      channel: record.channel,
+      status: record.status,
+      attempts: record.attempts,
+      lastError: record.lastError ?? null,
+      closedAt: record.closedAt ?? null,
+    }));
   }
 
   // -------------------------------------------------------------------------

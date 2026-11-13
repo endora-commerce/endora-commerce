@@ -1,6 +1,7 @@
 import { describe, expect, it } from 'vitest';
 import {
   customerNotificationListResponseSchema,
+  customerNotificationResponseSchema,
   customerNotificationSchema,
   customerNotificationUnreadCountResponseSchema,
   type CustomerNotificationRecord,
@@ -94,6 +95,17 @@ describe('customerNotificationListResponseSchema', () => {
         data: { items: [{ ...ENTRY, extra: true }], nextCursor: null, unreadCount: 0 },
       }).success,
     ).toBe(false);
+  });
+});
+
+describe('customerNotificationResponseSchema', () => {
+  it('parses { data: <one entry> }', () => {
+    expect(customerNotificationResponseSchema.parse({ data: ENTRY })).toEqual({ data: ENTRY });
+  });
+
+  it('refuses an entry that is not a valid one, and a bare entry without the envelope', () => {
+    expect(customerNotificationResponseSchema.safeParse({ data: { ...ENTRY, extra: true } }).success).toBe(false);
+    expect(customerNotificationResponseSchema.safeParse(ENTRY).success).toBe(false);
   });
 });
 

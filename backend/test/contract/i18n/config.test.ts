@@ -4,6 +4,8 @@ import {
   teardownBackendServer,
   type BackendServerHandle,
 } from '../../helpers/test-server.js';
+import { i18nConfigResponseSchema } from '@endora-commerce/contracts';
+import { deepStrict, disagreements } from '../../helpers/strict-schema.js';
 
 /**
  * T238 — public /i18n/config returns the active languages + currencies + the
@@ -33,6 +35,8 @@ describe('GET /api/v1/i18n/config', () => {
         defaultCurrencyCode: string | null;
       };
     };
+    // The published shape and nothing beside it, languages and currencies alike (issue #599 §6).
+    expect(disagreements(deepStrict(i18nConfigResponseSchema), body.data)).toEqual([]);
     expect(body.data.defaultLanguageCode).toBe('en-US');
     expect(body.data.defaultCurrencyCode).toBe('PLN');
     expect(body.data.languages.find((l) => l.code === 'en-US')?.isDefault).toBe(true);

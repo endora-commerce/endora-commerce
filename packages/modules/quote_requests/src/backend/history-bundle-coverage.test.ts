@@ -3,6 +3,8 @@ import { dirname, join } from 'node:path';
 import { fileURLToPath } from 'node:url';
 import { describe, expect, it } from 'vitest';
 import {
+  quoteRequestDeliveryChannelSchema,
+  quoteRequestDeliveryStatusSchema,
   quoteRequestHistoryChangeSchema,
   quoteRequestHistoryEntryKindSchema,
 } from '@endora-commerce/contracts';
@@ -73,7 +75,26 @@ const OTHER_KEYS = [
   'rfq.detail.history.change.validity_removed',
 ];
 
+/**
+ * `specs/179-rfq-and-customer-notifications/` WP-06 (FR-070) — every channel
+ * and every delivery status the History can answer has a label, so a delivery
+ * never reads as its code.
+ */
+const DELIVERY_CHANNELS = [...quoteRequestDeliveryChannelSchema.options];
+const DELIVERY_STATUSES = [...quoteRequestDeliveryStatusSchema.options];
+const DELIVERY_KEYS = [
+  'rfq.detail.history.delivery.title',
+  'rfq.detail.history.delivery.recipient.admin',
+  'rfq.detail.history.delivery.recipient.customer',
+  'rfq.detail.history.delivery.attempts',
+  'rfq.detail.history.delivery.showError',
+  'rfq.detail.history.delivery.noError',
+];
+
 const REQUIRED = [
+  ...DELIVERY_CHANNELS.map((c) => `rfq.detail.history.delivery.channel.${c}`),
+  ...DELIVERY_STATUSES.map((s) => `rfq.detail.history.delivery.status.${s}`),
+  ...DELIVERY_KEYS,
   ...ENTRY_KINDS.map((k) => `rfq.detail.history.entry.${k}`),
   ...CHANGE_KINDS.map((k) => `rfq.detail.history.change.${k}`),
   ...ROLE_KEYS.map((k) => `rfq.detail.history.role.${k}`),
@@ -99,6 +120,7 @@ describe('quote request history — bundle coverage (T058)', () => {
     const titles = [
       ...ENTRY_KINDS.map((k) => `rfq.detail.history.entry.${k}`),
       ...CHANGE_KINDS.map((k) => `rfq.detail.history.change.${k}`),
+      ...DELIVERY_STATUSES.map((s) => `rfq.detail.history.delivery.status.${s}`),
     ];
     for (const key of titles) expect(PL[key], key).not.toBe(EN[key]);
   });

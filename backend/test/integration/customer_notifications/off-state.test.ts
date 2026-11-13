@@ -13,7 +13,7 @@ import { TEST_CUSTOMER_ID, TEST_ORGANIZATION_ID } from '../../helpers/test-actor
  * `customer_notifications` off-state — Constitution XVII item 6
  * (`specs/179-rfq-and-customer-notifications/` FR-048, T063).
  *
- *  * **API rejection** — the four storefront routes answer the
+ *  * **API rejection** — the five storefront routes answer the
  *    `MODULE_DISABLED` envelope on both axes, and stop doing so once restored;
  *  * **the port gate** — `customerNotificationRecordPort` refuses while off, so
  *    a producer that skipped its presence check gets a refusal rather than an
@@ -76,6 +76,7 @@ describe('customer_notifications off-state (Constitution XVII)', () => {
       routes: [
         { url: '/api/v1/storefront/notifications', cookies: BUYER, headers: DEFAULT },
         { url: '/api/v1/storefront/notifications/unread-count', cookies: BUYER, headers: DEFAULT },
+        { url: `/api/v1/storefront/notifications/${randomUUID()}`, cookies: BUYER, headers: DEFAULT },
         {
           method: 'POST',
           url: `/api/v1/storefront/notifications/${randomUUID()}/read`,

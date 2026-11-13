@@ -5,6 +5,12 @@ import {
   type BackendServerHandle,
 } from '../../helpers/test-server.js';
 import { Currency } from '../../helpers/package-entities.js';
+import { currencyListResponseSchema, currencySchema } from '@endora-commerce/contracts';
+import { deepStrict, disagreements } from '../../helpers/strict-schema.js';
+
+/** Strict copies: a key a currency reply carries that the contract does not declare fails (issue #599 §6). */
+const strictCurrency = deepStrict(currencySchema);
+const strictList = deepStrict(currencyListResponseSchema);
 
 /**
  * T238 — admin currency CRUD. Mirrors the language test surface; tests
@@ -58,6 +64,8 @@ describe('Admin currency CRUD', () => {
     });
     expect(update.statusCode).toBe(200);
     expect((update.json() as { data: { label: string } }).data.label).toBe('Test currency v2');
+    expect(disagreements(strictCurrency, (create.json() as { data: unknown }).data)).toEqual([]);
+    expect(disagreements(strictCurrency, (update.json() as { data: unknown }).data)).toEqual([]);
   });
 
   it('setDefault demotes the prior default atomically', async () => {
@@ -74,6 +82,7 @@ describe('Admin currency CRUD', () => {
       cookies: { b2b_session: 'stub-admin-session' },
     });
     expect(setRes.statusCode).toBe(200);
+    expect(disagreements(strictCurrency, (setRes.json() as { data: unknown }).data)).toEqual([]);
 
     const list = await h.app.inject({
       method: 'GET',
@@ -81,6 +90,7 @@ describe('Admin currency CRUD', () => {
       cookies: { b2b_session: 'stub-admin-session' },
     });
     const body = list.json() as { data: Array<{ code: string; isDefault: boolean }> };
+    expect(disagreements(strictList, body)).toEqual([]);
     const defaults = body.data.filter((c) => c.isDefault);
     expect(defaults).toHaveLength(1);
     expect(defaults[0]?.code).toBe('XBB');

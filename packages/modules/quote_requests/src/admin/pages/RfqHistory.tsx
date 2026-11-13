@@ -2,6 +2,7 @@ import { useEffect, useMemo, useState, type ReactNode } from 'react';
 import {
   QUOTE_REQUEST_HISTORY_EVENT_WINDOW,
   customFieldCarrySkipReasonSchema,
+  type QuoteRequestDelivery,
   type QuoteRequestHistory,
   type QuoteRequestHistoryActor,
   type QuoteRequestHistoryChange,
@@ -9,7 +10,7 @@ import {
   type QuoteRequestHistoryLineRef,
 } from '@endora-commerce/contracts';
 import { apiClient } from '@endora-commerce/admin-kit/lib';
-import { Alert, AlertDescription, Button } from '@endora-commerce/admin-kit/ui';
+import { Alert, AlertDescription, Badge, Button, type BadgeProps } from '@endora-commerce/admin-kit/ui';
 import { resolveCustomFieldLabel } from '@endora-commerce/admin-kit/components';
 import { useTranslation, useTranslationContext } from '@endora-commerce/admin-kit/i18n';
 import { adminNumberLocale, rfqNumberFormat } from '../number-format.js';
@@ -34,6 +35,13 @@ import { adminNumberLocale, rfqNumberFormat } from '../number-format.js';
  * under it the Opportunity's number, then a field and a reason per line — the
  * field named by the label stored with the skip, in the reader's language
  * (owner ruling V3, 2026-10-21), its key for an entry recorded before.
+ *
+ * `specs/179-rfq-and-customer-notifications/` WP-06 (US5, FR-070) — an entry
+ * that notified anybody lists its deliveries: who, through which channel, and
+ * the outcome as a labelled badge (text, not colour alone), with the attempts
+ * once there were any and, for a failed delivery, the last error behind a
+ * disclosure so a long transport message does not crowd the timeline. Keys
+ * `rfq.detail.history.delivery.*`, beside the rest.
  */
 
 type T = (key: string, params?: Record<string, string | number>) => string;
@@ -196,6 +204,58 @@ function changeSentence(f: Formatters, change: QuoteRequestHistoryChange): strin
   }
 }
 
+/** The badge a delivery status wears; its label always carries the meaning. */
+function deliveryVariant(status: QuoteRequestDelivery['status']): BadgeProps['variant'] {
+  if (status === 'sent') return 'success';
+  if (status === 'failed') return 'destructive';
+  if (status === 'pending') return 'secondary';
+  return 'outline';
+}
+
+function DeliveryList({ deliveries, f }: { deliveries: readonly QuoteRequestDelivery[]; f: Formatters }): ReactNode {
+  const { t } = f;
+  const title = t('delivery.title');
+  return (
+    <div className="mt-2 border-t pt-2">
+      <p className="text-xs font-medium text-muted-foreground">{title}</p>
+      <ul aria-label={title} className="mt-1 space-y-1">
+        {deliveries.map((delivery) => {
+          const name = delivery.recipient.displayName === '' ? t('actor.unknownUser') : delivery.recipient.displayName;
+          return (
+            <li key={delivery.id} className="text-xs">
+              <div className="flex flex-wrap items-center gap-x-2 gap-y-1">
+                <span className="break-words font-medium">
+                  {t('actor.withDetail', { name, detail: t(`delivery.recipient.${delivery.recipient.kind}`) })}
+                </span>
+                <span className="text-muted-foreground">{t(`delivery.channel.${delivery.channel}`)}</span>
+                <Badge variant={deliveryVariant(delivery.status)}>{t(`delivery.status.${delivery.status}`)}</Badge>
+                {delivery.attempts > 0 ? (
+                  <span className="text-muted-foreground">{t('delivery.attempts', { count: delivery.attempts })}</span>
+                ) : null}
+                {delivery.closedAt !== null ? (
+                  <time className="text-muted-foreground" dateTime={delivery.closedAt}>
+                    {f.dateTime(delivery.closedAt)}
+                  </time>
+                ) : null}
+              </div>
+              {delivery.status === 'failed' ? (
+                <details className="mt-1">
+                  <summary className="inline-flex min-h-6 cursor-pointer items-center rounded font-medium focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring">
+                    {t('delivery.showError')}
+                  </summary>
+                  <p className="mt-1 whitespace-pre-wrap break-words text-muted-foreground">
+                    {delivery.lastError ?? t('delivery.noError')}
+                  </p>
+                </details>
+              ) : null}
+            </li>
+          );
+        })}
+      </ul>
+    </div>
+  );
+}
+
 function shownKey(key: string): string {
   return key.length > SHOWN_KEY_LIMIT ? `${key.slice(0, SHOWN_KEY_LIMIT)}…` : key;
 }
@@ -273,6 +333,7 @@ function HistoryEntry({ entry, f }: { entry: QuoteRequestHistoryEntry; f: Format
           </ul>
         )
       ) : null}
+      {entry.deliveries && entry.deliveries.length > 0 ? <DeliveryList deliveries={entry.deliveries} f={f} /> : null}
     </li>
   );
 }
