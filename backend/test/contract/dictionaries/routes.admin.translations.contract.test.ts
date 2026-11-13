@@ -1,10 +1,15 @@
 import { afterAll, beforeAll, describe, expect, it } from 'vitest';
-import { dictionaryTranslationSchema, ERROR_CODES } from '@endora-commerce/contracts';
+import {
+  dictionaryTranslationListResponseSchema,
+  dictionaryTranslationSchema,
+  ERROR_CODES,
+} from '@endora-commerce/contracts';
 import {
   setupBackendServer,
   teardownBackendServer,
   type BackendServerHandle,
 } from '../../helpers/test-server.js';
+import { deepStrict, disagreements } from '../../helpers/strict-schema.js';
 
 describe('Dictionary admin translation routes (feature 017 / US3)', () => {
   let h: BackendServerHandle;
@@ -26,6 +31,8 @@ describe('Dictionary admin translation routes (feature 017 / US3)', () => {
       cookies: adminCookie,
     });
     expect(upsert.statusCode).toBe(200);
+    // Issue #599 §6 — strict copies: a key the reply carries that the contract does not declare fails.
+    expect(disagreements(deepStrict(dictionaryTranslationSchema), upsert.json().data)).toEqual([]);
     expect(dictionaryTranslationSchema.parse(upsert.json().data)).toMatchObject({
       entryType: 'country',
       entryCode: 'DE',
@@ -39,6 +46,7 @@ describe('Dictionary admin translation routes (feature 017 / US3)', () => {
       cookies: adminCookie,
     });
     expect(list.statusCode).toBe(200);
+    expect(disagreements(deepStrict(dictionaryTranslationListResponseSchema), list.json())).toEqual([]);
     expect(list.json().data.some((row: { languageCode: string }) => row.languageCode === 'pl-PL')).toBe(true);
 
     const del = await h.app.inject({

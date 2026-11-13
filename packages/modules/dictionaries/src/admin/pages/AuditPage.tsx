@@ -3,11 +3,12 @@ import { ClipboardCopy, RefreshCw } from 'lucide-react';
 import { ApiError } from '@endora-commerce/admin-kit/lib';
 import { Alert, AlertDescription, Badge, Button, Card, CardContent, CardHeader, CardTitle, PageHeader, Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from '@endora-commerce/admin-kit/ui';
 import { useTranslation } from '@endora-commerce/admin-kit/i18n';
-import { dictionaryClient, type DictionaryAuditRow } from '../api/client.js';
+import type { DictionaryOrphanRow } from '@endora-commerce/contracts';
+import { dictionaryClient } from '../api/client.js';
 
 export function DictionaryAuditPage(): ReactNode {
   const t = useTranslation('dictionaries');
-  const [rows, setRows] = useState<DictionaryAuditRow[]>([]);
+  const [rows, setRows] = useState<DictionaryOrphanRow[]>([]);
   const [generatedAt, setGeneratedAt] = useState<string | null>(null);
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState<string | null>(null);
@@ -136,7 +137,7 @@ export function DictionaryAuditPage(): ReactNode {
   );
 }
 
-function toCsv(rows: DictionaryAuditRow[]): string {
+function toCsv(rows: DictionaryOrphanRow[]): string {
   const header = ['dictionary', 'consumer', 'tableName', 'columnName', 'code', 'count'];
   return [
     header.join(','),

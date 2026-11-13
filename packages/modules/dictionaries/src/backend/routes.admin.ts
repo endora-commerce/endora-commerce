@@ -11,15 +11,27 @@ import {
   updateDictionaryLanguageRequestSchema,
   upsertTranslationRequestSchema,
   upsertLanguageCountryRequestSchema,
+  type Country as CountryView,
   type CreateCurrencyInput,
   type CreateLanguageInput,
   type CurrencyAdminPort,
   type CurrencyReadPort,
   type CurrencyRecord,
+  type DictionaryCountriesPageResponse,
+  type DictionaryCurrenciesPageResponse,
+  type DictionaryCurrency,
+  type DictionaryLanguage,
+  type DictionaryLanguagesPageResponse,
+  type DictionaryOrphanReportResponse,
+  type DictionaryOrphanRow,
   type DictionaryReferenceRegistryPort,
+  type DictionaryTranslation as DictionaryTranslationView,
+  type DictionaryTranslationListResponse,
   type LanguageAdminPort,
+  type LanguageCountry as LanguageCountryView,
   type LanguageReadPort,
   type LanguageRecord,
+  type Region,
   type UpdateCurrencyInput,
   type UpdateLanguageInput,
 } from '@endora-commerce/contracts';
@@ -82,7 +94,7 @@ export async function registerDictionaryAdminRoutes(
 ): Promise<void> {
   const gate = deps.requireAdmin(DICTIONARY_PERMISSIONS.WRITE);
 
-  app.get('/api/v1/admin/dictionary/audit/orphans', { preHandler: gate }, async () => {
+  app.get('/api/v1/admin/dictionary/audit/orphans', { preHandler: gate }, async (): Promise<DictionaryOrphanReportResponse> => {
     const rows = await scanDictionaryOrphans(deps);
     return {
       data: rows,
@@ -98,7 +110,7 @@ export async function registerDictionaryAdminRoutes(
     return { data: { invalidated: true, invalidatedAt: new Date().toISOString() } };
   });
 
-  app.get('/api/v1/admin/dictionary/countries', { preHandler: gate }, async (request) => {
+  app.get('/api/v1/admin/dictionary/countries', { preHandler: gate }, async (request): Promise<DictionaryCountriesPageResponse> => {
     const query = pageQuerySchema.parse(request.query);
     const rows = pageAndFilter(
       (await deps.countryService.list()).map(serializeCountry),
@@ -111,7 +123,7 @@ export async function registerDictionaryAdminRoutes(
   app.post(
     '/api/v1/admin/dictionary/countries',
     { preHandler: gate, schema: { body: createCountryRequestSchema } },
-    async (request, reply) => {
+    async (request, reply): Promise<{ data: CountryView }> => {
       const body = createCountryRequestSchema.parse(request.body);
       const row = await deps.countryService.create(compact(body) as CreateCountryInput);
       reply.status(201);
@@ -122,7 +134,7 @@ export async function registerDictionaryAdminRoutes(
   app.put<{ Params: { code: string } }>(
     '/api/v1/admin/dictionary/countries/:code',
     { preHandler: gate, schema: { body: updateCountryRequestSchema } },
-    async (request) => {
+    async (request): Promise<{ data: CountryView }> => {
       const body = updateCountryRequestSchema.parse(request.body);
       const row = await deps.countryService.update(
         request.params.code,
@@ -135,7 +147,7 @@ export async function registerDictionaryAdminRoutes(
   app.post<{ Params: { code: string } }>(
     '/api/v1/admin/dictionary/countries/:code/default',
     { preHandler: gate },
-    async (request) => {
+    async (request): Promise<{ data: CountryView }> => {
       const row = await deps.countryService.setDefault(request.params.code);
       return { data: serializeCountry(row) };
     },
@@ -150,7 +162,7 @@ export async function registerDictionaryAdminRoutes(
     },
   );
 
-  app.get('/api/v1/admin/dictionary/currencies', { preHandler: gate }, async (request) => {
+  app.get('/api/v1/admin/dictionary/currencies', { preHandler: gate }, async (request): Promise<DictionaryCurrenciesPageResponse> => {
     const query = pageQuerySchema.parse(request.query);
     return pageAndFilter(
       (await deps.currencyRead.list()).map(serializeCurrency),
@@ -162,7 +174,7 @@ export async function registerDictionaryAdminRoutes(
   app.post(
     '/api/v1/admin/dictionary/currencies',
     { preHandler: gate, schema: { body: createDictionaryCurrencyRequestSchema } },
-    async (request, reply) => {
+    async (request, reply): Promise<{ data: DictionaryCurrency }> => {
       const body = createDictionaryCurrencyRequestSchema.parse(request.body);
       const row = await deps.currencyAdmin.create(compact(body) as CreateCurrencyInput);
       reply.status(201);
@@ -173,7 +185,7 @@ export async function registerDictionaryAdminRoutes(
   app.put<{ Params: { code: string } }>(
     '/api/v1/admin/dictionary/currencies/:code',
     { preHandler: gate, schema: { body: updateDictionaryCurrencyRequestSchema } },
-    async (request) => {
+    async (request): Promise<{ data: DictionaryCurrency }> => {
       const body = updateDictionaryCurrencyRequestSchema.parse(request.body);
       const row = await deps.currencyAdmin.update(request.params.code, compact(body) as UpdateCurrencyInput);
       return { data: serializeCurrency(row) };
@@ -183,7 +195,7 @@ export async function registerDictionaryAdminRoutes(
   app.post<{ Params: { code: string } }>(
     '/api/v1/admin/dictionary/currencies/:code/default',
     { preHandler: gate },
-    async (request) => {
+    async (request): Promise<{ data: DictionaryCurrency }> => {
       const row = await deps.currencyAdmin.setDefault(request.params.code);
       return { data: serializeCurrency(row) };
     },
@@ -198,7 +210,7 @@ export async function registerDictionaryAdminRoutes(
     },
   );
 
-  app.get('/api/v1/admin/dictionary/languages', { preHandler: gate }, async (request) => {
+  app.get('/api/v1/admin/dictionary/languages', { preHandler: gate }, async (request): Promise<DictionaryLanguagesPageResponse> => {
     const query = pageQuerySchema.parse(request.query);
     const rows = await withLanguageCountries(
       deps.languageRead,
@@ -210,7 +222,7 @@ export async function registerDictionaryAdminRoutes(
   app.post(
     '/api/v1/admin/dictionary/languages',
     { preHandler: gate, schema: { body: createDictionaryLanguageRequestSchema } },
-    async (request, reply) => {
+    async (request, reply): Promise<{ data: DictionaryLanguage }> => {
       const body = createDictionaryLanguageRequestSchema.parse(request.body);
       const row = await deps.languageAdmin.create(compact(body) as CreateLanguageInput);
       reply.status(201);
@@ -223,7 +235,7 @@ export async function registerDictionaryAdminRoutes(
   app.put<{ Params: { code: string } }>(
     '/api/v1/admin/dictionary/languages/:code',
     { preHandler: gate, schema: { body: updateDictionaryLanguageRequestSchema } },
-    async (request) => {
+    async (request): Promise<{ data: DictionaryLanguage }> => {
       const body = updateDictionaryLanguageRequestSchema.parse(request.body);
       const row = await deps.languageAdmin.update(request.params.code, compact(body) as UpdateLanguageInput);
       const countries = (await deps.languageCountryService.listForLanguage(row.code)).map(
@@ -236,7 +248,7 @@ export async function registerDictionaryAdminRoutes(
   app.post<{ Params: { code: string } }>(
     '/api/v1/admin/dictionary/languages/:code/default',
     { preHandler: gate },
-    async (request) => {
+    async (request): Promise<{ data: DictionaryLanguage }> => {
       const row = await deps.languageAdmin.setDefault(request.params.code);
       const countries = (await deps.languageCountryService.listForLanguage(row.code)).map(
         (lc) => lc.countryCode,
@@ -257,7 +269,7 @@ export async function registerDictionaryAdminRoutes(
   app.get<{ Params: { entryType: string; entryCode: string } }>(
     '/api/v1/admin/dictionary/translations/:entryType/:entryCode',
     { preHandler: gate },
-    async (request) => {
+    async (request): Promise<DictionaryTranslationListResponse> => {
       const entryType = dictionaryEntryTypeSchema.parse(request.params.entryType);
       const rows = await deps.translationService.listForEntry(
         entryType,
@@ -270,7 +282,7 @@ export async function registerDictionaryAdminRoutes(
   app.put<{ Params: { entryType: string; entryCode: string; languageCode: string } }>(
     '/api/v1/admin/dictionary/translations/:entryType/:entryCode/:languageCode',
     { preHandler: gate, schema: { body: upsertTranslationRequestSchema } },
-    async (request) => {
+    async (request): Promise<{ data: DictionaryTranslationView }> => {
       const entryType = dictionaryEntryTypeSchema.parse(request.params.entryType);
       const body = upsertTranslationRequestSchema.parse(request.body);
       const row = await deps.translationService.upsert({
@@ -300,7 +312,7 @@ export async function registerDictionaryAdminRoutes(
   app.put<{ Params: { languageCode: string; countryCode: string } }>(
     '/api/v1/admin/dictionary/languages/:languageCode/countries/:countryCode',
     { preHandler: gate, schema: { body: upsertLanguageCountryRequestSchema } },
-    async (request) => {
+    async (request): Promise<{ data: LanguageCountryView }> => {
       const body = upsertLanguageCountryRequestSchema.parse(request.body);
       const row = await deps.languageCountryService.upsert(
         compact({
@@ -326,14 +338,6 @@ export async function registerDictionaryAdminRoutes(
   );
 }
 
-type DictionaryOrphanRow = {
-  dictionary: 'country' | 'currency' | 'language';
-  consumer: string;
-  tableName: string;
-  columnName: string;
-  code: string;
-  count: number;
-};
 
 /**
  * Which stored dictionary codes no longer exist (feature 017 FR-022), rebuilt
@@ -490,13 +494,15 @@ async function withLanguageCountries(
   );
 }
 
-function serializeCountry(row: Country): Record<string, unknown> {
+/** The published `countrySchema` (issue #599). */
+function serializeCountry(row: Country): CountryView {
   return {
     code: row.code,
     alpha3Code: row.alpha3Code,
     numericCode: row.numericCode,
     label: row.label,
-    region: row.region,
+    // The column is text; the create and update requests validate it against `regionSchema`.
+    region: row.region as Region,
     subregion: row.subregion ?? null,
     dialCode: row.dialCode ?? null,
     isEuMember: row.isEuMember,
@@ -509,7 +515,8 @@ function serializeCountry(row: Country): Record<string, unknown> {
   };
 }
 
-function serializeCurrency(row: CurrencyRecord): Record<string, unknown> {
+/** The published `dictionaryCurrencySchema` (issue #599). */
+function serializeCurrency(row: CurrencyRecord): DictionaryCurrency {
   return {
     code: row.code,
     label: row.label,
@@ -524,7 +531,8 @@ function serializeCurrency(row: CurrencyRecord): Record<string, unknown> {
   };
 }
 
-function serializeLanguage(row: LanguageRecord, countries: string[]): Record<string, unknown> {
+/** The published `dictionaryLanguageSchema` (issue #599). */
+function serializeLanguage(row: LanguageRecord, countries: string[]): DictionaryLanguage {
   return {
     code: row.code,
     label: row.label,
@@ -540,7 +548,8 @@ function serializeLanguage(row: LanguageRecord, countries: string[]): Record<str
   };
 }
 
-function serializeLanguageCountry(row: LanguageCountry): Record<string, unknown> {
+/** The published `languageCountrySchema` (issue #599). */
+function serializeLanguageCountry(row: LanguageCountry): LanguageCountryView {
   return {
     languageCode: row.languageCode,
     countryCode: row.countryCode,
@@ -549,7 +558,8 @@ function serializeLanguageCountry(row: LanguageCountry): Record<string, unknown>
   };
 }
 
-function serializeTranslation(row: DictionaryTranslation): Record<string, unknown> {
+/** The published `dictionaryTranslationSchema` (issue #599). */
+function serializeTranslation(row: DictionaryTranslation): DictionaryTranslationView {
   return {
     entryType: row.entryType,
     entryCode: row.entryCode,
