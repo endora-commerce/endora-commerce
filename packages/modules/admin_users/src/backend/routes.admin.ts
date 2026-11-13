@@ -12,6 +12,7 @@ import {
   type AdminPreferences,
   type AdminRoleRecord,
   type AdminRoleTwoFactorNotice,
+  type AdminUser as AdminUserView,
   type PermissionCataloguePort,
   type PermissionReadPort,
 } from '@endora-commerce/contracts';
@@ -426,7 +427,8 @@ export async function registerAdminUsersAdminRoutes(
   );
 }
 
-function serializeAdminUser(u: AdminUser, twoFactorEnabled: boolean) {
+/** The published `adminUserSchema` (issue #599). */
+function serializeAdminUser(u: AdminUser, twoFactorEnabled: boolean): AdminUserView {
   return {
     id: u.id,
     email: u.email,
