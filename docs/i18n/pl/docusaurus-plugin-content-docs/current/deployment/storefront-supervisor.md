@@ -95,8 +95,8 @@ kontenera uruchamianego ręcznie użyj `docker run --init`.
 
 ## Backend i panel administracyjny
 
-Obraz backendu uruchamia `node dist/index.js` bezpośrednio i ma tę samą słabość: backend, który
-działa, ale nie odpowiada, nie jest restartowany. Śledzi to
-[zgłoszenie #596](https://github.com/endora-commerce/endora-commerce/issues/596). Obraz panelu
-administracyjnego to pliki statyczne serwowane przez nginx, którego proces główny sam restartuje
-swoje procesy robocze; nadzorca nie jest mu potrzebny.
+Obraz backendu uruchamia tego samego nadzorcę, z własnym adresem, własnymi zmiennymi i dłuższym
+czasem zatrzymania, w którym konsumenci kolejek kończą pracę — zobacz
+[Nadzorca procesu backendu](./backend-supervisor.md). Obraz panelu administracyjnego to pliki
+statyczne serwowane przez nginx, którego proces główny sam restartuje swoje procesy robocze;
+nadzorca nie jest mu potrzebny.

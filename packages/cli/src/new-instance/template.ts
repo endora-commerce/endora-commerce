@@ -29,7 +29,10 @@
  * nothing, so there is no `rewrite.ts` beside this file and there must never be
  * one — its appearance would be evidence that something was copied that should
  * not have been. Every string below is rendered from the resolved packages, the
- * CLI's own manifest and the operator's own flags.
+ * CLI's own manifest and the operator's own flags. The one exception is not a
+ * copy of the reference tree but a file this CLI carries: the backend's
+ * supervising parent, `backend/scripts/supervise.mjs` (issue #596), whose
+ * single statement is the platform repository's file (`./backend-supervisor.ts`).
  *
  * ## No demo artefact, at any tier (D-216)
  *
@@ -103,6 +106,7 @@ import {
   type DeployInput,
   type Topology,
 } from './deploy.js';
+import { BACKEND_SUPERVISOR_PATH, backendSupervisorSource } from './backend-supervisor.js';
 import { InstanceInputError } from './host.js';
 
 /** §1.1's three kinds, and there is no fourth. */
@@ -1219,6 +1223,16 @@ export function planInstance(input: PlanInput): InstancePlan {
   });
 
   for (const file of backendWiring(input)) files.push(file);
+
+  // The image example's command (issue #596): the platform's own supervisor,
+  // carried by this CLI rather than rendered — see `./backend-supervisor.ts`.
+  // The client's from here on, as the deployment examples that name it are.
+  files.push({
+    path: BACKEND_SUPERVISOR_PATH,
+    kind: 'client',
+    member: 'backend',
+    content: backendSupervisorSource(),
+  });
 
   // --- the admin member (§2.4) ---------------------------------------------
   for (const file of admin.files) files.push(file);

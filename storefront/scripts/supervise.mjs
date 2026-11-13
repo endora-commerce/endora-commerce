@@ -1,7 +1,19 @@
-// The storefront image's command: run the Next.js server as a child, and end
-// the container when that child stops answering (issue #152).
+// The image's command: run the server as a child, and end the container when
+// that child stops answering (issue #152 for the storefront, #596 for the
+// backend).
 //
-//   node storefront/scripts/supervise.mjs storefront/server.js
+//   node storefront/scripts/supervise.mjs storefront/server.js   storefront image
+//   node scripts/supervise.mjs dist/index.js                      backend image
+//
+// ## Two copies, one body
+//
+// This file exists twice, as `storefront/scripts/supervise.mjs` and
+// `backend/scripts/supervise.mjs`, because each image carries only its own
+// tree and a scaffolded storefront is a repository of its own. The **profile**
+// block below — the service's name, its environment prefix, the port and path
+// it is probed on and how long a stop may take — is the only part the two may
+// differ in; `backend/test/unit/ci/backend-supervisor.test.ts` holds everything
+// else byte-identical, so a change made to one is made to both.
 //
 // ## Why a parent process
 //
@@ -23,13 +35,12 @@
 // ## What counts as an answer
 //
 // **Any HTTP response, whatever its status.** This is a liveness probe, not a
-// health check: a `503` because the backend is down, or a `500` from a
+// health check: a `503` because a dependency is down, or a `500` from a
 // defect, is the process alive and answering, and restarting it would not
 // repair either. Only a refused connection, a reset or no response within the
-// timeout counts as a failure. The default address, `/robots.txt`, is a route
-// every storefront serves whose only backend read is bounded and cached
-// (`lib/seo/crawler-policy.ts`), so a slow backend does not read as a hung
-// storefront. The compose healthcheck keeps asking `/` for the health state.
+// timeout counts as a failure. Which address is probed, and why, is the
+// profile's. The compose healthcheck keeps its own address for the health
+// state.
 //
 // ## As PID 1
 //
@@ -46,17 +57,33 @@
 //
 // Every value has a default and every variable is optional. A value this
 // script cannot read stops the container at start rather than being guessed
-// at — documented in `docs/docs/deployment/storefront-supervisor.md`.
+// at — documented in `docs/docs/deployment/storefront-supervisor.md` and
+// `docs/docs/deployment/backend-supervisor.md`.
 //
 // No dependency: this file runs in the image's runtime stage, where only the
-// standalone server's traced files exist.
+// server's own files exist.
+
 import { spawn as spawnProcess } from 'node:child_process';
 import { constants } from 'node:os';
 import { resolve } from 'node:path';
 import { fileURLToPath } from 'node:url';
 
+// ── profile: the only lines the two copies may differ in ──
+//
+// The storefront. `/robots.txt` is a route every storefront serves whose only
+// backend read is bounded and cached (`lib/seo/crawler-policy.ts`), so a slow
+// backend does not read as a hung storefront. The compose healthcheck asks `/`.
+// Five seconds is all a Next.js server needs to close its connections, inside
+// Docker's default ten-second stop timeout.
+const SERVICE = 'storefront';
+const ENV_PREFIX = 'STOREFRONT_SUPERVISOR_';
+const DEFAULT_PORT = 3000;
+const DEFAULT_PROBE_PATH = '/robots.txt';
+const DEFAULT_KILL_GRACE_SECONDS = 5;
+// ── end of profile ──
+
 /** What every line this process writes starts with. */
-const PREFIX = 'storefront-supervisor: ';
+const PREFIX = `${SERVICE}-supervisor: `;
 
 /** The exit code of a container the probe ended. Non-zero, so it is restarted. */
 export const WATCHDOG_EXIT_CODE = 1;
@@ -73,22 +100,22 @@ export const EXIT_AFTER_KILL_MS = 5_000;
 export const FORWARDED_SIGNALS = /** @type {const} */ (['SIGTERM', 'SIGINT', 'SIGHUP']);
 
 export const SUPERVISOR_ENV = /** @type {const} */ ({
-  probe: 'STOREFRONT_SUPERVISOR_PROBE',
-  probeUrl: 'STOREFRONT_SUPERVISOR_PROBE_URL',
-  interval: 'STOREFRONT_SUPERVISOR_INTERVAL_SECONDS',
-  timeout: 'STOREFRONT_SUPERVISOR_TIMEOUT_SECONDS',
-  failures: 'STOREFRONT_SUPERVISOR_FAILURES',
-  startGrace: 'STOREFRONT_SUPERVISOR_START_GRACE_SECONDS',
-  killGrace: 'STOREFRONT_SUPERVISOR_KILL_GRACE_SECONDS',
+  probe: `${ENV_PREFIX}PROBE`,
+  probeUrl: `${ENV_PREFIX}PROBE_URL`,
+  interval: `${ENV_PREFIX}INTERVAL_SECONDS`,
+  timeout: `${ENV_PREFIX}TIMEOUT_SECONDS`,
+  failures: `${ENV_PREFIX}FAILURES`,
+  startGrace: `${ENV_PREFIX}START_GRACE_SECONDS`,
+  killGrace: `${ENV_PREFIX}KILL_GRACE_SECONDS`,
 });
 
 export const SUPERVISOR_DEFAULTS = /** @type {const} */ ({
-  probePath: '/robots.txt',
+  probePath: DEFAULT_PROBE_PATH,
   intervalSeconds: 10,
   timeoutSeconds: 5,
   failures: 3,
   startGraceSeconds: 30,
-  killGraceSeconds: 5,
+  killGraceSeconds: DEFAULT_KILL_GRACE_SECONDS,
 });
 
 /** A configuration value that cannot be read. The message names the variable. */
@@ -150,7 +177,7 @@ export function supervisorConfig(env) {
     throw new SupervisorConfigError(SUPERVISOR_ENV.probe, switchRaw ?? '', '`on` or `off`');
   }
 
-  const port = number(env, 'PORT', 3000, { min: 0, exclusive: true, integer: true });
+  const port = number(env, 'PORT', DEFAULT_PORT, { min: 0, exclusive: true, integer: true });
   const urlRaw = env[SUPERVISOR_ENV.probeUrl];
   let probeUrl = `http://127.0.0.1:${String(port)}${SUPERVISOR_DEFAULTS.probePath}`;
   if (urlRaw !== undefined && urlRaw.trim() !== '') {

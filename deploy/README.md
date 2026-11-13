@@ -47,6 +47,12 @@ HTTP and exits non-zero, so `restart: unless-stopped` brings it back — Docker 
 restarts a container that is only `unhealthy`. Its `STOREFRONT_SUPERVISOR_*` variables are in
 `docs/docs/deployment/storefront-supervisor.md`; the defaults need none.
 The backend runs API **and** BullMQ workers in one process (`BACKEND_ROLE=all`).
+The backend's compiled API runs under the same supervisor (`backend/scripts/supervise.mjs`,
+issue #596), probing `/api/v1/_health` — any HTTP status counts as an answer — with `init: true`
+and `stop_grace_period: 30s` on the service so `SIGTERM` leaves the workers 25 s to drain. Its
+`BACKEND_SUPERVISOR_*` variables are in `docs/docs/deployment/backend-supervisor.md`. The
+`backend-migrate` / `backend-install` one-shots and a separate `node dist/worker.js` tier are not
+supervised.
 
 ---
 

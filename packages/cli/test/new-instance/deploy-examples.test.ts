@@ -995,6 +995,62 @@ describe('issue #152 — the storefront service restarts a hung server', () => {
 });
 
 /**
+ * Issue #596 — a backend that is alive but no longer answering recovers by
+ * itself, by the storefront's design (#152). The image example's command is the
+ * supervising parent the instance is scaffolded with at
+ * `backend/scripts/supervise.mjs` — the platform repository's own copy, carried
+ * by this CLI — and the compose examples give its exit a policy, an init and a
+ * stop timeout that leaves the 25 s kill grace room for BullMQ's drain. The
+ * one-shot jobs keep their own commands.
+ */
+describe('issue #596 — the backend service restarts a hung API', () => {
+  const backendServices = (topology: Topology): Record<string, Record<string, unknown>> => {
+    const path =
+      topology === 'single-host' ? 'deploy/compose.prod.yml' : 'deploy/three-host/compose.backend.yml';
+    return parseComposeYaml(fileAt(withAdmin({ topology }), path))['services'] as Record<
+      string,
+      Record<string, unknown>
+    >;
+  };
+
+  for (const topology of TOPOLOGIES) {
+    it(`${topology}: restarts on an exit, runs an init and leaves 30 s to drain`, () => {
+      const services = backendServices(topology);
+      const backend = services['backend'];
+      expect(backend, 'no backend service').toBeDefined();
+      expect(backend!['restart']).toBe('unless-stopped');
+      expect(backend!['init']).toBe('true');
+      expect(backend!['stop_grace_period']).toBe('30s');
+      for (const job of ['backend-migrate', 'backend-install']) {
+        const command = String(services[job]!['command']);
+        expect(command, job).not.toMatch(/supervise/);
+        expect(services[job]!['init'], job).toBeUndefined();
+      }
+    });
+  }
+
+  it('the backend image example runs the supervisor, with the compiled API as its child', () => {
+    const commands = fileAt(withAdmin(), 'deploy/Dockerfile.backend')
+      .split('\n')
+      .filter((line) => /^CMD\s/.test(line));
+    expect(commands).toEqual(['CMD ["node", "scripts/supervise.mjs", "dist/index.js"]']);
+  });
+
+  it('scaffolds the platform repository\'s own backend supervisor, byte for byte', () => {
+    const plan = planInstance(withAdmin());
+    const file = plan.files.find((entry) => entry.path === 'backend/scripts/supervise.mjs');
+    expect(file, 'backend/scripts/supervise.mjs is not in the plan').toBeDefined();
+    expect(file!.member).toBe('backend');
+    expect(file!.kind).toBe('client');
+    const reference = readFileSync(
+      fileURLToPath(new URL('../../../../backend/scripts/supervise.mjs', import.meta.url)),
+      'utf8',
+    );
+    expect(file!.content).toBe(reference);
+  });
+});
+
+/**
  * Issue #817 — the storefront proxy buffer margin `deploy/nginx.example.conf`
  * carries since #805 reaches the nginx examples an instance is scaffolded with,
  * with the same comment, in the storefront's `location` and nowhere else.

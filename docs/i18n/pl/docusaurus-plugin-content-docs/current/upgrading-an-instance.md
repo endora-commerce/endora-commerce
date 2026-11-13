@@ -5196,6 +5196,50 @@ który wysyła e-maile do administratora, a nie tylko `mfa`, może z niej budowa
    Własny moduł, który deklarował `ADMIN_BASE_URL` w polu `env` swojego manifestu, usuwa tę
    deklarację: należy ona do platformy, a `check:env-inputs` zgłasza moduł, który ją deklaruje.
 
+### Backend, który przestaje odpowiadać, jest restartowany {#backend-supervisor}
+
+Wydanie, które wprowadza tę zmianę, uruchamia backend pod procesem nadzorującym, tak jak storefront
+od wersji 0.109.0 (zgłoszenie #596). Docker restartuje kontener, który się **zakończył**, nigdy
+taki, który jest jedynie *unhealthy*, więc proces backendu, który działał, ale przestał
+odpowiadać — a w domyślnym `BACKEND_ROLE=all` razem z nim każdy konsument kolejek — pozostawał
+niedostępny, dopóki ktoś go nie zrestartował.
+
+**Zmiana zachowania po aktualizacji:**
+
+- Poleceniem obrazu backendu jest `CMD ["node", "scripts/supervise.mjs", "dist/index.js"]`.
+  Nadzorca odpytuje `/api/v1/_health` i po trzech kolejnych zapytaniach bez odpowiedzi kończy API
+  i sam kończy pracę z kodem `1`, więc polityka restartu uruchamia nowy kontener. Liczy się każda
+  odpowiedź HTTP, także `503` przy awarii bazy danych lub wyszukiwarki. Przy ustawieniach
+  domyślnych zawieszone API zostaje zakończone w ciągu około 70 sekund.
+- Przy `docker stop` nadzorca przekazuje `SIGTERM` i czeka do 25 sekund, aż konsumenci kolejek
+  skończą pracę, zanim wyśle `SIGKILL`. Przykłady compose ustawiają w usłudze backendu
+  `stop_grace_period: 30s` oraz `init: true`.
+- Nowe, opcjonalne zmienne środowiskowe usługi backendu: `BACKEND_SUPERVISOR_PROBE`,
+  `BACKEND_SUPERVISOR_PROBE_URL`, `BACKEND_SUPERVISOR_INTERVAL_SECONDS`,
+  `BACKEND_SUPERVISOR_TIMEOUT_SECONDS`, `BACKEND_SUPERVISOR_FAILURES`,
+  `BACKEND_SUPERVISOR_START_GRACE_SECONDS` i `BACKEND_SUPERVISOR_KILL_GRACE_SECONDS`. Ustawienia
+  domyślne nie wymagają żadnej; wartość, której nadzorca nie potrafi odczytać, zatrzymuje kontener
+  przy starcie. Ich znaczenie opisuje strona
+  [Nadzorca procesu backendu](./deployment/backend-supervisor.md).
+- `backend-migrate`, `backend-install` i osobna usługa workera uruchamiająca `node dist/worker.js`
+  zachowują własne polecenia i nie są nadzorowane.
+- Nowa instancja dostaje `backend/scripts/supervise.mjs` oraz opisane wyżej przykłady obrazu
+  i compose.
+
+**Po aktualizacji:**
+
+1. `endora upgrade` nie zmienia przykładów wdrożenia ani własnych plików backendu. Skopiuj
+   `backend/scripts/supervise.mjs` z nowo utworzonej instancji (albo z repozytorium platformy) do
+   swojego backendu i zmień ostatnią linię Dockerfile backendu na
+   `CMD ["node", "scripts/supervise.mjs", "dist/index.js"]`. Katalogiem roboczym obrazu musi być
+   katalog backendu (w przykładzie `/app/backend`).
+2. Dodaj `init: true` i `stop_grace_period: 30s` do usługi backendu w pliku compose
+   (`docker run --init --stop-timeout 30` dla kontenera uruchamianego ręcznie).
+3. Własna usługa, która nadpisuje `command` obrazu backendu — zadania migracji i instalacji,
+   warstwa workerów — nie wymaga zmian: nadal uruchamia własne polecenie.
+
+Bez tych zmian backend działa jak dotąd, bez nadzoru.
+
 ## Instancja niespójna od początku
 
 Instalator `0.101.x` lub starszy zapisywał każdy pakiet wydania z `^` poza

@@ -326,3 +326,81 @@ describe('it restarts a storefront that stops answering (issue #152)', () => {
     expect(existsSync(join(REPO_ROOT, SUPERVISOR)), `${SUPERVISOR} does not exist`).toBe(true);
   });
 });
+
+/**
+ * Issue #596 — a backend that is alive but no longer answering is restarted, by
+ * the same design as the storefront's (#152): the image's command is a
+ * supervising parent (`backend/scripts/supervise.mjs`, held to the storefront's
+ * copy by `backend-supervisor.test.ts`), and this file gives its exit a policy,
+ * the supervisor an init, and the drain a stop timeout to fit in.
+ *
+ * Two commands stay unsupervised on purpose, and both are pinned here: the
+ * one-shot jobs, whose exit *is* their result, and the worker entry point, which
+ * never listens and so could only ever fail a probe.
+ */
+describe('it restarts a backend that stops answering (issue #596)', () => {
+  const BACKEND_DOCKERFILE = readFileSync(join(REPO_ROOT, 'backend/Dockerfile'), 'utf8');
+  const BOOT_GATE = readFileSync(join(REPO_ROOT, 'scripts/boot-gate.sh'), 'utf8');
+  const SUPERVISED_CMD = 'CMD ["node", "scripts/supervise.mjs", "dist/index.js"]';
+  const four = (block: readonly string[], key: string): string | null => {
+    const line = block.find((entry) => new RegExp(`^ {4}${key}:`).test(entry));
+    return line === undefined ? null : line.replace(new RegExp(`^ {4}${key}:\\s*`), '').trim();
+  };
+
+  it('restarts the backend on an exit, runs an init in front of its supervisor and leaves 30 s to drain', () => {
+    const backend = SERVICES.get('backend')!;
+    expect(four(backend, 'restart')).toBe('unless-stopped');
+    expect(
+      four(backend, 'init'),
+      'without an init the supervisor is PID 1 and nothing reaps a process the backend orphans',
+    ).toBe('true');
+    expect(
+      four(backend, 'stop_grace_period'),
+      'Docker SIGKILLs at 10 s by default, inside the supervisor\'s 25 s kill grace',
+    ).toBe('30s');
+  });
+
+  it('the backend image runs the supervisor, with the compiled API as its child', () => {
+    const commands = BACKEND_DOCKERFILE.split('\n').filter((line) => /^CMD\s/.test(line));
+    expect(commands).toEqual([SUPERVISED_CMD]);
+    // `COPY backend/ backend/` is what puts the script in the image; a
+    // `.dockerignore` line naming `scripts` would take it out again.
+    expect(BACKEND_DOCKERFILE).toMatch(/^COPY backend\/ backend\/$/m);
+    const ignore = readFileSync(join(REPO_ROOT, '.dockerignore'), 'utf8')
+      .split('\n')
+      .filter((line) => line.trim() !== '' && !line.startsWith('#'));
+    expect(ignore.filter((line) => /scripts/.test(line))).toEqual([]);
+  });
+
+  it('the boot gate still accepts the supervised command as the compiled entry point (D-165)', () => {
+    // The gate's own `case` pattern, read rather than restated.
+    const pattern = /IMAGE_CMD" in\n\s*(\S+)\)/.exec(BOOT_GATE)?.[1];
+    expect(pattern, 'boot-gate.sh no longer has the compiled-entry-point case').toBeDefined();
+    const glob = new RegExp(
+      `^${pattern!.replace(/[.+^${}()|[\]\\]/g, '\\$&').replace(/\*/g, '.*')}$`,
+    );
+    const json = JSON.stringify(JSON.parse(SUPERVISED_CMD.slice('CMD '.length)));
+    expect(json).toMatch(glob);
+    // And it still refuses the interpreter it was written to stop.
+    expect(JSON.stringify(['pnpm', 'exec', 'tsx', 'src/index.ts'])).not.toMatch(glob);
+  });
+
+  it('the worker entry point stays unsupervised: it never listens, so a probe could only fail', () => {
+    const manifest = JSON.parse(readFileSync(join(REPO_ROOT, 'backend/package.json'), 'utf8')) as {
+      scripts: Record<string, string>;
+    };
+    expect(manifest.scripts['worker']).toBe('node dist/worker.js');
+    expect(manifest.scripts['start']).toBe('node dist/index.js');
+  });
+
+  it('the one-shot jobs run their own commands, with no supervisor and no restart', () => {
+    for (const name of ['backend-migrate', 'backend-install']) {
+      const block = SERVICES.get(name)!;
+      const command = commandOf(block);
+      expect(command, `${name} declares no command`).not.toBeNull();
+      expect(command!.join(' '), name).not.toMatch(/supervise/);
+      expect(command![0]).toBe('node');
+      expect(four(block, 'restart'), name).toBe("'no'");
+    }
+  });
+});

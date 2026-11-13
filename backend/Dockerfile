@@ -146,9 +146,16 @@ ENV PORT=3001
 WORKDIR /app/backend
 EXPOSE 3001
 
-# Default process: HTTP API + co-located workers, from the built tree (D-165). Compose
-# overrides `command` for the one-shot migrate job, which names `dist/db/migrate.js` for
-# the same reason. `scripts/boot-gate.sh` refuses an image whose command is anything else:
-# one that still ran the interpreter would pass every other assertion that gate makes while
-# being precisely the thing this ruling exists to stop.
-CMD ["node", "dist/index.js"]
+# Default process: HTTP API + co-located workers, from the built tree (D-165), run as the
+# child of a supervising parent (issue #596). Docker restarts a container whose process
+# EXITED and does nothing for one that is only `unhealthy`, so `scripts/supervise.mjs`
+# probes `/api/v1/_health` and, after a run of unanswered probes, kills the API and exits
+# non-zero for the restart policy to act on; it forwards SIGTERM and the child's exit code
+# otherwise. It is the second copy of `storefront/scripts/supervise.mjs`, held identical by
+# `test/unit/ci/backend-supervisor.test.ts`, and it arrives through `COPY backend/` above.
+# Compose overrides `command` for the one-shot migrate and install jobs, which run their own
+# commands unsupervised, and a worker service names `node dist/worker.js`, which never
+# listens. `scripts/boot-gate.sh` refuses an image whose command does not name
+# `dist/index.js`: one that still ran the interpreter would pass every other assertion that
+# gate makes while being precisely the thing D-165 exists to stop.
+CMD ["node", "scripts/supervise.mjs", "dist/index.js"]
