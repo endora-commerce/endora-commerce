@@ -3,5 +3,7 @@
   "actions.openPaymentMethods.description": "Zdefiniuj metody płatności i wybierz, które są oferowane kupującym",
   "nav.paymentMethods.label": "Metody płatności",
   "actions.openPaymentMethods.keywords": "płatność, metoda",
-  "settingGroups.payment_methods.name": "Metody płatności"
+  "settingGroups.payment_methods.name": "Metody płatności",
+  "errors.PAYMENT_METHOD_IN_USE": "Nie można usunąć metody płatności „{paymentMethodCode}”: odwołują się do niej płatności (liczba: {paymentCount}). Zamiast tego ustaw jej status na „nieaktywna”.",
+  "errors.PAYMENT_METHOD_USAGE_UNKNOWN": "Nie można usunąć tej metody płatności: moduł „{module}” jest wyłączony, więc platforma nie może ustalić, czy odwołuje się do niej jakakolwiek płatność. Włącz ten moduł i spróbuj ponownie albo ustaw status metody na „nieaktywna”."
 }
