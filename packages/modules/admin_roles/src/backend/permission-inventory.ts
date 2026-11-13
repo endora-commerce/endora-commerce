@@ -743,11 +743,18 @@ function blankComments(source: string): string {
 
 /** True when the last significant character allows an expression to start. */
 function startsExpression(emitted: string): boolean {
-  const trimmed = emitted.replace(/\s+$/, '');
-  if (trimmed.length === 0) return true;
-  const last = trimmed[trimmed.length - 1] ?? '';
+  // Walked back from the end rather than trimmed with a regular expression:
+  // trimming copied the whole emitted prefix on every `/`, which is quadratic in
+  // a file's length and made the admin shell's largest components dominate the
+  // walk (issue #1106).
+  let end = emitted.length;
+  while (end > 0 && /\s/.test(emitted[end - 1] ?? '')) end -= 1;
+  if (end === 0) return true;
+  const last = emitted[end - 1] ?? '';
   if ('([{,;:=!&|?+-*%~^<>'.includes(last)) return true;
-  return /\b(?:return|typeof|case|in|of|new|delete|void|do|else)$/.test(trimmed);
+  return /\b(?:return|typeof|case|in|of|new|delete|void|do|else)$/.test(
+    emitted.slice(Math.max(0, end - 8), end),
+  );
 }
 
 /** Index of the closing `/` of the regex literal starting at `i`. */
