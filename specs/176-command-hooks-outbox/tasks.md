@@ -321,11 +321,12 @@ May be folded into Phase 3's MR (OD-2).
   counted live region, inline load-more errors, *Try again*, the manage hint, a caption, wrapping
   ids, `li value`, module names from `GET /admin/modules` where readable). Item 14 waits for a
   longer action list (architect ruling 3); item 17 is ruling 4 — no date beyond *Created* in
-  flight. Reachability is ruling 2 — amendment 16. The Polish vocabulary waits for the owner.)*
+  flight. Reachability is ruling 2 — amendment 16. Polish vocabulary per the owner's ruling of
+  2026-11-13: *Hooki modułów*, *Kolejka dostarczeń*, *Odbiorca*, in the bundles and the PL docs.)*
 - [x] T066 [US4] Constitution amendment (XIII outbox wording, XV surface list), with the version and
   date bumped in `.specify/memory/constitution.md` and flagged in the MR for owner ratification.
-  Update `kernel.md` (the contribution seam row). [FR-042, FR-043] *(4.2.0 → 4.3.0, pending owner
-  ratification. `kernel.md` gains a paragraph after its *Two shapes* table rather than a third row,
+  Update `kernel.md` (the contribution seam row). [FR-042, FR-043] *(4.2.0 → 4.3.0, ratified by the
+  owner on 2026-11-13. `kernel.md` gains a paragraph after its *Two shapes* table rather than a third row,
   since `specs/141-module-block-renderers/` cites the section by that name. Docs: `command-bus.md`
   § the Command hooks screen, `operations/queue-consumers.md` § command outbox and the generated
   `_lifecycle` reference page, EN+PL, pinned.)*

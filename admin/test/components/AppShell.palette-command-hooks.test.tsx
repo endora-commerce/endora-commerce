@@ -134,7 +134,7 @@ describe('AppShell palette — the Command hooks screen is reachable (Constituti
 
   it.each([
     ['en', ['command hooks', 'hooks']],
-    ['pl', ['haki poleceń', 'haki']],
+    ['pl', ['hooki modułów', 'hooki', 'haki']],
   ] as const)('finds the screen in a %s-language admin and opens it', async (language, queries) => {
     const label = BUNDLES[language]['actions.openCommandHooks.label'] as string;
     const dialog = await openPalette(language, ['*']);
@@ -164,7 +164,7 @@ describe('AppShell palette — the Command hooks screen is reachable (Constituti
 
   it.each([
     ['en', ['outbox', 'dead letter', 'retry', 'failed deliveries']],
-    ['pl', ['outbox', 'nieudane', 'ponów', 'dostarczenia']],
+    ['pl', ['kolejka dostarczeń', 'outbox', 'nieudane', 'ponów', 'dostarczenia']],
   ] as const)('finds the outbox in a %s-language admin and opens it', async (language, queries) => {
     const label = BUNDLES[language]['actions.openCommandOutbox.label'] as string;
     expect(label).toBeTruthy();

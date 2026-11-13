@@ -102,7 +102,7 @@ export const ACTION_PERMISSION_DISAGREEMENTS: Readonly<Record<string, string>> =
     'walk finds no API path under the target and falls back to the module level, where the shallowest ' +
     'registration is the execution plan\'s GET /api/v1/admin/command-hooks (`platform.modules.read`) — ' +
     'the other tab, which an outbox-only operator is redirected away from. Retire this entry if the ' +
-    'walk learns a target-to-entry-route declaration, or if the outbox API moves under ' +
+    'walk learns a target-to-entry-route declaration (issue #1088), or if the outbox API moves under ' +
     '/api/v1/admin/platform/command-hooks/outbox.',
   'import_export:open-import-export-center':
     '"Import / export" declares `catalog:write`; the screen lands on GET ' +

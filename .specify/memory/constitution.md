@@ -4,9 +4,9 @@ SYNC IMPACT REPORT
 Version change: 4.2.0 → 4.3.0
 Rationale: MINOR. Principle XIII gains one bullet and Principle XV's bounded
 overridable surface names one more member, both specified by
-`specs/176-command-hooks-outbox/` (FR-042) and flagged for owner ratification in
-the merge request that ships them. OD-7 (2026-11-10) put command hooks and the
-outbox in scope; the wording is this amendment's.
+`specs/176-command-hooks-outbox/` (FR-042), and ratified by the owner on
+2026-11-13 in the merge request that ships them (#1080). OD-7 (2026-11-10) put
+command hooks and the outbox in scope; the wording is this amendment's.
 
 MINOR, not MAJOR. No compliant work becomes non-compliant: the Command Bus still
 writes exactly one audit entry per Command, and an outbox row is written inside
