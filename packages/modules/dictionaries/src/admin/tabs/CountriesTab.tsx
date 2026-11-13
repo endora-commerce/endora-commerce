@@ -7,7 +7,7 @@ import {
   type ReactNode,
 } from 'react';
 import { ArrowDown, ArrowUp, Plus, Star, Trash2 } from 'lucide-react';
-import { TouchReorderButtons } from '@endora-commerce/admin-kit/components';
+import { TouchReorderButtons, useConfirmDialog } from '@endora-commerce/admin-kit/components';
 import type {
   Country,
   CreateCountryRequest,
@@ -54,6 +54,7 @@ const emptyCountry: CountryFormState = {
 
 export function CountriesTab(): ReactNode {
   const t = useTranslation('dictionaries');
+  const { confirm, confirmDialog } = useConfirmDialog();
   const [rows, setRows] = useState<Country[]>([]);
   const [currencies, setCurrencies] = useState<DictionaryCurrency[]>([]);
   const [languages, setLanguages] = useState<DictionaryLanguage[]>([]);
@@ -190,7 +191,12 @@ export function CountriesTab(): ReactNode {
   };
 
   const remove = async (code: string): Promise<void> => {
-    if (!confirm(`Delete country ${code}?`)) return;
+    const ok = await confirm({
+      message: t('country.deleteConfirm', { code }),
+      confirmLabel: t('action.delete'),
+      destructive: true,
+    });
+    if (!ok) return;
     try {
       await dictionaryClient.deleteCountry(code);
       setInfo(`Country ${code} deleted.`);
@@ -375,6 +381,7 @@ export function CountriesTab(): ReactNode {
           setSelected(null);
         }}
       />
+      {confirmDialog}
     </div>
   );
 }

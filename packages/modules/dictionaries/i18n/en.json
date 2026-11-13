@@ -101,5 +101,8 @@
   "actions.openDictionaryAudit.label": "Dictionary audit",
   "actions.openDictionaryAudit.description": "Unresolved registry references",
   "actions.openDictionary.keywords": "dictionary, countries, currencies, languages",
-  "actions.openDictionaryAudit.keywords": "audit, dictionary"
+  "actions.openDictionaryAudit.keywords": "audit, dictionary",
+  "country.deleteConfirm": "Delete country {code}?",
+  "currency.deleteConfirm": "Delete currency {code}?",
+  "language.deleteConfirm": "Delete language {code}?"
 }

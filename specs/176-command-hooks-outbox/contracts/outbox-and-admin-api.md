@@ -32,6 +32,47 @@
     and left for the next reclaim, so rows behind slow handlers are never run twice concurrently. One
     handler that by itself runs past the lease remains the at-least-once case `messageId` covers.
 
+**Amended (P4, 2026-11-12)** — the operator surface, reconciled with `master` and the
+conventions; the first two are architect rulings on P4:
+
+11. **No position for an `afterCommit` handler.** The plan's `afterCommit` items carry
+    `position: null` (`CommandHookPlanItemSchema.position` is nullable) and are listed by module id,
+    then registration order; the screen renders them as an unordered list and suggests no sequence.
+    `beforeCommit` items keep their 1-based position.
+12. **Failure codes are shown, translated where someone can.** `lastErrorCode` stays the raw stored
+    string. The screen shows a sentence when the row's `hookModule` bundle, or the platform's, has
+    one — under `errors.<code>`, then `commandOutbox.failure.<code>` — and the raw code otherwise,
+    always beside the code. The ruling named `errors.<code>` alone; the second family exists because
+    the drain's own codes (`hook-unregistered`, `permanent-failure`, `handler-failed`) and a
+    `PermanentOutboxFailure`'s are lower-kebab, which `errors.*` cannot hold
+    (`check:error-translations` refuses such a key as `malformed-key`, with no ledger by design).
+    The platform's three are translated by `_i18n`. `command-hooks-api.md` §5 gains the matching
+    SHOULD for hook authors.
+13. **The list.** `status` defaults to `dead`; `delivered` is not listed (it needs nobody and is
+    purged after 7 days). `limit` is 1–100, default 50; `cursor` is the previous page's
+    `nextCursor`, the last row's `sequence` as a decimal string, and anything else is `400`. The
+    response is `{ items, nextCursor }`, the shape every keyset list in the contracts uses, rather
+    than the `{ data: … }` envelope sketched below.
+14. **The retry.** `404` is the platform's `NOT_FOUND`; `COMMAND_OUTBOX_NOT_DEAD` is a new platform
+    code declared and translated by `_i18n` (T3 by noun). The row is read `for update`, its
+    `dead_at` and lease are cleared, and its last failure code and class are kept until the next
+    attempt overwrites them. The response is `{ item }`, the row as the list serves it. The
+    Command is not reversible. The routes mount beside the execution plan, so a composition with no
+    command-hook registry serves neither.
+15. **The screen** is `/platform/command-hooks` (plan) and `/platform/command-hooks/outbox`, two
+    `RouteTabs` of one kernel-served page in the System section. The outbox tab is shown only with
+    `platform.command_outbox.read`; `platform.command_outbox.manage` declares `requires:
+    ['platform.command_outbox.read']`.
+16. **Reachability (architect ruling 2 on #1080).** The nav entry is gated on either
+    `platform.modules.read` or `platform.command_outbox.read`. A tab the operator may not read is
+    hidden, a strip of one tab is not drawn, and `/platform/command-hooks` redirects an outbox-only
+    operator to `/platform/command-hooks/outbox`. A second palette action, `open-command-outbox`,
+    opens the outbox behind `platform.command_outbox.read`. `.read` does not `require`
+    `platform.modules.read`: an outbox-only role is degraded, not broken.
+17. **No lease column (architect ruling 4).** An `in_flight` row's `availableAt` is its past due
+    time, not its lease, and `lockedUntil` is not served: the in-flight list shows no date beyond
+    *Created*. Pending rows show *Next attempt*, dead rows *Failed at*.
+
 ## Delivery
 
 | Aspect | Contract |

@@ -5,6 +5,7 @@ import { MemoryRouter } from 'react-router-dom';
 import type { ModuleListItem, ModulePresence } from '@endora-commerce/contracts';
 import { ApiError } from '@endora-commerce/admin-kit/lib';
 import { renderWithI18n, passthroughBundle } from '../../helpers/render-with-i18n';
+import { answerConfirm } from '../../helpers/confirm-dialog';
 
 /**
  * D-36a item 1 — the activation control renders on `/platform/modules`.
@@ -126,7 +127,6 @@ beforeEach(() => {
   presence = [];
   setModuleActivation.mockClear();
   refresh.mockClear();
-  vi.spyOn(window, 'confirm').mockReturnValue(true);
 });
 
 describe('ModulesPage — the activation control lives here now (D-36a)', () => {
@@ -138,8 +138,9 @@ describe('ModulesPage — the activation control lives here now (D-36a)', () => 
     await userEvent.click(
       within(row('blog')).getByRole('button', { name: /platform.modules.action.disable/ }),
     );
+    await answerConfirm(true);
 
-    expect(setModuleActivation).toHaveBeenCalledWith('blog', false);
+    await waitFor(() => expect(setModuleActivation).toHaveBeenCalledWith('blog', false));
     await waitFor(() => expect(refresh).toHaveBeenCalled());
   });
 
@@ -156,7 +157,6 @@ describe('ModulesPage — the activation control lives here now (D-36a)', () => 
   });
 
   it('confirms before switching off, and abandons the flip when the operator declines', async () => {
-    vi.spyOn(window, 'confirm').mockReturnValue(false);
     listed = [moduleItem({ id: 'blog', name: 'Blog' })];
     presence = [presenceItem({ id: 'blog' })];
     await renderPage();
@@ -164,6 +164,8 @@ describe('ModulesPage — the activation control lives here now (D-36a)', () => 
     await userEvent.click(
       within(row('blog')).getByRole('button', { name: /platform.modules.action.disable/ }),
     );
+    const dialog = await answerConfirm(false);
+    expect(dialog).toHaveTextContent('platform.modules.action.confirmDisable');
 
     expect(setModuleActivation).not.toHaveBeenCalled();
   });
@@ -226,6 +228,7 @@ describe('ModulesPage — the activation control lives here now (D-36a)', () => 
     await userEvent.click(
       within(row('settings')).getByRole('button', { name: /platform.modules.action.disable/ }),
     );
+    await answerConfirm(true);
 
     expect(await screen.findByText('blocked: Settings needs organizations')).toBeInTheDocument();
   });
@@ -300,6 +303,7 @@ describe('ModulesPage — the activation control lives here now (D-36a)', () => 
         name: /platform.modules.action.disable/,
       }),
     );
+    await answerConfirm(true);
 
     expect(await screen.findByText('The single unit of tenancy.')).toBeInTheDocument();
   });

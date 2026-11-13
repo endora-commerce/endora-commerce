@@ -1,4 +1,5 @@
 import { useCallback, useEffect, useState, type ReactNode } from 'react';
+import { useConfirmDialog } from '@endora-commerce/admin-kit/components';
 import { useNavigate, useParams } from 'react-router-dom';
 import type { SalesChannelDetail } from '@endora-commerce/contracts';
 import { ApiError, useAuth } from '@endora-commerce/admin-kit/lib';
@@ -30,6 +31,8 @@ import { useTranslation } from '@endora-commerce/admin-kit/i18n';
  */
 export function SalesChannelEditPage(): ReactNode {
   const t = useTranslation('sales_channels');
+  const tc = useTranslation('core');
+  const { confirm, confirmDialog } = useConfirmDialog();
   const { code: routeCode } = useParams<{ code: string }>();
   const navigate = useNavigate();
   // Feature 167 (US3 #3) — an operator who may only read channels sees the
@@ -143,14 +146,12 @@ export function SalesChannelEditPage(): ReactNode {
 
   const handleDelete = useCallback(async (): Promise<void> => {
     if (!channel || channel.systemDefault) return;
-    if (
-      !window.confirm(
-        `Delete sales channel "${channel.code}"? This is irreversible. ` +
-          `If any product / customer / category would be left with zero channels, ` +
-          `the platform will refuse — you can opt to rebind them to the system default instead.`,
-      )
-    )
-      return;
+    const ok = await confirm({
+      message: t('edit.deleteConfirm', { code: channel.code }),
+      confirmLabel: tc('common.action.delete'),
+      destructive: true,
+    });
+    if (!ok) return;
     setSaving(true);
     setError(null);
     try {
@@ -161,11 +162,17 @@ export function SalesChannelEditPage(): ReactNode {
           err instanceof ApiError &&
           err.envelope.error.code === 'ENTITY_WOULD_HAVE_ZERO_CHANNELS'
         ) {
-          if (
-            window.confirm(
-              `${err.envelope.error.message}\n\nRebind those entities to the system default and delete?`,
-            )
-          ) {
+          const rebind = await confirm({
+            message: (
+              <>
+                <p>{err.envelope.error.message}</p>
+                <p className="mt-2">{t('edit.rebindConfirm')}</p>
+              </>
+            ),
+            confirmLabel: t('edit.action.rebindAndDelete'),
+            destructive: true,
+          });
+          if (rebind) {
             await salesChannelsClient.delete(channel.code, { fallbackToDefault: true });
           } else {
             return;
@@ -180,7 +187,7 @@ export function SalesChannelEditPage(): ReactNode {
     } finally {
       setSaving(false);
     }
-  }, [channel, navigate]);
+  }, [channel, navigate, confirm, t, tc]);
 
   if (loading) {
     return <p className="text-sm text-muted-foreground">{t('edit.loading')}</p>;
@@ -266,6 +273,7 @@ export function SalesChannelEditPage(): ReactNode {
           <AdminZone name="sales_channel.editor.after" props={{ channelId: channel.id }} />
         </div>
       ) : null}
+      {confirmDialog}
     </>
   );
 }

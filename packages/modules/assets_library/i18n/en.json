@@ -65,7 +65,7 @@
   "folders.root": "Unsorted (root)",
   "folders.namePlaceholder": "Folder name",
   "folders.newSubfolder": "New sub-folder",
-  "folders.deleteConfirm": "Delete this folder?\n\nOK = move its contents to the parent folder, then delete.\nCancel = abort.",
+  "folders.deleteConfirm": "Delete this folder? Its contents move to the parent folder first.",
   "folders.permalinkNotice": "Files in this folder with a shareable link: {count}. Their links keep working: the files move to the parent folder.",
   "folders.removed": "Folder removed ({id}).",
   "nav.assetsLibrary.label": "Assets library",

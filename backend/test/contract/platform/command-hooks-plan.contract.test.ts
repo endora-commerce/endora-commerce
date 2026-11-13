@@ -46,9 +46,10 @@ describe('GET /api/v1/admin/command-hooks (176 T037)', () => {
     expect(body.items.filter((item) => item.module === FIXTURE)).toEqual([
       { action: 'organization.create', phase: 'beforeCommit', position: 1, module: FIXTURE, id: 'observe-create', moduleEnabled: true },
       // 176 P3 — the fixture's afterCommit handlers, after each action's beforeCommit hooks.
-      { action: 'organization.create', phase: 'afterCommit', position: 1, module: FIXTURE, id: 'deliver-create', moduleEnabled: true },
+      // 176 P4 — with no position: the outbox promises no order across rows.
+      { action: 'organization.create', phase: 'afterCommit', position: null, module: FIXTURE, id: 'deliver-create', moduleEnabled: true },
       { action: 'organization.register', phase: 'beforeCommit', position: 1, module: FIXTURE, id: 'observe-register', moduleEnabled: true },
-      { action: 'organization.register', phase: 'afterCommit', position: 1, module: FIXTURE, id: 'deliver-register', moduleEnabled: true },
+      { action: 'organization.register', phase: 'afterCommit', position: null, module: FIXTURE, id: 'deliver-register', moduleEnabled: true },
     ]);
   });
 

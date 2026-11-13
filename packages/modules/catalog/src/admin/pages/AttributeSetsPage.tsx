@@ -1,4 +1,5 @@
 import { useCallback, useEffect, useState, type FormEvent, type ReactNode } from 'react';
+import { useConfirmDialog } from '@endora-commerce/admin-kit/components';
 import type {
   AttributeSet,
   AttributeSetDetail,
@@ -234,6 +235,8 @@ interface RowProps {
 
 function AttributeSetRow({ set, allAttributes, onChanged, onError }: RowProps): ReactNode {
   const t = useTranslation('catalog');
+  const tc = useTranslation('core');
+  const { confirm, confirmDialog } = useConfirmDialog();
   const [expanded, setExpanded] = useState(false);
   const [detail, setDetail] = useState<AttributeSetDetail | null>(null);
   const [busy, setBusy] = useState(false);
@@ -289,16 +292,19 @@ function AttributeSetRow({ set, allAttributes, onChanged, onError }: RowProps): 
   );
 
   const handleDelete = useCallback(async (): Promise<void> => {
-    if (!confirm(t('attributeSets.deleteConfirm', { code: set.code }))) {
-      return;
-    }
+    const ok = await confirm({
+      message: t('attributeSets.deleteConfirm', { code: set.code }),
+      confirmLabel: tc('common.action.delete'),
+      destructive: true,
+    });
+    if (!ok) return;
     try {
       await apiClient.delete<void>(`/api/v1/admin/catalog/attribute-sets/${set.id}`);
       onChanged(t('attributeSets.success.delete', { code: set.code }));
     } catch (err) {
       onError(err instanceof ApiError ? err.envelope.error.message : t('attributeSets.error.delete'));
     }
-  }, [set.id, set.code, onChanged, onError, t]);
+  }, [set.id, set.code, onChanged, onError, t, tc, confirm]);
 
   const localizedName = set.name['en-US'] ?? set.name['pl-PL'] ?? Object.values(set.name)[0] ?? '—';
 
@@ -388,6 +394,7 @@ function AttributeSetRow({ set, allAttributes, onChanged, onError }: RowProps): 
           </TableCell>
         </TableRow>
       ) : null}
+      {confirmDialog}
     </>
   );
 }

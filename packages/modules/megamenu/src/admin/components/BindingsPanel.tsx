@@ -31,6 +31,8 @@ export function BindingsPanel({ menuId, bindings, onChanged }: BindingsPanelProp
   const [pickedLanguage, setPickedLanguage] = useState('');
   const [pickedChannelLanguages, setPickedChannelLanguages] = useState<string[]>([]);
   const [error, setError] = useState<string | null>(null);
+  // Issue #313 — what an activation swapped out, said on the panel rather than in `alert()`.
+  const [notice, setNotice] = useState<string | null>(null);
   const [busy, setBusy] = useState(false);
 
   useEffect(() => {
@@ -97,18 +99,15 @@ export function BindingsPanel({ menuId, bindings, onChanged }: BindingsPanelProp
   const activate = async (binding: MegamenuBinding): Promise<void> => {
     setBusy(true);
     setError(null);
+    setNotice(null);
     try {
       const result = await megamenuClient.activate(menuId, {
         salesChannelId: binding.salesChannelId,
         language: binding.language,
       });
       if (result.previouslyActive) {
-        // Surface the swap so the admin knows what happened. A modal
-        // would be nicer; an alert keeps the surface light.
-        // eslint-disable-next-line no-alert
-        window.alert(
-          t('bindings.activatedWithPrevious', { name: result.previouslyActive.name }),
-        );
+        // Surface the swap so the admin knows what happened.
+        setNotice(t('bindings.activatedWithPrevious', { name: result.previouslyActive.name }));
       }
       onChanged();
     } catch (err) {
@@ -141,6 +140,14 @@ export function BindingsPanel({ menuId, bindings, onChanged }: BindingsPanelProp
           <AlertDescription>{error}</AlertDescription>
         </Alert>
       ) : null}
+      {/* Mounted before it has text, so the notice is announced when it arrives. */}
+      <div role="status" aria-live="polite">
+        {notice ? (
+          <Alert>
+            <AlertDescription>{notice}</AlertDescription>
+          </Alert>
+        ) : null}
+      </div>
       <div className="grid grid-cols-12 gap-2">
         <Select
           className="col-span-5"

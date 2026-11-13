@@ -16,6 +16,7 @@ import {
   salesChannelIdsToSubmit,
   useSalesChannelOptions,
   type MethodSalesChannelOptions,
+  useConfirmDialog,
 } from '@endora-commerce/admin-kit/components';
 import { Alert, AlertDescription, Badge, Button, Card, CardContent, CardHeader, CardTitle, Input, Label, PageHeader, Select, Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from '@endora-commerce/admin-kit/ui';
 import { useTranslation } from '@endora-commerce/admin-kit/i18n';
@@ -30,6 +31,7 @@ const KINDS = ['bank_transfer', 'pickup', 'credit_limit', 'gateway'] as const;
 
 export function PaymentMethodsPage(): ReactNode {
   const t = useTranslation('core');
+  const { confirm, confirmDialog } = useConfirmDialog();
   const { hasPermission } = useAuth();
   // Feature 076 (D-83 item 6) — the gateway screens link here with the method
   // they were configuring. The row is scrolled into view **and focused**, so a
@@ -145,7 +147,12 @@ export function PaymentMethodsPage(): ReactNode {
 
   const handleDelete = useCallback(
     async (id: string): Promise<void> => {
-      if (!confirm(t('legacyMethods.payment.deleteConfirm'))) return;
+      const ok = await confirm({
+        message: t('legacyMethods.payment.deleteConfirm'),
+        confirmLabel: t('common.action.delete'),
+        destructive: true,
+      });
+      if (!ok) return;
       try {
         await paymentMethodsClient.remove(id);
         if (editing?.id === id) resetForm();
@@ -154,7 +161,7 @@ export function PaymentMethodsPage(): ReactNode {
         setError(err instanceof ApiError ? err.envelope.error.message : t('legacyMethods.errors.delete'));
       }
     },
-    [editing, refresh, resetForm, t],
+    [editing, refresh, resetForm, t, confirm],
   );
 
   /**
@@ -336,6 +343,7 @@ export function PaymentMethodsPage(): ReactNode {
           )}
         </CardContent>
       </Card>
+      {confirmDialog}
     </>
   );
 }
