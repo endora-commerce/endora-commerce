@@ -1,10 +1,20 @@
 import { afterAll, beforeAll, describe, expect, it } from 'vitest';
 import {
+  createWebhookResponseSchema,
+  webhookListResponseSchema,
+  webhookSchema,
+} from '@endora-commerce/contracts';
+import {
   setupBackendServer,
   teardownBackendServer,
   type BackendServerHandle,
 } from '../../helpers/test-server.js';
 import { TEST_ORGANIZATION_ID } from '../../helpers/test-actors.js';
+import { deepStrict, disagreements } from '../../helpers/strict-schema.js';
+
+/** Strict copies: a key a webhook reply carries that the contract does not declare fails (issue #599 §6). */
+const strictCreated = deepStrict(createWebhookResponseSchema);
+const strictWebhook = deepStrict(webhookSchema);
 
 /**
  * Feature 062 / T025 — additive `organizationId` on webhook admin CRUD
@@ -56,6 +66,7 @@ describe('webhook admin CRUD — organization binding (062/T025)', () => {
       eventTypes: ['order.created.v1'],
     });
     expect(res.statusCode).toBe(201);
+    expect(disagreements(strictCreated, res.json())).toEqual([]);
     const body = res.json() as WebhookBody;
     expect(body.data.organizationId).toBeNull();
     expect(body.data.secret).toMatch(/^[0-9a-f]{64}$/);
@@ -69,6 +80,7 @@ describe('webhook admin CRUD — organization binding (062/T025)', () => {
       organizationId: TEST_ORGANIZATION_ID,
     });
     expect(res.statusCode).toBe(201);
+    expect(disagreements(strictCreated, res.json())).toEqual([]);
     const created = (res.json() as WebhookBody).data;
     expect(created.organizationId).toBe(TEST_ORGANIZATION_ID);
 
@@ -78,6 +90,7 @@ describe('webhook admin CRUD — organization binding (062/T025)', () => {
       cookies: ADMIN_COOKIE,
     });
     expect(list.statusCode).toBe(200);
+    expect(disagreements(deepStrict(webhookListResponseSchema), list.json())).toEqual([]);
     const rows = (list.json() as { data: Array<{ id: string; organizationId: string | null }> })
       .data;
     const row = rows.find((r) => r.id === created.id);
@@ -101,6 +114,7 @@ describe('webhook admin CRUD — organization binding (062/T025)', () => {
       cookies: ADMIN_COOKIE,
     });
     expect(bind.statusCode).toBe(200);
+    expect(disagreements(strictWebhook, (bind.json() as { data: unknown }).data)).toEqual([]);
     expect((bind.json() as WebhookBody).data.organizationId).toBe(TEST_ORGANIZATION_ID);
 
     const unbind = await h.app.inject({
@@ -110,6 +124,7 @@ describe('webhook admin CRUD — organization binding (062/T025)', () => {
       cookies: ADMIN_COOKIE,
     });
     expect(unbind.statusCode).toBe(200);
+    expect(disagreements(strictWebhook, (unbind.json() as { data: unknown }).data)).toEqual([]);
     expect((unbind.json() as WebhookBody).data.organizationId).toBeNull();
   });
 
