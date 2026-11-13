@@ -1,0 +1,7 @@
+{
+  "settingGroups.customer_notifications.name": "Customer notifications",
+  "settingLabels.customer_notifications.enabled.name": "Customer notifications enabled",
+  "settingLabels.customer_notifications.enabled.description": "Switches the notification centre in the buyer's storefront account on or off. While off nothing is recorded, the storefront shows neither the notifications page nor the unread count, and its API is gone. Nothing is deleted — entries already recorded are kept and reappear when you switch it back on.",
+  "settingLabels.customer_notifications.retention_days.name": "Keep notifications for (days)",
+  "settingLabels.customer_notifications.retention_days.description": "How many days a notification stays in the buyer's account before it is deleted. From 7 to 730 days."
+}

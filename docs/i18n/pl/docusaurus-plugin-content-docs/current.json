@@ -86,6 +86,9 @@
   "sidebar.main.category.customer_accounts": {
     "message": "Konta klientów"
   },
+  "sidebar.main.category.customer_notifications": {
+    "message": "Powiadomienia klientów"
+  },
   "sidebar.main.category.customers": {
     "message": "Klienci"
   },
