@@ -181,5 +181,10 @@
   "actions.openInbox.keywords": "request, offer",
   "organizationPermissions.quote_requests.create.label": "Create quote requests",
   "organizationPermissions.quote_requests.create.description": "Ask for a quote from scratch or by resubmitting one, and turn a cart, a shopping list or a quick order into a quote request.",
-  "settingGroups.quote_requests.name": "Quote requests"
+  "settingGroups.quote_requests.name": "Quote requests",
+  "notifications.submitted.title": "Quote request {number} was submitted",
+  "notifications.resubmitted.title": "Quote request {number} was re-submitted",
+  "notifications.offer_accepted.title": "The offer on quote request {number} was accepted",
+  "notifications.offer_rejected.title": "The offer on quote request {number} was rejected",
+  "notifications.expired.title": "Quote request {number} expired"
 }

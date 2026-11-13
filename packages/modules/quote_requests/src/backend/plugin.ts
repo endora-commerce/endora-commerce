@@ -3,6 +3,7 @@ import type { EntityManager } from '@mikro-orm/postgresql';
 import type { EventBus } from '@endora-commerce/platform/events';
 import type { AuditPort, PlatformLogger } from '@endora-commerce/platform/kernel';
 import type {
+  AdminNotificationRecordPort,
   AdminUserReadPort,
   BuyerLinePricePort,
   CartWritePort,
@@ -17,6 +18,7 @@ import type {
   OrganizationRoleReadPort,
   PermissionReadPort,
   SalesRepAssignmentPort,
+  TransactionalEmailSender,
 } from '@endora-commerce/contracts';
 import { RfqService, type RfqEventBus, type RfqServiceDeps } from './services/rfq-service.js';
 import { createQuoteRequestBusinessIdGenerator } from './services/quote-request-business-id-generator.js';
@@ -27,6 +29,8 @@ import { RfqNotificationService } from './services/rfq-notification-service.js';
 import type { NotificationKick } from './services/notifications/kick.js';
 import { createRecipientResolver, orgWideViewerRoleIds } from './services/notifications/recipients.js';
 import { RfqExpiryWorker, type RfqExpiryRule } from './services/rfq-expiry-worker.js';
+import { RfqNotificationDeliveryService } from './services/notifications/delivery-service.js';
+import { createChannelAdapters } from './services/notifications/channel-adapters.js';
 import { QuoteRequestListViewService } from './services/quote-request-list-view-service.js';
 import { createOrderCompletionReactor } from './services/order-completion-reactor.js';
 import {
@@ -45,7 +49,7 @@ import { registerQuoteRequestsNegotiationRoutes } from './routes.negotiation.js'
 import type { NegotiationPolicyService } from './services/negotiation-policy-service.js';
 import type { CommandBus } from '@endora-commerce/platform/commands';
 import type { RequireAdminAnyFactory, RequireAdminFactory } from '@endora-commerce/platform/kernel';
-import type { SalesChannelMembershipPort } from '@endora-commerce/platform/kernel';
+import type { SalesChannelMembershipPort, SalesChannelResolutionPort } from '@endora-commerce/platform/kernel';
 import { ModuleDisabledError } from '@endora-commerce/platform/kernel';
 
 /**
@@ -195,12 +199,28 @@ export interface QuoteRequestsModuleOptions {
    * research R-8). Never throws. Absent: nothing is kicked.
    */
   notificationKick?: NotificationKick;
+  /**
+   * What the notification delivery worker delivers through
+   * (`specs/179-rfq-and-customer-notifications/` WP-05): `admin_notifications`'
+   * record port for the bell, `transactional_emails`' late-bound sender, the
+   * request's sales channel and its storefront address, and the presence
+   * question asked in front of each channel's owner (FR-012).
+   */
+  delivery: {
+    bell: AdminNotificationRecordPort<EntityManager>;
+    sender: () => TransactionalEmailSender | undefined;
+    salesChannels: Pick<SalesChannelResolutionPort, 'getById'>;
+    storefrontUrl: (salesChannelId: string) => Promise<string | null>;
+    isPresent: (moduleId: string) => boolean;
+  };
 }
 
 export interface QuoteRequestsModuleHandle {
   /** US5 reactor; `backend.ts` owns its subscription. */
   orderCompletionReactor: ReturnType<typeof createOrderCompletionReactor>;
   expiryWorker: RfqExpiryWorker;
+  /** The notification delivery pass the worker runs (WP-05). */
+  deliveryService: RfqNotificationDeliveryService;
   rfqService: RfqService;
   adminService: RfqAdminService;
   salesRepAssignment: SalesRepAssignmentPort;
@@ -291,6 +311,26 @@ export function quoteRequestsModule(options: QuoteRequestsModuleOptions): {
     notificationService,
     ...(options.notificationKick ? { notificationKick: options.notificationKick } : {}),
     resolveExpiryRule: options.resolveExpiryRule,
+  });
+
+  // `specs/179-rfq-and-customer-notifications/` WP-05 — delivery of the
+  // records the writers above commit: the bell and the two e-mails. The
+  // customer centre (WP-08) and push (WP-10) add their adapters here.
+  const deliveryService = new RfqNotificationDeliveryService({
+    emFactory: options.emFactory,
+    adapters: createChannelAdapters({
+      adminUsers: options.adminUsers,
+      permissions: options.permissions,
+      customerAccounts: options.customerAccounts,
+      orgWideViewerRoleIds: orgWideViewers,
+      organizations: options.organizations,
+      bell: options.delivery.bell,
+      sender: options.delivery.sender,
+      channels: options.delivery.salesChannels,
+      storefrontUrl: options.delivery.storefrontUrl,
+    }),
+    isPresent: options.delivery.isPresent,
+    ...(options.log ? { log: (message: string, context: Record<string, unknown>) => options.log!.warn(context, message) } : {}),
   });
 
   // US5 — the `order.created.v1` reactor. `backend.ts` registers it through
@@ -392,6 +432,7 @@ export function quoteRequestsModule(options: QuoteRequestsModuleOptions): {
     handle: (): QuoteRequestsModuleHandle => ({
       orderCompletionReactor,
       expiryWorker,
+      deliveryService,
       rfqService,
       adminService,
       salesRepAssignment,

@@ -1,10 +1,19 @@
 import { afterAll, beforeAll, describe, expect, it } from 'vitest';
 import {
+  customerGroupListResponseSchema,
+  customerGroupSchema,
+} from '@endora-commerce/contracts';
+import {
   setupBackendServer,
   teardownBackendServer,
   type BackendServerHandle,
 } from '../../helpers/test-server.js';
 import { CustomerGroup } from '../../helpers/package-entities.js';
+import { deepStrict, disagreements } from '../../helpers/strict-schema.js';
+
+/** Strict copies: a key a customer-group reply carries that the contract does not declare fails (issue #599 §6). */
+const strictGroup = deepStrict(customerGroupSchema);
+const strictList = deepStrict(customerGroupListResponseSchema);
 
 /**
  * Feature 076 (D-79) — the customer-group admin surface, served by
@@ -49,6 +58,7 @@ describe('Customer-group admin surface (feature 076)', () => {
     expect(createdBody.data.code).toBe(code);
     expect(createdBody.data.name).toBe('Wholesale');
     expect(createdBody.data.description).toBe('Bulk buyers');
+    expect(disagreements(strictGroup, createdBody.data)).toEqual([]);
 
     const listed = await h.app.inject({
       method: 'GET',
@@ -58,6 +68,7 @@ describe('Customer-group admin surface (feature 076)', () => {
     expect(listed.statusCode).toBe(200);
     const listBody = listed.json() as { data: Array<{ id: string; code: string }> };
     expect(listBody.data.some((g) => g.code === code)).toBe(true);
+    expect(disagreements(strictList, listBody)).toEqual([]);
 
     const edited = await h.app.inject({
       method: 'PUT',
@@ -67,6 +78,7 @@ describe('Customer-group admin surface (feature 076)', () => {
     });
     expect(edited.statusCode).toBe(200);
     expect((edited.json() as { data: { name: string } }).data.name).toBe('Wholesale (EU)');
+    expect(disagreements(strictGroup, (edited.json() as { data: unknown }).data)).toEqual([]);
 
     const removed = await h.app.inject({
       method: 'DELETE',

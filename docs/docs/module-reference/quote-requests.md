@@ -44,6 +44,7 @@ An operator switches this module on and off on **/platform/modules**. The choice
 | `transactional_emails` | yes | installs and migrates after it, and an operator cannot switch it off underneath this module |
 | `carts` | gating only | resolves `cartWritePort`; withheld from `dependencies` because the install order cannot carry the edge |
 | `orders` | gating only | resolves `orderReadPort`; withheld from `dependencies` because the install order cannot carry the edge |
+| `admin_notifications` | no | degrades-without `adminNotificationRecordPort` — Operators get no bell entry about quote requests; each delivery record closes as skipped (module off). |
 | `admin_search` | no | contributes-to `adminSearchProviderRegistry` |
 | `document_templates` | no | refuses-without `documentRenderPort` — quote requests cannot be exported to PDF and no PDF template can be chosen |
 | `document_templates` | no | contributes-to `documentTypeRegistry` |

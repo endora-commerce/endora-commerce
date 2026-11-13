@@ -114,6 +114,115 @@ export const customFieldWrites = [
   },
 ] satisfies CustomFieldWriteDeclaration[];
 
+/**
+ * The variables every quote request notification e-mail is sent with
+ * (`specs/179-rfq-and-customer-notifications/contracts/notification-matrix.md` §3).
+ */
+const NOTIFICATION_EMAIL_VARIABLES = {
+  number: { key: 'quote.number', label: 'Quote request number', sampleValue: 'QR-000153' },
+  url: {
+    key: 'quote.url',
+    label: 'Link to the quote request',
+    sampleValue: 'https://shop.example.com/quote-requests/2f1c0d1e-0000-4000-8000-000000000153',
+    description: 'Empty when the sales channel has no storefront address; the button is then left out.',
+  },
+  customer: { key: 'customer.name', label: 'Recipient name', sampleValue: 'Anna Example' },
+  organization: { key: 'organization.name', label: 'Organization name', sampleValue: 'Acme Sp. z o.o.' },
+  channel: { key: 'channel.name', label: 'Sales channel', sampleValue: 'B2B store' },
+  actor: { key: 'actor.name', label: 'Name of the buyer who acted', sampleValue: 'Jan Sample' },
+  previousNumber: { key: 'quote.previousNumber', label: 'Number of the re-submitted quote request', sampleValue: 'QR-000150' },
+  validUntil: { key: 'quote.validUntil', label: 'Valid until', sampleValue: 'December 1, 2026' },
+  revisionNumber: { key: 'quote.revisionNumber', label: 'Offer revision number', sampleValue: '2' },
+  lineCount: { key: 'quote.lineCount', label: 'Number of lines', sampleValue: '4' },
+  reason: { key: 'reason', label: 'Reason given', sampleValue: 'The delivery date does not work for us.' },
+} as const;
+
+const V = NOTIFICATION_EMAIL_VARIABLES;
+const CUSTOMER_COMMON = [V.number, V.url, V.customer, V.organization, V.channel];
+// No link in the operator e-mails until #185 (owner ruling OQ-1 = A).
+const OPERATOR_COMMON = [V.number, V.customer, V.organization, V.channel];
+
+/** The eleven notification e-mails — {@link manifest}'s `transactionalEmails`, after `quote_request_pdf`. */
+const QUOTE_NOTIFICATION_EMAILS = [
+  {
+    code: 'quote_request_customer_submitted',
+    name: 'Quote request received (customer)',
+    group: 'quote_requests',
+    description: 'Sent to the buyer and to the members who see every quote request of the Organization when a quote request is submitted.',
+    variables: [...CUSTOMER_COMMON, V.actor],
+  },
+  {
+    code: 'quote_request_customer_resubmitted',
+    name: 'Quote request re-submitted (customer)',
+    group: 'quote_requests',
+    description: 'Sent to the buyer and to the members who see every quote request of the Organization when a quote request is re-submitted as a new one.',
+    variables: [...CUSTOMER_COMMON, V.actor, V.previousNumber],
+  },
+  {
+    code: 'quote_request_customer_offer_accepted',
+    name: 'Offer accepted (customer)',
+    group: 'quote_requests',
+    description: 'Sent to the customer side when a buyer accepts the offer on a quote request.',
+    variables: [...CUSTOMER_COMMON, V.actor],
+  },
+  {
+    code: 'quote_request_customer_offer_rejected',
+    name: 'Offer rejected (customer)',
+    group: 'quote_requests',
+    description: 'Sent to the customer side when a buyer rejects the offer on a quote request, which cancels it.',
+    variables: [...CUSTOMER_COMMON, V.actor, V.reason],
+  },
+  {
+    code: 'quote_request_customer_expired',
+    name: 'Quote request expired (customer)',
+    group: 'quote_requests',
+    description: 'Sent to the customer side when a quote request expires after the configured period without activity.',
+    variables: [...CUSTOMER_COMMON],
+  },
+  {
+    code: 'quote_request_customer_prepared',
+    name: 'Quote prepared for the customer',
+    group: 'quote_requests',
+    description: 'Sent to the customer side when a sales representative creates a quote request on the buyer’s behalf.',
+    variables: [...CUSTOMER_COMMON, V.validUntil],
+  },
+  {
+    code: 'quote_request_customer_revised',
+    name: 'Offer ready (customer)',
+    group: 'quote_requests',
+    description: 'Sent to the customer side when a sales representative saves an offer revision awaiting the buyer’s answer.',
+    variables: [...CUSTOMER_COMMON, V.validUntil, V.revisionNumber],
+  },
+  {
+    code: 'quote_request_customer_approved',
+    name: 'Quote request approved (customer)',
+    group: 'quote_requests',
+    description: 'Sent to the customer side when a sales representative approves a quote request. It carries a link, never the quote PDF.',
+    variables: [...CUSTOMER_COMMON, V.validUntil],
+  },
+  {
+    code: 'quote_request_customer_canceled',
+    name: 'Quote request canceled (customer)',
+    group: 'quote_requests',
+    description: 'Sent to the customer side when a sales representative cancels a quote request.',
+    variables: [...CUSTOMER_COMMON, V.reason],
+  },
+  {
+    code: 'quote_request_operator_submitted',
+    name: 'New quote request (operator)',
+    group: 'quote_requests',
+    description: 'Sent to the operators who handle the Organization’s quote requests when a buyer submits a quote request.',
+    variables: [...OPERATOR_COMMON, V.actor, V.lineCount],
+  },
+  {
+    code: 'quote_request_operator_resubmitted',
+    name: 'Quote request re-submitted (operator)',
+    group: 'quote_requests',
+    description: 'Sent to the operators who handle the Organization’s quote requests when a buyer re-submits a quote request.',
+    variables: [...OPERATOR_COMMON, V.actor, V.lineCount, V.previousNumber],
+  },
+];
+
 export const manifest = defineModuleManifest({
   id: 'quote_requests',
   name: 'Quote requests',
@@ -249,6 +358,17 @@ export const manifest = defineModuleManifest({
         'templates are off each answers 503 MODULE_DISABLED and the admin hides both actions. ' +
         'Not `dependencies`: a PDF is optional for a quote, and binding would make the document ' +
         'templates switch dead while quote requests are on.',
+    },
+    {
+      moduleId: 'admin_notifications',
+      name: 'adminNotificationRecordPort',
+      kind: 'degrades-without',
+      whenAbsent: 'Operators get no bell entry about quote requests; each delivery record closes as skipped (module off).',
+      reason:
+        'The one call into this owner is the notification delivery worker’s bell channel, which decides the ' +
+        'owner’s presence in front of the port and closes the record `skipped_module_off` when it is off ' +
+        '(`specs/179-rfq-and-customer-notifications/` FR-012). Nothing in this module fails closed on it, and no ' +
+        'table of that owner is referenced from this module’s schema.',
     },
   ],
   settings,
@@ -572,6 +692,11 @@ export const manifest = defineModuleManifest({
         { key: 'message', label: 'Personal message', sampleValue: 'As agreed on the phone, here is our offer.' },
       ],
     },
+    // `specs/179-rfq-and-customer-notifications/` FR-020 — one e-mail per change
+    // and side (`contracts/notification-matrix.md` §3), so an operator edits and
+    // switches each on its own. Defaults (en, pl) in
+    // `backend/email-templates/quote-notification-defaults.ts`.
+    ...QUOTE_NOTIFICATION_EMAILS,
   ],
   i18n: { bundlesDir: 'i18n' },
   docs: { dir: 'docs' },
