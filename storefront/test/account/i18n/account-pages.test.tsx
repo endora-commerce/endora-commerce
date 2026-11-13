@@ -88,6 +88,8 @@ vi.mock('../../../lib/api/account', () => ({
 vi.mock('../../../lib/dictionary/pickers/CountryPicker', () => ({ CountryPicker: () => null }));
 vi.mock('../../../lib/api/auth', () => ({ logoutCustomer: async () => undefined }));
 vi.mock('../../../lib/api/credit-limit', () => ({ getMyCreditLimit: async () => null }));
+// `specs/179-rfq-and-customer-notifications/` — the sidebar's *Notifications* entry; nothing unread.
+vi.mock('../../../lib/api/customer-notifications', () => ({ getUnreadNotificationCount: async () => 0 }));
 vi.mock('../../../lib/api/pwa-server', () => ({
   fetchPwaConfig: async () => ({ pushEnabled: false }),
   getPushPreferences: async () => null,
@@ -188,10 +190,10 @@ describe('account shell — the shop language (issue #85)', () => {
     const { en, pl } = await both(() => Layout({ children: null }));
     // The links sit side by side with no text between them.
     // A company member's one address entry is the Organization's (spec 173, OD-11).
-    expect(en).toContain('ProfileChange passwordOrdersReturnsQuote requestsShopping lists');
+    expect(en).toContain('ProfileNotificationsChange passwordOrdersReturnsQuote requestsShopping lists');
     expect(en).toContain('OrganizationOrganization addressesMembersRolesCarts to approve (1)');
     expect(en).not.toMatch(POLISH_DIACRITIC);
-    expect(pl).toContain('ProfilZmień hasłoZamówieniaZwrotyZapytania ofertoweListy zakupów');
+    expect(pl).toContain('ProfilPowiadomieniaZmień hasłoZamówieniaZwrotyZapytania ofertoweListy zakupów');
     // Issue #359 — the ordering preferences, beside the quick order they serve.
     expect(en).toContain('Quick orderOrdering preferences');
     expect(pl).toContain('Szybkie zamówienieUstawienia zamówień');
