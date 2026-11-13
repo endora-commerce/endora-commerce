@@ -46,13 +46,6 @@ const EXCEPTIONS: Record<string, { count: number; reason: string }> = {
     count: 1,
     reason: 'discard-on-channel-switch guard; the same kind of guard, moves together with the hook above',
   },
-  // Not an exception: the rejection-reason prompt is issue #311's, replaced in
-  // its own pull request (#1079). Whichever of the two merges second deletes
-  // this entry — the ledger is two-way, so it fails here once the prompt is gone.
-  'packages/modules/returns/src/admin/pages/ReturnDetail.tsx': {
-    count: 1,
-    reason: 'rejection-reason window.prompt, replaced by issue #311 (PR #1079)',
-  },
 };
 
 function roots(): string[] {
