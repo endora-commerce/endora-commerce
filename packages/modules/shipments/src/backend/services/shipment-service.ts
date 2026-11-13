@@ -95,8 +95,9 @@ export class ShipmentService {
         if (latest && latest.status === 'success') {
           throw new HttpError(
             409,
-            ERROR_CODES.VALIDATION_FAILED,
+            ERROR_CODES.SHIPMENT_ALREADY_GENERATED,
             'Order already has a successful shipment; nothing to generate.',
+            { code: 'generate', orderId, shipmentId: latest.id },
           );
         }
 

@@ -54,6 +54,15 @@ export const manifest = defineModuleManifest({
   // only became real in T124: until this module registered its own routes there
   // was no seam for a gate to sit on.
   activation: { settingCode: 'shipments.enabled', default: true },
+  /**
+   * Issue #637 (#86) — the module's first code. Both raise sites refuse a write
+   * because a shipment was already generated successfully: generating again
+   * (`ShipmentService.createShipment`, token `generate`) and the
+   * `receive_shipment` ingress marking it failed (`ReceiveShipmentHandler`,
+   * token `mark_failed`). One state, so one code; the token picks the
+   * sentence. The noun is the shipment, which this module owns.
+   */
+  errorCodes: [{ code: 'SHIPMENT_ALREADY_GENERATED', tokens: ['generate', 'mark_failed'] }],
   settings: shipmentsSettingsManifest,
   // Feature 047 — admin-editable transactional email owned by this module.
   transactionalEmails: [

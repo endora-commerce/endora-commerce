@@ -236,6 +236,10 @@ const MIGRATED_MODULES: readonly string[] = [
   // it.
   'seo',
   'settings',
+  // Minted (issue #637): `SHIPMENT_ALREADY_GENERATED` is this module's first
+  // code and was created after the chain was deleted, so `MINTED_ERROR_CODES`
+  // accounts for it.
+  'shipments',
   'shopping_lists',
   'transactional_emails',
   'webhooks',

@@ -63,7 +63,12 @@ There used to be a second endpoint here, `POST .../shipments/retry`, and it
 has been deleted: it appended attempt n+1 and contacted no adapter in any state,
 so an operator who used it got a fresh `pending` row that nothing had been asked
 about. Retrying **is** generating again — the generate endpoint appends the next
-attempt, refuses only once one has succeeded, and asks the carrier for it.
+attempt, refuses only once one has succeeded (`409 SHIPMENT_ALREADY_GENERATED`,
+`details.code: "generate"`), and asks the carrier for it.
+
+`SHIPMENT_ALREADY_GENERATED` carries `shipmentId` and `orderId` in `details`, plus the
+shipment's `status` for `mark_failed`. Until issue #637 both refusals were
+`409 VALIDATION_FAILED`.
 
 ## Lifecycle
 
@@ -74,7 +79,8 @@ attempt, refuses only once one has succeeded, and asks the carrier for it.
 | `receive_shipment` | Carrier/adapter ingress | The Shipment is resolved; the Order moves to the method's `statusOnSuccess` / `statusOnFailure`; `shipment.received.v1` / `shipment.failed.v1` is emitted. |
 
 `receive_shipment` is **idempotent**: a success after a terminal `success` is a
-no-op; a failure after success is rejected (409, no downgrade); a missing /
+no-op; a failure after success is rejected (`409 SHIPMENT_ALREADY_GENERATED`,
+`details.code: "mark_failed"`, no downgrade); a missing /
 already-resolved reference is rejected without corrupting records. A failed
 generation is retried by generating again, which opens the next Shipment attempt
 and asks the carrier for it, leaving prior attempts intact.
