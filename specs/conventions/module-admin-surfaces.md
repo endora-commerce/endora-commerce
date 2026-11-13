@@ -41,7 +41,10 @@ so they appear on `/admin-roles` and pass the CI inventory.
    #1105), and `OWNER[kind].prop` on a module-local map as every value of `prop`. A
    `hasPermission` / `hasAnyPermission` check in an admin layer decides whether a
    **control** is shown, so D-173's foreign-gate sweep reports a foreign code there as
-   `admin-ui-control` and passes it; a foreign code gating a route is judged as before.
+   `admin-ui-control` and passes it; a foreign code gating a route is judged as before. The
+   admin shell is scanned as a host root (`moduleId: null`, issue #1106), where
+   `requiredPermission:` string and array literals in nav entries and tiles are read too —
+   an array as one any-of site; an object carrying `element:` stays a route gate.
    **Declare the gate as the route's `preHandler`, and do not check the session inside the
    handler instead.** The platform moves the `preHandler` chain a route declares to that
    route's `preValidation` (`packages/platform/src/http/guards-before-validation.ts`), so a

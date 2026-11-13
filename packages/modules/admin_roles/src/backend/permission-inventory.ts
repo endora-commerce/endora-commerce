@@ -107,7 +107,19 @@ export interface PermissionScanResult {
  */
 export interface PermissionScanRoot {
   readonly dir: string;
-  readonly moduleId?: string;
+  /**
+   * The module the directory is, or `null` for a **host** root — one no module
+   * owns, such as the admin shell (issue #1106). A host root's sites are
+   * attributed to no module, which is how the foreign-gate sweep reads a
+   * host-owned file.
+   */
+  readonly moduleId?: string | null;
+  /**
+   * The whole root is an Admin UI layer (the admin shell, issue #1106). Its UI
+   * permission checks are `admin-control` sites wherever the file sits, and its
+   * `requiredPermission:` data is read — see {@link collectRequiredPermissionData}.
+   */
+  readonly adminLayer?: boolean;
 }
 
 /**
@@ -257,10 +269,15 @@ function collectFromFile(
 ): void {
   const source = resolver.sourceOf(file);
   if (source === null) return;
-  if (!/requireAdmin|hasPermission|hasAnyPermission/.test(source)) return;
+  const readsData = root.adminLayer === true;
+  const prefilter = readsData
+    ? /requireAdmin|hasPermission|hasAnyPermission|requiredPermission/
+    : /requireAdmin|hasPermission|hasAnyPermission/;
+  if (!prefilter.test(source)) return;
   const moduleId = moduleIdFor(file, root);
   const relFile = relative(base, file);
-  const inAdminLayer = relative(root.dir, file).split(/[\\/]/).slice(0, -1).includes('admin');
+  const inAdminLayer =
+    readsData || relative(root.dir, file).split(/[\\/]/).slice(0, -1).includes('admin');
   for (const { uiCheck, ...site } of collectFromSource(source, file, resolver)) {
     out.push({
       ...site,
@@ -269,6 +286,70 @@ function collectFromFile(
       surface: uiCheck && inAdminLayer ? 'admin-control' : 'enforcement',
     });
   }
+  if (!readsData) return;
+  for (const { routeElement, ...site } of collectRequiredPermissionData(source)) {
+    out.push({
+      ...site,
+      file: relFile,
+      moduleId,
+      surface: routeElement ? 'enforcement' : 'admin-control',
+    });
+  }
+}
+
+/**
+ * `requiredPermission:` written as **data** in an Admin UI layer — the shell's
+ * nav entries and dashboard tiles (issue #1106). Only a literal is read: a
+ * string is one code, an array one any-of site carrying every member, as
+ * `hasAnyPermission([...])` is read, so the foreign-gate sweep judges the
+ * members as alternatives of one another (`sufficient-alternative`).
+ *
+ * Any other value is not this shape: in the shell it is a type
+ * (`requiredPermission?: PermissionRequirement`) or a declaration forwarded
+ * from where it is written (`{ requiredPermission: item.requiredPermission }`).
+ * An array literal holding no string — a spread of a constant — is reported
+ * `unresolved` rather than dropped.
+ *
+ * An entry or a tile decides whether a **control** is shown. An object that
+ * also carries `element:` — a route declaration — decides whether a route
+ * renders, and stays an `enforcement` site the sweep judges as before. `path:`
+ * alone is not that marker: the dashboard's KPI tiles carry the API path they
+ * read their figure from.
+ */
+function* collectRequiredPermissionData(
+  source: string,
+): Generator<Omit<EnforcedGateSite, 'file' | 'moduleId' | 'surface'> & { routeElement: boolean }> {
+  const re = /\brequiredPermission\s*:\s*(?=['"[])/g;
+  let m: RegExpExecArray | null;
+  while ((m = re.exec(source)) !== null) {
+    const start = re.lastIndex;
+    const literal =
+      source[start] === '['
+        ? readBalanced(source, start)
+        : source.slice(start, skipString(source, start) + 1);
+    const codes = [...literal.matchAll(/(['"])([^'"]*)\1/g)]
+      .map((lit) => lit[2] ?? '')
+      .filter((code) => code.length > 0);
+    const expression = (source[start] === '[' ? `[${literal}]` : literal).replace(/\s+/g, ' ');
+    const routeElement = /\belement\s*:/.test(enclosingObject(source, m.index));
+    yield codes.length > 0
+      ? { expression, resolution: 'code', codes, routeElement }
+      : { expression, resolution: 'unresolved', codes: [], routeElement };
+  }
+}
+
+/** The body of the innermost object literal enclosing `index`, or `''`. */
+function enclosingObject(source: string, index: number): string {
+  let depth = 0;
+  for (let i = index - 1; i >= 0; i -= 1) {
+    const c = source[i];
+    if (c === '}') depth += 1;
+    else if (c === '{') {
+      if (depth === 0) return readBalanced(source, i);
+      depth -= 1;
+    }
+  }
+  return '';
 }
 
 /** A site before attribution; `uiCheck` marks the Admin UI's own permission checks. */
@@ -662,11 +743,18 @@ function blankComments(source: string): string {
 
 /** True when the last significant character allows an expression to start. */
 function startsExpression(emitted: string): boolean {
-  const trimmed = emitted.replace(/\s+$/, '');
-  if (trimmed.length === 0) return true;
-  const last = trimmed[trimmed.length - 1] ?? '';
+  // Walked back from the end rather than trimmed with a regular expression:
+  // trimming copied the whole emitted prefix on every `/`, which is quadratic in
+  // a file's length and made the admin shell's largest components dominate the
+  // walk (issue #1106).
+  let end = emitted.length;
+  while (end > 0 && /\s/.test(emitted[end - 1] ?? '')) end -= 1;
+  if (end === 0) return true;
+  const last = emitted[end - 1] ?? '';
   if ('([{,;:=!&|?+-*%~^<>'.includes(last)) return true;
-  return /\b(?:return|typeof|case|in|of|new|delete|void|do|else)$/.test(trimmed);
+  return /\b(?:return|typeof|case|in|of|new|delete|void|do|else)$/.test(
+    emitted.slice(Math.max(0, end - 8), end),
+  );
 }
 
 /** Index of the closing `/` of the regex literal starting at `i`. */

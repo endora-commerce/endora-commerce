@@ -1,8 +1,12 @@
+import { join } from 'node:path';
+import { fileURLToPath } from 'node:url';
 import {
   defaultScanRoots,
   type PermissionScanRoot,
 } from '../../../packages/modules/admin_roles/src/backend/permission-inventory.js';
+import { findAdminShellRoot } from '../../scripts/lib/admin-surfaces.js';
 import { resolveModuleLayout } from '../../scripts/lib/module-roots.js';
+import { nodeWorkspaceFs, workspaceMembers } from '../../scripts/lib/workspace-packages.js';
 import { activeOverlayModulesRoot } from '../../src/overlay/overlay-roots.js';
 
 /**
@@ -29,8 +33,15 @@ import { activeOverlayModulesRoot } from '../../src/overlay/overlay-roots.js';
  * answers waiting to disagree, and the one that came back short would be the
  * one reporting a clean tree.
  */
+const REPO_ROOT = join(fileURLToPath(new URL('.', import.meta.url)), '..', '..', '..');
+
 export async function permissionScanRoots(): Promise<Array<string | PermissionScanRoot>> {
   const layout = await resolveModuleLayout();
+  // Issue #1106 — the admin shell, located the way the admin-surface checks
+  // locate it (the source root holding the route table and the nav), never by
+  // naming its package. A host root and an Admin UI layer: no module owns it,
+  // and its nav entries and tiles declare `requiredPermission` as data.
+  const shellRoot = findAdminShellRoot(workspaceMembers(REPO_ROOT, nodeWorkspaceFs()));
   return [
     // The active deployment's overlay modules are resolved here too, since
     // feature 080's T051: `overlay/*` is how the platform discovers overlays,
@@ -41,5 +52,6 @@ export async function permissionScanRoots(): Promise<Array<string | PermissionSc
     ...layout.moduleRoots
       .filter((root) => root.moduleId !== null)
       .map((root) => ({ dir: root.directory, moduleId: root.moduleId as string })),
+    { dir: shellRoot, moduleId: null, adminLayer: true },
   ];
 }
