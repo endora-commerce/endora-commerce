@@ -552,14 +552,24 @@ export const cartAuditFeedEntrySchema = z.object({
 });
 export type CartAuditFeedEntry = z.infer<typeof cartAuditFeedEntrySchema>;
 
+/**
+ * @deprecated Since issue #657 — not the shape of `GET
+ * /api/v1/organization/carts/:id`, and never was: the route has never answered
+ * `cartFullPayloadSchema`'s fields or `auditEntries`, so a real reply fails
+ * this schema. Use {@link orgCartDetailViewSchema}, which the route is typed
+ * against. Kept, unchanged, until the next breaking-change release removes it.
+ */
 export const orgCartDetailPayloadSchema = cartFullPayloadSchema.extend({
   ownerCustomerAccountId: uuidSchema,
   ownerDisplayName: z.string(),
   auditEntries: z.array(cartAuditFeedEntrySchema),
 });
+/** @deprecated Since issue #657 — use {@link OrgCartDetailView}. */
 export type OrgCartDetailPayload = z.infer<typeof orgCartDetailPayloadSchema>;
 
+/** @deprecated Since issue #657 — use {@link orgCartDetailViewResponseSchema}. */
 export const orgCartDetailResponseSchema = z.object({ data: orgCartDetailPayloadSchema });
+/** @deprecated Since issue #657 — use {@link OrgCartDetailViewResponse}. */
 export type OrgCartDetailResponse = z.infer<typeof orgCartDetailResponseSchema>;
 
 /**
@@ -586,7 +596,7 @@ export type OrgCartDetailLine = z.infer<typeof orgCartDetailLineSchema>;
  * {@link orgCartDetailPayloadSchema} above is not this route's shape and never
  * was: the route has answered the summary fields plus the approval timestamps
  * since feature 027. It is left as published rather than changed under its
- * consumers.
+ * consumers, and deprecated since issue #657.
  */
 export const orgCartDetailViewSchema = orgCartSummarySchema.extend({
   ownerCustomerAccountId: uuidSchema.nullable(),
