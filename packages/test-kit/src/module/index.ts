@@ -17,16 +17,28 @@
  * freeze that subpath's internals as this package's published API. What the
  * caller gets is the result — the container, the context, the collected
  * registrations, the bus, a presence switch — behind types this file owns.
+ *
+ * A module whose subject is which tenant scope a request runs in mounts the
+ * platform's real per-request scope hook on its own Fastify app and maps each
+ * actor to a context the way a composition root does. `installRequestScope`,
+ * `tenantFor` and `systemTenant` are the published spelling of that, as thin
+ * wrappers over `registerRequestScopeHook`, `resolveTenantContext` and
+ * `systemTenantContext` — the same no-re-export rule applies to those three.
  */
 
+import type { FastifyInstance, FastifyRequest } from 'fastify';
 import { EventBus } from '@endora-commerce/platform/events';
 import type { ModuleContext } from '@endora-commerce/platform/kernel';
+import type { TenantContext } from '@endora-commerce/platform/tenancy';
 import {
   createModuleContext,
   createModuleRegistrationSink,
   createRootContainer,
+  registerRequestScopeHook,
   registerValues,
   registryCache as platformRegistryCache,
+  resolveTenantContext,
+  systemTenantContext,
   type KernelContainer,
   type ModuleRegistrationSink,
 } from '@endora-commerce/platform/composition';
@@ -131,4 +143,55 @@ export function composeModuleForTest(options: ComposeModuleForTestOptions): Comp
       if (seeded) presence.setEnabled([]);
     },
   };
+}
+
+/**
+ * The actor a tenant context is derived from — a customer, an admin or an API
+ * key, already authenticated. This is the platform derivation's own input
+ * shape, named here rather than restated, so the two cannot drift. There is no
+ * anonymous kind: anonymous traffic runs in {@link systemTenant}.
+ */
+export type TestTenantActor = Parameters<typeof resolveTenantContext>[0];
+
+/** An admin's reach — `allowAll`, or the organizations the admin is assigned. */
+export type TestAdminScope = NonNullable<Parameters<typeof resolveTenantContext>[1]>;
+
+/**
+ * The tenant context the platform derives for `actor` — and, for an admin, for
+ * the reach `adminScope` describes. The same pure derivation the platform's
+ * actor → context mapping runs per request (Constitution XI).
+ */
+export function tenantFor(actor: TestTenantActor, adminScope?: TestAdminScope): TenantContext {
+  return resolveTenantContext(actor, adminScope);
+}
+
+/**
+ * The system context: platform-internal work, and the scope a mapping gives a
+ * request with no authenticated actor. `reason` is carried on the context, as
+ * a composed platform carries it; a test with no reason to name gets `test`.
+ */
+export function systemTenant(reason = 'test'): TenantContext {
+  return systemTenantContext(reason);
+}
+
+export interface InstallRequestScopeOptions {
+  /**
+   * Map the request's already-authenticated actor to its tenant context — run
+   * per request, and again when a route gate settles which actor the request
+   * runs as. A rejection fails the request rather than running it unscoped.
+   */
+  readonly buildTenantContext: (request: FastifyRequest) => Promise<TenantContext>;
+}
+
+/**
+ * Mount the platform's real per-request scope hook on `app`: every request's
+ * handler runs inside the context `buildTenantContext` derives for it, exactly
+ * as in a composed platform. Register it after whatever authenticates the
+ * request and before the routes.
+ */
+export async function installRequestScope(
+  app: FastifyInstance,
+  options: InstallRequestScopeOptions,
+): Promise<void> {
+  await registerRequestScopeHook(app, { buildTenantContext: options.buildTenantContext });
 }

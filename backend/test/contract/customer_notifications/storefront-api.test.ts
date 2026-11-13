@@ -2,6 +2,7 @@ import { randomUUID } from 'node:crypto';
 import { afterAll, beforeAll, beforeEach, describe, expect, it } from 'vitest';
 import {
   customerNotificationListResponseSchema,
+  customerNotificationResponseSchema,
   customerNotificationUnreadCountResponseSchema,
 } from '@endora-commerce/contracts';
 import {
@@ -119,6 +120,7 @@ describe('customer_notifications storefront API', () => {
     for (const res of [
       await get('/api/v1/storefront/notifications', null),
       await get('/api/v1/storefront/notifications/unread-count', null),
+      await get(`/api/v1/storefront/notifications/${randomUUID()}`, null),
       await post(`/api/v1/storefront/notifications/${randomUUID()}/read`, null),
       await post('/api/v1/storefront/notifications/read-all', null),
     ]) {
@@ -220,6 +222,50 @@ describe('customer_notifications storefront API', () => {
     expect(customerNotificationUnreadCountResponseSchema.parse(res.json())).toEqual({ data: { unreadCount: 2 } });
   });
 
+  it("answers one of the caller's own entries, translated, private, and marks nothing", async () => {
+    const own = await seed({
+      title: 'Customer notifications',
+      titleMessage: { scope: 'customer_notifications', key: 'settingGroups.customer_notifications.name', params: {} },
+      linkPath: '/quote-requests/abc',
+      createdAt: at(1),
+    });
+    const everyChannel = await seed({ channel: null, linkPath: null, createdAt: at(2) });
+
+    const res = await get(`/api/v1/storefront/notifications/${own}`, BUYER, { ...DEFAULT, 'accept-language': 'pl-PL' });
+
+    expect(res.statusCode, res.body).toBe(200);
+    expect(res.headers['cache-control']).toBe('private, no-store');
+    const data = customerNotificationResponseSchema.parse(res.json()).data;
+    expect(data).toMatchObject({
+      id: own,
+      kind: 'test.kind',
+      title: 'Powiadomienia klientów',
+      linkPath: '/quote-requests/abc',
+      readAt: null,
+    });
+    expect(await readAtOf(own)).toBeNull();
+
+    const shared = await get(`/api/v1/storefront/notifications/${everyChannel}`);
+    expect(shared.statusCode, shared.body).toBe(200);
+    expect(customerNotificationResponseSchema.parse(shared.json()).data.linkPath).toBeNull();
+  });
+
+  it("answers 404 NOT_FOUND for one entry that is a colleague's, another channel's, an absent producer's, or unknown", async () => {
+    const colleagues = await seed({ account: TEST_CUSTOMER_RFQ_ID, createdAt: at(1) });
+    const retail = await seed({ channel: retailChannelId, createdAt: at(1) });
+    const absent = await seed({ sourceModule: 'module_that_is_not_installed', createdAt: at(1) });
+
+    for (const id of [colleagues, retail, absent, randomUUID(), 'not-a-uuid']) {
+      const res = await get(`/api/v1/storefront/notifications/${id}`);
+      expect(res.statusCode, `${id}: ${res.body}`).toBe(404);
+      expect(res.json().error.code).toBe('NOT_FOUND');
+    }
+
+    // Each is answered where it is visible: the colleague reads their own, the other channel its own.
+    expect((await get(`/api/v1/storefront/notifications/${colleagues}`, COLLEAGUE)).statusCode).toBe(200);
+    expect((await get(`/api/v1/storefront/notifications/${retail}`, BUYER, RETAIL)).statusCode).toBe(200);
+  });
+
   it("marks one of the caller's entries read, and answers 404 for anyone else's or an unknown id", async () => {
     const own = await seed({ createdAt: at(1) });
     const colleagues = await seed({ account: TEST_CUSTOMER_RFQ_ID, createdAt: at(1) });
@@ -287,6 +333,9 @@ describe('customer_notifications storefront API', () => {
     const list = await get('/api/v1/storefront/notifications', impersonated);
     expect(list.statusCode, list.body).toBe(200);
     expect(customerNotificationListResponseSchema.parse(list.json()).data.items.map((item) => item.id)).toEqual([own]);
+    const one = await get(`/api/v1/storefront/notifications/${own}`, impersonated);
+    expect(one.statusCode, one.body).toBe(200);
+    expect(customerNotificationResponseSchema.parse(one.json()).data.id).toBe(own);
 
     const mark = await post(`/api/v1/storefront/notifications/${own}/read`, impersonated);
     expect(mark.statusCode, mark.body).toBe(204);

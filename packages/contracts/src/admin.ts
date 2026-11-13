@@ -23,6 +23,13 @@ export const adminUserSchema = z.object({
   lastLoginAt: isoDateTimeSchema.nullable(),
   createdAt: isoDateTimeSchema,
   updatedAt: isoDateTimeSchema,
+  /**
+   * Feature 019 — the administrator's Admin UI language, `null` when none is
+   * saved (the UI then opens in its default). Answered by every admin-user read
+   * since 019 and declared here only by issue #599; optional for a client that
+   * predates it.
+   */
+  preferredLanguage: z.string().nullable().optional(),
   /** Feature 171 (US6) — the author avatar, a library asset. Optional for clients that predate it. */
   avatarAssetId: uuidSchema.nullable().optional(),
   /** Feature 171 (US6) — the author biography per language. */
@@ -109,6 +116,20 @@ export const adminLoginRequestSchema = z.object({
   email: z.string().email(),
   password: z.string(),
 });
+
+/**
+ * `POST /api/v1/auth/admin/login` — the first sign-in step (issue #599). Only
+ * `authenticated` sets the session cookie and names the administrator; the
+ * other two arms hand the client the opaque ticket its second step takes.
+ */
+export const adminLoginResponseSchema = z.object({
+  data: z.discriminatedUnion('status', [
+    z.object({ status: z.literal('authenticated'), adminUser: adminUserSchema }),
+    z.object({ status: z.literal('mfaRequired'), challengeId: z.string().min(1) }),
+    z.object({ status: z.literal('mfaSetupRequired'), setupTicket: z.string().min(1) }),
+  ]),
+});
+export type AdminLoginResponse = z.infer<typeof adminLoginResponseSchema>;
 
 export const impersonationRequestSchema = z.object({
   customerAccountId: uuidSchema,

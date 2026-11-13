@@ -1,6 +1,6 @@
 // @vitest-environment jsdom
 import { act } from 'react';
-import { createRoot } from 'react-dom/client';
+import { createRoot, type Root } from 'react-dom/client';
 import { afterEach, describe, expect, it, vi } from 'vitest';
 
 /**
@@ -40,7 +40,12 @@ const labels = {
 };
 
 let host: HTMLElement | null = null;
+let root: Root | null = null;
+// Unmount inside `act` so React finishes its work before jsdom is torn down;
+// a root left mounted schedules a render after `window` is gone.
 afterEach(() => {
+  act(() => root?.unmount());
+  root = null;
   host?.remove();
   host = null;
 });
@@ -48,8 +53,8 @@ afterEach(() => {
 function mountOpen(account: { initials: string; name: string; subtitle: string; notifications: string | null }): HTMLElement {
   host = document.createElement('div');
   document.body.appendChild(host);
-  const root = createRoot(host);
-  act(() => root.render(<MegamenuMobileDrawer megamenu={{ items: [] } as never} labels={labels} account={account} />));
+  root = createRoot(host);
+  act(() => root!.render(<MegamenuMobileDrawer megamenu={{ items: [] } as never} labels={labels} account={account} />));
   const trigger = host.querySelector('button[aria-label="Open menu"]') as HTMLButtonElement;
   expect(trigger.innerHTML).not.toContain('icon-btn__count');
   act(() => trigger.click());

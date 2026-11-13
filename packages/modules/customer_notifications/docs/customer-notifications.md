@@ -89,6 +89,7 @@ The storefront API, for a signed-in buyer:
 | --- | --- | --- |
 | `GET` | `/api/v1/storefront/notifications?limit=1..50&cursor=` | the entries, newest first, a cursor for the next page and the unread count |
 | `GET` | `/api/v1/storefront/notifications/unread-count` | the unread count |
+| `GET` | `/api/v1/storefront/notifications/:id` | one entry, without marking it as read; `404` for an entry the list would not show |
 | `POST` | `/api/v1/storefront/notifications/:id/read` | `204`; `404` for an entry that is not the caller's |
 | `POST` | `/api/v1/storefront/notifications/read-all` | the number of entries marked as read |
 

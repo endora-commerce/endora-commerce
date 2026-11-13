@@ -85,9 +85,16 @@ Contract and integration files do not run on merge requests (D-198): run them lo
 
 ### WP-06 History deliveries (`qr`, admin)
 
-- [ ] T050 [WP-06] [US5] Test (contract): admin history entries carry `deliveries` (recipient display name, channel, status, attempts, last error, closedAt) grouped by `eventIds`; customer `GET /api/v1/quote-requests/:id` carries none — `backend/test/contract/quote_requests/history-deliveries.test.ts`
-- [ ] T051 [WP-06] [US5] Test: `RfqHistory.tsx` renders a delivery list under an entry with a status label and the error behind a disclosure for `failed` — `qr/src/admin/pages/RfqHistory.test.tsx`
-- [ ] T052 [WP-06] Impl: history projection reads records by `source_event_id`, resolves display names in one batched read per side; admin screen; `rfq.detail.history.delivery.*` keys (en, pl) in the `core` bundle
+- [x] T050 [WP-06] [US5] Test (contract): admin history entries carry `deliveries` (recipient display name, channel, status, attempts, last error, closedAt) grouped by `eventIds`; customer `GET /api/v1/quote-requests/:id` carries none — `backend/test/contract/quote_requests/history-deliveries.test.ts`
+- [x] T051 [WP-06] [US5] Test: `RfqHistory.tsx` renders a delivery list under an entry with a status label and the error behind a disclosure for `failed` — `qr/src/admin/pages/RfqHistory.test.tsx`
+- [x] T052 [WP-06] Impl: history projection reads records by `source_event_id`, resolves display names in one batched read per side; admin screen; `rfq.detail.history.delivery.*` keys (en, pl) in the `core` bundle
+  - *WP-06 as built:* the screen test lives at `admin/test/modules/quote_requests/RfqHistory.deliveries.test.tsx`,
+    beside the existing `RfqDetail.history.test.tsx` — the module package's vitest runs `node` over `*.test.ts`
+    only, so a `.tsx` render test there would not be collected. The pure grouping is
+    `qr/src/backend/services/history/history-deliveries.ts` (+ `.test.ts`). An entry with no records carries no
+    `deliveries` key; deliveries are ordered customer side first, then by name, then by channel. A customer
+    without a name is shown by e-mail (the History's customer-actor directory); a recipient no longer
+    readable is `''`, rendered "unknown user".
 
 ---
 
@@ -101,6 +108,7 @@ Contract and integration files do not run on merge requests (D-198): run them lo
 - [x] T063 [WP-07] Test: module off → routes `503 MODULE_DISABLED`, worker idle, port gate closed — `backend/test/integration/customer_notifications/off-state.test.ts`
 - [x] T064 [WP-07] Impl: package scaffold (`package.json` `@endora-commerce/mod-customer-notifications`, tsconfigs, README, LICENSE, CHANGELOG), `manifest.ts` (activation, settings of data-model §3, dependencies `_i18n`, `auth`, `settings`, `customer_accounts`, `i18n`, `docs`), entity, init migration via `migration:new`, service, port provided with `ctx.di.providePort('customerNotificationRecordPort', …)`, `routes.storefront.ts` via `ctx.routes`, retention worker via `ctx.worker`, `i18n/{en,pl}.json` (settings group), `docs/customer-notifications.md` (en; pl in WP-11); add the `Container name: \`customerNotificationRecordPort\`` marker to the port's doc block in `contracts/customer-notifications.ts` (WP-01 left it out: `check:port-shape` refuses a name nothing registers)
 - [x] T065 [WP-07] Generated artefacts: `pnpm --filter backend run composer:generate`, `manifests:generate`, `pnpm install --lockfile-only`; commit all; changeset (initial)
+- [x] T066 [WP-07] Follow-up (architect ruling 2026-11-13): `GET /api/v1/storefront/notifications/:id` answering `200 { data: CustomerNotification }` (`customerNotificationResponseSchema`, additive in `contracts/customer-notifications.ts`) under the list's three predicates, translated on read, read-only; `404 NOT_FOUND` for an id the list would not show — `cn/src/backend/services/customer-notification-service.test.ts` + `backend/test/contract/customer_notifications/storefront-api.test.ts`, off-state route in `backend/test/integration/customer_notifications/off-state.test.ts`. **Note for WP-09:** once both are merged, the open route (`storefront/app/(account)/account/notifications/[id]/open/route.ts`, PR #1124) should switch from the bounded list scan to this `GET`
 
 ### WP-08 `customer_in_app` channel (`qr`)
 

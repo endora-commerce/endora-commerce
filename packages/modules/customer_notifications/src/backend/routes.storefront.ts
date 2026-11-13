@@ -51,6 +51,13 @@ export async function registerCustomerNotificationsStorefrontRoutes(
     return privately(reply).send({ data: { unreadCount } });
   });
 
+  // Read-only: one entry under the list's visibility, for the storefront's open
+  // route to learn the link it redirects to. It marks nothing.
+  app.get<{ Params: { id: string } }>('/api/v1/storefront/notifications/:id', guarded, async (request, reply) => {
+    const data = await deps.service().get(await readerOf(request), request.params.id);
+    return privately(reply).send({ data });
+  });
+
   app.post<{ Params: { id: string } }>(
     '/api/v1/storefront/notifications/:id/read',
     guarded,

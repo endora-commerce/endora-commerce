@@ -6,12 +6,8 @@ import {
   type Actor,
 } from '@endora-commerce/contracts';
 import { resolveCommandActor } from '@endora-commerce/platform/commands';
-import {
-  registerRequestScopeHook,
-  resolveTenantContext,
-  systemTenantContext,
-} from '@endora-commerce/platform/composition';
 import { getTenantContext } from '@endora-commerce/platform/tenancy';
+import { installRequestScope, systemTenant, tenantFor } from '@endora-commerce/test-kit/module';
 import { authPlugin } from './plugin.js';
 import { createRequireAdmin, createRequireAdminAny } from './require-admin.js';
 import { createRequireCustomer } from './require-customer.js';
@@ -77,7 +73,7 @@ const sessionService = {
 async function buildTenantContext(request: FastifyRequest) {
   const actor: Actor = request.actor;
   if (actor.kind === 'customer') {
-    return resolveTenantContext({
+    return tenantFor({
       kind: 'customer',
       customerAccountId: actor.customerAccountId,
       organizationId: actor.organizationId || null,
@@ -85,20 +81,20 @@ async function buildTenantContext(request: FastifyRequest) {
     });
   }
   if (actor.kind === 'admin') {
-    return resolveTenantContext(
+    return tenantFor(
       { kind: 'admin', adminUserId: actor.adminUserId },
       { allowAll: false, allowedOrganizationIds: [ADMIN_REACH] },
     );
   }
   if (actor.kind === 'api_key') {
-    return resolveTenantContext({
+    return tenantFor({
       kind: 'api_key',
       apiKeyId: actor.apiKeyId,
       organizationId: actor.organizationId ?? null,
       customerAccountId: actor.customerAccountId ?? null,
     });
   }
-  return systemTenantContext('actor:anonymous');
+  return systemTenant('actor:anonymous');
 }
 
 interface Observation {
@@ -284,7 +280,7 @@ describe('the route decides which session a request runs as', () => {
           : null,
       customerAccountResolver: async () => ({ organizationId: CUSTOMER_ORG, active: true }),
     });
-    await registerRequestScopeHook(app, { buildTenantContext });
+    await installRequestScope(app, { buildTenantContext });
 
     const permissionService = {
       hasPermission: async (_adminUserId: string, code: string) => permitted.has(code),

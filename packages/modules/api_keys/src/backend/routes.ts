@@ -1,5 +1,10 @@
 import type { FastifyInstance, FastifyRequest } from 'fastify';
-import { createApiKeyRequestSchema } from '@endora-commerce/contracts';
+import {
+  createApiKeyRequestSchema,
+  type ApiKey as ApiKeyView,
+  type ApiKeyListResponse,
+  type CreateApiKeyResponse,
+} from '@endora-commerce/contracts';
 import type { ApiKeyService } from './services/api-key-service.js';
 import type { ApiKey } from './entities/api-key.entity.js';
 import type { RequireAdminFactory } from '@endora-commerce/platform/kernel';
@@ -41,7 +46,7 @@ export async function registerApiKeysAdminRoutes(
   app.get(
     '/api/v1/admin/api-keys',
     { preHandler: requireAdmin('integrations:manage') },
-    async () => {
+    async (): Promise<ApiKeyListResponse> => {
       const rows = await apiKeyService.list();
       return { data: rows.map(serializeApiKey) };
     },
@@ -53,7 +58,7 @@ export async function registerApiKeysAdminRoutes(
       preHandler: requireAdmin('integrations:manage'),
       schema: { body: createApiKeyRequestSchema },
     },
-    async (request, reply) => {
+    async (request, reply): Promise<{ data: CreateApiKeyResponse }> => {
       const body = createApiKeyRequestSchema.parse(request.body);
       const adminUserId = resolveAdminUserId(request);
       const result = await apiKeyService.create({
@@ -84,7 +89,8 @@ export async function registerApiKeysAdminRoutes(
   );
 }
 
-function serializeApiKey(a: ApiKey): Record<string, unknown> {
+/** The published `apiKeySchema` (issue #599). */
+function serializeApiKey(a: ApiKey): ApiKeyView {
   return {
     id: a.id,
     name: a.name,

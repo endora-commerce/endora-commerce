@@ -4,6 +4,8 @@ import {
   teardownBackendServer,
   type BackendServerHandle,
 } from '../../helpers/test-server.js';
+import { resolvedTaxSchema, taxListResponseSchema, taxSchema } from '@endora-commerce/contracts';
+import { deepStrict, disagreements } from '../../helpers/strict-schema.js';
 
 /**
  * T133 (taxes + promotions slice) — admin CRUD round-trip + preview.
@@ -34,6 +36,17 @@ describe('Admin tax + promotion CRUD', () => {
       },
     });
     expect(put.statusCode).toBe(200);
+    // Issue #599 §6 — every tax reply is the published shape and nothing beside it.
+    expect(disagreements(deepStrict(taxSchema), (put.json() as { data: unknown }).data)).toEqual([]);
+
+    const list = await h.app.inject({
+      method: 'GET',
+      url: '/api/v1/admin/taxes',
+      cookies: { b2b_session: 'stub-admin-session' },
+    });
+    expect(list.statusCode, list.body).toBe(200);
+    expect((list.json() as { data: Array<{ code: string }> }).data.map((t) => t.code)).toContain('pl_vat_23');
+    expect(disagreements(deepStrict(taxListResponseSchema), list.json())).toEqual([]);
 
     const preview = await h.app.inject({
       method: 'GET',
@@ -41,6 +54,7 @@ describe('Admin tax + promotion CRUD', () => {
       cookies: { b2b_session: 'stub-admin-session' },
     });
     expect(preview.statusCode).toBe(200);
+    expect(disagreements(deepStrict(resolvedTaxSchema), (preview.json() as { data: unknown }).data)).toEqual([]);
     const body = preview.json() as { data: { rate: number; source: string } };
     expect(body.data.rate).toBe(0.23);
     expect(['rule', 'default']).toContain(body.data.source);
