@@ -171,6 +171,22 @@ function renderText(p: EmailTextProps): string {
   );
 }
 
+/** An address that is one `{{var path}}` directive and nothing else. */
+const LONE_VARIABLE_HREF = /^\s*\{\{\s*var\s+([^\s}]+)\s*\}\}\s*$/;
+
+/**
+ * Wrap a rendered button in `{{if path}}` when its address is the lone
+ * variable `path`, so the directive pass drops the button while that variable
+ * is empty or unset instead of shipping one that points at `#` (follow-up to
+ * issue #185: an operator e-mail carries its admin link only when the admin's
+ * address is configured). The unsubscribe anchor's guard (issue #520) for a
+ * button, shared by the HTML and the text part.
+ */
+export function guardLoneVariableHref(href: string, rendered: string): string {
+  const path = LONE_VARIABLE_HREF.exec(href)?.[1];
+  return path ? `{{if ${path}}}${rendered}{{/if}}` : rendered;
+}
+
 function renderButton(p: EmailButtonProps, accent: string): string {
   const bg = p.backgroundColor || accent;
   const fg = p.textColor || '#ffffff';
@@ -182,7 +198,7 @@ function renderButton(p: EmailButtonProps, accent: string): string {
     `style="display:inline-block;padding:12px 22px;font-family:Arial,Helvetica,sans-serif;font-size:14px;` +
     `font-weight:bold;color:${escapeAttr(fg)};text-decoration:none;">${escapeHtml(p.label)}</a>` +
     `</td></tr></table>`;
-  return row(`<div style="text-align:${p.align};">${btn}</div>`);
+  return guardLoneVariableHref(p.href, row(`<div style="text-align:${p.align};">${btn}</div>`));
 }
 
 function renderImage(p: EmailImageProps): string {

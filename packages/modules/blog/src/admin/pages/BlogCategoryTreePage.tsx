@@ -1,4 +1,5 @@
 import { useCallback, useEffect, useState, type ReactNode } from 'react';
+import { useConfirmDialog } from '@endora-commerce/admin-kit/components';
 import { Link, useNavigate } from 'react-router-dom';
 import type { BlogCategoryTreeMove, BlogCategoryTreeNode as TreeNode } from '@endora-commerce/contracts';
 import { Alert, AlertDescription, Button, Card, CardContent, CardHeader, CardTitle, PageHeader } from '@endora-commerce/admin-kit/ui';
@@ -30,6 +31,8 @@ function flatten(tree: TreeNode[]): FlatNode[] {
 
 export function BlogCategoryTreePage(): ReactNode {
   const t = useTranslation('blog');
+  const tc = useTranslation('core');
+  const { confirm, confirmDialog } = useConfirmDialog();
   const { hasPermission } = useAuth();
   // The create route this screen links to takes the **write** code (feature
   // 091, batch 16), so the button is gated on the same one: a link whose
@@ -97,7 +100,12 @@ export function BlogCategoryTreePage(): ReactNode {
 
   const onDelete = useCallback(
     async (node: TreeNode) => {
-      if (!window.confirm(t('categoryTree.deleteConfirm', { slug: node.slug }))) return;
+      const ok = await confirm({
+        message: t('categoryTree.deleteConfirm', { slug: node.slug }),
+        confirmLabel: tc('common.action.delete'),
+        destructive: true,
+      });
+      if (!ok) return;
       setWorking(true);
       setError(null);
       try {
@@ -109,7 +117,7 @@ export function BlogCategoryTreePage(): ReactNode {
         setWorking(false);
       }
     },
-    [load],
+    [load, confirm, t, tc],
   );
 
   const onAddChild = useCallback(
@@ -181,6 +189,7 @@ export function BlogCategoryTreePage(): ReactNode {
           )}
         </CardContent>
       </Card>
+      {confirmDialog}
     </div>
   );
 }

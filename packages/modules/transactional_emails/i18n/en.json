@@ -40,6 +40,8 @@
   "scope.channel": "Sales channel",
   "blocks.title": "Email blocks",
   "templates.title": "Email templates",
+  "blocks.deleteConfirm": "Delete this block?",
+  "templates.deleteConfirm": "Delete this template?",
   "branding.title": "Branding",
   "branding.logo": "Header logo",
   "branding.accent": "Accent color",

@@ -284,6 +284,17 @@ Most edges are pulls. The push shape is for registries — transactional-email
 defaults, reference registries, adapter tables — where a module contributes
 something the host later walks.
 
+**One edge is neither: running inside another module's write.** A module that
+must act when another module's Command runs — refuse it, write its own row
+beside it, or be told after it commits — registers through
+`ctx.commandHooks([...])` on an action the owner declares hookable in its
+manifest. Nobody resolves anything: the Command Bus runs a `beforeCommit` hook
+inside the owner's transaction and writes an outbox row for an `afterCommit`
+handler, and it skips either one per call while the hook's module is off. The
+registration is sealed with composition, so it is made in `registerModule`,
+never in a boot hook. The seam, its ordering and its refusals are in
+[the Command Bus](./command-bus.md#command-hooks-beforecommit).
+
 **A contribution registry is never a gated port.** The rule:
 
 > A registration whose whole contract is *"add an inert descriptor to a table

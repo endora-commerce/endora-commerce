@@ -1020,14 +1020,22 @@ polsku, gdy odbiorca wybrał polski, a w pozostałych przypadkach po angielsku.
 Wysyłany jest z oprawą wspólną dla całej platformy, a nie z oprawą kanału
 sprzedaży.
 
-**E-mail nie zawiera odnośnika.** Wskazuje szansę jej numerem i prosi o
-otwarcie jej w Admin UI; odnośnik prowadzący do szansy ma wpis w dzwonku. Ani
-wpis w dzwonku, ani e-mail nigdy nie zawierają opisu wydarzenia ani tytułu
+**E-mail prowadzi do wydarzenia, gdy adres panelu administracyjnego jest
+znany.** Gdy ustawiono `ADMIN_BASE_URL`, e-mail ma przycisk **Otwórz
+wydarzenie**, który otwiera szansę na karcie *Wydarzenia* z zaznaczonym
+wydarzeniem, czyli tam, dokąd prowadzi wpis w dzwonku. Bez tej zmiennej e-mail
+nie ma odnośnika ani przycisku. Nadal wskazuje szansę jej numerem i prosi o
+otwarcie jej w Admin UI. Adres względny ani zgadywany nigdy nie jest wysyłany.
+Ani wpis w dzwonku, ani e-mail nigdy nie zawierają opisu wydarzenia ani tytułu
 szansy.
 
 Temat i treść e-maila operator zmienia, osobno dla każdego języka, na ekranie
 **Maile transakcyjne** (`/transactional-emails`) i tam też może go wyłączyć.
-Dostępne zmienne to `event.name`, `event.when` i `opportunity.number`.
+Dostępne zmienne to `event.name`, `event.when`, `opportunity.number` oraz
+`event.adminUrl`, czyli odnośnik do wydarzenia. Ta ostatnia jest pusta, gdy nie
+ustawiono `ADMIN_BASE_URL`, i wtedy przycisk, którego adresem jest tylko ta
+zmienna, zostaje pominięty. Szablon zmieniony, zanim odnośnik się pojawił, nie
+używa tej zmiennej i wygląda tak jak wcześniej.
 **E-mail, który nie wyszedł, nigdy nie kosztuje wpisu w dzwonku** — wyłączony
 przez operatora, brak adresu na koncie odbiorcy, serwer poczty, który
 odmawia: wpis w dzwonku i tak powstaje, przy wydarzeniu widać przypomnienie
@@ -2478,8 +2486,6 @@ Rzeczy, których operator może szukać, a których w tym wydaniu nie ma:
 - **Wydarzenia bez szansy** — kalendarz osobisty.
 - **Synchronizacja z innym kalendarzem.** Nie ma synchronizacji z Google
   Calendar ani z Outlookiem i nie ma eksportu iCalendar.
-- **Odnośnik w e-mailu z przypomnieniem.** E-mail wskazuje szansę jej
-  numerem; odnośnik do niej ma wpis w dzwonku.
 - **Ustawienie strefy czasowej.** Kalendarz podąża za przeglądarką każdej
   osoby.
 - **Wydarzenia w innych miejscach modułu.** Wydarzenia nie są oferowane

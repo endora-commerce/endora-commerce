@@ -147,6 +147,40 @@ export const manifest = defineModuleManifest({
       keywordsKey: 'actions.openApiDescription.keywords',
       weight: 310,
     },
+    /**
+     * The command-hook screen (`specs/176-command-hooks-outbox/` FR-041): the
+     * execution plan and the outbox. Kernel-served, because hooks span every
+     * module that declares or registers one. Gated on the code the plan route
+     * enforces; the outbox tab asks for its own.
+     */
+    {
+      id: 'open-command-hooks',
+      labelKey: 'actions.openCommandHooks.label',
+      descriptionKey: 'actions.openCommandHooks.description',
+      icon: 'Webhook',
+      targetRoute: '/platform/command-hooks',
+      requiredPermission: 'platform.modules.read',
+      keywords: ['command hooks', 'hooks', 'extensions', 'execution plan'],
+      keywordsKey: 'actions.openCommandHooks.keywords',
+      weight: 320,
+    },
+    /**
+     * The outbox tab on its own (architect ruling 2 on #1080): an operator who
+     * may read the outbox and not the plan is a degraded role, not a broken
+     * one, and reaches the deliveries directly. One code per action, so the
+     * outbox gets its own.
+     */
+    {
+      id: 'open-command-outbox',
+      labelKey: 'actions.openCommandOutbox.label',
+      descriptionKey: 'actions.openCommandOutbox.description',
+      icon: 'Webhook',
+      targetRoute: '/platform/command-hooks/outbox',
+      requiredPermission: 'platform.command_outbox.read',
+      keywords: ['outbox', 'dead letter', 'retry', 'failed deliveries'],
+      keywordsKey: 'actions.openCommandOutbox.keywords',
+      weight: 330,
+    },
   ],
   permissions: [
     {
@@ -170,6 +204,22 @@ export const manifest = defineModuleManifest({
       code: 'platform.api_description.read',
       module: 'platform',
       label: 'Read the API description',
+    },
+    /**
+     * The command outbox (`specs/176-command-hooks-outbox/` FR-040): reading
+     * its rows, and retrying a dead one through the audited
+     * `command_outbox.retry` Command. Platform-owned, like the table.
+     */
+    {
+      code: 'platform.command_outbox.read',
+      module: 'platform',
+      label: 'View the command outbox',
+    },
+    {
+      code: 'platform.command_outbox.manage',
+      module: 'platform',
+      label: 'Retry failed command outbox deliveries',
+      requires: ['platform.command_outbox.read'],
     },
   ],
 });

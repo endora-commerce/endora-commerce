@@ -218,6 +218,13 @@ export const MINTED_ERROR_CODES: MintedErrorCodes = {
       'while a hook would run. A 500: the owner broke its own published contract. The raiser is ' +
       'the Command Bus.',
   },
+  COMMAND_OUTBOX_NOT_DEAD: {
+    to: '_i18n',
+    reason:
+      'Minted by spec 176 P4 (FR-040) for an operator retry of a command outbox row that is not ' +
+      'dead: only a failed delivery can be retried. A 409. The raiser is the platform\'s ' +
+      '`command_outbox.retry` Command.',
+  },
   ADMIN_AUTHENTICATION_THROTTLED: {
     to: 'admin_users',
     reason:
@@ -2669,6 +2676,13 @@ export const PLATFORM_OWNED_ERROR_CODES: PlatformOwnedErrorCodes = {
     reason:
       'A Command declared hookable that supplied no hook data. The refusal is the Command Bus\'s, ' +
       'raised for whichever owner declared the action, so no one module owns it.',
+  },
+  COMMAND_OUTBOX_NOT_DEAD: {
+    tier: 'T3',
+    reason:
+      'A retry of a command outbox row that is not dead. The noun is the command outbox, the ' +
+      'platform\'s own table of afterCommit deliveries for every module; the hook module a row ' +
+      'is for is a column of the row, not the owner of the refusal.',
   },
   UNAUTHORIZED: {
     tier: 'T3',

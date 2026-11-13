@@ -6,6 +6,7 @@ import {
   type FormEvent,
   type ReactNode,
 } from 'react';
+import { useConfirmDialog } from '@endora-commerce/admin-kit/components';
 import { ArrowDown, ArrowUp, Plus, Star, Trash2 } from 'lucide-react';
 import type {
   CreateDictionaryCurrencyRequest,
@@ -42,6 +43,7 @@ const emptyCurrency: CurrencyFormState = {
 
 export function CurrenciesTab(): ReactNode {
   const t = useTranslation('dictionaries');
+  const { confirm, confirmDialog } = useConfirmDialog();
   const [rows, setRows] = useState<DictionaryCurrency[]>([]);
   const [languages, setLanguages] = useState<DictionaryLanguage[]>([]);
   const [translationCompleteness, setTranslationCompleteness] = useState<Record<string, boolean>>({});
@@ -160,7 +162,12 @@ export function CurrenciesTab(): ReactNode {
   };
 
   const remove = async (code: string): Promise<void> => {
-    if (!confirm(`Delete currency ${code}?`)) return;
+    const ok = await confirm({
+      message: t('currency.deleteConfirm', { code }),
+      confirmLabel: t('action.delete'),
+      destructive: true,
+    });
+    if (!ok) return;
     try {
       await dictionaryClient.deleteCurrency(code);
       setInfo(`Currency ${code} deleted.`);
@@ -338,6 +345,7 @@ export function CurrenciesTab(): ReactNode {
           setSelected(null);
         }}
       />
+      {confirmDialog}
     </div>
   );
 }

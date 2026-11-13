@@ -96,5 +96,10 @@
   "list.badge.signInRequired": "Wymaga logowania",
   "actions.openSalesChannels.keywords": "kanał, kanały, sprzedaży",
   "actions.newSalesChannel.keywords": "kanał, sprzedaży",
-  "settingGroups.sales_channels.name": "Kanały sprzedaży"
+  "settingGroups.sales_channels.name": "Kanały sprzedaży",
+  "membership.rebindConfirm": "Przenieść ten {entityType} do domyślnego kanału systemowego i usunąć go z tego kanału?",
+  "membership.action.rebind": "Przenieś do kanału domyślnego",
+  "edit.deleteConfirm": "Usunąć kanał sprzedaży „{code}”? Tej operacji nie można cofnąć. Jeśli jakiś produkt, klient lub kategoria zostałyby bez kanału, usunięcie zostanie odrzucone i będzie można przenieść je do domyślnego kanału systemowego.",
+  "edit.rebindConfirm": "Przenieść te rekordy do domyślnego kanału systemowego i usunąć ten kanał?",
+  "edit.action.rebindAndDelete": "Przenieś i usuń"
 }

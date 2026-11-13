@@ -1,4 +1,5 @@
 import { useCallback, useEffect, useState, type FormEvent, type ReactNode } from 'react';
+import { useConfirmDialog } from '@endora-commerce/admin-kit/components';
 import { Pencil, Trash2 } from 'lucide-react';
 import { ApiError, useAuth } from '@endora-commerce/admin-kit/lib';
 import { Alert, AlertDescription, Button, Card, CardContent, CardHeader, CardTitle, Input, Label, PageHeader, Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from '@endora-commerce/admin-kit/ui';
@@ -19,6 +20,7 @@ import {
  */
 export function CustomerGroupsPage(): ReactNode {
   const t = useTranslation('customer_accounts');
+  const { confirm, confirmDialog } = useConfirmDialog();
   const { hasPermission } = useAuth();
   const canWrite = hasPermission('customer_groups:write');
   const [rows, setRows] = useState<AdminCustomerGroup[]>([]);
@@ -72,7 +74,12 @@ export function CustomerGroupsPage(): ReactNode {
 
   const handleDelete = useCallback(
     async (row: AdminCustomerGroup): Promise<void> => {
-      if (!confirm(t('groups.action.delete.confirm', { code: row.code }))) return;
+      const ok = await confirm({
+        message: t('groups.action.delete.confirm', { code: row.code }),
+        confirmLabel: t('groups.action.delete'),
+        destructive: true,
+      });
+      if (!ok) return;
       setError(null);
       try {
         await customerGroupsClient.remove(row.id);
@@ -83,7 +90,7 @@ export function CustomerGroupsPage(): ReactNode {
         setError(err instanceof ApiError ? err.envelope.error.message : t('groups.error.delete'));
       }
     },
-    [editing, refresh, resetForm, t],
+    [editing, refresh, resetForm, t, confirm],
   );
 
   const startEdit = useCallback((row: AdminCustomerGroup): void => {
@@ -185,6 +192,7 @@ export function CustomerGroupsPage(): ReactNode {
           )}
         </CardContent>
       </Card>
+      {confirmDialog}
     </>
   );
 }

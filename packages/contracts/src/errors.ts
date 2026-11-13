@@ -601,6 +601,8 @@ export const ERROR_CODES = {
   COMMAND_EXTENSION_UNCLAIMED: 'COMMAND_EXTENSION_UNCLAIMED',
   COMMAND_HOOK_CYCLE: 'COMMAND_HOOK_CYCLE',
   COMMAND_HOOK_DATA_MISSING: 'COMMAND_HOOK_DATA_MISSING',
+  /** A retry of a command outbox row that is not dead (176 P4): only a failed delivery can be retried. */
+  COMMAND_OUTBOX_NOT_DEAD: 'COMMAND_OUTBOX_NOT_DEAD',
 
   // Module Lifecycle (feature 073 — operator activation)
   /** No manifest and no registry row answer to this module id. */

@@ -1508,6 +1508,14 @@ Unieważnianie następuje przy każdym zapisie strony, bloku, szablonu lub hooka
   które strony i hooki osadzają który blok; w skali platformy usuwanie całości jest akceptowalne).
 - Zapis szablonu → usuwa wszystkie klucze w przestrzeni CMS.
 - Zapis hooka albo przypięcia → usuwa klucze hooka.
+- Zapis zasobu → usuwa wszystkie klucze w przestrzeni CMS. Każda rozwiązana odpowiedź zawiera
+  adresy URL osadzonych zasobów, każdy ze znacznikiem `?v=<contentVersion>`, i nic nie zapisuje,
+  która odpowiedź osadza który zasób. `assets_library` ogłasza zapis zdarzeniem
+  `assets_library.asset_changed.v1` (podmiana pliku, przywrócenie poprzedniej wersji, ustawienie
+  lub usunięcie permalinku, usunięcie, przywrócenie albo zmiana nazwy pliku, etykiety, tekstu
+  alternatywnego, typu MIME lub widoczności; przeniesienie do innego folderu nie jest ogłaszane),
+  a ten moduł je subskrybuje. CMS nie zależy przy tym od biblioteki: nieobecna biblioteka po
+  prostu niczego nie ogłasza.
 
 ### Pamięć podręczna storefrontu
 
@@ -1523,6 +1531,7 @@ odpowiednie tagi do `/api/revalidate` storefrontu:
 | Blok | `cms:block:<code>`, `cms:page`, `cms:hook` |
 | Szablon | `cms:page` |
 | Hook albo przypięcie | `cms:hook:<code>` |
+| Osadzony zasób (zapis zasobu) | `cms:page`, `cms:block`, `cms:hook` |
 | Ustawienia marki | `cms:brand` — wysyłany od razu po zatwierdzeniu zapisu, nie przez zdarzenie |
 
 Ręczne czyszczenie pamięci podręcznej na ekranie pamięci podręcznej modułu
@@ -1540,7 +1549,8 @@ sekrety po obu stronach się różnią.
 
 Inny moduł, który przechowuje treść CMS wewnątrz własnej odpowiedzi, subskrybuje to samo zdarzenie
 przez `ctx.subscribe`; robi tak `megamenu` dla bloków osadzanych w menu. Ładunek zdarzenia to
-`CmsContentChange`: rodzaj (`page`, `block`, `template`, `hook`) oraz zmienione slugi lub kody.
+`CmsContentChange`: rodzaj (`page`, `block`, `template`, `hook`, `assets`) oraz zmienione slugi,
+kody lub identyfikatory zasobów.
 
 Cel wydajnościowy: odczyt strony z 5 osadzonymi blokami i 3 osadzonymi szablonami trwa
 &lt; 200 ms p95 bez pamięci podręcznej, a z nią &lt; 5 ms.

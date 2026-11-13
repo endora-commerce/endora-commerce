@@ -1,4 +1,5 @@
 import { useCallback, useEffect, useState, type FormEvent, type ReactNode } from 'react';
+import { useConfirmDialog } from '@endora-commerce/admin-kit/components';
 import { ApiError, apiClient } from '@endora-commerce/admin-kit/lib';
 import { Alert, AlertDescription, Button, Card, CardContent, CardHeader, CardTitle, Input, Label, PageHeader, Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from '@endora-commerce/admin-kit/ui';
 import { useTranslation } from '@endora-commerce/admin-kit/i18n';
@@ -22,6 +23,8 @@ interface AttachmentType {
  */
 export function AttachmentTypesPage(): ReactNode {
   const t = useTranslation('catalog');
+  const tc = useTranslation('core');
+  const { confirm, confirmDialog } = useConfirmDialog();
   const [types, setTypes] = useState<AttachmentType[]>([]);
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState<string | null>(null);
@@ -65,10 +68,17 @@ export function AttachmentTypesPage(): ReactNode {
   const handleDelete = useCallback(
     async (id: string, code: string, usage: number): Promise<void> => {
       if (usage > 0) {
-        alert(t('attachmentTypes.deleteInUse', { code, count: usage }));
+        // Issue #313 — said on the page, not in the browser's `alert()`.
+        setInfo(null);
+        setError(t('attachmentTypes.deleteInUse', { code, count: usage }));
         return;
       }
-      if (!confirm(t('attachmentTypes.deleteConfirm', { code }))) return;
+      const ok = await confirm({
+        message: t('attachmentTypes.deleteConfirm', { code }),
+        confirmLabel: tc('common.action.delete'),
+        destructive: true,
+      });
+      if (!ok) return;
       try {
         await apiClient.delete(`/api/v1/admin/catalog/attachment-types/${id}`);
         setInfo(t('attachmentTypes.success.delete', { code }));
@@ -77,7 +87,7 @@ export function AttachmentTypesPage(): ReactNode {
         setError(err instanceof ApiError ? err.envelope.error.message : t('attachmentTypes.error.delete'));
       }
     },
-    [refresh, t],
+    [refresh, t, tc, confirm],
   );
 
   return (
@@ -144,6 +154,7 @@ export function AttachmentTypesPage(): ReactNode {
           <CreateAttachmentTypeInline onCreate={handleCreate} />
         </CardContent>
       </Card>
+      {confirmDialog}
     </div>
   );
 }

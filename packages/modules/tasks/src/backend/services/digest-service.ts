@@ -270,6 +270,7 @@ export class TaskDigestService {
       const facts: Pick<TaskRow, 'created_by_admin_user_id' | 'is_draft' | 'is_private' | 'context_type' | 'context_id'> = row;
       if (!(await this.deps.audience(adminUserId, facts))) continue;
       visible.push({
+        taskId: row.id,
         number: row.number,
         title: row.title,
         dueOn: row.due_on,

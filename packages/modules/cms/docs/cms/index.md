@@ -1435,6 +1435,15 @@ Invalidation runs on every Page / Block / Template / Hook write:
 - Block write → drops the block's own keys + every page-keyed and every hook-keyed entry (we don't yet track which pages or hooks inline which block; coarse drop is acceptable at platform scale).
 - Template write → drops every CMS-namespace key.
 - Hook / attachment write → drops the hook's keys.
+- Asset write → drops every CMS-namespace key. Every resolved payload carries
+  the URLs of the assets it embeds, each with its `?v=<contentVersion>` marker,
+  and nothing records which payload embeds which asset. `assets_library`
+  announces the write with `assets_library.asset_changed.v1` (a replace, a
+  restore of the previous version, a permalink set or removed, a soft delete, a
+  restore, or an edit of the filename, label, alt text, MIME type or
+  visibility; a folder move is not announced), and this module subscribes to
+  it. The CMS holds nothing of the library for it: an absent library announces
+  nothing.
 
 ### The storefront's own cache
 
@@ -1451,6 +1460,7 @@ itself by posting the matching tags to the storefront's `/api/revalidate`:
 | Block | `cms:block:<code>`, `cms:page`, `cms:hook` |
 | Template | `cms:page` |
 | Hook / attachment | `cms:hook:<code>` |
+| Embedded asset (an asset write) | `cms:page`, `cms:block`, `cms:hook` |
 | Brand settings | `cms:brand` — posted straight after the save commits, not through the event |
 
 The manual cache flush on the Settings module's cache screen revalidates the
@@ -1470,7 +1480,7 @@ the save. A refusal with status 401 means the two secrets differ.
 Another module that caches CMS content inside an answer of its own subscribes
 to the same event through `ctx.subscribe`; `megamenu` does, for the blocks a
 menu inlines. The payload is `CmsContentChange`: the kind (`page`, `block`,
-`template`, `hook`) and the slugs or codes that changed.
+`template`, `hook`, `assets`) and the slugs, codes or asset ids that changed.
 
 Performance target: page resolution with 5 embedded Blocks + 3 embedded
 Templates returns in &lt; 200 ms p95 cold; warm path returns in &lt; 5 ms.

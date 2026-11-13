@@ -274,11 +274,15 @@ export class CommandHookRegistry {
         phases: [...declaration.phases] as CommandHookPhase[],
       }))
       .sort((left, right) => left.action.localeCompare(right.action));
+    // A `beforeCommit` hook has a position: the hooks run in that order. An
+    // `afterCommit` handler has none — each is an outbox row delivered on its
+    // own, and the module-id order they are listed in is for a stable screen,
+    // not a sequence anything observes (176 P4 architect ruling).
     const position = <H extends CommandHookRegistration>(action: string, list: readonly H[]) =>
       list.map((hook, index) => ({
         action,
         phase: hook.phase,
-        position: index + 1,
+        position: hook.phase === 'beforeCommit' ? index + 1 : null,
         module: hook.moduleId,
         id: hook.id,
         moduleEnabled: this.#isPresent(hook.moduleId),

@@ -979,15 +979,22 @@ in the language of the recipient's Admin UI: Polish for a Polish preference,
 English otherwise. It is sent with the platform-wide branding, not a sales
 channel's.
 
-**The e-mail carries no link.** It names the opportunity by its number and
-asks the reader to open it in the Admin UI; the bell entry is the one that
-links to it. Neither the bell entry nor the e-mail ever carries the event's
-description or the opportunity's title.
+**The e-mail links to the event when the admin panel's address is known.**
+With `ADMIN_BASE_URL` set, it carries an **Open the event** button that opens
+the opportunity on its *Events* tab with the event marked, the same place the
+bell entry leads to. Without it the e-mail carries no link and no button. It
+still names the opportunity by its number and asks the reader to open it in
+the Admin UI. A relative or guessed address is never sent. Neither the bell
+entry nor the e-mail ever carries the event's description or the opportunity's
+title.
 
 An operator edits the e-mail's subject and body, per language, on the
 **Transactional emails** screen (`/transactional-emails`), and can switch it
-off there. The variables it offers are `event.name`, `event.when` and
-`opportunity.number`. **An e-mail that does not go out never costs the bell
+off there. The variables it offers are `event.name`, `event.when`,
+`opportunity.number` and `event.adminUrl`, the link to the event. That one is
+empty when `ADMIN_BASE_URL` is not set, and a button whose address is only that
+variable is then left out. A template edited before the link existed does not
+name it and renders as before. **An e-mail that does not go out never costs the bell
 entry** — switched off by the operator, no address on the recipient's account,
 a mail server that refuses: the bell entry is written all the same, the event
 shows the reminder as sent by the bell, and the server's log says why the
@@ -2383,8 +2390,6 @@ Things an operator may look for and will not find in this release:
 - **Events without an opportunity** — a personal calendar.
 - **Synchronisation with another calendar.** There is no Google Calendar or
   Outlook synchronisation and no iCalendar export.
-- **A link in the reminder e-mail.** The e-mail names the opportunity by its
-  number; the bell entry links to it.
 - **A time-zone setting.** The calendar follows each reader's browser.
 - **Events elsewhere in the module.** Events are not offered to outbound
   webhooks, do not appear in analytics, and are not a field of a board card.

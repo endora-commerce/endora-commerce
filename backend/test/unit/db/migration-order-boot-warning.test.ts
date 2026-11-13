@@ -1,4 +1,4 @@
-import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest';
+import { afterEach, beforeAll, beforeEach, describe, expect, it, vi } from 'vitest';
 
 const MANIFEST_INDEX = '../../../src/manifest-index.generated.js';
 const ORM_CONFIG = '../../../src/db/mikro-orm.config.js';
@@ -23,6 +23,23 @@ type ManifestIndex = typeof import('../../../src/manifest-index.generated.js');
  */
 
 let warned: string[];
+
+/**
+ * Issue #250 — the first import of the ORM config is the transform of its whole
+ * graph: every module's entities and migrations, hundreds of files. Measured at
+ * load ~49 on a 16-thread machine, that transform alone was 47 s, and it landed
+ * inside whichever case ran first, under the 30 s case budget — the first two
+ * cases timed out while the config was right, and the third, which evaluates
+ * the graph twice from a warm transform cache, took 9.4 s. So the transform is
+ * paid once, here, under a budget sized for the work; `vi.resetModules()` drops
+ * the evaluated modules between cases but not the transform cache, so each case
+ * still evaluates the config afresh — over the mocked index where it mocks one.
+ */
+const WARM_IMPORT_BUDGET_MS = 120_000;
+
+beforeAll(async () => {
+  await import(ORM_CONFIG);
+}, WARM_IMPORT_BUDGET_MS);
 
 beforeEach(() => {
   warned = [];

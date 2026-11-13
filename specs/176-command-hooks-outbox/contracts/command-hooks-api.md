@@ -185,6 +185,12 @@ composition is sealed throws (as interceptors do after ready). Registration reso
   module's table (Principle I). Call `noteAuditChanges` for every direct write.
 - Declare the owning module in your manifest `dependencies`.
 - Declare and translate (pl+en) every error code you veto with.
+- *(Amended P4, 2026-11-12.)* You SHOULD also translate (pl+en) every code you throw a
+  `PermanentOutboxFailure` with, so the operator's outbox screen shows a sentence beside it. A
+  SCREAMING_SNAKE code you declare in `errorCodes` is translated under `errors.<CODE>` as any other;
+  any other code-shaped code (`acme-erp-rejected`) under `commandOutbox.failure.<code>` in your own
+  bundle — the `errors.*` family is the error envelope's and refuses another key grammar
+  (`check:error-translations`, `malformed-key`). An untranslated code is shown raw, never refused.
 - Do not call remote services in `beforeCommit` — the transaction is open. Use `afterCommit`.
 - `afterCommit` handlers are at-least-once: dedupe on `messageId`; re-read state through owner ports.
 

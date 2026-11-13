@@ -6,6 +6,7 @@ import type { FastifyInstance } from 'fastify';
 import type { EntityManager } from '@mikro-orm/postgresql';
 import type { Redis } from 'ioredis';
 import type { CommandHookRegistry } from '../commands/hooks/registry.js';
+import type { CommandBus } from '../commands/command-bus.js';
 import { startCommandOutboxDrain } from '../commands/outbox/drain-worker.js';
 import { PostgresOutboxStore } from '../commands/outbox/store.js';
 import { registerApiDescriptionRoutes } from './routes.api-description.js';
@@ -14,6 +15,7 @@ import type { RequireAdminFactory } from '../kernel/ports/require-admin.js';
 import {
   registerApiInterceptorAdminRoutes,
   registerCommandHookAdminRoutes,
+  registerCommandOutboxAdminRoutes,
   registerLifecycleAdminRoutes,
   registerModulePresenceRoutes,
   type LifecycleAdminDeps,
@@ -61,6 +63,8 @@ export interface LifecycleCradle {
    * that wires no hooks serves no execution plan.
    */
   readonly commandHookRegistry?: CommandHookRegistry;
+  /** The Command Bus every root registers; the outbox retry runs through it. */
+  readonly commandBus: CommandBus;
   /**
    * How a committed activation flip reaches the rest of the deployment:
    * refreshing local state, publishing to other processes, dropping the
@@ -144,6 +148,13 @@ export function registerModule(ctx: ModuleContext): void {
         registerCommandHookAdminRoutes(app, {
           registry: cradle.commandHookRegistry as CommandHookRegistry,
           requireAdmin: cradle.requireAdmin,
+        });
+        // The outbox is the registry's afterCommit half: a composition that
+        // wires no hooks writes no rows, so it serves no operator list either.
+        registerCommandOutboxAdminRoutes(app, {
+          requireAdmin: cradle.requireAdmin,
+          commandBus: cradle.commandBus,
+          em: cradle.emFactory,
         });
       }
 
