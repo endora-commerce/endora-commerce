@@ -453,8 +453,16 @@
   }
   .icon-btn:hover { @apply bg-surface-alt text-fg; }
   .icon-btn:focus-visible { @apply outline-2 outline-offset-2 outline-[color:var(--brand-600)]; }
+  /* Count badge, shared with the account pill and (as `.m-tabbar__badge`) the
+     mobile tab bar. In dark mode the `--brand-700` fill is only 2.77:1 on the
+     dark `--surface`, below the 3:1 WCAG 1.4.11 floor, and a `--surface` ring
+     adds no edge there, so `dark:` re-points the ring at the light `--brand-200`
+     tint: 13:1 on the dark surface (14.9:1 nordic) and 4.7:1 (4.3:1) off the
+     fill (issue #1126). Light mode is unchanged; the fill alone clears 3:1.
+     The `dark:` variant rather than a `:root.is-dark` rule: `check:themes`
+     reads the first `:root.is-dark` in the emitted CSS as the token scope. */
   .icon-btn__count {
-    @apply absolute right-[2px] top-[2px] inline-flex h-[18px] min-w-[18px] items-center justify-center rounded-full border-2 border-surface bg-accent px-[5px] font-mono text-[10px] font-semibold text-white;
+    @apply absolute right-[2px] top-[2px] inline-flex h-[18px] min-w-[18px] items-center justify-center rounded-full border-2 border-surface bg-accent px-[5px] font-mono text-[10px] font-semibold text-white dark:border-[color:var(--brand-200)];
   }
 }
 
@@ -1446,7 +1454,8 @@ select:focus-visible {
   .m-tabbar__badge {
     @apply absolute right-[calc(50%-22px)] top-[5px] inline-flex h-[16px] min-w-[16px]
       items-center justify-center rounded-full border-2 border-surface bg-accent px-[4px]
-      font-mono text-[9px] font-semibold leading-none text-white;
+      font-mono text-[9px] font-semibold leading-none text-white
+      dark:border-[color:var(--brand-200)];
   }
 
   /* Sticky action bar shared by PDP buy-bar + quick-order total bar.
