@@ -4969,6 +4969,48 @@ administrator can link into the panel from it, not only `mfa`.
    address without a trailing slash, or `null` when it is unset — omit the link then. A module of your own that declared `ADMIN_BASE_URL` in its manifest's `env` removes the
    declaration: the platform owns it, and `check:env-inputs` reports a module declaring it.
 
+### A backend that stops answering is restarted {#backend-supervisor}
+
+The release that ships this change runs the backend under a supervising parent, as the storefront
+has run since 0.109.0 (issue #596). Docker restarts a container that **exits**, never one that is
+only *unhealthy*, so a backend process that was alive but no longer answered — and, in the default
+`BACKEND_ROLE=all`, every queue consumer with it — stayed down until someone restarted it.
+
+**Behaviour change on upgrade:**
+
+- The backend image's command is `CMD ["node", "scripts/supervise.mjs", "dist/index.js"]`. The
+  supervisor probes `/api/v1/_health` and, after three unanswered probes in a row, ends the API
+  and exits `1`, so the restart policy starts a fresh container. Any HTTP answer counts, a `503`
+  for a database or search outage included. With the defaults a hung API is ended within about 70
+  seconds.
+- On `docker stop` the supervisor forwards `SIGTERM` and waits up to 25 seconds for the queue
+  consumers to drain before it sends `SIGKILL`. The compose examples set
+  `stop_grace_period: 30s` on the backend service, and `init: true`.
+- New, optional environment variables on the backend service: `BACKEND_SUPERVISOR_PROBE`,
+  `BACKEND_SUPERVISOR_PROBE_URL`, `BACKEND_SUPERVISOR_INTERVAL_SECONDS`,
+  `BACKEND_SUPERVISOR_TIMEOUT_SECONDS`, `BACKEND_SUPERVISOR_FAILURES`,
+  `BACKEND_SUPERVISOR_START_GRACE_SECONDS` and `BACKEND_SUPERVISOR_KILL_GRACE_SECONDS`. The
+  defaults need none; a value the supervisor cannot read stops the container at start. Their
+  meaning is on [Backend process supervisor](./deployment/backend-supervisor.md).
+- `backend-migrate`, `backend-install` and a separate worker service running `node dist/worker.js`
+  keep their own commands and are not supervised.
+- A new instance is scaffolded with `backend/scripts/supervise.mjs` and with the image and compose
+  examples above.
+
+**After upgrading:**
+
+1. `endora upgrade` does not touch the deployment examples or the backend's own files. Copy
+   `backend/scripts/supervise.mjs` from a newly scaffolded instance (or from the platform
+   repository) into your backend, and change the last line of your backend Dockerfile to
+   `CMD ["node", "scripts/supervise.mjs", "dist/index.js"]`. The image's working directory must be
+   the backend's (`/app/backend` in the example).
+2. Add `init: true` and `stop_grace_period: 30s` to the backend service of your compose file
+   (`docker run --init --stop-timeout 30` for a container started by hand).
+3. A service of your own that overrides the backend image's `command` — the migration and
+   install jobs, a worker tier — needs nothing: it keeps running its own command.
+
+Without these edits the backend runs as before, unsupervised.
+
 ## An instance that is mixed from the start
 
 The installer of `0.101.x` or earlier wrote every package of the release with a `^` except

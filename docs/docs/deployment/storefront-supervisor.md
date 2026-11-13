@@ -91,7 +91,7 @@ service. For a container started by hand, use `docker run --init`.
 
 ## Backend and admin
 
-The backend image runs `node dist/index.js` directly and has the same weakness: a backend that is
-alive but not answering is not restarted. This is tracked in [issue #596](https://github.com/endora-commerce/endora-commerce/issues/596). The admin image is
-static files served by nginx, whose master process restarts its own workers; it needs no
-supervisor.
+The backend image runs the same supervisor, with its own address, variables and a longer stop
+timeout for the queue consumers to drain — see
+[Backend process supervisor](./backend-supervisor.md). The admin image is static files served by
+nginx, whose master process restarts its own workers; it needs no supervisor.

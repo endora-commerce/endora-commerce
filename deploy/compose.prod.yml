@@ -182,7 +182,20 @@ services:
 
   backend:
     image: ${REGISTRY_IMAGE}/backend:${IMAGE_TAG:-latest}
+    # `restart` acts on an EXIT, never on `unhealthy` (issue #596, as #152 for the
+    # storefront). The image's command is a supervising parent
+    # (`backend/scripts/supervise.mjs`) that probes `/api/v1/_health` and, after a run of
+    # unanswered probes — any HTTP status counts as an answer, so a dependency outage does
+    # not restart the API — kills the server and exits non-zero, which is what this policy
+    # restarts. `init: true` puts Docker's init in front of it as PID 1. On `docker stop`
+    # it forwards SIGTERM and gives the queue consumers up to 25 s to drain before
+    # SIGKILL, so the stop timeout is 30 s rather than Docker's default 10. Tuning:
+    # BACKEND_SUPERVISOR_* in docs/docs/deployment/backend-supervisor.md; the defaults need
+    # no variable. A separate worker service, beside `BACKEND_ROLE=api` on this one, runs
+    # `command: ['node', 'dist/worker.js']`, which never listens and is not supervised.
     restart: unless-stopped
+    init: true
+    stop_grace_period: 30s
     environment: *backend-env
     # Published on loopback only — the host nginx proxies ${API_DOMAIN} here.
     ports:

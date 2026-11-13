@@ -88,7 +88,11 @@ const sidebars = {
       key: 'deployment',
       label: categoryLabel('deployment', 'Deployment'),
       link: { type: 'generated-index', title: 'Deployment' },
-      items: ['deployment/first-deployment-checklist', 'deployment/storefront-supervisor'],
+      items: [
+        'deployment/first-deployment-checklist',
+        'deployment/storefront-supervisor',
+        'deployment/backend-supervisor',
+      ],
     },
   ],
 };

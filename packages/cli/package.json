@@ -44,7 +44,7 @@
     "node": ">=22.18.0"
   },
   "scripts": {
-    "build": "node ../../scripts/clean-package-dist.mjs --src src --out dist && tsc -p tsconfig.build.json && node scripts/write-release-index.mjs && node scripts/write-storefront-reference.mjs",
+    "build": "node ../../scripts/clean-package-dist.mjs --src src --out dist && tsc -p tsconfig.build.json && node scripts/write-release-index.mjs && node scripts/write-storefront-reference.mjs && node scripts/write-backend-supervisor.mjs",
     "prepack": "node scripts/assert-storefront-reference.mjs",
     "typecheck": "tsc -p tsconfig.json",
     "lint": "eslint src test",
