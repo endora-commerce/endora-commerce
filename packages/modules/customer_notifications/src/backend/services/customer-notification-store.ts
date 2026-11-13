@@ -43,6 +43,10 @@ export class MikroCustomerNotificationStore implements CustomerNotificationStore
     });
   }
 
+  findVisible(visibility: NotificationVisibility, id: string): Promise<CustomerNotification | null> {
+    return this.emFactory().findOne(CustomerNotification, { ...visibleTo(visibility), id });
+  }
+
   countUnread(visibility: NotificationVisibility): Promise<number> {
     return this.emFactory().count(CustomerNotification, { ...visibleTo(visibility), readAt: null });
   }

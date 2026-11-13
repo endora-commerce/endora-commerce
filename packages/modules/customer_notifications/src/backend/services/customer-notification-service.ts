@@ -56,6 +56,8 @@ export interface CustomerNotificationStore {
     visibility: NotificationVisibility,
     page: { readonly limit: number; readonly after: NotificationPosition | null },
   ): Promise<CustomerNotification[]>;
+  /** The entry with this id when it is visible, otherwise `null`. */
+  findVisible(visibility: NotificationVisibility, id: string): Promise<CustomerNotification | null>;
   countUnread(visibility: NotificationVisibility): Promise<number>;
   /** Marks the entry read at `at` unless it already is. Answers whether the entry is visible at all. */
   markRead(visibility: NotificationVisibility, id: string, at: Date): Promise<boolean>;
@@ -108,6 +110,20 @@ export class CustomerNotificationService {
       rows.length > page.limit && last !== undefined ? encodeCursor({ createdAt: last.createdAt, id: last.id }) : null;
     const items = await Promise.all(shown.map((row) => this.#render(row, reader.language)));
     return { items, nextCursor, unreadCount };
+  }
+
+  /**
+   * One entry, as the list would render it. Read-only: it marks nothing, so it
+   * answers the same under impersonation.
+   */
+  async get(reader: NotificationReader, id: string): Promise<CustomerNotificationDto> {
+    // An id that is not a uuid names no entry; answered like one that is not the caller's.
+    if (!UUID_RE.test(id)) throw notFound();
+    const visibility = this.#visibility(reader);
+    if (visibility === null) throw notFound();
+    const row = await this.deps.store.findVisible(visibility, id);
+    if (row === null) throw notFound();
+    return this.#render(row, reader.language);
   }
 
   async unreadCount(reader: NotificationReader): Promise<number> {
