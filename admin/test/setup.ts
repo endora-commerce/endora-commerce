@@ -67,9 +67,31 @@ configure({ asyncUtilTimeout: 5_000 });
  * than inventing a third behaviour. A test that needs a response stubs its
  * collaborator — `vi.mock('@endora-commerce/admin-kit/lib', …)` replacing
  * `apiClient` is the seam every packaged screen's test uses.
+ *
+ * **One request is answered here, and only one** (issue #463): the i18n bundle
+ * the shell's own `TranslationProvider` asks for on boot. It goes through the
+ * kit's internal client, which a test's `vi.mock` of the kit's public `lib`
+ * barrel does not replace, so no test file could stub it through its usual
+ * seam — every file mounting `<App/>` or the shell logged
+ * `[i18n] bundle fetch failed … unstubbed network call` and depended on the
+ * refusal being harmless. The answer is an empty bundle, which is what the
+ * provider held while the refusal left it unanswered, so every screen renders
+ * exactly as it did; a test that wants real copy hands the provider an
+ * `initialBundle` (`renderWithI18n`), and a test about a *failing* bundle fetch
+ * replaces `globalThis.fetch` itself.
  */
+const I18N_BUNDLES_PATH = '/api/v1/admin/i18n/bundles';
+
 globalThis.fetch = (async (input: RequestInfo | URL): Promise<Response> => {
   const url = typeof input === 'string' ? input : input instanceof URL ? input.href : input.url;
+  const parsed = new URL(url, 'http://localhost');
+  if (parsed.pathname === I18N_BUNDLES_PATH) {
+    const language = parsed.searchParams.get('language') ?? 'en';
+    return new Response(JSON.stringify({ data: { language, version: 0, bundles: {} } }), {
+      status: 200,
+      headers: { 'content-type': 'application/json' },
+    });
+  }
   throw new Error(
     `[admin test] unstubbed network call to ${url} — stub the collaborator this screen calls ` +
       '(see admin/test/setup.ts).',

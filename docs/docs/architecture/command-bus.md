@@ -232,6 +232,41 @@ other — each is its own row, delivered on its own — and need no `commandHook
 in-process `EventBus` and its subscribers are unchanged; the outbox is a second, durable path
 for these handlers only.
 
+## Watching it: the *Command hooks* screen {#command-hooks-screen}
+
+**System → Command hooks** in the admin (`/platform/command-hooks`, or ⌘K / CTRL+K
+*command hooks*; *outbox* opens the second tab directly) shows both halves. It is the
+platform's own screen, not a module's. Either tab's permission opens it, and a tab the
+administrator may not read is not shown: someone holding only the outbox permission lands on
+the outbox.
+
+- **Execution plan** — behind `platform.modules.read`, from `GET /api/v1/admin/command-hooks`.
+  One card per declared action with its owner, its `beforeCommit` hooks as a numbered list in
+  the order they run, and its `afterCommit` handlers as an unnumbered list: they carry
+  `position: null` in the response, because the outbox promises no order across rows, and the
+  list order (module id, then registration order) is only for a stable screen. Each hook says
+  whether its module is on; a switched-off one is skipped.
+- **Outbox** — behind `platform.command_outbox.read`, from
+  `GET /api/v1/admin/command-outbox?status=dead|pending|in_flight&limit=&cursor=` (dead by
+  default; keyset-paginated by the row's `sequence`, newest first). A row shows its action,
+  object type and id, handler (`module#id`), attempts, last failure, when it was created and —
+  for a dead row when it failed, for a waiting one its next attempt — and nothing else: the
+  row's `data` is never served, and a failure was stored as a code and a class only.
+- **Retry** — behind `platform.command_outbox.manage`, offered on a dead row only.
+  `POST /api/v1/admin/command-outbox/:id/retry` runs the Command `command_outbox.retry`, which
+  puts the row back to `pending`, due now, with no attempts spent, and audits
+  `{ status: 'dead' } → { status: 'pending' }`. An unknown id answers `404`; a row that is not
+  dead answers `409 COMMAND_OUTBOX_NOT_DEAD`.
+
+**Translate your failure codes.** The screen shows a failure's code as stored, beside a
+sentence when one exists: first in the **handler's** module bundle, then in the platform's,
+under `errors.<code>` and then `commandOutbox.failure.<code>`. An `HttpError` code you declare
+in `errorCodes` already has its `errors.<CODE>` sentence; give a `PermanentOutboxFailure` code
+(`acme-erp-rejected`) a `commandOutbox.failure.<code>` entry in your own `i18n/en.json` and
+`pl.json` — the `errors.*` family is the error envelope's and takes SCREAMING_SNAKE codes
+only. The platform translates its own three: `hook-unregistered`, `permanent-failure` and
+`handler-failed`. A code nobody translates is shown raw.
+
 ## Reversibility & undo
 
 A command may capture per-record before/after state so an operator can **undo** it.
@@ -273,8 +308,9 @@ auditable event is captured elsewhere, and always with a one-line reason.
 `scripts/check-command-coverage.ts` statically flags, per method **and per route
 handler**, in every `.ts` file under a root a module's source can live in — every module
 package, the application tree and the overlay tree, derived by `resolveModuleLayout()` — a sensitive mutation
-(`persist*`, `nativeUpdate`, `nativeDelete`, `remove*`, `flush`) that is neither audited
-nor escape-hatched, and the **double-audit** shape (a unit that both runs a Command and
+(`persist*`, `nativeUpdate`, `nativeDelete`, `remove*`, `flush`, `create`, `upsert`,
+`upsertMany` — the last four only off an EntityManager, since `remove`, `create` and
+`upsert` are also ordinary service method names) that is neither audited nor escape-hatched, and the **double-audit** shape (a unit that both runs a Command and
 audits by hand). A unit counts as covered when it runs a Command, defines a Command
 literal, records audit (`auditLog.record`/`recordWithin`, `recordAuditFromContext`, or a
 `.audit` recorder), delegates to such a unit (`this.<runner>()`, a module-level helper, or

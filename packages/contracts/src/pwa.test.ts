@@ -6,6 +6,9 @@ import {
   PwaPublicConfigSchema,
   UpdatePushPreferencesRequestSchema,
   UpdatePwaConfigRequestSchema,
+  type CustomerPushInput,
+  type CustomerPushOutcome,
+  type CustomerPushPort,
 } from './pwa.js';
 
 /**
@@ -107,5 +110,37 @@ describe('pwa contracts — customer push preferences', () => {
     expect(UpdatePushPreferencesRequestSchema.safeParse({ orderStatus: 'false' }).success).toBe(
       false,
     );
+  });
+});
+
+describe('179 — customerPushPort (contracts/delivery-and-ports.md §2, type surface)', () => {
+  it('is implementable, takes a pre-rendered quote push and answers one of five outcomes', async () => {
+    const outcomes = [
+      'enqueued',
+      'skipped:switched_off',
+      'skipped:customer_preference',
+      'skipped:no_account',
+      'skipped:no_subscription',
+    ] as const satisfies readonly CustomerPushOutcome[];
+    const seen: CustomerPushInput[] = [];
+    const port: CustomerPushPort = {
+      push: (input) => {
+        seen.push(input);
+        return Promise.resolve(outcomes[seen.length - 1] ?? 'enqueued');
+      },
+    };
+    const input: CustomerPushInput = {
+      organizationId: '00000000-0000-4000-8000-000000000001',
+      customerAccountId: '00000000-0000-4000-8000-000000000002',
+      salesChannelId: null,
+      category: 'quote',
+      title: 'Quote request RFQ-0042',
+      body: 'Your quote request was approved.',
+      url: '/quote-requests/00000000-0000-4000-8000-000000000003',
+      sourceKey: '00000000-0000-4000-8000-000000000004',
+    };
+    expect(await port.push(input)).toBe('enqueued');
+    expect(await port.push(input)).toBe('skipped:switched_off');
+    expect(seen).toHaveLength(2);
   });
 });

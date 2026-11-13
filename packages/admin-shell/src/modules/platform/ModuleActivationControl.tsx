@@ -1,6 +1,7 @@
 import { useCallback, useState, type ReactNode } from 'react';
 import { Power, PowerOff } from 'lucide-react';
 import type { ModulePresence } from '@endora-commerce/contracts';
+import { useConfirmDialog } from '@endora-commerce/admin-kit/components';
 import { Button } from '@endora-commerce/admin-kit/ui';
 import { ApiError, setModuleActivation, useModulePresence } from '@endora-commerce/admin-kit/lib';
 
@@ -101,12 +102,17 @@ export function ModuleActivationControl({
 }: Props): ReactNode {
   const { refresh } = useModulePresence();
   const [pending, setPending] = useState(false);
+  const { confirm, confirmDialog } = useConfirmDialog();
   const activated = presence.activated;
 
   const toggle = useCallback(async (): Promise<void> => {
     if (
       activated &&
-      !window.confirm(t('platform.modules.action.confirmDisable', { name: moduleName }))
+      !(await confirm({
+        message: t('platform.modules.action.confirmDisable', { name: moduleName }),
+        confirmLabel: t('platform.modules.action.disable'),
+        destructive: true,
+      }))
     ) {
       return;
     }
@@ -119,9 +125,10 @@ export function ModuleActivationControl({
     } finally {
       setPending(false);
     }
-  }, [activated, moduleId, moduleName, onError, refresh, t]);
+  }, [activated, confirm, moduleId, moduleName, onError, refresh, t]);
 
   return (
+    <>
     <Button
       type="button"
       variant={activated ? 'outline' : 'default'}
@@ -138,5 +145,7 @@ export function ModuleActivationControl({
         ? t('platform.modules.action.disable')
         : t('platform.modules.action.enable')}
     </Button>
+    {confirmDialog}
+    </>
   );
 }

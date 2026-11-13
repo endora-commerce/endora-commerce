@@ -263,6 +263,16 @@ Większość krawędzi to pobrania. Kształt „push” służy rejestrom — do
 transakcyjnym, rejestrom referencji, tabelom adapterów — w których moduł dodaje coś, co host
 później przegląda.
 
+**Jedna krawędź nie jest żadnym z nich: działanie wewnątrz zapisu innego modułu.** Moduł, który
+musi zareagować, gdy działa polecenie innego modułu — odrzucić je, zapisać obok własny wiersz albo
+dostać informację po zatwierdzeniu — rejestruje się przez `ctx.commandHooks([...])` na akcji, którą
+właściciel deklaruje w manifeście jako dostępną dla hooków. Nikt niczego nie pobiera: Command Bus
+uruchamia hook `beforeCommit` w transakcji właściciela, a dla odbiorcy `afterCommit` zapisuje
+wiersz w kolejce dostarczeń, i pomija każde z nich przy danym wywołaniu, dopóki moduł hooka jest wyłączony.
+Rejestracja jest zamykana razem z kompozycją, więc wykonuje się ją w `registerModule`, nigdy
+w hooku startowym. Punkt rozszerzenia, jego kolejność i odmowy opisuje
+[Command Bus](./command-bus.md#command-hooks-beforecommit).
+
 **Rejestr wkładów nigdy nie jest blokowanym portem.** Reguła:
 
 > Rejestracja, której cały kontrakt brzmi *„dodaj bierny deskryptor do tabeli, którą host później

@@ -8,7 +8,7 @@ import type {
   UpsertFeedDeliveryRequest,
 } from '@endora-commerce/contracts';
 import { Alert, AlertDescription, Badge, Button, Card, CardContent, CardHeader, CardTitle, Input, Label, Select, Textarea } from '@endora-commerce/admin-kit/ui';
-import { ResponsiveTable, type ResponsiveColumn } from '@endora-commerce/admin-kit/components';
+import { ResponsiveTable, type ResponsiveColumn, useConfirmDialog } from '@endora-commerce/admin-kit/components';
 import { formatDateTime, useAuth } from '@endora-commerce/admin-kit/lib';
 import { useTranslation } from '@endora-commerce/admin-kit/i18n';
 import { feedDeliveryClient } from '../api.js';
@@ -67,6 +67,7 @@ function choiceFor(config: FeedDeliveryConfig | null): ProtocolChoice {
 export function FeedDeliveryPanel(props: FeedDeliveryPanelProps): ReactNode {
   const { feedId } = props;
   const t = useTranslation('product_feeds');
+  const { confirm, confirmDialog } = useConfirmDialog();
   const { hasPermission } = useAuth();
   const canWrite = hasPermission('product_feeds:write');
   const writeTitle = canWrite ? undefined : t('permission.needWrite');
@@ -205,7 +206,12 @@ export function FeedDeliveryPanel(props: FeedDeliveryPanelProps): ReactNode {
   };
 
   const remove = async (): Promise<void> => {
-    if (!window.confirm(t('delivery.action.removeConfirm'))) return;
+    const ok = await confirm({
+      message: t('delivery.action.removeConfirm'),
+      confirmLabel: t('delivery.action.remove'),
+      destructive: true,
+    });
+    if (!ok) return;
     setBusy(true);
     setError(null);
     try {
@@ -559,6 +565,7 @@ export function FeedDeliveryPanel(props: FeedDeliveryPanelProps): ReactNode {
           />
         </CardContent>
       </Card>
+      {confirmDialog}
     </div>
   );
 }

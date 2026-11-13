@@ -10,8 +10,14 @@ import {
   ModuleListResponseSchema,
   apiInterceptorListSchema,
   CommandHookPlanResponseSchema,
+  CommandOutboxListQuerySchema,
+  CommandOutboxListResponseSchema,
+  CommandOutboxRetryParamsSchema,
+  CommandOutboxRetryResponseSchema,
   type AdminModulePresenceResponse,
   type CommandHookPlanResponse,
+  type CommandOutboxListResponse,
+  type CommandOutboxRetryResponse,
   type ApiInterceptorList,
   type MfaDeactivationGuardPort,
   type MfaEnrolmentCountPort,
@@ -22,6 +28,8 @@ import {
 import type { CommandBus } from '../commands/index.js';
 import type { ApiInterceptorRegistry } from '../http/interceptors/index.js';
 import type { CommandHookRegistry } from '../commands/hooks/registry.js';
+import { listCommandOutbox, makeRetryCommandOutboxCommand } from '../commands/outbox/admin.js';
+import type { EntityManager } from '@mikro-orm/postgresql';
 import { HttpError } from '../http/error-envelope.js';
 import type { ModuleLifecycleOrchestrator } from './services/orchestrator.js';
 import { effectiveState, toModulePresenceDto } from '../kernel/lifecycle/effective-state.js';
@@ -363,5 +371,52 @@ export function registerCommandHookAdminRoutes(app: FastifyInstance, deps: Comma
       schema: { response: { 200: CommandHookPlanResponseSchema } },
     },
     async (): Promise<CommandHookPlanResponse> => deps.registry.plan(),
+  );
+}
+
+export interface CommandOutboxAdminDeps {
+  requireAdmin: RequireAdminFactory;
+  commandBus: CommandBus;
+  /** A fresh EntityManager for a read; the retry runs on the Command's own. */
+  em: () => EntityManager;
+}
+
+/**
+ * `specs/176-command-hooks-outbox/` FR-040 — the operator surface over
+ * `command_outbox`: the rows by status, and the retry of a dead one.
+ *
+ * The list is behind `platform.command_outbox.read` and never returns a row's
+ * `data` (`../commands/outbox/admin.ts`). The retry is behind
+ * `platform.command_outbox.manage` and runs as the audited Command
+ * `command_outbox.retry` (Principle XIII): `404` for an unknown id,
+ * `409 COMMAND_OUTBOX_NOT_DEAD` for a row that is not dead.
+ */
+export function registerCommandOutboxAdminRoutes(app: FastifyInstance, deps: CommandOutboxAdminDeps): void {
+  app.get(
+    '/api/v1/admin/command-outbox',
+    {
+      preHandler: deps.requireAdmin('platform.command_outbox.read'),
+      schema: {
+        querystring: CommandOutboxListQuerySchema,
+        response: { 200: CommandOutboxListResponseSchema },
+      },
+    },
+    async (request): Promise<CommandOutboxListResponse> =>
+      listCommandOutbox(deps.em(), CommandOutboxListQuerySchema.parse(request.query)),
+  );
+
+  app.post<{ Params: { id: string } }>(
+    '/api/v1/admin/command-outbox/:id/retry',
+    {
+      preHandler: deps.requireAdmin('platform.command_outbox.manage'),
+      schema: {
+        params: CommandOutboxRetryParamsSchema,
+        response: { 200: CommandOutboxRetryResponseSchema },
+      },
+    },
+    async (request): Promise<CommandOutboxRetryResponse> => {
+      const { id } = CommandOutboxRetryParamsSchema.parse(request.params);
+      return { item: await deps.commandBus.run(makeRetryCommandOutboxCommand(id)) };
+    },
   );
 }

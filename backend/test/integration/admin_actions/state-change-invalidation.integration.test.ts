@@ -1,4 +1,5 @@
-import { afterAll, afterEach, beforeAll, beforeEach, describe, expect, it } from 'vitest';
+import { once } from 'node:events';
+import { afterAll, afterEach, beforeAll, beforeEach, describe, expect, it, vi } from 'vitest';
 import { ModuleAction } from '../../helpers/package-entities.js';
 import { Redis } from 'ioredis';
 import { MikroORM, type EntityManager } from '@mikro-orm/postgresql';
@@ -34,6 +35,15 @@ import { ModuleEffectiveState } from '../../../src/kernel/lifecycle/effective-st
  * publishes, process B — the one holding the palette snapshot — drops it. It
  * asserts the version never moves, so a green here cannot be the presence pull
  * quietly doing the work.
+ *
+ * **What is waited for is the end state, not a wall clock** (issue #250). The
+ * case used to poll for three seconds and then fall through to the assertion,
+ * so a loaded machine — a slow Redis delivery, a starved event loop — made it
+ * red while the invalidation was right. It now waits for the snapshot drop the
+ * notification causes, which is the moment the answer is decided, and then
+ * reads; and it subscribes only on a client that has finished its handshake,
+ * see {@link ready}. A notification that is never delivered still fails, on the case's own
+ * timeout, the same way `_lifecycle/pubsub-cache-refresh` does.
  */
 
 const MODULE_ID = 'fix_d174_a';
@@ -52,6 +62,7 @@ describe('AdminActionsService cross-process invalidation (integration)', () => {
     const redisUrl = process.env['REDIS_URL'] ?? 'redis://localhost:6379';
     publisher = new Redis(redisUrl, { maxRetriesPerRequest: null, lazyConnect: false });
     subscriberRedis = new Redis(redisUrl, { maxRetriesPerRequest: null, lazyConnect: false });
+    await Promise.all([ready(publisher), ready(subscriberRedis)]);
   }, 60_000);
 
   beforeEach(async () => {
@@ -90,6 +101,23 @@ describe('AdminActionsService cross-process invalidation (integration)', () => {
     });
     await cache.watch({ redisSubscriber: subscriberRedis, em: () => em });
 
+    // The end state is "the snapshot was dropped once the notification was
+    // sent". Every drop from then on comes after the second row was written,
+    // so whichever lands first — this notification's, or one another run
+    // published on the same Redis channel — leaves the next read to rebuild
+    // the snapshot from both rows.
+    const original = service.invalidate.bind(service);
+    let published = false;
+    let dropped!: () => void;
+    const dropDone = new Promise<void>((resolve) => {
+      dropped = resolve;
+    });
+    const invalidate = vi.spyOn(service, 'invalidate').mockImplementation(() => {
+      const afterPublish = published;
+      original();
+      if (afterPublish) dropped();
+    });
+
     try {
       expect(await visibleActionIds(service)).toEqual([FIRST_ACTION]);
       const versionBefore = state.presenceVersion();
@@ -105,25 +133,25 @@ describe('AdminActionsService cross-process invalidation (integration)', () => {
       expect(await visibleActionIds(service)).toEqual([FIRST_ACTION]);
 
       // ---- process A publishes; process B has to hear it -------------------
+      published = true;
       await publisher.publish(
         STATE_CHANGED_CHANNEL,
         JSON.stringify({ moduleId: MODULE_ID, newState: 'installed' }),
       );
 
-      await waitFor(async () => {
-        const ids = await visibleActionIds(service);
-        return ids.length === 2;
-      });
+      await dropDone;
 
+      expect(invalidate).toHaveBeenCalled();
       expect(await visibleActionIds(service)).toEqual([FIRST_ACTION, SECOND_ACTION]);
       // And the version still has not moved — so the pull did not do this.
       expect(state.presenceVersion()).toBe(versionBefore);
     } finally {
+      invalidate.mockRestore();
       // Feature 073 — a dropped subscriber arms a degraded-mode refresh timer.
       cache.stopFallbackRefresh();
       service.dispose();
     }
-  });
+  }, 30_000);
 });
 
 const i18nStub: AdminI18nTranslatePort = {
@@ -145,13 +173,22 @@ async function visibleActionIds(service: AdminActionsService): Promise<string[]>
     .sort();
 }
 
-/** Poll until `predicate` holds, or give the pub/sub round-trip up for lost. */
-async function waitFor(predicate: () => Promise<boolean>): Promise<void> {
-  const deadline = Date.now() + 3_000;
-  while (Date.now() < deadline) {
-    if (await predicate()) return;
-    await new Promise((resolve) => setTimeout(resolve, 25));
-  }
+/**
+ * Resolve once `client` has finished its handshake (issue #250).
+ *
+ * ioredis writes a `SUBSCRIBE` issued between the socket's `connect` and its
+ * `ready` straight to the wire, because Redis lets pub/sub run while it is
+ * loading. If the reply lands before the ready check's `INFO` is sent, the
+ * connection is already in subscriber mode, the `INFO` is refused ("Connection
+ * in subscriber mode, only subscriber commands may be used"), and ioredis
+ * drops and re-opens the socket. A notification published while it is
+ * reconnecting is delivered to nobody. On an idle machine the handshake is
+ * long over before the case subscribes; on a loaded one it is not, and the
+ * case went red with the code under test right.
+ */
+async function ready(client: Redis): Promise<void> {
+  if (client.status === 'ready') return;
+  await once(client, 'ready');
 }
 
 async function seed(em: EntityManager): Promise<void> {

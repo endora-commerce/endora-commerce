@@ -5,5 +5,13 @@
   "actions.openApiDescription.description": "Dokument OpenAPI i interaktywna dokumentacja API",
   "adminRoles.permission.platform.api_description.read": "Odczyt opisu API",
   "actions.openPlatformModules.keywords": "moduły, włącz, wyłącz",
-  "actions.openApiDescription.keywords": "dokumentacja, opis api"
+  "actions.openApiDescription.keywords": "dokumentacja, opis api",
+  "actions.openCommandHooks.label": "Hooki modułów",
+  "actions.openCommandHooks.description": "Moduły podpięte pod zapisy innych modułów i kolejność ich działania",
+  "actions.openCommandHooks.keywords": "hooki, hooki modułów, haki, plan wykonania",
+  "adminRoles.permission.platform.command_outbox.read": "Podgląd kolejki dostarczeń",
+  "adminRoles.permission.platform.command_outbox.manage": "Ponawianie nieudanych dostarczeń",
+  "actions.openCommandOutbox.label": "Kolejka dostarczeń",
+  "actions.openCommandOutbox.description": "Nieudane i oczekujące dostarczenia do innych modułów oraz ich ponawianie",
+  "actions.openCommandOutbox.keywords": "outbox, kolejka dostarczeń, dostarczenia, nieudane, ponów, ponowienie"
 }

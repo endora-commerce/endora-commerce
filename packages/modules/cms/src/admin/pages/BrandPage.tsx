@@ -29,7 +29,7 @@ import {
   Section,
   Select,
 } from '@endora-commerce/admin-kit/ui';
-import { AssetFieldPicker, SalesChannelPicker } from '@endora-commerce/admin-kit/components';
+import { AssetFieldPicker, SalesChannelPicker, useConfirmDialog } from '@endora-commerce/admin-kit/components';
 import { ApiError, useAuth } from '@endora-commerce/admin-kit/lib';
 import { useTranslation } from '@endora-commerce/admin-kit/i18n';
 import { cmsClient } from '../api/cms-client.js';
@@ -230,6 +230,7 @@ function BrandCard(props: { title: string; description?: string; children: React
  */
 export function BrandPage(): ReactNode {
   const t = useTranslation('cms');
+  const { confirm, confirmDialog } = useConfirmDialog();
   const navigate = useNavigate();
   const { hasPermission } = useAuth();
   const canEdit = hasPermission(BRAND_PERMISSION);
@@ -325,7 +326,12 @@ export function BrandPage(): ReactNode {
       setDraft(structuredClone(read.effective));
       return;
     }
-    if (!window.confirm(t('brand.scope.resetConfirm'))) return;
+    const ok = await confirm({
+      message: t('brand.scope.resetConfirm'),
+      confirmLabel: t('brand.scope.reset'),
+      destructive: true,
+    });
+    if (!ok) return;
     setFeedback(null);
     setSaving(true);
     try {
@@ -720,6 +726,7 @@ export function BrandPage(): ReactNode {
           </section>
         </div>
       ) : null}
+      {confirmDialog}
     </div>
   );
 }

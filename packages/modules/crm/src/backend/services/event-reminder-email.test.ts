@@ -1,4 +1,8 @@
-import { describe, expect, it, vi } from 'vitest';
+import { afterEach, describe, expect, it, vi } from 'vitest';
+import { renderDirectives } from '@endora-commerce/email-components/directives/directive-engine';
+import { renderEmailHtml } from '@endora-commerce/email-components/render/render-email-html';
+import { renderEmailText } from '@endora-commerce/email-components/render/render-email-text';
+import type { PuckDataTree } from '@endora-commerce/email-components/schema/envelope';
 import type { TransactionalEmailSender, TransactionalEmailSendInput } from '@endora-commerce/contracts';
 import { ModuleDisabledError } from '@endora-commerce/platform/kernel';
 import { EVENT_REMINDER_DEFAULT, EVENT_REMINDER_EMAIL_CODE } from '../email-templates/event-reminder-defaults.js';
@@ -27,10 +31,14 @@ const INPUT: EventReminderEmailInput = {
   number: 'OPP-000042',
 };
 
-function sending(outcome: Awaited<ReturnType<TransactionalEmailSender['send']>> | Error) {
+function sending(
+  outcome: Awaited<ReturnType<TransactionalEmailSender['send']>> | Error,
+  adminBaseUrl: string | null = null,
+) {
   const sent: TransactionalEmailSendInput[] = [];
   const log = vi.fn();
   const email = createEventReminderEmail({
+    adminBaseUrl: () => adminBaseUrl,
     sender: () => ({
       send: async (input) => {
         sent.push(input);
@@ -84,7 +92,7 @@ describe('the event reminder e-mail', () => {
     for (const text of [JSON.stringify(EVENT_REMINDER_DEFAULT.defaultSubject), JSON.stringify(EVENT_REMINDER_DEFAULT.defaultContent)]) {
       for (const match of text.matchAll(/\{\{(?:var|if)\s+([\w.]+)/g)) named.add(match[1] as string);
     }
-    expect([...named].sort()).toEqual(['event.name', 'event.when', 'opportunity.number']);
+    expect([...named].sort()).toEqual(['event.adminUrl', 'event.name', 'event.when', 'opportunity.number']);
   });
 
   // `logged` is the console driver's answer on an instance with no mail server
@@ -119,5 +127,58 @@ describe('the event reminder e-mail', () => {
     const unwired = createEventReminderEmail({ sender: () => undefined, log });
     expect(await unwired.send(INPUT)).toEqual({ sent: false, reason: 'no_sender' });
     expect(log.mock.calls[0]?.[1]).toMatchObject({ reason: 'no_sender' });
+  });
+});
+
+/**
+ * The link into the admin panel (follow-up to issue #185): the Event on its
+ * Opportunity's Events tab — the bell entry's address — made absolute on the
+ * platform's `ADMIN_BASE_URL`, and left out when that is not configured, so the
+ * e-mail never carries a relative or a guessed (`localhost`) link.
+ */
+describe('the event reminder e-mail’s link into the admin panel', () => {
+  const ORIGINAL = process.env['ADMIN_BASE_URL'];
+  afterEach(() => {
+    if (ORIGINAL === undefined) delete process.env['ADMIN_BASE_URL'];
+    else process.env['ADMIN_BASE_URL'] = ORIGINAL;
+  });
+
+  const EVENT_URL = `https://shop.example.com/admin/crm/opportunities/${INPUT.opportunityId}?tab=events&event=${INPUT.eventId}`;
+
+  it('links to the Event on its Opportunity when the admin address is configured', async () => {
+    const { email, sent } = sending({ status: 'sent' }, 'https://shop.example.com/admin');
+    await email.send(INPUT);
+    expect(sent[0]?.variables).toMatchObject({ event: { adminUrl: EVENT_URL } });
+  });
+
+  it('carries no link variable at all when it is not', async () => {
+    const { email, sent } = sending({ status: 'sent' }, null);
+    await email.send(INPUT);
+    expect(sent[0]?.variables?.['event']).not.toHaveProperty('adminUrl');
+  });
+
+  it('reads the platform’s ADMIN_BASE_URL when no reader is injected', async () => {
+    process.env['ADMIN_BASE_URL'] = 'https://shop.example.com/admin/';
+    const sent: TransactionalEmailSendInput[] = [];
+    const email = createEventReminderEmail({
+      sender: () => ({ send: async (input) => (sent.push(input), { status: 'sent' as const }) }),
+      log: vi.fn(),
+    });
+    await email.send(INPUT);
+    expect(sent[0]?.variables).toMatchObject({ event: { adminUrl: EVENT_URL } });
+  });
+
+  it.each(['en-US', 'pl-PL'] as const)('the %s default shows a button to it, and nothing in its place without one', (language) => {
+    const content = EVENT_REMINDER_DEFAULT.defaultContent.languages[language] as PuckDataTree;
+    const base = { event: { name: 'Demo', when: 'Today' }, opportunity: { number: 'OPP-1' } };
+    const linked = { ...base, event: { ...base.event, adminUrl: EVENT_URL } };
+    const html = (ctx: Record<string, unknown>) => renderDirectives(renderEmailHtml(content), ctx, { escape: true });
+    const text = (ctx: Record<string, unknown>) => renderDirectives(renderEmailText(content), ctx);
+
+    expect(html(linked)).toContain(`href="${EVENT_URL.replace(/&/g, '&amp;')}"`);
+    expect(text(linked)).toContain(EVENT_URL);
+    expect(html(base)).not.toContain('<a href');
+    expect(html(base)).not.toContain('href="#"');
+    expect(text(base)).not.toContain('http');
   });
 });

@@ -1,4 +1,5 @@
 import { useCallback, useEffect, useMemo, useState, type ReactNode } from 'react';
+import { useConfirmDialog } from '@endora-commerce/admin-kit/components';
 import type {
   ChannelMemberEntityType,
   SalesChannelListResponse,
@@ -83,6 +84,7 @@ export function EntityChannelMembership({
   onChanged,
 }: EntityChannelMembershipProps): ReactNode {
   const t = useTranslation('sales_channels');
+  const { confirm, confirmDialog } = useConfirmDialog();
   const [channels, setChannels] = useState<SalesChannelSummary[]>([]);
   const [allChannels, setAllChannels] = useState<SalesChannelSummary[]>([]);
   const [loading, setLoading] = useState(false);
@@ -156,11 +158,16 @@ export function EntityChannelMembership({
             err instanceof ApiError &&
             err.envelope.error.code === 'ENTITY_WOULD_HAVE_ZERO_CHANNELS'
           ) {
-            if (
-              window.confirm(
-                `${err.envelope.error.message}\n\nRebind this ${entityType} to the system default channel and continue?`,
-              )
-            ) {
+            const rebind = await confirm({
+              message: (
+                <>
+                  <p>{err.envelope.error.message}</p>
+                  <p className="mt-2">{t('membership.rebindConfirm', { entityType })}</p>
+                </>
+              ),
+              confirmLabel: t('membership.action.rebind'),
+            });
+            if (rebind) {
               await apiClient.delete(`${path}?fallbackToDefault=true`);
             } else {
               return;
@@ -177,7 +184,7 @@ export function EntityChannelMembership({
         setBusy(false);
       }
     },
-    [entityType, entityId, refresh, onChanged],
+    [entityType, entityId, refresh, onChanged, confirm, t],
   );
 
   if (!entityId) return null;
@@ -255,6 +262,7 @@ export function EntityChannelMembership({
           </>
         )}
       </CardContent>
+      {confirmDialog}
     </Card>
   );
 }

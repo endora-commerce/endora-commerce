@@ -404,6 +404,27 @@ export interface AssetRecord {
 }
 
 /**
+ * The event `assets_library` publishes on the in-process EventBus after a
+ * committed write that changes what an embedded asset renders as — its bytes
+ * (a replace, a restore of the previous version, and with them the
+ * `?v=<contentVersion>` marker), its URL (a permalink set or removed, a
+ * visibility change), its rendered details (filename, label, alt text, MIME
+ * type), or whether it is live at all (a soft delete, a restore). Issue #363.
+ *
+ * It exists for whoever caches an answer that **embeds** an asset — `cms`
+ * caches resolved pages, blocks and hooks — because such a cache cannot
+ * otherwise learn that the embedded asset moved. The owner names no consumer:
+ * a subscriber that is absent or switched off simply hears nothing.
+ */
+export const ASSET_CHANGED_EVENT = 'assets_library.asset_changed.v1';
+
+/** The payload of {@link ASSET_CHANGED_EVENT}, beside the bus's `eventId` / `occurredAt`. */
+export interface AssetChangedEvent {
+  /** The assets the write changed — at least one. */
+  readonly assetIds: readonly string[];
+}
+
+/**
  * Container name: `assetReadPort`. Owner: `assets_library`.
  *
  * Five inbound sites read the `Asset` entity to validate that an id an admin

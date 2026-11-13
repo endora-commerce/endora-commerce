@@ -1,4 +1,9 @@
+import { randomUUID } from 'node:crypto';
 import type { EntityManager } from '@mikro-orm/postgresql';
+import {
+  ASSET_CHANGED_EVENT,
+  type AssetChangedEvent,
+} from '@endora-commerce/contracts';
 import type {
   AdminUserReadPort,
   AssetReadPort,
@@ -9,6 +14,7 @@ import type {
 } from '@endora-commerce/contracts';
 import type { AuditPort } from '@endora-commerce/platform/kernel';
 import type { CommandBus } from '@endora-commerce/platform/commands';
+import type { EventBase, EventBus } from '@endora-commerce/platform/events';
 import { effectiveState, lazyPort, resolvePublicApiBaseUrl } from '@endora-commerce/platform/kernel';
 import type { ModuleContext } from '@endora-commerce/platform/kernel';
 import type { RequireAdminFactory, SettingsReadPort } from '@endora-commerce/platform/kernel';
@@ -58,6 +64,8 @@ export interface AssetsLibraryCradle {
   readonly emFactory: () => EntityManager;
   readonly auditLogService: AuditPort;
   readonly commandBus: CommandBus;
+  /** The host's in-process bus — where a committed asset write is announced (issue #363). */
+  readonly eventBus: EventBus<Record<string, EventBase>>;
   readonly requireAdmin: RequireAdminFactory;
   readonly assetsLibrary: AssetsLibraryResult;
   /** Whether this process consumes queues (a `BACKEND_ROLE=worker` process does). */
@@ -99,6 +107,22 @@ export function registerModule(ctx: ModuleContext): void {
           // R-14). Resolved per call, so a later `admin_users` composition is
           // seen; the manifest declares the edge.
           adminUserReadPort: lazyPort<AdminUserReadPort>(ctx, 'adminUserReadPort'),
+          // Issue #363 — announce, do not call. Whoever caches an answer that
+          // embeds an asset (`cms`) subscribes and drops its own; this module
+          // does not learn who they are. Dispatched in a bus scope and awaited,
+          // so the write answers once every subscriber has dropped its entries
+          // and the next request reads the new asset. The bus is read per write.
+          announceAssetsChanged: async (assetIds) => {
+            const bus = ctx.cradle<AssetsLibraryCradle>().eventBus;
+            const payload: EventBase & AssetChangedEvent = {
+              eventId: randomUUID(),
+              occurredAt: new Date().toISOString(),
+              assetIds,
+            };
+            await bus.run(async () => {
+              bus.emit(ASSET_CHANGED_EVENT, payload);
+            });
+          },
           log: ctx.log,
           // Which assets a reader may see (`specs/166-asset-reference-visibility/`
           // research R-3, R-4): presence is read per evaluation, so an owner

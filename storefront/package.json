@@ -53,6 +53,7 @@
     "eslint": "^10.12.0",
     "eslint-plugin-jsx-a11y": "^6.10.2",
     "eslint-plugin-react-hooks": "^7.1.1",
+    "jsdom": "^29.1.1",
     "postcss": "^8.5.29",
     "typescript": "^5.9.3",
     "vitest": "^4.1.12"

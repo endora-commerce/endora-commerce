@@ -797,6 +797,9 @@ importers:
       '@types/react':
         specifier: ^19.2.14
         version: 19.2.14
+      '@types/react-dom':
+        specifier: ^19.2.3
+        version: 19.2.3(@types/react@19.2.14)
       class-variance-authority:
         specifier: ^0.7.1
         version: 0.7.1
@@ -812,6 +815,9 @@ importers:
       react:
         specifier: ^19.2.5
         version: 19.2.5
+      react-dom:
+        specifier: ^19.2.5
+        version: 19.2.5(react@19.2.5)
       react-router-dom:
         specifier: ^7.18.2
         version: 7.18.4(react-dom@19.2.5(react@19.2.5))(react@19.2.5)
@@ -4556,6 +4562,9 @@ importers:
       eslint-plugin-react-hooks:
         specifier: ^7.1.1
         version: 7.1.1(eslint@10.12.0(jiti@2.6.1))
+      jsdom:
+        specifier: ^29.1.1
+        version: 29.1.1(@noble/hashes@2.0.1)
       postcss:
         specifier: ^8.5.29
         version: 8.5.29

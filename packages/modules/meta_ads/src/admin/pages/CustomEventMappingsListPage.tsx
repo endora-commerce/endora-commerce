@@ -12,7 +12,7 @@ import {
   Button,
   PageHeader,
 } from '@endora-commerce/admin-kit/ui';
-import { ResponsiveTable, type ResponsiveColumn } from '@endora-commerce/admin-kit/components';
+import { ResponsiveTable, type ResponsiveColumn, useConfirmDialog } from '@endora-commerce/admin-kit/components';
 import { ApiError } from '@endora-commerce/admin-kit/lib';
 import { useTranslation } from '@endora-commerce/admin-kit/i18n';
 import { metaAdsClient, listSalesChannels } from '../api/meta-ads-client.js';
@@ -23,6 +23,7 @@ import { metaAdsClient, listSalesChannels } from '../api/meta-ads-client.js';
  */
 export default function CustomEventMappingsListPage(): ReactNode {
   const t = useTranslation('meta_ads');
+  const { confirm, confirmDialog } = useConfirmDialog();
   const [items, setItems] = useState<MetaCustomEventMapping[]>([]);
   const [channels, setChannels] = useState<SalesChannelSummary[]>([]);
   const [loading, setLoading] = useState(true);
@@ -58,7 +59,12 @@ export default function CustomEventMappingsListPage(): ReactNode {
   }, [reload]);
 
   const onDelete = async (row: MetaCustomEventMapping): Promise<void> => {
-    if (!window.confirm(t('customEvents.deleteConfirm'))) return;
+    const ok = await confirm({
+      message: t('customEvents.deleteConfirm'),
+      confirmLabel: t('customEvents.delete'),
+      destructive: true,
+    });
+    if (!ok) return;
     try {
       await metaAdsClient.remove(row.id);
       await reload();
@@ -143,6 +149,7 @@ export default function CustomEventMappingsListPage(): ReactNode {
           )}
         />
       )}
+      {confirmDialog}
     </div>
   );
 }

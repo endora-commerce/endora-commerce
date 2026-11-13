@@ -1,4 +1,5 @@
 import { useCallback, useEffect, useMemo, useRef, useState, type ReactNode } from 'react';
+import { useConfirmDialog } from '@endora-commerce/admin-kit/components';
 import { Link, useParams } from 'react-router-dom';
 import {
   BULK_OPERATION_TYPES,
@@ -63,6 +64,7 @@ type ProductInfo = ProductLabel;
 
 export function BulkOperationDetailPage(): ReactNode {
   const t = useTranslation('catalog');
+  const { confirm, confirmDialog } = useConfirmDialog();
   const { id = '' } = useParams<{ id: string }>();
   const [op, setOp] = useState<BulkOperation | null>(null);
   const [loading, setLoading] = useState(true);
@@ -152,7 +154,11 @@ export function BulkOperationDetailPage(): ReactNode {
     !!op && op.status === 'completed' && op.reversible && op.undoStatus !== 'reverted';
   const handleUndo = useCallback(async (): Promise<void> => {
     if (!op) return;
-    if (!confirm(t('bulkOperations.undo.confirm', { count: op.succeeded }))) return;
+    const ok = await confirm({
+      message: t('bulkOperations.undo.confirm', { count: op.succeeded }),
+      confirmLabel: t('bulkOperations.undo.action'),
+    });
+    if (!ok) return;
     setUndoing(true);
     setError(null);
     setUndoResult(null);
@@ -168,7 +174,7 @@ export function BulkOperationDetailPage(): ReactNode {
     } finally {
       setUndoing(false);
     }
-  }, [op, refresh, t]);
+  }, [op, refresh, t, confirm]);
 
   const back = { label: t('bulkOperations.detail.back'), to: '/catalog/bulk-operations' };
 
@@ -375,6 +381,7 @@ export function BulkOperationDetailPage(): ReactNode {
           )}
         </CardContent>
       </Card>
+      {confirmDialog}
     </>
   );
 }

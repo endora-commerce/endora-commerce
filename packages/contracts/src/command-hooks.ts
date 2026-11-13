@@ -177,12 +177,18 @@ export const COMMAND_HOOK_MAX_DEPTH = 8;
 // The read-only execution plan (`GET /api/v1/admin/command-hooks`, FR-026/FR-040)
 // ---------------------------------------------------------------------------
 
-/** One registered hook, at its position in its action's execution order. */
+/**
+ * One registered hook. A `beforeCommit` hook carries its position in its
+ * action's execution order; an `afterCommit` handler carries `null`, because
+ * each one is an outbox row of its own and the outbox promises no order across
+ * rows (`contracts/outbox-and-admin-api.md`, amendment 3). Handlers are listed
+ * by module id, then registration order — for a stable screen, not a sequence.
+ */
 export const CommandHookPlanItemSchema = z.object({
   action: z.string(),
   phase: z.enum(COMMAND_HOOK_PHASES),
-  /** 1-based position within the action and phase. */
-  position: z.number().int().positive(),
+  /** 1-based position within the action's `beforeCommit` hooks; `null` for an `afterCommit` handler. */
+  position: z.number().int().positive().nullable(),
   module: z.string(),
   id: z.string(),
   /** Whether the hook's module is present on the effective state right now. */
@@ -204,3 +210,105 @@ export const CommandHookPlanResponseSchema = z.object({
   items: z.array(CommandHookPlanItemSchema),
 });
 export type CommandHookPlanResponse = z.infer<typeof CommandHookPlanResponseSchema>;
+
+// ---------------------------------------------------------------------------
+// The command outbox operator API (`specs/176-command-hooks-outbox/` P4, FR-040)
+// ---------------------------------------------------------------------------
+
+/** Where an outbox row is in its delivery (`data-model.md` §4). */
+export const COMMAND_OUTBOX_STATUSES = ['pending', 'in_flight', 'delivered', 'dead'] as const;
+export const CommandOutboxStatusSchema = z.enum(COMMAND_OUTBOX_STATUSES);
+export type CommandOutboxStatus = z.infer<typeof CommandOutboxStatusSchema>;
+
+/**
+ * The statuses an operator lists. A delivered row needs nobody's attention and
+ * is purged after seven days, so the list does not offer it.
+ */
+export const COMMAND_OUTBOX_LISTED_STATUSES = ['dead', 'pending', 'in_flight'] as const satisfies readonly CommandOutboxStatus[];
+
+/** The largest page `GET /api/v1/admin/command-outbox` serves. */
+export const COMMAND_OUTBOX_PAGE_MAX = 100;
+
+/**
+ * `GET /api/v1/admin/command-outbox` — filtered by status (dead rows by
+ * default: they are the ones an operator acts on), keyset-paginated by the
+ * row's `sequence`, newest first. `cursor` is the previous page's
+ * `nextCursor`, opaque to the client.
+ */
+export const CommandOutboxListQuerySchema = z.object({
+  status: z.enum(COMMAND_OUTBOX_LISTED_STATUSES).default('dead'),
+  limit: z.coerce.number().int().min(1).max(COMMAND_OUTBOX_PAGE_MAX).default(50),
+  cursor: z
+    .string()
+    .regex(/^[1-9][0-9]{0,18}$/)
+    .optional(),
+});
+export type CommandOutboxListQuery = z.infer<typeof CommandOutboxListQuerySchema>;
+
+/**
+ * One outbox row as an operator sees it: names, ids, codes, counts and dates
+ * only. The row's `data` is **never** served, and neither is anything a
+ * failure said — only its code and the error's class are stored — so this list
+ * shows nothing the audit log would not (FR-040).
+ *
+ * `lastErrorCode` is the raw stored string; the screen translates it when the
+ * hook module or the platform has a sentence for it, and shows it as it is
+ * otherwise.
+ */
+export const CommandOutboxListItemSchema = z.object({
+  id: z.string().uuid(),
+  action: z.string(),
+  objectType: z.string(),
+  objectId: z.string(),
+  organizationId: z.string().uuid().nullable(),
+  hookModule: z.string(),
+  hookId: z.string(),
+  status: CommandOutboxStatusSchema,
+  attempts: z.number().int().nonnegative(),
+  lastErrorCode: z.string().nullable(),
+  lastErrorClass: z.string().nullable(),
+  createdAt: z.string(),
+  availableAt: z.string(),
+  deadAt: z.string().nullable(),
+});
+export type CommandOutboxListItem = z.infer<typeof CommandOutboxListItemSchema>;
+
+/** One page; `nextCursor` is `null` on the last. */
+export const CommandOutboxListResponseSchema = z.object({
+  items: z.array(CommandOutboxListItemSchema),
+  nextCursor: z.string().nullable(),
+});
+export type CommandOutboxListResponse = z.infer<typeof CommandOutboxListResponseSchema>;
+
+export const CommandOutboxRetryParamsSchema = z.object({ id: z.string().uuid() });
+
+/** `POST /api/v1/admin/command-outbox/:id/retry` — the row, now pending. */
+export const CommandOutboxRetryResponseSchema = z.object({ item: CommandOutboxListItemSchema });
+export type CommandOutboxRetryResponse = z.infer<typeof CommandOutboxRetryResponseSchema>;
+
+/**
+ * The failure codes the platform's own drain stores in `last_error_code`
+ * (`contracts/outbox-and-admin-api.md`, amendment 4). Lower-kebab, because
+ * they are delivery outcomes and not HTTP error codes; translated by the
+ * platform vocabulary under {@link commandOutboxFailureKey}.
+ */
+export const COMMAND_OUTBOX_FAILURE_CODES = {
+  HOOK_UNREGISTERED: 'hook-unregistered',
+  PERMANENT_FAILURE: 'permanent-failure',
+  HANDLER_FAILED: 'handler-failed',
+} as const;
+
+/**
+ * The bundle key a stored failure code may be translated under, besides
+ * `errors.<CODE>`: `commandOutbox.failure.<code>`, the code verbatim.
+ *
+ * Two families because a stored code has two shapes. An `HttpError`'s code is
+ * SCREAMING_SNAKE and already has its `errors.<CODE>` sentence wherever it is
+ * declared; a `PermanentOutboxFailure` code may be any code-shaped string
+ * (`acme-erp-rejected`), which `errors.*` cannot hold — that family is read by
+ * the error envelope and refuses any other key grammar
+ * (`check-error-translations`, `malformed-key`).
+ */
+export function commandOutboxFailureKey(code: string): string {
+  return `commandOutbox.failure.${code}`;
+}
