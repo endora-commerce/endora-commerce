@@ -132,15 +132,32 @@ describe('account orders — the shop language (issue #85)', () => {
     const { default: Page } = await import('../../../app/(account)/orders/page');
     locale = 'en-US';
     const en = await render(Page());
-    expect(en).toContain('Placed Order Status Payment Total');
+    // Issue #662 — the order number comes first.
+    expect(en).toContain('Order Placed Status Payment Total');
     expect(en).toContain('Awaiting payment');
     expect(en).not.toContain('awaiting_payment');
-    expect(en).toContain('Open');
     locale = 'pl-PL';
     const pl = await render(Page());
-    expect(pl).toContain('Data złożenia Zamówienie Status Płatność Razem');
+    expect(pl).toContain('Zamówienie Data złożenia Status Płatność Razem');
     expect(pl).toContain('Oczekuje na płatność');
-    expect(pl).toContain('Otwórz');
+  });
+
+  it('links the order number itself to the order, first in its row (issue #662)', async () => {
+    orders = [order];
+    const { default: Page } = await import('../../../app/(account)/orders/page');
+    locale = 'en-US';
+    const html = renderToString((await Page()) as React.ReactElement);
+    const row = html.slice(html.indexOf('<tbody>'));
+    const cells = row.match(/<td[^>]*>[\s\S]*?<\/td>/g) ?? [];
+    expect(cells[0]).toContain(`href="/orders/${order.id}"`);
+    expect(cells[0]).toContain('ORD-2001-2026');
+    // A storefront link inherits the text colour; the underline marks it as one.
+    expect(cells[0]).toMatch(/<a[^>]*class="underline"/);
+    // One link per row: the number replaces the separate "Open" column.
+    expect(row.match(/<a /g)).toHaveLength(1);
+    expect(visibleText(row)).not.toContain('Open');
+    // Header and cells stay in step.
+    expect(html.match(/<th[ >]/g)).toHaveLength(cells.length);
   });
 
   it('renders the order detail in English', async () => {
