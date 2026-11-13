@@ -1,12 +1,6 @@
 import type { FastifyRequest } from 'fastify';
 import { describe, expect, it } from 'vitest';
-import {
-  createModuleContext,
-  createModuleRegistrationSink,
-  createRootContainer,
-  registerValues,
-} from '@endora-commerce/platform/composition';
-import { EventBus } from '@endora-commerce/platform/events';
+import { composeModuleForTest } from '@endora-commerce/test-kit/module';
 import { registerModule } from './index.js';
 
 /**
@@ -34,24 +28,16 @@ const resolverOver = (
 ): ((
   request: FastifyRequest,
 ) => Promise<{ allowAll: boolean }>) => {
-  const container = createRootContainer();
-  registerValues(container, {
-    emFactory: () => ({}) as never,
-    eventBus: new EventBus(),
-    commandBus: {},
-    auditLogService: {},
-    redis: undefined,
-    ...ports,
+  const { container } = composeModuleForTest({
+    module: { id: 'orders', registerModule },
+    values: {
+      emFactory: () => ({}) as never,
+      commandBus: {},
+      auditLogService: {},
+      redis: undefined,
+      ...ports,
+    },
   });
-  registerModule(
-    createModuleContext({
-      module: { id: 'orders', version: '1.0.0' },
-      container,
-      eventBus: new EventBus(),
-      sink: createModuleRegistrationSink(),
-      log: { info: () => {}, warn: () => {}, error: () => {} },
-    }),
-  );
   expect(container.hasRegistration('ordersAdminScopeResolver')).toBe(true);
   return container.cradle.ordersAdminScopeResolver as never;
 };

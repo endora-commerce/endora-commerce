@@ -84,6 +84,7 @@
     "@endora-commerce/admin-kit": "workspace:*",
     "@endora-commerce/contracts": "workspace:*",
     "@endora-commerce/platform": "workspace:*",
+    "@endora-commerce/test-kit": "workspace:*",
     "@mikro-orm/core": "^6.6.13",
     "@mikro-orm/migrations": "^6.6.13",
     "@mikro-orm/postgresql": "^6.6.13",

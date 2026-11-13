@@ -7,7 +7,10 @@ import { AuditLogService } from '@endora-commerce/platform/composition';
 
 import { CartAuditService } from '../../../../packages/modules/carts/src/backend/services/cart-audit-service.js';
 
-import { CartAbandonmentWorker } from '../../../../packages/modules/carts/src/backend/services/cart-abandonment-worker.js';
+import {
+  CartAbandonmentWorker,
+  ORPHANED_WORKING_BASKET_MINUTES,
+} from '../../../../packages/modules/carts/src/backend/services/cart-abandonment-worker.js';
 
 
 /**
@@ -19,6 +22,8 @@ import { CartAbandonmentWorker } from '../../../../packages/modules/carts/src/ba
  *   - idempotency: a second sweep tick is a no-op
  *   - inactivityMinutes <= 0 disables the sweep
  *   - notification recipient empty → no dispatch
+ *   - working baskets orphaned past the safe age are removed (issue #602),
+ *     and nothing else is
  */
 
 type DispatchNotification = NonNullable<
@@ -174,6 +179,73 @@ describe('CartAbandonmentWorker.sweep', () => {
 
     const result = await disabledWorker.sweep();
     expect(result.abandonedCount).toBe(0);
+  });
+
+  describe('orphaned working baskets (issue #602)', () => {
+    /** A basket in `status`, created `ageMinutes` ago, with one line. */
+    async function basket(status: 'working' | 'active', ageMinutes: number, tag: string) {
+      const em = db.em();
+      const cart = em.create(Cart, {
+        anonymousCartToken: `anon-orphan-${Date.now()}-${tag}`,
+        salesChannelId: systemDefaultChannelId,
+        status,
+        lastActivityAt: new Date(),
+      });
+      await em.persistAndFlush(cart);
+      em.create(CartItem, {
+        cartId: cart.id,
+        productId: '00000000-0000-4000-8000-000000000101',
+        quantity: 1,
+        unitPrice: '5.00',
+        currency: 'PLN',
+      });
+      await em.flush();
+      // `createdAt` is stamped on insert, so the age is written afterwards.
+      await em.nativeUpdate(
+        Cart,
+        { id: cart.id },
+        { createdAt: new Date(Date.now() - ageMinutes * 60_000) },
+      );
+      em.clear();
+      return cart.id;
+    }
+
+    it('removes a working basket older than the safe age, lines included', async () => {
+      const orphan = await basket('working', ORPHANED_WORKING_BASKET_MINUTES + 5, 'old');
+
+      const result = await worker.sweep();
+      expect(result.workingBasketsRemoved).toBe(1);
+
+      const em = db.em();
+      expect(await em.findOne(Cart, { id: orphan })).toBeNull();
+      expect(await em.count(CartItem, { cartId: orphan })).toBe(0);
+    });
+
+    it('leaves a working basket younger than the safe age alone', async () => {
+      const inFlight = await basket('working', ORPHANED_WORKING_BASKET_MINUTES - 5, 'young');
+
+      const result = await worker.sweep();
+      expect(result.workingBasketsRemoved).toBe(0);
+      expect(await db.em().findOne(Cart, { id: inFlight })).not.toBeNull();
+    });
+
+    it('never removes a basket that is not a working one, however old', async () => {
+      const buyers = await basket('active', ORPHANED_WORKING_BASKET_MINUTES * 1000, 'active');
+
+      const result = await worker.sweep();
+      expect(result.workingBasketsRemoved).toBe(0);
+      expect(await db.em().findOne(Cart, { id: buyers })).not.toBeNull();
+    });
+
+    it('still removes orphans when the abandonment sweep itself is disabled', async () => {
+      resolveInactivity = vi.fn().mockResolvedValue(0);
+      const orphan = await basket('working', ORPHANED_WORKING_BASKET_MINUTES + 5, 'disabled');
+
+      const result = await worker.sweep();
+      expect(result.abandonedCount).toBe(0);
+      expect(result.workingBasketsRemoved).toBe(1);
+      expect(await db.em().findOne(Cart, { id: orphan })).toBeNull();
+    });
   });
 
   it('suppresses the e-mail when the notification recipient is empty', async () => {

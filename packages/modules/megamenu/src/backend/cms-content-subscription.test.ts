@@ -1,17 +1,11 @@
 import { afterEach, describe, expect, it, vi } from 'vitest';
 import {
+  ASSET_CHANGED_EVENT,
   CMS_CONTENT_CHANGED_EVENT,
   MEGAMENU_STOREFRONT_CACHE_TAG,
   type CmsContentChange,
 } from '@endora-commerce/contracts';
-import {
-  createModuleContext,
-  createModuleRegistrationSink,
-  createRootContainer,
-  registerValues,
-  registryCache,
-} from '@endora-commerce/platform/composition';
-import { EventBus } from '@endora-commerce/platform/events';
+import { composeModuleForTest, type ComposedModule } from '@endora-commerce/test-kit/module';
 import { registerModule } from './index.js';
 
 /**
@@ -29,8 +23,12 @@ import { registerModule } from './index.js';
 
 const MODULE_ID = 'megamenu';
 
-function build(): {
+/** Every composition a case made; `afterEach` disposes them, presence included. */
+const composed: ComposedModule[] = [];
+
+function build(present: boolean): {
   emit: (change: CmsContentChange) => void;
+  emitAssets: (assetIds: readonly string[]) => void;
   log: string[];
 } {
   process.env['STOREFRONT_BASE_URL'] = 'http://storefront:3010';
@@ -55,28 +53,24 @@ function build(): {
     },
   };
 
-  const container = createRootContainer();
-  registerValues(container, {
-    emFactory: () => {
-      throw new Error('the subscription must not open a database connection');
-    },
-    // Every menu write runs on the bus since feature 168; the subscription writes nothing.
-    commandBus: {
-      run: () => {
-        throw new Error('the subscription must not run a command');
+  const handle = composeModuleForTest({
+    module: { id: MODULE_ID, registerModule },
+    values: {
+      emFactory: () => {
+        throw new Error('the subscription must not open a database connection');
       },
+      // Every menu write runs on the bus since feature 168; the subscription writes nothing.
+      commandBus: {
+        run: () => {
+          throw new Error('the subscription must not run a command');
+        },
+      },
+      redis,
     },
-    redis,
   });
-  const bus = new EventBus();
-  const ctx = createModuleContext({
-    module: { id: MODULE_ID, version: '1.0.0' },
-    container,
-    eventBus: bus,
-    sink: createModuleRegistrationSink(),
-    log: { info: () => {}, warn: () => {}, error: () => {} },
-  });
-  registerModule(ctx);
+  handle.registryCache.setEnabled(present ? [MODULE_ID] : []);
+  composed.push(handle);
+  const bus = handle.eventBus;
 
   return {
     emit: (change) =>
@@ -84,6 +78,12 @@ function build(): {
         eventId: 'e-1',
         occurredAt: new Date().toISOString(),
         ...change,
+      } as never),
+    emitAssets: (assetIds) =>
+      bus.emit(ASSET_CHANGED_EVENT, {
+        eventId: 'e-2',
+        occurredAt: new Date().toISOString(),
+        assetIds,
       } as never),
     log,
   };
@@ -98,7 +98,7 @@ const settle = (): Promise<void> => new Promise((resolve) => setTimeout(resolve,
 
 afterEach(() => {
   vi.restoreAllMocks();
-  registryCache.__setEnabledForTesting([]);
+  for (const handle of composed.splice(0)) handle.dispose();
   if (ORIGINAL_ENV.url === undefined) delete process.env['STOREFRONT_BASE_URL'];
   else process.env['STOREFRONT_BASE_URL'] = ORIGINAL_ENV.url;
   if (ORIGINAL_ENV.secret === undefined) delete process.env['REVALIDATE_SECRET'];
@@ -110,8 +110,7 @@ describe('megamenu follows CMS content changes', () => {
     ['a block a panel may embed', { kind: 'block', codes: ['hero'] }],
     ['a page an item may link to', { kind: 'page', slugs: ['about'] }],
   ])('drops its Redis entries, then revalidates its tag, for %s', async (_name, change) => {
-    registryCache.__setEnabledForTesting([MODULE_ID]);
-    const { emit, log } = build();
+    const { emit, log } = build(true);
 
     emit(change);
     await settle();
@@ -127,8 +126,7 @@ describe('megamenu follows CMS content changes', () => {
     ['a template', { kind: 'template' }],
     ['a hook', { kind: 'hook', codes: ['home.top'] }],
   ])('ignores %s — neither is in a menu payload', async (_name, change) => {
-    registryCache.__setEnabledForTesting([MODULE_ID]);
-    const { emit, log } = build();
+    const { emit, log } = build(true);
 
     emit(change);
     await settle();
@@ -137,10 +135,50 @@ describe('megamenu follows CMS content changes', () => {
   });
 
   it('does nothing while the module is off', async () => {
-    registryCache.__setEnabledForTesting([]);
-    const { emit, log } = build();
+    const { emit, log } = build(false);
 
     emit({ kind: 'block', codes: ['hero'] });
+    await settle();
+
+    expect(log).toEqual([]);
+  });
+});
+
+/**
+ * Issue #1089 — a menu payload also inlines assets: an `asset` item's URL and
+ * label, and every item's icon URL. `assets_library` announces
+ * `assets_library.asset_changed.v1` after a write that changes how an asset
+ * renders, and this module answers it the way it answers a CMS block change.
+ * Kept in this file, which is already this module's composition-in-isolation
+ * test, rather than a second one.
+ */
+describe('megamenu follows asset changes', () => {
+  it('drops its Redis entries, then revalidates its tag, when an embedded asset changes', async () => {
+    const { emitAssets, log } = build(true);
+
+    emitAssets(['asset-1']);
+    await settle();
+
+    expect(log).toEqual([
+      'scan:megamenu:v2:*',
+      'del:megamenu:v2:default:en-US',
+      `post:${MEGAMENU_STOREFRONT_CACHE_TAG}`,
+    ]);
+  });
+
+  it('ignores an announcement that names no asset', async () => {
+    const { emitAssets, log } = build(true);
+
+    emitAssets([]);
+    await settle();
+
+    expect(log).toEqual([]);
+  });
+
+  it('does nothing while the module is off', async () => {
+    const { emitAssets, log } = build(false);
+
+    emitAssets(['asset-1']);
     await settle();
 
     expect(log).toEqual([]);

@@ -71,6 +71,7 @@ import { savedViewActor } from './saved-view-actor.js';
 import type { OrderExportService } from './services/order-export-service.js';
 import type { OrderCommentService } from './services/order-comment-service.js';
 import type { OrderComment } from './entities/order-comment.entity.js';
+import type { OrderComment as OrderCommentView } from '@endora-commerce/contracts';
 import type { OrderReorderService } from './services/order-reorder-service.js';
 import type { OrderCloneToQuoteService } from './services/order-clone-to-quote-service.js';
 import type { OrderCreationAdminService } from './services/order-creation-admin-service.js';
@@ -1543,16 +1544,15 @@ export async function registerOrderRoutes(
  * `authorCustomerAccountId` is `null` was written by staff, which is all a
  * customer needs to know of it.
  */
-function serializeCommentForCustomer(c: OrderComment): Record<string, unknown> {
-  const serialized = serializeComment(c);
-  delete serialized.authorAdminUserId;
+function serializeCommentForCustomer(c: OrderComment): OrderCommentView {
   // Feature 162 — a system note is never listed to the buyer, and the member
   // is the admin surface's.
-  delete serialized.systemNote;
+  const { authorAdminUserId: _adminId, systemNote: _note, ...serialized } = serializeComment(c);
   return serialized;
 }
 
-function serializeComment(c: OrderComment): Record<string, unknown> {
+/** The published `orderCommentSchema` (issue #599). */
+function serializeComment(c: OrderComment): OrderCommentView {
   return {
     id: c.id,
     orderId: c.orderId,

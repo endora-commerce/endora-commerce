@@ -14,6 +14,8 @@ import type {
   OrderReadPort,
   OrganizationDetailsPort,
   OrganizationPermissionPort,
+  OrganizationRoleReadPort,
+  PermissionReadPort,
   SalesRepAssignmentPort,
 } from '@endora-commerce/contracts';
 import { RfqService, type RfqEventBus, type RfqServiceDeps } from './services/rfq-service.js';
@@ -22,7 +24,7 @@ import { RfqAdminService } from './services/rfq-admin-service.js';
 import { RfqEventService } from './services/rfq-event-service.js';
 import { RfqRevisionService } from './services/rfq-revision-service.js';
 import { RfqNotificationService } from './services/rfq-notification-service.js';
-import { createAssignmentRecipientResolver } from './services/notifications/assignment-recipients.js';
+import { createRecipientResolver, orgWideViewerRoleIds } from './services/notifications/recipients.js';
 import { RfqExpiryWorker, type RfqExpiryRule } from './services/rfq-expiry-worker.js';
 import { QuoteRequestListViewService } from './services/quote-request-list-view-service.js';
 import { createOrderCompletionReactor } from './services/order-completion-reactor.js';
@@ -173,6 +175,19 @@ export interface QuoteRequestsModuleOptions {
    * and the *Administrator*-only Organization-wide visibility (R-30).
    */
   organizationPermissions: () => OrganizationPermissionPort;
+  /**
+   * `organizations`' role read, resolved per call: the Organization's
+   * predefined *Administrator* role, which `orgWideViewerRoleIds` answers until
+   * P3 — the storefront's Organization-wide visibility and the customer-side
+   * notification recipients (`specs/179-rfq-and-customer-notifications/`
+   * research R-3).
+   */
+  organizationRoles: () => Pick<OrganizationRoleReadPort, 'predefinedRoleId'>;
+  /**
+   * `admin_roles`' effective permissions of one administrator: the operator-side
+   * recipients are kept only while they hold `rfqs:handle` (research R-5).
+   */
+  permissions: Pick<PermissionReadPort, 'listPermissions'>;
 }
 
 export interface QuoteRequestsModuleHandle {
@@ -190,8 +205,17 @@ export function quoteRequestsModule(options: QuoteRequestsModuleOptions): {
 } {
   const eventService = new RfqEventService(options.emFactory);
   const revisionService = new RfqRevisionService(options.emFactory);
+  // One rule, two callers (research R-3): who sees every quote request of an
+  // Organization is who is told about each of them.
+  const orgWideViewers = (organizationId: string) => orgWideViewerRoleIds(options.organizationRoles(), organizationId);
   const notificationService = new RfqNotificationService(
-    createAssignmentRecipientResolver({ salesRepAssignment: options.salesRepAssignment, adminUsers: options.adminUsers }),
+    createRecipientResolver({
+      orgWideViewerRoleIds: orgWideViewers,
+      customerAccounts: options.customerAccounts,
+      salesRepAssignment: options.salesRepAssignment,
+      adminUsers: options.adminUsers,
+      permissions: options.permissions,
+    }),
   );
   // `specs/147-saved-views/` (US3) — the Quote Request list's saved views.
   const listViewService = new QuoteRequestListViewService(options.emFactory, options.log);
@@ -226,7 +250,7 @@ export function quoteRequestsModule(options: QuoteRequestsModuleOptions): {
     negotiationPolicy: options.negotiationPolicy,
     businessId: businessIdGenerator,
     resolveTaxRate: options.resolveTaxRate,
-    organizationPermissions: options.organizationPermissions,
+    orgWideViewerRoleIds: orgWideViewers,
     ...(options.auditLog ? { auditLog: options.auditLog } : {}),
     ...(options.customFieldValues ? { customFieldValues: options.customFieldValues } : {}),
     ...(options.log ? { log: options.log } : {}),

@@ -175,6 +175,17 @@ describe('`composesServer` is a call node, not a mention', () => {
     expect(composesServer('const db = await setupTestDb();\n', key)).toBe(true);
   });
 
+  it('sees the migrator-driving database fixture — the fourth member (issue #496)', () => {
+    // `setupMigratorTestDb` clones the run's migrated template and opens it with
+    // `mikroOrmConfig()`, exactly as `setupTestDb` does — the same two generated
+    // per-host artefacts. Before it was a member, every migrator-driving file
+    // naming one module was told to move into a package that has neither.
+    expect(composesServer('const db = await setupMigratorTestDb();\n', key)).toBe(true);
+    expect(composerCalledBy('const db = await setupMigratorTestDb();\n', key)).toBe(
+      'setupMigratorTestDb',
+    );
+  });
+
   it('names which member it found, so a finding cannot misreport the call', () => {
     expect(composerCalledBy('const db = await setupTestDb();\n', key)).toBe('setupTestDb');
     expect(composerCalledBy('await setupBackendServer();\n', key)).toBe('setupBackendServer');
@@ -586,16 +597,17 @@ describe('exit 2 — the run could not see (§7)', () => {
         refusalOf(withComposer(composer.name, 'export async function renamed() {}\n')),
       ).toBe('harness-not-found');
     }
-    expect(HOST_COMPOSERS).toHaveLength(3);
+    expect(HOST_COMPOSERS).toHaveLength(4);
   });
 
   it('names the declaring file each member is read from', () => {
     // The mapping is per member and not per harness: two members are declared in
-    // `backend/test/helpers/test-server.ts`'s neighbourhood and the third is the
-    // database fixture, so one path could not be the subject of all three.
+    // `backend/test/helpers/test-server.ts`'s neighbourhood and the other two are
+    // the database fixtures, so one path could not be the subject of all four.
     expect(HOST_COMPOSERS.map((composer) => composer.declaredIn)).toEqual([
       'backend/test/helpers/test-server.ts',
       'packages/test-kit/src/server/compose-test-server.ts',
+      'backend/test/helpers/test-db.ts',
       'backend/test/helpers/test-db.ts',
     ]);
   });

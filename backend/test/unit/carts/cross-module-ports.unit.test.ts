@@ -123,6 +123,7 @@ describe('carts — the up-sell strip reads catalog through its port', () => {
         productName: 'Target product',
         productSlug: 'target',
         productThumbnailUrl: 'https://cdn.example/p2.png',
+        unitPrice: null,
         matchCount: 1,
       },
     ]);

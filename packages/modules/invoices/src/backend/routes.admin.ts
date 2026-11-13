@@ -1,6 +1,8 @@
 import type { FastifyInstance, FastifyRequest } from 'fastify';
 import type { EntityManager } from '@mikro-orm/postgresql';
 import {
+  type AdminInvoiceListItem,
+  type AdminInvoiceListResponse,
   type DocumentRenderPort,
   issueInvoiceRequestSchema,
   sendInvoiceEmailRequestSchema,
@@ -57,8 +59,11 @@ export async function registerInvoicesAdminRoutes(
   app.get(
     '/api/v1/admin/invoices',
     { preHandler: requireAdmin('invoices:read') },
-    async (request) => {
+    async (request): Promise<AdminInvoiceListResponse> => {
       const q = (request.query ?? {}) as Record<string, string | undefined>;
+      // The page size asked for — what `pagination.limit` answers, an empty
+      // page included (`paginationSchema`: 1–200; issue #599).
+      const limit = Math.min(Math.max(Number.parseInt(q['limit'] ?? '50', 10) || 50, 1), 200);
       const where: Record<string, unknown> = {};
       if (q['filter[status]']) where['status'] = q['filter[status]'];
       if (q['filter[orderId]']) where['orderId'] = q['filter[orderId]'];
@@ -90,12 +95,11 @@ export async function registerInvoicesAdminRoutes(
       if (orderNumber) {
         const matchingOrderIds = await orderReadPort.findIdsByBusinessIdLike(orderNumber, 500);
         if (matchingOrderIds.length === 0) {
-          return { data: [], pagination: { cursor: null, hasMore: false, limit: 0 } };
+          return { data: [], pagination: { cursor: null, hasMore: false, limit } };
         }
         where['orderId'] = { $in: matchingOrderIds };
       }
 
-      const limit = Math.min(Math.max(Number.parseInt(q['limit'] ?? '50', 10), 1), 200);
       const rows = await em.find(Invoice, where, { orderBy: { issuedAt: 'desc' }, limit });
       const orderIds = [
         ...new Set(rows.map((r) => r.orderId).filter((id): id is string => id != null)),
@@ -118,7 +122,7 @@ export async function registerInvoicesAdminRoutes(
       const scoped = rows.filter((_, index) => visible[index]);
       return {
         data: scoped.map((i) => serialize(i, i.orderId ? (byOrder.get(i.orderId) ?? null) : null)),
-        pagination: { cursor: null, hasMore: false, limit: scoped.length },
+        pagination: { cursor: null, hasMore: false, limit },
       };
     },
   );
@@ -238,10 +242,11 @@ async function sendOnIssue(
   return result.sent ? { status: 'sent' } : { status: 'not_sent', reason: result.reason };
 }
 
-function serialize(i: Invoice, orderBusinessId: string | null) {
+function serialize(i: Invoice, orderBusinessId: string | null): AdminInvoiceListItem {
   return {
     id: i.id,
-    orderId: i.orderId,
+    // An ERP-imported sale document may have no order: `null`, never an absent key (issue #599).
+    orderId: i.orderId ?? null,
     orderBusinessId,
     salesChannelId: i.salesChannelId ?? null,
     kind: i.kind,

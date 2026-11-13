@@ -20,6 +20,7 @@ A module is not imported by application code. The platform discovers the extensi
 | `@endora-commerce/mod-cms/backend` | the composition root the platform calls, with the entities, services, routes and workers it registers |
 | `@endora-commerce/mod-cms/migrations` | the module’s own schema migrations, in the order the platform runs them |
 | `@endora-commerce/mod-cms/tailwind.css` | the Tailwind source declaration for the admin code above |
+| `@endora-commerce/mod-cms/test-support` | development-only — the test doubles, fixtures and volatile tables this module’s own tests need |
 
 ## Depends on
 

@@ -2,6 +2,10 @@
   "name": "@endora-commerce/page-builder-admin",
   "version": "0.110.0",
   "type": "module",
+  "sideEffects": [
+    "*.css",
+    "./dist/email/EmailEditorPane.js"
+  ],
   "endora": {
     "type": "admin-ui"
   },

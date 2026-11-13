@@ -5,14 +5,8 @@ import {
   CMS_STOREFRONT_CACHE_TAGS,
   type CmsContentChange,
 } from '@endora-commerce/contracts';
-import {
-  createModuleContext,
-  createModuleRegistrationSink,
-  createRootContainer,
-  registerValues,
-  registryCache,
-} from '@endora-commerce/platform/composition';
-import { EventBus } from '@endora-commerce/platform/events';
+import type { EventBus } from '@endora-commerce/platform/events';
+import { composeModuleForTest, type ComposedModule } from '@endora-commerce/test-kit/module';
 import { registerModule } from './index.js';
 
 /**
@@ -33,7 +27,21 @@ const MODULE_ID = 'cms';
 
 type FetchSpy = ReturnType<typeof vi.fn>;
 
-function build(env: { storefront?: string; secret?: string } = {}): {
+/** Every composition a case made; `afterEach` disposes them, presence included. */
+const composed: ComposedModule[] = [];
+
+/** Compose `cms` alone, present or off, and keep the handle for `afterEach`. */
+function compose(present: boolean, values: Record<string, unknown> = {}): ComposedModule {
+  const handle = composeModuleForTest({ module: { id: MODULE_ID, registerModule }, values });
+  handle.registryCache.setEnabled(present ? [MODULE_ID] : []);
+  composed.push(handle);
+  return handle;
+}
+
+function build(
+  present: boolean,
+  env: { storefront?: string; secret?: string } = {},
+): {
   emit: (change: CmsContentChange) => void;
   fetchSpy: FetchSpy;
   bus: EventBus;
@@ -46,15 +54,7 @@ function build(env: { storefront?: string; secret?: string } = {}): {
   const fetchSpy = vi
     .spyOn(globalThis, 'fetch')
     .mockResolvedValue(new Response(null, { status: 200 })) as unknown as FetchSpy;
-  const bus = new EventBus();
-  const ctx = createModuleContext({
-    module: { id: MODULE_ID, version: '1.0.0' },
-    container: createRootContainer(),
-    eventBus: bus,
-    sink: createModuleRegistrationSink(),
-    log: { info: () => {}, warn: () => {}, error: () => {} },
-  });
-  registerModule(ctx);
+  const bus = compose(present).eventBus;
 
   return {
     emit: (change) =>
@@ -85,7 +85,7 @@ function postedTags(fetchSpy: FetchSpy): string[] {
 
 afterEach(() => {
   vi.restoreAllMocks();
-  registryCache.__setEnabledForTesting([]);
+  for (const handle of composed.splice(0)) handle.dispose();
   if (ORIGINAL_ENV.url === undefined) delete process.env['STOREFRONT_BASE_URL'];
   else process.env['STOREFRONT_BASE_URL'] = ORIGINAL_ENV.url;
   if (ORIGINAL_ENV.secret === undefined) delete process.env['REVALIDATE_SECRET'];
@@ -115,8 +115,7 @@ describe('cms storefront revalidation', () => {
       [CMS_STOREFRONT_CACHE_TAGS.hook('home.top')],
     ],
   ])('posts the tags %s change makes stale', async (_name, change, tags) => {
-    registryCache.__setEnabledForTesting([MODULE_ID]);
-    const { emit, fetchSpy } = build({ storefront: 'http://storefront:3010', secret: 'sekret' });
+    const { emit, fetchSpy } = build(true, { storefront: 'http://storefront:3010', secret: 'sekret' });
 
     emit(change);
     await settle();
@@ -129,8 +128,10 @@ describe('cms storefront revalidation', () => {
   // dispatches its change in a scope (`publishContentChange`) answers only once
   // the storefront has dropped the tags — the next request then reads the new content.
   it('lets a scoped dispatch wait until the storefront has answered', async () => {
-    registryCache.__setEnabledForTesting([MODULE_ID]);
-    const { emit, fetchSpy, bus } = build({ storefront: 'http://storefront:3010', secret: 'sekret' });
+    const { emit, fetchSpy, bus } = build(true, {
+      storefront: 'http://storefront:3010',
+      secret: 'sekret',
+    });
     let answer!: () => void;
     fetchSpy.mockImplementation(
       () =>
@@ -155,8 +156,7 @@ describe('cms storefront revalidation', () => {
   });
 
   it('stays a no-op when the storefront revalidate endpoint is not configured', async () => {
-    registryCache.__setEnabledForTesting([MODULE_ID]);
-    const { emit, fetchSpy } = build();
+    const { emit, fetchSpy } = build(true);
 
     emit({ kind: 'page', slugs: ['about'] });
     await settle();
@@ -165,8 +165,7 @@ describe('cms storefront revalidation', () => {
   });
 
   it('does not reach the storefront at all while the module is off', async () => {
-    registryCache.__setEnabledForTesting([]);
-    const { emit, fetchSpy } = build({ storefront: 'http://storefront:3010', secret: 'sekret' });
+    const { emit, fetchSpy } = build(false, { storefront: 'http://storefront:3010', secret: 'sekret' });
 
     emit({ kind: 'page', slugs: ['about'] });
     await settle();
@@ -185,7 +184,11 @@ describe('cms storefront revalidation', () => {
  * an `assets_library` that is absent simply never announces anything.
  */
 
-function buildForAssets(): { emit: (assetIds: string[]) => void; log: string[]; bus: EventBus } {
+function buildForAssets(present: boolean): {
+  emit: (assetIds: string[]) => void;
+  log: string[];
+  bus: EventBus;
+} {
   process.env['STOREFRONT_BASE_URL'] = 'http://storefront:3010';
   process.env['REVALIDATE_SECRET'] = 'sekret';
 
@@ -208,8 +211,7 @@ function buildForAssets(): { emit: (assetIds: string[]) => void; log: string[]; 
     },
   };
 
-  const container = createRootContainer();
-  registerValues(container, {
+  const bus = compose(present, {
     emFactory: () => {
       throw new Error('the subscription must not open a database connection');
     },
@@ -220,17 +222,7 @@ function buildForAssets(): { emit: (assetIds: string[]) => void; log: string[]; 
     },
     redis,
     resolvedModuleRegistry: [],
-  });
-  const bus = new EventBus();
-  registerValues(container, { eventBus: bus });
-  const ctx = createModuleContext({
-    module: { id: MODULE_ID, version: '1.0.0' },
-    container,
-    eventBus: bus,
-    sink: createModuleRegistrationSink(),
-    log: { info: () => {}, warn: () => {}, error: () => {} },
-  });
-  registerModule(ctx);
+  }).eventBus;
 
   return {
     emit: (assetIds) =>
@@ -246,8 +238,7 @@ function buildForAssets(): { emit: (assetIds: string[]) => void; log: string[]; 
 
 describe('cms answers an asset write (issue #363)', () => {
   it('drops every cached CMS answer, then the storefront entries in front of them', async () => {
-    registryCache.__setEnabledForTesting([MODULE_ID]);
-    const { bus, log } = buildForAssets();
+    const { bus, log } = buildForAssets(true);
 
     // Dispatched in a scope, as `assets_library` does, so the write answers only
     // once both caches have been dropped.
@@ -271,8 +262,7 @@ describe('cms answers an asset write (issue #363)', () => {
   });
 
   it('does nothing at all while the module is off', async () => {
-    registryCache.__setEnabledForTesting([]);
-    const { emit, log } = buildForAssets();
+    const { emit, log } = buildForAssets(false);
 
     emit(['a-1']);
     await new Promise((resolve) => setTimeout(resolve, 20));

@@ -39,6 +39,13 @@ export function MobileTabBar(props: {
    * asking (Constitution XVII item 5, issue #666).
    */
   present: { quoteRequests: boolean; quickOrder: boolean };
+  /**
+   * The signed-in buyer's unread notification count and its visually hidden
+   * sentence (`specs/179-rfq-and-customer-notifications/` FR-051, FR-051b), shown
+   * on the account tab. Absent for a guest and while `customer_notifications`
+   * is off.
+   */
+  accountUnread?: { count: number; label: string };
 }): ReactNode {
   const pathname = usePathname();
   const urlState = useUrlLanguageState();
@@ -101,12 +108,17 @@ export function MobileTabBar(props: {
     },
   ];
 
+  // Not while checking out: the checkout is not interrupted (spec § Header bell decision).
+  const inCheckout = stripLocalePrefix(pathname, urlState).startsWith('/checkout');
+  const unread = !inCheckout && props.accountUnread && props.accountUnread.count > 0 ? props.accountUnread : null;
+
   return (
     <nav className="m-tabbar" aria-label={props.labels.navigation}>
       {tabs.filter((tab) => tab.shown).map((tab) => {
         // Feature 167 — match the logical path, not the prefixed browser path.
         const active = tab.match(stripLocalePrefix(pathname, urlState));
         const isCart = tab.href === '/cart';
+        const isAccount = tab.href === '/account';
         return (
           <LocalizedLink
             key={tab.href}
@@ -119,8 +131,14 @@ export function MobileTabBar(props: {
                 {count > 99 ? '99+' : count}
               </span>
             ) : null}
+            {isAccount && unread ? (
+              <span className="m-tabbar__badge" aria-hidden="true">
+                {unread.count > 9 ? '9+' : unread.count}
+              </span>
+            ) : null}
             <span aria-hidden="true">{tab.icon}</span>
             <span>{tab.label}</span>
+            {isAccount && unread ? <span className="sr-only">{unread.label}</span> : null}
           </LocalizedLink>
         );
       })}

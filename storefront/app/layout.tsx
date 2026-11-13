@@ -25,6 +25,8 @@ import { StorefrontDocument } from '../lib/theme/StorefrontDocument';
 import { fetchDictionary } from '../lib/dictionary/client';
 import { DictionaryProvider } from '../lib/dictionary/DictionaryProvider';
 import { getCartItemCount } from '../lib/api/cart';
+import { getUnreadNotificationCount } from '../lib/api/customer-notifications';
+import { format } from '../lib/i18n/format';
 import { getMe, type MeResult } from '../lib/api/account';
 import { StorefrontApiError } from '../lib/api/client';
 import { getSalesChannelAccess } from '../lib/api/sales-channel';
@@ -228,6 +230,7 @@ export default async function RootLayout({
     linkedInConfig,
     metaConfig,
     gtmConfig,
+    sessionUnread,
   ] = await Promise.all([
     getActiveMegamenu(ctx),
     fetchDictionary({ ctx }),
@@ -251,8 +254,17 @@ export default async function RootLayout({
     // Feature 066 — per-channel Google Tag Manager config, same best-effort
     // contract again.
     getGoogleTagManagerConfig(ctx),
+    // `specs/179-rfq-and-customer-notifications/` FR-051 — the account entry's
+    // unread count, beside the cart count: only with a session and while the
+    // centre is present. Never blocks the render — a failed read is 0, logged.
+    // Re-rendered by the centre's writes (`revalidatePath('/', 'layout')`); no polling.
+    session && modules.isPresent('customer_notifications')
+      ? getUnreadNotificationCount(session, ctx.salesChannelCode, ctx.locale)
+      : Promise.resolve(0),
   ]);
   const me = viewer.me;
+  // Read beside the identity, counted only for a buyer the identity read confirmed.
+  const unreadNotificationCount = me ? sessionUnread : 0;
   if (viewer.refusal === 'sign_in_required') {
     // Feature 167 — `x-pathname` is the logical path; the visitor comes back to it
     // under the current prefix, through the prefixed session-expired page.
@@ -324,6 +336,7 @@ export default async function RootLayout({
                   user={me}
                   salesChannelCode={ctx.salesChannelCode}
                   modules={modules}
+                  unreadNotificationCount={unreadNotificationCount}
                 />
                 <Hook code="header.bottom" />
               </>
@@ -368,6 +381,16 @@ export default async function RootLayout({
               quoteRequests: modules.isPresent('quote_requests'),
               quickOrder: modules.isPresent('quick_order'),
             }}
+            {...(unreadNotificationCount > 0
+              ? {
+                  accountUnread: {
+                    count: unreadNotificationCount,
+                    label: format(t('chrome.header.accountUnread'), {
+                      count: unreadNotificationCount.toLocaleString(locale),
+                    }),
+                  },
+                }
+              : {})}
             labels={{
               navigation: t('chrome.mobileTabBar.label'),
               home: t('nav.home'),

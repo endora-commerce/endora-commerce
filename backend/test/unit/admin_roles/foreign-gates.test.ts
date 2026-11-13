@@ -74,7 +74,13 @@ function gate(moduleId: string | null, file: string, ...codes: string[]): Enforc
     expression: codes.map((code) => `'${code}'`).join(', '),
     resolution: 'code',
     codes,
+    surface: 'enforcement',
   };
+}
+
+/** The same site, written in an Admin UI layer: it decides whether a control is shown. */
+function control(moduleId: string | null, file: string, ...codes: string[]): EnforcedGateSite {
+  return { ...gate(moduleId, file, ...codes), surface: 'admin-control' };
 }
 
 /** Sites and manifests in; the owner map derived by the real merge. */
@@ -317,6 +323,74 @@ describe('foreign-gate sweep — the shapes it refuses', () => {
   });
 
   /**
+   * Issue #1105 — a foreign code that decides whether an Admin UI **control**
+   * is shown (a button, a tile, a nav entry) is the off-state working, not a
+   * stranded screen: when the owner is switched off the code leaves
+   * `/admin-roles` and the control disappears with the capability it reaches
+   * (Constitution XVII). It is reported, with a kind naming why, and passes.
+   */
+  it('passes a foreign code gating an Admin UI control, and says so', () => {
+    const found = classifyForeignGates(
+      input(
+        [control('customers', 'modules/customers/src/admin/pages/CustomersList.tsx', 'mfa:reset')],
+        [manifest('customers'), manifest('mfa', { permissions: [{ code: 'mfa:reset', label: 'Reset MFA' }] })],
+      ),
+    );
+    expect(found.map((finding) => [finding.code, finding.kind, finding.verdict])).toEqual([
+      ['mfa:reset', 'admin-ui-control', 'pass'],
+    ]);
+  });
+
+  it('passes a control in a locked consumer or a host file too', () => {
+    const found = classifyForeignGates(
+      input(
+        [
+          control('price_lists', 'modules/price_lists/src/admin/Page.tsx', 'rfqs:handle'),
+          control(null, 'admin-shell/src/components/AppShell.tsx', 'rfqs:handle'),
+        ],
+        [
+          locked('price_lists'),
+          manifest('quote_requests', { permissions: [{ code: 'rfqs:handle', label: 'Handle quote requests' }] }),
+        ],
+      ),
+    );
+    expect(found.map((finding) => finding.kind)).toEqual(['admin-ui-control', 'admin-ui-control']);
+  });
+
+  /** The same code on an enforcement site is still judged as D-173 judges it. */
+  it('still judges the same foreign code on an enforcement site', () => {
+    const found = findingsOfKind(
+      [gate('customers', 'modules/customers/src/backend/routes.ts', 'mfa:reset')],
+      [manifest('customers'), manifest('mfa', { permissions: [{ code: 'mfa:reset', label: 'Reset MFA' }] })],
+      'undeclared-owner',
+    );
+    expect(found.map((finding) => finding.verdict)).toEqual(['violation']);
+  });
+
+  /** Read off a real component file, not built by the fixture. */
+  it('classifies a scanned component-level hasPermission gate as a control', () => {
+    const root = mkdtempSync(join(tmpdir(), 'foreign-gates-control-'));
+    try {
+      mkdirSync(join(root, 'customers', 'src', 'admin', 'pages'), { recursive: true });
+      writeFileSync(
+        join(root, 'customers', 'src', 'admin', 'pages', 'CustomersList.tsx'),
+        `export const Reset = () => (hasPermission('mfa:reset') ? <Button /> : null);`,
+        'utf8',
+      );
+      const scanned = scanEnforcedPermissionGates([{ dir: join(root, 'customers'), moduleId: 'customers' }]);
+      const found = classifyForeignGates(
+        input(scanned.sites, [
+          manifest('customers'),
+          manifest('mfa', { permissions: [{ code: 'mfa:reset', label: 'Reset MFA' }] }),
+        ]),
+      );
+      expect(found.map((finding) => [finding.code, finding.kind])).toEqual([['mfa:reset', 'admin-ui-control']]);
+    } finally {
+      rmSync(root, { recursive: true, force: true });
+    }
+  });
+
+  /**
    * A host-owned file owns no code and has no activation control, so a foreign
    * gate there is the locked-consumer case. There are none today; the proof is
    * what stops the first one arriving unseen, which is the whole reason the
@@ -465,7 +539,9 @@ describe('foreign-gate sweep — this build', () => {
     // `GET /admin/order-statuses` gate, whose any-of names `payment_methods`'
     // own read code beside `delivery_methods`'. Both kinds are passes and both
     // are derived from the manifests on every run.
-    expect(kinds).toEqual(['owner-locked', 'sufficient-alternative']);
+    // `admin-ui-control` joined with issue #1105, when the walk started reading
+    // component files: a foreign code there decides whether a control is shown.
+    expect(kinds).toEqual(['admin-ui-control', 'owner-locked', 'sufficient-alternative']);
     // Non-vacuity of the live half: the population is real gates, not an empty
     // walk that agrees with everything.
     expect(found.length).toBeGreaterThan(0);

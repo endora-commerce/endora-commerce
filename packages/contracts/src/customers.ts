@@ -186,6 +186,21 @@ export const adminCustomerListItemSchema = z.object({
 });
 export type AdminCustomerListItem = z.infer<typeof adminCustomerListItemSchema>;
 
+/**
+ * `GET /api/v1/admin/customers` — one page of the admin list (issue #599).
+ * Offset paging: `page` is 1-based, `pageSize` 1–100, `total` the rows the
+ * filters match across every page.
+ */
+export const adminCustomerListResponseSchema = z.object({
+  data: z.array(adminCustomerListItemSchema),
+  meta: z.object({
+    page: z.number().int().positive(),
+    pageSize: z.number().int().positive(),
+    total: z.number().int().nonnegative(),
+  }),
+});
+export type AdminCustomerListResponse = z.infer<typeof adminCustomerListResponseSchema>;
+
 export const adminCustomerBlockInfoSchema = z.object({
   blockedAt: isoDateTimeSchema,
   blockSource: customerBlockSourceSchema,

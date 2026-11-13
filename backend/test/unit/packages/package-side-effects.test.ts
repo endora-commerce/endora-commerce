@@ -38,6 +38,21 @@ import { nodeManifestFs } from '../../../scripts/lib/module-package-manifest.js'
  *    If a new registration is added, this test fails, and whoever added it
  *    has to list the file in `sideEffects` rather than have the bundler drop
  *    it from the build.
+ *
+ * ## Why some packages are audited without their initialisers (#595)
+ *
+ * `contracts`, `cms-components`, `email-components` and `page-builder-admin`
+ * build their exports by calling factories at the top level — 15 581 Zod
+ * calls in `contracts` alone, and `definePageBuilderComponent`,
+ * `createColorField` and some sixty package-local field builders in the
+ * others. Each returns a value and registers nothing (audited by hand for
+ * #595), but there is no allow-list short enough to state that callee by
+ * callee. For those packages the audit still refuses every bare import and
+ * every top-level statement — the shape a registration has (`echarts.use(…)`,
+ * `register(messages)`, `window.flag = …`) — and leaves initialiser calls out.
+ * What that does not catch is a registration spelled as an initialiser
+ * (`const registered = register(…)`); {@link AUDITED}'s `initialisers` says
+ * which packages accept that gap.
  */
 
 const here = dirname(fileURLToPath(import.meta.url));
@@ -45,23 +60,38 @@ const repoRoot = findRepoRoot(here);
 
 /**
  * Members that do not declare the field, and why. Node-only tooling is never
- * bundled for a browser. The browser-bundled ones are debt tracked by #595.
+ * bundled for a browser. Every browser-bundled member declares it (#175, #595).
  */
 const UNDECLARED: Readonly<Record<string, string>> = {
   '@endora-commerce/cli': 'node-only CLI, never bundled',
   'create-endora-commerce': 'node-only scaffolder, never bundled',
   '@endora-commerce/test-kit': 'test-only harness, never bundled',
   '@endora-commerce/demo-composition': 'backend install-time wiring, never bundled',
-  '@endora-commerce/contracts': 'browser-bundled — #595',
-  '@endora-commerce/cms-components': 'browser-bundled — #595',
-  '@endora-commerce/email-components': 'browser-bundled — #595',
-  '@endora-commerce/page-builder-admin': 'browser-bundled — #595',
 };
 
+interface Audit {
+  /** The `sideEffects` value the audit settled on. */
+  readonly declared: readonly string[] | false;
+  /** Whether top-level initialiser calls are audited too (see the header). */
+  readonly initialisers: boolean;
+}
+
 /** The packages whose sources are held to the import-time audit, and their declared value. */
-const AUDITED: Readonly<Record<string, readonly string[] | false>> = {
-  '@endora-commerce/admin-kit': ['*.css'],
-  '@endora-commerce/admin-shell': ['*.css'],
+const AUDITED: Readonly<Record<string, Audit>> = {
+  '@endora-commerce/admin-kit': { declared: ['*.css'], initialisers: true },
+  '@endora-commerce/admin-shell': { declared: ['*.css'], initialisers: true },
+  // #595. Zod schemas, constants and pure helpers.
+  '@endora-commerce/contracts': { declared: false, initialisers: false },
+  // #595. `dist/cms-components.css` is imported from JS as `./styles.css`.
+  '@endora-commerce/cms-components': { declared: ['*.css'], initialisers: false },
+  // #595. `tailwind.css` is published for a consumer's Tailwind build.
+  '@endora-commerce/email-components': { declared: ['*.css'], initialisers: false },
+  // #595. The e-mail editor pane imports the CMS and Puck stylesheets bare,
+  // so it is listed rather than left for the bundler to drop with them.
+  '@endora-commerce/page-builder-admin': {
+    declared: ['*.css', './dist/email/EmailEditorPane.js'],
+    initialisers: false,
+  },
 };
 
 /**
@@ -151,7 +181,21 @@ function shippedFiles(member: Member): readonly string[] {
       out.push(posix(entry));
     }
   }
+  // A file the build writes from outside `src/` — `cms-components`' Tailwind
+  // output, `dist/cms-components.css` — has no `src/` stand-in, but the
+  // `exports` map names it, and a published target is a shipped file (#595).
+  for (const target of exportTargets(member.manifest['exports'])) {
+    const rel = posix(target).replace(/^\.\//, '');
+    if (!rel.includes('*') && !out.includes(rel)) out.push(rel);
+  }
   return out;
+}
+
+/** Every path string an `exports` map resolves to, conditions included. */
+function exportTargets(value: unknown): readonly string[] {
+  if (typeof value === 'string') return [value];
+  if (value === null || typeof value !== 'object') return [];
+  return Object.values(value as Record<string, unknown>).flatMap(exportTargets);
 }
 
 /**
@@ -214,7 +258,12 @@ function isPureCall(node: ts.Node, source: ts.SourceFile): boolean {
 }
 
 /** Every import-time effect in one source file, as `file:line kind text`. */
-function importTimeEffects(file: string, label: string, text: string): readonly string[] {
+function importTimeEffects(
+  file: string,
+  label: string,
+  text: string,
+  { initialisers = true }: { readonly initialisers?: boolean } = {},
+): readonly string[] {
   const source = ts.createSourceFile(
     file,
     text,
@@ -262,6 +311,7 @@ function importTimeEffects(file: string, label: string, text: string): readonly 
       for (const declaration of statement.declarationList.declarations) {
         if (declaration.initializer === undefined) continue;
         const calls: ts.Node[] = [];
+        if (!initialisers) continue;
         eagerCalls(declaration.initializer, calls);
         for (const call of calls) if (!isPureCall(call, source)) report(call, 'initialiser call');
       }
@@ -269,6 +319,11 @@ function importTimeEffects(file: string, label: string, text: string): readonly 
     }
     if (ts.isExpressionStatement(statement)) {
       const expression = statement.expression;
+      // A directive (`'use client';`) is a string literal: it evaluates to itself.
+      if (ts.isStringLiteral(expression)) continue;
+      // `void name;` reads a binding — the idiom that keeps a compile-time
+      // assertion's type alive — and does nothing else.
+      if (ts.isVoidExpression(expression) && ts.isIdentifier(expression.expression)) continue;
       // `Component.displayName = '…'` names a value this file owns; it is
       // dropped together with that value and touches nothing global.
       if (
@@ -333,7 +388,7 @@ describe('library packages declare `sideEffects` (#175)', () => {
     expect(dangling).toEqual([]);
   });
 
-  describe.each(Object.entries(AUDITED))('%s', (name, declared) => {
+  describe.each(Object.entries(AUDITED))('%s', (name, { declared, initialisers }) => {
     it('declares the value the audit settled on', () => {
       expect(memberNamed(name).manifest['sideEffects']).toEqual(declared);
     });
@@ -361,7 +416,9 @@ describe('library packages declare `sideEffects` (#175)', () => {
           return !patterns.some((pattern) => patternMatches(pattern, emitted));
         })
         .flatMap((file) =>
-          importTimeEffects(file, posix(relative(repoRoot!, file)), readFileSync(file, 'utf8')),
+          importTimeEffects(file, posix(relative(repoRoot!, file)), readFileSync(file, 'utf8'), {
+            initialisers,
+          }),
         );
       expect(effects).toEqual([]);
     });
@@ -384,6 +441,9 @@ describe('library packages declare `sideEffects` (#175)', () => {
       'class A { static x = register(); }',
       'const node = Node.create({ parseHTML() { return register(); } });',
       'const selector = ["a", "b"].join(",");',
+      "'use client';",
+      'void typeLevelAssertion;',
+      'void register();',
     ].join('\n');
     const effects = importTimeEffects('probe.ts', 'probe.ts', text).map((line) =>
       line.replace(/: .*$/, ''),
@@ -396,6 +456,25 @@ describe('library packages declare `sideEffects` (#175)', () => {
       'probe.ts:6 initialiser call',
       'probe.ts:12 top-level statement',
       'probe.ts:13 static initialiser call',
+      'probe.ts:18 top-level statement',
+    ]);
+  });
+
+  it('without initialisers, the audit still refuses every bare import and top-level statement', () => {
+    const text = [
+      "import './register.js';",
+      'const registered = registerBundle(messages);',
+      'const schema = z.object({ id: z.string() });',
+      'registerBundle(messages);',
+      'class A { static x = register(); }',
+    ].join('\n');
+    const effects = importTimeEffects('probe.ts', 'probe.ts', text, { initialisers: false }).map(
+      (line) => line.replace(/: .*$/, ''),
+    );
+    expect(effects).toEqual([
+      'probe.ts:1 bare import',
+      'probe.ts:4 top-level statement',
+      'probe.ts:5 static initialiser call',
     ]);
   });
 

@@ -27,6 +27,8 @@ import type {
   OrderReadPort,
   OrganizationDetailsPort,
   OrganizationPermissionPort,
+  OrganizationRoleReadPort,
+  PermissionReadPort,
   OrganizationTaxProfilePort,
   QuoteRequestReadPort,
   RfqCustomerPort,
@@ -496,6 +498,13 @@ export function registerModule(ctx: ModuleContext): void {
           // port is resolved per call, so its effective state decides.
           organizationPermissions: () =>
             lazyPort<OrganizationPermissionPort>(ctx, 'organizationPermissionPort'),
+          // `specs/179-rfq-and-customer-notifications/` WP-03 — the two reads
+          // the recipient rule adds (research R-3, R-5): `organizations`' role
+          // read for the Organization-wide viewers, `admin_roles`' effective
+          // permissions for `rfqs:handle`. Both owners are binding
+          // dependencies; both are resolved per call.
+          organizationRoles: () => lazyPort<OrganizationRoleReadPort>(ctx, 'organizationRoleReadPort'),
+          permissions: lazyPort<PermissionReadPort>(ctx, 'permissionService'),
           // The completion reactor's second look at an order whose commit was
           // still in flight (`specs/143-crm-sales-opportunities/`, FR-104). Off
           // the bus's chain, so in a system scope of its own — the handler's

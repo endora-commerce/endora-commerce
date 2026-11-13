@@ -97,15 +97,19 @@ describe('search reindex reaches the composition own indexer', () => {
 });
 
 describe('carts abandonment-sweep reaches the composition own worker', () => {
-  it('sweeps through `cartAbandonmentWorker` and reports both counts', async () => {
+  it('sweeps through `cartAbandonmentWorker` and reports every count', async () => {
     const ctx = contextOver('carts', {
-      cartAbandonmentWorker: { sweep: async () => ({ abandonedCount: 3, notifiedCount: 1 }) },
+      cartAbandonmentWorker: {
+        sweep: async () => ({ abandonedCount: 3, notifiedCount: 1, workingBasketsRemoved: 2 }),
+      },
     });
     const out: string[] = [];
     expect(await abandonmentSweep({ ctx, argv: [], out: (l) => out.push(l), err: () => {} })).toBe(
       0,
     );
-    expect(out).toEqual(['[cart abandonment-sweep] abandoned=3 notified=1']);
+    expect(out).toEqual([
+      '[cart abandonment-sweep] abandoned=3 notified=1 working_baskets_removed=2',
+    ]);
   });
 });
 

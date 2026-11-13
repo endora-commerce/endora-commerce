@@ -33,6 +33,10 @@
       "types": "./dist/command-hooks/index.d.ts",
       "default": "./dist/command-hooks/index.js"
     },
+    "./module": {
+      "types": "./dist/module/index.d.ts",
+      "default": "./dist/module/index.js"
+    },
     "./package.json": "./package.json"
   },
   "files": [

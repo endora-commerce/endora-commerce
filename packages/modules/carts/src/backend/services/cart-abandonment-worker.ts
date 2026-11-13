@@ -59,7 +59,29 @@ import { withSystemScope } from '@endora-commerce/platform/tenancy';
  * untouched and eligible for the next tick. The notification e-mail is the one
  * thing that stays best-effort — it is dispatched after the batch is durable,
  * exactly as it was after the per-cart write before.
+ *
+ * ## Orphaned working baskets (issue #602)
+ *
+ * A working basket (`status = 'working'`, issue #169) is the cart an order is
+ * placed from when the request names the lines; it lives for the length of one
+ * placement, which completes it or discards it. A process that dies between
+ * the two leaves it behind, and nothing ever reads it again. Each sweep removes
+ * the working baskets created more than {@link ORPHANED_WORKING_BASKET_MINUTES}
+ * ago, lines and audit rows with them (both `on delete cascade`).
+ *
+ * The predicate is `status = 'working'` and nothing else, so no buyer's basket
+ * — active, abandoned, completed or rejected — can match it, however old. It
+ * runs whether or not the abandonment threshold is enabled: that setting is a
+ * business choice about buyers' baskets, and this is housekeeping of rows no
+ * buyer can see.
  */
+
+/**
+ * Age after which a working basket is taken to be orphaned. A placement reads
+ * and completes its working basket inside the request that created it, so a
+ * live one is seconds old; an hour leaves a wide margin over any request.
+ */
+export const ORPHANED_WORKING_BASKET_MINUTES = 60;
 
 /**
  * Eligible carts read, flipped, audited and flushed per round trip.
@@ -97,6 +119,8 @@ export interface CartAbandonmentWorkerDeps {
 export interface CartAbandonmentSweepResult {
   abandonedCount: number;
   notifiedCount: number;
+  /** Orphaned working baskets removed by this sweep (issue #602). */
+  workingBasketsRemoved: number;
 }
 
 export class CartAbandonmentWorker {
@@ -106,12 +130,14 @@ export class CartAbandonmentWorker {
     // Feature 050 — system-wide sweep across all customers; run under a system
     // scope so the Cart reads/writes carry a tenant context (fail-closed guard).
     return withSystemScope('cart-abandonment sweep', async () => {
+      const em = this.deps.emFactory();
+      const workingBasketsRemoved = await this.removeOrphanedWorkingBaskets(em, now);
+
       const inactivityMinutes = await this.deps.resolveInactivityMinutes();
       if (!Number.isFinite(inactivityMinutes) || inactivityMinutes <= 0) {
-        return { abandonedCount: 0, notifiedCount: 0 };
+        return { abandonedCount: 0, notifiedCount: 0, workingBasketsRemoved };
       }
 
-      const em = this.deps.emFactory();
       const cutoff = new Date(now.getTime() - inactivityMinutes * 60_000);
       const batchSize = Math.max(1, this.deps.batchSize ?? DEFAULT_SWEEP_BATCH_SIZE);
 
@@ -174,8 +200,20 @@ export class CartAbandonmentWorker {
         if (batch.length < batchSize) break;
       }
 
-      return { abandonedCount, notifiedCount };
+      return { abandonedCount, notifiedCount, workingBasketsRemoved };
     });
+  }
+
+  /**
+   * Delete the working baskets older than {@link ORPHANED_WORKING_BASKET_MINUTES}
+   * (issue #602). One statement; lines and audit rows go with each cart through
+   * their `on delete cascade` foreign keys.
+   */
+  private async removeOrphanedWorkingBaskets(em: EntityManager, now: Date): Promise<number> {
+    const cutoff = new Date(now.getTime() - ORPHANED_WORKING_BASKET_MINUTES * 60_000);
+    // command-coverage-ignore: removes the transient working state of a
+    // placement that never finished; nothing was placed and nothing is recorded.
+    return em.nativeDelete(Cart, { status: 'working', createdAt: { $lt: cutoff } });
   }
 
   /**
