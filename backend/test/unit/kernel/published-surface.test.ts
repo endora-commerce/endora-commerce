@@ -202,6 +202,12 @@ const PUBLISHED_KERNEL_SURFACE: Readonly<Record<string, readonly string[]>> = {
     'inProcessCaches',
     'InProcessCacheLayer',
   ],
+  /**
+   * Issue #1096 — how a module's cross-process cache subscriber subscribes
+   * without racing ioredis's handshake (`custom_fields`, `price_lists`). The
+   * structural type is the parameter `subscribeWhenReady` takes.
+   */
+  'cache/subscribe-when-ready.js': ['subscribeWhenReady', 'HandshakeAwareSubscriber'],
   /** Rows 20 and 38. */
   'crypto/password-hasher.js': ['hashPassword', 'verifyPassword', 'verifyPasswordOrDummy'],
   /**

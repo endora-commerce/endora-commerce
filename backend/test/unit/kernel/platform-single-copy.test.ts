@@ -415,6 +415,10 @@ describe('the platform is one copy (feature 080, the relocation)', () => {
     // **82 -> 83 is the same event, on `./kernel`:** issue #185 published
     // `configuredAdminBaseUrl`, the one reader of the platform-owned
     // `ADMIN_BASE_URL`.
+    // **83 -> 84 is the same event, on `./kernel`:** issue #1096 published
+    // `subscribeWhenReady`, how a cross-process cache subscriber waits out the
+    // ioredis handshake; `HandshakeAwareSubscriber` is a type and carries no
+    // identity.
     //
     // It is summed over the **five published** subpaths and not over every
     // comparison, which is what preserves that provenance: no host-internal
@@ -425,7 +429,7 @@ describe('the platform is one copy (feature 080, the relocation)', () => {
     const total = comparisons
       .filter((entry) => published.has(entry.subpath))
       .reduce((sum, entry) => sum + entry.shared.length, 0);
-    expect(total).toBe(83);
+    expect(total).toBe(84);
   });
 
   /**
