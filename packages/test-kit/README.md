@@ -82,7 +82,7 @@ likely to meet this.
 | `./database` | the per-invocation database lease (issue #189), and the naming and selection rules behind it |
 | `./support` | `TestSupportContribution` — what a module publishes at its own `./test-support` |
 | `./audit` | `expectNoAuditValues` / `findAuditValues` — the sentinel assertion every Command that writes a tenant-scoped record is held to (`specs/conventions/audit-state.md`, issue #470) |
-| `./module` | `composeModuleForTest` — one module composed over supplied values, with no server and no database: its container, context, collected registrations, the bus it subscribed to and a presence switch (issue #1072) |
+| `./module` | `composeModuleForTest` — one module composed over supplied values, with no server and no database: its container, context, collected registrations, the bus it subscribed to and a presence switch; and `installRequestScope`, `tenantFor`, `systemTenant` — the platform's real per-request scope hook mounted on a test's own Fastify app, and the actor → tenant-context derivation it is fed (issue #1072) |
 
 There is **no root export**: a caller names the seam it wants, so a test that needs only the
 lease does not load the server.
