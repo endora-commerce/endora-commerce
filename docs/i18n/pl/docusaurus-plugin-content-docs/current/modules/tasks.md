@@ -297,6 +297,17 @@ po terminie. W dniu bez takich zadań nic nie jest wysyłane; zadanie, którego
 termin przypada później tego samego dnia, trafia do podsumowania następnego
 dnia. Podsumowanie jest wyłączone, dopóki go nie włączysz.
 
+**Odnośniki w e-mailach.** Gdy ustawiono adres panelu administracyjnego
+(`ADMIN_BASE_URL`), e-mail z przypomnieniem ma przycisk **Otwórz zadanie**.
+W podsumowaniu każde wymienione zadanie prowadzi do swojego ekranu, a przycisk
+**Otwórz Moje zadania** otwiera *Moje zadania*. Bez tego adresu e-maile nie mają
+odnośników ani przycisków i wskazują każde zadanie jego numerem i tytułem. Adres
+względny ani zgadywany nigdy nie jest wysyłany. Na ekranie **Maile transakcyjne**
+zmienne to `task.adminUrl` (przypomnienie) i `digest.adminUrl` (podsumowanie),
+a także `adminUrl` przy każdym elemencie `digest.tasks`. Szablon zmieniony,
+zanim odnośniki się pojawiły, nie używa tych zmiennych i wygląda tak jak
+wcześniej.
+
 **Szkice i zadania prywatne.** *Zapisz jako szkic* zostawia
 nowe zadanie tylko dla ciebie: nikt nie dostaje o nim powiadomienia, żadne jego
 przypomnienie nie jest wysyłane i nikt inny go nigdzie nie znajdzie — nawet

@@ -66,6 +66,8 @@ export interface AssetsLibraryModuleOptions {
   logError?: (message: string, context: Record<string, unknown>) => void;
   /** Names who replaced an asset's previous version; `replacedBy: null` without it. */
   adminUserReadPort?: Pick<AdminUserReadPort, 'findById'>;
+  /** Issue #363 — where a committed write that changes an embedded asset is announced. */
+  announceAssetsChanged?: (assetIds: readonly string[]) => Promise<void>;
   /** Where the retention sweep writes its one line per tick. */
   log?: Pick<PlatformLogger, 'info'>;
   /**
@@ -129,6 +131,7 @@ export function assetsLibraryModule(options: AssetsLibraryModuleOptions): {
     ...(options.commandBus ? { commandBus: options.commandBus } : {}),
     ...(options.logError ? { logError: options.logError } : {}),
     ...(options.adminUserReadPort ? { adminUsers: options.adminUserReadPort } : {}),
+    ...(options.announceAssetsChanged ? { announceAssetsChanged: options.announceAssetsChanged } : {}),
   });
   const folders = new FoldersService(
     options.emFactory, referenceRegistry, visibility, options.auditLog, loadRetentionDays,

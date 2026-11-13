@@ -57,9 +57,31 @@ beforeEach(() => {
   h.customFields.cache.invalidateLocal();
 });
 
-/** Give the subscriber's event-loop turn a chance to deliver the message. */
-async function settle(): Promise<void> {
-  await new Promise((resolve) => setTimeout(resolve, 200));
+/**
+ * Resolve when the composition's subscriber has been handed `message` on
+ * `channel`. Call it **before** publishing. The payload is matched as well as
+ * the channel because Redis pub/sub ignores the logical database: every run on
+ * this Redis publishes on the same channels, and somebody else's message must
+ * not stand in for this case's.
+ *
+ * Issue #250 — this used to be a fixed 200 ms pause after the publish, which a
+ * loaded machine outran: a delivery slower than that made the reloading cases
+ * red with the code right, and — worse — made the "leaves unrelated entity
+ * types cached" case green without any message having arrived. The modules
+ * under test register their `'message'` listeners at boot, before this one, and
+ * handle a message synchronously, so by the time this listener runs their
+ * handler has already applied it. A message that never arrives fails on the
+ * case's own timeout.
+ */
+function delivered(channel: string, message: string): Promise<void> {
+  return new Promise((resolve) => {
+    const listener = (receivedOn: string, received: string): void => {
+      if (receivedOn !== channel || received !== message) return;
+      h.redisSubscriber.off('message', listener);
+      resolve();
+    };
+    h.redisSubscriber.on('message', listener);
+  });
 }
 
 /**
@@ -92,11 +114,10 @@ describe('cross-process invalidation over Redis pub/sub', () => {
 
     // Published on the MAIN client, standing in for a second process — which
     // is exactly the shape the channel exists for.
-    await h.redis.publish(
-      CUSTOM_FIELDS_CHANGED_CHANNEL,
-      JSON.stringify({ entityType: 'product' }),
-    );
-    await settle();
+    const payload = JSON.stringify({ entityType: 'product' });
+    const arrived = delivered(CUSTOM_FIELDS_CHANGED_CHANNEL, payload);
+    await h.redis.publish(CUSTOM_FIELDS_CHANGED_CHANNEL, payload);
+    await arrived;
 
     await cache.getForEntity('product', product.load);
     expect(product.calls()).toBe(2);
@@ -107,11 +128,10 @@ describe('cross-process invalidation over Redis pub/sub', () => {
     const organization = countingLoader();
 
     await cache.getForEntity('organization', organization.load);
-    await h.redis.publish(
-      CUSTOM_FIELDS_CHANGED_CHANNEL,
-      JSON.stringify({ entityType: 'product' }),
-    );
-    await settle();
+    const payload = JSON.stringify({ entityType: 'product' });
+    const arrived = delivered(CUSTOM_FIELDS_CHANGED_CHANNEL, payload);
+    await h.redis.publish(CUSTOM_FIELDS_CHANGED_CHANNEL, payload);
+    await arrived;
 
     // A channel that invalidated everything on every message would be a cache
     // that never hits — a quieter failure than a stale one, and a worse one.
@@ -129,8 +149,9 @@ describe('cross-process invalidation over Redis pub/sub', () => {
     await cache.getForEntity('customer', customer.load);
     expect(customer.calls()).toBe(1);
 
+    const arrived = delivered(CUSTOM_FIELDS_CHANGED_CHANNEL, 'not json');
     await h.redis.publish(CUSTOM_FIELDS_CHANGED_CHANNEL, 'not json');
-    await settle();
+    await arrived;
 
     // Fail safe rather than fail quiet: an unreadable message means "something
     // changed and I cannot tell what", so the only correct answer is to drop
@@ -168,10 +189,12 @@ describe('cross-process pricing cache invalidation over Redis pub/sub', () => {
     const generation = pricingGeneration();
     const handled = vi.spyOn(generation, 'handleMessage');
     try {
+      const payload = JSON.stringify({ origin: 'another-replica' });
+      const arrived = delivered(PRICING_GENERATION_CHANNEL, payload);
       // Published on the MAIN client, standing in for a second process.
-      await h.redis.publish(PRICING_GENERATION_CHANNEL, JSON.stringify({ origin: 'another-replica' }));
-      await settle();
-      expect(handled).toHaveBeenCalledWith(JSON.stringify({ origin: 'another-replica' }));
+      await h.redis.publish(PRICING_GENERATION_CHANNEL, payload);
+      await arrived;
+      expect(handled).toHaveBeenCalledWith(payload);
     } finally {
       handled.mockRestore();
     }
@@ -180,11 +203,17 @@ describe('cross-process pricing cache invalidation over Redis pub/sub', () => {
   it('announces a bump after an audited price-book write commits', async () => {
     const url = process.env['REDIS_URL'] ?? 'redis://localhost:6379';
     const listener = new Redis(url, { maxRetriesPerRequest: null });
-    const received: string[] = [];
+    // The announcement is made after the write commits, not inside the call,
+    // so it is waited for rather than given a fixed pause (issue #250); one
+    // that is never made fails on the case's own timeout.
+    let announced!: () => void;
+    const announcement = new Promise<void>((resolve) => {
+      announced = resolve;
+    });
     try {
       await listener.subscribe(PRICING_GENERATION_CHANNEL);
-      listener.on('message', (channel, message) => {
-        if (channel === PRICING_GENERATION_CHANNEL) received.push(message);
+      listener.on('message', (channel) => {
+        if (channel === PRICING_GENERATION_CHANNEL) announced();
       });
       const service = (h.container as unknown as { resolve<T>(name: string): T }).resolve<{
         handle: { priceBookService: PriceBookService };
@@ -202,8 +231,7 @@ describe('cross-process pricing cache invalidation over Redis pub/sub', () => {
           priority: 0,
         }),
       );
-      await settle();
-      expect(received.length).toBeGreaterThanOrEqual(1);
+      await announcement;
     } finally {
       listener.removeAllListeners('message');
       await listener.unsubscribe();

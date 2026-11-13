@@ -78,6 +78,15 @@ export interface AssetsLibraryServiceDeps {
    * answers `replacedBy: null` (specs/156-asset-stable-url/ research R-14).
    */
   adminUsers?: Pick<AdminUserReadPort, 'findById'>;
+  /**
+   * Issue #363 — told, after a write has committed, which assets now render
+   * differently wherever they are embedded: new bytes (and with them a new
+   * `?v=` marker), a new URL, new rendered details, or a change of being live.
+   * `registerModule` binds it to `ASSET_CHANGED_EVENT` on the bus and awaits
+   * the dispatch, so the write answers once every cache embedding the asset has
+   * dropped it. Optional: a composition that caches no embed needs none.
+   */
+  announceAssetsChanged?: (assetIds: readonly string[]) => Promise<void>;
 }
 
 export interface ListAssetsQuery {
@@ -126,6 +135,7 @@ export class AssetsLibraryService {
    */
   async replace(input: AssetReplaceInput): Promise<AssetDetail> {
     const row = await replaceAssetFile(this.#swapDeps('replace'), input);
+    await this.#announce(row.id);
     return this.detail(row);
   }
 
@@ -135,6 +145,7 @@ export class AssetsLibraryService {
    */
   async restorePreviousVersion(input: RestorePreviousVersionInput): Promise<AssetDetail> {
     const row = await restorePreviousVersion(this.#swapDeps('restorePreviousVersion'), input);
+    await this.#announce(row.id);
     return this.detail(row);
   }
 
@@ -224,6 +235,7 @@ export class AssetsLibraryService {
       }
       throw err;
     }
+    await this.#announce(row.id);
     return this.detail(row);
   }
 
@@ -247,6 +259,7 @@ export class AssetsLibraryService {
         return { result: a, before: { permalink: old }, after: { permalink: null } };
       },
     });
+    await this.#announce(row.id);
     return this.detail(row);
   }
 
@@ -292,6 +305,11 @@ export class AssetsLibraryService {
       releasedAt: new Date(),
       reason,
     });
+  }
+
+  /** Issue #363 — after the commit, never inside it: a subscriber re-reads the asset. */
+  async #announce(assetId: string): Promise<void> {
+    await this.deps.announceAssetsChanged?.([assetId]);
   }
 
   #commandBus(method: string): NonNullable<AssetsLibraryServiceDeps['commandBus']> {
@@ -496,6 +514,14 @@ export class AssetsLibraryService {
       return a;
     };
     const a = locking ? await em.transactional((tx) => apply(tx)) : await apply(em);
+    // A folder is not part of what an embed renders; every other field is.
+    const rendered =
+      patch.filename !== undefined ||
+      patch.label !== undefined ||
+      patch.altText !== undefined ||
+      patch.mimeType !== undefined ||
+      patch.visibility !== undefined;
+    if (rendered) await this.#announce(a.id);
     return this.detail(a);
   }
 
@@ -543,6 +569,7 @@ export class AssetsLibraryService {
     a.purgeAfterAt = purgeAfter(now);
     this.#audit(em, 'asset.soft_delete', a.id, { filename: a.filename }, null);
     await em.flush();
+    await this.#announce(a.id);
     return { deletedAt: a.deletedAt, purgeAfterAt: a.purgeAfterAt };
   }
 
@@ -556,6 +583,7 @@ export class AssetsLibraryService {
     a.pendingCleanup = false;
     this.#audit(em, 'asset.restore', a.id, null, { filename: a.filename });
     await em.flush();
+    await this.#announce(a.id);
     return this.detail(a);
   }
 
