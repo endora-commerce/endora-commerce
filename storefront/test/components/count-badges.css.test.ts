@@ -10,10 +10,10 @@ import { describe, expect, it } from 'vitest';
  *
  * In dark mode the `--brand-700` fill reaches only 2.77:1 on the dark
  * `--surface`, and the badge's 2px ring is `--surface` itself, so it adds no
- * boundary. The fix re-points that ring, under `:root.is-dark` only, at the
- * light `--brand-200` tint: a visible edge on the dark surface that still
- * separates from the fill. The fill and the white count stay as they are, so
- * light mode is byte-for-byte unchanged.
+ * boundary. The fix re-points that ring, through the `dark:` variant (the
+ * runtime `.is-dark` scope) only, at the light `--brand-200` tint: a visible
+ * edge on the dark surface that still separates from the fill. The fill and
+ * the white count stay as they are, so light mode is unchanged.
  *
  * The ratios are computed from the token values in the stylesheet, for every
  * theme block this instance declares, so a theme or token edit that breaks the
@@ -58,7 +58,6 @@ function contrast(a: string, b: string): number {
 }
 
 const BADGES = ['.icon-btn__count', '.m-tabbar__badge'] as const;
-const DARK_RING = ':root.is-dark .icon-btn__count, :root.is-dark .m-tabbar__badge';
 
 const themeBlocks = [...css.matchAll(/:root\[data-theme='([a-z0-9-]+)'\]\s*\{([^}]*)\}/g)].map(
   ([, code, body]) => ({ code: code!, body: body! }),
@@ -75,10 +74,17 @@ describe('count badges keep 3:1 non-text contrast in dark mode (issue #1126)', (
     }
   });
 
-  it('re-points both badges\' ring at the brand-200 tint under :root.is-dark, with no literal colour', () => {
-    const body = rule(DARK_RING);
-    expect(body).toMatch(/border-\[color:var\(--brand-200\)\]/);
-    expect(body).not.toMatch(/#[0-9a-f]{3,8}/i);
+  it('re-points both badges\' ring at the brand-200 tint in dark mode only, with no literal colour', () => {
+    for (const badge of BADGES) {
+      const body = rule(badge);
+      expect(body).toMatch(/\sdark:border-\[color:var\(--brand-200\)\]/);
+      expect(body).not.toMatch(/#[0-9a-f]{3,8}/i);
+    }
+  });
+
+  it('adds no :root.is-dark component rule, which check:themes would read as the token scope', () => {
+    const code = css.replace(/\/\*[\s\S]*?\*\//g, '');
+    expect(code.match(/:root\s*\.is-dark\b[^{;]*\{/g)).toEqual([':root.is-dark {']);
   });
 
   it('declares at least one theme block to measure', () => {
