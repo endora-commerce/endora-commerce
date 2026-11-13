@@ -90,6 +90,28 @@ import type {
  * author of one claim is two answers waiting to disagree.
  */
 export const MINTED_ERROR_CODES: MintedErrorCodes = {
+  BULK_OPERATION_RUNNING: {
+    to: 'catalog',
+    reason:
+      'Minted by issue #501 (architect ruling A, 2026-11-13) for an undo of a catalog bulk ' +
+      'operation that is still pending or running. It used to answer `VERSION_CONFLICT`, which ' +
+      'says nothing about why. The noun is the catalog bulk operation, which `catalog` owns and ' +
+      'whose undo route raises it.',
+  },
+  BULK_OPERATION_ALREADY_REVERTED: {
+    to: 'catalog',
+    reason:
+      'Minted by issue #501 (architect ruling A, 2026-11-13) for an undo of a catalog bulk ' +
+      'operation that has already been undone, formerly a `VERSION_CONFLICT`. The noun is the ' +
+      'catalog bulk operation; `catalog` raises it.',
+  },
+  BULK_OPERATION_NOT_REVERSIBLE: {
+    to: 'catalog',
+    reason:
+      'Minted by issue #501 (architect ruling A, 2026-11-13) for an undo of a completed catalog ' +
+      'bulk operation with nothing it can restore (a non-reversible edit), formerly a ' +
+      '`VERSION_CONFLICT`. The noun is the catalog bulk operation; `catalog` raises it.',
+  },
   CUSTOMER_ADDRESS_BOOK_RETIRED: {
     to: 'customers',
     reason:
