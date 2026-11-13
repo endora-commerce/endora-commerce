@@ -65,7 +65,7 @@
  */
 import { act, render } from '@testing-library/react';
 import type { ReactElement } from 'react';
-import { afterEach, beforeEach, describe, expect, it, vi, type MockInstance } from 'vitest';
+import { afterEach, beforeEach, describe, expect, it, onTestFinished, vi, type MockInstance } from 'vitest';
 
 import { TranslationProvider, useTranslation } from '@endora-commerce/admin-kit/i18n';
 
@@ -143,9 +143,19 @@ describe('the missing-translation diagnostic', () => {
 
 describe('the bundle-fetch diagnostic', () => {
   it('reports one failing endpoint once, across repeated provider mounts', async () => {
-    // No `initialBundle`: the provider issues its boot fetch, which
-    // `admin/test/setup.ts`'s unstubbed-network guard rejects — the exact
-    // production-shaped failure the CI trace carried 673 copies of.
+    // No `initialBundle`: the provider issues its boot fetch. `admin/test/setup.ts`
+    // answers that endpoint with an empty bundle (issue #463), so this test
+    // refuses it itself — the production-shaped failure the CI trace carried
+    // 673 copies of. The kit's client looks `fetch` up per request.
+    const answerBundles = globalThis.fetch;
+    globalThis.fetch = (async (input: RequestInfo | URL): Promise<Response> => {
+      const url = typeof input === 'string' ? input : input instanceof URL ? input.href : input.url;
+      throw new Error(`refused bundle request to ${url}`);
+    }) as typeof fetch;
+    onTestFinished(() => {
+      globalThis.fetch = answerBundles;
+    });
+
     for (let i = 0; i < 5; i += 1) {
       const view = render(
         <TranslationProvider language="en">
@@ -163,6 +173,6 @@ describe('the bundle-fetch diagnostic', () => {
     const reported = matching('bundle fetch failed');
     expect(reported).toHaveLength(1);
     // And it still names the collaborator, which is the only reason it is printed.
-    expect(reported[0]).toContain('unstubbed network call');
+    expect(reported[0]).toContain('refused bundle request');
   });
 });
