@@ -1,3 +1,4 @@
+import type { OrderInvoiceListItem } from '@endora-commerce/contracts';
 import { apiGetAuthed } from './mutations';
 import { publicApiBaseUrl } from '../env.mjs';
 
@@ -6,15 +7,8 @@ import { publicApiBaseUrl } from '../env.mjs';
  * to one of the customer's own orders. The PDF download is served by the
  * backend customer route (ownership-guarded).
  */
-export interface MyOrderInvoice {
-  id: string;
-  kind: 'proforma' | 'invoice' | 'correction';
-  number: string;
-  issuedAt: string;
-  currency: string;
-  total: number;
-  downloadHref: string;
-}
+/** One row of `GET /api/v1/orders/:id/invoices` — the published `orderInvoiceListItemSchema` (issue #599). */
+export type MyOrderInvoice = OrderInvoiceListItem;
 
 const apiBaseUrl = publicApiBaseUrl();
 

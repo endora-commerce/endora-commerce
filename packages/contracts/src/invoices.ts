@@ -1,6 +1,7 @@
 import { z } from 'zod';
 import { isoDateTimeSchema, uuidSchema } from './common.js';
 import { twoDecimalAmountString } from './money-input.js';
+import { paginationSchema } from './pagination.js';
 
 /**
  * Invoices (FR-080 + feature 047-invoices-module). Produces proforma, VAT
@@ -150,6 +151,58 @@ export const invoiceDetailSchema = invoiceSchema.extend({
   buyer: invoiceBuyerSchema,
 });
 export type InvoiceDetail = z.infer<typeof invoiceDetailSchema>;
+
+/**
+ * One row of `GET /api/v1/admin/invoices` (issue #599). A platform invoice
+ * carries its order; an ERP-imported sale document may have none, and then
+ * `orderId` and `orderBusinessId` are both `null`.
+ */
+export const adminInvoiceListItemSchema = z.object({
+  id: uuidSchema,
+  orderId: uuidSchema.nullable(),
+  /** Human-readable order business id (e.g. `ORD-…`); null without an order or when it is gone. */
+  orderBusinessId: z.string().nullable(),
+  salesChannelId: uuidSchema.nullable(),
+  kind: invoiceKindSchema,
+  number: z.string(),
+  issuedAt: isoDateTimeSchema,
+  currency: z.string().length(3),
+  /** The gross total. */
+  total: z.number().finite(),
+  status: invoiceStatusSchema,
+  /** `status === 'ready'`: the PDF can be downloaded. */
+  pdfReady: z.boolean(),
+  createdAt: isoDateTimeSchema,
+  updatedAt: isoDateTimeSchema,
+});
+export type AdminInvoiceListItem = z.infer<typeof adminInvoiceListItemSchema>;
+
+export const adminInvoiceListResponseSchema = z.object({
+  data: z.array(adminInvoiceListItemSchema),
+  pagination: paginationSchema,
+});
+export type AdminInvoiceListResponse = z.infer<typeof adminInvoiceListResponseSchema>;
+
+/**
+ * One row of `GET /api/v1/orders/:id/invoices` — a `ready` invoice of an order
+ * the buyer may read (issue #599). `downloadHref` is the API path of its PDF.
+ */
+export const orderInvoiceListItemSchema = z.object({
+  id: uuidSchema,
+  kind: invoiceKindSchema,
+  number: z.string(),
+  issuedAt: isoDateTimeSchema,
+  currency: z.string().length(3),
+  /** The gross total. */
+  total: z.number().finite(),
+  downloadHref: z.string(),
+});
+export type OrderInvoiceListItem = z.infer<typeof orderInvoiceListItemSchema>;
+
+export const orderInvoiceListResponseSchema = z.object({
+  data: z.array(orderInvoiceListItemSchema),
+});
+export type OrderInvoiceListResponse = z.infer<typeof orderInvoiceListResponseSchema>;
 
 /**
  * What `invoices` hands the document render port
@@ -642,6 +695,12 @@ export const erpSaleDocumentListItemSchema = z.object({
   attachments: z.array(erpSaleDocumentAttachmentListItemSchema),
 });
 export type ErpSaleDocumentListItem = z.infer<typeof erpSaleDocumentListItemSchema>;
+
+/** `GET /api/v1/account/organization/invoices` — the Organization's ERP-imported sale documents (issue #599). */
+export const erpSaleDocumentListResponseSchema = z.object({
+  data: z.array(erpSaleDocumentListItemSchema),
+});
+export type ErpSaleDocumentListResponse = z.infer<typeof erpSaleDocumentListResponseSchema>;
 
 /**
  * Container name: `erpSaleDocumentWritePort`. Owner: `invoices`.
