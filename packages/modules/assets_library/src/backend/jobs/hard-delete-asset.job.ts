@@ -181,6 +181,9 @@ export class HardDeleteAssetWorker {
 
   /** A purged asset's permalink becomes a previously used name (research R-22). */
   private async releasePermalink(tx: EntityManager, row: Asset, now: Date): Promise<void> {
+    // command-coverage-ignore: part of the retention purge in `claim` — it
+    // records that the purged asset's permalink is a previously used name, in
+    // the same transaction, with no actor behind it and nothing to undo.
     if (!row.permalink) return;
     await tx.upsert(AssetPermalinkRelease, {
       permalinkLower: row.permalink.toLowerCase(),

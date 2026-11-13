@@ -323,7 +323,9 @@ uzasadnienia.
 `scripts/check-command-coverage.ts` statycznie wskazuje — dla każdej metody **i każdego handlera
 trasy**, w każdym pliku `.ts` w katalogach, w których może leżeć kod modułu (każdy pakiet modułu,
 drzewo aplikacji i drzewo nakładki, wyznaczane przez `resolveModuleLayout()`) — wrażliwą zmianę
-(`persist*`, `nativeUpdate`, `nativeDelete`, `remove*`, `flush`), która nie jest ani audytowana,
+(`persist*`, `nativeUpdate`, `nativeDelete`, `remove*`, `flush`, `create`, `upsert`, `upsertMany`
+— cztery ostatnie tylko na EntityManagerze, bo `remove`, `create` i `upsert` są też zwykłymi
+nazwami metod serwisów), która nie jest ani audytowana,
 ani jawnie wyłączona, a także **podwójny audyt** (jednostkę, która jednocześnie wykonuje polecenie
 i audytuje ręcznie). Jednostka jest uznawana za pokrytą, gdy wykonuje polecenie, definiuje literał
 polecenia, zapisuje audyt (`auditLog.record`/`recordWithin`, `recordAuditFromContext` albo
