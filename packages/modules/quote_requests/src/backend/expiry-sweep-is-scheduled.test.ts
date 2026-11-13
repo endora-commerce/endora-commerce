@@ -6,6 +6,11 @@ import {
   RFQ_EXPIRY_SWEEP_QUEUE,
   RFQ_EXPIRY_SWEEP_SCHEDULER_ID,
 } from './workers/rfq-expiry-sweep-worker.js';
+import {
+  RFQ_NOTIFICATION_DELIVERY_EVERY_MS,
+  RFQ_NOTIFICATION_DELIVERY_SCHEDULER_ID,
+} from './workers/rfq-notification-delivery-worker.js';
+import { RFQ_NOTIFICATION_DELIVERY_QUEUE } from './services/notifications/kick.js';
 
 /**
  * The expiry sweep has a caller.
@@ -59,11 +64,16 @@ async function composeAndMountRoutes(host: { processRunsWorkers: boolean; module
   const attached: unknown[] = [];
   const hasExpirable = vi.fn(async () => false);
   const sweepInScope = vi.fn();
+  const hasDeliverable = vi.fn(async () => false);
+  const deliverInScope = vi.fn();
   const cradle = {
     ...host,
     quoteRequests: {
       register: async () => undefined,
-      handle: () => ({ expiryWorker: { hasExpirable, sweepInScope } }),
+      handle: () => ({
+        expiryWorker: { hasExpirable, sweepInScope },
+        deliveryService: { hasDeliverable, deliverInScope },
+      }),
     },
   };
   const noop = (): void => undefined;
@@ -86,16 +96,16 @@ async function composeAndMountRoutes(host: { processRunsWorkers: boolean; module
   registerModule(ctx);
   const app = { log: {}, addHook: noop };
   for (const mount of routes) await mount(app);
-  return { attached, hasExpirable, sweepInScope };
+  return { attached, hasExpirable, sweepInScope, hasDeliverable };
 }
 
 describe('quote_requests — the expiry sweep is scheduled by the module’s own composition', () => {
   it('in a process that consumes queues: a consumer of the sweep queue reaches ctx.worker, and the scheduler is installed', async () => {
     const { attached, hasExpirable } = await composeAndMountRoutes({ processRunsWorkers: true, moduleQueueRedis: {} });
 
-    expect(bull.workers.map((worker) => worker.name)).toEqual([RFQ_EXPIRY_SWEEP_QUEUE]);
-    expect(attached).toEqual([bull.workers[0]]);
-    expect(bull.queues.map((queue) => queue.name)).toEqual([RFQ_EXPIRY_SWEEP_QUEUE]);
+    expect(bull.workers.map((worker) => worker.name)).toEqual([RFQ_EXPIRY_SWEEP_QUEUE, RFQ_NOTIFICATION_DELIVERY_QUEUE]);
+    expect(attached).toEqual(bull.workers);
+    expect(bull.queues.map((queue) => queue.name)).toEqual([RFQ_EXPIRY_SWEEP_QUEUE, RFQ_NOTIFICATION_DELIVERY_QUEUE]);
     expect(bull.queues[0]?.upsertJobScheduler).toHaveBeenCalledWith(
       RFQ_EXPIRY_SWEEP_SCHEDULER_ID,
       { every: RFQ_EXPIRY_SWEEP_EVERY_MS },
@@ -105,6 +115,22 @@ describe('quote_requests — the expiry sweep is scheduled by the module’s own
     // And what the consumer runs is the composed module's own expiry worker.
     await bull.workers[0]?.processor();
     expect(hasExpirable).toHaveBeenCalledTimes(1);
+  });
+
+  it('notification delivery (`specs/179-…` WP-05): its consumer reaches ctx.worker — off, no tick runs — and its minute schedule is installed', async () => {
+    const { attached, hasDeliverable } = await composeAndMountRoutes({ processRunsWorkers: true, moduleQueueRedis: {} });
+
+    const consumer = bull.workers.find((worker) => worker.name === RFQ_NOTIFICATION_DELIVERY_QUEUE);
+    expect(consumer).toBeDefined();
+    expect(attached).toContain(consumer);
+    const queue = bull.queues.find((candidate) => candidate.name === RFQ_NOTIFICATION_DELIVERY_QUEUE);
+    expect(queue?.upsertJobScheduler).toHaveBeenCalledWith(
+      RFQ_NOTIFICATION_DELIVERY_SCHEDULER_ID,
+      { every: RFQ_NOTIFICATION_DELIVERY_EVERY_MS },
+      { name: 'deliver', data: {} },
+    );
+    await consumer?.processor();
+    expect(hasDeliverable).toHaveBeenCalledTimes(1);
   });
 
   it('in a process that consumes none: no consumer and no scheduler', async () => {
