@@ -85,9 +85,16 @@ Contract and integration files do not run on merge requests (D-198): run them lo
 
 ### WP-06 History deliveries (`qr`, admin)
 
-- [ ] T050 [WP-06] [US5] Test (contract): admin history entries carry `deliveries` (recipient display name, channel, status, attempts, last error, closedAt) grouped by `eventIds`; customer `GET /api/v1/quote-requests/:id` carries none — `backend/test/contract/quote_requests/history-deliveries.test.ts`
-- [ ] T051 [WP-06] [US5] Test: `RfqHistory.tsx` renders a delivery list under an entry with a status label and the error behind a disclosure for `failed` — `qr/src/admin/pages/RfqHistory.test.tsx`
-- [ ] T052 [WP-06] Impl: history projection reads records by `source_event_id`, resolves display names in one batched read per side; admin screen; `rfq.detail.history.delivery.*` keys (en, pl) in the `core` bundle
+- [x] T050 [WP-06] [US5] Test (contract): admin history entries carry `deliveries` (recipient display name, channel, status, attempts, last error, closedAt) grouped by `eventIds`; customer `GET /api/v1/quote-requests/:id` carries none — `backend/test/contract/quote_requests/history-deliveries.test.ts`
+- [x] T051 [WP-06] [US5] Test: `RfqHistory.tsx` renders a delivery list under an entry with a status label and the error behind a disclosure for `failed` — `qr/src/admin/pages/RfqHistory.test.tsx`
+- [x] T052 [WP-06] Impl: history projection reads records by `source_event_id`, resolves display names in one batched read per side; admin screen; `rfq.detail.history.delivery.*` keys (en, pl) in the `core` bundle
+  - *WP-06 as built:* the screen test lives at `admin/test/modules/quote_requests/RfqHistory.deliveries.test.tsx`,
+    beside the existing `RfqDetail.history.test.tsx` — the module package's vitest runs `node` over `*.test.ts`
+    only, so a `.tsx` render test there would not be collected. The pure grouping is
+    `qr/src/backend/services/history/history-deliveries.ts` (+ `.test.ts`). An entry with no records carries no
+    `deliveries` key; deliveries are ordered customer side first, then by name, then by channel. A customer
+    without a name is shown by e-mail (the History's customer-actor directory); a recipient no longer
+    readable is `''`, rendered "unknown user".
 
 ---
 
