@@ -337,6 +337,12 @@ contract and the code are read together.
     workspace module package's `exports` map, so a **first-party** module cannot ship the layers
     until it does. The fixture's manifest is hand-written, as a third party's is. This belongs with
     the follow-up that moves the first-party renderers.
+    **Done in issue #124**: the generator now renders `./storefront` (`src/storefront/index.ts`,
+    built and type-checked by the UI program, its peers optional), `./email`
+    (`src/email/index.ts`, built with the backend, its peers required) and `./blocks.css` (a
+    `blocks.css` at the package root, with its `files` entry). A module adopting `./storefront`
+    still moves `src/storefront/**` from its own `tsconfig.json` program into `tsconfig.ui.json`
+    by hand — those files are not generated. Moving a first-party renderer remains the follow-up.
 16. A fresh storefront scaffold's unpinned install resolves Vite 8, under which the storefront's
     vitest configuration (`esbuild.jsx`) does not transform JSX, so its `.tsx` tests do not run.
     Found by the acceptance probe, which pins Vite for itself; the scaffold defect is not repaired

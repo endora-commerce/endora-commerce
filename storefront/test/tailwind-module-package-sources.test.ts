@@ -56,6 +56,7 @@ import {
   planTailwindSourceProbes,
   readTailwindSourceVerdicts,
   removeTailwindSourceProbes,
+  sweepStaleTailwindSourceProbes,
   writeTailwindSourceProbes,
 } from '../../scripts/tailwind-source-scan.js';
 
@@ -78,11 +79,13 @@ describe('storefront Tailwind sources reach the packages it composes', () => {
     // fail in the invisible direction: a guard probing a package nothing imports
     // reports a defect that is not there, and one that misses an imported
     // package reports a pass over a package nothing scans.
-    const probes = planTailwindSourceProbes(
-      repoRoot,
-      process.pid,
-      importedSourceProbeTargets(repoRoot, storefrontRoot, stylesheet),
-    );
+    const targets = importedSourceProbeTargets(repoRoot, storefrontRoot, stylesheet);
+    // A run killed before its `finally` left its probes behind, and nothing
+    // ignores them (issue #105). Swept first, by pid, so the other frontend's
+    // guard — which plants into the same directories, at the same time — keeps
+    // the probes it is still compiling.
+    sweepStaleTailwindSourceProbes(repoRoot, targets);
+    const probes = planTailwindSourceProbes(repoRoot, process.pid, targets);
     expect(probes.filter((probe) => probe.expected).length).toBeGreaterThan(0);
     // The control stays. Without it the assertion is satisfied by a build that
     // emits everything, and the guard agrees with itself.

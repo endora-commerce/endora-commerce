@@ -109,8 +109,10 @@ import {
  *
  * ## What this file does not answer
  *
- * *When* a job runs. `build:storefront` is `master`-only, so `check:themes` is
- * post-merge coverage; that is a second axis and would be a second rule. Nor
+ * *When* a job runs. `build:storefront` is `master`-only on GitLab, so there
+ * `check:themes` is post-merge coverage; that is a second axis and would be a
+ * second rule. On the canonical host it is pull-request coverage, held by
+ * `storefront-themes-gate.test.ts` (issue #109). Nor
  * does it judge whether a rule is any good — that is
  * `check-inventory.test.ts`' red proofs, one population over.
  */

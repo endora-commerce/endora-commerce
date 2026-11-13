@@ -142,7 +142,10 @@ describe('the floor parsed a population that looks like both hosts', () => {
     // `release.yml` (the release page and the Discord post, keyed on the
     // release tag) by `release-workflow.test.ts`. `backend-suite.yml` is the
     // nightly complete suite (issue #968), not a floor job: D-198 keeps it off
-    // pull requests.
+    // pull requests. `storefront-build.yml` builds the storefront on every pull
+    // request so `check:themes` gates a merge (issue #109); GitLab built it only
+    // in a `master`-only image stage, so it ports nothing, and it is held by
+    // `test/unit/ci/storefront-themes-gate.test.ts`.
     // All are listed so that any new workflow still has to be named here by
     // whoever adds it.
     expect(WORKFLOW_FILES).toEqual([
@@ -157,6 +160,7 @@ describe('the floor parsed a population that looks like both hosts', () => {
       'publish.yml',
       'quality.yml',
       'release.yml',
+      'storefront-build.yml',
     ]);
     expect(TRANCHE_ONE_JOBS.map((job) => job.name)).toEqual(['pack-gate', 'boot-gate', 'build:docs']);
     expect(DOCS_PUBLICATION_JOBS).toHaveLength(2);

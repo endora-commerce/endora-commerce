@@ -53,7 +53,7 @@
 import type { EnvironmentInput } from '@endora-commerce/contracts';
 
 /**
- * The 23 inputs the host and the platform read.
+ * The 24 inputs the host and the platform read.
  *
  * Order is the order a prompt asks in: the values without which nothing runs
  * first, then the addresses the platform composes links from, then the knobs.
@@ -156,6 +156,28 @@ export const PLATFORM_ENVIRONMENT_INPUTS: readonly EnvironmentInput[] = [
     owner: { kind: 'platform' },
     consumers: ['backend'],
     addressOf: 'storefront',
+  },
+  {
+    // Issue #185 — `mfa`'s until a second module needed the admin's address;
+    // its Settings-debt ledger entry said that is when it moves here. Read
+    // once, by `kernel/admin-base-url.ts`, and by every module through it.
+    name: 'ADMIN_BASE_URL',
+    describes: {
+      en: 'Where the admin panel is, as an absolute http(s) address, so that a link this instance mails an administrator opens their own installation.',
+      pl: 'Gdzie znajduje się panel administracyjny, jako bezwzględny adres http(s), aby link wysłany administratorowi otwierał jego własną instalację.',
+    },
+    requirement: {
+      kind: 'optional',
+      without: {
+        en: 'e-mails to administrators carry no link into the admin panel, and a sign-in redirect to the panel carries no absolute address — which matters most when the panel is on a host of its own. A value that is set but malformed refuses the boot.',
+        pl: 'e-maile do administratorów nie zawierają linku do panelu, a przekierowanie logowania do panelu nie zawiera bezwzględnego adresu — co ma największe znaczenie, gdy panel stoi na osobnym hoście. Wartość ustawiona, ale niepoprawna, blokuje start.',
+      },
+    },
+    secret: false,
+    generable: false,
+    owner: { kind: 'platform' },
+    consumers: ['backend'],
+    addressOf: 'admin',
   },
   {
     name: 'REVALIDATE_SECRET',

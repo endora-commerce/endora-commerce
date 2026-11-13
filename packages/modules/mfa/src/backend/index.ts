@@ -31,7 +31,7 @@ import type {
 } from '@endora-commerce/platform/kernel';
 import type { CommandBus } from '@endora-commerce/platform/commands';
 import type { ModuleContext } from '@endora-commerce/platform/kernel';
-import { effectiveState, lazyPort } from '@endora-commerce/platform/kernel';
+import { configuredAdminBaseUrl, effectiveState, lazyPort } from '@endora-commerce/platform/kernel';
 import type { RequireAdminFactory } from '@endora-commerce/platform/kernel';
 import type { SettingsReader } from './services/mfa-policy-resolver.js';
 import {
@@ -143,6 +143,21 @@ export interface MfaBaseUrls {
   readonly admin: string | undefined;
 }
 
+/**
+ * The environment's answer to {@link MfaBaseUrls}, which `mfaBaseUrls`
+ * defaults to. The admin's address is the platform's input since issue #185
+ * and is read through the platform's accessor. A malformed value never gets
+ * here (the platform refuses the boot); an unset one is `undefined`, and the
+ * plugin's `adminRedirectBase` decides what the redirect is built on.
+ */
+export function mfaBaseUrlsFromEnvironment(): MfaBaseUrls {
+  return {
+    backend: process.env['BACKEND_PUBLIC_URL'],
+    storefront: process.env['STOREFRONT_BASE_URL'],
+    admin: configuredAdminBaseUrl() ?? undefined,
+  };
+}
+
 export interface MfaCradle {
   readonly emFactory: () => EntityManager;
   readonly redis: Redis;
@@ -206,13 +221,7 @@ export function registerModule(ctx: ModuleContext): void {
       .asFunction(() => async (): Promise<string | null> => null)
       .singleton(),
     mfaBaseUrls: ctx
-      .asFunction(
-        (): MfaBaseUrls => ({
-          backend: process.env['BACKEND_PUBLIC_URL'],
-          storefront: process.env['STOREFRONT_BASE_URL'],
-          admin: process.env['ADMIN_BASE_URL'],
-        }),
-      )
+      .asFunction((): MfaBaseUrls => mfaBaseUrlsFromEnvironment())
       .singleton(),
 
     mfa: ctx
