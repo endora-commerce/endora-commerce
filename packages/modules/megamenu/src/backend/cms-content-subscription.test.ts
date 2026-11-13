@@ -4,14 +4,7 @@ import {
   MEGAMENU_STOREFRONT_CACHE_TAG,
   type CmsContentChange,
 } from '@endora-commerce/contracts';
-import {
-  createModuleContext,
-  createModuleRegistrationSink,
-  createRootContainer,
-  registerValues,
-  registryCache,
-} from '@endora-commerce/platform/composition';
-import { EventBus } from '@endora-commerce/platform/events';
+import { composeModuleForTest, type ComposedModule } from '@endora-commerce/test-kit/module';
 import { registerModule } from './index.js';
 
 /**
@@ -29,7 +22,10 @@ import { registerModule } from './index.js';
 
 const MODULE_ID = 'megamenu';
 
-function build(): {
+/** Every composition a case made; `afterEach` disposes them, presence included. */
+const composed: ComposedModule[] = [];
+
+function build(present: boolean): {
   emit: (change: CmsContentChange) => void;
   log: string[];
 } {
@@ -55,28 +51,24 @@ function build(): {
     },
   };
 
-  const container = createRootContainer();
-  registerValues(container, {
-    emFactory: () => {
-      throw new Error('the subscription must not open a database connection');
-    },
-    // Every menu write runs on the bus since feature 168; the subscription writes nothing.
-    commandBus: {
-      run: () => {
-        throw new Error('the subscription must not run a command');
+  const handle = composeModuleForTest({
+    module: { id: MODULE_ID, registerModule },
+    values: {
+      emFactory: () => {
+        throw new Error('the subscription must not open a database connection');
       },
+      // Every menu write runs on the bus since feature 168; the subscription writes nothing.
+      commandBus: {
+        run: () => {
+          throw new Error('the subscription must not run a command');
+        },
+      },
+      redis,
     },
-    redis,
   });
-  const bus = new EventBus();
-  const ctx = createModuleContext({
-    module: { id: MODULE_ID, version: '1.0.0' },
-    container,
-    eventBus: bus,
-    sink: createModuleRegistrationSink(),
-    log: { info: () => {}, warn: () => {}, error: () => {} },
-  });
-  registerModule(ctx);
+  handle.registryCache.setEnabled(present ? [MODULE_ID] : []);
+  composed.push(handle);
+  const bus = handle.eventBus;
 
   return {
     emit: (change) =>
@@ -98,7 +90,7 @@ const settle = (): Promise<void> => new Promise((resolve) => setTimeout(resolve,
 
 afterEach(() => {
   vi.restoreAllMocks();
-  registryCache.__setEnabledForTesting([]);
+  for (const handle of composed.splice(0)) handle.dispose();
   if (ORIGINAL_ENV.url === undefined) delete process.env['STOREFRONT_BASE_URL'];
   else process.env['STOREFRONT_BASE_URL'] = ORIGINAL_ENV.url;
   if (ORIGINAL_ENV.secret === undefined) delete process.env['REVALIDATE_SECRET'];
@@ -110,8 +102,7 @@ describe('megamenu follows CMS content changes', () => {
     ['a block a panel may embed', { kind: 'block', codes: ['hero'] }],
     ['a page an item may link to', { kind: 'page', slugs: ['about'] }],
   ])('drops its Redis entries, then revalidates its tag, for %s', async (_name, change) => {
-    registryCache.__setEnabledForTesting([MODULE_ID]);
-    const { emit, log } = build();
+    const { emit, log } = build(true);
 
     emit(change);
     await settle();
@@ -127,8 +118,7 @@ describe('megamenu follows CMS content changes', () => {
     ['a template', { kind: 'template' }],
     ['a hook', { kind: 'hook', codes: ['home.top'] }],
   ])('ignores %s — neither is in a menu payload', async (_name, change) => {
-    registryCache.__setEnabledForTesting([MODULE_ID]);
-    const { emit, log } = build();
+    const { emit, log } = build(true);
 
     emit(change);
     await settle();
@@ -137,8 +127,7 @@ describe('megamenu follows CMS content changes', () => {
   });
 
   it('does nothing while the module is off', async () => {
-    registryCache.__setEnabledForTesting([]);
-    const { emit, log } = build();
+    const { emit, log } = build(false);
 
     emit({ kind: 'block', codes: ['hero'] });
     await settle();

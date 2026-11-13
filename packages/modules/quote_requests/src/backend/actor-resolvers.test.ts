@@ -1,13 +1,7 @@
 import type { FastifyRequest } from 'fastify';
 import { describe, expect, it } from 'vitest';
-import {
-  createModuleContext,
-  createModuleRegistrationSink,
-  createRootContainer,
-  registerValues,
-} from '@endora-commerce/platform/composition';
-import { EventBus } from '@endora-commerce/platform/events';
 import { HttpError } from '@endora-commerce/platform/http';
+import { composeModuleForTest } from '@endora-commerce/test-kit/module';
 import { registerModule } from './index.js';
 
 /**
@@ -31,21 +25,14 @@ import { registerModule } from './index.js';
  */
 
 const contextFor = (overrides: Record<string, unknown>) => {
-  const container = createRootContainer();
-  registerValues(container, {
-    emFactory: () => ({}) as never,
-    eventBus: new EventBus(),
-    auditLogService: {},
-    ...overrides,
+  const { container } = composeModuleForTest({
+    module: { id: 'quote_requests', registerModule },
+    values: {
+      emFactory: () => ({}) as never,
+      auditLogService: {},
+      ...overrides,
+    },
   });
-  const ctx = createModuleContext({
-    module: { id: 'quote_requests', version: '1.0.0' },
-    container,
-    eventBus: new EventBus(),
-    sink: createModuleRegistrationSink(),
-    log: { info: () => {}, warn: () => {}, error: () => {} },
-  });
-  registerModule(ctx);
   return container;
 };
 

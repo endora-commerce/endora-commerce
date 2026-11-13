@@ -104,35 +104,29 @@ const DEPLOYMENT_FILE =
  * A module test that composes the module by hand, through the host-internal
  * `./composition` subpath (issue #114).
  *
- * Each of these builds a root container, registers the ports it fakes, and runs
- * the module's `registerModule` against a `createModuleContext` — the composition
- * a module's own unit test needs, with no server and no database. The test kit
- * publishes `composeTestServer`, which boots a platform, and nothing smaller; so
- * there is no published spelling of this to move to, and these packages cannot be
- * tested outside this repository as they stand. What would retire every entry is
- * a test-kit subpath composing one module over supplied values — the
- * `createRootContainer` / `registerValues` / `createModuleContext` /
- * `createModuleRegistrationSink` sequence, plus `registryCache` for the two that
- * subscribe, and `registerRequestScopeHook` / `resolveTenantContext` /
- * `systemTenantContext` for `auth`'s request-scope proof. That is a published API
- * decision and not this check's to take, so the gap is ledgered here, named, and
- * not hidden by leaving tests out of the walk.
+ * Six were ledgered here when the walk first saw module tests. Five of them
+ * composed one module by hand — a root container, the ports they fake, the
+ * module's `registerModule` against a `createModuleContext`, and `registryCache`
+ * for the two that subscribe — and moved to `@endora-commerce/test-kit/module`'s
+ * `composeModuleForTest` (issue #1072), which publishes that composition without
+ * publishing the primitives it is built from.
+ *
+ * The one left is `auth`'s request-scope proof, which mounts the platform's real
+ * scope hook on a Fastify app (`registerRequestScopeHook`) and maps actors with
+ * `resolveTenantContext` / `systemTenantContext`. The kit publishes no spelling
+ * of that yet, and which shape it takes is a published API decision rather than
+ * this check's, so the entry stays ledgered, named, and not hidden by leaving
+ * tests out of the walk.
  */
 const TEST_KIT_GAP =
   'a module test composing its module through `@endora-commerce/platform/composition`, ' +
-  'which no module may name: `@endora-commerce/test-kit` publishes a whole-server ' +
-  'composition and no single-module one, so there is no published spelling to move to ' +
-  'yet (issue #114). Retired by a test-kit subpath that composes one module over ' +
-  'supplied values.';
+  'which no module may name. `@endora-commerce/test-kit/module` publishes the ' +
+  'single-module composition (issue #1072) but no spelling of the platform\'s request-scope ' +
+  'hook yet, which is what this test mounts. Retired when the kit publishes one.';
 
 export const UNPUBLISHED_PLATFORM_REACHES: Readonly<Record<string, LedgeredReach>> = {
-  // === TEST_KIT_GAP (6) ===
+  // === TEST_KIT_GAP (1) ===
   'packages/modules/auth/src/backend/route-actor-scope.test.ts|@endora-commerce/platform/composition': { symbols: ['?'], reason: TEST_KIT_GAP },
-  'packages/modules/cms/src/backend/storefront-revalidation.test.ts|@endora-commerce/platform/composition': { symbols: ['?'], reason: TEST_KIT_GAP },
-  'packages/modules/customers/src/backend/moderation-actor.test.ts|@endora-commerce/platform/composition': { symbols: ['?'], reason: TEST_KIT_GAP },
-  'packages/modules/megamenu/src/backend/cms-content-subscription.test.ts|@endora-commerce/platform/composition': { symbols: ['?'], reason: TEST_KIT_GAP },
-  'packages/modules/orders/src/backend/admin-scope-resolver.test.ts|@endora-commerce/platform/composition': { symbols: ['?'], reason: TEST_KIT_GAP },
-  'packages/modules/quote_requests/src/backend/actor-resolvers.test.ts|@endora-commerce/platform/composition': { symbols: ['?'], reason: TEST_KIT_GAP },
 
   // === DEPLOYMENT_FILE (4) ===
   'backend/src/apps/acceptance/divergence.ts|(unattributed)': { symbols: ['?'], reason: DEPLOYMENT_FILE },
