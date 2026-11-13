@@ -254,10 +254,10 @@ Reuse before you create (Constitution IX). The relevant primitives already exist
 
 | Need | Use |
 | --- | --- |
-| Admin buttons, inputs, cards, tables | `admin/src/components/ui/*` (shadcn/Radix + `cva` variants: `default`, `outline`, `secondary`, `ghost`, `destructive`, `link`) |
-| Admin app chrome, nav, command palette | `admin/src/components/AppShell.tsx` |
-| Admin sticky form actions | `admin/src/components/StickyFormActions.tsx`, `ui/save-button-group.tsx` |
-| Charts | `<EChart>` — `admin/src/components/charts/echart.tsx` (Apache ECharts) |
+| Admin buttons, inputs, cards, tables | `packages/admin-kit/src/ui/*` (shadcn/Radix + `cva` variants: `default`, `outline`, `secondary`, `ghost`, `destructive`, `link`) |
+| Admin app chrome, nav, command palette | `packages/admin-shell/src/components/AppShell.tsx` |
+| Admin sticky form actions | `packages/admin-kit/src/components/StickyFormActions.tsx`, `ui/save-button-group.tsx` |
+| Charts | `<EChart>` — `packages/admin-kit/src/components/charts/echart.tsx` (Apache ECharts) |
 | Storefront colours, radii, elevation, type | Tailwind 4 semantic tokens from `storefront/app/globals.css` `@theme inline`: `bg-surface`, `bg-surface-alt`, `text-fg`, `text-muted`, `text-subtle`, `border-line`, `border-line-strong`, `text-accent`, `*-ok`/`*-warn`/`*-bad` (+ `-soft`), `rounded-{sm,md,lg,xl}`, `shadow-{sm,md,lg}` |
 | Storefront mobile reach (Fitts) | `components/mobile/MobileTabBar.tsx`, `PdpStickyBuyBar.tsx`, `BottomSheet.tsx`, `MobileFilterSheet.tsx` |
 | Storefront commerce surfaces | `ProductCard`, `ProductGrid`, `FilterPanel`, `CartLine`, `CartTotals`, `components/checkout/*` |

@@ -27,7 +27,7 @@ VII (SSR/SSG-capable storefront) constrain almost everything you do.
 ## Method
 
 1. **Read before designing.** Find the closest existing component and its spec directory
-   (`specs/NNN-slug/`) first. Reuse `admin/src/components/ui/*`, `admin/src/components/AppShell.tsx`,
+   (`specs/NNN-slug/`) first. Reuse `packages/admin-kit/src/ui/*`, `packages/admin-shell/src/components/AppShell.tsx`,
    `<EChart>`, and the storefront's `ProductCard`, `FilterPanel`, `CartLine`, `CartTotals`,
    `components/checkout/*`, `components/mobile/*` before writing anything new. Extending an
    existing primitive beats adding a parallel one.

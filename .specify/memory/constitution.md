@@ -199,7 +199,7 @@ principle mandated and describing them as ones that "do NOT yet exist and must
 be built by the implementing feature". Feature 073 built all four, verified
 against the tree:
 
-  (a) the operator-activation axis — `admin/src/modules/platform/ModuleActivationControl.tsx`,
+  (a) the operator-activation axis — `packages/admin-shell/src/modules/platform/ModuleActivationControl.tsx`,
       on the kernel-served `/platform/modules` screen that belongs to no module;
   (b) the effective-state resolver — `packages/platform/src/kernel/lifecycle/effective-state.ts`,
       read by every gating seam;
