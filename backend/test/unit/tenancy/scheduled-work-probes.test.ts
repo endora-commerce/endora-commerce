@@ -51,6 +51,8 @@ const PROBES = [
   { module: 'product_feeds', file: 'services/feed-run-reaper.service.ts', method: 'hasClaimedRuns' },
   { module: 'price_lists', file: 'services/price-list-status-worker.ts', method: 'hasDueTransitions' },
   { module: 'quote_requests', file: 'services/rfq-expiry-worker.ts', method: 'hasExpirable' },
+  // `specs/179-rfq-and-customer-notifications/` R-8 — the notification delivery worker's tick.
+  { module: 'quote_requests', file: 'services/notifications/delivery-service.ts', method: 'hasDeliverable' },
   { module: 'projects', file: 'services/stage-alert-service.ts', method: 'hasSweepWork' },
   // One worker, three passes (`specs/165-task-management/` R-17 – R-19): each pass has its own probe.
   { module: 'tasks', file: 'services/reminder-service.ts', method: 'hasWork' },

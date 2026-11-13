@@ -84,13 +84,32 @@ Contract and integration files do not run on merge requests (D-198): run them lo
 
 ### WP-05 Worker, e-mail and bell (`qr`)
 
-- [ ] T040 [P] [WP-05] Test: delivery-service — stale (>24 h) closes `skipped_stale` without calling an adapter; owner absent closes `skipped_module_off`; `ModuleDisabledError` from a port closes `skipped_module_off`; other error → attempt+1 with the 1 m/5 m/30 m/2 h ladder; fifth failure → `failed` with truncated error; closed record untouched — `qr/src/backend/services/notifications/delivery-service.test.ts`
-- [ ] T041 [P] [WP-05] [US1] Test: `admin_in_app` adapter calls `recordWithin` on the record's EM with the contract §2 shape (number-only title, `titleMessage`, link `/quote-requests/<id>`); re-checks `rfqs:handle` — `channel-adapters.test.ts`
-- [ ] T042 [P] [WP-05] [US2] Test: e-mail adapters — code per change, `messageId = quote_request_notification:<id>`, customer language = channel default (`en-US` fallback), operator language = preferred (English fallback), `quote.url` from `storefront_url` or empty, no attachment on approval, outcome mapping of matrix §4, no address → `skipped_no_recipient` — `channel-adapters.test.ts`
-- [ ] T043 [P] [WP-05] Test: eleven definitions × en/pl defaults exist, every declared variable is used by both languages' content, subjects non-empty — `qr/src/backend/email-templates/quote-notification-defaults.test.ts`
-- [ ] T044 [WP-05] Test: worker tick — idle probe outside scope enters no scope; busy tick enters the system scope once; two concurrent ticks never claim one record; registered through `ctx.worker` (off → no processing) — `qr/src/backend/workers/rfq-notification-delivery-worker.test.ts` + integration case in `backend/test/integration/quote_requests/notification-delivery.test.ts`
-- [ ] T045 [WP-05] Test (integration): crash between a transport's acceptance and the commit → the retry is suppressed by `messageId`, one e-mail total — `notification-delivery.test.ts`
-- [ ] T046 [WP-05] Impl: `delivery-service.ts`, `channel-adapters.ts` (three adapters of this phase), `rfq-notification-delivery-worker.ts`, scheduler + kick queue in `qr/src/backend/index.ts`; `email-templates/quote-notification-defaults.ts` pushed via `emailDefaultsPort` in the boot hook; eleven `transactionalEmails` entries and the `degrades-without admin_notifications` edge in `qr/src/manifest.ts`; `notifications.<change>.title` keys in `qr/i18n/{en,pl}.json`
+- [x] T040 [P] [WP-05] Test: delivery-service — stale (>24 h) closes `skipped_stale` without calling an adapter; owner absent closes `skipped_module_off`; `ModuleDisabledError` from a port closes `skipped_module_off`; other error → attempt+1 with the 1 m/5 m/30 m/2 h ladder; fifth failure → `failed` with truncated error; closed record untouched — `qr/src/backend/services/notifications/delivery-service.test.ts`
+- [x] T041 [P] [WP-05] [US1] Test: `admin_in_app` adapter calls `recordWithin` on the record's EM with the contract §2 shape (number-only title, `titleMessage`, link `/quote-requests/<id>`); re-checks `rfqs:handle` — `channel-adapters.test.ts`
+- [x] T042 [P] [WP-05] [US2] Test: e-mail adapters — code per change, `messageId = quote_request_notification:<id>`, customer language = channel default (`en-US` fallback), operator language = preferred (English fallback), `quote.url` from `storefront_url` or empty, no attachment on approval, outcome mapping of matrix §4, no address → `skipped_no_recipient` — `channel-adapters.test.ts`
+- [x] T043 [P] [WP-05] Test: eleven definitions × en/pl defaults exist, every declared variable is used by both languages' content, subjects non-empty — `qr/src/backend/email-templates/quote-notification-defaults.test.ts`
+- [x] T044 [WP-05] Test: worker tick — idle probe outside scope enters no scope; busy tick enters the system scope once; two concurrent ticks never claim one record; registered through `ctx.worker` (off → no processing) — `qr/src/backend/workers/rfq-notification-delivery-worker.test.ts` + integration case in `backend/test/integration/quote_requests/notification-delivery.test.ts`
+- [x] T045 [WP-05] Test (integration): crash between a transport's acceptance and the commit → the retry is suppressed by `messageId`, one e-mail total — `notification-delivery.test.ts`
+- [x] T046 [WP-05] Impl: `delivery-service.ts`, `channel-adapters.ts` (three adapters of this phase), `rfq-notification-delivery-worker.ts`, scheduler + kick queue in `qr/src/backend/index.ts`; `email-templates/quote-notification-defaults.ts` pushed via `emailDefaultsPort` in the boot hook; eleven `transactionalEmails` entries and the `degrades-without admin_notifications` edge in `qr/src/manifest.ts`; `notifications.<change>.title` keys in `qr/i18n/{en,pl}.json`
+  - *WP-05 as built (for WP-08, WP-10 and WP-12):* `RfqNotificationDeliveryService`
+    (`services/notifications/delivery-service.ts`) is built in `plugin.ts` beside the expiry worker
+    and exposed as `handle().deliveryService`; a channel is delivered when it has a `ChannelAdapter`
+    (`{ owner, deliver(context) }`) in its `adapters` map, and **only those channels are claimed** —
+    WP-08 and WP-10 add theirs there and to `RECORDED_CHANNELS`. `attempts` counts attempts that
+    reached an adapter: a record closed `skipped_stale` or `skipped_module_off` by the presence
+    check keeps `0`. A failed attempt rolls back its transaction and is counted in a second one,
+    guarded by the attempt count it read. Both e-mail adapters re-check the recipient at delivery;
+    the customer one also re-checks that the account may still open the request (the requester,
+    or a role `orgWideViewerRoleIds` names), not only deleted/blocked/anonymised. The operator
+    e-mail is sent with `salesChannelId: null` (platform-wide content, the `tasks` precedent) and
+    declares no `quote.url`: it carries no link until #185 (OQ-1 = A), so the variable would always
+    be empty. `customer.name` is the recipient on both sides, as matrix §3 says. A send error is
+    stored with the recipient's address replaced by `<recipient>`. The storefront link reads
+    `sales_channels.storefront_url`; blank counts as none. The defaults ship as `en-US` / `pl-PL`.
+    T044's "off → no processing" is held by `src/backend/expiry-sweep-is-scheduled.test.ts`
+    (both consumers reach `ctx.worker`); the integration file covers the bell switched off and a
+    template switched off — the full off-state walk stays T111. The new probe is listed in
+    `backend/test/unit/tenancy/scheduled-work-probes.test.ts`.
 
 ### WP-06 History deliveries (`qr`, admin)
 

@@ -8,6 +8,7 @@ import { HttpError } from '@endora-commerce/platform/http';
 import type {
   Actor,
   AdminI18nTranslatePort,
+  AdminNotificationRecordPort,
   AdminSearchProviderRegistryPort,
   AdminRolePort,
   AdminUserReadPort,
@@ -49,6 +50,7 @@ import {
 import type { AdminContext } from './services/rfq-admin-service.js';
 import { NegotiationPolicyService } from './services/negotiation-policy-service.js';
 import { startRfqExpirySweep } from './workers/rfq-expiry-sweep-worker.js';
+import { startRfqNotificationDelivery } from './workers/rfq-notification-delivery-worker.js';
 import { createNotificationKickProducer } from './services/notifications/kick.js';
 import { registerQuoteRequestSalesChannelAttributions } from './services/sales-channel-attributions.js';
 import {
@@ -78,6 +80,7 @@ import { QuoteRequestDocumentService } from './document/document-service.js';
 import { createQuoteRequestDocumentType } from './document/quote-request-document-type.js';
 import { QUOTE_REQUEST_PDF_EMAIL_CODE } from './commands/document-template-commands.js';
 import { QUOTE_REQUEST_PDF_EMAIL_DEFAULT } from './email-templates/quote-pdf-defaults.js';
+import { QUOTE_NOTIFICATION_EMAIL_DEFAULTS } from './email-templates/quote-notification-defaults.js';
 
 /**
  * `quote_requests` — four settings resolvers that belonged to the module
@@ -580,6 +583,32 @@ export function registerModule(ctx: ModuleContext): void {
           // Feature 153 — the quote PDF routes' service, resolved when the
           // routes are mounted.
           documentService: () => ctx.cradle<QuoteRequestsCradle>().quoteRequestDocumentService,
+          // `specs/179-rfq-and-customer-notifications/` WP-05 — what the
+          // delivery worker delivers through. The bell's owner is switchable
+          // and only degrades this module (the manifest's `degrades-without`
+          // edge): its presence is asked in front of the port by the delivery
+          // service, never caught behind it. The sender is read off the cradle
+          // per send — a function announced late, which `lazyPort` cannot
+          // forward (the PDF e-mail's precedent).
+          delivery: {
+            bell: lazyPort<AdminNotificationRecordPort<EntityManager>>(ctx, 'adminNotificationRecordPort'),
+            sender: () => ctx.cradle<QuoteRequestsCradle>().transactionalEmailSenderAccessor(),
+            salesChannels: {
+              getById: (id) => ctx.cradle<QuoteRequestsCradle>().salesChannelResolutionPort.getById(id),
+            },
+            storefrontUrl: async (salesChannelId) => {
+              try {
+                return await ctx
+                  .cradle<QuoteRequestsCradle>()
+                  .settingsReadPort.get('sales_channels.storefront_url', salesChannelId, z.string());
+              } catch (error) {
+                // The two conditions that mean "not configured here", and no others.
+                if (error instanceof SettingNotRegistered || error instanceof SettingOutOfScopeForChannel) return null;
+                throw error;
+              }
+            },
+            isPresent: (moduleId) => effectiveState.isPresent(moduleId),
+          },
         });
       })
       .singleton(),
@@ -771,11 +800,13 @@ export function registerModule(ctx: ModuleContext): void {
    * registry `transactional_emails` reads once at boot; no presence probe.
    */
   ctx.onBoot(() => {
-    lazyPort<EmailDefaultsRegistryPort>(ctx, 'emailDefaultsPort').register(
-      QUOTE_REQUEST_PDF_EMAIL_CODE,
-      QUOTE_REQUEST_PDF_EMAIL_DEFAULT,
-      'quote_requests',
-    );
+    const registry = lazyPort<EmailDefaultsRegistryPort>(ctx, 'emailDefaultsPort');
+    registry.register(QUOTE_REQUEST_PDF_EMAIL_CODE, QUOTE_REQUEST_PDF_EMAIL_DEFAULT, 'quote_requests');
+    // `specs/179-rfq-and-customer-notifications/` FR-020 — the eleven
+    // notification e-mails' defaults (en, pl), the same contribution.
+    for (const [code, defaults] of Object.entries(QUOTE_NOTIFICATION_EMAIL_DEFAULTS)) {
+      registry.register(code, defaults, 'quote_requests');
+    }
   });
 
   ctx.routes(async (app) => {
@@ -798,6 +829,22 @@ export function registerModule(ctx: ModuleContext): void {
       processRunsWorkers: cradle.processRunsWorkers,
       moduleQueueRedis: cradle.moduleQueueRedis,
       expiry: cradle.quoteRequests.handle().expiryWorker,
+      log: ctx.log,
+      attach: (worker) => ctx.worker(worker, { logger: app.log }),
+      onClose: (close) => {
+        app.addHook('onClose', close);
+      },
+    });
+
+    // The clock of notification delivery (`specs/179-rfq-and-customer-notifications/`
+    // research R-8): a Job Scheduler every minute and the kick the writers add,
+    // on one queue, consumed through `ctx.worker` for the same reason as the
+    // sweep above — while this module is off no record is delivered, and the
+    // records wait, pending, for it to come back.
+    await startRfqNotificationDelivery({
+      processRunsWorkers: cradle.processRunsWorkers,
+      moduleQueueRedis: cradle.moduleQueueRedis,
+      delivery: cradle.quoteRequests.handle().deliveryService,
       log: ctx.log,
       attach: (worker) => ctx.worker(worker, { logger: app.log }),
       onClose: (close) => {
