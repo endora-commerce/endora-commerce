@@ -42,7 +42,8 @@ import { QuoteRequest, type QuoteRequestStatus } from '../entities/quote-request
 import { QuoteRequestItem } from '../entities/quote-request-item.entity.js';
 import { QuoteRequestItemGroup } from '../entities/quote-request-item-group.entity.js';
 import { QuoteRequestNotification } from '../entities/quote-request-notification.entity.js';
-import { underRowLock } from './transition-lock.js';
+import { inTransaction, underRowLock } from './transition-lock.js';
+import type { NotificationKick } from './notifications/kick.js';
 import type { RfqService} from './rfq-service.js';
 import { isNotArchived, rfqAudience, type RfqEventBus, type RfqEvents } from './rfq-service.js';
 import type { RfqEventService } from './rfq-event-service.js';
@@ -135,6 +136,8 @@ export interface RfqAdminServiceDeps {
   eventService: RfqEventService;
   revisionService: RfqRevisionService;
   notificationService: RfqNotificationService;
+  /** As `RfqServiceDeps.notificationKick`: after a commit that recorded deliveries. */
+  notificationKick?: NotificationKick;
   salesRepAssignment: SalesRepAssignmentPort;
   /** Feature 054 — audits RFQ admin writes co-transactionally when provided. */
   auditLog?: AuditPort;
@@ -580,29 +583,38 @@ export class RfqAdminService {
       rfq.version += 1;
       this.#audit(em, 'quote_request.approve', rfq.id, { status: 'Pending' }, { status: 'Approved' });
       await em.flush();
-    });
 
-    if (note && note.trim().length > 0) {
-      await this.deps.eventService.append({
-        quoteRequestId: rfq.id,
-        eventType: 'note-added',
-        actor: { adminUserId: ctx.adminUserId, roleLabel: ctx.roleLabel },
-        payload: { type: 'note-added', note },
+      // `specs/179-rfq-and-customer-notifications/` FR-001 — the note, the
+      // `approved` entry and the records naming it commit with the status.
+      if (note && note.trim().length > 0) {
+        await this.deps.eventService.append(
+          {
+            quoteRequestId: rfq.id,
+            eventType: 'note-added',
+            actor: { adminUserId: ctx.adminUserId, roleLabel: ctx.roleLabel },
+            payload: { type: 'note-added', note },
+          },
+          em,
+        );
+      }
+      const evt = await this.deps.eventService.append(
+        {
+          quoteRequestId: rfq.id,
+          eventType: 'approved',
+          actor: { adminUserId: ctx.adminUserId, roleLabel: ctx.roleLabel },
+          payload: { type: 'approved', approvedBy: 'admin' },
+        },
+        em,
+      );
+
+      await this.deps.notificationService.record(em, {
+        change: 'approved',
+        sourceEvent: evt,
+        rfq,
+        actor: null,
       });
-    }
-    const evt = await this.deps.eventService.append({
-      quoteRequestId: rfq.id,
-      eventType: 'approved',
-      actor: { adminUserId: ctx.adminUserId, roleLabel: ctx.roleLabel },
-      payload: { type: 'approved', approvedBy: 'admin' },
     });
-
-    await this.deps.notificationService.record(em, {
-      change: 'approved',
-      sourceEvent: evt,
-      rfq,
-      actor: null,
-    });
+    this.kickNotificationDelivery();
 
     this.deps.events.emit('rfq.approved.v1', {
       eventId: randomUUID(),
@@ -689,21 +701,26 @@ export class RfqAdminService {
       rfq.version += 1;
       this.#audit(em, 'quote_request.cancel', rfq.id, null, cancelAuditState(reason));
       await em.flush();
-    });
 
-    const evt = await this.deps.eventService.append({
-      quoteRequestId: rfq.id,
-      eventType: 'canceled',
-      actor: { adminUserId: ctx.adminUserId, roleLabel: ctx.roleLabel },
-      payload: { type: 'canceled', canceledBy: 'admin', reason: reason ?? null },
-    });
+      // FR-001 — the `canceled` entry and its records commit with the status.
+      const evt = await this.deps.eventService.append(
+        {
+          quoteRequestId: rfq.id,
+          eventType: 'canceled',
+          actor: { adminUserId: ctx.adminUserId, roleLabel: ctx.roleLabel },
+          payload: { type: 'canceled', canceledBy: 'admin', reason: reason ?? null },
+        },
+        em,
+      );
 
-    await this.deps.notificationService.record(em, {
-      change: 'canceled',
-      sourceEvent: evt,
-      rfq,
-      actor: null,
+      await this.deps.notificationService.record(em, {
+        change: 'canceled',
+        sourceEvent: evt,
+        rfq,
+        actor: null,
+      });
     });
+    this.kickNotificationDelivery();
 
     this.deps.events.emit('rfq.canceled.v1', {
       eventId: randomUUID(),
@@ -902,44 +919,53 @@ export class RfqAdminService {
         ...(groupingAudit ? { groups: groupingAudit.after } : {}),
       });
       await em.flush();
-    });
 
-    // Feature 159 — the revision records the lines in display order.
-    const items = (await loadArrangedQuoteLines(em, rfq.id)).lines;
-    const previousRevision = await this.deps.revisionService.byNumber(
-      rfq.id,
-      rfq.currentRevisionNumber - 1,
-    );
-    const revision = await this.deps.revisionService.record({
-      rfq,
-      items,
-      actor: { adminUserId: ctx.adminUserId },
-      previousRevisionId: previousRevision?.id ?? null,
-    });
+      // FR-001 — the revision, the `modified` entry naming it and the records
+      // naming that entry commit with the lines they describe.
+      // Feature 159 — the revision records the lines in display order.
+      const items = (await loadArrangedQuoteLines(em, rfq.id)).lines;
+      const previousRevision = await this.deps.revisionService.byNumber(
+        rfq.id,
+        rfq.currentRevisionNumber - 1,
+      );
+      const revision = await this.deps.revisionService.record(
+        {
+          rfq,
+          items,
+          actor: { adminUserId: ctx.adminUserId },
+          previousRevisionId: previousRevision?.id ?? null,
+        },
+        em,
+      );
 
-    const diff = previousRevision
-      ? this.deps.revisionService.diffRevisions({
-          beforeHeaderNote: previousRevision.headerNoteSnapshot ?? null,
-          afterHeaderNote: rfq.headerNote ?? null,
-          beforeItems: previousRevision.itemsSnapshot,
-          afterItems: revision.itemsSnapshot,
-        })
-      : [];
+      const diff = previousRevision
+        ? this.deps.revisionService.diffRevisions({
+            beforeHeaderNote: previousRevision.headerNoteSnapshot ?? null,
+            afterHeaderNote: rfq.headerNote ?? null,
+            beforeItems: previousRevision.itemsSnapshot,
+            afterItems: revision.itemsSnapshot,
+          })
+        : [];
 
-    const evt = await this.deps.eventService.append({
-      quoteRequestId: rfq.id,
-      eventType: 'modified',
-      actor: { adminUserId: ctx.adminUserId, roleLabel: ctx.roleLabel },
-      payload: { type: 'modified', diff, ...recorded },
-      revisionId: revision.id,
-    });
+      const evt = await this.deps.eventService.append(
+        {
+          quoteRequestId: rfq.id,
+          eventType: 'modified',
+          actor: { adminUserId: ctx.adminUserId, roleLabel: ctx.roleLabel },
+          payload: { type: 'modified', diff, ...recorded },
+          revisionId: revision.id,
+        },
+        em,
+      );
 
-    await this.deps.notificationService.record(em, {
-      change: 'revised',
-      sourceEvent: evt,
-      rfq,
-      actor: null,
+      await this.deps.notificationService.record(em, {
+        change: 'revised',
+        sourceEvent: evt,
+        rfq,
+        actor: null,
+      });
     });
+    this.kickNotificationDelivery();
 
     this.deps.events.emit('rfq.modified.v1', {
       eventId: randomUUID(),
@@ -1083,113 +1109,128 @@ export class RfqAdminService {
     const customFieldValues = await this.#newCustomFieldValues(body.customFieldValues);
 
     const businessId = await this.deps.rfqService.generateBusinessId(em);
-    const rfq = em.create(QuoteRequest, {
-      ...(businessId ? { businessId } : {}),
-      organizationId: body.organizationId,
-      customerAccountId: body.customerAccountId,
-      // The channel checked above: the one the operator named (feature 163,
-      // T155 §1.5c), else the one the admin's own request resolved to — the
-      // resolver's step-4 fallback, the system default — which is the honest
-      // answer for "where was this raised", not a channel this module picked.
-      salesChannelId: channelId,
-      createdByAdminUserId: ctx.adminUserId,
-      assignedAdminUserId: ctx.adminUserId,
-      status: 'Created from admin' satisfies QuoteRequestStatus,
-      headerNote: body.headerNote ?? null,
-      currentRevisionNumber: 1,
-      lastCustomerSeenRevisionNumber: 0,
-      // The customer must accept or reject the quote the admin prepared, so it
-      // surfaces the Accept/Reject controls on the storefront (the same flag the
-      // admin's later revisions set). Without this the customer had no way to
-      // act on an admin-created quote.
-      awaitingCustomerRevisionAcceptance: true,
-      expiresAt:
-        body.expiresInDays !== undefined
-          ? new Date(Date.now() + body.expiresInDays * 86_400_000)
-          : null,
-      customFieldValues,
-    });
-    await em.persistAndFlush(rfq);
+    // FR-001 — the request, its groups and lines, revision 1, its history
+    // entries and the records naming `created` commit together.
+    const rfq = await inTransaction(em, async () => {
+      const rfq = em.create(QuoteRequest, {
+        ...(businessId ? { businessId } : {}),
+        organizationId: body.organizationId,
+        customerAccountId: body.customerAccountId,
+        // The channel checked above: the one the operator named (feature 163,
+        // T155 §1.5c), else the one the admin's own request resolved to — the
+        // resolver's step-4 fallback, the system default — which is the honest
+        // answer for "where was this raised", not a channel this module picked.
+        salesChannelId: channelId,
+        createdByAdminUserId: ctx.adminUserId,
+        assignedAdminUserId: ctx.adminUserId,
+        status: 'Created from admin' satisfies QuoteRequestStatus,
+        headerNote: body.headerNote ?? null,
+        currentRevisionNumber: 1,
+        lastCustomerSeenRevisionNumber: 0,
+        // The customer must accept or reject the quote the admin prepared, so it
+        // surfaces the Accept/Reject controls on the storefront (the same flag the
+        // admin's later revisions set). Without this the customer had no way to
+        // act on an admin-created quote.
+        awaitingCustomerRevisionAcceptance: true,
+        expiresAt:
+          body.expiresInDays !== undefined
+            ? new Date(Date.now() + body.expiresInDays * 86_400_000)
+            : null,
+        customFieldValues,
+      });
+      await em.persistAndFlush(rfq);
 
-    // Feature 159 — the new quote's groups, written before its lines (FR-009).
-    const plan = planLineGrouping({
-      storedGroups: [],
-      body: { groups: body.groups, items: body.items },
-      pairedRows: body.items.map(() => null),
-    });
-    const groupIds = await writeLineGroups(em, rfq.id, [], plan);
-    const items: QuoteRequestItem[] = [];
-    // Issue #303 — decided here, once: the raised-on channel's currency.
-    const lineCurrency = await channelCurrency(em, rfq.salesChannelId);
-    // Feature 163 (FR-017 d, N2) — an operator's lines are named at the
-    // request channel's default language.
-    const lineNames = await this.deps.rfqService.lineNames(
-      [...productById.values()],
-      rfq.salesChannelId ?? null,
-      null,
-    );
-    for (const [index, lineInput] of body.items.entries()) {
-      const product = productById.get(lineInput.productId)!;
-      items.push(
-        em.create(QuoteRequestItem, {
-          quoteRequestId: rfq.id,
-          productId: product.id,
-          productName: lineNames.get(product.id) || product.name,
-          productSlug: product.slug,
-          variantId: lineInput.variantId ?? null,
-          quantity: lineInput.quantity,
-          agreedUnitPrice: unitPriceText(lineInput.agreedUnitPrice),
-          lineNote: lineInput.lineNote ?? null,
-          lineCurrency,
-          groupId: groupIds(plan.lines[index]!.group),
-          position: plan.lines[index]!.position,
-        }),
+      // Feature 159 — the new quote's groups, written before its lines (FR-009).
+      const plan = planLineGrouping({
+        storedGroups: [],
+        body: { groups: body.groups, items: body.items },
+        pairedRows: body.items.map(() => null),
+      });
+      const groupIds = await writeLineGroups(em, rfq.id, [], plan);
+      const items: QuoteRequestItem[] = [];
+      // Issue #303 — decided here, once: the raised-on channel's currency.
+      const lineCurrency = await channelCurrency(em, rfq.salesChannelId);
+      // Feature 163 (FR-017 d, N2) — an operator's lines are named at the
+      // request channel's default language.
+      const lineNames = await this.deps.rfqService.lineNames(
+        [...productById.values()],
+        rfq.salesChannelId ?? null,
+        null,
       );
-    }
-    this.#audit(em, 'quote_request.create_on_behalf', rfq.id, null, {
-      status: rfq.status,
-      itemCount: items.length,
-      salesChannelId: rfq.salesChannelId ?? null,
-      groups: plan.after,
-      // Feature 175 (FR-021) — the keys stored, never their values
-      // (`specs/conventions/audit-state.md`, D-288).
-      ...(Object.keys(rfq.customFieldValues ?? {}).length > 0
-        ? { changedCustomFields: Object.keys(rfq.customFieldValues ?? {}).sort() }
-        : {}),
-    });
-    await em.persistAndFlush(items);
+      for (const [index, lineInput] of body.items.entries()) {
+        const product = productById.get(lineInput.productId)!;
+        items.push(
+          em.create(QuoteRequestItem, {
+            quoteRequestId: rfq.id,
+            productId: product.id,
+            productName: lineNames.get(product.id) || product.name,
+            productSlug: product.slug,
+            variantId: lineInput.variantId ?? null,
+            quantity: lineInput.quantity,
+            agreedUnitPrice: unitPriceText(lineInput.agreedUnitPrice),
+            lineNote: lineInput.lineNote ?? null,
+            lineCurrency,
+            groupId: groupIds(plan.lines[index]!.group),
+            position: plan.lines[index]!.position,
+          }),
+        );
+      }
+      this.#audit(em, 'quote_request.create_on_behalf', rfq.id, null, {
+        status: rfq.status,
+        itemCount: items.length,
+        salesChannelId: rfq.salesChannelId ?? null,
+        groups: plan.after,
+        // Feature 175 (FR-021) — the keys stored, never their values
+        // (`specs/conventions/audit-state.md`, D-288).
+        ...(Object.keys(rfq.customFieldValues ?? {}).length > 0
+          ? { changedCustomFields: Object.keys(rfq.customFieldValues ?? {}).sort() }
+          : {}),
+      });
+      await em.persistAndFlush(items);
 
-    const revision = await this.deps.revisionService.record({
-      rfq,
-      // Feature 159 — revision 1 records the lines in display order.
-      items: (await loadArrangedQuoteLines(em, rfq.id)).lines,
-      actor: { adminUserId: ctx.adminUserId },
-    });
+      const revision = await this.deps.revisionService.record(
+        {
+          rfq,
+          // Feature 159 — revision 1 records the lines in display order.
+          items: (await loadArrangedQuoteLines(em, rfq.id)).lines,
+          actor: { adminUserId: ctx.adminUserId },
+        },
+        em,
+      );
 
-    const created = await this.deps.eventService.append({
-      quoteRequestId: rfq.id,
-      eventType: 'created',
-      actor: { adminUserId: ctx.adminUserId, roleLabel: ctx.roleLabel },
-      payload: { type: 'created' },
-      revisionId: revision.id,
-    });
+      const created = await this.deps.eventService.append(
+        {
+          quoteRequestId: rfq.id,
+          eventType: 'created',
+          actor: { adminUserId: ctx.adminUserId, roleLabel: ctx.roleLabel },
+          payload: { type: 'created' },
+          revisionId: revision.id,
+        },
+        em,
+      );
 
-    await this.deps.eventService.append({
-      quoteRequestId: rfq.id,
-      eventType: 'note-added',
-      actor: { adminUserId: ctx.adminUserId, roleLabel: ctx.roleLabel },
-      payload: { type: 'note-added', note: AUTOMATIC_ADMIN_CREATION_NOTE },
-      revisionId: revision.id,
-    });
+      await this.deps.eventService.append(
+        {
+          quoteRequestId: rfq.id,
+          eventType: 'note-added',
+          actor: { adminUserId: ctx.adminUserId, roleLabel: ctx.roleLabel },
+          payload: { type: 'note-added', note: AUTOMATIC_ADMIN_CREATION_NOTE },
+          revisionId: revision.id,
+        },
+        em,
+      );
 
-    // The `created` entry is what the buyer is told about (`contracts/notification-matrix.md`
-    // §1, `prepared`); the automatic note beside it announces nothing (rule 6).
-    await this.deps.notificationService.record(em, {
-      change: 'prepared',
-      sourceEvent: created,
-      rfq,
-      actor: null,
+      // The `created` entry is what the buyer is told about (`contracts/notification-matrix.md`
+      // §1, `prepared`); the automatic note beside it announces nothing (rule 6).
+      await this.deps.notificationService.record(em, {
+        change: 'prepared',
+        sourceEvent: created,
+        rfq,
+        actor: null,
+      });
+      return rfq;
     });
+    this.kickNotificationDelivery();
 
     // Announced last, once every row of the request is written: a subscriber
     // may read it at once. This path does **not** emit `rfq.created.v1` — that
@@ -1212,6 +1253,11 @@ export class RfqAdminService {
   // -------------------------------------------------------------------------
   // Helpers
   // -------------------------------------------------------------------------
+
+  /** After a commit that recorded deliveries, never before it. */
+  private kickNotificationDelivery(): void {
+    this.deps.notificationKick?.();
+  }
 
   private async findVisibleForAdmin(
     em: EntityManager,

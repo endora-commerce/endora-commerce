@@ -60,10 +60,17 @@ export interface RecordRevisionInput {
 export class RfqRevisionService {
   constructor(private readonly emFactory: () => EntityManager) {}
 
-  async record(input: RecordRevisionInput): Promise<QuoteRequestRevision> {
+  /**
+   * `within` is the caller's transactional EntityManager: a revision is part of
+   * the change it snapshots, and a transition that holds the request's row
+   * (`underRowLock`) writes it there (`specs/179-rfq-and-customer-notifications/`
+   * research R-6). Without it the revision is written, and committed, on an
+   * EntityManager of this service's own.
+   */
+  async record(input: RecordRevisionInput, within?: EntityManager): Promise<QuoteRequestRevision> {
     // command-coverage-ignore: immutable per-revision snapshot of the RFQ state
     // (version history), written as part of the audited parent RFQ action.
-    const em = this.emFactory();
+    const em = within ?? this.emFactory();
     // Feature 159 (research R-10) — each line records its place in the
     // arrangement the customer is shown; only groups holding a line appear.
     const groups = await em.find(QuoteRequestItemGroup, { quoteRequestId: input.rfq.id });

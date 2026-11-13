@@ -525,8 +525,16 @@ describe('quote_requests expiry sweep — which requests are due, and who wins a
       const deps = worker().deps;
       const original = deps.notificationService.record;
       let accepted: number | undefined;
+      let accepting = false;
       deps.notificationService.record = (async (...args: never[]) => {
-        if (accepted === undefined) accepted = (await accept(younger)).statusCode;
+        // The recording step is shared, and the accept records inside its own
+        // row lock (`specs/179-rfq-and-customer-notifications/` WP-04): only the
+        // sweep's call starts the accept, and only once.
+        const input = (args as unknown as [unknown, { change: string }])[1];
+        if (input.change === 'expired' && !accepting) {
+          accepting = true;
+          accepted = (await accept(younger)).statusCode;
+        }
         return original.apply(deps.notificationService, args);
       }) as never;
       try {

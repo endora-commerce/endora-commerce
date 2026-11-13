@@ -38,9 +38,20 @@ function rig(options: {
   const slept: number[] = [];
   /** What the composition's `defer` would have logged. */
   const logged: string[] = [];
-  const append = vi.fn(async () => ({ id: 'event' }));
+  const append = vi.fn(async (_input: unknown, _within?: unknown) => ({ id: 'event' }));
+  /** The EntityManager a transaction hands its callback; `transactions` counts them. */
+  const tx = { findOne: async () => quote, flush: async () => undefined };
+  let transactions = 0;
+  const em = {
+    findOne: async () => quote,
+    flush: async () => undefined,
+    transactional: async <T>(work: (inner: typeof tx) => Promise<T>): Promise<T> => {
+      transactions += 1;
+      return work(tx);
+    },
+  };
   const reactor = createOrderCompletionReactor({
-    emFactory: () => ({ findOne: async () => quote, flush: async () => undefined }) as unknown as EntityManager,
+    emFactory: () => em as unknown as EntityManager,
     orders: { findById } as unknown as OrderReadPort,
     eventService: { append } as unknown as RfqEventService,
     // As the composition's: off the chain, never rejecting, a failure logged.
@@ -53,7 +64,7 @@ function rig(options: {
       slept.push(milliseconds);
     },
   });
-  return { reactor, quote, findById, slept, logged, append };
+  return { reactor, quote, findById, slept, logged, append, tx, transactions: () => transactions };
 }
 
 describe('order completion reactor', () => {
@@ -66,6 +77,14 @@ describe('order completion reactor', () => {
     // completed request (`specs/179-rfq-and-customer-notifications/`, Q1) and
     // the reactor is not handed a notification service at all.
     expect(r.append).toHaveBeenCalledTimes(1);
+  });
+
+  it('writes the status and the history entry in one transaction (`specs/179-…` WP-04, R-6)', async () => {
+    const r = rig({ reads: [order()] });
+    await r.reactor.onOrderCreated({ orderId: ORDER_ID });
+    expect(r.transactions()).toBe(1);
+    // The entry is written on the transaction's EntityManager, not on one of its own.
+    expect(r.append.mock.calls[0]![1]).toBe(r.tx);
   });
 
   it('looks again for an order whose commit was still in flight, and completes when it appears', async () => {

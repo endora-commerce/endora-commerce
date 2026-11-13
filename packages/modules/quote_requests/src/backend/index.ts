@@ -49,6 +49,7 @@ import {
 import type { AdminContext } from './services/rfq-admin-service.js';
 import { NegotiationPolicyService } from './services/negotiation-policy-service.js';
 import { startRfqExpirySweep } from './workers/rfq-expiry-sweep-worker.js';
+import { createNotificationKickProducer } from './services/notifications/kick.js';
 import { registerQuoteRequestSalesChannelAttributions } from './services/sales-channel-attributions.js';
 import {
   effectiveState,
@@ -171,6 +172,12 @@ export interface QuoteRequestsCradle {
    * then not built.
    */
   readonly moduleQueueRedis: Redis | undefined;
+  /**
+   * The delivery queue's kick (`specs/179-rfq-and-customer-notifications/`
+   * research R-8), built on `moduleQueueRedis`: none on a composition without
+   * queues, where the kick does nothing.
+   */
+  readonly quoteRequestNotificationKick: ReturnType<typeof createNotificationKickProducer>;
   readonly quoteRequests: ReturnType<typeof quoteRequestsModule>;
   /**
    * Feature 146, US4 — the request owner's price-negotiation lock (research
@@ -356,8 +363,13 @@ export function registerModule(ctx: ModuleContext): void {
       .singleton(),
   });
   ctx.di.register({
+    quoteRequestNotificationKick: ctx
+      .asFunction(({ moduleQueueRedis }: QuoteRequestsCradle) => createNotificationKickProducer(moduleQueueRedis, ctx.log))
+      .singleton(),
+  });
+  ctx.di.register({
     quoteRequests: ctx
-      .asFunction(({ emFactory, eventBus, auditLogService, commandBus }: QuoteRequestsCradle) => {
+      .asFunction(({ emFactory, eventBus, auditLogService, commandBus, quoteRequestNotificationKick }: QuoteRequestsCradle) => {
         /**
          * This module's own settings, read through the port it already holds,
          * against the **resolved** sales channel.
@@ -443,6 +455,7 @@ export function registerModule(ctx: ModuleContext): void {
           emFactory,
           eventBus,
           log: ctx.log,
+          notificationKick: quoteRequestNotificationKick.kick,
           auditLog: auditLogService,
           customFieldValues: lazyPort<QuoteRequestsCradle['customFieldValueService']>(
             ctx,
@@ -768,6 +781,7 @@ export function registerModule(ctx: ModuleContext): void {
   ctx.routes(async (app) => {
     const cradle = ctx.cradle<QuoteRequestsCradle>();
     await cradle.quoteRequests.register(app);
+    app.addHook('onClose', () => cradle.quoteRequestNotificationKick.close());
 
     // The clock of the expiry sweep: a Job Scheduler and its consumer. Until
     // this call existed nothing ran `RfqExpiryWorker.sweep()` at all — see

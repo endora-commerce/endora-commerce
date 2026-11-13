@@ -299,9 +299,13 @@ describe('Quote Requests — negotiation loop (US3)', () => {
       expect((await footprint(id)).quantities).toEqual([9]);
     });
 
-    // T037a — the admin `modify` commits its revision and line rewrite before
-    // it appends its `modified` event. A customer edit in that window must be
-    // refused, and must never write over the admin revision.
+    // T037a — a customer edit racing an admin `modify` must be refused, and
+    // must never write over the admin revision. The modify used to commit its
+    // revision and line rewrite before it appended its `modified` event, which
+    // opened a window between the two; since
+    // `specs/179-rfq-and-customer-notifications/` WP-04 all three commit in the
+    // row lock's transaction, so the window is gone and the edit waits on the
+    // lock instead.
     describe('race with an admin modify (T037a)', () => {
       interface EventServiceLike {
         append: (input: { eventType: string; actor: { adminUserId?: string } }, ...rest: unknown[]) => Promise<unknown>;
@@ -313,8 +317,9 @@ describe('Quote Requests — negotiation loop (US3)', () => {
           }
         ).quoteRequests.handle().adminService.deps.eventService;
 
-      it('a customer edit while the admin modified event is not yet appended is refused and writes nothing', async () => {
+      it('a customer edit while the admin modify is in flight waits for it, is refused and writes nothing', async () => {
         const created = await createAs(OWNER);
+        const committedBefore = await footprint(created.id);
         const eventService = adminEventService();
         const original = eventService.append;
         let reached!: () => void;
@@ -337,22 +342,24 @@ describe('Quote Requests — negotiation loop (US3)', () => {
             payload: { items: [{ productId: SEED_PRODUCT_101_ID, quantity: 40, agreedUnitPrice: 7 }] },
           });
           await gateReached;
-          // The admin's revision and lines are committed; its event is not.
+          // The admin's lines, revision and event commit together: while the
+          // event is not yet appended, none of them is visible.
           const [adminEvents] = await sql<{ n: string }>(
             `select count(*) as n from quote_request_events
               where quote_request_id = ? and event_type = 'modified' and actor_admin_user_id is not null`,
             [created.id],
           );
           expect(Number(adminEvents!.n)).toBe(0);
-          const before = await footprint(created.id);
-          expect(before.quantities).toEqual([40]);
+          expect(await footprint(created.id)).toEqual(committedBefore);
 
-          const edit = await editAs(OWNER, created.id, 1);
-          expect(edit.statusCode, edit.body).toBe(409);
-          expect(await footprint(created.id)).toEqual(before);
-
+          // The edit passes its checks against what is committed and then
+          // waits on the row the modify holds.
+          const edit = editAs(OWNER, created.id, 1);
+          await new Promise((resolve) => setTimeout(resolve, 200));
           release();
           expect((await modify).statusCode).toBe(200);
+          const refused = await edit;
+          expect(refused.statusCode, refused.body).toBe(409);
         } finally {
           release();
           eventService.append = original;

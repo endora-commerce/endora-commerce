@@ -93,24 +93,32 @@ export function createOrderCompletionReactor(deps: OrderCompletionReactorDeps): 
     // (`rfq-expiry-worker`, `rfq-event-service`, `rfq-revision-service`,
     // `rfq-notification-service`).
     if (!order.sourceQuoteRequestId) return;
-    const em = deps.emFactory();
-    const rfq = await em.findOne(QuoteRequest, { id: order.sourceQuoteRequestId });
-    if (!rfq || rfq.status === 'Completed') return;
-    // Constitution XI. `orders` vouches for the source before it stamps it, and
-    // this is the same question asked by the module that owns the answer: an
-    // order of one Organization never completes a request of another, whoever
-    // wrote the column.
-    if (rfq.organizationId !== order.organizationId) return;
-    rfq.status = 'Completed';
-    rfq.completedAt = new Date();
-    rfq.convertedOrderId = order.id;
-    rfq.version += 1;
-    await em.flush();
-    await deps.eventService.append({
-      quoteRequestId: rfq.id,
-      eventType: 'completed',
-      actor: { roleLabel: 'System' },
-      payload: { type: 'completed', orderId: order.id },
+    const sourceQuoteRequestId = order.sourceQuoteRequestId;
+    // The status and its `completed` history entry commit together
+    // (`specs/179-rfq-and-customer-notifications/` research R-6): a completion
+    // whose entry failed is not left `Completed` without one.
+    await deps.emFactory().transactional(async (em) => {
+      const rfq = await em.findOne(QuoteRequest, { id: sourceQuoteRequestId });
+      if (!rfq || rfq.status === 'Completed') return;
+      // Constitution XI. `orders` vouches for the source before it stamps it, and
+      // this is the same question asked by the module that owns the answer: an
+      // order of one Organization never completes a request of another, whoever
+      // wrote the column.
+      if (rfq.organizationId !== order.organizationId) return;
+      rfq.status = 'Completed';
+      rfq.completedAt = new Date();
+      rfq.convertedOrderId = order.id;
+      rfq.version += 1;
+      await em.flush();
+      await deps.eventService.append(
+        {
+          quoteRequestId: rfq.id,
+          eventType: 'completed',
+          actor: { roleLabel: 'System' },
+          payload: { type: 'completed', orderId: order.id },
+        },
+        em,
+      );
     });
   };
 

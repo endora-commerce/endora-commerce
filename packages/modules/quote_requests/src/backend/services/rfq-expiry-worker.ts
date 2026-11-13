@@ -7,6 +7,7 @@ import type { RfqEventBus } from './rfq-service.js';
 import type { RfqEventService } from './rfq-event-service.js';
 import type { RfqNotificationService } from './rfq-notification-service.js';
 import { anyRowExists, type WorkRows } from './scheduled-work-probe.js';
+import type { NotificationKick } from './notifications/kick.js';
 
 /**
  * RfqExpiryWorker — the sweep that moves Pending and Created from admin Quote
@@ -159,6 +160,8 @@ export interface RfqExpiryWorkerDeps {
   events: RfqEventBus;
   eventService: RfqEventService;
   notificationService: RfqNotificationService;
+  /** Wakes the delivery worker once a pass has committed records (`specs/179-…` research R-8). Never throws. */
+  notificationKick?: NotificationKick;
   /** Resolves `quote_requests.expiry_days` for every sales channel — {@link RfqExpiryRule}. */
   resolveExpiryRule: () => Promise<RfqExpiryRule>;
   /** At most this many requests per pass. Defaults to {@link RFQ_EXPIRY_BATCH_SIZE}. */
@@ -333,6 +336,10 @@ export class RfqExpiryWorker {
         (this.deps.onRequestFailed ?? reportFailure)(id, error);
       }
     }
+    // Once per pass, after the commits: each notified request committed its
+    // records in its own transaction above, and one kick wakes the worker for
+    // all of them.
+    if (expiredCount > notificationsSuppressedCount) this.deps.notificationKick?.();
     return {
       expiredCount,
       failedCount,
