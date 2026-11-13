@@ -1,8 +1,10 @@
 import type { EntityManager } from '@mikro-orm/postgresql';
 import type { Redis } from 'ioredis';
 import {
+  ASSET_CHANGED_EVENT,
   CMS_CONTENT_CHANGED_EVENT,
   MEGAMENU_STOREFRONT_CACHE_TAG,
+  type AssetChangedEvent,
   type CmsContentChange,
 } from '@endora-commerce/contracts';
 import type {
@@ -254,6 +256,25 @@ export function registerModule(ctx: ModuleContext): void {
   ctx.subscribe(CMS_CONTENT_CHANGED_EVENT, async (payload) => {
     const change = payload as EventBase & CmsContentChange;
     if (change.kind !== 'block' && change.kind !== 'page') return;
+    await ctx.cradle<MegamenuCradle>().megamenuServices.invalidator.invalidateAll();
+  });
+
+  /**
+   * Issue #1089 — a menu payload also inlines assets: an `asset` item's URL and
+   * label, and every item's icon URL, each URL carrying `?v=<contentVersion>`.
+   * `assets_library` announces `assets_library.asset_changed.v1` after a
+   * committed write that changes how an asset renders (a replace, a permalink,
+   * a soft delete, an alt-text edit, …), the event `cms` follows for the same
+   * reason (issue #363).
+   *
+   * Nothing records which menu embeds which asset, so any announced asset drops
+   * every menu, as a block change does. An event and not a call: this module
+   * holds nothing of `assets_library` for it, so an absent library announces
+   * nothing, and `ctx.subscribe` stops the handler with this module.
+   */
+  ctx.subscribe(ASSET_CHANGED_EVENT, async (payload) => {
+    const event = payload as EventBase & AssetChangedEvent;
+    if (event.assetIds.length === 0) return;
     await ctx.cradle<MegamenuCradle>().megamenuServices.invalidator.invalidateAll();
   });
 

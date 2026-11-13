@@ -1,5 +1,6 @@
 import { afterEach, describe, expect, it, vi } from 'vitest';
 import {
+  ASSET_CHANGED_EVENT,
   CMS_CONTENT_CHANGED_EVENT,
   MEGAMENU_STOREFRONT_CACHE_TAG,
   type CmsContentChange,
@@ -31,6 +32,7 @@ const MODULE_ID = 'megamenu';
 
 function build(): {
   emit: (change: CmsContentChange) => void;
+  emitAssets: (assetIds: readonly string[]) => void;
   log: string[];
 } {
   process.env['STOREFRONT_BASE_URL'] = 'http://storefront:3010';
@@ -84,6 +86,12 @@ function build(): {
         eventId: 'e-1',
         occurredAt: new Date().toISOString(),
         ...change,
+      } as never),
+    emitAssets: (assetIds) =>
+      bus.emit(ASSET_CHANGED_EVENT, {
+        eventId: 'e-2',
+        occurredAt: new Date().toISOString(),
+        assetIds,
       } as never),
     log,
   };
@@ -141,6 +149,50 @@ describe('megamenu follows CMS content changes', () => {
     const { emit, log } = build();
 
     emit({ kind: 'block', codes: ['hero'] });
+    await settle();
+
+    expect(log).toEqual([]);
+  });
+});
+
+/**
+ * Issue #1089 — a menu payload also inlines assets: an `asset` item's URL and
+ * label, and every item's icon URL. `assets_library` announces
+ * `assets_library.asset_changed.v1` after a write that changes how an asset
+ * renders, and this module answers it the way it answers a CMS block change.
+ * Kept in this file, which is already this module's composition-in-isolation
+ * test, rather than a second one.
+ */
+describe('megamenu follows asset changes', () => {
+  it('drops its Redis entries, then revalidates its tag, when an embedded asset changes', async () => {
+    registryCache.__setEnabledForTesting([MODULE_ID]);
+    const { emitAssets, log } = build();
+
+    emitAssets(['asset-1']);
+    await settle();
+
+    expect(log).toEqual([
+      'scan:megamenu:v2:*',
+      'del:megamenu:v2:default:en-US',
+      `post:${MEGAMENU_STOREFRONT_CACHE_TAG}`,
+    ]);
+  });
+
+  it('ignores an announcement that names no asset', async () => {
+    registryCache.__setEnabledForTesting([MODULE_ID]);
+    const { emitAssets, log } = build();
+
+    emitAssets([]);
+    await settle();
+
+    expect(log).toEqual([]);
+  });
+
+  it('does nothing while the module is off', async () => {
+    registryCache.__setEnabledForTesting([]);
+    const { emitAssets, log } = build();
+
+    emitAssets(['asset-1']);
     await settle();
 
     expect(log).toEqual([]);
