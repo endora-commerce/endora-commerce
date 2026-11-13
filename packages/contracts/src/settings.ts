@@ -326,6 +326,28 @@ export type SettingGroupDto = z.infer<typeof SettingGroupDtoSchema>;
 export const SettingsListResponseSchema = z.object({
   groups: z.array(SettingGroupDtoSchema),
 });
+export type SettingsListResponse = z.infer<typeof SettingsListResponseSchema>;
+
+/**
+ * A setting group without its settings — the reply to `POST
+ * /api/v1/admin/settings/groups` and `PATCH /api/v1/admin/settings/groups/:code`
+ * (issue #599).
+ */
+export const SettingGroupSummaryDtoSchema = SettingGroupDtoSchema.omit({ settings: true });
+export type SettingGroupSummaryDto = z.infer<typeof SettingGroupSummaryDtoSchema>;
+
+/** One row of `GET /api/v1/admin/settings/groups`: the group, how many settings it holds, and when it last changed. */
+export const SettingGroupRowDtoSchema = SettingGroupSummaryDtoSchema.extend({
+  settingCount: z.number().int().nonnegative(),
+  updatedAt: z.iso.datetime(),
+});
+export type SettingGroupRowDto = z.infer<typeof SettingGroupRowDtoSchema>;
+
+/** `GET /api/v1/admin/settings/groups` — every group, without its settings (issue #599). */
+export const SettingGroupRowsResponseSchema = z.object({
+  groups: z.array(SettingGroupRowDtoSchema),
+});
+export type SettingGroupRowsResponse = z.infer<typeof SettingGroupRowsResponseSchema>;
 
 export const SettingsListQuerySchema = z.object({
   groupCode: z.string().optional(),
@@ -365,6 +387,7 @@ export const GroupUpdateRequestSchema = z.object({
 });
 
 export const SettingDetailResponseSchema = SettingDtoSchema;
+export type SettingDetailResponse = z.infer<typeof SettingDetailResponseSchema>;
 
 // ---------------------------------------------------------------------------
 // (4) Storefront shop-information surface

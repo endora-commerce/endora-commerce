@@ -6,8 +6,13 @@ import {
   ResetValueQuerySchema,
   SetValueRequestSchema,
   SettingsListQuerySchema,
+  type SettingDto,
+  type SettingGroupDto,
+  type SettingGroupRowsResponse,
+  type SettingGroupSummaryDto,
   type SettingNotice,
   type SettingNoticeInput,
+  type SettingsListResponse,
   type SettingWriteConfirmation,
 } from '@endora-commerce/contracts';
 import type { SettingsAdminService, AdminAuditContext } from './services/settings-admin.service.js';
@@ -123,7 +128,7 @@ export async function registerSettingsAdminRoutes(
     setting: Setting,
     values: SettingValue[],
     classification: SettingClassification = { editable: true, activationControl: false },
-  ): Record<string, unknown> {
+  ): SettingDto {
     // Secret settings are write-only (feature 043, FR-021): every read
     // replaces stored values with null + isSet indicators. The plaintext (or
     // its ciphertext envelope) never leaves the backend through this API.
@@ -165,7 +170,7 @@ export async function registerSettingsAdminRoutes(
       editable: boolean;
       activationControl: boolean;
     }>,
-  ): Promise<Record<string, unknown>> {
+  ): Promise<SettingGroupDto> {
     const commentary = await Promise.all(settings.map((s) => commentaryOf(s.setting)));
     return {
       id: group.id,
@@ -191,7 +196,7 @@ export async function registerSettingsAdminRoutes(
   app.get(
     '/api/v1/admin/settings',
     { preHandler: requireAdmin('settings:read') },
-    async (request) => {
+    async (request): Promise<SettingsListResponse> => {
       const q = SettingsListQuerySchema.parse(request.query ?? {});
       const filter = q.groupCode ? { groupCode: q.groupCode } : undefined;
       const result = await adminService.listGroups(filter);
@@ -204,7 +209,7 @@ export async function registerSettingsAdminRoutes(
   app.get<{ Params: { code: string } }>(
     '/api/v1/admin/settings/:code',
     { preHandler: requireAdmin('settings:read') },
-    async (request, reply) => {
+    async (request, reply): Promise<SettingDto> => {
       const { setting, values, version, editable, activationControl } =
         await adminService.getSettingByCode(request.params.code);
       setEtag(reply, version);
@@ -223,7 +228,7 @@ export async function registerSettingsAdminRoutes(
   app.put<{ Params: { code: string } }>(
     '/api/v1/admin/settings/:code/value',
     { preHandler: requireAdmin('settings:write') },
-    async (request, reply) => {
+    async (request, reply): Promise<SettingDto> => {
       const body = SetValueRequestSchema.parse(request.body);
       const expectedVersion =
         ((request.body ?? {}) as SetValueWithVersion).expectedVersion ??
@@ -260,7 +265,7 @@ export async function registerSettingsAdminRoutes(
   app.delete<{ Params: { code: string } }>(
     '/api/v1/admin/settings/:code/values',
     { preHandler: requireAdmin('settings:write') },
-    async (request, reply) => {
+    async (request, reply): Promise<SettingDto> => {
       const q = ResetValueQuerySchema.parse(request.query ?? {});
       const channelCodes = q.salesChannelCodes
         ? q.salesChannelCodes.split(',').map((c) => c.trim()).filter(Boolean)
@@ -288,7 +293,7 @@ export async function registerSettingsAdminRoutes(
   app.get(
     '/api/v1/admin/settings/groups',
     { preHandler: requireAdmin('settings:read') },
-    async () => {
+    async (): Promise<SettingGroupRowsResponse> => {
       const result = await adminService.listGroups();
       return {
         groups: result.groups.map((g) => ({
@@ -308,7 +313,7 @@ export async function registerSettingsAdminRoutes(
   app.post(
     '/api/v1/admin/settings/groups',
     { preHandler: requireAdmin('settings:write') },
-    async (request, reply) => {
+    async (request, reply): Promise<SettingGroupSummaryDto> => {
       const body = GroupCreateRequestSchema.parse(request.body);
       const ctx = auditContext(request);
       const created = await adminService.createGroup(
@@ -337,7 +342,7 @@ export async function registerSettingsAdminRoutes(
   app.patch<{ Params: { code: string } }>(
     '/api/v1/admin/settings/groups/:code',
     { preHandler: requireAdmin('settings:write') },
-    async (request, reply) => {
+    async (request, reply): Promise<SettingGroupSummaryDto> => {
       const body = GroupUpdateRequestSchema.parse(request.body);
       const expectedVersion =
         ((request.body ?? {}) as { expectedVersion?: string }).expectedVersion ??

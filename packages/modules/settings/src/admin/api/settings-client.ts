@@ -5,7 +5,9 @@ import type {
   SearchReindexResponse,
   SetValueRequest,
   SettingDto,
-  SettingGroupDto,
+  SettingGroupRowsResponse,
+  SettingGroupSummaryDto,
+  SettingsListResponse,
 } from '@endora-commerce/contracts';
 import { apiClient } from '@endora-commerce/admin-kit/lib';
 /**
@@ -13,29 +15,10 @@ import { apiClient } from '@endora-commerce/admin-kit/lib';
  * Source-of-truth schemas live in `@endora-commerce/contracts`.
  */
 
-export interface ListGroupsResponse {
-  groups: SettingGroupDto[];
-}
-
-export interface GroupRow {
-  id: string;
-  code: string;
-  name: string;
-  isSystemProtected: boolean;
-  ownerModule: string;
-  salesChannelCodes: string[];
-  settingCount: number;
-  updatedAt: string;
-}
-
-export interface ListGroupsOnlyResponse {
-  groups: GroupRow[];
-}
-
 export const settingsClient = {
-  list(filter?: { groupCode?: string }): Promise<ListGroupsResponse> {
+  list(filter?: { groupCode?: string }): Promise<SettingsListResponse> {
     const qs = filter?.groupCode ? `?groupCode=${encodeURIComponent(filter.groupCode)}` : '';
-    return apiClient.get<ListGroupsResponse>(`/api/v1/admin/settings${qs}`);
+    return apiClient.get<SettingsListResponse>(`/api/v1/admin/settings${qs}`);
   },
 
   getByCode(code: string): Promise<SettingDto> {
@@ -58,23 +41,23 @@ export const settingsClient = {
     );
   },
 
-  listGroupsOnly(): Promise<ListGroupsOnlyResponse> {
-    return apiClient.get<ListGroupsOnlyResponse>('/api/v1/admin/settings/groups');
+  listGroupsOnly(): Promise<SettingGroupRowsResponse> {
+    return apiClient.get<SettingGroupRowsResponse>('/api/v1/admin/settings/groups');
   },
 
   createGroup(input: {
     code: string;
     name: string;
     salesChannelCodes?: string[];
-  }): Promise<GroupRow> {
-    return apiClient.post<GroupRow>('/api/v1/admin/settings/groups', input);
+  }): Promise<SettingGroupSummaryDto> {
+    return apiClient.post<SettingGroupSummaryDto>('/api/v1/admin/settings/groups', input);
   },
 
   updateGroup(
     code: string,
     patch: { name?: string; salesChannelCodes?: string[]; expectedVersion?: string },
-  ): Promise<GroupRow> {
-    return apiClient.patch<GroupRow>(
+  ): Promise<SettingGroupSummaryDto> {
+    return apiClient.patch<SettingGroupSummaryDto>(
       `/api/v1/admin/settings/groups/${encodeURIComponent(code)}`,
       patch,
     );

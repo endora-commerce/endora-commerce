@@ -9,7 +9,8 @@ import {
 import { ModalDialog, useConfirmDialog } from '@endora-commerce/admin-kit/components';
 import { ApiError } from '@endora-commerce/admin-kit/lib';
 import { Alert, AlertDescription, Button, Card, CardContent, CardHeader, CardTitle, Input, Label, PageHeader, Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from '@endora-commerce/admin-kit/ui';
-import { settingsClient, type GroupRow } from '../api/settings-client.js';
+import type { SettingGroupRowDto } from '@endora-commerce/contracts';
+import { settingsClient } from '../api/settings-client.js';
 import { useTranslation } from '@endora-commerce/admin-kit/i18n';
 /**
  * Settings groups page — feature 004 / US2.
@@ -23,8 +24,8 @@ export function GroupsPage(): ReactNode {
   const t = useTranslation('settings');
   const { confirm, confirmDialog } = useConfirmDialog();
   // Issue #313 — the group being renamed, in a dialog rather than `prompt()`.
-  const [renaming, setRenaming] = useState<GroupRow | null>(null);
-  const [rows, setRows] = useState<GroupRow[]>([]);
+  const [renaming, setRenaming] = useState<SettingGroupRowDto | null>(null);
+  const [rows, setRows] = useState<SettingGroupRowDto[]>([]);
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState<string | null>(null);
   const [draftCode, setDraftCode] = useState('');
@@ -190,7 +191,7 @@ export function GroupsPage(): ReactNode {
  * kept.
  */
 function RenameGroupDialog(props: {
-  group: GroupRow;
+  group: SettingGroupRowDto;
   onClose: () => void;
   onRename: (name: string) => Promise<void>;
 }): ReactNode {

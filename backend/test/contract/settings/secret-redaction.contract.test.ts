@@ -1,6 +1,11 @@
 import { randomBytes } from 'crypto';
 import { afterAll, beforeAll, describe, expect, it } from 'vitest';
-import { defineModuleSettingsManifest, ERROR_CODES } from '@endora-commerce/contracts';
+import {
+  defineModuleSettingsManifest,
+  ERROR_CODES,
+  SettingDtoSchema,
+  SettingsListResponseSchema,
+} from '@endora-commerce/contracts';
 import {
   setupBackendServer,
   teardownBackendServer,
@@ -13,6 +18,7 @@ import { SettingValue } from '@endora-commerce/platform/kernel';
 import { AuditLogEntry } from '@endora-commerce/platform/kernel';
 import { isSecretEnvelope } from '../../../src/kernel/settings/secret-value-codec.js';
 import { z } from 'zod';
+import { deepStrict, disagreements } from '../../helpers/strict-schema.js';
 
 /**
  * T005 — contract tests for the Settings `secret` value type (feature 043,
@@ -92,6 +98,8 @@ describe('settings secret redaction (T005)', () => {
       cookies: adminCookie,
     });
     expect(r.statusCode).toBe(200);
+    // Issue #599 §6 — the redacted reply, `globalValueIsSet` included, is the published shape.
+    expect(disagreements(deepStrict(SettingDtoSchema), r.json())).toEqual([]);
     const dto = r.json() as Record<string, unknown>;
     expect(dto['valueType']).toBe('secret');
     expect(dto['defaultValue']).toBeNull();
@@ -107,6 +115,7 @@ describe('settings secret redaction (T005)', () => {
       payload: { scope: 'all', value: 'sk-live-supersecret-123' },
     });
     expect(put.statusCode).toBe(200);
+    expect(disagreements(deepStrict(SettingDtoSchema), put.json())).toEqual([]);
     const putDto = put.json() as Record<string, unknown>;
     expect(putDto['globalValue']).toBeNull();
     expect(putDto['globalValueIsSet']).toBe(true);
@@ -136,6 +145,8 @@ describe('settings secret redaction (T005)', () => {
       cookies: adminCookie,
     });
     expect(JSON.stringify(list.json())).not.toContain('sk-live-supersecret-123');
+    // A secret row's `isSet` per channel and `globalValueIsSet` are declared too.
+    expect(disagreements(deepStrict(SettingsListResponseSchema), list.json())).toEqual([]);
   });
 
   it('audit rows never carry the secret plaintext', async () => {

@@ -2,6 +2,7 @@ import { afterAll, beforeAll, describe, expect, it } from 'vitest';
 import {
   defineModuleSettingsManifest,
   ERROR_CODES,
+  SettingDetailResponseSchema,
   SettingDtoSchema,
   SettingsListResponseSchema,
 } from '@endora-commerce/contracts';
@@ -10,6 +11,7 @@ import {
   teardownBackendServer,
   type BackendServerHandle,
 } from '../../helpers/test-server.js';
+import { deepStrict, disagreements } from '../../helpers/strict-schema.js';
 import { ManifestReconciler } from '../../../src/kernel/settings/manifest-reconciler.js';
 import { Setting } from '@endora-commerce/platform/kernel';
 
@@ -92,6 +94,8 @@ describe('admin settings list/detail (T029)', () => {
       cookies: adminCookie,
     });
     expect(r.statusCode).toBe(200);
+    // Issue #599 §6 — every group and setting the platform registers is the published shape.
+    expect(disagreements(deepStrict(SettingsListResponseSchema), r.json())).toEqual([]);
     const body = r.json() as { groups: Array<{ code: string; settings: Array<{ code: string }> }> };
     const group = body.groups.find((g) => g.code === 'us2_list_group');
     expect(group).toBeTruthy();
@@ -142,6 +146,7 @@ describe('admin settings list/detail (T029)', () => {
     });
     expect(r.statusCode).toBe(200);
     expect(r.headers.etag).toBeTruthy();
+    expect(disagreements(deepStrict(SettingDetailResponseSchema), r.json())).toEqual([]);
     const body = r.json() as { code: string; valueType: string; defaultValue: unknown };
     expect(body.code).toBe('us2_list.title');
     expect(body.valueType).toBe('string');
@@ -194,6 +199,7 @@ describe('admin settings list/detail (T029)', () => {
       payload: { scope: 'all', value: text },
     });
     expect(put.statusCode).toBe(200);
+    expect(disagreements(deepStrict(SettingDtoSchema), put.json())).toEqual([]);
     const body = SettingDtoSchema.parse(put.json());
     expect(body.globalValue).toBe(text);
     expect(body.multiline).toBe(true);
