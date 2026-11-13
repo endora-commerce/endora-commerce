@@ -224,6 +224,15 @@ export const customFieldDefinitionSchema = z.object({
 });
 export type CustomFieldDefinitionDto = z.infer<typeof customFieldDefinitionSchema>;
 
+/**
+ * `GET /api/v1/admin/custom-fields/definitions` — the definitions, optionally of
+ * one entity type, whose type's owner module is present (issue #599).
+ */
+export const customFieldDefinitionListResponseSchema = z.object({
+  data: z.array(customFieldDefinitionSchema),
+});
+export type CustomFieldDefinitionListResponse = z.infer<typeof customFieldDefinitionListResponseSchema>;
+
 /** Create a definition. `entityType` + `key` are immutable after create. */
 export const createCustomFieldDefinitionSchema = customFieldDefinitionSchema
   .omit({ id: true, createdAt: true, updatedAt: true })
@@ -294,6 +303,12 @@ export const customFieldEntityTypeInfoSchema = z.object({
   customerInputSurfaces: z.array(customFieldInputSurfaceSchema).default([]),
 });
 export type CustomFieldEntityTypeInfo = z.infer<typeof customFieldEntityTypeInfoSchema>;
+
+/** `GET /api/v1/admin/custom-fields/entity-types` — the served entity types (issue #599). */
+export const customFieldEntityTypeListResponseSchema = z.object({
+  data: z.array(customFieldEntityTypeInfoSchema),
+});
+export type CustomFieldEntityTypeListResponse = z.infer<typeof customFieldEntityTypeListResponseSchema>;
 
 /** A validated value bag keyed by definition `key`. Values are typed by their definition's `valueType`. */
 export const customFieldValuesSchema = z.record(z.string(), z.unknown());

@@ -6,7 +6,10 @@ import {
   supportedEntityTypeSchema,
   updateCustomFieldDefinitionSchema,
   updateCustomFieldOptionSchema,
+  type CustomFieldDefinitionDto,
+  type CustomFieldDefinitionListResponse,
   type CustomFieldEntityTypeInfo,
+  type CustomFieldEntityTypeListResponse,
   type SupportedEntityType,
 } from '@endora-commerce/contracts';
 import { HttpError } from '@endora-commerce/platform/http';
@@ -119,7 +122,8 @@ function assertOwnerPresent(entityType: string): void {
   }
 }
 
-function serialize({ definition, options }: CachedDefinition): Record<string, unknown> {
+/** The published `customFieldDefinitionSchema` (issue #599). */
+function serialize({ definition, options }: CachedDefinition): CustomFieldDefinitionDto {
   return {
     id: definition.id,
     entityType: definition.entityType,
@@ -176,7 +180,7 @@ export async function registerCustomFieldsAdminRoutes(
   app.get(
     '/api/v1/admin/custom-fields/entity-types',
     { preHandler: requireAdmin('custom_fields:read') },
-    async () => {
+    async (): Promise<CustomFieldEntityTypeListResponse> => {
       const data: CustomFieldEntityTypeInfo[] = (
         Object.entries(SUPPORTED_ENTITIES) as Array<[SupportedEntityType, SupportedEntityMeta]>
       )
@@ -208,7 +212,7 @@ export async function registerCustomFieldsAdminRoutes(
   app.get<{ Querystring: { entityType?: string } }>(
     '/api/v1/admin/custom-fields/definitions',
     { preHandler: requireAdmin('custom_fields:read') },
-    async (request) => {
+    async (request): Promise<CustomFieldDefinitionListResponse> => {
       const raw = request.query.entityType;
       const entityType = raw ? supportedEntityTypeSchema.parse(raw) : undefined;
       const defs = await definitionService.listAll(entityType);
@@ -219,7 +223,7 @@ export async function registerCustomFieldsAdminRoutes(
   app.get<{ Params: { id: string } }>(
     '/api/v1/admin/custom-fields/definitions/:id',
     { preHandler: requireAdmin('custom_fields:read') },
-    async (request) => {
+    async (request): Promise<{ data: CustomFieldDefinitionDto }> => {
       const def = await definitionService.getById(request.params.id);
       // The same 404 for a definition whose type's owner module is off.
       if (!def || !isDefinitionServed(def)) {
@@ -232,7 +236,7 @@ export async function registerCustomFieldsAdminRoutes(
   app.post(
     '/api/v1/admin/custom-fields/definitions',
     { preHandler: requireAdmin('custom_fields:write'), schema: { body: createCustomFieldDefinitionSchema } },
-    async (request, reply) => {
+    async (request, reply): Promise<{ data: CustomFieldDefinitionDto }> => {
       const body = createCustomFieldDefinitionSchema.parse(request.body);
       assertNotHostManaged(body.entityType);
       assertOwnerPresent(body.entityType);
@@ -250,7 +254,7 @@ export async function registerCustomFieldsAdminRoutes(
   app.patch<{ Params: { id: string } }>(
     '/api/v1/admin/custom-fields/definitions/:id',
     { preHandler: requireAdmin('custom_fields:write'), schema: { body: updateCustomFieldDefinitionSchema } },
-    async (request) => {
+    async (request): Promise<{ data: CustomFieldDefinitionDto }> => {
       const body = updateCustomFieldDefinitionSchema.parse(request.body);
       await assertDefinitionNotHostManaged(request.params.id);
       try {

@@ -1,12 +1,18 @@
 import { afterAll, beforeAll, describe, expect, it } from 'vitest';
 
-import { customFieldDefinitionSchema, type CustomFieldDefinitionDto } from '@endora-commerce/contracts';
+import {
+  customFieldDefinitionListResponseSchema,
+  customFieldDefinitionSchema,
+  customFieldEntityTypeListResponseSchema,
+  type CustomFieldDefinitionDto,
+} from '@endora-commerce/contracts';
 
 import {
   setupBackendServer,
   teardownBackendServer,
   type BackendServerHandle,
 } from '../../helpers/test-server.js';
+import { deepStrict, disagreements } from '../../helpers/strict-schema.js';
 
 /**
  * Issue #447 — the admin's create form sends a whole definition in **one**
@@ -98,5 +104,54 @@ describe('Custom Fields — creating a definition with full options [contract]',
     const read = await h.app.inject({ method: 'GET', url: `/api/v1/admin/custom-fields/definitions/${id}`, ...ADMIN });
     const definition = customFieldDefinitionSchema.parse(read.json().data);
     expect(definition.options.map((option) => option.isDefault)).toEqual([true, true]);
+  });
+
+  it('answers every definition reply, and the entity types, in the published shape and nothing beside it', async () => {
+    // Issue #599 §6 — strict copies: a key a reply carries that the contract does not declare fails.
+    const strictDefinition = deepStrict(customFieldDefinitionSchema);
+    const created = await h.app.inject({
+      method: 'POST',
+      url: '/api/v1/admin/custom-fields/definitions',
+      ...ADMIN,
+      payload: {
+        entityType: 'order',
+        key: 'cf599_strict',
+        label: { en: 'Strict' },
+        labelDefault: 'Strict',
+        valueType: 'select',
+        required: false,
+        audience: 'customer',
+        sortOrder: 2,
+        config: {},
+        carryTo: [],
+        options: [OPTIONS[0]],
+      },
+    });
+    expect(created.statusCode, created.body).toBe(201);
+    expect(disagreements(strictDefinition, created.json().data)).toEqual([]);
+    const id = (created.json().data as { id: string }).id;
+
+    const read = await h.app.inject({ method: 'GET', url: `/api/v1/admin/custom-fields/definitions/${id}`, ...ADMIN });
+    expect(read.statusCode, read.body).toBe(200);
+    expect(disagreements(strictDefinition, read.json().data)).toEqual([]);
+
+    const patched = await h.app.inject({
+      method: 'PATCH',
+      url: `/api/v1/admin/custom-fields/definitions/${id}`,
+      ...ADMIN,
+      payload: { labelDefault: 'Strict, renamed' },
+    });
+    expect(patched.statusCode, patched.body).toBe(200);
+    expect(disagreements(strictDefinition, patched.json().data)).toEqual([]);
+
+    const list = await h.app.inject({ method: 'GET', url: '/api/v1/admin/custom-fields/definitions?entityType=order', ...ADMIN });
+    expect(list.statusCode, list.body).toBe(200);
+    expect((list.json().data as Array<{ id: string }>).map((d) => d.id)).toContain(id);
+    expect(disagreements(deepStrict(customFieldDefinitionListResponseSchema), list.json())).toEqual([]);
+
+    const types = await h.app.inject({ method: 'GET', url: '/api/v1/admin/custom-fields/entity-types', ...ADMIN });
+    expect(types.statusCode, types.body).toBe(200);
+    expect((types.json().data as unknown[]).length).toBeGreaterThan(0);
+    expect(disagreements(deepStrict(customFieldEntityTypeListResponseSchema), types.json())).toEqual([]);
   });
 });
