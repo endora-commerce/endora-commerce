@@ -4936,6 +4936,39 @@ read by everybody holding `audit_log:read` whatever Organizations they may see.
 the audit log reads them from the Organization (`GET /api/v1/admin/organizations/:id`), its members
 and its roles instead.
 
+### The admin panel's address is a platform input {#admin-base-url-platform-input}
+
+The release that ships this change makes `ADMIN_BASE_URL` — the admin panel's address — an input
+of the platform instead of the `mfa` module's (issue #185), so every module that e-mails an
+administrator can link into the panel from it, not only `mfa`.
+
+**Behaviour change on upgrade:**
+
+- An instance's `.env.example` lists `ADMIN_BASE_URL` whether or not `mfa` is installed, and
+  `endora install` writes the admin's address into it in the same cases it already did for
+  `mfa`.
+- The value must be an absolute `http` or `https` address with a host, path included when the
+  panel has one (`https://shop.example.com/admin`), with no query and no fragment. A value that is
+  set and is not (`admin.example.com`, `/admin`) **refuses the boot** in every environment: the
+  backend exits with `ADMIN_BASE_URL="…" is not an absolute http(s) URL with a host, and no query or
+  fragment`. Until now `mfa` used such a value as it was and built a sign-in redirect that opened
+  nothing.
+- Unset, `mfa`'s sign-in redirect to the panel falls back to `http://localhost:3002` only outside
+  production. In production it carries no absolute address — a path on the host that served the
+  sign-in callback — and never `localhost`.
+- A well-formed value works as before. A trailing slash is ignored.
+
+**After upgrading:**
+
+1. If the backend refuses to boot naming `ADMIN_BASE_URL`, set it to the panel's full address,
+   for example `https://admin.example.com`, or remove it, and restart.
+2. If the instance has no `mfa` and never set `ADMIN_BASE_URL`, set it now so that e-mails to
+   administrators can link into the panel; unset, they carry no link.
+3. A module of your own that read `process.env['ADMIN_BASE_URL']` reads
+   `configuredAdminBaseUrl()` from `@endora-commerce/platform/kernel` instead. It returns the
+   address without a trailing slash, or `null` when it is unset — omit the link then. A module of your own that declared `ADMIN_BASE_URL` in its manifest's `env` removes the
+   declaration: the platform owns it, and `check:env-inputs` reports a module declaring it.
+
 ## An instance that is mixed from the start
 
 The installer of `0.101.x` or earlier wrote every package of the release with a `^` except

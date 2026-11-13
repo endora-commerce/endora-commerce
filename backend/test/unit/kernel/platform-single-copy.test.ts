@@ -412,6 +412,9 @@ describe('the platform is one copy (feature 080, the relocation)', () => {
     // new names are types and carry no identity.
     // **81 -> 82 is the same event, on `./commands`:** the command outbox
     // (`specs/176-command-hooks-outbox/` P3) published `PermanentOutboxFailure`.
+    // **82 -> 83 is the same event, on `./kernel`:** issue #185 published
+    // `configuredAdminBaseUrl`, the one reader of the platform-owned
+    // `ADMIN_BASE_URL`.
     //
     // It is summed over the **five published** subpaths and not over every
     // comparison, which is what preserves that provenance: no host-internal
@@ -422,7 +425,7 @@ describe('the platform is one copy (feature 080, the relocation)', () => {
     const total = comparisons
       .filter((entry) => published.has(entry.subpath))
       .reduce((sum, entry) => sum + entry.shared.length, 0);
-    expect(total).toBe(82);
+    expect(total).toBe(83);
   });
 
   /**

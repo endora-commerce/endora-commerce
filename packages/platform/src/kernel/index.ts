@@ -78,6 +78,14 @@ export {
   resolvePublicApiBaseUrl,
 } from './public-api-base-url.js';
 
+/**
+ * The Admin UI's base address (issue #185): `null` when unset or malformed, so
+ * a module that mails an administrator omits the link rather than breaking it.
+ * The boot-time refusal of a malformed value, `assertAdminBaseUrlWellFormed`,
+ * is the host's and is not published.
+ */
+export { configuredAdminBaseUrl } from './admin-base-url.js';
+
 export { effectiveState, toModulePresenceDto } from './lifecycle/effective-state.js';
 // Feature 132 — the derived capability families. A module reads them through
 // `effectiveState`; these are the shapes those reads answer in.
