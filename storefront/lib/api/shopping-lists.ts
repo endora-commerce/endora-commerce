@@ -1,3 +1,9 @@
+import type {
+  ConvertToCartResponse,
+  ConvertToRfqResponse,
+  DefaultShoppingListSummary,
+  ShoppingList,
+} from '@endora-commerce/contracts';
 import { apiGetAuthed, apiMutate } from './mutations';
 
 /**
@@ -5,54 +11,18 @@ import { apiGetAuthed, apiMutate } from './mutations';
  * customer session.
  */
 
-export interface ShoppingListItem {
-  id: string;
-  shoppingListId: string;
-  productId: string;
-  variantId: string | null;
-  quantity: number;
-  note: string | null;
-  createdAt: string;
-  updatedAt: string;
-}
-
-export interface ShoppingList {
-  id: string;
-  organizationId: string;
-  customerAccountId: string;
-  name: string;
-  isDefault: boolean;
-  items: ShoppingListItem[];
-  createdAt: string;
-  updatedAt: string;
-}
-
-export interface DefaultShoppingListSummary {
-  id: string;
-  name: string;
-  itemCount: number;
-}
-
-export interface ConversionSkip {
-  itemId: string;
-  productId: string;
-  reason: 'product_archived' | 'variant_unavailable' | 'product_not_found' | 'below_minimum';
-  /** Feature 155 — on `below_minimum`: the minimum the line missed. */
-  minimum?: number;
-}
-
-export interface ConvertToCartResult {
-  shoppingListId: string;
-  added: number;
-  skipped: ConversionSkip[];
-}
-
-export interface ConvertToRfqResult {
-  shoppingListId: string;
-  rfqId: string;
-  added: number;
-  skipped: ConversionSkip[];
-}
+/**
+ * The reply shapes are the published contracts (issue #599). The two
+ * conversion results keep their storefront names as aliases.
+ */
+export type {
+  ConversionSkip,
+  DefaultShoppingListSummary,
+  ShoppingList,
+  ShoppingListItem,
+} from '@endora-commerce/contracts';
+export type ConvertToCartResult = ConvertToCartResponse;
+export type ConvertToRfqResult = ConvertToRfqResponse;
 
 export async function listShoppingLists(sessionCookie: string): Promise<ShoppingList[]> {
   return apiGetAuthed<ShoppingList[]>({

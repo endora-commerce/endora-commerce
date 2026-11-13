@@ -1,10 +1,16 @@
 import { afterAll, beforeAll, describe, expect, it } from 'vitest';
+import { defaultShoppingListSummarySchema, shoppingListSchema } from '@endora-commerce/contracts';
+import { deepStrict, disagreements } from '../../helpers/strict-schema.js';
 import {
   setupBackendServer,
   teardownBackendServer,
   type BackendServerHandle,
 } from '../../helpers/test-server.js';
 import { SEED_PRODUCT_101_ID } from '../../helpers/seed-catalog.js';
+
+/** Strict copies: a key a default-list reply carries that the contract does not declare fails (issue #599 §6). */
+const strictSummary = deepStrict(defaultShoppingListSummarySchema);
+const strictList = deepStrict(shoppingListSchema);
 
 /**
  * Default shopping list — every customer always has exactly one default:
@@ -36,6 +42,7 @@ describe('Default shopping list', () => {
     const summary = (def.json() as { data: { id: string; name: string; itemCount: number } }).data;
     expect(summary.name).toBe('Default');
     expect(summary.itemCount).toBe(0);
+    expect(disagreements(strictSummary, summary)).toEqual([]);
 
     const add = await h.app.inject({
       method: 'POST',
@@ -47,6 +54,7 @@ describe('Default shopping list', () => {
     const added = (add.json() as { data: { id: string; itemCount: number } }).data;
     expect(added.id).toBe(summary.id);
     expect(added.itemCount).toBe(1);
+    expect(disagreements(strictSummary, added)).toEqual([]);
   });
 
   it('moves the default flag with set-default', async () => {
@@ -66,6 +74,7 @@ describe('Default shopping list', () => {
     });
     expect(setDef.statusCode).toBe(200);
     expect((setDef.json() as { data: { isDefault: boolean } }).data.isDefault).toBe(true);
+    expect(disagreements(strictList, (setDef.json() as { data: unknown }).data)).toEqual([]);
 
     const all = await h.app.inject({ method: 'GET', url: '/api/v1/shopping-lists', cookies });
     const lists = (all.json() as { data: Array<{ id: string; isDefault: boolean }> }).data;

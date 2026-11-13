@@ -1,4 +1,5 @@
 import { afterAll, beforeAll, describe, expect, it } from 'vitest';
+import { convertToRfqResponseSchema } from '@endora-commerce/contracts';
 import {
   setupBackendServer,
   teardownBackendServer,
@@ -8,6 +9,10 @@ import {
   SEED_PRODUCT_101_ID,
   SEED_PRODUCT_102_ID,
 } from '../../helpers/seed-catalog.js';
+import { deepStrict, disagreements } from '../../helpers/strict-schema.js';
+
+/** A key the convert-to-RFQ reply carries that the contract does not declare fails (issue #599 §6). */
+const strictConvertToRfq = deepStrict(convertToRfqResponseSchema);
 
 /**
  * T197 — `POST /shopping-lists/:id/convert-to-rfq` with an explicit
@@ -68,6 +73,7 @@ describe('Shopping list convert-selected-to-RFQ', () => {
     ).data;
     expect(result.added).toBe(1);
     expect(result.rfqId).toBeTruthy();
+    expect(disagreements(strictConvertToRfq, result)).toEqual([]);
 
     // The RFQ now contains exactly the one selected item.
     const rfq = await h.app.inject({

@@ -1,5 +1,10 @@
 import { afterAll, beforeAll, describe, expect, it } from 'vitest';
 import {
+  convertToCartResponseSchema,
+  shoppingListListResponseSchema,
+  shoppingListSchema,
+} from '@endora-commerce/contracts';
+import {
   setupBackendServer,
   teardownBackendServer,
   type BackendServerHandle,
@@ -13,6 +18,12 @@ import {
   minimumFixtureRun,
   type MinimumProductFixture,
 } from '../../helpers/order-minimum-fixture.js';
+import { deepStrict, disagreements } from '../../helpers/strict-schema.js';
+
+/** Strict copies: a key a shopping-list reply carries that the contract does not declare fails (issue #599 §6). */
+const strictList = deepStrict(shoppingListSchema);
+const strictLists = deepStrict(shoppingListListResponseSchema);
+const strictConvertToCart = deepStrict(convertToCartResponseSchema);
 
 /**
  * T196 — `POST /shopping-lists` + add items + convert to Cart.
@@ -41,6 +52,7 @@ describe('Shopping list CRUD + convert-to-cart', () => {
     expect(create.statusCode).toBe(201);
     const list = (create.json() as { data: { id: string; name: string } }).data;
     expect(list.name).toBe('Weekly restock');
+    expect(disagreements(strictList, list)).toEqual([]);
 
     const list1 = await h.app.inject({
       method: 'GET',
@@ -49,6 +61,7 @@ describe('Shopping list CRUD + convert-to-cart', () => {
     });
     expect(list1.statusCode).toBe(200);
     expect((list1.json() as { data: unknown[] }).data.length).toBeGreaterThan(0);
+    expect(disagreements(strictLists, list1.json())).toEqual([]);
 
     const addItem = await h.app.inject({
       method: 'POST',
@@ -59,6 +72,7 @@ describe('Shopping list CRUD + convert-to-cart', () => {
     expect(addItem.statusCode).toBe(201);
     const afterAdd = (addItem.json() as { data: { items: unknown[] } }).data;
     expect(afterAdd.items.length).toBe(1);
+    expect(disagreements(strictList, afterAdd)).toEqual([]);
 
     const convert = await h.app.inject({
       method: 'POST',
@@ -72,6 +86,7 @@ describe('Shopping list CRUD + convert-to-cart', () => {
     ).data;
     expect(result.added).toBe(1);
     expect(result.skipped).toEqual([]);
+    expect(disagreements(strictConvertToCart, result)).toEqual([]);
   });
 
   it('clears all items from a list while keeping the list', async () => {
@@ -107,6 +122,7 @@ describe('Shopping list CRUD + convert-to-cart', () => {
     });
     expect(after.statusCode).toBe(200);
     expect((after.json() as { data: { items: unknown[] } }).data.items.length).toBe(0);
+    expect(disagreements(strictList, (after.json() as { data: unknown }).data)).toEqual([]);
 
     // Clearing an already-empty list is idempotent.
     const clearAgain = await h.app.inject({
@@ -134,6 +150,7 @@ describe('Shopping list CRUD + convert-to-cart', () => {
     });
     expect(rename.statusCode).toBe(200);
     expect((rename.json() as { data: { name: string } }).data.name).toBe('Renamed');
+    expect(disagreements(strictList, (rename.json() as { data: unknown }).data)).toEqual([]);
 
     const del = await h.app.inject({
       method: 'DELETE',
