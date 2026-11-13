@@ -9,6 +9,7 @@ import {
   getPushPreferences,
   updatePushPreferences,
 } from '../../../lib/api/pwa-server';
+import { getUnreadNotificationCount } from '../../../lib/api/customer-notifications';
 import { CreditLimitWidget } from '../../../components/CreditLimitWidget';
 import { ModalDialog } from '../../../components/ModalDialog';
 import {
@@ -18,6 +19,8 @@ import {
 import type { Metadata } from 'next';
 import { localeRedirect } from '../../../lib/i18n/navigation';
 import { tForLocale } from '../../../lib/i18n/messages';
+import { format } from '../../../lib/i18n/format';
+import { LocalizedLink } from '../../../lib/i18n/localized-link';
 import { richText } from '../../../lib/account/labels';
 import { isCompanyOrganization, isPersonalOrganization } from '../../../lib/account/organization-area';
 
@@ -49,7 +52,7 @@ export default async function AccountProfilePage({
   const session = await getSessionCookie();
   if (!session) return await localeRedirect('/login');
   const sp = await searchParams;
-  const { locale, ctx } = await getServerContext();
+  const { locale, ctx, modules } = await getServerContext();
   const t = tForLocale(locale);
   // The push section (`specs/149-pwa-order-status-push/`) is read beside the
   // profile: the public config says what the channel offers, the preferences
@@ -59,18 +62,30 @@ export default async function AccountProfilePage({
   const ownRolePromise = mePromise.then((me) =>
     showsRole(me) ? getMyRole(session, ctx).catch((): OwnRole | null => null) : null,
   );
-  const [me, creditLimit, pwaConfig, pushPreferences, ownRole] = await Promise.all([
+  const [me, creditLimit, pwaConfig, pushPreferences, ownRole, unread] = await Promise.all([
     mePromise,
     getMyCreditLimit(session),
     fetchPwaConfig(ctx.salesChannelCode),
     getPushPreferences(session, ctx),
     ownRolePromise,
+    // `specs/179-rfq-and-customer-notifications/` FR-051c — the summary line's count,
+    // read only while the centre is present.
+    modules.isPresent('customer_notifications')
+      ? getUnreadNotificationCount(session, ctx.salesChannelCode, ctx.locale)
+      : Promise.resolve(0),
   ]);
   const role = showsRole(me) ? (ownRole?.role ?? me.customerAccount.organizationRole) : null;
 
   return (
     <>
       <h2>{t('account.profile.heading')}</h2>
+      {unread > 0 ? (
+        <p className="mb-[16px]">
+          <LocalizedLink href="/account/notifications" className="underline">
+            {format(t('account.notifications.summary'), { count: unread.toLocaleString(locale) })}
+          </LocalizedLink>
+        </p>
+      ) : null}
       {creditLimit ? (
         <div className="mb-[16px]">
           <CreditLimitWidget limit={creditLimit} locale={locale} showReservations />

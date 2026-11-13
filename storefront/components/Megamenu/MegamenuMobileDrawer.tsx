@@ -40,8 +40,13 @@ export function featuredRowText(
 interface MegamenuMobileDrawerProps {
   megamenu: ResolvedMegamenu;
   labels: DrawerLabels;
-  /** Logged-in buyer summary for the footer (null when signed out). */
-  account?: { initials: string; name: string; subtitle: string } | null;
+  /**
+   * Logged-in buyer summary for the footer (null when signed out).
+   * `notifications` is the footer's *Notifications* row text, the unread count
+   * in it ("Notifications (2)"), or `null` while `customer_notifications` is off
+   * (`specs/179-rfq-and-customer-notifications/` FR-051). The burger carries no dot.
+   */
+  account?: { initials: string; name: string; subtitle: string; notifications?: string | null } | null;
 }
 
 /**
@@ -130,7 +135,7 @@ export function MegamenuMobileDrawer({ megamenu, labels, account }: MegamenuMobi
           </div>
 
           {atRoot ? (
-            <div className="mm__foot">
+            <div className="mm__foot flex-wrap">
               {account ? (
                 <>
                   <LocalizedLink href="/account" className="mm__login" onClick={reset}>
@@ -143,6 +148,15 @@ export function MegamenuMobileDrawer({ megamenu, labels, account }: MegamenuMobi
                   <LocalizedLink href="/account" className="btn btn--ghost btn--sm" onClick={reset}>
                     <UserIcon /> {labels.account}
                   </LocalizedLink>
+                  {account.notifications ? (
+                    <LocalizedLink
+                      href="/account/notifications"
+                      className="btn btn--ghost btn--sm min-h-[44px] basis-full justify-start whitespace-normal"
+                      onClick={reset}
+                    >
+                      {account.notifications}
+                    </LocalizedLink>
+                  ) : null}
                 </>
               ) : (
                 <LocalizedLink
