@@ -1449,6 +1449,18 @@ select:focus-visible {
       font-mono text-[9px] font-semibold leading-none text-white;
   }
 
+  /* Dark-mode ring for both shared count badges (issue #1126). The
+     `--brand-700` fill is only 2.77:1 on the dark `--surface`, below the 3:1
+     WCAG 1.4.11 floor, and the `--surface` ring above adds no edge there. The
+     light `--brand-200` tint gives the badge a boundary of 13:1 on the dark
+     surface (14.9:1 nordic) while staying 4.7:1 (4.3:1) off the fill, so the
+     count still reads as one shape. Fill and white count are unchanged, and so
+     is light mode, where the fill alone already clears 3:1. */
+  :root.is-dark .icon-btn__count,
+  :root.is-dark .m-tabbar__badge {
+    @apply border-[color:var(--brand-200)];
+  }
+
   /* Sticky action bar shared by PDP buy-bar + quick-order total bar.
      Sits just above the tab bar and reserves the home-indicator inset. */
   .m-actionbar {
