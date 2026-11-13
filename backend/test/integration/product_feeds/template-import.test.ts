@@ -1,4 +1,5 @@
 import { afterAll, beforeAll, describe, expect, it } from 'vitest';
+import { importFeedTemplateResponseSchema } from '@endora-commerce/contracts';
 import {
   setupBackendServer,
   teardownBackendServer,
@@ -8,6 +9,10 @@ import { AuditLogEntry } from '@endora-commerce/platform/kernel';
 import { SalesChannel } from '@endora-commerce/platform/kernel';
 import { setChannelStorefrontUrl } from '../../helpers/seed-product-feeds.js';
 import { FeedTemplate, FeedTemplateField } from '../../helpers/package-entities.js';
+import { deepStrict, disagreements } from '../../helpers/strict-schema.js';
+
+/** A key an import reply carries that the contract does not declare fails (issue #599 §6). */
+const strictImport = deepStrict(importFeedTemplateResponseSchema);
 
 /**
  * Feature 067 / T095 — moving a template between installations
@@ -140,8 +145,8 @@ describe('feed template import/export [integration]', () => {
   async function importDocument(
     document: Document,
     onNameConflict?: 'create_copy' | 'replace',
-  ): Promise<ReturnType<BackendServerHandle['app']['inject']>> {
-    return h.app.inject({
+  ): Promise<Awaited<ReturnType<BackendServerHandle['app']['inject']>>> {
+    const res = await h.app.inject({
       method: 'POST',
       url: `${BASE}/import`,
       ...ADMIN,
@@ -150,6 +155,8 @@ describe('feed template import/export [integration]', () => {
         ...(onNameConflict ? { onNameConflict } : {}),
       },
     });
+    if (res.statusCode === 201) expect(disagreements(strictImport, res.json())).toEqual([]);
+    return res;
   }
 
   // -------------------------------------------------------------------------

@@ -1,4 +1,5 @@
 import { afterAll, beforeAll, describe, expect, it } from 'vitest';
+import { feedRunIssueListResponseSchema } from '@endora-commerce/contracts';
 import { AdminUser } from '../../helpers/package-entities.js';
 import {
   setupBackendServer,
@@ -10,6 +11,10 @@ import { hashPassword } from '@endora-commerce/platform/kernel';
 import { STUB_CUSTOMER_PASSWORD } from '../../helpers/seed-organizations.js';
 import { SalesChannel } from '@endora-commerce/platform/kernel';
 import { seedFeedPrices, setChannelStorefrontUrl } from '../../helpers/seed-product-feeds.js';
+import { deepStrict, disagreements } from '../../helpers/strict-schema.js';
+
+/** A key a run-issue reply carries that the contract does not declare fails (issue #599 §6). */
+const strictIssueList = deepStrict(feedRunIssueListResponseSchema);
 
 /**
  * Feature 067 / T103 — the run, issue and artefact surface
@@ -215,6 +220,7 @@ describe('feed runs, issues and artefacts — admin [contract]', () => {
     expect(issues.every((issue) => issue.severity === 'warning')).toBe(true);
     expect(issues.map((issue) => issue.reason)).toContain('missing_image');
     expect(issues.every((issue) => issue.sku !== null)).toBe(true);
+    expect(disagreements(strictIssueList, all.json())).toEqual([]);
 
     const bySeverity = await h.app.inject({
       method: 'GET',

@@ -1,4 +1,9 @@
 import { afterAll, beforeAll, describe, expect, it } from 'vitest';
+import {
+  feedTemplateListResponseSchema,
+  feedTemplateResponseSchema,
+  feedTemplateUpdateResponseSchema,
+} from '@endora-commerce/contracts';
 import { AdminUser } from '../../helpers/package-entities.js';
 import {
   setupBackendServer,
@@ -9,6 +14,12 @@ import { ADMIN_COOKIES } from '../../helpers/test-actors.js';
 import { hashPassword } from '@endora-commerce/platform/kernel';
 import { STUB_CUSTOMER_PASSWORD } from '../../helpers/seed-organizations.js';
 import { SalesChannel } from '@endora-commerce/platform/kernel';
+import { deepStrict, disagreements } from '../../helpers/strict-schema.js';
+
+/** Strict copies: a key a template reply carries that the contract does not declare fails (issue #599 §6). */
+const strictTemplate = deepStrict(feedTemplateResponseSchema);
+const strictTemplateList = deepStrict(feedTemplateListResponseSchema);
+const strictTemplateUpdate = deepStrict(feedTemplateUpdateResponseSchema);
 
 /**
  * Feature 067 / T079 — feed template CRUD contract (FR-001, FR-002, FR-006,
@@ -74,6 +85,7 @@ describe('feed templates — admin CRUD [contract]', () => {
   async function get(id: string): Promise<TemplateBody> {
     const res = await h.app.inject({ method: 'GET', url: `${BASE}/${id}`, ...ADMIN });
     expect(res.statusCode).toBe(200);
+    expect(disagreements(strictTemplate, res.json())).toEqual([]);
     return (res.json() as { data: TemplateBody }).data;
   }
 
@@ -96,6 +108,7 @@ describe('feed templates — admin CRUD [contract]', () => {
       },
     });
     expect(res.statusCode).toBe(201);
+    expect(disagreements(strictTemplate, res.json())).toEqual([]);
     return (res.json() as { data: TemplateBody }).data;
   }
 
@@ -128,6 +141,7 @@ describe('feed templates — admin CRUD [contract]', () => {
 
     const list = await h.app.inject({ method: 'GET', url: BASE, ...ADMIN });
     expect(list.statusCode).toBe(200);
+    expect(disagreements(strictTemplateList, list.json())).toEqual([]);
     const rows = (list.json() as { data: Array<{ id: string; systemCode: string | null }> }).data;
     googleTemplateId = rows.find((t) => t.systemCode === 'google_merchant_v1')!.id;
 
@@ -199,6 +213,7 @@ describe('feed templates — admin CRUD [contract]', () => {
       },
     });
     expect(res.statusCode).toBe(200);
+    expect(disagreements(strictTemplateUpdate, res.json())).toEqual([]);
     const saved = (res.json() as { data: TemplateBody }).data;
     // Renamed (`title` → `name`), reordered, and one added, in one save.
     expect(saved.fields.map((f) => f.outputName)).toEqual(['name', 'sku', 'ean']);
@@ -410,6 +425,7 @@ describe('feed templates — admin CRUD [contract]', () => {
       payload: { name: `Google Merchant Center (copy ${Math.random().toString(36).slice(2, 8)})` },
     });
     expect(res.statusCode).toBe(201);
+    expect(disagreements(strictTemplate, res.json())).toEqual([]);
     const copy = (res.json() as { data: TemplateBody }).data;
     const source = await get(googleTemplateId);
 
@@ -478,6 +494,7 @@ describe('feed templates — admin CRUD [contract]', () => {
     expect(saved.warnings).toEqual([
       { code: 'provider_required_field_removed', outputName: 'sku' },
     ]);
+    expect(disagreements(strictTemplateUpdate, saved)).toEqual([]);
   });
 
   // -------------------------------------------------------------------------

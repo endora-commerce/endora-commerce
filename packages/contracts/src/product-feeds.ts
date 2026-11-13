@@ -16,7 +16,7 @@
 import { z } from 'zod';
 import { isoDateTimeSchema, uuidSchema } from './common.js';
 import { collectionEnvelope, dataEnvelope } from './envelopes.js';
-import { listQuerySchema } from './pagination.js';
+import { listQuerySchema, paginationSchema } from './pagination.js';
 import { pinnedPriceBookUnpublishableReasonSchema } from './price-lists.js';
 
 // ---------------------------------------------------------------------------
@@ -665,6 +665,11 @@ export const feedTemplateSchema = z.object({
   fields: z.array(feedTemplateFieldSchema),
   /** Number of feeds referencing this template — drives the delete refusal message (FR-010). */
   usedByFeedCount: z.number().int().nonnegative(),
+  /**
+   * The length of `fields`. Every template reply answers it; the list, which
+   * carries no `fields`, shows it as the field count (issue #599).
+   */
+  fieldCount: z.number().int().nonnegative().optional(),
   version: z.number().int().positive(),
   createdAt: isoDateTimeSchema,
   updatedAt: isoDateTimeSchema,
@@ -717,9 +722,35 @@ export const duplicateFeedTemplateRequestSchema = z.object({
 export type DuplicateFeedTemplateRequest = z.infer<typeof duplicateFeedTemplateRequestSchema>;
 
 export const feedTemplateResponseSchema = dataEnvelope(feedTemplateSchema);
+export type FeedTemplateResponse = z.infer<typeof feedTemplateResponseSchema>;
+
+/**
+ * `GET /api/v1/admin/feed-templates` — every template, without its field list.
+ *
+ * `pagination` is optional: the route answers the whole list in one page and has
+ * never sent it (issue #599). The rows are `feedTemplateSchema` minus `fields`.
+ */
 export const feedTemplateListResponseSchema = collectionEnvelope(
   feedTemplateSchema.omit({ fields: true }),
-);
+).extend({ pagination: paginationSchema.optional() });
+export type FeedTemplateListResponse = z.infer<typeof feedTemplateListResponseSchema>;
+
+/**
+ * FR-074 — a save that removes a provider-required field. Refused with a `409`
+ * carrying these until the operator acknowledges them, then answered beside the
+ * saved template.
+ */
+export const feedTemplateSaveWarningSchema = z.object({
+  code: z.literal('provider_required_field_removed'),
+  outputName: z.string(),
+});
+export type FeedTemplateSaveWarning = z.infer<typeof feedTemplateSaveWarningSchema>;
+
+/** `PUT /api/v1/admin/feed-templates/:id` — the saved template and the warnings the save acknowledged (issue #599). */
+export const feedTemplateUpdateResponseSchema = feedTemplateResponseSchema.extend({
+  warnings: z.array(feedTemplateSaveWarningSchema),
+});
+export type FeedTemplateUpdateResponse = z.infer<typeof feedTemplateUpdateResponseSchema>;
 
 // ---------------------------------------------------------------------------
 // (4b) Guided binding catalogue (FR-070)
@@ -1090,6 +1121,7 @@ export type FeedRun = z.infer<typeof feedRunSchema>;
 export const feedRunResponseSchema = dataEnvelope(feedRunSchema);
 export const feedRunListResponseSchema = collectionEnvelope(feedRunSchema);
 export const feedRunIssueListResponseSchema = collectionEnvelope(feedRunIssueSchema);
+export type FeedRunIssueListResponse = z.infer<typeof feedRunIssueListResponseSchema>;
 
 export const feedRunListQuerySchema = listQuerySchema.extend({
   status: feedRunStatusSchema.optional(),
@@ -1432,6 +1464,7 @@ export const importFeedTemplateResponseSchema = dataEnvelope(
     ),
   }),
 );
+export type ImportFeedTemplateResponse = z.infer<typeof importFeedTemplateResponseSchema>;
 
 // ---------------------------------------------------------------------------
 // (10) Module error codes
