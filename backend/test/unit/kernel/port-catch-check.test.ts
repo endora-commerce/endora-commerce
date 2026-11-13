@@ -1661,6 +1661,72 @@ describe('findPortCatches — a holder built from a deps bag carries per method 
 });
 
 /**
+ * Issue #459 — a **known false positive**, pinned so that it stays written down.
+ *
+ * A key of an object literal whose closure reaches a gate is a property entry
+ * of the module that wrote it (#100), and a call `x.<key>(…)` whose receiver
+ * the analysis cannot place is attributed to that key **by its name alone** —
+ * the last clause of `propertyCallReach`. `crm`'s door onto `quote_requests`
+ * named a method `find`, so `em.find(…)` inside two unrelated `commandBus.run`
+ * callbacks read as reaching `quoteRequestReadPort`, and their `catch` blocks
+ * were reported. The workaround the header names is a distinctive method name
+ * (`findRecord`); a fix would attribute the call per receiver.
+ *
+ * When this test goes red because the first expectation changed, the
+ * heuristic was replaced: delete the pin and the header's paragraph with it.
+ */
+describe('findPortCatches — a door method is attributed by its name, not its receiver (#459)', () => {
+  const door = (method: string): Map<string, string> =>
+    new Map([
+      [
+        'modules/quote_requests/backend.ts',
+        'export function registerModule(ctx: ModuleContext): void {\n' +
+          "  ctx.di.providePort('quoteRequestReadPort', ctx.asFunction(() => x).singleton());\n}",
+      ],
+      [
+        'modules/crm/backend.ts',
+        "import { lazyPort } from '../../kernel/index.js';\n" +
+          "import { createCrmQuoteRequests } from './services/crm-quote-requests.js';\n" +
+          "import { AttachmentService } from './services/attachments.js';\n" +
+          'export function registerModule(ctx: ModuleContext): void {\n' +
+          '  ctx.di.register({\n' +
+          "    crmQuoteRequests: ctx.asFunction(() => createCrmQuoteRequests(lazyPort<Q>(ctx, 'quoteRequestReadPort'))).singleton(),\n" +
+          '    crmAttachments: ctx.asFunction(({ commandBus }: Cradle) => new AttachmentService({ commandBus })).singleton(),\n' +
+          '  });\n}',
+      ],
+      [
+        'modules/crm/services/crm-quote-requests.ts',
+        'export function createCrmQuoteRequests(port: Q) {\n' +
+          `  return { ${method}: (id: string) => port.findById(id) };\n}`,
+      ],
+      [
+        // Reaches no port at all: `em` is the Command's transaction.
+        'modules/crm/services/attachments.ts',
+        'export class AttachmentService {\n' +
+          '  constructor(private readonly deps: Deps) {}\n' +
+          '  async add(): Promise<unknown> {\n' +
+          '    try {\n' +
+          '      return await this.deps.commandBus.run({ run: async ({ em }) => em.find(Row, {}) });\n' +
+          '    } catch { return null; }\n' +
+          '  }\n}',
+      ],
+    ]);
+
+  const attachmentSites = (method: string): string[] =>
+    findPortCatches({ sources: door(method) })
+      .filter((entry) => entry.file === 'modules/crm/services/attachments.ts')
+      .map((entry) => `${entry.port}:${entry.gates.join(',')}`);
+
+  it('reads an unrelated `em.find(…)` as the door`s `find` — the documented false positive', () => {
+    expect(attachmentSites('find')).toEqual(['run:quoteRequestReadPort', 'find:quoteRequestReadPort']);
+  });
+
+  it('reads nothing there once the door names its method distinctively — the workaround', () => {
+    expect(attachmentSites('findRecord')).toEqual([]);
+  });
+});
+
+/**
  * Declared aliases — `PORT_CATCH_PINS` (maintainer ruling on issue #100,
  * 2026-10-30). Its one real entry, `projects`' `read`, was retired by issue
  * #576 — through the staleness clause proved below and again in the #576 block.

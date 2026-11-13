@@ -296,6 +296,25 @@
  * reason and are ledgered as artefacts rather than hidden; the alternative —
  * resolving receivers — is a type-checker's job, not this analysis's.
  *
+ * **The same holds for a method of a door, and a common name makes it bite**
+ * (issue #459). The property table takes a key from *any* object literal whose
+ * value reaches a gate, so a factory returning
+ * `{ find: (id) => port.findById(id) }` over a switchable owner's port
+ * enters `find` for its whole module. The last clause of `propertyCallReach`
+ * then attributes a call to that key by its **trailing method name** whenever
+ * the receiver itself does not read as a port: `em.find(…)` inside a
+ * `commandBus.run` callback reads as the door, and a `catch` around the Command
+ * is reported as swallowing the owner's gate. `crm`'s door onto
+ * `quote_requests` hit exactly this in `specs/163-projects-and-tasks/` Phase 9B,
+ * on two unrelated Commands. **The workaround is a distinctive method name on
+ * the door** — `findRecord`, not `find` — so that no ordinary call in the module
+ * spells it; ledgering the site as an artefact is the fallback when the name is
+ * not the door's to choose. Rename before you ledger: a ledger entry over a
+ * false positive is also an entry that stops judging the site if a real reach
+ * ever moves into it. `test/unit/kernel/port-catch-check.test.ts` pins both
+ * halves (the false positive and the workaround) under issue #459, so the day
+ * receivers are resolved that test goes red and this paragraph goes with it.
+ *
  * ## A holder built from a deps bag carries per method (issue #576)
  *
  * `new C({ k: lazyPort(…) })` carries nothing as a **value** — a bag that did
