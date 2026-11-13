@@ -6,8 +6,9 @@ import type {
   FeedDeliveryFailureReason,
   FeedFieldSourceCatalogue,
   FeedFieldSourceKind,
-  FeedFieldTransform,
   FeedOutputFormat,
+  FeedTemplateField,
+  FeedTemplateSaveWarning,
   FeedItemGranularity,
   FeedProviderCode,
   FeedRunStatus,
@@ -204,30 +205,15 @@ export interface FeedTemplateSummary {
   updatedAt: string;
 }
 
-export interface FeedTemplateFieldDto {
-  id: string;
-  outputName: string;
-  sourceKind: FeedFieldSourceKind;
-  sourceKey: string | null;
-  constantValue: string | null;
-  fallbackValue: string | null;
-  providerRequired: boolean;
-  transform: FeedFieldTransform | null;
-  transformArg: string | null;
-  sortOrder: number;
-  helpKey: string | null;
-  unbound: boolean;
-}
+/** One template field as the admin API answers it — the published `feedTemplateFieldSchema` (issue #599). */
+export type FeedTemplateFieldDto = FeedTemplateField;
 
 export interface FeedTemplateDetail extends FeedTemplateSummary {
   fields: FeedTemplateFieldDto[];
 }
 
-/** FR-074 — what the operator has to acknowledge before a save goes through. */
-export interface TemplateSaveWarning {
-  code: 'provider_required_field_removed';
-  outputName: string;
-}
+/** FR-074 — what the operator has to acknowledge before a save goes through (`feedTemplateSaveWarningSchema`). */
+export type TemplateSaveWarning = FeedTemplateSaveWarning;
 
 export interface TemplateWriteBody {
   name?: string;

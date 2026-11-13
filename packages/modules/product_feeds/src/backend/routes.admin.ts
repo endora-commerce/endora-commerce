@@ -11,6 +11,8 @@ import {
   productSelectionPreviewRequestSchema,
   updateProductFeedRequestSchema,
   isUuidShape,
+  type FeedRunIssue as FeedRunIssueView,
+  type FeedRunIssueListResponse,
 } from '@endora-commerce/contracts';
 import { HttpError } from '@endora-commerce/platform/http';
 import { SalesChannel } from '@endora-commerce/platform/kernel';
@@ -367,7 +369,7 @@ export async function registerProductFeedsAdminRoutes(
   // disclosure as the artefact by another route.
   // ---------------------------------------------------------------------------
 
-  app.get('/api/v1/admin/product-feeds/:id/runs/:runId/issues', read, async (request, reply) => {
+  app.get<{ Reply: FeedRunIssueListResponse }>('/api/v1/admin/product-feeds/:id/runs/:runId/issues', read, async (request, reply) => {
     const { id, runId } = parse(runParamsSchema, request.params);
     const query = parse(issueQuerySchema, request.query ?? {});
     const em = deps.emFactory();
@@ -472,7 +474,8 @@ async function requireRun(em: EntityManager, feedId: string, runId: string): Pro
   return run;
 }
 
-function toIssueDto(issue: FeedRunIssue): Record<string, unknown> {
+/** The published `feedRunIssueSchema` (issue #599). */
+function toIssueDto(issue: FeedRunIssue): FeedRunIssueView {
   return {
     id: issue.id,
     severity: issue.severity,

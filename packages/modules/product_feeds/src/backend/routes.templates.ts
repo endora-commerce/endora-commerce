@@ -5,6 +5,12 @@ import {
   duplicateFeedTemplateRequestSchema,
   feedTemplatePreviewRequestSchema,
   updateFeedTemplateRequestSchema,
+  type FeedTemplate,
+  type FeedTemplateField,
+  type FeedTemplateListResponse,
+  type FeedTemplateResponse,
+  type FeedTemplateUpdateResponse,
+  type ImportFeedTemplateResponse,
 } from '@endora-commerce/contracts';
 import { PRODUCT_FEEDS_READ_PERMISSION, PRODUCT_FEEDS_WRITE_PERMISSION } from '../manifest.js';
 import { parseOrThrow } from './routes.admin.js';
@@ -84,7 +90,8 @@ export function parseTemplateIfMatch(request: FastifyRequest): number | null {
   return Number.isFinite(parsed) ? parsed : null;
 }
 
-function toFieldDto(field: TemplateView['fields'][number]): Record<string, unknown> {
+/** The published `feedTemplateFieldSchema` (issue #599). */
+function toFieldDto(field: TemplateView['fields'][number]): FeedTemplateField {
   return {
     id: field.id,
     outputName: field.outputName,
@@ -101,10 +108,16 @@ function toFieldDto(field: TemplateView['fields'][number]): Record<string, unkno
   };
 }
 
+/** The published `feedTemplateSchema`; without `fields`, the list row (issue #599). */
+export function toTemplateDto(view: TemplateView, options: { includeFields: true }): FeedTemplate;
+export function toTemplateDto(
+  view: TemplateView,
+  options: { includeFields: false },
+): Omit<FeedTemplate, 'fields'>;
 export function toTemplateDto(
   view: TemplateView,
   options: { includeFields: boolean },
-): Record<string, unknown> {
+): FeedTemplate | Omit<FeedTemplate, 'fields'> {
   const { template } = view;
   return {
     id: template.id,
@@ -134,7 +147,7 @@ export async function registerProductFeedsTemplateRoutes(
   const read = { preHandler: deps.requireAdmin(PRODUCT_FEEDS_READ_PERMISSION) };
   const write = { preHandler: deps.requireAdmin(PRODUCT_FEEDS_WRITE_PERMISSION) };
 
-  app.get('/api/v1/admin/feed-templates', read, async (_request, reply) => {
+  app.get<{ Reply: FeedTemplateListResponse }>('/api/v1/admin/feed-templates', read, async (_request, reply) => {
     const views = await deps.templates.list();
     return reply.send({ data: views.map((view) => toTemplateDto(view, { includeFields: false })) });
   });
@@ -149,7 +162,7 @@ export async function registerProductFeedsTemplateRoutes(
   // Portability (FR-012 – FR-018, contracts/template-portability.md)
   // ---------------------------------------------------------------------------
 
-  app.post(
+  app.post<{ Reply: ImportFeedTemplateResponse }>(
     '/api/v1/admin/feed-templates/import',
     { ...write, bodyLimit: IMPORT_BODY_LIMIT_BYTES },
     async (request, reply) => {
@@ -179,7 +192,7 @@ export async function registerProductFeedsTemplateRoutes(
       .send(serialized);
   });
 
-  app.get('/api/v1/admin/feed-templates/:id', read, async (request, reply) => {
+  app.get<{ Reply: FeedTemplateResponse }>('/api/v1/admin/feed-templates/:id', read, async (request, reply) => {
     const { id } = parseOrThrow(idParamsSchema, request.params);
     const view = await deps.templates.view(id);
     return reply
@@ -187,13 +200,13 @@ export async function registerProductFeedsTemplateRoutes(
       .send({ data: toTemplateDto(view, { includeFields: true }) });
   });
 
-  app.post('/api/v1/admin/feed-templates', write, async (request, reply) => {
+  app.post<{ Reply: FeedTemplateResponse }>('/api/v1/admin/feed-templates', write, async (request, reply) => {
     const body = parseOrThrow(createFeedTemplateRequestSchema, request.body ?? {});
     const view = await deps.templates.create(body);
     return reply.status(201).send({ data: toTemplateDto(view, { includeFields: true }) });
   });
 
-  app.put('/api/v1/admin/feed-templates/:id', write, async (request, reply) => {
+  app.put<{ Reply: FeedTemplateUpdateResponse }>('/api/v1/admin/feed-templates/:id', write, async (request, reply) => {
     const { id } = parseOrThrow(idParamsSchema, request.params);
     const body = parseOrThrow(updateFeedTemplateRequestSchema, request.body ?? {});
     const query = (request.query ?? {}) as Record<string, unknown>;
@@ -207,12 +220,16 @@ export async function registerProductFeedsTemplateRoutes(
       .send({ data: toTemplateDto(view, { includeFields: true }), warnings });
   });
 
-  app.post('/api/v1/admin/feed-templates/:id/duplicate', write, async (request, reply) => {
-    const { id } = parseOrThrow(idParamsSchema, request.params);
-    const body = parseOrThrow(duplicateFeedTemplateRequestSchema, request.body ?? {});
-    const view = await deps.templates.duplicate(id, body.name);
-    return reply.status(201).send({ data: toTemplateDto(view, { includeFields: true }) });
-  });
+  app.post<{ Reply: FeedTemplateResponse }>(
+    '/api/v1/admin/feed-templates/:id/duplicate',
+    write,
+    async (request, reply) => {
+      const { id } = parseOrThrow(idParamsSchema, request.params);
+      const body = parseOrThrow(duplicateFeedTemplateRequestSchema, request.body ?? {});
+      const view = await deps.templates.duplicate(id, body.name);
+      return reply.status(201).send({ data: toTemplateDto(view, { includeFields: true }) });
+    },
+  );
 
   app.delete('/api/v1/admin/feed-templates/:id', write, async (request, reply) => {
     const { id } = parseOrThrow(idParamsSchema, request.params);
