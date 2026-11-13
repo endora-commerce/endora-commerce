@@ -377,6 +377,14 @@ Przywrócenie: każda aktywność kupującego (otwarcie strony, dodanie, usunię
 w koszyku `abandoned` przywraca go do `active` i czyści `abandonment_notified_at`, aby następny cykl
 porzucenia mógł ponownie wysłać powiadomienie.
 
+Wyszukiwanie uruchamia się samo: harmonogram zadań BullMQ `carts.abandonment.sweep` odpala je co 15
+minut w każdym procesie, który uruchamia konsumentów kolejek, a konsument zatrzymuje się, gdy moduł
+`carts` jest niedostępny na platformie. Każde uruchomienie najpierw sprawdza, czy jakiś koszyk na to
+czeka — bezczynny koszyk aktywny po przekroczeniu progu albo koszyk roboczy starszy niż godzina — i
+wykonuje przebieg tylko wtedy, gdy taki jest, więc bezczynna instancja nie zapisuje z tego powodu
+wiersza audytu `tenant.escape_hatch`. Powtórzone lub równoległe przebiegi niczego nie psują: przebieg
+bierze tylko koszyki, które nadal na to czekają.
+
 ## Zamiany
 
 - **Koszyk → zapytanie ofertowe**: korzysta z `RfqService.createForCustomer`; zapisane w koszyku ceny
@@ -511,10 +519,11 @@ odczytu to zmiana na później.
   `transactional_emails` (zobacz *E-maile o akceptacji*). E-mail o porzuceniu koszyka to punkt
   rozszerzenia `cartAbandonmentNotifier`, który dostarcza wdrożenie; bez niego wyszukiwanie zmienia
   status i niczego nie wysyła.
-- **Harmonogram wyszukiwania porzuconych koszyków** — worker jest tworzony w produkcyjnej kompozycji,
-  ale nie jest jeszcze podłączony do crona ani harmonogramu BullMQ. Polecenie
+- **Harmonogram wyszukiwania porzuconych koszyków** — wyszukiwanie jest powtarzalnym zadaniem BullMQ
+  (`cart-abandonment-sweep-worker.ts`, `startCartAbandonmentSweep`), podłączonym przez
+  `ctx.worker`, więc zatrzymuje się razem z modułem. Polecenie
   `pnpm run cli carts abandonment-sweep`, uruchomione w katalogu głównym instancji, wykonuje jeden
-  przebieg ręcznie; w klonie repozytorium Endora Commerce ma postać
+  dodatkowy przebieg ręcznie; w klonie repozytorium Endora Commerce ma postać
   `pnpm --filter backend run cart:abandonment-sweep`. To polecenie
   zadeklarowane w manifeście, które uruchamia host, więc przebieg korzysta z `cartAbandonmentWorker`
   z kompozycji — implementacja jest w

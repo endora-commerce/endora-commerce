@@ -248,6 +248,64 @@ describe('CartAbandonmentWorker.sweep', () => {
     });
   });
 
+  describe('hasSweepWork — the scheduled tick\'s question (issue #1119)', () => {
+    /** A cart in `status`, created and last active `ageMinutes` ago. */
+    async function cartAged(status: 'working' | 'active', ageMinutes: number, tag: string) {
+      const em = db.em();
+      const at = new Date(Date.now() - ageMinutes * 60_000);
+      const cart = em.create(Cart, {
+        anonymousCartToken: `anon-probe-${Date.now()}-${tag}`,
+        salesChannelId: systemDefaultChannelId,
+        status,
+        lastActivityAt: at,
+      });
+      await em.persistAndFlush(cart);
+      await em.nativeUpdate(Cart, { id: cart.id }, { createdAt: at });
+      em.clear();
+      return cart.id;
+    }
+
+    /** What a pass would do, without letting it: the sweep runs and the transaction rolls back after the test. */
+    const passDoesSomething = async (): Promise<boolean> => {
+      const result = await worker.sweep();
+      return result.abandonedCount + result.workingBasketsRemoved > 0;
+    };
+
+    it('answers yes for an orphaned working basket', async () => {
+      await cartAged('working', ORPHANED_WORKING_BASKET_MINUTES + 5, 'orphan');
+      expect(await worker.hasSweepWork()).toBe(true);
+    });
+
+    it('answers yes for an orphaned working basket while the abandonment threshold is disabled', async () => {
+      resolveInactivity = vi.fn().mockResolvedValue(0);
+      await cartAged('working', ORPHANED_WORKING_BASKET_MINUTES + 5, 'orphan-disabled');
+      expect(await worker.hasSweepWork()).toBe(true);
+    });
+
+    it('answers yes for an active cart idle past the threshold', async () => {
+      await cartAged('active', 30, 'idle');
+      expect(await worker.hasSweepWork()).toBe(true);
+    });
+
+    it('does not count an idle active cart while the threshold is disabled', async () => {
+      resolveInactivity = vi.fn().mockResolvedValue(0);
+      await cartAged('active', 30, 'idle-disabled');
+      expect(await worker.hasSweepWork()).toBe(await passDoesSomething());
+    });
+
+    it('agrees with the pass over carts it must not touch — fresh, young working, already notified', async () => {
+      await cartAged('active', 5, 'fresh');
+      await cartAged('working', ORPHANED_WORKING_BASKET_MINUTES - 5, 'young');
+      const notified = await cartAged('active', 30, 'notified');
+      await db.em().nativeUpdate(Cart, { id: notified }, { abandonmentNotifiedAt: new Date() });
+
+      const asked = await worker.hasSweepWork();
+      expect(asked).toBe(await passDoesSomething());
+      // And after a pass there is nothing left to ask about.
+      expect(await worker.hasSweepWork()).toBe(false);
+    });
+  });
+
   it('suppresses the e-mail when the notification recipient is empty', async () => {
     resolveRecipient = vi.fn().mockResolvedValue('');
     const em = db.em();

@@ -192,6 +192,28 @@ usuwane po 7 dniach, martwe po 90. Kontrakt dostarczania opisuje
 **Jeśli żaden worker nie obsługuje tej kolejki**, nic nie ginie: wiersze czekają w bazie danych
 i zostaną dostarczone, gdy worker zacznie działać.
 
+### Wyszukiwanie porzuconych koszyków — `carts.abandonment.sweep`
+
+Oznacza jako porzucone koszyki aktywne, bezczynne dłużej niż `carts.abandonment.inactivity_minutes`
+(i wysyła powiadomienie o porzuceniu, jeśli wdrożenie je dostarcza), oraz usuwa koszyki robocze
+pozostawione przez składanie zamówienia, które się nie zakończyło. Harmonogram zadań uruchamia je co
+15 minut. Każde uruchomienie najpierw sprawdza, czy jakiś koszyk na to czeka, i wykonuje przebieg
+tylko wtedy, gdy taki jest, więc bezczynna instancja nie wykonuje pracy i nie zapisuje z tego powodu
+wiersza audytu. Przebieg przetwarza koszyki porcjami po 500 i zatwierdza zmiany statusu każdej porcji
+razem z wierszami audytu, więc przerwany przebieg zostawia całe porcje, a nie częściowe; resztę
+bierze następne uruchomienie. Przebiegi są idempotentne, więc druga instancja workera niczego nie
+psuje. Gdy moduł `carts` jest niedostępny na platformie, żadne uruchomienie się nie odbywa.
+
+Jeden przebieg ręcznie uruchamia polecenie `pnpm run cli carts abandonment-sweep` w katalogu głównym
+instancji (`pnpm --filter backend run cart:abandonment-sweep` w klonie repozytorium Endora
+Commerce). Polecenie przed jakąkolwiek czynnością sprawdza obecność modułu w `module_registrations` i
+kończy się niezerowym kodem z `MODULE_DISABLED`, gdy moduł `carts` nie jest zainstalowany we
+wdrożeniu.
+
+**Jeśli żaden worker nie obsługuje tej kolejki**, koszyki nie są oznaczane jako porzucone, a
+osierocone koszyki robocze zostają w bazie danych — bez szkody, bo nic ich nie czyta — dopóki worker
+nie zacznie działać albo polecenie nie zostanie uruchomione ręcznie.
+
 ## Inne zadania w tle (jeszcze nie na wspólnej kolejce)
 
 Kilka zadań okresowych i porządkowych nadal działa jako timery w procesie albo skrypty uruchamiane
@@ -200,26 +222,18 @@ samego modelu workerów; do tego czasu dokumentuj je i obsługuj tak:
 
 | Zadanie | Jak działa dziś | Uruchomienie |
 | --- | --- | --- |
-| Wyszukiwanie porzuconych koszyków | Skrypt uruchamiany ręcznie lub przez cron | `pnpm run cli carts abandonment-sweep` |
 | Pełne ponowne indeksowanie wyszukiwarki | Polecenie uruchamiane ręcznie | `pnpm run cli search reindex` |
 | Aktualizacja statusów cenników (przenosi cenniki *Zaplanowane* do *Aktywnych*, a *Aktywne* do *Wygasłych* na potrzeby widoku w panelu; ceny i tak stosują daty cennika dokładnie w ich chwili) | `setInterval` w procesie (co 5 min) | startuje razem z procesem API |
 | Wygasanie zapytań ofertowych | Metoda usługi wywoływana według harmonogramu | `RfqExpiryWorker.sweep()` |
 
-Oba polecenia uruchamia się w katalogu głównym instancji. W klonie repozytorium Endora Commerce mają
-postać `pnpm --filter backend run cart:abandonment-sweep` i
-`pnpm --filter backend run search:reindex`.
+Polecenie uruchamia się w katalogu głównym instancji. W klonie repozytorium Endora Commerce ma
+postać `pnpm --filter backend run search:reindex`.
 
 :::note
 Opisane wyżej zadania oparte na `setInterval` w procesie to starszy wzorzec, który zastępuje zasada
 o skalowalnych konsumentach kolejek. Nowa praca asynchroniczna MUSI korzystać z trwałej kolejki i
 opisanego tu modelu osobnego workera, a nigdy z timera w procesie obsługującym żądania.
 :::
-
-Wyszukiwanie porzuconych koszyków przed jakąkolwiek czynnością sprawdza obecność modułu w
-`module_registrations` i kończy się niezerowym kodem z `MODULE_DISABLED`, gdy moduł `carts` nie jest
-zainstalowany we wdrożeniu — to ta sama odpowiedź, jaką dałaby trasa HTTP, tylko dla punktu wejścia
-bez trasy, którą można by zablokować. Przetwarza koszyki porcjami po 500 i zatwierdza zmiany statusu
-każdej porcji razem z wierszami audytu, więc przerwany przebieg zostawia całe porcje, a nie częściowe.
 
 ## Monitorowanie i rozwiązywanie problemów
 

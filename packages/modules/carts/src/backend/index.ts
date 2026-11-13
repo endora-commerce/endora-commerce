@@ -66,6 +66,7 @@ import { CartOrganizationVisibilityService } from './services/cart-organization-
 import { CartRecomputeCache } from './services/cart-recompute-cache.js';
 import { CartPricingRecompute } from './services/cart-pricing-recompute.js';
 import { CartAbandonmentWorker } from './services/cart-abandonment-worker.js';
+import { startCartAbandonmentSweep } from './workers/cart-abandonment-sweep-worker.js';
 import { registerCartRoutes, type CartsDeps } from './routes.js';
 import { registerCartsAdminRoutes } from './routes.admin.js';
 import { registerCartsOrganizationRoutes } from './routes.organization.js';
@@ -174,6 +175,17 @@ export interface CartsCradle {
   readonly cartApprovalService: CartApprovalService;
   readonly cartRecomputeCache: CartRecomputeCache;
   readonly cartAbandonmentWorker: CartAbandonmentWorker;
+  /**
+   * Whether this process runs queue consumers (Principle X) — the platform's
+   * one module-agnostic answer, `false` in the test kit.
+   */
+  readonly processRunsWorkers: boolean;
+  /**
+   * The connection a module may build a BullMQ queue on. `undefined` is a
+   * composition saying it wants no queues, and the abandonment sweep's
+   * consumer is then not built.
+   */
+  readonly moduleQueueRedis: Redis | undefined;
 }
 
 /**
@@ -511,6 +523,30 @@ export function registerModule(ctx: ModuleContext): void {
           .testActor;
         if (testActor?.kind === 'admin' && testActor.adminUserId) return testActor.adminUserId;
         return null;
+      },
+    });
+  });
+
+  // The clock of the abandonment sweep (issue #1119): a Job Scheduler and its
+  // consumer — see `workers/cart-abandonment-sweep-worker.ts`. `ctx.worker`
+  // applies `defineModuleWorker('carts', …)`, which is what stops the consumer
+  // with the module: while `carts` is off, no tick runs.
+  //
+  // Attached in a routes body rather than at registration for the reason every
+  // worker in the tree is: this is where `app.log` exists, and a
+  // `BACKEND_ROLE=worker` process reaches it. Built only where the host says
+  // this process consumes queues and offers a connection to build one on; the
+  // shared test server says neither, and drives `sweep()` directly.
+  ctx.routes(async (app) => {
+    const cradle = ctx.cradle<CartsCradle>();
+    await startCartAbandonmentSweep({
+      processRunsWorkers: cradle.processRunsWorkers,
+      moduleQueueRedis: cradle.moduleQueueRedis,
+      sweep: cradle.cartAbandonmentWorker,
+      log: ctx.log,
+      attach: (worker) => ctx.worker(worker, { logger: app.log }),
+      onClose: (close) => {
+        app.addHook('onClose', close);
       },
     });
   });
