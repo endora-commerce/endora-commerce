@@ -1003,6 +1003,23 @@ export type DuplicateProductFeedRequest = z.infer<typeof duplicateProductFeedReq
 export const productFeedResponseSchema = dataEnvelope(productFeedSchema);
 export const productFeedListResponseSchema = collectionEnvelope(productFeedSchema);
 
+/**
+ * Issue #414 — one price book a feed's settings offer to pin the feed to
+ * (`GET /api/v1/admin/product-feeds/:id/price-book-options`): every book in the
+ * feed's currency, plus the book the feed is pinned to whatever its currency.
+ * `unpublishableReason` is why the book would publish no prices for this feed
+ * now (feature 160 FR-029, owner ruling 2026-10-23), `null` when it would.
+ */
+export const productFeedPriceBookOptionSchema = z.object({
+  id: z.string().min(1),
+  name: z.string(),
+  /** The currency's base book. */
+  isBase: z.boolean(),
+  unpublishableReason: pinnedPriceBookUnpublishableReasonSchema.nullable(),
+});
+export type ProductFeedPriceBookOption = z.infer<typeof productFeedPriceBookOptionSchema>;
+export const productFeedPriceBookOptionsResponseSchema = dataEnvelope(z.array(productFeedPriceBookOptionSchema));
+
 /** Returned exactly once, on create and on rotate. Never re-readable (FR-047). */
 export const productFeedTokenIssuedResponseSchema = dataEnvelope(
   z.object({
