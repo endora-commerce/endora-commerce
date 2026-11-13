@@ -90,6 +90,7 @@ API sklepu, dla zalogowanego kupującego:
 | --- | --- | --- |
 | `GET` | `/api/v1/storefront/notifications?limit=1..50&cursor=` | wpisy od najnowszych, kursor następnej strony i liczba nieprzeczytanych |
 | `GET` | `/api/v1/storefront/notifications/unread-count` | liczba nieprzeczytanych |
+| `GET` | `/api/v1/storefront/notifications/:id` | jeden wpis, bez oznaczania go jako przeczytany; `404` dla wpisu, którego lista by nie pokazała |
 | `POST` | `/api/v1/storefront/notifications/:id/read` | `204`; `404` dla wpisu, który nie należy do wywołującego |
 | `POST` | `/api/v1/storefront/notifications/read-all` | liczba wpisów oznaczonych jako przeczytane |
 

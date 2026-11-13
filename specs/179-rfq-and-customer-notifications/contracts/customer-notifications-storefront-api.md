@@ -12,6 +12,7 @@ platform's `503 MODULE_DISABLED` (as-if-absent, `specs/conventions/module-activa
 | --- | --- | --- | --- |
 | `GET` | `/api/v1/storefront/notifications` | `?limit=1..50` (default 20), `?cursor=<opaque>` | `200 CustomerNotificationListResponse` |
 | `GET` | `/api/v1/storefront/notifications/unread-count` | — | `200 { data: { unreadCount } }` |
+| `GET` | `/api/v1/storefront/notifications/:id` | — | `200 CustomerNotificationResponse` (`{ data: CustomerNotification }`); `404 NOT_FOUND` for an id the list would not show (another account's, another channel's, an absent producer's, unknown). Read-only: marks nothing, so it answers normally under impersonation. Added 2026-11-13 (architect ruling) so the open route of §3 can learn the entry's `linkPath` |
 | `POST` | `/api/v1/storefront/notifications/:id/read` | — | `204`; `404 NOT_FOUND` for an id that is not the caller's |
 | `POST` | `/api/v1/storefront/notifications/read-all` | — | `200 { data: { updated } }` |
 
@@ -24,7 +25,7 @@ Scoping applied to every route, in the query and not after it:
 `read-all` marks exactly the entries the list would show (same three predicates), so an entry
 hidden on this channel stays unread for the channel it belongs to.
 
-Impersonation (`actor.impersonatorAdminUserId` not null): `GET`s answer normally; both `POST`s answer as if they
+Impersonation (`actor.impersonatorAdminUserId` not null): `GET`s answer normally (all three); both `POST`s answer as if they
 succeeded (`204` / `{ updated: 0 }`) and write nothing (FR-045).
 
 ## 2. Schemas
@@ -49,6 +50,10 @@ export const customerNotificationListResponseSchema = z.object({
     nextCursor: z.string().nullable(),   // keyset over (created_at desc, id desc), base64url
     unreadCount: z.number().int().nonnegative(),
   }),
+});
+
+export const customerNotificationResponseSchema = z.object({
+  data: customerNotificationSchema,      // GET /api/v1/storefront/notifications/:id
 });
 
 export const customerNotificationUnreadCountResponseSchema = z.object({

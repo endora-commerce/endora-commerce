@@ -1,5 +1,5 @@
 import { describe, expect, it, vi } from 'vitest';
-import { customerNotificationListResponseSchema } from '@endora-commerce/contracts';
+import { customerNotificationListResponseSchema, customerNotificationResponseSchema } from '@endora-commerce/contracts';
 import { CustomerNotification } from '../entities/customer-notification.entity.js';
 import {
   CustomerNotificationService,
@@ -63,6 +63,7 @@ function entry(n: number, overrides: Partial<CustomerNotification> = {}): Custom
 
 interface FakeStore extends CustomerNotificationStore {
   list: ReturnType<typeof vi.fn> & CustomerNotificationStore['list'];
+  findVisible: ReturnType<typeof vi.fn> & CustomerNotificationStore['findVisible'];
   countUnread: ReturnType<typeof vi.fn> & CustomerNotificationStore['countUnread'];
   markRead: ReturnType<typeof vi.fn> & CustomerNotificationStore['markRead'];
   markAllRead: ReturnType<typeof vi.fn> & CustomerNotificationStore['markAllRead'];
@@ -71,6 +72,7 @@ interface FakeStore extends CustomerNotificationStore {
 function fakeStore(rows: CustomerNotification[] = [], unread = 0, owned = true, updated = 0): FakeStore {
   return {
     list: vi.fn(async () => rows),
+    findVisible: vi.fn(async () => rows[0] ?? null),
     countUnread: vi.fn(async () => unread),
     markRead: vi.fn(async () => owned),
     markAllRead: vi.fn(async () => updated),
@@ -248,6 +250,74 @@ describe('CustomerNotificationService.list', () => {
 
     expect(answer.items).toHaveLength(1);
     expect(answer.unreadCount).toBe(1);
+  });
+});
+
+describe('CustomerNotificationService.get', () => {
+  it('asks the store for the entry under the same visibility the list uses', async () => {
+    const store = fakeStore([entry(1)]);
+    const { svc } = service(store, { present: ['quote_requests', 'orders'] });
+
+    await svc.get(reader(), entry(1).id);
+
+    expect(store.findVisible).toHaveBeenCalledWith(visibility({ sourceModules: ['quote_requests', 'orders'] }), entry(1).id);
+  });
+
+  it('answers the contract shape, translated in the request language', async () => {
+    const store = fakeStore([entry(1)]);
+    const { svc } = service(store, {
+      known: { 'quote_requests:customerNotifications.approved.title': 'Zapytanie {number} zostało zatwierdzone' },
+    });
+
+    const answer = await svc.get(reader(), entry(1).id);
+
+    expect(customerNotificationResponseSchema.parse({ data: answer })).toEqual({ data: answer });
+    expect(answer).toMatchObject({
+      id: entry(1).id,
+      title: 'Zapytanie QR-1 zostało zatwierdzone',
+      linkPath: '/quote-requests/00000000-0000-4000-8000-0000000000d1',
+      readAt: null,
+    });
+  });
+
+  it('marks nothing', async () => {
+    const store = fakeStore([entry(1)]);
+    const { svc } = service(store);
+
+    await svc.get(reader(), entry(1).id);
+
+    expect(store.markRead).not.toHaveBeenCalled();
+    expect(store.markAllRead).not.toHaveBeenCalled();
+  });
+
+  it("answers 404 NOT_FOUND for an entry the reader cannot see", async () => {
+    const store = fakeStore([]);
+    const { svc } = service(store);
+
+    await expect(svc.get(reader(), entry(1).id)).rejects.toMatchObject({ statusCode: 404, code: 'NOT_FOUND' });
+  });
+
+  it('answers 404 for an id that is not a uuid without asking the store', async () => {
+    const store = fakeStore([entry(1)]);
+    const { svc } = service(store);
+
+    await expect(svc.get(reader(), 'not-a-uuid')).rejects.toMatchObject({ statusCode: 404 });
+    expect(store.findVisible).not.toHaveBeenCalled();
+  });
+
+  it('answers 404 without asking the store when no producer is present', async () => {
+    const store = fakeStore([entry(1)]);
+    const { svc } = service(store, { present: [] });
+
+    await expect(svc.get(reader(), entry(1).id)).rejects.toMatchObject({ statusCode: 404 });
+    expect(store.findVisible).not.toHaveBeenCalled();
+  });
+
+  it('answers normally under impersonation', async () => {
+    const store = fakeStore([entry(1)]);
+    const { svc } = service(store);
+
+    expect((await svc.get(reader({ impersonating: true }), entry(1).id)).id).toBe(entry(1).id);
   });
 });
 

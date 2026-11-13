@@ -120,6 +120,15 @@ export const customerNotificationListResponseSchema = z.object({
 });
 export type CustomerNotificationListResponse = z.infer<typeof customerNotificationListResponseSchema>;
 
+/**
+ * `GET /api/v1/storefront/notifications/:id` — one entry, under the same three
+ * visibility predicates as the list; read-only, it marks nothing.
+ */
+export const customerNotificationResponseSchema = z.object({
+  data: customerNotificationSchema,
+});
+export type CustomerNotificationResponse = z.infer<typeof customerNotificationResponseSchema>;
+
 /** `GET /api/v1/storefront/notifications/unread-count`. */
 export const customerNotificationUnreadCountResponseSchema = z.object({
   data: z.object({ unreadCount: z.number().int().nonnegative() }),
