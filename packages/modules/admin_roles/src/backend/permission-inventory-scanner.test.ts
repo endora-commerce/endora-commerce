@@ -25,6 +25,7 @@ beforeEach(() => {
 
 afterEach(() => {
   rmSync(root, { recursive: true, force: true });
+  rmSync(`${root}-shell`, { recursive: true, force: true });
 });
 
 function codes(): string[] {
@@ -251,6 +252,69 @@ describe('permission gate scanner — component files', () => {
 
   it('ignores a gate written in a *.test.tsx', () => {
     writeModule('kappa_test', 'KappaPage.test.tsx', `hasPermission('kappa:fixture');`);
+    expect(codes()).toEqual([]);
+  });
+});
+
+/**
+ * Issue #1106 — the admin shell is a host root (`moduleId: null`) and an Admin
+ * UI layer. Its nav and dashboard tiles declare `requiredPermission` as data,
+ * not as a call, so the scanner reads that property there: a string literal is
+ * one code, an array literal one any-of site carrying every member.
+ */
+describe('permission gate scanner — admin shell data', () => {
+  // Beside the module root, not inside it: the walk reads a file once, under
+  // the first root that reaches it.
+  function shell(file: string, source: string): string {
+    const dir = join(`${root}-shell`, 'src');
+    mkdirSync(join(dir, file, '..'), { recursive: true });
+    writeFileSync(join(dir, file), source, 'utf8');
+    return dir;
+  }
+
+  it('reads nav requiredPermission literals as host-owned control sites', () => {
+    const dir = shell(
+      'components/AppShell.tsx',
+      [
+        `interface NavItem { requiredPermission?: PermissionRequirement; }`,
+        `const items = [`,
+        `  { to: '/platform/modules', requiredPermission: 'platform.modules.read', module: null },`,
+        `  { to: '/platform/command-hooks', requiredPermission: ['platform.modules.read', 'platform.command_outbox.read'], module: null },`,
+        `];`,
+        `const forwarded = items.map((item) => ({ requiredPermission: item.requiredPermission }));`,
+        `const mayUseAssistant = hasPermission('prompt_actions:use');`,
+      ].join('\n'),
+    );
+    const result = scanEnforcedPermissionGates([{ dir, moduleId: null, adminLayer: true }]);
+    // Calls first, then data, each in source order.
+    expect(result.sites.map((s) => [s.moduleId, s.surface, s.codes])).toEqual([
+      [null, 'admin-control', ['prompt_actions:use']],
+      [null, 'admin-control', ['platform.modules.read']],
+      [null, 'admin-control', ['platform.modules.read', 'platform.command_outbox.read']],
+    ]);
+    expect(result.unresolved).toEqual([]);
+  });
+
+  it('keeps a declaration that decides whether a route element renders an enforcement site', () => {
+    const dir = shell(
+      'App.tsx',
+      `const routes = [{ path: '/reports', element: <Reports />, requiredPermission: 'reports:read' }];`,
+    );
+    const result = scanEnforcedPermissionGates([{ dir, moduleId: null, adminLayer: true }]);
+    expect(result.sites.map((s) => [s.surface, s.codes])).toEqual([['enforcement', ['reports:read']]]);
+  });
+
+  it('reads a dashboard tile carrying the API path it reads from as a control', () => {
+    const dir = shell(
+      'modules/home/HomePage.tsx',
+      `const KPIS = [{ key: 'rfqs', requiredPermission: 'rfqs:handle', path: () => '/api/v1/admin/rfqs' }];`,
+    );
+    const result = scanEnforcedPermissionGates([{ dir, moduleId: null, adminLayer: true }]);
+    expect(result.sites.map((s) => [s.surface, s.codes])).toEqual([['admin-control', ['rfqs:handle']]]);
+  });
+
+  it('does not read requiredPermission data outside an admin-layer root', () => {
+    writeModule('lambda', 'index.ts', `export const nav = [{ to: '/l', requiredPermission: 'lambda:read' }];`);
     expect(codes()).toEqual([]);
   });
 });

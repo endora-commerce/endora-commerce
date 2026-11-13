@@ -391,6 +391,42 @@ describe('foreign-gate sweep — the shapes it refuses', () => {
   });
 
   /**
+   * Issue #1106 — an admin-shell nav any-of is read as one host site, so its
+   * members are judged as alternatives of one another exactly as a scanned
+   * `hasAnyPermission` is; a shell UI check on a switchable module's code is a
+   * control.
+   */
+  it('judges a scanned admin-shell nav any-of and a shell UI check', () => {
+    const root = mkdtempSync(join(tmpdir(), 'foreign-gates-shell-'));
+    try {
+      mkdirSync(join(root, 'components'), { recursive: true });
+      writeFileSync(
+        join(root, 'components', 'AppShell.tsx'),
+        [
+          `const items = [{ to: '/x', requiredPermission: ['orders:read', 'tasks:read'], module: null }];`,
+          `const mayUseAssistant = hasPermission('prompt_actions:use');`,
+        ].join('\n'),
+        'utf8',
+      );
+      const scanned = scanEnforcedPermissionGates([{ dir: root, moduleId: null, adminLayer: true }]);
+      const found = classifyForeignGates(
+        input(scanned.sites, [
+          locked('orders', { permissions: [{ code: 'orders:read', label: 'View orders' }] }),
+          manifest('tasks', { permissions: [{ code: 'tasks:read', label: 'View tasks' }] }),
+          manifest('prompt_actions', { permissions: [{ code: 'prompt_actions:use', label: 'Use prompts' }] }),
+        ]),
+      );
+      expect(found.map((finding) => [finding.consumer, finding.code, finding.kind])).toEqual([
+        [null, 'orders:read', 'owner-locked'],
+        [null, 'prompt_actions:use', 'admin-ui-control'],
+        [null, 'tasks:read', 'sufficient-alternative'],
+      ]);
+    } finally {
+      rmSync(root, { recursive: true, force: true });
+    }
+  });
+
+  /**
    * A host-owned file owns no code and has no activation control, so a foreign
    * gate there is the locked-consumer case. There are none today; the proof is
    * what stops the first one arriving unseen, which is the whole reason the
@@ -470,6 +506,7 @@ describe('foreign-gate sweep — this build', () => {
   const findings = (async (): Promise<{
     input: ForeignGateInput;
     findings: readonly ForeignGateFinding[];
+    scan: ReturnType<typeof scanEnforcedPermissionGates>;
   }> => {
     const manifests = await resolvedManifestEntries();
     const scan = scanEnforcedPermissionGates(await permissionScanRoots());
@@ -478,7 +515,7 @@ describe('foreign-gate sweep — this build', () => {
       manifests,
       owners: new PermissionCatalogueService({ registryEntries: manifests }).listOwnersByCode(),
     };
-    return { input: built, findings: classifyForeignGates(built) };
+    return { input: built, findings: classifyForeignGates(built), scan };
   })();
 
   it('read a population worth reporting on', async () => {
@@ -525,6 +562,18 @@ describe('foreign-gate sweep — this build', () => {
       .filter((site) => /admin[\\/]lib[\\/]references\.ts$/.test(site.file))
       .map((site) => `${site.file}: ${site.expression}`);
     expect(runtime).toEqual([]);
+  });
+
+  /** Issue #1106 — the shell is in the population, and its nav data is read. */
+  it('reads the admin-shell nav any-of as one host-owned site', async () => {
+    const { scan } = await findings;
+    const commandHooks = scan.sites
+      .filter((site) => /AppShell\.tsx$/.test(site.file))
+      .filter((site) => site.codes.includes('platform.command_outbox.read'))
+      .map((site) => [site.moduleId, site.surface, site.codes]);
+    expect(commandHooks).toEqual([
+      [null, 'admin-control', ['platform.modules.read', 'platform.command_outbox.read']],
+    ]);
   });
 
   it('carries no ledger entry describing a finding that is gone', async () => {
