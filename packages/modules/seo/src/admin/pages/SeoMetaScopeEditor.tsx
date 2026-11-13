@@ -196,8 +196,9 @@ export function SeoMetaScopeEditor({ entityType, entityId }: SeoMetaScopeEditorP
     return true;
   };
 
+  /** A language tag as stored, in its canonical case (`de-DE`), as in the catalog admin (#501, #1102). */
   const scopeName = (target: Scope): string => {
-    return t('metaScope.scope.language', { language: (target.locale || FALLBACK_LOCALE).toUpperCase() });
+    return t('metaScope.scope.language', { language: target.locale || FALLBACK_LOCALE });
   };
 
   const save = useCallback(async (): Promise<void> => {
