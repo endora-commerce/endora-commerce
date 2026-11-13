@@ -370,3 +370,50 @@ export interface PushProviderRegistryPort {
   get(key: string): PushProvider | undefined;
   resolveDefault(salesChannelId: string): Promise<PushProvider>;
 }
+
+// ---------------------------------------------------------------------------
+// (5) Internal port — `customerPushPort` (`specs/179-rfq-and-customer-notifications/`)
+// ---------------------------------------------------------------------------
+
+/** The automatic push category a producer pushes under; `order` stays on pwa's own subscription. */
+export type CustomerPushCategory = 'quote';
+
+export interface CustomerPushInput {
+  organizationId: string;
+  customerAccountId: string;
+  /** The channel whose push settings apply; `null` = the system default channel. */
+  salesChannelId: string | null;
+  category: CustomerPushCategory;
+  /** Already rendered by the caller in the language it chose. */
+  title: string;
+  body: string;
+  /** Storefront-relative path the notification opens. */
+  url: string;
+  /** Idempotency key; becomes `push_messages.source_event_id` under trigger `quote_request`. */
+  sourceKey: string;
+}
+
+export type CustomerPushOutcome =
+  | 'enqueued'
+  /** `pwa.push_enabled` or the category's setting is off on the channel. */
+  | 'skipped:switched_off'
+  /** The account's preference for the category is off. */
+  | 'skipped:customer_preference'
+  /** The account is deleted or anonymised. */
+  | 'skipped:no_account'
+  /** The account has no active device subscription. */
+  | 'skipped:no_subscription';
+
+/**
+ * Container name: `customerPushPort`. Owner: `pwa`. Owner off: fails closed;
+ * callers decide presence first (D-60).
+ *
+ * Producer only: it writes the push message and enqueues pwa's own delivery
+ * worker; it never sends inline (Principle X). Gates, in order: channel →
+ * `pwa.push_enabled` and the category setting → account live → preference →
+ * subscriptions → enqueue. A repeated `sourceKey` answers `enqueued` and writes
+ * nothing (`push_messages_trigger_event_uniq`).
+ */
+export interface CustomerPushPort {
+  push(input: CustomerPushInput): Promise<CustomerPushOutcome>;
+}

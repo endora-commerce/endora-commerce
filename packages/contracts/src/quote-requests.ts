@@ -288,6 +288,56 @@ export const quoteRequestHistoryEntryKindSchema = z.enum([
 ]);
 export type QuoteRequestHistoryEntryKind = z.infer<typeof quoteRequestHistoryEntryKindSchema>;
 
+/**
+ * `specs/179-rfq-and-customer-notifications/` — one notification delivery of a
+ * history entry (`contracts/delivery-and-ports.md` §4): who was told, through
+ * which channel, and with what outcome. Admin history only; the customer
+ * projection never carries it (FR-071). The recipient's address is never part
+ * of it — `displayName` is resolved at read, `''` when the person is gone.
+ */
+export const quoteRequestDeliveryChannelSchema = z.enum([
+  'admin_in_app',
+  'admin_email',
+  'customer_email',
+  'customer_in_app',
+  'customer_push',
+]);
+export type QuoteRequestDeliveryChannel = z.infer<typeof quoteRequestDeliveryChannelSchema>;
+
+export const quoteRequestDeliveryStatusSchema = z.enum([
+  'pending',
+  'sent',
+  'skipped_stale',
+  'skipped_module_off',
+  'skipped_deactivated',
+  'skipped_no_transport',
+  'skipped_logged',
+  'skipped_no_recipient',
+  'skipped_preference',
+  'skipped_no_subscription',
+  'failed',
+]);
+export type QuoteRequestDeliveryStatus = z.infer<typeof quoteRequestDeliveryStatusSchema>;
+
+export const quoteRequestDeliverySchema = z
+  .object({
+    id: uuidSchema,
+    channel: quoteRequestDeliveryChannelSchema,
+    recipient: z
+      .object({
+        kind: z.enum(['admin', 'customer']),
+        id: uuidSchema,
+        displayName: z.string(),
+      })
+      .strict(),
+    status: quoteRequestDeliveryStatusSchema,
+    attempts: z.number().int().nonnegative(),
+    lastError: z.string().nullable(),
+    closedAt: isoDateTimeSchema.nullable(),
+  })
+  .strict();
+export type QuoteRequestDelivery = z.infer<typeof quoteRequestDeliverySchema>;
+
 export const quoteRequestHistoryEntrySchema = z.object({
   /** Id of the first merged event. */
   id: uuidSchema,
@@ -334,6 +384,11 @@ export const quoteRequestHistoryEntrySchema = z.object({
     })
     .nullable()
     .optional(),
+  /**
+   * Feature 179 — admin history only: the notification deliveries whose source
+   * event is one of `eventIds`. Absent on the customer route (FR-071).
+   */
+  deliveries: z.array(quoteRequestDeliverySchema).optional(),
 });
 export type QuoteRequestHistoryEntry = z.infer<typeof quoteRequestHistoryEntrySchema>;
 

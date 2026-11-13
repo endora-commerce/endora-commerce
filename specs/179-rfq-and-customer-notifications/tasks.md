@@ -33,9 +33,9 @@ Contract and integration files do not run on merge requests (D-198): run them lo
 
 ### WP-01 Contracts (blocks everything)
 
-- [ ] T001 [P] [WP-01] Test: `customerNotificationListResponseSchema`, `customerNotificationSchema`, unread-count schema parse/strict cases — `contracts/customer-notifications.test.ts`
-- [ ] T002 [P] [WP-01] Test: `quoteRequestDeliverySchema` and an entry with and without `deliveries` — `contracts/quote-requests.test.ts`
-- [ ] T003 [WP-01] Impl: `contracts/customer-notifications.ts` (port types + schemas, `contracts/delivery-and-ports.md` §1, storefront API §2), `CustomerPushPort` types in `contracts/pwa.ts` (§2), `quoteRequestDeliverySchema` + optional `deliveries` in `contracts/quote-requests.ts` (§4); export from the barrel; changeset `@endora-commerce/contracts` minor
+- [x] T001 [P] [WP-01] Test: `customerNotificationListResponseSchema`, `customerNotificationSchema`, unread-count schema parse/strict cases — `contracts/customer-notifications.test.ts`
+- [x] T002 [P] [WP-01] Test: `quoteRequestDeliverySchema` and an entry with and without `deliveries` — `contracts/quote-requests.test.ts`
+- [x] T003 [WP-01] Impl: `contracts/customer-notifications.ts` (port types + schemas, `contracts/delivery-and-ports.md` §1, storefront API §2), `CustomerPushPort` types in `contracts/pwa.ts` (§2), `quoteRequestDeliverySchema` + optional `deliveries` in `contracts/quote-requests.ts` (§4); export from the barrel; changeset `@endora-commerce/contracts` minor
 
 ### WP-02 Table redesign (`qr`)
 
