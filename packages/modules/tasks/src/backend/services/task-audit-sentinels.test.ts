@@ -240,8 +240,13 @@ describe('tasks audit state carries names, never values (#470)', () => {
         assertMayChange: () => undefined,
         visibleIds: async (ids: readonly string[]) => new Set(ids),
       },
-      assets: { findById: async () => asset, findByIds: async () => [asset], visibleToCaller: async (ids: readonly string[]) => new Set(ids) },
-      assetsLibrary: { getAsset: async () => ({ url: '/files/x' }) },
+      assets: {
+        findById: async () => asset,
+        findByIds: async () => [asset],
+        visibleToCaller: async (ids: readonly string[]) => new Set(ids),
+        resolveUrls: async (ids: readonly string[]) => new Map(ids.map((id) => [id, '/files/x'])),
+      },
+      assetsLibrary: {},
       adminUsers: { findByIds: async () => [] },
     } as never);
     await asAdmin(() => service.add(task.id, ASSET));

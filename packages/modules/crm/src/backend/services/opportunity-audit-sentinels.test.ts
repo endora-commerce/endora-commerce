@@ -547,8 +547,9 @@ describe('crm audit state carries names, never values (#470)', () => {
         findById: async () => asset,
         findByIds: async () => [asset],
         visibleToCaller: async (ids: readonly string[]) => new Set(ids),
+        resolveUrls: async (ids: readonly string[]) => new Map(ids.map((id) => [id, '/files/x'])),
       },
-      assetsLibrary: { getAsset: async () => ({ url: '/files/x' }) },
+      assetsLibrary: {},
       adminUsers: { findByIds: async () => [] },
     } as never);
     const { attachment } = await asAdmin(() => service.add(opportunity.id, ASSET));
