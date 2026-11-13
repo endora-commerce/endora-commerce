@@ -405,8 +405,11 @@ export type CustomerPushOutcome =
   | 'skipped:no_subscription';
 
 /**
- * Container name: `customerPushPort`. Owner: `pwa`. Owner off: fails closed;
- * callers decide presence first (D-60).
+ * Owner: `pwa`, which registers it as `customerPushPort`
+ * (`specs/179-rfq-and-customer-notifications/` WP-10). The doc block gains its
+ * container-name marker in the change that adds that registration:
+ * `check:port-shape` refuses a published name nothing registers. Owner off:
+ * fails closed; callers decide presence first (D-60).
  *
  * Producer only: it writes the push message and enqueues pwa's own delivery
  * worker; it never sends inline (Principle X). Gates, in order: channel →

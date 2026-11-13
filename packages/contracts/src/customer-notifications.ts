@@ -60,7 +60,11 @@ export interface CustomerNotificationRecord {
 }
 
 /**
- * Container name: `customerNotificationRecordPort`. Owner: `customer_notifications`.
+ * Owner: `customer_notifications`, which registers it as
+ * `customerNotificationRecordPort` (`specs/179-rfq-and-customer-notifications/`
+ * WP-07). The doc block gains its container-name marker in the change that adds
+ * that registration: `check:port-shape` refuses a published name nothing
+ * registers, and until then no module provides this port.
  *
  * Owner off: the gate fails closed (`ModuleDisabledError`). Callers decide
  * presence in front of it (`effectiveState.isPresent('customer_notifications')`)
