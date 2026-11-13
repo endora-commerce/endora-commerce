@@ -6,6 +6,7 @@ import {
   type CatalogProductRecord,
   type CatalogProductUrlKeyReadPort,
   type ProductAudience,
+  type UpsellProduct,
 } from '@endora-commerce/contracts';
 import { CartItem } from '../entities/cart-item.entity.js';
 import { basketNamesAt, effectiveKeysAt } from './cart-availability.js';
@@ -23,13 +24,12 @@ import { basketNamesAt, effectiveKeysAt } from './cart-availability.js';
  * placement is the cart UI; the relation type is the same.
  */
 
-export interface CartUpsellCandidate {
-  productId: string;
-  productName: string;
-  productSlug: string;
-  productThumbnailUrl: string | null;
-  matchCount: number;
-}
+/**
+ * One up-sell, as `GET /api/v1/cart/upsells` answers it — the published
+ * `upsellProductSchema` (issue #599). `unitPrice` is `null`: the strip
+ * resolves no price, and the storefront shows its "no price" label.
+ */
+export type CartUpsellCandidate = UpsellProduct;
 
 export class CartUpsellService {
   constructor(
@@ -134,6 +134,8 @@ export class CartUpsellService {
         productName: names.get(p.id) || this.globalName(p),
         productSlug: keys.get(p.id) ?? p.slug,
         productThumbnailUrl: this.thumbnailFor(p),
+        // No price is resolved for the strip; the contract's `null`, never an absent key.
+        unitPrice: null,
         matchCount: matchCountByTarget.get(p.id) ?? 0,
       }));
 

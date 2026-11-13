@@ -20,6 +20,7 @@ import {
   SESSION_COOKIE_NAME,
   ADMIN_SESSION_COOKIE_NAME,
   type AddressReadPort,
+  type AdminCustomerListResponse,
   type CartQueryPort,
   type CustomerAccountLifecycleWritePort,
   type CustomerAccountReadPort,
@@ -242,7 +243,7 @@ export async function registerCustomersAdminRoutes(
   }>(
     '/api/v1/admin/customers',
     { preHandler: requireAdmin('customers:read') },
-    async (request) => {
+    async (request): Promise<AdminCustomerListResponse> => {
       const actor = await resolveModerationActor(request);
       const q = request.query;
       const page = Math.max(1, Number.parseInt(q.page ?? '1', 10) || 1);

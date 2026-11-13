@@ -12,8 +12,11 @@ import { OrderStatusGraphService } from '../../../../packages/modules/orders/dis
 import { InMemoryMailer } from '../../../../packages/modules/email/src/backend/services/mailer.js';
 import { CustomerAccount } from '../../helpers/package-entities.js';
 import { Order, OrderComment } from '../../helpers/package-entities.js';
-import { adminUserIdKeys } from '../../helpers/strict-schema.js';
+import { adminUserIdKeys, deepStrict, disagreements } from '../../helpers/strict-schema.js';
 import { orderCommentSchema } from '@endora-commerce/contracts';
+
+/** A strict copy: a key a comment reply carries that the contract does not declare fails (issue #599 §5). */
+const strictComment = deepStrict(orderCommentSchema);
 
 /**
  * Feature 038 (US5) — order comments: visibility + notify rules, terminal
@@ -88,7 +91,9 @@ describe('Order comments', () => {
       expect.any(String),
     );
     expect(adminUserIdKeys(custList.data)).toEqual([]);
-    expect(orderCommentSchema.safeParse(custList.data[0]).success).toBe(true);
+    expect(custList.data.flatMap((comment) => disagreements(strictComment, comment))).toEqual([]);
+    expect(adminList.data.flatMap((comment) => disagreements(strictComment, comment))).toEqual([]);
+    expect(disagreements(strictComment, (internal.json() as { data: unknown }).data)).toEqual([]);
     const own = await h.app.inject({
       method: 'POST',
       url: `/api/v1/orders/${openOrderId}/comments`,
@@ -97,6 +102,7 @@ describe('Order comments', () => {
     });
     expect(own.statusCode).toBe(201);
     expect(adminUserIdKeys(own.json())).toEqual([]);
+    expect(disagreements(strictComment, (own.json() as { data: unknown }).data)).toEqual([]);
   });
 
   it('customer comments are forced customer-visible and non-notifying', async () => {
@@ -187,7 +193,7 @@ describe('Order comments', () => {
     for (const id of [hiddenId, forcedVisibleId]) {
       expect(byId.get(id)?.systemNote).toEqual(note);
       expect(byId.get(id)?.authorAdminUserId).toBeNull();
-      expect(orderCommentSchema.safeParse(byId.get(id)).success).toBe(true);
+      expect(disagreements(strictComment, byId.get(id))).toEqual([]);
     }
     expect(byId.get(staffId)?.systemNote).toBeNull();
     for (const comment of adminList.data) {
