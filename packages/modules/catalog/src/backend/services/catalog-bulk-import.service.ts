@@ -94,6 +94,12 @@ export class CatalogBulkImportService implements CatalogBulkImportPort {
       eventBus?: Pick<EventBus, 'emit'>;
       /** Feature 174 (T084) — the scoped import's planner deps (`scoped-values-import.ts`). */
       importDeps?: ScopedImportDeps;
+      /**
+       * Issue #409 — ask for `VACUUM (ANALYZE)` of `products` / `product_variants`
+       * once a products import wrote (the `catalog.table-maintenance` queue).
+       * Never throws; absent in a composition with no queue.
+       */
+      requestTableMaintenance?: () => Promise<unknown>;
     },
     /**
      * Feature 172 (FR-041) — the attribute read that says which keys are Page
@@ -264,6 +270,7 @@ export class CatalogBulkImportService implements CatalogBulkImportPort {
         errors.push({ index, reason: `${error.code}: ${error.message}` });
       }
     }
+    if (!options.dryRun && imported > 0) await this.scoped?.requestTableMaintenance?.();
     return { imported, errors, ...(fieldErrors.length > 0 ? { fieldErrors } : {}) };
   }
 
