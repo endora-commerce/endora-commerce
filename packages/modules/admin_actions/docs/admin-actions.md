@@ -45,7 +45,7 @@ export const manifest = defineModuleManifest({
 
 Each entry MUST carry a stable `id`, a translatable `labelKey`, an `icon` from the closed
 allowlist, and a `targetRoute`. Optional fields are `descriptionKey`, `requiredPermission`,
-`keywords` (up to 10), `keywordsKey`, and `weight` (default 100).
+`entryApiRoute`, `keywords` (up to 10), `keywordsKey`, and `weight` (default 100).
 
 `keywords` are English and match in every admin language. Search words in another language
 do not go into the manifest: `keywordsKey` names an entry in the module's own bundles —
@@ -67,6 +67,28 @@ and the permission inventory could not see either, because it sweeps whether a c
 destination genuinely has no gate; where the screen is read-gated but the action's label
 promises a write, the field cannot say both, and the disagreement is recorded in that check's
 ledger rather than guessed at.
+
+The check finds that route from the URL: an API path equal to the target, then the shallowest
+one under it, then the closest one the module registers. That guess is wrong when the screen
+is served by an API its admin path does not name. The command outbox is a tab of
+`/platform/command-hooks`, but its data comes from `GET /api/v1/admin/command-outbox`. For a
+screen like that, `entryApiRoute` names the admin API route the screen opens on, and the check
+compares `requiredPermission` against that route alone:
+
+```ts
+{
+  id: 'open-command-outbox',
+  targetRoute: '/platform/command-hooks/outbox',
+  requiredPermission: 'platform.command_outbox.read',
+  entryApiRoute: '/api/v1/admin/command-outbox',
+  // …
+}
+```
+
+The value is a path under `/api/v1/admin/`, written exactly as the route registers it. The
+method follows the target: `GET`, or the write verbs for a `/new` form. If no registration
+answers the declared path, the check reports it rather than falling back to the guess.
+Nothing reads the field at runtime. Declare it only where the guess picks the wrong route.
 
 Within-module `id` uniqueness is enforced by the manifest's Zod schema — installing a
 manifest with two actions sharing an id fails the install with a clear, indexed error.
