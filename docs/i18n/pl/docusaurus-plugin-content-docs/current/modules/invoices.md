@@ -15,7 +15,7 @@ Lista w panelu administracyjnym jest chroniona przez `orders:read`.
 | Metoda i ścieżka | Kto | Przeznaczenie |
 | --- | --- | --- |
 | `GET /api/v1/orders/:id/invoice` | klient | Pobranie faktury PDF (404 `INVOICE_NOT_READY`, dopóki status nie jest `ready`; potem odpowiedź binarna z odpowiednim Content-Type). Administrator pobiera fakturę ponownie przez ten sam endpoint, pod adresem storefrontu. |
-| `GET /api/v1/admin/invoices` | administrator | Lista wszystkich faktur z `filter[status]` / `filter[orderId]`; domyślnie 50, najwyżej 200 |
+| `GET /api/v1/admin/invoices` | administrator | Lista wszystkich faktur z `filter[status]` / `filter[orderId]`; domyślnie 50, najwyżej 200; od najnowszych, stronicowana nieprzezroczystym `pagination.cursor` przekazywanym z powrotem jako `?cursor=` |
 
 ## Generowanie
 
