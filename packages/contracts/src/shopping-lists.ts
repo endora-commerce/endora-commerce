@@ -171,7 +171,8 @@ export type ConvertToCartResponse = z.infer<typeof convertToCartResponseSchema>;
 
 export const convertToRfqResponseSchema = z.object({
   shoppingListId: uuidSchema,
-  rfqId: uuidSchema,
+  /** `null` when no item converted — every selected item was skipped, or none was selected; no quote request was created or changed. */
+  rfqId: uuidSchema.nullable(),
   added: z.number().int().nonnegative(),
   skipped: z.array(conversionSkipSchema),
 });

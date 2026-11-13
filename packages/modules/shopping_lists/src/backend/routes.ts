@@ -8,6 +8,7 @@ import {
   firstLanguageTag,
   organizationPermissionPreHandler,
   type ConvertToCartResponse,
+  type ConvertToRfqResponse,
   type DefaultShoppingListSummary,
   type OrganizationPermissionPort,
   type ShoppingList as ShoppingListView,
@@ -245,9 +246,8 @@ export async function registerShoppingListRoutes(
   app.post<{ Params: { id: string } }>(
     '/api/v1/shopping-lists/:id/convert-to-rfq',
     { preHandler: canConvertToQuoteRequest, schema: { body: convertShoppingListRequestSchema.optional() } },
-    // Not typed as `ConvertToRfqResponse`: the service answers `rfqId: null` when every
-    // item is skipped, which the contract does not allow (issue #599, open question).
-    async (request) => {
+    // `rfqId` is `null` when every item is skipped; the contract declares it (issue #1159).
+    async (request): Promise<{ data: ConvertToRfqResponse }> => {
       const ctx = resolveCustomerContext(request);
       const body = convertShoppingListRequestSchema.parse(request.body ?? {});
       // Feature 163 — the lines are judged at the request's channel and scope language.

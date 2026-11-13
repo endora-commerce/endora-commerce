@@ -195,6 +195,26 @@ describe('shopping-list detail — the shop language (issue #85)', () => {
       'Dodano 2 pozycje do szkicu zapytania ofertowego. Pominięto 5 zarchiwizowanych wierszy. Otwórz zapytanie ofertowe',
     );
   });
+
+  // Issue #1159 (architect ruling A) — a conversion that added nothing created no quote request:
+  // the page says so, neutrally, and links to none.
+  it.each([
+    ['en-US', 'No items were added to a quote request. Skipped 2 archived rows.'],
+    ['pl-PL', 'Nie dodano żadnej pozycji do zapytania ofertowego. Pominięto 2 zarchiwizowane wiersze.'],
+  ])('says nothing was added to a quote request, and links to none (%s)', async (l, sentence) => {
+    locale = l;
+    const { default: Page } = await import('../../../app/(account)/shopping-lists/[id]/page');
+    const html = renderToString(
+      <>{await Page({
+        params: Promise.resolve({ id: '00000000-0000-4000-8000-0000000000f1' }),
+        searchParams: Promise.resolve({ rfqAdded: '0', rfqSkipped: '2' }),
+      })}</>,
+    );
+    expect(visibleText(html)).toContain(sentence);
+    expect(html).not.toContain('/quote-requests/');
+    expect(html).toMatch(/<p[^>]*role="status"[^>]*>No items|<p[^>]*role="status"[^>]*>Nie dodano/);
+    expect(html).not.toMatch(/b2b-auth__success[^>]*>(No items|Nie dodano)/);
+  });
 });
 
 describe('shopping-list dialogs — the shop language (issue #85)', () => {
