@@ -80,7 +80,9 @@ describe('Page Builder translation — integration (feature 151)', () => {
   });
 
   describe('audit (FR-031)', () => {
-    beforeAll(async () => {
+    // Per case, not per block: 'records nothing…' switches the translation off,
+    // so a case run after it in a shuffled order read 409 (issue #1118).
+    beforeEach(async () => {
       await seedTranslationSettings(h, { provider: 'openai', model: 'gpt-audit', maxSourceCharacters: 1000 });
     });
 

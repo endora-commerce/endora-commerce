@@ -1,5 +1,5 @@
 import { randomUUID } from 'crypto';
-import { afterAll, beforeAll, describe, expect, it } from 'vitest';
+import { afterAll, beforeAll, beforeEach, describe, expect, it } from 'vitest';
 import { DEFAULT_BRAND_TOKENS, ERROR_CODES, type CmsBrandTokens } from '@endora-commerce/contracts';
 import { AuditLogEntry, SalesChannel } from '@endora-commerce/platform/kernel';
 import {
@@ -21,6 +21,10 @@ import {
  *
  * The table is this file's alone, so its rows are taken aside in `beforeAll`
  * and put back in `afterAll` (standing rule 5).
+ *
+ * Every case starts from no global set and no set on this file's channels
+ * (`beforeEach`), and writes the sets it reads itself: under a shuffled order
+ * a case cannot lean on what an earlier one saved (issue #1118).
  */
 
 const ADMIN = { b2b_session: 'stub-admin-session' };
@@ -73,10 +77,13 @@ describe('brand tokens (feature 163, contract §1)', () => {
   let saved: StoredRow[] = [];
   const createdChannelIds: string[] = [];
 
+  /** The channels whose sets the cases write, so the ones `beforeEach` clears. */
+  const resetChannelIds = (): string[] => [defaultChannel.id, overrideChannel.id, otherChannel.id];
+
   async function rows(): Promise<StoredRow[]> {
     return (await h.em().execute(
-      // Only the global row is this file's to take over; channel rows belong to the channels that
-      // own them, and the ones this file writes sit on channels it creates itself.
+      // The global row only. The channel rows this file writes sit on channels it creates, plus
+      // the default channel's, which `beforeAll` takes aside beside the global one.
       'select id, sales_channel_id::text as sales_channel_id, tokens, version, updated_at from cms_brand_tokens where sales_channel_id is null',
     )) as StoredRow[];
   }
@@ -128,21 +135,41 @@ describe('brand tokens (feature 163, contract §1)', () => {
     return salesChannelId ? read.data.channel!.version : read.data.global.version;
   }
 
+  /** Arrange: save `tokens` for the global scope, or for one channel, at its current version. */
+  async function save(tokens: CmsBrandTokens, salesChannelId?: string): Promise<void> {
+    const res = await put({
+      scope: salesChannelId ? { kind: 'channel', salesChannelId } : { kind: 'all' },
+      tokens,
+      expectedVersion: await versionOf(salesChannelId),
+    });
+    expect(res.statusCode, res.body).toBe(200);
+  }
+
   beforeAll(async () => {
     h = await setupBackendServer({ seed: 'none' });
-    saved = await rows();
-    await h.em().execute('delete from cms_brand_tokens where sales_channel_id is null');
     const found = await h.em().findOneOrFail(SalesChannel, { systemDefault: true });
     defaultChannel = { id: found.id, code: found.code };
+    // The global row and the default channel's: the cases write both.
+    saved = (await h.em().execute(
+      'select id, sales_channel_id::text as sales_channel_id, tokens, version, updated_at from cms_brand_tokens where sales_channel_id is null or sales_channel_id = ?',
+      [defaultChannel.id],
+    )) as StoredRow[];
     overrideChannel = await createChannel('override');
     otherChannel = await createChannel('other');
   }, 60_000);
+
+  beforeEach(async () => {
+    await h.em().execute(
+      'delete from cms_brand_tokens where sales_channel_id is null or sales_channel_id = any(?::uuid[])',
+      [`{${resetChannelIds().join(',')}}`],
+    );
+  });
 
   afterAll(async () => {
     const em = h.em();
     await em.execute(
       'delete from cms_brand_tokens where sales_channel_id is null or sales_channel_id = any(?::uuid[])',
-      [`{${createdChannelIds.join(',')}}`],
+      [`{${[defaultChannel.id, ...createdChannelIds].join(',')}}`],
     );
     for (const row of saved) {
       await em.execute(
@@ -236,6 +263,8 @@ describe('brand tokens (feature 163, contract §1)', () => {
   });
 
   it('refuses a stale expectedVersion with 409 and records nothing', async () => {
+    await save(GLOBAL_TOKENS);
+    await save(GLOBAL_TOKENS);
     const current = await versionOf();
     const before = await auditCount('global');
     const res = await put({
@@ -259,13 +288,15 @@ describe('brand tokens (feature 163, contract §1)', () => {
   });
 
   it('serves each channel its own set on the storefront, and never another channel’s', async () => {
+    await save(GLOBAL_TOKENS);
+    const auditBefore = await auditCount(overrideChannel.id);
     const override = await put({
       scope: { kind: 'channel', salesChannelId: overrideChannel.id },
       tokens: OVERRIDE_TOKENS,
       expectedVersion: 0,
     });
     expect(override.statusCode).toBe(200);
-    expect(await auditCount(overrideChannel.id)).toBe(1);
+    expect(await auditCount(overrideChannel.id)).toBe(auditBefore + 1);
     const onDefault = await put({
       scope: { kind: 'channel', salesChannelId: defaultChannel.id },
       tokens: DEFAULT_CHANNEL_TOKENS,
@@ -319,6 +350,9 @@ describe('brand tokens (feature 163, contract §1)', () => {
   });
 
   it('removes a channel override with `tokens: null`, so the channel inherits the global set', async () => {
+    await save(GLOBAL_TOKENS);
+    const auditBefore = await auditCount(overrideChannel.id);
+    await save(OVERRIDE_TOKENS, overrideChannel.id);
     const version = await versionOf(overrideChannel.id);
     const res = await put({
       scope: { kind: 'channel', salesChannelId: overrideChannel.id },
@@ -327,7 +361,7 @@ describe('brand tokens (feature 163, contract §1)', () => {
     });
     expect(res.statusCode).toBe(200);
     expect((res.json() as { data: { version: number } }).data.version).toBe(0);
-    expect(await auditCount(overrideChannel.id)).toBe(2);
+    expect(await auditCount(overrideChannel.id)).toBe(auditBefore + 2);
     const [entry] = await h.em().find(
       AuditLogEntry,
       { action: ACTION, objectType: OBJECT_TYPE, objectId: overrideChannel.id },
@@ -338,11 +372,15 @@ describe('brand tokens (feature 163, contract §1)', () => {
 
     const storefront = await getStorefront(overrideChannel.code);
     expect((storefront.json() as { data: CmsBrandTokens }).data).toEqual(GLOBAL_TOKENS);
-    const stored = await rows();
-    expect(stored.some((row) => row.sales_channel_id === overrideChannel.id)).toBe(false);
+    const stored = (await h.em().execute('select id from cms_brand_tokens where sales_channel_id = ?', [
+      overrideChannel.id,
+    ])) as Array<{ id: string }>;
+    expect(stored).toEqual([]);
   });
 
   it('serves the effective set in the page-builder descriptor, per channel (T021)', async () => {
+    await save(GLOBAL_TOKENS);
+    await save(DEFAULT_CHANNEL_TOKENS, defaultChannel.id);
     const global = await h.app.inject({
       method: 'GET',
       url: '/api/v1/admin/cms/page-builder/config',
