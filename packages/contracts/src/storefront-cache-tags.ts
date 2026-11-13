@@ -103,4 +103,11 @@ export type CmsContentChange =
     }
   | { readonly kind: 'block'; readonly codes: readonly string[] }
   | { readonly kind: 'template' }
-  | { readonly kind: 'hook'; readonly codes: readonly string[] };
+  | { readonly kind: 'hook'; readonly codes: readonly string[] }
+  /**
+   * Issue #363 — an asset a page, a block or a hook may embed was written
+   * (`assets_library`'s `ASSET_CHANGED_EVENT`). Every CMS answer carries the
+   * URLs of the assets it embeds, and nothing records which answer embeds
+   * which asset, so every page, block and hook read is stale.
+   */
+  | { readonly kind: 'assets'; readonly assetIds: readonly string[] };

@@ -3,8 +3,10 @@ import type { Redis } from 'ioredis';
 import { z } from 'zod';
 import type { ChannelMemberEntityType } from '@endora-commerce/contracts';
 import {
+  ASSET_CHANGED_EVENT,
   CMS_CONTENT_CHANGED_EVENT,
   cmsColorPaletteSchema,
+  type AssetChangedEvent,
   type AssetReferenceRegistryPort,
   type AssetReadPort,
   type CmsBlockSeedPort,
@@ -675,6 +677,25 @@ export function registerModule(ctx: ModuleContext): void {
   ctx.subscribe(CMS_CONTENT_CHANGED_EVENT, (payload) => {
     const change = payload as EventBase & CmsContentChange;
     return ctx.cradle<CmsCradle>().cmsStorefrontRevalidator.revalidate(storefrontTagsFor(change));
+  });
+
+  /**
+   * Issue #363 — an asset was written that a cached page, block or hook may
+   * embed. Every resolved answer carries its assets' URLs, and since feature 156
+   * each URL carries `?v=<contentVersion>`, cached as immutable: a page left in
+   * the cache after a replace kept serving the previous marker for up to five
+   * minutes, and a browser or CDN holding the old response kept the old image.
+   *
+   * An event and not a call, so this module holds nothing of `assets_library`
+   * for it: an absent or switched-off library announces nothing and nothing
+   * here waits for it. `ctx.subscribe` stops the handler with this module — a
+   * switched-off `cms` serves no page to refresh. The library dispatches the
+   * event in a bus scope and awaits it, so the asset write answers once both
+   * caches are dropped.
+   */
+  ctx.subscribe(ASSET_CHANGED_EVENT, (payload) => {
+    const event = payload as EventBase & AssetChangedEvent;
+    return ctx.cradle<CmsCradle>().cms.handle.assetsChanged(event.assetIds);
   });
 
   ctx.routes(async (app) => {
