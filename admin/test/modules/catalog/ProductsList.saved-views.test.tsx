@@ -213,7 +213,7 @@ describe('ProductsList — saved views (feature 147, #289)', () => {
 
     await user.click(tab('Inactive'));
     await user.click(screen.getByRole('button', { name: 'Type' }));
-    await user.click(screen.getByRole('button', { name: 'Type: simple' }));
+    await user.click(screen.getByRole('button', { name: 'Type: Simple' }));
     await user.type(searchBox(), '  chair ');
     await user.click(screen.getByRole('button', { name: 'Stock' }));
     expect(screen.getByRole('button', { name: 'Low stock' })).toBeInTheDocument();
@@ -250,7 +250,7 @@ describe('ProductsList — saved views (feature 147, #289)', () => {
     await user.selectOptions(savedViewsSelect(), INACTIVE_CHAIRS.id);
 
     expect(tab('Inactive')).toHaveAttribute('aria-selected', 'true');
-    expect(screen.getByRole('button', { name: 'Type: configurable' })).toBeInTheDocument();
+    expect(screen.getByRole('button', { name: 'Type: Configurable' })).toBeInTheDocument();
     expect(searchBox().value).toBe('chair');
     expect(screen.getByRole('button', { name: 'Stock' })).toBeInTheDocument();
     expect(screen.queryByRole('button', { name: 'Low stock' })).toBeNull();

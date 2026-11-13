@@ -671,6 +671,9 @@ export class BulkOperationService {
     if (!isUuidShape(operationId)) return { ok: false, code: 'NOT_FOUND' };
     const op = await em.findOne(BulkOperation, { id: operationId });
     if (!op) return { ok: false, code: 'NOT_FOUND' };
+    // Issue #501 — an operation still in flight is its own refusal, not "cannot be undone":
+    // the admin hides Undo until completion, and the API says why when it is reached anyway.
+    if (op.status === 'pending' || op.status === 'running') return { ok: false, code: 'RUNNING' };
     if (op.status !== 'completed' || !op.reversible || !op.revertState || op.revertState.length === 0) {
       return { ok: false, code: 'NOT_REVERSIBLE' };
     }
@@ -825,7 +828,7 @@ interface RestoredProduct {
 /** Undo result surfaced to the route (mapped to 200/404/409). */
 export type UndoOutcome =
   | { ok: true; reverted: string[]; conflicts: { recordId: string; reason: string }[]; undoStatus: 'reverted' | 'partially_reverted' | 'none' }
-  | { ok: false; code: 'NOT_FOUND' | 'NOT_REVERSIBLE' | 'ALREADY_REVERTED' };
+  | { ok: false; code: 'NOT_FOUND' | 'RUNNING' | 'NOT_REVERSIBLE' | 'ALREADY_REVERTED' };
 
 /**
  * Field keys of a bulk edit that can be undone by restoring direct product

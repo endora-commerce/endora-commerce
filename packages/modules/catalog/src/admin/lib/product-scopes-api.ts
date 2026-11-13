@@ -25,7 +25,7 @@ export function describeIncompletePair(
 ): string {
   return t('productEditor.scopeControls.incompletePair', {
     channel: channelName(pair.channelId),
-    language: pair.languageCode.toUpperCase(),
+    language: pair.languageCode,
     missing: pair.missing.map((m) => describeMissingValue(m, t)).join(', '),
   });
 }
@@ -49,7 +49,7 @@ export function scopeSaveErrorMessage(
     if (details['reason'] === 'language_not_offered') {
       return t('productEditor.scopeControls.error.languageNotOffered', {
         channel,
-        language: String(details['languageCode'] ?? '').toUpperCase(),
+        language: String(details['languageCode'] ?? ''),
       });
     }
     return t('productEditor.scopeControls.error.notAMember', { channel });
@@ -60,7 +60,7 @@ export function scopeSaveErrorMessage(
   if (code === 'VALIDATION_FAILED' && details?.['field'] === 'languageStatuses') {
     return t('productEditor.scopeControls.error.languageRepeated', {
       channel: channelName(String(details['channelId'] ?? '')),
-      language: String(details['languageCode'] ?? '').toUpperCase(),
+      language: String(details['languageCode'] ?? ''),
     });
   }
   if (code === 'VERSION_CONFLICT') return t('productEditor.scopeControls.error.conflict');

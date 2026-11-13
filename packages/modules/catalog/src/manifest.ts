@@ -599,6 +599,10 @@ export const manifest = defineModuleManifest({
     { code: 'ATTRIBUTE_SET_IN_USE' },
     { code: 'ATTRIBUTE_SET_NOT_FOUND' },
     { code: 'ATTRIBUTE_VALUE_REJECTED' },
+    // Issue #501 — the three reasons an undo of a bulk operation is refused.
+    { code: 'BULK_OPERATION_ALREADY_REVERTED' },
+    { code: 'BULK_OPERATION_NOT_REVERSIBLE' },
+    { code: 'BULK_OPERATION_RUNNING' },
     { code: 'BULK_TOO_LARGE' },
     { code: 'BUNDLE_SLOT_NOT_FOUND' },
     { code: 'BUNDLE_SLOT_OPTION_NOT_FOUND' },
@@ -743,10 +747,12 @@ export const manifest = defineModuleManifest({
         // the first.
         'scope visibility per channel',
         'publication window',
-        // The Archived filter and the Archive / Restore actions live on the
-        // product list and editor: "archive", "archived" and "restore" find
-        // them, and the Polish words are under `keywordsKey` (issue #573).
-        'archived restore',
+        // The Archive / Restore actions live on the product list and editor:
+        // "archive" and "restore" find them, and the Polish words are under
+        // `keywordsKey` (issue #573). "archived" is deliberately not here: it
+        // names the archived list, which `open-archived-products` opens, and
+        // this row's lower weight would rank it first (issue #501).
+        'archive restore',
         // Feature 174 (FR-108) — the one scope switcher sets the editor's channel and language:
         // "language" and "translation" find it; the Polish words are under `keywordsKey`.
         'language translation',

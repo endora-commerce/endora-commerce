@@ -646,6 +646,11 @@ export const ERROR_CODES = {
 
   // Catalog (feature 022 — Products Bulk Edit)
   BULK_TOO_LARGE: 'BULK_TOO_LARGE',
+  // Issue #501 — why an undo of a bulk operation is refused (409), one code per
+  // reason: still in flight, already undone, or nothing it can restore.
+  BULK_OPERATION_RUNNING: 'BULK_OPERATION_RUNNING',
+  BULK_OPERATION_ALREADY_REVERTED: 'BULK_OPERATION_ALREADY_REVERTED',
+  BULK_OPERATION_NOT_REVERSIBLE: 'BULK_OPERATION_NOT_REVERSIBLE',
   ATTRIBUTE_NOT_MASS_EDITABLE: 'ATTRIBUTE_NOT_MASS_EDITABLE',
 
   // Catalog (feature 033 — Products collection selection)
