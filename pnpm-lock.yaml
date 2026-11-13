@@ -1793,6 +1793,9 @@ importers:
       '@endora-commerce/platform':
         specifier: workspace:*
         version: link:../../platform
+      '@endora-commerce/test-kit':
+        specifier: workspace:*
+        version: link:../../test-kit
       '@fastify/rate-limit':
         specifier: ^10.3.0
         version: 10.3.0
@@ -2192,6 +2195,9 @@ importers:
       '@endora-commerce/platform':
         specifier: workspace:*
         version: link:../../platform
+      '@endora-commerce/test-kit':
+        specifier: workspace:*
+        version: link:../../test-kit
       '@fastify/cookie':
         specifier: ^11.0.2
         version: 11.0.2
@@ -2879,6 +2885,9 @@ importers:
       '@endora-commerce/platform':
         specifier: workspace:*
         version: link:../../platform
+      '@endora-commerce/test-kit':
+        specifier: workspace:*
+        version: link:../../test-kit
       '@mikro-orm/core':
         specifier: ^6.6.13
         version: 6.6.16
@@ -3119,6 +3128,9 @@ importers:
       '@endora-commerce/platform':
         specifier: workspace:*
         version: link:../../platform
+      '@endora-commerce/test-kit':
+        specifier: workspace:*
+        version: link:../../test-kit
       '@mikro-orm/core':
         specifier: ^6.6.13
         version: 6.6.16
@@ -3731,6 +3743,9 @@ importers:
       '@endora-commerce/platform':
         specifier: workspace:*
         version: link:../../platform
+      '@endora-commerce/test-kit':
+        specifier: workspace:*
+        version: link:../../test-kit
       '@fastify/rate-limit':
         specifier: ^10.3.0
         version: 10.3.0

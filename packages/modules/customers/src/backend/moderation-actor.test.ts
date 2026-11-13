@@ -1,13 +1,7 @@
 import type { FastifyRequest } from 'fastify';
 import { describe, expect, it } from 'vitest';
-import {
-  createModuleContext,
-  createModuleRegistrationSink,
-  createRootContainer,
-  registerValues,
-} from '@endora-commerce/platform/composition';
-import { EventBus } from '@endora-commerce/platform/events';
 import { HttpError } from '@endora-commerce/platform/http';
+import { composeModuleForTest } from '@endora-commerce/test-kit/module';
 import { registerModule } from './index.js';
 
 /**
@@ -29,22 +23,14 @@ import { registerModule } from './index.js';
 const resolverOver = (
   ports: Record<string, unknown>,
 ): ((request: FastifyRequest) => Promise<unknown>) => {
-  const container = createRootContainer();
-  registerValues(container, {
-    emFactory: () => ({}) as never,
-    eventBus: new EventBus(),
-    auditLogService: {},
-    ...ports,
+  const { container } = composeModuleForTest({
+    module: { id: 'customers', registerModule },
+    values: {
+      emFactory: () => ({}) as never,
+      auditLogService: {},
+      ...ports,
+    },
   });
-  registerModule(
-    createModuleContext({
-      module: { id: 'customers', version: '1.0.0' },
-      container,
-      eventBus: new EventBus(),
-      sink: createModuleRegistrationSink(),
-      log: { info: () => {}, warn: () => {}, error: () => {} },
-    }),
-  );
   expect(container.hasRegistration('customerModerationActorResolver')).toBe(true);
   return container.cradle.customerModerationActorResolver as (
     request: FastifyRequest,

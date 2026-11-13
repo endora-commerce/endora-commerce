@@ -112,6 +112,7 @@
     "@endora-commerce/page-builder-admin": "workspace:*",
     "@endora-commerce/page-builder-core": "workspace:*",
     "@endora-commerce/platform": "workspace:*",
+    "@endora-commerce/test-kit": "workspace:*",
     "@fastify/rate-limit": "^10.3.0",
     "@mikro-orm/core": "^6.6.13",
     "@mikro-orm/migrations": "^6.6.13",
