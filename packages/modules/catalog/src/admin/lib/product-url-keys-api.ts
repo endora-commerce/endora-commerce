@@ -52,7 +52,7 @@ export function takenDetails(err: unknown): UrlKeyTakenDetails | null {
 export function describeKeyInLanguage(key: string, languageCode: string | null, t: Translate): string {
   return languageCode === null
     ? t('productEditor.urlKeys.keyEveryLanguage', { key })
-    : t('productEditor.urlKeys.keyInLanguage', { key, language: languageCode.toUpperCase() });
+    : t('productEditor.urlKeys.keyInLanguage', { key, language: languageCode });
 }
 
 /**

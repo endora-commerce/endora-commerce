@@ -121,13 +121,13 @@ describe('the scope map switches the editor scope (feature 174, US12)', () => {
     const channelReset = within(table).getByRole('button', { name: /^Use value from Global for .* in Retail PL$/ });
     expect(channelReset).toHaveTextContent('Use value from Global');
     const cellReset = within(table).getByRole('button', {
-      name: `Use value from Retail PL for ${en['productEditor.scopeOverview.field.urlKey']} in Retail PL · PL-PL`,
+      name: `Use value from Retail PL for ${en['productEditor.scopeOverview.field.urlKey']} in Retail PL · pl-PL`,
     });
     expect(cellReset).toHaveTextContent('Use value from Retail PL');
     fireEvent.click(cellReset);
     const dialog = await screen.findByRole('dialog');
     expect(dialog).toHaveAccessibleName(
-      `Use value from Retail PL for ${en['productEditor.scopeOverview.field.urlKey']} in Retail PL · PL-PL?`,
+      `Use value from Retail PL for ${en['productEditor.scopeOverview.field.urlKey']} in Retail PL · pl-PL?`,
     );
     expect(within(dialog).getByRole('button', { name: 'Use value from Retail PL' })).toBeInTheDocument();
   });

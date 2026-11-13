@@ -521,7 +521,8 @@ export async function registerCatalogAdminRoutes(
     // Feature 054 (US2) — undo a reversible bulk edit. Restores every affected
     // product whose current state still matches the operation, reports the rest
     // as conflicts (never clobbered), and audits the undo. 404 when unknown,
-    // 409 when not reversible / already reverted.
+    // 409 when still running, already reverted or not reversible — one code each
+    // (issue #501; they all answered `VERSION_CONFLICT` before).
     app.post(
       '/api/v1/admin/catalog/bulk-operations/:id/undo',
       { preHandler: requireAdmin('catalog:write') },
@@ -532,13 +533,17 @@ export async function registerCatalogAdminRoutes(
           if (outcome.code === 'NOT_FOUND') {
             throw new HttpError(404, ERROR_CODES.NOT_FOUND, `bulk operation ${id} not found`);
           }
-          throw new HttpError(
-            409,
-            ERROR_CODES.VERSION_CONFLICT,
-            outcome.code === 'ALREADY_REVERTED'
-              ? 'This bulk operation has already been undone.'
-              : 'This bulk operation cannot be undone.',
-          );
+          if (outcome.code === 'RUNNING') {
+            throw new HttpError(
+              409,
+              ERROR_CODES.BULK_OPERATION_RUNNING,
+              'This bulk operation is still running. Undo it once it has finished.',
+            );
+          }
+          if (outcome.code === 'ALREADY_REVERTED') {
+            throw new HttpError(409, ERROR_CODES.BULK_OPERATION_ALREADY_REVERTED, 'This bulk operation has already been undone.');
+          }
+          throw new HttpError(409, ERROR_CODES.BULK_OPERATION_NOT_REVERSIBLE, 'This bulk operation cannot be undone.');
         }
         return {
           data: {

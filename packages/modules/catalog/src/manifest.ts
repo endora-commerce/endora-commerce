@@ -599,6 +599,10 @@ export const manifest = defineModuleManifest({
     { code: 'ATTRIBUTE_SET_IN_USE' },
     { code: 'ATTRIBUTE_SET_NOT_FOUND' },
     { code: 'ATTRIBUTE_VALUE_REJECTED' },
+    // Issue #501 — the three reasons an undo of a bulk operation is refused.
+    { code: 'BULK_OPERATION_ALREADY_REVERTED' },
+    { code: 'BULK_OPERATION_NOT_REVERSIBLE' },
+    { code: 'BULK_OPERATION_RUNNING' },
     { code: 'BULK_TOO_LARGE' },
     { code: 'BUNDLE_SLOT_NOT_FOUND' },
     { code: 'BUNDLE_SLOT_OPTION_NOT_FOUND' },

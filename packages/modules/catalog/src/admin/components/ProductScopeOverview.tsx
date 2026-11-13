@@ -312,7 +312,10 @@ export function ProductScopeOverview({ productId, links }: ProductScopeOverviewP
                 <th scope="col">{t('productEditor.scopeOverview.wholeChannelColumn')}</th>
                 {overview.languages.map((code) => (
                   <th key={code} scope="col" style={{ verticalAlign: 'top' }}>
-                    <span className="font-semibold">{code.toUpperCase()}</span>
+                    {/* A language tag in its canonical case (`de-DE`), not the header style's
+                        upper case: the theme's `thead th` rule outranks a class on the `th`,
+                        so the span opts out (issue #501). Monospace, as on Dictionaries. */}
+                    <span className="font-semibold normal-case font-mono">{code}</span>
                   </th>
                 ))}
               </tr>
@@ -375,7 +378,7 @@ export function ProductScopeOverview({ productId, links }: ProductScopeOverviewP
                         (c) => c.channelId === channel.channelId && c.languageCode === code,
                       );
                       const offered = channel.isMember && channel.languages.includes(code);
-                      const scopeName = `${name} · ${code.toUpperCase()}`;
+                      const scopeName = `${name} · ${code}`;
                       return (
                         <td key={code} style={bodyCell}>
                           {cell && offered ? (
@@ -502,7 +505,7 @@ export function ProductScopeOverview({ productId, links }: ProductScopeOverviewP
 function orphanScope(orphan: ScopeOverviewOrphan, channelName: (id: string | null) => string): string {
   const parts: string[] = [];
   if (orphan.channelId !== null) parts.push(channelName(orphan.channelId));
-  if (orphan.languageCode !== null) parts.push(orphan.languageCode.toUpperCase());
+  if (orphan.languageCode !== null) parts.push(orphan.languageCode);
   return parts.join(' · ');
 }
 

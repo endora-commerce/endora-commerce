@@ -95,7 +95,7 @@ async function chooseScope(user: ReturnType<typeof userEvent.setup>, value: stri
   const group = await scopedGroup();
   await user.selectOptions(within(group).getByRole('combobox', { name: /sales channel/i }), B2C);
   const languageSelect = within(group).getByRole('combobox', { name: /language/i });
-  await waitFor(() => expect(within(languageSelect).getByRole('option', { name: 'DE' })).toBeTruthy());
+  await waitFor(() => expect(within(languageSelect).getByRole('option', { name: 'de' })).toBeTruthy());
   await user.selectOptions(languageSelect, language);
   await user.selectOptions(within(group).getByRole('combobox', { name: /^status$/i }), value);
 }
@@ -262,12 +262,12 @@ describe('bulk status in one channel (US5)', () => {
     const group = await scopedGroup();
     await user.selectOptions(within(group).getByRole('combobox', { name: /sales channel/i }), B2C);
     const languageSelect = within(group).getByRole('combobox', { name: /language/i });
-    await waitFor(() => expect(within(languageSelect).getByRole('option', { name: 'DE' })).toBeTruthy());
+    await waitFor(() => expect(within(languageSelect).getByRole('option', { name: 'de' })).toBeTruthy());
     await user.selectOptions(languageSelect, 'de');
     await user.selectOptions(within(group).getByRole('combobox', { name: /sales channel/i }), B2B);
     const next = within(group).getByRole('combobox', { name: /language/i }) as HTMLSelectElement;
-    await waitFor(() => expect(within(next).getByRole('option', { name: 'EN' })).toBeTruthy());
-    expect(within(next).queryByRole('option', { name: 'DE' })).toBeNull();
+    await waitFor(() => expect(within(next).getByRole('option', { name: 'en' })).toBeTruthy());
+    expect(within(next).queryByRole('option', { name: 'de' })).toBeNull();
     expect(next.value).toBe('');
   });
 
