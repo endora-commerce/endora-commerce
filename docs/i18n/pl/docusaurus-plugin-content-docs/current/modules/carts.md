@@ -66,7 +66,8 @@ go w sklepie, do którego jego organizacja nie jest przypisana.
 [ active / * ]           ──(Cart→QR conversion)─▶ [ completed / *; converted_to_quote_request_id set ]
 
 [ working ]              ──(order placed)───────▶ [ completed; completed_order_id set ]
-[ working ]              ──(placement refused)──▶ (deleted)
+is deleted when the placement is refused. It never appears in a cart list, in
+[ working ]              ──(sweep: created_at older than 1 hour)──▶ (deleted)
 ```
 
 **Koszyki robocze.** Tworzenie zamówienia przez administratora, zakup jednym kliknięciem i
@@ -75,7 +76,11 @@ Zapisują te pozycje w osobnym koszyku o statusie `working` i z niego składają
 koszyk klienta — także wypełniony z zaakceptowanego zapytania ofertowego — nie jest odczytywany,
 opróżniany ani zamykany. Koszyk roboczy kończy jako `completed` z `completed_order_id` wskazującym
 jego zamówienie albo jest usuwany, gdy złożenie zamówienia zostanie odrzucone. Nie pojawia się na
-żadnej liście koszyków, w panelu koszyków klienta ani w wyszukiwaniu porzuconych koszyków.
+żadnej liście koszyków, w panelu koszyków klienta ani wśród koszyków, które wyszukiwanie porzuconych
+koszyków oznacza jako porzucone. Koszyk roboczy zostaje w bazie tylko wtedy, gdy proces zatrzyma się
+między jego zapisaniem a złożeniem zamówienia; wyszukiwanie porzuconych koszyków usuwa każdy koszyk
+roboczy utworzony ponad godzinę wcześniej, razem z jego pozycjami, i nie dotyka żadnego innego
+koszyka. Robi to także wtedy, gdy próg porzucenia wynosi `0`.
 
 Ponowne wymaganie akceptacji: każda zmiana zawartości koszyka przez kupującego (dodanie lub
 usunięcie pozycji, zmiana ilości, dodanie lub usunięcie kuponu) w koszyku objętym akceptacją cofa
