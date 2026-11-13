@@ -12,6 +12,8 @@ import {
   ADMIN_SESSION_COOKIE_NAME,
   adminLoginRequestSchema,
   type AdminAuthenticationThrottlePort,
+  type AdminLoginResponse,
+  type AdminUser as AdminUserView,
 } from '@endora-commerce/contracts';
 import { readKnownDevice, rememberKnownDevice } from './known-device-cookie.js';
 import type { AdminAuthService } from './services/admin-auth-service.js';
@@ -42,7 +44,7 @@ export async function registerAdminPublicRoutes(
 ): Promise<void> {
   const { adminAuthService, authenticationThrottle, twoFactorEnrolments } = deps;
 
-  async function serializeOneAdminUser(user: AdminUser): Promise<Record<string, unknown>> {
+  async function serializeOneAdminUser(user: AdminUser): Promise<AdminUserView> {
     const enrolled = await twoFactorEnrolments([user.id]);
     return serializeAdminUser(user, enrolled.has(user.id));
   }
@@ -55,7 +57,7 @@ export async function registerAdminPublicRoutes(
       // an operator signs in anonymously, whatever the default channel's flag.
       config: { salesChannelAccess: 'open' },
     },
-    async (request, reply) => {
+    async (request, reply): Promise<AdminLoginResponse> => {
       const body = adminLoginRequestSchema.parse(request.body);
       const knownDevice = readKnownDevice(request);
       const result = await adminAuthService.login({
@@ -116,7 +118,8 @@ function setSessionCookie(reply: FastifyReply, value: string, expiresAt: Date): 
   });
 }
 
-function serializeAdminUser(a: AdminUser, twoFactorEnabled: boolean): Record<string, unknown> {
+/** The published `adminUserSchema` (issue #599). */
+function serializeAdminUser(a: AdminUser, twoFactorEnabled: boolean): AdminUserView {
   return {
     id: a.id,
     email: a.email,

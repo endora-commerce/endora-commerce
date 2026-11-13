@@ -1,12 +1,16 @@
 import { afterAll, beforeAll, describe, expect, it } from 'vitest';
 import { TOTP, Secret } from 'otpauth';
-import { ADMIN_SESSION_COOKIE_NAME } from '@endora-commerce/contracts';
+import { ADMIN_SESSION_COOKIE_NAME, adminLoginResponseSchema } from '@endora-commerce/contracts';
 import {
   setupBackendServer,
   teardownBackendServer,
   type BackendServerHandle,
 } from '../../helpers/test-server.js';
 import { READ_ONLY_ROLE_ID } from '../../helpers/seed-admins.js';
+import { deepStrict, disagreements } from '../../helpers/strict-schema.js';
+
+/** A strict copy: a key the sign-in reply carries that the contract does not declare fails (issue #599 §6). */
+const strictLogin = deepStrict(adminLoginResponseSchema);
 
 /**
  * Issue #349 — `AdminRole.requiresTwoFactor` changes what `POST
@@ -55,6 +59,8 @@ describe('admin sign-in honours the role two-factor requirement', () => {
       payload: { email, password: PASSWORD },
     });
     expect(res.statusCode).toBe(200);
+    // Every branch — `authenticated`, `mfaRequired`, `mfaSetupRequired` — is the published shape.
+    expect(disagreements(strictLogin, res.json())).toEqual([]);
     return {
       data: res.json().data as { status: string; setupTicket?: string; challengeId?: string },
       cookie: res.cookies.find((c) => c.name === ADMIN_SESSION_COOKIE_NAME)?.value,

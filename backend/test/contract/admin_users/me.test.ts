@@ -12,6 +12,7 @@ import {
 import { TEST_ADMIN_ID } from '../../helpers/test-actors.js';
 import { PLATFORM_ADMIN_ROLE_ID } from '../../helpers/seed-admins.js';
 import { AdminUser } from '../../helpers/package-entities.js';
+import { deepStrict, disagreements } from '../../helpers/strict-schema.js';
 
 /**
  * `GET /api/v1/admin/me` is the auth-gate probe the admin SPA fires on
@@ -77,7 +78,10 @@ describe('GET /api/v1/admin/me', () => {
     it('parses with the published schema and carries the defaults before anything is written', async () => {
       const res = await h.app.inject({ method: 'GET', url: '/api/v1/admin/me', ...fresh });
       expect(res.statusCode).toBe(200);
-      const me = adminMeResponseSchema.parse((res.json() as { data: unknown }).data);
+      const data = (res.json() as { data: unknown }).data;
+      // A strict copy: every key the auth gate is answered is declared (issue #599 §6).
+      expect(disagreements(deepStrict(adminMeResponseSchema), data)).toEqual([]);
+      const me = adminMeResponseSchema.parse(data);
       expect(me.preferences).toEqual(ADMIN_PREFERENCES_DEFAULTS);
     });
 
