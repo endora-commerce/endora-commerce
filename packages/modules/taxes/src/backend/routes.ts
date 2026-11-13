@@ -1,5 +1,11 @@
 import type { FastifyInstance } from 'fastify';
-import { taxResolutionInputSchema, upsertTaxRequestSchema } from '@endora-commerce/contracts';
+import {
+  taxResolutionInputSchema,
+  upsertTaxRequestSchema,
+  type ResolvedTax,
+  type Tax as TaxView,
+  type TaxListResponse,
+} from '@endora-commerce/contracts';
 import type { TaxService } from './services/tax-service.js';
 import type { Tax } from './entities/tax.entity.js';
 import type { RequireAdminFactory } from '@endora-commerce/platform/kernel';
@@ -18,7 +24,7 @@ export async function registerTaxRoutes(
   app.get(
     '/api/v1/admin/taxes',
     { preHandler: requireAdmin('taxes:read') },
-    async () => {
+    async (): Promise<TaxListResponse> => {
       const rows = await taxService.list();
       return { data: rows.map(serialize) };
     },
@@ -30,7 +36,7 @@ export async function registerTaxRoutes(
       preHandler: requireAdmin('taxes:write'),
       schema: { body: upsertTaxRequestSchema },
     },
-    async (request) => {
+    async (request): Promise<{ data: TaxView }> => {
       const body = upsertTaxRequestSchema.parse(request.body);
       const row = await taxService.upsertByCode({
         code: request.params.code,
@@ -67,7 +73,7 @@ export async function registerTaxRoutes(
   app.get<{ Querystring: { country?: string; productType?: string; vatStatus?: string } }>(
     '/api/v1/admin/taxes/preview',
     { preHandler: requireAdmin('taxes:read') },
-    async (request) => {
+    async (request): Promise<{ data: ResolvedTax }> => {
       const input = taxResolutionInputSchema.parse({
         country: request.query.country,
         productType: request.query.productType,
@@ -79,7 +85,8 @@ export async function registerTaxRoutes(
   );
 }
 
-function serialize(row: Tax): Record<string, unknown> {
+/** The published `taxSchema` (issue #599). */
+function serialize(row: Tax): TaxView {
   return {
     id: row.id,
     code: row.code,
