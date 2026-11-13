@@ -137,8 +137,8 @@ Contract and integration files do not run on merge requests (D-198): run them lo
 - [x] T083 [P] [WP-09] Test (SSR): account sidebar lists *Notifications* second with "(n)" when unread > 0; overview summary line when unread > 0; neither when the module is absent — `sf/test/account/account-nav-notifications.test.tsx`
 - [x] T084 [WP-09] Impl: `sf/lib/api/customer-notifications.ts`; `app/(account)/account/notifications/{page.tsx,actions.ts,[id]/open/route.ts}`; `app/(account)/layout.tsx` nav entry; `app/(account)/account/page.tsx` summary line; unread count in `app/layout.tsx`; `Header.tsx` `UserPill`, `MobileTabBar.tsx`, `MegamenuMobileDrawer.tsx`; copy in `lib/i18n/messages/account.ts` and `chrome.ts`, en-US + pl-PL; existing badge classes only
 - [x] T085 [WP-09] Run the ux-laws §7 checklist over the page and the indicator, check the badge's contrast in light and in `:root.is-dark` (≥ 3:1 component, ≥ 4.5:1 text) and the Polish labels at 360 px, and record the results in the MR
-  - *WP-09 as built:* the centre's API has no read of one entry, so the open route finds the
-    entry's `linkPath` in the list, starting at the page cursor the row carries (`?cursor=`, the
+  - *WP-09 as built (open route superseded by T086):* the centre's API had no read of one entry,
+    so the open route found the entry's `linkPath` in the list, starting at the page cursor the row carries (`?cursor=`, the
     allow-listed name) and reading at most five pages of 50; the target is always the stored link,
     re-checked as storefront-relative. The drawer row is covered by a jsdom file beside T081's
     (`sf/test/header-unread-indicator.drawer.test.tsx`), the focus move by
@@ -146,6 +146,7 @@ Contract and integration files do not run on merge requests (D-198): run them lo
     on `/checkout` (the tab bar is not part of `HeaderSwitch`). `Pagination` gained an optional
     `label`. T085 results are in the MR description; the dark-scope component contrast of the
     reused badge classes against `--surface` (2.8:1) is reported there, not changed here.
+- [x] T086 [WP-09] Follow-up to T066 (architect ruling 2026-11-13, option B — blocks the release): the open route reads the one entry by id through `getCustomerNotification` (`GET /api/v1/storefront/notifications/:id`) instead of the bounded list scan above, and the page's row links no longer carry `?cursor=`. Behaviour of §3 unchanged: mark read (the API no-ops it under impersonation), `303` to the localised, re-checked `linkPath`, a failed mark still redirects; a link-less entry, a `404` (unknown or foreign id), a failed read and the module being off all land on the page (its 404 while off), marking nothing — `sf/test/account/notifications-open-route.test.ts`, `notifications-page.test.tsx`, `customer-notifications-client.test.ts`
 
 ---
 

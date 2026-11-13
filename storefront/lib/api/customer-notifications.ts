@@ -7,6 +7,7 @@
 
 import { cache } from 'react';
 import type {
+  CustomerNotification,
   CustomerNotificationListResponse,
   CustomerNotificationUnreadCountResponse,
 } from '@endora-commerce/contracts';
@@ -29,6 +30,23 @@ export async function listCustomerNotifications(
   if (page.cursor) query.set('cursor', page.cursor);
   return await apiGetAuthed<CustomerNotificationPage>({
     path: `/api/v1/storefront/notifications?${query.toString()}`,
+    sessionCookie,
+    ...(ctx ? { ctx } : {}),
+  });
+}
+
+/**
+ * One of the buyer's entries, read by id under the list's visibility; marks
+ * nothing. Throws on any refusal — `404 NOT_FOUND` for an id the list would not
+ * show (another account's, another channel's, an absent producer's, unknown).
+ */
+export async function getCustomerNotification(
+  sessionCookie: string,
+  ctx: RequestContext | undefined,
+  id: string,
+): Promise<CustomerNotification> {
+  return await apiGetAuthed<CustomerNotification>({
+    path: `/api/v1/storefront/notifications/${encodeURIComponent(id)}`,
     sessionCookie,
     ...(ctx ? { ctx } : {}),
   });

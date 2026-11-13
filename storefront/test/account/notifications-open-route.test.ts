@@ -6,11 +6,12 @@ import { StorefrontApiError } from '../../lib/api/client';
  * `specs/179-rfq-and-customer-notifications/` T082 — `GET
  * /account/notifications/<id>/open` (FR-050a, research R-24 (a)).
  *
- * Marks the entry read and answers `303` to its link in the request's
- * language. A failed mark still redirects; an entry with no link, an unknown
- * id, a link that is not storefront-relative, or the module being off all
- * land on the page. The target is always the stored link, never something the
- * URL carries.
+ * Reads the one entry by id (`GET /api/v1/storefront/notifications/:id`,
+ * architect ruling 2026-11-13, T086), marks it read and answers `303` to its
+ * link in the request's language. A failed mark still redirects; an entry with
+ * no link, an unknown or foreign id (`404`), a failed read, a link that is not
+ * storefront-relative, or the module being off all land on the page. The
+ * target is always the stored link, never something the URL carries.
  */
 
 let session: string | null = 'session-cookie';
@@ -51,15 +52,23 @@ function entry(id: string, linkPath: string | null): CustomerNotification {
   };
 }
 
-let pages: Record<string, { items: CustomerNotification[]; nextCursor: string | null }>;
-const listCalls: Array<string | null> = [];
+let entries: Record<string, CustomerNotification>;
+let readFailure: unknown = null;
+const reads: string[] = [];
+const listCalls: unknown[] = [];
 const marked: string[] = [];
 let markFailure: unknown = null;
 vi.mock('../../lib/api/customer-notifications', () => ({
-  listCustomerNotifications: async (_s: string, _ctx: unknown, page: { cursor: string | null }) => {
-    listCalls.push(page.cursor);
-    const answer = pages[page.cursor ?? ''] ?? { items: [], nextCursor: null };
-    return { ...answer, unreadCount: 1 };
+  getCustomerNotification: async (_s: string, _ctx: unknown, id: string) => {
+    reads.push(id);
+    if (readFailure) throw readFailure;
+    const found = entries[id];
+    if (!found) throw new StorefrontApiError(404, 'NOT_FOUND', 'Notification not found');
+    return found;
+  },
+  listCustomerNotifications: async (...args: unknown[]) => {
+    listCalls.push(args);
+    return { items: [], nextCursor: null, unreadCount: 0 };
   },
   markCustomerNotificationRead: async (_s: string, _ctx: unknown, id: string) => {
     marked.push(id);
@@ -79,9 +88,11 @@ beforeEach(() => {
   session = 'session-cookie';
   absent = [];
   markFailure = null;
+  readFailure = null;
+  reads.length = 0;
   listCalls.length = 0;
   marked.length = 0;
-  pages = { '': { items: [entry(OTHER, null), entry(ID, '/quote-requests/abc')], nextCursor: null } };
+  entries = { [OTHER]: entry(OTHER, null), [ID]: entry(ID, '/quote-requests/abc') };
 });
 
 describe('notification open route', () => {
@@ -100,13 +111,17 @@ describe('notification open route', () => {
     expect(res.headers.get('location')).toBe('/pl/quote-requests/abc');
   });
 
-  it('reads from the page cursor the row carried, and on to the next page', async () => {
-    pages = {
-      c1: { items: [entry(OTHER, null)], nextCursor: 'c2' },
-      c2: { items: [entry(ID, '/quote-requests/abc')], nextCursor: null },
-    };
+  it('reads the one entry by id, never the list', async () => {
+    const res = await open(ID);
+    expect(reads).toEqual([ID]);
+    expect(listCalls).toEqual([]);
+    expect(res.headers.get('location')).toBe('/pl/quote-requests/abc');
+  });
+
+  it('ignores a cursor in the URL: the entry is read by id wherever it sits', async () => {
     const res = await open(ID, '?cursor=c1');
-    expect(listCalls).toEqual(['c1', 'c2']);
+    expect(reads).toEqual([ID]);
+    expect(listCalls).toEqual([]);
     expect(res.headers.get('location')).toBe('/pl/quote-requests/abc');
   });
 
@@ -116,17 +131,25 @@ describe('notification open route', () => {
     expect(res.headers.get('location')).toBe('/pl/account/notifications');
   });
 
-  it('lands on the page for an unknown id, and marks nothing', async () => {
+  it('lands on the page for an unknown or foreign id (404), and marks nothing', async () => {
     const res = await open('00000000-0000-4000-8000-00000000dead');
     expect(res.status).toBe(303);
     expect(res.headers.get('location')).toBe('/pl/account/notifications');
     expect(marked).toEqual([]);
   });
 
+  it('lands on the page when the entry cannot be read, and marks nothing', async () => {
+    readFailure = new StorefrontApiError(500, 'INTERNAL', 'boom');
+    const res = await open(ID);
+    expect(res.status).toBe(303);
+    expect(res.headers.get('location')).toBe('/pl/account/notifications');
+    expect(marked).toEqual([]);
+  });
+
   it('never follows a link that is not storefront-relative', async () => {
-    pages = { '': { items: [entry(ID, '//evil.example/x')], nextCursor: null } };
+    entries = { [ID]: entry(ID, '//evil.example/x') };
     expect((await open(ID)).headers.get('location')).toBe('/pl/account/notifications');
-    pages = { '': { items: [entry(ID, 'https://evil.example/x')], nextCursor: null } };
+    entries = { [ID]: entry(ID, 'https://evil.example/x') };
     expect((await open(ID)).headers.get('location')).toBe('/pl/account/notifications');
   });
 
@@ -135,14 +158,14 @@ describe('notification open route', () => {
     const res = await open(ID);
     expect(res.status).toBe(303);
     expect(res.headers.get('location')).toBe(`/pl/login?next=${encodeURIComponent('/account/notifications')}`);
-    expect(listCalls).toEqual([]);
+    expect(reads).toEqual([]);
   });
 
   it('reads nothing while the module is off and lands on the page (its 404)', async () => {
     absent = ['customer_notifications'];
     const res = await open(ID);
     expect(res.headers.get('location')).toBe('/pl/account/notifications');
-    expect(listCalls).toEqual([]);
+    expect(reads).toEqual([]);
     expect(marked).toEqual([]);
   });
 });
