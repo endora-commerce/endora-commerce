@@ -387,7 +387,13 @@ export interface CustomerSignInCompletion {
   clearAnonymousCartCookie: boolean;
 }
 
-/** Published by `organizations` as `customerSignInCompletionPort` (issue #368). */
+/**
+ * Container name: `customerSignInCompletionPort`. Owner: `organizations`.
+ *
+ * Reached with `lazyPort<CustomerSignInCompletionPort>(ctx, 'customerSignInCompletionPort')`
+ * and never captured into a singleton (issue #368). `complete` does not throw
+ * for a failed merge: it logs the failure and answers "nothing merged".
+ */
 export interface CustomerSignInCompletionPort {
   complete(input: CustomerSignInCompletionInput): Promise<CustomerSignInCompletion>;
 }
