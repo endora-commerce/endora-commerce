@@ -260,12 +260,13 @@ describe('planProductScopeWrite — refusals (FR-014) and their one exception (F
     expect(err.details).toEqual({ field: 'window' });
   });
 
-  it('a minimum on a product type that takes none is VALIDATION_FAILED, field minOrderQuantity', () => {
+  it('a minimum on a product type that takes none is MIN_ORDER_QUANTITY_NOT_SUPPORTED_FOR_TYPE, field minOrderQuantity', () => {
+    // Its own code since issue #624 (#86): the product's type refuses it, not the value.
     const err = refusal(() =>
       planProductScopeWrite(state({ productType: 'bundle' }), { channels: [{ channelId: B2B, minOrderQuantity: 5 }] }),
     );
-    expect(err.code).toBe(ERROR_CODES.VALIDATION_FAILED);
-    expect(err.details).toMatchObject({ field: 'minOrderQuantity' });
+    expect(err.code).toBe('MIN_ORDER_QUANTITY_NOT_SUPPORTED_FOR_TYPE');
+    expect(err.details).toEqual({ field: 'minOrderQuantity', productType: 'bundle', channelId: B2B });
   });
 
   it('the same channel named twice is VALIDATION_FAILED, field channels', () => {

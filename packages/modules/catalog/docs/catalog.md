@@ -32,7 +32,7 @@ otherwise; every price names its currency either way. A malformed code is refuse
 | `GET /api/v1/admin/catalog/products?status&archived` | admin | Admin product list. `status` is `active` or `inactive` (any other value: `400 VALIDATION_FAILED`); `archived` is `exclude` (default), `include` or `only` — the legacy `includeArchived=1` means `include`. `counts` is `{ all, active, inactive, archived }` — see *Product status and archiving* |
 | `GET /api/v1/admin/catalog/products/:id` | admin | Product detail |
 | `POST /api/v1/admin/catalog/products` | admin | Create product (`type` immutable post-create; `sku` is editable) |
-| `PATCH /api/v1/admin/catalog/products/:id` | admin | Update (incl. `sku`); writes an audit row with stateBefore / stateAfter; refuses with `409 sku_in_use` if the new SKU already belongs to another product |
+| `PATCH /api/v1/admin/catalog/products/:id` | admin | Update (incl. `sku`); writes an audit row with stateBefore / stateAfter; refuses with `409 SKU_ALREADY_EXISTS` (token `held_by_product` or `held_by_variant`, `details.sku`) if the new SKU already belongs to another product or a variant |
 | `DELETE /api/v1/admin/catalog/products/:id` | admin | Delete (soft) — not the Archive action; frees the SKUs of the product and its variants ([below](#a-deleted-product-frees-its-sku)) |
 | `POST /api/v1/admin/catalog/products/:id/archive` | admin (`catalog:write`) | Archive one product — see *Product status and archiving* |
 | `POST /api/v1/admin/catalog/products/:id/restore` | admin (`catalog:write`) | Restore one archived product |
@@ -47,12 +47,12 @@ otherwise; every price names its currency either way. A malformed code is refuse
 | `GET /api/v1/admin/catalog/attributes/:idOrKey/options` | admin | List option-list rows for select/enum/multiselect attributes |
 | `POST /api/v1/admin/catalog/attributes/:idOrKey/options` | admin | Append an option |
 | `PATCH /api/v1/admin/catalog/attribute-options/:optionId` | admin | Patch label / labelDefault / isDefault / sortOrder (option `value` is immutable) |
-| `DELETE /api/v1/admin/catalog/attribute-options/:optionId` | admin | Remove; refused with `409 option_in_use` while any product still carries the value |
+| `DELETE /api/v1/admin/catalog/attribute-options/:optionId` | admin | Remove; refused with `409 ATTRIBUTE_OPTION_IN_USE` while any product still carries the value |
 | `POST /api/v1/admin/catalog/attribute-set-preview` | admin | Preview which Set's attributes will be edited / hidden when an operator switches a product's Attribute Set |
 | `GET /api/v1/admin/catalog/categories` | admin | Flat list, the UI folds into a tree |
-| `POST /api/v1/admin/catalog/categories` | admin | Create (parent must exist) |
-| `PATCH /api/v1/admin/catalog/categories/:id` | admin | Update; reparenting walks the new parent's chain to refuse cycles (409) |
-| `DELETE /api/v1/admin/catalog/categories/:id` | admin | Soft-delete; rejects with 409 if any active child still references the row |
+| `POST /api/v1/admin/catalog/categories` | admin | Create (parent must exist); a slug a sibling already holds is `409 CATEGORY_SLUG_TAKEN` (`details.slug`, `parentCategoryId`), on create and on update |
+| `PATCH /api/v1/admin/catalog/categories/:id` | admin | Update; reparenting walks the new parent's chain to refuse cycles (`409 CATEGORY_MOVE_CYCLE`, `details.categoryId`, `parentCategoryId`) |
+| `DELETE /api/v1/admin/catalog/categories/:id` | admin | Soft-delete; rejects with `409 CATEGORY_HAS_CHILDREN` (`details.categoryId`, `childCount`) if any active child still references the row |
 | `GET /api/v1/admin/catalog/categories/:id/content` | admin | The category's page content — one Page Builder document per language ([Category page content](./catalog/category-content.md)) |
 | `PUT /api/v1/admin/catalog/categories/:id/content` | admin | Replace the category's page content; `null` clears it |
 | `GET /api/v1/admin/catalog/products/:id/content` | admin | The product's content attributes with a per-language summary ([Product content](./catalog/product-content.md)) |
@@ -436,9 +436,10 @@ back. Both are edited in the **Order rules** card on the product editor's
   may order in one order. Optional; a whole number from **1 to 1 000 000**, or
   empty for no minimum. It applies to `simple` and `configurable` products
   only: on a `grouped`, `bundle` or `virtual` product the card says so, and
-  the API refuses the field with `422 VALIDATION_FAILED` naming
-  `minOrderQuantity`, on create and on update. A value outside the range is
-  refused with `400 VALIDATION_FAILED`.
+  the API refuses the field with `422 MIN_ORDER_QUANTITY_NOT_SUPPORTED_FOR_TYPE`
+  naming `minOrderQuantity` (`details.field`, `productType`), on create, on
+  update and per channel. A value outside the range is refused with
+  `400 VALIDATION_FAILED`.
 - **A minimum per packaging unit** — each packaging unit may carry its own
   minimum number of units; see [Packaging Units](./catalog/packaging-units.md).
 
@@ -632,8 +633,11 @@ compatibility at the API boundary.
 Product `sku` is mutable. The internal canonical reference for every
 cross-module link (assets, links, RFQ items, ...) is the `Product.id`
 UUID, which never changes. Updating the SKU writes an audit row and
-refuses with `409 sku_in_use` if the new value already belongs to
-another product.
+refuses with `409 SKU_ALREADY_EXISTS` if the new value already belongs to
+another product or a variant — the code create answers with. The refusal
+token says which (`held_by_product`, `held_by_variant`), and `details` carries
+`sku` and `conflictingProductId` or `conflictingVariantId`. Until issue #624
+it was `400 VALIDATION_FAILED` with the token `sku_in_use` in the message.
 
 ### A deleted product frees its SKU
 

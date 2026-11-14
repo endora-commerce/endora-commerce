@@ -31,7 +31,7 @@ w obu przypadkach każda cena podaje swoją walutę. Niepoprawny kod jest odrzuc
 | `GET /api/v1/admin/catalog/products?status&archived` | administrator | Lista produktów w panelu. `status` to `active` albo `inactive` (każda inna wartość: `400 VALIDATION_FAILED`); `archived` to `exclude` (domyślnie), `include` albo `only` — dawne `includeArchived=1` oznacza `include`. `counts` to `{ all, active, inactive, archived }` — zob. *Status produktu i archiwizacja* |
 | `GET /api/v1/admin/catalog/products/:id` | administrator | Szczegóły produktu |
 | `POST /api/v1/admin/catalog/products` | administrator | Utworzenie produktu (`type` nie można zmienić po utworzeniu; `sku` można edytować) |
-| `PATCH /api/v1/admin/catalog/products/:id` | administrator | Aktualizacja (łącznie z `sku`); zapisuje wpis audytu ze stateBefore / stateAfter; odrzuca z `409 sku_in_use`, gdy nowe SKU należy już do innego produktu |
+| `PATCH /api/v1/admin/catalog/products/:id` | administrator | Aktualizacja (łącznie z `sku`); zapisuje wpis audytu ze stateBefore / stateAfter; odrzuca z `409 SKU_ALREADY_EXISTS` (token `held_by_product` albo `held_by_variant`, `details.sku`), gdy nowe SKU należy już do innego produktu albo wariantu |
 | `DELETE /api/v1/admin/catalog/products/:id` | administrator | Usunięcie (miękkie) — to nie jest akcja Archiwizuj; zwalnia SKU produktu i jego wariantów ([niżej](#usunięty-produkt-zwalnia-swoje-sku)) |
 | `POST /api/v1/admin/catalog/products/:id/archive` | administrator (`catalog:write`) | Archiwizacja jednego produktu — zob. *Status produktu i archiwizacja* |
 | `POST /api/v1/admin/catalog/products/:id/restore` | administrator (`catalog:write`) | Przywrócenie jednego zarchiwizowanego produktu |
@@ -46,12 +46,12 @@ w obu przypadkach każda cena podaje swoją walutę. Niepoprawny kod jest odrzuc
 | `GET /api/v1/admin/catalog/attributes/:idOrKey/options` | administrator | Lista opcji atrybutów typu select/enum/multiselect |
 | `POST /api/v1/admin/catalog/attributes/:idOrKey/options` | administrator | Dodanie opcji |
 | `PATCH /api/v1/admin/catalog/attribute-options/:optionId` | administrator | Zmiana label / labelDefault / isDefault / sortOrder (wartości `value` opcji nie można zmienić) |
-| `DELETE /api/v1/admin/catalog/attribute-options/:optionId` | administrator | Usunięcie; odrzucane z `409 option_in_use`, dopóki którykolwiek produkt ma tę wartość |
+| `DELETE /api/v1/admin/catalog/attribute-options/:optionId` | administrator | Usunięcie; odrzucane z `409 ATTRIBUTE_OPTION_IN_USE`, dopóki którykolwiek produkt ma tę wartość |
 | `POST /api/v1/admin/catalog/attribute-set-preview` | administrator | Podgląd, które atrybuty będą edytowalne, a które ukryte, gdy operator zmieni zestaw atrybutów produktu |
 | `GET /api/v1/admin/catalog/categories` | administrator | Płaska lista, z której panel buduje drzewo |
-| `POST /api/v1/admin/catalog/categories` | administrator | Utworzenie (kategoria nadrzędna musi istnieć) |
-| `PATCH /api/v1/admin/catalog/categories/:id` | administrator | Aktualizacja; przy zmianie kategorii nadrzędnej sprawdzany jest łańcuch nowej kategorii nadrzędnej, aby odrzucić cykle (409) |
-| `DELETE /api/v1/admin/catalog/categories/:id` | administrator | Usunięcie miękkie; odrzucane z 409, gdy odwołuje się do niej aktywna kategoria podrzędna |
+| `POST /api/v1/admin/catalog/categories` | administrator | Utworzenie (kategoria nadrzędna musi istnieć); slug, który ma już kategoria siostrzana, daje `409 CATEGORY_SLUG_TAKEN` (`details.slug`, `parentCategoryId`), przy tworzeniu i przy aktualizacji |
+| `PATCH /api/v1/admin/catalog/categories/:id` | administrator | Aktualizacja; przy zmianie kategorii nadrzędnej sprawdzany jest łańcuch nowej kategorii nadrzędnej, aby odrzucić cykle (`409 CATEGORY_MOVE_CYCLE`, `details.categoryId`, `parentCategoryId`) |
+| `DELETE /api/v1/admin/catalog/categories/:id` | administrator | Usunięcie miękkie; odrzucane z `409 CATEGORY_HAS_CHILDREN` (`details.categoryId`, `childCount`), gdy odwołuje się do niej aktywna kategoria podrzędna |
 | `GET /api/v1/admin/catalog/categories/:id/content` | administrator | Treść strony kategorii — jeden dokument Page Buildera na język ([Treść strony kategorii](./catalog/category-content.md)) |
 | `PUT /api/v1/admin/catalog/categories/:id/content` | administrator | Zastąpienie treści strony kategorii; `null` ją czyści |
 | `GET /api/v1/admin/catalog/products/:id/content` | administrator | Atrybuty treści produktu z podsumowaniem dla każdego języka ([Treść produktu](./catalog/product-content.md)) |
@@ -419,8 +419,9 @@ się na karcie **Zasady zamawiania** w zakładce **Inventory** edytora produktu.
   zamówić w jednym zamówieniu. Opcjonalna; liczba całkowita od **1 do 1 000 000** albo puste pole,
   gdy minimum nie ma. Dotyczy tylko produktów `simple` i `configurable`: na produkcie `grouped`,
   `bundle` lub `virtual` karta o tym informuje, a API odrzuca to pole z kodem
-  `422 VALIDATION_FAILED` wskazującym `minOrderQuantity`, przy tworzeniu i przy aktualizacji.
-  Wartość spoza zakresu jest odrzucana z kodem `400 VALIDATION_FAILED`.
+  `422 MIN_ORDER_QUANTITY_NOT_SUPPORTED_FOR_TYPE` wskazującym `minOrderQuantity` (`details.field`,
+  `productType`), przy tworzeniu, przy aktualizacji i dla kanału. Wartość spoza zakresu jest
+  odrzucana z kodem `400 VALIDATION_FAILED`.
 - **Minimum dla jednostki opakowania** — każda jednostka opakowania może mieć własną minimalną
   liczbę jednostek; zob. [Jednostki opakowania](./catalog/packaging-units.md).
 
@@ -597,8 +598,11 @@ odtwarzają na granicy API dawną postać listy opcji ze względu na zgodność 
 
 `sku` produktu można zmieniać. Wewnętrznym, stałym odwołaniem we wszystkich powiązaniach między
 modułami (pliki, powiązania produktów, pozycje zapytań ofertowych, …) jest UUID `Product.id`, który
-nigdy się nie zmienia. Zmiana SKU zapisuje wpis audytu i jest odrzucana z `409 sku_in_use`, gdy nowa
-wartość należy już do innego produktu.
+nigdy się nie zmienia. Zmiana SKU zapisuje wpis audytu i jest odrzucana z `409 SKU_ALREADY_EXISTS`,
+gdy nowa wartość należy już do innego produktu albo wariantu — tym samym kodem, którym odpowiada
+tworzenie. Token odmowy mówi, do czego należy (`held_by_product`, `held_by_variant`), a `details`
+zawiera `sku` oraz `conflictingProductId` albo `conflictingVariantId`. Do zgłoszenia #624 była to
+odpowiedź `400 VALIDATION_FAILED` z tokenem `sku_in_use` w komunikacie.
 
 ### Usunięty produkt zwalnia swoje SKU
 

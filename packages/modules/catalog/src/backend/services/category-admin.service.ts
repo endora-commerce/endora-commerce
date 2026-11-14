@@ -244,11 +244,10 @@ export class CategoryAdminService {
         await em.flush();
       } catch (err) {
         if (err instanceof UniqueConstraintViolationException) {
-          throw new HttpError(
-            409,
-            ERROR_CODES.VALIDATION_FAILED,
-            `Slug "${input.slug}" already exists under this parent.`,
-          );
+          throw new HttpError(409, ERROR_CODES.CATEGORY_SLUG_TAKEN, `Slug "${input.slug}" already exists under this parent.`, {
+            slug: input.slug,
+            parentCategoryId: input.parentCategoryId ?? null,
+          });
         }
         throw err;
       }
@@ -312,11 +311,10 @@ export class CategoryAdminService {
         await em.flush();
       } catch (err) {
         if (err instanceof UniqueConstraintViolationException) {
-          throw new HttpError(
-            409,
-            ERROR_CODES.VALIDATION_FAILED,
-            'Another category already uses this slug under that parent.',
-          );
+          throw new HttpError(409, ERROR_CODES.CATEGORY_SLUG_TAKEN, 'Another category already uses this slug under that parent.', {
+            slug: cat.slug,
+            parentCategoryId: cat.parentCategoryId ?? null,
+          });
         }
         throw err;
       }
@@ -347,8 +345,9 @@ export class CategoryAdminService {
       if (childCount > 0) {
         throw new HttpError(
           409,
-          ERROR_CODES.VALIDATION_FAILED,
+          ERROR_CODES.CATEGORY_HAS_CHILDREN,
           `Cannot delete: ${childCount} child category(ies) still attached. Move or delete them first.`,
+          { categoryId: id, childCount },
         );
       }
       cat.deletedAt = new Date();
@@ -450,11 +449,10 @@ export class CategoryAdminService {
     const seen = new Set<string>();
     while (cursor) {
       if (cursor === movedId) {
-        throw new HttpError(
-          409,
-          ERROR_CODES.VALIDATION_FAILED,
-          'Cannot move category beneath one of its descendants.',
-        );
+        throw new HttpError(409, ERROR_CODES.CATEGORY_MOVE_CYCLE, 'Cannot move category beneath one of its descendants.', {
+          categoryId: movedId,
+          parentCategoryId: newParentId,
+        });
       }
       if (seen.has(cursor)) break; // defensive guard against pre-existing cycles
       seen.add(cursor);

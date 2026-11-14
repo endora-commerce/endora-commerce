@@ -95,7 +95,7 @@ authored inline on the attribute editor. Each option carries:
 Option **values** are immutable while any product still carries them —
 the operator must migrate dependent values first. Option **labels** can
 always be renamed. Deleting an option is refused with
-`409 option_in_use` while any product still carries that value.
+`409 ATTRIBUTE_OPTION_IN_USE` while any product still carries that value.
 
 ## Public surface
 
@@ -114,7 +114,7 @@ Admin routes are gated by `catalog:read` (list / get) /
 | `GET /api/v1/admin/catalog/attributes/:idOrKey/options` | admin | List option rows for select / enum / multiselect attributes |
 | `POST /api/v1/admin/catalog/attributes/:idOrKey/options` | admin | Append an option |
 | `PATCH /api/v1/admin/catalog/attribute-options/:optionId` | admin | Patch `label` / `labelDefault` / `isDefault` / `sortOrder` (option `value` is immutable) |
-| `DELETE /api/v1/admin/catalog/attribute-options/:optionId` | admin | Remove; refused with `409 option_in_use` while any product still carries the value |
+| `DELETE /api/v1/admin/catalog/attribute-options/:optionId` | admin | Remove; refused with `409 ATTRIBUTE_OPTION_IN_USE` while any product still carries the value |
 
 Filter sidebar reads consume `GET /api/v1/catalog/filters` (defined on
 the [Catalog](../catalog.md) page) — that endpoint resolves the
@@ -158,16 +158,24 @@ deleted product no longer does; and the delete now emits
 
 ## Errors
 
-| Code | Status | When |
-| --- | --- | --- |
-| `attribute_key_invalid` | 400 | `key` does not match `^[a-z][a-z0-9_]*$` |
-| `duplicate_key` | 409 | Attribute key already exists (case-insensitive) |
-| `attribute_in_use_by_set` | 409 | Delete blocked: at least one Attribute Set still references the attribute |
-| `attribute_type_change_unsafe` | 409 | `valueType` change refused — some product carries a value the new type cannot represent |
-| `default_option_ambiguous` | 409 | More than one option flagged `isDefault = true` on a `select` / `enum` attribute |
-| `option_in_use` | 409 | Delete (or value rename) blocked: a product still carries this option value |
-| `attribute_not_found` | 404 | `:idOrKey` missing |
-| `option_not_found` | 404 | `:optionId` missing |
+Each refusal the stored attribute or its options make has its own code and a
+sentence in English and Polish that names the values in `details`. Until issue
+#624 they were `VALIDATION_FAILED` with an English message or a machine token
+(`option_in_use: …`). A malformed request — a key that does not match
+`^[a-z][a-z0-9_]*$`, an option value that does not match its pattern, options
+or a slider on a type the same request names — stays `400 VALIDATION_FAILED`.
+
+| Code | Status | When | `details` |
+| --- | --- | --- | --- |
+| `ATTRIBUTE_KEY_TAKEN` | 409 | Another attribute already has the key | `attributeKey` |
+| `ATTRIBUTE_VALUE_TYPE_LOCKED` | 409 | The value type is changed while products hold values for the attribute | `attributeKey` |
+| `ATTRIBUTE_IN_USE` | 409 | Delete blocked: an attribute set contains the attribute (token `attribute_sets`), or products hold its values (token `products`) | `attributeKey`, `attributeSetCount` or `productCount` |
+| `ATTRIBUTE_OPTION_VALUE_TAKEN` | 409 | The attribute already has an option with the value | `attributeKey`, `value` |
+| `ATTRIBUTE_DEFAULT_OPTION_TAKEN` | 409 | A second default option on a single-choice attribute, on create or when an option is made the default | `attributeKey`, `value` |
+| `ATTRIBUTE_OPTIONS_NOT_SUPPORTED` | 400 | An option is written to an attribute whose type takes none | `attributeKey`, `valueType` |
+| `ATTRIBUTE_OPTION_IN_USE` | 409 | Delete blocked: products carry the option (token `products` with the count) | `attributeKey`, `value`, `productCount` |
+| `ATTRIBUTE_SLIDER_NOT_SUPPORTED` | 400 | `displayAsSlider` is turned on for an attribute whose stored type is not a number or a price | `attributeKey`, `valueType` |
+| `NOT_FOUND` | 404 | `:idOrKey` or `:optionId` missing | — |
 
 ## Storefront integration
 

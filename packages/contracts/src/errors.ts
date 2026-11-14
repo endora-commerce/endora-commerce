@@ -119,6 +119,49 @@ export const ERROR_CODES = {
   MAX_EXCEEDED: 'MAX_EXCEEDED',
   UNKNOWN_OPTION: 'UNKNOWN_OPTION',
 
+  // Catalog refusals the stored state makes, raised as `VALIDATION_FAILED`
+  // until issue #624 (#86). Declared by the `catalog` manifest. Three more
+  // sites reuse a code above with a token: `SKU_ALREADY_EXISTS`
+  // (`held_by_product`, `held_by_variant`), `PRODUCT_TYPE_MISMATCH`
+  // (`variants_need_configurable`) and `SELF_LINK_NOT_ALLOWED` (`grouped`).
+  /** 409 — another attribute already has this key (`details.attributeKey`). */
+  ATTRIBUTE_KEY_TAKEN: 'ATTRIBUTE_KEY_TAKEN',
+  /** 409 — the value type cannot change while products hold values (`details.attributeKey`). */
+  ATTRIBUTE_VALUE_TYPE_LOCKED: 'ATTRIBUTE_VALUE_TYPE_LOCKED',
+  /**
+   * 409 — the attribute is still in use, so it is not deleted: token `attribute_sets`
+   * (`details.attributeSetCount`) or `products` (`details.productCount`), with `attributeKey`.
+   */
+  ATTRIBUTE_IN_USE: 'ATTRIBUTE_IN_USE',
+  /** 409 — the attribute already has an option with this value (`details.attributeKey`, `value`). */
+  ATTRIBUTE_OPTION_VALUE_TAKEN: 'ATTRIBUTE_OPTION_VALUE_TAKEN',
+  /** 409 — a second default option where one is allowed (`details.attributeKey`, `value`). */
+  ATTRIBUTE_DEFAULT_OPTION_TAKEN: 'ATTRIBUTE_DEFAULT_OPTION_TAKEN',
+  /** 400 — the attribute's type takes no options (`details.attributeKey`, `valueType`). */
+  ATTRIBUTE_OPTIONS_NOT_SUPPORTED: 'ATTRIBUTE_OPTIONS_NOT_SUPPORTED',
+  /**
+   * 409 — products carry the option, so it is not deleted (`details.attributeKey`, `value`;
+   * token `products` with `productCount`).
+   */
+  ATTRIBUTE_OPTION_IN_USE: 'ATTRIBUTE_OPTION_IN_USE',
+  /** 400 — the attribute's stored type cannot be shown as a slider (`details.attributeKey`, `valueType`). */
+  ATTRIBUTE_SLIDER_NOT_SUPPORTED: 'ATTRIBUTE_SLIDER_NOT_SUPPORTED',
+  /** 400 — the product's attribute set requires values it lacks (`details.attributeKeys`, joined). */
+  ATTRIBUTE_VALUES_REQUIRED: 'ATTRIBUTE_VALUES_REQUIRED',
+  /**
+   * 422 — the product's type takes no minimum order quantity (`details.field`
+   * `minOrderQuantity`, `productType`; per channel also `channelId`).
+   */
+  MIN_ORDER_QUANTITY_NOT_SUPPORTED_FOR_TYPE: 'MIN_ORDER_QUANTITY_NOT_SUPPORTED_FOR_TYPE',
+  /** 409 — a sibling category already has this slug (`details.slug`, `parentCategoryId`). */
+  CATEGORY_SLUG_TAKEN: 'CATEGORY_SLUG_TAKEN',
+  /** 409 — the category still has subcategories, so it is not deleted (`details.categoryId`, `childCount`). */
+  CATEGORY_HAS_CHILDREN: 'CATEGORY_HAS_CHILDREN',
+  /** 409 — a category is moved beneath its own descendant (`details.categoryId`, `parentCategoryId`). */
+  CATEGORY_MOVE_CYCLE: 'CATEGORY_MOVE_CYCLE',
+  /** 409 — the child is already in the group (`details.parentProductId`, `childProductId`, `childSku`). */
+  GROUPED_ITEM_ALREADY_EXISTS: 'GROUPED_ITEM_ALREADY_EXISTS',
+
   // Quote Requests (RFQ)
   RFQ_NOT_DRAFT: 'RFQ_NOT_DRAFT',
   RFQ_EMPTY: 'RFQ_EMPTY',
