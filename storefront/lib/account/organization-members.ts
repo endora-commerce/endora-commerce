@@ -71,9 +71,10 @@ export function memberErrorKey(code: string | undefined): MessageKey | null {
   return ERROR_KEYS[isMemberErrorCode(code) ? code : FAILED];
 }
 
-/** The sentence for `?status=invited|revoked`, or `null`. */
+/** The sentence for `?status=invited|revoked|removed`, or `null`. */
 export function memberStatusKey(status: string | undefined): MessageKey | null {
   if (status === 'invited') return 'account.members.invited';
+  if (status === 'removed') return 'account.members.removed';
   if (status === 'revoked') return 'account.members.revoked';
   return null;
 }

@@ -636,17 +636,41 @@ describe('members page — the storefront design system (issue #663)', () => {
 
   it('renders every row action as a design-system button with a 44px target', async () => {
     const out = await html(membersPage());
-    const rowButtons = (out.slice(0, out.indexOf('id="invite-email"')).match(/<button\b[^>]*>/g) ?? []);
+    // The row actions themselves — not the buttons inside a confirmation dialog (issue #1178).
+    const rows = out.slice(0, out.indexOf('id="invite-email"')).replace(/<dialog\b[\s\S]*?<\/dialog>/g, '');
+    const rowButtons = rows.match(/<button\b[^>]*>/g) ?? [];
     // Save × 2, Remove × 1 (never yourself), Revoke × 1.
     expect(rowButtons).toHaveLength(4);
     for (const tag of rowButtons) expect(tag).toMatch(/class="btn btn--outline btn--sm min-h-11\b/);
   });
 
   it('marks the destructive row actions apart from Save, not by colour alone', async () => {
-    const out = await html(membersPage());
+    const out = (await html(membersPage())).replace(/<dialog\b[\s\S]*?<\/dialog>/g, '');
     const destructive = (out.match(/<button\b[^>]*>[^<]*<\/button>/g) ?? []).filter((b) => b.includes('text-bad'));
     // The label names the action; the colour only reinforces it.
     expect(destructive.map((b) => b.replace(/<[^>]+>/g, ''))).toEqual(['Remove', 'Revoke']);
+  });
+});
+
+describe('members page — removing a member asks first (issue #1178)', () => {
+  it('posts no removal from the row: Remove opens a confirmation instead', async () => {
+    const out = await html(membersPage());
+    const remove = /<button\b[^>]*>Remove<\/button>/.exec(out)?.[0] ?? '';
+    expect(remove).toMatch(/type="button"/);
+    expect(remove).toMatch(/aria-haspopup="dialog"/);
+    // No form in the members table submits a memberId on its own any more but the role form.
+    const table = out.slice(0, out.indexOf('</table>'));
+    const forms = table.match(/<form\b[\s\S]*?<\/form>/g) ?? [];
+    for (const f of forms) expect(f).toMatch(/name="roleId"/);
+  });
+
+  it('names the member being removed in an alertdialog', async () => {
+    const out = await html(membersPage());
+    const dialog = /<dialog\b[^>]*role="alertdialog"[\s\S]*?<\/dialog>/.exec(out)?.[0] ?? '';
+    expect(dialog).toContain('Remove this member?');
+    expect(dialog).toContain('Piotr Kowalski');
+    expect(dialog).toContain('piotr@acme.example');
+    expect(dialog).not.toContain('Anna Nowak');
   });
 });
 

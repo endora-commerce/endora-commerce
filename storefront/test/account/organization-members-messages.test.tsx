@@ -175,11 +175,23 @@ describe('the success notice echoes nothing from the URL', () => {
   });
 });
 
+describe('a removed member is confirmed on the page (issue #1178)', () => {
+  it('reads ?status=removed in English and Polish', async () => {
+    expect(await text({ status: 'removed' })).toContain('Member removed.');
+    locale = 'pl-PL';
+    expect(await text({ status: 'removed' })).toContain('Członek organizacji został usunięty.');
+  });
+});
+
 describe('the actions redirect with a code, never a sentence or an address', () => {
   const invite = () => redirectOf(inviteAction, form([['email', 'ola@acme.example'], ['roleId', R_MEMBER]]));
   const changeRole = () => redirectOf(changeRoleAction, form([['memberId', 'acc-2'], ['roleId', R_MEMBER]]));
   const remove = () => redirectOf(removeAction, form([['memberId', 'acc-2']]));
   const revoke = () => redirectOf(revokeAction, form([['invitationId', 'inv-1']]));
+
+  it('a removal redirects with ?status=removed and nothing else (issue #1178)', async () => {
+    expect(await remove()).toBe('/organization/members?status=removed');
+  });
 
   it('a sent invitation redirects without the invitee’s address', async () => {
     const to = await invite();

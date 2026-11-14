@@ -6,6 +6,7 @@ import { fileURLToPath } from 'node:url';
 import { ClearListButton } from '../../components/shopping-lists/ClearListButton';
 import { DeleteShoppingListButton } from '../../components/shopping-lists/DeleteShoppingListButton';
 import { NotifyWhenAvailableDialog } from '../../components/inventory/NotifyWhenAvailableDialog';
+import { RemoveMemberButton } from '../../components/account/RemoveMemberButton';
 
 /**
  * Issue #804 — the storefront's three remaining hand-rolled dialogs are built
@@ -58,6 +59,17 @@ const renders = {
   clear: (): string => renderToString(<ClearListButton listId="l1" locale="en-US" clearAction={noop} />),
   delete: (): string =>
     renderToString(<DeleteShoppingListButton listId="l1" listName="Site A" locale="en-US" deleteAction={noop} />),
+  removeMember: (): string =>
+    renderToString(
+      <RemoveMemberButton
+        memberId="acc-2"
+        memberName="Piotr Kowalski"
+        memberEmail="piotr@acme.example"
+        locale="en-US"
+        triggerClassName="btn btn--outline btn--sm min-h-11 border-bad text-bad"
+        removeAction={noop}
+      />,
+    ),
   notify: (): string =>
     renderToString(
       <NotifyWhenAvailableDialog
@@ -72,6 +84,7 @@ const renders = {
 describe.each([
   ['ClearListButton', renders.clear, 'Clear list', 'Clear this list?'],
   ['DeleteShoppingListButton', renders.delete, 'Delete', 'Delete this list?'],
+  ['RemoveMemberButton', renders.removeMember, 'Remove', 'Remove this member?'],
   ['NotifyWhenAvailableDialog', renders.notify, 'Notify when available', 'Get notified'],
 ])('%s on ModalDialog (issue #804)', (_name, render, trigger, title) => {
   it('opens a native dialog from a button trigger', () => {
@@ -101,6 +114,7 @@ describe.each([
 describe.each([
   ['ClearListButton', renders.clear, 'Clear list'],
   ['DeleteShoppingListButton', renders.delete, 'Delete list'],
+  ['RemoveMemberButton', renders.removeMember, 'Remove member'],
 ])('%s — a destructive confirmation (issue #804)', (_name, render, confirm) => {
   it('is an alertdialog described by its warning', () => {
     const html = render();
@@ -179,5 +193,37 @@ describe('NotifyWhenAvailableDialog — the trigger is a secondary action (issue
     };
     for (const dir of ['app', 'components', 'lib']) walk(join(root, dir));
     expect(offenders).toEqual([]);
+  });
+});
+
+describe('RemoveMemberButton — whom the confirmation is about (issue #1178)', () => {
+  it('names the member by name and e-mail address in the warning', () => {
+    const dialog = dialogOf(renders.removeMember());
+    expect(dialog).toContain('<strong>Piotr Kowalski</strong>');
+    expect(dialog).toContain('piotr@acme.example');
+    expect(dialog).toContain('cannot be undone');
+  });
+
+  it('keeps the row’s destructive button as its trigger', () => {
+    const html = renders.removeMember();
+    expect(html).toMatch(
+      /<button type="button"[^>]*aria-haspopup="dialog"[^>]*class="btn btn--outline btn--sm min-h-11 border-bad text-bad"[^>]*>Remove<\/button>/,
+    );
+  });
+
+  it('speaks Polish on a Polish page', () => {
+    const html = renderToString(
+      <RemoveMemberButton
+        memberId="acc-2"
+        memberName="Piotr Kowalski"
+        memberEmail="piotr@acme.example"
+        locale="pl-PL"
+        removeAction={noop}
+      />,
+    );
+    expect(triggerOf(html)).toBe('Usuń');
+    expect(nameOf(html)).toBe('Usunąć tego członka organizacji?');
+    expect(dialogOf(html)).toContain('Tej operacji nie można cofnąć.');
+    expect(dialogOf(html)).toMatch(/>Usuń członka<\/button>/);
   });
 });
