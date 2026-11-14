@@ -900,6 +900,21 @@
   .b2b-account__table th, .b2b-account__table td { @apply border-b border-line p-[10px] text-left text-[13px]; }
   .b2b-account__table th { @apply text-[11px] font-medium uppercase tracking-[0.04em] text-muted; }
   .b2b-account__table td { @apply font-mono; }
+  /* Issue #1178 — a link in an account table. The base reset gives every <a>
+     the inherited colour and no underline, so a link there read as the cell's
+     text. This is the one class such a link carries: underlined (never colour
+     alone) in the accent colour, re-pointed in dark mode at the light brand
+     tint — `--brand-700` is 2.77:1 on the dark surface, `--brand-200` 13:1 —
+     through the `dark:` variant, because `check:themes` reads the first
+     `:root.is-dark` in the emitted CSS as the token scope. Hover thickens the
+     underline rather than changing colour, so it reads the same in both modes.
+     `ModalDialog`'s default trigger composes it (Law of Similarity). */
+  .b2b-account__link { @apply text-accent underline underline-offset-2 dark:text-[color:var(--brand-200)]; }
+  .b2b-account__link:hover { @apply decoration-2; }
+  .b2b-account__link:focus-visible { @apply rounded-sm outline-2 outline-offset-2 outline-[color:var(--brand-600)]; }
+  /* In a cell: the 44px touch floor, pulled into the cell's own 10px padding
+     so the row does not grow (Fitts's Law, WCAG 2.5.8). */
+  .b2b-account__table .b2b-account__link { @apply -my-[10px] inline-flex min-h-11 min-w-11 items-center; }
   .b2b-account__comments { @apply m-0 flex list-none flex-col gap-[10px] p-0; }
   .b2b-account__comments li { @apply rounded-md border border-line bg-surface-alt px-[14px] py-[10px]; }
   .b2b-account__comments li small { @apply block text-[11px] text-subtle; }
@@ -920,12 +935,11 @@
      touch floor (Fitts). Wraps rather than overflows on a narrow phone. */
   .b2b-dialog__foot { @apply flex flex-wrap items-center justify-end gap-2 border-t border-line px-[16px] py-[12px]; }
   .b2b-dialog__foot > .btn { @apply min-h-11 justify-center; }
-  /* The default trigger reads as an inline link; its hit area is the 44px
+  /* The default trigger reads as an inline link: it carries `.b2b-account__link`
+     too (issue #1178), which paints it; this is the button reset and the 44px
      touch floor, pulled into the table cell's own padding so the row does not
      grow (Fitts). */
-  .b2b-dialog__trigger { @apply -my-[10px] inline-flex min-h-11 cursor-pointer items-center border-0 bg-transparent p-0 font-sans text-[13px] text-accent underline underline-offset-2; }
-  .b2b-dialog__trigger:hover { @apply text-accent-hover; }
-  .b2b-dialog__trigger:focus-visible { @apply rounded-sm outline-2 outline-offset-2 outline-[color:var(--brand-600)]; }
+  .b2b-dialog__trigger { @apply -my-[10px] inline-flex min-h-11 cursor-pointer items-center border-0 bg-transparent p-0 font-sans text-[13px]; }
 }
 /* The dim behind the dialog: the bottom sheet's (`.m-sheet-dim`) value. */
 .b2b-dialog::backdrop { background: rgba(10, 13, 18, 0.45); }

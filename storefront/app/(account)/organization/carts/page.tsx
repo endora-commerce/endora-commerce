@@ -154,7 +154,7 @@ export default async function OrganizationCartsPage({
                       otherwise not here. */}
                   {orderHref ? (
                     <td colSpan={2}>
-                      <LocalizedLink href={orderHref}>{t('account.orgCart.viewOrder')}</LocalizedLink>
+                      <LocalizedLink href={orderHref} className="b2b-account__link">{t('account.orgCart.viewOrder')}</LocalizedLink>
                     </td>
                   ) : (
                     <>
@@ -175,7 +175,7 @@ export default async function OrganizationCartsPage({
                       : '—'}
                   </td>
                   <td>
-                    <LocalizedLink href={`/organization/carts/${encodeURIComponent(cart.id)}`}>
+                    <LocalizedLink href={`/organization/carts/${encodeURIComponent(cart.id)}`} className="b2b-account__link">
                       {cart.approvalStatus === 'pending'
                         ? t('account.orgCarts.review')
                         : t('account.common.open')}

@@ -537,8 +537,9 @@ describe('credit-limit widget — the shop language (issue #85)', () => {
       /<a[^>]*href="\/orders\/aaaaaaaa-0000-4000-8000-000000000001"[^>]*>ORD-2001-2026<\/a>/,
     );
     expect(visibleText(html)).not.toContain('aaaaaaaa');
-    // A storefront link inherits the text colour; the underline is what marks it as one.
-    expect(html).toMatch(/<a[^>]*class="underline"[^>]*>ORD-2001-2026/);
+    // A storefront link inherits the text colour; the account tables' shared
+    // link class is what marks it as one (issue #1178).
+    expect(html).toMatch(/<a[^>]*class="b2b-account__link"[^>]*>ORD-2001-2026/);
   });
 
   it('falls back to a linked short id when the API sent no number', () => {

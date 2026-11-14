@@ -134,6 +134,15 @@ describe('shopping-list overview — the shop language (issue #85)', () => {
     expect(pl).toContain('Ustaw jako domyślną');
     expect(pl).toContain('Usuń');
   });
+
+  it('marks each list’s name as a link (issue #1178)', async () => {
+    const { default: Page } = await import('../../../app/(account)/shopping-lists/page');
+    lists = [{ ...list, id: 'l2', name: 'Site B' }];
+    locale = 'en-US';
+    const html = renderToString(<>{await Page({ searchParams: Promise.resolve({}) })}</>);
+    const anchor = /<a[^>]*href="\/shopping-lists\/l2"[^>]*>/.exec(html)?.[0] ?? '';
+    expect(anchor).toMatch(/class="b2b-account__link"/);
+  });
 });
 
 describe('shopping-list detail — the shop language (issue #85)', () => {
