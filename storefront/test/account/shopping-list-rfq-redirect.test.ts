@@ -1,5 +1,6 @@
 import { describe, expect, it } from 'vitest';
 import { rfqConversionRedirect } from '../../lib/account/shopping-list-conversion';
+import { decodeConversionSkips } from '../../lib/batchReport';
 
 /**
  * Issue #1159 (architect ruling A) — a list → quote-request conversion that
@@ -29,5 +30,28 @@ describe('rfqConversionRedirect', () => {
     expect(params.get('rfqId')).toBe(rfqId);
     expect(params.get('rfqAdded')).toBe('2');
     expect(params.get('rfqSkipped')).toBe('1');
+  });
+
+  // Issue #1161 — the skipped rows travel with their reasons (ids and codes only, as the cart
+  // conversion's `cartSkips` do), so the page can word each one instead of calling every skip archived.
+  it('carries each skipped row with its reason', () => {
+    const skipped = [
+      { itemId: 'i1', productId: 'p1', reason: 'product_not_found' as const },
+      { itemId: 'i2', productId: 'p2', reason: 'variant_unavailable' as const },
+      { itemId: 'i3', productId: 'p3', reason: 'product_archived' as const },
+    ];
+    const url = rfqConversionRedirect(listId, { rfqId: null, added: 0, skipped });
+    const params = new URLSearchParams(url.split('?')[1]);
+    expect(params.get('rfqSkipped')).toBe('3');
+    expect(decodeConversionSkips(params.get('rfqSkips')).lines.map((line) => line.reason)).toEqual([
+      'product_not_found',
+      'variant_unavailable',
+      'product_archived',
+    ]);
+  });
+
+  it('carries no skip list when nothing was skipped', () => {
+    const url = rfqConversionRedirect(listId, { rfqId: 'r1', added: 2, skipped: [] });
+    expect(new URLSearchParams(url.split('?')[1]).has('rfqSkips')).toBe(false);
   });
 });

@@ -71,6 +71,10 @@ const SAFE: Record<string, { kind: Kind; why: string }> = {
     kind: 'structured',
     why: 'item/product ids, reason codes and minimums — no names — re-validated field by field on read (`lib/batchReport.ts`)',
   },
+  rfqSkips: {
+    kind: 'structured',
+    why: 'the quote-request conversion’s skips, in the `cartSkips` shape and through the same reader (`lib/batchReport.ts`; #1161)',
+  },
   // Numbers.
   page: { kind: 'number', why: 'a page number' },
   attempt: { kind: 'number', why: 'a payment-status poll attempt, parsed as a number' },
