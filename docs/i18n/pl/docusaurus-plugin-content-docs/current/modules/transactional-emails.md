@@ -30,7 +30,12 @@ logika biznesowa podstawia w chwili wysyłki.
   `EmailInsertTemplate` usunięto z palety (starsze drzewa treści nadal się wyświetlają). Systemowe
   bloki tworzone przy instalacji — `default_email_header` (pokazuje oznakowanie marki przez
   `EmailLogo` / `{{var branding.logoUrl}}`) i `default_email_footer` — są automatycznie dołączane do
-  domyślnej treści.
+  domyślnej treści. Systemowego bloku ani szablonu nie można usunąć:
+  `DELETE /api/v1/admin/transactional-emails/blocks/:id` odpowiada
+  `409 TRANSACTIONAL_EMAIL_SYSTEM_BLOCK` (`details`: `blockId`, `blockCode`), a
+  `DELETE /api/v1/admin/transactional-emails/templates/:id` odpowiada
+  `409 TRANSACTIONAL_EMAIL_SYSTEM_TEMPLATE` (`details`: `templateId`, `templateCode`), z komunikatem
+  w języku operatora. Do zgłoszenia #638 obie były odpowiedzią `409 VALIDATION_FAILED`.
 - **Oznakowanie marki (Branding)** — logo w nagłówku, kolor wyróżniający oraz kody domyślnych bloków
   nagłówka i stopki, ustalane dla każdego zakresu przez moduł ustawień (`transactional_emails.*`).
   Ustalone logo jest dostępne w każdym e-mailu jako `{{var branding.logoUrl}}`.

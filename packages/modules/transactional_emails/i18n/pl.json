@@ -106,5 +106,7 @@
   "pageBuilder.blockPreview.unavailable": "Ten blok nie ma podglądu w edytorze. Jego pola można edytować w panelu bocznym.",
   "actions.openEmailBlocks.keywords": "bloki",
   "errors.TRANSACTIONAL_EMAIL_NOT_DEACTIVATABLE": "Mail „{emailCode}” jest zawsze włączony i nie można go wyłączyć.",
+  "errors.TRANSACTIONAL_EMAIL_SYSTEM_BLOCK": "Blok maila „{blockCode}” jest blokiem systemowym, więc nie można go usunąć.",
+  "errors.TRANSACTIONAL_EMAIL_SYSTEM_TEMPLATE": "Szablon maila „{templateCode}” jest szablonem systemowym, więc nie można go usunąć.",
   "settingGroups.transactional_emails.name": "Maile transakcyjne"
 }

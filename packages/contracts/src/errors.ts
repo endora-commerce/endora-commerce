@@ -679,6 +679,12 @@ export const ERROR_CODES = {
    * same "there is nothing here to switch, ever", same carried reason.
    */
   TRANSACTIONAL_EMAIL_NOT_DEACTIVATABLE: 'TRANSACTIONAL_EMAIL_NOT_DEACTIVATABLE',
+  // A system block or template that cannot be deleted (issue #638, #86).
+  // Raised as `VALIDATION_FAILED` with an English sentence until then.
+  /** 409 — a system email block cannot be deleted (`details.blockId`, `blockCode`). */
+  TRANSACTIONAL_EMAIL_SYSTEM_BLOCK: 'TRANSACTIONAL_EMAIL_SYSTEM_BLOCK',
+  /** 409 — a system email template cannot be deleted (`details.templateId`, `templateCode`). */
+  TRANSACTIONAL_EMAIL_SYSTEM_TEMPLATE: 'TRANSACTIONAL_EMAIL_SYSTEM_TEMPLATE',
 
   // Catalog (feature 022 — Products Bulk Edit)
   BULK_TOO_LARGE: 'BULK_TOO_LARGE',

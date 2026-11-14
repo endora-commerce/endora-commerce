@@ -106,5 +106,7 @@
   "pageBuilder.blockPreview.unavailable": "This block has no preview in the editor. Its fields can be edited in the side panel.",
   "actions.openEmailBlocks.keywords": "blocks",
   "errors.TRANSACTIONAL_EMAIL_NOT_DEACTIVATABLE": "The \"{emailCode}\" email is always on and cannot be switched off.",
+  "errors.TRANSACTIONAL_EMAIL_SYSTEM_BLOCK": "Email block \"{blockCode}\" is a system block, so it cannot be deleted.",
+  "errors.TRANSACTIONAL_EMAIL_SYSTEM_TEMPLATE": "Email template \"{templateCode}\" is a system template, so it cannot be deleted.",
   "settingGroups.transactional_emails.name": "Transactional emails"
 }
