@@ -33,7 +33,9 @@ describe('Admin currency CRUD', () => {
   afterEach(async () => {
     if (ephemeralCodes.length > 0) {
       const conn = h.em().getConnection();
-      await conn.execute('update currencies set is_default = false');
+      // Only this file's own codes can have been promoted, so only they are
+      // demoted (issue #607) before the original default is put back.
+      await conn.execute('update currencies set is_default = false where code in (?)', [ephemeralCodes]);
       await conn.execute('update currencies set is_default = true where code = ?', [
         originalDefaultCode,
       ]);

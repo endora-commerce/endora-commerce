@@ -141,7 +141,7 @@ describe('languages — repairing a sales channel created with the bare `en` cod
   });
 
   it('leaves the channel alone when there is no `en-US` to repair it to', async () => {
-    await em.execute(`update "languages" set "is_default" = false`);
+    await em.execute(`update "languages" set "is_default" = false where "code" = 'en-US'`);
     await em.execute(`delete from "languages" where "code" = 'en-US'`);
     await insertChannel('chlang-no-target', ['en'], 'en');
 
