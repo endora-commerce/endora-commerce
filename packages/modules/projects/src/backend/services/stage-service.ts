@@ -87,7 +87,10 @@ export class StageService {
         await lockRolesForWrite(em as EntityManager, body.responsibleRoleIds ?? []);
         const stages = await stagesOf(em, visible.id);
         if (stages.length >= PROJECT_STAGES_MAX) {
-          throw new HttpError(422, ERROR_CODES.VALIDATION_FAILED, `A project has at most ${PROJECT_STAGES_MAX} stages.`);
+          throw new HttpError(422, ERROR_CODES.PROJECT_STAGE_LIMIT, `A project has at most ${PROJECT_STAGES_MAX} stages.`, {
+            projectId: visible.id,
+            maximum: PROJECT_STAGES_MAX,
+          });
         }
         const last = stages[stages.length - 1];
         const stage = em.create(ProjectStage, {

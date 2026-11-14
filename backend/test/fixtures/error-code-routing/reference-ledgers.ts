@@ -941,6 +941,29 @@ export const MINTED_ERROR_CODES: MintedErrorCodes = {
       'Minted with the `projects` module (`specs/163-projects-and-tasks/`, User Story 7): ' +
       'an upload larger than the bound the attachment route reads into memory (FR-027), CRM’s rule.',
   },
+  PROJECT_STAGE_LIMIT: {
+    to: 'projects',
+    reason:
+      'Minted by issue #634 (#86) for a Stage added to a Project that already has ' +
+      '`PROJECT_STAGES_MAX` of them. It was `422 VALIDATION_FAILED` with the maximum baked into ' +
+      'an English literal the envelope never replaces; it now travels as `details.maximum`. The ' +
+      'one raise site is `stage-service.ts`.',
+  },
+  PROJECT_ATTACHMENT_NOT_PRIVATE: {
+    to: 'projects',
+    reason:
+      'Minted by issue #634 (#86) for a library file attached while it is not private. It was ' +
+      '`VALIDATION_FAILED`: the request is well formed, and the file\'s visibility refuses it. ' +
+      'Named in parallel with `crm`\'s twin, `CRM_ATTACHMENT_NOT_PRIVATE` (issue #639), as the ' +
+      'two `*_ATTACHMENT_TOO_LARGE` codes are.',
+  },
+  PROJECT_TEMPLATE_ROLE_ARCHIVED: {
+    to: 'projects',
+    reason:
+      'Minted by issue #634 (#86) for an archived Role added to a Template that does not hold it ' +
+      'already. It was `VALIDATION_FAILED` through `template-service.ts`\' `invalid()`; a Role ' +
+      'that is not a project Role at all stays validation.',
+  },
   SEO_CRAWLER_TEXT_TOO_LARGE: {
     to: 'seo',
     reason:

@@ -1105,6 +1105,17 @@ export const ERROR_CODES = {
   PROJECT_MESSAGE_IMMUTABLE: 'PROJECT_MESSAGE_IMMUTABLE',
   /** The uploaded file is larger than an attachment of a Project may be; `details.maxMb` names the limit. */
   PROJECT_ATTACHMENT_TOO_LARGE: 'PROJECT_ATTACHMENT_TOO_LARGE',
+  // Three state refusals raised as `VALIDATION_FAILED` with an English literal
+  // until issue #634 (#86).
+  /** 422 — the Project already has the most Stages it may have (`details.projectId`, `maximum`). */
+  PROJECT_STAGE_LIMIT: 'PROJECT_STAGE_LIMIT',
+  /**
+   * 422 — an attachment must be a private file of the library (`details.assetId`, `visibility`).
+   * `crm`'s twin is to be `CRM_ATTACHMENT_NOT_PRIVATE` (issue #639).
+   */
+  PROJECT_ATTACHMENT_NOT_PRIVATE: 'PROJECT_ATTACHMENT_NOT_PRIVATE',
+  /** 422 — an archived Role is not added to a Template that does not hold it (`details.roleId`). */
+  PROJECT_TEMPLATE_ROLE_ARCHIVED: 'PROJECT_TEMPLATE_ROLE_ARCHIVED',
 
   // SEO — search engine robots (`specs/144-seo-search-engine-robots/`, FR-006).
   // Declared by the `seo` module's manifest.

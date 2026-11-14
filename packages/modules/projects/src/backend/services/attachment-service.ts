@@ -116,8 +116,9 @@ export class ProjectAttachmentService {
     if (asset.visibility !== 'private') {
       throw new HttpError(
         422,
-        ERROR_CODES.VALIDATION_FAILED,
+        ERROR_CODES.PROJECT_ATTACHMENT_NOT_PRIVATE,
         'An attachment must be a private file. Upload it to the media library as private.',
+        { assetId, visibility: asset.visibility },
       );
     }
     refuseActiveContent({ filename: asset.filename, mimeType: asset.mimeType });
