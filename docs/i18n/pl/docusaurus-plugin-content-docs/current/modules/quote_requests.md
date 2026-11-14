@@ -276,6 +276,8 @@ angielsku:
   pole — nazwą pola szansy z chwili pominięcia — wraz z powodem. Wpis nie pokazuje żadnej wartości i może go
   przeczytać każdy, kto może otworzyć zapytanie. Jest **widoczny tylko dla administratorów**: widok
   zapytania u klienta nigdy go nie pokazuje. Przeniesione wartości nie mają osobnego wpisu.
+- **Kogo powiadomiono.** Pod wpisem, który kogoś powiadomił, wymienione są doręczenia —
+  odbiorca, kanał i wynik; zobacz *Powiadomienia*. Tylko w panelu administracyjnym, jak nazwiska.
 - **Ograniczona.** Historia odczytuje **100 najnowszych zdarzeń**. Gdy istnieją starsze, odpowiedź
   zawiera `truncated: true`, a zakładka informuje, że starsze wpisy nie są wyświetlane.
 
@@ -876,6 +878,10 @@ Zadanie wygaszania działa **co 30 minut** w każdym procesie, który obsługuje
 `quote_requests.expiry.sweep`, który instaluje sam moduł. Gdy moduł jest wyłączony, żadne
 uruchomienie się nie wykonuje.
 
+Obok niego działa worker doręczający powiadomienia, na kolejce
+`quote_requests.notifications.deliver`: co minutę i w ciągu kilku sekund od każdej zmiany, która
+zapisała powiadomienie. Zobacz *Powiadomienia*.
+
 ### Które zapytania wygasza
 
 Każde uruchomienie odczytuje `quote_requests.expiry_days` **dla każdego kanału sprzedaży** i
@@ -914,11 +920,13 @@ ważności*); sam z siebie nie zamyka zapytania.
   odrzucana z `409 VERSION_CONFLICT`: zachodzi dokładnie jedno z dwojga.
 - **Ograniczona paczka.** Jedno uruchomienie wygasza najwyżej 500 zapytań, od najstarszych.
   Większe zaległości są nadrabiane w kolejnych uruchomieniach.
-- **Bez rekordu powiadomienia dla wygaśnięcia, które jest starą wiadomością.** Zapytanie, które
+- **Nikt nie jest powiadamiany o wygaśnięciu, które jest starą wiadomością.** Zapytanie, które
   powinno było wygasnąć ponad 24 godziny przed uruchomieniem, które do niego dotarło, zostaje
   wygaszone, dostaje wpis w historii i jest ogłaszane jako `rfq.expired.v1` jak każde inne, ale
-  nie powstaje dla niego żaden rekord powiadomienia. Czym dziś jest rekord powiadomienia, opisuje
-  sekcja *Powiadomienia* poniżej.
+  nie zapisuje się dla niego żadnego powiadomienia, więc żadna ze stron się o nim nie dowiaduje —
+  to te same 24 godziny, po których żadne powiadomienie nie jest już wysyłane (zob.
+  *Powiadomienia*). Uruchomienie, które zapisało powiadomienia, budzi worker doręczający raz, po
+  swoich zatwierdzeniach.
 - **Bezczynne uruchomienie jest ciche.** Gdy nic nie czeka na wygaszenie, uruchomienie nie wchodzi
   w zakres systemowy i nie zapisuje wiersza audytu `tenant.escape_hatch`.
 
@@ -929,7 +937,7 @@ ważności*); sam z siebie nie zamyka zapytania.
 się nie działo dłużej niż `N` dni** — w instancji, która przez rok działała z wartością `0`, może
 to być większość otwartych zapytań. To samo dotyczy zmniejszenia wartości. Zapytania z ofertą,
 która jest jeszcze ważna, pozostają nietknięte (warunek 3), a dla tych, które powinny były wygasnąć
-ponad 24 godziny wcześniej, nie powstaje rekord powiadomienia.
+ponad 24 godziny wcześniej, nikt nie jest powiadamiany.
 
 Wydania do 0.104.0 włącznie opisywały to zadanie i nigdy go nie uruchamiały, więc instancja, w
 której `expiry_days` jest już ustawione, trafi na te same zaległości przy pierwszych
@@ -958,9 +966,13 @@ Trzy tabele uzupełniające podstawowe `quote_requests` i `quote_request_items`:
 - `quote_request_revisions` — pełna migawka przy każdej zmianie.
 - `quote_request_events` — historia, do której można tylko dopisywać (jeden wiersz na każde
   przejście stanu lub zmianę, z ładunkiem w postaci unii dyskryminowanej).
-- `quote_request_notification_events` — jeden wiersz na parę odbiorca × kanał; unikalność na
-  `(quote_request_id, source_event_id, recipient*, channel)` sprawia, że ponowienia są
-  idempotentne.
+- `quote_request_notifications` — jeden rekord doręczenia na wpis historii × odbiorcę × kanał
+  (unikalność na `(source_event_id, recipient_kind, recipient_id, channel)`), z jego statusem,
+  liczbą prób, terminem następnej próby, ostatnim błędem, czasem zmiany, którą ogłasza, i chwilą
+  zamknięcia. Jest przypisana do organizacji, usuwana razem z zapytaniem i nie ma klucza obcego do
+  tabeli odbiorcy. Zastąpiła `quote_request_notification_events`, którą migracja
+  `20261113T081826_quote_requests_notifications_redesign.ts` usunęła razem z wierszami — nic ich
+  nigdy nie doręczyło.
 
 `quote_request_items` przechowuje zapisaną cenę referencyjną w `reference_unit_price`,
 `reference_currency` i `reference_captured_at` — wszystkie trzy ustawione albo wszystkie trzy
@@ -1031,17 +1043,242 @@ nie będzie.
 
 ## Powiadomienia
 
-Każde przejście stanu **zapisuje**, kogo należy powiadomić: `RfqNotificationService` zapisuje po
-jednym wierszu na odbiorcę i kanał (`email`, `in_app`) w `quote_request_notification_events`, ze
-statusem `queued` — klienta przy działaniach administratora, opiekunów handlowych i administratorów
-platformy przy działaniach klienta, obie strony przy wygaśnięciu. Ograniczenie unikalności w tej
-tabeli pilnuje, by na każdą trójkę (przejście, odbiorca, kanał) przypadał jeden wiersz.
+Każda zmiana zapytania ofertowego, o której druga strona powinna wiedzieć, jest
+**doręczana**: strona kupującego dostaje e-mail, wpis w centrum powiadomień w
+sklepie i — jeśli się na to zgodziła — powiadomienie push na urządzeniu;
+operatorzy, którzy obsługują zapytanie, dostają wpis w dzwonku powiadomień w
+panelu administracyjnym, a przy nowym zapytaniu także e-mail. Kogo powiadomiono,
+jakim kanałem i czy wiadomość wyszła, pokazuje **Historia** zapytania.
 
-**Tych wierszy na razie nic nie doręcza.** Żaden proces nie odczytuje tej tabeli, więc dla żadnego
-przejścia zapytania ofertowego nie jest wysyłany e-mail ani powiadomienie na koncie; wiersze
-pozostają w statusie `queued`. Są zapisem, z którego korzystałby proces doręczający. Jedyny e-mail,
-który ten moduł wysyła, to jawna akcja *Wyślij PDF do klienta* (zob. *PDF oferty*), doręczana, gdy
-handlowiec czeka, i zapisywana w historii oferty.
+### Kto jest powiadamiany i kiedy
+
+Są dwie strony.
+
+- **Strona kupującego** to konto klienta, które złożyło zapytanie, **oraz**
+  każdy członek jego organizacji, który może otworzyć zapytanie w sklepie — dziś
+  osoby z rolą *Administrator* organizacji. Członek, który ma tylko uprawnienia
+  roli *Member* i nie złożył zapytania, nie jest powiadamiany, bo nie może go
+  otworzyć. Konta usunięte, zablokowane i zanonimizowane są pomijane. W
+  organizacji osobistej (B2C) stroną kupującego jest wyłącznie autor zapytania.
+  Autor, który jest też *Administratorem*, dostaje powiadomienie raz na kanał.
+- **Strona operatora** to administrator, do którego zapytanie jest przypisane,
+  oraz opiekunowie handlowi przypisani do organizacji — każdy tylko wtedy, gdy
+  jest aktywny i ma `rfqs:handle`. Gdy nikt z nich nie zostaje — nikt nie jest
+  przypisany albo nikt z przypisanych nie może obsługiwać zapytań ofertowych —
+  powiadamiany jest **każdy aktywny administrator z `rfqs:handle`**, a nikt bez
+  tego uprawnienia.
+
+| Zmiana | Strona kupującego | Strona operatora |
+| --- | --- | --- |
+| Kupujący składa zapytanie | e-mail; wpis w centrum i push dla wszystkich poza kupującym, który je złożył | dzwonek i e-mail |
+| Kupujący składa zapytanie ponownie (nowe zapytanie) | jak wyżej | dzwonek i e-mail |
+| Kupujący akceptuje ofertę | jak wyżej | dzwonek |
+| Kupujący odrzuca ofertę | jak wyżej | dzwonek |
+| Zapytanie wygasa | e-mail, wpis w centrum, push | dzwonek |
+| Operator tworzy zapytanie w imieniu kupującego | e-mail, wpis w centrum, push | — |
+| Operator zapisuje nową ofertę (rewizję) | e-mail, wpis w centrum, push | — |
+| Operator zatwierdza zapytanie | e-mail, wpis w centrum, push | — |
+| Operator anuluje zapytanie | e-mail, wpis w centrum, push | — |
+| Zamówienie kończy zapytanie | nic — wystarcza potwierdzenie zamówienia | — |
+
+Kupujący, którego własne działanie wywołało zmianę, dostaje **e-mail** jako
+potwierdzenie, ale nie dostaje wpisu w centrum ani powiadomienia push: właśnie
+patrzy na wynik. Edycje szkicu przez kupującego, notatki, *Wyślij PDF do
+klienta* i pozostałe wpisy historii nikogo nie powiadamiają.
+
+**To, kto jest powiadamiany, ustala się w chwili zapisu zmiany.** Przy
+doręczeniu każda osoba jest sprawdzana ponownie: konto, które w międzyczasie
+usunięto, zablokowano lub zanonimizowano, które opuściło organizację albo nie
+może już otworzyć zapytania, oraz administrator, który nie jest już aktywny lub
+stracił `rfqs:handle`, zostają pominięci. Zmiana roli po zapisie zmiany nikogo
+nie dodaje.
+
+### Co niesie każdy kanał
+
+- **E-mail do kupującego** — jeden z dziewięciu e-maili w grupie *Zapytania
+  ofertowe* w **Szablonach e-maili**, w domyślnym języku kanału sprzedaży
+  zapytania (po angielsku dla zapytania złożonego bez kanału). Podaje numer
+  zapytania i prowadzi do zapytania w sklepie, gdy kanał ma adres sklepu
+  (ustawienie `sales_channels.storefront_url`, *Storefront URL*); bez niego
+  podaje numer i nie zawiera odnośnika. E-mail o zatwierdzeniu zawiera odnośnik
+  i **nie zawiera PDF** — *Wyślij PDF do klienta* pozostaje osobną akcją.
+- **Wpis w centrum** — jedno zdanie z numerem zapytania i odnośnikiem do niego,
+  wyświetlane w języku, w którym kupujący przegląda sklep, tylko w kanale
+  sprzedaży zapytania (we wszystkich kanałach dla zapytania złożonego bez
+  kanału). Zobacz stronę modułu *Powiadomienia klientów*.
+- **Push** — to samo zdanie, pod tytułem *Aktualizacja zapytania ofertowego*,
+  w domyślnym języku kanału sprzedaży zapytania (po polsku albo po angielsku;
+  po angielsku dla każdego innego języka); otwiera zapytanie. Wychodzi tylko
+  wtedy, gdy w kanale są włączone powiadomienia push i powiadomienia o ofertach
+  (*Notify on quote status changes*), kupujący nie wyłączył swojego wyboru
+  *Quote updates* i ma urządzenie zarejestrowane w tym kanale. Zobacz stronę
+  modułu *PWA*.
+- **Wpis w dzwonku** — jeden wpis na administratora, z samym numerem zapytania,
+  prowadzący do ekranu zapytania w panelu administracyjnym.
+- **E-mail do operatora** — tylko przy złożonym lub ponownie złożonym
+  zapytaniu, w języku panelu administracyjnego administratora (po polsku dla
+  polskiego, w pozostałych przypadkach po angielsku); podaje numer zapytania,
+  organizację, kupującego, który działał, i liczbę pozycji. Nie zawiera jeszcze
+  odnośnika do panelu administracyjnego; ma go wpis w dzwonku.
+
+Żaden wpis w centrum, push ani wpis w dzwonku nie podaje produktu, ceny ani
+organizacji: są czytane poza ekranem samego zapytania, więc podają numer i nic
+więcej.
+
+### E-maile
+
+Wszystkie jedenaście jest domyślnie włączonych. Ich temat i treść edytuje się —
+dla każdego języka i kanału sprzedaży — albo wyłącza każdy z nich w **Szablonach
+e-maili**; każdy ma domyślną treść po angielsku i po polsku.
+
+| Kod | Do kogo | Kiedy |
+| --- | --- | --- |
+| `quote_request_customer_submitted` | strona kupującego | zapytanie zostaje złożone |
+| `quote_request_customer_resubmitted` | strona kupującego | zapytanie zostaje złożone ponownie jako nowe |
+| `quote_request_customer_offer_accepted` | strona kupującego | kupujący akceptuje ofertę |
+| `quote_request_customer_offer_rejected` | strona kupującego | kupujący odrzuca ofertę |
+| `quote_request_customer_expired` | strona kupującego | zapytanie wygasa |
+| `quote_request_customer_prepared` | strona kupującego | operator tworzy zapytanie w imieniu kupującego |
+| `quote_request_customer_revised` | strona kupującego | operator zapisuje ofertę czekającą na kupującego |
+| `quote_request_customer_approved` | strona kupującego | operator zatwierdza zapytanie |
+| `quote_request_customer_canceled` | strona kupującego | operator anuluje zapytanie |
+| `quote_request_operator_submitted` | strona operatora | kupujący składa zapytanie |
+| `quote_request_operator_resubmitted` | strona operatora | kupujący składa zapytanie ponownie |
+
+Każdy e-mail może używać `quote.number`, `customer.name` (odbiorca),
+`organization.name` i `channel.name`; e-maile do kupującego także `quote.url`
+(pusty, gdy nie ma odnośnika — przycisk jest wtedy pomijany). Dla
+poszczególnych e-maili: `actor.name` (kupujący, który działał) przy złożeniu,
+ponownym złożeniu, akceptacji, odrzuceniu i w obu e-mailach do operatora;
+`quote.previousNumber` w obu e-mailach o ponownym złożeniu; `reason` przy
+odrzuceniu i anulowaniu; `quote.validUntil` przy przygotowaniu, rewizji i
+zatwierdzeniu; `quote.revisionNumber` przy rewizji; `quote.lineCount` w obu
+e-mailach do operatora.
+
+### Spóźnione, nieudane i wyłączone doręczenia
+
+- **Najwyżej 24 godziny.** Powiadomienie, którego nie udało się wysłać w ciągu
+  24 godzin od zmiany — zatrzymany worker, niedostępny Redis — zostaje pominięte
+  jako nieaktualne i nigdy nie jest wysyłane, w żadnym kanale. Wygaśnięcie,
+  które powinno było nastąpić ponad 24 godziny przed dotarciem do niego zadania
+  wygaszania, nikogo nie powiadamia (zob. *Zadania w tle*).
+- **Ponowienia.** Doręczenie, które się nie udaje (serwer poczty odmawia,
+  błąd), jest ponawiane po 1 minucie, 5 minutach, 30 minutach i 2 godzinach;
+  piąte niepowodzenie zapisuje je jako nieudane, z ostatnim błędem. Ponowienie
+  nigdy nie wysyła drugiego e-maila ani drugiego push za próbę, którą już
+  przyjęto.
+- **E-mail wyłączony** w **Szablonach e-maili**, wyłączony wybór kupującego
+  *Quote updates*, push wyłączony w kanale, brak zarejestrowanego urządzenia,
+  brak skonfigurowanego serwera poczty albo odbiorca bez adresu e-mail: to jedno
+  doręczenie zostaje pominięte, z powodem, a pozostałe kanały działają.
+- **Wyłączony moduł odbierający** — *Powiadomienia administratora* (dzwonek),
+  *Powiadomienia klientów* (centrum) albo *PWA* (push): jego doręczenia są
+  pomijane jako *moduł wyłączony*, gdy worker do nich dotrze, i **nie** są
+  wysyłane później, po ponownym włączeniu modułu. Każdy inny kanał nadal
+  doręcza, a żadna zmiana zapytania ofertowego nigdy nie kończy się błędem
+  dlatego, że kanał jest niedostępny.
+- **Wyłączone same zapytania ofertowe**: żadna zmiana nie może zajść, więc nic
+  nowego nie jest zapisywane, a worker doręczający się zatrzymuje. Po ponownym
+  włączeniu modułu czekające doręczenia wychodzą — te, które mieszczą się
+  jeszcze w swoich 24 godzinach.
+
+### W Historii
+
+Pod każdym wpisem **Historii**, który kogoś powiadomił, ekran szczegółów w
+panelu administracyjnym wymienia doręczenia: odbiorcę (operator albo klient,
+z imienia i nazwiska), kanał (*Powiadomienie w panelu*, *E-mail*, *Powiadomienie na
+koncie*, *Powiadomienie push*), wynik — *Oczekuje*, *Wysłano*, *Niepowodzenie*
+albo *Pominięto* z powodem (starsze niż 24 godziny, moduł wyłączony, wyłączone,
+brak skonfigurowanego serwera poczty, zapisano tylko w logu, brak adresu lub
+konta, wyłączone przez odbiorcę, brak zarejestrowanego urządzenia) — oraz
+liczbę prób. Nieudane doręczenie pokazuje ostatni błąd pod *Pokaż błąd*.
+Osoba, której nie da się już odczytać, jest pokazywana jako nieznany
+użytkownik. Wymaga `rfqs:handle`, jak cała Historia; widok zapytania u
+kupującego nigdy tego nie pokazuje.
+
+### Dla programistów
+
+**Zapis.** `RfqNotificationService.record(em, { change, sourceEvent, rfq, actor })`
+(`src/backend/services/rfq-notification-service.ts`) zapisuje jeden wiersz
+`quote_request_notifications` na odbiorcę i kanał, **w transakcji zmiany** i
+jej wpisu w historii: przejście, które zostaje wycofane, nie zostawia rekordu,
+a takie, które zostaje zatwierdzone, zawsze je ma. To, kto jest powiadamiany,
+jest danymi — `src/backend/services/notifications/notification-matrix.ts`,
+tabela z *Kto jest powiadamiany i kiedy* w postaci kodu i jedyne miejsce, w
+którym ustala się odbiorców — a obie strony ustala
+`notifications/recipients.ts` wyłącznie przez opublikowane porty
+(`customerAccountReadPort`, `organizationRoleReadPort`,
+`organizationSalesRepScopePort`, `adminUserReadPort`, `permissionService`).
+Regułą strony kupującego jest `orgWideViewerRoleIds`, ta sama funkcja, której
+używa sprawdzenie widoczności w sklepie, więc nikt nie jest powiadamiany o
+zapytaniu, na którym dostałby `404`. Rekord jest unikalny dla trójki (wpis
+historii, odbiorca, kanał).
+
+**Doręczanie.** Po każdej zatwierdzonej zmianie zapisujący dodaje jedno zadanie
+do kolejki BullMQ `quote_requests.notifications.deliver` (stały identyfikator
+zadania `quote_requests.notifications.kick`, bez czekania na wynik; błąd jest
+logowany na poziomie `warn` i nigdy nie psuje przejścia), a harmonogram zadań
+na tej samej kolejce uruchamia się co minutę. Kolejką jest tabela: uruchomienie
+najpierw pyta, poza jakimkolwiek zakresem tenanta, czy coś czeka, i dopiero
+wtedy wchodzi w zakres systemowy; doręcza najwyżej 200 czekających rekordów, od
+najstarszych, każdy w osobnej transakcji z blokadą `for update skip locked`,
+więc kilka procesów worker dzieli tabelę między siebie. Konsument jest
+rejestrowany przez `ctx.worker`, więc gdy moduł jest wyłączony, nic się nie
+uruchamia. `RfqNotificationDeliveryService`
+(`notifications/delivery-service.ts`) zamyka każdy rekord w tej kolejności:
+
+1. jego zmiana ma ponad 24 godziny → `skipped_stale`;
+2. właściciel kanału nie jest obecny → `skipped_module_off` (rozstrzygane przed
+   wywołaniem portu; `ModuleDisabledError` zgłoszony mimo to przez port zamyka
+   rekord tak samo);
+3. w przeciwnym razie doręcza go adapter kanału
+   (`notifications/channel-adapters.ts`).
+
+| Kanał | Właściciel | Doręczany przez | Zamknięcie |
+| --- | --- | --- | --- |
+| `admin_in_app` | `admin_notifications` | `adminNotificationRecordPort.recordWithin(em, …)`, w transakcji rekordu | `sent` |
+| `admin_email` | `transactional_emails` | `TransactionalEmailSender.send`, `salesChannelId: null` | według odpowiedzi nadawcy |
+| `customer_email` | `transactional_emails` | `TransactionalEmailSender.send`, kanał zapytania | według odpowiedzi nadawcy |
+| `customer_in_app` | `customer_notifications` | `customerNotificationRecordPort.recordWithin(em, …)`, `sourceModule 'quote_requests'`, `sourceKey` = identyfikator rekordu, w transakcji rekordu | `sent` |
+| `customer_push` | `pwa` | `customerPushPort.push(…)`, `category 'quote'`, `sourceKey` = identyfikator rekordu; `pwa` zatwierdza samodzielnie | według odpowiedzi `pwa` |
+
+Wpisy w dzwonku i w centrum są zatwierdzane razem z zamknięciem rekordu, więc
+każdy jest doręczany dokładnie raz. Każdy e-mail jest wysyłany z
+`messageId = quote_request_notification:<record id>`, a każdy push z
+identyfikatorem rekordu jako kluczem, więc ponowienie po awarii między
+przyjęciem wiadomości przez transport a zatwierdzeniem nie tworzy drugiej
+wiadomości. Odpowiedź nadawcy przekłada się tak: `sent` → `sent`, `logged` →
+`skipped_logged`, `deactivated` → `skipped_deactivated`, `no_transport` (albo
+brak nadawcy) → `skipped_no_transport`, a `no_definition` → od razu `failed`.
+Odpowiedź `pwa`: `enqueued` → `sent`, `skipped:customer_preference` →
+`skipped_preference`, `skipped:no_subscription` → `skipped_no_subscription`,
+`skipped:no_account` → `skipped_no_recipient`, a `skipped:switched_off` →
+`skipped_deactivated`. Odbiorca, który przestał się kwalifikować albo nie ma
+adresu e-mail dla e-maila, zamyka rekord jako `skipped_no_recipient`. Każdy
+zgłoszony błąd jest nieudaną próbą: transakcja próby jest wycofywana, a próba
+liczona w drugiej transakcji, z następną próbą odsuniętą o 1 min / 5 min /
+30 min / 2 h; piąte niepowodzenie zamyka rekord jako `failed`, z błędem (najwyżej
+2 000 znaków, adres odbiorcy zastąpiony przez `<recipient>`) w `last_error`.
+
+Tytuły wpisów w dzwonku to `notifications.<change>.title`, zdania w centrum i w
+push to `customerNotifications.<change>.title`, a tytuł push to
+`customerPush.title` — wszystkie w `i18n/{en,pl}.json` tego modułu. Domyślne
+treści e-maili są w `src/backend/email-templates/quote-notification-defaults.ts`
+i trafiają do `emailDefaultsPort` przy starcie; definicje to
+`transactionalEmails` w `src/manifest.ts`. Moduł deklaruje krawędzie
+`degrades-without` do `admin_notifications`, `customer_notifications` i `pwa`.
+
+**Historia.** `GET /api/v1/admin/quote-requests/:id/history` dodaje opcjonalną
+tablicę `deliveries` (`quoteRequestDeliverySchema` w
+`@endora-commerce/contracts`) do każdego wpisu, którego `eventIds` zawierają
+wpis historii rekordów: `id`, `channel`, `recipient` (`kind`, `id`,
+`displayName`, `''`, gdy osoby już nie ma), `status`, `attempts`, `lastError` i
+`closedAt`. Wpis bez rekordów nie ma klucza `deliveries`. Klienckie
+`GET /api/v1/quote-requests/:id` nigdy go nie zawiera.
+
+E-mail *Wyślij PDF do klienta* (zob. *PDF oferty*) jest od tego wszystkiego
+niezależny: jest wysyłany, gdy handlowiec czeka, i zapisywany jako osobny wpis
+w Historii.
 
 ## Produkty zarchiwizowane nigdy nie są pozycjami zapytania
 
@@ -1074,8 +1311,8 @@ jest co najmniej jedna pozycja w uzgodnionej cenie; strona modułu zamówień op
 oznaczenie przepada.
 
 Gdy powstaje zamówienie z wypełnionym `source_quote_request_id`, subskrybent wewnątrz modułu
-przestawia źródłowe zapytanie ofertowe na `Completed`, wypełnia `converted_order_id` i wysyła
-powiadomienie `completed`. Zakończonego zapytania ofertowego nie można zamówić po raz drugi,
+przestawia źródłowe zapytanie ofertowe na `Completed` i wypełnia `converted_order_id`; nikt nie
+jest powiadamiany — wystarcza potwierdzenie zamówienia. Zakończonego zapytania ofertowego nie można zamówić po raz drugi,
 a konwersja jest odrzucana, dopóki którakolwiek pozycja nie ma uzgodnionej ceny jednostkowej
 (zob. *Uzgodnione ceny*).
 Subskrybent czeka, aż zamówienie zostanie zatwierdzone w bazie — najwyżej nieco ponad dwie

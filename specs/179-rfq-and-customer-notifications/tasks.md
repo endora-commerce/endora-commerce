@@ -232,12 +232,23 @@ Contract and integration files do not run on merge requests (D-198): run them lo
 
 ### WP-11 Documentation and release
 
-- [ ] T100 [P] [WP-11] `qr/docs/quote_requests.md`: rewrite *Notifications* (matrix in prose, recipients, channels, 24 h, History), *What one tick does* expiry wording; Polish page per `docs/docs/contributing/documentation-i18n.md`
-- [ ] T101 [P] [WP-11] `cn/docs/customer-notifications.md` en + pl (what buyers see, retention, activation)
+- [x] T100 [P] [WP-11] `qr/docs/quote_requests.md`: rewrite *Notifications* (matrix in prose, recipients, channels, 24 h, History), *What one tick does* expiry wording; Polish page per `docs/docs/contributing/documentation-i18n.md`
+- [x] T101 [P] [WP-11] `cn/docs/customer-notifications.md` en + pl (what buyers see, retention, activation)
 - [x] T102 [P] [WP-11] `pwa/docs/pwa.md` quote push paragraph en + pl — done in WP-10's MR (plan *Conflicts*: same MR as the behaviour)
-- [ ] T103 [WP-11] Upgrade note (changeset body): old table dropped, rows discarded, eleven new e-mails switched on by default; run `check:module-docs`
+- [x] T103 [WP-11] Upgrade note (changeset body): old table dropped, rows discarded, eleven new e-mails switched on by default; run `check:module-docs`
 
-- [ ] T104 [WP-11] Follow-up note (not in this feature; owner ruling OQ-1 = A, 2026-11-12): once #185 promotes `ADMIN_BASE_URL`, add the admin link (`quote.adminUrl`) to `quote_request_operator_submitted` and `quote_request_operator_resubmitted`, and the equivalent links to the `crm` and `tasks` e-mails. Record this in the #185 issue and in the changeset's upgrade note
+- [x] T104 [WP-11] Follow-up note (not in this feature; owner ruling OQ-1 = A, 2026-11-12): once #185 promotes `ADMIN_BASE_URL`, add the admin link (`quote.adminUrl`) to `quote_request_operator_submitted` and `quote_request_operator_resubmitted`, and the equivalent links to the `crm` and `tasks` e-mails. Record this in the #185 issue and in the changeset's upgrade note
+  - *WP-11 as built:* the follow-up is in `.changeset/238-quote-requests-notification-docs.md`
+    (with the T103 upgrade note; `.changeset/238-customer-notifications-docs.md` is the centre
+    page's). By the time WP-11 ran, #185 was already closed: PR #1078 (2026-11-13) promoted
+    `ADMIN_BASE_URL` to the platform (`configuredAdminBaseUrl()`, `packages/platform/src/kernel/admin-base-url.ts`)
+    and PR #1091 added the `crm` and `tasks` links — both before WP-05 (#1151) merged. So only the
+    two RFQ operator e-mails remain without the link; the note records that, nothing was posted to
+    the closed #185, and the missing link is reported to the owner as the next step rather than as
+    a future dependency. The module pages (T100, T101) describe the code as merged: the operator
+    e-mail carries no link. T101 also documents the storefront surfaces of WP-09 (indicator, page,
+    open route, nav, overview line) and the module's settings; the Polish pages and pins of both
+    pages are updated in the same MR.
 
 ### WP-12 Off-state and end-to-end
 
