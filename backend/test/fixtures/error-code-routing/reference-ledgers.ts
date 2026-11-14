@@ -1547,6 +1547,45 @@ export const MINTED_ERROR_CODES: MintedErrorCodes = {
       'It was raised as `VALIDATION_FAILED` with an English sentence. The one raise site is ' +
       '`OrderCloneToQuoteService.clone`; the noun is the order.',
   },
+  ORDER_STATUS_CODE_TAKEN: {
+    to: 'orders',
+    reason:
+      'Minted by issue #627 (#86) for an order status created with a code another status has. It ' +
+      'was `409 VALIDATION_FAILED` with an English sentence; the code travels as ' +
+      '`details.statusCode` because `details.code` is the token slot.',
+  },
+  ORDER_STATUS_TERMINAL_HAS_TRANSITIONS: {
+    to: 'orders',
+    reason:
+      'Minted by issue #627 (#86) for a terminal order status with outgoing transitions, at its two ' +
+      'raise sites in `OrderStatusGraphService`: marking a status terminal (token `mark_terminal`, ' +
+      '409) and adding an edge from a terminal one (token `add_transition`, 422).',
+  },
+  ORDER_STATUS_NOT_DELETABLE: {
+    to: 'orders',
+    reason:
+      'Minted by issue #627 (#86) for deleting the initial (token `initial`) or a system (token ' +
+      '`system`) order status. Both were `409 VALIDATION_FAILED` with an English sentence.',
+  },
+  ORDER_STATUS_IN_USE: {
+    to: 'orders',
+    reason:
+      'Minted by issue #627 (#86) for deleting an order status orders are in. It was `409 ' +
+      'VALIDATION_FAILED`; the count now travels as `details.orderCount`.',
+  },
+  ORDER_INTAKE_LINES_REFUSED: {
+    to: 'orders',
+    reason:
+      'Minted by issue #627 (#86) for the external API intake refusing one or more lines. It was ' +
+      '`422 VALIDATION_FAILED`; `details` stays the per-line array the integration reads.',
+  },
+  ORDER_INTAKE_BUSY: {
+    to: 'orders',
+    reason:
+      'Minted by issue #627 (#86) for an external API intake refused while another intake of the ' +
+      'same key holds its lock. It was `409 VALIDATION_FAILED` with `details.code` `intake_busy`, ' +
+      'which is gone: one code, one reason.',
+  },
   SHIPMENT_ALREADY_GENERATED: {
     to: 'shipments',
     reason:

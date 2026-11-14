@@ -108,7 +108,8 @@ describe('OrderApiIntakeService — scoped availability (163, W5)', () => {
       service.place(binding, 'idem-2', bodyOf(['SKU-OFF', 'SKU-NONE']), { audience: AUDIENCE }),
     );
     expect(error.statusCode).toBe(422);
-    expect(error.code).toBe(ERROR_CODES.VALIDATION_FAILED);
+    // Its own code since issue #627; the per-line array is unchanged.
+    expect(error.code).toBe(ERROR_CODES.ORDER_INTAKE_LINES_REFUSED);
     expect(error.details).toEqual([
       { path: 'lines.1.sku', issue: ERROR_CODES.SKU_NOT_IN_ASSORTMENT, sku: 'SKU-NONE' },
     ]);

@@ -285,12 +285,10 @@ export class OrderApiIntakeService {
       resolvedLines.push({ productId: product.id, quantity: line.quantity });
     }
     if (issues.length > 0) {
-      throw new HttpError(
-        422,
-        ERROR_CODES.VALIDATION_FAILED,
-        'One or more order lines were refused.',
-        issues,
-      );
+      // Its own code since issue #627. `details` stays the per-line array an
+      // integration reads; an array fills no placeholder, so the sentence
+      // names no count.
+      throw new HttpError(422, ERROR_CODES.ORDER_INTAKE_LINES_REFUSED, 'One or more order lines were refused.', issues);
     }
 
     // Step 4b — feature 163 (owner decision W5 = A): every resolved line's
@@ -478,11 +476,11 @@ export class OrderApiIntakeService {
       .digest('hex');
     const ok = await this.deps.redis.set(lockKey, token, 'PX', LOCK_TTL_MS, 'NX');
     if (ok !== 'OK') {
+      // One code, one reason: the `intake_busy` token is gone (issue #627).
       throw new HttpError(
         409,
-        ERROR_CODES.VALIDATION_FAILED,
+        ERROR_CODES.ORDER_INTAKE_BUSY,
         'Another order intake for this API key is in progress; retry with the same Idempotency-Key.',
-        { code: 'intake_busy' },
       );
     }
     return token;

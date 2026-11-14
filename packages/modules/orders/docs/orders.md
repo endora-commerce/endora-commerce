@@ -281,6 +281,20 @@ plus the predefined edges and the universal `→ on_hold` / `→ cancelled` edge
 `/api/v1/admin/orders/statuses` + `/transitions` endpoints; the graph is
 cached in-process and re-validated on every edit.
 
+An edit the graph's state refuses has its own code and a sentence in English
+and Polish, read in the operator's language. Until issue #627 these were
+`VALIDATION_FAILED`; the status is unchanged. The status code travels as
+`details.statusCode`, because `details.code` is the slot for a refusal's token.
+
+| Code | Status | When | `details` |
+| --- | --- | --- | --- |
+| `ORDER_STATUS_CODE_TAKEN` | `409` | `POST …/statuses` — another status has the code | `statusCode` |
+| `ORDER_STATUS_TERMINAL_HAS_TRANSITIONS` | `409` / `422` | `PATCH …/statuses/:code` marking a status with outgoing transitions terminal (`code` `mark_terminal`), or `PUT …/transitions` adding one from a terminal status (`code` `add_transition`) | `statusCode`, and `outgoingCount` or `toStatusCode` |
+| `ORDER_STATUS_NOT_DELETABLE` | `409` | `DELETE …/statuses/:code` of the initial (`code` `initial`) or a system (`code` `system`) status | `statusCode` |
+| `ORDER_STATUS_IN_USE` | `409` | `DELETE …/statuses/:code` while orders are in it | `statusCode`, `orderCount` |
+
+A transition naming a status that does not exist stays `VALIDATION_FAILED`.
+
 `OrderTransitionService.apply()` is the single authoritative state machine:
 it rejects transitions with no configured edge or out of a terminal status,
 runs veto-capable **before-guards** (`onOrderTransitionGuard`), then emits the

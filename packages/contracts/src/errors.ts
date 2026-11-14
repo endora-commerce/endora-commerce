@@ -311,6 +311,29 @@ export const ERROR_CODES = {
   ORDER_COMMENTS_CLOSED: 'ORDER_COMMENTS_CLOSED',
   /** The order has no lines, so there is nothing to copy into a quote request. */
   ORDER_CLONE_NO_LINES: 'ORDER_CLONE_NO_LINES',
+  // The admin's order-status configuration and the external API intake (issue
+  // #627, #86), raised as `VALIDATION_FAILED` with an English sentence until
+  // then. The status code travels as `details.statusCode`: `details.code` is the
+  // envelope's refusal-token slot. `returns` mints the `RETURN_STATUS_*` twins.
+  /** 409 — another order status already has this code (`details.statusCode`). */
+  ORDER_STATUS_CODE_TAKEN: 'ORDER_STATUS_CODE_TAKEN',
+  /**
+   * 409 / 422 — a terminal status cannot have outgoing transitions: marking a
+   * status with them terminal (token `mark_terminal`, `details.outgoingCount`) or
+   * adding one from a terminal status (token `add_transition`, `details.toStatusCode`).
+   */
+  ORDER_STATUS_TERMINAL_HAS_TRANSITIONS: 'ORDER_STATUS_TERMINAL_HAS_TRANSITIONS',
+  /** 409 — the initial (token `initial`) or a system (token `system`) status is not deleted. */
+  ORDER_STATUS_NOT_DELETABLE: 'ORDER_STATUS_NOT_DELETABLE',
+  /** 409 — orders are in the status, so it is not deleted (`details.statusCode`, `orderCount`). */
+  ORDER_STATUS_IN_USE: 'ORDER_STATUS_IN_USE',
+  /**
+   * 422 — the external API intake refused one or more lines; `details` stays the
+   * per-line array of `{ path, issue, sku }` (`SKU_NOT_IN_ASSORTMENT`, `PRICE_UNAVAILABLE`).
+   */
+  ORDER_INTAKE_LINES_REFUSED: 'ORDER_INTAKE_LINES_REFUSED',
+  /** 409 — another intake for the same API key holds its lock; retry with the same Idempotency-Key. */
+  ORDER_INTAKE_BUSY: 'ORDER_INTAKE_BUSY',
   /** 422 — the basket handed to placement belongs to another sales channel (feature 154). */
   ORDER_SALES_CHANNEL_MISMATCH: 'ORDER_SALES_CHANNEL_MISMATCH',
   /**
