@@ -160,5 +160,9 @@ export const manifest = defineModuleManifest({
     // Raised when an administrator asks for a scope their own role does not
     // hold; `details.scopes` names them for the sentence.
     { code: 'API_KEY_SCOPE_NOT_HELD' },
+    // Issue #644 — a bound key's service account that is blocked (reversible)
+    // or deleted / anonymized (terminal). Every raise carries one of the two
+    // tokens; the base sentence is only the fallback.
+    { code: 'API_KEY_SERVICE_ACCOUNT_INACTIVE', tokens: ['blocked', 'removed'] },
   ],
 });

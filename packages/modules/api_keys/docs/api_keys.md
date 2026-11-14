@@ -62,6 +62,20 @@ validated server-side and mirrored inline in the admin form:
 | B4 | Organization and Sales Channel must exist (the channel need not be active at creation — the key simply fails closed while it is inactive) |
 | B5 | `expiresAt`, when present, must be a future instant |
 
+A breach of any rule is answered `422 VALIDATION_FAILED`, with every issue
+listed in `details` as `{ path, issue }`. B3 has three branches: an account
+that does not exist and an account of another organization are validation,
+each with its own issue. An account of the bound organization that is
+blocked, deleted or anonymized is refused by its own state, and when it is
+the **only** problem the answer is
+`422 API_KEY_SERVICE_ACCOUNT_INACTIVE` instead, with `details.field:
+"binding.customerAccountId"`, `customerAccountId`, `organizationId` and a
+refusal token in `details.code`: `blocked` (unblock the account or choose
+another one) or `removed` (deleted or anonymized; choose another account).
+The operator reads the sentence in their own language. Beside any other
+issue, the inactive account stays one entry of the `VALIDATION_FAILED` list.
+Until issue #644 all three B3 branches shared one English issue.
+
 At request time a bound key derives a single-org tenant context and a pinned
 sales channel (an explicit `X-Sales-Channel` header naming a different channel
 is refused with `403 API_KEY_CHANNEL_MISMATCH`). An unbound key keeps the

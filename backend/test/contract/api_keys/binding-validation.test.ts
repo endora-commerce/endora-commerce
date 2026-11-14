@@ -166,27 +166,33 @@ describe('API key binding validation (062 / B1–B5)', () => {
     expect(res.statusCode).toBe(422);
     const body = res.json() as ErrorBody;
     expect(body.error.code).toBe(ERROR_CODES.VALIDATION_FAILED);
-    expect(body.error.details).toEqual(
-      expect.arrayContaining([
-        expect.objectContaining({ path: 'binding.customerAccountId' }),
-      ]),
-    );
+    expect(body.error.details).toEqual([
+      {
+        path: 'binding.customerAccountId',
+        issue: 'Service account does not belong to the bound organization.',
+      },
+    ]);
   });
 
-  it('B3 — blocked service account → 422 naming binding.customerAccountId', async () => {
+  // Issue #644 — a blocked account of the bound organization is the account's
+  // stored state refusing a well-formed request, not validation. The sentence
+  // and the `removed` token are asserted in
+  // `test/integration/api_keys/inactive-service-account.test.ts`.
+  it('B3 — blocked service account → 422 API_KEY_SERVICE_ACCOUNT_INACTIVE', async () => {
     const res = await createKey({
       name: 'B3 blocked key',
       scopes: ['orders:write'],
       binding: { ...validBinding(), customerAccountId: BLOCKED_CUSTOMER_ID },
     });
     expect(res.statusCode).toBe(422);
-    const body = res.json() as ErrorBody;
-    expect(body.error.code).toBe(ERROR_CODES.VALIDATION_FAILED);
-    expect(body.error.details).toEqual(
-      expect.arrayContaining([
-        expect.objectContaining({ path: 'binding.customerAccountId' }),
-      ]),
-    );
+    const body = res.json() as { error: { code: string; details?: unknown } };
+    expect(body.error.code).toBe(ERROR_CODES.API_KEY_SERVICE_ACCOUNT_INACTIVE);
+    expect(body.error.details).toEqual({
+      code: 'blocked',
+      field: 'binding.customerAccountId',
+      customerAccountId: BLOCKED_CUSTOMER_ID,
+      organizationId: TEST_ORGANIZATION_ID,
+    });
   });
 
   it('B4 — unknown organization → 422 naming binding.organizationId', async () => {

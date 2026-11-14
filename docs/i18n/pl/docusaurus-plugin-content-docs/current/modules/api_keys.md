@@ -61,6 +61,17 @@ po stronie serwera i pokazywane od razu w formularzu w panelu:
 | B4 | Organizacja i kanał sprzedaży muszą istnieć (kanał nie musi być aktywny przy tworzeniu — klucz po prostu odmawia działania, dopóki kanał jest nieaktywny) |
 | B5 | `expiresAt`, jeśli podane, musi wskazywać chwilę w przyszłości |
 
+Naruszenie którejkolwiek reguły daje odpowiedź `422 VALIDATION_FAILED`, a `details` wymienia każdy
+problem jako `{ path, issue }`. Reguła B3 ma trzy przypadki: konto, które nie istnieje, i konto
+innej organizacji to błędy walidacji, każdy z własnym opisem. Konto powiązanej organizacji, które
+jest zablokowane, usunięte albo zanonimizowane, odrzuca jego własny stan i gdy jest to **jedyny**
+problem, odpowiedzią jest `422 API_KEY_SERVICE_ACCOUNT_INACTIVE` z `details.field:
+"binding.customerAccountId"`, `customerAccountId`, `organizationId` i tokenem odmowy w
+`details.code`: `blocked` (odblokuj konto albo wybierz inne) albo `removed` (konto usunięte lub
+zanonimizowane; wybierz inne). Operator czyta komunikat we własnym języku. Obok innego problemu
+nieaktywne konto pozostaje jedną z pozycji listy `VALIDATION_FAILED`. Do zgłoszenia #644 wszystkie
+trzy przypadki B3 miały jeden wspólny angielski opis.
+
 W trakcie żądania klucz powiązany ustawia kontekst tenanta ograniczony do jednej organizacji i
 przypięty kanał sprzedaży (jawny nagłówek `X-Sales-Channel` wskazujący inny kanał jest odrzucany z
 `403 API_KEY_CHANNEL_MISMATCH`). Klucz niepowiązany zachowuje dotychczasowy kontekst systemowy i
