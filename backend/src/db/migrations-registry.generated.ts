@@ -341,6 +341,7 @@ import { Migration20260912T094631PaymentMethodsSalesChannelPaymentMethods } from
 
 // ── payments ────────────────────────────────────────────────────────────────
 import { Migration20260925T115728PaymentsRefundedAmount } from '@endora-commerce/mod-payments/migrations';
+import { Migration20261114T001851PaymentsProcessColumns } from '@endora-commerce/mod-payments/migrations';
 
 // ── pim_connector ───────────────────────────────────────────────────────────
 import { Migration20260826T153500PimConnectorInit } from '@endora-commerce/mod-pim-connector/migrations';
@@ -772,6 +773,7 @@ export const MIGRATION_REGISTRY: readonly MigrationRegistryEntry[] = [
 
   // ── payments ────────────────────────────────────────────────────────────────
   migration('payments', Migration20260925T115728PaymentsRefundedAmount),
+  migration('payments', Migration20261114T001851PaymentsProcessColumns),
 
   // ── pim_connector ───────────────────────────────────────────────────────────
   migration('pim_connector', Migration20260826T153500PimConnectorInit),
