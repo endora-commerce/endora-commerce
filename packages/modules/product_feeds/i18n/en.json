@@ -659,5 +659,8 @@
   "actions.openFeedCategoryMapping.keywords": "taxonomy, category mapping, categories",
   "actions.openFeedTaxonomyRevisions.keywords": "taxonomy update, new version, taxonomy version, taxonomy download",
   "settingGroups.product_feeds.name": "Product feeds",
-  "settingGroups.product_feeds_taxonomy.name": "Taxonomy updates"
+  "settingGroups.product_feeds_taxonomy.name": "Taxonomy updates",
+  "errors.PRODUCT_FEED_LANGUAGE_INACTIVE": "The language \"{languageCode}\" is not active on this installation, so a feed cannot be published in it. Activate the language or choose another one.",
+  "errors.PRODUCT_FEED_CURRENCY_NOT_OFFERED": "The sales channel does not offer the currency \"{currencyCode}\". Choose one it offers: {allowed}.",
+  "errors.PRODUCT_FEED_SLUG_TAKEN": "Another feed already uses the slug \"{slug}\". Choose a different slug."
 }

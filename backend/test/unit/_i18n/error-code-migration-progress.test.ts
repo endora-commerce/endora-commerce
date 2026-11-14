@@ -216,6 +216,12 @@ const MIGRATED_MODULES: readonly string[] = [
   // exclusivity refusal every PIM module raises; `pim_unopim` owned the other
   // twelve and left this repository with them (feature 134).
   'pim_connector',
+  // Minted (issue #631): `PRODUCT_FEED_LANGUAGE_INACTIVE`,
+  // `PRODUCT_FEED_CURRENCY_NOT_OFFERED` and `PRODUCT_FEED_SLUG_TAKEN` are the
+  // first codes this module declares, created after the chain was deleted, so
+  // `MINTED_ERROR_CODES` accounts for them. Its five older `PRODUCT_FEED_*`
+  // codes are `catalog`'s by the frozen capture.
+  'product_feeds',
   // Minted after the chain was deleted (!1159), so the frozen capture holds none
   // of its three codes and `MINTED_ERROR_CODES` is what accounts for them. The
   // roster's question — does this module declare exactly what the reference says

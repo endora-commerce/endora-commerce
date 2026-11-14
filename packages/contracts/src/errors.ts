@@ -803,6 +803,23 @@ export const ERROR_CODES = {
    * from `PRODUCT_FEED_ERROR_CODES` (feature 067, FR-087, FR-095, FR-096).
    */
   PRODUCT_FEED_TAXONOMY_CONFLICT: 'PRODUCT_FEED_TAXONOMY_CONFLICT',
+  // The feed form's state refusals (issue #631, #86). Raised as
+  // `VALIDATION_FAILED` with an English `field: message` literal until then.
+  // Unlike the five above, `product_feeds` declares these itself, and each
+  // keeps `details.field` so the form can place the sentence.
+  /**
+   * 400 — the language exists on the installation but is switched off
+   * (`details.field`, `languageCode`).
+   */
+  PRODUCT_FEED_LANGUAGE_INACTIVE: 'PRODUCT_FEED_LANGUAGE_INACTIVE',
+  /**
+   * 400 — the feed's sales channel does not offer the currency
+   * (`details.field`, `currencyCode`, `salesChannelId`, `allowed` as a
+   * comma-joined string).
+   */
+  PRODUCT_FEED_CURRENCY_NOT_OFFERED: 'PRODUCT_FEED_CURRENCY_NOT_OFFERED',
+  /** 400 — another feed already uses the slug (`details.field`, `slug`). */
+  PRODUCT_FEED_SLUG_TAKEN: 'PRODUCT_FEED_SLUG_TAKEN',
 
   /**
    * A price binding named a price list that does not exist. Named after the

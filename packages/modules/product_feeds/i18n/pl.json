@@ -659,5 +659,8 @@
   "actions.openFeedCategoryMapping.keywords": "taksonomia, mapowanie kategorii, kategorie",
   "actions.openFeedTaxonomyRevisions.keywords": "aktualizacja taksonomii, nowa wersja, wersja taksonomii, pobieranie taksonomii",
   "settingGroups.product_feeds.name": "Feedy produktowe",
-  "settingGroups.product_feeds_taxonomy.name": "Aktualizacje taksonomii"
+  "settingGroups.product_feeds_taxonomy.name": "Aktualizacje taksonomii",
+  "errors.PRODUCT_FEED_LANGUAGE_INACTIVE": "Język „{languageCode}” nie jest aktywny w tej instalacji, więc nie można publikować w nim feedu. Aktywuj ten język albo wybierz inny.",
+  "errors.PRODUCT_FEED_CURRENCY_NOT_OFFERED": "Kanał sprzedaży nie oferuje waluty „{currencyCode}”. Wybierz jedną z oferowanych: {allowed}.",
+  "errors.PRODUCT_FEED_SLUG_TAKEN": "Inny feed używa już adresu (slug) „{slug}”. Wybierz inny adres."
 }

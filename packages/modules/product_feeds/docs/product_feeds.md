@@ -450,6 +450,24 @@ packages/modules/product_feeds/src/backend/
 Contracts live in `packages/contracts/src/product-feeds.ts`; the admin layer is
 `packages/modules/product_feeds/src/admin/`.
 
+### Refusals of the feed form
+
+A field that names nothing — a template, a sales channel, a price list or a language code with no
+row behind it — and a schedule that does not parse are answered `400 VALIDATION_FAILED` with
+`details.field`. Three refusals are about the installation's state rather than the request, and
+have their own codes. Each also carries `details.field`, so the form can place the sentence under
+the field, and the operator reads it in their own language:
+
+| Route | Code | When | `details` |
+| --- | --- | --- | --- |
+| `POST /api/v1/admin/product-feeds`, `PATCH …/:id` | `400 PRODUCT_FEED_LANGUAGE_INACTIVE` | The language exists but is switched off | `field: "languageCode"`, `languageCode` |
+| `POST /api/v1/admin/product-feeds`, `PATCH …/:id` | `400 PRODUCT_FEED_CURRENCY_NOT_OFFERED` | The feed's sales channel does not offer the currency | `field: "currencyCode"`, `currencyCode`, `salesChannelId`, `allowed` (comma-joined) |
+| `POST /api/v1/admin/product-feeds`, `PATCH …/:id`, `POST …/:id/duplicate` | `400 PRODUCT_FEED_SLUG_TAKEN` | Another feed already uses the slug | `field: "slug"`, `slug` |
+
+All three were `400 VALIDATION_FAILED` with an English `field: message` text until issue #631. The
+module declares these three codes itself. Its older `PRODUCT_FEED_*` codes are declared by
+`catalog`.
+
 ### The generation pipeline
 
 ```
