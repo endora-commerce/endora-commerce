@@ -650,6 +650,14 @@ export const ERROR_CODES = {
   DICTIONARY_FALLBACK_CYCLE: 'DICTIONARY_FALLBACK_CYCLE',
   DICTIONARY_CODE_IMMUTABLE: 'DICTIONARY_CODE_IMMUTABLE',
   DICTIONARY_TRANSLATION_LANGUAGE_INACTIVE: 'DICTIONARY_TRANSLATION_LANGUAGE_INACTIVE',
+  // Issue #643 (#86) — raised by `dictionaries` (countries), `currencies` and
+  // `languages`, `409 VALIDATION_FAILED` until then. `details.code` names the
+  // dictionary (`country`, `currency`, `language`); the entry's own code is
+  // `details.entryCode`.
+  /** 409 — an entry with this code already exists in the dictionary. */
+  DICTIONARY_ENTRY_CODE_TAKEN: 'DICTIONARY_ENTRY_CODE_TAKEN',
+  /** 409 — an inactive entry cannot be made the dictionary's default. */
+  DICTIONARY_DEFAULT_ENTRY_INACTIVE: 'DICTIONARY_DEFAULT_ENTRY_INACTIVE',
 
   // Module Lifecycle (feature 018)
   MODULE_DISABLED: 'MODULE_DISABLED',

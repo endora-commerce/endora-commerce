@@ -105,10 +105,14 @@ export class CountryService {
     const em = this.emFactory();
     const existing = await em.findOne(Country, { code: input.code });
     if (existing) {
+      // Issue #643 — the family's code, owned by `dictionaries`. `details.code`
+      // names the dictionary; the entry's own code is `entryCode`, because the
+      // envelope reads `details.code` as the refusal token.
       throw new HttpError(
         409,
-        ERROR_CODES.VALIDATION_FAILED,
+        ERROR_CODES.DICTIONARY_ENTRY_CODE_TAKEN,
         `Country ${input.code} already exists.`,
+        { code: 'country', entryCode: input.code },
       );
     }
     const row = em.create(Country, {
@@ -189,8 +193,9 @@ export class CountryService {
     if (!target.isActive) {
       throw new HttpError(
         409,
-        ERROR_CODES.VALIDATION_FAILED,
+        ERROR_CODES.DICTIONARY_DEFAULT_ENTRY_INACTIVE,
         'Cannot mark an inactive country as default.',
+        { code: 'country', entryCode: target.code },
       );
     }
     if (target.isDefault) return target;

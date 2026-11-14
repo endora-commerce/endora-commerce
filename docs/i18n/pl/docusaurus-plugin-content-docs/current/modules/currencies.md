@@ -42,6 +42,12 @@ Ten sam wzorzec częściowego indeksu unikalnego co w `languages`. Migracja inic
 `PLN` (domyślną) i `EUR`; symbole są zapisane jako literały Unicode Postgresa, więc kod migracji
 pozostaje w ASCII.
 
+Ustawienie nieaktywnej waluty jako domyślnej jest odrzucane odpowiedzią
+`409 DICTIONARY_DEFAULT_ENTRY_INACTIVE`, a utworzenie waluty o istniejącym kodzie — odpowiedzią
+`409 DICTIONARY_ENTRY_CODE_TAKEN`; obie niosą `details.code: "currency"` i kod waluty w
+`details.entryCode` i są kodami modułu `dictionaries`. Do zgłoszenia #643 obie były odpowiedzią
+`409 VALIDATION_FAILED`.
+
 ## Encje
 
 `Currency` — naturalny klucz główny w postaci kodu ISO 4217; `label`, `symbol`, `isDefault`,

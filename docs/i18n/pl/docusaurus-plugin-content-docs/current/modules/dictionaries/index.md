@@ -30,6 +30,15 @@ Dezaktywacja wpisu blokuje nowe zapisy z tym kodem, ale istniejące rekordy nada
 To zamierzone: zamówienia, adresy, zakresy treści i rekordy konfiguracji muszą pozostać możliwe do
 skontrolowania także po wycofaniu kodu z bieżącego użycia.
 
+Dwie odmowy są wspólne dla trzech kart i są zwracane w języku operatora. Utworzenie wpisu o kodzie,
+który już istnieje, kończy się odpowiedzią `409 DICTIONARY_ENTRY_CODE_TAKEN`, a ustawienie
+nieaktywnego wpisu jako domyślnego — odpowiedzią `409 DICTIONARY_DEFAULT_ENTRY_INACTIVE`. Obie niosą
+słownik jako `details.code` (`country`, `currency` albo `language`) i kod wpisu jako
+`details.entryCode`. Dla krajów zgłasza je moduł `dictionaries`, a dla walut i języków moduły
+`currencies` i `languages`, także na ich własnych trasach
+`POST /api/v1/admin/currencies/:code/default` i `POST /api/v1/admin/languages/:code/default`. Do
+zgłoszenia #643 obie były odpowiedzią `409 VALIDATION_FAILED` z angielskim zdaniem.
+
 Etykiety w poszczególnych językach edytuje się w każdym wierszu. Odczyt dla storefrontu wybiera
 żądany język, jeśli jest dostępny, a gdy tłumaczenia brakuje — etykietę domyślną.
 

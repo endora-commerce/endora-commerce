@@ -109,6 +109,13 @@ export const manifest = defineModuleManifest({
   errorCodes: [
     { code: 'DICTIONARY_CODE_IMMUTABLE' },
     { code: 'DICTIONARY_DEFAULT_CANNOT_BE_DEACTIVATED' },
+    /**
+     * Issue #643 (#86) — minted for the three reference dictionaries, which
+     * raise them from `dictionaries` (countries), `currencies` and `languages`.
+     * The token names the dictionary; the entry's code is `details.entryCode`.
+     */
+    { code: 'DICTIONARY_DEFAULT_ENTRY_INACTIVE', tokens: ['country', 'currency', 'language'] },
+    { code: 'DICTIONARY_ENTRY_CODE_TAKEN', tokens: ['country', 'currency', 'language'] },
     { code: 'DICTIONARY_ENTRY_HAS_DEPENDENTS' },
     { code: 'DICTIONARY_ENTRY_INACTIVE' },
     { code: 'DICTIONARY_ENTRY_NOT_FOUND' },

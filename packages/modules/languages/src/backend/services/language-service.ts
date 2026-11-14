@@ -93,10 +93,14 @@ export class LanguageService {
     const em = this.emFactory();
     const existing = await em.findOne(Language, { code: input.code });
     if (existing) {
+      // Issue #643 — the family's code, owned by `dictionaries`. `details.code`
+      // names the dictionary; the entry's own code is `entryCode`, because the
+      // envelope reads `details.code` as the refusal token.
       throw new HttpError(
         409,
-        ERROR_CODES.VALIDATION_FAILED,
+        ERROR_CODES.DICTIONARY_ENTRY_CODE_TAKEN,
         `Language ${input.code} already exists.`,
+        { code: 'language', entryCode: input.code },
       );
     }
     if (input.fallbackCode !== undefined && input.fallbackCode !== null) {
@@ -262,8 +266,9 @@ export class LanguageService {
     if (!target.isActive) {
       throw new HttpError(
         409,
-        ERROR_CODES.VALIDATION_FAILED,
+        ERROR_CODES.DICTIONARY_DEFAULT_ENTRY_INACTIVE,
         'Cannot mark an inactive language as default.',
+        { code: 'language', entryCode: target.code },
       );
     }
     if (target.isDefault) return target;

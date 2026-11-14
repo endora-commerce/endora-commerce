@@ -39,8 +39,10 @@ MikroORM transaction so the partial unique index is never violated
 mid-flight.
 
 The `LanguageService.setDefault()` rejects rows where `isActive=false`
-(`409 VALIDATION_FAILED`), and the `remove()` path refuses to delete a
-row that is currently the default.
+(`409 DICTIONARY_DEFAULT_ENTRY_INACTIVE`, `details.code: "language"` and the
+language's `details.entryCode`; `409 VALIDATION_FAILED` until issue #643), and
+the `remove()` path refuses to delete a row that is currently the default.
+Creating a language whose code exists is `409 DICTIONARY_ENTRY_CODE_TAKEN`.
 
 ## Bootstrap
 

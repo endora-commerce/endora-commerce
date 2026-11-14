@@ -36,8 +36,11 @@ unikalny na `(is_default) WHERE is_default = true`. Ustawienie nowego języka do
 zdjęcie oznaczenia ze starego i nadanie go nowemu w jednej transakcji MikroORM, aby indeks nie
 został naruszony w trakcie.
 
-`LanguageService.setDefault()` odrzuca wiersze z `isActive=false` (`409 VALIDATION_FAILED`), a
-`remove()` odmawia usunięcia wiersza, który jest obecnie domyślny.
+`LanguageService.setDefault()` odrzuca wiersze z `isActive=false`
+(`409 DICTIONARY_DEFAULT_ENTRY_INACTIVE`, `details.code: "language"` i kod języka w
+`details.entryCode`; do zgłoszenia #643 `409 VALIDATION_FAILED`), a `remove()` odmawia usunięcia
+wiersza, który jest obecnie domyślny. Utworzenie języka o istniejącym kodzie kończy się odpowiedzią
+`409 DICTIONARY_ENTRY_CODE_TAKEN`.
 
 ## Dane początkowe
 
