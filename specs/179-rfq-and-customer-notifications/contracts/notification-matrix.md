@@ -46,7 +46,7 @@ Rules:
 
 | Channel | Content | Link |
 | --- | --- | --- |
-| `customer_email` | template of §3, channel default language | `<storefront_url>/quote-requests/<id>` when the channel has a `storefront_url`; otherwise none |
+| `customer_email` | template of §3, channel default language | `<storefront_url>/quote-requests/<id>` when the channel's storefront address resolves (setting, then `STOREFRONT_BASE_URL`); otherwise none |
 | `customer_in_app` | `title` + `titleMessage` `{ scope: 'quote_requests', key: 'customerNotifications.<change>.title', params: { number } }`; no body | `/quote-requests/<id>` |
 | `customer_push` | same sentence as `customer_in_app`, resolved in the channel's default language (push is rendered once, on the device) | `/quote-requests/<id>` |
 | `admin_in_app` | `title` + `titleMessage` `{ scope: 'quote_requests', key: 'notifications.<change>.title', params: { number } }`; no body | `/quote-requests/<id>` (admin route) |

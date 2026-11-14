@@ -283,8 +283,8 @@ Contract and integration files do not run on merge requests (D-198): run them lo
     backend on 3101, storefront on 3100) through the HTTP API and the storefront's SSR HTML; every
     step behaved as written except three prerequisites the quickstart did not state, now added to it:
     the demo seed assigns no sales representative, the customer e-mail link needs
-    `sales_channels.storefront_url` (no `STOREFRONT_BASE_URL` fallback, unlike `seo` and
-    `product_feeds`), and the History label is *Skipped — switched off*. Step 6 stops at the queued
+    `sales_channels.storefront_url` (at the time with no `STOREFRONT_BASE_URL` fallback, unlike
+    `seo` and `product_feeds`; the fallback was added afterwards by architect ruling A), and the History label is *Skipped — switched off*. Step 6 stops at the queued
     push message: its arrival on a device needs a browser.
 
 ## Dependencies

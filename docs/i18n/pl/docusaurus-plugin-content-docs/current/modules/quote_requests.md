@@ -1103,10 +1103,12 @@ nie dodaje.
 - **E-mail do kupującego** — jeden z dziewięciu e-maili w grupie *Zapytania
   ofertowe* w **Szablonach e-maili**, w domyślnym języku kanału sprzedaży
   zapytania (po angielsku dla zapytania złożonego bez kanału). Podaje numer
-  zapytania i prowadzi do zapytania w sklepie, gdy kanał ma adres sklepu
-  (ustawienie `sales_channels.storefront_url`, *Storefront URL*); bez niego
-  podaje numer i nie zawiera odnośnika. E-mail o zatwierdzeniu zawiera odnośnik
-  i **nie zawiera PDF** — *Wyślij PDF do klienta* pozostaje osobną akcją.
+  zapytania i prowadzi do zapytania w sklepie, gdy kanał ma adres sklepu:
+  ustawienie `sales_channels.storefront_url` (*Storefront URL*), a gdy kanał
+  pozostawia je puste — zmienną środowiskową `STOREFRONT_BASE_URL`. Bez żadnego
+  z nich podaje numer i nie zawiera odnośnika. E-mail o zatwierdzeniu zawiera
+  odnośnik i **nie zawiera PDF** — *Wyślij PDF do klienta* pozostaje osobną
+  akcją.
 - **Wpis w centrum** — jedno zdanie z numerem zapytania i odnośnikiem do niego,
   wyświetlane w języku, w którym kupujący przegląda sklep, tylko w kanale
   sprzedaży zapytania (we wszystkich kanałach dla zapytania złożonego bez
