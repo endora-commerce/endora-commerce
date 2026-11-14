@@ -1,4 +1,5 @@
 import { useCallback, useEffect, useState, type FormEvent, type ReactNode } from 'react';
+import { Link } from 'react-router-dom';
 import { ApiError, apiClient, formatDateTime, formatMoney } from '@endora-commerce/admin-kit/lib';
 import { Alert, AlertDescription, Button, Card, CardContent, CardHeader, CardTitle, Checkbox, Input, Label, PageHeader, Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from '@endora-commerce/admin-kit/ui';
 import { CurrencyPicker, OrganizationPicker } from '@endora-commerce/admin-kit/components';
@@ -273,7 +274,12 @@ function ExistingLimitPanel({
               {limit.activeReservations.map((r) => (
                 <TableRow key={r.orderId}>
                   <TableCell>
-                    <code className="font-mono text-xs">{r.orderId.slice(0, 8)}</code>
+                    {/* Issue #1178 — the order's customer-facing number, the one the
+                        orders list shows, opening the admin order (as the invoices
+                        list does); the short id only for a server that answered none. */}
+                    <Link to={`/orders/${r.orderId}`} className="font-mono text-xs underline underline-offset-2">
+                      {r.orderBusinessId ?? r.orderId.slice(0, 8)}
+                    </Link>
                   </TableCell>
                   <TableCell>
                     {formatMoney(r.amount, limit.currency)}
