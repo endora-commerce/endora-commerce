@@ -8,7 +8,7 @@ import type {
   StageTaskDefinition,
   UpdateProjectStageBody,
 } from '@endora-commerce/contracts';
-import { useModulePresence } from '@endora-commerce/admin-kit/lib';
+import { ApiError, useModulePresence } from '@endora-commerce/admin-kit/lib';
 import { Alert, AlertDescription, AlertTitle, Button, Checkbox, ColorPicker, Input, Label } from '@endora-commerce/admin-kit/ui';
 import {
   StatusTransitionGraph,
@@ -143,7 +143,13 @@ export function StageEditor(props: StageEditorProps): ReactNode {
   }, []);
 
   const stages = useMemo(() => [...project.stages].sort((a, b) => a.position - b.position), [project.stages]);
-  /** Run one write: on success say so and show the server's state, on failure its sentence. */
+  /**
+   * Run one write: on success say so and show the server's state, on failure
+   * its sentence — and re-read on a 409, as the stage bar does: every write
+   * here names the version it was read at (issue #449) — a Stage's edit the
+   * Stage's, the others the Project's `configurationVersion` — and what
+   * somebody else changed meanwhile is shown as it is now.
+   */
   const run = async (write: () => Promise<void>, done: string): Promise<boolean> => {
     setBusy(true);
     setError(null);
@@ -154,6 +160,7 @@ export function StageEditor(props: StageEditorProps): ReactNode {
       return true;
     } catch (failure) {
       setError(errorMessage(failure, t('editor.error')));
+      if (failure instanceof ApiError && failure.status === 409) void reload();
       return false;
     } finally {
       setBusy(false);
@@ -162,13 +169,13 @@ export function StageEditor(props: StageEditorProps): ReactNode {
 
   const saveStage = (stage: ProjectStage, body: UpdateProjectStageBody): Promise<boolean> =>
     run(async () => {
-      await projectsApi.updateStage(project.id, stage.id, body);
+      await projectsApi.updateStage(project.id, stage.id, { ...body, version: stage.version });
       await reload();
     }, t('editor.saved'));
 
   const saveStageTasks = (stage: ProjectStage, tasks: StageTaskDefinition[]): Promise<boolean> =>
     run(async () => {
-      await projectsApi.setStageTasks(project.id, stage.id, tasks);
+      await projectsApi.setStageTasks(project.id, stage.id, tasks, stage.version);
       await reload();
     }, t('stageTasks.saved'));
 
@@ -190,7 +197,11 @@ export function StageEditor(props: StageEditorProps): ReactNode {
 
   const addStage = (): Promise<boolean> =>
     run(async () => {
-      await projectsApi.createStage(project.id, { name: t('editor.newStage'), color: stageColorAt(stages.length) });
+      await projectsApi.createStage(project.id, {
+        name: t('editor.newStage'),
+        color: stageColorAt(stages.length),
+        configurationVersion: project.configurationVersion,
+      });
       await reload();
     }, t('editor.added'));
 
@@ -198,13 +209,18 @@ export function StageEditor(props: StageEditorProps): ReactNode {
     const ids = stages.map((stage) => stage.id);
     const target = index + by;
     [ids[index], ids[target]] = [ids[target] as string, ids[index] as string];
-    return run(async () => onChange(await projectsApi.reorderStages(project.id, ids)), t('editor.reordered'));
+    return run(async () => onChange(await projectsApi.reorderStages(project.id, ids, project.configurationVersion)), t('editor.reordered'));
   };
 
   const setMoves = (moves: ProjectStageMove[]): Promise<boolean> =>
     run(async () => {
-      const result = await projectsApi.setMoves(project.id, moves);
-      onChange({ ...project, moves: result.moves, unreachableStageIds: result.unreachableStageIds });
+      const result = await projectsApi.setMoves(project.id, moves, project.configurationVersion);
+      onChange({
+        ...project,
+        moves: result.moves,
+        unreachableStageIds: result.unreachableStageIds,
+        configurationVersion: result.configurationVersion,
+      });
     }, t('editor.movesSaved'));
 
 

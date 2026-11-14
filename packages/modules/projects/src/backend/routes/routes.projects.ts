@@ -100,24 +100,18 @@ export async function registerProjectRoutes(app: FastifyInstance, deps: ProjectR
   app.put<{ Params: { id: string } }>(
     '/api/v1/admin/projects/:id/organizations',
     { preHandler: requireAdmin('projects:write'), schema: { body: SetProjectOrganizationsBodySchema } },
-    async (request) => ({
-      data: await projects.setOrganizations(
-        request.params.id,
-        SetProjectOrganizationsBodySchema.parse(request.body).organizationIds,
-        await request.responseLanguage(),
-      ),
-    }),
+    async (request) => {
+      const body = SetProjectOrganizationsBodySchema.parse(request.body);
+      return { data: await projects.setOrganizations(request.params.id, body.organizationIds, await request.responseLanguage(), body.configurationVersion) };
+    },
   );
 
   app.put<{ Params: { id: string } }>(
     '/api/v1/admin/projects/:id/members',
     { preHandler: requireAdmin('projects:write'), schema: { body: SetProjectMembersBodySchema } },
-    async (request) => ({
-      data: await projects.setMembers(
-        request.params.id,
-        SetProjectMembersBodySchema.parse(request.body).members,
-        await request.responseLanguage(),
-      ),
-    }),
+    async (request) => {
+      const body = SetProjectMembersBodySchema.parse(request.body);
+      return { data: await projects.setMembers(request.params.id, body.members, await request.responseLanguage(), body.configurationVersion) };
+    },
   );
 }

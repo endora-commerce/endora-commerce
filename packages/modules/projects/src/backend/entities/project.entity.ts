@@ -18,7 +18,8 @@ import { randomUUID } from 'crypto';
  *
  * An open Project always has a current Stage (a deferred constraint trigger,
  * checked at commit). `version` is the optimistic-concurrency token of moves,
- * closes and edits.
+ * closes and edits; `configurationVersion` that of the Project's sets, and each
+ * Stage carries its own (issue #449).
  */
 @RuleScoped()
 @Entity({ tableName: 'projects' })
@@ -39,6 +40,7 @@ export class Project {
     | 'templateId'
     | 'customFieldValues'
     | 'version'
+    | 'configurationVersion'
     | 'createdAt'
     | 'updatedAt';
 
@@ -103,6 +105,14 @@ export class Project {
 
   @Property({ type: 'integer' })
   version: number = 1;
+
+  /**
+   * The optimistic-concurrency token of the Project's sets — its Stages added,
+   * deleted and reordered, its workflow, its Organizations and its Members
+   * (issue #449); each of them moves it, and none of them moves `version`.
+   */
+  @Property({ type: 'integer' })
+  configurationVersion: number = 1;
 
   @Property({ type: 'datetime', onCreate: () => new Date() })
   createdAt: Date = new Date();

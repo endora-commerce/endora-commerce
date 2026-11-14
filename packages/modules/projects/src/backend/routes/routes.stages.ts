@@ -50,13 +50,10 @@ export async function registerStageRoutes(app: FastifyInstance, deps: StageRoute
   app.put<{ Params: { id: string } }>(
     `${PROJECT}/stages/order`,
     { preHandler: requireAdmin('projects:write'), schema: { body: ReorderProjectStagesBodySchema } },
-    async (request) => ({
-      data: await stages.reorder(
-        request.params.id,
-        ReorderProjectStagesBodySchema.parse(request.body).stageIds,
-        await request.responseLanguage(),
-      ),
-    }),
+    async (request) => {
+      const body = ReorderProjectStagesBodySchema.parse(request.body);
+      return { data: await stages.reorder(request.params.id, body.stageIds, await request.responseLanguage(), body.configurationVersion) };
+    },
   );
 
   app.patch<{ Params: { id: string; stageId: string } }>(
@@ -83,9 +80,10 @@ export async function registerStageRoutes(app: FastifyInstance, deps: StageRoute
   app.put<{ Params: { id: string } }>(
     `${PROJECT}/moves`,
     { preHandler: requireAdmin('projects:write'), schema: { body: SetProjectMovesBodySchema } },
-    async (request) => ({
-      data: await stages.setMoves(request.params.id, SetProjectMovesBodySchema.parse(request.body).moves),
-    }),
+    async (request) => {
+      const body = SetProjectMovesBodySchema.parse(request.body);
+      return { data: await stages.setMoves(request.params.id, body.moves, body.configurationVersion) };
+    },
   );
 
   app.post<{ Params: { id: string } }>(

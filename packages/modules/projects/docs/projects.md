@@ -650,6 +650,18 @@ the figures are not served.
 
 ### The API
 
+**Concurrency.** A project's configuration has two optimistic-concurrency
+tokens of its own, neither of them the project `version` that moves, closes,
+reopens and edits name. A stage's own edits — `PATCH …/stages/:stageId` and
+`PUT …/stages/:stageId/tasks` — take the stage's `version` (`ProjectStage.version`);
+the project's sets — `POST …/stages`, `PUT …/stages/order`, `PUT …/moves`,
+`PUT …/organizations` and `PUT …/members` — take its `configurationVersion`
+(`ProjectDetail.configurationVersion`). Both are optional, so a client that sends
+none is served as before; sent and stale, the write answers `409`
+`PROJECT_CHANGED` and writes nothing. Each write moves its own token, sent or
+not — deleting a stage moves `configurationVersion` — and none moves the
+project `version`. Re-read the project after a `409`.
+
 | Method and path | Permission | What it answers |
 | --- | --- | --- |
 | `GET /api/v1/admin/projects` | `projects:read` | A page of projects and how many the caller may see: `{ items, nextCursor, total }`. Filters: `state` (repeatable), `organizationId`, `memberId` (an administrator's id or `me`), `roleId`, `templateId`, `stageName` (the current stage's name), `q` (number or title), `sort` (`createdAt` — the default, `value`, or `deadline` — the current stage's; projects without one come last either way), `order` (`asc` or `desc`, default `desc`), `cursor`, `limit` (at most 100), and `customFieldFilters` — custom fields marked as list filters, as JSON, the shape the Orders, Quote Requests and Opportunities lists take; a field the list does not offer is `400` `CUSTOM_FIELD_FILTER_UNAVAILABLE`, naming it. |
@@ -661,18 +673,18 @@ the figures are not served.
 | `GET /api/v1/admin/projects/lookups/organizations` | `projects:read` | `{ data: { id, name }[] }` — the Organizations the caller can reach, by name (`q`), or one by `id`; at most `limit` (50). |
 | `GET /api/v1/admin/projects/lookups/admin-users` | `projects:read` | `{ data: { id, name, email }[] }` — active administrators by name or e-mail (`q`), or one by `id`; at most `limit` (50). |
 | `GET /api/v1/admin/projects/visibility-setting` | `projects:read` | `{ data: { setting } }` — the module setting `projects.visibility` as it stands. |
-| `PUT /api/v1/admin/projects/:id/organizations` | `projects:write` | The whole set → the project's detail, or `{ data: { id, outOfReach: true } }` when a caller confined to some Organizations removed them all — the project is internal and out of their reach; `422` `PROJECT_ORGANIZATION_OUT_OF_SCOPE`; `409` `PROJECT_ORGANIZATION_IN_USE` for removing an Organization a linked record belongs to. |
-| `PUT /api/v1/admin/projects/:id/members` | `projects:write` | The whole set of members and their roles; `422` `PROJECT_MEMBER_INVALID`. |
-| `POST /api/v1/admin/projects/:id/stages` | `projects:write` | `201` `{ data: ProjectStage }`, added at the end. A project that already has 50 stages is `422` `PROJECT_STAGE_LIMIT` (`details`: `projectId`, `maximum`); it was `422` `VALIDATION_FAILED` until issue #634. |
-| `PATCH /api/v1/admin/projects/:id/stages/:stageId` | `projects:write` | Any attribute; `deadlineOn` sets the deadline by hand, `null` returns it to start + duration. |
+| `PUT /api/v1/admin/projects/:id/organizations` | `projects:write` | The whole set, with an optional `configurationVersion`, in one transaction → the project's detail, or `{ data: { id, outOfReach: true } }` when a caller confined to some Organizations removed them all — the project is internal and out of their reach; `422` `PROJECT_ORGANIZATION_OUT_OF_SCOPE`; `409` `PROJECT_ORGANIZATION_IN_USE` for removing an Organization a linked record belongs to. The trail still names each Organization added or removed (`projects.project.organization_add`, `projects.project.organization_remove`); a failure part-way leaves the set as it was. |
+| `PUT /api/v1/admin/projects/:id/members` | `projects:write` | The whole set of members and their roles, with an optional `configurationVersion`; `422` `PROJECT_MEMBER_INVALID`. |
+| `POST /api/v1/admin/projects/:id/stages` | `projects:write` | With an optional `configurationVersion` → `201` `{ data: ProjectStage }`, added at the end. A project that already has 50 stages is `422` `PROJECT_STAGE_LIMIT` (`details`: `projectId`, `maximum`); it was `422` `VALIDATION_FAILED` until issue #634. |
+| `PATCH /api/v1/admin/projects/:id/stages/:stageId` | `projects:write` | Any attribute, with the stage's optional `version`; `deadlineOn` sets the deadline by hand, `null` returns it to start + duration. |
 | `DELETE /api/v1/admin/projects/:id/stages/:stageId` | `projects:write` | `204`; `409` `PROJECT_STAGE_CURRENT`, `PROJECT_STAGE_LAST` or `PROJECT_STAGE_HAS_TASKS`. |
-| `PUT /api/v1/admin/projects/:id/stages/order` | `projects:write` | Every stage id, in the new order. |
-| `PUT /api/v1/admin/projects/:id/moves` | `projects:write` | The whole workflow → `{ data: { moves, unreachableStageIds } }`. |
+| `PUT /api/v1/admin/projects/:id/stages/order` | `projects:write` | Every stage id, in the new order, with an optional `configurationVersion`. |
+| `PUT /api/v1/admin/projects/:id/moves` | `projects:write` | The whole workflow, with an optional `configurationVersion` → `{ data: { moves, unreachableStageIds, configurationVersion } }` — the `configurationVersion` the write left the project at. |
 | `POST /api/v1/admin/projects/:id/move` | `projects:write` | `{ toStageId, version }` → `{ data: { project, entry, createdTaskIds, notes } }` — `createdTaskIds` are the stage tasks the move created, `notes` what the entry recorded (`gate_not_applied_tasks_off`, `stage_tasks_skipped`, `tasks_materialize_failed`); `409` `PROJECT_MOVE_NOT_PERMITTED`, `PROJECT_STAGE_GATE_OPEN_TASKS` (`details.openTaskCount`; `details.openTasks`: `{ id, number, title }[]` only for a caller holding `tasks:read`), `PROJECT_CHANGED` or `PROJECT_GUARD_REFUSED`. |
 | `POST /api/v1/admin/projects/:id/close` | `projects:write` | `{ outcome: 'completed', version }` or `{ outcome: 'lost', lossReasonId, comment?, version }`; `409` `PROJECT_COMPLETION_NOT_PERMITTED` or, when completing, `PROJECT_STAGE_GATE_OPEN_TASKS`; `422` `PROJECT_LOSS_REASON_INVALID`. |
 | `POST /api/v1/admin/projects/:id/reopen` | `projects:write` | `{ version }` → back into the stage it was closed in. |
 | `GET /api/v1/admin/projects/:id/stage-history` | `projects:read` | Every entry, close and reopen, oldest first. |
-| `PUT /api/v1/admin/projects/:id/stages/:stageId/tasks` | `projects:write` | `{ tasks: StageTaskDefinition[] }` (at most 100), replacing the stage's stage tasks → `{ data: ProjectStage }`; `422` for an unknown responsible role. |
+| `PUT /api/v1/admin/projects/:id/stages/:stageId/tasks` | `projects:write` | `{ tasks: StageTaskDefinition[], version? }` (at most 100; `version` is the stage's), replacing the stage's stage tasks → `{ data: ProjectStage }`; `422` for an unknown responsible role. |
 | `POST /api/v1/admin/projects/:id/stages/:stageId/materialize-tasks` | `projects:write` | Creates the stage's tasks again after a recorded failure — the stage's `tasksMaterializeFailed` — → `{ data: { created } }`; `409` `PROJECT_STAGE_TASKS_NOT_RETRYABLE` otherwise, `503` `MODULE_DISABLED` while Tasks is off. |
 | `GET /api/v1/admin/projects/:id/tasks` | `projects:read` | `{ data: { tasksAvailable, stages: [{ stageId, tasks: TaskSummary[] }] } }`, in stage order; `tasksAvailable: false` and no stages while Tasks is off or for a reader without `tasks:read`. |
 | `GET /api/v1/admin/projects/:id/links` | `projects:read` | `{ data: ProjectLink[] }`, oldest first: `{ id, kind, recordId, available, number?, status?, statusName?, amount?, currency?, href?, linkedBy, linkedAt }`; `status` is the owner's code and `statusName` its name for it in the response language. The record's fields are present only when `available` — the reader holds its owner's read code (`orders:read`, `rfqs:handle`, `crm:read`), its module is on and it still exists. |

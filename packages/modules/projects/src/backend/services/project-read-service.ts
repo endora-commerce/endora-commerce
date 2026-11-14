@@ -172,6 +172,7 @@ interface StageRow {
   deadline_manual: boolean;
   tasks_materialized_at: Date | null;
   tasks_skipped_at: Date | null;
+  version: number;
 }
 
 interface StageTaskRow {
@@ -460,7 +461,7 @@ export class ProjectReadService {
       `select s."id", s."name", s."position", s."completion_permitted", s."planned_duration_days",
               to_char(s."started_on", 'YYYY-MM-DD') as "started_on", to_char(s."deadline_on", 'YYYY-MM-DD') as "deadline_on",
               s."deadline_manual", s."color", s."responsible_role_ids", s."alert_offsets_days", s."completion_gate",
-              s."tasks_materialized_at", s."tasks_skipped_at"
+              s."tasks_materialized_at", s."tasks_skipped_at", s."version"
          from "project_stages" s where s."project_id" = ? order by s."position", s."id"`,
       [projectId],
     )) as StageRow[];
@@ -558,6 +559,7 @@ export class ProjectReadService {
           dueOffsetDays: task.due_offset_days,
           position: task.position,
         })),
+      version: Number(stage.version),
     }));
   }
 
@@ -710,6 +712,7 @@ export class ProjectReadService {
       unreadMessageCount: unread,
       customFieldValues: customFieldValues as ProjectDetail['customFieldValues'],
       version: row.version,
+      configurationVersion: row.configuration_version,
       permissions,
     };
   }

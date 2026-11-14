@@ -26,8 +26,9 @@ import {
  * audit row per Command, named by its action, with `objectType: 'project'` and
  * the Project's id — and a refused write leaves none.
  *
- * `PUT /organizations` is one Command per Organization added or removed, so
- * the trail says `organization_add` and `organization_remove` by name.
+ * `PUT /organizations` runs one child Command per Organization added or
+ * removed inside one transaction (issue #449), so the trail says
+ * `organization_add` and `organization_remove` by name.
  */
 describe('projects — audit coverage of User Story 1 (XIII)', () => {
   let h: BackendServerHandle;
