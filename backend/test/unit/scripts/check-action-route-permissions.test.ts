@@ -435,6 +435,93 @@ describe('check-action-route-permissions — which route a target resolves to', 
   });
 });
 
+/**
+ * Issue #1088 — an action may name the admin API route its screen opens on.
+ *
+ * The SPA places the outbox as a tab of `/platform/command-hooks`, so no API path
+ * sits under the target, and the module level picks the execution plan's route —
+ * the other tab, behind another code. Reconstruction from the URL cannot know
+ * that; the manifest can say it, and the walk then compares against what it
+ * says, without falling back.
+ */
+describe('check-action-route-permissions — an entry route the action declares (issue #1088)', () => {
+  const file = 'modules/_lifecycle/routes.admin.ts';
+  const tree = [
+    "app.get('/api/v1/admin/command-hooks', { preHandler: requireAdmin('platform.modules.read') }, h);",
+    "app.get('/api/v1/admin/command-outbox', { preHandler: requireAdmin('platform.command_outbox.read') }, h);",
+    "app.post('/api/v1/admin/command-outbox/:id/retry', { preHandler: requireAdmin('platform.command_outbox.retry') }, h);",
+  ].join('\n');
+  const outbox = (overrides: Partial<ActionRecord> = {}): ActionRecord =>
+    action({
+      moduleId: '_lifecycle',
+      actionId: 'open-command-outbox',
+      targetRoute: '/platform/command-hooks/outbox',
+      requiredPermission: 'platform.command_outbox.read',
+      ...overrides,
+    });
+
+  it('falls back to the wrong tab without a declaration — the disagreement the ledger held', () => {
+    const result = analyse({ sources: sources(tree, file), actions: [outbox()] }, {});
+    expect(result.findings.map((finding) => finding.kind)).toEqual(['mismatched']);
+    expect(result.findings[0]?.where).toContain('GET /api/v1/admin/command-hooks ');
+  });
+
+  it('compares against the declared entry route instead of reconstructing one', () => {
+    const declared = outbox({ entryApiRoute: '/api/v1/admin/command-outbox' });
+    const routes = findAdminRoutes({ sources: sources(tree, file) }).routes;
+    const resolved = resolveTarget(declared, routes);
+    expect(resolved?.level).toBe('declared');
+    expect(resolved?.routes.map((route) => `${route.method} ${route.path}`)).toEqual([
+      'get /api/v1/admin/command-outbox',
+    ]);
+    expect(analyse({ sources: sources(tree, file), actions: [declared] }, {}).findings).toEqual([]);
+  });
+
+  it('still holds the declared code to the declared route', () => {
+    const result = analyse(
+      {
+        sources: sources(tree, file),
+        actions: [
+          outbox({
+            requiredPermission: 'platform.modules.read',
+            entryApiRoute: '/api/v1/admin/command-outbox',
+          }),
+        ],
+      },
+      {},
+    );
+    expect(result.findings.map((finding) => finding.kind)).toEqual(['mismatched']);
+    expect(result.findings[0]?.enforced).toBe('platform.command_outbox.read');
+    expect(result.findings[0]?.where).toContain('declared');
+  });
+
+  it('reports a declared route no registration answers, rather than falling back', () => {
+    // A typo, or a route that moved: falling back would compare against a guess
+    // the declaration exists to replace, and could agree by accident.
+    const result = analyse(
+      {
+        sources: sources(tree, file),
+        actions: [outbox({ entryApiRoute: '/api/v1/admin/command-outbox/deliveries' })],
+      },
+      {},
+    );
+    expect(result.findings.map((finding) => finding.kind)).toEqual(['unresolvable']);
+    expect(result.findings[0]?.where).toContain('/api/v1/admin/command-outbox/deliveries');
+  });
+
+  it('asks the write verbs of the declared route for a `/new` target', () => {
+    const resolved = resolveTarget(
+      outbox({
+        targetRoute: '/platform/command-hooks/outbox/new',
+        entryApiRoute: '/api/v1/admin/command-outbox/:id/retry',
+      }),
+      findAdminRoutes({ sources: sources(tree, file) }).routes,
+    );
+    expect(resolved?.level).toBe('declared');
+    expect(resolved?.routes.map((route) => route.method)).toEqual(['post']);
+  });
+});
+
 describe('check-action-route-permissions — the ledger', () => {
   const text = "app.get('/api/v1/admin/megamenu/menus', { preHandler: requireAdmin('megamenu.read') }, h);";
   const edit = action({

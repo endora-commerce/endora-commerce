@@ -201,6 +201,8 @@ export type KnownIconName = z.infer<typeof KnownIconNameSchema>;
 const actionIdRe = /^[a-z][a-z0-9-]*$/;
 const translationKeyRe = /^[a-z][a-zA-Z0-9_]*(\.[a-z][a-zA-Z0-9_]*)*$/;
 const adminRouteRe = /^\/[A-Za-z0-9/_-]*$/;
+/** A registered admin API path, `:param` segments included — never the bare prefix. */
+const entryApiRouteRe = /^\/api\/v1\/admin(\/[A-Za-z0-9_:.-]+)+$/;
 
 // ---------------------------------------------------------------------------
 // Manifest-side action declaration
@@ -230,6 +232,22 @@ export const ModuleActionSchema = z.object({
    * codebase mixes colon and dot notation; both are accepted by design.
    */
   requiredPermission: z.string().min(1).max(64).optional(),
+  /**
+   * Issue #1088 — the admin API route the target screen **opens on**, the
+   * request whose gate decides whether the screen renders at all. Declared only
+   * where the SPA placement does not name it: the outbox is a tab of
+   * `/platform/command-hooks`, and its entry request is
+   * `GET /api/v1/admin/command-outbox`. Nothing reads it at runtime —
+   * `check:action-route-permissions` compares `requiredPermission` against this
+   * route instead of reconstructing one from `targetRoute`, and reports a
+   * declaration no registration answers. The method follows the target: GET,
+   * or the write verbs for a `/new` create form.
+   */
+  entryApiRoute: z
+    .string()
+    .max(255)
+    .regex(entryApiRouteRe, 'Entry API route must be a path under /api/v1/admin/')
+    .optional(),
   /**
    * Search words matched in **every** admin language. English, like every
    * other default a manifest carries; a word an operator types in their own

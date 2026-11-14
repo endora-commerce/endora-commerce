@@ -177,6 +177,8 @@ export const manifest = defineModuleManifest({
       icon: 'Webhook',
       targetRoute: '/platform/command-hooks/outbox',
       requiredPermission: 'platform.command_outbox.read',
+      // Issue #1088 — the tab's entry request; no API path sits under its SPA one.
+      entryApiRoute: '/api/v1/admin/command-outbox',
       keywords: ['outbox', 'dead letter', 'retry', 'failed deliveries'],
       keywordsKey: 'actions.openCommandOutbox.keywords',
       weight: 330,

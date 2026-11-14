@@ -65,6 +65,8 @@ async function loadActions(): Promise<{
         ...(action.requiredPermission === undefined
           ? {}
           : { requiredPermission: action.requiredPermission }),
+        // Issue #1088 — a screen whose SPA placement does not name its API.
+        ...(action.entryApiRoute === undefined ? {} : { entryApiRoute: action.entryApiRoute }),
       });
     }
   }
@@ -83,7 +85,7 @@ async function loadActions(): Promise<{
  *
  * The population that lands here is mostly one shape: an action whose **intent
  * is a write** on a screen whose landing GET is read-gated — "Edit the megamenu",
- * "Import products". Declaring the write code hides the action from an operator
+ * "Import a feed template". Declaring the write code hides the action from an operator
  * who could open the screen; declaring the read code advertises an action the
  * operator cannot complete. `requiredPermission` is a single code and the screen
  * needs two, so neither answer is right and the choice is the owner's, not this
@@ -93,30 +95,14 @@ async function loadActions(): Promise<{
  * an action whose target's API is registered under a path the walk cannot
  * evaluate. The entry says what the gate is, read by hand, and what would
  * retire it.
+ *
+ * **A disagreement that is only the walk comparing against the wrong API is not
+ * ledgered** (issue #1088): the action declares `entryApiRoute`, the route its
+ * screen opens on, and the walk compares against that. The command outbox and
+ * the two `import_export` actions stood here on that shape and were retired by
+ * their declarations.
  */
 export const ACTION_PERMISSION_DISAGREEMENTS: Readonly<Record<string, string>> = {
-  '_lifecycle:open-command-outbox':
-    '"Command outbox" declares `platform.command_outbox.read`, the code its screen\'s one entry route, ' +
-    'GET /api/v1/admin/command-outbox, enforces (`specs/176-command-hooks-outbox/` FR-040, architect ' +
-    'ruling 2 on #1080). The SPA places the outbox as the second tab of /platform/command-hooks, so the ' +
-    'walk finds no API path under the target and falls back to the module level, where the shallowest ' +
-    'registration is the execution plan\'s GET /api/v1/admin/command-hooks (`platform.modules.read`) — ' +
-    'the other tab, which an outbox-only operator is redirected away from. Retire this entry if the ' +
-    'walk learns a target-to-entry-route declaration (issue #1088), or if the outbox API moves under ' +
-    '/api/v1/admin/platform/command-hooks/outbox.',
-  'import_export:open-import-export-center':
-    '"Import / export" declares `catalog:write`; the screen lands on GET ' +
-    '/api/v1/admin/import-export/entities, gated by the any-of of every entity code, and feature 174 ' +
-    'added GET /api/v1/admin/import-export/profiles beside it at the same depth, gated by that any-of ' +
-    'and `catalog:write` (`specs/174-product-editor-scope-switcher/contracts/import-profiles-and-csv.md` ' +
-    '§1). The two shallowest candidates differ, so the walk cannot pick. The landing route is ' +
-    '`entities`; the profiles section loads only for `catalog:write`. Retire this entry when the ' +
-    'action declares the landing code or the profiles route moves below the landing depth.',
-  'import_export:import-products':
-    '"Import products" declares `catalog:write`; ambiguous for the same reason as ' +
-    '`import_export:open-import-export-center` (the `entities` landing route and the feature 174 ' +
-    '`profiles` route at one depth). The products import itself is `catalog:write`. Retire on the ' +
-    'same terms.',
   'organizations:convert-personal-organization':
     '"Convert personal organization" declares `organizations:convert-to-company`, the code its route ' +
     '(/organizations/convert-to-company) and its one write (POST ' +

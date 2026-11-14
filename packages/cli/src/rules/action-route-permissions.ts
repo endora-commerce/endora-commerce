@@ -59,6 +59,20 @@
  * instead and the method class flips from GET to the write verbs: the gate that
  * decides whether that form can be submitted is the POST's, not the list's.
  *
+ * **Reconstruction is a fallback for a link nobody wrote down, and an action may
+ * write it down** (issue #1088). A screen served by a different API than its
+ * SPA placement suggests — the command outbox, a tab of
+ * `/platform/command-hooks` whose entry request is
+ * `GET /api/v1/admin/command-outbox` — lands at the module level on the other
+ * tab's route, behind another code, and was ledgered as a disagreement it was
+ * not. The manifest action's optional `entryApiRoute` names the route, and the
+ * walk then resolves that path alone, at a fourth level, `declared`, which
+ * replaces the three rather than preceding them: a declaration no registration
+ * answers is `unresolvable`, because falling back would compare against the
+ * guess the declaration replaced and could agree by accident. Declare one only
+ * where the reconstruction picks the wrong route; where it picks the right one,
+ * a declaration is a second statement of the same fact that can drift.
+ *
  * Where the shallowest candidates disagree on their gate, or where a selected
  * gate is a `preHandler` the scanner cannot read, the action is reported
  * `unresolvable` rather than compared against a guess. An entry route that gates
@@ -68,8 +82,8 @@
  *
  * What the check cannot settle is where the label promises a write and the
  * screen opens on a read: one field cannot say both codes, and
- * `ACTION_PERMISSION_DISAGREEMENTS` holds those three with the question that
- * would retire each.
+ * `ACTION_PERMISSION_DISAGREEMENTS` holds those with the question that would
+ * retire each.
  *
  * ## The artefact this reads, and when it refuses to judge it
  *
@@ -153,6 +167,12 @@ export interface ActionRecord {
   readonly targetRoute: string;
   /** Absent when the manifest declares none — the `missing` finding's input. */
   readonly requiredPermission?: string;
+  /**
+   * The admin API route the screen opens on, when the manifest declares one
+   * (issue #1088) — the comparison then takes it instead of reconstructing an
+   * entry route from `targetRoute`. See {@link resolveTarget}.
+   */
+  readonly entryApiRoute?: string;
 }
 
 /**
@@ -800,7 +820,7 @@ export function moduleIdOf(
 // ---------------------------------------------------------------------------
 
 /** How the entry route was found, for the failure message and `--list`. */
-export type ResolutionLevel = 'exact' | 'subtree' | 'module';
+export type ResolutionLevel = 'declared' | 'exact' | 'subtree' | 'module';
 
 export interface ResolvedTarget {
   readonly level: ResolutionLevel;
@@ -820,6 +840,14 @@ function shallowest(routes: readonly AdminRoute[]): readonly AdminRoute[] {
  * The entry route for an action's target, or `null` when no registration
  * corresponds to it at all — which is a defect of its own: a palette entry must
  * point at a real surface.
+ *
+ * An action that **declares** its entry route (`entryApiRoute`, issue #1088) is
+ * resolved against that path alone, at the `declared` level, and the three
+ * reconstruction levels are not consulted: a declaration no registration
+ * answers is `null`, never a fall back to the guess the declaration exists to
+ * replace — a fall back could agree by accident and hide a typo or a moved
+ * route. The method class still follows the target (GET, or the write verbs for
+ * a `/new` form).
  */
 export function resolveTarget(
   action: ActionRecord,
@@ -829,6 +857,12 @@ export function resolveTarget(
   const path = creating ? action.targetRoute.slice(0, -'/new'.length) : action.targetRoute;
   const wanted = (route: AdminRoute): boolean =>
     creating ? WRITE_METHODS.has(route.method) : route.method === 'get';
+
+  if (action.entryApiRoute !== undefined) {
+    const declared = routes.filter((route) => route.path === action.entryApiRoute && wanted(route));
+    return declared.length > 0 ? { level: 'declared', routes: declared } : null;
+  }
+
   const base = ADMIN_API_PREFIX + path;
 
   const exact = routes.filter((route) => route.path === base && wanted(route));
@@ -931,7 +965,12 @@ export function findDisagreements(input: ComparisonInput): Finding[] {
         ...base,
         kind: 'unresolvable',
         enforced: '(no registration)',
-        where: `no /api/v1/admin route corresponds to ${action.targetRoute}, and ${action.moduleId} registers none`,
+        where:
+          action.entryApiRoute === undefined
+            ? `no /api/v1/admin route corresponds to ${action.targetRoute}, and ${action.moduleId} registers none`
+            : `the declared entry route ${action.entryApiRoute} is registered under no ` +
+              `${action.targetRoute.endsWith('/new') ? 'write verb' : 'GET'} — fix the declaration ` +
+              'or the registration; the walk does not fall back to reconstructing one',
       });
       continue;
     }

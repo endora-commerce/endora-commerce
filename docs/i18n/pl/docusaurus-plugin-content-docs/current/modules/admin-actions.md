@@ -45,8 +45,8 @@ export const manifest = defineModuleManifest({
 ```
 
 Każdy wpis MUSI mieć stabilne `id`, tłumaczalny `labelKey`, `icon` z zamkniętej listy dozwolonych
-ikon oraz `targetRoute`. Pola opcjonalne to `descriptionKey`, `requiredPermission`, `keywords` (do
-10), `keywordsKey` i `weight` (domyślnie 100).
+ikon oraz `targetRoute`. Pola opcjonalne to `descriptionKey`, `requiredPermission`,
+`entryApiRoute`, `keywords` (do 10), `keywordsKey` i `weight` (domyślnie 100).
 
 `keywords` są po angielsku i pasują w każdym języku panelu. Słowa wyszukiwania w innym języku
 nie trafiają do manifestu: `keywordsKey` wskazuje wpis we własnych pakietach tłumaczeń modułu —
@@ -68,6 +68,29 @@ nich, bo sprawdza, czy kod jest egzekwowany *gdziekolwiek*, a nie czy jest egzek
 tylko wtedy, gdy cel naprawdę nie jest niczym chroniony; jeśli ekran jest chroniony uprawnieniem do
 odczytu, a etykieta akcji obiecuje zapis, pole nie może wyrazić obu tych rzeczy naraz, więc
 rozbieżność jest zapisywana w rejestrze wyjątków tej kontroli, a nie zgadywana.
+
+Kontrola ustala tę trasę na podstawie adresu: najpierw szuka ścieżki API równej celowi, potem
+najpłytszej ścieżki pod nim, a na końcu najbliższej trasy zarejestrowanej przez moduł. Ten
+domysł zawodzi, gdy ekran korzysta z API, którego jego ścieżka w panelu nie nazywa. Kolejka
+wychodząca poleceń jest zakładką `/platform/command-hooks`, ale jej dane pochodzą z
+`GET /api/v1/admin/command-outbox`. Dla takiego ekranu `entryApiRoute` wskazuje trasę API
+administracyjnego, którą ekran otwiera, a kontrola porównuje `requiredPermission` tylko z tą
+trasą:
+
+```ts
+{
+  id: 'open-command-outbox',
+  targetRoute: '/platform/command-hooks/outbox',
+  requiredPermission: 'platform.command_outbox.read',
+  entryApiRoute: '/api/v1/admin/command-outbox',
+  // …
+}
+```
+
+Wartość to ścieżka pod `/api/v1/admin/`, zapisana dokładnie tak, jak rejestruje ją trasa.
+Metoda wynika z celu: `GET` albo metody zapisu dla formularza `/new`. Jeśli żadna rejestracja nie
+odpowiada zadeklarowanej ścieżce, kontrola zgłasza to, zamiast wracać do domysłu. W czasie
+działania nic tego pola nie odczytuje. Deklaruj je tylko tam, gdzie domysł wybiera złą trasę.
 
 Unikalność `id` w obrębie modułu wymusza schemat Zod manifestu — instalacja manifestu z dwiema
 akcjami o tym samym identyfikatorze kończy się błędem z czytelnym komunikatem wskazującym indeks.
