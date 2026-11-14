@@ -29,10 +29,16 @@ export interface ProductScopeBarProps {
   onOpenScopeMap(): void;
   /** The completeness line of the scope (§9), from saved values. */
   completeness?: ReactNode;
+  /**
+   * The editor's one primary action (issue #717): last in the bar's row and in its keyboard
+   * order, so at ≥ 1024 px it is sticky with the scope it applies to. Below 1024 px the slot's
+   * box dissolves (`display: contents`) and its `StickyFormActions` is the fixed bottom bar.
+   */
+  action?: ReactNode;
 }
 
 export function ProductScopeBar(props: ProductScopeBarProps): ReactNode {
-  const { scope, validScopes, scopeWords, readOnly, adminLanguage, onRequestScope, onOpenScopeMap, completeness } = props;
+  const { scope, validScopes, scopeWords, readOnly, adminLanguage, onRequestScope, onOpenScopeMap, completeness, action } = props;
   const t = useTranslation('catalog');
   const channelId = useId();
   const languageId = useId();
@@ -161,6 +167,9 @@ export function ProductScopeBar(props: ProductScopeBarProps): ReactNode {
               {t('productEditor.scope.scopeMap')}
             </button>
           </div>
+          {/* Top margin = the select labels' line (text-sm, leading-none: 0.875rem) + gap-1, so
+              Save lines up with the selects rather than with their labels. */}
+          {action ? <div className="max-lg:contents lg:ml-auto lg:mt-[1.125rem]">{action}</div> : null}
         </div>
         {noChannels ? (
           <p id={hintId} className="mt-2 text-sm text-muted-foreground">
