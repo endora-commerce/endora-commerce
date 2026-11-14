@@ -88,7 +88,10 @@ const RULE_SCOPED_READ_LEDGER: Readonly<Record<string, number>> = {
   'services/project-service.ts': 16,
   'services/record-project-service.ts': 1,
   'services/role-service.ts': 3,
-  'services/stage-alert-service.ts': 11,
+  // 13 since issue #462: `interruptedClaims` (the probe's row source) and `expire` (its update) read
+  // `project_stage_alert_deliveries` alone — the system sweep's own bookkeeping, platform-wide in the
+  // scope its worker enters, with no administrator to ask `ProjectAccess` for, like claim/settle/release.
+  'services/stage-alert-service.ts': 13,
   'services/stage-service.ts': 4,
   'services/stage-task-service.ts': 12,
   'services/task-context-descriptor.ts': 2,
