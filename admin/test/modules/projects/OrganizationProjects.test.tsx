@@ -1,6 +1,7 @@
 import { beforeEach, describe, expect, it, vi } from 'vitest';
 import { cleanup, screen, waitFor, within } from '@testing-library/react';
 import { AdminZone } from '@endora-commerce/admin-kit/zones';
+import { INERT_SAVE_SESSION } from '@endora-commerce/admin-kit/lib';
 import { ORGANIZATION_ID, PROJECT_ID, en, renderProjects, summary } from './projects-fixtures';
 
 /**
@@ -45,7 +46,7 @@ function renderZone(
 ): HTMLElement {
   cleanup();
   const { container } = renderProjects(
-    <AdminZone name="organization.detail.after" props={{ organizationId: ORGANIZATION_ID }} />,
+    <AdminZone name="organization.detail.after" props={{ organizationId: ORGANIZATION_ID, saveSession: INERT_SAVE_SESSION }} />,
     {
       permissions: options.permissions ?? ['projects:read', 'projects:write'],
       present: options.present ?? ['projects', 'organizations'],

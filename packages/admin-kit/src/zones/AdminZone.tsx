@@ -18,6 +18,7 @@ import type {
   AdminZoneProps,
 } from '@endora-commerce/contracts';
 
+import { ZoneContributionContext, type ZoneContributionInfo } from '../save-session/contribution-context.js';
 import { useAdminZone } from './use-admin-zone.js';
 import { ZoneErrorBoundary } from './ZoneErrorBoundary.js';
 
@@ -80,9 +81,19 @@ export function AdminZone<Z extends AdminZoneName>({
         // alone: two children under one key is a silent remount in React.
         key: `${contribution.module}:${index}`,
         module: contribution.module,
+        // Feature 180 (research R8): which contribution is rendering, for a save participant
+        // inside it — the registry's `module`, never a declared one.
+        info: {
+          module: contribution.module,
+          zone: name,
+          weight: contribution.weight,
+          ...(contribution.requiredPermission === undefined
+            ? {}
+            : { requiredPermission: contribution.requiredPermission }),
+        } satisfies ZoneContributionInfo,
         Component: lazyComponentFor(contribution.component),
       })),
-    [contributions],
+    [contributions, name],
   );
   if (rendered.length === 0) return null;
   return (
@@ -92,9 +103,11 @@ export function AdminZone<Z extends AdminZoneName>({
           {/* `null`, not a spinner: a contribution is an addition, and a chunk
               still in flight must not push the host's own content around or
               block it. */}
-          <Suspense fallback={null}>
-            <entry.Component {...(props as unknown as Record<string, unknown>)} />
-          </Suspense>
+          <ZoneContributionContext.Provider value={entry.info}>
+            <Suspense fallback={null}>
+              <entry.Component {...(props as unknown as Record<string, unknown>)} />
+            </Suspense>
+          </ZoneContributionContext.Provider>
         </ZoneErrorBoundary>
       ))}
     </>

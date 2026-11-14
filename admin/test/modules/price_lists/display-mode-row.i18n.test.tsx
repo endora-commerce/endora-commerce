@@ -2,6 +2,7 @@ import { beforeEach, describe, expect, it, vi } from 'vitest';
 import { render, screen } from '@testing-library/react';
 import { MemoryRouter } from 'react-router-dom';
 import { AdminZone } from '@endora-commerce/admin-kit/zones';
+import { INERT_SAVE_SESSION } from '@endora-commerce/admin-kit/lib';
 import { TranslationProvider } from '@endora-commerce/admin-kit/i18n';
 import { adminSession, modulePresence, withSession } from '../../helpers/render-with-session';
 
@@ -28,7 +29,7 @@ function mount(language: 'en' | 'pl', mode: string): void {
     <TranslationProvider language={language} initialBundle={bundles(language)}>
       {withSession(
         <MemoryRouter>
-          <AdminZone name="category.editor.after" props={{ categoryId: CATEGORY_ID }} />
+          <AdminZone name="category.editor.after" props={{ categoryId: CATEGORY_ID, saveSession: INERT_SAVE_SESSION }} />
         </MemoryRouter>,
         {
           session: adminSession({ permissions: ['price_lists:read', 'price_lists:write'] }),
