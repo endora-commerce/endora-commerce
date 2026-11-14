@@ -19,7 +19,7 @@ import {
   type ScopedWriteOp,
   type UrlKeyRedirectTakeoverRequiredDetails,
 } from '@endora-commerce/contracts';
-import { ApiError, apiClient, useAuth, useUnsavedChangesPrompt, cn } from '@endora-commerce/admin-kit/lib';
+import { ApiError, apiClient, useAuth, useUnsavedChangesPrompt, cn, INERT_SAVE_SESSION } from '@endora-commerce/admin-kit/lib';
 import {
   Alert,
   AlertDescription,
@@ -194,7 +194,9 @@ function ScopedProductEditor({ productId }: { productId: string }): ReactNode {
   const canWrite = hasPermission('catalog:write');
   const readOnly = !canWrite;
 
-  const channelContributions = useAdminZone('product.editor.channels', { productId });
+  // Feature 180 — the product editor runs no save session until WP-2, so its zones carry the
+  // inert handle: a participant there keeps a local draft and takes part in nothing.
+  const channelContributions = useAdminZone('product.editor.channels', { productId, saveSession: INERT_SAVE_SESSION });
   const seoContributions = useAdminZone('product.editor.seo', {
     productId,
     scope: GLOBAL,
@@ -966,8 +968,8 @@ function ScopedProductEditor({ productId }: { productId: string }): ReactNode {
         return (
           <div className="b2b-col" style={{ gap: 16 }}>
             <SectionHeading title={t('productEditor.tab.pricing')} immediate={!readOnly} />
-            <AdminZone name="product.editor.pricing.before" props={{ productId }} />
-            <AdminZone name="product.editor.pricing.after" props={{ productId }} />
+            <AdminZone name="product.editor.pricing.before" props={{ productId, saveSession: INERT_SAVE_SESSION }} />
+            <AdminZone name="product.editor.pricing.after" props={{ productId, saveSession: INERT_SAVE_SESSION }} />
           </div>
         );
       case 'variants':
@@ -991,7 +993,7 @@ function ScopedProductEditor({ productId }: { productId: string }): ReactNode {
       case 'media':
         return (
           <>
-            <AdminZone name="product.editor.field.after" props={{ productId, fieldPath: 'gallery', scope: state.scope, languageCodes: null }} />
+            <AdminZone name="product.editor.field.after" props={{ productId, fieldPath: 'gallery', scope: state.scope, languageCodes: null, saveSession: INERT_SAVE_SESSION }} />
             <GallerySection />
           </>
         );
@@ -1033,7 +1035,7 @@ function ScopedProductEditor({ productId }: { productId: string }): ReactNode {
       case 'attachments':
         return (
           <>
-            <AdminZone name="product.editor.field.after" props={{ productId, fieldPath: 'attachments', scope: state.scope, languageCodes: null }} />
+            <AdminZone name="product.editor.field.after" props={{ productId, fieldPath: 'attachments', scope: state.scope, languageCodes: null, saveSession: INERT_SAVE_SESSION }} />
             <AttachmentsSection />
           </>
         );
@@ -1048,7 +1050,7 @@ function ScopedProductEditor({ productId }: { productId: string }): ReactNode {
         return (
           <div className="space-y-2">
             <SectionHeading title={t('productEditor.tab.channels')} immediate={!readOnly} />
-            <AdminZone name="product.editor.channels" props={{ productId }} />
+            <AdminZone name="product.editor.channels" props={{ productId, saveSession: INERT_SAVE_SESSION }} />
           </div>
         );
       case 'scopes':

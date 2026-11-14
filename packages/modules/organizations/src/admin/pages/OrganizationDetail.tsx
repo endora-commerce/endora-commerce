@@ -2,7 +2,7 @@ import { useCallback, useEffect, useMemo, useState, type ReactNode } from 'react
 import { Link, useParams } from 'react-router-dom';
 import { ArrowLeft } from 'lucide-react';
 import type { FulfilmentStrategy, OrganizationRoleRef, OrganizationRoleView, Warehouse } from '@endora-commerce/contracts';
-import { ApiError, apiClient, useAuth, useSurfaceVisibility, useUnsavedChangesPrompt, formatDateTime } from '@endora-commerce/admin-kit/lib';
+import { ApiError, apiClient, useAuth, useSurfaceVisibility, useUnsavedChangesPrompt, formatDateTime, INERT_SAVE_SESSION } from '@endora-commerce/admin-kit/lib';
 import { FulfilmentStrategyPanel } from '../panels/FulfilmentStrategyPanel.js';
 import { OrganizationSalesRepsTab } from '../components/OrganizationSalesRepsTab.js';
 import { OrganizationRolesTab } from '../components/OrganizationRolesTab.js';
@@ -820,7 +820,8 @@ export function OrganizationDetail(): ReactNode {
           sign in at all. */}
       <SalesChannelsPanel organizationId={org.id} />
 
-      <AdminZone name="organization.detail.after" props={{ organizationId: org.id }} />
+      {/* Feature 180 — the inert handle until this screen runs its save session (WP-7). */}
+      <AdminZone name="organization.detail.after" props={{ organizationId: org.id, saveSession: INERT_SAVE_SESSION }} />
 
       {/* Feature 056 US1 — organization hierarchy (parent picker + subtree view). */}
       <HierarchyPanel
