@@ -159,7 +159,8 @@ describe('CategoriesTree — custom fields (feature 175)', () => {
     expect(input.value).toBe('Bestseller');
     fireEvent.change(input, { target: { value: 'Clearance' } });
     const form = input.closest('form') as HTMLFormElement;
-    fireEvent.click(within(form).getByRole('button', { name: en['categories.action.save']! }));
+    // Feature 180 — the Save counts what it covers ("Save 1 change").
+    fireEvent.click(within(form).getByRole('button', { name: /^Save/ }));
 
     await waitFor(() => expect(patchSpy).toHaveBeenCalledTimes(1));
     expect(patchSpy.mock.calls[0]?.[0]).toBe(`${CATEGORIES_URL}/${ROOT}`);

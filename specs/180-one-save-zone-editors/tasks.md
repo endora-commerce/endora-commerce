@@ -53,12 +53,12 @@ seen failing first. Format: `[ID] [P?] [Story] Description` — `[P]` = parallel
 
 ## Phase 5: Category editor — WP-6 (US8)
 
-- [ ] T060 [P] [US8] Failing tests `admin/test/modules/catalog/categories-tree-one-save.test.tsx`: rename + display mode → host then participant; display mode alone → guard on selecting another category; Cancel discards; slug refusal → display mode not written; zone above the Save row
-- [ ] T061 [US8] `CategoriesTree.tsx`: provider keyed by category id, zone mount moved, guard, `session.run` on submit, `SaveSessionSummary`; `categories.save.hostPartLabel` (en, pl)
-- [ ] T062 [P] [US8] Failing tests `admin/test/modules/price_lists/display-mode-row.participant.test.tsx`: no write on change; participates; `saved` suffix gone
-- [ ] T063 [US8] `DisplayModeOverrideRow.tsx` → participant (`display-mode`, `displayModeRow.partLabel`)
-- [ ] T064 [P] [US5] Off-state test: `price_lists` off → category editor shows no row and sends no `pricing` request
-- [ ] T065 `pnpm run check:admin-zones`; changesets mod-catalog, mod-price-lists
+- [x] T060 [P] [US8] Failing tests `admin/test/modules/catalog/categories-tree-one-save.test.tsx`: rename + display mode → host then participant; display mode alone → guard on selecting another category; Cancel discards; slug refusal → display mode not written; zone above the Save row — plus partial failure (category saved, mode retried alone) and the browser leave prompt
+- [x] T061 [US8] `CategoriesTree.tsx`: provider keyed by category id, zone mount moved, guard, `session.run` on submit, `SaveSessionSummary`; `categories.save.hostPartLabel` (en, pl) — the edit form's fields moved up to the tree so the guard on another row's **Edit** can count them; guard strings `categories.guard.*` (en, pl)
+- [x] T062 [P] [US8] Failing tests `admin/test/modules/price_lists/display-mode-row.participant.test.tsx`: no write on change; participates; `saved` suffix gone
+- [x] T063 [US8] `DisplayModeOverrideRow.tsx` → participant (`display-mode`, `displayModeRow.partLabel`) — through an optional `saveSession`; without one (organization detail until WP-7) it still saves on change
+- [x] T064 [P] [US5] Off-state test: `price_lists` off → category editor shows no row and sends no `pricing` request — in `categories-tree-one-save.test.tsx`; `price_lists` is `nonDeactivatable`, so "off" is the module not installed
+- [x] T065 `pnpm run check:admin-zones`; changesets mod-catalog, mod-price-lists (and contracts patch for the corrected zone comment)
 
 ## Phase 6: Sales-channel editor — WP-9 (US10, OQ-10 = A)
 

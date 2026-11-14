@@ -81,6 +81,7 @@
   "cells.org.category_attribute": "Organization book, category and attribute value line",
   "cells.org.product": "Organization book, product line",
   "cells.org.variant": "Organization book, variant line",
+  "displayModeRow.partLabel": "Price display mode",
   "displayModeRow.error.load": "The display mode could not be loaded.",
   "displayModeRow.error.save": "The display mode could not be saved.",
   "displayModeRow.help.format": "Customers see prices in the “{mode}” format in this scope.",
