@@ -26,7 +26,6 @@ export const FIRST_PARTY_FOREIGN_WRITE_EXEMPTIONS: readonly {
   readonly direction?: 'up' | 'down';
   readonly clause?: 'owner-depends-on-writer' | 'writer-is-core' | 'both-required';
 }[] = [
-  { moduleId: '_i18n', migration: 'Migration20260507T091405I18nAdminI18nInit', table: 'admin_users' },
   { moduleId: 'carts', migration: 'Migration20260611T140352CartsConsolidation', table: 'organizations' },
   { moduleId: 'catalog', migration: 'Migration20260723T230401CatalogAttributesOnCustomFields', table: 'custom_field_definitions' },
   { moduleId: 'catalog', migration: 'Migration20260723T230401CatalogAttributesOnCustomFields', table: 'custom_field_options' },
@@ -37,7 +36,6 @@ export const FIRST_PARTY_FOREIGN_WRITE_EXEMPTIONS: readonly {
   { moduleId: 'organizations', migration: 'Migration20260717T151403OrganizationsPersonalOrganizations', table: 'customer_accounts' },
   { moduleId: 'price_lists', migration: 'Migration20260426T075235PriceListsPricingInit', table: 'organizations' },
   { moduleId: 'inventory', migration: 'Migration20260912T125716InventoryOrganizationWarehouses', table: 'organization_warehouses', kind: 'bridge', direction: 'down' },
-  { moduleId: '_i18n', migration: 'Migration20260507T091405I18nAdminI18nInit', table: 'admin_users', kind: 'derived-down', direction: 'down', clause: 'both-required' },
   { moduleId: 'admin_users', migration: 'Migration20260425T053028AdminUsersInit', table: 'admin_roles', kind: 'derived-down', direction: 'down', clause: 'both-required' },
   { moduleId: 'carts', migration: 'Migration20260611T140352CartsConsolidation', table: 'organizations', kind: 'derived-down', direction: 'down', clause: 'both-required' },
   { moduleId: 'delivery_methods', migration: 'Migration20260611T140354DeliveryMethodsShippingMethodsAdapterAndShipments', table: 'shipments', kind: 'derived-down', direction: 'down', clause: 'owner-depends-on-writer' },

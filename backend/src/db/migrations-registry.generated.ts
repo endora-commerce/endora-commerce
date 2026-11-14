@@ -50,6 +50,7 @@ import { Migration20260819T155150AdminUsersFoldEmailCase } from '@endora-commerc
 import { Migration20260825T124801AdminUsersDropLegacyTwoFactorSecret } from '@endora-commerce/mod-admin-users/migrations';
 import { Migration20261027T160234AdminUsersAdminUserPreferences } from '@endora-commerce/mod-admin-users/migrations';
 import { Migration20261103T140300AdminUsersAuthorProfile } from '@endora-commerce/mod-admin-users/migrations';
+import { Migration20261114T002913AdminUsersPreferredLanguage } from '@endora-commerce/mod-admin-users/migrations';
 
 // ── analytics ───────────────────────────────────────────────────────────────
 import { Migration20260425T143139AnalyticsInit } from '@endora-commerce/mod-analytics/migrations';
@@ -482,6 +483,7 @@ export const MIGRATION_REGISTRY: readonly MigrationRegistryEntry[] = [
   migration('admin_users', Migration20260825T124801AdminUsersDropLegacyTwoFactorSecret),
   migration('admin_users', Migration20261027T160234AdminUsersAdminUserPreferences),
   migration('admin_users', Migration20261103T140300AdminUsersAuthorProfile),
+  migration('admin_users', Migration20261114T002913AdminUsersPreferredLanguage),
 
   // ── analytics ───────────────────────────────────────────────────────────────
   migration('analytics', Migration20260425T143139AnalyticsInit),

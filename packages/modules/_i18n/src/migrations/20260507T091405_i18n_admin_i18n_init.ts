@@ -14,9 +14,16 @@ import { Migration } from '@mikro-orm/migrations';
  *     the vector without explicit application logic.
  *   - btree index `idx_translation_bundles_language_code` to support
  *     `GET /api/v1/admin/i18n/bundles?language=…` which scans by language.
- *   - column `admin_users.preferred_language` (nullable) — NULL means
- *     "no preference saved", which the resolver treats as `'en'`
- *     (feature 019 spec FR-003 / FR-016).
+ *
+ * It also added the nullable `admin_users.preferred_language` (NULL means
+ * "no preference saved", which the resolver treats as `'en'` — feature 019
+ * spec FR-003 / FR-016) until issue #611. The column is `admin_users`' —
+ * `AdminUser.preferredLanguage` maps it — so the statement and its inverse
+ * moved to `Migration20261114T002913AdminUsersPreferredLanguage`, verbatim and
+ * `if not exists`, in the shape D-226 gave the `cms_pages` index
+ * `assets_library`'s frozen init carried. This class keeps its name, so a
+ * database that has applied it is not offered it again, and its schema is
+ * unchanged.
  *
  * No FK on `translation_bundles.module_id`: modules are filesystem-driven
  * (feature 018) and `module_registrations` is the registry of record;
@@ -47,14 +54,9 @@ export class Migration20260507T091405I18nAdminI18nInit extends Migration {
     this.addSql(
       `create index "idx_translation_bundles_language_code" on "translation_bundles" ("language_code");`,
     );
-
-    this.addSql(
-      `alter table "admin_users" add column "preferred_language" varchar(12) null;`,
-    );
   }
 
   override async down(): Promise<void> {
-    this.addSql(`alter table "admin_users" drop column if exists "preferred_language";`);
     this.addSql(`drop table if exists "translation_bundles";`);
     this.addSql(`drop sequence if exists "translation_bundles_version_seq";`);
   }

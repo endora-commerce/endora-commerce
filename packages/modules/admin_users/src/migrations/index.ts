@@ -27,6 +27,7 @@ import { Migration20260819T155150AdminUsersFoldEmailCase } from './20260819T1551
 import { Migration20260825T124801AdminUsersDropLegacyTwoFactorSecret } from './20260825T124801_admin_users_drop_legacy_two_factor_secret.js';
 import { Migration20261103T140300AdminUsersAuthorProfile } from './20261103T140300_admin_users_author_profile.js';
 import { Migration20261027T160234AdminUsersAdminUserPreferences } from './20261027T160234_admin_users_admin_user_preferences.js';
+import { Migration20261114T002913AdminUsersPreferredLanguage } from './20261114T002913_admin_users_preferred_language.js';
 
 export const migrations = [
   Migration20260425T053028AdminUsersInit,
@@ -34,6 +35,7 @@ export const migrations = [
   Migration20260825T124801AdminUsersDropLegacyTwoFactorSecret,
   Migration20261027T160234AdminUsersAdminUserPreferences,
   Migration20261103T140300AdminUsersAuthorProfile,
+  Migration20261114T002913AdminUsersPreferredLanguage,
 ];
 
 export {
@@ -42,4 +44,5 @@ export {
   Migration20260825T124801AdminUsersDropLegacyTwoFactorSecret,
   Migration20261027T160234AdminUsersAdminUserPreferences,
   Migration20261103T140300AdminUsersAuthorProfile,
+  Migration20261114T002913AdminUsersPreferredLanguage,
 };
