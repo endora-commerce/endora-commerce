@@ -122,8 +122,9 @@ per-rate VAT method, the correction is worked out from what the invoice keeps:
   named like the invoice's line and at its VAT rate (0 % today), for the amount
   the settlement refunded. After a full withdrawal the invoice nets to zero. A
   correction that would credit more of a charge than the invoice still charges
-  for it is refused with `422 VALIDATION_FAILED`
-  (`code: correction_exceeds_charge_remaining`), before any money moves.
+  for it is refused with `422 INVOICE_CORRECTION_EXCEEDS_CHARGE_REMAINING`
+  (`details.code` is the charge, `delivery` or `payment_surcharge`, with
+  `remaining` and `currency`), before any money moves.
   Business customers' returns never credit them.
 
 **A complaint** settled with money is a **price reduction**: the buyer keeps the
@@ -137,8 +138,17 @@ goods line with quantity 0 is a price reduction.
 
 A correction that would credit more goods at one VAT rate than the invoice still
 charges at that rate is refused with
-`422 VALIDATION_FAILED` (`code: correction_exceeds_rate_remaining`), before any
-money moves.
+`422 INVOICE_CORRECTION_EXCEEDS_RATE_REMAINING` (`details`: `taxRate`,
+`vatRatePercent`, `remaining`, `currency`), before any money moves.
+
+The other refusals of issuance and correction (issue #633; each was
+`VALIDATION_FAILED` before):
+
+| Refusal | Code | `details` |
+| --- | --- | --- |
+| The seller's VAT number and company data are not configured | `422 INVOICE_SELLER_DATA_MISSING` | `setting` |
+| A correction in another currency than the corrected invoice's | `422 INVOICE_CORRECTION_CURRENCY_MISMATCH` | `requestedCurrency`, `invoiceCurrency`, `originalInvoiceId` |
+| A correction total above what its lines and charges credit, or (`details.code: below_charges`) below the charges alone | `400 INVOICE_CORRECTION_TOTAL_EXCEEDS_LINES` | `total`, `linesTotal`, `currency` |
 
 The **amount due** is the gross less what was paid, and never negative. When
 more was paid than the gross, the amount due is 0 and the invoice states the

@@ -59,6 +59,18 @@ const DETAILS: Record<string, string | number> = {
   number: 'FV 1/2026',
   example: 'FV 1/2026',
   otherPattern: 'FV {seq}/{YYYY}',
+  // Issue #633 — the issuance and correction refusals.
+  setting: 'invoices.seller.company_data',
+  requestedCurrency: 'EUR',
+  invoiceCurrency: 'PLN',
+  originalInvoiceId: '00000000-0000-4000-8000-000000000633',
+  total: '500.00',
+  linesTotal: '250.00',
+  currency: 'PLN',
+  taxRate: '0.2300',
+  vatRatePercent: '23',
+  remaining: '20.00',
+  chargeKind: 'delivery',
 };
 
 const KEYS = [
@@ -70,6 +82,14 @@ const KEYS = [
   'errors.INVOICE_NUMBER_ALREADY_ISSUED.other_channel',
   'errors.INVOICE_NUMBER_ALREADY_ISSUED.same_channel',
   'errors.INVOICE_ORDER_REFUNDED',
+  'errors.INVOICE_SELLER_DATA_MISSING',
+  'errors.INVOICE_CORRECTION_CURRENCY_MISMATCH',
+  'errors.INVOICE_CORRECTION_TOTAL_EXCEEDS_LINES',
+  'errors.INVOICE_CORRECTION_TOTAL_EXCEEDS_LINES.below_charges',
+  'errors.INVOICE_CORRECTION_EXCEEDS_RATE_REMAINING',
+  'errors.INVOICE_CORRECTION_EXCEEDS_CHARGE_REMAINING',
+  'errors.INVOICE_CORRECTION_EXCEEDS_CHARGE_REMAINING.delivery',
+  'errors.INVOICE_CORRECTION_EXCEEDS_CHARGE_REMAINING.payment_surcharge',
 ] as const;
 
 describe('the INVOICE_* sentences', () => {

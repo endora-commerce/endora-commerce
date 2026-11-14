@@ -128,7 +128,7 @@ async function refusal(run: () => Promise<unknown>) {
   try {
     await run();
   } catch (err) {
-    return err as { statusCode: number; details: Record<string, unknown> };
+    return err as { statusCode: number; code: string; details: Record<string, unknown> };
   }
   throw new Error('expected a refusal');
 }
@@ -195,11 +195,12 @@ describe('CorrectiveInvoiceProvider — a complaint refund is a price reduction 
     // 33.07 is within what the whole invoice keeps (42.73 − 6.15 = 36.58), but its goods,
     // 33.07 + 3.87 = 36.94 at 23 %, are more than the 30.79 the invoice still charges there.
     expect(err.statusCode).toBe(422);
+    expect(err.code).toBe('INVOICE_CORRECTION_EXCEEDS_RATE_REMAINING');
     expect(err.details).toEqual({
-      code: 'correction_exceeds_rate_remaining',
       taxRate: '0.2300',
       remaining: '30.79',
       vatRatePercent: '23',
+      currency: 'PLN',
     });
     expect(store.invoices).toHaveLength(before);
   });

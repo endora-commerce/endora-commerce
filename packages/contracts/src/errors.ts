@@ -317,6 +317,32 @@ export const ERROR_CODES = {
   // invoiced has no sale left to document (issue #417, owner ruling of
   // 2026-10-24), so issuance refuses it.
   INVOICE_ORDER_REFUNDED: 'INVOICE_ORDER_REFUNDED',
+  // Invoices — business refusals of issuance and correction (issue #633, #86),
+  // `VALIDATION_FAILED` with an English sentence until then.
+  /** 422 — the seller's VAT number and company data are not configured (`details.setting`). */
+  INVOICE_SELLER_DATA_MISSING: 'INVOICE_SELLER_DATA_MISSING',
+  /**
+   * 422 — a correction asked for in another currency than the corrected
+   * invoice's (`details.requestedCurrency`, `invoiceCurrency`, `originalInvoiceId`).
+   */
+  INVOICE_CORRECTION_CURRENCY_MISMATCH: 'INVOICE_CORRECTION_CURRENCY_MISMATCH',
+  /**
+   * 400 — the correction total is more than its lines add up to, or (token
+   * `below_charges`) less than the charges it credits (`details.total`,
+   * `linesTotal`, `currency`).
+   */
+  INVOICE_CORRECTION_TOTAL_EXCEEDS_LINES: 'INVOICE_CORRECTION_TOTAL_EXCEEDS_LINES',
+  /**
+   * 422 — the correction credits more goods at one VAT rate than the invoice
+   * still charges there (`details.taxRate`, `vatRatePercent`, `remaining`, `currency`).
+   */
+  INVOICE_CORRECTION_EXCEEDS_RATE_REMAINING: 'INVOICE_CORRECTION_EXCEEDS_RATE_REMAINING',
+  /**
+   * 422 — the correction credits more of an order charge than the invoice still
+   * charges for it; the token is the charge, `delivery` or `payment_surcharge`
+   * (`details.chargeKind`, `remaining`, `currency`).
+   */
+  INVOICE_CORRECTION_EXCEEDS_CHARGE_REMAINING: 'INVOICE_CORRECTION_EXCEEDS_CHARGE_REMAINING',
   INVALID_TRANSITION: 'INVALID_TRANSITION',
 
   // Returns 155 — a `return`-kind case naming an order line recorded as not
