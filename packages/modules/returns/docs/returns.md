@@ -170,7 +170,7 @@ before/after events and is written to the audit log — whether it had a reason
   was rejected. The settlement form shows the recomputed figure. An approved
   amount equal to a default the case showed settles at the recomputed default,
   a lower amount is kept as typed, and a higher one is refused with
-  `422 VALIDATION_FAILED` (`code: refund_exceeds_paid`) with nothing written:
+  `422 RETURN_REFUND_EXCEEDS_PAID` with nothing written:
   reload the form and confirm. The `return.settled` audit entry names the
   lines whose default moved (`recomputedDefaultItemIds`), not the amounts.
 - **No line refunds more than it was paid** — a complaint refund counts against
@@ -205,8 +205,8 @@ before/after events and is written to the audit log — whether it had a reason
   has the 14 days. Outside the window the row starts at 0 and you may raise it
   to what was paid. Lower the delivery to the price of the cheapest standard
   delivery when the customer chose a more expensive one (art. 13(2)). An amount
-  above what was paid is refused with `422 VALIDATION_FAILED`
-  (`code: refund_exceeds_paid`). Through the API, `deliveryRefundAmount` and
+  above what was paid is refused with `422 RETURN_REFUND_EXCEEDS_PAID`
+  (`details.code` `delivery` or `surcharge`). Through the API, `deliveryRefundAmount` and
   `surchargeRefundAmount` work differently from the line amounts. When you
   leave one out, it settles at the default recomputed at settlement. When you
   send one, it settles at exactly that amount, `0` included, as long as it is
@@ -256,6 +256,35 @@ before/after events and is written to the audit log — whether it had a reason
   <id> } }`. Views saved before these rules keep their names as stored —
   including blank names and duplicates — until their owner renames or deletes
   them; a change that leaves the name alone is never refused for it.
+
+## Refusals
+
+Each refusal below has its own code and a sentence in English and Polish,
+which names the values in `details`. The buyer reads it in the language the
+storefront asked for, the operator in their own. Until issue #625 they were
+`VALIDATION_FAILED`, most with the reason in `details.code`; the status is
+unchanged. The status code travels as `details.statusCode`, because
+`details.code` is the slot for a refusal's token.
+
+| Code | Status | When | `details` |
+| --- | --- | --- | --- |
+| `RETURN_ORDER_NOT_ELIGIBLE` | `422` | `POST /api/v1/returns` — the order is not completed yet | `orderId` |
+| `RETURN_QUANTITY_EXCEEDS_RETURNABLE` | `422` | `POST /api/v1/returns` — a line asks for more than it can still return | `orderItemId`, `requested`, `remaining` |
+| `RETURN_REASON_INACTIVE` | `422` | `POST /api/v1/returns` — the reason was switched off | `reasonId` |
+| `RETURN_COMMENTS_CLOSED` | `409` | a comment on a case in a terminal status | `returnCaseId`, `statusCode` |
+| `RETURN_CASE_CLOSED` | `409` | `POST /api/v1/returns/:id/select-delivery-method` on a case in a terminal status | `returnCaseId`, `statusCode` |
+| `RETURN_DELIVERY_METHOD_UNAVAILABLE` | `422` | the same route — the return delivery method is not offered | `returnDeliveryMethodId` |
+| `RETURN_SETTLEMENT_IN_PROGRESS` | `409` | `POST /api/v1/admin/returns/:id/settlement` — another return of the order is being settled; try again | `orderId` |
+| `RETURN_REFUND_EXCEEDS_PAID` | `422` | the same route — a refund above what may be refunded, for a line or, with `code` `delivery` / `surcharge`, a charge | `returnCaseItemId` (a line), `requested`, `maximum`, `currency` |
+| `RETURN_REFUND_GATEWAY_FAILED` | `502` | the same route — the payment gateway refused the refund; nothing is settled | `settlementState`, `failureReason` (the gateway's words), `providerDetails` |
+| `RETURN_STATUS_CODE_TAKEN` | `409` | `POST /api/v1/admin/returns/statuses` — another status has the code | `statusCode` |
+| `RETURN_STATUS_TERMINAL_HAS_TRANSITIONS` | `409` / `422` | marking a status with outgoing transitions terminal (`code` `mark_terminal`), or a transition from a terminal status in `PUT …/transitions` (`code` `add_transition`) | `statusCode`, and `outgoingCount` or `toStatusCode` |
+| `RETURN_STATUS_NOT_DELETABLE` | `409` | deleting the initial status (`code` `initial`) | `statusCode` |
+| `RETURN_STATUS_IN_USE` | `409` | deleting a status cases are in | `statusCode`, `caseCount` |
+
+Amounts are two-decimal strings. An unknown order line or return line, an
+unknown reason id, a missing refund payment method, a blank rejection reason
+and a transition naming a status that does not exist stay `VALIDATION_FAILED`.
 
 ## Counting the windows
 
@@ -398,11 +427,12 @@ through **Bulk edit**).
 - **Duplicate lines are summed.** When a request names one order line more
   than once, the quantities are added up per order line and that total is
   checked against the line's remaining quantity, for both kinds; a total above
-  it is refused with `422 VALIDATION_FAILED`, `details.code:
-  'qty_exceeds_returnable'`. The entries are still stored as sent.
+  it is refused with `422 RETURN_QUANTITY_EXCEEDS_RETURNABLE`. The entries
+  are still stored as sent.
 - **Order of the checks.** A line that does not belong to the order
   (`details.code: 'unknown_line'`) is reported before any quantity error, the
-  quantity check runs before the reason check (`unknown_reason`), and
+  quantity check runs before the reason check (`unknown_reason`, or
+  `RETURN_REASON_INACTIVE` for a reason that was switched off), and
   returnability is checked last. Cases opened before a product was marked not
   returnable are never re-evaluated.
 

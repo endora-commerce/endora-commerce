@@ -314,9 +314,9 @@ export class ReturnSettlementService {
         if ((err as { code?: string }).code !== LOCK_NOT_AVAILABLE) throw err;
         throw new HttpError(
           409,
-          ERROR_CODES.VALIDATION_FAILED,
+          ERROR_CODES.RETURN_SETTLEMENT_IN_PROGRESS,
           'Another return of this order is being settled. Try again in a moment.',
-          { code: 'settlement_in_progress' },
+          { orderId: rc.orderId },
         );
       }
       return this.#settle(id, adminUserId, input);
@@ -401,13 +401,21 @@ export class ReturnSettlementService {
     // recomputed one; a lower one is kept as typed; anything else is refused.
     const approvedByItemId = new Map<string, number>();
     for (const it of items) {
-      const outcome = this.#approved(rc, it, defaultOf(it), requestedByItemId.get(it.id) ?? it.approvedRefundAmount);
+      const requested = requestedByItemId.get(it.id) ?? it.approvedRefundAmount;
+      const outcome = this.#approved(rc, it, defaultOf(it), requested);
       if ('refused' in outcome) {
+        // The amounts are two-decimal strings: the envelope fills a placeholder
+        // with `String(value)` (issue #625).
         throw new HttpError(
           422,
-          ERROR_CODES.VALIDATION_FAILED,
+          ERROR_CODES.RETURN_REFUND_EXCEEDS_PAID,
           'Refund amount cannot exceed the amount paid for the line.',
-          { code: 'refund_exceeds_paid' },
+          {
+            returnCaseItemId: it.id,
+            requested: approvedAmount(requested),
+            maximum: approvedAmount(defaultOf(it).effective),
+            currency: rc.currency,
+          },
         );
       }
       // At the two places it is stored at, half-up (issue #417).
@@ -427,17 +435,30 @@ export class ReturnSettlementService {
     const NO_CHARGE: ChargeRefund = { cap: '0.00', default: '0.00' };
     const recomputedCharges = await this.#charges(rc, items, context, history);
     const charges: CaseChargeRefunds = withdraws ? recomputedCharges : { delivery: NO_CHARGE, surcharge: NO_CHARGE };
-    const chargeOutcome = (requested: number | undefined, recomputed: ChargeRefund): string => {
+    const chargeOutcome = (
+      charge: 'delivery' | 'surcharge',
+      requested: number | undefined,
+      recomputed: ChargeRefund,
+    ): string => {
       const outcome = chargeApproved({ requested, recomputed });
       if ('refused' in outcome) {
-        throw new HttpError(422, ERROR_CODES.VALIDATION_FAILED, 'Refund amount cannot exceed what was paid for the charge.', {
-          code: 'refund_exceeds_paid',
-        });
+        // The line's code, with the charge as the token that picks its sentence.
+        throw new HttpError(
+          422,
+          ERROR_CODES.RETURN_REFUND_EXCEEDS_PAID,
+          'Refund amount cannot exceed what was paid for the charge.',
+          {
+            code: charge,
+            requested: roundHalfUp(requested ?? 0),
+            maximum: roundHalfUp(recomputed.cap),
+            currency: rc.currency,
+          },
+        );
       }
       return outcome.approved;
     };
-    const deliveryRefund = chargeOutcome(input.deliveryRefundAmount, charges.delivery);
-    const surchargeRefund = chargeOutcome(input.surchargeRefundAmount, charges.surcharge);
+    const deliveryRefund = chargeOutcome('delivery', input.deliveryRefundAmount, charges.delivery);
+    const surchargeRefund = chargeOutcome('surcharge', input.surchargeRefundAmount, charges.surcharge);
     // What the money moves: the goods, plus the charges (issue #876) — so on a
     // consumer's completing withdrawal it is more than the sum of the lines.
     const total = sumApproved([...items.map(approvedOf), deliveryRefund, surchargeRefund]);
@@ -538,16 +559,14 @@ export class ReturnSettlementService {
           idempotencyKey: rc.id,
         });
         if (gatewayOutcome.state === 'failed') {
-          throw new HttpError(
-            502,
-            ERROR_CODES.VALIDATION_FAILED,
-            gatewayOutcome.failureReason ?? 'Payment gateway rejected the refund.',
-            {
-              code: 'gateway_refund_failed',
-              settlementState: gatewayOutcome.state,
-              providerDetails: gatewayOutcome.providerDetails ?? null,
-            },
-          );
+          // The gateway's own words travel as `failureReason`, never as the
+          // sentence: they are in whatever language the provider writes
+          // (issue #625).
+          throw new HttpError(502, ERROR_CODES.RETURN_REFUND_GATEWAY_FAILED, 'Payment gateway rejected the refund.', {
+            settlementState: gatewayOutcome.state,
+            failureReason: gatewayOutcome.failureReason ?? null,
+            providerDetails: gatewayOutcome.providerDetails ?? null,
+          });
         }
       } else {
         // `credit_limits` applies once per return case, so this survives the

@@ -120,8 +120,9 @@ export class ReturnCommentService {
     if (!rc) throw new HttpError(404, ERROR_CODES.NOT_FOUND, 'Return case not found.');
     const graph = await this.deps.graphService.loadGraph();
     if (graph.isTerminal(rc.statusCode)) {
-      throw new HttpError(409, ERROR_CODES.VALIDATION_FAILED, 'Commenting is closed for finished cases.', {
-        code: 'case_terminal',
+      throw new HttpError(409, ERROR_CODES.RETURN_COMMENTS_CLOSED, 'Commenting is closed for finished cases.', {
+        returnCaseId: rc.id,
+        statusCode: rc.statusCode,
       });
     }
     return rc;
