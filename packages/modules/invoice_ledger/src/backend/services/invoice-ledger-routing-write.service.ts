@@ -74,11 +74,15 @@ export class InvoiceLedgerRoutingWriteService {
       body.numberingMode !== before.numberingMode &&
       body.confirm !== true
     ) {
+      // Issue #644 — `confirm` is required only because the stored mode
+      // differs from the submitted one, so this is state refusing the write,
+      // not validation of the body. `from` / `to` are machine values the
+      // screen already labels; the sentence does not name them.
       throw new HttpError(
         400,
-        ERROR_CODES.VALIDATION_FAILED,
+        ERROR_CODES.INVOICE_LEDGER_NUMBERING_CHANGE_UNCONFIRMED,
         'Confirm the numbering mode change.',
-        { field: 'confirm' },
+        { field: 'confirm', from: before.numberingMode, to: body.numberingMode },
       );
     }
 

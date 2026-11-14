@@ -1016,6 +1016,12 @@ export const ERROR_CODES = {
   INVOICE_LEDGER_CREDENTIALS_MISSING: 'INVOICE_LEDGER_CREDENTIALS_MISSING',
   /** Delivery is succeeded or otherwise not eligible for operator retry. */
   INVOICE_LEDGER_DELIVERY_NOT_RETRYABLE: 'INVOICE_LEDGER_DELIVERY_NOT_RETRYABLE',
+  /**
+   * 400 — a routing write changes the stored numbering mode without
+   * `confirm: true` (`details.field: 'confirm'`, `from`, `to`). Raised as
+   * `VALIDATION_FAILED` until issue #644 (#86).
+   */
+  INVOICE_LEDGER_NUMBERING_CHANGE_UNCONFIRMED: 'INVOICE_LEDGER_NUMBERING_CHANGE_UNCONFIRMED',
   // `INFAKT_CONNECTION_FAILED` and `INFAKT_WEBHOOK_UNAUTHORIZED` left with the
   // `infakt` module (feature 134, T069), which declares them as `infaktErrorCodes`.
 

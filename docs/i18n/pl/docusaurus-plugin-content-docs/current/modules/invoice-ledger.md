@@ -13,7 +13,7 @@ Komunikację HTTP z dostawcą obsługują moduły adapterów poszczególnych dos
 
 - **Księga faktur** w sekcji Sprzedaż otwiera listę wysyłek (dostaw). Trasowanie jest zakładką na tym samym pasku.
 - Moduł adaptera dostawcy dodaje zakładkę połączenia, gdy adapter jest włączony.
-- Zmiana trasowania (numeracja Endory albo dostawcy, natywny KSeF albo KSeF dostawcy) wymaga potwierdzenia przed zapisem.
+- Zmiana trasowania (numeracja Endory albo dostawcy, natywny KSeF albo KSeF dostawcy) wymaga potwierdzenia przed zapisem. Zapis, który zmienia zapisany tryb numeracji bez `confirm: true`, jest odrzucany z `400 INVOICE_LEDGER_NUMBERING_CHANGE_UNCONFIRMED` (`details.field: "confirm"`, `from`, `to`), a operator czyta komunikat we własnym języku. Dzieje się tak również wtedy, gdy inny operator zmienił tryb po wczytaniu strony. Do zgłoszenia #644 kodem odpowiedzi był `400 VALIDATION_FAILED`.
 - Wyłączenie adaptera dostawcy ukrywa jego zakładkę. Historia wysyłek w tym module pozostaje.
 - Wyłączenie Księgi faktur na `/platform/modules` wyłącza też każdy aktywny adapter. Adapterów nie można ponownie włączyć, dopóki księga jest wyłączona. Ponowne włączenie księgi pozostawia adaptery wyłączone.
 
