@@ -752,7 +752,13 @@ export const ProjectLinkSchema = z.object({
   recordId: uuid,
   available: z.boolean(),
   number: z.string().optional(),
+  /** The record's status code, as its owner stores it. */
   status: z.string().optional(),
+  /**
+   * The status's name in the response language, as the record's owner names it
+   * (issue #455) — what a reader is shown; `status` stays the machine token.
+   */
+  statusName: z.string().optional(),
   amount: z.string().optional(),
   currency: z.string().optional(),
   /**

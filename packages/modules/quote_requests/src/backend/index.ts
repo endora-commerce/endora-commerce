@@ -631,7 +631,10 @@ export function registerModule(ctx: ModuleContext): void {
     'quoteRequestReadPort',
     ctx
       .asFunction(
-        ({ emFactory }: QuoteRequestsCradle) => new QuoteRequestReadService(emFactory),
+        ({ emFactory }: QuoteRequestsCradle) =>
+          new QuoteRequestReadService(emFactory, (key, language) =>
+            lazyPort<AdminI18nTranslatePort>(ctx, 'adminI18nService').translate('quote_requests', key, language),
+          ),
       )
       .singleton(),
   );

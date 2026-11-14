@@ -5,10 +5,12 @@ import {
   type OpportunityReadPort,
   type OpportunityRecord,
   type OpportunitySearchQuery,
+  type SupportedLanguage,
 } from '@endora-commerce/contracts';
 import { CrmOpportunity } from '../entities/crm-opportunity.entity.js';
 import { CrmOpportunityLink } from '../entities/crm-opportunity-link.entity.js';
 import { effectiveOpportunityValue } from '../domain/effective-value.js';
+import { resolveOpportunityStatusName } from '../domain/opportunity-status-graph.js';
 import { isUuid } from './opportunity-access.js';
 import type { WorkflowReadService } from './workflow-read-service.js';
 
@@ -94,6 +96,16 @@ export class OpportunityReadPortService implements OpportunityReadPort {
       { orderBy: { createdAt: 'desc', number: 'desc' } },
     );
     return this.#records(em, rows);
+  }
+
+  /**
+   * A status's name in `language`, by the rule every `crm` screen names one
+   * with (issue #455); the code itself for a status the workflow no longer
+   * holds.
+   */
+  async statusName(code: string, language: SupportedLanguage): Promise<string> {
+    const status = (await this.workflowRead.loadGraph()).get(code);
+    return status ? resolveOpportunityStatusName(status, language) : code;
   }
 
   async #records(em: EntityManager, rows: readonly CrmOpportunity[]): Promise<OpportunityRecord[]> {

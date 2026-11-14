@@ -2325,7 +2325,7 @@ dwa opublikowane porty — nigdy przez tabele ani klasy CRM. Oba typy eksportuje
 
 | Nazwa w kontenerze | Typ | Co robi |
 | --- | --- | --- |
-| `opportunityReadPort` | `OpportunityReadPort` | `findById(id)`, `findByDocument(kind, documentId)` i `listOpenForOrganization(organizationId)`. Każda zwraca zwykłe wartości `OpportunityRecord` — id, numer, tytuł, organizację, kod i rodzaj statusu, osobę przypisaną, wartość, walutę, daty — albo `null` / pustą listę. |
+| `opportunityReadPort` | `OpportunityReadPort` | `findById(id)`, `findByDocument(kind, documentId)` i `listOpenForOrganization(organizationId)`. Każda zwraca zwykłe wartości `OpportunityRecord` — id, numer, tytuł, organizację, kod i rodzaj statusu, osobę przypisaną, wartość, walutę, daty — albo `null` / pustą listę. `statusName(code, language)` nazywa status tak jak ekrany CRM: jego nazwą w tym języku, a w razie jej braku nazwą domyślną albo kodem. |
 | `opportunityTransitionPort` | `OpportunityTransitionPort` | `applyStatus({ opportunityId, to, actor, reason? })` przeprowadza szansę przez skonfigurowany przepływ, razem ze strażnikami i zdarzeniami, i zwraca wynik jako wartość. |
 
 ```ts

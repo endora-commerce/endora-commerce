@@ -22,7 +22,7 @@ import {
   seedCrmOrganization,
   submitCrmQuoteRequest,
 } from '../../helpers/seed-crm.js';
-import { callProjects, createProject, deleteProjects, getProject } from './helpers.js';
+import { PROJECTS_ADMIN, callProjects, createProject, deleteProjects, getProject } from './helpers.js';
 
 /**
  * User Story 6 — Orders, Quote Requests and Opportunities linked to a Project
@@ -137,6 +137,45 @@ describe('projects — linked records (US6)', () => {
     expect((await audit(project.id)).filter((a) => a === 'projects.project.link_add')).toHaveLength(3);
   });
 
+  it('names each record’s status as its owner does, in the reader’s language (issue #455)', async () => {
+    // An administrator's language is the stored preference, not a header.
+    const setLanguage = async (preferredLanguage: 'en' | 'pl' | null) => {
+      const res = await h.app.inject({
+        method: 'PATCH',
+        url: '/api/v1/admin/me/preferred-language',
+        cookies: PROJECTS_ADMIN,
+        payload: { preferredLanguage },
+      });
+      expect(res.statusCode, res.body).toBe(200);
+    };
+    const named = async (language: 'en' | 'pl') => {
+      await setLanguage(language);
+      const response = await callProjects(h, 'GET', `/${project.id}/links`);
+      expect(response.statusCode, response.body).toBe(200);
+      const byKind = new Map(ProjectLinkListResponseSchema.parse(response.json()).data.map((l) => [l.kind, l]));
+      return Object.fromEntries(
+        (['order', 'quote_request', 'opportunity'] as const).map((kind) => [
+          kind,
+          [byKind.get(kind)?.status, byKind.get(kind)?.statusName],
+        ]),
+      );
+    };
+    try {
+      expect(await named('pl')).toEqual({
+        order: ['new', 'Nowy'],
+        quote_request: ['Pending', 'Oczekujące'],
+        opportunity: ['new', 'Nowa'],
+      });
+      expect(await named('en')).toEqual({
+        order: ['new', 'New'],
+        quote_request: ['Pending', 'Pending'],
+        opportunity: ['new', 'New'],
+      });
+    } finally {
+      await setLanguage(null);
+    }
+  });
+
   it('refuses a record of another Organization — 422, and nothing is linked', async () => {
     const foreign = await seedCrmOrder(h.em(), { organizationId: orgOther });
     const response = await link(project.id, 'order', foreign.id);
@@ -207,7 +246,7 @@ describe('projects — linked records (US6)', () => {
     expect(seen.length).toBeGreaterThanOrEqual(3);
     for (const row of seen) {
       expect(row.available, row.kind).toBe(false);
-      for (const field of ['number', 'status', 'amount', 'currency', 'href'] as const) {
+      for (const field of ['number', 'status', 'statusName', 'amount', 'currency', 'href'] as const) {
         expect(row[field], `${row.kind}.${field}`).toBeUndefined();
       }
     }

@@ -28,6 +28,7 @@ function owners(
     ),
     findByBusinessId: vi.fn(async () => null),
     listOpenForOrganizations: vi.fn(async () => []),
+    statusName: vi.fn(async (status: string) => status),
     listItems: vi.fn(async () => {
       throw new Error('the lines are quote_requests’ to value');
     }),

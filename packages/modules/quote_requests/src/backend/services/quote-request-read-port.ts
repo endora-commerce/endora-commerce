@@ -4,12 +4,14 @@ import type {
   QuoteRequestLineRecord,
   QuoteRequestReadPort,
   QuoteRequestRecord,
+  SupportedLanguage,
 } from '@endora-commerce/contracts';
 import { OPEN_QUOTE_REQUEST_STATUSES, isUuidShape } from '@endora-commerce/contracts';
 import { QuoteRequest } from '../entities/quote-request.entity.js';
 import { QuoteRequestItem } from '../entities/quote-request-item.entity.js';
 import { loadArrangedQuoteLines, toLineGroup } from './line-order.js';
 import { quoteRequestAmount } from './quote-amount.js';
+import { quoteRequestStatusName, type QuoteRequestsTranslate } from './quote-request-status-name.js';
 
 /**
  * The row-level read model `quote_requests` publishes (feature 075, Phase P).
@@ -23,7 +25,16 @@ import { quoteRequestAmount } from './quote-amount.js';
  * for the callers that only need to count or cross-reference one.
  */
 export class QuoteRequestReadService implements QuoteRequestReadPort {
-  constructor(private readonly emFactory: () => EntityManager) {}
+  constructor(
+    private readonly emFactory: () => EntityManager,
+    /** This module's own bundle — the wording {@link statusName} answers in. */
+    private readonly translate: QuoteRequestsTranslate,
+  ) {}
+
+  /** Issue #455 — a status by this module's own name for it, in `language`. */
+  statusName(status: string, language: SupportedLanguage): Promise<string> {
+    return quoteRequestStatusName(this.translate, status, language);
+  }
 
   async findById(id: string): Promise<QuoteRequestRecord | null> {
     if (!isUuidShape(id)) return null;
