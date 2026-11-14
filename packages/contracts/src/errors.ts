@@ -853,6 +853,21 @@ export const ERROR_CODES = {
    */
   PAYMENT_ADAPTER_UNAVAILABLE: 'PAYMENT_ADAPTER_UNAVAILABLE',
 
+  // Payment methods — a method payments reference (issue #635, #86). Raised as
+  // `VALIDATION_FAILED` with an English sentence until then; issue #632 gives
+  // the delivery-method guard the same pair.
+  /**
+   * 409 — payments reference the method, so it cannot be deleted
+   * (`details.paymentMethodId`, `paymentMethodCode`, `paymentCount`).
+   */
+  PAYMENT_METHOD_IN_USE: 'PAYMENT_METHOD_IN_USE',
+  /**
+   * 409 — the `payments` module is off, so nobody can count the payments that
+   * may reference the method, and the delete is refused
+   * (`details.paymentMethodId`, `module`).
+   */
+  PAYMENT_METHOD_USAGE_UNKNOWN: 'PAYMENT_METHOD_USAGE_UNKNOWN',
+
   // CRM — Sales Opportunities (`specs/143-crm-sales-opportunities/`,
   // `contracts/admin-api.md` §13). Each is declared by the `crm` module's
   // manifest and joins this block in the change that adds its first raise site.

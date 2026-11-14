@@ -3,5 +3,7 @@
   "actions.openPaymentMethods.description": "Define payment methods and choose which ones are offered to buyers",
   "nav.paymentMethods.label": "Payment methods",
   "actions.openPaymentMethods.keywords": "payment, method",
-  "settingGroups.payment_methods.name": "Payment methods"
+  "settingGroups.payment_methods.name": "Payment methods",
+  "errors.PAYMENT_METHOD_IN_USE": "Payment method \"{paymentMethodCode}\" cannot be deleted: {paymentCount} payment(s) reference it. Set its status to \"inactive\" instead.",
+  "errors.PAYMENT_METHOD_USAGE_UNKNOWN": "This payment method cannot be deleted: the \"{module}\" module is switched off, so the platform cannot tell whether any payment references it. Switch the module on and try again, or set the method's status to \"inactive\"."
 }

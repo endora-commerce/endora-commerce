@@ -1146,6 +1146,21 @@ export const MINTED_ERROR_CODES: MintedErrorCodes = {
       'Minted by !1159 for a retry whose gateway adapter is absent. The noun is the payment ' +
       'adapter, which `payments` owns along with the adapter registry (D-121 T1).',
   },
+  PAYMENT_METHOD_IN_USE: {
+    to: 'payment_methods',
+    reason:
+      'Minted by issue #635 (#86) for the FR-003 delete guard: a payment method that payments ' +
+      'reference cannot be deleted. It was raised as `VALIDATION_FAILED` with an English ' +
+      'sentence the envelope never replaces. The noun is the payment method, and the one raise ' +
+      'site is `payment_methods`\' delete Command. Issue #632 mints the delivery twin.',
+  },
+  PAYMENT_METHOD_USAGE_UNKNOWN: {
+    to: 'payment_methods',
+    reason:
+      'Minted by issue #635 (#86) for the same guard when `payments` is switched off and the ' +
+      'payments that may reference the method cannot be counted. It was `VALIDATION_FAILED`. ' +
+      'The code names the method, not the absent module.',
+  },
 
   // The shared PIM connector layer, minted together with the UnoPim connector by
   // !1282 (feature 089). Neither module existed when the prefix chain was

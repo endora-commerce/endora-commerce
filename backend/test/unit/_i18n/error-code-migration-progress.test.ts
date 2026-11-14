@@ -223,6 +223,11 @@ const MIGRATED_MODULES: readonly string[] = [
   // the ledger entry without the roster line would leave the declaration
   // unmeasured.
   'newsletter',
+  // Minted (issue #635): `PAYMENT_METHOD_IN_USE` and
+  // `PAYMENT_METHOD_USAGE_UNKNOWN` are this module's first codes and were
+  // created after the chain was deleted, so `MINTED_ERROR_CODES` accounts for
+  // them.
+  'payment_methods',
   'payments',
   'price_lists',
   'promotions',
