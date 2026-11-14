@@ -607,6 +607,12 @@ export const ERROR_CODES = {
   MEGAMENU_LANGUAGE_NOT_IN_CHANNEL_SCOPE: 'MEGAMENU_LANGUAGE_NOT_IN_CHANNEL_SCOPE',
   MEGAMENU_TARGET_OUT_OF_SCOPE: 'MEGAMENU_TARGET_OUT_OF_SCOPE',
   MEGAMENU_ASSET_KIND_MISMATCH: 'MEGAMENU_ASSET_KIND_MISMATCH',
+  /**
+   * 400 — a free-URL asset item: importing an asset from a URL is not supported
+   * yet, so the asset is uploaded to the Assets Library and referenced by id
+   * (`details.itemId`). `VALIDATION_FAILED` until issue #640 (#86).
+   */
+  MEGAMENU_ASSET_URL_UNSUPPORTED: 'MEGAMENU_ASSET_URL_UNSUPPORTED',
   MEGAMENU_REFERENCED: 'MEGAMENU_REFERENCED',
   MEGAMENU_DEPTH_EXCEEDED: 'MEGAMENU_DEPTH_EXCEEDED',
   // Feature 168 — the navigation bar's tree rules (data-model §3).

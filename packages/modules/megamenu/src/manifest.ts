@@ -124,6 +124,9 @@ export const manifest = defineModuleManifest({
    */
   errorCodes: [
     { code: 'MEGAMENU_ASSET_KIND_MISMATCH' },
+    // Issue #640 (#86) — minted, not inherited from the chain: a free-URL asset
+    // item, refused until the Assets Library can import from a URL.
+    { code: 'MEGAMENU_ASSET_URL_UNSUPPORTED' },
     { code: 'MEGAMENU_BINDING_ALREADY_EXISTS' },
     { code: 'MEGAMENU_BINDING_NOT_FOUND' },
     { code: 'MEGAMENU_DEPTH_EXCEEDED' },

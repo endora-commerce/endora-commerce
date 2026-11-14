@@ -316,8 +316,8 @@ Megamenu jest umieszczone w głównym układzie storefrontu, między `<Header>` 
 `MEGAMENU_NOT_FOUND`, `MEGAMENU_HAS_ACTIVE_BINDINGS`, `MEGAMENU_EMPTY_TREE`,
 `MEGAMENU_BINDING_NOT_FOUND`, `MEGAMENU_BINDING_ALREADY_EXISTS`,
 `MEGAMENU_LANGUAGE_NOT_IN_CHANNEL_SCOPE`, `MEGAMENU_TARGET_OUT_OF_SCOPE`,
-`MEGAMENU_ASSET_KIND_MISMATCH`, `MEGAMENU_REFERENCED`, `MEGAMENU_DEPTH_EXCEEDED`,
-`MEGAMENU_KIND_NOT_ALLOWED_AS_TAB`, `MEGAMENU_LINK_TAB_INVALID`, `MEGAMENU_LABEL_REQUIRED`.
+`MEGAMENU_ASSET_KIND_MISMATCH`, `MEGAMENU_ASSET_URL_UNSUPPORTED`, `MEGAMENU_REFERENCED`,
+`MEGAMENU_DEPTH_EXCEEDED`, `MEGAMENU_KIND_NOT_ALLOWED_AS_TAB`, `MEGAMENU_LINK_TAB_INVALID`, `MEGAMENU_LABEL_REQUIRED`.
 
 Zapis drzewa zwraca też nieblokujące ostrzeżenia w `meta.warnings`: `MEGAMENU_DEPTH_EXCEEDED`,
 `MEGAMENU_DROPDOWN_DEPTH_IGNORED` (zakładka `dropdown` pokazuje jeden poziom) i
@@ -336,8 +336,10 @@ Wszystkie odpowiedzi z błędem mają strukturę zgodną z kontraktem błędów 
 - Pozycje wskazujące bezpośrednio stronę produktu (użyj linku do kategorii albo linku zewnętrznego).
 - Pozycje z plikiem podanym dowolnym adresem URL: naturalnym miejscem na pobieranie, sprawdzanie i
   przechowywanie zewnętrznych plików jest `importFromUrl` po stronie serwera w bibliotece mediów;
-  walidacja modułu Megamenu odrzuca takie pozycje, dopóki ta funkcja nie powstanie. Administratorzy
-  najpierw przesyłają plik do biblioteki i odwołują się do niego po identyfikatorze.
+  walidacja modułu Megamenu odrzuca takie pozycje, dopóki ta funkcja nie powstanie, odpowiedzią
+  `400 MEGAMENU_ASSET_URL_UNSUPPORTED` z identyfikatorem pozycji `itemId` w `details` (do zgłoszenia
+  #640 była to odpowiedź `400 VALIDATION_FAILED`). Administratorzy najpierw przesyłają plik do
+  biblioteki i odwołują się do niego po identyfikatorze.
 - Budowanie drzewa przez przeciąganie w panelu: edytor v1 korzysta z przycisków w górę, w dół, usuń
   i dodaj pozycję podrzędną. `@dnd-kit` nie jest dołączany do aplikacji panelu, a założenia
   kładły nacisk na samą edycję drzewa, a nie na wyrafinowane gesty.

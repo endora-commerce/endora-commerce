@@ -140,10 +140,14 @@ export async function validateTarget(
         // Assets Library (T068). The Library does not yet expose
         // `importFromUrl`; until it does, refuse free URLs at the
         // validator with a clear error so admins know to upload first.
+        // A missing capability, not a malformed item, so a code of its own
+        // (issue #640) rather than `VALIDATION_FAILED`, which the envelope
+        // never translates.
         throw new HttpError(
           400,
-          ERROR_CODES.VALIDATION_FAILED,
+          ERROR_CODES.MEGAMENU_ASSET_URL_UNSUPPORTED,
           'Free-URL asset items are not yet supported. Upload the asset to the Assets Library first and reference it by id.',
+          { itemId: item.id },
         );
       }
       return;
