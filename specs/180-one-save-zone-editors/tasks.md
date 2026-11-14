@@ -19,11 +19,11 @@ seen failing first. Format: `[ID] [P?] [Story] Description` — `[P]` = parallel
 - [x] T014 [P] [US6] Failing tests `admin/test/kit/save-session.test.tsx`: zone registration; host-owned registration under `hostModule` (and refusal without one); draft survives unmount; clean unmounted entry removed; `loaded` does not overwrite a dirty draft; `writable:false` never dirty; module no longer visible → dropped + notice; boundary crash → dropped + notice; `resetKey` clears; `discardAll`
 - [x] T015 [US6] Zone contribution context in `packages/admin-kit/src/zones/AdminZone.tsx`
 - [x] T016 [US6] `SaveSessionProvider`, `useSaveSession`, `useSaveParticipant` in `packages/admin-kit/src/save-session/`; explicit exports in `packages/admin-kit/src/lib/index.ts` — plus `INERT_SAVE_SESSION`, which the five hosts pass until their own WP adopts the session
-- [ ] T017 [P] [US6] Failing tests `admin/test/kit/save-session-controls.test.tsx`: `SaveSessionActions` count / inert / note; `SaveSessionSummary` per outcome, "Show" callback, `role="alert"`, axe clean
-- [ ] T018 [US6] `packages/admin-kit/src/components/save-session/` (WP-5); exports in `packages/admin-kit/src/components/index.ts`
-- [ ] T019 [P] [US9] Failing test `admin/test/kit/custom-field-values-participant.test.tsx`: with `saveSession` it registers and renders no Save; without it, unchanged (FR-062)
-- [ ] T020 [US9] `saveSession` option in `packages/admin-kit/src/components/custom-field-values/CustomFieldValuesPanel.tsx`
-- [ ] T021 [P] `core` strings `saveSession.*` in `packages/modules/_i18n/i18n/{en,pl}.json` — partial: WP-1 shipped `saveSession.notice.moduleOff`, `saveSession.notice.crashed`, `saveSession.error.moduleOff`; the `saveSession.summary.*` keys ship with WP-5
+- [x] T017 [P] [US6] Failing tests `admin/test/kit/save-session-controls.test.tsx`: `SaveSessionActions` count / inert / note; `SaveSessionSummary` per outcome, "Show" callback, `role="alert"`, axe clean
+- [x] T018 [US6] `packages/admin-kit/src/components/save-session/` (WP-5); exports in `packages/admin-kit/src/components/index.ts`
+- [x] T019 [P] [US9] Failing test `admin/test/kit/custom-field-values-participant.test.tsx`: with `saveSession` it registers and renders no Save; without it, unchanged (FR-062)
+- [x] T020 [US9] `saveSession` option in `packages/admin-kit/src/components/custom-field-values/CustomFieldValuesPanel.tsx`
+- [x] T021 [P] `core` strings `saveSession.*` in `packages/modules/_i18n/i18n/{en,pl}.json` — WP-1 shipped the notices and `saveSession.error.moduleOff`; WP-5 the `saveSession.action.*` and `saveSession.summary.*` keys
 - [x] T022 Changesets: contracts minor, admin-kit minor
 
 ## Phase 3: Product editor — WP-2 + WP-3 (US1–US5, P1)

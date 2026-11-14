@@ -2,6 +2,7 @@ import { useCallback, useEffect, useMemo, useState, type ReactNode } from 'react
 import type {
   CustomFieldAdminAccess,
   CustomFieldDefinitionDto,
+  EditorSaveSessionHandle,
   SupportedEntityType,
 } from '@endora-commerce/contracts';
 // `apiClient` comes through the kit's published `lib` **barrel** rather than
@@ -15,6 +16,8 @@ import { Card, CardContent, CardHeader, CardTitle } from '../../ui/card.js';
 import { Label } from '../../ui/label.js';
 import { Select } from '../../ui/select.js';
 import { useTranslation } from '../../i18n/useTranslation.js';
+import { INERT_SAVE_SESSION, useSaveParticipant } from '../../save-session/SaveSessionProvider.js';
+import type { SaveParticipantHandlers } from '../../save-session/session-store.js';
 
 export interface CustomFieldValuesPanelProps {
   entityType: SupportedEntityType;
@@ -47,6 +50,20 @@ export interface CustomFieldValuesPanelProps {
    * definition's default label. `en` when omitted, as before the prop existed.
    */
   language?: string;
+  /**
+   * Feature 180 (FR-062, OQ-11 = A) — the host editor's save session. Given one, the panel
+   * takes part in the page's one Save as a **host-owned section** (under the session's
+   * `hostModule`) and renders no Save of its own: the page Save writes it through `save`,
+   * after the host's own write. Without one, the panel is unchanged.
+   */
+  saveSession?: EditorSaveSessionHandle;
+}
+
+type Bag = Record<string, unknown>;
+
+/** Whether two stored values are the same value (they are JSON on the wire). */
+function sameValue(left: unknown, right: unknown): boolean {
+  return JSON.stringify(left ?? null) === JSON.stringify(right ?? null);
 }
 
 /**
@@ -109,6 +126,11 @@ export interface CustomFieldValuesPanelProps {
  * convenience, not access control; the API accepts every level. A refusal the
  * host reports for a non-`edit` field is shown at the top of the panel with the
  * field's label and level, since there is no input to show it at.
+ *
+ * **Under a page Save** (feature 180, FR-062). With `saveSession` the edited bag lives in the
+ * session, so it survives the panel unmounting, counts one change per edited `edit`-level key,
+ * and is written by the page's Save through the host's `save` — the panel's own button is not
+ * rendered. A refusal of that write shows at its field, as one from `fieldErrors` does.
  */
 export function CustomFieldValuesPanel({
   entityType,
@@ -117,6 +139,7 @@ export function CustomFieldValuesPanel({
   onChange,
   fieldErrors,
   language = 'en',
+  saveSession,
 }: CustomFieldValuesPanelProps): ReactNode {
   const t = useTranslation('core');
   const [defs, setDefs] = useState<CustomFieldDefinitionDto[]>([]);
@@ -137,6 +160,40 @@ export function CustomFieldValuesPanel({
       Object.fromEntries(Object.entries(bag).filter(([key]) => editKeys.has(key))),
     [editKeys],
   );
+
+  // Feature 180 — the page-Save participation. The hook runs in both modes (hooks cannot be
+  // conditional); with no session it is handed the inert handle and takes part in nothing.
+  const inSession = saveSession !== undefined;
+  // `loaded` seeds the session by identity, and a host may pass a fresh object each render.
+  const valuesKey = JSON.stringify(values);
+  // eslint-disable-next-line react-hooks/exhaustive-deps -- `valuesKey` is the bag's identity.
+  const loaded = useMemo(() => values, [valuesKey]);
+  const handlers = useMemo<SaveParticipantHandlers<Bag>>(
+    () => ({
+      changeCount: (next, baseline) => [...editKeys].filter((key) => !sameValue(next[key], baseline[key])).length,
+      validate: async () => ({ fields: {} }),
+      save: async (next) => {
+        if (save) await save(project(next));
+        return next;
+      },
+    }),
+    [editKeys, project, save],
+  );
+  const participant = useSaveParticipant<Bag>(
+    saveSession ?? INERT_SAVE_SESSION,
+    {
+      key: 'custom-fields',
+      label: t('customFields.title'),
+      writable: inSession && save !== undefined && editKeys.size > 0,
+      loaded,
+    },
+    handlers,
+  );
+  const current: Bag = inSession ? (participant.draft ?? values) : draft;
+  const refusals: Readonly<Record<string, string>> = {
+    ...(participant.issues?.fields ?? {}),
+    ...(fieldErrors ?? {}),
+  };
 
   useEffect(() => {
     let live = true;
@@ -161,8 +218,9 @@ export function CustomFieldValuesPanel({
   }, [entityType]);
 
   const set = (key: string, value: unknown): void => {
-    const next = { ...draft, [key]: value };
-    setDraft(next);
+    const next = { ...current, [key]: value };
+    if (inSession) participant.setDraft((previous) => ({ ...previous, [key]: value }));
+    else setDraft(next);
     onChange?.(project(next));
   };
 
@@ -185,7 +243,7 @@ export function CustomFieldValuesPanel({
   const nonEditRefusals = defs.flatMap((d) => {
     const level = accessOf(d);
     if (level === 'edit') return [];
-    const message = fieldErrors?.[d.key] ?? saveRefusals[d.key];
+    const message = refusals[d.key] ?? saveRefusals[d.key];
     if (!message) return [];
     return [
       {
@@ -227,19 +285,19 @@ export function CustomFieldValuesPanel({
               <div key={d.id} className="space-y-1">
                 <Label>{d.label[language] ?? d.labelDefault}</Label>
                 <p id={`cf-${d.key}`} aria-readonly="true" className="text-sm">
-                  {formatReadValue(d, draft[d.key], language, t)}
+                  {formatReadValue(d, current[d.key], language, t)}
                 </p>
               </div>
             );
           }
-          const fieldError = fieldErrors?.[d.key];
+          const fieldError = refusals[d.key];
           return (
             <div key={d.id} className="space-y-1">
               <Label htmlFor={`cf-${d.key}`}>
                 {d.label[language] ?? d.labelDefault}
                 {d.required && <span className="text-destructive"> *</span>}
               </Label>
-              {renderInput(d, draft[d.key], (v) => set(d.key, v), language)}
+              {renderInput(d, current[d.key], (v) => set(d.key, v), language)}
               {fieldError ? (
                 <p role="alert" className="text-xs text-destructive">
                   {fieldError}
@@ -248,7 +306,7 @@ export function CustomFieldValuesPanel({
             </div>
           );
         })}
-        {save && editKeys.size > 0 && (
+        {save && !inSession && editKeys.size > 0 && (
           <Button size="sm" disabled={saving} onClick={() => void onSave()}>
             {t('customFields.save')}
           </Button>
