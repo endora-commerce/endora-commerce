@@ -69,6 +69,7 @@ import { Migration20261030T113908CatalogScopeModelMedia } from './20261030T11390
 import { Migration20261104T121504CatalogProductContentValues } from './20261104T121504_catalog_product_content_values.js';
 import { Migration20261107T093126CatalogSkuUniqueAmongLive } from './20261107T093126_catalog_sku_unique_among_live.js';
 import { Migration20261107T120008CatalogProductCreatedAtMilliseconds } from './20261107T120008_catalog_product_created_at_milliseconds.js';
+import { Migration20261114T000706CatalogCategoryMainImage } from './20261114T000706_catalog_category_main_image.js';
 
 export const migrations = [
   Migration20260429T064146CatalogAttributeSetsInit,
@@ -113,6 +114,7 @@ export const migrations = [
   Migration20261104T121504CatalogProductContentValues,
   Migration20261107T093126CatalogSkuUniqueAmongLive,
   Migration20261107T120008CatalogProductCreatedAtMilliseconds,
+  Migration20261114T000706CatalogCategoryMainImage,
 ];
 
 export {
@@ -158,4 +160,5 @@ export {
   Migration20261104T121504CatalogProductContentValues,
   Migration20261107T093126CatalogSkuUniqueAmongLive,
   Migration20261107T120008CatalogProductCreatedAtMilliseconds,
+  Migration20261114T000706CatalogCategoryMainImage,
 };
