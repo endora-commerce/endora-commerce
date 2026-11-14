@@ -156,6 +156,7 @@ export class ApiKeyService {
     input: { scopes: string[]; binding?: ApiKeyBinding; expiresAt?: Date },
   ): Promise<void> {
     const issues: ValidationIssue[] = [];
+    let inactiveAccount: HttpError | null = null;
     const hasOrdersScope = input.scopes.some((s) => s.startsWith('orders:'));
 
     if (hasOrdersScope && !input.binding) {
@@ -214,17 +215,38 @@ export class ApiKeyService {
       const account = await this.bindingPorts.customerAccounts.findById(
         input.binding.customerAccountId,
       );
-      const accountActive =
-        account !== null &&
-        account.blockedAt === null &&
-        account.deletedAt === null &&
-        account.anonymizedAt === null;
-      if (!account || !accountActive || account.organizationId !== input.binding.organizationId) {
-        // B3
+      // B3. A missing account and an account of another organization are
+      // validation: the id names nothing, or two submitted ids do not relate.
+      // An account of the bound organization that is blocked, deleted or
+      // anonymized is its stored state refusing a well-formed request (issue
+      // #644): it is still listed as an issue, and has its own code when it is
+      // the only one.
+      if (account === null) {
+        issues.push({ path: 'binding.customerAccountId', issue: 'Service account does not exist.' });
+      } else if (account.organizationId !== input.binding.organizationId) {
         issues.push({
           path: 'binding.customerAccountId',
-          issue: 'Service account must be an active customer account of the bound organization.',
+          issue: 'Service account does not belong to the bound organization.',
         });
+      } else if (
+        account.blockedAt !== null ||
+        account.deletedAt !== null ||
+        account.anonymizedAt !== null
+      ) {
+        const removed = account.deletedAt !== null || account.anonymizedAt !== null;
+        const issue = removed ? 'Service account has been removed.' : 'Service account is blocked.';
+        inactiveAccount = new HttpError(
+          422,
+          ERROR_CODES.API_KEY_SERVICE_ACCOUNT_INACTIVE,
+          issue,
+          {
+            code: removed ? 'removed' : 'blocked',
+            field: 'binding.customerAccountId',
+            customerAccountId: input.binding.customerAccountId,
+            organizationId: input.binding.organizationId,
+          },
+        );
+        issues.push({ path: 'binding.customerAccountId', issue });
       }
     }
 
@@ -233,6 +255,7 @@ export class ApiKeyService {
       issues.push({ path: 'expiresAt', issue: 'Expiry must be a future instant.' });
     }
 
+    if (inactiveAccount !== null && issues.length === 1) throw inactiveAccount;
     if (issues.length > 0) {
       throw new HttpError(
         422,

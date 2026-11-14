@@ -414,6 +414,14 @@ export const MINTED_ERROR_CODES: MintedErrorCodes = {
       'own role does not hold. The noun is the API key and its scopes, columns on the row ' +
       '`api_keys` owns, and the one raise site is its service.',
   },
+  API_KEY_SERVICE_ACCOUNT_INACTIVE: {
+    to: 'api_keys',
+    reason:
+      'Minted by issue #644 (#86) for a bound key whose service account belongs to the bound ' +
+      'organization but is blocked, deleted or anonymized. It was one branch of the aggregate ' +
+      '`422 VALIDATION_FAILED`; the account\'s stored state refuses a well-formed request. The ' +
+      'noun is the API key binding, `api_keys`\' own row, and the one raise site is its service.',
+  },
   NEW_PASSWORD_UNCHANGED: {
     to: 'admin_users',
     reason:

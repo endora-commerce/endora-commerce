@@ -478,6 +478,14 @@ export const ERROR_CODES = {
   // Distributor API (feature 062)
   API_KEY_NOT_BOUND: 'API_KEY_NOT_BOUND',
   API_KEY_CHANNEL_MISMATCH: 'API_KEY_CHANNEL_MISMATCH',
+  /**
+   * 422 — the bound key's service account exists in the bound organization but
+   * is blocked (token `blocked`) or deleted / anonymized (token `removed`)
+   * (`details.field`, `customerAccountId`, `organizationId`). Raised only when
+   * it is the sole binding problem; otherwise the aggregate `VALIDATION_FAILED`
+   * lists it (issue #644, #86).
+   */
+  API_KEY_SERVICE_ACCOUNT_INACTIVE: 'API_KEY_SERVICE_ACCOUNT_INACTIVE',
   IDEMPOTENCY_KEY_REQUIRED: 'IDEMPOTENCY_KEY_REQUIRED',
   IDEMPOTENCY_KEY_REUSED: 'IDEMPOTENCY_KEY_REUSED',
   SKU_NOT_IN_ASSORTMENT: 'SKU_NOT_IN_ASSORTMENT',
