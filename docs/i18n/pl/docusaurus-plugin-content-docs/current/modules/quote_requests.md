@@ -869,6 +869,15 @@ istniejący moduł ustawień.
 | `quote_requests.show_add_to_quote_on_card` | boolean | `true` | Pokazuje lub ukrywa przycisk „Add to quote” na kartach produktów w storefroncie. |
 | `quote_requests.show_add_to_quote_on_pdp` | boolean | `true` | Pokazuje lub ukrywa przycisk „Add to quote” na stronach produktów. |
 
+Zmienna środowiskowa platformy `ADMIN_BASE_URL`, czyli adres, pod którym działa
+panel administracyjny, dodaje do dwóch e-maili dla operatorów
+(`quote_request_operator_submitted` i `quote_request_operator_resubmitted`)
+przycisk **Otwórz zapytanie ofertowe**, prowadzący do ekranu zapytania w panelu.
+Odpowiada mu zmienna `quote.adminUrl`. Bez `ADMIN_BASE_URL` zmienna jest pusta,
+a przycisk zostaje pominięty; e-mail nadal podaje numer zapytania. Adres
+względny ani zgadywany nigdy nie jest wysyłany. Szablon zmieniony, zanim
+przycisk się pojawił, nie używa tej zmiennej i wygląda tak jak wcześniej.
+
 ## Zadania w tle
 
 Zadanie wygaszania działa **co 30 minut** w każdym procesie, który obsługuje kolejki

@@ -103,7 +103,8 @@ Contract and integration files do not run on merge requests (D-198): run them lo
     or a role `orgWideViewerRoleIds` names), not only deleted/blocked/anonymised. The operator
     e-mail is sent with `salesChannelId: null` (platform-wide content, the `tasks` precedent) and
     declares no `quote.url`: it carries no link until #185 (OQ-1 = A), so the variable would always
-    be empty. `customer.name` is the recipient on both sides, as matrix §3 says. A send error is
+    be empty. (#1204 added the link afterwards: `quote.adminUrl`, the bell's admin path on
+    `configuredAdminBaseUrl()`, sent only when `ADMIN_BASE_URL` is set — the #1091 shape.) `customer.name` is the recipient on both sides, as matrix §3 says. A send error is
     stored with the recipient's address replaced by `<recipient>`. The storefront link reads
     `sales_channels.storefront_url`; blank counts as none. The defaults ship as `en-US` / `pl-PL`.
     T044's "off → no processing" is held by `src/backend/expiry-sweep-is-scheduled.test.ts`

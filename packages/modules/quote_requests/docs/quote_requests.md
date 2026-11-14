@@ -959,6 +959,15 @@ group and are configured through the existing settings module.
 | `quote_requests.show_add_to_quote_on_card` | boolean | `true` | Toggle the "Add to quote" button on storefront product cards. |
 | `quote_requests.show_add_to_quote_on_pdp` | boolean | `true` | Toggle the "Add to quote" button on product detail pages. |
 
+The platform's `ADMIN_BASE_URL` environment variable, the address the admin
+panel is served at, gives the two operator e-mails (`quote_request_operator_submitted`
+and `quote_request_operator_resubmitted`) an **Open the quote request** button
+to the request's admin screen. The variable is `quote.adminUrl`. Without
+`ADMIN_BASE_URL` the variable is empty and the button is left out; the e-mail
+still names the request number. A relative or guessed link is never sent. A
+template edited before the button existed does not use the variable and
+renders as before.
+
 ## Background jobs
 
 The expiry sweep runs **every 30 minutes** in every process that consumes

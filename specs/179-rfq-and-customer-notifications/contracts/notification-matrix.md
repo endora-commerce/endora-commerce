@@ -50,7 +50,7 @@ Rules:
 | `customer_in_app` | `title` + `titleMessage` `{ scope: 'quote_requests', key: 'customerNotifications.<change>.title', params: { number } }`; no body | `/quote-requests/<id>` |
 | `customer_push` | same sentence as `customer_in_app`, resolved in the channel's default language (push is rendered once, on the device) | `/quote-requests/<id>` |
 | `admin_in_app` | `title` + `titleMessage` `{ scope: 'quote_requests', key: 'notifications.<change>.title', params: { number } }`; no body | `/quote-requests/<id>` (admin route) |
-| `admin_email` | template of §3, administrator's preferred language | none in this feature; added after #185 (owner ruling OQ-1) |
+| `admin_email` | template of §3, administrator's preferred language | `<ADMIN_BASE_URL>/quote-requests/<id>` (`quote.adminUrl`) when `ADMIN_BASE_URL` is set; otherwise none — added in #1204, after #185 (owner ruling OQ-1) |
 
 `number` is the business id (`QR-000153`), or the first eight characters of the id when the
 request has no business id. No product names, prices or Organization names travel in the in-app or
@@ -72,8 +72,8 @@ no link), `customer.name` (the recipient), `organization.name`, `channel.name`.
 | `quote_request_customer_revised` | `revised` | `quote.validUntil`, `quote.revisionNumber` |
 | `quote_request_customer_approved` | `approved` | `quote.validUntil` |
 | `quote_request_customer_canceled` | `canceled` | `reason` |
-| `quote_request_operator_submitted` | `submitted` | `actor.name`, `quote.lineCount` |
-| `quote_request_operator_resubmitted` | `resubmitted` | `actor.name`, `quote.lineCount`, `quote.previousNumber` |
+| `quote_request_operator_submitted` | `submitted` | `actor.name`, `quote.lineCount`, `quote.adminUrl` |
+| `quote_request_operator_resubmitted` | `resubmitted` | `actor.name`, `quote.lineCount`, `quote.previousNumber`, `quote.adminUrl` |
 
 Each ships `defaultSubject` and `defaultContent` for `en` and `pl` through `emailDefaultsPort`.
 None is `nonDeactivatable`. None carries an attachment.
