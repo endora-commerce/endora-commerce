@@ -713,6 +713,15 @@ export const manifest = defineModuleManifest({
     { code: 'ORDER_BELOW_MINIMUM_VALUE' },
     { code: 'ORDER_COMMENTS_CLOSED' },
     { code: 'ORDER_CLONE_NO_LINES' },
+    // Issue #627 (#86) — the order-status configuration and the external API
+    // intake. The status code is `details.statusCode`; the tokens pick the
+    // sentence for the two raise sites a code has.
+    { code: 'ORDER_STATUS_CODE_TAKEN' },
+    { code: 'ORDER_STATUS_TERMINAL_HAS_TRANSITIONS', tokens: ['mark_terminal', 'add_transition'] },
+    { code: 'ORDER_STATUS_NOT_DELETABLE', tokens: ['initial', 'system'] },
+    { code: 'ORDER_STATUS_IN_USE' },
+    { code: 'ORDER_INTAKE_LINES_REFUSED' },
+    { code: 'ORDER_INTAKE_BUSY' },
   ],
   settings,
   // Feature 074 (Constitution XVII), test C2 — functional base. This module had

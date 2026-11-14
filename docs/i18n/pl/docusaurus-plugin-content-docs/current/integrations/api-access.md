@@ -145,8 +145,14 @@ Idempotency-Key: acme-order-1001
 - Ponowne użycie klucza z **inną** treścią ⇒ `409 IDEMPOTENCY_KEY_REUSED`.
 - Adresy: podaj identyfikatory istniejących adresów organizacji albo obiekty `deliveryAddress` /
   `billingAddress` bezpośrednio w treści.
-- Odrzucenie pojedynczych pozycji daje odpowiedź `422` dla całego zamówienia, z problemem przy
-  każdej pozycji (`SKU_NOT_IN_ASSORTMENT`, `PRICE_UNAVAILABLE`); nic nie zostaje zapisane.
+- Odrzucenie pojedynczych pozycji daje odpowiedź `422 ORDER_INTAKE_LINES_REFUSED` dla całego
+  zamówienia, której `details` to tablica problemów przy każdej pozycji (`{ path, issue, sku }`,
+  `issue` `SKU_NOT_IN_ASSORTMENT` albo `PRICE_UNAVAILABLE`); nic nie zostaje zapisane. Do zgłoszenia
+  #627 kodem było `VALIDATION_FAILED`; tablica się nie zmieniła.
+- Inne przyjmowanie zamówienia dla tego samego klucza wciąż trwa ⇒ `409 ORDER_INTAKE_BUSY`. Ponów
+  żądanie z tym samym `Idempotency-Key`: ponowienie trafi na zamówienie złożone przez to drugie
+  przyjmowanie. Do zgłoszenia #627 była to odpowiedź `409 VALIDATION_FAILED` z `details.code`
+  `intake_busy`, którego już nie ma.
 - Pozycja, której SKU należy do asortymentu kanału, ale której produkt nie jest teraz dostępny dla
   Twojej organizacji w tym kanale — wyłączony w kanale, zarchiwizowany, poza oknem publikacji albo
   ograniczony do innych klientów — odrzuca całe zamówienie odpowiedzią `404 PRODUCT_NOT_FOUND`, bez nazwy
@@ -194,6 +200,8 @@ ponawiania opisuje [przegląd integracji](./README.md)). Dla partnerów istotne 
 | `API_KEY_CHANNEL_MISMATCH` | 403 | Klucz powiązany wskazał inny kanał sprzedaży |
 | `IDEMPOTENCY_KEY_REQUIRED` | 422 | Brak `Idempotency-Key` przy składaniu zamówienia |
 | `IDEMPOTENCY_KEY_REUSED` | 409 | Ten sam klucz idempotencji, inna treść |
+| `ORDER_INTAKE_BUSY` | 409 | Trwa inne przyjmowanie zamówienia dla tego klucza; ponów z tym samym `Idempotency-Key` |
+| `ORDER_INTAKE_LINES_REFUSED` | 422 | Odrzucono co najmniej jedną pozycję; `details` podaje problem każdej pozycji |
 | `SKU_NOT_IN_ASSORTMENT` | 422 (dla pozycji) | SKU nie występuje w asortymencie powiązanego kanału |
 | `PRICE_UNAVAILABLE` | 422 (dla pozycji) | Nie da się wyznaczyć ceny dla organizacji |
 | `PRODUCT_NOT_FOUND` | 404 | Produkt z asortymentu nie jest teraz dostępny dla organizacji w kanale |

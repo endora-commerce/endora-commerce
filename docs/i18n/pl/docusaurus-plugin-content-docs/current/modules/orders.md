@@ -267,6 +267,19 @@ dziewięcioma domyślnymi statusami — `new` (początkowy, nie da się go usun�
 `/api/v1/admin/orders/statuses` i `/transitions`; graf jest przechowywany w pamięci procesu i
 sprawdzany ponownie przy każdej zmianie.
 
+Zmiana, której nie pozwala stan grafu, ma własny kod i zdanie po angielsku i po polsku, czytane w
+języku operatora. Do zgłoszenia #627 były to odpowiedzi `VALIDATION_FAILED`; status się nie zmienił.
+Kod statusu trafia do `details.statusCode`, bo `details.code` jest miejscem na token odmowy.
+
+| Kod | Status | Kiedy | `details` |
+| --- | --- | --- | --- |
+| `ORDER_STATUS_CODE_TAKEN` | `409` | `POST …/statuses` — inny status ma już ten kod | `statusCode` |
+| `ORDER_STATUS_TERMINAL_HAS_TRANSITIONS` | `409` / `422` | `PATCH …/statuses/:code` oznaczający status z przejściami wychodzącymi jako końcowy (`code` `mark_terminal`) albo `PUT …/transitions` dodający przejście ze statusu końcowego (`code` `add_transition`) | `statusCode` oraz `outgoingCount` albo `toStatusCode` |
+| `ORDER_STATUS_NOT_DELETABLE` | `409` | `DELETE …/statuses/:code` statusu początkowego (`code` `initial`) albo systemowego (`code` `system`) | `statusCode` |
+| `ORDER_STATUS_IN_USE` | `409` | `DELETE …/statuses/:code`, gdy są w nim zamówienia | `statusCode`, `orderCount` |
+
+Przejście wskazujące nieistniejący status nadal daje `VALIDATION_FAILED`.
+
 `OrderTransitionService.apply()` to jedyne miejsce, które rozstrzyga o przejściach: odrzuca
 przejście, dla którego nie skonfigurowano krawędzi, albo przejście ze statusu końcowego, uruchamia
 **zabezpieczenia wstępne** z możliwością zablokowania (`onOrderTransitionGuard`), a następnie

@@ -291,7 +291,8 @@ describe('POST /api/v1/external/orders — contract (062 / T020)', () => {
     const body = res.json() as {
       error: { code: string; details: Array<{ path: string; issue: string }> };
     };
-    expect(body.error.code).toBe(ERROR_CODES.VALIDATION_FAILED);
+    // Its own code since issue #627; the per-line array is unchanged.
+    expect(body.error.code).toBe(ERROR_CODES.ORDER_INTAKE_LINES_REFUSED);
     const issues = body.error.details;
     expect(issues.some((d) => d.path === 'lines.1.sku' && d.issue === ERROR_CODES.SKU_NOT_IN_ASSORTMENT)).toBe(true);
     expect(issues.some((d) => d.path === 'lines.2.sku' && d.issue === ERROR_CODES.SKU_NOT_IN_ASSORTMENT)).toBe(true);
@@ -311,7 +312,7 @@ describe('POST /api/v1/external/orders — contract (062 / T020)', () => {
     const body = res.json() as {
       error: { code: string; details: Array<{ path: string; issue: string }> };
     };
-    expect(body.error.code).toBe(ERROR_CODES.VALIDATION_FAILED);
+    expect(body.error.code).toBe(ERROR_CODES.ORDER_INTAKE_LINES_REFUSED);
     expect(
       body.error.details.some(
         (d) => d.path === 'lines.0.sku' && d.issue === ERROR_CODES.PRICE_UNAVAILABLE,

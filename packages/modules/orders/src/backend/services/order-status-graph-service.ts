@@ -131,7 +131,10 @@ export class OrderStatusGraphService {
     await this.#audited('order_status.create', input.code, async (em) => {
       const existing = await em.findOne(OrderStatus, { code: input.code });
       if (existing) {
-        throw new HttpError(409, ERROR_CODES.VALIDATION_FAILED, `Status "${input.code}" already exists.`);
+        // The status code is `statusCode`: `details.code` is the token slot (issue #627).
+        throw new HttpError(409, ERROR_CODES.ORDER_STATUS_CODE_TAKEN, `Status "${input.code}" already exists.`, {
+          statusCode: input.code,
+        });
       }
       const status = em.create(OrderStatus, {
         code: input.code,
@@ -182,8 +185,9 @@ export class OrderStatusGraphService {
           if (outgoing > 0) {
             throw new HttpError(
               409,
-              ERROR_CODES.VALIDATION_FAILED,
+              ERROR_CODES.ORDER_STATUS_TERMINAL_HAS_TRANSITIONS,
               `Cannot mark "${code}" terminal while it has outgoing transitions.`,
+              { code: 'mark_terminal', statusCode: code, outgoingCount: outgoing },
             );
           }
         }
@@ -202,17 +206,24 @@ export class OrderStatusGraphService {
       const status = await em.findOne(OrderStatus, { code });
       if (!status) throw new HttpError(404, ERROR_CODES.NOT_FOUND, `Status "${code}" not found.`);
       if (code === ORDER_STATUS_INITIAL || status.isInitial) {
-        throw new HttpError(409, ERROR_CODES.VALIDATION_FAILED, 'The initial status cannot be deleted.');
+        throw new HttpError(409, ERROR_CODES.ORDER_STATUS_NOT_DELETABLE, 'The initial status cannot be deleted.', {
+          code: 'initial',
+          statusCode: code,
+        });
       }
       if (status.isSystem) {
-        throw new HttpError(409, ERROR_CODES.VALIDATION_FAILED, `System status "${code}" cannot be deleted.`);
+        throw new HttpError(409, ERROR_CODES.ORDER_STATUS_NOT_DELETABLE, `System status "${code}" cannot be deleted.`, {
+          code: 'system',
+          statusCode: code,
+        });
       }
       const inUse = await em.count(Order, { status: code });
       if (inUse > 0) {
         throw new HttpError(
           409,
-          ERROR_CODES.VALIDATION_FAILED,
+          ERROR_CODES.ORDER_STATUS_IN_USE,
           `Cannot delete status "${code}" while ${inUse} order(s) use it.`,
+          { statusCode: code, orderCount: inUse },
         );
       }
       const edges = await em.find(OrderStatusTransition, {
@@ -243,8 +254,9 @@ export class OrderStatusGraphService {
         if (graph.isTerminal(edge.fromStatusCode)) {
           throw new HttpError(
             422,
-            ERROR_CODES.VALIDATION_FAILED,
+            ERROR_CODES.ORDER_STATUS_TERMINAL_HAS_TRANSITIONS,
             `Terminal status "${edge.fromStatusCode}" cannot have outgoing transitions.`,
+            { code: 'add_transition', statusCode: edge.fromStatusCode, toStatusCode: edge.toStatusCode },
           );
         }
         const exists = await em.findOne(OrderStatusTransition, {

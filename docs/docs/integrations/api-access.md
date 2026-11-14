@@ -156,8 +156,14 @@ Idempotency-Key: acme-order-1001
 - Reusing a key with a **different** payload ⇒ `409 IDEMPOTENCY_KEY_REUSED`.
 - Addresses: pass existing organization address ids, or inline
   `deliveryAddress` / `billingAddress` objects.
-- Per-line refusals are whole-order `422`s with per-line issues
-  (`SKU_NOT_IN_ASSORTMENT`, `PRICE_UNAVAILABLE`); nothing is persisted.
+- Per-line refusals are a whole-order `422 ORDER_INTAKE_LINES_REFUSED` whose
+  `details` is the array of per-line issues (`{ path, issue, sku }`, `issue`
+  `SKU_NOT_IN_ASSORTMENT` or `PRICE_UNAVAILABLE`); nothing is persisted. Until
+  issue #627 the code was `VALIDATION_FAILED`; the array is unchanged.
+- Another intake for the same key still in progress ⇒ `409 ORDER_INTAKE_BUSY`.
+  Retry with the same `Idempotency-Key`: the retry lands on the order the other
+  intake placed. Until issue #627 this was `409 VALIDATION_FAILED` with
+  `details.code` `intake_busy`, which is gone.
 - A line whose SKU is in the channel's assortment but whose product is not
   available to your Organization there now — switched off in the channel,
   archived, outside its publication window, or restricted to other
@@ -213,6 +219,8 @@ retry semantics). Two facts matter for partners:
 | `API_KEY_CHANNEL_MISMATCH` | 403 | Bound key named a foreign sales channel |
 | `IDEMPOTENCY_KEY_REQUIRED` | 422 | Missing `Idempotency-Key` on order placement |
 | `IDEMPOTENCY_KEY_REUSED` | 409 | Same idempotency key, different payload |
+| `ORDER_INTAKE_BUSY` | 409 | Another intake for the same key is in progress; retry with the same `Idempotency-Key` |
+| `ORDER_INTAKE_LINES_REFUSED` | 422 | One or more lines refused; `details` lists each line's issue |
 | `SKU_NOT_IN_ASSORTMENT` | 422 (per line) | SKU absent from the bound channel's assortment |
 | `PRICE_UNAVAILABLE` | 422 (per line) | No resolvable organization price |
 | `PRODUCT_NOT_FOUND` | 404 | A product in the assortment is not available to the Organization in the channel now |
