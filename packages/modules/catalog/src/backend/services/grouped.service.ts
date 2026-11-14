@@ -67,11 +67,12 @@ export class GroupedService {
     const em = this.emFactory();
     await this.assertGroupedParent(em, parentProductId);
     if (input.childProductId === parentProductId) {
-      throw new HttpError(
-        400,
-        ERROR_CODES.VALIDATION_FAILED,
-        'A grouped product cannot include itself as a child.',
-      );
+      // Issue #624 (#86) — the product links' self-reference code, the token
+      // choosing the grouped product's sentence.
+      throw new HttpError(400, ERROR_CODES.SELF_LINK_NOT_ALLOWED, 'A grouped product cannot include itself as a child.', {
+        code: 'grouped',
+        productId: parentProductId,
+      });
     }
     if (!isUuidShape(input.childProductId)) {
       throw new HttpError(
@@ -123,8 +124,9 @@ export class GroupedService {
         if (err instanceof Error && /uniq_grouped_items_parent_child/.test(err.message)) {
           throw new HttpError(
             409,
-            ERROR_CODES.VALIDATION_FAILED,
+            ERROR_CODES.GROUPED_ITEM_ALREADY_EXISTS,
             `Child product "${input.childProductId}" is already in this group.`,
+            { parentProductId, childProductId: input.childProductId, childSku: child.sku },
           );
         }
         throw err;

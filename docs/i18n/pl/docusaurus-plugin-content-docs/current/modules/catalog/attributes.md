@@ -92,7 +92,7 @@ atrybutu. Każda opcja ma:
 
 **Wartości** opcji nie można zmienić, dopóki ma je jakikolwiek produkt — operator musi najpierw
 przenieść zależne wartości. **Etykiety** opcji można zmieniać w każdej chwili. Usunięcie opcji jest
-odrzucane z `409 option_in_use`, dopóki jakikolwiek produkt ma tę wartość.
+odrzucane z `409 ATTRIBUTE_OPTION_IN_USE`, dopóki jakikolwiek produkt ma tę wartość.
 
 ## API publiczne
 
@@ -110,7 +110,7 @@ Trasy administracyjne są chronione przez `catalog:read` (lista i odczyt) i `cat
 | `GET /api/v1/admin/catalog/attributes/:idOrKey/options` | administrator | Lista opcji atrybutów select / enum / multiselect |
 | `POST /api/v1/admin/catalog/attributes/:idOrKey/options` | administrator | Dodanie opcji |
 | `PATCH /api/v1/admin/catalog/attribute-options/:optionId` | administrator | Zmiana `label` / `labelDefault` / `isDefault` / `sortOrder` (wartości `value` opcji nie można zmienić) |
-| `DELETE /api/v1/admin/catalog/attribute-options/:optionId` | administrator | Usunięcie; odrzucane z `409 option_in_use`, dopóki którykolwiek produkt ma tę wartość |
+| `DELETE /api/v1/admin/catalog/attribute-options/:optionId` | administrator | Usunięcie; odrzucane z `409 ATTRIBUTE_OPTION_IN_USE`, dopóki którykolwiek produkt ma tę wartość |
 
 Panel filtrów korzysta z `GET /api/v1/catalog/filters` (opisanego na stronie
 [katalogu](../catalog.md)) — ten endpoint wyznacza widoczne obecnie atrybuty filtrowalne w danym
@@ -151,16 +151,23 @@ już go nie blokuje; usunięcie emituje teraz `attribute.updated.v1`.
 
 ## Błędy
 
-| Kod | Status | Kiedy |
-| --- | --- | --- |
-| `attribute_key_invalid` | 400 | `key` nie pasuje do `^[a-z][a-z0-9_]*$` |
-| `duplicate_key` | 409 | Klucz atrybutu już istnieje (bez rozróżniania wielkości liter) |
-| `attribute_in_use_by_set` | 409 | Usunięcie zablokowane: odwołuje się do niego co najmniej jeden zestaw atrybutów |
-| `attribute_type_change_unsafe` | 409 | Odrzucona zmiana `valueType` — któryś produkt ma wartość, której nowy typ nie potrafi przedstawić |
-| `default_option_ambiguous` | 409 | Więcej niż jedna opcja z `isDefault = true` w atrybucie `select` / `enum` |
-| `option_in_use` | 409 | Usunięcie (albo zmiana wartości) zablokowane: produkt nadal ma tę wartość opcji |
-| `attribute_not_found` | 404 | Brak `:idOrKey` |
-| `option_not_found` | 404 | Brak `:optionId` |
+Każda odmowa, której przyczyną jest zapisany atrybut albo jego opcje, ma własny kod i zdanie po
+angielsku i po polsku, które wymienia wartości z `details`. Do zgłoszenia #624 były to odpowiedzi
+`VALIDATION_FAILED` z angielskim komunikatem albo tokenem maszynowym (`option_in_use: …`).
+Niepoprawne żądanie — klucz niepasujący do `^[a-z][a-z0-9_]*$`, wartość opcji niepasująca do wzorca,
+opcje albo suwak dla typu podanego w tym samym żądaniu — nadal daje `400 VALIDATION_FAILED`.
+
+| Kod | Status | Kiedy | `details` |
+| --- | --- | --- | --- |
+| `ATTRIBUTE_KEY_TAKEN` | 409 | Inny atrybut ma już ten klucz | `attributeKey` |
+| `ATTRIBUTE_VALUE_TYPE_LOCKED` | 409 | Zmiana typu wartości, gdy produkty mają wartości atrybutu | `attributeKey` |
+| `ATTRIBUTE_IN_USE` | 409 | Usunięcie zablokowane: atrybut jest w zestawie atrybutów (token `attribute_sets`) albo produkty mają jego wartości (token `products`) | `attributeKey`, `attributeSetCount` albo `productCount` |
+| `ATTRIBUTE_OPTION_VALUE_TAKEN` | 409 | Atrybut ma już opcję o tej wartości | `attributeKey`, `value` |
+| `ATTRIBUTE_DEFAULT_OPTION_TAKEN` | 409 | Druga opcja domyślna w atrybucie jednokrotnego wyboru, przy tworzeniu albo przy ustawianiu opcji jako domyślnej | `attributeKey`, `value` |
+| `ATTRIBUTE_OPTIONS_NOT_SUPPORTED` | 400 | Opcja zapisywana dla atrybutu, którego typ nie przyjmuje opcji | `attributeKey`, `valueType` |
+| `ATTRIBUTE_OPTION_IN_USE` | 409 | Usunięcie zablokowane: produkty mają tę opcję (token `products` z liczbą) | `attributeKey`, `value`, `productCount` |
+| `ATTRIBUTE_SLIDER_NOT_SUPPORTED` | 400 | Włączenie `displayAsSlider` dla atrybutu, którego zapisany typ nie jest liczbą ani ceną | `attributeKey`, `valueType` |
+| `NOT_FOUND` | 404 | Brak `:idOrKey` albo `:optionId` | — |
 
 ## Storefront
 

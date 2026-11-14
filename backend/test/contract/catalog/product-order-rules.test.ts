@@ -130,13 +130,13 @@ describe('155 — catalogue writes of minOrderQuantity and returnable [contract]
     });
 
     it.each(['bundle', 'grouped', 'virtual'] as const)(
-      'refuses a non-null minimum on a %s product with 422 VALIDATION_FAILED naming the field [D5]',
+      'refuses a non-null minimum on a %s product with 422 MIN_ORDER_QUANTITY_NOT_SUPPORTED_FOR_TYPE naming the field [D5, #624]',
       async (type) => {
         const id = await createdId(`ineligible-${type}`, type);
         const res = await patch(id, { minOrderQuantity: 5 });
         expect(res.statusCode).toBe(422);
         const body = res.json() as { error: { code: string; details?: { field?: string } } };
-        expect(body.error.code).toBe(ERROR_CODES.VALIDATION_FAILED);
+        expect(body.error.code).toBe('MIN_ORDER_QUANTITY_NOT_SUPPORTED_FOR_TYPE');
         expect(body.error.details?.field).toBe('minOrderQuantity');
         expect((await adminGet(id)).minOrderQuantity).toBeNull();
         // Clearing is always allowed — it is how a stored value is removed.
@@ -160,12 +160,12 @@ describe('155 — catalogue writes of minOrderQuantity and returnable [contract]
       expect(read.returnable).toBe(true);
     });
 
-    it('refuses a non-null minimum on a bundle with 422 VALIDATION_FAILED naming the field [D5, analyze F14]', async () => {
+    it('refuses a non-null minimum on a bundle with 422 MIN_ORDER_QUANTITY_NOT_SUPPORTED_FOR_TYPE naming the field [D5, analyze F14, #624]', async () => {
       const sku = `MOQ-${RUN}-create-bundle-min`;
       const res = await createProduct('create-bundle-min', 'bundle', { minOrderQuantity: 4 });
       expect(res.statusCode).toBe(422);
       const body = res.body as { error: { code: string; details?: { field?: string } } };
-      expect(body.error.code).toBe(ERROR_CODES.VALIDATION_FAILED);
+      expect(body.error.code).toBe('MIN_ORDER_QUANTITY_NOT_SUPPORTED_FOR_TYPE');
       expect(body.error.details?.field).toBe('minOrderQuantity');
       expect(await h.em().findOne(Product, { sku })).toBeNull();
     });

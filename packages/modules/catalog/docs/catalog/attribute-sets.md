@@ -39,6 +39,7 @@ omitted, the system Default Set is used.
 | `ATTRIBUTE_SET_CODE_TAKEN` | 409 | `code` already exists |
 | `ATTRIBUTE_SET_IN_USE` | 409 | Delete blocked: at least one Product references the set |
 | `SYSTEM_ATTRIBUTE_SET_IMMUTABLE` | 409 | Mutating the seeded Default Set |
+| `ATTRIBUTE_VALUES_REQUIRED` | 400 | A product save leaves attributes the set requires without a value (`details.attributeKeys`, joined) |
 | `ATTRIBUTE_SET_NOT_FOUND` | 404 | `:id` missing |
 | `ATTRIBUTE_NOT_FOUND` | 404 | `:key` missing on assignment |
 

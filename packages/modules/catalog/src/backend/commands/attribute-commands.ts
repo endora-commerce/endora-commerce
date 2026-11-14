@@ -20,6 +20,7 @@ import {
 import {
   isValidOptionValue,
   validateOptionList,
+  type ValidationError as OptionListError,
 } from '../services/attribute-option-validator.js';
 import type { CatalogAttributeOptionView } from '../services/catalog-attribute-read.service.js';
 import {
@@ -101,20 +102,26 @@ export interface AttributeMutationResult {
  * published guard over the published code union, so the narrowing is structural
  * and the class stops crossing the boundary.
  */
-function toCatalogHttpError(err: unknown, keyForMessage?: string): never {
+function toCatalogHttpError(err: unknown, attributeKey: string, option?: { value: string }): never {
   if (isCustomFieldDefinitionFailure(err)) {
     switch (err.code) {
+      // Issue #624 (#86) — the three refusals the stored state makes have codes
+      // of their own; the published failure carries no values, so the attribute
+      // (and the option) the Command already holds fill `details`.
       case 'duplicate_key':
-        throw new HttpError(
-          409,
-          ERROR_CODES.VALIDATION_FAILED,
-          `Attribute key "${keyForMessage ?? ''}" already exists.`,
-        );
+        throw new HttpError(409, ERROR_CODES.ATTRIBUTE_KEY_TAKEN, `Attribute key "${attributeKey}" already exists.`, {
+          attributeKey,
+        });
       case 'not_found':
         throw new HttpError(404, ERROR_CODES.NOT_FOUND, err.message);
       case 'value_type_locked':
+        throw new HttpError(409, ERROR_CODES.ATTRIBUTE_VALUE_TYPE_LOCKED, err.message, { attributeKey });
       case 'option_in_use':
-        throw new HttpError(409, ERROR_CODES.VALIDATION_FAILED, err.message);
+        // The custom-fields probe, behind catalog's own count: no count to name.
+        throw new HttpError(409, ERROR_CODES.ATTRIBUTE_OPTION_IN_USE, err.message, {
+          attributeKey,
+          ...(option ? { value: option.value } : {}),
+        });
       // Feature 172 — a value type the host does not offer: a malformed request.
       case 'value_type_unsupported':
         throw new HttpError(400, ERROR_CODES.VALIDATION_FAILED, err.message);
@@ -377,10 +384,14 @@ export function updateAttributeCommand(
           currentLegacyType !== 'price' &&
           currentLegacyType !== 'page_builder'
         ) {
+          // Issue #624 (#86) — the stored type refuses it, so a code of its own;
+          // on create the same rule judges the request alone and stays
+          // `VALIDATION_FAILED`.
           throw new HttpError(
             400,
-            ERROR_CODES.VALIDATION_FAILED,
+            ERROR_CODES.ATTRIBUTE_SLIDER_NOT_SUPPORTED,
             `displayAsSlider is only valid for valueType="number" or "price"; got "${currentLegacyType}".`,
+            { attributeKey: def.key, valueType: currentLegacyType },
           );
         }
         ext.displayAsSlider = req.displayAsSlider;
@@ -473,8 +484,9 @@ export function deleteAttributeCommand(
       if (usage.attributeSetCount > 0) {
         throw new HttpError(
           409,
-          ERROR_CODES.VALIDATION_FAILED,
+          ERROR_CODES.ATTRIBUTE_IN_USE,
           `Attribute is still referenced by ${usage.attributeSetCount} attribute set(s); remove from sets first.`,
+          { code: 'attribute_sets', attributeKey: target.key, attributeSetCount: usage.attributeSetCount },
         );
       }
       // A baseline value, a per-channel override or a variant value on a
@@ -483,8 +495,9 @@ export function deleteAttributeCommand(
       if (usage.productValueCount > 0) {
         throw new HttpError(
           409,
-          ERROR_CODES.VALIDATION_FAILED,
+          ERROR_CODES.ATTRIBUTE_IN_USE,
           `Attribute is still referenced by ${usage.productValueCount} product(s); clear values first.`,
+          { code: 'products', attributeKey: target.key, productCount: usage.productValueCount },
         );
       }
       // Page Builder content goes with its attribute (FR-007) — every row,
@@ -579,6 +592,38 @@ function optionResult(
   };
 }
 
+/**
+ * An option write the attribute's **stored** options or type refuse (issue
+ * #624, #86): a value the attribute already has, a second default where one
+ * default is allowed, options on a type that takes none. A malformed value in
+ * the request stays `VALIDATION_FAILED`. `value` is the option being written.
+ */
+function optionListRefusal(
+  error: OptionListError,
+  attr: AttributeOptionCommandTarget,
+  value: string,
+): HttpError {
+  switch (error.code) {
+    case 'duplicate_value':
+      return new HttpError(409, ERROR_CODES.ATTRIBUTE_OPTION_VALUE_TAKEN, error.message, {
+        attributeKey: attr.key,
+        value: error.value ?? value,
+      });
+    case 'default_option_ambiguous':
+      return new HttpError(409, ERROR_CODES.ATTRIBUTE_DEFAULT_OPTION_TAKEN, error.message, {
+        attributeKey: attr.key,
+        value,
+      });
+    case 'attribute_type_unsupported':
+      return new HttpError(400, ERROR_CODES.ATTRIBUTE_OPTIONS_NOT_SUPPORTED, error.message, {
+        attributeKey: attr.key,
+        valueType: attr.valueType,
+      });
+    case 'invalid_option_value':
+      return new HttpError(400, ERROR_CODES.VALIDATION_FAILED, error.message);
+  }
+}
+
 export function createAttributeOptionCommand(
   deps: AttributeCommandDeps,
   attr: AttributeOptionCommandTarget,
@@ -619,12 +664,7 @@ export function createAttributeOptionCommand(
         attr.valueType,
       );
       if (!result.ok) {
-        const first = result.errors[0]!;
-        throw new HttpError(
-          first.code === 'attribute_type_unsupported' ? 400 : 409,
-          ERROR_CODES.VALIDATION_FAILED,
-          first.message,
-        );
+        throw optionListRefusal(result.errors[0]!, attr, input.value);
       }
       const sortOrder =
         input.sortOrder ??
@@ -686,7 +726,7 @@ export function updateAttributeOptionCommand(
         }));
         const result = validateOptionList(reslist, attr.valueType);
         if (!result.ok) {
-          throw new HttpError(400, ERROR_CODES.VALIDATION_FAILED, result.errors[0]!.message);
+          throw optionListRefusal(result.errors[0]!, attr, existing.value);
         }
       }
       try {
@@ -765,15 +805,16 @@ export function deleteAttributeOptionCommand(
       if (productCount > 0) {
         throw new HttpError(
           409,
-          ERROR_CODES.VALIDATION_FAILED,
-          `option_in_use: ${productCount} product(s) still carry value '${existing.value}'.`,
+          ERROR_CODES.ATTRIBUTE_OPTION_IN_USE,
+          `${productCount} product(s) still carry the value '${existing.value}'.`,
+          { code: 'products', attributeKey: attr.key, value: existing.value, productCount },
         );
       }
       try {
         await deps.apply.applyDeleteOption(em, attr.definitionId, optionId);
         await em.flush();
       } catch (err) {
-        toCatalogHttpError(err, attr.key);
+        toCatalogHttpError(err, attr.key, { value: existing.value });
       }
       return {
         result: undefined,

@@ -219,10 +219,14 @@ describe('Attribute delete for every type (feature 172, US6)', () => {
   });
 
   describe('refusals (FR-008)', () => {
-    async function expectRefused(key: string, reason: RegExp): Promise<void> {
+    // `409 ATTRIBUTE_IN_USE` since issue #624: the token says what still uses
+    // the attribute, and `details` carries the count the sentence names.
+    async function expectRefused(key: string, details: Record<string, unknown>): Promise<void> {
       const res = await del(key);
       expect(res.statusCode, res.body).toBe(409);
-      expect((res.json() as { error: { message: string } }).error.message).toMatch(reason);
+      const error = (res.json() as { error: { code: string; details?: Record<string, unknown> } }).error;
+      expect(error.code).toBe('ATTRIBUTE_IN_USE');
+      expect(error.details).toEqual({ attributeKey: key, ...details });
       expect(await definitionExists(key)).toBe(true);
     }
 
@@ -230,28 +234,28 @@ describe('Attribute delete for every type (feature 172, US6)', () => {
       const id = await createAttribute(k('r_set'), 'input');
       await createSet([id]);
       expect((await usage(id)).attributeSetCount).toBe(1);
-      await expectRefused(k('r_set'), /attribute set/);
+      await expectRefused(k('r_set'), { code: 'attribute_sets', attributeSetCount: 1 });
     });
 
     it('refuses while a live product holds a baseline value', async () => {
       await createAttribute(k('r_base'), 'input');
       await setBaselineValue(await createProduct(), k('r_base'));
       expect((await usage(k('r_base'))).productValueCount).toBe(1);
-      await expectRefused(k('r_base'), /1 product/);
+      await expectRefused(k('r_base'), { code: 'products', productCount: 1 });
     });
 
     it('refuses while a live product holds only a channel override (new)', async () => {
       await createAttribute(k('r_override'), 'input');
       await setOverride(await createProduct(), k('r_override'));
       expect((await usage(k('r_override'))).productValueCount).toBe(1);
-      await expectRefused(k('r_override'), /1 product/);
+      await expectRefused(k('r_override'), { code: 'products', productCount: 1 });
     });
 
     it('refuses while a live product holds only a variant value (new)', async () => {
       await createAttribute(k('r_variant'), 'input');
       await setVariantValue(await createProduct(), k('r_variant'));
       expect((await usage(k('r_variant'))).productValueCount).toBe(1);
-      await expectRefused(k('r_variant'), /1 product/);
+      await expectRefused(k('r_variant'), { code: 'products', productCount: 1 });
     });
 
     it('does not count a soft-deleted product’s values, and /usage agrees with the guard (R-21)', async () => {

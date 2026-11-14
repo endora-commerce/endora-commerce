@@ -179,8 +179,10 @@ describe('AttributesManager — Delete for every attribute type (feature 172, OR
     deleteSpy.mockRejectedValue(
       new ApiError(409, {
         error: {
-          code: 'VALIDATION_FAILED',
-          message: 'Attribute is still referenced by 1 product(s); clear values first.',
+          // The server's sentence, translated for the operator (issue #624).
+          code: 'ATTRIBUTE_IN_USE',
+          message: 'Products that hold a value of the attribute material: 1. Clear those values before you delete it.',
+          details: { code: 'products', attributeKey: 'material', productCount: 1 },
           requestId: 'r',
         },
       }),
@@ -189,7 +191,9 @@ describe('AttributesManager — Delete for every attribute type (feature 172, OR
     const dialog = await openDelete('material');
     await waitFor(() => expect(confirmButton(dialog)).not.toBeDisabled());
     await user.click(confirmButton(dialog));
-    await within(dialog).findByText('Attribute is still referenced by 1 product(s); clear values first.');
+    await within(dialog).findByText(
+      'Products that hold a value of the attribute material: 1. Clear those values before you delete it.',
+    );
     expect(screen.getByText('material')).toBeTruthy();
   });
 });

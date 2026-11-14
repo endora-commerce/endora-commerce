@@ -121,8 +121,9 @@ const CHANNEL_ROW_KEYS = ['status', 'window', 'audience', 'minOrderQuantity', 'r
  *   the channel's spelling, so case-insensitively), is `VALIDATION_FAILED` with
  *   `details.field` `channels` / `languageStatuses`.
  * - A window whose start is not before its end is `VALIDATION_FAILED`,
- *   `details.field = 'window'`; so is a channel minimum on a type that takes none,
- *   with `details.field = 'minOrderQuantity'` (the feature-155 rule).
+ *   `details.field = 'window'`; a channel minimum on a type that takes none is
+ *   `MIN_ORDER_QUANTITY_NOT_SUPPORTED_FOR_TYPE` with `details.field =
+ *   'minOrderQuantity'` (the feature-155 rule; its own code since issue #624).
  * - A global window change touches no override (FR-013).
  */
 export function planProductScopeWrite(
@@ -304,9 +305,9 @@ function applyChannelPatch(
     if (moq.op === 'set' && !isOrderMinimumEligibleType(state.productType)) {
       throw new HttpError(
         422,
-        ERROR_CODES.VALIDATION_FAILED,
+        ERROR_CODES.MIN_ORDER_QUANTITY_NOT_SUPPORTED_FOR_TYPE,
         `A minimum order quantity applies to simple or configurable products only; got "${state.productType}".`,
-        { field: 'minOrderQuantity', channelId: entry.channelId },
+        { field: 'minOrderQuantity', productType: state.productType, channelId: entry.channelId },
       );
     }
     // `inherit` → not overridden; `empty` → overridden with no minimum here; `set` → the value.

@@ -12,7 +12,8 @@ import {
  * Covers `contracts/products-sku-edit.contract.md`:
  *   - PATCH /api/v1/admin/catalog/products/:id accepts the `sku` field.
  *   - Renaming to a SKU already in use by another product is refused
- *     with 400 sku_in_use.
+ *     with 409 SKU_ALREADY_EXISTS, as create is (issue #624; it was
+ *     400 sku_in_use).
  *   - Renaming to an invalid SKU (empty / whitespace only / >160) is
  *     refused with 400 invalid_sku.
  *   - Renaming the same SKU back to itself is a no-op (no error).
@@ -74,8 +75,8 @@ describe('Admin Products contract — feature 012 editable SKU (T027)', () => {
     expect(after.data.sku).toBe('SKU-EDIT-001-renamed');
   });
 
-  it('PATCH refuses a SKU already in use by another product (400 sku_in_use)', async () => {
-    await createProduct('SKU-EDIT-A');
+  it('PATCH refuses a SKU already in use by another product (409 SKU_ALREADY_EXISTS)', async () => {
+    const idA = await createProduct('SKU-EDIT-A');
     const idB = await createProduct('SKU-EDIT-B');
     const res = await h.app.inject({
       method: 'PATCH',
@@ -83,9 +84,10 @@ describe('Admin Products contract — feature 012 editable SKU (T027)', () => {
       payload: { sku: 'SKU-EDIT-A' },
       cookies: adminCookie,
     });
-    expect(res.statusCode).toBe(400);
-    const body = res.json() as { error: { message: string } };
-    expect(body.error.message).toMatch(/sku_in_use/);
+    expect(res.statusCode).toBe(409);
+    const body = res.json() as { error: { code: string; details?: Record<string, unknown> } };
+    expect(body.error.code).toBe('SKU_ALREADY_EXISTS');
+    expect(body.error.details).toEqual({ code: 'held_by_product', sku: 'SKU-EDIT-A', conflictingProductId: idA });
   });
 
   it('PATCH refuses an empty SKU with 400 invalid_sku', async () => {

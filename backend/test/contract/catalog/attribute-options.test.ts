@@ -22,7 +22,8 @@ const strictOptionList = deepStrict(attributeOptionListResponseSchema);
  *   - PATCH /attributes/:attributeId/options/:optionId — partial
  *     update; value is immutable.
  *   - DELETE /attributes/:attributeId/options/:optionId — refused
- *     with 409 option_in_use when products carry the value.
+ *     with 409 ATTRIBUTE_OPTION_IN_USE when products carry the value
+ *     (its own code since issue #624).
  */
 describe('Admin Attribute Options contract — feature 012 (T033)', () => {
   let h: BackendServerHandle;

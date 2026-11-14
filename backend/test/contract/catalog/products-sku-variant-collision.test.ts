@@ -42,7 +42,7 @@ describe('Admin Products contract — feature 025 SKU vs variant collision', () 
     return (res.json() as { data: { id: string } }).data.id;
   }
 
-  it('PATCH refuses a SKU already held by a variant (400 sku_in_use)', async () => {
+  it('PATCH refuses a SKU already held by a variant (409 SKU_ALREADY_EXISTS, issue #624)', async () => {
     const parentRes = await h.app.inject({
       method: 'POST',
       url: '/api/v1/admin/catalog/products',
@@ -78,8 +78,9 @@ describe('Admin Products contract — feature 025 SKU vs variant collision', () 
       payload: { sku: 'VAR-COLLIDE-001' },
       cookies: adminCookie,
     });
-    expect(patchRes.statusCode).toBe(400);
-    const body = patchRes.json() as { error: { message: string } };
-    expect(body.error.message).toMatch(/sku_in_use/);
+    expect(patchRes.statusCode).toBe(409);
+    const body = patchRes.json() as { error: { code: string; details?: Record<string, unknown> } };
+    expect(body.error.code).toBe('SKU_ALREADY_EXISTS');
+    expect(body.error.details).toMatchObject({ code: 'held_by_variant', sku: 'VAR-COLLIDE-001' });
   });
 });
