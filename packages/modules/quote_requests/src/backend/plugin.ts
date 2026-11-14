@@ -10,6 +10,7 @@ import type {
   CatalogProductAvailabilityPort,
   CatalogProductReadPort,
   CustomerAccountReadPort,
+  CustomerNotificationRecordPort,
   CustomFieldListFilterPort,
   CustomFieldValuePort,
   OrderReadPort,
@@ -201,13 +202,15 @@ export interface QuoteRequestsModuleOptions {
   notificationKick?: NotificationKick;
   /**
    * What the notification delivery worker delivers through
-   * (`specs/179-rfq-and-customer-notifications/` WP-05): `admin_notifications`'
-   * record port for the bell, `transactional_emails`' late-bound sender, the
+   * (`specs/179-rfq-and-customer-notifications/` WP-05, WP-08):
+   * `admin_notifications`' record port for the bell, `customer_notifications`'
+   * record port for the buyer's centre, `transactional_emails`' late-bound sender, the
    * request's sales channel and its storefront address, and the presence
    * question asked in front of each channel's owner (FR-012).
    */
   delivery: {
     bell: AdminNotificationRecordPort<EntityManager>;
+    centre: CustomerNotificationRecordPort<EntityManager>;
     sender: () => TransactionalEmailSender | undefined;
     salesChannels: Pick<SalesChannelResolutionPort, 'getById'>;
     storefrontUrl: (salesChannelId: string) => Promise<string | null>;
@@ -313,9 +316,9 @@ export function quoteRequestsModule(options: QuoteRequestsModuleOptions): {
     resolveExpiryRule: options.resolveExpiryRule,
   });
 
-  // `specs/179-rfq-and-customer-notifications/` WP-05 — delivery of the
-  // records the writers above commit: the bell and the two e-mails. The
-  // customer centre (WP-08) and push (WP-10) add their adapters here.
+  // `specs/179-rfq-and-customer-notifications/` WP-05, WP-08 — delivery of
+  // the records the writers above commit: the bell, the two e-mails and the
+  // customer centre. Push (WP-10) adds its adapter here.
   const deliveryService = new RfqNotificationDeliveryService({
     emFactory: options.emFactory,
     adapters: createChannelAdapters({
@@ -325,6 +328,7 @@ export function quoteRequestsModule(options: QuoteRequestsModuleOptions): {
       orgWideViewerRoleIds: orgWideViewers,
       organizations: options.organizations,
       bell: options.delivery.bell,
+      centre: options.delivery.centre,
       sender: options.delivery.sender,
       channels: options.delivery.salesChannels,
       storefrontUrl: options.delivery.storefrontUrl,

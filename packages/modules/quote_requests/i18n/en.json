@@ -186,5 +186,14 @@
   "notifications.resubmitted.title": "Quote request {number} was re-submitted",
   "notifications.offer_accepted.title": "The offer on quote request {number} was accepted",
   "notifications.offer_rejected.title": "The offer on quote request {number} was rejected",
-  "notifications.expired.title": "Quote request {number} expired"
+  "notifications.expired.title": "Quote request {number} expired",
+  "customerNotifications.submitted.title": "Quote request {number} was submitted",
+  "customerNotifications.resubmitted.title": "Quote request {number} was re-submitted",
+  "customerNotifications.offer_accepted.title": "The offer for quote request {number} was accepted",
+  "customerNotifications.offer_rejected.title": "The offer for quote request {number} was rejected",
+  "customerNotifications.expired.title": "Quote request {number} has expired",
+  "customerNotifications.prepared.title": "We have prepared quote request {number} for you",
+  "customerNotifications.revised.title": "Your offer for quote request {number} is ready",
+  "customerNotifications.approved.title": "Quote request {number} was approved",
+  "customerNotifications.canceled.title": "Quote request {number} was canceled"
 }

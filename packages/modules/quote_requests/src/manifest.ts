@@ -370,6 +370,18 @@ export const manifest = defineModuleManifest({
         '(`specs/179-rfq-and-customer-notifications/` FR-012). Nothing in this module fails closed on it, and no ' +
         'table of that owner is referenced from this module’s schema.',
     },
+    {
+      moduleId: 'customer_notifications',
+      name: 'customerNotificationRecordPort',
+      kind: 'degrades-without',
+      whenAbsent:
+        'Buyers get no entry about their quote requests in the storefront notification centre; each delivery record closes as skipped (module off).',
+      reason:
+        'The one call into this owner is the notification delivery worker’s centre channel, which decides the ' +
+        'owner’s presence in front of the port and closes the record `skipped_module_off` when it is off ' +
+        '(`specs/179-rfq-and-customer-notifications/` FR-012, FR-048). Nothing in this module fails closed on it, ' +
+        'and no table of that owner is referenced from this module’s schema.',
+    },
   ],
   settings,
   // Feature 073 (Constitution XVII) — the operator's activation control.

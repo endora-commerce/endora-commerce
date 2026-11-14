@@ -46,6 +46,7 @@ An operator switches this module on and off on **/platform/modules**. The choice
 | `orders` | gating only | resolves `orderReadPort`; withheld from `dependencies` because the install order cannot carry the edge |
 | `admin_notifications` | no | degrades-without `adminNotificationRecordPort` — Operators get no bell entry about quote requests; each delivery record closes as skipped (module off). |
 | `admin_search` | no | contributes-to `adminSearchProviderRegistry` |
+| `customer_notifications` | no | degrades-without `customerNotificationRecordPort` — Buyers get no entry about their quote requests in the storefront notification centre; each delivery record closes as skipped (module off). |
 | `document_templates` | no | refuses-without `documentRenderPort` — quote requests cannot be exported to PDF and no PDF template can be chosen |
 | `document_templates` | no | contributes-to `documentTypeRegistry` |
 | `webhooks` | no | contributes-to `webhookEventRegistry` |

@@ -6,6 +6,8 @@ import type {
   AdminUserRecord,
   CustomerAccountReadPort,
   CustomerAccountRecord,
+  CustomerNotificationMessage,
+  CustomerNotificationRecordPort,
   OrganizationDetailsPort,
   PermissionReadPort,
   TransactionalEmailSender,
@@ -21,9 +23,11 @@ import type { QuoteRequestNotificationChange, QuoteRequestNotificationChannel } 
 import { RFQ_HANDLE_PERMISSION, type OrgWideViewerRoleIds } from './recipients.js';
 
 /**
- * The three channels of `specs/179-rfq-and-customer-notifications/` Phase 1 —
- * the admin bell, the operator e-mail and the customer e-mail
+ * The delivered channels of `specs/179-rfq-and-customer-notifications/` — the
+ * admin bell, the operator e-mail and the customer e-mail (Phase 1), and the
+ * customer notification centre (WP-08)
  * (`contracts/notification-matrix.md` §2 – §4, `contracts/delivery-and-ports.md` §3).
+ * Push (`customer_push`) joins with WP-10.
  *
  * Each adapter re-checks its recipient at delivery (matrix rule 4): an
  * administrator still active and holding `rfqs:handle`; a customer account
@@ -73,6 +77,53 @@ export function quoteRequestBellText(
   };
 }
 
+/**
+ * What the buyer's notification centre says about a change (matrix §2): one
+ * sentence per change the matrix writes a centre entry for, read by the
+ * customer side — so in the buyer's voice, where the bell's is the operator's.
+ * The wording follows the change's customer e-mail subject.
+ */
+const CENTRE_SENTENCES: Readonly<Record<QuoteRequestNotificationChange, (number: string) => string>> = {
+  submitted: (number) => `Quote request ${number} was submitted`,
+  resubmitted: (number) => `Quote request ${number} was re-submitted`,
+  offer_accepted: (number) => `The offer for quote request ${number} was accepted`,
+  offer_rejected: (number) => `The offer for quote request ${number} was rejected`,
+  expired: (number) => `Quote request ${number} has expired`,
+  prepared: (number) => `We have prepared quote request ${number} for you`,
+  revised: (number) => `Your offer for quote request ${number} is ready`,
+  approved: (number) => `Quote request ${number} was approved`,
+  canceled: (number) => `Quote request ${number} was canceled`,
+};
+
+/** The changes the centre has a sentence for — every one the matrix writes a `customer_in_app` record for. */
+export const CENTRE_CHANGES = Object.keys(CENTRE_SENTENCES) as QuoteRequestNotificationChange[];
+
+/**
+ * What a centre entry about a request says (research R-13): the English
+ * sentence and the address of its template in this module's bundle, with the
+ * number as the one param — translated when the buyer reads it, in the
+ * language they read it in. Number only, like the bell: no product, price or
+ * Organization name travels into the centre (matrix §2).
+ */
+export function quoteRequestCentreText(
+  change: QuoteRequestNotificationChange,
+  number: string,
+): { title: string; titleMessage: CustomerNotificationMessage } {
+  return {
+    title: CENTRE_SENTENCES[change](number),
+    titleMessage: { scope: 'quote_requests', key: `customerNotifications.${change}.title`, params: { number } },
+  };
+}
+
+/**
+ * Where a request is on the storefront, storefront-relative and without a
+ * locale prefix (the storefront localises it): the centre entry's link, and
+ * the path the customer e-mail appends to the channel's storefront address.
+ */
+export function quoteRequestStorefrontLinkPath(rfqId: string): string {
+  return `/quote-requests/${rfqId}`;
+}
+
 /** Where a bell entry about a request leads: its admin screen. */
 export function quoteRequestAdminLinkPath(rfqId: string): string {
   return `/quote-requests/${rfqId}`;
@@ -114,6 +165,8 @@ export interface ChannelAdapterDeps {
   organizations: Pick<OrganizationDetailsPort, 'findById'>;
   /** `admin_notifications`' record port; the bell entry is written on the record's transaction. */
   bell: AdminNotificationRecordPort<EntityManager>;
+  /** `customer_notifications`' record port; the centre entry is written on the record's transaction. */
+  centre: CustomerNotificationRecordPort<EntityManager>;
   /** `transactional_emails`' late-bound sender, read per send; `undefined` until announced. */
   sender: () => TransactionalEmailSender | undefined;
   /** The request's sales channel: its default language and its name. */
@@ -124,7 +177,11 @@ export interface ChannelAdapterDeps {
 
 type SalesChannel = NonNullable<Awaited<ReturnType<SalesChannelResolutionPort['getById']>>>;
 
-export type Phase1Channel = Extract<QuoteRequestNotificationChannel, 'admin_in_app' | 'admin_email' | 'customer_email'>;
+/** The channels delivered today; `customer_push` joins with WP-10. */
+export type DeliveredChannel = Extract<
+  QuoteRequestNotificationChannel,
+  'admin_in_app' | 'admin_email' | 'customer_email' | 'customer_in_app'
+>;
 
 function adminName(admin: AdminUserRecord): string {
   return `${admin.firstName} ${admin.lastName}`.trim() || admin.email;
@@ -153,7 +210,7 @@ function channelName(channel: Pick<SalesChannel, 'name' | 'defaultLanguage' | 'c
   );
 }
 
-export function createChannelAdapters(deps: ChannelAdapterDeps): Record<Phase1Channel, ChannelAdapter> {
+export function createChannelAdapters(deps: ChannelAdapterDeps): Record<DeliveredChannel, ChannelAdapter> {
   /** An administrator who may still be told: active, not deleted, holding `rfqs:handle`. */
   const handler = async (adminUserId: string): Promise<AdminUserRecord | null> => {
     const admin = await deps.adminUsers.findById(adminUserId);
@@ -311,7 +368,7 @@ export function createChannelAdapters(deps: ChannelAdapterDeps): Record<Phase1Ch
           variables: {
             quote: {
               number: quoteRequestNumber(rfq),
-              url: base ? `${base}/quote-requests/${rfq.id}` : '',
+              url: base ? `${base}${quoteRequestStorefrontLinkPath(rfq.id)}` : '',
               previousNumber: known.previousNumber,
               validUntil: known.validUntil,
               revisionNumber: known.revisionNumber,
@@ -323,6 +380,35 @@ export function createChannelAdapters(deps: ChannelAdapterDeps): Record<Phase1Ch
             reason: known.reason,
           },
         });
+      },
+    },
+
+    customer_in_app: {
+      owner: 'customer_notifications',
+      async deliver({ em, record, rfq }) {
+        // The same re-check as the e-mail's, minus the address: an entry needs none.
+        const account = await viewer(rfq, record.recipientId);
+        if (!account) return { status: 'skipped_no_recipient' };
+        const text = quoteRequestCentreText(record.change, quoteRequestNumber(rfq));
+        // One entry per record, on the record's transaction: it commits with the
+        // record's closing, exactly once (FR-013). Addressed to one account of the
+        // request's Organization (Principle XI) and shown on the request's own
+        // channel only, or on every channel for a request raised with none
+        // (Principle XII, FR-044).
+        deps.centre.recordWithin(em, {
+          organizationId: rfq.organizationId,
+          customerAccountId: account.id,
+          salesChannelId: rfq.salesChannelId ?? null,
+          sourceModule: 'quote_requests',
+          sourceKey: record.id,
+          kind: `quote_requests.${record.change}`,
+          subjectType: 'quote_request',
+          subjectId: rfq.id,
+          title: text.title,
+          titleMessage: text.titleMessage,
+          linkPath: quoteRequestStorefrontLinkPath(rfq.id),
+        });
+        return { status: 'sent' };
       },
     },
   };

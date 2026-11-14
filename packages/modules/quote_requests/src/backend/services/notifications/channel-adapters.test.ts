@@ -4,6 +4,7 @@ import type {
   AdminUserRecord,
   CustomerAccountRecord,
   RecordAdminNotificationInput,
+  RecordCustomerNotificationInput,
   TransactionalEmailSendInput,
   TransactionalSendOutcome,
 } from '@endora-commerce/contracts';
@@ -14,8 +15,11 @@ import { QuoteRequestNotification } from '../../entities/quote-request-notificat
 import { QuoteRequestRevision } from '../../entities/quote-request-revision.entity.js';
 import {
   BELL_CHANGES,
+  CENTRE_CHANGES,
   createChannelAdapters,
   customerEmailCode,
+  quoteRequestCentreText,
+  quoteRequestStorefrontLinkPath,
   emailOutcomeStatus,
   operatorEmailCode,
   quoteRequestBellText,
@@ -26,8 +30,8 @@ import type { DeliveryContext } from './delivery-service.js';
 import { NOTIFICATION_CHANGES, NOTIFICATION_MATRIX, type QuoteRequestNotificationChange } from './notification-matrix.js';
 
 /**
- * `specs/179-rfq-and-customer-notifications/` FR-020 – FR-024, FR-030 (T041,
- * T042): what each of this phase's three adapters hands its channel's owner,
+ * `specs/179-rfq-and-customer-notifications/` FR-020 – FR-024, FR-030, FR-040 –
+ * FR-048 (T041, T042, T070): what each adapter hands its channel's owner,
  * and how the owner's answer becomes the record's closing status
  * (`contracts/notification-matrix.md` §2, §4; `contracts/delivery-and-ports.md` §3).
  */
@@ -149,6 +153,7 @@ function deps(overrides: Partial<ChannelAdapterDeps> = {}) {
   const sent: TransactionalEmailSendInput[] = [];
   let outcome: TransactionalSendOutcome = { status: 'sent' };
   const bellInputs: Array<{ em: unknown; input: RecordAdminNotificationInput }> = [];
+  const centreInputs: Array<{ em: unknown; input: RecordCustomerNotificationInput }> = [];
   const value: ChannelAdapterDeps = {
     adminUsers: { findById: vi.fn(async (id: string) => (id === ADMIN_ID ? admin() : null)) },
     permissions: { listPermissions: vi.fn(async () => ['rfqs:handle']) },
@@ -168,6 +173,13 @@ function deps(overrides: Partial<ChannelAdapterDeps> = {}) {
       recordWithin: vi.fn((em: unknown, input: RecordAdminNotificationInput) => {
         bellInputs.push({ em, input });
         return { id: 'bell-1' } as never;
+      }),
+    },
+    centre: {
+      record: vi.fn(),
+      recordWithin: vi.fn((em: unknown, input: RecordCustomerNotificationInput) => {
+        centreInputs.push({ em, input });
+        return { id: 'centre-1', createdAt: new Date() };
       }),
     },
     sender: () => ({
@@ -190,6 +202,7 @@ function deps(overrides: Partial<ChannelAdapterDeps> = {}) {
     value,
     sent,
     bellInputs,
+    centreInputs,
     answer: (next: TransactionalSendOutcome) => {
       outcome = next;
     },
@@ -502,5 +515,144 @@ describe('admin_email (FR-023, T042)', () => {
       status: 'skipped_no_recipient',
     });
     expect(d.sent).toHaveLength(0);
+  });
+});
+
+describe('customer_in_app — the customer notification centre (FR-040 – FR-048, T070)', () => {
+  it('records on the record’s EntityManager with the contract shape, scoped to the request’s Organization and channel', async () => {
+    const d = deps();
+    const ctx = context('approved', 'customer_in_app');
+    const outcome = await createChannelAdapters(d.value).customer_in_app.deliver(ctx);
+    expect(outcome).toEqual({ status: 'sent' });
+    expect(d.centreInputs).toHaveLength(1);
+    expect(d.centreInputs[0]!.em).toBe(ctx.em);
+    expect(d.centreInputs[0]!.input).toEqual({
+      organizationId: ORG,
+      customerAccountId: REQUESTER_ID,
+      salesChannelId: CHANNEL_ID,
+      sourceModule: 'quote_requests',
+      sourceKey: ctx.record.id,
+      kind: 'quote_requests.approved',
+      subjectType: 'quote_request',
+      subjectId: RFQ_ID,
+      title: 'Quote request QR-000153 was approved',
+      titleMessage: {
+        scope: 'quote_requests',
+        key: 'customerNotifications.approved.title',
+        params: { number: 'QR-000153' },
+      },
+      linkPath: `/quote-requests/${RFQ_ID}`,
+    });
+  });
+
+  it('owned by customer_notifications', () => {
+    expect(createChannelAdapters(deps().value).customer_in_app.owner).toBe('customer_notifications');
+  });
+
+  it('has a centre sentence exactly for the changes the matrix writes a centre entry for', () => {
+    const written = NOTIFICATION_CHANGES.filter((change) => NOTIFICATION_MATRIX[change].channels.customer_in_app !== null);
+    expect([...CENTRE_CHANGES].sort()).toEqual([...written].sort());
+  });
+
+  it.each(CENTRE_CHANGES.map((change) => [change]))(
+    '%s: the English template filled with the params is the sentence, and both bundles hold the key',
+    (change) => {
+      const text = quoteRequestCentreText(change, 'QR-000153');
+      expect(text.titleMessage).toEqual({
+        scope: 'quote_requests',
+        key: `customerNotifications.${change}.title`,
+        params: { number: 'QR-000153' },
+      });
+      const template = en[text.titleMessage.key];
+      expect(template).toBeTypeOf('string');
+      expect(template!.replace('{number}', 'QR-000153')).toBe(text.title);
+      expect(pl[text.titleMessage.key]).toContain('{number}');
+      expect(pl[text.titleMessage.key]).not.toBe(template);
+      // Number only: no product, price or Organization name travels into the centre (matrix §2).
+      expect(Object.keys(text.titleMessage.params ?? {})).toEqual(['number']);
+    },
+  );
+
+  it('links to the request’s storefront page, without a locale prefix', () => {
+    expect(quoteRequestStorefrontLinkPath(RFQ_ID)).toBe(`/quote-requests/${RFQ_ID}`);
+  });
+
+  it('a request raised with no channel: an entry shown on every channel', async () => {
+    const d = deps();
+    await createChannelAdapters(d.value).customer_in_app.deliver(
+      context('expired', 'customer_in_app', { rfq: { salesChannelId: null } }),
+    );
+    expect(d.centreInputs[0]!.input.salesChannelId).toBeNull();
+  });
+
+  it('a request with no business id is named by the start of its id', async () => {
+    const d = deps();
+    await createChannelAdapters(d.value).customer_in_app.deliver(
+      context('canceled', 'customer_in_app', { rfq: { businessId: '' } }),
+    );
+    expect(d.centreInputs[0]!.input.title).toBe('Quote request 20000000 was canceled');
+  });
+
+  it('a member who may open the request gets an entry of their own', async () => {
+    const d = deps();
+    await createChannelAdapters(d.value).customer_in_app.deliver(
+      context('submitted', 'customer_in_app', { recipientId: MEMBER_ID }),
+    );
+    expect(d.centreInputs[0]!.input).toMatchObject({
+      customerAccountId: MEMBER_ID,
+      organizationId: ORG,
+      title: 'Quote request QR-000153 was submitted',
+    });
+  });
+
+  it('a recipient with no e-mail address still gets the entry — the centre needs none', async () => {
+    const d = deps({
+      customerAccounts: { findById: vi.fn(async () => account({ email: '' })) },
+    });
+    expect(await createChannelAdapters(d.value).customer_in_app.deliver(context('approved', 'customer_in_app'))).toEqual({
+      status: 'sent',
+    });
+  });
+
+  it.each([
+    ['is gone', { id: 'x' }, 'nobody'],
+    ['is deleted', { deletedAt: new Date() }, REQUESTER_ID],
+    ['is blocked', { blockedAt: new Date() }, REQUESTER_ID],
+    ['is anonymised', { anonymizedAt: new Date() }, REQUESTER_ID],
+    ['left the Organization', { organizationId: '10000000-0000-4000-8000-000000000009' }, REQUESTER_ID],
+  ])('a recipient who %s gets no entry: skipped_no_recipient', async (_why, overrides, recipientId) => {
+    const d = deps({
+      customerAccounts: {
+        findById: vi.fn(async (id: string) => (id === REQUESTER_ID ? account(overrides as Partial<CustomerAccountRecord>) : null)),
+      },
+    });
+    const outcome = await createChannelAdapters(d.value).customer_in_app.deliver(
+      context('approved', 'customer_in_app', { recipientId }),
+    );
+    expect(outcome).toEqual({ status: 'skipped_no_recipient' });
+    expect(d.centreInputs).toHaveLength(0);
+  });
+
+  it('a member whose role no longer opens the request gets no entry (SC-003)', async () => {
+    const d = deps({ orgWideViewerRoleIds: vi.fn(async () => ['70000000-0000-4000-8000-00000000000f']) });
+    const outcome = await createChannelAdapters(d.value).customer_in_app.deliver(
+      context('approved', 'customer_in_app', { recipientId: MEMBER_ID }),
+    );
+    expect(outcome).toEqual({ status: 'skipped_no_recipient' });
+    expect(d.centreInputs).toHaveLength(0);
+  });
+
+  it('a switched-off centre raised from the port is passed on as it is (closed skipped_module_off by the delivery service)', async () => {
+    const d = deps({
+      centre: {
+        record: vi.fn(),
+        recordWithin: vi.fn(() => {
+          throw new ModuleDisabledError('customer_notifications');
+        }),
+      },
+    });
+    await expect(
+      createChannelAdapters(d.value).customer_in_app.deliver(context('approved', 'customer_in_app')),
+    ).rejects.toBeInstanceOf(ModuleDisabledError);
   });
 });
