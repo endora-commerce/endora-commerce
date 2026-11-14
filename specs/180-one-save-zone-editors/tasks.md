@@ -47,9 +47,9 @@ seen failing first. Format: `[ID] [P?] [Story] Description` — `[P]` = parallel
 
 ## Phase 4: Product Inventory tab — WP-4 (US7)
 
-- [ ] T050 [P] [US7] Failing test `admin/test/modules/catalog/product-editor-inventory-save.test.tsx`: the five settings stage and save with Save; no Save buttons for them; mode no longer auto-saves; per-warehouse rows stay immediate with the badge
-- [ ] T051 [US7] Decide the carrier (scoped-values request vs a second blocking host write, `product-editor-save-ui.md` §5) and record it in `research.md`
-- [ ] T052 [US7] `ProductInventoryTab.tsx` and the host write; catalog i18n
+- [x] T050 [P] [US7] Failing test `admin/test/modules/catalog/product-editor-inventory-save.test.tsx`: the five settings stage and save with Save; no Save buttons for them; mode no longer auto-saves; per-warehouse rows stay immediate with the badge
+- [x] T051 [US7] Decide the carrier (scoped-values request vs a second blocking host write, `product-editor-save-ui.md` §5) and record it in `research.md` — the scoped-values request; recorded as research R22
+- [x] T052 [US7] `ProductInventoryTab.tsx` and the host write; catalog i18n
 
 ## Phase 5: Category editor — WP-6 (US8)
 

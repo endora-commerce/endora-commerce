@@ -106,8 +106,11 @@ describe('immediate actions beside staged changes (feature 174, US7 #7)', () => 
     expect(await screen.findByRole('heading', { name: new RegExp(en['productEditor.attachments.title']!) })).toHaveTextContent(
       en['productEditor.immediate.badge']!,
     );
+    // Feature 180 (FR-025): the Inventory tab's product-row settings save with the one Save, so
+    // its heading no longer says "Applies immediately"; the per-warehouse table inside does
+    // (`product-editor-inventory-save.test.tsx`).
     fireEvent.click(screen.getByRole('tab', { name: en['productEditor.tab.inventory']! }));
-    expect(await screen.findByRole('heading', { name: new RegExp(en['productEditor.stock.title']!) })).toHaveTextContent(
+    expect(await screen.findByRole('heading', { name: new RegExp(en['productEditor.stock.title']!) })).not.toHaveTextContent(
       en['productEditor.immediate.badge']!,
     );
   });

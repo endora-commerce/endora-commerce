@@ -1101,12 +1101,14 @@ function ScopedProductEditor({
           <div className="b2b-col" style={{ gap: 16 }}>
             {atGlobal ? null : globalOnlyNotice}
             <section aria-labelledby="product-stock-heading" className="space-y-2">
-              <SectionHeading id="product-stock-heading" title={t('productEditor.stock.title')} immediate={!structuralReadOnly} />
+              {/* Feature 180 (FR-025): the product-row settings save with the one Save; only the
+                  per-warehouse table inside applies immediately, and carries the badge. */}
+              <SectionHeading id="product-stock-heading" title={t('productEditor.stock.title')} immediate={false} />
               {structuralReadOnly ? (
                 // Stock outside Global (or without catalog:write) is shown, not edited: the panel
                 // has no read-only mode of its own, so its controls are disabled as a group.
                 <fieldset disabled className="m-0 min-w-0 border-0 p-0" data-testid="stock-read-only">
-                  <ProductInventoryTab productId={productId} />
+                  <ProductInventoryTab productId={productId} editable={false} />
                 </fieldset>
               ) : (
                 <ProductInventoryTab productId={productId} />
