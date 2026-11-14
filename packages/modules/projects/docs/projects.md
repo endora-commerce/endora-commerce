@@ -124,7 +124,12 @@ Its tabs:
   not kept per Organization, names only *which* fields changed. Entries
   recorded before the title was kept this way still show it as recorded. An
   Organization outside your reach that the project once had is not named in
-  it.
+  it. People, Organizations, Stages and Roles are named, never shown as
+  identifiers: a change of the members lists who was added, who was removed and
+  whose roles changed; a change of the workflow lists the moves it allowed and
+  withdrew; a change of a stage's tasks lists the tasks added, changed and
+  removed. Someone no longer on the project, or a stage it no longer has, is
+  said to be so.
 
 **On the screens of the records a project holds** — an Order, a Quote Request,
 an Opportunity, a Task — a **Project** panel names the project it belongs to:
