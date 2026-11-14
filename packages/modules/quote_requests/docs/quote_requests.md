@@ -1209,10 +1209,11 @@ role change after the change was saved adds nobody.
   **E-mail templates**, in the default language of the request's sales channel
   (English for a request raised with no channel). It names the request number
   and links to the request on the storefront when the channel has a storefront
-  address (the `sales_channels.storefront_url` setting, *Storefront URL*);
-  without one it names the number and carries no link. The approval e-mail
-  carries the link and **no PDF** — *Send PDF to customer* stays a separate
-  action.
+  address: the `sales_channels.storefront_url` setting (*Storefront URL*), or,
+  when the channel leaves it empty, the `STOREFRONT_BASE_URL` environment
+  variable. With neither set it names the number and carries no link. The
+  approval e-mail carries the link and **no PDF** — *Send PDF to customer* stays
+  a separate action.
 - **Centre entry** — one sentence naming the request by number, linking to the
   request, shown in the language the buyer is browsing in, on the request's own
   sales channel only (on every channel for a request raised with none). See the
@@ -1228,7 +1229,11 @@ role change after the change was saved adds nobody.
 - **Operator e-mail** — for a submitted or re-submitted request only, in the
   administrator's Admin UI language (Polish for Polish, English otherwise),
   naming the request number, the organization, the buyer who acted and the
-  number of lines. It carries no link to the Admin UI yet; the bell entry does.
+  number of lines. With `ADMIN_BASE_URL` set (the address the admin panel is
+  served at), it carries an **Open the quote request** button to the request's
+  admin screen, where the bell entry leads. Without it the e-mail carries no
+  link and no button and still names the request number. A relative or guessed
+  address is never sent.
 
 No centre entry, push or bell entry names a product, a price or an
 organization: they are read outside the request's own screen, so they say the
@@ -1261,7 +1266,10 @@ Every e-mail can use `quote.number`, `customer.name` (the recipient),
 rejected and both operator e-mails; `quote.previousNumber` for both
 re-submitted e-mails; `reason` for rejected and canceled; `quote.validUntil` for
 prepared, revised and approved; `quote.revisionNumber` for revised;
-`quote.lineCount` for both operator e-mails.
+`quote.lineCount` and `quote.adminUrl` (the link to the request in the admin
+panel) for both operator e-mails. `quote.adminUrl` is empty when
+`ADMIN_BASE_URL` is not set, and the button is then left out. A template edited
+before the link existed does not name it and renders as before.
 
 ### Late, failed and switched-off deliveries
 

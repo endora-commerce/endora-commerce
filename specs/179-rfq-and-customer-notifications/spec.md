@@ -389,9 +389,10 @@ and the centre is a page of the account area. Rationale, against `.claude/skills
 - **Occam's Razor / Picture superiority.** The account entry is already a labelled, recognisable
   target; an indicator on it adds information without adding a control. The proactive alert is the
   e-mail and the push (US2, US4); the centre is the record.
-- **Accessibility floor.** The indicator is part of the entry's accessible name ("Account, 2 unread
-  notifications"), shows a number and not a colour alone, and the page's unread state is marked by
-  text and weight, not colour.
+- **Accessibility floor.** The indicator is part of the entry's accessible name: visually hidden
+  text after the entry's visible name ("Unread notifications: {count}", FR-051b), never an
+  `aria-label` replacing it. It shows a number and not a colour alone, and the page's unread state is
+  marked by text and weight, not colour.
 
 - **Flow.** No indicator appears in the minimal checkout header (`HeaderSwitch` `minimal`):
   checkout is not interrupted.

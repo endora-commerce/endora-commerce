@@ -1,14 +1,15 @@
 import { useCallback, useEffect, useMemo, useRef, useState, type ReactNode } from 'react';
-import { Link } from 'react-router-dom';
+import { Link, useSearchParams } from 'react-router-dom';
 import { ClipboardList, Plus, SearchX, X } from 'lucide-react';
-import type {
-  CustomFieldFilter,
-  CustomFieldFilters,
-  CustomFieldListFilterField,
-  ProjectRole,
-  ProjectState,
-  ProjectSummary,
-  ProjectTemplateSummary,
+import {
+  PROJECT_STAGE_NAME_MAX,
+  type CustomFieldFilter,
+  type CustomFieldFilters,
+  type CustomFieldListFilterField,
+  type ProjectRole,
+  type ProjectState,
+  type ProjectSummary,
+  type ProjectTemplateSummary,
 } from '@endora-commerce/contracts';
 import { useAuth, usePageSizePreference, type PageSizeOption } from '@endora-commerce/admin-kit/lib';
 import {
@@ -29,7 +30,6 @@ import {
   ResponsiveTable,
   customFieldDisplayName,
   customFieldFilterRefusal,
-  emptyCustomFieldFilters,
   toCustomFieldFiltersParam,
   useCustomFieldListFilterFields,
   withCustomFieldFilter,
@@ -41,56 +41,31 @@ import { StateBadge } from '../components/StateBadge.js';
 import { StageDot } from '../components/StageDot.js';
 import { calendarDateLabel, errorMessage, NO_VALUE, valueLabel } from '../lib/labels.js';
 import { AdminUserLookup, OrganizationLookup } from '../components/LookupPickers.js';
-
-const STATES: readonly ProjectState[] = ['open', 'completed', 'lost'];
-
-/** `<field>:<direction>` — one control for the two query parameters. */
-const SORTS = [
-  'createdAt:desc',
-  'createdAt:asc',
-  'value:desc',
-  'value:asc',
-  'deadline:asc',
-  'deadline:desc',
-] as const;
-type SortOption = (typeof SORTS)[number];
+import {
+  NO_FILTERS,
+  SORTS,
+  STATES,
+  readListAddress,
+  writeListAddress,
+  type Filters,
+  type ListAddress,
+  type SortOption,
+} from '../lib/list-filters.js';
 
 /** The most rows `GET /projects` answers in one page (`PROJECT_LIST_LIMIT_MAX`). */
 const MAX_PAGE_LIMIT = 100;
 const PAGE_SIZES: readonly PageSizeOption[] = [10, 20, 50, 100];
 
 const SEARCH_DEBOUNCE_MS = 300;
+/** The first page's trail: one instance, so a derived empty trail is the same value every render. */
+const NO_CURSORS: readonly string[] = [];
+/** The longest search `GET /projects` takes (`ProjectListQuerySchema.q`). */
+const SEARCH_MAX = 200;
 
 /** The Project custom fields the list offers as filters (User Story 9). */
 const CUSTOM_FIELD_FILTERS_ENDPOINT = '/api/v1/admin/projects/custom-field-filters';
 /** Custom fields — their filters included — are shown only to a reader who may view them. */
 const CUSTOM_FIELDS_READ_PERMISSION = 'custom_fields:read';
-
-interface Filters {
-  q: string;
-  state: ProjectState | '';
-  organizationId: string | null;
-  /** "Only mine" and {@link memberId} are one filter (`memberId`): setting one clears the other. */
-  mine: boolean;
-  memberId: string | null;
-  roleId: string;
-  templateId: string;
-  stageName: string;
-  /** Custom fields marked as list filters, applied by the server (`customFieldFilters`). */
-  customFields: CustomFieldFilters;
-}
-
-const NO_FILTERS: Filters = {
-  q: '',
-  state: '',
-  organizationId: null,
-  mine: false,
-  memberId: null,
-  roleId: '',
-  templateId: '',
-  stageName: '',
-  customFields: emptyCustomFieldFilters(),
-};
 
 interface CustomFieldFilterCellsProps {
   value: CustomFieldFilters;
@@ -138,6 +113,12 @@ function CustomFieldFilterCells({ value, onChange, onFields }: CustomFieldFilter
  *
  * The Role and Template choices list archived ones too, marked: a Project
  * keeps an archived Role, and was created from a Template archived since.
+ *
+ * **The filters and the sort live in the address** (issue #454,
+ * `lib/list-filters.ts`), so Back, a reload and a shared link keep them and
+ * another screen can link to a narrowed list. A parameter the list does not
+ * take is ignored; a Role or Template the choices no longer hold is dropped
+ * from the address once they are read.
  */
 export function ProjectsList(): ReactNode {
   const t = useTranslation('projects');
@@ -149,14 +130,28 @@ export function ProjectsList(): ReactNode {
   const { pageSize: preferredPageSize, setPageSize } = usePageSizePreference('projects-list');
   const pageSize = Math.min(preferredPageSize, MAX_PAGE_LIMIT) as PageSizeOption;
 
-  const [filters, setFilters] = useState<Filters>(NO_FILTERS);
-  const [search, setSearch] = useState('');
-  const [stageSearch, setStageSearch] = useState('');
-  const [roles, setRoles] = useState<ProjectRole[]>([]);
-  const [templates, setTemplates] = useState<ProjectTemplateSummary[]>([]);
-  const [sort, setSort] = useState<SortOption>('createdAt:desc');
-  /** The cursors that led to the page on screen; empty on the first page. */
-  const [trail, setTrail] = useState<string[]>([]);
+  const [searchParams, setSearchParams] = useSearchParams();
+  // Keyed by the address's own text, so the derived values are stable until it changes.
+  const address = searchParams.toString();
+  const { filters, sort } = useMemo(() => readListAddress(new URLSearchParams(address)), [address]);
+
+  const [search, setSearch] = useState(filters.q);
+  const [stageSearch, setStageSearch] = useState(filters.stageName);
+  /** The search texts these boxes last wrote, so an address they did not write (Back, *Clear*) is shown. */
+  const written = useRef({ q: filters.q, stageName: filters.stageName });
+  const latestFilters = useRef(filters);
+  latestFilters.current = filters;
+  /** The choices of the Role and Template filters; `null` until read, and when the read failed. */
+  const [roles, setRoles] = useState<ProjectRole[] | null>(null);
+  const [templates, setTemplates] = useState<ProjectTemplateSummary[] | null>(null);
+  /**
+   * The cursors that led to the page on screen, for the address they were
+   * given under: any other address is on its first page.
+   */
+  const [pages, setPages] = useState<{ address: string; cursors: readonly string[] }>({ address, cursors: NO_CURSORS });
+  const trail = pages.address === address ? pages.cursors : NO_CURSORS;
+  const setTrail = (step: (cursors: readonly string[]) => readonly string[]): void =>
+    setPages((previous) => ({ address, cursors: step(previous.address === address ? previous.cursors : NO_CURSORS) }));
   const [rows, setRows] = useState<ProjectSummary[]>([]);
   const [total, setTotal] = useState(0);
   const [nextCursor, setNextCursor] = useState<string | null>(null);
@@ -168,18 +163,42 @@ export function ProjectsList(): ReactNode {
   const [customFieldFields, setCustomFieldFields] = useState<CustomFieldListFilterField[]>([]);
   const sequence = useRef(0);
 
-  // The search boxes are typed into; the request follows once typing pauses.
-  useEffect(() => {
-    const timer = setTimeout(() => {
-      setFilters((previous) =>
-        previous.q === search && previous.stageName === stageSearch
-          ? previous
-          : { ...previous, q: search, stageName: stageSearch },
+  /**
+   * Change what the address asks for, from what it asks for now. It replaces
+   * the screen's history entry, so Back leaves the list rather than undoing a
+   * filter; a new address is on its first page.
+   */
+  const update = useCallback(
+    (change: (current: ListAddress) => ListAddress): void => {
+      setSearchParams(
+        (current) => {
+          const next = writeListAddress(change(readListAddress(current)));
+          return next.toString() === current.toString() ? current : next;
+        },
+        { replace: true },
       );
-      setTrail((previous) => (previous.length === 0 ? previous : []));
+    },
+    [setSearchParams],
+  );
+
+  // The search boxes are typed into; the address follows once typing pauses.
+  useEffect(() => {
+    const q = search.trim();
+    const stageName = stageSearch.trim();
+    if (q === latestFilters.current.q && stageName === latestFilters.current.stageName) return undefined;
+    const timer = setTimeout(() => {
+      written.current = { q, stageName };
+      update((current) => ({ ...current, filters: { ...current.filters, q, stageName } }));
     }, SEARCH_DEBOUNCE_MS);
     return (): void => clearTimeout(timer);
-  }, [search, stageSearch]);
+  }, [search, stageSearch, update]);
+
+  // An address the boxes did not write — Back, a link, *Clear* — is shown in them.
+  useEffect(() => {
+    if (filters.q !== written.current.q) setSearch(filters.q);
+    if (filters.stageName !== written.current.stageName) setStageSearch(filters.stageName);
+    written.current = { q: filters.q, stageName: filters.stageName };
+  }, [filters.q, filters.stageName]);
 
   // The choices of the Role and Template filters; a failed read leaves the filter with "any" only.
   useEffect(() => {
@@ -200,6 +219,25 @@ export function ProjectsList(): ReactNode {
       alive = false;
     };
   }, []);
+
+  // A Role or Template the address names that the choices no longer hold is dropped,
+  // once they are read; a failed read drops nothing, and the server matches nothing.
+  useEffect(() => {
+    const dropRole = roles !== null && filters.roleId !== '' && !roles.some((role) => role.id === filters.roleId);
+    const dropTemplate =
+      templates !== null &&
+      filters.templateId !== '' &&
+      !templates.some((template) => template.id === filters.templateId);
+    if (!dropRole && !dropTemplate) return;
+    update((current) => ({
+      ...current,
+      filters: {
+        ...current.filters,
+        ...(dropRole ? { roleId: '' } : {}),
+        ...(dropTemplate ? { templateId: '' } : {}),
+      },
+    }));
+  }, [roles, templates, filters.roleId, filters.templateId, update]);
 
   // Filters the custom fields on what was asked: without the permission, none is sent.
   const customFieldParam = canFilterCustomFields ? toCustomFieldFiltersParam(filters.customFields) : null;
@@ -258,23 +296,24 @@ export function ProjectsList(): ReactNode {
     void load();
   }, [load]);
 
-  /** Any change of what is asked for starts again from the first page. */
-  const change = (patch: Partial<Filters>): void => {
-    setFilters((previous) => ({ ...previous, ...patch }));
-    setTrail([]);
-  };
+  /** Any change of what is asked for is a new address, which starts again from the first page. */
+  const change = (patch: Partial<Filters>): void =>
+    update((current) => ({ ...current, filters: { ...current.filters, ...patch } }));
 
   const clear = (): void => {
     setSearch('');
     setStageSearch('');
-    setFilters({ ...NO_FILTERS, customFields: emptyCustomFieldFilters() });
-    setTrail([]);
+    update((current) => ({ ...current, filters: NO_FILTERS }));
   };
 
-  const changeCustomField = useCallback((key: string, filter: CustomFieldFilter | null): void => {
-    setFilters((previous) => ({ ...previous, customFields: withCustomFieldFilter(previous.customFields, key, filter) }));
-    setTrail([]);
-  }, []);
+  const changeCustomField = useCallback(
+    (key: string, filter: CustomFieldFilter | null): void =>
+      update((current) => ({
+        ...current,
+        filters: { ...current.filters, customFields: withCustomFieldFilter(current.filters.customFields, key, filter) },
+      })),
+    [update],
+  );
 
   const removeRefusedCustomField = (): void => {
     if (refusedCustomField !== null) changeCustomField(refusedCustomField, null);
@@ -418,6 +457,7 @@ export function ProjectsList(): ReactNode {
                 id="projects-search"
                 type="search"
                 value={search}
+                maxLength={SEARCH_MAX}
                 placeholder={t('list.searchPlaceholder')}
                 onChange={(event): void => setSearch(event.target.value)}
               />
@@ -477,7 +517,7 @@ export function ProjectsList(): ReactNode {
                 onChange={(event): void => change({ roleId: event.target.value })}
               >
                 <option value="">{t('list.filter.roleAll')}</option>
-                {roles.map((role) => (
+                {(roles ?? []).map((role) => (
                   <option key={role.id} value={role.id}>
                     {role.archivedAt ? t('overview.archivedRole', { role: role.label }) : role.label}
                   </option>
@@ -492,7 +532,7 @@ export function ProjectsList(): ReactNode {
                 onChange={(event): void => change({ templateId: event.target.value })}
               >
                 <option value="">{t('list.filter.templateAll')}</option>
-                {templates.map((template) => (
+                {(templates ?? []).map((template) => (
                   <option key={template.id} value={template.id}>
                     {template.archivedAt ? `${template.name} (${t('templates.list.archived')})` : template.name}
                   </option>
@@ -505,7 +545,7 @@ export function ProjectsList(): ReactNode {
                 id="projects-stage-name"
                 type="search"
                 value={stageSearch}
-                maxLength={80}
+                maxLength={PROJECT_STAGE_NAME_MAX}
                 placeholder={t('list.filter.stageNamePlaceholder')}
                 onChange={(event): void => setStageSearch(event.target.value)}
               />
@@ -526,8 +566,8 @@ export function ProjectsList(): ReactNode {
                 className="w-auto"
                 value={sort}
                 onChange={(event): void => {
-                  setSort(event.target.value as SortOption);
-                  setTrail([]);
+                  const next = event.target.value as SortOption;
+                  update((current) => ({ ...current, sort: next }));
                 }}
               >
                 {SORTS.map((option) => (
@@ -595,7 +635,7 @@ export function ProjectsList(): ReactNode {
                   pageSizes={PAGE_SIZES}
                   onPageSizeChange={(next): void => {
                     setPageSize(next);
-                    setTrail([]);
+                    setTrail(() => NO_CURSORS);
                   }}
                   onPrev={(): void => setTrail((previous) => previous.slice(0, -1))}
                   onNext={(): void => {

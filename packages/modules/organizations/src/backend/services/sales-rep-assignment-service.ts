@@ -20,6 +20,12 @@ export interface SalesRepSubtreeDeps {
   readonly treeService: OrganizationTreeService;
   readonly hasRollupCapability: (adminUserId: string) => Promise<boolean>;
   /**
+   * Issue #461 — {@link hasRollupCapability} for many administrators: the ids
+   * it answers yes for, in a fixed number of reads. Absent, the service asks
+   * {@link hasRollupCapability} once per id.
+   */
+  readonly hasRollupCapabilities?: (adminUserIds: readonly string[]) => Promise<ReadonlySet<string>>;
+  /**
    * Issue #305 (ruling Q1 on PR #954) — told once per `reachOf` that met a
    * governing organization whose stored tree path cannot be read, naming them.
    * The reach is still answered, by the one-id rule; this is how the data
@@ -149,6 +155,19 @@ export class SalesRepAssignmentService implements SalesRepAssignmentPort {
    */
   async hasRollupCapability(adminUserId: string): Promise<boolean> {
     return this.subtree !== undefined && (await this.subtree.hasRollupCapability(adminUserId));
+  }
+
+  /**
+   * Issue #461 — {@link hasRollupCapability} for many representatives at once,
+   * for `adminTenantScopePort.resolveForAdmins`: the ids answered yes.
+   */
+  async hasRollupCapabilities(adminUserIds: readonly string[]): Promise<ReadonlySet<string>> {
+    const subtree = this.subtree;
+    if (subtree === undefined || adminUserIds.length === 0) return new Set();
+    if (subtree.hasRollupCapabilities) return subtree.hasRollupCapabilities(adminUserIds);
+    const holders = new Set<string>();
+    for (const id of new Set(adminUserIds)) if (await subtree.hasRollupCapability(id)) holders.add(id);
+    return holders;
   }
 
   async reachOf(adminUserId: string): Promise<SalesRepReach> {

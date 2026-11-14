@@ -23,7 +23,10 @@ a channel or language that is no longer valid, the editor opens at the nearest v
 …"). A banner reading "Changes apply only to *scope*" is shown whenever you are not at Global, and the editor says in
 words where you are ("Editing …"). Next to it is a link to the **Scope map** tab.
 
-Saving applies to the current scope only. A save never changes a value at any other scope.
+Saving applies to the current scope only. A save never changes a value at any other scope. The **Save** button sits
+in the scope bar, next to the scope it saves, and shows how many changes are waiting ("Save 2 changes"). On a wide
+screen the scope bar stays at the top of the window while you scroll, so Save is always in reach; on a narrow screen
+Save is in the bar fixed to the bottom of the screen.
 
 ## Switching with unsaved changes
 

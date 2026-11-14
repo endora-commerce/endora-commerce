@@ -48,7 +48,9 @@ state, by Organization, to the projects you are a member of or those of any one
 member, by a project role somebody holds on them, by the template they were
 created from, and by the name of their current stage; search by number or
 title, and sort it by creation date, value or the current stage's deadline;
-projects without a value or a deadline come last either way.
+projects without a value or a deadline come last either way. The filters and
+the sort are kept in the page's address, so going back to the list, reloading
+it or sending its link to a colleague keeps them.
 
 **New project** (`/projects/new`) first offers the **templates**: choosing one
 fills in the description and offers the template's roles first to each member,
@@ -132,7 +134,7 @@ shows no panel at all.
 
 **On an Organization's screen** a **Projects** panel lists the projects of that
 Organization you may see, newest first — the ten newest, saying how many there
-are and linking *All projects* to the projects list when there are more — each with
+are and linking *All projects* to the projects list, filtered to that Organization, when there are more — each with
 its number, a link to it, its title, its state and its current stage.
 Administrators who may create projects get *New project* there, which opens the
 form with the Organization already chosen.

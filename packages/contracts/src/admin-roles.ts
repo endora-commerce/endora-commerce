@@ -192,6 +192,15 @@ export interface PermissionReadPort {
    * failing there. It is a 403 `ADMIN_ROLE_REQUIRED`.
    */
   resolveRole(adminUserId: string): Promise<AdminRoleResolution>;
+  /**
+   * {@link resolveRole} for many administrators at once, in a fixed number of
+   * reads: every id asked has an entry, the role or the same refusal
+   * `resolveRole` answers for it.
+   *
+   * Added for issue #461: the Projects `@` list asked `resolveRole` (through
+   * `adminTenantScopePort`) and `listPermissions` once per candidate.
+   */
+  resolveRoles(adminUserIds: readonly string[]): Promise<Map<string, AdminRoleResolution>>;
 }
 
 /** What {@link PermissionReadPort.resolveRole} answers: a role, or the refusal. */

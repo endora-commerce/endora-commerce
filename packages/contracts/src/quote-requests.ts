@@ -1091,6 +1091,24 @@ export interface QuoteRequestReadPort {
    * over `listItems`, and the quote desk list a third, different one.
    */
   amountOf(quoteRequestId: string): Promise<QuoteRequestAmount | null>;
+  /**
+   * The quotes of `ids` in the caller's tenant scope, in no particular order —
+   * what {@link findById} answers for each id, in one read. A missing,
+   * out-of-scope or malformed id is simply absent.
+   *
+   * Added for issue #457: `projects` read the Quote Requests linked to a
+   * Project one `findById` at a time.
+   */
+  findByIds(ids: readonly string[]): Promise<QuoteRequestRecord[]>;
+  /**
+   * What each quote of `quoteRequestIds` is worth, keyed by quote id — what
+   * {@link amountOf} answers for each id, in a fixed number of reads. A quote
+   * `amountOf` answers `null` for (missing, out of scope, malformed id) has no
+   * entry.
+   *
+   * Added for issue #457, beside {@link findByIds}.
+   */
+  amountsOf(quoteRequestIds: readonly string[]): Promise<Map<string, QuoteRequestAmount>>;
 }
 
 /** Who is asking, on a customer-facing quote path. */

@@ -1328,6 +1328,15 @@ export type AdminTenantScope =
  */
 export interface AdminTenantScopePort {
   resolveForAdmin(adminUserId: string): Promise<AdminTenantScope>;
+  /**
+   * {@link resolveForAdmin} for many administrators at once, in a fixed number
+   * of reads: every id asked has an entry, the scope `resolveForAdmin` answers
+   * for it. Not the request-scope hook's — a caller judging what **other**
+   * administrators may see (who may be mentioned on a Project) asks it.
+   *
+   * Added for issue #461.
+   */
+  resolveForAdmins(adminUserIds: readonly string[]): Promise<Map<string, AdminTenantScope>>;
 }
 
 /** The address a VAT registry hands back when it recognises the tax id. */
