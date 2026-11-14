@@ -1,0 +1,5 @@
+---
+'@endora-commerce/cli': patch
+---
+
+`check:port-catches` (`@endora-commerce/cli/rules/port-catches.js`) attributes a call through a door's method per receiver rather than by the method's name (issue #459). A key whose every value is a closure that only uses a port on the way to data, such as `{ find: (id) => port.findById(id) }`, is no longer reached by any call that merely spells it. Previously `em.find(…)` inside an unrelated `commandBus.run` callback read as the door's `find`, and a `catch` around the Command was reported as swallowing the door owner's gate. Such a call now reaches the key through the holder its receiver resolves to, or through the holder an argument resolves to under the key the call names, so `commandBus.run(command)` is judged against the `run` of the Command actually passed, wherever it was built. A key that holds the port itself, an alias or an accessor still answers by name, and so does a property read. On this repository the population drops from 304 to 278 sites, none of them a violation, and one ledgered `catalog` artefact (`product-page-revalidation.ts:keysOf`) is retired.

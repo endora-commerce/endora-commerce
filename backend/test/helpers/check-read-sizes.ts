@@ -10924,7 +10924,8 @@ export const RECORDED_READ_SIZES: Readonly<Record<string, RecordedReadSize>> = {
     // **Issue #100 (`port-catches` reads a deps key as a property, not a binding): sites 163 -> 215.** Measured on a fresh detached worktree of the commit; the narrative is in the commit message.
     // **Issue #100 ruling (the `projects` pin, `PORT_CATCH_PINS`): sites 215 -> 216.** The pinned `.catch` rejoins the population; re-measured on a fresh detached worktree of the commit.
     // **Issue #576 (holders built from a deps bag carry per method; the pin removed): sites 216 -> 268.** Re-measured on a fresh detached worktree of the commit; the narrative is in the commit message.
-    sites: 293,
+    // **Issue #459 (a door's method is attributed per receiver, not by its name): sites 293 -> 278.** Measured in a fresh worktree of `origin/master` with the change (304 there without it); the narrative is in the commit message.
+    sites: 278,
     // co-located test and a contract test, and carries a changeset — files this walk reads,
     // and none of them counted in the 2138 recorded against the tree before it. Measured on
     // the combined tree, never summed from the two sides' deltas.
