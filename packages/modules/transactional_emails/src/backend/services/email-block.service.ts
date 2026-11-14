@@ -178,7 +178,14 @@ export class EmailBlockService {
   async delete(id: string): Promise<void> {
     const em = this.emFactory();
     const b = await this.loadOrThrow(em, id);
-    if (b.isSystem) throw new HttpError(409, ERROR_CODES.VALIDATION_FAILED, 'System blocks cannot be deleted.');
+    // `blockCode`, not `code`: the error envelope reads `details.code` as the
+    // refusal token that picks the sentence (issue #638).
+    if (b.isSystem) {
+      throw new HttpError(409, ERROR_CODES.TRANSACTIONAL_EMAIL_SYSTEM_BLOCK, 'System blocks cannot be deleted.', {
+        blockId: b.id,
+        blockCode: b.code,
+      });
+    }
     const bridges = await em.find(EmailBlockSalesChannel, { blockId: b.id });
     this.#audit(em, 'email_block.delete', b.id, { code: b.code }, null);
     await em.removeAndFlush([...bridges, b]);

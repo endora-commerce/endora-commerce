@@ -119,7 +119,18 @@ export const manifest = defineModuleManifest({
    * `details.reason` and as the thrower's message, which is what a client
    * reads where no bundle answers.
    */
-  errorCodes: [{ code: 'TRANSACTIONAL_EMAIL_NOT_DEACTIVATABLE' }],
+  errorCodes: [
+    { code: 'TRANSACTIONAL_EMAIL_NOT_DEACTIVATABLE' },
+    /**
+     * Issue #638 (#86) — deleting a system block or a system template, which
+     * was `409 VALIDATION_FAILED` with an English sentence the envelope never
+     * replaces. Two codes rather than one with tokens: the nouns differ, and
+     * each guard protects one write. The row's code travels as `blockCode` /
+     * `templateCode`, never as `details.code`.
+     */
+    { code: 'TRANSACTIONAL_EMAIL_SYSTEM_BLOCK' },
+    { code: 'TRANSACTIONAL_EMAIL_SYSTEM_TEMPLATE' },
+  ],
   permissions: [
     { code: 'transactional_emails:read', label: 'View transactional emails' },
     {

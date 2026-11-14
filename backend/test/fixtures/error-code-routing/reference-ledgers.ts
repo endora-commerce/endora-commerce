@@ -1288,6 +1288,21 @@ export const MINTED_ERROR_CODES: MintedErrorCodes = {
       'nor contributed by a module that is present. The noun is this module\'s `webhooks` row ' +
       'and the one raise site is its own `services/webhook-service.ts`.',
   },
+  TRANSACTIONAL_EMAIL_SYSTEM_BLOCK: {
+    to: 'transactional_emails',
+    reason:
+      'Minted by issue #638 (#86) for deleting a system email block. It was `409 ' +
+      'VALIDATION_FAILED` with an English sentence the envelope never replaces. The noun is the ' +
+      'block, this module\'s row, and the one raise site is `email-block.service.ts`. The ' +
+      'newsletter twin is `NEWSLETTER_EMAIL_BLOCK_SYSTEM` (issue #626).',
+  },
+  TRANSACTIONAL_EMAIL_SYSTEM_TEMPLATE: {
+    to: 'transactional_emails',
+    reason:
+      'Minted by issue #638 (#86) for deleting a system email template. It was `409 ' +
+      'VALIDATION_FAILED`. A separate code from the block\'s rather than a token: the noun ' +
+      'differs, and the one raise site is `email-template.service.ts`.',
+  },
   DOCUMENT_TEMPLATE_NOT_FOUND: {
     to: 'document_templates',
     reason:

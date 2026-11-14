@@ -172,7 +172,16 @@ export class EmailTemplateService {
   async delete(id: string): Promise<void> {
     const em = this.emFactory();
     const t = await this.loadOrThrow(em, id);
-    if (t.isSystem) throw new HttpError(409, ERROR_CODES.VALIDATION_FAILED, 'System templates cannot be deleted.');
+    // `templateCode`, not `code`: the error envelope reads `details.code` as
+    // the refusal token that picks the sentence (issue #638).
+    if (t.isSystem) {
+      throw new HttpError(
+        409,
+        ERROR_CODES.TRANSACTIONAL_EMAIL_SYSTEM_TEMPLATE,
+        'System templates cannot be deleted.',
+        { templateId: t.id, templateCode: t.code },
+      );
+    }
     const bridges = await em.find(EmailTemplateSalesChannel, { templateId: t.id });
     this.#audit(em, 'email_template.delete', t.id, { code: t.code }, null);
     await em.removeAndFlush([...bridges, t]);

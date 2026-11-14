@@ -31,6 +31,12 @@ substitutes at send time.
   palette (legacy trees still render). The seeded system blocks
   `default_email_header` (renders branding via `EmailLogo` / `{{var branding.logoUrl}}`) and `default_email_footer`
   are auto-included in the default content.
+  A system block or template cannot be deleted:
+  `DELETE /api/v1/admin/transactional-emails/blocks/:id` answers
+  `409 TRANSACTIONAL_EMAIL_SYSTEM_BLOCK` (`details`: `blockId`, `blockCode`) and
+  `DELETE /api/v1/admin/transactional-emails/templates/:id` answers
+  `409 TRANSACTIONAL_EMAIL_SYSTEM_TEMPLATE` (`details`: `templateId`, `templateCode`), with a
+  sentence in the operator's language. Both were `409 VALIDATION_FAILED` until issue #638.
 - **Branding** — header logo, accent color, and the default header/footer block
   codes, resolved per scope through the Settings module
   (`transactional_emails.*`). The resolved logo is exposed to every email as
