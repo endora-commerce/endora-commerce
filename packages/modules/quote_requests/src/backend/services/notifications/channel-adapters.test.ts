@@ -215,6 +215,7 @@ function deps(overrides: Partial<ChannelAdapterDeps> = {}) {
       ),
     },
     storefrontUrl: vi.fn(async () => 'https://shop.example.com/'),
+    adminBaseUrl: () => null,
     ...overrides,
   };
   return {
@@ -538,6 +539,49 @@ describe('admin_email (FR-023, T042)', () => {
       status: 'skipped_no_recipient',
     });
     expect(d.sent).toHaveLength(0);
+  });
+});
+
+/**
+ * Issue #1204 (spec 179 OQ-1, the #185 follow-up): the operator e-mail links
+ * to the request in the admin panel — the bell entry's address made absolute
+ * on the platform's `ADMIN_BASE_URL` — and carries no link variable at all
+ * when that is not configured, so it never sends a relative or guessed link.
+ */
+describe('admin_email — the link into the admin panel (#1204)', () => {
+  const ADMIN_URL = `https://shop.example.com/admin/quote-requests/${RFQ_ID}`;
+  const OPERATOR_CHANGES = NOTIFICATION_CHANGES.filter((change) => NOTIFICATION_MATRIX[change].channels.admin_email !== null);
+
+  it.each(OPERATOR_CHANGES)('%s: links to the request when the admin address is configured', async (change) => {
+    const d = deps({ adminBaseUrl: () => 'https://shop.example.com/admin' });
+    await createChannelAdapters(d.value).admin_email.deliver(context(change, 'admin_email'));
+    expect(d.sent[0]!.variables).toMatchObject({ quote: { adminUrl: ADMIN_URL } });
+  });
+
+  it.each(OPERATOR_CHANGES)('%s: carries no link variable at all when it is not', async (change) => {
+    const d = deps({ adminBaseUrl: () => null });
+    await createChannelAdapters(d.value).admin_email.deliver(context(change, 'admin_email'));
+    expect(d.sent[0]!.variables['quote']).not.toHaveProperty('adminUrl');
+  });
+
+  it('reads the platform’s ADMIN_BASE_URL when no reader is injected', async () => {
+    const original = process.env['ADMIN_BASE_URL'];
+    process.env['ADMIN_BASE_URL'] = 'https://shop.example.com/admin/';
+    try {
+      const d = deps();
+      delete (d.value as { adminBaseUrl?: unknown }).adminBaseUrl;
+      await createChannelAdapters(d.value).admin_email.deliver(context('submitted', 'admin_email'));
+      expect(d.sent[0]!.variables).toMatchObject({ quote: { adminUrl: ADMIN_URL } });
+    } finally {
+      if (original === undefined) delete process.env['ADMIN_BASE_URL'];
+      else process.env['ADMIN_BASE_URL'] = original;
+    }
+  });
+
+  it('the customer e-mail never carries it', async () => {
+    const d = deps({ adminBaseUrl: () => 'https://shop.example.com/admin' });
+    await createChannelAdapters(d.value).customer_email.deliver(context('submitted', 'customer_email'));
+    expect(d.sent[0]!.variables['quote']).not.toHaveProperty('adminUrl');
   });
 });
 

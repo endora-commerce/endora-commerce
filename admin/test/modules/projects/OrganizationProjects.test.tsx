@@ -116,11 +116,14 @@ describe('projects contributes the organization detail zone', () => {
     expect(screen.queryByRole('link', { name: en('organizationPanel.new') })).toBeNull();
   });
 
-  it('says how many more there are when the organization has more than it shows', async () => {
+  it('says how many more there are, and links to the list narrowed to this organization (issue #454)', async () => {
     getSpy.mockResolvedValue({ items: [summary()], nextCursor: 'next', total: 14 });
     renderZone();
     expect(await screen.findByText(en('organizationPanel.more', { shown: 1, total: 14 }), { exact: false })).toBeTruthy();
-    expect(screen.getByRole('link', { name: en('organizationPanel.all') })).toHaveAttribute('href', '/projects');
+    expect(screen.getByRole('link', { name: en('organizationPanel.all') })).toHaveAttribute(
+      'href',
+      `/projects?organizationId=${ORGANIZATION_ID}`,
+    );
   });
 
   it('says so when the organization has no Project the reader may see', async () => {

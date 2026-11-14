@@ -19,9 +19,12 @@ import { simpleEmailBodyTree } from '@endora-commerce/email-components/defaults/
  * stays the operator's own action.
  *
  * **Operator e-mails** are written in the administrator's preferred language
- * and carry no link in this feature (owner ruling OQ-1 = A); the admin link
- * follows once #185 promotes `ADMIN_BASE_URL`. `customer.name` is the
- * recipient — here the administrator.
+ * and carry a button to the request's admin screen, `quote.adminUrl`, built on
+ * the platform's `ADMIN_BASE_URL` (spec 179 OQ-1, issue #1204). Where the
+ * admin's address is not configured the variable is not sent and the button is
+ * dropped, as the customer button is; the text still says where to open the
+ * request. An operator's own template that does not name the variable renders
+ * as before. `customer.name` is the recipient — here the administrator.
  *
  * None is locked on: every one of them is a courtesy, and the bell, the
  * request's History and the storefront each still say what happened.
@@ -75,6 +78,11 @@ const OPERATOR_GREETING: Record<Language, string> = {
   'pl-PL': 'Dzień dobry {{var customer.name}},',
 };
 
+const OPERATOR_CTA: Record<Language, string> = {
+  'en-US': 'Open the quote request',
+  'pl-PL': 'Otwórz zapytanie ofertowe',
+};
+
 function operatorEmail(code: string, copy: Record<Language, Copy>): EmailDefaults {
   const languages = Object.fromEntries(
     (Object.keys(copy) as Language[]).map((language) => [
@@ -83,6 +91,8 @@ function operatorEmail(code: string, copy: Record<Language, Copy>): EmailDefault
         idPrefix: code.replace(/_/g, '-'),
         heading: copy[language].heading,
         text: [OPERATOR_GREETING[language], ...copy[language].lines].join('\n'),
+        ctaLabel: OPERATOR_CTA[language],
+        ctaHref: '{{var quote.adminUrl}}',
       }),
     ]),
   );

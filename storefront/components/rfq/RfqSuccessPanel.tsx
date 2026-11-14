@@ -35,12 +35,15 @@ export function RfqSuccessPanel({
 
       <p>{t('quoteRequest.success.nextStepsHint')}</p>
 
+      {/* Issue #1220 — the base reset strips every `<a>` of colour and underline, so
+          these take the shared link style. It is the account area's class, and two of
+          the three targets are account pages (the buyer's quote requests). */}
       <p className="b2b-auth__hint">
-        <LocalizedLink href={`/quote-requests/${rfqId}`}>{t('quoteRequest.success.viewRequest')}</LocalizedLink>
+        <LocalizedLink href={`/quote-requests/${rfqId}`} className="b2b-account__link">{t('quoteRequest.success.viewRequest')}</LocalizedLink>
         {' · '}
-        <LocalizedLink href="/quote-requests">{t('quoteRequest.success.allRequests')}</LocalizedLink>
+        <LocalizedLink href="/quote-requests" className="b2b-account__link">{t('quoteRequest.success.allRequests')}</LocalizedLink>
         {' · '}
-        <LocalizedLink href="/catalog">{t('quoteRequest.success.continueShopping')}</LocalizedLink>
+        <LocalizedLink href="/catalog" className="b2b-account__link">{t('quoteRequest.success.continueShopping')}</LocalizedLink>
       </p>
     </div>
   );

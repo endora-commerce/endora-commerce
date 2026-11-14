@@ -20,11 +20,12 @@ content**. The type comes with fixed settings:
 - it cannot be searchable, filterable, comparable, a variant axis, a
   promotion or price-list rule, mass-editable, quick-searchable, required,
   shown in the **Parametry** tab, or set per sales channel. The form does not
-  offer those settings, the list shows them locked, and the API refuses each one
-  with `400 VALIDATION_FAILED`, naming the setting;
+  offer those settings, the list shows them locked, and the API refuses each one,
+  naming the setting: with `400 VALIDATION_FAILED` on create and with
+  `400 CONTENT_ATTRIBUTE_CAPABILITY_LOCKED` on update;
 - it has no options;
 - its type cannot be changed later, and no other attribute can be changed into
-  it (`409`).
+  it (`409 ATTRIBUTE_VALUE_TYPE_LOCKED`, token `page_builder`).
 
 Then add the attribute to an [attribute set](./attribute-sets.md). Its position
 in the set is the order in which the product page shows the set's content
