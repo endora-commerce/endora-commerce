@@ -72,8 +72,9 @@ export function CreditLimitWidget(props: CreditLimitWidgetProps): ReactNode {
                 <td>
                   {/* Issue #661 — the number the buyer knows from `/orders`, opening
                       the order; the short id only for a server that predates it.
-                      Underlined: a storefront link inherits the text colour. */}
-                  <LocalizedLink href={`/orders/${r.orderId}`} className="underline">
+                      The account tables' link class: a storefront link inherits
+                      the text colour (issue #1178). */}
+                  <LocalizedLink href={`/orders/${r.orderId}`} className="b2b-account__link">
                     {r.orderBusinessId ?? r.orderId.slice(0, 8)}
                   </LocalizedLink>
                 </td>
