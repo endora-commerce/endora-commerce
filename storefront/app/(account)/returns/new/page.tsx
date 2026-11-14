@@ -63,7 +63,7 @@ export default async function NewReturnPage({
           {t('account.returns.new.notAllowed')}
         </p>
         <p>
-          <LocalizedLink href="/returns">{t('returns.new.backToReturns')}</LocalizedLink>
+          <LocalizedLink href="/returns" className="b2b-account__link b2b-account__link--standalone">{t('returns.new.backToReturns')}</LocalizedLink>
         </p>
       </div>
     );
@@ -82,7 +82,7 @@ export default async function NewReturnPage({
           <ul>
             {orders.map((o) => (
               <li key={o.id}>
-                <LocalizedLink href={`/returns/new?orderId=${encodeURIComponent(o.id)}`}>
+                <LocalizedLink href={`/returns/new?orderId=${encodeURIComponent(o.id)}`} className="b2b-account__link b2b-account__link--standalone">
                   {o.businessId} — {new Date(o.placedAt).toLocaleDateString(locale)}
                 </LocalizedLink>
               </li>
@@ -90,7 +90,7 @@ export default async function NewReturnPage({
           </ul>
         )}
         <p>
-          <LocalizedLink href="/returns">{t('returns.new.backToReturns')}</LocalizedLink>
+          <LocalizedLink href="/returns" className="b2b-account__link b2b-account__link--standalone">{t('returns.new.backToReturns')}</LocalizedLink>
         </p>
       </div>
     );
@@ -109,7 +109,7 @@ export default async function NewReturnPage({
         <h1>{t('returns.new.heading')}</h1>
         <p>{model.notice}</p>
         <p>
-          <LocalizedLink href="/returns/new">{t('returns.new.chooseAnotherOrder')}</LocalizedLink>
+          <LocalizedLink href="/returns/new" className="b2b-account__link b2b-account__link--standalone">{t('returns.new.chooseAnotherOrder')}</LocalizedLink>
         </p>
       </div>
     );
@@ -198,7 +198,7 @@ export default async function NewReturnPage({
         </button>
       </form>
       <p>
-        <LocalizedLink href="/returns/new">{t('returns.new.chooseAnotherOrder')}</LocalizedLink>
+        <LocalizedLink href="/returns/new" className="b2b-account__link b2b-account__link--standalone">{t('returns.new.chooseAnotherOrder')}</LocalizedLink>
       </p>
     </div>
   );

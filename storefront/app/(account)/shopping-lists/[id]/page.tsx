@@ -140,7 +140,7 @@ export default async function ShoppingListDetailPage({
     <>
       <h2>{shoppingListDisplayName(list, t)}</h2>
       <p>
-        <LocalizedLink href="/shopping-lists">{t('account.shoppingList.backToLists')}</LocalizedLink>
+        <LocalizedLink href="/shopping-lists" className="b2b-account__link b2b-account__link--standalone">{t('account.shoppingList.backToLists')}</LocalizedLink>
       </p>
       {/* Issue #745 — `?error=` is a code; one this page does not know reads as its generic failure. */}
       {sp.error ? <p className="b2b-auth__error">{t(SHOPPING_LIST_ERRORS.errorKey(sp.error)!)}</p> : null}
@@ -169,7 +169,7 @@ export default async function ShoppingListDetailPage({
           {sp.rfqId ? (
             <>
               {' '}
-              <LocalizedLink href={`/quote-requests/${sp.rfqId}`}>{t('account.shoppingList.openRfq')}</LocalizedLink>
+              <LocalizedLink href={`/quote-requests/${sp.rfqId}`} className="b2b-account__link">{t('account.shoppingList.openRfq')}</LocalizedLink>
             </>
           ) : null}
         </p>
@@ -222,7 +222,7 @@ export default async function ShoppingListDetailPage({
       {list.items.length === 0 ? (
         <p className="muted">
           {richText(t('account.shoppingList.empty'), {
-            catalog: <LocalizedLink href="/catalog">{t('account.shoppingList.emptyCatalogLink')}</LocalizedLink>,
+            catalog: <LocalizedLink href="/catalog" className="b2b-account__link">{t('account.shoppingList.emptyCatalogLink')}</LocalizedLink>,
           })}
         </p>
       ) : (
@@ -282,8 +282,8 @@ export default async function ShoppingListDetailPage({
                         );
                       }
                       return (
-                        <LocalizedLink href={`/p/${product.slug}`} className="flex flex-col">
-                          <span className="font-medium text-fg">{product.name}</span>
+                        <LocalizedLink href={`/p/${product.slug}`} className="b2b-account__link b2b-account__link--stacked">
+                          <span className="font-medium">{product.name}</span>
                           <span className="text-xs text-fg-soft">{format(t('account.common.sku'), { sku: product.sku })}</span>
                         </LocalizedLink>
                       );

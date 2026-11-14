@@ -64,7 +64,10 @@ describe('storefront order detail — line groups (T066)', () => {
           {items.map((it) => (
             <tr key={it.id}>
               <td>
-                <Link href={`/p/${it.productId}`}>{it.productSnapshot.name}</Link>
+                {/* Since issue #1214 the product link carries the shared account link style. */}
+                <Link href={`/p/${it.productId}`} className="b2b-account__link">
+                  {it.productSnapshot.name}
+                </Link>
                 <br />
                 {/* Keyed since issue #85: one catalogue sentence, so no text-node separator. */}
                 <small className="text-subtle">{`SKU: ${it.variantSnapshot?.sku ?? it.productSnapshot.sku}`}</small>
