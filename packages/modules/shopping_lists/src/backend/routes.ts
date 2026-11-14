@@ -7,7 +7,12 @@ import {
   updateShoppingListItemRequestSchema,
   firstLanguageTag,
   organizationPermissionPreHandler,
+  type ConvertToCartResponse,
+  type ConvertToRfqResponse,
+  type DefaultShoppingListSummary,
   type OrganizationPermissionPort,
+  type ShoppingList as ShoppingListView,
+  type ShoppingListListResponse,
 } from '@endora-commerce/contracts';
 import type { EntityManager } from '@mikro-orm/postgresql';
 import { getResolvedChannel } from '@endora-commerce/platform/kernel';
@@ -61,23 +66,27 @@ export async function registerShoppingListRoutes(
     organizationPermissionPreHandler(organizationPermissions, 'quote_requests.create'),
   ];
 
-  app.get('/api/v1/shopping-lists', { preHandler: requireCustomer }, async (request) => {
-    const ctx = resolveCustomerContext(request);
-    const lists = await service.list(ctx);
-    const em = emFactory();
-    const data = await Promise.all(
-      lists.map(async (l) => {
-        const items = await em.find(ShoppingListItem, { shoppingListId: l.id });
-        return serializeWithItems(l, items);
-      }),
-    );
-    return { data };
-  });
+  app.get(
+    '/api/v1/shopping-lists',
+    { preHandler: requireCustomer },
+    async (request): Promise<ShoppingListListResponse> => {
+      const ctx = resolveCustomerContext(request);
+      const lists = await service.list(ctx);
+      const em = emFactory();
+      const data = await Promise.all(
+        lists.map(async (l) => {
+          const items = await em.find(ShoppingListItem, { shoppingListId: l.id });
+          return serializeWithItems(l, items);
+        }),
+      );
+      return { data };
+    },
+  );
 
   app.post(
     '/api/v1/shopping-lists',
     { preHandler: canEdit, schema: { body: createShoppingListRequestSchema } },
-    async (request, reply) => {
+    async (request, reply): Promise<{ data: ShoppingListView }> => {
       const ctx = resolveCustomerContext(request);
       const body = createShoppingListRequestSchema.parse(request.body);
       const list = await service.create(ctx, body);
@@ -89,18 +98,22 @@ export async function registerShoppingListRoutes(
   // Default-list endpoints. Fastify's radix router prioritises the static
   // `default` segment over the parametric `:id`, so ordering vs `/:id` is
   // irrelevant.
-  app.get('/api/v1/shopping-lists/default', { preHandler: requireCustomer }, async (request) => {
-    const ctx = resolveCustomerContext(request);
-    const list = await service.ensureDefault(ctx);
-    const em = emFactory();
-    const itemCount = await em.count(ShoppingListItem, { shoppingListId: list.id });
-    return { data: { id: list.id, name: list.name, itemCount } };
-  });
+  app.get(
+    '/api/v1/shopping-lists/default',
+    { preHandler: requireCustomer },
+    async (request): Promise<{ data: DefaultShoppingListSummary }> => {
+      const ctx = resolveCustomerContext(request);
+      const list = await service.ensureDefault(ctx);
+      const em = emFactory();
+      const itemCount = await em.count(ShoppingListItem, { shoppingListId: list.id });
+      return { data: { id: list.id, name: list.name, itemCount } };
+    },
+  );
 
   app.post(
     '/api/v1/shopping-lists/default/items',
     { preHandler: canEdit, schema: { body: addShoppingListItemRequestSchema } },
-    async (request, reply) => {
+    async (request, reply): Promise<{ data: DefaultShoppingListSummary }> => {
       const ctx = resolveCustomerContext(request);
       const body = addShoppingListItemRequestSchema.parse(request.body);
       const { list, itemCount } = await service.addItemToDefault(ctx, {
@@ -117,7 +130,7 @@ export async function registerShoppingListRoutes(
   app.get<{ Params: { id: string } }>(
     '/api/v1/shopping-lists/:id',
     { preHandler: requireCustomer },
-    async (request) => {
+    async (request): Promise<{ data: ShoppingListView }> => {
       const ctx = resolveCustomerContext(request);
       const { list, items } = await service.getByIdWithItems(ctx, request.params.id);
       return { data: serializeWithItems(list, items) };
@@ -127,7 +140,7 @@ export async function registerShoppingListRoutes(
   app.post<{ Params: { id: string } }>(
     '/api/v1/shopping-lists/:id/set-default',
     { preHandler: canEdit },
-    async (request) => {
+    async (request): Promise<{ data: ShoppingListView }> => {
       const ctx = resolveCustomerContext(request);
       const list = await service.setDefault(ctx, request.params.id);
       const em = emFactory();
@@ -139,7 +152,7 @@ export async function registerShoppingListRoutes(
   app.patch<{ Params: { id: string } }>(
     '/api/v1/shopping-lists/:id',
     { preHandler: canEdit, schema: { body: renameShoppingListRequestSchema } },
-    async (request) => {
+    async (request): Promise<{ data: ShoppingListView }> => {
       const ctx = resolveCustomerContext(request);
       const body = renameShoppingListRequestSchema.parse(request.body);
       const list = await service.rename(ctx, request.params.id, body.name);
@@ -162,7 +175,7 @@ export async function registerShoppingListRoutes(
   app.post<{ Params: { id: string } }>(
     '/api/v1/shopping-lists/:id/items',
     { preHandler: canEdit, schema: { body: addShoppingListItemRequestSchema } },
-    async (request, reply) => {
+    async (request, reply): Promise<{ data: ShoppingListView }> => {
       const ctx = resolveCustomerContext(request);
       const body = addShoppingListItemRequestSchema.parse(request.body);
       await service.addItem(ctx, request.params.id, {
@@ -181,7 +194,7 @@ export async function registerShoppingListRoutes(
   app.patch<{ Params: { id: string; itemId: string } }>(
     '/api/v1/shopping-lists/:id/items/:itemId',
     { preHandler: canEdit, schema: { body: updateShoppingListItemRequestSchema } },
-    async (request) => {
+    async (request): Promise<{ data: ShoppingListView }> => {
       const ctx = resolveCustomerContext(request);
       const body = updateShoppingListItemRequestSchema.parse(request.body);
       await service.updateItem(ctx, request.params.id, request.params.itemId, {
@@ -216,7 +229,7 @@ export async function registerShoppingListRoutes(
   app.post<{ Params: { id: string } }>(
     '/api/v1/shopping-lists/:id/convert-to-cart',
     { preHandler: canConvertToCart, schema: { body: convertShoppingListRequestSchema.optional() } },
-    async (request) => {
+    async (request): Promise<{ data: ConvertToCartResponse }> => {
       const ctx = resolveCustomerContext(request);
       const body = convertShoppingListRequestSchema.parse(request.body ?? {});
       // Into the basket of the storefront the buyer is on (`specs/154-sales-channel-access/`).
@@ -233,7 +246,8 @@ export async function registerShoppingListRoutes(
   app.post<{ Params: { id: string } }>(
     '/api/v1/shopping-lists/:id/convert-to-rfq',
     { preHandler: canConvertToQuoteRequest, schema: { body: convertShoppingListRequestSchema.optional() } },
-    async (request) => {
+    // `rfqId` is `null` when every item is skipped; the contract declares it (issue #1159).
+    async (request): Promise<{ data: ConvertToRfqResponse }> => {
       const ctx = resolveCustomerContext(request);
       const body = convertShoppingListRequestSchema.parse(request.body ?? {});
       // Feature 163 — the lines are judged at the request's channel and scope language.
@@ -247,7 +261,8 @@ export async function registerShoppingListRoutes(
   );
 }
 
-function serializeWithItems(list: ShoppingList, items: ShoppingListItem[]): Record<string, unknown> {
+/** The published `shoppingListSchema` (issue #599). */
+function serializeWithItems(list: ShoppingList, items: ShoppingListItem[]): ShoppingListView {
   return {
     id: list.id,
     organizationId: list.organizationId,

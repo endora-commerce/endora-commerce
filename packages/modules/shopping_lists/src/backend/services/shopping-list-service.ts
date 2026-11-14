@@ -10,6 +10,7 @@ import type {
   CartWritePort,
   CatalogProductAvailabilityPort,
   CatalogProductReadPort,
+  ConvertToRfqResponse,
   RfqCustomerPort,
 } from '@endora-commerce/contracts';
 import { HttpError } from '@endora-commerce/platform/http';
@@ -55,12 +56,11 @@ export interface ConvertToCartResult {
   skipped: ConversionSkip[];
 }
 
-export interface ConvertToRfqResult {
-  shoppingListId: string;
-  rfqId: string | null;
-  added: number;
-  skipped: ConversionSkip[];
-}
+/**
+ * The published reply (issue #1159): `rfqId` is `null` when no item converted, and
+ * no quote request was created or changed.
+ */
+export type ConvertToRfqResult = ConvertToRfqResponse;
 
 export class ShoppingListService {
   constructor(
