@@ -82,7 +82,10 @@ describe('cart — customer-group targeted promotions (issue #177)', () => {
   beforeEach(async () => {
     const conn = h.em().getConnection();
     await conn.execute('truncate table promotions cascade');
-    await conn.execute('update carts set applied_promotion_code = null');
+    // Only the three baskets this file fills (issue #607).
+    await conn.execute('update carts set applied_promotion_code = null where customer_account_id in (?)', [
+      [TEST_CUSTOMER_ID, TEST_CUSTOMER_RFQ_ID, TEST_CUSTOMER_EMPTY_ID],
+    ]);
   });
 
   async function createPromotion(payload: Record<string, unknown>): Promise<void> {

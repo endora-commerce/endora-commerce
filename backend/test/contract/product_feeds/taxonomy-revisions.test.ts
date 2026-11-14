@@ -88,7 +88,12 @@ describe('feed taxonomy revisions [contract]', () => {
     const em = h.em();
     await em.getConnection().execute('delete from "product_feed_taxonomy_checks"');
     await em.getConnection().execute('delete from "product_feed_taxonomy_mappings"');
-    await em.getConnection().execute('update "product_feed_templates" set "taxonomy_id" = null');
+    // Detach exactly the templates whose taxonomy the next statement deletes (issue #607).
+    await em
+      .getConnection()
+      .execute(
+        'update "product_feed_templates" set "taxonomy_id" = null where "taxonomy_id" in (select "id" from "product_feed_taxonomies")',
+      );
     await em.getConnection().execute('delete from "product_feed_taxonomies"');
     em.clear();
   }

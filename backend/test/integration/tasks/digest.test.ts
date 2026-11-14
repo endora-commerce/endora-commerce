@@ -122,7 +122,14 @@ describe('tasks — the daily digest (US7)', () => {
     return { id, number };
   }
 
-  const resetClaims = () => h.em().getConnection().execute(`update "task_digest_subscriptions" set "last_sent_on" = null`);
+  /** Clears the claims of this file's own two subscribers, nobody else's (issue #607). */
+  const resetClaims = () =>
+    h
+      .em()
+      .getConnection()
+      .execute(`update "task_digest_subscriptions" set "last_sent_on" = null where "admin_user_id" in (?)`, [
+        [ben.adminUserId, cal.adminUserId],
+      ]);
   const digestsTo = (who: Person) => mail.sent.filter((message) => message.to === who.email);
   const bellsFor = (who: Person) =>
     h.em().find(
