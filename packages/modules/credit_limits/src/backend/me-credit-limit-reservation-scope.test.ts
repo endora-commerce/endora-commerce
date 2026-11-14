@@ -18,8 +18,10 @@ import type { CreditLimitReservation } from './entities/credit-limit-reservation
  * Organization's. The service-backed proof is
  * `backend/test/contract/credit_limits/me-credit-limit-reservation-scope.test.ts`;
  * this file pins the seam calls, which that one cannot see: a holder of
- * `orders.view_organization` is never narrowed and costs no order read, and an
- * empty limit asks neither port.
+ * `orders.view_organization` is never narrowed, every buyer costs exactly one
+ * batched order read — the one that also answers each reservation's
+ * customer-facing order number (issue #661) — and an empty limit asks neither
+ * port.
  */
 
 const ORG_ID = '00000000-0000-4000-8000-0000000000aa';
@@ -50,9 +52,17 @@ async function build(
   holds: boolean,
 ): Promise<{ app: FastifyInstance; calls: Calls }> {
   const calls: Calls = { can: [], findByIds: [] };
-  const orders: Record<string, Pick<OrderRecord, 'id' | 'organizationId' | 'placedByCustomerAccountId'>> = {
-    [MY_ORDER]: { id: MY_ORDER, organizationId: ORG_ID, placedByCustomerAccountId: ME },
-    [THEIR_ORDER]: { id: THEIR_ORDER, organizationId: ORG_ID, placedByCustomerAccountId: COLLEAGUE },
+  const orders: Record<
+    string,
+    Pick<OrderRecord, 'id' | 'businessId' | 'organizationId' | 'placedByCustomerAccountId'>
+  > = {
+    [MY_ORDER]: { id: MY_ORDER, businessId: 'ORD-0001-2026', organizationId: ORG_ID, placedByCustomerAccountId: ME },
+    [THEIR_ORDER]: {
+      id: THEIR_ORDER,
+      businessId: 'ORD-0002-2026',
+      organizationId: ORG_ID,
+      placedByCustomerAccountId: COLLEAGUE,
+    },
   };
   const app = Fastify();
   app.setValidatorCompiler(validatorCompiler);
@@ -96,7 +106,11 @@ describe('GET /api/v1/me/credit-limit — which reservations are listed (issue #
     const res = await built.app.inject({ method: 'GET', url: '/api/v1/me/credit-limit' });
     expect(res.statusCode, res.body).toBe(200);
     return (res.json() as {
-      data: { availableAmount: number; activeReservationCount: number; activeReservations: Array<{ orderId: string }> };
+      data: {
+        availableAmount: number;
+        activeReservationCount: number;
+        activeReservations: Array<{ orderId: string; orderBusinessId?: string | null }>;
+      };
     }).data;
   }
 
@@ -104,18 +118,29 @@ describe('GET /api/v1/me/credit-limit — which reservations are listed (issue #
     const built = await build([reservation(MY_ORDER, '100.00'), reservation(THEIR_ORDER, '250.00')], false);
     const data = await get(built);
     expect(data.activeReservations.map((r) => r.orderId)).toEqual([MY_ORDER]);
+    expect(data.activeReservations.map((r) => r.orderBusinessId)).toEqual(['ORD-0001-2026']);
     expect(data.activeReservationCount).toBe(2);
     expect(data.availableAmount).toBe(650);
     expect(built.calls.can).toEqual(['orders.view_organization']);
     expect(built.calls.findByIds).toEqual([[MY_ORDER, THEIR_ORDER]]);
   });
 
-  it('lists everything to a holder and reads no order', async () => {
+  it('lists everything to a holder, with each order number, in one order read (issue #661)', async () => {
     const built = await build([reservation(MY_ORDER, '100.00'), reservation(THEIR_ORDER, '250.00')], true);
     const data = await get(built);
     expect(data.activeReservations.map((r) => r.orderId)).toEqual([MY_ORDER, THEIR_ORDER]);
+    expect(data.activeReservations.map((r) => r.orderBusinessId)).toEqual(['ORD-0001-2026', 'ORD-0002-2026']);
     expect(data.activeReservationCount).toBe(2);
-    expect(built.calls.findByIds).toEqual([]);
+    expect(built.calls.findByIds).toEqual([[MY_ORDER, THEIR_ORDER]]);
+  });
+
+  it('answers a null number for an order the read did not return', async () => {
+    const GONE = '00000000-0000-4000-8000-0000000000c9';
+    const built = await build([reservation(GONE, '100.00')], true);
+    const data = await get(built);
+    expect(data.activeReservations).toEqual([
+      expect.objectContaining({ orderId: GONE, orderBusinessId: null }),
+    ]);
   });
 
   it('asks neither port when the limit holds no reservation', async () => {

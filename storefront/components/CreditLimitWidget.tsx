@@ -5,6 +5,7 @@ import { tForLocale } from '../lib/i18n/messages';
 import { format } from '../lib/i18n/format';
 import { formatCount } from '../lib/orderMinimum';
 import { pluralKey, richText } from '../lib/account/labels';
+import { LocalizedLink } from '../lib/i18n/localized-link';
 
 /**
  * Credit limit summary widget (T219). Used by Account and Checkout to
@@ -68,7 +69,14 @@ export function CreditLimitWidget(props: CreditLimitWidgetProps): ReactNode {
           <tbody>
             {limit.activeReservations.map((r) => (
               <tr key={r.orderId}>
-                <td>{r.orderId.slice(0, 8)}</td>
+                <td>
+                  {/* Issue #661 — the number the buyer knows from `/orders`, opening
+                      the order; the short id only for a server that predates it.
+                      Underlined: a storefront link inherits the text colour. */}
+                  <LocalizedLink href={`/orders/${r.orderId}`} className="underline">
+                    {r.orderBusinessId ?? r.orderId.slice(0, 8)}
+                  </LocalizedLink>
+                </td>
                 <td>{money(r.amount)}</td>
                 <td>{new Date(r.createdAt).toLocaleString(locale)}</td>
               </tr>
