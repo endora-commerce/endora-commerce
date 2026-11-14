@@ -26,13 +26,16 @@
 
 import { Migration20260425T161557LanguagesCurrenciesInit } from './20260425T161557_languages_currencies_init.js';
 import { Migration20261003T115043LanguagesRepairDefaultChannelLanguage } from './20261003T115043_languages_repair_default_channel_language.js';
+import { Migration20261114T003519LanguagesDictionaryColumns } from './20261114T003519_languages_dictionary_columns.js';
 
 export const migrations = [
   Migration20260425T161557LanguagesCurrenciesInit,
   Migration20261003T115043LanguagesRepairDefaultChannelLanguage,
+  Migration20261114T003519LanguagesDictionaryColumns,
 ];
 
 export {
   Migration20260425T161557LanguagesCurrenciesInit,
   Migration20261003T115043LanguagesRepairDefaultChannelLanguage,
+  Migration20261114T003519LanguagesDictionaryColumns,
 };

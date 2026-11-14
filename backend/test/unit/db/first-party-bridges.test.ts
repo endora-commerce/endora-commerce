@@ -84,7 +84,9 @@ describe('first-party derived-down exemptions', () => {
     const derived = await firstPartyDerivedDowns();
     const at = (moduleId: string, table: string) => derived.find((row) => row.moduleId === moduleId && row.table === table)?.clause;
     expect(at('taxes', 'promotions')).toBe('owner-depends-on-writer');
-    expect(at('dictionaries', 'languages')).toBe('both-required');
+    // `dictionaries -> languages` named this clause until issue #611 moved those statements to
+    // `languages`; the `currencies` half of the same `down()` still stands.
+    expect(at('dictionaries', 'currencies')).toBe('both-required');
     expect(derived.some((row) => row.moduleId === 'quote_requests')).toBe(false);
   });
 });
