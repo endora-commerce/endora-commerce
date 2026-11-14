@@ -28,6 +28,14 @@ import { AddressForm } from './AddressForm';
  * code the page does not know reads as the generic failure, and nothing else of
  * the URL reaches the page (issue #745).
  */
+/**
+ * Issue #663 — the row actions in the storefront's button classes, as on the
+ * roles and members screens: a 44px target (Fitts's Law, WCAG 2.5.8), and
+ * *Remove* in the role-deletion button's `border-bad text-bad`, its label
+ * still naming it.
+ */
+const ROW_ACTION_CLASS = 'btn btn--outline btn--sm min-h-11';
+
 export function AddressBook({
   heading,
   addresses,
@@ -91,7 +99,9 @@ export function AddressBook({
                     <form action={setDefaultAddressAction} className="inline">
                       <input type="hidden" name="id" value={a.id} />
                       <input type="hidden" name="returnTo" value={returnTo} />
-                      <button type="submit">{t('account.addresses.makeDefault')}</button>
+                      <button type="submit" className={ROW_ACTION_CLASS}>
+                        {t('account.addresses.makeDefault')}
+                      </button>
                     </form>
                   ) : null}
                 </td>
@@ -100,7 +110,9 @@ export function AddressBook({
                     <form action={removeAddressAction}>
                       <input type="hidden" name="id" value={a.id} />
                       <input type="hidden" name="returnTo" value={returnTo} />
-                      <button type="submit">{t('account.common.remove')}</button>
+                      <button type="submit" className={`${ROW_ACTION_CLASS} border-bad text-bad`}>
+                        {t('account.common.remove')}
+                      </button>
                     </form>
                   </td>
                 ) : null}

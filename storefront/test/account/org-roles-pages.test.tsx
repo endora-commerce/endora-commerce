@@ -617,6 +617,39 @@ describe('role actions', () => {
   });
 });
 
+describe('members page — the storefront design system (issue #663)', () => {
+  it('styles each member’s role select and keeps its accessible name', async () => {
+    const out = await html(membersPage());
+    const selects = (out.match(/<select\b[^>]*>/g) ?? []).filter((tag) => !tag.includes('id="invite-role"'));
+    expect(selects).toHaveLength(2);
+    for (const tag of selects) {
+      expect(tag).toMatch(/class="[^"]*\bindustria-select\b/);
+      expect(tag).toMatch(/class="[^"]*\bh-11\b/);
+      expect(tag).toMatch(/aria-label="Role of /);
+    }
+  });
+
+  it('keeps the invitation’s role select in the form field it labels', async () => {
+    const out = await html(membersPage());
+    expect(out).toMatch(/<div class="b2b-auth__field"><label for="invite-role">Role<\/label><select[^>]*id="invite-role"/);
+  });
+
+  it('renders every row action as a design-system button with a 44px target', async () => {
+    const out = await html(membersPage());
+    const rowButtons = (out.slice(0, out.indexOf('id="invite-email"')).match(/<button\b[^>]*>/g) ?? []);
+    // Save × 2, Remove × 1 (never yourself), Revoke × 1.
+    expect(rowButtons).toHaveLength(4);
+    for (const tag of rowButtons) expect(tag).toMatch(/class="btn btn--outline btn--sm min-h-11\b/);
+  });
+
+  it('marks the destructive row actions apart from Save, not by colour alone', async () => {
+    const out = await html(membersPage());
+    const destructive = (out.match(/<button\b[^>]*>[^<]*<\/button>/g) ?? []).filter((b) => b.includes('text-bad'));
+    // The label names the action; the colour only reinforces it.
+    expect(destructive.map((b) => b.replace(/<[^>]+>/g, ''))).toEqual(['Remove', 'Revoke']);
+  });
+});
+
 describe('members page — the role select (FR-008, US 1.2)', () => {
   it('shows each member’s role as a select of the organization’s roles, the held one selected', async () => {
     const out = await html(membersPage());
