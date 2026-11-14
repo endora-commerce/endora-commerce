@@ -377,6 +377,28 @@ export const ERROR_CODES = {
   ALREADY_SUBSCRIBED: 'ALREADY_SUBSCRIBED',
   PRODUCT_IN_STOCK: 'PRODUCT_IN_STOCK',
 
+  // Newsletter — the admin refusals that were `VALIDATION_FAILED` with an
+  // English literal until issue #626 (#86). None carries a `details.code`
+  // token: each code is one refusal.
+  /** 422 — an active automation cannot be edited; pause it first (`details.automationId`, `status`). */
+  NEWSLETTER_AUTOMATION_ACTIVE: 'NEWSLETTER_AUTOMATION_ACTIVE',
+  /** 422 — only a draft or scheduled campaign can be edited (`details.campaignId`, `status`). */
+  NEWSLETTER_CAMPAIGN_NOT_EDITABLE: 'NEWSLETTER_CAMPAIGN_NOT_EDITABLE',
+  /** 422 — only a draft or scheduled campaign can be cancelled (`details.campaignId`, `status`). */
+  NEWSLETTER_CAMPAIGN_NOT_CANCELLABLE: 'NEWSLETTER_CAMPAIGN_NOT_CANCELLABLE',
+  /** 422 — a campaign cannot be sent while no sending provider is configured. */
+  NEWSLETTER_PROVIDER_NOT_CONFIGURED: 'NEWSLETTER_PROVIDER_NOT_CONFIGURED',
+  /** 409 — a custom field with this key already exists (`details.key`). */
+  NEWSLETTER_CUSTOM_FIELD_KEY_TAKEN: 'NEWSLETTER_CUSTOM_FIELD_KEY_TAKEN',
+  /** 409 — an email block with this code already exists (`details.blockCode`). */
+  NEWSLETTER_EMAIL_BLOCK_CODE_TAKEN: 'NEWSLETTER_EMAIL_BLOCK_CODE_TAKEN',
+  /** 422 — a system email block cannot be deleted (`details.blockId`, `blockCode`). */
+  NEWSLETTER_EMAIL_BLOCK_SYSTEM: 'NEWSLETTER_EMAIL_BLOCK_SYSTEM',
+  /** 409 — a tag with this code already exists (`details.tagCode`). */
+  NEWSLETTER_TAG_CODE_TAKEN: 'NEWSLETTER_TAG_CODE_TAKEN',
+  /** 409 — a campaign or an automation uses the tag, so it cannot be deleted (`details.tagId`, `tagCode`). */
+  NEWSLETTER_TAG_IN_USE: 'NEWSLETTER_TAG_IN_USE',
+
   // API keys / webhooks / integrations
   API_KEY_OUT_OF_SCOPE: 'API_KEY_OUT_OF_SCOPE',
   /** An administrator asked for an API key scope their own role does not hold. */

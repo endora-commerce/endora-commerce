@@ -117,6 +117,30 @@ które mogło nie nastąpić.
 - `newsletter:write` — zarządzanie subskrybentami, kampaniami, automatyzacjami, blokami i dostawcą
   wysyłki.
 
+## Odmowy
+
+API administracyjne odrzuca zapis, na który nie pozwala bieżący stan, z własnym kodem błędu i
+zdaniem w języku operatora. Wartości, które to zdanie wymienia, są przekazywane w `details`:
+
+| Kod | Status | Kiedy | `details` |
+| --- | --- | --- | --- |
+| `NEWSLETTER_CAMPAIGN_NOT_EDITABLE` | 422 | Edycja kampanii, która nie jest wersją roboczą ani zaplanowaną | `campaignId`, `status` |
+| `NEWSLETTER_CAMPAIGN_NOT_CANCELLABLE` | 422 | Anulowanie kampanii, która nie jest wersją roboczą ani zaplanowaną | `campaignId`, `status` |
+| `NEWSLETTER_PROVIDER_NOT_CONFIGURED` | 422 | Wysyłka kampanii, gdy nie skonfigurowano dostawcy wysyłki | — |
+| `NEWSLETTER_AUTOMATION_ACTIVE` | 422 | Edycja aktywnej automatyzacji; najpierw ją wstrzymaj | `automationId`, `status` |
+| `NEWSLETTER_CUSTOM_FIELD_KEY_TAKEN` | 409 | Utworzenie pola niestandardowego o istniejącym kluczu | `key` |
+| `NEWSLETTER_EMAIL_BLOCK_CODE_TAKEN` | 409 | Utworzenie bloku e-mail o istniejącym kodzie | `blockCode` |
+| `NEWSLETTER_EMAIL_BLOCK_SYSTEM` | 422 | Usunięcie systemowego bloku e-mail | `blockId`, `blockCode` |
+| `NEWSLETTER_TAG_CODE_TAKEN` | 409 | Utworzenie tagu o istniejącym kodzie | `tagCode` |
+| `NEWSLETTER_TAG_IN_USE` | 409 | Usunięcie tagu, na który kieruje kampania lub który wyzwala automatyzację | `tagId`, `tagCode` |
+
+Do zgłoszenia #626 każda z tych odmów była odpowiedzią `VALIDATION_FAILED` z angielskim zdaniem,
+a odmowy dotyczące dostawcy wysyłki i używanego tagu niosły tokeny `details.code`
+`provider_not_configured` i `tag_in_use`, których już nie ma. Automatyzacja z nieprawidłowymi
+krokami jest nadal odrzucana przy aktywacji odpowiedzią `422 VALIDATION_FAILED` (`details.code`
+`automation_invalid` i lista `issues`), a zapis wskazujący nieznany kanał sprzedaży — odpowiedzią
+`400 VALIDATION_FAILED`: obie dotyczą samego żądania.
+
 ## Storefront
 
 Komponent formularza zapisu wielokrotnego użytku (server action, z możliwością przypisania tagu),

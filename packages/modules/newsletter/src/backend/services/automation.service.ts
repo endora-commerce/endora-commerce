@@ -107,7 +107,10 @@ export class NewsletterAutomationService {
       throw new HttpError(409, ERROR_CODES.VERSION_CONFLICT, 'Automation was modified.');
     }
     if (a.status === 'active') {
-      throw new HttpError(422, ERROR_CODES.VALIDATION_FAILED, 'Pause the automation before editing.');
+      throw new HttpError(422, ERROR_CODES.NEWSLETTER_AUTOMATION_ACTIVE, 'Pause the automation before editing.', {
+        automationId: a.id,
+        status: a.status,
+      });
     }
     if (input.name !== undefined) a.name = input.name;
     if (input.triggerType !== undefined) a.triggerType = input.triggerType;

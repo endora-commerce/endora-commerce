@@ -39,7 +39,11 @@ export class NewsletterCustomFieldService {
   async create(input: CreateNewsletterCustomFieldRequest): Promise<NewsletterCustomFieldDto> {
     const em = this.emFactory();
     const existing = await em.findOne(NewsletterCustomField, { key: input.key });
-    if (existing) throw new HttpError(409, ERROR_CODES.VALIDATION_FAILED, 'Field key already exists.');
+    if (existing) {
+      throw new HttpError(409, ERROR_CODES.NEWSLETTER_CUSTOM_FIELD_KEY_TAKEN, 'Field key already exists.', {
+        key: input.key,
+      });
+    }
     const field = em.create(NewsletterCustomField, {
       key: input.key,
       label: input.label,

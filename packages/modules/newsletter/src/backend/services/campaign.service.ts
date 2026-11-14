@@ -82,7 +82,12 @@ export class NewsletterCampaignService {
     const campaign = await this.load(em, id);
     this.assertVersion(campaign, input.expectedVersion);
     if (campaign.status !== 'draft' && campaign.status !== 'scheduled') {
-      throw new HttpError(422, ERROR_CODES.VALIDATION_FAILED, 'Only draft/scheduled campaigns can be edited.');
+      throw new HttpError(
+        422,
+        ERROR_CODES.NEWSLETTER_CAMPAIGN_NOT_EDITABLE,
+        'Only draft/scheduled campaigns can be edited.',
+        { campaignId: campaign.id, status: campaign.status },
+      );
     }
     if (input.name !== undefined) campaign.name = input.name;
     if (input.subject !== undefined) campaign.subject = input.subject;
@@ -126,9 +131,7 @@ export class NewsletterCampaignService {
     const campaign = await this.load(em, id);
     this.assertVersion(campaign, expectedVersion);
     if (!(await this.deps.isProviderConfigured())) {
-      throw new HttpError(422, ERROR_CODES.VALIDATION_FAILED, 'No sending provider configured.', {
-        code: 'provider_not_configured',
-      });
+      throw new HttpError(422, ERROR_CODES.NEWSLETTER_PROVIDER_NOT_CONFIGURED, 'No sending provider configured.');
     }
 
     const now = Date.now();
@@ -156,7 +159,12 @@ export class NewsletterCampaignService {
     const campaign = await this.load(em, id);
     this.assertVersion(campaign, expectedVersion);
     if (campaign.status !== 'scheduled' && campaign.status !== 'draft') {
-      throw new HttpError(422, ERROR_CODES.VALIDATION_FAILED, 'Only draft/scheduled campaigns can be cancelled.');
+      throw new HttpError(
+        422,
+        ERROR_CODES.NEWSLETTER_CAMPAIGN_NOT_CANCELLABLE,
+        'Only draft/scheduled campaigns can be cancelled.',
+        { campaignId: campaign.id, status: campaign.status },
+      );
     }
     campaign.status = 'cancelled';
     campaign.version += 1;

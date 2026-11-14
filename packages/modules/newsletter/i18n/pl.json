@@ -92,5 +92,14 @@
   "actions.openTags.keywords": "tagi, pola",
   "actions.openBlocks.keywords": "bloki, nagłówek, stopka",
   "actions.openProvider.keywords": "nadawca, wysyłka",
-  "settingGroups.newsletter.name": "Newsletter"
+  "settingGroups.newsletter.name": "Newsletter",
+  "errors.NEWSLETTER_AUTOMATION_ACTIVE": "Ta automatyzacja jest aktywna, więc nie można jej edytować. Wstrzymaj ją przed edycją.",
+  "errors.NEWSLETTER_CAMPAIGN_NOT_EDITABLE": "Ta kampania ma status „{status}”, więc nie można już jej edytować. Edytować można tylko kampanie w wersji roboczej i zaplanowane.",
+  "errors.NEWSLETTER_CAMPAIGN_NOT_CANCELLABLE": "Ta kampania ma status „{status}”, więc nie można już jej anulować. Anulować można tylko kampanie w wersji roboczej i zaplanowane.",
+  "errors.NEWSLETTER_PROVIDER_NOT_CONFIGURED": "Nie skonfigurowano dostawcy wysyłki, więc nie można wysłać kampanii. Najpierw skonfiguruj dostawcę wysyłki.",
+  "errors.NEWSLETTER_CUSTOM_FIELD_KEY_TAKEN": "Pole niestandardowe o kluczu „{key}” już istnieje. Wybierz inny klucz.",
+  "errors.NEWSLETTER_EMAIL_BLOCK_CODE_TAKEN": "Blok e-mail o kodzie „{blockCode}” już istnieje. Wybierz inny kod.",
+  "errors.NEWSLETTER_EMAIL_BLOCK_SYSTEM": "Blok e-mail „{blockCode}” jest blokiem systemowym, więc nie można go usunąć.",
+  "errors.NEWSLETTER_TAG_CODE_TAKEN": "Tag o kodzie „{tagCode}” już istnieje. Wybierz inny kod.",
+  "errors.NEWSLETTER_TAG_IN_USE": "Tag „{tagCode}” jest używany przez kampanię lub automatyzację, więc nie można go usunąć. Najpierw usuń go z nich."
 }

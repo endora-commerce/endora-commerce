@@ -1813,6 +1813,69 @@ export const MINTED_ERROR_CODES: MintedErrorCodes = {
       'Minted with the `forms` module (`specs/170-forms-module/`, User Story 6), which did not exist ' +
       'when the prefix chain was deleted: a form submission refused because the CAPTCHA provider could not be reached to verify it; retryable (FR-042).',
   },
+  NEWSLETTER_AUTOMATION_ACTIVE: {
+    to: 'newsletter',
+    reason:
+      'Minted by issue #626 (#86) for a `newsletter` admin refusal raised as `VALIDATION_FAILED` ' +
+      'with an English literal the envelope never replaces: ' +
+      'editing an active automation, which has to be paused first.',
+  },
+  NEWSLETTER_CAMPAIGN_NOT_EDITABLE: {
+    to: 'newsletter',
+    reason:
+      'Minted by issue #626 (#86) for a `newsletter` admin refusal raised as `VALIDATION_FAILED` ' +
+      'with an English literal the envelope never replaces: ' +
+      'editing a campaign that is no longer a draft or scheduled; the status travels in `details`.',
+  },
+  NEWSLETTER_CAMPAIGN_NOT_CANCELLABLE: {
+    to: 'newsletter',
+    reason:
+      'Minted by issue #626 (#86) for a `newsletter` admin refusal raised as `VALIDATION_FAILED` ' +
+      'with an English literal the envelope never replaces: ' +
+      'cancelling a campaign that is no longer a draft or scheduled; the status travels in `details`.',
+  },
+  NEWSLETTER_PROVIDER_NOT_CONFIGURED: {
+    to: 'newsletter',
+    reason:
+      'Minted by issue #626 (#86) for a `newsletter` admin refusal raised as `VALIDATION_FAILED` ' +
+      'with an English literal the envelope never replaces: ' +
+      'sending a campaign while no sending provider is configured. Its `provider_not_configured` token was dropped: it was the only reason under the code.',
+  },
+  NEWSLETTER_CUSTOM_FIELD_KEY_TAKEN: {
+    to: 'newsletter',
+    reason:
+      'Minted by issue #626 (#86) for a `newsletter` admin refusal raised as `VALIDATION_FAILED` ' +
+      'with an English literal the envelope never replaces: ' +
+      'a `409` duplicate custom-field key.',
+  },
+  NEWSLETTER_EMAIL_BLOCK_CODE_TAKEN: {
+    to: 'newsletter',
+    reason:
+      'Minted by issue #626 (#86) for a `newsletter` admin refusal raised as `VALIDATION_FAILED` ' +
+      'with an English literal the envelope never replaces: ' +
+      'a `409` duplicate email-block code, carried as `blockCode` because `details.code` is the token slot.',
+  },
+  NEWSLETTER_EMAIL_BLOCK_SYSTEM: {
+    to: 'newsletter',
+    reason:
+      'Minted by issue #626 (#86) for a `newsletter` admin refusal raised as `VALIDATION_FAILED` ' +
+      'with an English literal the envelope never replaces: ' +
+      'deleting a system email block.',
+  },
+  NEWSLETTER_TAG_CODE_TAKEN: {
+    to: 'newsletter',
+    reason:
+      'Minted by issue #626 (#86) for a `newsletter` admin refusal raised as `VALIDATION_FAILED` ' +
+      'with an English literal the envelope never replaces: ' +
+      'a `409` duplicate tag code, carried as `tagCode` because `details.code` is the token slot.',
+  },
+  NEWSLETTER_TAG_IN_USE: {
+    to: 'newsletter',
+    reason:
+      'Minted by issue #626 (#86) for a `newsletter` admin refusal raised as `VALIDATION_FAILED` ' +
+      'with an English literal the envelope never replaces: ' +
+      'deleting a tag a campaign or an automation references. Its `tag_in_use` token was dropped: the code says it.',
+  },
 };
 
 /**
