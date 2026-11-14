@@ -39,7 +39,9 @@ describe('Admin language CRUD', () => {
     // before deletion so the partial unique index stays satisfied.
     if (ephemeralCodes.length > 0) {
       const conn = h.em().getConnection();
-      await conn.execute('update languages set is_default = false');
+      // Only this file's own codes can have been promoted, so only they are
+      // demoted (issue #607) before the original default is put back.
+      await conn.execute('update languages set is_default = false where code in (?)', [ephemeralCodes]);
       await conn.execute('update languages set is_default = true where code = ?', [
         originalDefaultCode,
       ]);

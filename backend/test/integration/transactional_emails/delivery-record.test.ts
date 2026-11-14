@@ -62,7 +62,9 @@ describe('transactional emails — a suppressed message is recorded as suppresse
 
   afterEach(async () => {
     const em = h.em();
-    await em.nativeUpdate(TransactionalEmail, {}, { active: true });
+    // Only the e-mail this file switches off (issue #607): every other row is
+    // another file's to leave as it found it.
+    await em.nativeUpdate(TransactionalEmail, { code: ORDINARY }, { active: true });
     em.clear();
   });
 

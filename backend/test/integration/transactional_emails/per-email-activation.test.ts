@@ -63,6 +63,8 @@ function sender(mailer: InMemoryMailer, h: BackendServerHandle): TransactionalEm
 
 describe('transactional emails — per-email activation (issue #89)', () => {
   let h: BackendServerHandle;
+  /** Every code a case asked to flip, whatever the reply — `afterEach` restores exactly these. */
+  const flipped = new Set<string>();
 
   beforeAll(async () => {
     h = await setupBackendServer();
@@ -75,11 +77,17 @@ describe('transactional emails — per-email activation (issue #89)', () => {
   afterEach(async () => {
     const em = h.em();
     await em.nativeDelete(AuditLogEntry, { action: ACTION });
-    await em.nativeUpdate(TransactionalEmail, {}, { active: true });
+    // Re-activate only what this file's cases flipped (issue #607); every
+    // other row is another file's to leave as it found it.
+    if (flipped.size > 0) {
+      await em.nativeUpdate(TransactionalEmail, { code: { $in: [...flipped] } }, { active: true });
+      flipped.clear();
+    }
     em.clear();
   });
 
   async function flip(code: string, active: boolean, cookies = ADMIN) {
+    flipped.add(code);
     return h.app.inject({
       method: 'POST',
       url: `${BASE}/${code}/activation`,

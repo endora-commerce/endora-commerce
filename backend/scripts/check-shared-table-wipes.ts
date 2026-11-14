@@ -166,10 +166,6 @@ const SQL_ENTRY: ReadonlySet<string> = new Set(['execute', 'query']);
 export const UNSCOPED_WIPES_BASELINE: Readonly<Record<string, number>> = {
   'contract/carts/cart-coupon-autodrop.contract.test.ts': 1,
   'contract/carts/cart-coupon.contract.test.ts': 1,
-  // #115: demotes every currency before restoring the original default.
-  'contract/i18n/admin-currencies.test.ts': 1,
-  // #115: demotes every language before restoring the original default.
-  'contract/i18n/admin-languages.test.ts': 1,
   'contract/price_lists/display-modes.test.ts': 1,
   'contract/price_lists/pricing-resolution.test.ts': 1,
   // #115: +1, the same helper detaches every feed template from its taxonomy (`update … set "taxonomy_id" = null`).
@@ -206,8 +202,6 @@ export const UNSCOPED_WIPES_BASELINE: Readonly<Record<string, number>> = {
   'integration/email/delivery-record.test.ts': 1,
   'integration/inventory/availability-worker.test.ts': 1,
   'integration/inventory/dictionary-boundary.test.ts': 3,
-  // #115: demotes every language, inside its rolled-back transaction.
-  'integration/languages/default-channel-language-repair.test.ts': 1,
   'integration/megamenu/dictionary-boundary.test.ts': 3,
   'integration/organizations/dictionary-boundary.test.ts': 3,
   'integration/organizations/flat-behavior-preserved.test.ts': 1,
@@ -237,10 +231,6 @@ export const UNSCOPED_WIPES_BASELINE: Readonly<Record<string, number>> = {
   'integration/taxes/absent-owner-versus-configured-zero.test.ts': 5,
   'integration/taxes/dictionary-boundary.test.ts': 3,
   'integration/taxes/tax-service.test.ts': 1,
-  // #115: `nativeUpdate(TransactionalEmail, {}, …)` re-activates every e-mail after each case.
-  'integration/transactional_emails/delivery-record.test.ts': 1,
-  // #115: `nativeUpdate(TransactionalEmail, {}, …)` re-activates every e-mail after each case.
-  'integration/transactional_emails/per-email-activation.test.ts': 1,
   'unit/dictionaries/label-resolver.test.ts': 3,
   'unit/dictionaries/validator-lru-invalidation.test.ts': 3,
   'unit/dictionaries/validator-port.test.ts': 3,
