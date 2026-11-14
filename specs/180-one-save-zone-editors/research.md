@@ -1,9 +1,10 @@
 # Research: One Save for every panel on the product edit page
 
-Feature: `specs/180-product-editor-one-save/` · Issue #407 · Base: `origin/master` `2cc56ea9b` plus
-PR #1217. Each section is decision → rationale → alternatives rejected. The open questions that need
-the owner are in `spec.md` § *Open questions for the owner*; research does not decide them, it
-designs so that every recommended answer is cheap and the others remain possible.
+Feature: `specs/180-one-save-zone-editors/` (renamed from `180-product-editor-one-save`) · Issue #407 · Base: `origin/master` `2cc56ea9b` plus
+PR #1217. Each section is decision → rationale → alternatives rejected. OQ-1…OQ-8 were ruled by the owner on
+2026-11-14 (`spec.md` § *Owner rulings*); R1–R13 were written to the recommendations, which the
+owner accepted except OQ-8 (C, every editor with zone panels). R14–R21 cover the widening. The new
+questions OQ-9…OQ-11 are in `spec.md`; R18–R21 are written to their recommendations.
 
 Abbreviations: **AK** = `packages/admin-kit/src/`, **CAT** = `packages/modules/catalog/src/admin/`,
 **PL** = `packages/modules/price_lists/src/`.
@@ -189,7 +190,7 @@ The core write's `409` does not cover base prices. Adding a version is a separat
 says so (the base-price answer's `writable`, 161 G11). Without `catalog:write` the host's own part
 is absent from the run. No new permission code.
 
-## R13. Test strategy
+## R13. Test strategy (product editor; per-editor tests are in `tasks.md`)
 
 - `AK/save-session/run-save.test.ts` — the pure orchestrator: refusal writes nothing, blocking stop,
   non-blocking continue, retry writes only what is left, `stopOnFailure`.
@@ -203,3 +204,110 @@ is absent from the run. No new permission code.
 - `admin/test/modules/price_lists/product-base-prices-off.test.tsx` — off state (US5).
 - `PL/backend/routes.price-books.base-prices-dry-run.test.ts` (co-located, contract shape) and the
   existing contract test tree for the route under `backend/test/contract/price_lists/`.
+
+## R14. Every zone host, classified (finding, OQ-8 = C)
+
+**Method.** All 33 `zoneComponent(` declarations in `packages/modules/*/src/admin/index.ts` (none in
+overlays), each contribution's component and the component it delegates to, scored for writes
+(`apiClient.put|post|patch|delete`, module API clients), Save buttons, save-on-change and
+`useUnsavedChangesPrompt`; every host from `<AdminZone>` / `useAdminZone(` / `<RouteTabsZone>`.
+
+**Finding.** Panels that write a draft or save themselves:
+
+| Component (module) | Hosts | Today |
+| --- | --- | --- |
+| `ProductBasePrices` (`price_lists`) | product editor | own Save + prompt |
+| `DisplayModeOverrideRow` (`price_lists`, `src/admin/components/`) via `CategoryDisplayMode`, `OrganizationDisplayMode` | category editor, organization detail | save on select change; write not audited by design (`price-list-service.ts:151`, `command-coverage-ignore`) |
+| `DefaultPreferencesPanel` (`quick_order`) via `OrganizationDefaults`, `CustomerDefaults` | organization detail, customer detail | own Save button; `PUT /api/v1/admin/quick-order/preferences`, audited by `default-preference-service.ts` |
+| `negotiation-panel.tsx` (`quote_requests`) via `OrganizationPriceNegotiation`, `CustomerPriceNegotiation` | organization detail, customer detail | save on radio change; `routes.negotiation.ts` |
+
+Immediate list actions: `ProductChannelMembership` (`sales_channels`), `ChannelWarehouses`
+(`inventory`, sales-channel editor), `LinkedOpportunityPanel` (`crm`, order and quote-request
+detail). Read-only: `projects` and `tasks` panels, `crm` `OrganizationOpportunities`, `projects`
+`OrganizationProjects`, `invoice_ledger` `InvoiceLedgerRemoteIdPanel`, `payments` `OrderPaymentsTab`
+(reads), `settings.setting.after` previews (render the host's draft). Host-saved already:
+`category.content.editor`, `product.content.editor` (`onChange`).
+
+**Decision.** An editor adopts when one of its zone panels writes. Adopting: product editor, category
+editor, organization detail, customer detail, sales-channel editor (session only, OQ-10). The others
+are listed in `spec.md` with the reason they do not change.
+
+## R15. Host-owned sections as participants (FR-006, FR-062)
+
+**Finding.** The organization and customer screens have no host write that could act as the
+"blocking host part" the product editor has: their own sections save separately
+(`OrganizationDetail.tsx` `handlePatch` called on change, on blur and by `FulfilmentStrategyPanel`,
+`RestrictionsPanel`, `CustomFieldValuesPanel`).
+
+**Decision.** `useSaveParticipant` also works **outside** an `AdminZone`: there it takes its module
+from the provider (`SaveSessionProvider hostModule="organizations"`). Host sections that patch the
+same record are gathered into **one** host part by the host (organization: one `PATCH
+…/organizations/:id` with `expectedUpdatedAt`, blocking), so the record's version check still guards
+everything; `CustomFieldValuesPanel` gains an optional `saveSession` prop and, when given one,
+registers instead of rendering its Save (OQ-11 A).
+
+**Rejected.** *Each host section as its own participant writing its own `PATCH`*: several writes to
+one record, each racing the same `expectedUpdatedAt`; the second would always conflict.
+
+## R16. Generic Save control and summary (FR-007, Principle IX)
+
+**Finding.** The product editor extends `ProductEditorSaveAction` (catalog-owned, names the scope).
+The category editor has a form Save button; the sales-channel editor has the identity form's
+submit; organization and customer have none.
+
+**Decision.** admin-kit `./components` gains two compositions of existing primitives:
+`SaveSessionActions` (primary `b2b-btn`, count, "No unsaved changes" note, inside
+`StickyFormActions`) and `SaveSessionSummary` (`Alert` from a `SaveOutcome`, one item per part with a
+"Show" action the host supplies). `ProductEditorSaveAction` keeps its own button (scope words) and
+uses `SaveSessionSummary`; the category and sales-channel editors keep their buttons, wire them to
+`session.run` and use `SaveSessionSummary`; organization and customer use both.
+
+**UX justification for a kit component** (IX): four hosts need the same count-and-outcome
+behaviour; composing `StickyFormActions` + `Alert` in each would copy the same pluralised count, the
+same outcome wording and the same focus handling four times. Both are compositions; no new visual
+primitive.
+
+## R17. Category editor specifics
+
+**Finding.** `CategoriesTree.tsx` renders the editor as a `<form>` with Save / Cancel and **no**
+unsaved-changes prompt; `category.editor.after` is mounted after the Save row (the zone's contract
+comment says so); selecting another category replaces the form.
+
+**Decision.** Wrap the form in `SaveSessionProvider resetKey={category.id}`; the host part is the
+existing category `PATCH`; move the zone mount above the Save row (FR-052, the comment in
+`admin-contributions.ts` corrected, name unchanged — a rename would churn the closed enum and
+`check:admin-zones` for no gain); add the FR-030 guard on selecting another category and on leaving;
+Cancel discards. `DisplayModeOverrideRow` becomes a participant (draft = selected mode; validate =
+the contracts enum; save = the existing `PUT`).
+
+## R18. Organization and customer detail (OQ-9 = A, recommended)
+
+**Decision.** Each screen gets `SaveSessionProvider` (reset on record id), `SaveSessionActions` in the
+page head (sticky below 1024 px, as the product editor), `SaveSessionSummary`. Organization host part:
+status, VAT status, order-confirmation e-mails, fulfilment strategy, restrictions and custom fields
+gathered into one `PATCH` (R15). Customer host part: custom fields `PATCH`. Participants:
+`DefaultPreferencesPanel` (validate = the contracts schema of the preferences body; no dry run, the
+server adds no rule beyond it), `DisplayModeOverrideRow`, the negotiation panel (validate = its enum).
+Immediate actions stay, with "Applies immediately" on their section headings.
+
+**Rejected.** Option B of OQ-9 (panels only) and C (exclude) — see `spec.md`.
+
+## R19. One component, several hosts
+
+`DisplayModeOverrideRow`, `DefaultPreferencesPanel` and the negotiation panel render in two hosts.
+They register under a fixed local key (`display-mode`, `ordering-defaults`, `price-negotiation`);
+the id is unique per session because a session belongs to one host and one record. No change to the
+API.
+
+## R20. Validation for panels without server rules
+
+Only `price_lists` base prices have server rules beyond the request schema (R6). The other
+participants validate against their `@endora-commerce/contracts` schemas locally; adding dry runs
+there would be speculative (Principle IV). The partial-failure path (OQ-1 A) covers the rest.
+
+## R21. Sales-channel editor (OQ-10 = A, recommended)
+
+`SalesChannelEditPage.tsx` wraps the existing-channel branch in `SaveSessionProvider resetKey={
+channel.id}` and passes `saveSession` to `sales_channel.editor.after`; `ChannelIdentityForm`'s submit
+calls `session.run(hostPart)`. `ChannelWarehouses` is unchanged except for the "Applies immediately"
+badge on its heading. The create branch mounts no zone and is unchanged.

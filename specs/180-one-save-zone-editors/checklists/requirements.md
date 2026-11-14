@@ -1,8 +1,8 @@
-# Specification Quality Checklist: One Save for every panel on the product edit page
+# Specification Quality Checklist: One Save for every admin editor with zone panels
 
 **Purpose**: Validate specification completeness before planning
 **Created**: 2026-11-14
-**Feature**: `specs/180-product-editor-one-save/spec.md`
+**Feature**: `specs/180-one-save-zone-editors/spec.md`
 
 ## Content Quality
 
@@ -12,12 +12,12 @@
 
 ## Requirement Completeness
 
-- [ ] No open questions remain — **OQ-1…OQ-8 wait for the owner**; FRs follow the recommendations
+- [ ] No open questions remain — OQ-1…OQ-8 ruled 2026-11-14; **OQ-9…OQ-11 wait for the owner** (they affect WP-7, WP-8, WP-9 only)
 - [x] Requirements are testable and unambiguous
 - [x] Success criteria are measurable
 - [x] Acceptance scenarios defined for every story
 - [x] Edge cases identified
-- [x] Scope bounded (in-tree panels listed; other editors excluded pending OQ-8)
+- [x] Scope bounded (every zone host classified: adopting editors and the hosts that do not change, with reasons)
 - [x] Dependencies and assumptions identified (#1217, unversioned base-price write)
 
 ## Feature Readiness

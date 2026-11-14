@@ -3,7 +3,7 @@
 Owner: `catalog` admin (`packages/modules/catalog/src/admin/`). Extends
 `specs/174-product-editor-scope-switcher/contracts/editor-ui.md` §3 and §11 and PR #1217's
 `components/ProductEditorSaveAction.tsx`. UX floor: `.claude/skills/ux-laws/SKILL.md`.
-Requirements: FR-010…FR-035, FR-040, FR-041.
+Requirements: FR-010…FR-035, FR-080, FR-081.
 
 ## 1. Wiring
 
@@ -20,7 +20,8 @@ Requirements: FR-010…FR-035, FR-040, FR-041.
 
 ## 2. Summary
 
-Rendered in the existing form-error area, under the scope bar, as admin-kit `Alert`:
+Rendered in the existing form-error area, under the scope bar, by admin-kit `SaveSessionSummary`
+(`save-participation.md` §5), which every adopting editor uses:
 
 | Outcome | Variant | Text (en) |
 | --- | --- | --- |
@@ -53,7 +54,16 @@ The `409` "Reload (discards your unsaved changes)" also calls `session.discardAl
   the panel's existing planning (`Planned.errors`) then the dry run; `save` sends the existing
   `PUT` of the changed currencies and returns the new baseline.
 
-## 5. i18n keys
+## 5. Inventory tab (FR-025, OQ-7 = B)
+
+Stock management, backorders, low-stock threshold and its mode, fulfilment strategy become staged
+Global cells of the host's own write (the product row, which 174 FR-070 already says the Save covers);
+their Save buttons and the mode's auto-save go. Per-warehouse stock levels and thresholds keep their
+immediate actions under the section's "Applies immediately" badge. Whether the settings travel in the
+`PUT …/scoped-values` request or in a second, blocking host write is decided in WP-4 by what the
+scoped-values contract can carry without a breaking change; either way they are inside the host part.
+
+## 6. i18n keys
 
 - `core` (`packages/modules/_i18n/i18n/{en,pl}.json`): `saveSession.summary.refused`,
   `saveSession.summary.partial`, `saveSession.summary.saved`, `saveSession.summary.notSaved`,

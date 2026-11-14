@@ -2,7 +2,7 @@
 
 Owner: `@endora-commerce/admin-kit` (implementation, `packages/admin-kit/src/save-session/`, exported
 from `./lib`) and `@endora-commerce/contracts` (the handle type, in `src/admin-contributions.ts`).
-Decisions: `research.md` R2–R5, R8. Requirements: FR-001…FR-005, FR-034.
+Decisions: `research.md` R2–R5, R8. Requirements: FR-001…FR-007, FR-034, FR-062. Widened by OQ-8 = C (research R14–R21).
 
 ## 1. The handle in the zone contract (contracts)
 
@@ -23,6 +23,11 @@ export interface ProductEditorFieldZoneProps {
   readonly saveSession: EditorSaveSessionHandle;
 }
 ```
+
+The same `saveSession` prop is added to the props of every zone an adopting editor mounts:
+`CategoryEditorZoneProps`, `OrganizationDetailZoneProps`, `CustomerDetailZoneProps`,
+`SalesChannelEditorZoneProps`. Zones of hosts that do not adopt (`spec.md` § *Zone hosts that do not
+change*) get no handle, so a contribution there cannot take part (FR-002).
 
 `ProductEditorSeoZoneProps` is unchanged: SEO stays in the host's own write (FR-023).
 The handle carries no functions in its public type; admin-kit resolves it to the live session
@@ -63,8 +68,10 @@ export function useSaveParticipant<D>(
 
 Rules:
 
-- `key` is local to the module; the id is `${module}:${key}`, `module` read from the zone context
-  `AdminZone` provides (R8). Called outside an `AdminZone`, the hook throws a developer error.
+- `key` is local to the module; the id is `${module}:${key}`. Inside an `AdminZone`, `module` is read
+  from the zone context `AdminZone` provides (R8). Outside one — a **host-owned section** (FR-006,
+  R15) — it is the provider's `hostModule`. A provider without `hostModule` refuses host-owned
+  registration with a developer error.
 - `loaded` seeds baseline and draft **only when the session has no dirty entry for the id**; a
   remount with a dirty entry shows the kept draft (FR-003).
 - A save error a handler throws as `ApiError` with `details.fields` is mapped to `issues.fields`;
@@ -75,7 +82,7 @@ Rules:
 ## 3. Host side
 
 ```ts
-export function SaveSessionProvider(props: { resetKey: string; children: ReactNode }): ReactNode;
+export function SaveSessionProvider(props: { resetKey: string; hostModule?: string; children: ReactNode }): ReactNode;
 
 export function useSaveSession(): {
   handle: EditorSaveSessionHandle;
@@ -110,7 +117,28 @@ Changing `resetKey` (the editor scope key, OQ-4 A) clears every entry.
    continue.
 3. Outcome `saved` when every part saved.
 
-## 5. Stability and checks
+## 5. Generic controls (`./components`, FR-007, research R16)
+
+```ts
+export function SaveSessionActions(props: {
+  hostCount: number;            // the host part's own unsaved changes
+  canSave: boolean;             // FR-035: host writable or any participant writable
+  saving: boolean;
+  onSave(): void;
+  describedBy?: string;
+}): ReactNode;                  // StickyFormActions + primary button "Save" / "Save n changes" + note
+
+export function SaveSessionSummary(props: {
+  outcome: SaveOutcome | null;
+  notices: readonly string[];
+  onShow(partId: string): void; // the host moves to the part (tab, section) and focuses its first error
+}): ReactNode;                  // Alert per contracts/product-editor-save-ui.md §2
+```
+
+`CustomFieldValuesPanel` gains an optional `saveSession?: EditorSaveSessionHandle`; with one it
+registers as a host-owned section and renders no Save; without one it is unchanged (FR-062).
+
+## 6. Stability and checks
 
 - Exports are named in `packages/admin-kit/src/lib/index.ts` explicitly (no `export *`).
 - No zone name is added or removed, so `check:admin-zones` is unaffected; the props map change is
