@@ -740,12 +740,16 @@ export class CatalogAdminService {
       // Feature 025 — SKUs share a global namespace with variants (see createVariant).
       const holder = await findSkuHolder(em, product.id, trimmed);
       if (holder) {
+        // Issue #624 (#86) — create's code and status for the same refusal;
+        // the token says which kind of row holds the SKU. The SKU travels as
+        // `sku`: `details.code` is the envelope's token slot.
         throw new HttpError(
-          400,
-          ERROR_CODES.VALIDATION_FAILED,
+          409,
+          ERROR_CODES.SKU_ALREADY_EXISTS,
+          `SKU "${trimmed}" is already used by another ${'productId' in holder ? 'product' : 'variant'}.`,
           'productId' in holder
-            ? `sku_in_use { conflictingProductId: ${holder.productId}, conflictingSku: ${trimmed} }`
-            : `sku_in_use { conflictingVariantId: ${holder.variantId}, conflictingSku: ${trimmed} }`,
+            ? { code: 'held_by_product', sku: trimmed, conflictingProductId: holder.productId }
+            : { code: 'held_by_variant', sku: trimmed, conflictingVariantId: holder.variantId },
         );
       }
       product.sku = trimmed;
@@ -2215,10 +2219,13 @@ export class CatalogAdminService {
       );
     }
     if (parent.type !== 'configurable') {
+      // Issue #624 (#86) — the stored product type refuses it: the module's
+      // type-mismatch code, the token naming the rule.
       throw new HttpError(
         400,
-        ERROR_CODES.VALIDATION_FAILED,
+        ERROR_CODES.PRODUCT_TYPE_MISMATCH,
         `Variants can only be added to configurable Products; this Product is ${parent.type}.`,
+        { code: 'variants_need_configurable', productId: parentProductId, productType: parent.type },
       );
     }
     // SKU uniqueness MUST hold across both products and variants — among live
@@ -2438,10 +2445,14 @@ export class CatalogAdminService {
       mergedAttributeValues,
     );
     if (missing.length > 0) {
+      // Issue #624 (#86) — "required" is the attribute's configuration, and the
+      // values are the stored ones merged with the patch: a refusal of its own.
+      // The keys travel joined, because only a scalar fills a placeholder.
       throw new HttpError(
         400,
-        ERROR_CODES.VALIDATION_FAILED,
-        `missing_required_attribute_values: ${missing.join(', ')}`,
+        ERROR_CODES.ATTRIBUTE_VALUES_REQUIRED,
+        `Required attributes have no value: ${missing.join(', ')}.`,
+        { attributeKeys: missing.join(', ') },
       );
     }
   }
@@ -2554,9 +2565,11 @@ export class CatalogAdminService {
 /**
  * Feature 155 (FR-001, threat F5, D5) — a pieces minimum is an integer in
  * 1…1 000 000 and only a `simple` or `configurable` product may carry one;
- * `null` (clear) and an absent key are always allowed. Refused
- * `422 VALIDATION_FAILED` with `details.field`, the answer an in-process caller
- * gets where no route schema stood in front of it.
+ * `null` (clear) and an absent key are always allowed. Refused with
+ * `details.field`, the answer an in-process caller gets where no route schema
+ * stood in front of it: a value out of range is `422 VALIDATION_FAILED`, a type
+ * that takes no minimum `422 MIN_ORDER_QUANTITY_NOT_SUPPORTED_FOR_TYPE` (issue
+ * #624, #86 — the product's type refuses it, not the value).
  */
 function assertOrderMinimumAllowed(type: string, value: number | null | undefined): void {
   if (value === undefined || value === null) return;
@@ -2571,9 +2584,9 @@ function assertOrderMinimumAllowed(type: string, value: number | null | undefine
   if (!isOrderMinimumEligibleType(type)) {
     throw new HttpError(
       422,
-      ERROR_CODES.VALIDATION_FAILED,
+      ERROR_CODES.MIN_ORDER_QUANTITY_NOT_SUPPORTED_FOR_TYPE,
       `A minimum order quantity applies to simple or configurable products only; got "${type}".`,
-      { field: 'minOrderQuantity' },
+      { field: 'minOrderQuantity', productType: type },
     );
   }
 }

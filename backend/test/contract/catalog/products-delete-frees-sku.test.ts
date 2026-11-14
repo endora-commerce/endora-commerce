@@ -133,7 +133,9 @@ describe('Issue #693 — a deleted product frees its SKU', () => {
       payload: { sku: 'I693-VAR-1' },
       cookies: adminCookie,
     });
-    expect(refused.statusCode).toBe(400);
+    // `409 SKU_ALREADY_EXISTS` on the rename too since issue #624 (it was `400 sku_in_use`).
+    expect(refused.statusCode).toBe(409);
+    expect((refused.json() as { error: { code: string } }).error.code).toBe('SKU_ALREADY_EXISTS');
     expect(await createVariant(other.id, 'I693-VAR-1')).toBe(409);
   });
 

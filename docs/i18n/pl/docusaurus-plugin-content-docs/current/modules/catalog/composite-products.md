@@ -70,7 +70,9 @@ Odmowy na poziomie HTTP (400 `PRODUCT_TYPE_MISMATCH`, gdy produkt nie jest zesta
 
 | Kod | Status | Kiedy |
 | --- | --- | --- |
-| `PRODUCT_TYPE_MISMATCH` | 400 | Wywołanie endpointów grouped/bundle dla produktu nadrzędnego innego typu |
+| `PRODUCT_TYPE_MISMATCH` | 400 | Wywołanie endpointów grouped/bundle dla produktu nadrzędnego innego typu; dodanie wariantu do produktu, który nie jest konfigurowalny (token `variants_need_configurable`, `details.productId`, `productType`) |
+| `SELF_LINK_NOT_ALLOWED` | 400 | Produkt grupowy wskazuje sam siebie jako element (token `grouped`, `details.productId`) |
+| `GROUPED_ITEM_ALREADY_EXISTS` | 409 | Ten produkt jest już w grupie (`details.parentProductId`, `childProductId`, `childSku`) |
 | `NESTED_COMPOSITE_NOT_ALLOWED` | 400 | Produkt podrzędny albo opcja sam jest typu grouped lub bundle |
 | `INVALID_QUANTITY_RANGE` | 400 | W slocie `minQuantity > maxQuantity` |
 | `OPTION_ALREADY_EXISTS` | 409 | Ten sam produkt użyty ponownie jako opcja w slocie |

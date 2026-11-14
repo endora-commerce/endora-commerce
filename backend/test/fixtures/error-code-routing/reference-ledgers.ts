@@ -1752,6 +1752,76 @@ export const MINTED_ERROR_CODES: MintedErrorCodes = {
       'a product URL redirect, a `catalog` row; `NOT_FOUND` is not reused because the admin ' +
       'needs to tell this apart from the product itself being gone.',
   },
+  ATTRIBUTE_KEY_TAKEN: {
+    to: 'catalog',
+    reason:
+      "Minted by issue #624 (#86) for an attribute created with a key another attribute has. It was `409 VALIDATION_FAILED` reading `Attribute key \"<key>\" already exists.`; the key travels as `details.attributeKey`.",
+  },
+  ATTRIBUTE_VALUE_TYPE_LOCKED: {
+    to: 'catalog',
+    reason:
+      "Minted by issue #624 (#86) for an attribute whose value type is changed while products hold values for it (the custom-fields `value_type_locked` failure). It was `409 VALIDATION_FAILED` with the custom-fields message.",
+  },
+  ATTRIBUTE_IN_USE: {
+    to: 'catalog',
+    reason:
+      "Minted by issue #624 (#86) for deleting an attribute an attribute set contains (token `attribute_sets`, `attributeSetCount`) or products hold values of (token `products`, `productCount`). It was `409 VALIDATION_FAILED` reading `Attribute is still referenced by N \u2026`.",
+  },
+  ATTRIBUTE_OPTION_VALUE_TAKEN: {
+    to: 'catalog',
+    reason:
+      "Minted by issue #624 (#86) for an option created with a value the attribute's stored options already have (`duplicate_value`). It was `409 VALIDATION_FAILED` with the validator's message.",
+  },
+  ATTRIBUTE_DEFAULT_OPTION_TAKEN: {
+    to: 'catalog',
+    reason:
+      "Minted by issue #624 (#86) for a second default option on a single-choice attribute, on create (`409`) and on making an option the default (`400` before, `409` now). It was `VALIDATION_FAILED` with the validator's message.",
+  },
+  ATTRIBUTE_OPTIONS_NOT_SUPPORTED: {
+    to: 'catalog',
+    reason:
+      "Minted by issue #624 (#86) for an option written to an attribute whose stored type takes none (`attribute_type_unsupported`). It was `400 VALIDATION_FAILED`; options in a create request stay validation.",
+  },
+  ATTRIBUTE_OPTION_IN_USE: {
+    to: 'catalog',
+    reason:
+      "Minted by issue #624 (#86) for deleting an option products carry (token `products` with `productCount` from catalog's own count; without a token from the custom-fields probe). It was `409 VALIDATION_FAILED` reading `option_in_use: N product(s) \u2026`.",
+  },
+  ATTRIBUTE_SLIDER_NOT_SUPPORTED: {
+    to: 'catalog',
+    reason:
+      "Minted by issue #624 (#86) for `displayAsSlider` turned on for an attribute whose **stored** type is not numeric. It was `400 VALIDATION_FAILED`; on create, where the request names the type, it stays validation.",
+  },
+  ATTRIBUTE_VALUES_REQUIRED: {
+    to: 'catalog',
+    reason:
+      "Minted by issue #624 (#86) for a product save that leaves the set's required attributes without a value, judged on the stored values merged with the patch. It was `400 VALIDATION_FAILED` reading `missing_required_attribute_values: <keys>`; the keys travel joined as `details.attributeKeys`.",
+  },
+  MIN_ORDER_QUANTITY_NOT_SUPPORTED_FOR_TYPE: {
+    to: 'catalog',
+    reason:
+      "Minted by issue #624 (#86) for a minimum order quantity on a product type that takes none, on the product and per channel. It was `422 VALIDATION_FAILED` with `details.field` `minOrderQuantity`, which it keeps; a value out of range stays validation.",
+  },
+  CATEGORY_SLUG_TAKEN: {
+    to: 'catalog',
+    reason:
+      "Minted by issue #624 (#86) for a category created or renamed onto a slug a sibling holds. It was `409 VALIDATION_FAILED` with an English literal at both raise sites of `category-admin.service.ts`.",
+  },
+  CATEGORY_HAS_CHILDREN: {
+    to: 'catalog',
+    reason:
+      "Minted by issue #624 (#86) for deleting a category that still has subcategories. It was `409 VALIDATION_FAILED` reading `Cannot delete: N child category(ies) \u2026`; `BLOG_CATEGORY_HAS_CHILDREN` is the `blog` module's own.",
+  },
+  CATEGORY_MOVE_CYCLE: {
+    to: 'catalog',
+    reason:
+      "Minted by issue #624 (#86) for moving a category beneath one of its own descendants. It was `409 VALIDATION_FAILED` with an English literal.",
+  },
+  GROUPED_ITEM_ALREADY_EXISTS: {
+    to: 'catalog',
+    reason:
+      "Minted by issue #624 (#86) for adding a child a grouped product already contains. It was `409 VALIDATION_FAILED` naming the child's id; the sentence names its SKU.",
+  },
   DICTIONARY_ENTRY_CODE_TAKEN: {
     to: 'dictionaries',
     reason:

@@ -593,12 +593,25 @@ export const manifest = defineModuleManifest({
     { code: 'ATTACHMENT_TYPE_CODE_TAKEN' },
     { code: 'ATTACHMENT_TYPE_IN_USE' },
     { code: 'ATTACHMENT_TYPE_NOT_FOUND' },
+    // Issue #624 (#86) — the attribute and option refusals the stored state
+    // makes, which were `VALIDATION_FAILED`. The in-use refusals name what
+    // still uses the attribute or option through their tokens.
+    { code: 'ATTRIBUTE_DEFAULT_OPTION_TAKEN' },
+    { code: 'ATTRIBUTE_IN_USE', tokens: ['attribute_sets', 'products'] },
+    { code: 'ATTRIBUTE_KEY_TAKEN' },
     { code: 'ATTRIBUTE_NOT_FOUND' },
     { code: 'ATTRIBUTE_NOT_MASS_EDITABLE' },
+    { code: 'ATTRIBUTE_OPTION_IN_USE', tokens: ['products'] },
+    { code: 'ATTRIBUTE_OPTION_VALUE_TAKEN' },
+    { code: 'ATTRIBUTE_OPTIONS_NOT_SUPPORTED' },
     { code: 'ATTRIBUTE_SET_CODE_TAKEN' },
     { code: 'ATTRIBUTE_SET_IN_USE' },
     { code: 'ATTRIBUTE_SET_NOT_FOUND' },
+    // Issue #624 (#86).
+    { code: 'ATTRIBUTE_SLIDER_NOT_SUPPORTED' },
     { code: 'ATTRIBUTE_VALUE_REJECTED' },
+    { code: 'ATTRIBUTE_VALUE_TYPE_LOCKED' },
+    { code: 'ATTRIBUTE_VALUES_REQUIRED' },
     // Issue #501 — the three reasons an undo of a bulk operation is refused.
     { code: 'BULK_OPERATION_ALREADY_REVERTED' },
     { code: 'BULK_OPERATION_NOT_REVERSIBLE' },
@@ -606,6 +619,10 @@ export const manifest = defineModuleManifest({
     { code: 'BULK_TOO_LARGE' },
     { code: 'BUNDLE_SLOT_NOT_FOUND' },
     { code: 'BUNDLE_SLOT_OPTION_NOT_FOUND' },
+    // Issue #624 (#86) — the category refusals, which were `VALIDATION_FAILED`.
+    { code: 'CATEGORY_HAS_CHILDREN' },
+    { code: 'CATEGORY_MOVE_CYCLE' },
+    { code: 'CATEGORY_SLUG_TAKEN' },
     { code: 'FIELD_IMMUTABLE' },
     { code: 'FIELD_NOT_AT_SCOPE' },
     { code: 'FILTER_NOT_ALLOWED' },
@@ -613,11 +630,15 @@ export const manifest = defineModuleManifest({
     { code: 'GALLERY_LABEL_ALREADY_TAKEN' },
     { code: 'GALLERY_LABEL_LIMIT_EXCEEDED' },
     { code: 'GLOBAL_ONLY_FIELD' },
+    // Issue #624 (#86).
+    { code: 'GROUPED_ITEM_ALREADY_EXISTS' },
     { code: 'GROUPED_ITEM_NOT_FOUND' },
     { code: 'INVALID_QUANTITY_RANGE' },
     { code: 'LINK_ALREADY_EXISTS' },
     { code: 'MAX_EXCEEDED' },
     { code: 'MIN_NOT_MET' },
+    // Issue #624 (#86) — a minimum on a product type that takes none.
+    { code: 'MIN_ORDER_QUANTITY_NOT_SUPPORTED_FOR_TYPE' },
     { code: 'NESTED_COMPOSITE_NOT_ALLOWED' },
     { code: 'OPTION_ALREADY_EXISTS' },
     { code: 'PACKAGING_UNIT_BELOW_MINIMUM_QUANTITY' },
@@ -642,14 +663,19 @@ export const manifest = defineModuleManifest({
     { code: 'PRODUCT_NOT_FOUND' },
     { code: 'PRODUCT_NOT_IN_COMPARISON' },
     { code: 'PRODUCT_SAVED_VIEW_NAME_TAKEN' },
-    { code: 'PRODUCT_TYPE_MISMATCH' },
+    // Issue #624 (#86) — a variant for a product that is not configurable is
+    // refused under this code, its token choosing the sentence.
+    { code: 'PRODUCT_TYPE_MISMATCH', tokens: ['variants_need_configurable'] },
     { code: 'PRODUCT_UNMANAGED_STOCK' },
     { code: 'SCOPE_INCOMPLETE' },
     { code: 'SCOPE_INVALID' },
     { code: 'SCOPED_VALUE_INVALID' },
     { code: 'SELECTION_TOO_LARGE' },
-    { code: 'SELF_LINK_NOT_ALLOWED' },
-    { code: 'SKU_ALREADY_EXISTS' },
+    // Issue #624 (#86) — a grouped product naming itself as a child, and a
+    // SKU rename onto a SKU a product or a variant holds (was `400
+    // VALIDATION_FAILED` `sku_in_use`), take these codes with a token.
+    { code: 'SELF_LINK_NOT_ALLOWED', tokens: ['grouped'] },
+    { code: 'SKU_ALREADY_EXISTS', tokens: ['held_by_product', 'held_by_variant'] },
     { code: 'SKU_NOT_IN_ASSORTMENT' },
     { code: 'SYSTEM_ATTRIBUTE_SET_IMMUTABLE' },
     { code: 'TARGET_PRODUCT_NOT_FOUND' },

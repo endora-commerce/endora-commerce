@@ -806,7 +806,7 @@ const baseProductRequestObject = z.object({
   fulfilmentStrategyWarehouseOrder: z.array(uuidSchema).nullable().optional(),
   /**
    * Feature 155 — pieces minimum; `null` clears. Simple / configurable only (else
-   * 422 VALIDATION_FAILED, `details.field`, from the service).
+   * 422 MIN_ORDER_QUANTITY_NOT_SUPPORTED_FOR_TYPE, `details.field`, from the service).
    */
   minOrderQuantity: z.number().int().min(1).max(ORDER_MINIMUM_MAX).nullable().optional(),
   /** Feature 155 — may `return`-kind cases include this product? Every type. */
@@ -830,7 +830,8 @@ export type CreateProductRequest = z.infer<typeof createProductRequestSchema>;
 
 // `type` is immutable after creation (409 FIELD_IMMUTABLE if sent).
 // Feature 012 / FR-016 — `sku` is now editable. Collision with another
-// product's SKU is refused with 400 sku_in_use; snapshot tables on
+// product's or variant's SKU is refused with 409 SKU_ALREADY_EXISTS (tokens
+// `held_by_product` / `held_by_variant`, issue #624); snapshot tables on
 // orders / quote-requests / invoices keep displaying the SKU value
 // frozen at snapshot time.
 export const updateProductRequestSchema = baseProductRequestObject

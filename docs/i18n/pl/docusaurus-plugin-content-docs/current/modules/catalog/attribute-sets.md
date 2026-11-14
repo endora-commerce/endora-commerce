@@ -38,6 +38,7 @@ używany jest systemowy zestaw Default.
 | `ATTRIBUTE_SET_CODE_TAKEN` | 409 | `code` już istnieje |
 | `ATTRIBUTE_SET_IN_USE` | 409 | Usunięcie zablokowane: zestawu używa co najmniej jeden produkt |
 | `SYSTEM_ATTRIBUTE_SET_IMMUTABLE` | 409 | Próba zmiany zestawu Default utworzonego przy instalacji |
+| `ATTRIBUTE_VALUES_REQUIRED` | 400 | Zapis produktu zostawia bez wartości atrybuty wymagane przez zestaw (`details.attributeKeys`, połączone) |
 | `ATTRIBUTE_SET_NOT_FOUND` | 404 | Brak `:id` |
 | `ATTRIBUTE_NOT_FOUND` | 404 | Brak `:key` przy przypisaniu |
 
