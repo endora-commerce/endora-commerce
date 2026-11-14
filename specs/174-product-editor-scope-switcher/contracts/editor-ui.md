@@ -34,7 +34,7 @@ earlier section differ, §11 wins.
 
 - `scoped-editor-store.ts`: `{ scope, view, staged: Map<FieldPath, ScopedWriteOp> }`, reducer + context; staged
   changes belong to the current scope and survive tab switches.
-- One **Save** in the header (`StickyFormActions`), enabled when `staged.size > 0` and `catalog:write`. It sends
+- One **Save** in the scope bar's action slot (`StickyFormActions`; issue #717 moved it there from the page head, so at ≥ 1024 px it is sticky with the scope bar), enabled when `staged.size > 0` and `catalog:write`. It sends
   `PUT …/scoped-values` (`scoped-values-api.md` §3); on success the view is replaced by the response and `staged`
   cleared; on failure every staged change stays and each field shows its error (`aria-invalid`,
   `aria-describedby`); `SCOPE_INCOMPLETE` lists per (C, L) pair; `409` → "This product was changed elsewhere.
@@ -151,7 +151,7 @@ Prototype: <https://claude.ai/artifact/6NSyfVSv3q4haqokHCCiU4>. Binding for S3; 
   line, empty-value meaning, "Set per channel" reason, missing marker, error, derived SEO value, "Save first to copy")
   sits **below** the control.
 - Scope-bar selects are top-aligned. The multiselect (gallery roles) has the input height (36 px).
-- The scope bar is sticky at ≥ 1024 px only; below it Save sits in the bottom bar (`StickyFormActions`).
+- The scope bar is sticky at ≥ 1024 px only, and holds Save there, last in its row and keyboard order (issue #717); below it the same Save node is the bottom bar (`StickyFormActions`), so there is one Save at every width.
 - Duplicate, Archive / Restore and Delete live in a "Product" menu captioned "Whole product — applies to every
   scope" (FR-084); Save is the one primary button.
 - Touch targets are ≥ 44 px below 1024 px.
