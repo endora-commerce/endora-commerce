@@ -274,10 +274,31 @@ export const ChannelMemberEntityTypeSchema = z.enum([
 ]);
 export type ChannelMemberEntityType = z.infer<typeof ChannelMemberEntityTypeSchema>;
 
-/** `GET /api/v1/admin/sales-channels/{code}/{entityType}` — list members. */
+/** `GET /api/v1/admin/sales-channels/{code}/{entityType}` — the ids of one entity type's members of a channel, paginated (`page` is 0-based). */
+export const ChannelMemberIdListResponseSchema = z.object({
+  salesChannelCode: SalesChannelCodeSchema,
+  entityType: ChannelMemberEntityTypeSchema,
+  entityIds: z.array(uuidSchema),
+  page: z.number().int().nonnegative(),
+  pageSize: z.number().int().positive(),
+  total: z.number().int().nonnegative(),
+});
+export type ChannelMemberIdListResponse = z.infer<typeof ChannelMemberIdListResponseSchema>;
+
+/**
+ * A `{ channels }` list of channel summaries. No route answers this shape; the
+ * entity-side list is {@link EntityMembershipListResponseSchema}.
+ *
+ * @deprecated Since issue #1160 — it never described the route it names: that route answers
+ * {@link ChannelMemberIdListResponseSchema}. Kept for one minor release, then removed (issue #1162).
+ */
 export const ChannelMembershipListResponseSchema = z.object({
   channels: z.array(SalesChannelSummarySchema),
 });
+/**
+ * @deprecated Since issue #1160 — it never described the route it names: that route answers
+ * {@link ChannelMemberIdListResponse}. Kept for one minor release, then removed (issue #1162).
+ */
 export type ChannelMembershipListResponse = z.infer<
   typeof ChannelMembershipListResponseSchema
 >;

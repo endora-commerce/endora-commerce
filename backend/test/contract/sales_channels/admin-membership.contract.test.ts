@@ -1,5 +1,9 @@
 import { afterAll, beforeAll, beforeEach, describe, expect, it } from 'vitest';
-import { ERROR_CODES, EntityMembershipListResponseSchema } from '@endora-commerce/contracts';
+import {
+  ChannelMemberIdListResponseSchema,
+  ERROR_CODES,
+  EntityMembershipListResponseSchema,
+} from '@endora-commerce/contracts';
 import { randomUUID } from 'crypto';
 import {
   setupBackendServer,
@@ -12,6 +16,8 @@ import { deepStrict, disagreements } from '../../helpers/strict-schema.js';
 
 /** A key the entity-side list carries that the contract does not declare fails (issue #599 §6). */
 const strictEntitySide = deepStrict(EntityMembershipListResponseSchema);
+/** The channel-side list of member ids, parsed just as strictly (issue #1160). */
+const strictChannelSide = deepStrict(ChannelMemberIdListResponseSchema);
 
 /**
  * Phase 5b — Bidirectional membership HTTP contract.
@@ -108,6 +114,14 @@ describe('admin membership routes (Phase 5b)', () => {
     });
     expect(channelSide.statusCode).toBe(200);
     expect((channelSide.json() as { entityIds: string[] }).entityIds).toContain(product.id);
+    expect(disagreements(strictChannelSide, channelSide.json())).toEqual([]);
+    expect(channelSide.json()).toMatchObject({
+      salesChannelCode: channel.code,
+      entityType: 'product',
+      page: 0,
+      pageSize: 100,
+      total: 1,
+    });
 
     // Entity-side list returns the channel.
     const entitySide = await h.app.inject({
@@ -121,6 +135,33 @@ describe('admin membership routes (Phase 5b)', () => {
     );
     expect(codes).toContain(channel.code);
     expect(disagreements(strictEntitySide, entitySide.json())).toEqual([]);
+  });
+
+  it('GET channel-side list echoes ?page=&pageSize= (issue #1160)', async () => {
+    const channel = await createChannel('p5b-page');
+    for (const slug of ['5b-page-a', '5b-page-b', '5b-page-c']) {
+      const product = await createProduct(slug);
+      const put = await h.app.inject({
+        method: 'PUT',
+        url: `/api/v1/admin/sales-channels/${channel.code}/product/${product.id}`,
+        cookies: adminCookie,
+        payload: {},
+      });
+      expect(put.statusCode).toBe(201);
+    }
+
+    const r = await h.app.inject({
+      method: 'GET',
+      url: `/api/v1/admin/sales-channels/${channel.code}/product?page=1&pageSize=2`,
+      cookies: adminCookie,
+    });
+    expect(r.statusCode).toBe(200);
+    expect(disagreements(strictChannelSide, r.json())).toEqual([]);
+    const body = ChannelMemberIdListResponseSchema.parse(r.json());
+    expect(body.page).toBe(1);
+    expect(body.pageSize).toBe(2);
+    expect(body.total).toBe(3);
+    expect(body.entityIds).toHaveLength(1);
   });
 
   it('DELETE refuses last-channel removal without fallbackToDefault', async () => {
