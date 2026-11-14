@@ -89,10 +89,15 @@ describe('crm attachments (contract)', () => {
 
     it('refuses a file that is not in the library, and one that is not private — 422', async () => {
       const open = await asset({ visibility: 'public' });
-      for (const assetId of [MISSING, open.id]) {
+      // A file that names nothing is validation; a public one is refused by its
+      // visibility, under its own code (issue #639).
+      for (const [assetId, code] of [
+        [MISSING, 'VALIDATION_FAILED'],
+        [open.id, 'CRM_ATTACHMENT_NOT_PRIVATE'],
+      ] as const) {
         const response = await call('POST', `/opportunities/${opportunityId}/attachments`, { assetId });
         expect(response.statusCode, `${assetId} ${response.body}`).toBe(422);
-        expect(response.json().error.code).toBe('VALIDATION_FAILED');
+        expect(response.json().error.code).toBe(code);
       }
     });
 

@@ -874,7 +874,7 @@ Osoba, która może tylko czytać, widzi listę i przyciski pobierania.
 | --- | --- | --- |
 | `GET /api/v1/admin/crm/opportunities/:id/attachments` | `crm:read` | Załączniki, od najstarszego: nazwa pliku, typ, rozmiar, kto załączył oraz `url`. |
 | `POST /api/v1/admin/crm/opportunities/:id/attachments/upload` | `crm:write` | Przesłanie pliku i załączenie go: `multipart/form-data` z jedną częścią `file`. |
-| `POST /api/v1/admin/crm/opportunities/:id/attachments` | `crm:write` i `assets.read` | Załączenie pliku, który już jest w bibliotece mediów jako prywatny: `{ "assetId" }`. |
+| `POST /api/v1/admin/crm/opportunities/:id/attachments` | `crm:write` i `assets.read` | Załączenie pliku, który już jest w bibliotece mediów jako prywatny: `{ "assetId" }`. Plik publiczny daje `422` `CRM_ATTACHMENT_NOT_PRIVATE` (`details`: `assetId`, `visibility`; do zgłoszenia #639 `VALIDATION_FAILED`); plik, którego nie ma w bibliotece albo którego wywołujący nie może widzieć, daje `422` `VALIDATION_FAILED`. |
 | `DELETE /api/v1/admin/crm/opportunities/:id/attachments/:attachmentId` | `crm:write` | Usunięcie załącznika. Plik zostaje w bibliotece mediów. |
 
 Odpowiedzią na przesłanie pliku jest nowy załącznik. Dla pliku większego niż
